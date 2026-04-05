@@ -361,27 +361,37 @@ int main(int argc, char** argv){
     action_mat._data = action_data;
 
     // =====================================================================
-    // Episode loop
+    // Noise sweep
     // =====================================================================
-    std::cout << "Starting inference" << std::endl;
-    std::cout << "  Episodes: " << config.num_episodes << std::endl;
+    std::cout << "Starting noise sweep" << std::endl;
+    std::cout << "  Episodes per noise level: " << config.num_episodes << std::endl;
     std::cout << "  Seed: " << config.seed << std::endl;
-    std::cout << "  TOTAL_INPUT_DIM: " << TOTAL_INPUT_DIM << std::endl;
-    std::cout << "  STATE_OBS_DIM: " << STATE_OBS_DIM << std::endl;
-    std::cout << "  STACKED_OBS_DIM: " << STACKED_OBS_DIM << std::endl;
-    std::cout << "  FRAME_STACK_N: " << FRAME_STACK_N << std::endl;
-    std::cout << "  FRAME_STACK_STRIDE: " << FRAME_STACK_STRIDE << std::endl;
+
+    T noise_levels[] = {0.0, 0.01, 0.02, 0.05, 0.1, 0.15, 0.2, 0.3, 0.5, 1.0};
+    constexpr TI NUM_NOISE_LEVELS = sizeof(noise_levels) / sizeof(noise_levels[0]);
+
+    std::cout << std::endl;
+    std::cout << std::setw(12) << "noise_std" << std::setw(14) << "mean_length" << std::setw(14) << "survival" << std::endl;
+    std::cout << std::string(40, '-') << std::endl;
 
     TI global_step = 0;
+
+    for(TI noise_i = 0; noise_i < NUM_NOISE_LEVELS; noise_i++){
+    config.gaussian_noise_std = noise_levels[noise_i];
+
+    RNG sweep_rng;
+    rlt::malloc(device, sweep_rng);
+    rlt::init(device, sweep_rng, config.seed);
+
     std::vector<TI> episode_lengths;
     std::vector<bool> episode_terminated;
 
     for(TI episode_i = 0; episode_i < config.num_episodes; episode_i++){
         auto episode_start = std::chrono::high_resolution_clock::now();
 
-        rlt::sample_initial_parameters(device, env, env_parameters, rng);
+        rlt::sample_initial_parameters(device, env, env_parameters, sweep_rng);
         typename ENVIRONMENT::State state;
-        rlt::sample_initial_state(device, env, env_parameters, state, rng);
+        rlt::sample_initial_state(device, env, env_parameters, state, sweep_rng);
 
         std::fill(frame_history.begin(), frame_history.end(), 0.0f);
 
@@ -406,7 +416,7 @@ int main(int argc, char** argv){
         bool terminated = false;
         for(; step_i < EPISODE_STEP_LIMIT && !terminated; step_i++){
             // State observation
-            rlt::observe(device, env.dynamics, env_parameters.dynamics, state, ACTOR_STATE_OBS{}, state_obs_mat, rng);
+            rlt::observe(device, env.dynamics, env_parameters.dynamics, state, ACTOR_STATE_OBS{}, state_obs_mat, sweep_rng);
 
             // Render
             auto camera = rlt::rl::environments::l2f_visual::make_camera_for_state(device, env, env_parameters, state);
@@ -434,7 +444,7 @@ int main(int argc, char** argv){
             }
             if(config.gaussian_noise_std > 0.0f){
                 for(TI i = 0; i < OBS_DIM_SINGLE; i++){
-                    T noise = rlt::random::normal_distribution::sample(device.random, (T)0, config.gaussian_noise_std, rng);
+                    T noise = rlt::random::normal_distribution::sample(device.random, (T)0, config.gaussian_noise_std, sweep_rng);
                     frame_dst[i] = std::clamp(frame_dst[i] + noise, 0.0f, 1.0f);
                 }
             }
@@ -469,8 +479,8 @@ int main(int argc, char** argv){
 
             // Step environment
             typename ENVIRONMENT::State next_state;
-            rlt::step(device, env.dynamics, env_parameters.dynamics, state, action_mat, next_state, rng);
-            terminated = rlt::terminated(device, env.dynamics, env_parameters.dynamics, next_state, rng);
+            rlt::step(device, env.dynamics, env_parameters.dynamics, state, action_mat, next_state, sweep_rng);
+            terminated = rlt::terminated(device, env.dynamics, env_parameters.dynamics, next_state, sweep_rng);
 
             // Record video frame
             if(ffmpeg_pipe){
@@ -496,17 +506,8 @@ int main(int argc, char** argv){
         episode_lengths.push_back(step_i);
         episode_terminated.push_back(terminated);
         global_step += EPISODE_STEP_LIMIT;
-
-        std::cout << "Episode " << std::setw(4) << episode_i
-                  << "  length: " << std::setw(4) << step_i
-                  << (terminated ? "  TERMINATED" : "  TIMEOUT")
-                  << "  time: " << std::setw(6) << std::setprecision(2) << std::fixed << episode_elapsed.count() << "s"
-                  << std::endl;
     }
 
-    // =====================================================================
-    // Summary
-    // =====================================================================
     T mean_length = 0;
     TI terminated_count = 0;
     for(TI i = 0; i < episode_lengths.size(); i++){
@@ -514,12 +515,13 @@ int main(int argc, char** argv){
         if(episode_terminated[i]) terminated_count++;
     }
     mean_length /= episode_lengths.size();
-    std::cout << std::endl;
-    std::cout << "Summary:" << std::endl;
-    std::cout << "  Episodes: " << config.num_episodes << std::endl;
-    std::cout << "  Mean episode length: " << std::setprecision(1) << std::fixed << mean_length << std::endl;
-    std::cout << "  Survival rate: " << std::setprecision(1) << std::fixed
-              << (T)(config.num_episodes - terminated_count) / (T)config.num_episodes * 100 << "%" << std::endl;
+    T survival = (T)(config.num_episodes - terminated_count) / (T)config.num_episodes * 100;
+    std::cout << std::setw(12) << std::setprecision(4) << std::fixed << config.gaussian_noise_std
+              << std::setw(14) << std::setprecision(1) << mean_length
+              << std::setw(13) << std::setprecision(1) << survival << "%" << std::endl;
+
+    rlt::free(device, sweep_rng);
+    } // noise sweep
 
     // =====================================================================
     // Cleanup
