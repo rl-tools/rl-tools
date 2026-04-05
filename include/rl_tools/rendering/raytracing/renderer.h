@@ -64,6 +64,8 @@ namespace rl_tools {
             int occlusion_tex_width = 0, occlusion_tex_height = 0;
             bool has_occlusion_map = false;
             float opacity = 1.0f;
+            int alpha_mode = 0;
+            float alpha_cutoff = 0.5f;
         };
 
         template <typename T_SPEC>
