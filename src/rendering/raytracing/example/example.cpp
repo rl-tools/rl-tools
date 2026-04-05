@@ -39,7 +39,7 @@ int main(int argc, char** argv) {
     using TI = typename rlt::devices::DEVICE_FACTORY<>::index_t;
     static constexpr TI NUM_ENVS = 256;
     constexpr T PI = static_cast<T>(3.14159265358979323846);
-    using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, 128, 128, 64>;
+    using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, 64, 64, 64>;
 
     static_assert(std::is_standard_layout_v<rlt::rl::environments::raytracing_example::Parameters<SPEC>>);
     static_assert(std::is_trivially_copyable_v<rlt::rl::environments::raytracing_example::Parameters<SPEC>>);
