@@ -223,6 +223,7 @@ static constexpr T TEACHER_FORCING_FRACTION = 0.0;
 static constexpr TI N_TRAIN_PASSES = 4;
 static constexpr TI VIDEO_CADENCE = 10;
 static constexpr TI CHECKPOINT_CADENCE = 100;
+static constexpr T OBSERVATION_NOISE_STD = 0.05;
 static constexpr TI GRID_SIDE = 8; // sqrt(N_ENVIRONMENTS)
 static_assert(GRID_SIDE * GRID_SIDE == N_ENVIRONMENTS, "N_ENVIRONMENTS must be a perfect square for video mosaic");
 
@@ -607,6 +608,15 @@ static bool parse_hex_hash(const char* hex, unsigned char* out, unsigned len){
         out[i] = static_cast<unsigned char>(byte);
     }
     return true;
+}
+
+__global__ void observation_noise_kernel(float* __restrict__ obs, int n, float std, unsigned long long seed){
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if(idx >= n) return;
+    curandState rng_state;
+    curand_init(seed, idx, 0, &rng_state);
+    float val = obs[idx] + curand_normal(&rng_state) * std;
+    obs[idx] = fminf(fmaxf(val, 0.0f), 1.0f);
 }
 
 #ifdef USE_FRAME_STACKING
@@ -1179,6 +1189,14 @@ int main(int argc, char** argv){
                     int pf_grid = (TOTAL_PIXELS + pf_block - 1) / pf_block;
                     rlt::rl::environments::l2f_visual::cuda::pixel_to_float_kernel<<<pf_grid, pf_block>>>(fb_ptr, obs_ptr, N_ENVIRONMENTS, CAM_PIXELS);
                     CUDA_CHECK("pixel_to_float_kernel");
+                    if constexpr(OBSERVATION_NOISE_STD > 0){
+                        constexpr TI NOISE_N = N_ENVIRONMENTS * OBSERVATION_DIM;
+                        int noise_block = 256;
+                        int noise_grid = (NOISE_N + noise_block - 1) / noise_block;
+                        unsigned long long noise_seed = seed + (unsigned long long)epoch_i * STEPS_PER_ENV + step_i;
+                        observation_noise_kernel<<<noise_grid, noise_block>>>(obs_ptr, NOISE_N, OBSERVATION_NOISE_STD, noise_seed);
+                        CUDA_CHECK("observation_noise_kernel");
+                    }
                 }
                 if(!full_teacher_forcing){
 #ifdef USE_GRU_TEMPORAL
