@@ -60,5 +60,11 @@ all_pass &= report('val copy ', out_val);
 const out_heap = new Float32Array(Module.evaluate_via_heap(input_data));
 all_pass &= report('heap copy', out_heap);
 
+// Test 3: evaluate_step with state (the actual l2f-studio path)
+const state_id = Module.create_state();
+Module.reset_state(state_id);
+const out_step = new Float32Array(Module.evaluate_step_stateful(state_id, input_data));
+all_pass &= report('stateful ', out_step);
+
 console.log("\n" + (all_pass ? "ALL PASS" : "SOME FAILED"));
 process.exit(all_pass ? 0 : 1);

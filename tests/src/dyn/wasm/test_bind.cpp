@@ -18,6 +18,7 @@ static TI input_rank = 0;
 static TI input_shape_stored[8] = {};
 static TI output_dim = 0;
 static std::vector<float> output_cache;
+static std::vector<rlt::dyn::State<TI>> states;
 static bool ready = false;
 
 bool load_model(const std::string& path, emscripten::val js_input_shape){
@@ -83,8 +84,43 @@ emscripten::val evaluate_via_heap(emscripten::val js_input){
     return emscripten::val(emscripten::typed_memory_view(output_dim, output_cache.data()));
 }
 
+int create_state(){
+    rlt::dyn::State<TI> state;
+    state.batch_size = 1;
+    state.layer = &model;
+    rlt::malloc(device, state);
+    states.push_back(std::move(state));
+    return (int)(states.size() - 1);
+}
+
+void reset_state(int id){
+    if(id >= 0 && id < (int)states.size())
+        rlt::reset(device, model, states[id]);
+}
+
+emscripten::val evaluate_step_stateful(int state_id, emscripten::val js_input){
+    if(!ready || state_id < 0 || state_id >= (int)states.size()) return emscripten::val::null();
+    unsigned int len = js_input["length"].as<unsigned int>();
+    std::vector<float> input_data(len);
+    emscripten::val heap_view = emscripten::val(emscripten::typed_memory_view(len, input_data.data()));
+    heap_view.call<void>("set", js_input);
+    rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> input_tensor, output_tensor;
+    rlt::dyn::set_shape(input_tensor, input_rank, input_shape_stored);
+    input_tensor.type = rlt::dyn::Type::FLOAT32;
+    input_tensor.data = input_data.data();
+    TI out_shape[] = {output_dim};
+    rlt::dyn::set_shape(output_tensor, (TI)1, out_shape);
+    output_tensor.type = rlt::dyn::Type::FLOAT32;
+    output_tensor.data = output_cache.data();
+    rlt::evaluate_step(device, model, input_tensor, states[state_id], output_tensor, buffer);
+    return emscripten::val(emscripten::typed_memory_view(output_dim, output_cache.data()));
+}
+
 EMSCRIPTEN_BINDINGS(test_bind){
     emscripten::function("load_model", &load_model);
     emscripten::function("evaluate_via_val", &evaluate_via_val);
     emscripten::function("evaluate_via_heap", &evaluate_via_heap);
+    emscripten::function("create_state", &create_state);
+    emscripten::function("reset_state", &reset_state);
+    emscripten::function("evaluate_step_stateful", &evaluate_step_stateful);
 }
