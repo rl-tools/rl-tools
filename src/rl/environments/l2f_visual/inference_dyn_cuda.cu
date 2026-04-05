@@ -393,9 +393,9 @@ int main(int argc, char** argv){
             char ffmpeg_cmd[1024];
             snprintf(ffmpeg_cmd, sizeof(ffmpeg_cmd),
                 "ffmpeg -y -f rawvideo -pixel_format rgb24 -video_size %lux%lu -framerate %lu -i - "
-                "-c:v libx264 -pix_fmt yuv420p -crf 23 -preset fast -loglevel warning %s",
+                "-c:v libx264 -pix_fmt yuv420p -crf 23 -r %lu -preset fast -loglevel warning %s",
                 (unsigned long)CAM_WIDTH, (unsigned long)CAM_HEIGHT, (unsigned long)SIMULATION_FREQUENCY,
-                video_path.c_str());
+                (unsigned long)SIMULATION_FREQUENCY, video_path.c_str());
             ffmpeg_pipe = popen(ffmpeg_cmd, "w");
             if(!ffmpeg_pipe){
                 std::cerr << "Failed to open ffmpeg pipe for " << video_path << std::endl;
