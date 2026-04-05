@@ -56,16 +56,15 @@ namespace rl_tools{
         if(persist::backends::tar::seek_in_metadata(device, metadata, read_size, "dtype", pos, len)) tensor.type = dyn::persist_helpers::parse_dtype(metadata+pos, len);
         if(!persist::backends::tar::seek_in_metadata(device, metadata, read_size, "num_dims", pos, len)) return false;
         tensor.rank = utils::string::string_to_int<TI>(metadata+pos, len);
-        tensor.size = 1;
         for(TI d = 0; d < tensor.rank; d++){
             char key[16] = "dim_"; char digit[2] = {static_cast<char>('0'+d), '\0'}; utils::string::copy(key+4, digit, 12);
             if(!persist::backends::tar::seek_in_metadata(device, metadata, read_size, key, pos, len)) return false;
-            tensor.shape[d] = utils::string::string_to_int<TI>(metadata+pos, len); tensor.size *= tensor.shape[d];
+            tensor.shape[d] = utils::string::string_to_int<TI>(metadata+pos, len);
         }
         rl_tools::malloc(device, tensor);
         utils::string::copy(current_path+sep_pos, "data", MAX_PATH-sep_pos);
         TI data_read_size = 0;
-        return persist::backends::tar::get(device, tensor_group.data, current_path, reinterpret_cast<char*>(tensor.data), tensor.size * dyn::size_of<TI>(tensor.type), data_read_size);
+        return persist::backends::tar::get(device, tensor_group.data, current_path, reinterpret_cast<char*>(tensor.data), tensor.size() * dyn::size_of<TI>(tensor.type), data_read_size);
     }
 #endif
 
@@ -79,8 +78,8 @@ namespace rl_tools{
         int rank = H5Sget_simple_extent_ndims(space);
         hsize_t dims[dyn::TensorSpecification<TI>::MAX_RANK];
         H5Sget_simple_extent_dims(space, dims, nullptr);
-        tensor.rank = rank; tensor.size = 1;
-        for(TI d = 0; d < (TI)rank; d++){ tensor.shape[d] = dims[d]; tensor.size *= dims[d]; }
+        tensor.rank = rank;
+        for(TI d = 0; d < (TI)rank; d++) tensor.shape[d] = dims[d];
         hid_t dtype = H5Dget_type(ds);
         H5T_class_t cls = H5Tget_class(dtype);
         size_t dts = H5Tget_size(dtype);
@@ -184,7 +183,7 @@ namespace rl_tools{
             auto* s = new layers::Standardize<TI>();
             auto mg = get_group(device, group, "mean"); ok &= load(device, s->mean, mg, "parameters");
             auto pg = get_group(device, group, "precision"); ok &= load(device, s->precision, pg, "parameters");
-            s->dim = s->mean.size; layer.data = s;
+            s->dim = s->mean.size(); layer.data = s;
         }
         else if(utils::string::compare(type_str, "embedding", 9)){
             layer.type = LayerType::EMBEDDING;

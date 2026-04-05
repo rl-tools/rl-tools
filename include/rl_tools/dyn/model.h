@@ -67,8 +67,13 @@ namespace rl_tools::dyn{
         void* data = nullptr;
         TI shape[SPEC::MAX_RANK] = {};
         TI rank = 0;
-        TI size = 0;
+        TI capacity = 0;
         Type type = Type::FLOAT32;
+        RL_TOOLS_FUNCTION_PLACEMENT TI size() const{
+            TI s = 1;
+            for(TI i = 0; i < rank; i++) s *= shape[i];
+            return s;
+        }
     };
 
     template <typename T_TI>
