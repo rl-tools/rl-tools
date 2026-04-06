@@ -395,6 +395,27 @@ namespace rl_tools::rl::environments::l2f{
             using SHAPE = tensor::Shape<TI, DIM>;
         };
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct LinearVelocityBodyFrameSpecification{
+            using T = T_T;
+            using TI = T_TI;
+            using NEXT_COMPONENT = T_NEXT_COMPONENT;
+            static constexpr bool PRIVILEGED = false;
+        };
+        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct LinearVelocityBodyFrameSpecificationPrivileged: LinearVelocityBodyFrameSpecification<T_T, T_TI, T_NEXT_COMPONENT>{
+            static constexpr bool PRIVILEGED = true;
+        };
+        template <typename SPEC>
+        struct LinearVelocityBodyFrame{
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+            static constexpr bool PRIVILEGED = SPEC::PRIVILEGED;
+            static constexpr TI CURRENT_DIM = 3;
+            static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
+        };
+        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
         struct MagnetometerSpecification{
             using T = T_T;
             using TI = T_TI;

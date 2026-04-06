@@ -180,6 +180,35 @@ namespace rl_tools{
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
+        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::LinearVelocityBodyFrame<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+            using T = typename SPEC::T;
+            using TI = typename DEVICE::index_t;
+            using OBSERVATION = observation::LinearVelocityBodyFrame<OBSERVATION_SPEC>;
+            static_assert(OBS_SPEC::COLS >= OBSERVATION::CURRENT_DIM);
+            static_assert(OBS_SPEC::ROWS == 1);
+
+            T conjugate_orientation[4];
+            conjugate_orientation[0] = state.orientation[0];
+            conjugate_orientation[1] = -state.orientation[1];
+            conjugate_orientation[2] = -state.orientation[2];
+            conjugate_orientation[3] = -state.orientation[3];
+
+            T velocity_body[3];
+            rotate_vector_by_quaternion<DEVICE, T>(conjugate_orientation, state.linear_velocity, velocity_body);
+
+            for(TI i = 0; i < OBSERVATION::CURRENT_DIM; i++){
+                if constexpr(OBSERVATION_SPEC::PRIVILEGED && !SPEC::STATIC_PARAMETERS::PRIVILEGED_OBSERVATION_NOISE){
+                    set(observation, 0, i, velocity_body[i]);
+                }
+                else{
+                    T noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, parameters.mdp.observation_noise.linear_velocity, rng);
+                    set(observation, 0, i, velocity_body[i] + noise);
+                }
+            }
+            auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
+            observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
+        }
+        template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::Magnetometer<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;

@@ -63,6 +63,11 @@ namespace rl_tools{
         return std::string(first ? "" : ".") + "LinearAccelerationBodyFrame" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
     }
     template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::LinearVelocityBodyFrame<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::LinearVelocityBodyFrame<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "LinearVelocityBodyFrame" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
     std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::Magnetometer<OBS_SPEC>& obs, bool first = true){
         using OBSERVATION = rl::environments::l2f::observation::Magnetometer<OBS_SPEC>;
         return std::string(first ? "" : ".") + "Magnetometer" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
