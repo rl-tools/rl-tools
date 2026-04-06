@@ -78,6 +78,7 @@ namespace rl_tools {
         parameters.scene_translation[0] = 0;
         parameters.scene_translation[1] = 0;
         parameters.scene_translation[2] = 0;
+        parameters.scene_yaw = 0;
     }
 
     template <typename DEVICE, typename SPEC, typename RNG>
@@ -139,20 +140,36 @@ namespace rl_tools {
         template <typename DEVICE, typename SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::CameraData<typename SPEC::T> make_camera_for_state(DEVICE&, const MultirrotorVisual<SPEC>&, const typename MultirrotorVisual<SPEC>::Parameters& parameters, const typename MultirrotorVisual<SPEC>::State& state) {
             using T = typename SPEC::T;
+            auto rotate_scene_yaw = [&](const T in[3], T out[3]){
+                T c = std::cos(parameters.scene_yaw);
+                T s = std::sin(parameters.scene_yaw);
+                out[0] = c * in[0] - s * in[1];
+                out[1] = s * in[0] + c * in[1];
+                out[2] = in[2];
+            };
 
+            T cam_pos_local[3];
+            rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, parameters.camera_mount.offset_body, cam_pos_local);
             T cam_pos_world[3];
-            rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, parameters.camera_mount.offset_body, cam_pos_world);
+            rotate_scene_yaw(cam_pos_local, cam_pos_world);
 
+            T cam_forward_local[3];
+            rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, parameters.camera_mount.forward_body, cam_forward_local);
             T cam_forward_world[3];
-            rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, parameters.camera_mount.forward_body, cam_forward_world);
+            rotate_scene_yaw(cam_forward_local, cam_forward_world);
 
+            T cam_up_local[3];
+            rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, parameters.camera_mount.up_body, cam_up_local);
             T cam_up_world[3];
-            rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, parameters.camera_mount.up_body, cam_up_world);
+            rotate_scene_yaw(cam_up_local, cam_up_world);
+
+            T state_position_world[3];
+            rotate_scene_yaw(state.position, state_position_world);
 
             const T position[3] = {
-                state.position[0] + cam_pos_world[0] + parameters.scene_translation[0],
-                state.position[1] + cam_pos_world[1] + parameters.scene_translation[1],
-                state.position[2] + cam_pos_world[2] + parameters.scene_translation[2]
+                state_position_world[0] + cam_pos_world[0] + parameters.scene_translation[0],
+                state_position_world[1] + cam_pos_world[1] + parameters.scene_translation[1],
+                state_position_world[2] + cam_pos_world[2] + parameters.scene_translation[2]
             };
             const T look_at[3] = {
                 position[0] + cam_forward_world[0],
@@ -239,7 +256,8 @@ namespace rl_tools {
             json_string += std::to_string(parameters.scene_translation[i]);
             if(i < 2) json_string += ", ";
         }
-        json_string += "], \"scene_hash\": \"";
+        json_string += "], \"scene_yaw\": " + std::to_string(parameters.scene_yaw);
+        json_string += ", \"scene_hash\": \"";
         for(unsigned i = 0; i < rl::environments::l2f_visual::SceneHash::HASH_SIZE; i++){
             char hex[3];
             std::snprintf(hex, sizeof(hex), "%02x", parameters.scene_hash.hash[i]);
