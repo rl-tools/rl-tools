@@ -58,9 +58,9 @@ namespace rl_tools{
         return std::string(first ? "" : ".") + "AngularVelocity" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
     }
     template <typename DEVICE, typename SPEC, typename OBS_SPEC>
-    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::IMUAccelerometer<OBS_SPEC>& obs, bool first = true){
-        using OBSERVATION = rl::environments::l2f::observation::IMUAccelerometer<OBS_SPEC>;
-        return std::string(first ? "" : ".") + "IMUAccelerometer" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::LinearAccelerationBodyFrame<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::LinearAccelerationBodyFrame<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "LinearAccelerationBodyFrame" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
     }
     template <typename DEVICE, typename SPEC, typename OBS_SPEC>
     std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::Magnetometer<OBS_SPEC>& obs, bool first = true){
@@ -496,6 +496,7 @@ namespace rl_tools{
                 json_string += ", ";
             }
         }
+        json_string += "]";
         json_string += top_level ? "}" : "";
         return json_string;
     }
