@@ -70,7 +70,7 @@ namespace rl_tools {
             generate_probe_directions(device, *env.renderer);
             build_pipeline(device, *env.renderer);
             T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
-            rendering::raytracing::scene::procthor::precompute_indoor_positions(device, *env.scene, *env.renderer, default_params.camera_mount.offset_body[2], default_params.fov, aspect);
+            rendering::raytracing::scene::procthor::precompute_indoor_positions(device, *env.scene, *env.renderer, default_params.fov, aspect);
         }
 
         env.renderer_initialized = true;

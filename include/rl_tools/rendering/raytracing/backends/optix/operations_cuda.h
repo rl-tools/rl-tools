@@ -20,6 +20,7 @@
 #include <vector>
 #include <limits>
 #include <algorithm>
+#include <functional>
 #include <string>
 #include <map>
 #include <chrono>
@@ -339,7 +340,7 @@ namespace rl_tools {
         using T = typename SPEC::T;
 
         Assimp::Importer importer;
-        unsigned int import_flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_PreTransformVertices | aiProcess_ImproveCacheLocality;
+        unsigned int import_flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_ImproveCacheLocality;
         if constexpr (SPEC::HIGH_FIDELITY_SHADING) {
             import_flags |= aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace;
         } else {
@@ -364,18 +365,38 @@ namespace rl_tools {
         size_t total_verts = 0, total_tris = 0;
 
         renderer.meshes.clear();
+        std::vector<unsigned int> mesh_source_indices;
+
+        // Build mesh-index → global transform map by walking the node tree
+        std::vector<std::vector<aiMatrix4x4>> mesh_transforms(scene->mNumMeshes);
+        std::function<void(const aiNode*, const aiMatrix4x4&)> collect_transforms = [&](const aiNode* node, const aiMatrix4x4& parent_transform){
+            aiMatrix4x4 global_transform = parent_transform * node->mTransformation;
+            for(unsigned int i = 0; i < node->mNumMeshes; i++){
+                mesh_transforms[node->mMeshes[i]].push_back(global_transform);
+            }
+            for(unsigned int i = 0; i < node->mNumChildren; i++){
+                collect_transforms(node->mChildren[i], global_transform);
+            }
+        };
+        collect_transforms(scene->mRootNode, aiMatrix4x4());
 
         for(unsigned int m = 0; m < scene->mNumMeshes; m++){
             const aiMesh* mesh = scene->mMeshes[m];
+            auto& transforms = mesh_transforms[m];
+            if(transforms.empty()){
+                transforms.push_back(aiMatrix4x4());
+            }
+            for(const auto& global_transform : transforms){
             rendering::raytracing::MeshData<SPEC> md;
             const aiMaterial* mat = nullptr;
             if(mesh->mMaterialIndex < scene->mNumMaterials){
                 mat = scene->mMaterials[mesh->mMaterialIndex];
             }
 
-            // vertices: GLB (Y-up) → FLU (Z-up): x_flu = x_glb, y_flu = -z_glb, z_flu = y_glb
+            // vertices: apply node transform, then GLB (Y-up) → FLU (Z-up)
             for(unsigned int v = 0; v < mesh->mNumVertices; v++){
-                const aiVector3D& pos = mesh->mVertices[v];
+                aiVector3D pos = mesh->mVertices[v];
+                pos = global_transform * pos;
                 float flu_x = pos.x, flu_y = -pos.z, flu_z = pos.y;
                 md.vertices.push_back(flu_x);
                 md.vertices.push_back(flu_y);
@@ -387,8 +408,10 @@ namespace rl_tools {
 
             if constexpr (SPEC::HIGH_FIDELITY_SHADING) {
                 if (mesh->mNormals) {
+                    aiMatrix3x3 normal_matrix(global_transform);
                     for (unsigned int v = 0; v < mesh->mNumVertices; v++) {
-                        const aiVector3D& n = mesh->mNormals[v];
+                        aiVector3D n = normal_matrix * mesh->mNormals[v];
+                        n.Normalize();
                         md.normals.push_back(n.x);
                         md.normals.push_back(-n.z);
                         md.normals.push_back(n.y);
@@ -633,7 +656,9 @@ namespace rl_tools {
 
             total_verts += md.vertices.size() / 3;
             total_tris += md.indices.size() / 3;
+            mesh_source_indices.push_back(m);
             renderer.meshes.push_back(std::move(md));
+            } // end for global_transform
         }
 
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Total vertices: " << total_verts << ", triangles: " << total_tris);
@@ -669,7 +694,7 @@ namespace rl_tools {
 
             for (size_t mi = 0; mi < renderer.meshes.size(); mi++) {
                 auto& md = renderer.meshes[mi];
-                unsigned int mat_idx = scene->mMeshes[mi]->mMaterialIndex;
+                unsigned int mat_idx = scene->mMeshes[mesh_source_indices[mi]]->mMaterialIndex;
                 if (mat_idx < glb_meta.materials.size()) {
                     auto& mm = glb_meta.materials[mat_idx];
                     md.alpha_mode = mm.alpha_mode;
@@ -689,6 +714,9 @@ namespace rl_tools {
         renderer.scene_center[0] = center.x;
         renderer.scene_center[1] = center.y;
         renderer.scene_center[2] = center.z;
+        renderer.scene_half_extent[0] = size.x * 0.5f;
+        renderer.scene_half_extent[1] = size.y * 0.5f;
+        renderer.scene_half_extent[2] = size.z * 0.5f;
         renderer.camera_radius = length(look_from - center);
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Camera positioned at [" << look_from.x << "," << look_from.y << "," << look_from.z << "]");
 

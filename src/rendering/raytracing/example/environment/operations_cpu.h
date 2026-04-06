@@ -4,201 +4,34 @@
 #include "environment.h"
 
 #include <rl_tools/rendering/raytracing/backends/optix/operations_cuda.h>
+#include <rl_tools/rendering/raytracing/scene/procthor/scene.h>
+#include <rl_tools/rendering/raytracing/scene/procthor/operations_cpu.h>
 
-#include <array>
 #include <cmath>
 #include <string>
-#include <cstdint>
-#include <vector>
-#include <algorithm>
-#include <limits>
 
 namespace rl_tools {
-    template <typename T, typename TI>
-    RL_TOOLS_FUNCTION_PLACEMENT T raytracing_example_radical_inverse(TI n, TI base) {
-        T inv_base = static_cast<T>(1) / static_cast<T>(base);
-        T inv = inv_base;
-        T result = static_cast<T>(0);
-        while (n > 0) {
-            const TI digit = n % base;
-            result += static_cast<T>(digit) * inv;
-            inv *= inv_base;
-            n /= base;
-        }
-        return result;
-    }
-
-    template <typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT T raytracing_example_frac(T x) {
-        return x - std::floor(x);
-    }
-
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void precompute_indoor_initial_states(DEVICE& device, rl::environments::raytracing_example::Environment<SPEC>& env) {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-
-        if(env.renderer->backend.owl_collision_results_buffer == nullptr){
-            constexpr T PI = static_cast<T>(3.14159265358979323846);
-            const T center_x = env.renderer->scene_center[0];
-            const T center_y = env.renderer->scene_center[1];
-            const T search_radius = env.renderer->camera_radius > static_cast<T>(1)
-                ? static_cast<T>(0.95) * env.renderer->camera_radius
-                : static_cast<T>(8);
-            for (TI i = 0; i < rl::environments::raytracing_example::Environment<SPEC>::NUM_INITIAL_STATES; i++) {
-                const T u = raytracing_example_radical_inverse<T>(i + 1, static_cast<TI>(2));
-                const T v = raytracing_example_radical_inverse<T>(i + 1, static_cast<TI>(3));
-                const T radius = search_radius * std::sqrt(u);
-                const T angle = static_cast<T>(2) * PI * v;
-
-                auto& s = env.indoor_initial_states[i];
-                s.position[0] = center_x + radius * std::cos(angle);
-                s.position[1] = center_y + radius * std::sin(angle);
-                s.position[2] = static_cast<T>(0);
-                s.velocity[0] = static_cast<T>(0);
-                s.velocity[1] = static_cast<T>(0);
-                s.velocity[2] = static_cast<T>(0);
-                s.yaw = static_cast<T>(2) * PI * raytracing_example_frac(static_cast<T>(0.61803398875) * static_cast<T>(i + 1));
-            }
-            env.num_indoor_initial_states = rl::environments::raytracing_example::Environment<SPEC>::NUM_INITIAL_STATES;
-            return;
-        }
-
-        struct Candidate {
-            rl::environments::raytracing_example::State<SPEC> state;
-            T score;
-        };
-
-        constexpr T PI = static_cast<T>(3.14159265358979323846);
-        constexpr TI NUM_BATCHES = 8;
-        const T center_x = env.renderer->scene_center[0];
-        const T center_y = env.renderer->scene_center[1];
-        const T search_radius = env.renderer->camera_radius > static_cast<T>(1)
-            ? static_cast<T>(0.95) * env.renderer->camera_radius
-            : static_cast<T>(8);
-        const T max_dist = env.renderer->camera_radius > static_cast<T>(1)
-            ? static_cast<T>(2) * env.renderer->camera_radius
-            : static_cast<T>(20);
-
-        std::vector<Candidate> candidates;
-        candidates.reserve(static_cast<size_t>(NUM_BATCHES) * static_cast<size_t>(SPEC::NUM_ENVS));
-
-        std::array<rl::environments::raytracing_example::State<SPEC>, SPEC::NUM_ENVS> batch_states{};
-
-        for (TI batch_i = 0; batch_i < NUM_BATCHES; batch_i++) {
-            for (TI camera_i = 0; camera_i < SPEC::NUM_ENVS; camera_i++) {
-                const TI candidate_i = batch_i * SPEC::NUM_ENVS + camera_i + 1;
-                const T u = raytracing_example_radical_inverse<T>(candidate_i, static_cast<TI>(2));
-                const T v = raytracing_example_radical_inverse<T>(candidate_i, static_cast<TI>(3));
-                const T w = raytracing_example_radical_inverse<T>(candidate_i, static_cast<TI>(5));
-
-                const T radius = search_radius * std::sqrt(u);
-                const T angle = static_cast<T>(2) * PI * v;
-                const T yaw = static_cast<T>(2) * PI * raytracing_example_frac(v + static_cast<T>(0.37) * w);
-
-                auto& state = batch_states[camera_i];
-                state.position[0] = center_x + radius * std::cos(angle);
-                state.position[1] = center_y + radius * std::sin(angle);
-                state.position[2] = static_cast<T>(0);
-                state.velocity[0] = static_cast<T>(0);
-                state.velocity[1] = static_cast<T>(0);
-                state.velocity[2] = static_cast<T>(0);
-                state.yaw = yaw;
-
-                const T position[3] = {state.position[0], state.position[1], state.position[2] + env.eye_height};
-                const T look_at[3] = {
-                    state.position[0] + env.look_ahead * std::cos(state.yaw),
-                    state.position[1] + env.look_ahead * std::sin(state.yaw),
-                    state.position[2] + env.eye_height
-                };
-                const T up[3] = {0, 0, 1};
-                set(device, env.renderer->cameras, make_camera_data(position, look_at, up,
-                    SPEC::RAYTRACING_SPEC::COS_FOVY,
-                    static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT)), camera_i);
-            }
-
-            set_cameras(device, *env.renderer, env.renderer->cameras);
-            render(device, *env.renderer);
-
-            const rendering::raytracing::CollisionResult* probe_results = read_collision_results_raw(device, *env.renderer);
-            for (TI camera_i = 0; camera_i < SPEC::NUM_ENVS; camera_i++) {
-                const CollisionResult* camera_probes = probe_results + static_cast<size_t>(camera_i) * static_cast<size_t>(SPEC::NUM_PROBES);
-                TI hit_count = 0;
-                TI very_near_hit_count = 0;
-                T min_hit_dist = std::numeric_limits<T>::infinity();
-                T sum_hit_dist = static_cast<T>(0);
-
-                for (TI probe_i = 0; probe_i < SPEC::NUM_PROBES; probe_i++) {
-                    const CollisionResult& probe = camera_probes[probe_i];
-                    if (probe.hit) {
-                        const T dist = static_cast<T>(probe.distance);
-                        hit_count++;
-                        sum_hit_dist += dist;
-                        if (dist < min_hit_dist) {
-                            min_hit_dist = dist;
-                        }
-                        if (dist < static_cast<T>(0.25)) {
-                            very_near_hit_count++;
-                        }
-                    }
-                }
-
-                if (hit_count == 0) {
-                    continue;
-                }
-
-                const T hit_ratio = static_cast<T>(hit_count) / static_cast<T>(SPEC::NUM_PROBES);
-                const T avg_hit_dist = sum_hit_dist / static_cast<T>(hit_count);
-                const T avg_dist_norm = avg_hit_dist / max_dist;
-                const T near_ratio = static_cast<T>(very_near_hit_count) / static_cast<T>(SPEC::NUM_PROBES);
-                const T forward_dist = static_cast<T>(camera_probes[0].distance);
-                const bool forward_open = camera_probes[0].hit && forward_dist > static_cast<T>(0.6) && forward_dist < static_cast<T>(6.0);
-
-                const T score =
-                    static_cast<T>(2.0) * hit_ratio
-                    - static_cast<T>(1.1) * avg_dist_norm
-                    - static_cast<T>(0.8) * near_ratio
-                    + (forward_open ? static_cast<T>(0.15) : static_cast<T>(0));
-
-                const bool indoor_like =
-                    hit_ratio > static_cast<T>(0.72) &&
-                    avg_dist_norm < static_cast<T>(0.45) &&
-                    min_hit_dist > static_cast<T>(0.18);
-
-                if (indoor_like) {
-                    candidates.push_back({batch_states[camera_i], score});
-                }
-            }
-        }
-
-        std::sort(candidates.begin(), candidates.end(), [](const Candidate& a, const Candidate& b) {
-            return a.score > b.score;
-        });
-
-        const TI take_n = std::min(static_cast<TI>(candidates.size()), rl::environments::raytracing_example::Environment<SPEC>::NUM_INITIAL_STATES);
-        for (TI i = 0; i < take_n; i++) {
-            env.indoor_initial_states[i] = candidates[i].state;
+        using SCENE_SPEC = rendering::raytracing::scene::SceneSpecification<T, TI>;
+        rendering::raytracing::scene::procthor::Scene<SCENE_SPEC> scene;
+        T fov = SPEC::RAYTRACING_SPEC::COS_FOVY;
+        T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
+        rendering::raytracing::scene::procthor::precompute_indoor_positions(device, scene, *env.renderer, fov, aspect);
+        TI take_n = std::min(scene.num_indoor_positions, rl::environments::raytracing_example::Environment<SPEC>::NUM_INITIAL_STATES);
+        for(TI i = 0; i < take_n; i++){
+            auto& s = env.indoor_initial_states[i];
+            s.position[0] = scene.indoor_positions[i].position[0];
+            s.position[1] = scene.indoor_positions[i].position[1];
+            s.position[2] = scene.indoor_positions[i].position[2];
+            s.velocity[0] = static_cast<T>(0);
+            s.velocity[1] = static_cast<T>(0);
+            s.velocity[2] = static_cast<T>(0);
+            s.yaw = scene.indoor_positions[i].yaw;
         }
         env.num_indoor_initial_states = take_n;
-
-        if (env.num_indoor_initial_states == 0) {
-            for (TI i = 0; i < rl::environments::raytracing_example::Environment<SPEC>::NUM_INITIAL_STATES; i++) {
-                const T u = raytracing_example_radical_inverse<T>(i + 1, static_cast<TI>(2));
-                const T v = raytracing_example_radical_inverse<T>(i + 1, static_cast<TI>(3));
-                const T radius = search_radius * std::sqrt(u);
-                const T angle = static_cast<T>(2) * PI * v;
-
-                auto& s = env.indoor_initial_states[i];
-                s.position[0] = center_x + radius * std::cos(angle);
-                s.position[1] = center_y + radius * std::sin(angle);
-                s.position[2] = static_cast<T>(0);
-                s.velocity[0] = static_cast<T>(0);
-                s.velocity[1] = static_cast<T>(0);
-                s.velocity[2] = static_cast<T>(0);
-                s.yaw = static_cast<T>(2) * PI * raytracing_example_frac(static_cast<T>(0.61803398875) * static_cast<T>(i + 1));
-            }
-            env.num_indoor_initial_states = rl::environments::raytracing_example::Environment<SPEC>::NUM_INITIAL_STATES;
-        }
     }
 
     template <typename DEVICE, typename SPEC>
