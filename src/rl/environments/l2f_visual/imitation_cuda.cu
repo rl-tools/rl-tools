@@ -1072,7 +1072,7 @@ int main(int argc, char** argv){
     for(TI epoch_i = 0; epoch_i < NUM_EPOCHS; epoch_i++){
         auto epoch_start = std::chrono::high_resolution_clock::now();
         bool full_teacher_forcing = epoch_i < TEACHER_FORCING_EPOCHS;
-        bool record_video = (epoch_i % VIDEO_CADENCE == 0);
+        bool record_video = (epoch_i % CHECKPOINT_CADENCE == 0);
         TI epoch_end_step = global_step + STEPS_PER_ENV * N_ENVIRONMENTS;
         FILE* ffmpeg_pipe = nullptr;
         if(record_video){
@@ -1167,27 +1167,6 @@ int main(int argc, char** argv){
                     rlt::render_rgb_only_launch(device, *env0.renderer);
                     CUDA_CHECK("render_rgb_only_launch");
                 }
-                if(record_video && ffmpeg_pipe){
-                    rlt::read_frame_buffer(device, *env0.renderer, env0.renderer->frame_buffer);
-                    const uint32_t* video_fb = rlt::data(env0.renderer->frame_buffer);
-                    for(TI grid_row = 0; grid_row < GRID_SIDE; grid_row++){
-                        for(TI grid_col = 0; grid_col < GRID_SIDE; grid_col++){
-                            TI env_i = grid_row * GRID_SIDE + grid_col;
-                            for(TI py = 0; py < CAM_HEIGHT; py++){
-                                for(TI px = 0; px < CAM_WIDTH; px++){
-                                    uint32_t rgba = video_fb[env_i * CAM_PIXELS + py * CAM_WIDTH + px];
-                                    TI mosaic_x = grid_col * CAM_WIDTH + px;
-                                    TI mosaic_y = grid_row * CAM_HEIGHT + py;
-                                    TI out_idx = (mosaic_y * MOSAIC_W + mosaic_x) * 3;
-                                    mosaic_frame[out_idx + 0] = (rgba >>  0) & 0xFF;
-                                    mosaic_frame[out_idx + 1] = (rgba >>  8) & 0xFF;
-                                    mosaic_frame[out_idx + 2] = (rgba >> 16) & 0xFF;
-                                }
-                            }
-                        }
-                    }
-                    fwrite(mosaic_frame.data(), 1, mosaic_frame.size(), ffmpeg_pipe);
-                }
                 rlt::evaluate_step(device_gpu, raptor_gpu, gpu_teacher_obs, raptor_state_gpu, gpu_teacher_actions_step, raptor_buffer_gpu, rng_gpu, no_auto_reset_mode);
                 CUDA_CHECK("raptor evaluate_step");
                 if(env0.renderer->backend.owl_cameras_buffer != nullptr){
@@ -1221,6 +1200,29 @@ int main(int argc, char** argv){
                         dim3 br_grid((OBSERVATION_DIM + br_block - 1) / br_block, N_ENVIRONMENTS);
                         brightness_apply_kernel<<<br_grid, br_block>>>(obs_ptr, gpu_brightness_scale_arr, N_ENVIRONMENTS, OBSERVATION_DIM);
                         CUDA_CHECK("brightness_apply_kernel");
+                    }
+                    if(record_video && ffmpeg_pipe){
+                        static constexpr TI VIDEO_OBS_SIZE = N_ENVIRONMENTS * OBSERVATION_DIM;
+                        std::vector<float> cpu_obs(VIDEO_OBS_SIZE);
+                        cudaMemcpy(cpu_obs.data(), obs_ptr, VIDEO_OBS_SIZE * sizeof(float), cudaMemcpyDeviceToHost);
+                        for(TI grid_row = 0; grid_row < GRID_SIDE; grid_row++){
+                            for(TI grid_col = 0; grid_col < GRID_SIDE; grid_col++){
+                                TI env_i = grid_row * GRID_SIDE + grid_col;
+                                const float* env_obs = cpu_obs.data() + env_i * OBSERVATION_DIM;
+                                for(TI py = 0; py < CAM_HEIGHT; py++){
+                                    for(TI px = 0; px < CAM_WIDTH; px++){
+                                        TI pixel_i = py * CAM_WIDTH + px;
+                                        TI mosaic_x = grid_col * CAM_WIDTH + px;
+                                        TI mosaic_y = grid_row * CAM_HEIGHT + py;
+                                        TI out_idx = (mosaic_y * MOSAIC_W + mosaic_x) * 3;
+                                        mosaic_frame[out_idx + 0] = static_cast<uint8_t>(std::clamp(env_obs[pixel_i * 3 + 0] * 255.0f, 0.0f, 255.0f));
+                                        mosaic_frame[out_idx + 1] = static_cast<uint8_t>(std::clamp(env_obs[pixel_i * 3 + 1] * 255.0f, 0.0f, 255.0f));
+                                        mosaic_frame[out_idx + 2] = static_cast<uint8_t>(std::clamp(env_obs[pixel_i * 3 + 2] * 255.0f, 0.0f, 255.0f));
+                                    }
+                                }
+                            }
+                        }
+                        fwrite(mosaic_frame.data(), 1, mosaic_frame.size(), ffmpeg_pipe);
                     }
                 }
                 if(!full_teacher_forcing){
