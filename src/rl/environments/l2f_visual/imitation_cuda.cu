@@ -224,6 +224,7 @@ static constexpr TI N_TRAIN_PASSES = 4;
 static constexpr TI VIDEO_CADENCE = 10;
 static constexpr TI CHECKPOINT_CADENCE = 100;
 static constexpr T OBSERVATION_NOISE_STD = 0.00;
+static constexpr T BRIGHTNESS_RANDOMIZATION_RANGE = 0.5;
 static constexpr TI GRID_SIDE = 8; // sqrt(N_ENVIRONMENTS)
 static_assert(GRID_SIDE * GRID_SIDE == N_ENVIRONMENTS, "N_ENVIRONMENTS must be a perfect square for video mosaic");
 
@@ -325,6 +326,7 @@ namespace imitation_kernels{
 #ifdef USE_FRAME_STACKING
         TI* episode_start_step,
 #endif
+        T* brightness_scale_arr,
         RNG rng, TI step_i
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -351,6 +353,7 @@ namespace imitation_kernels{
             terminated_flags[env_i] = false;
             episode_return_arr[env_i] = (T)0;
             teacher_forcing_arr[env_i] = full_teacher_forcing || rl_tools::random::uniform_real_distribution(device.random, (T)0, (T)1, rng_state) < teacher_forcing_fraction;
+            brightness_scale_arr[env_i] = (T)1 + (rl_tools::random::uniform_real_distribution(device.random, (T)0, (T)1, rng_state) * (T)2 - (T)1) * BRIGHTNESS_RANDOMIZATION_RANGE;
             for(TI h = 0; h < RAPTOR_HIDDEN_DIM; h++){
                 raptor_gru_state_ptr[env_i * RAPTOR_HIDDEN_DIM + h] = raptor_gru_initial_hidden_ptr[h];
             }
@@ -608,6 +611,15 @@ static bool parse_hex_hash(const char* hex, unsigned char* out, unsigned len){
         out[i] = static_cast<unsigned char>(byte);
     }
     return true;
+}
+
+__global__ void brightness_apply_kernel(float* __restrict__ obs, const float* __restrict__ brightness_scales, int num_envs, int obs_dim){
+    int env_i = blockIdx.y;
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if(env_i >= num_envs || idx >= obs_dim) return;
+    float scale = brightness_scales[env_i];
+    int global_idx = env_i * obs_dim + idx;
+    obs[global_idx] = fminf(fmaxf(obs[global_idx] * scale, 0.0f), 1.0f);
 }
 
 __global__ void observation_noise_kernel(float* __restrict__ obs, int n, float std, unsigned long long seed){
@@ -972,6 +984,7 @@ int main(int argc, char** argv){
     T* gpu_episode_lengths_log = nullptr;
     T* gpu_episode_returns_log = nullptr;
     T* gpu_episode_tf_log = nullptr;
+    T* gpu_brightness_scale_arr = nullptr;
     cudaMalloc(&gpu_dynamics_arr, N_ENVIRONMENTS * sizeof(DYNAMICS_TYPE));
     cudaMalloc(&gpu_params_arr, N_ENVIRONMENTS * sizeof(PARAMETERS_TYPE));
     cudaMalloc(&gpu_states_arr, N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::State));
@@ -983,6 +996,11 @@ int main(int argc, char** argv){
     cudaMalloc(&gpu_episode_lengths_log, STEPS_TOTAL * sizeof(T));
     cudaMalloc(&gpu_episode_returns_log, STEPS_TOTAL * sizeof(T));
     cudaMalloc(&gpu_episode_tf_log, STEPS_TOTAL * sizeof(T));
+    cudaMalloc(&gpu_brightness_scale_arr, N_ENVIRONMENTS * sizeof(T));
+    {
+        std::vector<T> ones(N_ENVIRONMENTS, (T)1);
+        cudaMemcpy(gpu_brightness_scale_arr, ones.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
+    }
     std::vector<T> cpu_episode_lengths_log(STEPS_TOTAL);
     std::vector<T> cpu_episode_tf_log(STEPS_TOTAL);
     std::vector<T> cpu_episode_returns_log(STEPS_TOTAL);
@@ -1111,6 +1129,7 @@ int main(int argc, char** argv){
 #ifdef USE_FRAME_STACKING
                     gpu_episode_start_step,
 #endif
+                    gpu_brightness_scale_arr,
                     rng_gpu, step_i);
                 CUDA_CHECK("prologue_kernel");
 #ifdef USE_FRAME_STACKING
@@ -1196,6 +1215,12 @@ int main(int argc, char** argv){
                         unsigned long long noise_seed = seed + (unsigned long long)epoch_i * STEPS_PER_ENV + step_i;
                         observation_noise_kernel<<<noise_grid, noise_block>>>(obs_ptr, NOISE_N, OBSERVATION_NOISE_STD, noise_seed);
                         CUDA_CHECK("observation_noise_kernel");
+                    }
+                    if constexpr(BRIGHTNESS_RANDOMIZATION_RANGE > 0){
+                        int br_block = 256;
+                        dim3 br_grid((OBSERVATION_DIM + br_block - 1) / br_block, N_ENVIRONMENTS);
+                        brightness_apply_kernel<<<br_grid, br_block>>>(obs_ptr, gpu_brightness_scale_arr, N_ENVIRONMENTS, OBSERVATION_DIM);
+                        CUDA_CHECK("brightness_apply_kernel");
                     }
                 }
                 if(!full_teacher_forcing){
@@ -1664,6 +1689,7 @@ int main(int argc, char** argv){
     cudaFree(gpu_episode_lengths_log);
     cudaFree(gpu_episode_returns_log);
     cudaFree(gpu_episode_tf_log);
+    cudaFree(gpu_brightness_scale_arr);
 #ifdef USE_GRU_TEMPORAL
     rlt::free(device_gpu, student_state_gpu);
     rlt::free(device_gpu, gpu_rollout_branch_a);
