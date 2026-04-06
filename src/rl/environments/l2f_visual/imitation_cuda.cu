@@ -335,6 +335,7 @@ namespace imitation_kernels{
 #endif
         T* brightness_scale_arr,
         T* scene_translation_arr,
+        T* scene_yaw_arr,
         T* indoor_positions_ptr, TI* num_indoor_positions_ptr, TI* env_scene_ptr, TI max_indoor_pos,
         RNG rng, TI step_i
     ){
@@ -365,6 +366,7 @@ namespace imitation_kernels{
             scene_translation_arr[env_i * 3 + 0] = pos[0];
             scene_translation_arr[env_i * 3 + 1] = pos[1];
             scene_translation_arr[env_i * 3 + 2] = pos[2];
+            scene_yaw_arr[env_i] = rl_tools::random::uniform_real_distribution(device.random, (T)0, (T)(2.0 * 3.14159265358979323846), rng_state);
             episode_step_arr[env_i] = 0;
             terminated_flags[env_i] = false;
             episode_return_arr[env_i] = (T)0;
@@ -449,7 +451,7 @@ namespace imitation_kernels{
         T camera_offset_body_0, T camera_offset_body_1, T camera_offset_body_2,
         T camera_forward_body_0, T camera_forward_body_1, T camera_forward_body_2,
         T camera_up_body_0, T camera_up_body_1, T camera_up_body_2,
-        T* scene_translation_arr
+        T* scene_translation_arr, T* scene_yaw_arr
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i >= N_ENVIRONMENTS) return;
@@ -457,16 +459,32 @@ namespace imitation_kernels{
         T offset_body[3] = {camera_offset_body_0, camera_offset_body_1, camera_offset_body_2};
         T forward_body[3] = {camera_forward_body_0, camera_forward_body_1, camera_forward_body_2};
         T up_body[3] = {camera_up_body_0, camera_up_body_1, camera_up_body_2};
+        T cam_pos_local[3];
+        rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, offset_body, cam_pos_local);
+        T cam_forward_local[3];
+        rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, forward_body, cam_forward_local);
+        T cam_up_local[3];
+        rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, up_body, cam_up_local);
+        T scene_yaw = scene_yaw_arr[env_i];
+        T c = rl_tools::math::cos(device.math, scene_yaw);
+        T s = rl_tools::math::sin(device.math, scene_yaw);
+        auto rotate_scene_yaw = [&](const T in[3], T out[3]){
+            out[0] = c * in[0] - s * in[1];
+            out[1] = s * in[0] + c * in[1];
+            out[2] = in[2];
+        };
+        T state_position_world[3];
+        rotate_scene_yaw(state.position, state_position_world);
         T cam_pos_world[3];
-        rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, offset_body, cam_pos_world);
+        rotate_scene_yaw(cam_pos_local, cam_pos_world);
         T cam_forward_world[3];
-        rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, forward_body, cam_forward_world);
+        rotate_scene_yaw(cam_forward_local, cam_forward_world);
         T cam_up_world[3];
-        rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, up_body, cam_up_world);
+        rotate_scene_yaw(cam_up_local, cam_up_world);
         T position[3] = {
-            state.position[0] + cam_pos_world[0] + scene_translation_arr[env_i * 3 + 0],
-            state.position[1] + cam_pos_world[1] + scene_translation_arr[env_i * 3 + 1],
-            state.position[2] + cam_pos_world[2] + scene_translation_arr[env_i * 3 + 2]
+            state_position_world[0] + cam_pos_world[0] + scene_translation_arr[env_i * 3 + 0],
+            state_position_world[1] + cam_pos_world[1] + scene_translation_arr[env_i * 3 + 1],
+            state_position_world[2] + cam_pos_world[2] + scene_translation_arr[env_i * 3 + 2]
         };
         T look_at[3] = {
             position[0] + cam_forward_world[0],
@@ -927,6 +945,7 @@ int main(int argc, char** argv){
             typename ENVIRONMENT::State warmup_state;
             rlt::sample_initial_parameters(device, envs[env_i], env_parameters[env_i], rng);
             rlt::sample_initial_state(device, envs[env_i], env_parameters[env_i], warmup_state, rng);
+            env_parameters[env_i].scene_yaw = rlt::random::uniform_real_distribution(device.random, (T)0, (T)(2.0 * 3.14159265358979323846), rng);
 
             auto obs_slice = rlt::view(device, warmup_observations, obs_row);
             auto obs_matrix = rlt::matrix_view(device, obs_slice);
@@ -1093,6 +1112,7 @@ int main(int argc, char** argv){
     T* gpu_episode_tf_log = nullptr;
     T* gpu_brightness_scale_arr = nullptr;
     T* gpu_scene_translation_arr = nullptr;
+    T* gpu_scene_yaw_arr = nullptr;
     cudaMalloc(&gpu_dynamics_arr, N_ENVIRONMENTS * sizeof(DYNAMICS_TYPE));
     cudaMalloc(&gpu_params_arr, N_ENVIRONMENTS * sizeof(PARAMETERS_TYPE));
     cudaMalloc(&gpu_states_arr, N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::State));
@@ -1106,11 +1126,14 @@ int main(int argc, char** argv){
     cudaMalloc(&gpu_episode_tf_log, STEPS_TOTAL * sizeof(T));
     cudaMalloc(&gpu_brightness_scale_arr, N_ENVIRONMENTS * sizeof(T));
     cudaMalloc(&gpu_scene_translation_arr, N_ENVIRONMENTS * 3 * sizeof(T));
+    cudaMalloc(&gpu_scene_yaw_arr, N_ENVIRONMENTS * sizeof(T));
     {
         std::vector<T> ones(N_ENVIRONMENTS, (T)1);
         cudaMemcpy(gpu_brightness_scale_arr, ones.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
         std::vector<T> scene_translations(N_ENVIRONMENTS * 3, (T)0);
         cudaMemcpy(gpu_scene_translation_arr, scene_translations.data(), N_ENVIRONMENTS * 3 * sizeof(T), cudaMemcpyHostToDevice);
+        std::vector<T> scene_yaws(N_ENVIRONMENTS, (T)0);
+        cudaMemcpy(gpu_scene_yaw_arr, scene_yaws.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
     }
     std::vector<T> cpu_episode_lengths_log(STEPS_TOTAL);
     std::vector<T> cpu_episode_tf_log(STEPS_TOTAL);
@@ -1266,6 +1289,7 @@ int main(int argc, char** argv){
 #endif
                     gpu_brightness_scale_arr,
                     gpu_scene_translation_arr,
+                    gpu_scene_yaw_arr,
                     gpu_indoor_positions, gpu_num_indoor_positions, gpu_env_scene, MAX_INDOOR_POS,
                     rng_gpu, step_i);
                 CUDA_CHECK("prologue_kernel");
@@ -1279,7 +1303,7 @@ int main(int argc, char** argv){
                     env_parameters[0].camera_mount.offset_body[0], env_parameters[0].camera_mount.offset_body[1], env_parameters[0].camera_mount.offset_body[2],
                     env_parameters[0].camera_mount.forward_body[0], env_parameters[0].camera_mount.forward_body[1], env_parameters[0].camera_mount.forward_body[2],
                     env_parameters[0].camera_mount.up_body[0], env_parameters[0].camera_mount.up_body[1], env_parameters[0].camera_mount.up_body[2],
-                    gpu_scene_translation_arr);
+                    gpu_scene_translation_arr, gpu_scene_yaw_arr);
                 CUDA_CHECK("make_cameras_kernel");
                 T* obs_ptr = rlt::data(gpu_all_observations) + (TI)(step_i * N_ENVIRONMENTS) * OBSERVATION_DIM;
                 cudaEventRecord(cameras_ready_event, device_gpu.stream);
@@ -1438,7 +1462,8 @@ int main(int argc, char** argv){
         // =================================================================
         T epoch_loss = 0;
         T epoch_r2 = 0;
-        TI loss_count = 0;
+        T epoch_loss_sum = 0;
+        TI epoch_loss_count = 0;
 
 #ifdef USE_GRU_TEMPORAL
         for(TI pass = 0; pass < N_TRAIN_PASSES; pass++){
@@ -1472,23 +1497,10 @@ int main(int argc, char** argv){
                 rlt::nn::loss_functions::mse::gradient(device_gpu, student_output_matrix, target_matrix, gpu_d_action_train, (T)0.5);
                 cudaDeviceSynchronize();
 
-                if(wi == 0 && pass == 0){
-                    rlt::Matrix<rlt::matrix::Specification<T, TI, WINDOW_SAMPLES, TARGET_DIM>> cpu_student_output, cpu_target;
-                    rlt::malloc(device, cpu_student_output);
-                    rlt::malloc(device, cpu_target);
-                    rlt::copy(device_gpu, device, student_output_matrix, cpu_student_output);
-                    rlt::copy(device_gpu, device, target_matrix, cpu_target);
-                    T batch_loss = 0;
-                    for(TI i = 0; i < WINDOW_SAMPLES; i++){
-                        for(TI j = 0; j < TARGET_DIM; j++){
-                            T diff = rlt::get(cpu_student_output, i, j) - rlt::get(cpu_target, i, j);
-                            batch_loss += diff * diff;
-                        }
-                    }
-                    epoch_loss = batch_loss / (WINDOW_SAMPLES * TARGET_DIM);
-                    epoch_r2 = epoch_target_variance > 0 ? (T)1 - epoch_loss / epoch_target_variance : (T)0;
-                    rlt::free(device, cpu_student_output);
-                    rlt::free(device, cpu_target);
+                if(pass == 0){
+                    T batch_loss = rlt::nn::loss_functions::mse::evaluate(device_gpu, student_output_matrix, target_matrix);
+                    epoch_loss_sum += batch_loss;
+                    epoch_loss_count++;
                 }
 
                 auto gpu_d_action_tensor = rlt::to_tensor(device_gpu, gpu_d_action_train);
@@ -1498,10 +1510,10 @@ int main(int argc, char** argv){
                 cudaDeviceSynchronize();
                 rlt::step(device_gpu, optimizer_gpu, student_gpu);
                 cudaDeviceSynchronize();
-
-                loss_count++;
             }
         }
+        epoch_loss = epoch_loss_count > 0 ? epoch_loss_sum / epoch_loss_count : (T)0;
+        epoch_r2 = epoch_target_variance > 0 ? (T)1 - epoch_loss / epoch_target_variance : (T)0;
 #else
         for(TI pass = 0; pass < N_TRAIN_PASSES; pass++){
             // Shuffle batch order
@@ -1554,23 +1566,10 @@ int main(int argc, char** argv){
                 cudaDeviceSynchronize();
 
                 // Compute loss for logging (sample every N_BATCHES batches)
-                if(batch_idx == 0 && pass == 0){
-                    rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, TARGET_DIM>> cpu_student_output, cpu_target;
-                    rlt::malloc(device, cpu_student_output);
-                    rlt::malloc(device, cpu_target);
-                    rlt::copy(device_gpu, device, student_output_matrix, cpu_student_output);
-                    rlt::copy(device_gpu, device, target_batch, cpu_target);
-                    T batch_loss = 0;
-                    for(TI i = 0; i < BATCH_SIZE; i++){
-                        for(TI j = 0; j < TARGET_DIM; j++){
-                            T diff = rlt::get(cpu_student_output, i, j) - rlt::get(cpu_target, i, j);
-                            batch_loss += diff * diff;
-                        }
-                    }
-                    epoch_loss = batch_loss / (BATCH_SIZE * TARGET_DIM);
-                    epoch_r2 = epoch_target_variance > 0 ? (T)1 - epoch_loss / epoch_target_variance : (T)0;
-                    rlt::free(device, cpu_student_output);
-                    rlt::free(device, cpu_target);
+                if(pass == 0){
+                    T batch_loss = rlt::nn::loss_functions::mse::evaluate(device_gpu, student_output_matrix, target_batch);
+                    epoch_loss_sum += batch_loss;
+                    epoch_loss_count++;
                 }
 
                 // Student backward + Adam step
@@ -1580,10 +1579,10 @@ int main(int argc, char** argv){
                 cudaDeviceSynchronize();
                 rlt::step(device_gpu, optimizer_gpu, student_gpu);
                 cudaDeviceSynchronize();
-
-                loss_count++;
             }
         }
+        epoch_loss = epoch_loss_count > 0 ? epoch_loss_sum / epoch_loss_count : (T)0;
+        epoch_r2 = epoch_target_variance > 0 ? (T)1 - epoch_loss / epoch_target_variance : (T)0;
 #endif
 
         // Logging
@@ -1842,6 +1841,7 @@ int main(int argc, char** argv){
     cudaFree(gpu_episode_tf_log);
     cudaFree(gpu_brightness_scale_arr);
     cudaFree(gpu_scene_translation_arr);
+    cudaFree(gpu_scene_yaw_arr);
     cudaFree(gpu_indoor_positions);
     cudaFree(gpu_num_indoor_positions);
     cudaFree(gpu_env_scene);

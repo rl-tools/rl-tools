@@ -54,6 +54,7 @@ namespace rl_tools::rl::environments::l2f_visual {
         using T = typename SPEC::T;
         typename SPEC::DYNAMICS_ENV::Parameters dynamics;
         T scene_translation[3] = {0, 0, 0};
+        T scene_yaw = 0;
         SceneHash scene_hash;
         CameraMount<T> camera_mount;
         T fov = 1.1132;
