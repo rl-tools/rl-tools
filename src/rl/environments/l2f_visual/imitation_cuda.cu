@@ -175,13 +175,16 @@ static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM; // 12
 // =========================================================================
 // Visual environment specification
 // =========================================================================
-static constexpr TI N_ENVIRONMENTS = 64;
+static constexpr TI N_TOTAL_SCENES = 25;
+static constexpr TI N_ACTIVE_SCENES = 2;
+static constexpr TI N_ENVIRONMENTS_PER_SCENE = 64;
+static constexpr TI N_ENVIRONMENTS = N_ACTIVE_SCENES * N_ENVIRONMENTS_PER_SCENE;
 static constexpr TI CAM_WIDTH = 64;
 static constexpr TI CAM_HEIGHT = 64;
 static constexpr TI NUM_PROBES = 64;
 
 constexpr bool HIGH_FIDELITY_SHADING = true;
-using VISUAL_SPEC = rlt::rl::environments::l2f_visual::Specification<T, TI, STATIC_PARAMETERS, N_ENVIRONMENTS, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, HIGH_FIDELITY_SHADING>;
+using VISUAL_SPEC = rlt::rl::environments::l2f_visual::Specification<T, TI, STATIC_PARAMETERS, N_ENVIRONMENTS_PER_SCENE, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, HIGH_FIDELITY_SHADING>;
 using ENVIRONMENT = rlt::rl::environments::l2f_visual::MultirrotorVisual<VISUAL_SPEC>;
 
 // =========================================================================
@@ -227,8 +230,10 @@ static constexpr TI VIDEO_CADENCE = 10;
 static constexpr TI CHECKPOINT_CADENCE = 100;
 static constexpr T OBSERVATION_NOISE_STD = 0.00;
 static constexpr T BRIGHTNESS_RANDOMIZATION_RANGE = 0.5;
-static constexpr TI GRID_SIDE = 8; // sqrt(N_ENVIRONMENTS)
-static_assert(GRID_SIDE * GRID_SIDE == N_ENVIRONMENTS, "N_ENVIRONMENTS must be a perfect square for video mosaic");
+static constexpr TI ENV_GRID_SIDE = 8; // sqrt(N_ENVIRONMENTS_PER_SCENE)
+static constexpr TI SCENE_GRID_COLS = 4;
+static constexpr TI SCENE_GRID_ROWS = (N_ACTIVE_SCENES + SCENE_GRID_COLS - 1) / SCENE_GRID_COLS;
+static_assert(ENV_GRID_SIDE * ENV_GRID_SIDE == N_ENVIRONMENTS_PER_SCENE, "N_ENVIRONMENTS_PER_SCENE must be a perfect square for per-scene video mosaic");
 
 static_assert(N_BATCHES > 0, "STEPS_TOTAL must be >= BATCH_SIZE");
 
@@ -634,7 +639,7 @@ static bool parse_hex_hash(const char* hex, unsigned char* out, unsigned len){
 
 __global__ void scatter_pixel_to_float_kernel(
     const uint32_t* __restrict__ fb, float* __restrict__ output,
-    const int* __restrict__ env_indices, int n_envs,
+    int base_env, int n_envs,
     int pixels_per_camera, int obs_dim
 ){
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
@@ -647,7 +652,7 @@ __global__ void scatter_pixel_to_float_kernel(
     float r = static_cast<float>((rgba >>  0) & 0xFF) / 255.0f;
     float g = static_cast<float>((rgba >>  8) & 0xFF) / 255.0f;
     float b = static_cast<float>((rgba >> 16) & 0xFF) / 255.0f;
-    int global_env = env_indices[local_env];
+    int global_env = base_env + local_env;
     int out_base = global_env * obs_dim + pixel_idx * 3;
     output[out_base + 0] = r;
     output[out_base + 1] = g;
@@ -707,10 +712,10 @@ int main(int argc, char** argv){
         seed = std::atoi(argv[2]);
     }
 
-    static constexpr TI MAX_SCENES = 20;
     static constexpr TI EPOCHS_PER_SCENE = 50;
 
     std::vector<std::string> scene_paths;
+    std::mt19937 scene_rng(seed);
     const char* scene_arg = argv[1];
     if(std::filesystem::is_directory(scene_arg)){
         std::vector<std::string> all_glbs;
@@ -720,10 +725,12 @@ int main(int argc, char** argv){
             }
         }
         std::sort(all_glbs.begin(), all_glbs.end());
-        std::mt19937 scene_rng(seed);
         std::shuffle(all_glbs.begin(), all_glbs.end(), scene_rng);
-        TI n_scenes = std::min(static_cast<TI>(all_glbs.size()), MAX_SCENES);
-        for(TI i = 0; i < n_scenes; i++){
+        if(static_cast<TI>(all_glbs.size()) < N_TOTAL_SCENES){
+            std::cerr << "Need at least " << N_TOTAL_SCENES << " GLB scenes, found " << all_glbs.size() << std::endl;
+            return 1;
+        }
+        for(TI i = 0; i < N_TOTAL_SCENES; i++){
             scene_paths.push_back(all_glbs[i]);
         }
         std::cout << "Selected " << scene_paths.size() << " scenes from " << scene_arg << std::endl;
@@ -731,10 +738,11 @@ int main(int argc, char** argv){
             std::cout << "  [" << i << "] " << std::filesystem::path(scene_paths[i]).filename().string() << std::endl;
         }
     } else {
-        scene_paths.push_back(scene_arg);
+        scene_paths.resize(N_TOTAL_SCENES, scene_arg);
+        std::cout << "Replicating single scene across " << N_TOTAL_SCENES << " renderers: " << scene_arg << std::endl;
     }
-    if(scene_paths.empty()){
-        std::cerr << "No GLB scenes found" << std::endl;
+    if(scene_paths.size() != N_TOTAL_SCENES){
+        std::cerr << "Expected exactly " << N_TOTAL_SCENES << " scenes, got " << scene_paths.size() << std::endl;
         return 1;
     }
 
@@ -795,20 +803,18 @@ int main(int argc, char** argv){
     // =========================================================================
     using RENDERER_TYPE = rlt::rendering::raytracing::Renderer<typename ENVIRONMENT::SPEC::RENDERER_SPEC>;
     using SCENE_TYPE = rlt::rendering::raytracing::scene::procthor::Scene<typename ENVIRONMENT::SPEC::SCENE_SPEC>;
-    TI n_scenes = scene_paths.size();
 
     ENVIRONMENT envs[N_ENVIRONMENTS];
     typename ENVIRONMENT::Parameters env_parameters[N_ENVIRONMENTS];
 
-    std::vector<RENDERER_TYPE*> renderers(n_scenes);
-    std::vector<SCENE_TYPE*> scenes(n_scenes);
+    std::array<RENDERER_TYPE*, N_TOTAL_SCENES> renderers{};
+    std::array<SCENE_TYPE*, N_TOTAL_SCENES> scenes{};
 
     // Load all scenes
     {
         ENVIRONMENT loader_env;
         rlt::malloc(device, loader_env);
-        std::vector<TI> valid_indices;
-        for(TI s = 0; s < n_scenes; s++){
+        for(TI s = 0; s < N_TOTAL_SCENES; s++){
             std::cout << "Loading scene [" << s << "]: " << std::filesystem::path(scene_paths[s]).filename().string() << std::flush;
             if(s > 0){
                 loader_env.renderer = new RENDERER_TYPE{};
@@ -822,42 +828,16 @@ int main(int argc, char** argv){
             TI num_pos = loader_env.scene->num_indoor_positions;
             std::cout << " — " << num_pos << " indoor positions" << std::endl;
             if(num_pos == 0){
-                std::cerr << "  Skipping: no valid positions with 1m clearance" << std::endl;
-                rlt::free(device, *loader_env.renderer);
-                delete loader_env.renderer;
-                delete loader_env.scene;
-                continue;
+                std::cerr << "Scene has no valid positions with 1m clearance: " << scene_paths[s] << std::endl;
+                return 1;
             }
-            renderers[valid_indices.size()] = loader_env.renderer;
-            scenes[valid_indices.size()] = loader_env.scene;
-            valid_indices.push_back(s);
+            renderers[s] = loader_env.renderer;
+            scenes[s] = loader_env.scene;
             loader_env.renderer = nullptr;
             loader_env.scene = nullptr;
             loader_env.owns_renderer = false;
         }
-        if(valid_indices.empty()){
-            std::cerr << "No scenes with valid indoor positions" << std::endl;
-            return 1;
-        }
-        std::vector<std::string> valid_paths;
-        for(TI i : valid_indices) valid_paths.push_back(scene_paths[i]);
-        scene_paths = valid_paths;
-        n_scenes = scene_paths.size();
-        renderers.resize(n_scenes);
-        scenes.resize(n_scenes);
-        std::cout << "Loaded " << n_scenes << " scenes" << std::endl;
-    }
-
-    // Assign environments to scenes round-robin
-    std::vector<TI> env_to_scene(N_ENVIRONMENTS);
-    std::vector<std::vector<TI>> scene_env_lists(n_scenes);
-    for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
-        TI s = env_i % n_scenes;
-        env_to_scene[env_i] = s;
-        scene_env_lists[s].push_back(env_i);
-    }
-    for(TI s = 0; s < n_scenes; s++){
-        std::cout << "  Scene " << s << ": " << scene_env_lists[s].size() << " envs" << std::endl;
+        std::cout << "Loaded " << N_TOTAL_SCENES << " scenes" << std::endl;
     }
 
     // GPU buffers for per-scene indoor positions
@@ -865,13 +845,13 @@ int main(int argc, char** argv){
     T* gpu_indoor_positions = nullptr;
     TI* gpu_num_indoor_positions = nullptr;
     TI* gpu_env_scene = nullptr;
-    cudaMalloc(&gpu_indoor_positions, n_scenes * MAX_INDOOR_POS * 4 * sizeof(T));
-    cudaMalloc(&gpu_num_indoor_positions, n_scenes * sizeof(TI));
+    cudaMalloc(&gpu_indoor_positions, N_TOTAL_SCENES * MAX_INDOOR_POS * 4 * sizeof(T));
+    cudaMalloc(&gpu_num_indoor_positions, N_TOTAL_SCENES * sizeof(TI));
     cudaMalloc(&gpu_env_scene, N_ENVIRONMENTS * sizeof(TI));
     {
-        std::vector<T> all_positions(n_scenes * MAX_INDOOR_POS * 4, 0);
-        std::vector<TI> all_counts(n_scenes);
-        for(TI s = 0; s < n_scenes; s++){
+        std::vector<T> all_positions(N_TOTAL_SCENES * MAX_INDOOR_POS * 4, 0);
+        std::vector<TI> all_counts(N_TOTAL_SCENES);
+        for(TI s = 0; s < N_TOTAL_SCENES; s++){
             all_counts[s] = scenes[s]->num_indoor_positions;
             for(TI i = 0; i < all_counts[s]; i++){
                 TI base = (s * MAX_INDOOR_POS + i) * 4;
@@ -882,30 +862,34 @@ int main(int argc, char** argv){
             }
         }
         cudaMemcpy(gpu_indoor_positions, all_positions.data(), all_positions.size() * sizeof(T), cudaMemcpyHostToDevice);
-        cudaMemcpy(gpu_num_indoor_positions, all_counts.data(), n_scenes * sizeof(TI), cudaMemcpyHostToDevice);
-        cudaMemcpy(gpu_env_scene, env_to_scene.data(), N_ENVIRONMENTS * sizeof(TI), cudaMemcpyHostToDevice);
+        cudaMemcpy(gpu_num_indoor_positions, all_counts.data(), N_TOTAL_SCENES * sizeof(TI), cudaMemcpyHostToDevice);
     }
 
-    // GPU buffers for per-scene env index lists (for scatter rendering)
-    std::vector<int*> gpu_scene_env_indices(n_scenes);
-    for(TI s = 0; s < n_scenes; s++){
-        std::vector<int> indices(scene_env_lists[s].begin(), scene_env_lists[s].end());
-        cudaMalloc(&gpu_scene_env_indices[s], indices.size() * sizeof(int));
-        cudaMemcpy(gpu_scene_env_indices[s], indices.data(), indices.size() * sizeof(int), cudaMemcpyHostToDevice);
+    std::array<TI, N_ACTIVE_SCENES> active_scene_indices{};
+    std::vector<TI> scene_permutation(N_TOTAL_SCENES);
+    std::iota(scene_permutation.begin(), scene_permutation.end(), 0);
+    auto upload_active_scenes = [&](){
+        std::array<TI, N_ENVIRONMENTS> env_scene{};
+        for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
+            TI actual_scene_i = active_scene_indices[active_scene_i];
+            std::cout << "  Active scene slot " << active_scene_i << " -> scene " << actual_scene_i << std::endl;
+            for(TI local_env_i = 0; local_env_i < N_ENVIRONMENTS_PER_SCENE; local_env_i++){
+                env_scene[active_scene_i * N_ENVIRONMENTS_PER_SCENE + local_env_i] = actual_scene_i;
+            }
+        }
+        cudaMemcpy(gpu_env_scene, env_scene.data(), N_ENVIRONMENTS * sizeof(TI), cudaMemcpyHostToDevice);
+    };
+    for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
+        active_scene_indices[active_scene_i] = active_scene_i;
     }
+    upload_active_scenes();
 
     // Set up envs (use first renderer for env0 reference)
     for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
-        rlt::malloc(device, envs[env_i]);
-        if(envs[env_i].owns_renderer && envs[env_i].renderer != nullptr && env_i > 0){
-            rlt::free(device, *envs[env_i].renderer);
-            delete envs[env_i].renderer;
-        }
-        if(envs[env_i].scene != nullptr && env_i > 0){
-            delete envs[env_i].scene;
-        }
-        envs[env_i].renderer = renderers[env_to_scene[env_i]];
-        envs[env_i].scene = scenes[env_to_scene[env_i]];
+        TI scene_i = env_i / N_ENVIRONMENTS_PER_SCENE;
+        rlt::malloc(device, envs[env_i].dynamics);
+        envs[env_i].renderer = renderers[scene_i];
+        envs[env_i].scene = scenes[scene_i];
         envs[env_i].owns_renderer = false;
         envs[env_i].renderer_initialized = true;
         envs[env_i].use_target_mode = true;
@@ -1191,13 +1175,24 @@ int main(int argc, char** argv){
 
     // Video recording buffers
     static constexpr TI CAM_PIXELS = CAM_WIDTH * CAM_HEIGHT;
-    static constexpr TI MOSAIC_W = GRID_SIDE * CAM_WIDTH;
-    static constexpr TI MOSAIC_H = GRID_SIDE * CAM_HEIGHT;
+    static constexpr TI MOSAIC_W = SCENE_GRID_COLS * ENV_GRID_SIDE * CAM_WIDTH;
+    static constexpr TI MOSAIC_H = SCENE_GRID_ROWS * ENV_GRID_SIDE * CAM_HEIGHT;
     std::vector<uint32_t> video_pixel_buffer(N_ENVIRONMENTS * CAM_PIXELS);
     std::vector<uint8_t> mosaic_frame(MOSAIC_W * MOSAIC_H * 3);
 
     for(TI epoch_i = 0; epoch_i < NUM_EPOCHS; epoch_i++){
         auto epoch_start = std::chrono::high_resolution_clock::now();
+        std::shuffle(scene_permutation.begin(), scene_permutation.end(), scene_rng);
+        for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
+            active_scene_indices[active_scene_i] = scene_permutation[active_scene_i];
+        }
+        upload_active_scenes();
+        for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
+            TI active_scene_i = env_i / N_ENVIRONMENTS_PER_SCENE;
+            TI actual_scene_i = active_scene_indices[active_scene_i];
+            envs[env_i].renderer = renderers[actual_scene_i];
+            envs[env_i].scene = scenes[actual_scene_i];
+        }
         bool full_teacher_forcing = true; // student predicts velocity, not actions
         bool record_video = (epoch_i % CHECKPOINT_CADENCE == 0);
         TI epoch_end_step = global_step + STEPS_PER_ENV * N_ENVIRONMENTS;
@@ -1275,15 +1270,16 @@ int main(int argc, char** argv){
                 CUDA_CHECK("make_cameras_kernel");
                 T* obs_ptr = rlt::data(gpu_all_observations) + (TI)(step_i * N_ENVIRONMENTS) * OBSERVATION_DIM;
                 cudaEventRecord(cameras_ready_event, device_gpu.stream);
-                for(TI s = 0; s < n_scenes; s++){
-                    auto& renderer = *renderers[s];
-                    TI n_envs_s = scene_env_lists[s].size();
+                for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
+                    TI actual_scene_i = active_scene_indices[active_scene_i];
+                    auto& renderer = *renderers[actual_scene_i];
+                    constexpr TI n_envs_s = N_ENVIRONMENTS_PER_SCENE;
+                    TI base_env = active_scene_i * N_ENVIRONMENTS_PER_SCENE;
                     if(renderer.backend.owl_cameras_buffer == nullptr){
-                        std::array<rlt::rendering::raytracing::CameraData<float>, N_ENVIRONMENTS> cpu_cameras_init;
-                        cudaMemcpy(cpu_cameras_init.data(), gpu_cameras, N_ENVIRONMENTS * sizeof(rlt::rendering::raytracing::CameraData<float>), cudaMemcpyDeviceToHost);
+                        std::array<rlt::rendering::raytracing::CameraData<float>, N_ENVIRONMENTS_PER_SCENE> cpu_cameras_init;
+                        cudaMemcpy(cpu_cameras_init.data(), gpu_cameras + base_env, N_ENVIRONMENTS_PER_SCENE * sizeof(rlt::rendering::raytracing::CameraData<float>), cudaMemcpyDeviceToHost);
                         for(TI li = 0; li < n_envs_s; li++){
-                            TI ei = scene_env_lists[s][li];
-                            rlt::set(device, renderer.cameras, cpu_cameras_init[ei], li);
+                            rlt::set(device, renderer.cameras, cpu_cameras_init[li], li);
                         }
                         rlt::set_cameras(device, renderer, renderer.cameras);
                         rlt::render_rgb_only(device, renderer);
@@ -1293,10 +1289,9 @@ int main(int argc, char** argv){
                         cudaStreamWaitEvent(optix_stream, cameras_ready_event, 0);
                         void* owl_cam_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.owl_cameras_buffer, 0);
                         for(TI li = 0; li < n_envs_s; li++){
-                            TI ei = scene_env_lists[s][li];
                             cudaMemcpyAsync(
                                 (char*)owl_cam_ptr + li * sizeof(rlt::rendering::raytracing::CameraData<float>),
-                                gpu_cameras + ei,
+                                gpu_cameras + base_env + li,
                                 sizeof(rlt::rendering::raytracing::CameraData<float>),
                                 cudaMemcpyDeviceToDevice, optix_stream);
                         }
@@ -1305,9 +1300,11 @@ int main(int argc, char** argv){
                 }
                 rlt::evaluate_step(device_gpu, raptor_gpu, gpu_teacher_obs, raptor_state_gpu, gpu_teacher_actions_step, raptor_buffer_gpu, rng_gpu, no_auto_reset_mode);
                 CUDA_CHECK("raptor evaluate_step");
-                for(TI s = 0; s < n_scenes; s++){
-                    auto& renderer = *renderers[s];
-                    TI n_envs_s = scene_env_lists[s].size();
+                for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
+                    TI actual_scene_i = active_scene_indices[active_scene_i];
+                    auto& renderer = *renderers[actual_scene_i];
+                    constexpr TI n_envs_s = N_ENVIRONMENTS_PER_SCENE;
+                    TI base_env = active_scene_i * N_ENVIRONMENTS_PER_SCENE;
                     if(renderer.backend.owl_cameras_buffer != nullptr){
                         rlt::render_rgb_only_sync(device, renderer);
                     }
@@ -1315,7 +1312,7 @@ int main(int argc, char** argv){
                     int total_scatter = n_envs_s * CAM_PIXELS;
                     int pf_block = 256;
                     int pf_grid = (total_scatter + pf_block - 1) / pf_block;
-                    scatter_pixel_to_float_kernel<<<pf_grid, pf_block>>>(fb_ptr, obs_ptr, gpu_scene_env_indices[s], n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
+                    scatter_pixel_to_float_kernel<<<pf_grid, pf_block>>>(fb_ptr, obs_ptr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
                 }
                 CUDA_CHECK("multi-scene render");
                 if constexpr(OBSERVATION_NOISE_STD > 0){
@@ -1336,19 +1333,28 @@ int main(int argc, char** argv){
                     static constexpr TI VIDEO_OBS_SIZE = N_ENVIRONMENTS * OBSERVATION_DIM;
                     std::vector<float> cpu_obs(VIDEO_OBS_SIZE);
                     cudaMemcpy(cpu_obs.data(), obs_ptr, VIDEO_OBS_SIZE * sizeof(float), cudaMemcpyDeviceToHost);
-                    for(TI grid_row = 0; grid_row < GRID_SIDE; grid_row++){
-                        for(TI grid_col = 0; grid_col < GRID_SIDE; grid_col++){
-                            TI env_i = grid_row * GRID_SIDE + grid_col;
-                            const float* env_obs = cpu_obs.data() + env_i * OBSERVATION_DIM;
-                            for(TI py = 0; py < CAM_HEIGHT; py++){
-                                for(TI px = 0; px < CAM_WIDTH; px++){
-                                    TI pixel_i = py * CAM_WIDTH + px;
-                                    TI mosaic_x = grid_col * CAM_WIDTH + px;
-                                    TI mosaic_y = grid_row * CAM_HEIGHT + py;
-                                    TI out_idx = (mosaic_y * MOSAIC_W + mosaic_x) * 3;
-                                    mosaic_frame[out_idx + 0] = static_cast<uint8_t>(std::clamp(env_obs[pixel_i * 3 + 0] * 255.0f, 0.0f, 255.0f));
-                                    mosaic_frame[out_idx + 1] = static_cast<uint8_t>(std::clamp(env_obs[pixel_i * 3 + 1] * 255.0f, 0.0f, 255.0f));
-                                    mosaic_frame[out_idx + 2] = static_cast<uint8_t>(std::clamp(env_obs[pixel_i * 3 + 2] * 255.0f, 0.0f, 255.0f));
+                    for(TI scene_row = 0; scene_row < SCENE_GRID_ROWS; scene_row++){
+                        for(TI scene_col = 0; scene_col < SCENE_GRID_COLS; scene_col++){
+                            TI active_scene_i = scene_row * SCENE_GRID_COLS + scene_col;
+                            if(active_scene_i >= N_ACTIVE_SCENES){
+                                continue;
+                            }
+                            for(TI local_row = 0; local_row < ENV_GRID_SIDE; local_row++){
+                                for(TI local_col = 0; local_col < ENV_GRID_SIDE; local_col++){
+                                    TI local_env = local_row * ENV_GRID_SIDE + local_col;
+                                    TI env_i = active_scene_i * N_ENVIRONMENTS_PER_SCENE + local_env;
+                                    const float* env_obs = cpu_obs.data() + env_i * OBSERVATION_DIM;
+                                    for(TI py = 0; py < CAM_HEIGHT; py++){
+                                        for(TI px = 0; px < CAM_WIDTH; px++){
+                                            TI pixel_i = py * CAM_WIDTH + px;
+                                            TI mosaic_x = (scene_col * ENV_GRID_SIDE + local_col) * CAM_WIDTH + px;
+                                            TI mosaic_y = (scene_row * ENV_GRID_SIDE + local_row) * CAM_HEIGHT + py;
+                                            TI out_idx = (mosaic_y * MOSAIC_W + mosaic_x) * 3;
+                                            mosaic_frame[out_idx + 0] = static_cast<uint8_t>(std::clamp(env_obs[pixel_i * 3 + 0] * 255.0f, 0.0f, 255.0f));
+                                            mosaic_frame[out_idx + 1] = static_cast<uint8_t>(std::clamp(env_obs[pixel_i * 3 + 1] * 255.0f, 0.0f, 255.0f));
+                                            mosaic_frame[out_idx + 2] = static_cast<uint8_t>(std::clamp(env_obs[pixel_i * 3 + 2] * 255.0f, 0.0f, 255.0f));
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1764,12 +1770,23 @@ int main(int argc, char** argv){
     // =========================================================================
     // Cleanup
     // =========================================================================
-    for(TI env_i = 1; env_i < N_ENVIRONMENTS; env_i++){
+    for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
         envs[env_i].renderer = nullptr;
         envs[env_i].scene = nullptr;
     }
     for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
         rlt::free(device, envs[env_i]);
+    }
+    for(TI scene_i = 0; scene_i < N_TOTAL_SCENES; scene_i++){
+        if(renderers[scene_i] != nullptr){
+            rlt::free(device, *renderers[scene_i]);
+            delete renderers[scene_i];
+            renderers[scene_i] = nullptr;
+        }
+        if(scenes[scene_i] != nullptr){
+            delete scenes[scene_i];
+            scenes[scene_i] = nullptr;
+        }
     }
 
     rlt::free(device, raptor);
@@ -1815,9 +1832,6 @@ int main(int argc, char** argv){
     cudaFree(gpu_indoor_positions);
     cudaFree(gpu_num_indoor_positions);
     cudaFree(gpu_env_scene);
-    for(TI s = 0; s < n_scenes; s++){
-        cudaFree(gpu_scene_env_indices[s]);
-    }
 #ifdef USE_GRU_TEMPORAL
     rlt::free(device_gpu, student_state_gpu);
     rlt::free(device_gpu, gpu_rollout_branch_a);
