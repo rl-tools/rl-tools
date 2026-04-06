@@ -119,7 +119,7 @@ static constexpr REWARD_FUNCTION reward_function = {
     false, 1.00, 1.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00
 };
 static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = {
-    0.2, 0.0, 0.3, 0.0, 1.0, true, -1, +1,
+    0.2, 0.0, 0.3, 1.0, 1.0, true, -1, +1,
 };
 static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = {
     true, 1.0, 10, 35, 10000, 50000,
@@ -212,6 +212,7 @@ using RAPTOR_MODEL = rlt::nn_models::sequential::Build<RAPTOR_CAPABILITY, RAPTOR
 static constexpr TI ACTOR_HIDDEN_DIM = 64;
 static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
 static constexpr TI ACTION_DIM = ENVIRONMENT::ACTION_DIM;
+static constexpr TI TARGET_DIM = 3; // body-frame linear velocity
 static constexpr TI OBSERVATION_DIM = ENVIRONMENT::OBSERVATION_DIM;
 static constexpr TI BATCH_SIZE = 512;
 static constexpr TI STEPS_PER_ENV = 500;
@@ -389,8 +390,8 @@ namespace imitation_kernels{
     void epilogue_kernel(
         DEVICE device,
         DYNAMICS_TYPE* envs, PARAMETERS_TYPE* env_params, typename ENVIRONMENT::State* states,
-        bool* terminated_flags, TI* episode_step_arr, bool* teacher_forcing_arr, T* episode_return_arr,
-        T* teacher_actions_ptr, T* student_actions_ptr, T* all_teacher_actions_ptr,
+        bool* terminated_flags, TI* episode_step_arr, T* episode_return_arr,
+        T* teacher_actions_ptr, T* all_targets_ptr,
         RNG rng, TI step_i
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -400,11 +401,19 @@ namespace imitation_kernels{
         auto& params = env_params[env_i];
         auto& state = states[env_i];
         TI pos = step_i * N_ENVIRONMENTS + env_i;
+        T conjugate_orientation[4];
+        conjugate_orientation[0] = state.orientation[0];
+        conjugate_orientation[1] = -state.orientation[1];
+        conjugate_orientation[2] = -state.orientation[2];
+        conjugate_orientation[3] = -state.orientation[3];
+        T velocity_body[3];
+        rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(conjugate_orientation, state.linear_velocity, velocity_body);
+        for(TI d = 0; d < TARGET_DIM; d++){
+            all_targets_ptr[pos * TARGET_DIM + d] = velocity_body[d];
+        }
         T action_arr[ACTION_DIM];
-        T* src = teacher_forcing_arr[env_i] ? teacher_actions_ptr : student_actions_ptr;
         for(TI a = 0; a < ACTION_DIM; a++){
-            action_arr[a] = src[env_i * ACTION_DIM + a];
-            all_teacher_actions_ptr[pos * ACTION_DIM + a] = teacher_actions_ptr[env_i * ACTION_DIM + a];
+            action_arr[a] = teacher_actions_ptr[env_i * ACTION_DIM + a];
         }
         rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ACTION_DIM, true, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> action_matrix;
         action_matrix._data = action_arr;
@@ -564,8 +573,8 @@ struct StudentActor{
     using STATE_DENSE_EMBED = rlt::nn::layers::dense::BindConfiguration<STATE_DENSE_EMBED_CONFIG>;
     using STATE_BRANCH = rlt::nn_models::sequential::Module<STATE_STANDARDIZE, STATE_DENSE_EMBED>;
 
-    // Head MLP: 128D → 64 → 64 → ACTION_DIM (plain MLP, no log_std)
-    using MLP_HEAD_CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, ACTION_DIM, 2, ACTOR_HIDDEN_DIM, ACTOR_ACTIVATION_FUNCTION, rlt::nn::activation_functions::IDENTITY>;
+    // Head MLP: 128D → 64 → 64 → TARGET_DIM (plain MLP, no log_std)
+    using MLP_HEAD_CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, TARGET_DIM, 2, ACTOR_HIDDEN_DIM, ACTOR_ACTIVATION_FUNCTION, rlt::nn::activation_functions::IDENTITY>;
     using MLP_HEAD = rlt::nn_models::mlp::BindConfiguration<MLP_HEAD_CONFIG>;
 
 #ifdef USE_GRU_TEMPORAL
@@ -575,7 +584,7 @@ struct StudentActor{
     using HEAD_DENSE1 = rlt::nn::layers::dense::BindConfiguration<HEAD_DENSE1_CONFIG>;
     using HEAD_DENSE2_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, ACTOR_HIDDEN_DIM, ACTOR_ACTIVATION_FUNCTION>;
     using HEAD_DENSE2 = rlt::nn::layers::dense::BindConfiguration<HEAD_DENSE2_CONFIG>;
-    using HEAD_DENSE_OUT_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, ACTION_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+    using HEAD_DENSE_OUT_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, TARGET_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using HEAD_DENSE_OUT = rlt::nn::layers::dense::BindConfiguration<HEAD_DENSE_OUT_CONFIG>;
     using SEQUENTIAL_HEAD = rlt::nn_models::sequential::Module<GRU_HEAD, HEAD_DENSE1, HEAD_DENSE2, HEAD_DENSE_OUT>;
     using MODEL = rlt::nn_models::parallel::Build<CAPABILITY, IMAGE_BRANCH, STATE_BRANCH, IMAGE_INPUT_SHAPE, STATE_INPUT_SHAPE, SEQUENTIAL_HEAD>;
@@ -929,22 +938,16 @@ int main(int argc, char** argv){
     static constexpr TI GPU_OBS_ROWS = STEPS_TOTAL + BATCH_SIZE;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, GPU_OBS_ROWS, OBSERVATION_DIM>>> gpu_all_observations;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, GPU_OBS_ROWS, STATE_OBS_DIM>>> gpu_all_state_observations;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, STEPS_TOTAL, ACTION_DIM>>> gpu_all_teacher_actions;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, STEPS_TOTAL, TARGET_DIM>>> gpu_all_targets;
 #ifdef USE_GRU_TEMPORAL
-    rlt::Matrix<rlt::matrix::Specification<T, TI, WINDOW_SAMPLES, ACTION_DIM>> gpu_d_action_train;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, WINDOW_SAMPLES, TARGET_DIM>> gpu_d_action_train;
 #else
-    rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> gpu_d_action_train;
-#endif
-#ifdef USE_GRU_TEMPORAL
-    rlt::Matrix<rlt::matrix::Specification<T, TI, N_ENVIRONMENTS, ACTION_DIM>> gpu_actions_eval;
-#else
-    rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> gpu_actions_eval;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, TARGET_DIM>> gpu_d_action_train;
 #endif
     rlt::malloc(device_gpu, gpu_all_observations);
     rlt::malloc(device_gpu, gpu_all_state_observations);
-    rlt::malloc(device_gpu, gpu_all_teacher_actions);
+    rlt::malloc(device_gpu, gpu_all_targets);
     rlt::malloc(device_gpu, gpu_d_action_train);
-    rlt::malloc(device_gpu, gpu_actions_eval);
 
 #ifdef USE_GRU_TEMPORAL
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, ACTOR_HIDDEN_DIM>>> gpu_rollout_branch_a;
@@ -1071,7 +1074,7 @@ int main(int argc, char** argv){
 
     for(TI epoch_i = 0; epoch_i < NUM_EPOCHS; epoch_i++){
         auto epoch_start = std::chrono::high_resolution_clock::now();
-        bool full_teacher_forcing = epoch_i < TEACHER_FORCING_EPOCHS;
+        bool full_teacher_forcing = true; // student predicts velocity, not actions
         bool record_video = (epoch_i % CHECKPOINT_CADENCE == 0);
         TI epoch_end_step = global_step + STEPS_PER_ENV * N_ENVIRONMENTS;
         FILE* ffmpeg_pipe = nullptr;
@@ -1225,57 +1228,14 @@ int main(int argc, char** argv){
                         fwrite(mosaic_frame.data(), 1, mosaic_frame.size(), ffmpeg_pipe);
                     }
                 }
-                if(!full_teacher_forcing){
-#ifdef USE_GRU_TEMPORAL
-                    auto current_img = rlt::view_range(device_gpu, gpu_all_observations, (TI)(step_i * N_ENVIRONMENTS), rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
-                    auto current_img_reshaped = rlt::reshape_row_major(device_gpu, current_img, rlt::tensor::Shape<TI, N_ENVIRONMENTS, IMG_H, IMG_W, IMG_C>{});
-                    auto current_state = rlt::view_range(device_gpu, gpu_all_state_observations, (TI)(step_i * N_ENVIRONMENTS), rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
-                    rlt::evaluate(device_gpu, student_gpu.pipeline_a, current_img_reshaped, gpu_rollout_branch_a, student_buffers.buffer_a, rng_gpu);
-                    rlt::evaluate(device_gpu, student_gpu.pipeline_b, current_state, gpu_rollout_branch_b, student_buffers.buffer_b, rng_gpu);
-                    rlt::_concatenate_cuda(device_gpu, gpu_rollout_branch_a, gpu_rollout_branch_b, gpu_rollout_concat);
-                    rlt::evaluate_step(device_gpu, student_gpu.head, gpu_rollout_concat, student_state_gpu.head_state, gpu_rollout_actions, student_buffers.head_buffer, rng_gpu, no_auto_reset_mode);
-                    CUDA_CHECK("student eval GRU");
-#else
-#ifdef USE_FRAME_STACKING
-                    {
-                        constexpr TI GI_BLOCK = 256;
-                        constexpr TI GI_GRID = (BATCH_SIZE + GI_BLOCK - 1) / GI_BLOCK;
-                        imitation_kernels::compute_gather_indices_rollout_kernel<<<GI_GRID, GI_BLOCK, 0, device_gpu.stream>>>(
-                            gpu_gather_indices, gpu_episode_start_step, step_i, BATCH_SIZE);
-                    }
-                    {
-                        int total_elements = BATCH_SIZE * STACKED_OBS_DIM;
-                        gather_frames_kernel<<<(total_elements + 255) / 256, 256>>>(
-                            rlt::data(gpu_all_observations), gpu_gather_indices, rlt::data(gpu_stacked_batch),
-                            OBSERVATION_DIM, IMG_C, FRAME_STACK_N, STACKED_IMG_C, STACKED_OBS_DIM, BATCH_SIZE);
-                    }
-                    using EVAL_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, IMG_H, IMG_W, STACKED_IMG_C>;
-                    auto gpu_obs_reshaped = rlt::reshape_row_major(device_gpu, gpu_stacked_batch, EVAL_INPUT_SHAPE{});
-#else
-                    auto gpu_obs_slice = rlt::view_range(device_gpu, gpu_all_observations, (TI)(step_i * N_ENVIRONMENTS), rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
-                    using EVAL_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, IMG_H, IMG_W, STACKED_IMG_C>;
-                    auto gpu_obs_reshaped = rlt::reshape_row_major(device_gpu, gpu_obs_slice, EVAL_INPUT_SHAPE{});
-#endif
-                    auto gpu_state_obs_slice = rlt::view_range(device_gpu, gpu_all_state_observations, (TI)(step_i * N_ENVIRONMENTS), rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
-                    auto gpu_state_obs_reshaped = rlt::reshape_row_major(device_gpu, gpu_state_obs_slice, rlt::tensor::Shape<TI, 1, BATCH_SIZE, STATE_OBS_DIM>{});
-                    auto gpu_actions_eval_tensor = rlt::to_tensor(device_gpu, gpu_actions_eval);
-                    auto gpu_actions_eval_reshaped = rlt::reshape_row_major(device_gpu, gpu_actions_eval_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
-                    rlt::evaluate(device_gpu, student_gpu, gpu_obs_reshaped, gpu_state_obs_reshaped, gpu_actions_eval_reshaped, student_buffers, rng_gpu);
-                    CUDA_CHECK("student eval");
-#endif
-                }
+                // student rollout skipped: student predicts velocity, RAPTOR flies
                 {
-#ifdef USE_GRU_TEMPORAL
-                    T* student_ptr = rlt::data(gpu_rollout_actions);
-#else
-                    T* student_ptr = gpu_actions_eval._data;
-#endif
                     imitation_kernels::epilogue_kernel<<<grid, block, 0, device_gpu.stream>>>(
                         tag_device, gpu_dynamics_arr, gpu_params_arr, gpu_states_arr,
-                        gpu_terminated_arr, gpu_episode_step_arr, gpu_teacher_forcing_arr,
+                        gpu_terminated_arr, gpu_episode_step_arr,
                         gpu_episode_return_arr,
-                        rlt::data(gpu_teacher_actions_step), student_ptr,
-                        rlt::data(gpu_all_teacher_actions),
+                        rlt::data(gpu_teacher_actions_step),
+                        rlt::data(gpu_all_targets),
                         rng_gpu, step_i);
                 }
                 CUDA_CHECK("epilogue_kernel");
@@ -1301,9 +1261,37 @@ int main(int argc, char** argv){
         if(ffmpeg_pipe){ pclose(ffmpeg_pipe); ffmpeg_pipe = nullptr; }
 
         // =================================================================
+        // Target statistics (over full epoch data)
+        // =================================================================
+        T epoch_target_variance = 0;
+        {
+            rlt::Matrix<rlt::matrix::Specification<T, TI, STEPS_TOTAL, TARGET_DIM>> cpu_targets;
+            rlt::malloc(device, cpu_targets);
+            auto gpu_targets_matrix = rlt::matrix_view(device_gpu, gpu_all_targets);
+            rlt::copy(device_gpu, device, gpu_targets_matrix, cpu_targets);
+            T target_mean[TARGET_DIM] = {};
+            for(TI i = 0; i < STEPS_TOTAL; i++){
+                for(TI j = 0; j < TARGET_DIM; j++){
+                    target_mean[j] += rlt::get(cpu_targets, i, j);
+                }
+            }
+            for(TI j = 0; j < TARGET_DIM; j++) target_mean[j] /= STEPS_TOTAL;
+            T target_var = 0;
+            for(TI i = 0; i < STEPS_TOTAL; i++){
+                for(TI j = 0; j < TARGET_DIM; j++){
+                    T d = rlt::get(cpu_targets, i, j) - target_mean[j];
+                    target_var += d * d;
+                }
+            }
+            epoch_target_variance = target_var / (STEPS_TOTAL * TARGET_DIM);
+            rlt::free(device, cpu_targets);
+        }
+
+        // =================================================================
         // Training (GPU)
         // =================================================================
         T epoch_loss = 0;
+        T epoch_r2 = 0;
         TI loss_count = 0;
 
 #ifdef USE_GRU_TEMPORAL
@@ -1333,31 +1321,32 @@ int main(int argc, char** argv){
 
                 auto student_output_tensor = rlt::output(device_gpu, student_gpu);
                 auto student_output_matrix = rlt::matrix_view(device_gpu, student_output_tensor);
-                auto target_tensor = rlt::view_range(device_gpu, gpu_all_teacher_actions, window_offset, rlt::tensor::ViewSpec<0, WINDOW_SAMPLES>{});
+                auto target_tensor = rlt::view_range(device_gpu, gpu_all_targets, window_offset, rlt::tensor::ViewSpec<0, WINDOW_SAMPLES>{});
                 auto target_matrix = rlt::matrix_view(device_gpu, target_tensor);
                 rlt::nn::loss_functions::mse::gradient(device_gpu, student_output_matrix, target_matrix, gpu_d_action_train, (T)0.5);
                 cudaDeviceSynchronize();
 
                 if(wi == 0 && pass == 0){
-                    rlt::Matrix<rlt::matrix::Specification<T, TI, WINDOW_SAMPLES, ACTION_DIM>> cpu_student_output, cpu_target;
+                    rlt::Matrix<rlt::matrix::Specification<T, TI, WINDOW_SAMPLES, TARGET_DIM>> cpu_student_output, cpu_target;
                     rlt::malloc(device, cpu_student_output);
                     rlt::malloc(device, cpu_target);
                     rlt::copy(device_gpu, device, student_output_matrix, cpu_student_output);
                     rlt::copy(device_gpu, device, target_matrix, cpu_target);
                     T batch_loss = 0;
                     for(TI i = 0; i < WINDOW_SAMPLES; i++){
-                        for(TI j = 0; j < ACTION_DIM; j++){
+                        for(TI j = 0; j < TARGET_DIM; j++){
                             T diff = rlt::get(cpu_student_output, i, j) - rlt::get(cpu_target, i, j);
                             batch_loss += diff * diff;
                         }
                     }
-                    epoch_loss = batch_loss / (WINDOW_SAMPLES * ACTION_DIM);
+                    epoch_loss = batch_loss / (WINDOW_SAMPLES * TARGET_DIM);
+                    epoch_r2 = epoch_target_variance > 0 ? (T)1 - epoch_loss / epoch_target_variance : (T)0;
                     rlt::free(device, cpu_student_output);
                     rlt::free(device, cpu_target);
                 }
 
                 auto gpu_d_action_tensor = rlt::to_tensor(device_gpu, gpu_d_action_train);
-                using GRU_ACTION_SHAPE = rlt::tensor::Shape<TI, BPTT_STEPS, N_ENVIRONMENTS, ACTION_DIM>;
+                using GRU_ACTION_SHAPE = rlt::tensor::Shape<TI, BPTT_STEPS, N_ENVIRONMENTS, TARGET_DIM>;
                 auto gpu_d_action_reshaped = rlt::reshape_row_major(device_gpu, gpu_d_action_tensor, GRU_ACTION_SHAPE{});
                 rlt::backward(device_gpu, student_gpu, win_obs_reshaped, win_state_reshaped, gpu_d_action_reshaped, student_buffers);
                 cudaDeviceSynchronize();
@@ -1413,33 +1402,34 @@ int main(int argc, char** argv){
                 // MSE loss gradient
                 auto student_output_tensor = rlt::output(device_gpu, student_gpu);
                 auto student_output_matrix = rlt::matrix_view(device_gpu, student_output_tensor);
-                auto target_batch_tensor = rlt::view_range(device_gpu, gpu_all_teacher_actions, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
+                auto target_batch_tensor = rlt::view_range(device_gpu, gpu_all_targets, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
                 auto target_batch = rlt::matrix_view(device_gpu, target_batch_tensor);
                 rlt::nn::loss_functions::mse::gradient(device_gpu, student_output_matrix, target_batch, gpu_d_action_train, (T)0.5);
                 cudaDeviceSynchronize();
 
                 // Compute loss for logging (sample every N_BATCHES batches)
                 if(batch_idx == 0 && pass == 0){
-                    rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> cpu_student_output, cpu_target;
+                    rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, TARGET_DIM>> cpu_student_output, cpu_target;
                     rlt::malloc(device, cpu_student_output);
                     rlt::malloc(device, cpu_target);
                     rlt::copy(device_gpu, device, student_output_matrix, cpu_student_output);
                     rlt::copy(device_gpu, device, target_batch, cpu_target);
                     T batch_loss = 0;
                     for(TI i = 0; i < BATCH_SIZE; i++){
-                        for(TI j = 0; j < ACTION_DIM; j++){
+                        for(TI j = 0; j < TARGET_DIM; j++){
                             T diff = rlt::get(cpu_student_output, i, j) - rlt::get(cpu_target, i, j);
                             batch_loss += diff * diff;
                         }
                     }
-                    epoch_loss = batch_loss / (BATCH_SIZE * ACTION_DIM);
+                    epoch_loss = batch_loss / (BATCH_SIZE * TARGET_DIM);
+                    epoch_r2 = epoch_target_variance > 0 ? (T)1 - epoch_loss / epoch_target_variance : (T)0;
                     rlt::free(device, cpu_student_output);
                     rlt::free(device, cpu_target);
                 }
 
                 // Student backward + Adam step
                 auto gpu_d_action_tensor = rlt::to_tensor(device_gpu, gpu_d_action_train);
-                auto gpu_d_action_reshaped = rlt::reshape_row_major(device_gpu, gpu_d_action_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
+                auto gpu_d_action_reshaped = rlt::reshape_row_major(device_gpu, gpu_d_action_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, TARGET_DIM>{});
                 rlt::backward(device_gpu, student_gpu, gpu_obs_batch_reshaped, gpu_state_obs_batch_reshaped, gpu_d_action_reshaped, student_buffers);
                 cudaDeviceSynchronize();
                 rlt::step(device_gpu, optimizer_gpu, student_gpu);
@@ -1466,6 +1456,7 @@ int main(int argc, char** argv){
         std::cout << (full_teacher_forcing ? "[TF] " : "[TF=" + std::to_string((int)(TEACHER_FORCING_FRACTION * 100)) + "%] ")
                   << "Epoch: " << std::setw(5) << epoch_i
                   << " MSE: " << std::setw(10) << std::setprecision(6) << std::fixed << epoch_loss
+                  << " R2: " << std::setw(7) << std::setprecision(4) << epoch_r2
                   << " mean_ep_len: " << std::setw(6) << std::setprecision(1) << mean_episode_length
                   << " episodes: " << std::setw(5) << episode_count
                   << " fps: " << std::setw(7) << std::setprecision(0) << fps
@@ -1479,6 +1470,8 @@ int main(int argc, char** argv){
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
         rlt::set_step(device, device.logger, epoch_i);
         rlt::add_scalar(device, device.logger, "training/mse_loss", epoch_loss);
+        rlt::add_scalar(device, device.logger, "training/target_variance", epoch_target_variance);
+        rlt::add_scalar(device, device.logger, "training/r2", epoch_r2);
         if(episode_count_tf > 0){
             rlt::add_scalar(device, device.logger, "training/teacher/episode_length", mean_episode_length_tf);
             rlt::add_scalar(device, device.logger, "training/teacher/episodes", static_cast<T>(episode_count_tf));
@@ -1516,10 +1509,10 @@ int main(int argc, char** argv){
 #endif
             std::string state_obs_string = rlt::string(device, envs[0].dynamics, ACTOR_STATE_OBS{});
             std::string obs_string = image_obs_string + ", " + state_obs_string;
-            std::string meta = "{\"environment\": {\"name\": \"l2f_visual\", \"observation\": \"" + obs_string + "\"}}";
+            std::string meta = "{\"environment\": {\"name\": \"l2f_visual\", \"observation\": \"" + obs_string + "\", \"output\": \"LinearVelocityBodyFrame\"}}";
             static constexpr TI TOTAL_INPUT_DIM = STACKED_OBS_DIM + STATE_OBS_DIM;
             rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, TOTAL_INPUT_DIM>, true>> example_input;
-            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, ACTION_DIM>, true>> example_output;
+            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, TARGET_DIM>, true>> example_output;
             rlt::malloc(device, example_input);
             rlt::malloc(device, example_output);
             {
@@ -1677,9 +1670,8 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, optimizer_gpu);
     rlt::free(device_gpu, gpu_all_observations);
     rlt::free(device_gpu, gpu_all_state_observations);
-    rlt::free(device_gpu, gpu_all_teacher_actions);
+    rlt::free(device_gpu, gpu_all_targets);
     rlt::free(device_gpu, gpu_d_action_train);
-    rlt::free(device_gpu, gpu_actions_eval);
     cudaFree(gpu_dynamics_arr);
     cudaFree(gpu_params_arr);
     cudaFree(gpu_states_arr);
