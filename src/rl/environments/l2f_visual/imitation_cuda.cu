@@ -329,6 +329,7 @@ namespace imitation_kernels{
         TI* episode_start_step,
 #endif
         T* brightness_scale_arr,
+        T* scene_translation_arr,
         T* indoor_positions_ptr, TI* num_indoor_positions_ptr, TI* env_scene_ptr, TI max_indoor_pos,
         RNG rng, TI step_i
     ){
@@ -356,17 +357,9 @@ namespace imitation_kernels{
             TI num_pos = num_indoor_positions_ptr[scene_idx];
             TI pos_idx = rl_tools::random::uniform_int_distribution(device.random, (TI)0, num_pos - 1, rng_state);
             T* pos = indoor_positions_ptr + (scene_idx * max_indoor_pos + pos_idx) * 4;
-            state.position[0] = pos[0];
-            state.position[1] = pos[1];
-            state.position[2] = pos[2];
-            T half_yaw = pos[3] / (T)2;
-            state.orientation[0] = rl_tools::math::cos(device.math, half_yaw);
-            state.orientation[1] = (T)0;
-            state.orientation[2] = (T)0;
-            state.orientation[3] = rl_tools::math::sin(device.math, half_yaw);
-            state.linear_velocity[0] = (T)0;
-            state.linear_velocity[1] = (T)0;
-            state.linear_velocity[2] = (T)0;
+            scene_translation_arr[env_i * 3 + 0] = pos[0];
+            scene_translation_arr[env_i * 3 + 1] = pos[1];
+            scene_translation_arr[env_i * 3 + 2] = pos[2];
             episode_step_arr[env_i] = 0;
             terminated_flags[env_i] = false;
             episode_return_arr[env_i] = (T)0;
@@ -451,7 +444,7 @@ namespace imitation_kernels{
         T camera_offset_body_0, T camera_offset_body_1, T camera_offset_body_2,
         T camera_forward_body_0, T camera_forward_body_1, T camera_forward_body_2,
         T camera_up_body_0, T camera_up_body_1, T camera_up_body_2,
-        T scene_translation_0, T scene_translation_1, T scene_translation_2
+        T* scene_translation_arr
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i >= N_ENVIRONMENTS) return;
@@ -466,9 +459,9 @@ namespace imitation_kernels{
         T cam_up_world[3];
         rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, up_body, cam_up_world);
         T position[3] = {
-            state.position[0] + cam_pos_world[0] + scene_translation_0,
-            state.position[1] + cam_pos_world[1] + scene_translation_1,
-            state.position[2] + cam_pos_world[2] + scene_translation_2
+            state.position[0] + cam_pos_world[0] + scene_translation_arr[env_i * 3 + 0],
+            state.position[1] + cam_pos_world[1] + scene_translation_arr[env_i * 3 + 1],
+            state.position[2] + cam_pos_world[2] + scene_translation_arr[env_i * 3 + 2]
         };
         T look_at[3] = {
             position[0] + cam_forward_world[0],
@@ -916,6 +909,7 @@ int main(int argc, char** argv){
         envs[env_i].owns_renderer = false;
         envs[env_i].renderer_initialized = true;
         envs[env_i].use_target_mode = true;
+        rlt::initial_parameters(device, envs[env_i], env_parameters[env_i]);
         env_parameters[env_i].scene_translation[0] = 0;
         env_parameters[env_i].scene_translation[1] = 0;
         env_parameters[env_i].scene_translation[2] = 0;
@@ -1114,6 +1108,7 @@ int main(int argc, char** argv){
     T* gpu_episode_returns_log = nullptr;
     T* gpu_episode_tf_log = nullptr;
     T* gpu_brightness_scale_arr = nullptr;
+    T* gpu_scene_translation_arr = nullptr;
     cudaMalloc(&gpu_dynamics_arr, N_ENVIRONMENTS * sizeof(DYNAMICS_TYPE));
     cudaMalloc(&gpu_params_arr, N_ENVIRONMENTS * sizeof(PARAMETERS_TYPE));
     cudaMalloc(&gpu_states_arr, N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::State));
@@ -1126,9 +1121,12 @@ int main(int argc, char** argv){
     cudaMalloc(&gpu_episode_returns_log, STEPS_TOTAL * sizeof(T));
     cudaMalloc(&gpu_episode_tf_log, STEPS_TOTAL * sizeof(T));
     cudaMalloc(&gpu_brightness_scale_arr, N_ENVIRONMENTS * sizeof(T));
+    cudaMalloc(&gpu_scene_translation_arr, N_ENVIRONMENTS * 3 * sizeof(T));
     {
         std::vector<T> ones(N_ENVIRONMENTS, (T)1);
         cudaMemcpy(gpu_brightness_scale_arr, ones.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
+        std::vector<T> scene_translations(N_ENVIRONMENTS * 3, (T)0);
+        cudaMemcpy(gpu_scene_translation_arr, scene_translations.data(), N_ENVIRONMENTS * 3 * sizeof(T), cudaMemcpyHostToDevice);
     }
     std::vector<T> cpu_episode_lengths_log(STEPS_TOTAL);
     std::vector<T> cpu_episode_tf_log(STEPS_TOTAL);
@@ -1259,6 +1257,7 @@ int main(int argc, char** argv){
                     gpu_episode_start_step,
 #endif
                     gpu_brightness_scale_arr,
+                    gpu_scene_translation_arr,
                     gpu_indoor_positions, gpu_num_indoor_positions, gpu_env_scene, MAX_INDOOR_POS,
                     rng_gpu, step_i);
                 CUDA_CHECK("prologue_kernel");
@@ -1272,7 +1271,7 @@ int main(int argc, char** argv){
                     env_parameters[0].camera_mount.offset_body[0], env_parameters[0].camera_mount.offset_body[1], env_parameters[0].camera_mount.offset_body[2],
                     env_parameters[0].camera_mount.forward_body[0], env_parameters[0].camera_mount.forward_body[1], env_parameters[0].camera_mount.forward_body[2],
                     env_parameters[0].camera_mount.up_body[0], env_parameters[0].camera_mount.up_body[1], env_parameters[0].camera_mount.up_body[2],
-                    env_parameters[0].scene_translation[0], env_parameters[0].scene_translation[1], env_parameters[0].scene_translation[2]);
+                    gpu_scene_translation_arr);
                 CUDA_CHECK("make_cameras_kernel");
                 T* obs_ptr = rlt::data(gpu_all_observations) + (TI)(step_i * N_ENVIRONMENTS) * OBSERVATION_DIM;
                 cudaEventRecord(cameras_ready_event, device_gpu.stream);
@@ -1812,6 +1811,7 @@ int main(int argc, char** argv){
     cudaFree(gpu_episode_returns_log);
     cudaFree(gpu_episode_tf_log);
     cudaFree(gpu_brightness_scale_arr);
+    cudaFree(gpu_scene_translation_arr);
     cudaFree(gpu_indoor_positions);
     cudaFree(gpu_num_indoor_positions);
     cudaFree(gpu_env_scene);
