@@ -37,19 +37,14 @@ int main(int ac, char** av){
 
     rlt::malloc(device, renderer);
 
-    // Load model or default cube
-    bool model_loaded = false;
-    if(!model_file.empty()){
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("Loading model: " << model_file);
-        model_loaded = rlt::load_model(device, renderer, model_file);
-        if(!model_loaded){
-            RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Failed to load model, using default cube");
-        }
+    if(model_file.empty()){
+        RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("No model specified. Use --model <file>.");
+        return 1;
     }
-
-    if(!model_loaded){
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("Using default cube");
-        rlt::load_default_cube(device, renderer);
+    RL_TOOLS_RENDERING_RAYTRACING_LOG("Loading model: " << model_file);
+    if(!rlt::load_model(device, renderer, model_file)){
+        RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Failed to load model: " << model_file);
+        return 1;
     }
 
     rlt::upload_geometry(device, renderer);

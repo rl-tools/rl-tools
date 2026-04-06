@@ -54,13 +54,9 @@ namespace rl_tools {
             return;
         }
 
-        bool loaded = false;
-        if (env.scene_path != nullptr) {
-            loaded = load_model(device, *env.renderer, std::string(env.scene_path));
-        }
-        if (!loaded) {
-            load_default_cube(device, *env.renderer);
-        }
+        utils::assert_exit(device, env.scene_path != nullptr, "l2f_visual::init: scene_path is null");
+        const bool loaded = load_model(device, *env.renderer, std::string(env.scene_path));
+        utils::assert_exit(device, loaded, "l2f_visual::init: failed to load scene");
 
         upload_geometry(device, *env.renderer);
         {

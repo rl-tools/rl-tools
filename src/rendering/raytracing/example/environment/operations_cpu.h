@@ -58,13 +58,9 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, rl::environments::raytracing_example::Environment<SPEC>& env) {
-        bool loaded = false;
-        if (env.scene_path != nullptr) {
-            loaded = load_model(device, *env.renderer, std::string(env.scene_path));
-        }
-        if (!loaded) {
-            load_default_cube(device, *env.renderer);
-        }
+        utils::assert_exit(device, env.scene_path != nullptr, "raytracing_example::init: scene_path is null");
+        const bool loaded = load_model(device, *env.renderer, std::string(env.scene_path));
+        utils::assert_exit(device, loaded, "raytracing_example::init: failed to load scene");
 
         upload_geometry(device, *env.renderer);
         {
@@ -95,25 +91,13 @@ namespace rl_tools {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
 
-        if (env.num_indoor_initial_states > 0) {
-            const TI index = random::uniform_int_distribution(device.random, static_cast<TI>(0), static_cast<TI>(env.num_indoor_initial_states - 1), rng);
-            state = env.indoor_initial_states[index];
-            state.position[2] = parameters.base_height;
-            state.velocity[0] = static_cast<T>(0);
-            state.velocity[1] = static_cast<T>(0);
-            state.velocity[2] = static_cast<T>(0);
-            return;
-        }
-
-        const T angle = random::uniform_real_distribution(device.random, static_cast<T>(0), static_cast<T>(2.0 * 3.14159265358979323846), rng);
-        const T radius = random::uniform_real_distribution(device.random, static_cast<T>(2.0), static_cast<T>(6.0), rng);
-        state.position[0] = radius * std::cos(angle);
-        state.position[1] = radius * std::sin(angle);
+        utils::assert_exit(device, env.num_indoor_initial_states > 0, "raytracing_example::sample_initial_state: no indoor initial states available");
+        const TI index = random::uniform_int_distribution(device.random, static_cast<TI>(0), static_cast<TI>(env.num_indoor_initial_states - 1), rng);
+        state = env.indoor_initial_states[index];
         state.position[2] = parameters.base_height;
-        state.velocity[0] = 0;
-        state.velocity[1] = 0;
-        state.velocity[2] = 0;
-        state.yaw = angle + static_cast<T>(3.14159265358979323846) / static_cast<T>(2.0);
+        state.velocity[0] = static_cast<T>(0);
+        state.velocity[1] = static_cast<T>(0);
+        state.velocity[2] = static_cast<T>(0);
     }
 
     template <typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
