@@ -78,7 +78,8 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
         };
 
         constexpr T PI = static_cast<T>(3.14159265358979323846);
-        constexpr TI NUM_BATCHES = 8;
+        constexpr TI MAX_BATCHES = 200;
+        constexpr TI MIN_REQUIRED_POSITIONS = 50;
         const T center_x = renderer.scene_center[0];
         const T center_y = renderer.scene_center[1];
         const T search_radius = renderer.camera_radius > static_cast<T>(1)
@@ -90,11 +91,11 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
         const T look_ahead = static_cast<T>(1);
 
         std::vector<Candidate> candidates;
-        candidates.reserve(static_cast<size_t>(NUM_BATCHES) * static_cast<size_t>(NUM_CAMERAS));
+        candidates.reserve(static_cast<size_t>(MAX_BATCHES) * static_cast<size_t>(NUM_CAMERAS));
 
         std::array<IndoorPosition<T>, NUM_CAMERAS> batch_positions{};
 
-        for (TI batch_i = 0; batch_i < NUM_BATCHES; batch_i++) {
+        for (TI batch_i = 0; batch_i < MAX_BATCHES && candidates.size() < MIN_REQUIRED_POSITIONS; batch_i++) {
             for (TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++) {
                 const TI candidate_i = batch_i * NUM_CAMERAS + camera_i + 1;
                 const T u = radical_inverse<T>(candidate_i, static_cast<TI>(2));
@@ -168,7 +169,7 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
                 const bool indoor_like =
                     hit_ratio > static_cast<T>(0.72) &&
                     avg_dist_norm < static_cast<T>(0.45) &&
-                    min_hit_dist > static_cast<T>(0.18);
+                    min_hit_dist > static_cast<T>(1.0);
 
                 if (indoor_like) {
                     auto pos = batch_positions[camera_i];
