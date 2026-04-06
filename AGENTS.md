@@ -94,3 +94,4 @@ Some tests (`NN_LAYERS_RESNET_CUDA`, sequential persist tests) load `.h5` files 
 22. RLtools is deterministic given a fixed seed. NEVER use atomic operations (e.g. when using CUDA)
 23. The tar and hdf5 representations of a model should have a lossless bijective mapping
 24. The raytracing renderer operates in the same FLU frame as L2F: camera principal axis = +X (forward), image horizontal axis = Y (left-right), image vertical axis = Z (up-down). GLB meshes (Y-up) are swizzled to FLU at load time so the entire pipeline uses a single coordinate frame.
+25. L2F state/observation components are composed innermost-first following their declaration order in `multirotor.h`; operation overloads (`json`, `from_json`, `post_integration`, etc.) in `operations_cpu.h` must follow the same order so that each overload is visible when the next outer component calls it.

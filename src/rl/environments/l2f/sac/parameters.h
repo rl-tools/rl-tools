@@ -37,7 +37,7 @@ namespace env_param_builder{
 //                    observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecification<T, TI,
                     observation::LinearVelocity<observation::LinearVelocitySpecification<T, TI,
                     observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
-                    observation::IMUAccelerometer<observation::IMUAccelerometerSpecification<T, TI,
+                    observation::LinearAccelerationBodyFrame<observation::LinearAccelerationBodyFrameSpecification<T, TI,
                     observation::Magnetometer<observation::MagnetometerSpecification<T, TI,
                     observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH
 //                    observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI
@@ -47,7 +47,7 @@ namespace env_param_builder{
                     observation::OrientationRotationMatrix<observation::OrientationRotationMatrixSpecificationPrivileged<T, TI,
                     observation::LinearVelocity<observation::LinearVelocitySpecificationPrivileged<T, TI,
                     observation::AngularVelocity<observation::AngularVelocitySpecificationPrivileged<T, TI,
-                    observation::IMUAccelerometer<observation::IMUAccelerometerSpecificationPrivileged<T, TI,
+                    observation::LinearAccelerationBodyFrame<observation::LinearAccelerationBodyFrameSpecificationPrivileged<T, TI,
                     observation::RandomForce<observation::RandomForceSpecification<T, TI,
                     observation::RotorSpeeds<observation::RotorSpeedsSpecification<T, TI>>>>>>>>>>>>>>;
             using OBSERVATION_TYPE = OBSERVATION_TYPE_PARTIALLY_OBSERVED;

@@ -374,18 +374,18 @@ namespace rl_tools::rl::environments::l2f{
             using SHAPE = tensor::Shape<TI, DIM>;
         };
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
-        struct IMUAccelerometerSpecification{
+        struct LinearAccelerationBodyFrameSpecification{
             using T = T_T;
             using TI = T_TI;
             using NEXT_COMPONENT = T_NEXT_COMPONENT;
             static constexpr bool PRIVILEGED = false;
         };
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
-        struct IMUAccelerometerSpecificationPrivileged: IMUAccelerometerSpecification<T_T, T_TI, T_NEXT_COMPONENT>{
+        struct LinearAccelerationBodyFrameSpecificationPrivileged: LinearAccelerationBodyFrameSpecification<T_T, T_TI, T_NEXT_COMPONENT>{
             static constexpr bool PRIVILEGED = true;
         };
         template <typename SPEC>
-        struct IMUAccelerometer{
+        struct LinearAccelerationBodyFrame{
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
@@ -402,7 +402,7 @@ namespace rl_tools::rl::environments::l2f{
             static constexpr bool PRIVILEGED = false;
         };
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
-        struct MagnetometerSpecificationPrivileged: IMUAccelerometerSpecification<T_T, T_TI, T_NEXT_COMPONENT>{
+        struct MagnetometerSpecificationPrivileged: MagnetometerSpecification<T_T, T_TI, T_NEXT_COMPONENT>{
             static constexpr bool PRIVILEGED = true;
         };
         template <typename SPEC>

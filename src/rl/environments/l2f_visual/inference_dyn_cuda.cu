@@ -367,7 +367,7 @@ int main(int argc, char** argv){
     std::cout << "  Episodes per noise level: " << config.num_episodes << std::endl;
     std::cout << "  Seed: " << config.seed << std::endl;
 
-    T noise_levels[] = {0.0, 0.01, 0.02, 0.05, 0.1, 0.15, 0.2, 0.3, 0.5, 1.0};
+    T noise_levels[] = {0.1, 0.25, 0.5, 0.75, 1.0};
     constexpr TI NUM_NOISE_LEVELS = sizeof(noise_levels) / sizeof(noise_levels[0]);
 
     std::cout << std::endl;
@@ -377,7 +377,7 @@ int main(int argc, char** argv){
     TI global_step = 0;
 
     for(TI noise_i = 0; noise_i < NUM_NOISE_LEVELS; noise_i++){
-    config.gaussian_noise_std = noise_levels[noise_i];
+    config.brightness_scale = noise_levels[noise_i];
 
     RNG sweep_rng;
     rlt::malloc(device, sweep_rng);
