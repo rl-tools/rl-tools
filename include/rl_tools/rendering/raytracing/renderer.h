@@ -100,6 +100,7 @@ namespace rl_tools {
             Tensor<COLLISION_TENSOR_SPEC> collision_results;
 
             T scene_center[3] = {0, 0, 0};
+            T scene_half_extent[3] = {0, 0, 0};
             T camera_radius = 0;
 
             std::vector<MeshData<SPEC>> meshes;

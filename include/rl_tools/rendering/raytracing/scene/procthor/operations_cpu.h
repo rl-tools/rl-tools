@@ -36,7 +36,7 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
     }
 
     template <typename DEVICE, typename SCENE_SPEC, typename RENDERER_SPEC>
-    void precompute_indoor_positions(DEVICE& device, Scene<SCENE_SPEC>& scene, rendering::raytracing::Renderer<RENDERER_SPEC>& renderer, typename SCENE_SPEC::T eye_height, typename SCENE_SPEC::T fov, typename SCENE_SPEC::T aspect) {
+    void precompute_indoor_positions(DEVICE& device, Scene<SCENE_SPEC>& scene, rendering::raytracing::Renderer<RENDERER_SPEC>& renderer, typename SCENE_SPEC::T fov, typename SCENE_SPEC::T aspect) {
         using T = typename SCENE_SPEC::T;
         using TI = typename SCENE_SPEC::TI;
         constexpr TI NUM_CAMERAS = RENDERER_SPEC::NUM_CAMERAS;
@@ -47,30 +47,11 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
         scene.config.scene_center[2] = renderer.scene_center[2];
         scene.config.scene_radius = renderer.camera_radius;
 
-        if (renderer.backend.owl_collision_results_buffer == nullptr) {
-            constexpr T PI = static_cast<T>(3.14159265358979323846);
-            const T center_x = renderer.scene_center[0];
-            const T center_y = renderer.scene_center[1];
-            const T search_radius = renderer.camera_radius > static_cast<T>(1)
-                ? static_cast<T>(0.95) * renderer.camera_radius
-                : static_cast<T>(8);
-            const TI take_n = SCENE_SPEC::MAX_INDOOR_POSITIONS < NUM_CAMERAS ? SCENE_SPEC::MAX_INDOOR_POSITIONS : NUM_CAMERAS;
-            for (TI i = 0; i < take_n; i++) {
-                const T u = radical_inverse<T>(i + 1, static_cast<TI>(2));
-                const T v = radical_inverse<T>(i + 1, static_cast<TI>(3));
-                const T radius = search_radius * std::sqrt(u);
-                const T angle = static_cast<T>(2) * PI * v;
+        const T center[3] = {renderer.scene_center[0], renderer.scene_center[1], renderer.scene_center[2]};
+        const T half_extent[3] = {renderer.scene_half_extent[0], renderer.scene_half_extent[1], renderer.scene_half_extent[2]};
 
-                auto& pos = scene.indoor_positions[i];
-                pos.position[0] = center_x + radius * std::cos(angle);
-                pos.position[1] = center_y + radius * std::sin(angle);
-                pos.position[2] = static_cast<T>(0);
-                pos.yaw = static_cast<T>(2) * PI * frac(static_cast<T>(0.61803398875) * static_cast<T>(i + 1));
-                pos.score = static_cast<T>(0);
-            }
-            scene.num_indoor_positions = take_n;
-            return;
-        }
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("precompute_indoor_positions: center=[" << center[0] << "," << center[1] << "," << center[2] << "] half_extent=[" << half_extent[0] << "," << half_extent[1] << "," << half_extent[2] << "]");
+        utils::assert_exit(device, renderer.backend.owl_collision_results_buffer != nullptr, "precompute_indoor_positions: collision results buffer is null");
 
         struct Candidate {
             IndoorPosition<T> position;
@@ -80,13 +61,9 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
         constexpr T PI = static_cast<T>(3.14159265358979323846);
         constexpr TI MAX_BATCHES = 200;
         constexpr TI MIN_REQUIRED_POSITIONS = 50;
-        const T center_x = renderer.scene_center[0];
-        const T center_y = renderer.scene_center[1];
-        const T search_radius = renderer.camera_radius > static_cast<T>(1)
-            ? static_cast<T>(0.95) * renderer.camera_radius
-            : static_cast<T>(8);
-        const T max_dist = renderer.camera_radius > static_cast<T>(1)
-            ? static_cast<T>(2) * renderer.camera_radius
+        const T max_half = std::max({half_extent[0], half_extent[1], half_extent[2]});
+        const T max_dist = max_half > static_cast<T>(1)
+            ? static_cast<T>(2) * max_half
             : static_cast<T>(20);
         const T look_ahead = static_cast<T>(1);
 
@@ -94,30 +71,31 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
         candidates.reserve(static_cast<size_t>(MAX_BATCHES) * static_cast<size_t>(NUM_CAMERAS));
 
         std::array<IndoorPosition<T>, NUM_CAMERAS> batch_positions{};
+        TI total_tested = 0, no_hits = 0, failed_hit_ratio = 0, failed_avg_dist = 0, failed_min_dist = 0;
+        T best_min_hit_dist = 0;
 
         for (TI batch_i = 0; batch_i < MAX_BATCHES && candidates.size() < MIN_REQUIRED_POSITIONS; batch_i++) {
             for (TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++) {
                 const TI candidate_i = batch_i * NUM_CAMERAS + camera_i + 1;
-                const T u = radical_inverse<T>(candidate_i, static_cast<TI>(2));
-                const T v = radical_inverse<T>(candidate_i, static_cast<TI>(3));
-                const T w = radical_inverse<T>(candidate_i, static_cast<TI>(5));
+                const T hx = radical_inverse<T>(candidate_i, static_cast<TI>(2));
+                const T hy = radical_inverse<T>(candidate_i, static_cast<TI>(3));
+                const T hz = radical_inverse<T>(candidate_i, static_cast<TI>(5));
+                const T hw = radical_inverse<T>(candidate_i, static_cast<TI>(7));
 
-                const T radius = search_radius * std::sqrt(u);
-                const T angle = static_cast<T>(2) * PI * v;
-                const T yaw = static_cast<T>(2) * PI * frac(v + static_cast<T>(0.37) * w);
+                const T yaw = static_cast<T>(2) * PI * hw;
 
                 auto& pos = batch_positions[camera_i];
-                pos.position[0] = center_x + radius * std::cos(angle);
-                pos.position[1] = center_y + radius * std::sin(angle);
-                pos.position[2] = static_cast<T>(0);
+                pos.position[0] = center[0] + (hx * static_cast<T>(2) - static_cast<T>(1)) * half_extent[0];
+                pos.position[1] = center[1] + (hy * static_cast<T>(2) - static_cast<T>(1)) * half_extent[1];
+                pos.position[2] = center[2] + (hz * static_cast<T>(2) - static_cast<T>(1)) * half_extent[2];
                 pos.yaw = yaw;
                 pos.score = static_cast<T>(0);
 
-                const T cam_position[3] = {pos.position[0], pos.position[1], pos.position[2] + eye_height};
+                const T cam_position[3] = {pos.position[0], pos.position[1], pos.position[2]};
                 const T cam_look_at[3] = {
                     pos.position[0] + look_ahead * std::cos(pos.yaw),
                     pos.position[1] + look_ahead * std::sin(pos.yaw),
-                    pos.position[2] + eye_height
+                    pos.position[2]
                 };
                 const T cam_up[3] = {0, 0, 1};
                 set(device, renderer.cameras, make_camera_data(cam_position, cam_look_at, cam_up, fov, aspect), camera_i);
@@ -149,7 +127,9 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
                     }
                 }
 
+                total_tested++;
                 if (hit_count == 0) {
+                    no_hits++;
                     continue;
                 }
 
@@ -165,6 +145,10 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
                     - static_cast<T>(1.1) * avg_dist_norm
                     - static_cast<T>(0.8) * near_ratio
                     + (forward_open ? static_cast<T>(0.15) : static_cast<T>(0));
+
+                if(hit_ratio <= static_cast<T>(0.72)) failed_hit_ratio++;
+                else if(avg_dist_norm >= static_cast<T>(0.45)) failed_avg_dist++;
+                else if(min_hit_dist <= static_cast<T>(1.0)){ failed_min_dist++; if(min_hit_dist > best_min_hit_dist) best_min_hit_dist = min_hit_dist; }
 
                 const bool indoor_like =
                     hit_ratio > static_cast<T>(0.72) &&
@@ -189,23 +173,8 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
         }
         scene.num_indoor_positions = take_n;
 
-        if (scene.num_indoor_positions == 0) {
-            const TI fallback_n = SCENE_SPEC::MAX_INDOOR_POSITIONS < NUM_CAMERAS ? SCENE_SPEC::MAX_INDOOR_POSITIONS : NUM_CAMERAS;
-            for (TI i = 0; i < fallback_n; i++) {
-                const T u = radical_inverse<T>(i + 1, static_cast<TI>(2));
-                const T v = radical_inverse<T>(i + 1, static_cast<TI>(3));
-                const T radius = search_radius * std::sqrt(u);
-                const T angle = static_cast<T>(2) * PI * v;
-
-                auto& pos = scene.indoor_positions[i];
-                pos.position[0] = center_x + radius * std::cos(angle);
-                pos.position[1] = center_y + radius * std::sin(angle);
-                pos.position[2] = static_cast<T>(0);
-                pos.yaw = static_cast<T>(2) * PI * frac(static_cast<T>(0.61803398875) * static_cast<T>(i + 1));
-                pos.score = static_cast<T>(0);
-            }
-            scene.num_indoor_positions = fallback_n;
-        }
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("precompute_indoor_positions: tested=" << total_tested << " no_hits=" << no_hits << " failed_hit_ratio=" << failed_hit_ratio << " failed_avg_dist=" << failed_avg_dist << " failed_min_dist=" << failed_min_dist << " (best_min_hit=" << best_min_hit_dist << ") accepted=" << scene.num_indoor_positions);
+        utils::assert_exit(device, scene.num_indoor_positions > 0, "precompute_indoor_positions: no valid indoor positions found");
     }
 
     template <typename DEVICE, typename SCENE_SPEC, typename RNG>
