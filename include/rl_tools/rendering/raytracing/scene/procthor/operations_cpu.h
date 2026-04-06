@@ -59,13 +59,20 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
         };
 
         constexpr T PI = static_cast<T>(3.14159265358979323846);
-        constexpr TI MAX_BATCHES = 200;
+        constexpr T MIN_CLEARANCE = static_cast<T>(1.0);
+        constexpr TI MAX_TOTAL_TESTED = 4096;
+        constexpr TI MAX_BATCHES = (MAX_TOTAL_TESTED + NUM_CAMERAS - 1) / NUM_CAMERAS;
         constexpr TI MIN_REQUIRED_POSITIONS = 50;
         const T max_half = std::max({half_extent[0], half_extent[1], half_extent[2]});
         const T max_dist = max_half > static_cast<T>(1)
             ? static_cast<T>(2) * max_half
             : static_cast<T>(20);
         const T look_ahead = static_cast<T>(1);
+        const T search_half_extent[3] = {
+            std::max(static_cast<T>(0), half_extent[0] - MIN_CLEARANCE),
+            std::max(static_cast<T>(0), half_extent[1] - MIN_CLEARANCE),
+            std::max(static_cast<T>(0), half_extent[2] - MIN_CLEARANCE)
+        };
 
         std::vector<Candidate> candidates;
         candidates.reserve(static_cast<size_t>(MAX_BATCHES) * static_cast<size_t>(NUM_CAMERAS));
@@ -85,9 +92,9 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
                 const T yaw = static_cast<T>(2) * PI * hw;
 
                 auto& pos = batch_positions[camera_i];
-                pos.position[0] = center[0] + (hx * static_cast<T>(2) - static_cast<T>(1)) * half_extent[0];
-                pos.position[1] = center[1] + (hy * static_cast<T>(2) - static_cast<T>(1)) * half_extent[1];
-                pos.position[2] = center[2] + (hz * static_cast<T>(2) - static_cast<T>(1)) * half_extent[2];
+                pos.position[0] = center[0] + (hx * static_cast<T>(2) - static_cast<T>(1)) * search_half_extent[0];
+                pos.position[1] = center[1] + (hy * static_cast<T>(2) - static_cast<T>(1)) * search_half_extent[1];
+                pos.position[2] = center[2] + (hz * static_cast<T>(2) - static_cast<T>(1)) * search_half_extent[2];
                 pos.yaw = yaw;
                 pos.score = static_cast<T>(0);
 
@@ -148,12 +155,12 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
 
                 if(hit_ratio <= static_cast<T>(0.72)) failed_hit_ratio++;
                 else if(avg_dist_norm >= static_cast<T>(0.45)) failed_avg_dist++;
-                else if(min_hit_dist <= static_cast<T>(1.0)){ failed_min_dist++; if(min_hit_dist > best_min_hit_dist) best_min_hit_dist = min_hit_dist; }
+                else if(min_hit_dist <= MIN_CLEARANCE){ failed_min_dist++; if(min_hit_dist > best_min_hit_dist) best_min_hit_dist = min_hit_dist; }
 
                 const bool indoor_like =
                     hit_ratio > static_cast<T>(0.72) &&
                     avg_dist_norm < static_cast<T>(0.45) &&
-                    min_hit_dist > static_cast<T>(1.0);
+                    min_hit_dist > MIN_CLEARANCE;
 
                 if (indoor_like) {
                     auto pos = batch_positions[camera_i];

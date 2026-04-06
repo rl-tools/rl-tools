@@ -724,32 +724,6 @@ namespace rl_tools {
     }
 
     // =========================================================================
-    // load_default_cube: fallback cube geometry
-    // =========================================================================
-    template <typename DEVICE, typename SPEC>
-    void load_default_cube(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        renderer.meshes.clear();
-        rendering::raytracing::MeshData<SPEC> md;
-        for(int i = 0; i < rendering::raytracing::constants::NUM_VERTICES; i++){
-            const auto& v = rendering::raytracing::constants::default_vertices[i];
-            md.vertices.push_back(v.x);
-            md.vertices.push_back(-v.z);
-            md.vertices.push_back(v.y);
-        }
-        for(int i = 0; i < rendering::raytracing::constants::NUM_INDICES; i++){
-            md.indices.push_back(rendering::raytracing::constants::default_indices[i].x);
-            md.indices.push_back(rendering::raytracing::constants::default_indices[i].y);
-            md.indices.push_back(rendering::raytracing::constants::default_indices[i].z);
-        }
-        md.color[0] = 0.f; md.color[1] = 1.f; md.color[2] = 0.f;
-        md.has_texture = false;
-        renderer.meshes.push_back(std::move(md));
-
-        // Default camera distance (matches original: lookFrom(-4,-3,-2) lookAt(0,0,0))
-        renderer.camera_radius = length(owl::vec3f(-4.f, -3.f, -2.f));
-    }
-
-    // =========================================================================
     // upload_geometry: upload meshes + build single shared BVH
     // =========================================================================
     template <typename DEVICE, typename SPEC>
