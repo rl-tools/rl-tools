@@ -1130,14 +1130,17 @@ int main(int argc, char** argv){
         bool init_terminated[N_ENVIRONMENTS];
         TI init_step[N_ENVIRONMENTS];
         T init_return[N_ENVIRONMENTS];
+        bool init_teacher_forcing[N_ENVIRONMENTS];
         for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
             init_terminated[env_i] = true;
             init_step[env_i] = 0;
             init_return[env_i] = (T)0;
+            init_teacher_forcing[env_i] = false;
         }
         cudaMemcpy(gpu_terminated_arr, init_terminated, N_ENVIRONMENTS * sizeof(bool), cudaMemcpyHostToDevice);
         cudaMemcpy(gpu_episode_step_arr, init_step, N_ENVIRONMENTS * sizeof(TI), cudaMemcpyHostToDevice);
         cudaMemcpy(gpu_episode_return_arr, init_return, N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
+        cudaMemcpy(gpu_teacher_forcing_arr, init_teacher_forcing, N_ENVIRONMENTS * sizeof(bool), cudaMemcpyHostToDevice);
     }
     T episode_length_sum_tf = 0;
     TI episode_count_tf = 0;
@@ -1192,6 +1195,16 @@ int main(int argc, char** argv){
             TI actual_scene_i = active_scene_indices[active_scene_i];
             envs[env_i].renderer = renderers[actual_scene_i];
             envs[env_i].scene = scenes[actual_scene_i];
+        }
+        {
+            std::vector<unsigned char> reset_terminated(N_ENVIRONMENTS, 1);
+            std::vector<TI> reset_step(N_ENVIRONMENTS, 0);
+            std::vector<T> reset_return(N_ENVIRONMENTS, (T)0);
+            std::vector<unsigned char> reset_teacher_forcing(N_ENVIRONMENTS, 0);
+            cudaMemcpy(gpu_terminated_arr, reset_terminated.data(), N_ENVIRONMENTS * sizeof(bool), cudaMemcpyHostToDevice);
+            cudaMemcpy(gpu_episode_step_arr, reset_step.data(), N_ENVIRONMENTS * sizeof(TI), cudaMemcpyHostToDevice);
+            cudaMemcpy(gpu_episode_return_arr, reset_return.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
+            cudaMemcpy(gpu_teacher_forcing_arr, reset_teacher_forcing.data(), N_ENVIRONMENTS * sizeof(bool), cudaMemcpyHostToDevice);
         }
         bool full_teacher_forcing = true; // student predicts velocity, not actions
         bool record_video = (epoch_i % CHECKPOINT_CADENCE == 0);
