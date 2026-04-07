@@ -216,7 +216,7 @@ using RAPTOR_MODEL = rlt::nn_models::sequential::Build<RAPTOR_CAPABILITY, RAPTOR
 static constexpr TI ACTOR_HIDDEN_DIM = 64;
 static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
 static constexpr TI ACTION_DIM = ENVIRONMENT::ACTION_DIM;
-static constexpr TI TARGET_DIM = 3; // body-frame linear velocity
+static constexpr TI TARGET_DIM = 3; // body-frame position offset to target
 static constexpr TI OBSERVATION_DIM = ENVIRONMENT::OBSERVATION_DIM;
 static constexpr TI BATCH_SIZE = 512;
 static constexpr TI STEPS_PER_ENV = 500;
@@ -336,6 +336,8 @@ namespace imitation_kernels{
         T* brightness_scale_arr,
         T* scene_translation_arr,
         T* scene_yaw_arr,
+        T* target_position_arr,
+        T* target_yaw_arr,
         T* indoor_positions_ptr, TI* num_indoor_positions_ptr, TI* env_scene_ptr, TI max_indoor_pos,
         RNG rng, TI step_i
     ){
@@ -372,6 +374,17 @@ namespace imitation_kernels{
             episode_return_arr[env_i] = (T)0;
             teacher_forcing_arr[env_i] = full_teacher_forcing || rl_tools::random::uniform_real_distribution(device.random, (T)0, (T)1, rng_state) < teacher_forcing_fraction;
             brightness_scale_arr[env_i] = (T)1 + (rl_tools::random::uniform_real_distribution(device.random, (T)0, (T)1, rng_state) * (T)2 - (T)1) * BRIGHTNESS_RANDOMIZATION_RANGE;
+            {
+                TI target_pos_idx = rl_tools::random::uniform_int_distribution(device.random, (TI)0, num_pos - 1, rng_state);
+                if(num_pos > 1 && target_pos_idx == pos_idx){
+                    target_pos_idx = (target_pos_idx + 1) % num_pos;
+                }
+                T* tgt = indoor_positions_ptr + (scene_idx * max_indoor_pos + target_pos_idx) * 4;
+                target_position_arr[env_i * 3 + 0] = tgt[0];
+                target_position_arr[env_i * 3 + 1] = tgt[1];
+                target_position_arr[env_i * 3 + 2] = tgt[2];
+                target_yaw_arr[env_i] = rl_tools::random::uniform_real_distribution(device.random, (T)0, (T)(2.0 * 3.14159265358979323846), rng_state);
+            }
             for(TI h = 0; h < RAPTOR_HIDDEN_DIM; h++){
                 raptor_gru_state_ptr[env_i * RAPTOR_HIDDEN_DIM + h] = raptor_gru_initial_hidden_ptr[h];
             }
@@ -409,6 +422,7 @@ namespace imitation_kernels{
         DYNAMICS_TYPE* envs, PARAMETERS_TYPE* env_params, typename ENVIRONMENT::State* states,
         bool* terminated_flags, TI* episode_step_arr, T* episode_return_arr,
         T* teacher_actions_ptr, T* all_targets_ptr,
+        T* target_position_arr, T* scene_translation_arr, T* scene_yaw_arr,
         RNG rng, TI step_i
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -418,15 +432,33 @@ namespace imitation_kernels{
         auto& params = env_params[env_i];
         auto& state = states[env_i];
         TI pos = step_i * N_ENVIRONMENTS + env_i;
+        T target_world_offset[3] = {
+            target_position_arr[env_i * 3 + 0] - scene_translation_arr[env_i * 3 + 0],
+            target_position_arr[env_i * 3 + 1] - scene_translation_arr[env_i * 3 + 1],
+            target_position_arr[env_i * 3 + 2] - scene_translation_arr[env_i * 3 + 2]
+        };
+        T scene_yaw = scene_yaw_arr[env_i];
+        T c = rl_tools::math::cos(device.math, scene_yaw);
+        T s = rl_tools::math::sin(device.math, scene_yaw);
+        T target_scene_local[3] = {
+             c * target_world_offset[0] + s * target_world_offset[1],
+            -s * target_world_offset[0] + c * target_world_offset[1],
+            target_world_offset[2]
+        };
+        T delta[3] = {
+            target_scene_local[0] - state.position[0],
+            target_scene_local[1] - state.position[1],
+            target_scene_local[2] - state.position[2]
+        };
         T conjugate_orientation[4];
         conjugate_orientation[0] = state.orientation[0];
         conjugate_orientation[1] = -state.orientation[1];
         conjugate_orientation[2] = -state.orientation[2];
         conjugate_orientation[3] = -state.orientation[3];
-        T velocity_body[3];
-        rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(conjugate_orientation, state.linear_velocity, velocity_body);
+        T body_offset[3];
+        rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(conjugate_orientation, delta, body_offset);
         for(TI d = 0; d < TARGET_DIM; d++){
-            all_targets_ptr[pos * TARGET_DIM + d] = velocity_body[d];
+            all_targets_ptr[pos * TARGET_DIM + d] = body_offset[d];
         }
         T action_arr[ACTION_DIM];
         for(TI a = 0; a < ACTION_DIM; a++){
@@ -493,6 +525,34 @@ namespace imitation_kernels{
         };
         T up[3] = {cam_up_world[0], cam_up_world[1], cam_up_world[2]};
         gpu_cameras[env_i] = rlt::make_camera_data(position, look_at, up, fov, aspect);
+    }
+
+    template<typename DEVICE>
+    __global__
+    void make_target_cameras_kernel(
+        DEVICE device,
+        rlt::rendering::raytracing::CameraData<T>* target_cameras,
+        T fov, T aspect,
+        T* target_position_arr,
+        T* target_yaw_arr
+    ){
+        TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
+        if(env_i >= N_ENVIRONMENTS) return;
+        T position[3] = {
+            target_position_arr[env_i * 3 + 0],
+            target_position_arr[env_i * 3 + 1],
+            target_position_arr[env_i * 3 + 2]
+        };
+        T target_cam_yaw = target_yaw_arr[env_i];
+        T ct = rl_tools::math::cos(device.math, target_cam_yaw);
+        T st = rl_tools::math::sin(device.math, target_cam_yaw);
+        T look_at[3] = {
+            position[0] + ct,
+            position[1] + st,
+            position[2]
+        };
+        T up[3] = {(T)0, (T)0, (T)1};
+        target_cameras[env_i] = rlt::make_camera_data(position, look_at, up, fov, aspect);
     }
 
 #ifdef USE_FRAME_STACKING
@@ -579,6 +639,7 @@ struct StudentActor{
     static constexpr TI IMG_W = ENVIRONMENT::Observation::WIDTH;
     static constexpr TI IMG_C = ENVIRONMENT::Observation::CHANNELS;
 
+    using TARGET_IMAGE_INPUT_SHAPE = rlt::tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, IMG_H, IMG_W, STACKED_IMG_C>;
     using IMAGE_INPUT_SHAPE = rlt::tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, IMG_H, IMG_W, STACKED_IMG_C>;
     using STATE_INPUT_SHAPE = rlt::tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, STATE_OBS_DIM>;
 
@@ -603,6 +664,9 @@ struct StudentActor{
     using IMAGE_DENSE_EMBED = rlt::nn::layers::dense::BindConfiguration<IMAGE_DENSE_EMBED_CONFIG>;
     using IMAGE_BRANCH = rlt::nn_models::sequential::Module<INPUT_FLATTEN, IMAGE_STANDARDIZE, UNFLATTEN, CONV1, CONV2, CONV3, CONV4, OUTPUT_FLATTEN, IMAGE_DENSE_EMBED>;
 
+    // Target image branch: identical architecture, separate weights
+    using TARGET_IMAGE_BRANCH = rlt::nn_models::sequential::Module<INPUT_FLATTEN, IMAGE_STANDARDIZE, UNFLATTEN, CONV1, CONV2, CONV3, CONV4, OUTPUT_FLATTEN, IMAGE_DENSE_EMBED>;
+
     // State branch: Standardize→Dense(64)
     using STATE_STANDARDIZE_CONFIG = rlt::nn::layers::standardize::Configuration<TYPE_POLICY, TI>;
     using STATE_STANDARDIZE = rlt::nn::layers::standardize::BindConfiguration<STATE_STANDARDIZE_CONFIG>;
@@ -610,7 +674,7 @@ struct StudentActor{
     using STATE_DENSE_EMBED = rlt::nn::layers::dense::BindConfiguration<STATE_DENSE_EMBED_CONFIG>;
     using STATE_BRANCH = rlt::nn_models::sequential::Module<STATE_STANDARDIZE, STATE_DENSE_EMBED>;
 
-    // Head MLP: 128D → 64 → 64 → TARGET_DIM (plain MLP, no log_std)
+    // Head MLP: 192D → 64 → 64 → TARGET_DIM (plain MLP, no log_std)
     using MLP_HEAD_CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, TARGET_DIM, 2, ACTOR_HIDDEN_DIM, ACTOR_ACTIVATION_FUNCTION, rlt::nn::activation_functions::IDENTITY>;
     using MLP_HEAD = rlt::nn_models::mlp::BindConfiguration<MLP_HEAD_CONFIG>;
 
@@ -624,13 +688,15 @@ struct StudentActor{
     using HEAD_DENSE_OUT_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, TARGET_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using HEAD_DENSE_OUT = rlt::nn::layers::dense::BindConfiguration<HEAD_DENSE_OUT_CONFIG>;
     using SEQUENTIAL_HEAD = rlt::nn_models::sequential::Module<GRU_HEAD, HEAD_DENSE1, HEAD_DENSE2, HEAD_DENSE_OUT>;
+    using BRANCH_TARGET_IMAGE = rlt::nn_models::parallel::Branch<TARGET_IMAGE_BRANCH, TARGET_IMAGE_INPUT_SHAPE>;
     using BRANCH_IMAGE = rlt::nn_models::parallel::Branch<IMAGE_BRANCH, IMAGE_INPUT_SHAPE>;
     using BRANCH_STATE = rlt::nn_models::parallel::Branch<STATE_BRANCH, STATE_INPUT_SHAPE>;
-    using MODEL = rlt::nn_models::parallel::Build<CAPABILITY, SEQUENTIAL_HEAD, BRANCH_IMAGE, BRANCH_STATE>;
+    using MODEL = rlt::nn_models::parallel::Build<CAPABILITY, SEQUENTIAL_HEAD, BRANCH_TARGET_IMAGE, BRANCH_IMAGE, BRANCH_STATE>;
 #else
+    using BRANCH_TARGET_IMAGE = rlt::nn_models::parallel::Branch<TARGET_IMAGE_BRANCH, TARGET_IMAGE_INPUT_SHAPE>;
     using BRANCH_IMAGE = rlt::nn_models::parallel::Branch<IMAGE_BRANCH, IMAGE_INPUT_SHAPE>;
     using BRANCH_STATE = rlt::nn_models::parallel::Branch<STATE_BRANCH, STATE_INPUT_SHAPE>;
-    using MODEL = rlt::nn_models::parallel::Build<CAPABILITY, MLP_HEAD, BRANCH_IMAGE, BRANCH_STATE>;
+    using MODEL = rlt::nn_models::parallel::Build<CAPABILITY, MLP_HEAD, BRANCH_TARGET_IMAGE, BRANCH_IMAGE, BRANCH_STATE>;
 #endif
 };
 
@@ -974,7 +1040,7 @@ int main(int argc, char** argv){
             auto batch_observations_reshaped = rlt::reshape_row_major(device, batch_observations, IMAGE_INPUT_SHAPE_WARMUP{});
             auto batch_state_observations = rlt::view_range(device, warmup_state_observations, batch_i * WINDOW_SAMPLES, rlt::tensor::ViewSpec<0, WINDOW_SAMPLES>{});
             auto batch_state_observations_reshaped = rlt::reshape_row_major(device, batch_state_observations, STATE_INPUT_SHAPE_WARMUP{});
-            { auto inputs = rlt::nn_models::parallel::pack_inputs(batch_observations_reshaped, batch_state_observations_reshaped); rlt::forward(device, student_cpu, inputs, student_buffers_cpu, rng, accumulate_mode); }
+            { auto inputs = rlt::nn_models::parallel::pack_inputs(batch_observations_reshaped, batch_observations_reshaped, batch_state_observations_reshaped); rlt::forward(device, student_cpu, inputs, student_buffers_cpu, rng, accumulate_mode); }
         }
 #else
         using IMAGE_INPUT_SHAPE_WARMUP = rlt::tensor::Shape<TI, 1, BATCH_SIZE, IMG_H, IMG_W, STACKED_IMG_C>;
@@ -1003,7 +1069,7 @@ int main(int argc, char** argv){
 #endif
             auto batch_state_observations = rlt::view_range(device, warmup_state_observations, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
             auto batch_state_observations_reshaped = rlt::reshape_row_major(device, batch_state_observations, STATE_INPUT_SHAPE_WARMUP{});
-            { auto inputs = rlt::nn_models::parallel::pack_inputs(batch_observations_reshaped, batch_state_observations_reshaped); rlt::forward(device, student_cpu, inputs, student_buffers_cpu, rng, accumulate_mode); }
+            { auto inputs = rlt::nn_models::parallel::pack_inputs(batch_observations_reshaped, batch_observations_reshaped, batch_state_observations_reshaped); rlt::forward(device, student_cpu, inputs, student_buffers_cpu, rng, accumulate_mode); }
         }
 #ifdef USE_FRAME_STACKING
         rlt::free(device, warmup_stacked_batch);
@@ -1056,10 +1122,22 @@ int main(int argc, char** argv){
     // GPU cameras
     rlt::rendering::raytracing::CameraData<float>* gpu_cameras = nullptr;
     cudaMalloc(&gpu_cameras, N_ENVIRONMENTS * sizeof(rlt::rendering::raytracing::CameraData<float>));
+    rlt::rendering::raytracing::CameraData<float>* gpu_target_cameras = nullptr;
+    cudaMalloc(&gpu_target_cameras, N_ENVIRONMENTS * sizeof(rlt::rendering::raytracing::CameraData<float>));
+
+    // Target position/yaw per environment
+    T* gpu_target_position_arr = nullptr;
+    T* gpu_target_yaw_arr = nullptr;
+    cudaMalloc(&gpu_target_position_arr, N_ENVIRONMENTS * 3 * sizeof(T));
+    cudaMalloc(&gpu_target_yaw_arr, N_ENVIRONMENTS * sizeof(T));
+    cudaMemset(gpu_target_position_arr, 0, N_ENVIRONMENTS * 3 * sizeof(T));
+    cudaMemset(gpu_target_yaw_arr, 0, N_ENVIRONMENTS * sizeof(T));
 
     // Event for cross-stream synchronization (make_cameras on device_gpu.stream → optix_stream)
     cudaEvent_t cameras_ready_event;
     cudaEventCreateWithFlags(&cameras_ready_event, cudaEventDisableTiming);
+    cudaEvent_t target_cameras_ready_event;
+    cudaEventCreateWithFlags(&target_cameras_ready_event, cudaEventDisableTiming);
     // Events for measuring rendering time
     cudaEvent_t render_start_event, render_stop_event;
     cudaEventCreate(&render_start_event);
@@ -1068,6 +1146,7 @@ int main(int argc, char** argv){
     // GPU tensors
     static constexpr TI GPU_OBS_ROWS = STEPS_TOTAL + BATCH_SIZE;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, GPU_OBS_ROWS, OBSERVATION_DIM>>> gpu_all_observations;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, GPU_OBS_ROWS, OBSERVATION_DIM>>> gpu_all_target_observations;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, GPU_OBS_ROWS, STATE_OBS_DIM>>> gpu_all_state_observations;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, STEPS_TOTAL, TARGET_DIM>>> gpu_all_targets;
 #ifdef USE_GRU_TEMPORAL
@@ -1076,6 +1155,7 @@ int main(int argc, char** argv){
     rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, TARGET_DIM>> gpu_d_action_train;
 #endif
     rlt::malloc(device_gpu, gpu_all_observations);
+    rlt::malloc(device_gpu, gpu_all_target_observations);
     rlt::malloc(device_gpu, gpu_all_state_observations);
     rlt::malloc(device_gpu, gpu_all_targets);
     rlt::malloc(device_gpu, gpu_d_action_train);
@@ -1093,11 +1173,15 @@ int main(int argc, char** argv){
 
 #ifdef USE_FRAME_STACKING
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, BATCH_SIZE, STACKED_OBS_DIM>>> gpu_stacked_batch;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, BATCH_SIZE, STACKED_OBS_DIM>>> gpu_stacked_target_batch;
     rlt::malloc(device_gpu, gpu_stacked_batch);
+    rlt::malloc(device_gpu, gpu_stacked_target_batch);
     int* gpu_gather_indices = nullptr;
+    int* gpu_target_gather_indices = nullptr;
     TI* gpu_episode_start_step = nullptr;
     TI* gpu_episode_start_step_per_row = nullptr;
     cudaMalloc(&gpu_gather_indices, BATCH_SIZE * FRAME_STACK_N * sizeof(int));
+    cudaMalloc(&gpu_target_gather_indices, BATCH_SIZE * FRAME_STACK_N * sizeof(int));
     cudaMalloc(&gpu_episode_start_step, N_ENVIRONMENTS * sizeof(TI));
     cudaMalloc(&gpu_episode_start_step_per_row, STEPS_TOTAL * sizeof(TI));
     cudaMemset(gpu_episode_start_step, 0, N_ENVIRONMENTS * sizeof(TI));
@@ -1298,6 +1382,8 @@ int main(int argc, char** argv){
                     gpu_brightness_scale_arr,
                     gpu_scene_translation_arr,
                     gpu_scene_yaw_arr,
+                    gpu_target_position_arr,
+                    gpu_target_yaw_arr,
                     gpu_indoor_positions, gpu_num_indoor_positions, gpu_env_scene, MAX_INDOOR_POS,
                     rng_gpu, step_i);
                 CUDA_CHECK("prologue_kernel");
@@ -1374,6 +1460,63 @@ int main(int argc, char** argv){
                     brightness_apply_kernel<<<br_grid, br_block>>>(obs_ptr, gpu_brightness_scale_arr, N_ENVIRONMENTS, OBSERVATION_DIM);
                     CUDA_CHECK("brightness_apply_kernel");
                 }
+                // Target frame rendering (second pass)
+                imitation_kernels::make_target_cameras_kernel<<<grid, block, 0, device_gpu.stream>>>(
+                    tag_device, gpu_target_cameras,
+                    env_parameters[0].fov, cam_aspect,
+                    gpu_target_position_arr, gpu_target_yaw_arr);
+                CUDA_CHECK("make_target_cameras_kernel");
+                T* target_obs_ptr = rlt::data(gpu_all_target_observations) + (TI)(step_i * N_ENVIRONMENTS) * OBSERVATION_DIM;
+                cudaEventRecord(target_cameras_ready_event, device_gpu.stream);
+                for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
+                    TI actual_scene_i = active_scene_indices[active_scene_i];
+                    auto& renderer = *renderers[actual_scene_i];
+                    constexpr TI n_envs_s = N_ENVIRONMENTS_PER_SCENE;
+                    TI base_env = active_scene_i * N_ENVIRONMENTS_PER_SCENE;
+                    if(renderer.backend.owl_cameras_buffer == nullptr){
+                        std::array<rlt::rendering::raytracing::CameraData<float>, N_ENVIRONMENTS_PER_SCENE> cpu_cameras_init;
+                        cudaMemcpy(cpu_cameras_init.data(), gpu_target_cameras + base_env, N_ENVIRONMENTS_PER_SCENE * sizeof(rlt::rendering::raytracing::CameraData<float>), cudaMemcpyDeviceToHost);
+                        for(TI li = 0; li < n_envs_s; li++){
+                            rlt::set(device, renderer.cameras, cpu_cameras_init[li], li);
+                        }
+                        rlt::set_cameras(device, renderer, renderer.cameras);
+                        rlt::render_rgb_only(device, renderer);
+                    } else {
+                        OWLParams rgb_lp = (OWLParams)renderer.backend.rgb_launch_params;
+                        cudaStream_t optix_stream = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
+                        cudaStreamWaitEvent(optix_stream, target_cameras_ready_event, 0);
+                        void* owl_cam_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.owl_cameras_buffer, 0);
+                        for(TI li = 0; li < n_envs_s; li++){
+                            cudaMemcpyAsync(
+                                (char*)owl_cam_ptr + li * sizeof(rlt::rendering::raytracing::CameraData<float>),
+                                gpu_target_cameras + base_env + li,
+                                sizeof(rlt::rendering::raytracing::CameraData<float>),
+                                cudaMemcpyDeviceToDevice, optix_stream);
+                        }
+                        rlt::render_rgb_only_launch(device, renderer);
+                    }
+                }
+                for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
+                    TI actual_scene_i = active_scene_indices[active_scene_i];
+                    auto& renderer = *renderers[actual_scene_i];
+                    constexpr TI n_envs_s = N_ENVIRONMENTS_PER_SCENE;
+                    TI base_env = active_scene_i * N_ENVIRONMENTS_PER_SCENE;
+                    if(renderer.backend.owl_cameras_buffer != nullptr){
+                        rlt::render_rgb_only_sync(device, renderer);
+                    }
+                    const uint32_t* fb_ptr = rlt::get_framebuffer_device_ptr(device, renderer);
+                    int total_scatter = n_envs_s * CAM_PIXELS;
+                    int pf_block = 256;
+                    int pf_grid = (total_scatter + pf_block - 1) / pf_block;
+                    scatter_pixel_to_float_kernel<<<pf_grid, pf_block>>>(fb_ptr, target_obs_ptr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
+                }
+                CUDA_CHECK("target render");
+                if constexpr(BRIGHTNESS_RANDOMIZATION_RANGE > 0){
+                    int br_block = 256;
+                    dim3 br_grid((OBSERVATION_DIM + br_block - 1) / br_block, N_ENVIRONMENTS);
+                    brightness_apply_kernel<<<br_grid, br_block>>>(target_obs_ptr, gpu_brightness_scale_arr, N_ENVIRONMENTS, OBSERVATION_DIM);
+                    CUDA_CHECK("target brightness_apply_kernel");
+                }
                 if(record_video && ffmpeg_pipe){
                     static constexpr TI VIDEO_OBS_SIZE = N_ENVIRONMENTS * OBSERVATION_DIM;
                     std::vector<float> cpu_obs(VIDEO_OBS_SIZE);
@@ -1406,7 +1549,7 @@ int main(int argc, char** argv){
                     }
                     fwrite(mosaic_frame.data(), 1, mosaic_frame.size(), ffmpeg_pipe);
                 }
-                // student rollout skipped: student predicts velocity, RAPTOR flies
+                // student rollout skipped: student predicts position offset, RAPTOR flies
                 {
                     imitation_kernels::epilogue_kernel<<<grid, block, 0, device_gpu.stream>>>(
                         tag_device, gpu_dynamics_arr, gpu_params_arr, gpu_states_arr,
@@ -1414,6 +1557,7 @@ int main(int argc, char** argv){
                         gpu_episode_return_arr,
                         rlt::data(gpu_teacher_actions_step),
                         rlt::data(gpu_all_targets),
+                        gpu_target_position_arr, gpu_scene_translation_arr, gpu_scene_yaw_arr,
                         rng_gpu, step_i);
                 }
                 CUDA_CHECK("epilogue_kernel");
@@ -1504,15 +1648,18 @@ int main(int argc, char** argv){
 
                 rlt::zero_gradient(device_gpu, student_gpu);
 
-                auto win_obs = rlt::view_range(device_gpu, gpu_all_observations, window_offset, rlt::tensor::ViewSpec<0, WINDOW_SAMPLES>{});
+                auto win_target_obs = rlt::view_range(device_gpu, gpu_all_target_observations, window_offset, rlt::tensor::ViewSpec<0, WINDOW_SAMPLES>{});
                 using GRU_IMG_SHAPE = rlt::tensor::Shape<TI, BPTT_STEPS, N_ENVIRONMENTS, IMG_H, IMG_W, IMG_C>;
+                auto win_target_obs_reshaped = rlt::reshape_row_major(device_gpu, win_target_obs, GRU_IMG_SHAPE{});
+
+                auto win_obs = rlt::view_range(device_gpu, gpu_all_observations, window_offset, rlt::tensor::ViewSpec<0, WINDOW_SAMPLES>{});
                 auto win_obs_reshaped = rlt::reshape_row_major(device_gpu, win_obs, GRU_IMG_SHAPE{});
 
                 auto win_state = rlt::view_range(device_gpu, gpu_all_state_observations, window_offset, rlt::tensor::ViewSpec<0, WINDOW_SAMPLES>{});
                 using GRU_STATE_SHAPE = rlt::tensor::Shape<TI, BPTT_STEPS, N_ENVIRONMENTS, STATE_OBS_DIM>;
                 auto win_state_reshaped = rlt::reshape_row_major(device_gpu, win_state, GRU_STATE_SHAPE{});
 
-                { auto inputs = rlt::nn_models::parallel::pack_inputs(win_obs_reshaped, win_state_reshaped); rlt::forward(device_gpu, student_gpu, inputs, student_buffers, rng_gpu); }
+                { auto inputs = rlt::nn_models::parallel::pack_inputs(win_target_obs_reshaped, win_obs_reshaped, win_state_reshaped); rlt::forward(device_gpu, student_gpu, inputs, student_buffers, rng_gpu); }
                 cudaDeviceSynchronize();
 
                 auto student_output_tensor = rlt::output(device_gpu, student_gpu);
@@ -1538,7 +1685,7 @@ int main(int argc, char** argv){
                 auto gpu_d_action_tensor = rlt::to_tensor(device_gpu, gpu_d_action_train);
                 using GRU_ACTION_SHAPE = rlt::tensor::Shape<TI, BPTT_STEPS, N_ENVIRONMENTS, TARGET_DIM>;
                 auto gpu_d_action_reshaped = rlt::reshape_row_major(device_gpu, gpu_d_action_tensor, GRU_ACTION_SHAPE{});
-                { auto inputs = rlt::nn_models::parallel::pack_inputs(win_obs_reshaped, win_state_reshaped); rlt::backward(device_gpu, student_gpu, inputs, gpu_d_action_reshaped, student_buffers); }
+                { auto inputs = rlt::nn_models::parallel::pack_inputs(win_target_obs_reshaped, win_obs_reshaped, win_state_reshaped); rlt::backward(device_gpu, student_gpu, inputs, gpu_d_action_reshaped, student_buffers); }
                 cudaDeviceSynchronize();
                 rlt::step(device_gpu, optimizer_gpu, student_gpu);
                 cudaDeviceSynchronize();
@@ -1569,24 +1716,32 @@ int main(int argc, char** argv){
                     constexpr TI GI_GRID = (BATCH_SIZE + GI_BLOCK - 1) / GI_BLOCK;
                     imitation_kernels::compute_gather_indices_kernel<<<GI_GRID, GI_BLOCK, 0, device_gpu.stream>>>(
                         gpu_gather_indices, gpu_episode_start_step_per_row, batch_offset, BATCH_SIZE);
+                    imitation_kernels::compute_gather_indices_kernel<<<GI_GRID, GI_BLOCK, 0, device_gpu.stream>>>(
+                        gpu_target_gather_indices, gpu_episode_start_step_per_row, batch_offset, BATCH_SIZE);
                 }
                 {
                     int total_elements = BATCH_SIZE * STACKED_OBS_DIM;
                     gather_frames_kernel<<<(total_elements + 255) / 256, 256>>>(
                         rlt::data(gpu_all_observations), gpu_gather_indices, rlt::data(gpu_stacked_batch),
                         OBSERVATION_DIM, IMG_C, FRAME_STACK_N, STACKED_IMG_C, STACKED_OBS_DIM, BATCH_SIZE);
+                    gather_frames_kernel<<<(total_elements + 255) / 256, 256>>>(
+                        rlt::data(gpu_all_target_observations), gpu_target_gather_indices, rlt::data(gpu_stacked_target_batch),
+                        OBSERVATION_DIM, IMG_C, FRAME_STACK_N, STACKED_IMG_C, STACKED_OBS_DIM, BATCH_SIZE);
                 }
                 using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, IMG_H, IMG_W, STACKED_IMG_C>;
+                auto gpu_target_obs_batch_reshaped = rlt::reshape_row_major(device_gpu, gpu_stacked_target_batch, ACTOR_INPUT_SHAPE{});
                 auto gpu_obs_batch_reshaped = rlt::reshape_row_major(device_gpu, gpu_stacked_batch, ACTOR_INPUT_SHAPE{});
 #else
-                auto gpu_obs_batch = rlt::view_range(device_gpu, gpu_all_observations, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
+                auto gpu_target_obs_batch = rlt::view_range(device_gpu, gpu_all_target_observations, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
                 using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, IMG_H, IMG_W, STACKED_IMG_C>;
+                auto gpu_target_obs_batch_reshaped = rlt::reshape_row_major(device_gpu, gpu_target_obs_batch, ACTOR_INPUT_SHAPE{});
+                auto gpu_obs_batch = rlt::view_range(device_gpu, gpu_all_observations, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
                 auto gpu_obs_batch_reshaped = rlt::reshape_row_major(device_gpu, gpu_obs_batch, ACTOR_INPUT_SHAPE{});
 #endif
                 auto gpu_state_obs_batch = rlt::view_range(device_gpu, gpu_all_state_observations, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
                 auto gpu_state_obs_batch_reshaped = rlt::reshape_row_major(device_gpu, gpu_state_obs_batch, rlt::tensor::Shape<TI, 1, BATCH_SIZE, STATE_OBS_DIM>{});
 
-                { auto inputs = rlt::nn_models::parallel::pack_inputs(gpu_obs_batch_reshaped, gpu_state_obs_batch_reshaped); rlt::forward(device_gpu, student_gpu, inputs, student_buffers, rng_gpu); }
+                { auto inputs = rlt::nn_models::parallel::pack_inputs(gpu_target_obs_batch_reshaped, gpu_obs_batch_reshaped, gpu_state_obs_batch_reshaped); rlt::forward(device_gpu, student_gpu, inputs, student_buffers, rng_gpu); }
                 cudaDeviceSynchronize();
 
                 // MSE loss gradient
@@ -1614,7 +1769,7 @@ int main(int argc, char** argv){
                 // Student backward + Adam step
                 auto gpu_d_action_tensor = rlt::to_tensor(device_gpu, gpu_d_action_train);
                 auto gpu_d_action_reshaped = rlt::reshape_row_major(device_gpu, gpu_d_action_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, TARGET_DIM>{});
-                rlt::backward(device_gpu, student_gpu, gpu_obs_batch_reshaped, gpu_state_obs_batch_reshaped, gpu_d_action_reshaped, student_buffers);
+                { auto inputs = rlt::nn_models::parallel::pack_inputs(gpu_target_obs_batch_reshaped, gpu_obs_batch_reshaped, gpu_state_obs_batch_reshaped); rlt::backward(device_gpu, student_gpu, inputs, gpu_d_action_reshaped, student_buffers); }
                 cudaDeviceSynchronize();
                 rlt::step(device_gpu, optimizer_gpu, student_gpu);
                 cudaDeviceSynchronize();
@@ -1692,41 +1847,53 @@ int main(int argc, char** argv){
                 + std::to_string(CAM_HEIGHT) + ", " + std::to_string(CAM_WIDTH) + ")";
 #endif
             std::string state_obs_string = rlt::string(device, envs[0].dynamics, ACTOR_STATE_OBS{});
-            std::string obs_string = image_obs_string + ", " + state_obs_string;
-            std::string meta = "{\"environment\": {\"name\": \"l2f_visual\", \"observation\": \"" + obs_string + "\", \"output\": \"LinearVelocityBodyFrame\"}}";
-            static constexpr TI TOTAL_INPUT_DIM = STACKED_OBS_DIM + STATE_OBS_DIM;
+            std::string obs_string = "TargetImage(" + image_obs_string + "), " + image_obs_string + ", " + state_obs_string;
+            std::string meta = "{\"environment\": {\"name\": \"l2f_visual\", \"observation\": \"" + obs_string + "\", \"output\": \"PositionOffsetBodyFrame\"}}";
+            static constexpr TI TOTAL_INPUT_DIM = STACKED_OBS_DIM + STACKED_OBS_DIM + STATE_OBS_DIM;
             rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, TOTAL_INPUT_DIM>, true>> example_input;
             rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, TARGET_DIM>, true>> example_output;
             rlt::malloc(device, example_input);
             rlt::malloc(device, example_output);
             {
                 rlt::randn(device, example_input, rng);
-                auto example_input_img = rlt::view_range(device, example_input, (TI)0, rlt::tensor::ViewSpec<1, STACKED_OBS_DIM>{});
+                auto example_input_target_img = rlt::view_range(device, example_input, (TI)0, rlt::tensor::ViewSpec<1, STACKED_OBS_DIM>{});
+                auto example_input_target_img_reshaped = rlt::reshape_row_major(device, example_input_target_img, rlt::tensor::Shape<TI, 1, IMG_H, IMG_W, STACKED_IMG_C>{});
+                auto example_input_img = rlt::view_range(device, example_input, (TI)STACKED_OBS_DIM, rlt::tensor::ViewSpec<1, STACKED_OBS_DIM>{});
                 auto example_input_img_reshaped = rlt::reshape_row_major(device, example_input_img, rlt::tensor::Shape<TI, 1, IMG_H, IMG_W, STACKED_IMG_C>{});
-                auto example_input_state = rlt::view_range(device, example_input, (TI)STACKED_OBS_DIM, rlt::tensor::ViewSpec<1, STATE_OBS_DIM>{});
+                auto example_input_state = rlt::view_range(device, example_input, (TI)(2 * STACKED_OBS_DIM), rlt::tensor::ViewSpec<1, STATE_OBS_DIM>{});
                 using BRANCH_0 = typename rlt::utils::tuple_element<0, typename EVAL_TYPE::SPEC::BRANCH_TUPLE>::type;
                 using BRANCH_1 = typename rlt::utils::tuple_element<1, typename EVAL_TYPE::SPEC::BRANCH_TUPLE>::type;
-                using BRANCH_A_OUTPUT_SHAPE = rlt::nn_models::parallel::detail::output_shape<typename EVAL_TYPE::SPEC::CAPABILITY, BRANCH_0>;
-                using BRANCH_B_OUTPUT_SHAPE = rlt::nn_models::parallel::detail::output_shape<typename EVAL_TYPE::SPEC::CAPABILITY, BRANCH_1>;
-                static constexpr TI BRANCH_A_DIM = rlt::get_last(BRANCH_A_OUTPUT_SHAPE{});
-                static constexpr TI BRANCH_B_DIM = rlt::get_last(BRANCH_B_OUTPUT_SHAPE{});
-                rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, BRANCH_A_DIM>, true>> branch_a_out;
-                rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, BRANCH_B_DIM>, true>> branch_b_out;
-                rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, BRANCH_A_DIM + BRANCH_B_DIM>, true>> concat_out;
-                typename rlt::utils::typing::remove_reference_t<decltype(rlt::get<0>(eval_student.pipelines))>::template Buffer<true> buffer_a;
-                typename rlt::utils::typing::remove_reference_t<decltype(rlt::get<1>(eval_student.pipelines))>::template Buffer<true> buffer_b;
-                rlt::malloc(device, branch_a_out);
-                rlt::malloc(device, branch_b_out);
+                using BRANCH_2 = typename rlt::utils::tuple_element<2, typename EVAL_TYPE::SPEC::BRANCH_TUPLE>::type;
+                using BRANCH_0_OUTPUT_SHAPE = rlt::nn_models::parallel::detail::output_shape<typename EVAL_TYPE::SPEC::CAPABILITY, BRANCH_0>;
+                using BRANCH_1_OUTPUT_SHAPE = rlt::nn_models::parallel::detail::output_shape<typename EVAL_TYPE::SPEC::CAPABILITY, BRANCH_1>;
+                using BRANCH_2_OUTPUT_SHAPE = rlt::nn_models::parallel::detail::output_shape<typename EVAL_TYPE::SPEC::CAPABILITY, BRANCH_2>;
+                static constexpr TI BRANCH_0_DIM = rlt::get_last(BRANCH_0_OUTPUT_SHAPE{});
+                static constexpr TI BRANCH_1_DIM = rlt::get_last(BRANCH_1_OUTPUT_SHAPE{});
+                static constexpr TI BRANCH_2_DIM = rlt::get_last(BRANCH_2_OUTPUT_SHAPE{});
+                rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, BRANCH_0_DIM>, true>> branch_0_out;
+                rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, BRANCH_1_DIM>, true>> branch_1_out;
+                rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, BRANCH_2_DIM>, true>> branch_2_out;
+                rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, BRANCH_0_DIM + BRANCH_1_DIM + BRANCH_2_DIM>, true>> concat_out;
+                typename rlt::utils::typing::remove_reference_t<decltype(rlt::get<0>(eval_student.pipelines))>::template Buffer<true> buffer_0;
+                typename rlt::utils::typing::remove_reference_t<decltype(rlt::get<1>(eval_student.pipelines))>::template Buffer<true> buffer_1;
+                typename rlt::utils::typing::remove_reference_t<decltype(rlt::get<2>(eval_student.pipelines))>::template Buffer<true> buffer_2;
+                rlt::malloc(device, branch_0_out);
+                rlt::malloc(device, branch_1_out);
+                rlt::malloc(device, branch_2_out);
                 rlt::malloc(device, concat_out);
-                rlt::malloc(device, buffer_a);
-                rlt::malloc(device, buffer_b);
+                rlt::malloc(device, buffer_0);
+                rlt::malloc(device, buffer_1);
+                rlt::malloc(device, buffer_2);
                 rlt::Mode<rlt::mode::Evaluation<>> eval_mode;
-                rlt::evaluate(device, rlt::get<0>(eval_student.pipelines), example_input_img_reshaped, branch_a_out, buffer_a, rng, eval_mode);
-                rlt::evaluate(device, rlt::get<1>(eval_student.pipelines), example_input_state, branch_b_out, buffer_b, rng, eval_mode);
-                auto concat_a = rlt::view_range(device, concat_out, (TI)0, rlt::tensor::ViewSpec<1, BRANCH_A_DIM>{});
-                auto concat_b = rlt::view_range(device, concat_out, (TI)BRANCH_A_DIM, rlt::tensor::ViewSpec<1, BRANCH_B_DIM>{});
-                rlt::copy(device, device, branch_a_out, concat_a);
-                rlt::copy(device, device, branch_b_out, concat_b);
+                rlt::evaluate(device, rlt::get<0>(eval_student.pipelines), example_input_target_img_reshaped, branch_0_out, buffer_0, rng, eval_mode);
+                rlt::evaluate(device, rlt::get<1>(eval_student.pipelines), example_input_img_reshaped, branch_1_out, buffer_1, rng, eval_mode);
+                rlt::evaluate(device, rlt::get<2>(eval_student.pipelines), example_input_state, branch_2_out, buffer_2, rng, eval_mode);
+                auto concat_0 = rlt::view_range(device, concat_out, (TI)0, rlt::tensor::ViewSpec<1, BRANCH_0_DIM>{});
+                auto concat_1 = rlt::view_range(device, concat_out, (TI)BRANCH_0_DIM, rlt::tensor::ViewSpec<1, BRANCH_1_DIM>{});
+                auto concat_2 = rlt::view_range(device, concat_out, (TI)(BRANCH_0_DIM + BRANCH_1_DIM), rlt::tensor::ViewSpec<1, BRANCH_2_DIM>{});
+                rlt::copy(device, device, branch_0_out, concat_0);
+                rlt::copy(device, device, branch_1_out, concat_1);
+                rlt::copy(device, device, branch_2_out, concat_2);
 #ifdef USE_GRU_TEMPORAL
                 typename decltype(eval_student.head)::State<true> head_state;
                 typename decltype(eval_student.head)::template Buffer<true> head_buffer;
@@ -1742,11 +1909,13 @@ int main(int argc, char** argv){
                 rlt::evaluate(device, eval_student.head, concat_out, example_output, head_buffer, rng, eval_mode);
                 rlt::free(device, head_buffer);
 #endif
-                rlt::free(device, branch_a_out);
-                rlt::free(device, branch_b_out);
+                rlt::free(device, branch_0_out);
+                rlt::free(device, branch_1_out);
+                rlt::free(device, branch_2_out);
                 rlt::free(device, concat_out);
-                rlt::free(device, buffer_a);
-                rlt::free(device, buffer_b);
+                rlt::free(device, buffer_0);
+                rlt::free(device, buffer_1);
+                rlt::free(device, buffer_2);
             }
             { // binary (tar)
                 std::filesystem::path checkpoint_path = step_folder / "checkpoint.tar";
@@ -1855,7 +2024,11 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, rng_gpu);
     rlt::free(device_gpu, gpu_teacher_actions_step);
     cudaFree(gpu_cameras);
+    cudaFree(gpu_target_cameras);
+    cudaFree(gpu_target_position_arr);
+    cudaFree(gpu_target_yaw_arr);
     cudaEventDestroy(cameras_ready_event);
+    cudaEventDestroy(target_cameras_ready_event);
     cudaEventDestroy(render_start_event);
     cudaEventDestroy(render_stop_event);
     rlt::free(device_gpu, student_gpu);
@@ -1866,6 +2039,7 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, student_buffers);
     rlt::free(device_gpu, optimizer_gpu);
     rlt::free(device_gpu, gpu_all_observations);
+    rlt::free(device_gpu, gpu_all_target_observations);
     rlt::free(device_gpu, gpu_all_state_observations);
     rlt::free(device_gpu, gpu_all_targets);
     rlt::free(device_gpu, gpu_d_action_train);
@@ -1894,7 +2068,9 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, gpu_rollout_actions);
 #elif defined(USE_FRAME_STACKING)
     rlt::free(device_gpu, gpu_stacked_batch);
+    rlt::free(device_gpu, gpu_stacked_target_batch);
     cudaFree(gpu_gather_indices);
+    cudaFree(gpu_target_gather_indices);
     cudaFree(gpu_episode_start_step);
     cudaFree(gpu_episode_start_step_per_row);
 #endif
