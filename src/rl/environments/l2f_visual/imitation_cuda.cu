@@ -624,9 +624,13 @@ struct StudentActor{
     using HEAD_DENSE_OUT_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, TARGET_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using HEAD_DENSE_OUT = rlt::nn::layers::dense::BindConfiguration<HEAD_DENSE_OUT_CONFIG>;
     using SEQUENTIAL_HEAD = rlt::nn_models::sequential::Module<GRU_HEAD, HEAD_DENSE1, HEAD_DENSE2, HEAD_DENSE_OUT>;
-    using MODEL = rlt::nn_models::parallel::Build<CAPABILITY, IMAGE_BRANCH, STATE_BRANCH, IMAGE_INPUT_SHAPE, STATE_INPUT_SHAPE, SEQUENTIAL_HEAD>;
+    using BRANCH_IMAGE = rlt::nn_models::parallel::Branch<IMAGE_BRANCH, IMAGE_INPUT_SHAPE>;
+    using BRANCH_STATE = rlt::nn_models::parallel::Branch<STATE_BRANCH, STATE_INPUT_SHAPE>;
+    using MODEL = rlt::nn_models::parallel::Build<CAPABILITY, SEQUENTIAL_HEAD, BRANCH_IMAGE, BRANCH_STATE>;
 #else
-    using MODEL = rlt::nn_models::parallel::Build<CAPABILITY, IMAGE_BRANCH, STATE_BRANCH, IMAGE_INPUT_SHAPE, STATE_INPUT_SHAPE, MLP_HEAD>;
+    using BRANCH_IMAGE = rlt::nn_models::parallel::Branch<IMAGE_BRANCH, IMAGE_INPUT_SHAPE>;
+    using BRANCH_STATE = rlt::nn_models::parallel::Branch<STATE_BRANCH, STATE_INPUT_SHAPE>;
+    using MODEL = rlt::nn_models::parallel::Build<CAPABILITY, MLP_HEAD, BRANCH_IMAGE, BRANCH_STATE>;
 #endif
 };
 
@@ -970,7 +974,7 @@ int main(int argc, char** argv){
             auto batch_observations_reshaped = rlt::reshape_row_major(device, batch_observations, IMAGE_INPUT_SHAPE_WARMUP{});
             auto batch_state_observations = rlt::view_range(device, warmup_state_observations, batch_i * WINDOW_SAMPLES, rlt::tensor::ViewSpec<0, WINDOW_SAMPLES>{});
             auto batch_state_observations_reshaped = rlt::reshape_row_major(device, batch_state_observations, STATE_INPUT_SHAPE_WARMUP{});
-            rlt::forward(device, student_cpu, batch_observations_reshaped, batch_state_observations_reshaped, student_buffers_cpu, rng, accumulate_mode);
+            { auto inputs = rlt::nn_models::parallel::pack_inputs(batch_observations_reshaped, batch_state_observations_reshaped); rlt::forward(device, student_cpu, inputs, student_buffers_cpu, rng, accumulate_mode); }
         }
 #else
         using IMAGE_INPUT_SHAPE_WARMUP = rlt::tensor::Shape<TI, 1, BATCH_SIZE, IMG_H, IMG_W, STACKED_IMG_C>;
@@ -999,7 +1003,7 @@ int main(int argc, char** argv){
 #endif
             auto batch_state_observations = rlt::view_range(device, warmup_state_observations, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
             auto batch_state_observations_reshaped = rlt::reshape_row_major(device, batch_state_observations, STATE_INPUT_SHAPE_WARMUP{});
-            rlt::forward(device, student_cpu, batch_observations_reshaped, batch_state_observations_reshaped, student_buffers_cpu, rng, accumulate_mode);
+            { auto inputs = rlt::nn_models::parallel::pack_inputs(batch_observations_reshaped, batch_state_observations_reshaped); rlt::forward(device, student_cpu, inputs, student_buffers_cpu, rng, accumulate_mode); }
         }
 #ifdef USE_FRAME_STACKING
         rlt::free(device, warmup_stacked_batch);
@@ -1508,7 +1512,7 @@ int main(int argc, char** argv){
                 using GRU_STATE_SHAPE = rlt::tensor::Shape<TI, BPTT_STEPS, N_ENVIRONMENTS, STATE_OBS_DIM>;
                 auto win_state_reshaped = rlt::reshape_row_major(device_gpu, win_state, GRU_STATE_SHAPE{});
 
-                rlt::forward(device_gpu, student_gpu, win_obs_reshaped, win_state_reshaped, student_buffers, rng_gpu);
+                { auto inputs = rlt::nn_models::parallel::pack_inputs(win_obs_reshaped, win_state_reshaped); rlt::forward(device_gpu, student_gpu, inputs, student_buffers, rng_gpu); }
                 cudaDeviceSynchronize();
 
                 auto student_output_tensor = rlt::output(device_gpu, student_gpu);
@@ -1534,7 +1538,7 @@ int main(int argc, char** argv){
                 auto gpu_d_action_tensor = rlt::to_tensor(device_gpu, gpu_d_action_train);
                 using GRU_ACTION_SHAPE = rlt::tensor::Shape<TI, BPTT_STEPS, N_ENVIRONMENTS, TARGET_DIM>;
                 auto gpu_d_action_reshaped = rlt::reshape_row_major(device_gpu, gpu_d_action_tensor, GRU_ACTION_SHAPE{});
-                rlt::backward(device_gpu, student_gpu, win_obs_reshaped, win_state_reshaped, gpu_d_action_reshaped, student_buffers);
+                { auto inputs = rlt::nn_models::parallel::pack_inputs(win_obs_reshaped, win_state_reshaped); rlt::backward(device_gpu, student_gpu, inputs, gpu_d_action_reshaped, student_buffers); }
                 cudaDeviceSynchronize();
                 rlt::step(device_gpu, optimizer_gpu, student_gpu);
                 cudaDeviceSynchronize();
@@ -1582,7 +1586,7 @@ int main(int argc, char** argv){
                 auto gpu_state_obs_batch = rlt::view_range(device_gpu, gpu_all_state_observations, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
                 auto gpu_state_obs_batch_reshaped = rlt::reshape_row_major(device_gpu, gpu_state_obs_batch, rlt::tensor::Shape<TI, 1, BATCH_SIZE, STATE_OBS_DIM>{});
 
-                rlt::forward(device_gpu, student_gpu, gpu_obs_batch_reshaped, gpu_state_obs_batch_reshaped, student_buffers, rng_gpu);
+                { auto inputs = rlt::nn_models::parallel::pack_inputs(gpu_obs_batch_reshaped, gpu_state_obs_batch_reshaped); rlt::forward(device_gpu, student_gpu, inputs, student_buffers, rng_gpu); }
                 cudaDeviceSynchronize();
 
                 // MSE loss gradient
@@ -1700,23 +1704,25 @@ int main(int argc, char** argv){
                 auto example_input_img = rlt::view_range(device, example_input, (TI)0, rlt::tensor::ViewSpec<1, STACKED_OBS_DIM>{});
                 auto example_input_img_reshaped = rlt::reshape_row_major(device, example_input_img, rlt::tensor::Shape<TI, 1, IMG_H, IMG_W, STACKED_IMG_C>{});
                 auto example_input_state = rlt::view_range(device, example_input, (TI)STACKED_OBS_DIM, rlt::tensor::ViewSpec<1, STATE_OBS_DIM>{});
-                using BRANCH_A_OUTPUT_SHAPE = typename EVAL_TYPE::SPEC::OUTPUT_SHAPE_A;
-                using BRANCH_B_OUTPUT_SHAPE = typename EVAL_TYPE::SPEC::OUTPUT_SHAPE_B;
+                using BRANCH_0 = typename rlt::utils::tuple_element<0, typename EVAL_TYPE::SPEC::BRANCH_TUPLE>::type;
+                using BRANCH_1 = typename rlt::utils::tuple_element<1, typename EVAL_TYPE::SPEC::BRANCH_TUPLE>::type;
+                using BRANCH_A_OUTPUT_SHAPE = rlt::nn_models::parallel::detail::output_shape<typename EVAL_TYPE::SPEC::CAPABILITY, BRANCH_0>;
+                using BRANCH_B_OUTPUT_SHAPE = rlt::nn_models::parallel::detail::output_shape<typename EVAL_TYPE::SPEC::CAPABILITY, BRANCH_1>;
                 static constexpr TI BRANCH_A_DIM = rlt::get_last(BRANCH_A_OUTPUT_SHAPE{});
                 static constexpr TI BRANCH_B_DIM = rlt::get_last(BRANCH_B_OUTPUT_SHAPE{});
                 rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, BRANCH_A_DIM>, true>> branch_a_out;
                 rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, BRANCH_B_DIM>, true>> branch_b_out;
                 rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, BRANCH_A_DIM + BRANCH_B_DIM>, true>> concat_out;
-                typename decltype(eval_student.pipeline_a)::template Buffer<true> buffer_a;
-                typename decltype(eval_student.pipeline_b)::template Buffer<true> buffer_b;
+                typename rlt::utils::typing::remove_reference_t<decltype(rlt::get<0>(eval_student.pipelines))>::template Buffer<true> buffer_a;
+                typename rlt::utils::typing::remove_reference_t<decltype(rlt::get<1>(eval_student.pipelines))>::template Buffer<true> buffer_b;
                 rlt::malloc(device, branch_a_out);
                 rlt::malloc(device, branch_b_out);
                 rlt::malloc(device, concat_out);
                 rlt::malloc(device, buffer_a);
                 rlt::malloc(device, buffer_b);
                 rlt::Mode<rlt::mode::Evaluation<>> eval_mode;
-                rlt::evaluate(device, eval_student.pipeline_a, example_input_img_reshaped, branch_a_out, buffer_a, rng, eval_mode);
-                rlt::evaluate(device, eval_student.pipeline_b, example_input_state, branch_b_out, buffer_b, rng, eval_mode);
+                rlt::evaluate(device, rlt::get<0>(eval_student.pipelines), example_input_img_reshaped, branch_a_out, buffer_a, rng, eval_mode);
+                rlt::evaluate(device, rlt::get<1>(eval_student.pipelines), example_input_state, branch_b_out, buffer_b, rng, eval_mode);
                 auto concat_a = rlt::view_range(device, concat_out, (TI)0, rlt::tensor::ViewSpec<1, BRANCH_A_DIM>{});
                 auto concat_b = rlt::view_range(device, concat_out, (TI)BRANCH_A_DIM, rlt::tensor::ViewSpec<1, BRANCH_B_DIM>{});
                 rlt::copy(device, device, branch_a_out, concat_a);

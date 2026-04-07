@@ -142,15 +142,19 @@ using GPU_INPUT_SHAPE = rlt::tensor::Shape<TI_CUDA, BATCH_SIZE, CAM_HEIGHT, CAM_
 using GPU_INPUT_SPEC = rlt::tensor::Specification<T_ACTIVATION, TI_CUDA, GPU_INPUT_SHAPE>;
 
 // Teacher encoder output dimensions
-static constexpr int TEACHER_ENCODER_DIM_VAL = TEACHER_GPU_MODEL::SPEC::LAST_DIM_A;
-static constexpr int TEACHER_CONCAT_DIM = TEACHER_GPU_MODEL::SPEC::LAST_DIM;
-static constexpr int TEACHER_ENCODER_TOTAL = rlt::product(typename TEACHER_GPU_MODEL::SPEC::OUTPUT_SHAPE_A{});
+using TEACHER_BRANCH_0 = typename rlt::utils::tuple_element<0, typename TEACHER_GPU_MODEL::SPEC::BRANCH_TUPLE>::type;
+using TEACHER_OUTPUT_SHAPE_0 = rlt::nn_models::parallel::detail::output_shape<typename TEACHER_GPU_MODEL::SPEC::CAPABILITY, TEACHER_BRANCH_0>;
+static constexpr int TEACHER_ENCODER_DIM_VAL = rlt::get_last(TEACHER_OUTPUT_SHAPE_0{});
+static constexpr int TEACHER_CONCAT_DIM = TEACHER_GPU_MODEL::SPEC::CONCAT_LAST_DIM;
+static constexpr int TEACHER_ENCODER_TOTAL = rlt::product(TEACHER_OUTPUT_SHAPE_0{});
 static constexpr int ENCODER_SPATIAL = TEACHER_ENCODER_TOTAL / TEACHER_ENCODER_DIM_VAL;
 static constexpr int SPATIAL_PER_SAMPLE = ENCODER_SPATIAL / BATCH_SIZE;
 
 // Student encoder output dimensions (should match teacher after projection)
-static constexpr int STUDENT_ENCODER_DIM_VAL = STUDENT_GPU_MODEL::SPEC::LAST_DIM_A;
-static constexpr int STUDENT_CONCAT_DIM = STUDENT_GPU_MODEL::SPEC::LAST_DIM;
+using STUDENT_BRANCH_0 = typename rlt::utils::tuple_element<0, typename STUDENT_GPU_MODEL::SPEC::BRANCH_TUPLE>::type;
+using STUDENT_OUTPUT_SHAPE_0 = rlt::nn_models::parallel::detail::output_shape<typename STUDENT_GPU_MODEL::SPEC::CAPABILITY, STUDENT_BRANCH_0>;
+static constexpr int STUDENT_ENCODER_DIM_VAL = rlt::get_last(STUDENT_OUTPUT_SHAPE_0{});
+static constexpr int STUDENT_CONCAT_DIM = STUDENT_GPU_MODEL::SPEC::CONCAT_LAST_DIM;
 // Note: student per-branch dim (TEACHER_ENCODER_DIM=512) != teacher per-branch dim (LATE_CH=256)
 // The student projects to the teacher's *concatenated* dim per branch, not per-branch dim.
 // Cosine similarity operates on the min of the two dims or requires separate alignment.
@@ -550,7 +554,7 @@ int main(int argc, char** argv) {
     rlt::malloc(device_cuda, gpu_d_student_concat_task);
 
     // Cosine similarity gradient buffers for each encoder branch
-    using ENCODER_OUTPUT_SHAPE = typename STUDENT_GPU_MODEL::SPEC::OUTPUT_SHAPE_A;
+    using ENCODER_OUTPUT_SHAPE = STUDENT_OUTPUT_SHAPE_0;
     using D_ENCODER_SPEC = rlt::tensor::Specification<T_GRADIENT, TI_CUDA, ENCODER_OUTPUT_SHAPE, true, rlt::tensor::RowMajorStride<ENCODER_OUTPUT_SHAPE>>;
     rlt::Tensor<D_ENCODER_SPEC> gpu_d_student_a_cos, gpu_d_student_b_cos;
     rlt::malloc(device_cuda, gpu_d_student_a_cos);
@@ -660,13 +664,13 @@ int main(int argc, char** argv) {
         rlt::zero_gradient(device_cuda, student);
         rlt::zero_gradient(device_cuda, student_head);
 
-        rlt::forward(device_cuda, student.pipeline_a, gpu_input_a, student_buffer.buffer_a, rng_cuda, train_mode);
-        rlt::forward(device_cuda, student.pipeline_b, gpu_input_b, student_buffer.buffer_b, rng_cuda, train_mode);
+        rlt::forward(device_cuda, rlt::get<0>(student.pipelines), gpu_input_a, rlt::get<0>(student_buffer.sub_buffers), rng_cuda, train_mode);
+        rlt::forward(device_cuda, rlt::get<1>(student.pipelines), gpu_input_b, rlt::get<1>(student_buffer.sub_buffers), rng_cuda, train_mode);
 
-        auto student_output_a = rlt::output(device_cuda, student.pipeline_a);
-        auto student_output_b = rlt::output(device_cuda, student.pipeline_b);
-        rlt::copy(device_cuda, device_cuda, student_output_a, student_buffer.intermediate_a);
-        rlt::copy(device_cuda, device_cuda, student_output_b, student_buffer.intermediate_b);
+        auto student_output_a = rlt::output(device_cuda, rlt::get<0>(student.pipelines));
+        auto student_output_b = rlt::output(device_cuda, rlt::get<1>(student.pipelines));
+        rlt::copy(device_cuda, device_cuda, student_output_a, rlt::get<0>(student_buffer.intermediates));
+        rlt::copy(device_cuda, device_cuda, student_output_b, rlt::get<1>(student_buffer.intermediates));
 
         // ---- Dense supervision: cosine similarity loss on encoder features ----
         {
@@ -674,8 +678,8 @@ int main(int argc, char** argv) {
             constexpr int threads = 256;
             constexpr int blocks = (total_positions + threads - 1) / threads;
             cosine_similarity_loss_gradient_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
-                student_buffer.intermediate_a._data,
-                teacher_buffer.intermediate_a._data,
+                rlt::get<0>(student_buffer.intermediates)._data,
+                rlt::get<0>(teacher_buffer.intermediates)._data,
                 gpu_d_student_a_cos._data,
                 gpu_cos_losses,
                 gpu_mask,
@@ -685,8 +689,8 @@ int main(int argc, char** argv) {
                 DistillConfig::LOSS_WEIGHT_COSINE
             );
             cosine_similarity_loss_gradient_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
-                student_buffer.intermediate_b._data,
-                teacher_buffer.intermediate_b._data,
+                rlt::get<1>(student_buffer.intermediates)._data,
+                rlt::get<1>(teacher_buffer.intermediates)._data,
                 gpu_d_student_b_cos._data,
                 gpu_cos_losses,
                 gpu_mask,
@@ -703,8 +707,8 @@ int main(int argc, char** argv) {
             constexpr int threads = 256;
             constexpr int blocks = (total + threads - 1) / threads;
             yp::cuda_kernels::concatenate_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
-                student_buffer.intermediate_a._data, STUDENT_ENCODER_DIM_VAL,
-                student_buffer.intermediate_b._data, STUDENT_ENCODER_DIM_VAL,
+                rlt::get<0>(student_buffer.intermediates)._data, STUDENT_ENCODER_DIM_VAL,
+                rlt::get<1>(student_buffer.intermediates)._data, STUDENT_ENCODER_DIM_VAL,
                 student_buffer.concatenated._data, ENCODER_SPATIAL
             );
         }
@@ -734,8 +738,8 @@ int main(int argc, char** argv) {
             constexpr int blocks = (total + threads - 1) / threads;
             yp::cuda_kernels::split_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
                 gpu_d_student_concat_task._data, STUDENT_ENCODER_DIM_VAL, STUDENT_ENCODER_DIM_VAL,
-                student_buffer.d_output_a._data,
-                student_buffer.d_output_b._data,
+                rlt::get<0>(student_buffer.d_outputs)._data,
+                rlt::get<1>(student_buffer.d_outputs)._data,
                 ENCODER_SPATIAL
             );
         }
@@ -746,16 +750,16 @@ int main(int argc, char** argv) {
             constexpr int threads = 256;
             constexpr int blocks = (total + threads - 1) / threads;
             add_gradients_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
-                student_buffer.d_output_a._data, gpu_d_student_a_cos._data, total
+                rlt::get<0>(student_buffer.d_outputs)._data, gpu_d_student_a_cos._data, total
             );
             add_gradients_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
-                student_buffer.d_output_b._data, gpu_d_student_b_cos._data, total
+                rlt::get<1>(student_buffer.d_outputs)._data, gpu_d_student_b_cos._data, total
             );
         }
 
         // ---- Student backward ----
-        rlt::backward_full(device_cuda, student.pipeline_a, gpu_input_a, student_buffer.d_output_a, gpu_d_input_a, student_buffer.buffer_a);
-        rlt::backward_full(device_cuda, student.pipeline_b, gpu_input_b, student_buffer.d_output_b, gpu_d_input_b, student_buffer.buffer_b);
+        rlt::backward_full(device_cuda, rlt::get<0>(student.pipelines), gpu_input_a, rlt::get<0>(student_buffer.d_outputs), gpu_d_input_a, rlt::get<0>(student_buffer.sub_buffers));
+        rlt::backward_full(device_cuda, rlt::get<1>(student.pipelines), gpu_input_b, rlt::get<1>(student_buffer.d_outputs), gpu_d_input_b, rlt::get<1>(student_buffer.sub_buffers));
 
         // ---- Optimizer step ----
         rlt::step(device_cuda, optimizer, student);
@@ -870,21 +874,21 @@ int main(int argc, char** argv) {
                                 cudaMemcpyHostToDevice, device_cuda.stream);
 
                 // Student forward (eval mode)
-                rlt::forward(device_cuda, student.pipeline_a, gpu_input_a, student_buffer.buffer_a, rng_cuda, eval_mode);
-                rlt::forward(device_cuda, student.pipeline_b, gpu_input_b, student_buffer.buffer_b, rng_cuda, eval_mode);
+                rlt::forward(device_cuda, rlt::get<0>(student.pipelines), gpu_input_a, rlt::get<0>(student_buffer.sub_buffers), rng_cuda, eval_mode);
+                rlt::forward(device_cuda, rlt::get<1>(student.pipelines), gpu_input_b, rlt::get<1>(student_buffer.sub_buffers), rng_cuda, eval_mode);
 
-                auto val_output_a = rlt::output(device_cuda, student.pipeline_a);
-                auto val_output_b = rlt::output(device_cuda, student.pipeline_b);
-                rlt::copy(device_cuda, device_cuda, val_output_a, student_buffer.intermediate_a);
-                rlt::copy(device_cuda, device_cuda, val_output_b, student_buffer.intermediate_b);
+                auto val_output_a = rlt::output(device_cuda, rlt::get<0>(student.pipelines));
+                auto val_output_b = rlt::output(device_cuda, rlt::get<1>(student.pipelines));
+                rlt::copy(device_cuda, device_cuda, val_output_a, rlt::get<0>(student_buffer.intermediates));
+                rlt::copy(device_cuda, device_cuda, val_output_b, rlt::get<1>(student_buffer.intermediates));
 
                 {
                     constexpr int total = ENCODER_SPATIAL * STUDENT_CONCAT_DIM;
                     constexpr int threads = 256;
                     constexpr int blocks = (total + threads - 1) / threads;
                     yp::cuda_kernels::concatenate_kernel<<<blocks, threads, 0, device_cuda.stream>>>(
-                        student_buffer.intermediate_a._data, STUDENT_ENCODER_DIM_VAL,
-                        student_buffer.intermediate_b._data, STUDENT_ENCODER_DIM_VAL,
+                        rlt::get<0>(student_buffer.intermediates)._data, STUDENT_ENCODER_DIM_VAL,
+                        rlt::get<1>(student_buffer.intermediates)._data, STUDENT_ENCODER_DIM_VAL,
                         student_buffer.concatenated._data, ENCODER_SPATIAL
                     );
                 }

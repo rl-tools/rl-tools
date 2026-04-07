@@ -214,7 +214,8 @@ static std::array<double, 3> evaluate_pair(ModelHandle& handle, const FrameRecor
     std::memcpy(rlt::data(handle.input_b), current.model_pixels.data(), current.model_pixels.size() * sizeof(float));
 
     auto mode = rlt::Mode<rlt::mode::Evaluation<>>{};
-    rlt::evaluate(handle.device, handle.model, handle.input_a, handle.input_b, handle.output, handle.buffer, handle.rng, mode);
+    auto inputs = rlt::nn_models::parallel::pack_inputs(handle.input_a, handle.input_b);
+    rlt::evaluate(handle.device, handle.model, inputs, handle.output, handle.buffer, handle.rng, mode);
 
     return {
         static_cast<double>(rlt::get(handle.device, handle.output, 0, 0)),

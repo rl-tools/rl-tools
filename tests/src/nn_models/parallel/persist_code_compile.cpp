@@ -30,7 +30,8 @@ TEST(RL_TOOLS_NN_MODELS_PARALLEL_PERSIST_CODE, COMPILE) {
     bool rng = false;
 
     const rl_tools_export::model::TYPE module = rl_tools_export::model::factory_function();
-    rlt::evaluate(device, module, rl_tools_export::input_a::container, rl_tools_export::input_b::container, output, buffer, rng);
+    auto inputs = rlt::nn_models::parallel::pack_inputs(rl_tools_export::input_a::container, rl_tools_export::input_b::container);
+    rlt::evaluate(device, module, inputs, output, buffer, rng);
 
     auto abs_diff = rlt::abs_diff(device, output, rl_tools_export::output::container);
     std::cout << "Original output:" << std::endl;
