@@ -80,7 +80,9 @@ namespace PARALLEL_MODEL{
     using HEAD = rlt::nn_models::mlp::BindConfiguration<HEAD_CONFIG>;
 
     using CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
-    using MODEL = rlt::nn_models::parallel::Build<CAPABILITY, IMAGE_BRANCH, STATE_BRANCH, IMAGE_INPUT_SHAPE, STATE_INPUT_SHAPE, HEAD>;
+    using BRANCH_IMAGE = rlt::nn_models::parallel::Branch<IMAGE_BRANCH, IMAGE_INPUT_SHAPE>;
+    using BRANCH_STATE = rlt::nn_models::parallel::Branch<STATE_BRANCH, STATE_INPUT_SHAPE>;
+    using MODEL = rlt::nn_models::parallel::Build<CAPABILITY, HEAD, BRANCH_IMAGE, BRANCH_STATE>;
 }
 
 TEST(RL_TOOLS_NN_MODELS_PARALLEL_PERSIST_CODE, STORE) {
@@ -95,8 +97,8 @@ TEST(RL_TOOLS_NN_MODELS_PARALLEL_PERSIST_CODE, STORE) {
     rlt::malloc(device, rng);
     rlt::init(device, rng, 0);
 
-    rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::INPUT_SHAPE_A>> input_a;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::INPUT_SHAPE_B>> input_b;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, PARALLEL_MODEL::IMAGE_INPUT_SHAPE>> input_a;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, PARALLEL_MODEL::STATE_INPUT_SHAPE>> input_b;
     rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::OUTPUT_SHAPE>> output;
 
     rlt::malloc(device, model);
@@ -109,7 +111,8 @@ TEST(RL_TOOLS_NN_MODELS_PARALLEL_PERSIST_CODE, STORE) {
     rlt::randn(device, input_a, rng);
     rlt::randn(device, input_b, rng);
 
-    rlt::evaluate(device, model, input_a, input_b, output, buffer, rng);
+    auto inputs = rlt::nn_models::parallel::pack_inputs(input_a, input_b);
+    rlt::evaluate(device, model, inputs, output, buffer, rng);
 
     {
         auto model_code = rlt::save_code_split(device, model, "model", true, 1);

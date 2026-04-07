@@ -234,13 +234,13 @@ namespace rl_tools{
         else if(utils::string::compare(type_str, "parallel", 8)){
             layer.type = LayerType::PARALLEL;
             auto* p = new layers::Parallel<TI>();
-            p->input_dim_a = get_attribute_int<TI>(device, group, "input_dim_a");
-            p->input_dim_b = get_attribute_int<TI>(device, group, "input_dim_b");
+            p->input_dim_a = get_attribute_int<TI>(device, group, "input_dim_0");
+            p->input_dim_b = get_attribute_int<TI>(device, group, "input_dim_1");
             layer.data = p;
             bool has_head = group_exists(device, group, "head");
             layer.num_children = has_head ? 3 : 2; layer.children = new Layer<TI>[layer.num_children];
-            auto pag = get_group(device, group, "pipeline_a"); ok &= load(device, layer.children[0], pag);
-            auto pbg = get_group(device, group, "pipeline_b"); ok &= load(device, layer.children[1], pbg);
+            auto pag = get_group(device, group, "branch_0"); ok &= load(device, layer.children[0], pag);
+            auto pbg = get_group(device, group, "branch_1"); ok &= load(device, layer.children[1], pbg);
             if(has_head){ auto hg = get_group(device, group, "head"); ok &= load(device, layer.children[2], hg); }
         }
         else{ return false; }

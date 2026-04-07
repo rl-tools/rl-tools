@@ -3,7 +3,7 @@ if(TARGET owl::owl AND TARGET rendering_raytracing_device_ptx AND TARGET assimp:
     target_link_libraries(test_rl_environments_l2f_visual
         PRIVATE
             RLtools::RLtools
-            GTest::gtest_main
+            RLtools::Test
             owl::owl
             rendering_raytracing_device_ptx
             assimp::assimp

@@ -53,7 +53,10 @@ using MLP_BRANCH = rlt::nn_models::sequential::Module<MLP_FLATTEN, MLP_DENSE1, M
 using HEAD_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 4, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
 using HEAD = rlt::nn::layers::dense::BindConfiguration<HEAD_CONFIG>;
 
-using MODEL = rlt::nn_models::parallel::Build<rlt::nn::capability::Forward<>, CNN_BRANCH, MLP_BRANCH, INPUT_SHAPE, INPUT_SHAPE, HEAD>;
+using BRANCH_CNN = rlt::nn_models::parallel::Branch<CNN_BRANCH, INPUT_SHAPE>;
+using BRANCH_MLP = rlt::nn_models::parallel::Branch<MLP_BRANCH, INPUT_SHAPE>;
+using HEAD_MODULE = rlt::nn_models::sequential::Module<HEAD>;
+using MODEL = rlt::nn_models::parallel::Build<rlt::nn::capability::Forward<>, HEAD_MODULE, BRANCH_CNN, BRANCH_MLP>;
 
 int main(){
     DEVICE device;
@@ -72,7 +75,8 @@ int main(){
     rlt::malloc(device, output);
     rlt::init_weights(device, model, rng);
     rlt::randn(device, input, rng);
-    rlt::evaluate(device, model, input, input, output, buffer, rng);
+    auto inputs = rlt::nn_models::parallel::pack_inputs(input, input);
+    rlt::evaluate(device, model, inputs, output, buffer, rng);
 
     std::string path = std::string(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)) + "/test_dyn_wasm_checkpoint.h5";
     {

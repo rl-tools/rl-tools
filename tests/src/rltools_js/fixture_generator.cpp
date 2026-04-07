@@ -153,7 +153,9 @@ void generate_parallel(DEVICE& device, const std::string& output_dir){
     using HEAD_MODULE = rlt::nn_models::sequential::Module<HEAD>;
 
     using CAPABILITY = rlt::nn::capability::Forward<>;
-    using MODEL = rlt::nn_models::parallel::Build<CAPABILITY, MODULE_A, MODULE_B, INPUT_SHAPE_A, INPUT_SHAPE_B, HEAD_MODULE>;
+    using BRANCH_A = rlt::nn_models::parallel::Branch<MODULE_A, INPUT_SHAPE_A>;
+    using BRANCH_B = rlt::nn_models::parallel::Branch<MODULE_B, INPUT_SHAPE_B>;
+    using MODEL = rlt::nn_models::parallel::Build<CAPABILITY, HEAD_MODULE, BRANCH_A, BRANCH_B>;
 
     MODEL model;
     typename MODEL::Buffer<> buffer;
@@ -174,7 +176,8 @@ void generate_parallel(DEVICE& device, const std::string& output_dir){
     rlt::init_weights(device, model, rng);
     rlt::randn(device, input_a, rng);
     rlt::randn(device, input_b, rng);
-    rlt::evaluate(device, model, input_a, input_b, output, buffer, rng);
+    auto inputs = rlt::nn_models::parallel::pack_inputs(input_a, input_b);
+    rlt::evaluate(device, model, inputs, output, buffer, rng);
 
     auto file = rl_tools::persist::backends::hdf5::File(output_dir + "/rltools_js_parallel.h5", rl_tools::persist::backends::hdf5::Mode::WRITE);
     auto actor_group = rlt::create_group(device, file, "actor");

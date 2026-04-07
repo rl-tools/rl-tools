@@ -304,7 +304,9 @@ struct ConfigApproximatorsCNN{
         using MLP_HEAD = rlt::nn_models::mlp_unconditional_stddev::BindConfiguration<MLP_HEAD_CONFIG>;
 
         // Parallel model: two branches + head
-        using MODEL = rlt::nn_models::parallel::Build<CAPABILITY, IMAGE_BRANCH, STATE_BRANCH, IMAGE_INPUT_SHAPE, STATE_INPUT_SHAPE, MLP_HEAD>;
+        using BRANCH_IMAGE = rlt::nn_models::parallel::Branch<IMAGE_BRANCH, IMAGE_INPUT_SHAPE>;
+        using BRANCH_STATE = rlt::nn_models::parallel::Branch<STATE_BRANCH, STATE_INPUT_SHAPE>;
+        using MODEL = rlt::nn_models::parallel::Build<CAPABILITY, MLP_HEAD, BRANCH_IMAGE, BRANCH_STATE>;
 #endif
     };
     template <typename CAPABILITY>
@@ -683,7 +685,7 @@ int main(int argc, char** argv){
             using IMAGE_INPUT_SHAPE = rlt::tensor::Prepend<rlt::tensor::Prepend<typename ENVIRONMENT::Observation::SHAPE, BATCH_SIZE>, (TI)1>;
             auto batch_observations = rlt::view_range(device, dataset.all_observations, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
             auto batch_observations_reshaped = rlt::reshape_row_major(device, batch_observations, IMAGE_INPUT_SHAPE{});
-            rlt::forward(device, ppo.actor, batch_observations_reshaped, batch_state_observations_reshaped, actor_buffers_cpu, rng, accumulate_mode);
+            { auto inputs = rlt::nn_models::parallel::pack_inputs(batch_observations_reshaped, batch_state_observations_reshaped); rlt::forward(device, ppo.actor, inputs, actor_buffers_cpu, rng, accumulate_mode); }
 #endif
             auto batch_observations_privileged = rlt::view_range(device, dataset.all_observations_privileged, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
             auto batch_observations_privileged_reshaped = rlt::reshape_row_major(device, batch_observations_privileged, CRITIC_INPUT_SHAPE{});
@@ -871,7 +873,8 @@ int main(int argc, char** argv){
                 auto gpu_obs_slice = rlt::view_range(device_gpu, dataset_gpu.all_observations, (TI)(step_i * N_ENVIRONMENTS), rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
                 using EVAL_INPUT_SHAPE = rlt::tensor::Prepend<rlt::tensor::Prepend<typename ENVIRONMENT::Observation::SHAPE, BATCH_SIZE>, (TI)1>;
                 auto gpu_obs_reshaped = rlt::reshape_row_major(device_gpu, gpu_obs_slice, EVAL_INPUT_SHAPE{});
-                rlt::evaluate(device_gpu, ppo_gpu.actor, gpu_obs_reshaped, gpu_state_obs_reshaped, gpu_actions_train_reshaped_eval, actor_buffers, rng_gpu);
+                auto eval_inputs = rlt::nn_models::parallel::pack_inputs(gpu_obs_reshaped, gpu_state_obs_reshaped);
+                rlt::evaluate(device_gpu, ppo_gpu.actor, eval_inputs, gpu_actions_train_reshaped_eval, actor_buffers, rng_gpu);
 #endif
                 cudaDeviceSynchronize();
 
@@ -1215,7 +1218,8 @@ int main(int argc, char** argv){
                 auto gpu_obs_batch = rlt::view_range(device_gpu, dataset_gpu.all_observations, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
                 using ACTOR_INPUT_SHAPE2 = rlt::tensor::Prepend<rlt::tensor::Prepend<typename ENVIRONMENT::Observation::SHAPE, BATCH_SIZE>, (TI)1>;
                 auto gpu_obs_batch_reshaped = rlt::reshape_row_major(device_gpu, gpu_obs_batch, ACTOR_INPUT_SHAPE2{});
-                rlt::forward(device_gpu, ppo_gpu.actor, gpu_obs_batch_reshaped, gpu_state_obs_batch_reshaped, gpu_actions_train_reshaped, actor_buffers, rng_gpu);
+                auto fwd_inputs = rlt::nn_models::parallel::pack_inputs(gpu_obs_batch_reshaped, gpu_state_obs_batch_reshaped);
+                rlt::forward(device_gpu, ppo_gpu.actor, fwd_inputs, gpu_actions_train_reshaped, actor_buffers, rng_gpu);
                 cudaDeviceSynchronize();
 
                 rlt::copy(device_gpu, device, gpu_actions_train, ppo_buffers.current_batch_actions);
@@ -1283,7 +1287,8 @@ int main(int argc, char** argv){
                 rlt::copy(device, device_gpu, ppo_buffers.d_action_log_prob_d_action, gpu_d_action_train);
                 auto gpu_d_action_tensor = rlt::to_tensor(device_gpu, gpu_d_action_train);
                 auto gpu_d_action_reshaped = rlt::reshape_row_major(device_gpu, gpu_d_action_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
-                rlt::backward(device_gpu, ppo_gpu.actor, gpu_obs_batch_reshaped, gpu_state_obs_batch_reshaped, gpu_d_action_reshaped, actor_buffers);
+                auto bwd_inputs = rlt::nn_models::parallel::pack_inputs(gpu_obs_batch_reshaped, gpu_state_obs_batch_reshaped);
+                rlt::backward(device_gpu, ppo_gpu.actor, bwd_inputs, gpu_d_action_reshaped, actor_buffers);
                 cudaDeviceSynchronize();
                 rlt::step(device_gpu, actor_optimizer_gpu, ppo_gpu.actor);
                 cudaDeviceSynchronize();

@@ -54,7 +54,9 @@ namespace rl_tools {
             return;
         }
 
-        utils::assert_exit(device, env.scene_path != nullptr, "l2f_visual::init: scene_path is null");
+        if(env.scene_path == nullptr){
+            return;
+        }
         const bool loaded = load_model(device, *env.renderer, std::string(env.scene_path));
         utils::assert_exit(device, loaded, "l2f_visual::init: failed to load scene");
 

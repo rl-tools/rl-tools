@@ -1011,7 +1011,9 @@ TEST(TEST_DYN, parallel_cnn_state){
     using STATE_BRANCH = rlt::nn_models::sequential::Module<STATE_DENSE>;
     using HEAD_DENSE = rlt::nn::layers::dense::BindConfiguration<rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, OUTPUT_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>>;
     using HEAD = rlt::nn_models::sequential::Module<HEAD_DENSE>;
-    using MODEL = rlt::nn_models::parallel::Build<rlt::nn::capability::Forward<>, IMAGE_BRANCH, STATE_BRANCH, rlt::tensor::Shape<TI, 1, BATCH, IMG_H, IMG_W, IMG_C>, rlt::tensor::Shape<TI, 1, BATCH, STATE_DIM>, HEAD>;
+    using BRANCH_IMG = rlt::nn_models::parallel::Branch<IMAGE_BRANCH, rlt::tensor::Shape<TI, 1, BATCH, IMG_H, IMG_W, IMG_C>>;
+    using BRANCH_STATE = rlt::nn_models::parallel::Branch<STATE_BRANCH, rlt::tensor::Shape<TI, 1, BATCH, STATE_DIM>>;
+    using MODEL = rlt::nn_models::parallel::Build<rlt::nn::capability::Forward<>, HEAD, BRANCH_IMG, BRANCH_STATE>;
     MODEL model; rlt::malloc(device, model); rlt::init_weights(device, model, rng);
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, BATCH, IMG_H, IMG_W, IMG_C>>> input_img;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, BATCH, STATE_DIM>>> input_state;
@@ -1019,7 +1021,8 @@ TEST(TEST_DYN, parallel_cnn_state){
     rlt::malloc(device, input_img); rlt::malloc(device, input_state); rlt::malloc(device, output_static);
     rlt::randn(device, input_img, rng); rlt::randn(device, input_state, rng);
     typename MODEL::Buffer<true> buf; rlt::malloc(device, buf);
-    rlt::evaluate(device, model, input_img, input_state, output_static, buf, rng);
+    auto inputs = rlt::nn_models::parallel::pack_inputs(input_img, input_state);
+    rlt::evaluate(device, model, inputs, output_static, buf, rng);
     std::string dp = std::string(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)) + "/test_dyn_parallel_cnn.tar";
     rlt::persist::backends::tar::Writer writer;
     rlt::persist::backends::tar::WriterGroup<rlt::persist::backends::tar::WriterGroupSpecification<TI, decltype(writer)>> wg{"", &writer};

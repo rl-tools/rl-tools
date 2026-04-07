@@ -65,13 +65,15 @@ using HEAD_MLP = rlt::nn_models::mlp::BindConfiguration<HEAD_MLP_CONFIG>;
 using CAPABILITY_FWD = rlt::nn::capability::Forward<>;
 using CAPABILITY_GRAD = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 
-using PARALLEL_NO_HEAD = rlt::nn_models::parallel::Build<CAPABILITY_GRAD, BRANCH_A, BRANCH_B, INPUT_SHAPE_A, INPUT_SHAPE_B>;
-using PARALLEL_WITH_HEAD = rlt::nn_models::parallel::Build<CAPABILITY_GRAD, BRANCH_A, BRANCH_B, INPUT_SHAPE_A, INPUT_SHAPE_B, HEAD_MLP>;
+using PAR_BRANCH_A = rlt::nn_models::parallel::Branch<BRANCH_A, INPUT_SHAPE_A>;
+using PAR_BRANCH_B = rlt::nn_models::parallel::Branch<BRANCH_B, INPUT_SHAPE_B>;
+using PARALLEL_NO_HEAD = rlt::nn_models::parallel::Build<CAPABILITY_GRAD, void, PAR_BRANCH_A, PAR_BRANCH_B>;
+using PARALLEL_WITH_HEAD = rlt::nn_models::parallel::Build<CAPABILITY_GRAD, HEAD_MLP, PAR_BRANCH_A, PAR_BRANCH_B>;
 
 // Head with mlp_unconditional_stddev (like the training binary)
 using HEAD_USTD_CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, OUTPUT_DIM, 3, HIDDEN_DIM, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
 using HEAD_USTD = rlt::nn_models::mlp_unconditional_stddev::BindConfiguration<HEAD_USTD_CONFIG>;
-using PARALLEL_USTD_HEAD = rlt::nn_models::parallel::Build<CAPABILITY_GRAD, BRANCH_A, BRANCH_B, INPUT_SHAPE_A, INPUT_SHAPE_B, HEAD_USTD>;
+using PARALLEL_USTD_HEAD = rlt::nn_models::parallel::Build<CAPABILITY_GRAD, HEAD_USTD, PAR_BRANCH_A, PAR_BRANCH_B>;
 
 static constexpr T FWD_EPSILON = 1e-5;
 static constexpr T BWD_EPSILON = 5e-4;
@@ -140,8 +142,8 @@ TEST(NN_MODELS_PARALLEL_CUDA, EVALUATE_NO_HEAD){
     rlt::malloc(device_cuda, output_cuda);
 
     // Evaluate
-    rlt::evaluate(device_cpu, model_cpu, input_a_cpu, input_b_cpu, output_cpu, buffer_cpu, rng_cpu);
-    rlt::evaluate(device_cuda, model_cuda, input_a_cuda, input_b_cuda, output_cuda, buffer_cuda, rng_cuda);
+    { auto inputs = rlt::nn_models::parallel::pack_inputs(input_a_cpu, input_b_cpu); rlt::evaluate(device_cpu, model_cpu, inputs, output_cpu, buffer_cpu, rng_cpu); }
+    { auto inputs = rlt::nn_models::parallel::pack_inputs(input_a_cuda, input_b_cuda); rlt::evaluate(device_cuda, model_cuda, inputs, output_cuda, buffer_cuda, rng_cuda); }
     cudaDeviceSynchronize();
 
     // Compare
@@ -211,8 +213,8 @@ TEST(NN_MODELS_PARALLEL_CUDA, EVALUATE_WITH_HEAD){
     rlt::malloc(device_cuda, output_cuda);
     rlt::malloc(device_cpu, output_cuda_host);
 
-    rlt::evaluate(device_cpu, model_cpu, input_a_cpu, input_b_cpu, output_cpu, buffer_cpu, rng_cpu);
-    rlt::evaluate(device_cuda, model_cuda, input_a_cuda, input_b_cuda, output_cuda, buffer_cuda, rng_cuda);
+    { auto inputs = rlt::nn_models::parallel::pack_inputs(input_a_cpu, input_b_cpu); rlt::evaluate(device_cpu, model_cpu, inputs, output_cpu, buffer_cpu, rng_cpu); }
+    { auto inputs = rlt::nn_models::parallel::pack_inputs(input_a_cuda, input_b_cuda); rlt::evaluate(device_cuda, model_cuda, inputs, output_cuda, buffer_cuda, rng_cuda); }
     cudaDeviceSynchronize();
 
     rlt::copy(device_cuda, device_cpu, output_cuda, output_cuda_host);
@@ -272,8 +274,8 @@ TEST(NN_MODELS_PARALLEL_CUDA, FORWARD_WITH_HEAD){
     rlt::copy(device_cpu, device_cuda, input_a_cpu, input_a_cuda);
     rlt::copy(device_cpu, device_cuda, input_b_cpu, input_b_cuda);
 
-    rlt::forward(device_cpu, model_cpu, input_a_cpu, input_b_cpu, buffer_cpu, rng_cpu);
-    rlt::forward(device_cuda, model_cuda, input_a_cuda, input_b_cuda, buffer_cuda, rng_cuda);
+    { auto inputs = rlt::nn_models::parallel::pack_inputs(input_a_cpu, input_b_cpu); rlt::forward(device_cpu, model_cpu, inputs, buffer_cpu, rng_cpu); }
+    { auto inputs = rlt::nn_models::parallel::pack_inputs(input_a_cuda, input_b_cuda); rlt::forward(device_cuda, model_cuda, inputs, buffer_cuda, rng_cuda); }
     cudaDeviceSynchronize();
 
     using OUTPUT_SHAPE = typename PARALLEL_WITH_HEAD::OUTPUT_SHAPE;
@@ -335,8 +337,8 @@ TEST(NN_MODELS_PARALLEL_CUDA, BACKWARD_WITH_HEAD){
     rlt::copy(device_cpu, device_cuda, input_b_cpu, input_b_cuda);
 
     // Forward on both devices
-    rlt::forward(device_cpu, model_cpu, input_a_cpu, input_b_cpu, buffer_cpu, rng_cpu);
-    rlt::forward(device_cuda, model_cuda, input_a_cuda, input_b_cuda, buffer_cuda, rng_cuda);
+    { auto inputs = rlt::nn_models::parallel::pack_inputs(input_a_cpu, input_b_cpu); rlt::forward(device_cpu, model_cpu, inputs, buffer_cpu, rng_cpu); }
+    { auto inputs = rlt::nn_models::parallel::pack_inputs(input_a_cuda, input_b_cuda); rlt::forward(device_cuda, model_cuda, inputs, buffer_cuda, rng_cuda); }
     cudaDeviceSynchronize();
 
     // Create d_output (random gradient signal)
@@ -353,8 +355,8 @@ TEST(NN_MODELS_PARALLEL_CUDA, BACKWARD_WITH_HEAD){
     cudaDeviceSynchronize();
 
     // Backward (gradient-only, no d_input)
-    rlt::backward(device_cpu, model_cpu, input_a_cpu, input_b_cpu, d_output_cpu, buffer_cpu);
-    rlt::backward(device_cuda, model_cuda, input_a_cuda, input_b_cuda, d_output_cuda, buffer_cuda);
+    { auto inputs = rlt::nn_models::parallel::pack_inputs(input_a_cpu, input_b_cpu); rlt::backward(device_cpu, model_cpu, inputs, d_output_cpu, buffer_cpu); }
+    { auto inputs = rlt::nn_models::parallel::pack_inputs(input_a_cuda, input_b_cuda); rlt::backward(device_cuda, model_cuda, inputs, d_output_cuda, buffer_cuda); }
     cudaDeviceSynchronize();
 
     // Compare model gradients by copying CUDA model back to CPU and computing abs_diff
@@ -417,8 +419,8 @@ TEST(NN_MODELS_PARALLEL_CUDA, BACKWARD_FULL_WITH_HEAD){
     rlt::copy(device_cpu, device_cuda, input_a_cpu, input_a_cuda);
     rlt::copy(device_cpu, device_cuda, input_b_cpu, input_b_cuda);
 
-    rlt::forward(device_cpu, model_cpu, input_a_cpu, input_b_cpu, buffer_cpu, rng_cpu);
-    rlt::forward(device_cuda, model_cuda, input_a_cuda, input_b_cuda, buffer_cuda, rng_cuda);
+    { auto inputs = rlt::nn_models::parallel::pack_inputs(input_a_cpu, input_b_cpu); rlt::forward(device_cpu, model_cpu, inputs, buffer_cpu, rng_cpu); }
+    { auto inputs = rlt::nn_models::parallel::pack_inputs(input_a_cuda, input_b_cuda); rlt::forward(device_cuda, model_cuda, inputs, buffer_cuda, rng_cuda); }
     cudaDeviceSynchronize();
 
     using OUTPUT_SHAPE = typename PARALLEL_WITH_HEAD::OUTPUT_SHAPE;
@@ -440,8 +442,8 @@ TEST(NN_MODELS_PARALLEL_CUDA, BACKWARD_FULL_WITH_HEAD){
     rlt::zero_gradient(device_cuda, model_cuda);
     cudaDeviceSynchronize();
 
-    rlt::backward_full(device_cpu, model_cpu, input_a_cpu, input_b_cpu, d_output_cpu, d_input_a_cpu, d_input_b_cpu, buffer_cpu);
-    rlt::backward_full(device_cuda, model_cuda, input_a_cuda, input_b_cuda, d_output_cuda, d_input_a_cuda, d_input_b_cuda, buffer_cuda);
+    { auto inputs = rlt::nn_models::parallel::pack_inputs(input_a_cpu, input_b_cpu); auto d_inputs = rlt::nn_models::parallel::pack_inputs(d_input_a_cpu, d_input_b_cpu); rlt::backward_full(device_cpu, model_cpu, inputs, d_output_cpu, d_inputs, buffer_cpu); }
+    { auto inputs = rlt::nn_models::parallel::pack_inputs(input_a_cuda, input_b_cuda); auto d_inputs = rlt::nn_models::parallel::pack_inputs(d_input_a_cuda, d_input_b_cuda); rlt::backward_full(device_cuda, model_cuda, inputs, d_output_cuda, d_inputs, buffer_cuda); }
     cudaDeviceSynchronize();
 
     // Compare d_input_a
@@ -530,8 +532,8 @@ TEST(NN_MODELS_PARALLEL_CUDA, GET_LAST_LAYER_USTD_HEAD){
     rlt::malloc(device_cuda, output_cuda);
     rlt::malloc(device_cpu, output_cuda_host);
 
-    rlt::evaluate(device_cpu, model_cpu, input_a_cpu, input_b_cpu, output_cpu, buffer_cpu, rng_cpu);
-    rlt::evaluate(device_cuda, model_cuda, input_a_cuda, input_b_cuda, output_cuda, buffer_cuda, rng_cuda);
+    { auto inputs = rlt::nn_models::parallel::pack_inputs(input_a_cpu, input_b_cpu); rlt::evaluate(device_cpu, model_cpu, inputs, output_cpu, buffer_cpu, rng_cpu); }
+    { auto inputs = rlt::nn_models::parallel::pack_inputs(input_a_cuda, input_b_cuda); rlt::evaluate(device_cuda, model_cuda, inputs, output_cuda, buffer_cuda, rng_cuda); }
     cudaDeviceSynchronize();
 
     rlt::copy(device_cuda, device_cpu, output_cuda, output_cuda_host);
@@ -611,11 +613,11 @@ TEST(NN_MODELS_PARALLEL_CUDA, OPTIMIZER_STEP){
     // Forward + backward + step on both devices
     rlt::zero_gradient(device_cpu, model_cpu);
     rlt::zero_gradient(device_cuda, model_cuda);
-    rlt::forward(device_cpu, model_cpu, input_a_cpu, input_b_cpu, buffer_cpu, rng_cpu);
-    rlt::forward(device_cuda, model_cuda, input_a_cuda, input_b_cuda, buffer_cuda, rng_cuda);
+    { auto inputs = rlt::nn_models::parallel::pack_inputs(input_a_cpu, input_b_cpu); rlt::forward(device_cpu, model_cpu, inputs, buffer_cpu, rng_cpu); }
+    { auto inputs = rlt::nn_models::parallel::pack_inputs(input_a_cuda, input_b_cuda); rlt::forward(device_cuda, model_cuda, inputs, buffer_cuda, rng_cuda); }
     cudaDeviceSynchronize();
-    rlt::backward(device_cpu, model_cpu, input_a_cpu, input_b_cpu, d_output_cpu, buffer_cpu);
-    rlt::backward(device_cuda, model_cuda, input_a_cuda, input_b_cuda, d_output_cuda, buffer_cuda);
+    { auto inputs = rlt::nn_models::parallel::pack_inputs(input_a_cpu, input_b_cpu); rlt::backward(device_cpu, model_cpu, inputs, d_output_cpu, buffer_cpu); }
+    { auto inputs = rlt::nn_models::parallel::pack_inputs(input_a_cuda, input_b_cuda); rlt::backward(device_cuda, model_cuda, inputs, d_output_cuda, buffer_cuda); }
     cudaDeviceSynchronize();
     rlt::step(device_cpu, optimizer_cpu, model_cpu);
     rlt::step(device_cuda, optimizer_cuda, model_cuda);
@@ -644,4 +646,135 @@ TEST(NN_MODELS_PARALLEL_CUDA, OPTIMIZER_STEP){
     rlt::free(device_cuda, d_output_cuda);
     rlt::free(device_cpu, rng_cpu);
     rlt::free(device_cuda, rng_cuda);
+}
+
+// =========================================================================
+// 3-branch CUDA tests
+// =========================================================================
+static constexpr TI INPUT_DIM_C = 9;
+static constexpr TI EMBED_DIM_C = 8;
+
+using DENSE_C_CONFIG = rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, EMBED_DIM_C, rlt::nn::activation_functions::RELU>;
+using DENSE_C = rlt::nn::layers::dense::BindConfiguration<DENSE_C_CONFIG>;
+using BRANCH_C_SEQ = rlt::nn_models::sequential::Module<DENSE_C>;
+using INPUT_SHAPE_C = rlt::tensor::Shape<TI, 1, BATCH_SIZE, INPUT_DIM_C>;
+using PAR_BRANCH_C = rlt::nn_models::parallel::Branch<BRANCH_C_SEQ, INPUT_SHAPE_C>;
+
+using HEAD_3B_CONFIG = rlt::nn_models::mlp::Configuration<TYPE_POLICY, TI, OUTPUT_DIM, 2, HIDDEN_DIM, rlt::nn::activation_functions::RELU, rlt::nn::activation_functions::IDENTITY>;
+using HEAD_3B = rlt::nn_models::mlp::BindConfiguration<HEAD_3B_CONFIG>;
+using PARALLEL_3B_HEAD = rlt::nn_models::parallel::Build<CAPABILITY_GRAD, HEAD_3B, PAR_BRANCH_A, PAR_BRANCH_B, PAR_BRANCH_C>;
+
+TEST(NN_MODELS_PARALLEL_CUDA, THREE_BRANCHES_EVALUATE){
+    DEVICE_CPU device_cpu;
+    DEVICE_CUDA device_cuda;
+    rlt::init(device_cuda);
+    RNG_CPU rng_cpu; RNG_CUDA rng_cuda;
+    rlt::malloc(device_cpu, rng_cpu); rlt::init(device_cpu, rng_cpu, 0);
+    rlt::malloc(device_cuda, rng_cuda); rlt::init(device_cuda, rng_cuda, 0);
+
+    PARALLEL_3B_HEAD model_cpu, model_cuda;
+    typename PARALLEL_3B_HEAD::Buffer<> buffer_cpu, buffer_cuda;
+    rlt::malloc(device_cpu, model_cpu); rlt::malloc(device_cpu, buffer_cpu);
+    rlt::init_weights(device_cpu, model_cpu, rng_cpu);
+    rlt::malloc(device_cuda, model_cuda); rlt::malloc(device_cuda, buffer_cuda);
+    rlt::copy(device_cpu, device_cuda, model_cpu, model_cuda);
+
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_A>> ia_cpu, ia_cuda;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_B>> ib_cpu, ib_cuda;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_C>> ic_cpu, ic_cuda;
+    rlt::malloc(device_cpu, ia_cpu); rlt::malloc(device_cpu, ib_cpu); rlt::malloc(device_cpu, ic_cpu);
+    rlt::malloc(device_cuda, ia_cuda); rlt::malloc(device_cuda, ib_cuda); rlt::malloc(device_cuda, ic_cuda);
+    fill_random(device_cpu, ia_cpu, rng_cpu); fill_random(device_cpu, ib_cpu, rng_cpu); fill_random(device_cpu, ic_cpu, rng_cpu);
+    rlt::copy(device_cpu, device_cuda, ia_cpu, ia_cuda);
+    rlt::copy(device_cpu, device_cuda, ib_cpu, ib_cuda);
+    rlt::copy(device_cpu, device_cuda, ic_cpu, ic_cuda);
+
+    using OUT3 = typename PARALLEL_3B_HEAD::OUTPUT_SHAPE;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, OUT3>> out_cpu, out_cuda, out_cuda_host;
+    rlt::malloc(device_cpu, out_cpu); rlt::malloc(device_cuda, out_cuda); rlt::malloc(device_cpu, out_cuda_host);
+
+    { auto i = rlt::nn_models::parallel::pack_inputs(ia_cpu, ib_cpu, ic_cpu); rlt::evaluate(device_cpu, model_cpu, i, out_cpu, buffer_cpu, rng_cpu); }
+    { auto i = rlt::nn_models::parallel::pack_inputs(ia_cuda, ib_cuda, ic_cuda); rlt::evaluate(device_cuda, model_cuda, i, out_cuda, buffer_cuda, rng_cuda); }
+    cudaDeviceSynchronize();
+    rlt::copy(device_cuda, device_cpu, out_cuda, out_cuda_host);
+    T d = rlt::abs_diff(device_cpu, out_cpu, out_cuda_host) / rlt::product(OUT3{});
+    std::cout << "3-branch EVALUATE CPU vs CUDA: " << d << std::endl;
+    EXPECT_LT(d, FWD_EPSILON);
+
+    rlt::free(device_cpu, model_cpu); rlt::free(device_cpu, buffer_cpu);
+    rlt::free(device_cuda, model_cuda); rlt::free(device_cuda, buffer_cuda);
+    rlt::free(device_cpu, ia_cpu); rlt::free(device_cpu, ib_cpu); rlt::free(device_cpu, ic_cpu);
+    rlt::free(device_cuda, ia_cuda); rlt::free(device_cuda, ib_cuda); rlt::free(device_cuda, ic_cuda);
+    rlt::free(device_cpu, out_cpu); rlt::free(device_cuda, out_cuda); rlt::free(device_cpu, out_cuda_host);
+    rlt::free(device_cpu, rng_cpu); rlt::free(device_cuda, rng_cuda);
+}
+
+TEST(NN_MODELS_PARALLEL_CUDA, THREE_BRANCHES_BACKWARD_FULL){
+    DEVICE_CPU device_cpu;
+    DEVICE_CUDA device_cuda;
+    rlt::init(device_cuda);
+    RNG_CPU rng_cpu; RNG_CUDA rng_cuda;
+    rlt::malloc(device_cpu, rng_cpu); rlt::init(device_cpu, rng_cpu, 0);
+    rlt::malloc(device_cuda, rng_cuda); rlt::init(device_cuda, rng_cuda, 0);
+
+    PARALLEL_3B_HEAD model_cpu, model_cuda;
+    typename PARALLEL_3B_HEAD::Buffer<> buffer_cpu, buffer_cuda;
+    rlt::malloc(device_cpu, model_cpu); rlt::malloc(device_cpu, buffer_cpu);
+    rlt::init_weights(device_cpu, model_cpu, rng_cpu);
+    rlt::malloc(device_cuda, model_cuda); rlt::malloc(device_cuda, buffer_cuda);
+    rlt::copy(device_cpu, device_cuda, model_cpu, model_cuda);
+
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_A>> ia_cpu, ia_cuda;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_B>> ib_cpu, ib_cuda;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_C>> ic_cpu, ic_cuda;
+    rlt::malloc(device_cpu, ia_cpu); rlt::malloc(device_cpu, ib_cpu); rlt::malloc(device_cpu, ic_cpu);
+    rlt::malloc(device_cuda, ia_cuda); rlt::malloc(device_cuda, ib_cuda); rlt::malloc(device_cuda, ic_cuda);
+    fill_random(device_cpu, ia_cpu, rng_cpu); fill_random(device_cpu, ib_cpu, rng_cpu); fill_random(device_cpu, ic_cpu, rng_cpu);
+    rlt::copy(device_cpu, device_cuda, ia_cpu, ia_cuda);
+    rlt::copy(device_cpu, device_cuda, ib_cpu, ib_cuda);
+    rlt::copy(device_cpu, device_cuda, ic_cpu, ic_cuda);
+
+    using OUT3 = typename PARALLEL_3B_HEAD::OUTPUT_SHAPE;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, OUT3>> d_out_cpu, d_out_cuda;
+    rlt::malloc(device_cpu, d_out_cpu); rlt::malloc(device_cuda, d_out_cuda);
+    fill_random(device_cpu, d_out_cpu, rng_cpu);
+    rlt::copy(device_cpu, device_cuda, d_out_cpu, d_out_cuda);
+
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_A>> dia_cpu, dia_cuda, dia_host;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_B>> dib_cpu, dib_cuda, dib_host;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_C>> dic_cpu, dic_cuda, dic_host;
+    rlt::malloc(device_cpu, dia_cpu); rlt::malloc(device_cuda, dia_cuda); rlt::malloc(device_cpu, dia_host);
+    rlt::malloc(device_cpu, dib_cpu); rlt::malloc(device_cuda, dib_cuda); rlt::malloc(device_cpu, dib_host);
+    rlt::malloc(device_cpu, dic_cpu); rlt::malloc(device_cuda, dic_cuda); rlt::malloc(device_cpu, dic_host);
+
+    { auto i = rlt::nn_models::parallel::pack_inputs(ia_cpu, ib_cpu, ic_cpu); rlt::forward(device_cpu, model_cpu, i, buffer_cpu, rng_cpu); }
+    rlt::zero_gradient(device_cpu, model_cpu);
+    { auto i = rlt::nn_models::parallel::pack_inputs(ia_cpu, ib_cpu, ic_cpu); auto di = rlt::nn_models::parallel::pack_inputs(dia_cpu, dib_cpu, dic_cpu); rlt::backward_full(device_cpu, model_cpu, i, d_out_cpu, di, buffer_cpu); }
+
+    { auto i = rlt::nn_models::parallel::pack_inputs(ia_cuda, ib_cuda, ic_cuda); rlt::forward(device_cuda, model_cuda, i, buffer_cuda, rng_cuda); }
+    rlt::zero_gradient(device_cuda, model_cuda);
+    { auto i = rlt::nn_models::parallel::pack_inputs(ia_cuda, ib_cuda, ic_cuda); auto di = rlt::nn_models::parallel::pack_inputs(dia_cuda, dib_cuda, dic_cuda); rlt::backward_full(device_cuda, model_cuda, i, d_out_cuda, di, buffer_cuda); }
+    cudaDeviceSynchronize();
+
+    rlt::copy(device_cuda, device_cpu, dia_cuda, dia_host);
+    rlt::copy(device_cuda, device_cpu, dib_cuda, dib_host);
+    rlt::copy(device_cuda, device_cpu, dic_cuda, dic_host);
+
+    T da = rlt::abs_diff(device_cpu, dia_cpu, dia_host) / rlt::product(INPUT_SHAPE_A{});
+    T db = rlt::abs_diff(device_cpu, dib_cpu, dib_host) / rlt::product(INPUT_SHAPE_B{});
+    T dc = rlt::abs_diff(device_cpu, dic_cpu, dic_host) / rlt::product(INPUT_SHAPE_C{});
+    std::cout << "3-branch BACKWARD_FULL d_input CPU vs CUDA: a=" << da << " b=" << db << " c=" << dc << std::endl;
+    EXPECT_LT(da, BWD_EPSILON);
+    EXPECT_LT(db, BWD_EPSILON);
+    EXPECT_LT(dc, BWD_EPSILON);
+
+    rlt::free(device_cpu, model_cpu); rlt::free(device_cpu, buffer_cpu);
+    rlt::free(device_cuda, model_cuda); rlt::free(device_cuda, buffer_cuda);
+    rlt::free(device_cpu, ia_cpu); rlt::free(device_cpu, ib_cpu); rlt::free(device_cpu, ic_cpu);
+    rlt::free(device_cuda, ia_cuda); rlt::free(device_cuda, ib_cuda); rlt::free(device_cuda, ic_cuda);
+    rlt::free(device_cpu, d_out_cpu); rlt::free(device_cuda, d_out_cuda);
+    rlt::free(device_cpu, dia_cpu); rlt::free(device_cpu, dib_cpu); rlt::free(device_cpu, dic_cpu);
+    rlt::free(device_cuda, dia_cuda); rlt::free(device_cuda, dib_cuda); rlt::free(device_cuda, dic_cuda);
+    rlt::free(device_cpu, dia_host); rlt::free(device_cpu, dib_host); rlt::free(device_cpu, dic_host);
+    rlt::free(device_cpu, rng_cpu); rlt::free(device_cuda, rng_cuda);
 }
