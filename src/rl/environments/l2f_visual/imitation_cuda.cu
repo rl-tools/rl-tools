@@ -1158,7 +1158,7 @@ int main(int argc, char** argv){
             init_terminated[env_i] = true;
             init_step[env_i] = 0;
             init_return[env_i] = (T)0;
-            init_teacher_forcing[env_i] = false;
+            init_teacher_forcing[env_i] = true;
         }
         cudaMemcpy(gpu_terminated_arr, init_terminated, N_ENVIRONMENTS * sizeof(bool), cudaMemcpyHostToDevice);
         cudaMemcpy(gpu_episode_step_arr, init_step, N_ENVIRONMENTS * sizeof(TI), cudaMemcpyHostToDevice);
@@ -1223,7 +1223,7 @@ int main(int argc, char** argv){
             std::vector<unsigned char> reset_terminated(N_ENVIRONMENTS, 1);
             std::vector<TI> reset_step(N_ENVIRONMENTS, 0);
             std::vector<T> reset_return(N_ENVIRONMENTS, (T)0);
-            std::vector<unsigned char> reset_teacher_forcing(N_ENVIRONMENTS, 0);
+            std::vector<unsigned char> reset_teacher_forcing(N_ENVIRONMENTS, 1);
             cudaMemcpy(gpu_terminated_arr, reset_terminated.data(), N_ENVIRONMENTS * sizeof(bool), cudaMemcpyHostToDevice);
             cudaMemcpy(gpu_episode_step_arr, reset_step.data(), N_ENVIRONMENTS * sizeof(TI), cudaMemcpyHostToDevice);
             cudaMemcpy(gpu_episode_return_arr, reset_return.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
@@ -1238,9 +1238,9 @@ int main(int argc, char** argv){
             auto video_path = step_folder / "video.mp4";
             char ffmpeg_cmd[1024];
             snprintf(ffmpeg_cmd, sizeof(ffmpeg_cmd),
-                "ffmpeg -y -f rawvideo -pixel_format rgb24 -video_size %lux%lu -framerate 25 -i - "
+                "ffmpeg -y -f rawvideo -pixel_format rgb24 -video_size %lux%lu -framerate %lu -i - "
                 "-c:v libx264 -pix_fmt yuv420p -crf 23 -preset fast -loglevel warning %s",
-                (unsigned long)MOSAIC_W, (unsigned long)MOSAIC_H, video_path.c_str());
+                (unsigned long)MOSAIC_W, (unsigned long)MOSAIC_H, (unsigned long)SIMULATION_FREQUENCY, video_path.c_str());
             ffmpeg_pipe = popen(ffmpeg_cmd, "w");
             if(!ffmpeg_pipe){
                 std::cerr << "Failed to open ffmpeg pipe for " << video_path << std::endl;
@@ -1425,6 +1425,23 @@ int main(int argc, char** argv){
                 } else {
                     episode_length_sum_student += cpu_episode_lengths_log[pos];
                     episode_count_student++;
+                }
+            }
+        }
+        {
+            std::vector<TI> cpu_episode_step(N_ENVIRONMENTS);
+            bool cpu_teacher_forcing[N_ENVIRONMENTS];
+            cudaMemcpy(cpu_episode_step.data(), gpu_episode_step_arr, N_ENVIRONMENTS * sizeof(TI), cudaMemcpyDeviceToHost);
+            cudaMemcpy(cpu_teacher_forcing, gpu_teacher_forcing_arr, N_ENVIRONMENTS * sizeof(bool), cudaMemcpyDeviceToHost);
+            for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
+                if(cpu_episode_step[env_i] > 0){
+                    if(cpu_teacher_forcing[env_i]){
+                        episode_length_sum_tf += (T)cpu_episode_step[env_i];
+                        episode_count_tf++;
+                    } else {
+                        episode_length_sum_student += (T)cpu_episode_step[env_i];
+                        episode_count_student++;
+                    }
                 }
             }
         }
