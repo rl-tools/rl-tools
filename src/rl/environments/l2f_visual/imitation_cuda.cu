@@ -1330,7 +1330,7 @@ int main(int argc, char** argv){
 
     // Video recording buffers
     static constexpr TI CAM_PIXELS = CAM_WIDTH * CAM_HEIGHT;
-    static constexpr TI MOSAIC_W = SCENE_GRID_COLS * ENV_GRID_SIDE * CAM_WIDTH;
+    static constexpr TI MOSAIC_W = SCENE_GRID_COLS * ENV_GRID_SIDE * CAM_WIDTH * 2;
     static constexpr TI MOSAIC_H = SCENE_GRID_ROWS * ENV_GRID_SIDE * CAM_HEIGHT;
     std::vector<uint32_t> video_pixel_buffer(N_ENVIRONMENTS * CAM_PIXELS);
     std::vector<uint8_t> mosaic_frame(MOSAIC_W * MOSAIC_H * 3);
@@ -1558,7 +1558,9 @@ int main(int argc, char** argv){
                 if(record_video && ffmpeg_pipe){
                     static constexpr TI VIDEO_OBS_SIZE = N_ENVIRONMENTS * OBSERVATION_DIM;
                     std::vector<float> cpu_obs(VIDEO_OBS_SIZE);
+                    std::vector<float> cpu_target_obs(VIDEO_OBS_SIZE);
                     cudaMemcpy(cpu_obs.data(), obs_ptr, VIDEO_OBS_SIZE * sizeof(float), cudaMemcpyDeviceToHost);
+                    cudaMemcpy(cpu_target_obs.data(), target_obs_ptr, VIDEO_OBS_SIZE * sizeof(float), cudaMemcpyDeviceToHost);
                     for(TI scene_row = 0; scene_row < SCENE_GRID_ROWS; scene_row++){
                         for(TI scene_col = 0; scene_col < SCENE_GRID_COLS; scene_col++){
                             TI active_scene_i = scene_row * SCENE_GRID_COLS + scene_col;
@@ -1570,15 +1572,23 @@ int main(int argc, char** argv){
                                     TI local_env = local_row * ENV_GRID_SIDE + local_col;
                                     TI env_i = active_scene_i * N_ENVIRONMENTS_PER_SCENE + local_env;
                                     const float* env_obs = cpu_obs.data() + env_i * OBSERVATION_DIM;
+                                    const float* env_target_obs = cpu_target_obs.data() + env_i * OBSERVATION_DIM;
+                                    TI cell_x = (scene_col * ENV_GRID_SIDE + local_col) * CAM_WIDTH * 2;
+                                    TI cell_y = (scene_row * ENV_GRID_SIDE + local_row) * CAM_HEIGHT;
                                     for(TI py = 0; py < CAM_HEIGHT; py++){
                                         for(TI px = 0; px < CAM_WIDTH; px++){
                                             TI pixel_i = py * CAM_WIDTH + px;
-                                            TI mosaic_x = (scene_col * ENV_GRID_SIDE + local_col) * CAM_WIDTH + px;
-                                            TI mosaic_y = (scene_row * ENV_GRID_SIDE + local_row) * CAM_HEIGHT + py;
-                                            TI out_idx = (mosaic_y * MOSAIC_W + mosaic_x) * 3;
-                                            mosaic_frame[out_idx + 0] = static_cast<uint8_t>(std::clamp(env_obs[pixel_i * 3 + 0] * 255.0f, 0.0f, 255.0f));
-                                            mosaic_frame[out_idx + 1] = static_cast<uint8_t>(std::clamp(env_obs[pixel_i * 3 + 1] * 255.0f, 0.0f, 255.0f));
-                                            mosaic_frame[out_idx + 2] = static_cast<uint8_t>(std::clamp(env_obs[pixel_i * 3 + 2] * 255.0f, 0.0f, 255.0f));
+                                            TI mosaic_y = cell_y + py;
+                                            TI target_x = cell_x + px;
+                                            TI actual_x = cell_x + CAM_WIDTH + px;
+                                            TI target_idx = (mosaic_y * MOSAIC_W + target_x) * 3;
+                                            TI actual_idx = (mosaic_y * MOSAIC_W + actual_x) * 3;
+                                            mosaic_frame[target_idx + 0] = static_cast<uint8_t>(std::clamp(env_target_obs[pixel_i * 3 + 0] * 255.0f, 0.0f, 255.0f));
+                                            mosaic_frame[target_idx + 1] = static_cast<uint8_t>(std::clamp(env_target_obs[pixel_i * 3 + 1] * 255.0f, 0.0f, 255.0f));
+                                            mosaic_frame[target_idx + 2] = static_cast<uint8_t>(std::clamp(env_target_obs[pixel_i * 3 + 2] * 255.0f, 0.0f, 255.0f));
+                                            mosaic_frame[actual_idx + 0] = static_cast<uint8_t>(std::clamp(env_obs[pixel_i * 3 + 0] * 255.0f, 0.0f, 255.0f));
+                                            mosaic_frame[actual_idx + 1] = static_cast<uint8_t>(std::clamp(env_obs[pixel_i * 3 + 1] * 255.0f, 0.0f, 255.0f));
+                                            mosaic_frame[actual_idx + 2] = static_cast<uint8_t>(std::clamp(env_obs[pixel_i * 3 + 2] * 255.0f, 0.0f, 255.0f));
                                         }
                                     }
                                 }
