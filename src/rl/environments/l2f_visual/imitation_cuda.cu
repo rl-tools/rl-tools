@@ -1498,9 +1498,16 @@ int main(int argc, char** argv){
                 cudaDeviceSynchronize();
 
                 if(pass == 0){
-                    T batch_loss = rlt::nn::loss_functions::mse::evaluate(device_gpu, student_output_matrix, target_matrix);
+                    rlt::Matrix<rlt::matrix::Specification<T, TI, WINDOW_SAMPLES, TARGET_DIM>> cpu_student_output, cpu_target;
+                    rlt::malloc(device, cpu_student_output);
+                    rlt::malloc(device, cpu_target);
+                    rlt::copy(device_gpu, device, student_output_matrix, cpu_student_output);
+                    rlt::copy(device_gpu, device, target_matrix, cpu_target);
+                    T batch_loss = rlt::nn::loss_functions::mse::evaluate(device, cpu_student_output, cpu_target);
                     epoch_loss_sum += batch_loss;
                     epoch_loss_count++;
+                    rlt::free(device, cpu_student_output);
+                    rlt::free(device, cpu_target);
                 }
 
                 auto gpu_d_action_tensor = rlt::to_tensor(device_gpu, gpu_d_action_train);
@@ -1565,11 +1572,18 @@ int main(int argc, char** argv){
                 rlt::nn::loss_functions::mse::gradient(device_gpu, student_output_matrix, target_batch, gpu_d_action_train, (T)0.5);
                 cudaDeviceSynchronize();
 
-                // Compute loss for logging (sample every N_BATCHES batches)
+                // Compute loss for logging
                 if(pass == 0){
-                    T batch_loss = rlt::nn::loss_functions::mse::evaluate(device_gpu, student_output_matrix, target_batch);
+                    rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, TARGET_DIM>> cpu_student_output, cpu_target;
+                    rlt::malloc(device, cpu_student_output);
+                    rlt::malloc(device, cpu_target);
+                    rlt::copy(device_gpu, device, student_output_matrix, cpu_student_output);
+                    rlt::copy(device_gpu, device, target_batch, cpu_target);
+                    T batch_loss = rlt::nn::loss_functions::mse::evaluate(device, cpu_student_output, cpu_target);
                     epoch_loss_sum += batch_loss;
                     epoch_loss_count++;
+                    rlt::free(device, cpu_student_output);
+                    rlt::free(device, cpu_target);
                 }
 
                 // Student backward + Adam step
