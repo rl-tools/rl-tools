@@ -217,6 +217,7 @@ static constexpr TI ACTOR_HIDDEN_DIM = 64;
 static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
 static constexpr TI ACTION_DIM = ENVIRONMENT::ACTION_DIM;
 static constexpr TI TARGET_DIM = 3; // body-frame position offset to target
+static constexpr TI INDOOR_POSITION_DIM = 3;
 static constexpr TI OBSERVATION_DIM = ENVIRONMENT::OBSERVATION_DIM;
 static constexpr TI BATCH_SIZE = 512;
 static constexpr TI STEPS_PER_ENV = 500;
@@ -336,8 +337,6 @@ namespace imitation_kernels{
         T* brightness_scale_arr,
         T* scene_translation_arr,
         T* scene_yaw_arr,
-        T* target_position_arr,
-        T* target_yaw_arr,
         T* indoor_positions_ptr, TI* num_indoor_positions_ptr, TI* env_scene_ptr, TI max_indoor_pos,
         RNG rng, TI step_i
     ){
@@ -364,7 +363,7 @@ namespace imitation_kernels{
             TI scene_idx = env_scene_ptr[env_i];
             TI num_pos = num_indoor_positions_ptr[scene_idx];
             TI pos_idx = rl_tools::random::uniform_int_distribution(device.random, (TI)0, num_pos - 1, rng_state);
-            T* pos = indoor_positions_ptr + (scene_idx * max_indoor_pos + pos_idx) * 4;
+            T* pos = indoor_positions_ptr + (scene_idx * max_indoor_pos + pos_idx) * INDOOR_POSITION_DIM;
             scene_translation_arr[env_i * 3 + 0] = pos[0];
             scene_translation_arr[env_i * 3 + 1] = pos[1];
             scene_translation_arr[env_i * 3 + 2] = pos[2];
@@ -374,17 +373,6 @@ namespace imitation_kernels{
             episode_return_arr[env_i] = (T)0;
             teacher_forcing_arr[env_i] = full_teacher_forcing || rl_tools::random::uniform_real_distribution(device.random, (T)0, (T)1, rng_state) < teacher_forcing_fraction;
             brightness_scale_arr[env_i] = (T)1 + (rl_tools::random::uniform_real_distribution(device.random, (T)0, (T)1, rng_state) * (T)2 - (T)1) * BRIGHTNESS_RANDOMIZATION_RANGE;
-            {
-                TI target_pos_idx = rl_tools::random::uniform_int_distribution(device.random, (TI)0, num_pos - 1, rng_state);
-                if(num_pos > 1 && target_pos_idx == pos_idx){
-                    target_pos_idx = (target_pos_idx + 1) % num_pos;
-                }
-                T* tgt = indoor_positions_ptr + (scene_idx * max_indoor_pos + target_pos_idx) * 4;
-                target_position_arr[env_i * 3 + 0] = tgt[0];
-                target_position_arr[env_i * 3 + 1] = tgt[1];
-                target_position_arr[env_i * 3 + 2] = tgt[2];
-                target_yaw_arr[env_i] = rl_tools::random::uniform_real_distribution(device.random, (T)0, (T)(2.0 * 3.14159265358979323846), rng_state);
-            }
             for(TI h = 0; h < RAPTOR_HIDDEN_DIM; h++){
                 raptor_gru_state_ptr[env_i * RAPTOR_HIDDEN_DIM + h] = raptor_gru_initial_hidden_ptr[h];
             }
@@ -422,7 +410,6 @@ namespace imitation_kernels{
         DYNAMICS_TYPE* envs, PARAMETERS_TYPE* env_params, typename ENVIRONMENT::State* states,
         bool* terminated_flags, TI* episode_step_arr, T* episode_return_arr,
         T* teacher_actions_ptr, T* all_targets_ptr,
-        T* target_position_arr, T* scene_translation_arr, T* scene_yaw_arr,
         RNG rng, TI step_i
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -432,23 +419,10 @@ namespace imitation_kernels{
         auto& params = env_params[env_i];
         auto& state = states[env_i];
         TI pos = step_i * N_ENVIRONMENTS + env_i;
-        T target_world_offset[3] = {
-            target_position_arr[env_i * 3 + 0] - scene_translation_arr[env_i * 3 + 0],
-            target_position_arr[env_i * 3 + 1] - scene_translation_arr[env_i * 3 + 1],
-            target_position_arr[env_i * 3 + 2] - scene_translation_arr[env_i * 3 + 2]
-        };
-        T scene_yaw = scene_yaw_arr[env_i];
-        T c = rl_tools::math::cos(device.math, scene_yaw);
-        T s = rl_tools::math::sin(device.math, scene_yaw);
-        T target_scene_local[3] = {
-             c * target_world_offset[0] + s * target_world_offset[1],
-            -s * target_world_offset[0] + c * target_world_offset[1],
-            target_world_offset[2]
-        };
         T delta[3] = {
-            target_scene_local[0] - state.position[0],
-            target_scene_local[1] - state.position[1],
-            target_scene_local[2] - state.position[2]
+            -state.position[0],
+            -state.position[1],
+            -state.position[2]
         };
         T conjugate_orientation[4];
         conjugate_orientation[0] = state.orientation[0];
@@ -533,25 +507,41 @@ namespace imitation_kernels{
         DEVICE device,
         rlt::rendering::raytracing::CameraData<T>* target_cameras,
         T fov, T aspect,
-        T* target_position_arr,
-        T* target_yaw_arr
+        T camera_offset_body_0, T camera_offset_body_1, T camera_offset_body_2,
+        T camera_forward_body_0, T camera_forward_body_1, T camera_forward_body_2,
+        T camera_up_body_0, T camera_up_body_1, T camera_up_body_2,
+        T* scene_translation_arr, T* scene_yaw_arr
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i >= N_ENVIRONMENTS) return;
+        T offset_body[3] = {camera_offset_body_0, camera_offset_body_1, camera_offset_body_2};
+        T forward_body[3] = {camera_forward_body_0, camera_forward_body_1, camera_forward_body_2};
+        T up_body[3] = {camera_up_body_0, camera_up_body_1, camera_up_body_2};
+        T scene_yaw = scene_yaw_arr[env_i];
+        T c = rl_tools::math::cos(device.math, scene_yaw);
+        T s = rl_tools::math::sin(device.math, scene_yaw);
+        auto rotate_scene_yaw = [&](const T in[3], T out[3]){
+            out[0] = c * in[0] - s * in[1];
+            out[1] = s * in[0] + c * in[1];
+            out[2] = in[2];
+        };
+        T offset_world[3];
+        rotate_scene_yaw(offset_body, offset_world);
+        T forward_world[3];
+        rotate_scene_yaw(forward_body, forward_world);
+        T up_world[3];
+        rotate_scene_yaw(up_body, up_world);
         T position[3] = {
-            target_position_arr[env_i * 3 + 0],
-            target_position_arr[env_i * 3 + 1],
-            target_position_arr[env_i * 3 + 2]
+            scene_translation_arr[env_i * 3 + 0] + offset_world[0],
+            scene_translation_arr[env_i * 3 + 1] + offset_world[1],
+            scene_translation_arr[env_i * 3 + 2] + offset_world[2]
         };
-        T target_cam_yaw = target_yaw_arr[env_i];
-        T ct = rl_tools::math::cos(device.math, target_cam_yaw);
-        T st = rl_tools::math::sin(device.math, target_cam_yaw);
         T look_at[3] = {
-            position[0] + ct,
-            position[1] + st,
-            position[2]
+            position[0] + forward_world[0],
+            position[1] + forward_world[1],
+            position[2] + forward_world[2]
         };
-        T up[3] = {(T)0, (T)0, (T)1};
+        T up[3] = {up_world[0], up_world[1], up_world[2]};
         target_cameras[env_i] = rlt::make_camera_data(position, look_at, up, fov, aspect);
     }
 
@@ -729,6 +719,40 @@ static bool parse_hex_hash(const char* hex, unsigned char* out, unsigned len){
     return true;
 }
 
+template<typename DEVICE, typename OBS_SPEC>
+void render_target_observation(
+    DEVICE& device,
+    ENVIRONMENT& env,
+    const typename ENVIRONMENT::Parameters& parameters,
+    rlt::Matrix<OBS_SPEC>& observation
+){
+    static_assert(OBS_SPEC::ROWS == 1);
+    static_assert(OBS_SPEC::COLS == OBSERVATION_DIM);
+
+    typename ENVIRONMENT::State target_state = {};
+    target_state.orientation[0] = (T)1;
+    target_state.orientation[1] = (T)0;
+    target_state.orientation[2] = (T)0;
+    target_state.orientation[3] = (T)0;
+    auto camera = rlt::rl::environments::l2f_visual::make_camera_for_state(device, env, parameters, target_state);
+
+    for(TI camera_i = 0; camera_i < N_ENVIRONMENTS_PER_SCENE; camera_i++){
+        rlt::set(device, env.renderer->cameras, camera, camera_i);
+    }
+    rlt::set_cameras(device, *env.renderer, env.renderer->cameras);
+    rlt::render(device, *env.renderer);
+    rlt::read_frame_buffer(device, *env.renderer, env.renderer->frame_buffer);
+
+    constexpr TI CAM_PIXELS = CAM_WIDTH * CAM_HEIGHT;
+    const uint32_t* fb_data = rlt::data(env.renderer->frame_buffer);
+    for(TI pixel_i = 0; pixel_i < CAM_PIXELS; pixel_i++){
+        const uint32_t rgba = fb_data[pixel_i];
+        rlt::set(observation, 0, pixel_i * 3 + 0, static_cast<T>((rgba >>  0) & 0xFF) / static_cast<T>(255));
+        rlt::set(observation, 0, pixel_i * 3 + 1, static_cast<T>((rgba >>  8) & 0xFF) / static_cast<T>(255));
+        rlt::set(observation, 0, pixel_i * 3 + 2, static_cast<T>((rgba >> 16) & 0xFF) / static_cast<T>(255));
+    }
+}
+
 __global__ void scatter_pixel_to_float_kernel(
     const uint32_t* __restrict__ fb, float* __restrict__ output,
     int base_env, int n_envs,
@@ -886,8 +910,10 @@ int main(int argc, char** argv){
 
     // Warmup observations (CPU)
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, STEPS_TOTAL, OBSERVATION_DIM>>> warmup_observations;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, STEPS_TOTAL, OBSERVATION_DIM>>> warmup_target_observations;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, STEPS_TOTAL, STATE_OBS_DIM>>> warmup_state_observations;
     rlt::malloc(device, warmup_observations);
+    rlt::malloc(device, warmup_target_observations);
     rlt::malloc(device, warmup_state_observations);
 
     // =========================================================================
@@ -937,20 +963,19 @@ int main(int argc, char** argv){
     T* gpu_indoor_positions = nullptr;
     TI* gpu_num_indoor_positions = nullptr;
     TI* gpu_env_scene = nullptr;
-    cudaMalloc(&gpu_indoor_positions, N_TOTAL_SCENES * MAX_INDOOR_POS * 4 * sizeof(T));
+    cudaMalloc(&gpu_indoor_positions, N_TOTAL_SCENES * MAX_INDOOR_POS * INDOOR_POSITION_DIM * sizeof(T));
     cudaMalloc(&gpu_num_indoor_positions, N_TOTAL_SCENES * sizeof(TI));
     cudaMalloc(&gpu_env_scene, N_ENVIRONMENTS * sizeof(TI));
     {
-        std::vector<T> all_positions(N_TOTAL_SCENES * MAX_INDOOR_POS * 4, 0);
+        std::vector<T> all_positions(N_TOTAL_SCENES * MAX_INDOOR_POS * INDOOR_POSITION_DIM, 0);
         std::vector<TI> all_counts(N_TOTAL_SCENES);
         for(TI s = 0; s < N_TOTAL_SCENES; s++){
             all_counts[s] = scenes[s]->num_indoor_positions;
             for(TI i = 0; i < all_counts[s]; i++){
-                TI base = (s * MAX_INDOOR_POS + i) * 4;
+                TI base = (s * MAX_INDOOR_POS + i) * INDOOR_POSITION_DIM;
                 all_positions[base + 0] = scenes[s]->indoor_positions[i].position[0];
                 all_positions[base + 1] = scenes[s]->indoor_positions[i].position[1];
                 all_positions[base + 2] = scenes[s]->indoor_positions[i].position[2];
-                all_positions[base + 3] = scenes[s]->indoor_positions[i].yaw;
             }
         }
         cudaMemcpy(gpu_indoor_positions, all_positions.data(), all_positions.size() * sizeof(T), cudaMemcpyHostToDevice);
@@ -1018,12 +1043,20 @@ int main(int argc, char** argv){
             TI env_i = obs_row % N_ENVIRONMENTS;
             typename ENVIRONMENT::State warmup_state;
             rlt::sample_initial_parameters(device, envs[env_i], env_parameters[env_i], rng);
-            rlt::sample_initial_state(device, envs[env_i], env_parameters[env_i], warmup_state, rng);
+            TI anchor_pos_idx = rlt::random::uniform_int_distribution(device.random, (TI)0, envs[env_i].scene->num_indoor_positions - 1, rng);
+            env_parameters[env_i].scene_translation[0] = envs[env_i].scene->indoor_positions[anchor_pos_idx].position[0];
+            env_parameters[env_i].scene_translation[1] = envs[env_i].scene->indoor_positions[anchor_pos_idx].position[1];
+            env_parameters[env_i].scene_translation[2] = envs[env_i].scene->indoor_positions[anchor_pos_idx].position[2];
             env_parameters[env_i].scene_yaw = rlt::random::uniform_real_distribution(device.random, (T)0, (T)(2.0 * 3.14159265358979323846), rng);
+            rlt::sample_initial_state(device, envs[env_i], env_parameters[env_i], warmup_state, rng);
 
             auto obs_slice = rlt::view(device, warmup_observations, obs_row);
             auto obs_matrix = rlt::matrix_view(device, obs_slice);
             rlt::observe(device, envs[env_i], env_parameters[env_i], warmup_state, typename ENVIRONMENT::Observation{}, obs_matrix, rng);
+
+            auto target_obs_slice = rlt::view(device, warmup_target_observations, obs_row);
+            auto target_obs_matrix = rlt::matrix_view(device, target_obs_slice);
+            render_target_observation(device, envs[env_i], env_parameters[env_i], target_obs_matrix);
 
             auto state_obs_slice = rlt::view(device, warmup_state_observations, obs_row);
             auto state_obs_matrix = rlt::matrix_view(device, state_obs_slice);
@@ -1036,49 +1069,61 @@ int main(int argc, char** argv){
         using STATE_INPUT_SHAPE_WARMUP = rlt::tensor::Shape<TI, BPTT_STEPS, N_ENVIRONMENTS, STATE_OBS_DIM>;
         static constexpr TI N_BATCHES_WARMUP = STEPS_TOTAL / WINDOW_SAMPLES;
         for(TI batch_i = 0; batch_i < N_BATCHES_WARMUP; batch_i++){
+            auto batch_target_observations = rlt::view_range(device, warmup_target_observations, batch_i * WINDOW_SAMPLES, rlt::tensor::ViewSpec<0, WINDOW_SAMPLES>{});
+            auto batch_target_observations_reshaped = rlt::reshape_row_major(device, batch_target_observations, IMAGE_INPUT_SHAPE_WARMUP{});
             auto batch_observations = rlt::view_range(device, warmup_observations, batch_i * WINDOW_SAMPLES, rlt::tensor::ViewSpec<0, WINDOW_SAMPLES>{});
             auto batch_observations_reshaped = rlt::reshape_row_major(device, batch_observations, IMAGE_INPUT_SHAPE_WARMUP{});
             auto batch_state_observations = rlt::view_range(device, warmup_state_observations, batch_i * WINDOW_SAMPLES, rlt::tensor::ViewSpec<0, WINDOW_SAMPLES>{});
             auto batch_state_observations_reshaped = rlt::reshape_row_major(device, batch_state_observations, STATE_INPUT_SHAPE_WARMUP{});
-            { auto inputs = rlt::nn_models::parallel::pack_inputs(batch_observations_reshaped, batch_observations_reshaped, batch_state_observations_reshaped); rlt::forward(device, student_cpu, inputs, student_buffers_cpu, rng, accumulate_mode); }
+            { auto inputs = rlt::nn_models::parallel::pack_inputs(batch_target_observations_reshaped, batch_observations_reshaped, batch_state_observations_reshaped); rlt::forward(device, student_cpu, inputs, student_buffers_cpu, rng, accumulate_mode); }
         }
 #else
         using IMAGE_INPUT_SHAPE_WARMUP = rlt::tensor::Shape<TI, 1, BATCH_SIZE, IMG_H, IMG_W, STACKED_IMG_C>;
         using STATE_INPUT_SHAPE_WARMUP = rlt::tensor::Shape<TI, 1, BATCH_SIZE, STATE_OBS_DIM>;
 #ifdef USE_FRAME_STACKING
         rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, BATCH_SIZE, STACKED_OBS_DIM>>> warmup_stacked_batch;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, BATCH_SIZE, STACKED_OBS_DIM>>> warmup_stacked_target_batch;
         rlt::malloc(device, warmup_stacked_batch);
+        rlt::malloc(device, warmup_stacked_target_batch);
 #endif
         for(TI batch_i = 0; batch_i < N_BATCHES; batch_i++){
 #ifdef USE_FRAME_STACKING
             for(TI s = 0; s < BATCH_SIZE; s++){
                 T* src = rlt::data(warmup_observations) + (batch_i * BATCH_SIZE + s) * OBSERVATION_DIM;
                 T* dst = rlt::data(warmup_stacked_batch) + s * STACKED_OBS_DIM;
+                T* src_target = rlt::data(warmup_target_observations) + (batch_i * BATCH_SIZE + s) * OBSERVATION_DIM;
+                T* dst_target = rlt::data(warmup_stacked_target_batch) + s * STACKED_OBS_DIM;
                 for(TI p = 0; p < IMG_H * IMG_W; p++){
                     for(TI f = 0; f < FRAME_STACK_N; f++){
                         for(TI c = 0; c < IMG_C; c++){
                             dst[p * STACKED_IMG_C + f * IMG_C + c] = src[p * IMG_C + c];
+                            dst_target[p * STACKED_IMG_C + f * IMG_C + c] = src_target[p * IMG_C + c];
                         }
                     }
                 }
             }
+            auto batch_target_observations_reshaped = rlt::reshape_row_major(device, warmup_stacked_target_batch, IMAGE_INPUT_SHAPE_WARMUP{});
             auto batch_observations_reshaped = rlt::reshape_row_major(device, warmup_stacked_batch, IMAGE_INPUT_SHAPE_WARMUP{});
 #else
+            auto batch_target_observations = rlt::view_range(device, warmup_target_observations, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
+            auto batch_target_observations_reshaped = rlt::reshape_row_major(device, batch_target_observations, IMAGE_INPUT_SHAPE_WARMUP{});
             auto batch_observations = rlt::view_range(device, warmup_observations, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
             auto batch_observations_reshaped = rlt::reshape_row_major(device, batch_observations, IMAGE_INPUT_SHAPE_WARMUP{});
 #endif
             auto batch_state_observations = rlt::view_range(device, warmup_state_observations, batch_i * BATCH_SIZE, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
             auto batch_state_observations_reshaped = rlt::reshape_row_major(device, batch_state_observations, STATE_INPUT_SHAPE_WARMUP{});
-            { auto inputs = rlt::nn_models::parallel::pack_inputs(batch_observations_reshaped, batch_observations_reshaped, batch_state_observations_reshaped); rlt::forward(device, student_cpu, inputs, student_buffers_cpu, rng, accumulate_mode); }
+            { auto inputs = rlt::nn_models::parallel::pack_inputs(batch_target_observations_reshaped, batch_observations_reshaped, batch_state_observations_reshaped); rlt::forward(device, student_cpu, inputs, student_buffers_cpu, rng, accumulate_mode); }
         }
 #ifdef USE_FRAME_STACKING
         rlt::free(device, warmup_stacked_batch);
+        rlt::free(device, warmup_stacked_target_batch);
 #endif
 #endif
         std::cout << "Observation normalization warmup complete." << std::endl;
         rlt::free(device, student_buffers_cpu);
     }
     rlt::free(device, warmup_observations);
+    rlt::free(device, warmup_target_observations);
     rlt::free(device, warmup_state_observations);
 
     // =========================================================================
@@ -1124,14 +1169,6 @@ int main(int argc, char** argv){
     cudaMalloc(&gpu_cameras, N_ENVIRONMENTS * sizeof(rlt::rendering::raytracing::CameraData<float>));
     rlt::rendering::raytracing::CameraData<float>* gpu_target_cameras = nullptr;
     cudaMalloc(&gpu_target_cameras, N_ENVIRONMENTS * sizeof(rlt::rendering::raytracing::CameraData<float>));
-
-    // Target position/yaw per environment
-    T* gpu_target_position_arr = nullptr;
-    T* gpu_target_yaw_arr = nullptr;
-    cudaMalloc(&gpu_target_position_arr, N_ENVIRONMENTS * 3 * sizeof(T));
-    cudaMalloc(&gpu_target_yaw_arr, N_ENVIRONMENTS * sizeof(T));
-    cudaMemset(gpu_target_position_arr, 0, N_ENVIRONMENTS * 3 * sizeof(T));
-    cudaMemset(gpu_target_yaw_arr, 0, N_ENVIRONMENTS * sizeof(T));
 
     // Event for cross-stream synchronization (make_cameras on device_gpu.stream → optix_stream)
     cudaEvent_t cameras_ready_event;
@@ -1382,8 +1419,6 @@ int main(int argc, char** argv){
                     gpu_brightness_scale_arr,
                     gpu_scene_translation_arr,
                     gpu_scene_yaw_arr,
-                    gpu_target_position_arr,
-                    gpu_target_yaw_arr,
                     gpu_indoor_positions, gpu_num_indoor_positions, gpu_env_scene, MAX_INDOOR_POS,
                     rng_gpu, step_i);
                 CUDA_CHECK("prologue_kernel");
@@ -1464,7 +1499,10 @@ int main(int argc, char** argv){
                 imitation_kernels::make_target_cameras_kernel<<<grid, block, 0, device_gpu.stream>>>(
                     tag_device, gpu_target_cameras,
                     env_parameters[0].fov, cam_aspect,
-                    gpu_target_position_arr, gpu_target_yaw_arr);
+                    env_parameters[0].camera_mount.offset_body[0], env_parameters[0].camera_mount.offset_body[1], env_parameters[0].camera_mount.offset_body[2],
+                    env_parameters[0].camera_mount.forward_body[0], env_parameters[0].camera_mount.forward_body[1], env_parameters[0].camera_mount.forward_body[2],
+                    env_parameters[0].camera_mount.up_body[0], env_parameters[0].camera_mount.up_body[1], env_parameters[0].camera_mount.up_body[2],
+                    gpu_scene_translation_arr, gpu_scene_yaw_arr);
                 CUDA_CHECK("make_target_cameras_kernel");
                 T* target_obs_ptr = rlt::data(gpu_all_target_observations) + (TI)(step_i * N_ENVIRONMENTS) * OBSERVATION_DIM;
                 cudaEventRecord(target_cameras_ready_event, device_gpu.stream);
@@ -1557,7 +1595,6 @@ int main(int argc, char** argv){
                         gpu_episode_return_arr,
                         rlt::data(gpu_teacher_actions_step),
                         rlt::data(gpu_all_targets),
-                        gpu_target_position_arr, gpu_scene_translation_arr, gpu_scene_yaw_arr,
                         rng_gpu, step_i);
                 }
                 CUDA_CHECK("epilogue_kernel");
@@ -2025,8 +2062,6 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, gpu_teacher_actions_step);
     cudaFree(gpu_cameras);
     cudaFree(gpu_target_cameras);
-    cudaFree(gpu_target_position_arr);
-    cudaFree(gpu_target_yaw_arr);
     cudaEventDestroy(cameras_ready_event);
     cudaEventDestroy(target_cameras_ready_event);
     cudaEventDestroy(render_start_event);
