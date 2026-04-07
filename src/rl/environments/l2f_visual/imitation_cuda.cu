@@ -110,7 +110,7 @@ namespace obs = l2f::observation;
 
 using REWARD_FUNCTION = l2f::parameters::reward_functions::Squared<T>;
 static constexpr TI SIMULATION_FREQUENCY = 100;
-static constexpr TI EPISODE_STEP_LIMIT = 500;
+static constexpr TI EPISODE_STEP_LIMIT = 100;
 using PARAMETERS_SPEC = l2f::ParametersBaseSpecification<T, TI, 4, EPISODE_STEP_LIMIT, REWARD_FUNCTION>;
 using PARAMETERS_TYPE = l2f::ParametersDisturbances<l2f::ParametersSpecification<T, TI, l2f::ParametersBase<PARAMETERS_SPEC>>>;
 
