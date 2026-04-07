@@ -380,7 +380,8 @@ static std::array<double, 3> evaluate_pair(ModelHandle& handle, const FrameRecor
     std::memcpy(rlt::data(handle.input_b), b.pixels.data(), b.pixels.size() * sizeof(float));
 
     auto mode = rlt::Mode<rlt::mode::Evaluation<>>{};
-    rlt::evaluate(handle.device, handle.model, handle.input_a, handle.input_b, handle.output, handle.buffer, handle.rng, mode);
+    auto inputs = rlt::nn_models::parallel::pack_inputs(handle.input_a, handle.input_b);
+    rlt::evaluate(handle.device, handle.model, inputs, handle.output, handle.buffer, handle.rng, mode);
 
     const double pred_horizontal = normalized_displacement_to_degrees(rlt::get(handle.device, handle.output, 0, 0), 65.0);
     const double pred_vertical = normalized_displacement_to_degrees(rlt::get(handle.device, handle.output, 0, 1), 65.0);

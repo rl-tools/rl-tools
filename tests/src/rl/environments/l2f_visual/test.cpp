@@ -3,6 +3,14 @@
 
 #include <gtest/gtest.h>
 
+#include "../../../utils/utils.h"
+
+#ifdef RL_TOOLS_TEST_DATA_PATH
+static const char* DEFAULT_SCENE_PATH = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH) "/ProcTHOR-Train-1.glb";
+#else
+static const char* DEFAULT_SCENE_PATH = nullptr;
+#endif
+
 namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DefaultCPU;
@@ -60,7 +68,7 @@ using ENV = rlt::rl::environments::l2f_visual::MultirrotorVisual<VISUAL_SPEC>;
 TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, LIFECYCLE) {
     DEVICE device;
     ENV env;
-    env.scene_path = nullptr;
+    env.scene_path = DEFAULT_SCENE_PATH;
 
     rlt::malloc(device, env);
     EXPECT_NE(env.renderer, nullptr);
@@ -68,7 +76,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, LIFECYCLE) {
     EXPECT_TRUE(env.owns_renderer);
 
     rlt::init(device, env);
-    EXPECT_GT(env.scene->num_indoor_positions, 0);
+    if(env.scene_path != nullptr){
+        EXPECT_GT(env.scene->num_indoor_positions, 0);
+    }
 
     rlt::free(device, env);
     EXPECT_EQ(env.renderer, nullptr);
@@ -78,7 +88,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, LIFECYCLE) {
 TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, SAMPLE_INITIAL_STATE) {
     DEVICE device;
     ENV env;
-    env.scene_path = nullptr;
+    env.scene_path = DEFAULT_SCENE_PATH;
 
     rlt::malloc(device, env);
     rlt::init(device, env);
@@ -105,7 +115,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, SAMPLE_INITIAL_STATE) {
 TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, STEP_AND_REWARD) {
     DEVICE device;
     ENV env;
-    env.scene_path = nullptr;
+    env.scene_path = DEFAULT_SCENE_PATH;
 
     rlt::malloc(device, env);
     rlt::init(device, env);
@@ -137,10 +147,14 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, STEP_AND_REWARD) {
 TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, OBSERVE_IMAGE) {
     DEVICE device;
     ENV env;
-    env.scene_path = nullptr;
+    env.scene_path = DEFAULT_SCENE_PATH;
 
     rlt::malloc(device, env);
     rlt::init(device, env);
+
+    if(!env.renderer_initialized){
+        GTEST_SKIP() << "No scene file available, skipping image observation test";
+    }
 
     ENV::Parameters parameters;
     rlt::initial_parameters(device, env, parameters);
