@@ -76,7 +76,7 @@ namespace rl_tools{
                 else{
                     // Navigate the MapTuple hierarchy: for I-th element, we need I levels of static_cast
                     // Use rl_tools::get<I>() instead
-                    ss << ind << "    " << "    " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::get<" << I << ">(" << accessor << ".pipelines) = branch_" << I << "::factory<decltype(RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::get<" << I << ">(" << accessor << ".pipelines))>;\n";
+                    ss << ind << "    " << "    " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::get<" << I << ">(" << accessor << ".pipelines) = branch_" << I << "::factory<RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::utils::typing::remove_reference_t<decltype(RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::get<" << I << ">(" << accessor << ".pipelines))>>;\n";
                 }
                 _emit_factory_assignments<I + 1, SPEC>(ss, ind, accessor);
             }
@@ -89,7 +89,7 @@ namespace rl_tools{
                     ss << ind << "    " << "    " << accessor << ".pipelines.content = branch_0::factory_function<decltype(" << accessor << ".pipelines.content)>();\n";
                 }
                 else{
-                    ss << ind << "    " << "    " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::get<" << I << ">(" << accessor << ".pipelines) = branch_" << I << "::factory_function<decltype(RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::get<" << I << ">(" << accessor << ".pipelines))>();\n";
+                    ss << ind << "    " << "    " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::get<" << I << ">(" << accessor << ".pipelines) = branch_" << I << "::factory_function<RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::utils::typing::remove_reference_t<decltype(RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::get<" << I << ">(" << accessor << ".pipelines))>>();\n";
                 }
                 _emit_factory_function_assignments<I + 1, SPEC>(ss, ind, accessor);
             }
