@@ -57,7 +57,7 @@ namespace rl_tools{
             paths.seed = paths.config / padded_seed_ss.str();
         }
         std::cerr << "Seed: " << seed << std::endl;
-        std::cerr << "Extrack Experiment: " << paths.seed << std::endl;
+        std::cerr << "Extrack Experiment: " << std::filesystem::absolute(paths.seed).string() << std::endl;
 #ifdef RL_TOOLS_ENABLE_TENSORBOARD
         init(device, device.logger, paths.seed);
 #endif
