@@ -48,7 +48,7 @@ namespace rl_tools{
         }
 
         auto log_file = run_dir / std::string("logs.tfevents");
-        std::cerr << "Tensorboard Logger logging to: " << log_file.string() << std::endl;
+        std::cerr << "Tensorboard Logger logging to: " << std::filesystem::absolute(log_file).string() << std::endl;
         TensorBoardLoggerOptions opts;
         opts.flush_period_s(1);
         logger.tb = new TensorBoardLogger(log_file.string(), opts);
