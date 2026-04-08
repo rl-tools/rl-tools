@@ -828,8 +828,18 @@ int main(int argc, char** argv){
                 all_glbs.push_back(entry.path().string());
             }
         }
-        std::sort(all_glbs.begin(), all_glbs.end());
-        std::shuffle(all_glbs.begin(), all_glbs.end(), scene_rng);
+        std::sort(all_glbs.begin(), all_glbs.end(), [](const std::string& a, const std::string& b){
+            auto extract_number = [](const std::string& path) -> int {
+                auto filename = std::filesystem::path(path).stem().string();
+                auto pos = filename.rfind('-');
+                if(pos != std::string::npos){
+                    try { return std::stoi(filename.substr(pos + 1)); } catch(...) {}
+                }
+                return 0;
+            };
+            return extract_number(a) < extract_number(b);
+        });
+
         if(static_cast<TI>(all_glbs.size()) < N_TOTAL_SCENES){
             std::cerr << "Need at least " << N_TOTAL_SCENES << " GLB scenes, found " << all_glbs.size() << std::endl;
             return 1;
