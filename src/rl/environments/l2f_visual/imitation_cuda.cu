@@ -232,7 +232,7 @@ static constexpr TI CHECKPOINT_CADENCE = 100;
 static constexpr T OBSERVATION_NOISE_STD = 0.00;
 static constexpr T BRIGHTNESS_RANDOMIZATION_RANGE = 0.5;
 static constexpr TI ENV_GRID_SIDE = 8; // sqrt(N_ENVIRONMENTS_PER_SCENE)
-static constexpr TI SCENE_GRID_COLS = 4;
+static constexpr TI SCENE_GRID_COLS = N_ACTIVE_SCENES;
 static constexpr TI SCENE_GRID_ROWS = (N_ACTIVE_SCENES + SCENE_GRID_COLS - 1) / SCENE_GRID_COLS;
 static_assert(ENV_GRID_SIDE * ENV_GRID_SIDE == N_ENVIRONMENTS_PER_SCENE, "N_ENVIRONMENTS_PER_SCENE must be a perfect square for per-scene video mosaic");
 
