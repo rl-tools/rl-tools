@@ -46,8 +46,8 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT auto view_memory(DEVICE& device, const Tensor<SPEC>& tensor){
         static_assert(product(SHAPE{}) <= SPEC::SIZE);
         static_assert(tensor::dense_row_major_layout<SPEC, true>());
-        using DENSE_STRIDE = tensor::RowMajorStride<SHAPE>;
-        using STRIDE = tensor::Append<tensor::PopBack<DENSE_STRIDE>, get<length(typename SPEC::STRIDE{}) - 1>(typename SPEC::STRIDE{})>;
+        static constexpr auto LAST_STRIDE = get<length(typename SPEC::STRIDE{}) - 1>(typename SPEC::STRIDE{});
+        using STRIDE = tensor::RowMajorStride<SHAPE, LAST_STRIDE>;
         using VIEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, SHAPE, true, STRIDE, true>; // note the last boolean signals constness and needs to be flipped for the non-const version of this function
         using VIEW_TYPE = Tensor<VIEW_SPEC>;
         const VIEW_TYPE view{{data(tensor)}};
@@ -58,8 +58,8 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT auto view_memory(DEVICE& device, Tensor<SPEC>& tensor){
         static_assert(product(SHAPE{}) <= SPEC::SIZE);
         static_assert(tensor::dense_row_major_layout<SPEC, true>());
-        using DENSE_STRIDE = tensor::RowMajorStride<SHAPE>;
-        using STRIDE = tensor::Append<tensor::PopBack<DENSE_STRIDE>, get<length(typename SPEC::STRIDE{}) - 1>(typename SPEC::STRIDE{})>; // the RELAX_MAJOR in dense_row_major_layout allows for a stride in the last element which is accounted for here;
+        static constexpr auto LAST_STRIDE = get<length(typename SPEC::STRIDE{}) - 1>(typename SPEC::STRIDE{});
+        using STRIDE = tensor::RowMajorStride<SHAPE, LAST_STRIDE>;
         using VIEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, SHAPE, true, STRIDE, false>;
         using VIEW_TYPE = Tensor<VIEW_SPEC>;
         VIEW_TYPE view{{data(tensor)}};
@@ -1240,16 +1240,27 @@ namespace rl_tools{
             using PREFIX = ReshapeStride<typename BLOCK::REMAINDER_SHAPE, typename BLOCK::REMAINDER_STRIDE, typename CONSUME::REMAINDER_SHAPE>;
             using TYPE = tensor::shape_math::Concat<typename PREFIX::TYPE, typename CONSUME::STRIDE_SUFFIX>;
         };
+        template <typename OLD_SHAPE, typename OLD_STRIDE, typename NEW_SHAPE, bool DENSE = tensor::_dense_row_major_layout_shape<OLD_SHAPE, OLD_STRIDE, true>()>
+        struct ReshapeStrideShortcut;
+        template <typename OLD_SHAPE, typename OLD_STRIDE, typename NEW_SHAPE>
+        struct ReshapeStrideShortcut<OLD_SHAPE, OLD_STRIDE, NEW_SHAPE, true>{
+            static constexpr auto LAST_STRIDE = get<length(OLD_STRIDE{}) - 1>(OLD_STRIDE{});
+            using TYPE = tensor::RowMajorStride<NEW_SHAPE, LAST_STRIDE>;
+        };
+        template <typename OLD_SHAPE, typename OLD_STRIDE, typename NEW_SHAPE>
+        struct ReshapeStrideShortcut<OLD_SHAPE, OLD_STRIDE, NEW_SHAPE, false>{
+            using TYPE = typename ReshapeStride<OLD_SHAPE, OLD_STRIDE, NEW_SHAPE>::TYPE;
+        };
     }
     template<typename DEVICE, typename SPEC, typename RESHAPE>
     RL_TOOLS_FUNCTION_PLACEMENT auto reshape_row_major(DEVICE& device, Tensor<SPEC>& t, const RESHAPE&){
         static_assert(tensor::generalized_row_major<typename SPEC::SHAPE, typename SPEC::STRIDE>());
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
-        constexpr TI N_ELEMENTS = get<0>(tensor::CumulativeProduct<typename SPEC::SHAPE>{});
-        constexpr TI N_NEW_ELEMENTS = get<0>(tensor::CumulativeProduct<RESHAPE>{});
+        constexpr TI N_ELEMENTS = product(typename SPEC::SHAPE{});
+        constexpr TI N_NEW_ELEMENTS = product(RESHAPE{});
         static_assert(N_ELEMENTS == N_NEW_ELEMENTS, "Tensor reshape: Number of elements must be the same");
-        using NEW_STRIDE = typename tensor::reshape_row_major_detail::ReshapeStride<typename SPEC::SHAPE, typename SPEC::STRIDE, RESHAPE>::TYPE;
+        using NEW_STRIDE = typename tensor::reshape_row_major_detail::ReshapeStrideShortcut<typename SPEC::SHAPE, typename SPEC::STRIDE, RESHAPE>::TYPE;
         using NEW_SPEC = tensor::Specification<T, TI, RESHAPE, true, NEW_STRIDE>;
         return Tensor<NEW_SPEC>{data(t)};
     }
@@ -1259,10 +1270,10 @@ namespace rl_tools{
         static_assert(tensor::generalized_row_major<typename SPEC::SHAPE, typename SPEC::STRIDE>());
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
-        constexpr TI N_ELEMENTS = get<0>(tensor::CumulativeProduct<typename SPEC::SHAPE>{});
-        constexpr TI N_NEW_ELEMENTS = get<0>(tensor::CumulativeProduct<RESHAPE>{});
+        constexpr TI N_ELEMENTS = product(typename SPEC::SHAPE{});
+        constexpr TI N_NEW_ELEMENTS = product(RESHAPE{});
         static_assert(N_ELEMENTS == N_NEW_ELEMENTS, "Tensor reshape: Number of elements must be the same");
-        using NEW_STRIDE = typename tensor::reshape_row_major_detail::ReshapeStride<typename SPEC::SHAPE, typename SPEC::STRIDE, RESHAPE>::TYPE;
+        using NEW_STRIDE = typename tensor::reshape_row_major_detail::ReshapeStrideShortcut<typename SPEC::SHAPE, typename SPEC::STRIDE, RESHAPE>::TYPE;
         using NEW_SPEC = tensor::Specification<T, TI, RESHAPE, true, NEW_STRIDE>;
         return Tensor<NEW_SPEC>{data(t)};
     }
