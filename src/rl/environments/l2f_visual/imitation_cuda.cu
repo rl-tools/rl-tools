@@ -1687,37 +1687,9 @@ int main(int argc, char** argv){
         if(ffmpeg_pipe){ pclose(ffmpeg_pipe); ffmpeg_pipe = nullptr; }
 
         // =================================================================
-        // Target statistics (over full epoch data)
-        // =================================================================
-        T epoch_target_variance = 0;
-        {
-            rlt::Matrix<rlt::matrix::Specification<T, TI, STEPS_TOTAL, TARGET_DIM>> cpu_targets;
-            rlt::malloc(device, cpu_targets);
-            auto gpu_targets_matrix = rlt::matrix_view(device_gpu, gpu_all_targets);
-            rlt::copy(device_gpu, device, gpu_targets_matrix, cpu_targets);
-            T target_mean[TARGET_DIM] = {};
-            for(TI i = 0; i < STEPS_TOTAL; i++){
-                for(TI j = 0; j < TARGET_DIM; j++){
-                    target_mean[j] += rlt::get(cpu_targets, i, j);
-                }
-            }
-            for(TI j = 0; j < TARGET_DIM; j++) target_mean[j] /= STEPS_TOTAL;
-            T target_var = 0;
-            for(TI i = 0; i < STEPS_TOTAL; i++){
-                for(TI j = 0; j < TARGET_DIM; j++){
-                    T d = rlt::get(cpu_targets, i, j) - target_mean[j];
-                    target_var += d * d;
-                }
-            }
-            epoch_target_variance = target_var / (STEPS_TOTAL * TARGET_DIM);
-            rlt::free(device, cpu_targets);
-        }
-
-        // =================================================================
         // Training (GPU)
         // =================================================================
         T epoch_loss = 0;
-        T epoch_r2 = 0;
         T epoch_loss_sum = 0;
         TI epoch_loss_count = 0;
 
@@ -1779,7 +1751,6 @@ int main(int argc, char** argv){
             }
         }
         epoch_loss = epoch_loss_count > 0 ? epoch_loss_sum / epoch_loss_count : (T)0;
-        epoch_r2 = epoch_target_variance > 0 ? (T)1 - epoch_loss / epoch_target_variance : (T)0;
 #else
         for(TI pass = 0; pass < N_TRAIN_PASSES; pass++){
             // Shuffle batch order
@@ -1863,7 +1834,6 @@ int main(int argc, char** argv){
             }
         }
         epoch_loss = epoch_loss_count > 0 ? epoch_loss_sum / epoch_loss_count : (T)0;
-        epoch_r2 = epoch_target_variance > 0 ? (T)1 - epoch_loss / epoch_target_variance : (T)0;
         rlt::copy(device_gpu, device_gpu, student_gpu, rollout_student_gpu);
 #endif
 
@@ -1874,7 +1844,7 @@ int main(int argc, char** argv){
         T mean_episode_length_tf = episode_count_tf > 0 ? episode_length_sum_tf / episode_count_tf : 0;
         T mean_episode_length_student = episode_count_student > 0 ? episode_length_sum_student / episode_count_student : 0;
         TI episode_count = episode_count_tf + episode_count_student;
-        T mean_episode_length = episode_count_student > 0 ? mean_episode_length_student : mean_episode_length_tf;
+        T mean_episode_length = episode_count > 0 ? (episode_length_sum_tf + episode_length_sum_student) / episode_count : 0;
         T fps = epoch_elapsed.count() > 0 ? static_cast<T>(STEPS_TOTAL) / epoch_elapsed.count() : 0;
         T render_time_s = static_cast<T>(epoch_render_time_ms) / static_cast<T>(1000);
         T render_fps = render_time_s > 0 ? static_cast<T>(STEPS_PER_ENV * N_ENVIRONMENTS) / render_time_s : 0;
@@ -1883,7 +1853,6 @@ int main(int argc, char** argv){
         std::cout << (full_teacher_forcing ? "[TF] " : "[TF=" + std::to_string((int)(TEACHER_FORCING_FRACTION * 100)) + "%] ")
                   << "Epoch: " << std::setw(5) << epoch_i
                   << " MSE: " << std::setw(10) << std::setprecision(6) << std::fixed << epoch_loss
-                  << " R2: " << std::setw(7) << std::setprecision(4) << epoch_r2
                   << " mean_ep_len: " << std::setw(6) << std::setprecision(1) << mean_episode_length
                   << " episodes: " << std::setw(5) << episode_count
                   << " fps: " << std::setw(7) << std::setprecision(0) << fps
@@ -1897,8 +1866,8 @@ int main(int argc, char** argv){
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
         rlt::set_step(device, device.logger, epoch_i);
         rlt::add_scalar(device, device.logger, "training/mse_loss", epoch_loss);
-        rlt::add_scalar(device, device.logger, "training/target_variance", epoch_target_variance);
-        rlt::add_scalar(device, device.logger, "training/r2", epoch_r2);
+        rlt::add_scalar(device, device.logger, "training/episode_length", mean_episode_length);
+        rlt::add_scalar(device, device.logger, "training/episodes", static_cast<T>(episode_count));
         if(episode_count_tf > 0){
             rlt::add_scalar(device, device.logger, "training/teacher/episode_length", mean_episode_length_tf);
             rlt::add_scalar(device, device.logger, "training/teacher/episodes", static_cast<T>(episode_count_tf));
