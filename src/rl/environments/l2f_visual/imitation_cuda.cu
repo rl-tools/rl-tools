@@ -1635,7 +1635,7 @@ int main(int argc, char** argv){
                     auto step_obs_reshaped = rlt::reshape_row_major(device_gpu, step_obs, ROLLOUT_IMG_SHAPE{});
 #endif
                     auto inputs = rlt::nn_models::parallel::pack_inputs(step_target_obs_reshaped, step_obs_reshaped, step_state_obs_reshaped);
-                    // rlt::evaluate(device_gpu, rollout_student_gpu, inputs, gpu_student_actions_step, rollout_student_buffers, rng_gpu);
+                    rlt::evaluate(device_gpu, rollout_student_gpu, inputs, gpu_student_actions_step, rollout_student_buffers, rng_gpu);
                 }
                 {
                     imitation_kernels::epilogue_kernel<<<grid, block, 0, device_gpu.stream>>>(
