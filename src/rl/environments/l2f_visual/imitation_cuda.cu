@@ -216,7 +216,7 @@ using RAPTOR_MODEL = rlt::nn_models::sequential::Build<RAPTOR_CAPABILITY, RAPTOR
 static constexpr TI ACTOR_HIDDEN_DIM = 64;
 static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
 static constexpr TI ACTION_DIM = ENVIRONMENT::ACTION_DIM;
-static constexpr TI TARGET_DIM = 3; // body-frame position offset to target
+static constexpr TI TARGET_DIM = 4;
 static constexpr TI INDOOR_POSITION_DIM = 3;
 static constexpr TI OBSERVATION_DIM = ENVIRONMENT::OBSERVATION_DIM;
 static constexpr TI BATCH_SIZE = 512;
@@ -409,7 +409,7 @@ namespace imitation_kernels{
         DEVICE device,
         DYNAMICS_TYPE* envs, PARAMETERS_TYPE* env_params, typename ENVIRONMENT::State* states,
         bool* terminated_flags, TI* episode_step_arr, T* episode_return_arr,
-        T* teacher_actions_ptr, T* all_targets_ptr,
+        T* teacher_actions_ptr, T* student_actions_ptr, T* all_targets_ptr,
         RNG rng, TI step_i
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -419,24 +419,12 @@ namespace imitation_kernels{
         auto& params = env_params[env_i];
         auto& state = states[env_i];
         TI pos = step_i * N_ENVIRONMENTS + env_i;
-        T delta[3] = {
-            -state.position[0],
-            -state.position[1],
-            -state.position[2]
-        };
-        T conjugate_orientation[4];
-        conjugate_orientation[0] = state.orientation[0];
-        conjugate_orientation[1] = -state.orientation[1];
-        conjugate_orientation[2] = -state.orientation[2];
-        conjugate_orientation[3] = -state.orientation[3];
-        T body_offset[3];
-        rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(conjugate_orientation, delta, body_offset);
         for(TI d = 0; d < TARGET_DIM; d++){
-            all_targets_ptr[pos * TARGET_DIM + d] = body_offset[d];
+            all_targets_ptr[pos * TARGET_DIM + d] = teacher_actions_ptr[env_i * ACTION_DIM + d];
         }
         T action_arr[ACTION_DIM];
         for(TI a = 0; a < ACTION_DIM; a++){
-            action_arr[a] = teacher_actions_ptr[env_i * ACTION_DIM + a];
+            action_arr[a] = student_actions_ptr[env_i * ACTION_DIM + a];
         }
         rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ACTION_DIM, true, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> action_matrix;
         action_matrix._data = action_arr;
@@ -1149,6 +1137,13 @@ int main(int argc, char** argv){
     rlt::reset(device_gpu, student_gpu, student_state_gpu, rng_gpu);
 #endif
 
+    // using ROLLOUT_STUDENT_TYPE = typename STUDENT_TYPE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<true>>::template CHANGE_BATCH_SIZE<TI, N_ENVIRONMENTS>;
+    // ROLLOUT_STUDENT_TYPE rollout_student_gpu;
+    // typename ROLLOUT_STUDENT_TYPE::template Buffer<true> rollout_student_buffers;
+    // rlt::malloc(device_gpu, rollout_student_gpu);
+    // rlt::malloc(device_gpu, rollout_student_buffers);
+    // rlt::copy(device, device_gpu, student_cpu, rollout_student_gpu);
+
     // GPU RAPTOR teacher
     RAPTOR_MODEL raptor_gpu;
     typename RAPTOR_MODEL::Buffer<true> raptor_buffer_gpu;
@@ -1197,6 +1192,9 @@ int main(int argc, char** argv){
     rlt::malloc(device_gpu, gpu_all_targets);
     rlt::malloc(device_gpu, gpu_d_action_train);
 
+    // rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, ACTION_DIM>>> gpu_student_actions_step;
+    // rlt::malloc(device_gpu, gpu_student_actions_step);
+
 #ifdef USE_GRU_TEMPORAL
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, ACTOR_HIDDEN_DIM>>> gpu_rollout_branch_a;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, ACTOR_HIDDEN_DIM>>> gpu_rollout_branch_b;
@@ -1222,6 +1220,14 @@ int main(int argc, char** argv){
     cudaMalloc(&gpu_episode_start_step, N_ENVIRONMENTS * sizeof(TI));
     cudaMalloc(&gpu_episode_start_step_per_row, STEPS_TOTAL * sizeof(TI));
     cudaMemset(gpu_episode_start_step, 0, N_ENVIRONMENTS * sizeof(TI));
+    // rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, STACKED_OBS_DIM>>> gpu_rollout_stacked;
+    // rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, STACKED_OBS_DIM>>> gpu_rollout_stacked_target;
+    // rlt::malloc(device_gpu, gpu_rollout_stacked);
+    // rlt::malloc(device_gpu, gpu_rollout_stacked_target);
+    // int* gpu_rollout_gather_indices = nullptr;
+    // int* gpu_rollout_target_gather_indices = nullptr;
+    // cudaMalloc(&gpu_rollout_gather_indices, N_ENVIRONMENTS * FRAME_STACK_N * sizeof(int));
+    // cudaMalloc(&gpu_rollout_target_gather_indices, N_ENVIRONMENTS * FRAME_STACK_N * sizeof(int));
 #endif
 
     // =========================================================================
@@ -1358,7 +1364,7 @@ int main(int argc, char** argv){
             cudaMemcpy(gpu_episode_return_arr, reset_return.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
             cudaMemcpy(gpu_teacher_forcing_arr, reset_teacher_forcing.data(), N_ENVIRONMENTS * sizeof(bool), cudaMemcpyHostToDevice);
         }
-        bool full_teacher_forcing = true; // student predicts velocity, not actions
+        bool full_teacher_forcing = false;
         bool record_video = (epoch_i % CHECKPOINT_CADENCE == 0);
         TI epoch_end_step = global_step + STEPS_PER_ENV * N_ENVIRONMENTS;
         FILE* ffmpeg_pipe = nullptr;
@@ -1597,16 +1603,50 @@ int main(int argc, char** argv){
                     }
                     fwrite(mosaic_frame.data(), 1, mosaic_frame.size(), ffmpeg_pipe);
                 }
-                // student rollout skipped: student predicts position offset, RAPTOR flies
-                {
-                    imitation_kernels::epilogue_kernel<<<grid, block, 0, device_gpu.stream>>>(
-                        tag_device, gpu_dynamics_arr, gpu_params_arr, gpu_states_arr,
-                        gpu_terminated_arr, gpu_episode_step_arr,
-                        gpu_episode_return_arr,
-                        rlt::data(gpu_teacher_actions_step),
-                        rlt::data(gpu_all_targets),
-                        rng_gpu, step_i);
-                }
+//                 {
+//                     auto step_state_obs = rlt::view_range(device_gpu, gpu_all_state_observations, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
+//                     auto step_state_obs_reshaped = rlt::reshape_row_major(device_gpu, step_state_obs, rlt::tensor::Shape<TI, 1, N_ENVIRONMENTS, STATE_OBS_DIM>{});
+// #ifdef USE_FRAME_STACKING
+//                     {
+//                         constexpr TI GI_BLOCK = 256;
+//                         constexpr TI GI_GRID = (N_ENVIRONMENTS + GI_BLOCK - 1) / GI_BLOCK;
+//                         imitation_kernels::compute_gather_indices_rollout_kernel<<<GI_GRID, GI_BLOCK, 0, device_gpu.stream>>>(
+//                             gpu_rollout_gather_indices, gpu_episode_start_step, step_i, N_ENVIRONMENTS);
+//                         imitation_kernels::compute_gather_indices_rollout_kernel<<<GI_GRID, GI_BLOCK, 0, device_gpu.stream>>>(
+//                             gpu_rollout_target_gather_indices, gpu_episode_start_step, step_i, N_ENVIRONMENTS);
+//                     }
+//                     {
+//                         int total_elements = N_ENVIRONMENTS * STACKED_OBS_DIM;
+//                         gather_frames_kernel<<<(total_elements + 255) / 256, 256>>>(
+//                             rlt::data(gpu_all_observations), gpu_rollout_gather_indices, rlt::data(gpu_rollout_stacked),
+//                             OBSERVATION_DIM, IMG_C, FRAME_STACK_N, STACKED_IMG_C, STACKED_OBS_DIM, N_ENVIRONMENTS);
+//                         gather_frames_kernel<<<(total_elements + 255) / 256, 256>>>(
+//                             rlt::data(gpu_all_target_observations), gpu_rollout_target_gather_indices, rlt::data(gpu_rollout_stacked_target),
+//                             OBSERVATION_DIM, IMG_C, FRAME_STACK_N, STACKED_IMG_C, STACKED_OBS_DIM, N_ENVIRONMENTS);
+//                     }
+//                     using ROLLOUT_IMG_SHAPE = rlt::tensor::Shape<TI, 1, N_ENVIRONMENTS, IMG_H, IMG_W, STACKED_IMG_C>;
+//                     auto step_target_obs_reshaped = rlt::reshape_row_major(device_gpu, gpu_rollout_stacked_target, ROLLOUT_IMG_SHAPE{});
+//                     auto step_obs_reshaped = rlt::reshape_row_major(device_gpu, gpu_rollout_stacked, ROLLOUT_IMG_SHAPE{});
+// #else
+//                     auto step_target_obs = rlt::view_range(device_gpu, gpu_all_target_observations, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
+//                     auto step_obs = rlt::view_range(device_gpu, gpu_all_observations, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
+//                     using ROLLOUT_IMG_SHAPE = rlt::tensor::Shape<TI, 1, N_ENVIRONMENTS, IMG_H, IMG_W, STACKED_IMG_C>;
+//                     auto step_target_obs_reshaped = rlt::reshape_row_major(device_gpu, step_target_obs, ROLLOUT_IMG_SHAPE{});
+//                     auto step_obs_reshaped = rlt::reshape_row_major(device_gpu, step_obs, ROLLOUT_IMG_SHAPE{});
+// #endif
+//                     auto inputs = rlt::nn_models::parallel::pack_inputs(step_target_obs_reshaped, step_obs_reshaped, step_state_obs_reshaped);
+//                     // rlt::evaluate(device_gpu, rollout_student_gpu, inputs, gpu_student_actions_step, rollout_student_buffers, rng_gpu);
+//                 }
+                // {
+                //     imitation_kernels::epilogue_kernel<<<grid, block, 0, device_gpu.stream>>>(
+                //         tag_device, gpu_dynamics_arr, gpu_params_arr, gpu_states_arr,
+                //         gpu_terminated_arr, gpu_episode_step_arr,
+                //         gpu_episode_return_arr,
+                //         rlt::data(gpu_teacher_actions_step),
+                //         rlt::data(gpu_student_actions_step),
+                //         rlt::data(gpu_all_targets),
+                //         rng_gpu, step_i);
+                // }
                 CUDA_CHECK("epilogue_kernel");
                 global_step += N_ENVIRONMENTS;
             }
@@ -1824,6 +1864,7 @@ int main(int argc, char** argv){
         }
         epoch_loss = epoch_loss_count > 0 ? epoch_loss_sum / epoch_loss_count : (T)0;
         epoch_r2 = epoch_target_variance > 0 ? (T)1 - epoch_loss / epoch_target_variance : (T)0;
+        // rlt::copy(device_gpu, device_gpu, student_gpu, rollout_student_gpu);
 #endif
 
         // Logging
@@ -1895,7 +1936,7 @@ int main(int argc, char** argv){
 #endif
             std::string state_obs_string = rlt::string(device, envs[0].dynamics, ACTOR_STATE_OBS{});
             std::string obs_string = "TargetImage(" + image_obs_string + "), " + image_obs_string + ", " + state_obs_string;
-            std::string meta = "{\"environment\": {\"name\": \"l2f_visual\", \"observation\": \"" + obs_string + "\", \"output\": \"PositionOffsetBodyFrame\"}}";
+            std::string meta = "{\"environment\": {\"name\": \"l2f_visual\", \"observation\": \"" + obs_string + "\", \"output\": \"Action\"}}";
             static constexpr TI TOTAL_INPUT_DIM = STACKED_OBS_DIM + STACKED_OBS_DIM + STATE_OBS_DIM;
             rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, TOTAL_INPUT_DIM>, true>> example_input;
             rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, TARGET_DIM>, true>> example_output;
@@ -2077,6 +2118,8 @@ int main(int argc, char** argv){
     cudaEventDestroy(render_start_event);
     cudaEventDestroy(render_stop_event);
     rlt::free(device_gpu, student_gpu);
+    // rlt::free(device_gpu, rollout_student_gpu);
+    // rlt::free(device_gpu, rollout_student_buffers);
     rlt::free(device_gpu, raptor_gpu);
     rlt::free(device_gpu, raptor_buffer_gpu);
     rlt::free(device_gpu, raptor_state_gpu);
@@ -2088,6 +2131,7 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, gpu_all_state_observations);
     rlt::free(device_gpu, gpu_all_targets);
     rlt::free(device_gpu, gpu_d_action_train);
+    // rlt::free(device_gpu, gpu_student_actions_step);
     cudaFree(gpu_dynamics_arr);
     cudaFree(gpu_params_arr);
     cudaFree(gpu_states_arr);
@@ -2118,6 +2162,10 @@ int main(int argc, char** argv){
     cudaFree(gpu_target_gather_indices);
     cudaFree(gpu_episode_start_step);
     cudaFree(gpu_episode_start_step_per_row);
+    // rlt::free(device_gpu, gpu_rollout_stacked);
+    // rlt::free(device_gpu, gpu_rollout_stacked_target);
+    // cudaFree(gpu_rollout_gather_indices);
+    // cudaFree(gpu_rollout_target_gather_indices);
 #endif
 
     return 0;
