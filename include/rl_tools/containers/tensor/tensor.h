@@ -265,8 +265,24 @@ namespace rl_tools{
         using Remove = decltype(shape_math::remove_helper<ELEMENT, ELEMENT_OFFSET>(
             shape_math::MakeIndexSequence<(shape_math::rank<ELEMENT>() > 0 ? shape_math::rank<ELEMENT>() - 1 : 0)>{}));
 
-        template <typename SHAPE>
-        using RowMajorStride = Append<PopFront<CumulativeProduct<SHAPE>>, 1>;
+        namespace row_major_stride_detail{
+            template <typename TI, auto ELEMENT_STRIDE, TI... VALUES>
+            struct Build;
+            template <typename TI, auto ELEMENT_STRIDE>
+            struct Build<TI, ELEMENT_STRIDE>{
+                using TYPE = Stride<TI>;
+            };
+            template <typename TI, auto ELEMENT_STRIDE, TI FIRST, TI... REST>
+            struct Build<TI, ELEMENT_STRIDE, FIRST, REST...>{
+                static constexpr TI CURRENT_STRIDE = (static_cast<TI>(ELEMENT_STRIDE) * ... * REST);
+                using TYPE = Prepend<typename Build<TI, ELEMENT_STRIDE, REST...>::TYPE, CURRENT_STRIDE>;
+            };
+            template <auto ELEMENT_STRIDE, typename TI, TI... VALUES>
+            constexpr typename Build<TI, ELEMENT_STRIDE, VALUES...>::TYPE build(Tuple<TI, VALUES...>);
+        }
+
+        template <typename SHAPE, auto ELEMENT_STRIDE=1>
+        using RowMajorStride = decltype(row_major_stride_detail::build<ELEMENT_STRIDE>(SHAPE{}));
 
         template <typename SHAPE, typename STRIDE>
         constexpr typename SHAPE::TI max_span(){
