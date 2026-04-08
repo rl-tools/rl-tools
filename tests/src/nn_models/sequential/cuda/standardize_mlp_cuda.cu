@@ -195,6 +195,12 @@ TEST(NN_MODELS_SEQUENTIAL_STANDARDIZE_MLP_CUDA, MLP_BACKWARD){
     rlt::malloc(device_cpu, model_cpu);
     rlt::malloc(device_cpu, buffer_cpu);
     rlt::init_weights(device_cpu, model_cpu, rng_cpu);
+    using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI>;
+    rlt::nn::optimizers::Adam<OPTIMIZER_SPEC> optimizer;
+    rlt::malloc(device_cpu, optimizer);
+    rlt::init(device_cpu, optimizer);
+    rlt::reset_optimizer_state(device_cpu, optimizer, model_cpu);
+    rlt::free(device_cpu, optimizer);
     rlt::malloc(device_cuda, model_cuda);
     rlt::malloc(device_cuda, buffer_cuda);
     rlt::copy(device_cpu, device_cuda, model_cpu, model_cuda);
@@ -570,6 +576,14 @@ TEST(NN_MODELS_SEQUENTIAL_STANDARDIZE_MLP_CUDA, EVALUATE){
     rlt::malloc(device_cpu, model_cpu);
     rlt::malloc(device_cpu, buffer_cpu);
     rlt::init_weights(device_cpu, model_cpu, rng_cpu);
+    {
+        using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI>;
+        rlt::nn::optimizers::Adam<OPTIMIZER_SPEC> optimizer;
+        rlt::malloc(device_cpu, optimizer);
+        rlt::init(device_cpu, optimizer);
+        rlt::reset_optimizer_state(device_cpu, optimizer, model_cpu);
+        rlt::free(device_cpu, optimizer);
+    }
 
     // Set standardize to non-trivial values
     {
