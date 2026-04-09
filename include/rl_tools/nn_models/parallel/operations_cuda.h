@@ -73,16 +73,14 @@ namespace rl_tools{
     template <typename DEV_SPEC, typename SPEC, typename INPUT_TUPLE, typename STATE_SPEC, typename OUTPUT, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
     void evaluate_step(devices::CUDA<DEV_SPEC>& device, const nn_models::parallel::ModuleForward<SPEC>& model, const INPUT_TUPLE& inputs, nn_models::parallel::ModuleState<STATE_SPEC>& state, OUTPUT& output, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using TI = typename SPEC::TI;
-        using OUTPUT_TENSOR_SHAPE = typename OUTPUT::SPEC::SHAPE;
-        constexpr TI OUTPUT_LAST_DIM = get_last(OUTPUT_TENSOR_SHAPE{});
-        constexpr TI LEADING = product(OUTPUT_TENSOR_SHAPE{}) / OUTPUT_LAST_DIM;
-        using CONCAT_SHAPE = typename utils::typing::remove_reference_t<decltype(buffer.concatenated)>::SPEC::SHAPE;
-        constexpr TI CONCAT_LAST_DIM = get_last(CONCAT_SHAPE{});
-        auto concat_view = view_memory<tensor::Shape<TI, LEADING, CONCAT_LAST_DIM>>(device, buffer.concatenated);
+        using OUTPUT_SHAPE = typename OUTPUT::SPEC::SHAPE;
+        using CONCAT_BUFFER_SHAPE = typename utils::typing::remove_reference_t<decltype(buffer.concatenated)>::SPEC::SHAPE;
+        constexpr TI CONCAT_LAST_DIM = get_last(CONCAT_BUFFER_SHAPE{});
+        using CONCAT_VIEW_SHAPE = tensor::Replace<OUTPUT_SHAPE, CONCAT_LAST_DIM, length(OUTPUT_SHAPE{}) - 1>;
+        auto concat_view = view_memory<CONCAT_VIEW_SHAPE>(device, buffer.concatenated);
         nn_models::parallel::_evaluate_step_branches(device, model, inputs, state, concat_view, buffer, rng, mode);
         if constexpr(SPEC::HAS_HEAD){
-            auto output_2d = reshape_row_major(device, output, tensor::Shape<TI, LEADING, OUTPUT_LAST_DIM>{});
-            evaluate_step(device, model.head, concat_view, state.head_state, output_2d, buffer.head_buffer, rng, mode);
+            evaluate_step(device, model.head, concat_view, state.head_state, output, buffer.head_buffer, rng, mode);
         }
         else{
             copy(device, device, concat_view, output);
