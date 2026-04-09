@@ -349,12 +349,20 @@ namespace rl_tools{
     }
 
     template <typename TARGET_SHAPE, typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT auto _content_output_helper(DEVICE&, Tensor<SPEC>& tensor){
-        return tensor;
+    RL_TOOLS_FUNCTION_PLACEMENT auto _content_output_helper(DEVICE& device, Tensor<SPEC>& tensor){
+        if constexpr(utils::typing::is_same_v<TARGET_SHAPE, typename SPEC::SHAPE>){
+            return tensor;
+        } else {
+            return view_memory<TARGET_SHAPE>(device, tensor);
+        }
     }
     template <typename TARGET_SHAPE, typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT auto _content_output_helper(DEVICE&, const Tensor<SPEC>& tensor){
-        return tensor;
+    RL_TOOLS_FUNCTION_PLACEMENT auto _content_output_helper(DEVICE& device, const Tensor<SPEC>& tensor){
+        if constexpr(utils::typing::is_same_v<TARGET_SHAPE, typename SPEC::SHAPE>){
+            return tensor;
+        } else {
+            return view_memory<TARGET_SHAPE>(device, tensor);
+        }
     }
     template <typename TARGET_SHAPE, typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT auto _content_output_helper(DEVICE& device, Matrix<SPEC>& matrix){

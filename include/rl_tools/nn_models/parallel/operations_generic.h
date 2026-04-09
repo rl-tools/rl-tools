@@ -72,18 +72,16 @@ namespace rl_tools{
             }
         }
 
-        // N-way concatenation: copy each branch's intermediate into the correct columns of output
         template <auto NUM_BRANCHES, auto I = 0, auto OFFSET = 0, typename DEVICE, typename INTERMEDIATES, typename OUTPUT_SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT void _concatenate_n(DEVICE& device, const INTERMEDIATES& intermediates, Tensor<OUTPUT_SPEC>& output){
             if constexpr(I < NUM_BRANCHES){
                 using TI = typename DEVICE::index_t;
                 using OUTPUT_SHAPE = typename OUTPUT_SPEC::SHAPE;
                 constexpr TI LAST_DIM_OUT = get_last(OUTPUT_SHAPE{});
+                constexpr TI LEADING = product(OUTPUT_SHAPE{}) / LAST_DIM_OUT;
                 const auto& src = get<I>(intermediates);
                 using SRC_SHAPE = typename utils::typing::remove_reference_t<decltype(src)>::SPEC::SHAPE;
                 constexpr TI DIM_I = get_last(SRC_SHAPE{});
-                constexpr TI TOTAL_SRC = product(SRC_SHAPE{});
-                constexpr TI LEADING = TOTAL_SRC / DIM_I;
                 for(TI i = 0; i < LEADING; i++){
                     for(TI j = 0; j < DIM_I; j++){
                         TI src_idx = i * DIM_I + j;
@@ -127,11 +125,15 @@ namespace rl_tools{
             }
         }
 
-        template <auto I = 0, typename DEVICE, typename SPEC, typename INPUT_TUPLE, typename STATE_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE>
-        RL_TOOLS_FUNCTION_PLACEMENT void _evaluate_step_branches(DEVICE& device, const ModuleForward<SPEC>& model, const INPUT_TUPLE& inputs, ModuleState<STATE_SPEC>& state, ModuleBuffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode){
+        template <auto I = 0, auto OFFSET = 0, typename DEVICE, typename SPEC, typename INPUT_TUPLE, typename STATE_SPEC, typename CONCAT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE>
+        RL_TOOLS_FUNCTION_PLACEMENT void _evaluate_step_branches(DEVICE& device, const ModuleForward<SPEC>& model, const INPUT_TUPLE& inputs, ModuleState<STATE_SPEC>& state, Tensor<CONCAT_SPEC>& concatenated, ModuleBuffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode){
             if constexpr(I < SPEC::NUM_BRANCHES){
-                evaluate_step(device, get<I>(model.pipelines), get<I>(inputs), get<I>(state.states), get<I>(buffer.intermediates), get<I>(buffer.sub_buffers), rng, mode);
-                _evaluate_step_branches<I + 1>(device, model, inputs, state, buffer, rng, mode);
+                using TI = typename DEVICE::index_t;
+                using INTERMEDIATE_SHAPE = typename utils::typing::remove_reference_t<decltype(get<I>(buffer.intermediates))>::SPEC::SHAPE;
+                constexpr TI DIM_I = get_last(INTERMEDIATE_SHAPE{});
+                auto output_view = view_range(device, concatenated, (TI)OFFSET, tensor::ViewSpec<1, DIM_I>{});
+                evaluate_step(device, get<I>(model.pipelines), get<I>(inputs), get<I>(state.states), output_view, get<I>(buffer.sub_buffers), rng, mode);
+                _evaluate_step_branches<I + 1, OFFSET + DIM_I>(device, model, inputs, state, concatenated, buffer, rng, mode);
             }
         }
 
@@ -388,21 +390,19 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename INPUT_TUPLE, typename STATE_SPEC, typename OUTPUT, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>, typename utils::typing::enable_if_t<nn_models::parallel::detail::is_input_tuple<utils::typing::remove_reference_t<INPUT_TUPLE>>::value>* = nullptr>
     RL_TOOLS_FUNCTION_PLACEMENT void evaluate_step(DEVICE& device, const nn_models::parallel::ModuleForward<SPEC>& model, const INPUT_TUPLE& inputs, nn_models::parallel::ModuleState<STATE_SPEC>& state, OUTPUT& output, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using TI = typename SPEC::TI;
-        nn_models::parallel::_evaluate_step_branches(device, model, inputs, state, buffer, rng, mode);
-        nn_models::parallel::_concatenate_n<SPEC::NUM_BRANCHES>(device, buffer.intermediates, buffer.concatenated);
+        using OUTPUT_TENSOR_SHAPE = typename OUTPUT::SPEC::SHAPE;
+        constexpr TI OUTPUT_LAST_DIM = get_last(OUTPUT_TENSOR_SHAPE{});
+        constexpr TI LEADING = product(OUTPUT_TENSOR_SHAPE{}) / OUTPUT_LAST_DIM;
+        using CONCAT_SHAPE = typename utils::typing::remove_reference_t<decltype(buffer.concatenated)>::SPEC::SHAPE;
+        constexpr TI CONCAT_LAST_DIM = get_last(CONCAT_SHAPE{});
+        auto concat_view = view_memory<tensor::Shape<TI, LEADING, CONCAT_LAST_DIM>>(device, buffer.concatenated);
+        nn_models::parallel::_evaluate_step_branches(device, model, inputs, state, concat_view, buffer, rng, mode);
         if constexpr(SPEC::HAS_HEAD){
-            using CONCAT_SHAPE = typename utils::typing::remove_reference_t<decltype(buffer.concatenated)>::SPEC::SHAPE;
-            constexpr TI CONCAT_LAST_DIM = get_last(CONCAT_SHAPE{});
-            constexpr TI CONCAT_LEADING = product(CONCAT_SHAPE{}) / CONCAT_LAST_DIM;
-            auto concat_2d = reshape_row_major(device, buffer.concatenated, tensor::Shape<TI, CONCAT_LEADING, CONCAT_LAST_DIM>{});
-            using OUTPUT_TENSOR_SHAPE = typename OUTPUT::SPEC::SHAPE;
-            constexpr TI OUTPUT_LAST_DIM = get_last(OUTPUT_TENSOR_SHAPE{});
-            constexpr TI OUTPUT_LEADING = product(OUTPUT_TENSOR_SHAPE{}) / OUTPUT_LAST_DIM;
-            auto output_2d = reshape_row_major(device, output, tensor::Shape<TI, OUTPUT_LEADING, OUTPUT_LAST_DIM>{});
-            evaluate_step(device, model.head, concat_2d, state.head_state, output_2d, buffer.head_buffer, rng, mode);
+            auto output_2d = reshape_row_major(device, output, tensor::Shape<TI, LEADING, OUTPUT_LAST_DIM>{});
+            evaluate_step(device, model.head, concat_view, state.head_state, output_2d, buffer.head_buffer, rng, mode);
         }
         else{
-            copy(device, device, buffer.concatenated, output);
+            copy(device, device, concat_view, output);
         }
     }
 
