@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=ablation
 #SBATCH --gres=gpu:1
-#SBATCH --cpus-per-task=20
+#SBATCH --cpus-per-task=10
 #SBATCH --mem=300G
 #SBATCH --output=slurm-%A_%a.out
 #SBATCH --array=0-5%3
