@@ -78,7 +78,7 @@
 
 namespace rlt = rl_tools;
 
-// #define USE_FRAME_STACKING
+#define USE_FRAME_STACKING
 // #define USE_GRU_TEMPORAL
 // #define STACK_TARGET_CHANNEL
 #if defined(USE_FRAME_STACKING) && defined(USE_GRU_TEMPORAL)
@@ -1299,18 +1299,17 @@ int main(int argc, char** argv){
     rlt::copy(device, device_gpu, student_cpu, student_gpu);
     rlt::init(device_gpu, optimizer_gpu);
     rlt::reset_optimizer_state(device_gpu, optimizer_gpu, student_gpu);
-#ifdef USE_GRU_TEMPORAL
-    typename STUDENT_TYPE::State<true> student_state_gpu;
-    rlt::malloc(device_gpu, student_state_gpu);
-    rlt::reset(device_gpu, student_gpu, student_state_gpu, rng_gpu);
-#endif
-
     using ROLLOUT_STUDENT_TYPE = typename STUDENT_TYPE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<true>>::template CHANGE_BATCH_SIZE<TI, N_ENVIRONMENTS>;
     ROLLOUT_STUDENT_TYPE rollout_student_gpu;
     typename ROLLOUT_STUDENT_TYPE::template Buffer<true> rollout_student_buffers;
     rlt::malloc(device_gpu, rollout_student_gpu);
     rlt::malloc(device_gpu, rollout_student_buffers);
     rlt::copy(device, device_gpu, student_cpu, rollout_student_gpu);
+#ifdef USE_GRU_TEMPORAL
+    typename ROLLOUT_STUDENT_TYPE::template State<true> rollout_student_state_gpu;
+    rlt::malloc(device_gpu, rollout_student_state_gpu);
+    rlt::reset(device_gpu, rollout_student_gpu, rollout_student_state_gpu, rng_gpu);
+#endif
 
     // GPU RAPTOR teacher
     RAPTOR_MODEL raptor_gpu;
@@ -1559,6 +1558,9 @@ int main(int argc, char** argv){
             cudaMemcpy(gpu_episode_return_arr, reset_return.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
             cudaMemcpy(gpu_teacher_forcing_arr, reset_teacher_forcing.data(), N_ENVIRONMENTS * sizeof(bool), cudaMemcpyHostToDevice);
         }
+#ifdef USE_GRU_TEMPORAL
+        rlt::reset(device_gpu, rollout_student_gpu, rollout_student_state_gpu, rng_gpu);
+#endif
         bool full_teacher_forcing = false;
         bool record_video = (epoch_i % CHECKPOINT_CADENCE == 0);
         TI epoch_end_step = global_step + STEPS_PER_ENV * N_ENVIRONMENTS;
@@ -1591,8 +1593,8 @@ int main(int argc, char** argv){
             auto& raptor_gru_layer = rlt::nn_models::sequential::layer<1>(raptor_gpu);
             auto& raptor_gru_state_content = rlt::nn_models::sequential::content_state<1>(raptor_state_gpu.content_state);
 #ifdef USE_GRU_TEMPORAL
-            auto& student_gru_layer = rlt::nn_models::sequential::layer<0>(student_gpu.head);
-            auto& student_gru_state = rlt::nn_models::sequential::content_state<0>(student_state_gpu.head_state.content_state);
+            auto& student_gru_layer = rlt::nn_models::sequential::layer<0>(rollout_student_gpu.head);
+            auto& student_gru_state = rlt::nn_models::sequential::content_state<0>(rollout_student_state_gpu.head_state.content_state);
 #endif
             T cam_aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
             for(TI step_i = 0; step_i < STEPS_PER_ENV; step_i++){
@@ -1865,7 +1867,11 @@ int main(int argc, char** argv){
                     auto inputs = rlt::nn_models::parallel::pack_inputs(step_target_obs_reshaped, step_obs_reshaped, step_state_obs_reshaped);
 #endif
 #endif
+#ifdef USE_GRU_TEMPORAL
+                    rlt::evaluate_step(device_gpu, rollout_student_gpu, inputs, rollout_student_state_gpu, gpu_student_actions_step, rollout_student_buffers, rng_gpu, no_auto_reset_mode);
+#else
                     rlt::evaluate(device_gpu, rollout_student_gpu, inputs, gpu_student_actions_step, rollout_student_buffers, rng_gpu);
+#endif
                 }
                 {
                     imitation_kernels::epilogue_kernel<<<grid, block, 0, device_gpu.stream>>>(
@@ -2139,6 +2145,9 @@ int main(int argc, char** argv){
         }
         epoch_loss = epoch_loss_count > 0 ? epoch_loss_sum / epoch_loss_count : (T)0;
         rlt::copy(device_gpu, device_gpu, student_gpu, rollout_student_gpu);
+#ifdef USE_GRU_TEMPORAL
+        rlt::reset(device_gpu, rollout_student_gpu, rollout_student_state_gpu, rng_gpu);
+#endif
 #endif
 
         // Logging
@@ -2445,6 +2454,9 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, student_gpu);
     rlt::free(device_gpu, rollout_student_gpu);
     rlt::free(device_gpu, rollout_student_buffers);
+#ifdef USE_GRU_TEMPORAL
+    rlt::free(device_gpu, rollout_student_state_gpu);
+#endif
     rlt::free(device_gpu, raptor_gpu);
     rlt::free(device_gpu, raptor_buffer_gpu);
     rlt::free(device_gpu, raptor_state_gpu);
@@ -2478,7 +2490,6 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, gpu_rollout_combined);
 #endif
 #ifdef USE_GRU_TEMPORAL
-    rlt::free(device_gpu, student_state_gpu);
     rlt::free(device_gpu, gpu_rollout_branch_a);
     rlt::free(device_gpu, gpu_rollout_branch_b);
     rlt::free(device_gpu, gpu_rollout_concat);
