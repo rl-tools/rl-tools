@@ -78,9 +78,9 @@
 
 namespace rlt = rl_tools;
 
-// #define USE_FRAME_STACKING
+#define USE_FRAME_STACKING
 // #define USE_GRU_TEMPORAL
-// #define STACK_TARGET_CHANNEL
+#define STACK_TARGET_CHANNEL
 #if defined(USE_FRAME_STACKING) && defined(USE_GRU_TEMPORAL)
 #error "USE_FRAME_STACKING and USE_GRU_TEMPORAL are mutually exclusive"
 #endif
