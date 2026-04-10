@@ -45,7 +45,7 @@ namespace rl_tools{
     template <typename SHAPE, typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT auto view_memory(DEVICE& device, const Tensor<SPEC>& tensor){
         static_assert(product(SHAPE{}) <= SPEC::SIZE);
-        static_assert(tensor::dense_row_major_layout<SPEC, true>());
+        static_assert(tensor::dense_row_major_layout<SPEC>());
         static constexpr auto LAST_STRIDE = get<length(typename SPEC::STRIDE{}) - 1>(typename SPEC::STRIDE{});
         using STRIDE = tensor::RowMajorStride<SHAPE, LAST_STRIDE>;
         using VIEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, SHAPE, true, STRIDE, true>; // note the last boolean signals constness and needs to be flipped for the non-const version of this function
@@ -57,7 +57,7 @@ namespace rl_tools{
     template <typename SHAPE, typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT auto view_memory(DEVICE& device, Tensor<SPEC>& tensor){
         static_assert(product(SHAPE{}) <= SPEC::SIZE);
-        static_assert(tensor::dense_row_major_layout<SPEC, true>());
+        static_assert(tensor::dense_row_major_layout<SPEC>());
         static constexpr auto LAST_STRIDE = get<length(typename SPEC::STRIDE{}) - 1>(typename SPEC::STRIDE{});
         using STRIDE = tensor::RowMajorStride<SHAPE, LAST_STRIDE>;
         using VIEW_SPEC = tensor::Specification<typename SPEC::T, typename SPEC::TI, SHAPE, true, STRIDE, false>;

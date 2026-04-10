@@ -93,8 +93,8 @@ namespace rl_tools{
             if constexpr(LAYER_I == LAST){
                 using LAYER_TYPE = utils::typing::remove_reference_t<decltype(layer<LAYER_I>(model))>;
                 using OUTPUT_SHAPE = typename LAYER_TYPE::template OUTPUT_SHAPE_FACTORY<typename INPUT::SPEC::SHAPE>;
-                auto output_view = _content_output_helper<OUTPUT_SHAPE>(device, output);
-                evaluate_step(device, layer<LAYER_I>(model), input, content_state<LAYER_I>(content_state_container), output_view, content_buffer<LAYER_I>(content_buffers), rng, mode);
+                // auto output_view = _content_output_helper<OUTPUT_SHAPE>(device, output);
+                evaluate_step(device, layer<LAYER_I>(model), input, content_state<LAYER_I>(content_state_container), output, content_buffer<LAYER_I>(content_buffers), rng, mode);
             }
             else{
                 auto& output_buffer = TICK ? buffers.tick : buffers.tock;
