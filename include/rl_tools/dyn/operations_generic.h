@@ -92,18 +92,21 @@ namespace rl_tools{
                 case LayerType::DENSE: replace_last_dim(layer.template as<layers::Dense<TI>>().output_dim); break;
                 case LayerType::GRU: replace_last_dim(layer.template as<layers::GRU<TI>>().hidden_dim); break;
                 case LayerType::CONV2D: {
+                    if(in_rank < 3){ layer.output_size = 0; break; }
                     auto& c = layer.template as<layers::Conv2d<TI>>();
                     TI ih = in_shape[in_rank-3], iw = in_shape[in_rank-2];
                     spatial_output((ih+2*c.padding_h-c.kernel_height)/c.stride_h+1, (iw+2*c.padding_w-c.kernel_width)/c.stride_w+1, c.output_channels, in_size/(ih*iw*c.input_channels));
                     break;
                 }
                 case LayerType::MAX_POOL2D: {
+                    if(in_rank < 3){ layer.output_size = 0; break; }
                     auto& mp = layer.template as<layers::MaxPool2d<TI>>();
                     TI ih = in_shape[in_rank-3], iw = in_shape[in_rank-2], ch = in_shape[in_rank-1];
                     spatial_output((ih+2*mp.padding_h-mp.kernel_height)/mp.stride_h+1, (iw+2*mp.padding_w-mp.kernel_width)/mp.stride_w+1, ch, in_size/(ih*iw*ch));
                     break;
                 }
                 case LayerType::AVG_POOL2D: {
+                    if(in_rank < 3){ layer.output_size = 0; break; }
                     TI ch = in_shape[in_rank-1], batch = in_size / (in_shape[in_rank-3]*in_shape[in_rank-2]*ch);
                     layer.output_rank = 2; layer.output_shape[0] = batch; layer.output_shape[1] = ch; layer.output_size = batch*ch;
                     break;
@@ -167,6 +170,7 @@ namespace rl_tools{
                     propagate_shapes(layer.children[0], in_shape, in_rank);
                     propagate_shapes(layer.children[1], in_shape, in_rank);
                 }
+                if(layer.children[0].output_size == 0 || layer.children[1].output_size == 0){ layer.output_size = 0; return; }
                 TI rank_a = layer.children[0].output_rank;
                 TI last_a = layer.children[0].output_shape[rank_a - 1];
                 TI last_b = layer.children[1].output_shape[rank_a - 1];
@@ -197,6 +201,7 @@ namespace rl_tools{
                         }
                     }
                     propagate_shapes(layer.children[i], cur_shape, cur_rank);
+                    if(layer.children[i].output_size == 0){ layer.output_size = 0; return; }
                     cur_shape = layer.children[i].output_shape;
                     cur_rank = layer.children[i].output_rank;
                 }
