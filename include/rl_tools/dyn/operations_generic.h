@@ -582,6 +582,23 @@ namespace rl_tools{
             for(TI i = 0; i < cs->num_children; i++) reset(device, layer.children[i], cs->child_states[i]);
         }
     }
+    template <typename DEVICE, typename TI>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(DEVICE& device, DEVICE&, const dyn::State<TI>& src, dyn::State<TI>& dst){
+        if(src.type == dyn::LayerType::GRU){
+            auto* src_gs = reinterpret_cast<const dyn::state::GRU<TI>*>(src.data);
+            auto* dst_gs = reinterpret_cast<dyn::state::GRU<TI>*>(dst.data);
+            TI bytes = src_gs->hidden.size() * dyn::size_of<TI>(src_gs->hidden.type);
+            const char* s = reinterpret_cast<const char*>(src_gs->hidden.data);
+            char* d = reinterpret_cast<char*>(dst_gs->hidden.data);
+            for(TI i = 0; i < bytes; i++) d[i] = s[i];
+            dst_gs->initialized = src_gs->initialized;
+        }
+        else if(src.data && dst.data){
+            auto* src_cs = reinterpret_cast<const dyn::state::Composite<TI>*>(src.data);
+            auto* dst_cs = reinterpret_cast<dyn::state::Composite<TI>*>(dst.data);
+            for(TI i = 0; i < src_cs->num_children; i++) copy(device, device, src_cs->child_states[i], dst_cs->child_states[i]);
+        }
+    }
 
     // --- Layer free ---
     template <typename DEVICE, typename TI>
