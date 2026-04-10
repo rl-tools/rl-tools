@@ -39,10 +39,10 @@ namespace rl_tools{
 
     namespace inference::executor{
         template <bool ORIGINAL, typename DEVICE, typename SPEC>
-        JitterStatus<SPEC> timing_jitter_status(DEVICE& device, Executor<SPEC>& executor){
+        JitterStatus<typename SPEC::STATUS_SPEC> timing_jitter_status(DEVICE& device, Executor<SPEC>& executor){
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
-            JitterStatus<SPEC> result;
+            JitterStatus<typename SPEC::STATUS_SPEC> result;
             result.OK = true;
             result.MAGNITUDE = 0;
             if((ORIGINAL ? executor.control_original_dt_index : executor.control_dt_index) < SPEC::TIMING_STATS_NUM_STEPS){
@@ -63,10 +63,10 @@ namespace rl_tools{
         }
 
         template <bool ORIGINAL, typename DEVICE, typename SPEC>
-        BiasStatus<SPEC> timing_bias_status(DEVICE& device, Executor<SPEC>& executor){
+        BiasStatus<typename SPEC::STATUS_SPEC> timing_bias_status(DEVICE& device, Executor<SPEC>& executor){
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
-            BiasStatus<SPEC> result;
+            BiasStatus<typename SPEC::STATUS_SPEC> result;
             result.OK = true;
             result.MAGNITUDE = 0;
             if((ORIGINAL ? executor.control_original_dt_index : executor.control_dt_index) < SPEC::TIMING_STATS_NUM_STEPS){
@@ -90,7 +90,7 @@ namespace rl_tools{
     }
 
     template <typename DEVICE, typename SPEC, typename POLICY, typename OBS_SPEC, typename ACTION_SPEC, typename RNG>
-    inference::executor::Status<SPEC> control(DEVICE&device, inference::Executor<SPEC>& executor, typename SPEC::TIMESTAMP nanoseconds, POLICY& policy, Tensor<OBS_SPEC>& observation, Tensor<ACTION_SPEC>& action, RNG& rng){
+    inference::executor::Status<typename SPEC::STATUS_SPEC> control(DEVICE&device, inference::Executor<SPEC>& executor, typename SPEC::TIMESTAMP nanoseconds, POLICY& policy, Tensor<OBS_SPEC>& observation, Tensor<ACTION_SPEC>& action, RNG& rng){
         static_assert(OBS_SPEC::SHAPE::LENGTH == 2);
         static_assert(OBS_SPEC::SHAPE::FIRST == 1);
         static_assert(OBS_SPEC::SHAPE::LAST == SPEC::INPUT_DIM);
@@ -113,7 +113,7 @@ namespace rl_tools{
         if(nanoseconds < executor.last_observation_timestamp){
             executor.last_observation_timestamp = nanoseconds;
             executor.last_observation_timestamp_set = true;
-            inference::executor::Status<SPEC> status = {};
+            inference::executor::Status<typename SPEC::STATUS_SPEC> status = {};
             status.OK = false;
             status.TIMESTAMP_INVALID = true;
             return status;
@@ -121,7 +121,7 @@ namespace rl_tools{
         if(nanoseconds < executor.last_control_timestamp){
             executor.last_control_timestamp = nanoseconds;
             executor.last_control_timestamp_set = true;
-            inference::executor::Status<SPEC> status = {};
+            inference::executor::Status<typename SPEC::STATUS_SPEC> status = {};
             status.OK = false;
             status.TIMESTAMP_INVALID = true;
             return status;
@@ -136,9 +136,9 @@ namespace rl_tools{
         TIMESTAMP time_diff_previous_obs = executor.last_observation_timestamp - executor.last_control_timestamp;
         TIMESTAMP time_diff_control = nanoseconds - executor.last_control_timestamp;
 
-        inference::executor::Status<SPEC> status = {};
+        inference::executor::Status<typename SPEC::STATUS_SPEC> status = {};
         status.OK = true;
-        status.source = inference::executor::Status<SPEC>::OBSERVATION;
+        status.source = inference::executor::Status<typename SPEC::STATUS_SPEC>::OBSERVATION;
         if(executor.last_control_timestamp > executor.last_observation_timestamp){
             status.OK = false;
             status.LAST_CONTROL_TIMESTAMP_GREATER_THAN_LAST_OBSERVATION_TIMESTAMP = true;
@@ -165,7 +165,7 @@ namespace rl_tools{
         status.control_reasons_intermediate.reset = reset;
         if(status.control_reasons_intermediate.time_diff || status.control_reasons_intermediate.force_sync || status.control_reasons_intermediate.reset){
             // if it is time to control according to the inference frequency
-            status.source = inference::executor::Status<SPEC>::CONTROL;
+            status.source = inference::executor::Status<typename SPEC::STATUS_SPEC>::CONTROL;
             if(!reset){ // if the control is due to a reset, we can/shall not rely on time_diff_control
                 executor.control_dt[executor.control_dt_index++ % SPEC::TIMING_STATS_NUM_STEPS] = time_diff_control;
             }
@@ -190,7 +190,7 @@ namespace rl_tools{
                 if(!reset){
                     executor.control_original_dt[executor.control_original_dt_index++ % SPEC::TIMING_STATS_NUM_STEPS] = time_diff_control_original;
                 }
-                status.step_type = inference::executor::Status<SPEC>::NATIVE;
+                status.step_type = inference::executor::Status<typename SPEC::STATUS_SPEC>::NATIVE;
                 status.timing_jitter = inference::executor::timing_jitter_status<true>(device, executor);
                 status.timing_bias = inference::executor::timing_bias_status<true>(device, executor);
                 status.OK = status.OK && status.timing_jitter.OK && status.timing_bias.OK;
@@ -198,7 +198,7 @@ namespace rl_tools{
             else{
                 copy(device, device, executor.policy_state, executor.policy_state_temp);
                 evaluate_step(device, policy, observation, executor.policy_state_temp, action, executor.policy_buffer, rng, mode);
-                status.step_type = inference::executor::Status<SPEC>::INTERMEDIATE;
+                status.step_type = inference::executor::Status<typename SPEC::STATUS_SPEC>::INTERMEDIATE;
                 status.timing_jitter = inference::executor::timing_jitter_status<false>(device, executor);
                 status.timing_bias = inference::executor::timing_bias_status<false>(device, executor);
                 status.OK = status.OK && status.timing_jitter.OK && status.timing_bias.OK;

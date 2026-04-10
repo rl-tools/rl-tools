@@ -19,24 +19,10 @@ namespace rl_tools{
                 static constexpr T NATIVE_TIMING_BIAS_HIGH_THRESHOLD = 1.2;
                 static constexpr T NATIVE_TIMING_BIAS_LOW_THRESHOLD = 0.8;
             };
-            template <typename T_TYPE_POLICY, typename T_TI, typename T_TIMESTAMP, typename T_POLICY, T_TIMESTAMP T_CONTROL_INTERVAL_INTERMEDIATE_NS, T_TIMESTAMP T_CONTROL_INTERVAL_NATIVE_NS, bool T_FORCE_SYNC_INTERMEDIATE=false, T_TI T_FORCE_SYNC_NATIVE=0, bool T_FORCE_SYNC_NATIVE_RUNTIME=false,typename T_WARNING_LEVELS=WarningLevelsDefault<T_TYPE_POLICY>, bool T_DYNAMIC_ALLOCATION=true>
-            struct Specification{
+            template <typename T_TYPE_POLICY>
+            struct StatusSpecification{
                 using TYPE_POLICY = T_TYPE_POLICY;
                 using T = typename TYPE_POLICY::DEFAULT;
-                using TI = T_TI;
-                using TIMESTAMP = T_TIMESTAMP;
-                static_assert(sizeof(TIMESTAMP) >= 8, "The TIMESTAMP should be unsigned and at least 8 bytes to prevent overflow (it shall be measured in nanoseconds)");
-                using POLICY = T_POLICY;
-                static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
-                static constexpr TI TIMING_STATS_NUM_STEPS = 100;
-                static constexpr TIMESTAMP CONTROL_INTERVAL_INTERMEDIATE_NS = T_CONTROL_INTERVAL_INTERMEDIATE_NS;
-                static constexpr TIMESTAMP CONTROL_INTERVAL_NATIVE_NS = T_CONTROL_INTERVAL_NATIVE_NS; // the control interval native to the policy (that it was trained at)
-                static constexpr bool FORCE_SYNC_INTERMEDIATE = T_FORCE_SYNC_INTERMEDIATE; // forcing the sync of intermediate steps with the observations: for each observation => run intermediate control
-                static constexpr bool FORCE_SYNC_NATIVE_RUNTIME = T_FORCE_SYNC_NATIVE_RUNTIME; // runtime variante of FORCE_SYNC_NATIVE, allows to react to different inference/control frequencies without recompiling when setting
-                static constexpr TI FORCE_SYNC_NATIVE = T_FORCE_SYNC_NATIVE; // 0 means not forcing, != 0 means forcing every FORCE_SYNC_TRAINING inference control steps
-                static constexpr TI INPUT_DIM = POLICY::INPUT_SHAPE::LAST;
-                static constexpr TI OUTPUT_DIM = POLICY::OUTPUT_SHAPE::LAST;
-                using WARNING_LEVELS = T_WARNING_LEVELS;
             };
             template <typename T_SPEC>
             struct JitterStatus{
@@ -88,6 +74,26 @@ namespace rl_tools{
                 static_assert(sizeof(Status<TestSpec>) <= 36);
 #endif
             }
+            template <typename T_TYPE_POLICY, typename T_TI, typename T_TIMESTAMP, typename T_POLICY, T_TIMESTAMP T_CONTROL_INTERVAL_INTERMEDIATE_NS, T_TIMESTAMP T_CONTROL_INTERVAL_NATIVE_NS, bool T_FORCE_SYNC_INTERMEDIATE=false, T_TI T_FORCE_SYNC_NATIVE=0, bool T_FORCE_SYNC_NATIVE_RUNTIME=false,typename T_WARNING_LEVELS=WarningLevelsDefault<T_TYPE_POLICY>, bool T_DYNAMIC_ALLOCATION=true, typename T_STATUS_SPEC=StatusSpecification<T_TYPE_POLICY>>
+            struct Specification{
+                using TYPE_POLICY = T_TYPE_POLICY;
+                using T = typename TYPE_POLICY::DEFAULT;
+                using STATUS_SPEC = T_STATUS_SPEC;
+                using TI = T_TI;
+                using TIMESTAMP = T_TIMESTAMP;
+                static_assert(sizeof(TIMESTAMP) >= 8, "The TIMESTAMP should be unsigned and at least 8 bytes to prevent overflow (it shall be measured in nanoseconds)");
+                using POLICY = T_POLICY;
+                static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
+                static constexpr TI TIMING_STATS_NUM_STEPS = 100;
+                static constexpr TIMESTAMP CONTROL_INTERVAL_INTERMEDIATE_NS = T_CONTROL_INTERVAL_INTERMEDIATE_NS;
+                static constexpr TIMESTAMP CONTROL_INTERVAL_NATIVE_NS = T_CONTROL_INTERVAL_NATIVE_NS; // the control interval native to the policy (that it was trained at)
+                static constexpr bool FORCE_SYNC_INTERMEDIATE = T_FORCE_SYNC_INTERMEDIATE; // forcing the sync of intermediate steps with the observations: for each observation => run intermediate control
+                static constexpr bool FORCE_SYNC_NATIVE_RUNTIME = T_FORCE_SYNC_NATIVE_RUNTIME; // runtime variante of FORCE_SYNC_NATIVE, allows to react to different inference/control frequencies without recompiling when setting
+                static constexpr TI FORCE_SYNC_NATIVE = T_FORCE_SYNC_NATIVE; // 0 means not forcing, != 0 means forcing every FORCE_SYNC_TRAINING inference control steps
+                static constexpr TI INPUT_DIM = POLICY::INPUT_SHAPE::LAST;
+                static constexpr TI OUTPUT_DIM = POLICY::OUTPUT_SHAPE::LAST;
+                using WARNING_LEVELS = T_WARNING_LEVELS;
+            };
         }
         template <typename T_SPEC>
         struct Executor{
