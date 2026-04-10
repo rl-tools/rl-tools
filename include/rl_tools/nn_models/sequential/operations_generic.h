@@ -60,12 +60,14 @@ namespace rl_tools{
             auto output_matrix = output(device, layer<LAYER_I>(m));
             static_assert(sizeof(output_matrix) <= sizeof(void*));
             return _content_output_helper<typename layer_spec_t<LAYER_I, SPEC>::OUTPUT_SHAPE>(device, output_matrix);
+            // return output(device, layer<LAYER_I>(m));
         }
         template <auto LAYER_I, typename DEVICE, typename SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT auto layer_output(DEVICE& device, const ModuleGradient<SPEC>& m){
             auto output_matrix = output(device, layer<LAYER_I>(m));
             static_assert(sizeof(output_matrix) <= sizeof(void*));
             return _content_output_helper<typename layer_spec_t<LAYER_I, SPEC>::OUTPUT_SHAPE>(device, output_matrix);
+            // return output(device, layer<LAYER_I>(m));
         }
 
         template<bool TICK = true, auto LAYER_I = 0, typename DEVICE, typename MODULE_SPEC, typename INPUT, typename OUTPUT, typename BUFFER_SPEC, typename CONTENT_BUFFER_SPEC, typename RNG, typename MODE>
@@ -73,8 +75,7 @@ namespace rl_tools{
             constexpr auto LAST = MODULE_SPEC::NUM_LAYERS - 1;
             if constexpr(LAYER_I == LAST){
                 using LAYER_TYPE = utils::typing::remove_reference_t<decltype(layer<LAYER_I>(model))>;
-                using OUTPUT_SHAPE = typename LAYER_TYPE::template OUTPUT_SHAPE_FACTORY<typename INPUT::SPEC::SHAPE>;
-                auto output_view = _content_output_helper<OUTPUT_SHAPE>(device, output);
+                auto output_view = to_tensor(device, output);
                 evaluate(device, layer<LAYER_I>(model), input, output_view, content_buffer<LAYER_I>(content_buffers), rng, mode);
             }
             else{
@@ -93,7 +94,6 @@ namespace rl_tools{
             if constexpr(LAYER_I == LAST){
                 using LAYER_TYPE = utils::typing::remove_reference_t<decltype(layer<LAYER_I>(model))>;
                 using OUTPUT_SHAPE = typename LAYER_TYPE::template OUTPUT_SHAPE_FACTORY<typename INPUT::SPEC::SHAPE>;
-                // auto output_view = _content_output_helper<OUTPUT_SHAPE>(device, output);
                 evaluate_step(device, layer<LAYER_I>(model), input, content_state<LAYER_I>(content_state_container), output, content_buffer<LAYER_I>(content_buffers), rng, mode);
             }
             else{
