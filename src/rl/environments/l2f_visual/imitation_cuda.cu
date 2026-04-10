@@ -1840,6 +1840,8 @@ int main(int argc, char** argv){
             }
         }
         epoch_loss = epoch_loss_count > 0 ? epoch_loss_sum / epoch_loss_count : (T)0;
+        rlt::copy(device_gpu, device_gpu, student_gpu, rollout_student_gpu);
+        rlt::reset(device_gpu, rollout_student_gpu, rollout_student_state_gpu, rng_gpu);
 #else
         for(TI pass = 0; pass < N_TRAIN_PASSES; pass++){
             // Shuffle batch order
