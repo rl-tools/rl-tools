@@ -345,7 +345,7 @@ namespace imitation_kernels{
         T* scene_translation_arr,
         T* scene_yaw_arr,
         T* indoor_positions_ptr, TI* num_indoor_positions_ptr, TI* env_scene_ptr, TI max_indoor_pos,
-        RNG rng, TI step_i
+        RNG rng, TI step_i, TI episode_step_limit
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i >= N_ENVIRONMENTS) return;
@@ -353,7 +353,7 @@ namespace imitation_kernels{
         auto& env = envs[env_i];
         auto& params = env_params[env_i];
         auto& state = states[env_i];
-        bool need_reset = terminated_flags[env_i] || episode_step_arr[env_i] >= EPISODE_STEP_LIMIT;
+        bool need_reset = terminated_flags[env_i] || episode_step_arr[env_i] >= episode_step_limit;
         needs_reset_flags[env_i] = need_reset;
         if(need_reset){
             if(episode_step_arr[env_i] > 0){
@@ -1362,7 +1362,15 @@ int main(int argc, char** argv){
     std::vector<uint32_t> video_pixel_buffer(N_ENVIRONMENTS * CAM_PIXELS);
     std::vector<uint8_t> mosaic_frame(MOSAIC_W * MOSAIC_H * 3);
 
+    auto curriculum_step_limit = [](TI epoch) -> TI {
+        if(epoch < 100) return 50;
+        if(epoch < 1000) return 100;
+        if(epoch < 3000) return 200;
+        return 500;
+    };
+
     for(TI epoch_i = 0; epoch_i < NUM_EPOCHS; epoch_i++){
+        TI current_episode_step_limit = curriculum_step_limit(epoch_i);
         auto epoch_start = std::chrono::high_resolution_clock::now();
         std::shuffle(scene_permutation.begin(), scene_permutation.end(), scene_rng);
         for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
@@ -1450,7 +1458,7 @@ int main(int argc, char** argv){
                     gpu_scene_translation_arr,
                     gpu_scene_yaw_arr,
                     gpu_indoor_positions, gpu_num_indoor_positions, gpu_env_scene, MAX_INDOOR_POS,
-                    rng_gpu, step_i);
+                    rng_gpu, step_i, current_episode_step_limit);
                 CUDA_CHECK("prologue_kernel");
 #ifdef USE_FRAME_STACKING
                 imitation_kernels::record_episode_start_kernel<<<grid, block, 0, device_gpu.stream>>>(tag_device, gpu_episode_start_step, gpu_episode_start_step_per_row, step_i);
@@ -1994,6 +2002,7 @@ int main(int argc, char** argv){
                   << "Epoch: " << std::setw(5) << epoch_i
                   << " MSE: " << std::setw(10) << std::setprecision(6) << std::fixed << epoch_loss
                   << " mean_ep_len: " << std::setw(6) << std::setprecision(1) << mean_episode_length
+                  << " ep_limit: " << std::setw(3) << current_episode_step_limit
                   << " episodes: " << std::setw(5) << episode_count
                   << " fps: " << std::setw(7) << std::setprecision(0) << fps
                   << " render: " << std::setw(5) << std::setprecision(1) << render_time_s << "s"
@@ -2023,6 +2032,7 @@ int main(int argc, char** argv){
         rlt::add_scalar(device, device.logger, "training/epoch_time_s", epoch_elapsed.count());
         rlt::add_scalar(device, device.logger, "training/total_time_s", training_elapsed.count());
         rlt::add_scalar(device, device.logger, "training/teacher_forcing", full_teacher_forcing ? (T)1 : TEACHER_FORCING_FRACTION);
+        rlt::add_scalar(device, device.logger, "curriculum/episode_step_limit", static_cast<T>(current_episode_step_limit));
 #endif
 
         if(epoch_i % CHECKPOINT_CADENCE == 0){
