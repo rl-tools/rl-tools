@@ -7,15 +7,6 @@
 #include "../../utils/generic/typing.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template <typename TARGET_SHAPE, typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT auto _content_output_helper(DEVICE& device, Tensor<SPEC>& tensor);
-    template <typename TARGET_SHAPE, typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT auto _content_output_helper(DEVICE& device, const Tensor<SPEC>& tensor);
-    template <typename TARGET_SHAPE, typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT auto _content_output_helper(DEVICE& device, Matrix<SPEC>& matrix);
-    template <typename TARGET_SHAPE, typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT auto _content_output_helper(DEVICE& device, const Matrix<SPEC>& matrix);
-
     namespace nn_models::sequential {
         template <auto LAYER_I, typename SPEC>
         using layer_spec_t = typename tuple_element<LAYER_I, typename SPEC::LAYER_SPECS>::type;
@@ -57,17 +48,11 @@ namespace rl_tools{
 
         template <auto LAYER_I, typename DEVICE, typename SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT auto layer_output(DEVICE& device, ModuleGradient<SPEC>& m){
-            auto output_matrix = output(device, layer<LAYER_I>(m));
-            static_assert(sizeof(output_matrix) <= sizeof(void*));
-            return _content_output_helper<typename layer_spec_t<LAYER_I, SPEC>::OUTPUT_SHAPE>(device, output_matrix);
-            // return output(device, layer<LAYER_I>(m));
+            return output(device, layer<LAYER_I>(m));
         }
         template <auto LAYER_I, typename DEVICE, typename SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT auto layer_output(DEVICE& device, const ModuleGradient<SPEC>& m){
-            auto output_matrix = output(device, layer<LAYER_I>(m));
-            static_assert(sizeof(output_matrix) <= sizeof(void*));
-            return _content_output_helper<typename layer_spec_t<LAYER_I, SPEC>::OUTPUT_SHAPE>(device, output_matrix);
-            // return output(device, layer<LAYER_I>(m));
+            return output(device, layer<LAYER_I>(m));
         }
 
         template<bool TICK = true, auto LAYER_I = 0, typename DEVICE, typename MODULE_SPEC, typename INPUT, typename OUTPUT, typename BUFFER_SPEC, typename CONTENT_BUFFER_SPEC, typename RNG, typename MODE>
@@ -346,35 +331,6 @@ namespace rl_tools{
     template <typename BUFFER_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT constexpr const auto& get_last_buffer(const nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffer){
         return get_buffer<BUFFER_SPEC::SPEC::NUM_LAYERS - 1>(buffer);
-    }
-
-    template <typename TARGET_SHAPE, typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT auto _content_output_helper(DEVICE& device, Tensor<SPEC>& tensor){
-        if constexpr(utils::typing::is_same_v<TARGET_SHAPE, typename SPEC::SHAPE>){
-            return tensor;
-        } else {
-            return view_memory<TARGET_SHAPE>(device, tensor);
-        }
-    }
-    template <typename TARGET_SHAPE, typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT auto _content_output_helper(DEVICE& device, const Tensor<SPEC>& tensor){
-        if constexpr(utils::typing::is_same_v<TARGET_SHAPE, typename SPEC::SHAPE>){
-            return tensor;
-        } else {
-            return view_memory<TARGET_SHAPE>(device, tensor);
-        }
-    }
-    template <typename TARGET_SHAPE, typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT auto _content_output_helper(DEVICE& device, Matrix<SPEC>& matrix){
-        auto output_tensor = to_tensor(device, matrix);
-        auto output_tensor_reshaped = reshape_row_major(device, output_tensor, TARGET_SHAPE{});
-        return output_tensor_reshaped;
-    }
-    template <typename TARGET_SHAPE, typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT auto _content_output_helper(DEVICE& device, const Matrix<SPEC>& matrix){
-        auto output_tensor = to_tensor(device, matrix);
-        auto output_tensor_reshaped = reshape_row_major(device, output_tensor, TARGET_SHAPE{});
-        return output_tensor_reshaped;
     }
 
     template <typename DEVICE, typename SPEC>
