@@ -92,18 +92,21 @@ namespace rl_tools{
                 case LayerType::DENSE: replace_last_dim(layer.template as<layers::Dense<TI>>().output_dim); break;
                 case LayerType::GRU: replace_last_dim(layer.template as<layers::GRU<TI>>().hidden_dim); break;
                 case LayerType::CONV2D: {
+                    if(in_rank < 3){ layer.output_size = 0; break; }
                     auto& c = layer.template as<layers::Conv2d<TI>>();
                     TI ih = in_shape[in_rank-3], iw = in_shape[in_rank-2];
                     spatial_output((ih+2*c.padding_h-c.kernel_height)/c.stride_h+1, (iw+2*c.padding_w-c.kernel_width)/c.stride_w+1, c.output_channels, in_size/(ih*iw*c.input_channels));
                     break;
                 }
                 case LayerType::MAX_POOL2D: {
+                    if(in_rank < 3){ layer.output_size = 0; break; }
                     auto& mp = layer.template as<layers::MaxPool2d<TI>>();
                     TI ih = in_shape[in_rank-3], iw = in_shape[in_rank-2], ch = in_shape[in_rank-1];
                     spatial_output((ih+2*mp.padding_h-mp.kernel_height)/mp.stride_h+1, (iw+2*mp.padding_w-mp.kernel_width)/mp.stride_w+1, ch, in_size/(ih*iw*ch));
                     break;
                 }
                 case LayerType::AVG_POOL2D: {
+                    if(in_rank < 3){ layer.output_size = 0; break; }
                     TI ch = in_shape[in_rank-1], batch = in_size / (in_shape[in_rank-3]*in_shape[in_rank-2]*ch);
                     layer.output_rank = 2; layer.output_shape[0] = batch; layer.output_shape[1] = ch; layer.output_size = batch*ch;
                     break;
@@ -167,6 +170,7 @@ namespace rl_tools{
                     propagate_shapes(layer.children[0], in_shape, in_rank);
                     propagate_shapes(layer.children[1], in_shape, in_rank);
                 }
+                if(layer.children[0].output_size == 0 || layer.children[1].output_size == 0){ layer.output_size = 0; return; }
                 TI rank_a = layer.children[0].output_rank;
                 TI last_a = layer.children[0].output_shape[rank_a - 1];
                 TI last_b = layer.children[1].output_shape[rank_a - 1];
@@ -197,6 +201,7 @@ namespace rl_tools{
                         }
                     }
                     propagate_shapes(layer.children[i], cur_shape, cur_rank);
+                    if(layer.children[i].output_size == 0){ layer.output_size = 0; return; }
                     cur_shape = layer.children[i].output_shape;
                     cur_rank = layer.children[i].output_rank;
                 }
@@ -580,6 +585,23 @@ namespace rl_tools{
         else if(state.data){
             auto* cs = reinterpret_cast<dyn::state::Composite<TI>*>(state.data);
             for(TI i = 0; i < cs->num_children; i++) reset(device, layer.children[i], cs->child_states[i]);
+        }
+    }
+    template <typename DEVICE, typename TI>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(DEVICE& device, DEVICE&, const dyn::State<TI>& src, dyn::State<TI>& dst){
+        if(src.type == dyn::LayerType::GRU){
+            auto* src_gs = reinterpret_cast<const dyn::state::GRU<TI>*>(src.data);
+            auto* dst_gs = reinterpret_cast<dyn::state::GRU<TI>*>(dst.data);
+            TI bytes = src_gs->hidden.size() * dyn::size_of<TI>(src_gs->hidden.type);
+            const char* s = reinterpret_cast<const char*>(src_gs->hidden.data);
+            char* d = reinterpret_cast<char*>(dst_gs->hidden.data);
+            for(TI i = 0; i < bytes; i++) d[i] = s[i];
+            dst_gs->initialized = src_gs->initialized;
+        }
+        else if(src.data && dst.data){
+            auto* src_cs = reinterpret_cast<const dyn::state::Composite<TI>*>(src.data);
+            auto* dst_cs = reinterpret_cast<dyn::state::Composite<TI>*>(dst.data);
+            for(TI i = 0; i < src_cs->num_children; i++) copy(device, device, src_cs->child_states[i], dst_cs->child_states[i]);
         }
     }
 
