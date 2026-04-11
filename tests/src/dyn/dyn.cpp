@@ -1033,18 +1033,22 @@ TEST(TEST_DYN, parallel_cnn_state){
     rlt::persist::backends::tar::ReaderGroup<rlt::persist::backends::tar::ReaderGroupSpecification<TI>> rg{"", tar_data.data(), static_cast<TI>(tar_data.size())};
     auto dmg = rlt::get_group(device, rg, "model");
     rlt::dyn::Layer<TI> dm; ASSERT_TRUE(rlt::load(device, dm, dmg)); ASSERT_EQ(dm.type, rlt::dyn::LayerType::PARALLEL);
-    rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> di, d_out;
-    TI is[] = {BATCH, TOTAL_INPUT}; rlt::dyn::set_shape(di, (TI)2, is); di.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, di);
-    for(TI b = 0; b < BATCH; b++){
-        for(TI i = 0; i < IMG_FLAT; i++) rlt::dyn::set(device, di, b * TOTAL_INPUT + i, rlt::get_flat(device, input_img, b * IMG_FLAT + i));
-        for(TI i = 0; i < STATE_DIM; i++) rlt::dyn::set(device, di, b * TOTAL_INPUT + IMG_FLAT + i, rlt::get_flat(device, input_state, b * STATE_DIM + i));
-    }
+    rlt::dyn::TensorTuple<TI> dt;
+    dt.num_tensors = 2;
+    TI img_shape[] = {BATCH, IMG_H, IMG_W, IMG_C};
+    rlt::dyn::set_shape(dt.tensors[0], (TI)4, img_shape); dt.tensors[0].type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, dt.tensors[0]);
+    for(TI i = 0; i < BATCH * IMG_FLAT; i++) rlt::dyn::set(device, dt.tensors[0], i, rlt::get_flat(device, input_img, i));
+    TI state_shape[] = {BATCH, STATE_DIM};
+    rlt::dyn::set_shape(dt.tensors[1], (TI)2, state_shape); dt.tensors[1].type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, dt.tensors[1]);
+    for(TI i = 0; i < BATCH * STATE_DIM; i++) rlt::dyn::set(device, dt.tensors[1], i, rlt::get_flat(device, input_state, i));
+    rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> d_out;
     TI os[] = {BATCH, OUTPUT_DIM}; rlt::dyn::set_shape(d_out, (TI)2, os); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
-    rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, dm, di); rlt::malloc(device, db);
-    ASSERT_TRUE(rlt::evaluate(device, dm, di, d_out, db));
+    rlt::dyn::propagate_shapes(dm, dt);
+    rlt::dyn::Buffer<TI> db; db.layer = &dm; rlt::malloc(device, db);
+    ASSERT_TRUE(rlt::evaluate(device, dm, dt, d_out, db));
     T md = 0;
     for(TI b = 0; b < BATCH; b++) for(TI j = 0; j < OUTPUT_DIM; j++){ T d = std::abs(rlt::get_flat(device, output_static, b * OUTPUT_DIM + j) - rlt::dyn::get(device, d_out, b * OUTPUT_DIM + j)); if(d > md) md = d; }
     std::cout << "Parallel CNN+State max diff: " << md << std::endl; ASSERT_NEAR(md, 0, 1e-4);
-    rlt::free(device, di); rlt::free(device, d_out); rlt::free(device, db); rlt::free(device, dm);
+    rlt::free(device, dt.tensors[0]); rlt::free(device, dt.tensors[1]); rlt::free(device, d_out); rlt::free(device, db); rlt::free(device, dm);
     rlt::free(device, model); rlt::free(device, buf); rlt::free(device, input_img); rlt::free(device, input_state); rlt::free(device, output_static);
 }

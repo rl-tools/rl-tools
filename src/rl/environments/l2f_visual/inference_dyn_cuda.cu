@@ -249,6 +249,21 @@ int main(int argc, char** argv){
     std::cout << "Loading checkpoint: " << checkpoint_path << std::endl;
     rlt::dyn::Layer<TI> model;
     std::string checkpoint_obs;
+
+    // Tuple input: image branch [1, H, W, C] + state branch [1, STATE_OBS_DIM]
+    rlt::dyn::TensorTuple<TI> dyn_inputs;
+    dyn_inputs.num_tensors = 2;
+    {
+        TI img_shape[] = {(TI)1, IMG_H, IMG_W, COMBINED_IMG_C};
+        rlt::dyn::set_shape(dyn_inputs.tensors[0], (TI)4, img_shape);
+        dyn_inputs.tensors[0].type = rlt::dyn::Type::FLOAT32;
+        rlt::malloc(device, dyn_inputs.tensors[0]);
+        TI state_shape[] = {(TI)1, STATE_OBS_DIM};
+        rlt::dyn::set_shape(dyn_inputs.tensors[1], (TI)2, state_shape);
+        dyn_inputs.tensors[1].type = rlt::dyn::Type::FLOAT32;
+        rlt::malloc(device, dyn_inputs.tensors[1]);
+    }
+
     {
         std::string cp_path(checkpoint_path);
         bool is_hdf5 = (cp_path.size() >= 3 && cp_path.substr(cp_path.size() - 3) == ".h5");
@@ -270,7 +285,14 @@ int main(int argc, char** argv){
             rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> example_output;
             bool have_example = rlt::load(device, example_input, example_group, "input") && rlt::load(device, example_output, example_group, "output");
             if(have_example){
-                rlt::dyn::propagate_shapes(model, example_input.shape, example_input.rank);
+                // Reshape flat example input [1, COMBINED_OBS_DIM + STATE_OBS_DIM] into tuple
+                rlt::dyn::TensorTuple<TI> example_tuple;
+                example_tuple.num_tensors = 2;
+                example_tuple.tensors[0] = dyn_inputs.tensors[0]; // reuse shape, point to example data
+                example_tuple.tensors[0].data = example_input.data;
+                example_tuple.tensors[1] = dyn_inputs.tensors[1];
+                example_tuple.tensors[1].data = reinterpret_cast<char*>(example_input.data) + COMBINED_OBS_DIM * sizeof(float);
+                rlt::dyn::propagate_shapes(model, example_tuple);
                 rlt::dyn::Buffer<TI> verify_buffer;
                 verify_buffer.layer = &model;
                 rlt::malloc(device, verify_buffer);
@@ -279,7 +301,7 @@ int main(int argc, char** argv){
                 rlt::dyn::set_shape(verify_output, (TI)1, verify_output_shape);
                 verify_output.type = rlt::dyn::Type::FLOAT32;
                 rlt::malloc(device, verify_output);
-                if(rlt::evaluate(device, model, example_input, verify_output, verify_buffer)){
+                if(rlt::evaluate(device, model, example_tuple, verify_output, verify_buffer)){
                     float max_diff = 0;
                     for(TI i = 0; i < example_output.size(); i++){
                         float diff = std::fabs(rlt::dyn::get(device, verify_output, i) - rlt::dyn::get(device, example_output, i));
@@ -331,19 +353,13 @@ int main(int argc, char** argv){
         }
     }
 
-    // Propagate shapes for inference input
-    TI input_shape[] = {(TI)1, (TI)TOTAL_INPUT_DIM};
-    rlt::dyn::propagate_shapes(model, input_shape, (TI)2);
+    // Propagate shapes using tuple input
+    rlt::dyn::propagate_shapes(model, dyn_inputs);
 
     // Allocate dyn buffers
     rlt::dyn::Buffer<TI> buffer;
     buffer.layer = &model;
     rlt::malloc(device, buffer);
-
-    rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> dyn_input;
-    rlt::dyn::set_shape(dyn_input, (TI)2, input_shape);
-    dyn_input.type = rlt::dyn::Type::FLOAT32;
-    rlt::malloc(device, dyn_input);
 
     rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> dyn_output;
     TI output_shape[] = {model.output_size};
@@ -377,14 +393,6 @@ int main(int argc, char** argv){
         if(!checkpoint_obs.empty() && checkpoint_obs != expected_obs_string){
             std::cerr << "FATAL: observation config mismatch between checkpoint and inference setup" << std::endl;
             return 1;
-        }
-        if(model.type == rlt::dyn::LayerType::PARALLEL && model.data != nullptr){
-            auto& p = model.as<rlt::dyn::layers::Parallel<TI>>();
-            if(p.input_dim_a != COMBINED_OBS_DIM || p.input_dim_b != STATE_OBS_DIM){
-                std::cerr << "FATAL: input dimension mismatch! checkpoint expects [" << p.input_dim_a << ", " << p.input_dim_b
-                          << "] but static config gives [" << COMBINED_OBS_DIM << ", " << STATE_OBS_DIM << "]" << std::endl;
-                return 1;
-            }
         }
     }
 
@@ -532,12 +540,11 @@ int main(int argc, char** argv){
                 }
             }
 
-            // Fill dyn input: [combined_img_18ch | state_obs]
-            float* input_data = reinterpret_cast<float*>(dyn_input.data);
-            std::memcpy(input_data, combined_obs.data(), COMBINED_OBS_DIM * sizeof(float));
-            std::memcpy(input_data + COMBINED_OBS_DIM, state_obs_data, STATE_OBS_DIM * sizeof(float));
+            // Fill tuple inputs
+            std::memcpy(dyn_inputs.tensors[0].data, combined_obs.data(), COMBINED_OBS_DIM * sizeof(float));
+            std::memcpy(dyn_inputs.tensors[1].data, state_obs_data, STATE_OBS_DIM * sizeof(float));
 
-            if(!rlt::evaluate(device, model, dyn_input, dyn_output, buffer)){
+            if(!rlt::evaluate(device, model, dyn_inputs, dyn_output, buffer)){
                 std::cerr << "dyn::evaluate failed at episode " << episode_i << " step " << step_i << std::endl;
                 return 1;
             }
@@ -596,7 +603,7 @@ int main(int argc, char** argv){
     // =====================================================================
     // Cleanup
     // =====================================================================
-    rlt::free(device, dyn_input);
+    for(TI i = 0; i < dyn_inputs.num_tensors; i++) rlt::free(device, dyn_inputs.tensors[i]);
     rlt::free(device, dyn_output);
     rlt::free(device, buffer);
     rlt::free(device, model);

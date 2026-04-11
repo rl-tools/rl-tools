@@ -144,46 +144,41 @@ namespace rl_tools{
         }
 
         template <typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT void propagate_parallel_output(Layer<TI>& layer){
+            TI rank_a = layer.children[0].output_rank;
+            TI last_a = layer.children[0].output_shape[rank_a - 1];
+            TI last_b = layer.children[1].output_shape[rank_a - 1];
+            layer.output_rank = rank_a;
+            layer.output_size = layer.children[0].output_size + layer.children[1].output_size;
+            for(TI i = 0; i < rank_a - 1; i++) layer.output_shape[i] = layer.children[0].output_shape[i];
+            layer.output_shape[rank_a - 1] = last_a + last_b;
+            if(layer.num_children == 3){
+                propagate_shapes(layer.children[2], layer.output_shape, layer.output_rank);
+                layer.output_rank = layer.children[2].output_rank;
+                layer.output_size = layer.children[2].output_size;
+                for(TI i = 0; i < layer.output_rank; i++) layer.output_shape[i] = layer.children[2].output_shape[i];
+            }
+        }
+
+        template <typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT void propagate_shapes(Layer<TI>& layer, const TensorTuple<TI>& inputs){
+            if(layer.type == LayerType::PARALLEL && layer.num_children >= 2){
+                for(TI i = 0; i < layer.num_children && i < inputs.num_tensors; i++){
+                    propagate_shapes(layer.children[i], inputs.tensors[i].shape, inputs.tensors[i].rank);
+                }
+                propagate_parallel_output(layer);
+            } else if(inputs.num_tensors > 0){
+                propagate_shapes(layer, inputs.tensors[0].shape, inputs.tensors[0].rank);
+            }
+        }
+
+        template <typename TI>
         RL_TOOLS_FUNCTION_PLACEMENT void propagate_shapes(Layer<TI>& layer, const TI* in_shape, TI in_rank){
             if(layer.num_children == 0){
                 compute_leaf_output_shape(layer, in_shape, in_rank);
             }
             else if(layer.type == LayerType::PARALLEL){
-                TI dim_a = 0, dim_b = 0;
-                if(layer.data != nullptr){
-                    auto& p = layer.template as<layers::Parallel<TI>>();
-                    dim_a = p.input_dim_a; dim_b = p.input_dim_b;
-                }
-                if(dim_a == 0 || dim_b == 0){
-                    dim_a = infer_flat_input_dim(layer.children[0]);
-                    dim_b = infer_flat_input_dim(layer.children[1]);
-                }
-                TI total_dim = in_shape[in_rank - 1];
-                if(dim_a > 0 && dim_b > 0 && dim_a + dim_b == total_dim){
-                    TI shape_a[TensorSpecification<TI>::MAX_RANK], shape_b[TensorSpecification<TI>::MAX_RANK];
-                    for(TI d = 0; d < in_rank - 1; d++){ shape_a[d] = in_shape[d]; shape_b[d] = in_shape[d]; }
-                    shape_a[in_rank - 1] = dim_a; shape_b[in_rank - 1] = dim_b;
-                    propagate_shapes(layer.children[0], shape_a, in_rank);
-                    propagate_shapes(layer.children[1], shape_b, in_rank);
-                }
-                else{
-                    propagate_shapes(layer.children[0], in_shape, in_rank);
-                    propagate_shapes(layer.children[1], in_shape, in_rank);
-                }
-                if(layer.children[0].output_size == 0 || layer.children[1].output_size == 0){ layer.output_size = 0; return; }
-                TI rank_a = layer.children[0].output_rank;
-                TI last_a = layer.children[0].output_shape[rank_a - 1];
-                TI last_b = layer.children[1].output_shape[rank_a - 1];
-                layer.output_rank = rank_a;
-                layer.output_size = layer.children[0].output_size + layer.children[1].output_size;
-                for(TI i = 0; i < rank_a - 1; i++) layer.output_shape[i] = layer.children[0].output_shape[i];
-                layer.output_shape[rank_a - 1] = last_a + last_b;
-                if(layer.num_children == 3){
-                    propagate_shapes(layer.children[2], layer.output_shape, layer.output_rank);
-                    layer.output_rank = layer.children[2].output_rank;
-                    layer.output_size = layer.children[2].output_size;
-                    for(TI i = 0; i < layer.output_rank; i++) layer.output_shape[i] = layer.children[2].output_shape[i];
-                }
+                layer.output_size = 0;
             }
             else{
                 const TI* cur_shape = in_shape; TI cur_rank = in_rank;
@@ -245,27 +240,10 @@ namespace rl_tools{
                     return m;
                 }
                 case LayerType::PARALLEL: {
-                    if(layer.num_children >= 2){
-                        TI inter_size = layer.children[0].output_size + layer.children[1].output_size;
-                        TI split_size = 0;
-                        TI dim_a = 0, dim_b = 0;
-                        if(layer.data != nullptr){
-                            auto& p = layer.template as<const layers::Parallel<TI>>();
-                            dim_a = p.input_dim_a; dim_b = p.input_dim_b;
-                        }
-                        if(dim_a == 0 || dim_b == 0){
-                            dim_a = infer_flat_input_dim(layer.children[0]);
-                            dim_b = infer_flat_input_dim(layer.children[1]);
-                        }
-                        if(dim_a > 0 && dim_b > 0){
-                            TI rank_a = layer.children[0].output_rank;
-                            TI last_a = layer.children[0].output_shape[rank_a - 1];
-                            TI batch = (last_a > 0) ? (layer.children[0].output_size / last_a) : 0;
-                            split_size = batch * (dim_a + dim_b);
-                        }
-                        TI s = inter_size + split_size;
-                        if(s > m) m = s;
-                    }
+                    TI inter_size = 0;
+                    TI num_branches = (layer.num_children >= 3) ? layer.num_children - 1 : layer.num_children;
+                    for(TI i = 0; i < num_branches; i++) inter_size += layer.children[i].output_size;
+                    if(inter_size > m) m = inter_size;
                     break;
                 }
                 default: break;
@@ -676,86 +654,7 @@ namespace rl_tools{
             }
             case dyn::LayerType::SEQUENTIAL: case dyn::LayerType::MLP:
                 return dyn::evaluate_chain(device, layer, input, output, buffer);
-            case dyn::LayerType::PARALLEL: {
-                auto& child_a = layer.children[0];
-                auto& child_b = layer.children[1];
-                TI size_a = child_a.output_size;
-                TI size_b = child_b.output_size;
-                dyn::Tensor<dyn::TensorSpecification<TI>> inter_a, inter_b;
-                dyn::set_shape(inter_a, child_a.output_rank, child_a.output_shape);
-                inter_a.type = dyn::Type::FLOAT32; inter_a.data = buffer.scratch.data;
-                inter_a.capacity = size_a;
-                dyn::set_shape(inter_b, child_b.output_rank, child_b.output_shape);
-                inter_b.type = dyn::Type::FLOAT32; inter_b.data = reinterpret_cast<char*>(buffer.scratch.data) + size_a * sizeof(float);
-                inter_b.capacity = size_b;
-                TI dim_a = 0, dim_b = 0;
-                if(layer.data != nullptr){
-                    auto& p = layer.template as<const dyn::layers::Parallel<TI>>();
-                    dim_a = p.input_dim_a; dim_b = p.input_dim_b;
-                }
-                if(dim_a == 0 || dim_b == 0){
-                    dim_a = dyn::infer_flat_input_dim(child_a);
-                    dim_b = dyn::infer_flat_input_dim(child_b);
-                }
-                TI total_dim = input.shape[input.rank - 1];
-                if(dim_a > 0 && dim_b > 0 && dim_a + dim_b == total_dim){
-                    TI batch = input.size() / total_dim;
-                    dyn::Tensor<dyn::TensorSpecification<TI>> split_a, split_b;
-                    TI shape_a[dyn::TensorSpecification<TI>::MAX_RANK], shape_b[dyn::TensorSpecification<TI>::MAX_RANK];
-                    for(TI d = 0; d < input.rank - 1; d++){ shape_a[d] = input.shape[d]; shape_b[d] = input.shape[d]; }
-                    shape_a[input.rank - 1] = dim_a; shape_b[input.rank - 1] = dim_b;
-                    dyn::set_shape(split_a, input.rank, shape_a);
-                    dyn::set_shape(split_b, input.rank, shape_b);
-                    split_a.type = input.type; split_b.type = input.type;
-                    split_a.capacity = split_a.size(); split_b.capacity = split_b.size();
-                    TI inter_total = size_a + size_b;
-                    split_a.data = reinterpret_cast<char*>(buffer.scratch.data) + inter_total * sizeof(float);
-                    split_b.data = reinterpret_cast<char*>(buffer.scratch.data) + (inter_total + split_a.capacity) * sizeof(float);
-                    TI elem_size = dyn::size_of<TI>(input.type);
-                    for(TI b = 0; b < batch; b++){
-                        const char* row = reinterpret_cast<const char*>(input.data) + b * total_dim * elem_size;
-                        char* dst_a = reinterpret_cast<char*>(split_a.data) + b * dim_a * elem_size;
-                        char* dst_b = reinterpret_cast<char*>(split_b.data) + b * dim_b * elem_size;
-                        for(TI j = 0; j < dim_a * elem_size; j++) dst_a[j] = row[j];
-                        for(TI j = 0; j < dim_b * elem_size; j++) dst_b[j] = row[dim_a * elem_size + j];
-                    }
-                    bool ok_a = rl_tools::evaluate(device, child_a, split_a, inter_a, buffer);
-                    bool ok_b = rl_tools::evaluate(device, child_b, split_b, inter_b, buffer);
-                    if(!ok_a || !ok_b) return false;
-                }
-                else{
-                    if(!rl_tools::evaluate(device, child_a, input, inter_a, buffer)) return false;
-                    if(!rl_tools::evaluate(device, child_b, input, inter_b, buffer)) return false;
-                }
-                TI rank = child_a.output_rank;
-                TI last_a = child_a.output_shape[rank - 1];
-                TI last_b = child_b.output_shape[rank - 1];
-                TI last_out = last_a + last_b;
-                TI batch = size_a / last_a;
-                bool has_head = layer.num_children == 3;
-                dyn::Tensor<dyn::TensorSpecification<TI>>& concat_target = has_head ? buffer.tick : output;
-                TI concat_shape[8];
-                for(TI i = 0; i < rank - 1; i++) concat_shape[i] = child_a.output_shape[i];
-                concat_shape[rank - 1] = last_out;
-                dyn::set_shape(concat_target, rank, concat_shape);
-                concat_target.type = dyn::Type::FLOAT32;
-                if(inter_a.type == dyn::Type::FLOAT32 && inter_b.type == dyn::Type::FLOAT32 && concat_target.type == dyn::Type::FLOAT32){
-                    const float* a = reinterpret_cast<const float*>(inter_a.data);
-                    const float* bp = reinterpret_cast<const float*>(inter_b.data);
-                    float* ct = reinterpret_cast<float*>(concat_target.data);
-                    for(TI b = 0; b < batch; b++){
-                        for(TI i = 0; i < last_a; i++) ct[b * last_out + i] = a[b * last_a + i];
-                        for(TI i = 0; i < last_b; i++) ct[b * last_out + last_a + i] = bp[b * last_b + i];
-                    }
-                } else {
-                    for(TI b = 0; b < batch; b++){
-                        for(TI i = 0; i < last_a; i++) dyn::set(device, concat_target, b * last_out + i, dyn::get(device, inter_a, b * last_a + i));
-                        for(TI i = 0; i < last_b; i++) dyn::set(device, concat_target, b * last_out + last_a + i, dyn::get(device, inter_b, b * last_b + i));
-                    }
-                }
-                if(has_head) return rl_tools::evaluate(device, layer.children[2], buffer.tick, output, buffer);
-                return true;
-            }
+            case dyn::LayerType::PARALLEL: return false;
             case dyn::LayerType::RESNET_BLOCK: {
                 if(!rl_tools::evaluate(device, layer.children[0], input, buffer.scratch, buffer)) return false;
                 if(!rl_tools::evaluate(device, layer.children[1], buffer.scratch, output, buffer)) return false;
@@ -775,6 +674,55 @@ namespace rl_tools{
             }
             default: return false;
         }
+    }
+
+    // --- Top-level evaluate (TensorTuple) ---
+    template <typename DEVICE, typename TI>
+    RL_TOOLS_FUNCTION_PLACEMENT bool evaluate(DEVICE& device, const dyn::Layer<TI>& layer, const dyn::TensorTuple<TI>& inputs, dyn::Tensor<dyn::TensorSpecification<TI>>& output, dyn::Buffer<TI>& buffer){
+        if(layer.type != dyn::LayerType::PARALLEL || layer.num_children < 2) {
+            if(inputs.num_tensors > 0) return rl_tools::evaluate(device, layer, inputs.tensors[0], output, buffer);
+            return false;
+        }
+        if(layer.output_size == 0) return false;
+        if(output.capacity < layer.output_size) return false;
+        dyn::set_shape(output, layer.output_rank, layer.output_shape);
+        output.type = dyn::Type::FLOAT32;
+        TI num_branches = layer.num_children >= 3 ? layer.num_children - 1 : layer.num_children;
+        if(inputs.num_tensors < num_branches) return false;
+        dyn::Tensor<dyn::TensorSpecification<TI>> intermediates[dyn::TensorTuple<TI>::MAX_TENSORS];
+        TI offset = 0;
+        for(TI i = 0; i < num_branches; i++){
+            auto& child = layer.children[i];
+            dyn::set_shape(intermediates[i], child.output_rank, child.output_shape);
+            intermediates[i].type = dyn::Type::FLOAT32;
+            intermediates[i].data = reinterpret_cast<char*>(buffer.scratch.data) + offset * sizeof(float);
+            intermediates[i].capacity = child.output_size;
+            if(!rl_tools::evaluate(device, child, inputs.tensors[i], intermediates[i], buffer)) return false;
+            offset += child.output_size;
+        }
+        TI rank = layer.children[0].output_rank;
+        TI last_dims[dyn::TensorTuple<TI>::MAX_TENSORS];
+        TI last_out = 0;
+        for(TI i = 0; i < num_branches; i++){ last_dims[i] = layer.children[i].output_shape[rank - 1]; last_out += last_dims[i]; }
+        TI batch = layer.children[0].output_size / last_dims[0];
+        bool has_head = layer.num_children > num_branches;
+        dyn::Tensor<dyn::TensorSpecification<TI>>& concat_target = has_head ? buffer.tick : output;
+        TI concat_shape[dyn::TensorSpecification<TI>::MAX_RANK];
+        for(TI i = 0; i < rank - 1; i++) concat_shape[i] = layer.children[0].output_shape[i];
+        concat_shape[rank - 1] = last_out;
+        dyn::set_shape(concat_target, rank, concat_shape);
+        concat_target.type = dyn::Type::FLOAT32;
+        for(TI b = 0; b < batch; b++){
+            TI col = 0;
+            for(TI i = 0; i < num_branches; i++){
+                for(TI j = 0; j < last_dims[i]; j++){
+                    dyn::set(device, concat_target, b * last_out + col + j, dyn::get(device, intermediates[i], b * last_dims[i] + j));
+                }
+                col += last_dims[i];
+            }
+        }
+        if(has_head) return rl_tools::evaluate(device, layer.children[layer.num_children - 1], buffer.tick, output, buffer);
+        return true;
     }
 
     // --- Top-level evaluate_step ---
