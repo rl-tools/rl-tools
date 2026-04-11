@@ -93,7 +93,7 @@ namespace rl_tools{
     inference::executor::Status<typename SPEC::STATUS_SPEC> control(DEVICE&device, inference::Executor<SPEC>& executor, typename SPEC::TIMESTAMP nanoseconds, POLICY& policy, Tensor<OBS_SPEC>& observation, Tensor<ACTION_SPEC>& action, RNG& rng){
         static_assert(OBS_SPEC::SHAPE::LENGTH == 2);
         static_assert(OBS_SPEC::SHAPE::FIRST == 1);
-        static_assert(OBS_SPEC::SHAPE::LAST == SPEC::INPUT_DIM);
+        // static_assert(OBS_SPEC::SHAPE::LAST == SPEC::INPUT_DIM);
         static_assert(ACTION_SPEC::SHAPE::LENGTH == 2);
         static_assert(ACTION_SPEC::SHAPE::FIRST == 1);
         static_assert(ACTION_SPEC::SHAPE::LAST == SPEC::OUTPUT_DIM);

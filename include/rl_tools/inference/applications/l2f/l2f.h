@@ -20,6 +20,36 @@ namespace rl_tools::inference::applications{
             static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
             using EXECUTOR_SPEC = executor::Specification<TYPE_POLICY, TI, TIMESTAMP, POLICY, T_CONTROL_INTERVAL_INTERMEDIATE_NS, T_CONTROL_INTERVAL_NATIVE_NS, T_FORCE_SYNC_INTERMEDIATE, T_FORCE_SYNC_NATIVE, T_FORCE_SYNC_NATIVE_RUNTIME, T_WARNING_LEVELS, T_DYNAMIC_ALLOCATION, T_STATUS_SPEC>;
         };
+        enum class ObservationComponentType : unsigned char {
+            POSITION = 0,
+            ORIENTATION_ROTATION_MATRIX = 1,
+            ORIENTATION_QUATERNION = 2,
+            LINEAR_VELOCITY = 3,
+            ANGULAR_VELOCITY = 4,
+            ANGULAR_VELOCITY_DELAYED = 5,
+            LINEAR_VELOCITY_DELAYED = 6,
+            ACTION_HISTORY = 7,
+            LINEAR_ACCELERATION_BODY_FRAME = 8,
+            LINEAR_VELOCITY_BODY_FRAME = 9,
+            ROTOR_SPEEDS = 10,
+        };
+        template <typename T_TI>
+        struct ObservationComponent{
+            using TI = T_TI;
+            ObservationComponentType type;
+            TI parameter;
+            TI offset;
+            TI dim;
+        };
+        template <typename T_TI>
+        struct ObservationLayout{
+            using TI = T_TI;
+            static constexpr TI MAX_COMPONENTS = 16;
+            ObservationComponent<TI> components[MAX_COMPONENTS];
+            TI component_count = 0;
+            TI total_dim = 0;
+            TI action_history_length = 0;
+        };
         template <typename SPEC>
         struct Observation{
             using T = typename SPEC::T;
@@ -28,6 +58,11 @@ namespace rl_tools::inference::applications{
             T linear_velocity[3];
             T angular_velocity[3];
             T previous_action[4];
+            bool position_set = false;
+            bool orientation_set = false;
+            bool linear_velocity_set = false;
+            bool angular_velocity_set = false;
+            bool previous_action_set = false;
         };
         template <typename SPEC>
         struct Action{
@@ -46,6 +81,7 @@ namespace rl_tools::inference::applications{
         Tensor<tensor::Specification<T, TI, tensor::Shape<TI, 1, SPEC::OUTPUT_DIM>, SPEC::DYNAMIC_ALLOCATION>> output;
         Executor<typename SPEC::EXECUTOR_SPEC> executor;
         TI steps_since_original_control_step;
+        l2f::ObservationLayout<TI> observation_layout;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
