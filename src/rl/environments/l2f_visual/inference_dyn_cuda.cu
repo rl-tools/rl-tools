@@ -6,6 +6,10 @@
 #include <rl_tools/rl/environments/l2f_visual/operations_cuda.h>
 
 #include <rl_tools/persist/backends/tar/operations_cpu.h>
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
+#include <rl_tools/persist/backends/hdf5/hdf5.h>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
+#endif
 
 #include <rl_tools/dyn/model.h>
 #include <rl_tools/dyn/operations_generic.h>
@@ -79,7 +83,7 @@ struct STATIC_PARAMETERS {
     static constexpr TI CLOSED_FORM = false;
     static constexpr TI EPISODE_STEP_LIMIT = ::EPISODE_STEP_LIMIT;
     using STATE_BASE = l2f::StateBase<l2f::StateSpecification<T, TI>>;
-    using STATE_TYPE = l2f::StateRotorsHistory<l2f::StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, l2f::StateRandomForce<l2f::StateSpecification<T, TI, l2f::StateLastAction<l2f::StateSpecification<T, TI, STATE_BASE>>>>>>;
+    using STATE_TYPE = l2f::StateRotorsHistory<l2f::StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, l2f::StateRandomForce<l2f::StateSpecification<T, TI, l2f::StateLastAction<l2f::StateSpecification<T, TI, l2f::StateLinearAcceleration<l2f::StateSpecification<T, TI, STATE_BASE>>>>>>>>;
     using OBSERVATION_TYPE = obs::Position<obs::PositionSpecification<T, TI,
             obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI,
             obs::LinearVelocity<obs::LinearVelocitySpecification<T, TI,
@@ -98,7 +102,7 @@ struct STATIC_PARAMETERS {
     static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
 };
 
-using ACTOR_STATE_OBS = obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>;
+using ACTOR_STATE_OBS = obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::LinearAccelerationBodyFrame<obs::LinearAccelerationBodyFrameSpecification<T, TI>>>>;
 static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM;
 
 // =========================================================================
@@ -122,11 +126,13 @@ static constexpr TI IMG_C = 3;
 static constexpr TI FRAME_STACK_N = 5;
 static constexpr TI FRAME_STACK_STRIDE = 20;
 static constexpr TI STACKED_IMG_C = IMG_C * FRAME_STACK_N;
+static constexpr TI COMBINED_IMG_C = STACKED_IMG_C + IMG_C;
 static constexpr TI IMG_PIXELS = IMG_H * IMG_W;
 static constexpr TI OBS_DIM_SINGLE = IMG_PIXELS * IMG_C;
 static constexpr TI STACKED_OBS_DIM = IMG_PIXELS * STACKED_IMG_C;
+static constexpr TI COMBINED_OBS_DIM = IMG_PIXELS * COMBINED_IMG_C;
 static constexpr TI OBSERVATION_DIM = ENVIRONMENT::OBSERVATION_DIM;
-static constexpr TI TOTAL_INPUT_DIM = STACKED_OBS_DIM + STATE_OBS_DIM;
+static constexpr TI TOTAL_INPUT_DIM = COMBINED_OBS_DIM + STATE_OBS_DIM;
 static constexpr TI FRAME_HISTORY_SIZE = (FRAME_STACK_N - 1) * FRAME_STACK_STRIDE + 1;
 
 static_assert(OBSERVATION_DIM == OBS_DIM_SINGLE, "Single-frame observation dim mismatch");
@@ -158,9 +164,34 @@ static bool parse_hex_hash(const char* hex, unsigned char* out, unsigned len){
     return true;
 }
 
+void render_target_frame(
+    DEVICE& device,
+    ENVIRONMENT& env,
+    const typename ENVIRONMENT::Parameters& parameters,
+    float* target_frame_out
+){
+    typename ENVIRONMENT::State target_state = {};
+    target_state.orientation[0] = (T)1;
+    target_state.orientation[1] = (T)0;
+    target_state.orientation[2] = (T)0;
+    target_state.orientation[3] = (T)0;
+    auto camera = rlt::rl::environments::l2f_visual::make_camera_for_state(device, env, parameters, target_state);
+    rlt::set(device, env.renderer->cameras, camera, (TI)0);
+    rlt::set_cameras(device, *env.renderer, env.renderer->cameras);
+    rlt::render(device, *env.renderer);
+    rlt::read_frame_buffer(device, *env.renderer, env.renderer->frame_buffer);
+    const uint32_t* fb = rlt::data(env.renderer->frame_buffer);
+    for(TI p = 0; p < IMG_PIXELS; p++){
+        uint32_t rgba = fb[p];
+        target_frame_out[p * IMG_C + 0] = static_cast<T>((rgba >>  0) & 0xFF) / static_cast<T>(255);
+        target_frame_out[p * IMG_C + 1] = static_cast<T>((rgba >>  8) & 0xFF) / static_cast<T>(255);
+        target_frame_out[p * IMG_C + 2] = static_cast<T>((rgba >> 16) & 0xFF) / static_cast<T>(255);
+    }
+}
+
 int main(int argc, char** argv){
     if(argc < 3){
-        std::cerr << "Usage: " << argv[0] << " <conta:HASH or scene.glb> <checkpoint.tar> [seed] [num_episodes]" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <conta:HASH or scene.glb> <checkpoint.tar|.h5> [seed] [num_episodes]" << std::endl;
         return 1;
     }
 
@@ -216,79 +247,119 @@ int main(int argc, char** argv){
     // Load checkpoint via dyn
     // =====================================================================
     std::cout << "Loading checkpoint: " << checkpoint_path << std::endl;
-    rlt::persist::backends::tar::File<TI> tar_file(checkpoint_path, rlt::persist::backends::tar::Mode::READ);
-    auto actor_group = rlt::get_group(device, tar_file, "actor");
     rlt::dyn::Layer<TI> model;
-    if(!rlt::load(device, model, actor_group)){
-        std::cerr << "Failed to load model from checkpoint" << std::endl;
-        return 1;
-    }
-    std::cout << "Model loaded (type=" << (int)model.type << ", children=" << model.num_children << ")" << std::endl;
-
-    // Read checkpoint observation string for later validation (after env is set up)
     std::string checkpoint_obs;
+
+    // Tuple input: image branch [1, H, W, C] + state branch [1, STATE_OBS_DIM]
+    rlt::dyn::TensorTuple<TI> dyn_inputs;
+    dyn_inputs.num_tensors = 2;
     {
-        constexpr TI META_BUF_SIZE = 512;
-        char meta_buf[META_BUF_SIZE];
-        meta_buf[0] = '\0';
-        if(rlt::attribute_exists(device, actor_group, "meta")){
-            rlt::get_attribute<char*>(device, actor_group, "meta", meta_buf, META_BUF_SIZE);
-        }
-        std::string meta_str(meta_buf);
-        auto obs_pos = meta_str.find("\"observation\": \"");
-        if(obs_pos != std::string::npos){
-            obs_pos += 16;
-            auto obs_end = meta_str.find("\"", obs_pos);
-            if(obs_end != std::string::npos) checkpoint_obs = meta_str.substr(obs_pos, obs_end - obs_pos);
-        }
+        TI img_shape[] = {(TI)1, IMG_H, IMG_W, COMBINED_IMG_C};
+        rlt::dyn::set_shape(dyn_inputs.tensors[0], (TI)4, img_shape);
+        dyn_inputs.tensors[0].type = rlt::dyn::Type::FLOAT32;
+        rlt::malloc(device, dyn_inputs.tensors[0]);
+        TI state_shape[] = {(TI)1, STATE_OBS_DIM};
+        rlt::dyn::set_shape(dyn_inputs.tensors[1], (TI)2, state_shape);
+        dyn_inputs.tensors[1].type = rlt::dyn::Type::FLOAT32;
+        rlt::malloc(device, dyn_inputs.tensors[1]);
     }
 
-    // Verify against example input/output
     {
-        auto example_group = rlt::get_group(device, tar_file, "example");
-        rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> example_input;
-        rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> example_output;
-        bool have_example = rlt::load(device, example_input, example_group, "input") && rlt::load(device, example_output, example_group, "output");
-        if(have_example){
-            rlt::dyn::propagate_shapes(model, example_input.shape, example_input.rank);
-            rlt::dyn::Buffer<TI> verify_buffer;
-            verify_buffer.layer = &model;
-            rlt::malloc(device, verify_buffer);
-            rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> verify_output;
-            TI verify_output_shape[] = {model.output_size};
-            rlt::dyn::set_shape(verify_output, (TI)1, verify_output_shape);
-            verify_output.type = rlt::dyn::Type::FLOAT32;
-            rlt::malloc(device, verify_output);
-            if(rlt::evaluate(device, model, example_input, verify_output, verify_buffer)){
-                float max_diff = 0;
-                for(TI i = 0; i < example_output.size(); i++){
-                    float diff = std::fabs(rlt::get(device, verify_output, i) - rlt::get(device, example_output, i));
-                    if(diff > max_diff) max_diff = diff;
-                }
-                std::cout << "Checkpoint verification: max_diff=" << max_diff << (max_diff < 1e-5f ? " PASS" : " WARNING: large difference") << std::endl;
-            } else {
-                std::cerr << "WARNING: checkpoint verification evaluate failed" << std::endl;
+        std::string cp_path(checkpoint_path);
+        bool is_hdf5 = (cp_path.size() >= 3 && cp_path.substr(cp_path.size() - 3) == ".h5");
+
+        auto parse_meta_obs = [](const char* meta_buf) -> std::string {
+            std::string meta_str(meta_buf);
+            auto obs_pos = meta_str.find("\"observation\": \"");
+            if(obs_pos != std::string::npos){
+                obs_pos += 16;
+                auto obs_end = meta_str.find("\"", obs_pos);
+                if(obs_end != std::string::npos) return meta_str.substr(obs_pos, obs_end - obs_pos);
             }
-            rlt::free(device, verify_output);
-            rlt::free(device, verify_buffer);
-            rlt::free(device, example_input);
-            rlt::free(device, example_output);
+            return "";
+        };
+
+        auto verify_example = [&](auto& file) {
+            auto example_group = rlt::get_group(device, file, "example");
+            rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> example_input;
+            rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> example_output;
+            bool have_example = rlt::load(device, example_input, example_group, "input") && rlt::load(device, example_output, example_group, "output");
+            if(have_example){
+                // Reshape flat example input [1, COMBINED_OBS_DIM + STATE_OBS_DIM] into tuple
+                rlt::dyn::TensorTuple<TI> example_tuple;
+                example_tuple.num_tensors = 2;
+                example_tuple.tensors[0] = dyn_inputs.tensors[0]; // reuse shape, point to example data
+                example_tuple.tensors[0].data = example_input.data;
+                example_tuple.tensors[1] = dyn_inputs.tensors[1];
+                example_tuple.tensors[1].data = reinterpret_cast<char*>(example_input.data) + COMBINED_OBS_DIM * sizeof(float);
+                rlt::dyn::propagate_shapes(model, example_tuple);
+                rlt::dyn::Buffer<TI> verify_buffer;
+                verify_buffer.layer = &model;
+                rlt::malloc(device, verify_buffer);
+                rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> verify_output;
+                TI verify_output_shape[] = {model.output_size};
+                rlt::dyn::set_shape(verify_output, (TI)1, verify_output_shape);
+                verify_output.type = rlt::dyn::Type::FLOAT32;
+                rlt::malloc(device, verify_output);
+                if(rlt::evaluate(device, model, example_tuple, verify_output, verify_buffer)){
+                    float max_diff = 0;
+                    for(TI i = 0; i < example_output.size(); i++){
+                        float diff = std::fabs(rlt::dyn::get(device, verify_output, i) - rlt::dyn::get(device, example_output, i));
+                        if(diff > max_diff) max_diff = diff;
+                    }
+                    std::cout << "Checkpoint verification: max_diff=" << max_diff << (max_diff < 1e-5f ? " PASS" : " WARNING: large difference") << std::endl;
+                } else {
+                    std::cerr << "WARNING: checkpoint verification evaluate failed" << std::endl;
+                }
+                rlt::free(device, verify_output);
+                rlt::free(device, verify_buffer);
+                rlt::free(device, example_input);
+                rlt::free(device, example_output);
+            }
+        };
+
+        bool load_ok = false;
+        if(is_hdf5){
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
+            rlt::persist::backends::hdf5::File hdf5_file(checkpoint_path, rlt::persist::backends::hdf5::Mode::READ);
+            auto actor_group = rlt::get_group(device, hdf5_file, "actor");
+            load_ok = rlt::load(device, model, actor_group);
+            if(load_ok){
+                constexpr TI META_BUF_SIZE = 512;
+                char meta_buf[META_BUF_SIZE]; meta_buf[0] = '\0';
+                if(rlt::attribute_exists(device, actor_group, "meta")) rlt::get_attribute<char*>(device, actor_group, "meta", meta_buf, META_BUF_SIZE);
+                checkpoint_obs = parse_meta_obs(meta_buf);
+            }
+            verify_example(hdf5_file);
+#else
+            std::cerr << "HDF5 support not compiled (RL_TOOLS_ENABLE_HDF5 not defined)" << std::endl;
+            return 1;
+#endif
+        } else {
+            rlt::persist::backends::tar::File<TI> tar_file(checkpoint_path, rlt::persist::backends::tar::Mode::READ);
+            auto actor_group = rlt::get_group(device, tar_file, "actor");
+            load_ok = rlt::load(device, model, actor_group);
+            if(load_ok){
+                constexpr TI META_BUF_SIZE = 512;
+                char meta_buf[META_BUF_SIZE]; meta_buf[0] = '\0';
+                if(rlt::attribute_exists(device, actor_group, "meta")) rlt::get_attribute<char*>(device, actor_group, "meta", meta_buf, META_BUF_SIZE);
+                checkpoint_obs = parse_meta_obs(meta_buf);
+            }
+            verify_example(tar_file);
+        }
+        if(!load_ok){
+            std::cerr << "Failed to load model from checkpoint" << std::endl;
+            return 1;
         }
     }
 
-    // Propagate shapes for inference input
-    TI input_shape[] = {(TI)1, (TI)TOTAL_INPUT_DIM};
-    rlt::dyn::propagate_shapes(model, input_shape, (TI)2);
+    // Propagate shapes using tuple input
+    rlt::dyn::propagate_shapes(model, dyn_inputs);
 
     // Allocate dyn buffers
     rlt::dyn::Buffer<TI> buffer;
     buffer.layer = &model;
     rlt::malloc(device, buffer);
-
-    rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> dyn_input;
-    rlt::dyn::set_shape(dyn_input, (TI)2, input_shape);
-    dyn_input.type = rlt::dyn::Type::FLOAT32;
-    rlt::malloc(device, dyn_input);
 
     rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> dyn_output;
     TI output_shape[] = {model.output_size};
@@ -306,16 +377,13 @@ int main(int argc, char** argv){
     env.scene_path = scene_path;
     rlt::init(device, env);
 
-    env_parameters.scene_translation[0] = -3.92;
-    env_parameters.scene_translation[1] = -5.67;
-    env_parameters.scene_translation[2] =  1.0;
     env_parameters.scene_hash = scene_hash;
 
     // Validate checkpoint observation config against our setup
     {
         char fov_buf[32];
         std::snprintf(fov_buf, sizeof(fov_buf), "%.6g", (double)env_parameters.fov);
-        std::string expected_image_obs = std::string("CameraRGBStacked(") + fov_buf + ", "
+        std::string expected_image_obs = std::string("CameraRGBStackedWithTarget(") + fov_buf + ", "
             + std::to_string(CAM_HEIGHT) + ", " + std::to_string(CAM_WIDTH) + ", "
             + std::to_string(FRAME_STACK_STRIDE) + ", " + std::to_string(FRAME_STACK_N) + ")";
         std::string expected_state_obs = rlt::string(device, env.dynamics, ACTOR_STATE_OBS{});
@@ -325,14 +393,6 @@ int main(int argc, char** argv){
         if(!checkpoint_obs.empty() && checkpoint_obs != expected_obs_string){
             std::cerr << "FATAL: observation config mismatch between checkpoint and inference setup" << std::endl;
             return 1;
-        }
-        if(model.type == rlt::dyn::LayerType::PARALLEL && model.data != nullptr){
-            auto& p = model.as<rlt::dyn::layers::Parallel<TI>>();
-            if(p.input_dim_a != STACKED_OBS_DIM || p.input_dim_b != STATE_OBS_DIM){
-                std::cerr << "FATAL: input dimension mismatch! checkpoint expects [" << p.input_dim_a << ", " << p.input_dim_b
-                          << "] but static config gives [" << STACKED_OBS_DIM << ", " << STATE_OBS_DIM << "]" << std::endl;
-                return 1;
-            }
         }
     }
 
@@ -349,7 +409,8 @@ int main(int argc, char** argv){
     // Inference buffers
     // =====================================================================
     std::vector<float> frame_history(FRAME_HISTORY_SIZE * OBS_DIM_SINGLE, 0.0f);
-    std::vector<float> stacked_obs(STACKED_OBS_DIM, 0.0f);
+    std::vector<float> combined_obs(COMBINED_OBS_DIM, 0.0f);
+    std::vector<float> target_frame_buf(OBS_DIM_SINGLE, 0.0f);
     std::vector<uint8_t> video_frame(IMG_PIXELS * 3);
 
     rlt::Matrix<rlt::matrix::Specification<T, TI, 1, STATE_OBS_DIM, true, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> state_obs_mat;
@@ -371,7 +432,7 @@ int main(int argc, char** argv){
     constexpr TI NUM_NOISE_LEVELS = sizeof(noise_levels) / sizeof(noise_levels[0]);
 
     std::cout << std::endl;
-    std::cout << std::setw(12) << "noise_std" << std::setw(14) << "mean_length" << std::setw(14) << "survival" << std::endl;
+    std::cout << std::setw(12) << "brightness" << std::setw(14) << "mean_length" << std::setw(14) << "survival" << std::endl;
     std::cout << std::string(40, '-') << std::endl;
 
     TI global_step = 0;
@@ -390,8 +451,22 @@ int main(int argc, char** argv){
         auto episode_start = std::chrono::high_resolution_clock::now();
 
         rlt::sample_initial_parameters(device, env, env_parameters, sweep_rng);
+        {
+            auto indoor_pos = rlt::rendering::raytracing::scene::procthor::sample_indoor_position(device, *env.scene, sweep_rng);
+            env_parameters.scene_translation[0] = indoor_pos.position[0];
+            env_parameters.scene_translation[1] = indoor_pos.position[1];
+            env_parameters.scene_translation[2] = indoor_pos.position[2];
+            env_parameters.scene_yaw = rlt::random::uniform_real_distribution(device.random, (T)0, (T)(2.0 * 3.14159265358979323846), sweep_rng);
+        }
         typename ENVIRONMENT::State state;
         rlt::sample_initial_state(device, env, env_parameters, state, sweep_rng);
+
+        render_target_frame(device, env, env_parameters, target_frame_buf.data());
+        if(config.brightness_scale != 1.0f || config.brightness_offset != 0.0f){
+            for(TI i = 0; i < OBS_DIM_SINGLE; i++){
+                target_frame_buf[i] = std::clamp(target_frame_buf[i] * config.brightness_scale + config.brightness_offset, 0.0f, 1.0f);
+            }
+        }
 
         std::fill(frame_history.begin(), frame_history.end(), 0.0f);
 
@@ -449,7 +524,7 @@ int main(int argc, char** argv){
                 }
             }
 
-            // Assemble stacked frame observation
+            // Assemble combined frame observation: [stacked_5_frames | target_frame] per pixel
             for(TI p = 0; p < IMG_PIXELS; p++){
                 for(TI f = 0; f < FRAME_STACK_N; f++){
                     TI back = f * FRAME_STACK_STRIDE;
@@ -457,17 +532,19 @@ int main(int argc, char** argv){
                     TI src_ring = src_step % FRAME_HISTORY_SIZE;
                     const float* src_frame = frame_history.data() + src_ring * OBS_DIM_SINGLE;
                     for(TI c = 0; c < IMG_C; c++){
-                        stacked_obs[p * STACKED_IMG_C + f * IMG_C + c] = src_frame[p * IMG_C + c];
+                        combined_obs[p * COMBINED_IMG_C + f * IMG_C + c] = src_frame[p * IMG_C + c];
                     }
+                }
+                for(TI c = 0; c < IMG_C; c++){
+                    combined_obs[p * COMBINED_IMG_C + FRAME_STACK_N * IMG_C + c] = target_frame_buf[p * IMG_C + c];
                 }
             }
 
-            // Fill dyn input: [stacked_img | state_obs]
-            float* input_data = reinterpret_cast<float*>(dyn_input.data);
-            std::memcpy(input_data, stacked_obs.data(), STACKED_OBS_DIM * sizeof(float));
-            std::memcpy(input_data + STACKED_OBS_DIM, state_obs_data, STATE_OBS_DIM * sizeof(float));
+            // Fill tuple inputs
+            std::memcpy(dyn_inputs.tensors[0].data, combined_obs.data(), COMBINED_OBS_DIM * sizeof(float));
+            std::memcpy(dyn_inputs.tensors[1].data, state_obs_data, STATE_OBS_DIM * sizeof(float));
 
-            if(!rlt::evaluate(device, model, dyn_input, dyn_output, buffer)){
+            if(!rlt::evaluate(device, model, dyn_inputs, dyn_output, buffer)){
                 std::cerr << "dyn::evaluate failed at episode " << episode_i << " step " << step_i << std::endl;
                 return 1;
             }
@@ -516,7 +593,7 @@ int main(int argc, char** argv){
     }
     mean_length /= episode_lengths.size();
     T survival = (T)(config.num_episodes - terminated_count) / (T)config.num_episodes * 100;
-    std::cout << std::setw(12) << std::setprecision(4) << std::fixed << config.gaussian_noise_std
+    std::cout << std::setw(12) << std::setprecision(4) << std::fixed << config.brightness_scale
               << std::setw(14) << std::setprecision(1) << mean_length
               << std::setw(13) << std::setprecision(1) << survival << "%" << std::endl;
 
@@ -526,7 +603,7 @@ int main(int argc, char** argv){
     // =====================================================================
     // Cleanup
     // =====================================================================
-    rlt::free(device, dyn_input);
+    for(TI i = 0; i < dyn_inputs.num_tensors; i++) rlt::free(device, dyn_inputs.tensors[i]);
     rlt::free(device, dyn_output);
     rlt::free(device, buffer);
     rlt::free(device, model);
