@@ -38,6 +38,12 @@ namespace rl_tools{
         dyn::set_shape(executor.policy_buffer.dyn_output, (TI)2, output_shape);
         executor.policy_buffer.dyn_output.type = dyn::Type::FLOAT32;
         executor.policy_buffer.dyn_output.capacity = policy.layer.output_size;
+        dyn::set_shape(executor.observation, (TI)2, input_shape);
+        executor.observation.type = dyn::Type::FLOAT32;
+        dyn::set_shape(l2f.input, (TI)2, input_shape);
+        l2f.input.type = dyn::Type::FLOAT32;
+        dyn::set_shape(l2f.output, (TI)2, output_shape);
+        l2f.output.type = dyn::Type::FLOAT32;
         rl_tools::malloc(device, l2f);
         return true;
     }

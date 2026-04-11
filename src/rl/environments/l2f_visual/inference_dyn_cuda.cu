@@ -262,7 +262,7 @@ int main(int argc, char** argv){
             if(rlt::evaluate(device, model, example_input, verify_output, verify_buffer)){
                 float max_diff = 0;
                 for(TI i = 0; i < example_output.size(); i++){
-                    float diff = std::fabs(rlt::dyn::get(device, verify_output, i) - rlt::dyn::get(device, example_output, i));
+                    float diff = std::fabs(rlt::get(device, verify_output, i) - rlt::get(device, example_output, i));
                     if(diff > max_diff) max_diff = diff;
                 }
                 std::cout << "Checkpoint verification: max_diff=" << max_diff << (max_diff < 1e-5f ? " PASS" : " WARNING: large difference") << std::endl;
@@ -474,7 +474,7 @@ int main(int argc, char** argv){
 
             // Extract action
             for(TI a = 0; a < ACTION_DIM; a++){
-                action_data[a] = rlt::dyn::get(device, dyn_output, a);
+                action_data[a] = rlt::get(device, dyn_output, a);
             }
 
             // Step environment

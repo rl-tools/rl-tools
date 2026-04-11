@@ -94,6 +94,10 @@ namespace rl_tools{
                 static constexpr TI OUTPUT_DIM = POLICY::OUTPUT_SHAPE::LAST;
                 using WARNING_LEVELS = T_WARNING_LEVELS;
             };
+            template <typename T_POLICY, typename T_T, typename T_TI, T_TI T_INPUT_DIM, bool T_DA>
+            struct ObservationTensorType{
+                using type = Tensor<tensor::Specification<T_T, T_TI, tensor::Shape<T_TI, 1, T_INPUT_DIM>, T_DA>>;
+            };
         }
         template <typename T_SPEC>
         struct Executor{
@@ -119,7 +123,7 @@ namespace rl_tools{
             bool force_sync_native_initialized = false;
             TI force_sync_native = SPEC::FORCE_SYNC_NATIVE; // runtime variante of FORCE_SYNC_NATIVE, allows to react to different inference/control frequencies without recompiling when setting
 
-            Tensor<tensor::Specification<typename SPEC::T, typename SPEC::TI, tensor::Shape<typename SPEC::TI, 1, SPEC::INPUT_DIM>, DYNAMIC_ALLOCATION>> observation;
+            typename executor::ObservationTensorType<POLICY, typename SPEC::T, TI, SPEC::INPUT_DIM, DYNAMIC_ALLOCATION>::type observation;
             typename POLICY::template State<DYNAMIC_ALLOCATION> policy_state, policy_state_temp;
             typename POLICY::template Buffer<DYNAMIC_ALLOCATION> policy_buffer;
         };

@@ -69,6 +69,16 @@ namespace rl_tools::inference::applications{
             float action[SPEC::OUTPUT_DIM];
         };
     }
+    namespace l2f{
+        template <typename T_POLICY, typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, bool T_DA>
+        struct InputTensorType{
+            using type = Tensor<tensor::Specification<T_T, T_TI, tensor::Shape<T_TI, 1, T_INPUT_DIM>, T_DA>>;
+        };
+        template <typename T_POLICY, typename T_T, typename T_TI, T_TI T_INPUT_DIM, T_TI T_OUTPUT_DIM, bool T_DA>
+        struct OutputTensorType{
+            using type = Tensor<tensor::Specification<T_T, T_TI, tensor::Shape<T_TI, 1, T_OUTPUT_DIM>, T_DA>>;
+        };
+    }
     template <typename SPEC>
     struct L2F{
         using TYPE_POLICY = typename SPEC::TYPE_POLICY;
@@ -77,8 +87,8 @@ namespace rl_tools::inference::applications{
         using TIMESTAMP = typename SPEC::TIMESTAMP;
         T action_history[SPEC::ACTION_HISTORY_LENGTH][SPEC::OUTPUT_DIM];
         static constexpr TI INPUT_DIM = 18 + SPEC::OUTPUT_DIM * SPEC::ACTION_HISTORY_LENGTH;
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, 1, INPUT_DIM>, SPEC::DYNAMIC_ALLOCATION>> input;
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, 1, SPEC::OUTPUT_DIM>, SPEC::DYNAMIC_ALLOCATION>> output;
+        typename l2f::InputTensorType<typename SPEC::POLICY, T, TI, INPUT_DIM, SPEC::OUTPUT_DIM, SPEC::DYNAMIC_ALLOCATION>::type input;
+        typename l2f::OutputTensorType<typename SPEC::POLICY, T, TI, INPUT_DIM, SPEC::OUTPUT_DIM, SPEC::DYNAMIC_ALLOCATION>::type output;
         Executor<typename SPEC::EXECUTOR_SPEC> executor;
         TI steps_since_original_control_step;
         l2f::ObservationLayout<TI> observation_layout;
