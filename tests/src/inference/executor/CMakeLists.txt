@@ -10,4 +10,8 @@ if(RL_TOOLS_TEST_DATA_PATH)
     add_executable(test_inference_l2f_c_interface_write_policy write_example_policy.cpp)
     target_link_libraries(test_inference_l2f_c_interface_write_policy PRIVATE RLtools::Core GTest::gtest_main)
     gtest_discover_tests(test_inference_l2f_c_interface_write_policy)
+
+    add_executable(test_inference_l2f_observation test_inference_l2f_observation.cpp)
+    target_link_libraries(test_inference_l2f_observation PRIVATE RLtools::Core GTest::gtest_main)
+    gtest_discover_tests(test_inference_l2f_observation)
 endif()
