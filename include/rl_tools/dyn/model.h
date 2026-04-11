@@ -163,9 +163,16 @@ namespace rl_tools::dyn{
         template <typename T_TI>
         struct Parallel{
             using TI = T_TI;
-            TI input_dim_a, input_dim_b;
         };
     }
+
+    template <typename T_TI>
+    struct TensorTuple {
+        using TI = T_TI;
+        static constexpr TI MAX_TENSORS = 8;
+        Tensor<TensorSpecification<TI>> tensors[MAX_TENSORS];
+        TI num_tensors = 0;
+    };
 
     template <typename T_TI>
     struct State{
