@@ -240,8 +240,8 @@ namespace rl_tools::math {
     RL_TOOLS_FUNCTION_PLACEMENT T fast_tanh(const devices::math::CUDA& dev, T x) {
         x = clamp(dev, x, static_cast<T>(-3.0), static_cast<T>(3.0));
         T x_squared = x * x;
-        T numerator = x * (27 + x_squared);
-        T denominator = 27 + 9 * x_squared;
+        T numerator = x * ((T)27 + x_squared);
+        T denominator = (T)27 + (T)9 * x_squared;
 #ifdef __CUDA_ARCH__
         if constexpr(utils::typing::is_same_v<T, float>){
             return __fdiv_rn(numerator, denominator);
