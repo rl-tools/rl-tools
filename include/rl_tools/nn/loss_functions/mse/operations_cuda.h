@@ -28,11 +28,11 @@ namespace rl_tools::nn::loss_functions::mse {
                 loss_weight_value = get(device, loss_weight, 0);
             }
             else {
-                loss_weight_value = 1;
+                loss_weight_value = (T)1;
             }
             if(output_pos_x < OUTPUT_DIM && output_pos_y < BATCH_SIZE){
                 T diff = get(a, output_pos_y, output_pos_x) - get(b, output_pos_y, output_pos_x);
-                set(d_a, output_pos_y, output_pos_x, 2*diff/(SPEC_A::ROWS * SPEC_A::COLS) * loss_weight_value);
+                set(d_a, output_pos_y, output_pos_x, (T)2*diff/(T)(SPEC_A::ROWS * SPEC_A::COLS) * loss_weight_value);
             }
         }
     }
@@ -68,7 +68,7 @@ namespace rl_tools::nn::loss_functions::mse {
             TI output_pos_y = blockIdx.y * blockDim.y + threadIdx.y;
             if(output_pos_x < OUTPUT_DIM && output_pos_y < BATCH_SIZE){
                 T diff = get(a, output_pos_y, output_pos_x) - get(b, output_pos_y, output_pos_x);
-                set(d_a, output_pos_y, output_pos_x, 2*diff/(SPEC_A::ROWS * SPEC_A::COLS) * loss_weight);
+                set(d_a, output_pos_y, output_pos_x, (T)2*diff/(T)(SPEC_A::ROWS * SPEC_A::COLS) * loss_weight);
             }
         }
     }
