@@ -69,13 +69,13 @@ int main(int argc, char** argv){
     printf("Output size: %lu\n", (unsigned long)output_size);
     TI print_n = output_size < 10 ? output_size : 10;
     for(TI i = 0; i < print_n; i++){
-        float got = rlt::dyn::get(device, output, i);
-        float exp = rlt::dyn::get(device, expected, i);
+        float got = rlt::get(device, output, i);
+        float exp = rlt::get(device, expected, i);
         printf("  [%lu] got=%e expected=%e\n", (unsigned long)i, got, exp);
     }
     for(TI i = 0; i < output_size; i++){
-        float got = rlt::dyn::get(device, output, i);
-        float exp = rlt::dyn::get(device, expected, i);
+        float got = rlt::get(device, output, i);
+        float exp = rlt::get(device, expected, i);
         float diff = std::fabs(got - exp);
         if(diff > max_diff) max_diff = diff;
     }

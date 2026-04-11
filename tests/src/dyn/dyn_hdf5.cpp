@@ -73,7 +73,7 @@ TEST(TEST_DYN_HDF5, dense_layer){
     dyn_input.type = rlt::dyn::Type::FLOAT32;
     rlt::malloc(device, dyn_input);
     auto input_mat = rlt::matrix_view(device, input);
-    for(TI i = 0; i < 3; i++) for(TI j = 0; j < INPUT_DIM; j++) rlt::dyn::set(device, dyn_input, i * INPUT_DIM + j, rlt::get(input_mat, i, j));
+    for(TI i = 0; i < 3; i++) for(TI j = 0; j < INPUT_DIM; j++) rlt::set(device, dyn_input, rlt::get(input_mat, i, j), i * INPUT_DIM + j);
     TI output_shape[] = {(TI)3, OUTPUT_DIM};
     rlt::dyn::set_shape(dyn_output, (TI)2, output_shape);
     dyn_output.type = rlt::dyn::Type::FLOAT32;
@@ -86,7 +86,7 @@ TEST(TEST_DYN_HDF5, dense_layer){
     auto output_mat = rlt::matrix_view(device, output_static);
     T max_diff = 0;
     for(TI i = 0; i < 3; i++) for(TI j = 0; j < OUTPUT_DIM; j++){
-        T diff = std::abs(rlt::get(output_mat, i, j) - rlt::dyn::get(device, dyn_output, i * OUTPUT_DIM + j));
+        T diff = std::abs(rlt::get(output_mat, i, j) - rlt::get(device, dyn_output, i * OUTPUT_DIM + j));
         if(diff > max_diff) max_diff = diff;
     }
     std::cout << "HDF5 Dense max diff: " << max_diff << std::endl;
@@ -127,7 +127,7 @@ TEST(TEST_DYN_HDF5, sequential_dense_gru_mlp){
     TI dis[] = {SEQ_LEN, BATCH_SIZE, INPUT_DIM};
     rlt::dyn::set_shape(di, (TI)3, dis); di.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, di);
     auto im = rlt::matrix_view(device, in);
-    for(TI i = 0; i < SEQ_LEN * BATCH_SIZE; i++) for(TI j = 0; j < INPUT_DIM; j++) rlt::dyn::set(device, di, i * INPUT_DIM + j, rlt::get(im, i, j));
+    for(TI i = 0; i < SEQ_LEN * BATCH_SIZE; i++) for(TI j = 0; j < INPUT_DIM; j++) rlt::set(device, di, rlt::get(im, i, j), i * INPUT_DIM + j);
     TI dos[] = {SEQ_LEN, BATCH_SIZE, OUTPUT_DIM}; rlt::dyn::set_shape(d_out, (TI)3, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
     rlt::dyn::propagate_shapes(dm, di.shape, di.rank);
     rlt::dyn::Buffer<TI> db; db.layer = &dm; rlt::malloc(device, db);
@@ -135,7 +135,7 @@ TEST(TEST_DYN_HDF5, sequential_dense_gru_mlp){
     auto om = rlt::matrix_view(device, out);
     T md = 0;
     for(TI i = 0; i < SEQ_LEN * BATCH_SIZE; i++) for(TI j = 0; j < OUTPUT_DIM; j++){
-        T d = std::abs(rlt::get(om, i, j) - rlt::dyn::get(device, d_out, i * OUTPUT_DIM + j));
+        T d = std::abs(rlt::get(om, i, j) - rlt::get(device, d_out, i * OUTPUT_DIM + j));
         if(d > md) md = d;
     }
     std::cout << "HDF5 Sequential max diff: " << md << std::endl;

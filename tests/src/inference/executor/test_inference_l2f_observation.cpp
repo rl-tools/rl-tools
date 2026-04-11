@@ -11,6 +11,7 @@
 #include <rl_tools/inference/executor/operations_generic.h>
 #include <rl_tools/inference/applications/l2f/l2f.h>
 #include <rl_tools/inference/applications/l2f/operations_generic.h>
+#include <rl_tools/inference/applications/l2f/operations_dyn.h>
 
 #include "../../../../tests/data/test_inference_executor_policy.h"
 
@@ -209,7 +210,7 @@ TEST(RL_TOOLS_INFERENCE_L2F_OBSERVATION, OBSERVE_DYNAMIC_BASIC){
     using T = float;
     using TYPE_POLICY = rlt::numeric_types::Policy<T>;
     using TIMESTAMP = uint64_t;
-    using POLICY = rlt::checkpoint::actor::TYPE; // unused but needed for SPEC
+    using POLICY = rlt::checkpoint::actor::TYPE;
     static constexpr TI ACTION_HISTORY_LENGTH = 1;
     static constexpr TI OUTPUT_DIM = 4;
     static constexpr TIMESTAMP CONTROL_INTERVAL_INTERMEDIATE_NS = 2500 * 1000;
@@ -222,7 +223,6 @@ TEST(RL_TOOLS_INFERENCE_L2F_OBSERVATION, OBSERVE_DYNAMIC_BASIC){
     rlt::inference::applications::L2F<SPEC> executor;
     rlt::malloc(device, executor);
 
-    // Set up a dynamic observation layout: Position(3) + AngularVelocity(3) + ActionHistory(1) = 10
     auto& layout = executor.observation_layout;
     layout.component_count = 3;
     layout.total_dim = 10;
@@ -230,6 +230,12 @@ TEST(RL_TOOLS_INFERENCE_L2F_OBSERVATION, OBSERVE_DYNAMIC_BASIC){
     layout.components[0] = {l2f::ObservationComponentType::POSITION, 0, 0, 3};
     layout.components[1] = {l2f::ObservationComponentType::ANGULAR_VELOCITY, 0, 3, 3};
     layout.components[2] = {l2f::ObservationComponentType::ACTION_HISTORY, 1, 6, 4};
+
+    rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> obs_flat{};
+    TI shape[] = {1, 10};
+    rlt::dyn::set_shape(obs_flat, (TI)2, shape);
+    obs_flat.type = rlt::dyn::Type::FLOAT32;
+    rlt::malloc(device, obs_flat);
 
     l2f::Observation<SPEC> observation;
     observation.position[0] = 1.0f; observation.position[1] = 2.0f; observation.position[2] = 3.0f;
@@ -241,20 +247,21 @@ TEST(RL_TOOLS_INFERENCE_L2F_OBSERVATION, OBSERVE_DYNAMIC_BASIC){
     executor.action_history[0][2] = 0.3f;
     executor.action_history[0][3] = 0.4f;
 
-    bool result = l2f::observe_dynamic(device, executor, observation, executor.input);
+    bool result = l2f::observe(device, executor, observation, obs_flat);
     ASSERT_TRUE(result);
 
-    ASSERT_FLOAT_EQ(rlt::get(device, executor.input, 0, 0), 1.0f);
-    ASSERT_FLOAT_EQ(rlt::get(device, executor.input, 0, 1), 2.0f);
-    ASSERT_FLOAT_EQ(rlt::get(device, executor.input, 0, 2), 3.0f);
-    ASSERT_FLOAT_EQ(rlt::get(device, executor.input, 0, 3), 4.0f);
-    ASSERT_FLOAT_EQ(rlt::get(device, executor.input, 0, 4), 5.0f);
-    ASSERT_FLOAT_EQ(rlt::get(device, executor.input, 0, 5), 6.0f);
-    ASSERT_FLOAT_EQ(rlt::get(device, executor.input, 0, 6), 0.1f);
-    ASSERT_FLOAT_EQ(rlt::get(device, executor.input, 0, 7), 0.2f);
-    ASSERT_FLOAT_EQ(rlt::get(device, executor.input, 0, 8), 0.3f);
-    ASSERT_FLOAT_EQ(rlt::get(device, executor.input, 0, 9), 0.4f);
+    ASSERT_FLOAT_EQ(rlt::get(device, obs_flat, (TI)0), 1.0f);
+    ASSERT_FLOAT_EQ(rlt::get(device, obs_flat, (TI)1), 2.0f);
+    ASSERT_FLOAT_EQ(rlt::get(device, obs_flat, (TI)2), 3.0f);
+    ASSERT_FLOAT_EQ(rlt::get(device, obs_flat, (TI)3), 4.0f);
+    ASSERT_FLOAT_EQ(rlt::get(device, obs_flat, (TI)4), 5.0f);
+    ASSERT_FLOAT_EQ(rlt::get(device, obs_flat, (TI)5), 6.0f);
+    ASSERT_FLOAT_EQ(rlt::get(device, obs_flat, (TI)6), 0.1f);
+    ASSERT_FLOAT_EQ(rlt::get(device, obs_flat, (TI)7), 0.2f);
+    ASSERT_FLOAT_EQ(rlt::get(device, obs_flat, (TI)8), 0.3f);
+    ASSERT_FLOAT_EQ(rlt::get(device, obs_flat, (TI)9), 0.4f);
 
+    rlt::free(device, obs_flat);
     rlt::free(device, executor);
 }
 
@@ -280,13 +287,19 @@ TEST(RL_TOOLS_INFERENCE_L2F_OBSERVATION, OBSERVE_DYNAMIC_MISSING_SET){
     layout.total_dim = 3;
     layout.components[0] = {l2f::ObservationComponentType::POSITION, 0, 0, 3};
 
+    rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> obs_flat{};
+    TI shape[] = {1, 3};
+    rlt::dyn::set_shape(obs_flat, (TI)2, shape);
+    obs_flat.type = rlt::dyn::Type::FLOAT32;
+    rlt::malloc(device, obs_flat);
+
     l2f::Observation<SPEC> observation;
     observation.position[0] = 1.0f; observation.position[1] = 2.0f; observation.position[2] = 3.0f;
-    // position_set intentionally NOT set — should return false
 
-    bool result = l2f::observe_dynamic(device, executor, observation, executor.input);
+    bool result = l2f::observe(device, executor, observation, obs_flat);
     ASSERT_FALSE(result);
 
+    rlt::free(device, obs_flat);
     rlt::free(device, executor);
 }
 
@@ -312,27 +325,33 @@ TEST(RL_TOOLS_INFERENCE_L2F_OBSERVATION, OBSERVE_DYNAMIC_ROTATION_MATRIX){
     layout.total_dim = 9;
     layout.components[0] = {l2f::ObservationComponentType::ORIENTATION_ROTATION_MATRIX, 0, 0, 9};
 
+    rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> obs_flat{};
+    TI shape[] = {1, 9};
+    rlt::dyn::set_shape(obs_flat, (TI)2, shape);
+    obs_flat.type = rlt::dyn::Type::FLOAT32;
+    rlt::malloc(device, obs_flat);
+
     l2f::Observation<SPEC> observation;
-    observation.orientation[0] = 1.0f; // identity quaternion
+    observation.orientation[0] = 1.0f;
     observation.orientation[1] = 0.0f;
     observation.orientation[2] = 0.0f;
     observation.orientation[3] = 0.0f;
     observation.orientation_set = true;
 
-    bool result = l2f::observe_dynamic(device, executor, observation, executor.input);
+    bool result = l2f::observe(device, executor, observation, obs_flat);
     ASSERT_TRUE(result);
 
-    // Identity quaternion → identity rotation matrix (row-major)
-    ASSERT_NEAR(rlt::get(device, executor.input, 0, 0), 1.0f, 1e-6); // R[0][0]
-    ASSERT_NEAR(rlt::get(device, executor.input, 0, 1), 0.0f, 1e-6); // R[0][1]
-    ASSERT_NEAR(rlt::get(device, executor.input, 0, 2), 0.0f, 1e-6); // R[0][2]
-    ASSERT_NEAR(rlt::get(device, executor.input, 0, 3), 0.0f, 1e-6); // R[1][0]
-    ASSERT_NEAR(rlt::get(device, executor.input, 0, 4), 1.0f, 1e-6); // R[1][1]
-    ASSERT_NEAR(rlt::get(device, executor.input, 0, 5), 0.0f, 1e-6); // R[1][2]
-    ASSERT_NEAR(rlt::get(device, executor.input, 0, 6), 0.0f, 1e-6); // R[2][0]
-    ASSERT_NEAR(rlt::get(device, executor.input, 0, 7), 0.0f, 1e-6); // R[2][1]
-    ASSERT_NEAR(rlt::get(device, executor.input, 0, 8), 1.0f, 1e-6); // R[2][2]
+    ASSERT_NEAR(rlt::get(device, obs_flat, (TI)0), 1.0f, 1e-6);
+    ASSERT_NEAR(rlt::get(device, obs_flat, (TI)1), 0.0f, 1e-6);
+    ASSERT_NEAR(rlt::get(device, obs_flat, (TI)2), 0.0f, 1e-6);
+    ASSERT_NEAR(rlt::get(device, obs_flat, (TI)3), 0.0f, 1e-6);
+    ASSERT_NEAR(rlt::get(device, obs_flat, (TI)4), 1.0f, 1e-6);
+    ASSERT_NEAR(rlt::get(device, obs_flat, (TI)5), 0.0f, 1e-6);
+    ASSERT_NEAR(rlt::get(device, obs_flat, (TI)6), 0.0f, 1e-6);
+    ASSERT_NEAR(rlt::get(device, obs_flat, (TI)7), 0.0f, 1e-6);
+    ASSERT_NEAR(rlt::get(device, obs_flat, (TI)8), 1.0f, 1e-6);
 
+    rlt::free(device, obs_flat);
     rlt::free(device, executor);
 }
 

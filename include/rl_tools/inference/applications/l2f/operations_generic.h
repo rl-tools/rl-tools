@@ -6,6 +6,7 @@
 #include "l2f.h"
 #include "../../executor/operations_generic.h"
 #include "../../../utils/string/operations_generic.h"
+#include "../../../dyn/tensor_operations_generic.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC>
@@ -31,6 +32,17 @@ namespace rl_tools{
             }
         }
         executor.steps_since_original_control_step = 0;
+        if(executor.observation_layout.component_count == 0){
+            auto& layout = executor.observation_layout;
+            layout.components[0] = {inference::applications::l2f::ObservationComponentType::POSITION, 0, 0, 3};
+            layout.components[1] = {inference::applications::l2f::ObservationComponentType::ORIENTATION_ROTATION_MATRIX, 0, 3, 9};
+            layout.components[2] = {inference::applications::l2f::ObservationComponentType::LINEAR_VELOCITY, 0, 12, 3};
+            layout.components[3] = {inference::applications::l2f::ObservationComponentType::ANGULAR_VELOCITY, 0, 15, 3};
+            layout.components[4] = {inference::applications::l2f::ObservationComponentType::ACTION_HISTORY, SPEC::ACTION_HISTORY_LENGTH, 18, SPEC::OUTPUT_DIM * SPEC::ACTION_HISTORY_LENGTH};
+            layout.component_count = 5;
+            layout.total_dim = 18 + SPEC::OUTPUT_DIM * SPEC::ACTION_HISTORY_LENGTH;
+            layout.action_history_length = SPEC::ACTION_HISTORY_LENGTH;
+        }
         reset(device, executor.executor, policy, rng);
     }
     namespace inference::applications::l2f{
@@ -165,8 +177,8 @@ namespace rl_tools{
             }
             return true;
         }
-        template <typename DEVICE, typename SPEC>
-        RL_TOOLS_FUNCTION_PLACEMENT bool observe_dynamic(DEVICE& device, L2F<SPEC>& executor, Observation<SPEC>& observation, dyn::Tensor<dyn::TensorSpecification<typename SPEC::TI>>& observation_flat){
+        template <typename DEVICE, typename SPEC, typename OBS_TENSOR>
+        RL_TOOLS_FUNCTION_PLACEMENT bool observe(DEVICE& device, L2F<SPEC>& executor, Observation<SPEC>& observation, OBS_TENSOR& observation_flat){
             using TI = typename SPEC::TI;
             auto& layout = executor.observation_layout;
             for(TI comp_i = 0; comp_i < layout.component_count; comp_i++){
@@ -174,40 +186,40 @@ namespace rl_tools{
                 switch(comp.type){
                     case ObservationComponentType::POSITION:
                         if(!observation.position_set) return false;
-                        for(TI i = 0; i < 3; i++) dyn::set(device, observation_flat, comp.offset + i, observation.position[i]);
+                        for(TI i = 0; i < 3; i++) rl_tools::set(device, observation_flat, observation.position[i], 0, comp.offset + i);
                         break;
                     case ObservationComponentType::ORIENTATION_ROTATION_MATRIX:{
                         if(!observation.orientation_set) return false;
                         float qw = observation.orientation[0], qx = observation.orientation[1], qy = observation.orientation[2], qz = observation.orientation[3];
-                        dyn::set(device, observation_flat, comp.offset + 0, (1 - 2*qy*qy - 2*qz*qz));
-                        dyn::set(device, observation_flat, comp.offset + 1, (    2*qx*qy - 2*qw*qz));
-                        dyn::set(device, observation_flat, comp.offset + 2, (    2*qx*qz + 2*qw*qy));
-                        dyn::set(device, observation_flat, comp.offset + 3, (    2*qx*qy + 2*qw*qz));
-                        dyn::set(device, observation_flat, comp.offset + 4, (1 - 2*qx*qx - 2*qz*qz));
-                        dyn::set(device, observation_flat, comp.offset + 5, (    2*qy*qz - 2*qw*qx));
-                        dyn::set(device, observation_flat, comp.offset + 6, (    2*qx*qz - 2*qw*qy));
-                        dyn::set(device, observation_flat, comp.offset + 7, (    2*qy*qz + 2*qw*qx));
-                        dyn::set(device, observation_flat, comp.offset + 8, (1 - 2*qx*qx - 2*qy*qy));
+                        rl_tools::set(device, observation_flat, (1 - 2*qy*qy - 2*qz*qz), 0, comp.offset + 0);
+                        rl_tools::set(device, observation_flat, (    2*qx*qy - 2*qw*qz), 0, comp.offset + 1);
+                        rl_tools::set(device, observation_flat, (    2*qx*qz + 2*qw*qy), 0, comp.offset + 2);
+                        rl_tools::set(device, observation_flat, (    2*qx*qy + 2*qw*qz), 0, comp.offset + 3);
+                        rl_tools::set(device, observation_flat, (1 - 2*qx*qx - 2*qz*qz), 0, comp.offset + 4);
+                        rl_tools::set(device, observation_flat, (    2*qy*qz - 2*qw*qx), 0, comp.offset + 5);
+                        rl_tools::set(device, observation_flat, (    2*qx*qz - 2*qw*qy), 0, comp.offset + 6);
+                        rl_tools::set(device, observation_flat, (    2*qy*qz + 2*qw*qx), 0, comp.offset + 7);
+                        rl_tools::set(device, observation_flat, (1 - 2*qx*qx - 2*qy*qy), 0, comp.offset + 8);
                         break;
                     }
                     case ObservationComponentType::ORIENTATION_QUATERNION:
                         if(!observation.orientation_set) return false;
-                        for(TI i = 0; i < 4; i++) dyn::set(device, observation_flat, comp.offset + i, observation.orientation[i]);
+                        for(TI i = 0; i < 4; i++) rl_tools::set(device, observation_flat, observation.orientation[i], 0, comp.offset + i);
                         break;
                     case ObservationComponentType::LINEAR_VELOCITY:
                     case ObservationComponentType::LINEAR_VELOCITY_DELAYED:
                         if(!observation.linear_velocity_set) return false;
-                        for(TI i = 0; i < 3; i++) dyn::set(device, observation_flat, comp.offset + i, observation.linear_velocity[i]);
+                        for(TI i = 0; i < 3; i++) rl_tools::set(device, observation_flat, observation.linear_velocity[i], 0, comp.offset + i);
                         break;
                     case ObservationComponentType::ANGULAR_VELOCITY:
                     case ObservationComponentType::ANGULAR_VELOCITY_DELAYED:
                         if(!observation.angular_velocity_set) return false;
-                        for(TI i = 0; i < 3; i++) dyn::set(device, observation_flat, comp.offset + i, observation.angular_velocity[i]);
+                        for(TI i = 0; i < 3; i++) rl_tools::set(device, observation_flat, observation.angular_velocity[i], 0, comp.offset + i);
                         break;
                     case ObservationComponentType::ACTION_HISTORY:
                         for(TI step_i = 0; step_i < comp.parameter; step_i++){
                             for(TI action_i = 0; action_i < SPEC::OUTPUT_DIM; action_i++){
-                                dyn::set(device, observation_flat, comp.offset + step_i * SPEC::OUTPUT_DIM + action_i, executor.action_history[step_i][action_i]);
+                                rl_tools::set(device, observation_flat, executor.action_history[step_i][action_i], 0, comp.offset + step_i * SPEC::OUTPUT_DIM + action_i);
                             }
                         }
                         break;
@@ -216,40 +228,6 @@ namespace rl_tools{
                 }
             }
             return true;
-        }
-        template <typename DEVICE, typename SPEC, typename OBS_SPEC>
-        RL_TOOLS_FUNCTION_PLACEMENT void observe(DEVICE& device, L2F<SPEC>& executor, Observation<SPEC>& observation, Tensor<OBS_SPEC>& observation_flat){
-            using TI = typename DEVICE::index_t;
-            static_assert(OBS_SPEC::SHAPE::template GET<0> == 1);
-            static_assert(OBS_SPEC::SHAPE::template GET<1> == 18 + SPEC::OUTPUT_DIM * SPEC::ACTION_HISTORY_LENGTH); // position + orientation + linear_velocity + angular_velocity + action_history
-            TI base = 0;
-            set(device, observation_flat, observation.position[0], 0,  base++);
-            set(device, observation_flat, observation.position[1], 0,  base++);
-            set(device, observation_flat, observation.position[2], 0,  base++);
-            float qw = observation.orientation[0];
-            float qx = observation.orientation[1];
-            float qy = observation.orientation[2];
-            float qz = observation.orientation[3];
-            set(device, observation_flat,   (1 - 2*qy*qy - 2*qz*qz), 0, base++);
-            set(device, observation_flat,   (    2*qx*qy - 2*qw*qz), 0, base++);
-            set(device, observation_flat,   (    2*qx*qz + 2*qw*qy), 0, base++);
-            set(device, observation_flat,   (    2*qx*qy + 2*qw*qz), 0, base++);
-            set(device, observation_flat,   (1 - 2*qx*qx - 2*qz*qz), 0, base++);
-            set(device, observation_flat,   (    2*qy*qz - 2*qw*qx), 0, base++);
-            set(device, observation_flat,   (    2*qx*qz - 2*qw*qy), 0, base++);
-            set(device, observation_flat,   (    2*qy*qz + 2*qw*qx), 0, base++);
-            set(device, observation_flat,   (1 - 2*qx*qx - 2*qy*qy), 0, base++);
-            set(device, observation_flat, observation.linear_velocity[0], 0, base++);
-            set(device, observation_flat, observation.linear_velocity[1], 0, base++);
-            set(device, observation_flat, observation.linear_velocity[2], 0, base++);
-            set(device, observation_flat, observation.angular_velocity[0], 0, base++);
-            set(device, observation_flat, observation.angular_velocity[1], 0, base++);
-            set(device, observation_flat, observation.angular_velocity[2], 0, base++);
-            for(TI step_i = 0; step_i < SPEC::ACTION_HISTORY_LENGTH; step_i++){
-                for(TI action_i = 0; action_i < SPEC::OUTPUT_DIM; action_i++){
-                    set(device, observation_flat, executor.action_history[step_i][action_i], 0, base++);
-                }
-            }
         }
     }
     template <typename DEVICE, typename SPEC, typename POLICY, typename RNG>
@@ -271,10 +249,9 @@ namespace rl_tools{
             action.action[output_i] = get(device, executor.output, 0, output_i);
         }
 
-        executor.steps_since_original_control_step++; // gets overwritten with 0 in the case of an original control step
+        executor.steps_since_original_control_step++;
         if(status.source == decltype(status.source)::CONTROL){
             if(status.step_type == decltype(status.step_type)::NATIVE){
-                // step action history
                 static_assert(SPEC::ACTION_HISTORY_LENGTH >= 1);
                 for(TI step_i = SPEC::ACTION_HISTORY_LENGTH-1; step_i > 0; step_i--){
                     for(TI action_i = 0; action_i < SPEC::OUTPUT_DIM; action_i++){

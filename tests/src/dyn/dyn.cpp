@@ -122,7 +122,7 @@ TEST(TEST_DYN, dense_layer){
     auto input_mat = rlt::matrix_view(device, input);
     for(TI i = 0; i < 3; i++){
         for(TI j = 0; j < INPUT_DIM; j++){
-            rlt::dyn::set(device, dyn_input, i * INPUT_DIM + j, rlt::get(input_mat, i, j));
+            rlt::set(device, dyn_input, rlt::get(input_mat, i, j), i * INPUT_DIM + j);
         }
     }
 
@@ -143,7 +143,7 @@ TEST(TEST_DYN, dense_layer){
     for(TI i = 0; i < 3; i++){
         for(TI j = 0; j < OUTPUT_DIM; j++){
             T static_val = rlt::get(output_mat, i, j);
-            T dyn_val = rlt::dyn::get(device, dyn_output, i * OUTPUT_DIM + j);
+            T dyn_val = rlt::get(device, dyn_output, i * OUTPUT_DIM + j);
             T diff = std::abs(static_val - dyn_val);
             if(diff > max_diff) max_diff = diff;
         }
@@ -184,7 +184,7 @@ TEST(TEST_DYN, gru_single_step){
     TI is[] = {(TI)1, GB, GI}; rlt::dyn::set_shape(dyn_in, (TI)3, is); dyn_in.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, dyn_in);
     TI os[] = {(TI)1, GB, GH}; rlt::dyn::set_shape(dyn_out, (TI)3, os); dyn_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, dyn_out);
     auto im = rlt::matrix_view(device, input);
-    for(TI i = 0; i < GB * GI; i++) rlt::dyn::set(device, dyn_in, i, rlt::get(im, 0, i));
+    for(TI i = 0; i < GB * GI; i++) rlt::set(device, dyn_in, rlt::get(im, 0, i), i);
     // Build dyn layer manually from static weights
     rlt::dyn::Layer<TI> dl;
     dl.type = rlt::dyn::LayerType::GRU;
@@ -193,11 +193,11 @@ TEST(TEST_DYN, gru_single_step){
     // Copy weights
     auto copy_tensor = [&](auto& src_param, rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>>& dst, TI r, TI c){
         TI sh[] = {r, c}; rlt::dyn::set_shape(dst, (TI)2, sh); dst.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, dst);
-        for(TI i = 0; i < r; i++) for(TI j = 0; j < c; j++) rlt::dyn::set(device, dst, i*c+j, (float)rlt::get(device, src_param.parameters, i, j));
+        for(TI i = 0; i < r; i++) for(TI j = 0; j < c; j++) rlt::set(device, dst, (float)rlt::get(device, src_param.parameters, i, j), i*c+j);
     };
     auto copy_tensor_1d = [&](auto& src_param, rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>>& dst, TI n){
         TI sh[] = {n}; rlt::dyn::set_shape(dst, (TI)1, sh); dst.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, dst);
-        for(TI i = 0; i < n; i++) rlt::dyn::set(device, dst, i, (float)rlt::get(device, src_param.parameters, i));
+        for(TI i = 0; i < n; i++) rlt::set(device, dst, (float)rlt::get(device, src_param.parameters, i), i);
     };
     copy_tensor(layer.weights_input, gd->weights_input, 3*GH, GI);
     copy_tensor_1d(layer.biases_input, gd->biases_input, 3*GH);
@@ -211,7 +211,7 @@ TEST(TEST_DYN, gru_single_step){
     T md = 0;
     for(TI j = 0; j < GH; j++){
         T sv = rlt::get(om, 0, j);
-        T dv = rlt::dyn::get(device, dyn_out, j);
+        T dv = rlt::get(device, dyn_out, j);
         std::cout << "  h[" << j << "] static=" << sv << " dyn=" << dv << " diff=" << std::abs(sv-dv) << std::endl;
         T d = std::abs(sv-dv); if(d > md) md = d;
     }
@@ -267,7 +267,7 @@ TEST(TEST_DYN, gru_standalone){
     auto gru_input_mat = rlt::matrix_view(device, gru_input);
     for(TI i = 0; i < SEQ_LEN * GRU_BATCH_SIZE; i++)
         for(TI j = 0; j < GRU_INPUT_DIM; j++)
-            rlt::dyn::set(device, dyn_gru_input, i * GRU_INPUT_DIM + j, rlt::get(gru_input_mat, i, j));
+            rlt::set(device, dyn_gru_input, rlt::get(gru_input_mat, i, j), i * GRU_INPUT_DIM + j);
     TI go_shape[] = {SEQ_LEN, GRU_BATCH_SIZE, HIDDEN_DIM};
     rlt::dyn::set_shape(dyn_gru_output, (TI)3, go_shape);
     dyn_gru_output.type = rlt::dyn::Type::FLOAT32;
@@ -280,7 +280,7 @@ TEST(TEST_DYN, gru_standalone){
     T max_diff = 0;
     for(TI i = 0; i < SEQ_LEN * GRU_BATCH_SIZE; i++)
         for(TI j = 0; j < HIDDEN_DIM; j++){
-            T diff = std::abs(rlt::get(gru_output_mat, i, j) - rlt::dyn::get(device, dyn_gru_output, i * HIDDEN_DIM + j));
+            T diff = std::abs(rlt::get(gru_output_mat, i, j) - rlt::get(device, dyn_gru_output, i * HIDDEN_DIM + j));
             if(diff > max_diff) max_diff = diff;
         }
     std::cout << "GRU standalone max diff: " << max_diff << std::endl;
@@ -321,13 +321,13 @@ TEST(TEST_DYN, sequential_dense_dense){
     TI dis[] = {(TI)3, (TI)6}; rlt::dyn::set_shape(di, (TI)2, dis); di.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, di);
     TI dos[] = {(TI)3, (TI)5}; rlt::dyn::set_shape(d_out, (TI)2, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
     auto im = rlt::matrix_view(device, in);
-    for(TI i = 0; i < 3; i++) for(TI j = 0; j < 6; j++) rlt::dyn::set(device, di, i*6+j, rlt::get(im, i, j));
+    for(TI i = 0; i < 3; i++) for(TI j = 0; j < 6; j++) rlt::set(device, di, rlt::get(im, i, j), i*6+j);
     rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, dm, di); rlt::malloc(device, db);
     ASSERT_TRUE(rlt::evaluate(device, dm, di, d_out, db));
     auto om = rlt::matrix_view(device, out);
     T md = 0;
     for(TI i = 0; i < 3; i++) for(TI j = 0; j < 5; j++){
-        T d = std::abs(rlt::get(om, i, j) - rlt::dyn::get(device, d_out, i*5+j));
+        T d = std::abs(rlt::get(om, i, j) - rlt::get(device, d_out, i*5+j));
         if(d > md) md = d;
     }
     std::cout << "Sequential Dense+Dense max diff: " << md << std::endl;
@@ -367,14 +367,14 @@ TEST(TEST_DYN, sequential_dense_gru){
     TI dis[] = {SL, BS, ID}; rlt::dyn::set_shape(di, (TI)3, dis); di.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, di);
     TI dos[] = {SL, BS, (TI)8}; rlt::dyn::set_shape(d_out, (TI)3, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
     auto im = rlt::matrix_view(device, in);
-    for(TI i = 0; i < SL*BS; i++) for(TI j = 0; j < ID; j++) rlt::dyn::set(device, di, i*ID+j, rlt::get(im, i, j));
+    for(TI i = 0; i < SL*BS; i++) for(TI j = 0; j < ID; j++) rlt::set(device, di, rlt::get(im, i, j), i*ID+j);
     rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, dm, di); rlt::malloc(device, db);
     ASSERT_TRUE(rlt::evaluate(device, dm, di, d_out, db));
     auto om = rlt::matrix_view(device, out);
     T md = 0;
     for(TI i = 0; i < SL*BS; i++) for(TI j = 0; j < 8; j++){
         T sv = rlt::get(om, i, j);
-        T dv = rlt::dyn::get(device, d_out, i*8+j);
+        T dv = rlt::get(device, d_out, i*8+j);
         T d = std::abs(sv - dv);
         if(i < 3 && j < 3) std::cout << "  out[" << i << "][" << j << "] static=" << sv << " dyn=" << dv << " diff=" << d << std::endl;
         if(d > md) md = d;
@@ -419,13 +419,13 @@ TEST(TEST_DYN, sequential_dense_gru_dense){
     TI dis[] = {SL2, BS2, ID2}; rlt::dyn::set_shape(di, (TI)3, dis); di.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, di);
     TI dos[] = {SL2, BS2, OD2}; rlt::dyn::set_shape(d_out, (TI)3, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
     auto im = rlt::matrix_view(device, in2);
-    for(TI i = 0; i < SL2*BS2; i++) for(TI j = 0; j < ID2; j++) rlt::dyn::set(device, di, i*ID2+j, rlt::get(im, i, j));
+    for(TI i = 0; i < SL2*BS2; i++) for(TI j = 0; j < ID2; j++) rlt::set(device, di, rlt::get(im, i, j), i*ID2+j);
     rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, dm, di); rlt::malloc(device, db);
     ASSERT_TRUE(rlt::evaluate(device, dm, di, d_out, db));
     auto om = rlt::matrix_view(device, out2);
     T md = 0;
     for(TI i = 0; i < SL2*BS2; i++) for(TI j = 0; j < OD2; j++){
-        T d = std::abs(rlt::get(om, i, j) - rlt::dyn::get(device, d_out, i*OD2+j));
+        T d = std::abs(rlt::get(om, i, j) - rlt::get(device, d_out, i*OD2+j));
         if(d > md) md = d;
     }
     std::cout << "Sequential Dense+GRU+Dense max diff: " << md << std::endl;
@@ -470,13 +470,13 @@ TEST(TEST_DYN, mlp_standalone){
     constexpr TI MLP_OUTPUT_DIM = 15;
     TI dos[] = {(TI)4, MLP_OUTPUT_DIM}; rlt::dyn::set_shape(d_out, (TI)2, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
     auto im = rlt::matrix_view(device, mlp_in);
-    for(TI i = 0; i < 4; i++) for(TI j = 0; j < 20; j++) rlt::dyn::set(device, di, i*20+j, rlt::get(im, i, j));
+    for(TI i = 0; i < 4; i++) for(TI j = 0; j < 20; j++) rlt::set(device, di, rlt::get(im, i, j), i*20+j);
     rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, dm, di); rlt::malloc(device, db);
     ASSERT_TRUE(rlt::evaluate(device, dm, di, d_out, db));
     auto om = rlt::matrix_view(device, mlp_out);
     T md = 0;
     for(TI i = 0; i < 4; i++) for(TI j = 0; j < MLP_OUTPUT_DIM; j++){
-        T d = std::abs(rlt::get(om, i, j) - rlt::dyn::get(device, d_out, i*MLP_OUTPUT_DIM+j));
+        T d = std::abs(rlt::get(om, i, j) - rlt::get(device, d_out, i*MLP_OUTPUT_DIM+j));
         if(d > md) md = d;
     }
     std::cout << "MLP standalone max diff: " << md << std::endl;
@@ -547,7 +547,7 @@ TEST(TEST_DYN, sequential_dense_gru_mlp){
     auto input_mat = rlt::matrix_view(device, input);
     for(TI i = 0; i < SEQ_LEN * BATCH_SIZE; i++){
         for(TI j = 0; j < INPUT_DIM; j++){
-            rlt::dyn::set(device, dyn_input, i * INPUT_DIM + j, rlt::get(input_mat, i, j));
+            rlt::set(device, dyn_input, rlt::get(input_mat, i, j), i * INPUT_DIM + j);
         }
     }
 
@@ -570,7 +570,7 @@ TEST(TEST_DYN, sequential_dense_gru_mlp){
     for(TI i = 0; i < SEQ_LEN * BATCH_SIZE; i++){
         for(TI j = 0; j < OUTPUT_DIM; j++){
             T static_val = rlt::get(output_mat, i, j);
-            T dyn_val = rlt::dyn::get(device, dyn_output, i * OUTPUT_DIM + j);
+            T dyn_val = rlt::get(device, dyn_output, i * OUTPUT_DIM + j);
             T diff = std::abs(static_val - dyn_val);
             if(diff > max_diff) max_diff = diff;
         }
@@ -628,13 +628,13 @@ TEST(TEST_DYN, gru_step_only){
     for(TI step = 0; step < NS; step++){
         rlt::randn(device, si, rng);
         auto sim = rlt::matrix_view(device, si);
-        for(TI b = 0; b < GB2; b++) for(TI i = 0; i < GI2; i++) rlt::dyn::set(device, di, b*GI2+i, rlt::get(sim, b, i));
+        for(TI b = 0; b < GB2; b++) for(TI i = 0; i < GI2; i++) rlt::set(device, di, rlt::get(sim, b, i), b*GI2+i);
         rlt::evaluate_step(device, gru, si, static_state, s_out, static_buf, rng);
         ASSERT_TRUE(rlt::evaluate_step(device, dl, di, ds, d_out, db));
         auto som = rlt::matrix_view(device, s_out);
         T smd = 0;
         for(TI b = 0; b < GB2; b++) for(TI h = 0; h < GH2; h++){
-            T d = std::abs(rlt::get(som, b, h) - rlt::dyn::get(device, d_out, b*GH2+h));
+            T d = std::abs(rlt::get(som, b, h) - rlt::get(device, d_out, b*GH2+h));
             if(d > smd) smd = d;
         }
         if(smd > omd) omd = smd;
@@ -729,7 +729,7 @@ TEST(TEST_DYN, evaluate_step_gru){
         auto input_mat = rlt::matrix_view(device, step_input);
         for(TI b = 0; b < BATCH_SIZE; b++){
             for(TI i = 0; i < INPUT_DIM; i++){
-                rlt::dyn::set(device, dyn_step_input, b * INPUT_DIM + i, rlt::get(input_mat, b, i));
+                rlt::set(device, dyn_step_input, rlt::get(input_mat, b, i), b * INPUT_DIM + i);
             }
         }
 
@@ -741,7 +741,7 @@ TEST(TEST_DYN, evaluate_step_gru){
         for(TI b = 0; b < BATCH_SIZE; b++){
             for(TI j = 0; j < OUTPUT_DIM; j++){
                 T static_val = rlt::get(output_mat, b, j);
-                T dyn_val = rlt::dyn::get(device, dyn_step_output, b * OUTPUT_DIM + j);
+                T dyn_val = rlt::get(device, dyn_step_output, b * OUTPUT_DIM + j);
                 T diff = std::abs(static_val - dyn_val);
                 if(diff > step_max_diff) step_max_diff = diff;
             }
@@ -805,7 +805,7 @@ TEST(TEST_DYN, basic_cnn){
     rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> di, d_out;
     TI dis[] = {(TI)1, (TI)8, (TI)8, (TI)3}; rlt::dyn::set_shape(di, (TI)4, dis); di.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, di);
     auto im = rlt::matrix_view(device, in);
-    for(TI i = 0; i < 1 * 8 * 8 * 3; i++) rlt::dyn::set(device, di, i, rlt::get_flat(device, in, i));
+    for(TI i = 0; i < 1 * 8 * 8 * 3; i++) rlt::set(device, di, rlt::get_flat(device, in, i), i);
     // Output: (1, 5) from flatten→dense
     constexpr TI CNN_OUTPUT_DIM = 5;
     TI dos[] = {(TI)1, CNN_OUTPUT_DIM}; rlt::dyn::set_shape(d_out, (TI)2, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
@@ -814,7 +814,7 @@ TEST(TEST_DYN, basic_cnn){
     auto om = rlt::matrix_view(device, out);
     T md = 0;
     for(TI j = 0; j < CNN_OUTPUT_DIM; j++){
-        T d = std::abs(rlt::get(om, 0, j) - rlt::dyn::get(device, d_out, j));
+        T d = std::abs(rlt::get(om, 0, j) - rlt::get(device, d_out, j));
         if(d > md) md = d;
     }
     std::cout << "Basic CNN max diff: " << md << std::endl;
@@ -857,13 +857,13 @@ TEST(TEST_DYN, resnet_block){
     ASSERT_EQ(dm.type, rlt::dyn::LayerType::RESNET_BLOCK);
     rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> di, d_out;
     TI dis[] = {(TI)1, (TI)8, (TI)8, (TI)64}; rlt::dyn::set_shape(di, (TI)4, dis); di.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, di);
-    for(TI i = 0; i < 1*8*8*64; i++) rlt::dyn::set(device, di, i, rlt::get_flat(device, rb_in, i));
+    for(TI i = 0; i < 1*8*8*64; i++) rlt::set(device, di, rlt::get_flat(device, rb_in, i), i);
     TI dos[] = {(TI)1, (TI)8, (TI)8, (TI)64}; rlt::dyn::set_shape(d_out, (TI)4, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
     rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, dm, di); rlt::malloc(device, db);
     ASSERT_TRUE(rlt::evaluate(device, dm, di, d_out, db));
     T md = 0;
     for(TI i = 0; i < 1*8*8*64; i++){
-        T d = std::abs(rlt::get_flat(device, rb_out, i) - rlt::dyn::get(device, d_out, i));
+        T d = std::abs(rlt::get_flat(device, rb_out, i) - rlt::get(device, d_out, i));
         if(d > md) md = d;
     }
     std::cout << "ResNet block (no downsample) max diff: " << md << std::endl;
@@ -903,7 +903,7 @@ TEST(TEST_DYN, resnet18){
     // Prepare dyn input (1, 224, 224, 3)
     rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> di, d_out;
     TI dis[] = {(TI)1, (TI)224, (TI)224, (TI)3}; rlt::dyn::set_shape(di, (TI)4, dis); di.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, di);
-    for(TI i = 0; i < 1 * 224 * 224 * 3; i++) rlt::dyn::set(device, di, i, rlt::get_flat(device, in, i));
+    for(TI i = 0; i < 1 * 224 * 224 * 3; i++) rlt::set(device, di, rlt::get_flat(device, in, i), i);
     // Output: (1, 1000)
     constexpr TI RESNET_OUTPUT_DIM = 1000;
     TI dos[] = {(TI)1, RESNET_OUTPUT_DIM}; rlt::dyn::set_shape(d_out, (TI)2, dos); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
@@ -912,7 +912,7 @@ TEST(TEST_DYN, resnet18){
     auto om = rlt::matrix_view(device, out);
     T md = 0;
     for(TI j = 0; j < RESNET_OUTPUT_DIM; j++){
-        T d = std::abs(rlt::get(om, 0, j) - rlt::dyn::get(device, d_out, j));
+        T d = std::abs(rlt::get(om, 0, j) - rlt::get(device, d_out, j));
         if(d > md) md = d;
     }
     std::cout << "ResNet18 max diff: " << md << std::endl;
@@ -946,7 +946,7 @@ TEST(TEST_DYN, unflatten_sequential_flatten_unflatten){
     rlt::dyn::Layer<TI> dm; ASSERT_TRUE(rlt::load(device, dm, dmg));
     rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> di, d_out;
     TI is[] = {BATCH, FLAT_DIM}; rlt::dyn::set_shape(di, (TI)2, is); di.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, di);
-    for(TI i = 0; i < BATCH * FLAT_DIM; i++) rlt::dyn::set(device, di, i, rlt::get_flat(device, input, i));
+    for(TI i = 0; i < BATCH * FLAT_DIM; i++) rlt::set(device, di, rlt::get_flat(device, input, i), i);
     TI os[] = {BATCH, FLAT_DIM}; rlt::dyn::set_shape(d_out, (TI)2, os); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
     rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, dm, di); rlt::malloc(device, db);
     ASSERT_EQ(dm.children[1].output_rank, (TI)4);
@@ -954,7 +954,7 @@ TEST(TEST_DYN, unflatten_sequential_flatten_unflatten){
     ASSERT_EQ(dm.children[1].output_shape[2], IMG_W);
     ASSERT_EQ(dm.children[1].output_shape[3], IMG_C);
     ASSERT_TRUE(rlt::evaluate(device, dm, di, d_out, db));
-    T md = 0; for(TI i = 0; i < BATCH * FLAT_DIM; i++){ T d = std::abs(rlt::dyn::get(device, di, i) - rlt::dyn::get(device, d_out, i)); if(d > md) md = d; }
+    T md = 0; for(TI i = 0; i < BATCH * FLAT_DIM; i++){ T d = std::abs(rlt::get(device, di, i) - rlt::get(device, d_out, i)); if(d > md) md = d; }
     std::cout << "Unflatten identity max diff: " << md << std::endl; ASSERT_EQ(md, 0);
     rlt::free(device, di); rlt::free(device, d_out); rlt::free(device, db); rlt::free(device, dm);
     rlt::free(device, model); rlt::free(device, buffer_static); rlt::free(device, input); rlt::free(device, output_static);
@@ -986,12 +986,12 @@ TEST(TEST_DYN, unflatten_conv_pipeline){
     rlt::dyn::Layer<TI> dm; ASSERT_TRUE(rlt::load(device, dm, dmg));
     rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> di, d_out;
     TI is[] = {BATCH, FLAT_DIM}; rlt::dyn::set_shape(di, (TI)2, is); di.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, di);
-    for(TI i = 0; i < BATCH * FLAT_DIM; i++) rlt::dyn::set(device, di, i, rlt::get_flat(device, input, i));
+    for(TI i = 0; i < BATCH * FLAT_DIM; i++) rlt::set(device, di, rlt::get_flat(device, input, i), i);
     constexpr TI OUT_FLAT = IMG_H * IMG_W * OUT_CH;
     TI os[] = {BATCH, OUT_FLAT}; rlt::dyn::set_shape(d_out, (TI)2, os); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
     rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, dm, di); rlt::malloc(device, db);
     ASSERT_TRUE(rlt::evaluate(device, dm, di, d_out, db));
-    T md = 0; for(TI i = 0; i < BATCH * OUT_FLAT; i++){ T d = std::abs(rlt::get_flat(device, output_static, i) - rlt::dyn::get(device, d_out, i)); if(d > md) md = d; }
+    T md = 0; for(TI i = 0; i < BATCH * OUT_FLAT; i++){ T d = std::abs(rlt::get_flat(device, output_static, i) - rlt::get(device, d_out, i)); if(d > md) md = d; }
     std::cout << "Unflatten conv pipeline max diff: " << md << std::endl; ASSERT_NEAR(md, 0, 1e-5);
     rlt::free(device, di); rlt::free(device, d_out); rlt::free(device, db); rlt::free(device, dm);
     rlt::free(device, model); rlt::free(device, buf); rlt::free(device, input); rlt::free(device, output_static);
@@ -1036,14 +1036,14 @@ TEST(TEST_DYN, parallel_cnn_state){
     rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> di, d_out;
     TI is[] = {BATCH, TOTAL_INPUT}; rlt::dyn::set_shape(di, (TI)2, is); di.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, di);
     for(TI b = 0; b < BATCH; b++){
-        for(TI i = 0; i < IMG_FLAT; i++) rlt::dyn::set(device, di, b * TOTAL_INPUT + i, rlt::get_flat(device, input_img, b * IMG_FLAT + i));
-        for(TI i = 0; i < STATE_DIM; i++) rlt::dyn::set(device, di, b * TOTAL_INPUT + IMG_FLAT + i, rlt::get_flat(device, input_state, b * STATE_DIM + i));
+        for(TI i = 0; i < IMG_FLAT; i++) rlt::set(device, di, rlt::get_flat(device, input_img, b * IMG_FLAT + i), b * TOTAL_INPUT + i);
+        for(TI i = 0; i < STATE_DIM; i++) rlt::set(device, di, rlt::get_flat(device, input_state, b * STATE_DIM + i), b * TOTAL_INPUT + IMG_FLAT + i);
     }
     TI os[] = {BATCH, OUTPUT_DIM}; rlt::dyn::set_shape(d_out, (TI)2, os); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
     rlt::dyn::Buffer<TI> db; helpers::setup_buffer(db, dm, di); rlt::malloc(device, db);
     ASSERT_TRUE(rlt::evaluate(device, dm, di, d_out, db));
     T md = 0;
-    for(TI b = 0; b < BATCH; b++) for(TI j = 0; j < OUTPUT_DIM; j++){ T d = std::abs(rlt::get_flat(device, output_static, b * OUTPUT_DIM + j) - rlt::dyn::get(device, d_out, b * OUTPUT_DIM + j)); if(d > md) md = d; }
+    for(TI b = 0; b < BATCH; b++) for(TI j = 0; j < OUTPUT_DIM; j++){ T d = std::abs(rlt::get_flat(device, output_static, b * OUTPUT_DIM + j) - rlt::get(device, d_out, b * OUTPUT_DIM + j)); if(d > md) md = d; }
     std::cout << "Parallel CNN+State max diff: " << md << std::endl; ASSERT_NEAR(md, 0, 1e-4);
     rlt::free(device, di); rlt::free(device, d_out); rlt::free(device, db); rlt::free(device, dm);
     rlt::free(device, model); rlt::free(device, buf); rlt::free(device, input_img); rlt::free(device, input_state); rlt::free(device, output_static);

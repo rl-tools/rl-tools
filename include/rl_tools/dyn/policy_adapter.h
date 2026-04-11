@@ -32,6 +32,22 @@ namespace rl_tools::dyn{
         template <bool DA = true> using Buffer = PolicyBuffer<TI>;
     };
 }
+namespace rl_tools{ namespace inference{ namespace executor{
+    template <typename TI, TI T_INPUT_DIM, TI T_OUTPUT_DIM, typename T_T, TI T_SPEC_INPUT_DIM, bool T_DA>
+    struct ObservationTensorType<dyn::Policy<TI, T_INPUT_DIM, T_OUTPUT_DIM>, T_T, TI, T_SPEC_INPUT_DIM, T_DA>{
+        using type = dyn::Tensor<dyn::TensorSpecification<TI>>;
+    };
+}}}
+namespace rl_tools{ namespace inference{ namespace applications{ namespace l2f{
+    template <typename TI, TI T_INPUT_DIM, TI T_OUTPUT_DIM, typename T_T, TI T_L2F_INPUT_DIM, TI T_L2F_OUTPUT_DIM, bool T_DA>
+    struct InputTensorType<dyn::Policy<TI, T_INPUT_DIM, T_OUTPUT_DIM>, T_T, TI, T_L2F_INPUT_DIM, T_L2F_OUTPUT_DIM, T_DA>{
+        using type = dyn::Tensor<dyn::TensorSpecification<TI>>;
+    };
+    template <typename TI, TI T_INPUT_DIM, TI T_OUTPUT_DIM, typename T_T, TI T_L2F_INPUT_DIM, TI T_L2F_OUTPUT_DIM, bool T_DA>
+    struct OutputTensorType<dyn::Policy<TI, T_INPUT_DIM, T_OUTPUT_DIM>, T_T, TI, T_L2F_INPUT_DIM, T_L2F_OUTPUT_DIM, T_DA>{
+        using type = dyn::Tensor<dyn::TensorSpecification<TI>>;
+    };
+}}}}
 namespace rl_tools{
     template <typename DEVICE, typename TI>
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, dyn::PolicyState<TI>& state){
@@ -68,12 +84,16 @@ namespace rl_tools{
     template <typename DEVICE, typename TI, TI INPUT_DIM, TI OUTPUT_DIM, typename OBS_SPEC, typename OUTPUT_SPEC, typename RNG, typename MODE>
     RL_TOOLS_FUNCTION_PLACEMENT void evaluate_step(DEVICE& device, dyn::Policy<TI, INPUT_DIM, OUTPUT_DIM>& policy, Tensor<OBS_SPEC>& observation, dyn::PolicyState<TI>& state, Tensor<OUTPUT_SPEC>& output, dyn::PolicyBuffer<TI>& buffer, RNG& rng, MODE mode){
         for(TI i = 0; i < OBS_SPEC::SHAPE::LAST; i++){
-            dyn::set(device, buffer.dyn_input, i, get(device, observation, 0, i));
+            set(device, buffer.dyn_input, get(device, observation, 0, i), i);
         }
         rl_tools::evaluate_step(device, policy.layer, buffer.dyn_input, state.inner, buffer.dyn_output, buffer.inner);
         for(TI i = 0; i < OUTPUT_SPEC::SHAPE::LAST; i++){
-            set(device, output, dyn::get(device, buffer.dyn_output, i), 0, i);
+            set(device, output, get(device, buffer.dyn_output, i), 0, i);
         }
+    }
+    template <typename DEVICE, typename TI, TI INPUT_DIM, TI OUTPUT_DIM, typename RNG, typename MODE>
+    RL_TOOLS_FUNCTION_PLACEMENT void evaluate_step(DEVICE& device, dyn::Policy<TI, INPUT_DIM, OUTPUT_DIM>& policy, dyn::Tensor<dyn::TensorSpecification<TI>>& observation, dyn::PolicyState<TI>& state, dyn::Tensor<dyn::TensorSpecification<TI>>& action, dyn::PolicyBuffer<TI>& buffer, RNG& rng, MODE mode){
+        rl_tools::evaluate_step(device, policy.layer, observation, state.inner, action, buffer.inner);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

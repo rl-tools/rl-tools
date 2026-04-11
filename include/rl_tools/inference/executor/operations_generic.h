@@ -4,8 +4,17 @@
 #define RL_TOOLS_INFERENCE_EXECUTOR_OPERATIONS_GENERIC_H
 
 #include "executor.h"
+#include "../../dyn/model.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+    template <typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto observation_dim(const Tensor<SPEC>&){
+        return SPEC::SHAPE::LAST;
+    }
+    template <typename TI>
+    RL_TOOLS_FUNCTION_PLACEMENT TI observation_dim(const dyn::Tensor<dyn::TensorSpecification<TI>>& tensor){
+        return tensor.size();
+    }
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, inference::Executor<SPEC>& executor){
         malloc(device, executor.observation);
@@ -89,14 +98,8 @@ namespace rl_tools{
         }
     }
 
-    template <typename DEVICE, typename SPEC, typename POLICY, typename OBS_SPEC, typename ACTION_SPEC, typename RNG>
-    inference::executor::Status<typename SPEC::STATUS_SPEC> control(DEVICE&device, inference::Executor<SPEC>& executor, typename SPEC::TIMESTAMP nanoseconds, POLICY& policy, Tensor<OBS_SPEC>& observation, Tensor<ACTION_SPEC>& action, RNG& rng){
-        static_assert(OBS_SPEC::SHAPE::LENGTH == 2);
-        static_assert(OBS_SPEC::SHAPE::FIRST == 1);
-        // static_assert(OBS_SPEC::SHAPE::LAST == SPEC::INPUT_DIM);
-        static_assert(ACTION_SPEC::SHAPE::LENGTH == 2);
-        static_assert(ACTION_SPEC::SHAPE::FIRST == 1);
-        static_assert(ACTION_SPEC::SHAPE::LAST == SPEC::OUTPUT_DIM);
+    template <typename DEVICE, typename SPEC, typename POLICY, typename OBSERVATION, typename ACTION, typename RNG>
+    inference::executor::Status<typename SPEC::STATUS_SPEC> control(DEVICE& device, inference::Executor<SPEC>& executor, typename SPEC::TIMESTAMP nanoseconds, POLICY& policy, OBSERVATION& observation, ACTION& action, RNG& rng){
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using TIMESTAMP = typename SPEC::TIMESTAMP;
@@ -145,15 +148,14 @@ namespace rl_tools{
             return status;
         }
         if(executor.last_control_timestamp == executor.last_observation_timestamp || time_diff_control == 0){
-            // if we controlled last time, reset observation average
             copy(device, device, observation, executor.observation);
         }
         else{
-            // otherwise weighted average of the intermediate observations
             T obs_weight = (T)time_diff_obs / (T)time_diff_control;
             T prev_obs_weight = (T)time_diff_previous_obs / (T)time_diff_control;
             scale(device, executor.observation, prev_obs_weight);
-            for (TI obs_i = 0; obs_i < OBS_SPEC::SHAPE::LAST; obs_i++){
+            auto obs_dim = observation_dim(observation);
+            for (TI obs_i = 0; obs_i < obs_dim; obs_i++){
                 T new_value = get(device, observation, 0, obs_i);
                 T prev = get(device, executor.observation, 0, obs_i);
                 set(device, executor.observation, prev + new_value * obs_weight, 0, obs_i);
@@ -185,7 +187,7 @@ namespace rl_tools{
             // Mode<mode::Evaluation<>> mode;
             Mode<nn::layers::gru::NoAutoResetMode<mode::Evaluation<>>> mode;
             if((force_sync_native != 0 && status.control_reasons_native.force_sync) || (force_sync_native == 0 && status.control_reasons_native.time_diff) || status.control_reasons_native.reset){
-                evaluate_step(device, policy, observation, executor.policy_state, action, executor.policy_buffer, rng, mode);
+                evaluate_step(device, policy, executor.observation, executor.policy_state, action, executor.policy_buffer, rng, mode);
                 executor.last_control_timestamp_original = nanoseconds;
                 if(!reset){
                     executor.control_original_dt[executor.control_original_dt_index++ % SPEC::TIMING_STATS_NUM_STEPS] = time_diff_control_original;
@@ -197,7 +199,7 @@ namespace rl_tools{
             }
             else{
                 copy(device, device, executor.policy_state, executor.policy_state_temp);
-                evaluate_step(device, policy, observation, executor.policy_state_temp, action, executor.policy_buffer, rng, mode);
+                evaluate_step(device, policy, executor.observation, executor.policy_state_temp, action, executor.policy_buffer, rng, mode);
                 status.step_type = inference::executor::Status<typename SPEC::STATUS_SPEC>::INTERMEDIATE;
                 status.timing_jitter = inference::executor::timing_jitter_status<false>(device, executor);
                 status.timing_bias = inference::executor::timing_bias_status<false>(device, executor);

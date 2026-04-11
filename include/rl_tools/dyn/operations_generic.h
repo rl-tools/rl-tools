@@ -3,7 +3,7 @@
 #pragma once
 #define RL_TOOLS_DYN_OPERATIONS_GENERIC_H
 
-#include "model.h"
+#include "tensor_operations_generic.h"
 
 #ifndef RL_TOOLS_FUNCTION_PLACEMENT
 #define RL_TOOLS_FUNCTION_PLACEMENT
@@ -11,33 +11,7 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template <typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, dyn::Tensor<SPEC>& tensor){
-        using TI = typename SPEC::TI;
-        tensor.capacity = tensor.size();
-        TI total_bytes = tensor.capacity * dyn::size_of<TI>(tensor.type);
-        if(total_bytes > 0) tensor.data = new char[total_bytes];
-    }
-    template <typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, dyn::Tensor<SPEC>& tensor){
-        if(tensor.data != nullptr){ delete[] reinterpret_cast<char*>(tensor.data); tensor.data = nullptr; }
-    }
-
     namespace dyn{
-        // --- Tensor helpers ---
-        template <typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT void set_shape(Tensor<TensorSpecification<TI>>& tensor, TI rank, const TI* shape){
-            tensor.rank = rank;
-            for(TI i = 0; i < rank; i++) tensor.shape[i] = shape[i];
-        }
-        template <typename DEVICE, typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT float get(DEVICE& device, const Tensor<TensorSpecification<TI>>& tensor, TI flat_index){
-            return to_float(reinterpret_cast<const char*>(tensor.data) + flat_index * size_of<TI>(tensor.type), tensor.type);
-        }
-        template <typename DEVICE, typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT void set(DEVICE& device, Tensor<TensorSpecification<TI>>& tensor, TI flat_index, float value){
-            from_float(reinterpret_cast<char*>(tensor.data) + flat_index * size_of<TI>(tensor.type), value, tensor.type);
-        }
 
         // --- Activation ---
         template <typename MATH_DEVICE>
@@ -290,7 +264,7 @@ namespace rl_tools{
                     for(TI o = 0; o < layer.output_dim; o++){
                         float acc = get(device, layer.biases, o);
                         for(TI i = 0; i < layer.input_dim; i++) acc += get(device, layer.weights, o * layer.input_dim + i) * get(device, input, b * layer.input_dim + i);
-                        set(device, output, b * layer.output_dim + o, apply_activation(device.math, layer.activation_function, acc));
+                        set(device, output, apply_activation(device.math, layer.activation_function, acc), b * layer.output_dim + o);
                     }
             }
         }
@@ -335,7 +309,7 @@ namespace rl_tools{
                 }
             } else {
                 if(!gru_state.initialized){
-                    for(TI b = 0; b < batch_size; b++) for(TI h = 0; h < hidden_dim; h++) set(device, gru_state.hidden, b*hidden_dim+h, get(device, layer.initial_hidden_state, h));
+                    for(TI b = 0; b < batch_size; b++) for(TI h = 0; h < hidden_dim; h++) set(device, gru_state.hidden, get(device, layer.initial_hidden_state, h), b*hidden_dim+h);
                     gru_state.initialized = true;
                 }
                 for(TI b = 0; b < batch_size; b++){
@@ -344,7 +318,7 @@ namespace rl_tools{
                         for(TI h = 0; h < hidden_dim; h++) wh += get(device, layer.weights_hidden, g*hidden_dim+h) * get(device, gru_state.hidden, b*hidden_dim+h);
                         float wi = get(device, layer.biases_input, g);
                         for(TI i = 0; i < layer.input_dim; i++) wi += get(device, layer.weights_input, g*layer.input_dim+i) * get(device, input, b*layer.input_dim+i);
-                        set(device, scratch, b*2*hidden_dim+g, 1.0f / (1.0f + math::exp(device.math, -(wh+wi))));
+                        set(device, scratch, 1.0f / (1.0f + math::exp(device.math, -(wh+wi))), b*2*hidden_dim+g);
                     }
                     for(TI h = 0; h < hidden_dim; h++){
                         TI g = 2*hidden_dim+h;
@@ -356,9 +330,9 @@ namespace rl_tools{
                         float n_pre = r * wh_n + wi_n;
                         float n = math::tanh(device.math, n_pre);
                         float z = get(device, scratch, b*2*hidden_dim+hidden_dim+h);
-                        set(device, scratch, b*2*hidden_dim+h, z * get(device, gru_state.hidden, b*hidden_dim+h) + (1.0f-z) * n);
+                        set(device, scratch, z * get(device, gru_state.hidden, b*hidden_dim+h) + (1.0f-z) * n, b*2*hidden_dim+h);
                     }
-                    for(TI h = 0; h < hidden_dim; h++) set(device, gru_state.hidden, b*hidden_dim+h, get(device, scratch, b*2*hidden_dim+h));
+                    for(TI h = 0; h < hidden_dim; h++) set(device, gru_state.hidden, get(device, scratch, b*2*hidden_dim+h), b*hidden_dim+h);
                 }
             }
         }
@@ -421,17 +395,17 @@ namespace rl_tools{
                                                  * get(device, input, ((bi*ih+ihi)*iw+iwi)*layer.input_channels+ic);
                                     }
                                 }
-                                set(device, output, ((bi*oh+ohi)*ow+owi)*layer.output_channels+oc, acc);
+                                set(device, output, acc, ((bi*oh+ohi)*ow+owi)*layer.output_channels+oc);
                             }
                 if(layer.normalization == layers::Conv2d<TI>::Normalization::BATCH_NORM){
                     float eps = 1e-5f;
                     for(TI i = 0; i < output.size(); i++){
                         TI oc = i % layer.output_channels;
-                        set(device, output, i, get(device, layer.gamma, oc) * (get(device, output, i) - get(device, layer.running_mean, oc)) / math::sqrt(device.math, get(device, layer.running_var, oc) + eps) + get(device, layer.beta, oc));
+                        set(device, output, get(device, layer.gamma, oc) * (get(device, output, i) - get(device, layer.running_mean, oc)) / math::sqrt(device.math, get(device, layer.running_var, oc) + eps) + get(device, layer.beta, oc), i);
                     }
                 }
                 if(layer.activation_function != ActivationFunction::IDENTITY)
-                    for(TI i = 0; i < output.size(); i++) set(device, output, i, apply_activation(device.math, layer.activation_function, get(device, output, i)));
+                    for(TI i = 0; i < output.size(); i++) set(device, output, apply_activation(device.math, layer.activation_function, get(device, output, i)), i);
             }
         }
         template <typename DEVICE, typename TI>
@@ -452,7 +426,7 @@ namespace rl_tools{
                                     float v = get(device, input, ((bi*ih+ihi)*iw+iwi)*ch+c); if(v > mx) mx = v;
                                 }
                             }
-                            set(device, output, ((bi*oh+ohi)*ow+owi)*ch+c, mx);
+                            set(device, output, mx, ((bi*oh+ohi)*ow+owi)*ch+c);
                         }
         }
     }
@@ -505,7 +479,7 @@ namespace rl_tools{
             gate_scratch.data = reinterpret_cast<char*>(buffer.scratch.data) + batch * hidden_dim * sizeof(float);
             if(input.rank == 2){
                 evaluate_step_gru(device, gru, input, tmp_state, gate_scratch);
-                for(TI b = 0; b < batch; b++) for(TI h = 0; h < hidden_dim; h++) set(device, output, b*hidden_dim+h, get(device, tmp_state.hidden, b*hidden_dim+h));
+                for(TI b = 0; b < batch; b++) for(TI h = 0; h < hidden_dim; h++) set(device, output, get(device, tmp_state.hidden, b*hidden_dim+h), b*hidden_dim+h);
             }
             else{
                 TI seq_len = input.shape[0];
@@ -516,7 +490,7 @@ namespace rl_tools{
                 for(TI t = 0; t < seq_len; t++){
                     step_input.data = reinterpret_cast<char*>(const_cast<void*>(input.data)) + t * batch * gru.input_dim * size_of<TI>(input.type);
                     evaluate_step_gru(device, gru, step_input, tmp_state, gate_scratch);
-                    for(TI b = 0; b < batch; b++) for(TI h = 0; h < hidden_dim; h++) set(device, output, (t*batch+b)*hidden_dim+h, get(device, tmp_state.hidden, b*hidden_dim+h));
+                    for(TI b = 0; b < batch; b++) for(TI h = 0; h < hidden_dim; h++) set(device, output, get(device, tmp_state.hidden, b*hidden_dim+h), (t*batch+b)*hidden_dim+h);
                 }
             }
         }
@@ -636,7 +610,7 @@ namespace rl_tools{
             case dyn::LayerType::MAX_POOL2D: dyn::evaluate_max_pool2d(device, layer.template as<const dyn::layers::MaxPool2d<TI>>(), input, output); return true;
             case dyn::LayerType::SAMPLE_AND_SQUASH: {
                 TI last = input.shape[input.rank-1], half = last/2, batch = input.size()/last;
-                for(TI b = 0; b < batch; b++) for(TI i = 0; i < half; i++) dyn::set(device, output, b*half+i, math::tanh(device.math, dyn::get(device, input, b*last+i)));
+                for(TI b = 0; b < batch; b++) for(TI i = 0; i < half; i++) rl_tools::set(device, output, math::tanh(device.math, rl_tools::get(device, input, b*last+i)), b*half+i);
                 return true;
             }
             case dyn::LayerType::STANDARDIZE: {
@@ -649,7 +623,7 @@ namespace rl_tools{
                     float* out = reinterpret_cast<float*>(output.data);
                     for(TI b = 0; b < batch; b++) for(TI i = 0; i < s.dim; i++) out[b*s.dim+i] = (in[b*s.dim+i] - mean[i]) * prec[i];
                 } else {
-                    for(TI b = 0; b < batch; b++) for(TI i = 0; i < s.dim; i++) dyn::set(device, output, b*s.dim+i, (dyn::get(device, input, b*s.dim+i) - dyn::get(device, s.mean, i)) * dyn::get(device, s.precision, i));
+                    for(TI b = 0; b < batch; b++) for(TI i = 0; i < s.dim; i++) rl_tools::set(device, output, (rl_tools::get(device, input, b*s.dim+i) - rl_tools::get(device, s.mean, i)) * rl_tools::get(device, s.precision, i), b*s.dim+i);
                 }
                 return true;
             }
@@ -664,8 +638,8 @@ namespace rl_tools{
                 TI ch = input.shape[input.rank-1], w = input.shape[input.rank-2], h = input.shape[input.rank-3], batch = input.size()/(h*w*ch);
                 float scale = 1.0f / (float)(h*w);
                 for(TI b = 0; b < batch; b++) for(TI c = 0; c < ch; c++){
-                    float sum = 0; for(TI hi = 0; hi < h; hi++) for(TI wi = 0; wi < w; wi++) sum += dyn::get(device, input, ((b*h+hi)*w+wi)*ch+c);
-                    dyn::set(device, output, b*ch+c, sum*scale);
+                    float sum = 0; for(TI hi = 0; hi < h; hi++) for(TI wi = 0; wi < w; wi++) sum += rl_tools::get(device, input, ((b*h+hi)*w+wi)*ch+c);
+                    rl_tools::set(device, output, sum*scale, b*ch+c);
                 }
                 return true;
             }
@@ -744,8 +718,8 @@ namespace rl_tools{
                     }
                 } else {
                     for(TI b = 0; b < batch; b++){
-                        for(TI i = 0; i < last_a; i++) dyn::set(device, concat_target, b * last_out + i, dyn::get(device, inter_a, b * last_a + i));
-                        for(TI i = 0; i < last_b; i++) dyn::set(device, concat_target, b * last_out + last_a + i, dyn::get(device, inter_b, b * last_b + i));
+                        for(TI i = 0; i < last_a; i++) rl_tools::set(device, concat_target, rl_tools::get(device, inter_a, b * last_a + i), b * last_out + i);
+                        for(TI i = 0; i < last_b; i++) rl_tools::set(device, concat_target, rl_tools::get(device, inter_b, b * last_b + i), b * last_out + last_a + i);
                     }
                 }
                 if(has_head) return rl_tools::evaluate(device, layer.children[2], buffer.tick, output, buffer);
@@ -763,8 +737,8 @@ namespace rl_tools{
                 }
                 const dyn::Tensor<dyn::TensorSpecification<TI>>& shortcut = (layer.num_children == 3) ? buffer.scratch : input;
                 for(TI i = 0; i < output.size(); i++){
-                    float val = dyn::get(device, output, i) + dyn::get(device, shortcut, i);
-                    dyn::set(device, output, i, val > 0 ? val : 0);
+                    float val = rl_tools::get(device, output, i) + rl_tools::get(device, shortcut, i);
+                    rl_tools::set(device, output, val > 0 ? val : 0, i);
                 }
                 return true;
             }
@@ -789,7 +763,7 @@ namespace rl_tools{
                 TI gs_shape[] = {batch * 2 * g.hidden_dim};
                 dyn::set_shape(gate_scratch, (TI)1, gs_shape); gate_scratch.type = dyn::Type::FLOAT32; gate_scratch.data = buffer.scratch.data;
                 dyn::evaluate_step_gru(device, g, input, *gs, gate_scratch);
-                for(TI b = 0; b < batch; b++) for(TI h = 0; h < g.hidden_dim; h++) dyn::set(device, output, b*g.hidden_dim+h, dyn::get(device, gs->hidden, b*g.hidden_dim+h));
+                for(TI b = 0; b < batch; b++) for(TI h = 0; h < g.hidden_dim; h++) rl_tools::set(device, output, rl_tools::get(device, gs->hidden, b*g.hidden_dim+h), b*g.hidden_dim+h);
                 return true;
             }
             case dyn::LayerType::SEQUENTIAL: case dyn::LayerType::MLP: {
