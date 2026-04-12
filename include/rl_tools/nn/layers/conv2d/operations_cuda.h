@@ -505,10 +505,11 @@ namespace rl_tools{
         check_status(device);
     }
 
-    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
-    void backward_full(devices::CUDA<DEV_SPEC>& device, nn::layers::conv2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::conv2d::Buffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+    template<bool COMPUTE_INPUT_GRADIENT, typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    void backward_impl(devices::CUDA<DEV_SPEC>& device, nn::layers::conv2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::conv2d::Buffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using T = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
         using TI = typename devices::CUDA<DEV_SPEC>::index_t;
+        (void)buffer;
         constexpr TI N = LAYER_SPEC::INTERNAL_BATCH_SIZE;
         constexpr TI IH = LAYER_SPEC::INPUT_HEIGHT, IW = LAYER_SPEC::INPUT_WIDTH, IC = LAYER_SPEC::INPUT_CHANNELS;
         constexpr TI OH = LAYER_SPEC::OUTPUT_HEIGHT, OW = LAYER_SPEC::OUTPUT_WIDTH, OC = LAYER_SPEC::OUTPUT_CHANNELS;
@@ -518,7 +519,7 @@ namespace rl_tools{
         constexpr cudnnDataType_t dt = nn::cuda::get_cudnn_dtype<T>();
         constexpr cudnnDataType_t compute_dt = (dt == CUDNN_DATA_BFLOAT16) ? CUDNN_DATA_FLOAT : dt;
 
-        static cudnnTensorDescriptor_t xd = nullptr, yd = nullptr, bias_d = nullptr;
+        static cudnnTensorDescriptor_t xd = nullptr, yd = nullptr;
         static cudnnConvolutionDescriptor_t cd = nullptr;
         static cudnnActivationDescriptor_t relu_ad = nullptr;
         static cudnnFilterDescriptor_t wd = nullptr;
@@ -535,8 +536,6 @@ namespace rl_tools{
             check_cudnn_call(device, cudnnCreateConvolutionDescriptor(&cd), "cudnnCreateConvolutionDescriptor conv2d_bwd.cd");
             check_cudnn_call(device, cudnnSetConvolution2dDescriptor(cd, PH, PW, SH, SW, 1, 1, CUDNN_CROSS_CORRELATION, compute_dt), "cudnnSetConvolution2dDescriptor conv2d_bwd.cd");
             check_cudnn_call(device, cudnnSetConvolutionMathType(cd, CUDNN_TENSOR_OP_MATH_ALLOW_CONVERSION), "cudnnSetConvolutionMathType conv2d_bwd.cd");
-            check_cudnn_call(device, cudnnCreateTensorDescriptor(&bias_d), "cudnnCreateTensorDescriptor conv2d_bwd.bias_d");
-            check_cudnn_call(device, cudnnSetTensor4dDescriptor(bias_d, CUDNN_TENSOR_NHWC, dt, 1, OC, 1, 1), "cudnnSetTensor4dDescriptor conv2d_bwd.bias_d");
             if constexpr(LAYER_SPEC::ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::RELU){
                 check_cudnn_call(device, cudnnCreateActivationDescriptor(&relu_ad), "cudnnCreateActivationDescriptor conv2d_bwd.relu_ad");
                 check_cudnn_call(device, cudnnSetActivationDescriptor(relu_ad, CUDNN_ACTIVATION_RELU, CUDNN_NOT_PROPAGATE_NAN, 0.0), "cudnnSetActivationDescriptor conv2d_bwd.relu_ad");
@@ -547,14 +546,16 @@ namespace rl_tools{
               check_cudnn_call(device, cudnnGetConvolutionBackwardFilterAlgorithm_v7(device.cudnn_handle, xd, yd, cd, wd, MA, &ac, ap), "cudnnGetConvolutionBackwardFilterAlgorithm_v7 conv2d_bwd");
               for(int i = 0; i < ac; i++){ if(ap[i].status == CUDNN_STATUS_SUCCESS){ cached_bf_algo = ap[i].algo; bf_ok = true; break; } }
               if(bf_ok) check_cudnn_call(device, cudnnGetConvolutionBackwardFilterWorkspaceSize(device.cudnn_handle, xd, yd, cd, wd, cached_bf_algo, &cached_bf_ws), "cudnnGetConvolutionBackwardFilterWorkspaceSize conv2d_bwd"); }
-            { constexpr int MA = 8; int ac; cudnnConvolutionBwdDataAlgoPerf_t ap[MA];
-              check_cudnn_call(device, cudnnGetConvolutionBackwardDataAlgorithm_v7(device.cudnn_handle, wd, yd, cd, xd, MA, &ac, ap), "cudnnGetConvolutionBackwardDataAlgorithm_v7 conv2d_bwd");
-              for(int i = 0; i < ac; i++){ if(ap[i].status == CUDNN_STATUS_SUCCESS){ cached_bd_algo = ap[i].algo; bd_ok = true; break; } }
-              if(bd_ok) check_cudnn_call(device, cudnnGetConvolutionBackwardDataWorkspaceSize(device.cudnn_handle, wd, yd, cd, xd, cached_bd_algo, &cached_bd_ws), "cudnnGetConvolutionBackwardDataWorkspaceSize conv2d_bwd"); }
+            if constexpr(COMPUTE_INPUT_GRADIENT){
+                constexpr int MA = 8; int ac; cudnnConvolutionBwdDataAlgoPerf_t ap[MA];
+                check_cudnn_call(device, cudnnGetConvolutionBackwardDataAlgorithm_v7(device.cudnn_handle, wd, yd, cd, xd, MA, &ac, ap), "cudnnGetConvolutionBackwardDataAlgorithm_v7 conv2d_bwd");
+                for(int i = 0; i < ac; i++){ if(ap[i].status == CUDNN_STATUS_SUCCESS){ cached_bd_algo = ap[i].algo; bd_ok = true; break; } }
+                if(bd_ok) check_cudnn_call(device, cudnnGetConvolutionBackwardDataWorkspaceSize(device.cudnn_handle, wd, yd, cd, xd, cached_bd_algo, &cached_bd_ws), "cudnnGetConvolutionBackwardDataWorkspaceSize conv2d_bwd");
+            }
             initialized = true;
         }
 
-        T* d_conv_out = layer.output._data;
+        T* d_conv_out = d_output._data;
         if constexpr(LAYER_SPEC::ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::RELU){
             float a = 1, b = 0;
             check_cudnn_call(device, cudnnActivationBackward(device.cudnn_handle, relu_ad, &a, yd, layer.output._data, yd, d_output._data, yd, layer.output._data, &b, yd, d_output._data), "cudnnActivationBackward conv2d_bwd");
@@ -584,8 +585,6 @@ namespace rl_tools{
                     layer.norm.gamma.gradient._data, layer.norm.beta.gradient._data,
                     SPATIAL, OC);
             }
-        } else {
-            check_cuda_call(device, cudaMemcpyAsync(d_conv_out, d_output._data, N*OH*OW*OC*sizeof(T), cudaMemcpyDeviceToDevice, device.stream), "cudaMemcpyAsync conv2d_bwd d_output_to_d_conv_out");
         }
         {
             constexpr TI SPATIAL = N * OH * OW;
@@ -594,35 +593,39 @@ namespace rl_tools{
                 d_conv_out, layer.biases.gradient._data, SPATIAL, OC);
         }
 
-        if(bf_ok){
-            if(cached_bf_ws > 0){
-                utils::assert_exit(device, device.dynamic_memory_allocation_allowed || cached_bf_ws <= device.cudnn_workspace_size, "Dynamic CUDA memory allocations are disabled");
-                ensure_cudnn_workspace(device, cached_bf_ws);
+        size_t required_ws = bf_ok ? cached_bf_ws : 0;
+        if constexpr(COMPUTE_INPUT_GRADIENT){
+            if(bd_ok && cached_bd_ws > required_ws){
+                required_ws = cached_bd_ws;
             }
+        }
+        if(required_ws > 0){
+            utils::assert_exit(device, device.dynamic_memory_allocation_allowed || required_ws <= device.cudnn_workspace_size, "Dynamic CUDA memory allocations are disabled");
+            ensure_cudnn_workspace(device, required_ws);
+        }
+        if(bf_ok){
             float a = 1, b = 1;
             check_cudnn_call(device, cudnnConvolutionBackwardFilter(device.cudnn_handle, &a, xd, input._data, yd, d_conv_out,
                 cd, cached_bf_algo, device.cudnn_workspace, device.cudnn_workspace_size, &b, wd, layer.weights.gradient._data), "cudnnConvolutionBackwardFilter conv2d_bwd");
         }
-        if(bd_ok){
-            if(cached_bd_ws > 0){
-                utils::assert_exit(device, device.dynamic_memory_allocation_allowed || cached_bd_ws <= device.cudnn_workspace_size, "Dynamic CUDA memory allocations are disabled");
-                ensure_cudnn_workspace(device, cached_bd_ws);
-            }
+        if constexpr(COMPUTE_INPUT_GRADIENT){
+            if(bd_ok){
             float a = 1, b = 0;
             check_cudnn_call(device, cudnnConvolutionBackwardData(device.cudnn_handle, &a, wd, layer.weights.parameters._data, yd, d_conv_out,
                 cd, cached_bd_algo, device.cudnn_workspace, device.cudnn_workspace_size, &b, xd, d_input._data), "cudnnConvolutionBackwardData conv2d_bwd");
+            }
         }
         check_status(device);
     }
 
+    template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    void backward_full(devices::CUDA<DEV_SPEC>& device, nn::layers::conv2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::conv2d::Buffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        backward_impl<true>(device, layer, input, d_output, d_input, buffer, mode);
+    }
+
     template<typename DEV_SPEC, typename LAYER_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
     void backward(devices::CUDA<DEV_SPEC>& device, nn::layers::conv2d::LayerGradient<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, Tensor<D_OUTPUT_SPEC>& d_output, nn::layers::conv2d::Buffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
-        using T = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::Gradient>;
-        using TI = typename devices::CUDA<DEV_SPEC>::index_t;
-        Tensor<tensor::Specification<T, TI, typename LAYER_SPEC::INPUT_SHAPE>> d_input_tmp;
-        malloc(device, d_input_tmp);
-        backward_full(device, layer, input, d_output, d_input_tmp, buffer, mode);
-        free(device, d_input_tmp);
+        backward_impl<false>(device, layer, input, d_output, buffer.d_input_acc, buffer, mode);
     }
 
     template<typename DEV_SPEC, typename LAYER_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
