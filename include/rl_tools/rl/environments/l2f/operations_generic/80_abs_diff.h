@@ -102,6 +102,7 @@ namespace rl_tools{
         T_A acc = 0;
         acc += a.enabled == b.enabled ? 0 : 1;
         acc += math::abs(device.math, a.position_threshold - b.position_threshold);
+        acc += math::abs(device.math, a.angle_threshold - b.angle_threshold);
         acc += math::abs(device.math, a.linear_velocity_threshold - b.linear_velocity_threshold);
         acc += math::abs(device.math, a.angular_velocity_threshold - b.angular_velocity_threshold);
         acc += math::abs(device.math, a.position_integral_threshold - b.position_integral_threshold);

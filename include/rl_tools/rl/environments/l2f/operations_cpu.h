@@ -289,6 +289,7 @@ namespace rl_tools{
         std::string json_string = "{";
         json_string += "\"enabled\": " + std::string(parameters.enabled ? "true" : "false") + ", ";
         json_string += "\"position_threshold\": " + std::to_string(parameters.position_threshold) + ", ";
+        json_string += "\"angle_threshold\": " + std::to_string(parameters.angle_threshold) + ", ";
         json_string += "\"linear_velocity_threshold\": " + std::to_string(parameters.linear_velocity_threshold) + ", ";
         json_string += "\"angular_velocity_threshold\": " + std::to_string(parameters.angular_velocity_threshold) + ", ";
         json_string += "\"position_integral_threshold\": " + std::to_string(parameters.position_integral_threshold) + ", ";
@@ -696,6 +697,7 @@ namespace rl_tools{
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::Termination<PARAM_SPEC>& parameters) {
         parameters.enabled = json_object["enabled"];
         parameters.position_threshold = json_object["position_threshold"];
+        parameters.angle_threshold = json_object.value("angle_threshold", (PARAM_SPEC)0);
         parameters.linear_velocity_threshold = json_object["linear_velocity_threshold"];
         parameters.angular_velocity_threshold = json_object["angular_velocity_threshold"];
         parameters.position_integral_threshold = json_object["position_integral_threshold"];

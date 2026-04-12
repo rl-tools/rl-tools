@@ -58,6 +58,7 @@ namespace rl_tools::rl::environments::l2f{
         struct Termination{
             bool enabled = false;
             T position_threshold;
+            T angle_threshold;
             T linear_velocity_threshold;
             T angular_velocity_threshold;
             T position_integral_threshold;

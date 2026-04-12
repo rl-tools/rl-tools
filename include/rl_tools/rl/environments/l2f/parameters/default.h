@@ -67,6 +67,7 @@ namespace rl_tools::rl::environments::l2f::parameters {
         static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = {
             true,  // enable
             1,     // position
+            0,     // angle (0 = disabled)
             2,     // linear velocity
             35,    // angular velocity
             10000, // position integral

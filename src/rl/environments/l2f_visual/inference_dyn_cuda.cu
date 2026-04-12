@@ -62,7 +62,7 @@ static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = {
     0.2, 0.0, 0.3, 0.0, 1.0, true, -1, +1,
 };
 static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = {
-    true, 1.0, 10, 35, 10000, 50000,
+    true, 1.0, 0, 10, 35, 10000, 50000,
 };
 static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
 static constexpr typename PARAMETERS_TYPE::Integration integration = {

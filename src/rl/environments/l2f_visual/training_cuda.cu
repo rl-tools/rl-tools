@@ -115,7 +115,7 @@ static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = {
     -1, 0,               // min/max rpm
 };
 static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = {
-    true, 4.4, 10, 35, 10000, 50000,
+    true, 4.4, 0, 10, 35, 10000, 50000,
 };
 static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
 static constexpr typename PARAMETERS_TYPE::Integration integration = {

@@ -74,6 +74,7 @@ static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = {
 static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = {
     true,  // enabled
     1.5,   // position (wider than spawn to avoid instant term)
+    0,     // angle (0 = disabled)
     10,    // linear_velocity
     35,    // angular_velocity
     10000, // position_integral

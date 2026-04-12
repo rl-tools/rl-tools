@@ -151,6 +151,13 @@ namespace rl_tools
                     return true;
                 }
             }
+            if(parameters.mdp.termination.angle_threshold > 0){
+                T w = math::clamp(device.math, math::abs(device.math, state.orientation[0]), (T)0, (T)1);
+                T angle = 2 * math::acos(device.math, w);
+                if(angle > parameters.mdp.termination.angle_threshold){
+                    return true;
+                }
+            }
         }
         if constexpr(rl::environments::l2f::is_pose_error_integral(STATE{})){
             // if(state.position_integral > parameters.mdp.termination.position_integral_threshold){

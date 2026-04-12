@@ -34,6 +34,7 @@ namespace rl_tools{
         ss << ind << "            }\n";
         ss << ind << "            namespace termination{\n";
         ss << ind << "                static constexpr T position_threshold = " << parameters.mdp.termination.position_threshold << ";\n";;
+        ss << ind << "                static constexpr T angle_threshold = " << parameters.mdp.termination.angle_threshold << ";\n";;
         ss << ind << "                static constexpr T linear_velocity_threshold = " << parameters.mdp.termination.linear_velocity_threshold << ";\n";;
         ss << ind << "                static constexpr T angular_velocity_threshold = " << parameters.mdp.termination.angular_velocity_threshold << ";\n";;
         ss << ind << "            }\n";
