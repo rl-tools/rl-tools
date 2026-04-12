@@ -12,6 +12,7 @@ namespace rl_tools::rl::environments::l2f::parameters::termination{
     constexpr typename rl_tools::rl::environments::l2f::ParametersBase<SPEC>::MDP::Termination narrow = {
         true,           // enable
         1,            // position
+        0, // angle (0 = disabled)
         10,         // linear velocity
         35, // angular velocity
         10000, // position integral
@@ -21,6 +22,7 @@ namespace rl_tools::rl::environments::l2f::parameters::termination{
     constexpr typename rl_tools::rl::environments::l2f::ParametersBase<SPEC>::MDP::Termination fast_learning = {
         true,           // enable
         5,            // position
+        0, // angle (0 = disabled)
         10,         // linear velocity
         35, // angular velocity
         10000, // position integral

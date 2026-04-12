@@ -75,6 +75,7 @@ namespace rl_tools::rl::zoo::l2f{
         static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = {
             true,  // enable
             1,     // position
+            0,     // angle (0 = disabled)
             10,    // linear velocity
             35,    // angular velocity
             10000, // position integral
