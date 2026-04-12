@@ -353,6 +353,8 @@ namespace imitation_kernels{
         T* brightness_scale_arr,
         T* scene_translation_arr,
         T* scene_yaw_arr,
+        T* scene_yaw_cos_arr,
+        T* scene_yaw_sin_arr,
         T* indoor_positions_ptr, TI* num_indoor_positions_ptr, TI* env_scene_ptr, TI max_indoor_pos,
         RNG rng, TI step_i, TI episode_step_limit
     ){
@@ -383,7 +385,10 @@ namespace imitation_kernels{
             scene_translation_arr[env_i * 3 + 0] = pos[0];
             scene_translation_arr[env_i * 3 + 1] = pos[1];
             scene_translation_arr[env_i * 3 + 2] = pos[2];
-            scene_yaw_arr[env_i] = rl_tools::random::uniform_real_distribution(device.random, (T)0, (T)(2.0 * 3.14159265358979323846), rng_state);
+            T scene_yaw = rl_tools::random::uniform_real_distribution(device.random, (T)0, (T)(2.0 * 3.14159265358979323846), rng_state);
+            scene_yaw_arr[env_i] = scene_yaw;
+            scene_yaw_cos_arr[env_i] = rl_tools::math::cos(device.math, scene_yaw);
+            scene_yaw_sin_arr[env_i] = rl_tools::math::sin(device.math, scene_yaw);
             episode_step_arr[env_i] = 0;
             terminated_flags[env_i] = false;
             episode_return_arr[env_i] = (T)0;
@@ -461,7 +466,7 @@ namespace imitation_kernels{
         T camera_offset_body_0, T camera_offset_body_1, T camera_offset_body_2,
         T camera_forward_body_0, T camera_forward_body_1, T camera_forward_body_2,
         T camera_up_body_0, T camera_up_body_1, T camera_up_body_2,
-        T* scene_translation_arr, T* scene_yaw_arr
+        T* scene_translation_arr, T* scene_yaw_cos_arr, T* scene_yaw_sin_arr
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i >= N_ENVIRONMENTS) return;
@@ -475,9 +480,8 @@ namespace imitation_kernels{
         rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, forward_body, cam_forward_local);
         T cam_up_local[3];
         rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, up_body, cam_up_local);
-        T scene_yaw = scene_yaw_arr[env_i];
-        T c = rl_tools::math::cos(device.math, scene_yaw);
-        T s = rl_tools::math::sin(device.math, scene_yaw);
+        T c = scene_yaw_cos_arr[env_i];
+        T s = scene_yaw_sin_arr[env_i];
         auto rotate_scene_yaw = [&](const T in[3], T out[3]){
             out[0] = c * in[0] - s * in[1];
             out[1] = s * in[0] + c * in[1];
@@ -514,16 +518,15 @@ namespace imitation_kernels{
         T camera_offset_body_0, T camera_offset_body_1, T camera_offset_body_2,
         T camera_forward_body_0, T camera_forward_body_1, T camera_forward_body_2,
         T camera_up_body_0, T camera_up_body_1, T camera_up_body_2,
-        T* scene_translation_arr, T* scene_yaw_arr
+        T* scene_translation_arr, T* scene_yaw_cos_arr, T* scene_yaw_sin_arr
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i >= N_ENVIRONMENTS) return;
         T offset_body[3] = {camera_offset_body_0, camera_offset_body_1, camera_offset_body_2};
         T forward_body[3] = {camera_forward_body_0, camera_forward_body_1, camera_forward_body_2};
         T up_body[3] = {camera_up_body_0, camera_up_body_1, camera_up_body_2};
-        T scene_yaw = scene_yaw_arr[env_i];
-        T c = rl_tools::math::cos(device.math, scene_yaw);
-        T s = rl_tools::math::sin(device.math, scene_yaw);
+        T c = scene_yaw_cos_arr[env_i];
+        T s = scene_yaw_sin_arr[env_i];
         auto rotate_scene_yaw = [&](const T in[3], T out[3]){
             out[0] = c * in[0] - s * in[1];
             out[1] = s * in[0] + c * in[1];
@@ -924,6 +927,7 @@ int main(int argc, char** argv){
     }
 
     static constexpr TI EPOCHS_PER_SCENE = 50;
+    static constexpr TI RENDER_TIMING_SAMPLE_PERIOD = 16;
 
     std::vector<std::string> scene_paths;
     std::mt19937 scene_rng(seed);
@@ -1098,6 +1102,9 @@ int main(int argc, char** argv){
         active_scene_indices[active_scene_i] = active_scene_i;
     }
     upload_active_scenes();
+    for(TI scene_i = 0; scene_i < N_TOTAL_SCENES; scene_i++){
+        rlt::set_cameras(device, *renderers[scene_i], renderers[scene_i]->cameras);
+    }
 
     // Set up envs (use first renderer for env0 reference)
     for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
@@ -1184,15 +1191,24 @@ int main(int argc, char** argv){
     cudaEventCreateWithFlags(&cameras_ready_event, cudaEventDisableTiming);
     cudaEvent_t target_cameras_ready_event;
     cudaEventCreateWithFlags(&target_cameras_ready_event, cudaEventDisableTiming);
-    std::array<cudaEvent_t, N_ACTIVE_SCENES> render_pass_start_events;
-    std::array<cudaEvent_t, N_ACTIVE_SCENES> render_pass_stop_events;
-    std::array<cudaEvent_t, N_ACTIVE_SCENES> target_render_pass_start_events;
-    std::array<cudaEvent_t, N_ACTIVE_SCENES> target_render_pass_stop_events;
+    std::array<cudaEvent_t, N_ACTIVE_SCENES> render_scatter_done_events;
+    std::array<cudaEvent_t, N_ACTIVE_SCENES> target_render_scatter_done_events;
     for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
-        cudaEventCreate(&render_pass_start_events[active_scene_i]);
-        cudaEventCreate(&render_pass_stop_events[active_scene_i]);
-        cudaEventCreate(&target_render_pass_start_events[active_scene_i]);
-        cudaEventCreate(&target_render_pass_stop_events[active_scene_i]);
+        cudaEventCreateWithFlags(&render_scatter_done_events[active_scene_i], cudaEventDisableTiming);
+        cudaEventCreateWithFlags(&target_render_scatter_done_events[active_scene_i], cudaEventDisableTiming);
+    }
+    std::vector<cudaEvent_t> render_pass_start_events(STEPS_PER_ENV * N_ACTIVE_SCENES);
+    std::vector<cudaEvent_t> render_pass_stop_events(STEPS_PER_ENV * N_ACTIVE_SCENES);
+    std::vector<cudaEvent_t> target_render_pass_start_events(STEPS_PER_ENV * N_ACTIVE_SCENES);
+    std::vector<cudaEvent_t> target_render_pass_stop_events(STEPS_PER_ENV * N_ACTIVE_SCENES);
+    for(TI step_i = 0; step_i < STEPS_PER_ENV; step_i++){
+        for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
+            TI event_i = step_i * N_ACTIVE_SCENES + active_scene_i;
+            cudaEventCreate(&render_pass_start_events[event_i]);
+            cudaEventCreate(&render_pass_stop_events[event_i]);
+            cudaEventCreate(&target_render_pass_start_events[event_i]);
+            cudaEventCreate(&target_render_pass_stop_events[event_i]);
+        }
     }
     cudaEvent_t train_forward_start_event, train_forward_stop_event;
     cudaEvent_t train_backward_start_event, train_backward_stop_event;
@@ -1304,6 +1320,8 @@ int main(int argc, char** argv){
     T* gpu_brightness_scale_arr = nullptr;
     T* gpu_scene_translation_arr = nullptr;
     T* gpu_scene_yaw_arr = nullptr;
+    T* gpu_scene_yaw_cos_arr = nullptr;
+    T* gpu_scene_yaw_sin_arr = nullptr;
     cudaMalloc(&gpu_dynamics_arr, N_ENVIRONMENTS * sizeof(DYNAMICS_TYPE));
     cudaMalloc(&gpu_params_arr, N_ENVIRONMENTS * sizeof(PARAMETERS_TYPE));
     cudaMalloc(&gpu_states_arr, N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::State));
@@ -1318,6 +1336,8 @@ int main(int argc, char** argv){
     cudaMalloc(&gpu_brightness_scale_arr, N_ENVIRONMENTS * sizeof(T));
     cudaMalloc(&gpu_scene_translation_arr, N_ENVIRONMENTS * 3 * sizeof(T));
     cudaMalloc(&gpu_scene_yaw_arr, N_ENVIRONMENTS * sizeof(T));
+    cudaMalloc(&gpu_scene_yaw_cos_arr, N_ENVIRONMENTS * sizeof(T));
+    cudaMalloc(&gpu_scene_yaw_sin_arr, N_ENVIRONMENTS * sizeof(T));
     {
         std::vector<T> ones(N_ENVIRONMENTS, (T)1);
         cudaMemcpy(gpu_brightness_scale_arr, ones.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
@@ -1325,6 +1345,9 @@ int main(int argc, char** argv){
         cudaMemcpy(gpu_scene_translation_arr, scene_translations.data(), N_ENVIRONMENTS * 3 * sizeof(T), cudaMemcpyHostToDevice);
         std::vector<T> scene_yaws(N_ENVIRONMENTS, (T)0);
         cudaMemcpy(gpu_scene_yaw_arr, scene_yaws.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
+        cudaMemcpy(gpu_scene_yaw_cos_arr, ones.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
+        std::vector<T> zeros(N_ENVIRONMENTS, (T)0);
+        cudaMemcpy(gpu_scene_yaw_sin_arr, zeros.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
     }
     std::vector<T> cpu_episode_lengths_log(STEPS_TOTAL);
     std::vector<T> cpu_episode_tf_log(STEPS_TOTAL);
@@ -1502,6 +1525,8 @@ int main(int argc, char** argv){
                     gpu_brightness_scale_arr,
                     gpu_scene_translation_arr,
                     gpu_scene_yaw_arr,
+                    gpu_scene_yaw_cos_arr,
+                    gpu_scene_yaw_sin_arr,
                     gpu_indoor_positions, gpu_num_indoor_positions, gpu_env_scene, MAX_INDOOR_POS,
                     rng_gpu, step_i, current_episode_step_limit);
                 CUDA_CHECK("prologue_kernel");
@@ -1516,84 +1541,61 @@ int main(int argc, char** argv){
                     env_parameters[0].camera_mount.offset_body[0], env_parameters[0].camera_mount.offset_body[1], env_parameters[0].camera_mount.offset_body[2],
                     env_parameters[0].camera_mount.forward_body[0], env_parameters[0].camera_mount.forward_body[1], env_parameters[0].camera_mount.forward_body[2],
                     env_parameters[0].camera_mount.up_body[0], env_parameters[0].camera_mount.up_body[1], env_parameters[0].camera_mount.up_body[2],
-                    gpu_scene_translation_arr, gpu_scene_yaw_arr);
+                    gpu_scene_translation_arr, gpu_scene_yaw_cos_arr, gpu_scene_yaw_sin_arr);
                 CUDA_CHECK("make_cameras_kernel");
                 T* obs_ptr = rlt::data(gpu_all_observations) + (TI)(step_i * N_ENVIRONMENTS) * OBSERVATION_DIM;
                 cudaEventRecord(cameras_ready_event, device_gpu.stream);
                 for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
+                    TI event_i = step_i * N_ACTIVE_SCENES + active_scene_i;
                     TI actual_scene_i = active_scene_indices[active_scene_i];
                     auto& renderer = *renderers[actual_scene_i];
                     constexpr TI n_envs_s = N_ENVIRONMENTS_PER_SCENE;
                     TI base_env = active_scene_i * N_ENVIRONMENTS_PER_SCENE;
                     OWLParams rgb_lp = (OWLParams)renderer.backend.rgb_launch_params;
                     cudaStream_t optix_stream = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
-                    if(renderer.backend.owl_cameras_buffer == nullptr){
-                        std::array<rlt::rendering::raytracing::CameraData<float>, N_ENVIRONMENTS_PER_SCENE> cpu_cameras_init;
-                        cudaMemcpy(cpu_cameras_init.data(), gpu_cameras + base_env, N_ENVIRONMENTS_PER_SCENE * sizeof(rlt::rendering::raytracing::CameraData<float>), cudaMemcpyDeviceToHost);
-                        for(TI li = 0; li < n_envs_s; li++){
-                            rlt::set(device, renderer.cameras, cpu_cameras_init[li], li);
-                        }
-                        rlt::set_cameras(device, renderer, renderer.cameras);
-                        cudaEventRecord(render_pass_start_events[active_scene_i], optix_stream);
-                        rlt::render_rgb_only_launch(device, renderer);
-                        rlt::render_rgb_only_sync(device, renderer);
-                    } else {
-                        cudaStreamWaitEvent(optix_stream, cameras_ready_event, 0);
-                        void* owl_cam_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.owl_cameras_buffer, 0);
-                        cudaMemcpyAsync(
-                            owl_cam_ptr,
-                            gpu_cameras + base_env,
-                            n_envs_s * sizeof(rlt::rendering::raytracing::CameraData<float>),
-                            cudaMemcpyDeviceToDevice, optix_stream);
-                        cudaEventRecord(render_pass_start_events[active_scene_i], optix_stream);
-                        rlt::render_rgb_only_launch(device, renderer);
+                    cudaStreamWaitEvent(optix_stream, cameras_ready_event, 0);
+                    void* owl_cam_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.owl_cameras_buffer, 0);
+                    cudaMemcpyAsync(
+                        owl_cam_ptr,
+                        gpu_cameras + base_env,
+                        n_envs_s * sizeof(rlt::rendering::raytracing::CameraData<float>),
+                        cudaMemcpyDeviceToDevice, optix_stream);
+                    int total_scatter = n_envs_s * CAM_PIXELS;
+                    int pf_block = 256;
+                    int pf_grid = (total_scatter + pf_block - 1) / pf_block;
+                    if(step_i % RENDER_TIMING_SAMPLE_PERIOD == 0){
+                        cudaEventRecord(render_pass_start_events[event_i], optix_stream);
                     }
+                    rlt::render_rgb_only_launch(device, renderer);
+                    if(step_i % RENDER_TIMING_SAMPLE_PERIOD == 0){
+                        cudaEventRecord(render_pass_stop_events[event_i], optix_stream);
+                    }
+                    const uint32_t* fb_ptr = rlt::get_framebuffer_device_ptr(device, renderer);
+                    if constexpr(OBSERVATION_NOISE_STD == 0 && BRIGHTNESS_RANDOMIZATION_RANGE > 0){
+                        scatter_pixel_to_float_kernel<true><<<pf_grid, pf_block, 0, optix_stream>>>(fb_ptr, obs_ptr, gpu_brightness_scale_arr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
+                    } else {
+                        scatter_pixel_to_float_kernel<false><<<pf_grid, pf_block, 0, optix_stream>>>(fb_ptr, obs_ptr, nullptr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
+                    }
+                    cudaEventRecord(render_scatter_done_events[active_scene_i], optix_stream);
                 }
                 rlt::evaluate_step(device_gpu, raptor_gpu, gpu_teacher_obs, raptor_state_gpu, gpu_teacher_actions_step, raptor_buffer_gpu, rng_gpu, no_auto_reset_mode);
                 CUDA_CHECK("raptor evaluate_step");
                 for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
-                    TI actual_scene_i = active_scene_indices[active_scene_i];
-                    auto& renderer = *renderers[actual_scene_i];
-                    constexpr TI n_envs_s = N_ENVIRONMENTS_PER_SCENE;
-                    TI base_env = active_scene_i * N_ENVIRONMENTS_PER_SCENE;
-                    OWLParams rgb_lp = (OWLParams)renderer.backend.rgb_launch_params;
-                    cudaStream_t optix_stream = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
-                    if(renderer.backend.owl_cameras_buffer != nullptr){
-                        rlt::render_rgb_only_sync(device, renderer);
-                    }
-                    cudaEventRecord(render_pass_stop_events[active_scene_i], optix_stream);
-                    const uint32_t* fb_ptr = rlt::get_framebuffer_device_ptr(device, renderer);
-                    int total_scatter = n_envs_s * CAM_PIXELS;
-                    int pf_block = 256;
-                    int pf_grid = (total_scatter + pf_block - 1) / pf_block;
-                    if constexpr(OBSERVATION_NOISE_STD == 0 && BRIGHTNESS_RANDOMIZATION_RANGE > 0){
-                        scatter_pixel_to_float_kernel<true><<<pf_grid, pf_block>>>(fb_ptr, obs_ptr, gpu_brightness_scale_arr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
-                    } else {
-                        scatter_pixel_to_float_kernel<false><<<pf_grid, pf_block>>>(fb_ptr, obs_ptr, nullptr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
-                    }
+                    cudaStreamWaitEvent(device_gpu.stream, render_scatter_done_events[active_scene_i], 0);
                 }
                 CUDA_CHECK("multi-scene render");
-                {
-                    float render_pass_time_ms = 0;
-                    for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
-                        float scene_render_time_ms = 0;
-                        cudaEventElapsedTime(&scene_render_time_ms, render_pass_start_events[active_scene_i], render_pass_stop_events[active_scene_i]);
-                        render_pass_time_ms = std::max(render_pass_time_ms, scene_render_time_ms);
-                    }
-                    epoch_render_gpu_time_ms += render_pass_time_ms;
-                }
                 if constexpr(OBSERVATION_NOISE_STD > 0){
                     constexpr TI NOISE_N = N_ENVIRONMENTS * OBSERVATION_DIM;
                     int noise_block = 256;
                     int noise_grid = (NOISE_N + noise_block - 1) / noise_block;
                     unsigned long long noise_seed = seed + (unsigned long long)epoch_i * STEPS_PER_ENV + step_i;
-                    observation_noise_kernel<<<noise_grid, noise_block>>>(obs_ptr, NOISE_N, OBSERVATION_NOISE_STD, noise_seed);
+                    observation_noise_kernel<<<noise_grid, noise_block, 0, device_gpu.stream>>>(obs_ptr, NOISE_N, OBSERVATION_NOISE_STD, noise_seed);
                     CUDA_CHECK("observation_noise_kernel");
                 }
                 if constexpr(OBSERVATION_NOISE_STD > 0 && BRIGHTNESS_RANDOMIZATION_RANGE > 0){
                     int br_block = 256;
                     dim3 br_grid((OBSERVATION_DIM + br_block - 1) / br_block, N_ENVIRONMENTS);
-                    brightness_apply_kernel<<<br_grid, br_block>>>(obs_ptr, gpu_brightness_scale_arr, N_ENVIRONMENTS, OBSERVATION_DIM);
+                    brightness_apply_kernel<<<br_grid, br_block, 0, device_gpu.stream>>>(obs_ptr, gpu_brightness_scale_arr, N_ENVIRONMENTS, OBSERVATION_DIM);
                     CUDA_CHECK("brightness_apply_kernel");
                 }
                 // Target frame rendering (second pass)
@@ -1603,76 +1605,54 @@ int main(int argc, char** argv){
                     env_parameters[0].camera_mount.offset_body[0], env_parameters[0].camera_mount.offset_body[1], env_parameters[0].camera_mount.offset_body[2],
                     env_parameters[0].camera_mount.forward_body[0], env_parameters[0].camera_mount.forward_body[1], env_parameters[0].camera_mount.forward_body[2],
                     env_parameters[0].camera_mount.up_body[0], env_parameters[0].camera_mount.up_body[1], env_parameters[0].camera_mount.up_body[2],
-                    gpu_scene_translation_arr, gpu_scene_yaw_arr);
+                    gpu_scene_translation_arr, gpu_scene_yaw_cos_arr, gpu_scene_yaw_sin_arr);
                 CUDA_CHECK("make_target_cameras_kernel");
                 T* target_obs_ptr = rlt::data(gpu_all_target_observations) + (TI)(step_i * N_ENVIRONMENTS) * OBSERVATION_DIM;
                 cudaEventRecord(target_cameras_ready_event, device_gpu.stream);
                 for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
+                    TI event_i = step_i * N_ACTIVE_SCENES + active_scene_i;
                     TI actual_scene_i = active_scene_indices[active_scene_i];
                     auto& renderer = *renderers[actual_scene_i];
                     constexpr TI n_envs_s = N_ENVIRONMENTS_PER_SCENE;
                     TI base_env = active_scene_i * N_ENVIRONMENTS_PER_SCENE;
                     OWLParams rgb_lp = (OWLParams)renderer.backend.rgb_launch_params;
                     cudaStream_t optix_stream = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
-                    if(renderer.backend.owl_cameras_buffer == nullptr){
-                        std::array<rlt::rendering::raytracing::CameraData<float>, N_ENVIRONMENTS_PER_SCENE> cpu_cameras_init;
-                        cudaMemcpy(cpu_cameras_init.data(), gpu_target_cameras + base_env, N_ENVIRONMENTS_PER_SCENE * sizeof(rlt::rendering::raytracing::CameraData<float>), cudaMemcpyDeviceToHost);
-                        for(TI li = 0; li < n_envs_s; li++){
-                            rlt::set(device, renderer.cameras, cpu_cameras_init[li], li);
-                        }
-                        rlt::set_cameras(device, renderer, renderer.cameras);
-                        cudaEventRecord(target_render_pass_start_events[active_scene_i], optix_stream);
-                        rlt::render_rgb_only_launch(device, renderer);
-                        rlt::render_rgb_only_sync(device, renderer);
-                    } else {
-                        cudaStreamWaitEvent(optix_stream, target_cameras_ready_event, 0);
-                        void* owl_cam_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.owl_cameras_buffer, 0);
-                        cudaMemcpyAsync(
-                            owl_cam_ptr,
-                            gpu_target_cameras + base_env,
-                            n_envs_s * sizeof(rlt::rendering::raytracing::CameraData<float>),
-                            cudaMemcpyDeviceToDevice, optix_stream);
-                        cudaEventRecord(target_render_pass_start_events[active_scene_i], optix_stream);
-                        rlt::render_rgb_only_launch(device, renderer);
-                    }
-                }
-                for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
-                    TI actual_scene_i = active_scene_indices[active_scene_i];
-                    auto& renderer = *renderers[actual_scene_i];
-                    constexpr TI n_envs_s = N_ENVIRONMENTS_PER_SCENE;
-                    TI base_env = active_scene_i * N_ENVIRONMENTS_PER_SCENE;
-                    OWLParams rgb_lp = (OWLParams)renderer.backend.rgb_launch_params;
-                    cudaStream_t optix_stream = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
-                    if(renderer.backend.owl_cameras_buffer != nullptr){
-                        rlt::render_rgb_only_sync(device, renderer);
-                    }
-                    cudaEventRecord(target_render_pass_stop_events[active_scene_i], optix_stream);
-                    const uint32_t* fb_ptr = rlt::get_framebuffer_device_ptr(device, renderer);
+                    cudaStreamWaitEvent(optix_stream, target_cameras_ready_event, 0);
+                    void* owl_cam_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.owl_cameras_buffer, 0);
+                    cudaMemcpyAsync(
+                        owl_cam_ptr,
+                        gpu_target_cameras + base_env,
+                        n_envs_s * sizeof(rlt::rendering::raytracing::CameraData<float>),
+                        cudaMemcpyDeviceToDevice, optix_stream);
                     int total_scatter = n_envs_s * CAM_PIXELS;
                     int pf_block = 256;
                     int pf_grid = (total_scatter + pf_block - 1) / pf_block;
-                    if constexpr(BRIGHTNESS_RANDOMIZATION_RANGE > 0){
-                        scatter_pixel_to_float_kernel<true><<<pf_grid, pf_block>>>(fb_ptr, target_obs_ptr, gpu_brightness_scale_arr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
-                    } else {
-                        scatter_pixel_to_float_kernel<false><<<pf_grid, pf_block>>>(fb_ptr, target_obs_ptr, nullptr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
+                    if(step_i % RENDER_TIMING_SAMPLE_PERIOD == 0){
+                        cudaEventRecord(target_render_pass_start_events[event_i], optix_stream);
                     }
+                    rlt::render_rgb_only_launch(device, renderer);
+                    if(step_i % RENDER_TIMING_SAMPLE_PERIOD == 0){
+                        cudaEventRecord(target_render_pass_stop_events[event_i], optix_stream);
+                    }
+                    const uint32_t* fb_ptr = rlt::get_framebuffer_device_ptr(device, renderer);
+                    if constexpr(BRIGHTNESS_RANDOMIZATION_RANGE > 0){
+                        scatter_pixel_to_float_kernel<true><<<pf_grid, pf_block, 0, optix_stream>>>(fb_ptr, target_obs_ptr, gpu_brightness_scale_arr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
+                    } else {
+                        scatter_pixel_to_float_kernel<false><<<pf_grid, pf_block, 0, optix_stream>>>(fb_ptr, target_obs_ptr, nullptr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
+                    }
+                    cudaEventRecord(target_render_scatter_done_events[active_scene_i], optix_stream);
+                }
+                for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
+                    cudaStreamWaitEvent(device_gpu.stream, target_render_scatter_done_events[active_scene_i], 0);
                 }
                 CUDA_CHECK("target render");
-                {
-                    float target_render_pass_time_ms = 0;
-                    for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
-                        float scene_render_time_ms = 0;
-                        cudaEventElapsedTime(&scene_render_time_ms, target_render_pass_start_events[active_scene_i], target_render_pass_stop_events[active_scene_i]);
-                        target_render_pass_time_ms = std::max(target_render_pass_time_ms, scene_render_time_ms);
-                    }
-                    epoch_render_gpu_time_ms += target_render_pass_time_ms;
-                }
                 auto render_end = std::chrono::high_resolution_clock::now();
                 epoch_render_time_ms += std::chrono::duration<float, std::milli>(render_end - render_start).count();
                 if(record_video && ffmpeg_pipe){
                     static constexpr TI VIDEO_OBS_SIZE = N_ENVIRONMENTS * OBSERVATION_DIM;
                     std::vector<float> cpu_obs(VIDEO_OBS_SIZE);
                     std::vector<float> cpu_target_obs(VIDEO_OBS_SIZE);
+                    cudaStreamSynchronize(device_gpu.stream);
                     cudaMemcpy(cpu_obs.data(), obs_ptr, VIDEO_OBS_SIZE * sizeof(float), cudaMemcpyDeviceToHost);
                     cudaMemcpy(cpu_target_obs.data(), target_obs_ptr, VIDEO_OBS_SIZE * sizeof(float), cudaMemcpyDeviceToHost);
                     for(TI scene_row = 0; scene_row < SCENE_GRID_ROWS; scene_row++){
@@ -1731,7 +1711,7 @@ int main(int argc, char** argv){
 #ifdef STACK_TARGET_CHANNEL
                     {
                         int total_elements = N_ENVIRONMENTS * COMBINED_OBS_DIM;
-                        gather_frames_with_target_kernel<<<(total_elements + 255) / 256, 256>>>(
+                        gather_frames_with_target_kernel<<<(total_elements + 255) / 256, 256, 0, device_gpu.stream>>>(
                             rlt::data(gpu_all_observations), rlt::data(gpu_all_target_observations),
                             gpu_rollout_gather_indices, gpu_rollout_target_row_indices,
                             rlt::data(gpu_rollout_combined),
@@ -1743,10 +1723,10 @@ int main(int argc, char** argv){
 #else
                     {
                         int total_elements = N_ENVIRONMENTS * STACKED_OBS_DIM;
-                        gather_frames_kernel<<<(total_elements + 255) / 256, 256>>>(
+                        gather_frames_kernel<<<(total_elements + 255) / 256, 256, 0, device_gpu.stream>>>(
                             rlt::data(gpu_all_observations), gpu_rollout_gather_indices, rlt::data(gpu_rollout_stacked),
                             OBSERVATION_DIM, IMG_C, FRAME_STACK_N, STACKED_IMG_C, STACKED_OBS_DIM, N_ENVIRONMENTS);
-                        gather_frames_kernel<<<(total_elements + 255) / 256, 256>>>(
+                        gather_frames_kernel<<<(total_elements + 255) / 256, 256, 0, device_gpu.stream>>>(
                             rlt::data(gpu_all_target_observations), gpu_rollout_target_gather_indices, rlt::data(gpu_rollout_stacked_target),
                             OBSERVATION_DIM, IMG_C, FRAME_STACK_N, STACKED_IMG_C, STACKED_OBS_DIM, N_ENVIRONMENTS);
                     }
@@ -1759,7 +1739,7 @@ int main(int argc, char** argv){
 #ifdef STACK_TARGET_CHANNEL
                     {
                         int total_elements = N_ENVIRONMENTS * COMBINED_OBS_DIM;
-                        concat_target_channels_kernel<<<(total_elements + 255) / 256, 256>>>(
+                        concat_target_channels_kernel<<<(total_elements + 255) / 256, 256, 0, device_gpu.stream>>>(
                             rlt::data(gpu_all_observations) + step_i * N_ENVIRONMENTS * OBSERVATION_DIM,
                             rlt::data(gpu_all_target_observations) + step_i * N_ENVIRONMENTS * OBSERVATION_DIM,
                             rlt::data(gpu_rollout_combined),
@@ -1800,6 +1780,25 @@ int main(int argc, char** argv){
         }
         cudaDeviceSynchronize();
         CUDA_CHECK("end of collection sync");
+        TI render_timing_samples = 0;
+        for(TI step_i = 0; step_i < STEPS_PER_ENV; step_i += RENDER_TIMING_SAMPLE_PERIOD){
+            float render_pass_time_ms = 0;
+            float target_render_pass_time_ms = 0;
+            for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
+                TI event_i = step_i * N_ACTIVE_SCENES + active_scene_i;
+                float scene_render_time_ms = 0;
+                cudaEventElapsedTime(&scene_render_time_ms, render_pass_start_events[event_i], render_pass_stop_events[event_i]);
+                render_pass_time_ms = std::max(render_pass_time_ms, scene_render_time_ms);
+                float target_scene_render_time_ms = 0;
+                cudaEventElapsedTime(&target_scene_render_time_ms, target_render_pass_start_events[event_i], target_render_pass_stop_events[event_i]);
+                target_render_pass_time_ms = std::max(target_render_pass_time_ms, target_scene_render_time_ms);
+            }
+            epoch_render_gpu_time_ms += render_pass_time_ms + target_render_pass_time_ms;
+            render_timing_samples++;
+        }
+        if(render_timing_samples > 0){
+            epoch_render_gpu_time_ms *= static_cast<float>(STEPS_PER_ENV) / static_cast<float>(render_timing_samples);
+        }
         cudaMemcpy(cpu_episode_lengths_log.data(), gpu_episode_lengths_log, STEPS_TOTAL * sizeof(T), cudaMemcpyDeviceToHost);
         cudaMemcpy(cpu_episode_returns_log.data(), gpu_episode_returns_log, STEPS_TOTAL * sizeof(T), cudaMemcpyDeviceToHost);
         cudaMemcpy(cpu_episode_tf_log.data(), gpu_episode_tf_log, STEPS_TOTAL * sizeof(T), cudaMemcpyDeviceToHost);
@@ -1857,7 +1856,7 @@ int main(int argc, char** argv){
 #ifdef STACK_TARGET_CHANNEL
                 {
                     int total_elements = WINDOW_SAMPLES * COMBINED_OBS_DIM;
-                    concat_target_channels_kernel<<<(total_elements + 255) / 256, 256>>>(
+                    concat_target_channels_kernel<<<(total_elements + 255) / 256, 256, 0, device_gpu.stream>>>(
                         rlt::data(gpu_all_observations) + window_offset * OBSERVATION_DIM,
                         rlt::data(gpu_all_target_observations) + window_offset * OBSERVATION_DIM,
                         rlt::data(gpu_rollout_combined),
@@ -1896,7 +1895,6 @@ int main(int argc, char** argv){
                 auto target_tensor = rlt::view_range(device_gpu, gpu_all_targets, window_offset, rlt::tensor::ViewSpec<0, WINDOW_SAMPLES>{});
                 auto target_matrix = rlt::matrix_view(device_gpu, target_tensor);
                 rlt::nn::loss_functions::mse::gradient(device_gpu, student_output_matrix, target_matrix, gpu_d_action_train, (T)0.5);
-                cudaDeviceSynchronize();
 
                 if(pass == 0){
                     rlt::Matrix<rlt::matrix::Specification<T_ACTIVATION, TI, WINDOW_SAMPLES, TARGET_DIM>> cpu_student_output, cpu_target;
@@ -1979,7 +1977,7 @@ int main(int argc, char** argv){
 #ifdef STACK_TARGET_CHANNEL
                 {
                     int total_elements = BATCH_SIZE * COMBINED_OBS_DIM;
-                    gather_frames_with_target_kernel<<<(total_elements + 255) / 256, 256>>>(
+                    gather_frames_with_target_kernel<<<(total_elements + 255) / 256, 256, 0, device_gpu.stream>>>(
                         rlt::data(gpu_all_observations), rlt::data(gpu_all_target_observations),
                         gpu_gather_indices, gpu_batch_target_row_indices,
                         rlt::data(gpu_combined_batch),
@@ -1995,10 +1993,10 @@ int main(int argc, char** argv){
 #else
                 {
                     int total_elements = BATCH_SIZE * STACKED_OBS_DIM;
-                    gather_frames_kernel<<<(total_elements + 255) / 256, 256>>>(
+                    gather_frames_kernel<<<(total_elements + 255) / 256, 256, 0, device_gpu.stream>>>(
                         rlt::data(gpu_all_observations), gpu_gather_indices, rlt::data(gpu_stacked_batch),
                         OBSERVATION_DIM, IMG_C, FRAME_STACK_N, STACKED_IMG_C, STACKED_OBS_DIM, BATCH_SIZE);
-                    gather_frames_kernel<<<(total_elements + 255) / 256, 256>>>(
+                    gather_frames_kernel<<<(total_elements + 255) / 256, 256, 0, device_gpu.stream>>>(
                         rlt::data(gpu_all_target_observations), gpu_target_gather_indices, rlt::data(gpu_stacked_target_batch),
                         OBSERVATION_DIM, IMG_C, FRAME_STACK_N, STACKED_IMG_C, STACKED_OBS_DIM, BATCH_SIZE);
                 }
@@ -2017,7 +2015,7 @@ int main(int argc, char** argv){
                 rlt::malloc(device_gpu, gpu_combined_batch_train);
                 {
                     int total_elements = BATCH_SIZE * COMBINED_OBS_DIM;
-                    concat_target_channels_kernel<<<(total_elements + 255) / 256, 256>>>(
+                    concat_target_channels_kernel<<<(total_elements + 255) / 256, 256, 0, device_gpu.stream>>>(
                         rlt::data(gpu_all_observations) + batch_offset * OBSERVATION_DIM,
                         rlt::data(gpu_all_target_observations) + batch_offset * OBSERVATION_DIM,
                         rlt::data(gpu_combined_batch_train),
@@ -2056,7 +2054,6 @@ int main(int argc, char** argv){
                 auto target_batch_tensor = rlt::view_range(device_gpu, gpu_all_targets, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
                 auto target_batch = rlt::matrix_view(device_gpu, target_batch_tensor);
                 rlt::nn::loss_functions::mse::gradient(device_gpu, student_output_matrix, target_batch, gpu_d_action_train, (T)0.5);
-                cudaDeviceSynchronize();
 
                 // Compute loss for logging
                 if(pass == 0){
@@ -2464,10 +2461,17 @@ int main(int argc, char** argv){
     cudaEventDestroy(cameras_ready_event);
     cudaEventDestroy(target_cameras_ready_event);
     for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
-        cudaEventDestroy(render_pass_start_events[active_scene_i]);
-        cudaEventDestroy(render_pass_stop_events[active_scene_i]);
-        cudaEventDestroy(target_render_pass_start_events[active_scene_i]);
-        cudaEventDestroy(target_render_pass_stop_events[active_scene_i]);
+        cudaEventDestroy(render_scatter_done_events[active_scene_i]);
+        cudaEventDestroy(target_render_scatter_done_events[active_scene_i]);
+    }
+    for(TI step_i = 0; step_i < STEPS_PER_ENV; step_i++){
+        for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
+            TI event_i = step_i * N_ACTIVE_SCENES + active_scene_i;
+            cudaEventDestroy(render_pass_start_events[event_i]);
+            cudaEventDestroy(render_pass_stop_events[event_i]);
+            cudaEventDestroy(target_render_pass_start_events[event_i]);
+            cudaEventDestroy(target_render_pass_stop_events[event_i]);
+        }
     }
     cudaEventDestroy(train_forward_start_event);
     cudaEventDestroy(train_forward_stop_event);
@@ -2508,6 +2512,8 @@ int main(int argc, char** argv){
     cudaFree(gpu_brightness_scale_arr);
     cudaFree(gpu_scene_translation_arr);
     cudaFree(gpu_scene_yaw_arr);
+    cudaFree(gpu_scene_yaw_cos_arr);
+    cudaFree(gpu_scene_yaw_sin_arr);
     cudaFree(gpu_indoor_positions);
     cudaFree(gpu_num_indoor_positions);
     cudaFree(gpu_env_scene);
