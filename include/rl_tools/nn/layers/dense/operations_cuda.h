@@ -197,6 +197,9 @@ namespace rl_tools{
             // fully fused adam update
             using DEVICE = devices::CUDA<DEV_SPEC>;
             using TO = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::OptimizerState>;
+            using T_PARAMETER = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Parameter>;
+            using T_MASTER_PARAMETER = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::MasterParameter>;
+            static constexpr bool USE_MASTER_PARAMETERS = SPEC::TYPE_POLICY::template IS_SET<numeric_types::categories::MasterParameter> && !utils::typing::is_same_v<T_PARAMETER, T_MASTER_PARAMETER>;
             using TI = typename DEVICE::index_t;
             constexpr TI INPUT_DIM = SPEC::INPUT_DIM;
             constexpr TI OUTPUT_DIM = SPEC::OUTPUT_DIM;
@@ -208,6 +211,13 @@ namespace rl_tools{
             if(input_i < INPUT_DIM && output_i < OUTPUT_DIM){
                 if(input_i == 0){
                     // bias
+                    TO bias_value;
+                    if constexpr(USE_MASTER_PARAMETERS){
+                        bias_value = (TO)get(device, layer.biases.master_parameters, output_i);
+                    }
+                    else{
+                        bias_value = (TO)get(device, layer.biases.parameters, output_i);
+                    }
                     TO d_bias = (TO)get(device, layer.biases.gradient, output_i);
                     TO d_bias_first_order_moment = optimizer_parameters.beta_1 * (TO)get(device, layer.biases.gradient_first_order_moment, output_i) + (1 - optimizer_parameters.beta_1) * d_bias;
                     set(device, layer.biases.gradient_first_order_moment, d_bias_first_order_moment, output_i);
@@ -216,10 +226,21 @@ namespace rl_tools{
                     TO pre_sqrt_term = d_bias_second_order_moment * (TO)get(device, optimizer.second_order_moment_bias_correction, 0);
                     pre_sqrt_term = math::max(device.math, pre_sqrt_term, (TO)optimizer_parameters.epsilon_sqrt);
                     TO bias_update = optimizer_parameters.alpha * (TO)get(device, optimizer.first_order_moment_bias_correction, 0) * d_bias_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), pre_sqrt_term) + optimizer_parameters.epsilon);
-                    increment(device, layer.biases.parameters, -bias_update, output_i);
+                    bias_value -= bias_update;
+                    if constexpr(USE_MASTER_PARAMETERS){
+                        set(device, layer.biases.master_parameters, (T_MASTER_PARAMETER)bias_value, output_i);
+                    }
+                    set(device, layer.biases.parameters, (T_PARAMETER)bias_value, output_i);
                 }
                 {
                     // weight
+                    TO weight_value;
+                    if constexpr(USE_MASTER_PARAMETERS){
+                        weight_value = (TO)get(device, layer.weights.master_parameters, output_i, input_i);
+                    }
+                    else{
+                        weight_value = (TO)get(device, layer.weights.parameters, output_i, input_i);
+                    }
                     TO d_weight = (TO)get(device, layer.weights.gradient, output_i, input_i);
                     TO d_weight_first_order_moment = optimizer_parameters.beta_1 * (TO)get(device, layer.weights.gradient_first_order_moment, output_i, input_i) + (1 - optimizer_parameters.beta_1) * d_weight;
                     set(device, layer.weights.gradient_first_order_moment, d_weight_first_order_moment, output_i, input_i);
@@ -228,7 +249,11 @@ namespace rl_tools{
                     TO pre_sqrt_term = d_weight_second_order_moment * (TO)get(device, optimizer.second_order_moment_bias_correction, 0);
                     pre_sqrt_term = math::max(device.math, pre_sqrt_term, (TO)optimizer_parameters.epsilon_sqrt);
                     TO weight_update = optimizer_parameters.alpha * (TO)get(device, optimizer.first_order_moment_bias_correction, 0) * d_weight_first_order_moment / (math::sqrt(typename DEVICE::SPEC::MATH_DEVICE_ACCURATE(), pre_sqrt_term) + optimizer_parameters.epsilon);
-                    increment(device, layer.weights.parameters, -weight_update, output_i, input_i);
+                    weight_value -= weight_update;
+                    if constexpr(USE_MASTER_PARAMETERS){
+                        set(device, layer.weights.master_parameters, (T_MASTER_PARAMETER)weight_value, output_i, input_i);
+                    }
+                    set(device, layer.weights.parameters, (T_PARAMETER)weight_value, output_i, input_i);
                 }
             }
         }
@@ -426,6 +451,13 @@ namespace rl_tools{
         check_status(device);
         check_cuda_call(device, cudaMemsetAsync(layer.biases.gradient_second_order_moment._data, 0, decltype(layer.biases.gradient_second_order_moment)::SPEC::SIZE_BYTES, device.stream), "cudaMemsetAsync dense biases.m2");
         check_status(device);
+        using T_PARAMETER = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::Parameter>;
+        using T_MASTER_PARAMETER = typename SPEC::TYPE_POLICY::template GET<numeric_types::categories::MasterParameter>;
+        constexpr bool USE_MASTER_PARAMETERS = SPEC::TYPE_POLICY::template IS_SET<numeric_types::categories::MasterParameter> && !utils::typing::is_same_v<T_PARAMETER, T_MASTER_PARAMETER>;
+        if constexpr(USE_MASTER_PARAMETERS){
+            copy(device, device, layer.weights.parameters, layer.weights.master_parameters);
+            copy(device, device, layer.biases.parameters, layer.biases.master_parameters);
+        }
     }
 
     template<typename DEV_SPEC, typename SPEC, typename PARAMETERS, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
