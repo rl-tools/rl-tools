@@ -787,8 +787,10 @@ void render_target_observation(
     }
 }
 
+template <bool APPLY_BRIGHTNESS>
 __global__ void scatter_pixel_to_float_kernel(
     const uint32_t* __restrict__ fb, float* __restrict__ output,
+    const float* __restrict__ brightness_scales,
     int base_env, int n_envs,
     int pixels_per_camera, int obs_dim
 ){
@@ -803,6 +805,12 @@ __global__ void scatter_pixel_to_float_kernel(
     float g = static_cast<float>((rgba >>  8) & 0xFF) / 255.0f;
     float b = static_cast<float>((rgba >> 16) & 0xFF) / 255.0f;
     int global_env = base_env + local_env;
+    if constexpr(APPLY_BRIGHTNESS){
+        float scale = brightness_scales[global_env];
+        r = fminf(fmaxf(r * scale, 0.0f), 1.0f);
+        g = fminf(fmaxf(g * scale, 0.0f), 1.0f);
+        b = fminf(fmaxf(b * scale, 0.0f), 1.0f);
+    }
     int out_base = global_env * obs_dim + pixel_idx * 3;
     output[out_base + 0] = r;
     output[out_base + 1] = g;
@@ -1176,10 +1184,16 @@ int main(int argc, char** argv){
     cudaEventCreateWithFlags(&cameras_ready_event, cudaEventDisableTiming);
     cudaEvent_t target_cameras_ready_event;
     cudaEventCreateWithFlags(&target_cameras_ready_event, cudaEventDisableTiming);
-    // Events for measuring rendering time
-    cudaEvent_t render_start_event, render_stop_event;
-    cudaEventCreate(&render_start_event);
-    cudaEventCreate(&render_stop_event);
+    std::array<cudaEvent_t, N_ACTIVE_SCENES> render_pass_start_events;
+    std::array<cudaEvent_t, N_ACTIVE_SCENES> render_pass_stop_events;
+    std::array<cudaEvent_t, N_ACTIVE_SCENES> target_render_pass_start_events;
+    std::array<cudaEvent_t, N_ACTIVE_SCENES> target_render_pass_stop_events;
+    for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
+        cudaEventCreate(&render_pass_start_events[active_scene_i]);
+        cudaEventCreate(&render_pass_stop_events[active_scene_i]);
+        cudaEventCreate(&target_render_pass_start_events[active_scene_i]);
+        cudaEventCreate(&target_render_pass_stop_events[active_scene_i]);
+    }
     cudaEvent_t train_forward_start_event, train_forward_stop_event;
     cudaEvent_t train_backward_start_event, train_backward_stop_event;
     cudaEvent_t train_update_start_event, train_update_stop_event;
@@ -1443,6 +1457,7 @@ int main(int argc, char** argv){
         // Data collection (GPU-resident)
         // =================================================================
         float epoch_render_time_ms = 0;
+        float epoch_render_gpu_time_ms = 0;
         float epoch_train_forward_time_ms = 0;
         float epoch_train_backward_time_ms = 0;
         float epoch_train_update_time_ms = 0;
@@ -1493,6 +1508,7 @@ int main(int argc, char** argv){
 #ifdef USE_FRAME_STACKING
                 imitation_kernels::record_episode_start_kernel<<<grid, block, 0, device_gpu.stream>>>(tag_device, gpu_episode_start_step, gpu_episode_start_step_per_row, step_i);
 #endif
+                auto render_start = std::chrono::high_resolution_clock::now();
                 imitation_kernels::make_cameras_kernel<<<grid, block, 0, device_gpu.stream>>>(
                     tag_device, gpu_dynamics_arr, gpu_params_arr, gpu_states_arr,
                     gpu_cameras,
@@ -1509,6 +1525,8 @@ int main(int argc, char** argv){
                     auto& renderer = *renderers[actual_scene_i];
                     constexpr TI n_envs_s = N_ENVIRONMENTS_PER_SCENE;
                     TI base_env = active_scene_i * N_ENVIRONMENTS_PER_SCENE;
+                    OWLParams rgb_lp = (OWLParams)renderer.backend.rgb_launch_params;
+                    cudaStream_t optix_stream = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
                     if(renderer.backend.owl_cameras_buffer == nullptr){
                         std::array<rlt::rendering::raytracing::CameraData<float>, N_ENVIRONMENTS_PER_SCENE> cpu_cameras_init;
                         cudaMemcpy(cpu_cameras_init.data(), gpu_cameras + base_env, N_ENVIRONMENTS_PER_SCENE * sizeof(rlt::rendering::raytracing::CameraData<float>), cudaMemcpyDeviceToHost);
@@ -1516,19 +1534,18 @@ int main(int argc, char** argv){
                             rlt::set(device, renderer.cameras, cpu_cameras_init[li], li);
                         }
                         rlt::set_cameras(device, renderer, renderer.cameras);
-                        rlt::render_rgb_only(device, renderer);
+                        cudaEventRecord(render_pass_start_events[active_scene_i], optix_stream);
+                        rlt::render_rgb_only_launch(device, renderer);
+                        rlt::render_rgb_only_sync(device, renderer);
                     } else {
-                        OWLParams rgb_lp = (OWLParams)renderer.backend.rgb_launch_params;
-                        cudaStream_t optix_stream = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
                         cudaStreamWaitEvent(optix_stream, cameras_ready_event, 0);
                         void* owl_cam_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.owl_cameras_buffer, 0);
-                        for(TI li = 0; li < n_envs_s; li++){
-                            cudaMemcpyAsync(
-                                (char*)owl_cam_ptr + li * sizeof(rlt::rendering::raytracing::CameraData<float>),
-                                gpu_cameras + base_env + li,
-                                sizeof(rlt::rendering::raytracing::CameraData<float>),
-                                cudaMemcpyDeviceToDevice, optix_stream);
-                        }
+                        cudaMemcpyAsync(
+                            owl_cam_ptr,
+                            gpu_cameras + base_env,
+                            n_envs_s * sizeof(rlt::rendering::raytracing::CameraData<float>),
+                            cudaMemcpyDeviceToDevice, optix_stream);
+                        cudaEventRecord(render_pass_start_events[active_scene_i], optix_stream);
                         rlt::render_rgb_only_launch(device, renderer);
                     }
                 }
@@ -1539,16 +1556,32 @@ int main(int argc, char** argv){
                     auto& renderer = *renderers[actual_scene_i];
                     constexpr TI n_envs_s = N_ENVIRONMENTS_PER_SCENE;
                     TI base_env = active_scene_i * N_ENVIRONMENTS_PER_SCENE;
+                    OWLParams rgb_lp = (OWLParams)renderer.backend.rgb_launch_params;
+                    cudaStream_t optix_stream = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
                     if(renderer.backend.owl_cameras_buffer != nullptr){
                         rlt::render_rgb_only_sync(device, renderer);
                     }
+                    cudaEventRecord(render_pass_stop_events[active_scene_i], optix_stream);
                     const uint32_t* fb_ptr = rlt::get_framebuffer_device_ptr(device, renderer);
                     int total_scatter = n_envs_s * CAM_PIXELS;
                     int pf_block = 256;
                     int pf_grid = (total_scatter + pf_block - 1) / pf_block;
-                    scatter_pixel_to_float_kernel<<<pf_grid, pf_block>>>(fb_ptr, obs_ptr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
+                    if constexpr(OBSERVATION_NOISE_STD == 0 && BRIGHTNESS_RANDOMIZATION_RANGE > 0){
+                        scatter_pixel_to_float_kernel<true><<<pf_grid, pf_block>>>(fb_ptr, obs_ptr, gpu_brightness_scale_arr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
+                    } else {
+                        scatter_pixel_to_float_kernel<false><<<pf_grid, pf_block>>>(fb_ptr, obs_ptr, nullptr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
+                    }
                 }
                 CUDA_CHECK("multi-scene render");
+                {
+                    float render_pass_time_ms = 0;
+                    for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
+                        float scene_render_time_ms = 0;
+                        cudaEventElapsedTime(&scene_render_time_ms, render_pass_start_events[active_scene_i], render_pass_stop_events[active_scene_i]);
+                        render_pass_time_ms = std::max(render_pass_time_ms, scene_render_time_ms);
+                    }
+                    epoch_render_gpu_time_ms += render_pass_time_ms;
+                }
                 if constexpr(OBSERVATION_NOISE_STD > 0){
                     constexpr TI NOISE_N = N_ENVIRONMENTS * OBSERVATION_DIM;
                     int noise_block = 256;
@@ -1557,7 +1590,7 @@ int main(int argc, char** argv){
                     observation_noise_kernel<<<noise_grid, noise_block>>>(obs_ptr, NOISE_N, OBSERVATION_NOISE_STD, noise_seed);
                     CUDA_CHECK("observation_noise_kernel");
                 }
-                if constexpr(BRIGHTNESS_RANDOMIZATION_RANGE > 0){
+                if constexpr(OBSERVATION_NOISE_STD > 0 && BRIGHTNESS_RANDOMIZATION_RANGE > 0){
                     int br_block = 256;
                     dim3 br_grid((OBSERVATION_DIM + br_block - 1) / br_block, N_ENVIRONMENTS);
                     brightness_apply_kernel<<<br_grid, br_block>>>(obs_ptr, gpu_brightness_scale_arr, N_ENVIRONMENTS, OBSERVATION_DIM);
@@ -1579,6 +1612,8 @@ int main(int argc, char** argv){
                     auto& renderer = *renderers[actual_scene_i];
                     constexpr TI n_envs_s = N_ENVIRONMENTS_PER_SCENE;
                     TI base_env = active_scene_i * N_ENVIRONMENTS_PER_SCENE;
+                    OWLParams rgb_lp = (OWLParams)renderer.backend.rgb_launch_params;
+                    cudaStream_t optix_stream = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
                     if(renderer.backend.owl_cameras_buffer == nullptr){
                         std::array<rlt::rendering::raytracing::CameraData<float>, N_ENVIRONMENTS_PER_SCENE> cpu_cameras_init;
                         cudaMemcpy(cpu_cameras_init.data(), gpu_target_cameras + base_env, N_ENVIRONMENTS_PER_SCENE * sizeof(rlt::rendering::raytracing::CameraData<float>), cudaMemcpyDeviceToHost);
@@ -1586,19 +1621,18 @@ int main(int argc, char** argv){
                             rlt::set(device, renderer.cameras, cpu_cameras_init[li], li);
                         }
                         rlt::set_cameras(device, renderer, renderer.cameras);
-                        rlt::render_rgb_only(device, renderer);
+                        cudaEventRecord(target_render_pass_start_events[active_scene_i], optix_stream);
+                        rlt::render_rgb_only_launch(device, renderer);
+                        rlt::render_rgb_only_sync(device, renderer);
                     } else {
-                        OWLParams rgb_lp = (OWLParams)renderer.backend.rgb_launch_params;
-                        cudaStream_t optix_stream = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
                         cudaStreamWaitEvent(optix_stream, target_cameras_ready_event, 0);
                         void* owl_cam_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.owl_cameras_buffer, 0);
-                        for(TI li = 0; li < n_envs_s; li++){
-                            cudaMemcpyAsync(
-                                (char*)owl_cam_ptr + li * sizeof(rlt::rendering::raytracing::CameraData<float>),
-                                gpu_target_cameras + base_env + li,
-                                sizeof(rlt::rendering::raytracing::CameraData<float>),
-                                cudaMemcpyDeviceToDevice, optix_stream);
-                        }
+                        cudaMemcpyAsync(
+                            owl_cam_ptr,
+                            gpu_target_cameras + base_env,
+                            n_envs_s * sizeof(rlt::rendering::raytracing::CameraData<float>),
+                            cudaMemcpyDeviceToDevice, optix_stream);
+                        cudaEventRecord(target_render_pass_start_events[active_scene_i], optix_stream);
                         rlt::render_rgb_only_launch(device, renderer);
                     }
                 }
@@ -1607,22 +1641,34 @@ int main(int argc, char** argv){
                     auto& renderer = *renderers[actual_scene_i];
                     constexpr TI n_envs_s = N_ENVIRONMENTS_PER_SCENE;
                     TI base_env = active_scene_i * N_ENVIRONMENTS_PER_SCENE;
+                    OWLParams rgb_lp = (OWLParams)renderer.backend.rgb_launch_params;
+                    cudaStream_t optix_stream = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
                     if(renderer.backend.owl_cameras_buffer != nullptr){
                         rlt::render_rgb_only_sync(device, renderer);
                     }
+                    cudaEventRecord(target_render_pass_stop_events[active_scene_i], optix_stream);
                     const uint32_t* fb_ptr = rlt::get_framebuffer_device_ptr(device, renderer);
                     int total_scatter = n_envs_s * CAM_PIXELS;
                     int pf_block = 256;
                     int pf_grid = (total_scatter + pf_block - 1) / pf_block;
-                    scatter_pixel_to_float_kernel<<<pf_grid, pf_block>>>(fb_ptr, target_obs_ptr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
+                    if constexpr(BRIGHTNESS_RANDOMIZATION_RANGE > 0){
+                        scatter_pixel_to_float_kernel<true><<<pf_grid, pf_block>>>(fb_ptr, target_obs_ptr, gpu_brightness_scale_arr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
+                    } else {
+                        scatter_pixel_to_float_kernel<false><<<pf_grid, pf_block>>>(fb_ptr, target_obs_ptr, nullptr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
+                    }
                 }
                 CUDA_CHECK("target render");
-                if constexpr(BRIGHTNESS_RANDOMIZATION_RANGE > 0){
-                    int br_block = 256;
-                    dim3 br_grid((OBSERVATION_DIM + br_block - 1) / br_block, N_ENVIRONMENTS);
-                    brightness_apply_kernel<<<br_grid, br_block>>>(target_obs_ptr, gpu_brightness_scale_arr, N_ENVIRONMENTS, OBSERVATION_DIM);
-                    CUDA_CHECK("target brightness_apply_kernel");
+                {
+                    float target_render_pass_time_ms = 0;
+                    for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
+                        float scene_render_time_ms = 0;
+                        cudaEventElapsedTime(&scene_render_time_ms, target_render_pass_start_events[active_scene_i], target_render_pass_stop_events[active_scene_i]);
+                        target_render_pass_time_ms = std::max(target_render_pass_time_ms, scene_render_time_ms);
+                    }
+                    epoch_render_gpu_time_ms += target_render_pass_time_ms;
                 }
+                auto render_end = std::chrono::high_resolution_clock::now();
+                epoch_render_time_ms += std::chrono::duration<float, std::milli>(render_end - render_start).count();
                 if(record_video && ffmpeg_pipe){
                     static constexpr TI VIDEO_OBS_SIZE = N_ENVIRONMENTS * OBSERVATION_DIM;
                     std::vector<float> cpu_obs(VIDEO_OBS_SIZE);
@@ -2089,8 +2135,11 @@ int main(int argc, char** argv){
         T mean_episode_length = episode_count > 0 ? (episode_length_sum_tf + episode_length_sum_student) / episode_count : 0;
         T fps = epoch_elapsed.count() > 0 ? static_cast<T>(STEPS_TOTAL) / epoch_elapsed.count() : 0;
         T render_time_s = static_cast<T>(epoch_render_time_ms) / static_cast<T>(1000);
+        T render_gpu_time_s = static_cast<T>(epoch_render_gpu_time_ms) / static_cast<T>(1000);
         T render_fps = render_time_s > 0 ? static_cast<T>(STEPS_PER_ENV * N_ENVIRONMENTS) / render_time_s : 0;
         T render_pct = epoch_elapsed.count() > 0 ? static_cast<T>(100) * render_time_s / epoch_elapsed.count() : 0;
+        T render_gpu_fps = render_gpu_time_s > 0 ? static_cast<T>(STEPS_PER_ENV * N_ENVIRONMENTS) / render_gpu_time_s : 0;
+        T render_gpu_pct = epoch_elapsed.count() > 0 ? static_cast<T>(100) * render_gpu_time_s / epoch_elapsed.count() : 0;
         T train_forward_time_s = static_cast<T>(epoch_train_forward_time_ms) / static_cast<T>(1000);
         T train_backward_time_s = static_cast<T>(epoch_train_backward_time_ms) / static_cast<T>(1000);
         T train_update_time_s = static_cast<T>(epoch_train_update_time_ms) / static_cast<T>(1000);
@@ -2111,6 +2160,9 @@ int main(int argc, char** argv){
                   << " render: " << std::setw(5) << std::setprecision(1) << render_time_s << "s"
                   << " (" << std::setw(4) << std::setprecision(1) << render_pct << "%"
                   << " " << std::setw(7) << std::setprecision(0) << render_fps << " fps)"
+                  << " render_gpu: " << std::setw(5) << std::setprecision(1) << render_gpu_time_s << "s"
+                  << " (" << std::setw(4) << std::setprecision(1) << render_gpu_pct << "%"
+                  << " " << std::setw(7) << std::setprecision(0) << render_gpu_fps << " fps)"
                   << " fwd: " << std::setw(5) << std::setprecision(1) << train_forward_time_s << "s"
                   << " (" << std::setw(4) << std::setprecision(1) << train_forward_pct << "% "
                   << std::setw(6) << std::setprecision(3) << train_forward_avg_ms << "ms)"
@@ -2138,9 +2190,13 @@ int main(int argc, char** argv){
             rlt::add_scalar(device, device.logger, "training/student/episodes", static_cast<T>(episode_count_student));
         }
         rlt::add_scalar(device, device.logger, "training/fps", fps);
+        rlt::add_scalar(device, device.logger, "training/throughput_fps", fps);
         rlt::add_scalar(device, device.logger, "training/render_time_s", render_time_s);
         rlt::add_scalar(device, device.logger, "training/render_fps", render_fps);
         rlt::add_scalar(device, device.logger, "training/render_pct", render_pct);
+        rlt::add_scalar(device, device.logger, "training/render_gpu_time_s", render_gpu_time_s);
+        rlt::add_scalar(device, device.logger, "training/render_gpu_fps", render_gpu_fps);
+        rlt::add_scalar(device, device.logger, "training/render_gpu_pct", render_gpu_pct);
         rlt::add_scalar(device, device.logger, "training/model_forward_time_s", train_forward_time_s);
         rlt::add_scalar(device, device.logger, "training/model_backward_time_s", train_backward_time_s);
         rlt::add_scalar(device, device.logger, "training/model_update_time_s", train_update_time_s);
@@ -2407,8 +2463,12 @@ int main(int argc, char** argv){
     cudaFree(gpu_target_cameras);
     cudaEventDestroy(cameras_ready_event);
     cudaEventDestroy(target_cameras_ready_event);
-    cudaEventDestroy(render_start_event);
-    cudaEventDestroy(render_stop_event);
+    for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
+        cudaEventDestroy(render_pass_start_events[active_scene_i]);
+        cudaEventDestroy(render_pass_stop_events[active_scene_i]);
+        cudaEventDestroy(target_render_pass_start_events[active_scene_i]);
+        cudaEventDestroy(target_render_pass_stop_events[active_scene_i]);
+    }
     cudaEventDestroy(train_forward_start_event);
     cudaEventDestroy(train_forward_stop_event);
     cudaEventDestroy(train_backward_start_event);
