@@ -108,14 +108,6 @@ using TYPE_POLICY = rlt::numeric_types::Policy<float,
 using T_ACTIVATION = TYPE_POLICY::GET<rlt::numeric_types::categories::Activation>;
 using T_GRADIENT = TYPE_POLICY::GET<rlt::numeric_types::categories::Gradient>;
 using TEACHER_TYPE_POLICY = rlt::numeric_types::Policy<float>;
-template<typename BASE_POLICY>
-using ACTION_HEAD_TYPE_POLICY = rlt::numeric_types::Policy<float,
-    rlt::numeric_types::UseCase<rlt::numeric_types::categories::Parameter, typename BASE_POLICY::template GET<rlt::numeric_types::categories::Parameter>>,
-    rlt::numeric_types::UseCase<rlt::numeric_types::categories::Activation, float>,
-    rlt::numeric_types::UseCase<rlt::numeric_types::categories::Gradient, typename BASE_POLICY::template GET<rlt::numeric_types::categories::Gradient>>,
-    rlt::numeric_types::UseCase<rlt::numeric_types::categories::MasterParameter, typename BASE_POLICY::template GET<rlt::numeric_types::categories::MasterParameter>>>;
-using T_ACTION = ACTION_HEAD_TYPE_POLICY<TYPE_POLICY>::GET<rlt::numeric_types::categories::Activation>;
-using T_ACTION_GRADIENT = ACTION_HEAD_TYPE_POLICY<TYPE_POLICY>::GET<rlt::numeric_types::categories::Gradient>;
 using TI = typename DEVICE::index_t;
 using RNG = typename DEVICE::SPEC::RANDOM::ENGINE<>;
 using RNG_GPU = typename DEVICE_GPU::SPEC::RANDOM::ENGINE<>;
@@ -433,7 +425,7 @@ namespace imitation_kernels{
         DEVICE device,
         DYNAMICS_TYPE* envs, PARAMETERS_TYPE* env_params, typename ENVIRONMENT::State* states,
         bool* terminated_flags, TI* episode_step_arr, T* episode_return_arr,
-        T* teacher_actions_ptr, T_ACTION* student_actions_ptr, T_ACTION* all_targets_ptr,
+        T* teacher_actions_ptr, T_ACTIVATION* student_actions_ptr, T_ACTIVATION* all_targets_ptr,
         RNG rng, TI step_i
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -444,7 +436,7 @@ namespace imitation_kernels{
         auto& state = states[env_i];
         TI pos = step_i * N_ENVIRONMENTS + env_i;
         for(TI d = 0; d < TARGET_DIM; d++){
-            all_targets_ptr[pos * TARGET_DIM + d] = (T_ACTION)teacher_actions_ptr[env_i * ACTION_DIM + d];
+            all_targets_ptr[pos * TARGET_DIM + d] = (T_ACTIVATION)teacher_actions_ptr[env_i * ACTION_DIM + d];
         }
         T action_arr[ACTION_DIM];
         for(TI a = 0; a < ACTION_DIM; a++){
@@ -699,7 +691,7 @@ struct StudentActor{
     using HEAD_DENSE1 = rlt::nn::layers::dense::BindConfiguration<HEAD_DENSE1_CONFIG>;
     using HEAD_DENSE2_CONFIG = rlt::nn::layers::dense::Configuration<T_TYPE_POLICY, TI, ACTOR_HIDDEN_DIM, ACTOR_ACTIVATION_FUNCTION>;
     using HEAD_DENSE2 = rlt::nn::layers::dense::BindConfiguration<HEAD_DENSE2_CONFIG>;
-    using HEAD_DENSE_OUT_CONFIG = rlt::nn::layers::dense::Configuration<ACTION_HEAD_TYPE_POLICY<T_TYPE_POLICY>, TI, TARGET_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
+    using HEAD_DENSE_OUT_CONFIG = rlt::nn::layers::dense::Configuration<T_TYPE_POLICY, TI, TARGET_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>;
     using HEAD_DENSE_OUT = rlt::nn::layers::dense::BindConfiguration<HEAD_DENSE_OUT_CONFIG>;
 #ifdef USE_GRU_TEMPORAL
     using GRU_HEAD_CONFIG = rlt::nn::layers::gru::Configuration<T_TYPE_POLICY, TI, GRU_HIDDEN_DIM>;
@@ -1194,13 +1186,13 @@ int main(int argc, char** argv){
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, GPU_OBS_ROWS, OBSERVATION_DIM>>> gpu_all_observations;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, GPU_OBS_ROWS, OBSERVATION_DIM>>> gpu_all_target_observations;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, GPU_OBS_ROWS, STATE_OBS_DIM>>> gpu_all_state_observations;
-    rlt::Tensor<rlt::tensor::Specification<T_ACTION, TI, rlt::tensor::Shape<TI, STEPS_TOTAL, TARGET_DIM>>> gpu_all_targets;
+    rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, STEPS_TOTAL, TARGET_DIM>>> gpu_all_targets;
 #ifdef USE_GRU_TEMPORAL
-    rlt::Matrix<rlt::matrix::Specification<T_ACTION_GRADIENT, TI, WINDOW_SAMPLES, TARGET_DIM>> gpu_d_action_train;
-    rlt::Tensor<rlt::tensor::Specification<T_ACTION, TI, rlt::tensor::Shape<TI, BPTT_STEPS, N_ENVIRONMENTS, TARGET_DIM>>> gpu_student_output_train;
+    rlt::Matrix<rlt::matrix::Specification<T_GRADIENT, TI, WINDOW_SAMPLES, TARGET_DIM>> gpu_d_action_train;
+    rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, BPTT_STEPS, N_ENVIRONMENTS, TARGET_DIM>>> gpu_student_output_train;
 #else
-    rlt::Matrix<rlt::matrix::Specification<T_ACTION_GRADIENT, TI, BATCH_SIZE, TARGET_DIM>> gpu_d_action_train;
-    rlt::Tensor<rlt::tensor::Specification<T_ACTION, TI, rlt::tensor::Shape<TI, 1, BATCH_SIZE, TARGET_DIM>>> gpu_student_output_train;
+    rlt::Matrix<rlt::matrix::Specification<T_GRADIENT, TI, BATCH_SIZE, TARGET_DIM>> gpu_d_action_train;
+    rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, 1, BATCH_SIZE, TARGET_DIM>>> gpu_student_output_train;
 #endif
     rlt::malloc(device_gpu, gpu_all_observations);
     rlt::malloc(device_gpu, gpu_all_target_observations);
@@ -1209,14 +1201,14 @@ int main(int argc, char** argv){
     rlt::malloc(device_gpu, gpu_d_action_train);
     rlt::malloc(device_gpu, gpu_student_output_train);
 
-    rlt::Tensor<rlt::tensor::Specification<T_ACTION, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, ACTION_DIM>>> gpu_student_actions_step;
+    rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, ACTION_DIM>>> gpu_student_actions_step;
     rlt::malloc(device_gpu, gpu_student_actions_step);
 
 #ifdef USE_GRU_TEMPORAL
     rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, ACTOR_HIDDEN_DIM>>> gpu_rollout_branch_a;
     rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, ACTOR_HIDDEN_DIM>>> gpu_rollout_branch_b;
     rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, EMBED_DIM>>> gpu_rollout_concat;
-    rlt::Tensor<rlt::tensor::Specification<T_ACTION, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, ACTION_DIM>>> gpu_rollout_actions;
+    rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, ACTION_DIM>>> gpu_rollout_actions;
     rlt::malloc(device_gpu, gpu_rollout_branch_a);
     rlt::malloc(device_gpu, gpu_rollout_branch_b);
     rlt::malloc(device_gpu, gpu_rollout_concat);
@@ -1836,7 +1828,7 @@ int main(int argc, char** argv){
                 cudaDeviceSynchronize();
 
                 if(pass == 0){
-                    rlt::Matrix<rlt::matrix::Specification<T_ACTION, TI, WINDOW_SAMPLES, TARGET_DIM>> cpu_student_output, cpu_target;
+                    rlt::Matrix<rlt::matrix::Specification<T_ACTIVATION, TI, WINDOW_SAMPLES, TARGET_DIM>> cpu_student_output, cpu_target;
                     rlt::malloc(device, cpu_student_output);
                     rlt::malloc(device, cpu_target);
                     rlt::copy(device_gpu, device, student_output_matrix, cpu_student_output);
@@ -1965,7 +1957,7 @@ int main(int argc, char** argv){
 
                 // Compute loss for logging
                 if(pass == 0){
-                    rlt::Matrix<rlt::matrix::Specification<T_ACTION, TI, BATCH_SIZE, TARGET_DIM>> cpu_student_output, cpu_target;
+                    rlt::Matrix<rlt::matrix::Specification<T_ACTIVATION, TI, BATCH_SIZE, TARGET_DIM>> cpu_student_output, cpu_target;
                     rlt::malloc(device, cpu_student_output);
                     rlt::malloc(device, cpu_target);
                     rlt::copy(device_gpu, device, student_output_matrix, cpu_student_output);
