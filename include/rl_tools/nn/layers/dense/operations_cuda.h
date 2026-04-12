@@ -13,6 +13,16 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+    namespace nn::dense::cuda{
+        template<typename T>
+        RL_TOOLS_FUNCTION_PLACEMENT constexpr cudaDataType_t cublas_data_type();
+        template<>
+        RL_TOOLS_FUNCTION_PLACEMENT constexpr cudaDataType_t cublas_data_type<float>(){ return CUDA_R_32F; }
+        template<>
+        RL_TOOLS_FUNCTION_PLACEMENT constexpr cudaDataType_t cublas_data_type<double>(){ return CUDA_R_64F; }
+        template<>
+        RL_TOOLS_FUNCTION_PLACEMENT constexpr cudaDataType_t cublas_data_type<__nv_bfloat16>(){ return CUDA_R_16BF; }
+    }
     namespace nn::dense::kernels{
         template<typename DEV_SPEC, typename SPEC, typename INITIALIZER_SPEC, typename RNG>
         __global__
@@ -267,6 +277,8 @@ namespace rl_tools{
         static_assert(OUTPUT_SPEC::COL_PITCH == 1);
         static_assert(decltype(layer.weights.parameters)::SPEC::STRIDE::template GET<1> == 1);
         using WEIGHT_TYPE = typename decltype(layer.weights.parameters)::T;
+        using INPUT_TYPE = typename INPUT_SPEC::T;
+        using OUTPUT_TYPE = typename OUTPUT_SPEC::T;
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = WEIGHT_TYPE;
@@ -291,7 +303,7 @@ namespace rl_tools{
             }
             else{
                 const float alpha = 1, beta = 1;
-                stat = cublasGemmEx(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, layer.weights.parameters._data, CUDA_R_16BF, decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, input._data, CUDA_R_16BF, row_pitch(input), &beta, output._data, CUDA_R_16BF, row_pitch(output), CUBLAS_COMPUTE_32F, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+                stat = cublasGemmEx(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, layer.weights.parameters._data, nn::dense::cuda::cublas_data_type<WEIGHT_TYPE>(), decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, input._data, nn::dense::cuda::cublas_data_type<INPUT_TYPE>(), row_pitch(input), &beta, output._data, nn::dense::cuda::cublas_data_type<OUTPUT_TYPE>(), row_pitch(output), CUBLAS_COMPUTE_32F, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
             }
             check_cublas_call(device, stat, "cublas?gemm evaluate");
             nn::dense::kernels::activation(device, layer, output, output);
@@ -306,6 +318,8 @@ namespace rl_tools{
         static_assert(OUTPUT_SPEC::COL_PITCH == 1);
         static_assert(decltype(layer.weights.parameters)::SPEC::STRIDE::template GET<1> == 1);
         using WEIGHT_TYPE = typename decltype(layer.weights.parameters)::T;
+        using INPUT_TYPE = typename INPUT_SPEC::T;
+        using OUTPUT_TYPE = typename OUTPUT_SPEC::T;
         constexpr auto BATCH_SIZE = INPUT_SPEC::ROWS;
         using T = WEIGHT_TYPE;
         using TI = typename devices::CUDA<DEV_SPEC>::index_t;
@@ -330,7 +344,7 @@ namespace rl_tools{
         }
         else{
             const float alpha = 1, beta = 1;
-            stat = cublasGemmEx(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, layer.weights.parameters._data, CUDA_R_16BF, decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, input._data, CUDA_R_16BF, row_pitch(input), &beta, output._data, CUDA_R_16BF, row_pitch(output), CUBLAS_COMPUTE_32F, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+            stat = cublasGemmEx(device.handle, CUBLAS_OP_T, CUBLAS_OP_N, m, n, k, &alpha, layer.weights.parameters._data, nn::dense::cuda::cublas_data_type<WEIGHT_TYPE>(), decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, input._data, nn::dense::cuda::cublas_data_type<INPUT_TYPE>(), row_pitch(input), &beta, output._data, nn::dense::cuda::cublas_data_type<OUTPUT_TYPE>(), row_pitch(output), CUBLAS_COMPUTE_32F, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
         }
         check_cublas_call(device, stat, "cublas?gemm forward");
 
@@ -346,6 +360,8 @@ namespace rl_tools{
         static_assert(D_INPUT_SPEC::COL_PITCH == 1);
         static_assert(decltype(layer.weights.gradient)::SPEC::STRIDE::template GET<1> == 1);
         using WEIGHT_TYPE = typename decltype(layer.weights.parameters)::T;
+        using D_OUTPUT_TYPE = typename D_OUTPUT_SPEC::T;
+        using D_INPUT_TYPE = typename D_INPUT_SPEC::T;
 
         constexpr auto INPUT_DIM = LAYER_SPEC::INPUT_DIM;
         constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
@@ -373,7 +389,7 @@ namespace rl_tools{
             }
             else{
                 const float alpha = 1, beta = 0;
-                stat = cublasGemmEx(device.handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, layer.weights.parameters._data, CUDA_R_16BF, decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, d_output._data, CUDA_R_16BF, row_pitch(d_output), &beta, d_input._data, CUDA_R_16BF, row_pitch(d_input), CUBLAS_COMPUTE_32F, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+                stat = cublasGemmEx(device.handle, CUBLAS_OP_N, CUBLAS_OP_N, m, n, k, &alpha, layer.weights.parameters._data, nn::dense::cuda::cublas_data_type<WEIGHT_TYPE>(), decltype(layer.weights.parameters)::SPEC::STRIDE::FIRST, d_output._data, nn::dense::cuda::cublas_data_type<D_OUTPUT_TYPE>(), row_pitch(d_output), &beta, d_input._data, nn::dense::cuda::cublas_data_type<D_INPUT_TYPE>(), row_pitch(d_input), CUBLAS_COMPUTE_32F, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
             }
             check_cublas_call(device, stat, "cublas?gemm backward_input");
         }
@@ -388,6 +404,9 @@ namespace rl_tools{
         static_assert(D_OUTPUT_SPEC::COL_PITCH == 1);
         static_assert(decltype(layer.weights.gradient)::SPEC::STRIDE::template GET<1> == 1);
         using WEIGHT_TYPE = typename decltype(layer.weights.parameters)::T;
+        using INPUT_TYPE = typename INPUT_SPEC::T;
+        using D_OUTPUT_TYPE = typename D_OUTPUT_SPEC::T;
+        using GRADIENT_TYPE = typename decltype(layer.weights.gradient)::T;
 
         constexpr auto INPUT_DIM = LAYER_SPEC::INPUT_DIM;
         constexpr auto OUTPUT_DIM = LAYER_SPEC::OUTPUT_DIM;
@@ -418,7 +437,7 @@ namespace rl_tools{
             }
             else{
                 const float alpha = 1, beta = 1;
-                stat = cublasGemmEx(device.handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, &alpha, input._data, CUDA_R_16BF, row_pitch(input), d_output._data, CUDA_R_16BF, row_pitch(d_output), &beta, layer.weights.gradient._data, CUDA_R_16BF, decltype(layer.weights.gradient)::SPEC::STRIDE::FIRST, CUBLAS_COMPUTE_32F, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
+                stat = cublasGemmEx(device.handle, CUBLAS_OP_N, CUBLAS_OP_T, m, n, k, &alpha, input._data, nn::dense::cuda::cublas_data_type<INPUT_TYPE>(), row_pitch(input), d_output._data, nn::dense::cuda::cublas_data_type<D_OUTPUT_TYPE>(), row_pitch(d_output), &beta, layer.weights.gradient._data, nn::dense::cuda::cublas_data_type<GRADIENT_TYPE>(), decltype(layer.weights.gradient)::SPEC::STRIDE::FIRST, CUBLAS_COMPUTE_32F, CUBLAS_GEMM_DEFAULT_TENSOR_OP);
             }
             check_cublas_call(device, stat, "cublas?gemm backward_weight");
         }
