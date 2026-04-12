@@ -340,7 +340,7 @@ namespace imitation_kernels{
         DYNAMICS_TYPE* envs, PARAMETERS_TYPE* env_params, typename ENVIRONMENT::State* states,
         bool* terminated_flags, TI* episode_step_arr, bool* teacher_forcing_arr,
         T* episode_return_arr, bool* needs_reset_flags,
-        T* episode_lengths_log, T* episode_returns_log, T* episode_tf_log,
+        T* episode_lengths_log, T* episode_tf_log,
         T teacher_forcing_fraction, bool full_teacher_forcing,
         T* teacher_obs_ptr, T* state_obs_ptr,
         T* raptor_gru_state_ptr, T* raptor_gru_initial_hidden_ptr, TI* raptor_gru_step_ptr,
@@ -369,11 +369,9 @@ namespace imitation_kernels{
         if(need_reset){
             if(episode_step_arr[env_i] > 0){
                 episode_lengths_log[env_i] = (T)episode_step_arr[env_i];
-                episode_returns_log[env_i] = episode_return_arr[env_i];
                 episode_tf_log[env_i] = teacher_forcing_arr[env_i] ? (T)1 : (T)0;
             } else {
                 episode_lengths_log[env_i] = (T)-1;
-                episode_returns_log[env_i] = (T)0;
                 episode_tf_log[env_i] = (T)0;
             }
             rl_tools::sample_initial_parameters(device, env, params, rng_state);
@@ -409,7 +407,6 @@ namespace imitation_kernels{
 #endif
         } else {
             episode_lengths_log[env_i] = (T)-1;
-            episode_returns_log[env_i] = (T)0;
             episode_tf_log[env_i] = (T)0;
         }
         {
@@ -552,6 +549,62 @@ namespace imitation_kernels{
         target_cameras[env_i] = rlt::make_camera_data(position, look_at, up, fov, aspect);
     }
 
+    __global__
+    void mse_batch_loss_kernel(const T_ACTIVATION* student_output_ptr, const T_ACTIVATION* target_ptr, T* loss_out, TI n_elements){
+        if(blockIdx.x == 0 && threadIdx.x == 0){
+            T acc = 0;
+            for(TI i = 0; i < n_elements; i++){
+                T diff = static_cast<T>(student_output_ptr[i]) - static_cast<T>(target_ptr[i]);
+                acc += diff * diff;
+            }
+            loss_out[0] = n_elements > 0 ? acc / static_cast<T>(n_elements) : static_cast<T>(0);
+        }
+    }
+
+    __global__
+    void reduce_episode_stats_kernel(
+        const T* episode_lengths_log,
+        const T* episode_tf_log,
+        const TI* episode_step_arr,
+        const bool* teacher_forcing_arr,
+        T* stats_out
+    ){
+        if(blockIdx.x == 0 && threadIdx.x == 0){
+            T tf_length_sum = 0;
+            T tf_episode_count = 0;
+            T student_length_sum = 0;
+            T student_episode_count = 0;
+            for(TI pos = 0; pos < STEPS_TOTAL; pos++){
+                T episode_length = episode_lengths_log[pos];
+                if(episode_length >= (T)0){
+                    if(episode_tf_log[pos] > (T)0.5){
+                        tf_length_sum += episode_length;
+                        tf_episode_count += (T)1;
+                    } else {
+                        student_length_sum += episode_length;
+                        student_episode_count += (T)1;
+                    }
+                }
+            }
+            for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
+                TI episode_step = episode_step_arr[env_i];
+                if(episode_step > 0){
+                    if(teacher_forcing_arr[env_i]){
+                        tf_length_sum += (T)episode_step;
+                        tf_episode_count += (T)1;
+                    } else {
+                        student_length_sum += (T)episode_step;
+                        student_episode_count += (T)1;
+                    }
+                }
+            }
+            stats_out[0] = tf_length_sum;
+            stats_out[1] = tf_episode_count;
+            stats_out[2] = student_length_sum;
+            stats_out[3] = student_episode_count;
+        }
+    }
+
 #ifdef USE_FRAME_STACKING
     template<typename DEVICE>
     __global__
@@ -600,25 +653,6 @@ namespace imitation_kernels{
     }
 
 #ifdef STACK_TARGET_CHANNEL
-    __global__
-    void compute_rollout_target_row_indices_kernel(
-        int* target_row_indices,
-        TI step_i, TI batch_size
-    ){
-        TI s = threadIdx.x + blockIdx.x * blockDim.x;
-        if(s >= batch_size) return;
-        target_row_indices[s] = (int)(step_i * N_ENVIRONMENTS + s);
-    }
-
-    __global__
-    void compute_batch_target_row_indices_kernel(
-        int* target_row_indices,
-        TI batch_offset, TI batch_size
-    ){
-        TI s = threadIdx.x + blockIdx.x * blockDim.x;
-        if(s >= batch_size) return;
-        target_row_indices[s] = (int)(batch_offset + s);
-    }
 #endif
 #endif
 
@@ -864,7 +898,7 @@ __global__ void gather_frames_with_target_kernel(
     const float* __restrict__ student_obs,
     const float* __restrict__ target_obs,
     const int* __restrict__ student_gather_idx,
-    const int* __restrict__ target_row_idx,
+    int target_row_base,
     T_OUT* __restrict__ combined_out,
     int obs_dim, int img_c, int n_frames, int combined_img_c, int combined_obs_dim, int batch_size
 ){
@@ -881,7 +915,7 @@ __global__ void gather_frames_with_target_kernel(
         combined_out[global_idx] = (T_OUT)student_obs[src_row * obs_dim + pixel * img_c + channel];
     } else {
         int channel = frame_channel - n_frames * img_c;
-        int src_row = target_row_idx[sample];
+        int src_row = target_row_base + sample;
         combined_out[global_idx] = (T_OUT)target_obs[src_row * obs_dim + pixel * img_c + channel];
     }
 }
@@ -1210,15 +1244,33 @@ int main(int argc, char** argv){
             cudaEventCreate(&target_render_pass_stop_events[event_i]);
         }
     }
-    cudaEvent_t train_forward_start_event, train_forward_stop_event;
-    cudaEvent_t train_backward_start_event, train_backward_stop_event;
-    cudaEvent_t train_update_start_event, train_update_stop_event;
-    cudaEventCreate(&train_forward_start_event);
-    cudaEventCreate(&train_forward_stop_event);
-    cudaEventCreate(&train_backward_start_event);
-    cudaEventCreate(&train_backward_stop_event);
-    cudaEventCreate(&train_update_start_event);
-    cudaEventCreate(&train_update_stop_event);
+#ifdef USE_GRU_TEMPORAL
+    TI max_train_timing_calls = N_TRAIN_PASSES * N_WINDOWS;
+    TI max_logged_loss_calls = N_WINDOWS;
+#else
+    TI max_train_timing_calls = N_TRAIN_PASSES * N_BATCHES;
+    TI max_logged_loss_calls = N_BATCHES;
+#endif
+    std::vector<cudaEvent_t> train_forward_start_events(max_train_timing_calls);
+    std::vector<cudaEvent_t> train_forward_stop_events(max_train_timing_calls);
+    std::vector<cudaEvent_t> train_backward_start_events(max_train_timing_calls);
+    std::vector<cudaEvent_t> train_backward_stop_events(max_train_timing_calls);
+    std::vector<cudaEvent_t> train_update_start_events(max_train_timing_calls);
+    std::vector<cudaEvent_t> train_update_stop_events(max_train_timing_calls);
+    for(TI call_i = 0; call_i < max_train_timing_calls; call_i++){
+        cudaEventCreate(&train_forward_start_events[call_i]);
+        cudaEventCreate(&train_forward_stop_events[call_i]);
+        cudaEventCreate(&train_backward_start_events[call_i]);
+        cudaEventCreate(&train_backward_stop_events[call_i]);
+        cudaEventCreate(&train_update_start_events[call_i]);
+        cudaEventCreate(&train_update_stop_events[call_i]);
+    }
+    T* gpu_logged_batch_losses = nullptr;
+    cudaMalloc(&gpu_logged_batch_losses, max_logged_loss_calls * sizeof(T));
+    std::vector<T> cpu_logged_batch_losses(max_logged_loss_calls);
+    T* gpu_epoch_episode_stats = nullptr;
+    cudaMalloc(&gpu_epoch_episode_stats, 4 * sizeof(T));
+    std::array<T, 4> cpu_epoch_episode_stats{};
 
     // GPU tensors
     static constexpr TI GPU_OBS_ROWS = STEPS_TOTAL + BATCH_SIZE;
@@ -1281,8 +1333,6 @@ int main(int argc, char** argv){
     cudaMalloc(&gpu_episode_start_step_per_row, STEPS_TOTAL * sizeof(TI));
     cudaMemset(gpu_episode_start_step, 0, N_ENVIRONMENTS * sizeof(TI));
 #ifdef STACK_TARGET_CHANNEL
-    int* gpu_batch_target_row_indices = nullptr;
-    cudaMalloc(&gpu_batch_target_row_indices, BATCH_SIZE * sizeof(int));
 #else
     int* gpu_target_gather_indices = nullptr;
     cudaMalloc(&gpu_target_gather_indices, BATCH_SIZE * FRAME_STACK_N * sizeof(int));
@@ -1290,8 +1340,6 @@ int main(int argc, char** argv){
     int* gpu_rollout_gather_indices = nullptr;
     cudaMalloc(&gpu_rollout_gather_indices, N_ENVIRONMENTS * FRAME_STACK_N * sizeof(int));
 #ifdef STACK_TARGET_CHANNEL
-    int* gpu_rollout_target_row_indices = nullptr;
-    cudaMalloc(&gpu_rollout_target_row_indices, N_ENVIRONMENTS * sizeof(int));
 #else
     rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, STACKED_OBS_DIM>>> gpu_rollout_stacked;
     rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, STACKED_OBS_DIM>>> gpu_rollout_stacked_target;
@@ -1315,7 +1363,6 @@ int main(int argc, char** argv){
     T* gpu_episode_return_arr = nullptr;
     bool* gpu_needs_reset = nullptr;
     T* gpu_episode_lengths_log = nullptr;
-    T* gpu_episode_returns_log = nullptr;
     T* gpu_episode_tf_log = nullptr;
     T* gpu_brightness_scale_arr = nullptr;
     T* gpu_scene_translation_arr = nullptr;
@@ -1331,7 +1378,6 @@ int main(int argc, char** argv){
     cudaMalloc(&gpu_episode_return_arr, N_ENVIRONMENTS * sizeof(T));
     cudaMalloc(&gpu_needs_reset, N_ENVIRONMENTS * sizeof(bool));
     cudaMalloc(&gpu_episode_lengths_log, STEPS_TOTAL * sizeof(T));
-    cudaMalloc(&gpu_episode_returns_log, STEPS_TOTAL * sizeof(T));
     cudaMalloc(&gpu_episode_tf_log, STEPS_TOTAL * sizeof(T));
     cudaMalloc(&gpu_brightness_scale_arr, N_ENVIRONMENTS * sizeof(T));
     cudaMalloc(&gpu_scene_translation_arr, N_ENVIRONMENTS * 3 * sizeof(T));
@@ -1349,9 +1395,6 @@ int main(int argc, char** argv){
         std::vector<T> zeros(N_ENVIRONMENTS, (T)0);
         cudaMemcpy(gpu_scene_yaw_sin_arr, zeros.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
     }
-    std::vector<T> cpu_episode_lengths_log(STEPS_TOTAL);
-    std::vector<T> cpu_episode_tf_log(STEPS_TOTAL);
-    std::vector<T> cpu_episode_returns_log(STEPS_TOTAL);
     typename ENVIRONMENT::State cpu_states_for_cameras[N_ENVIRONMENTS];
     {
         DYNAMICS_TYPE cpu_dynamics[N_ENVIRONMENTS];
@@ -1433,6 +1476,10 @@ int main(int argc, char** argv){
     for(TI epoch_i = 0; epoch_i < NUM_EPOCHS; epoch_i++){
         TI current_episode_step_limit = curriculum_step_limit(epoch_i);
         auto epoch_start = std::chrono::high_resolution_clock::now();
+        std::array<RENDERER_TYPE*, N_ACTIVE_SCENES> active_renderers{};
+        std::array<cudaStream_t, N_ACTIVE_SCENES> active_scene_render_streams{};
+        std::array<void*, N_ACTIVE_SCENES> active_scene_camera_buffers{};
+        std::array<const uint32_t*, N_ACTIVE_SCENES> active_scene_framebuffer_ptrs{};
         std::shuffle(scene_permutation.begin(), scene_permutation.end(), scene_rng);
         for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
             active_scene_indices[active_scene_i] = scene_permutation[active_scene_i];
@@ -1443,6 +1490,15 @@ int main(int argc, char** argv){
             TI actual_scene_i = active_scene_indices[active_scene_i];
             envs[env_i].renderer = renderers[actual_scene_i];
             envs[env_i].scene = scenes[actual_scene_i];
+        }
+        for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
+            TI actual_scene_i = active_scene_indices[active_scene_i];
+            auto* renderer = renderers[actual_scene_i];
+            active_renderers[active_scene_i] = renderer;
+            OWLParams rgb_lp = (OWLParams)renderer->backend.rgb_launch_params;
+            active_scene_render_streams[active_scene_i] = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
+            active_scene_camera_buffers[active_scene_i] = (void*)owlBufferGetPointer((OWLBuffer)renderer->backend.owl_cameras_buffer, 0);
+            active_scene_framebuffer_ptrs[active_scene_i] = rlt::get_framebuffer_device_ptr(device, *renderer);
         }
         {
             std::vector<unsigned char> reset_terminated(N_ENVIRONMENTS, 1);
@@ -1506,7 +1562,6 @@ int main(int argc, char** argv){
                     gpu_terminated_arr, gpu_episode_step_arr, gpu_teacher_forcing_arr,
                     gpu_episode_return_arr, gpu_needs_reset,
                     gpu_episode_lengths_log + step_i * N_ENVIRONMENTS,
-                    gpu_episode_returns_log + step_i * N_ENVIRONMENTS,
                     gpu_episode_tf_log + step_i * N_ENVIRONMENTS,
                     TEACHER_FORCING_FRACTION, full_teacher_forcing,
                     rlt::data(gpu_teacher_obs),
@@ -1547,16 +1602,13 @@ int main(int argc, char** argv){
                 cudaEventRecord(cameras_ready_event, device_gpu.stream);
                 for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
                     TI event_i = step_i * N_ACTIVE_SCENES + active_scene_i;
-                    TI actual_scene_i = active_scene_indices[active_scene_i];
-                    auto& renderer = *renderers[actual_scene_i];
+                    auto& renderer = *active_renderers[active_scene_i];
                     constexpr TI n_envs_s = N_ENVIRONMENTS_PER_SCENE;
                     TI base_env = active_scene_i * N_ENVIRONMENTS_PER_SCENE;
-                    OWLParams rgb_lp = (OWLParams)renderer.backend.rgb_launch_params;
-                    cudaStream_t optix_stream = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
+                    cudaStream_t optix_stream = active_scene_render_streams[active_scene_i];
                     cudaStreamWaitEvent(optix_stream, cameras_ready_event, 0);
-                    void* owl_cam_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.owl_cameras_buffer, 0);
                     cudaMemcpyAsync(
-                        owl_cam_ptr,
+                        active_scene_camera_buffers[active_scene_i],
                         gpu_cameras + base_env,
                         n_envs_s * sizeof(rlt::rendering::raytracing::CameraData<float>),
                         cudaMemcpyDeviceToDevice, optix_stream);
@@ -1570,7 +1622,7 @@ int main(int argc, char** argv){
                     if(step_i % RENDER_TIMING_SAMPLE_PERIOD == 0){
                         cudaEventRecord(render_pass_stop_events[event_i], optix_stream);
                     }
-                    const uint32_t* fb_ptr = rlt::get_framebuffer_device_ptr(device, renderer);
+                    const uint32_t* fb_ptr = active_scene_framebuffer_ptrs[active_scene_i];
                     if constexpr(OBSERVATION_NOISE_STD == 0 && BRIGHTNESS_RANDOMIZATION_RANGE > 0){
                         scatter_pixel_to_float_kernel<true><<<pf_grid, pf_block, 0, optix_stream>>>(fb_ptr, obs_ptr, gpu_brightness_scale_arr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
                     } else {
@@ -1611,16 +1663,13 @@ int main(int argc, char** argv){
                 cudaEventRecord(target_cameras_ready_event, device_gpu.stream);
                 for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
                     TI event_i = step_i * N_ACTIVE_SCENES + active_scene_i;
-                    TI actual_scene_i = active_scene_indices[active_scene_i];
-                    auto& renderer = *renderers[actual_scene_i];
+                    auto& renderer = *active_renderers[active_scene_i];
                     constexpr TI n_envs_s = N_ENVIRONMENTS_PER_SCENE;
                     TI base_env = active_scene_i * N_ENVIRONMENTS_PER_SCENE;
-                    OWLParams rgb_lp = (OWLParams)renderer.backend.rgb_launch_params;
-                    cudaStream_t optix_stream = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
+                    cudaStream_t optix_stream = active_scene_render_streams[active_scene_i];
                     cudaStreamWaitEvent(optix_stream, target_cameras_ready_event, 0);
-                    void* owl_cam_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.owl_cameras_buffer, 0);
                     cudaMemcpyAsync(
-                        owl_cam_ptr,
+                        active_scene_camera_buffers[active_scene_i],
                         gpu_target_cameras + base_env,
                         n_envs_s * sizeof(rlt::rendering::raytracing::CameraData<float>),
                         cudaMemcpyDeviceToDevice, optix_stream);
@@ -1634,7 +1683,7 @@ int main(int argc, char** argv){
                     if(step_i % RENDER_TIMING_SAMPLE_PERIOD == 0){
                         cudaEventRecord(target_render_pass_stop_events[event_i], optix_stream);
                     }
-                    const uint32_t* fb_ptr = rlt::get_framebuffer_device_ptr(device, renderer);
+                    const uint32_t* fb_ptr = active_scene_framebuffer_ptrs[active_scene_i];
                     if constexpr(BRIGHTNESS_RANDOMIZATION_RANGE > 0){
                         scatter_pixel_to_float_kernel<true><<<pf_grid, pf_block, 0, optix_stream>>>(fb_ptr, target_obs_ptr, gpu_brightness_scale_arr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
                     } else {
@@ -1700,10 +1749,7 @@ int main(int argc, char** argv){
                         constexpr TI GI_GRID = (N_ENVIRONMENTS + GI_BLOCK - 1) / GI_BLOCK;
                         imitation_kernels::compute_gather_indices_rollout_kernel<<<GI_GRID, GI_BLOCK, 0, device_gpu.stream>>>(
                             gpu_rollout_gather_indices, gpu_episode_start_step, step_i, N_ENVIRONMENTS);
-#ifdef STACK_TARGET_CHANNEL
-                        imitation_kernels::compute_rollout_target_row_indices_kernel<<<GI_GRID, GI_BLOCK, 0, device_gpu.stream>>>(
-                            gpu_rollout_target_row_indices, step_i, N_ENVIRONMENTS);
-#else
+#ifndef STACK_TARGET_CHANNEL
                         imitation_kernels::compute_gather_indices_rollout_kernel<<<GI_GRID, GI_BLOCK, 0, device_gpu.stream>>>(
                             gpu_rollout_target_gather_indices, gpu_episode_start_step, step_i, N_ENVIRONMENTS);
 #endif
@@ -1713,7 +1759,7 @@ int main(int argc, char** argv){
                         int total_elements = N_ENVIRONMENTS * COMBINED_OBS_DIM;
                         gather_frames_with_target_kernel<<<(total_elements + 255) / 256, 256, 0, device_gpu.stream>>>(
                             rlt::data(gpu_all_observations), rlt::data(gpu_all_target_observations),
-                            gpu_rollout_gather_indices, gpu_rollout_target_row_indices,
+                            gpu_rollout_gather_indices, step_i * N_ENVIRONMENTS,
                             rlt::data(gpu_rollout_combined),
                             OBSERVATION_DIM, IMG_C, FRAME_STACK_N, COMBINED_IMG_C, COMBINED_OBS_DIM, N_ENVIRONMENTS);
                     }
@@ -1778,58 +1824,6 @@ int main(int argc, char** argv){
                 global_step += N_ENVIRONMENTS;
             }
         }
-        cudaDeviceSynchronize();
-        CUDA_CHECK("end of collection sync");
-        TI render_timing_samples = 0;
-        for(TI step_i = 0; step_i < STEPS_PER_ENV; step_i += RENDER_TIMING_SAMPLE_PERIOD){
-            float render_pass_time_ms = 0;
-            float target_render_pass_time_ms = 0;
-            for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
-                TI event_i = step_i * N_ACTIVE_SCENES + active_scene_i;
-                float scene_render_time_ms = 0;
-                cudaEventElapsedTime(&scene_render_time_ms, render_pass_start_events[event_i], render_pass_stop_events[event_i]);
-                render_pass_time_ms = std::max(render_pass_time_ms, scene_render_time_ms);
-                float target_scene_render_time_ms = 0;
-                cudaEventElapsedTime(&target_scene_render_time_ms, target_render_pass_start_events[event_i], target_render_pass_stop_events[event_i]);
-                target_render_pass_time_ms = std::max(target_render_pass_time_ms, target_scene_render_time_ms);
-            }
-            epoch_render_gpu_time_ms += render_pass_time_ms + target_render_pass_time_ms;
-            render_timing_samples++;
-        }
-        if(render_timing_samples > 0){
-            epoch_render_gpu_time_ms *= static_cast<float>(STEPS_PER_ENV) / static_cast<float>(render_timing_samples);
-        }
-        cudaMemcpy(cpu_episode_lengths_log.data(), gpu_episode_lengths_log, STEPS_TOTAL * sizeof(T), cudaMemcpyDeviceToHost);
-        cudaMemcpy(cpu_episode_returns_log.data(), gpu_episode_returns_log, STEPS_TOTAL * sizeof(T), cudaMemcpyDeviceToHost);
-        cudaMemcpy(cpu_episode_tf_log.data(), gpu_episode_tf_log, STEPS_TOTAL * sizeof(T), cudaMemcpyDeviceToHost);
-        for(TI pos = 0; pos < STEPS_TOTAL; pos++){
-            if(cpu_episode_lengths_log[pos] >= (T)0){
-                if(cpu_episode_tf_log[pos] > (T)0.5){
-                    episode_length_sum_tf += cpu_episode_lengths_log[pos];
-                    episode_count_tf++;
-                } else {
-                    episode_length_sum_student += cpu_episode_lengths_log[pos];
-                    episode_count_student++;
-                }
-            }
-        }
-        {
-            std::vector<TI> cpu_episode_step(N_ENVIRONMENTS);
-            bool cpu_teacher_forcing[N_ENVIRONMENTS];
-            cudaMemcpy(cpu_episode_step.data(), gpu_episode_step_arr, N_ENVIRONMENTS * sizeof(TI), cudaMemcpyDeviceToHost);
-            cudaMemcpy(cpu_teacher_forcing, gpu_teacher_forcing_arr, N_ENVIRONMENTS * sizeof(bool), cudaMemcpyDeviceToHost);
-            for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
-                if(cpu_episode_step[env_i] > 0){
-                    if(cpu_teacher_forcing[env_i]){
-                        episode_length_sum_tf += (T)cpu_episode_step[env_i];
-                        episode_count_tf++;
-                    } else {
-                        episode_length_sum_student += (T)cpu_episode_step[env_i];
-                        episode_count_student++;
-                    }
-                }
-            }
-        }
         if(ffmpeg_pipe){ pclose(ffmpeg_pipe); ffmpeg_pipe = nullptr; }
 
         // =================================================================
@@ -1867,9 +1861,11 @@ int main(int argc, char** argv){
                 auto win_state = rlt::view_range(device_gpu, gpu_all_state_observations, window_offset, rlt::tensor::ViewSpec<0, WINDOW_SAMPLES>{});
                 using GRU_STATE_SHAPE = rlt::tensor::Shape<TI, BPTT_STEPS, N_ENVIRONMENTS, STATE_OBS_DIM>;
                 auto win_state_reshaped = rlt::reshape_row_major(device_gpu, win_state, GRU_STATE_SHAPE{});
-                cudaEventRecord(train_forward_start_event, device_gpu.stream);
+                TI train_forward_call_i = epoch_train_forward_calls;
+                cudaEventRecord(train_forward_start_events[train_forward_call_i], device_gpu.stream);
                 { auto inputs = rlt::nn_models::parallel::pack_inputs(win_combined_reshaped, win_state_reshaped); rlt::forward(device_gpu, student_gpu, inputs, gpu_student_output_train, student_buffers, rng_gpu); }
-                cudaEventRecord(train_forward_stop_event, device_gpu.stream);
+                cudaEventRecord(train_forward_stop_events[train_forward_call_i], device_gpu.stream);
+                epoch_train_forward_calls++;
 #else
                 auto win_target_obs = rlt::view_range(device_gpu, gpu_all_target_observations, window_offset, rlt::tensor::ViewSpec<0, WINDOW_SAMPLES>{});
                 using GRU_IMG_SHAPE = rlt::tensor::Shape<TI, BPTT_STEPS, N_ENVIRONMENTS, IMG_H, IMG_W, IMG_C>;
@@ -1879,17 +1875,12 @@ int main(int argc, char** argv){
                 auto win_state = rlt::view_range(device_gpu, gpu_all_state_observations, window_offset, rlt::tensor::ViewSpec<0, WINDOW_SAMPLES>{});
                 using GRU_STATE_SHAPE = rlt::tensor::Shape<TI, BPTT_STEPS, N_ENVIRONMENTS, STATE_OBS_DIM>;
                 auto win_state_reshaped = rlt::reshape_row_major(device_gpu, win_state, GRU_STATE_SHAPE{});
-                cudaEventRecord(train_forward_start_event, device_gpu.stream);
+                TI train_forward_call_i = epoch_train_forward_calls;
+                cudaEventRecord(train_forward_start_events[train_forward_call_i], device_gpu.stream);
                 { auto inputs = rlt::nn_models::parallel::pack_inputs(win_target_obs_reshaped, win_obs_reshaped, win_state_reshaped); rlt::forward(device_gpu, student_gpu, inputs, gpu_student_output_train, student_buffers, rng_gpu); }
-                cudaEventRecord(train_forward_stop_event, device_gpu.stream);
+                cudaEventRecord(train_forward_stop_events[train_forward_call_i], device_gpu.stream);
+                epoch_train_forward_calls++;
 #endif
-                cudaEventSynchronize(train_forward_stop_event);
-                {
-                    float train_forward_time_ms = 0;
-                    cudaEventElapsedTime(&train_forward_time_ms, train_forward_start_event, train_forward_stop_event);
-                    epoch_train_forward_time_ms += train_forward_time_ms;
-                    epoch_train_forward_calls++;
-                }
 
                 auto student_output_matrix = rlt::matrix_view(device_gpu, gpu_student_output_train);
                 auto target_tensor = rlt::view_range(device_gpu, gpu_all_targets, window_offset, rlt::tensor::ViewSpec<0, WINDOW_SAMPLES>{});
@@ -1897,47 +1888,63 @@ int main(int argc, char** argv){
                 rlt::nn::loss_functions::mse::gradient(device_gpu, student_output_matrix, target_matrix, gpu_d_action_train, (T)0.5);
 
                 if(pass == 0){
-                    rlt::Matrix<rlt::matrix::Specification<T_ACTIVATION, TI, WINDOW_SAMPLES, TARGET_DIM>> cpu_student_output, cpu_target;
-                    rlt::malloc(device, cpu_student_output);
-                    rlt::malloc(device, cpu_target);
-                    rlt::copy(device_gpu, device, student_output_matrix, cpu_student_output);
-                    rlt::copy(device_gpu, device, target_matrix, cpu_target);
-                    T batch_loss = (T)rlt::nn::loss_functions::mse::evaluate(device, cpu_student_output, cpu_target);
-                    epoch_loss_sum += batch_loss;
+                    imitation_kernels::mse_batch_loss_kernel<<<1, 1, 0, device_gpu.stream>>>(
+                        rlt::data(gpu_student_output_train),
+                        rlt::data(gpu_all_targets) + window_offset * TARGET_DIM,
+                        gpu_logged_batch_losses + epoch_loss_count,
+                        WINDOW_SAMPLES * TARGET_DIM);
                     epoch_loss_count++;
-                    rlt::free(device, cpu_student_output);
-                    rlt::free(device, cpu_target);
                 }
 
                 auto gpu_d_action_tensor = rlt::to_tensor(device_gpu, gpu_d_action_train);
                 using GRU_ACTION_SHAPE = rlt::tensor::Shape<TI, BPTT_STEPS, N_ENVIRONMENTS, TARGET_DIM>;
                 auto gpu_d_action_reshaped = rlt::reshape_row_major(device_gpu, gpu_d_action_tensor, GRU_ACTION_SHAPE{});
 #ifdef STACK_TARGET_CHANNEL
-                cudaEventRecord(train_backward_start_event, device_gpu.stream);
+                TI train_backward_call_i = epoch_train_backward_calls;
+                cudaEventRecord(train_backward_start_events[train_backward_call_i], device_gpu.stream);
                 { auto inputs = rlt::nn_models::parallel::pack_inputs(win_combined_reshaped, win_state_reshaped); rlt::backward(device_gpu, student_gpu, inputs, gpu_d_action_reshaped, student_buffers); }
-                cudaEventRecord(train_backward_stop_event, device_gpu.stream);
+                cudaEventRecord(train_backward_stop_events[train_backward_call_i], device_gpu.stream);
+                epoch_train_backward_calls++;
 #else
-                cudaEventRecord(train_backward_start_event, device_gpu.stream);
+                TI train_backward_call_i = epoch_train_backward_calls;
+                cudaEventRecord(train_backward_start_events[train_backward_call_i], device_gpu.stream);
                 { auto inputs = rlt::nn_models::parallel::pack_inputs(win_target_obs_reshaped, win_obs_reshaped, win_state_reshaped); rlt::backward(device_gpu, student_gpu, inputs, gpu_d_action_reshaped, student_buffers); }
-                cudaEventRecord(train_backward_stop_event, device_gpu.stream);
+                cudaEventRecord(train_backward_stop_events[train_backward_call_i], device_gpu.stream);
+                epoch_train_backward_calls++;
 #endif
-                cudaEventSynchronize(train_backward_stop_event);
-                {
-                    float train_backward_time_ms = 0;
-                    cudaEventElapsedTime(&train_backward_time_ms, train_backward_start_event, train_backward_stop_event);
-                    epoch_train_backward_time_ms += train_backward_time_ms;
-                    epoch_train_backward_calls++;
-                }
-                cudaEventRecord(train_update_start_event, device_gpu.stream);
+                TI train_update_call_i = epoch_train_update_calls;
+                cudaEventRecord(train_update_start_events[train_update_call_i], device_gpu.stream);
                 rlt::step(device_gpu, optimizer_gpu, student_gpu);
-                cudaEventRecord(train_update_stop_event, device_gpu.stream);
-                cudaEventSynchronize(train_update_stop_event);
-                {
-                    float train_update_time_ms = 0;
-                    cudaEventElapsedTime(&train_update_time_ms, train_update_start_event, train_update_stop_event);
-                    epoch_train_update_time_ms += train_update_time_ms;
-                    epoch_train_update_calls++;
-                }
+                cudaEventRecord(train_update_stop_events[train_update_call_i], device_gpu.stream);
+                epoch_train_update_calls++;
+            }
+        }
+        if(epoch_train_update_calls > 0){
+            cudaEventSynchronize(train_update_stop_events[epoch_train_update_calls - 1]);
+        } else if(epoch_train_backward_calls > 0){
+            cudaEventSynchronize(train_backward_stop_events[epoch_train_backward_calls - 1]);
+        } else if(epoch_train_forward_calls > 0){
+            cudaEventSynchronize(train_forward_stop_events[epoch_train_forward_calls - 1]);
+        }
+        for(TI call_i = 0; call_i < epoch_train_forward_calls; call_i++){
+            float train_forward_time_ms = 0;
+            cudaEventElapsedTime(&train_forward_time_ms, train_forward_start_events[call_i], train_forward_stop_events[call_i]);
+            epoch_train_forward_time_ms += train_forward_time_ms;
+        }
+        for(TI call_i = 0; call_i < epoch_train_backward_calls; call_i++){
+            float train_backward_time_ms = 0;
+            cudaEventElapsedTime(&train_backward_time_ms, train_backward_start_events[call_i], train_backward_stop_events[call_i]);
+            epoch_train_backward_time_ms += train_backward_time_ms;
+        }
+        for(TI call_i = 0; call_i < epoch_train_update_calls; call_i++){
+            float train_update_time_ms = 0;
+            cudaEventElapsedTime(&train_update_time_ms, train_update_start_events[call_i], train_update_stop_events[call_i]);
+            epoch_train_update_time_ms += train_update_time_ms;
+        }
+        if(epoch_loss_count > 0){
+            cudaMemcpy(cpu_logged_batch_losses.data(), gpu_logged_batch_losses, epoch_loss_count * sizeof(T), cudaMemcpyDeviceToHost);
+            for(TI loss_i = 0; loss_i < epoch_loss_count; loss_i++){
+                epoch_loss_sum += cpu_logged_batch_losses[loss_i];
             }
         }
         epoch_loss = epoch_loss_count > 0 ? epoch_loss_sum / epoch_loss_count : (T)0;
@@ -1966,10 +1973,7 @@ int main(int argc, char** argv){
                     constexpr TI GI_GRID = (BATCH_SIZE + GI_BLOCK - 1) / GI_BLOCK;
                     imitation_kernels::compute_gather_indices_kernel<<<GI_GRID, GI_BLOCK, 0, device_gpu.stream>>>(
                         gpu_gather_indices, gpu_episode_start_step_per_row, batch_offset, BATCH_SIZE);
-#ifdef STACK_TARGET_CHANNEL
-                    imitation_kernels::compute_batch_target_row_indices_kernel<<<GI_GRID, GI_BLOCK, 0, device_gpu.stream>>>(
-                        gpu_batch_target_row_indices, batch_offset, BATCH_SIZE);
-#else
+#ifndef STACK_TARGET_CHANNEL
                     imitation_kernels::compute_gather_indices_kernel<<<GI_GRID, GI_BLOCK, 0, device_gpu.stream>>>(
                         gpu_target_gather_indices, gpu_episode_start_step_per_row, batch_offset, BATCH_SIZE);
 #endif
@@ -1979,7 +1983,7 @@ int main(int argc, char** argv){
                     int total_elements = BATCH_SIZE * COMBINED_OBS_DIM;
                     gather_frames_with_target_kernel<<<(total_elements + 255) / 256, 256, 0, device_gpu.stream>>>(
                         rlt::data(gpu_all_observations), rlt::data(gpu_all_target_observations),
-                        gpu_gather_indices, gpu_batch_target_row_indices,
+                        gpu_gather_indices, batch_offset,
                         rlt::data(gpu_combined_batch),
                         OBSERVATION_DIM, IMG_C, FRAME_STACK_N, COMBINED_IMG_C, COMBINED_OBS_DIM, BATCH_SIZE);
                 }
@@ -1987,9 +1991,11 @@ int main(int argc, char** argv){
                 auto gpu_combined_batch_reshaped = rlt::reshape_row_major(device_gpu, gpu_combined_batch, ACTOR_INPUT_SHAPE{});
                 auto gpu_state_obs_batch = rlt::view_range(device_gpu, gpu_all_state_observations, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
                 auto gpu_state_obs_batch_reshaped = rlt::reshape_row_major(device_gpu, gpu_state_obs_batch, rlt::tensor::Shape<TI, 1, BATCH_SIZE, STATE_OBS_DIM>{});
-                cudaEventRecord(train_forward_start_event, device_gpu.stream);
+                TI train_forward_call_i = epoch_train_forward_calls;
+                cudaEventRecord(train_forward_start_events[train_forward_call_i], device_gpu.stream);
                 { auto inputs = rlt::nn_models::parallel::pack_inputs(gpu_combined_batch_reshaped, gpu_state_obs_batch_reshaped); rlt::forward(device_gpu, student_gpu, inputs, gpu_student_output_train, student_buffers, rng_gpu); }
-                cudaEventRecord(train_forward_stop_event, device_gpu.stream);
+                cudaEventRecord(train_forward_stop_events[train_forward_call_i], device_gpu.stream);
+                epoch_train_forward_calls++;
 #else
                 {
                     int total_elements = BATCH_SIZE * STACKED_OBS_DIM;
@@ -2005,9 +2011,11 @@ int main(int argc, char** argv){
                 auto gpu_obs_batch_reshaped = rlt::reshape_row_major(device_gpu, gpu_stacked_batch, ACTOR_INPUT_SHAPE{});
                 auto gpu_state_obs_batch = rlt::view_range(device_gpu, gpu_all_state_observations, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
                 auto gpu_state_obs_batch_reshaped = rlt::reshape_row_major(device_gpu, gpu_state_obs_batch, rlt::tensor::Shape<TI, 1, BATCH_SIZE, STATE_OBS_DIM>{});
-                cudaEventRecord(train_forward_start_event, device_gpu.stream);
+                TI train_forward_call_i = epoch_train_forward_calls;
+                cudaEventRecord(train_forward_start_events[train_forward_call_i], device_gpu.stream);
                 { auto inputs = rlt::nn_models::parallel::pack_inputs(gpu_target_obs_batch_reshaped, gpu_obs_batch_reshaped, gpu_state_obs_batch_reshaped); rlt::forward(device_gpu, student_gpu, inputs, gpu_student_output_train, student_buffers, rng_gpu); }
-                cudaEventRecord(train_forward_stop_event, device_gpu.stream);
+                cudaEventRecord(train_forward_stop_events[train_forward_call_i], device_gpu.stream);
+                epoch_train_forward_calls++;
 #endif
 #else
 #ifdef STACK_TARGET_CHANNEL
@@ -2025,9 +2033,11 @@ int main(int argc, char** argv){
                 auto gpu_combined_batch_reshaped = rlt::reshape_row_major(device_gpu, gpu_combined_batch_train, ACTOR_INPUT_SHAPE{});
                 auto gpu_state_obs_batch = rlt::view_range(device_gpu, gpu_all_state_observations, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
                 auto gpu_state_obs_batch_reshaped = rlt::reshape_row_major(device_gpu, gpu_state_obs_batch, rlt::tensor::Shape<TI, 1, BATCH_SIZE, STATE_OBS_DIM>{});
-                cudaEventRecord(train_forward_start_event, device_gpu.stream);
+                TI train_forward_call_i = epoch_train_forward_calls;
+                cudaEventRecord(train_forward_start_events[train_forward_call_i], device_gpu.stream);
                 { auto inputs = rlt::nn_models::parallel::pack_inputs(gpu_combined_batch_reshaped, gpu_state_obs_batch_reshaped); rlt::forward(device_gpu, student_gpu, inputs, gpu_student_output_train, student_buffers, rng_gpu); }
-                cudaEventRecord(train_forward_stop_event, device_gpu.stream);
+                cudaEventRecord(train_forward_stop_events[train_forward_call_i], device_gpu.stream);
+                epoch_train_forward_calls++;
 #else
                 auto gpu_target_obs_batch = rlt::view_range(device_gpu, gpu_all_target_observations, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
                 using ACTOR_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, IMG_H, IMG_W, STACKED_IMG_C>;
@@ -2036,18 +2046,13 @@ int main(int argc, char** argv){
                 auto gpu_obs_batch_reshaped = rlt::reshape_row_major(device_gpu, gpu_obs_batch, ACTOR_INPUT_SHAPE{});
                 auto gpu_state_obs_batch = rlt::view_range(device_gpu, gpu_all_state_observations, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
                 auto gpu_state_obs_batch_reshaped = rlt::reshape_row_major(device_gpu, gpu_state_obs_batch, rlt::tensor::Shape<TI, 1, BATCH_SIZE, STATE_OBS_DIM>{});
-                cudaEventRecord(train_forward_start_event, device_gpu.stream);
+                TI train_forward_call_i = epoch_train_forward_calls;
+                cudaEventRecord(train_forward_start_events[train_forward_call_i], device_gpu.stream);
                 { auto inputs = rlt::nn_models::parallel::pack_inputs(gpu_target_obs_batch_reshaped, gpu_obs_batch_reshaped, gpu_state_obs_batch_reshaped); rlt::forward(device_gpu, student_gpu, inputs, gpu_student_output_train, student_buffers, rng_gpu); }
-                cudaEventRecord(train_forward_stop_event, device_gpu.stream);
+                cudaEventRecord(train_forward_stop_events[train_forward_call_i], device_gpu.stream);
+                epoch_train_forward_calls++;
 #endif
 #endif
-                cudaEventSynchronize(train_forward_stop_event);
-                {
-                    float train_forward_time_ms = 0;
-                    cudaEventElapsedTime(&train_forward_time_ms, train_forward_start_event, train_forward_stop_event);
-                    epoch_train_forward_time_ms += train_forward_time_ms;
-                    epoch_train_forward_calls++;
-                }
 
                 // MSE loss gradient
                 auto student_output_matrix = rlt::matrix_view(device_gpu, gpu_student_output_train);
@@ -2057,16 +2062,12 @@ int main(int argc, char** argv){
 
                 // Compute loss for logging
                 if(pass == 0){
-                    rlt::Matrix<rlt::matrix::Specification<T_ACTIVATION, TI, BATCH_SIZE, TARGET_DIM>> cpu_student_output, cpu_target;
-                    rlt::malloc(device, cpu_student_output);
-                    rlt::malloc(device, cpu_target);
-                    rlt::copy(device_gpu, device, student_output_matrix, cpu_student_output);
-                    rlt::copy(device_gpu, device, target_batch, cpu_target);
-                    T batch_loss = (T)rlt::nn::loss_functions::mse::evaluate(device, cpu_student_output, cpu_target);
-                    epoch_loss_sum += batch_loss;
+                    imitation_kernels::mse_batch_loss_kernel<<<1, 1, 0, device_gpu.stream>>>(
+                        rlt::data(gpu_student_output_train),
+                        rlt::data(gpu_all_targets) + batch_offset * TARGET_DIM,
+                        gpu_logged_batch_losses + epoch_loss_count,
+                        BATCH_SIZE * TARGET_DIM);
                     epoch_loss_count++;
-                    rlt::free(device, cpu_student_output);
-                    rlt::free(device, cpu_target);
                 }
 
                 // Student backward + Adam step
@@ -2074,45 +2075,69 @@ int main(int argc, char** argv){
                 auto gpu_d_action_reshaped = rlt::reshape_row_major(device_gpu, gpu_d_action_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, TARGET_DIM>{});
 #ifdef USE_FRAME_STACKING
 #ifdef STACK_TARGET_CHANNEL
-                cudaEventRecord(train_backward_start_event, device_gpu.stream);
+                TI train_backward_call_i = epoch_train_backward_calls;
+                cudaEventRecord(train_backward_start_events[train_backward_call_i], device_gpu.stream);
                 { auto inputs = rlt::nn_models::parallel::pack_inputs(gpu_combined_batch_reshaped, gpu_state_obs_batch_reshaped); rlt::backward(device_gpu, student_gpu, inputs, gpu_d_action_reshaped, student_buffers); }
-                cudaEventRecord(train_backward_stop_event, device_gpu.stream);
+                cudaEventRecord(train_backward_stop_events[train_backward_call_i], device_gpu.stream);
+                epoch_train_backward_calls++;
 #else
-                cudaEventRecord(train_backward_start_event, device_gpu.stream);
+                TI train_backward_call_i = epoch_train_backward_calls;
+                cudaEventRecord(train_backward_start_events[train_backward_call_i], device_gpu.stream);
                 { auto inputs = rlt::nn_models::parallel::pack_inputs(gpu_target_obs_batch_reshaped, gpu_obs_batch_reshaped, gpu_state_obs_batch_reshaped); rlt::backward(device_gpu, student_gpu, inputs, gpu_d_action_reshaped, student_buffers); }
-                cudaEventRecord(train_backward_stop_event, device_gpu.stream);
+                cudaEventRecord(train_backward_stop_events[train_backward_call_i], device_gpu.stream);
+                epoch_train_backward_calls++;
 #endif
 #else
 #ifdef STACK_TARGET_CHANNEL
-                cudaEventRecord(train_backward_start_event, device_gpu.stream);
+                TI train_backward_call_i = epoch_train_backward_calls;
+                cudaEventRecord(train_backward_start_events[train_backward_call_i], device_gpu.stream);
                 { auto inputs = rlt::nn_models::parallel::pack_inputs(gpu_combined_batch_reshaped, gpu_state_obs_batch_reshaped); rlt::backward(device_gpu, student_gpu, inputs, gpu_d_action_reshaped, student_buffers); }
-                cudaEventRecord(train_backward_stop_event, device_gpu.stream);
+                cudaEventRecord(train_backward_stop_events[train_backward_call_i], device_gpu.stream);
+                epoch_train_backward_calls++;
 #else
-                cudaEventRecord(train_backward_start_event, device_gpu.stream);
+                TI train_backward_call_i = epoch_train_backward_calls;
+                cudaEventRecord(train_backward_start_events[train_backward_call_i], device_gpu.stream);
                 { auto inputs = rlt::nn_models::parallel::pack_inputs(gpu_target_obs_batch_reshaped, gpu_obs_batch_reshaped, gpu_state_obs_batch_reshaped); rlt::backward(device_gpu, student_gpu, inputs, gpu_d_action_reshaped, student_buffers); }
-                cudaEventRecord(train_backward_stop_event, device_gpu.stream);
+                cudaEventRecord(train_backward_stop_events[train_backward_call_i], device_gpu.stream);
+                epoch_train_backward_calls++;
 #endif
 #endif
-                cudaEventSynchronize(train_backward_stop_event);
-                {
-                    float train_backward_time_ms = 0;
-                    cudaEventElapsedTime(&train_backward_time_ms, train_backward_start_event, train_backward_stop_event);
-                    epoch_train_backward_time_ms += train_backward_time_ms;
-                    epoch_train_backward_calls++;
-                }
-                cudaEventRecord(train_update_start_event, device_gpu.stream);
+                TI train_update_call_i = epoch_train_update_calls;
+                cudaEventRecord(train_update_start_events[train_update_call_i], device_gpu.stream);
                 rlt::step(device_gpu, optimizer_gpu, student_gpu);
-                cudaEventRecord(train_update_stop_event, device_gpu.stream);
-                cudaEventSynchronize(train_update_stop_event);
-                {
-                    float train_update_time_ms = 0;
-                    cudaEventElapsedTime(&train_update_time_ms, train_update_start_event, train_update_stop_event);
-                    epoch_train_update_time_ms += train_update_time_ms;
-                    epoch_train_update_calls++;
-                }
+                cudaEventRecord(train_update_stop_events[train_update_call_i], device_gpu.stream);
+                epoch_train_update_calls++;
 #if !defined(USE_FRAME_STACKING) && defined(STACK_TARGET_CHANNEL)
                 rlt::free(device_gpu, gpu_combined_batch_train);
 #endif
+            }
+        }
+        if(epoch_train_update_calls > 0){
+            cudaEventSynchronize(train_update_stop_events[epoch_train_update_calls - 1]);
+        } else if(epoch_train_backward_calls > 0){
+            cudaEventSynchronize(train_backward_stop_events[epoch_train_backward_calls - 1]);
+        } else if(epoch_train_forward_calls > 0){
+            cudaEventSynchronize(train_forward_stop_events[epoch_train_forward_calls - 1]);
+        }
+        for(TI call_i = 0; call_i < epoch_train_forward_calls; call_i++){
+            float train_forward_time_ms = 0;
+            cudaEventElapsedTime(&train_forward_time_ms, train_forward_start_events[call_i], train_forward_stop_events[call_i]);
+            epoch_train_forward_time_ms += train_forward_time_ms;
+        }
+        for(TI call_i = 0; call_i < epoch_train_backward_calls; call_i++){
+            float train_backward_time_ms = 0;
+            cudaEventElapsedTime(&train_backward_time_ms, train_backward_start_events[call_i], train_backward_stop_events[call_i]);
+            epoch_train_backward_time_ms += train_backward_time_ms;
+        }
+        for(TI call_i = 0; call_i < epoch_train_update_calls; call_i++){
+            float train_update_time_ms = 0;
+            cudaEventElapsedTime(&train_update_time_ms, train_update_start_events[call_i], train_update_stop_events[call_i]);
+            epoch_train_update_time_ms += train_update_time_ms;
+        }
+        if(epoch_loss_count > 0){
+            cudaMemcpy(cpu_logged_batch_losses.data(), gpu_logged_batch_losses, epoch_loss_count * sizeof(T), cudaMemcpyDeviceToHost);
+            for(TI loss_i = 0; loss_i < epoch_loss_count; loss_i++){
+                epoch_loss_sum += cpu_logged_batch_losses[loss_i];
             }
         }
         epoch_loss = epoch_loss_count > 0 ? epoch_loss_sum / epoch_loss_count : (T)0;
@@ -2121,6 +2146,40 @@ int main(int argc, char** argv){
         rlt::reset(device_gpu, rollout_student_gpu, rollout_student_state_gpu, rng_gpu);
 #endif
 #endif
+        if(epoch_train_forward_calls == 0 && epoch_train_backward_calls == 0 && epoch_train_update_calls == 0){
+            cudaStreamSynchronize(device_gpu.stream);
+        }
+        TI render_timing_samples = 0;
+        for(TI step_i = 0; step_i < STEPS_PER_ENV; step_i += RENDER_TIMING_SAMPLE_PERIOD){
+            float render_pass_time_ms = 0;
+            float target_render_pass_time_ms = 0;
+            for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
+                TI event_i = step_i * N_ACTIVE_SCENES + active_scene_i;
+                float scene_render_time_ms = 0;
+                cudaEventElapsedTime(&scene_render_time_ms, render_pass_start_events[event_i], render_pass_stop_events[event_i]);
+                render_pass_time_ms = std::max(render_pass_time_ms, scene_render_time_ms);
+                float target_scene_render_time_ms = 0;
+                cudaEventElapsedTime(&target_scene_render_time_ms, target_render_pass_start_events[event_i], target_render_pass_stop_events[event_i]);
+                target_render_pass_time_ms = std::max(target_render_pass_time_ms, target_scene_render_time_ms);
+            }
+            epoch_render_gpu_time_ms += render_pass_time_ms + target_render_pass_time_ms;
+            render_timing_samples++;
+        }
+        if(render_timing_samples > 0){
+            epoch_render_gpu_time_ms *= static_cast<float>(STEPS_PER_ENV) / static_cast<float>(render_timing_samples);
+        }
+        imitation_kernels::reduce_episode_stats_kernel<<<1, 1, 0, device_gpu.stream>>>(
+            gpu_episode_lengths_log,
+            gpu_episode_tf_log,
+            gpu_episode_step_arr,
+            gpu_teacher_forcing_arr,
+            gpu_epoch_episode_stats
+        );
+        cudaMemcpy(cpu_epoch_episode_stats.data(), gpu_epoch_episode_stats, cpu_epoch_episode_stats.size() * sizeof(T), cudaMemcpyDeviceToHost);
+        episode_length_sum_tf = cpu_epoch_episode_stats[0];
+        episode_count_tf = static_cast<TI>(cpu_epoch_episode_stats[1]);
+        episode_length_sum_student = cpu_epoch_episode_stats[2];
+        episode_count_student = static_cast<TI>(cpu_epoch_episode_stats[3]);
 
         // Logging
         auto now = std::chrono::high_resolution_clock::now();
@@ -2473,12 +2532,15 @@ int main(int argc, char** argv){
             cudaEventDestroy(target_render_pass_stop_events[event_i]);
         }
     }
-    cudaEventDestroy(train_forward_start_event);
-    cudaEventDestroy(train_forward_stop_event);
-    cudaEventDestroy(train_backward_start_event);
-    cudaEventDestroy(train_backward_stop_event);
-    cudaEventDestroy(train_update_start_event);
-    cudaEventDestroy(train_update_stop_event);
+    for(TI call_i = 0; call_i < max_train_timing_calls; call_i++){
+        cudaEventDestroy(train_forward_start_events[call_i]);
+        cudaEventDestroy(train_forward_stop_events[call_i]);
+        cudaEventDestroy(train_backward_start_events[call_i]);
+        cudaEventDestroy(train_backward_stop_events[call_i]);
+        cudaEventDestroy(train_update_start_events[call_i]);
+        cudaEventDestroy(train_update_stop_events[call_i]);
+    }
+    cudaFree(gpu_logged_batch_losses);
     rlt::free(device_gpu, student_gpu);
     rlt::free(device_gpu, rollout_student_gpu);
     rlt::free(device_gpu, rollout_student_buffers);
@@ -2507,8 +2569,8 @@ int main(int argc, char** argv){
     cudaFree(gpu_episode_return_arr);
     cudaFree(gpu_needs_reset);
     cudaFree(gpu_episode_lengths_log);
-    cudaFree(gpu_episode_returns_log);
     cudaFree(gpu_episode_tf_log);
+    cudaFree(gpu_epoch_episode_stats);
     cudaFree(gpu_brightness_scale_arr);
     cudaFree(gpu_scene_translation_arr);
     cudaFree(gpu_scene_yaw_arr);
@@ -2536,10 +2598,7 @@ int main(int argc, char** argv){
     cudaFree(gpu_episode_start_step);
     cudaFree(gpu_episode_start_step_per_row);
     cudaFree(gpu_rollout_gather_indices);
-#ifdef STACK_TARGET_CHANNEL
-    cudaFree(gpu_batch_target_row_indices);
-    cudaFree(gpu_rollout_target_row_indices);
-#else
+#ifndef STACK_TARGET_CHANNEL
     cudaFree(gpu_target_gather_indices);
     rlt::free(device_gpu, gpu_rollout_stacked);
     rlt::free(device_gpu, gpu_rollout_stacked_target);
