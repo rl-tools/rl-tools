@@ -48,6 +48,11 @@ namespace rl_tools{
         return std::string(first ? "" : ".") + "OrientationRotationMatrix" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
     }
     template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::OrientationBodyZ<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::OrientationBodyZ<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "OrientationBodyZ" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
     std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::LinearVelocity<OBS_SPEC>& obs, bool first = true){
         using OBSERVATION = rl::environments::l2f::observation::LinearVelocity<OBS_SPEC>;
         return std::string(first ? "" : ".") + "LinearVelocity" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
