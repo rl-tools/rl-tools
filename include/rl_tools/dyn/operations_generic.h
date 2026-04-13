@@ -640,15 +640,8 @@ namespace rl_tools{
                 dyn::set_shape(inter_b, child_b.output_rank, child_b.output_shape);
                 inter_b.type = dyn::Type::FLOAT32; inter_b.data = reinterpret_cast<char*>(buffer.scratch.data) + size_a * sizeof(float);
                 inter_b.capacity = size_b;
-                TI dim_a = 0, dim_b = 0;
-                if(layer.data != nullptr){
-                    auto& p = layer.template as<const dyn::layers::Parallel<TI>>();
-                    dim_a = p.input_dim_a; dim_b = p.input_dim_b;
-                }
-                if(dim_a == 0 || dim_b == 0){
-                    dim_a = dyn::infer_flat_input_dim(child_a);
-                    dim_b = dyn::infer_flat_input_dim(child_b);
-                }
+                TI dim_a = dyn::infer_flat_input_dim(child_a);
+                TI dim_b = dyn::infer_flat_input_dim(child_b);
                 TI total_dim = input.shape[input.rank - 1];
                 if(dim_a > 0 && dim_b > 0 && dim_a + dim_b == total_dim){
                     TI batch = input.size() / total_dim;
@@ -769,7 +762,7 @@ namespace rl_tools{
             TI col = 0;
             for(TI i = 0; i < num_branches; i++){
                 for(TI j = 0; j < last_dims[i]; j++){
-                    dyn::set(device, concat_target, dyn::get(device, intermediates[i], b * last_dims[i] + j), b * last_out + col + j);
+                    rl_tools::set(device, concat_target, rl_tools::get(device, intermediates[i], b * last_dims[i] + j), b * last_out + col + j);
                 }
                 col += last_dims[i];
             }
