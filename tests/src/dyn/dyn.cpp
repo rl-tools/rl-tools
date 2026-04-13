@@ -1037,10 +1037,10 @@ TEST(TEST_DYN, parallel_cnn_state){
     dt.num_tensors = 2;
     TI img_shape[] = {BATCH, IMG_H, IMG_W, IMG_C};
     rlt::dyn::set_shape(dt.tensors[0], (TI)4, img_shape); dt.tensors[0].type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, dt.tensors[0]);
-    for(TI i = 0; i < BATCH * IMG_FLAT; i++) rlt::dyn::set(device, dt.tensors[0], i, rlt::get_flat(device, input_img, i));
+    for(TI i = 0; i < BATCH * IMG_FLAT; i++) rlt::set(device, dt.tensors[0], rlt::get_flat(device, input_img, i), i);
     TI state_shape[] = {BATCH, STATE_DIM};
     rlt::dyn::set_shape(dt.tensors[1], (TI)2, state_shape); dt.tensors[1].type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, dt.tensors[1]);
-    for(TI i = 0; i < BATCH * STATE_DIM; i++) rlt::dyn::set(device, dt.tensors[1], i, rlt::get_flat(device, input_state, i));
+    for(TI i = 0; i < BATCH * STATE_DIM; i++) rlt::set(device, dt.tensors[1], rlt::get_flat(device, input_state, i), i);
     rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> d_out;
     TI os[] = {BATCH, OUTPUT_DIM}; rlt::dyn::set_shape(d_out, (TI)2, os); d_out.type = rlt::dyn::Type::FLOAT32; rlt::malloc(device, d_out);
     rlt::dyn::propagate_shapes(dm, dt);
