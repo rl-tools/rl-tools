@@ -133,7 +133,7 @@ static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = {
     1.0, 0.0, 0.3, 1.0, 1.0, true, -1, +1,
 };
 static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = {
-    true, 1.0, 0, 10, 35, 10000, 50000,
+    true, 1.0, 0.8, 10, 35, 10000, 50000,
 };
 static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
 static constexpr typename PARAMETERS_TYPE::Integration integration = {
@@ -177,7 +177,8 @@ struct STATIC_PARAMETERS {
     static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
 };
 
-using ACTOR_STATE_OBS = obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::LinearAccelerationBodyFrame<obs::LinearAccelerationBodyFrameSpecification<T, TI>>>>;
+// using ACTOR_STATE_OBS = obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::LinearAccelerationBodyFrame<obs::LinearAccelerationBodyFrameSpecification<T, TI>>>>;
+using ACTOR_STATE_OBS = obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>;
 // using ACTOR_STATE_OBS = STATIC_PARAMETERS::OBSERVATION_TYPE;
 static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM; // 12
 
@@ -230,7 +231,7 @@ static constexpr TI TARGET_DIM = ACTION_DIM;
 static constexpr TI INDOOR_POSITION_DIM = 3;
 static constexpr TI OBSERVATION_DIM = ENVIRONMENT::OBSERVATION_DIM;
 static constexpr TI BATCH_SIZE = 512;
-static constexpr TI STEPS_PER_ENV = 500;
+static constexpr TI STEPS_PER_ENV = 200;
 static constexpr TI STEPS_TOTAL = STEPS_PER_ENV * N_ENVIRONMENTS;
 static constexpr TI N_BATCHES = STEPS_TOTAL / BATCH_SIZE;
 static constexpr TI NUM_EPOCHS = 1000000;
