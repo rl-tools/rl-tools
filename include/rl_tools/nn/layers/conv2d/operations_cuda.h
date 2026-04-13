@@ -123,33 +123,56 @@ namespace rl_tools{
                 output[idx] = (T)((float)gamma[c] * z_hat + (float)beta[c]);
             }
         }
-        template<typename T, typename TI>
+        template<typename T, typename TI, unsigned int N_CHUNK>
         __global__
-        void bias_backward(
-            const T* d_conv_out,
-            T* d_bias,
+        void bias_backward_partial(
+            const T* __restrict__ d_conv_out,
+            float* __restrict__ partials,
             TI spatial,
             TI OC
         ){
             TI c = (TI)blockIdx.x;
             if(c >= OC) return;
-            __shared__ float s_sum[256];
-            TI tid = (TI)threadIdx.x;
+            unsigned int chunk = blockIdx.y;
+            TI chunk_start = (spatial * (TI)chunk) / (TI)N_CHUNK;
+            TI chunk_end = (spatial * (TI)(chunk + 1)) / (TI)N_CHUNK;
+            unsigned int tid = threadIdx.x;
             float local_sum = 0;
-            for(TI i = tid; i < spatial; i += (TI)blockDim.x){
+            for(TI i = chunk_start + (TI)tid; i < chunk_end; i += (TI)blockDim.x){
                 local_sum += (float)d_conv_out[i * OC + c];
             }
-            s_sum[tid] = local_sum;
+            for(unsigned int offset = 16; offset > 0; offset >>= 1){
+                local_sum += __shfl_down_sync(0xffffffffu, local_sum, offset);
+            }
+            __shared__ float warp_sums[8];
+            unsigned int lane = tid & 31u;
+            unsigned int warp_id = tid >> 5;
+            if(lane == 0) warp_sums[warp_id] = local_sum;
             __syncthreads();
-            for(unsigned int s = blockDim.x / 2; s > 0; s >>= 1){
-                if(threadIdx.x < s){
-                    s_sum[threadIdx.x] += s_sum[threadIdx.x + s];
+            if(warp_id == 0){
+                unsigned int num_warps = (blockDim.x + 31u) >> 5;
+                float v = (lane < num_warps) ? warp_sums[lane] : 0.0f;
+                for(unsigned int offset = 16; offset > 0; offset >>= 1){
+                    v += __shfl_down_sync(0xffffffffu, v, offset);
                 }
-                __syncthreads();
+                if(lane == 0) partials[c * (TI)N_CHUNK + (TI)chunk] = v;
             }
-            if(threadIdx.x == 0){
-                d_bias[c] += (T)s_sum[0];
+        }
+        template<typename T, typename TI, unsigned int N_CHUNK>
+        __global__
+        void bias_backward_finalize(
+            const float* __restrict__ partials,
+            T* __restrict__ d_bias,
+            TI OC
+        ){
+            TI c = (TI)blockIdx.x;
+            if(c >= OC) return;
+            unsigned int tid = threadIdx.x;
+            float v = (tid < N_CHUNK) ? partials[c * (TI)N_CHUNK + (TI)tid] : 0.0f;
+            for(unsigned int offset = N_CHUNK / 2u; offset > 0; offset >>= 1){
+                v += __shfl_down_sync(0xffffffffu, v, offset);
             }
+            if(tid == 0) d_bias[c] = (T)((float)d_bias[c] + v);
         }
         template<typename T, typename T_NORM_PARAM, typename TI>
         __global__
@@ -588,9 +611,21 @@ namespace rl_tools{
         }
         {
             constexpr TI SPATIAL = N * OH * OW;
+            constexpr unsigned int N_CHUNK = 32;
             constexpr TI BN_BS = 256;
-            nn::layers::conv2d::cuda::kernels::bias_backward<T, TI><<<OC, BN_BS, 0, device.stream>>>(
-                d_conv_out, layer.biases.gradient._data, SPATIAL, OC);
+            // Phase 1: partial sums over N_CHUNK contiguous spatial chunks per channel.
+            // Phase 2: reduce N_CHUNK partials within one warp and accumulate into d_bias.
+            // Use buffer.d_input_acc as fp32 scratch (free during bias backward, size >> OC*N_CHUNK).
+            static_assert(decltype(buffer.d_input_acc)::SPEC::SIZE >= OC * N_CHUNK, "d_input_acc too small for bias scratch");
+            float* bias_scratch = (float*)buffer.d_input_acc._data;
+            dim3 p1_grid((unsigned int)OC, N_CHUNK);
+            dim3 p1_block(BN_BS);
+            nn::layers::conv2d::cuda::kernels::bias_backward_partial<T, TI, N_CHUNK><<<p1_grid, p1_block, 0, device.stream>>>(
+                d_conv_out, bias_scratch, SPATIAL, OC);
+            dim3 p2_grid((unsigned int)OC);
+            dim3 p2_block(32);
+            nn::layers::conv2d::cuda::kernels::bias_backward_finalize<T, TI, N_CHUNK><<<p2_grid, p2_block, 0, device.stream>>>(
+                bias_scratch, layer.biases.gradient._data, OC);
         }
 
         size_t required_ws = bf_ok ? cached_bf_ws : 0;
