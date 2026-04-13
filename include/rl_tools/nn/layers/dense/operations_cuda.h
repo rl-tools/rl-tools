@@ -179,24 +179,46 @@ namespace rl_tools{
             constexpr TI BATCH_SIZE = PRE_ACTIVATIONS_SPEC::ROWS;
             static_assert(PRE_ACTIVATIONS_SPEC::COLS == D_BIASES_SPEC::SHAPE::FIRST);
 
-            TI output_i = blockIdx.x * blockDim.x + threadIdx.x;
-            if(output_i < OUTPUT_DIM){
-                ACCUMULATOR_TYPE acc = 0;
-                for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
-                    ACCUMULATOR_TYPE d_pre_activation_temp = d_activation_d_x<typename DEV_SPEC::MATH, ACCUMULATOR_TYPE, SPEC::ACTIVATION_FUNCTION>((ACCUMULATOR_TYPE)get(pre_activations, batch_i, output_i)) * (ACCUMULATOR_TYPE)get(d_output, batch_i, output_i);
-                    set(d_pre_activations, batch_i, output_i, (T)d_pre_activation_temp);
-                    acc += d_pre_activation_temp;
+            // One block per output channel; threads cooperatively traverse the batch dim.
+            TI output_i = blockIdx.x;
+            if(output_i >= OUTPUT_DIM) return;
+            unsigned int tid = threadIdx.x;
+            ACCUMULATOR_TYPE thread_acc = 0;
+            for(TI batch_i = (TI)tid; batch_i < BATCH_SIZE; batch_i += (TI)blockDim.x){
+                ACCUMULATOR_TYPE d_pre_activation_temp = d_activation_d_x<typename DEV_SPEC::MATH, ACCUMULATOR_TYPE, SPEC::ACTIVATION_FUNCTION>((ACCUMULATOR_TYPE)get(pre_activations, batch_i, output_i)) * (ACCUMULATOR_TYPE)get(d_output, batch_i, output_i);
+                set(d_pre_activations, batch_i, output_i, (T)d_pre_activation_temp);
+                thread_acc += d_pre_activation_temp;
+            }
+            for(unsigned int offset = 16; offset > 0; offset >>= 1){
+                thread_acc += __shfl_down_sync(0xffffffffu, thread_acc, offset);
+            }
+            // Up to 256 threads = 8 warps per block.
+            __shared__ ACCUMULATOR_TYPE warp_sums[8];
+            unsigned int lane = tid & 31u;
+            unsigned int warp_id = tid >> 5;
+            if(lane == 0){
+                warp_sums[warp_id] = thread_acc;
+            }
+            __syncthreads();
+            if(warp_id == 0){
+                unsigned int num_warps = (blockDim.x + 31u) >> 5;
+                ACCUMULATOR_TYPE val = (lane < num_warps) ? warp_sums[lane] : (ACCUMULATOR_TYPE)0;
+                for(unsigned int offset = 16; offset > 0; offset >>= 1){
+                    val += __shfl_down_sync(0xffffffffu, val, offset);
                 }
-                increment(device, d_biases, acc, output_i);
+                if(lane == 0){
+                    increment(device, d_biases, val, output_i);
+                }
             }
         }
         template<typename DEV_SPEC, typename SPEC, typename PRE_ACTIVATIONS_SPEC, typename D_OUTPUT_SPEC, typename D_BIASES_SPEC, typename D_PRE_ACTIVATIONS_SPEC, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
         void d_activation_accumulate_bias_gradient(devices::CUDA<DEV_SPEC>& device, const nn::layers::dense::LayerForward<SPEC>& layer, Matrix<PRE_ACTIVATIONS_SPEC>& pre_activations, Matrix<D_OUTPUT_SPEC>& d_output, Tensor<D_BIASES_SPEC>& d_biases, Matrix<D_PRE_ACTIVATIONS_SPEC>& d_pre_activations) {
             using DEVICE = devices::CUDA<DEV_SPEC>;
-            constexpr typename devices::CUDA<DEV_SPEC>::index_t BLOCKSIZE_ACTIVATION_OUTPUT = 32;
-            constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_ACTIVATION_OUTPUT = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::OUTPUT_DIM, BLOCKSIZE_ACTIVATION_OUTPUT);
-            dim3 activation_grid(N_BLOCKS_ACTIVATION_OUTPUT);
-            dim3 activation_block(BLOCKSIZE_ACTIVATION_OUTPUT);
+            using TI = typename DEVICE::index_t;
+            constexpr TI BATCH_SIZE = PRE_ACTIVATIONS_SPEC::ROWS;
+            constexpr TI BLOCKSIZE = BATCH_SIZE >= 256 ? 256 : (BATCH_SIZE >= 128 ? 128 : (BATCH_SIZE >= 64 ? 64 : 32));
+            dim3 activation_grid(SPEC::OUTPUT_DIM);
+            dim3 activation_block(BLOCKSIZE);
             devices::cuda::TAG<DEVICE, true> tag_device{};
             nn::dense::kernels::d_activation_accumulate_bias_gradient_kernel<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, layer, pre_activations, d_output, d_biases, d_pre_activations);
             check_status(device);
