@@ -25,6 +25,10 @@ namespace rl_tools{
     void init(DEVICE& device, utils::extrack::Config<TI>& config, utils::extrack::Paths& paths, typename DEVICE::index_t seed = 0){
         if(paths.experiment.empty()){
             utils::assert_exit(device, !config.base_path.empty(), "Extrack base path (-e,--extrack) must be set if the Extrack experiment path (--ee,--extrack-experiment) is not set.");
+            auto environment_extrack_path = std::getenv("RL_TOOLS_EXTRACK_PATH");
+            if(environment_extrack_path != nullptr && config.base_path.is_relative()){
+                config.base_path = std::filesystem::path(environment_extrack_path) / config.base_path;
+            }
             if(config.experiment.empty()){
 
                 auto environment_extrack_experiment = std::getenv("RL_TOOLS_EXTRACK_EXPERIMENT");
@@ -230,6 +234,10 @@ namespace rl_tools{
     }
     template <typename DEVICE>
     bool find_latest_run(DEVICE& device, std::filesystem::path experiments_path, utils::extrack::Path& p_query){
+        auto environment_extrack_path = std::getenv("RL_TOOLS_EXTRACK_PATH");
+        if(environment_extrack_path != nullptr && experiments_path.is_relative()){
+            experiments_path = std::filesystem::path(environment_extrack_path) / experiments_path;
+        }
         std::vector<std::filesystem::directory_entry> experiments{std::filesystem::directory_iterator(experiments_path), std::filesystem::directory_iterator()};
         std::sort(experiments.begin(), experiments.end());
         std::vector<std::string> exclude_filenames = {"index.txt", "index_directories.txt", "index_files.txt"};
