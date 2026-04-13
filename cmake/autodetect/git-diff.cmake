@@ -117,7 +117,8 @@ if(RL_TOOLS_IS_REPO)
     git_capture(DIFF_STAGED_COLOR \${RL_TOOLS_ROOT} diff --cached --color=always)
     git_capture(WORD_DIFF_STAGED \${RL_TOOLS_ROOT} diff --cached --word-diff)
     git_capture(WORD_DIFF_STAGED_COLOR \${RL_TOOLS_ROOT} diff --cached --word-diff --color=always)
-    
+    set(PATH_VAR \"\${RL_TOOLS_ROOT}\")
+
     if(NOT COMMIT)
         set(COMMIT \"unknown\")
     endif()
@@ -131,6 +132,7 @@ else()
     set(DIFF_STAGED_COLOR \"\")
     set(WORD_DIFF_STAGED \"\")
     set(WORD_DIFF_STAGED_COLOR \"\")
+    set(PATH_VAR \"\")
 endif()
 
 set(CONTENT \"\${CONTENT}    extern const char* const commit = R\\\"rl_tools_git(\${COMMIT})rl_tools_git\\\";\\n\")
@@ -142,6 +144,7 @@ set(CONTENT \"\${CONTENT}    extern const char* const diff_staged = R\\\"rl_tool
 set(CONTENT \"\${CONTENT}    extern const char* const diff_staged_color = R\\\"rl_tools_git(\${DIFF_STAGED_COLOR})rl_tools_git\\\";\\n\")
 set(CONTENT \"\${CONTENT}    extern const char* const word_diff_staged = R\\\"rl_tools_git(\${WORD_DIFF_STAGED})rl_tools_git\\\";\\n\")
 set(CONTENT \"\${CONTENT}    extern const char* const word_diff_staged_color = R\\\"rl_tools_git(\${WORD_DIFF_STAGED_COLOR})rl_tools_git\\\";\\n\")
+set(CONTENT \"\${CONTENT}    extern const char* const path = R\\\"rl_tools_git(\${PATH_VAR})rl_tools_git\\\";\\n\")
 set(CONTENT \"\${CONTENT}} // namespace rl_tools\\n\\n\")
 
 # ============================================================================
@@ -166,7 +169,8 @@ if(PARENT_IS_REPO)
     git_capture(DIFF_STAGED_COLOR \${PARENT_ROOT} diff --cached --color=always)
     git_capture(WORD_DIFF_STAGED \${PARENT_ROOT} diff --cached --word-diff)
     git_capture(WORD_DIFF_STAGED_COLOR \${PARENT_ROOT} diff --cached --word-diff --color=always)
-    
+    set(PATH_VAR \"\${PARENT_ROOT}\")
+
     if(NOT COMMIT)
         set(COMMIT \"unknown\")
     endif()
@@ -180,6 +184,7 @@ else()
     set(DIFF_STAGED_COLOR \"\")
     set(WORD_DIFF_STAGED \"\")
     set(WORD_DIFF_STAGED_COLOR \"\")
+    set(PATH_VAR \"\")
 endif()
 
 set(CONTENT \"\${CONTENT}    extern const char* const commit = R\\\"rl_tools_git(\${COMMIT})rl_tools_git\\\";\\n\")
@@ -191,6 +196,7 @@ set(CONTENT \"\${CONTENT}    extern const char* const diff_staged = R\\\"rl_tool
 set(CONTENT \"\${CONTENT}    extern const char* const diff_staged_color = R\\\"rl_tools_git(\${DIFF_STAGED_COLOR})rl_tools_git\\\";\\n\")
 set(CONTENT \"\${CONTENT}    extern const char* const word_diff_staged = R\\\"rl_tools_git(\${WORD_DIFF_STAGED})rl_tools_git\\\";\\n\")
 set(CONTENT \"\${CONTENT}    extern const char* const word_diff_staged_color = R\\\"rl_tools_git(\${WORD_DIFF_STAGED_COLOR})rl_tools_git\\\";\\n\")
+set(CONTENT \"\${CONTENT}    extern const char* const path = R\\\"rl_tools_git(\${PATH_VAR})rl_tools_git\\\";\\n\")
 set(CONTENT \"\${CONTENT}} // namespace project\\n\\n\")
 
 set(CONTENT \"\${CONTENT}}}}}\") # close namespaces: git, extrack, utils, rl_tools
