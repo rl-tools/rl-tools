@@ -32,6 +32,7 @@ namespace rl_tools{
                 extern const char* const diff_staged_color;
                 extern const char* const word_diff_staged;
                 extern const char* const word_diff_staged_color;
+                extern const char* const path;
             }
             // Parent project repository (if used via add_subdirectory)
             namespace project{
@@ -45,6 +46,7 @@ namespace rl_tools{
                 extern const char* const diff_staged_color;
                 extern const char* const word_diff_staged;
                 extern const char* const word_diff_staged_color;
+                extern const char* const path;
             }
         }
 #endif

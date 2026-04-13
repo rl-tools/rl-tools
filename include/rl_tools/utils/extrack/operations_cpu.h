@@ -110,11 +110,17 @@ namespace rl_tools{
             diff_file << rl_tools::utils::extrack::git::rl_tools::word_diff_staged_color;
             diff_file.close();
         }
+        {
+            std::ofstream path_file(git_library_path / "path.txt");
+            path_file << rl_tools::utils::extrack::git::rl_tools::path;
+            path_file.close();
+        }
         add_text(device, device.logger, "git/rl_tools/commit", (std::string("`") + rl_tools::utils::extrack::git::rl_tools::commit + "`").c_str());
         add_text(device, device.logger, "git/rl_tools/diff", (std::string("```diff\n") + rl_tools::utils::extrack::git::rl_tools::diff + "```").c_str());
         add_text(device, device.logger, "git/rl_tools/word_diff", (std::string("```diff\n") + rl_tools::utils::extrack::git::rl_tools::word_diff + "```").c_str());
         add_text(device, device.logger, "git/rl_tools/diff_staged", (std::string("```diff\n") + rl_tools::utils::extrack::git::rl_tools::diff_staged + "```").c_str());
         add_text(device, device.logger, "git/rl_tools/word_diff_staged", (std::string("```diff\n") + rl_tools::utils::extrack::git::rl_tools::word_diff_staged + "```").c_str());
+        add_text(device, device.logger, "git/rl_tools/path", (std::string("`") + rl_tools::utils::extrack::git::rl_tools::path + "`").c_str());
         // Save parent project git info if available
         if(rl_tools::utils::extrack::git::project::available){
             std::filesystem::path git_project_path = paths.seed / "git" / "project";
@@ -164,11 +170,17 @@ namespace rl_tools{
                 diff_file << rl_tools::utils::extrack::git::project::word_diff_staged_color;
                 diff_file.close();
             }
+            {
+                std::ofstream path_file(git_project_path / "path.txt");
+                path_file << rl_tools::utils::extrack::git::project::path;
+                path_file.close();
+            }
             add_text(device, device.logger, "git/project/commit", (std::string("`") + rl_tools::utils::extrack::git::project::commit + "`").c_str());
             add_text(device, device.logger, "git/project/diff", (std::string("```diff\n") + rl_tools::utils::extrack::git::project::diff + "```").c_str());
             add_text(device, device.logger, "git/project/word_diff", (std::string("```diff\n") + rl_tools::utils::extrack::git::project::word_diff + "```").c_str());
             add_text(device, device.logger, "git/project/diff_staged", (std::string("```diff\n") + rl_tools::utils::extrack::git::project::diff_staged + "```").c_str());
             add_text(device, device.logger, "git/project/word_diff_staged", (std::string("```diff\n") + rl_tools::utils::extrack::git::project::word_diff_staged + "```").c_str());
+            add_text(device, device.logger, "git/project/path", (std::string("`") + rl_tools::utils::extrack::git::project::path + "`").c_str());
         }
 #endif
 
