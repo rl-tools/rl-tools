@@ -257,7 +257,9 @@ static constexpr TI FRAME_STACK_STRIDE = 20; // 100Hz / 20 = 5Hz
 static constexpr TI FRAME_STACK_HISTORY_LENGTH = FRAME_STACK_STRIDE * (FRAME_STACK_N - 1) + 1;
 static constexpr TI STACKED_IMG_C = ENVIRONMENT::Observation::CHANNELS * FRAME_STACK_N;
 static constexpr TI STACKED_OBS_DIM = ENVIRONMENT::Observation::HEIGHT * ENVIRONMENT::Observation::WIDTH * STACKED_IMG_C;
-static constexpr TI COMBINED_IMG_C = STACKED_IMG_C + ENVIRONMENT::Observation::CHANNELS;
+static constexpr TI COMBINED_IMG_C_LOGICAL = STACKED_IMG_C + ENVIRONMENT::Observation::CHANNELS;
+// Pad up to next multiple of 8 so cuDNN uses the tensor-core fast path for Conv1 without inserting an NHWC layout-padding reformat kernel.
+static constexpr TI COMBINED_IMG_C = (COMBINED_IMG_C_LOGICAL + 7) & ~((TI)7);
 static constexpr TI COMBINED_OBS_DIM = ENVIRONMENT::Observation::HEIGHT * ENVIRONMENT::Observation::WIDTH * COMBINED_IMG_C;
 #elif defined(USE_GRU_TEMPORAL)
 static constexpr TI BPTT_STEPS = 100;
@@ -936,6 +938,7 @@ __global__ void build_frame_stacked_with_target_from_history_kernel(
     int offset = global_idx % combined_obs_dim;
     int pixel = offset / combined_img_c;
     int frame_channel = offset % combined_img_c;
+    int logical_channels = n_frames * img_c + img_c;
     if(frame_channel < n_frames * img_c){
         int frame = frame_channel / img_c;
         int channel = frame_channel % img_c;
@@ -948,9 +951,11 @@ __global__ void build_frame_stacked_with_target_from_history_kernel(
         TI history_slot = desired_step % FRAME_STACK_HISTORY_LENGTH;
         TI src_row = history_slot * num_envs + sample;
         combined_out[global_idx] = (T_OUT)history_obs[src_row * obs_dim + pixel * img_c + channel];
-    } else {
+    } else if(frame_channel < logical_channels) {
         int channel = frame_channel - n_frames * img_c;
         combined_out[global_idx] = (T_OUT)target_obs[sample * obs_dim + pixel * img_c + channel];
+    } else {
+        combined_out[global_idx] = (T_OUT)0.0f;
     }
 }
 #endif
