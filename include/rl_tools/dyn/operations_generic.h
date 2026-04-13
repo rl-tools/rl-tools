@@ -769,7 +769,7 @@ namespace rl_tools{
             TI col = 0;
             for(TI i = 0; i < num_branches; i++){
                 for(TI j = 0; j < last_dims[i]; j++){
-                    dyn::set(device, concat_target, b * last_out + col + j, dyn::get(device, intermediates[i], b * last_dims[i] + j));
+                    dyn::set(device, concat_target, dyn::get(device, intermediates[i], b * last_dims[i] + j), b * last_out + col + j);
                 }
                 col += last_dims[i];
             }
