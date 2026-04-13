@@ -344,7 +344,7 @@ namespace imitation_kernels{
         DYNAMICS_TYPE* envs, PARAMETERS_TYPE* env_params, typename ENVIRONMENT::State* states,
         bool* terminated_flags, TI* episode_step_arr, bool* teacher_forcing_arr,
         T* episode_return_arr, bool* needs_reset_flags,
-        T* episode_lengths_log, T* episode_tf_log,
+        T* episode_lengths_log, T* episode_tf_log, T* episode_terminated_log,
         T teacher_forcing_fraction, bool full_teacher_forcing,
         T* teacher_obs_ptr, T* state_obs_ptr,
         T* raptor_gru_state_ptr, T* raptor_gru_initial_hidden_ptr, TI* raptor_gru_step_ptr,
@@ -374,9 +374,11 @@ namespace imitation_kernels{
             if(episode_step_arr[env_i] > 0){
                 episode_lengths_log[env_i] = (T)episode_step_arr[env_i];
                 episode_tf_log[env_i] = teacher_forcing_arr[env_i] ? (T)1 : (T)0;
+                episode_terminated_log[env_i] = terminated_flags[env_i] ? (T)1 : (T)0;
             } else {
                 episode_lengths_log[env_i] = (T)-1;
                 episode_tf_log[env_i] = (T)0;
+                episode_terminated_log[env_i] = (T)-1;
             }
             rl_tools::sample_initial_parameters(device, env, params, rng_state);
             rl_tools::sample_initial_state(device, env, params, state, rng_state);
@@ -412,6 +414,7 @@ namespace imitation_kernels{
         } else {
             episode_lengths_log[env_i] = (T)-1;
             episode_tf_log[env_i] = (T)0;
+            episode_terminated_log[env_i] = (T)-1;
         }
         {
             rlt::Matrix<rlt::matrix::Specification<T, TI, 1, RAPTOR_OBS_DIM, true, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> obs_mat;
@@ -569,6 +572,7 @@ namespace imitation_kernels{
     void reduce_episode_stats_kernel(
         const T* episode_lengths_log,
         const T* episode_tf_log,
+        const T* episode_terminated_log,
         const TI* episode_step_arr,
         const bool* teacher_forcing_arr,
         T* stats_out
@@ -578,6 +582,7 @@ namespace imitation_kernels{
             T tf_episode_count = 0;
             T student_length_sum = 0;
             T student_episode_count = 0;
+            T terminated_count = 0;
             for(TI pos = 0; pos < STEPS_TOTAL; pos++){
                 T episode_length = episode_lengths_log[pos];
                 if(episode_length >= (T)0){
@@ -587,6 +592,9 @@ namespace imitation_kernels{
                     } else {
                         student_length_sum += episode_length;
                         student_episode_count += (T)1;
+                    }
+                    if(episode_terminated_log[pos] > (T)0.5){
+                        terminated_count += (T)1;
                     }
                 }
             }
@@ -606,6 +614,7 @@ namespace imitation_kernels{
             stats_out[1] = tf_episode_count;
             stats_out[2] = student_length_sum;
             stats_out[3] = student_episode_count;
+            stats_out[4] = terminated_count;
         }
     }
 
@@ -1309,8 +1318,8 @@ int main(int argc, char** argv){
     cudaMalloc(&gpu_logged_batch_losses, max_logged_loss_calls * sizeof(T));
     std::vector<T> cpu_logged_batch_losses(max_logged_loss_calls);
     T* gpu_epoch_episode_stats = nullptr;
-    cudaMalloc(&gpu_epoch_episode_stats, 4 * sizeof(T));
-    std::array<T, 4> cpu_epoch_episode_stats{};
+    cudaMalloc(&gpu_epoch_episode_stats, 5 * sizeof(T));
+    std::array<T, 5> cpu_epoch_episode_stats{};
 
     // GPU tensors
     static constexpr TI GPU_OBS_ROWS = STEPS_TOTAL + BATCH_SIZE;
@@ -1410,6 +1419,7 @@ int main(int argc, char** argv){
     bool* gpu_needs_reset = nullptr;
     T* gpu_episode_lengths_log = nullptr;
     T* gpu_episode_tf_log = nullptr;
+    T* gpu_episode_terminated_log = nullptr;
     T* gpu_brightness_scale_arr = nullptr;
     T* gpu_scene_translation_arr = nullptr;
     T* gpu_scene_yaw_arr = nullptr;
@@ -1425,6 +1435,7 @@ int main(int argc, char** argv){
     cudaMalloc(&gpu_needs_reset, N_ENVIRONMENTS * sizeof(bool));
     cudaMalloc(&gpu_episode_lengths_log, STEPS_TOTAL * sizeof(T));
     cudaMalloc(&gpu_episode_tf_log, STEPS_TOTAL * sizeof(T));
+    cudaMalloc(&gpu_episode_terminated_log, STEPS_TOTAL * sizeof(T));
     cudaMalloc(&gpu_brightness_scale_arr, N_ENVIRONMENTS * sizeof(T));
     cudaMalloc(&gpu_scene_translation_arr, N_ENVIRONMENTS * 3 * sizeof(T));
     cudaMalloc(&gpu_scene_yaw_arr, N_ENVIRONMENTS * sizeof(T));
@@ -1609,6 +1620,7 @@ int main(int argc, char** argv){
                     gpu_episode_return_arr, gpu_needs_reset,
                     gpu_episode_lengths_log + step_i * N_ENVIRONMENTS,
                     gpu_episode_tf_log + step_i * N_ENVIRONMENTS,
+                    gpu_episode_terminated_log + step_i * N_ENVIRONMENTS,
                     TEACHER_FORCING_FRACTION, full_teacher_forcing,
                     rlt::data(gpu_teacher_obs),
                     rlt::data(gpu_all_state_observations) + (TI)(step_i * N_ENVIRONMENTS) * STATE_OBS_DIM,
@@ -2221,6 +2233,7 @@ int main(int argc, char** argv){
         imitation_kernels::reduce_episode_stats_kernel<<<1, 1, 0, device_gpu.stream>>>(
             gpu_episode_lengths_log,
             gpu_episode_tf_log,
+            gpu_episode_terminated_log,
             gpu_episode_step_arr,
             gpu_teacher_forcing_arr,
             gpu_epoch_episode_stats
@@ -2230,6 +2243,9 @@ int main(int argc, char** argv){
         episode_count_tf = static_cast<TI>(cpu_epoch_episode_stats[1]);
         episode_length_sum_student = cpu_epoch_episode_stats[2];
         episode_count_student = static_cast<TI>(cpu_epoch_episode_stats[3]);
+        TI episode_count_terminated = static_cast<TI>(cpu_epoch_episode_stats[4]);
+        TI episode_count_started = episode_count_tf + episode_count_student;
+        T episode_terminated_share = episode_count_started > 0 ? static_cast<T>(episode_count_terminated) / static_cast<T>(episode_count_started) : (T)0;
 
         // Logging
         auto now = std::chrono::high_resolution_clock::now();
@@ -2262,6 +2278,7 @@ int main(int argc, char** argv){
                   << " mean_ep_len: " << std::setw(6) << std::setprecision(1) << mean_episode_length
                   << " ep_limit: " << std::setw(3) << current_episode_step_limit
                   << " episodes: " << std::setw(5) << episode_count
+                  << " term_share: " << std::setw(5) << std::setprecision(2) << std::fixed << episode_terminated_share
                   << " fps: " << std::setw(7) << std::setprecision(0) << fps
                   << " render: " << std::setw(5) << std::setprecision(1) << render_time_s << "s"
                   << " (" << std::setw(4) << std::setprecision(1) << render_pct << "%"
@@ -2315,6 +2332,8 @@ int main(int argc, char** argv){
         rlt::add_scalar(device, device.logger, "training/epoch_time_s", epoch_elapsed.count());
         rlt::add_scalar(device, device.logger, "training/total_time_s", training_elapsed.count());
         rlt::add_scalar(device, device.logger, "training/teacher_forcing", full_teacher_forcing ? (T)1 : TEACHER_FORCING_FRACTION);
+        rlt::add_scalar(device, device.logger, "training/terminated_share", episode_terminated_share);
+        rlt::add_scalar(device, device.logger, "training/terminated_episodes", static_cast<T>(episode_count_terminated));
         rlt::add_scalar(device, device.logger, "curriculum/episode_step_limit", static_cast<T>(current_episode_step_limit));
 #endif
 
@@ -2620,6 +2639,7 @@ int main(int argc, char** argv){
     cudaFree(gpu_needs_reset);
     cudaFree(gpu_episode_lengths_log);
     cudaFree(gpu_episode_tf_log);
+    cudaFree(gpu_episode_terminated_log);
     cudaFree(gpu_epoch_episode_stats);
     cudaFree(gpu_brightness_scale_arr);
     cudaFree(gpu_scene_translation_arr);
