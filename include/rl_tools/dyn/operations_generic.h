@@ -152,7 +152,38 @@ namespace rl_tools{
                 compute_leaf_output_shape(layer, in_shape, in_rank);
             }
             else if(layer.type == LayerType::PARALLEL){
-                layer.output_size = 0;
+                auto* p = layer.data ? &layer.template as<layers::Parallel<TI>>() : nullptr;
+                TI num_branches = (layer.num_children >= 3) ? layer.num_children - 1 : layer.num_children;
+                if(p == nullptr || p->num_input_dims < num_branches){ layer.output_size = 0; return; }
+                TI total = 0;
+                for(TI i = 0; i < num_branches; i++) total += p->input_dims[i];
+                if(total != in_shape[in_rank - 1]){ layer.output_size = 0; return; }
+                TI batch_rank = in_rank - 1;
+                for(TI i = 0; i < num_branches; i++){
+                    auto& child = layer.children[i];
+                    TI dim = p->input_dims[i];
+                    auto* first = &child;
+                    while(first->num_children > 0 && (first->type == LayerType::SEQUENTIAL || first->type == LayerType::MLP))
+                        first = &first->children[0];
+                    if(first->type == LayerType::CONV2D){
+                        auto& conv = first->template as<const layers::Conv2d<TI>>();
+                        TI ic = conv.input_channels;
+                        TI spatial = (ic > 0) ? dim / ic : 0;
+                        TI side = 1; while(side * side < spatial) side++;
+                        if(spatial > 0 && side * side == spatial){
+                            TI shape[TensorSpecification<TI>::MAX_RANK];
+                            for(TI d = 0; d < batch_rank; d++) shape[d] = in_shape[d];
+                            shape[batch_rank] = side; shape[batch_rank+1] = side; shape[batch_rank+2] = ic;
+                            propagate_shapes(child, shape, batch_rank + 3);
+                            continue;
+                        }
+                    }
+                    TI shape[TensorSpecification<TI>::MAX_RANK];
+                    for(TI d = 0; d < batch_rank; d++) shape[d] = in_shape[d];
+                    shape[batch_rank] = dim;
+                    propagate_shapes(child, shape, batch_rank + 1);
+                }
+                propagate_parallel_output(layer);
             }
             else{
                 const TI* cur_shape = in_shape; TI cur_rank = in_rank;
@@ -217,7 +248,13 @@ namespace rl_tools{
                     TI inter_size = 0;
                     TI num_branches = (layer.num_children >= 3) ? layer.num_children - 1 : layer.num_children;
                     for(TI i = 0; i < num_branches; i++) inter_size += layer.children[i].output_size;
-                    if(inter_size > m) m = inter_size;
+                    TI split_size = 0;
+                    auto* p = layer.data ? &layer.template as<const layers::Parallel<TI>>() : nullptr;
+                    if(p && p->num_input_dims >= num_branches){
+                        for(TI i = 0; i < num_branches; i++) split_size += p->input_dims[i];
+                    }
+                    TI total = inter_size + split_size;
+                    if(total > m) m = total;
                     break;
                 }
                 default: break;
@@ -641,23 +678,39 @@ namespace rl_tools{
                 inter_b.type = dyn::Type::FLOAT32; inter_b.data = reinterpret_cast<char*>(buffer.scratch.data) + size_a * sizeof(float);
                 inter_b.capacity = size_b;
                 TI dim_a = 0, dim_b = 0;
-                if(layer.data != nullptr){
+                if(layer.data){
                     auto& p = layer.template as<const dyn::layers::Parallel<TI>>();
-                    dim_a = p.input_dim_a; dim_b = p.input_dim_b;
+                    if(p.num_input_dims >= 2){ dim_a = p.input_dims[0]; dim_b = p.input_dims[1]; }
                 }
-                if(dim_a == 0 || dim_b == 0){
-                    dim_a = dyn::infer_flat_input_dim(child_a);
-                    dim_b = dyn::infer_flat_input_dim(child_b);
-                }
+                if(dim_a == 0) dim_a = dyn::infer_flat_input_dim(child_a);
+                if(dim_b == 0) dim_b = dyn::infer_flat_input_dim(child_b);
                 TI total_dim = input.shape[input.rank - 1];
                 if(dim_a > 0 && dim_b > 0 && dim_a + dim_b == total_dim){
                     TI batch = input.size() / total_dim;
+                    auto first_leaf = [](const dyn::Layer<TI>* l){
+                        while(l->num_children > 0 && (l->type == dyn::LayerType::SEQUENTIAL || l->type == dyn::LayerType::MLP)) l = &l->children[0];
+                        return l;
+                    };
+                    auto branch_shape = [&](const dyn::Layer<TI>& child, TI dim, TI* shape, TI& out_rank){
+                        const dyn::Layer<TI>* first = first_leaf(&child);
+                        if(first->type == dyn::LayerType::CONV2D){
+                            auto& conv = first->template as<const dyn::layers::Conv2d<TI>>();
+                            TI ic = conv.input_channels;
+                            TI spatial = (ic > 0) ? dim / ic : 0;
+                            TI side = 1; while(side * side < spatial) side++;
+                            if(spatial > 0 && side * side == spatial){
+                                shape[0] = batch; shape[1] = side; shape[2] = side; shape[3] = ic; out_rank = 4; return;
+                            }
+                        }
+                        shape[0] = batch; shape[1] = dim; out_rank = 2;
+                    };
                     dyn::Tensor<dyn::TensorSpecification<TI>> split_a, split_b;
                     TI shape_a[dyn::TensorSpecification<TI>::MAX_RANK], shape_b[dyn::TensorSpecification<TI>::MAX_RANK];
-                    for(TI d = 0; d < input.rank - 1; d++){ shape_a[d] = input.shape[d]; shape_b[d] = input.shape[d]; }
-                    shape_a[input.rank - 1] = dim_a; shape_b[input.rank - 1] = dim_b;
-                    dyn::set_shape(split_a, input.rank, shape_a);
-                    dyn::set_shape(split_b, input.rank, shape_b);
+                    TI rank_a, rank_b;
+                    branch_shape(child_a, dim_a, shape_a, rank_a);
+                    branch_shape(child_b, dim_b, shape_b, rank_b);
+                    dyn::set_shape(split_a, rank_a, shape_a);
+                    dyn::set_shape(split_b, rank_b, shape_b);
                     split_a.type = input.type; split_b.type = input.type;
                     split_a.capacity = split_a.size(); split_b.capacity = split_b.size();
                     TI inter_total = size_a + size_b;
@@ -769,7 +822,7 @@ namespace rl_tools{
             TI col = 0;
             for(TI i = 0; i < num_branches; i++){
                 for(TI j = 0; j < last_dims[i]; j++){
-                    dyn::set(device, concat_target, dyn::get(device, intermediates[i], b * last_dims[i] + j), b * last_out + col + j);
+                    rl_tools::set(device, concat_target, rl_tools::get(device, intermediates[i], b * last_dims[i] + j), b * last_out + col + j);
                 }
                 col += last_dims[i];
             }
