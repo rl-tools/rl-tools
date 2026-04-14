@@ -583,6 +583,8 @@ namespace imitation_kernels{
             T student_length_sum = 0;
             T student_episode_count = 0;
             T terminated_count = 0;
+            T complete_length_sum = 0;
+            T complete_episode_count = 0;
             for(TI pos = 0; pos < STEPS_TOTAL; pos++){
                 T episode_length = episode_lengths_log[pos];
                 if(episode_length >= (T)0){
@@ -596,6 +598,8 @@ namespace imitation_kernels{
                     if(episode_terminated_log[pos] > (T)0.5){
                         terminated_count += (T)1;
                     }
+                    complete_length_sum += episode_length;
+                    complete_episode_count += (T)1;
                 }
             }
             for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
@@ -615,6 +619,8 @@ namespace imitation_kernels{
             stats_out[2] = student_length_sum;
             stats_out[3] = student_episode_count;
             stats_out[4] = terminated_count;
+            stats_out[5] = complete_length_sum;
+            stats_out[6] = complete_episode_count;
         }
     }
 
@@ -1319,8 +1325,8 @@ int main(int argc, char** argv){
     cudaMalloc(&gpu_logged_batch_losses, max_logged_loss_calls * sizeof(T));
     std::vector<T> cpu_logged_batch_losses(max_logged_loss_calls);
     T* gpu_epoch_episode_stats = nullptr;
-    cudaMalloc(&gpu_epoch_episode_stats, 5 * sizeof(T));
-    std::array<T, 5> cpu_epoch_episode_stats{};
+    cudaMalloc(&gpu_epoch_episode_stats, 7 * sizeof(T));
+    std::array<T, 7> cpu_epoch_episode_stats{};
 
     // GPU tensors
     static constexpr TI GPU_OBS_ROWS = STEPS_TOTAL + BATCH_SIZE;
@@ -2245,8 +2251,12 @@ int main(int argc, char** argv){
         episode_length_sum_student = cpu_epoch_episode_stats[2];
         episode_count_student = static_cast<TI>(cpu_epoch_episode_stats[3]);
         TI episode_count_terminated = static_cast<TI>(cpu_epoch_episode_stats[4]);
+        T complete_episode_length_sum = cpu_epoch_episode_stats[5];
+        TI complete_episode_count = static_cast<TI>(cpu_epoch_episode_stats[6]);
         TI episode_count_started = episode_count_tf + episode_count_student;
         T episode_terminated_share = episode_count_started > 0 ? static_cast<T>(episode_count_terminated) / static_cast<T>(episode_count_started) : (T)0;
+        T complete_terminated_share = complete_episode_count > 0 ? static_cast<T>(episode_count_terminated) / static_cast<T>(complete_episode_count) : (T)0;
+        T complete_episode_length = complete_episode_count > 0 ? complete_episode_length_sum / static_cast<T>(complete_episode_count) : (T)0;
 
         // Logging
         auto now = std::chrono::high_resolution_clock::now();
@@ -2335,6 +2345,9 @@ int main(int argc, char** argv){
         rlt::add_scalar(device, device.logger, "training/teacher_forcing", full_teacher_forcing ? (T)1 : TEACHER_FORCING_FRACTION);
         rlt::add_scalar(device, device.logger, "training/terminated_share", episode_terminated_share);
         rlt::add_scalar(device, device.logger, "training/terminated_episodes", static_cast<T>(episode_count_terminated));
+        rlt::add_scalar(device, device.logger, "training/complete_terminated_share", complete_terminated_share);
+        rlt::add_scalar(device, device.logger, "training/complete_episode_length", complete_episode_length);
+        rlt::add_scalar(device, device.logger, "training/complete_episodes", static_cast<T>(complete_episode_count));
         rlt::add_scalar(device, device.logger, "curriculum/episode_step_limit", static_cast<T>(current_episode_step_limit));
 #endif
 
