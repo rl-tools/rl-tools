@@ -148,7 +148,7 @@ static constexpr PARAMETERS_TYPE nominal_parameters = { {dynamics, integration, 
 // Environment static parameters
 // =========================================================================
 #ifdef USE_FRAME_STACKING
-static constexpr TI ACTION_HISTORY_LENGTH = 4;
+static constexpr TI ACTION_HISTORY_LENGTH = 64;
 #else
 static constexpr TI ACTION_HISTORY_LENGTH = 1; // for GRU / Markovian
 #endif
