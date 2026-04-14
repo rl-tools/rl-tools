@@ -163,6 +163,9 @@ namespace rl_tools::dyn{
         template <typename T_TI>
         struct Parallel{
             using TI = T_TI;
+            static constexpr TI MAX_BRANCHES = 8;
+            TI input_dims[MAX_BRANCHES] = {};
+            TI num_input_dims = 0;
         };
     }
 
