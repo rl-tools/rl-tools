@@ -101,9 +101,9 @@ using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<rlt::devices::DefaultCUDASp
 
 using T = float;
 using TYPE_POLICY = rlt::numeric_types::Policy<float,
-    rlt::numeric_types::UseCase<rlt::numeric_types::categories::Parameter, float>,
-    rlt::numeric_types::UseCase<rlt::numeric_types::categories::Activation, float>,
-    rlt::numeric_types::UseCase<rlt::numeric_types::categories::Gradient, float>,
+    rlt::numeric_types::UseCase<rlt::numeric_types::categories::Parameter, __nv_bfloat16>,
+    rlt::numeric_types::UseCase<rlt::numeric_types::categories::Activation, __nv_bfloat16>,
+    rlt::numeric_types::UseCase<rlt::numeric_types::categories::Gradient, __nv_bfloat16>,
     rlt::numeric_types::UseCase<rlt::numeric_types::categories::MasterParameter, float>>;
 using T_ACTIVATION = TYPE_POLICY::GET<rlt::numeric_types::categories::Activation>;
 using T_GRADIENT = TYPE_POLICY::GET<rlt::numeric_types::categories::Gradient>;
