@@ -170,6 +170,12 @@ constexpr bool HIGH_FIDELITY_SHADING = true;
 using VISUAL_SPEC = rlt::rl::environments::l2f_visual::Specification<T, TI, STATIC_PARAMETERS, N_ENVIRONMENTS_PER_SCENE, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, HIGH_FIDELITY_SHADING>;
 using ENVIRONMENT = rlt::rl::environments::l2f_visual::MultirrotorVisual<VISUAL_SPEC>;
 
+// Mosaic layout: each env cell shows (target | actual) pair, arranged in an ENV_GRID_SIDE×ENV_GRID_SIDE grid per active scene.
+static constexpr TI ENV_GRID_SIDE = 8;
+static constexpr TI SCENE_GRID_COLS = N_ACTIVE_SCENES;
+static constexpr TI SCENE_GRID_ROWS = (N_ACTIVE_SCENES + SCENE_GRID_COLS - 1) / SCENE_GRID_COLS;
+static_assert(ENV_GRID_SIDE * ENV_GRID_SIDE == N_ENVIRONMENTS_PER_SCENE, "ENV_GRID_SIDE^2 must equal N_ENVIRONMENTS_PER_SCENE for the mosaic layout");
+
 // =========================================================================
 // Frame stacking + target-channel concatenation
 // =========================================================================
@@ -188,7 +194,7 @@ static constexpr T OBSERVATION_NOISE_STD = 0.0;
 // =========================================================================
 // Trajectory recording for extrack UI
 // =========================================================================
-static constexpr TI TRAJECTORY_SAVE_INTERVAL = 50;
+static constexpr TI TRAJECTORY_SAVE_INTERVAL = 500;
 static constexpr TI TRAJECTORY_NUM_ENVS = 10;
 static constexpr TI TRAJECTORY_MAX_EPISODES = 10;
 
@@ -251,7 +257,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParame
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
     static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 64;
     static constexpr TI N_ENVIRONMENTS = ::N_ENVIRONMENTS;
-    static constexpr TI TOTAL_STEP_LIMIT = 10000000;
+    static constexpr TI TOTAL_STEP_LIMIT = 1000000000;
     static constexpr TI STEP_LIMIT = TOTAL_STEP_LIMIT / (N_ENVIRONMENTS * ON_POLICY_RUNNER_STEPS_PER_ENV) + 1;
     static constexpr TI EPISODE_STEP_LIMIT = ::EPISODE_STEP_LIMIT;
     using ACTOR_OPTIMIZER_PARAMETERS = ADAM_PARAMETERS;
@@ -1114,6 +1120,14 @@ int main(int argc, char** argv){
     // Trajectory state buffer for post-collect reconstruction
     std::vector<typename ENVIRONMENT::State> trajectory_states(STEPS_PER_ENV * TRAJECTORY_NUM_ENVS);
 
+    // Video mosaic: each env cell shows (target | actual), ENV_GRID_SIDE^2 per active scene.
+    static constexpr TI CAM_PIXELS = CAM_WIDTH * CAM_HEIGHT;
+    static constexpr TI MOSAIC_W = SCENE_GRID_COLS * ENV_GRID_SIDE * CAM_WIDTH * 2;
+    static constexpr TI MOSAIC_H = SCENE_GRID_ROWS * ENV_GRID_SIDE * CAM_HEIGHT;
+    std::vector<uint8_t> mosaic_frame(MOSAIC_W * MOSAIC_H * 3);
+    std::vector<float> cpu_obs_video(N_ENVIRONMENTS * OBSERVATION_DIM);
+    std::vector<float> cpu_target_obs_video(N_ENVIRONMENTS * OBSERVATION_DIM);
+
     // ---------------------------------------------------------------------
     // Training loop
     // ---------------------------------------------------------------------
@@ -1173,6 +1187,27 @@ int main(int argc, char** argv){
             std::vector<T> reset_host(N_ENVIRONMENTS);
             for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++) reset_host[env_i] = truncated_host[env_i] ? (T)1 : (T)0;
             cudaMemcpy(dataset_gpu.reset._data, reset_host.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
+        }
+
+        // =================================================================
+        // Optional video recording (mosaic of target | actual frames)
+        // =================================================================
+        bool record_video = (ppo_step_i % TRAJECTORY_SAVE_INTERVAL == 0);
+        FILE* ffmpeg_pipe = nullptr;
+        if(record_video){
+            auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, on_policy_runner_gpu.step + N_ENVIRONMENTS * STEPS_PER_ENV);
+            std::filesystem::create_directories(step_folder);
+            auto video_path = step_folder / "video.mp4";
+            char ffmpeg_cmd[1024];
+            std::snprintf(ffmpeg_cmd, sizeof(ffmpeg_cmd),
+                "ffmpeg -y -f rawvideo -pixel_format rgb24 -video_size %lux%lu -framerate %lu -i - "
+                "-c:v libx264 -pix_fmt yuv420p -crf 23 -preset fast -loglevel warning %s",
+                (unsigned long)MOSAIC_W, (unsigned long)MOSAIC_H, (unsigned long)SIMULATION_FREQUENCY, video_path.c_str());
+            ffmpeg_pipe = popen(ffmpeg_cmd, "w");
+            if(!ffmpeg_pipe){
+                std::cerr << "Failed to open ffmpeg pipe for " << video_path << std::endl;
+                record_video = false;
+            }
         }
 
         // =================================================================
@@ -1280,6 +1315,46 @@ int main(int argc, char** argv){
                 cudaStreamWaitEvent(device_gpu.stream, target_render_scatter_done_events[active_scene_i], 0);
             }
 
+            // Video mosaic write: pull both frames to CPU and place each env cell as (target | actual).
+            if(record_video && ffmpeg_pipe){
+                cudaStreamSynchronize(device_gpu.stream);
+                cudaMemcpy(cpu_obs_video.data(), obs_ptr, N_ENVIRONMENTS * OBSERVATION_DIM * sizeof(float), cudaMemcpyDeviceToHost);
+                cudaMemcpy(cpu_target_obs_video.data(), target_obs_ptr, N_ENVIRONMENTS * OBSERVATION_DIM * sizeof(float), cudaMemcpyDeviceToHost);
+                for(TI scene_row = 0; scene_row < SCENE_GRID_ROWS; scene_row++){
+                    for(TI scene_col = 0; scene_col < SCENE_GRID_COLS; scene_col++){
+                        TI active_scene_i = scene_row * SCENE_GRID_COLS + scene_col;
+                        if(active_scene_i >= N_ACTIVE_SCENES) continue;
+                        for(TI local_row = 0; local_row < ENV_GRID_SIDE; local_row++){
+                            for(TI local_col = 0; local_col < ENV_GRID_SIDE; local_col++){
+                                TI local_env = local_row * ENV_GRID_SIDE + local_col;
+                                TI env_i = active_scene_i * N_ENVIRONMENTS_PER_SCENE + local_env;
+                                const float* env_obs = cpu_obs_video.data() + env_i * OBSERVATION_DIM;
+                                const float* env_target_obs = cpu_target_obs_video.data() + env_i * OBSERVATION_DIM;
+                                TI cell_x = (scene_col * ENV_GRID_SIDE + local_col) * CAM_WIDTH * 2;
+                                TI cell_y = (scene_row * ENV_GRID_SIDE + local_row) * CAM_HEIGHT;
+                                for(TI py = 0; py < CAM_HEIGHT; py++){
+                                    for(TI px = 0; px < CAM_WIDTH; px++){
+                                        TI pixel_i = py * CAM_WIDTH + px;
+                                        TI mosaic_y = cell_y + py;
+                                        TI target_x = cell_x + px;
+                                        TI actual_x = cell_x + CAM_WIDTH + px;
+                                        TI target_idx = (mosaic_y * MOSAIC_W + target_x) * 3;
+                                        TI actual_idx = (mosaic_y * MOSAIC_W + actual_x) * 3;
+                                        mosaic_frame[target_idx + 0] = static_cast<uint8_t>(std::clamp(env_target_obs[pixel_i * 3 + 0] * 255.0f, 0.0f, 255.0f));
+                                        mosaic_frame[target_idx + 1] = static_cast<uint8_t>(std::clamp(env_target_obs[pixel_i * 3 + 1] * 255.0f, 0.0f, 255.0f));
+                                        mosaic_frame[target_idx + 2] = static_cast<uint8_t>(std::clamp(env_target_obs[pixel_i * 3 + 2] * 255.0f, 0.0f, 255.0f));
+                                        mosaic_frame[actual_idx + 0] = static_cast<uint8_t>(std::clamp(env_obs[pixel_i * 3 + 0] * 255.0f, 0.0f, 255.0f));
+                                        mosaic_frame[actual_idx + 1] = static_cast<uint8_t>(std::clamp(env_obs[pixel_i * 3 + 1] * 255.0f, 0.0f, 255.0f));
+                                        mosaic_frame[actual_idx + 2] = static_cast<uint8_t>(std::clamp(env_obs[pixel_i * 3 + 2] * 255.0f, 0.0f, 255.0f));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                std::fwrite(mosaic_frame.data(), 1, mosaic_frame.size(), ffmpeg_pipe);
+            }
+
             // 4. Build combined rollout input from history + target
             {
                 int total_elements = N_ENVIRONMENTS * COMBINED_OBS_DIM;
@@ -1336,6 +1411,8 @@ int main(int argc, char** argv){
                 }
             }
         }
+
+        if(ffmpeg_pipe){ pclose(ffmpeg_pipe); ffmpeg_pipe = nullptr; }
 
         // Final privileged observations for value bootstrap
         {
