@@ -233,12 +233,21 @@ namespace rl_tools{
         }
         else if(utils::string::compare(type_str, "parallel", 8)){
             layer.type = LayerType::PARALLEL;
-            layer.data = new layers::Parallel<TI>();
+            auto* p = new layers::Parallel<TI>();
+            layer.data = p;
             bool has_head = group_exists(device, group, "head");
             layer.num_children = has_head ? 3 : 2; layer.children = new Layer<TI>[layer.num_children];
             auto pag = get_group(device, group, "branch_0"); ok &= load(device, layer.children[0], pag);
             auto pbg = get_group(device, group, "branch_1"); ok &= load(device, layer.children[1], pbg);
             if(has_head){ auto hg = get_group(device, group, "head"); ok &= load(device, layer.children[2], hg); }
+            TI num_branches = has_head ? 2 : layer.num_children;
+            for(TI i = 0; i < num_branches && i < layers::Parallel<TI>::MAX_BRANCHES; i++){
+                char attr_name[16] = "input_dim_"; attr_name[10] = static_cast<char>('0' + i); attr_name[11] = '\0';
+                if(attribute_exists(device, group, attr_name)){
+                    p->input_dims[i] = get_attribute_int<TI>(device, group, attr_name);
+                    p->num_input_dims = i + 1;
+                }
+            }
         }
         else{ return false; }
         return ok;
