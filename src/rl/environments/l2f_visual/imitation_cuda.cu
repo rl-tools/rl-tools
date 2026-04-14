@@ -2398,6 +2398,9 @@ int main(int argc, char** argv){
             rlt::malloc(device, example_input);
             rlt::malloc(device, example_output);
             {
+                // Sample from the last rollout step so the frame-stacking kernel has all history slots populated (step 0 clamps every past frame to episode_start).
+                static constexpr TI EXAMPLE_ROW_OFFSET = (STEPS_PER_ENV - 1) * N_ENVIRONMENTS;
+                static_assert(N_EXAMPLES <= N_ENVIRONMENTS, "N_EXAMPLES must fit within a single rollout step's envs");
 #ifdef STACK_TARGET_CHANNEL
                 {
                     auto example_input_img_dst_slice = rlt::view_range(device, example_input, (TI)0, rlt::tensor::ViewSpec<1, COMBINED_OBS_DIM>{});
@@ -2407,11 +2410,11 @@ int main(int argc, char** argv){
                     rlt::malloc(device, scratch_img);
                     rlt::malloc(device, scratch_state);
 #ifdef USE_FRAME_STACKING
-                    auto src_combined = rlt::view_range(device_gpu, gpu_all_combined_observations, (TI)0, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
+                    auto src_combined = rlt::view_range(device_gpu, gpu_all_combined_observations, EXAMPLE_ROW_OFFSET, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
 #else
                     auto src_combined = rlt::view_range(device_gpu, gpu_rollout_combined, (TI)0, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
 #endif
-                    auto src_state = rlt::view_range(device_gpu, gpu_all_state_observations, (TI)0, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
+                    auto src_state = rlt::view_range(device_gpu, gpu_all_state_observations, EXAMPLE_ROW_OFFSET, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
                     rlt::copy(device_gpu, device, src_combined, scratch_img);
                     rlt::copy(device_gpu, device, src_state, scratch_state);
                     rlt::copy(device, device, scratch_img, example_input_img_dst_slice);
@@ -2433,11 +2436,12 @@ int main(int argc, char** argv){
 #ifdef USE_FRAME_STACKING
                     auto src_target_img = rlt::view_range(device_gpu, gpu_stacked_target_batch, (TI)0, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
                     auto src_img = rlt::view_range(device_gpu, gpu_stacked_batch, (TI)0, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
-#else
-                    auto src_target_img = rlt::view_range(device_gpu, gpu_all_target_observations, (TI)0, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
-                    auto src_img = rlt::view_range(device_gpu, gpu_all_observations, (TI)0, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
-#endif
                     auto src_state = rlt::view_range(device_gpu, gpu_all_state_observations, (TI)0, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
+#else
+                    auto src_target_img = rlt::view_range(device_gpu, gpu_all_target_observations, EXAMPLE_ROW_OFFSET, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
+                    auto src_img = rlt::view_range(device_gpu, gpu_all_observations, EXAMPLE_ROW_OFFSET, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
+                    auto src_state = rlt::view_range(device_gpu, gpu_all_state_observations, EXAMPLE_ROW_OFFSET, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
+#endif
                     rlt::copy(device_gpu, device, src_target_img, scratch_target_img);
                     rlt::copy(device_gpu, device, src_img, scratch_img);
                     rlt::copy(device_gpu, device, src_state, scratch_state);
