@@ -18,6 +18,12 @@
 
 #include <cstdlib>
 
+#if defined(_WIN32) || defined(_WIN64)
+#include <process.h>
+#else
+#include <unistd.h>
+#endif
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     // note usage examples in ./extrack.h
@@ -185,6 +191,19 @@ namespace rl_tools{
             add_text(device, device.logger, "git/project/diff_staged", (std::string("```diff\n") + rl_tools::utils::extrack::git::project::diff_staged + "```").c_str());
             add_text(device, device.logger, "git/project/word_diff_staged", (std::string("```diff\n") + rl_tools::utils::extrack::git::project::word_diff_staged + "```").c_str());
             add_text(device, device.logger, "git/project/path", (std::string("`") + rl_tools::utils::extrack::git::project::path + "`").c_str());
+        }
+#endif
+#ifdef RL_TOOLS_ENABLE_TENSORBOARD
+        {
+#if defined(_WIN32) || defined(_WIN64)
+            auto pid = _getpid();
+#else
+            auto pid = getpid();
+#endif
+            std::ofstream pid_file(paths.seed / "pid.txt");
+            pid_file << pid;
+            pid_file.close();
+            add_text(device, device.logger, "pid", (std::string("`") + std::to_string(pid) + "`").c_str());
         }
 #endif
 
