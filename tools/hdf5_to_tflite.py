@@ -254,9 +254,30 @@ def main():
         f.write(tflite_bytes)
     print(f"wrote {len(tflite_bytes)} bytes to {out_path}")
 
-    y_tflite = run_tflite(tflite_bytes, x)
-    tflite_err = np.max(np.abs(y_tflite - y_ref))
-    print(f"TFLite vs reference: max_abs_err={tflite_err:.6g}")
+    base, _ = os.path.splitext(out_path)
+    in_path = base + ".example_input.bin"
+    out_example_path = base + ".example_output.bin"
+    x_flat = np.ascontiguousarray(x, dtype=np.float32)
+    y_flat = np.ascontiguousarray(y_ref, dtype=np.float32)
+    with open(in_path, "wb") as f:
+        f.write(x_flat.tobytes())
+    with open(out_example_path, "wb") as f:
+        f.write(y_flat.tobytes())
+    print(f"wrote {x_flat.nbytes} bytes to {in_path}  (shape={x_flat.shape}, dtype=float32)")
+    print(f"wrote {y_flat.nbytes} bytes to {out_example_path}  (shape={y_flat.shape}, dtype=float32)")
+
+    with open(in_path, "rb") as f:
+        x_reloaded = np.frombuffer(f.read(), dtype=np.float32).reshape(x_flat.shape)
+    with open(out_example_path, "rb") as f:
+        y_reloaded = np.frombuffer(f.read(), dtype=np.float32).reshape(y_flat.shape)
+    assert np.array_equal(x_reloaded, x_flat), "companion input diverges from source"
+    assert np.array_equal(y_reloaded, y_flat), "companion output diverges from source"
+
+    with open(out_path, "rb") as f:
+        reloaded = f.read()
+    y_tflite = run_tflite(reloaded, x_reloaded)
+    tflite_err = np.max(np.abs(y_tflite - y_reloaded))
+    print(f"TFLite (via companion files) vs reference: max_abs_err={tflite_err:.6g}")
     print(f"  tflite: {y_tflite.reshape(-1)}")
 
     worst = max(keras_err, tflite_err)
