@@ -231,7 +231,7 @@ static constexpr TI TARGET_DIM = ACTION_DIM;
 static constexpr TI INDOOR_POSITION_DIM = 3;
 static constexpr TI OBSERVATION_DIM = ENVIRONMENT::OBSERVATION_DIM;
 static constexpr TI BATCH_SIZE = 512;
-static constexpr TI STEPS_PER_ENV = 500;
+static constexpr TI STEPS_PER_ENV = 200;
 static constexpr TI STEPS_TOTAL = STEPS_PER_ENV * N_ENVIRONMENTS;
 static constexpr TI N_BATCHES = STEPS_TOTAL / BATCH_SIZE;
 static constexpr TI NUM_EPOCHS = 1000000;
@@ -240,7 +240,7 @@ static constexpr T TEACHER_FORCING_FRACTION = 0.0;
 static constexpr TI N_TRAIN_PASSES = 4;
 static constexpr TI VIDEO_CADENCE = 10;
 static constexpr TI CHECKPOINT_CADENCE = 1000;
-static constexpr TI N_EXAMPLES = 32;
+static constexpr TI N_EXAMPLES = 512;
 static constexpr T OBSERVATION_NOISE_STD = 0.00;
 static constexpr T BRIGHTNESS_RANDOMIZATION_RANGE = 0.5;
 static constexpr TI ENV_GRID_SIDE = 8; // sqrt(N_ENVIRONMENTS_PER_SCENE)
@@ -2398,9 +2398,6 @@ int main(int argc, char** argv){
             rlt::malloc(device, example_input);
             rlt::malloc(device, example_output);
             {
-                // Sample from the last rollout step so the frame-stacking kernel has all history slots populated (step 0 clamps every past frame to episode_start).
-                static constexpr TI EXAMPLE_ROW_OFFSET = (STEPS_PER_ENV - 1) * N_ENVIRONMENTS;
-                static_assert(N_EXAMPLES <= N_ENVIRONMENTS, "N_EXAMPLES must fit within a single rollout step's envs");
 #ifdef STACK_TARGET_CHANNEL
                 {
                     auto example_input_img_dst_slice = rlt::view_range(device, example_input, (TI)0, rlt::tensor::ViewSpec<1, COMBINED_OBS_DIM>{});
@@ -2410,11 +2407,17 @@ int main(int argc, char** argv){
                     rlt::malloc(device, scratch_img);
                     rlt::malloc(device, scratch_state);
 #ifdef USE_FRAME_STACKING
+                    // Sample the tail of the rollout so every frame-stack slot is populated (step 0 clamps past frames to episode_start).
+                    static constexpr TI EXAMPLE_ROW_OFFSET = STEPS_TOTAL - N_EXAMPLES;
+                    static_assert(EXAMPLE_ROW_OFFSET >= (FRAME_STACK_N - 1) * FRAME_STACK_STRIDE * N_ENVIRONMENTS,
+                        "N_EXAMPLES too large: sampled window would include steps with clamped frame-stack history");
                     auto src_combined = rlt::view_range(device_gpu, gpu_all_combined_observations, EXAMPLE_ROW_OFFSET, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
-#else
-                    auto src_combined = rlt::view_range(device_gpu, gpu_rollout_combined, (TI)0, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
-#endif
                     auto src_state = rlt::view_range(device_gpu, gpu_all_state_observations, EXAMPLE_ROW_OFFSET, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
+#else
+                    static_assert(N_EXAMPLES <= COMBINED_BUFFER_ROWS, "N_EXAMPLES exceeds gpu_rollout_combined capacity");
+                    auto src_combined = rlt::view_range(device_gpu, gpu_rollout_combined, (TI)0, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
+                    auto src_state = rlt::view_range(device_gpu, gpu_all_state_observations, (TI)0, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
+#endif
                     rlt::copy(device_gpu, device, src_combined, scratch_img);
                     rlt::copy(device_gpu, device, src_state, scratch_state);
                     rlt::copy(device, device, scratch_img, example_input_img_dst_slice);
@@ -2434,10 +2437,13 @@ int main(int argc, char** argv){
                     rlt::malloc(device, scratch_img);
                     rlt::malloc(device, scratch_state);
 #ifdef USE_FRAME_STACKING
+                    static_assert(N_EXAMPLES <= BATCH_SIZE, "N_EXAMPLES exceeds gpu_stacked_batch capacity");
                     auto src_target_img = rlt::view_range(device_gpu, gpu_stacked_target_batch, (TI)0, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
                     auto src_img = rlt::view_range(device_gpu, gpu_stacked_batch, (TI)0, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
                     auto src_state = rlt::view_range(device_gpu, gpu_all_state_observations, (TI)0, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
 #else
+                    static_assert(N_EXAMPLES <= STEPS_TOTAL, "N_EXAMPLES exceeds gpu_all_observations capacity");
+                    static constexpr TI EXAMPLE_ROW_OFFSET = STEPS_TOTAL - N_EXAMPLES;
                     auto src_target_img = rlt::view_range(device_gpu, gpu_all_target_observations, EXAMPLE_ROW_OFFSET, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
                     auto src_img = rlt::view_range(device_gpu, gpu_all_observations, EXAMPLE_ROW_OFFSET, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
                     auto src_state = rlt::view_range(device_gpu, gpu_all_state_observations, EXAMPLE_ROW_OFFSET, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
