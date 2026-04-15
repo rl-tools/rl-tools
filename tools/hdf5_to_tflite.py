@@ -381,8 +381,9 @@ def write_quantized_h5(src_path, dst_path, dequant_by_path):
 
 def run_tflite(tflite_bytes, x):
     interp = tf.lite.Interpreter(model_content=tflite_bytes)
-    interp.allocate_tensors()
     inp = interp.get_input_details()[0]
+    interp.resize_tensor_input(inp["index"], list(x.shape))
+    interp.allocate_tensors()
     out = interp.get_output_details()[0]
     interp.set_tensor(inp["index"], x.astype(np.float32))
     interp.invoke()
@@ -435,6 +436,10 @@ def main():
                     help="cap on calibration samples; 0 means use all")
     ap.add_argument("--quantize-tolerance", type=float, default=0.2,
                     help="max absolute error tolerance for int8 tflite vs reference")
+    ap.add_argument("--fast-tanh-substitute", choices=["keep", "tanh"], default="tanh",
+                    help="for int8 mode only: replace the polynomial FAST_TANH with tf.nn.tanh "
+                         "(tanh uses a lookup table under int8 and is well-supported on NPUs; "
+                         "the polynomial form triggers a division by zero in the int8 DIV kernel)")
     args = ap.parse_args()
 
     out_path = args.output or os.path.splitext(args.input)[0] + ".tflite"
@@ -513,7 +518,20 @@ def main():
         )
     print(f"representative-dataset: {rep_samples.shape[0]} samples of dim {rep_samples.shape[-1]}")
 
-    int8_bytes = convert_int8(model, rep_samples, args.quantize_io)
+    if args.fast_tanh_substitute == "tanh":
+        print("substituting FAST_TANH → tf.nn.tanh for int8 conversion "
+              "(weights in .quantized.h5 will reflect this substitution)")
+        saved = ACTIVATIONS["FAST_TANH"]
+        ACTIVATIONS["FAST_TANH"] = tf.nn.tanh
+        try:
+            with h5py.File(args.input, "r") as f:
+                int8_src_model = build_model(f)
+        finally:
+            ACTIVATIONS["FAST_TANH"] = saved
+    else:
+        int8_src_model = model
+
+    int8_bytes = convert_int8(int8_src_model, rep_samples, args.quantize_io)
     int8_path = base + ".int8.tflite"
     with open(int8_path, "wb") as f:
         f.write(int8_bytes)
