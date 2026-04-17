@@ -555,10 +555,18 @@ def main():
         f.write(int8_bytes)
     print(f"wrote {len(int8_bytes)} bytes to {int8_path}")
 
-    y_int8 = run_tflite_int8(int8_bytes, x_flat)
-    y_int8 = y_int8.reshape(y_flat.shape)
-    int8_err = np.max(np.abs(y_int8 - y_flat))
-    report(f"TFLite (int8) vs reference: max_abs_err={int8_err:.6g}")
+    with open(int8_path, "rb") as f:
+        int8_reloaded = f.read()
+    with open(in_path, "rb") as f:
+        x_reloaded_int8 = np.frombuffer(f.read(), dtype=np.float32).reshape(x_flat.shape)
+    with open(out_example_path, "rb") as f:
+        y_reloaded_int8 = np.frombuffer(f.read(), dtype=np.float32).reshape(y_flat.shape)
+    assert np.array_equal(x_reloaded_int8, x_flat), "companion input diverges from source"
+    assert np.array_equal(y_reloaded_int8, y_flat), "companion output diverges from source"
+    y_int8 = run_tflite_int8(int8_reloaded, x_reloaded_int8)
+    y_int8 = y_int8.reshape(y_reloaded_int8.shape)
+    int8_err = np.max(np.abs(y_int8 - y_reloaded_int8))
+    report(f"TFLite (int8, via companion files) vs reference: max_abs_err={int8_err:.6g}")
     report(f"  int8:  {y_int8.reshape(-1)}")
 
     dequant_by_path = extract_quantized_weights(int8_bytes, ordered_layers)
