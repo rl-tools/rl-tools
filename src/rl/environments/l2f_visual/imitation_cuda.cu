@@ -320,23 +320,26 @@ struct TrajectoryStep {
     T reward;
     bool terminated;
 };
+struct CompletedEpisode {
+    typename ENVIRONMENT::Parameters parameters;
+    std::vector<TrajectoryStep> steps;
+};
 struct EpisodeRecorder {
     std::vector<TrajectoryStep> current_episode;
+    typename ENVIRONMENT::Parameters parameters_snapshot;
     bool episode_started = false;
 };
 
-std::string trajectory_episodes_to_json(DEVICE& device, ENVIRONMENT& env, typename ENVIRONMENT::Parameters& parameters,
-    const std::vector<std::vector<TrajectoryStep>>& episodes, T dt){
+std::string trajectory_episodes_to_json(DEVICE& device, ENVIRONMENT& env, const std::vector<CompletedEpisode>& episodes, T dt){
     if(episodes.empty()) return "[]";
-    TI max_len = 0;
-    for(auto& ep : episodes) if(ep.size() > max_len) max_len = ep.size();
     std::string json = "[";
     for(TI ep_i = 0; ep_i < episodes.size(); ep_i++){
         auto& episode = episodes[ep_i];
+        auto& parameters = episode.parameters;
         json += "{\"parameters\": " + rlt::json(device, env, parameters) + ",\n";
         json += "\"trajectory\": [";
-        for(TI step_i = 0; step_i < max_len; step_i++){
-            auto& s = (step_i < episode.size()) ? episode[step_i] : episode.back();
+        for(TI step_i = 0; step_i < episode.steps.size(); step_i++){
+            auto& s = episode.steps[step_i];
             json += "{\"state\":" + rlt::json(device, env, parameters, s.state) + ",";
             json += "\"action\":[";
             for(TI a = 0; a < ENVIRONMENT::ACTION_DIM; a++){
@@ -346,10 +349,9 @@ std::string trajectory_episodes_to_json(DEVICE& device, ENVIRONMENT& env, typena
             json += "],";
             json += "\"dt\":" + std::to_string(dt) + ",";
             json += "\"reward\":" + std::to_string(s.reward) + ",";
-            bool term = (step_i < episode.size()) ? s.terminated : true;
-            json += "\"terminated\":" + (term ? std::string("true") : std::string("false"));
+            json += "\"terminated\":" + (s.terminated ? std::string("true") : std::string("false"));
             json += "}";
-            if(step_i < max_len - 1) json += ",";
+            if(step_i < episode.steps.size() - 1) json += ",";
         }
         json += "]}";
         if(ep_i < episodes.size() - 1) json += ",";
@@ -1249,7 +1251,12 @@ int main(int argc, char** argv){
     }
 
     EpisodeRecorder episode_recorders[TRAJECTORY_NUM_ENVS];
-    std::vector<std::vector<TrajectoryStep>> completed_episodes;
+    std::vector<CompletedEpisode> completed_episodes;
+    std::vector<typename ENVIRONMENT::State> cpu_prestep_state_buf(TRAJECTORY_NUM_ENVS);
+    std::vector<uint8_t> cpu_needs_reset_buf(TRAJECTORY_NUM_ENVS);
+    std::vector<uint8_t> cpu_terminated_buf(TRAJECTORY_NUM_ENVS);
+    std::vector<T_ACTIVATION> cpu_student_action_buf(TRAJECTORY_NUM_ENVS * ACTION_DIM);
+    std::vector<PARAMETERS_TYPE> cpu_params_snapshot_buf(TRAJECTORY_NUM_ENVS);
     T simulation_dt = static_cast<T>(1) / static_cast<T>(SIMULATION_FREQUENCY);
     TI global_step = 0;
 
@@ -1606,6 +1613,14 @@ int main(int argc, char** argv){
 #endif
         bool full_teacher_forcing = false;
         bool record_video = (epoch_i % CHECKPOINT_CADENCE == 0);
+        bool record_trajectories = (epoch_i % CHECKPOINT_CADENCE == 0);
+        if(record_trajectories){
+            for(TI env_i = 0; env_i < TRAJECTORY_NUM_ENVS; env_i++){
+                episode_recorders[env_i].current_episode.clear();
+                episode_recorders[env_i].episode_started = false;
+            }
+            completed_episodes.clear();
+        }
         TI epoch_end_step = global_step + STEPS_PER_ENV * N_ENVIRONMENTS;
         FILE* ffmpeg_pipe = nullptr;
         if(record_video){
@@ -1677,6 +1692,11 @@ int main(int argc, char** argv){
                     gpu_indoor_positions, gpu_num_indoor_positions, gpu_env_scene, MAX_INDOOR_POS,
                     rng_gpu, step_i, current_episode_step_limit);
                 CUDA_CHECK("prologue_kernel");
+                if(record_trajectories){
+                    cudaMemcpyAsync(cpu_prestep_state_buf.data(), gpu_states_arr, TRAJECTORY_NUM_ENVS * sizeof(typename ENVIRONMENT::State), cudaMemcpyDeviceToHost, device_gpu.stream);
+                    cudaMemcpyAsync(cpu_needs_reset_buf.data(), gpu_needs_reset, TRAJECTORY_NUM_ENVS * sizeof(bool), cudaMemcpyDeviceToHost, device_gpu.stream);
+                    cudaMemcpyAsync(cpu_params_snapshot_buf.data(), gpu_params_arr, TRAJECTORY_NUM_ENVS * sizeof(PARAMETERS_TYPE), cudaMemcpyDeviceToHost, device_gpu.stream);
+                }
 #if defined(USE_FRAME_STACKING) && !defined(STACK_TARGET_CHANNEL)
                 imitation_kernels::record_episode_start_kernel<<<grid, block, 0, device_gpu.stream>>>(tag_device, gpu_episode_start_step, gpu_episode_start_step_per_row, step_i);
 #endif
@@ -1925,7 +1945,49 @@ int main(int argc, char** argv){
                         rng_gpu, step_i);
                 }
                 CUDA_CHECK("epilogue_kernel");
+                if(record_trajectories){
+                    cudaMemcpyAsync(cpu_student_action_buf.data(), rlt::data(gpu_student_actions_step), TRAJECTORY_NUM_ENVS * ACTION_DIM * sizeof(T_ACTIVATION), cudaMemcpyDeviceToHost, device_gpu.stream);
+                    cudaMemcpyAsync(cpu_terminated_buf.data(), gpu_terminated_arr, TRAJECTORY_NUM_ENVS * sizeof(bool), cudaMemcpyDeviceToHost, device_gpu.stream);
+                    cudaStreamSynchronize(device_gpu.stream);
+                    for(TI env_i = 0; env_i < TRAJECTORY_NUM_ENVS; env_i++){
+                        auto& rec = episode_recorders[env_i];
+                        bool needs_reset = cpu_needs_reset_buf[env_i] != 0;
+                        if(needs_reset && rec.episode_started){
+                            if(completed_episodes.size() < TRAJECTORY_MAX_EPISODES){
+                                completed_episodes.push_back({rec.parameters_snapshot, std::move(rec.current_episode)});
+                            }
+                            rec.current_episode.clear();
+                            rec.episode_started = false;
+                        }
+                        if(completed_episodes.size() >= TRAJECTORY_MAX_EPISODES) continue;
+                        if(!rec.episode_started){
+                            rec.parameters_snapshot = env_parameters[env_i];
+                            rec.parameters_snapshot.dynamics = cpu_params_snapshot_buf[env_i];
+                            rec.episode_started = true;
+                        }
+                        TrajectoryStep ts;
+                        ts.state = cpu_prestep_state_buf[env_i];
+                        for(TI a = 0; a < ENVIRONMENT::ACTION_DIM; a++){
+                            ts.actions[a] = (T)cpu_student_action_buf[env_i * ACTION_DIM + a];
+                        }
+                        ts.reward = 0;
+                        ts.terminated = cpu_terminated_buf[env_i] != 0;
+                        rec.current_episode.push_back(ts);
+                    }
+                }
                 global_step += N_ENVIRONMENTS;
+            }
+        }
+        if(record_trajectories){
+            for(TI env_i = 0; env_i < TRAJECTORY_NUM_ENVS; env_i++){
+                auto& rec = episode_recorders[env_i];
+                if(rec.episode_started && !rec.current_episode.empty()){
+                    if(completed_episodes.size() < TRAJECTORY_MAX_EPISODES){
+                        completed_episodes.push_back({rec.parameters_snapshot, std::move(rec.current_episode)});
+                    }
+                    rec.current_episode.clear();
+                    rec.episode_started = false;
+                }
             }
         }
         if(ffmpeg_pipe){ pclose(ffmpeg_pipe); ffmpeg_pipe = nullptr; }
@@ -2636,6 +2698,23 @@ int main(int argc, char** argv){
             rlt::free(device, example_input);
             rlt::free(device, example_output);
             rlt::free(device, eval_student);
+            {
+                std::string trajectories_json = trajectory_episodes_to_json(device, envs[0], completed_episodes, simulation_dt);
+#ifdef RL_TOOLS_ENABLE_ZLIB
+                std::vector<uint8_t> compressed;
+                if(rlt::compress_zlib(trajectories_json, compressed)){
+                    std::filesystem::path trajectories_path = step_folder / "trajectories.json.gz";
+                    std::ofstream f(trajectories_path, std::ios::binary);
+                    f.write(reinterpret_cast<const char*>(compressed.data()), compressed.size());
+                } else {
+                    std::cerr << "Failed to compress trajectories" << std::endl;
+                }
+#else
+                std::filesystem::path trajectories_path = step_folder / "trajectories.json";
+                std::ofstream f(trajectories_path);
+                f << trajectories_json;
+#endif
+            }
             std::cerr << "Checkpoint saved: " << step_folder << std::endl;
         }
 
