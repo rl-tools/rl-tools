@@ -420,6 +420,16 @@ def run_tflite_int8(tflite_bytes, x):
     return np.concatenate(outputs, axis=0)
 
 
+def print_summary(lines):
+    print()
+    print("=" * 72)
+    print("SUMMARY (re-printed without intermediate tflite/keras logs)")
+    print("=" * 72)
+    for line in lines:
+        print(line)
+    print("=" * 72)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("input", help="path to .h5 checkpoint")
@@ -452,11 +462,16 @@ def main():
 
     model.summary(line_length=120)
 
+    summary_lines = []
+    def report(line):
+        print(line)
+        summary_lines.append(line)
+
     y_keras = model.predict(x, verbose=0)
     keras_err = np.max(np.abs(y_keras - y_ref))
-    print(f"Keras vs reference: max_abs_err={keras_err:.6g}")
-    print(f"  ref:   {y_ref.reshape(-1)}")
-    print(f"  keras: {y_keras.reshape(-1)}")
+    report(f"Keras vs reference: max_abs_err={keras_err:.6g}")
+    report(f"  ref:   {y_ref.reshape(-1)}")
+    report(f"  keras: {y_keras.reshape(-1)}")
 
     tflite_bytes = convert_float(model)
     with open(out_path, "wb") as f:
@@ -486,16 +501,19 @@ def main():
         reloaded = f.read()
     y_tflite = run_tflite(reloaded, x_reloaded)
     tflite_err = np.max(np.abs(y_tflite - y_reloaded))
-    print(f"TFLite (via companion files) vs reference: max_abs_err={tflite_err:.6g}")
-    print(f"  tflite: {y_tflite.reshape(-1)}")
+    report(f"TFLite (via companion files) vs reference: max_abs_err={tflite_err:.6g}")
+    report(f"  tflite: {y_tflite.reshape(-1)}")
 
     worst = max(keras_err, tflite_err)
     if worst > args.tolerance:
+        report(f"FAIL: max error {worst:.6g} > tolerance {args.tolerance:.6g}")
+        print_summary(summary_lines)
         print(f"FAIL: max error {worst:.6g} > tolerance {args.tolerance:.6g}", file=sys.stderr)
         return 1
-    print(f"OK: within tolerance {args.tolerance:.6g}")
+    report(f"OK: within tolerance {args.tolerance:.6g}")
 
     if args.quantize == "none":
+        print_summary(summary_lines)
         return 0
 
     print()
@@ -540,8 +558,8 @@ def main():
     y_int8 = run_tflite_int8(int8_bytes, x_flat)
     y_int8 = y_int8.reshape(y_flat.shape)
     int8_err = np.max(np.abs(y_int8 - y_flat))
-    print(f"TFLite (int8) vs reference: max_abs_err={int8_err:.6g}")
-    print(f"  int8:  {y_int8.reshape(-1)}")
+    report(f"TFLite (int8) vs reference: max_abs_err={int8_err:.6g}")
+    report(f"  int8:  {y_int8.reshape(-1)}")
 
     dequant_by_path = extract_quantized_weights(int8_bytes, ordered_layers)
     quant_h5 = base + ".quantized.h5"
@@ -552,14 +570,18 @@ def main():
         fq_model = build_model(f)
     y_fq = fq_model.predict(x, verbose=0)
     fq_err = np.max(np.abs(y_fq - y_flat))
-    print(f"HDF5 (weight-fake-quant) vs reference: max_abs_err={fq_err:.6g}")
-    print(f"  fq:    {y_fq.reshape(-1)}")
+    report(f"HDF5 (weight-fake-quant) vs reference: max_abs_err={fq_err:.6g}")
+    report(f"  fq:    {y_fq.reshape(-1)}")
 
     if int8_err > args.quantize_tolerance:
+        report(f"FAIL: int8 max error {int8_err:.6g} > tolerance "
+               f"{args.quantize_tolerance:.6g}")
+        print_summary(summary_lines)
         print(f"FAIL: int8 max error {int8_err:.6g} > tolerance "
               f"{args.quantize_tolerance:.6g}", file=sys.stderr)
         return 1
-    print(f"OK (int8): within tolerance {args.quantize_tolerance:.6g}")
+    report(f"OK (int8): within tolerance {args.quantize_tolerance:.6g}")
+    print_summary(summary_lines)
     return 0
 
 
