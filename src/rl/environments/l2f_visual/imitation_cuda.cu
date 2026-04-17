@@ -122,7 +122,16 @@ using REWARD_FUNCTION = l2f::parameters::reward_functions::Squared<T>;
 static constexpr TI SIMULATION_FREQUENCY = 100;
 static constexpr TI EPISODE_STEP_LIMIT = 500;
 using PARAMETERS_SPEC = l2f::ParametersBaseSpecification<T, TI, 4, EPISODE_STEP_LIMIT, REWARD_FUNCTION>;
-using PARAMETERS_TYPE = l2f::ParametersDisturbances<l2f::ParametersSpecification<T, TI, l2f::ParametersBase<PARAMETERS_SPEC>>>;
+struct DOMAIN_RANDOMIZATION_OPTIONS {
+    static constexpr bool THRUST_TO_WEIGHT = true;
+    static constexpr bool MASS = false;
+    static constexpr bool TORQUE_TO_INERTIA = false;
+    static constexpr bool MASS_SIZE_DEVIATION = false;
+    static constexpr bool ROTOR_TORQUE_CONSTANT = false;
+    static constexpr bool DISTURBANCE_FORCE = false;
+    static constexpr bool ROTOR_TIME_CONSTANT = false;
+};
+using PARAMETERS_TYPE = l2f::ParametersDomainRandomization<l2f::ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, l2f::ParametersDisturbances<l2f::ParametersSpecification<T, TI, l2f::ParametersBase<PARAMETERS_SPEC>>>>>;
 
 static constexpr auto MODEL = l2f::parameters::dynamics::REGISTRY::crazyflie;
 
@@ -141,7 +150,24 @@ static constexpr typename PARAMETERS_TYPE::Integration integration = {
 };
 static constexpr typename PARAMETERS_TYPE::MDP mdp = { init, reward_function, {}, {}, termination };
 static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = { {0, 0}, {0, 0} };
-static constexpr PARAMETERS_TYPE nominal_parameters = { {dynamics, integration, mdp}, disturbances };
+static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
+    1.5, // thrust_to_weight_min
+    2.5, // thrust_to_weight_max
+    0,   // torque_to_inertia_min
+    0,   // torque_to_inertia_max
+    0,   // mass_min
+    0,   // mass_max
+    0,   // mass_size_deviation
+    0,   // rotor_time_constant_rising_min
+    0,   // rotor_time_constant_rising_max
+    0,   // rotor_time_constant_falling_min
+    0,   // rotor_time_constant_falling_max
+    0,   // rotor_torque_constant_min
+    0,   // rotor_torque_constant_max
+    0,   // orientation_offset_angle_max
+    0    // disturbance_force_max
+};
+static constexpr PARAMETERS_TYPE nominal_parameters = { {{dynamics, integration, mdp}, disturbances}, domain_randomization };
 
 
 // =========================================================================
