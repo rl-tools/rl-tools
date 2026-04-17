@@ -8,6 +8,7 @@ MODEL_PATH = None  # auto-detected below (prefers Vela-compiled, i.e. non-".int8
 INPUT_PATH = None
 OUTPUT_PATH = None
 SAMPLE_INDEX = 0
+TIMING_ITERS = 100
 
 
 def pick_first(files, predicate, label):
@@ -88,15 +89,43 @@ y_ref = load_sample_float32(OUTPUT_PATH, SAMPLE_INDEX, out_numel)
 
 x_in = x_f32.reshape(in_shape)
 
-t0 = time.ticks_us()
-y_raw = model.predict([x_in])[0]
-t1 = time.ticks_us()
-print("inference_us:", time.ticks_diff(t1, t0))
-
+y_raw = model.predict([x_in])[0]  # warm-up (first call is slower — arena touches, caches)
 y_f32 = y_raw.flatten()
 
 diff = y_f32 - y_ref
 err = max(float(np.max(diff)), -float(np.min(diff)))
+print("batch_size:", int(in_shape[0]))
 print("output   :", y_f32)
 print("reference:", y_ref)
 print("max_abs_err:", err)
+
+
+def time_n(fn, n):
+    ts = [0] * n
+    for i in range(n):
+        t0 = time.ticks_us()
+        fn()
+        t1 = time.ticks_us()
+        ts[i] = time.ticks_diff(t1, t0)
+    srt = sorted(ts)
+    return srt[0], srt[n // 2], sum(ts) / n, srt[-1]
+
+
+print("--- timing %d iters: ndarray input (includes per-call float->int8 quant) ---" % TIMING_ITERS)
+mn, med, mean, mx = time_n(lambda: model.predict([x_in]), TIMING_ITERS)
+print("min/median/mean/max us: %d / %d / %.1f / %d   fps(mean): %.1f" % (mn, med, mean, mx, 1e6 / mean))
+
+# Pre-quantize once; feed via callable so predict() just memcpys the bytes into the
+# tensor buffer (skips py_ml_process_input's per-element float->int8 loop).
+x_q_bytes = bytes(np.array(np.clip((x_f32 / in_scale) + in_zp, -128, 127), dtype=np.int8))
+assert len(x_q_bytes) == in_numel, (len(x_q_bytes), in_numel)
+
+
+def feed_prequantized(buf, shape, dtype):
+    buf[:] = x_q_bytes
+
+
+model.predict([feed_prequantized])  # warm-up with callable path
+print("--- timing %d iters: pre-quantized via callable (pure NPU + in-graph CPU ops) ---" % TIMING_ITERS)
+mn, med, mean, mx = time_n(lambda: model.predict([feed_prequantized]), TIMING_ITERS)
+print("min/median/mean/max us: %d / %d / %.1f / %d   fps(mean): %.1f" % (mn, med, mean, mx, 1e6 / mean))
