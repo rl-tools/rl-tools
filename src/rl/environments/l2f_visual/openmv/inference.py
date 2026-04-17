@@ -86,23 +86,14 @@ print("output_shape:", out_shape, "dtype:", out_dtype, "scale:", out_scale, "zp:
 x_f32 = load_sample_float32(INPUT_PATH, SAMPLE_INDEX, in_numel)
 y_ref = load_sample_float32(OUTPUT_PATH, SAMPLE_INDEX, out_numel)
 
-if in_dtype == 'f':
-    x_in = x_f32.reshape(in_shape)
-else:
-    x_q = (x_f32 / in_scale) + in_zp
-    x_q = np.array(np.clip(x_q, -128, 127), dtype=np.int8)
-    x_in = x_q.reshape(in_shape)
+x_in = x_f32.reshape(in_shape)
 
 t0 = time.ticks_us()
 y_raw = model.predict([x_in])[0]
 t1 = time.ticks_us()
 print("inference_us:", time.ticks_diff(t1, t0))
 
-y_flat = np.array(y_raw.flatten(), dtype=np.float)
-if out_dtype == 'f':
-    y_f32 = y_flat
-else:
-    y_f32 = (y_flat - out_zp) * out_scale
+y_f32 = y_raw.flatten()
 
 diff = y_f32 - y_ref
 err = max(float(np.max(diff)), -float(np.min(diff)))
