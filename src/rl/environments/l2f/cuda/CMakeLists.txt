@@ -4,7 +4,9 @@ project(multirotor_cuda CUDA)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CXX_STANDARD  17)
 
-set(CMAKE_CUDA_ARCHITECTURES "native")
+if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES AND NOT DEFINED ENV{CUDAARCHS})
+    set(CMAKE_CUDA_ARCHITECTURES "native")
+endif()
 
 add_executable(rl_environments_l2f_cuda_benchmark benchmark.cu)
 
