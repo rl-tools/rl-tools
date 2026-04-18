@@ -2641,6 +2641,38 @@ int main(int argc, char** argv){
                 rlt::free(device, buffer_2);
 #endif
             }
+            // Materialize per-branch example inputs (contiguous, natural shapes) from the flat example_input
+            // so that each branch input can be persisted independently under example/inputs/<i>.
+#ifdef STACK_TARGET_CHANNEL
+            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, IMG_H, IMG_W, COMBINED_IMG_C>, true>> example_input_0_image;
+            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, STATE_OBS_DIM>, true>> example_input_1_state;
+            rlt::malloc(device, example_input_0_image);
+            rlt::malloc(device, example_input_1_state);
+            {
+                auto src_img = rlt::view_range(device, example_input, (TI)0, rlt::tensor::ViewSpec<1, COMBINED_OBS_DIM>{});
+                auto src_img_reshaped = rlt::reshape_row_major(device, src_img, rlt::tensor::Shape<TI, N_EXAMPLES, IMG_H, IMG_W, COMBINED_IMG_C>{});
+                auto src_state = rlt::view_range(device, example_input, (TI)COMBINED_OBS_DIM, rlt::tensor::ViewSpec<1, STATE_OBS_DIM>{});
+                rlt::copy(device, device, src_img_reshaped, example_input_0_image);
+                rlt::copy(device, device, src_state, example_input_1_state);
+            }
+#else
+            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, IMG_H, IMG_W, STACKED_IMG_C>, true>> example_input_0_target_image;
+            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, IMG_H, IMG_W, STACKED_IMG_C>, true>> example_input_1_image;
+            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, STATE_OBS_DIM>, true>> example_input_2_state;
+            rlt::malloc(device, example_input_0_target_image);
+            rlt::malloc(device, example_input_1_image);
+            rlt::malloc(device, example_input_2_state);
+            {
+                auto src_target_img = rlt::view_range(device, example_input, (TI)0, rlt::tensor::ViewSpec<1, STACKED_OBS_DIM>{});
+                auto src_target_img_reshaped = rlt::reshape_row_major(device, src_target_img, rlt::tensor::Shape<TI, N_EXAMPLES, IMG_H, IMG_W, STACKED_IMG_C>{});
+                auto src_img = rlt::view_range(device, example_input, (TI)STACKED_OBS_DIM, rlt::tensor::ViewSpec<1, STACKED_OBS_DIM>{});
+                auto src_img_reshaped = rlt::reshape_row_major(device, src_img, rlt::tensor::Shape<TI, N_EXAMPLES, IMG_H, IMG_W, STACKED_IMG_C>{});
+                auto src_state = rlt::view_range(device, example_input, (TI)(2 * STACKED_OBS_DIM), rlt::tensor::ViewSpec<1, STATE_OBS_DIM>{});
+                rlt::copy(device, device, src_target_img_reshaped, example_input_0_target_image);
+                rlt::copy(device, device, src_img_reshaped, example_input_1_image);
+                rlt::copy(device, device, src_state, example_input_2_state);
+            }
+#endif
             { // binary (tar)
                 std::filesystem::path checkpoint_path = step_folder / "checkpoint.tar";
                 rlt::persist::backends::tar::Writer writer;
@@ -2650,8 +2682,17 @@ int main(int argc, char** argv){
                 rlt::set_attribute(device, actor_group, "meta", meta.c_str());
                 rlt::save(device, eval_student, actor_group);
                 auto example_group = rlt::create_group(device, root_group, "example");
-                rlt::save(device, example_input, example_group, "input");
-                rlt::save(device, example_output, example_group, "output");
+                auto inputs_group = rlt::create_group(device, example_group, "inputs");
+#ifdef STACK_TARGET_CHANNEL
+                rlt::save(device, example_input_0_image, inputs_group, "0");
+                rlt::save(device, example_input_1_state, inputs_group, "1");
+#else
+                rlt::save(device, example_input_0_target_image, inputs_group, "0");
+                rlt::save(device, example_input_1_image, inputs_group, "1");
+                rlt::save(device, example_input_2_state, inputs_group, "2");
+#endif
+                auto outputs_group = rlt::create_group(device, example_group, "outputs");
+                rlt::save(device, example_output, outputs_group, "0");
                 rlt::persist::backends::tar::finalize(device, writer);
                 std::ofstream f(checkpoint_path, std::ios::binary);
                 f.write(writer.buffer.data(), writer.buffer.size());
@@ -2666,14 +2707,36 @@ int main(int argc, char** argv){
                 rlt::set_attribute(device, actor_group, "meta", meta.c_str());
                 rlt::save(device, eval_student, actor_group);
                 auto example_group = rlt::create_group(device, root_file, "example");
-                rlt::save(device, example_input, example_group, "input");
-                rlt::save(device, example_output, example_group, "output");
+                auto inputs_group = rlt::create_group(device, example_group, "inputs");
+#ifdef STACK_TARGET_CHANNEL
+                rlt::save(device, example_input_0_image, inputs_group, "0");
+                rlt::save(device, example_input_1_state, inputs_group, "1");
+#else
+                rlt::save(device, example_input_0_target_image, inputs_group, "0");
+                rlt::save(device, example_input_1_image, inputs_group, "1");
+                rlt::save(device, example_input_2_state, inputs_group, "2");
+#endif
+                auto outputs_group = rlt::create_group(device, example_group, "outputs");
+                rlt::save(device, example_output, outputs_group, "0");
             }
 #endif
             { // code (checkpoint.h)
                 auto actor_weights = rlt::save_code(device, eval_student, std::string("rl_tools::checkpoint::actor"), true);
                 std::stringstream output_ss;
                 output_ss << actor_weights;
+                output_ss << "\n" << "namespace rl_tools::checkpoint::example::inputs{";
+#ifdef STACK_TARGET_CHANNEL
+                output_ss << "\n" << rlt::save_code(device, example_input_0_image, std::string("_0"), true);
+                output_ss << "\n" << rlt::save_code(device, example_input_1_state, std::string("_1"), true);
+#else
+                output_ss << "\n" << rlt::save_code(device, example_input_0_target_image, std::string("_0"), true);
+                output_ss << "\n" << rlt::save_code(device, example_input_1_image, std::string("_1"), true);
+                output_ss << "\n" << rlt::save_code(device, example_input_2_state, std::string("_2"), true);
+#endif
+                output_ss << "\n" << "}";
+                output_ss << "\n" << "namespace rl_tools::checkpoint::example::outputs{";
+                output_ss << "\n" << rlt::save_code(device, example_output, std::string("_0"), true);
+                output_ss << "\n" << "}";
                 output_ss << "\n" << "namespace rl_tools::checkpoint::meta{";
                 output_ss << "\n" << "   " << "char name[] = \"" << step_folder.string() << "\";";
                 output_ss << "\n" << "   " << "char commit_hash[] = \"" << RL_TOOLS_STRINGIFY(RL_TOOLS_COMMIT_HASH) << "\";";
@@ -2697,6 +2760,14 @@ int main(int argc, char** argv){
             }
             rlt::free(device, example_input);
             rlt::free(device, example_output);
+#ifdef STACK_TARGET_CHANNEL
+            rlt::free(device, example_input_0_image);
+            rlt::free(device, example_input_1_state);
+#else
+            rlt::free(device, example_input_0_target_image);
+            rlt::free(device, example_input_1_image);
+            rlt::free(device, example_input_2_state);
+#endif
             rlt::free(device, eval_student);
             {
                 std::string trajectories_json = trajectory_episodes_to_json(device, envs[0], completed_episodes, simulation_dt);

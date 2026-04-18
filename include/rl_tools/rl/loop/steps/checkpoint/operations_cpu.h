@@ -77,8 +77,12 @@ namespace rl_tools{
                 randn(device, input, rng);
                 Mode<mode::Evaluation<>> mode;
                 evaluate(device, actor_forward, input, output, actor_buffer, rng, mode);
-                output_ss << "\n" << save_code(device, input, std::string("rl_tools::checkpoint::example::input"), true);
-                output_ss << "\n" << save_code(device, output, std::string("rl_tools::checkpoint::example::output"), true);
+                output_ss << "\n" << "namespace rl_tools::checkpoint::example::inputs{";
+                output_ss << "\n" << save_code(device, input, std::string("_0"), true);
+                output_ss << "\n" << "}";
+                output_ss << "\n" << "namespace rl_tools::checkpoint::example::outputs{";
+                output_ss << "\n" << save_code(device, output, std::string("_0"), true);
+                output_ss << "\n" << "}";
                 free(device, input);
                 free(device, output);
                 free(device, actor_buffer);
@@ -169,8 +173,10 @@ namespace rl_tools{
 #else
                     auto example_group = create_group(device, root_group, "example");
 #endif
-                    save(device, input, example_group, "input");
-                    save(device, output, example_group, "output");
+                    auto inputs_group = create_group(device, example_group, "inputs");
+                    save(device, input, inputs_group, "0");
+                    auto outputs_group = create_group(device, example_group, "outputs");
+                    save(device, output, outputs_group, "0");
                     free(device, input);
                     free(device, output);
                     free(device, actor_buffer);

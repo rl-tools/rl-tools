@@ -235,18 +235,38 @@ namespace rl_tools{
             layer.type = LayerType::PARALLEL;
             auto* p = new layers::Parallel<TI>();
             layer.data = p;
-            bool has_head = group_exists(device, group, "head");
-            layer.num_children = has_head ? 3 : 2; layer.children = new Layer<TI>[layer.num_children];
-            auto pag = get_group(device, group, "branch_0"); ok &= load(device, layer.children[0], pag);
-            auto pbg = get_group(device, group, "branch_1"); ok &= load(device, layer.children[1], pbg);
-            if(has_head){ auto hg = get_group(device, group, "head"); ok &= load(device, layer.children[2], hg); }
-            TI num_branches = has_head ? 2 : layer.num_children;
-            for(TI i = 0; i < num_branches && i < layers::Parallel<TI>::MAX_BRANCHES; i++){
-                char attr_name[16] = "input_dim_"; attr_name[10] = static_cast<char>('0' + i); attr_name[11] = '\0';
-                if(attribute_exists(device, group, attr_name)){
-                    p->input_dims[i] = get_attribute_int<TI>(device, group, attr_name);
-                    p->num_input_dims = i + 1;
+            p->num_branches = get_attribute_int<TI>(device, group, "num_branches");
+            p->has_head = (get_attribute_int<TI>(device, group, "has_head") != 0);
+            if(p->num_branches > layers::Parallel<TI>::MAX_BRANCHES) return false;
+            layer.num_children = p->num_branches + (p->has_head ? 1 : 0);
+            layer.children = new Layer<TI>[layer.num_children];
+            for(TI i = 0; i < p->num_branches; i++){
+                char idx[10]; utils::string::int_to_string<long int, TI>(idx, 10, i);
+                char name[16] = "branch_"; TI nlen = 7;
+                for(TI j = 0; idx[j] != '\0' && nlen + 1 < 16; j++) name[nlen++] = idx[j];
+                name[nlen] = '\0';
+                auto bg = get_group(device, group, name);
+                constexpr TI BUF_SIZE = 128;
+                char shape_buf[BUF_SIZE];
+                get_attribute<char*>(device, bg, "input_shape", shape_buf, BUF_SIZE);
+                TI rank = 0, cur = 0;
+                bool have_digit = false;
+                for(TI j = 0; j < BUF_SIZE && shape_buf[j] != '\0'; j++){
+                    if(shape_buf[j] == ','){
+                        if(rank < layers::Parallel<TI>::MAX_RANK) p->input_shapes[i][rank] = cur;
+                        rank++; cur = 0; have_digit = false;
+                    }
+                    else if(shape_buf[j] >= '0' && shape_buf[j] <= '9'){
+                        cur = cur * 10 + (shape_buf[j] - '0'); have_digit = true;
+                    }
                 }
+                if(have_digit && rank < layers::Parallel<TI>::MAX_RANK) p->input_shapes[i][rank++] = cur;
+                p->input_ranks[i] = rank;
+                ok &= load(device, layer.children[i], bg);
+            }
+            if(p->has_head){
+                auto hg = get_group(device, group, "head");
+                ok &= load(device, layer.children[p->num_branches], hg);
             }
         }
         else{ return false; }

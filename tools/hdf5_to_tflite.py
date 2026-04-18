@@ -2,7 +2,7 @@
 
 Parses the layer tree in the HDF5 file, rebuilds the architecture as a Keras
 functional model with the original weights copied in, converts that to TFLite,
-and verifies both models against the `example/input`/`example/output` pair
+and verifies both models against the `example/inputs/*`/`example/outputs/0` pair
 stored in the checkpoint.
 
 Supported layer types: parallel, sequential, conv2d, dense, flatten, standardize.
@@ -140,35 +140,33 @@ def build_sequential(h5_group, tensor):
     return tensor
 
 
-def parallel_input_dims(h5_parallel):
-    dims = []
-    i = 0
-    while f"input_dim_{i}" in h5_parallel.attrs:
-        dims.append(int(h5_parallel.attrs[f"input_dim_{i}"]))
-        i += 1
-    return dims
+def branch_input_shape(branch_group):
+    csv = attr(branch_group, "input_shape")
+    if csv is None:
+        raise ValueError(f"branch {branch_group.name} missing input_shape attribute")
+    return tuple(int(x) for x in csv.split(","))
 
 
-def maybe_reshape_for_conv(branch_group, flat_dim, tensor):
-    btype = attr(branch_group, "type")
-    if btype != "sequential":
-        return tensor
-    first_idx = ordered_layer_indices(branch_group)[0]
-    first = branch_group["layers"][str(first_idx)]
-    if attr(first, "type") != "conv2d":
-        return tensor
-    in_c = int(attr(first, "input_channels"))
-    spatial = flat_dim // in_c
-    side = int(round(spatial ** 0.5))
-    if side * side != spatial or spatial * in_c != flat_dim:
-        raise ValueError(
-            f"cannot infer square HxW for conv input: flat={flat_dim}, channels={in_c}"
-        )
-    return tf.keras.layers.Reshape((side, side, in_c))(tensor)
+def num_branches(h5_parallel):
+    return int(attr(h5_parallel, "num_branches"))
+
+
+def branch_flat_dim(branch_group):
+    shape = branch_input_shape(branch_group)
+    flat = 1
+    for d in shape[2:]:  # drop leading STEPS, BATCH dims
+        flat *= d
+    return flat
+
+
+def branch_feature_shape(branch_group):
+    shape = branch_input_shape(branch_group)
+    return tuple(shape[2:])  # drop leading STEPS, BATCH dims
 
 
 def build_parallel(h5_parallel, tensor):
-    dims = parallel_input_dims(h5_parallel)
+    n = num_branches(h5_parallel)
+    dims = [branch_flat_dim(h5_parallel[f"branch_{i}"]) for i in range(n)]
     total = sum(dims)
     assert tensor.shape[-1] == total, (
         f"parallel input dim {tensor.shape[-1]} != sum of branch dims {total}"
@@ -176,16 +174,18 @@ def build_parallel(h5_parallel, tensor):
 
     branch_outputs = []
     offset = 0
-    for i, d in enumerate(dims):
-        branch_name = f"branch_{i}"
-        branch_group = h5_parallel[branch_name]
+    for i in range(n):
+        branch_group = h5_parallel[f"branch_{i}"]
+        d = dims[i]
         start, end = offset, offset + d
         offset = end
         branch_input = tf.keras.layers.Lambda(
             lambda x, s=start, e=end: x[..., s:e]
         )(tensor)
 
-        branch_input = maybe_reshape_for_conv(branch_group, d, branch_input)
+        feature_shape = branch_feature_shape(branch_group)
+        if len(feature_shape) > 1:
+            branch_input = tf.keras.layers.Reshape(feature_shape)(branch_input)
 
         btype = attr(branch_group, "type")
         if btype == "sequential":
@@ -198,6 +198,9 @@ def build_parallel(h5_parallel, tensor):
 
     concat = tf.keras.layers.Concatenate(axis=-1)(branch_outputs)
 
+    has_head = int(attr(h5_parallel, "has_head")) != 0
+    if not has_head:
+        return concat
     head_group = h5_parallel["head"]
     htype = attr(head_group, "type")
     if htype == "sequential":
@@ -215,15 +218,26 @@ def find_model_group(h5_root):
     return h5_root[top[0]]
 
 
+def example_input_tensors(h5_root):
+    inputs_group = h5_root["example/inputs"]
+    keys = sorted(inputs_group.keys(), key=int)
+    return [inputs_group[k][:].astype(np.float32) for k in keys]
+
+
+def example_output_tensor(h5_root):
+    return h5_root["example/outputs/0"][:].astype(np.float32)
+
+
 def build_model(h5_root):
     model_group = find_model_group(h5_root)
     mtype = attr(model_group, "type")
     if mtype == "parallel":
-        dims = parallel_input_dims(model_group)
+        n = num_branches(model_group)
+        dims = [branch_flat_dim(model_group[f"branch_{i}"]) for i in range(n)]
         total_input = sum(dims)
     elif mtype == "sequential":
-        example_in = h5_root["example/input"]
-        total_input = int(example_in.shape[-1])
+        example_in_0 = h5_root["example/inputs/0"]
+        total_input = int(np.prod(example_in_0.shape[1:]))
     else:
         raise NotImplementedError(f"top-level type {mtype}")
 
@@ -245,10 +259,12 @@ def collect_quant_layers(group):
         return out
     if kind == "parallel":
         out = []
-        dims = parallel_input_dims(group)
-        for i in range(len(dims)):
+        n = num_branches(group)
+        for i in range(n):
             out.extend(collect_quant_layers(group[f"branch_{i}"]))
-        out.extend(collect_quant_layers(group["head"]))
+        has_head = int(attr(group, "has_head")) != 0
+        if has_head:
+            out.extend(collect_quant_layers(group["head"]))
         return out
     if kind in ("dense", "conv2d"):
         w = group["weights/parameters"]
@@ -441,7 +457,7 @@ def main():
                     help="I/O dtype of the int8 tflite (default int8 for NPU deployment)")
     ap.add_argument("--representative-data", default=None,
                     help="path to .npy or raw-float32 .bin of (N, input_dim) for PTQ calibration; "
-                         "falls back to example/input with a warning")
+                         "falls back to example/inputs with a warning")
     ap.add_argument("--representative-samples", type=int, default=256,
                     help="cap on calibration samples; 0 means use all")
     ap.add_argument("--quantize-tolerance", type=float, default=0.2,
@@ -456,9 +472,12 @@ def main():
 
     with h5py.File(args.input, "r") as f:
         model = build_model(f)
-        x = f["example/input"][:].astype(np.float32)
-        y_ref = f["example/output"][:].astype(np.float32)
+        example_inputs = example_input_tensors(f)
+        y_ref = example_output_tensor(f)
         ordered_layers = collect_quant_layers(find_model_group(f))
+    n_examples = example_inputs[0].shape[0]
+    flat_parts = [t.reshape(n_examples, -1) for t in example_inputs]
+    x = np.concatenate(flat_parts, axis=-1)
 
     model.summary(line_length=120)
 
@@ -526,7 +545,7 @@ def main():
 
     input_dim = int(model.input.shape[-1])
     if args.representative_data is None:
-        print("WARNING: --representative-data not given, using example/input "
+        print("WARNING: --representative-data not given, using example/inputs "
               "(usually too small/non-diverse for good PTQ calibration)",
               file=sys.stderr)
         rep_samples = x_flat.reshape(-1, input_dim)

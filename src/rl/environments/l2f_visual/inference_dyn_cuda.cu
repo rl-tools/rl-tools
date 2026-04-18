@@ -281,17 +281,18 @@ int main(int argc, char** argv){
 
         auto verify_example = [&](auto& file) {
             auto example_group = rlt::get_group(device, file, "example");
-            rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> example_input;
+            auto inputs_group = rlt::get_group(device, example_group, "inputs");
+            auto outputs_group = rlt::get_group(device, example_group, "outputs");
+            rlt::dyn::TensorTuple<TI> example_tuple;
+            example_tuple.num_tensors = 0;
+            for(TI i = 0; i < rlt::dyn::TensorTuple<TI>::MAX_TENSORS; i++){
+                char name[4] = {(char)('0' + i), '\0', '\0', '\0'};
+                if(!rlt::load(device, example_tuple.tensors[i], inputs_group, name)) break;
+                example_tuple.num_tensors = i + 1;
+            }
             rlt::dyn::Tensor<rlt::dyn::TensorSpecification<TI>> example_output;
-            bool have_example = rlt::load(device, example_input, example_group, "input") && rlt::load(device, example_output, example_group, "output");
+            bool have_example = example_tuple.num_tensors > 0 && rlt::load(device, example_output, outputs_group, "0");
             if(have_example){
-                // Reshape flat example input [1, COMBINED_OBS_DIM + STATE_OBS_DIM] into tuple
-                rlt::dyn::TensorTuple<TI> example_tuple;
-                example_tuple.num_tensors = 2;
-                example_tuple.tensors[0] = dyn_inputs.tensors[0]; // reuse shape, point to example data
-                example_tuple.tensors[0].data = example_input.data;
-                example_tuple.tensors[1] = dyn_inputs.tensors[1];
-                example_tuple.tensors[1].data = reinterpret_cast<char*>(example_input.data) + COMBINED_OBS_DIM * sizeof(float);
                 rlt::dyn::propagate_shapes(model, example_tuple);
                 rlt::dyn::Buffer<TI> verify_buffer;
                 verify_buffer.layer = &model;
@@ -304,7 +305,7 @@ int main(int argc, char** argv){
                 if(rlt::evaluate(device, model, example_tuple, verify_output, verify_buffer)){
                     float max_diff = 0;
                     for(TI i = 0; i < example_output.size(); i++){
-                        float diff = std::fabs(rlt::dyn::get(device, verify_output, i) - rlt::dyn::get(device, example_output, i));
+                        float diff = std::fabs(rlt::get(device, verify_output, i) - rlt::get(device, example_output, i));
                         if(diff > max_diff) max_diff = diff;
                     }
                     std::cout << "Checkpoint verification: max_diff=" << max_diff << (max_diff < 1e-5f ? " PASS" : " WARNING: large difference") << std::endl;
@@ -313,7 +314,7 @@ int main(int argc, char** argv){
                 }
                 rlt::free(device, verify_output);
                 rlt::free(device, verify_buffer);
-                rlt::free(device, example_input);
+                for(TI i = 0; i < example_tuple.num_tensors; i++) rlt::free(device, example_tuple.tensors[i]);
                 rlt::free(device, example_output);
             }
         };

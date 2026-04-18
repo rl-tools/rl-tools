@@ -36,8 +36,8 @@ int main(){
     rlt::malloc(device, output);
     rlt::init(device);
     rlt::init(device, rng, SEED);
-    rlt::evaluate(device, rl_tools::checkpoint::actor::module, rl_tools::checkpoint::example::input::container, output, policy_buffer, rng);
-    T abs_diff = rlt::abs_diff(device, rl_tools::checkpoint::example::output::container, output) / decltype(output)::SPEC::SIZE;
+    rlt::evaluate(device, rl_tools::checkpoint::actor::module, rl_tools::checkpoint::example::inputs::_0::container, output, policy_buffer, rng);
+    T abs_diff = rlt::abs_diff(device, rl_tools::checkpoint::example::outputs::_0::container, output) / decltype(output)::SPEC::SIZE;
     std::cout << "Difference base <-> orig: " << abs_diff << std::endl;
 
     rlt::persist::backends::tar::ReaderGroup<rlt::persist::backends::tar::ReaderGroupSpecification<TI>> tar_reader_group;
@@ -60,9 +60,9 @@ int main(){
     rlt::malloc(device, tar_output);
     auto actor_group = rlt::get_group(device, tar_reader_group, "actor");
     rlt::load(device, tar_policy, actor_group);
-    rlt::evaluate(device, tar_policy, rl_tools::checkpoint::example::input::container, tar_output, tar_policy_buffer, rng);
+    rlt::evaluate(device, tar_policy, rl_tools::checkpoint::example::inputs::_0::container, tar_output, tar_policy_buffer, rng);
     {
-        T abs_diff = rlt::abs_diff(device, rl_tools::checkpoint::example::output::container, tar_output) / decltype(tar_output)::SPEC::SIZE;
+        T abs_diff = rlt::abs_diff(device, rl_tools::checkpoint::example::outputs::_0::container, tar_output) / decltype(tar_output)::SPEC::SIZE;
         std::cout << "Difference tar <-> orig: " << abs_diff << std::endl;
     }
 

@@ -10,11 +10,9 @@ const h5_buf = readFileSync(resolve(checkpoint_path));
 const h5 = new jsfive.File(h5_buf.buffer);
 
 let test_input_ds, expected_output_ds;
-try { test_input_ds = h5.get('example/input'); } catch(e) {}
-try { expected_output_ds = h5.get('example/output'); } catch(e) {}
-if(!test_input_ds) try { test_input_ds = h5.get('test_input'); } catch(e) {}
-if(!expected_output_ds) try { expected_output_ds = h5.get('expected_output'); } catch(e) {}
-if(!test_input_ds || !expected_output_ds){ console.error("FAIL: could not find example data in checkpoint"); process.exit(1); }
+try { test_input_ds = h5.get('example/inputs/0'); } catch(e) {}
+try { expected_output_ds = h5.get('example/outputs/0'); } catch(e) {}
+if(!test_input_ds || !expected_output_ds){ console.error("FAIL: could not find example/inputs/0 or example/outputs/0 in checkpoint"); process.exit(1); }
 const input_data = new Float32Array(test_input_ds.value.flat(Infinity));
 const expected_output = new Float32Array(expected_output_ds.value.flat(Infinity));
 const input_shape = test_input_ds.shape;

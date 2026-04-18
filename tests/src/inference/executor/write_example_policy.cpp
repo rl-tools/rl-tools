@@ -86,9 +86,11 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, WRITE_EXAMPLE_POLICY){
     code += rlt::save_code(device, model, "actor", true);
     code += "\n}";
 
-    code += "namespace rl_tools::checkpoint::example{\n";
-    code += rlt::save_code(device, input_example, "input", true);
-    code += rlt::save_code(device, output_example, "output", true);
+    code += "namespace rl_tools::checkpoint::example::inputs{\n";
+    code += rlt::save_code(device, input_example, "_0", true);
+    code += "\n}";
+    code += "namespace rl_tools::checkpoint::example::outputs{\n";
+    code += rlt::save_code(device, output_example, "_0", true);
     code += "\n}";
 
     std::stringstream output_ss;

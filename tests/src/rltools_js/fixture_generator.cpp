@@ -33,8 +33,10 @@ void save_single_input_fixture(DEVICE_T& device, MODEL& model, rlt::Tensor<INPUT
     auto actor_group = rlt::create_group(device, file, "actor");
     rlt::save(device, model, actor_group);
     auto example_group = rlt::create_group(device, file, "example");
-    rlt::save(device, input, example_group, "input");
-    rlt::save(device, output, example_group, "output");
+    auto inputs_group = rlt::create_group(device, example_group, "inputs");
+    rlt::save(device, input, inputs_group, "0");
+    auto outputs_group = rlt::create_group(device, example_group, "outputs");
+    rlt::save(device, output, outputs_group, "0");
     std::cout << "Saved fixture: " << path << std::endl;
 }
 
@@ -183,9 +185,11 @@ void generate_parallel(DEVICE& device, const std::string& output_dir){
     auto actor_group = rlt::create_group(device, file, "actor");
     rlt::save(device, model, actor_group);
     auto example_group = rlt::create_group(device, file, "example");
-    rlt::save(device, input_a, example_group, "input_a");
-    rlt::save(device, input_b, example_group, "input_b");
-    rlt::save(device, output, example_group, "output");
+    auto inputs_group = rlt::create_group(device, example_group, "inputs");
+    rlt::save(device, input_a, inputs_group, "0");
+    rlt::save(device, input_b, inputs_group, "1");
+    auto outputs_group = rlt::create_group(device, example_group, "outputs");
+    rlt::save(device, output, outputs_group, "0");
     std::cout << "Saved fixture: " << output_dir << "/rltools_js_parallel.h5" << std::endl;
 
     rlt::free(device, model);
