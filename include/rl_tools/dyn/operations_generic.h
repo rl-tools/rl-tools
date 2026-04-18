@@ -58,9 +58,31 @@ namespace rl_tools{
                 for(TI i = 0; i < in_rank - 1; i++){ layer.output_shape[i] = in_shape[i]; layer.output_size *= in_shape[i]; }
                 layer.output_shape[in_rank - 1] = new_dim; layer.output_size *= new_dim;
             };
-            auto spatial_output = [&](TI oh, TI ow, TI out_ch, TI batch){
-                layer.output_rank = 4; layer.output_shape[0] = batch; layer.output_shape[1] = oh; layer.output_shape[2] = ow; layer.output_shape[3] = out_ch;
-                layer.output_size = batch * oh * ow * out_ch;
+            // Mirror real nn_models shape propagation: preserve all leading batch/time
+            // dims, only transform the last 3 (HWC for Conv/Pool) or the last N dims.
+            auto replace_last_three = [&](TI new_h, TI new_w, TI new_c){
+                layer.output_rank = in_rank;
+                for(TI i = 0; i < in_rank - 3; i++) layer.output_shape[i] = in_shape[i];
+                layer.output_shape[in_rank - 3] = new_h;
+                layer.output_shape[in_rank - 2] = new_w;
+                layer.output_shape[in_rank - 1] = new_c;
+                TI leading = 1; for(TI i = 0; i < in_rank - 3; i++) leading *= in_shape[i];
+                layer.output_size = leading * new_h * new_w * new_c;
+            };
+            auto collapse_last_three_to_one = [&](TI flat_dim){
+                layer.output_rank = in_rank - 2;
+                for(TI i = 0; i < in_rank - 3; i++) layer.output_shape[i] = in_shape[i];
+                layer.output_shape[in_rank - 3] = flat_dim;
+                TI leading = 1; for(TI i = 0; i < in_rank - 3; i++) leading *= in_shape[i];
+                layer.output_size = leading * flat_dim;
+            };
+            auto insert_last_three = [&](TI h, TI w, TI c){
+                layer.output_rank = in_rank + 2;
+                for(TI i = 0; i < in_rank - 1; i++) layer.output_shape[i] = in_shape[i];
+                layer.output_shape[in_rank - 1] = h;
+                layer.output_shape[in_rank] = w;
+                layer.output_shape[in_rank + 1] = c;
+                layer.output_size = in_size;
             };
             switch(layer.type){
                 case LayerType::DENSE: replace_last_dim(layer.template as<layers::Dense<TI>>().output_dim); break;
@@ -69,34 +91,44 @@ namespace rl_tools{
                     if(in_rank < 3){ layer.output_size = 0; break; }
                     auto& c = layer.template as<layers::Conv2d<TI>>();
                     TI ih = in_shape[in_rank-3], iw = in_shape[in_rank-2];
-                    spatial_output((ih+2*c.padding_h-c.kernel_height)/c.stride_h+1, (iw+2*c.padding_w-c.kernel_width)/c.stride_w+1, c.output_channels, in_size/(ih*iw*c.input_channels));
+                    TI oh = (ih+2*c.padding_h-c.kernel_height)/c.stride_h+1;
+                    TI ow = (iw+2*c.padding_w-c.kernel_width)/c.stride_w+1;
+                    replace_last_three(oh, ow, c.output_channels);
                     break;
                 }
                 case LayerType::MAX_POOL2D: {
                     if(in_rank < 3){ layer.output_size = 0; break; }
                     auto& mp = layer.template as<layers::MaxPool2d<TI>>();
                     TI ih = in_shape[in_rank-3], iw = in_shape[in_rank-2], ch = in_shape[in_rank-1];
-                    spatial_output((ih+2*mp.padding_h-mp.kernel_height)/mp.stride_h+1, (iw+2*mp.padding_w-mp.kernel_width)/mp.stride_w+1, ch, in_size/(ih*iw*ch));
+                    TI oh = (ih+2*mp.padding_h-mp.kernel_height)/mp.stride_h+1;
+                    TI ow = (iw+2*mp.padding_w-mp.kernel_width)/mp.stride_w+1;
+                    replace_last_three(oh, ow, ch);
                     break;
                 }
                 case LayerType::AVG_POOL2D: {
                     if(in_rank < 3){ layer.output_size = 0; break; }
-                    TI ch = in_shape[in_rank-1], batch = in_size / (in_shape[in_rank-3]*in_shape[in_rank-2]*ch);
-                    layer.output_rank = 2; layer.output_shape[0] = batch; layer.output_shape[1] = ch; layer.output_size = batch*ch;
+                    TI ch = in_shape[in_rank-1];
+                    // Global avg pool collapses H,W → one value per channel; preserve leading dims, last dim becomes C.
+                    layer.output_rank = in_rank - 2;
+                    for(TI i = 0; i < in_rank - 3; i++) layer.output_shape[i] = in_shape[i];
+                    layer.output_shape[in_rank - 3] = ch;
+                    TI leading = 1; for(TI i = 0; i < in_rank - 3; i++) leading *= in_shape[i];
+                    layer.output_size = leading * ch;
                     break;
                 }
                 case LayerType::FLATTEN: {
-                    if(in_rank >= 3){ TI flat = 1; for(TI i = in_rank-3; i < in_rank; i++) flat *= in_shape[i]; layer.output_rank = 2; layer.output_shape[0] = in_size/flat; layer.output_shape[1] = flat; }
-                    else{ layer.output_rank = in_rank; for(TI i = 0; i < in_rank; i++) layer.output_shape[i] = in_shape[i]; }
-                    layer.output_size = in_size;
+                    if(in_rank >= 3){
+                        TI flat = 1;
+                        for(TI i = in_rank-3; i < in_rank; i++) flat *= in_shape[i];
+                        collapse_last_three_to_one(flat);
+                    }
+                    else{ layer.output_rank = in_rank; for(TI i = 0; i < in_rank; i++) layer.output_shape[i] = in_shape[i]; layer.output_size = in_size; }
                     break;
                 }
                 case LayerType::UNFLATTEN: {
                     auto& u = layer.template as<layers::Unflatten<TI>>();
                     if(u.height > 0 && u.width > 0 && u.channels > 0){
-                        TI batch = in_size / (u.height * u.width * u.channels);
-                        layer.output_rank = 4; layer.output_shape[0] = batch; layer.output_shape[1] = u.height; layer.output_shape[2] = u.width; layer.output_shape[3] = u.channels;
-                        layer.output_size = in_size;
+                        insert_last_three(u.height, u.width, u.channels);
                     }
                     else{
                         layer.output_rank = in_rank; layer.output_size = in_size;
@@ -105,8 +137,7 @@ namespace rl_tools{
                     break;
                 }
                 case LayerType::SAMPLE_AND_SQUASH: {
-                    TI last = in_shape[in_rank-1], batch = in_size/last;
-                    layer.output_rank = 2; layer.output_shape[0] = batch; layer.output_shape[1] = last/2; layer.output_size = batch*(last/2);
+                    replace_last_dim(in_shape[in_rank-1] / 2);
                     break;
                 }
                 default: {
