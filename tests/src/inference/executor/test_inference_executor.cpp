@@ -182,7 +182,7 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, SYNC_INTERMEDIATE){
         observation.previous_action[j] = 0.0f;
     }
 
-    rlt::inference::executor::Status<SPEC::EXECUTOR_SPEC> status;
+    rlt::inference::executor::Status<typename SPEC::EXECUTOR_SPEC::STATUS_SPEC> status;
     for (TI step=0; step <= 1000; step++){
         TIMESTAMP timestamp = step * 1000 * 1000;
         std::cout << "timestamp: " << timestamp << std::endl;
@@ -255,7 +255,7 @@ TEST(RL_TOOLS_INFERENCE_EXECUTOR, SYNC_INTERMEDIATE_JITTER){
     }
 
     TIMESTAMP timestamp = 0;
-    rlt::inference::executor::Status<SPEC::EXECUTOR_SPEC> status;
+    rlt::inference::executor::Status<typename SPEC::EXECUTOR_SPEC::STATUS_SPEC> status;
     for (TI step=0; step <= 10000; step++){
         std::cout << "timestamp: " << timestamp << std::endl;
         status = rlt::control(device, executor, timestamp, policy, observation, action, rng);
