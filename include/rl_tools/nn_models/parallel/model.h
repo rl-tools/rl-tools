@@ -75,6 +75,11 @@ namespace rl_tools::nn_models::parallel{
             };
         };
 
+        template <typename BRANCH>
+        struct InputShapeMap{
+            using CONTENT = typename BRANCH::INPUT_SHAPE;
+        };
+
         template <typename CAPABILITY, bool DYNAMIC_ALLOCATION, typename TYPE_POLICY>
         struct TensorMapFactory{
             template <typename BRANCH>
@@ -126,6 +131,7 @@ namespace rl_tools::nn_models::parallel{
 
         using BRANCH_TUPLE = utils::Tuple<TI, T_BRANCHES...>;
         using PIPELINES_TYPE = utils::MapTuple<BRANCH_TUPLE, detail::PipelineMapFactory<CAPABILITY>::template Map>;
+        using INPUT_SHAPES = utils::MapTuple<BRANCH_TUPLE, detail::InputShapeMap>;
 
         static constexpr bool _SHAPES_VALID = detail::VerifyShapes<CAPABILITY, T_BRANCHES...>::VALID;
 
@@ -157,7 +163,7 @@ namespace rl_tools::nn_models::parallel{
         using SPEC = T_SPEC;
         using TYPE_POLICY = typename SPEC::TYPE_POLICY;
         using TI = typename SPEC::TI;
-        using INPUT_SHAPE = typename SPEC::FIRST_BRANCH::INPUT_SHAPE;
+        using INPUT_SHAPES = typename SPEC::INPUT_SHAPES;
         using OUTPUT_SHAPE = typename SPEC::OUTPUT_SHAPE;
 
         typename SPEC::PIPELINES_TYPE pipelines;

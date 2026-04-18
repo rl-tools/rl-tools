@@ -7,10 +7,10 @@ FRAMES = 5
 TITLES = [f't-{i}' for i in range(FRAMES)] + ['target']
 
 with h5py.File(sys.argv[1], 'r') as f:
-    x = f['example/input'][:]
+    x = f['example/inputs/0'][:]
 
 n = x.shape[0]
-img = x[:, :H * W * C].reshape(n, H, W, C)
+img = x.reshape(n, H, W, C)
 
 fig, ax = plt.subplots(n, FRAMES + 1, figsize=(9, n * 1.5))
 for i in range(n):

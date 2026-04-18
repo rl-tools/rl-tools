@@ -164,8 +164,11 @@ namespace rl_tools::dyn{
         struct Parallel{
             using TI = T_TI;
             static constexpr TI MAX_BRANCHES = 8;
-            TI input_dims[MAX_BRANCHES] = {};
-            TI num_input_dims = 0;
+            static constexpr TI MAX_RANK = TensorSpecification<TI>::MAX_RANK;
+            TI num_branches = 0;
+            bool has_head = false;
+            TI input_ranks[MAX_BRANCHES] = {};
+            TI input_shapes[MAX_BRANCHES][MAX_RANK] = {};
         };
     }
 

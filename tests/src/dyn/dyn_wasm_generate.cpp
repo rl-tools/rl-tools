@@ -81,32 +81,14 @@ int main(){
     std::string path = std::string(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)) + "/test_dyn_wasm_checkpoint.h5";
     {
         auto file = rlt::persist::backends::hdf5::File(path, rlt::persist::backends::hdf5::Mode::WRITE);
-        auto model_group = rlt::create_group(device, file, "model");
-        rlt::save(device, model, model_group);
-        {
-            constexpr TI N = 1 * BATCH_SIZE * H * W * C;
-            hsize_t dims[] = {1, BATCH_SIZE, H, W, C};
-            float flat[N];
-            for(TI i = 0; i < N; i++) flat[i] = reinterpret_cast<float*>(data(input))[i];
-            hid_t space = H5Screate_simple(5, dims, nullptr);
-            hid_t ds = H5Dcreate2(file.id, "test_input", H5T_NATIVE_FLOAT, space, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-            H5Dwrite(ds, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, flat);
-            H5Dclose(ds); H5Sclose(space);
-        }
-        {
-            auto output_mat = rlt::matrix_view(device, output);
-            constexpr TI OUTPUT_DIM = 4;
-            constexpr TI N = 1 * BATCH_SIZE * OUTPUT_DIM;
-            float flat[N];
-            for(TI i = 0; i < 1 * BATCH_SIZE; i++)
-                for(TI j = 0; j < OUTPUT_DIM; j++)
-                    flat[i * OUTPUT_DIM + j] = rlt::get(output_mat, i, j);
-            hsize_t dims[] = {(hsize_t)N};
-            hid_t space = H5Screate_simple(1, dims, nullptr);
-            hid_t ds = H5Dcreate2(file.id, "expected_output", H5T_NATIVE_FLOAT, space, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-            H5Dwrite(ds, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, flat);
-            H5Dclose(ds); H5Sclose(space);
-        }
+        auto actor_group = rlt::create_group(device, file, "actor");
+        rlt::save(device, model, actor_group);
+        auto example_group = rlt::create_group(device, file, "example");
+        auto inputs_group = rlt::create_group(device, example_group, "inputs");
+        rlt::save(device, input, inputs_group, "0");
+        rlt::save(device, input, inputs_group, "1");
+        auto outputs_group = rlt::create_group(device, example_group, "outputs");
+        rlt::save(device, output, outputs_group, "0");
     }
 
     printf("Wrote %s\n", path.c_str());

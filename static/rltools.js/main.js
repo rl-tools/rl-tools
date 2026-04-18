@@ -620,20 +620,14 @@ function layer_dispatch(group){
 function load_from_array_buffer(buffer){
     var f = new hdf5.File(buffer, "");
     const model = layer_dispatch(f.get("actor"))
-    const example_group = f.get("example")
+    const inputs_group = f.get("example/inputs")
+    const outputs_group = f.get("example/outputs")
 
-    let output
-    if(example_group.keys.includes("input_a") && example_group.keys.includes("input_b")){
-        const input_a = new Tensor(example_group.get("input_a"))
-        const input_b = new Tensor(example_group.get("input_b"))
-        output = model.evaluate(input_a.data, input_b.data)
-    }
-    else{
-        const input = new Tensor(example_group.get("input"))
-        output = model.evaluate(input.data)
-    }
+    const input_keys = [...inputs_group.keys].sort((a, b) => parseInt(a) - parseInt(b))
+    const input_datas = input_keys.map(k => new Tensor(inputs_group.get(k)).data)
+    const output = model.evaluate(...input_datas)
 
-    const target_output = new Tensor(example_group.get("output"))
+    const target_output = new Tensor(outputs_group.get("0"))
     const diff = math.subtract(output, target_output.data)
     const diff_reduce = math.flatten(diff).valueOf().reduce((a, c) => a + Math.abs(c)) / diff.size().reduce((a, c) => a * c, 1)
     console.log("Example diff per element: ", diff_reduce)

@@ -8,8 +8,8 @@ namespace rl_tools::inference::applications::l2f{
     using TYPE_POLICY = typename CONFIG::TYPE_POLICY;
     using TI = typename CONFIG::TI;
 
-    static constexpr TI TEST_SEQUENCE_LENGTH = rlt::checkpoint::example::input::SHAPE::template GET<0>;
-    static constexpr TI TEST_BATCH_SIZE = rlt::checkpoint::example::input::SHAPE::template GET<1>;
+    static constexpr TI TEST_SEQUENCE_LENGTH = rlt::checkpoint::example::inputs::_0::SHAPE::template GET<0>;
+    static constexpr TI TEST_BATCH_SIZE = rlt::checkpoint::example::inputs::_0::SHAPE::template GET<1>;
     static_assert(CONFIG::TEST_BATCH_SIZE_ACTUAL <= TEST_BATCH_SIZE);
     static_assert(CONFIG::TEST_SEQUENCE_LENGTH_ACTUAL <= TEST_SEQUENCE_LENGTH);
 
@@ -60,14 +60,14 @@ float rl_tools_inference_applications_l2f_test(RLtoolsInferenceApplicationsL2FAc
     for(TI batch_i = 0; batch_i < CONFIG::TEST_BATCH_SIZE_ACTUAL; batch_i++){
         rl_tools::reset(device, CONFIG::policy(), policy_state_test, rng);
         for(TI step_i = 0; step_i < CONFIG::TEST_SEQUENCE_LENGTH_ACTUAL; step_i++){
-            const auto step_input = rl_tools::view(device, rl_tools::checkpoint::example::input::container, step_i);
+            const auto step_input = rl_tools::view(device, rl_tools::checkpoint::example::inputs::_0::container, step_i);
             const auto batch_input = rl_tools::view_range(device, step_input, batch_i, rl_tools::tensor::ViewSpec<0, 1>{});
             rl_tools::utils::assert_exit(device, !rl_tools::is_nan(device, batch_input), "input is nan");
             // rl_tools::utils::assert_exit(device, !rl_tools::is_nan(device, policy_state_test.content_state.next_content_state.state.state), "state is nan");
             rl_tools::evaluate_step(device, CONFIG::policy(), batch_input, policy_state_test, output, buffers_test, rng, mode);
             rl_tools::utils::assert_exit(device, !rl_tools::is_nan(device, output), "output is nan");
             for(TI action_i = 0; action_i < OUTPUT_DIM; action_i++){
-                acc += rl_tools::math::abs(device.math, rl_tools::get(device, output, 0, action_i) - rl_tools::get(device, rl_tools::checkpoint::example::output::container, step_i, batch_i, action_i));
+                acc += rl_tools::math::abs(device.math, rl_tools::get(device, output, 0, action_i) - rl_tools::get(device, rl_tools::checkpoint::example::outputs::_0::container, step_i, batch_i, action_i));
                 num_values += 1;
                 rl_tools::utils::assert_exit(device, !rl_tools::math::is_nan(device.math, acc), "output is nan");
                 if(batch_i == 0 && step_i == CONFIG::TEST_SEQUENCE_LENGTH_ACTUAL-1){

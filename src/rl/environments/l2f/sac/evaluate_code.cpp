@@ -58,14 +58,14 @@ int main(){
 
     {
         // test
-        rl_tools::checkpoint::actor::MODEL::Buffer<rlt::get<1>(rl_tools::checkpoint::example::input::SHAPE{})> test_buffer;
-        rlt::Tensor<rlt::tensor::Specification<T, TI, rl_tools::checkpoint::example::output::SHAPE>> output;
+        rl_tools::checkpoint::actor::MODEL::Buffer<rlt::get<1>(rl_tools::checkpoint::example::inputs::_0::SHAPE{})> test_buffer;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, rl_tools::checkpoint::example::outputs::_0::SHAPE>> output;
         rlt::malloc(device, test_buffer);
         rlt::malloc(device, output);
-        rlt::evaluate(device, rl_tools::checkpoint::actor::module, rl_tools::checkpoint::example::input::container, output, test_buffer, rng);
-        T abs_diff = rlt::abs_diff(device, rl_tools::checkpoint::example::output::container, output) / rl_tools::checkpoint::example::output::SPEC::SIZE;
-        auto last_step_output = rlt::view(device, output, rlt::get<0>(rl_tools::checkpoint::example::output::SHAPE{}) - 1);
-        auto last_step_expected = rlt::view(device, rl_tools::checkpoint::example::output::container, rlt::get<0>(rl_tools::checkpoint::example::output::SHAPE{}) - 1);
+        rlt::evaluate(device, rl_tools::checkpoint::actor::module, rl_tools::checkpoint::example::inputs::_0::container, output, test_buffer, rng);
+        T abs_diff = rlt::abs_diff(device, rl_tools::checkpoint::example::outputs::_0::container, output) / rl_tools::checkpoint::example::outputs::_0::SPEC::SIZE;
+        auto last_step_output = rlt::view(device, output, rlt::get<0>(rl_tools::checkpoint::example::outputs::_0::SHAPE{}) - 1);
+        auto last_step_expected = rlt::view(device, rl_tools::checkpoint::example::outputs::_0::container, rlt::get<0>(rl_tools::checkpoint::example::outputs::_0::SHAPE{}) - 1);
         std::cout << "last_step_output: " << std::endl;
         rlt::print(device, last_step_output);
         std::cout << "last_step_expected: " << std::endl;

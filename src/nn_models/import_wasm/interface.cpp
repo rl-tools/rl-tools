@@ -41,13 +41,13 @@ TI output_dim(){
 }
 
 int32_t example_batch_size(){
-    return rlt::checkpoint::example::input::CONTAINER_TYPE::ROWS;
+    return rlt::checkpoint::example::inputs::_0::CONTAINER_TYPE::ROWS;
 }
 T get_example_input(int32_t row, int32_t col){
-    return rlt::get(rlt::checkpoint::example::input::container, row, col);
+    return rlt::get(rlt::checkpoint::example::inputs::_0::container, row, col);
 }
 T get_example_output(int32_t row, int32_t col){
-    return rlt::get(rlt::checkpoint::example::output::container, row, col);
+    return rlt::get(rlt::checkpoint::example::outputs::_0::container, row, col);
 }
 
 void set_input(int32_t row, int32_t col, T value){
@@ -68,7 +68,7 @@ void evaluate(){
 T test(){
     DEVICE device;
     bool rng;
-    rlt::evaluate(device, rlt::checkpoint::actor::module, rlt::checkpoint::example::input::container, output, buffer, rng);
-    return rlt::abs_diff(device, rlt::checkpoint::example::output::container, output);
+    rlt::evaluate(device, rlt::checkpoint::actor::module, rlt::checkpoint::example::inputs::_0::container, output, buffer, rng);
+    return rlt::abs_diff(device, rlt::checkpoint::example::outputs::_0::container, output);
 }
 
