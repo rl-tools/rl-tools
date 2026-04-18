@@ -9,6 +9,8 @@ Always use the `.venv` virtual environment. If it does not exist, create it with
 
 ### CMake Configuration
 
+
+Ubuntu (x86)
 ```bash
 CUDACXX=/usr/local/cuda-13.1/bin/nvcc cmake -B build \
   -DCMAKE_BUILD_TYPE=Release \
@@ -18,6 +20,11 @@ CUDACXX=/usr/local/cuda-13.1/bin/nvcc cmake -B build \
   -DRL_TOOLS_NUMERIC_TYPES_ENABLE_BF16=ON \
   -DRL_TOOLS_ENABLE_TAR=ON \
   -DRL_TOOLS_RENDERING_ENABLE_RAYTRACING=ON
+```
+
+macOS
+```
+-DRL_TOOLS_ENABLE_TESTS=ON -DRL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO=ON
 ```
 
 **Environment variables:**

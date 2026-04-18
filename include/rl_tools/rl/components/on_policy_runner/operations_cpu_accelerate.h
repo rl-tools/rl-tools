@@ -16,6 +16,11 @@ namespace rl_tools::rl::components::on_policy_runner{
     void epilogue(devices::CPU_ACCELERATE<DEV_SPEC>& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, Matrix<ACTIONS_MEAN_SPEC>& actions_mean, Matrix<ACTIONS_SPEC>& actions, Matrix<ACTION_LOG_STD_SPEC>& action_log_std, RNG& rng, typename devices::CPU<DEV_SPEC>::index_t step_i){
         epilogue((devices::CPU<DEV_SPEC>&)device, dataset, runner, actions_mean, actions, action_log_std, rng, step_i);
     }
+    // CPU_ACCELERATE + ArrayENGINE: resolves ambiguity with generic ArrayENGINE overload
+    template <typename DEV_SPEC, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename ARRAY_SPEC>
+    void epilogue(devices::CPU_ACCELERATE<DEV_SPEC>& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, Matrix<ACTIONS_MEAN_SPEC>& actions_mean, Matrix<ACTIONS_SPEC>& actions, Matrix<ACTION_LOG_STD_SPEC>& action_log_std, devices::generic::random::ArrayENGINE<ARRAY_SPEC>& rng, typename devices::CPU<DEV_SPEC>::index_t step_i){
+        epilogue((devices::CPU<DEV_SPEC>&)device, dataset, runner, actions_mean, actions, action_log_std, rng, step_i);
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #include "operations_generic.h"
