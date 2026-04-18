@@ -10,9 +10,9 @@
 #include "raptor_policy/policy.h"
 
 using T = float;
-constexpr unsigned SEQUENCE_LENGTH = rl_tools::checkpoint::example::inputs::_0::SHAPE::FIRST;
-constexpr unsigned BATCH_SIZE = rl_tools::checkpoint::example::inputs::_0::SHAPE::template GET<1>;
-constexpr unsigned INPUT_DIM = rl_tools::checkpoint::example::inputs::_0::SHAPE::LAST;
+constexpr unsigned SEQUENCE_LENGTH = rl_tools::checkpoint::example::input::SHAPE::FIRST;
+constexpr unsigned BATCH_SIZE = rl_tools::checkpoint::example::input::SHAPE::template GET<1>;
+constexpr unsigned INPUT_DIM = rl_tools::checkpoint::example::input::SHAPE::LAST;
 constexpr unsigned HIDDEN_DIM = rl_tools::checkpoint::actor::layer_1::TYPE::SPEC::HIDDEN_DIM;
 constexpr unsigned ACTION_DIM = rl_tools::checkpoint::actor::TYPE::OUTPUT_SHAPE::LAST;
 constexpr unsigned SEED = 0;
@@ -93,9 +93,9 @@ int main(){
     base::rlt::malloc(base_device, base_output);
     base::rlt::init(base_device);
     base::rlt::init(base_device, base_rng, SEED);
-    base::rlt::evaluate(base_device, rl_tools::checkpoint::actor::module, rl_tools::checkpoint::example::inputs::_0::container, base_output, base_policy_buffer, base_rng);
+    base::rlt::evaluate(base_device, rl_tools::checkpoint::actor::module, rl_tools::checkpoint::example::input::container, base_output, base_policy_buffer, base_rng);
     {
-        T abs_diff = base::rlt::abs_diff(base_device, rl_tools::checkpoint::example::outputs::_0::container, base_output) / decltype(base_output)::SPEC::SIZE;
+        T abs_diff = base::rlt::abs_diff(base_device, rl_tools::checkpoint::example::output::container, base_output) / decltype(base_output)::SPEC::SIZE;
         std::cout << "Difference base <-> orig: " << abs_diff << std::endl;
     }
 
@@ -120,12 +120,12 @@ int main(){
     target::rlt::init(target_device, target_rng, SEED);
     target::rlt::init_weights(target_device, target_policy, target_rng);
     target::rlt::randn(target_device, target_input, target_rng);
-    target::rlt::copy_from_generic(base_device, target_device, rl_tools::checkpoint::example::inputs::_0::container, target_input);
+    target::rlt::copy_from_generic(base_device, target_device, rl_tools::checkpoint::example::input::container, target_input);
     target::rlt::copy_from_generic(base_device, target_device, rl_tools::checkpoint::actor::module, target_policy);
 
     {
         target::rlt::evaluate(target_device, target_policy, target_input, target_output, target_policy_buffer, target_rng);
-        target::rlt::copy_from_generic(target_device, base_device, rl_tools::checkpoint::example::outputs::_0::container, target_original_output);
+        target::rlt::copy_from_generic(target_device, base_device, rl_tools::checkpoint::example::output::container, target_original_output);
         target::rlt::copy_from_generic(target_device, base_device, base_output, target_base_output);
 
         {
