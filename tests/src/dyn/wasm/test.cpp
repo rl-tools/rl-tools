@@ -5,11 +5,20 @@
 
 #include <cstdio>
 #include <cmath>
+#include <string>
+
+#define RL_TOOLS_STRINGIZE(x) #x
+#define RL_TOOLS_MACRO_TO_STR(macro) RL_TOOLS_STRINGIZE(macro)
 
 namespace rlt = rl_tools;
 
 int main(int argc, char** argv){
+#ifdef RL_TOOLS_TEST_DATA_PATH
+    static const std::string default_path = std::string(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)) + "/test_dyn_wasm_checkpoint.h5";
+    const char* path = (argc > 1) ? argv[1] : default_path.c_str();
+#else
     const char* path = (argc > 1) ? argv[1] : "tests/data/test_dyn_wasm_checkpoint.h5";
+#endif
 
     using DEVICE = rlt::devices::DefaultCPU;
     using TI = typename DEVICE::index_t;
@@ -33,6 +42,7 @@ int main(int argc, char** argv){
     tuple_input.num_tensors = 0;
     for(TI i = 0; i < rlt::dyn::TensorTuple<TI>::MAX_TENSORS; i++){
         char name[4] = {(char)('0' + i), '\0', '\0', '\0'};
+        if(!rlt::group_exists(device, inputs_group, name)) break;
         if(!rlt::load(device, tuple_input.tensors[i], inputs_group, name)) break;
         tuple_input.num_tensors = i + 1;
     }
