@@ -2762,7 +2762,7 @@ int main(int argc, char** argv){
                 f << trajectories_json;
 #endif
             }
-            std::cerr << "Checkpoint saved: " << step_folder << std::endl;
+            std::cerr << "Checkpoint saved: " << std::filesystem::absolute(step_folder) << std::endl;
         }
 
         episode_length_sum_tf = 0;
