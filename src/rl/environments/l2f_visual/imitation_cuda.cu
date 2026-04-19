@@ -267,6 +267,8 @@ static constexpr TI N_TRAIN_PASSES = 4;
 static constexpr TI VIDEO_CADENCE = 10;
 static constexpr TI CHECKPOINT_CADENCE = 1000;
 static constexpr TI N_EXAMPLES = 512;
+static constexpr TI REDUCED_BATCH_SIZE = 32;
+static_assert(REDUCED_BATCH_SIZE <= N_EXAMPLES);
 static constexpr T OBSERVATION_NOISE_STD = 0.00;
 static constexpr T BRIGHTNESS_RANDOMIZATION_RANGE = 0.5;
 static constexpr TI ENV_GRID_SIDE = 8; // sqrt(N_ENVIRONMENTS_PER_SCENE)
@@ -2442,8 +2444,7 @@ int main(int argc, char** argv){
 
         if(epoch_i % CHECKPOINT_CADENCE == 0){
             auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, epoch_end_step);
-            static constexpr TI CHECKPOINT_BATCH_SIZE = N_EXAMPLES;
-            using EVAL_TYPE = typename CPU_STUDENT_TYPE::template CHANGE_BATCH_SIZE<TI, CHECKPOINT_BATCH_SIZE>;
+            using EVAL_TYPE = typename CPU_STUDENT_TYPE::template CHANGE_BATCH_SIZE<TI, N_EXAMPLES>;
             EVAL_TYPE eval_student;
             rlt::malloc(device, eval_student);
             rlt::copy(device_gpu, device, student_gpu, eval_student);
@@ -2703,28 +2704,42 @@ int main(int argc, char** argv){
                 f.write(writer.buffer.data(), writer.buffer.size());
             }
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
-            { // binary (hdf5)
+            auto save_hdf5 = [&](auto batch_size_tag){ // binary (hdf5)
+                static constexpr TI BATCH_SIZE = decltype(batch_size_tag)::value;
+                using SIZED_EVAL_TYPE = typename CPU_STUDENT_TYPE::template CHANGE_BATCH_SIZE<TI, BATCH_SIZE>;
+                SIZED_EVAL_TYPE sized_eval_student;
+                rlt::malloc(device, sized_eval_student);
+                rlt::copy(device_gpu, device, student_gpu, sized_eval_student);
                 std::lock_guard<std::mutex> lock(rlt::persist::backends::hdf5::global_mutex());
-                std::filesystem::path checkpoint_path = step_folder / "checkpoint.h5";
+                std::filesystem::path checkpoint_path = step_folder / (std::string("checkpoint_") + std::to_string(BATCH_SIZE) + ".h5");
                 rlt::persist::backends::hdf5::File root_file(checkpoint_path.string(), rlt::persist::backends::hdf5::Mode::WRITE);
                 auto actor_group = rlt::create_group(device, root_file, "actor");
                 rlt::set_attribute(device, actor_group, "checkpoint_name", step_folder.string().c_str());
                 rlt::set_attribute(device, actor_group, "meta", meta.c_str());
-                rlt::save(device, eval_student, actor_group);
+                rlt::save(device, sized_eval_student, actor_group);
                 auto example_group = rlt::create_group(device, root_file, "example");
                 auto inputs_group = rlt::create_group(device, example_group, "inputs");
 #ifdef STACK_TARGET_CHANNEL
-                rlt::save(device, example_input_0_image, inputs_group, "0");
-                rlt::save(device, example_input_1_state, inputs_group, "1");
+                auto example_input_0_image_view = rlt::view_range(device, example_input_0_image, (TI)0, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
+                auto example_input_1_state_view = rlt::view_range(device, example_input_1_state, (TI)0, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
+                rlt::save(device, example_input_0_image_view, inputs_group, "0");
+                rlt::save(device, example_input_1_state_view, inputs_group, "1");
 #else
-                rlt::save(device, example_input_0_target_image, inputs_group, "0");
-                rlt::save(device, example_input_1_image, inputs_group, "1");
-                rlt::save(device, example_input_2_state, inputs_group, "2");
+                auto example_input_0_target_image_view = rlt::view_range(device, example_input_0_target_image, (TI)0, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
+                auto example_input_1_image_view = rlt::view_range(device, example_input_1_image, (TI)0, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
+                auto example_input_2_state_view = rlt::view_range(device, example_input_2_state, (TI)0, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
+                rlt::save(device, example_input_0_target_image_view, inputs_group, "0");
+                rlt::save(device, example_input_1_image_view, inputs_group, "1");
+                rlt::save(device, example_input_2_state_view, inputs_group, "2");
 #endif
                 auto outputs_group = rlt::create_group(device, example_group, "outputs");
                 auto example_output_canonical = rlt::reshape_row_major(device, example_output, rlt::tensor::Shape<TI, 1, N_EXAMPLES, TARGET_DIM>{});
-                rlt::save(device, example_output_canonical, outputs_group, "0");
-            }
+                auto example_output_view = rlt::view_range(device, example_output_canonical, (TI)0, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
+                rlt::save(device, example_output_view, outputs_group, "0");
+                rlt::free(device, sized_eval_student);
+            };
+            save_hdf5(rlt::utils::typing::integral_constant<TI, REDUCED_BATCH_SIZE>{});
+            save_hdf5(rlt::utils::typing::integral_constant<TI, N_EXAMPLES>{});
 #endif
             { // code (checkpoint.h)
                 auto actor_weights = rlt::save_code(device, eval_student, std::string("rl_tools::checkpoint::actor"), true);
