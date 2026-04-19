@@ -570,9 +570,13 @@ def main():
         print(line)
         summary_lines.append(line)
 
+    def err_stats(y_pred, y_true):
+        diff = np.abs(y_pred - y_true)
+        return float(np.max(diff)), float(np.mean(diff))
+
     y_keras = model.predict(per_branch, verbose=0)
-    keras_err = np.max(np.abs(y_keras - y_ref))
-    report(f"Keras vs reference: max_abs_err={keras_err:.6g}")
+    keras_err, keras_mean = err_stats(y_keras, y_ref)
+    report(f"Keras vs reference: max_abs_err={keras_err:.6g}  mean_abs_err={keras_mean:.6g}")
     report(f"  ref:   {y_ref.reshape(-1)}")
     report(f"  keras: {y_keras.reshape(-1)}")
 
@@ -624,8 +628,11 @@ def main():
     with open(out_path, "rb") as f:
         reloaded = f.read()
     y_tflite = run_tflite(reloaded, per_branch_reloaded)
-    tflite_err = np.max(np.abs(y_tflite - y_reloaded))
-    report(f"TFLite (via companion files) vs reference: max_abs_err={tflite_err:.6g}")
+    tflite_err, tflite_mean = err_stats(y_tflite, y_reloaded)
+    report(
+        f"TFLite (via companion files) vs reference: "
+        f"max_abs_err={tflite_err:.6g}  mean_abs_err={tflite_mean:.6g}"
+    )
     report(f"  tflite: {y_tflite.reshape(-1)}")
 
     worst = max(keras_err, tflite_err)
@@ -673,8 +680,11 @@ def main():
         int8_reloaded = f.read()
     y_int8 = run_tflite_int8(int8_reloaded, per_branch_reloaded)
     y_int8 = y_int8.reshape(y_flat.shape)
-    int8_err = np.max(np.abs(y_int8 - y_flat))
-    report(f"TFLite (int8, via companion files) vs reference: max_abs_err={int8_err:.6g}")
+    int8_err, int8_mean = err_stats(y_int8, y_flat)
+    report(
+        f"TFLite (int8, via companion files) vs reference: "
+        f"max_abs_err={int8_err:.6g}  mean_abs_err={int8_mean:.6g}"
+    )
     report(f"  int8:  {y_int8.reshape(-1)}")
 
     dequant_by_path = extract_quantized_weights(int8_bytes, ordered_layers)
@@ -685,8 +695,11 @@ def main():
     with h5py.File(quant_h5, "r") as f:
         fq_model = build_model(f)
     y_fq = fq_model.predict(per_branch, verbose=0)
-    fq_err = np.max(np.abs(y_fq - y_flat))
-    report(f"HDF5 (weight-fake-quant) vs reference: max_abs_err={fq_err:.6g}")
+    fq_err, fq_mean = err_stats(y_fq, y_flat)
+    report(
+        f"HDF5 (weight-fake-quant) vs reference: "
+        f"max_abs_err={fq_err:.6g}  mean_abs_err={fq_mean:.6g}"
+    )
     report(f"  fq:    {y_fq.reshape(-1)}")
 
     if int8_err > args.quantize_tolerance:
