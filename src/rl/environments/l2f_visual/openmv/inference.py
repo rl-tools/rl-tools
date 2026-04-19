@@ -287,35 +287,228 @@ class MahonyFilter:
         # Gravity vector (points down) = -g * "up"
         return -self.g_ref * vx, -self.g_ref * vy, -self.g_ref * vz
 
+    def orientation_body_z(self):
+        # Third column of R(q): body +Z axis expressed in world frame.
+        # Matches l2f obs::OrientationBodyZ — unit vector, no g scaling.
+        x = 2.0 * (self.q1 * self.q3 + self.q0 * self.q2)
+        y = 2.0 * (self.q2 * self.q3 - self.q0 * self.q1)
+        z = self.q0 * self.q0 - self.q1 * self.q1 - self.q2 * self.q2 + self.q3 * self.q3
+        return x, y, z
+
+    def angular_velocity_corrected(self, gx, gy, gz):
+        return gx - self.bx, gy - self.by, gz - self.bz
+
 
 MG_TO_MPS2 = 9.80665e-3
 MDPS_TO_RADPS = math.pi / (180.0 * 1000.0)
 
+import sensor
+
+# ---- Constants mirrored from imitation_cuda.cu ----
+FRAME_STACK_N = 5
+FRAME_STACK_STRIDE = 20           # 100 Hz / 20 = 5 Hz frame capture
+ACTION_HISTORY_LENGTH = 64
+ACTION_DIM = 4
+IMG_H, IMG_W, IMG_C = 64, 64, 3
+LOGICAL_IMG_C = FRAME_STACK_N * IMG_C + IMG_C  # 18
+COMBINED_IMG_C = 24                            # cuDNN-aligned pad
+STATE_DIM = 3 + 3 + ACTION_HISTORY_LENGTH * ACTION_DIM  # 262
+TICK_US = 10_000                  # 100 Hz period
+IMAGE_INPUT_IDX = 0
+STATE_INPUT_IDX = 1
+RGB565_BIG_ENDIAN = True          # flip if colors look wrong
+
+assert num_inputs == 2, num_inputs
+assert in_numels[IMAGE_INPUT_IDX] == IMG_H * IMG_W * COMBINED_IMG_C, (in_numels[IMAGE_INPUT_IDX], IMG_H * IMG_W * COMBINED_IMG_C)
+assert in_numels[STATE_INPUT_IDX] == STATE_DIM, (in_numels[STATE_INPUT_IDX], STATE_DIM)
+
+# ---- Camera ----
+sensor.reset()
+sensor.set_pixformat(sensor.RGB565)
+try:
+    sensor.set_framesize(sensor.B64X64)
+except Exception:
+    sensor.set_framesize(sensor.QQVGA)
+    try:
+        sensor.set_windowing(((sensor.width() - IMG_W) // 2,
+                              (sensor.height() - IMG_H) // 2, IMG_W, IMG_H))
+    except Exception:
+        pass
+sensor.skip_frames(time=500)
+
+# ---- Quantization ----
+_img_scale   = in_scales[IMAGE_INPUT_IDX]
+_img_zp      = in_zps[IMAGE_INPUT_IDX]
+_state_scale = in_scales[STATE_INPUT_IDX]
+_state_zp    = in_zps[STATE_INPUT_IDX]
+
+def _q_byte(v, scale, zp):
+    q = int(round(v / scale + zp))
+    if q < -128: q = -128
+    elif q > 127: q = 127
+    return q & 0xFF
+
+_image_lut = bytes(_q_byte(p / 255.0, _img_scale, _img_zp) for p in range(256))
+PAD_BYTE = _q_byte(0.0, _img_scale, _img_zp)
+
+# ---- Buffers ----
+# LUT-quantized frames (int8 bit pattern stored as uint8)
+frame_ring_q = [bytearray(IMG_H * IMG_W * IMG_C) for _ in range(FRAME_STACK_N)]
+target_q     = bytearray(IMG_H * IMG_W * IMG_C)
+
+# Combined NHWC tensor as (H*W, 24). Pad channels preset once.
+combined_arr = np.zeros((IMG_H * IMG_W, COMBINED_IMG_C), dtype=np.uint8)
+combined_arr[:, LOGICAL_IMG_C:COMBINED_IMG_C] = PAD_BYTE
+cached_image_bytes = bytes(combined_arr)
+
+# State vector (int8 bit pattern stored as uint8)
+state_int8 = bytearray(STATE_DIM)
+
+# Action history ring: raw policy outputs (not clipped on store)
+action_ring = [[0.0, 0.0, 0.0, 0.0] for _ in range(ACTION_HISTORY_LENGTH)]
+
+# ---- Helpers ----
+def decode_rgb565_to_rgb888(raw_bytes):
+    # Vectorized RGB565 -> RGB888 decode via ulab.
+    raw = np.frombuffer(raw_bytes, dtype=np.uint8).reshape((IMG_H * IMG_W, 2))
+    if RGB565_BIG_ENDIAN:
+        hi = raw[:, 0]; lo = raw[:, 1]
+    else:
+        hi = raw[:, 1]; lo = raw[:, 0]
+    r5 = hi // 8
+    g_hi = hi - r5 * 8
+    g_lo = lo // 32
+    g6 = g_hi * 8 + g_lo
+    b5 = lo - g_lo * 32
+    rgb = np.empty((IMG_H * IMG_W, 3), dtype=np.uint8)
+    rgb[:, 0] = r5 * 8
+    rgb[:, 1] = g6 * 4
+    rgb[:, 2] = b5 * 8
+    return bytes(rgb)
+
+def recompose_image():
+    # Interleave the 5 frames (newest-first) + target into channels 0..17.
+    # Pad channels 18..23 are set once at init.
+    global cached_image_bytes
+    for f in range(FRAME_STACK_N):
+        src_idx = (frame_write_ptr - 1 - f) % FRAME_STACK_N
+        src = np.frombuffer(frame_ring_q[src_idx], dtype=np.uint8).reshape((IMG_H * IMG_W, IMG_C))
+        combined_arr[:, f*IMG_C:(f+1)*IMG_C] = src
+    tgt = np.frombuffer(target_q, dtype=np.uint8).reshape((IMG_H * IMG_W, IMG_C))
+    combined_arr[:, FRAME_STACK_N*IMG_C:FRAME_STACK_N*IMG_C + IMG_C] = tgt
+    cached_image_bytes = bytes(combined_arr)
+
+def build_state_int8(body_z, ang_vel):
+    # Layout: [orientation_body_z(3), angular_velocity(3), action_history newest-first(256)]
+    state_int8[0] = _q_byte(body_z[0], _state_scale, _state_zp)
+    state_int8[1] = _q_byte(body_z[1], _state_scale, _state_zp)
+    state_int8[2] = _q_byte(body_z[2], _state_scale, _state_zp)
+    state_int8[3] = _q_byte(ang_vel[0], _state_scale, _state_zp)
+    state_int8[4] = _q_byte(ang_vel[1], _state_scale, _state_zp)
+    state_int8[5] = _q_byte(ang_vel[2], _state_scale, _state_zp)
+    idx = 6
+    cur = (action_write_ptr - 1) % ACTION_HISTORY_LENGTH
+    for _ in range(ACTION_HISTORY_LENGTH):
+        slot = action_ring[cur]
+        for ai in range(ACTION_DIM):
+            v = slot[ai]
+            if v < -1.0: v = -1.0
+            elif v > 1.0: v = 1.0
+            state_int8[idx] = _q_byte(v, _state_scale, _state_zp)
+            idx += 1
+        cur = (cur - 1) % ACTION_HISTORY_LENGTH
+
+def image_feeder(buf, shape, dtype):
+    buf[:] = cached_image_bytes
+
+def state_feeder(buf, shape, dtype):
+    buf[:] = state_int8
+
+feeders_live = [image_feeder, state_feeder]
+
+# ---- Main loop ----
 mahony = MahonyFilter()
 last_t = time.ticks_us()
+next_deadline = time.ticks_add(last_t, TICK_US)
+target_captured = False
+frame_write_ptr = 0
+action_write_ptr = 0
+tick = 0
+print("starting 100Hz policy inference loop")
 
 while True:
-    ax_orig, ay_orig, az_orig = imu.acceleration_mg()      # milli-g
-    ax = -az_orig
-    ay = ay_orig
-    az = ax_orig
-    gx_orig, gy_orig, gz_orig = imu.angular_rate_mdps()    # milli-dps
-    gx = -gz_orig
-    gy = gy_orig
-    gz = gx_orig
+    t0 = time.ticks_us()
 
-    now = time.ticks_us()
-    dt = time.ticks_diff(now, last_t) * 1e-6
-    last_t = now
+    ax_orig, ay_orig, az_orig = imu.acceleration_mg()
+    ax = -az_orig
+    ay =  ay_orig
+    az =  ax_orig
+    gx_orig, gy_orig, gz_orig = imu.angular_rate_mdps()
+    gx = -gz_orig
+    gy =  gy_orig
+    gz =  gx_orig
+
+    dt = time.ticks_diff(t0, last_t) * 1e-6
+    last_t = t0
     if dt <= 0.0 or dt > 0.5:
         dt = 0.01
 
+    gx_rad = gx * MDPS_TO_RADPS
+    gy_rad = gy * MDPS_TO_RADPS
+    gz_rad = gz * MDPS_TO_RADPS
     mahony.update(
         ax * MG_TO_MPS2, ay * MG_TO_MPS2, az * MG_TO_MPS2,
-        gx * MDPS_TO_RADPS, gy * MDPS_TO_RADPS, gz * MDPS_TO_RADPS,
-        dt,
+        gx_rad, gy_rad, gz_rad, dt,
     )
-    grav_x, grav_y, grav_z = mahony.gravity_body()
-    print("a_mg=%6d,%6d,%6d w_mdps=%8d,%8d,%8d g_body=%+6.2f,%+6.2f,%+6.2f" %
-          (ax, ay, az, gx, gy, gz, grav_x, grav_y, grav_z))
-    time.sleep_ms(10)
+
+    if tick % FRAME_STACK_STRIDE == 0:
+        img = sensor.snapshot()
+        rgb888 = decode_rgb565_to_rgb888(img.bytearray())
+        frame_ring_q[frame_write_ptr][:] = rgb888.translate(_image_lut)
+        if not target_captured:
+            target_q[:] = frame_ring_q[frame_write_ptr]
+            target_captured = True
+            for i in range(FRAME_STACK_N):
+                if i != frame_write_ptr:
+                    frame_ring_q[i][:] = frame_ring_q[frame_write_ptr]
+        frame_write_ptr = (frame_write_ptr + 1) % FRAME_STACK_N
+        recompose_image()
+
+    if not target_captured:
+        tick += 1
+        delay = time.ticks_diff(next_deadline, time.ticks_us())
+        if delay > 0:
+            time.sleep_us(delay)
+        next_deadline = time.ticks_add(next_deadline, TICK_US)
+        continue
+
+    body_z = mahony.orientation_body_z()
+    ang_vel = mahony.angular_velocity_corrected(gx_rad, gy_rad, gz_rad)
+    build_state_int8(body_z, ang_vel)
+
+    y_raw = model.predict(feeders_live)[0]
+    yq = y_raw.flatten()
+    a0_raw = (float(yq[0]) - out_zp) * out_scale
+    a1_raw = (float(yq[1]) - out_zp) * out_scale
+    a2_raw = (float(yq[2]) - out_zp) * out_scale
+    a3_raw = (float(yq[3]) - out_zp) * out_scale
+
+    slot = action_ring[action_write_ptr]
+    slot[0] = a0_raw; slot[1] = a1_raw; slot[2] = a2_raw; slot[3] = a3_raw
+    action_write_ptr = (action_write_ptr + 1) % ACTION_HISTORY_LENGTH
+
+    a0 = -1.0 if a0_raw < -1.0 else (1.0 if a0_raw > 1.0 else a0_raw)
+    a1 = -1.0 if a1_raw < -1.0 else (1.0 if a1_raw > 1.0 else a1_raw)
+    a2 = -1.0 if a2_raw < -1.0 else (1.0 if a2_raw > 1.0 else a2_raw)
+    a3 = -1.0 if a3_raw < -1.0 else (1.0 if a3_raw > 1.0 else a3_raw)
+
+    elapsed_us = time.ticks_diff(time.ticks_us(), t0)
+    print("us=%5d a=%+5.2f,%+5.2f,%+5.2f,%+5.2f bz=%+5.2f,%+5.2f,%+5.2f av=%+6.2f,%+6.2f,%+6.2f" %
+          (elapsed_us, a0, a1, a2, a3, body_z[0], body_z[1], body_z[2],
+           ang_vel[0], ang_vel[1], ang_vel[2]))
+
+    tick += 1
+    delay = time.ticks_diff(next_deadline, time.ticks_us())
+    if delay > 0:
+        time.sleep_us(delay)
+    next_deadline = time.ticks_add(next_deadline, TICK_US)
