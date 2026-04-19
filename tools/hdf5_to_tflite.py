@@ -269,7 +269,11 @@ def build_model(h5_root):
         for i in range(n):
             branch_group = model_group[f"branch_{i}"]
             feature_shape = branch_feature_shape(branch_group)
-            inp = tf.keras.Input(shape=feature_shape, dtype=tf.float32, name=f"input_{i}")
+            # Pad with a leading zero so SavedModel's alphabetical signature
+            # sort preserves declaration order (in_00 < in_01 < ... < in_09 <
+            # in_10 < ...). Without this, a run with ≥10 inputs would see
+            # in_10 ordered before in_2.
+            inp = tf.keras.Input(shape=feature_shape, dtype=tf.float32, name=f"in_{i:02d}")
             branch_inputs.append(inp)
             branch_outputs.append(build_branch_output(branch_group, inp))
 
@@ -288,7 +292,7 @@ def build_model(h5_root):
     if mtype == "sequential":
         example_in_0 = h5_root["example/inputs/0"]
         feature_shape = tuple(int(d) for d in example_in_0.shape[2:])
-        inp = tf.keras.Input(shape=feature_shape, dtype=tf.float32, name="input_0")
+        inp = tf.keras.Input(shape=feature_shape, dtype=tf.float32, name="in_00")
         outputs = build_sequential(model_group, inp)
         return tf.keras.Model(inputs=inp, outputs=outputs)
 
@@ -435,7 +439,7 @@ import re as _re
 
 def _keras_index_from_tflite_name(name):
     # TFLite input tensor names look like "serving_default_input_0:0".
-    m = _re.search(r"input_(\d+)", name)
+    m = _re.search(r"in_(\d+)", name)
     if not m:
         raise RuntimeError(f"cannot recover keras input index from tflite name {name!r}")
     return int(m.group(1))
