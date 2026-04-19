@@ -586,15 +586,26 @@ def main():
     print(f"wrote {len(tflite_bytes)} bytes to {out_path}")
 
     base, _ = os.path.splitext(out_path)
-    in_paths = [base + f".example_input.{i}.bin" for i in range(len(per_branch))]
     out_example_path = base + ".example_output.bin"
     meta_path = base + ".example_meta.json"
     per_branch_contig = [np.ascontiguousarray(a, dtype=np.float32) for a in per_branch]
     y_flat = np.ascontiguousarray(y_ref, dtype=np.float32)
-    for path, arr in zip(in_paths, per_branch_contig):
+
+    # The tflite converter alphabetizes inputs through SavedModel, so
+    # tflite's input index i does not in general equal keras input index i.
+    # On-device consumers (OpenMV / Vela-compiled models) read inputs in
+    # tflite index order, so name the bin files accordingly:
+    #   example_input.<tflite_i>.bin  == data for tflite input tflite_i
+    # tflite_order[tflite_i] = keras_i.
+    tflite_order = _tflite_input_order(tflite_bytes)
+    in_paths = [base + f".example_input.{i}.bin" for i in range(len(per_branch_contig))]
+    for tflite_i, path in enumerate(in_paths):
+        arr = per_branch_contig[tflite_order[tflite_i]]
         with open(path, "wb") as f:
             f.write(arr.tobytes())
-        print(f"wrote {arr.nbytes} bytes to {path}  (shape={arr.shape}, dtype=float32)")
+        print(f"wrote {arr.nbytes} bytes to {path}  "
+              f"(tflite_input={tflite_i}, keras_input={tflite_order[tflite_i]}, "
+              f"shape={arr.shape}, dtype=float32)")
     with open(out_example_path, "wb") as f:
         f.write(y_flat.tobytes())
     print(f"wrote {y_flat.nbytes} bytes to {out_example_path}  (shape={y_flat.shape}, dtype=float32)")
@@ -602,8 +613,14 @@ def main():
     import json
     meta = {
         "inputs": [
-            {"path": os.path.basename(p), "shape": list(a.shape), "dtype": "float32"}
-            for p, a in zip(in_paths, per_branch_contig)
+            {
+                "path": os.path.basename(in_paths[tflite_i]),
+                "tflite_input_index": tflite_i,
+                "keras_input_index": tflite_order[tflite_i],
+                "shape": list(per_branch_contig[tflite_order[tflite_i]].shape),
+                "dtype": "float32",
+            }
+            for tflite_i in range(len(per_branch_contig))
         ],
         "output": {
             "path": os.path.basename(out_example_path),
@@ -615,12 +632,16 @@ def main():
         json.dump(meta, f, indent=2)
     print(f"wrote {meta_path}")
 
-    per_branch_reloaded = []
-    for path, arr in zip(in_paths, per_branch_contig):
+    # Reload bins (tflite order) and reshuffle back into keras order for the
+    # Keras model validation and the name-matched run_tflite path.
+    per_branch_reloaded = [None] * len(per_branch_contig)
+    for tflite_i, path in enumerate(in_paths):
+        keras_i = tflite_order[tflite_i]
+        src = per_branch_contig[keras_i]
         with open(path, "rb") as f:
-            reloaded_arr = np.frombuffer(f.read(), dtype=np.float32).reshape(arr.shape)
-        assert np.array_equal(reloaded_arr, arr), f"companion input {path} diverges from source"
-        per_branch_reloaded.append(reloaded_arr)
+            reloaded_arr = np.frombuffer(f.read(), dtype=np.float32).reshape(src.shape)
+        assert np.array_equal(reloaded_arr, src), f"companion input {path} diverges from source"
+        per_branch_reloaded[keras_i] = reloaded_arr
     with open(out_example_path, "rb") as f:
         y_reloaded = np.frombuffer(f.read(), dtype=np.float32).reshape(y_flat.shape)
     assert np.array_equal(y_reloaded, y_flat), "companion output diverges from source"
