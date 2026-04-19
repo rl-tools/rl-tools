@@ -267,7 +267,7 @@ static constexpr TI N_TRAIN_PASSES = 4;
 static constexpr TI VIDEO_CADENCE = 10;
 static constexpr TI CHECKPOINT_CADENCE = 1000;
 static constexpr TI N_EXAMPLES = 512;
-static constexpr TI REDUCED_BATCH_SIZE = 32;
+static constexpr TI REDUCED_BATCH_SIZE = 2;
 static_assert(REDUCED_BATCH_SIZE <= N_EXAMPLES);
 static constexpr T OBSERVATION_NOISE_STD = 0.00;
 static constexpr T BRIGHTNESS_RANDOMIZATION_RANGE = 0.5;
@@ -2664,7 +2664,7 @@ int main(int argc, char** argv){
                 rlt::malloc(device, sized_eval_student);
                 rlt::copy(device_gpu, device, student_gpu, sized_eval_student);
                 std::lock_guard<std::mutex> lock(rlt::persist::backends::hdf5::global_mutex());
-                std::filesystem::path checkpoint_path = step_folder / (std::string("checkpoint_") + std::to_string(BATCH_SIZE) + ".h5");
+                std::filesystem::path checkpoint_path = step_folder / (std::string("checkpoint_") + std::to_string(BATCH_SIZE) + "examples.h5");
                 rlt::persist::backends::hdf5::File root_file(checkpoint_path.string(), rlt::persist::backends::hdf5::Mode::WRITE);
                 auto actor_group = rlt::create_group(device, root_file, "actor");
                 rlt::set_attribute(device, actor_group, "checkpoint_name", step_folder.string().c_str());
