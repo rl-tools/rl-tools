@@ -5,6 +5,13 @@ functional model with the original weights copied in, converts that to TFLite,
 and verifies both models against the `example/inputs/*`/`example/outputs/0` pair
 stored in the checkpoint.
 
+For parallel top-level models, the Keras model is multi-input — one
+`tf.keras.Input` per branch with that branch's feature shape, matching the
+struct-of-arrays layout of `example/inputs/{0,1,...}`. This gives the TFLite
+int8 converter a separate quantization scale per input tensor (critical when
+one branch carries image pixels in [0,1] and another carries state values
+with a wider dynamic range).
+
 Supported layer types: parallel, sequential, conv2d, dense, flatten, standardize.
 Supported activations: RELU, IDENTITY, FAST_TANH.
 
@@ -228,26 +235,69 @@ def example_output_tensor(h5_root):
     return h5_root["example/outputs/0"][:].astype(np.float32)
 
 
+def build_branch_output(branch_group, branch_input):
+    btype = attr(branch_group, "type")
+    if btype == "sequential":
+        return build_sequential(branch_group, branch_input)
+    if btype == "parallel":
+        feature_shape = tuple(int(d) for d in branch_input.shape[1:])
+        flat = (
+            tf.keras.layers.Flatten()(branch_input)
+            if len(feature_shape) > 1
+            else branch_input
+        )
+        return build_parallel(branch_group, flat)
+    raise NotImplementedError(f"branch type {btype}")
+
+
+def build_head_output(head_group, tensor):
+    htype = attr(head_group, "type")
+    if htype == "sequential":
+        return build_sequential(head_group, tensor)
+    if htype == "parallel":
+        return build_parallel(head_group, tensor)
+    raise NotImplementedError(f"head type {htype}")
+
+
 def build_model(h5_root):
     model_group = find_model_group(h5_root)
     mtype = attr(model_group, "type")
     if mtype == "parallel":
         n = num_branches(model_group)
-        dims = [branch_flat_dim(model_group[f"branch_{i}"]) for i in range(n)]
-        total_input = sum(dims)
-    elif mtype == "sequential":
+        branch_inputs = []
+        branch_outputs = []
+        for i in range(n):
+            branch_group = model_group[f"branch_{i}"]
+            feature_shape = branch_feature_shape(branch_group)
+            inp = tf.keras.Input(shape=feature_shape, dtype=tf.float32, name=f"input_{i}")
+            branch_inputs.append(inp)
+            branch_outputs.append(build_branch_output(branch_group, inp))
+
+        concat = (
+            tf.keras.layers.Concatenate(axis=-1)(branch_outputs)
+            if n > 1
+            else branch_outputs[0]
+        )
+
+        if int(attr(model_group, "has_head")) != 0:
+            outputs = build_head_output(model_group["head"], concat)
+        else:
+            outputs = concat
+        return tf.keras.Model(inputs=branch_inputs, outputs=outputs)
+
+    if mtype == "sequential":
         example_in_0 = h5_root["example/inputs/0"]
-        total_input = int(np.prod(example_in_0.shape[1:]))
-    else:
-        raise NotImplementedError(f"top-level type {mtype}")
+        feature_shape = tuple(int(d) for d in example_in_0.shape[2:])
+        inp = tf.keras.Input(shape=feature_shape, dtype=tf.float32, name="input_0")
+        outputs = build_sequential(model_group, inp)
+        return tf.keras.Model(inputs=inp, outputs=outputs)
 
-    inputs = tf.keras.Input(shape=(total_input,), dtype=tf.float32)
-    if mtype == "parallel":
-        outputs = build_parallel(model_group, inputs)
-    else:
-        outputs = build_sequential(model_group, inputs)
+    raise NotImplementedError(f"top-level type {mtype}")
 
-    return tf.keras.Model(inputs=inputs, outputs=outputs)
+
+def model_input_shapes(model):
+    raw = model.input if isinstance(model.input, list) else [model.input]
+    return [tuple(int(d) for d in t.shape[1:]) for t in raw]
 
 
 def collect_quant_layers(group):
@@ -279,34 +329,19 @@ def convert_float(keras_model):
     return converter.convert()
 
 
-def load_representative_samples(path, expected_dim, max_samples):
-    if path.endswith(".npy"):
-        arr = np.load(path)
-    else:
-        raw = np.fromfile(path, dtype=np.float32)
-        if expected_dim <= 0 or raw.size % expected_dim != 0:
-            raise ValueError(
-                f"raw file size {raw.size} not divisible by expected_dim {expected_dim}"
-            )
-        arr = raw.reshape(-1, expected_dim)
-    arr = np.asarray(arr, dtype=np.float32)
-    if arr.ndim > 2:
-        arr = arr.reshape(-1, arr.shape[-1])
-    if arr.ndim == 1:
-        arr = arr.reshape(1, -1)
-    if arr.shape[-1] != expected_dim:
-        raise ValueError(
-            f"representative data last-dim {arr.shape[-1]} != model input dim {expected_dim}"
+def convert_int8(keras_model, per_branch_inputs, io_dtype, float_tflite_bytes):
+    order = _tflite_input_order(float_tflite_bytes)
+    if sorted(order) != list(range(len(per_branch_inputs))):
+        raise RuntimeError(
+            f"tflite input order {order} does not map cleanly onto "
+            f"{len(per_branch_inputs)} keras inputs"
         )
-    if max_samples > 0 and arr.shape[0] > max_samples:
-        arr = arr[:max_samples]
-    return arr
+    reordered = [per_branch_inputs[i] for i in order]
+    n_samples = reordered[0].shape[0]
 
-
-def convert_int8(keras_model, rep_samples, io_dtype):
     def rep_gen():
-        for sample in rep_samples:
-            yield [sample[np.newaxis].astype(np.float32)]
+        for i in range(n_samples):
+            yield [arr[i : i + 1].astype(np.float32) for arr in reordered]
 
     converter = tf.lite.TFLiteConverter.from_keras_model(keras_model)
     converter.optimizations = [tf.lite.Optimize.DEFAULT]
@@ -395,37 +430,73 @@ def write_quantized_h5(src_path, dst_path, dequant_by_path):
                 b_ds[...] = b_deq
 
 
-def run_tflite(tflite_bytes, x):
+import re as _re
+
+
+def _keras_index_from_tflite_name(name):
+    # TFLite input tensor names look like "serving_default_input_0:0".
+    m = _re.search(r"input_(\d+)", name)
+    if not m:
+        raise RuntimeError(f"cannot recover keras input index from tflite name {name!r}")
+    return int(m.group(1))
+
+
+def _sort_details_by_name(details, expected_count):
+    if len(details) != expected_count:
+        raise RuntimeError(
+            f"tflite has {len(details)} tensors but {expected_count} were expected"
+        )
+    return sorted(details, key=lambda d: _keras_index_from_tflite_name(d["name"]))
+
+
+def _tflite_input_order(tflite_bytes):
+    # Returns a list such that tflite_input[i] corresponds to keras input
+    # index `order[i]`. Used to align a representative dataset with the
+    # tflite converter's internal input ordering (which may differ from the
+    # Keras-declared order after SavedModel round-tripping).
     interp = tf.lite.Interpreter(model_content=tflite_bytes)
-    inp = interp.get_input_details()[0]
-    interp.resize_tensor_input(inp["index"], list(x.shape))
+    details = interp.get_input_details()
+    return [_keras_index_from_tflite_name(d["name"]) for d in details]
+
+
+def run_tflite(tflite_bytes, inputs):
+    interp = tf.lite.Interpreter(model_content=tflite_bytes)
+    in_details = _sort_details_by_name(interp.get_input_details(), len(inputs))
+    for detail, arr in zip(in_details, inputs):
+        interp.resize_tensor_input(detail["index"], list(arr.shape))
     interp.allocate_tensors()
-    out = interp.get_output_details()[0]
-    interp.set_tensor(inp["index"], x.astype(np.float32))
+    out_detail = interp.get_output_details()[0]
+    for detail, arr in zip(in_details, inputs):
+        interp.set_tensor(detail["index"], arr.astype(np.float32))
     interp.invoke()
-    return interp.get_tensor(out["index"])
+    return interp.get_tensor(out_detail["index"])
 
 
-def run_tflite_int8(tflite_bytes, x):
+def run_tflite_int8(tflite_bytes, inputs):
     interp = tf.lite.Interpreter(model_content=tflite_bytes)
     interp.allocate_tensors()
-    in_detail = interp.get_input_details()[0]
+    in_details = _sort_details_by_name(interp.get_input_details(), len(inputs))
     out_detail = interp.get_output_details()[0]
 
-    in_dim = int(in_detail["shape"][-1])
-    flat = np.ascontiguousarray(x, dtype=np.float32).reshape(-1, in_dim)
+    n_samples = inputs[0].shape[0]
+    for arr in inputs:
+        if arr.shape[0] != n_samples:
+            raise RuntimeError(
+                f"inconsistent sample count across inputs: {[a.shape[0] for a in inputs]}"
+            )
 
-    in_scale, in_zp = in_detail["quantization"]
     out_scale, out_zp = out_detail["quantization"]
 
     outputs = []
-    for sample in flat:
-        s = sample[np.newaxis]
-        if in_detail["dtype"] == np.int8:
-            q = np.round(s / in_scale + in_zp).clip(-128, 127).astype(np.int8)
-            interp.set_tensor(in_detail["index"], q)
-        else:
-            interp.set_tensor(in_detail["index"], s.astype(np.float32))
+    for i in range(n_samples):
+        for detail, arr in zip(in_details, inputs):
+            s = arr[i : i + 1]
+            if detail["dtype"] == np.int8:
+                in_scale, in_zp = detail["quantization"]
+                q = np.round(s / in_scale + in_zp).clip(-128, 127).astype(np.int8)
+                interp.set_tensor(detail["index"], q)
+            else:
+                interp.set_tensor(detail["index"], s.astype(np.float32))
         interp.invoke()
         raw = interp.get_tensor(out_detail["index"])
         if out_detail["dtype"] == np.int8:
@@ -455,11 +526,6 @@ def main():
                     help="also emit an int8-quantized tflite and fake-quant .quantized.h5")
     ap.add_argument("--quantize-io", choices=["int8", "float32"], default="int8",
                     help="I/O dtype of the int8 tflite (default int8 for NPU deployment)")
-    ap.add_argument("--representative-data", default=None,
-                    help="path to .npy or raw-float32 .bin of (N, input_dim) for PTQ calibration; "
-                         "falls back to example/inputs with a warning")
-    ap.add_argument("--representative-samples", type=int, default=256,
-                    help="cap on calibration samples; 0 means use all")
     ap.add_argument("--quantize-tolerance", type=float, default=0.2,
                     help="max absolute error tolerance for int8 tflite vs reference")
     ap.add_argument("--fast-tanh-substitute", choices=["keep", "tanh"], default="tanh",
@@ -475,9 +541,27 @@ def main():
         example_inputs = example_input_tensors(f)
         y_ref = example_output_tensor(f)
         ordered_layers = collect_quant_layers(find_model_group(f))
-    n_examples = example_inputs[0].shape[0]
-    flat_parts = [t.reshape(n_examples, -1) for t in example_inputs]
-    x = np.concatenate(flat_parts, axis=-1)
+    # Canonical example shape is [T, B, ...features] (T=1 for non-recurrent).
+    # Fold T into the batch axis so each per-branch array is (T*B, ...features).
+    per_branch = [
+        t.reshape((t.shape[0] * t.shape[1],) + t.shape[2:]).astype(np.float32)
+        for t in example_inputs
+    ]
+    n_examples = per_branch[0].shape[0]
+    y_ref = y_ref.reshape((n_examples,) + y_ref.shape[2:]).astype(np.float32)
+
+    input_shapes = model_input_shapes(model)
+    if len(per_branch) != len(input_shapes):
+        raise RuntimeError(
+            f"model has {len(input_shapes)} inputs but example/inputs has "
+            f"{len(per_branch)} tensors"
+        )
+    for i, (arr, shape) in enumerate(zip(per_branch, input_shapes)):
+        if tuple(arr.shape[1:]) != shape:
+            raise RuntimeError(
+                f"example/inputs/{i} feature shape {arr.shape[1:]} != model "
+                f"input_{i} shape {shape}"
+            )
 
     model.summary(line_length=120)
 
@@ -486,7 +570,7 @@ def main():
         print(line)
         summary_lines.append(line)
 
-    y_keras = model.predict(x, verbose=0)
+    y_keras = model.predict(per_branch, verbose=0)
     keras_err = np.max(np.abs(y_keras - y_ref))
     report(f"Keras vs reference: max_abs_err={keras_err:.6g}")
     report(f"  ref:   {y_ref.reshape(-1)}")
@@ -498,27 +582,48 @@ def main():
     print(f"wrote {len(tflite_bytes)} bytes to {out_path}")
 
     base, _ = os.path.splitext(out_path)
-    in_path = base + ".example_input.bin"
+    in_paths = [base + f".example_input.{i}.bin" for i in range(len(per_branch))]
     out_example_path = base + ".example_output.bin"
-    x_flat = np.ascontiguousarray(x, dtype=np.float32)
+    meta_path = base + ".example_meta.json"
+    per_branch_contig = [np.ascontiguousarray(a, dtype=np.float32) for a in per_branch]
     y_flat = np.ascontiguousarray(y_ref, dtype=np.float32)
-    with open(in_path, "wb") as f:
-        f.write(x_flat.tobytes())
+    for path, arr in zip(in_paths, per_branch_contig):
+        with open(path, "wb") as f:
+            f.write(arr.tobytes())
+        print(f"wrote {arr.nbytes} bytes to {path}  (shape={arr.shape}, dtype=float32)")
     with open(out_example_path, "wb") as f:
         f.write(y_flat.tobytes())
-    print(f"wrote {x_flat.nbytes} bytes to {in_path}  (shape={x_flat.shape}, dtype=float32)")
     print(f"wrote {y_flat.nbytes} bytes to {out_example_path}  (shape={y_flat.shape}, dtype=float32)")
 
-    with open(in_path, "rb") as f:
-        x_reloaded = np.frombuffer(f.read(), dtype=np.float32).reshape(x_flat.shape)
+    import json
+    meta = {
+        "inputs": [
+            {"path": os.path.basename(p), "shape": list(a.shape), "dtype": "float32"}
+            for p, a in zip(in_paths, per_branch_contig)
+        ],
+        "output": {
+            "path": os.path.basename(out_example_path),
+            "shape": list(y_flat.shape),
+            "dtype": "float32",
+        },
+    }
+    with open(meta_path, "w") as f:
+        json.dump(meta, f, indent=2)
+    print(f"wrote {meta_path}")
+
+    per_branch_reloaded = []
+    for path, arr in zip(in_paths, per_branch_contig):
+        with open(path, "rb") as f:
+            reloaded_arr = np.frombuffer(f.read(), dtype=np.float32).reshape(arr.shape)
+        assert np.array_equal(reloaded_arr, arr), f"companion input {path} diverges from source"
+        per_branch_reloaded.append(reloaded_arr)
     with open(out_example_path, "rb") as f:
         y_reloaded = np.frombuffer(f.read(), dtype=np.float32).reshape(y_flat.shape)
-    assert np.array_equal(x_reloaded, x_flat), "companion input diverges from source"
     assert np.array_equal(y_reloaded, y_flat), "companion output diverges from source"
 
     with open(out_path, "rb") as f:
         reloaded = f.read()
-    y_tflite = run_tflite(reloaded, x_reloaded)
+    y_tflite = run_tflite(reloaded, per_branch_reloaded)
     tflite_err = np.max(np.abs(y_tflite - y_reloaded))
     report(f"TFLite (via companion files) vs reference: max_abs_err={tflite_err:.6g}")
     report(f"  tflite: {y_tflite.reshape(-1)}")
@@ -543,17 +648,7 @@ def main():
               file=sys.stderr)
         return 1
 
-    input_dim = int(model.input.shape[-1])
-    if args.representative_data is None:
-        print("WARNING: --representative-data not given, using example/inputs "
-              "(usually too small/non-diverse for good PTQ calibration)",
-              file=sys.stderr)
-        rep_samples = x_flat.reshape(-1, input_dim)
-    else:
-        rep_samples = load_representative_samples(
-            args.representative_data, input_dim, args.representative_samples
-        )
-    print(f"representative-dataset: {rep_samples.shape[0]} samples of dim {rep_samples.shape[-1]}")
+    print(f"representative-dataset: {n_examples} samples across {len(per_branch_contig)} inputs")
 
     if args.fast_tanh_substitute == "tanh":
         print("substituting FAST_TANH → tf.nn.tanh for int8 conversion "
@@ -568,7 +663,7 @@ def main():
     else:
         int8_src_model = model
 
-    int8_bytes = convert_int8(int8_src_model, rep_samples, args.quantize_io)
+    int8_bytes = convert_int8(int8_src_model, per_branch_contig, args.quantize_io, tflite_bytes)
     int8_path = base + ".int8.tflite"
     with open(int8_path, "wb") as f:
         f.write(int8_bytes)
@@ -576,15 +671,9 @@ def main():
 
     with open(int8_path, "rb") as f:
         int8_reloaded = f.read()
-    with open(in_path, "rb") as f:
-        x_reloaded_int8 = np.frombuffer(f.read(), dtype=np.float32).reshape(x_flat.shape)
-    with open(out_example_path, "rb") as f:
-        y_reloaded_int8 = np.frombuffer(f.read(), dtype=np.float32).reshape(y_flat.shape)
-    assert np.array_equal(x_reloaded_int8, x_flat), "companion input diverges from source"
-    assert np.array_equal(y_reloaded_int8, y_flat), "companion output diverges from source"
-    y_int8 = run_tflite_int8(int8_reloaded, x_reloaded_int8)
-    y_int8 = y_int8.reshape(y_reloaded_int8.shape)
-    int8_err = np.max(np.abs(y_int8 - y_reloaded_int8))
+    y_int8 = run_tflite_int8(int8_reloaded, per_branch_reloaded)
+    y_int8 = y_int8.reshape(y_flat.shape)
+    int8_err = np.max(np.abs(y_int8 - y_flat))
     report(f"TFLite (int8, via companion files) vs reference: max_abs_err={int8_err:.6g}")
     report(f"  int8:  {y_int8.reshape(-1)}")
 
@@ -595,7 +684,7 @@ def main():
 
     with h5py.File(quant_h5, "r") as f:
         fq_model = build_model(f)
-    y_fq = fq_model.predict(x, verbose=0)
+    y_fq = fq_model.predict(per_branch, verbose=0)
     fq_err = np.max(np.abs(y_fq - y_flat))
     report(f"HDF5 (weight-fake-quant) vs reference: max_abs_err={fq_err:.6g}")
     report(f"  fq:    {y_fq.reshape(-1)}")
