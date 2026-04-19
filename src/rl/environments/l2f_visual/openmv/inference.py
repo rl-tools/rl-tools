@@ -166,3 +166,156 @@ model.predict(feeders)  # warm-up with callable path
 print("--- timing %d iters: pre-quantized via callable (pure NPU + in-graph CPU ops) ---" % TIMING_ITERS)
 mn, med, mean, mx = time_n(lambda: model.predict(feeders), TIMING_ITERS)
 print("min/median/mean/max us: %d / %d / %.1f / %d   fps(mean): %.1f" % (mn, med, mean, mx, 1e6 / mean))
+
+
+
+
+
+import imu
+import time
+import math
+
+
+class MahonyFilter:
+    # State: quaternion q (body -> world) and gyro bias b.
+    # v = R(q)^T * [0, 0, 1] is the estimated direction of gravity-reaction in the body
+    # frame (the direction the accelerometer should read when stationary). The PI controller
+    # drives the error e = a_hat x v toward zero while tracking gyro bias.
+    def __init__(self, kp=2.0, ki=0.005, max_bias_rad_s=0.1,
+                 accel_gate_lo_g=0.75, accel_gate_hi_g=1.25, g_ref=9.80665):
+        self.q0 = 1.0
+        self.q1 = 0.0
+        self.q2 = 0.0
+        self.q3 = 0.0
+        self.bx = 0.0
+        self.by = 0.0
+        self.bz = 0.0
+        self.kp = kp
+        self.ki = ki
+        self.max_bias = max_bias_rad_s
+        self.g_ref = g_ref
+        self.a_lo = accel_gate_lo_g * g_ref
+        self.a_hi = accel_gate_hi_g * g_ref
+        self.initialized = False
+
+    def _seed_from_accel(self, ax, ay, az):
+        norm = math.sqrt(ax * ax + ay * ay + az * az)
+        if norm < 1e-9:
+            return
+        ux = ax / norm
+        uy = ay / norm
+        uz = az / norm
+        if uz < -0.999999:
+            self.q0, self.q1, self.q2, self.q3 = 0.0, 1.0, 0.0, 0.0
+            return
+        w = 1.0 + uz
+        x = uy
+        y = -ux
+        z = 0.0
+        qn = math.sqrt(w * w + x * x + y * y + z * z)
+        self.q0 = w / qn
+        self.q1 = x / qn
+        self.q2 = y / qn
+        self.q3 = z / qn
+
+    def update(self, ax, ay, az, gx, gy, gz, dt):
+        if not self.initialized:
+            self._seed_from_accel(ax, ay, az)
+            self.initialized = True
+
+        a_norm = math.sqrt(ax * ax + ay * ay + az * az)
+        use_accel = a_norm > 1e-6 and self.a_lo <= a_norm <= self.a_hi
+
+        if use_accel:
+            inv = 1.0 / a_norm
+            ahx = ax * inv
+            ahy = ay * inv
+            ahz = az * inv
+
+            vx = 2.0 * (self.q1 * self.q3 - self.q0 * self.q2)
+            vy = 2.0 * (self.q2 * self.q3 + self.q0 * self.q1)
+            vz = self.q0 * self.q0 - self.q1 * self.q1 - self.q2 * self.q2 + self.q3 * self.q3
+
+            ex = ahy * vz - ahz * vy
+            ey = ahz * vx - ahx * vz
+            ez = ahx * vy - ahy * vx
+
+            self.bx += self.ki * ex * dt
+            self.by += self.ki * ey * dt
+            self.bz += self.ki * ez * dt
+            if self.bx > self.max_bias:  self.bx = self.max_bias
+            elif self.bx < -self.max_bias: self.bx = -self.max_bias
+            if self.by > self.max_bias:  self.by = self.max_bias
+            elif self.by < -self.max_bias: self.by = -self.max_bias
+            if self.bz > self.max_bias:  self.bz = self.max_bias
+            elif self.bz < -self.max_bias: self.bz = -self.max_bias
+
+            wx = gx - self.bx + self.kp * ex
+            wy = gy - self.by + self.kp * ey
+            wz = gz - self.bz + self.kp * ez
+        else:
+            wx = gx - self.bx
+            wy = gy - self.by
+            wz = gz - self.bz
+
+        q0, q1, q2, q3 = self.q0, self.q1, self.q2, self.q3
+        dq0 = 0.5 * (-q1 * wx - q2 * wy - q3 * wz)
+        dq1 = 0.5 * ( q0 * wx + q2 * wz - q3 * wy)
+        dq2 = 0.5 * ( q0 * wy - q1 * wz + q3 * wx)
+        dq3 = 0.5 * ( q0 * wz + q1 * wy - q2 * wx)
+
+        q0 += dq0 * dt
+        q1 += dq1 * dt
+        q2 += dq2 * dt
+        q3 += dq3 * dt
+
+        qn = math.sqrt(q0 * q0 + q1 * q1 + q2 * q2 + q3 * q3)
+        if qn > 1e-12:
+            inv_q = 1.0 / qn
+            self.q0 = q0 * inv_q
+            self.q1 = q1 * inv_q
+            self.q2 = q2 * inv_q
+            self.q3 = q3 * inv_q
+        else:
+            self.q0, self.q1, self.q2, self.q3 = 1.0, 0.0, 0.0, 0.0
+
+    def gravity_body(self):
+        # World "up" direction expressed in body frame (= accel reading when stationary)
+        vx = 2.0 * (self.q1 * self.q3 - self.q0 * self.q2)
+        vy = 2.0 * (self.q2 * self.q3 + self.q0 * self.q1)
+        vz = self.q0 * self.q0 - self.q1 * self.q1 - self.q2 * self.q2 + self.q3 * self.q3
+        # Gravity vector (points down) = -g * "up"
+        return -self.g_ref * vx, -self.g_ref * vy, -self.g_ref * vz
+
+
+MG_TO_MPS2 = 9.80665e-3
+MDPS_TO_RADPS = math.pi / (180.0 * 1000.0)
+
+mahony = MahonyFilter()
+last_t = time.ticks_us()
+
+while True:
+    ax_orig, ay_orig, az_orig = imu.acceleration_mg()      # milli-g
+    ax = -az_orig
+    ay = ay_orig
+    az = ax_orig
+    gx_orig, gy_orig, gz_orig = imu.angular_rate_mdps()    # milli-dps
+    gx = -gz_orig
+    gy = gy_orig
+    gz = gx_orig
+
+    now = time.ticks_us()
+    dt = time.ticks_diff(now, last_t) * 1e-6
+    last_t = now
+    if dt <= 0.0 or dt > 0.5:
+        dt = 0.01
+
+    mahony.update(
+        ax * MG_TO_MPS2, ay * MG_TO_MPS2, az * MG_TO_MPS2,
+        gx * MDPS_TO_RADPS, gy * MDPS_TO_RADPS, gz * MDPS_TO_RADPS,
+        dt,
+    )
+    grav_x, grav_y, grav_z = mahony.gravity_body()
+    print("a_mg=%6d,%6d,%6d w_mdps=%8d,%8d,%8d g_body=%+6.2f,%+6.2f,%+6.2f" %
+          (ax, ay, az, gx, gy, gz, grav_x, grav_y, grav_z))
+    time.sleep_ms(10)
