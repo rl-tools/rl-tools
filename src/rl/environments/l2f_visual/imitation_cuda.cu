@@ -2477,24 +2477,28 @@ int main(int argc, char** argv){
             std::string obs_string = "TargetImage(" + image_obs_string + "), " + image_obs_string + ", " + state_obs_string;
 #endif
             std::string meta = "{\"environment\": {\"name\": \"l2f_visual\", \"observation\": \"" + obs_string + "\", \"output\": \"Action\"}}";
+            // Per-branch CPU example tensors in canonical `[1, N_EXAMPLES, ...features]` shape.
+            // Used directly by the REAL eval (via dense rank-reduced view_memory) and by the
+            // checkpoint save — no composite-and-slice roundtrip, the per-branch GPU buffers
+            // are already Struct-of-Arrays so we copy each one directly into its destination.
 #ifdef STACK_TARGET_CHANNEL
-            static constexpr TI TOTAL_INPUT_DIM = COMBINED_OBS_DIM + STATE_OBS_DIM;
+            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, N_EXAMPLES, IMG_H, IMG_W, COMBINED_IMG_C>, true>> example_input_0_image;
+            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, N_EXAMPLES, STATE_OBS_DIM>, true>> example_input_1_state;
+            rlt::malloc(device, example_input_0_image);
+            rlt::malloc(device, example_input_1_state);
 #else
-            static constexpr TI TOTAL_INPUT_DIM = STACKED_OBS_DIM + STACKED_OBS_DIM + STATE_OBS_DIM;
+            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, N_EXAMPLES, IMG_H, IMG_W, STACKED_IMG_C>, true>> example_input_0_target_image;
+            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, N_EXAMPLES, IMG_H, IMG_W, STACKED_IMG_C>, true>> example_input_1_image;
+            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, N_EXAMPLES, STATE_OBS_DIM>, true>> example_input_2_state;
+            rlt::malloc(device, example_input_0_target_image);
+            rlt::malloc(device, example_input_1_image);
+            rlt::malloc(device, example_input_2_state);
 #endif
-            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, TOTAL_INPUT_DIM>, true>> example_input;
             rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, TARGET_DIM>, true>> example_output;
-            rlt::malloc(device, example_input);
             rlt::malloc(device, example_output);
             {
 #ifdef STACK_TARGET_CHANNEL
                 {
-                    auto example_input_img_dst_slice = rlt::view_range(device, example_input, (TI)0, rlt::tensor::ViewSpec<1, COMBINED_OBS_DIM>{});
-                    auto example_input_state_dst_slice = rlt::view_range(device, example_input, (TI)COMBINED_OBS_DIM, rlt::tensor::ViewSpec<1, STATE_OBS_DIM>{});
-                    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, COMBINED_OBS_DIM>, true>> scratch_img;
-                    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, STATE_OBS_DIM>, true>> scratch_state;
-                    rlt::malloc(device, scratch_img);
-                    rlt::malloc(device, scratch_state);
 #ifdef USE_FRAME_STACKING
                     // Sample the tail of the rollout so every frame-stack slot is populated (step 0 clamps past frames to episode_start).
                     static constexpr TI EXAMPLE_ROW_OFFSET = STEPS_TOTAL - N_EXAMPLES;
@@ -2507,24 +2511,13 @@ int main(int argc, char** argv){
                     auto src_combined = rlt::view_range(device_gpu, gpu_rollout_combined, (TI)0, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
                     auto src_state = rlt::view_range(device_gpu, gpu_all_state_observations, (TI)0, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
 #endif
-                    rlt::copy(device_gpu, device, src_combined, scratch_img);
-                    rlt::copy(device_gpu, device, src_state, scratch_state);
-                    rlt::copy(device, device, scratch_img, example_input_img_dst_slice);
-                    rlt::copy(device, device, scratch_state, example_input_state_dst_slice);
-                    rlt::free(device, scratch_img);
-                    rlt::free(device, scratch_state);
+                    auto dst_image_2d = rlt::reshape_row_major(device, example_input_0_image, rlt::tensor::Shape<TI, N_EXAMPLES, COMBINED_OBS_DIM>{});
+                    auto dst_state_2d = rlt::reshape_row_major(device, example_input_1_state, rlt::tensor::Shape<TI, N_EXAMPLES, STATE_OBS_DIM>{});
+                    rlt::copy(device_gpu, device, src_combined, dst_image_2d);
+                    rlt::copy(device_gpu, device, src_state, dst_state_2d);
                 }
 #else
                 {
-                    auto example_input_target_dst_slice = rlt::view_range(device, example_input, (TI)0, rlt::tensor::ViewSpec<1, STACKED_OBS_DIM>{});
-                    auto example_input_img_dst_slice = rlt::view_range(device, example_input, (TI)STACKED_OBS_DIM, rlt::tensor::ViewSpec<1, STACKED_OBS_DIM>{});
-                    auto example_input_state_dst_slice = rlt::view_range(device, example_input, (TI)(2 * STACKED_OBS_DIM), rlt::tensor::ViewSpec<1, STATE_OBS_DIM>{});
-                    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, STACKED_OBS_DIM>, true>> scratch_target_img;
-                    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, STACKED_OBS_DIM>, true>> scratch_img;
-                    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, STATE_OBS_DIM>, true>> scratch_state;
-                    rlt::malloc(device, scratch_target_img);
-                    rlt::malloc(device, scratch_img);
-                    rlt::malloc(device, scratch_state);
 #ifdef USE_FRAME_STACKING
                     static_assert(N_EXAMPLES <= BATCH_SIZE, "N_EXAMPLES exceeds gpu_stacked_batch capacity");
                     auto src_target_img = rlt::view_range(device_gpu, gpu_stacked_target_batch, (TI)0, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
@@ -2537,21 +2530,15 @@ int main(int argc, char** argv){
                     auto src_img = rlt::view_range(device_gpu, gpu_all_observations, EXAMPLE_ROW_OFFSET, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
                     auto src_state = rlt::view_range(device_gpu, gpu_all_state_observations, EXAMPLE_ROW_OFFSET, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
 #endif
-                    rlt::copy(device_gpu, device, src_target_img, scratch_target_img);
-                    rlt::copy(device_gpu, device, src_img, scratch_img);
-                    rlt::copy(device_gpu, device, src_state, scratch_state);
-                    rlt::copy(device, device, scratch_target_img, example_input_target_dst_slice);
-                    rlt::copy(device, device, scratch_img, example_input_img_dst_slice);
-                    rlt::copy(device, device, scratch_state, example_input_state_dst_slice);
-                    rlt::free(device, scratch_target_img);
-                    rlt::free(device, scratch_img);
-                    rlt::free(device, scratch_state);
+                    auto dst_target_image_2d = rlt::reshape_row_major(device, example_input_0_target_image, rlt::tensor::Shape<TI, N_EXAMPLES, STACKED_OBS_DIM>{});
+                    auto dst_image_2d = rlt::reshape_row_major(device, example_input_1_image, rlt::tensor::Shape<TI, N_EXAMPLES, STACKED_OBS_DIM>{});
+                    auto dst_state_2d = rlt::reshape_row_major(device, example_input_2_state, rlt::tensor::Shape<TI, N_EXAMPLES, STATE_OBS_DIM>{});
+                    rlt::copy(device_gpu, device, src_target_img, dst_target_image_2d);
+                    rlt::copy(device_gpu, device, src_img, dst_image_2d);
+                    rlt::copy(device_gpu, device, src_state, dst_state_2d);
                 }
 #endif
 #ifdef STACK_TARGET_CHANNEL
-                auto example_input_img = rlt::view_range(device, example_input, (TI)0, rlt::tensor::ViewSpec<1, COMBINED_OBS_DIM>{});
-                auto example_input_img_reshaped = rlt::reshape_row_major(device, example_input_img, rlt::tensor::Shape<TI, N_EXAMPLES, IMG_H, IMG_W, COMBINED_IMG_C>{});
-                auto example_input_state = rlt::view_range(device, example_input, (TI)COMBINED_OBS_DIM, rlt::tensor::ViewSpec<1, STATE_OBS_DIM>{});
                 using BRANCH_0 = typename rlt::utils::tuple_element<0, typename EVAL_TYPE::SPEC::BRANCH_TUPLE>::type;
                 using BRANCH_1 = typename rlt::utils::tuple_element<1, typename EVAL_TYPE::SPEC::BRANCH_TUPLE>::type;
                 using BRANCH_0_OUTPUT_SHAPE = rlt::nn_models::parallel::detail::output_shape<typename EVAL_TYPE::SPEC::CAPABILITY, BRANCH_0>;
@@ -2569,18 +2556,17 @@ int main(int argc, char** argv){
                 rlt::malloc(device, buffer_0);
                 rlt::malloc(device, buffer_1);
                 rlt::Mode<rlt::mode::Evaluation<>> eval_mode;
-                rlt::evaluate(device, rlt::get<0>(eval_student.pipelines), example_input_img_reshaped, branch_0_out, buffer_0, rng, eval_mode);
-                rlt::evaluate(device, rlt::get<1>(eval_student.pipelines), example_input_state, branch_1_out, buffer_1, rng, eval_mode);
+                // The canonical `[1, N, ...]` tensors are dense row-major by construction;
+                // view_memory yields dense rank-reduced views that match the pipeline's input layout.
+                auto image_eval_view = rlt::view_memory<rlt::tensor::Shape<TI, N_EXAMPLES, IMG_H, IMG_W, COMBINED_IMG_C>>(device, example_input_0_image);
+                auto state_eval_view = rlt::view_memory<rlt::tensor::Shape<TI, N_EXAMPLES, STATE_OBS_DIM>>(device, example_input_1_state);
+                rlt::evaluate(device, rlt::get<0>(eval_student.pipelines), image_eval_view, branch_0_out, buffer_0, rng, eval_mode);
+                rlt::evaluate(device, rlt::get<1>(eval_student.pipelines), state_eval_view, branch_1_out, buffer_1, rng, eval_mode);
                 auto concat_0 = rlt::view_range(device, concat_out, (TI)0, rlt::tensor::ViewSpec<1, BRANCH_0_DIM>{});
                 auto concat_1 = rlt::view_range(device, concat_out, (TI)BRANCH_0_DIM, rlt::tensor::ViewSpec<1, BRANCH_1_DIM>{});
                 rlt::copy(device, device, branch_0_out, concat_0);
                 rlt::copy(device, device, branch_1_out, concat_1);
 #else
-                auto example_input_target_img = rlt::view_range(device, example_input, (TI)0, rlt::tensor::ViewSpec<1, STACKED_OBS_DIM>{});
-                auto example_input_target_img_reshaped = rlt::reshape_row_major(device, example_input_target_img, rlt::tensor::Shape<TI, N_EXAMPLES, IMG_H, IMG_W, STACKED_IMG_C>{});
-                auto example_input_img = rlt::view_range(device, example_input, (TI)STACKED_OBS_DIM, rlt::tensor::ViewSpec<1, STACKED_OBS_DIM>{});
-                auto example_input_img_reshaped = rlt::reshape_row_major(device, example_input_img, rlt::tensor::Shape<TI, N_EXAMPLES, IMG_H, IMG_W, STACKED_IMG_C>{});
-                auto example_input_state = rlt::view_range(device, example_input, (TI)(2 * STACKED_OBS_DIM), rlt::tensor::ViewSpec<1, STATE_OBS_DIM>{});
                 using BRANCH_0 = typename rlt::utils::tuple_element<0, typename EVAL_TYPE::SPEC::BRANCH_TUPLE>::type;
                 using BRANCH_1 = typename rlt::utils::tuple_element<1, typename EVAL_TYPE::SPEC::BRANCH_TUPLE>::type;
                 using BRANCH_2 = typename rlt::utils::tuple_element<2, typename EVAL_TYPE::SPEC::BRANCH_TUPLE>::type;
@@ -2605,9 +2591,12 @@ int main(int argc, char** argv){
                 rlt::malloc(device, buffer_1);
                 rlt::malloc(device, buffer_2);
                 rlt::Mode<rlt::mode::Evaluation<>> eval_mode;
-                rlt::evaluate(device, rlt::get<0>(eval_student.pipelines), example_input_target_img_reshaped, branch_0_out, buffer_0, rng, eval_mode);
-                rlt::evaluate(device, rlt::get<1>(eval_student.pipelines), example_input_img_reshaped, branch_1_out, buffer_1, rng, eval_mode);
-                rlt::evaluate(device, rlt::get<2>(eval_student.pipelines), example_input_state, branch_2_out, buffer_2, rng, eval_mode);
+                auto target_image_eval_view = rlt::view_memory<rlt::tensor::Shape<TI, N_EXAMPLES, IMG_H, IMG_W, STACKED_IMG_C>>(device, example_input_0_target_image);
+                auto image_eval_view = rlt::view_memory<rlt::tensor::Shape<TI, N_EXAMPLES, IMG_H, IMG_W, STACKED_IMG_C>>(device, example_input_1_image);
+                auto state_eval_view = rlt::view_memory<rlt::tensor::Shape<TI, N_EXAMPLES, STATE_OBS_DIM>>(device, example_input_2_state);
+                rlt::evaluate(device, rlt::get<0>(eval_student.pipelines), target_image_eval_view, branch_0_out, buffer_0, rng, eval_mode);
+                rlt::evaluate(device, rlt::get<1>(eval_student.pipelines), image_eval_view, branch_1_out, buffer_1, rng, eval_mode);
+                rlt::evaluate(device, rlt::get<2>(eval_student.pipelines), state_eval_view, branch_2_out, buffer_2, rng, eval_mode);
                 auto concat_0 = rlt::view_range(device, concat_out, (TI)0, rlt::tensor::ViewSpec<1, BRANCH_0_DIM>{});
                 auto concat_1 = rlt::view_range(device, concat_out, (TI)BRANCH_0_DIM, rlt::tensor::ViewSpec<1, BRANCH_1_DIM>{});
                 auto concat_2 = rlt::view_range(device, concat_out, (TI)(BRANCH_0_DIM + BRANCH_1_DIM), rlt::tensor::ViewSpec<1, BRANCH_2_DIM>{});
@@ -2642,42 +2631,6 @@ int main(int argc, char** argv){
                 rlt::free(device, buffer_2);
 #endif
             }
-            // Materialize per-branch example inputs (contiguous, natural shapes) from the flat example_input
-            // so that each branch input can be persisted independently under example/inputs/<i>.
-            // Canonical example shape: [T=1, B=N_EXAMPLES, ...features] matching
-            // the actor's INPUT_SHAPE convention (T at offset 0, B at offset 1).
-#ifdef STACK_TARGET_CHANNEL
-            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, N_EXAMPLES, IMG_H, IMG_W, COMBINED_IMG_C>, true>> example_input_0_image;
-            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, N_EXAMPLES, STATE_OBS_DIM>, true>> example_input_1_state;
-            rlt::malloc(device, example_input_0_image);
-            rlt::malloc(device, example_input_1_state);
-            {
-                auto src_img = rlt::view_range(device, example_input, (TI)0, rlt::tensor::ViewSpec<1, COMBINED_OBS_DIM>{});
-                auto src_img_reshaped = rlt::reshape_row_major(device, src_img, rlt::tensor::Shape<TI, 1, N_EXAMPLES, IMG_H, IMG_W, COMBINED_IMG_C>{});
-                auto src_state = rlt::view_range(device, example_input, (TI)COMBINED_OBS_DIM, rlt::tensor::ViewSpec<1, STATE_OBS_DIM>{});
-                auto src_state_reshaped = rlt::reshape_row_major(device, src_state, rlt::tensor::Shape<TI, 1, N_EXAMPLES, STATE_OBS_DIM>{});
-                rlt::copy(device, device, src_img_reshaped, example_input_0_image);
-                rlt::copy(device, device, src_state_reshaped, example_input_1_state);
-            }
-#else
-            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, N_EXAMPLES, IMG_H, IMG_W, STACKED_IMG_C>, true>> example_input_0_target_image;
-            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, N_EXAMPLES, IMG_H, IMG_W, STACKED_IMG_C>, true>> example_input_1_image;
-            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, N_EXAMPLES, STATE_OBS_DIM>, true>> example_input_2_state;
-            rlt::malloc(device, example_input_0_target_image);
-            rlt::malloc(device, example_input_1_image);
-            rlt::malloc(device, example_input_2_state);
-            {
-                auto src_target_img = rlt::view_range(device, example_input, (TI)0, rlt::tensor::ViewSpec<1, STACKED_OBS_DIM>{});
-                auto src_target_img_reshaped = rlt::reshape_row_major(device, src_target_img, rlt::tensor::Shape<TI, 1, N_EXAMPLES, IMG_H, IMG_W, STACKED_IMG_C>{});
-                auto src_img = rlt::view_range(device, example_input, (TI)STACKED_OBS_DIM, rlt::tensor::ViewSpec<1, STACKED_OBS_DIM>{});
-                auto src_img_reshaped = rlt::reshape_row_major(device, src_img, rlt::tensor::Shape<TI, 1, N_EXAMPLES, IMG_H, IMG_W, STACKED_IMG_C>{});
-                auto src_state = rlt::view_range(device, example_input, (TI)(2 * STACKED_OBS_DIM), rlt::tensor::ViewSpec<1, STATE_OBS_DIM>{});
-                auto src_state_reshaped = rlt::reshape_row_major(device, src_state, rlt::tensor::Shape<TI, 1, N_EXAMPLES, STATE_OBS_DIM>{});
-                rlt::copy(device, device, src_target_img_reshaped, example_input_0_target_image);
-                rlt::copy(device, device, src_img_reshaped, example_input_1_image);
-                rlt::copy(device, device, src_state_reshaped, example_input_2_state);
-            }
-#endif
             { // binary (tar)
                 std::filesystem::path checkpoint_path = step_folder / "checkpoint.tar";
                 rlt::persist::backends::tar::Writer writer;
@@ -2782,8 +2735,6 @@ int main(int argc, char** argv){
                     f << output_string;
                 }
             }
-            rlt::free(device, example_input);
-            rlt::free(device, example_output);
 #ifdef STACK_TARGET_CHANNEL
             rlt::free(device, example_input_0_image);
             rlt::free(device, example_input_1_state);
@@ -2792,6 +2743,7 @@ int main(int argc, char** argv){
             rlt::free(device, example_input_1_image);
             rlt::free(device, example_input_2_state);
 #endif
+            rlt::free(device, example_output);
             rlt::free(device, eval_student);
             {
                 std::string trajectories_json = trajectory_episodes_to_json(device, envs[0], completed_episodes, simulation_dt);
