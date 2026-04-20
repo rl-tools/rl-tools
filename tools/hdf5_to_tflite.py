@@ -304,6 +304,82 @@ def model_input_shapes(model):
     return [tuple(int(d) for d in t.shape[1:]) for t in raw]
 
 
+def wrap_split_image_input(model, n_split, channels_per):
+    """Replace the model's first input (assumed shape (H, W, C_total)) with
+    `n_split` separate inputs of shape (H, W, channels_per). They are joined
+    by a Concat along the channel axis, then zero-padded to C_total channels
+    (so the original first conv still sees the expected input dimensionality).
+
+    The rest of the inputs are kept as-is. This is intended for OpenMV /
+    Ethos-U deployment where avoiding a CPU-side NHWC interleave matters
+    more than runtime simplicity.
+    """
+    original_inputs = list(model.inputs) if isinstance(model.inputs, (list, tuple)) else [model.inputs]
+    if not original_inputs:
+        raise RuntimeError("model has no inputs")
+    img_input = original_inputs[0]
+    other_inputs = original_inputs[1:]
+    img_shape = tuple(int(d) for d in img_input.shape[1:])
+    if len(img_shape) != 3:
+        raise ValueError(f"--split-image-input expects first input rank 3 (H,W,C), got {img_shape}")
+    H, W, C_total = img_shape
+    n_logical = n_split * channels_per
+    n_pad = C_total - n_logical
+    if n_pad < 0:
+        raise ValueError(
+            f"--split-image-input N={n_split} × channels-per={channels_per} = {n_logical} "
+            f"exceeds first-input channel count C_total={C_total}"
+        )
+
+    new_img_inputs = [
+        tf.keras.Input(shape=(H, W, channels_per), dtype=img_input.dtype, name=f"in_{i:02d}")
+        for i in range(n_split)
+    ]
+    new_other_inputs = [
+        tf.keras.Input(
+            shape=tuple(int(d) for d in t.shape[1:]),
+            dtype=t.dtype,
+            name=f"in_{n_split + j:02d}",
+        )
+        for j, t in enumerate(other_inputs)
+    ]
+
+    if n_split > 1:
+        concat = tf.keras.layers.Concatenate(axis=-1, name="split_image_concat")(new_img_inputs)
+    else:
+        concat = new_img_inputs[0]
+    if n_pad > 0:
+        padded = tf.keras.layers.Lambda(
+            lambda x, p=n_pad: tf.pad(x, [[0, 0], [0, 0], [0, 0], [0, p]]),
+            name="split_image_pad",
+        )(concat)
+    else:
+        padded = concat
+
+    output = model([padded] + new_other_inputs)
+    return tf.keras.Model(inputs=new_img_inputs + new_other_inputs, outputs=output)
+
+
+def split_first_branch_image(per_branch, n_split, channels_per):
+    """Split per_branch[0] (..., C_total) into n_split arrays along the last
+    axis, dropping any remaining padding channels. The other branches are
+    returned unchanged.
+    """
+    img = per_branch[0]
+    if img.ndim < 1:
+        raise ValueError("first per-branch array has no axes to split")
+    if img.shape[-1] < n_split * channels_per:
+        raise ValueError(
+            f"first per-branch array has {img.shape[-1]} channels, needs "
+            f"≥ {n_split * channels_per}"
+        )
+    parts = [
+        np.ascontiguousarray(img[..., i * channels_per:(i + 1) * channels_per])
+        for i in range(n_split)
+    ]
+    return parts + per_branch[1:]
+
+
 def collect_quant_layers(group):
     kind = attr(group, "type")
     if kind == "sequential":
@@ -476,7 +552,7 @@ def run_tflite(tflite_bytes, inputs):
     return interp.get_tensor(out_detail["index"])
 
 
-def run_tflite_int8(tflite_bytes, inputs):
+def run_tflite_int8(tflite_bytes, inputs, return_raw=False):
     interp = tf.lite.Interpreter(model_content=tflite_bytes)
     interp.allocate_tensors()
     in_details = _sort_details_by_name(interp.get_input_details(), len(inputs))
@@ -492,6 +568,7 @@ def run_tflite_int8(tflite_bytes, inputs):
     out_scale, out_zp = out_detail["quantization"]
 
     outputs = []
+    raw_outputs = []
     for i in range(n_samples):
         for detail, arr in zip(in_details, inputs):
             s = arr[i : i + 1]
@@ -505,10 +582,19 @@ def run_tflite_int8(tflite_bytes, inputs):
         raw = interp.get_tensor(out_detail["index"])
         if out_detail["dtype"] == np.int8:
             y = (raw.astype(np.float32) - out_zp) * out_scale
+            raw_outputs.append(raw.astype(np.int8))
         else:
             y = raw.astype(np.float32)
+            raw_outputs.append(None)
         outputs.append(y)
-    return np.concatenate(outputs, axis=0)
+    dequant = np.concatenate(outputs, axis=0)
+    if return_raw:
+        if any(r is None for r in raw_outputs):
+            raw_arr = None
+        else:
+            raw_arr = np.concatenate(raw_outputs, axis=0)
+        return dequant, raw_arr, float(out_scale), int(out_zp), str(out_detail["dtype"].__name__)
+    return dequant
 
 
 def print_summary(lines):
@@ -536,6 +622,13 @@ def main():
                     help="for int8 mode only: replace the polynomial FAST_TANH with tf.nn.tanh "
                          "(tanh uses a lookup table under int8 and is well-supported on NPUs; "
                          "the polynomial form triggers a division by zero in the int8 DIV kernel)")
+    ap.add_argument("--split-image-input", type=int, default=None, metavar="N",
+                    help="experimental: replace the first input (assumed (H,W,C_total)) with "
+                         "N inputs of (H,W,channels-per) joined by a leading Concat (and zero-pad "
+                         "if N*channels-per < C_total). Used to avoid the CPU-side NHWC interleave "
+                         "on OpenMV / Ethos-U deployment.")
+    ap.add_argument("--split-image-channels-per", type=int, default=3,
+                    help="channels per split input when --split-image-input is set (default 3)")
     args = ap.parse_args()
 
     out_path = args.output or os.path.splitext(args.input)[0] + ".tflite"
@@ -553,6 +646,14 @@ def main():
     ]
     n_examples = per_branch[0].shape[0]
     y_ref = y_ref.reshape((n_examples,) + y_ref.shape[2:]).astype(np.float32)
+
+    if args.split_image_input is not None:
+        n_split = args.split_image_input
+        c_per = args.split_image_channels_per
+        print(f"--split-image-input: wrapping model with {n_split} image inputs "
+              f"of {c_per} channels each (leading Concat + zero-pad if needed)")
+        model = wrap_split_image_input(model, n_split, c_per)
+        per_branch = split_first_branch_image(per_branch, n_split, c_per)
 
     input_shapes = model_input_shapes(model)
     if len(per_branch) != len(input_shapes):
@@ -690,6 +791,10 @@ def main():
         try:
             with h5py.File(args.input, "r") as f:
                 int8_src_model = build_model(f)
+            if args.split_image_input is not None:
+                int8_src_model = wrap_split_image_input(
+                    int8_src_model, args.split_image_input, args.split_image_channels_per
+                )
         finally:
             ACTIVATIONS["FAST_TANH"] = saved
     else:
@@ -703,13 +808,49 @@ def main():
 
     with open(int8_path, "rb") as f:
         int8_reloaded = f.read()
-    y_int8 = run_tflite_int8(int8_reloaded, per_branch_reloaded)
+    y_int8, y_int8_raw, out_scale, out_zp, out_dtype_name = run_tflite_int8(
+        int8_reloaded, per_branch_reloaded, return_raw=True
+    )
     y_int8 = y_int8.reshape(y_flat.shape)
     int8_err, int8_mean = err_stats(y_int8, y_flat)
     report(
         f"TFLite (int8, via companion files) vs reference: "
         f"max_abs_err={int8_err:.6g}  mean_abs_err={int8_mean:.6g}"
     )
+
+    # Save the int8 model's expected output as a companion bin so on-device
+    # validation can do a strict wiring check (compare deployed output against
+    # what THIS converter produced from the same int8 tflite).
+    int8_out_path = base + ".example_int8_output.bin"
+    int8_out_flat = np.ascontiguousarray(y_int8, dtype=np.float32)
+    with open(int8_out_path, "wb") as f:
+        f.write(int8_out_flat.tobytes())
+    print(f"wrote {int8_out_flat.nbytes} bytes to {int8_out_path}  "
+          f"(shape={int8_out_flat.shape}, dtype=float32)")
+    int8_out_raw_path = None
+    if y_int8_raw is not None:
+        y_int8_raw = y_int8_raw.reshape(y_flat.shape).astype(np.int8)
+        int8_out_raw_path = base + ".example_int8_output_raw.bin"
+        with open(int8_out_raw_path, "wb") as f:
+            f.write(np.ascontiguousarray(y_int8_raw).tobytes())
+        print(f"wrote {y_int8_raw.nbytes} bytes to {int8_out_raw_path}  "
+              f"(shape={y_int8_raw.shape}, dtype=int8)")
+
+    # Re-write meta JSON with the int8_output block so on-device consumers can
+    # discover the strict-comparison artifacts. Existing keys preserved.
+    meta["int8_output"] = {
+        "path": os.path.basename(int8_out_path),
+        "raw_path": (os.path.basename(int8_out_raw_path) if int8_out_raw_path else None),
+        "shape": list(int8_out_flat.shape),
+        "dtype": "float32",
+        "raw_dtype": ("int8" if int8_out_raw_path else None),
+        "scale": out_scale,
+        "zero_point": out_zp,
+        "tflite_output_dtype": out_dtype_name,
+    }
+    with open(meta_path, "w") as f:
+        json.dump(meta, f, indent=2)
+    print(f"updated {meta_path} with int8_output block")
     report(f"  int8:  {y_int8.reshape(-1)}")
 
     dequant_by_path = extract_quantized_weights(int8_bytes, ordered_layers)
@@ -719,6 +860,10 @@ def main():
 
     with h5py.File(quant_h5, "r") as f:
         fq_model = build_model(f)
+    if args.split_image_input is not None:
+        fq_model = wrap_split_image_input(
+            fq_model, args.split_image_input, args.split_image_channels_per
+        )
     y_fq = fq_model.predict(per_branch, verbose=0)
     fq_err, fq_mean = err_stats(y_fq, y_flat)
     report(

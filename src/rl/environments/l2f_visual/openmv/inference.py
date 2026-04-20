@@ -1,6 +1,7 @@
 import gc
 import os
 import time
+import json
 import ml
 import machine
 import micropython
@@ -50,7 +51,8 @@ def autodetect_paths():
     indexed_inputs.sort()
     inputs = [f for _, f in indexed_inputs]
     out = pick_first(files, lambda f: f.endswith(".example_output.bin"), ".example_output.bin")
-    return model, inputs, out
+    meta = pick_first(files, lambda f: f.endswith(".example_meta.json"), ".example_meta.json")
+    return model, inputs, out, meta
 
 
 def shape_numel(shape):
@@ -84,11 +86,14 @@ try:
 except OSError as e:
     print("listdir(cwd) failed:", e)
 
-MODEL_PATH, INPUT_PATHS, OUTPUT_PATH = autodetect_paths()
+MODEL_PATH, INPUT_PATHS, OUTPUT_PATH, META_PATH = autodetect_paths()
 print("MODEL_PATH :", repr(MODEL_PATH), "size:", os.stat(MODEL_PATH)[6])
 for i, p in enumerate(INPUT_PATHS):
     print("INPUT_%d    :" % i, repr(p), "size:", os.stat(p)[6])
 print("OUTPUT_PATH:", repr(OUTPUT_PATH), "size:", os.stat(OUTPUT_PATH)[6])
+print("META_PATH  :", repr(META_PATH))
+with open(META_PATH) as _f:
+    META = json.load(_f)
 
 model = ml.Model(MODEL_PATH)
 print_mem("after ml.Model()")
@@ -128,7 +133,51 @@ err = max(float(np.max(diff)), -float(np.min(diff)))
 print("batch_size:", int(in_shapes[0][0]))
 print("output   :", y_f32)
 print("reference:", y_ref)
-print("max_abs_err:", err)
+print("max_abs_err vs float reference (incl. quantization noise):", err)
+
+# Strict wiring check: compare against the int8 model's expected output saved by
+# the converter (when present in the meta JSON). Any meaningful delta here
+# indicates input ordering / dtype / packing mismatch — quantization noise has
+# already been subtracted on both sides since both produce identical int8 ops.
+INT8_OUT_PATH = None
+if "int8_output" in META and META["int8_output"].get("path"):
+    candidate = META["int8_output"]["path"]
+    try:
+        os.stat(candidate)
+        INT8_OUT_PATH = candidate
+    except OSError:
+        print("meta references int8_output %r but file is absent — skipping strict check"
+              % candidate)
+if INT8_OUT_PATH is not None:
+    y_ref_int8 = load_sample_float32(INT8_OUT_PATH, SAMPLE_INDEX, out_numel)
+    diff_int8 = y_f32 - y_ref_int8
+    err_int8 = max(float(np.max(diff_int8)), -float(np.min(diff_int8)))
+    # Two thresholds:
+    #   TIGHT_TOL ≈ 2 LSBs — Vela should ideally hit this (pure NPU graph). Won't
+    #     hit it if any op falls back to CPU (e.g. dynamic-shape Flatten); the
+    #     CPU↔NPU re-quantization handoffs inject ~10-30 LSBs of drift.
+    #   FAIL_TOL  ≈ 100 LSBs (bounded by 0.5 absolute) — a real wiring bug
+    #     (wrong feeder slot, byte misorder, dtype mismatch) blows past this
+    #     by a wide margin. Anything below FAIL_TOL but above TIGHT_TOL is most
+    #     likely Vela compilation drift, not a deployment bug.
+    TIGHT_TOL = max(2 * out_scale, 1e-5)
+    FAIL_TOL = min(100 * out_scale, 0.5)
+    print("int8 expected:", y_ref_int8)
+    print("max_abs_err vs int8 expected:", err_int8,
+          "(tight=%g, fail=%g)" % (TIGHT_TOL, FAIL_TOL))
+    if err_int8 > FAIL_TOL:
+        raise RuntimeError(
+            "deployed int8 output differs from converter's int8 reference by %g "
+            "(> fail-threshold %g). Almost certainly a wiring bug: input ordering, "
+            "dtype, or byte packing." % (err_int8, FAIL_TOL))
+    if err_int8 > TIGHT_TOL:
+        print("WIRING OK (Vela drift): %g (in %g..%g) — likely from Vela's "
+              "CPU↔NPU op-placement boundaries, not a wiring issue."
+              % (err_int8, TIGHT_TOL, FAIL_TOL))
+    else:
+        print("WIRING OK (bit-tight): %g <= %g" % (err_int8, TIGHT_TOL))
+else:
+    print("no int8_output in meta JSON — strict wiring check skipped")
 
 
 def time_n(fn, n):
@@ -314,17 +363,33 @@ FRAME_STACK_HISTORY_LENGTH = FRAME_STACK_STRIDE * (FRAME_STACK_N - 1) + 1  # 81
 ACTION_HISTORY_LENGTH = 64
 ACTION_DIM = 4
 IMG_H, IMG_W, IMG_C = 64, 64, 3
-LOGICAL_IMG_C = FRAME_STACK_N * IMG_C + IMG_C  # 18
-COMBINED_IMG_C = 24                            # cuDNN-aligned pad
+N_IMAGE_INPUTS = FRAME_STACK_N + 1  # 6: 5 history frames + 1 target
+N_INPUTS = N_IMAGE_INPUTS + 1       # +state
+TARGET_KERAS_INDEX = FRAME_STACK_N  # 5 (last image input is the target)
+STATE_KERAS_INDEX = N_IMAGE_INPUTS  # 6
 STATE_DIM = 3 + 3 + ACTION_HISTORY_LENGTH * ACTION_DIM  # 262
 TICK_US = 10_000                  # 100 Hz period
-IMAGE_INPUT_IDX = 0
-STATE_INPUT_IDX = 1
 RGB565_BIG_ENDIAN = True          # flip if colors look wrong
 
-assert num_inputs == 2, num_inputs
-assert in_numels[IMAGE_INPUT_IDX] == IMG_H * IMG_W * COMBINED_IMG_C, (in_numels[IMAGE_INPUT_IDX], IMG_H * IMG_W * COMBINED_IMG_C)
-assert in_numels[STATE_INPUT_IDX] == STATE_DIM, (in_numels[STATE_INPUT_IDX], STATE_DIM)
+assert num_inputs == N_INPUTS, (num_inputs, N_INPUTS)
+# Build tflite_input_index → keras_input_index mapping from the meta file.
+# keras_input_index 0..(FRAME_STACK_N-1) = frame slots (newest first),
+# keras_input_index FRAME_STACK_N = target frame, keras_input_index N_IMAGE_INPUTS = state.
+tflite_to_keras = [None] * num_inputs
+for _entry in META["inputs"]:
+    tflite_to_keras[int(_entry["tflite_input_index"])] = int(_entry["keras_input_index"])
+for _i, _k in enumerate(tflite_to_keras):
+    if _k is None:
+        raise RuntimeError("meta JSON missing tflite input %d" % _i)
+print("tflite -> keras input mapping:", tflite_to_keras)
+
+# Per-input size sanity checks.
+for _ti in range(num_inputs):
+    _ki = tflite_to_keras[_ti]
+    if _ki == STATE_KERAS_INDEX:
+        assert in_numels[_ti] == STATE_DIM, (in_numels[_ti], STATE_DIM, _ti, _ki)
+    else:
+        assert in_numels[_ti] == IMG_H * IMG_W * IMG_C, (in_numels[_ti], IMG_H * IMG_W * IMG_C, _ti, _ki)
 
 # ---- Camera ----
 # Use the full available FOV in the limiting sensor dimension: take a centered
@@ -346,10 +411,20 @@ _resized_img = image.Image(IMG_W, IMG_H, csi.RGB565)
 _resize_scale = IMG_W / CROP_SIZE
 
 # ---- Quantization ----
-_img_scale   = in_scales[IMAGE_INPUT_IDX]
-_img_zp      = in_zps[IMAGE_INPUT_IDX]
-_state_scale = in_scales[STATE_INPUT_IDX]
-_state_zp    = in_zps[STATE_INPUT_IDX]
+# Locate the state's tflite slot and a representative image slot. All 6 image
+# inputs were quantized from the same source distribution, so they share scale/zp.
+_state_tflite_idx = next(i for i in range(num_inputs) if tflite_to_keras[i] == STATE_KERAS_INDEX)
+_img_tflite_idx   = next(i for i in range(num_inputs) if tflite_to_keras[i] != STATE_KERAS_INDEX)
+_img_scale   = in_scales[_img_tflite_idx]
+_img_zp      = in_zps[_img_tflite_idx]
+_state_scale = in_scales[_state_tflite_idx]
+_state_zp    = in_zps[_state_tflite_idx]
+# Verify all image inputs really do share scale/zp (sanity check).
+for _ti in range(num_inputs):
+    if tflite_to_keras[_ti] != STATE_KERAS_INDEX:
+        if abs(in_scales[_ti] - _img_scale) > 1e-9 or abs(in_zps[_ti] - _img_zp) > 1e-6:
+            print("WARN: image input %d has scale/zp (%g/%g) differing from %g/%g"
+                  % (_ti, in_scales[_ti], in_zps[_ti], _img_scale, _img_zp))
 
 def _q_byte(v, scale, zp):
     q = int(round(v / scale + zp))
@@ -368,13 +443,6 @@ PAD_BYTE = _q_byte(0.0, _img_scale, _img_zp)
 # sliding-window scheme used at training time (imitation_cuda.cu:1810 write, :1821 gather).
 frame_history_q = [bytearray(IMG_H * IMG_W * IMG_C) for _ in range(FRAME_STACK_HISTORY_LENGTH)]
 target_q        = bytearray(IMG_H * IMG_W * IMG_C)
-
-# Combined NHWC buffer (flat bytearray). Pad channels [18:24] preset once to PAD_BYTE;
-# the viper interleave only overwrites channels [0:18].
-combined_bytes = bytearray(IMG_H * IMG_W * COMBINED_IMG_C)
-for _p in range(IMG_H * IMG_W):
-    for _c in range(LOGICAL_IMG_C, COMBINED_IMG_C):
-        combined_bytes[_p * COMBINED_IMG_C + _c] = PAD_BYTE
 
 # State vector (int8 bit pattern stored as uint8)
 state_int8 = bytearray(STATE_DIM)
@@ -415,36 +483,17 @@ def _viper_decode_rgb565_le(dst: ptr8, src: ptr8, lut: ptr8, n_pixels: int):
         dst[i*3 + 2] = lut[b8]
         i += 1
 
-@micropython.viper
-def _viper_interleave_stack_target(
-    dst: ptr8,
-    s0: ptr8, s1: ptr8, s2: ptr8, s3: ptr8, s4: ptr8, tgt: ptr8,
-    n_pixels: int
-):
-    # Write channels [0:18] of each 24-byte NHWC pixel: 5 frames RGB then target RGB.
-    # Pad channels [18:24] are left untouched (pre-initialized to PAD_BYTE).
-    d = 0
-    s = 0
-    end = n_pixels * 24
-    while d < end:
-        dst[d]      = s0[s];     dst[d + 1]  = s0[s + 1]; dst[d + 2]  = s0[s + 2]
-        dst[d + 3]  = s1[s];     dst[d + 4]  = s1[s + 1]; dst[d + 5]  = s1[s + 2]
-        dst[d + 6]  = s2[s];     dst[d + 7]  = s2[s + 1]; dst[d + 8]  = s2[s + 2]
-        dst[d + 9]  = s3[s];     dst[d + 10] = s3[s + 1]; dst[d + 11] = s3[s + 2]
-        dst[d + 12] = s4[s];     dst[d + 13] = s4[s + 1]; dst[d + 14] = s4[s + 2]
-        dst[d + 15] = tgt[s];    dst[d + 16] = tgt[s + 1]; dst[d + 17] = tgt[s + 2]
-        d += 24
-        s += 3
-
 _decode_rgb565 = _viper_decode_rgb565_be if RGB565_BIG_ENDIAN else _viper_decode_rgb565_le
 
-def recompose_image():
-    s0 = frame_history_q[history_write_ptr]
-    s1 = frame_history_q[(history_write_ptr - 1 * FRAME_STACK_STRIDE) % FRAME_STACK_HISTORY_LENGTH]
-    s2 = frame_history_q[(history_write_ptr - 2 * FRAME_STACK_STRIDE) % FRAME_STACK_HISTORY_LENGTH]
-    s3 = frame_history_q[(history_write_ptr - 3 * FRAME_STACK_STRIDE) % FRAME_STACK_HISTORY_LENGTH]
-    s4 = frame_history_q[(history_write_ptr - 4 * FRAME_STACK_STRIDE) % FRAME_STACK_HISTORY_LENGTH]
-    _viper_interleave_stack_target(combined_bytes, s0, s1, s2, s3, s4, target_q, IMG_H * IMG_W)
+# Per-keras-input source bytearray references. The model's leading Concat lets us
+# feed each frame slot as its own contiguous tensor — no NHWC interleave needed.
+# Indices [0:FRAME_STACK_N] are dynamic frame-history slots (refreshed each tick),
+# index TARGET_KERAS_INDEX is the target frame, index STATE_KERAS_INDEX is the state.
+sources_by_keras = [None] * N_INPUTS
+sources_by_keras[TARGET_KERAS_INDEX] = target_q
+sources_by_keras[STATE_KERAS_INDEX] = state_int8
+for _k in range(FRAME_STACK_N):
+    sources_by_keras[_k] = frame_history_q[0]  # placeholder until first tick
 
 @micropython.viper
 def _viper_copy_action_history_newest_first(
@@ -483,13 +532,12 @@ def _quantize_action_clip(v):
     elif v > 1.0: v = 1.0
     return _q_byte(v, _state_scale, _state_zp)
 
-def image_feeder(buf, shape, dtype):
-    buf[:] = combined_bytes
+def make_live_feeder(keras_idx):
+    def feeder(buf, shape, dtype):
+        buf[:] = sources_by_keras[keras_idx]
+    return feeder
 
-def state_feeder(buf, shape, dtype):
-    buf[:] = state_int8
-
-feeders_live = [image_feeder, state_feeder]
+feeders_live = [make_live_feeder(tflite_to_keras[_ti]) for _ti in range(num_inputs)]
 
 # ---- Main loop ----
 mahony = MahonyFilter()
@@ -543,7 +591,10 @@ while True:
             if i != history_write_ptr:
                 frame_history_q[i][:] = frame_history_q[history_write_ptr]
         target_captured = True
-    recompose_image()
+    sources_by_keras[0] = frame_history_q[history_write_ptr]
+    for _f in range(1, FRAME_STACK_N):
+        _slot = (history_write_ptr - _f * FRAME_STACK_STRIDE) % FRAME_STACK_HISTORY_LENGTH
+        sources_by_keras[_f] = frame_history_q[_slot]
 
     body_z = mahony.orientation_body_z()
     ang_vel = mahony.angular_velocity_corrected(gx_rad, gy_rad, gz_rad)
