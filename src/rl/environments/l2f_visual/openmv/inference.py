@@ -362,7 +362,7 @@ FRAME_STACK_STRIDE = 20           # 100 Hz / 20 = 200 ms spacing between stacked
 FRAME_STACK_HISTORY_LENGTH = FRAME_STACK_STRIDE * (FRAME_STACK_N - 1) + 1  # 81
 ACTION_HISTORY_LENGTH = 64
 ACTION_DIM = 4
-IMG_H, IMG_W, IMG_C = 64, 64, 3
+IMG_H, IMG_W, IMG_C = 50, 80, 3
 N_IMAGE_INPUTS = FRAME_STACK_N + 1  # 6: 5 history frames + 1 target
 N_INPUTS = N_IMAGE_INPUTS + 1       # +state
 TARGET_KERAS_INDEX = FRAME_STACK_N  # 5 (last image input is the target)
@@ -392,23 +392,21 @@ for _ti in range(num_inputs):
         assert in_numels[_ti] == IMG_H * IMG_W * IMG_C, (in_numels[_ti], IMG_H * IMG_W * IMG_C, _ti, _ki)
 
 # ---- Camera ----
-# Use the full available FOV in the limiting sensor dimension: take a centered
-# square crop of side min(sensor_w, sensor_h), then bilinear-resize to IMG_W×IMG_H.
-# PAG7936 supports up to ~220 fps at QVGA; request 100 fps to align with the
-# 100 Hz training-time tick rate.
+# Use the full native WXGA (1280x800) sensor output — matching aspect 1.6:1 of
+# the IMG_W:IMG_H (80:50) target — and bilinear-downscale uniformly by 1/16.
+# Request 100 fps to align with the 100 Hz training-time tick rate; the sensor
+# may not sustain this at WXGA, reduce if so (and retrain at the matching rate).
 csi0 = csi.CSI()
 csi0.reset()
 csi0.pixformat(csi.RGB565)
-csi0.framesize(csi.QVGA)
+csi0.framesize(csi.WXGA)
 _sensor_w, _sensor_h = csi0.width(), csi0.height()
-CROP_SIZE = min(_sensor_w, _sensor_h)
-csi0.window(((_sensor_w - CROP_SIZE) // 2, (_sensor_h - CROP_SIZE) // 2, CROP_SIZE, CROP_SIZE))
 csi0.framerate(100)
 csi0.auto_exposure(False, exposure_us=4000)
 for _ in range(10):
     csi0.snapshot()
 _resized_img = image.Image(IMG_W, IMG_H, csi.RGB565)
-_resize_scale = IMG_W / CROP_SIZE
+_resize_scale = IMG_W / _sensor_w
 
 # ---- Quantization ----
 # Locate the state's tflite slot and a representative image slot. All 6 image

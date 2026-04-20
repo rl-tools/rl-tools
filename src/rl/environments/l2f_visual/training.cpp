@@ -138,8 +138,8 @@ struct STATIC_PARAMETERS {
 // Visual environment specification
 // =========================================================================
 static constexpr TI NUM_ENVS = 64;
-static constexpr TI CAM_WIDTH = 64;
-static constexpr TI CAM_HEIGHT = 64;
+static constexpr TI CAM_WIDTH = 80;
+static constexpr TI CAM_HEIGHT = 50;
 static constexpr TI NUM_PROBES = 64;
 
 using VISUAL_SPEC = rlt::rl::environments::l2f_visual::Specification<T, TI, STATIC_PARAMETERS, NUM_ENVS, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES>;
