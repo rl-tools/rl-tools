@@ -328,12 +328,12 @@ sensor.set_pixformat(sensor.RGB565)
 try:
     sensor.set_framesize(sensor.B64X64)
 except Exception:
-    sensor.set_framesize(sensor.QQVGA)
     try:
-        sensor.set_windowing(((sensor.width() - IMG_W) // 2,
-                              (sensor.height() - IMG_H) // 2, IMG_W, IMG_H))
+        sensor.set_framesize(sensor.QQVGA)
     except Exception:
-        pass
+        sensor.set_framesize(sensor.QVGA)
+    sensor.set_windowing(((sensor.width() - IMG_W) // 2,
+                          (sensor.height() - IMG_H) // 2, IMG_W, IMG_H))
 sensor.skip_frames(time=500)
 
 # ---- Quantization ----
@@ -348,7 +348,7 @@ def _q_byte(v, scale, zp):
     elif q > 127: q = 127
     return q & 0xFF
 
-_image_lut = bytes(_q_byte(p / 255.0, _img_scale, _img_zp) for p in range(256))
+_img_inv_255_scale = 1.0 / (255.0 * _img_scale)
 PAD_BYTE = _q_byte(0.0, _img_scale, _img_zp)
 
 # ---- Buffers ----
@@ -368,8 +368,8 @@ state_int8 = bytearray(STATE_DIM)
 action_ring = [[0.0, 0.0, 0.0, 0.0] for _ in range(ACTION_HISTORY_LENGTH)]
 
 # ---- Helpers ----
-def decode_rgb565_to_rgb888(raw_bytes):
-    # Vectorized RGB565 -> RGB888 decode via ulab.
+def decode_rgb565_to_quantized(raw_bytes):
+    # Vectorized RGB565 -> RGB888 -> int8-quantized in one pass (ulab).
     raw = np.frombuffer(raw_bytes, dtype=np.uint8).reshape((IMG_H * IMG_W, 2))
     if RGB565_BIG_ENDIAN:
         hi = raw[:, 0]; lo = raw[:, 1]
@@ -380,11 +380,11 @@ def decode_rgb565_to_rgb888(raw_bytes):
     g_lo = lo // 32
     g6 = g_hi * 8 + g_lo
     b5 = lo - g_lo * 32
-    rgb = np.empty((IMG_H * IMG_W, 3), dtype=np.uint8)
-    rgb[:, 0] = r5 * 8
-    rgb[:, 1] = g6 * 4
-    rgb[:, 2] = b5 * 8
-    return bytes(rgb)
+    rgb = np.empty((IMG_H * IMG_W, 3), dtype=np.float)
+    rgb[:, 0] = r5 * 8 * _img_inv_255_scale + _img_zp
+    rgb[:, 1] = g6 * 4 * _img_inv_255_scale + _img_zp
+    rgb[:, 2] = b5 * 8 * _img_inv_255_scale + _img_zp
+    return bytes(np.array(np.clip(rgb, -128, 127), dtype=np.int8))
 
 def recompose_image():
     # Interleave the 5 frames (newest-first) + target into channels 0..17.
@@ -463,8 +463,7 @@ while True:
 
     if tick % FRAME_STACK_STRIDE == 0:
         img = sensor.snapshot()
-        rgb888 = decode_rgb565_to_rgb888(img.bytearray())
-        frame_ring_q[frame_write_ptr][:] = rgb888.translate(_image_lut)
+        frame_ring_q[frame_write_ptr][:] = decode_rgb565_to_quantized(img.bytearray())
         if not target_captured:
             target_q[:] = frame_ring_q[frame_write_ptr]
             target_captured = True
