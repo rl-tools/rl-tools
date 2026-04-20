@@ -109,8 +109,8 @@ static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM;
 // Visual environment specification
 // =========================================================================
 static constexpr TI N_ENVIRONMENTS = 1;
-static constexpr TI CAM_WIDTH = 64;
-static constexpr TI CAM_HEIGHT = 64;
+static constexpr TI CAM_WIDTH = 80;
+static constexpr TI CAM_HEIGHT = 50;
 static constexpr TI NUM_PROBES = 64;
 static constexpr bool HIGH_FIDELITY_SHADING = true;
 

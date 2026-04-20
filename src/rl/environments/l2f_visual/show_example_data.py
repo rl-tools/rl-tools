@@ -2,7 +2,7 @@ import sys
 import h5py
 import matplotlib.pyplot as plt
 
-H, W, C = 64, 64, 24
+H, W, C = 50, 80, 24
 FRAMES = 5
 TITLES = [f't-{i}' for i in range(FRAMES)] + ['target']
 
