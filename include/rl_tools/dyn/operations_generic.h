@@ -131,8 +131,12 @@ namespace rl_tools{
                         insert_last_three(u.height, u.width, u.channels);
                     }
                     else{
-                        layer.output_rank = in_rank; layer.output_size = in_size;
-                        for(TI i = 0; i < in_rank; i++) layer.output_shape[i] = in_shape[i];
+                        // Unflatten requires its target (height, width, channels) to be known — typically loaded
+                        // from the checkpoint's saved attributes. If they're missing we cannot recover them:
+                        // spatial = height * width is underdetermined and channels has no independent source here.
+                        // Signal failure explicitly via output_size=0 so the composite propagates the failure.
+                        layer.output_rank = 0;
+                        layer.output_size = 0;
                     }
                     break;
                 }
@@ -198,18 +202,6 @@ namespace rl_tools{
             else{
                 const TI* cur_shape = in_shape; TI cur_rank = in_rank;
                 for(TI i = 0; i < layer.num_children; i++){
-                    if(layer.children[i].type == LayerType::UNFLATTEN && layer.children[i].data != nullptr){
-                        auto& u = layer.children[i].template as<layers::Unflatten<TI>>();
-                        if(u.height == 0 && i + 1 < layer.num_children && layer.children[i+1].type == LayerType::CONV2D){
-                            auto& conv = layer.children[i+1].template as<const layers::Conv2d<TI>>();
-                            u.channels = conv.input_channels;
-                            TI flat_dim = cur_shape[cur_rank - 1];
-                            TI spatial = flat_dim / u.channels;
-                            TI side = 1;
-                            while(side * side < spatial) side++;
-                            if(side * side == spatial){ u.height = side; u.width = side; }
-                        }
-                    }
                     propagate_shapes(layer.children[i], cur_shape, cur_rank);
                     if(layer.children[i].output_size == 0){ layer.output_size = 0; return; }
                     cur_shape = layer.children[i].output_shape;

@@ -585,19 +585,23 @@ namespace rl_tools{
             initialized = true;
         }
 
-        T* d_conv_out = d_output._data;
+        // Using layer.output as scratch for the pre-activation gradient preserves d_output for
+        // callers that still need the upstream gradient (e.g. resnet_block's shortcut path reuses
+        // buffer.shortcut as d_output for both conv2 and the downsample conv).
+        T* d_conv_out = layer.output._data;
         if constexpr(LAYER_SPEC::ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::RELU){
             float a = 1, b = 0;
-            check_cudnn_call(device, cudnnActivationBackward(device.cudnn_handle, relu_ad, &a, yd, layer.output._data, yd, d_output._data, yd, layer.output._data, &b, yd, d_output._data), "cudnnActivationBackward conv2d_bwd");
+            check_cudnn_call(device, cudnnActivationBackward(device.cudnn_handle, relu_ad, &a, yd, layer.output._data, yd, d_output._data, yd, layer.output._data, &b, yd, d_conv_out), "cudnnActivationBackward conv2d_bwd");
         }
         if constexpr(LAYER_SPEC::NORMALIZATION == nn::layers::conv2d::Normalization::BATCH_NORM){
             constexpr bool IS_EVAL = mode::is<MODE, mode::Evaluation>;
+            const T* d_norm_out_in = (LAYER_SPEC::ACTIVATION_FUNCTION == nn::activation_functions::ActivationFunction::RELU) ? d_conv_out : d_output._data;
             if constexpr(IS_EVAL){
                 constexpr TI SPATIAL = N * OH * OW;
                 constexpr TI BN_BS = 256;
                 using T_NORM_PARAM_BW = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::NormParameter>;
                 nn::layers::conv2d::cuda::kernels::bn_eval_backward<T, T_NORM_PARAM_BW, TI><<<OC, BN_BS, 0, device.stream>>>(
-                    d_output._data, layer.pre_activations._data,
+                    d_norm_out_in, layer.pre_activations._data,
                     layer.norm_cache.mean._data, layer.norm_cache.inv_std._data,
                     layer.norm.gamma.parameters._data,
                     d_conv_out,
@@ -608,13 +612,15 @@ namespace rl_tools{
                 constexpr TI BN_BS = 256;
                 using T_NORM_PARAM_BW = typename LAYER_SPEC::TYPE_POLICY::template GET<numeric_types::categories::NormParameter>;
                 nn::layers::conv2d::cuda::kernels::bn_training_backward<T, T_NORM_PARAM_BW><<<OC, BN_BS, 0, device.stream>>>(
-                    d_output._data, layer.pre_activations._data,
+                    d_norm_out_in, layer.pre_activations._data,
                     layer.norm_cache.mean._data, layer.norm_cache.inv_std._data,
                     layer.norm.gamma.parameters._data,
                     d_conv_out,
                     layer.norm.gamma.gradient._data, layer.norm.beta.gradient._data,
                     SPATIAL, OC);
             }
+        } else if constexpr(LAYER_SPEC::ACTIVATION_FUNCTION != nn::activation_functions::ActivationFunction::RELU){
+            check_cuda_call(device, cudaMemcpyAsync(d_conv_out, d_output._data, N*OH*OW*OC*sizeof(T), cudaMemcpyDeviceToDevice, device.stream), "cudaMemcpyAsync conv2d_bwd d_output_to_d_conv_out");
         }
         {
             constexpr TI SPATIAL = N * OH * OW;
