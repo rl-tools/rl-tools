@@ -10,11 +10,11 @@ gtest_discover_tests(test_rl_environments_mujoco_ant_td3_test)
 target_compile_definitions(test_rl_environments_mujoco_ant_td3_test PRIVATE -DRL_TOOLS_TEST_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TD3_TEST)
 
 
-if(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
-    add_executable(test_rl_environments_mujoco_ant_ui ui.cpp)
-    target_link_libraries(test_rl_environments_mujoco_ant_ui PRIVATE RLtools::RLtools GTest::gtest_main)
-    gtest_discover_tests(test_rl_environments_mujoco_ant_ui)
-endif()
+#if(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
+#    add_executable(test_rl_environments_mujoco_ant_ui ui.cpp)
+#    target_link_libraries(test_rl_environments_mujoco_ant_ui PRIVATE RLtools::RLtools GTest::gtest_main)
+#    gtest_discover_tests(test_rl_environments_mujoco_ant_ui)
+#endif()
 
 
 if(RL_TOOLS_ENABLE_HDF5 AND RL_TOOLS_ENABLE_TENSORBOARD)

@@ -1446,14 +1446,62 @@ export async function episode_init_multi(ui_state, parameters){
     await setup_onboard_camera(ui_state, parameters[0])
 }
 
+function get_desired_onboard_dims(ui_state, parameters){
+    if(ui_state && ui_state.desired_onboard_dims){
+        const d = ui_state.desired_onboard_dims
+        if(d.cam_w && d.cam_h){
+            return { cam_w: d.cam_w, cam_h: d.cam_h, fov: d.fov || 1.1132 }
+        }
+    }
+    const visual = parameters && parameters.visual
+    if(visual){
+        return {
+            cam_w: visual.cam_width || 64,
+            cam_h: visual.cam_height || 64,
+            fov: visual.fov || 1.1132,
+        }
+    }
+    return { cam_w: 64, cam_h: 64, fov: 1.1132 }
+}
+
+function ensure_onboard_render_state(ui_state, cam_w, cam_h, fov){
+    if(!ui_state.onboard_scene) return
+    const aspect = cam_w / cam_h
+    const vfov_deg = 2 * Math.atan(Math.tan(fov / 2) / aspect) * 180 / Math.PI
+    let rt_changed = false
+    if(!ui_state.onboard_render_target){
+        ui_state.onboard_render_target = new THREE.WebGLRenderTarget(cam_w, cam_h)
+        rt_changed = true
+    } else if(ui_state.onboard_render_target.width !== cam_w || ui_state.onboard_render_target.height !== cam_h){
+        ui_state.onboard_render_target.setSize(cam_w, cam_h)
+        rt_changed = true
+    }
+    const buf_size = cam_w * cam_h * 4
+    if(!ui_state.onboard_pixel_buffer || ui_state.onboard_pixel_buffer.length !== buf_size){
+        ui_state.onboard_pixel_buffer = new Uint8Array(buf_size)
+    }
+    if(ui_state.onboard_camera){
+        const eps = 1e-4
+        if(Math.abs(ui_state.onboard_camera.aspect - aspect) > eps || Math.abs(ui_state.onboard_camera.fov - vfov_deg) > eps){
+            ui_state.onboard_camera.aspect = aspect
+            ui_state.onboard_camera.fov = vfov_deg
+            ui_state.onboard_camera.updateProjectionMatrix()
+        }
+    }
+    ui_state.onboard_overlay_max_extent = Math.max(cam_w, cam_h) * 3
+    if(rt_changed){
+        ui_state.onboard_overlay_quad = null
+        ui_state.onboard_overlay_blit_scene = null
+        ui_state.onboard_overlay_blit_camera = null
+    }
+}
+
 async function setup_onboard_camera(ui_state, parameters){
     const visual = parameters.visual
     if(!visual || !visual.scene_hash || visual.scene_hash === '0000000000000000000000000000000000000000') return
-    const fov = visual.fov || 1.1132
-    const cam_w = visual.cam_width || 64
-    const cam_h = visual.cam_height || 64
-    const aspect = cam_w / cam_h
-    const vfov_deg = 2 * Math.atan(Math.tan(fov / 2) / aspect) * 180 / Math.PI
+    const dims = get_desired_onboard_dims(ui_state, parameters)
+    const aspect = dims.cam_w / dims.cam_h
+    const vfov_deg = 2 * Math.atan(Math.tan(dims.fov / 2) / aspect) * 180 / Math.PI
     ui_state.onboard_camera = new THREE.PerspectiveCamera(vfov_deg, aspect, 0.05, 100)
     ui_state.onboard_scene = new THREE.Scene()
     ui_state.onboard_scene.background = new THREE.Color(0x87CEEB)
@@ -1474,10 +1522,8 @@ async function setup_onboard_camera(ui_state, parameters){
         ui_state.onboard_camera = null
         ui_state.onboard_scene = null
     }
-    ui_state.onboard_overlay_size = Math.max(cam_w, cam_h) * 3
     ui_state.onboard_scene_translation = visual.scene_translation || [0, 0, 0]
-    ui_state.onboard_render_target = new THREE.WebGLRenderTarget(cam_w, cam_h)
-    ui_state.onboard_pixel_buffer = new Uint8Array(cam_w * cam_h * 4)
+    ensure_onboard_render_state(ui_state, dims.cam_w, dims.cam_h, dims.fov)
 }
 
 function update_onboard_camera(ui_state, state, parameters){
@@ -1496,16 +1542,20 @@ function update_onboard_camera(ui_state, state, parameters){
 
 function render_onboard_overlay(ui_state){
     if(!ui_state.onboard_camera || !ui_state.onboard_scene || !ui_state.renderer) return
-    const size = ui_state.onboard_overlay_size || 128
+    const max_extent = ui_state.onboard_overlay_max_extent || 128
+    const rt = ui_state.onboard_render_target
+    const rt_aspect = (rt && rt.width && rt.height) ? (rt.width / rt.height) : (ui_state.onboard_camera.aspect || 1)
+    const overlay_w = rt_aspect >= 1 ? max_extent : Math.max(1, Math.round(max_extent * rt_aspect))
+    const overlay_h = rt_aspect >= 1 ? Math.max(1, Math.round(max_extent / rt_aspect)) : max_extent
     const margin = 10
     const canvas_w = ui_state.canvas.width / ui_state.devicePixelRatio
     const canvas_h = ui_state.canvas.height / ui_state.devicePixelRatio
-    const x = canvas_w - size - margin
+    const x = canvas_w - overlay_w - margin
     const prev_autoClear = ui_state.renderer.autoClear
     ui_state.renderer.autoClear = false
     ui_state.renderer.setScissorTest(true)
-    ui_state.renderer.setViewport(x, margin, size, size)
-    ui_state.renderer.setScissor(x, margin, size, size)
+    ui_state.renderer.setViewport(x, margin, overlay_w, overlay_h)
+    ui_state.renderer.setScissor(x, margin, overlay_w, overlay_h)
     ui_state.renderer.clearDepth()
     if(ui_state.onboard_obs_resolution && ui_state.onboard_render_target){
         if(!ui_state.onboard_overlay_quad){
@@ -1549,13 +1599,14 @@ export async function setup_onboard_scene(ui_state, scene_hash, cam_w, cam_h, fo
         }
     }
     ui_state.onboard_scene_translation = [0, 0, 0]
-    ui_state.onboard_overlay_size = Math.max(cam_w, cam_h) * 3
-    ui_state.onboard_render_target = new THREE.WebGLRenderTarget(cam_w, cam_h)
-    ui_state.onboard_pixel_buffer = new Uint8Array(cam_w * cam_h * 4)
+    ensure_onboard_render_state(ui_state, cam_w, cam_h, fov)
 }
 
 export function render_onboard_pixels(ui_state, state, parameters){
-    if(!ui_state.onboard_camera || !ui_state.onboard_scene || !ui_state.renderer || !ui_state.onboard_render_target) return null
+    if(!ui_state.onboard_camera || !ui_state.onboard_scene || !ui_state.renderer) return null
+    const dims = get_desired_onboard_dims(ui_state, parameters)
+    ensure_onboard_render_state(ui_state, dims.cam_w, dims.cam_h, dims.fov)
+    if(!ui_state.onboard_render_target) return null
     update_onboard_camera(ui_state, state, parameters)
     ui_state.renderer.setRenderTarget(ui_state.onboard_render_target)
     ui_state.renderer.render(ui_state.onboard_scene, ui_state.onboard_camera)
@@ -1691,6 +1742,8 @@ export async function render(ui_state, parameters, state, action) {
         update_trajectory_bug(ui_state.trajectoryVis, state.trajectory.trajectory_step)
     }
     if(ui_state.show_onboard_preview && ui_state.onboard_scene){
+        const dims = get_desired_onboard_dims(ui_state, parameters)
+        ensure_onboard_render_state(ui_state, dims.cam_w, dims.cam_h, dims.fov)
         if(ui_state.onboard_obs_resolution && ui_state.onboard_render_target){
             render_onboard_pixels(ui_state, state, parameters)
         } else {
@@ -1714,6 +1767,8 @@ export async function render_multi(ui_state, parameters, states, actions){
             }
         })
         if(ui_state.show_onboard_preview && ui_state.onboard_scene){
+            const dims = get_desired_onboard_dims(ui_state, parameters[0])
+            ensure_onboard_render_state(ui_state, dims.cam_w, dims.cam_h, dims.fov)
             if(ui_state.onboard_obs_resolution && ui_state.onboard_render_target){
                 render_onboard_pixels(ui_state, states[0], parameters[0])
             } else {
