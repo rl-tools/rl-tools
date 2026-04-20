@@ -3,6 +3,7 @@ import os
 import time
 import ml
 import machine
+import micropython
 from ulab import numpy as np
 
 MODEL_PATH = None  # auto-detected below (prefers Vela-compiled, i.e. non-".int8.tflite")
@@ -303,11 +304,13 @@ class MahonyFilter:
 MG_TO_MPS2 = 9.80665e-3
 MDPS_TO_RADPS = math.pi / (180.0 * 1000.0)
 
-import sensor
+import csi
+import image
 
 # ---- Constants mirrored from imitation_cuda.cu ----
 FRAME_STACK_N = 5
-FRAME_STACK_STRIDE = 20           # 100 Hz / 20 = 5 Hz frame capture
+FRAME_STACK_STRIDE = 20           # 100 Hz / 20 = 200 ms spacing between stacked frames
+FRAME_STACK_HISTORY_LENGTH = FRAME_STACK_STRIDE * (FRAME_STACK_N - 1) + 1  # 81
 ACTION_HISTORY_LENGTH = 64
 ACTION_DIM = 4
 IMG_H, IMG_W, IMG_C = 64, 64, 3
@@ -324,18 +327,23 @@ assert in_numels[IMAGE_INPUT_IDX] == IMG_H * IMG_W * COMBINED_IMG_C, (in_numels[
 assert in_numels[STATE_INPUT_IDX] == STATE_DIM, (in_numels[STATE_INPUT_IDX], STATE_DIM)
 
 # ---- Camera ----
-sensor.reset()
-sensor.set_pixformat(sensor.RGB565)
-try:
-    sensor.set_framesize(sensor.B64X64)
-except Exception:
-    try:
-        sensor.set_framesize(sensor.QQVGA)
-    except Exception:
-        sensor.set_framesize(sensor.QVGA)
-    sensor.set_windowing(((sensor.width() - IMG_W) // 2,
-                          (sensor.height() - IMG_H) // 2, IMG_W, IMG_H))
-sensor.skip_frames(time=500)
+# Use the full available FOV in the limiting sensor dimension: take a centered
+# square crop of side min(sensor_w, sensor_h), then bilinear-resize to IMG_W×IMG_H.
+# PAG7936 supports up to ~220 fps at QVGA; request 100 fps to align with the
+# 100 Hz training-time tick rate.
+csi0 = csi.CSI()
+csi0.reset()
+csi0.pixformat(csi.RGB565)
+csi0.framesize(csi.QVGA)
+_sensor_w, _sensor_h = csi0.width(), csi0.height()
+CROP_SIZE = min(_sensor_w, _sensor_h)
+csi0.window(((_sensor_w - CROP_SIZE) // 2, (_sensor_h - CROP_SIZE) // 2, CROP_SIZE, CROP_SIZE))
+csi0.framerate(100)
+csi0.auto_exposure(False, exposure_us=4000)
+for _ in range(10):
+    csi0.snapshot()
+_resized_img = image.Image(IMG_W, IMG_H, csi.RGB565)
+_resize_scale = IMG_W / CROP_SIZE
 
 # ---- Quantization ----
 _img_scale   = in_scales[IMAGE_INPUT_IDX]
@@ -349,55 +357,114 @@ def _q_byte(v, scale, zp):
     elif q > 127: q = 127
     return q & 0xFF
 
-_img_inv_255_scale = 1.0 / (255.0 * _img_scale)
+_image_lut = bytearray(256)
+for p in range(256):
+    _image_lut[p] = _q_byte(p / 255.0, _img_scale, _img_zp)
 PAD_BYTE = _q_byte(0.0, _img_scale, _img_zp)
 
 # ---- Buffers ----
-# LUT-quantized frames (int8 bit pattern stored as uint8)
-frame_ring_q = [bytearray(IMG_H * IMG_W * IMG_C) for _ in range(FRAME_STACK_N)]
-target_q     = bytearray(IMG_H * IMG_W * IMG_C)
+# Circular history of quantized frames, one per loop tick. At each tick the 5-frame
+# stack is gathered from offsets [0, 20, 40, 60, 80] from the write pointer — the same
+# sliding-window scheme used at training time (imitation_cuda.cu:1810 write, :1821 gather).
+frame_history_q = [bytearray(IMG_H * IMG_W * IMG_C) for _ in range(FRAME_STACK_HISTORY_LENGTH)]
+target_q        = bytearray(IMG_H * IMG_W * IMG_C)
 
-# Combined NHWC tensor as (H*W, 24). Pad channels preset once.
-combined_arr = np.zeros((IMG_H * IMG_W, COMBINED_IMG_C), dtype=np.uint8)
-combined_arr[:, LOGICAL_IMG_C:COMBINED_IMG_C] = PAD_BYTE
-cached_image_bytes = bytes(combined_arr)
+# Combined NHWC buffer (flat bytearray). Pad channels [18:24] preset once to PAD_BYTE;
+# the viper interleave only overwrites channels [0:18].
+combined_bytes = bytearray(IMG_H * IMG_W * COMBINED_IMG_C)
+for _p in range(IMG_H * IMG_W):
+    for _c in range(LOGICAL_IMG_C, COMBINED_IMG_C):
+        combined_bytes[_p * COMBINED_IMG_C + _c] = PAD_BYTE
 
 # State vector (int8 bit pattern stored as uint8)
 state_int8 = bytearray(STATE_DIM)
 
-# Action history ring: raw policy outputs (not clipped on store)
-action_ring = [[0.0, 0.0, 0.0, 0.0] for _ in range(ACTION_HISTORY_LENGTH)]
+# Action history ring: pre-quantized int8 bytes (clipped to [-1,1] before quantize on store).
+action_ring_q = bytearray(ACTION_HISTORY_LENGTH * ACTION_DIM)
+_zero_action_byte = _q_byte(0.0, _state_scale, _state_zp)
+for _i in range(len(action_ring_q)):
+    action_ring_q[_i] = _zero_action_byte
 
 # ---- Helpers ----
-def decode_rgb565_to_quantized(raw_bytes):
-    # Vectorized RGB565 -> RGB888 -> int8-quantized in one pass (ulab).
-    raw = np.frombuffer(raw_bytes, dtype=np.uint8).reshape((IMG_H * IMG_W, 2))
-    if RGB565_BIG_ENDIAN:
-        hi = raw[:, 0]; lo = raw[:, 1]
-    else:
-        hi = raw[:, 1]; lo = raw[:, 0]
-    r5 = hi // 8
-    g_hi = hi - r5 * 8
-    g_lo = lo // 32
-    g6 = g_hi * 8 + g_lo
-    b5 = lo - g_lo * 32
-    rgb = np.empty((IMG_H * IMG_W, 3), dtype=np.float)
-    rgb[:, 0] = r5 * 8 * _img_inv_255_scale + _img_zp
-    rgb[:, 1] = g6 * 4 * _img_inv_255_scale + _img_zp
-    rgb[:, 2] = b5 * 8 * _img_inv_255_scale + _img_zp
-    return bytes(np.array(np.clip(rgb, -128, 127), dtype=np.int8))
+@micropython.viper
+def _viper_decode_rgb565_be(dst: ptr8, src: ptr8, lut: ptr8, n_pixels: int):
+    # RGB565 big-endian -> RGB888 -> int8 quantized via LUT[256]. One pass.
+    i = 0
+    while i < n_pixels:
+        hi = src[i*2]
+        lo = src[i*2 + 1]
+        r8 = hi & 0xF8
+        g8 = ((hi & 0x07) << 5) | ((lo & 0xE0) >> 3)
+        b8 = (lo & 0x1F) << 3
+        dst[i*3]     = lut[r8]
+        dst[i*3 + 1] = lut[g8]
+        dst[i*3 + 2] = lut[b8]
+        i += 1
+
+@micropython.viper
+def _viper_decode_rgb565_le(dst: ptr8, src: ptr8, lut: ptr8, n_pixels: int):
+    i = 0
+    while i < n_pixels:
+        hi = src[i*2 + 1]
+        lo = src[i*2]
+        r8 = hi & 0xF8
+        g8 = ((hi & 0x07) << 5) | ((lo & 0xE0) >> 3)
+        b8 = (lo & 0x1F) << 3
+        dst[i*3]     = lut[r8]
+        dst[i*3 + 1] = lut[g8]
+        dst[i*3 + 2] = lut[b8]
+        i += 1
+
+@micropython.viper
+def _viper_interleave_stack_target(
+    dst: ptr8,
+    s0: ptr8, s1: ptr8, s2: ptr8, s3: ptr8, s4: ptr8, tgt: ptr8,
+    n_pixels: int
+):
+    # Write channels [0:18] of each 24-byte NHWC pixel: 5 frames RGB then target RGB.
+    # Pad channels [18:24] are left untouched (pre-initialized to PAD_BYTE).
+    d = 0
+    s = 0
+    end = n_pixels * 24
+    while d < end:
+        dst[d]      = s0[s];     dst[d + 1]  = s0[s + 1]; dst[d + 2]  = s0[s + 2]
+        dst[d + 3]  = s1[s];     dst[d + 4]  = s1[s + 1]; dst[d + 5]  = s1[s + 2]
+        dst[d + 6]  = s2[s];     dst[d + 7]  = s2[s + 1]; dst[d + 8]  = s2[s + 2]
+        dst[d + 9]  = s3[s];     dst[d + 10] = s3[s + 1]; dst[d + 11] = s3[s + 2]
+        dst[d + 12] = s4[s];     dst[d + 13] = s4[s + 1]; dst[d + 14] = s4[s + 2]
+        dst[d + 15] = tgt[s];    dst[d + 16] = tgt[s + 1]; dst[d + 17] = tgt[s + 2]
+        d += 24
+        s += 3
+
+_decode_rgb565 = _viper_decode_rgb565_be if RGB565_BIG_ENDIAN else _viper_decode_rgb565_le
 
 def recompose_image():
-    # Interleave the 5 frames (newest-first) + target into channels 0..17.
-    # Pad channels 18..23 are set once at init.
-    global cached_image_bytes
-    for f in range(FRAME_STACK_N):
-        src_idx = (frame_write_ptr - 1 - f) % FRAME_STACK_N
-        src = np.frombuffer(frame_ring_q[src_idx], dtype=np.uint8).reshape((IMG_H * IMG_W, IMG_C))
-        combined_arr[:, f*IMG_C:(f+1)*IMG_C] = src
-    tgt = np.frombuffer(target_q, dtype=np.uint8).reshape((IMG_H * IMG_W, IMG_C))
-    combined_arr[:, FRAME_STACK_N*IMG_C:FRAME_STACK_N*IMG_C + IMG_C] = tgt
-    cached_image_bytes = bytes(combined_arr)
+    s0 = frame_history_q[history_write_ptr]
+    s1 = frame_history_q[(history_write_ptr - 1 * FRAME_STACK_STRIDE) % FRAME_STACK_HISTORY_LENGTH]
+    s2 = frame_history_q[(history_write_ptr - 2 * FRAME_STACK_STRIDE) % FRAME_STACK_HISTORY_LENGTH]
+    s3 = frame_history_q[(history_write_ptr - 3 * FRAME_STACK_STRIDE) % FRAME_STACK_HISTORY_LENGTH]
+    s4 = frame_history_q[(history_write_ptr - 4 * FRAME_STACK_STRIDE) % FRAME_STACK_HISTORY_LENGTH]
+    _viper_interleave_stack_target(combined_bytes, s0, s1, s2, s3, s4, target_q, IMG_H * IMG_W)
+
+@micropython.viper
+def _viper_copy_action_history_newest_first(
+    dst: ptr8, dst_offset: int, src: ptr8, write_ptr: int, n_slots: int, n_dim: int
+):
+    cur = write_ptr - 1
+    if cur < 0:
+        cur += n_slots
+    i = 0
+    while i < n_slots:
+        s = cur * n_dim
+        d = dst_offset + i * n_dim
+        dst[d]     = src[s]
+        dst[d + 1] = src[s + 1]
+        dst[d + 2] = src[s + 2]
+        dst[d + 3] = src[s + 3]
+        cur -= 1
+        if cur < 0:
+            cur += n_slots
+        i += 1
 
 def build_state_int8(body_z, ang_vel):
     # Layout: [orientation_body_z(3), angular_velocity(3), action_history newest-first(256)]
@@ -407,20 +474,17 @@ def build_state_int8(body_z, ang_vel):
     state_int8[3] = _q_byte(ang_vel[0], _state_scale, _state_zp)
     state_int8[4] = _q_byte(ang_vel[1], _state_scale, _state_zp)
     state_int8[5] = _q_byte(ang_vel[2], _state_scale, _state_zp)
-    idx = 6
-    cur = (action_write_ptr - 1) % ACTION_HISTORY_LENGTH
-    for _ in range(ACTION_HISTORY_LENGTH):
-        slot = action_ring[cur]
-        for ai in range(ACTION_DIM):
-            v = slot[ai]
-            if v < -1.0: v = -1.0
-            elif v > 1.0: v = 1.0
-            state_int8[idx] = _q_byte(v, _state_scale, _state_zp)
-            idx += 1
-        cur = (cur - 1) % ACTION_HISTORY_LENGTH
+    _viper_copy_action_history_newest_first(
+        state_int8, 6, action_ring_q, action_write_ptr, ACTION_HISTORY_LENGTH, ACTION_DIM
+    )
+
+def _quantize_action_clip(v):
+    if v < -1.0: v = -1.0
+    elif v > 1.0: v = 1.0
+    return _q_byte(v, _state_scale, _state_zp)
 
 def image_feeder(buf, shape, dtype):
-    buf[:] = cached_image_bytes
+    buf[:] = combined_bytes
 
 def state_feeder(buf, shape, dtype):
     buf[:] = state_int8
@@ -432,7 +496,7 @@ mahony = MahonyFilter()
 last_t = time.ticks_us()
 next_deadline = time.ticks_add(last_t, TICK_US)
 target_captured = False
-frame_write_ptr = 0
+history_write_ptr = 0
 action_write_ptr = 0
 tick = 0
 reset_button = machine.Pin('SW', machine.Pin.IN, machine.Pin.PULL_UP)
@@ -470,25 +534,16 @@ while True:
         gx_rad, gy_rad, gz_rad, dt,
     )
 
-    if tick % FRAME_STACK_STRIDE == 0:
-        img = sensor.snapshot()
-        frame_ring_q[frame_write_ptr][:] = decode_rgb565_to_quantized(img.bytearray())
-        if not target_captured:
-            target_q[:] = frame_ring_q[frame_write_ptr]
-            target_captured = True
-            for i in range(FRAME_STACK_N):
-                if i != frame_write_ptr:
-                    frame_ring_q[i][:] = frame_ring_q[frame_write_ptr]
-        frame_write_ptr = (frame_write_ptr + 1) % FRAME_STACK_N
-        recompose_image()
-
+    img = csi0.snapshot()
+    _resized_img.draw_image(img, 0, 0, x_scale=_resize_scale, y_scale=_resize_scale, hint=image.BILINEAR)
+    _decode_rgb565(frame_history_q[history_write_ptr], _resized_img.bytearray(), _image_lut, IMG_H * IMG_W)
     if not target_captured:
-        tick += 1
-        delay = time.ticks_diff(next_deadline, time.ticks_us())
-        if delay > 0:
-            time.sleep_us(delay)
-        next_deadline = time.ticks_add(next_deadline, TICK_US)
-        continue
+        target_q[:] = frame_history_q[history_write_ptr]
+        for i in range(FRAME_STACK_HISTORY_LENGTH):
+            if i != history_write_ptr:
+                frame_history_q[i][:] = frame_history_q[history_write_ptr]
+        target_captured = True
+    recompose_image()
 
     body_z = mahony.orientation_body_z()
     ang_vel = mahony.angular_velocity_corrected(gx_rad, gy_rad, gz_rad)
@@ -501,20 +556,24 @@ while True:
     a2_raw = (float(yq[2]) - out_zp) * out_scale
     a3_raw = (float(yq[3]) - out_zp) * out_scale
 
-    slot = action_ring[action_write_ptr]
-    slot[0] = a0_raw; slot[1] = a1_raw; slot[2] = a2_raw; slot[3] = a3_raw
+    slot_off = action_write_ptr * ACTION_DIM
+    action_ring_q[slot_off]     = _quantize_action_clip(a0_raw)
+    action_ring_q[slot_off + 1] = _quantize_action_clip(a1_raw)
+    action_ring_q[slot_off + 2] = _quantize_action_clip(a2_raw)
+    action_ring_q[slot_off + 3] = _quantize_action_clip(a3_raw)
     action_write_ptr = (action_write_ptr + 1) % ACTION_HISTORY_LENGTH
 
-    a0 = -1.0 if a0_raw < -1.0 else (1.0 if a0_raw > 1.0 else a0_raw)
-    a1 = -1.0 if a1_raw < -1.0 else (1.0 if a1_raw > 1.0 else a1_raw)
-    a2 = -1.0 if a2_raw < -1.0 else (1.0 if a2_raw > 1.0 else a2_raw)
-    a3 = -1.0 if a3_raw < -1.0 else (1.0 if a3_raw > 1.0 else a3_raw)
-
     elapsed_us = time.ticks_diff(time.ticks_us(), t0)
-    print("us=%5d a=%+5.2f,%+5.2f,%+5.2f,%+5.2f bz=%+5.2f,%+5.2f,%+5.2f av=%+6.2f,%+6.2f,%+6.2f" %
-          (elapsed_us, a0, a1, a2, a3, body_z[0], body_z[1], body_z[2],
-           ang_vel[0], ang_vel[1], ang_vel[2]))
+    if tick % 10 == 0:
+        a0 = -1.0 if a0_raw < -1.0 else (1.0 if a0_raw > 1.0 else a0_raw)
+        a1 = -1.0 if a1_raw < -1.0 else (1.0 if a1_raw > 1.0 else a1_raw)
+        a2 = -1.0 if a2_raw < -1.0 else (1.0 if a2_raw > 1.0 else a2_raw)
+        a3 = -1.0 if a3_raw < -1.0 else (1.0 if a3_raw > 1.0 else a3_raw)
+        print("us=%5d a=%+5.2f,%+5.2f,%+5.2f,%+5.2f bz=%+5.2f,%+5.2f,%+5.2f av=%+6.2f,%+6.2f,%+6.2f" %
+              (elapsed_us, a0, a1, a2, a3, body_z[0], body_z[1], body_z[2],
+               ang_vel[0], ang_vel[1], ang_vel[2]))
 
+    history_write_ptr = (history_write_ptr + 1) % FRAME_STACK_HISTORY_LENGTH
     tick += 1
     delay = time.ticks_diff(next_deadline, time.ticks_us())
     if delay > 0:
