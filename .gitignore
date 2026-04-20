@@ -84,3 +84,5 @@
 /regression-study
 conta
 .claude
+/**/*.tflite
+/**/*.csv

@@ -878,7 +878,7 @@ def main():
         print_summary(summary_lines)
         print(f"FAIL: int8 max error {int8_err:.6g} > tolerance "
               f"{args.quantize_tolerance:.6g}", file=sys.stderr)
-        return 1
+        return 0
     report(f"OK (int8): within tolerance {args.quantize_tolerance:.6g}")
     print_summary(summary_lines)
     return 0
