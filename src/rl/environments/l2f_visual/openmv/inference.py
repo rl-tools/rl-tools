@@ -2,6 +2,7 @@ import gc
 import os
 import time
 import ml
+import machine
 from ulab import numpy as np
 
 MODEL_PATH = None  # auto-detected below (prefers Vela-compiled, i.e. non-".int8.tflite")
@@ -434,10 +435,18 @@ target_captured = False
 frame_write_ptr = 0
 action_write_ptr = 0
 tick = 0
+reset_button = machine.Pin('SW', machine.Pin.IN, machine.Pin.PULL_UP)
+reset_button_last = reset_button.value()
 print("starting 100Hz policy inference loop")
 
 while True:
     t0 = time.ticks_us()
+
+    reset_button_cur = reset_button.value()
+    if reset_button_last == 1 and reset_button_cur == 0:
+        target_captured = False
+        print("target reset (button)")
+    reset_button_last = reset_button_cur
 
     ax_orig, ay_orig, az_orig = imu.acceleration_mg()
     ax = -az_orig
