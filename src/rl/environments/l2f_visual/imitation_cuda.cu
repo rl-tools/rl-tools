@@ -219,6 +219,7 @@ static constexpr TI N_ENVIRONMENTS = N_ACTIVE_SCENES * N_ENVIRONMENTS_PER_SCENE;
 static constexpr TI CAM_WIDTH = 64;
 static constexpr TI CAM_HEIGHT = 64;
 static constexpr TI NUM_PROBES = 64;
+static constexpr T CAMERA_FOV = static_cast<T>(42.3) / static_cast<T>(180) * rlt::math::PI<T>;
 
 constexpr bool HIGH_FIDELITY_SHADING = true;
 using VISUAL_SPEC = rlt::rl::environments::l2f_visual::Specification<T, TI, STATIC_PARAMETERS, N_ENVIRONMENTS_PER_SCENE, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, HIGH_FIDELITY_SHADING>;
@@ -1240,6 +1241,7 @@ int main(int argc, char** argv){
         env_parameters[env_i].scene_translation[0] = 0;
         env_parameters[env_i].scene_translation[1] = 0;
         env_parameters[env_i].scene_translation[2] = 0;
+        env_parameters[env_i].fov = CAMERA_FOV;
     }
     auto& env0 = envs[0];
 
