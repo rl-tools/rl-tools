@@ -3,7 +3,7 @@
 #pragma once
 #define RL_TOOLS_OPERATIONS_ESP32_H
 
-
+#include "../rl_tools.h"
 #ifndef RL_TOOLS_DEVICES_DISABLE_REDEFINITION_DETECTION
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{

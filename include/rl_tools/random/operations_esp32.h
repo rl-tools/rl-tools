@@ -11,7 +11,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::random{
     template <typename DEV_SPEC>
     devices::random::ESP32::index_t default_engine(const devices::ESP32<DEV_SPEC>& dev, devices::random::ESP32::index_t seed = 1){
-        return default_engine(devices::Generic<DEV_SPEC>{}, seed);
+        return default_engine(devices::random::Generic<DEV_SPEC>{}, seed);
     };
     constexpr devices::random::ESP32::index_t next_max(const devices::random::ESP32& dev){
         return devices::random::ESP32::MAX_INDEX;

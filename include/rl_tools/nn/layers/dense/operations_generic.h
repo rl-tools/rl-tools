@@ -5,6 +5,7 @@
 
 #include "../../../containers/matrix/matrix.h"
 #include "../../../nn/parameters/operations_generic.h"
+#include "../../../nn/optimizers/adam/instance/operations_generic.h"
 
 #include "layer.h"
 #ifndef RL_TOOLS_FUNCTION_PLACEMENT
