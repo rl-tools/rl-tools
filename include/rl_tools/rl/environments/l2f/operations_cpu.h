@@ -1448,14 +1448,14 @@ export async function episode_init_multi(ui_state, parameters){
 
 function get_desired_onboard_dims(parameters){
     const visual = parameters && parameters.visual
-    if(visual && visual.cam_width && visual.cam_height){
+    if(visual && visual.cam_width && visual.cam_height && visual.fov){
         return {
             cam_w: visual.cam_width,
             cam_h: visual.cam_height,
-            fov: visual.fov || 1.1132,
+            fov: visual.fov,
         }
     }
-    return { cam_w: 64, cam_h: 64, fov: 1.1132 }
+    throw new Error("get_desired_onboard_dims: parameters.visual is missing cam_width/cam_height")
 }
 
 function ensure_onboard_render_state(ui_state, cam_w, cam_h, fov){
