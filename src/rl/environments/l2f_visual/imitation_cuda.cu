@@ -252,7 +252,7 @@ using RAPTOR_MODEL = rlt::nn_models::sequential::Build<RAPTOR_CAPABILITY, RAPTOR
 // Student CNN (GPU)
 // =========================================================================
 static constexpr TI ACTOR_HIDDEN_DIM = 64;
-static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
+static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::RELU;
 static constexpr TI ACTION_DIM = ENVIRONMENT::ACTION_DIM;
 static constexpr TI TARGET_DIM = ACTION_DIM;
 static constexpr TI INDOOR_POSITION_DIM = 3;
@@ -1569,9 +1569,9 @@ int main(int argc, char** argv){
     std::vector<uint8_t> mosaic_frame(MOSAIC_W * MOSAIC_H * 3);
 
     auto curriculum_step_limit = [](TI epoch) -> TI {
-        if(epoch < 100) return 50;
-        if(epoch < 1000) return 100;
-        if(epoch < 3000) return 200;
+//        if(epoch < 100) return 50;
+//        if(epoch < 1000) return 100;
+//        if(epoch < 3000) return 200;
         return 500;
     };
 
