@@ -26,6 +26,27 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+#ifdef RL_TOOLS_EXTRACK_GIT_DIFF
+    namespace utils::extrack::detail {
+        // Minimal HTML escape so that adversarial commit messages embedded
+        // inside a <pre> block cannot close the tag or inject markup in the
+        // TensorBoard text plugin. Covers the full escape surface for <pre>
+        // with no user attributes: &, <, >.
+        inline std::string html_escape(const std::string& in) {
+            std::string out;
+            out.reserve(in.size() + 16);
+            for (char c : in) {
+                switch (c) {
+                    case '&': out += "&amp;"; break;
+                    case '<': out += "&lt;"; break;
+                    case '>': out += "&gt;"; break;
+                    default:  out += c;
+                }
+            }
+            return out;
+        }
+    }
+#endif
     // note usage examples in ./extrack.h
     template <typename DEVICE, typename TI>
     void init(DEVICE& device, utils::extrack::Config<TI>& config, utils::extrack::Paths& paths, typename DEVICE::index_t seed = 0){
@@ -81,6 +102,14 @@ namespace rl_tools{
             diff_file.close();
         }
         {
+            std::ofstream msg_file(git_library_path / "commit_message.txt", std::ios::binary);
+            msg_file.write(
+                reinterpret_cast<const char*>(rl_tools::utils::extrack::git::rl_tools::commit_message_bytes),
+                static_cast<std::streamsize>(rl_tools::utils::extrack::git::rl_tools::commit_message_size)
+            );
+            msg_file.close();
+        }
+        {
             std::ofstream diff_file(git_library_path / "diff.txt");
             diff_file << rl_tools::utils::extrack::git::rl_tools::diff;
             diff_file.close();
@@ -126,6 +155,14 @@ namespace rl_tools{
             path_file.close();
         }
         add_text(device, device.logger, "git/rl_tools/commit", (std::string("`") + rl_tools::utils::extrack::git::rl_tools::commit + "`").c_str());
+        {
+            std::string commit_message_str(
+                reinterpret_cast<const char*>(rl_tools::utils::extrack::git::rl_tools::commit_message_bytes),
+                rl_tools::utils::extrack::git::rl_tools::commit_message_size
+            );
+            std::string tb_value = std::string("<pre>") + utils::extrack::detail::html_escape(commit_message_str) + "</pre>";
+            add_text(device, device.logger, "git/rl_tools/commit_message", tb_value.c_str());
+        }
         add_text(device, device.logger, "git/rl_tools/diff", (std::string("```diff\n") + rl_tools::utils::extrack::git::rl_tools::diff + "```").c_str());
         add_text(device, device.logger, "git/rl_tools/word_diff", (std::string("```diff\n") + rl_tools::utils::extrack::git::rl_tools::word_diff + "```").c_str());
         add_text(device, device.logger, "git/rl_tools/diff_staged", (std::string("```diff\n") + rl_tools::utils::extrack::git::rl_tools::diff_staged + "```").c_str());
@@ -139,6 +176,14 @@ namespace rl_tools{
                 std::ofstream diff_file(git_project_path / "commit.txt");
                 diff_file << rl_tools::utils::extrack::git::project::commit;
                 diff_file.close();
+            }
+            {
+                std::ofstream msg_file(git_project_path / "commit_message.txt", std::ios::binary);
+                msg_file.write(
+                    reinterpret_cast<const char*>(rl_tools::utils::extrack::git::project::commit_message_bytes),
+                    static_cast<std::streamsize>(rl_tools::utils::extrack::git::project::commit_message_size)
+                );
+                msg_file.close();
             }
             {
                 std::ofstream diff_file(git_project_path / "diff.txt");
@@ -186,6 +231,14 @@ namespace rl_tools{
                 path_file.close();
             }
             add_text(device, device.logger, "git/project/commit", (std::string("`") + rl_tools::utils::extrack::git::project::commit + "`").c_str());
+            {
+                std::string commit_message_str(
+                    reinterpret_cast<const char*>(rl_tools::utils::extrack::git::project::commit_message_bytes),
+                    rl_tools::utils::extrack::git::project::commit_message_size
+                );
+                std::string tb_value = std::string("<pre>") + utils::extrack::detail::html_escape(commit_message_str) + "</pre>";
+                add_text(device, device.logger, "git/project/commit_message", tb_value.c_str());
+            }
             add_text(device, device.logger, "git/project/diff", (std::string("```diff\n") + rl_tools::utils::extrack::git::project::diff + "```").c_str());
             add_text(device, device.logger, "git/project/word_diff", (std::string("```diff\n") + rl_tools::utils::extrack::git::project::word_diff + "```").c_str());
             add_text(device, device.logger, "git/project/diff_staged", (std::string("```diff\n") + rl_tools::utils::extrack::git::project::diff_staged + "```").c_str());
