@@ -1,0 +1,1 @@
+cmake --build build/ -j10 --target rl_environments_l2f_visual_imitation_cuda && RL_TOOLS_EXTRACK_PATH=/home/jonas/mnt/ ./build/src/rl/environments/l2f_visual/rl_environments_l2f_visual_imitation_cuda /scr/jonas/ai2thor-hab/glb
