@@ -1446,18 +1446,12 @@ export async function episode_init_multi(ui_state, parameters){
     await setup_onboard_camera(ui_state, parameters[0])
 }
 
-function get_desired_onboard_dims(ui_state, parameters){
-    if(ui_state && ui_state.desired_onboard_dims){
-        const d = ui_state.desired_onboard_dims
-        if(d.cam_w && d.cam_h){
-            return { cam_w: d.cam_w, cam_h: d.cam_h, fov: d.fov || 1.1132 }
-        }
-    }
+function get_desired_onboard_dims(parameters){
     const visual = parameters && parameters.visual
-    if(visual){
+    if(visual && visual.cam_width && visual.cam_height){
         return {
-            cam_w: visual.cam_width || 64,
-            cam_h: visual.cam_height || 64,
+            cam_w: visual.cam_width,
+            cam_h: visual.cam_height,
             fov: visual.fov || 1.1132,
         }
     }
@@ -1499,7 +1493,7 @@ function ensure_onboard_render_state(ui_state, cam_w, cam_h, fov){
 async function setup_onboard_camera(ui_state, parameters){
     const visual = parameters.visual
     if(!visual || !visual.scene_hash || visual.scene_hash === '0000000000000000000000000000000000000000') return
-    const dims = get_desired_onboard_dims(ui_state, parameters)
+    const dims = get_desired_onboard_dims(parameters)
     const aspect = dims.cam_w / dims.cam_h
     const vfov_deg = 2 * Math.atan(Math.tan(dims.fov / 2) / aspect) * 180 / Math.PI
     ui_state.onboard_camera = new THREE.PerspectiveCamera(vfov_deg, aspect, 0.05, 100)
@@ -1604,7 +1598,7 @@ export async function setup_onboard_scene(ui_state, scene_hash, cam_w, cam_h, fo
 
 export function render_onboard_pixels(ui_state, state, parameters){
     if(!ui_state.onboard_camera || !ui_state.onboard_scene || !ui_state.renderer) return null
-    const dims = get_desired_onboard_dims(ui_state, parameters)
+    const dims = get_desired_onboard_dims(parameters)
     ensure_onboard_render_state(ui_state, dims.cam_w, dims.cam_h, dims.fov)
     if(!ui_state.onboard_render_target) return null
     update_onboard_camera(ui_state, state, parameters)
@@ -1742,7 +1736,7 @@ export async function render(ui_state, parameters, state, action) {
         update_trajectory_bug(ui_state.trajectoryVis, state.trajectory.trajectory_step)
     }
     if(ui_state.show_onboard_preview && ui_state.onboard_scene){
-        const dims = get_desired_onboard_dims(ui_state, parameters)
+        const dims = get_desired_onboard_dims(parameters)
         ensure_onboard_render_state(ui_state, dims.cam_w, dims.cam_h, dims.fov)
         if(ui_state.onboard_obs_resolution && ui_state.onboard_render_target){
             render_onboard_pixels(ui_state, state, parameters)
@@ -1767,7 +1761,7 @@ export async function render_multi(ui_state, parameters, states, actions){
             }
         })
         if(ui_state.show_onboard_preview && ui_state.onboard_scene){
-            const dims = get_desired_onboard_dims(ui_state, parameters[0])
+            const dims = get_desired_onboard_dims(parameters[0])
             ensure_onboard_render_state(ui_state, dims.cam_w, dims.cam_h, dims.fov)
             if(ui_state.onboard_obs_resolution && ui_state.onboard_render_target){
                 render_onboard_pixels(ui_state, states[0], parameters[0])
