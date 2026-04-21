@@ -216,10 +216,10 @@ static constexpr TI N_TOTAL_SCENES = 25;
 static constexpr TI N_ACTIVE_SCENES = 2;
 static constexpr TI N_ENVIRONMENTS_PER_SCENE = 64;
 static constexpr TI N_ENVIRONMENTS = N_ACTIVE_SCENES * N_ENVIRONMENTS_PER_SCENE;
-static constexpr TI CAM_WIDTH = 80;
-static constexpr TI CAM_HEIGHT = 50;
+static constexpr TI CAM_WIDTH = 64;
+static constexpr TI CAM_HEIGHT = 64;
 static constexpr TI NUM_PROBES = 64;
-static constexpr T CAMERA_FOV = static_cast<T>(63.8) / static_cast<T>(180) * rlt::math::PI<T>;
+static constexpr T CAMERA_FOV = static_cast<T>(89.6) / static_cast<T>(180) * rlt::math::PI<T>;
 
 constexpr bool HIGH_FIDELITY_SHADING = true;
 using VISUAL_SPEC = rlt::rl::environments::l2f_visual::Specification<T, TI, STATIC_PARAMETERS, N_ENVIRONMENTS_PER_SCENE, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, HIGH_FIDELITY_SHADING>;
