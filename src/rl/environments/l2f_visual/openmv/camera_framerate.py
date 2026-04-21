@@ -8,7 +8,9 @@ csi0.reset()
 csi0.pixformat(csi.RGB565)
 csi0.framesize(csi.QVGA)
 csi0.framerate(200)
-csi0.auto_exposure(False, exposure_us=2000)
+csi0.auto_exposure(False, exposure_us=500)
+csi0.auto_gain(False, gain_db=50)
+csi0.auto_rotation(False)
 
 for _ in range(20):
     csi0.snapshot()
@@ -18,3 +20,7 @@ for _ in range(N):
     csi0.snapshot()
 dt = time.ticks_diff(time.ticks_us(), t0)
 print("%d frames in %d us -> %.2f fps" % (N, dt, 1e6 * N / dt))
+
+
+while True:
+    csi0.snapshot()
