@@ -15,6 +15,7 @@
 #include <vector>
 
 #include <cstdlib>
+#include <cstddef>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
@@ -24,6 +25,8 @@ namespace rl_tools{
             // rl-tools library repository
             namespace rl_tools{
                 extern const char* const commit;
+                extern const unsigned char commit_message_bytes[];
+                extern const std::size_t commit_message_size;
                 extern const char* const diff;
                 extern const char* const diff_color;
                 extern const char* const word_diff;
@@ -38,6 +41,8 @@ namespace rl_tools{
             namespace project{
                 extern const bool available; // true if parent project exists
                 extern const char* const commit;
+                extern const unsigned char commit_message_bytes[];
+                extern const std::size_t commit_message_size;
                 extern const char* const diff;
                 extern const char* const diff_color;
                 extern const char* const word_diff;
