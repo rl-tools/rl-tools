@@ -354,7 +354,6 @@ MG_TO_MPS2 = 9.80665e-3
 MDPS_TO_RADPS = math.pi / (180.0 * 1000.0)
 
 import csi
-import image
 
 # ---- Constants mirrored from imitation_cuda.cu ----
 FRAME_STACK_N = 5
@@ -392,21 +391,22 @@ for _ti in range(num_inputs):
         assert in_numels[_ti] == IMG_H * IMG_W * IMG_C, (in_numels[_ti], IMG_H * IMG_W * IMG_C, _ti, _ki)
 
 # ---- Camera ----
-# Use the full native WXGA (1280x800) sensor output — matching aspect 1.6:1 of
-# the IMG_W:IMG_H (80:50) target — and bilinear-downscale uniformly by 1/16.
-# Request 100 fps to align with the 100 Hz training-time tick rate; the sensor
-# may not sustain this at WXGA, reduce if so (and retrain at the matching rate).
+# Use the sensor's QVGA 320x200 mode — aspect 1.6:1 matches IMG_W:IMG_H (80:50)
+# exactly, so no crop; downscale uniformly by 1/4. QVGA comfortably sustains
+# 100 fps (the sensor can reach ~220 fps at this resolution).
 csi0 = csi.CSI()
 csi0.reset()
 csi0.pixformat(csi.RGB565)
-csi0.framesize(csi.WXGA)
+csi0.framesize(csi.QVGA)
 _sensor_w, _sensor_h = csi0.width(), csi0.height()
 csi0.framerate(100)
 csi0.auto_exposure(False, exposure_us=4000)
 for _ in range(10):
     csi0.snapshot()
-_resized_img = image.Image(IMG_W, IMG_H, csi.RGB565)
-_resize_scale = IMG_W / _sensor_w
+assert _sensor_w == IMG_W * 4 and _sensor_h == IMG_H * 4, (
+    "_viper_downsample_4x_rgb565 is hardcoded to a 4x downscale; "
+    "got sensor %dx%d, target %dx%d" % (_sensor_w, _sensor_h, IMG_W, IMG_H)
+)
 
 # ---- Quantization ----
 # Locate the state's tflite slot and a representative image slot. All 6 image
@@ -452,36 +452,77 @@ for _i in range(len(action_ring_q)):
     action_ring_q[_i] = _zero_action_byte
 
 # ---- Helpers ----
+# Fused 4x4 box-average + RGB565 decode + int8 quantization. Consumes the raw
+# RGB565 snapshot bytes directly (no intermediate RGB565 resize buffer) and
+# writes one 80x50x3 int8-quantized frame per call. Box averaging is the
+# correct antialiased downsample for 4x integer reduction.
 @micropython.viper
-def _viper_decode_rgb565_be(dst: ptr8, src: ptr8, lut: ptr8, n_pixels: int):
-    # RGB565 big-endian -> RGB888 -> int8 quantized via LUT[256]. One pass.
-    i = 0
-    while i < n_pixels:
-        hi = src[i*2]
-        lo = src[i*2 + 1]
-        r8 = hi & 0xF8
-        g8 = ((hi & 0x07) << 5) | ((lo & 0xE0) >> 3)
-        b8 = (lo & 0x1F) << 3
-        dst[i*3]     = lut[r8]
-        dst[i*3 + 1] = lut[g8]
-        dst[i*3 + 2] = lut[b8]
-        i += 1
+def _viper_downsample_4x_rgb565_be(dst: ptr8, src: ptr8, lut: ptr8, src_w: int, dst_w: int, dst_h: int):
+    oy = 0
+    while oy < dst_h:
+        ox = 0
+        while ox < dst_w:
+            r_acc = 0
+            g_acc = 0
+            b_acc = 0
+            sy = oy << 2
+            sy_end = sy + 4
+            while sy < sy_end:
+                base = (sy * src_w + (ox << 2)) << 1
+                r_acc += int(src[base])      & 0xF8
+                g_acc += ((int(src[base])     & 0x07) << 5) | ((int(src[base + 1]) & 0xE0) >> 3)
+                b_acc += (int(src[base + 1]) & 0x1F) << 3
+                r_acc += int(src[base + 2])  & 0xF8
+                g_acc += ((int(src[base + 2]) & 0x07) << 5) | ((int(src[base + 3]) & 0xE0) >> 3)
+                b_acc += (int(src[base + 3]) & 0x1F) << 3
+                r_acc += int(src[base + 4])  & 0xF8
+                g_acc += ((int(src[base + 4]) & 0x07) << 5) | ((int(src[base + 5]) & 0xE0) >> 3)
+                b_acc += (int(src[base + 5]) & 0x1F) << 3
+                r_acc += int(src[base + 6])  & 0xF8
+                g_acc += ((int(src[base + 6]) & 0x07) << 5) | ((int(src[base + 7]) & 0xE0) >> 3)
+                b_acc += (int(src[base + 7]) & 0x1F) << 3
+                sy += 1
+            o = (oy * dst_w + ox) * 3
+            dst[o]     = lut[r_acc >> 4]
+            dst[o + 1] = lut[g_acc >> 4]
+            dst[o + 2] = lut[b_acc >> 4]
+            ox += 1
+        oy += 1
 
 @micropython.viper
-def _viper_decode_rgb565_le(dst: ptr8, src: ptr8, lut: ptr8, n_pixels: int):
-    i = 0
-    while i < n_pixels:
-        hi = src[i*2 + 1]
-        lo = src[i*2]
-        r8 = hi & 0xF8
-        g8 = ((hi & 0x07) << 5) | ((lo & 0xE0) >> 3)
-        b8 = (lo & 0x1F) << 3
-        dst[i*3]     = lut[r8]
-        dst[i*3 + 1] = lut[g8]
-        dst[i*3 + 2] = lut[b8]
-        i += 1
+def _viper_downsample_4x_rgb565_le(dst: ptr8, src: ptr8, lut: ptr8, src_w: int, dst_w: int, dst_h: int):
+    oy = 0
+    while oy < dst_h:
+        ox = 0
+        while ox < dst_w:
+            r_acc = 0
+            g_acc = 0
+            b_acc = 0
+            sy = oy << 2
+            sy_end = sy + 4
+            while sy < sy_end:
+                base = (sy * src_w + (ox << 2)) << 1
+                r_acc += int(src[base + 1])  & 0xF8
+                g_acc += ((int(src[base + 1]) & 0x07) << 5) | ((int(src[base])     & 0xE0) >> 3)
+                b_acc += (int(src[base])     & 0x1F) << 3
+                r_acc += int(src[base + 3])  & 0xF8
+                g_acc += ((int(src[base + 3]) & 0x07) << 5) | ((int(src[base + 2]) & 0xE0) >> 3)
+                b_acc += (int(src[base + 2]) & 0x1F) << 3
+                r_acc += int(src[base + 5])  & 0xF8
+                g_acc += ((int(src[base + 5]) & 0x07) << 5) | ((int(src[base + 4]) & 0xE0) >> 3)
+                b_acc += (int(src[base + 4]) & 0x1F) << 3
+                r_acc += int(src[base + 7])  & 0xF8
+                g_acc += ((int(src[base + 7]) & 0x07) << 5) | ((int(src[base + 6]) & 0xE0) >> 3)
+                b_acc += (int(src[base + 6]) & 0x1F) << 3
+                sy += 1
+            o = (oy * dst_w + ox) * 3
+            dst[o]     = lut[r_acc >> 4]
+            dst[o + 1] = lut[g_acc >> 4]
+            dst[o + 2] = lut[b_acc >> 4]
+            ox += 1
+        oy += 1
 
-_decode_rgb565 = _viper_decode_rgb565_be if RGB565_BIG_ENDIAN else _viper_decode_rgb565_le
+_downsample_rgb565 = _viper_downsample_4x_rgb565_be if RGB565_BIG_ENDIAN else _viper_downsample_4x_rgb565_le
 
 # Per-keras-input source bytearray references. The model's leading Concat lets us
 # feed each frame slot as its own contiguous tensor — no NHWC interleave needed.
@@ -581,8 +622,10 @@ while True:
     )
 
     img = csi0.snapshot()
-    _resized_img.draw_image(img, 0, 0, x_scale=_resize_scale, y_scale=_resize_scale, hint=image.BILINEAR)
-    _decode_rgb565(frame_history_q[history_write_ptr], _resized_img.bytearray(), _image_lut, IMG_H * IMG_W)
+    assert img is not None
+    assert img.width() == 320
+    assert img.height() == 200
+    _downsample_rgb565(frame_history_q[history_write_ptr], img.bytearray(), _image_lut, _sensor_w, IMG_W, IMG_H)
     if not target_captured:
         target_q[:] = frame_history_q[history_write_ptr]
         for i in range(FRAME_STACK_HISTORY_LENGTH):
