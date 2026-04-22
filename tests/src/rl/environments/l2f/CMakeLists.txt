@@ -8,5 +8,9 @@ if(RL_TOOLS_ENABLE_JSON)
     add_executable(test_rl_environments_l2f_import_export import_export.cpp)
     target_link_libraries(test_rl_environments_l2f_import_export RLtools::RLtools GTest::gtest_main)
     gtest_discover_tests(test_rl_environments_l2f_import_export)
+
+    add_executable(test_rl_environments_l2f_linear_acceleration_history linear_acceleration_history.cpp)
+    target_link_libraries(test_rl_environments_l2f_linear_acceleration_history RLtools::RLtools GTest::gtest_main)
+    gtest_discover_tests(test_rl_environments_l2f_linear_acceleration_history)
 endif()
 

@@ -56,6 +56,31 @@ namespace rl_tools::rl::environments::l2f{
         }
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateLinearAccelerationHistory<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateLinearAccelerationHistory<STATE_SPEC>& next_state, RNG& rng) {
+        using T = typename STATE_SPEC::T;
+        using TI = typename DEVICE::index_t;
+        using STATE = StateLinearAccelerationHistory<STATE_SPEC>;
+        post_integration(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(next_state), rng);
+        if constexpr(STATE_SPEC::HISTORY_LENGTH > 0){
+            T conjugate_orientation[4];
+            conjugate_orientation[0] =  next_state.orientation[0];
+            conjugate_orientation[1] = -next_state.orientation[1];
+            conjugate_orientation[2] = -next_state.orientation[2];
+            conjugate_orientation[3] = -next_state.orientation[3];
+            T acceleration_global[3];
+            for(TI dim_i = 0; dim_i < 3; dim_i++){
+                acceleration_global[dim_i] = (next_state.linear_velocity[dim_i] - state.linear_velocity[dim_i]) / parameters.integration.dt - parameters.dynamics.gravity[dim_i];
+            }
+            T acceleration_body[3];
+            rotate_vector_by_quaternion<DEVICE, T>(conjugate_orientation, acceleration_global, acceleration_body);
+            TI current_step = state.acceleration_history_step;
+            for(TI dim_i = 0; dim_i < STATE::ACCELERATION_DIM; dim_i++){
+                next_state.linear_acceleration_body_history[current_step][dim_i] = acceleration_body[dim_i];
+            }
+            next_state.acceleration_history_step = (state.acceleration_history_step + 1) % STATE_SPEC::HISTORY_LENGTH;
+        }
+    }
+    template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateAngularVelocityDelay<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateAngularVelocityDelay<STATE_SPEC>& next_state, RNG& rng) {
         using TI = typename DEVICE::index_t;
         post_integration(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(next_state), rng);

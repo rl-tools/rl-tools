@@ -68,6 +68,11 @@ namespace rl_tools{
         return std::string(first ? "" : ".") + "LinearAccelerationBodyFrame" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
     }
     template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::LinearAccelerationBodyFrameHistory<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::LinearAccelerationBodyFrameHistory<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "LinearAccelerationBodyFrameHistory(" + std::to_string(OBSERVATION::HISTORY_LENGTH) + ")" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
     std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::LinearVelocityBodyFrame<OBS_SPEC>& obs, bool first = true){
         using OBSERVATION = rl::environments::l2f::observation::LinearVelocityBodyFrame<OBS_SPEC>;
         return std::string(first ? "" : ".") + "LinearVelocityBodyFrame" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
@@ -511,6 +516,43 @@ namespace rl_tools{
         json_string += top_level ? "}" : "";
         return json_string;
     }
+    namespace rl::environments::l2f::detail{
+        template <typename FloatT>
+        inline std::string lossless_to_string(FloatT v){
+            // round-trip-safe textual representation; max_digits10 guarantees
+            // re-parsing yields exactly the same FloatT value.
+            char buf[64];
+            constexpr int digits = std::numeric_limits<FloatT>::max_digits10;
+            std::snprintf(buf, sizeof(buf), "%.*g", digits, (double)v);
+            return std::string(buf);
+        }
+    }
+    template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, const rl::environments::l2f::StateLinearAccelerationHistory<STATE_SPEC>& state, bool top_level=true){
+        using TI = typename DEVICE::index_t;
+        using T = typename STATE_SPEC::T;
+        using STATE = rl::environments::l2f::StateLinearAccelerationHistory<STATE_SPEC>;
+        std::string json_string = top_level ? "{" : "";
+        json_string += json(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), false) + ", ";
+        json_string += "\"linear_acceleration_body_history\": [";
+        for (TI step_i = 0; step_i < STATE_SPEC::HISTORY_LENGTH; step_i++){
+            json_string += "[";
+            for (TI dim_i = 0; dim_i < STATE::ACCELERATION_DIM; dim_i++){
+                json_string += rl::environments::l2f::detail::lossless_to_string<T>(state.linear_acceleration_body_history[step_i][dim_i]);
+                if (dim_i < STATE::ACCELERATION_DIM - 1) {
+                    json_string += ", ";
+                }
+            }
+            json_string += "]";
+            if (step_i + 1 < STATE_SPEC::HISTORY_LENGTH) {
+                json_string += ", ";
+            }
+        }
+        json_string += "], ";
+        json_string += "\"acceleration_history_step\": " + std::to_string(state.acceleration_history_step);
+        json_string += top_level ? "}" : "";
+        return json_string;
+    }
     template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
     std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, const rl::environments::l2f::StateAngularVelocityDelay<STATE_SPEC>& state, bool top_level=true){
         using TI = typename DEVICE::index_t;
@@ -862,6 +904,35 @@ namespace rl_tools{
         from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
         for (TI i = 0; i < 3; i++){
             state.linear_acceleration[i] = json_object["linear_acceleration"][i];
+        }
+    }
+    template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, nlohmann::json json_object, rl::environments::l2f::StateLinearAccelerationHistory<STATE_SPEC>& state){
+        using TI = typename DEVICE::index_t;
+        using STATE = rl::environments::l2f::StateLinearAccelerationHistory<STATE_SPEC>;
+        from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
+        const auto& hist = json_object.at("linear_acceleration_body_history");
+        if (hist.size() != STATE_SPEC::HISTORY_LENGTH){
+            throw std::runtime_error("StateLinearAccelerationHistory: linear_acceleration_body_history has " + std::to_string(hist.size()) + " entries, expected " + std::to_string(STATE_SPEC::HISTORY_LENGTH));
+        }
+        for(TI step_i = 0; step_i < STATE_SPEC::HISTORY_LENGTH; step_i++){
+            const auto& step_entry = hist.at(step_i);
+            if (step_entry.size() != STATE::ACCELERATION_DIM){
+                throw std::runtime_error("StateLinearAccelerationHistory: entry " + std::to_string(step_i) + " has " + std::to_string(step_entry.size()) + " components, expected " + std::to_string(STATE::ACCELERATION_DIM));
+            }
+            for(TI dim_i = 0; dim_i < STATE::ACCELERATION_DIM; dim_i++){
+                state.linear_acceleration_body_history[step_i][dim_i] = step_entry.at(dim_i);
+            }
+        }
+        TI raw_step = json_object.at("acceleration_history_step");
+        if constexpr(STATE_SPEC::HISTORY_LENGTH == 0){
+            state.acceleration_history_step = 0;
+        }
+        else{
+            if (raw_step >= STATE_SPEC::HISTORY_LENGTH){
+                throw std::runtime_error("StateLinearAccelerationHistory: acceleration_history_step " + std::to_string(raw_step) + " out of range [0, " + std::to_string(STATE_SPEC::HISTORY_LENGTH) + ")");
+            }
+            state.acceleration_history_step = raw_step;
         }
     }
     template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
