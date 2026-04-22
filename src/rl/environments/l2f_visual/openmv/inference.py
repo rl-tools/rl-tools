@@ -386,8 +386,8 @@ MDPS_TO_RADPS = math.pi / (180.0 * 1000.0)
 import csi
 
 # ---- Constants mirrored from imitation_cuda.cu ----
-FRAME_STACK_N = 5
-FRAME_STACK_STRIDE = 20           # 100 Hz / 20 = 200 ms spacing between stacked frames
+FRAME_STACK_N = 10
+FRAME_STACK_STRIDE = 10           # 100 Hz / 20 = 200 ms spacing between stacked frames
 FRAME_STACK_HISTORY_LENGTH = FRAME_STACK_STRIDE * (FRAME_STACK_N - 1) + 1  # 81
 ACTION_HISTORY_LENGTH = 64
 ACTION_DIM = 4
@@ -398,6 +398,7 @@ TARGET_KERAS_INDEX = FRAME_STACK_N  # 5 (last image input is the target)
 STATE_KERAS_INDEX = N_IMAGE_INPUTS  # 6
 STATE_DIM = 3 + 3 + ACTION_HISTORY_LENGTH * ACTION_DIM  # 262
 TICK_US = 10_000                  # 100 Hz period
+DIAG_PRINT_EVERY = 10
 RGB565_BIG_ENDIAN = True          # flip if colors look wrong
 
 assert num_inputs == N_INPUTS, (num_inputs, N_INPUTS)
@@ -637,6 +638,7 @@ while True:
     gx = -gz_orig
     gy =  gy_orig
     gz =  gx_orig
+    t_imu = time.ticks_us()
 
     dt = time.ticks_diff(t0, last_t) * 1e-6
     last_t = t0
@@ -650,12 +652,15 @@ while True:
         ax * MG_TO_MPS2, ay * MG_TO_MPS2, az * MG_TO_MPS2,
         gx_rad, gy_rad, gz_rad, dt,
     )
+    t_mahony = time.ticks_us()
 
     img = csi0.snapshot()
     assert img is not None
     assert img.width() == 320
     assert img.height() == 200
+    t_snapshot = time.ticks_us()
     _downsample_rgb565(frame_history_q[history_write_ptr], img.bytearray(), _image_lut, _sensor_w, IMG_W, IMG_H)
+    t_downsample = time.ticks_us()
     if not target_captured:
         target_q[:] = frame_history_q[history_write_ptr]
         for i in range(FRAME_STACK_HISTORY_LENGTH):
@@ -666,17 +671,20 @@ while True:
     for _f in range(1, FRAME_STACK_N):
         _slot = (history_write_ptr - _f * FRAME_STACK_STRIDE) % FRAME_STACK_HISTORY_LENGTH
         sources_by_keras[_f] = frame_history_q[_slot]
+    t_frames = time.ticks_us()
 
     body_z = mahony.orientation_body_z()
     ang_vel = mahony.angular_velocity_corrected(gx_rad, gy_rad, gz_rad)
     build_state_int8(body_z, ang_vel)
+    t_state = time.ticks_us()
 
     y_raw = model.predict(feeders_live)[0]
-    yq = y_raw.flatten()
-    a0_raw = (float(yq[0]) - out_zp) * out_scale
-    a1_raw = (float(yq[1]) - out_zp) * out_scale
-    a2_raw = (float(yq[2]) - out_zp) * out_scale
-    a3_raw = (float(yq[3]) - out_zp) * out_scale
+    y_f32 = y_raw.flatten()
+    a0_raw = float(y_f32[0])
+    a1_raw = float(y_f32[1])
+    a2_raw = float(y_f32[2])
+    a3_raw = float(y_f32[3])
+    t_predict = time.ticks_us()
 
     slot_off = action_write_ptr * ACTION_DIM
     action_ring_q[slot_off]     = _quantize_action_clip(a0_raw)
@@ -684,15 +692,26 @@ while True:
     action_ring_q[slot_off + 2] = _quantize_action_clip(a2_raw)
     action_ring_q[slot_off + 3] = _quantize_action_clip(a3_raw)
     action_write_ptr = (action_write_ptr + 1) % ACTION_HISTORY_LENGTH
+    t_actions = time.ticks_us()
 
-    elapsed_us = time.ticks_diff(time.ticks_us(), t0)
-    if tick % 10 == 0:
+    elapsed_us = time.ticks_diff(t_actions, t0)
+    if tick % DIAG_PRINT_EVERY == 0:
+        imu_us = time.ticks_diff(t_imu, t0)
+        mahony_us = time.ticks_diff(t_mahony, t_imu)
+        snapshot_us = time.ticks_diff(t_snapshot, t_mahony)
+        downsample_us = time.ticks_diff(t_downsample, t_snapshot)
+        frames_us = time.ticks_diff(t_frames, t_downsample)
+        state_us = time.ticks_diff(t_state, t_frames)
+        predict_us = time.ticks_diff(t_predict, t_state)
+        actions_us = time.ticks_diff(t_actions, t_predict)
         a0 = -1.0 if a0_raw < -1.0 else (1.0 if a0_raw > 1.0 else a0_raw)
         a1 = -1.0 if a1_raw < -1.0 else (1.0 if a1_raw > 1.0 else a1_raw)
         a2 = -1.0 if a2_raw < -1.0 else (1.0 if a2_raw > 1.0 else a2_raw)
         a3 = -1.0 if a3_raw < -1.0 else (1.0 if a3_raw > 1.0 else a3_raw)
-        print("us=%5d a=%+5.2f,%+5.2f,%+5.2f,%+5.2f bz=%+5.2f,%+5.2f,%+5.2f av=%+6.2f,%+6.2f,%+6.2f" %
-              (elapsed_us, a0, a1, a2, a3, body_z[0], body_z[1], body_z[2],
+        print("us=%5d imu=%4d mah=%4d cam=%5d ds=%4d frm=%4d st=%4d inf=%4d act=%4d "
+              "a=%+5.2f,%+5.2f,%+5.2f,%+5.2f bz=%+5.2f,%+5.2f,%+5.2f av=%+6.2f,%+6.2f,%+6.2f" %
+              (elapsed_us, imu_us, mahony_us, snapshot_us, downsample_us, frames_us, state_us, predict_us, actions_us,
+               a0, a1, a2, a3, body_z[0], body_z[1], body_z[2],
                ang_vel[0], ang_vel[1], ang_vel[2]))
 
     history_write_ptr = (history_write_ptr + 1) % FRAME_STACK_HISTORY_LENGTH

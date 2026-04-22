@@ -67,8 +67,71 @@ def sanitize_name(h5_path):
     return h5_path.lstrip("/").replace("/", "_")
 
 
-def build_layer(h5_layer, tensor):
+class FakeQuantConvBlock(tf.keras.layers.Layer):
+    """Conv2D → bias → activation → per-tensor output fake-quant, with the
+    kernel wrapped in a per-channel weight fake-quant. Used for QAT fine-tuning.
+
+    The inner Conv2D layer owns the trainable kernel / bias; this wrapper adds
+    STE-fake-quant around them using scales pre-harvested from an int8 tflite.
+    """
+    def __init__(self, inner_conv, w_scales, out_min, out_max, activation_fn,
+                 pad_h=0, pad_w=0, stride_h=1, stride_w=1, **kwargs):
+        super().__init__(**kwargs)
+        self.inner_conv = inner_conv
+        self._w_scales = tf.constant(np.asarray(w_scales, dtype=np.float32))
+        self._out_min = tf.constant(float(out_min), dtype=tf.float32)
+        self._out_max = tf.constant(float(out_max), dtype=tf.float32)
+        self._activation_fn = activation_fn
+        self._pad = (int(pad_h), int(pad_w))
+        self._strides = (int(stride_h), int(stride_w))
+
+    def call(self, x):
+        if self._pad[0] or self._pad[1]:
+            x = tf.pad(x, [[0, 0], [self._pad[0], self._pad[0]],
+                           [self._pad[1], self._pad[1]], [0, 0]])
+        max_w = 127.0 * self._w_scales
+        w_fq = tf.quantization.fake_quant_with_min_max_vars_per_channel(
+            self.inner_conv.kernel, min=-max_w, max=max_w, num_bits=8)
+        y = tf.nn.conv2d(x, w_fq,
+                         strides=(1, self._strides[0], self._strides[1], 1),
+                         padding="VALID")
+        if self.inner_conv.use_bias:
+            y = tf.nn.bias_add(y, self.inner_conv.bias)
+        y = self._activation_fn(y)
+        y = tf.quantization.fake_quant_with_min_max_vars(
+            y, min=self._out_min, max=self._out_max, num_bits=8)
+        return y
+
+
+class FakeQuantDenseBlock(tf.keras.layers.Layer):
+    """Dense → bias → activation → per-tensor output fake-quant, kernel
+    wrapped in per-channel weight fake-quant."""
+    def __init__(self, inner_dense, w_scales, out_min, out_max, activation_fn, **kwargs):
+        super().__init__(**kwargs)
+        self.inner_dense = inner_dense
+        self._w_scales = tf.constant(np.asarray(w_scales, dtype=np.float32))
+        self._out_min = tf.constant(float(out_min), dtype=tf.float32)
+        self._out_max = tf.constant(float(out_max), dtype=tf.float32)
+        self._activation_fn = activation_fn
+
+    def call(self, x):
+        max_w = 127.0 * self._w_scales
+        w_fq = tf.quantization.fake_quant_with_min_max_vars_per_channel(
+            self.inner_dense.kernel, min=-max_w, max=max_w, num_bits=8)
+        y = tf.matmul(x, w_fq)
+        if self.inner_dense.use_bias:
+            y = y + self.inner_dense.bias
+        y = self._activation_fn(y)
+        y = tf.quantization.fake_quant_with_min_max_vars(
+            y, min=self._out_min, max=self._out_max, num_bits=8)
+        return y
+
+
+def build_layer(h5_layer, tensor, fq_scales=None):
     kind = attr(h5_layer, "type")
+    name = sanitize_name(h5_layer.name)
+    fq = fq_scales.get(name) if fq_scales is not None else None
+
     if kind == "conv2d":
         out_c = int(attr(h5_layer, "output_channels"))
         in_c = int(attr(h5_layer, "input_channels"))
@@ -92,8 +155,6 @@ def build_layer(h5_layer, tensor):
         )
         w = np.transpose(w, (1, 2, 3, 0))
 
-        if ph or pw:
-            tensor = tf.keras.layers.ZeroPadding2D(padding=(ph, pw))(tensor)
         conv = tf.keras.layers.Conv2D(
             filters=out_c,
             kernel_size=(kh, kw),
@@ -101,11 +162,28 @@ def build_layer(h5_layer, tensor):
             padding="valid",
             activation=None,
             use_bias=True,
-            name=sanitize_name(h5_layer.name),
+            name=name,
         )
-        tensor = conv(tensor)
-        conv.set_weights([w, b])
-        tensor = tf.keras.layers.Lambda(ACTIVATIONS[act_name])(tensor)
+
+        if fq is None:
+            if ph or pw:
+                tensor = tf.keras.layers.ZeroPadding2D(padding=(ph, pw))(tensor)
+            tensor = conv(tensor)
+            conv.set_weights([w, b])
+            tensor = tf.keras.layers.Lambda(ACTIVATIONS[act_name])(tensor)
+        else:
+            conv.build((None, None, None, in_c))
+            conv.set_weights([w, b])
+            block = FakeQuantConvBlock(
+                conv,
+                w_scales=fq["w_scales"],
+                out_min=fq["out_min"],
+                out_max=fq["out_max"],
+                activation_fn=ACTIVATIONS[act_name],
+                pad_h=ph, pad_w=pw, stride_h=sh, stride_w=sw,
+                name=f"{name}_fq",
+            )
+            tensor = block(tensor)
         return tensor
 
     if kind == "dense":
@@ -121,11 +199,24 @@ def build_layer(h5_layer, tensor):
             units=out_dim,
             activation=None,
             use_bias=True,
-            name=sanitize_name(h5_layer.name),
+            name=name,
         )
-        tensor = dense(tensor)
-        dense.set_weights([w_tf, b.astype(np.float32)])
-        tensor = tf.keras.layers.Lambda(ACTIVATIONS[act_name])(tensor)
+        if fq is None:
+            tensor = dense(tensor)
+            dense.set_weights([w_tf, b.astype(np.float32)])
+            tensor = tf.keras.layers.Lambda(ACTIVATIONS[act_name])(tensor)
+        else:
+            dense.build((None, in_dim))
+            dense.set_weights([w_tf, b.astype(np.float32)])
+            block = FakeQuantDenseBlock(
+                dense,
+                w_scales=fq["w_scales"],
+                out_min=fq["out_min"],
+                out_max=fq["out_max"],
+                activation_fn=ACTIVATIONS[act_name],
+                name=f"{name}_fq",
+            )
+            tensor = block(tensor)
         return tensor
 
     if kind == "flatten":
@@ -141,9 +232,9 @@ def build_layer(h5_layer, tensor):
     raise NotImplementedError(f"unsupported layer type: {kind}")
 
 
-def build_sequential(h5_group, tensor):
+def build_sequential(h5_group, tensor, fq_scales=None):
     for i in ordered_layer_indices(h5_group):
-        tensor = build_layer(h5_group["layers"][str(i)], tensor)
+        tensor = build_layer(h5_group["layers"][str(i)], tensor, fq_scales=fq_scales)
     return tensor
 
 
@@ -171,7 +262,7 @@ def branch_feature_shape(branch_group):
     return tuple(shape[2:])  # drop leading STEPS, BATCH dims
 
 
-def build_parallel(h5_parallel, tensor):
+def build_parallel(h5_parallel, tensor, fq_scales=None):
     n = num_branches(h5_parallel)
     dims = [branch_flat_dim(h5_parallel[f"branch_{i}"]) for i in range(n)]
     total = sum(dims)
@@ -196,9 +287,9 @@ def build_parallel(h5_parallel, tensor):
 
         btype = attr(branch_group, "type")
         if btype == "sequential":
-            branch_out = build_sequential(branch_group, branch_input)
+            branch_out = build_sequential(branch_group, branch_input, fq_scales=fq_scales)
         elif btype == "parallel":
-            branch_out = build_parallel(branch_group, branch_input)
+            branch_out = build_parallel(branch_group, branch_input, fq_scales=fq_scales)
         else:
             raise NotImplementedError(f"parallel branch type {btype}")
         branch_outputs.append(branch_out)
@@ -211,9 +302,9 @@ def build_parallel(h5_parallel, tensor):
     head_group = h5_parallel["head"]
     htype = attr(head_group, "type")
     if htype == "sequential":
-        return build_sequential(head_group, concat)
+        return build_sequential(head_group, concat, fq_scales=fq_scales)
     if htype == "parallel":
-        return build_parallel(head_group, concat)
+        return build_parallel(head_group, concat, fq_scales=fq_scales)
     raise NotImplementedError(f"parallel head type {htype}")
 
 
@@ -223,6 +314,87 @@ def find_model_group(h5_root):
     top = [k for k in h5_root.keys() if k != "example" and "type" in h5_root[k].attrs]
     assert len(top) == 1, f"cannot locate top-level model group, candidates={top}"
     return h5_root[top[0]]
+
+
+def parse_camera_slug(meta_string):
+    """Extract the Camera observation slug and return (n_img_inputs, channels_per).
+
+    Supported slug forms:
+      CameraRGB(fov, H, W)                                 → (1, 3)
+      CameraRGBWithTarget(fov, H, W)                       → (2, 3)
+      CameraRGBStacked(fov, H, W, stride, N)               → (N, 3)
+      CameraRGBStackedWithTarget(fov, H, W, stride, N)     → (N+1, 3)
+    Returns None if no Camera slug can be parsed.
+    """
+    if not meta_string:
+        return None
+    import json, re as _r
+    try:
+        meta = json.loads(meta_string)
+    except (ValueError, TypeError):
+        return None
+    obs = meta.get("environment", {}).get("observation", "")
+    if not obs:
+        return None
+    # First top-level token (image obs) ends at the first ", " at nesting depth 0.
+    # The state slug internally uses dots + parentheses (e.g.
+    # "OrientationBodyZ.ActionHistory(64)") so depth-tracked splitting is robust.
+    depth = 0
+    image_tok = None
+    for i, ch in enumerate(obs):
+        if ch == "(": depth += 1
+        elif ch == ")": depth -= 1
+        elif ch == "," and depth == 0:
+            image_tok = obs[:i].strip()
+            break
+    if image_tok is None:
+        image_tok = obs.strip()
+    m = _r.match(r"^(Camera\w+)\s*\((.*)\)\s*$", image_tok)
+    if not m:
+        return None
+    name, inner = m.group(1), m.group(2)
+    args = [a.strip() for a in inner.split(",")]
+    if name == "CameraRGB":
+        return (1, 3)
+    if name == "CameraRGBWithTarget":
+        return (2, 3)
+    if name == "CameraRGBStacked":
+        if len(args) < 5: return None
+        try: return (int(args[4]), 3)
+        except ValueError: return None
+    if name == "CameraRGBStackedWithTarget":
+        if len(args) < 5: return None
+        try: return (int(args[4]) + 1, 3)
+        except ValueError: return None
+    return None
+
+
+def first_conv_input_channels(h5_root):
+    """Walk the model tree to the first conv2d layer and return its
+    input_channels attribute, or None if the model has no conv2d layers.
+    """
+    model_group = find_model_group(h5_root)
+    def walk(g):
+        kind = attr(g, "type")
+        if kind == "sequential":
+            for i in ordered_layer_indices(g):
+                l = g["layers"][str(i)]
+                lk = attr(l, "type")
+                if lk == "conv2d":
+                    return int(attr(l, "input_channels"))
+                found = walk(l) if lk in ("sequential", "parallel") else None
+                if found is not None:
+                    return found
+            return None
+        if kind == "parallel":
+            n = int(attr(g, "num_branches"))
+            for i in range(n):
+                found = walk(g[f"branch_{i}"])
+                if found is not None:
+                    return found
+            return None
+        return None
+    return walk(model_group)
 
 
 def example_input_tensors(h5_root):
@@ -235,10 +407,10 @@ def example_output_tensor(h5_root):
     return h5_root["example/outputs/0"][:].astype(np.float32)
 
 
-def build_branch_output(branch_group, branch_input):
+def build_branch_output(branch_group, branch_input, fq_scales=None):
     btype = attr(branch_group, "type")
     if btype == "sequential":
-        return build_sequential(branch_group, branch_input)
+        return build_sequential(branch_group, branch_input, fq_scales=fq_scales)
     if btype == "parallel":
         feature_shape = tuple(int(d) for d in branch_input.shape[1:])
         flat = (
@@ -246,20 +418,20 @@ def build_branch_output(branch_group, branch_input):
             if len(feature_shape) > 1
             else branch_input
         )
-        return build_parallel(branch_group, flat)
+        return build_parallel(branch_group, flat, fq_scales=fq_scales)
     raise NotImplementedError(f"branch type {btype}")
 
 
-def build_head_output(head_group, tensor):
+def build_head_output(head_group, tensor, fq_scales=None):
     htype = attr(head_group, "type")
     if htype == "sequential":
-        return build_sequential(head_group, tensor)
+        return build_sequential(head_group, tensor, fq_scales=fq_scales)
     if htype == "parallel":
-        return build_parallel(head_group, tensor)
+        return build_parallel(head_group, tensor, fq_scales=fq_scales)
     raise NotImplementedError(f"head type {htype}")
 
 
-def build_model(h5_root):
+def build_model(h5_root, fq_scales=None):
     model_group = find_model_group(h5_root)
     mtype = attr(model_group, "type")
     if mtype == "parallel":
@@ -275,7 +447,7 @@ def build_model(h5_root):
             # in_10 ordered before in_2.
             inp = tf.keras.Input(shape=feature_shape, dtype=tf.float32, name=f"in_{i:02d}")
             branch_inputs.append(inp)
-            branch_outputs.append(build_branch_output(branch_group, inp))
+            branch_outputs.append(build_branch_output(branch_group, inp, fq_scales=fq_scales))
 
         concat = (
             tf.keras.layers.Concatenate(axis=-1)(branch_outputs)
@@ -284,7 +456,7 @@ def build_model(h5_root):
         )
 
         if int(attr(model_group, "has_head")) != 0:
-            outputs = build_head_output(model_group["head"], concat)
+            outputs = build_head_output(model_group["head"], concat, fq_scales=fq_scales)
         else:
             outputs = concat
         return tf.keras.Model(inputs=branch_inputs, outputs=outputs)
@@ -293,7 +465,7 @@ def build_model(h5_root):
         example_in_0 = h5_root["example/inputs/0"]
         feature_shape = tuple(int(d) for d in example_in_0.shape[2:])
         inp = tf.keras.Input(shape=feature_shape, dtype=tf.float32, name="in_00")
-        outputs = build_sequential(model_group, inp)
+        outputs = build_sequential(model_group, inp, fq_scales=fq_scales)
         return tf.keras.Model(inputs=inp, outputs=outputs)
 
     raise NotImplementedError(f"top-level type {mtype}")
@@ -433,6 +605,54 @@ def convert_int8(keras_model, per_branch_inputs, io_dtype, float_tflite_bytes):
     return converter.convert()
 
 
+def harvest_int8_scales(tflite_bytes, ordered_layers):
+    """Map each Conv2D/Dense Keras layer name to the int8 tflite's fake-quant
+    parameters: per-channel weight scales (symmetric, zp=0) and per-tensor
+    output (post-activation-fusion) min/max + scale/zp.
+    """
+    interp = tf.lite.Interpreter(model_content=tflite_bytes)
+    interp.allocate_tensors()
+    ops = interp._get_ops_details()
+    td_by_idx = {td["index"]: td for td in interp.get_tensor_details()}
+
+    quant_op_kinds = ("FULLY_CONNECTED", "CONV_2D")
+    quant_ops = [o for o in ops if o["op_name"] in quant_op_kinds]
+    if len(quant_ops) != len(ordered_layers):
+        raise RuntimeError(
+            f"tflite has {len(quant_ops)} quant ops, expected "
+            f"{len(ordered_layers)} from HDF5"
+        )
+
+    result = {}
+    for op, layer_info in zip(quant_ops, ordered_layers):
+        h5_path, kind, _exp_w, _exp_b = layer_info
+        inputs = list(op["inputs"])
+        outputs = list(op["outputs"])
+        w_idx = int(inputs[1])
+        y_idx = int(outputs[0])
+        w_qp = td_by_idx[w_idx]["quantization_parameters"]
+        y_qp = td_by_idx[y_idx]["quantization_parameters"]
+        w_scales = np.asarray(w_qp["scales"], dtype=np.float32)
+        w_zps = np.asarray(w_qp["zero_points"], dtype=np.int32)
+        y_scales = np.asarray(y_qp["scales"], dtype=np.float32)
+        y_zps = np.asarray(y_qp["zero_points"], dtype=np.int32)
+        if y_scales.size != 1:
+            raise RuntimeError(
+                f"output of {h5_path} is per-channel (n={y_scales.size}); expected per-tensor"
+            )
+        out_scale = float(y_scales[0])
+        out_zp = int(y_zps[0])
+        result[sanitize_name(h5_path)] = {
+            "w_scales": w_scales,
+            "w_zps": w_zps,
+            "out_scale": out_scale,
+            "out_zp": out_zp,
+            "out_min": (-128 - out_zp) * out_scale,
+            "out_max": (127 - out_zp) * out_scale,
+        }
+    return result
+
+
 def extract_quantized_weights(tflite_bytes, ordered_layers):
     interp = tf.lite.Interpreter(model_content=tflite_bytes)
     interp.allocate_tensors()
@@ -499,7 +719,7 @@ def extract_quantized_weights(tflite_bytes, ordered_layers):
     return result
 
 
-def write_quantized_h5(src_path, dst_path, dequant_by_path):
+def write_quantized_h5(src_path, dst_path, dequant_by_path, example_limit=None):
     shutil.copyfile(src_path, dst_path)
     with h5py.File(dst_path, "r+") as f:
         for h5_path, (w_deq, b_deq) in dequant_by_path.items():
@@ -508,6 +728,26 @@ def write_quantized_h5(src_path, dst_path, dequant_by_path):
             if b_deq is not None:
                 b_ds = f[h5_path + "/biases/parameters"]
                 b_ds[...] = b_deq
+        if example_limit is not None and "example" in f:
+            # Example tensors have canonical shape [T, B, ...features]; truncate
+            # along the batch axis (1). h5py doesn't support in-place resize for
+            # datasets created without maxshape, so delete + recreate.
+            def _truncate(group):
+                for key in list(group.keys()):
+                    ds = group[key]
+                    if isinstance(ds, h5py.Dataset) and ds.ndim >= 2:
+                        limit = min(int(example_limit), ds.shape[1])
+                        if limit < ds.shape[1]:
+                            data = ds[:, :limit, ...]
+                            attrs = dict(ds.attrs)
+                            del group[key]
+                            new_ds = group.create_dataset(key, data=data)
+                            for k, v in attrs.items():
+                                new_ds.attrs[k] = v
+            if "inputs" in f["example"]:
+                _truncate(f["example/inputs"])
+            if "outputs" in f["example"]:
+                _truncate(f["example/outputs"])
 
 
 import re as _re
@@ -597,6 +837,157 @@ def run_tflite_int8(tflite_bytes, inputs, return_raw=False):
     return dequant
 
 
+def _int8_train_test_err(int8_bytes, per_branch_contig, y_flat, train_idx, test_idx):
+    """Returns (train_max, train_mean, test_max, test_mean)."""
+    y_all = run_tflite_int8(int8_bytes, per_branch_contig).reshape(y_flat.shape)
+    diff = np.abs(y_all - y_flat)
+    diff_flat = diff.reshape(diff.shape[0], -1)
+    train_d = diff_flat[train_idx]
+    test_d  = diff_flat[test_idx]
+    return (float(train_d.max()), float(train_d.mean()),
+            float(test_d.max()),  float(test_d.mean()))
+
+
+def qat_finetune(*, args, h5_path, teacher_model, int8_src_model, int8_src_model_inner,
+                 int8_bytes_v0, ordered_layers, per_branch_contig, y_flat, n_examples,
+                 report, tflite_bytes):
+    """Fine-tune the int8_src_model's Conv/Dense weights with fake-quant-in-the-loop
+    (STE) distillation from the teacher on a shuffled train split. Returns the
+    int8_bytes produced by a second convert_int8 call on the fine-tuned weights."""
+    print()
+    print("=== qat fine-tune ===")
+
+    # 1. Harvest per-layer scales from the first int8 conversion.
+    fq_scales = harvest_int8_scales(int8_bytes_v0, ordered_layers)
+    print(f"harvested int8 scales for {len(fq_scales)} Conv/Dense layers")
+
+    # 2. Build the fake-quant mirror model (same tanh substitution as int8_src_model).
+    substitute = (args.fast_tanh_substitute == "tanh")
+    if substitute:
+        saved = ACTIVATIONS["FAST_TANH"]
+        ACTIVATIONS["FAST_TANH"] = tf.nn.tanh
+    try:
+        with h5py.File(h5_path, "r") as f:
+            fq_inner = build_model(f, fq_scales=fq_scales)
+    finally:
+        if substitute:
+            ACTIVATIONS["FAST_TANH"] = saved
+    if args.split_image_input is not None:
+        fq_model = wrap_split_image_input(
+            fq_inner, args.split_image_input, args.split_image_channels_per
+        )
+    else:
+        fq_model = fq_inner
+
+    # 3. Copy int8_src_model weights → fq_inner (redundant since both built from
+    # the same h5, but defensive — ensures identical starting point).
+    for layer in fq_inner.layers:
+        if isinstance(layer, (FakeQuantConvBlock, FakeQuantDenseBlock)):
+            inner = layer.inner_conv if isinstance(layer, FakeQuantConvBlock) else layer.inner_dense
+            src_layer = int8_src_model_inner.get_layer(inner.name)
+            inner.set_weights(src_layer.get_weights())
+
+    # 4. Shuffle + train/test split.
+    rng_split = np.random.default_rng(args.qat_seed)
+    perm = rng_split.permutation(n_examples)
+    n_test = max(1, int(round(n_examples * args.qat_test_fraction)))
+    if n_test >= n_examples:
+        raise RuntimeError(f"--qat-test-fraction={args.qat_test_fraction} leaves no training samples")
+    test_idx = np.sort(perm[:n_test])
+    train_idx = np.sort(perm[n_test:])
+    train_inputs = [np.ascontiguousarray(a[train_idx]) for a in per_branch_contig]
+    test_inputs  = [np.ascontiguousarray(a[test_idx])  for a in per_branch_contig]
+    print(f"shuffled split: {len(train_idx)} train / {len(test_idx)} test (seed={args.qat_seed})")
+
+    # 5. Pre-finetune baseline.
+    pre = _int8_train_test_err(int8_bytes_v0, per_branch_contig, y_flat, train_idx, test_idx)
+    report(f"QAT baseline (pre-finetune int8):  "
+           f"train max={pre[0]:.4g} mean={pre[1]:.4g}  |  "
+           f"test  max={pre[2]:.4g} mean={pre[3]:.4g}")
+
+    # 6. Precompute teacher targets (frozen; saves forward passes in the loop).
+    teacher_train_y = teacher_model(
+        [tf.constant(a) for a in train_inputs], training=False
+    ).numpy()
+    teacher_test_y = teacher_model(
+        [tf.constant(a) for a in test_inputs], training=False
+    ).numpy()
+
+    # Trainable variables: the inner Conv/Dense kernels + biases.
+    train_vars = []
+    for layer in fq_inner.layers:
+        if isinstance(layer, (FakeQuantConvBlock, FakeQuantDenseBlock)):
+            inner = layer.inner_conv if isinstance(layer, FakeQuantConvBlock) else layer.inner_dense
+            train_vars.extend(inner.trainable_variables)
+    optim = tf.keras.optimizers.Adam(args.qat_lr)
+
+    @tf.function
+    def step(xs, y_target):
+        with tf.GradientTape() as tape:
+            y_pred = fq_model(xs, training=True)
+            loss = tf.reduce_mean((y_pred - y_target) ** 2)
+        grads = tape.gradient(loss, train_vars)
+        optim.apply_gradients(zip(grads, train_vars))
+        return loss
+
+    rng_batch = np.random.default_rng(args.qat_seed + 1)
+    n_train = len(train_idx)
+    bs = min(args.qat_batch_size, n_train)
+    train_inputs_tf = [tf.constant(a) for a in train_inputs]
+    test_inputs_tf = [tf.constant(a) for a in test_inputs]
+    teacher_test_y_tf = tf.constant(teacher_test_y)
+    print(f"fine-tuning {args.qat_steps} steps, batch={bs}, lr={args.qat_lr}")
+    for step_i in range(args.qat_steps):
+        batch = rng_batch.choice(n_train, size=bs, replace=False)
+        batch_idx_tf = tf.constant(batch, dtype=tf.int32)
+        batch_xs = [tf.gather(a, batch_idx_tf) for a in train_inputs_tf]
+        batch_y = tf.gather(tf.constant(teacher_train_y), batch_idx_tf)
+        loss = step(batch_xs, batch_y)
+        if step_i % 50 == 0 or step_i == args.qat_steps - 1:
+            test_pred = fq_model(test_inputs_tf, training=False)
+            test_loss = float(tf.reduce_mean((test_pred - teacher_test_y_tf) ** 2).numpy())
+            print(f"  [qat {step_i:4d}] train_mse={float(loss.numpy()):.6g} "
+                  f"test_mse={test_loss:.6g}")
+
+    # 7. Copy fine-tuned weights from fq_inner back to int8_src_model_inner.
+    for layer in fq_inner.layers:
+        if isinstance(layer, (FakeQuantConvBlock, FakeQuantDenseBlock)):
+            inner = layer.inner_conv if isinstance(layer, FakeQuantConvBlock) else layer.inner_dense
+            int8_src_model_inner.get_layer(inner.name).set_weights(inner.get_weights())
+
+    # 8. Re-run int8 conversion on the updated weights.
+    int8_bytes_v1 = convert_int8(int8_src_model, per_branch_contig, args.quantize_io, tflite_bytes)
+
+    # 9. Post-finetune metrics.
+    post = _int8_train_test_err(int8_bytes_v1, per_branch_contig, y_flat, train_idx, test_idx)
+    def delta(a, b):
+        return (b - a) / max(abs(a), 1e-12) * 100.0
+    report(f"QAT final  (post-finetune int8):    "
+           f"train max={post[0]:.4g} mean={post[1]:.4g}  |  "
+           f"test  max={post[2]:.4g} mean={post[3]:.4g}")
+    report(f"QAT delta (post-pre): "
+           f"train max Δ={delta(pre[0], post[0]):+.1f}% mean Δ={delta(pre[1], post[1]):+.1f}%  |  "
+           f"test  max Δ={delta(pre[2], post[2]):+.1f}% mean Δ={delta(pre[3], post[3]):+.1f}%")
+
+    # Heuristic guidance on the outcome.
+    train_improved = post[1] < pre[1]
+    test_improved  = post[3] < pre[3]
+    if train_improved and test_improved:
+        gap = (pre[1] - post[1]) - (pre[3] - post[3])  # train delta - test delta
+        if gap > 0.5 * (pre[1] - post[1]):
+            report("QAT note: train improves notably more than test — mild overfit to calibration set")
+        else:
+            report("QAT note: train and test both improved — looks like a genuine gain")
+    elif train_improved and not test_improved:
+        report("QAT WARNING: test error got worse while train improved — overfitting, "
+               "consider fewer --qat-steps or more calibration samples")
+    elif not train_improved:
+        report("QAT WARNING: no improvement on train — fine-tune not useful; "
+               "consider --qat-lr / --qat-steps changes or skipping --qat-finetune")
+
+    return int8_bytes_v1
+
+
 def print_summary(lines):
     print()
     print("=" * 72)
@@ -623,17 +1014,38 @@ def main():
                          "(tanh uses a lookup table under int8 and is well-supported on NPUs; "
                          "the polynomial form triggers a division by zero in the int8 DIV kernel)")
     ap.add_argument("--split-image-input", type=int, default=None, metavar="N",
-                    help="experimental: replace the first input (assumed (H,W,C_total)) with "
-                         "N inputs of (H,W,channels-per) joined by a leading Concat (and zero-pad "
-                         "if N*channels-per < C_total). Used to avoid the CPU-side NHWC interleave "
-                         "on OpenMV / Ethos-U deployment.")
-    ap.add_argument("--split-image-channels-per", type=int, default=3,
-                    help="channels per split input when --split-image-input is set (default 3)")
+                    help="override the auto-derived image-input split: replace the first input "
+                         "(assumed (H,W,C_total)) with N inputs of (H,W,channels-per) joined by a "
+                         "leading Concat (and zero-pad if N*channels-per < C_total). If omitted, N "
+                         "is auto-derived from the checkpoint's Camera observation slug. Used to "
+                         "avoid the CPU-side NHWC interleave on OpenMV / Ethos-U deployment.")
+    ap.add_argument("--split-image-channels-per", type=int, default=None,
+                    help="override channels per split input (default: 3 when --split-image-input is "
+                         "set explicitly, or whatever the Camera slug implies when auto-deriving)")
+    ap.add_argument("--no-split-image-input", action="store_true",
+                    help="disable the image-input split entirely (overrides both auto-derive and "
+                         "--split-image-input)")
     ap.add_argument("--example-bin-limit", type=int, default=None, metavar="N",
                     help="limit the number of samples written to the companion .bin files (inputs, "
                          "output, int8 output) to the first N (default: all samples from the h5 "
                          "example set). Int8 calibration still uses the full example set; this "
                          "only affects the deployed artifacts, e.g. to fit them in OpenMV flash.")
+    ap.add_argument("--qat-finetune", action="store_true",
+                    help="after the initial int8 conversion, fine-tune the float model's Conv/Dense "
+                         "weights with fake-quant ops (STE) in the forward pass, using distillation "
+                         "from the original float model on a shuffled train split of example/inputs. "
+                         "Then re-run the int8 conversion. Requires --quantize=int8; no-op otherwise.")
+    ap.add_argument("--qat-steps", type=int, default=500,
+                    help="number of gradient steps for --qat-finetune (default 500)")
+    ap.add_argument("--qat-lr", type=float, default=1e-4,
+                    help="learning rate for --qat-finetune (default 1e-4)")
+    ap.add_argument("--qat-batch-size", type=int, default=16,
+                    help="batch size for --qat-finetune (default 16)")
+    ap.add_argument("--qat-test-fraction", type=float, default=0.2,
+                    help="fraction of example/inputs held out for --qat-finetune overfitting check "
+                         "(default 0.2); the remainder is used for gradient updates")
+    ap.add_argument("--qat-seed", type=int, default=0,
+                    help="RNG seed controlling the shuffle before the --qat-finetune train/test split")
     args = ap.parse_args()
 
     out_path = args.output or os.path.splitext(args.input)[0] + ".tflite"
@@ -643,6 +1055,11 @@ def main():
         example_inputs = example_input_tensors(f)
         y_ref = example_output_tensor(f)
         ordered_layers = collect_quant_layers(find_model_group(f))
+    # Keep a pre-(split-image-wrap) reference so get_layer() can reach the
+    # inner Conv/Dense weights — wrap_split_image_input replaces `model` with
+    # a Keras Model whose top-level children are the wrapper inputs, not the
+    # inner Conv/Dense layers. QAT fine-tuning writes weights through this.
+    model_inner = model
     # Canonical example shape is [T, B, ...features] (T=1 for non-recurrent).
     # Fold T into the batch axis so each per-branch array is (T*B, ...features).
     per_branch = [
@@ -652,11 +1069,62 @@ def main():
     n_examples = per_branch[0].shape[0]
     y_ref = y_ref.reshape((n_examples,) + y_ref.shape[2:]).astype(np.float32)
 
-    if args.split_image_input is not None:
-        n_split = args.split_image_input
-        c_per = args.split_image_channels_per
-        print(f"--split-image-input: wrapping model with {n_split} image inputs "
-              f"of {c_per} channels each (leading Concat + zero-pad if needed)")
+    # Decide whether and how to split the first image input.
+    #   --no-split-image-input   → disabled (explicit)
+    #   --split-image-input N    → explicit override (user-supplied values)
+    #   neither                  → auto-derive from the checkpoint's Camera slug
+    split_mode = None  # one of "disabled", "override", "auto", "none"
+    n_split = None
+    c_per = None
+    if args.no_split_image_input:
+        split_mode = "disabled"
+    elif args.split_image_input is not None:
+        split_mode = "override"
+        n_split = int(args.split_image_input)
+        c_per = int(args.split_image_channels_per) if args.split_image_channels_per is not None else 3
+    else:
+        with h5py.File(args.input, "r") as f:
+            meta_bytes = f["actor"].attrs.get("meta") if "actor" in f else None
+            meta_str = meta_bytes.decode() if isinstance(meta_bytes, bytes) else meta_bytes
+            first_conv_c = first_conv_input_channels(f)
+        slug = parse_camera_slug(meta_str) if meta_str else None
+        if slug is None:
+            split_mode = "none"
+        else:
+            split_mode = "auto"
+            n_split = slug[0]
+            c_per = int(args.split_image_channels_per) if args.split_image_channels_per is not None else slug[1]
+
+    args.split_image_input = n_split
+    args.split_image_channels_per = c_per
+
+    if split_mode == "disabled":
+        print("image-input split: disabled via --no-split-image-input")
+    elif split_mode == "none":
+        print("image-input split: no Camera slug in meta; skipping (pass --split-image-input N "
+              "to force)")
+    else:
+        c_total = None
+        try:
+            c_total = int(model.inputs[0].shape[-1])
+        except Exception:
+            pass
+        pad = (c_total - n_split * c_per) if c_total is not None else None
+        if split_mode == "auto":
+            print(f"image-input split: auto from Camera slug → N={n_split}, channels_per={c_per}"
+                  + (f", pad={pad} (first-conv channels={c_total})" if c_total is not None else ""))
+        else:
+            print(f"image-input split: user override → N={n_split}, channels_per={c_per}"
+                  + (f", pad={pad} (first-conv channels={c_total})" if c_total is not None else ""))
+        if pad is not None and pad < 0:
+            raise RuntimeError(
+                f"image-input split: N*channels_per = {n_split * c_per} exceeds the first conv's "
+                f"{c_total} input channels. Check the Camera slug / network layout or pass "
+                f"--no-split-image-input."
+            )
+        if split_mode == "auto" and pad is not None and pad > 0:
+            print(f"  note: non-zero pad — the network expects {c_total} channels but the slug "
+                  f"accounts for only {n_split * c_per}; the extra {pad} channels will be zero-filled")
         model = wrap_split_image_input(model, n_split, c_per)
         per_branch = split_first_branch_image(per_branch, n_split, c_per)
 
@@ -805,17 +1273,37 @@ def main():
         ACTIVATIONS["FAST_TANH"] = tf.nn.tanh
         try:
             with h5py.File(args.input, "r") as f:
-                int8_src_model = build_model(f)
+                int8_src_model_inner = build_model(f)
             if args.split_image_input is not None:
                 int8_src_model = wrap_split_image_input(
-                    int8_src_model, args.split_image_input, args.split_image_channels_per
+                    int8_src_model_inner, args.split_image_input, args.split_image_channels_per
                 )
+            else:
+                int8_src_model = int8_src_model_inner
         finally:
             ACTIVATIONS["FAST_TANH"] = saved
     else:
+        int8_src_model_inner = model_inner
         int8_src_model = model
 
     int8_bytes = convert_int8(int8_src_model, per_branch_contig, args.quantize_io, tflite_bytes)
+
+    if args.qat_finetune:
+        int8_bytes = qat_finetune(
+            args=args,
+            h5_path=args.input,
+            teacher_model=model,
+            int8_src_model=int8_src_model,
+            int8_src_model_inner=int8_src_model_inner,
+            int8_bytes_v0=int8_bytes,
+            ordered_layers=ordered_layers,
+            per_branch_contig=per_branch_contig,
+            y_flat=y_flat,
+            n_examples=n_examples,
+            report=report,
+            tflite_bytes=tflite_bytes,
+        )
+
     int8_path = base + ".int8.tflite"
     with open(int8_path, "wb") as f:
         f.write(int8_bytes)
@@ -870,7 +1358,7 @@ def main():
 
     dequant_by_path = extract_quantized_weights(int8_bytes, ordered_layers)
     quant_h5 = base + ".quantized.h5"
-    write_quantized_h5(args.input, quant_h5, dequant_by_path)
+    write_quantized_h5(args.input, quant_h5, dequant_by_path, example_limit=bin_limit)
     print(f"wrote {quant_h5} (weight fake-quant, activations still float)")
 
     with h5py.File(quant_h5, "r") as f:
