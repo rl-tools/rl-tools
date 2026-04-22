@@ -255,6 +255,7 @@ print("min/median/mean/max us: %d / %d / %.1f / %d   fps(mean): %.1f" % (mn, med
 import imu
 import time
 import math
+import image
 
 
 class MahonyFilter:
@@ -392,14 +393,13 @@ FRAME_STACK_HISTORY_LENGTH = FRAME_STACK_STRIDE * (FRAME_STACK_N - 1) + 1  # 81
 ACTION_HISTORY_LENGTH = 64
 ACTION_DIM = 4
 IMG_H, IMG_W, IMG_C = 50, 80, 3
-N_IMAGE_INPUTS = FRAME_STACK_N + 1  # 6: 5 history frames + 1 target
-N_INPUTS = N_IMAGE_INPUTS + 1       # +state
-TARGET_KERAS_INDEX = FRAME_STACK_N  # 5 (last image input is the target)
-STATE_KERAS_INDEX = N_IMAGE_INPUTS  # 6
+N_IMAGE_INPUTS = FRAME_STACK_N + 1
+N_INPUTS = N_IMAGE_INPUTS + 1
+TARGET_KERAS_INDEX = FRAME_STACK_N
+STATE_KERAS_INDEX = N_IMAGE_INPUTS
 STATE_DIM = 3 + 3 + ACTION_HISTORY_LENGTH * ACTION_DIM  # 262
 TICK_US = 10_000                  # 100 Hz period
 DIAG_PRINT_EVERY = 10
-RGB565_BIG_ENDIAN = True          # flip if colors look wrong
 
 assert num_inputs == N_INPUTS, (num_inputs, N_INPUTS)
 # Build tflite_input_index → keras_input_index mapping from the meta file.
@@ -422,9 +422,8 @@ for _ti in range(num_inputs):
         assert in_numels[_ti] == IMG_H * IMG_W * IMG_C, (in_numels[_ti], IMG_H * IMG_W * IMG_C, _ti, _ki)
 
 # ---- Camera ----
-# Use the sensor's QVGA 320x200 mode — aspect 1.6:1 matches IMG_W:IMG_H (80:50)
-# exactly, so no crop; downscale uniformly by 1/4. QVGA comfortably sustains
-# 100 fps (the sensor can reach ~220 fps at this resolution).
+# Use the sensor's QVGA 320x200 mode. Aspect 1.6:1 matches IMG_W:IMG_H (80:50)
+# exactly, so the GPU bilinear scaler can resize into the model input without crop.
 csi0 = csi.CSI()
 csi0.reset()
 csi0.pixformat(csi.RGB565)
@@ -434,10 +433,10 @@ csi0.framerate(100)
 csi0.auto_exposure(False, exposure_us=4000)
 for _ in range(10):
     csi0.snapshot()
-assert _sensor_w == IMG_W * 4 and _sensor_h == IMG_H * 4, (
-    "_viper_downsample_4x_rgb565 is hardcoded to a 4x downscale; "
-    "got sensor %dx%d, target %dx%d" % (_sensor_w, _sensor_h, IMG_W, IMG_H)
+assert _sensor_w * IMG_H == _sensor_h * IMG_W, (
+    "sensor aspect %dx%d does not match target %dx%d" % (_sensor_w, _sensor_h, IMG_W, IMG_H)
 )
+FRAME_DRAW_HINT = image.BILINEAR | image.SCALE_ASPECT_IGNORE
 
 # ---- Quantization ----
 # Locate the state's tflite slot and a representative image slot. All 6 image
@@ -461,17 +460,52 @@ def _q_byte(v, scale, zp):
     elif q > 127: q = 127
     return q & 0xFF
 
+def _dtype_char(dtype):
+    return chr(dtype) if isinstance(dtype, int) else dtype
+
 _image_lut = bytearray(256)
 for p in range(256):
     _image_lut[p] = _q_byte(p / 255.0, _img_scale, _img_zp)
-PAD_BYTE = _q_byte(0.0, _img_scale, _img_zp)
+_img_dtype_char = _dtype_char(in_dtypes[_img_tflite_idx])
+
+def _probe_direct_image_export(img_dtype_char):
+    if img_dtype_char not in ("b", "B"):
+        return False
+    probe_colors = (
+        (0, 0, 0),
+        (255, 255, 255),
+        (255, 0, 0),
+        (0, 255, 0),
+        (0, 0, 255),
+        (17, 93, 211),
+        (123, 45, 67),
+        (250, 130, 10),
+    )
+    probe = image.Image(len(probe_colors), 1, image.RGB565)
+    for x, rgb in enumerate(probe_colors):
+        probe.set_pixel(x, 0, rgb)
+    probe_u8 = bytearray(len(probe_colors) * 3)
+    probe_q = bytearray(len(probe_colors) * 3)
+    probe.to_ndarray(dtype="B", buffer=probe_u8)
+    probe.to_ndarray(dtype=img_dtype_char, buffer=probe_q)
+    for i in range(len(probe_u8)):
+        if probe_q[i] != _image_lut[probe_u8[i]]:
+            return False
+    return True
 
 # ---- Buffers ----
-# Circular history of quantized frames, one per loop tick. At each tick the 5-frame
-# stack is gathered from offsets [0, 20, 40, 60, 80] from the write pointer — the same
+# Circular history of quantized frames, one per loop tick. At each tick the frame
+# stack is gathered from stride-spaced offsets from the write pointer — the same
 # sliding-window scheme used at training time (imitation_cuda.cu:1810 write, :1821 gather).
 frame_history_q = [bytearray(IMG_H * IMG_W * IMG_C) for _ in range(FRAME_STACK_HISTORY_LENGTH)]
 target_q        = bytearray(IMG_H * IMG_W * IMG_C)
+scaled_frame_rgb565 = image.Image(IMG_W, IMG_H, image.RGB565)
+_img_direct_dtype = _img_dtype_char if _probe_direct_image_export(_img_dtype_char) else None
+scaled_frame_u8 = None if _img_direct_dtype is not None else bytearray(IMG_H * IMG_W * IMG_C)
+if _img_direct_dtype is not None:
+    print("image path: draw_image(BILINEAR) + to_ndarray(%r) direct" % _img_direct_dtype)
+else:
+    print("image path: draw_image(BILINEAR) + to_ndarray('B') + LUT quantize")
 
 # State vector (int8 bit pattern stored as uint8)
 state_int8 = bytearray(STATE_DIM)
@@ -483,78 +517,6 @@ for _i in range(len(action_ring_q)):
     action_ring_q[_i] = _zero_action_byte
 
 # ---- Helpers ----
-# Fused 4x4 box-average + RGB565 decode + int8 quantization. Consumes the raw
-# RGB565 snapshot bytes directly (no intermediate RGB565 resize buffer) and
-# writes one 80x50x3 int8-quantized frame per call. Box averaging is the
-# correct antialiased downsample for 4x integer reduction.
-@micropython.viper
-def _viper_downsample_4x_rgb565_be(dst: ptr8, src: ptr8, lut: ptr8, src_w: int, dst_w: int, dst_h: int):
-    oy = 0
-    while oy < dst_h:
-        ox = 0
-        while ox < dst_w:
-            r_acc = 0
-            g_acc = 0
-            b_acc = 0
-            sy = oy << 2
-            sy_end = sy + 4
-            while sy < sy_end:
-                base = (sy * src_w + (ox << 2)) << 1
-                r_acc += int(src[base])      & 0xF8
-                g_acc += ((int(src[base])     & 0x07) << 5) | ((int(src[base + 1]) & 0xE0) >> 3)
-                b_acc += (int(src[base + 1]) & 0x1F) << 3
-                r_acc += int(src[base + 2])  & 0xF8
-                g_acc += ((int(src[base + 2]) & 0x07) << 5) | ((int(src[base + 3]) & 0xE0) >> 3)
-                b_acc += (int(src[base + 3]) & 0x1F) << 3
-                r_acc += int(src[base + 4])  & 0xF8
-                g_acc += ((int(src[base + 4]) & 0x07) << 5) | ((int(src[base + 5]) & 0xE0) >> 3)
-                b_acc += (int(src[base + 5]) & 0x1F) << 3
-                r_acc += int(src[base + 6])  & 0xF8
-                g_acc += ((int(src[base + 6]) & 0x07) << 5) | ((int(src[base + 7]) & 0xE0) >> 3)
-                b_acc += (int(src[base + 7]) & 0x1F) << 3
-                sy += 1
-            o = (oy * dst_w + ox) * 3
-            dst[o]     = lut[r_acc >> 4]
-            dst[o + 1] = lut[g_acc >> 4]
-            dst[o + 2] = lut[b_acc >> 4]
-            ox += 1
-        oy += 1
-
-@micropython.viper
-def _viper_downsample_4x_rgb565_le(dst: ptr8, src: ptr8, lut: ptr8, src_w: int, dst_w: int, dst_h: int):
-    oy = 0
-    while oy < dst_h:
-        ox = 0
-        while ox < dst_w:
-            r_acc = 0
-            g_acc = 0
-            b_acc = 0
-            sy = oy << 2
-            sy_end = sy + 4
-            while sy < sy_end:
-                base = (sy * src_w + (ox << 2)) << 1
-                r_acc += int(src[base + 1])  & 0xF8
-                g_acc += ((int(src[base + 1]) & 0x07) << 5) | ((int(src[base])     & 0xE0) >> 3)
-                b_acc += (int(src[base])     & 0x1F) << 3
-                r_acc += int(src[base + 3])  & 0xF8
-                g_acc += ((int(src[base + 3]) & 0x07) << 5) | ((int(src[base + 2]) & 0xE0) >> 3)
-                b_acc += (int(src[base + 2]) & 0x1F) << 3
-                r_acc += int(src[base + 5])  & 0xF8
-                g_acc += ((int(src[base + 5]) & 0x07) << 5) | ((int(src[base + 4]) & 0xE0) >> 3)
-                b_acc += (int(src[base + 4]) & 0x1F) << 3
-                r_acc += int(src[base + 7])  & 0xF8
-                g_acc += ((int(src[base + 7]) & 0x07) << 5) | ((int(src[base + 6]) & 0xE0) >> 3)
-                b_acc += (int(src[base + 6]) & 0x1F) << 3
-                sy += 1
-            o = (oy * dst_w + ox) * 3
-            dst[o]     = lut[r_acc >> 4]
-            dst[o + 1] = lut[g_acc >> 4]
-            dst[o + 2] = lut[b_acc >> 4]
-            ox += 1
-        oy += 1
-
-_downsample_rgb565 = _viper_downsample_4x_rgb565_be if RGB565_BIG_ENDIAN else _viper_downsample_4x_rgb565_le
-
 # Per-keras-input source bytearray references. The model's leading Concat lets us
 # feed each frame slot as its own contiguous tensor — no NHWC interleave needed.
 # Indices [0:FRAME_STACK_N] are dynamic frame-history slots (refreshed each tick),
@@ -564,6 +526,17 @@ sources_by_keras[TARGET_KERAS_INDEX] = target_q
 sources_by_keras[STATE_KERAS_INDEX] = state_int8
 for _k in range(FRAME_STACK_N):
     sources_by_keras[_k] = frame_history_q[0]  # placeholder until first tick
+
+def resize_quantize_frame(src_img, dst_q):
+    scaled_frame_rgb565.draw_image(src_img, 0, 0, hint=FRAME_DRAW_HINT)
+    if _img_direct_dtype is not None:
+        scaled_frame_rgb565.to_ndarray(dtype=_img_direct_dtype, buffer=dst_q)
+        return
+    scaled_frame_rgb565.to_ndarray(dtype="B", buffer=scaled_frame_u8)
+    lut = _image_lut
+    src = scaled_frame_u8
+    for i in range(len(dst_q)):
+        dst_q[i] = lut[src[i]]
 
 @micropython.viper
 def _viper_copy_action_history_newest_first(
@@ -656,10 +629,10 @@ while True:
 
     img = csi0.snapshot()
     assert img is not None
-    assert img.width() == 320
-    assert img.height() == 200
+    assert img.width() == _sensor_w
+    assert img.height() == _sensor_h
     t_snapshot = time.ticks_us()
-    _downsample_rgb565(frame_history_q[history_write_ptr], img.bytearray(), _image_lut, _sensor_w, IMG_W, IMG_H)
+    resize_quantize_frame(img, frame_history_q[history_write_ptr])
     t_downsample = time.ticks_us()
     if not target_captured:
         target_q[:] = frame_history_q[history_write_ptr]
