@@ -26,7 +26,7 @@ fi
 
 CKPT_DIR="$(cd "$(dirname "$CKPT")" && pwd)"
 CKPT_BASE="$CKPT_DIR/$(basename "${CKPT%.h5}")"
-BIN_LIMIT=16
+BIN_LIMIT=2
 
 echo "==> wiping existing checkpoint/data from $MOUNT"
 find "$MOUNT" -maxdepth 1 -type f \
@@ -36,7 +36,6 @@ find "$MOUNT" -maxdepth 1 -type f \
 echo "==> converting $CKPT (bin samples: first $BIN_LIMIT)"
 "$PY" "$REPO_ROOT/tools/hdf5_to_tflite.py" \
     --quantize int8 \
-    --split-image-input 6 --split-image-channels-per 3 \
     --example-bin-limit "$BIN_LIMIT" \
     "$CKPT"
 
