@@ -219,7 +219,7 @@ static constexpr TI N_ENVIRONMENTS = N_ACTIVE_SCENES * N_ENVIRONMENTS_PER_SCENE;
 static constexpr TI CAM_WIDTH = 80;
 static constexpr TI CAM_HEIGHT = 50;
 static constexpr TI NUM_PROBES = 64;
-static constexpr T CAMERA_FOV = static_cast<T>(89.6) / static_cast<T>(180) * rlt::math::PI<T>;
+static constexpr T CAMERA_FOV = static_cast<T>(79.6) / static_cast<T>(180) * rlt::math::PI<T>;
 
 constexpr bool HIGH_FIDELITY_SHADING = true;
 using VISUAL_SPEC = rlt::rl::environments::l2f_visual::Specification<T, TI, STATIC_PARAMETERS, N_ENVIRONMENTS_PER_SCENE, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, HIGH_FIDELITY_SHADING>;
@@ -283,8 +283,8 @@ static_assert(N_BATCHES > 0, "STEPS_TOTAL must be >= BATCH_SIZE");
 // Frame stacking configuration
 // =========================================================================
 #ifdef USE_FRAME_STACKING
-static constexpr TI FRAME_STACK_N = 5;
-static constexpr TI FRAME_STACK_STRIDE = 20; // 100Hz / 20 = 5Hz
+static constexpr TI FRAME_STACK_N = 10;
+static constexpr TI FRAME_STACK_STRIDE = 10; // 100Hz / 20 = 5Hz
 static constexpr TI FRAME_STACK_HISTORY_LENGTH = FRAME_STACK_STRIDE * (FRAME_STACK_N - 1) + 1;
 static constexpr TI STACKED_IMG_C = ENVIRONMENT::Observation::CHANNELS * FRAME_STACK_N;
 static constexpr TI STACKED_OBS_DIM = ENVIRONMENT::Observation::HEIGHT * ENVIRONMENT::Observation::WIDTH * STACKED_IMG_C;
