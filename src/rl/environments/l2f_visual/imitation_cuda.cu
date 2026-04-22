@@ -184,7 +184,7 @@ struct STATIC_PARAMETERS {
     static constexpr TI CLOSED_FORM = false;
     static constexpr TI EPISODE_STEP_LIMIT = ::EPISODE_STEP_LIMIT;
     using STATE_BASE = l2f::StateBase<l2f::StateSpecification<T, TI>>;
-    using STATE_TYPE = l2f::StateRotorsHistory<l2f::StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, l2f::StateRandomForce<l2f::StateSpecification<T, TI, l2f::StateLastAction<l2f::StateSpecification<T, TI, l2f::StateLinearAcceleration<l2f::StateSpecification<T, TI, STATE_BASE>>>>>>>>;
+    using STATE_TYPE = l2f::StateRotorsHistory<l2f::StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, l2f::StateRandomForce<l2f::StateSpecification<T, TI, l2f::StateLastAction<l2f::StateSpecification<T, TI, l2f::StateLinearAccelerationHistory<l2f::StateLinearAccelerationHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, STATE_BASE>>>>>>>>;
     using OBSERVATION_TYPE = obs::Position<obs::PositionSpecification<T, TI,
             obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI,
             obs::LinearVelocity<obs::LinearVelocitySpecification<T, TI,
@@ -204,7 +204,7 @@ struct STATIC_PARAMETERS {
 };
 
 // using ACTOR_STATE_OBS = obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::LinearAccelerationBodyFrame<obs::LinearAccelerationBodyFrameSpecification<T, TI>>>>;
-using ACTOR_STATE_OBS = obs::OrientationBodyZ<obs::OrientationBodyZSpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>;
+using ACTOR_STATE_OBS = obs::OrientationBodyZ<obs::OrientationBodyZSpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::LinearAccelerationBodyFrameHistory<obs::LinearAccelerationBodyFrameHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>;
 // using ACTOR_STATE_OBS = STATIC_PARAMETERS::OBSERVATION_TYPE;
 static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM; // 12
 
