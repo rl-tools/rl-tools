@@ -10,7 +10,6 @@ from ulab import numpy as np
 MODEL_PATH = None  # auto-detected below (prefers Vela-compiled, i.e. non-".int8.tflite")
 INPUT_PATHS = None
 OUTPUT_PATH = None
-SAMPLE_INDEX = 0
 TIMING_ITERS = 100
 
 
@@ -118,27 +117,31 @@ for i in range(num_inputs):
     print("input_%d shape:" % i, in_shapes[i], "dtype:", in_dtypes[i], "scale:", in_scales[i], "zp:", in_zps[i])
 print("output_shape:", out_shape, "dtype:", out_dtype, "scale:", out_scale, "zp:", out_zp)
 
-x_f32_list = [
-    load_sample_float32(INPUT_PATHS[i], SAMPLE_INDEX, in_numels[i]) for i in range(num_inputs)
-]
-y_ref = load_sample_float32(OUTPUT_PATH, SAMPLE_INDEX, out_numel)
+# Auto-detect how many samples the companion bins hold (all bins must agree).
+_output_size = os.stat(OUTPUT_PATH)[6]
+if _output_size == 0 or _output_size % (out_numel * 4) != 0:
+    raise RuntimeError("output bin size %d is not a positive multiple of %d bytes/sample"
+                       % (_output_size, out_numel * 4))
+N_CHECK = _output_size // (out_numel * 4)
+for _i, _p in enumerate(INPUT_PATHS):
+    _expected = in_numels[_i] * 4 * N_CHECK
+    _actual = os.stat(_p)[6]
+    if _actual != _expected:
+        raise RuntimeError("input %d bin size %d != expected %d (= %d samples of %d floats)"
+                           % (_i, _actual, _expected, N_CHECK, in_numels[_i]))
 
-x_in_list = [x_f32_list[i].reshape(in_shapes[i]) for i in range(num_inputs)]
-
-y_raw = model.predict(x_in_list)[0]  # warm-up (first call is slower — arena touches, caches)
-y_f32 = y_raw.flatten()
-
-diff = y_f32 - y_ref
-err = max(float(np.max(diff)), -float(np.min(diff)))
-print("batch_size:", int(in_shapes[0][0]))
-print("output   :", y_f32)
-print("reference:", y_ref)
-print("max_abs_err vs float reference (incl. quantization noise):", err)
-
-# Strict wiring check: compare against the int8 model's expected output saved by
+# Strict wiring check setup: compare against the int8 model's expected output saved by
 # the converter (when present in the meta JSON). Any meaningful delta here
 # indicates input ordering / dtype / packing mismatch — quantization noise has
 # already been subtracted on both sides since both produce identical int8 ops.
+# Two thresholds:
+#   TIGHT_TOL ≈ 2 LSBs — Vela should ideally hit this (pure NPU graph). Won't
+#     hit it if any op falls back to CPU (e.g. dynamic-shape Flatten); the
+#     CPU↔NPU re-quantization handoffs inject ~10-30 LSBs of drift.
+#   FAIL_TOL  ≈ 100 LSBs (bounded by 0.5 absolute) — a real wiring bug
+#     (wrong feeder slot, byte misorder, dtype mismatch) blows past this
+#     by a wide margin. Anything below FAIL_TOL but above TIGHT_TOL is most
+#     likely Vela compilation drift, not a deployment bug.
 INT8_OUT_PATH = None
 if "int8_output" in META and META["int8_output"].get("path"):
     candidate = META["int8_output"]["path"]
@@ -148,34 +151,61 @@ if "int8_output" in META and META["int8_output"].get("path"):
     except OSError:
         print("meta references int8_output %r but file is absent — skipping strict check"
               % candidate)
+TIGHT_TOL = max(2 * out_scale, 1e-5)
+FAIL_TOL = min(100 * out_scale, 0.5)
+
+print("batch_size:", int(in_shapes[0][0]))
+print("checking %d samples from companion bins" % N_CHECK)
+
+err_float_max = 0.0
+err_int8_max = 0.0
+worst_float_idx = -1
+worst_int8_idx = -1
+x_f32_list = None
+x_in_list = None
+for sample_idx in range(N_CHECK):
+    x_f32_list = [
+        load_sample_float32(INPUT_PATHS[i], sample_idx, in_numels[i]) for i in range(num_inputs)
+    ]
+    y_ref = load_sample_float32(OUTPUT_PATH, sample_idx, out_numel)
+    x_in_list = [x_f32_list[i].reshape(in_shapes[i]) for i in range(num_inputs)]
+
+    y_raw = model.predict(x_in_list)[0]  # warm-up on first iter (arena touches, caches)
+    y_f32 = y_raw.flatten()
+
+    diff = y_f32 - y_ref
+    err = max(float(np.max(diff)), -float(np.min(diff)))
+    if err > err_float_max:
+        err_float_max = err
+        worst_float_idx = sample_idx
+
+    if INT8_OUT_PATH is not None:
+        y_ref_int8 = load_sample_float32(INT8_OUT_PATH, sample_idx, out_numel)
+        diff_int8 = y_f32 - y_ref_int8
+        err_int8 = max(float(np.max(diff_int8)), -float(np.min(diff_int8)))
+        if err_int8 > err_int8_max:
+            err_int8_max = err_int8
+            worst_int8_idx = sample_idx
+        if err_int8 > FAIL_TOL:
+            raise RuntimeError(
+                "sample %d: deployed int8 output differs from converter's int8 reference by %g "
+                "(> fail-threshold %g). Almost certainly a wiring bug: input ordering, "
+                "dtype, or byte packing." % (sample_idx, err_int8, FAIL_TOL))
+        print("[%3d] float_err=%.6g  int8_err=%.6g" % (sample_idx, err, err_int8))
+    else:
+        print("[%3d] float_err=%.6g" % (sample_idx, err))
+
+print("over %d samples: float max_abs_err=%.6g (sample %d, incl. quantization noise)" %
+      (N_CHECK, err_float_max, worst_float_idx))
 if INT8_OUT_PATH is not None:
-    y_ref_int8 = load_sample_float32(INT8_OUT_PATH, SAMPLE_INDEX, out_numel)
-    diff_int8 = y_f32 - y_ref_int8
-    err_int8 = max(float(np.max(diff_int8)), -float(np.min(diff_int8)))
-    # Two thresholds:
-    #   TIGHT_TOL ≈ 2 LSBs — Vela should ideally hit this (pure NPU graph). Won't
-    #     hit it if any op falls back to CPU (e.g. dynamic-shape Flatten); the
-    #     CPU↔NPU re-quantization handoffs inject ~10-30 LSBs of drift.
-    #   FAIL_TOL  ≈ 100 LSBs (bounded by 0.5 absolute) — a real wiring bug
-    #     (wrong feeder slot, byte misorder, dtype mismatch) blows past this
-    #     by a wide margin. Anything below FAIL_TOL but above TIGHT_TOL is most
-    #     likely Vela compilation drift, not a deployment bug.
-    TIGHT_TOL = max(2 * out_scale, 1e-5)
-    FAIL_TOL = min(100 * out_scale, 0.5)
-    print("int8 expected:", y_ref_int8)
-    print("max_abs_err vs int8 expected:", err_int8,
-          "(tight=%g, fail=%g)" % (TIGHT_TOL, FAIL_TOL))
-    if err_int8 > FAIL_TOL:
-        raise RuntimeError(
-            "deployed int8 output differs from converter's int8 reference by %g "
-            "(> fail-threshold %g). Almost certainly a wiring bug: input ordering, "
-            "dtype, or byte packing." % (err_int8, FAIL_TOL))
-    if err_int8 > TIGHT_TOL:
+    print("over %d samples: int8 max_abs_err=%.6g (sample %d, tight=%g, fail=%g)" %
+          (N_CHECK, err_int8_max, worst_int8_idx, TIGHT_TOL, FAIL_TOL))
+    if err_int8_max > TIGHT_TOL:
         print("WIRING OK (Vela drift): %g (in %g..%g) — likely from Vela's "
               "CPU↔NPU op-placement boundaries, not a wiring issue."
-              % (err_int8, TIGHT_TOL, FAIL_TOL))
+              % (err_int8_max, TIGHT_TOL, FAIL_TOL))
     else:
-        print("WIRING OK (bit-tight): %g <= %g" % (err_int8, TIGHT_TOL))
+        print("WIRING OK (bit-tight): %g <= %g" % (err_int8_max, TIGHT_TOL))
 else:
     print("no int8_output in meta JSON — strict wiring check skipped")
 

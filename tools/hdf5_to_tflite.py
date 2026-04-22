@@ -629,6 +629,11 @@ def main():
                          "on OpenMV / Ethos-U deployment.")
     ap.add_argument("--split-image-channels-per", type=int, default=3,
                     help="channels per split input when --split-image-input is set (default 3)")
+    ap.add_argument("--example-bin-limit", type=int, default=None, metavar="N",
+                    help="limit the number of samples written to the companion .bin files (inputs, "
+                         "output, int8 output) to the first N (default: all samples from the h5 "
+                         "example set). Int8 calibration still uses the full example set; this "
+                         "only affects the deployed artifacts, e.g. to fit them in OpenMV flash.")
     args = ap.parse_args()
 
     out_path = args.output or os.path.splitext(args.input)[0] + ".tflite"
@@ -696,6 +701,16 @@ def main():
     per_branch_contig = [np.ascontiguousarray(a, dtype=np.float32) for a in per_branch]
     y_flat = np.ascontiguousarray(y_ref, dtype=np.float32)
 
+    if args.example_bin_limit is not None:
+        bin_limit = min(int(args.example_bin_limit), n_examples)
+    else:
+        bin_limit = n_examples
+    per_branch_bin = [np.ascontiguousarray(a[:bin_limit]) for a in per_branch_contig]
+    y_bin = np.ascontiguousarray(y_flat[:bin_limit])
+    if bin_limit != n_examples:
+        print(f"--example-bin-limit: writing first {bin_limit} of {n_examples} samples "
+              f"to companion bin files")
+
     # The tflite converter alphabetizes inputs through SavedModel, so
     # tflite's input index i does not in general equal keras input index i.
     # On-device consumers (OpenMV / Vela-compiled models) read inputs in
@@ -703,17 +718,17 @@ def main():
     #   example_input.<tflite_i>.bin  == data for tflite input tflite_i
     # tflite_order[tflite_i] = keras_i.
     tflite_order = _tflite_input_order(tflite_bytes)
-    in_paths = [base + f".example_input.{i}.bin" for i in range(len(per_branch_contig))]
+    in_paths = [base + f".example_input.{i}.bin" for i in range(len(per_branch_bin))]
     for tflite_i, path in enumerate(in_paths):
-        arr = per_branch_contig[tflite_order[tflite_i]]
+        arr = per_branch_bin[tflite_order[tflite_i]]
         with open(path, "wb") as f:
             f.write(arr.tobytes())
         print(f"wrote {arr.nbytes} bytes to {path}  "
               f"(tflite_input={tflite_i}, keras_input={tflite_order[tflite_i]}, "
               f"shape={arr.shape}, dtype=float32)")
     with open(out_example_path, "wb") as f:
-        f.write(y_flat.tobytes())
-    print(f"wrote {y_flat.nbytes} bytes to {out_example_path}  (shape={y_flat.shape}, dtype=float32)")
+        f.write(y_bin.tobytes())
+    print(f"wrote {y_bin.nbytes} bytes to {out_example_path}  (shape={y_bin.shape}, dtype=float32)")
 
     import json
     meta = {
@@ -722,14 +737,14 @@ def main():
                 "path": os.path.basename(in_paths[tflite_i]),
                 "tflite_input_index": tflite_i,
                 "keras_input_index": tflite_order[tflite_i],
-                "shape": list(per_branch_contig[tflite_order[tflite_i]].shape),
+                "shape": list(per_branch_bin[tflite_order[tflite_i]].shape),
                 "dtype": "float32",
             }
-            for tflite_i in range(len(per_branch_contig))
+            for tflite_i in range(len(per_branch_bin))
         ],
         "output": {
             "path": os.path.basename(out_example_path),
-            "shape": list(y_flat.shape),
+            "shape": list(y_bin.shape),
             "dtype": "float32",
         },
     }
@@ -739,17 +754,17 @@ def main():
 
     # Reload bins (tflite order) and reshuffle back into keras order for the
     # Keras model validation and the name-matched run_tflite path.
-    per_branch_reloaded = [None] * len(per_branch_contig)
+    per_branch_reloaded = [None] * len(per_branch_bin)
     for tflite_i, path in enumerate(in_paths):
         keras_i = tflite_order[tflite_i]
-        src = per_branch_contig[keras_i]
+        src = per_branch_bin[keras_i]
         with open(path, "rb") as f:
             reloaded_arr = np.frombuffer(f.read(), dtype=np.float32).reshape(src.shape)
         assert np.array_equal(reloaded_arr, src), f"companion input {path} diverges from source"
         per_branch_reloaded[keras_i] = reloaded_arr
     with open(out_example_path, "rb") as f:
-        y_reloaded = np.frombuffer(f.read(), dtype=np.float32).reshape(y_flat.shape)
-    assert np.array_equal(y_reloaded, y_flat), "companion output diverges from source"
+        y_reloaded = np.frombuffer(f.read(), dtype=np.float32).reshape(y_bin.shape)
+    assert np.array_equal(y_reloaded, y_bin), "companion output diverges from source"
 
     with open(out_path, "rb") as f:
         reloaded = f.read()
@@ -811,8 +826,8 @@ def main():
     y_int8, y_int8_raw, out_scale, out_zp, out_dtype_name = run_tflite_int8(
         int8_reloaded, per_branch_reloaded, return_raw=True
     )
-    y_int8 = y_int8.reshape(y_flat.shape)
-    int8_err, int8_mean = err_stats(y_int8, y_flat)
+    y_int8 = y_int8.reshape(y_bin.shape)
+    int8_err, int8_mean = err_stats(y_int8, y_bin)
     report(
         f"TFLite (int8, via companion files) vs reference: "
         f"max_abs_err={int8_err:.6g}  mean_abs_err={int8_mean:.6g}"
@@ -829,7 +844,7 @@ def main():
           f"(shape={int8_out_flat.shape}, dtype=float32)")
     int8_out_raw_path = None
     if y_int8_raw is not None:
-        y_int8_raw = y_int8_raw.reshape(y_flat.shape).astype(np.int8)
+        y_int8_raw = y_int8_raw.reshape(y_bin.shape).astype(np.int8)
         int8_out_raw_path = base + ".example_int8_output_raw.bin"
         with open(int8_out_raw_path, "wb") as f:
             f.write(np.ascontiguousarray(y_int8_raw).tobytes())
