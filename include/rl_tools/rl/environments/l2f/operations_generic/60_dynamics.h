@@ -114,6 +114,10 @@ namespace rl_tools::rl::environments::l2f{
         using STATE = StateRotorsHistory<STATE_SPEC>;
         multirotor_dynamics(device, params, static_cast<const typename STATE::NEXT_COMPONENT&>(state), action, static_cast<typename STATE::NEXT_COMPONENT&>(state_change));
     }
+    template<typename DEVICE, typename PARAMETERS, typename STATE_SPEC, typename T>
+    RL_TOOLS_FUNCTION_PLACEMENT void multirotor_dynamics(DEVICE& device, const PARAMETERS& params, const StateLinearAccelerationHistory<STATE_SPEC>& state, const T* action, StateLinearAccelerationHistory<STATE_SPEC>& state_change){
+        multirotor_dynamics(device, params, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state_change));
+    }
     template<typename DEVICE, typename T, typename PARAMETERS, typename STATE>
     RL_TOOLS_FUNCTION_PLACEMENT void multirotor_dynamics_dispatch(DEVICE& device, const PARAMETERS& params, const STATE& state, const T* action, STATE& state_change) {
         // this dispatch function is required to pass the multirotor dynamics function to the integrator (euler, rk4) as a template parameter (so that it can be inlined/optimized at compile time)

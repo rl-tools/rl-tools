@@ -200,6 +200,43 @@ namespace rl_tools{
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
+        template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
+        RL_TOOLS_FUNCTION_PLACEMENT static void _observe_linear_acceleration_body_frame_history(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateLinearAccelerationHistory<STATE_SPEC>& state, observation::LinearAccelerationBodyFrameHistory<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+            // separated like _observe_angular_velocity_delayed so we can extract the StateLinearAccelerationHistory layer from a wrapped state
+            using T = typename SPEC::T;
+            using TI = typename DEVICE::index_t;
+            using STATE = StateLinearAccelerationHistory<STATE_SPEC>;
+            using OBSERVATION = observation::LinearAccelerationBodyFrameHistory<OBSERVATION_SPEC>;
+            static_assert(OBSERVATION::HISTORY_LENGTH <= STATE_SPEC::HISTORY_LENGTH, "The requested observation history length must not exceed the state history length");
+            static_assert(STATE::ACCELERATION_DIM == OBSERVATION::ACCELERATION_DIM);
+            if constexpr(STATE_SPEC::HISTORY_LENGTH > 0){
+                // ring buffer in the state moves forwards in time, observe most recent first => walk backwards
+                TI current_step = state.acceleration_history_step == 0 ? STATE_SPEC::HISTORY_LENGTH - 1 : state.acceleration_history_step - 1;
+                for(TI step_i = 0; step_i < OBSERVATION::HISTORY_LENGTH; step_i++){
+                    TI base = step_i * OBSERVATION::ACCELERATION_DIM;
+                    for(TI dim_i = 0; dim_i < OBSERVATION::ACCELERATION_DIM; dim_i++){
+                        T value = state.linear_acceleration_body_history[current_step][dim_i];
+                        if constexpr(OBSERVATION_SPEC::PRIVILEGED && !SPEC::STATIC_PARAMETERS::PRIVILEGED_OBSERVATION_NOISE){
+                            set(observation, 0, base + dim_i, value);
+                        }
+                        else{
+                            T noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, parameters.mdp.observation_noise.imu_acceleration, rng);
+                            set(observation, 0, base + dim_i, value + noise);
+                        }
+                    }
+                    current_step = current_step == 0 ? STATE_SPEC::HISTORY_LENGTH - 1 : current_step - 1;
+                }
+            }
+        }
+        template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
+        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::LinearAccelerationBodyFrameHistory<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+            using OBSERVATION = observation::LinearAccelerationBodyFrameHistory<OBSERVATION_SPEC>;
+            static_assert(OBS_SPEC::COLS >= OBSERVATION::CURRENT_DIM);
+            static_assert(OBS_SPEC::ROWS == 1);
+            _observe_linear_acceleration_body_frame_history(device, env, parameters, state, OBSERVATION{}, observation, rng);
+            auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
+            observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
+        }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::LinearVelocityBodyFrame<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using T = typename SPEC::T;

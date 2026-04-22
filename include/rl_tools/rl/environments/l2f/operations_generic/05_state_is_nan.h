@@ -76,6 +76,19 @@ namespace rl_tools{
             }
             return nan;
         }
+        template<typename DEVICE, typename STATE_SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT static bool _is_nan(DEVICE& device, rl::environments::l2f::StateLinearAccelerationHistory<STATE_SPEC>& state){
+            using STATE = rl::environments::l2f::StateLinearAccelerationHistory<STATE_SPEC>;
+            using TI = typename DEVICE::index_t;
+            is_nan(device, static_cast<typename STATE::NEXT_COMPONENT&>(state));
+            bool nan = false;
+            for(TI step_i = 0; step_i < STATE::HISTORY_MEM_LENGTH; step_i++){
+                for(TI dim_i = 0; dim_i < STATE::ACCELERATION_DIM; dim_i++){
+                    nan = nan || math::is_nan(device.math, state.linear_acceleration_body_history[step_i][dim_i]);
+                }
+            }
+            return nan;
+        }
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
