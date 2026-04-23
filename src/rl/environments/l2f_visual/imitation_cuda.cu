@@ -204,7 +204,7 @@ struct STATIC_PARAMETERS {
 };
 
 // using ACTOR_STATE_OBS = obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::LinearAccelerationBodyFrame<obs::LinearAccelerationBodyFrameSpecification<T, TI>>>>;
-using ACTOR_STATE_OBS = obs::OrientationBodyZ<obs::OrientationBodyZSpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::LinearAccelerationBodyFrameHistory<obs::LinearAccelerationBodyFrameHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>;
+using ACTOR_STATE_OBS = obs::OrientationBodyZ<obs::OrientationBodyZSpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>;
 // using ACTOR_STATE_OBS = STATIC_PARAMETERS::OBSERVATION_TYPE;
 static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM; // 12
 
@@ -219,7 +219,7 @@ static constexpr TI N_ENVIRONMENTS = N_ACTIVE_SCENES * N_ENVIRONMENTS_PER_SCENE;
 static constexpr TI CAM_WIDTH = 80;
 static constexpr TI CAM_HEIGHT = 50;
 static constexpr TI NUM_PROBES = 64;
-static constexpr T CAMERA_FOV = static_cast<T>(79.6) / static_cast<T>(180) * rlt::math::PI<T>;
+static constexpr T CAMERA_FOV = static_cast<T>(63.8) / static_cast<T>(180) * rlt::math::PI<T>;
 
 constexpr bool HIGH_FIDELITY_SHADING = true;
 using VISUAL_SPEC = rlt::rl::environments::l2f_visual::Specification<T, TI, STATIC_PARAMETERS, N_ENVIRONMENTS_PER_SCENE, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, HIGH_FIDELITY_SHADING>;
