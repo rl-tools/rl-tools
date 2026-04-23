@@ -149,7 +149,8 @@ static constexpr typename PARAMETERS_TYPE::Integration integration = {
     static_cast<T>(1) / static_cast<T>(SIMULATION_FREQUENCY)
 };
 static constexpr typename PARAMETERS_TYPE::MDP mdp = { init, reward_function, {}, {}, termination };
-static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = { {0, 0}, {0, 0} };
+static constexpr T DISTURBANCE_FORCE_STD = -dynamics.gravity[2] * dynamics.mass / 6;
+static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = { {0, DISTURBANCE_FORCE_STD}, {0, 0} };
 static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
     1.5, // thrust_to_weight_min
     2.5, // thrust_to_weight_max
