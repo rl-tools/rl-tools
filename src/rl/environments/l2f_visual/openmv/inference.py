@@ -7,6 +7,8 @@ import machine
 import micropython
 from ulab import numpy as np
 
+USE_NEURAL_POLICY = False  # False -> classical PD attitude controller (skips NN/camera/state pipeline)
+
 MODEL_PATH = None  # auto-detected below (prefers Vela-compiled, i.e. non-".int8.tflite")
 INPUT_PATHS = None
 OUTPUT_PATH = None
@@ -85,169 +87,169 @@ try:
 except OSError as e:
     print("listdir(cwd) failed:", e)
 
-MODEL_PATH, INPUT_PATHS, OUTPUT_PATH, META_PATH = autodetect_paths()
-print("MODEL_PATH :", repr(MODEL_PATH), "size:", os.stat(MODEL_PATH)[6])
-for i, p in enumerate(INPUT_PATHS):
-    print("INPUT_%d    :" % i, repr(p), "size:", os.stat(p)[6])
-print("OUTPUT_PATH:", repr(OUTPUT_PATH), "size:", os.stat(OUTPUT_PATH)[6])
-print("META_PATH  :", repr(META_PATH))
-with open(META_PATH) as _f:
-    META = json.load(_f)
+if USE_NEURAL_POLICY:
+    MODEL_PATH, INPUT_PATHS, OUTPUT_PATH, META_PATH = autodetect_paths()
+    print("MODEL_PATH :", repr(MODEL_PATH), "size:", os.stat(MODEL_PATH)[6])
+    for i, p in enumerate(INPUT_PATHS):
+        print("INPUT_%d    :" % i, repr(p), "size:", os.stat(p)[6])
+    print("OUTPUT_PATH:", repr(OUTPUT_PATH), "size:", os.stat(OUTPUT_PATH)[6])
+    print("META_PATH  :", repr(META_PATH))
+    with open(META_PATH) as _f:
+        META = json.load(_f)
 
-model = ml.Model(MODEL_PATH)
-print_mem("after ml.Model()")
-print(model)
+    model = ml.Model(MODEL_PATH)
+    print_mem("after ml.Model()")
+    print(model)
 
-num_inputs = len(model.input_shape)
-if num_inputs != len(INPUT_PATHS):
-    raise RuntimeError("model has %d inputs but found %d input bins" % (num_inputs, len(INPUT_PATHS)))
+    num_inputs = len(model.input_shape)
+    if num_inputs != len(INPUT_PATHS):
+        raise RuntimeError("model has %d inputs but found %d input bins" % (num_inputs, len(INPUT_PATHS)))
 
-in_shapes = [model.input_shape[i] for i in range(num_inputs)]
-in_numels = [shape_numel(s) for s in in_shapes]
-in_dtypes = [model.input_dtype[i] for i in range(num_inputs)]
-in_scales = [float(model.input_scale[i]) for i in range(num_inputs)]
-in_zps = [float(model.input_zero_point[i]) for i in range(num_inputs)]
-out_shape = model.output_shape[0]
-out_numel = shape_numel(out_shape)
-out_dtype = model.output_dtype[0]
-out_scale = float(model.output_scale[0])
-out_zp = float(model.output_zero_point[0])
+    in_shapes = [model.input_shape[i] for i in range(num_inputs)]
+    in_numels = [shape_numel(s) for s in in_shapes]
+    in_dtypes = [model.input_dtype[i] for i in range(num_inputs)]
+    in_scales = [float(model.input_scale[i]) for i in range(num_inputs)]
+    in_zps = [float(model.input_zero_point[i]) for i in range(num_inputs)]
+    out_shape = model.output_shape[0]
+    out_numel = shape_numel(out_shape)
+    out_dtype = model.output_dtype[0]
+    out_scale = float(model.output_scale[0])
+    out_zp = float(model.output_zero_point[0])
 
-for i in range(num_inputs):
-    print("input_%d shape:" % i, in_shapes[i], "dtype:", in_dtypes[i], "scale:", in_scales[i], "zp:", in_zps[i])
-print("output_shape:", out_shape, "dtype:", out_dtype, "scale:", out_scale, "zp:", out_zp)
+    for i in range(num_inputs):
+        print("input_%d shape:" % i, in_shapes[i], "dtype:", in_dtypes[i], "scale:", in_scales[i], "zp:", in_zps[i])
+    print("output_shape:", out_shape, "dtype:", out_dtype, "scale:", out_scale, "zp:", out_zp)
 
-# Auto-detect how many samples the companion bins hold (all bins must agree).
-_output_size = os.stat(OUTPUT_PATH)[6]
-if _output_size == 0 or _output_size % (out_numel * 4) != 0:
-    raise RuntimeError("output bin size %d is not a positive multiple of %d bytes/sample"
-                       % (_output_size, out_numel * 4))
-N_CHECK = _output_size // (out_numel * 4)
-for _i, _p in enumerate(INPUT_PATHS):
-    _expected = in_numels[_i] * 4 * N_CHECK
-    _actual = os.stat(_p)[6]
-    if _actual != _expected:
-        raise RuntimeError("input %d bin size %d != expected %d (= %d samples of %d floats)"
-                           % (_i, _actual, _expected, N_CHECK, in_numels[_i]))
+    # Auto-detect how many samples the companion bins hold (all bins must agree).
+    _output_size = os.stat(OUTPUT_PATH)[6]
+    if _output_size == 0 or _output_size % (out_numel * 4) != 0:
+        raise RuntimeError("output bin size %d is not a positive multiple of %d bytes/sample"
+                           % (_output_size, out_numel * 4))
+    N_CHECK = _output_size // (out_numel * 4)
+    for _i, _p in enumerate(INPUT_PATHS):
+        _expected = in_numels[_i] * 4 * N_CHECK
+        _actual = os.stat(_p)[6]
+        if _actual != _expected:
+            raise RuntimeError("input %d bin size %d != expected %d (= %d samples of %d floats)"
+                               % (_i, _actual, _expected, N_CHECK, in_numels[_i]))
 
-# Strict wiring check setup: compare against the int8 model's expected output saved by
-# the converter (when present in the meta JSON). Any meaningful delta here
-# indicates input ordering / dtype / packing mismatch — quantization noise has
-# already been subtracted on both sides since both produce identical int8 ops.
-# Two thresholds:
-#   TIGHT_TOL ≈ 2 LSBs — Vela should ideally hit this (pure NPU graph). Won't
-#     hit it if any op falls back to CPU (e.g. dynamic-shape Flatten); the
-#     CPU↔NPU re-quantization handoffs inject ~10-30 LSBs of drift.
-#   FAIL_TOL  ≈ 100 LSBs (bounded by 0.5 absolute) — a real wiring bug
-#     (wrong feeder slot, byte misorder, dtype mismatch) blows past this
-#     by a wide margin. Anything below FAIL_TOL but above TIGHT_TOL is most
-#     likely Vela compilation drift, not a deployment bug.
-INT8_OUT_PATH = None
-if "int8_output" in META and META["int8_output"].get("path"):
-    candidate = META["int8_output"]["path"]
-    try:
-        os.stat(candidate)
-        INT8_OUT_PATH = candidate
-    except OSError:
-        print("meta references int8_output %r but file is absent — skipping strict check"
-              % candidate)
-TIGHT_TOL = max(2 * out_scale, 1e-5)
-FAIL_TOL = min(100 * out_scale, 0.5)
+    # Strict wiring check setup: compare against the int8 model's expected output saved by
+    # the converter (when present in the meta JSON). Any meaningful delta here
+    # indicates input ordering / dtype / packing mismatch — quantization noise has
+    # already been subtracted on both sides since both produce identical int8 ops.
+    # Two thresholds:
+    #   TIGHT_TOL ≈ 2 LSBs — Vela should ideally hit this (pure NPU graph). Won't
+    #     hit it if any op falls back to CPU (e.g. dynamic-shape Flatten); the
+    #     CPU↔NPU re-quantization handoffs inject ~10-30 LSBs of drift.
+    #   FAIL_TOL  ≈ 100 LSBs (bounded by 0.5 absolute) — a real wiring bug
+    #     (wrong feeder slot, byte misorder, dtype mismatch) blows past this
+    #     by a wide margin. Anything below FAIL_TOL but above TIGHT_TOL is most
+    #     likely Vela compilation drift, not a deployment bug.
+    INT8_OUT_PATH = None
+    if "int8_output" in META and META["int8_output"].get("path"):
+        candidate = META["int8_output"]["path"]
+        try:
+            os.stat(candidate)
+            INT8_OUT_PATH = candidate
+        except OSError:
+            print("meta references int8_output %r but file is absent — skipping strict check"
+                  % candidate)
+    TIGHT_TOL = max(2 * out_scale, 1e-5)
+    FAIL_TOL = min(100 * out_scale, 0.5)
 
-print("batch_size:", int(in_shapes[0][0]))
-print("checking %d samples from companion bins" % N_CHECK)
+    print("batch_size:", int(in_shapes[0][0]))
+    print("checking %d samples from companion bins" % N_CHECK)
 
-err_float_max = 0.0
-err_int8_max = 0.0
-worst_float_idx = -1
-worst_int8_idx = -1
-x_f32_list = None
-x_in_list = None
-for sample_idx in range(N_CHECK):
-    x_f32_list = [
-        load_sample_float32(INPUT_PATHS[i], sample_idx, in_numels[i]) for i in range(num_inputs)
-    ]
-    y_ref = load_sample_float32(OUTPUT_PATH, sample_idx, out_numel)
-    x_in_list = [x_f32_list[i].reshape(in_shapes[i]) for i in range(num_inputs)]
+    err_float_max = 0.0
+    err_int8_max = 0.0
+    worst_float_idx = -1
+    worst_int8_idx = -1
+    x_f32_list = None
+    x_in_list = None
+    for sample_idx in range(N_CHECK):
+        x_f32_list = [
+            load_sample_float32(INPUT_PATHS[i], sample_idx, in_numels[i]) for i in range(num_inputs)
+        ]
+        y_ref = load_sample_float32(OUTPUT_PATH, sample_idx, out_numel)
+        x_in_list = [x_f32_list[i].reshape(in_shapes[i]) for i in range(num_inputs)]
 
-    y_raw = model.predict(x_in_list)[0]  # warm-up on first iter (arena touches, caches)
-    y_f32 = y_raw.flatten()
+        y_raw = model.predict(x_in_list)[0]  # warm-up on first iter (arena touches, caches)
+        y_f32 = y_raw.flatten()
 
-    diff = y_f32 - y_ref
-    err = max(float(np.max(diff)), -float(np.min(diff)))
-    if err > err_float_max:
-        err_float_max = err
-        worst_float_idx = sample_idx
+        diff = y_f32 - y_ref
+        err = max(float(np.max(diff)), -float(np.min(diff)))
+        if err > err_float_max:
+            err_float_max = err
+            worst_float_idx = sample_idx
 
+        if INT8_OUT_PATH is not None:
+            y_ref_int8 = load_sample_float32(INT8_OUT_PATH, sample_idx, out_numel)
+            diff_int8 = y_f32 - y_ref_int8
+            err_int8 = max(float(np.max(diff_int8)), -float(np.min(diff_int8)))
+            if err_int8 > err_int8_max:
+                err_int8_max = err_int8
+                worst_int8_idx = sample_idx
+            if err_int8 > FAIL_TOL:
+                raise RuntimeError(
+                    "sample %d: deployed int8 output differs from converter's int8 reference by %g "
+                    "(> fail-threshold %g). Almost certainly a wiring bug: input ordering, "
+                    "dtype, or byte packing." % (sample_idx, err_int8, FAIL_TOL))
+            print("[%3d] float_err=%.6g  int8_err=%.6g" % (sample_idx, err, err_int8))
+        else:
+            print("[%3d] float_err=%.6g" % (sample_idx, err))
+
+    print("over %d samples: float max_abs_err=%.6g (sample %d, incl. quantization noise)" %
+          (N_CHECK, err_float_max, worst_float_idx))
     if INT8_OUT_PATH is not None:
-        y_ref_int8 = load_sample_float32(INT8_OUT_PATH, sample_idx, out_numel)
-        diff_int8 = y_f32 - y_ref_int8
-        err_int8 = max(float(np.max(diff_int8)), -float(np.min(diff_int8)))
-        if err_int8 > err_int8_max:
-            err_int8_max = err_int8
-            worst_int8_idx = sample_idx
-        if err_int8 > FAIL_TOL:
-            raise RuntimeError(
-                "sample %d: deployed int8 output differs from converter's int8 reference by %g "
-                "(> fail-threshold %g). Almost certainly a wiring bug: input ordering, "
-                "dtype, or byte packing." % (sample_idx, err_int8, FAIL_TOL))
-        print("[%3d] float_err=%.6g  int8_err=%.6g" % (sample_idx, err, err_int8))
+        print("over %d samples: int8 max_abs_err=%.6g (sample %d, tight=%g, fail=%g)" %
+              (N_CHECK, err_int8_max, worst_int8_idx, TIGHT_TOL, FAIL_TOL))
+        if err_int8_max > TIGHT_TOL:
+            print("WIRING OK (Vela drift): %g (in %g..%g) — likely from Vela's "
+                  "CPU↔NPU op-placement boundaries, not a wiring issue."
+                  % (err_int8_max, TIGHT_TOL, FAIL_TOL))
+        else:
+            print("WIRING OK (bit-tight): %g <= %g" % (err_int8_max, TIGHT_TOL))
     else:
-        print("[%3d] float_err=%.6g" % (sample_idx, err))
-
-print("over %d samples: float max_abs_err=%.6g (sample %d, incl. quantization noise)" %
-      (N_CHECK, err_float_max, worst_float_idx))
-if INT8_OUT_PATH is not None:
-    print("over %d samples: int8 max_abs_err=%.6g (sample %d, tight=%g, fail=%g)" %
-          (N_CHECK, err_int8_max, worst_int8_idx, TIGHT_TOL, FAIL_TOL))
-    if err_int8_max > TIGHT_TOL:
-        print("WIRING OK (Vela drift): %g (in %g..%g) — likely from Vela's "
-              "CPU↔NPU op-placement boundaries, not a wiring issue."
-              % (err_int8_max, TIGHT_TOL, FAIL_TOL))
-    else:
-        print("WIRING OK (bit-tight): %g <= %g" % (err_int8_max, TIGHT_TOL))
-else:
-    print("no int8_output in meta JSON — strict wiring check skipped")
+        print("no int8_output in meta JSON — strict wiring check skipped")
 
 
-def time_n(fn, n):
-    ts = [0] * n
-    for i in range(n):
-        t0 = time.ticks_us()
-        fn()
-        t1 = time.ticks_us()
-        ts[i] = time.ticks_diff(t1, t0)
-    srt = sorted(ts)
-    return srt[0], srt[n // 2], sum(ts) / n, srt[-1]
+    def time_n(fn, n):
+        ts = [0] * n
+        for i in range(n):
+            t0 = time.ticks_us()
+            fn()
+            t1 = time.ticks_us()
+            ts[i] = time.ticks_diff(t1, t0)
+        srt = sorted(ts)
+        return srt[0], srt[n // 2], sum(ts) / n, srt[-1]
 
 
-print("--- timing %d iters: ndarray input (includes per-call float->int8 quant) ---" % TIMING_ITERS)
-mn, med, mean, mx = time_n(lambda: model.predict(x_in_list), TIMING_ITERS)
-print("min/median/mean/max us: %d / %d / %.1f / %d   fps(mean): %.1f" % (mn, med, mean, mx, 1e6 / mean))
+    print("--- timing %d iters: ndarray input (includes per-call float->int8 quant) ---" % TIMING_ITERS)
+    mn, med, mean, mx = time_n(lambda: model.predict(x_in_list), TIMING_ITERS)
+    print("min/median/mean/max us: %d / %d / %.1f / %d   fps(mean): %.1f" % (mn, med, mean, mx, 1e6 / mean))
 
-# Pre-quantize once per input; feed via callables so predict() just memcpys the bytes
-# into each tensor buffer (skips py_ml_process_input's per-element float->int8 loop).
-x_q_bytes_list = [
-    bytes(np.array(np.clip((x_f32_list[i] / in_scales[i]) + in_zps[i], -128, 127), dtype=np.int8))
-    for i in range(num_inputs)
-]
-for i in range(num_inputs):
-    assert len(x_q_bytes_list[i]) == in_numels[i], (len(x_q_bytes_list[i]), in_numels[i])
-
-
-def make_feeder(bytes_for_input):
-    def feeder(buf, shape, dtype):
-        buf[:] = bytes_for_input
-    return feeder
+    # Pre-quantize once per input; feed via callables so predict() just memcpys the bytes
+    # into each tensor buffer (skips py_ml_process_input's per-element float->int8 loop).
+    x_q_bytes_list = [
+        bytes(np.array(np.clip((x_f32_list[i] / in_scales[i]) + in_zps[i], -128, 127), dtype=np.int8))
+        for i in range(num_inputs)
+    ]
+    for i in range(num_inputs):
+        assert len(x_q_bytes_list[i]) == in_numels[i], (len(x_q_bytes_list[i]), in_numels[i])
 
 
-feeders = [make_feeder(x_q_bytes_list[i]) for i in range(num_inputs)]
+    def make_feeder(bytes_for_input):
+        def feeder(buf, shape, dtype):
+            buf[:] = bytes_for_input
+        return feeder
 
-model.predict(feeders)  # warm-up with callable path
-print("--- timing %d iters: pre-quantized via callable (pure NPU + in-graph CPU ops) ---" % TIMING_ITERS)
-mn, med, mean, mx = time_n(lambda: model.predict(feeders), TIMING_ITERS)
-print("min/median/mean/max us: %d / %d / %.1f / %d   fps(mean): %.1f" % (mn, med, mean, mx, 1e6 / mean))
 
+    feeders = [make_feeder(x_q_bytes_list[i]) for i in range(num_inputs)]
+
+    model.predict(feeders)  # warm-up with callable path
+    print("--- timing %d iters: pre-quantized via callable (pure NPU + in-graph CPU ops) ---" % TIMING_ITERS)
+    mn, med, mean, mx = time_n(lambda: model.predict(feeders), TIMING_ITERS)
+    print("min/median/mean/max us: %d / %d / %.1f / %d   fps(mean): %.1f" % (mn, med, mean, mx, 1e6 / mean))
 
 
 
@@ -255,7 +257,6 @@ print("min/median/mean/max us: %d / %d / %.1f / %d   fps(mean): %.1f" % (mn, med
 import imu
 import time
 import math
-import image
 
 
 class MahonyFilter:
@@ -384,20 +385,6 @@ class MahonyFilter:
 MG_TO_MPS2 = 9.80665e-3
 MDPS_TO_RADPS = math.pi / (180.0 * 1000.0)
 
-import csi
-
-# ---- Constants mirrored from imitation_cuda.cu ----
-FRAME_STACK_N = 10
-FRAME_STACK_STRIDE = 10           # 100 Hz / 20 = 200 ms spacing between stacked frames
-FRAME_STACK_HISTORY_LENGTH = FRAME_STACK_STRIDE * (FRAME_STACK_N - 1) + 1  # 81
-ACTION_HISTORY_LENGTH = 64
-ACTION_DIM = 4
-IMG_H, IMG_W, IMG_C = 50, 80, 3
-N_IMAGE_INPUTS = FRAME_STACK_N + 1
-N_INPUTS = N_IMAGE_INPUTS + 1
-TARGET_KERAS_INDEX = FRAME_STACK_N
-STATE_KERAS_INDEX = N_IMAGE_INPUTS
-STATE_DIM = 3 + 3 + ACTION_HISTORY_LENGTH * ACTION_DIM  # 262
 TICK_US = 10_000                  # 100 Hz period
 DIAG_PRINT_EVERY = 10
 
@@ -406,186 +393,236 @@ UART_BRIDGE_BAUD = 115200
 FRAME_SYNC_BYTE = 0x80
 RX_LINE_MAX = 256
 
-assert num_inputs == N_INPUTS, (num_inputs, N_INPUTS)
-# Build tflite_input_index → keras_input_index mapping from the meta file.
-# keras_input_index 0..(FRAME_STACK_N-1) = frame slots (newest first),
-# keras_input_index FRAME_STACK_N = target frame, keras_input_index N_IMAGE_INPUTS = state.
-tflite_to_keras = [None] * num_inputs
-for _entry in META["inputs"]:
-    tflite_to_keras[int(_entry["tflite_input_index"])] = int(_entry["keras_input_index"])
-for _i, _k in enumerate(tflite_to_keras):
-    if _k is None:
-        raise RuntimeError("meta JSON missing tflite input %d" % _i)
-print("tflite -> keras input mapping:", tflite_to_keras)
+# Classical PD attitude controller (target: identity orientation, zero angular velocity).
+# Gains are in normalized action units; one unit of tau_* translates to a +/- per-motor
+# offset around hover and therefore to ~arm*dF/da N*m of physical torque. With
+# J ~ 1e-5 kg*m^2 and per-motor thrust authority ~0.05 N/unit, Kp=0.3 lands near
+# omega_n ~ 10 rad/s and Kd=0.05 near zeta ~ 0.7 -- a gentle starting point. Tune on bench.
+CLASSIC_KP_ATT = 0.30
+CLASSIC_KD_RATE = 0.05
+CLASSIC_HOVER_THROTTLE = 0.45    # BENCH TEST: center actions around 0; keep CF disarmed and
+                                # watch `a=...` in the diag print while tilting by hand to
+                                # verify axis signs. Raise to ~0.45 once the signs look right.
 
-# Per-input size sanity checks.
-for _ti in range(num_inputs):
-    _ki = tflite_to_keras[_ti]
-    if _ki == STATE_KERAS_INDEX:
-        assert in_numels[_ti] == STATE_DIM, (in_numels[_ti], STATE_DIM, _ti, _ki)
-    else:
-        assert in_numels[_ti] == IMG_H * IMG_W * IMG_C, (in_numels[_ti], IMG_H * IMG_W * IMG_C, _ti, _ki)
 
-# ---- Camera ----
-# Use the sensor's QVGA 320x200 mode. Aspect 1.6:1 matches IMG_W:IMG_H (80:50)
-# exactly, so the GPU bilinear scaler can resize into the model input without crop.
-csi0 = csi.CSI()
-csi0.reset()
-csi0.pixformat(csi.RGB565)
-csi0.framesize(csi.QVGA)
-_sensor_w, _sensor_h = csi0.width(), csi0.height()
-csi0.framerate(100)
-# csi0.auto_exposure(False, exposure_us=4000)
-for _ in range(10):
-    csi0.snapshot()
-assert _sensor_w * IMG_H == _sensor_h * IMG_W, (
-    "sensor aspect %dx%d does not match target %dx%d" % (_sensor_w, _sensor_h, IMG_W, IMG_H)
-)
-FRAME_DRAW_HINT = image.BILINEAR | image.SCALE_ASPECT_IGNORE
+def classic_attitude_action(mahony, ang_vel):
+    # e_R driven by world +Z expressed in body frame (3rd row of R(q));
+    # cross with desired body_up (0,0,1) gives the body-frame error axis (vy, -vx, 0).
+    # e_R_z = 0 -> no yaw target, only yaw-rate damping.
+    # Mix matches l2f crazyflie.h rotor positions and torque signs:
+    #   M0(+x,-y, tz=-1)  M1(-x,-y, tz=+1)  M2(-x,+y, tz=-1)  M3(+x,+y, tz=+1)
+    q0, q1, q2, q3 = mahony.q0, mahony.q1, mahony.q2, mahony.q3
+    vx = 2.0 * (q1 * q3 - q0 * q2)
+    vy = 2.0 * (q2 * q3 + q0 * q1)
+    tau_x = -CLASSIC_KP_ATT * vy - CLASSIC_KD_RATE * ang_vel[0]
+    tau_y =  CLASSIC_KP_ATT * vx - CLASSIC_KD_RATE * ang_vel[1]
+    tau_z =                       -CLASSIC_KD_RATE * ang_vel[2]
+    T = CLASSIC_HOVER_THROTTLE
+    a0 = T - tau_x - tau_y - tau_z
+    a1 = T - tau_x + tau_y + tau_z
+    a2 = T + tau_x + tau_y - tau_z
+    a3 = T + tau_x - tau_y + tau_z
+    return a0, a1, a2, a3
 
-# ---- Quantization ----
-# Locate the state's tflite slot and a representative image slot. All 6 image
-# inputs were quantized from the same source distribution, so they share scale/zp.
-_state_tflite_idx = next(i for i in range(num_inputs) if tflite_to_keras[i] == STATE_KERAS_INDEX)
-_img_tflite_idx   = next(i for i in range(num_inputs) if tflite_to_keras[i] != STATE_KERAS_INDEX)
-_img_scale   = in_scales[_img_tflite_idx]
-_img_zp      = in_zps[_img_tflite_idx]
-_state_scale = in_scales[_state_tflite_idx]
-_state_zp    = in_zps[_state_tflite_idx]
-# Verify all image inputs really do share scale/zp (sanity check).
-for _ti in range(num_inputs):
-    if tflite_to_keras[_ti] != STATE_KERAS_INDEX:
-        if abs(in_scales[_ti] - _img_scale) > 1e-9 or abs(in_zps[_ti] - _img_zp) > 1e-6:
-            print("WARN: image input %d has scale/zp (%g/%g) differing from %g/%g"
-                  % (_ti, in_scales[_ti], in_zps[_ti], _img_scale, _img_zp))
 
-def _q_byte(v, scale, zp):
-    q = int(round(v / scale + zp))
-    if q < -128: q = -128
-    elif q > 127: q = 127
-    return q & 0xFF
+if USE_NEURAL_POLICY:
+    import image
+    import csi
 
-def _dtype_char(dtype):
-    return chr(dtype) if isinstance(dtype, int) else dtype
+    # ---- Constants mirrored from imitation_cuda.cu ----
+    FRAME_STACK_N = 10
+    FRAME_STACK_STRIDE = 10           # 100 Hz / 20 = 200 ms spacing between stacked frames
+    FRAME_STACK_HISTORY_LENGTH = FRAME_STACK_STRIDE * (FRAME_STACK_N - 1) + 1  # 81
+    ACTION_HISTORY_LENGTH = 64
+    ACTION_DIM = 4
+    IMG_H, IMG_W, IMG_C = 50, 80, 3
+    N_IMAGE_INPUTS = FRAME_STACK_N + 1
+    N_INPUTS = N_IMAGE_INPUTS + 1
+    TARGET_KERAS_INDEX = FRAME_STACK_N
+    STATE_KERAS_INDEX = N_IMAGE_INPUTS
+    STATE_DIM = 3 + 3 + ACTION_HISTORY_LENGTH * ACTION_DIM  # 262
 
-_image_lut = bytearray(256)
-for p in range(256):
-    _image_lut[p] = _q_byte(p / 255.0, _img_scale, _img_zp)
-_img_dtype_char = _dtype_char(in_dtypes[_img_tflite_idx])
+    assert num_inputs == N_INPUTS, (num_inputs, N_INPUTS)
+    # Build tflite_input_index -> keras_input_index mapping from the meta file.
+    # keras_input_index 0..(FRAME_STACK_N-1) = frame slots (newest first),
+    # keras_input_index FRAME_STACK_N = target frame, keras_input_index N_IMAGE_INPUTS = state.
+    tflite_to_keras = [None] * num_inputs
+    for _entry in META["inputs"]:
+        tflite_to_keras[int(_entry["tflite_input_index"])] = int(_entry["keras_input_index"])
+    for _i, _k in enumerate(tflite_to_keras):
+        if _k is None:
+            raise RuntimeError("meta JSON missing tflite input %d" % _i)
+    print("tflite -> keras input mapping:", tflite_to_keras)
 
-def _probe_direct_image_export(img_dtype_char):
-    if img_dtype_char not in ("b", "B"):
-        return False
-    probe_colors = (
-        (0, 0, 0),
-        (255, 255, 255),
-        (255, 0, 0),
-        (0, 255, 0),
-        (0, 0, 255),
-        (17, 93, 211),
-        (123, 45, 67),
-        (250, 130, 10),
+    # Per-input size sanity checks.
+    for _ti in range(num_inputs):
+        _ki = tflite_to_keras[_ti]
+        if _ki == STATE_KERAS_INDEX:
+            assert in_numels[_ti] == STATE_DIM, (in_numels[_ti], STATE_DIM, _ti, _ki)
+        else:
+            assert in_numels[_ti] == IMG_H * IMG_W * IMG_C, (in_numels[_ti], IMG_H * IMG_W * IMG_C, _ti, _ki)
+
+    # ---- Camera ----
+    # Use the sensor's QVGA 320x200 mode. Aspect 1.6:1 matches IMG_W:IMG_H (80:50)
+    # exactly, so the GPU bilinear scaler can resize into the model input without crop.
+    csi0 = csi.CSI()
+    csi0.reset()
+    csi0.pixformat(csi.RGB565)
+    csi0.framesize(csi.QVGA)
+    _sensor_w, _sensor_h = csi0.width(), csi0.height()
+    csi0.framerate(100)
+    # csi0.auto_exposure(False, exposure_us=4000)
+    for _ in range(10):
+        csi0.snapshot()
+    assert _sensor_w * IMG_H == _sensor_h * IMG_W, (
+        "sensor aspect %dx%d does not match target %dx%d" % (_sensor_w, _sensor_h, IMG_W, IMG_H)
     )
-    probe = image.Image(len(probe_colors), 1, image.RGB565)
-    for x, rgb in enumerate(probe_colors):
-        probe.set_pixel(x, 0, rgb)
-    probe_u8 = bytearray(len(probe_colors) * 3)
-    probe_q = bytearray(len(probe_colors) * 3)
-    probe.to_ndarray(dtype="B", buffer=probe_u8)
-    probe.to_ndarray(dtype=img_dtype_char, buffer=probe_q)
-    for i in range(len(probe_u8)):
-        if probe_q[i] != _image_lut[probe_u8[i]]:
+    FRAME_DRAW_HINT = image.BILINEAR | image.SCALE_ASPECT_IGNORE
+
+    # ---- Quantization ----
+    # Locate the state's tflite slot and a representative image slot. All 6 image
+    # inputs were quantized from the same source distribution, so they share scale/zp.
+    _state_tflite_idx = next(i for i in range(num_inputs) if tflite_to_keras[i] == STATE_KERAS_INDEX)
+    _img_tflite_idx   = next(i for i in range(num_inputs) if tflite_to_keras[i] != STATE_KERAS_INDEX)
+    _img_scale   = in_scales[_img_tflite_idx]
+    _img_zp      = in_zps[_img_tflite_idx]
+    _state_scale = in_scales[_state_tflite_idx]
+    _state_zp    = in_zps[_state_tflite_idx]
+    # Verify all image inputs really do share scale/zp (sanity check).
+    for _ti in range(num_inputs):
+        if tflite_to_keras[_ti] != STATE_KERAS_INDEX:
+            if abs(in_scales[_ti] - _img_scale) > 1e-9 or abs(in_zps[_ti] - _img_zp) > 1e-6:
+                print("WARN: image input %d has scale/zp (%g/%g) differing from %g/%g"
+                      % (_ti, in_scales[_ti], in_zps[_ti], _img_scale, _img_zp))
+
+    def _q_byte(v, scale, zp):
+        q = int(round(v / scale + zp))
+        if q < -128: q = -128
+        elif q > 127: q = 127
+        return q & 0xFF
+
+    def _dtype_char(dtype):
+        return chr(dtype) if isinstance(dtype, int) else dtype
+
+    _image_lut = bytearray(256)
+    for p in range(256):
+        _image_lut[p] = _q_byte(p / 255.0, _img_scale, _img_zp)
+    _img_dtype_char = _dtype_char(in_dtypes[_img_tflite_idx])
+
+    def _probe_direct_image_export(img_dtype_char):
+        if img_dtype_char not in ("b", "B"):
             return False
-    return True
+        probe_colors = (
+            (0, 0, 0),
+            (255, 255, 255),
+            (255, 0, 0),
+            (0, 255, 0),
+            (0, 0, 255),
+            (17, 93, 211),
+            (123, 45, 67),
+            (250, 130, 10),
+        )
+        probe = image.Image(len(probe_colors), 1, image.RGB565)
+        for x, rgb in enumerate(probe_colors):
+            probe.set_pixel(x, 0, rgb)
+        probe_u8 = bytearray(len(probe_colors) * 3)
+        probe_q = bytearray(len(probe_colors) * 3)
+        probe.to_ndarray(dtype="B", buffer=probe_u8)
+        probe.to_ndarray(dtype=img_dtype_char, buffer=probe_q)
+        for i in range(len(probe_u8)):
+            if probe_q[i] != _image_lut[probe_u8[i]]:
+                return False
+        return True
 
-# ---- Buffers ----
-# Circular history of quantized frames, one per loop tick. At each tick the frame
-# stack is gathered from stride-spaced offsets from the write pointer — the same
-# sliding-window scheme used at training time (imitation_cuda.cu:1810 write, :1821 gather).
-frame_history_q = [bytearray(IMG_H * IMG_W * IMG_C) for _ in range(FRAME_STACK_HISTORY_LENGTH)]
-target_q        = bytearray(IMG_H * IMG_W * IMG_C)
-scaled_frame_rgb565 = image.Image(IMG_W, IMG_H, image.RGB565)
-_img_direct_dtype = _img_dtype_char if _probe_direct_image_export(_img_dtype_char) else None
-scaled_frame_u8 = None if _img_direct_dtype is not None else bytearray(IMG_H * IMG_W * IMG_C)
-if _img_direct_dtype is not None:
-    print("image path: draw_image(BILINEAR) + to_ndarray(%r) direct" % _img_direct_dtype)
-else:
-    print("image path: draw_image(BILINEAR) + to_ndarray('B') + LUT quantize")
-
-# State vector (int8 bit pattern stored as uint8)
-state_int8 = bytearray(STATE_DIM)
-
-# Action history ring: pre-quantized int8 bytes (clipped to [-1,1] before quantize on store).
-action_ring_q = bytearray(ACTION_HISTORY_LENGTH * ACTION_DIM)
-_zero_action_byte = _q_byte(0.0, _state_scale, _state_zp)
-for _i in range(len(action_ring_q)):
-    action_ring_q[_i] = _zero_action_byte
-
-# ---- Helpers ----
-# Per-keras-input source bytearray references. The model's leading Concat lets us
-# feed each frame slot as its own contiguous tensor — no NHWC interleave needed.
-# Indices [0:FRAME_STACK_N] are dynamic frame-history slots (refreshed each tick),
-# index TARGET_KERAS_INDEX is the target frame, index STATE_KERAS_INDEX is the state.
-sources_by_keras = [None] * N_INPUTS
-sources_by_keras[TARGET_KERAS_INDEX] = target_q
-sources_by_keras[STATE_KERAS_INDEX] = state_int8
-for _k in range(FRAME_STACK_N):
-    sources_by_keras[_k] = frame_history_q[0]  # placeholder until first tick
-
-def resize_quantize_frame(src_img, dst_q):
-    scaled_frame_rgb565.draw_image(src_img, 0, 0, hint=FRAME_DRAW_HINT)
+    # ---- Buffers ----
+    # Circular history of quantized frames, one per loop tick. At each tick the frame
+    # stack is gathered from stride-spaced offsets from the write pointer — the same
+    # sliding-window scheme used at training time (imitation_cuda.cu:1810 write, :1821 gather).
+    frame_history_q = [bytearray(IMG_H * IMG_W * IMG_C) for _ in range(FRAME_STACK_HISTORY_LENGTH)]
+    target_q        = bytearray(IMG_H * IMG_W * IMG_C)
+    scaled_frame_rgb565 = image.Image(IMG_W, IMG_H, image.RGB565)
+    _img_direct_dtype = _img_dtype_char if _probe_direct_image_export(_img_dtype_char) else None
+    scaled_frame_u8 = None if _img_direct_dtype is not None else bytearray(IMG_H * IMG_W * IMG_C)
     if _img_direct_dtype is not None:
-        scaled_frame_rgb565.to_ndarray(dtype=_img_direct_dtype, buffer=dst_q)
-        return
-    scaled_frame_rgb565.to_ndarray(dtype="B", buffer=scaled_frame_u8)
-    lut = _image_lut
-    src = scaled_frame_u8
-    for i in range(len(dst_q)):
-        dst_q[i] = lut[src[i]]
+        print("image path: draw_image(BILINEAR) + to_ndarray(%r) direct" % _img_direct_dtype)
+    else:
+        print("image path: draw_image(BILINEAR) + to_ndarray('B') + LUT quantize")
 
-@micropython.viper
-def _viper_copy_action_history_newest_first(
-    dst: ptr8, dst_offset: int, src: ptr8, write_ptr: int, n_slots: int, n_dim: int
-):
-    cur = write_ptr - 1
-    if cur < 0:
-        cur += n_slots
-    i = 0
-    while i < n_slots:
-        s = cur * n_dim
-        d = dst_offset + i * n_dim
-        dst[d]     = src[s]
-        dst[d + 1] = src[s + 1]
-        dst[d + 2] = src[s + 2]
-        dst[d + 3] = src[s + 3]
-        cur -= 1
+    # State vector (int8 bit pattern stored as uint8)
+    state_int8 = bytearray(STATE_DIM)
+
+    # Action history ring: pre-quantized int8 bytes (clipped to [-1,1] before quantize on store).
+    action_ring_q = bytearray(ACTION_HISTORY_LENGTH * ACTION_DIM)
+    _zero_action_byte = _q_byte(0.0, _state_scale, _state_zp)
+    for _i in range(len(action_ring_q)):
+        action_ring_q[_i] = _zero_action_byte
+
+    # ---- Helpers ----
+    # Per-keras-input source bytearray references. The model's leading Concat lets us
+    # feed each frame slot as its own contiguous tensor — no NHWC interleave needed.
+    # Indices [0:FRAME_STACK_N] are dynamic frame-history slots (refreshed each tick),
+    # index TARGET_KERAS_INDEX is the target frame, index STATE_KERAS_INDEX is the state.
+    sources_by_keras = [None] * N_INPUTS
+    sources_by_keras[TARGET_KERAS_INDEX] = target_q
+    sources_by_keras[STATE_KERAS_INDEX] = state_int8
+    for _k in range(FRAME_STACK_N):
+        sources_by_keras[_k] = frame_history_q[0]  # placeholder until first tick
+
+    def resize_quantize_frame(src_img, dst_q):
+        scaled_frame_rgb565.draw_image(src_img, 0, 0, hint=FRAME_DRAW_HINT)
+        if _img_direct_dtype is not None:
+            scaled_frame_rgb565.to_ndarray(dtype=_img_direct_dtype, buffer=dst_q)
+            return
+        scaled_frame_rgb565.to_ndarray(dtype="B", buffer=scaled_frame_u8)
+        lut = _image_lut
+        src = scaled_frame_u8
+        for i in range(len(dst_q)):
+            dst_q[i] = lut[src[i]]
+
+    @micropython.viper
+    def _viper_copy_action_history_newest_first(
+        dst: ptr8, dst_offset: int, src: ptr8, write_ptr: int, n_slots: int, n_dim: int
+    ):
+        cur = write_ptr - 1
         if cur < 0:
             cur += n_slots
-        i += 1
+        i = 0
+        while i < n_slots:
+            s = cur * n_dim
+            d = dst_offset + i * n_dim
+            dst[d]     = src[s]
+            dst[d + 1] = src[s + 1]
+            dst[d + 2] = src[s + 2]
+            dst[d + 3] = src[s + 3]
+            cur -= 1
+            if cur < 0:
+                cur += n_slots
+            i += 1
 
-def build_state_int8(body_z, ang_vel):
-    # Layout: [orientation_body_z(3), angular_velocity(3), action_history newest-first(256)]
-    state_int8[0] = _q_byte(body_z[0], _state_scale, _state_zp)
-    state_int8[1] = _q_byte(body_z[1], _state_scale, _state_zp)
-    state_int8[2] = _q_byte(body_z[2], _state_scale, _state_zp)
-    state_int8[3] = _q_byte(ang_vel[0], _state_scale, _state_zp)
-    state_int8[4] = _q_byte(ang_vel[1], _state_scale, _state_zp)
-    state_int8[5] = _q_byte(ang_vel[2], _state_scale, _state_zp)
-    _viper_copy_action_history_newest_first(
-        state_int8, 6, action_ring_q, action_write_ptr, ACTION_HISTORY_LENGTH, ACTION_DIM
-    )
+    def build_state_int8(body_z, ang_vel):
+        # Layout: [orientation_body_z(3), angular_velocity(3), action_history newest-first(256)]
+        state_int8[0] = _q_byte(body_z[0], _state_scale, _state_zp)
+        state_int8[1] = _q_byte(body_z[1], _state_scale, _state_zp)
+        state_int8[2] = _q_byte(body_z[2], _state_scale, _state_zp)
+        state_int8[3] = _q_byte(ang_vel[0], _state_scale, _state_zp)
+        state_int8[4] = _q_byte(ang_vel[1], _state_scale, _state_zp)
+        state_int8[5] = _q_byte(ang_vel[2], _state_scale, _state_zp)
+        _viper_copy_action_history_newest_first(
+            state_int8, 6, action_ring_q, action_write_ptr, ACTION_HISTORY_LENGTH, ACTION_DIM
+        )
 
-def _quantize_action_clip(v):
-    if v < -1.0: v = -1.0
-    elif v > 1.0: v = 1.0
-    return _q_byte(v, _state_scale, _state_zp)
+    def _quantize_action_clip(v):
+        if v < -1.0: v = -1.0
+        elif v > 1.0: v = 1.0
+        return _q_byte(v, _state_scale, _state_zp)
 
-def make_live_feeder(keras_idx):
-    def feeder(buf, shape, dtype):
-        buf[:] = sources_by_keras[keras_idx]
-    return feeder
+    def make_live_feeder(keras_idx):
+        def feeder(buf, shape, dtype):
+            buf[:] = sources_by_keras[keras_idx]
+        return feeder
 
-feeders_live = [make_live_feeder(tflite_to_keras[_ti]) for _ti in range(num_inputs)]
+    feeders_live = [make_live_feeder(tflite_to_keras[_ti]) for _ti in range(num_inputs)]
+
 
 # ---- Offboard UART frame (mirror of crazyflie-firmware uart1_bridge.c) ----
 # Frame: 0x80 sync byte (MSB=1) + 12 data bytes (MSB=0) encoding a 10-byte payload
@@ -637,27 +674,33 @@ def _build_frame_into(frame13, a0, a1, a2, a3):
 mahony = MahonyFilter()
 last_t = time.ticks_us()
 next_deadline = time.ticks_add(last_t, TICK_US)
-target_captured = False
-history_write_ptr = 0
-action_write_ptr = 0
 tick = 0
 reset_button = machine.Pin('SW', machine.Pin.IN, machine.Pin.PULL_UP)
 reset_button_last = reset_button.value()
+
+if USE_NEURAL_POLICY:
+    target_captured = False
+    history_write_ptr = 0
+    action_write_ptr = 0
 
 uart_bridge = machine.UART(UART_BRIDGE_PORT, UART_BRIDGE_BAUD, timeout=0, timeout_char=0)
 frame_tx = bytearray(13)
 frame_tx[0] = FRAME_SYNC_BYTE
 rx_line_buf = bytearray()
 
-print("starting 100Hz policy inference loop")
+if USE_NEURAL_POLICY:
+    print("starting 100Hz policy inference loop (NN)")
+else:
+    print("starting 100Hz policy inference loop (classical PD)")
 
 while True:
     t0 = time.ticks_us()
 
     reset_button_cur = reset_button.value()
     if reset_button_last == 1 and reset_button_cur == 0:
-        target_captured = False
-        print("target reset (button)")
+        if USE_NEURAL_POLICY:
+            target_captured = False
+            print("target reset (button)")
     reset_button_last = reset_button_cur
 
     ax_orig, ay_orig, az_orig = imu.acceleration_mg()
@@ -684,37 +727,46 @@ while True:
     )
     t_mahony = time.ticks_us()
 
-    img = csi0.snapshot()
-    assert img is not None
-    assert img.width() == _sensor_w
-    assert img.height() == _sensor_h
-    t_snapshot = time.ticks_us()
-    resize_quantize_frame(img, frame_history_q[history_write_ptr])
-    t_downsample = time.ticks_us()
-    if not target_captured:
-        target_q[:] = frame_history_q[history_write_ptr]
-        for i in range(FRAME_STACK_HISTORY_LENGTH):
-            if i != history_write_ptr:
-                frame_history_q[i][:] = frame_history_q[history_write_ptr]
-        target_captured = True
-    sources_by_keras[0] = frame_history_q[history_write_ptr]
-    for _f in range(1, FRAME_STACK_N):
-        _slot = (history_write_ptr - _f * FRAME_STACK_STRIDE) % FRAME_STACK_HISTORY_LENGTH
-        sources_by_keras[_f] = frame_history_q[_slot]
-    t_frames = time.ticks_us()
-
     body_z = mahony.orientation_body_z()
     ang_vel = mahony.angular_velocity_corrected(gx_rad, gy_rad, gz_rad)
-    build_state_int8(body_z, ang_vel)
-    t_state = time.ticks_us()
 
-    y_raw = model.predict(feeders_live)[0]
-    y_f32 = y_raw.flatten()
-    a0_raw = float(y_f32[0])
-    a1_raw = float(y_f32[1])
-    a2_raw = float(y_f32[2])
-    a3_raw = float(y_f32[3])
-    t_predict = time.ticks_us()
+    if USE_NEURAL_POLICY:
+        img = csi0.snapshot()
+        assert img is not None
+        assert img.width() == _sensor_w
+        assert img.height() == _sensor_h
+        t_snapshot = time.ticks_us()
+        resize_quantize_frame(img, frame_history_q[history_write_ptr])
+        t_downsample = time.ticks_us()
+        if not target_captured:
+            target_q[:] = frame_history_q[history_write_ptr]
+            for i in range(FRAME_STACK_HISTORY_LENGTH):
+                if i != history_write_ptr:
+                    frame_history_q[i][:] = frame_history_q[history_write_ptr]
+            target_captured = True
+        sources_by_keras[0] = frame_history_q[history_write_ptr]
+        for _f in range(1, FRAME_STACK_N):
+            _slot = (history_write_ptr - _f * FRAME_STACK_STRIDE) % FRAME_STACK_HISTORY_LENGTH
+            sources_by_keras[_f] = frame_history_q[_slot]
+        t_frames = time.ticks_us()
+
+        build_state_int8(body_z, ang_vel)
+        t_state = time.ticks_us()
+
+        y_raw = model.predict(feeders_live)[0]
+        y_f32 = y_raw.flatten()
+        a0_raw = float(y_f32[0])
+        a1_raw = float(y_f32[1])
+        a2_raw = float(y_f32[2])
+        a3_raw = float(y_f32[3])
+        t_predict = time.ticks_us()
+    else:
+        a0_raw, a1_raw, a2_raw, a3_raw = classic_attitude_action(mahony, ang_vel)
+        t_snapshot = t_mahony
+        t_downsample = t_mahony
+        t_frames = t_mahony
+        t_state = t_mahony
+        t_predict = t_mahony
 
     _build_frame_into(frame_tx, a0_raw, a1_raw, a2_raw, a3_raw)
     uart_bridge.write(frame_tx)
@@ -732,8 +784,9 @@ while True:
                 line = bytes(rx_line_buf[:nl]).rstrip(b'\r')
                 rx_line_buf = rx_line_buf[nl + 1:]
                 if b"[u1br] arm rising edge" in line:
-                    target_captured = False
-                    print("target reset (arm rising edge)")
+                    if USE_NEURAL_POLICY:
+                        target_captured = False
+                        print("target reset (arm rising edge)")
                 try:
                     print("[cf]", line.decode('utf-8'))
                 except UnicodeError:
@@ -743,12 +796,13 @@ while True:
                 rx_line_buf = bytearray()
     t_rx = time.ticks_us()
 
-    slot_off = action_write_ptr * ACTION_DIM
-    action_ring_q[slot_off]     = _quantize_action_clip(a0_raw)
-    action_ring_q[slot_off + 1] = _quantize_action_clip(a1_raw)
-    action_ring_q[slot_off + 2] = _quantize_action_clip(a2_raw)
-    action_ring_q[slot_off + 3] = _quantize_action_clip(a3_raw)
-    action_write_ptr = (action_write_ptr + 1) % ACTION_HISTORY_LENGTH
+    if USE_NEURAL_POLICY:
+        slot_off = action_write_ptr * ACTION_DIM
+        action_ring_q[slot_off]     = _quantize_action_clip(a0_raw)
+        action_ring_q[slot_off + 1] = _quantize_action_clip(a1_raw)
+        action_ring_q[slot_off + 2] = _quantize_action_clip(a2_raw)
+        action_ring_q[slot_off + 3] = _quantize_action_clip(a3_raw)
+        action_write_ptr = (action_write_ptr + 1) % ACTION_HISTORY_LENGTH
     t_actions = time.ticks_us()
 
     elapsed_us = time.ticks_diff(t_actions, t0)
@@ -774,7 +828,8 @@ while True:
                a0, a1, a2, a3, body_z[0], body_z[1], body_z[2],
                ang_vel[0], ang_vel[1], ang_vel[2]))
 
-    history_write_ptr = (history_write_ptr + 1) % FRAME_STACK_HISTORY_LENGTH
+    if USE_NEURAL_POLICY:
+        history_write_ptr = (history_write_ptr + 1) % FRAME_STACK_HISTORY_LENGTH
     tick += 1
     delay = time.ticks_diff(next_deadline, time.ticks_us())
     if delay > 0:
