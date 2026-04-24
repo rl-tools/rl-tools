@@ -5,6 +5,7 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL_OPERATIONS_CPU_H
 
 #include "multirotor_visual.h"
+#include "operations_generic.h"
 
 #include <rl_tools/rl/environments/l2f/operations_generic.h>
 #include <rl_tools/rendering/raytracing/backends/optix/operations_cuda.h>
@@ -72,21 +73,6 @@ namespace rl_tools {
         }
 
         env.renderer_initialized = true;
-    }
-
-    template <typename DEVICE, typename SPEC>
-    static void initial_parameters(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters& parameters) {
-        initial_parameters(device, env.dynamics, parameters.dynamics);
-        parameters.scene_translation[0] = 0;
-        parameters.scene_translation[1] = 0;
-        parameters.scene_translation[2] = 0;
-        parameters.scene_yaw = 0;
-    }
-
-    template <typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_parameters(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters& parameters, RNG& rng) {
-        using TI = typename SPEC::TI;
-        sample_initial_parameters(device, env.dynamics, parameters.dynamics, rng);
     }
 
     template <typename DEVICE, typename SPEC, typename RNG>
