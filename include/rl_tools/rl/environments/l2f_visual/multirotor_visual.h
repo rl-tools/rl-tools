@@ -57,7 +57,7 @@ namespace rl_tools::rl::environments::l2f_visual {
     struct Parameters {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
-        typename SPEC::DYNAMICS_ENV::Parameters dynamics;
+        typename SPEC::DYNAMICS_ENV::Parameters dynamics = SPEC::DYNAMICS_SPEC::PARAMETER_VALUES;
         T scene_translation[3] = {0, 0, 0};
         T scene_yaw = 0;
         SceneHash scene_hash;
