@@ -221,6 +221,7 @@ static constexpr TI CAM_WIDTH = 80;
 static constexpr TI CAM_HEIGHT = 50;
 static constexpr TI NUM_PROBES = 64;
 static constexpr T CAMERA_FOV = static_cast<T>(63.8) / static_cast<T>(180) * rlt::math::PI<T>;
+static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = static_cast<T>(5.0) / static_cast<T>(180) * rlt::math::PI<T>;
 
 constexpr bool HIGH_FIDELITY_SHADING = true;
 using VISUAL_SPEC = rlt::rl::environments::l2f_visual::Specification<T, TI, STATIC_PARAMETERS, N_ENVIRONMENTS_PER_SCENE, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, HIGH_FIDELITY_SHADING>;
@@ -368,13 +369,12 @@ std::string trajectory_episodes_to_json(DEVICE& device, ENVIRONMENT& env, const 
 // GPU collection kernels
 // =========================================================================
 namespace imitation_kernels{
-    using DYNAMICS_TYPE = ENVIRONMENT::DYNAMICS_ENV;
 
     template<typename DEVICE, typename RNG>
     __global__
     void prologue_kernel(
         DEVICE device,
-        DYNAMICS_TYPE* envs, PARAMETERS_TYPE* env_params, typename ENVIRONMENT::State* states,
+        ENVIRONMENT* envs, typename ENVIRONMENT::Parameters* env_params, typename ENVIRONMENT::State* states,
         bool* terminated_flags, TI* episode_step_arr, bool* teacher_forcing_arr,
         T* episode_return_arr, bool* needs_reset_flags,
         T* episode_lengths_log, T* episode_tf_log, T* episode_terminated_log,
@@ -452,12 +452,12 @@ namespace imitation_kernels{
         {
             rlt::Matrix<rlt::matrix::Specification<T, TI, 1, RAPTOR_OBS_DIM, true, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> obs_mat;
             obs_mat._data = teacher_obs_ptr + env_i * RAPTOR_OBS_DIM;
-            rl_tools::observe(device, env, params, state, RAPTOR_OBSERVATION_TYPE{}, obs_mat, rng_state);
+            rl_tools::observe(device, env.dynamics, params.dynamics, state, RAPTOR_OBSERVATION_TYPE{}, obs_mat, rng_state);
         }
         {
             rlt::Matrix<rlt::matrix::Specification<T, TI, 1, STATE_OBS_DIM, true, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> obs_mat;
             obs_mat._data = state_obs_ptr + env_i * STATE_OBS_DIM;
-            rl_tools::observe(device, env, params, state, ACTOR_STATE_OBS{}, obs_mat, rng_state);
+            rl_tools::observe(device, env.dynamics, params.dynamics, state, ACTOR_STATE_OBS{}, obs_mat, rng_state);
         }
     }
 
@@ -465,7 +465,7 @@ namespace imitation_kernels{
     __global__
     void epilogue_kernel(
         DEVICE device,
-        DYNAMICS_TYPE* envs, PARAMETERS_TYPE* env_params, typename ENVIRONMENT::State* states,
+        ENVIRONMENT* envs, typename ENVIRONMENT::Parameters* env_params, typename ENVIRONMENT::State* states,
         bool* terminated_flags, TI* episode_step_arr, T* episode_return_arr,
         T* teacher_actions_ptr, T_ACTIVATION* student_actions_ptr, T_ACTIVATION* all_targets_ptr,
         RNG rng, TI step_i
@@ -497,20 +497,19 @@ namespace imitation_kernels{
     __global__
     void make_cameras_kernel(
         DEVICE device,
-        DYNAMICS_TYPE* envs, PARAMETERS_TYPE* env_params, typename ENVIRONMENT::State* states,
+        typename ENVIRONMENT::Parameters* env_params, typename ENVIRONMENT::State* states,
         rlt::rendering::raytracing::CameraData<T>* gpu_cameras,
-        T fov, T aspect,
-        T camera_offset_body_0, T camera_offset_body_1, T camera_offset_body_2,
-        T camera_forward_body_0, T camera_forward_body_1, T camera_forward_body_2,
-        T camera_up_body_0, T camera_up_body_1, T camera_up_body_2,
+        T aspect,
         T* scene_translation_arr, T* scene_yaw_cos_arr, T* scene_yaw_sin_arr
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i >= N_ENVIRONMENTS) return;
         auto& state = states[env_i];
-        T offset_body[3] = {camera_offset_body_0, camera_offset_body_1, camera_offset_body_2};
-        T forward_body[3] = {camera_forward_body_0, camera_forward_body_1, camera_forward_body_2};
-        T up_body[3] = {camera_up_body_0, camera_up_body_1, camera_up_body_2};
+        const auto& params = env_params[env_i];
+        T fov = params.fov;
+        T offset_body[3] = {params.camera_mount.offset_body[0], params.camera_mount.offset_body[1], params.camera_mount.offset_body[2]};
+        T forward_body[3] = {params.camera_mount.forward_body[0], params.camera_mount.forward_body[1], params.camera_mount.forward_body[2]};
+        T up_body[3] = {params.camera_mount.up_body[0], params.camera_mount.up_body[1], params.camera_mount.up_body[2]};
         T cam_pos_local[3];
         rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, offset_body, cam_pos_local);
         T cam_forward_local[3];
@@ -550,18 +549,18 @@ namespace imitation_kernels{
     __global__
     void make_target_cameras_kernel(
         DEVICE device,
+        typename ENVIRONMENT::Parameters* env_params,
         rlt::rendering::raytracing::CameraData<T>* target_cameras,
-        T fov, T aspect,
-        T camera_offset_body_0, T camera_offset_body_1, T camera_offset_body_2,
-        T camera_forward_body_0, T camera_forward_body_1, T camera_forward_body_2,
-        T camera_up_body_0, T camera_up_body_1, T camera_up_body_2,
+        T aspect,
         T* scene_translation_arr, T* scene_yaw_cos_arr, T* scene_yaw_sin_arr
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i >= N_ENVIRONMENTS) return;
-        T offset_body[3] = {camera_offset_body_0, camera_offset_body_1, camera_offset_body_2};
-        T forward_body[3] = {camera_forward_body_0, camera_forward_body_1, camera_forward_body_2};
-        T up_body[3] = {camera_up_body_0, camera_up_body_1, camera_up_body_2};
+        const auto& params = env_params[env_i];
+        T fov = params.fov;
+        T offset_body[3] = {params.camera_mount.offset_body[0], params.camera_mount.offset_body[1], params.camera_mount.offset_body[2]};
+        T forward_body[3] = {params.camera_mount.forward_body[0], params.camera_mount.forward_body[1], params.camera_mount.forward_body[2]};
+        T up_body[3] = {params.camera_mount.up_body[0], params.camera_mount.up_body[1], params.camera_mount.up_body[2]};
         T c = scene_yaw_cos_arr[env_i];
         T s = scene_yaw_sin_arr[env_i];
         auto rotate_scene_yaw = [&](const T in[3], T out[3]){
@@ -1238,11 +1237,12 @@ int main(int argc, char** argv){
         envs[env_i].owns_renderer = false;
         envs[env_i].renderer_initialized = true;
         envs[env_i].use_target_mode = true;
+        envs[env_i].parameters.fov = CAMERA_FOV;
+        envs[env_i].parameters.camera_randomization.fov_range = CAMERA_FOV_RANDOMIZATION_RANGE;
         rlt::initial_parameters(device, envs[env_i], env_parameters[env_i]);
         env_parameters[env_i].scene_translation[0] = 0;
         env_parameters[env_i].scene_translation[1] = 0;
         env_parameters[env_i].scene_translation[2] = 0;
-        env_parameters[env_i].fov = CAMERA_FOV;
     }
     auto& env0 = envs[0];
 
@@ -1261,7 +1261,7 @@ int main(int argc, char** argv){
     std::vector<uint8_t> cpu_needs_reset_buf(TRAJECTORY_NUM_ENVS);
     std::vector<uint8_t> cpu_terminated_buf(TRAJECTORY_NUM_ENVS);
     std::vector<T_ACTIVATION> cpu_student_action_buf(TRAJECTORY_NUM_ENVS * ACTION_DIM);
-    std::vector<PARAMETERS_TYPE> cpu_params_snapshot_buf(TRAJECTORY_NUM_ENVS);
+    std::vector<typename ENVIRONMENT::Parameters> cpu_params_snapshot_buf(TRAJECTORY_NUM_ENVS);
     T simulation_dt = static_cast<T>(1) / static_cast<T>(SIMULATION_FREQUENCY);
     TI global_step = 0;
 
@@ -1454,9 +1454,8 @@ int main(int argc, char** argv){
     // =========================================================================
     // GPU-resident environment state
     // =========================================================================
-    using DYNAMICS_TYPE = ENVIRONMENT::DYNAMICS_ENV;
-    DYNAMICS_TYPE* gpu_dynamics_arr = nullptr;
-    PARAMETERS_TYPE* gpu_params_arr = nullptr;
+    ENVIRONMENT* gpu_envs_arr = nullptr;
+    typename ENVIRONMENT::Parameters* gpu_params_arr = nullptr;
     typename ENVIRONMENT::State* gpu_states_arr = nullptr;
     bool* gpu_terminated_arr = nullptr;
     TI* gpu_episode_step_arr = nullptr;
@@ -1471,8 +1470,8 @@ int main(int argc, char** argv){
     T* gpu_scene_yaw_arr = nullptr;
     T* gpu_scene_yaw_cos_arr = nullptr;
     T* gpu_scene_yaw_sin_arr = nullptr;
-    cudaMalloc(&gpu_dynamics_arr, N_ENVIRONMENTS * sizeof(DYNAMICS_TYPE));
-    cudaMalloc(&gpu_params_arr, N_ENVIRONMENTS * sizeof(PARAMETERS_TYPE));
+    cudaMalloc(&gpu_envs_arr, N_ENVIRONMENTS * sizeof(ENVIRONMENT));
+    cudaMalloc(&gpu_params_arr, N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::Parameters));
     cudaMalloc(&gpu_states_arr, N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::State));
     cudaMalloc(&gpu_terminated_arr, N_ENVIRONMENTS * sizeof(bool));
     cudaMalloc(&gpu_episode_step_arr, N_ENVIRONMENTS * sizeof(TI));
@@ -1499,16 +1498,8 @@ int main(int argc, char** argv){
         cudaMemcpy(gpu_scene_yaw_sin_arr, zeros.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
     }
     typename ENVIRONMENT::State cpu_states_for_cameras[N_ENVIRONMENTS];
-    {
-        DYNAMICS_TYPE cpu_dynamics[N_ENVIRONMENTS];
-        PARAMETERS_TYPE cpu_params[N_ENVIRONMENTS];
-        for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
-            cpu_dynamics[env_i] = envs[env_i].dynamics;
-            cpu_params[env_i] = env_parameters[env_i].dynamics;
-        }
-        cudaMemcpy(gpu_dynamics_arr, cpu_dynamics, N_ENVIRONMENTS * sizeof(DYNAMICS_TYPE), cudaMemcpyHostToDevice);
-        cudaMemcpy(gpu_params_arr, cpu_params, N_ENVIRONMENTS * sizeof(PARAMETERS_TYPE), cudaMemcpyHostToDevice);
-    }
+    cudaMemcpy(gpu_envs_arr, envs, N_ENVIRONMENTS * sizeof(ENVIRONMENT), cudaMemcpyHostToDevice);
+    cudaMemcpy(gpu_params_arr, env_parameters, N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::Parameters), cudaMemcpyHostToDevice);
     {
         bool init_terminated[N_ENVIRONMENTS];
         TI init_step[N_ENVIRONMENTS];
@@ -1669,7 +1660,7 @@ int main(int argc, char** argv){
             T cam_aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
             for(TI step_i = 0; step_i < STEPS_PER_ENV; step_i++){
                 imitation_kernels::prologue_kernel<<<grid, block, 0, device_gpu.stream>>>(
-                    tag_device, gpu_dynamics_arr, gpu_params_arr, gpu_states_arr,
+                    tag_device, gpu_envs_arr, gpu_params_arr, gpu_states_arr,
                     gpu_terminated_arr, gpu_episode_step_arr, gpu_teacher_forcing_arr,
                     gpu_episode_return_arr, gpu_needs_reset,
                     gpu_episode_lengths_log + step_i * N_ENVIRONMENTS,
@@ -1700,19 +1691,16 @@ int main(int argc, char** argv){
                 if(record_trajectories){
                     cudaMemcpyAsync(cpu_prestep_state_buf.data(), gpu_states_arr, TRAJECTORY_NUM_ENVS * sizeof(typename ENVIRONMENT::State), cudaMemcpyDeviceToHost, device_gpu.stream);
                     cudaMemcpyAsync(cpu_needs_reset_buf.data(), gpu_needs_reset, TRAJECTORY_NUM_ENVS * sizeof(bool), cudaMemcpyDeviceToHost, device_gpu.stream);
-                    cudaMemcpyAsync(cpu_params_snapshot_buf.data(), gpu_params_arr, TRAJECTORY_NUM_ENVS * sizeof(PARAMETERS_TYPE), cudaMemcpyDeviceToHost, device_gpu.stream);
+                    cudaMemcpyAsync(cpu_params_snapshot_buf.data(), gpu_params_arr, TRAJECTORY_NUM_ENVS * sizeof(typename ENVIRONMENT::Parameters), cudaMemcpyDeviceToHost, device_gpu.stream);
                 }
 #if defined(USE_FRAME_STACKING) && !defined(STACK_TARGET_CHANNEL)
                 imitation_kernels::record_episode_start_kernel<<<grid, block, 0, device_gpu.stream>>>(tag_device, gpu_episode_start_step, gpu_episode_start_step_per_row, step_i);
 #endif
                 auto render_start = std::chrono::high_resolution_clock::now();
                 imitation_kernels::make_cameras_kernel<<<grid, block, 0, device_gpu.stream>>>(
-                    tag_device, gpu_dynamics_arr, gpu_params_arr, gpu_states_arr,
+                    tag_device, gpu_params_arr, gpu_states_arr,
                     gpu_cameras,
-                    env_parameters[0].fov, cam_aspect,
-                    env_parameters[0].camera_mount.offset_body[0], env_parameters[0].camera_mount.offset_body[1], env_parameters[0].camera_mount.offset_body[2],
-                    env_parameters[0].camera_mount.forward_body[0], env_parameters[0].camera_mount.forward_body[1], env_parameters[0].camera_mount.forward_body[2],
-                    env_parameters[0].camera_mount.up_body[0], env_parameters[0].camera_mount.up_body[1], env_parameters[0].camera_mount.up_body[2],
+                    cam_aspect,
                     gpu_scene_translation_arr, gpu_scene_yaw_cos_arr, gpu_scene_yaw_sin_arr);
                 CUDA_CHECK("make_cameras_kernel");
                 T* obs_ptr = rlt::data(gpu_all_observations) + (TI)(step_i * N_ENVIRONMENTS) * OBSERVATION_DIM;
@@ -1769,11 +1757,8 @@ int main(int argc, char** argv){
                 }
                 // Target frame rendering (second pass)
                 imitation_kernels::make_target_cameras_kernel<<<grid, block, 0, device_gpu.stream>>>(
-                    tag_device, gpu_target_cameras,
-                    env_parameters[0].fov, cam_aspect,
-                    env_parameters[0].camera_mount.offset_body[0], env_parameters[0].camera_mount.offset_body[1], env_parameters[0].camera_mount.offset_body[2],
-                    env_parameters[0].camera_mount.forward_body[0], env_parameters[0].camera_mount.forward_body[1], env_parameters[0].camera_mount.forward_body[2],
-                    env_parameters[0].camera_mount.up_body[0], env_parameters[0].camera_mount.up_body[1], env_parameters[0].camera_mount.up_body[2],
+                    tag_device, gpu_params_arr, gpu_target_cameras,
+                    cam_aspect,
                     gpu_scene_translation_arr, gpu_scene_yaw_cos_arr, gpu_scene_yaw_sin_arr);
                 CUDA_CHECK("make_target_cameras_kernel");
                 T* target_obs_ptr = rlt::data(gpu_all_target_observations) + (TI)(step_i * N_ENVIRONMENTS) * OBSERVATION_DIM;
@@ -1941,7 +1926,7 @@ int main(int argc, char** argv){
                 }
                 {
                     imitation_kernels::epilogue_kernel<<<grid, block, 0, device_gpu.stream>>>(
-                        tag_device, gpu_dynamics_arr, gpu_params_arr, gpu_states_arr,
+                        tag_device, gpu_envs_arr, gpu_params_arr, gpu_states_arr,
                         gpu_terminated_arr, gpu_episode_step_arr,
                         gpu_episode_return_arr,
                         rlt::data(gpu_teacher_actions_step),
@@ -1966,8 +1951,7 @@ int main(int argc, char** argv){
                         }
                         if(completed_episodes.size() >= TRAJECTORY_MAX_EPISODES) continue;
                         if(!rec.episode_started){
-                            rec.parameters_snapshot = env_parameters[env_i];
-                            rec.parameters_snapshot.dynamics = cpu_params_snapshot_buf[env_i];
+                            rec.parameters_snapshot = cpu_params_snapshot_buf[env_i];
                             rec.episode_started = true;
                         }
                         TrajectoryStep ts;
@@ -2452,7 +2436,7 @@ int main(int argc, char** argv){
             rlt::malloc(device, eval_student);
             rlt::copy(device_gpu, device, student_gpu, eval_student);
             char fov_buf[32];
-            std::snprintf(fov_buf, sizeof(fov_buf), "%.6g", (double)env_parameters[0].fov);
+            std::snprintf(fov_buf, sizeof(fov_buf), "%.6g", (double)envs[0].parameters.fov);
             std::string state_obs_string = rlt::string(device, envs[0].dynamics, ACTOR_STATE_OBS{});
             std::string image_obs_string;
 #ifdef USE_FRAME_STACKING
@@ -2859,7 +2843,7 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, gpu_d_action_train);
     rlt::free(device_gpu, gpu_student_output_train);
     rlt::free(device_gpu, gpu_student_actions_step);
-    cudaFree(gpu_dynamics_arr);
+    cudaFree(gpu_envs_arr);
     cudaFree(gpu_params_arr);
     cudaFree(gpu_states_arr);
     cudaFree(gpu_terminated_arr);

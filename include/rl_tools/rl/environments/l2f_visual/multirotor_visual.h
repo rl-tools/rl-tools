@@ -48,6 +48,11 @@ namespace rl_tools::rl::environments::l2f_visual {
         T up_body[3] = {0, 0, 1};
     };
 
+    template <typename T>
+    struct CameraRandomization {
+        T fov_range = 0;
+    };
+
     template <typename T_SPEC>
     struct Parameters {
         using SPEC = T_SPEC;
@@ -58,6 +63,7 @@ namespace rl_tools::rl::environments::l2f_visual {
         SceneHash scene_hash;
         CameraMount<T> camera_mount;
         T fov = 1.1132;
+        CameraRandomization<T> camera_randomization;
         T collision_distance_threshold = 0.15;
     };
 
@@ -92,6 +98,7 @@ namespace rl_tools::rl::environments::l2f_visual {
         bool renderer_initialized = false;
 
         DYNAMICS_ENV dynamics;
+        Parameters parameters;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
