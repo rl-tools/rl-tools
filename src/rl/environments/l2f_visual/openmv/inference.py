@@ -401,6 +401,11 @@ STATE_DIM = 3 + 3 + ACTION_HISTORY_LENGTH * ACTION_DIM  # 262
 TICK_US = 10_000                  # 100 Hz period
 DIAG_PRINT_EVERY = 10
 
+UART_BRIDGE_PORT = 4
+UART_BRIDGE_BAUD = 115200
+FRAME_SYNC_BYTE = 0x80
+RX_LINE_MAX = 256
+
 assert num_inputs == N_INPUTS, (num_inputs, N_INPUTS)
 # Build tflite_input_index → keras_input_index mapping from the meta file.
 # keras_input_index 0..(FRAME_STACK_N-1) = frame slots (newest first),
@@ -430,7 +435,7 @@ csi0.pixformat(csi.RGB565)
 csi0.framesize(csi.QVGA)
 _sensor_w, _sensor_h = csi0.width(), csi0.height()
 csi0.framerate(100)
-csi0.auto_exposure(False, exposure_us=4000)
+# csi0.auto_exposure(False, exposure_us=4000)
 for _ in range(10):
     csi0.snapshot()
 assert _sensor_w * IMG_H == _sensor_h * IMG_W, (
@@ -582,6 +587,52 @@ def make_live_feeder(keras_idx):
 
 feeders_live = [make_live_feeder(tflite_to_keras[_ti]) for _ti in range(num_inputs)]
 
+# ---- Offboard UART frame (mirror of crazyflie-firmware uart1_bridge.c) ----
+# Frame: 0x80 sync byte (MSB=1) + 12 data bytes (MSB=0) encoding a 10-byte payload
+# MSB-first at 7 bits per byte. Payload = 4x u16 BE motor PWM + CRC-16-CCITT BE
+# over those 8 bytes (init 0xFFFF, poly 0x1021).
+def _crc16_ccitt(buf, n):
+    crc = 0xFFFF
+    for i in range(n):
+        crc ^= buf[i] << 8
+        for _ in range(8):
+            if crc & 0x8000:
+                crc = ((crc << 1) ^ 0x1021) & 0xFFFF
+            else:
+                crc = (crc << 1) & 0xFFFF
+    return crc
+
+def _pack7(raw, raw_len, out, out_offset):
+    acc = 0
+    nbits = 0
+    w = out_offset
+    for i in range(raw_len):
+        acc = (acc << 8) | raw[i]
+        nbits += 8
+        while nbits >= 7:
+            nbits -= 7
+            out[w] = (acc >> nbits) & 0x7F
+            w += 1
+    if nbits > 0:
+        out[w] = (acc << (7 - nbits)) & 0x7F
+        w += 1
+
+_raw_payload = bytearray(10)
+
+def _build_frame_into(frame13, a0, a1, a2, a3):
+    for idx, a in ((0, a0), (2, a1), (4, a2), (6, a3)):
+        if a < -1.0: a = -1.0
+        elif a > 1.0: a = 1.0
+        pwm = int((a + 1.0) * 32767.5 + 0.5)
+        if pwm < 0: pwm = 0
+        elif pwm > 0xFFFF: pwm = 0xFFFF
+        _raw_payload[idx] = (pwm >> 8) & 0xFF
+        _raw_payload[idx + 1] = pwm & 0xFF
+    crc = _crc16_ccitt(_raw_payload, 8)
+    _raw_payload[8] = (crc >> 8) & 0xFF
+    _raw_payload[9] = crc & 0xFF
+    _pack7(_raw_payload, 10, frame13, 1)
+
 # ---- Main loop ----
 mahony = MahonyFilter()
 last_t = time.ticks_us()
@@ -592,6 +643,12 @@ action_write_ptr = 0
 tick = 0
 reset_button = machine.Pin('SW', machine.Pin.IN, machine.Pin.PULL_UP)
 reset_button_last = reset_button.value()
+
+uart_bridge = machine.UART(UART_BRIDGE_PORT, UART_BRIDGE_BAUD, timeout=0, timeout_char=0)
+frame_tx = bytearray(13)
+frame_tx[0] = FRAME_SYNC_BYTE
+rx_line_buf = bytearray()
+
 print("starting 100Hz policy inference loop")
 
 while True:
@@ -659,6 +716,33 @@ while True:
     a3_raw = float(y_f32[3])
     t_predict = time.ticks_us()
 
+    _build_frame_into(frame_tx, a0_raw, a1_raw, a2_raw, a3_raw)
+    uart_bridge.write(frame_tx)
+    t_tx = time.ticks_us()
+
+    n_avail = uart_bridge.any()
+    if n_avail:
+        chunk = uart_bridge.read(n_avail)
+        if chunk:
+            rx_line_buf.extend(chunk)
+            while True:
+                nl = rx_line_buf.find(b'\n')
+                if nl < 0:
+                    break
+                line = bytes(rx_line_buf[:nl]).rstrip(b'\r')
+                rx_line_buf = rx_line_buf[nl + 1:]
+                if b"[u1br] arm rising edge" in line:
+                    target_captured = False
+                    print("target reset (arm rising edge)")
+                try:
+                    print("[cf]", line.decode('utf-8'))
+                except UnicodeError:
+                    print("[cf-bin]", line)
+            if len(rx_line_buf) > RX_LINE_MAX:
+                print("[cf-overflow]", bytes(rx_line_buf))
+                rx_line_buf = bytearray()
+    t_rx = time.ticks_us()
+
     slot_off = action_write_ptr * ACTION_DIM
     action_ring_q[slot_off]     = _quantize_action_clip(a0_raw)
     action_ring_q[slot_off + 1] = _quantize_action_clip(a1_raw)
@@ -676,14 +760,17 @@ while True:
         frames_us = time.ticks_diff(t_frames, t_downsample)
         state_us = time.ticks_diff(t_state, t_frames)
         predict_us = time.ticks_diff(t_predict, t_state)
-        actions_us = time.ticks_diff(t_actions, t_predict)
+        tx_us = time.ticks_diff(t_tx, t_predict)
+        rx_us = time.ticks_diff(t_rx, t_tx)
+        actions_us = time.ticks_diff(t_actions, t_rx)
         a0 = -1.0 if a0_raw < -1.0 else (1.0 if a0_raw > 1.0 else a0_raw)
         a1 = -1.0 if a1_raw < -1.0 else (1.0 if a1_raw > 1.0 else a1_raw)
         a2 = -1.0 if a2_raw < -1.0 else (1.0 if a2_raw > 1.0 else a2_raw)
         a3 = -1.0 if a3_raw < -1.0 else (1.0 if a3_raw > 1.0 else a3_raw)
-        print("us=%5d imu=%4d mah=%4d cam=%5d ds=%4d frm=%4d st=%4d inf=%4d act=%4d "
+        print("us=%5d imu=%4d mah=%4d cam=%5d ds=%4d frm=%4d st=%4d inf=%4d tx=%4d rx=%4d act=%4d "
               "a=%+5.2f,%+5.2f,%+5.2f,%+5.2f bz=%+5.2f,%+5.2f,%+5.2f av=%+6.2f,%+6.2f,%+6.2f" %
-              (elapsed_us, imu_us, mahony_us, snapshot_us, downsample_us, frames_us, state_us, predict_us, actions_us,
+              (elapsed_us, imu_us, mahony_us, snapshot_us, downsample_us, frames_us, state_us, predict_us,
+               tx_us, rx_us, actions_us,
                a0, a1, a2, a3, body_z[0], body_z[1], body_z[2],
                ang_vel[0], ang_vel[1], ang_vel[2]))
 
