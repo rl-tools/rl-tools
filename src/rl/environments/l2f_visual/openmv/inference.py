@@ -398,7 +398,7 @@ RX_LINE_MAX = 256
 # offset around hover and therefore to ~arm*dF/da N*m of physical torque. With
 # J ~ 1e-5 kg*m^2 and per-motor thrust authority ~0.05 N/unit, Kp=0.3 lands near
 # omega_n ~ 10 rad/s and Kd=0.05 near zeta ~ 0.7 -- a gentle starting point. Tune on bench.
-CLASSIC_KP_ATT = 0.30
+CLASSIC_KP_ATT = 0.10
 CLASSIC_KD_RATE = 0.05
 CLASSIC_HOVER_THROTTLE = 0.45    # BENCH TEST: center actions around 0; keep CF disarmed and
                                 # watch `a=...` in the diag print while tilting by hand to
