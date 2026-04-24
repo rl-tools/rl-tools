@@ -183,6 +183,55 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, OBSERVE_IMAGE) {
     rlt::free(device, env);
 }
 
+TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, SAMPLE_INITIAL_PARAMETERS_INITIALIZES_VISUAL_FIELDS) {
+    DEVICE device;
+    ENV env;
+    rlt::init(device, env.dynamics);
+
+    env.parameters.scene_translation[0] = (T)1;
+    env.parameters.scene_translation[1] = (T)2;
+    env.parameters.scene_translation[2] = (T)3;
+    env.parameters.scene_yaw = (T)0.25;
+    env.parameters.scene_hash.hash[0] = 0xab;
+    env.parameters.camera_mount.offset_body[0] = (T)0.1;
+    env.parameters.camera_mount.offset_body[1] = (T)0.2;
+    env.parameters.camera_mount.offset_body[2] = (T)0.3;
+    env.parameters.camera_mount.forward_body[0] = (T)0;
+    env.parameters.camera_mount.forward_body[1] = (T)1;
+    env.parameters.camera_mount.forward_body[2] = (T)0;
+    env.parameters.fov = (T)1.2;
+    env.parameters.camera_randomization.fov_range = (T)0.1;
+    env.parameters.collision_distance_threshold = (T)0.33;
+
+    ENV::Parameters parameters;
+    parameters.scene_translation[0] = (T)-1;
+    parameters.camera_mount.offset_body[0] = (T)-1;
+    parameters.fov = (T)-1;
+
+    RNG rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 1);
+    rlt::sample_initial_parameters(device, env, parameters, rng);
+
+    EXPECT_FLOAT_EQ(parameters.scene_translation[0], (T)1);
+    EXPECT_FLOAT_EQ(parameters.scene_translation[1], (T)2);
+    EXPECT_FLOAT_EQ(parameters.scene_translation[2], (T)3);
+    EXPECT_FLOAT_EQ(parameters.scene_yaw, (T)0.25);
+    EXPECT_EQ(parameters.scene_hash.hash[0], 0xab);
+    EXPECT_FLOAT_EQ(parameters.camera_mount.offset_body[0], (T)0.1);
+    EXPECT_FLOAT_EQ(parameters.camera_mount.offset_body[1], (T)0.2);
+    EXPECT_FLOAT_EQ(parameters.camera_mount.offset_body[2], (T)0.3);
+    EXPECT_FLOAT_EQ(parameters.camera_mount.forward_body[0], (T)0);
+    EXPECT_FLOAT_EQ(parameters.camera_mount.forward_body[1], (T)1);
+    EXPECT_FLOAT_EQ(parameters.camera_mount.forward_body[2], (T)0);
+    EXPECT_FLOAT_EQ(parameters.camera_randomization.fov_range, (T)0.1);
+    EXPECT_FLOAT_EQ(parameters.collision_distance_threshold, (T)0.33);
+    EXPECT_GE(parameters.fov, (T)1.1);
+    EXPECT_LE(parameters.fov, (T)1.3);
+
+    rlt::free(device, rng);
+}
+
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

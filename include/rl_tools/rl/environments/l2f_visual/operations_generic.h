@@ -20,6 +20,7 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_parameters(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters& parameters, RNG& rng) {
         using T = typename SPEC::T;
+        parameters = env.parameters;
         sample_initial_parameters(device, env.dynamics, parameters.dynamics, rng);
         parameters.fov = env.parameters.fov + env.parameters.camera_randomization.fov_range * random::uniform_real_distribution(device.random, (T)-1, (T)1, rng);
     }
