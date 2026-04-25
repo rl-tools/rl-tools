@@ -78,7 +78,19 @@ def wifi_ap():
         print("status:", ap.status())
     except Exception:
         pass
-    return ip
+    return ap, ip
+
+
+def wifi_down(ap):
+    try: ap.active(False)
+    except Exception as e: print("ap.active(False):", e)
+    try: ap.deinit()
+    except Exception as e: print("ap.deinit():", e)
+    try:
+        import network
+        network.WLAN(network.STA_IF).active(False)
+    except Exception as e: print("sta off:", e)
+    print("wifi down.")
 
 
 # ---------- fs ----------
@@ -389,7 +401,8 @@ def run_inference():
 
 
 if __name__ == "__main__":
-    ip = wifi_ap()
+    ap, ip = wifi_ap()
     serve(ip)
+    wifi_down(ap)
     run_inference()
 
