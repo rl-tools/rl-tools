@@ -7,7 +7,7 @@ import machine
 import micropython
 from ulab import numpy as np
 
-USE_NEURAL_POLICY = False  # False -> classical PD attitude controller (skips NN/camera/state pipeline)
+USE_NEURAL_POLICY = True  # False -> classical PD attitude controller (skips NN/camera/state pipeline)
 
 MODEL_PATH = None  # auto-detected below (prefers Vela-compiled, i.e. non-".int8.tflite")
 INPUT_PATHS = None
