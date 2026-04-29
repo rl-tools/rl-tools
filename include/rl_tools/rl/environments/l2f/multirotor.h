@@ -333,18 +333,18 @@ namespace rl_tools::rl::environments::l2f{
             using SHAPE = tensor::Shape<TI, DIM>;
         };
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
-        struct OrientationBodyZSpecification{
+        struct OrientationWorldZSpecification{
             using T = T_T;
             using TI = T_TI;
             using NEXT_COMPONENT = T_NEXT_COMPONENT;
             static constexpr bool PRIVILEGED = false;
         };
         template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
-        struct OrientationBodyZSpecificationPrivileged: OrientationBodyZSpecification<T_T, T_TI, T_NEXT_COMPONENT>{
+        struct OrientationWorldZSpecificationPrivileged: OrientationWorldZSpecification<T_T, T_TI, T_NEXT_COMPONENT>{
             static constexpr bool PRIVILEGED = true;
         };
         template <typename SPEC>
-        struct OrientationBodyZ{
+        struct OrientationWorldZ{
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;

@@ -338,7 +338,7 @@ def parse_camera_slug(meta_string):
         return None
     # First top-level token (image obs) ends at the first ", " at nesting depth 0.
     # The state slug internally uses dots + parentheses (e.g.
-    # "OrientationBodyZ.ActionHistory(64)") so depth-tracked splitting is robust.
+    # "OrientationWorldZ.ActionHistory(64)") so depth-tracked splitting is robust.
     depth = 0
     image_tok = None
     for i, ch in enumerate(obs):

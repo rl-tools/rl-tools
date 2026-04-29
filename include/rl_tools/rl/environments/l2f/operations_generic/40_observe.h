@@ -105,15 +105,15 @@ namespace rl_tools{
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::OrientationBodyZ<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::OrientationWorldZ<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
-            using OBSERVATION = observation::OrientationBodyZ<OBSERVATION_SPEC>;
+            using OBSERVATION = observation::OrientationWorldZ<OBSERVATION_SPEC>;
             static_assert(OBS_SPEC::COLS >= OBSERVATION::CURRENT_DIM);
             static_assert(OBS_SPEC::ROWS == 1);
             const typename SPEC::T* q = state.orientation;
-            set(observation, 0, 0, (    2*q[1]*q[3] + 2*q[0]*q[2]));
-            set(observation, 0, 1, (    2*q[2]*q[3] - 2*q[0]*q[1]));
+            set(observation, 0, 0, (    2*q[1]*q[3] - 2*q[0]*q[2]));
+            set(observation, 0, 1, (    2*q[2]*q[3] + 2*q[0]*q[1]));
             set(observation, 0, 2, (1 - 2*q[1]*q[1] - 2*q[2]*q[2]));
             if constexpr(!OBSERVATION_SPEC::PRIVILEGED || SPEC::STATIC_PARAMETERS::PRIVILEGED_OBSERVATION_NOISE){
                 for(TI i = 0; i < OBSERVATION::CURRENT_DIM; i++){

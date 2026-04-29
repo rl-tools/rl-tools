@@ -370,11 +370,11 @@ class MahonyFilter:
         # Gravity vector (points down) = -g * "up"
         return -self.g_ref * vx, -self.g_ref * vy, -self.g_ref * vz
 
-    def orientation_body_z(self):
-        # Third column of R(q): body +Z axis expressed in world frame.
-        # Matches l2f obs::OrientationBodyZ — unit vector, no g scaling.
-        x = 2.0 * (self.q1 * self.q3 + self.q0 * self.q2)
-        y = 2.0 * (self.q2 * self.q3 - self.q0 * self.q1)
+    def orientation_world_z(self):
+        # Third row of R(q): world +Z axis expressed in body frame.
+        # Yaw-invariant; matches l2f obs::OrientationWorldZ — unit vector, no g scaling.
+        x = 2.0 * (self.q1 * self.q3 - self.q0 * self.q2)
+        y = 2.0 * (self.q2 * self.q3 + self.q0 * self.q1)
         z = self.q0 * self.q0 - self.q1 * self.q1 - self.q2 * self.q2 + self.q3 * self.q3
         return x, y, z
 
@@ -599,11 +599,11 @@ if USE_NEURAL_POLICY:
                 cur += n_slots
             i += 1
 
-    def build_state_int8(body_z, ang_vel):
-        # Layout: [orientation_body_z(3), angular_velocity(3), action_history newest-first(256)]
-        state_int8[0] = _q_byte(body_z[0], _state_scale, _state_zp)
-        state_int8[1] = _q_byte(body_z[1], _state_scale, _state_zp)
-        state_int8[2] = _q_byte(body_z[2], _state_scale, _state_zp)
+    def build_state_int8(world_z, ang_vel):
+        # Layout: [orientation_world_z(3), angular_velocity(3), action_history newest-first(256)]
+        state_int8[0] = _q_byte(world_z[0], _state_scale, _state_zp)
+        state_int8[1] = _q_byte(world_z[1], _state_scale, _state_zp)
+        state_int8[2] = _q_byte(world_z[2], _state_scale, _state_zp)
         state_int8[3] = _q_byte(ang_vel[0], _state_scale, _state_zp)
         state_int8[4] = _q_byte(ang_vel[1], _state_scale, _state_zp)
         state_int8[5] = _q_byte(ang_vel[2], _state_scale, _state_zp)
@@ -727,7 +727,7 @@ while True:
     )
     t_mahony = time.ticks_us()
 
-    body_z = mahony.orientation_body_z()
+    world_z = mahony.orientation_world_z()
     ang_vel = mahony.angular_velocity_corrected(gx_rad, gy_rad, gz_rad)
 
     if USE_NEURAL_POLICY:
@@ -750,7 +750,7 @@ while True:
             sources_by_keras[_f] = frame_history_q[_slot]
         t_frames = time.ticks_us()
 
-        build_state_int8(body_z, ang_vel)
+        build_state_int8(world_z, ang_vel)
         t_state = time.ticks_us()
 
         y_raw = model.predict(feeders_live)[0]
@@ -822,10 +822,10 @@ while True:
         a2 = -1.0 if a2_raw < -1.0 else (1.0 if a2_raw > 1.0 else a2_raw)
         a3 = -1.0 if a3_raw < -1.0 else (1.0 if a3_raw > 1.0 else a3_raw)
         print("us=%5d imu=%4d mah=%4d cam=%5d ds=%4d frm=%4d st=%4d inf=%4d tx=%4d rx=%4d act=%4d "
-              "a=%+5.2f,%+5.2f,%+5.2f,%+5.2f bz=%+5.2f,%+5.2f,%+5.2f av=%+6.2f,%+6.2f,%+6.2f" %
+              "a=%+5.2f,%+5.2f,%+5.2f,%+5.2f wz=%+5.2f,%+5.2f,%+5.2f av=%+6.2f,%+6.2f,%+6.2f" %
               (elapsed_us, imu_us, mahony_us, snapshot_us, downsample_us, frames_us, state_us, predict_us,
                tx_us, rx_us, actions_us,
-               a0, a1, a2, a3, body_z[0], body_z[1], body_z[2],
+               a0, a1, a2, a3, world_z[0], world_z[1], world_z[2],
                ang_vel[0], ang_vel[1], ang_vel[2]))
 
     if USE_NEURAL_POLICY:
