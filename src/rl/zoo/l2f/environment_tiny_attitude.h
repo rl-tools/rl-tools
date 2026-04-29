@@ -156,7 +156,7 @@ namespace rl_tools::rl::zoo::l2f{
             using STATE_BASE_INNER = StateBase<StateSpecification<T, TI>>;
             using STATE_BASE = StateLinearAcceleration<StateSpecification<T, TI, STATE_BASE_INNER>>;
             using STATE_TYPE = StateTrajectory<StateSpecification<T, TI, StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<StateSpecification<T, TI, STATE_BASE>>>>>>;
-            using OBSERVATION_TYPE = observation::OrientationBodyZ<observation::OrientationBodyZSpecification<T, TI,
+            using OBSERVATION_TYPE = observation::OrientationWorldZ<observation::OrientationWorldZSpecification<T, TI,
                     observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
                             observation::LinearAccelerationBodyFrame<observation::LinearAccelerationBodyFrameSpecification<T, TI,
                                     observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>;
