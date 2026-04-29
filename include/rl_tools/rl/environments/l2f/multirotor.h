@@ -44,6 +44,15 @@ namespace rl_tools::rl::environments::l2f{
             ActionLimit action_limit;
         };
         template <typename T>
+        struct IMU{
+            struct GyroBias{
+                T init_max; // turn-on bias uniform half-range per axis
+                T tau;      // OU correlation time
+                T sigma;    // OU steady-state standard deviation
+            };
+            GyroBias gyro_bias;
+        };
+        template <typename T>
         struct Initialization{
             T guidance;
             T max_position;
@@ -163,6 +172,14 @@ namespace rl_tools::rl::environments::l2f{
         static constexpr typename SPECC::TI N = NEXT_COMPONENT::N;
         using Disturbances = parameters::Disturbances<typename SPECC::T>;
         Disturbances disturbances;
+    };
+
+    template <typename SPECC>
+    struct ParametersIMU: SPECC::NEXT_COMPONENT{
+        using NEXT_COMPONENT = typename SPECC::NEXT_COMPONENT;
+        static constexpr typename SPECC::TI N = NEXT_COMPONENT::N;
+        using IMU = parameters::IMU<typename SPECC::T>;
+        IMU imu;
     };
 
     struct DefaultParametersDomainRandomizationOptions{
@@ -345,6 +362,27 @@ namespace rl_tools::rl::environments::l2f{
         };
         template <typename SPEC>
         struct OrientationWorldZ{
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+            static constexpr bool PRIVILEGED = SPEC::PRIVILEGED;
+            static constexpr TI CURRENT_DIM = 3;
+            static constexpr TI DIM = NEXT_COMPONENT::DIM + CURRENT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
+        };
+        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct OrientationMahonyWorldZSpecification{
+            using T = T_T;
+            using TI = T_TI;
+            using NEXT_COMPONENT = T_NEXT_COMPONENT;
+            static constexpr bool PRIVILEGED = false;
+        };
+        template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT = LastComponent<T_TI>>
+        struct OrientationMahonyWorldZSpecificationPrivileged: OrientationMahonyWorldZSpecification<T_T, T_TI, T_NEXT_COMPONENT>{
+            static constexpr bool PRIVILEGED = true;
+        };
+        template <typename SPEC>
+        struct OrientationMahonyWorldZ{
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
@@ -744,6 +782,45 @@ namespace rl_tools::rl::environments::l2f{
         using TI = typename SPEC::TI;
         using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
         T linear_acceleration[3]; // this is just to save computation when simulating IMU measurements. Wihtout this we would need to recalculate the acceleration in the observation operation. This is not part of the minimal state in the sense that the transition dynamics are independent of the acceleration given the other parts of the state and the action
+    };
+
+    template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
+    struct StateGyroBiasSpecification{
+        using T = T_T;
+        using TI = T_TI;
+        using NEXT_COMPONENT = T_NEXT_COMPONENT;
+    };
+    template <typename T_SPEC>
+    struct StateGyroBias: T_SPEC::NEXT_COMPONENT{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+        static constexpr bool REQUIRES_INTEGRATION = false;
+        static constexpr TI DIM = 3 + NEXT_COMPONENT::DIM;
+        T gyro_bias[3];
+    };
+
+    template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
+    struct StateMahonySpecification{
+        using T = T_T;
+        using TI = T_TI;
+        using NEXT_COMPONENT = T_NEXT_COMPONENT;
+        static constexpr T KP = 1;
+        static constexpr T KI = (T)0.3;
+    };
+    template <typename T_SPEC>
+    struct StateMahony: T_SPEC::NEXT_COMPONENT{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+        static constexpr bool REQUIRES_INTEGRATION = false;
+        static constexpr T KP = SPEC::KP;
+        static constexpr T KI = SPEC::KI;
+        static constexpr TI DIM = 4 + 3 + NEXT_COMPONENT::DIM;
+        T q_estimate[4];
+        T bias_estimate[3];
     };
 
     template <typename T_T, typename T_TI, T_TI T_HISTORY_LENGTH, typename T_NEXT_COMPONENT>

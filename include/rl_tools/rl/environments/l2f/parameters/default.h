@@ -56,7 +56,7 @@ namespace rl_tools::rl::environments::l2f::parameters {
         static constexpr TI TRAJECTORY_DT = 1000000/SIMULATION_FREQUENCY; // in microseconds
 
         using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, EPISODE_STEP_LIMIT_OUTER, REWARD_FUNCTION>;
-        using PARAMETERS_TYPE = ParametersObservationDelay<ParametersObservationDelaySpecification<T, TI, ParametersTrajectory<ParametersTrajectorySpecification<T, TI, TRAJECTORY_LENGTH, TRAJECTORY_DT, ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>>>>>;
+        using PARAMETERS_TYPE = ParametersObservationDelay<ParametersObservationDelaySpecification<T, TI, ParametersTrajectory<ParametersTrajectorySpecification<T, TI, TRAJECTORY_LENGTH, TRAJECTORY_DT, ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, ParametersDisturbances<ParametersSpecification<T, TI, ParametersIMU<ParametersSpecification<T, TI, ParametersBase<PARAMETERS_SPEC>>>>>>>>>>>;
 
         static constexpr auto dynamics = l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
 
@@ -126,6 +126,9 @@ namespace rl_tools::rl::environments::l2f::parameters {
             typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0}, //{0, 0.027 * 9.81 / 3}, // random_force;
             typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0} //{0, 0.027 * 9.81 / 10000} // random_torque;
         };
+        static constexpr typename PARAMETERS_TYPE::IMU imu = {
+            {0, 0, 0} // gyro_bias: init_max, tau, sigma (disabled by default)
+        };
 
         static constexpr typename PARAMETERS_TYPE::Trajectory trajectory = {};
         static constexpr typename PARAMETERS_TYPE::TrajectoryParameters trajectory_parameters = {
@@ -140,10 +143,13 @@ namespace rl_tools::rl::environments::l2f::parameters {
                 {
                     {
                         {
-                            dynamics,
-                            integration,
-                            mdp
-                        }, // Base
+                            {
+                                dynamics,
+                                integration,
+                                mdp
+                            }, // Base
+                            imu
+                        }, // IMU
                         disturbances
                     }, // Disturbances
                     domain_randomization

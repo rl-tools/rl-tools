@@ -12,5 +12,9 @@ if(RL_TOOLS_ENABLE_JSON)
     add_executable(test_rl_environments_l2f_linear_acceleration_history linear_acceleration_history.cpp)
     target_link_libraries(test_rl_environments_l2f_linear_acceleration_history RLtools::RLtools GTest::gtest_main)
     gtest_discover_tests(test_rl_environments_l2f_linear_acceleration_history)
+
+    add_executable(test_rl_environments_l2f_mahony mahony.cpp)
+    target_link_libraries(test_rl_environments_l2f_mahony RLtools::RLtools GTest::gtest_main)
+    gtest_discover_tests(test_rl_environments_l2f_mahony)
 endif()
 

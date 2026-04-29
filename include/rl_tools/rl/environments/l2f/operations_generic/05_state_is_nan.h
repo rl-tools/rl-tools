@@ -77,6 +77,27 @@ namespace rl_tools{
             return nan;
         }
         template<typename DEVICE, typename STATE_SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT static bool _is_nan(DEVICE& device, rl::environments::l2f::StateGyroBias<STATE_SPEC>& state){
+            is_nan(device, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
+            bool nan = false;
+            for(typename DEVICE::index_t i = 0; i < 3; i++){
+                nan = nan || math::is_nan(device.math, state.gyro_bias[i]);
+            }
+            return nan;
+        }
+        template<typename DEVICE, typename STATE_SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT static bool _is_nan(DEVICE& device, rl::environments::l2f::StateMahony<STATE_SPEC>& state){
+            is_nan(device, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
+            bool nan = false;
+            for(typename DEVICE::index_t i = 0; i < 4; i++){
+                nan = nan || math::is_nan(device.math, state.q_estimate[i]);
+            }
+            for(typename DEVICE::index_t i = 0; i < 3; i++){
+                nan = nan || math::is_nan(device.math, state.bias_estimate[i]);
+            }
+            return nan;
+        }
+        template<typename DEVICE, typename STATE_SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT static bool _is_nan(DEVICE& device, rl::environments::l2f::StateLinearAccelerationHistory<STATE_SPEC>& state){
             using STATE = rl::environments::l2f::StateLinearAccelerationHistory<STATE_SPEC>;
             using TI = typename DEVICE::index_t;

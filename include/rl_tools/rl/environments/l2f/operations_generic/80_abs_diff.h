@@ -47,6 +47,14 @@ namespace rl_tools{
         acc += math::abs(device.math, a.action_limit.max - b.action_limit.max);
         return acc;
     }
+    template<typename DEVICE, typename T_A, typename T_B>
+    RL_TOOLS_FUNCTION_PLACEMENT T_A abs_diff(DEVICE& device, const rl::environments::l2f::parameters::IMU<T_A>& a, const rl::environments::l2f::parameters::IMU<T_B>& b) {
+        T_A acc = 0;
+        acc += math::abs(device.math, a.gyro_bias.init_max - b.gyro_bias.init_max);
+        acc += math::abs(device.math, a.gyro_bias.tau - b.gyro_bias.tau);
+        acc += math::abs(device.math, a.gyro_bias.sigma - b.gyro_bias.sigma);
+        return acc;
+    }
     template<typename DEVICE, typename T_T_A, typename T_T_B>
     RL_TOOLS_FUNCTION_PLACEMENT T_T_A abs_diff(DEVICE& device, const rl::environments::l2f::parameters::Integration<T_T_A>& a, const rl::environments::l2f::parameters::Integration<T_T_B>& b) {
         return math::abs(device.math, a.dt - b.dt);
@@ -144,6 +152,14 @@ namespace rl_tools{
         T acc = 0;
         acc += abs_diff(device, static_cast<const typename SPEC_A::NEXT_COMPONENT&>(a), static_cast<const typename SPEC_B::NEXT_COMPONENT&>(b));
         acc += abs_diff(device, a.disturbances, b.disturbances);
+        return acc;
+    }
+    template<typename DEVICE, typename SPEC_A, typename SPEC_B>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::T abs_diff(DEVICE& device, const rl::environments::l2f::ParametersIMU<SPEC_A>& a, const rl::environments::l2f::ParametersIMU<SPEC_B>& b){
+        using T = typename SPEC_A::T;
+        T acc = 0;
+        acc += abs_diff(device, static_cast<const typename SPEC_A::NEXT_COMPONENT&>(a), static_cast<const typename SPEC_B::NEXT_COMPONENT&>(b));
+        acc += abs_diff(device, a.imu, b.imu);
         return acc;
     }
     template<typename DEVICE, typename T_A, typename T_B>
