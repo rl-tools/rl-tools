@@ -99,12 +99,21 @@
 #include "flag/ppo_gru.h"
 #include "acrobot-swingup-v0/sac.h"
 #include "bottleneck-v0/ppo.h"
+// Must precede l2f/sac_tiny.h: that include chain defines the outer
+// rl_tools::reward/log_reward templates in l2f/operations_generic.h, whose
+// qualified call locks the reward_functions::{reward,log_reward,...} overload
+// set at template-definition context. AttitudeSquared overloads must be in the
+// namespace by that point, otherwise they are invisible to instantiation.
+#if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE)
+#include "l2f/reward_attitude.h"
+#endif
 #ifdef RL_TOOLS_EXPERIMENTAL
 #include "l2f/sac_tiny.h"
 // #include "l2f/sac_big.h"
 #else
 #include "l2f/sac_tiny.h"
 #endif
+#include "l2f/sac_tiny_attitude.h"
 #include "l2f/td3.h"
 #include "l2f/ppo.h"
 #include "reacher-v0/ppo.h"
@@ -197,6 +206,10 @@ template <typename BASE>
 using LOOP_EVALUATION_PARAMETER_OVERWRITES = rlt::rl::zoo::acrobot_swingup_v0::sac::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_EVALUATION_PARAMETER_OVERWRITES<BASE>;
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::l2f::sac::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
+template <typename BASE>
+struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{};
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE)
+using LOOP_CORE_CONFIG = rlt::rl::zoo::l2f::sac_attitude::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{};
 #else
@@ -369,6 +382,8 @@ std::string environment = "bottleneck-v0";
 std::string environment = "ant-v4";
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F)
 std::string environment = "l2f";
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE)
+std::string environment = "l2f-attitude";
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_REACHER_V0)
 std::string environment = "reacher-v0";
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_REACHER_VISUAL_V0)
