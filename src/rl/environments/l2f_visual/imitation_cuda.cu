@@ -199,7 +199,7 @@ struct STATIC_PARAMETERS {
 };
 
 // using ACTOR_STATE_OBS = obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::LinearAccelerationBodyFrame<obs::LinearAccelerationBodyFrameSpecification<T, TI>>>>;
-using ACTOR_STATE_OBS = obs::OrientationWorldZ<obs::OrientationWorldZSpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>;
+using ACTOR_STATE_OBS = obs::OrientationWorldZ<obs::OrientationWorldZSpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::LinearAccelerationBodyFrame<obs::LinearAccelerationBodyFrameSpecification<T, TI, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>;
 // using ACTOR_STATE_OBS = STATIC_PARAMETERS::OBSERVATION_TYPE;
 static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM; // 12
 
