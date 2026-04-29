@@ -80,6 +80,11 @@
 
 namespace rlt = rl_tools;
 
+// Uncomment to feed the student CNN all-black visual observations (stacked frames + target).
+// Rendering still runs; only the tensor handed to the policy is zeroed. Use to verify the
+// training pipeline and that the policy can learn attitude control from the state branch alone.
+// #define RL_TOOLS_L2F_VISUAL_IMITATION_BLIND_TRAINING
+
 // =========================================================================
 // Device types
 // =========================================================================
@@ -806,6 +811,9 @@ __global__ void build_frame_stacked_with_target_from_history_kernel(
 ){
     int global_idx = blockIdx.x * blockDim.x + threadIdx.x;
     if(global_idx >= num_envs * combined_obs_dim) return;
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_BLIND_TRAINING
+    combined_out[global_idx] = (T_OUT)0.0f;
+#else
     int sample = global_idx / combined_obs_dim;
     int offset = global_idx % combined_obs_dim;
     int pixel = offset / combined_img_c;
@@ -829,6 +837,7 @@ __global__ void build_frame_stacked_with_target_from_history_kernel(
     } else {
         combined_out[global_idx] = (T_OUT)0.0f;
     }
+#endif
 }
 
 int main(int argc, char** argv){
@@ -1263,6 +1272,9 @@ int main(int argc, char** argv){
     // Training loop
     // =========================================================================
     std::cout << "Starting imitation learning (visual L2F hover, CUDA)" << std::endl;
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_BLIND_TRAINING
+    std::cout << "  [BLIND_TRAINING] enabled - visual observations zeroed at kernel level" << std::endl;
+#endif
     std::cout << "  N_ENVIRONMENTS: " << N_ENVIRONMENTS << std::endl;
     std::cout << "  STEPS_PER_ENV: " << STEPS_PER_ENV << std::endl;
     std::cout << "  BATCH_SIZE: " << BATCH_SIZE << std::endl;
