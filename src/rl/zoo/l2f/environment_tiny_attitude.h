@@ -66,6 +66,10 @@ namespace rl_tools::rl::zoo::l2f{
             p.rotor_thrust_coefficients[1][2] = 0.1302;
             p.rotor_thrust_coefficients[2][2] = 0.1302;
             p.rotor_thrust_coefficients[3][2] = 0.1302;
+            // Recompute hover throttle for the overridden mass + thrust curve
+            // (registry value was for the original curve and mass).
+            // hover_rpm = sqrt(m*g/(4*c2)) with action_limit [0, 1] -> hovering_throttle_relative = hover_rpm
+            p.hovering_throttle_relative = 0.6864;
             return p;
         }();
 
@@ -81,9 +85,9 @@ namespace rl_tools::rl::zoo::l2f{
         };
         static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = {
                 true,  // enabled
-                10,    // position (effectively disabled, state is clamped to STATE_LIMIT_POSITION)
+                10,    // position (now actually fires: state is no longer clamped to 0)
                 1.5707963267948966, // angle (90 deg)
-                20,    // linear velocity (effectively disabled, state is clamped to STATE_LIMIT_VELOCITY)
+                20,    // linear velocity (now actually fires: state is no longer clamped to 0)
                 35,    // angular velocity (safety net)
                 10000, // position integral
                 50000, // orientation integral
@@ -98,6 +102,7 @@ namespace rl_tools::rl::zoo::l2f{
                 02.00, // tilt
                 00.05, // angular_velocity
                 00.05, // action
+                00.50, // linear_velocity — penalize drift; w/o position obs, signals Q to converge to true hover
         };
         static constexpr typename PARAMETERS_TYPE::MDP mdp = {
             init,
@@ -148,17 +153,19 @@ namespace rl_tools::rl::zoo::l2f{
             static constexpr TI ACTION_HISTORY_LENGTH = 2;
             static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT_FACTORY_BASE::EPISODE_STEP_LIMIT_OUTER;
             static constexpr TI CLOSED_FORM = false;
-            using STATE_BASE = StateBase<StateSpecification<T, TI>>;
+            using STATE_BASE_INNER = StateBase<StateSpecification<T, TI>>;
+            using STATE_BASE = StateLinearAcceleration<StateSpecification<T, TI, STATE_BASE_INNER>>;
             using STATE_TYPE = StateTrajectory<StateSpecification<T, TI, StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<StateSpecification<T, TI, STATE_BASE>>>>>>;
             using OBSERVATION_TYPE = observation::OrientationBodyZ<observation::OrientationBodyZSpecification<T, TI,
                     observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
-                            observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>;
+                            observation::LinearAccelerationBodyFrame<observation::LinearAccelerationBodyFrameSpecification<T, TI,
+                                    observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>;
             using OBSERVATION_TYPE_PRIVILEGED = typename ENVIRONMENT_FACTORY_BASE::ENVIRONMENT_STATIC_PARAMETERS::OBSERVATION_TYPE_PRIVILEGED;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
             static constexpr auto PARAMETER_VALUES = nominal_parameters;
-            static constexpr T STATE_LIMIT_POSITION = 0;
-            static constexpr T STATE_LIMIT_VELOCITY = 0;
+            static constexpr T STATE_LIMIT_POSITION = 100000;
+            static constexpr T STATE_LIMIT_VELOCITY = 100000;
             static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
         };
 

@@ -24,7 +24,7 @@ namespace rl_tools::rl::zoo::l2f::sac_attitude{
                 static constexpr T TARGET_ENTROPY = -((T)4);
                 static constexpr TI SEQUENCE_LENGTH = 1;
             };
-            static constexpr TI STEP_LIMIT = 35000;
+            static constexpr TI STEP_LIMIT = 500000;
             static constexpr TI REPLAY_BUFFER_CAP = 10000;
             static constexpr TI ACTOR_NUM_LAYERS = 3;
             static constexpr TI ACTOR_HIDDEN_DIM = 64;
