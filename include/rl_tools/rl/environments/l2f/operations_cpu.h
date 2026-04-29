@@ -53,6 +53,11 @@ namespace rl_tools{
         return std::string(first ? "" : ".") + "OrientationWorldZ" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
     }
     template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::OrientationMahonyWorldZ<OBS_SPEC>& obs, bool first = true){
+        using OBSERVATION = rl::environments::l2f::observation::OrientationMahonyWorldZ<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "OrientationMahonyWorldZ" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
     std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::LinearVelocity<OBS_SPEC>& obs, bool first = true){
         using OBSERVATION = rl::environments::l2f::observation::LinearVelocity<OBS_SPEC>;
         return std::string(first ? "" : ".") + "LinearVelocity" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
@@ -256,6 +261,17 @@ namespace rl_tools{
         json_string += "}"; // closing main JSON
         return json_string;
     }
+    template <typename DEVICE, typename SPEC, typename T>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::parameters::IMU<T>& parameters) {
+        std::string json_string = "{";
+        json_string += "\"gyro_bias\": {";
+        json_string += "\"init_max\": " + std::to_string(parameters.gyro_bias.init_max) + ", ";
+        json_string += "\"tau\": " + std::to_string(parameters.gyro_bias.tau) + ", ";
+        json_string += "\"sigma\": " + std::to_string(parameters.gyro_bias.sigma);
+        json_string += "}";
+        json_string += "}";
+        return json_string;
+    }
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
     std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::parameters::Integration<PARAM_SPEC>& parameters) {
         return std::string("{\"dt\": ") + std::to_string(parameters.dt) + "}";
@@ -368,6 +384,14 @@ namespace rl_tools{
         std::string json_string = top_level ? "{" : "";
         json_string += json(device, env, static_cast<const typename PARAM_SPEC::NEXT_COMPONENT&>(parameters), false);
         json_string += ", \"disturbances\": " + json(device, env, parameters.disturbances);
+        json_string += (top_level ? "}" : "");
+        return json_string;
+    }
+    template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::ParametersIMU<PARAM_SPEC>& parameters, bool top_level=true){
+        std::string json_string = top_level ? "{" : "";
+        json_string += json(device, env, static_cast<const typename PARAM_SPEC::NEXT_COMPONENT&>(parameters), false);
+        json_string += ", \"imu\": " + json(device, env, parameters.imu);
         json_string += (top_level ? "}" : "");
         return json_string;
     }
@@ -508,6 +532,46 @@ namespace rl_tools{
         json_string += "\"linear_acceleration\": [";
         for (TI i = 0; i < 3; i++){
             json_string += std::to_string(state.linear_acceleration[i]);
+            if (i < 2) {
+                json_string += ", ";
+            }
+        }
+        json_string += "]";
+        json_string += top_level ? "}" : "";
+        return json_string;
+    }
+    template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, const rl::environments::l2f::StateGyroBias<STATE_SPEC>& state, bool top_level=true){
+        using TI = typename DEVICE::index_t;
+        std::string json_string = top_level ? "{" : "";
+        json_string += json(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), false) + ", ";
+        json_string += "\"gyro_bias\": [";
+        for (TI i = 0; i < 3; i++){
+            json_string += std::to_string(state.gyro_bias[i]);
+            if (i < 2) {
+                json_string += ", ";
+            }
+        }
+        json_string += "]";
+        json_string += top_level ? "}" : "";
+        return json_string;
+    }
+    template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, const rl::environments::l2f::StateMahony<STATE_SPEC>& state, bool top_level=true){
+        using TI = typename DEVICE::index_t;
+        std::string json_string = top_level ? "{" : "";
+        json_string += json(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), false) + ", ";
+        json_string += "\"q_estimate\": [";
+        for (TI i = 0; i < 4; i++){
+            json_string += std::to_string(state.q_estimate[i]);
+            if (i < 3) {
+                json_string += ", ";
+            }
+        }
+        json_string += "], ";
+        json_string += "\"bias_estimate\": [";
+        for (TI i = 0; i < 3; i++){
+            json_string += std::to_string(state.bias_estimate[i]);
             if (i < 2) {
                 json_string += ", ";
             }
@@ -708,6 +772,13 @@ namespace rl_tools{
         parameters.action_limit.min = json_object["action_limit"]["min"];
         parameters.action_limit.max = json_object["action_limit"]["max"];
     }
+    template <typename DEVICE, typename SPEC, typename T>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::IMU<T>& parameters) {
+        const auto& gb_json = json_object["gyro_bias"];
+        parameters.gyro_bias.init_max = gb_json.value("init_max", (T)0);
+        parameters.gyro_bias.tau = gb_json.value("tau", (T)0);
+        parameters.gyro_bias.sigma = gb_json.value("sigma", (T)0);
+    }
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::Integration<PARAM_SPEC>& parameters) {
         parameters.dt = json_object["dt"];
@@ -787,6 +858,18 @@ namespace rl_tools{
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::ParametersDisturbances<PARAM_SPEC>& parameters){
         from_json(device, env, json_object, static_cast<typename PARAM_SPEC::NEXT_COMPONENT&>(parameters));
         from_json(device, env, json_object["disturbances"], parameters.disturbances);
+    }
+    template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::ParametersIMU<PARAM_SPEC>& parameters){
+        from_json(device, env, json_object, static_cast<typename PARAM_SPEC::NEXT_COMPONENT&>(parameters));
+        if (json_object.contains("imu")){
+            from_json(device, env, json_object["imu"], parameters.imu);
+        }
+        else {
+            parameters.imu.gyro_bias.init_max = 0;
+            parameters.imu.gyro_bias.tau = 0;
+            parameters.imu.gyro_bias.sigma = 0;
+        }
     }
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::DomainRandomization<PARAM_SPEC>& parameters) {
@@ -904,6 +987,25 @@ namespace rl_tools{
         from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
         for (TI i = 0; i < 3; i++){
             state.linear_acceleration[i] = json_object["linear_acceleration"][i];
+        }
+    }
+    template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, nlohmann::json json_object, rl::environments::l2f::StateGyroBias<STATE_SPEC>& state){
+        using TI = typename DEVICE::index_t;
+        from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
+        for (TI i = 0; i < 3; i++){
+            state.gyro_bias[i] = json_object["gyro_bias"][i];
+        }
+    }
+    template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, nlohmann::json json_object, rl::environments::l2f::StateMahony<STATE_SPEC>& state){
+        using TI = typename DEVICE::index_t;
+        from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
+        for (TI i = 0; i < 4; i++){
+            state.q_estimate[i] = json_object["q_estimate"][i];
+        }
+        for (TI i = 0; i < 3; i++){
+            state.bias_estimate[i] = json_object["bias_estimate"][i];
         }
     }
     template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>

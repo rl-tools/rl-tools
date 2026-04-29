@@ -52,6 +52,26 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateGyroBias<STATE_SPEC>& state){
+            using TI = typename DEVICE::index_t;
+            initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
+            for(TI i = 0; i < 3; i++){
+                state.gyro_bias[i] = 0;
+            }
+        }
+        template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateMahony<STATE_SPEC>& state){
+            using TI = typename DEVICE::index_t;
+            initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
+            state.q_estimate[0] = 1;
+            for(TI i = 1; i < 4; i++){
+                state.q_estimate[i] = 0;
+            }
+            for(TI i = 0; i < 3; i++){
+                state.bias_estimate[i] = 0;
+            }
+        }
+        template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateLinearAccelerationHistory<STATE_SPEC>& state){
             using TI = typename DEVICE::index_t;
             using STATE = rl::environments::l2f::StateLinearAccelerationHistory<STATE_SPEC>;
