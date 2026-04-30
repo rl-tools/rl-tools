@@ -68,6 +68,18 @@ namespace rl_tools {
         OptixCameraData *cameras; // device array of all cameras
     };
 
+    struct MotionBlurRayGenData
+    {
+        uint32_t *fb_ptr;
+        owl::vec2i  fb_size;
+        owl::vec2i  cam_size;
+        int    grid_cols;
+        int    num_cameras;
+        OptixTraversableHandle world;
+        OptixCameraData *cameras_open;
+        OptixCameraData *cameras_close;
+    };
+
     /* variables for the miss program */
     struct MissProgData
     {

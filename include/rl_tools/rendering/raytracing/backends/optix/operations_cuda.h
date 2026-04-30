@@ -249,6 +249,9 @@ namespace rl_tools {
         using TI = typename SPEC::TI;
 
         malloc(device, renderer.cameras);
+        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+            malloc(device, renderer.cameras_open);
+        }
         malloc(device, renderer.frame_buffer);
         malloc(device, renderer.collision_results);
 
@@ -281,19 +284,52 @@ namespace rl_tools {
                                                              sizeof(CollisionMissData), collision_miss_vars, -1);
         (void)collision_miss_prog;
 
-        // RGB ray gen
-        OWLVarDecl ray_gen_vars[] = {
-            { "fb_ptr",       OWL_BUFPTR, OWL_OFFSETOF(RayGenData, fb_ptr)},
-            { "fb_size",      OWL_INT2,   OWL_OFFSETOF(RayGenData, fb_size)},
-            { "cam_size",     OWL_INT2,   OWL_OFFSETOF(RayGenData, cam_size)},
-            { "grid_cols",    OWL_INT,    OWL_OFFSETOF(RayGenData, grid_cols)},
-            { "num_cameras",  OWL_INT,    OWL_OFFSETOF(RayGenData, num_cameras)},
-            { "world",       OWL_GROUP,  OWL_OFFSETOF(RayGenData, world)},
-            { "cameras",     OWL_BUFPTR, OWL_OFFSETOF(RayGenData, cameras)},
-            { /* sentinel */ }
-        };
-        OWLRayGen ray_gen = owlRayGenCreate(context, module, "simpleRayGen",
-                                             sizeof(RayGenData), ray_gen_vars, -1);
+        OWLRayGen ray_gen;
+        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+            OWLVarDecl ray_gen_vars[] = {
+                { "fb_ptr",        OWL_BUFPTR, OWL_OFFSETOF(MotionBlurRayGenData, fb_ptr)},
+                { "fb_size",       OWL_INT2,   OWL_OFFSETOF(MotionBlurRayGenData, fb_size)},
+                { "cam_size",      OWL_INT2,   OWL_OFFSETOF(MotionBlurRayGenData, cam_size)},
+                { "grid_cols",     OWL_INT,    OWL_OFFSETOF(MotionBlurRayGenData, grid_cols)},
+                { "num_cameras",   OWL_INT,    OWL_OFFSETOF(MotionBlurRayGenData, num_cameras)},
+                { "world",         OWL_GROUP,  OWL_OFFSETOF(MotionBlurRayGenData, world)},
+                { "cameras_open",  OWL_BUFPTR, OWL_OFFSETOF(MotionBlurRayGenData, cameras_open)},
+                { "cameras_close", OWL_BUFPTR, OWL_OFFSETOF(MotionBlurRayGenData, cameras_close)},
+                { /* sentinel */ }
+            };
+            const char* ray_gen_name = nullptr;
+            if constexpr (SPEC::MOTION_BLUR_SAMPLES == 2) {
+                ray_gen_name = "simpleRayGenMotionBlur2";
+            }
+            else if constexpr (SPEC::MOTION_BLUR_SAMPLES == 4) {
+                ray_gen_name = "simpleRayGenMotionBlur4";
+            }
+            else if constexpr (SPEC::MOTION_BLUR_SAMPLES == 8) {
+                ray_gen_name = "simpleRayGenMotionBlur8";
+            }
+            else if constexpr (SPEC::MOTION_BLUR_SAMPLES == 16) {
+                ray_gen_name = "simpleRayGenMotionBlur16";
+            }
+            else {
+                ray_gen_name = "simpleRayGenMotionBlur32";
+            }
+            ray_gen = owlRayGenCreate(context, module, ray_gen_name,
+                                      sizeof(MotionBlurRayGenData), ray_gen_vars, -1);
+        }
+        else {
+            OWLVarDecl ray_gen_vars[] = {
+                { "fb_ptr",       OWL_BUFPTR, OWL_OFFSETOF(RayGenData, fb_ptr)},
+                { "fb_size",      OWL_INT2,   OWL_OFFSETOF(RayGenData, fb_size)},
+                { "cam_size",     OWL_INT2,   OWL_OFFSETOF(RayGenData, cam_size)},
+                { "grid_cols",    OWL_INT,    OWL_OFFSETOF(RayGenData, grid_cols)},
+                { "num_cameras",  OWL_INT,    OWL_OFFSETOF(RayGenData, num_cameras)},
+                { "world",       OWL_GROUP,  OWL_OFFSETOF(RayGenData, world)},
+                { "cameras",     OWL_BUFPTR, OWL_OFFSETOF(RayGenData, cameras)},
+                { /* sentinel */ }
+            };
+            ray_gen = owlRayGenCreate(context, module, "simpleRayGen",
+                                      sizeof(RayGenData), ray_gen_vars, -1);
+        }
 
         const owl2i fb_size  = {(int)SPEC::FB_WIDTH, (int)SPEC::FB_HEIGHT};
         const owl2i cam_size = {(int)SPEC::CAM_WIDTH, (int)SPEC::CAM_HEIGHT};
@@ -1031,7 +1067,16 @@ namespace rl_tools {
         OWLContext context = (OWLContext)renderer.backend.context;
         OWLBuffer cameras_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(OptixCameraData),
                                                           SPEC::NUM_CAMERAS, data(renderer.cameras));
-        owlRayGenSetBuffer((OWLRayGen)renderer.backend.ray_gen, "cameras", cameras_buffer);
+        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+            OWLBuffer cameras_open_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(OptixCameraData),
+                                                                  SPEC::NUM_CAMERAS, data(renderer.cameras));
+            owlRayGenSetBuffer((OWLRayGen)renderer.backend.ray_gen, "cameras_open", cameras_open_buffer);
+            owlRayGenSetBuffer((OWLRayGen)renderer.backend.ray_gen, "cameras_close", cameras_buffer);
+            renderer.backend.owl_cameras_open_buffer = cameras_open_buffer;
+        }
+        else {
+            owlRayGenSetBuffer((OWLRayGen)renderer.backend.ray_gen, "cameras", cameras_buffer);
+        }
         if(renderer.backend.collision_ray_gen)
             owlRayGenSetBuffer((OWLRayGen)renderer.backend.collision_ray_gen, "cameras", cameras_buffer);
         renderer.backend.owl_cameras_buffer = cameras_buffer;
@@ -1047,12 +1092,47 @@ namespace rl_tools {
 
         if(renderer.backend.owl_cameras_buffer == nullptr){
             renderer.backend.owl_cameras_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(OptixCameraData), SPEC::NUM_CAMERAS, data(cameras));
-            owlRayGenSetBuffer(ray_gen, "cameras", (OWLBuffer)renderer.backend.owl_cameras_buffer);
+            if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+                renderer.backend.owl_cameras_open_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(OptixCameraData), SPEC::NUM_CAMERAS, data(cameras));
+                owlRayGenSetBuffer(ray_gen, "cameras_open", (OWLBuffer)renderer.backend.owl_cameras_open_buffer);
+                owlRayGenSetBuffer(ray_gen, "cameras_close", (OWLBuffer)renderer.backend.owl_cameras_buffer);
+            }
+            else {
+                owlRayGenSetBuffer(ray_gen, "cameras", (OWLBuffer)renderer.backend.owl_cameras_buffer);
+            }
             if(renderer.backend.collision_ray_gen)
                 owlRayGenSetBuffer((OWLRayGen)renderer.backend.collision_ray_gen, "cameras", (OWLBuffer)renderer.backend.owl_cameras_buffer);
         }
         else{
             owlBufferUpload((OWLBuffer)renderer.backend.owl_cameras_buffer, data(cameras), 0, SPEC::NUM_CAMERAS);
+            if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+                owlBufferUpload((OWLBuffer)renderer.backend.owl_cameras_open_buffer, data(cameras), 0, SPEC::NUM_CAMERAS);
+            }
+        }
+    }
+
+    template <typename DEVICE, typename SPEC, typename CAMERAS_OPEN_SPEC, typename CAMERAS_CLOSE_SPEC>
+    void set_motion_blur_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_OPEN_SPEC>& cameras_open, const Tensor<CAMERAS_CLOSE_SPEC>& cameras_close){
+        static_assert(SPEC::ENABLE_MOTION_BLUR, "set_motion_blur_cameras requires a motion-blur renderer specification");
+        static_assert(utils::typing::is_same_v<typename CAMERAS_OPEN_SPEC::T, rendering::raytracing::CameraData<typename SPEC::T>>);
+        static_assert(utils::typing::is_same_v<typename CAMERAS_CLOSE_SPEC::T, rendering::raytracing::CameraData<typename SPEC::T>>);
+        static_assert(get<0>(typename CAMERAS_OPEN_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
+        static_assert(get<0>(typename CAMERAS_CLOSE_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
+
+        OWLContext context = (OWLContext)renderer.backend.context;
+        OWLRayGen ray_gen = (OWLRayGen)renderer.backend.ray_gen;
+
+        if(renderer.backend.owl_cameras_buffer == nullptr){
+            renderer.backend.owl_cameras_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(OptixCameraData), SPEC::NUM_CAMERAS, data(cameras_close));
+            renderer.backend.owl_cameras_open_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(OptixCameraData), SPEC::NUM_CAMERAS, data(cameras_open));
+            owlRayGenSetBuffer(ray_gen, "cameras_open", (OWLBuffer)renderer.backend.owl_cameras_open_buffer);
+            owlRayGenSetBuffer(ray_gen, "cameras_close", (OWLBuffer)renderer.backend.owl_cameras_buffer);
+            if(renderer.backend.collision_ray_gen)
+                owlRayGenSetBuffer((OWLRayGen)renderer.backend.collision_ray_gen, "cameras", (OWLBuffer)renderer.backend.owl_cameras_buffer);
+        }
+        else{
+            owlBufferUpload((OWLBuffer)renderer.backend.owl_cameras_open_buffer, data(cameras_open), 0, SPEC::NUM_CAMERAS);
+            owlBufferUpload((OWLBuffer)renderer.backend.owl_cameras_buffer, data(cameras_close), 0, SPEC::NUM_CAMERAS);
         }
     }
 
@@ -1169,7 +1249,14 @@ namespace rl_tools {
 
         if(renderer.backend.owl_cameras_buffer == nullptr){
             renderer.backend.owl_cameras_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(OptixCameraData), SPEC::NUM_CAMERAS, data(cameras));
-            owlRayGenSetBuffer(ray_gen, "cameras", (OWLBuffer)renderer.backend.owl_cameras_buffer);
+            if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+                renderer.backend.owl_cameras_open_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(OptixCameraData), SPEC::NUM_CAMERAS, data(cameras));
+                owlRayGenSetBuffer(ray_gen, "cameras_open", (OWLBuffer)renderer.backend.owl_cameras_open_buffer);
+                owlRayGenSetBuffer(ray_gen, "cameras_close", (OWLBuffer)renderer.backend.owl_cameras_buffer);
+            }
+            else {
+                owlRayGenSetBuffer(ray_gen, "cameras", (OWLBuffer)renderer.backend.owl_cameras_buffer);
+            }
             if(renderer.backend.collision_ray_gen)
                 owlRayGenSetBuffer((OWLRayGen)renderer.backend.collision_ray_gen, "cameras", (OWLBuffer)renderer.backend.owl_cameras_buffer);
         } else {
@@ -1177,6 +1264,10 @@ namespace rl_tools {
             cudaStream_t stream = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
             void* d_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.owl_cameras_buffer, 0);
             cudaMemcpyAsync(d_ptr, data(cameras), SPEC::NUM_CAMERAS * sizeof(OptixCameraData), cudaMemcpyHostToDevice, stream);
+            if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+                void* d_open_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.owl_cameras_open_buffer, 0);
+                cudaMemcpyAsync(d_open_ptr, data(cameras), SPEC::NUM_CAMERAS * sizeof(OptixCameraData), cudaMemcpyHostToDevice, stream);
+            }
         }
     }
 
@@ -1328,6 +1419,9 @@ namespace rl_tools {
         if(renderer.backend.context) owlContextDestroy((OWLContext)renderer.backend.context);
         renderer.backend.context = nullptr;
         free(device, renderer.cameras);
+        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+            free(device, renderer.cameras_open);
+        }
         free(device, renderer.frame_buffer);
         free(device, renderer.collision_results);
     }
