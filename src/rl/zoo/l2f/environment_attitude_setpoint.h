@@ -66,9 +66,9 @@ namespace rl_tools::rl::zoo::l2f{
         };
         static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = {
                 true,  // enabled
-                200,   // position runaway threshold
+                20000,   // position runaway threshold
                 10,    // attitude threshold, effectively disabled for this target
-                100,   // linear velocity runaway threshold
+                10000,   // linear velocity runaway threshold
                 35,    // angular velocity safety threshold
                 10000, // unused pose-integral guard
                 50000, // unused attitude-integral guard
@@ -82,7 +82,7 @@ namespace rl_tools::rl::zoo::l2f{
                 00.05, // roll/pitch-rate damping
                 01.50, // thrust-g tracking
                 00.05, // action smoothness
-                01.00, // saturation avoidance
+                00.00, // saturation avoidance
         };
         static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noise = {
             0,     // position
@@ -171,7 +171,7 @@ namespace rl_tools::rl::zoo::l2f{
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr TI N_SUBSTEPS = 1;
-            static constexpr TI ACTION_HISTORY_LENGTH = 32;
+            static constexpr TI ACTION_HISTORY_LENGTH = 2;
             static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT_FACTORY_BASE::EPISODE_STEP_LIMIT_OUTER;
             static constexpr TI CLOSED_FORM = false;
             // Innermost-first: physical state, last action, finite-difference acceleration,
