@@ -18,10 +18,14 @@ target_link_libraries(rendering_raytracing_motion_blur
         rendering_raytracing_stb
 )
 
-add_custom_target(rendering_raytracing_motion_blur_mp4
-    COMMAND rendering_raytracing_motion_blur --output raytracing_motion_blur_levels.mp4
-    DEPENDS rendering_raytracing_motion_blur
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+add_executable(rendering_raytracing_antialiasing antialiasing.cpp)
+target_link_libraries(rendering_raytracing_antialiasing
+    PRIVATE
+        RLtools::RLtools
+        owl::owl
+        rendering_raytracing_device_ptx
+        assimp::assimp
+        rendering_raytracing_stb
 )
 
 find_package(glfw3 QUIET)

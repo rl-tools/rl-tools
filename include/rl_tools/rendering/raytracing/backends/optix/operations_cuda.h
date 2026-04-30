@@ -298,7 +298,64 @@ namespace rl_tools {
                 { /* sentinel */ }
             };
             const char* ray_gen_name = nullptr;
-            if constexpr (SPEC::MOTION_BLUR_SAMPLES == 2) {
+            if constexpr (SPEC::ENABLE_ANTI_ALIASING) {
+                if constexpr (SPEC::MOTION_BLUR_SAMPLES == 2) {
+                    if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 2) {
+                        ray_gen_name = "simpleRayGenMotionBlur2AA2";
+                    }
+                    else if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 3) {
+                        ray_gen_name = "simpleRayGenMotionBlur2AA3";
+                    }
+                    else {
+                        ray_gen_name = "simpleRayGenMotionBlur2AA4";
+                    }
+                }
+                else if constexpr (SPEC::MOTION_BLUR_SAMPLES == 4) {
+                    if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 2) {
+                        ray_gen_name = "simpleRayGenMotionBlur4AA2";
+                    }
+                    else if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 3) {
+                        ray_gen_name = "simpleRayGenMotionBlur4AA3";
+                    }
+                    else {
+                        ray_gen_name = "simpleRayGenMotionBlur4AA4";
+                    }
+                }
+                else if constexpr (SPEC::MOTION_BLUR_SAMPLES == 8) {
+                    if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 2) {
+                        ray_gen_name = "simpleRayGenMotionBlur8AA2";
+                    }
+                    else if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 3) {
+                        ray_gen_name = "simpleRayGenMotionBlur8AA3";
+                    }
+                    else {
+                        ray_gen_name = "simpleRayGenMotionBlur8AA4";
+                    }
+                }
+                else if constexpr (SPEC::MOTION_BLUR_SAMPLES == 16) {
+                    if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 2) {
+                        ray_gen_name = "simpleRayGenMotionBlur16AA2";
+                    }
+                    else if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 3) {
+                        ray_gen_name = "simpleRayGenMotionBlur16AA3";
+                    }
+                    else {
+                        ray_gen_name = "simpleRayGenMotionBlur16AA4";
+                    }
+                }
+                else {
+                    if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 2) {
+                        ray_gen_name = "simpleRayGenMotionBlur32AA2";
+                    }
+                    else if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 3) {
+                        ray_gen_name = "simpleRayGenMotionBlur32AA3";
+                    }
+                    else {
+                        ray_gen_name = "simpleRayGenMotionBlur32AA4";
+                    }
+                }
+            }
+            else if constexpr (SPEC::MOTION_BLUR_SAMPLES == 2) {
                 ray_gen_name = "simpleRayGenMotionBlur2";
             }
             else if constexpr (SPEC::MOTION_BLUR_SAMPLES == 4) {
@@ -327,7 +384,22 @@ namespace rl_tools {
                 { "cameras",     OWL_BUFPTR, OWL_OFFSETOF(RayGenData, cameras)},
                 { /* sentinel */ }
             };
-            ray_gen = owlRayGenCreate(context, module, "simpleRayGen",
+            const char* ray_gen_name = nullptr;
+            if constexpr (SPEC::ENABLE_ANTI_ALIASING) {
+                if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 2) {
+                    ray_gen_name = "simpleRayGenAA2";
+                }
+                else if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 3) {
+                    ray_gen_name = "simpleRayGenAA3";
+                }
+                else {
+                    ray_gen_name = "simpleRayGenAA4";
+                }
+            }
+            else {
+                ray_gen_name = "simpleRayGen";
+            }
+            ray_gen = owlRayGenCreate(context, module, ray_gen_name,
                                       sizeof(RayGenData), ray_gen_vars, -1);
         }
 
@@ -1219,6 +1291,27 @@ namespace rl_tools {
     void render(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         render_launch(device, renderer);
         render_sync(device, renderer);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void render_collision_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        if(renderer.backend.collision_ray_gen){
+            OWLRayGen collision_ray_gen = (OWLRayGen)renderer.backend.collision_ray_gen;
+            OWLParams coll_lp = (OWLParams)renderer.backend.coll_launch_params;
+            owlAsyncLaunch2D(collision_ray_gen, SPEC::NUM_CAMERAS, SPEC::NUM_PROBES, coll_lp);
+        }
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void render_collision_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        if(renderer.backend.coll_launch_params)
+            owlLaunchSync((OWLParams)renderer.backend.coll_launch_params);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void render_collision_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        render_collision_only_launch(device, renderer);
+        render_collision_only_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>

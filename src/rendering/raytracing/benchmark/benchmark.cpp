@@ -100,8 +100,9 @@ int main(int ac, char** av){
     // Report
     long long total_frames = (long long)num_iterations * SPEC::NUM_CAMERAS;
     long long total_rgb_pixels = (long long)SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT * total_frames;
+    long long total_rgb_rays = total_rgb_pixels * SPEC::RGB_SAMPLES;
     long long total_probe_rays = (long long)num_iterations * SPEC::NUM_CAMERAS * SPEC::NUM_PROBES;
-    long long total_rays = total_rgb_pixels + total_probe_rays;
+    long long total_rays = total_rgb_rays + total_probe_rays;
     double total_mrays = total_rays / 1e6;
 
     RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("=== BENCHMARK RESULTS (RGB + COLLISION, async) ===");
@@ -111,6 +112,7 @@ int main(int ac, char** av){
     RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Batch iterations:    " << num_iterations);
     RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Total frames:        " << total_frames);
     RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Total RGB pixels:    " << total_rgb_pixels);
+    RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  RGB samples/pixel:   " << SPEC::RGB_SAMPLES);
     RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Total probe rays:    " << total_probe_rays);
     RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Wall-clock time:     " << wall_ms << " ms");
     RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Avg per iter:        " << wall_ms / num_iterations << " ms");
