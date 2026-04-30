@@ -55,7 +55,7 @@ int main(int argc, char** argv) {
     rlt::init(device, rng, 0);
 
     rlt::rl::environments::raytracing_example::Environment<SPEC> env;
-    env.scene_path = "ProcTHOR-Test-0-new.glb";
+    env.scene_path = "tests/data/ProcTHOR-Train-1.glb";
 
     using PARAMETERS_SPEC = rlt::tensor::Specification<rlt::rl::environments::raytracing_example::Parameters<SPEC>, TI, rlt::tensor::Shape<TI, NUM_ENVS>>;
     using STATE_SPEC = rlt::tensor::Specification<rlt::rl::environments::raytracing_example::State<SPEC>, TI, rlt::tensor::Shape<TI, NUM_ENVS>>;

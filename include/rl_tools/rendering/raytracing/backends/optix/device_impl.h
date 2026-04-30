@@ -12,62 +12,15 @@ namespace rl_tools
 {
   static constexpr int NUM_RAY_TYPES = 2;
 
-  OPTIX_RAYGEN_PROGRAM(simpleRayGen)()
-  {
-    const RayGenData &self = owl::getProgramData<RayGenData>();
-    const owl::vec2i pixel_id = owl::getLaunchIndex();
-
-    // Determine which camera tile this pixel belongs to
-    const int tile_col = pixel_id.x / self.cam_size.x;
-    const int tile_row = pixel_id.y / self.cam_size.y;
-    const int cam_idx  = tile_row * self.grid_cols + tile_col;
-
-    // Pixels in padding tiles (beyond num_cameras) are discarded
-    if (cam_idx >= self.num_cameras)
-      return;
-
-    // Local pixel coordinates within this camera's tile
-    const int local_x = pixel_id.x - tile_col * self.cam_size.x;
-    const int local_y = pixel_id.y - tile_row * self.cam_size.y;
-    const owl::vec2f screen = (owl::vec2f(local_x, local_y) + owl::vec2f(.5f)) / owl::vec2f(self.cam_size);
-
-    const OptixCameraData &cam = self.cameras[cam_idx];
-    owl::Ray ray;
-    ray.origin    = cam.pos;
-    ray.direction = normalize(cam.dir_00
-                              + screen.u * cam.dir_du
-                              + screen.v * cam.dir_dv);
-
-    owl::vec3f color;
-    unsigned int p0 = 0, p1 = 0;
-    owl::packPointer(&color, p0, p1);
-    unsigned int p2 = 0;
-    optixTrace(self.world,
-               (const float3&)ray.origin,
-               (const float3&)ray.direction,
-               ray.tmin,
-               ray.tmax,
-               0.0f,
-               OptixVisibilityMask(255),
-               OPTIX_RAY_FLAG_DISABLE_ANYHIT,
-               0, NUM_RAY_TYPES, 0,
-               p0, p1, p2);
-
-    // Flat per-camera layout: camera i occupies [i*W*H .. (i+1)*W*H)
-    const int fb_offset = cam_idx * self.cam_size.x * self.cam_size.y
-                    + local_y * self.cam_size.x + local_x;
-    self.fb_ptr[fb_offset] = owl::make_rgba(color);
-  }
-
   inline __device__ owl::vec3f lerp_camera_vec(const owl::vec3f &a, const owl::vec3f &b, float t)
   {
     return (1.f - t) * a + t * b;
   }
 
-  template <int NUM_SAMPLES>
-  inline __device__ void simpleRayGenMotionBlur()
+  template <bool MOTION_BLUR, int NUM_SAMPLES, typename RAYGEN_DATA>
+  inline __device__ void simpleRayGenImpl()
   {
-    const MotionBlurRayGenData &self = owl::getProgramData<MotionBlurRayGenData>();
+    const RAYGEN_DATA &self = owl::getProgramData<RAYGEN_DATA>();
     const owl::vec2i pixel_id = owl::getLaunchIndex();
 
     const int tile_col = pixel_id.x / self.cam_size.x;
@@ -81,17 +34,25 @@ namespace rl_tools
     const int local_y = pixel_id.y - tile_row * self.cam_size.y;
     const owl::vec2f screen = (owl::vec2f(local_x, local_y) + owl::vec2f(.5f)) / owl::vec2f(self.cam_size);
 
-    const OptixCameraData &cam_open = self.cameras_open[cam_idx];
-    const OptixCameraData &cam_close = self.cameras_close[cam_idx];
-
     owl::vec3f accumulated_color(0.f);
     for (int sample_i = 0; sample_i < NUM_SAMPLES; sample_i++) {
-      const float shutter_t = (float(sample_i) + .5f) * (1.f / float(NUM_SAMPLES));
-      const owl::vec3f pos = lerp_camera_vec(cam_open.pos, cam_close.pos, shutter_t);
-      const owl::vec3f dir_00 = lerp_camera_vec(cam_open.dir_00, cam_close.dir_00, shutter_t);
-      const owl::vec3f dir_du = lerp_camera_vec(cam_open.dir_du, cam_close.dir_du, shutter_t);
-      const owl::vec3f dir_dv = lerp_camera_vec(cam_open.dir_dv, cam_close.dir_dv, shutter_t);
-      const owl::vec3f direction = normalize(dir_00 + screen.u * dir_du + screen.v * dir_dv);
+      owl::vec3f pos;
+      owl::vec3f direction;
+      if constexpr (MOTION_BLUR) {
+        const OptixCameraData &cam_open = self.cameras_open[cam_idx];
+        const OptixCameraData &cam_close = self.cameras_close[cam_idx];
+        const float shutter_t = (float(sample_i) + .5f) * (1.f / float(NUM_SAMPLES));
+        const owl::vec3f dir_00 = lerp_camera_vec(cam_open.dir_00, cam_close.dir_00, shutter_t);
+        const owl::vec3f dir_du = lerp_camera_vec(cam_open.dir_du, cam_close.dir_du, shutter_t);
+        const owl::vec3f dir_dv = lerp_camera_vec(cam_open.dir_dv, cam_close.dir_dv, shutter_t);
+        pos = lerp_camera_vec(cam_open.pos, cam_close.pos, shutter_t);
+        direction = normalize(dir_00 + screen.u * dir_du + screen.v * dir_dv);
+      }
+      else {
+        const OptixCameraData &cam = self.cameras[cam_idx];
+        pos = cam.pos;
+        direction = normalize(cam.dir_00 + screen.u * cam.dir_du + screen.v * cam.dir_dv);
+      }
 
       owl::vec3f color;
       unsigned int p0 = 0, p1 = 0;
@@ -101,7 +62,7 @@ namespace rl_tools
                  (const float3&)pos,
                  (const float3&)direction,
                  0.f,
-                 1e20f,
+                 1e30f,
                  0.0f,
                  OptixVisibilityMask(255),
                  OPTIX_RAY_FLAG_DISABLE_ANYHIT,
@@ -116,29 +77,34 @@ namespace rl_tools
     self.fb_ptr[fb_offset] = owl::make_rgba(accumulated_color);
   }
 
+  OPTIX_RAYGEN_PROGRAM(simpleRayGen)()
+  {
+    simpleRayGenImpl<false, 1, RayGenData>();
+  }
+
   OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur2)()
   {
-    simpleRayGenMotionBlur<2>();
+    simpleRayGenImpl<true, 2, MotionBlurRayGenData>();
   }
 
   OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur4)()
   {
-    simpleRayGenMotionBlur<4>();
+    simpleRayGenImpl<true, 4, MotionBlurRayGenData>();
   }
 
   OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur8)()
   {
-    simpleRayGenMotionBlur<8>();
+    simpleRayGenImpl<true, 8, MotionBlurRayGenData>();
   }
 
   OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur16)()
   {
-    simpleRayGenMotionBlur<16>();
+    simpleRayGenImpl<true, 16, MotionBlurRayGenData>();
   }
 
   OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur32)()
   {
-    simpleRayGenMotionBlur<32>();
+    simpleRayGenImpl<true, 32, MotionBlurRayGenData>();
   }
 
   OPTIX_CLOSEST_HIT_PROGRAM(TriangleMesh)()
