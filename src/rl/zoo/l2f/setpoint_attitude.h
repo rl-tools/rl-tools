@@ -97,9 +97,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename OBS_SPEC>
-    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::AttitudeSetpoint<OBS_SPEC>& obs, bool first = true){
-        return std::string(first ? "" : ".") + "AttitudeSetpoint";
-    }
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::AttitudeSetpoint<OBS_SPEC>& obs, bool first = true);
 
     namespace rl::environments::l2f{
         template <typename DEVICE, typename T, typename TI, typename RNG>

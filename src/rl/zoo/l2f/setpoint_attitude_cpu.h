@@ -13,6 +13,12 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+    template <typename DEVICE, typename SPEC, typename OBS_SPEC>
+    std::string string(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::observation::AttitudeSetpoint<OBS_SPEC>& obs, bool first){
+        using OBSERVATION = rl::environments::l2f::observation::AttitudeSetpoint<OBS_SPEC>;
+        return std::string(first ? "" : ".") + "AttitudeSetpoint" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
+    }
+
     template <typename DEVICE, typename T, typename TI>
     std::string json(DEVICE& device, const rl::environments::l2f::parameters::AttitudeSetpointSampling<T, TI>& sampling){
         std::string json_string = "{";
