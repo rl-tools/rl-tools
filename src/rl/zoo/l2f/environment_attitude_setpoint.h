@@ -76,7 +76,7 @@ namespace rl_tools::rl::zoo::l2f{
         static constexpr REWARD_FUNCTION reward_function = {
                 false, // allow negative rewards
                 01.00, // global cost scale
-                02.00, // alive/tracking offset
+                03.00, // alive/tracking offset
                 04.00, // tilt tracking
                 00.35, // yaw-rate tracking
                 00.05, // roll/pitch-rate damping
