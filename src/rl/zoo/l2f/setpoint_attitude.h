@@ -126,9 +126,46 @@ namespace rl_tools{
             world_z_body[2] = cos_pitch * cos_roll;
         }
 
+        template <typename DEVICE, typename PARAMETERS>
+        RL_TOOLS_FUNCTION_PLACEMENT void update_hovering_throttle_relative(DEVICE& device, PARAMETERS& parameters){
+            using T = typename PARAMETERS::T;
+            using TI = typename DEVICE::index_t;
+            T c0 = 0;
+            T c1 = 0;
+            T c2 = 0;
+            for(TI rotor_i = 0; rotor_i < PARAMETERS::N; rotor_i++){
+                c0 += parameters.dynamics.rotor_thrust_coefficients[rotor_i][0];
+                c1 += parameters.dynamics.rotor_thrust_coefficients[rotor_i][1];
+                c2 += parameters.dynamics.rotor_thrust_coefficients[rotor_i][2];
+            }
+            T gravity_norm = math::sqrt(device.math,
+                parameters.dynamics.gravity[0] * parameters.dynamics.gravity[0] +
+                parameters.dynamics.gravity[1] * parameters.dynamics.gravity[1] +
+                parameters.dynamics.gravity[2] * parameters.dynamics.gravity[2]
+            );
+            T target_thrust = parameters.dynamics.mass * gravity_norm;
+            T min_action = parameters.dynamics.action_limit.min;
+            T max_action = parameters.dynamics.action_limit.max;
+            T hover_action = (min_action + max_action) / (T)2;
+            T eps = (T)1e-12;
+            if(math::abs(device.math, c2) > eps){
+                T discriminant = c1 * c1 - (T)4 * c2 * (c0 - target_thrust);
+                T sqrt_discriminant = math::sqrt(device.math, math::max(device.math, discriminant, (T)0));
+                T root_a = (-c1 + sqrt_discriminant) / ((T)2 * c2);
+                T root_b = (-c1 - sqrt_discriminant) / ((T)2 * c2);
+                hover_action = (root_a >= min_action && root_a <= max_action) ? root_a : root_b;
+            }
+            else if(math::abs(device.math, c1) > eps){
+                hover_action = (target_thrust - c0) / c1;
+            }
+            hover_action = math::clamp(device.math, hover_action, min_action, max_action);
+            parameters.dynamics.hovering_throttle_relative = (hover_action - min_action) / (max_action - min_action);
+        }
+
         template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_parameters(DEVICE& device, Multirotor<SPEC>& env, ParametersAttitudeSetpoint<PARAMETER_SPEC>& parameters, RNG& rng){
             sample_initial_parameters(device, env, static_cast<typename PARAMETER_SPEC::NEXT_COMPONENT&>(parameters), rng);
+            update_hovering_throttle_relative(device, parameters);
             parameters.attitude_setpoint_sampling = env.parameters.attitude_setpoint_sampling;
         }
 
