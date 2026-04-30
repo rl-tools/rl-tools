@@ -59,6 +59,88 @@ namespace rl_tools
     self.fb_ptr[fb_offset] = owl::make_rgba(color);
   }
 
+  inline __device__ owl::vec3f lerp_camera_vec(const owl::vec3f &a, const owl::vec3f &b, float t)
+  {
+    return (1.f - t) * a + t * b;
+  }
+
+  template <int NUM_SAMPLES>
+  inline __device__ void simpleRayGenMotionBlur()
+  {
+    const MotionBlurRayGenData &self = owl::getProgramData<MotionBlurRayGenData>();
+    const owl::vec2i pixel_id = owl::getLaunchIndex();
+
+    const int tile_col = pixel_id.x / self.cam_size.x;
+    const int tile_row = pixel_id.y / self.cam_size.y;
+    const int cam_idx  = tile_row * self.grid_cols + tile_col;
+
+    if (cam_idx >= self.num_cameras)
+      return;
+
+    const int local_x = pixel_id.x - tile_col * self.cam_size.x;
+    const int local_y = pixel_id.y - tile_row * self.cam_size.y;
+    const owl::vec2f screen = (owl::vec2f(local_x, local_y) + owl::vec2f(.5f)) / owl::vec2f(self.cam_size);
+
+    const OptixCameraData &cam_open = self.cameras_open[cam_idx];
+    const OptixCameraData &cam_close = self.cameras_close[cam_idx];
+
+    owl::vec3f accumulated_color(0.f);
+    for (int sample_i = 0; sample_i < NUM_SAMPLES; sample_i++) {
+      const float shutter_t = (float(sample_i) + .5f) * (1.f / float(NUM_SAMPLES));
+      const owl::vec3f pos = lerp_camera_vec(cam_open.pos, cam_close.pos, shutter_t);
+      const owl::vec3f dir_00 = lerp_camera_vec(cam_open.dir_00, cam_close.dir_00, shutter_t);
+      const owl::vec3f dir_du = lerp_camera_vec(cam_open.dir_du, cam_close.dir_du, shutter_t);
+      const owl::vec3f dir_dv = lerp_camera_vec(cam_open.dir_dv, cam_close.dir_dv, shutter_t);
+      const owl::vec3f direction = normalize(dir_00 + screen.u * dir_du + screen.v * dir_dv);
+
+      owl::vec3f color;
+      unsigned int p0 = 0, p1 = 0;
+      owl::packPointer(&color, p0, p1);
+      unsigned int p2 = 0;
+      optixTrace(self.world,
+                 (const float3&)pos,
+                 (const float3&)direction,
+                 0.f,
+                 1e20f,
+                 0.0f,
+                 OptixVisibilityMask(255),
+                 OPTIX_RAY_FLAG_DISABLE_ANYHIT,
+                 0, NUM_RAY_TYPES, 0,
+                 p0, p1, p2);
+      accumulated_color = accumulated_color + color;
+    }
+    accumulated_color = accumulated_color * (1.f / float(NUM_SAMPLES));
+
+    const int fb_offset = cam_idx * self.cam_size.x * self.cam_size.y
+                    + local_y * self.cam_size.x + local_x;
+    self.fb_ptr[fb_offset] = owl::make_rgba(accumulated_color);
+  }
+
+  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur2)()
+  {
+    simpleRayGenMotionBlur<2>();
+  }
+
+  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur4)()
+  {
+    simpleRayGenMotionBlur<4>();
+  }
+
+  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur8)()
+  {
+    simpleRayGenMotionBlur<8>();
+  }
+
+  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur16)()
+  {
+    simpleRayGenMotionBlur<16>();
+  }
+
+  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur32)()
+  {
+    simpleRayGenMotionBlur<32>();
+  }
+
   OPTIX_CLOSEST_HIT_PROGRAM(TriangleMesh)()
   {
     owl::vec3f &prd = owl::getPRD<owl::vec3f>();

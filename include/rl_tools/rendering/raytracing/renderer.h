@@ -14,7 +14,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     namespace rendering::raytracing{
 
-        template <typename T_T, typename T_TI, T_TI T_CAM_WIDTH, T_TI T_CAM_HEIGHT, T_TI T_NUM_CAMERAS, T_TI T_NUM_PROBES, bool T_HIGH_FIDELITY_SHADING = false>
+        template <typename T_T, typename T_TI, T_TI T_CAM_WIDTH, T_TI T_CAM_HEIGHT, T_TI T_NUM_CAMERAS, T_TI T_NUM_PROBES, bool T_HIGH_FIDELITY_SHADING = false, bool T_ENABLE_MOTION_BLUR = false, T_TI T_MOTION_BLUR_SAMPLES = 1>
         struct Specification{
             using T = T_T;
             using TI = T_TI;
@@ -23,6 +23,10 @@ namespace rl_tools {
             static constexpr TI NUM_CAMERAS = T_NUM_CAMERAS;
             static constexpr TI NUM_PROBES = T_NUM_PROBES;
             static constexpr bool HIGH_FIDELITY_SHADING = T_HIGH_FIDELITY_SHADING;
+            static constexpr TI MOTION_BLUR_SAMPLES = T_MOTION_BLUR_SAMPLES;
+            static constexpr bool ENABLE_MOTION_BLUR = T_ENABLE_MOTION_BLUR && MOTION_BLUR_SAMPLES > 1;
+            static_assert(MOTION_BLUR_SAMPLES >= 1, "MOTION_BLUR_SAMPLES must be at least 1");
+            static_assert(!ENABLE_MOTION_BLUR || MOTION_BLUR_SAMPLES == 2 || MOTION_BLUR_SAMPLES == 4 || MOTION_BLUR_SAMPLES == 8 || MOTION_BLUR_SAMPLES == 16 || MOTION_BLUR_SAMPLES == 32, "MOTION_BLUR_SAMPLES must be one of 2, 4, 8, 16, or 32");
             static constexpr TI GRID_COLS = [](){
                 TI cols = 1;
                 while(cols * cols < NUM_CAMERAS) cols++;
@@ -68,8 +72,16 @@ namespace rl_tools {
             float alpha_cutoff = 0.5f;
         };
 
+        template <typename T_SPEC, bool T_ENABLE_MOTION_BLUR>
+        struct MotionBlurBackendContext {};
+
         template <typename T_SPEC>
-        struct BackendContext{
+        struct MotionBlurBackendContext<T_SPEC, true> {
+            void* owl_cameras_open_buffer = nullptr;
+        };
+
+        template <typename T_SPEC>
+        struct BackendContext: MotionBlurBackendContext<T_SPEC, T_SPEC::ENABLE_MOTION_BLUR>{
             using SPEC = T_SPEC;
             void* context = nullptr;
             void* module = nullptr;
@@ -84,8 +96,20 @@ namespace rl_tools {
             void* coll_launch_params = nullptr;
         };
 
+        template <typename T_SPEC, bool T_ENABLE_MOTION_BLUR>
+        struct MotionBlurRendererStorage {};
+
         template <typename T_SPEC>
-        struct Renderer{
+        struct MotionBlurRendererStorage<T_SPEC, true> {
+            using SPEC = T_SPEC;
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            using CAMERA_TENSOR_SPEC = tensor::Specification<CameraData<T>, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS>, true>;
+            Tensor<CAMERA_TENSOR_SPEC> cameras_open;
+        };
+
+        template <typename T_SPEC>
+        struct Renderer: MotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_MOTION_BLUR>{
             using SPEC = T_SPEC;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
