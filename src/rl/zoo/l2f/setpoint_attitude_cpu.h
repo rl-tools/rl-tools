@@ -19,6 +19,25 @@ namespace rl_tools{
         return std::string(first ? "" : ".") + "AttitudeSetpoint" + rl::environments::l2f::obs_helper::dispatch(device, env, typename OBSERVATION::NEXT_COMPONENT{}, false);
     }
 
+    template <typename DEVICE, typename T_A, typename TI_A, typename T_B, typename TI_B>
+    RL_TOOLS_FUNCTION_PLACEMENT T_A abs_diff(DEVICE& device, const rl::environments::l2f::parameters::AttitudeSetpointSampling<T_A, TI_A>& a, const rl::environments::l2f::parameters::AttitudeSetpointSampling<T_B, TI_B>& b) {
+        T_A acc = 0;
+        acc += math::abs(device.math, a.max_tilt_angle - b.max_tilt_angle);
+        acc += math::abs(device.math, a.max_yaw_rate - b.max_yaw_rate);
+        acc += math::abs(device.math, a.thrust_min_g - b.thrust_min_g);
+        acc += math::abs(device.math, a.thrust_max_g - b.thrust_max_g);
+        acc += math::abs(device.math, (T_A)a.hold_steps_min - (T_A)b.hold_steps_min);
+        acc += math::abs(device.math, (T_A)a.hold_steps_max - (T_A)b.hold_steps_max);
+        return acc;
+    }
+    template <typename DEVICE, typename SPEC_A, typename SPEC_B>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::T abs_diff(DEVICE& device, const rl::environments::l2f::ParametersAttitudeSetpoint<SPEC_A>& a, const rl::environments::l2f::ParametersAttitudeSetpoint<SPEC_B>& b) {
+        typename SPEC_A::T acc = 0;
+        acc += abs_diff(device, static_cast<const typename SPEC_A::NEXT_COMPONENT&>(a), static_cast<const typename SPEC_B::NEXT_COMPONENT&>(b));
+        acc += abs_diff(device, a.attitude_setpoint_sampling, b.attitude_setpoint_sampling);
+        return acc;
+    }
+
     template <typename DEVICE, typename T, typename TI>
     std::string json(DEVICE& device, const rl::environments::l2f::parameters::AttitudeSetpointSampling<T, TI>& sampling){
         std::string json_string = "{";
@@ -66,6 +85,11 @@ namespace rl_tools{
         parameters.attitude_setpoint_sampling.hold_steps_min = s["hold_steps_min"];
         parameters.attitude_setpoint_sampling.hold_steps_max = s["hold_steps_max"];
     }
+    template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, std::string json_string, rl::environments::l2f::ParametersAttitudeSetpoint<PARAM_SPEC>& parameters){
+        nlohmann::json json_object = nlohmann::json::parse(json_string);
+        from_json(device, env, json_object, parameters);
+    }
     template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, nlohmann::json json_object, rl::environments::l2f::StateAttitudeSetpoint<STATE_SPEC>& state){
         from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
@@ -75,6 +99,11 @@ namespace rl_tools{
         state.target_yaw_rate = s["yaw_rate"];
         state.target_thrust_g = s["thrust_g"];
         state.target_steps_remaining = s["steps_remaining"];
+    }
+    template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, std::string json_string, rl::environments::l2f::StateAttitudeSetpoint<STATE_SPEC>& state){
+        nlohmann::json json_object = nlohmann::json::parse(json_string);
+        from_json(device, env, parameters, json_object, state);
     }
 #endif
 }

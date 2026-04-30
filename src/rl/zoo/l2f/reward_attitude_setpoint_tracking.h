@@ -9,6 +9,10 @@
 #include <rl_tools/rl/environments/l2f/quaternion_helper.h>
 #include <rl_tools/utils/generic/typing.h>
 
+#ifdef RL_TOOLS_ENABLE_JSON
+#include <nlohmann/json.hpp>
+#endif
+
 #include <string>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -140,6 +144,21 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+    template <typename DEVICE, typename T_A, typename T_B>
+    RL_TOOLS_FUNCTION_PLACEMENT T_A abs_diff(DEVICE& device, const rl::environments::l2f::parameters::reward_functions::AttitudeSetpointTrackingSquared<T_A>& a, const rl::environments::l2f::parameters::reward_functions::AttitudeSetpointTrackingSquared<T_B>& b) {
+        T_A acc = 0;
+        acc += a.non_negative == b.non_negative ? 0 : 1;
+        acc += math::abs(device.math, a.scale - b.scale);
+        acc += math::abs(device.math, a.constant - b.constant);
+        acc += math::abs(device.math, a.tilt - b.tilt);
+        acc += math::abs(device.math, a.yaw_rate - b.yaw_rate);
+        acc += math::abs(device.math, a.angular_velocity_xy - b.angular_velocity_xy);
+        acc += math::abs(device.math, a.thrust_g - b.thrust_g);
+        acc += math::abs(device.math, a.d_action - b.d_action);
+        acc += math::abs(device.math, a.action_saturation - b.action_saturation);
+        return acc;
+    }
+
     template <typename DEVICE, typename SPEC, typename T>
     std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::parameters::reward_functions::AttitudeSetpointTrackingSquared<T>& parameters){
         std::string json_string = "{";
@@ -155,6 +174,21 @@ namespace rl_tools{
         json_string += "}";
         return json_string;
     }
+
+#ifdef RL_TOOLS_ENABLE_JSON
+    template <typename DEVICE, typename SPEC, typename T>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::reward_functions::AttitudeSetpointTrackingSquared<T>& parameters){
+        parameters.non_negative = json_object["non_negative"];
+        parameters.scale = json_object["scale"];
+        parameters.constant = json_object["constant"];
+        parameters.tilt = json_object["tilt"];
+        parameters.yaw_rate = json_object["yaw_rate"];
+        parameters.angular_velocity_xy = json_object["angular_velocity_xy"];
+        parameters.thrust_g = json_object["thrust_g"];
+        parameters.d_action = json_object["d_action"];
+        parameters.action_saturation = json_object["action_saturation"];
+    }
+#endif
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
