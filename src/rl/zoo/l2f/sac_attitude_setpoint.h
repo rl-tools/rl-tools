@@ -19,7 +19,7 @@ namespace rl_tools::rl::zoo::l2f::sac_attitude_setpoint{
                 static constexpr TI CRITIC_TRAINING_INTERVAL = 1 * TRAINING_INTERVAL;
                 static constexpr TI ACTOR_TRAINING_INTERVAL = 2 * TRAINING_INTERVAL;
                 static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 1 * TRAINING_INTERVAL;
-                static constexpr T GAMMA = 0.98;
+                static constexpr T GAMMA = 0.99;
                 static constexpr bool IGNORE_TERMINATION = false;
                 static constexpr T TARGET_ENTROPY = -((T)2);
                 static constexpr TI SEQUENCE_LENGTH = 1;

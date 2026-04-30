@@ -12,7 +12,8 @@ int8 converter a separate quantization scale per input tensor (critical when
 one branch carries image pixels in [0,1] and another carries state values
 with a wider dynamic range).
 
-Supported layer types: parallel, sequential, conv2d, dense, flatten, standardize.
+Supported layer types: parallel, sequential, mlp, conv2d, dense, flatten,
+standardize, sample_and_squash.
 Supported activations: RELU, IDENTITY, FAST_TANH.
 
 With `--quantize int8`, additionally performs full-integer post-training
@@ -132,6 +133,9 @@ def build_layer(h5_layer, tensor, fq_scales=None):
     name = sanitize_name(h5_layer.name)
     fq = fq_scales.get(name) if fq_scales is not None else None
 
+    if kind == "mlp":
+        return build_mlp(h5_layer, tensor, fq_scales=fq_scales)
+
     if kind == "conv2d":
         out_c = int(attr(h5_layer, "output_channels"))
         in_c = int(attr(h5_layer, "input_channels"))
@@ -229,7 +233,25 @@ def build_layer(h5_layer, tensor, fq_scales=None):
             lambda x, m=mean, p=precision: (x - tf.constant(m)) * tf.constant(p)
         )(tensor)
 
+    if kind == "sample_and_squash":
+        in_dim = int(tensor.shape[-1])
+        if in_dim % 2 != 0:
+            raise ValueError(f"sample_and_squash input dim must be even, got {in_dim}")
+        action_dim = in_dim // 2
+        return tf.keras.layers.Lambda(
+            lambda x, d=action_dim: tf.math.tanh(x[..., :d]),
+            name=name,
+        )(tensor)
+
     raise NotImplementedError(f"unsupported layer type: {kind}")
+
+
+def build_mlp(h5_group, tensor, fq_scales=None):
+    tensor = build_layer(h5_group["input_layer"], tensor, fq_scales=fq_scales)
+    if "hidden_layers" in h5_group:
+        for i in sorted(int(k) for k in h5_group["hidden_layers"].keys()):
+            tensor = build_layer(h5_group["hidden_layers"][str(i)], tensor, fq_scales=fq_scales)
+    return build_layer(h5_group["output_layer"], tensor, fq_scales=fq_scales)
 
 
 def build_sequential(h5_group, tensor, fq_scales=None):
@@ -461,11 +483,14 @@ def build_model(h5_root, fq_scales=None):
             outputs = concat
         return tf.keras.Model(inputs=branch_inputs, outputs=outputs)
 
-    if mtype == "sequential":
+    if mtype in ("sequential", "mlp"):
         example_in_0 = h5_root["example/inputs/0"]
         feature_shape = tuple(int(d) for d in example_in_0.shape[2:])
         inp = tf.keras.Input(shape=feature_shape, dtype=tf.float32, name="in_00")
-        outputs = build_sequential(model_group, inp, fq_scales=fq_scales)
+        if mtype == "sequential":
+            outputs = build_sequential(model_group, inp, fq_scales=fq_scales)
+        else:
+            outputs = build_mlp(model_group, inp, fq_scales=fq_scales)
         return tf.keras.Model(inputs=inp, outputs=outputs)
 
     raise NotImplementedError(f"top-level type {mtype}")
@@ -554,6 +579,14 @@ def split_first_branch_image(per_branch, n_split, channels_per):
 
 def collect_quant_layers(group):
     kind = attr(group, "type")
+    if kind == "mlp":
+        out = []
+        out.extend(collect_quant_layers(group["input_layer"]))
+        if "hidden_layers" in group:
+            for i in sorted(int(k) for k in group["hidden_layers"].keys()):
+                out.extend(collect_quant_layers(group["hidden_layers"][str(i)]))
+        out.extend(collect_quant_layers(group["output_layer"]))
+        return out
     if kind == "sequential":
         out = []
         for i in ordered_layer_indices(group):

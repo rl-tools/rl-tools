@@ -53,11 +53,40 @@ namespace rl_tools::rl::zoo::l2f{
 
         static constexpr auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
         constexpr static auto MODEL_NAME = rl_tools::rl::environments::l2f::parameters::dynamics::registry_name<MODEL>;
-        static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
+        // static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
+        static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = [](){
+            auto p = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
+            p.rotor_time_constants_rising[0] = 0.072;
+            p.rotor_time_constants_rising[1] = 0.072;
+            p.rotor_time_constants_rising[2] = 0.072;
+            p.rotor_time_constants_rising[3] = 0.072;
+            p.rotor_time_constants_falling[0] = 0.072;
+            p.rotor_time_constants_falling[1] = 0.072;
+            p.rotor_time_constants_falling[2] = 0.072;
+            p.rotor_time_constants_falling[3] = 0.072;
+            p.mass = 0.025;
+            p.rotor_thrust_coefficients[0][0] = 0;
+            p.rotor_thrust_coefficients[1][0] = 0;
+            p.rotor_thrust_coefficients[2][0] = 0;
+            p.rotor_thrust_coefficients[3][0] = 0;
+            p.rotor_thrust_coefficients[0][1] = 0;
+            p.rotor_thrust_coefficients[1][1] = 0;
+            p.rotor_thrust_coefficients[2][1] = 0;
+            p.rotor_thrust_coefficients[3][1] = 0;
+            p.rotor_thrust_coefficients[0][2] = 0.1302;
+            p.rotor_thrust_coefficients[1][2] = 0.1302;
+            p.rotor_thrust_coefficients[2][2] = 0.1302;
+            p.rotor_thrust_coefficients[3][2] = 0.1302;
+            // Recompute hover throttle for the overridden mass + thrust curve
+            // (registry value was for the original curve and mass).
+            // hover_rpm = sqrt(m*g/(4*c2)) with action_limit [0, 1] -> hovering_throttle_relative = hover_rpm
+            p.hovering_throttle_relative = 0.6864;
+            return p;
+        }();
         static constexpr typename ParametersBase<PARAMETERS_SPEC>::MDP::Initialization init = {
                 0.0, // guidance probability
                 0,   // max initial position
-                1.5707963267948966 * 60.0/90.0, // max initial attitude error, 60 deg
+                1.5707963267948966 * 20.0/90.0, // max initial attitude error, 60 deg
                 0,   // max initial linear velocity
                 1,   // max initial angular velocity
                 true, // initialize rotor speeds relative to action limits
@@ -76,11 +105,11 @@ namespace rl_tools::rl::zoo::l2f{
         static constexpr REWARD_FUNCTION reward_function = {
                 false, // allow negative rewards
                 01.00, // global cost scale
-                03.00, // alive/tracking offset
+                02.00, // alive/tracking offset
                 04.00, // tilt tracking
-                00.35, // yaw-rate tracking
+                00.50, // yaw-rate tracking
                 00.05, // roll/pitch-rate damping
-                01.50, // thrust-g tracking
+                02.50, // thrust-g tracking
                 00.05, // action smoothness
                 00.00, // saturation avoidance
         };
@@ -171,7 +200,7 @@ namespace rl_tools::rl::zoo::l2f{
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr TI N_SUBSTEPS = 1;
-            static constexpr TI ACTION_HISTORY_LENGTH = 2;
+            static constexpr TI ACTION_HISTORY_LENGTH = 32;
             static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT_FACTORY_BASE::EPISODE_STEP_LIMIT_OUTER;
             static constexpr TI CLOSED_FORM = false;
             // Innermost-first: physical state, last action, finite-difference acceleration,
