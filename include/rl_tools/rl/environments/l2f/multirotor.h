@@ -818,9 +818,9 @@ namespace rl_tools::rl::environments::l2f{
         static constexpr bool REQUIRES_INTEGRATION = false;
         static constexpr T KP = SPEC::KP;
         static constexpr T KI = SPEC::KI;
-        static constexpr TI DIM = 4 + 3 + NEXT_COMPONENT::DIM;
-        T q_estimate[4];
-        T bias_estimate[3];
+        static constexpr TI DIM = 3 + 3 + NEXT_COMPONENT::DIM;
+        T world_z_body_estimate[3];
+        T gyro_bias_tangent[3];
     };
 
     template <typename T_T, typename T_TI, T_TI T_HISTORY_LENGTH, typename T_NEXT_COMPONENT>

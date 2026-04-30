@@ -48,6 +48,12 @@ namespace rl_tools::rl::environments::l2f{
         R[2][1] = 2*q[2]*q[3] + 2*q[0]*q[1];
         R[2][2] = 1 - 2*q[1]*q[1] - 2*q[2]*q[2];
     }
+    template <typename DEVICE, typename T>
+    RL_TOOLS_FUNCTION_PLACEMENT void quaternion_to_world_z_body(const T q[4], T world_z_body[3]) {
+        world_z_body[0] = 2*q[1]*q[3] - 2*q[0]*q[2];
+        world_z_body[1] = 2*q[2]*q[3] + 2*q[0]*q[1];
+        world_z_body[2] = 1 - 2*q[1]*q[1] - 2*q[2]*q[2];
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

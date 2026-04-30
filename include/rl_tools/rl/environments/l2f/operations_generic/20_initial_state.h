@@ -63,12 +63,9 @@ namespace rl_tools{
         RL_TOOLS_FUNCTION_PLACEMENT static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateMahony<STATE_SPEC>& state){
             using TI = typename DEVICE::index_t;
             initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
-            state.q_estimate[0] = 1;
-            for(TI i = 1; i < 4; i++){
-                state.q_estimate[i] = 0;
-            }
+            quaternion_to_world_z_body<DEVICE, typename STATE_SPEC::T>(state.orientation, state.world_z_body_estimate);
             for(TI i = 0; i < 3; i++){
-                state.bias_estimate[i] = 0;
+                state.gyro_bias_tangent[i] = 0;
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>

@@ -17,13 +17,13 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         T termination_penalty;
         T tilt;
         T angular_velocity;
-        T action;
-        T linear_velocity;
+        T d_action;
+        T linear_acceleration;
         struct Components{
             T tilt_cost;
             T angular_vel_cost;
-            T action_cost;
-            T linear_vel_cost;
+            T d_action_cost;
+            T linear_acc_cost;
             T weighted_cost;
             T scaled_weighted_cost;
             T reward;
@@ -44,22 +44,21 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
             state.angular_velocity[0]*state.angular_velocity[0] +
             state.angular_velocity[1]*state.angular_velocity[1] +
             state.angular_velocity[2]*state.angular_velocity[2]);
-        T action_diff_sq = 0;
+        T d_action_sq = 0;
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
-            T action_throttle_relative = (get(action, 0, action_i) + (T)1.0)/(T)2.0;
-            T diff = action_throttle_relative - parameters.dynamics.hovering_throttle_relative;
-            action_diff_sq += diff * diff;
+            T diff = get(action, 0, action_i) - state.last_action[action_i];
+            d_action_sq += diff * diff;
         }
-        components.action_cost = action_diff_sq;
-        components.linear_vel_cost = math::sqrt(device.math,
-            state.linear_velocity[0]*state.linear_velocity[0] +
-            state.linear_velocity[1]*state.linear_velocity[1] +
-            state.linear_velocity[2]*state.linear_velocity[2]);
+        components.d_action_cost = d_action_sq;
+        components.linear_acc_cost = math::sqrt(device.math,
+            next_state.linear_acceleration[0]*next_state.linear_acceleration[0] +
+            next_state.linear_acceleration[1]*next_state.linear_acceleration[1] +
+            next_state.linear_acceleration[2]*next_state.linear_acceleration[2]);
         components.weighted_cost =
               reward_parameters.tilt * components.tilt_cost
             + reward_parameters.angular_velocity * components.angular_vel_cost
-            + reward_parameters.action * components.action_cost
-            + reward_parameters.linear_velocity * components.linear_vel_cost;
+            + reward_parameters.d_action * components.d_action_cost
+            + reward_parameters.linear_acceleration * components.linear_acc_cost;
         components.scaled_weighted_cost = reward_parameters.scale * components.weighted_cost;
         // No termination_penalty branch: this header must be includable before
         // l2f/operations_generic.h declares rl_tools::terminated, so we avoid
@@ -79,14 +78,14 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
     RL_TOOLS_FUNCTION_PLACEMENT void log_reward(DEVICE& device, const Multirotor<SPEC>& env, const PARAMETERS& parameters, const AttitudeSquared<T>& reward_parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, const STATE& next_state, RNG& rng, typename DEVICE::index_t cadence = 1){
         typename AttitudeSquared<T>::Components components;
         reward_components(device, env, parameters, reward_parameters, state, action, next_state, components, rng);
-        add_scalar(device, device.logger, "reward/tilt_cost",        components.tilt_cost,        cadence);
-        add_scalar(device, device.logger, "reward/angular_vel_cost", components.angular_vel_cost, cadence);
-        add_scalar(device, device.logger, "reward/action_cost",      components.action_cost,      cadence);
-        add_scalar(device, device.logger, "reward/linear_vel_cost",  components.linear_vel_cost,  cadence);
-        add_scalar(device, device.logger, "reward_weighted/tilt",        reward_parameters.tilt             * components.tilt_cost,        cadence);
-        add_scalar(device, device.logger, "reward_weighted/angular_vel", reward_parameters.angular_velocity * components.angular_vel_cost, cadence);
-        add_scalar(device, device.logger, "reward_weighted/action",      reward_parameters.action           * components.action_cost,      cadence);
-        add_scalar(device, device.logger, "reward_weighted/linear_vel",  reward_parameters.linear_velocity  * components.linear_vel_cost,  cadence);
+        add_scalar(device, device.logger, "reward/tilt_cost",         components.tilt_cost,         cadence);
+        add_scalar(device, device.logger, "reward/angular_vel_cost",  components.angular_vel_cost,  cadence);
+        add_scalar(device, device.logger, "reward/d_action_cost",     components.d_action_cost,     cadence);
+        add_scalar(device, device.logger, "reward/linear_acc_cost",   components.linear_acc_cost,   cadence);
+        add_scalar(device, device.logger, "reward_weighted/tilt",        reward_parameters.tilt                * components.tilt_cost,        cadence);
+        add_scalar(device, device.logger, "reward_weighted/angular_vel", reward_parameters.angular_velocity    * components.angular_vel_cost, cadence);
+        add_scalar(device, device.logger, "reward_weighted/d_action",    reward_parameters.d_action            * components.d_action_cost,    cadence);
+        add_scalar(device, device.logger, "reward_weighted/linear_acc",  reward_parameters.linear_acceleration * components.linear_acc_cost,  cadence);
         add_scalar(device, device.logger, "reward/weighted_cost",        components.weighted_cost,        cadence);
         add_scalar(device, device.logger, "reward/scaled_weighted_cost", components.scaled_weighted_cost, cadence);
         add_scalar(device, device.logger, "reward/reward",               components.reward,               cadence);
@@ -110,8 +109,8 @@ namespace rl_tools{
         json_string += "\"termination_penalty\": " + std::to_string(parameters.termination_penalty) + ", ";
         json_string += "\"tilt\": " + std::to_string(parameters.tilt) + ", ";
         json_string += "\"angular_velocity\": " + std::to_string(parameters.angular_velocity) + ", ";
-        json_string += "\"action\": " + std::to_string(parameters.action) + ", ";
-        json_string += "\"linear_velocity\": " + std::to_string(parameters.linear_velocity);
+        json_string += "\"d_action\": " + std::to_string(parameters.d_action) + ", ";
+        json_string += "\"linear_acceleration\": " + std::to_string(parameters.linear_acceleration);
         json_string += "}";
         return json_string;
     }

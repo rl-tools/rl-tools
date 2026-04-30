@@ -112,9 +112,11 @@ namespace rl_tools{
             static_assert(OBS_SPEC::COLS >= OBSERVATION::CURRENT_DIM);
             static_assert(OBS_SPEC::ROWS == 1);
             const typename SPEC::T* q = state.orientation;
-            set(observation, 0, 0, (    2*q[1]*q[3] - 2*q[0]*q[2]));
-            set(observation, 0, 1, (    2*q[2]*q[3] + 2*q[0]*q[1]));
-            set(observation, 0, 2, (1 - 2*q[1]*q[1] - 2*q[2]*q[2]));
+            typename SPEC::T world_z_body[3];
+            quaternion_to_world_z_body<DEVICE, typename SPEC::T>(q, world_z_body);
+            for(TI i = 0; i < OBSERVATION::CURRENT_DIM; i++){
+                set(observation, 0, i, world_z_body[i]);
+            }
             if constexpr(!OBSERVATION_SPEC::PRIVILEGED || SPEC::STATIC_PARAMETERS::PRIVILEGED_OBSERVATION_NOISE){
                 for(TI i = 0; i < OBSERVATION::CURRENT_DIM; i++){
                     T noise;
@@ -130,10 +132,9 @@ namespace rl_tools{
             using OBSERVATION = observation::OrientationMahonyWorldZ<OBSERVATION_SPEC>;
             static_assert(OBS_SPEC::COLS >= OBSERVATION::CURRENT_DIM);
             static_assert(OBS_SPEC::ROWS == 1);
-            const typename SPEC::T* q = state.q_estimate;
-            set(observation, 0, 0, (    2*q[1]*q[3] - 2*q[0]*q[2]));
-            set(observation, 0, 1, (    2*q[2]*q[3] + 2*q[0]*q[1]));
-            set(observation, 0, 2, (1 - 2*q[1]*q[1] - 2*q[2]*q[2]));
+            for(typename DEVICE::index_t i = 0; i < OBSERVATION::CURRENT_DIM; i++){
+                set(observation, 0, i, state.world_z_body_estimate[i]);
+            }
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
@@ -608,5 +609,4 @@ namespace rl_tools{
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
-
 
