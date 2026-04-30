@@ -18,12 +18,12 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         bool non_negative;
         T scale;
         T constant;
-        T tilt;
-        T yaw_rate;
-        T angular_velocity_xy;
-        T thrust_g;
-        T d_action;
-        T action_saturation;
+        T tilt;                // reduced-attitude tracking
+        T yaw_rate;            // body z angular-rate tracking
+        T angular_velocity_xy; // roll/pitch-rate damping
+        T thrust_g;            // finite-difference acceleration tracking
+        T d_action;            // motor command smoothness
+        T action_saturation;   // soft penalty near normalized action limits
         struct Components{
             T tilt_cost;
             T yaw_rate_cost;

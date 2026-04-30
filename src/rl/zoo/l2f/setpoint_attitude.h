@@ -21,11 +21,11 @@ namespace rl_tools::rl::environments::l2f{
     namespace parameters{
         template <typename T, typename TI>
         struct AttitudeSetpointSampling{
-            T max_tilt_angle;
-            T max_yaw_rate;
-            T thrust_min_g;
+            T max_tilt_angle; // roll/pitch commands are sampled inside this tilt cone
+            T max_yaw_rate;   // absolute body yaw-rate command limit
+            T thrust_min_g;   // commanded collective acceleration along body z, in g
             T thrust_max_g;
-            TI hold_steps_min;
+            TI hold_steps_min; // command hold duration at the environment control rate
             TI hold_steps_max;
         };
     }
@@ -61,7 +61,7 @@ namespace rl_tools::rl::environments::l2f{
         using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
         static constexpr bool REQUIRES_INTEGRATION = false;
         static constexpr TI DIM = 4 + NEXT_COMPONENT::DIM;
-        T target_roll;
+        T target_roll; // policy-facing command
         T target_pitch;
         T target_yaw_rate;
         T target_thrust_g;
