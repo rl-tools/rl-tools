@@ -561,17 +561,17 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         std::string json_string = top_level ? "{" : "";
         json_string += json(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), false) + ", ";
-        json_string += "\"q_estimate\": [";
-        for (TI i = 0; i < 4; i++){
-            json_string += std::to_string(state.q_estimate[i]);
-            if (i < 3) {
+        json_string += "\"world_z_body_estimate\": [";
+        for (TI i = 0; i < 3; i++){
+            json_string += std::to_string(state.world_z_body_estimate[i]);
+            if (i < 2) {
                 json_string += ", ";
             }
         }
         json_string += "], ";
-        json_string += "\"bias_estimate\": [";
+        json_string += "\"gyro_bias_tangent\": [";
         for (TI i = 0; i < 3; i++){
-            json_string += std::to_string(state.bias_estimate[i]);
+            json_string += std::to_string(state.gyro_bias_tangent[i]);
             if (i < 2) {
                 json_string += ", ";
             }
@@ -1000,12 +1000,50 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, nlohmann::json json_object, rl::environments::l2f::StateMahony<STATE_SPEC>& state){
         using TI = typename DEVICE::index_t;
+        using T = typename STATE_SPEC::T;
         from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
-        for (TI i = 0; i < 4; i++){
-            state.q_estimate[i] = json_object["q_estimate"][i];
+        if(json_object.contains("world_z_body_estimate")){
+            for (TI i = 0; i < 3; i++){
+                state.world_z_body_estimate[i] = json_object["world_z_body_estimate"][i];
+            }
         }
-        for (TI i = 0; i < 3; i++){
-            state.bias_estimate[i] = json_object["bias_estimate"][i];
+        else{
+            T q_estimate[4];
+            for (TI i = 0; i < 4; i++){
+                q_estimate[i] = json_object["q_estimate"][i];
+            }
+            rl::environments::l2f::quaternion_to_world_z_body<DEVICE, T>(q_estimate, state.world_z_body_estimate);
+        }
+        if(json_object.contains("gyro_bias_tangent")){
+            for (TI i = 0; i < 3; i++){
+                state.gyro_bias_tangent[i] = json_object["gyro_bias_tangent"][i];
+            }
+        }
+        else{
+            for (TI i = 0; i < 3; i++){
+                state.gyro_bias_tangent[i] = json_object["bias_estimate"][i];
+            }
+        }
+        T world_z_norm = math::sqrt(device.math,
+            state.world_z_body_estimate[0]*state.world_z_body_estimate[0] +
+            state.world_z_body_estimate[1]*state.world_z_body_estimate[1] +
+            state.world_z_body_estimate[2]*state.world_z_body_estimate[2]);
+        if(world_z_norm > 0){
+            for(TI i = 0; i < 3; i++){
+                state.world_z_body_estimate[i] /= world_z_norm;
+            }
+        }
+        else{
+            state.world_z_body_estimate[0] = 0;
+            state.world_z_body_estimate[1] = 0;
+            state.world_z_body_estimate[2] = 1;
+        }
+        T dot = 0;
+        for(TI i = 0; i < 3; i++){
+            dot += state.gyro_bias_tangent[i] * state.world_z_body_estimate[i];
+        }
+        for(TI i = 0; i < 3; i++){
+            state.gyro_bias_tangent[i] -= dot * state.world_z_body_estimate[i];
         }
     }
     template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>

@@ -13,8 +13,8 @@ namespace rl_tools::rl::zoo::l2f::sac_attitude{
         struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
             struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<TYPE_POLICY, TI>{
                 using T = typename TYPE_POLICY::DEFAULT;
-                static constexpr TI ACTOR_BATCH_SIZE = 32;
-                static constexpr TI CRITIC_BATCH_SIZE = 32;
+                static constexpr TI ACTOR_BATCH_SIZE = 64;
+                static constexpr TI CRITIC_BATCH_SIZE = 64;
                 static constexpr TI TRAINING_INTERVAL = 2;
                 static constexpr TI CRITIC_TRAINING_INTERVAL = 1 * TRAINING_INTERVAL;
                 static constexpr TI ACTOR_TRAINING_INTERVAL = 2 * TRAINING_INTERVAL;
