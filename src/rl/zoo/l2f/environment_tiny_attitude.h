@@ -30,7 +30,7 @@ namespace rl_tools::rl::zoo::l2f{
     template <typename DEVICE, typename TYPE_POLICY, typename TI>
     struct ENVIRONMENT_TINY_ATTITUDE_FACTORY{
         using T = typename TYPE_POLICY::DEFAULT;
-        static constexpr TI SIMULATION_FREQUENCY = 50;
+        static constexpr TI SIMULATION_FREQUENCY = 100;
         static constexpr TI EPISODE_LENGTH_S = 5;
         using ENVIRONMENT_FACTORY_BASE = ENVIRONMENT_FACTORY<DEVICE, TYPE_POLICY, TI, EPISODE_LENGTH_S, SIMULATION_FREQUENCY>;
         using REWARD_FUNCTION = rl_tools::rl::environments::l2f::parameters::reward_functions::AttitudeSquared<T>;
