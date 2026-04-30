@@ -39,6 +39,13 @@ import h5py
 import numpy as np
 import tensorflow as tf
 
+# Keep the Keras mirror on CPU so validation is comparable to RLtools/TFLite
+# float32 inference. NVIDIA GPU matmul may use TF32 and move policy outputs.
+try:
+    tf.config.set_visible_devices([], "GPU")
+except RuntimeError as exc:
+    raise RuntimeError("TensorFlow GPU devices were initialized before they could be disabled") from exc
+
 
 def fast_tanh(x):
     x = tf.clip_by_value(x, -3.0, 3.0)
@@ -1036,6 +1043,9 @@ def main():
     ap.add_argument("input", help="path to .h5 checkpoint")
     ap.add_argument("-o", "--output", help="output .tflite path (default: input with .tflite suffix)")
     ap.add_argument("--tolerance", type=float, default=1e-4, help="max absolute error for float tflite")
+    ap.add_argument("--keras-tolerance", type=float, default=None,
+                    help="optional max absolute error for the intermediate Keras mirror. By default "
+                         "this uses --tolerance.")
     ap.add_argument("--quantize", choices=["none", "int8"], default="none",
                     help="also emit an int8-quantized tflite and fake-quant .quantized.h5")
     ap.add_argument("--quantize-io", choices=["int8", "float32"], default="int8",
@@ -1277,13 +1287,19 @@ def main():
     )
     report(f"  tflite: {y_tflite.reshape(-1)}")
 
-    worst = max(keras_err, tflite_err)
-    if worst > args.tolerance:
-        report(f"FAIL: max error {worst:.6g} > tolerance {args.tolerance:.6g}")
+    keras_tolerance = args.keras_tolerance if args.keras_tolerance is not None else args.tolerance
+    if keras_err > keras_tolerance:
+        report(f"FAIL: Keras max error {keras_err:.6g} > tolerance {keras_tolerance:.6g}")
         print_summary(summary_lines)
-        print(f"FAIL: max error {worst:.6g} > tolerance {args.tolerance:.6g}", file=sys.stderr)
+        print(f"FAIL: Keras max error {keras_err:.6g} > tolerance {keras_tolerance:.6g}", file=sys.stderr)
         return 1
-    report(f"OK: within tolerance {args.tolerance:.6g}")
+    if tflite_err > args.tolerance:
+        report(f"FAIL: TFLite max error {tflite_err:.6g} > tolerance {args.tolerance:.6g}")
+        print_summary(summary_lines)
+        print(f"FAIL: TFLite max error {tflite_err:.6g} > tolerance {args.tolerance:.6g}",
+              file=sys.stderr)
+        return 1
+    report(f"OK: Keras within tolerance {keras_tolerance:.6g}; TFLite within tolerance {args.tolerance:.6g}")
 
     if args.quantize == "none":
         print_summary(summary_lines)
