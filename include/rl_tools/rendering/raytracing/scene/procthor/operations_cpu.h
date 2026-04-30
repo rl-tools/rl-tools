@@ -109,7 +109,7 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
             }
 
             set_cameras(device, renderer, renderer.cameras);
-            render(device, renderer);
+            render_collision_only(device, renderer);
 
             const rendering::raytracing::CollisionResult* probe_results = read_collision_results_raw(device, renderer);
             for (TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++) {
