@@ -67,7 +67,7 @@
 /**/*.sqlite
 /**/*.qdstrm
 /perf.data
-/.venv
+/.venv*
 /**/.ipynb_checkpoints
 /**/*.ipynb
 /**/*.pth
