@@ -67,6 +67,177 @@ namespace rl_tools
         parameters = env.parameters;
         //        parameters = SPEC::STATIC_PARAMETERS::PARAMETER_VALUES;
     }
+    namespace rl::environments::l2f{
+        template<typename STATIC_PARAMETERS, typename = void>
+        struct action_interface{
+            static constexpr parameters::ActionInterface VALUE = parameters::ActionInterface::DIRECT_MOTOR;
+        };
+        template<typename STATIC_PARAMETERS>
+        struct action_interface<STATIC_PARAMETERS, rl_tools::utils::typing::void_t<decltype(STATIC_PARAMETERS::ACTION_INTERFACE)>>{
+            static constexpr parameters::ActionInterface VALUE = STATIC_PARAMETERS::ACTION_INTERFACE;
+        };
+        template<typename DEVICE, typename PARAMETERS, typename T, typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT T rotor_thrust_from_command(DEVICE&, const PARAMETERS& parameters, TI rotor_i, T command){
+            return parameters.dynamics.rotor_thrust_coefficients[rotor_i][0] + parameters.dynamics.rotor_thrust_coefficients[rotor_i][1] * command + parameters.dynamics.rotor_thrust_coefficients[rotor_i][2] * command * command;
+        }
+        template<typename DEVICE, typename PARAMETERS, typename T, typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT T rotor_command_from_thrust(DEVICE& device, const PARAMETERS& parameters, TI rotor_i, T thrust){
+            T min_command = parameters.dynamics.action_limit.min;
+            T max_command = parameters.dynamics.action_limit.max;
+            T min_thrust = rotor_thrust_from_command(device, parameters, rotor_i, min_command);
+            T max_thrust = rotor_thrust_from_command(device, parameters, rotor_i, max_command);
+            if(min_thrust > max_thrust){
+                T temp = min_thrust;
+                min_thrust = max_thrust;
+                max_thrust = temp;
+            }
+            thrust = math::clamp(device.math, thrust, min_thrust, max_thrust);
+            T c0 = parameters.dynamics.rotor_thrust_coefficients[rotor_i][0];
+            T c1 = parameters.dynamics.rotor_thrust_coefficients[rotor_i][1];
+            T c2 = parameters.dynamics.rotor_thrust_coefficients[rotor_i][2];
+            T command = min_command;
+            T eps = (T)1e-12;
+            if(math::abs(device.math, c2) > eps){
+                T discriminant = c1 * c1 - (T)4 * c2 * (c0 - thrust);
+                T sqrt_discriminant = math::sqrt(device.math, math::max(device.math, discriminant, (T)0));
+                T root_a = (-c1 + sqrt_discriminant) / ((T)2 * c2);
+                T root_b = (-c1 - sqrt_discriminant) / ((T)2 * c2);
+                bool root_a_valid = root_a >= min_command && root_a <= max_command;
+                command = root_a_valid ? root_a : root_b;
+            }
+            else if(math::abs(device.math, c1) > eps){
+                command = (thrust - c0) / c1;
+            }
+            return math::clamp(device.math, command, min_command, max_command);
+        }
+        template<typename DEVICE, typename T>
+        RL_TOOLS_FUNCTION_PLACEMENT bool solve_4x4(DEVICE& device, T A[4][4], T b[4], T x[4]){
+            T aug[4][5];
+            for(typename DEVICE::index_t i = 0; i < 4; i++){
+                for(typename DEVICE::index_t j = 0; j < 4; j++){
+                    aug[i][j] = A[i][j];
+                }
+                aug[i][4] = b[i];
+            }
+            for(typename DEVICE::index_t col = 0; col < 4; col++){
+                typename DEVICE::index_t pivot = col;
+                T pivot_abs = math::abs(device.math, aug[pivot][col]);
+                for(typename DEVICE::index_t row = col + 1; row < 4; row++){
+                    T row_abs = math::abs(device.math, aug[row][col]);
+                    if(row_abs > pivot_abs){
+                        pivot = row;
+                        pivot_abs = row_abs;
+                    }
+                }
+                if(pivot_abs < (T)1e-12){
+                    return false;
+                }
+                if(pivot != col){
+                    for(typename DEVICE::index_t j = col; j < 5; j++){
+                        T temp = aug[col][j];
+                        aug[col][j] = aug[pivot][j];
+                        aug[pivot][j] = temp;
+                    }
+                }
+                T inv_pivot = (T)1 / aug[col][col];
+                for(typename DEVICE::index_t j = col; j < 5; j++){
+                    aug[col][j] *= inv_pivot;
+                }
+                for(typename DEVICE::index_t row = 0; row < 4; row++){
+                    if(row != col){
+                        T factor = aug[row][col];
+                        for(typename DEVICE::index_t j = col; j < 5; j++){
+                            aug[row][j] -= factor * aug[col][j];
+                        }
+                    }
+                }
+            }
+            for(typename DEVICE::index_t i = 0; i < 4; i++){
+                x[i] = aug[i][4];
+            }
+            return true;
+        }
+        template<typename DEVICE, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename RNG>
+        RL_TOOLS_FUNCTION_PLACEMENT void direct_motor_action_to_motor_commands(DEVICE& device, const PARAMETERS& parameters, const STATE&, const Matrix<ACTION_SPEC>& action, typename PARAMETERS::T motor_commands[4], RNG& rng){
+            using T = typename PARAMETERS::T;
+            using TI = typename DEVICE::index_t;
+            for(TI action_i = 0; action_i < 4; action_i++){
+                T half_range = (parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min) / (T)2;
+                T action_noisy = get(action, 0, action_i);
+                action_noisy += random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, parameters.mdp.action_noise.normalized_rpm, rng);
+                action_noisy = math::clamp(device.math, action_noisy, -(T)1, (T)1);
+                motor_commands[action_i] = action_noisy * half_range + parameters.dynamics.action_limit.min + half_range;
+            }
+        }
+        template<typename DEVICE, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename RNG>
+        RL_TOOLS_FUNCTION_PLACEMENT void ctbr_action_to_motor_commands(DEVICE& device, const PARAMETERS& parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, typename PARAMETERS::T motor_commands[4], RNG& rng){
+            using T = typename PARAMETERS::T;
+            using TI = typename DEVICE::index_t;
+            static_assert(PARAMETERS::N == 4);
+            T normalized[4];
+            for(TI action_i = 0; action_i < 4; action_i++){
+                normalized[action_i] = get(action, 0, action_i);
+                normalized[action_i] += random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, parameters.mdp.action_noise.normalized_rpm, rng);
+                normalized[action_i] = math::clamp(device.math, normalized[action_i], -(T)1, (T)1);
+            }
+            T collective = (normalized[0] + (T)1) / (T)2;
+            collective = parameters.ctbr_controller.thrust_min + collective * (parameters.ctbr_controller.thrust_max - parameters.ctbr_controller.thrust_min);
+            collective = math::clamp(device.math, collective, (T)0, (T)1);
+            T collective_command = parameters.dynamics.action_limit.min + collective * (parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min);
+            T total_thrust = 0;
+            for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
+                total_thrust += parameters.dynamics.rotor_thrust_directions[rotor_i][2] * rotor_thrust_from_command(device, parameters, rotor_i, collective_command);
+            }
+            T rate_error[3];
+            T angular_acceleration_measured[3];
+            T desired_angular_acceleration[3];
+            for(TI axis_i = 0; axis_i < 3; axis_i++){
+                T rate_setpoint = normalized[axis_i + 1] * parameters.ctbr_controller.rate_limit[axis_i];
+                rate_error[axis_i] = rate_setpoint - state.angular_velocity[axis_i];
+                angular_acceleration_measured[axis_i] = (state.angular_velocity[axis_i] - state.previous_angular_velocity[axis_i]) / parameters.integration.dt;
+                desired_angular_acceleration[axis_i] = parameters.ctbr_controller.kp[axis_i] * rate_error[axis_i] - parameters.ctbr_controller.kd[axis_i] * angular_acceleration_measured[axis_i];
+            }
+            T torque[3];
+            rl_tools::utils::vector_operations::matrix_vector_product<DEVICE, T, 3, 3>(parameters.dynamics.J, desired_angular_acceleration, torque);
+            for(TI axis_i = 0; axis_i < 3; axis_i++){
+                T limit = parameters.ctbr_controller.torque_limit[axis_i];
+                if(limit > 0){
+                    torque[axis_i] = math::clamp(device.math, torque[axis_i], -limit, limit);
+                }
+            }
+            T A[4][4];
+            for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
+                T thrust_direction[3] = {
+                    parameters.dynamics.rotor_thrust_directions[rotor_i][0],
+                    parameters.dynamics.rotor_thrust_directions[rotor_i][1],
+                    parameters.dynamics.rotor_thrust_directions[rotor_i][2]
+                };
+                T torque_per_thrust[3];
+                torque_per_thrust[0] = parameters.dynamics.rotor_torque_directions[rotor_i][0] * parameters.dynamics.rotor_torque_constants[rotor_i] + parameters.dynamics.rotor_positions[rotor_i][1] * thrust_direction[2] - parameters.dynamics.rotor_positions[rotor_i][2] * thrust_direction[1];
+                torque_per_thrust[1] = parameters.dynamics.rotor_torque_directions[rotor_i][1] * parameters.dynamics.rotor_torque_constants[rotor_i] + parameters.dynamics.rotor_positions[rotor_i][2] * thrust_direction[0] - parameters.dynamics.rotor_positions[rotor_i][0] * thrust_direction[2];
+                torque_per_thrust[2] = parameters.dynamics.rotor_torque_directions[rotor_i][2] * parameters.dynamics.rotor_torque_constants[rotor_i] + parameters.dynamics.rotor_positions[rotor_i][0] * thrust_direction[1] - parameters.dynamics.rotor_positions[rotor_i][1] * thrust_direction[0];
+                A[0][rotor_i] = thrust_direction[2];
+                A[1][rotor_i] = torque_per_thrust[0];
+                A[2][rotor_i] = torque_per_thrust[1];
+                A[3][rotor_i] = torque_per_thrust[2];
+            }
+            T b[4] = {total_thrust, torque[0], torque[1], torque[2]};
+            T rotor_thrusts[4];
+            bool solved = solve_4x4(device, A, b, rotor_thrusts);
+            for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
+                motor_commands[rotor_i] = solved ? rotor_command_from_thrust(device, parameters, rotor_i, rotor_thrusts[rotor_i]) : collective_command;
+            }
+        }
+        template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename RNG>
+        RL_TOOLS_FUNCTION_PLACEMENT void action_to_motor_commands(DEVICE& device, const Multirotor<SPEC>&, const PARAMETERS& parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, typename SPEC::T motor_commands[4], RNG& rng){
+            if constexpr(action_interface<typename SPEC::STATIC_PARAMETERS>::VALUE == rl::environments::l2f::parameters::ActionInterface::CTBR){
+                ctbr_action_to_motor_commands(device, parameters, state, action, motor_commands, rng);
+            }
+            else{
+                direct_motor_action_to_motor_commands(device, parameters, state, action, motor_commands, rng);
+            }
+        }
+    }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, RNG& rng){
         // to allow out of declaration order dispatch
@@ -97,13 +268,7 @@ namespace rl_tools
         static_assert(ACTION_SPEC::COLS == ACTION_DIM);
         T action_scaled[ACTION_DIM];
 
-        for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
-            T half_range = (parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min) / 2;
-            T action_noisy = get(action, 0, action_i);
-            action_noisy += random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, parameters.mdp.action_noise.normalized_rpm, rng);
-            action_noisy = math::clamp(device.math, action_noisy, -(T)1, (T)1);
-            action_scaled[action_i] = action_noisy * half_range + parameters.dynamics.action_limit.min + half_range;
-        }
+        rl::environments::l2f::action_to_motor_commands(device, env, parameters, state, action, action_scaled, rng);
         if constexpr(SPEC::STATIC_PARAMETERS::N_SUBSTEPS == 1){
             utils::integrators::rk4  <DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, rl::environments::l2f::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE>>(device, parameters, state, action_scaled, parameters.integration.dt, next_state);
     //        utils::integrators::euler<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, rl::environments::l2f::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE>>(device, parameters, state, action_scaled, parameters.integration.dt, next_state);

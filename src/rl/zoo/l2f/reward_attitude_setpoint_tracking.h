@@ -42,6 +42,24 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         };
     };
 
+    template<typename T>
+    struct AttitudeSetpointTrackingCTBRSquared{
+        bool non_negative;
+        T scale;
+        T constant;
+        T tilt;
+        T yaw_rate;
+        T angular_velocity_xy;
+        T thrust_g;
+        T d_action;
+        T action_saturation;
+        T action_reference;
+        T outer_loop_gain;
+        struct Components: AttitudeSetpointTrackingSquared<T>::Components{
+            T action_reference_cost;
+        };
+    };
+
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename T, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void reward_components(DEVICE& device, const Multirotor<SPEC>& env, const PARAMETERS& parameters, const AttitudeSetpointTrackingSquared<T>& reward_parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, const STATE& next_state, typename AttitudeSetpointTrackingSquared<T>::Components& components, RNG& rng){
         using TI = typename DEVICE::index_t;
@@ -114,6 +132,74 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
     }
 
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename T, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void reward_components(DEVICE& device, const Multirotor<SPEC>& env, const PARAMETERS& parameters, const AttitudeSetpointTrackingCTBRSquared<T>& reward_parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, const STATE& next_state, typename AttitudeSetpointTrackingCTBRSquared<T>::Components& components, RNG& rng){
+        using TI = typename DEVICE::index_t;
+        AttitudeSetpointTrackingSquared<T> base_parameters = {
+            reward_parameters.non_negative,
+            reward_parameters.scale,
+            reward_parameters.constant,
+            reward_parameters.tilt,
+            reward_parameters.yaw_rate,
+            reward_parameters.angular_velocity_xy,
+            reward_parameters.thrust_g,
+            reward_parameters.d_action,
+            reward_parameters.action_saturation
+        };
+        typename AttitudeSetpointTrackingSquared<T>::Components base_components;
+        reward_components(device, env, parameters, base_parameters, state, action, next_state, base_components, rng);
+        components.tilt_cost = base_components.tilt_cost;
+        components.yaw_rate_cost = base_components.yaw_rate_cost;
+        components.angular_velocity_xy_cost = base_components.angular_velocity_xy_cost;
+        components.thrust_g_cost = base_components.thrust_g_cost;
+        components.actual_thrust_g = base_components.actual_thrust_g;
+        components.d_action_cost = base_components.d_action_cost;
+        components.action_saturation_cost = base_components.action_saturation_cost;
+        components.weighted_cost = base_components.weighted_cost;
+
+        T target_world_z_body[3];
+        roll_pitch_to_world_z_body(device, state.target_roll, state.target_pitch, target_world_z_body);
+        T current_world_z_body[3] = {
+            state.world_z_body_estimate[0],
+            state.world_z_body_estimate[1],
+            state.world_z_body_estimate[2]
+        };
+        T action_reference[4];
+        T gravity_norm = math::sqrt(device.math,
+            parameters.dynamics.gravity[0] * parameters.dynamics.gravity[0] +
+            parameters.dynamics.gravity[1] * parameters.dynamics.gravity[1] +
+            parameters.dynamics.gravity[2] * parameters.dynamics.gravity[2]
+        );
+        T thrust_per_rotor = state.target_thrust_g * parameters.dynamics.mass * gravity_norm / (T)4;
+        T collective_command = rotor_command_from_thrust(device, parameters, (TI)0, thrust_per_rotor);
+        T collective = (collective_command - parameters.dynamics.action_limit.min) / (parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min);
+        action_reference[0] = math::clamp(device.math, collective * (T)2 - (T)1, (T)-1, (T)1);
+        T error[3] = {
+            target_world_z_body[1] * current_world_z_body[2] - target_world_z_body[2] * current_world_z_body[1],
+            target_world_z_body[2] * current_world_z_body[0] - target_world_z_body[0] * current_world_z_body[2],
+            target_world_z_body[0] * current_world_z_body[1] - target_world_z_body[1] * current_world_z_body[0]
+        };
+        action_reference[1] = math::clamp(device.math, reward_parameters.outer_loop_gain * error[0] / parameters.ctbr_controller.rate_limit[0], (T)-1, (T)1);
+        action_reference[2] = math::clamp(device.math, reward_parameters.outer_loop_gain * error[1] / parameters.ctbr_controller.rate_limit[1], (T)-1, (T)1);
+        action_reference[3] = math::clamp(device.math, state.target_yaw_rate / parameters.ctbr_controller.rate_limit[2], (T)-1, (T)1);
+        components.action_reference_cost = 0;
+        for(TI action_i = 0; action_i < 4; action_i++){
+            T diff = get(action, 0, action_i) - action_reference[action_i];
+            components.action_reference_cost += diff * diff;
+        }
+        components.weighted_cost += reward_parameters.action_reference * components.action_reference_cost;
+        components.scaled_weighted_cost = reward_parameters.scale * components.weighted_cost;
+        components.reward = -components.scaled_weighted_cost + reward_parameters.constant;
+        components.reward = (components.reward > 0 || !reward_parameters.non_negative) ? components.reward : 0;
+    }
+
+    template<typename DEVICE, typename SPEC, typename PARAMETERS, typename ACTION_SPEC, typename STATE, typename T, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::T reward(DEVICE& device, const Multirotor<SPEC>& env, const PARAMETERS& parameters, const AttitudeSetpointTrackingCTBRSquared<T>& reward_parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, const STATE& next_state, RNG& rng){
+        typename AttitudeSetpointTrackingCTBRSquared<T>::Components components;
+        reward_components(device, env, parameters, reward_parameters, state, action, next_state, components, rng);
+        return components.reward;
+    }
+
+    template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename T, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void log_reward(DEVICE& device, const Multirotor<SPEC>& env, const PARAMETERS& parameters, const AttitudeSetpointTrackingSquared<T>& reward_parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, const STATE& next_state, RNG& rng, typename DEVICE::index_t cadence = 1){
         typename AttitudeSetpointTrackingSquared<T>::Components components;
         reward_components(device, env, parameters, reward_parameters, state, action, next_state, components, rng);
@@ -135,9 +221,25 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         add_scalar(device, device.logger, "reward/reward", components.reward, cadence);
     }
 
+    template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename T, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void log_reward(DEVICE& device, const Multirotor<SPEC>& env, const PARAMETERS& parameters, const AttitudeSetpointTrackingCTBRSquared<T>& reward_parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, const STATE& next_state, RNG& rng, typename DEVICE::index_t cadence = 1){
+        typename AttitudeSetpointTrackingCTBRSquared<T>::Components components;
+        reward_components(device, env, parameters, reward_parameters, state, action, next_state, components, rng);
+        add_scalar(device, device.logger, "reward/tilt_cost", components.tilt_cost, cadence);
+        add_scalar(device, device.logger, "reward/yaw_rate_cost", components.yaw_rate_cost, cadence);
+        add_scalar(device, device.logger, "reward/thrust_g_cost", components.thrust_g_cost, cadence);
+        add_scalar(device, device.logger, "reward/action_reference_cost", components.action_reference_cost, cadence);
+        add_scalar(device, device.logger, "reward/weighted_cost", components.weighted_cost, cadence);
+        add_scalar(device, device.logger, "reward/reward", components.reward, cadence);
+    }
+
     template<typename DEVICE, typename T>
     RL_TOOLS_FUNCTION_PLACEMENT constexpr auto name(DEVICE& device, const AttitudeSetpointTrackingSquared<T>& reward_parameters){
         return "attitude_setpoint_tracking_squared";
+    }
+    template<typename DEVICE, typename T>
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto name(DEVICE& device, const AttitudeSetpointTrackingCTBRSquared<T>& reward_parameters){
+        return "attitude_setpoint_tracking_ctbr_squared";
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
@@ -158,6 +260,22 @@ namespace rl_tools{
         acc += math::abs(device.math, a.action_saturation - b.action_saturation);
         return acc;
     }
+    template <typename DEVICE, typename T_A, typename T_B>
+    RL_TOOLS_FUNCTION_PLACEMENT T_A abs_diff(DEVICE& device, const rl::environments::l2f::parameters::reward_functions::AttitudeSetpointTrackingCTBRSquared<T_A>& a, const rl::environments::l2f::parameters::reward_functions::AttitudeSetpointTrackingCTBRSquared<T_B>& b) {
+        T_A acc = 0;
+        acc += a.non_negative == b.non_negative ? 0 : 1;
+        acc += math::abs(device.math, a.scale - b.scale);
+        acc += math::abs(device.math, a.constant - b.constant);
+        acc += math::abs(device.math, a.tilt - b.tilt);
+        acc += math::abs(device.math, a.yaw_rate - b.yaw_rate);
+        acc += math::abs(device.math, a.angular_velocity_xy - b.angular_velocity_xy);
+        acc += math::abs(device.math, a.thrust_g - b.thrust_g);
+        acc += math::abs(device.math, a.d_action - b.d_action);
+        acc += math::abs(device.math, a.action_saturation - b.action_saturation);
+        acc += math::abs(device.math, a.action_reference - b.action_reference);
+        acc += math::abs(device.math, a.outer_loop_gain - b.outer_loop_gain);
+        return acc;
+    }
 
     template <typename DEVICE, typename SPEC, typename T>
     std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::parameters::reward_functions::AttitudeSetpointTrackingSquared<T>& parameters){
@@ -174,6 +292,23 @@ namespace rl_tools{
         json_string += "}";
         return json_string;
     }
+    template <typename DEVICE, typename SPEC, typename T>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::parameters::reward_functions::AttitudeSetpointTrackingCTBRSquared<T>& parameters){
+        std::string json_string = "{";
+        json_string += "\"non_negative\": " + std::string(parameters.non_negative ? "true" : "false") + ", ";
+        json_string += "\"scale\": " + std::to_string(parameters.scale) + ", ";
+        json_string += "\"constant\": " + std::to_string(parameters.constant) + ", ";
+        json_string += "\"tilt\": " + std::to_string(parameters.tilt) + ", ";
+        json_string += "\"yaw_rate\": " + std::to_string(parameters.yaw_rate) + ", ";
+        json_string += "\"angular_velocity_xy\": " + std::to_string(parameters.angular_velocity_xy) + ", ";
+        json_string += "\"thrust_g\": " + std::to_string(parameters.thrust_g) + ", ";
+        json_string += "\"d_action\": " + std::to_string(parameters.d_action) + ", ";
+        json_string += "\"action_saturation\": " + std::to_string(parameters.action_saturation) + ", ";
+        json_string += "\"action_reference\": " + std::to_string(parameters.action_reference) + ", ";
+        json_string += "\"outer_loop_gain\": " + std::to_string(parameters.outer_loop_gain);
+        json_string += "}";
+        return json_string;
+    }
 
 #ifdef RL_TOOLS_ENABLE_JSON
     template <typename DEVICE, typename SPEC, typename T>
@@ -187,6 +322,20 @@ namespace rl_tools{
         parameters.thrust_g = json_object["thrust_g"];
         parameters.d_action = json_object["d_action"];
         parameters.action_saturation = json_object["action_saturation"];
+    }
+    template <typename DEVICE, typename SPEC, typename T>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::reward_functions::AttitudeSetpointTrackingCTBRSquared<T>& parameters){
+        parameters.non_negative = json_object["non_negative"];
+        parameters.scale = json_object["scale"];
+        parameters.constant = json_object["constant"];
+        parameters.tilt = json_object["tilt"];
+        parameters.yaw_rate = json_object["yaw_rate"];
+        parameters.angular_velocity_xy = json_object["angular_velocity_xy"];
+        parameters.thrust_g = json_object["thrust_g"];
+        parameters.d_action = json_object["d_action"];
+        parameters.action_saturation = json_object["action_saturation"];
+        parameters.action_reference = json_object["action_reference"];
+        parameters.outer_loop_gain = json_object["outer_loop_gain"];
     }
 #endif
 }

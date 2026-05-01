@@ -98,6 +98,10 @@ namespace rl_tools::rl::environments::l2f{
         rl_tools::utils::vector_operations::add_accumulate<DEVICE, T, 3>(angular_acceleration, state_change.angular_velocity);
     }
     template<typename DEVICE, typename PARAMETERS, typename STATE_SPEC, typename T>
+    RL_TOOLS_FUNCTION_PLACEMENT void multirotor_dynamics(DEVICE& device, const PARAMETERS& params, const StateCTBRController<STATE_SPEC>& state, const T* action, StateCTBRController<STATE_SPEC>& state_change){
+        multirotor_dynamics(device, params, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state_change));
+    }
+    template<typename DEVICE, typename PARAMETERS, typename STATE_SPEC, typename T>
     RL_TOOLS_FUNCTION_PLACEMENT void multirotor_dynamics(DEVICE& device, const PARAMETERS& params, const StateRotors<STATE_SPEC>& state, const T* action, StateRotors<STATE_SPEC>& state_change) {
         multirotor_dynamics(device, params, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), state.rpm, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state_change));
 
@@ -128,4 +132,3 @@ namespace rl_tools::rl::environments::l2f{
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif
-

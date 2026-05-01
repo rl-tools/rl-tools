@@ -107,7 +107,7 @@
 #if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE)
 #include "l2f/reward_attitude.h"
 #endif
-#if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE_SETPOINT)
+#if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE_SETPOINT) || defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE_SETPOINT_MINIMAL) || defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE_SETPOINT_CTBR)
 #include "l2f/setpoint_attitude.h"
 #include "l2f/reward_attitude_setpoint_tracking.h"
 #endif
@@ -120,6 +120,12 @@
 #include "l2f/sac_tiny_attitude.h"
 #if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE_SETPOINT)
 #include "l2f/sac_attitude_setpoint.h"
+#endif
+#if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE_SETPOINT_MINIMAL)
+#include "l2f/sac_attitude_setpoint_minimal.h"
+#endif
+#if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE_SETPOINT_CTBR)
+#include "l2f/sac_attitude_setpoint_ctbr.h"
 #endif
 #include "l2f/td3.h"
 #include "l2f/ppo.h"
@@ -221,6 +227,14 @@ template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{};
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE_SETPOINT)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::l2f::sac_attitude_setpoint::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
+template <typename BASE>
+struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{};
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE_SETPOINT_MINIMAL)
+using LOOP_CORE_CONFIG = rlt::rl::zoo::l2f::sac_attitude_setpoint_minimal::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
+template <typename BASE>
+struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{};
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE_SETPOINT_CTBR)
+using LOOP_CORE_CONFIG = rlt::rl::zoo::l2f::sac_attitude_setpoint_ctbr::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{};
 #else
@@ -401,6 +415,10 @@ std::string environment = "l2f";
 std::string environment = "l2f-attitude";
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE_SETPOINT)
 std::string environment = "l2f-attitude-setpoint";
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE_SETPOINT_MINIMAL)
+std::string environment = "l2f-attitude-setpoint-minimal";
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE_SETPOINT_CTBR)
+std::string environment = "l2f-attitude-setpoint-ctbr";
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_REACHER_V0)
 std::string environment = "reacher-v0";
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_REACHER_VISUAL_V0)

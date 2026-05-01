@@ -272,6 +272,18 @@ namespace rl_tools{
         json_string += "}";
         return json_string;
     }
+    template <typename DEVICE, typename SPEC, typename T>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::parameters::CTBRController<T>& parameters) {
+        std::string json_string = "{";
+        json_string += "\"thrust_min\": " + std::to_string(parameters.thrust_min) + ", ";
+        json_string += "\"thrust_max\": " + std::to_string(parameters.thrust_max) + ", ";
+        json_string += "\"rate_limit\": [" + std::to_string(parameters.rate_limit[0]) + ", " + std::to_string(parameters.rate_limit[1]) + ", " + std::to_string(parameters.rate_limit[2]) + "], ";
+        json_string += "\"kp\": [" + std::to_string(parameters.kp[0]) + ", " + std::to_string(parameters.kp[1]) + ", " + std::to_string(parameters.kp[2]) + "], ";
+        json_string += "\"kd\": [" + std::to_string(parameters.kd[0]) + ", " + std::to_string(parameters.kd[1]) + ", " + std::to_string(parameters.kd[2]) + "], ";
+        json_string += "\"torque_limit\": [" + std::to_string(parameters.torque_limit[0]) + ", " + std::to_string(parameters.torque_limit[1]) + ", " + std::to_string(parameters.torque_limit[2]) + "]";
+        json_string += "}";
+        return json_string;
+    }
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
     std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::parameters::Integration<PARAM_SPEC>& parameters) {
         return std::string("{\"dt\": ") + std::to_string(parameters.dt) + "}";
@@ -392,6 +404,14 @@ namespace rl_tools{
         std::string json_string = top_level ? "{" : "";
         json_string += json(device, env, static_cast<const typename PARAM_SPEC::NEXT_COMPONENT&>(parameters), false);
         json_string += ", \"imu\": " + json(device, env, parameters.imu);
+        json_string += (top_level ? "}" : "");
+        return json_string;
+    }
+    template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::ParametersCTBRController<PARAM_SPEC>& parameters, bool top_level=true){
+        std::string json_string = top_level ? "{" : "";
+        json_string += json(device, env, static_cast<const typename PARAM_SPEC::NEXT_COMPONENT&>(parameters), false);
+        json_string += ", \"ctbr_controller\": " + json(device, env, parameters.ctbr_controller);
         json_string += (top_level ? "}" : "");
         return json_string;
     }
@@ -577,6 +597,14 @@ namespace rl_tools{
             }
         }
         json_string += "]";
+        json_string += top_level ? "}" : "";
+        return json_string;
+    }
+    template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, const rl::environments::l2f::StateCTBRController<STATE_SPEC>& state, bool top_level=true){
+        std::string json_string = top_level ? "{" : "";
+        json_string += json(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), false) + ", ";
+        json_string += "\"previous_angular_velocity\": [" + std::to_string(state.previous_angular_velocity[0]) + ", " + std::to_string(state.previous_angular_velocity[1]) + ", " + std::to_string(state.previous_angular_velocity[2]) + "]";
         json_string += top_level ? "}" : "";
         return json_string;
     }
@@ -779,6 +807,17 @@ namespace rl_tools{
         parameters.gyro_bias.tau = gb_json.value("tau", (T)0);
         parameters.gyro_bias.sigma = gb_json.value("sigma", (T)0);
     }
+    template <typename DEVICE, typename SPEC, typename T>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::CTBRController<T>& parameters) {
+        parameters.thrust_min = json_object["thrust_min"];
+        parameters.thrust_max = json_object["thrust_max"];
+        for(typename DEVICE::index_t i = 0; i < 3; i++){
+            parameters.rate_limit[i] = json_object["rate_limit"][i];
+            parameters.kp[i] = json_object["kp"][i];
+            parameters.kd[i] = json_object["kd"][i];
+            parameters.torque_limit[i] = json_object["torque_limit"][i];
+        }
+    }
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::Integration<PARAM_SPEC>& parameters) {
         parameters.dt = json_object["dt"];
@@ -870,6 +909,11 @@ namespace rl_tools{
             parameters.imu.gyro_bias.tau = 0;
             parameters.imu.gyro_bias.sigma = 0;
         }
+    }
+    template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::ParametersCTBRController<PARAM_SPEC>& parameters){
+        from_json(device, env, json_object, static_cast<typename PARAM_SPEC::NEXT_COMPONENT&>(parameters));
+        from_json(device, env, json_object["ctbr_controller"], parameters.ctbr_controller);
     }
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::DomainRandomization<PARAM_SPEC>& parameters) {
@@ -1044,6 +1088,14 @@ namespace rl_tools{
         }
         for(TI i = 0; i < 3; i++){
             state.gyro_bias_tangent[i] -= dot * state.world_z_body_estimate[i];
+        }
+    }
+    template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, nlohmann::json json_object, rl::environments::l2f::StateCTBRController<STATE_SPEC>& state){
+        using TI = typename DEVICE::index_t;
+        from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
+        for(TI i = 0; i < 3; i++){
+            state.previous_angular_velocity[i] = json_object["previous_angular_velocity"][i];
         }
     }
     template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>

@@ -96,6 +96,15 @@ namespace rl_tools{
             return nan;
         }
         template<typename DEVICE, typename STATE_SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT static bool _is_nan(DEVICE& device, rl::environments::l2f::StateCTBRController<STATE_SPEC>& state){
+            is_nan(device, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
+            bool nan = false;
+            for(typename DEVICE::index_t i = 0; i < 3; i++){
+                nan = nan || math::is_nan(device.math, state.previous_angular_velocity[i]);
+            }
+            return nan;
+        }
+        template<typename DEVICE, typename STATE_SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT static bool _is_nan(DEVICE& device, rl::environments::l2f::StateLinearAccelerationHistory<STATE_SPEC>& state){
             using STATE = rl::environments::l2f::StateLinearAccelerationHistory<STATE_SPEC>;
             using TI = typename DEVICE::index_t;
@@ -113,4 +122,3 @@ namespace rl_tools{
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif
-

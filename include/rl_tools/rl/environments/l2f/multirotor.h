@@ -23,6 +23,10 @@ namespace rl_tools::rl::environments::l2f{
         // static constexpr REGISTRY MODEL = T_MODEL;
     };
     namespace parameters{
+        enum class ActionInterface{
+            DIRECT_MOTOR,
+            CTBR
+        };
         template <typename T, typename TI, TI N>
         struct Dynamics{
             struct ActionLimit{
@@ -84,6 +88,15 @@ namespace rl_tools::rl::environments::l2f{
         template <typename T>
         struct ActionNoise{
             T normalized_rpm; // std of additive gaussian noise onto the normalized action (-1, 1)
+        };
+        template <typename T>
+        struct CTBRController{
+            T thrust_min;
+            T thrust_max;
+            T rate_limit[3];
+            T kp[3];
+            T kd[3];
+            T torque_limit[3];
         };
         template <typename T>
         struct Integration{
@@ -180,6 +193,14 @@ namespace rl_tools::rl::environments::l2f{
         static constexpr typename SPECC::TI N = NEXT_COMPONENT::N;
         using IMU = parameters::IMU<typename SPECC::T>;
         IMU imu;
+    };
+
+    template <typename SPECC>
+    struct ParametersCTBRController: SPECC::NEXT_COMPONENT{
+        using NEXT_COMPONENT = typename SPECC::NEXT_COMPONENT;
+        static constexpr typename SPECC::TI N = NEXT_COMPONENT::N;
+        using CTBRController = parameters::CTBRController<typename SPECC::T>;
+        CTBRController ctbr_controller;
     };
 
     struct DefaultParametersDomainRandomizationOptions{
@@ -821,6 +842,17 @@ namespace rl_tools::rl::environments::l2f{
         static constexpr TI DIM = 3 + 3 + NEXT_COMPONENT::DIM;
         T world_z_body_estimate[3];
         T gyro_bias_tangent[3];
+    };
+
+    template <typename T_SPEC>
+    struct StateCTBRController: T_SPEC::NEXT_COMPONENT{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+        static constexpr bool REQUIRES_INTEGRATION = false;
+        static constexpr TI DIM = 3 + NEXT_COMPONENT::DIM;
+        T previous_angular_velocity[3];
     };
 
     template <typename T_T, typename T_TI, T_TI T_HISTORY_LENGTH, typename T_NEXT_COMPONENT>
