@@ -2,7 +2,7 @@
 """Send L2F AttitudeSetpoint UDP packets from a gamepad.
 
 Default binary packet:
-    <4sIffff = b"ASP1", sequence, roll_rad, pitch_rad, yaw_rate_rad_s, thrust_g
+    <4sIIffff = b"ASP2", sequence, armed, roll_rad, pitch_rad, yaw_rate_rad_s, thrust_g
 """
 
 import argparse
@@ -15,8 +15,8 @@ import time
 
 AXES = ["Roll", "Pitch", "Throttle", "Yaw"]
 BUTTONS = ["arm"]
-PACKET = struct.Struct("<4sIffff")
-MAGIC = b"ASP1"
+PACKET = struct.Struct("<4sIIffff")
+MAGIC = b"ASP2"
 
 
 def axis_value(axes, name, invert, deadzone, expo):
@@ -112,13 +112,14 @@ def main():
     next_print = next_send
     last = (0.0, 0.0, 0.0, args.idle_thrust_g, False)
 
-    print("sending ASP1 UDP setpoints to %s:%d from %s" % (args.host, args.port, joystick.get_name()))
+    print("sending ASP2 UDP setpoints to %s:%d from %s" % (args.host, args.port, joystick.get_name()))
     try:
         while True:
             now = time.monotonic()
             pygame.event.pump()
             axes, buttons = read_gamepad(joystick, mapping)
-            armed = bool(buttons.get("arm", 0))
+            arm_button = bool(buttons.get("arm", 0))
+            armed = arm_button or not args.require_arm
 
             roll_axis = axis_value(axes, "Roll", args.invert_roll, args.deadzone, args.expo)
             pitch_axis = axis_value(axes, "Pitch", args.invert_pitch, args.deadzone, args.expo)
@@ -142,7 +143,8 @@ def main():
                 )
 
             if now >= next_send:
-                payload = PACKET.pack(MAGIC, seq & 0xFFFFFFFF, roll, pitch, yaw_rate, thrust)
+                payload = PACKET.pack(MAGIC, seq & 0xFFFFFFFF, 1 if armed else 0,
+                                      roll, pitch, yaw_rate, thrust)
                 sock.sendto(payload, target)
                 seq += 1
                 next_send += period

@@ -39,9 +39,9 @@ RX_LINE_MAX = 256
 MG_TO_MPS2 = 9.80665e-3
 MDPS_TO_RADPS = math.pi / (180.0 * 1000.0)
 
-ASP1_FORMAT = "<4sIffff"
-ASP1_SIZE = 24
-ASP1_MAGIC = b"ASP1"
+ASP_FORMAT = "<4sIIffff"
+ASP_SIZE = 28
+ASP_MAGIC = b"ASP2"
 
 
 def print_mem(label):
@@ -297,13 +297,13 @@ def clamp(v, lo, hi):
 
 
 def parse_attitude_setpoint_packet(data, setpoint):
-    if len(data) != ASP1_SIZE:
+    if len(data) != ASP_SIZE:
         return None
     try:
-        magic, seq, roll, pitch, yaw_rate, thrust_g = struct.unpack(ASP1_FORMAT, data)
+        magic, seq, armed, roll, pitch, yaw_rate, thrust_g = struct.unpack(ASP_FORMAT, data)
     except Exception:
         return None
-    if magic != ASP1_MAGIC:
+    if magic != ASP_MAGIC:
         return None
     if not (finite_reasonable(roll) and finite_reasonable(pitch) and
             finite_reasonable(yaw_rate) and finite_reasonable(thrust_g)):
@@ -312,7 +312,7 @@ def parse_attitude_setpoint_packet(data, setpoint):
     setpoint[1] = clamp(pitch, -MAX_TILT_RAD, MAX_TILT_RAD)
     setpoint[2] = clamp(yaw_rate, -MAX_YAW_RATE, MAX_YAW_RATE)
     setpoint[3] = clamp(thrust_g, THRUST_MIN_G, THRUST_MAX_G)
-    return seq
+    return seq, armed != 0
 
 
 class MahonyFilter:
@@ -525,6 +525,7 @@ def run():
     active_setpoint = [0.0, 0.0, 0.0, FAILSAFE_THRUST_G]
     last_packet_us = time.ticks_add(time.ticks_us(), -FAILSAFE_TIMEOUT_US - 1)
     last_seq = -1
+    udp_armed = False
     packet_count = 0
     bad_packet_count = 0
 
@@ -537,7 +538,7 @@ def run():
     next_deadline = time.ticks_add(last_t, TICK_US)
     tick = 0
     print("starting 100Hz attitude-setpoint policy loop")
-    print("connect host to SSID=%s, send ASP1 UDP to %s:%d" % (AP_SSID, ip, UDP_PORT))
+    print("connect host to SSID=%s, send ASP2 UDP to %s:%d" % (AP_SSID, ip, UDP_PORT))
 
     while True:
         t0 = time.ticks_us()
@@ -547,11 +548,13 @@ def run():
                 data, _addr = udp.recvfrom(64)
             except OSError:
                 break
-            seq = parse_attitude_setpoint_packet(data, setpoint)
-            if seq is None:
+            parsed = parse_attitude_setpoint_packet(data, setpoint)
+            if parsed is None:
                 bad_packet_count += 1
             else:
+                seq, armed = parsed
                 last_seq = seq
+                udp_armed = armed
                 packet_count += 1
                 last_packet_us = t0
         t_udp = time.ticks_us()
@@ -584,41 +587,48 @@ def run():
 
         packet_age_us = time.ticks_diff(t0, last_packet_us)
         stale = packet_age_us > FAILSAFE_TIMEOUT_US
-        if stale:
-            active_setpoint[0] = 0.0
-            active_setpoint[1] = 0.0
-            active_setpoint[2] = 0.0
-            active_setpoint[3] = FAILSAFE_THRUST_G
-        else:
+        tx_enabled = (not stale) and udp_armed
+        if runtime.action_history_length > 0 and not tx_enabled:
+            for i in range(len(action_history_q)):
+                action_history_q[i] = zero_action
+            action_write_ptr = 0
+        a0_raw = 0.0
+        a1_raw = 0.0
+        a2_raw = 0.0
+        a3_raw = 0.0
+        if tx_enabled:
             active_setpoint[0] = setpoint[0]
             active_setpoint[1] = setpoint[1]
             active_setpoint[2] = setpoint[2]
             active_setpoint[3] = setpoint[3]
 
-        values = (
-            active_setpoint[0], active_setpoint[1], active_setpoint[2], active_setpoint[3],
-            world_z[0], world_z[1], world_z[2],
-            ang_vel[0], ang_vel[1], ang_vel[2],
-            ax_mps2, ay_mps2, az_mps2,
-        )
-        for i in range(13):
-            input_q[i] = q_byte(values[i], runtime.input_scale, runtime.input_zp, runtime.input_dtype)
-        if runtime.action_history_length > 0:
-            copy_action_history_newest_first(
-                input_q, 13, action_history_q, action_write_ptr, runtime.action_history_length, 4
+            values = (
+                active_setpoint[0], active_setpoint[1], active_setpoint[2], active_setpoint[3],
+                world_z[0], world_z[1], world_z[2],
+                ang_vel[0], ang_vel[1], ang_vel[2],
+                ax_mps2, ay_mps2, az_mps2,
             )
-        t_state = time.ticks_us()
+            for i in range(13):
+                input_q[i] = q_byte(values[i], runtime.input_scale, runtime.input_zp, runtime.input_dtype)
+            if runtime.action_history_length > 0:
+                copy_action_history_newest_first(
+                    input_q, 13, action_history_q, action_write_ptr, runtime.action_history_length, 4
+                )
+            t_state = time.ticks_us()
 
-        y_raw = runtime.model.predict(feeders)[0]
-        y_f32 = y_raw.flatten()
-        a0_raw = float(y_f32[0])
-        a1_raw = float(y_f32[1])
-        a2_raw = float(y_f32[2])
-        a3_raw = float(y_f32[3])
-        t_predict = time.ticks_us()
+            y_raw = runtime.model.predict(feeders)[0]
+            y_f32 = y_raw.flatten()
+            a0_raw = float(y_f32[0])
+            a1_raw = float(y_f32[1])
+            a2_raw = float(y_f32[2])
+            a3_raw = float(y_f32[3])
+            t_predict = time.ticks_us()
 
-        build_frame_into(frame_tx, a0_raw, a1_raw, a2_raw, a3_raw)
-        uart_bridge.write(frame_tx)
+            build_frame_into(frame_tx, a0_raw, a1_raw, a2_raw, a3_raw)
+            uart_bridge.write(frame_tx)
+        else:
+            t_state = time.ticks_us()
+            t_predict = t_state
         t_tx = time.ticks_us()
 
         n_avail = uart_bridge.any()
@@ -641,7 +651,7 @@ def run():
                     rx_line_buf = bytearray()
         t_rx = time.ticks_us()
 
-        if runtime.action_history_length > 0:
+        if tx_enabled and runtime.action_history_length > 0:
             slot_off = action_write_ptr * 4
             action_history_q[slot_off]     = q_byte(clamp(a0_raw, -1.0, 1.0), runtime.input_scale, runtime.input_zp, runtime.input_dtype)
             action_history_q[slot_off + 1] = q_byte(clamp(a1_raw, -1.0, 1.0), runtime.input_scale, runtime.input_zp, runtime.input_dtype)
@@ -661,11 +671,12 @@ def run():
             rx_us = time.ticks_diff(t_rx, t_tx)
             actions_us = time.ticks_diff(t_actions, t_rx)
             print("us=%5d udp=%3d imu=%4d mah=%4d st=%4d inf=%4d tx=%3d rx=%3d act=%3d "
-                  "seq=%d age=%d stale=%d bad=%d sp=%+.2f,%+.2f,%+.2f,%.2f "
+                  "seq=%d age=%d stale=%d armed=%d sent=%d bad=%d sp=%+.2f,%+.2f,%+.2f,%.2f "
                   "a=%+.2f,%+.2f,%+.2f,%+.2f wz=%+.2f,%+.2f,%+.2f" %
                   (elapsed_us, udp_us, imu_us, mahony_us, state_us, predict_us,
                    tx_us, rx_us, actions_us, last_seq, packet_age_us, 1 if stale else 0,
-                   bad_packet_count, active_setpoint[0], active_setpoint[1],
+                   1 if udp_armed else 0, 1 if tx_enabled else 0, bad_packet_count,
+                   active_setpoint[0], active_setpoint[1],
                    active_setpoint[2], active_setpoint[3],
                    clamp(a0_raw, -1.0, 1.0), clamp(a1_raw, -1.0, 1.0),
                    clamp(a2_raw, -1.0, 1.0), clamp(a3_raw, -1.0, 1.0),
