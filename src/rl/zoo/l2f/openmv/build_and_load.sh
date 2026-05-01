@@ -11,12 +11,16 @@ MOUNT="$2"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
-PY="$REPO_ROOT/.venv/bin/python3"
-VELA="${VELA:-$REPO_ROOT/.venv/bin/vela}"
+if [ -z "${VIRTUAL_ENV:-}" ]; then
+    echo "no active virtualenv (VIRTUAL_ENV unset); activate one before running" >&2
+    exit 1
+fi
+PY="$VIRTUAL_ENV/bin/python3"
+VELA="${VELA:-$VIRTUAL_ENV/bin/vela}"
 BIN_LIMIT="${BIN_LIMIT:-13}"
 
 if [ ! -x "$PY" ]; then
-    echo "missing venv python: $PY" >&2
+    echo "missing python in active venv: $PY" >&2
     exit 1
 fi
 if [ ! -f "$CKPT" ]; then
