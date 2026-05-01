@@ -184,9 +184,15 @@ namespace rl_tools::rl::zoo::l2f{
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
             static constexpr auto PARAMETER_VALUES = nominal_parameters;
-            static constexpr T STATE_LIMIT_POSITION[3] = {0, 0, 0};
-            static constexpr T STATE_LIMIT_VELOCITY[3] = {10000, 10000, 10000};
-            static constexpr T STATE_LIMIT_ANGULAR_VELOCITY[3] = {100000, 100000, 100000};
+            static constexpr T STATE_LIMIT_POSITION_X = 0;
+            static constexpr T STATE_LIMIT_POSITION_Y = 0;
+            static constexpr T STATE_LIMIT_POSITION_Z = 0;
+            static constexpr T STATE_LIMIT_VELOCITY_X = 10000;
+            static constexpr T STATE_LIMIT_VELOCITY_Y = 10000;
+            static constexpr T STATE_LIMIT_VELOCITY_Z = 10000;
+            static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_X = 100000;
+            static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Y = 100000;
+            static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Z = 100000;
         };
 
         using ENVIRONMENT_SPEC = rl_tools::rl::environments::l2f::Specification<T, TI, ENVIRONMENT_STATIC_PARAMETERS>;

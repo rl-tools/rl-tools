@@ -17,14 +17,6 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f{
     namespace detail{
-        template<typename T, typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT T state_limit_value(const T* limit, TI) {
-            return *limit;
-        }
-        template<typename T, typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT T state_limit_value(const T (*limit)[3], TI dim_i) {
-            return (*limit)[dim_i];
-        }
         template<typename DEVICE, typename T>
         RL_TOOLS_FUNCTION_PLACEMENT void project_to_tangent(DEVICE&, const T z[3], T v[3]) {
             T dot = v[0]*z[0] + v[1]*z[1] + v[2]*z[2];
@@ -47,9 +39,9 @@ namespace rl_tools::rl::environments::l2f{
         }
         for(TI dim_i=0; dim_i < 3; dim_i++){
             using STATIC_PARAMETERS = typename SPEC::STATIC_PARAMETERS;
-            T position_limit = detail::state_limit_value(&STATIC_PARAMETERS::STATE_LIMIT_POSITION, dim_i);
-            T velocity_limit = detail::state_limit_value(&STATIC_PARAMETERS::STATE_LIMIT_VELOCITY, dim_i);
-            T angular_velocity_limit = detail::state_limit_value(&STATIC_PARAMETERS::STATE_LIMIT_ANGULAR_VELOCITY, dim_i);
+            T position_limit = dim_i == 0 ? STATIC_PARAMETERS::STATE_LIMIT_POSITION_X : (dim_i == 1 ? STATIC_PARAMETERS::STATE_LIMIT_POSITION_Y : STATIC_PARAMETERS::STATE_LIMIT_POSITION_Z);
+            T velocity_limit = dim_i == 0 ? STATIC_PARAMETERS::STATE_LIMIT_VELOCITY_X : (dim_i == 1 ? STATIC_PARAMETERS::STATE_LIMIT_VELOCITY_Y : STATIC_PARAMETERS::STATE_LIMIT_VELOCITY_Z);
+            T angular_velocity_limit = dim_i == 0 ? STATIC_PARAMETERS::STATE_LIMIT_ANGULAR_VELOCITY_X : (dim_i == 1 ? STATIC_PARAMETERS::STATE_LIMIT_ANGULAR_VELOCITY_Y : STATIC_PARAMETERS::STATE_LIMIT_ANGULAR_VELOCITY_Z);
             next_state.position[dim_i]         = math::clamp(device.math, next_state.position[dim_i]       , -position_limit, position_limit);
             next_state.linear_velocity[dim_i]  = math::clamp(device.math, next_state.linear_velocity[dim_i], -velocity_limit, velocity_limit);
             next_state.angular_velocity[dim_i] = math::clamp(device.math, next_state.angular_velocity[dim_i], -angular_velocity_limit, angular_velocity_limit);

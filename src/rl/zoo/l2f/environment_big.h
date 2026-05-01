@@ -138,9 +138,15 @@ namespace rl_tools::rl::zoo::l2f{
             static constexpr typename PARAMETERS_TYPE::Dynamics DYNAMICS_VALUES[N_DYNAMICS_VALUES] = {
                 rl_tools::rl::environments::l2f::parameters::dynamics::registry<parameters::dynamics::REGISTRY::crazyflie, PARAMETERS_SPEC>
             };
-            static constexpr T STATE_LIMIT_POSITION = 100000;
-            static constexpr T STATE_LIMIT_VELOCITY = 100000;
-            static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
+            static constexpr T STATE_LIMIT_POSITION_X = 100000;
+            static constexpr T STATE_LIMIT_POSITION_Y = 100000;
+            static constexpr T STATE_LIMIT_POSITION_Z = 100000;
+            static constexpr T STATE_LIMIT_VELOCITY_X = 100000;
+            static constexpr T STATE_LIMIT_VELOCITY_Y = 100000;
+            static constexpr T STATE_LIMIT_VELOCITY_Z = 100000;
+            static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_X = 100000;
+            static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Y = 100000;
+            static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Z = 100000;
         };
 
         using ENVIRONMENT_SPEC = Specification<T, TI, ENVIRONMENT_STATIC_PARAMETERS>;

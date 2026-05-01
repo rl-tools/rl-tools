@@ -185,9 +185,15 @@ namespace rl_tools::rl::environments::l2f::parameters {
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
             static constexpr PARAMETERS PARAMETER_VALUES = nominal_parameters;
-            static constexpr T STATE_LIMIT_POSITION[3] = {100000, 100000, 100000};
-            static constexpr T STATE_LIMIT_VELOCITY[3] = {100000, 100000, 100000};
-            static constexpr T STATE_LIMIT_ANGULAR_VELOCITY[3] = {100000, 100000, 100000};
+            static constexpr T STATE_LIMIT_POSITION_X = 100000;
+            static constexpr T STATE_LIMIT_POSITION_Y = 100000;
+            static constexpr T STATE_LIMIT_POSITION_Z = 100000;
+            static constexpr T STATE_LIMIT_VELOCITY_X = 100000;
+            static constexpr T STATE_LIMIT_VELOCITY_Y = 100000;
+            static constexpr T STATE_LIMIT_VELOCITY_Z = 100000;
+            static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_X = 100000;
+            static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Y = 100000;
+            static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Z = 100000;
         };
     };
 }
