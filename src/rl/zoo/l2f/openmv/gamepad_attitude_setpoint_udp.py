@@ -17,6 +17,8 @@ AXES = ["Roll", "Pitch", "Throttle", "Yaw"]
 BUTTONS = ["arm"]
 PACKET = struct.Struct("<4sIIffff")
 MAGIC = b"ASP2"
+FAIL_CLOSED_PACKETS = 5
+FAIL_CLOSED_INTERVAL_S = 0.02
 
 
 def axis_value(axes, name, invert, deadzone, expo):
@@ -50,7 +52,7 @@ def parse_args():
     ap.add_argument("--remap", action="store_true", help="force interactive axis/button remapping")
     ap.add_argument("--broadcast", action="store_true", help="enable UDP broadcast on the socket")
     ap.add_argument("--require-arm", action=argparse.BooleanOptionalAction, default=True,
-                    help="when true, send neutral idle-thrust setpoints unless the arm button is held")
+                    help="when true, mark UDP packets unarmed unless the arm button is held")
     ap.add_argument("--roll-scale-deg", type=float, default=30.0)
     ap.add_argument("--pitch-scale-deg", type=float, default=30.0)
     ap.add_argument("--yaw-rate-scale", type=float, default=2.0, help="rad/s at full stick")
@@ -97,6 +99,7 @@ def main():
 
     joystick = pygame.joystick.Joystick(args.joystick)
     joystick.init()
+    joystick_instance_id = joystick.get_instance_id() if hasattr(joystick, "get_instance_id") else None
     mapping = load_or_map(joystick, AXES, BUTTONS, force=args.remap, name=args.mapping_name)
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -112,12 +115,50 @@ def main():
     next_print = next_send
     last = (0.0, 0.0, 0.0, args.idle_thrust_g, False)
 
+    def send_packet(armed, roll, pitch, yaw_rate, thrust):
+        nonlocal seq
+        payload = PACKET.pack(MAGIC, seq & 0xFFFFFFFF, 1 if armed else 0,
+                              roll, pitch, yaw_rate, thrust)
+        sock.sendto(payload, target)
+        seq += 1
+
+    def send_disarm_burst(reason):
+        print("%s; sending unarmed packets and exiting" % reason, file=sys.stderr)
+        for _ in range(FAIL_CLOSED_PACKETS):
+            try:
+                send_packet(False, 0.0, 0.0, 0.0, args.idle_thrust_g)
+            except OSError:
+                break
+            time.sleep(FAIL_CLOSED_INTERVAL_S)
+
+    def fail_closed(reason):
+        send_disarm_burst(reason)
+        raise SystemExit(1)
+
+    def check_joystick_events():
+        for event in pygame.event.get((pygame.QUIT, pygame.JOYDEVICEREMOVED)):
+            if event.type == pygame.QUIT:
+                fail_closed("pygame quit event")
+            event_instance_id = getattr(event, "instance_id", None)
+            if (joystick_instance_id is None or event_instance_id is None or
+                    event_instance_id == joystick_instance_id):
+                fail_closed("gamepad removed")
+
+    def check_joystick_attached():
+        if hasattr(joystick, "get_attached") and not joystick.get_attached():
+            fail_closed("gamepad no longer attached")
+
     print("sending ASP2 UDP setpoints to %s:%d from %s" % (args.host, args.port, joystick.get_name()))
     try:
         while True:
             now = time.monotonic()
             pygame.event.pump()
-            axes, buttons = read_gamepad(joystick, mapping)
+            check_joystick_events()
+            try:
+                check_joystick_attached()
+                axes, buttons = read_gamepad(joystick, mapping)
+            except pygame.error as e:
+                fail_closed("gamepad read failed: %s" % e)
             arm_button = bool(buttons.get("arm", 0))
             armed = arm_button or not args.require_arm
 
@@ -143,10 +184,7 @@ def main():
                 )
 
             if now >= next_send:
-                payload = PACKET.pack(MAGIC, seq & 0xFFFFFFFF, 1 if armed else 0,
-                                      roll, pitch, yaw_rate, thrust)
-                sock.sendto(payload, target)
-                seq += 1
+                send_packet(armed, roll, pitch, yaw_rate, thrust)
                 next_send += period
                 if next_send < now - period:
                     next_send = now + period
@@ -163,6 +201,7 @@ def main():
             if sleep_s:
                 time.sleep(sleep_s)
     except KeyboardInterrupt:
+        send_disarm_burst("interrupted")
         pass
     finally:
         pygame.quit()
