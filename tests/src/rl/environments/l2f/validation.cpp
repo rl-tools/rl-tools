@@ -36,9 +36,15 @@ namespace static_parameter_builder{
         using PARAMETER_FACTORY = parameters::DEFAULT_PARAMETERS_FACTORY<T, TI>;
         static constexpr auto PARAMETER_VALUES = PARAMETER_FACTORY::nominal_parameters;
         using PARAMETERS = typename PARAMETER_FACTORY::PARAMETERS_TYPE;
-        static constexpr T STATE_LIMIT_POSITION = 100000;
-        static constexpr T STATE_LIMIT_VELOCITY = 100000;
-        static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
+        static constexpr T STATE_LIMIT_POSITION_X = 100000;
+        static constexpr T STATE_LIMIT_POSITION_Y = 100000;
+        static constexpr T STATE_LIMIT_POSITION_Z = 100000;
+        static constexpr T STATE_LIMIT_VELOCITY_X = 100000;
+        static constexpr T STATE_LIMIT_VELOCITY_Y = 100000;
+        static constexpr T STATE_LIMIT_VELOCITY_Z = 100000;
+        static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_X = 100000;
+        static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Y = 100000;
+        static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Z = 100000;
     };
 }
 

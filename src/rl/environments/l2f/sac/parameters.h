@@ -60,9 +60,15 @@ namespace env_param_builder{
             using BASE = rl_tools::rl::environments::l2f::parameters::DEFAULT_PARAMETERS_FACTORY<T, TI>;
             using PARAMETERS = typename BASE::PARAMETERS_TYPE;
             static constexpr auto PARAMETER_VALUES = BASE::nominal_parameters;
-            static constexpr T STATE_LIMIT_POSITION = 100000;
-            static constexpr T STATE_LIMIT_VELOCITY = 100000;
-            static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
+            static constexpr T STATE_LIMIT_POSITION_X = 100000;
+            static constexpr T STATE_LIMIT_POSITION_Y = 100000;
+            static constexpr T STATE_LIMIT_POSITION_Z = 100000;
+            static constexpr T STATE_LIMIT_VELOCITY_X = 100000;
+            static constexpr T STATE_LIMIT_VELOCITY_Y = 100000;
+            static constexpr T STATE_LIMIT_VELOCITY_Z = 100000;
+            static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_X = 100000;
+            static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Y = 100000;
+            static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Z = 100000;
         };
 
         using ENVIRONMENT_SPEC = rl_tools::rl::environments::l2f::Specification<T, TI, ENVIRONMENT_STATIC_PARAMETERS>;

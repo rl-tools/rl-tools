@@ -49,9 +49,15 @@ namespace test_l2f_visual {
         static constexpr typename PARAMETERS_TYPE::MDP mdp = {init, REWARD_FUNCTION{}, {}, {}, {}};
         static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = {{0, 0}, {0, 0}};
         static constexpr PARAMETERS_TYPE PARAMETER_VALUES = {{dynamics, integration, mdp}, disturbances};
-        static constexpr T STATE_LIMIT_POSITION = 100000;
-        static constexpr T STATE_LIMIT_VELOCITY = 100000;
-        static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
+        static constexpr T STATE_LIMIT_POSITION_X = 100000;
+        static constexpr T STATE_LIMIT_POSITION_Y = 100000;
+        static constexpr T STATE_LIMIT_POSITION_Z = 100000;
+        static constexpr T STATE_LIMIT_VELOCITY_X = 100000;
+        static constexpr T STATE_LIMIT_VELOCITY_Y = 100000;
+        static constexpr T STATE_LIMIT_VELOCITY_Z = 100000;
+        static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_X = 100000;
+        static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Y = 100000;
+        static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Z = 100000;
     };
 }
 

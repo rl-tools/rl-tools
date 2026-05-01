@@ -43,9 +43,15 @@ struct STATIC_PARAMETERS_TEMPLATE{
     using BASE = l2f::parameters::DEFAULT_PARAMETERS_FACTORY<T, TI>;
     using PARAMETERS = typename BASE::PARAMETERS_TYPE;
     static constexpr auto PARAMETER_VALUES = BASE::nominal_parameters;
-    static constexpr T STATE_LIMIT_POSITION = 100000;
-    static constexpr T STATE_LIMIT_VELOCITY = 100000;
-    static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
+    static constexpr T STATE_LIMIT_POSITION_X = 100000;
+    static constexpr T STATE_LIMIT_POSITION_Y = 100000;
+    static constexpr T STATE_LIMIT_POSITION_Z = 100000;
+    static constexpr T STATE_LIMIT_VELOCITY_X = 100000;
+    static constexpr T STATE_LIMIT_VELOCITY_Y = 100000;
+    static constexpr T STATE_LIMIT_VELOCITY_Z = 100000;
+    static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_X = 100000;
+    static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Y = 100000;
+    static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Z = 100000;
 };
 
 using STATIC_PARAMETERS = STATIC_PARAMETERS_TEMPLATE<false>;
@@ -526,9 +532,15 @@ struct STATIC_PARAMETERS_ZERO_TEMPLATE{
     using BASE = l2f::parameters::DEFAULT_PARAMETERS_FACTORY<T, TI>;
     using PARAMETERS = typename BASE::PARAMETERS_TYPE;
     static constexpr auto PARAMETER_VALUES = BASE::nominal_parameters;
-    static constexpr T STATE_LIMIT_POSITION = 100000;
-    static constexpr T STATE_LIMIT_VELOCITY = 100000;
-    static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
+    static constexpr T STATE_LIMIT_POSITION_X = 100000;
+    static constexpr T STATE_LIMIT_POSITION_Y = 100000;
+    static constexpr T STATE_LIMIT_POSITION_Z = 100000;
+    static constexpr T STATE_LIMIT_VELOCITY_X = 100000;
+    static constexpr T STATE_LIMIT_VELOCITY_Y = 100000;
+    static constexpr T STATE_LIMIT_VELOCITY_Z = 100000;
+    static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_X = 100000;
+    static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Y = 100000;
+    static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Z = 100000;
 };
 using ENV_ZERO = rlt::rl::environments::Multirotor<l2f::Specification<T, TI, STATIC_PARAMETERS_ZERO_TEMPLATE<false>>>;
 

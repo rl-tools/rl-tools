@@ -53,9 +53,15 @@ namespace builder {
         using DEFAULT_STUB = parameters::DEFAULT_PARAMETERS_FACTORY<T, TI_GPU>;
         using PARAMETERS = DEFAULT_STUB::PARAMETERS_TYPE;
         static constexpr auto PARAMETER_VALUES = DEFAULT_STUB::nominal_parameters;
-        static constexpr T STATE_LIMIT_POSITION = 100000;
-        static constexpr T STATE_LIMIT_VELOCITY = 100000;
-        static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
+        static constexpr T STATE_LIMIT_POSITION_X = 100000;
+        static constexpr T STATE_LIMIT_POSITION_Y = 100000;
+        static constexpr T STATE_LIMIT_POSITION_Z = 100000;
+        static constexpr T STATE_LIMIT_VELOCITY_X = 100000;
+        static constexpr T STATE_LIMIT_VELOCITY_Y = 100000;
+        static constexpr T STATE_LIMIT_VELOCITY_Z = 100000;
+        static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_X = 100000;
+        static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Y = 100000;
+        static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Z = 100000;
     };
 }
 
