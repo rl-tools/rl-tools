@@ -52,6 +52,25 @@ Setpoints are clamped to the training envelope:
 If no valid packet arrives for 250 ms, the board switches to neutral
 roll/pitch/yaw and `0.4 g` thrust.
 
+## Crazyflie UART Frame
+
+The OpenMV sends one 13-byte frame at 100 Hz:
+
+```text
+byte 0:    0x80 | flags
+bytes 1-12: 12 bytes of 7-bit-packed raw payload, each with MSB clear
+```
+
+The unpacked raw payload is 10 bytes:
+
+```text
+raw[0..7]: four big-endian uint16 motor PWM values
+raw[8..9]: big-endian CRC16-CCITT
+```
+
+The CRC is calculated over exactly 9 bytes: the full start/flags byte followed
+by `raw[0..7]`. This matches the Crazyflie `uart1_bridge` receiver.
+
 ## Gamepad Sender
 
 Install host dependencies in the repo venv:

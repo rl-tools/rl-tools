@@ -31,7 +31,9 @@ FAILSAFE_THRUST_G = 0.4
 
 UART_BRIDGE_PORT = 4
 UART_BRIDGE_BAUD = 115200
-FRAME_SYNC_BYTE = 0x80
+FRAME_START_MASK = 0x80
+FRAME_FLAGS = 0x00
+FRAME_START_BYTE = FRAME_START_MASK | FRAME_FLAGS
 RX_LINE_MAX = 256
 
 MG_TO_MPS2 = 9.80665e-3
@@ -477,16 +479,22 @@ def pack7(raw, raw_len, out, out_offset):
 
 
 raw_payload = bytearray(10)
+crc_payload = bytearray(9)
 
 
 def build_frame_into(frame13, a0, a1, a2, a3):
+    start_byte = FRAME_START_BYTE
+    frame13[0] = start_byte
     for idx, a in ((0, a0), (2, a1), (4, a2), (6, a3)):
         a = clamp(a, -1.0, 1.0)
         pwm = int((a + 1.0) * 32767.5 + 0.5)
         pwm = clamp(pwm, 0, 0xFFFF)
         raw_payload[idx] = (pwm >> 8) & 0xFF
         raw_payload[idx + 1] = pwm & 0xFF
-    crc = crc16_ccitt(raw_payload, 8)
+    crc_payload[0] = start_byte
+    for i in range(8):
+        crc_payload[i + 1] = raw_payload[i]
+    crc = crc16_ccitt(crc_payload, 9)
     raw_payload[8] = (crc >> 8) & 0xFF
     raw_payload[9] = crc & 0xFF
     pack7(raw_payload, 10, frame13, 1)
@@ -523,7 +531,6 @@ def run():
     mahony = MahonyFilter()
     uart_bridge = machine.UART(UART_BRIDGE_PORT, UART_BRIDGE_BAUD, timeout=0, timeout_char=0)
     frame_tx = bytearray(13)
-    frame_tx[0] = FRAME_SYNC_BYTE
     rx_line_buf = bytearray()
 
     last_t = time.ticks_us()
