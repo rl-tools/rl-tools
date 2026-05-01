@@ -88,7 +88,9 @@ Connect to the OpenMV AP, then run:
 ```
 
 The sender defaults to `192.168.4.1:5005`, 50 Hz, and requires the mapped
-`arm` button to be held before non-idle setpoints are sent.
+`arm` button to be held before armed packets are sent. If the selected gamepad
+is removed or can no longer be read, the sender emits a short burst of unarmed
+packets and exits.
 
 ## Bench Checks
 
