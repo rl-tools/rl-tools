@@ -69,6 +69,14 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateCTBRController<STATE_SPEC>& state){
+            using TI = typename DEVICE::index_t;
+            initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
+            for(TI i = 0; i < 3; i++){
+                state.previous_angular_velocity[i] = state.angular_velocity[i];
+            }
+        }
+        template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateLinearAccelerationHistory<STATE_SPEC>& state){
             using TI = typename DEVICE::index_t;
             using STATE = rl::environments::l2f::StateLinearAccelerationHistory<STATE_SPEC>;

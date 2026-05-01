@@ -290,6 +290,14 @@ namespace rl_tools::rl::environments::l2f{
         next_state.torque[2] = state.torque[2];
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateCTBRController<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateCTBRController<STATE_SPEC>& next_state, RNG& rng) {
+        using TI = typename DEVICE::index_t;
+        post_integration(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(next_state), rng);
+        for(TI i = 0; i < 3; i++){
+            next_state.previous_angular_velocity[i] = state.angular_velocity[i];
+        }
+    }
+    template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateRotorsHistory<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateRotorsHistory<STATE_SPEC>& next_state, RNG& rng) {
         using MULTIROTOR = Multirotor<SPEC>;
         using TI = typename DEVICE::index_t;
