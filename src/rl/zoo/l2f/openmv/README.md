@@ -38,9 +38,10 @@ with password `attitude123`.
 Packet format:
 
 ```text
-little-endian <4sIffff
-magic:      b"ASP1"
+little-endian <4sIIffff
+magic:      b"ASP2"
 sequence:   uint32
+armed:      uint32, nonzero enables Crazyflie UART output
 roll:       float32 radians
 pitch:      float32 radians
 yaw_rate:   float32 radians/second
@@ -49,8 +50,9 @@ thrust_g:   float32 body-z thrust command in g
 
 Setpoints are clamped to the training envelope:
 `roll/pitch = +/-30 deg`, `yaw_rate = +/-2 rad/s`, `thrust = 0.4..1.4 g`.
-If no valid packet arrives for 250 ms, the board switches to neutral
-roll/pitch/yaw and `0.4 g` thrust.
+The board writes Crazyflie UART frames only while valid armed packets continue
+to arrive. If no valid armed packet arrives for 250 ms, or if an unarmed packet
+arrives, `main.py` stops writing Crazyflie UART frames.
 
 ## Crazyflie UART Frame
 
