@@ -59,7 +59,7 @@ arrives, `main.py` stops writing Crazyflie UART frames.
 The OpenMV sends one 13-byte frame at 100 Hz:
 
 ```text
-byte 0:    0x80 | flags
+byte 0:    0x80 | flags; currently 0x81 with self-activation flag set
 bytes 1-12: 12 bytes of 7-bit-packed raw payload, each with MSB clear
 ```
 
