@@ -86,7 +86,7 @@ namespace rl_tools::rl::zoo::l2f{
         static constexpr typename ParametersBase<PARAMETERS_SPEC>::MDP::Initialization init = {
                 0.0, // guidance probability
                 0,   // max initial position
-                1.5707963267948966 * 20.0/90.0, // max initial attitude error, 60 deg
+                1.5707963267948966 * 0.0/90.0, // max initial attitude error, 60 deg
                 0,   // max initial linear velocity
                 1,   // max initial angular velocity
                 true, // initialize rotor speeds relative to action limits
