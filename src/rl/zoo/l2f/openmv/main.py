@@ -19,9 +19,15 @@ AP_COUNTRY = "US"
 AP_CHANNEL = 6
 UDP_PORT = 5005
 
-TICK_US = 10_000
-DIAG_PRINT_EVERY = 25
+MODEL_HZ = 500
+ACTION_HISTORY_HZ = 100
+TICK_US = 1_000_000 // MODEL_HZ
+ACTION_HISTORY_MODEL_STEPS = MODEL_HZ // ACTION_HISTORY_HZ
+DIAG_PRINT_EVERY = MODEL_HZ // 4
 FAILSAFE_TIMEOUT_US = 250_000
+
+if MODEL_HZ % ACTION_HISTORY_HZ != 0:
+    raise RuntimeError("MODEL_HZ must be an integer multiple of ACTION_HISTORY_HZ")
 
 MAX_TILT_RAD = 0.5235987755982988
 MAX_YAW_RATE = 2.0
@@ -375,9 +381,9 @@ class MahonyFilter:
             ey = ahz * vx - ahx * vz
             ez = ahx * vy - ahy * vx
 
-            self.bx += self.ki * ex * dt
-            self.by += self.ki * ey * dt
-            self.bz += self.ki * ez * dt
+            self.bx -= self.ki * ex * dt
+            self.by -= self.ki * ey * dt
+            self.bz -= self.ki * ez * dt
             self.bx = clamp(self.bx, -self.max_bias, self.max_bias)
             self.by = clamp(self.by, -self.max_bias, self.max_bias)
             self.bz = clamp(self.bz, -self.max_bias, self.max_bias)
@@ -515,6 +521,8 @@ def run():
     for i in range(len(action_history_q)):
         action_history_q[i] = zero_action
     action_write_ptr = 0
+    action_accum = [0.0, 0.0, 0.0, 0.0]
+    action_accum_count = 0
 
     def feed_input(buf, shape, dtype):
         buf[:] = input_q
@@ -537,7 +545,8 @@ def run():
     last_t = time.ticks_us()
     next_deadline = time.ticks_add(last_t, TICK_US)
     tick = 0
-    print("starting 100Hz attitude-setpoint policy loop")
+    print("starting %dHz attitude-setpoint policy loop, %dHz action history" %
+          (MODEL_HZ, ACTION_HISTORY_HZ))
     print("connect host to SSID=%s, send ASP2 UDP to %s:%d" % (AP_SSID, ip, UDP_PORT))
 
     while True:
@@ -572,7 +581,7 @@ def run():
         dt = time.ticks_diff(t0, last_t) * 1e-6
         last_t = t0
         if dt <= 0.0 or dt > 0.5:
-            dt = 0.01
+            dt = 1.0 / MODEL_HZ
 
         ax_mps2 = ax * MG_TO_MPS2
         ay_mps2 = ay * MG_TO_MPS2
@@ -582,7 +591,7 @@ def run():
         gz_rad = gz * MDPS_TO_RADPS
         mahony.update(ax_mps2, ay_mps2, az_mps2, gx_rad, gy_rad, gz_rad, dt)
         world_z = mahony.orientation_world_z()
-        ang_vel = mahony.angular_velocity_corrected(gx_rad, gy_rad, gz_rad)
+        ang_vel = (gx_rad, gy_rad, gz_rad)
         t_mahony = time.ticks_us()
 
         packet_age_us = time.ticks_diff(t0, last_packet_us)
@@ -592,10 +601,19 @@ def run():
             for i in range(len(action_history_q)):
                 action_history_q[i] = zero_action
             action_write_ptr = 0
+            action_accum[0] = 0.0
+            action_accum[1] = 0.0
+            action_accum[2] = 0.0
+            action_accum[3] = 0.0
+            action_accum_count = 0
         a0_raw = 0.0
         a1_raw = 0.0
         a2_raw = 0.0
         a3_raw = 0.0
+        a0 = 0.0
+        a1 = 0.0
+        a2 = 0.0
+        a3 = 0.0
         if tx_enabled:
             active_setpoint[0] = setpoint[0]
             active_setpoint[1] = setpoint[1]
@@ -622,9 +640,13 @@ def run():
             a1_raw = float(y_f32[1])
             a2_raw = float(y_f32[2])
             a3_raw = float(y_f32[3])
+            a0 = clamp(a0_raw, -1.0, 1.0)
+            a1 = clamp(a1_raw, -1.0, 1.0)
+            a2 = clamp(a2_raw, -1.0, 1.0)
+            a3 = clamp(a3_raw, -1.0, 1.0)
             t_predict = time.ticks_us()
 
-            build_frame_into(frame_tx, a0_raw, a1_raw, a2_raw, a3_raw)
+            build_frame_into(frame_tx, a0, a1, a2, a3)
             uart_bridge.write(frame_tx)
         else:
             t_state = time.ticks_us()
@@ -652,12 +674,24 @@ def run():
         t_rx = time.ticks_us()
 
         if tx_enabled and runtime.action_history_length > 0:
-            slot_off = action_write_ptr * 4
-            action_history_q[slot_off]     = q_byte(clamp(a0_raw, -1.0, 1.0), runtime.input_scale, runtime.input_zp, runtime.input_dtype)
-            action_history_q[slot_off + 1] = q_byte(clamp(a1_raw, -1.0, 1.0), runtime.input_scale, runtime.input_zp, runtime.input_dtype)
-            action_history_q[slot_off + 2] = q_byte(clamp(a2_raw, -1.0, 1.0), runtime.input_scale, runtime.input_zp, runtime.input_dtype)
-            action_history_q[slot_off + 3] = q_byte(clamp(a3_raw, -1.0, 1.0), runtime.input_scale, runtime.input_zp, runtime.input_dtype)
-            action_write_ptr = (action_write_ptr + 1) % runtime.action_history_length
+            action_accum[0] += a0
+            action_accum[1] += a1
+            action_accum[2] += a2
+            action_accum[3] += a3
+            action_accum_count += 1
+            if action_accum_count >= ACTION_HISTORY_MODEL_STEPS:
+                action_accum_inv = 1.0 / action_accum_count
+                slot_off = action_write_ptr * 4
+                action_history_q[slot_off]     = q_byte(action_accum[0] * action_accum_inv, runtime.input_scale, runtime.input_zp, runtime.input_dtype)
+                action_history_q[slot_off + 1] = q_byte(action_accum[1] * action_accum_inv, runtime.input_scale, runtime.input_zp, runtime.input_dtype)
+                action_history_q[slot_off + 2] = q_byte(action_accum[2] * action_accum_inv, runtime.input_scale, runtime.input_zp, runtime.input_dtype)
+                action_history_q[slot_off + 3] = q_byte(action_accum[3] * action_accum_inv, runtime.input_scale, runtime.input_zp, runtime.input_dtype)
+                action_write_ptr = (action_write_ptr + 1) % runtime.action_history_length
+                action_accum[0] = 0.0
+                action_accum[1] = 0.0
+                action_accum[2] = 0.0
+                action_accum[3] = 0.0
+                action_accum_count = 0
         t_actions = time.ticks_us()
 
         if tick % DIAG_PRINT_EVERY == 0:
@@ -678,8 +712,7 @@ def run():
                    1 if udp_armed else 0, 1 if tx_enabled else 0, bad_packet_count,
                    active_setpoint[0], active_setpoint[1],
                    active_setpoint[2], active_setpoint[3],
-                   clamp(a0_raw, -1.0, 1.0), clamp(a1_raw, -1.0, 1.0),
-                   clamp(a2_raw, -1.0, 1.0), clamp(a3_raw, -1.0, 1.0),
+                   a0, a1, a2, a3,
                    world_z[0], world_z[1], world_z[2]))
 
         tick += 1
