@@ -120,7 +120,6 @@
 #include "l2f/sac_tiny_attitude.h"
 #if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE_SETPOINT)
 #include "l2f/sac_attitude_setpoint.h"
-#include "l2f/ppo_attitude_setpoint.h"
 #endif
 #include "l2f/td3.h"
 #include "l2f/ppo.h"
