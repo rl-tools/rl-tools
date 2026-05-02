@@ -49,6 +49,12 @@ ASP_FORMAT = "<4sIIffff"
 ASP_SIZE = 28
 ASP_MAGIC = b"ASP2"
 
+TELEMETRY_MAGIC = b"L2FT"
+TELEMETRY_VERSION = 1
+TELEMETRY_EVERY = 1
+TELEMETRY_FORMAT = "<4sHH" + "I" * 4 + "i" + "I" * 3 + "i" * 11 + "f" * 30
+TELEMETRY_SIZE = struct.calcsize(TELEMETRY_FORMAT)
+
 
 def print_mem(label):
     gc.collect()
@@ -137,7 +143,7 @@ def input_bin_index(fname):
 
 
 def autodetect_paths():
-    files = os.listdir(".")
+    files = [f for f in os.listdir(".") if not f.startswith(".")]
     vela = [f for f in files if f.endswith(".int8_vela.tflite") or f.endswith("_vela.tflite")]
     if vela:
         model = sorted(vela, key=len)[0]
@@ -536,6 +542,9 @@ def run():
     udp_armed = False
     packet_count = 0
     bad_packet_count = 0
+    telemetry_addr = None
+    telemetry_seq = 0
+    telemetry_buf = bytearray(TELEMETRY_SIZE)
 
     mahony = MahonyFilter()
     uart_bridge = machine.UART(UART_BRIDGE_PORT, UART_BRIDGE_BAUD, timeout=0, timeout_char=0)
@@ -566,6 +575,7 @@ def run():
                 udp_armed = armed
                 packet_count += 1
                 last_packet_us = t0
+                telemetry_addr = _addr
         t_udp = time.ticks_us()
 
         ax_orig, ay_orig, az_orig = imu.acceleration_mg()
@@ -694,16 +704,18 @@ def run():
                 action_accum_count = 0
         t_actions = time.ticks_us()
 
+        elapsed_us = time.ticks_diff(t_actions, t0)
+        udp_us = time.ticks_diff(t_udp, t0)
+        imu_us = time.ticks_diff(t_imu, t_udp)
+        mahony_us = time.ticks_diff(t_mahony, t_imu)
+        state_us = time.ticks_diff(t_state, t_mahony)
+        predict_us = time.ticks_diff(t_predict, t_state)
+        tx_us = time.ticks_diff(t_tx, t_predict)
+        rx_us = time.ticks_diff(t_rx, t_tx)
+        actions_us = time.ticks_diff(t_actions, t_rx)
+        deadline_delay_us = time.ticks_diff(next_deadline, time.ticks_us())
+
         if tick % DIAG_PRINT_EVERY == 0:
-            elapsed_us = time.ticks_diff(t_actions, t0)
-            udp_us = time.ticks_diff(t_udp, t0)
-            imu_us = time.ticks_diff(t_imu, t_udp)
-            mahony_us = time.ticks_diff(t_mahony, t_imu)
-            state_us = time.ticks_diff(t_state, t_mahony)
-            predict_us = time.ticks_diff(t_predict, t_state)
-            tx_us = time.ticks_diff(t_tx, t_predict)
-            rx_us = time.ticks_diff(t_rx, t_tx)
-            actions_us = time.ticks_diff(t_actions, t_rx)
             print("us=%5d udp=%3d imu=%4d mah=%4d st=%4d inf=%4d tx=%3d rx=%3d act=%3d "
                   "seq=%d age=%d stale=%d armed=%d sent=%d bad=%d sp=%+.2f,%+.2f,%+.2f,%.2f "
                   "a=%+.2f,%+.2f,%+.2f,%+.2f wz=%+.2f,%+.2f,%+.2f" %
@@ -714,6 +726,50 @@ def run():
                    active_setpoint[2], active_setpoint[3],
                    a0, a1, a2, a3,
                    world_z[0], world_z[1], world_z[2]))
+
+        if telemetry_addr is not None and tick % TELEMETRY_EVERY == 0:
+            telemetry_seq_send = telemetry_seq & 0xFFFFFFFF
+            telemetry_seq += 1
+            flags = ((1 if tx_enabled else 0) |
+                     ((1 if udp_armed else 0) << 1) |
+                     ((1 if stale else 0) << 2))
+            try:
+                struct.pack_into(
+                    TELEMETRY_FORMAT, telemetry_buf, 0,
+                    TELEMETRY_MAGIC, TELEMETRY_VERSION, flags,
+                    telemetry_seq_send,
+                    tick & 0xFFFFFFFF,
+                    t0 & 0xFFFFFFFF,
+                    t_actions & 0xFFFFFFFF,
+                    last_seq,
+                    packet_count & 0xFFFFFFFF,
+                    bad_packet_count & 0xFFFFFFFF,
+                    packet_age_us & 0xFFFFFFFF,
+                    int(dt * 1000000.0),
+                    elapsed_us,
+                    deadline_delay_us,
+                    udp_us,
+                    imu_us,
+                    mahony_us,
+                    state_us,
+                    predict_us,
+                    tx_us,
+                    rx_us,
+                    actions_us,
+                    float(ax_orig), float(ay_orig), float(az_orig),
+                    float(gx_orig), float(gy_orig), float(gz_orig),
+                    ax_mps2, ay_mps2, az_mps2,
+                    gx_rad, gy_rad, gz_rad,
+                    world_z[0], world_z[1], world_z[2],
+                    mahony.bx, mahony.by, mahony.bz,
+                    active_setpoint[0], active_setpoint[1],
+                    active_setpoint[2], active_setpoint[3],
+                    a0_raw, a1_raw, a2_raw, a3_raw,
+                    a0, a1, a2, a3,
+                )
+                udp.sendto(telemetry_buf, telemetry_addr)
+            except OSError:
+                pass
 
         tick += 1
         delay = time.ticks_diff(next_deadline, time.ticks_us())
