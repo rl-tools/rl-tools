@@ -91,6 +91,9 @@ namespace rl_tools
             T c0 = parameters.dynamics.rotor_thrust_coefficients[rotor_i][0];
             T c1 = parameters.dynamics.rotor_thrust_coefficients[rotor_i][1];
             T c2 = parameters.dynamics.rotor_thrust_coefficients[rotor_i][2];
+            T d_min = c1 + (T)2 * c2 * min_command;
+            T d_max = c1 + (T)2 * c2 * max_command;
+            rl_tools::utils::assert_exit(device, d_min >= (T)0 && d_max >= (T)0, "rotor thrust curve is not monotone increasing over action range");
             T command = min_command;
             T eps = (T)1e-12;
             if(math::abs(device.math, c2) > eps){
