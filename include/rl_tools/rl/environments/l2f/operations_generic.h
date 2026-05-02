@@ -86,11 +86,7 @@ namespace rl_tools
             T max_command = parameters.dynamics.action_limit.max;
             T min_thrust = rotor_thrust_from_command(device, parameters, rotor_i, min_command);
             T max_thrust = rotor_thrust_from_command(device, parameters, rotor_i, max_command);
-            if(min_thrust > max_thrust){
-                T temp = min_thrust;
-                min_thrust = max_thrust;
-                max_thrust = temp;
-            }
+            rl_tools::utils::assert_exit(device, min_thrust <= max_thrust, "min_thrust > max_thrust");
             thrust = math::clamp(device.math, thrust, min_thrust, max_thrust);
             T c0 = parameters.dynamics.rotor_thrust_coefficients[rotor_i][0];
             T c1 = parameters.dynamics.rotor_thrust_coefficients[rotor_i][1];
@@ -224,6 +220,7 @@ namespace rl_tools
             T b[4] = {total_thrust, torque[0], torque[1], torque[2]};
             T rotor_thrusts[4];
             bool solved = solve_4x4(device, A, b, rotor_thrusts);
+            rl_tools::utils::assert_exit(device, solved, "allocation matrix not solved");
             for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
                 motor_commands[rotor_i] = solved ? rotor_command_from_thrust(device, parameters, rotor_i, rotor_thrusts[rotor_i]) : collective_command;
             }
