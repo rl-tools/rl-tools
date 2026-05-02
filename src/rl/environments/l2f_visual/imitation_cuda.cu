@@ -373,6 +373,13 @@ namespace imitation_kernels{
         return out;
     }
 
+    template<bool ENABLE_MOTION_BLUR, typename RENDERER>
+    void set_active_scene_camera_open_buffer(void*& camera_open_buffer, RENDERER* renderer){
+        if constexpr(ENABLE_MOTION_BLUR){
+            camera_open_buffer = (void*)owlBufferGetPointer((OWLBuffer)renderer->backend.owl_cameras_open_buffer, 0);
+        }
+    }
+
     template<typename DEVICE, typename RNG>
     __global__
     void prologue_kernel(
@@ -1384,9 +1391,7 @@ int main(int argc, char** argv){
             OWLParams rgb_lp = (OWLParams)renderer->backend.rgb_launch_params;
             active_scene_render_streams[active_scene_i] = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
             active_scene_camera_buffers[active_scene_i] = (void*)owlBufferGetPointer((OWLBuffer)renderer->backend.owl_cameras_buffer, 0);
-            if constexpr(RENDER_MOTION_BLUR_ACTIVE){
-                active_scene_camera_open_buffers[active_scene_i] = (void*)owlBufferGetPointer((OWLBuffer)renderer->backend.owl_cameras_open_buffer, 0);
-            }
+            imitation_kernels::set_active_scene_camera_open_buffer<RENDER_MOTION_BLUR_ACTIVE>(active_scene_camera_open_buffers[active_scene_i], renderer);
             active_scene_framebuffer_ptrs[active_scene_i] = rlt::get_framebuffer_device_ptr(device, *renderer);
         }
         {
