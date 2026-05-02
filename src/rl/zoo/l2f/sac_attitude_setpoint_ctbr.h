@@ -21,7 +21,7 @@ namespace rl_tools::rl::zoo::l2f::sac_attitude_setpoint_ctbr{
                 static constexpr TI CRITIC_TARGET_UPDATE_INTERVAL = 1 * TRAINING_INTERVAL;
                 static constexpr T GAMMA = 0.99;
                 static constexpr bool IGNORE_TERMINATION = false;
-                static constexpr T TARGET_ENTROPY = -((T)4);
+                static constexpr T TARGET_ENTROPY = -((T)20);
                 static constexpr TI SEQUENCE_LENGTH = 1;
             };
             static constexpr TI STEP_LIMIT = 600000;
@@ -49,15 +49,15 @@ namespace rl_tools::rl::zoo::l2f::sac_attitude_setpoint_ctbr{
             };
             struct ACTOR_OPTIMIZER_PARAMETERS: OPTIMIZER_PARAMETERS_COMMON{
                 using T = typename TYPE_POLICY::DEFAULT;
-                static constexpr T ALPHA = 3e-4;
+                static constexpr T ALPHA = 4e-6;
             };
             struct CRITIC_OPTIMIZER_PARAMETERS: OPTIMIZER_PARAMETERS_COMMON{
                 using T = typename TYPE_POLICY::DEFAULT;
-                static constexpr T ALPHA = 1e-3;
+                static constexpr T ALPHA = 3e-4;
             };
             struct ALPHA_OPTIMIZER_PARAMETERS: OPTIMIZER_PARAMETERS_COMMON{
                 using T = typename TYPE_POLICY::DEFAULT;
-                static constexpr T ALPHA = 3e-4;
+                static constexpr T ALPHA = 4e-6;
             };
             static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = true;
         };

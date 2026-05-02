@@ -49,14 +49,17 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         T constant;
         T tilt;
         T yaw_rate;
-        T angular_velocity_xy;
         T thrust_g;
         T d_action;
-        T action_saturation;
-        T action_reference;
-        T outer_loop_gain;
-        struct Components: AttitudeSetpointTrackingSquared<T>::Components{
-            T action_reference_cost;
+        struct Components{
+            T tilt_cost;
+            T yaw_rate_cost;
+            T thrust_g_cost;
+            T actual_thrust_g;
+            T d_action_cost;
+            T weighted_cost;
+            T scaled_weighted_cost;
+            T reward;
         };
     };
 
@@ -134,59 +137,51 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename T, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void reward_components(DEVICE& device, const Multirotor<SPEC>& env, const PARAMETERS& parameters, const AttitudeSetpointTrackingCTBRSquared<T>& reward_parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, const STATE& next_state, typename AttitudeSetpointTrackingCTBRSquared<T>::Components& components, RNG& rng){
         using TI = typename DEVICE::index_t;
-        AttitudeSetpointTrackingSquared<T> base_parameters = {
-            reward_parameters.non_negative,
-            reward_parameters.scale,
-            reward_parameters.constant,
-            reward_parameters.tilt,
-            reward_parameters.yaw_rate,
-            reward_parameters.angular_velocity_xy,
-            reward_parameters.thrust_g,
-            reward_parameters.d_action,
-            reward_parameters.action_saturation
-        };
-        typename AttitudeSetpointTrackingSquared<T>::Components base_components;
-        reward_components(device, env, parameters, base_parameters, state, action, next_state, base_components, rng);
-        components.tilt_cost = base_components.tilt_cost;
-        components.yaw_rate_cost = base_components.yaw_rate_cost;
-        components.angular_velocity_xy_cost = base_components.angular_velocity_xy_cost;
-        components.thrust_g_cost = base_components.thrust_g_cost;
-        components.actual_thrust_g = base_components.actual_thrust_g;
-        components.d_action_cost = base_components.d_action_cost;
-        components.action_saturation_cost = base_components.action_saturation_cost;
-        components.weighted_cost = base_components.weighted_cost;
-
+        constexpr TI ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
         T target_world_z_body[3];
         roll_pitch_to_world_z_body(device, state.target_roll, state.target_pitch, target_world_z_body);
-        T current_world_z_body[3] = {
-            state.world_z_body_estimate[0],
-            state.world_z_body_estimate[1],
-            state.world_z_body_estimate[2]
-        };
-        T action_reference[4];
+        T current_world_z_body[3];
+        quaternion_to_world_z_body<DEVICE, T>(next_state.orientation, current_world_z_body);
+        T tilt_diff_sq = 0;
+        for(TI dim_i = 0; dim_i < 3; dim_i++){
+            T diff = current_world_z_body[dim_i] - target_world_z_body[dim_i];
+            tilt_diff_sq += diff * diff;
+        }
+        components.tilt_cost = math::sqrt(device.math, tilt_diff_sq);
+
+        components.yaw_rate_cost = math::abs(device.math, next_state.angular_velocity[2] - state.target_yaw_rate);
+
+        T body_z_body[3] = {0, 0, 1};
+        T body_z_world[3];
+        rotate_vector_by_quaternion<DEVICE, T>(next_state.orientation, body_z_body, body_z_world);
         T gravity_norm = math::sqrt(device.math,
             parameters.dynamics.gravity[0] * parameters.dynamics.gravity[0] +
             parameters.dynamics.gravity[1] * parameters.dynamics.gravity[1] +
             parameters.dynamics.gravity[2] * parameters.dynamics.gravity[2]
         );
-        T thrust_per_rotor = state.target_thrust_g * parameters.dynamics.mass * gravity_norm / (T)4;
-        T collective_command = rotor_command_from_thrust(device, parameters, (TI)0, thrust_per_rotor);
-        T collective = (collective_command - parameters.dynamics.action_limit.min) / (parameters.dynamics.action_limit.max - parameters.dynamics.action_limit.min);
-        action_reference[0] = math::clamp(device.math, collective * (T)2 - (T)1, (T)-1, (T)1);
-        T error[3] = {
-            target_world_z_body[1] * current_world_z_body[2] - target_world_z_body[2] * current_world_z_body[1],
-            target_world_z_body[2] * current_world_z_body[0] - target_world_z_body[0] * current_world_z_body[2],
-            target_world_z_body[0] * current_world_z_body[1] - target_world_z_body[1] * current_world_z_body[0]
-        };
-        action_reference[1] = math::clamp(device.math, reward_parameters.outer_loop_gain * error[0] / parameters.ctbr_controller.rate_limit[0], (T)-1, (T)1);
-        action_reference[2] = math::clamp(device.math, reward_parameters.outer_loop_gain * error[1] / parameters.ctbr_controller.rate_limit[1], (T)-1, (T)1);
-        action_reference[3] = math::clamp(device.math, state.target_yaw_rate / parameters.ctbr_controller.rate_limit[2], (T)-1, (T)1);
-        components.action_reference_cost = 0;
-        for(TI action_i = 0; action_i < 4; action_i++){
-            T diff = get(action, 0, action_i) - action_reference[action_i];
-            components.action_reference_cost += diff * diff;
+        T specific_force_world[3];
+        for(TI dim_i = 0; dim_i < 3; dim_i++){
+            specific_force_world[dim_i] = next_state.linear_acceleration[dim_i] - parameters.dynamics.gravity[dim_i];
         }
-        components.weighted_cost += reward_parameters.action_reference * components.action_reference_cost;
+        T thrust_projection = 0;
+        for(TI dim_i = 0; dim_i < 3; dim_i++){
+            thrust_projection += specific_force_world[dim_i] * body_z_world[dim_i];
+        }
+        components.actual_thrust_g = thrust_projection / gravity_norm;
+        components.thrust_g_cost = math::abs(device.math, components.actual_thrust_g - state.target_thrust_g);
+
+        T d_action_sq = 0;
+        for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
+            T diff = get(action, 0, action_i) - state.last_action[action_i];
+            d_action_sq += diff * diff;
+        }
+        components.d_action_cost = d_action_sq;
+
+        components.weighted_cost =
+              reward_parameters.tilt * components.tilt_cost
+            + reward_parameters.yaw_rate * components.yaw_rate_cost
+            + reward_parameters.thrust_g * components.thrust_g_cost
+            + reward_parameters.d_action * components.d_action_cost;
         components.scaled_weighted_cost = reward_parameters.scale * components.weighted_cost;
         components.reward = -components.scaled_weighted_cost + reward_parameters.constant;
         components.reward = (components.reward > 0 || !reward_parameters.non_negative) ? components.reward : 0;
@@ -228,8 +223,14 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         add_scalar(device, device.logger, "reward/tilt_cost", components.tilt_cost, cadence);
         add_scalar(device, device.logger, "reward/yaw_rate_cost", components.yaw_rate_cost, cadence);
         add_scalar(device, device.logger, "reward/thrust_g_cost", components.thrust_g_cost, cadence);
-        add_scalar(device, device.logger, "reward/action_reference_cost", components.action_reference_cost, cadence);
+        add_scalar(device, device.logger, "reward/actual_thrust_g", components.actual_thrust_g, cadence);
+        add_scalar(device, device.logger, "reward/d_action_cost", components.d_action_cost, cadence);
+        add_scalar(device, device.logger, "reward_weighted/tilt", reward_parameters.tilt * components.tilt_cost, cadence);
+        add_scalar(device, device.logger, "reward_weighted/yaw_rate", reward_parameters.yaw_rate * components.yaw_rate_cost, cadence);
+        add_scalar(device, device.logger, "reward_weighted/thrust_g", reward_parameters.thrust_g * components.thrust_g_cost, cadence);
+        add_scalar(device, device.logger, "reward_weighted/d_action", reward_parameters.d_action * components.d_action_cost, cadence);
         add_scalar(device, device.logger, "reward/weighted_cost", components.weighted_cost, cadence);
+        add_scalar(device, device.logger, "reward/scaled_weighted_cost", components.scaled_weighted_cost, cadence);
         add_scalar(device, device.logger, "reward/reward", components.reward, cadence);
     }
 
@@ -268,12 +269,8 @@ namespace rl_tools{
         acc += math::abs(device.math, a.constant - b.constant);
         acc += math::abs(device.math, a.tilt - b.tilt);
         acc += math::abs(device.math, a.yaw_rate - b.yaw_rate);
-        acc += math::abs(device.math, a.angular_velocity_xy - b.angular_velocity_xy);
         acc += math::abs(device.math, a.thrust_g - b.thrust_g);
         acc += math::abs(device.math, a.d_action - b.d_action);
-        acc += math::abs(device.math, a.action_saturation - b.action_saturation);
-        acc += math::abs(device.math, a.action_reference - b.action_reference);
-        acc += math::abs(device.math, a.outer_loop_gain - b.outer_loop_gain);
         return acc;
     }
 
@@ -300,12 +297,8 @@ namespace rl_tools{
         json_string += "\"constant\": " + std::to_string(parameters.constant) + ", ";
         json_string += "\"tilt\": " + std::to_string(parameters.tilt) + ", ";
         json_string += "\"yaw_rate\": " + std::to_string(parameters.yaw_rate) + ", ";
-        json_string += "\"angular_velocity_xy\": " + std::to_string(parameters.angular_velocity_xy) + ", ";
         json_string += "\"thrust_g\": " + std::to_string(parameters.thrust_g) + ", ";
-        json_string += "\"d_action\": " + std::to_string(parameters.d_action) + ", ";
-        json_string += "\"action_saturation\": " + std::to_string(parameters.action_saturation) + ", ";
-        json_string += "\"action_reference\": " + std::to_string(parameters.action_reference) + ", ";
-        json_string += "\"outer_loop_gain\": " + std::to_string(parameters.outer_loop_gain);
+        json_string += "\"d_action\": " + std::to_string(parameters.d_action);
         json_string += "}";
         return json_string;
     }
@@ -330,12 +323,8 @@ namespace rl_tools{
         parameters.constant = json_object["constant"];
         parameters.tilt = json_object["tilt"];
         parameters.yaw_rate = json_object["yaw_rate"];
-        parameters.angular_velocity_xy = json_object["angular_velocity_xy"];
         parameters.thrust_g = json_object["thrust_g"];
         parameters.d_action = json_object["d_action"];
-        parameters.action_saturation = json_object["action_saturation"];
-        parameters.action_reference = json_object["action_reference"];
-        parameters.outer_loop_gain = json_object["outer_loop_gain"];
     }
 #endif
 }
