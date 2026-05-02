@@ -57,12 +57,8 @@ namespace rl_tools::rl::zoo::l2f{
                 02.00,
                 04.00,
                 00.50,
-                00.00,
                 02.50,
-                00.00,
-                00.02,
-                10.00,
-                08.00
+                00.00
         };
         static constexpr typename PARAMETERS_TYPE::MDP mdp = {
             init,
