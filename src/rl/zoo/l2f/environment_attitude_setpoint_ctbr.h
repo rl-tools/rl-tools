@@ -37,8 +37,8 @@ namespace rl_tools::rl::zoo::l2f{
             (T)0,
             (T)1,
             {(T)10, (T)10, (T)10},
-            {(T)18, (T)18, (T)8},
-            {(T)0.18, (T)0.18, (T)0.05},
+            {216, 216, 96},
+            {5.76, 5.76, 1.6},
             {(T)0.0030, (T)0.0030, (T)0.0012}
         };
         static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = {
@@ -54,7 +54,7 @@ namespace rl_tools::rl::zoo::l2f{
         static constexpr REWARD_FUNCTION reward_function = {
                 false,
                 01.00,
-                02.00,
+                03.00,
                 04.00,
                 00.50,
                 02.50,
@@ -112,9 +112,10 @@ namespace rl_tools::rl::zoo::l2f{
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr auto ACTION_INTERFACE = parameters::ActionInterface::CTBR;
             static constexpr TI N_SUBSTEPS = BASE::ENVIRONMENT_STATIC_PARAMETERS::N_SUBSTEPS;
-            static constexpr TI ACTION_HISTORY_LENGTH = 0;
+            static constexpr TI ACTION_HISTORY_LENGTH = 16;
             static constexpr TI EPISODE_STEP_LIMIT = BASE::ENVIRONMENT_STATIC_PARAMETERS::EPISODE_STEP_LIMIT;
             static constexpr TI CLOSED_FORM = BASE::ENVIRONMENT_STATIC_PARAMETERS::CLOSED_FORM;
+            static_assert(CLOSED_FORM == false);
 
             using STATE_BASE_INNER = StateBase<StateSpecification<T, TI>>;
             using STATE_BASE_LA = StateLastAction<StateSpecification<T, TI, STATE_BASE_INNER>>;
@@ -123,12 +124,12 @@ namespace rl_tools::rl::zoo::l2f{
             using STATE_BASE_MAHONY = StateMahony<StateMahonySpecification<T, TI, STATE_BASE_GB>>;
             using STATE_BASE = StateCTBRController<StateSpecification<T, TI, STATE_BASE_MAHONY>>;
             using STATE_WITH_RANDOM_FORCE = StateRandomForce<StateSpecification<T, TI, STATE_BASE>>;
-            using STATE_WITH_ROTORS = StateRotors<StateRotorsSpecification<T, TI, CLOSED_FORM, STATE_WITH_RANDOM_FORCE>>;
+            using STATE_WITH_ROTORS = StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, STATE_WITH_RANDOM_FORCE>>;
             using STATE_WITH_TRAJECTORY = StateTrajectory<StateSpecification<T, TI, STATE_WITH_ROTORS>>;
             using STATE_TYPE = StateAttitudeSetpoint<StateAttitudeSetpointSpecification<T, TI, STATE_WITH_TRAJECTORY>>;
 
             using OBSERVATION_TYPE = observation::AttitudeSetpoint<observation::AttitudeSetpointSpecification<T, TI,
-                    observation::OrientationMahonyWorldZ<observation::OrientationMahonyWorldZSpecification<T, TI>>>>;
+                    observation::OrientationMahonyWorldZ<observation::OrientationMahonyWorldZSpecification<T, TI, observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>;
             using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
