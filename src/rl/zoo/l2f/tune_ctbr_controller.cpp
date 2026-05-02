@@ -33,6 +33,7 @@ constexpr TI N_MOTOR_DELAY_SCALES = 4;
 constexpr T MOTOR_DELAY_SCALES[N_MOTOR_DELAY_SCALES] = {(T)0.125, (T)0.25, (T)0.5, (T)1};
 constexpr const char* MOTOR_DELAY_SCALE_LABELS[N_MOTOR_DELAY_SCALES] = {"delay_0p125", "delay_0p25", "delay_0p5", "delay_1"};
 constexpr const char* MOTOR_DELAY_SCALE_PLOT_LABELS[N_MOTOR_DELAY_SCALES] = {"0.125x delay", "0.25x delay", "0.5x delay", "1x delay"};
+constexpr T RATE_REFERENCES[3] = {(T)5, (T)5, (T)1};
 
 struct Result{
     T score = 0;
@@ -152,7 +153,6 @@ Result evaluate_axis(DEVICE& device, ENVIRONMENT& env, const CTBR_CONTROLLER& co
 }
 
 Result evaluate_controller(DEVICE& device, ENVIRONMENT& env, const CTBR_CONTROLLER& controller, T motor_delay_scale){
-    constexpr T RATE_REFERENCES[3] = {(T)1.5, (T)1.5, (T)1.0};
     Result result;
     for(TI axis = 0; axis < 3; axis++){
         for(TI sign_i = 0; sign_i < 2; sign_i++){
@@ -229,7 +229,7 @@ void write_trace_csv(DEVICE& device, ENVIRONMENT& env, const Candidate candidate
     constexpr TI N_CASES = 6;
     const char* names[N_CASES] = {"roll_pos", "roll_neg", "pitch_pos", "pitch_neg", "yaw_pos", "yaw_neg"};
     TI axes[N_CASES] = {0, 0, 1, 1, 2, 2};
-    T references[N_CASES] = {(T)1.5, (T)-1.5, (T)1.5, (T)-1.5, (T)1.0, (T)-1.0};
+    T references[N_CASES] = {RATE_REFERENCES[0], -RATE_REFERENCES[0], RATE_REFERENCES[1], -RATE_REFERENCES[1], RATE_REFERENCES[2], -RATE_REFERENCES[2]};
 
     typename ENVIRONMENT::Parameters parameters[N_MOTOR_DELAY_SCALES];
 

@@ -57,7 +57,7 @@ namespace rl_tools::rl::zoo::l2f::sac_attitude_setpoint_ctbr{
             };
             struct ALPHA_OPTIMIZER_PARAMETERS: OPTIMIZER_PARAMETERS_COMMON{
                 using T = typename TYPE_POLICY::DEFAULT;
-                static constexpr T ALPHA = 4e-6;
+                static constexpr T ALPHA = 1e-3;
             };
             static constexpr bool SAMPLE_ENVIRONMENT_PARAMETERS = true;
         };
