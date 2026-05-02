@@ -185,6 +185,12 @@ target_compile_definitions(rl_zoo_l2f_attitude_setpoint_ctbr_sac_benchmark PRIVA
 if(NOT WIN32)
 target_compile_options(rl_zoo_l2f_attitude_setpoint_ctbr_sac_benchmark PRIVATE -ftemplate-backtrace-limit=0)
 endif()
+# CTBR Controller Tuning
+add_executable(rl_zoo_l2f_attitude_setpoint_ctbr_tune l2f/tune_ctbr_controller.cpp)
+target_link_libraries(rl_zoo_l2f_attitude_setpoint_ctbr_tune PRIVATE RLtools::RLtools)
+if(NOT WIN32)
+target_compile_options(rl_zoo_l2f_attitude_setpoint_ctbr_tune PRIVATE -ftemplate-backtrace-limit=0)
+endif()
 # TD3
 add_executable(rl_zoo_l2f_td3 zoo_cli.cpp zoo.cpp)
 target_link_libraries(rl_zoo_l2f_td3 PRIVATE RLtools::RLtools)
