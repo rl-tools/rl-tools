@@ -389,7 +389,6 @@ static_assert(N_BATCHES > 0, "STEPS_TOTAL must be >= BATCH_SIZE");
 // =========================================================================
 namespace ppo_visual {
     using namespace rl_tools;
-    using DYNAMICS_TYPE = ENVIRONMENT::DYNAMICS_ENV;
 
     // Per-step prologue: handle episode reset (sample initial state, sample indoor position + scene yaw,
     // randomize brightness), observe state branch and privileged observations, record episode_start_step.
@@ -397,7 +396,7 @@ namespace ppo_visual {
     __global__
     void prologue_kernel(
         DEVICE device,
-        DYNAMICS_TYPE* envs, PARAMETERS_TYPE* env_params, typename ENVIRONMENT::State* states,
+        ENVIRONMENT* envs, typename ENVIRONMENT::Parameters* env_params, typename ENVIRONMENT::State* states,
         bool* truncated_arr, TI* episode_step_arr, T* episode_return_arr,
         Tensor<OBS_PRIV_SPEC> observations_privileged,
         Tensor<STATE_OBS_SPEC> state_observations,
@@ -454,13 +453,13 @@ namespace ppo_visual {
             auto obs_priv_slice = view(device, observations_privileged, env_i);
             auto obs_priv_flat = view_memory<tensor::Shape<TI, ENVIRONMENT::ObservationPrivileged::DIM>>(device, obs_priv_slice);
             auto obs_priv_matrix = matrix_view(device, obs_priv_flat);
-            observe(device, env, params, state, typename ENVIRONMENT::ObservationPrivileged{}, obs_priv_matrix, rng_state);
+            observe(device, env.dynamics, params.dynamics, state, typename ENVIRONMENT::ObservationPrivileged{}, obs_priv_matrix, rng_state);
         }
         // State observation (reduced — actor's state branch)
         {
             auto state_obs_slice = view(device, state_observations, env_i);
             auto state_obs_matrix = matrix_view(device, state_obs_slice);
-            observe(device, env, params, state, ACTOR_STATE_OBS{}, state_obs_matrix, rng_state);
+            observe(device, env.dynamics, params.dynamics, state, ACTOR_STATE_OBS{}, state_obs_matrix, rng_state);
         }
     }
 
@@ -470,7 +469,7 @@ namespace ppo_visual {
     __global__
     void epilogue_kernel(
         DEVICE device,
-        DYNAMICS_TYPE* envs, PARAMETERS_TYPE* env_params, typename ENVIRONMENT::State* states,
+        ENVIRONMENT* envs, typename ENVIRONMENT::Parameters* env_params, typename ENVIRONMENT::State* states,
         bool* truncated_arr, TI* episode_step_arr, T* episode_return_arr,
         Matrix<ACTIONS_MEAN_SPEC> actions_mean,
         Matrix<ACTIONS_SPEC> actions,
@@ -499,9 +498,9 @@ namespace ppo_visual {
 
         typename ENVIRONMENT::State next_state;
         auto action_row = row(device, actions, env_i);
-        step(device, env, params, state, action_row, next_state, rng_state);
-        bool terminated_flag = terminated(device, env, params, next_state, rng_state);
-        T reward_value = reward(device, env, params, state, action_row, next_state, rng_state);
+        step(device, env.dynamics, params.dynamics, state, action_row, next_state, rng_state);
+        bool terminated_flag = terminated(device, env.dynamics, params.dynamics, next_state, rng_state);
+        T reward_value = reward(device, env.dynamics, params.dynamics, state, action_row, next_state, rng_state);
         episode_return_arr[env_i] += reward_value;
         episode_step_arr[env_i]++;
         bool trunc = terminated_flag || (episode_step_limit > 0 && episode_step_arr[env_i] >= episode_step_limit);
@@ -518,7 +517,7 @@ namespace ppo_visual {
     __global__
     void final_priv_obs_kernel(
         DEVICE device,
-        DYNAMICS_TYPE* envs, PARAMETERS_TYPE* env_params, typename ENVIRONMENT::State* states,
+        ENVIRONMENT* envs, typename ENVIRONMENT::Parameters* env_params, typename ENVIRONMENT::State* states,
         Tensor<OBS_PRIV_SPEC> observations_privileged,
         RNG rng
     ){
@@ -531,92 +530,46 @@ namespace ppo_visual {
         auto obs_priv_slice = view(device, observations_privileged, env_i);
         auto obs_priv_flat = view_memory<tensor::Shape<TI, ENVIRONMENT::ObservationPrivileged::DIM>>(device, obs_priv_slice);
         auto obs_priv_matrix = matrix_view(device, obs_priv_flat);
-        observe(device, env, params, state, typename ENVIRONMENT::ObservationPrivileged{}, obs_priv_matrix, rng_state);
+        observe(device, env.dynamics, params.dynamics, state, typename ENVIRONMENT::ObservationPrivileged{}, obs_priv_matrix, rng_state);
     }
 
     template<typename DEVICE>
     __global__
     void make_cameras_kernel(
         DEVICE device,
-        typename ENVIRONMENT::State* states,
+        typename ENVIRONMENT::Parameters* env_params, typename ENVIRONMENT::State* states,
         rendering::raytracing::CameraData<T>* gpu_cameras,
-        T fov, T aspect,
-        T off0, T off1, T off2,
-        T fwd0, T fwd1, T fwd2,
-        T up0, T up1, T up2,
+        T aspect,
         T* scene_translation_arr, T* scene_yaw_cos_arr, T* scene_yaw_sin_arr
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i >= N_ENVIRONMENTS) return;
         auto& state = states[env_i];
-        T offset_body[3] = {off0, off1, off2};
-        T forward_body[3] = {fwd0, fwd1, fwd2};
-        T up_body[3] = {up0, up1, up2};
-        T cam_pos_local[3];
-        rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, offset_body, cam_pos_local);
-        T cam_forward_local[3];
-        rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, forward_body, cam_forward_local);
-        T cam_up_local[3];
-        rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, up_body, cam_up_local);
-        T c = scene_yaw_cos_arr[env_i];
-        T s = scene_yaw_sin_arr[env_i];
-        auto rotate_yaw = [&](const T in[3], T out[3]){
-            out[0] = c * in[0] - s * in[1];
-            out[1] = s * in[0] + c * in[1];
-            out[2] = in[2];
-        };
-        T state_pos_world[3];
-        rotate_yaw(state.position, state_pos_world);
-        T cam_pos_world[3];
-        rotate_yaw(cam_pos_local, cam_pos_world);
-        T cam_fwd_world[3];
-        rotate_yaw(cam_forward_local, cam_fwd_world);
-        T cam_up_world[3];
-        rotate_yaw(cam_up_local, cam_up_world);
-        T position[3] = {
-            state_pos_world[0] + cam_pos_world[0] + scene_translation_arr[env_i*3+0],
-            state_pos_world[1] + cam_pos_world[1] + scene_translation_arr[env_i*3+1],
-            state_pos_world[2] + cam_pos_world[2] + scene_translation_arr[env_i*3+2]
-        };
-        T look_at[3] = {position[0] + cam_fwd_world[0], position[1] + cam_fwd_world[1], position[2] + cam_fwd_world[2]};
-        T up_world_arr[3] = {cam_up_world[0], cam_up_world[1], cam_up_world[2]};
-        gpu_cameras[env_i] = make_camera_data(position, look_at, up_world_arr, fov, aspect);
+        const auto& params = env_params[env_i];
+        gpu_cameras[env_i] = rl::environments::l2f_visual::cuda::make_camera_for_state<DEVICE, VISUAL_SPEC>(
+            device, params, state, aspect,
+            scene_translation_arr + env_i * 3,
+            scene_yaw_cos_arr[env_i], scene_yaw_sin_arr[env_i]
+        );
     }
 
     template<typename DEVICE>
     __global__
     void make_target_cameras_kernel(
         DEVICE device,
+        typename ENVIRONMENT::Parameters* env_params,
         rendering::raytracing::CameraData<T>* target_cameras,
-        T fov, T aspect,
-        T off0, T off1, T off2,
-        T fwd0, T fwd1, T fwd2,
-        T up0, T up1, T up2,
+        T aspect,
         T* scene_translation_arr, T* scene_yaw_cos_arr, T* scene_yaw_sin_arr
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i >= N_ENVIRONMENTS) return;
-        T offset_body[3] = {off0, off1, off2};
-        T forward_body[3] = {fwd0, fwd1, fwd2};
-        T up_body[3] = {up0, up1, up2};
-        T c = scene_yaw_cos_arr[env_i];
-        T s = scene_yaw_sin_arr[env_i];
-        auto rotate_yaw = [&](const T in[3], T out[3]){
-            out[0] = c * in[0] - s * in[1];
-            out[1] = s * in[0] + c * in[1];
-            out[2] = in[2];
-        };
-        T offset_world[3]; rotate_yaw(offset_body, offset_world);
-        T forward_world[3]; rotate_yaw(forward_body, forward_world);
-        T up_world[3]; rotate_yaw(up_body, up_world);
-        T position[3] = {
-            scene_translation_arr[env_i*3+0] + offset_world[0],
-            scene_translation_arr[env_i*3+1] + offset_world[1],
-            scene_translation_arr[env_i*3+2] + offset_world[2]
-        };
-        T look_at[3] = {position[0] + forward_world[0], position[1] + forward_world[1], position[2] + forward_world[2]};
-        T up_world_arr[3] = {up_world[0], up_world[1], up_world[2]};
-        target_cameras[env_i] = make_camera_data(position, look_at, up_world_arr, fov, aspect);
+        const auto& params = env_params[env_i];
+        target_cameras[env_i] = rl::environments::l2f_visual::cuda::make_target_camera<DEVICE, VISUAL_SPEC>(
+            device, params, aspect,
+            scene_translation_arr + env_i * 3,
+            scene_yaw_cos_arr[env_i], scene_yaw_sin_arr[env_i]
+        );
     }
 }
 
@@ -1006,9 +959,8 @@ int main(int argc, char** argv){
     // ---------------------------------------------------------------------
     // GPU-resident environment state (separate from on_policy_runner so kernels can mutate freely)
     // ---------------------------------------------------------------------
-    using DYNAMICS_TYPE = ENVIRONMENT::DYNAMICS_ENV;
-    DYNAMICS_TYPE* gpu_dynamics_arr = nullptr;
-    PARAMETERS_TYPE* gpu_params_arr = nullptr;
+    ENVIRONMENT* gpu_envs_arr = nullptr;
+    typename ENVIRONMENT::Parameters* gpu_params_arr = nullptr;
     typename ENVIRONMENT::State* gpu_states_arr = nullptr;
     bool* gpu_truncated_arr = nullptr;
     TI* gpu_episode_step_arr = nullptr;
@@ -1018,8 +970,8 @@ int main(int argc, char** argv){
     T* gpu_scene_yaw_arr = nullptr;
     T* gpu_scene_yaw_cos_arr = nullptr;
     T* gpu_scene_yaw_sin_arr = nullptr;
-    cudaMalloc(&gpu_dynamics_arr, N_ENVIRONMENTS * sizeof(DYNAMICS_TYPE));
-    cudaMalloc(&gpu_params_arr, N_ENVIRONMENTS * sizeof(PARAMETERS_TYPE));
+    cudaMalloc(&gpu_envs_arr, N_ENVIRONMENTS * sizeof(ENVIRONMENT));
+    cudaMalloc(&gpu_params_arr, N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::Parameters));
     cudaMalloc(&gpu_states_arr, N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::State));
     cudaMalloc(&gpu_truncated_arr, N_ENVIRONMENTS * sizeof(bool));
     cudaMalloc(&gpu_episode_step_arr, N_ENVIRONMENTS * sizeof(TI));
@@ -1030,14 +982,8 @@ int main(int argc, char** argv){
     cudaMalloc(&gpu_scene_yaw_cos_arr, N_ENVIRONMENTS * sizeof(T));
     cudaMalloc(&gpu_scene_yaw_sin_arr, N_ENVIRONMENTS * sizeof(T));
     {
-        std::vector<DYNAMICS_TYPE> cpu_dynamics(N_ENVIRONMENTS);
-        std::vector<PARAMETERS_TYPE> cpu_params(N_ENVIRONMENTS);
-        for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
-            cpu_dynamics[env_i] = envs[env_i].dynamics;
-            cpu_params[env_i] = env_parameters[env_i].dynamics;
-        }
-        cudaMemcpy(gpu_dynamics_arr, cpu_dynamics.data(), N_ENVIRONMENTS * sizeof(DYNAMICS_TYPE), cudaMemcpyHostToDevice);
-        cudaMemcpy(gpu_params_arr, cpu_params.data(), N_ENVIRONMENTS * sizeof(PARAMETERS_TYPE), cudaMemcpyHostToDevice);
+        cudaMemcpy(gpu_envs_arr, envs.data(), N_ENVIRONMENTS * sizeof(ENVIRONMENT), cudaMemcpyHostToDevice);
+        cudaMemcpy(gpu_params_arr, env_parameters.data(), N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::Parameters), cudaMemcpyHostToDevice);
         std::vector<unsigned char> init_truncated(N_ENVIRONMENTS, 1);
         std::vector<TI> init_step(N_ENVIRONMENTS, 0);
         std::vector<T> init_return(N_ENVIRONMENTS, (T)0);
@@ -1225,7 +1171,7 @@ int main(int argc, char** argv){
             auto observations_privileged = rlt::view_range(device_gpu, dataset_gpu.all_observations_privileged, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
             auto state_observations = rlt::view_range(device_gpu, gpu_all_state_observations, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
             ppo_visual::prologue_kernel<<<grid, block, 0, device_gpu.stream>>>(
-                tag_device, gpu_dynamics_arr, gpu_params_arr, gpu_states_arr,
+                tag_device, gpu_envs_arr, gpu_params_arr, gpu_states_arr,
                 gpu_truncated_arr, gpu_episode_step_arr, gpu_episode_return_arr,
                 observations_privileged, state_observations,
                 gpu_episode_lengths_log, gpu_episode_returns_log,
@@ -1243,11 +1189,8 @@ int main(int argc, char** argv){
 
             // 2. Build cameras + render student frame per active scene
             ppo_visual::make_cameras_kernel<<<grid, block, 0, device_gpu.stream>>>(
-                tag_device, gpu_states_arr, gpu_cameras,
-                env_parameters[0].fov, cam_aspect,
-                env_parameters[0].camera_mount.offset_body[0], env_parameters[0].camera_mount.offset_body[1], env_parameters[0].camera_mount.offset_body[2],
-                env_parameters[0].camera_mount.forward_body[0], env_parameters[0].camera_mount.forward_body[1], env_parameters[0].camera_mount.forward_body[2],
-                env_parameters[0].camera_mount.up_body[0], env_parameters[0].camera_mount.up_body[1], env_parameters[0].camera_mount.up_body[2],
+                tag_device, gpu_params_arr, gpu_states_arr, gpu_cameras,
+                cam_aspect,
                 gpu_scene_translation_arr, gpu_scene_yaw_cos_arr, gpu_scene_yaw_sin_arr);
             rlt::check_status(device_gpu);
 
@@ -1286,11 +1229,8 @@ int main(int argc, char** argv){
 
             // 3. Build target cameras + render target frame
             ppo_visual::make_target_cameras_kernel<<<grid, block, 0, device_gpu.stream>>>(
-                tag_device, gpu_target_cameras,
-                env_parameters[0].fov, cam_aspect,
-                env_parameters[0].camera_mount.offset_body[0], env_parameters[0].camera_mount.offset_body[1], env_parameters[0].camera_mount.offset_body[2],
-                env_parameters[0].camera_mount.forward_body[0], env_parameters[0].camera_mount.forward_body[1], env_parameters[0].camera_mount.forward_body[2],
-                env_parameters[0].camera_mount.up_body[0], env_parameters[0].camera_mount.up_body[1], env_parameters[0].camera_mount.up_body[2],
+                tag_device, gpu_params_arr, gpu_target_cameras,
+                cam_aspect,
                 gpu_scene_translation_arr, gpu_scene_yaw_cos_arr, gpu_scene_yaw_sin_arr);
             rlt::check_status(device_gpu);
 
@@ -1400,7 +1340,7 @@ int main(int argc, char** argv){
                 auto actions_mean_view = rlt::view(device_gpu, dataset_gpu.actions_mean, rlt::matrix::ViewSpec<N_ENVIRONMENTS, ACTION_DIM>(), step_i * N_ENVIRONMENTS, 0);
                 auto actions_view = rlt::view(device_gpu, dataset_gpu.actions, rlt::matrix::ViewSpec<N_ENVIRONMENTS, ACTION_DIM>(), step_i * N_ENVIRONMENTS, 0);
                 ppo_visual::epilogue_kernel<<<grid, block, 0, device_gpu.stream>>>(
-                    tag_device, gpu_dynamics_arr, gpu_params_arr, gpu_states_arr,
+                    tag_device, gpu_envs_arr, gpu_params_arr, gpu_states_arr,
                     gpu_truncated_arr, gpu_episode_step_arr, gpu_episode_return_arr,
                     actions_mean_view, actions_view, log_std_gpu,
                     dataset_gpu, rng_gpu, step_i, EPISODE_STEP_LIMIT);
@@ -1424,7 +1364,7 @@ int main(int argc, char** argv){
         {
             auto final_obs_priv = rlt::view_range(device_gpu, dataset_gpu.all_observations_privileged, STEPS_PER_ENV * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
             ppo_visual::final_priv_obs_kernel<<<grid, block, 0, device_gpu.stream>>>(
-                tag_device, gpu_dynamics_arr, gpu_params_arr, gpu_states_arr, final_obs_priv, rng_gpu);
+                tag_device, gpu_envs_arr, gpu_params_arr, gpu_states_arr, final_obs_priv, rng_gpu);
             rlt::check_status(device_gpu);
         }
         on_policy_runner_gpu.step += N_ENVIRONMENTS * STEPS_PER_ENV;
