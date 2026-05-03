@@ -17,6 +17,38 @@ namespace rl_tools::rl::environments::l2f_visual::cuda{
         out[1] = scene_yaw_sin * in[0] + scene_yaw_cos * in[1];
         out[2] = in[2];
     }
+    template <typename T>
+    RL_TOOLS_FUNCTION_PLACEMENT void cross_vector(const T a[3], const T b[3], T out[3]){
+        out[0] = a[1] * b[2] - a[2] * b[1];
+        out[1] = a[2] * b[0] - a[0] * b[2];
+        out[2] = a[0] * b[1] - a[1] * b[0];
+    }
+    template <typename DEVICE, typename T>
+    RL_TOOLS_FUNCTION_PLACEMENT void normalize_or(DEVICE& device, T v[3], T fallback_0, T fallback_1, T fallback_2){
+        T norm_sq = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
+        if(norm_sq > static_cast<T>(1e-12)){
+            T inv_norm = static_cast<T>(1) / math::sqrt(device.math, norm_sq);
+            v[0] *= inv_norm;
+            v[1] *= inv_norm;
+            v[2] *= inv_norm;
+        } else {
+            v[0] = fallback_0;
+            v[1] = fallback_1;
+            v[2] = fallback_2;
+        }
+    }
+    template <typename DEVICE, typename T>
+    RL_TOOLS_FUNCTION_PLACEMENT void rotate_around_axis(DEVICE& device, const T in[3], const T axis[3], T angle, T out[3]){
+        T c = math::cos(device.math, angle);
+        T s = math::sin(device.math, angle);
+        T axis_cross_in[3];
+        cross_vector(axis, in, axis_cross_in);
+        T axis_dot_in = axis[0] * in[0] + axis[1] * in[1] + axis[2] * in[2];
+        T one_minus_c = static_cast<T>(1) - c;
+        out[0] = in[0] * c + axis_cross_in[0] * s + axis[0] * axis_dot_in * one_minus_c;
+        out[1] = in[1] * c + axis_cross_in[1] * s + axis[1] * axis_dot_in * one_minus_c;
+        out[2] = in[2] * c + axis_cross_in[2] * s + axis[2] * axis_dot_in * one_minus_c;
+    }
 
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::CameraData<typename SPEC::T> make_camera_for_state(
@@ -59,6 +91,59 @@ namespace rl_tools::rl::environments::l2f_visual::cuda{
         return make_camera_data(position, look_at, up, parameters.fov, aspect);
     }
 
+    template <typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::CameraData<typename SPEC::T> make_target_camera(
+        DEVICE& device,
+        const typename MultirrotorVisual<SPEC>::Parameters& parameters,
+        typename SPEC::T aspect,
+        const typename SPEC::T scene_translation[3],
+        typename SPEC::T scene_yaw_cos,
+        typename SPEC::T scene_yaw_sin,
+        typename SPEC::T target_frame_roll,
+        typename SPEC::T target_frame_pitch
+    ){
+        using T = typename SPEC::T;
+        T offset_world[3];
+        rotate_scene_yaw(parameters.camera_mount.offset_body, offset_world, scene_yaw_cos, scene_yaw_sin);
+        T forward_body[3] = {
+            parameters.camera_mount.forward_body[0],
+            parameters.camera_mount.forward_body[1],
+            parameters.camera_mount.forward_body[2]
+        };
+        T up_body[3] = {
+            parameters.camera_mount.up_body[0],
+            parameters.camera_mount.up_body[1],
+            parameters.camera_mount.up_body[2]
+        };
+        T pitch_axis[3];
+        cross_vector(forward_body, up_body, pitch_axis);
+        normalize_or(device, pitch_axis, static_cast<T>(0), static_cast<T>(-1), static_cast<T>(0));
+        T pitched_forward_body[3];
+        T pitched_up_body[3];
+        rotate_around_axis(device, forward_body, pitch_axis, target_frame_pitch, pitched_forward_body);
+        rotate_around_axis(device, up_body, pitch_axis, target_frame_pitch, pitched_up_body);
+        T roll_axis[3] = {pitched_forward_body[0], pitched_forward_body[1], pitched_forward_body[2]};
+        normalize_or(device, roll_axis, static_cast<T>(1), static_cast<T>(0), static_cast<T>(0));
+        T rolled_up_body[3];
+        rotate_around_axis(device, pitched_up_body, roll_axis, target_frame_roll, rolled_up_body);
+        T forward_world[3];
+        rotate_scene_yaw(pitched_forward_body, forward_world, scene_yaw_cos, scene_yaw_sin);
+        T up_world[3];
+        rotate_scene_yaw(rolled_up_body, up_world, scene_yaw_cos, scene_yaw_sin);
+
+        T position[3] = {
+            scene_translation[0] + offset_world[0],
+            scene_translation[1] + offset_world[1],
+            scene_translation[2] + offset_world[2]
+        };
+        T look_at[3] = {
+            position[0] + forward_world[0],
+            position[1] + forward_world[1],
+            position[2] + forward_world[2]
+        };
+        T up[3] = {up_world[0], up_world[1], up_world[2]};
+        return make_camera_data(position, look_at, up, parameters.fov, aspect);
+    }
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::CameraData<typename SPEC::T> make_target_camera(
         DEVICE&,
