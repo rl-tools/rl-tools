@@ -286,6 +286,7 @@ static constexpr TI REDUCED_BATCH_SIZE = 2;
 static_assert(REDUCED_BATCH_SIZE <= N_EXAMPLES);
 static constexpr T OBSERVATION_NOISE_STD = 0.00;
 static constexpr T BRIGHTNESS_RANDOMIZATION_RANGE = 0.5;
+static constexpr T TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE = 0.25;
 static constexpr TI ENV_GRID_SIDE = 8; // sqrt(N_ENVIRONMENTS_PER_SCENE)
 static constexpr TI SCENE_GRID_COLS = N_ACTIVE_SCENES;
 static constexpr TI SCENE_GRID_ROWS = (N_ACTIVE_SCENES + SCENE_GRID_COLS - 1) / SCENE_GRID_COLS;
@@ -395,6 +396,7 @@ namespace imitation_kernels{
         T* raptor_gru_state_ptr, T* raptor_gru_initial_hidden_ptr, TI* raptor_gru_step_ptr,
         TI* episode_start_step,
         T* brightness_scale_arr,
+        T* target_brightness_scale_arr,
         T* target_frame_roll_arr,
         T* target_frame_pitch_arr,
         T* scene_translation_arr,
@@ -440,6 +442,12 @@ namespace imitation_kernels{
             episode_return_arr[env_i] = (T)0;
             teacher_forcing_arr[env_i] = full_teacher_forcing || rl_tools::random::uniform_real_distribution(device.random, (T)0, (T)1, rng_state) < teacher_forcing_fraction;
             brightness_scale_arr[env_i] = (T)1 + (rl_tools::random::uniform_real_distribution(device.random, (T)0, (T)1, rng_state) * (T)2 - (T)1) * BRIGHTNESS_RANDOMIZATION_RANGE;
+            if constexpr(TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE > static_cast<T>(0)){
+                T mismatch = (T)1 + (rl_tools::random::uniform_real_distribution(device.random, (T)0, (T)1, rng_state) * (T)2 - (T)1) * TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE;
+                target_brightness_scale_arr[env_i] = brightness_scale_arr[env_i] * mismatch;
+            } else {
+                target_brightness_scale_arr[env_i] = brightness_scale_arr[env_i];
+            }
             if constexpr(TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE > static_cast<T>(0)){
                 target_frame_roll_arr[env_i] = rl_tools::random::uniform_real_distribution(device.random, -TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE, TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE, rng_state);
                 target_frame_pitch_arr[env_i] = rl_tools::random::uniform_real_distribution(device.random, -TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE, TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE, rng_state);
@@ -1225,6 +1233,7 @@ int main(int argc, char** argv){
     T* gpu_episode_tf_log = nullptr;
     T* gpu_episode_terminated_log = nullptr;
     T* gpu_brightness_scale_arr = nullptr;
+    T* gpu_target_brightness_scale_arr = nullptr;
     T* gpu_target_frame_roll_arr = nullptr;
     T* gpu_target_frame_pitch_arr = nullptr;
     T* gpu_scene_translation_arr = nullptr;
@@ -1243,6 +1252,7 @@ int main(int argc, char** argv){
     cudaMalloc(&gpu_episode_tf_log, STEPS_TOTAL * sizeof(T));
     cudaMalloc(&gpu_episode_terminated_log, STEPS_TOTAL * sizeof(T));
     cudaMalloc(&gpu_brightness_scale_arr, N_ENVIRONMENTS * sizeof(T));
+    cudaMalloc(&gpu_target_brightness_scale_arr, N_ENVIRONMENTS * sizeof(T));
     cudaMalloc(&gpu_target_frame_roll_arr, N_ENVIRONMENTS * sizeof(T));
     cudaMalloc(&gpu_target_frame_pitch_arr, N_ENVIRONMENTS * sizeof(T));
     cudaMalloc(&gpu_scene_translation_arr, N_ENVIRONMENTS * 3 * sizeof(T));
@@ -1253,6 +1263,7 @@ int main(int argc, char** argv){
         std::vector<T> ones(N_ENVIRONMENTS, (T)1);
         std::vector<T> zeros(N_ENVIRONMENTS, (T)0);
         cudaMemcpy(gpu_brightness_scale_arr, ones.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
+        cudaMemcpy(gpu_target_brightness_scale_arr, ones.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
         cudaMemcpy(gpu_target_frame_roll_arr, zeros.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
         cudaMemcpy(gpu_target_frame_pitch_arr, zeros.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
         std::vector<T> scene_translations(N_ENVIRONMENTS * 3, (T)0);
@@ -1312,6 +1323,7 @@ int main(int argc, char** argv){
     std::cout << "  TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE: "
               << TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE << " rad ("
               << TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE * static_cast<T>(180) / rlt::math::PI<T> << " deg)" << std::endl;
+    std::cout << "  TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE: " << TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE << std::endl;
 
     using NO_AUTO_RESET_MODE = rlt::Mode<rlt::nn::layers::gru::NoAutoResetMode<rlt::mode::Default<>>>;
     NO_AUTO_RESET_MODE no_auto_reset_mode;
@@ -1438,6 +1450,7 @@ int main(int argc, char** argv){
                     rlt::data(raptor_gru_state_content.step),
                     gpu_episode_start_step,
                     gpu_brightness_scale_arr,
+                    gpu_target_brightness_scale_arr,
                     gpu_target_frame_roll_arr,
                     gpu_target_frame_pitch_arr,
                     gpu_scene_translation_arr,
@@ -1562,8 +1575,8 @@ int main(int argc, char** argv){
                         cudaEventRecord(target_render_pass_stop_events[event_i], optix_stream);
                     }
                     const uint32_t* fb_ptr = active_scene_framebuffer_ptrs[active_scene_i];
-                    if constexpr(BRIGHTNESS_RANDOMIZATION_RANGE > 0){
-                        scatter_pixel_to_float_kernel<true><<<pf_grid, pf_block, 0, optix_stream>>>(fb_ptr, target_obs_ptr, gpu_brightness_scale_arr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
+                    if constexpr(BRIGHTNESS_RANDOMIZATION_RANGE > 0 || TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE > 0){
+                        scatter_pixel_to_float_kernel<true><<<pf_grid, pf_block, 0, optix_stream>>>(fb_ptr, target_obs_ptr, gpu_target_brightness_scale_arr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
                     } else {
                         scatter_pixel_to_float_kernel<false><<<pf_grid, pf_block, 0, optix_stream>>>(fb_ptr, target_obs_ptr, nullptr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
                     }
@@ -1935,6 +1948,7 @@ int main(int argc, char** argv){
         rlt::add_scalar(device, device.logger, "rendering/anti_aliasing_grid_size", RENDER_ANTI_ALIASING_ACTIVE ? static_cast<T>(RENDER_ANTI_ALIASING_GRID_SIZE) : static_cast<T>(1));
         rlt::add_scalar(device, device.logger, "rendering/motion_blur_samples", RENDER_MOTION_BLUR_ACTIVE ? static_cast<T>(RENDER_MOTION_BLUR_SAMPLES) : static_cast<T>(1));
         rlt::add_scalar(device, device.logger, "rendering/target_frame_roll_pitch_randomization_range", TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE);
+        rlt::add_scalar(device, device.logger, "rendering/target_frame_brightness_mismatch_range", TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE);
         if constexpr(RENDER_MOTION_BLUR_ACTIVE){
             rlt::add_scalar(device, device.logger, "rendering/shutter_fraction", render_shutter_fraction);
         }
@@ -1959,7 +1973,8 @@ int main(int argc, char** argv){
                 + ", \"motion_blur_samples\": " + std::to_string(RENDER_MOTION_BLUR_ACTIVE ? RENDER_MOTION_BLUR_SAMPLES : (TI)1)
                 + ", \"shutter_fraction_min\": " + std::to_string(RENDER_SHUTTER_FRACTION_MIN)
                 + ", \"shutter_fraction_max\": " + std::to_string(RENDER_SHUTTER_FRACTION_MAX)
-                + ", \"target_frame_roll_pitch_randomization_range\": " + std::to_string(TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE) + "}";
+                + ", \"target_frame_roll_pitch_randomization_range\": " + std::to_string(TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE)
+                + ", \"target_frame_brightness_mismatch_range\": " + std::to_string(TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE) + "}";
             std::string meta = "{\"environment\": {\"name\": \"l2f_visual\", \"observation\": \"" + obs_string + "\", \"output\": \"Action\", \"rendering\": " + rendering_string + "}}";
             // Per-branch CPU example tensors in canonical `[1, N_EXAMPLES, ...features]` shape.
             // Used directly by the REAL eval (via dense rank-reduced view_memory) and by the
@@ -2233,6 +2248,7 @@ int main(int argc, char** argv){
     cudaFree(gpu_episode_terminated_log);
     cudaFree(gpu_epoch_episode_stats);
     cudaFree(gpu_brightness_scale_arr);
+    cudaFree(gpu_target_brightness_scale_arr);
     cudaFree(gpu_target_frame_roll_arr);
     cudaFree(gpu_target_frame_pitch_arr);
     cudaFree(gpu_scene_translation_arr);
