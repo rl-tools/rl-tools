@@ -508,43 +508,11 @@ namespace imitation_kernels{
         if(env_i >= N_ENVIRONMENTS) return;
         auto& state = states[env_i];
         const auto& params = env_params[env_i];
-        T fov = params.fov;
-        T offset_body[3] = {params.camera_mount.offset_body[0], params.camera_mount.offset_body[1], params.camera_mount.offset_body[2]};
-        T forward_body[3] = {params.camera_mount.forward_body[0], params.camera_mount.forward_body[1], params.camera_mount.forward_body[2]};
-        T up_body[3] = {params.camera_mount.up_body[0], params.camera_mount.up_body[1], params.camera_mount.up_body[2]};
-        T cam_pos_local[3];
-        rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, offset_body, cam_pos_local);
-        T cam_forward_local[3];
-        rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, forward_body, cam_forward_local);
-        T cam_up_local[3];
-        rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, up_body, cam_up_local);
-        T c = scene_yaw_cos_arr[env_i];
-        T s = scene_yaw_sin_arr[env_i];
-        auto rotate_scene_yaw = [&](const T in[3], T out[3]){
-            out[0] = c * in[0] - s * in[1];
-            out[1] = s * in[0] + c * in[1];
-            out[2] = in[2];
-        };
-        T state_position_world[3];
-        rotate_scene_yaw(state.position, state_position_world);
-        T cam_pos_world[3];
-        rotate_scene_yaw(cam_pos_local, cam_pos_world);
-        T cam_forward_world[3];
-        rotate_scene_yaw(cam_forward_local, cam_forward_world);
-        T cam_up_world[3];
-        rotate_scene_yaw(cam_up_local, cam_up_world);
-        T position[3] = {
-            state_position_world[0] + cam_pos_world[0] + scene_translation_arr[env_i * 3 + 0],
-            state_position_world[1] + cam_pos_world[1] + scene_translation_arr[env_i * 3 + 1],
-            state_position_world[2] + cam_pos_world[2] + scene_translation_arr[env_i * 3 + 2]
-        };
-        T look_at[3] = {
-            position[0] + cam_forward_world[0],
-            position[1] + cam_forward_world[1],
-            position[2] + cam_forward_world[2]
-        };
-        T up[3] = {cam_up_world[0], cam_up_world[1], cam_up_world[2]};
-        CAMERA_DATA close_camera = rlt::make_camera_data(position, look_at, up, fov, aspect);
+        CAMERA_DATA close_camera = rlt::rl::environments::l2f_visual::cuda::make_camera_for_state<DEVICE, VISUAL_SPEC>(
+            device, params, state, aspect,
+            scene_translation_arr + env_i * 3,
+            scene_yaw_cos_arr[env_i], scene_yaw_sin_arr[env_i]
+        );
         gpu_cameras[env_i] = close_camera;
         if constexpr(ENABLE_MOTION_BLUR){
             CAMERA_DATA open_camera = close_camera;
@@ -568,35 +536,11 @@ namespace imitation_kernels{
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i >= N_ENVIRONMENTS) return;
         const auto& params = env_params[env_i];
-        T fov = params.fov;
-        T offset_body[3] = {params.camera_mount.offset_body[0], params.camera_mount.offset_body[1], params.camera_mount.offset_body[2]};
-        T forward_body[3] = {params.camera_mount.forward_body[0], params.camera_mount.forward_body[1], params.camera_mount.forward_body[2]};
-        T up_body[3] = {params.camera_mount.up_body[0], params.camera_mount.up_body[1], params.camera_mount.up_body[2]};
-        T c = scene_yaw_cos_arr[env_i];
-        T s = scene_yaw_sin_arr[env_i];
-        auto rotate_scene_yaw = [&](const T in[3], T out[3]){
-            out[0] = c * in[0] - s * in[1];
-            out[1] = s * in[0] + c * in[1];
-            out[2] = in[2];
-        };
-        T offset_world[3];
-        rotate_scene_yaw(offset_body, offset_world);
-        T forward_world[3];
-        rotate_scene_yaw(forward_body, forward_world);
-        T up_world[3];
-        rotate_scene_yaw(up_body, up_world);
-        T position[3] = {
-            scene_translation_arr[env_i * 3 + 0] + offset_world[0],
-            scene_translation_arr[env_i * 3 + 1] + offset_world[1],
-            scene_translation_arr[env_i * 3 + 2] + offset_world[2]
-        };
-        T look_at[3] = {
-            position[0] + forward_world[0],
-            position[1] + forward_world[1],
-            position[2] + forward_world[2]
-        };
-        T up[3] = {up_world[0], up_world[1], up_world[2]};
-        target_cameras[env_i] = rlt::make_camera_data(position, look_at, up, fov, aspect);
+        target_cameras[env_i] = rlt::rl::environments::l2f_visual::cuda::make_target_camera<DEVICE, VISUAL_SPEC>(
+            device, params, aspect,
+            scene_translation_arr + env_i * 3,
+            scene_yaw_cos_arr[env_i], scene_yaw_sin_arr[env_i]
+        );
     }
 
     __global__
