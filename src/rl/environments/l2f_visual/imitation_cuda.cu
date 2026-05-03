@@ -224,8 +224,8 @@ static constexpr T CAMERA_FOV = static_cast<T>(63.8) / static_cast<T>(180) * rlt
 static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = static_cast<T>(5.0) / static_cast<T>(180) * rlt::math::PI<T>;
 
 constexpr bool HIGH_FIDELITY_SHADING = true;
-static constexpr bool RENDER_ENABLE_MOTION_BLUR = true;
-static constexpr TI RENDER_MOTION_BLUR_SAMPLES = 4;
+static constexpr bool RENDER_ENABLE_MOTION_BLUR = false;
+static constexpr TI RENDER_MOTION_BLUR_SAMPLES = 1;
 static constexpr bool RENDER_ENABLE_ANTI_ALIASING = true;
 static constexpr TI RENDER_ANTI_ALIASING_GRID_SIZE = 2;
 static constexpr T RENDER_SHUTTER_FRACTION_MIN = static_cast<T>(0.25);
