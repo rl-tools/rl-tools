@@ -85,6 +85,12 @@ namespace rlt = rl_tools;
 // training pipeline and that the policy can learn attitude control from the state branch alone.
 // #define RL_TOOLS_L2F_VISUAL_IMITATION_BLIND_TRAINING
 
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+static constexpr bool STATE_ESTIMATION_MODE = true;
+#else
+static constexpr bool STATE_ESTIMATION_MODE = false;
+#endif
+
 // =========================================================================
 // Device types
 // =========================================================================
@@ -222,7 +228,8 @@ static constexpr TI CAM_HEIGHT = 50;
 static constexpr TI NUM_PROBES = 64;
 static constexpr T CAMERA_FOV = static_cast<T>(63.8) / static_cast<T>(180) * rlt::math::PI<T>;
 static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = static_cast<T>(5.0) / static_cast<T>(180) * rlt::math::PI<T>;
-static constexpr T TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE = static_cast<T>(10.0) / static_cast<T>(180) * rlt::math::PI<T>;
+static constexpr T TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE =
+    STATE_ESTIMATION_MODE ? static_cast<T>(0) : static_cast<T>(10.0) / static_cast<T>(180) * rlt::math::PI<T>;
 static_assert(TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE >= static_cast<T>(0), "Invalid l2f_visual imitation target frame roll/pitch randomization range");
 
 constexpr bool HIGH_FIDELITY_SHADING = true;
@@ -268,7 +275,8 @@ using RAPTOR_MODEL = rlt::nn_models::sequential::Build<RAPTOR_CAPABILITY, RAPTOR
 static constexpr TI ACTOR_HIDDEN_DIM = 64;
 static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::RELU;
 static constexpr TI ACTION_DIM = ENVIRONMENT::ACTION_DIM;
-static constexpr TI TARGET_DIM = ACTION_DIM;
+static constexpr TI STATE_ESTIMATION_TARGET_DIM = 3 + 3 + 9;
+static constexpr TI TARGET_DIM = STATE_ESTIMATION_MODE ? STATE_ESTIMATION_TARGET_DIM : ACTION_DIM;
 static constexpr TI INDOOR_POSITION_DIM = 3;
 static constexpr TI OBSERVATION_DIM = ENVIRONMENT::OBSERVATION_DIM;
 static constexpr TI BATCH_SIZE = 512;
@@ -278,6 +286,7 @@ static constexpr TI N_BATCHES = STEPS_TOTAL / BATCH_SIZE;
 static constexpr TI NUM_EPOCHS = 1000000;
 static constexpr TI TEACHER_FORCING_EPOCHS = 0;
 static constexpr T TEACHER_FORCING_FRACTION = 0.0;
+static constexpr T EFFECTIVE_TEACHER_FORCING_FRACTION = STATE_ESTIMATION_MODE ? static_cast<T>(1) : TEACHER_FORCING_FRACTION;
 static constexpr TI N_TRAIN_PASSES = 4;
 static constexpr TI VIDEO_CADENCE = 10;
 static constexpr TI CHECKPOINT_CADENCE = 1000;
@@ -374,6 +383,36 @@ namespace imitation_kernels{
             out.dir_dv[i] = from.dir_dv[i] + (to.dir_dv[i] - from.dir_dv[i]) * alpha;
         }
         return out;
+    }
+
+    template<typename DEVICE>
+    __device__ void write_state_estimation_target(const typename ENVIRONMENT::State& state, T_ACTIVATION* target_ptr){
+        T conjugate_orientation[4] = {
+            state.orientation[0],
+            -state.orientation[1],
+            -state.orientation[2],
+            -state.orientation[3]
+        };
+        T relative_position_world[3] = {
+            -state.position[0],
+            -state.position[1],
+            -state.position[2]
+        };
+        T relative_position_body[3];
+        rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(conjugate_orientation, relative_position_world, relative_position_body);
+        T linear_velocity_body[3];
+        rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(conjugate_orientation, state.linear_velocity, linear_velocity_body);
+        for(TI axis_i = 0; axis_i < 3; axis_i++){
+            target_ptr[axis_i] = static_cast<T_ACTIVATION>(relative_position_body[axis_i]);
+            target_ptr[3 + axis_i] = static_cast<T_ACTIVATION>(linear_velocity_body[axis_i]);
+        }
+        T orientation_body_to_world[3][3];
+        rlt::rl::environments::l2f::quaternion_to_rotation_matrix<DEVICE, T>(state.orientation, orientation_body_to_world);
+        for(TI row_i = 0; row_i < 3; row_i++){
+            for(TI col_i = 0; col_i < 3; col_i++){
+                target_ptr[6 + row_i * 3 + col_i] = static_cast<T_ACTIVATION>(orientation_body_to_world[col_i][row_i]);
+            }
+        }
     }
 
     template<bool ENABLE_MOTION_BLUR, typename RENDERER>
@@ -493,12 +532,21 @@ namespace imitation_kernels{
         auto& params = env_params[env_i];
         auto& state = states[env_i];
         TI pos = step_i * N_ENVIRONMENTS + env_i;
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+        (void)student_actions_ptr;
+        write_state_estimation_target<DEVICE>(state, all_targets_ptr + pos * TARGET_DIM);
+#else
         for(TI d = 0; d < TARGET_DIM; d++){
             all_targets_ptr[pos * TARGET_DIM + d] = (T_ACTIVATION)teacher_actions_ptr[env_i * ACTION_DIM + d];
         }
+#endif
         T action_arr[ACTION_DIM];
         for(TI a = 0; a < ACTION_DIM; a++){
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+            action_arr[a] = teacher_actions_ptr[env_i * ACTION_DIM + a];
+#else
             action_arr[a] = (T)student_actions_ptr[env_i * ACTION_DIM + a];
+#endif
         }
         rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ACTION_DIM, true, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> action_matrix;
         action_matrix._data = action_arr;
@@ -920,7 +968,11 @@ int main(int argc, char** argv){
 
     rlt::utils::extrack::Config<TI> extrack_config;
     rlt::utils::extrack::Paths extrack_paths;
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+    extrack_config.name = "l2f_visual_state_estimation_cuda";
+#else
     extrack_config.name = "l2f_visual_imitation_cuda";
+#endif
     rlt::init(device, extrack_config, extrack_paths, seed);
 
     RNG rng;
@@ -1081,7 +1133,11 @@ int main(int argc, char** argv){
     std::vector<typename ENVIRONMENT::State> cpu_prestep_state_buf(TRAJECTORY_NUM_ENVS);
     std::vector<uint8_t> cpu_needs_reset_buf(TRAJECTORY_NUM_ENVS);
     std::vector<uint8_t> cpu_terminated_buf(TRAJECTORY_NUM_ENVS);
-    std::vector<T_ACTIVATION> cpu_student_action_buf(TRAJECTORY_NUM_ENVS * ACTION_DIM);
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+    std::vector<T> cpu_rollout_action_buf(TRAJECTORY_NUM_ENVS * ACTION_DIM);
+#else
+    std::vector<T_ACTIVATION> cpu_rollout_action_buf(TRAJECTORY_NUM_ENVS * ACTION_DIM);
+#endif
     std::vector<typename ENVIRONMENT::Parameters> cpu_params_snapshot_buf(TRAJECTORY_NUM_ENVS);
     T simulation_dt = static_cast<T>(1) / static_cast<T>(SIMULATION_FREQUENCY);
     TI global_step = 0;
@@ -1199,8 +1255,8 @@ int main(int argc, char** argv){
     rlt::malloc(device_gpu, gpu_d_action_train);
     rlt::malloc(device_gpu, gpu_student_output_train);
 
-    rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, ACTION_DIM>>> gpu_student_actions_step;
-    rlt::malloc(device_gpu, gpu_student_actions_step);
+    rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, TARGET_DIM>>> gpu_student_output_step;
+    rlt::malloc(device_gpu, gpu_student_output_step);
 
     static constexpr TI FRAME_STACK_HISTORY_ROWS = FRAME_STACK_HISTORY_LENGTH * N_ENVIRONMENTS;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, FRAME_STACK_HISTORY_ROWS, OBSERVATION_DIM>>> gpu_frame_stack_history;
@@ -1312,8 +1368,12 @@ int main(int argc, char** argv){
     std::cout << "  OBSERVATION_DIM (image): " << OBSERVATION_DIM << std::endl;
     std::cout << "  STATE_OBS_DIM: " << STATE_OBS_DIM << std::endl;
     std::cout << "  RAPTOR_OBS_DIM: " << RAPTOR_OBS_DIM << std::endl;
+    std::cout << "  TARGET_DIM: " << TARGET_DIM << std::endl;
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+    std::cout << "  [STATE_ESTIMATION] enabled - targets are relative position, linear velocity, and relative orientation in body frame" << std::endl;
+#endif
     std::cout << "  TEACHER_FORCING_EPOCHS: " << TEACHER_FORCING_EPOCHS << std::endl;
-    std::cout << "  TEACHER_FORCING_FRACTION: " << TEACHER_FORCING_FRACTION << std::endl;
+    std::cout << "  TEACHER_FORCING_FRACTION: " << EFFECTIVE_TEACHER_FORCING_FRACTION << std::endl;
     std::cout << "  FRAME_STACK_N: " << FRAME_STACK_N << std::endl;
     std::cout << "  FRAME_STACK_STRIDE: " << FRAME_STACK_STRIDE << " (" << (FRAME_STACK_STRIDE > 0 ? SIMULATION_FREQUENCY / FRAME_STACK_STRIDE : SIMULATION_FREQUENCY) << " Hz)" << std::endl;
     std::cout << "  STACKED_IMG_C: " << STACKED_IMG_C << std::endl;
@@ -1387,7 +1447,7 @@ int main(int argc, char** argv){
         if constexpr(RENDER_MOTION_BLUR_ACTIVE){
             render_shutter_fraction = rlt::random::uniform_real_distribution(device.random, RENDER_SHUTTER_FRACTION_MIN, RENDER_SHUTTER_FRACTION_MAX, rng);
         }
-        bool full_teacher_forcing = false;
+        bool full_teacher_forcing = STATE_ESTIMATION_MODE;
         bool record_video = (epoch_i % CHECKPOINT_CADENCE == 0);
         bool record_trajectories = (epoch_i % CHECKPOINT_CADENCE == 0);
         if(record_trajectories){
@@ -1442,7 +1502,7 @@ int main(int argc, char** argv){
                     gpu_episode_lengths_log + step_i * N_ENVIRONMENTS,
                     gpu_episode_tf_log + step_i * N_ENVIRONMENTS,
                     gpu_episode_terminated_log + step_i * N_ENVIRONMENTS,
-                    TEACHER_FORCING_FRACTION, full_teacher_forcing,
+                    EFFECTIVE_TEACHER_FORCING_FRACTION, full_teacher_forcing,
                     rlt::data(gpu_teacher_obs),
                     rlt::data(gpu_all_state_observations) + (TI)(step_i * N_ENVIRONMENTS) * STATE_OBS_DIM,
                     rlt::data(raptor_gru_state_content.state),
@@ -1654,7 +1714,7 @@ int main(int argc, char** argv){
                     using ROLLOUT_IMG_SHAPE = rlt::tensor::Shape<TI, 1, N_ENVIRONMENTS, IMG_H, IMG_W, COMBINED_IMG_C>;
                     auto step_combined_reshaped = rlt::reshape_row_major(device_gpu, step_combined, ROLLOUT_IMG_SHAPE{});
                     auto inputs = rlt::nn_models::parallel::pack_inputs(step_combined_reshaped, step_state_obs_reshaped);
-                    rlt::evaluate(device_gpu, rollout_student_gpu, inputs, gpu_student_actions_step, rollout_student_buffers, rng_gpu);
+                    rlt::evaluate(device_gpu, rollout_student_gpu, inputs, gpu_student_output_step, rollout_student_buffers, rng_gpu);
                 }
                 {
                     imitation_kernels::epilogue_kernel<<<grid, block, 0, device_gpu.stream>>>(
@@ -1662,13 +1722,17 @@ int main(int argc, char** argv){
                         gpu_terminated_arr, gpu_episode_step_arr,
                         gpu_episode_return_arr,
                         rlt::data(gpu_teacher_actions_step),
-                        rlt::data(gpu_student_actions_step),
+                        rlt::data(gpu_student_output_step),
                         rlt::data(gpu_all_targets),
                         rng_gpu, step_i);
                 }
                 CUDA_CHECK("epilogue_kernel");
                 if(record_trajectories){
-                    cudaMemcpyAsync(cpu_student_action_buf.data(), rlt::data(gpu_student_actions_step), TRAJECTORY_NUM_ENVS * ACTION_DIM * sizeof(T_ACTIVATION), cudaMemcpyDeviceToHost, device_gpu.stream);
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+                    cudaMemcpyAsync(cpu_rollout_action_buf.data(), rlt::data(gpu_teacher_actions_step), TRAJECTORY_NUM_ENVS * ACTION_DIM * sizeof(T), cudaMemcpyDeviceToHost, device_gpu.stream);
+#else
+                    cudaMemcpyAsync(cpu_rollout_action_buf.data(), rlt::data(gpu_student_output_step), TRAJECTORY_NUM_ENVS * ACTION_DIM * sizeof(T_ACTIVATION), cudaMemcpyDeviceToHost, device_gpu.stream);
+#endif
                     cudaMemcpyAsync(cpu_terminated_buf.data(), gpu_terminated_arr, TRAJECTORY_NUM_ENVS * sizeof(bool), cudaMemcpyDeviceToHost, device_gpu.stream);
                     cudaStreamSynchronize(device_gpu.stream);
                     for(TI env_i = 0; env_i < TRAJECTORY_NUM_ENVS; env_i++){
@@ -1689,7 +1753,7 @@ int main(int argc, char** argv){
                         TrajectoryStep ts;
                         ts.state = cpu_prestep_state_buf[env_i];
                         for(TI a = 0; a < ENVIRONMENT::ACTION_DIM; a++){
-                            ts.actions[a] = (T)cpu_student_action_buf[env_i * ACTION_DIM + a];
+                            ts.actions[a] = (T)cpu_rollout_action_buf[env_i * ACTION_DIM + a];
                         }
                         ts.reward = 0;
                         ts.terminated = cpu_terminated_buf[env_i] != 0;
@@ -1876,7 +1940,7 @@ int main(int argc, char** argv){
         T train_backward_avg_ms = epoch_train_backward_calls > 0 ? static_cast<T>(epoch_train_backward_time_ms) / static_cast<T>(epoch_train_backward_calls) : 0;
         T train_update_avg_ms = epoch_train_update_calls > 0 ? static_cast<T>(epoch_train_update_time_ms) / static_cast<T>(epoch_train_update_calls) : 0;
 
-        std::cout << (full_teacher_forcing ? "[TF] " : "[TF=" + std::to_string((int)(TEACHER_FORCING_FRACTION * 100)) + "%] ")
+        std::cout << (full_teacher_forcing ? "[TF] " : "[TF=" + std::to_string((int)(EFFECTIVE_TEACHER_FORCING_FRACTION * 100)) + "%] ")
                   << "Epoch: " << std::setw(5) << epoch_i
                   << " MSE: " << std::setw(10) << std::setprecision(6) << std::fixed << epoch_loss
                   << " mean_ep_len: " << std::setw(6) << std::setprecision(1) << mean_episode_length
@@ -1938,7 +2002,7 @@ int main(int argc, char** argv){
         rlt::add_scalar(device, device.logger, "timing/model_update_avg_ms", train_update_avg_ms);
         rlt::add_scalar(device, device.logger, "timing/epoch_time_s", epoch_elapsed.count());
         rlt::add_scalar(device, device.logger, "timing/total_time_s", training_elapsed.count());
-        rlt::add_scalar(device, device.logger, "training/teacher_forcing", full_teacher_forcing ? (T)1 : TEACHER_FORCING_FRACTION);
+        rlt::add_scalar(device, device.logger, "training/teacher_forcing", full_teacher_forcing ? (T)1 : EFFECTIVE_TEACHER_FORCING_FRACTION);
         rlt::add_scalar(device, device.logger, "training/terminated_share", episode_terminated_share);
         rlt::add_scalar(device, device.logger, "training/terminated_episodes", static_cast<T>(episode_count_terminated));
         rlt::add_scalar(device, device.logger, "training/complete_terminated_share", complete_terminated_share);
@@ -1975,7 +2039,10 @@ int main(int argc, char** argv){
                 + ", \"shutter_fraction_max\": " + std::to_string(RENDER_SHUTTER_FRACTION_MAX)
                 + ", \"target_frame_roll_pitch_randomization_range\": " + std::to_string(TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE)
                 + ", \"target_frame_brightness_mismatch_range\": " + std::to_string(TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE) + "}";
-            std::string meta = "{\"environment\": {\"name\": \"l2f_visual\", \"observation\": \"" + obs_string + "\", \"output\": \"Action\", \"rendering\": " + rendering_string + "}}";
+            std::string output_string = STATE_ESTIMATION_MODE
+                ? "StateEstimation(RelativeTargetPositionBody,LinearVelocityBody,RelativeTargetOrientationBodyRotationMatrix)"
+                : "Action";
+            std::string meta = "{\"environment\": {\"name\": \"l2f_visual\", \"observation\": \"" + obs_string + "\", \"output\": \"" + output_string + "\", \"rendering\": " + rendering_string + "}}";
             // Per-branch CPU example tensors in canonical `[1, N_EXAMPLES, ...features]` shape.
             // Used directly by the REAL eval (via dense rank-reduced view_memory) and by the
             // checkpoint save — no composite-and-slice roundtrip, the per-branch GPU buffers
@@ -2234,7 +2301,7 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, gpu_all_targets);
     rlt::free(device_gpu, gpu_d_action_train);
     rlt::free(device_gpu, gpu_student_output_train);
-    rlt::free(device_gpu, gpu_student_actions_step);
+    rlt::free(device_gpu, gpu_student_output_step);
     cudaFree(gpu_envs_arr);
     cudaFree(gpu_params_arr);
     cudaFree(gpu_states_arr);
