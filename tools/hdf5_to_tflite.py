@@ -31,6 +31,7 @@ error only manifests when running `.int8.tflite` directly.
 Requires the virtualenv at `.venv` with tensorflow installed.
 """
 import argparse
+import json
 import os
 import shutil
 import sys
@@ -1098,6 +1099,8 @@ def main():
         example_inputs = example_input_tensors(f)
         y_ref = example_output_tensor(f)
         ordered_layers = collect_quant_layers(find_model_group(f))
+        actor_meta_bytes = f["actor"].attrs.get("meta") if "actor" in f else None
+        actor_meta_str = actor_meta_bytes.decode() if isinstance(actor_meta_bytes, bytes) else actor_meta_bytes
     # Keep a pre-(split-image-wrap) reference so get_layer() can reach the
     # inner Conv/Dense weights — wrap_split_image_input replaces `model` with
     # a Keras Model whose top-level children are the wrapper inputs, not the
@@ -1127,10 +1130,8 @@ def main():
         c_per = int(args.split_image_channels_per) if args.split_image_channels_per is not None else 3
     else:
         with h5py.File(args.input, "r") as f:
-            meta_bytes = f["actor"].attrs.get("meta") if "actor" in f else None
-            meta_str = meta_bytes.decode() if isinstance(meta_bytes, bytes) else meta_bytes
             first_conv_c = first_conv_input_channels(f)
-        slug = parse_camera_slug(meta_str) if meta_str else None
+        slug = parse_camera_slug(actor_meta_str) if actor_meta_str else None
         if slug is None:
             split_mode = "none"
         else:
@@ -1241,7 +1242,12 @@ def main():
         f.write(y_bin.tobytes())
     print(f"wrote {y_bin.nbytes} bytes to {out_example_path}  (shape={y_bin.shape}, dtype=float32)")
 
-    import json
+    actor_meta = None
+    if actor_meta_str:
+        try:
+            actor_meta = json.loads(actor_meta_str)
+        except ValueError:
+            actor_meta = None
     meta = {
         "inputs": [
             {
@@ -1259,6 +1265,10 @@ def main():
             "dtype": "float32",
         },
     }
+    if actor_meta is not None:
+        meta["actor_meta"] = actor_meta
+    elif actor_meta_str:
+        meta["actor_meta_raw"] = actor_meta_str
     with open(meta_path, "w") as f:
         json.dump(meta, f, indent=2)
     print(f"wrote {meta_path}")

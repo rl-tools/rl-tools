@@ -13,6 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../../../.." && pwd)"
 PY="$REPO_ROOT/.venv/bin/python3"
 VELA="$REPO_ROOT/.venv/bin/vela"
+INFERENCE_PY="$SCRIPT_DIR/inference.py"
 
 if [ ! -f "$CKPT" ]; then
     echo "missing checkpoint: $CKPT" >&2
@@ -21,6 +22,11 @@ fi
 
 if [ ! -d "$MOUNT" ]; then
     echo "openmv mount not found: $MOUNT" >&2
+    exit 1
+fi
+
+if [ ! -f "$INFERENCE_PY" ]; then
+    echo "missing OpenMV inference script: $INFERENCE_PY" >&2
     exit 1
 fi
 
@@ -62,6 +68,7 @@ cp -v "$VELA_OUT" "$MOUNT/"
 cp -v "${CKPT_BASE}".example_input.*.bin "$MOUNT/"
 cp -v "${CKPT_BASE}.example_output.bin" "$MOUNT/"
 cp -v "${CKPT_BASE}.example_meta.json" "$MOUNT/"
+cp -v "$INFERENCE_PY" "$MOUNT/main.py"
 for extra in example_int8_output.bin example_int8_output_raw.bin; do
     src="${CKPT_BASE}.${extra}"
     if [ -f "$src" ]; then

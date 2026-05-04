@@ -13,6 +13,8 @@ MODEL_PATH = None  # auto-detected below (prefers Vela-compiled, i.e. non-".int8
 INPUT_PATHS = None
 OUTPUT_PATH = None
 TIMING_ITERS = 100
+OUTPUT_MODE_ACTION = "action"
+OUTPUT_MODE_STATE_ESTIMATION = "state_estimation"
 
 
 def pick_first(files, predicate, label):
@@ -61,6 +63,19 @@ def shape_numel(shape):
     for d in shape:
         n *= int(d)
     return n
+
+
+def detect_output_mode(meta, out_numel):
+    actor_meta = meta.get("actor_meta") if isinstance(meta, dict) else None
+    env_meta = actor_meta.get("environment") if isinstance(actor_meta, dict) else None
+    output_desc = env_meta.get("output") if isinstance(env_meta, dict) else None
+    if isinstance(output_desc, str) and output_desc.startswith("StateEstimation"):
+        return OUTPUT_MODE_STATE_ESTIMATION
+    if out_numel == 15:
+        return OUTPUT_MODE_STATE_ESTIMATION
+    if out_numel == 4:
+        return OUTPUT_MODE_ACTION
+    raise RuntimeError("unsupported model output size %d" % out_numel)
 
 
 def load_sample_float32(path, sample_index, num_floats):
@@ -115,10 +130,12 @@ if USE_NEURAL_POLICY:
     out_dtype = model.output_dtype[0]
     out_scale = float(model.output_scale[0])
     out_zp = float(model.output_zero_point[0])
+    OUTPUT_MODE = detect_output_mode(META, out_numel)
 
     for i in range(num_inputs):
         print("input_%d shape:" % i, in_shapes[i], "dtype:", in_dtypes[i], "scale:", in_scales[i], "zp:", in_zps[i])
     print("output_shape:", out_shape, "dtype:", out_dtype, "scale:", out_scale, "zp:", out_zp)
+    print("output_mode:", OUTPUT_MODE)
 
     # Auto-detect how many samples the companion bins hold (all bins must agree).
     _output_size = os.stat(OUTPUT_PATH)[6]
@@ -390,7 +407,7 @@ DIAG_PRINT_EVERY = 10
 
 UART_BRIDGE_PORT = 4
 UART_BRIDGE_BAUD = 115200
-FRAME_SYNC_BYTE = 0x80
+FRAME_START_MASK = 0x80
 RX_LINE_MAX = 256
 
 # Classical PD attitude controller (target: identity orientation, zero angular velocity).
@@ -435,14 +452,22 @@ if USE_NEURAL_POLICY:
     FRAME_STACK_HISTORY_LENGTH = FRAME_STACK_STRIDE * (FRAME_STACK_N - 1) + 1  # 81
     ACTION_HISTORY_LENGTH = 64
     ACTION_DIM = 4
+    STATE_ESTIMATION_DIM = 15
     IMG_H, IMG_W, IMG_C = 50, 80, 3
     N_IMAGE_INPUTS = FRAME_STACK_N + 1
     N_INPUTS = N_IMAGE_INPUTS + 1
     TARGET_KERAS_INDEX = FRAME_STACK_N
     STATE_KERAS_INDEX = N_IMAGE_INPUTS
-    STATE_DIM = 3 + 3 + ACTION_HISTORY_LENGTH * ACTION_DIM  # 262
+    STATE_DIM_NO_ACCEL = 3 + 3 + ACTION_HISTORY_LENGTH * ACTION_DIM
+    STATE_DIM_WITH_ACCEL = 3 + 3 + 3 + ACTION_HISTORY_LENGTH * ACTION_DIM
 
     assert num_inputs == N_INPUTS, (num_inputs, N_INPUTS)
+    if OUTPUT_MODE == OUTPUT_MODE_ACTION:
+        assert out_numel == ACTION_DIM, (out_numel, ACTION_DIM)
+    elif OUTPUT_MODE == OUTPUT_MODE_STATE_ESTIMATION:
+        assert out_numel == STATE_ESTIMATION_DIM, (out_numel, STATE_ESTIMATION_DIM)
+    else:
+        raise RuntimeError("unsupported output mode %r" % OUTPUT_MODE)
     # Build tflite_input_index -> keras_input_index mapping from the meta file.
     # keras_input_index 0..(FRAME_STACK_N-1) = frame slots (newest first),
     # keras_input_index FRAME_STACK_N = target frame, keras_input_index N_IMAGE_INPUTS = state.
@@ -458,7 +483,9 @@ if USE_NEURAL_POLICY:
     for _ti in range(num_inputs):
         _ki = tflite_to_keras[_ti]
         if _ki == STATE_KERAS_INDEX:
-            assert in_numels[_ti] == STATE_DIM, (in_numels[_ti], STATE_DIM, _ti, _ki)
+            assert in_numels[_ti] in (STATE_DIM_NO_ACCEL, STATE_DIM_WITH_ACCEL), (
+                in_numels[_ti], STATE_DIM_NO_ACCEL, STATE_DIM_WITH_ACCEL, _ti, _ki
+            )
         else:
             assert in_numels[_ti] == IMG_H * IMG_W * IMG_C, (in_numels[_ti], IMG_H * IMG_W * IMG_C, _ti, _ki)
 
@@ -480,10 +507,14 @@ if USE_NEURAL_POLICY:
     FRAME_DRAW_HINT = image.BILINEAR | image.SCALE_ASPECT_IGNORE
 
     # ---- Quantization ----
-    # Locate the state's tflite slot and a representative image slot. All 6 image
+    # Locate the state's tflite slot and a representative image slot. All image
     # inputs were quantized from the same source distribution, so they share scale/zp.
     _state_tflite_idx = next(i for i in range(num_inputs) if tflite_to_keras[i] == STATE_KERAS_INDEX)
     _img_tflite_idx   = next(i for i in range(num_inputs) if tflite_to_keras[i] != STATE_KERAS_INDEX)
+    STATE_DIM = in_numels[_state_tflite_idx]
+    STATE_HAS_LINEAR_ACCELERATION = STATE_DIM == STATE_DIM_WITH_ACCEL
+    ACTION_HISTORY_OFFSET = 9 if STATE_HAS_LINEAR_ACCELERATION else 6
+    print("state_input_dim:", STATE_DIM, "linear_acceleration_body:", STATE_HAS_LINEAR_ACCELERATION)
     _img_scale   = in_scales[_img_tflite_idx]
     _img_zp      = in_zps[_img_tflite_idx]
     _state_scale = in_scales[_state_tflite_idx]
@@ -599,16 +630,19 @@ if USE_NEURAL_POLICY:
                 cur += n_slots
             i += 1
 
-    def build_state_int8(world_z, ang_vel):
-        # Layout: [orientation_world_z(3), angular_velocity(3), action_history newest-first(256)]
+    def build_state_int8(world_z, ang_vel, linear_acceleration_body):
         state_int8[0] = _q_byte(world_z[0], _state_scale, _state_zp)
         state_int8[1] = _q_byte(world_z[1], _state_scale, _state_zp)
         state_int8[2] = _q_byte(world_z[2], _state_scale, _state_zp)
         state_int8[3] = _q_byte(ang_vel[0], _state_scale, _state_zp)
         state_int8[4] = _q_byte(ang_vel[1], _state_scale, _state_zp)
         state_int8[5] = _q_byte(ang_vel[2], _state_scale, _state_zp)
+        if STATE_HAS_LINEAR_ACCELERATION:
+            state_int8[6] = _q_byte(linear_acceleration_body[0], _state_scale, _state_zp)
+            state_int8[7] = _q_byte(linear_acceleration_body[1], _state_scale, _state_zp)
+            state_int8[8] = _q_byte(linear_acceleration_body[2], _state_scale, _state_zp)
         _viper_copy_action_history_newest_first(
-            state_int8, 6, action_ring_q, action_write_ptr, ACTION_HISTORY_LENGTH, ACTION_DIM
+            state_int8, ACTION_HISTORY_OFFSET, action_ring_q, action_write_ptr, ACTION_HISTORY_LENGTH, ACTION_DIM
         )
 
     def _quantize_action_clip(v):
@@ -625,9 +659,8 @@ if USE_NEURAL_POLICY:
 
 
 # ---- Offboard UART frame (mirror of crazyflie-firmware uart1_bridge.c) ----
-# Frame: 0x80 sync byte (MSB=1) + 12 data bytes (MSB=0) encoding a 10-byte payload
-# MSB-first at 7 bits per byte. Payload = 4x u16 BE motor PWM + CRC-16-CCITT BE
-# over those 8 bytes (init 0xFFFF, poly 0x1021).
+# Frame: start/flags byte (MSB=1) + 12 data bytes (MSB=0) encoding
+# 4x u16 BE motor PWM + CRC-16-CCITT BE. CRC covers start/flags + PWM bytes.
 def _crc16_ccitt(buf, n):
     crc = 0xFFFF
     for i in range(n):
@@ -655,8 +688,10 @@ def _pack7(raw, raw_len, out, out_offset):
         w += 1
 
 _raw_payload = bytearray(10)
+_crc_payload = bytearray(9)
 
 def _build_frame_into(frame13, a0, a1, a2, a3):
+    frame13[0] = FRAME_START_MASK
     for idx, a in ((0, a0), (2, a1), (4, a2), (6, a3)):
         if a < -1.0: a = -1.0
         elif a > 1.0: a = 1.0
@@ -665,7 +700,10 @@ def _build_frame_into(frame13, a0, a1, a2, a3):
         elif pwm > 0xFFFF: pwm = 0xFFFF
         _raw_payload[idx] = (pwm >> 8) & 0xFF
         _raw_payload[idx + 1] = pwm & 0xFF
-    crc = _crc16_ccitt(_raw_payload, 8)
+    _crc_payload[0] = frame13[0]
+    for i in range(8):
+        _crc_payload[i + 1] = _raw_payload[i]
+    crc = _crc16_ccitt(_crc_payload, 9)
     _raw_payload[8] = (crc >> 8) & 0xFF
     _raw_payload[9] = crc & 0xFF
     _pack7(_raw_payload, 10, frame13, 1)
@@ -685,11 +723,14 @@ if USE_NEURAL_POLICY:
 
 uart_bridge = machine.UART(UART_BRIDGE_PORT, UART_BRIDGE_BAUD, timeout=0, timeout_char=0)
 frame_tx = bytearray(13)
-frame_tx[0] = FRAME_SYNC_BYTE
+frame_tx[0] = FRAME_START_MASK
 rx_line_buf = bytearray()
 
 if USE_NEURAL_POLICY:
-    print("starting 100Hz policy inference loop (NN)")
+    if OUTPUT_MODE == OUTPUT_MODE_STATE_ESTIMATION:
+        print("starting 100Hz state-estimation inference loop (NN, stdout only)")
+    else:
+        print("starting 100Hz policy inference loop (NN)")
 else:
     print("starting 100Hz policy inference loop (classical PD)")
 
@@ -707,6 +748,7 @@ while True:
     ax = -az_orig
     ay =  ay_orig
     az =  ax_orig
+    linear_acceleration_body = (ax * MG_TO_MPS2, ay * MG_TO_MPS2, az * MG_TO_MPS2)
     gx_orig, gy_orig, gz_orig = imu.angular_rate_mdps()
     gx = -gz_orig
     gy =  gy_orig
@@ -722,7 +764,7 @@ while True:
     gy_rad = gy * MDPS_TO_RADPS
     gz_rad = gz * MDPS_TO_RADPS
     mahony.update(
-        ax * MG_TO_MPS2, ay * MG_TO_MPS2, az * MG_TO_MPS2,
+        linear_acceleration_body[0], linear_acceleration_body[1], linear_acceleration_body[2],
         gx_rad, gy_rad, gz_rad, dt,
     )
     t_mahony = time.ticks_us()
@@ -750,15 +792,16 @@ while True:
             sources_by_keras[_f] = frame_history_q[_slot]
         t_frames = time.ticks_us()
 
-        build_state_int8(world_z, ang_vel)
+        build_state_int8(world_z, ang_vel, linear_acceleration_body)
         t_state = time.ticks_us()
 
         y_raw = model.predict(feeders_live)[0]
         y_f32 = y_raw.flatten()
-        a0_raw = float(y_f32[0])
-        a1_raw = float(y_f32[1])
-        a2_raw = float(y_f32[2])
-        a3_raw = float(y_f32[3])
+        if OUTPUT_MODE == OUTPUT_MODE_ACTION:
+            a0_raw = float(y_f32[0])
+            a1_raw = float(y_f32[1])
+            a2_raw = float(y_f32[2])
+            a3_raw = float(y_f32[3])
         t_predict = time.ticks_us()
     else:
         a0_raw, a1_raw, a2_raw, a3_raw = classic_attitude_action(mahony, ang_vel)
@@ -768,9 +811,12 @@ while True:
         t_state = t_mahony
         t_predict = t_mahony
 
-    _build_frame_into(frame_tx, a0_raw, a1_raw, a2_raw, a3_raw)
-    uart_bridge.write(frame_tx)
-    t_tx = time.ticks_us()
+    if (not USE_NEURAL_POLICY) or OUTPUT_MODE == OUTPUT_MODE_ACTION:
+        _build_frame_into(frame_tx, a0_raw, a1_raw, a2_raw, a3_raw)
+        uart_bridge.write(frame_tx)
+        t_tx = time.ticks_us()
+    else:
+        t_tx = t_predict
 
     n_avail = uart_bridge.any()
     if n_avail:
@@ -796,7 +842,7 @@ while True:
                 rx_line_buf = bytearray()
     t_rx = time.ticks_us()
 
-    if USE_NEURAL_POLICY:
+    if USE_NEURAL_POLICY and OUTPUT_MODE == OUTPUT_MODE_ACTION:
         slot_off = action_write_ptr * ACTION_DIM
         action_ring_q[slot_off]     = _quantize_action_clip(a0_raw)
         action_ring_q[slot_off + 1] = _quantize_action_clip(a1_raw)
@@ -817,16 +863,41 @@ while True:
         tx_us = time.ticks_diff(t_tx, t_predict)
         rx_us = time.ticks_diff(t_rx, t_tx)
         actions_us = time.ticks_diff(t_actions, t_rx)
-        a0 = -1.0 if a0_raw < -1.0 else (1.0 if a0_raw > 1.0 else a0_raw)
-        a1 = -1.0 if a1_raw < -1.0 else (1.0 if a1_raw > 1.0 else a1_raw)
-        a2 = -1.0 if a2_raw < -1.0 else (1.0 if a2_raw > 1.0 else a2_raw)
-        a3 = -1.0 if a3_raw < -1.0 else (1.0 if a3_raw > 1.0 else a3_raw)
-        print("us=%5d imu=%4d mah=%4d cam=%5d ds=%4d frm=%4d st=%4d inf=%4d tx=%4d rx=%4d act=%4d "
-              "a=%+5.2f,%+5.2f,%+5.2f,%+5.2f wz=%+5.2f,%+5.2f,%+5.2f av=%+6.2f,%+6.2f,%+6.2f" %
-              (elapsed_us, imu_us, mahony_us, snapshot_us, downsample_us, frames_us, state_us, predict_us,
-               tx_us, rx_us, actions_us,
-               a0, a1, a2, a3, world_z[0], world_z[1], world_z[2],
-               ang_vel[0], ang_vel[1], ang_vel[2]))
+        if USE_NEURAL_POLICY and OUTPUT_MODE == OUTPUT_MODE_STATE_ESTIMATION:
+            p0 = float(y_f32[0])
+            p1 = float(y_f32[1])
+            p2 = float(y_f32[2])
+            v0 = float(y_f32[3])
+            v1 = float(y_f32[4])
+            v2 = float(y_f32[5])
+            r00 = float(y_f32[6])
+            r01 = float(y_f32[7])
+            r02 = float(y_f32[8])
+            r10 = float(y_f32[9])
+            r11 = float(y_f32[10])
+            r12 = float(y_f32[11])
+            r20 = float(y_f32[12])
+            r21 = float(y_f32[13])
+            r22 = float(y_f32[14])
+            dist = math.sqrt(p0 * p0 + p1 * p1 + p2 * p2)
+            print("us=%5d imu=%4d mah=%4d cam=%5d ds=%4d frm=%4d st=%4d inf=%4d tx=%4d rx=%4d act=%4d "
+                  "p_body=%+6.2f,%+6.2f,%+6.2f dist=%5.2f v_body=%+6.2f,%+6.2f,%+6.2f "
+                  "R=[%+5.2f %+5.2f %+5.2f; %+5.2f %+5.2f %+5.2f; %+5.2f %+5.2f %+5.2f]" %
+                  (elapsed_us, imu_us, mahony_us, snapshot_us, downsample_us, frames_us, state_us, predict_us,
+                   tx_us, rx_us, actions_us,
+                   p0, p1, p2, dist, v0, v1, v2,
+                   r00, r01, r02, r10, r11, r12, r20, r21, r22))
+        else:
+            a0 = -1.0 if a0_raw < -1.0 else (1.0 if a0_raw > 1.0 else a0_raw)
+            a1 = -1.0 if a1_raw < -1.0 else (1.0 if a1_raw > 1.0 else a1_raw)
+            a2 = -1.0 if a2_raw < -1.0 else (1.0 if a2_raw > 1.0 else a2_raw)
+            a3 = -1.0 if a3_raw < -1.0 else (1.0 if a3_raw > 1.0 else a3_raw)
+            print("us=%5d imu=%4d mah=%4d cam=%5d ds=%4d frm=%4d st=%4d inf=%4d tx=%4d rx=%4d act=%4d "
+                  "a=%+5.2f,%+5.2f,%+5.2f,%+5.2f wz=%+5.2f,%+5.2f,%+5.2f av=%+6.2f,%+6.2f,%+6.2f" %
+                  (elapsed_us, imu_us, mahony_us, snapshot_us, downsample_us, frames_us, state_us, predict_us,
+                   tx_us, rx_us, actions_us,
+                   a0, a1, a2, a3, world_z[0], world_z[1], world_z[2],
+                   ang_vel[0], ang_vel[1], ang_vel[2]))
 
     if USE_NEURAL_POLICY:
         history_write_ptr = (history_write_ptr + 1) % FRAME_STACK_HISTORY_LENGTH
