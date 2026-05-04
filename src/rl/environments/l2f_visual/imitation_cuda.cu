@@ -276,6 +276,7 @@ static constexpr TI ACTOR_HIDDEN_DIM = 64;
 static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::RELU;
 static constexpr TI ACTION_DIM = ENVIRONMENT::ACTION_DIM;
 static constexpr TI STATE_ESTIMATION_TARGET_DIM = 3 + 3 + 9;
+static constexpr TI STATE_ESTIMATION_NUM_METRICS = 4;
 static constexpr TI TARGET_DIM = STATE_ESTIMATION_MODE ? STATE_ESTIMATION_TARGET_DIM : ACTION_DIM;
 static constexpr TI INDOOR_POSITION_DIM = 3;
 static constexpr TI OBSERVATION_DIM = ENVIRONMENT::OBSERVATION_DIM;
@@ -624,6 +625,47 @@ namespace imitation_kernels{
             loss_out[0] = n_elements > 0 ? acc / static_cast<T>(n_elements) : static_cast<T>(0);
         }
     }
+
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+    __global__
+    void state_estimation_batch_metrics_kernel(const T_ACTIVATION* student_output_ptr, const T_ACTIVATION* target_ptr, T* metrics_out, TI batch_size){
+        if(blockIdx.x == 0 && threadIdx.x == 0){
+            T position_mse = 0;
+            T linear_velocity_mse = 0;
+            T orientation_mse = 0;
+            T orientation_angle_error = 0;
+            for(TI sample_i = 0; sample_i < batch_size; sample_i++){
+                const TI base = sample_i * TARGET_DIM;
+                for(TI axis_i = 0; axis_i < 3; axis_i++){
+                    T diff_position = static_cast<T>(student_output_ptr[base + axis_i]) - static_cast<T>(target_ptr[base + axis_i]);
+                    T diff_linear_velocity = static_cast<T>(student_output_ptr[base + 3 + axis_i]) - static_cast<T>(target_ptr[base + 3 + axis_i]);
+                    position_mse += diff_position * diff_position;
+                    linear_velocity_mse += diff_linear_velocity * diff_linear_velocity;
+                }
+                T rotation_trace = 0;
+                for(TI rotation_i = 0; rotation_i < 9; rotation_i++){
+                    T pred = static_cast<T>(student_output_ptr[base + 6 + rotation_i]);
+                    T target = static_cast<T>(target_ptr[base + 6 + rotation_i]);
+                    T diff_orientation = pred - target;
+                    orientation_mse += diff_orientation * diff_orientation;
+                    rotation_trace += pred * target;
+                }
+                T cos_angle = (rotation_trace - static_cast<T>(1)) / static_cast<T>(2);
+                if(cos_angle < static_cast<T>(-1)){
+                    cos_angle = static_cast<T>(-1);
+                }
+                if(cos_angle > static_cast<T>(1)){
+                    cos_angle = static_cast<T>(1);
+                }
+                orientation_angle_error += acosf(cos_angle);
+            }
+            metrics_out[0] = batch_size > 0 ? position_mse / static_cast<T>(batch_size * 3) : static_cast<T>(0);
+            metrics_out[1] = batch_size > 0 ? linear_velocity_mse / static_cast<T>(batch_size * 3) : static_cast<T>(0);
+            metrics_out[2] = batch_size > 0 ? orientation_mse / static_cast<T>(batch_size * 9) : static_cast<T>(0);
+            metrics_out[3] = batch_size > 0 ? orientation_angle_error / static_cast<T>(batch_size) : static_cast<T>(0);
+        }
+    }
+#endif
 
     __global__
     void reduce_episode_stats_kernel(
@@ -1236,6 +1278,11 @@ int main(int argc, char** argv){
     T* gpu_logged_batch_losses = nullptr;
     cudaMalloc(&gpu_logged_batch_losses, max_logged_loss_calls * sizeof(T));
     std::vector<T> cpu_logged_batch_losses(max_logged_loss_calls);
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+    T* gpu_logged_state_estimation_metrics = nullptr;
+    cudaMalloc(&gpu_logged_state_estimation_metrics, max_logged_loss_calls * STATE_ESTIMATION_NUM_METRICS * sizeof(T));
+    std::vector<T> cpu_logged_state_estimation_metrics(max_logged_loss_calls * STATE_ESTIMATION_NUM_METRICS);
+#endif
     T* gpu_epoch_episode_stats = nullptr;
     cudaMalloc(&gpu_epoch_episode_stats, 7 * sizeof(T));
     std::array<T, 7> cpu_epoch_episode_stats{};
@@ -1783,6 +1830,12 @@ int main(int argc, char** argv){
         T epoch_loss = 0;
         T epoch_loss_sum = 0;
         TI epoch_loss_count = 0;
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+        T epoch_position_mse = 0;
+        T epoch_linear_velocity_mse = 0;
+        T epoch_orientation_mse = 0;
+        T epoch_orientation_angle_error_rad = 0;
+#endif
 
         for(TI pass = 0; pass < N_TRAIN_PASSES; pass++){
             // Shuffle batch order
@@ -1824,6 +1877,13 @@ int main(int argc, char** argv){
                         rlt::data(gpu_all_targets) + batch_offset * TARGET_DIM,
                         gpu_logged_batch_losses + epoch_loss_count,
                         BATCH_SIZE * TARGET_DIM);
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+                    imitation_kernels::state_estimation_batch_metrics_kernel<<<1, 1, 0, device_gpu.stream>>>(
+                        rlt::data(gpu_student_output_train),
+                        rlt::data(gpu_all_targets) + batch_offset * TARGET_DIM,
+                        gpu_logged_state_estimation_metrics + epoch_loss_count * STATE_ESTIMATION_NUM_METRICS,
+                        BATCH_SIZE);
+#endif
                     epoch_loss_count++;
                 }
 
@@ -1866,11 +1926,28 @@ int main(int argc, char** argv){
         }
         if(epoch_loss_count > 0){
             cudaMemcpy(cpu_logged_batch_losses.data(), gpu_logged_batch_losses, epoch_loss_count * sizeof(T), cudaMemcpyDeviceToHost);
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+            cudaMemcpy(cpu_logged_state_estimation_metrics.data(), gpu_logged_state_estimation_metrics, epoch_loss_count * STATE_ESTIMATION_NUM_METRICS * sizeof(T), cudaMemcpyDeviceToHost);
+#endif
             for(TI loss_i = 0; loss_i < epoch_loss_count; loss_i++){
                 epoch_loss_sum += cpu_logged_batch_losses[loss_i];
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+                epoch_position_mse += cpu_logged_state_estimation_metrics[loss_i * STATE_ESTIMATION_NUM_METRICS + 0];
+                epoch_linear_velocity_mse += cpu_logged_state_estimation_metrics[loss_i * STATE_ESTIMATION_NUM_METRICS + 1];
+                epoch_orientation_mse += cpu_logged_state_estimation_metrics[loss_i * STATE_ESTIMATION_NUM_METRICS + 2];
+                epoch_orientation_angle_error_rad += cpu_logged_state_estimation_metrics[loss_i * STATE_ESTIMATION_NUM_METRICS + 3];
+#endif
             }
         }
         epoch_loss = epoch_loss_count > 0 ? epoch_loss_sum / epoch_loss_count : (T)0;
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+        if(epoch_loss_count > 0){
+            epoch_position_mse /= static_cast<T>(epoch_loss_count);
+            epoch_linear_velocity_mse /= static_cast<T>(epoch_loss_count);
+            epoch_orientation_mse /= static_cast<T>(epoch_loss_count);
+            epoch_orientation_angle_error_rad /= static_cast<T>(epoch_loss_count);
+        }
+#endif
         rlt::copy(device_gpu, device_gpu, student_gpu, rollout_student_gpu);
         if(epoch_train_forward_calls == 0 && epoch_train_backward_calls == 0 && epoch_train_update_calls == 0){
             cudaStreamSynchronize(device_gpu.stream);
@@ -1965,6 +2042,13 @@ int main(int argc, char** argv){
                   << std::setw(6) << std::setprecision(3) << train_update_avg_ms << "ms)"
                   << " epoch_time: " << std::setw(6) << std::setprecision(1) << epoch_elapsed.count() << "s"
                   << " total: " << std::setw(8) << std::setprecision(1) << training_elapsed.count() << "s";
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+        std::cout << " pos_mse: " << std::setw(10) << std::setprecision(6) << std::fixed << epoch_position_mse
+                  << " vel_mse: " << std::setw(10) << std::setprecision(6) << std::fixed << epoch_linear_velocity_mse
+                  << " ori_mse: " << std::setw(10) << std::setprecision(6) << std::fixed << epoch_orientation_mse
+                  << " ori_deg: " << std::setw(7) << std::setprecision(2) << std::fixed
+                  << epoch_orientation_angle_error_rad * static_cast<T>(180) / rlt::math::PI<T>;
+#endif
         if constexpr(RENDER_MOTION_BLUR_ACTIVE){
             std::cout << " shutter: " << std::setw(4) << std::setprecision(2) << render_shutter_fraction;
         }
@@ -1973,6 +2057,13 @@ int main(int argc, char** argv){
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
         rlt::set_step(device, device.logger, epoch_i);
         rlt::add_scalar(device, device.logger, "training/mse_loss", epoch_loss);
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+        rlt::add_scalar(device, device.logger, "training/state_estimation/position_mse", epoch_position_mse);
+        rlt::add_scalar(device, device.logger, "training/state_estimation/linear_velocity_mse", epoch_linear_velocity_mse);
+        rlt::add_scalar(device, device.logger, "training/state_estimation/orientation_mse", epoch_orientation_mse);
+        rlt::add_scalar(device, device.logger, "training/state_estimation/orientation_angle_error_rad", epoch_orientation_angle_error_rad);
+        rlt::add_scalar(device, device.logger, "training/state_estimation/orientation_angle_error_deg", epoch_orientation_angle_error_rad * static_cast<T>(180) / rlt::math::PI<T>);
+#endif
         rlt::add_scalar(device, device.logger, "training/episode_length", mean_episode_length);
         rlt::add_scalar(device, device.logger, "training/episodes", static_cast<T>(episode_count));
         if(episode_count_tf > 0){
@@ -2286,6 +2377,9 @@ int main(int argc, char** argv){
         cudaEventDestroy(train_update_stop_events[call_i]);
     }
     cudaFree(gpu_logged_batch_losses);
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+    cudaFree(gpu_logged_state_estimation_metrics);
+#endif
     rlt::free(device_gpu, student_gpu);
     rlt::free(device_gpu, rollout_student_gpu);
     rlt::free(device_gpu, rollout_student_buffers);
