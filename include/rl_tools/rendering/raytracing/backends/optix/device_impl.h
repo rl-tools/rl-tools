@@ -12,6 +12,18 @@ namespace rl_tools
 {
   static constexpr int NUM_RAY_TYPES = 2;
 
+  inline __device__ float linear_to_srgb(float x) {
+    if (x <= 0.0031308f) return 12.92f * x;
+    return 1.055f * powf(x, 1.f / 2.4f) - 0.055f;
+  }
+
+  inline __device__ uint32_t make_srgb_rgba_from_linear(owl::vec3f color) {
+    color.x = linear_to_srgb(fminf(fmaxf(color.x, 0.f), 1.f));
+    color.y = linear_to_srgb(fminf(fmaxf(color.y, 0.f), 1.f));
+    color.z = linear_to_srgb(fminf(fmaxf(color.z, 0.f), 1.f));
+    return owl::make_rgba(color);
+  }
+
   inline __device__ owl::vec3f lerp_camera_vec(const owl::vec3f &a, const owl::vec3f &b, float t)
   {
     return (1.f - t) * a + t * b;
@@ -74,7 +86,7 @@ namespace rl_tools
 
     const int fb_offset = cam_idx * self.cam_size.x * self.cam_size.y
                     + local_y * self.cam_size.x + local_x;
-    self.fb_ptr[fb_offset] = owl::make_rgba(accumulated_color);
+    self.fb_ptr[fb_offset] = make_srgb_rgba_from_linear(accumulated_color);
   }
 
   OPTIX_RAYGEN_PROGRAM(simpleRayGen)()
@@ -176,7 +188,7 @@ namespace rl_tools
 
     const int fb_offset = cam_idx * self.cam_size.x * self.cam_size.y
                     + local_y * self.cam_size.x + local_x;
-    self.fb_ptr[fb_offset] = owl::make_rgba(accumulated_color);
+    self.fb_ptr[fb_offset] = make_srgb_rgba_from_linear(accumulated_color);
   }
 
   OPTIX_RAYGEN_PROGRAM(simpleRayGenAA2)()
@@ -330,11 +342,6 @@ namespace rl_tools
     } else {
       prd = direct;
     }
-  }
-
-  inline __device__ float linear_to_srgb(float x) {
-    if (x <= 0.0031308f) return 12.92f * x;
-    return 1.055f * powf(x, 1.f / 2.4f) - 0.055f;
   }
 
   OPTIX_CLOSEST_HIT_PROGRAM(TriangleMeshPBR)()
@@ -528,15 +535,7 @@ namespace rl_tools
       }
     }
 
-    if (depth == 0) {
-      prd.x = linear_to_srgb(fminf(fmaxf(color.x, 0.f), 1.f));
-      prd.y = linear_to_srgb(fminf(fmaxf(color.y, 0.f), 1.f));
-      prd.z = linear_to_srgb(fminf(fmaxf(color.z, 0.f), 1.f));
-    } else {
-      prd.x = fminf(color.x, 1.f);
-      prd.y = fminf(color.y, 1.f);
-      prd.z = fminf(color.z, 1.f);
-    }
+    prd = color;
   }
 
   OPTIX_MISS_PROGRAM(miss)()
