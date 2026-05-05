@@ -187,7 +187,9 @@ static_assert(ENV_GRID_SIDE * ENV_GRID_SIDE == N_ENVIRONMENTS_PER_SCENE, "ENV_GR
 // =========================================================================
 static constexpr TI FRAME_STACK_N = 10;
 static constexpr TI FRAME_STACK_STRIDE = 10;
-static constexpr TI FRAME_STACK_HISTORY_LENGTH = FRAME_STACK_STRIDE * (FRAME_STACK_N - 1) + 1;
+static constexpr TI ROLLOUT_STEPS_PER_ENV = 64;
+static constexpr TI ROLLOUTS_PER_SCENE_SET = 8;
+static constexpr TI FRAME_STACK_HISTORY_LENGTH = FRAME_STACK_STRIDE * (FRAME_STACK_N - 1) + ROLLOUT_STEPS_PER_ENV;
 static constexpr TI STACKED_IMG_C = ENVIRONMENT::Observation::CHANNELS * FRAME_STACK_N;
 static constexpr TI COMBINED_IMG_C_LOGICAL = STACKED_IMG_C + ENVIRONMENT::Observation::CHANNELS;
 // Pad to multiple of 8 for cuDNN tensor-core fast path
@@ -262,7 +264,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParame
     static constexpr TI CRITIC_HIDDEN_DIM = 64;
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
-    static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 64;
+    static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = ROLLOUT_STEPS_PER_ENV;
     static constexpr TI N_ENVIRONMENTS = ::N_ENVIRONMENTS;
     static constexpr TI TOTAL_STEP_LIMIT = 1000000000;
     static constexpr TI STEP_LIMIT = TOTAL_STEP_LIMIT / (N_ENVIRONMENTS * ON_POLICY_RUNNER_STEPS_PER_ENV) + 1;
@@ -413,7 +415,7 @@ namespace ppo_visual {
         T* scene_yaw_sin_arr,
         T* indoor_positions_ptr, TI* num_indoor_positions_ptr, TI* env_scene_ptr, TI max_indoor_pos,
         TI* episode_start_step,
-        RNG rng, TI step_i
+        RNG rng, TI step_i, TI frame_step_i
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i >= N_ENVIRONMENTS) return;
@@ -460,7 +462,7 @@ namespace ppo_visual {
                 target_frame_roll_arr[env_i] = (T)0;
                 target_frame_pitch_arr[env_i] = (T)0;
             }
-            episode_start_step[env_i] = step_i;
+            episode_start_step[env_i] = frame_step_i;
         } else {
             set(episode_lengths_log, pos, 0, (T)-1);
             set(episode_returns_log, pos, 0, (T)0);
@@ -667,12 +669,12 @@ __global__ void build_frame_stacked_with_target_from_history_kernel(
 // student observation history (clamped to episode start). Target frame is taken at
 // the current row's step.
 __global__ void build_frame_stacked_with_target_from_dataset_kernel(
-    const float* __restrict__ all_student_obs,
+    const float* __restrict__ history_obs,
     const float* __restrict__ all_target_obs,
     const TI* __restrict__ episode_start_step_per_row,
     float* __restrict__ combined_out,
     int obs_dim, int img_c, int n_frames, int frame_stride, int combined_img_c, int combined_obs_dim,
-    int batch_offset, int batch_size, int n_envs
+    TI frame_step_start, int batch_offset, int batch_size, int n_envs
 ){
     int global_idx = blockIdx.x * blockDim.x + threadIdx.x;
     if(global_idx >= batch_size * combined_obs_dim) return;
@@ -689,10 +691,12 @@ __global__ void build_frame_stacked_with_target_from_dataset_kernel(
         int channel = frame_channel % img_c;
         TI episode_start = episode_start_step_per_row[row];
         TI back = static_cast<TI>(frame) * static_cast<TI>(frame_stride);
-        TI desired_step = step_i_local >= (TI)back ? (TI)step_i_local - back : episode_start;
+        TI frame_step_i = frame_step_start + static_cast<TI>(step_i_local);
+        TI desired_step = frame_step_i >= back ? frame_step_i - back : episode_start;
         if(desired_step < episode_start) desired_step = episode_start;
-        TI src_row = desired_step * n_envs + env_i;
-        combined_out[global_idx] = all_student_obs[src_row * obs_dim + pixel * img_c + channel];
+        TI history_slot = desired_step % FRAME_STACK_HISTORY_LENGTH;
+        TI src_row = history_slot * n_envs + env_i;
+        combined_out[global_idx] = history_obs[src_row * obs_dim + pixel * img_c + channel];
     } else if(frame_channel < logical_channels) {
         int channel = frame_channel - n_frames * img_c;
         TI src_row = (TI)row;
@@ -1120,6 +1124,7 @@ int main(int argc, char** argv){
     std::cout << "Starting PPO training (visual L2F target navigation, CUDA)" << std::endl;
     std::cout << "  N_ENVIRONMENTS:   " << N_ENVIRONMENTS << std::endl;
     std::cout << "  STEPS_PER_ENV:    " << STEPS_PER_ENV << std::endl;
+    std::cout << "  SCENE_SET_STEPS:  " << STEPS_PER_ENV * ROLLOUTS_PER_SCENE_SET << std::endl;
     std::cout << "  STEPS_TOTAL:      " << STEPS_TOTAL << std::endl;
     std::cout << "  BATCH_SIZE:       " << BATCH_SIZE << std::endl;
     std::cout << "  N_BATCHES:        " << N_BATCHES << std::endl;
@@ -1141,12 +1146,18 @@ int main(int argc, char** argv){
         auto step_start = std::chrono::high_resolution_clock::now();
         rlt::set_step(device, device.logger, on_policy_runner_gpu.step);
 
-        // Shuffle active scenes for this PPO step
-        std::shuffle(scene_permutation.begin(), scene_permutation.end(), scene_rng);
-        for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
-            active_scene_indices[active_scene_i] = scene_permutation[active_scene_i];
+        bool scene_set_boundary = ppo_step_i % ROLLOUTS_PER_SCENE_SET == 0;
+        if(scene_set_boundary){
+            cudaMemsetAsync(gpu_truncated_arr, 1, N_ENVIRONMENTS * sizeof(bool), device_gpu.stream);
+            rlt::check_status(device_gpu);
+            cudaStreamSynchronize(device_gpu.stream);
+            rlt::check_status(device_gpu);
+            std::shuffle(scene_permutation.begin(), scene_permutation.end(), scene_rng);
+            for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
+                active_scene_indices[active_scene_i] = scene_permutation[active_scene_i];
+            }
+            upload_active_scenes();
         }
-        upload_active_scenes();
 
         std::array<RENDERER_TYPE*, N_ACTIVE_SCENES> active_renderers{};
         std::array<cudaStream_t, N_ACTIVE_SCENES> active_scene_render_streams{};
@@ -1162,11 +1173,8 @@ int main(int argc, char** argv){
             active_scene_framebuffer_ptrs[active_scene_i] = rlt::get_framebuffer_device_ptr(device, *renderer);
         }
 
-        // Episodes flow naturally across PPO step boundaries; the prologue kernel will
-        // reset an env only when truncated_arr[env_i] is set (by termination or step-limit
-        // in the epilogue, or initial truncation at startup). Dataset.reset[env_i] for the
-        // first step of this collect reflects whether the env was truncated at the tail of
-        // the previous collect — copied here so actor/critic reset masks are coherent.
+        // Episodes flow across PPO steps inside a scene set. At scene-set boundaries all envs
+        // are marked truncated before shuffling, so the next prologue samples states in the new scenes.
         {
             std::vector<unsigned char> truncated_host(N_ENVIRONMENTS);
             cudaMemcpy(truncated_host.data(), gpu_truncated_arr, N_ENVIRONMENTS * sizeof(bool), cudaMemcpyDeviceToHost);
@@ -1200,7 +1208,9 @@ int main(int argc, char** argv){
         // Data collection
         // =================================================================
         T cam_aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
+        TI frame_step_start = ppo_step_i * STEPS_PER_ENV;
         for(TI step_i = 0; step_i < STEPS_PER_ENV; step_i++){
+            TI frame_step_i = frame_step_start + step_i;
             // 1. Prologue: episode reset, sample indoor pos+yaw, observe state + privileged
             auto observations_privileged = rlt::view_range(device_gpu, dataset_gpu.all_observations_privileged, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
             auto state_observations = rlt::view_range(device_gpu, gpu_all_state_observations, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
@@ -1219,7 +1229,7 @@ int main(int argc, char** argv){
                 gpu_scene_yaw_sin_arr,
                 gpu_indoor_positions, gpu_num_indoor_positions, gpu_env_scene, MAX_INDOOR_POS,
                 gpu_episode_start_step,
-                rng_gpu, step_i);
+                rng_gpu, step_i, frame_step_i);
             rlt::check_status(device_gpu);
             record_episode_start_kernel<<<grid, block, 0, device_gpu.stream>>>(gpu_episode_start_step, gpu_episode_start_step_per_row, step_i);
             rlt::check_status(device_gpu);
@@ -1259,7 +1269,7 @@ int main(int argc, char** argv){
             }
             // Copy student frame into circular history buffer
             {
-                TI history_slot = step_i % FRAME_STACK_HISTORY_LENGTH;
+                TI history_slot = frame_step_i % FRAME_STACK_HISTORY_LENGTH;
                 T* history_slot_ptr = rlt::data(gpu_frame_stack_history) + (TI)(history_slot * N_ENVIRONMENTS) * OBSERVATION_DIM;
                 cudaMemcpyAsync(history_slot_ptr, obs_ptr, N_ENVIRONMENTS * OBSERVATION_DIM * sizeof(T), cudaMemcpyDeviceToDevice, device_gpu.stream);
             }
@@ -1347,7 +1357,7 @@ int main(int argc, char** argv){
                     rlt::data(gpu_frame_stack_history),
                     target_obs_ptr,
                     gpu_episode_start_step,
-                    step_i,
+                    frame_step_i,
                     rlt::data(gpu_rollout_combined),
                     OBSERVATION_DIM, IMG_C, FRAME_STACK_N, FRAME_STACK_STRIDE, COMBINED_IMG_C, COMBINED_OBS_DIM, N_ENVIRONMENTS);
             }
@@ -1534,12 +1544,12 @@ int main(int argc, char** argv){
                 {
                     int total_elements = BATCH_SIZE * COMBINED_OBS_DIM;
                     build_frame_stacked_with_target_from_dataset_kernel<<<(total_elements + 255) / 256, 256, 0, device_gpu.stream>>>(
-                        rlt::data(dataset_gpu.all_observations),
+                        rlt::data(gpu_frame_stack_history),
                         rlt::data(gpu_all_target_observations),
                         gpu_episode_start_step_per_row,
                         rlt::data(gpu_combined_batch),
                         OBSERVATION_DIM, IMG_C, FRAME_STACK_N, FRAME_STACK_STRIDE, COMBINED_IMG_C, COMBINED_OBS_DIM,
-                        (int)batch_offset, (int)BATCH_SIZE, (int)N_ENVIRONMENTS);
+                        frame_step_start, (int)batch_offset, (int)BATCH_SIZE, (int)N_ENVIRONMENTS);
                     rlt::check_status(device_gpu);
                 }
 
