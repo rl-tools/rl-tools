@@ -235,9 +235,12 @@ static constexpr T OBSERVATION_NOISE_STD = 0.0;
 // =========================================================================
 // Trajectory recording for extrack UI
 // =========================================================================
-static constexpr TI TRAJECTORY_SAVE_INTERVAL = 500;
-static constexpr TI VIDEO_SAVE_INTERVAL_SCENE_SETS = (TRAJECTORY_SAVE_INTERVAL + ROLLOUTS_PER_SCENE_SET - 1) / ROLLOUTS_PER_SCENE_SET;
-static constexpr TI CHECKPOINT_CADENCE_SCENE_SETS = VIDEO_SAVE_INTERVAL_SCENE_SETS;
+static constexpr TI EXTRACK_SAVE_INTERVAL_PPO_STEPS = 500;
+static constexpr TI EXTRACK_SAVE_INTERVAL_SCENE_SETS_BASE = (EXTRACK_SAVE_INTERVAL_PPO_STEPS + ROLLOUTS_PER_SCENE_SET - 1) / ROLLOUTS_PER_SCENE_SET;
+static constexpr TI EXTRACK_SAVE_INTERVAL_SCENE_SETS = 2 * EXTRACK_SAVE_INTERVAL_SCENE_SETS_BASE;
+static constexpr TI VIDEO_SAVE_INTERVAL_SCENE_SETS = EXTRACK_SAVE_INTERVAL_SCENE_SETS;
+static constexpr TI CHECKPOINT_CADENCE_SCENE_SETS = EXTRACK_SAVE_INTERVAL_SCENE_SETS;
+static constexpr bool EXPORT_CHECKPOINT_CODE = false;
 static constexpr TI N_EXAMPLES = 512;
 static constexpr TI REDUCED_BATCH_SIZE = 2;
 static_assert(REDUCED_BATCH_SIZE <= N_EXAMPLES);
@@ -1201,7 +1204,10 @@ int main(int argc, char** argv){
         TI rollout_done_count = 0;
 
         TI rollout_in_scene_set = ppo_step_i % ROLLOUTS_PER_SCENE_SET;
+        TI scene_set_i = ppo_step_i / ROLLOUTS_PER_SCENE_SET;
         bool scene_set_boundary = ppo_step_i % ROLLOUTS_PER_SCENE_SET == 0;
+        bool scene_set_end = rollout_in_scene_set + 1 == ROLLOUTS_PER_SCENE_SET;
+        bool save_extrack_step = scene_set_end && scene_set_i % CHECKPOINT_CADENCE_SCENE_SETS == 0;
         if(scene_set_boundary){
             if(ffmpeg_pipe){
                 pclose(ffmpeg_pipe);
@@ -1247,7 +1253,6 @@ int main(int argc, char** argv){
         // Optional video recording (mosaic of target | actual frames)
         // =================================================================
         if(scene_set_boundary){
-            TI scene_set_i = ppo_step_i / ROLLOUTS_PER_SCENE_SET;
             record_video_scene_set = scene_set_i % VIDEO_SAVE_INTERVAL_SCENE_SETS == 0;
         }
         if(record_video_scene_set && ffmpeg_pipe == nullptr){
@@ -1460,7 +1465,7 @@ int main(int argc, char** argv){
             }
 
             // 8. Pull state for trajectory recording
-            if(ppo_step_i % TRAJECTORY_SAVE_INTERVAL == 0){
+            if(save_extrack_step){
                 cudaStreamSynchronize(device_gpu.stream);
                 std::vector<typename ENVIRONMENT::State> tmp_states(TRAJECTORY_NUM_ENVS);
                 cudaMemcpy(tmp_states.data(), gpu_states_arr, TRAJECTORY_NUM_ENVS * sizeof(typename ENVIRONMENT::State), cudaMemcpyDeviceToHost);
@@ -1568,7 +1573,7 @@ int main(int argc, char** argv){
         }
 
         // Save trajectories to extrack
-        if(ppo_step_i % TRAJECTORY_SAVE_INTERVAL == 0){
+        if(save_extrack_step){
             // Reconstruct episodes from trajectory_states + dataset
             for(TI env_i = 0; env_i < TRAJECTORY_NUM_ENVS; env_i++){
                 episode_recorders[env_i].current_episode.clear();
@@ -1855,9 +1860,8 @@ int main(int argc, char** argv){
         rlt::add_scalar(device, device.logger, "rendering/target_frame_roll_pitch_randomization_range", TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE);
         rlt::add_scalar(device, device.logger, "rendering/target_frame_brightness_mismatch_range", TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE);
 
-        if(rollout_in_scene_set + 1 == ROLLOUTS_PER_SCENE_SET){
-            TI scene_set_i = ppo_step_i / ROLLOUTS_PER_SCENE_SET;
-            if(scene_set_i % CHECKPOINT_CADENCE_SCENE_SETS == 0){
+        if(save_extrack_step){
+            {
                 auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, on_policy_runner_gpu.step);
                 std::filesystem::create_directories(step_folder);
 
@@ -1992,7 +1996,7 @@ int main(int argc, char** argv){
                 save_hdf5(rlt::utils::typing::integral_constant<TI, REDUCED_BATCH_SIZE>{});
                 save_hdf5(rlt::utils::typing::integral_constant<TI, N_EXAMPLES>{});
 #endif
-                {
+                if constexpr(EXPORT_CHECKPOINT_CODE){
                     auto actor_weights = rlt::save_code(device, eval_actor, std::string("rl_tools::checkpoint::actor"), true);
                     std::stringstream output_ss;
                     output_ss << actor_weights;
