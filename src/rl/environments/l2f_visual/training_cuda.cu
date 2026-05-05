@@ -39,6 +39,35 @@
 #include <rl_tools/utils/extrack/operations_cpu.h>
 #include <rl_tools/utils/zlib/operations_cpu.h>
 
+#include <rl_tools/persist/backends/tar/operations_cpu.h>
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
+#include <rl_tools/persist/backends/hdf5/hdf5.h>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
+#endif
+#include <rl_tools/nn/layers/dense/persist.h>
+#include <rl_tools/nn/layers/conv2d/persist.h>
+#include <rl_tools/nn/layers/standardize/persist.h>
+#include <rl_tools/nn/layers/flatten/persist.h>
+#include <rl_tools/nn/layers/unflatten/persist.h>
+#include <rl_tools/nn_models/mlp/persist.h>
+#include <rl_tools/nn_models/mlp_unconditional_stddev/persist.h>
+#include <rl_tools/nn_models/sequential/persist.h>
+#include <rl_tools/nn_models/parallel/persist.h>
+#include <rl_tools/numeric_types/persist_code.h>
+#include <rl_tools/containers/matrix/persist_code.h>
+#include <rl_tools/containers/tensor/persist_code.h>
+#include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
+#include <rl_tools/nn/parameters/persist_code.h>
+#include <rl_tools/nn/layers/dense/persist_code.h>
+#include <rl_tools/nn/layers/conv2d/persist_code.h>
+#include <rl_tools/nn/layers/standardize/persist_code.h>
+#include <rl_tools/nn/layers/flatten/persist_code.h>
+#include <rl_tools/nn/layers/unflatten/persist_code.h>
+#include <rl_tools/nn_models/mlp/persist_code.h>
+#include <rl_tools/nn_models/mlp_unconditional_stddev/persist_code.h>
+#include <rl_tools/nn_models/sequential/persist_code.h>
+#include <rl_tools/nn_models/parallel/persist_code.h>
+
 #include <array>
 #include <chrono>
 #include <iostream>
@@ -51,6 +80,8 @@
 #include <vector>
 #include <numeric>
 #include <random>
+#include <mutex>
+#include <sstream>
 
 namespace rlt = rl_tools;
 
@@ -205,6 +236,10 @@ static constexpr T OBSERVATION_NOISE_STD = 0.0;
 // =========================================================================
 static constexpr TI TRAJECTORY_SAVE_INTERVAL = 500;
 static constexpr TI VIDEO_SAVE_INTERVAL_SCENE_SETS = (TRAJECTORY_SAVE_INTERVAL + ROLLOUTS_PER_SCENE_SET - 1) / ROLLOUTS_PER_SCENE_SET;
+static constexpr TI CHECKPOINT_CADENCE_SCENE_SETS = VIDEO_SAVE_INTERVAL_SCENE_SETS;
+static constexpr TI N_EXAMPLES = 512;
+static constexpr TI REDUCED_BATCH_SIZE = 2;
+static_assert(REDUCED_BATCH_SIZE <= N_EXAMPLES);
 static constexpr TI TRAJECTORY_NUM_ENVS = 10;
 static constexpr TI TRAJECTORY_MAX_EPISODES = 10;
 
@@ -371,6 +406,7 @@ using ACTOR_TYPE = typename LOOP_CORE_CONFIG::NN::ACTOR_TYPE;
 using CAPABILITY_ROLLOUT = rlt::nn::capability::Forward<true>;
 using ROLLOUT_ACTOR_TYPE = typename ACTOR_TYPE::template CHANGE_CAPABILITY<CAPABILITY_ROLLOUT>::template CHANGE_BATCH_SIZE<TI, N_ENVIRONMENTS>;
 using ROLLOUT_ACTOR_BUFFERS = typename ROLLOUT_ACTOR_TYPE::template Buffer<true>;
+using CHECKPOINT_ACTOR_TYPE = typename ACTOR_TYPE::template CHANGE_CAPABILITY<CAPABILITY_ROLLOUT>::template CHANGE_BATCH_SIZE<TI, N_EXAMPLES>;
 
 // Constants
 static constexpr TI STEPS_PER_ENV = LOOP_CORE_PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV;
@@ -387,6 +423,8 @@ static constexpr TI IMG_W = ENVIRONMENT::Observation::WIDTH;
 static constexpr TI IMG_C = ENVIRONMENT::Observation::CHANNELS;
 
 static_assert(N_BATCHES > 0, "STEPS_TOTAL must be >= BATCH_SIZE");
+static_assert(N_EXAMPLES <= BATCH_SIZE, "N_EXAMPLES must fit the reusable combined-observation batch buffer");
+static_assert(N_EXAMPLES <= STEPS_TOTAL, "N_EXAMPLES must fit one PPO rollout dataset");
 
 // =========================================================================
 // Custom CUDA kernels
@@ -1814,6 +1852,188 @@ int main(int argc, char** argv){
         rlt::add_scalar(device, device.logger, "rendering/motion_blur_samples", RENDER_ENABLE_MOTION_BLUR ? static_cast<T>(RENDER_MOTION_BLUR_SAMPLES) : static_cast<T>(1));
         rlt::add_scalar(device, device.logger, "rendering/target_frame_roll_pitch_randomization_range", TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE);
         rlt::add_scalar(device, device.logger, "rendering/target_frame_brightness_mismatch_range", TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE);
+
+        if(rollout_in_scene_set + 1 == ROLLOUTS_PER_SCENE_SET){
+            TI scene_set_i = ppo_step_i / ROLLOUTS_PER_SCENE_SET;
+            if(scene_set_i % CHECKPOINT_CADENCE_SCENE_SETS == 0){
+                auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, on_policy_runner_gpu.step);
+                std::filesystem::create_directories(step_folder);
+
+                CHECKPOINT_ACTOR_TYPE eval_actor;
+                rlt::malloc(device, eval_actor);
+                rlt::copy(device_gpu, device, ppo_gpu.actor, eval_actor);
+
+                char fov_buf[32];
+                std::snprintf(fov_buf, sizeof(fov_buf), "%.6g", (double)envs[0].parameters.fov);
+                std::string state_obs_string = rlt::string(device, envs[0].dynamics, ACTOR_STATE_OBS{});
+                std::string image_obs_string = std::string("CameraRGBStackedWithTarget(") + fov_buf + ", "
+                    + std::to_string(CAM_HEIGHT) + ", " + std::to_string(CAM_WIDTH) + ", "
+                    + std::to_string(FRAME_STACK_STRIDE) + ", " + std::to_string(FRAME_STACK_N) + ")";
+                std::string obs_string = image_obs_string + ", " + state_obs_string;
+                std::string rendering_string = std::string("{\"anti_aliasing\": ") + (RENDER_ENABLE_ANTI_ALIASING ? "true" : "false")
+                    + ", \"anti_aliasing_grid_size\": " + std::to_string(RENDER_ENABLE_ANTI_ALIASING ? RENDER_ANTI_ALIASING_GRID_SIZE : (TI)1)
+                    + ", \"motion_blur\": " + (RENDER_ENABLE_MOTION_BLUR ? "true" : "false")
+                    + ", \"motion_blur_samples\": " + std::to_string(RENDER_ENABLE_MOTION_BLUR ? RENDER_MOTION_BLUR_SAMPLES : (TI)1)
+                    + ", \"target_frame_roll_pitch_randomization_range\": " + std::to_string(TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE)
+                    + ", \"target_frame_brightness_mismatch_range\": " + std::to_string(TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE) + "}";
+                std::string meta = "{\"environment\": {\"name\": \"l2f_visual\", \"observation\": \"" + obs_string + "\", \"output\": \"ActionMean\", \"rendering\": " + rendering_string + "}}";
+
+                rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, N_EXAMPLES, IMG_H, IMG_W, COMBINED_IMG_C>, true>> example_input_0_image;
+                rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, N_EXAMPLES, STATE_OBS_DIM>, true>> example_input_1_state;
+                rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, ACTION_DIM>, true>> example_output;
+                rlt::malloc(device, example_input_0_image);
+                rlt::malloc(device, example_input_1_state);
+                rlt::malloc(device, example_output);
+
+                static constexpr TI EXAMPLE_ROW_OFFSET = STEPS_TOTAL - N_EXAMPLES;
+                {
+                    int total_elements = N_EXAMPLES * COMBINED_OBS_DIM;
+                    build_frame_stacked_with_target_from_dataset_kernel<<<(total_elements + 255) / 256, 256, 0, device_gpu.stream>>>(
+                        rlt::data(gpu_frame_stack_history),
+                        rlt::data(gpu_all_target_observations),
+                        gpu_episode_start_step_per_row,
+                        rlt::data(gpu_combined_batch),
+                        OBSERVATION_DIM, IMG_C, FRAME_STACK_N, FRAME_STACK_STRIDE, COMBINED_IMG_C, COMBINED_OBS_DIM,
+                        frame_step_start, (int)EXAMPLE_ROW_OFFSET, (int)N_EXAMPLES, (int)N_ENVIRONMENTS);
+                    rlt::check_status(device_gpu);
+                    cudaDeviceSynchronize();
+                    auto src_combined = rlt::view_range(device_gpu, gpu_combined_batch, (TI)0, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
+                    auto src_state = rlt::view_range(device_gpu, gpu_all_state_observations, EXAMPLE_ROW_OFFSET, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
+                    auto dst_image_2d = rlt::reshape_row_major(device, example_input_0_image, rlt::tensor::Shape<TI, N_EXAMPLES, COMBINED_OBS_DIM>{});
+                    auto dst_state_2d = rlt::reshape_row_major(device, example_input_1_state, rlt::tensor::Shape<TI, N_EXAMPLES, STATE_OBS_DIM>{});
+                    rlt::copy(device_gpu, device, src_combined, dst_image_2d);
+                    rlt::copy(device_gpu, device, src_state, dst_state_2d);
+                }
+
+                {
+                    using BRANCH_0 = typename rlt::utils::tuple_element<0, typename CHECKPOINT_ACTOR_TYPE::SPEC::BRANCH_TUPLE>::type;
+                    using BRANCH_1 = typename rlt::utils::tuple_element<1, typename CHECKPOINT_ACTOR_TYPE::SPEC::BRANCH_TUPLE>::type;
+                    using BRANCH_0_OUTPUT_SHAPE = rlt::nn_models::parallel::detail::output_shape<typename CHECKPOINT_ACTOR_TYPE::SPEC::CAPABILITY, BRANCH_0>;
+                    using BRANCH_1_OUTPUT_SHAPE = rlt::nn_models::parallel::detail::output_shape<typename CHECKPOINT_ACTOR_TYPE::SPEC::CAPABILITY, BRANCH_1>;
+                    static constexpr TI BRANCH_0_DIM = rlt::get_last(BRANCH_0_OUTPUT_SHAPE{});
+                    static constexpr TI BRANCH_1_DIM = rlt::get_last(BRANCH_1_OUTPUT_SHAPE{});
+                    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, BRANCH_0_DIM>, true>> branch_0_out;
+                    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, BRANCH_1_DIM>, true>> branch_1_out;
+                    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, BRANCH_0_DIM + BRANCH_1_DIM>, true>> concat_out;
+                    typename rlt::utils::typing::remove_reference_t<decltype(rlt::get<0>(eval_actor.pipelines))>::template Buffer<true> buffer_0;
+                    typename rlt::utils::typing::remove_reference_t<decltype(rlt::get<1>(eval_actor.pipelines))>::template Buffer<true> buffer_1;
+                    rlt::malloc(device, branch_0_out);
+                    rlt::malloc(device, branch_1_out);
+                    rlt::malloc(device, concat_out);
+                    rlt::malloc(device, buffer_0);
+                    rlt::malloc(device, buffer_1);
+                    rlt::Mode<rlt::mode::Evaluation<>> eval_mode;
+                    auto image_eval_view = rlt::view_memory<rlt::tensor::Shape<TI, N_EXAMPLES, IMG_H, IMG_W, COMBINED_IMG_C>>(device, example_input_0_image);
+                    auto state_eval_view = rlt::view_memory<rlt::tensor::Shape<TI, N_EXAMPLES, STATE_OBS_DIM>>(device, example_input_1_state);
+                    rlt::evaluate(device, rlt::get<0>(eval_actor.pipelines), image_eval_view, branch_0_out, buffer_0, rng, eval_mode);
+                    rlt::evaluate(device, rlt::get<1>(eval_actor.pipelines), state_eval_view, branch_1_out, buffer_1, rng, eval_mode);
+                    auto concat_0 = rlt::view_range(device, concat_out, (TI)0, rlt::tensor::ViewSpec<1, BRANCH_0_DIM>{});
+                    auto concat_1 = rlt::view_range(device, concat_out, (TI)BRANCH_0_DIM, rlt::tensor::ViewSpec<1, BRANCH_1_DIM>{});
+                    rlt::copy(device, device, branch_0_out, concat_0);
+                    rlt::copy(device, device, branch_1_out, concat_1);
+                    typename decltype(eval_actor.head)::template Buffer<true> head_buffer;
+                    rlt::malloc(device, head_buffer);
+                    rlt::evaluate(device, eval_actor.head, concat_out, example_output, head_buffer, rng, eval_mode);
+                    rlt::free(device, head_buffer);
+                    rlt::free(device, branch_0_out);
+                    rlt::free(device, branch_1_out);
+                    rlt::free(device, concat_out);
+                    rlt::free(device, buffer_0);
+                    rlt::free(device, buffer_1);
+                }
+
+                {
+                    std::filesystem::path checkpoint_path = step_folder / "checkpoint.tar";
+                    rlt::persist::backends::tar::Writer writer;
+                    rlt::persist::backends::tar::WriterGroup<rlt::persist::backends::tar::WriterGroupSpecification<TI, decltype(writer)>> root_group{"", &writer};
+                    auto actor_group = rlt::create_group(device, root_group, "actor");
+                    rlt::set_attribute(device, actor_group, "checkpoint_name", step_folder.string().c_str());
+                    rlt::set_attribute(device, actor_group, "meta", meta.c_str());
+                    rlt::save(device, eval_actor, actor_group);
+                    auto example_group = rlt::create_group(device, root_group, "example");
+                    auto inputs_group = rlt::create_group(device, example_group, "inputs");
+                    rlt::save(device, example_input_0_image, inputs_group, "0");
+                    rlt::save(device, example_input_1_state, inputs_group, "1");
+                    auto outputs_group = rlt::create_group(device, example_group, "outputs");
+                    auto example_output_canonical = rlt::reshape_row_major(device, example_output, rlt::tensor::Shape<TI, 1, N_EXAMPLES, ACTION_DIM>{});
+                    rlt::save(device, example_output_canonical, outputs_group, "0");
+                    rlt::persist::backends::tar::finalize(device, writer);
+                    std::ofstream f(checkpoint_path, std::ios::binary);
+                    f.write(writer.buffer.data(), writer.buffer.size());
+                }
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
+                auto save_hdf5 = [&](auto batch_size_tag){
+                    static constexpr TI EXAMPLE_BATCH_SIZE = decltype(batch_size_tag)::value;
+                    using SIZED_EVAL_ACTOR_TYPE = typename CHECKPOINT_ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, EXAMPLE_BATCH_SIZE>;
+                    SIZED_EVAL_ACTOR_TYPE sized_eval_actor;
+                    rlt::malloc(device, sized_eval_actor);
+                    rlt::copy(device_gpu, device, ppo_gpu.actor, sized_eval_actor);
+                    std::lock_guard<std::mutex> lock(rlt::persist::backends::hdf5::global_mutex());
+                    std::filesystem::path checkpoint_path = step_folder / (std::string("checkpoint_") + std::to_string(EXAMPLE_BATCH_SIZE) + "examples.h5");
+                    rlt::persist::backends::hdf5::File root_file(checkpoint_path.string(), rlt::persist::backends::hdf5::Mode::WRITE);
+                    auto actor_group = rlt::create_group(device, root_file, "actor");
+                    rlt::set_attribute(device, actor_group, "checkpoint_name", step_folder.string().c_str());
+                    rlt::set_attribute(device, actor_group, "meta", meta.c_str());
+                    rlt::save(device, sized_eval_actor, actor_group);
+                    auto example_group = rlt::create_group(device, root_file, "example");
+                    auto inputs_group = rlt::create_group(device, example_group, "inputs");
+                    auto example_input_0_image_view = rlt::view_range(device, example_input_0_image, (TI)0, rlt::tensor::ViewSpec<1, EXAMPLE_BATCH_SIZE>{});
+                    auto example_input_1_state_view = rlt::view_range(device, example_input_1_state, (TI)0, rlt::tensor::ViewSpec<1, EXAMPLE_BATCH_SIZE>{});
+                    rlt::save(device, example_input_0_image_view, inputs_group, "0");
+                    rlt::save(device, example_input_1_state_view, inputs_group, "1");
+                    auto outputs_group = rlt::create_group(device, example_group, "outputs");
+                    auto example_output_canonical = rlt::reshape_row_major(device, example_output, rlt::tensor::Shape<TI, 1, N_EXAMPLES, ACTION_DIM>{});
+                    auto example_output_view = rlt::view_range(device, example_output_canonical, (TI)0, rlt::tensor::ViewSpec<1, EXAMPLE_BATCH_SIZE>{});
+                    rlt::save(device, example_output_view, outputs_group, "0");
+                    rlt::free(device, sized_eval_actor);
+                };
+                save_hdf5(rlt::utils::typing::integral_constant<TI, REDUCED_BATCH_SIZE>{});
+                save_hdf5(rlt::utils::typing::integral_constant<TI, N_EXAMPLES>{});
+#endif
+                {
+                    auto actor_weights = rlt::save_code(device, eval_actor, std::string("rl_tools::checkpoint::actor"), true);
+                    std::stringstream output_ss;
+                    output_ss << actor_weights;
+                    output_ss << "\n" << "namespace rl_tools::checkpoint::example::inputs{";
+                    output_ss << "\n" << rlt::save_code(device, example_input_0_image, std::string("_0"), true);
+                    output_ss << "\n" << rlt::save_code(device, example_input_1_state, std::string("_1"), true);
+                    output_ss << "\n" << "}";
+                    output_ss << "\n" << "namespace rl_tools::checkpoint::example::outputs{";
+                    {
+                        auto example_output_canonical = rlt::reshape_row_major(device, example_output, rlt::tensor::Shape<TI, 1, N_EXAMPLES, ACTION_DIM>{});
+                        output_ss << "\n" << rlt::save_code(device, example_output_canonical, std::string("_0"), true);
+                    }
+                    output_ss << "\n" << "}";
+                    output_ss << "\n" << "namespace rl_tools::checkpoint::meta{";
+                    output_ss << "\n" << "   " << "char name[] = \"" << step_folder.string() << "\";";
+                    output_ss << "\n" << "   " << "char commit_hash[] = \"" << RL_TOOLS_STRINGIFY(RL_TOOLS_COMMIT_HASH) << "\";";
+                    output_ss << "\n" << "   " << "char observation[] = \"" << obs_string << "\";";
+                    output_ss << "\n" << "}";
+                    std::string output_string = output_ss.str();
+#ifdef RL_TOOLS_ENABLE_ZLIB
+                    {
+                        std::filesystem::path checkpoint_code_path = step_folder / "checkpoint.h.gz";
+                        std::vector<uint8_t> compressed;
+                        rlt::compress_zlib(output_string, compressed);
+                        std::ofstream f(checkpoint_code_path, std::ios::binary);
+                        f.write(reinterpret_cast<const char*>(compressed.data()), compressed.size());
+                    }
+#endif
+                    {
+                        std::filesystem::path checkpoint_code_path = step_folder / "checkpoint.h";
+                        std::ofstream f(checkpoint_code_path);
+                        f << output_string;
+                    }
+                }
+
+                rlt::free(device, example_input_0_image);
+                rlt::free(device, example_input_1_state);
+                rlt::free(device, example_output);
+                rlt::free(device, eval_actor);
+                std::cerr << "Checkpoint saved: " << std::filesystem::absolute(step_folder) << std::endl;
+            }
+        }
+
         {
             auto& actor_log_std = ppo.actor.head;
             for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
