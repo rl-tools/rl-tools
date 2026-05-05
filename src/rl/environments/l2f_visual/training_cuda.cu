@@ -1148,6 +1148,17 @@ int main(int argc, char** argv){
     for(TI ppo_step_i = 0; ppo_step_i < N_PPO_STEPS; ppo_step_i++){
         auto step_start = std::chrono::high_resolution_clock::now();
         rlt::set_step(device, device.logger, on_policy_runner_gpu.step);
+        T rollout_episode_length_mean = 0;
+        T rollout_episode_length_std = 0;
+        T rollout_return_mean = 0;
+        T rollout_return_std = 0;
+        T rollout_reward_mean = 0;
+        T rollout_reward_std = 0;
+        T rollout_terminated_share = 0;
+        TI rollout_episode_count = 0;
+        TI rollout_terminated_count = 0;
+        TI rollout_truncated_count = 0;
+        TI rollout_done_count = 0;
 
         TI rollout_in_scene_set = ppo_step_i % ROLLOUTS_PER_SCENE_SET;
         bool scene_set_boundary = ppo_step_i % ROLLOUTS_PER_SCENE_SET == 0;
@@ -1433,6 +1444,7 @@ int main(int argc, char** argv){
             rlt::check_status(device_gpu);
         }
         on_policy_runner_gpu.step += N_ENVIRONMENTS * STEPS_PER_ENV;
+        rlt::set_step(device, device.logger, on_policy_runner_gpu.step);
 
         // =================================================================
         // GPU→CPU: copy dataset for GAE + training
@@ -1454,24 +1466,65 @@ int main(int argc, char** argv){
             rlt::copy(device_gpu, device, gpu_episode_lengths_log, cpu_episode_lengths_log);
             rlt::copy(device_gpu, device, gpu_episode_returns_log, cpu_episode_returns_log);
             T length_sum = 0;
+            T length_sq_sum = 0;
             T return_sum = 0;
+            T return_sq_sum = 0;
+            T reward_sum = 0;
+            T reward_sq_sum = 0;
             TI count = 0;
             for(TI pos = 0; pos < STEPS_TOTAL; pos++){
+                T reward_value = rlt::get(dataset.rewards, pos, 0);
+                reward_sum += reward_value;
+                reward_sq_sum += reward_value * reward_value;
+                bool terminated_event = rlt::get(dataset.terminated, pos, 0) > (T)0.5;
+                bool done_event = rlt::get(dataset.truncated, pos, 0) > (T)0.5;
+                if(terminated_event){
+                    rollout_terminated_count++;
+                }
+                if(done_event){
+                    rollout_done_count++;
+                    if(!terminated_event){
+                        rollout_truncated_count++;
+                    }
+                }
                 T ep_len = rlt::get(cpu_episode_lengths_log, pos, 0);
                 if(ep_len >= (T)0){
                     rlt::add_scalar(device, device.logger, "episode/length", ep_len, 100);
-                    rlt::add_scalar(device, device.logger, "episode/return", rlt::get(cpu_episode_returns_log, pos, 0), 100);
+                    T ep_return = rlt::get(cpu_episode_returns_log, pos, 0);
+                    rlt::add_scalar(device, device.logger, "episode/return", ep_return, 100);
                     length_sum += ep_len;
-                    return_sum += rlt::get(cpu_episode_returns_log, pos, 0);
+                    length_sq_sum += ep_len * ep_len;
+                    return_sum += ep_return;
+                    return_sq_sum += ep_return * ep_return;
                     count++;
                 }
             }
+            rollout_reward_mean = reward_sum / static_cast<T>(STEPS_TOTAL);
+            rollout_reward_std = rlt::math::sqrt(device.math, rlt::math::max(device.math, (T)0, reward_sq_sum / static_cast<T>(STEPS_TOTAL) - rollout_reward_mean * rollout_reward_mean));
+            rollout_terminated_share = rollout_done_count > 0 ? static_cast<T>(rollout_terminated_count) / static_cast<T>(rollout_done_count) : (T)0;
             if(count > 0){
+                rollout_episode_count = count;
+                rollout_episode_length_mean = length_sum / static_cast<T>(count);
+                rollout_episode_length_std = rlt::math::sqrt(device.math, rlt::math::max(device.math, (T)0, length_sq_sum / static_cast<T>(count) - rollout_episode_length_mean * rollout_episode_length_mean));
+                rollout_return_mean = return_sum / static_cast<T>(count);
+                rollout_return_std = rlt::math::sqrt(device.math, rlt::math::max(device.math, (T)0, return_sq_sum / static_cast<T>(count) - rollout_return_mean * rollout_return_mean));
                 std::cout << std::defaultfloat << std::setprecision(6)
                           << "  episodes finished: " << count
-                          << "  mean length: " << (length_sum / count)
-                          << "  mean return: " << (return_sum / count) << std::endl;
+                          << "  mean length: " << rollout_episode_length_mean
+                          << "  mean return: " << rollout_return_mean << std::endl;
+                rlt::add_scalar(device, device.logger, "training/episode_length", rollout_episode_length_mean);
+                rlt::add_scalar(device, device.logger, "training/episode_length/mean", rollout_episode_length_mean);
+                rlt::add_scalar(device, device.logger, "training/episode_length/std", rollout_episode_length_std);
+                rlt::add_scalar(device, device.logger, "training/return/mean", rollout_return_mean);
+                rlt::add_scalar(device, device.logger, "training/return/std", rollout_return_std);
+                rlt::add_scalar(device, device.logger, "training/episodes", static_cast<T>(rollout_episode_count));
             }
+            rlt::add_scalar(device, device.logger, "training/reward/mean", rollout_reward_mean);
+            rlt::add_scalar(device, device.logger, "training/reward/std", rollout_reward_std);
+            rlt::add_scalar(device, device.logger, "training/terminated_share", rollout_terminated_share);
+            rlt::add_scalar(device, device.logger, "training/terminated_episodes", static_cast<T>(rollout_terminated_count));
+            rlt::add_scalar(device, device.logger, "training/truncated_episodes", static_cast<T>(rollout_truncated_count));
+            rlt::add_scalar(device, device.logger, "training/complete_episodes", static_cast<T>(rollout_done_count));
         }
 
         // Save trajectories to extrack
@@ -1540,6 +1593,18 @@ int main(int argc, char** argv){
             rlt::copy(device_gpu, device, last_layer_gpu.log_std.gradient, last_layer_cpu.log_std.gradient);
         }
 
+        T ppo_actor_loss_sum = 0;
+        T ppo_entropy_sum = 0;
+        T ppo_approx_kl_sum = 0;
+        T ppo_ratio_sum = 0;
+        T ppo_advantage_mean_sum = 0;
+        T ppo_advantage_std_sum = 0;
+        T ppo_critic_loss_sum = 0;
+        TI ppo_update_samples = 0;
+        TI ppo_clipped_samples = 0;
+        TI ppo_update_batches = 0;
+        TI ppo_critic_batches = 0;
+
         for(TI epoch_i = 0; epoch_i < N_EPOCHS; epoch_i++){
             // Random batch order (no within-batch shuffle so frame stack indices stay coherent)
             TI batch_order[N_BATCHES];
@@ -1595,24 +1660,26 @@ int main(int argc, char** argv){
                 auto batch_target_values = rlt::view(device, dataset.target_values, rlt::matrix::ViewSpec<BATCH_SIZE, 1>(), batch_offset, 0);
 
                 T advantage_mean = 0, advantage_std = 0;
-                if(PPO_SPEC::PARAMETERS::NORMALIZE_ADVANTAGE){
-                    for(TI i = 0; i < BATCH_SIZE; i++){
-                        T adv = rlt::get(batch_advantages, i, 0);
-                        advantage_mean += adv;
-                        advantage_std += adv * adv;
-                    }
-                    advantage_mean /= BATCH_SIZE;
-                    advantage_std /= BATCH_SIZE;
-                    advantage_std = rlt::math::sqrt(device.math, rlt::math::max(device.math, (T)0, advantage_std - advantage_mean * advantage_mean));
+                for(TI i = 0; i < BATCH_SIZE; i++){
+                    T adv = rlt::get(batch_advantages, i, 0);
+                    advantage_mean += adv;
+                    advantage_std += adv * adv;
                 }
+                advantage_mean /= BATCH_SIZE;
+                advantage_std /= BATCH_SIZE;
+                advantage_std = rlt::math::sqrt(device.math, rlt::math::max(device.math, (T)0, advantage_std - advantage_mean * advantage_mean));
+                ppo_advantage_mean_sum += advantage_mean;
+                ppo_advantage_std_sum += advantage_std;
 
                 for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
                     T action_log_prob = 0;
+                    T action_entropy = 0;
                     for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
                         T current_action = rlt::get(ppo_buffers.current_batch_actions, batch_step_i, action_i);
                         T rollout_action = rlt::get(batch_actions, batch_step_i, action_i);
                         T current_action_log_std = rlt::get(device, last_layer_cpu.log_std.parameters, action_i);
                         action_log_prob += rlt::random::normal_distribution::log_prob(device.random, current_action, current_action_log_std, rollout_action);
+                        action_entropy += current_action_log_std + rlt::math::log(device.math, static_cast<T>(2) * rlt::math::PI<T>) / static_cast<T>(2) + static_cast<T>(0.5);
                         rlt::set(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, rlt::random::normal_distribution::d_log_prob_d_mean(device.random, current_action, current_action_log_std, rollout_action));
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
                             T d_entropy_loss_d_current_action_log_std = -(T)1/BATCH_SIZE * PPO_SPEC::PARAMETERS::ACTION_ENTROPY_COEFFICIENT;
@@ -1632,6 +1699,13 @@ int main(int argc, char** argv){
                     T normal_advantage = ratio * advantage;
                     T clipped_advantage = clipped_ratio * advantage;
                     bool ratio_min_switch = normal_advantage - clipped_advantage <= (T)0;
+                    T pessimistic_surrogate = ratio_min_switch ? normal_advantage : clipped_advantage;
+                    ppo_actor_loss_sum += -pessimistic_surrogate;
+                    ppo_entropy_sum += action_entropy;
+                    ppo_approx_kl_sum += (ratio - (T)1) - log_ratio;
+                    ppo_ratio_sum += ratio;
+                    ppo_clipped_samples += clipped ? 1 : 0;
+                    ppo_update_samples++;
                     T d_loss_d_pessimistic_surrogate = -(T)1/BATCH_SIZE;
                     T d_pessimistic_surrogate_d_ratio = ratio_min_switch ? advantage : (clipped ? 0 : advantage);
                     T d_loss_d_action_log_prob = d_loss_d_pessimistic_surrogate * d_pessimistic_surrogate_d_ratio * ratio;
@@ -1673,6 +1747,9 @@ int main(int argc, char** argv){
                         auto critic_output_tensor = rlt::output(device_gpu, ppo_gpu.critic);
                         auto critic_output_matrix = rlt::matrix_view(device_gpu, critic_output_tensor);
                         rlt::copy(device_gpu, device, critic_output_matrix, cpu_critic_output);
+                        T critic_loss = rlt::nn::loss_functions::mse::evaluate(device, cpu_critic_output, batch_target_values);
+                        ppo_critic_loss_sum += critic_loss;
+                        ppo_critic_batches++;
                         rlt::nn::loss_functions::mse::gradient(device, cpu_critic_output, batch_target_values, cpu_d_critic, (T)0.5);
                         rlt::copy(device, device_gpu, cpu_d_critic, gpu_d_critic_output);
                         rlt::free(device, cpu_critic_output);
@@ -1685,11 +1762,15 @@ int main(int argc, char** argv){
                     rlt::step(device_gpu, critic_optimizer_gpu, ppo_gpu.critic);
                     cudaDeviceSynchronize();
                 }
+                ppo_update_batches++;
             }
         }
 
         // Sync trained actor weights → rollout actor for next data collection
         rlt::copy(device_gpu, device_gpu, ppo_gpu.actor, rollout_actor_gpu);
+        rlt::copy(device_gpu, device, ppo_gpu.actor.head.log_std.parameters, ppo.actor.head.log_std.parameters);
+        rlt::copy(device_gpu, device, actor_optimizer_gpu, actor_optimizer);
+        rlt::copy(device_gpu, device, critic_optimizer_gpu, critic_optimizer);
 
         // Logging
         auto now = std::chrono::high_resolution_clock::now();
@@ -1703,11 +1784,42 @@ int main(int argc, char** argv){
                   << "  (sps lifetime " << std::setw(6) << std::setprecision(0) << std::fixed << sps_lifetime
                   << ", current " << std::setw(6) << std::setprecision(0) << sps_current << ")" << std::defaultfloat << std::endl;
 
+        rlt::add_scalar(device, device.logger, "ppo/step", ppo_step_i);
+        rlt::add_scalar(device, device.logger, "ppo/actor_learning_rate", rlt::get(device, actor_optimizer.parameters, 0).alpha);
+        rlt::add_scalar(device, device.logger, "ppo/critic_learning_rate", rlt::get(device, critic_optimizer.parameters, 0).alpha);
+        if(ppo_update_samples > 0){
+            T inv_samples = static_cast<T>(1) / static_cast<T>(ppo_update_samples);
+            T approx_kl = ppo_approx_kl_sum * inv_samples;
+            rlt::add_scalar(device, device.logger, "ppo/actor_loss", ppo_actor_loss_sum * inv_samples);
+            rlt::add_scalar(device, device.logger, "ppo/entropy", ppo_entropy_sum * inv_samples);
+            rlt::add_scalar(device, device.logger, "ppo/approx_kl", approx_kl);
+            rlt::add_scalar(device, device.logger, "ppo/policy_kl", approx_kl);
+            rlt::add_scalar(device, device.logger, "ppo/clip_fraction", static_cast<T>(ppo_clipped_samples) * inv_samples);
+            rlt::add_scalar(device, device.logger, "ppo/ratio_mean", ppo_ratio_sum * inv_samples);
+        }
+        if(ppo_update_batches > 0){
+            T inv_batches = static_cast<T>(1) / static_cast<T>(ppo_update_batches);
+            rlt::add_scalar(device, device.logger, "ppo/advantage/mean", ppo_advantage_mean_sum * inv_batches);
+            rlt::add_scalar(device, device.logger, "ppo/advantage/std", ppo_advantage_std_sum * inv_batches);
+        }
+        if(ppo_critic_batches > 0){
+            rlt::add_scalar(device, device.logger, "ppo/critic_loss", ppo_critic_loss_sum / static_cast<T>(ppo_critic_batches));
+        }
+        rlt::add_scalar(device, device.logger, "steps_per_second", sps_current);
+        rlt::add_scalar(device, device.logger, "timing/steps_per_second", sps_current);
+        rlt::add_scalar(device, device.logger, "timing/steps_per_second_lifetime", sps_lifetime);
+        rlt::add_scalar(device, device.logger, "timing/step_time_s", step_elapsed.count());
+        rlt::add_scalar(device, device.logger, "timing/total_time_s", training_elapsed.count());
+        rlt::add_scalar(device, device.logger, "rendering/anti_aliasing_grid_size", RENDER_ENABLE_ANTI_ALIASING ? static_cast<T>(RENDER_ANTI_ALIASING_GRID_SIZE) : static_cast<T>(1));
+        rlt::add_scalar(device, device.logger, "rendering/motion_blur_samples", RENDER_ENABLE_MOTION_BLUR ? static_cast<T>(RENDER_MOTION_BLUR_SAMPLES) : static_cast<T>(1));
+        rlt::add_scalar(device, device.logger, "rendering/target_frame_roll_pitch_randomization_range", TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE);
+        rlt::add_scalar(device, device.logger, "rendering/target_frame_brightness_mismatch_range", TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE);
         {
             auto& actor_log_std = ppo.actor.head;
             for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
                 T log_std_val = rlt::get(device, actor_log_std.log_std.parameters, action_i);
-                rlt::add_scalar(device, device.logger, "actor/log_std", log_std_val, 100);
+                rlt::add_scalar(device, device.logger, "actor/log_std", log_std_val);
+                rlt::add_scalar(device, device.logger, std::string("actor/action_std/") + std::to_string(action_i), rlt::math::exp(device.math, log_std_val));
             }
         }
     }
@@ -1755,6 +1867,10 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, gpu_gae_values);
     rlt::free(device_gpu, gpu_episode_lengths_log);
     rlt::free(device_gpu, gpu_episode_returns_log);
+
+#if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
+    rlt::free(device, device.logger);
+#endif
 
     return 0;
 }
