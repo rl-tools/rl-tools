@@ -240,6 +240,7 @@ static constexpr TI EXTRACK_SAVE_INTERVAL_SCENE_SETS_BASE = (EXTRACK_SAVE_INTERV
 static constexpr TI EXTRACK_SAVE_INTERVAL_SCENE_SETS = 2 * EXTRACK_SAVE_INTERVAL_SCENE_SETS_BASE;
 static constexpr TI VIDEO_SAVE_INTERVAL_SCENE_SETS = EXTRACK_SAVE_INTERVAL_SCENE_SETS;
 static constexpr TI CHECKPOINT_CADENCE_SCENE_SETS = EXTRACK_SAVE_INTERVAL_SCENE_SETS;
+static constexpr TI REWARD_COMPONENT_LOG_INTERVAL_PPO_STEPS = 100;
 static constexpr bool EXPORT_CHECKPOINT_CODE = false;
 static constexpr TI N_EXAMPLES = 512;
 static constexpr TI REDUCED_BATCH_SIZE = 2;
@@ -834,6 +835,9 @@ int main(int argc, char** argv){
     RNG rng;
     rlt::malloc(device, rng);
     rlt::init(device, rng, seed);
+    RNG reward_log_rng;
+    rlt::malloc(device, reward_log_rng);
+    rlt::init(device, reward_log_rng, seed + 0xBADC0DE);
 
     // ---------------------------------------------------------------------
     // PPO components (CPU)
@@ -1150,6 +1154,11 @@ int main(int argc, char** argv){
     EpisodeRecorder episode_recorders[TRAJECTORY_NUM_ENVS];
     std::vector<std::vector<TrajectoryStep>> completed_episodes;
     T simulation_dt = static_cast<T>(1) / static_cast<T>(SIMULATION_FREQUENCY);
+    typename ENVIRONMENT::State reward_log_state;
+    typename ENVIRONMENT::State reward_log_next_state;
+    typename ENVIRONMENT::Parameters reward_log_parameters;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ACTION_DIM>> reward_log_action;
+    rlt::malloc(device, reward_log_action);
 
     // Trajectory state buffer for post-collect reconstruction
     std::vector<typename ENVIRONMENT::State> trajectory_states(STEPS_PER_ENV * TRAJECTORY_NUM_ENVS);
@@ -1208,6 +1217,7 @@ int main(int argc, char** argv){
         bool scene_set_boundary = ppo_step_i % ROLLOUTS_PER_SCENE_SET == 0;
         bool scene_set_end = rollout_in_scene_set + 1 == ROLLOUTS_PER_SCENE_SET;
         bool save_extrack_step = scene_set_end && scene_set_i % CHECKPOINT_CADENCE_SCENE_SETS == 0;
+        bool log_reward_components_this_step = ppo_step_i % REWARD_COMPONENT_LOG_INTERVAL_PPO_STEPS == 0;
         if(scene_set_boundary){
             if(ffmpeg_pipe){
                 pclose(ffmpeg_pipe);
@@ -1451,6 +1461,10 @@ int main(int argc, char** argv){
             }
 
             // 7. Epilogue: sample noisy action, log_prob, env step, reward, store into dataset
+            if(log_reward_components_this_step && step_i == STEPS_PER_ENV - 1){
+                cudaStreamSynchronize(device_gpu.stream);
+                cudaMemcpy(&reward_log_state, gpu_states_arr, sizeof(typename ENVIRONMENT::State), cudaMemcpyDeviceToHost);
+            }
             {
                 auto& last_layer_gpu = ppo_gpu.actor.head;
                 auto log_std_gpu = rlt::matrix_view(device_gpu, last_layer_gpu.log_std.parameters);
@@ -1462,6 +1476,11 @@ int main(int argc, char** argv){
                     actions_mean_view, actions_view, log_std_gpu,
                     dataset_gpu, rng_gpu, step_i, EPISODE_STEP_LIMIT);
                 rlt::check_status(device_gpu);
+            }
+            if(log_reward_components_this_step && step_i == STEPS_PER_ENV - 1){
+                cudaStreamSynchronize(device_gpu.stream);
+                cudaMemcpy(&reward_log_next_state, gpu_states_arr, sizeof(typename ENVIRONMENT::State), cudaMemcpyDeviceToHost);
+                cudaMemcpy(&reward_log_parameters, gpu_params_arr, sizeof(typename ENVIRONMENT::Parameters), cudaMemcpyDeviceToHost);
             }
 
             // 8. Pull state for trajectory recording
@@ -1504,6 +1523,13 @@ int main(int argc, char** argv){
             auto gpu_obs_priv = rlt::matrix_view(device_gpu, dataset_gpu.all_observations_privileged);
             auto cpu_obs_priv = rlt::matrix_view(device, dataset.all_observations_privileged);
             rlt::copy(device_gpu, device, gpu_obs_priv, cpu_obs_priv);
+        }
+        if(log_reward_components_this_step){
+            static constexpr TI REWARD_LOG_POS = (STEPS_PER_ENV - 1) * N_ENVIRONMENTS;
+            for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
+                rlt::set(reward_log_action, 0, action_i, rlt::get(dataset.actions, REWARD_LOG_POS, action_i));
+            }
+            rlt::log_reward(device, envs[0].dynamics, reward_log_parameters.dynamics, reward_log_state, reward_log_action, reward_log_next_state, reward_log_rng);
         }
 
         // Episode statistics + log
@@ -2068,6 +2094,8 @@ int main(int argc, char** argv){
     rlt::free(device, critic_optimizer);
     rlt::free(device, cpu_episode_lengths_log);
     rlt::free(device, cpu_episode_returns_log);
+    rlt::free(device, reward_log_action);
+    rlt::free(device, reward_log_rng);
 
     rlt::free(device_gpu, ppo_gpu);
     rlt::free(device_gpu, actor_buffers);
