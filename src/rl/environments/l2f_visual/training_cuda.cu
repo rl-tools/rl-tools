@@ -315,7 +315,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParame
     using CRITIC_OPTIMIZER_PARAMETERS = ADAM_PARAMETERS;
     static constexpr bool NORMALIZE_OBSERVATIONS = false; // standardize layers handle their own warmup
     struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<TYPE_POLICY, TI, BATCH_SIZE>{
-        static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.01;
+        static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.005;
         static constexpr TI N_EPOCHS = 2;
         static constexpr T GAMMA = 0.99;
         static constexpr T LAMBDA = 0.95;
