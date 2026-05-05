@@ -73,65 +73,60 @@ using RNG = rlt::devices::generic::random::ArrayENGINE<rlt::devices::generic::ra
 using RNG_GPU = typename DEVICE_GPU::SPEC::RANDOM::ENGINE<>;
 
 // =========================================================================
-// L2F dynamics — zoo l2f reward (src/rl/zoo/l2f/environment.h)
+// L2F dynamics configuration
 // =========================================================================
 namespace l2f = rlt::rl::environments::l2f;
 namespace obs = l2f::observation;
 
 using REWARD_FUNCTION = l2f::parameters::reward_functions::Squared<T>;
 static constexpr TI SIMULATION_FREQUENCY = 100;
-static constexpr TI EPISODE_LENGTH_S = 5;
-static constexpr TI EPISODE_STEP_LIMIT = EPISODE_LENGTH_S * SIMULATION_FREQUENCY;
+static constexpr TI EPISODE_STEP_LIMIT = 500;
 using PARAMETERS_SPEC = l2f::ParametersBaseSpecification<T, TI, 4, EPISODE_STEP_LIMIT, REWARD_FUNCTION>;
-using PARAMETERS_TYPE = l2f::ParametersDisturbances<l2f::ParametersSpecification<T, TI, l2f::ParametersBase<PARAMETERS_SPEC>>>;
+struct DOMAIN_RANDOMIZATION_OPTIONS {
+    static constexpr bool THRUST_TO_WEIGHT = false;
+    static constexpr bool MASS = false;
+    static constexpr bool TORQUE_TO_INERTIA = false;
+    static constexpr bool MASS_SIZE_DEVIATION = false;
+    static constexpr bool ROTOR_TORQUE_CONSTANT = false;
+    static constexpr bool DISTURBANCE_FORCE = false;
+    static constexpr bool ROTOR_TIME_CONSTANT = false;
+};
+using PARAMETERS_TYPE = l2f::ParametersDomainRandomization<l2f::ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, l2f::ParametersDisturbances<l2f::ParametersSpecification<T, TI, l2f::ParametersBase<PARAMETERS_SPEC>>>>>;
 
 static constexpr auto MODEL = l2f::parameters::dynamics::REGISTRY::crazyflie;
 
 static constexpr REWARD_FUNCTION reward_function = {
-    false,    // non_negative
-    00.10,    // scale
-    01.00,    // constant
-    00.00,    // termination_penalty
-    00.00,    // position
-    00.00,    // position_clip
-    00.00,    // orientation
-    00.00,    // linear_velocity
-    00.00,    // angular_velocity
-    00.00,    // linear_acceleration
-    00.00,    // angular_acceleration
-    00.00,    // action
-    00.00,    // d_action
-    00.00     // position_error_integral
+    false, 0.10, 1.00, -1.00, 10.00, 0.00, 2.50, 0.05, 0.00, 0.00, 0.00, 0.10, 0.00, 0.00
 };
-static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>;
+static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = {
+    1.0, 0.0, 0.3, 1.0, 1.0, true, -1, +1,
+};
 static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = {
-    true,  // enable
-    1.0,   // position
-    0.0,   // angle (0 = disabled)
-    10.0,  // linear velocity
-    35.0,  // angular velocity
-    10000, // position integral
-    50000, // orientation integral
+    true, 1.0, 0, 10, 35, 10000, 50000,
 };
 static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
 static constexpr typename PARAMETERS_TYPE::Integration integration = {
     static_cast<T>(1) / static_cast<T>(SIMULATION_FREQUENCY)
 };
 static constexpr typename PARAMETERS_TYPE::MDP mdp = { init, reward_function, {}, {}, termination };
-static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = { {0, 0}, {0, 0} };
-static constexpr PARAMETERS_TYPE nominal_parameters = { {dynamics, integration, mdp}, disturbances };
+static constexpr T DISTURBANCE_FORCE_STD = 0;
+static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = { {0, DISTURBANCE_FORCE_STD}, {0, 0} };
+static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+static constexpr PARAMETERS_TYPE nominal_parameters = { {{dynamics, integration, mdp}, disturbances}, domain_randomization };
 
 // =========================================================================
 // Environment static parameters
 // =========================================================================
-static constexpr TI ACTION_HISTORY_LENGTH = 16;
+static constexpr TI ACTION_HISTORY_LENGTH = 64;
 
 struct STATIC_PARAMETERS {
     static constexpr TI N_SUBSTEPS = 1;
     static constexpr TI CLOSED_FORM = false;
     static constexpr TI EPISODE_STEP_LIMIT = ::EPISODE_STEP_LIMIT;
     using STATE_BASE = l2f::StateBase<l2f::StateSpecification<T, TI>>;
-    using STATE_TYPE = l2f::StateRotorsHistory<l2f::StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, l2f::StateRandomForce<l2f::StateSpecification<T, TI, l2f::StateLastAction<l2f::StateSpecification<T, TI, l2f::StateLinearAcceleration<l2f::StateSpecification<T, TI, STATE_BASE>>>>>>>>;
+    using STATE_TYPE = l2f::StateRotorsHistory<l2f::StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, l2f::StateRandomForce<l2f::StateSpecification<T, TI, l2f::StateLastAction<l2f::StateSpecification<T, TI, l2f::StateLinearAccelerationHistory<l2f::StateLinearAccelerationHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, STATE_BASE>>>>>>>>;
     using OBSERVATION_TYPE = obs::Position<obs::PositionSpecification<T, TI,
             obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI,
             obs::LinearVelocity<obs::LinearVelocitySpecification<T, TI,
@@ -156,9 +151,7 @@ struct STATIC_PARAMETERS {
     static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Z = 100000;
 };
 
-using ACTOR_STATE_OBS = obs::OrientationWorldZ<obs::OrientationWorldZSpecification<T, TI,
-        obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI,
-        obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>;
+using ACTOR_STATE_OBS = obs::OrientationWorldZ<obs::OrientationWorldZSpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::LinearAccelerationBodyFrameHistory<obs::LinearAccelerationBodyFrameHistorySpecification<T, TI, 1, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>;
 static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM;
 
 // =========================================================================
@@ -171,9 +164,16 @@ static constexpr TI N_ENVIRONMENTS = N_ACTIVE_SCENES * N_ENVIRONMENTS_PER_SCENE;
 static constexpr TI CAM_WIDTH = 80;
 static constexpr TI CAM_HEIGHT = 50;
 static constexpr TI NUM_PROBES = 64;
+static constexpr T CAMERA_FOV = static_cast<T>(63.8) / static_cast<T>(180) * rlt::math::PI<T>;
+static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = static_cast<T>(5.0) / static_cast<T>(180) * rlt::math::PI<T>;
+static constexpr T TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE = static_cast<T>(10.0) / static_cast<T>(180) * rlt::math::PI<T>;
 constexpr bool HIGH_FIDELITY_SHADING = true;
+static constexpr bool RENDER_ENABLE_MOTION_BLUR = false;
+static constexpr TI RENDER_MOTION_BLUR_SAMPLES = 1;
+static constexpr bool RENDER_ENABLE_ANTI_ALIASING = true;
+static constexpr TI RENDER_ANTI_ALIASING_GRID_SIZE = 2;
 
-using VISUAL_SPEC = rlt::rl::environments::l2f_visual::Specification<T, TI, STATIC_PARAMETERS, N_ENVIRONMENTS_PER_SCENE, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, HIGH_FIDELITY_SHADING>;
+using VISUAL_SPEC = rlt::rl::environments::l2f_visual::Specification<T, TI, STATIC_PARAMETERS, N_ENVIRONMENTS_PER_SCENE, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, HIGH_FIDELITY_SHADING, RENDER_ENABLE_MOTION_BLUR, RENDER_MOTION_BLUR_SAMPLES, RENDER_ENABLE_ANTI_ALIASING, RENDER_ANTI_ALIASING_GRID_SIZE>;
 using ENVIRONMENT = rlt::rl::environments::l2f_visual::MultirrotorVisual<VISUAL_SPEC>;
 
 // Mosaic layout: each env cell shows (target | actual) pair, arranged in an ENV_GRID_SIDE×ENV_GRID_SIDE grid per active scene.
@@ -185,8 +185,8 @@ static_assert(ENV_GRID_SIDE * ENV_GRID_SIDE == N_ENVIRONMENTS_PER_SCENE, "ENV_GR
 // =========================================================================
 // Frame stacking + target-channel concatenation
 // =========================================================================
-static constexpr TI FRAME_STACK_N = 5;
-static constexpr TI FRAME_STACK_STRIDE = 20; // 100Hz / 20 = 5Hz
+static constexpr TI FRAME_STACK_N = 10;
+static constexpr TI FRAME_STACK_STRIDE = 10;
 static constexpr TI FRAME_STACK_HISTORY_LENGTH = FRAME_STACK_STRIDE * (FRAME_STACK_N - 1) + 1;
 static constexpr TI STACKED_IMG_C = ENVIRONMENT::Observation::CHANNELS * FRAME_STACK_N;
 static constexpr TI COMBINED_IMG_C_LOGICAL = STACKED_IMG_C + ENVIRONMENT::Observation::CHANNELS;
@@ -195,6 +195,7 @@ static constexpr TI COMBINED_IMG_C = (COMBINED_IMG_C_LOGICAL + 7) & ~((TI)7);
 static constexpr TI COMBINED_OBS_DIM = ENVIRONMENT::Observation::HEIGHT * ENVIRONMENT::Observation::WIDTH * COMBINED_IMG_C;
 static constexpr TI INDOOR_POSITION_DIM = 3;
 static constexpr T BRIGHTNESS_RANDOMIZATION_RANGE = 0.5;
+static constexpr T TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE = 0.25;
 static constexpr T OBSERVATION_NOISE_STD = 0.0;
 
 // =========================================================================
@@ -403,6 +404,9 @@ namespace ppo_visual {
         Matrix<EPISODE_STAT_SPEC> episode_lengths_log,
         Matrix<EPISODE_STAT_SPEC> episode_returns_log,
         T* brightness_scale_arr,
+        T* target_brightness_scale_arr,
+        T* target_frame_roll_arr,
+        T* target_frame_pitch_arr,
         T* scene_translation_arr,
         T* scene_yaw_arr,
         T* scene_yaw_cos_arr,
@@ -443,6 +447,19 @@ namespace ppo_visual {
             episode_return_arr[env_i] = (T)0;
             truncated_arr[env_i] = false;
             brightness_scale_arr[env_i] = (T)1 + (random::uniform_real_distribution(device.random, (T)0, (T)1, rng_state) * (T)2 - (T)1) * BRIGHTNESS_RANDOMIZATION_RANGE;
+            if constexpr(TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE > static_cast<T>(0)){
+                T mismatch = (T)1 + (random::uniform_real_distribution(device.random, (T)0, (T)1, rng_state) * (T)2 - (T)1) * TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE;
+                target_brightness_scale_arr[env_i] = brightness_scale_arr[env_i] * mismatch;
+            } else {
+                target_brightness_scale_arr[env_i] = brightness_scale_arr[env_i];
+            }
+            if constexpr(TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE > static_cast<T>(0)){
+                target_frame_roll_arr[env_i] = random::uniform_real_distribution(device.random, -TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE, TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE, rng_state);
+                target_frame_pitch_arr[env_i] = random::uniform_real_distribution(device.random, -TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE, TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE, rng_state);
+            } else {
+                target_frame_roll_arr[env_i] = (T)0;
+                target_frame_pitch_arr[env_i] = (T)0;
+            }
             episode_start_step[env_i] = step_i;
         } else {
             set(episode_lengths_log, pos, 0, (T)-1);
@@ -560,6 +577,8 @@ namespace ppo_visual {
         typename ENVIRONMENT::Parameters* env_params,
         rendering::raytracing::CameraData<T>* target_cameras,
         T aspect,
+        const T* target_frame_roll_arr,
+        const T* target_frame_pitch_arr,
         T* scene_translation_arr, T* scene_yaw_cos_arr, T* scene_yaw_sin_arr
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -568,7 +587,8 @@ namespace ppo_visual {
         target_cameras[env_i] = rl::environments::l2f_visual::cuda::make_target_camera<DEVICE, VISUAL_SPEC>(
             device, params, aspect,
             scene_translation_arr + env_i * 3,
-            scene_yaw_cos_arr[env_i], scene_yaw_sin_arr[env_i]
+            scene_yaw_cos_arr[env_i], scene_yaw_sin_arr[env_i],
+            target_frame_roll_arr[env_i], target_frame_pitch_arr[env_i]
         );
     }
 }
@@ -877,6 +897,8 @@ int main(int argc, char** argv){
         envs[env_i].owns_renderer = false;
         envs[env_i].renderer_initialized = true;
         envs[env_i].use_target_mode = true;
+        envs[env_i].parameters.fov = CAMERA_FOV;
+        envs[env_i].parameters.camera_randomization.fov_range = CAMERA_FOV_RANDOMIZATION_RANGE;
         rlt::initial_parameters(device, envs[env_i], env_parameters[env_i]);
         env_parameters[env_i].scene_translation[0] = 0;
         env_parameters[env_i].scene_translation[1] = 0;
@@ -966,6 +988,9 @@ int main(int argc, char** argv){
     TI* gpu_episode_step_arr = nullptr;
     T* gpu_episode_return_arr = nullptr;
     T* gpu_brightness_scale_arr = nullptr;
+    T* gpu_target_brightness_scale_arr = nullptr;
+    T* gpu_target_frame_roll_arr = nullptr;
+    T* gpu_target_frame_pitch_arr = nullptr;
     T* gpu_scene_translation_arr = nullptr;
     T* gpu_scene_yaw_arr = nullptr;
     T* gpu_scene_yaw_cos_arr = nullptr;
@@ -977,6 +1002,9 @@ int main(int argc, char** argv){
     cudaMalloc(&gpu_episode_step_arr, N_ENVIRONMENTS * sizeof(TI));
     cudaMalloc(&gpu_episode_return_arr, N_ENVIRONMENTS * sizeof(T));
     cudaMalloc(&gpu_brightness_scale_arr, N_ENVIRONMENTS * sizeof(T));
+    cudaMalloc(&gpu_target_brightness_scale_arr, N_ENVIRONMENTS * sizeof(T));
+    cudaMalloc(&gpu_target_frame_roll_arr, N_ENVIRONMENTS * sizeof(T));
+    cudaMalloc(&gpu_target_frame_pitch_arr, N_ENVIRONMENTS * sizeof(T));
     cudaMalloc(&gpu_scene_translation_arr, N_ENVIRONMENTS * 3 * sizeof(T));
     cudaMalloc(&gpu_scene_yaw_arr, N_ENVIRONMENTS * sizeof(T));
     cudaMalloc(&gpu_scene_yaw_cos_arr, N_ENVIRONMENTS * sizeof(T));
@@ -988,6 +1016,9 @@ int main(int argc, char** argv){
         std::vector<TI> init_step(N_ENVIRONMENTS, 0);
         std::vector<T> init_return(N_ENVIRONMENTS, (T)0);
         std::vector<T> init_brightness(N_ENVIRONMENTS, (T)1);
+        std::vector<T> init_target_brightness(N_ENVIRONMENTS, (T)1);
+        std::vector<T> init_target_roll(N_ENVIRONMENTS, (T)0);
+        std::vector<T> init_target_pitch(N_ENVIRONMENTS, (T)0);
         std::vector<T> init_translation(N_ENVIRONMENTS * 3, (T)0);
         std::vector<T> init_yaw(N_ENVIRONMENTS, (T)0);
         std::vector<T> init_cos(N_ENVIRONMENTS, (T)1);
@@ -996,6 +1027,9 @@ int main(int argc, char** argv){
         cudaMemcpy(gpu_episode_step_arr, init_step.data(), N_ENVIRONMENTS * sizeof(TI), cudaMemcpyHostToDevice);
         cudaMemcpy(gpu_episode_return_arr, init_return.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
         cudaMemcpy(gpu_brightness_scale_arr, init_brightness.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
+        cudaMemcpy(gpu_target_brightness_scale_arr, init_target_brightness.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
+        cudaMemcpy(gpu_target_frame_roll_arr, init_target_roll.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
+        cudaMemcpy(gpu_target_frame_pitch_arr, init_target_pitch.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
         cudaMemcpy(gpu_scene_translation_arr, init_translation.data(), N_ENVIRONMENTS * 3 * sizeof(T), cudaMemcpyHostToDevice);
         cudaMemcpy(gpu_scene_yaw_arr, init_yaw.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
         cudaMemcpy(gpu_scene_yaw_cos_arr, init_cos.data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
@@ -1176,6 +1210,9 @@ int main(int argc, char** argv){
                 observations_privileged, state_observations,
                 gpu_episode_lengths_log, gpu_episode_returns_log,
                 gpu_brightness_scale_arr,
+                gpu_target_brightness_scale_arr,
+                gpu_target_frame_roll_arr,
+                gpu_target_frame_pitch_arr,
                 gpu_scene_translation_arr,
                 gpu_scene_yaw_arr,
                 gpu_scene_yaw_cos_arr,
@@ -1231,6 +1268,8 @@ int main(int argc, char** argv){
             ppo_visual::make_target_cameras_kernel<<<grid, block, 0, device_gpu.stream>>>(
                 tag_device, gpu_params_arr, gpu_target_cameras,
                 cam_aspect,
+                gpu_target_frame_roll_arr,
+                gpu_target_frame_pitch_arr,
                 gpu_scene_translation_arr, gpu_scene_yaw_cos_arr, gpu_scene_yaw_sin_arr);
             rlt::check_status(device_gpu);
 
@@ -1250,8 +1289,8 @@ int main(int argc, char** argv){
                 int pf_grid = (total_scatter + pf_block - 1) / pf_block;
                 rlt::render_rgb_only_launch(device, renderer);
                 const uint32_t* fb_ptr = active_scene_framebuffer_ptrs[active_scene_i];
-                if constexpr(BRIGHTNESS_RANDOMIZATION_RANGE > 0){
-                    scatter_pixel_to_float_kernel<true><<<pf_grid, pf_block, 0, optix_stream>>>(fb_ptr, target_obs_ptr, gpu_brightness_scale_arr, base_env, n_envs_s, CAM_WIDTH * CAM_HEIGHT, OBSERVATION_DIM);
+                if constexpr(BRIGHTNESS_RANDOMIZATION_RANGE > 0 || TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE > 0){
+                    scatter_pixel_to_float_kernel<true><<<pf_grid, pf_block, 0, optix_stream>>>(fb_ptr, target_obs_ptr, gpu_target_brightness_scale_arr, base_env, n_envs_s, CAM_WIDTH * CAM_HEIGHT, OBSERVATION_DIM);
                 } else {
                     scatter_pixel_to_float_kernel<false><<<pf_grid, pf_block, 0, optix_stream>>>(fb_ptr, target_obs_ptr, nullptr, base_env, n_envs_s, CAM_WIDTH * CAM_HEIGHT, OBSERVATION_DIM);
                 }
