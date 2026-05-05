@@ -204,6 +204,7 @@ static constexpr T OBSERVATION_NOISE_STD = 0.0;
 // Trajectory recording for extrack UI
 // =========================================================================
 static constexpr TI TRAJECTORY_SAVE_INTERVAL = 500;
+static constexpr TI VIDEO_SAVE_INTERVAL_SCENE_SETS = (TRAJECTORY_SAVE_INTERVAL + ROLLOUTS_PER_SCENE_SET - 1) / ROLLOUTS_PER_SCENE_SET;
 static constexpr TI TRAJECTORY_NUM_ENVS = 10;
 static constexpr TI TRAJECTORY_MAX_EPISODES = 10;
 
@@ -1141,13 +1142,21 @@ int main(int argc, char** argv){
     dim3 grid(N_BLOCKS);
     dim3 block(BLOCKSIZE);
     rlt::devices::cuda::TAG<DEVICE_GPU, true> tag_device{};
+    FILE* ffmpeg_pipe = nullptr;
+    bool record_video_scene_set = false;
 
     for(TI ppo_step_i = 0; ppo_step_i < N_PPO_STEPS; ppo_step_i++){
         auto step_start = std::chrono::high_resolution_clock::now();
         rlt::set_step(device, device.logger, on_policy_runner_gpu.step);
 
+        TI rollout_in_scene_set = ppo_step_i % ROLLOUTS_PER_SCENE_SET;
         bool scene_set_boundary = ppo_step_i % ROLLOUTS_PER_SCENE_SET == 0;
         if(scene_set_boundary){
+            if(ffmpeg_pipe){
+                pclose(ffmpeg_pipe);
+                ffmpeg_pipe = nullptr;
+                record_video_scene_set = false;
+            }
             cudaMemsetAsync(gpu_truncated_arr, 1, N_ENVIRONMENTS * sizeof(bool), device_gpu.stream);
             rlt::check_status(device_gpu);
             cudaStreamSynchronize(device_gpu.stream);
@@ -1186,10 +1195,12 @@ int main(int argc, char** argv){
         // =================================================================
         // Optional video recording (mosaic of target | actual frames)
         // =================================================================
-        bool record_video = (ppo_step_i % TRAJECTORY_SAVE_INTERVAL == 0);
-        FILE* ffmpeg_pipe = nullptr;
-        if(record_video){
-            auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, on_policy_runner_gpu.step + N_ENVIRONMENTS * STEPS_PER_ENV);
+        if(scene_set_boundary){
+            TI scene_set_i = ppo_step_i / ROLLOUTS_PER_SCENE_SET;
+            record_video_scene_set = scene_set_i % VIDEO_SAVE_INTERVAL_SCENE_SETS == 0;
+        }
+        if(record_video_scene_set && ffmpeg_pipe == nullptr){
+            auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, on_policy_runner_gpu.step + N_ENVIRONMENTS * STEPS_PER_ENV * ROLLOUTS_PER_SCENE_SET);
             std::filesystem::create_directories(step_folder);
             auto video_path = step_folder / "video.mp4";
             char ffmpeg_cmd[1024];
@@ -1200,9 +1211,10 @@ int main(int argc, char** argv){
             ffmpeg_pipe = popen(ffmpeg_cmd, "w");
             if(!ffmpeg_pipe){
                 std::cerr << "Failed to open ffmpeg pipe for " << video_path << std::endl;
-                record_video = false;
+                record_video_scene_set = false;
             }
         }
+        bool record_video = record_video_scene_set && ffmpeg_pipe != nullptr;
 
         // =================================================================
         // Data collection
@@ -1407,7 +1419,11 @@ int main(int argc, char** argv){
             }
         }
 
-        if(ffmpeg_pipe){ pclose(ffmpeg_pipe); ffmpeg_pipe = nullptr; }
+        if(ffmpeg_pipe && rollout_in_scene_set + 1 == ROLLOUTS_PER_SCENE_SET){
+            pclose(ffmpeg_pipe);
+            ffmpeg_pipe = nullptr;
+            record_video_scene_set = false;
+        }
 
         // Final privileged observations for value bootstrap
         {
@@ -1694,6 +1710,11 @@ int main(int argc, char** argv){
                 rlt::add_scalar(device, device.logger, "actor/log_std", log_std_val, 100);
             }
         }
+    }
+
+    if(ffmpeg_pipe){
+        pclose(ffmpeg_pipe);
+        ffmpeg_pipe = nullptr;
     }
 
     std::cout << "Training finished at env step " << on_policy_runner_gpu.step << std::endl;
