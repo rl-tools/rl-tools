@@ -335,6 +335,8 @@ def build_parallel(h5_parallel, tensor, fq_scales=None):
         return build_sequential(head_group, concat, fq_scales=fq_scales)
     if htype == "parallel":
         return build_parallel(head_group, concat, fq_scales=fq_scales)
+    if htype == "mlp":
+        return build_mlp(head_group, concat, fq_scales=fq_scales)
     raise NotImplementedError(f"parallel head type {htype}")
 
 
@@ -458,6 +460,8 @@ def build_head_output(head_group, tensor, fq_scales=None):
         return build_sequential(head_group, tensor, fq_scales=fq_scales)
     if htype == "parallel":
         return build_parallel(head_group, tensor, fq_scales=fq_scales)
+    if htype == "mlp":
+        return build_mlp(head_group, tensor, fq_scales=fq_scales)
     raise NotImplementedError(f"head type {htype}")
 
 
