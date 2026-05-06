@@ -127,8 +127,20 @@ using PARAMETERS_TYPE = l2f::ParametersDomainRandomization<l2f::ParametersDomain
 static constexpr auto MODEL = l2f::parameters::dynamics::REGISTRY::crazyflie;
 
 static constexpr REWARD_FUNCTION reward_function = {
-    false, 0.10, 1.00, -1.00, 10.00, 0.00, 2.50, 0.05, 0.00, 0.00, 0.00,
-    {0.10, 0.10, 0.10, 0.10}, {0.00, 0.00, 0.00, 0.00}, 0.00
+    false,
+    0.10,
+    1.00,
+    -1.00,
+    10.00,
+    0.00,
+    2.50,
+    0.05,
+    0.00,
+    0.00,
+    0.00,
+    0.10,
+    0.00,
+    0.00
 };
 static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = {
     1.0, 0.0, 0.3, 1.0, 1.0, true, -1, +1,
