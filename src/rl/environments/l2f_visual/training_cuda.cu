@@ -216,9 +216,15 @@ static constexpr bool RENDER_ENABLE_MOTION_BLUR = false;
 static constexpr TI RENDER_MOTION_BLUR_SAMPLES = 1;
 static constexpr bool RENDER_ENABLE_ANTI_ALIASING = true;
 static constexpr TI RENDER_ANTI_ALIASING_GRID_SIZE = 2;
+static constexpr T RENDER_SHUTTER_FRACTION_MIN = static_cast<T>(0.25);
+static constexpr T RENDER_SHUTTER_FRACTION_MAX = static_cast<T>(1);
+static_assert(RENDER_SHUTTER_FRACTION_MIN >= static_cast<T>(0) && RENDER_SHUTTER_FRACTION_MIN <= RENDER_SHUTTER_FRACTION_MAX && RENDER_SHUTTER_FRACTION_MAX <= static_cast<T>(1), "Invalid l2f_visual training shutter fraction range");
 
 using VISUAL_SPEC = rlt::rl::environments::l2f_visual::Specification<T, TI, STATIC_PARAMETERS, N_ENVIRONMENTS_PER_SCENE, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, HIGH_FIDELITY_SHADING, RENDER_ENABLE_MOTION_BLUR, RENDER_MOTION_BLUR_SAMPLES, RENDER_ENABLE_ANTI_ALIASING, RENDER_ANTI_ALIASING_GRID_SIZE>;
 using ENVIRONMENT = rlt::rl::environments::l2f_visual::MultirrotorVisual<VISUAL_SPEC>;
+using CAMERA_DATA = rlt::rendering::raytracing::CameraData<T>;
+static constexpr bool RENDER_MOTION_BLUR_ACTIVE = ENVIRONMENT::SPEC::RENDERER_SPEC::ENABLE_MOTION_BLUR;
+static constexpr bool RENDER_ANTI_ALIASING_ACTIVE = ENVIRONMENT::SPEC::RENDERER_SPEC::ENABLE_ANTI_ALIASING;
 
 // Mosaic layout: each env cell shows (target | actual) pair, arranged in an ENV_GRID_SIDE×ENV_GRID_SIDE grid per active scene.
 static constexpr TI ENV_GRID_SIDE = 8;
@@ -456,6 +462,24 @@ static constexpr T EPISODE_END_REASON_SCENE_BOUNDARY = 3;
 namespace ppo_visual {
     using namespace rl_tools;
 
+    __device__ CAMERA_DATA interpolate_camera(const CAMERA_DATA& from, const CAMERA_DATA& to, T alpha){
+        CAMERA_DATA out;
+        for(TI i = 0; i < 3; i++){
+            out.pos[i] = from.pos[i] + (to.pos[i] - from.pos[i]) * alpha;
+            out.dir_00[i] = from.dir_00[i] + (to.dir_00[i] - from.dir_00[i]) * alpha;
+            out.dir_du[i] = from.dir_du[i] + (to.dir_du[i] - from.dir_du[i]) * alpha;
+            out.dir_dv[i] = from.dir_dv[i] + (to.dir_dv[i] - from.dir_dv[i]) * alpha;
+        }
+        return out;
+    }
+
+    template<bool ENABLE_MOTION_BLUR, typename RENDERER>
+    void set_active_scene_camera_open_buffer(void*& camera_open_buffer, RENDERER* renderer){
+        if constexpr(ENABLE_MOTION_BLUR){
+            camera_open_buffer = (void*)owlBufferGetPointer((OWLBuffer)renderer->backend.owl_cameras_open_buffer, 0);
+        }
+    }
+
     // Per-step prologue: handle episode reset (sample initial state, sample indoor position + scene yaw,
     // randomize brightness), observe state branch and privileged observations, record episode_start_step.
     template<typename DEVICE, typename OBS_PRIV_SPEC, typename STATE_OBS_SPEC, typename EPISODE_STAT_SPEC, typename RNG>
@@ -465,6 +489,8 @@ namespace ppo_visual {
         ENVIRONMENT* envs, typename ENVIRONMENT::Parameters* env_params, typename ENVIRONMENT::State* states,
         bool* truncated_arr, TI* episode_step_arr, T* episode_return_arr,
         T* episode_end_reason_arr,
+        bool* render_reset_arr,
+        T* shutter_fraction_arr,
         Tensor<OBS_PRIV_SPEC> observations_privileged,
         Tensor<STATE_OBS_SPEC> state_observations,
         Matrix<EPISODE_STAT_SPEC> episode_lengths_log,
@@ -489,7 +515,9 @@ namespace ppo_visual {
         auto& params = env_params[env_i];
         auto& state = states[env_i];
         TI pos = step_i * N_ENVIRONMENTS + env_i;
-        if(truncated_arr[env_i]){
+        bool reset_for_render = truncated_arr[env_i];
+        render_reset_arr[env_i] = reset_for_render;
+        if(reset_for_render){
             if(episode_step_arr[env_i] > 0){
                 set(episode_lengths_log, pos, 0, (T)episode_step_arr[env_i]);
                 set(episode_returns_log, pos, 0, episode_return_arr[env_i]);
@@ -522,6 +550,9 @@ namespace ppo_visual {
                 target_brightness_scale_arr[env_i] = brightness_scale_arr[env_i] * mismatch;
             } else {
                 target_brightness_scale_arr[env_i] = brightness_scale_arr[env_i];
+            }
+            if constexpr(RENDER_MOTION_BLUR_ACTIVE){
+                shutter_fraction_arr[env_i] = random::uniform_real_distribution(device.random, RENDER_SHUTTER_FRACTION_MIN, RENDER_SHUTTER_FRACTION_MAX, rng_state);
             }
             if constexpr(TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE > static_cast<T>(0)){
                 target_frame_roll_arr[env_i] = random::uniform_real_distribution(device.random, -TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE, TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE, rng_state);
@@ -640,7 +671,12 @@ namespace ppo_visual {
     void make_cameras_kernel(
         DEVICE device,
         typename ENVIRONMENT::Parameters* env_params, typename ENVIRONMENT::State* states,
-        rendering::raytracing::CameraData<T>* gpu_cameras,
+        CAMERA_DATA* gpu_cameras,
+        CAMERA_DATA* gpu_cameras_open,
+        CAMERA_DATA* gpu_prev_cameras,
+        const bool* render_reset_arr,
+        const T* shutter_fraction_arr,
+        TI frame_step_i,
         T aspect,
         T* scene_translation_arr, T* scene_yaw_cos_arr, T* scene_yaw_sin_arr
     ){
@@ -648,11 +684,21 @@ namespace ppo_visual {
         if(env_i >= N_ENVIRONMENTS) return;
         auto& state = states[env_i];
         const auto& params = env_params[env_i];
-        gpu_cameras[env_i] = rl::environments::l2f_visual::cuda::make_camera_for_state<DEVICE, VISUAL_SPEC>(
+        CAMERA_DATA close_camera = rl::environments::l2f_visual::cuda::make_camera_for_state<DEVICE, VISUAL_SPEC>(
             device, params, state, aspect,
             scene_translation_arr + env_i * 3,
             scene_yaw_cos_arr[env_i], scene_yaw_sin_arr[env_i]
         );
+        gpu_cameras[env_i] = close_camera;
+        if constexpr(RENDER_MOTION_BLUR_ACTIVE){
+            CAMERA_DATA open_camera = close_camera;
+            if(frame_step_i > 0 && !render_reset_arr[env_i]){
+                T shutter_fraction = shutter_fraction_arr[env_i];
+                open_camera = interpolate_camera(close_camera, gpu_prev_cameras[env_i], shutter_fraction);
+            }
+            gpu_cameras_open[env_i] = open_camera;
+            gpu_prev_cameras[env_i] = close_camera;
+        }
     }
 
     template<typename DEVICE>
@@ -660,7 +706,7 @@ namespace ppo_visual {
     void make_target_cameras_kernel(
         DEVICE device,
         typename ENVIRONMENT::Parameters* env_params,
-        rendering::raytracing::CameraData<T>* target_cameras,
+        CAMERA_DATA* target_cameras,
         T aspect,
         const T* target_frame_roll_arr,
         const T* target_frame_pitch_arr,
@@ -1086,6 +1132,8 @@ int main(int argc, char** argv){
     T* gpu_scene_yaw_arr = nullptr;
     T* gpu_scene_yaw_cos_arr = nullptr;
     T* gpu_scene_yaw_sin_arr = nullptr;
+    bool* gpu_render_reset_arr = nullptr;
+    T* gpu_shutter_fraction_arr = nullptr;
     cudaMalloc(&gpu_envs_arr, N_ENVIRONMENTS * sizeof(ENVIRONMENT));
     cudaMalloc(&gpu_params_arr, N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::Parameters));
     cudaMalloc(&gpu_states_arr, N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::State));
@@ -1101,6 +1149,10 @@ int main(int argc, char** argv){
     cudaMalloc(&gpu_scene_yaw_arr, N_ENVIRONMENTS * sizeof(T));
     cudaMalloc(&gpu_scene_yaw_cos_arr, N_ENVIRONMENTS * sizeof(T));
     cudaMalloc(&gpu_scene_yaw_sin_arr, N_ENVIRONMENTS * sizeof(T));
+    cudaMalloc(&gpu_render_reset_arr, N_ENVIRONMENTS * sizeof(bool));
+    if constexpr(RENDER_MOTION_BLUR_ACTIVE){
+        cudaMalloc(&gpu_shutter_fraction_arr, N_ENVIRONMENTS * sizeof(T));
+    }
     {
         cudaMemcpy(gpu_envs_arr, envs.data(), N_ENVIRONMENTS * sizeof(ENVIRONMENT), cudaMemcpyHostToDevice);
         cudaMemcpy(gpu_params_arr, env_parameters.data(), N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::Parameters), cudaMemcpyHostToDevice);
@@ -1181,10 +1233,16 @@ int main(int argc, char** argv){
     cudaMalloc(&gpu_episode_start_step_per_row, STEPS_TOTAL * sizeof(TI));
     cudaMemset(gpu_episode_start_step, 0, N_ENVIRONMENTS * sizeof(TI));
 
-    rlt::rendering::raytracing::CameraData<float>* gpu_cameras = nullptr;
-    rlt::rendering::raytracing::CameraData<float>* gpu_target_cameras = nullptr;
-    cudaMalloc(&gpu_cameras, N_ENVIRONMENTS * sizeof(rlt::rendering::raytracing::CameraData<float>));
-    cudaMalloc(&gpu_target_cameras, N_ENVIRONMENTS * sizeof(rlt::rendering::raytracing::CameraData<float>));
+    CAMERA_DATA* gpu_cameras = nullptr;
+    CAMERA_DATA* gpu_cameras_open = nullptr;
+    CAMERA_DATA* gpu_prev_cameras = nullptr;
+    CAMERA_DATA* gpu_target_cameras = nullptr;
+    cudaMalloc(&gpu_cameras, N_ENVIRONMENTS * sizeof(CAMERA_DATA));
+    if constexpr(RENDER_MOTION_BLUR_ACTIVE){
+        cudaMalloc(&gpu_cameras_open, N_ENVIRONMENTS * sizeof(CAMERA_DATA));
+        cudaMalloc(&gpu_prev_cameras, N_ENVIRONMENTS * sizeof(CAMERA_DATA));
+    }
+    cudaMalloc(&gpu_target_cameras, N_ENVIRONMENTS * sizeof(CAMERA_DATA));
 
     cudaEvent_t cameras_ready_event;
     cudaEventCreateWithFlags(&cameras_ready_event, cudaEventDisableTiming);
@@ -1231,6 +1289,8 @@ int main(int argc, char** argv){
     std::cout << "  STATE_OBS_DIM:    " << STATE_OBS_DIM << std::endl;
     std::cout << "  OBS_PRIV_DIM:     " << OBS_PRIV_DIM << std::endl;
     std::cout << "  PPO STEP_LIMIT:   " << LOOP_CORE_PARAMETERS::STEP_LIMIT << std::endl;
+    std::cout << "  RENDER_AA:        " << (RENDER_ANTI_ALIASING_ACTIVE ? "on" : "off") << " grid=" << (RENDER_ANTI_ALIASING_ACTIVE ? RENDER_ANTI_ALIASING_GRID_SIZE : (TI)1) << std::endl;
+    std::cout << "  RENDER_MOTION_BLUR: " << (RENDER_MOTION_BLUR_ACTIVE ? "on" : "off") << " samples=" << (RENDER_MOTION_BLUR_ACTIVE ? RENDER_MOTION_BLUR_SAMPLES : (TI)1) << " shutter=[" << RENDER_SHUTTER_FRACTION_MIN << ", " << RENDER_SHUTTER_FRACTION_MAX << "]" << std::endl;
 
     auto training_start = std::chrono::high_resolution_clock::now();
     static constexpr TI N_PPO_STEPS = LOOP_CORE_PARAMETERS::STEP_LIMIT;
@@ -1284,6 +1344,7 @@ int main(int argc, char** argv){
         std::array<RENDERER_TYPE*, N_ACTIVE_SCENES> active_renderers{};
         std::array<cudaStream_t, N_ACTIVE_SCENES> active_scene_render_streams{};
         std::array<void*, N_ACTIVE_SCENES> active_scene_camera_buffers{};
+        std::array<void*, N_ACTIVE_SCENES> active_scene_camera_open_buffers{};
         std::array<const uint32_t*, N_ACTIVE_SCENES> active_scene_framebuffer_ptrs{};
         for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
             TI actual_scene_i = active_scene_indices[active_scene_i];
@@ -1292,6 +1353,7 @@ int main(int argc, char** argv){
             OWLParams rgb_lp = (OWLParams)renderer->backend.rgb_launch_params;
             active_scene_render_streams[active_scene_i] = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
             active_scene_camera_buffers[active_scene_i] = (void*)owlBufferGetPointer((OWLBuffer)renderer->backend.owl_cameras_buffer, 0);
+            ppo_visual::set_active_scene_camera_open_buffer<RENDER_MOTION_BLUR_ACTIVE>(active_scene_camera_open_buffers[active_scene_i], renderer);
             active_scene_framebuffer_ptrs[active_scene_i] = rlt::get_framebuffer_device_ptr(device, *renderer);
         }
 
@@ -1342,6 +1404,8 @@ int main(int argc, char** argv){
                 tag_device, gpu_envs_arr, gpu_params_arr, gpu_states_arr,
                 gpu_truncated_arr, gpu_episode_step_arr, gpu_episode_return_arr,
                 gpu_episode_end_reason_arr,
+                gpu_render_reset_arr,
+                gpu_shutter_fraction_arr,
                 observations_privileged, state_observations,
                 gpu_episode_lengths_log, gpu_episode_returns_log, gpu_episode_end_reasons_log,
                 gpu_brightness_scale_arr,
@@ -1361,8 +1425,11 @@ int main(int argc, char** argv){
 
             // 2. Build cameras + render student frame per active scene
             ppo_visual::make_cameras_kernel<<<grid, block, 0, device_gpu.stream>>>(
-                tag_device, gpu_params_arr, gpu_states_arr, gpu_cameras,
-                cam_aspect,
+                tag_device, gpu_params_arr, gpu_states_arr,
+                gpu_cameras, gpu_cameras_open, gpu_prev_cameras,
+                gpu_render_reset_arr,
+                gpu_shutter_fraction_arr,
+                frame_step_i, cam_aspect,
                 gpu_scene_translation_arr, gpu_scene_yaw_cos_arr, gpu_scene_yaw_sin_arr);
             rlt::check_status(device_gpu);
 
@@ -1374,8 +1441,13 @@ int main(int argc, char** argv){
                 TI base_env = active_scene_i * N_ENVIRONMENTS_PER_SCENE;
                 cudaStream_t optix_stream = active_scene_render_streams[active_scene_i];
                 cudaStreamWaitEvent(optix_stream, cameras_ready_event, 0);
+                if constexpr(RENDER_MOTION_BLUR_ACTIVE){
+                    cudaMemcpyAsync(active_scene_camera_open_buffers[active_scene_i], gpu_cameras_open + base_env,
+                                    n_envs_s * sizeof(CAMERA_DATA),
+                                    cudaMemcpyDeviceToDevice, optix_stream);
+                }
                 cudaMemcpyAsync(active_scene_camera_buffers[active_scene_i], gpu_cameras + base_env,
-                                n_envs_s * sizeof(rlt::rendering::raytracing::CameraData<float>),
+                                n_envs_s * sizeof(CAMERA_DATA),
                                 cudaMemcpyDeviceToDevice, optix_stream);
                 int total_scatter = n_envs_s * CAM_WIDTH * CAM_HEIGHT;
                 int pf_block = 256;
@@ -1416,8 +1488,13 @@ int main(int argc, char** argv){
                 TI base_env = active_scene_i * N_ENVIRONMENTS_PER_SCENE;
                 cudaStream_t optix_stream = active_scene_render_streams[active_scene_i];
                 cudaStreamWaitEvent(optix_stream, target_cameras_ready_event, 0);
+                if constexpr(RENDER_MOTION_BLUR_ACTIVE){
+                    cudaMemcpyAsync(active_scene_camera_open_buffers[active_scene_i], gpu_target_cameras + base_env,
+                                    n_envs_s * sizeof(CAMERA_DATA),
+                                    cudaMemcpyDeviceToDevice, optix_stream);
+                }
                 cudaMemcpyAsync(active_scene_camera_buffers[active_scene_i], gpu_target_cameras + base_env,
-                                n_envs_s * sizeof(rlt::rendering::raytracing::CameraData<float>),
+                                n_envs_s * sizeof(CAMERA_DATA),
                                 cudaMemcpyDeviceToDevice, optix_stream);
                 int total_scatter = n_envs_s * CAM_WIDTH * CAM_HEIGHT;
                 int pf_block = 256;
@@ -1985,8 +2062,12 @@ int main(int argc, char** argv){
         rlt::add_scalar(device, device.logger, "timing/steps_per_second_lifetime", sps_lifetime);
         rlt::add_scalar(device, device.logger, "timing/step_time_s", step_elapsed.count());
         rlt::add_scalar(device, device.logger, "timing/total_time_s", training_elapsed.count());
-        rlt::add_scalar(device, device.logger, "rendering/anti_aliasing_grid_size", RENDER_ENABLE_ANTI_ALIASING ? static_cast<T>(RENDER_ANTI_ALIASING_GRID_SIZE) : static_cast<T>(1));
-        rlt::add_scalar(device, device.logger, "rendering/motion_blur_samples", RENDER_ENABLE_MOTION_BLUR ? static_cast<T>(RENDER_MOTION_BLUR_SAMPLES) : static_cast<T>(1));
+        rlt::add_scalar(device, device.logger, "rendering/anti_aliasing_grid_size", RENDER_ANTI_ALIASING_ACTIVE ? static_cast<T>(RENDER_ANTI_ALIASING_GRID_SIZE) : static_cast<T>(1));
+        rlt::add_scalar(device, device.logger, "rendering/motion_blur_samples", RENDER_MOTION_BLUR_ACTIVE ? static_cast<T>(RENDER_MOTION_BLUR_SAMPLES) : static_cast<T>(1));
+        if constexpr(RENDER_MOTION_BLUR_ACTIVE){
+            rlt::add_scalar(device, device.logger, "rendering/shutter_fraction_min", RENDER_SHUTTER_FRACTION_MIN);
+            rlt::add_scalar(device, device.logger, "rendering/shutter_fraction_max", RENDER_SHUTTER_FRACTION_MAX);
+        }
         rlt::add_scalar(device, device.logger, "rendering/target_frame_roll_pitch_randomization_range", TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE);
         rlt::add_scalar(device, device.logger, "rendering/target_frame_brightness_mismatch_range", TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE);
 
@@ -2006,10 +2087,12 @@ int main(int argc, char** argv){
                     + std::to_string(CAM_HEIGHT) + ", " + std::to_string(CAM_WIDTH) + ", "
                     + std::to_string(FRAME_STACK_STRIDE) + ", " + std::to_string(FRAME_STACK_N) + ")";
                 std::string obs_string = image_obs_string + ", " + state_obs_string;
-                std::string rendering_string = std::string("{\"anti_aliasing\": ") + (RENDER_ENABLE_ANTI_ALIASING ? "true" : "false")
-                    + ", \"anti_aliasing_grid_size\": " + std::to_string(RENDER_ENABLE_ANTI_ALIASING ? RENDER_ANTI_ALIASING_GRID_SIZE : (TI)1)
-                    + ", \"motion_blur\": " + (RENDER_ENABLE_MOTION_BLUR ? "true" : "false")
-                    + ", \"motion_blur_samples\": " + std::to_string(RENDER_ENABLE_MOTION_BLUR ? RENDER_MOTION_BLUR_SAMPLES : (TI)1)
+                std::string rendering_string = std::string("{\"anti_aliasing\": ") + (RENDER_ANTI_ALIASING_ACTIVE ? "true" : "false")
+                    + ", \"anti_aliasing_grid_size\": " + std::to_string(RENDER_ANTI_ALIASING_ACTIVE ? RENDER_ANTI_ALIASING_GRID_SIZE : (TI)1)
+                    + ", \"motion_blur\": " + (RENDER_MOTION_BLUR_ACTIVE ? "true" : "false")
+                    + ", \"motion_blur_samples\": " + std::to_string(RENDER_MOTION_BLUR_ACTIVE ? RENDER_MOTION_BLUR_SAMPLES : (TI)1)
+                    + ", \"shutter_fraction_min\": " + std::to_string(RENDER_SHUTTER_FRACTION_MIN)
+                    + ", \"shutter_fraction_max\": " + std::to_string(RENDER_SHUTTER_FRACTION_MAX)
                     + ", \"target_frame_roll_pitch_randomization_range\": " + std::to_string(TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE)
                     + ", \"target_frame_brightness_mismatch_range\": " + std::to_string(TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE) + "}";
                 std::string meta = "{\"environment\": {\"name\": \"l2f_visual\", \"observation\": \"" + obs_string + "\", \"output\": \"ActionMean\", \"rendering\": " + rendering_string + "}}";
@@ -2227,6 +2310,16 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, gpu_episode_lengths_log);
     rlt::free(device_gpu, gpu_episode_returns_log);
     rlt::free(device_gpu, gpu_episode_end_reasons_log);
+    cudaFree(gpu_cameras);
+    if constexpr(RENDER_MOTION_BLUR_ACTIVE){
+        cudaFree(gpu_cameras_open);
+        cudaFree(gpu_prev_cameras);
+    }
+    cudaFree(gpu_target_cameras);
+    cudaFree(gpu_render_reset_arr);
+    if constexpr(RENDER_MOTION_BLUR_ACTIVE){
+        cudaFree(gpu_shutter_fraction_arr);
+    }
 
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
     rlt::free(device, device.logger);
