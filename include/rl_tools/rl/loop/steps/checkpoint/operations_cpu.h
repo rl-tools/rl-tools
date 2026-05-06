@@ -30,6 +30,7 @@
 
 
 #include "../../../../utils/zlib/operations_cpu.h"
+#include "../../../../utils/extrack/operations_cpu.h"
 
 #include <filesystem>
 #include <iostream>
@@ -61,9 +62,10 @@ namespace rl_tools{
 
     namespace rl::loop::steps::checkpoint{
         template <bool DYNAMIC_ALLOCATION, typename ENVIRONMENT, typename DEVICE, typename ACTOR_TYPE, typename RNG, bool STORE_UNCOMPRESSED_ANYWAYS=true>
-        void save_code(DEVICE& device, const std::string step_folder, ACTOR_TYPE& actor_forward, RNG& rng){
+        void save_code(DEVICE& device, const std::string step_folder, const std::filesystem::path& latest_folder, typename DEVICE::index_t step, ACTOR_TYPE& actor_forward, RNG& rng){
             using T = typename ACTOR_TYPE::TYPE_POLICY::DEFAULT;
             using TI = typename DEVICE::index_t;
+            std::filesystem::path step_folder_path = step_folder;
             auto actor_weights = rl_tools::save_code(device, actor_forward, std::string("rl_tools::checkpoint::actor"), true);
             std::stringstream output_ss;
             output_ss << actor_weights;
@@ -105,7 +107,7 @@ namespace rl_tools{
             bool stored_compressed = false;
 #ifdef RL_TOOLS_ENABLE_ZLIB
             {
-                std::filesystem::path checkpoint_code_path = std::filesystem::path(step_folder) / "checkpoint.h.gz";
+                std::filesystem::path checkpoint_code_path = step_folder_path / "checkpoint.h.gz";
                 std::vector<uint8_t> checkpoint_output;
                 if(!compress_zlib(output_string, checkpoint_output)){
                     std::cerr << "Error while compressing trajectories." << std::endl;
@@ -114,22 +116,27 @@ namespace rl_tools{
                 std::ofstream actor_output_file(checkpoint_code_path, std::ios::binary);
                 actor_output_file.write(reinterpret_cast<const char*>(checkpoint_output.data()), checkpoint_output.size());
                 actor_output_file.close();
+                link_latest_artifact(device, latest_folder, checkpoint_code_path, step_folder_path, step);
                 stored_compressed = true;
             };
 #endif
             if(!stored_compressed || STORE_UNCOMPRESSED_ANYWAYS){
-                std::filesystem::path step_folder_path = step_folder;
                 std::filesystem::create_directories(step_folder_path);
                 std::filesystem::path checkpoint_code_path = step_folder_path / "checkpoint.h";
                 std::cerr << "Checkpointing to: " << checkpoint_code_path << std::endl;
                 std::ofstream actor_output_file(checkpoint_code_path);
                 actor_output_file << output_string;
                 actor_output_file.close();
+                link_latest_artifact(device, latest_folder, checkpoint_code_path, step_folder_path, step);
             }
 
         }
+        template <bool DYNAMIC_ALLOCATION, typename ENVIRONMENT, typename DEVICE, typename ACTOR_TYPE, typename RNG, bool STORE_UNCOMPRESSED_ANYWAYS=true>
+        void save_code(DEVICE& device, const std::string step_folder, ACTOR_TYPE& actor_forward, RNG& rng){
+            save_code<DYNAMIC_ALLOCATION, ENVIRONMENT, DEVICE, ACTOR_TYPE, RNG, STORE_UNCOMPRESSED_ANYWAYS>(device, step_folder, std::filesystem::path{}, 0, actor_forward, rng);
+        }
         template <bool DYNAMIC_ALLOCATION, typename ENVIRONMENT, typename CHECKPOINT_PARAMETERS, typename DEVICE, typename ACTOR, typename RNG>
-        void save(DEVICE& device, const std::string step_folder, ACTOR& actor, RNG& rng){
+        void save(DEVICE& device, const std::string step_folder, const std::filesystem::path& latest_folder, typename DEVICE::index_t step, ACTOR& actor, RNG& rng){
             using TI = typename DEVICE::index_t;
             static constexpr TI BATCH_SIZE = CHECKPOINT_PARAMETERS::TEST_INPUT_BATCH_SIZE;
             using INPUT_SHAPE = tensor::Replace<typename ACTOR::INPUT_SHAPE, BATCH_SIZE, 1>;
@@ -138,18 +145,13 @@ namespace rl_tools{
             EVALUATION_ACTOR_TYPE evaluation_actor;
             malloc(device, evaluation_actor);
             copy(device, device, actor, evaluation_actor);
+            std::filesystem::path step_folder_path = step_folder;
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
-            std::lock_guard<std::mutex> lock(persist::backends::hdf5::global_mutex());
-            std::filesystem::path checkpoint_path = std::filesystem::path(step_folder) / "checkpoint.h5";
-            persist::backends::hdf5::File root_file(checkpoint_path.string(), persist::backends::hdf5::Mode::WRITE);
-            auto actor_group = create_group(device, root_file, "actor");
+            std::filesystem::path checkpoint_path = step_folder_path / "checkpoint.h5";
 #else
-            std::filesystem::path checkpoint_path = std::filesystem::path(step_folder) / "checkpoint.tar";
-            persist::backends::tar::Writer writer;
-            persist::backends::tar::WriterGroup<persist::backends::tar::WriterGroupSpecification<TI, decltype(writer)>> root_group{"", &writer};
-            auto actor_group = create_group(device, root_group, "actor");
+            std::filesystem::path checkpoint_path = step_folder_path / "checkpoint.tar";
 #endif
-            try{
+            auto save_checkpoint_contents = [&](auto& root, auto& actor_group){
                 std::cerr << "Checkpointing to: " << checkpoint_path << std::endl;
                 set_attribute(device, actor_group, "checkpoint_name", step_folder.c_str());
                 ENVIRONMENT environment;
@@ -157,43 +159,55 @@ namespace rl_tools{
                 std::string meta = "{\"environment\": " + env_description + "}";
                 set_attribute(device, actor_group, "meta", meta.c_str());
                 rl_tools::save(device, evaluation_actor, actor_group);
-                {
-                    using T = typename EVALUATION_ACTOR_TYPE::TYPE_POLICY::DEFAULT;
-                    Tensor<tensor::Specification<T, TI, typename EVALUATION_ACTOR_TYPE::INPUT_SHAPE, DYNAMIC_ALLOCATION>> input;
-                    Tensor<tensor::Specification<T, TI, typename EVALUATION_ACTOR_TYPE::OUTPUT_SHAPE, DYNAMIC_ALLOCATION>> output;
-                    typename EVALUATION_ACTOR_TYPE::template Buffer<DYNAMIC_ALLOCATION> actor_buffer;
-                    malloc(device, input);
-                    malloc(device, output);
-                    malloc(device, actor_buffer);
-                    randn(device, input, rng);
-                    Mode<mode::Evaluation<>> mode;
-                    evaluate(device, actor, input, output, actor_buffer, rng, mode);
+                using T = typename EVALUATION_ACTOR_TYPE::TYPE_POLICY::DEFAULT;
+                Tensor<tensor::Specification<T, TI, typename EVALUATION_ACTOR_TYPE::INPUT_SHAPE, DYNAMIC_ALLOCATION>> input;
+                Tensor<tensor::Specification<T, TI, typename EVALUATION_ACTOR_TYPE::OUTPUT_SHAPE, DYNAMIC_ALLOCATION>> output;
+                typename EVALUATION_ACTOR_TYPE::template Buffer<DYNAMIC_ALLOCATION> actor_buffer;
+                malloc(device, input);
+                malloc(device, output);
+                malloc(device, actor_buffer);
+                randn(device, input, rng);
+                Mode<mode::Evaluation<>> mode;
+                evaluate(device, actor, input, output, actor_buffer, rng, mode);
+                auto example_group = create_group(device, root, "example");
+                auto inputs_group = create_group(device, example_group, "inputs");
+                save(device, input, inputs_group, "0");
+                auto outputs_group = create_group(device, example_group, "outputs");
+                save(device, output, outputs_group, "0");
+                free(device, input);
+                free(device, output);
+                free(device, actor_buffer);
+            };
+            try{
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
-                    auto example_group = create_group(device, root_file, "example");
-#else
-                    auto example_group = create_group(device, root_group, "example");
-#endif
-                    auto inputs_group = create_group(device, example_group, "inputs");
-                    save(device, input, inputs_group, "0");
-                    auto outputs_group = create_group(device, example_group, "outputs");
-                    save(device, output, outputs_group, "0");
-                    free(device, input);
-                    free(device, output);
-                    free(device, actor_buffer);
+                {
+                    std::lock_guard<std::mutex> lock(persist::backends::hdf5::global_mutex());
+                    persist::backends::hdf5::File root_file(checkpoint_path.string(), persist::backends::hdf5::Mode::WRITE);
+                    auto actor_group = create_group(device, root_file, "actor");
+                    save_checkpoint_contents(root_file, actor_group);
                 }
-#if !(defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5))
+#else
+                persist::backends::tar::Writer writer;
+                persist::backends::tar::WriterGroup<persist::backends::tar::WriterGroupSpecification<TI, decltype(writer)>> root_group{"", &writer};
+                auto actor_group = create_group(device, root_group, "actor");
+                save_checkpoint_contents(root_group, actor_group);
                 persist::backends::tar::finalize(device, writer);
                 auto actor_file = std::ofstream(checkpoint_path, std::ios::binary);
                 actor_file.write(writer.buffer.data(), writer.buffer.size());
                 actor_file.close();
 #endif
+                link_latest_artifact(device, latest_folder, checkpoint_path, step_folder_path, step);
             }
             catch(std::exception& e){
                 std::cerr << "Error while saving actor at " + checkpoint_path.string() + ": " << e.what() << std::endl;
             }
-            rl::loop::steps::checkpoint::save_code<DYNAMIC_ALLOCATION, ENVIRONMENT>(device, step_folder, evaluation_actor, rng);
+            rl::loop::steps::checkpoint::save_code<DYNAMIC_ALLOCATION, ENVIRONMENT>(device, step_folder, latest_folder, step, evaluation_actor, rng);
             free(device, evaluation_actor);
 
+        }
+        template <bool DYNAMIC_ALLOCATION, typename ENVIRONMENT, typename CHECKPOINT_PARAMETERS, typename DEVICE, typename ACTOR, typename RNG>
+        void save(DEVICE& device, const std::string step_folder, ACTOR& actor, RNG& rng){
+            save<DYNAMIC_ALLOCATION, ENVIRONMENT, CHECKPOINT_PARAMETERS>(device, step_folder, std::filesystem::path{}, 0, actor, rng);
         }
     }
 
@@ -205,8 +219,9 @@ namespace rl_tools{
         if(ts.step % CONFIG::CHECKPOINT_PARAMETERS::CHECKPOINT_INTERVAL == 0 || ts.checkpoint_this_step){
             ts.checkpoint_this_step = false;
             auto step_folder = get_step_folder(device, ts.extrack_config, ts.extrack_paths, ts.step);
+            auto latest_folder = get_latest_folder(device, ts.extrack_paths);
             auto& actor = get_actor(ts);
-            rl::loop::steps::checkpoint::save<CONFIG::DYNAMIC_ALLOCATION, typename CONFIG::ENVIRONMENT, typename CONFIG::CHECKPOINT_PARAMETERS>(device, step_folder.string(), actor, ts.rng_checkpoint);
+            rl::loop::steps::checkpoint::save<CONFIG::DYNAMIC_ALLOCATION, typename CONFIG::ENVIRONMENT, typename CONFIG::CHECKPOINT_PARAMETERS>(device, step_folder.string(), latest_folder, ts.step, actor, ts.rng_checkpoint);
         }
         bool finished = step(device, static_cast<typename STATE::NEXT&>(ts));
         return finished;
