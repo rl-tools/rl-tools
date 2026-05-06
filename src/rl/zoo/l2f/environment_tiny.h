@@ -90,8 +90,8 @@ namespace rl_tools::rl::zoo::l2f{
                 00.00, // angular_velocity
                 00.00, // linear_acceleration
                 00.00, // angular_acceleration
-                02.00, // action
-                00.00, // d_action
+                {02.00, 02.00, 02.00, 02.00}, // action
+                {00.00, 00.00, 00.00, 00.00}, // d_action
                 00.00, // position_error_integral
         };
         static constexpr typename PARAMETERS_TYPE::MDP mdp = {
@@ -139,6 +139,7 @@ namespace rl_tools::rl::zoo::l2f{
         };
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
+            static constexpr auto ACTION_INTERFACE = parameters::ActionInterface::DIRECT_MOTOR;
             static constexpr TI N_SUBSTEPS = 1;
             static constexpr TI ACTION_HISTORY_LENGTH = 2;
             static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT_FACTORY_BASE::EPISODE_STEP_LIMIT_OUTER;

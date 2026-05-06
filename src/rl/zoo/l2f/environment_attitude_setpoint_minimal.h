@@ -17,6 +17,7 @@ namespace rl_tools::rl::zoo::l2f{
         using PARAMETERS_TYPE = typename BASE::PARAMETERS_TYPE;
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
+            static constexpr auto ACTION_INTERFACE = parameters::ActionInterface::DIRECT_MOTOR;
             static constexpr TI N_SUBSTEPS = BASE::ENVIRONMENT_STATIC_PARAMETERS::N_SUBSTEPS;
             static constexpr TI ACTION_HISTORY_LENGTH = 0;
             static constexpr TI EPISODE_STEP_LIMIT = BASE::ENVIRONMENT_STATIC_PARAMETERS::EPISODE_STEP_LIMIT;

@@ -134,7 +134,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, IMPORT_EXPORT){
     }
     {
         auto params_temp = params;
-        params_temp.mdp.reward.d_action += 1337;
+        params_temp.mdp.reward.d_action[2] += 1337;
         T diff = rlt::abs_diff(device, params, params_temp);
         ASSERT_NEAR(diff, 1337, EPSILON);
     }
