@@ -23,7 +23,7 @@ namespace rl_tools
         utils::assert_exit(device, device.dynamic_memory_allocation_allowed, "Dynamic CUDA memory allocations are disabled");
         T *temp = nullptr;
         // auto result = cudaMalloc(&temp, SIZE_BYTES);
-        constexpr TI SIZE_BYTES = SIZE * sizeof(T);
+        constexpr T_TI SIZE_BYTES = SIZE * sizeof(T);
         auto result = cudaMalloc(&temp, SIZE_BYTES);
         tensor._data = temp;
         check_status(device);
