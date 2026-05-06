@@ -85,8 +85,9 @@ namespace rl_tools{
         acc += math::abs(device.math, a.max_rpm - b.max_rpm);
         return acc;
     }
-    template<typename DEVICE, typename T_A, typename T_B>
-    RL_TOOLS_FUNCTION_PLACEMENT T_A abs_diff(DEVICE& device, const rl::environments::l2f::parameters::reward_functions::Squared<T_A>& a, const rl::environments::l2f::parameters::reward_functions::Squared<T_B>& b) {
+    template<typename DEVICE, typename T_A, unsigned T_ACTION_DIM_A, typename T_B, unsigned T_ACTION_DIM_B>
+    RL_TOOLS_FUNCTION_PLACEMENT T_A abs_diff(DEVICE& device, const rl::environments::l2f::parameters::reward_functions::Squared<T_A, T_ACTION_DIM_A>& a, const rl::environments::l2f::parameters::reward_functions::Squared<T_B, T_ACTION_DIM_B>& b) {
+        static_assert(T_ACTION_DIM_A == T_ACTION_DIM_B);
         T_A acc = 0;
         acc += a.non_negative == b.non_negative ? 0 : 1;
         acc += math::abs(device.math, a.scale - b.scale);
@@ -99,9 +100,11 @@ namespace rl_tools{
         acc += math::abs(device.math, a.angular_velocity - b.angular_velocity);
         acc += math::abs(device.math, a.linear_acceleration - b.linear_acceleration);
         acc += math::abs(device.math, a.angular_acceleration - b.angular_acceleration);
-        acc += math::abs(device.math, a.action - b.action);
-        acc += math::abs(device.math, a.d_action - b.d_action);
         acc += math::abs(device.math, a.position_error_integral - b.position_error_integral);
+        for(typename DEVICE::index_t action_i = 0; action_i < T_ACTION_DIM_A; action_i++){
+            acc += math::abs(device.math, a.action[action_i] - b.action[action_i]);
+            acc += math::abs(device.math, a.d_action[action_i] - b.d_action[action_i]);
+        }
         return acc;
     }
     template<typename DEVICE, typename T_A, typename T_B>

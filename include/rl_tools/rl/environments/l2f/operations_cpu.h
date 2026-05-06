@@ -302,8 +302,8 @@ namespace rl_tools{
         json_string += "}";
         return json_string;
     }
-    template <typename DEVICE, typename SPEC, typename T>
-    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::parameters::reward_functions::Squared<T>& parameters) {
+    template <typename DEVICE, typename SPEC, typename T, unsigned T_ACTION_DIM>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::parameters::reward_functions::Squared<T, T_ACTION_DIM>& parameters) {
         std::string json_string = "{";
         json_string += "\"non_negative\": " + std::string(parameters.non_negative ? "true" : "false") + ", ";
         json_string += "\"scale\": " + std::to_string(parameters.scale) + ", ";
@@ -316,8 +316,22 @@ namespace rl_tools{
         json_string += "\"angular_velocity\": " + std::to_string(parameters.angular_velocity) + ", ";
         json_string += "\"linear_acceleration\": " + std::to_string(parameters.linear_acceleration) + ", ";
         json_string += "\"angular_acceleration\": " + std::to_string(parameters.angular_acceleration) + ", ";
-        json_string += "\"action\": " + std::to_string(parameters.action) + ", ";
-        json_string += "\"d_action\": " + std::to_string(parameters.d_action) + ", ";
+        json_string += "\"action\": [";
+        for(typename DEVICE::index_t action_i = 0; action_i < T_ACTION_DIM; action_i++){
+            json_string += std::to_string(parameters.action[action_i]);
+            if(action_i + 1 < T_ACTION_DIM){
+                json_string += ", ";
+            }
+        }
+        json_string += "], ";
+        json_string += "\"d_action\": [";
+        for(typename DEVICE::index_t action_i = 0; action_i < T_ACTION_DIM; action_i++){
+            json_string += std::to_string(parameters.d_action[action_i]);
+            if(action_i + 1 < T_ACTION_DIM){
+                json_string += ", ";
+            }
+        }
+        json_string += "], ";
         json_string += "\"position_error_integral\": " + std::to_string(parameters.position_error_integral);
         json_string += "}";
         return json_string;
@@ -833,8 +847,8 @@ namespace rl_tools{
         parameters.min_rpm = json_object["min_rpm"];
         parameters.max_rpm = json_object["max_rpm"];
     }
-    template <typename DEVICE, typename SPEC, typename T>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::reward_functions::Squared<T>& parameters) {
+    template <typename DEVICE, typename SPEC, typename T, unsigned T_ACTION_DIM>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::reward_functions::Squared<T, T_ACTION_DIM>& parameters) {
         parameters.non_negative = json_object["non_negative"];
         parameters.scale = json_object["scale"];
         parameters.constant = json_object["constant"];
@@ -846,8 +860,28 @@ namespace rl_tools{
         parameters.angular_velocity = json_object["angular_velocity"];
         parameters.linear_acceleration = json_object["linear_acceleration"];
         parameters.angular_acceleration = json_object["angular_acceleration"];
-        parameters.action = json_object["action"];
-        parameters.d_action = json_object["d_action"];
+        if(json_object["action"].is_array()){
+            for(typename DEVICE::index_t action_i = 0; action_i < T_ACTION_DIM; action_i++){
+                parameters.action[action_i] = json_object["action"][action_i];
+            }
+        }
+        else{
+            T action = json_object["action"];
+            for(typename DEVICE::index_t action_i = 0; action_i < T_ACTION_DIM; action_i++){
+                parameters.action[action_i] = action;
+            }
+        }
+        if(json_object["d_action"].is_array()){
+            for(typename DEVICE::index_t action_i = 0; action_i < T_ACTION_DIM; action_i++){
+                parameters.d_action[action_i] = json_object["d_action"][action_i];
+            }
+        }
+        else{
+            T d_action = json_object["d_action"];
+            for(typename DEVICE::index_t action_i = 0; action_i < T_ACTION_DIM; action_i++){
+                parameters.d_action[action_i] = d_action;
+            }
+        }
         parameters.position_error_integral = json_object["position_error_integral"];
     }
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
