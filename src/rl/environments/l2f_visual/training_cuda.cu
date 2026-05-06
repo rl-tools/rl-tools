@@ -253,6 +253,7 @@ static constexpr TI EXTRACK_SAVE_INTERVAL_SCENE_SETS = 2 * EXTRACK_SAVE_INTERVAL
 static constexpr TI VIDEO_SAVE_INTERVAL_SCENE_SETS = EXTRACK_SAVE_INTERVAL_SCENE_SETS;
 static constexpr TI CHECKPOINT_CADENCE_SCENE_SETS = EXTRACK_SAVE_INTERVAL_SCENE_SETS;
 static constexpr TI REWARD_COMPONENT_LOG_INTERVAL_PPO_STEPS = 100;
+static constexpr bool EXPORT_CHECKPOINT_TAR = false;
 static constexpr bool EXPORT_CHECKPOINT_CODE = false;
 static constexpr TI N_EXAMPLES = 512;
 static constexpr TI REDUCED_BATCH_SIZE = 2;
@@ -2077,7 +2078,7 @@ int main(int argc, char** argv){
                     rlt::free(device, buffer_1);
                 }
 
-                {
+                if constexpr(EXPORT_CHECKPOINT_TAR){
                     std::filesystem::path checkpoint_path = step_folder / "checkpoint.tar";
                     rlt::persist::backends::tar::Writer writer;
                     rlt::persist::backends::tar::WriterGroup<rlt::persist::backends::tar::WriterGroupSpecification<TI, decltype(writer)>> root_group{"", &writer};
