@@ -131,7 +131,7 @@ static constexpr REWARD_FUNCTION reward_function = {
     0.10,
     1.00,
     -1.00,
-    2.00,
+    5.00,
     0.00,
     1.00,
     0.05,
@@ -231,8 +231,8 @@ static_assert(ENV_GRID_SIDE * ENV_GRID_SIDE == N_ENVIRONMENTS_PER_SCENE, "ENV_GR
 // =========================================================================
 static constexpr TI FRAME_STACK_N = 10;
 static constexpr TI FRAME_STACK_STRIDE = 10;
-static constexpr TI ROLLOUT_STEPS_PER_ENV = 64;
-static constexpr TI ROLLOUTS_PER_SCENE_SET = 8;
+static constexpr TI ROLLOUT_STEPS_PER_ENV = 512;
+static constexpr TI ROLLOUTS_PER_SCENE_SET = 1;
 static constexpr TI FRAME_STACK_HISTORY_LENGTH = FRAME_STACK_STRIDE * (FRAME_STACK_N - 1) + ROLLOUT_STEPS_PER_ENV;
 static constexpr TI STACKED_IMG_C = ENVIRONMENT::Observation::CHANNELS * FRAME_STACK_N;
 static constexpr TI COMBINED_IMG_C_LOGICAL = STACKED_IMG_C + ENVIRONMENT::Observation::CHANNELS;
