@@ -116,6 +116,8 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         add_scalar(device, device.logger, "reward/linear_acc_cost",  components.linear_acc_cost, cadence);
         add_scalar(device, device.logger, "reward/angular_acc_cost", components.angular_acc_cost, cadence);
         add_scalar(device, device.logger, "reward/action_cost",      components.action_cost, cadence);
+        add_scalar(device, device.logger, "reward/d_action_cost",    components.d_action_cost, cadence);
+        add_scalar(device, device.logger, "reward/position_error_integral_cost", components.position_error_integral_cost, cadence);
         add_scalar(device, device.logger, "reward/pre_exp",         -components.weighted_cost, cadence);
 
         add_scalar(device, device.logger, "reward_weighted/orientation_cost", reward_parameters.orientation          * components.orientation_cost, cadence);
@@ -124,7 +126,9 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         add_scalar(device, device.logger, "reward_weighted/angular_vel_cost", reward_parameters.angular_velocity     * components.angular_vel_cost, cadence);
         add_scalar(device, device.logger, "reward_weighted/linear_acc_cost" , reward_parameters.linear_acceleration  * components.linear_acc_cost,  cadence);
         add_scalar(device, device.logger, "reward_weighted/angular_acc_cost", reward_parameters.angular_acceleration * components.angular_acc_cost, cadence);
-        add_scalar(device, device.logger, "reward_weighted/action_cost",      components.action_cost,      cadence);
+        add_scalar(device, device.logger, "reward_weighted/action_cost",      reward_parameters.action               * components.action_cost,      cadence);
+        add_scalar(device, device.logger, "reward_weighted/d_action_cost",    reward_parameters.d_action             * components.d_action_cost,    cadence);
+        add_scalar(device, device.logger, "reward_weighted/position_error_integral_cost", reward_parameters.position_error_integral * components.position_error_integral_cost, cadence);
         // log share of the weighted abs cost
         add_scalar(device, device.logger, "reward_share/orientation", reward_parameters.orientation          * components.orientation_cost / components.weighted_cost, cadence);
         add_scalar(device, device.logger, "reward_share/position",    reward_parameters.position             * components.position_cost    / components.weighted_cost, cadence);
@@ -132,7 +136,9 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         add_scalar(device, device.logger, "reward_share/angular_vel", reward_parameters.angular_velocity     * components.angular_vel_cost / components.weighted_cost, cadence);
         add_scalar(device, device.logger, "reward_share/linear_acc",  reward_parameters.linear_acceleration  * components.linear_acc_cost  / components.weighted_cost, cadence);
         add_scalar(device, device.logger, "reward_share/angular_acc", reward_parameters.angular_acceleration * components.angular_acc_cost / components.weighted_cost, cadence);
-        add_scalar(device, device.logger, "reward_share/action",      components.action_cost      / components.weighted_cost, cadence);
+        add_scalar(device, device.logger, "reward_share/action",      reward_parameters.action               * components.action_cost      / components.weighted_cost, cadence);
+        add_scalar(device, device.logger, "reward_share/d_action",    reward_parameters.d_action             * components.d_action_cost    / components.weighted_cost, cadence);
+        add_scalar(device, device.logger, "reward_share/position_error_integral", reward_parameters.position_error_integral * components.position_error_integral_cost / components.weighted_cost, cadence);
         add_scalar(device, device.logger, "reward_share/const",       components.reward/reward_parameters.constant, cadence);
 
         add_scalar(device, device.logger, "reward/weighted_cost",        components.weighted_cost, cadence);
