@@ -15,6 +15,7 @@
 #include <fstream>
 #include <string>
 #include <algorithm>
+#include <system_error>
 
 #include <cstdlib>
 
@@ -268,6 +269,75 @@ namespace rl_tools{
         std::filesystem::path step_folder = paths.seed / "steps" / step_ss.str();
         std::filesystem::create_directories(step_folder);
         return step_folder;
+    }
+    template <typename DEVICE>
+    std::filesystem::path get_latest_folder(DEVICE& device, const utils::extrack::Paths& paths){
+        return paths.seed / "latest";
+    }
+    template <typename DEVICE>
+    bool link_latest_artifact(DEVICE& device, const std::filesystem::path& latest_folder, const std::filesystem::path& source_path, const std::filesystem::path& step_folder, typename DEVICE::index_t step){
+        if(latest_folder.empty()){
+            return true;
+        }
+        std::error_code ec;
+        if(!std::filesystem::exists(source_path, ec)){
+            std::cerr << "Latest artifact source does not exist: " << source_path << std::endl;
+            return false;
+        }
+        std::filesystem::create_directories(latest_folder, ec);
+        if(ec){
+            std::cerr << "Failed to create latest artifact folder " << latest_folder << ": " << ec.message() << std::endl;
+            return false;
+        }
+        std::filesystem::path destination_path = latest_folder / source_path.filename();
+        std::filesystem::path temporary_path = latest_folder / (source_path.filename().string() + ".tmp");
+        std::filesystem::remove(temporary_path, ec);
+        ec.clear();
+        std::filesystem::create_hard_link(source_path, temporary_path, ec);
+        if(ec){
+            std::cerr << "Failed to hardlink latest artifact " << source_path << " -> " << destination_path << ": " << ec.message() << std::endl;
+            return false;
+        }
+        std::filesystem::remove(destination_path, ec);
+        if(ec){
+            std::cerr << "Failed to replace latest artifact " << destination_path << ": " << ec.message() << std::endl;
+            std::filesystem::remove(temporary_path, ec);
+            return false;
+        }
+        ec.clear();
+        std::filesystem::rename(temporary_path, destination_path, ec);
+        if(ec){
+            std::cerr << "Failed to move latest artifact into place " << destination_path << ": " << ec.message() << std::endl;
+            std::filesystem::remove(temporary_path, ec);
+            return false;
+        }
+        std::filesystem::path manifest_path = latest_folder / (source_path.filename().string() + ".manifest.txt");
+        std::filesystem::path temporary_manifest_path = latest_folder / (source_path.filename().string() + ".manifest.txt.tmp");
+        {
+            std::ofstream manifest_file(temporary_manifest_path);
+            if(!manifest_file){
+                std::cerr << "Failed to write latest artifact manifest: " << temporary_manifest_path << std::endl;
+                std::filesystem::remove(manifest_path, ec);
+                return false;
+            }
+            manifest_file << "step=" << step << "\n";
+            manifest_file << "path=" << step_folder.string() << "\n";
+            manifest_file << "artifact=" << source_path.string() << "\n";
+        }
+        std::filesystem::remove(manifest_path, ec);
+        if(ec){
+            std::cerr << "Failed to replace latest artifact manifest " << manifest_path << ": " << ec.message() << std::endl;
+            std::filesystem::remove(temporary_manifest_path, ec);
+            return false;
+        }
+        ec.clear();
+        std::filesystem::rename(temporary_manifest_path, manifest_path, ec);
+        if(ec){
+            std::cerr << "Failed to move latest artifact manifest into place " << manifest_path << ": " << ec.message() << std::endl;
+            std::filesystem::remove(temporary_manifest_path, ec);
+            return false;
+        }
+        return true;
     }
     template <typename DEVICE>
     void parse_setup(DEVICE& device, std::string setup, utils::extrack::Path& path){

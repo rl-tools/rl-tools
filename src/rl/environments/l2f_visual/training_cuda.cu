@@ -82,7 +82,6 @@
 #include <random>
 #include <mutex>
 #include <sstream>
-#include <system_error>
 
 namespace rlt = rl_tools;
 
@@ -310,53 +309,6 @@ std::string trajectory_episodes_to_json(DEVICE& device, ENVIRONMENT& env, typena
     }
     json += "]";
     return json;
-}
-
-bool link_latest_artifact(const std::filesystem::path& latest_folder, const std::filesystem::path& source_path){
-    std::error_code ec;
-    if(!std::filesystem::exists(source_path, ec)){
-        std::cerr << "Latest artifact source does not exist: " << source_path << std::endl;
-        return false;
-    }
-    std::filesystem::create_directories(latest_folder, ec);
-    if(ec){
-        std::cerr << "Failed to create latest artifact folder " << latest_folder << ": " << ec.message() << std::endl;
-        return false;
-    }
-    std::filesystem::path destination_path = latest_folder / source_path.filename();
-    std::filesystem::path temporary_path = latest_folder / (source_path.filename().string() + ".tmp");
-    std::filesystem::remove(temporary_path, ec);
-    ec.clear();
-    std::filesystem::create_hard_link(source_path, temporary_path, ec);
-    if(ec){
-        std::cerr << "Failed to hardlink latest artifact " << source_path << " -> " << destination_path << ": " << ec.message() << std::endl;
-        return false;
-    }
-    std::filesystem::remove(destination_path, ec);
-    if(ec){
-        std::cerr << "Failed to replace latest artifact " << destination_path << ": " << ec.message() << std::endl;
-        std::filesystem::remove(temporary_path, ec);
-        return false;
-    }
-    ec.clear();
-    std::filesystem::rename(temporary_path, destination_path, ec);
-    if(ec){
-        std::cerr << "Failed to move latest artifact into place " << destination_path << ": " << ec.message() << std::endl;
-        std::filesystem::remove(temporary_path, ec);
-        return false;
-    }
-    return true;
-}
-
-void write_latest_manifest(const std::filesystem::path& latest_folder, const std::filesystem::path& step_folder, TI step){
-    std::error_code ec;
-    std::filesystem::create_directories(latest_folder, ec);
-    if(ec){
-        std::cerr << "Failed to create latest manifest folder " << latest_folder << ": " << ec.message() << std::endl;
-        return;
-    }
-    std::ofstream step_file(latest_folder / "step.txt");
-    step_file << step << "\n" << step_folder.string() << "\n";
 }
 
 // =========================================================================
@@ -1356,9 +1308,8 @@ int main(int argc, char** argv){
         if(ffmpeg_pipe){
             pclose(ffmpeg_pipe);
             if(!current_video_path.empty()){
-                auto latest_folder = extrack_paths.seed / "latest";
-                link_latest_artifact(latest_folder, current_video_path);
-                write_latest_manifest(latest_folder, current_video_path.parent_path(), current_video_step);
+                auto latest_folder = rlt::get_latest_folder(device, extrack_paths);
+                rlt::link_latest_artifact(device, latest_folder, current_video_path, current_video_path.parent_path(), current_video_step);
                 current_video_path.clear();
                 current_video_step = 0;
             }
@@ -1875,9 +1826,8 @@ int main(int argc, char** argv){
                     std::ofstream f(trajectories_path, std::ios::binary);
                     f.write(reinterpret_cast<const char*>(compressed.data()), compressed.size());
                     f.close();
-                    std::filesystem::path latest_folder = extrack_paths.seed / "latest";
-                    link_latest_artifact(latest_folder, trajectories_path);
-                    write_latest_manifest(latest_folder, step_folder, on_policy_runner_gpu.step);
+                    auto latest_folder = rlt::get_latest_folder(device, extrack_paths);
+                    rlt::link_latest_artifact(device, latest_folder, trajectories_path, step_folder, on_policy_runner_gpu.step);
                 }
                 std::cout << "  Saved " << completed_episodes.size() << " trajectory episodes to " << step_folder << std::endl;
                 completed_episodes.clear();
@@ -2141,7 +2091,7 @@ int main(int argc, char** argv){
         if(save_extrack_step){
             {
                 auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, on_policy_runner_gpu.step);
-                auto latest_folder = extrack_paths.seed / "latest";
+                auto latest_folder = rlt::get_latest_folder(device, extrack_paths);
                 std::filesystem::create_directories(step_folder);
 
                 CHECKPOINT_ACTOR_TYPE eval_actor;
@@ -2248,7 +2198,7 @@ int main(int argc, char** argv){
                     std::ofstream f(checkpoint_path, std::ios::binary);
                     f.write(writer.buffer.data(), writer.buffer.size());
                     f.close();
-                    link_latest_artifact(latest_folder, checkpoint_path);
+                    rlt::link_latest_artifact(device, latest_folder, checkpoint_path, step_folder, on_policy_runner_gpu.step);
                 }
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
                 auto save_hdf5 = [&](auto batch_size_tag){
@@ -2278,9 +2228,9 @@ int main(int argc, char** argv){
                     return checkpoint_path;
                 };
                 auto reduced_checkpoint_path = save_hdf5(rlt::utils::typing::integral_constant<TI, REDUCED_BATCH_SIZE>{});
-                link_latest_artifact(latest_folder, reduced_checkpoint_path);
+                rlt::link_latest_artifact(device, latest_folder, reduced_checkpoint_path, step_folder, on_policy_runner_gpu.step);
                 auto full_checkpoint_path = save_hdf5(rlt::utils::typing::integral_constant<TI, N_EXAMPLES>{});
-                link_latest_artifact(latest_folder, full_checkpoint_path);
+                rlt::link_latest_artifact(device, latest_folder, full_checkpoint_path, step_folder, on_policy_runner_gpu.step);
 #endif
                 if constexpr(EXPORT_CHECKPOINT_CODE){
                     auto actor_weights = rlt::save_code(device, eval_actor, std::string("rl_tools::checkpoint::actor"), true);
@@ -2310,7 +2260,7 @@ int main(int argc, char** argv){
                         std::ofstream f(checkpoint_code_path, std::ios::binary);
                         f.write(reinterpret_cast<const char*>(compressed.data()), compressed.size());
                         f.close();
-                        link_latest_artifact(latest_folder, checkpoint_code_path);
+                        rlt::link_latest_artifact(device, latest_folder, checkpoint_code_path, step_folder, on_policy_runner_gpu.step);
                     }
 #endif
                     {
@@ -2318,11 +2268,9 @@ int main(int argc, char** argv){
                         std::ofstream f(checkpoint_code_path);
                         f << output_string;
                         f.close();
-                        link_latest_artifact(latest_folder, checkpoint_code_path);
+                        rlt::link_latest_artifact(device, latest_folder, checkpoint_code_path, step_folder, on_policy_runner_gpu.step);
                     }
                 }
-
-                write_latest_manifest(latest_folder, step_folder, on_policy_runner_gpu.step);
                 rlt::free(device, example_input_0_image);
                 rlt::free(device, example_input_1_state);
                 rlt::free(device, example_output);
