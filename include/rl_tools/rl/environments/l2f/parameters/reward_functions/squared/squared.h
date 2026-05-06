@@ -8,8 +8,9 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
-    template<typename T>
+    template<typename T, unsigned T_ACTION_DIM=4>
     struct Squared{
+        static constexpr unsigned ACTION_DIM = T_ACTION_DIM;
         bool non_negative;
         T scale;
         T constant;
@@ -21,8 +22,8 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         T angular_velocity;
         T linear_acceleration;
         T angular_acceleration;
-        T action;
-        T d_action;
+        T action[ACTION_DIM];
+        T d_action[ACTION_DIM];
         T position_error_integral;
         struct Components{
             T orientation_cost;

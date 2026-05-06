@@ -8,8 +8,6 @@
 #include <rl_tools/utils/generic/vector_operations.h>
 #include "quaternion_helper.h"
 
-#include <rl_tools/utils/generic/typing.h>
-
 #include <rl_tools/rl/environments/operations_generic.h>
 
 #ifndef RL_TOOLS_FUNCTION_PLACEMENT
@@ -68,14 +66,6 @@ namespace rl_tools
         //        parameters = SPEC::STATIC_PARAMETERS::PARAMETER_VALUES;
     }
     namespace rl::environments::l2f{
-        template<typename STATIC_PARAMETERS, typename = void>
-        struct action_interface{
-            static constexpr parameters::ActionInterface VALUE = parameters::ActionInterface::DIRECT_MOTOR;
-        };
-        template<typename STATIC_PARAMETERS>
-        struct action_interface<STATIC_PARAMETERS, rl_tools::utils::typing::void_t<decltype(STATIC_PARAMETERS::ACTION_INTERFACE)>>{
-            static constexpr parameters::ActionInterface VALUE = STATIC_PARAMETERS::ACTION_INTERFACE;
-        };
         template<typename DEVICE, typename PARAMETERS, typename T, typename TI>
         RL_TOOLS_FUNCTION_PLACEMENT T rotor_thrust_from_command(DEVICE&, const PARAMETERS& parameters, TI rotor_i, T command){
             return parameters.dynamics.rotor_thrust_coefficients[rotor_i][0] + parameters.dynamics.rotor_thrust_coefficients[rotor_i][1] * command + parameters.dynamics.rotor_thrust_coefficients[rotor_i][2] * command * command;
@@ -230,7 +220,7 @@ namespace rl_tools
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT void action_to_motor_commands(DEVICE& device, const Multirotor<SPEC>&, const PARAMETERS& parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, typename SPEC::T motor_commands[4], RNG& rng){
-            if constexpr(action_interface<typename SPEC::STATIC_PARAMETERS>::VALUE == rl::environments::l2f::parameters::ActionInterface::CTBR){
+            if constexpr(SPEC::STATIC_PARAMETERS::ACTION_INTERFACE == rl::environments::l2f::parameters::ActionInterface::CTBR){
                 ctbr_action_to_motor_commands(device, parameters, state, action, motor_commands, rng);
             }
             else{

@@ -132,6 +132,15 @@ target_compile_definitions(rl_zoo_l2f_sac PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_L2
 if(NOT WIN32)
 target_compile_options(rl_zoo_l2f_sac PRIVATE -ftemplate-backtrace-limit=0)
 endif()
+# SAC CTBR
+add_executable(rl_zoo_l2f_ctbr_sac zoo_cli.cpp zoo.cpp)
+target_link_libraries(rl_zoo_l2f_ctbr_sac PRIVATE RLtools::RLtools)
+RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_l2f_ctbr_sac)
+target_compile_definitions(rl_zoo_l2f_ctbr_sac PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
+target_compile_definitions(rl_zoo_l2f_ctbr_sac PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_CTBR)
+if(NOT WIN32)
+target_compile_options(rl_zoo_l2f_ctbr_sac PRIVATE -ftemplate-backtrace-limit=0)
+endif()
 # SAC BENCHMARK
 add_executable(rl_zoo_l2f_sac_benchmark zoo_cli.cpp zoo.cpp)
 target_link_libraries(rl_zoo_l2f_sac_benchmark PRIVATE RLtools::RLtools)

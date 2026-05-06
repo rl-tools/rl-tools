@@ -117,6 +117,9 @@
 #else
 #include "l2f/sac_tiny.h"
 #endif
+#if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_CTBR)
+#include "l2f/sac_ctbr.h"
+#endif
 #include "l2f/sac_tiny_attitude.h"
 #if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE_SETPOINT)
 #include "l2f/sac_attitude_setpoint.h"
@@ -219,6 +222,10 @@ template <typename BASE>
 using LOOP_EVALUATION_PARAMETER_OVERWRITES = rlt::rl::zoo::acrobot_swingup_v0::sac::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_EVALUATION_PARAMETER_OVERWRITES<BASE>;
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::l2f::sac::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
+template <typename BASE>
+struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{};
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_CTBR)
+using LOOP_CORE_CONFIG = rlt::rl::zoo::l2f::sac_ctbr::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{};
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE)
@@ -411,6 +418,8 @@ std::string environment = "bottleneck-v0";
 std::string environment = "ant-v4";
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F)
 std::string environment = "l2f";
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_CTBR)
+std::string environment = "l2f-ctbr";
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE)
 std::string environment = "l2f-attitude";
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE_SETPOINT)

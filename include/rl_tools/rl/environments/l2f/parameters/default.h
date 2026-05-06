@@ -43,8 +43,8 @@ namespace rl_tools::rl::environments::l2f::parameters {
                 00.00, // angular_velocity
                 00.00, // linear_acceleration
                 00.00, // angular_acceleration
-                00.00, // action
-                01.00, // d_action
+                {00.00, 00.00, 00.00, 00.00}, // action
+                {01.00, 01.00, 01.00, 01.00}, // d_action
                 00.00, // position_error_integral
         };
         struct TRAJECTORY_OPTIONS{
@@ -164,6 +164,7 @@ namespace rl_tools::rl::environments::l2f::parameters {
         }; // ObservationDelay
 
         struct STATIC_PARAMETERS{
+            static constexpr auto ACTION_INTERFACE = ActionInterface::DIRECT_MOTOR;
             static constexpr TI N_SUBSTEPS = 1;
             static constexpr TI ACTION_HISTORY_LENGTH = 16;
             static constexpr TI EPISODE_STEP_LIMIT = EPISODE_STEP_LIMIT_OUTER;
