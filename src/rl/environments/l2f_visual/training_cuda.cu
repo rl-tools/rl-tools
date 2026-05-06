@@ -82,6 +82,7 @@
 #include <random>
 #include <mutex>
 #include <sstream>
+#include <system_error>
 
 namespace rlt = rl_tools;
 
@@ -259,7 +260,7 @@ static constexpr TI EXTRACK_SAVE_INTERVAL_SCENE_SETS = 2 * EXTRACK_SAVE_INTERVAL
 static constexpr TI VIDEO_SAVE_INTERVAL_SCENE_SETS = EXTRACK_SAVE_INTERVAL_SCENE_SETS;
 static constexpr TI CHECKPOINT_CADENCE_SCENE_SETS = EXTRACK_SAVE_INTERVAL_SCENE_SETS;
 static constexpr TI REWARD_COMPONENT_LOG_INTERVAL_PPO_STEPS = 100;
-static constexpr bool EXPORT_CHECKPOINT_TAR = false;
+static constexpr bool EXPORT_CHECKPOINT_TAR = true;
 static constexpr bool EXPORT_CHECKPOINT_CODE = false;
 static constexpr TI N_EXAMPLES = 512;
 static constexpr TI REDUCED_BATCH_SIZE = 2;
@@ -309,6 +310,53 @@ std::string trajectory_episodes_to_json(DEVICE& device, ENVIRONMENT& env, typena
     }
     json += "]";
     return json;
+}
+
+bool link_latest_artifact(const std::filesystem::path& latest_folder, const std::filesystem::path& source_path){
+    std::error_code ec;
+    if(!std::filesystem::exists(source_path, ec)){
+        std::cerr << "Latest artifact source does not exist: " << source_path << std::endl;
+        return false;
+    }
+    std::filesystem::create_directories(latest_folder, ec);
+    if(ec){
+        std::cerr << "Failed to create latest artifact folder " << latest_folder << ": " << ec.message() << std::endl;
+        return false;
+    }
+    std::filesystem::path destination_path = latest_folder / source_path.filename();
+    std::filesystem::path temporary_path = latest_folder / (source_path.filename().string() + ".tmp");
+    std::filesystem::remove(temporary_path, ec);
+    ec.clear();
+    std::filesystem::create_hard_link(source_path, temporary_path, ec);
+    if(ec){
+        std::cerr << "Failed to hardlink latest artifact " << source_path << " -> " << destination_path << ": " << ec.message() << std::endl;
+        return false;
+    }
+    std::filesystem::remove(destination_path, ec);
+    if(ec){
+        std::cerr << "Failed to replace latest artifact " << destination_path << ": " << ec.message() << std::endl;
+        std::filesystem::remove(temporary_path, ec);
+        return false;
+    }
+    ec.clear();
+    std::filesystem::rename(temporary_path, destination_path, ec);
+    if(ec){
+        std::cerr << "Failed to move latest artifact into place " << destination_path << ": " << ec.message() << std::endl;
+        std::filesystem::remove(temporary_path, ec);
+        return false;
+    }
+    return true;
+}
+
+void write_latest_manifest(const std::filesystem::path& latest_folder, const std::filesystem::path& step_folder, TI step){
+    std::error_code ec;
+    std::filesystem::create_directories(latest_folder, ec);
+    if(ec){
+        std::cerr << "Failed to create latest manifest folder " << latest_folder << ": " << ec.message() << std::endl;
+        return;
+    }
+    std::ofstream step_file(latest_folder / "step.txt");
+    step_file << step << "\n" << step_folder.string() << "\n";
 }
 
 // =========================================================================
@@ -1302,6 +1350,22 @@ int main(int argc, char** argv){
     rlt::devices::cuda::TAG<DEVICE_GPU, true> tag_device{};
     FILE* ffmpeg_pipe = nullptr;
     bool record_video_scene_set = false;
+    std::filesystem::path current_video_path;
+    TI current_video_step = 0;
+    auto close_video_pipe = [&](){
+        if(ffmpeg_pipe){
+            pclose(ffmpeg_pipe);
+            if(!current_video_path.empty()){
+                auto latest_folder = extrack_paths.seed / "latest";
+                link_latest_artifact(latest_folder, current_video_path);
+                write_latest_manifest(latest_folder, current_video_path.parent_path(), current_video_step);
+                current_video_path.clear();
+                current_video_step = 0;
+            }
+            ffmpeg_pipe = nullptr;
+            record_video_scene_set = false;
+        }
+    };
 
     for(TI ppo_step_i = 0; ppo_step_i < N_PPO_STEPS; ppo_step_i++){
         auto step_start = std::chrono::high_resolution_clock::now();
@@ -1325,11 +1389,7 @@ int main(int argc, char** argv){
         bool save_extrack_step = scene_set_end && scene_set_i % CHECKPOINT_CADENCE_SCENE_SETS == 0;
         bool log_reward_components_this_step = ppo_step_i % REWARD_COMPONENT_LOG_INTERVAL_PPO_STEPS == 0;
         if(scene_set_boundary){
-            if(ffmpeg_pipe){
-                pclose(ffmpeg_pipe);
-                ffmpeg_pipe = nullptr;
-                record_video_scene_set = false;
-            }
+            close_video_pipe();
             ppo_visual::force_scene_boundary_reset_kernel<<<grid, block, 0, device_gpu.stream>>>(gpu_truncated_arr, gpu_episode_step_arr, gpu_episode_end_reason_arr);
             rlt::check_status(device_gpu);
             cudaStreamSynchronize(device_gpu.stream);
@@ -1374,9 +1434,12 @@ int main(int argc, char** argv){
             record_video_scene_set = scene_set_i % VIDEO_SAVE_INTERVAL_SCENE_SETS == 0;
         }
         if(record_video_scene_set && ffmpeg_pipe == nullptr){
-            auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, on_policy_runner_gpu.step + N_ENVIRONMENTS * STEPS_PER_ENV * ROLLOUTS_PER_SCENE_SET);
+            TI video_step = on_policy_runner_gpu.step + N_ENVIRONMENTS * STEPS_PER_ENV * ROLLOUTS_PER_SCENE_SET;
+            auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, video_step);
             std::filesystem::create_directories(step_folder);
             auto video_path = step_folder / "video.mp4";
+            current_video_path = video_path;
+            current_video_step = video_step;
             char ffmpeg_cmd[1024];
             std::snprintf(ffmpeg_cmd, sizeof(ffmpeg_cmd),
                 "ffmpeg -y -f rawvideo -pixel_format rgb24 -video_size %lux%lu -framerate %lu -i - "
@@ -1386,6 +1449,7 @@ int main(int argc, char** argv){
             if(!ffmpeg_pipe){
                 std::cerr << "Failed to open ffmpeg pipe for " << video_path << std::endl;
                 record_video_scene_set = false;
+                current_video_path.clear();
             }
         }
         bool record_video = record_video_scene_set && ffmpeg_pipe != nullptr;
@@ -1620,9 +1684,7 @@ int main(int argc, char** argv){
         }
 
         if(ffmpeg_pipe && rollout_in_scene_set + 1 == ROLLOUTS_PER_SCENE_SET){
-            pclose(ffmpeg_pipe);
-            ffmpeg_pipe = nullptr;
-            record_video_scene_set = false;
+            close_video_pipe();
         }
 
         // Final privileged observations for value bootstrap
@@ -1809,8 +1871,13 @@ int main(int argc, char** argv){
                 std::string trajectories_json = trajectory_episodes_to_json(device, envs[0], parameters_ref, completed_episodes, simulation_dt);
                 std::vector<uint8_t> compressed;
                 if(rlt::compress_zlib(trajectories_json, compressed)){
-                    std::ofstream f(step_folder / "trajectories.json.gz", std::ios::binary);
+                    std::filesystem::path trajectories_path = step_folder / "trajectories.json.gz";
+                    std::ofstream f(trajectories_path, std::ios::binary);
                     f.write(reinterpret_cast<const char*>(compressed.data()), compressed.size());
+                    f.close();
+                    std::filesystem::path latest_folder = extrack_paths.seed / "latest";
+                    link_latest_artifact(latest_folder, trajectories_path);
+                    write_latest_manifest(latest_folder, step_folder, on_policy_runner_gpu.step);
                 }
                 std::cout << "  Saved " << completed_episodes.size() << " trajectory episodes to " << step_folder << std::endl;
                 completed_episodes.clear();
@@ -2074,6 +2141,7 @@ int main(int argc, char** argv){
         if(save_extrack_step){
             {
                 auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, on_policy_runner_gpu.step);
+                auto latest_folder = extrack_paths.seed / "latest";
                 std::filesystem::create_directories(step_folder);
 
                 CHECKPOINT_ACTOR_TYPE eval_actor;
@@ -2179,6 +2247,8 @@ int main(int argc, char** argv){
                     rlt::persist::backends::tar::finalize(device, writer);
                     std::ofstream f(checkpoint_path, std::ios::binary);
                     f.write(writer.buffer.data(), writer.buffer.size());
+                    f.close();
+                    link_latest_artifact(latest_folder, checkpoint_path);
                 }
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
                 auto save_hdf5 = [&](auto batch_size_tag){
@@ -2205,9 +2275,12 @@ int main(int argc, char** argv){
                     auto example_output_view = rlt::view_range(device, example_output_canonical, (TI)0, rlt::tensor::ViewSpec<1, EXAMPLE_BATCH_SIZE>{});
                     rlt::save(device, example_output_view, outputs_group, "0");
                     rlt::free(device, sized_eval_actor);
+                    return checkpoint_path;
                 };
-                save_hdf5(rlt::utils::typing::integral_constant<TI, REDUCED_BATCH_SIZE>{});
-                save_hdf5(rlt::utils::typing::integral_constant<TI, N_EXAMPLES>{});
+                auto reduced_checkpoint_path = save_hdf5(rlt::utils::typing::integral_constant<TI, REDUCED_BATCH_SIZE>{});
+                link_latest_artifact(latest_folder, reduced_checkpoint_path);
+                auto full_checkpoint_path = save_hdf5(rlt::utils::typing::integral_constant<TI, N_EXAMPLES>{});
+                link_latest_artifact(latest_folder, full_checkpoint_path);
 #endif
                 if constexpr(EXPORT_CHECKPOINT_CODE){
                     auto actor_weights = rlt::save_code(device, eval_actor, std::string("rl_tools::checkpoint::actor"), true);
@@ -2236,15 +2309,20 @@ int main(int argc, char** argv){
                         rlt::compress_zlib(output_string, compressed);
                         std::ofstream f(checkpoint_code_path, std::ios::binary);
                         f.write(reinterpret_cast<const char*>(compressed.data()), compressed.size());
+                        f.close();
+                        link_latest_artifact(latest_folder, checkpoint_code_path);
                     }
 #endif
                     {
                         std::filesystem::path checkpoint_code_path = step_folder / "checkpoint.h";
                         std::ofstream f(checkpoint_code_path);
                         f << output_string;
+                        f.close();
+                        link_latest_artifact(latest_folder, checkpoint_code_path);
                     }
                 }
 
+                write_latest_manifest(latest_folder, step_folder, on_policy_runner_gpu.step);
                 rlt::free(device, example_input_0_image);
                 rlt::free(device, example_input_1_state);
                 rlt::free(device, example_output);
@@ -2263,10 +2341,7 @@ int main(int argc, char** argv){
         }
     }
 
-    if(ffmpeg_pipe){
-        pclose(ffmpeg_pipe);
-        ffmpeg_pipe = nullptr;
-    }
+    close_video_pipe();
 
     std::cout << "Training finished at env step " << on_policy_runner_gpu.step << std::endl;
 
