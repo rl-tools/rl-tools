@@ -56,7 +56,8 @@ using PARAMETERS_TYPE = l2f::ParametersDisturbances<l2f::ParametersSpecification
 static constexpr auto MODEL = l2f::parameters::dynamics::REGISTRY::crazyflie;
 
 static constexpr REWARD_FUNCTION reward_function = {
-    false, 1.00, 1.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00
+    false, 1.00, 1.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00,
+    {0.00, 0.00, 0.00, 0.00}, {0.00, 0.00, 0.00, 0.00}, 0.00
 };
 static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = {
     0.2, 0.0, 0.3, 0.0, 1.0, true, -1, +1,

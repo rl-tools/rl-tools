@@ -55,8 +55,8 @@ static constexpr REWARD_FUNCTION reward_function = {
     0.00,  // angular_velocity
     0.00,  // linear_acceleration
     0.00,  // angular_acceleration
-    0.10,  // action
-    0.00,  // d_action
+    {0.10, 0.10, 0.10, 0.10},  // action
+    {0.00, 0.00, 0.00, 0.00},  // d_action
     0.00   // position_error_integral
 };
 

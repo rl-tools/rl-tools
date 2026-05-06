@@ -35,8 +35,8 @@ namespace rl_tools::rl::zoo::l2f{
         static constexpr REWARD_FUNCTION reward_function = {
                 false,
                 00.10,
-                01.10,
-                00.00,
+                02.00,
+                -10.00,
                 10.00,
                 00.00,
                 02.50,
@@ -44,8 +44,8 @@ namespace rl_tools::rl::zoo::l2f{
                 00.10,
                 00.00,
                 00.00,
-                {(T)0.75, (T)0.15, (T)0.15, (T)0.0375},
-                {(T)0.18, (T)0.18, (T)0.18, (T)0.10},
+                {(T)0.00, (T)0.00, (T)0.00, (T)0.0000},
+                {(T)0.0, (T)10.0, (T)10.0, (T)10.0},
                 00.00
         };
         static constexpr typename PARAMETERS_TYPE::CTBRController ctbr_controller = {
