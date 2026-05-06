@@ -131,15 +131,15 @@ static constexpr REWARD_FUNCTION reward_function = {
     0.10,
     1.00,
     -1.00,
-    10.00,
+    2.00,
     0.00,
-    2.50,
+    1.00,
     0.05,
     0.00,
     0.00,
     0.00,
     0.10,
-    0.00,
+    1.00,
     0.00
 };
 static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = {
