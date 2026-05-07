@@ -36,7 +36,7 @@ namespace rl_tools::rl::zoo::l2f{
         using REWARD_FUNCTION = rl_tools::rl::environments::l2f::parameters::reward_functions::AttitudeSetpointTrackingSquared<T>;
         using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, ENVIRONMENT_FACTORY_BASE::EPISODE_STEP_LIMIT_OUTER, REWARD_FUNCTION>;
         struct DOMAIN_RANDOMIZATION_OPTIONS{
-            static constexpr bool THRUST_TO_WEIGHT = true;
+            static constexpr bool THRUST_TO_WEIGHT = false;
             static constexpr bool MASS = false;
             static constexpr bool TORQUE_TO_INERTIA = false;
             static constexpr bool MASS_SIZE_DEVIATION = false;
@@ -56,31 +56,31 @@ namespace rl_tools::rl::zoo::l2f{
         // static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
         static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = [](){
             auto p = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
-            p.rotor_time_constants_rising[0] = 0.072;
-            p.rotor_time_constants_rising[1] = 0.072;
-            p.rotor_time_constants_rising[2] = 0.072;
-            p.rotor_time_constants_rising[3] = 0.072;
-            p.rotor_time_constants_falling[0] = 0.072;
-            p.rotor_time_constants_falling[1] = 0.072;
-            p.rotor_time_constants_falling[2] = 0.072;
-            p.rotor_time_constants_falling[3] = 0.072;
-            p.mass = 0.025;
-            p.rotor_thrust_coefficients[0][0] = 0;
-            p.rotor_thrust_coefficients[1][0] = 0;
-            p.rotor_thrust_coefficients[2][0] = 0;
-            p.rotor_thrust_coefficients[3][0] = 0;
-            p.rotor_thrust_coefficients[0][1] = 0;
-            p.rotor_thrust_coefficients[1][1] = 0;
-            p.rotor_thrust_coefficients[2][1] = 0;
-            p.rotor_thrust_coefficients[3][1] = 0;
-            p.rotor_thrust_coefficients[0][2] = 0.1302;
-            p.rotor_thrust_coefficients[1][2] = 0.1302;
-            p.rotor_thrust_coefficients[2][2] = 0.1302;
-            p.rotor_thrust_coefficients[3][2] = 0.1302;
-            // Recompute hover throttle for the overridden mass + thrust curve
-            // (registry value was for the original curve and mass).
-            // hover_rpm = sqrt(m*g/(4*c2)) with action_limit [0, 1] -> hovering_throttle_relative = hover_rpm
-            p.hovering_throttle_relative = 0.6864;
+            // p.rotor_time_constants_rising[0] = 0.072;
+            // p.rotor_time_constants_rising[1] = 0.072;
+            // p.rotor_time_constants_rising[2] = 0.072;
+            // p.rotor_time_constants_rising[3] = 0.072;
+            // p.rotor_time_constants_falling[0] = 0.072;
+            // p.rotor_time_constants_falling[1] = 0.072;
+            // p.rotor_time_constants_falling[2] = 0.072;
+            // p.rotor_time_constants_falling[3] = 0.072;
+            // p.mass = 0.025;
+            // p.rotor_thrust_coefficients[0][0] = 0;
+            // p.rotor_thrust_coefficients[1][0] = 0;
+            // p.rotor_thrust_coefficients[2][0] = 0;
+            // p.rotor_thrust_coefficients[3][0] = 0;
+            // p.rotor_thrust_coefficients[0][1] = 0;
+            // p.rotor_thrust_coefficients[1][1] = 0;
+            // p.rotor_thrust_coefficients[2][1] = 0;
+            // p.rotor_thrust_coefficients[3][1] = 0;
+            // p.rotor_thrust_coefficients[0][2] = 0.1302;
+            // p.rotor_thrust_coefficients[1][2] = 0.1302;
+            // p.rotor_thrust_coefficients[2][2] = 0.1302;
+            // p.rotor_thrust_coefficients[3][2] = 0.1302;
+            // // Recompute hover throttle for the overridden mass + thrust curve
+            // // (registry value was for the original curve and mass).
+            // // hover_rpm = sqrt(m*g/(4*c2)) with action_limit [0, 1] -> hovering_throttle_relative = hover_rpm
+            // p.hovering_throttle_relative = 0.6864;
             return p;
         }();
         static constexpr typename ParametersBase<PARAMETERS_SPEC>::MDP::Initialization init = {
@@ -110,7 +110,7 @@ namespace rl_tools::rl::zoo::l2f{
                 00.50, // yaw-rate tracking
                 00.05, // roll/pitch-rate damping
                 02.50, // thrust-g tracking
-                00.05, // action smoothness
+                00.10, // action smoothness
                 00.00, // saturation avoidance
         };
         static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noise = {
@@ -124,8 +124,8 @@ namespace rl_tools::rl::zoo::l2f{
             {0.02, 60.0, 0.005} // gyro bias: init half-range, OU tau, OU steady-state sigma
         };
         static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
-            (T)1.5, // min thrust-to-weight after randomized thrust-curve scaling
-            (T)2.5, // max thrust-to-weight after randomized thrust-curve scaling
+            0, // min thrust-to-weight after randomized thrust-curve scaling
+            0, // max thrust-to-weight after randomized thrust-curve scaling
             0,      // torque-to-inertia disabled
             0,
             0,      // mass randomization disabled
@@ -219,7 +219,7 @@ namespace rl_tools::rl::zoo::l2f{
             // Actor observation: command plus onboard-estimable attitude, gyro,
             // accelerometer, and motor-action history. No yaw or yaw-bias estimate.
             using OBSERVATION_TYPE = observation::AttitudeSetpoint<observation::AttitudeSetpointSpecification<T, TI,
-                    observation::OrientationMahonyWorldZ<observation::OrientationMahonyWorldZSpecification<T, TI,
+                    observation::OrientationWorldZ<observation::OrientationWorldZSpecification<T, TI,
                     observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
                     observation::LinearAccelerationBodyFrame<observation::LinearAccelerationBodyFrameSpecification<T, TI,
                     observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>>>;

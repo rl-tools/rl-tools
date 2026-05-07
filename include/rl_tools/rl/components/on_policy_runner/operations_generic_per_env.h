@@ -70,6 +70,11 @@ namespace rl_tools::rl::components::on_policy_runner::per_env{
         bool terminated_flag = terminated(device, env, parameters, next_state, rng);
         set(dataset.terminated, pos, 0, terminated_flag);
         T reward_value = reward(device, env, parameters, state, action, next_state, rng);
+#if !defined(__CUDA_ARCH__)
+        if(env_i == 0){
+            log_reward(device, env, parameters, state, action, next_state, rng, 33);
+        }
+#endif
         increment(runner.episode_return, 0, env_i, reward_value);
         set(dataset.rewards, pos, 0, reward_value);
         increment(runner.episode_step, 0, env_i, 1);

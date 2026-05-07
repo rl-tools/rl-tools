@@ -124,6 +124,7 @@
 #include "l2f/sac_tiny_attitude.h"
 #if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE_SETPOINT)
 #include "l2f/sac_attitude_setpoint.h"
+#include "l2f/ppo_attitude_setpoint.h"
 #endif
 #if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE_SETPOINT_MINIMAL)
 #include "l2f/sac_attitude_setpoint_minimal.h"

@@ -198,6 +198,13 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
     RL_TOOLS_FUNCTION_PLACEMENT void log_reward(DEVICE& device, const Multirotor<SPEC>& env, const PARAMETERS& parameters, const AttitudeSetpointTrackingSquared<T>& reward_parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, const STATE& next_state, RNG& rng, typename DEVICE::index_t cadence = 1){
         typename AttitudeSetpointTrackingSquared<T>::Components components;
         reward_components(device, env, parameters, reward_parameters, state, action, next_state, components, rng);
+        T weighted_tilt = reward_parameters.tilt * components.tilt_cost;
+        T weighted_yaw_rate = reward_parameters.yaw_rate * components.yaw_rate_cost;
+        T weighted_angular_velocity_xy = reward_parameters.angular_velocity_xy * components.angular_velocity_xy_cost;
+        T weighted_thrust_g = reward_parameters.thrust_g * components.thrust_g_cost;
+        T weighted_d_action = reward_parameters.d_action * components.d_action_cost;
+        T weighted_action_saturation = reward_parameters.action_saturation * components.action_saturation_cost;
+        T share_denominator = components.weighted_cost == 0 ? (T)1 : components.weighted_cost;
         add_scalar(device, device.logger, "reward/tilt_cost", components.tilt_cost, cadence);
         add_scalar(device, device.logger, "reward/yaw_rate_cost", components.yaw_rate_cost, cadence);
         add_scalar(device, device.logger, "reward/angular_velocity_xy_cost", components.angular_velocity_xy_cost, cadence);
@@ -205,33 +212,54 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         add_scalar(device, device.logger, "reward/actual_thrust_g", components.actual_thrust_g, cadence);
         add_scalar(device, device.logger, "reward/d_action_cost", components.d_action_cost, cadence);
         add_scalar(device, device.logger, "reward/action_saturation_cost", components.action_saturation_cost, cadence);
-        add_scalar(device, device.logger, "reward_weighted/tilt", reward_parameters.tilt * components.tilt_cost, cadence);
-        add_scalar(device, device.logger, "reward_weighted/yaw_rate", reward_parameters.yaw_rate * components.yaw_rate_cost, cadence);
-        add_scalar(device, device.logger, "reward_weighted/angular_velocity_xy", reward_parameters.angular_velocity_xy * components.angular_velocity_xy_cost, cadence);
-        add_scalar(device, device.logger, "reward_weighted/thrust_g", reward_parameters.thrust_g * components.thrust_g_cost, cadence);
-        add_scalar(device, device.logger, "reward_weighted/d_action", reward_parameters.d_action * components.d_action_cost, cadence);
-        add_scalar(device, device.logger, "reward_weighted/action_saturation", reward_parameters.action_saturation * components.action_saturation_cost, cadence);
+        add_scalar(device, device.logger, "reward/pre_exp", -components.weighted_cost, cadence);
+        add_scalar(device, device.logger, "reward_weighted/tilt", weighted_tilt, cadence);
+        add_scalar(device, device.logger, "reward_weighted/yaw_rate", weighted_yaw_rate, cadence);
+        add_scalar(device, device.logger, "reward_weighted/angular_velocity_xy", weighted_angular_velocity_xy, cadence);
+        add_scalar(device, device.logger, "reward_weighted/thrust_g", weighted_thrust_g, cadence);
+        add_scalar(device, device.logger, "reward_weighted/d_action", weighted_d_action, cadence);
+        add_scalar(device, device.logger, "reward_weighted/action_saturation", weighted_action_saturation, cadence);
+        add_scalar(device, device.logger, "reward_share/tilt", weighted_tilt / share_denominator, cadence);
+        add_scalar(device, device.logger, "reward_share/yaw_rate", weighted_yaw_rate / share_denominator, cadence);
+        add_scalar(device, device.logger, "reward_share/angular_velocity_xy", weighted_angular_velocity_xy / share_denominator, cadence);
+        add_scalar(device, device.logger, "reward_share/thrust_g", weighted_thrust_g / share_denominator, cadence);
+        add_scalar(device, device.logger, "reward_share/d_action", weighted_d_action / share_denominator, cadence);
+        add_scalar(device, device.logger, "reward_share/action_saturation", weighted_action_saturation / share_denominator, cadence);
+        add_scalar(device, device.logger, "reward_share/const", reward_parameters.constant == 0 ? (T)0 : components.reward / reward_parameters.constant, cadence);
         add_scalar(device, device.logger, "reward/weighted_cost", components.weighted_cost, cadence);
         add_scalar(device, device.logger, "reward/scaled_weighted_cost", components.scaled_weighted_cost, cadence);
         add_scalar(device, device.logger, "reward/reward", components.reward, cadence);
+        add_scalar(device, device.logger, "reward/reward_zero", components.reward == 0, cadence);
     }
 
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename T, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void log_reward(DEVICE& device, const Multirotor<SPEC>& env, const PARAMETERS& parameters, const AttitudeSetpointTrackingCTBRSquared<T>& reward_parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, const STATE& next_state, RNG& rng, typename DEVICE::index_t cadence = 1){
         typename AttitudeSetpointTrackingCTBRSquared<T>::Components components;
         reward_components(device, env, parameters, reward_parameters, state, action, next_state, components, rng);
+        T weighted_tilt = reward_parameters.tilt * components.tilt_cost;
+        T weighted_yaw_rate = reward_parameters.yaw_rate * components.yaw_rate_cost;
+        T weighted_thrust_g = reward_parameters.thrust_g * components.thrust_g_cost;
+        T weighted_d_action = reward_parameters.d_action * components.d_action_cost;
+        T share_denominator = components.weighted_cost == 0 ? (T)1 : components.weighted_cost;
         add_scalar(device, device.logger, "reward/tilt_cost", components.tilt_cost, cadence);
         add_scalar(device, device.logger, "reward/yaw_rate_cost", components.yaw_rate_cost, cadence);
         add_scalar(device, device.logger, "reward/thrust_g_cost", components.thrust_g_cost, cadence);
         add_scalar(device, device.logger, "reward/actual_thrust_g", components.actual_thrust_g, cadence);
         add_scalar(device, device.logger, "reward/d_action_cost", components.d_action_cost, cadence);
-        add_scalar(device, device.logger, "reward_weighted/tilt", reward_parameters.tilt * components.tilt_cost, cadence);
-        add_scalar(device, device.logger, "reward_weighted/yaw_rate", reward_parameters.yaw_rate * components.yaw_rate_cost, cadence);
-        add_scalar(device, device.logger, "reward_weighted/thrust_g", reward_parameters.thrust_g * components.thrust_g_cost, cadence);
-        add_scalar(device, device.logger, "reward_weighted/d_action", reward_parameters.d_action * components.d_action_cost, cadence);
+        add_scalar(device, device.logger, "reward/pre_exp", -components.weighted_cost, cadence);
+        add_scalar(device, device.logger, "reward_weighted/tilt", weighted_tilt, cadence);
+        add_scalar(device, device.logger, "reward_weighted/yaw_rate", weighted_yaw_rate, cadence);
+        add_scalar(device, device.logger, "reward_weighted/thrust_g", weighted_thrust_g, cadence);
+        add_scalar(device, device.logger, "reward_weighted/d_action", weighted_d_action, cadence);
+        add_scalar(device, device.logger, "reward_share/tilt", weighted_tilt / share_denominator, cadence);
+        add_scalar(device, device.logger, "reward_share/yaw_rate", weighted_yaw_rate / share_denominator, cadence);
+        add_scalar(device, device.logger, "reward_share/thrust_g", weighted_thrust_g / share_denominator, cadence);
+        add_scalar(device, device.logger, "reward_share/d_action", weighted_d_action / share_denominator, cadence);
+        add_scalar(device, device.logger, "reward_share/const", reward_parameters.constant == 0 ? (T)0 : components.reward / reward_parameters.constant, cadence);
         add_scalar(device, device.logger, "reward/weighted_cost", components.weighted_cost, cadence);
         add_scalar(device, device.logger, "reward/scaled_weighted_cost", components.scaled_weighted_cost, cadence);
         add_scalar(device, device.logger, "reward/reward", components.reward, cadence);
+        add_scalar(device, device.logger, "reward/reward_zero", components.reward == 0, cadence);
     }
 
     template<typename DEVICE, typename T>
