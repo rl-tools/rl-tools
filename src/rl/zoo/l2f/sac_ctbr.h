@@ -23,7 +23,7 @@ namespace rl_tools::rl::zoo::l2f::sac_ctbr{
                 static constexpr T TARGET_ENTROPY = -((T)4);
                 static constexpr TI SEQUENCE_LENGTH = 1;
             };
-            static constexpr TI STEP_LIMIT = 32400;
+            static constexpr TI STEP_LIMIT = 1000000;
             static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
             static constexpr TI ACTOR_NUM_LAYERS = 5;
             static constexpr TI ACTOR_HIDDEN_DIM = 16;
