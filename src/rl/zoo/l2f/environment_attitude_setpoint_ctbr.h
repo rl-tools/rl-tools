@@ -52,13 +52,13 @@ namespace rl_tools::rl::zoo::l2f{
                 (T)(2 * BASE::dynamics.hovering_throttle_relative - 1),
         };
         static constexpr REWARD_FUNCTION reward_function = {
-                false,
-                01.00,
-                03.00,
-                04.00,
-                00.50,
-                02.50,
-                00.00
+                false, // non_negative
+                01.00, // scale
+                03.00, // constant
+                04.00, // tilt
+                00.50, // yaw_rate
+                02.50, // thrust_g
+                00.00  // d_action
         };
         static constexpr typename PARAMETERS_TYPE::MDP mdp = {
             init,

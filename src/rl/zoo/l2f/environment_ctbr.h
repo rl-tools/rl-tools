@@ -39,20 +39,20 @@ namespace rl_tools::rl::zoo::l2f{
                 (T)(2 * BASE::dynamics.hovering_throttle_relative - 1),
         };
         static constexpr REWARD_FUNCTION reward_function = {
-                false,
-                00.10,
-                02.00,
-                -10.00,
-                10.00,
-                00.00,
-                02.50,
-                03.00,
-                00.10,
-                00.00,
-                00.00,
-                {(T)0.00, (T)0.00, (T)0.00, (T)0.0000},
-                {(T)0.0, (T)10.0, (T)10.0, (T)10.0},
-                00.00
+                false, // non_negative
+                00.10, // scale
+                02.00, // constant
+                -10.00, // termination_penalty
+                10.00, // position
+                00.00, // position_clip
+                02.50, // orientation
+                03.00, // linear_velocity
+                00.10, // angular_velocity
+                00.00, // linear_acceleration
+                00.00, // angular_acceleration
+                {(T)0.00, (T)0.00, (T)0.00, (T)0.0000}, // action
+                {(T)0.0, (T)10.0, (T)10.0, (T)10.0}, // d_action
+                00.00 // position_error_integral
         };
         static constexpr typename PARAMETERS_TYPE::CTBRController ctbr_controller = {
             (T)0,

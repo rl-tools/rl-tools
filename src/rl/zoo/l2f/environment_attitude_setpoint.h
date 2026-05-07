@@ -103,15 +103,15 @@ namespace rl_tools::rl::zoo::l2f{
                 50000, // unused attitude-integral guard
         };
         static constexpr REWARD_FUNCTION reward_function = {
-                false, // allow negative rewards
-                01.00, // global cost scale
-                02.00, // alive/tracking offset
-                04.00, // tilt tracking
-                00.50, // yaw-rate tracking
-                00.05, // roll/pitch-rate damping
-                02.50, // thrust-g tracking
-                00.10, // action smoothness
-                00.00, // saturation avoidance
+                false, // non_negative
+                01.00, // scale
+                01.00, // constant
+                00.40, // tilt
+                00.05, // yaw_rate
+                00.05, // angular_velocity_xy
+                00.25, // thrust_g
+                00.01, // d_action
+                00.00, // action_saturation
         };
         static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noise = {
             0,     // position
@@ -121,7 +121,8 @@ namespace rl_tools::rl::zoo::l2f{
             0.05,  // accelerometer specific force, m/s^2
         };
         static constexpr typename PARAMETERS_TYPE::IMU imu = {
-            {0.02, 60.0, 0.005} // gyro bias: init half-range, OU tau, OU steady-state sigma
+            // {0.02, 60.0, 0.005} // gyro bias: init half-range, OU tau, OU steady-state sigma
+            {0, 0, 0}
         };
         static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
             0, // min thrust-to-weight after randomized thrust-curve scaling

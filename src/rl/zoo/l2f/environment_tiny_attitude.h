@@ -95,14 +95,14 @@ namespace rl_tools::rl::zoo::l2f{
         // Tilt cost is 1 - R[2][2] — proper roll/pitch penalty with direct gradient
         // at any tilt, unlike Squared's orientation_cost which only penalizes yaw.
         static constexpr REWARD_FUNCTION reward_function = {
-                true,  // non-negative: clip reward at 0 so dying can never beat surviving badly
+                true,  // non_negative
                 01.00, // scale
-                01.00, // constant: alive bonus per step (must exceed worst-case weighted_cost to keep early-episode reward positive)
-                00.00, // termination penalty (unused, see reward_attitude.h)
+                01.00, // constant
+                00.00, // termination_penalty
                 02.00, // tilt
                 00.15, // angular_velocity
-                00.15, // d_action — penalize action change between steps (smoothness)
-                00.15, // linear_acceleration — penalize jerky motion (gravity-subtracted)
+                00.15, // d_action
+                00.15, // linear_acceleration
         };
         // Realistic MEMS IMU noise (e.g. ICM-20602 at 50Hz BW) + gyro bias OU process.
         // The Mahony filter has to deal with these in real life, so we train against them.

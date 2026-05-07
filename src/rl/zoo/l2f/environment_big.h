@@ -57,11 +57,11 @@ namespace rl_tools::rl::zoo::l2f{
             mdp.init.max_angle = 1.5707963267948966 * 90.0/90.0;   // orientation
             auto& reward = mdp.reward;
             reward = {
-                false, // non-negative
+                false, // non_negative
                 01.00, // scale
                 02.00, // constant
-                -100.00, // termination penalty
-                01.00, // position (curriculum prevents "learning to die" so full weight is safe)
+                -100.00, // termination_penalty
+                01.00, // position
                 00.00, // position_clip
                 00.20, // orientation
                 00.50, // linear_velocity
