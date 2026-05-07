@@ -13,10 +13,16 @@ namespace rl_tools::rl::zoo::l2f{
     struct ENVIRONMENT_CTBR_FACTORY{
         using T = typename TYPE_POLICY::DEFAULT;
         using BASE = ENVIRONMENT_TINY_FACTORY<DEVICE, TYPE_POLICY, TI>;
+        static constexpr TI CONTROL_FREQUENCY = 10;
+        static constexpr TI N_SUBSTEPS = 10;
+        static constexpr TI EPISODE_LENGTH_S = 5;
+        static constexpr TI EPISODE_STEP_LIMIT = EPISODE_LENGTH_S * CONTROL_FREQUENCY;
+        static constexpr TI TRAJECTORY_LENGTH = EPISODE_STEP_LIMIT;
+        static constexpr TI TRAJECTORY_DT = 1000000 / CONTROL_FREQUENCY;
         using REWARD_FUNCTION = typename BASE::REWARD_FUNCTION;
-        using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, BASE::ENVIRONMENT_STATIC_PARAMETERS::EPISODE_STEP_LIMIT, REWARD_FUNCTION>;
+        using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, EPISODE_STEP_LIMIT, REWARD_FUNCTION>;
         using PARAMETERS_TYPE = ParametersCTBRController<ParametersSpecification<T, TI,
-            ParametersTrajectory<ParametersTrajectorySpecification<T, TI, BASE::ENVIRONMENT_FACTORY_BASE::TRAJECTORY_LENGTH, BASE::ENVIRONMENT_FACTORY_BASE::TRAJECTORY_DT,
+            ParametersTrajectory<ParametersTrajectorySpecification<T, TI, TRAJECTORY_LENGTH, TRAJECTORY_DT,
             ParametersDomainRandomization<ParametersDomainRandomizationSpecification<T, TI, DefaultParametersDomainRandomizationOptions,
             ParametersDisturbances<ParametersSpecification<T, TI,
             ParametersBase<PARAMETERS_SPEC>>>>>>>>>;
@@ -63,8 +69,10 @@ namespace rl_tools::rl::zoo::l2f{
             BASE::ENVIRONMENT_FACTORY_BASE::action_noise,
             BASE::ENVIRONMENT_FACTORY_BASE::termination
         };
-        static constexpr typename PARAMETERS_TYPE::Integration integration = BASE::integration;
-        static constexpr typename PARAMETERS_TYPE::Trajectory trajectory = BASE::trajectory;
+        static constexpr typename PARAMETERS_TYPE::Integration integration = {
+            (T)1 / (T)CONTROL_FREQUENCY
+        };
+        static constexpr typename PARAMETERS_TYPE::Trajectory trajectory = {};
         static constexpr typename PARAMETERS_TYPE::TrajectoryParameters trajectory_parameters = BASE::trajectory_parameters;
         static constexpr PARAMETERS_TYPE nominal_parameters = {
             {
@@ -87,9 +95,9 @@ namespace rl_tools::rl::zoo::l2f{
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr auto ACTION_INTERFACE = parameters::ActionInterface::CTBR;
-            static constexpr TI N_SUBSTEPS = BASE::ENVIRONMENT_STATIC_PARAMETERS::N_SUBSTEPS;
+            static constexpr TI N_SUBSTEPS = ENVIRONMENT_CTBR_FACTORY::N_SUBSTEPS;
             static constexpr TI ACTION_HISTORY_LENGTH = BASE::ENVIRONMENT_STATIC_PARAMETERS::ACTION_HISTORY_LENGTH;
-            static constexpr TI EPISODE_STEP_LIMIT = BASE::ENVIRONMENT_STATIC_PARAMETERS::EPISODE_STEP_LIMIT;
+            static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT_CTBR_FACTORY::EPISODE_STEP_LIMIT;
             static constexpr TI CLOSED_FORM = BASE::ENVIRONMENT_STATIC_PARAMETERS::CLOSED_FORM;
             static constexpr TI TRAJECTORY_TRACKING_LOOKAHEAD_STEPS = BASE::ENVIRONMENT_STATIC_PARAMETERS::TRAJECTORY_TRACKING_LOOKAHEAD_STEPS;
             static constexpr TI TRAJECTORY_TRACKING_LOOKAHEAD_INTERVAL = BASE::ENVIRONMENT_STATIC_PARAMETERS::TRAJECTORY_TRACKING_LOOKAHEAD_INTERVAL;

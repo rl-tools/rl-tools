@@ -31,7 +31,7 @@ namespace rl_tools::rl::zoo::l2f::sac_ctbr{
             static constexpr TI CRITIC_NUM_LAYERS = 5;
             static constexpr TI CRITIC_HIDDEN_DIM = 16;
             static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
-            static constexpr TI EPISODE_STEP_LIMIT = 500;
+            static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT::EPISODE_STEP_LIMIT;
             static constexpr TI N_WARMUP_STEPS = 200;
             static constexpr TI N_WARMUP_STEPS_CRITIC = 200;
             static constexpr TI N_WARMUP_STEPS_ACTOR = 200;
