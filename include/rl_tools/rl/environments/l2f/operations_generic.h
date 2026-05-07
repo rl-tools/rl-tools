@@ -165,7 +165,7 @@ namespace rl_tools
             static_assert(PARAMETERS::N == 4);
             T normalized[4];
             for(TI action_i = 0; action_i < 4; action_i++){
-                normalized[action_i] = get(action, 0, action_i);
+                normalized[action_i] = math::clamp(device.math, get(action, 0, action_i), -(T)1, (T)1);
                 normalized[action_i] += random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM(), (T)0, parameters.mdp.action_noise.normalized_rpm, rng);
                 normalized[action_i] = math::clamp(device.math, normalized[action_i], -(T)1, (T)1);
             }

@@ -17,7 +17,7 @@ namespace rl_tools::rl::zoo::l2f::ppo_attitude_setpoint{
         using PARAMETERS_TYPE = typename BASE::PARAMETERS_TYPE;
         static constexpr PARAMETERS_TYPE nominal_parameters = [](){
             auto parameters = BASE::nominal_parameters;
-            parameters.mdp.termination.enabled = false;
+            parameters.mdp.termination.enabled = true;
             return parameters;
         }();
         struct ENVIRONMENT_STATIC_PARAMETERS: BASE::ENVIRONMENT_STATIC_PARAMETERS{
@@ -33,7 +33,7 @@ namespace rl_tools::rl::zoo::l2f::ppo_attitude_setpoint{
             static constexpr TI ACTOR_HIDDEN_DIM = 64;
             static constexpr TI CRITIC_HIDDEN_DIM = 64;
             static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT::EPISODE_STEP_LIMIT;
-            static constexpr TI N_ENVIRONMENTS = 32;
+            static constexpr TI N_ENVIRONMENTS = 128;
             static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 128;
             static constexpr TI BATCH_SIZE = 2048;
             static constexpr bool NORMALIZE_OBSERVATIONS = true;
@@ -44,12 +44,16 @@ namespace rl_tools::rl::zoo::l2f::ppo_attitude_setpoint{
                 static constexpr TI N_EPOCHS = 2;
                 static constexpr bool LEARN_ACTION_STD = true;
                 static constexpr T INITIAL_ACTION_STD = 0.5;
-                static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.005;
+                static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.001;
                 static constexpr bool NORMALIZE_ADVANTAGE = true;
                 static constexpr T GAMMA = 0.98;
                 static constexpr bool ADAPTIVE_LEARNING_RATE = false;
                 static constexpr T ADAPTIVE_LEARNING_RATE_POLICY_KL_THRESHOLD = 0.008;
             };
+            struct ACTOR_OPTIMIZER_PARAMETERS: nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>{
+                static constexpr T ALPHA = 0.0001;
+            };
+            using CRITIC_OPTIMIZER_PARAMETERS = ACTOR_OPTIMIZER_PARAMETERS;
         };
         using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequential, DYNAMIC_ALLOCATION>;
     };

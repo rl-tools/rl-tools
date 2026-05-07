@@ -5,6 +5,7 @@
 
 #include "setpoint_attitude.h"
 
+#include <rl_tools/rl/environments/l2f/action_helper.h>
 #include <rl_tools/rl/environments/l2f/multirotor.h>
 #include <rl_tools/rl/environments/l2f/quaternion_helper.h>
 #include <rl_tools/utils/generic/typing.h>
@@ -106,7 +107,7 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         T d_action_sq = 0;
         T action_saturation_sq = 0;
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
-            T action_value = get(action, 0, action_i);
+            T action_value = action_helper::clamp_ctbr(device, env, get(action, 0, action_i));
             T diff = action_value - state.last_action[action_i];
             d_action_sq += diff * diff;
             T saturation = math::max(device.math, math::abs(device.math, action_value) - (T)0.95, (T)0);
@@ -172,7 +173,7 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
 
         T d_action_sq = 0;
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
-            T diff = get(action, 0, action_i) - state.last_action[action_i];
+            T diff = action_helper::clamp_ctbr(device, env, get(action, 0, action_i)) - state.last_action[action_i];
             d_action_sq += diff * diff;
         }
         components.d_action_cost = d_action_sq;

@@ -24,10 +24,10 @@ namespace rl_tools::rl::zoo::l2f{
 
         using REWARD_FUNCTION = rl_tools::rl::environments::l2f::parameters::reward_functions::Squared<T>;
         static constexpr REWARD_FUNCTION reward_function = {
-                false, // non-negative
+                false, // non_negative
                 00.10, // scale
                 01.00, // constant
-                00.00, // termination penalty
+                00.00, // termination_penalty
                 10.00, // position
                 00.00, // position_clip
                 02.50, // orientation

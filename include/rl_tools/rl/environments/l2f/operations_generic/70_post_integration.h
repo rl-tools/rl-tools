@@ -4,6 +4,7 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_L2F_OPERATIONS_GENERIC_POST_INTEGRATION_H
 
 #include "../multirotor.h"
+#include "../action_helper.h"
 
 #include <rl_tools/utils/generic/vector_operations.h>
 #include "../quaternion_helper.h"
@@ -55,7 +56,7 @@ namespace rl_tools::rl::environments::l2f{
         static_assert(ACTION_SPEC::COLS == MULTIROTOR::ACTION_DIM);
         post_integration(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(next_state), rng);
         for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
-            next_state.last_action[action_i] = get(action, 0, action_i);
+            next_state.last_action[action_i] = action_helper::clamp_ctbr(device, env, get(action, 0, action_i));
         }
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
@@ -309,7 +310,7 @@ namespace rl_tools::rl::environments::l2f{
         if constexpr(STATE_SPEC::HISTORY_LENGTH > 0){
             TI current_step = state.rotor_history_step;
             for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
-                next_state.action_history[current_step][action_i] = get(action, 0, action_i);
+                next_state.action_history[current_step][action_i] = action_helper::clamp_ctbr(device, env, get(action, 0, action_i));
             }
             next_state.rotor_history_step = (state.rotor_history_step + 1) % STATE_SPEC::HISTORY_LENGTH;
         }

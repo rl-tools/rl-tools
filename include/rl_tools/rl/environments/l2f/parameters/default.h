@@ -32,10 +32,10 @@ namespace rl_tools::rl::environments::l2f::parameters {
 
         using REWARD_FUNCTION = reward_functions::Squared<T>;
         static constexpr REWARD_FUNCTION reward_function = {
-                false, // non-negative
+                false, // non_negative
                 01.00, // scale
                 00.50, // constant
-                -100.00, // termination penalty
+                -100.00, // termination_penalty
                 01.00, // position
                 00.00, // position_clip
                 00.10, // orientation
