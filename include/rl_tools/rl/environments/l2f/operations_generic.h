@@ -159,7 +159,7 @@ namespace rl_tools
             }
         }
         template<typename DEVICE, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT void ctbr_action_to_motor_commands(DEVICE& device, const PARAMETERS& parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, typename PARAMETERS::T motor_commands[4], RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT void ctbr_action_to_motor_commands(DEVICE& device, const PARAMETERS& parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, typename PARAMETERS::T motor_commands[4], RNG& rng, typename PARAMETERS::T controller_dt){
             using T = typename PARAMETERS::T;
             using TI = typename DEVICE::index_t;
             static_assert(PARAMETERS::N == 4);
@@ -183,7 +183,7 @@ namespace rl_tools
             for(TI axis_i = 0; axis_i < 3; axis_i++){
                 T rate_setpoint = normalized[axis_i + 1] * parameters.ctbr_controller.rate_limit[axis_i];
                 rate_error[axis_i] = rate_setpoint - state.angular_velocity[axis_i];
-                angular_acceleration_measured[axis_i] = (state.angular_velocity[axis_i] - state.previous_angular_velocity[axis_i]) / parameters.integration.dt;
+                angular_acceleration_measured[axis_i] = (state.angular_velocity[axis_i] - state.previous_angular_velocity[axis_i]) / controller_dt;
                 desired_angular_acceleration[axis_i] = parameters.ctbr_controller.kp[axis_i] * rate_error[axis_i] - parameters.ctbr_controller.kd[axis_i] * angular_acceleration_measured[axis_i];
             }
             T torque[3];
@@ -217,6 +217,10 @@ namespace rl_tools
             for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
                 motor_commands[rotor_i] = solved ? rotor_command_from_thrust(device, parameters, rotor_i, rotor_thrusts[rotor_i]) : collective_command;
             }
+        }
+        template<typename DEVICE, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename RNG>
+        RL_TOOLS_FUNCTION_PLACEMENT void ctbr_action_to_motor_commands(DEVICE& device, const PARAMETERS& parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, typename PARAMETERS::T motor_commands[4], RNG& rng){
+            ctbr_action_to_motor_commands(device, parameters, state, action, motor_commands, rng, parameters.integration.dt);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT void action_to_motor_commands(DEVICE& device, const Multirotor<SPEC>&, const PARAMETERS& parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, typename SPEC::T motor_commands[4], RNG& rng){
@@ -256,23 +260,41 @@ namespace rl_tools
         constexpr auto ACTION_DIM = rl::environments::Multirotor<SPEC>::ACTION_DIM;
         static_assert(ACTION_SPEC::ROWS == 1);
         static_assert(ACTION_SPEC::COLS == ACTION_DIM);
-        T action_scaled[ACTION_DIM];
-
-        rl::environments::l2f::action_to_motor_commands(device, env, parameters, state, action, action_scaled, rng);
         if constexpr(SPEC::STATIC_PARAMETERS::N_SUBSTEPS == 1){
+            T action_scaled[ACTION_DIM];
+            rl::environments::l2f::action_to_motor_commands(device, env, parameters, state, action, action_scaled, rng);
             utils::integrators::rk4  <DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, rl::environments::l2f::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE>>(device, parameters, state, action_scaled, parameters.integration.dt, next_state);
     //        utils::integrators::euler<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, rl::environments::l2f::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE>>(device, parameters, state, action_scaled, parameters.integration.dt, next_state);
         }
         else{
-            auto substep_state = state;
-            auto substep_next_state = state;
             T substep_dt = parameters.integration.dt / SPEC::STATIC_PARAMETERS::N_SUBSTEPS;
-            for (TI substep_i=0; substep_i < SPEC::STATIC_PARAMETERS::N_SUBSTEPS; substep_i++){
-                utils::integrators::rk4  <DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, rl::environments::l2f::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE>>(device, parameters, substep_state, action_scaled, substep_dt, substep_next_state);
-        //        utils::integrators::euler<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, rl::environments::l2f::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE>>(device, parameters, substep_state, action_scaled, substep_dt, substep_next_state);
-                substep_state = substep_next_state;
+            if constexpr(SPEC::STATIC_PARAMETERS::ACTION_INTERFACE == rl::environments::l2f::parameters::ActionInterface::CTBR){
+                auto substep_state = state;
+                auto substep_next_state = state;
+                for (TI substep_i=0; substep_i < SPEC::STATIC_PARAMETERS::N_SUBSTEPS; substep_i++){
+                    T action_scaled[ACTION_DIM];
+                    rl::environments::l2f::ctbr_action_to_motor_commands(device, parameters, substep_state, action, action_scaled, rng, substep_dt);
+                    utils::integrators::rk4  <DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, rl::environments::l2f::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE>>(device, parameters, substep_state, action_scaled, substep_dt, substep_next_state);
+            //        utils::integrators::euler<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, rl::environments::l2f::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE>>(device, parameters, substep_state, action_scaled, substep_dt, substep_next_state);
+                    for(TI axis_i = 0; axis_i < 3; axis_i++){
+                        substep_next_state.previous_angular_velocity[axis_i] = substep_state.angular_velocity[axis_i];
+                    }
+                    substep_state = substep_next_state;
+                }
+                next_state = substep_next_state;
             }
-            next_state = substep_next_state;
+            else{
+                T action_scaled[ACTION_DIM];
+                rl::environments::l2f::action_to_motor_commands(device, env, parameters, state, action, action_scaled, rng);
+                auto substep_state = state;
+                auto substep_next_state = state;
+                for (TI substep_i=0; substep_i < SPEC::STATIC_PARAMETERS::N_SUBSTEPS; substep_i++){
+                    utils::integrators::rk4  <DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, rl::environments::l2f::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE>>(device, parameters, substep_state, action_scaled, substep_dt, substep_next_state);
+            //        utils::integrators::euler<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE, ACTION_DIM, rl::environments::l2f::multirotor_dynamics_dispatch<DEVICE, typename SPEC::T, typename SPEC::PARAMETERS, STATE>>(device, parameters, substep_state, action_scaled, substep_dt, substep_next_state);
+                    substep_state = substep_next_state;
+                }
+                next_state = substep_next_state;
+            }
         }
 
         post_integration(device, env, parameters, state, action, next_state, rng);
