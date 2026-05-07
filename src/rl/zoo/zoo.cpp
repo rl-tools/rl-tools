@@ -130,6 +130,7 @@
 #endif
 #if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE_SETPOINT_CTBR)
 #include "l2f/sac_attitude_setpoint_ctbr.h"
+#include "l2f/ppo_attitude_setpoint_ctbr.h"
 #endif
 #include "l2f/td3.h"
 #include "l2f/ppo.h"
@@ -314,6 +315,10 @@ template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_CTBR)
 using LOOP_CORE_CONFIG = rlt::rl::zoo::l2f::ppo_ctbr::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
+template <typename BASE>
+struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
+#elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE_SETPOINT_CTBR)
+using LOOP_CORE_CONFIG = rlt::rl::zoo::l2f::ppo_attitude_setpoint_ctbr::FACTORY<DEVICE, TYPE_POLICY, TI, RNG, DYNAMIC_ALLOCATION>::LOOP_CORE_CONFIG;
 template <typename BASE>
 struct LOOP_EVALUATION_PARAMETER_OVERWRITES: BASE{}; // no-op
 #elif defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE_SETPOINT)

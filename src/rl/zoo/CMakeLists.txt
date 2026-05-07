@@ -224,6 +224,15 @@ target_compile_definitions(rl_zoo_l2f_ctbr_ppo PRIVATE RL_TOOLS_RL_ZOO_ENVIRONME
 if(NOT WIN32)
 target_compile_options(rl_zoo_l2f_ctbr_ppo PRIVATE -ftemplate-backtrace-limit=0)
 endif()
+# PPO Attitude Setpoint CTBR
+add_executable(rl_zoo_l2f_attitude_setpoint_ctbr_ppo zoo_cli.cpp zoo.cpp)
+target_link_libraries(rl_zoo_l2f_attitude_setpoint_ctbr_ppo PRIVATE RLtools::RLtools)
+RL_TOOLS_RL_ZOO_LINK_CLI11_OR_NOT(rl_zoo_l2f_attitude_setpoint_ctbr_ppo)
+target_compile_definitions(rl_zoo_l2f_attitude_setpoint_ctbr_ppo PRIVATE RL_TOOLS_RL_ZOO_ALGORITHM_PPO)
+target_compile_definitions(rl_zoo_l2f_attitude_setpoint_ctbr_ppo PRIVATE RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F_ATTITUDE_SETPOINT_CTBR)
+if(NOT WIN32)
+target_compile_options(rl_zoo_l2f_attitude_setpoint_ctbr_ppo PRIVATE -ftemplate-backtrace-limit=0)
+endif()
 
 # Bottleneck-v0
 # PPO
