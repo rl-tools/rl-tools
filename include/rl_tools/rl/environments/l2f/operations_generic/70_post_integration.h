@@ -52,11 +52,12 @@ namespace rl_tools::rl::environments::l2f{
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateLastAction<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateLastAction<STATE_SPEC>& next_state, RNG& rng) {
         using MULTIROTOR = Multirotor<SPEC>;
+        using T = typename STATE_SPEC::T;
         using TI = typename DEVICE::index_t;
         static_assert(ACTION_SPEC::COLS == MULTIROTOR::ACTION_DIM);
         post_integration(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(next_state), rng);
         for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
-            next_state.last_action[action_i] = action_helper::clamp_ctbr(device, env, get(action, 0, action_i));
+            next_state.last_action[action_i] = math::clamp(device.math, get(action, 0, action_i), (T)-1, (T)1);
         }
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
