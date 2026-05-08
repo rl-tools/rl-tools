@@ -39,7 +39,7 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
 
         components.action_cost = 0;
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
-            T normalized_action = action_helper::clamp_ctbr(device, env, get(action, 0, action_i));
+            T normalized_action = math::clamp(device.math, get(action, 0, action_i), (T)-1, (T)1);
             T action_diff;
             if constexpr(SPEC::STATIC_PARAMETERS::ACTION_INTERFACE == rl_tools::rl::environments::l2f::parameters::ActionInterface::CTBR){
                 if(action_i == 0){
@@ -66,7 +66,8 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
         _reward_components(device, env, parameters, reward_parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), state, action, next_state, components, rng);
         components.d_action_cost = 0;
         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
-            T d_action_value = action_helper::clamp_ctbr(device, env, get(action, 0, action_i)) - state.last_action[action_i];
+            T normalized_action = math::clamp(device.math, get(action, 0, action_i), (T)-1, (T)1);
+            T d_action_value = normalized_action - state.last_action[action_i];
             T d_action_weighted = reward_parameters.d_action[action_i] * d_action_value;
             components.d_action_cost += d_action_weighted * d_action_weighted;
         }
