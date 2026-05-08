@@ -21,6 +21,7 @@ constexpr TI ACCEL_HISTORY_LENGTH = 5;
 
 template <bool PRIVILEGED_NOISE = false>
 struct STATIC_PARAMETERS_TEMPLATE{
+    static constexpr auto ACTION_INTERFACE = l2f::parameters::ActionInterface::DIRECT_MOTOR;
     static constexpr TI N_SUBSTEPS = 1;
     static constexpr TI EPISODE_STEP_LIMIT = 500;
     static constexpr bool CLOSED_FORM = false;
@@ -513,6 +514,7 @@ TEST(L2F_LINEAR_ACCEL_HISTORY, ZERO_LENGTH_STATE_HAS_DUMMY_STORAGE){
 
 template <bool PRIVILEGED_NOISE>
 struct STATIC_PARAMETERS_ZERO_TEMPLATE{
+    static constexpr auto ACTION_INTERFACE = l2f::parameters::ActionInterface::DIRECT_MOTOR;
     static constexpr TI N_SUBSTEPS = 1;
     static constexpr TI EPISODE_STEP_LIMIT = 500;
     static constexpr bool CLOSED_FORM = false;

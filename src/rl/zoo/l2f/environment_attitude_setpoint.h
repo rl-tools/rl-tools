@@ -108,9 +108,9 @@ namespace rl_tools::rl::zoo::l2f{
                 01.00, // constant
                 00.40, // tilt
                 00.05, // yaw_rate
-                00.00, // angular_velocity_xy
+                00.02, // angular_velocity_xy
                 00.25, // thrust_g
-                00.20, // d_action
+                01.00, // d_action
                 00.00, // action_saturation
         };
         static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noise = {
@@ -206,12 +206,13 @@ namespace rl_tools::rl::zoo::l2f{
             static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT_FACTORY_BASE::EPISODE_STEP_LIMIT_OUTER;
             static constexpr TI CLOSED_FORM = false;
             // Innermost-first: physical state, last action, finite-difference acceleration,
-            // gyro bias, Mahony reduced attitude, random force, rotors/history, trajectory,
-            // then the current setpoint command.
+            // acceleration history, gyro bias, Mahony reduced attitude, random force,
+            // rotors/history, trajectory, then the current setpoint command.
             using STATE_BASE_INNER = StateBase<StateSpecification<T, TI>>;
             using STATE_BASE_LA = StateLastAction<StateSpecification<T, TI, STATE_BASE_INNER>>;
             using STATE_BASE_LAA = StateLinearAcceleration<StateSpecification<T, TI, STATE_BASE_LA>>;
-            using STATE_BASE_GB = StateGyroBias<StateGyroBiasSpecification<T, TI, STATE_BASE_LAA>>;
+            using STATE_BASE_LAH = StateLinearAccelerationHistory<StateLinearAccelerationHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, STATE_BASE_LAA>>;
+            using STATE_BASE_GB = StateGyroBias<StateGyroBiasSpecification<T, TI, STATE_BASE_LAH>>;
             using STATE_BASE = StateMahony<StateMahonySpecification<T, TI, STATE_BASE_GB>>;
             using STATE_WITH_RANDOM_FORCE = StateRandomForce<StateSpecification<T, TI, STATE_BASE>>;
             using STATE_WITH_ROTORS = StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, STATE_WITH_RANDOM_FORCE>>;
