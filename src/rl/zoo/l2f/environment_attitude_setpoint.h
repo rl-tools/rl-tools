@@ -36,7 +36,7 @@ namespace rl_tools::rl::zoo::l2f{
         using REWARD_FUNCTION = rl_tools::rl::environments::l2f::parameters::reward_functions::AttitudeSetpointTrackingSquared<T>;
         using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, ENVIRONMENT_FACTORY_BASE::EPISODE_STEP_LIMIT_OUTER, REWARD_FUNCTION>;
         struct DOMAIN_RANDOMIZATION_OPTIONS{
-            static constexpr bool THRUST_TO_WEIGHT = false;
+            static constexpr bool THRUST_TO_WEIGHT = true;
             static constexpr bool MASS = false;
             static constexpr bool TORQUE_TO_INERTIA = false;
             static constexpr bool MASS_SIZE_DEVIATION = false;
@@ -125,8 +125,8 @@ namespace rl_tools::rl::zoo::l2f{
             {0, 0, 0}
         };
         static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
-            0, // min thrust-to-weight after randomized thrust-curve scaling
-            0, // max thrust-to-weight after randomized thrust-curve scaling
+            1.5, // min thrust-to-weight after randomized thrust-curve scaling
+            2.5, // max thrust-to-weight after randomized thrust-curve scaling
             0,      // torque-to-inertia disabled
             0,
             0,      // mass randomization disabled
