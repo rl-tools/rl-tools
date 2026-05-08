@@ -56,31 +56,31 @@ namespace rl_tools::rl::zoo::l2f{
         // static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
         static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = [](){
             auto p = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
-            // p.rotor_time_constants_rising[0] = 0.072;
-            // p.rotor_time_constants_rising[1] = 0.072;
-            // p.rotor_time_constants_rising[2] = 0.072;
-            // p.rotor_time_constants_rising[3] = 0.072;
-            // p.rotor_time_constants_falling[0] = 0.072;
-            // p.rotor_time_constants_falling[1] = 0.072;
-            // p.rotor_time_constants_falling[2] = 0.072;
-            // p.rotor_time_constants_falling[3] = 0.072;
-            // p.mass = 0.025;
-            // p.rotor_thrust_coefficients[0][0] = 0;
-            // p.rotor_thrust_coefficients[1][0] = 0;
-            // p.rotor_thrust_coefficients[2][0] = 0;
-            // p.rotor_thrust_coefficients[3][0] = 0;
-            // p.rotor_thrust_coefficients[0][1] = 0;
-            // p.rotor_thrust_coefficients[1][1] = 0;
-            // p.rotor_thrust_coefficients[2][1] = 0;
-            // p.rotor_thrust_coefficients[3][1] = 0;
-            // p.rotor_thrust_coefficients[0][2] = 0.1302;
-            // p.rotor_thrust_coefficients[1][2] = 0.1302;
-            // p.rotor_thrust_coefficients[2][2] = 0.1302;
-            // p.rotor_thrust_coefficients[3][2] = 0.1302;
-            // // Recompute hover throttle for the overridden mass + thrust curve
-            // // (registry value was for the original curve and mass).
-            // // hover_rpm = sqrt(m*g/(4*c2)) with action_limit [0, 1] -> hovering_throttle_relative = hover_rpm
-            // p.hovering_throttle_relative = 0.6864;
+            p.rotor_time_constants_rising[0] = 0.072;
+            p.rotor_time_constants_rising[1] = 0.072;
+            p.rotor_time_constants_rising[2] = 0.072;
+            p.rotor_time_constants_rising[3] = 0.072;
+            p.rotor_time_constants_falling[0] = 0.072;
+            p.rotor_time_constants_falling[1] = 0.072;
+            p.rotor_time_constants_falling[2] = 0.072;
+            p.rotor_time_constants_falling[3] = 0.072;
+            p.mass = 0.025;
+            p.rotor_thrust_coefficients[0][0] = 0;
+            p.rotor_thrust_coefficients[1][0] = 0;
+            p.rotor_thrust_coefficients[2][0] = 0;
+            p.rotor_thrust_coefficients[3][0] = 0;
+            p.rotor_thrust_coefficients[0][1] = 0;
+            p.rotor_thrust_coefficients[1][1] = 0;
+            p.rotor_thrust_coefficients[2][1] = 0;
+            p.rotor_thrust_coefficients[3][1] = 0;
+            p.rotor_thrust_coefficients[0][2] = 0.1302;
+            p.rotor_thrust_coefficients[1][2] = 0.1302;
+            p.rotor_thrust_coefficients[2][2] = 0.1302;
+            p.rotor_thrust_coefficients[3][2] = 0.1302;
+            // Recompute hover throttle for the overridden mass + thrust curve
+            // (registry value was for the original curve and mass).
+            // hover_rpm = sqrt(m*g/(4*c2)) with action_limit [0, 1] -> hovering_throttle_relative = hover_rpm
+            p.hovering_throttle_relative = 0.6864;
             return p;
         }();
         static constexpr typename ParametersBase<PARAMETERS_SPEC>::MDP::Initialization init = {
@@ -108,9 +108,9 @@ namespace rl_tools::rl::zoo::l2f{
                 01.00, // constant
                 00.40, // tilt
                 00.05, // yaw_rate
-                00.05, // angular_velocity_xy
+                00.00, // angular_velocity_xy
                 00.25, // thrust_g
-                00.01, // d_action
+                00.20, // d_action
                 00.00, // action_saturation
         };
         static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noise = {
@@ -173,7 +173,7 @@ namespace rl_tools::rl::zoo::l2f{
             (T)2.0,                // max yaw rate, rad/s
             (T)0.4,                // min thrust command, g
             (T)1.4,                // max thrust command, g; below min randomized thrust-to-weight
-            (TI)25,                // min hold time, 0.25 s at 100 Hz
+            (TI)50,                // min hold time, 0.25 s at 100 Hz
             (TI)100,               // max hold time, 1.0 s at 100 Hz
         };
 
@@ -202,7 +202,7 @@ namespace rl_tools::rl::zoo::l2f{
         struct ENVIRONMENT_STATIC_PARAMETERS{
             static constexpr auto ACTION_INTERFACE = parameters::ActionInterface::DIRECT_MOTOR;
             static constexpr TI N_SUBSTEPS = 1;
-            static constexpr TI ACTION_HISTORY_LENGTH = 32;
+            static constexpr TI ACTION_HISTORY_LENGTH = 8;
             static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT_FACTORY_BASE::EPISODE_STEP_LIMIT_OUTER;
             static constexpr TI CLOSED_FORM = false;
             // Innermost-first: physical state, last action, finite-difference acceleration,
@@ -222,8 +222,9 @@ namespace rl_tools::rl::zoo::l2f{
             using OBSERVATION_TYPE = observation::AttitudeSetpoint<observation::AttitudeSetpointSpecification<T, TI,
                     observation::OrientationWorldZ<observation::OrientationWorldZSpecification<T, TI,
                     observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
-                    observation::LinearAccelerationBodyFrame<observation::LinearAccelerationBodyFrameSpecification<T, TI,
-                    observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>>>;
+                    observation::LinearAccelerationBodyFrameHistory<observation::LinearAccelerationBodyFrameHistorySpecification<T, TI, ACTION_HISTORY_LENGTH,
+                    observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH
+            >>>>>>>>>>;
             using OBSERVATION_TYPE_PRIVILEGED = observation::AttitudeSetpoint<observation::AttitudeSetpointSpecificationPrivileged<T, TI,
                     typename ENVIRONMENT_FACTORY_BASE::ENVIRONMENT_STATIC_PARAMETERS::OBSERVATION_TYPE_PRIVILEGED>>;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
