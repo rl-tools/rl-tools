@@ -43,7 +43,7 @@ namespace rl_tools::rl::zoo::l2f::ppo_attitude_setpoint{
                 using T = typename TYPE_POLICY::DEFAULT;
                 static constexpr TI N_EPOCHS = 2;
                 static constexpr bool LEARN_ACTION_STD = true;
-                static constexpr T INITIAL_ACTION_STD = 0.5;
+                static constexpr T INITIAL_ACTION_STD = 0.3;
                 static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.001;
                 static constexpr bool NORMALIZE_ADVANTAGE = true;
                 static constexpr T GAMMA = 0.98;
