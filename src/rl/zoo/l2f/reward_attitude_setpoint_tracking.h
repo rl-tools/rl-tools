@@ -5,7 +5,6 @@
 
 #include "setpoint_attitude.h"
 
-#include <rl_tools/rl/environments/l2f/action_helper.h>
 #include <rl_tools/rl/environments/l2f/multirotor.h>
 #include <rl_tools/rl/environments/l2f/quaternion_helper.h>
 #include <rl_tools/utils/generic/typing.h>
