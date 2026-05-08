@@ -303,6 +303,7 @@ namespace rl_tools::rl::environments::l2f{
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateRotorsHistory<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateRotorsHistory<STATE_SPEC>& next_state, RNG& rng) {
         using MULTIROTOR = Multirotor<SPEC>;
+        using T = typename STATE_SPEC::T;
         using TI = typename DEVICE::index_t;
         using STATE = StateRotorsHistory<STATE_SPEC>;
         static_assert(ACTION_SPEC::COLS == MULTIROTOR::ACTION_DIM);
@@ -310,7 +311,7 @@ namespace rl_tools::rl::environments::l2f{
         if constexpr(STATE_SPEC::HISTORY_LENGTH > 0){
             TI current_step = state.rotor_history_step;
             for(TI action_i = 0; action_i < MULTIROTOR::ACTION_DIM; action_i++){
-                next_state.action_history[current_step][action_i] = action_helper::clamp_ctbr(device, env, get(action, 0, action_i));
+                next_state.action_history[current_step][action_i] = math::clamp(device.math, get(action, 0, action_i), (T)-1, (T)1);
             }
             next_state.rotor_history_step = (state.rotor_history_step + 1) % STATE_SPEC::HISTORY_LENGTH;
         }
