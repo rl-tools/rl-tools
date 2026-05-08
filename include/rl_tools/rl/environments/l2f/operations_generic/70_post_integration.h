@@ -4,7 +4,6 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_L2F_OPERATIONS_GENERIC_POST_INTEGRATION_H
 
 #include "../multirotor.h"
-#include "../action_helper.h"
 
 #include <rl_tools/utils/generic/vector_operations.h>
 #include "../quaternion_helper.h"

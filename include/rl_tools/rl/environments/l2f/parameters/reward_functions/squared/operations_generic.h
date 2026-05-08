@@ -4,7 +4,6 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_L2F_PARAMETERS_REWARD_FUNCTIONS_SQUARED_OPERATIONS_GENERIC_H
 
 #include "../../../multirotor.h"
-#include "../../../action_helper.h"
 #include <rl_tools/utils/generic/vector_operations.h>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
