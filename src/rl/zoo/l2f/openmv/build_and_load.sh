@@ -43,14 +43,14 @@ find "$MOUNT" -maxdepth 1 -type f \
 
 echo "==> converting $CKPT (bin samples: first $BIN_LIMIT)"
 "$PY" "$REPO_ROOT/tools/hdf5_to_tflite.py" \
-    --quantize int8 \
+    --quantize none \
     --no-split-image-input \
     --example-bin-limit "$BIN_LIMIT" \
     "$CKPT"
 
-INT8_TFLITE="${CKPT_BASE}.int8.tflite"
-if [ ! -f "$INT8_TFLITE" ]; then
-    echo "int8 tflite not found: $INT8_TFLITE" >&2
+FP32_TFLITE="${CKPT_BASE}.tflite"
+if [ ! -f "$FP32_TFLITE" ]; then
+    echo "fp32 tflite not found: $FP32_TFLITE" >&2
     exit 1
 fi
 if [ ! -x "$VELA" ]; then
@@ -64,16 +64,16 @@ if [ ! -f "$VELA_INI" ]; then
     exit 1
 fi
 
-echo "==> running vela on $INT8_TFLITE"
+echo "==> running vela on $FP32_TFLITE"
 "$VELA" \
     --accelerator-config ethos-u55-256 \
     --config "$VELA_INI" \
     --system-config RTSS_HP_SRAM_OSPI \
     --memory-mode Shared_Sram \
     --output-dir "$CKPT_DIR" \
-    "$INT8_TFLITE"
+    "$FP32_TFLITE"
 
-VELA_OUT="${CKPT_BASE}.int8_vela.tflite"
+VELA_OUT="${CKPT_BASE}_vela.tflite"
 if [ ! -f "$VELA_OUT" ]; then
     echo "vela output not found: $VELA_OUT" >&2
     exit 1
@@ -85,12 +85,6 @@ cp -v "$VELA_OUT" "$MOUNT/"
 cp -v "${CKPT_BASE}".example_input.*.bin "$MOUNT/"
 cp -v "${CKPT_BASE}.example_output.bin" "$MOUNT/"
 cp -v "${CKPT_BASE}.example_meta.json" "$MOUNT/"
-for extra in example_int8_output.bin example_int8_output_raw.bin; do
-    src="${CKPT_BASE}.${extra}"
-    if [ -f "$src" ]; then
-        cp -v "$src" "$MOUNT/"
-    fi
-done
 
 sync
 echo "==> done"
