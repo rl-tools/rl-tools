@@ -8,6 +8,10 @@ import imu
 import machine
 import ml
 from ulab import numpy as np
+try:
+    import ustruct
+except ImportError:
+    import struct as ustruct
 
 
 MODEL_HZ = 100
@@ -35,6 +39,16 @@ MG_TO_MPS2 = 9.80665e-3
 MDPS_TO_RADPS = math.pi / (180.0 * 1000.0)
 
 SELF_CHECK_MAX_ERR = 1.0e-3
+
+FP32_BYTES = 4
+BASE_INPUT_FLOATS = 10
+ACCEL_DIM = 3
+ACTION_DIM = 4
+ACCEL_ENTRY_BYTES = ACCEL_DIM * FP32_BYTES
+ACTION_ENTRY_BYTES = ACTION_DIM * FP32_BYTES
+STATE_PREFIX_FMT = "<ffffffffff"
+ACCEL_FMT = "<fff"
+ACTION_FMT = "<ffff"
 
 
 def print_mem(label):
@@ -365,25 +379,24 @@ class MahonyFilter:
         return x, y, z
 
 
-def copy_history_newest_first(dst, dst_offset, src, write_ptr, n_slots, n_dim):
-    cur = write_ptr - 1
-    if cur < 0:
-        cur += n_slots
-    for i in range(n_slots):
-        src_off = cur * n_dim
-        dst_off = dst_offset + i * n_dim
-        for j in range(n_dim):
-            dst[dst_off + j] = src[src_off + j]
-        cur -= 1
-        if cur < 0:
-            cur += n_slots
+def shift_history_bytes(buf, offset, n_slots, entry_bytes):
+    total_bytes = n_slots * entry_bytes
+    if total_bytes > entry_bytes:
+        buf[offset + entry_bytes:offset + total_bytes] = buf[offset:offset + total_bytes - entry_bytes]
 
 
-def push_history(history, write_ptr, values, n_slots, n_dim):
-    off = write_ptr * n_dim
-    for i in range(n_dim):
-        history[off + i] = values[i]
-    return (write_ptr + 1) % n_slots
+def push_accel_history_bytes(buf, offset, n_slots, ax, ay, az):
+    if n_slots <= 0:
+        return
+    shift_history_bytes(buf, offset, n_slots, ACCEL_ENTRY_BYTES)
+    ustruct.pack_into(ACCEL_FMT, buf, offset, ax, ay, az)
+
+
+def push_action_history_bytes(buf, offset, n_slots, a0, a1, a2, a3):
+    if n_slots <= 0:
+        return
+    shift_history_bytes(buf, offset, n_slots, ACTION_ENTRY_BYTES)
+    ustruct.pack_into(ACTION_FMT, buf, offset, a0, a1, a2, a3)
 
 
 def crc16_ccitt(buf, n):
@@ -473,14 +486,16 @@ def run():
     runtime = ModelRuntime()
     runtime.self_check()
 
-    input_storage = bytearray(runtime.input_numel * 4)
-    input_flat = np.frombuffer(input_storage, dtype=np.float)
-    input_tensor = input_flat.reshape(runtime.input_shape)
+    input_storage = bytearray(runtime.input_numel * FP32_BYTES)
+    accel_offset_bytes = BASE_INPUT_FLOATS * FP32_BYTES
+    action_offset_bytes = accel_offset_bytes + runtime.accel_history_length * ACCEL_ENTRY_BYTES
+    action_history_bytes = runtime.action_history_length * ACTION_ENTRY_BYTES
+    for off in range(action_offset_bytes, action_offset_bytes + action_history_bytes, ACTION_ENTRY_BYTES):
+        ustruct.pack_into(ACTION_FMT, input_storage, off,
+                          HOVER_ACTION, HOVER_ACTION, HOVER_ACTION, HOVER_ACTION)
 
-    accel_history = [0.0] * (runtime.accel_history_length * 3)
-    action_history = [HOVER_ACTION] * (runtime.action_history_length * 4)
-    accel_write_ptr = 0
-    action_write_ptr = 0
+    def input_feeder(buf, shape, dtype):
+        buf[:] = input_storage
 
     mahony = MahonyFilter()
     uart_bridge = machine.UART(UART_BRIDGE_PORT, UART_BRIDGE_BAUD, timeout=0, timeout_char=0)
@@ -526,37 +541,18 @@ def run():
         world_z = mahony.orientation_world_z()
         t_mahony = time.ticks_us()
 
-        accel_write_ptr = push_history(
-            accel_history, accel_write_ptr,
-            (ax_mps2, ay_mps2, az_mps2),
-            runtime.accel_history_length, 3
-        )
-
-        input_flat[0] = SETPOINT_ROLL_RAD
-        input_flat[1] = SETPOINT_PITCH_RAD
-        input_flat[2] = SETPOINT_YAW_RATE_RAD_S
-        input_flat[3] = SETPOINT_THRUST_G
-        input_flat[4] = world_z[0]
-        input_flat[5] = world_z[1]
-        input_flat[6] = world_z[2]
-        input_flat[7] = gx_rad
-        input_flat[8] = gy_rad
-        input_flat[9] = gz_rad
-        accel_offset = 10
-        action_offset = accel_offset + runtime.accel_history_length * 3
-        copy_history_newest_first(
-            input_flat, accel_offset,
-            accel_history, accel_write_ptr,
-            runtime.accel_history_length, 3
-        )
-        copy_history_newest_first(
-            input_flat, action_offset,
-            action_history, action_write_ptr,
-            runtime.action_history_length, 4
+        ustruct.pack_into(STATE_PREFIX_FMT, input_storage, 0,
+                          SETPOINT_ROLL_RAD, SETPOINT_PITCH_RAD,
+                          SETPOINT_YAW_RATE_RAD_S, SETPOINT_THRUST_G,
+                          world_z[0], world_z[1], world_z[2],
+                          gx_rad, gy_rad, gz_rad)
+        push_accel_history_bytes(
+            input_storage, accel_offset_bytes, runtime.accel_history_length,
+            ax_mps2, ay_mps2, az_mps2
         )
         t_state = time.ticks_us()
 
-        y_raw = runtime.model.predict([input_tensor])[0]
+        y_raw = runtime.model.predict([input_feeder])[0]
         y_f32 = y_raw.flatten()
         a0_raw = float(y_f32[0])
         a1_raw = float(y_f32[1])
@@ -575,10 +571,9 @@ def run():
         rx_line_buf = poll_cf_uart(uart_bridge, rx_line_buf)
         t_rx = time.ticks_us()
 
-        action_write_ptr = push_history(
-            action_history, action_write_ptr,
-            (a0, a1, a2, a3),
-            runtime.action_history_length, 4
+        push_action_history_bytes(
+            input_storage, action_offset_bytes, runtime.action_history_length,
+            a0, a1, a2, a3
         )
         t_actions = time.ticks_us()
 
