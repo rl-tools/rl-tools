@@ -198,9 +198,9 @@ namespace rl_tools::rl::zoo::l2f{
             using OBSERVATION_TYPE = observation::AttitudeSetpoint<observation::AttitudeSetpointSpecification<T, TI,
                     observation::OrientationWorldZ<observation::OrientationWorldZSpecification<T, TI,
                     observation::AngularVelocity<observation::AngularVelocitySpecification<T, TI,
-                    observation::LinearAccelerationBodyFrameHistory<observation::LinearAccelerationBodyFrameHistorySpecification<T, TI, ACTION_HISTORY_LENGTH,
+                    // observation::LinearAccelerationBodyFrameHistory<observation::LinearAccelerationBodyFrameHistorySpecification<T, TI, ACTION_HISTORY_LENGTH,
                     observation::ActionHistory<observation::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH
-            >>>>>>>>>>;
+            >>>>>>>>;
             using OBSERVATION_TYPE_PRIVILEGED = observation::AttitudeSetpoint<observation::AttitudeSetpointSpecificationPrivileged<T, TI,
                     typename ENVIRONMENT_FACTORY_BASE::ENVIRONMENT_STATIC_PARAMETERS::OBSERVATION_TYPE_PRIVILEGED>>;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;

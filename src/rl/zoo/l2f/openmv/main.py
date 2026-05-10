@@ -216,18 +216,37 @@ class ModelRuntime:
             observation, "LinearAccelerationBodyFrameHistory"
         )
         self.action_history_length = parse_history_length(observation, "ActionHistory")
-        if self.accel_history_length is None or self.action_history_length is None:
-            remainder = self.input_numel - 10
-            if remainder > 0 and remainder % 7 == 0:
-                inferred = remainder // 7
+        if self.accel_history_length is None and self.action_history_length is None:
+            remainder = self.input_numel - BASE_INPUT_FLOATS
+            if remainder > 0 and remainder % (ACCEL_DIM + ACTION_DIM) == 0:
+                inferred = remainder // (ACCEL_DIM + ACTION_DIM)
                 self.accel_history_length = inferred
                 self.action_history_length = inferred
                 print("history lengths inferred from input dim:", inferred)
+            elif remainder >= 0 and remainder % ACTION_DIM == 0:
+                self.accel_history_length = 0
+                self.action_history_length = remainder // ACTION_DIM
+                print("action-only history length inferred from input dim:",
+                      self.action_history_length)
             else:
                 raise RuntimeError("could not infer history lengths from input dim %d" %
                                    self.input_numel)
+        else:
+            if self.accel_history_length is None:
+                self.accel_history_length = 0
+            if self.action_history_length is None:
+                remainder = self.input_numel - BASE_INPUT_FLOATS - ACCEL_DIM * self.accel_history_length
+                if remainder >= 0 and remainder % ACTION_DIM == 0:
+                    self.action_history_length = remainder // ACTION_DIM
+                    print("action history length inferred from input dim:",
+                          self.action_history_length)
+                else:
+                    raise RuntimeError("could not infer action history length from input dim %d" %
+                                       self.input_numel)
 
-        expected_dim = 10 + 3 * self.accel_history_length + 4 * self.action_history_length
+        expected_dim = (BASE_INPUT_FLOATS +
+                        ACCEL_DIM * self.accel_history_length +
+                        ACTION_DIM * self.action_history_length)
         if self.input_numel != expected_dim:
             raise RuntimeError("input dim %d != expected %d from observation layout" %
                                (self.input_numel, expected_dim))
@@ -554,9 +573,10 @@ def run():
         world_z = mahony.orientation_world_z()
         t_mahony = time.ticks_us()
 
-        accel_sum_x += ax_mps2
-        accel_sum_y += ay_mps2
-        accel_sum_z += az_mps2
+        if runtime.accel_history_length > 0:
+            accel_sum_x += ax_mps2
+            accel_sum_y += ay_mps2
+            accel_sum_z += az_mps2
 
         ustruct.pack_into(STATE_PREFIX_FMT, input_storage, 0,
                           SETPOINT_ROLL_RAD, SETPOINT_PITCH_RAD,
@@ -592,12 +612,13 @@ def run():
         history_published = 0
         substep_print = substep
         if substep >= CONTROL_SUBSTEPS:
-            push_accel_history_bytes(
-                input_storage, accel_offset_bytes, runtime.accel_history_length,
-                accel_sum_x * INV_CONTROL_SUBSTEPS,
-                accel_sum_y * INV_CONTROL_SUBSTEPS,
-                accel_sum_z * INV_CONTROL_SUBSTEPS
-            )
+            if runtime.accel_history_length > 0:
+                push_accel_history_bytes(
+                    input_storage, accel_offset_bytes, runtime.accel_history_length,
+                    accel_sum_x * INV_CONTROL_SUBSTEPS,
+                    accel_sum_y * INV_CONTROL_SUBSTEPS,
+                    accel_sum_z * INV_CONTROL_SUBSTEPS
+                )
             push_action_history_bytes(
                 input_storage, action_offset_bytes, runtime.action_history_length,
                 action_sum_0 * INV_CONTROL_SUBSTEPS,
