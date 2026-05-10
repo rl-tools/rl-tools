@@ -127,20 +127,20 @@ using PARAMETERS_TYPE = l2f::ParametersDomainRandomization<l2f::ParametersDomain
 static constexpr auto MODEL = l2f::parameters::dynamics::REGISTRY::crazyflie;
 
 static constexpr REWARD_FUNCTION reward_function = {
-    false,
-    0.10,
-    1.00,
-    -1.00,
-    10.00,
-    0.00,
-    1.00,
-    0.05,
-    0.00,
-    0.00,
-    0.00,
-    0.10,
-    0.00,
-    0.00
+    false, // bool non_negative;
+    0.10,  // scale;
+    1.00,  // constant;
+    -1.00, // termination_penalty;
+    10.00, // position;
+    0.00,  // position_clip;
+    1.00,  // orientation;
+    0.05,  // linear_velocity;
+    0.00,  // angular_velocity;
+    0.00,  // linear_acceleration;
+    0.00,  // angular_acceleration;
+    {0.10, 0.10, 0.10, 0.10}, // action[ACTION_DIM]
+    {0.00, 0.00, 0.00, 0.00}, // d_action[ACTION_DIM]
+    0.00   // position_error_integral
 };
 static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = {
     1.0, 0.0, 0.3, 1.0, 1.0, true, -1, +1,
