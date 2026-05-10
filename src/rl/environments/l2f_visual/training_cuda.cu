@@ -163,7 +163,7 @@ static constexpr PARAMETERS_TYPE nominal_parameters = { {{dynamics, integration,
 // =========================================================================
 // Environment static parameters
 // =========================================================================
-static constexpr TI ACTION_HISTORY_LENGTH = 64;
+static constexpr TI ACTION_HISTORY_LENGTH = 8;
 
 struct STATIC_PARAMETERS {
     static constexpr auto ACTION_INTERFACE = l2f::parameters::ActionInterface::DIRECT_MOTOR;
@@ -196,7 +196,7 @@ struct STATIC_PARAMETERS {
     static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Z = 100000;
 };
 
-using ACTOR_STATE_OBS = obs::OrientationWorldZ<obs::OrientationWorldZSpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::LinearAccelerationBodyFrameHistory<obs::LinearAccelerationBodyFrameHistorySpecification<T, TI, 1, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>;
+using ACTOR_STATE_OBS = obs::OrientationWorldZ<obs::OrientationWorldZSpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>;
 static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM;
 
 // =========================================================================
