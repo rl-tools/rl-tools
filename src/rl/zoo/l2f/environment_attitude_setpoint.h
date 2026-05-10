@@ -85,7 +85,7 @@ namespace rl_tools::rl::zoo::l2f{
                 00.05, // yaw_rate
                 00.02, // angular_velocity_xy
                 00.25, // thrust_g
-                01.00, // d_action
+                00.50, // d_action
                 00.00, // action_saturation
         };
         static constexpr typename PARAMETERS_TYPE::MDP::ObservationNoise observation_noise = {
