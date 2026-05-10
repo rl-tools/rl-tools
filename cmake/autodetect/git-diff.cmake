@@ -1,17 +1,8 @@
 # ==============================================================================
-# Git Diff Tracking for ExTrack
-# ==============================================================================
-# Captures git state at build time for both the library itself and parent project (if RLtools is e.g. used as a submodule using add_subdirectory).
-# For the parent project to be tracked properly it should have the relevant files in ./include and ./src.
-# 
-# When used standalone: tracks only rl-tools repository
-# When used via add_subdirectory: tracks both rl-tools AND parent project
-#
-# Configuration:
-#   RL_TOOLS_ENABLE_GIT_DIFF - Enable/disable git diff tracking (default: OFF)
+# Git snapshot tracking for ExTrack
 # ==============================================================================
 
-option(RL_TOOLS_ENABLE_GIT_DIFF "Enable embedding git diff into ExTrack runs" ON)
+option(RL_TOOLS_ENABLE_GIT_DIFF "Enable embedding git state into ExTrack runs" ON)
 
 if(NOT RL_TOOLS_ENABLE_GIT_DIFF)
     return()
@@ -19,259 +10,94 @@ endif()
 
 find_package(Git QUIET)
 if(NOT GIT_FOUND)
-    message(STATUS "Git not found - git diff tracking disabled")
+    message(STATUS "Git not found - git snapshot tracking disabled")
     return()
 endif()
 
-get_filename_component(RL_TOOLS_ROOT_DIR "${CMAKE_CURRENT_LIST_DIR}" DIRECTORY)
-file(REAL_PATH "${RL_TOOLS_ROOT_DIR}" RL_TOOLS_ROOT_DIR_NORMALIZED)
+function(rl_tools_git_toplevel OUT_IS_REPO OUT_TOPLEVEL REPO_DIR)
+    execute_process(
+        COMMAND ${GIT_EXECUTABLE} rev-parse --show-toplevel
+        WORKING_DIRECTORY "${REPO_DIR}"
+        RESULT_VARIABLE GIT_TOPLEVEL_RESULT
+        OUTPUT_VARIABLE GIT_TOPLEVEL_OUTPUT
+        ERROR_QUIET
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    if(GIT_TOPLEVEL_RESULT EQUAL 0)
+        file(REAL_PATH "${GIT_TOPLEVEL_OUTPUT}" GIT_TOPLEVEL_NORMALIZED)
+        set(${OUT_IS_REPO} TRUE PARENT_SCOPE)
+        set(${OUT_TOPLEVEL} "${GIT_TOPLEVEL_NORMALIZED}" PARENT_SCOPE)
+    else()
+        set(${OUT_IS_REPO} FALSE PARENT_SCOPE)
+        set(${OUT_TOPLEVEL} "" PARENT_SCOPE)
+    endif()
+endfunction()
+
+file(REAL_PATH "${CMAKE_CURRENT_SOURCE_DIR}" RL_TOOLS_ROOT_DIR)
 file(REAL_PATH "${CMAKE_SOURCE_DIR}" CMAKE_SOURCE_DIR_NORMALIZED)
-if(NOT CMAKE_SOURCE_DIR_NORMALIZED STREQUAL RL_TOOLS_ROOT_DIR_NORMALIZED)
+
+if(NOT CMAKE_SOURCE_DIR_NORMALIZED STREQUAL RL_TOOLS_ROOT_DIR)
     set(RL_TOOLS_PARENT_DIR "${CMAKE_SOURCE_DIR_NORMALIZED}")
     set(RL_TOOLS_HAS_PARENT TRUE)
 else()
+    set(RL_TOOLS_PARENT_DIR "")
     set(RL_TOOLS_HAS_PARENT FALSE)
 endif()
 
-set(RL_TOOLS_ROOT_DIR "${RL_TOOLS_ROOT_DIR_NORMALIZED}")
-
-set(RL_TOOLS_IS_GIT_REPO FALSE)
-if(EXISTS "${RL_TOOLS_ROOT_DIR}/.git")
-    execute_process(
-        COMMAND ${GIT_EXECUTABLE} rev-parse --git-dir
-        WORKING_DIRECTORY ${RL_TOOLS_ROOT_DIR}
-        RESULT_VARIABLE GIT_CHECK_RESULT
-        OUTPUT_QUIET ERROR_QUIET
-    )
-    if(GIT_CHECK_RESULT EQUAL 0)
-        set(RL_TOOLS_IS_GIT_REPO TRUE)
-    endif()
+rl_tools_git_toplevel(RL_TOOLS_IS_INSIDE_GIT_REPO RL_TOOLS_GIT_TOPLEVEL "${RL_TOOLS_ROOT_DIR}")
+if(RL_TOOLS_IS_INSIDE_GIT_REPO AND RL_TOOLS_GIT_TOPLEVEL STREQUAL RL_TOOLS_ROOT_DIR)
+    set(RL_TOOLS_IS_GIT_REPO TRUE)
+else()
+    set(RL_TOOLS_IS_GIT_REPO FALSE)
 endif()
 
 set(RL_TOOLS_PARENT_IS_GIT_REPO FALSE)
-if(RL_TOOLS_HAS_PARENT AND EXISTS "${RL_TOOLS_PARENT_DIR}/.git")
-    execute_process(
-        COMMAND ${GIT_EXECUTABLE} rev-parse --git-dir
-        WORKING_DIRECTORY ${RL_TOOLS_PARENT_DIR}
-        RESULT_VARIABLE GIT_CHECK_RESULT
-        OUTPUT_QUIET ERROR_QUIET
-    )
-    if(GIT_CHECK_RESULT EQUAL 0)
+if(RL_TOOLS_HAS_PARENT)
+    rl_tools_git_toplevel(RL_TOOLS_PARENT_IS_INSIDE_GIT_REPO RL_TOOLS_PARENT_GIT_TOPLEVEL "${RL_TOOLS_PARENT_DIR}")
+    if(RL_TOOLS_PARENT_IS_INSIDE_GIT_REPO AND RL_TOOLS_PARENT_GIT_TOPLEVEL STREQUAL RL_TOOLS_PARENT_DIR)
         set(RL_TOOLS_PARENT_IS_GIT_REPO TRUE)
     endif()
 endif()
 
 if(NOT RL_TOOLS_IS_GIT_REPO AND NOT RL_TOOLS_PARENT_IS_GIT_REPO)
-    message(STATUS "No git repositories detected - git diff tracking disabled")
+    message(STATUS "No git repositories detected - git snapshot tracking disabled")
     return()
 endif()
 
-message(STATUS "Git diff tracking enabled:")
+message(STATUS "Git snapshot tracking enabled:")
 message(STATUS "  Library: ${RL_TOOLS_ROOT_DIR} [git: ${RL_TOOLS_IS_GIT_REPO}]")
 if(RL_TOOLS_HAS_PARENT)
     message(STATUS "  Project: ${RL_TOOLS_PARENT_DIR} [git: ${RL_TOOLS_PARENT_IS_GIT_REPO}]")
 endif()
 
-set(GIT_DIFF_OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_diff.cpp")
-set(GIT_DIFF_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/rl_tools_generate_git_diff.cmake")
+set(GIT_SNAPSHOT_OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_snapshot.cpp")
+set(GIT_SNAPSHOT_GENERATOR "${CMAKE_CURRENT_SOURCE_DIR}/cmake/scripts/generate-git-snapshot.cmake")
 
-file(WRITE "${GIT_DIFF_SCRIPT}" "\
-# Auto-generated git diff capture script
-# This runs at build time to capture current git state
-
-set(GIT_EXECUTABLE \"${GIT_EXECUTABLE}\")
-set(OUTPUT_FILE \"${GIT_DIFF_OUTPUT}\")
-set(RL_TOOLS_ROOT \"${RL_TOOLS_ROOT_DIR}\")
-set(RL_TOOLS_IS_REPO ${RL_TOOLS_IS_GIT_REPO})
-set(RL_TOOLS_PARENT_IS_GIT_REPO ${RL_TOOLS_PARENT_IS_GIT_REPO})
-set(PARENT_ROOT \"${RL_TOOLS_PARENT_DIR}\")
-set(PARENT_IS_REPO ${RL_TOOLS_PARENT_IS_GIT_REPO})
-
-# Helper function to safely execute git commands
-function(git_capture VAR REPO_DIR)
-    execute_process(
-        COMMAND \${GIT_EXECUTABLE} \${ARGN}
-        WORKING_DIRECTORY \${REPO_DIR}
-        OUTPUT_VARIABLE OUTPUT
-        ERROR_QUIET
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
-    set(\${VAR} \"\${OUTPUT}\" PARENT_SCOPE)
-endfunction()
-
-# Hex-encode a string into a C array initializer body.
-# Produces a comma-terminated sequence of 0xNN tokens that is safe to embed
-# in a C++ unsigned char array — adversarial content cannot break out.
-function(hex_encode_bytes INPUT OUT_BYTES OUT_SIZE)
-    string(HEX \"\${INPUT}\" HEX_STR)
-    string(LENGTH \"\${HEX_STR}\" HEX_LEN)
-    math(EXPR BYTE_COUNT \"\${HEX_LEN} / 2\")
-    string(REGEX REPLACE \"([0-9a-fA-F][0-9a-fA-F])\" \"0x\\\\1,\" BYTES \"\${HEX_STR}\")
-    set(\${OUT_BYTES} \"\${BYTES}\" PARENT_SCOPE)
-    set(\${OUT_SIZE} \"\${BYTE_COUNT}\" PARENT_SCOPE)
-endfunction()
-
-# Namespace structure for dual repository tracking
-set(CONTENT \"#include <cstddef>\\n\")
-set(CONTENT \"\${CONTENT}namespace rl_tools { namespace utils { namespace extrack { namespace git {\\n\")
-
-# ============================================================================
-# Library Repository (rl-tools itself)
-# ============================================================================
-set(CONTENT \"\${CONTENT}namespace rl_tools {\\n\")
-
-if(RL_TOOLS_IS_REPO)
-    git_capture(COMMIT \${RL_TOOLS_ROOT} rev-parse HEAD)
-    git_capture(COMMIT_MESSAGE \${RL_TOOLS_ROOT} log -1 --pretty=%B)
-    git_capture(DIFF \${RL_TOOLS_ROOT} diff)
-    git_capture(DIFF_COLOR \${RL_TOOLS_ROOT} diff --color=always)
-    git_capture(WORD_DIFF \${RL_TOOLS_ROOT} diff --word-diff)
-    git_capture(WORD_DIFF_COLOR \${RL_TOOLS_ROOT} diff --word-diff --color=always)
-    git_capture(DIFF_STAGED \${RL_TOOLS_ROOT} diff --cached)
-    git_capture(DIFF_STAGED_COLOR \${RL_TOOLS_ROOT} diff --cached --color=always)
-    git_capture(WORD_DIFF_STAGED \${RL_TOOLS_ROOT} diff --cached --word-diff)
-    git_capture(WORD_DIFF_STAGED_COLOR \${RL_TOOLS_ROOT} diff --cached --word-diff --color=always)
-    set(PATH_VAR \"\${RL_TOOLS_ROOT}\")
-
-    if(NOT COMMIT)
-        set(COMMIT \"unknown\")
-    endif()
-else()
-    set(COMMIT \"not_a_repository\")
-    set(COMMIT_MESSAGE \"\")
-    set(DIFF \"\")
-    set(DIFF_COLOR \"\")
-    set(WORD_DIFF \"\")
-    set(WORD_DIFF_COLOR \"\")
-    set(DIFF_STAGED \"\")
-    set(DIFF_STAGED_COLOR \"\")
-    set(WORD_DIFF_STAGED \"\")
-    set(WORD_DIFF_STAGED_COLOR \"\")
-    set(PATH_VAR \"\")
+set(GIT_SNAPSHOT_PARENT_ARGS "")
+if(RL_TOOLS_HAS_PARENT)
+    set(GIT_SNAPSHOT_PARENT_ARGS -DPARENT_ROOT=${RL_TOOLS_PARENT_DIR})
 endif()
 
-hex_encode_bytes(\"\${COMMIT_MESSAGE}\" COMMIT_MESSAGE_BYTES COMMIT_MESSAGE_SIZE)
-
-set(CONTENT \"\${CONTENT}    extern const char* const commit = R\\\"rl_tools_git(\${COMMIT})rl_tools_git\\\";\\n\")
-set(CONTENT \"\${CONTENT}    extern const unsigned char commit_message_bytes[] = {\${COMMIT_MESSAGE_BYTES}0x00};\\n\")
-set(CONTENT \"\${CONTENT}    extern const std::size_t commit_message_size = \${COMMIT_MESSAGE_SIZE};\\n\")
-set(CONTENT \"\${CONTENT}    extern const char* const diff = R\\\"rl_tools_git(\${DIFF})rl_tools_git\\\";\\n\")
-set(CONTENT \"\${CONTENT}    extern const char* const diff_color = R\\\"rl_tools_git(\${DIFF_COLOR})rl_tools_git\\\";\\n\")
-set(CONTENT \"\${CONTENT}    extern const char* const word_diff = R\\\"rl_tools_git(\${WORD_DIFF})rl_tools_git\\\";\\n\")
-set(CONTENT \"\${CONTENT}    extern const char* const word_diff_color = R\\\"rl_tools_git(\${WORD_DIFF_COLOR})rl_tools_git\\\";\\n\")
-set(CONTENT \"\${CONTENT}    extern const char* const diff_staged = R\\\"rl_tools_git(\${DIFF_STAGED})rl_tools_git\\\";\\n\")
-set(CONTENT \"\${CONTENT}    extern const char* const diff_staged_color = R\\\"rl_tools_git(\${DIFF_STAGED_COLOR})rl_tools_git\\\";\\n\")
-set(CONTENT \"\${CONTENT}    extern const char* const word_diff_staged = R\\\"rl_tools_git(\${WORD_DIFF_STAGED})rl_tools_git\\\";\\n\")
-set(CONTENT \"\${CONTENT}    extern const char* const word_diff_staged_color = R\\\"rl_tools_git(\${WORD_DIFF_STAGED_COLOR})rl_tools_git\\\";\\n\")
-set(CONTENT \"\${CONTENT}    extern const char* const path = R\\\"rl_tools_git(\${PATH_VAR})rl_tools_git\\\";\\n\")
-set(CONTENT \"\${CONTENT}} // namespace rl_tools\\n\\n\")
-
-# ============================================================================
-# Parent Project Repository
-# ============================================================================
-set(CONTENT \"\${CONTENT}namespace project {\\n\")
-
-# Boolean flag indicating if a parent project exists
-if(RL_TOOLS_PARENT_IS_GIT_REPO)
-    set(CONTENT \"\${CONTENT}    extern const bool available = true;\\n\")
-else()
-    set(CONTENT \"\${CONTENT}    extern const bool available = false;\\n\")
-endif()
-
-if(PARENT_IS_REPO)
-    git_capture(COMMIT \${PARENT_ROOT} rev-parse HEAD)
-    git_capture(COMMIT_MESSAGE \${PARENT_ROOT} log -1 --pretty=%B)
-    git_capture(DIFF \${PARENT_ROOT} diff)
-    git_capture(DIFF_COLOR \${PARENT_ROOT} diff --color=always)
-    git_capture(WORD_DIFF \${PARENT_ROOT} diff --word-diff)
-    git_capture(WORD_DIFF_COLOR \${PARENT_ROOT} diff --word-diff --color=always)
-    git_capture(DIFF_STAGED \${PARENT_ROOT} diff --cached)
-    git_capture(DIFF_STAGED_COLOR \${PARENT_ROOT} diff --cached --color=always)
-    git_capture(WORD_DIFF_STAGED \${PARENT_ROOT} diff --cached --word-diff)
-    git_capture(WORD_DIFF_STAGED_COLOR \${PARENT_ROOT} diff --cached --word-diff --color=always)
-    set(PATH_VAR \"\${PARENT_ROOT}\")
-
-    if(NOT COMMIT)
-        set(COMMIT \"unknown\")
-    endif()
-else()
-    set(COMMIT \"not_a_repository\")
-    set(COMMIT_MESSAGE \"\")
-    set(DIFF \"\")
-    set(DIFF_COLOR \"\")
-    set(WORD_DIFF \"\")
-    set(WORD_DIFF_COLOR \"\")
-    set(DIFF_STAGED \"\")
-    set(DIFF_STAGED_COLOR \"\")
-    set(WORD_DIFF_STAGED \"\")
-    set(WORD_DIFF_STAGED_COLOR \"\")
-    set(PATH_VAR \"\")
-endif()
-
-hex_encode_bytes(\"\${COMMIT_MESSAGE}\" COMMIT_MESSAGE_BYTES COMMIT_MESSAGE_SIZE)
-
-set(CONTENT \"\${CONTENT}    extern const char* const commit = R\\\"rl_tools_git(\${COMMIT})rl_tools_git\\\";\\n\")
-set(CONTENT \"\${CONTENT}    extern const unsigned char commit_message_bytes[] = {\${COMMIT_MESSAGE_BYTES}0x00};\\n\")
-set(CONTENT \"\${CONTENT}    extern const std::size_t commit_message_size = \${COMMIT_MESSAGE_SIZE};\\n\")
-set(CONTENT \"\${CONTENT}    extern const char* const diff = R\\\"rl_tools_git(\${DIFF})rl_tools_git\\\";\\n\")
-set(CONTENT \"\${CONTENT}    extern const char* const diff_color = R\\\"rl_tools_git(\${DIFF_COLOR})rl_tools_git\\\";\\n\")
-set(CONTENT \"\${CONTENT}    extern const char* const word_diff = R\\\"rl_tools_git(\${WORD_DIFF})rl_tools_git\\\";\\n\")
-set(CONTENT \"\${CONTENT}    extern const char* const word_diff_color = R\\\"rl_tools_git(\${WORD_DIFF_COLOR})rl_tools_git\\\";\\n\")
-set(CONTENT \"\${CONTENT}    extern const char* const diff_staged = R\\\"rl_tools_git(\${DIFF_STAGED})rl_tools_git\\\";\\n\")
-set(CONTENT \"\${CONTENT}    extern const char* const diff_staged_color = R\\\"rl_tools_git(\${DIFF_STAGED_COLOR})rl_tools_git\\\";\\n\")
-set(CONTENT \"\${CONTENT}    extern const char* const word_diff_staged = R\\\"rl_tools_git(\${WORD_DIFF_STAGED})rl_tools_git\\\";\\n\")
-set(CONTENT \"\${CONTENT}    extern const char* const word_diff_staged_color = R\\\"rl_tools_git(\${WORD_DIFF_STAGED_COLOR})rl_tools_git\\\";\\n\")
-set(CONTENT \"\${CONTENT}    extern const char* const path = R\\\"rl_tools_git(\${PATH_VAR})rl_tools_git\\\";\\n\")
-set(CONTENT \"\${CONTENT}} // namespace project\\n\\n\")
-
-set(CONTENT \"\${CONTENT}}}}}\") # close namespaces: git, extrack, utils, rl_tools
-
-# Write output
-file(MAKE_DIRECTORY \"${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack\")
-file(WRITE \"\${OUTPUT_FILE}\" \"\${CONTENT}\")
-")
-
-set(GIT_DIFF_DEPENDENCIES "")
-if(RL_TOOLS_IS_GIT_REPO)
-    execute_process(
-        COMMAND ${GIT_EXECUTABLE} ls-files --full-name src include
-        WORKING_DIRECTORY ${RL_TOOLS_ROOT_DIR}
-        OUTPUT_VARIABLE RL_TOOLS_GIT_FILES
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
-    if(RL_TOOLS_GIT_FILES)
-        string(REPLACE "\n" ";" RL_TOOLS_GIT_FILES "${RL_TOOLS_GIT_FILES}")
-        list(TRANSFORM RL_TOOLS_GIT_FILES PREPEND "${RL_TOOLS_ROOT_DIR}/")
-        list(APPEND GIT_DIFF_DEPENDENCIES ${RL_TOOLS_GIT_FILES})
-    endif()
-endif()
-
-if(RL_TOOLS_PARENT_IS_GIT_REPO)
-    execute_process(
-        COMMAND ${GIT_EXECUTABLE} ls-files --full-name src include
-        WORKING_DIRECTORY ${RL_TOOLS_PARENT_DIR}
-        OUTPUT_VARIABLE PARENT_GIT_FILES
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
-    if(PARENT_GIT_FILES)
-        string(REPLACE "\n" ";" PARENT_GIT_FILES "${PARENT_GIT_FILES}")
-        list(TRANSFORM PARENT_GIT_FILES PREPEND "${RL_TOOLS_PARENT_DIR}/")
-        list(APPEND GIT_DIFF_DEPENDENCIES ${PARENT_GIT_FILES})
-    endif()
-endif()
-
-add_custom_command(
-    OUTPUT ${GIT_DIFF_OUTPUT}
-    COMMAND ${CMAKE_COMMAND} -P "${GIT_DIFF_SCRIPT}"
-    DEPENDS ${GIT_DIFF_DEPENDENCIES}
-    COMMENT "Capturing git state for ExTrack"
+add_custom_target(rl_tools_git_snapshot_update
+    COMMAND ${CMAKE_COMMAND}
+        -DGIT_EXECUTABLE=${GIT_EXECUTABLE}
+        -DOUTPUT_FILE=${GIT_SNAPSHOT_OUTPUT}
+        -DRL_TOOLS_ROOT=${RL_TOOLS_ROOT_DIR}
+        -DRL_TOOLS_IS_REPO=${RL_TOOLS_IS_GIT_REPO}
+        -DPARENT_IS_REPO=${RL_TOOLS_PARENT_IS_GIT_REPO}
+        ${GIT_SNAPSHOT_PARENT_ARGS}
+        -P "${GIT_SNAPSHOT_GENERATOR}"
+    BYPRODUCTS ${GIT_SNAPSHOT_OUTPUT}
+    COMMENT "Updating git snapshot for ExTrack"
     VERBATIM
 )
 
-add_library(rl_tools_git_diff STATIC ${GIT_DIFF_OUTPUT})
-target_compile_features(rl_tools_git_diff PRIVATE cxx_std_11)
-target_compile_definitions(rl_tools_git_diff PUBLIC RL_TOOLS_EXTRACK_GIT_DIFF)
+set_source_files_properties(${GIT_SNAPSHOT_OUTPUT} PROPERTIES GENERATED TRUE)
+add_library(rl_tools_git_snapshot STATIC ${GIT_SNAPSHOT_OUTPUT})
+add_dependencies(rl_tools_git_snapshot rl_tools_git_snapshot_update)
+target_compile_features(rl_tools_git_snapshot PRIVATE cxx_std_11)
+target_compile_definitions(rl_tools_git_snapshot PUBLIC RL_TOOLS_EXTRACK_GIT_DIFF)
 
 if(TARGET rl_tools_full)
-    target_link_libraries(rl_tools_full INTERFACE rl_tools_git_diff)
+    target_link_libraries(rl_tools_full INTERFACE rl_tools_git_snapshot)
 endif()
