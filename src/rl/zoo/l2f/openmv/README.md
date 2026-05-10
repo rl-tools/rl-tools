@@ -45,23 +45,22 @@ BIN_LIMIT=13 VELA=/path/to/vela VELA_INI=/path/to/vela.ini \
 The expected actor observation is:
 
 ```text
-AttitudeSetpoint.OrientationWorldZ.AngularVelocity.LinearAccelerationBodyFrameHistory(8).ActionHistory(8)
+AttitudeSetpoint.OrientationWorldZ.AngularVelocity.ActionHistory(8)
 ```
 
-This is 66 fp32 values:
+This is 42 fp32 values:
 
 ```text
 4   fixed attitude/thrust setpoint
 3   world z vector in body frame
 3   body angular velocity
-24  body-frame acceleration history, newest first
 32  action history, newest first
 ```
 
 The live loop runs inference at 500 Hz (`CONTROL_SUBSTEPS = 5` over the
-100 Hz training control frequency). The history slots remain at the training
-cadence: each acceleration/action history entry is the average over the five
-fast control ticks since the previous history update.
+100 Hz training control frequency). The action history slots remain at the
+training cadence: each action-history entry is the average over the five fast
+control ticks since the previous history update.
 
 The action history is initialized to the training hover action:
 
