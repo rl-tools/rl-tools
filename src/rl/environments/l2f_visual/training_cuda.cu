@@ -114,7 +114,7 @@ static constexpr TI SIMULATION_FREQUENCY = 100;
 static constexpr TI EPISODE_STEP_LIMIT = 10000;
 using PARAMETERS_SPEC = l2f::ParametersBaseSpecification<T, TI, 4, EPISODE_STEP_LIMIT, REWARD_FUNCTION>;
 struct DOMAIN_RANDOMIZATION_OPTIONS {
-    static constexpr bool THRUST_TO_WEIGHT = true;
+    static constexpr bool THRUST_TO_WEIGHT = false;
     static constexpr bool MASS = false;
     static constexpr bool TORQUE_TO_INERTIA = false;
     static constexpr bool MASS_SIZE_DEVIATION = false;
@@ -124,7 +124,7 @@ struct DOMAIN_RANDOMIZATION_OPTIONS {
 };
 using PARAMETERS_TYPE = l2f::ParametersDomainRandomization<l2f::ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, l2f::ParametersDisturbances<l2f::ParametersSpecification<T, TI, l2f::ParametersBase<PARAMETERS_SPEC>>>>>;
 
-static constexpr auto MODEL = l2f::parameters::dynamics::REGISTRY::crazyflie;
+static constexpr auto MODEL = l2f::parameters::dynamics::REGISTRY::crazyflie_openmv;
 
 static constexpr REWARD_FUNCTION reward_function = {
     false, // bool non_negative;
@@ -156,7 +156,7 @@ static constexpr typename PARAMETERS_TYPE::MDP mdp = { init, reward_function, {}
 static constexpr T DISTURBANCE_FORCE_STD = 0;
 static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = { {0, DISTURBANCE_FORCE_STD}, {0, 0} };
 static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
-    1.5, 2.5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
 static constexpr PARAMETERS_TYPE nominal_parameters = { {{dynamics, integration, mdp}, disturbances}, domain_randomization };
 
