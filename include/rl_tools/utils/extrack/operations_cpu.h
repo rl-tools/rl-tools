@@ -69,7 +69,13 @@ namespace rl_tools{
             paths.experiment = config.base_path / config.experiment;
         }
         {
-#ifdef RL_TOOLS_COMMIT_HASH_SET
+#ifdef RL_TOOLS_EXTRACK_GIT_DIFF
+            std::string commit_hash = rl_tools::utils::extrack::git::project::available ? rl_tools::utils::extrack::git::project::commit : rl_tools::utils::extrack::git::rl_tools::commit;
+            if(commit_hash.empty() || commit_hash == "unknown" || commit_hash == "not_a_repository"){
+                commit_hash = "no-hash";
+            }
+            std::string short_hash = commit_hash.substr(0, std::min<std::size_t>(7, commit_hash.size()));
+#elif defined(RL_TOOLS_COMMIT_HASH_SET)
             std::string commit_hash = RL_TOOLS_STRINGIFY(RL_TOOLS_COMMIT_HASH);
             std::string short_hash = commit_hash.substr(0, 7);
 #else
