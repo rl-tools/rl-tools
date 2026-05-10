@@ -109,7 +109,7 @@ namespace rl_tools::rl::environments::l2f::parameters::dynamics{
             },
             // hovering throttle (julia): sqrt((mass * 9.81/4 - thrust_curve[1])/thrust_curve[3]),
 //            "hovering_throttle": 14475.809152959684,
-            0.8310686061945857, // "hovering_throttle_relative"
+            0.68, // "hovering_throttle_relative"
             // action limit
             {0, 1},
     };
