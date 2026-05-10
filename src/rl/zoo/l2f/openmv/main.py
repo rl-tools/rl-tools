@@ -25,6 +25,11 @@ SETPOINT_ROLL_RAD = 0.0
 SETPOINT_PITCH_RAD = 0.0
 SETPOINT_YAW_RATE_RAD_S = 0.0
 SETPOINT_THRUST_G = 1.0
+SETPOINT_MAX_TILT_RAD = 0.5235987755982988
+SETPOINT_MAX_YAW_RATE_RAD_S = 2.0
+SETPOINT_MIN_THRUST_G = 0.4
+SETPOINT_MAX_THRUST_G = 1.4
+SETPOINT_TIMEOUT_US = 300_000
 
 # From ENVIRONMENT_ATTITUDE_SETPOINT_FACTORY::dynamics.hovering_throttle_relative.
 HOVERING_THROTTLE_RELATIVE = 0.6864
@@ -37,6 +42,14 @@ UART_RX_LINE_MAX = 256
 FRAME_START_MASK = 0x80
 FRAME_FLAGS = 0x00
 FRAME_START_BYTE = FRAME_START_MASK | FRAME_FLAGS
+FRAME_TYPE_MASK = 0x7F
+
+SETPOINT_FRAME_TYPE_ATTITUDE = 0x02
+SETPOINT_FRAME_START_BYTE = FRAME_START_MASK | SETPOINT_FRAME_TYPE_ATTITUDE
+SETPOINT_RAW_BYTES = 11
+SETPOINT_DATA_BYTES = 13
+SETPOINT_CRC_PAYLOAD_BYTES = 10
+SETPOINT_INV_SCALE = 1.0e-4
 
 MG_TO_MPS2 = 9.80665e-3
 MDPS_TO_RADPS = math.pi / (180.0 * 1000.0)
@@ -448,6 +461,19 @@ def pack7(raw, raw_len, out, out_offset):
         out[w] = (acc << (7 - nbits)) & 0x7F
 
 
+def unpack7_into(data, data_len, raw, raw_len):
+    acc = 0
+    nbits = 0
+    out_idx = 0
+    for i in range(data_len):
+        acc = (acc << 7) | (data[i] & 0x7F)
+        nbits += 7
+        while nbits >= 8 and out_idx < raw_len:
+            nbits -= 8
+            raw[out_idx] = (acc >> nbits) & 0xFF
+            out_idx += 1
+
+
 raw_payload = bytearray(10)
 crc_payload = bytearray(9)
 
@@ -476,28 +502,170 @@ def build_frame_into(frame13, a0, a1, a2, a3):
     pack7(raw_payload, 10, frame13, 1)
 
 
-def poll_cf_uart(uart_bridge, rx_line_buf):
-    n_avail = uart_bridge.any()
-    if not n_avail:
-        return rx_line_buf
-    chunk = uart_bridge.read(n_avail)
-    if not chunk:
-        return rx_line_buf
-    rx_line_buf.extend(chunk)
-    while True:
-        nl = rx_line_buf.find(b"\n")
-        if nl < 0:
-            break
-        line = bytes(rx_line_buf[:nl]).rstrip(b"\r")
-        rx_line_buf = rx_line_buf[nl + 1:]
-        try:
-            print("[cf]", line.decode("utf-8"))
-        except UnicodeError:
-            print("[cf-bin]", line)
-    if len(rx_line_buf) > UART_RX_LINE_MAX:
-        print("[cf-overflow]", bytes(rx_line_buf))
-        rx_line_buf = bytearray()
-    return rx_line_buf
+def project_setpoint_tilt(roll, pitch):
+    sin_roll = math.sin(roll)
+    cos_roll = math.cos(roll)
+    sin_pitch = math.sin(pitch)
+    cos_pitch = math.cos(pitch)
+    world_z_body_x = -sin_pitch
+    world_z_body_y = cos_pitch * sin_roll
+    world_z_body_z = cos_pitch * cos_roll
+
+    cos_tilt_max = math.cos(SETPOINT_MAX_TILT_RAD)
+    if world_z_body_z >= cos_tilt_max:
+        return roll, pitch
+
+    horizontal = math.sqrt(world_z_body_x * world_z_body_x +
+                           world_z_body_y * world_z_body_y)
+    if horizontal < 1.0e-6:
+        return 0.0, 0.0
+
+    sin_tilt_max = math.sin(SETPOINT_MAX_TILT_RAD)
+    world_z_body_x *= sin_tilt_max / horizontal
+    world_z_body_y *= sin_tilt_max / horizontal
+    world_z_body_z = cos_tilt_max
+
+    roll = math.atan2(world_z_body_y, world_z_body_z)
+    pitch = math.atan2(-world_z_body_x,
+                       math.sqrt(world_z_body_y * world_z_body_y +
+                                 world_z_body_z * world_z_body_z))
+    return roll, pitch
+
+
+def s16be(buf, off):
+    v = (buf[off] << 8) | buf[off + 1]
+    if v & 0x8000:
+        v -= 0x10000
+    return v
+
+
+def u16be(buf, off):
+    return (buf[off] << 8) | buf[off + 1]
+
+
+def sanitize_setpoint(roll, pitch, yaw_rate, thrust_g):
+    if not finite_reasonable(roll):
+        roll = SETPOINT_ROLL_RAD
+    if not finite_reasonable(pitch):
+        pitch = SETPOINT_PITCH_RAD
+    if not finite_reasonable(yaw_rate):
+        yaw_rate = SETPOINT_YAW_RATE_RAD_S
+    if not finite_reasonable(thrust_g):
+        thrust_g = SETPOINT_THRUST_G
+
+    roll, pitch = project_setpoint_tilt(roll, pitch)
+    yaw_rate = clamp(yaw_rate, -SETPOINT_MAX_YAW_RATE_RAD_S,
+                     SETPOINT_MAX_YAW_RATE_RAD_S)
+    thrust_g = clamp(thrust_g, SETPOINT_MIN_THRUST_G, SETPOINT_MAX_THRUST_G)
+    return roll, pitch, yaw_rate, thrust_g
+
+
+class SetpointReceiver:
+    def __init__(self):
+        self.roll = SETPOINT_ROLL_RAD
+        self.pitch = SETPOINT_PITCH_RAD
+        self.yaw_rate = SETPOINT_YAW_RATE_RAD_S
+        self.thrust_g = SETPOINT_THRUST_G
+        self.seq = -1
+        self.have = False
+        self.last_us = 0
+
+        self.frames_ok = 0
+        self.frames_bad_crc = 0
+        self.frames_unknown = 0
+        self.frames_restart = 0
+
+        self.data_buf = bytearray(SETPOINT_DATA_BYTES)
+        self.raw_buf = bytearray(SETPOINT_RAW_BYTES)
+        self.crc_buf = bytearray(SETPOINT_CRC_PAYLOAD_BYTES)
+        self.rx_line_buf = bytearray()
+        self.start_byte = 0
+        self.data_idx = -1
+
+    def current(self, now_us):
+        if self.have and time.ticks_diff(now_us, self.last_us) <= SETPOINT_TIMEOUT_US:
+            return self.roll, self.pitch, self.yaw_rate, self.thrust_g
+        return (SETPOINT_ROLL_RAD, SETPOINT_PITCH_RAD,
+                SETPOINT_YAW_RATE_RAD_S, SETPOINT_THRUST_G)
+
+    def age_ms(self, now_us):
+        if not self.have:
+            return -1
+        age = time.ticks_diff(now_us, self.last_us)
+        if age < 0:
+            return -1
+        return age // 1000
+
+    def poll(self, uart_bridge):
+        n_avail = uart_bridge.any()
+        if not n_avail:
+            return
+        chunk = uart_bridge.read(n_avail)
+        if not chunk:
+            return
+        for b in chunk:
+            self.feed_byte(b)
+
+    def feed_byte(self, b):
+        if b & FRAME_START_MASK:
+            frame_type = b & FRAME_TYPE_MASK
+            if frame_type == SETPOINT_FRAME_TYPE_ATTITUDE:
+                if self.data_idx >= 0:
+                    self.frames_restart += 1
+                self.start_byte = b
+                self.data_idx = 0
+            else:
+                self.frames_unknown += 1
+                self.data_idx = -1
+            return
+
+        if self.data_idx >= 0:
+            self.data_buf[self.data_idx] = b
+            self.data_idx += 1
+            if self.data_idx == SETPOINT_DATA_BYTES:
+                self.decode_frame()
+                self.data_idx = -1
+            return
+
+        self.rx_line_buf.append(b)
+        while True:
+            nl = self.rx_line_buf.find(b"\n")
+            if nl < 0:
+                break
+            line = bytes(self.rx_line_buf[:nl]).rstrip(b"\r")
+            self.rx_line_buf = self.rx_line_buf[nl + 1:]
+            try:
+                print("[cf]", line.decode("utf-8"))
+            except UnicodeError:
+                print("[cf-bin]", line)
+        if len(self.rx_line_buf) > UART_RX_LINE_MAX:
+            print("[cf-overflow]", bytes(self.rx_line_buf))
+            self.rx_line_buf = bytearray()
+
+    def decode_frame(self):
+        unpack7_into(self.data_buf, SETPOINT_DATA_BYTES,
+                     self.raw_buf, SETPOINT_RAW_BYTES)
+
+        self.crc_buf[0] = self.start_byte
+        for i in range(9):
+            self.crc_buf[i + 1] = self.raw_buf[i]
+        rx_crc = u16be(self.raw_buf, 9)
+        ex_crc = crc16_ccitt(self.crc_buf, SETPOINT_CRC_PAYLOAD_BYTES)
+        if rx_crc != ex_crc:
+            self.frames_bad_crc += 1
+            return
+
+        roll = s16be(self.raw_buf, 1) * SETPOINT_INV_SCALE
+        pitch = s16be(self.raw_buf, 3) * SETPOINT_INV_SCALE
+        yaw_rate = s16be(self.raw_buf, 5) * SETPOINT_INV_SCALE
+        thrust_g = u16be(self.raw_buf, 7) * SETPOINT_INV_SCALE
+        self.roll, self.pitch, self.yaw_rate, self.thrust_g = sanitize_setpoint(
+            roll, pitch, yaw_rate, thrust_g
+        )
+        self.seq = self.raw_buf[0]
+        self.have = True
+        self.last_us = time.ticks_us()
+        self.frames_ok += 1
 
 
 def run():
@@ -522,7 +690,7 @@ def run():
     mahony = MahonyFilter()
     uart_bridge = machine.UART(UART_BRIDGE_PORT, UART_BRIDGE_BAUD, timeout=0, timeout_char=0)
     frame_tx = bytearray(13)
-    rx_line_buf = bytearray()
+    setpoint_rx = SetpointReceiver()
 
     last_t = time.ticks_us()
     next_deadline = time.ticks_add(last_t, TICK_US)
@@ -539,14 +707,19 @@ def run():
     print("starting %dHz fp32 attitude-setpoint policy loop" % CONTROL_HZ)
     print("training control history=%dHz substeps=%d" %
           (TRAINING_CONTROL_HZ, CONTROL_SUBSTEPS))
-    print("fixed setpoint roll=%.3f pitch=%.3f yaw_rate=%.3f thrust_g=%.3f" %
+    print("fallback setpoint roll=%.3f pitch=%.3f yaw_rate=%.3f thrust_g=%.3f" %
           (SETPOINT_ROLL_RAD, SETPOINT_PITCH_RAD,
            SETPOINT_YAW_RATE_RAD_S, SETPOINT_THRUST_G))
+    print("setpoint rx type=0x%02x timeout_ms=%d limits tilt=%.3f yaw=%.3f thrust=%.1f..%.1f" %
+          (SETPOINT_FRAME_TYPE_ATTITUDE, SETPOINT_TIMEOUT_US // 1000,
+           SETPOINT_MAX_TILT_RAD, SETPOINT_MAX_YAW_RATE_RAD_S,
+           SETPOINT_MIN_THRUST_G, SETPOINT_MAX_THRUST_G))
     print("uart bridge frame flags=0x%02x hover_action=%.4f" %
           (FRAME_FLAGS, HOVER_ACTION))
 
     while True:
         t0 = time.ticks_us()
+        setpoint_rx.poll(uart_bridge)
 
         ax_orig, ay_orig, az_orig = imu.acceleration_mg()
         ax = -az_orig
@@ -578,9 +751,12 @@ def run():
             accel_sum_y += ay_mps2
             accel_sum_z += az_mps2
 
+        sp_now = time.ticks_us()
+        sp_roll, sp_pitch, sp_yaw_rate, sp_thrust_g = setpoint_rx.current(sp_now)
+        sp_age_ms = setpoint_rx.age_ms(sp_now)
+
         ustruct.pack_into(STATE_PREFIX_FMT, input_storage, 0,
-                          SETPOINT_ROLL_RAD, SETPOINT_PITCH_RAD,
-                          SETPOINT_YAW_RATE_RAD_S, SETPOINT_THRUST_G,
+                          sp_roll, sp_pitch, sp_yaw_rate, sp_thrust_g,
                           world_z[0], world_z[1], world_z[2],
                           gx_rad, gy_rad, gz_rad)
         t_state = time.ticks_us()
@@ -601,7 +777,7 @@ def run():
         uart_bridge.write(frame_tx)
         t_tx = time.ticks_us()
 
-        rx_line_buf = poll_cf_uart(uart_bridge, rx_line_buf)
+        setpoint_rx.poll(uart_bridge)
         t_rx = time.ticks_us()
 
         action_sum_0 += a0
@@ -652,14 +828,18 @@ def run():
             print("us=%5d imu=%4d mah=%4d st=%4d inf=%4d tx=%3d rx=%3d act=%3d "
                   "delay=%d sub=%d/%d hist=%d a=%+.2f,%+.2f,%+.2f,%+.2f wz=%+.2f,%+.2f,%+.2f "
                   "rate=%+.2f,%+.2f,%+.2f "
-                  "acc=%+.2f,%+.2f,%+.2f" %
+                  "acc=%+.2f,%+.2f,%+.2f "
+                  "sp=%+.3f,%+.3f,%+.3f,%.3f sp_age=%d sp_seq=%d sp_ok=%d sp_crc=%d sp_unk=%d" %
                   (elapsed_us, imu_us, mahony_us, state_us, predict_us,
                    tx_us, rx_us, actions_us, deadline_delay_us,
                    substep_print, CONTROL_SUBSTEPS, history_published,
                    a0, a1, a2, a3,
                    world_z[0], world_z[1], world_z[2],
                    gx_rad, gy_rad, gz_rad,
-                   ax_mps2, ay_mps2, az_mps2))
+                   ax_mps2, ay_mps2, az_mps2,
+                   sp_roll, sp_pitch, sp_yaw_rate, sp_thrust_g,
+                   sp_age_ms, setpoint_rx.seq, setpoint_rx.frames_ok,
+                   setpoint_rx.frames_bad_crc, setpoint_rx.frames_unknown))
 
         tick += 1
         delay = time.ticks_diff(next_deadline, time.ticks_us())

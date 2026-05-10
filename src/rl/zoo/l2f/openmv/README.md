@@ -1,8 +1,10 @@
 # OpenMV Attitude-Setpoint PPO Deployment
 
 This mode runs an `rl_zoo_l2f_attitude_setpoint_ppo` actor on the OpenMV AE3
-and sends direct motor actions to the Crazyflie UART offboard bridge. It is
-intended for initial gimbal testing with a fixed setpoint:
+and sends direct motor actions to the Crazyflie UART offboard bridge. The
+Crazyflie forwards the current controller attitude setpoint to the OpenMV over
+the same UART link. If no fresh setpoint frame is received, the OpenMV falls
+back to:
 
 ```text
 roll      = 0 rad
@@ -11,7 +13,7 @@ yaw_rate  = 0 rad/s
 thrust_g  = 1
 ```
 
-There is no Wi-Fi, UDP, gamepad input, or host telemetry path.
+There is no Wi-Fi, UDP, or host telemetry path.
 
 ## Build And Load
 
@@ -51,7 +53,7 @@ AttitudeSetpoint.OrientationWorldZ.AngularVelocity.ActionHistory(8)
 This is 42 fp32 values:
 
 ```text
-4   fixed attitude/thrust setpoint
+4   attitude/thrust setpoint from CF, with neutral fallback
 3   world z vector in body frame
 3   body angular velocity
 32  action history, newest first
@@ -70,8 +72,14 @@ The action history is initialized to the training hover action:
 
 ## Crazyflie UART Frame
 
-The OpenMV sends one 13-byte frame at 500 Hz. It never sets the
+The OpenMV sends one motor-action frame at 500 Hz. It never sets the
 self-activation flag; offboard activation must come from the Crazyflie side.
+The firmware parameter `u1br.defaultCtl` controls whether the normal Crazyflie
+controller output is allowed when the UART offboard bridge is not engaged. The
+deployment default is `0`, which means controller setpoints can still be
+forwarded to OpenMV, but the normal CF controller PWM output is zeroed unless
+the offboard bridge is actively engaged. Set it to `1` to restore normal
+controller output when offboard is inactive.
 
 ```text
 byte 0:    0x80 | flags; currently 0x80 with flags = 0
@@ -88,6 +96,49 @@ raw[8..9]: big-endian CRC16-CCITT
 The CRC is calculated over exactly 9 bytes: the full start/flags byte followed
 by `raw[0..7]`. This matches the Crazyflie `uart1_bridge` receiver.
 
+## Crazyflie Setpoint Frame
+
+The Crazyflie forwards the decoded commander setpoint to OpenMV at 100 Hz. The
+firmware converts the values to the policy-facing `AttitudeSetpoint` units:
+
+```text
+roll      rad
+pitch     rad
+yaw_rate  rad/s
+thrust_g  g, using u1br.thrust1g as the raw-thrust value for 1 g
+```
+
+The values are constrained to the training command distribution before they are
+sent:
+
+```text
+tilt cone <= 30 deg
+yaw_rate  in [-2, 2] rad/s
+thrust_g  in [0.4, 1.4]
+```
+
+The CF-to-OpenMV frame uses the same MSB-start/7-bit-payload convention:
+
+```text
+byte 0:     0x80 | 0x02
+bytes 1-13: 13 bytes of 7-bit-packed raw payload, each with MSB clear
+```
+
+The unpacked raw payload is 11 bytes:
+
+```text
+raw[0]:     sequence uint8
+raw[1..2]:  int16 roll_rad * 10000, big-endian
+raw[3..4]:  int16 pitch_rad * 10000, big-endian
+raw[5..6]:  int16 yaw_rate_rad_s * 10000, big-endian
+raw[7..8]: uint16 thrust_g * 10000, big-endian
+raw[9..10]: big-endian CRC16-CCITT
+```
+
+The CRC is calculated over exactly 10 bytes: the full start/type byte followed
+by `raw[0..8]`. If no valid frame arrives for 300 ms, OpenMV uses the neutral
+fallback setpoint.
+
 ## Gimbal Checks
 
 Before free flight, verify on the gimbal:
@@ -96,4 +147,6 @@ Before free flight, verify on the gimbal:
 2. Level attitude reports `world_z` close to `(0, 0, 1)`.
 3. Manual roll and pitch motion produce the expected `world_z` signs.
 4. `u1br.framesOk` increments on the Crazyflie.
-5. Neutral actions and PWM values are plausible before enabling props.
+5. Moving the controller changes the OpenMV diagnostic `sp=` values in radians,
+   rad/s, and g.
+6. Neutral actions and PWM values are plausible before enabling props.
