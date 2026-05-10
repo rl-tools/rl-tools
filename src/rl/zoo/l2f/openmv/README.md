@@ -58,6 +58,11 @@ This is 66 fp32 values:
 32  action history, newest first
 ```
 
+The live loop runs inference at 500 Hz (`CONTROL_SUBSTEPS = 5` over the
+100 Hz training control frequency). The history slots remain at the training
+cadence: each acceleration/action history entry is the average over the five
+fast control ticks since the previous history update.
+
 The action history is initialized to the training hover action:
 
 ```text
@@ -66,7 +71,7 @@ The action history is initialized to the training hover action:
 
 ## Crazyflie UART Frame
 
-The OpenMV sends one 13-byte frame at 100 Hz. It never sets the
+The OpenMV sends one 13-byte frame at 500 Hz. It never sets the
 self-activation flag; offboard activation must come from the Crazyflie side.
 
 ```text

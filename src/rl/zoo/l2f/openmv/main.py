@@ -14,9 +14,12 @@ except ImportError:
     import struct as ustruct
 
 
-MODEL_HZ = 100
-TICK_US = 1_000_000 // MODEL_HZ
-DIAG_PRINT_EVERY = MODEL_HZ
+TRAINING_CONTROL_HZ = 100
+CONTROL_SUBSTEPS = 5
+CONTROL_HZ = TRAINING_CONTROL_HZ * CONTROL_SUBSTEPS
+TICK_US = 1_000_000 // CONTROL_HZ
+DIAG_PRINT_EVERY = CONTROL_HZ
+INV_CONTROL_SUBSTEPS = 1.0 / CONTROL_SUBSTEPS
 
 SETPOINT_ROLL_RAD = 0.0
 SETPOINT_PITCH_RAD = 0.0
@@ -505,8 +508,18 @@ def run():
     last_t = time.ticks_us()
     next_deadline = time.ticks_add(last_t, TICK_US)
     tick = 0
+    substep = 0
+    accel_sum_x = 0.0
+    accel_sum_y = 0.0
+    accel_sum_z = 0.0
+    action_sum_0 = 0.0
+    action_sum_1 = 0.0
+    action_sum_2 = 0.0
+    action_sum_3 = 0.0
 
-    print("starting %dHz fp32 attitude-setpoint policy loop" % MODEL_HZ)
+    print("starting %dHz fp32 attitude-setpoint policy loop" % CONTROL_HZ)
+    print("training control history=%dHz substeps=%d" %
+          (TRAINING_CONTROL_HZ, CONTROL_SUBSTEPS))
     print("fixed setpoint roll=%.3f pitch=%.3f yaw_rate=%.3f thrust_g=%.3f" %
           (SETPOINT_ROLL_RAD, SETPOINT_PITCH_RAD,
            SETPOINT_YAW_RATE_RAD_S, SETPOINT_THRUST_G))
@@ -529,7 +542,7 @@ def run():
         dt = time.ticks_diff(t0, last_t) * 1e-6
         last_t = t0
         if dt <= 0.0 or dt > 0.5:
-            dt = 1.0 / MODEL_HZ
+            dt = 1.0 / CONTROL_HZ
 
         ax_mps2 = ax * MG_TO_MPS2
         ay_mps2 = ay * MG_TO_MPS2
@@ -541,15 +554,15 @@ def run():
         world_z = mahony.orientation_world_z()
         t_mahony = time.ticks_us()
 
+        accel_sum_x += ax_mps2
+        accel_sum_y += ay_mps2
+        accel_sum_z += az_mps2
+
         ustruct.pack_into(STATE_PREFIX_FMT, input_storage, 0,
                           SETPOINT_ROLL_RAD, SETPOINT_PITCH_RAD,
                           SETPOINT_YAW_RATE_RAD_S, SETPOINT_THRUST_G,
                           world_z[0], world_z[1], world_z[2],
                           gx_rad, gy_rad, gz_rad)
-        push_accel_history_bytes(
-            input_storage, accel_offset_bytes, runtime.accel_history_length,
-            ax_mps2, ay_mps2, az_mps2
-        )
         t_state = time.ticks_us()
 
         y_raw = runtime.model.predict([input_feeder])[0]
@@ -571,10 +584,37 @@ def run():
         rx_line_buf = poll_cf_uart(uart_bridge, rx_line_buf)
         t_rx = time.ticks_us()
 
-        push_action_history_bytes(
-            input_storage, action_offset_bytes, runtime.action_history_length,
-            a0, a1, a2, a3
-        )
+        action_sum_0 += a0
+        action_sum_1 += a1
+        action_sum_2 += a2
+        action_sum_3 += a3
+        substep += 1
+        history_published = 0
+        substep_print = substep
+        if substep >= CONTROL_SUBSTEPS:
+            push_accel_history_bytes(
+                input_storage, accel_offset_bytes, runtime.accel_history_length,
+                accel_sum_x * INV_CONTROL_SUBSTEPS,
+                accel_sum_y * INV_CONTROL_SUBSTEPS,
+                accel_sum_z * INV_CONTROL_SUBSTEPS
+            )
+            push_action_history_bytes(
+                input_storage, action_offset_bytes, runtime.action_history_length,
+                action_sum_0 * INV_CONTROL_SUBSTEPS,
+                action_sum_1 * INV_CONTROL_SUBSTEPS,
+                action_sum_2 * INV_CONTROL_SUBSTEPS,
+                action_sum_3 * INV_CONTROL_SUBSTEPS
+            )
+            accel_sum_x = 0.0
+            accel_sum_y = 0.0
+            accel_sum_z = 0.0
+            action_sum_0 = 0.0
+            action_sum_1 = 0.0
+            action_sum_2 = 0.0
+            action_sum_3 = 0.0
+            substep = 0
+            history_published = 1
+            substep_print = CONTROL_SUBSTEPS
         t_actions = time.ticks_us()
 
         elapsed_us = time.ticks_diff(t_actions, t0)
@@ -589,11 +629,12 @@ def run():
 
         if tick % DIAG_PRINT_EVERY == 0:
             print("us=%5d imu=%4d mah=%4d st=%4d inf=%4d tx=%3d rx=%3d act=%3d "
-                  "delay=%d a=%+.2f,%+.2f,%+.2f,%+.2f wz=%+.2f,%+.2f,%+.2f "
+                  "delay=%d sub=%d/%d hist=%d a=%+.2f,%+.2f,%+.2f,%+.2f wz=%+.2f,%+.2f,%+.2f "
                   "rate=%+.2f,%+.2f,%+.2f "
                   "acc=%+.2f,%+.2f,%+.2f" %
                   (elapsed_us, imu_us, mahony_us, state_us, predict_us,
                    tx_us, rx_us, actions_us, deadline_delay_us,
+                   substep_print, CONTROL_SUBSTEPS, history_published,
                    a0, a1, a2, a3,
                    world_z[0], world_z[1], world_z[2],
                    gx_rad, gy_rad, gz_rad,
