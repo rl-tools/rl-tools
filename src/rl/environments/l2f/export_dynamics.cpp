@@ -28,7 +28,7 @@ int main(int argc, char** argv){
     ENVIRONMENT::Parameters params;
     rlt::init(device, env);
 
-    std::filesystem::path output_path_registry = "./static/l2f-studio/blob/registry";
+    std::filesystem::path output_path_registry = "/home/jonas/mono/static/l2f-studio/blob/registry";
     if (!std::filesystem::exists(output_path_registry)){
         std::cerr << "Output path does not exist: " << output_path_registry << std::endl;
         std::cerr << "CWD: " << std::filesystem::current_path() << std::endl;
@@ -41,6 +41,7 @@ int main(int argc, char** argv){
         return copy;
     };
     registry.emplace_back("crazyflie" , "b75f5120e17783744a8fac5e1ab69c2dce10f0e3", rlt::rl::environments::l2f::parameters::dynamics::crazyflie<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>);
+    registry.emplace_back("crazyflie_openmv" , "b75f5120e17783744a8fac5e1ab69c2dce10f0e3", rlt::rl::environments::l2f::parameters::dynamics::crazyflie_openmv<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>);
     registry.emplace_back("x500"      , "9602ffc2ffb77f62c4cf6fdc78fe67d32088870d",  permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::x500::real<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
     registry.emplace_back("mrs"       , "", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::mrs<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));
     registry.emplace_back("fs"        , "", permute_rotors_px4_to_cf(rlt::rl::environments::l2f::parameters::dynamics::fs::base<ENVIRONMENT::SPEC::T, ENVIRONMENT::SPEC::TI>));

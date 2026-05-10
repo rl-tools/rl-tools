@@ -4,6 +4,7 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_L2F_PARAMETERS_REGISTRY_H
 
 #include "dynamics/crazyflie.h"
+#include "dynamics/crazyflie_openmv.h"
 #include "dynamics/mrs.h"
 #include "dynamics/arpl.h"
 #include "dynamics/x500_real.h"
@@ -19,6 +20,7 @@ namespace rl_tools::rl::environments::l2f::parameters{
     namespace dynamics{
         enum class REGISTRY{
             crazyflie,
+            crazyflie_openmv,
             mrs,
             x500_real,
             x500_sim,
@@ -32,6 +34,8 @@ namespace rl_tools::rl::environments::l2f::parameters{
         constexpr auto registry = [](){
             if constexpr (MODEL == REGISTRY::crazyflie){
                 return dynamics::crazyflie<typename SPEC::T, typename SPEC::TI>;
+            }else if constexpr (MODEL == REGISTRY::crazyflie_openmv){
+                return dynamics::crazyflie_openmv<typename SPEC::T, typename SPEC::TI>;
             }else if constexpr (MODEL == REGISTRY::mrs){
                 return dynamics::mrs<typename SPEC::T, typename SPEC::TI>;
             }else if constexpr (MODEL == REGISTRY::x500_real){
@@ -60,6 +64,8 @@ namespace rl_tools::rl::environments::l2f::parameters{
         constexpr auto registry_name = [](){
             if constexpr (MODEL == REGISTRY::crazyflie){
                 return "crazyflie";
+            }else if constexpr (MODEL == REGISTRY::crazyflie_openmv){
+                return "crazyflie_openmv";
             }else if constexpr (MODEL == REGISTRY::mrs){
                 return "mrs";
             }else if constexpr (MODEL == REGISTRY::x500_real){
