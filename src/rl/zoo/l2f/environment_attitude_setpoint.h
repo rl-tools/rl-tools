@@ -12,7 +12,7 @@
 #include <rl_tools/rl/environments/l2f/parameters/reward_functions/squared/operations_generic.h>
 #include <rl_tools/rl/environments/l2f/parameters/reward_functions/default.h>
 #include <rl_tools/rl/environments/l2f/parameters/default.h>
-#include <rl_tools/rl/environments/l2f/parameters/dynamics/crazyflie.h>
+#include <rl_tools/rl/environments/l2f/parameters/dynamics/crazyflie_openmv.h>
 #include <rl_tools/rl/environments/l2f/parameters/dynamics/arpl.h>
 #include <rl_tools/rl/environments/l2f/parameters/dynamics/x500_sim.h>
 #include <rl_tools/rl/environments/l2f/parameters/dynamics/x500_real.h>
@@ -36,7 +36,7 @@ namespace rl_tools::rl::zoo::l2f{
         using REWARD_FUNCTION = rl_tools::rl::environments::l2f::parameters::reward_functions::AttitudeSetpointTrackingSquared<T>;
         using PARAMETERS_SPEC = ParametersBaseSpecification<T, TI, 4, ENVIRONMENT_FACTORY_BASE::EPISODE_STEP_LIMIT_OUTER, REWARD_FUNCTION>;
         struct DOMAIN_RANDOMIZATION_OPTIONS{
-            static constexpr bool THRUST_TO_WEIGHT = true;
+            static constexpr bool THRUST_TO_WEIGHT = false;
             static constexpr bool MASS = false;
             static constexpr bool TORQUE_TO_INERTIA = false;
             static constexpr bool MASS_SIZE_DEVIATION = false;
@@ -51,36 +51,11 @@ namespace rl_tools::rl::zoo::l2f{
             ParametersIMU<ParametersSpecification<T, TI,
             ParametersBase<PARAMETERS_SPEC>>>>>>>>>>>;
 
-        static constexpr auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
+        static constexpr auto MODEL = rl_tools::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie_openmv;
         constexpr static auto MODEL_NAME = rl_tools::rl::environments::l2f::parameters::dynamics::registry_name<MODEL>;
         // static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
         static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = [](){
             auto p = rl_tools::rl::environments::l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
-            p.rotor_time_constants_rising[0] = 0.072;
-            p.rotor_time_constants_rising[1] = 0.072;
-            p.rotor_time_constants_rising[2] = 0.072;
-            p.rotor_time_constants_rising[3] = 0.072;
-            p.rotor_time_constants_falling[0] = 0.072;
-            p.rotor_time_constants_falling[1] = 0.072;
-            p.rotor_time_constants_falling[2] = 0.072;
-            p.rotor_time_constants_falling[3] = 0.072;
-            p.mass = 0.025;
-            p.rotor_thrust_coefficients[0][0] = 0;
-            p.rotor_thrust_coefficients[1][0] = 0;
-            p.rotor_thrust_coefficients[2][0] = 0;
-            p.rotor_thrust_coefficients[3][0] = 0;
-            p.rotor_thrust_coefficients[0][1] = 0;
-            p.rotor_thrust_coefficients[1][1] = 0;
-            p.rotor_thrust_coefficients[2][1] = 0;
-            p.rotor_thrust_coefficients[3][1] = 0;
-            p.rotor_thrust_coefficients[0][2] = 0.1302;
-            p.rotor_thrust_coefficients[1][2] = 0.1302;
-            p.rotor_thrust_coefficients[2][2] = 0.1302;
-            p.rotor_thrust_coefficients[3][2] = 0.1302;
-            // Recompute hover throttle for the overridden mass + thrust curve
-            // (registry value was for the original curve and mass).
-            // hover_rpm = sqrt(m*g/(4*c2)) with action_limit [0, 1] -> hovering_throttle_relative = hover_rpm
-            p.hovering_throttle_relative = 0.6864;
             return p;
         }();
         static constexpr typename ParametersBase<PARAMETERS_SPEC>::MDP::Initialization init = {
@@ -125,8 +100,8 @@ namespace rl_tools::rl::zoo::l2f{
             {0, 0, 0}
         };
         static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
-            1.5, // min thrust-to-weight after randomized thrust-curve scaling
-            2.5, // max thrust-to-weight after randomized thrust-curve scaling
+            0, // min thrust-to-weight after randomized thrust-curve scaling
+            0, // max thrust-to-weight after randomized thrust-curve scaling
             0,      // torque-to-inertia disabled
             0,
             0,      // mass randomization disabled
