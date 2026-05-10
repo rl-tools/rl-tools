@@ -33,7 +33,13 @@ namespace rl_tools::rl::environments::l2f::parameters::reward_functions{
             T linear_acc_cost;
             T angular_acc_cost;
             T action_cost;
+            T weighted_action_cost;
+            T action_costs[ACTION_DIM];
+            T weighted_action_costs[ACTION_DIM];
             T d_action_cost;
+            T weighted_d_action_cost;
+            T d_action_costs[ACTION_DIM];
+            T weighted_d_action_costs[ACTION_DIM];
             T position_error_integral_cost;
             T weighted_cost;
             T scaled_weighted_cost;
