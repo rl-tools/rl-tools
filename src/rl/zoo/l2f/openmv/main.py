@@ -39,6 +39,11 @@ UART_BRIDGE_PORT = 4
 UART_BRIDGE_BAUD = 115200
 UART_RX_LINE_MAX = 256
 
+IMU_CTRL1_XL = 0x10
+IMU_CTRL2_G = 0x11
+IMU_CTRL4_C = 0x13
+IMU_CTRL6_C = 0x15
+
 FRAME_START_MASK = 0x80
 FRAME_FLAGS = 0x00
 FRAME_START_BYTE = FRAME_START_MASK | FRAME_FLAGS
@@ -65,6 +70,13 @@ ACTION_ENTRY_BYTES = ACTION_DIM * FP32_BYTES
 STATE_PREFIX_FMT = "<ffffffffff"
 ACCEL_FMT = "<fff"
 ACTION_FMT = "<ffff"
+
+
+def configure_imu():
+    imu.__write_reg(IMU_CTRL2_G, (0b0111 << 4) | (0b11 << 2))
+    imu.__write_reg(IMU_CTRL1_XL, (0b0111 << 4) | (0b11 << 2))
+    imu.__write_reg(IMU_CTRL4_C, 0x02)
+    imu.__write_reg(IMU_CTRL6_C, 0x01)
 
 
 def print_mem(label):
@@ -672,6 +684,8 @@ def run():
     print_mem("boot")
     print("cwd:", os.getcwd())
     print("listdir(cwd):", os.listdir("."))
+
+    configure_imu()
 
     runtime = ModelRuntime()
     runtime.self_check()
