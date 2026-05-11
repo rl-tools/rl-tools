@@ -60,13 +60,14 @@ MG_TO_MPS2 = 9.80665e-3
 MDPS_TO_RADPS = math.pi / (180.0 * 1000.0)
 
 SELF_CHECK_MAX_ERR = 1.0e-3
+SELF_CHECK_INT8_MAX_ERR = 0.5
+SELF_CHECK_INT8_FAIL_LSBS = 100
 
 FP32_BYTES = 4
+INT8_BYTES = 1
 BASE_INPUT_FLOATS = 10
 ACCEL_DIM = 3
 ACTION_DIM = 4
-ACCEL_ENTRY_BYTES = ACCEL_DIM * FP32_BYTES
-ACTION_ENTRY_BYTES = ACTION_DIM * FP32_BYTES
 STATE_PREFIX_FMT = "<ffffffffff"
 ACCEL_FMT = "<fff"
 ACTION_FMT = "<ffff"
@@ -107,18 +108,24 @@ def input_bin_index(fname):
 
 def autodetect_paths():
     files = [f for f in os.listdir(".") if not f.startswith(".")]
-    vela = [
+    int8_vela = [f for f in files if f.endswith("_vela.tflite") and ".int8" in f]
+    fp32_vela = [f for f in files if f.endswith("_vela.tflite") and ".int8" not in f]
+    int8_plain = [
         f for f in files
-        if f.endswith("_vela.tflite") and ".int8" not in f
+        if f.endswith(".int8.tflite") and not f.endswith("_vela.tflite")
     ]
-    if vela:
-        model = sorted(vela, key=len)[0]
+    fp32_plain = [
+        f for f in files
+        if f.endswith(".tflite") and ".int8" not in f and not f.endswith("_vela.tflite")
+    ]
+    if int8_vela:
+        model = sorted(int8_vela, key=len)[0]
+    elif fp32_vela:
+        model = sorted(fp32_vela, key=len)[0]
+    elif int8_plain:
+        model = sorted(int8_plain, key=len)[0]
     else:
-        model = pick_first(
-            files,
-            lambda f: f.endswith(".tflite") and ".int8" not in f,
-            "fp32 .tflite (prefer Vela-compiled *_vela.tflite)",
-        )
+        model = pick_first(files, lambda f: f in fp32_plain, ".tflite")
     indexed_inputs = [(input_bin_index(f), f) for f in files]
     indexed_inputs = [(i, f) for i, f in indexed_inputs if i >= 0]
     if not indexed_inputs:
@@ -151,6 +158,20 @@ def first_dtype(dtypes):
     return chr(dtypes) if isinstance(dtypes, int) else dtypes
 
 
+def first_value(values, default):
+    if values is None:
+        return default
+    if isinstance(values, (list, tuple)):
+        if len(values) == 0:
+            return default
+        return values[0]
+    return values
+
+
+def first_attr(obj, name, default):
+    return first_value(getattr(obj, name, default), default)
+
+
 def load_sample_float32(path, sample_index, num_floats):
     byte_count = num_floats * 4
     with open(path, "rb") as f:
@@ -171,6 +192,12 @@ def max_abs_diff(a, b):
         if d > err:
             err = d
     return err
+
+
+def make_storage_feeder(storage):
+    def feeder(buf, shape, dtype):
+        buf[:] = storage
+    return feeder
 
 
 def parse_history_length(observation, name):
@@ -226,12 +253,35 @@ class ModelRuntime:
         self.output_numel = shape_numel(self.output_shape)
         self.input_dtype = first_dtype(getattr(self.model, "input_dtype", "?"))
         self.output_dtype = first_dtype(getattr(self.model, "output_dtype", "?"))
+        self.quantized_input = self.input_dtype in ("b", "B")
+        self.quantized_output = self.output_dtype in ("b", "B")
+        self.quantized = self.quantized_input or self.quantized_output
+        self.input_value_bytes = INT8_BYTES if self.quantized_input else FP32_BYTES
+        self.input_scale = float(first_attr(self.model, "input_scale", 1.0))
+        self.input_zero_point = float(first_attr(self.model, "input_zero_point", 0.0))
+        self.output_scale = float(first_attr(self.model, "output_scale", 1.0))
+        self.output_zero_point = float(first_attr(self.model, "output_zero_point", 0.0))
+        self.int8_output_path = None
+        if "int8_output" in self.meta:
+            candidate = self.meta["int8_output"].get("path")
+            if candidate:
+                try:
+                    os.stat(candidate)
+                    self.int8_output_path = candidate
+                except OSError:
+                    print("meta references int8_output %r but file is absent" %
+                          candidate)
 
         print("input shape:", self.input_shape, "dtype:", self.input_dtype)
         print("output shape:", self.output_shape, "dtype:", self.output_dtype)
-
-        if self.input_dtype in ("b", "B") or self.output_dtype in ("b", "B"):
-            raise RuntimeError("model appears quantized; rebuild with --quantize none")
+        if self.quantized:
+            print("input quantization: scale=%g zp=%g" %
+                  (self.input_scale, self.input_zero_point))
+            print("output quantization: scale=%g zp=%g" %
+                  (self.output_scale, self.output_zero_point))
+            if self.quantized_input and self.input_scale <= 0.0:
+                raise RuntimeError("quantized input has invalid scale %g" %
+                                   self.input_scale)
         if self.output_numel != 4:
             raise RuntimeError("expected 4 motor actions, got output dim %d" % self.output_numel)
 
@@ -278,6 +328,61 @@ class ModelRuntime:
         print("accel_history_length:", self.accel_history_length)
         print("action_history_length:", self.action_history_length)
 
+    def q_byte(self, value):
+        q = int(round(float(value) / self.input_scale + self.input_zero_point))
+        if self.input_dtype == "B":
+            if q < 0:
+                q = 0
+            elif q > 255:
+                q = 255
+            return q
+        if q < -128:
+            q = -128
+        elif q > 127:
+            q = 127
+        return q & 0xFF
+
+    def pack_values(self, storage, byte_offset, values):
+        n = len(values)
+        if self.quantized_input:
+            for i in range(n):
+                storage[byte_offset + i] = self.q_byte(values[i])
+            return
+        if n == 10:
+            ustruct.pack_into(STATE_PREFIX_FMT, storage, byte_offset,
+                              values[0], values[1], values[2], values[3],
+                              values[4], values[5], values[6],
+                              values[7], values[8], values[9])
+        elif n == 3:
+            ustruct.pack_into(ACCEL_FMT, storage, byte_offset,
+                              values[0], values[1], values[2])
+        elif n == 4:
+            ustruct.pack_into(ACTION_FMT, storage, byte_offset,
+                              values[0], values[1], values[2], values[3])
+        else:
+            for i in range(n):
+                ustruct.pack_into("<f", storage, byte_offset + i * FP32_BYTES,
+                                  values[i])
+
+    def output_values(self, y_flat):
+        if not self.quantized_output or self.output_scale <= 0.0:
+            return y_flat
+        max_abs = 0.0
+        for i in range(len(y_flat)):
+            v_abs = abs(float(y_flat[i]))
+            if v_abs > max_abs:
+                max_abs = v_abs
+        if max_abs <= 4.0:
+            return y_flat
+        out = [0.0] * len(y_flat)
+        for i in range(len(y_flat)):
+            out[i] = (float(y_flat[i]) - self.output_zero_point) * self.output_scale
+        return out
+
+    def predict_from_storage(self, storage):
+        y_raw = self.model.predict([make_storage_feeder(storage)])[0]
+        return self.output_values(y_raw.flatten())
+
     def self_check(self):
         output_size = os.stat(self.output_path)[6]
         if output_size == 0 or output_size % (self.output_numel * 4) != 0:
@@ -291,24 +396,51 @@ class ModelRuntime:
                                (actual_input, expected_input))
 
         err_max = 0.0
-        x_in = None
+        int8_err_max = 0.0
+        last_storage = None
         for sample_idx in range(n_check):
             x = load_sample_float32(self.input_paths[0], sample_idx, self.input_numel)
             y_ref = load_sample_float32(self.output_path, sample_idx, self.output_numel)
-            x_in = x.reshape(self.input_shape)
-            y_raw = self.model.predict([x_in])[0]
-            y_f32 = y_raw.flatten()
+            storage = bytearray(self.input_numel * self.input_value_bytes)
+            self.pack_values(storage, 0, x)
+            last_storage = storage
+            y_f32 = self.predict_from_storage(storage)
             err = max_abs_diff(y_f32, y_ref)
             if err > err_max:
                 err_max = err
-            print("[%3d] fp32_err=%.6g" % (sample_idx, err))
+            if self.int8_output_path is not None:
+                y_int8_ref = load_sample_float32(
+                    self.int8_output_path, sample_idx, self.output_numel
+                )
+                int8_err = max_abs_diff(y_f32, y_int8_ref)
+                if int8_err > int8_err_max:
+                    int8_err_max = int8_err
+                print("[%3d] fp32_err=%.6g int8_err=%.6g" %
+                      (sample_idx, err, int8_err))
+            else:
+                print("[%3d] fp32_err=%.6g" % (sample_idx, err))
 
         print("self-check: fp32 max_abs_err=%.6g over %d samples" %
               (err_max, n_check))
-        if err_max > SELF_CHECK_MAX_ERR:
+        if self.int8_output_path is not None:
+            fail_tol = min(SELF_CHECK_INT8_FAIL_LSBS * self.output_scale,
+                           SELF_CHECK_INT8_MAX_ERR)
+            if fail_tol <= 0.0:
+                fail_tol = SELF_CHECK_INT8_MAX_ERR
+            print("self-check: int8 max_abs_err=%.6g fail_tol=%.6g" %
+                  (int8_err_max, fail_tol))
+            if int8_err_max > fail_tol:
+                raise RuntimeError("int8 self-check err %.6g > %.6g" %
+                                   (int8_err_max, fail_tol))
+        elif self.quantized:
+            if err_max > SELF_CHECK_INT8_MAX_ERR:
+                raise RuntimeError("quantized self-check err %.6g > %.6g" %
+                                   (err_max, SELF_CHECK_INT8_MAX_ERR))
+        elif err_max > SELF_CHECK_MAX_ERR:
             raise RuntimeError("fp32 self-check err %.6g > %.6g" %
                                (err_max, SELF_CHECK_MAX_ERR))
-        self.model.predict([x_in])
+        if last_storage is not None:
+            self.predict_from_storage(last_storage)
 
 
 def finite_reasonable(v):
@@ -432,18 +564,20 @@ def shift_history_bytes(buf, offset, n_slots, entry_bytes):
         buf[offset + entry_bytes:offset + total_bytes] = buf[offset:offset + total_bytes - entry_bytes]
 
 
-def push_accel_history_bytes(buf, offset, n_slots, ax, ay, az):
+def push_accel_history(runtime, buf, offset, n_slots, ax, ay, az):
     if n_slots <= 0:
         return
-    shift_history_bytes(buf, offset, n_slots, ACCEL_ENTRY_BYTES)
-    ustruct.pack_into(ACCEL_FMT, buf, offset, ax, ay, az)
+    entry_bytes = ACCEL_DIM * runtime.input_value_bytes
+    shift_history_bytes(buf, offset, n_slots, entry_bytes)
+    runtime.pack_values(buf, offset, (ax, ay, az))
 
 
-def push_action_history_bytes(buf, offset, n_slots, a0, a1, a2, a3):
+def push_action_history(runtime, buf, offset, n_slots, a0, a1, a2, a3):
     if n_slots <= 0:
         return
-    shift_history_bytes(buf, offset, n_slots, ACTION_ENTRY_BYTES)
-    ustruct.pack_into(ACTION_FMT, buf, offset, a0, a1, a2, a3)
+    entry_bytes = ACTION_DIM * runtime.input_value_bytes
+    shift_history_bytes(buf, offset, n_slots, entry_bytes)
+    runtime.pack_values(buf, offset, (a0, a1, a2, a3))
 
 
 def crc16_ccitt(buf, n):
@@ -690,16 +824,20 @@ def run():
     runtime = ModelRuntime()
     runtime.self_check()
 
-    input_storage = bytearray(runtime.input_numel * FP32_BYTES)
-    accel_offset_bytes = BASE_INPUT_FLOATS * FP32_BYTES
-    action_offset_bytes = accel_offset_bytes + runtime.accel_history_length * ACCEL_ENTRY_BYTES
-    action_history_bytes = runtime.action_history_length * ACTION_ENTRY_BYTES
-    for off in range(action_offset_bytes, action_offset_bytes + action_history_bytes, ACTION_ENTRY_BYTES):
-        ustruct.pack_into(ACTION_FMT, input_storage, off,
-                          HOVER_ACTION, HOVER_ACTION, HOVER_ACTION, HOVER_ACTION)
+    input_storage = bytearray(runtime.input_numel * runtime.input_value_bytes)
+    accel_entry_bytes = ACCEL_DIM * runtime.input_value_bytes
+    action_entry_bytes = ACTION_DIM * runtime.input_value_bytes
+    accel_offset_bytes = BASE_INPUT_FLOATS * runtime.input_value_bytes
+    action_offset_bytes = accel_offset_bytes + runtime.accel_history_length * accel_entry_bytes
+    action_history_bytes = runtime.action_history_length * action_entry_bytes
+    for off in range(action_offset_bytes,
+                     action_offset_bytes + action_history_bytes,
+                     action_entry_bytes):
+        runtime.pack_values(input_storage, off,
+                            (HOVER_ACTION, HOVER_ACTION, HOVER_ACTION,
+                             HOVER_ACTION))
 
-    def input_feeder(buf, shape, dtype):
-        buf[:] = input_storage
+    input_feeder = make_storage_feeder(input_storage)
 
     mahony = MahonyFilter()
     uart_bridge = machine.UART(UART_BRIDGE_PORT, UART_BRIDGE_BAUD, timeout=0, timeout_char=0)
@@ -718,7 +856,9 @@ def run():
     action_sum_2 = 0.0
     action_sum_3 = 0.0
 
-    print("starting %dHz fp32 attitude-setpoint policy loop" % CONTROL_HZ)
+    mode = "int8" if runtime.quantized else "fp32"
+    print("starting %dHz %s attitude-setpoint policy loop" %
+          (CONTROL_HZ, mode))
     print("training control history=%dHz substeps=%d" %
           (TRAINING_CONTROL_HZ, CONTROL_SUBSTEPS))
     print("fallback setpoint roll=%.3f pitch=%.3f yaw_rate=%.3f thrust_g=%.3f" %
@@ -769,14 +909,16 @@ def run():
         sp_roll, sp_pitch, sp_yaw_rate, sp_thrust_g = setpoint_rx.current(sp_now)
         sp_age_ms = setpoint_rx.age_ms(sp_now)
 
-        ustruct.pack_into(STATE_PREFIX_FMT, input_storage, 0,
-                          sp_roll, sp_pitch, sp_yaw_rate, sp_thrust_g,
-                          world_z[0], world_z[1], world_z[2],
-                          gx_rad, gy_rad, gz_rad)
+        runtime.pack_values(
+            input_storage, 0,
+            (sp_roll, sp_pitch, sp_yaw_rate, sp_thrust_g,
+             world_z[0], world_z[1], world_z[2],
+             gx_rad, gy_rad, gz_rad)
+        )
         t_state = time.ticks_us()
 
         y_raw = runtime.model.predict([input_feeder])[0]
-        y_f32 = y_raw.flatten()
+        y_f32 = runtime.output_values(y_raw.flatten())
         a0_raw = float(y_f32[0])
         a1_raw = float(y_f32[1])
         a2_raw = float(y_f32[2])
@@ -803,14 +945,16 @@ def run():
         substep_print = substep
         if substep >= CONTROL_SUBSTEPS:
             if runtime.accel_history_length > 0:
-                push_accel_history_bytes(
-                    input_storage, accel_offset_bytes, runtime.accel_history_length,
+                push_accel_history(
+                    runtime, input_storage, accel_offset_bytes,
+                    runtime.accel_history_length,
                     accel_sum_x * INV_CONTROL_SUBSTEPS,
                     accel_sum_y * INV_CONTROL_SUBSTEPS,
                     accel_sum_z * INV_CONTROL_SUBSTEPS
                 )
-            push_action_history_bytes(
-                input_storage, action_offset_bytes, runtime.action_history_length,
+            push_action_history(
+                runtime, input_storage, action_offset_bytes,
+                runtime.action_history_length,
                 action_sum_0 * INV_CONTROL_SUBSTEPS,
                 action_sum_1 * INV_CONTROL_SUBSTEPS,
                 action_sum_2 * INV_CONTROL_SUBSTEPS,
