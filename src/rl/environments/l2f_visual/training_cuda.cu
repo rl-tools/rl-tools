@@ -130,16 +130,16 @@ static constexpr REWARD_FUNCTION reward_function = {
     false, // bool non_negative;
     0.10,  // scale;
     1.00,  // constant;
-    -10.00, // termination_penalty;
+    -100.00, // termination_penalty;
     10.00, // position;
     0.00,  // position_clip;
     1.00,  // orientation;
     0.05,  // linear_velocity;
-    0.00,  // angular_velocity;
+    0.50,  // angular_velocity;
     0.00,  // linear_acceleration;
     0.00,  // angular_acceleration;
     {0.00, 0.00, 0.00, 0.00}, // action[ACTION_DIM]
-    {0.50, 0.50, 0.50, 0.50}, // d_action[ACTION_DIM]
+    {1.50, 1.50, 1.50, 1.50}, // d_action[ACTION_DIM]
     0.00   // position_error_integral
 };
 static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = {
@@ -209,7 +209,7 @@ static constexpr TI N_ENVIRONMENTS = N_ACTIVE_SCENES * N_ENVIRONMENTS_PER_SCENE;
 static constexpr TI CAM_WIDTH = 80;
 static constexpr TI CAM_HEIGHT = 50;
 static constexpr TI NUM_PROBES = 64;
-static constexpr T CAMERA_FOV = static_cast<T>(63.8) / static_cast<T>(180) * rlt::math::PI<T>;
+static constexpr T CAMERA_FOV = static_cast<T>(79.6) / static_cast<T>(180) * rlt::math::PI<T>;
 static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = static_cast<T>(5.0) / static_cast<T>(180) * rlt::math::PI<T>;
 static constexpr T TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE = static_cast<T>(10.0) / static_cast<T>(180) * rlt::math::PI<T>;
 constexpr bool HIGH_FIDELITY_SHADING = true;
