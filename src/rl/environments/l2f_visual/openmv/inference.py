@@ -17,8 +17,10 @@ CONTROL_HZ = 500
 VISION_HZ = 100
 CONTROL_SUBSTEPS = CONTROL_HZ // VISION_HZ
 TICK_US = 1_000_000 // CONTROL_HZ
+VISION_TICK_US = 1_000_000 // VISION_HZ
 DIAG_PRINT_EVERY = CONTROL_HZ
 INV_CONTROL_SUBSTEPS = 1.0 / CONTROL_SUBSTEPS
+CAMERA_FRAMEBUFFERS = 3
 
 UART_BRIDGE_PORT = 4
 UART_BRIDGE_BAUD = 115200
@@ -27,6 +29,10 @@ UART_RX_LINE_MAX = 256
 FRAME_START_MASK = 0x80
 FRAME_FLAGS = 0x00
 FRAME_START_BYTE = FRAME_START_MASK | FRAME_FLAGS
+FRAME_TYPE_MASK = 0x7F
+
+SETPOINT_FRAME_TYPE_ATTITUDE = 0x02
+SETPOINT_DATA_BYTES = 13
 
 IMU_CTRL1_XL = 0x10
 IMU_CTRL2_G = 0x11
@@ -481,6 +487,86 @@ def build_frame_into(frame13, a0, a1, a2, a3):
     pack7(raw_payload, 10, frame13, 1)
 
 
+def uart_text_byte(b):
+    return b == 9 or b == 10 or b == 13 or 32 <= b <= 126
+
+
+class CfUartReceiver:
+    def __init__(self):
+        self.rx_line_buf = bytearray()
+        self.frame_data_remaining = 0
+        self.line_has_binary = False
+        self.arm_rising_seen = False
+        self.setpoint_frames = 0
+        self.frame_restarts = 0
+        self.unknown_frames = 0
+        self.dropped_binary_bytes = 0
+
+    def poll(self, uart_bridge):
+        self.arm_rising_seen = False
+        n_avail = uart_bridge.any()
+        if not n_avail:
+            return False
+        chunk = uart_bridge.read(n_avail)
+        if not chunk:
+            return False
+        for b in chunk:
+            self.feed_byte(b)
+        return self.arm_rising_seen
+
+    def feed_byte(self, b):
+        if self.frame_data_remaining > 0:
+            if b & FRAME_START_MASK:
+                self.frame_restarts += 1
+                self.start_frame_or_drop(b)
+                return
+            self.frame_data_remaining -= 1
+            if self.frame_data_remaining == 0:
+                self.setpoint_frames += 1
+            return
+
+        if b & FRAME_START_MASK:
+            self.start_frame_or_drop(b)
+            return
+
+        if uart_text_byte(b):
+            self.feed_text_byte(b)
+        else:
+            self.line_has_binary = True
+            self.dropped_binary_bytes += 1
+
+    def start_frame_or_drop(self, b):
+        frame_type = b & FRAME_TYPE_MASK
+        if frame_type == SETPOINT_FRAME_TYPE_ATTITUDE:
+            self.frame_data_remaining = SETPOINT_DATA_BYTES
+        else:
+            self.unknown_frames += 1
+
+    def feed_text_byte(self, b):
+        self.rx_line_buf.append(b)
+        if b == 10:
+            line = bytes(self.rx_line_buf[:-1]).rstrip(b"\r")
+            self.rx_line_buf = bytearray()
+            if self.line_has_binary:
+                self.line_has_binary = False
+                return
+            self.handle_line(line)
+        elif len(self.rx_line_buf) > UART_RX_LINE_MAX:
+            if self.line_has_binary:
+                self.line_has_binary = False
+            else:
+                print("[cf-overflow]", bytes(self.rx_line_buf))
+            self.rx_line_buf = bytearray()
+
+    def handle_line(self, line):
+        if b"[u1br] arm rising edge" in line:
+            self.arm_rising_seen = True
+        try:
+            print("[cf]", line.decode("utf-8"))
+        except UnicodeError:
+            print("[cf-bin]", line)
+
+
 def crc16_ccitt(buf, n):
     crc = 0xFFFF
     for i in range(n):
@@ -740,6 +826,8 @@ def run():
     csi0.framesize(csi.QVGA)
     sensor_w, sensor_h = csi0.width(), csi0.height()
     csi0.framerate(VISION_HZ)
+    csi0.framebuffers(CAMERA_FRAMEBUFFERS)
+    print("camera async framebuffers:", csi0.framebuffers())
     for _ in range(10):
         csi0.snapshot()
     if sensor_w * img_h != sensor_h * img_w:
@@ -839,7 +927,7 @@ def run():
     mahony = MahonyFilter()
     uart_bridge = machine.UART(UART_BRIDGE_PORT, UART_BRIDGE_BAUD, timeout=0, timeout_char=0)
     frame_tx = bytearray(13)
-    rx_line_buf = bytearray()
+    cf_rx = CfUartReceiver()
     reset_button = machine.Pin("SW", machine.Pin.IN, machine.Pin.PULL_UP)
     reset_button_last = reset_button.value()
 
@@ -861,6 +949,8 @@ def run():
     a2_raw = 0.0
     a3_raw = 0.0
     visual_age = 0
+    camera_pending = csi0.snapshot(blocking=False)
+    next_visual_deadline = time.ticks_us()
 
     print("starting split visual policy loop control=%dHz vision=%dHz substeps=%d" %
           (CONTROL_HZ, VISION_HZ, CONTROL_SUBSTEPS))
@@ -903,26 +993,35 @@ def run():
         t_snapshot = t_mahony
         t_downsample = t_mahony
         t_visual = t_mahony
-        if substep == 0:
-            img = csi0.snapshot()
+        visual_due = time.ticks_diff(t0, next_visual_deadline) >= 0
+        if visual_due:
+            img = camera_pending
+            camera_pending = None
             if img is None:
-                raise RuntimeError("camera snapshot failed")
+                img = csi0.snapshot(blocking=False)
             t_snapshot = time.ticks_us()
-            resize_quantize_frame(img, frame_history_q[history_write_ptr], 0)
-            t_downsample = time.ticks_us()
-            if not target_captured:
-                target_q[:] = frame_history_q[history_write_ptr]
-                for i in range(frame_history_length):
-                    if i != history_write_ptr:
-                        frame_history_q[i][:] = frame_history_q[history_write_ptr]
-                target_captured = True
-            update_visual_sources(history_write_ptr)
-            y_visual = runtime.visual_model.predict(visual_feeders)[0].flatten()
-            runtime.set_embedding_from_visual(embedding_q, y_visual)
-            history_write_ptr = (history_write_ptr + 1) % frame_history_length
-            visual_age = 0
-            visual_updated = 1
-            t_visual = time.ticks_us()
+            if img is not None:
+                resize_quantize_frame(img, frame_history_q[history_write_ptr], 0)
+                t_downsample = time.ticks_us()
+                camera_pending = csi0.snapshot(blocking=False)
+                if not target_captured:
+                    target_q[:] = frame_history_q[history_write_ptr]
+                    for i in range(frame_history_length):
+                        if i != history_write_ptr:
+                            frame_history_q[i][:] = frame_history_q[history_write_ptr]
+                    target_captured = True
+                update_visual_sources(history_write_ptr)
+                y_visual = runtime.visual_model.predict(visual_feeders)[0].flatten()
+                runtime.set_embedding_from_visual(embedding_q, y_visual)
+                history_write_ptr = (history_write_ptr + 1) % frame_history_length
+                visual_age = 0
+                visual_updated = 1
+                t_visual = time.ticks_us()
+                next_visual_deadline = time.ticks_add(next_visual_deadline, VISION_TICK_US)
+                while time.ticks_diff(t_visual, next_visual_deadline) >= 0:
+                    next_visual_deadline = time.ticks_add(next_visual_deadline, VISION_TICK_US)
+            else:
+                visual_age += 1
         else:
             visual_age += 1
 
@@ -945,27 +1044,9 @@ def run():
         uart_bridge.write(frame_tx)
         t_tx = time.ticks_us()
 
-        n_avail = uart_bridge.any()
-        if n_avail:
-            chunk = uart_bridge.read(n_avail)
-            if chunk:
-                rx_line_buf.extend(chunk)
-                while True:
-                    nl = rx_line_buf.find(b"\n")
-                    if nl < 0:
-                        break
-                    line = bytes(rx_line_buf[:nl]).rstrip(b"\r")
-                    rx_line_buf = rx_line_buf[nl + 1:]
-                    if b"[u1br] arm rising edge" in line:
-                        target_captured = False
-                        print("target reset (arm rising edge)")
-                    try:
-                        print("[cf]", line.decode("utf-8"))
-                    except UnicodeError:
-                        print("[cf-bin]", line)
-                if len(rx_line_buf) > UART_RX_LINE_MAX:
-                    print("[cf-overflow]", bytes(rx_line_buf))
-                    rx_line_buf = bytearray()
+        if cf_rx.poll(uart_bridge):
+            target_captured = False
+            print("target reset (arm rising edge)")
         t_rx = time.ticks_us()
 
         action_sum_0 += a0
