@@ -23,22 +23,23 @@ src/rl/zoo/l2f/openmv/build_and_load.sh \
     /run/media/$USER/OPENMV
 ```
 
-The script converts the checkpoint to fp32 TFLite:
+The script converts the checkpoint to int8 TFLite by default:
 
 ```sh
 .venv/bin/python3 tools/hdf5_to_tflite.py \
-    --quantize none \
+    --quantize int8 \
     --no-split-image-input \
     --example-bin-limit "${BIN_LIMIT:-13}" \
     <checkpoint.h5>
 ```
 
-It then runs Vela on the fp32 `.tflite` and copies `main.py`, the Vela TFLite,
-and the fp32 companion `.bin`/`.json` self-check files to the OpenMV mount.
-Override paths with:
+It then runs Vela on `<checkpoint>.int8.tflite` and copies `main.py`, the Vela
+TFLite, and the companion `.bin`/`.json` self-check files to the OpenMV mount.
+The OpenMV runtime pre-quantizes the live observation into the model's int8
+input scale before inference. Override paths or force the old fp32 flow with:
 
 ```sh
-BIN_LIMIT=13 VELA=/path/to/vela VELA_INI=/path/to/vela.ini \
+BIN_LIMIT=13 QUANTIZE=none VELA=/path/to/vela VELA_INI=/path/to/vela.ini \
     src/rl/zoo/l2f/openmv/build_and_load.sh <checkpoint.h5> <openmv_mount>
 ```
 
@@ -143,7 +144,7 @@ fallback setpoint.
 
 Before free flight, verify on the gimbal:
 
-1. OpenMV boot self-check passes against the fp32 companion bins.
+1. OpenMV boot self-check passes against the int8 companion bins.
 2. Level attitude reports `world_z` close to `(0, 0, 1)`.
 3. Manual roll and pitch motion produce the expected `world_z` signs.
 4. `u1br.framesOk` increments on the Crazyflie.
