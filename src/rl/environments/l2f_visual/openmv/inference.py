@@ -45,6 +45,17 @@ IMU_CTRL6_C = 0x15
 MG_TO_MPS2 = 9.80665e-3
 MDPS_TO_RADPS = math.pi / (180.0 * 1000.0)
 
+GYRO_CALIBRATION_SETTLE_MS = 300
+GYRO_CALIBRATION_MS = 1500
+GYRO_CALIBRATION_SAMPLE_US = TICK_US
+GYRO_CALIBRATION_MIN_SAMPLES = (CONTROL_HZ * GYRO_CALIBRATION_MS) // 1000
+GYRO_CALIBRATION_PRINT_MS = 1000
+ACCEL_STATIC_MIN_MG = 900.0
+ACCEL_STATIC_MAX_MG = 1100.0
+ACCEL_STATIC_STD_MAX_MG = 30.0
+GYRO_STATIC_NORM_MAX_MDPS = 15000.0
+GYRO_STATIC_STD_MAX_MDPS = 3000.0
+
 ACTION_DIM = 4
 ACCEL_DIM = 3
 SELF_CHECK_FAIL_TOL = 0.5
@@ -56,6 +67,109 @@ def configure_imu():
     imu.__write_reg(IMU_CTRL1_XL, (0b0111 << 4) | (0b11 << 2))
     imu.__write_reg(IMU_CTRL4_C, 0x02)
     imu.__write_reg(IMU_CTRL6_C, 0x01)
+
+
+def read_imu_flu():
+    ax_orig, ay_orig, az_orig = imu.acceleration_mg()
+    gx_orig, gy_orig, gz_orig = imu.angular_rate_mdps()
+    return (
+        -az_orig, ay_orig, ax_orig,
+        -gz_orig, gy_orig, gx_orig,
+    )
+
+
+def calibrate_gyro():
+    print("gyro calibration: hold still")
+    time.sleep_ms(GYRO_CALIBRATION_SETTLE_MS)
+
+    n = 0
+    ax_sum = ay_sum = az_sum = 0.0
+    ax2_sum = ay2_sum = az2_sum = 0.0
+    gx_sum = gy_sum = gz_sum = 0.0
+    gx2_sum = gy2_sum = gz2_sum = 0.0
+    window_start_ms = time.ticks_ms()
+    last_print_ms = window_start_ms
+    next_sample_us = time.ticks_us()
+
+    while True:
+        ax, ay, az, gx, gy, gz = read_imu_flu()
+        accel_norm = math.sqrt(ax * ax + ay * ay + az * az)
+        gyro_norm = math.sqrt(gx * gx + gy * gy + gz * gz)
+        now_ms = time.ticks_ms()
+
+        sample_static = (
+            ACCEL_STATIC_MIN_MG <= accel_norm <= ACCEL_STATIC_MAX_MG and
+            gyro_norm <= GYRO_STATIC_NORM_MAX_MDPS
+        )
+
+        if not sample_static:
+            n = 0
+            ax_sum = ay_sum = az_sum = 0.0
+            ax2_sum = ay2_sum = az2_sum = 0.0
+            gx_sum = gy_sum = gz_sum = 0.0
+            gx2_sum = gy2_sum = gz2_sum = 0.0
+            window_start_ms = now_ms
+            if time.ticks_diff(now_ms, last_print_ms) >= GYRO_CALIBRATION_PRINT_MS:
+                print("gyro calibration waiting: accel=%.1fmg gyro=%.1fmdps" %
+                      (accel_norm, gyro_norm))
+                last_print_ms = now_ms
+        else:
+            if n == 0:
+                window_start_ms = now_ms
+            n += 1
+            ax_sum += ax
+            ay_sum += ay
+            az_sum += az
+            ax2_sum += ax * ax
+            ay2_sum += ay * ay
+            az2_sum += az * az
+            gx_sum += gx
+            gy_sum += gy
+            gz_sum += gz
+            gx2_sum += gx * gx
+            gy2_sum += gy * gy
+            gz2_sum += gz * gz
+
+            if (n >= GYRO_CALIBRATION_MIN_SAMPLES and
+                    time.ticks_diff(now_ms, window_start_ms) >= GYRO_CALIBRATION_MS):
+                inv_n = 1.0 / n
+                ax_mean = ax_sum * inv_n
+                ay_mean = ay_sum * inv_n
+                az_mean = az_sum * inv_n
+                gx_mean = gx_sum * inv_n
+                gy_mean = gy_sum * inv_n
+                gz_mean = gz_sum * inv_n
+
+                ax_var = max(0.0, ax2_sum * inv_n - ax_mean * ax_mean)
+                ay_var = max(0.0, ay2_sum * inv_n - ay_mean * ay_mean)
+                az_var = max(0.0, az2_sum * inv_n - az_mean * az_mean)
+                gx_var = max(0.0, gx2_sum * inv_n - gx_mean * gx_mean)
+                gy_var = max(0.0, gy2_sum * inv_n - gy_mean * gy_mean)
+                gz_var = max(0.0, gz2_sum * inv_n - gz_mean * gz_mean)
+
+                accel_std = max(math.sqrt(ax_var), math.sqrt(ay_var), math.sqrt(az_var))
+                gyro_std = max(math.sqrt(gx_var), math.sqrt(gy_var), math.sqrt(gz_var))
+                if accel_std <= ACCEL_STATIC_STD_MAX_MG and gyro_std <= GYRO_STATIC_STD_MAX_MDPS:
+                    print("gyro calibration: bias mdps=%+.1f,%+.1f,%+.1f std gyro=%.1f accel=%.1f n=%d" %
+                          (gx_mean, gy_mean, gz_mean, gyro_std, accel_std, n))
+                    return gx_mean, gy_mean, gz_mean
+
+                print("gyro calibration reset: std gyro=%.1f accel=%.1f" %
+                      (gyro_std, accel_std))
+                n = 0
+                ax_sum = ay_sum = az_sum = 0.0
+                ax2_sum = ay2_sum = az2_sum = 0.0
+                gx_sum = gy_sum = gz_sum = 0.0
+                gx2_sum = gy2_sum = gz2_sum = 0.0
+                window_start_ms = now_ms
+                last_print_ms = now_ms
+
+        next_sample_us = time.ticks_add(next_sample_us, GYRO_CALIBRATION_SAMPLE_US)
+        delay_us = time.ticks_diff(next_sample_us, time.ticks_us())
+        if delay_us > 0:
+            time.sleep_us(delay_us)
+        else:
+            next_sample_us = time.ticks_us()
 
 
 def configure_camera(csi0):
@@ -939,6 +1053,7 @@ def run():
     runtime.self_check(visual_sources_by_keras, visual_feeders, embedding_q,
                        state_q, control_feeders)
 
+    gyro_bias_mdps = calibrate_gyro()
     mahony = MahonyFilter()
     uart_bridge = machine.UART(UART_BRIDGE_PORT, UART_BRIDGE_BAUD, timeout=0, timeout_char=0)
     frame_tx = bytearray(13)
@@ -979,14 +1094,10 @@ def run():
             print("target reset (button)")
         reset_button_last = reset_button_cur
 
-        ax_orig, ay_orig, az_orig = imu.acceleration_mg()
-        ax = -az_orig
-        ay =  ay_orig
-        az =  ax_orig
-        gx_orig, gy_orig, gz_orig = imu.angular_rate_mdps()
-        gx = -gz_orig
-        gy =  gy_orig
-        gz =  gx_orig
+        ax, ay, az, gx, gy, gz = read_imu_flu()
+        gx -= gyro_bias_mdps[0]
+        gy -= gyro_bias_mdps[1]
+        gz -= gyro_bias_mdps[2]
         t_imu = time.ticks_us()
 
         dt = time.ticks_diff(t0, last_t) * 1e-6
