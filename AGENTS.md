@@ -33,9 +33,10 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_EXPERIMENTAL=ON -DRL_TOOLS_
 ### Running Tests
 
 ```bash
-make -j8
-ctest --timeout 20 -j16
+make -j5
+ctest --timeout 20 -j5
 ```
+Use no more than 5 parallel jobs for builds or tests.
 Note: the `--timeout` is essential for debugging because some tests require many minutes to finish. We want to debug efficiently, hence we only fully run the long running tests after all the short running tests pass.
 
 Training/RL tests (SAC, TD3, PPO, MLP full training) legitimately take longer than 20 seconds; use a higher timeout (e.g. `--timeout 300`) to run them to completion.
@@ -58,7 +59,7 @@ Several tests use a two-step workflow: a **generation** test produces a header f
 
 ```bash
 # Build and run all generators (from repo root so output paths resolve correctly)
-make -j8 test_nn_layers_gru_persist_code \
+make -j5 test_nn_layers_gru_persist_code \
          test_nn_models_multi_agent_wrapper_persist_code \
          test_inference_l2f_c_interface_write_policy
 
