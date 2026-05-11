@@ -31,6 +31,7 @@ error only manifests when running `.int8.tflite` directly.
 Requires the virtualenv at `.venv` with tensorflow installed.
 """
 import argparse
+import copy
 import json
 import os
 import shutil
@@ -508,6 +509,38 @@ def build_model(h5_root, fq_scales=None):
     raise NotImplementedError(f"top-level type {mtype}")
 
 
+def build_visual_control_split_models(h5_root):
+    model_group = find_model_group(h5_root)
+    if attr(model_group, "type") != "parallel":
+        raise RuntimeError("--openmv-visual-split requires a top-level parallel actor")
+    if num_branches(model_group) != 2:
+        raise RuntimeError("--openmv-visual-split expects exactly two branches (image, state)")
+    if int(attr(model_group, "has_head")) == 0:
+        raise RuntimeError("--openmv-visual-split requires a parallel head")
+
+    image_branch = model_group["branch_0"]
+    state_branch = model_group["branch_1"]
+    head_group = model_group["head"]
+
+    image_shape = branch_feature_shape(image_branch)
+    state_shape = branch_feature_shape(state_branch)
+    image_in = tf.keras.Input(shape=image_shape, dtype=tf.float32, name="in_00")
+    visual_out = build_branch_output(image_branch, image_in)
+    visual_model = tf.keras.Model(inputs=image_in, outputs=visual_out, name="visual_branch")
+
+    embedding_shape = tuple(int(d) for d in visual_model.output.shape[1:])
+    if len(embedding_shape) != 1:
+        raise RuntimeError(f"visual embedding must be rank-1 per sample, got {embedding_shape}")
+    embedding_in = tf.keras.Input(shape=embedding_shape, dtype=tf.float32, name="in_00")
+    state_in = tf.keras.Input(shape=state_shape, dtype=tf.float32, name="in_01")
+    state_out = build_branch_output(state_branch, state_in)
+    concat = tf.keras.layers.Concatenate(axis=-1)([embedding_in, state_out])
+    control_out = build_head_output(head_group, concat)
+    control_model = tf.keras.Model(inputs=[embedding_in, state_in], outputs=control_out, name="control_head")
+
+    return visual_model, control_model
+
+
 def model_input_shapes(model):
     raw = model.input if isinstance(model.input, list) else [model.input]
     return [tuple(int(d) for d in t.shape[1:]) for t in raw]
@@ -618,6 +651,15 @@ def collect_quant_layers(group):
         b = group["biases/parameters"]
         return [(group.name, kind, tuple(w.shape), tuple(b.shape))]
     return []
+
+
+def uses_activation(group, activation_name):
+    if attr(group, "activation_function") == activation_name:
+        return True
+    for value in group.values():
+        if isinstance(value, h5py.Group) and uses_activation(value, activation_name):
+            return True
+    return False
 
 
 def convert_float(keras_model):
@@ -837,10 +879,18 @@ def run_tflite(tflite_bytes, inputs):
     return interp.get_tensor(out_detail["index"])
 
 
-def run_tflite_int8(tflite_bytes, inputs, return_raw=False):
+def run_tflite_int8(tflite_bytes, inputs, return_raw=False, sort_by_name=True,
+                    raw_input_flags=None):
     interp = tf.lite.Interpreter(model_content=tflite_bytes)
     interp.allocate_tensors()
-    in_details = _sort_details_by_name(interp.get_input_details(), len(inputs))
+    if sort_by_name:
+        in_details = _sort_details_by_name(interp.get_input_details(), len(inputs))
+    else:
+        in_details = interp.get_input_details()
+        if len(in_details) != len(inputs):
+            raise RuntimeError(
+                f"tflite has {len(in_details)} inputs but {len(inputs)} arrays were given"
+            )
     out_detail = interp.get_output_details()[0]
 
     n_samples = inputs[0].shape[0]
@@ -849,19 +899,28 @@ def run_tflite_int8(tflite_bytes, inputs, return_raw=False):
             raise RuntimeError(
                 f"inconsistent sample count across inputs: {[a.shape[0] for a in inputs]}"
             )
+    if raw_input_flags is None:
+        raw_input_flags = [False] * len(inputs)
+    if len(raw_input_flags) != len(inputs):
+        raise RuntimeError("raw_input_flags length does not match inputs")
 
     out_scale, out_zp = out_detail["quantization"]
 
     outputs = []
     raw_outputs = []
     for i in range(n_samples):
-        for detail, arr in zip(in_details, inputs):
+        for detail, arr, is_raw in zip(in_details, inputs, raw_input_flags):
             s = arr[i : i + 1]
             if detail["dtype"] == np.int8:
-                in_scale, in_zp = detail["quantization"]
-                q = np.round(s / in_scale + in_zp).clip(-128, 127).astype(np.int8)
+                if is_raw:
+                    q = s.astype(np.int8)
+                else:
+                    in_scale, in_zp = detail["quantization"]
+                    q = np.round(s / in_scale + in_zp).clip(-128, 127).astype(np.int8)
                 interp.set_tensor(detail["index"], q)
             else:
+                if is_raw:
+                    raise RuntimeError("raw input requested for non-int8 tensor")
                 interp.set_tensor(detail["index"], s.astype(np.float32))
         interp.invoke()
         raw = interp.get_tensor(out_detail["index"])
@@ -880,6 +939,307 @@ def run_tflite_int8(tflite_bytes, inputs, return_raw=False):
             raw_arr = np.concatenate(raw_outputs, axis=0)
         return dequant, raw_arr, float(out_scale), int(out_zp), str(out_detail["dtype"].__name__)
     return dequant
+
+
+def run_tflite_int8_intermediate_raw(tflite_bytes, inputs, tensor_index):
+    interp = tf.lite.Interpreter(
+        model_content=tflite_bytes,
+        experimental_preserve_all_tensors=True,
+    )
+    interp.allocate_tensors()
+    in_details = _sort_details_by_name(interp.get_input_details(), len(inputs))
+    tensor_detail = next(
+        (d for d in interp.get_tensor_details() if int(d["index"]) == int(tensor_index)),
+        None,
+    )
+    if tensor_detail is None:
+        raise RuntimeError(f"tensor index {tensor_index} not found in tflite")
+    if tensor_detail["dtype"] != np.int8:
+        raise RuntimeError(
+            f"tensor index {tensor_index} dtype {tensor_detail['dtype']} is not int8"
+        )
+
+    n_samples = inputs[0].shape[0]
+    outputs = []
+    for i in range(n_samples):
+        for detail, arr in zip(in_details, inputs):
+            s = arr[i : i + 1]
+            if detail["dtype"] == np.int8:
+                in_scale, in_zp = detail["quantization"]
+                q = np.round(s / in_scale + in_zp).clip(-128, 127).astype(np.int8)
+                interp.set_tensor(detail["index"], q)
+            else:
+                interp.set_tensor(detail["index"], s.astype(np.float32))
+        interp.invoke()
+        outputs.append(interp.get_tensor(int(tensor_index)).astype(np.int8))
+    return np.concatenate(outputs, axis=0)
+
+
+def tflite_tensor_meta(detail):
+    scale, zp = detail.get("quantization", (0.0, 0))
+    shape = [int(x) for x in detail.get("shape", [])]
+    return {
+        "name": str(detail.get("name", "")),
+        "shape": shape,
+        "dtype": str(detail["dtype"].__name__),
+        "scale": float(scale),
+        "zero_point": int(zp),
+    }
+
+
+def tflite_io_meta(tflite_bytes, expected_inputs, sort_by_name=True):
+    interp = tf.lite.Interpreter(model_content=tflite_bytes)
+    interp.allocate_tensors()
+    if sort_by_name:
+        inputs = _sort_details_by_name(interp.get_input_details(), expected_inputs)
+    else:
+        inputs = interp.get_input_details()
+        if len(inputs) != expected_inputs:
+            raise RuntimeError(
+                f"tflite has {len(inputs)} inputs but {expected_inputs} were expected"
+            )
+    outputs = interp.get_output_details()
+    if len(outputs) != 1:
+        raise RuntimeError(f"expected one tflite output, got {len(outputs)}")
+    return {
+        "inputs": [tflite_tensor_meta(d) for d in inputs],
+        "output": tflite_tensor_meta(outputs[0]),
+    }
+
+
+def quantize_float_to_int8(arr, scale, zp):
+    return np.round(arr / scale + zp).clip(-128, 127).astype(np.int8)
+
+
+def _np_i32(values):
+    return np.array([int(v) for v in values], dtype=np.int32)
+
+
+def _remap_i32_array(values, mapping):
+    remapped = []
+    for v in values:
+        v = int(v)
+        remapped.append(v if v < 0 else mapping[v])
+    return _np_i32(remapped)
+
+
+def _prune_tflite_model(model, op_indices, input_tensors, output_tensors, description):
+    old_sg = model.subgraphs[0]
+    used_tensors = set(int(t) for t in input_tensors)
+    used_tensors.update(int(t) for t in output_tensors)
+    for op_i in op_indices:
+        op = old_sg.operators[int(op_i)]
+        used_tensors.update(int(t) for t in op.inputs if int(t) >= 0)
+        used_tensors.update(int(t) for t in op.outputs if int(t) >= 0)
+
+    tensor_list = sorted(used_tensors)
+    tensor_map = {old: new for new, old in enumerate(tensor_list)}
+
+    used_buffers = {0}
+    for old_t in tensor_list:
+        used_buffers.add(int(old_sg.tensors[old_t].buffer))
+    buffer_list = [0] + sorted(b for b in used_buffers if b != 0)
+    buffer_map = {old: new for new, old in enumerate(buffer_list)}
+
+    opcode_list = sorted(set(int(old_sg.operators[int(i)].opcodeIndex) for i in op_indices))
+    opcode_map = {old: new for new, old in enumerate(opcode_list)}
+
+    new_model = copy.deepcopy(model)
+    new_sg = copy.deepcopy(old_sg)
+    new_sg.tensors = []
+    for old_t in tensor_list:
+        tensor = copy.deepcopy(old_sg.tensors[old_t])
+        tensor.buffer = buffer_map[int(tensor.buffer)]
+        new_sg.tensors.append(tensor)
+
+    new_sg.inputs = _remap_i32_array(input_tensors, tensor_map)
+    new_sg.outputs = _remap_i32_array(output_tensors, tensor_map)
+    new_sg.operators = []
+    for old_op_i in op_indices:
+        op = copy.deepcopy(old_sg.operators[int(old_op_i)])
+        op.opcodeIndex = opcode_map[int(op.opcodeIndex)]
+        op.inputs = _remap_i32_array(op.inputs, tensor_map)
+        op.outputs = _remap_i32_array(op.outputs, tensor_map)
+        if op.intermediates is not None:
+            op.intermediates = _remap_i32_array(op.intermediates, tensor_map)
+        new_sg.operators.append(op)
+
+    new_model.subgraphs = [new_sg]
+    new_model.operatorCodes = [copy.deepcopy(model.operatorCodes[i]) for i in opcode_list]
+    new_model.buffers = [copy.deepcopy(model.buffers[i]) for i in buffer_list]
+    new_model.metadata = []
+    new_model.metadataBuffer = None
+    new_model.signatureDefs = []
+    new_model.description = description.encode("utf-8")
+    return new_model
+
+
+def _tflite_model_to_bytes(model):
+    from tensorflow.lite.tools import flatbuffer_utils
+    return bytes(flatbuffer_utils.convert_object_to_bytearray(model))
+
+
+def _tensor_quant_meta(tensor):
+    qp = tensor.quantization
+    scale = []
+    zero_point = []
+    if qp is not None:
+        scale = [float(x) for x in (qp.scale if qp.scale is not None else [])]
+        zero_point = [int(x) for x in (qp.zeroPoint if qp.zeroPoint is not None else [])]
+    return {
+        "name": tensor.name.decode() if isinstance(tensor.name, bytes) else str(tensor.name),
+        "shape": [int(x) for x in tensor.shape],
+        "type": int(tensor.type),
+        "scale": scale,
+        "zero_point": zero_point,
+    }
+
+
+def split_joint_int8_visual_control(full_int8_bytes, full_order, n_visual_inputs):
+    from tensorflow.lite.tools import flatbuffer_utils
+
+    model = flatbuffer_utils.read_model_from_bytearray(bytearray(full_int8_bytes))
+    if len(model.subgraphs) != 1:
+        raise RuntimeError(f"expected one subgraph, got {len(model.subgraphs)}")
+    sg = model.subgraphs[0]
+    state_keras_index = int(n_visual_inputs)
+    graph_inputs = [int(t) for t in sg.inputs]
+    if len(full_order) != len(graph_inputs):
+        raise RuntimeError("input-order length does not match fused graph inputs")
+    if state_keras_index not in full_order:
+        raise RuntimeError(f"state keras input {state_keras_index} not found in fused tflite")
+
+    visual_inputs = []
+    state_tensor = None
+    visual_input_info = []
+    for tflite_i, (keras_i, tensor_i) in enumerate(zip(full_order, graph_inputs)):
+        keras_i = int(keras_i)
+        if keras_i == state_keras_index:
+            state_tensor = int(tensor_i)
+        elif 0 <= keras_i < n_visual_inputs:
+            visual_inputs.append(int(tensor_i))
+            visual_input_info.append({
+                "tflite_input_index": len(visual_input_info),
+                "fused_tflite_input_index": int(tflite_i),
+                "keras_input_index": keras_i,
+                "fused_tensor_index": int(tensor_i),
+            })
+        else:
+            raise RuntimeError(
+                f"unexpected keras input index {keras_i}; expected visual inputs "
+                f"0..{n_visual_inputs - 1} plus state input {state_keras_index}"
+            )
+    if state_tensor is None:
+        raise RuntimeError("state input tensor not found")
+    if len(visual_inputs) != n_visual_inputs:
+        raise RuntimeError(
+            f"found {len(visual_inputs)} visual graph inputs, expected {n_visual_inputs}"
+        )
+
+    VIS = 1
+    STATE = 2
+    input_deps = {}
+    for keras_i, tensor_i in zip(full_order, graph_inputs):
+        input_deps[int(tensor_i)] = STATE if int(keras_i) == state_keras_index else VIS
+
+    tensor_deps = {int(i): 0 for i in range(len(sg.tensors))}
+    tensor_deps.update(input_deps)
+    producer = {}
+    for op_i, op in enumerate(sg.operators):
+        dep = 0
+        for tensor_i in op.inputs:
+            tensor_i = int(tensor_i)
+            if tensor_i >= 0:
+                dep |= int(tensor_deps.get(tensor_i, 0))
+        for tensor_i in op.outputs:
+            tensor_i = int(tensor_i)
+            if tensor_i >= 0:
+                tensor_deps[tensor_i] = dep
+                producer[tensor_i] = int(op_i)
+
+    split_op = None
+    embedding_tensor = None
+    for op_i, op in enumerate(sg.operators):
+        in_deps = [
+            int(tensor_deps.get(int(t), 0))
+            for t in op.inputs
+            if int(t) >= 0
+        ]
+        has_visual = any((d & VIS) and not (d & STATE) for d in in_deps)
+        has_state = any((d & STATE) and not (d & VIS) for d in in_deps)
+        if not (has_visual and has_state):
+            continue
+        candidates = [
+            int(t) for t in op.inputs
+            if int(t) >= 0 and int(tensor_deps.get(int(t), 0)) == VIS
+        ]
+        if len(candidates) != 1:
+            raise RuntimeError(
+                f"split op {op_i} has {len(candidates)} visual-only input candidates"
+            )
+        split_op = int(op_i)
+        embedding_tensor = candidates[0]
+        break
+    if split_op is None or embedding_tensor is None:
+        raise RuntimeError("could not locate visual/control join tensor in fused graph")
+
+    def collect_ops_for(outputs, stop_tensors):
+        stop_tensors = set(int(t) for t in stop_tensors)
+        seen_ops = set()
+
+        def visit_tensor(tensor_i):
+            tensor_i = int(tensor_i)
+            if tensor_i in stop_tensors:
+                return
+            op_i = producer.get(tensor_i)
+            if op_i is None or op_i in seen_ops:
+                return
+            for in_t in sg.operators[op_i].inputs:
+                if int(in_t) >= 0:
+                    visit_tensor(int(in_t))
+            seen_ops.add(op_i)
+
+        for out_t in outputs:
+            visit_tensor(int(out_t))
+        return sorted(seen_ops)
+
+    visual_ops = collect_ops_for([embedding_tensor], visual_inputs)
+    control_ops = collect_ops_for([int(t) for t in sg.outputs], [embedding_tensor, state_tensor])
+    if split_op not in control_ops:
+        raise RuntimeError("control graph does not include the visual/state join op")
+    if any(op_i >= split_op for op_i in visual_ops):
+        raise RuntimeError("visual graph crossed the visual/control split point")
+
+    visual_model = _prune_tflite_model(
+        model, visual_ops, visual_inputs, [embedding_tensor], "RLtools visual split"
+    )
+    control_model = _prune_tflite_model(
+        model, control_ops, [embedding_tensor, state_tensor], [int(t) for t in sg.outputs],
+        "RLtools control split",
+    )
+    return {
+        "visual_bytes": _tflite_model_to_bytes(visual_model),
+        "control_bytes": _tflite_model_to_bytes(control_model),
+        "visual_inputs": visual_input_info,
+        "control_inputs": [
+            {
+                "tflite_input_index": 0,
+                "role": "embedding",
+                "fused_tensor_index": int(embedding_tensor),
+            },
+            {
+                "tflite_input_index": 1,
+                "role": "state",
+                "keras_input_index": state_keras_index,
+                "fused_tensor_index": int(state_tensor),
+            },
+        ],
+        "embedding_tensor_index": int(embedding_tensor),
+        "split_op_index": int(split_op),
+        "visual_op_indices": [int(i) for i in visual_ops],
+        "control_op_indices": [int(i) for i in control_ops],
+        "embedding_tensor": _tensor_quant_meta(sg.tensors[int(embedding_tensor)]),
+    }
 
 
 def _int8_train_test_err(int8_bytes, per_branch_contig, y_flat, train_idx, test_idx):
@@ -1043,6 +1403,219 @@ def print_summary(lines):
     print("=" * 72)
 
 
+def export_openmv_visual_split(*, args, h5_path, base, meta, meta_path,
+                               per_branch_contig, per_branch_bin, y_bin,
+                               full_int8_bytes, y_full_int8, report):
+    if args.quantize_io != "int8":
+        raise RuntimeError("--openmv-visual-split requires --quantize-io int8")
+    n_visual_inputs = int(args.split_image_input) if args.split_image_input is not None else 1
+    channels_per = int(args.split_image_channels_per) if args.split_image_channels_per is not None else None
+    if len(per_branch_contig) != n_visual_inputs + 1:
+        raise RuntimeError(
+            "--openmv-visual-split expected split image inputs plus one state input; "
+            f"got {len(per_branch_contig)} tensors for {n_visual_inputs} visual inputs"
+        )
+
+    full_order = _tflite_input_order(full_int8_bytes)
+    split = split_joint_int8_visual_control(full_int8_bytes, full_order, n_visual_inputs)
+
+    visual_int8_bytes = split["visual_bytes"]
+    visual_int8_path = base + ".visual.int8.tflite"
+    with open(visual_int8_path, "wb") as f:
+        f.write(visual_int8_bytes)
+    print(f"wrote {len(visual_int8_bytes)} bytes to {visual_int8_path}")
+
+    control_int8_bytes = split["control_bytes"]
+    control_int8_path = base + ".control.int8.tflite"
+    with open(control_int8_path, "wb") as f:
+        f.write(control_int8_bytes)
+    print(f"wrote {len(control_int8_bytes)} bytes to {control_int8_path}")
+
+    visual_inputs = [
+        per_branch_contig[int(entry["keras_input_index"])]
+        for entry in split["visual_inputs"]
+    ]
+    state_inputs = per_branch_contig[n_visual_inputs]
+
+    visual_embedding, visual_embedding_raw, visual_scale, visual_zp, visual_dtype = run_tflite_int8(
+        visual_int8_bytes, visual_inputs, return_raw=True, sort_by_name=False
+    )
+    visual_embedding = np.ascontiguousarray(visual_embedding, dtype=np.float32)
+    if visual_embedding.ndim != 2:
+        visual_embedding = visual_embedding.reshape((visual_embedding.shape[0], -1))
+    if visual_embedding_raw is None:
+        raise RuntimeError("joint split visual model did not produce raw int8 output")
+    visual_embedding_raw = visual_embedding_raw.reshape(visual_embedding.shape).astype(np.int8)
+
+    fused_embedding_raw = run_tflite_int8_intermediate_raw(
+        full_int8_bytes, per_branch_contig, split["embedding_tensor_index"]
+    ).reshape(visual_embedding_raw.shape).astype(np.int8)
+    embedding_raw_mismatches = int(np.count_nonzero(visual_embedding_raw != fused_embedding_raw))
+    if embedding_raw_mismatches:
+        raise RuntimeError(
+            f"visual split embedding raw output differs from fused tensor at "
+            f"{embedding_raw_mismatches} entries"
+        )
+    report("Joint split embedding raw int8 matches fused graph exactly")
+
+    control_inputs = [visual_embedding_raw, state_inputs]
+    split_y, split_y_raw, split_out_scale, split_out_zp, split_out_dtype = run_tflite_int8(
+        control_int8_bytes,
+        control_inputs,
+        return_raw=True,
+        sort_by_name=False,
+        raw_input_flags=[True, False],
+    )
+    split_y = np.ascontiguousarray(split_y.reshape(y_full_int8.shape), dtype=np.float32)
+    split_diff = np.abs(split_y - y_full_int8)
+    split_vs_full_max = float(np.max(split_diff))
+    split_vs_full_mean = float(np.mean(split_diff))
+    split_ref_diff = np.abs(split_y[:y_bin.shape[0]].reshape(y_bin.shape) - y_bin)
+    split_vs_ref_max = float(np.max(split_ref_diff))
+    split_vs_ref_mean = float(np.mean(split_ref_diff))
+    report(
+        f"Split int8 chain vs fused int8: max_abs_err={split_vs_full_max:.6g} "
+        f"mean_abs_err={split_vs_full_mean:.6g}"
+    )
+    report(
+        f"Split int8 chain vs reference: max_abs_err={split_vs_ref_max:.6g} "
+        f"mean_abs_err={split_vs_ref_mean:.6g}"
+    )
+
+    bin_limit = y_bin.shape[0]
+    visual_embedding_bin = np.ascontiguousarray(visual_embedding[:bin_limit], dtype=np.float32)
+    visual_embedding_path = base + ".example_visual_embedding.bin"
+    with open(visual_embedding_path, "wb") as f:
+        f.write(visual_embedding_bin.tobytes())
+    print(f"wrote {visual_embedding_bin.nbytes} bytes to {visual_embedding_path} "
+          f"(shape={visual_embedding_bin.shape}, dtype=float32)")
+
+    visual_embedding_raw_path = None
+    if visual_embedding_raw is not None:
+        visual_embedding_raw_bin = np.ascontiguousarray(visual_embedding_raw[:bin_limit])
+        visual_embedding_raw_path = base + ".example_visual_embedding_raw.bin"
+        with open(visual_embedding_raw_path, "wb") as f:
+            f.write(visual_embedding_raw_bin.tobytes())
+        print(f"wrote {visual_embedding_raw_bin.nbytes} bytes to {visual_embedding_raw_path} "
+              f"(shape={visual_embedding_raw_bin.shape}, dtype=int8)")
+
+    split_out_bin = np.ascontiguousarray(split_y[:bin_limit].reshape(y_bin.shape), dtype=np.float32)
+    split_out_path = base + ".example_split_int8_output.bin"
+    with open(split_out_path, "wb") as f:
+        f.write(split_out_bin.tobytes())
+    print(f"wrote {split_out_bin.nbytes} bytes to {split_out_path} "
+          f"(shape={split_out_bin.shape}, dtype=float32)")
+
+    split_out_raw_path = None
+    if split_y_raw is not None:
+        split_y_raw = split_y_raw.reshape(y_full_int8.shape).astype(np.int8)
+        split_out_raw_bin = np.ascontiguousarray(split_y_raw[:bin_limit].reshape(y_bin.shape))
+        split_out_raw_path = base + ".example_split_int8_output_raw.bin"
+        with open(split_out_raw_path, "wb") as f:
+            f.write(split_out_raw_bin.tobytes())
+        print(f"wrote {split_out_raw_bin.nbytes} bytes to {split_out_raw_path} "
+              f"(shape={split_out_raw_bin.shape}, dtype=int8)")
+
+    full_inputs = meta.get("inputs", [])
+    full_input_by_keras = {
+        int(entry["keras_input_index"]): entry
+        for entry in full_inputs
+        if "keras_input_index" in entry
+    }
+    visual_io = tflite_io_meta(visual_int8_bytes, len(visual_inputs), sort_by_name=False)
+    control_io = tflite_io_meta(control_int8_bytes, 2, sort_by_name=False)
+    visual_out = visual_io["output"]
+    embedding_in = control_io["inputs"][0]
+    boundary_raw_copy = (
+        visual_out["dtype"] == "int8"
+        and embedding_in["dtype"] == "int8"
+        and abs(float(visual_out["scale"]) - float(embedding_in["scale"])) == 0.0
+        and int(visual_out["zero_point"]) == int(embedding_in["zero_point"])
+    )
+    if not boundary_raw_copy:
+        raise RuntimeError(
+            "joint split did not preserve the embedding quantization boundary: "
+            f"visual output={visual_out}, control embedding input={embedding_in}"
+        )
+    meta["openmv_visual_split"] = {
+        "enabled": True,
+        "source": "joint_int8_fused_graph",
+        "visual_model": os.path.basename(visual_int8_path),
+        "control_model": os.path.basename(control_int8_path),
+        "image_input_count": n_visual_inputs,
+        "image_channels_per_input": channels_per,
+        "state_full_input_index": n_visual_inputs,
+        "visual_inputs": [
+            dict(
+                entry,
+                source_input_path=(
+                    full_input_by_keras[int(entry["keras_input_index"])]["path"]
+                    if int(entry["keras_input_index"]) in full_input_by_keras
+                    else None
+                ),
+            )
+            for entry in split["visual_inputs"]
+        ],
+        "control_inputs": split["control_inputs"],
+        "embedding_boundary": {
+            "raw_int8_copy": True,
+            "visual_output_scale": visual_out["scale"],
+            "visual_output_zero_point": visual_out["zero_point"],
+            "control_input_scale": embedding_in["scale"],
+            "control_input_zero_point": embedding_in["zero_point"],
+            "fused_tensor_index": split["embedding_tensor_index"],
+            "fused_tensor": split["embedding_tensor"],
+        },
+        "visual_io": visual_io,
+        "control_io": control_io,
+        "visual_output": {
+            "path": os.path.basename(visual_embedding_path),
+            "raw_path": (
+                os.path.basename(visual_embedding_raw_path)
+                if visual_embedding_raw_path else None
+            ),
+            "shape": list(visual_embedding_bin.shape),
+            "dtype": "float32",
+            "raw_dtype": ("int8" if visual_embedding_raw_path else None),
+            "scale": visual_scale,
+            "zero_point": visual_zp,
+            "tflite_output_dtype": visual_dtype,
+        },
+        "split_int8_output": {
+            "path": os.path.basename(split_out_path),
+            "raw_path": (
+                os.path.basename(split_out_raw_path)
+                if split_out_raw_path else None
+            ),
+            "shape": list(split_out_bin.shape),
+            "dtype": "float32",
+            "raw_dtype": ("int8" if split_out_raw_path else None),
+            "scale": split_out_scale,
+            "zero_point": split_out_zp,
+            "tflite_output_dtype": split_out_dtype,
+        },
+        "validation": {
+            "embedding_raw_mismatches_vs_fused": embedding_raw_mismatches,
+            "split_vs_fused_int8_max_abs_err": split_vs_full_max,
+            "split_vs_fused_int8_mean_abs_err": split_vs_full_mean,
+            "split_vs_reference_max_abs_err": split_vs_ref_max,
+            "split_vs_reference_mean_abs_err": split_vs_ref_mean,
+        },
+    }
+    with open(meta_path, "w") as f:
+        json.dump(meta, f, indent=2)
+    print(f"updated {meta_path} with openmv_visual_split block")
+
+    if split_vs_full_max > args.openmv_visual_split_tolerance:
+        report(
+            f"FAIL: split int8 chain max error {split_vs_full_max:.6g} > tolerance "
+            f"{args.openmv_visual_split_tolerance:.6g}"
+        )
+        return False
+    report(f"OK (split int8): within tolerance {args.openmv_visual_split_tolerance:.6g}")
+    return True
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("input", help="path to .h5 checkpoint")
@@ -1094,15 +1667,23 @@ def main():
                          "(default 0.2); the remainder is used for gradient updates")
     ap.add_argument("--qat-seed", type=int, default=0,
                     help="RNG seed controlling the shuffle before the --qat-finetune train/test split")
+    ap.add_argument("--openmv-visual-split", action="store_true",
+                    help="for l2f_visual OpenMV deployment: additionally export int8 visual-branch "
+                         "and control-head tflites, with metadata and split-chain companion bins")
+    ap.add_argument("--openmv-visual-split-tolerance", type=float, default=0.2,
+                    help="max absolute error tolerance for split int8 chain vs fused int8 "
+                         "(default 0.2)")
     args = ap.parse_args()
 
     out_path = args.output or os.path.splitext(args.input)[0] + ".tflite"
 
     with h5py.File(args.input, "r") as f:
+        model_group = find_model_group(f)
         model = build_model(f)
         example_inputs = example_input_tensors(f)
         y_ref = example_output_tensor(f)
-        ordered_layers = collect_quant_layers(find_model_group(f))
+        ordered_layers = collect_quant_layers(model_group)
+        has_fast_tanh = uses_activation(model_group, "FAST_TANH")
         actor_meta_bytes = f["actor"].attrs.get("meta") if "actor" in f else None
         actor_meta_str = actor_meta_bytes.decode() if isinstance(actor_meta_bytes, bytes) else actor_meta_bytes
     # Keep a pre-(split-image-wrap) reference so get_layer() can reach the
@@ -1329,9 +1910,10 @@ def main():
 
     print(f"representative-dataset: {n_examples} samples across {len(per_branch_contig)} inputs")
 
-    if args.fast_tanh_substitute == "tanh":
+    substitute_fast_tanh = args.fast_tanh_substitute == "tanh" and has_fast_tanh
+    if substitute_fast_tanh:
         print("substituting FAST_TANH → tf.nn.tanh for int8 conversion "
-              "(weights in .quantized.h5 will reflect this substitution)")
+              "(polynomial FAST_TANH is not a good int8/NPU target)")
         saved = ACTIVATIONS["FAST_TANH"]
         ACTIVATIONS["FAST_TANH"] = tf.nn.tanh
         try:
@@ -1346,6 +1928,8 @@ def main():
         finally:
             ACTIVATIONS["FAST_TANH"] = saved
     else:
+        if args.fast_tanh_substitute == "tanh" and not has_fast_tanh:
+            print("no FAST_TANH layers found; int8 conversion uses original activations")
         int8_src_model_inner = model_inner
         int8_src_model = model
 
@@ -1419,6 +2003,25 @@ def main():
     print(f"updated {meta_path} with int8_output block")
     report(f"  int8:  {y_int8.reshape(-1)}")
 
+    split_ok = True
+    if args.openmv_visual_split:
+        print()
+        print("=== OpenMV visual/control split ===")
+        y_full_int8 = run_tflite_int8(int8_reloaded, per_branch_contig).reshape(y_flat.shape)
+        split_ok = export_openmv_visual_split(
+            args=args,
+            h5_path=args.input,
+            base=base,
+            meta=meta,
+            meta_path=meta_path,
+            per_branch_contig=per_branch_contig,
+            per_branch_bin=per_branch_bin,
+            y_bin=y_bin,
+            full_int8_bytes=int8_reloaded,
+            y_full_int8=y_full_int8,
+            report=report,
+        )
+
     dequant_by_path = extract_quantized_weights(int8_bytes, ordered_layers)
     quant_h5 = base + ".quantized.h5"
     write_quantized_h5(args.input, quant_h5, dequant_by_path, example_limit=bin_limit)
@@ -1445,6 +2048,9 @@ def main():
         print(f"FAIL: int8 max error {int8_err:.6g} > tolerance "
               f"{args.quantize_tolerance:.6g}", file=sys.stderr)
         return 0
+    if not split_ok:
+        print_summary(summary_lines)
+        return 1
     report(f"OK (int8): within tolerance {args.quantize_tolerance:.6g}")
     print_summary(summary_lines)
     return 0
