@@ -130,7 +130,7 @@ static constexpr REWARD_FUNCTION reward_function = {
     false, // bool non_negative;
     0.10,  // scale;
     1.00,  // constant;
-    -1.00, // termination_penalty;
+    -10.00, // termination_penalty;
     10.00, // position;
     0.00,  // position_clip;
     1.00,  // orientation;
@@ -138,8 +138,8 @@ static constexpr REWARD_FUNCTION reward_function = {
     0.00,  // angular_velocity;
     0.00,  // linear_acceleration;
     0.00,  // angular_acceleration;
-    {0.10, 0.10, 0.10, 0.10}, // action[ACTION_DIM]
-    {0.00, 0.00, 0.00, 0.00}, // d_action[ACTION_DIM]
+    {0.00, 0.00, 0.00, 0.00}, // action[ACTION_DIM]
+    {0.10, 0.10, 0.10, 0.10}, // d_action[ACTION_DIM]
     0.00   // position_error_integral
 };
 static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = {
