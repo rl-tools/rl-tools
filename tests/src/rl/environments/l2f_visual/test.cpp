@@ -30,6 +30,7 @@ namespace test_l2f_visual {
     static constexpr auto MODEL = rlt::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
 
     struct STATIC_PARAMETERS {
+        static constexpr auto ACTION_INTERFACE = l2f::parameters::ActionInterface::DIRECT_MOTOR;
         static constexpr TI N_SUBSTEPS = 1;
         static constexpr TI ACTION_HISTORY_LENGTH = 1;
         static constexpr TI CLOSED_FORM = false;
