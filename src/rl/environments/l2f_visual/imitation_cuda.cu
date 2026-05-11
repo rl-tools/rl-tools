@@ -293,6 +293,8 @@ static constexpr T EFFECTIVE_TEACHER_FORCING_FRACTION = STATE_ESTIMATION_MODE ? 
 static constexpr TI N_TRAIN_PASSES = 4;
 static constexpr TI VIDEO_CADENCE = 10;
 static constexpr TI CHECKPOINT_CADENCE = 1000;
+static constexpr bool EXPORT_CHECKPOINT_TAR = false;
+static constexpr bool EXPORT_CHECKPOINT_CODE = false;
 static constexpr TI N_EXAMPLES = 512;
 static constexpr TI REDUCED_BATCH_SIZE = 2;
 static_assert(REDUCED_BATCH_SIZE <= N_EXAMPLES);
@@ -2196,7 +2198,7 @@ int main(int argc, char** argv){
                 rlt::free(device, buffer_0);
                 rlt::free(device, buffer_1);
             }
-            { // binary (tar)
+            if constexpr(EXPORT_CHECKPOINT_TAR){
                 std::filesystem::path checkpoint_path = step_folder / "checkpoint.tar";
                 rlt::persist::backends::tar::Writer writer;
                 rlt::persist::backends::tar::WriterGroup<rlt::persist::backends::tar::WriterGroupSpecification<TI, decltype(writer)>> root_group{"", &writer};
@@ -2244,7 +2246,7 @@ int main(int argc, char** argv){
             save_hdf5(rlt::utils::typing::integral_constant<TI, REDUCED_BATCH_SIZE>{});
             save_hdf5(rlt::utils::typing::integral_constant<TI, N_EXAMPLES>{});
 #endif
-            { // code (checkpoint.h)
+            if constexpr(EXPORT_CHECKPOINT_CODE){
                 auto actor_weights = rlt::save_code(device, eval_student, std::string("rl_tools::checkpoint::actor"), true);
                 std::stringstream output_ss;
                 output_ss << actor_weights;
