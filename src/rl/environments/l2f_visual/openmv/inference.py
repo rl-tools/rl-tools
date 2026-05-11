@@ -21,6 +21,9 @@ VISION_TICK_US = 1_000_000 // VISION_HZ
 DIAG_PRINT_EVERY = CONTROL_HZ
 INV_CONTROL_SUBSTEPS = 1.0 / CONTROL_SUBSTEPS
 CAMERA_FRAMEBUFFERS = 3
+CAMERA_SENSOR_FPS = 200
+CAMERA_EXPOSURE_US = 500
+CAMERA_GAIN_DB = 50
 
 UART_BRIDGE_PORT = 4
 UART_BRIDGE_BAUD = 115200
@@ -53,6 +56,21 @@ def configure_imu():
     imu.__write_reg(IMU_CTRL1_XL, (0b0111 << 4) | (0b11 << 2))
     imu.__write_reg(IMU_CTRL4_C, 0x02)
     imu.__write_reg(IMU_CTRL6_C, 0x01)
+
+
+def configure_camera(csi0):
+    csi0.reset()
+    csi0.pixformat(csi.RGB565)
+    csi0.framesize(csi.QVGA)
+    csi0.framerate(CAMERA_SENSOR_FPS)
+    csi0.auto_exposure(False, exposure_us=CAMERA_EXPOSURE_US)
+    csi0.auto_gain(False, gain_db=CAMERA_GAIN_DB)
+    csi0.auto_rotation(False)
+    csi0.hmirror(False)
+    csi0.vflip(False)
+    csi0.transpose(False)
+    csi0.auto_blc(False)
+    csi0.auto_whitebal(True)
 
 
 def print_mem(label):
@@ -821,15 +839,12 @@ def run():
     frame_history_length = frame_stride * (frame_stack_n - 1) + 1
 
     csi0 = csi.CSI()
-    csi0.reset()
-    csi0.pixformat(csi.RGB565)
-    csi0.framesize(csi.QVGA)
+    configure_camera(csi0)
     sensor_w, sensor_h = csi0.width(), csi0.height()
-    csi0.framerate(VISION_HZ)
     csi0.framebuffers(CAMERA_FRAMEBUFFERS)
     print("camera async framebuffers:", csi0.framebuffers())
-    for _ in range(10):
-        csi0.snapshot()
+    print("camera fixed fps=%d exposure_us=%d gain_db=%d whitebal=off" %
+          (CAMERA_SENSOR_FPS, CAMERA_EXPOSURE_US, CAMERA_GAIN_DB))
     if sensor_w * img_h != sensor_h * img_w:
         raise RuntimeError("sensor aspect %dx%d does not match model %dx%d" %
                            (sensor_w, sensor_h, img_w, img_h))
