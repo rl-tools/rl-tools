@@ -18,6 +18,15 @@ fi
 PY="$VIRTUAL_ENV/bin/python3"
 VELA="${VELA:-$VIRTUAL_ENV/bin/vela}"
 BIN_LIMIT="${BIN_LIMIT:-13}"
+QUANTIZE="${QUANTIZE:-int8}"
+
+case "$QUANTIZE" in
+    int8|none) ;;
+    *)
+        echo "unsupported QUANTIZE=$QUANTIZE (expected int8 or none)" >&2
+        exit 1
+        ;;
+esac
 
 if [ ! -x "$PY" ]; then
     echo "missing python in active venv: $PY" >&2
@@ -41,16 +50,20 @@ find "$MOUNT" -maxdepth 1 -type f \
     \( -name "*.tflite" -o -name "*.bin" -o -name "*.example_meta.json" \) \
     -print -delete
 
-echo "==> converting $CKPT (bin samples: first $BIN_LIMIT)"
+echo "==> converting $CKPT (quantize=$QUANTIZE, bin samples: first $BIN_LIMIT)"
 "$PY" "$REPO_ROOT/tools/hdf5_to_tflite.py" \
-    --quantize none \
+    --quantize "$QUANTIZE" \
     --no-split-image-input \
     --example-bin-limit "$BIN_LIMIT" \
     "$CKPT"
 
-FP32_TFLITE="${CKPT_BASE}.tflite"
-if [ ! -f "$FP32_TFLITE" ]; then
-    echo "fp32 tflite not found: $FP32_TFLITE" >&2
+if [ "$QUANTIZE" = "int8" ]; then
+    TFLITE_IN="${CKPT_BASE}.int8.tflite"
+else
+    TFLITE_IN="${CKPT_BASE}.tflite"
+fi
+if [ ! -f "$TFLITE_IN" ]; then
+    echo "tflite not found: $TFLITE_IN" >&2
     exit 1
 fi
 if [ ! -x "$VELA" ]; then
@@ -64,16 +77,16 @@ if [ ! -f "$VELA_INI" ]; then
     exit 1
 fi
 
-echo "==> running vela on $FP32_TFLITE"
+echo "==> running vela on $TFLITE_IN"
 "$VELA" \
     --accelerator-config ethos-u55-256 \
     --config "$VELA_INI" \
     --system-config RTSS_HP_SRAM_OSPI \
     --memory-mode Shared_Sram \
     --output-dir "$CKPT_DIR" \
-    "$FP32_TFLITE"
+    "$TFLITE_IN"
 
-VELA_OUT="${CKPT_BASE}_vela.tflite"
+VELA_OUT="${TFLITE_IN%.tflite}_vela.tflite"
 if [ ! -f "$VELA_OUT" ]; then
     echo "vela output not found: $VELA_OUT" >&2
     exit 1
@@ -84,6 +97,12 @@ cp -v "$SCRIPT_DIR/main.py" "$MOUNT/main.py"
 cp -v "$VELA_OUT" "$MOUNT/"
 cp -v "${CKPT_BASE}".example_input.*.bin "$MOUNT/"
 cp -v "${CKPT_BASE}.example_output.bin" "$MOUNT/"
+if [ "$QUANTIZE" = "int8" ]; then
+    cp -v "${CKPT_BASE}.example_int8_output.bin" "$MOUNT/"
+    if [ -f "${CKPT_BASE}.example_int8_output_raw.bin" ]; then
+        cp -v "${CKPT_BASE}.example_int8_output_raw.bin" "$MOUNT/"
+    fi
+fi
 cp -v "${CKPT_BASE}.example_meta.json" "$MOUNT/"
 
 sync
