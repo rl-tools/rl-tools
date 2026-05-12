@@ -135,7 +135,7 @@ static constexpr REWARD_FUNCTION reward_function = {
     0.00,  // position_clip;
     1.00,  // orientation;
     0.05,  // linear_velocity;
-    0.50,  // angular_velocity;
+    1.50,  // angular_velocity;
     0.00,  // linear_acceleration;
     0.00,  // angular_acceleration;
     {0.00, 0.00, 0.00, 0.00}, // action[ACTION_DIM]
