@@ -456,7 +456,7 @@ def clamp(v, lo, hi):
 
 
 class MahonyFilter:
-    def __init__(self, kp=2.0, ki=0.005, max_bias_rad_s=0.1,
+    def __init__(self, kp=0.4, ki=0.001, max_bias_rad_s=0.1,
                  accel_gate_lo_g=0.75, accel_gate_hi_g=1.25, g_ref=9.80665):
         self.q0 = 1.0
         self.q1 = 0.0
