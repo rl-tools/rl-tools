@@ -827,8 +827,12 @@ namespace rl_tools::rl::environments::l2f{
         using T = T_T;
         using TI = T_TI;
         using NEXT_COMPONENT = T_NEXT_COMPONENT;
-        static constexpr T KP = 1;
-        static constexpr T KI = (T)0.3;
+        static constexpr T KP = (T)0.4;
+        static constexpr T KI = (T)0.001;
+        static constexpr T MAX_BIAS = (T)0.1;
+        static constexpr T ACCEL_GATE_LO_G = (T)0.75;
+        static constexpr T ACCEL_GATE_HI_G = (T)1.25;
+        static constexpr T G_REF = (T)9.80665;
     };
     template <typename T_SPEC>
     struct StateMahony: T_SPEC::NEXT_COMPONENT{
@@ -839,9 +843,13 @@ namespace rl_tools::rl::environments::l2f{
         static constexpr bool REQUIRES_INTEGRATION = false;
         static constexpr T KP = SPEC::KP;
         static constexpr T KI = SPEC::KI;
-        static constexpr TI DIM = 3 + 3 + NEXT_COMPONENT::DIM;
-        T world_z_body_estimate[3];
-        T gyro_bias_tangent[3];
+        static constexpr T MAX_BIAS = SPEC::MAX_BIAS;
+        static constexpr T ACCEL_GATE_LO_G = SPEC::ACCEL_GATE_LO_G;
+        static constexpr T ACCEL_GATE_HI_G = SPEC::ACCEL_GATE_HI_G;
+        static constexpr T G_REF = SPEC::G_REF;
+        static constexpr TI DIM = 4 + 3 + NEXT_COMPONENT::DIM;
+        T q_estimate[4];
+        T bias_estimate[3];
     };
 
     template <typename T_SPEC>

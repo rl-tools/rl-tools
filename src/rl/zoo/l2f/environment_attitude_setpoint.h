@@ -181,7 +181,7 @@ namespace rl_tools::rl::zoo::l2f{
             static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT_FACTORY_BASE::EPISODE_STEP_LIMIT_OUTER;
             static constexpr TI CLOSED_FORM = false;
             // Innermost-first: physical state, last action, finite-difference acceleration,
-            // acceleration history, gyro bias, Mahony reduced attitude, random force,
+            // acceleration history, gyro bias, Mahony attitude estimate, random force,
             // rotors/history, trajectory, then the current setpoint command.
             using STATE_BASE_INNER = StateBase<StateSpecification<T, TI>>;
             using STATE_BASE_LA = StateLastAction<StateSpecification<T, TI, STATE_BASE_INNER>>;

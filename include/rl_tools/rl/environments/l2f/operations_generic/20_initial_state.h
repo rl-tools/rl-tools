@@ -62,10 +62,26 @@ namespace rl_tools{
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateMahony<STATE_SPEC>& state){
             using TI = typename DEVICE::index_t;
+            using T = typename STATE_SPEC::T;
             initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
-            quaternion_to_world_z_body<DEVICE, typename STATE_SPEC::T>(state.orientation, state.world_z_body_estimate);
+            state.q_estimate[0] = 1;
+            state.q_estimate[1] = 0;
+            state.q_estimate[2] = 0;
+            state.q_estimate[3] = 0;
+            T conjugate_orientation[4];
+            conjugate_orientation[0] =  state.orientation[0];
+            conjugate_orientation[1] = -state.orientation[1];
+            conjugate_orientation[2] = -state.orientation[2];
+            conjugate_orientation[3] = -state.orientation[3];
+            T accel_global[3];
+            accel_global[0] = -parameters.dynamics.gravity[0];
+            accel_global[1] = -parameters.dynamics.gravity[1];
+            accel_global[2] = -parameters.dynamics.gravity[2];
+            T accel_body[3];
+            rotate_vector_by_quaternion<DEVICE, T>(conjugate_orientation, accel_global, accel_body);
+            mahony_quaternion_from_accel(device, accel_body, state.q_estimate);
             for(TI i = 0; i < 3; i++){
-                state.gyro_bias_tangent[i] = 0;
+                state.bias_estimate[i] = 0;
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>

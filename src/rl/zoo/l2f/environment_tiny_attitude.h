@@ -173,7 +173,7 @@ namespace rl_tools::rl::zoo::l2f{
             using STATE_BASE_LA = StateLastAction<StateSpecification<T, TI, STATE_BASE_INNER>>;
             using STATE_BASE_LAA = StateLinearAcceleration<StateSpecification<T, TI, STATE_BASE_LA>>;
             using STATE_BASE_GB = StateGyroBias<StateGyroBiasSpecification<T, TI, STATE_BASE_LAA>>;
-            // Active Mahony filter (default KP=1, KI=0.3). Sim-to-real: train with the same
+            // Active Mahony filter (default KP=0.4, KI=0.001). Sim-to-real: train with the same
             // filter that runs on the real drone so the policy is robust to its lag/error.
             using STATE_BASE = StateMahony<StateMahonySpecification<T, TI, STATE_BASE_GB>>;
             using STATE_TYPE = StateTrajectory<StateSpecification<T, TI, StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, StateRandomForce<StateSpecification<T, TI, STATE_BASE>>>>>>;

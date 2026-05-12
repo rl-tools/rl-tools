@@ -16,15 +16,6 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f{
-    namespace detail{
-        template<typename DEVICE, typename T>
-        RL_TOOLS_FUNCTION_PLACEMENT void project_to_tangent(DEVICE&, const T z[3], T v[3]) {
-            T dot = v[0]*z[0] + v[1]*z[1] + v[2]*z[2];
-            for(typename DEVICE::index_t i = 0; i < 3; i++){
-                v[i] -= dot * z[i];
-            }
-        }
-    }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateBase<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateBase<STATE_SPEC>& next_state, RNG& rng) {
         using T = typename STATE_SPEC::T;
@@ -119,74 +110,80 @@ namespace rl_tools::rl::environments::l2f{
             T noise = random::normal_distribution::sample(random_dev, (T)0, parameters.mdp.observation_noise.imu_acceleration, rng);
             accel_body[i] += noise;
         }
+        T q0 = state.q_estimate[0];
+        T q1 = state.q_estimate[1];
+        T q2 = state.q_estimate[2];
+        T q3 = state.q_estimate[3];
+        T bx = state.bias_estimate[0];
+        T by = state.bias_estimate[1];
+        T bz = state.bias_estimate[2];
+
         T accel_norm = math::sqrt(device.math, accel_body[0]*accel_body[0] + accel_body[1]*accel_body[1] + accel_body[2]*accel_body[2]);
-        T z_estimate[3];
-        T z_norm = math::sqrt(device.math,
-            state.world_z_body_estimate[0]*state.world_z_body_estimate[0] +
-            state.world_z_body_estimate[1]*state.world_z_body_estimate[1] +
-            state.world_z_body_estimate[2]*state.world_z_body_estimate[2]);
-        if(z_norm > 0){
-            for(TI i = 0; i < 3; i++){
-                z_estimate[i] = state.world_z_body_estimate[i] / z_norm;
-            }
+        T accel_gate_lo = STATE::ACCEL_GATE_LO_G * STATE::G_REF;
+        T accel_gate_hi = STATE::ACCEL_GATE_HI_G * STATE::G_REF;
+        bool use_accel = accel_norm > (T)1e-6 && accel_gate_lo <= accel_norm && accel_norm <= accel_gate_hi;
+
+        T wx;
+        T wy;
+        T wz;
+        if(use_accel){
+            T inv_accel_norm = (T)1 / accel_norm;
+            T ahx = accel_body[0] * inv_accel_norm;
+            T ahy = accel_body[1] * inv_accel_norm;
+            T ahz = accel_body[2] * inv_accel_norm;
+
+            T vx = (T)2 * (q1 * q3 - q0 * q2);
+            T vy = (T)2 * (q2 * q3 + q0 * q1);
+            T vz_est = q0 * q0 - q1 * q1 - q2 * q2 + q3 * q3;
+
+            T ex = ahy * vz_est - ahz * vy;
+            T ey = ahz * vx - ahx * vz_est;
+            T ez = ahx * vy - ahy * vx;
+
+            bx -= STATE::KI * ex * dt;
+            by -= STATE::KI * ey * dt;
+            bz -= STATE::KI * ez * dt;
+            bx = math::clamp(device.math, bx, -STATE::MAX_BIAS, STATE::MAX_BIAS);
+            by = math::clamp(device.math, by, -STATE::MAX_BIAS, STATE::MAX_BIAS);
+            bz = math::clamp(device.math, bz, -STATE::MAX_BIAS, STATE::MAX_BIAS);
+
+            wx = gyro_meas[0] - bx + STATE::KP * ex;
+            wy = gyro_meas[1] - by + STATE::KP * ey;
+            wz = gyro_meas[2] - bz + STATE::KP * ez;
         }
         else{
-            z_estimate[0] = 0;
-            z_estimate[1] = 0;
-            z_estimate[2] = 1;
+            wx = gyro_meas[0] - bx;
+            wy = gyro_meas[1] - by;
+            wz = gyro_meas[2] - bz;
         }
-        T error[3] = {0, 0, 0};
-        if(accel_norm > 0){
-            // Gating: only trust the accelerometer-as-gravity assumption when |accel| is close to g.
-            // During aggressive maneuvers |accel| deviates from g and the cross-product correction would
-            // pull the estimate toward an arbitrary direction. Real flight controllers do this.
-            T g_mag = math::sqrt(device.math, parameters.dynamics.gravity[0]*parameters.dynamics.gravity[0] + parameters.dynamics.gravity[1]*parameters.dynamics.gravity[1] + parameters.dynamics.gravity[2]*parameters.dynamics.gravity[2]);
-            T ratio = g_mag > 0 ? accel_norm / g_mag : (T)0;
-            T deviation = math::abs(device.math, ratio - (T)1);
-            T gate = (T)1 - (T)3 * deviation;
-            gate = gate < (T)0 ? (T)0 : (gate > (T)1 ? (T)1 : gate);
-            T accel_unit[3];
-            for(TI i = 0; i < 3; i++){
-                accel_unit[i] = accel_body[i] / accel_norm;
-            }
-            error[0] = gate * (accel_unit[1]*z_estimate[2] - accel_unit[2]*z_estimate[1]);
-            error[1] = gate * (accel_unit[2]*z_estimate[0] - accel_unit[0]*z_estimate[2]);
-            error[2] = gate * (accel_unit[0]*z_estimate[1] - accel_unit[1]*z_estimate[0]);
-        }
-        T gyro_bias_tangent[3];
-        T omega_corr[3];
-        for(TI i = 0; i < 3; i++){
-            gyro_bias_tangent[i] = state.gyro_bias_tangent[i] - STATE::KI * error[i] * dt;
-        }
-        detail::project_to_tangent(device, z_estimate, gyro_bias_tangent);
-        for(TI i = 0; i < 3; i++){
-            omega_corr[i] = gyro_meas[i] - gyro_bias_tangent[i] + STATE::KP * error[i];
-        }
-        T z_dot[3];
-        z_dot[0] = z_estimate[1]*omega_corr[2] - z_estimate[2]*omega_corr[1];
-        z_dot[1] = z_estimate[2]*omega_corr[0] - z_estimate[0]*omega_corr[2];
-        z_dot[2] = z_estimate[0]*omega_corr[1] - z_estimate[1]*omega_corr[0];
-        T z_new[3];
-        T z_new_norm = 0;
-        for(TI i = 0; i < 3; i++){
-            z_new[i] = z_estimate[i] + z_dot[i] * dt;
-            z_new_norm += z_new[i] * z_new[i];
-        }
-        z_new_norm = math::sqrt(device.math, z_new_norm);
-        if(z_new_norm > 0){
-            for(TI i = 0; i < 3; i++){
-                next_state.world_z_body_estimate[i] = z_new[i] / z_new_norm;
-            }
+
+        T dq0 = (T)0.5 * (-q1 * wx - q2 * wy - q3 * wz);
+        T dq1 = (T)0.5 * ( q0 * wx + q2 * wz - q3 * wy);
+        T dq2 = (T)0.5 * ( q0 * wy - q1 * wz + q3 * wx);
+        T dq3 = (T)0.5 * ( q0 * wz + q1 * wy - q2 * wx);
+
+        q0 += dq0 * dt;
+        q1 += dq1 * dt;
+        q2 += dq2 * dt;
+        q3 += dq3 * dt;
+
+        T q_norm = math::sqrt(device.math, q0*q0 + q1*q1 + q2*q2 + q3*q3);
+        if(q_norm > (T)1e-12){
+            T inv_q_norm = (T)1 / q_norm;
+            next_state.q_estimate[0] = q0 * inv_q_norm;
+            next_state.q_estimate[1] = q1 * inv_q_norm;
+            next_state.q_estimate[2] = q2 * inv_q_norm;
+            next_state.q_estimate[3] = q3 * inv_q_norm;
         }
         else{
-            next_state.world_z_body_estimate[0] = 0;
-            next_state.world_z_body_estimate[1] = 0;
-            next_state.world_z_body_estimate[2] = 1;
+            next_state.q_estimate[0] = 1;
+            next_state.q_estimate[1] = 0;
+            next_state.q_estimate[2] = 0;
+            next_state.q_estimate[3] = 0;
         }
-        detail::project_to_tangent(device, next_state.world_z_body_estimate, gyro_bias_tangent);
-        for(TI i = 0; i < 3; i++){
-            next_state.gyro_bias_tangent[i] = gyro_bias_tangent[i];
-        }
+        next_state.bias_estimate[0] = bx;
+        next_state.bias_estimate[1] = by;
+        next_state.bias_estimate[2] = bz;
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateLinearAccelerationHistory<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateLinearAccelerationHistory<STATE_SPEC>& next_state, RNG& rng) {
