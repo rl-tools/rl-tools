@@ -282,6 +282,40 @@ def model_zps(model, name, n):
     return [float(values[i]) for i in range(n)]
 
 
+def checkpoint_name_from_artifact(path):
+    suffixes = (
+        ".visual.int8_vela.tflite",
+        ".visual.int8.tflite",
+        ".control.int8_vela.tflite",
+        ".control.int8.tflite",
+        ".example_meta.json",
+    )
+    for suffix in suffixes:
+        if path.endswith(suffix):
+            return path[:-len(suffix)]
+    return path
+
+
+def checkpoint_name_from_meta(meta, fallback_path):
+    for key in (
+        "source_hdf5_path",
+        "checkpoint_name",
+        "hdf5_checkpoint_name",
+        "source_checkpoint",
+        "source_checkpoint_name",
+    ):
+        value = meta.get(key)
+        if value:
+            return value
+    actor_meta = meta.get("actor_meta")
+    if isinstance(actor_meta, dict):
+        for key in ("checkpoint_name", "name"):
+            value = actor_meta.get(key)
+            if value:
+                return value
+    return checkpoint_name_from_artifact(fallback_path)
+
+
 def load_sample_float32(path, sample_index, num_floats):
     byte_count = num_floats * 4
     with open(path, "rb") as f:
@@ -740,6 +774,8 @@ class SplitRuntime:
         print("META_PATH    :", repr(self.meta_path))
         with open(self.meta_path) as f:
             self.meta = json.load(f)
+        self.checkpoint_name = checkpoint_name_from_meta(self.meta, self.visual_path)
+        print("CHECKPOINT_NAME:", self.checkpoint_name)
         self.split = self.meta.get("openmv_visual_split")
         if not self.split or not self.split.get("enabled"):
             raise RuntimeError("meta JSON has no openmv_visual_split block")
