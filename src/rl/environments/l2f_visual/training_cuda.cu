@@ -153,8 +153,25 @@ static constexpr typename PARAMETERS_TYPE::Integration integration = {
     static_cast<T>(1) / static_cast<T>(SIMULATION_FREQUENCY)
 };
 static constexpr typename PARAMETERS_TYPE::MDP mdp = { init, reward_function, {}, {}, termination };
-static constexpr T DISTURBANCE_FORCE_STD = 0;
-static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = { {0, DISTURBANCE_FORCE_STD}, {0, 0} };
+// Random force/torque disturbances scaled relative to the platform's maximum thrust.
+// `state.force` / `state.torque` are sampled once per episode in `30_sample_initial_state.h`
+// from `N(mean, std)` and continuously injected through `60_dynamics.h`.
+// MAX_THRUST_PER_ROTOR = c0 + c1*1 + c2*1^2 evaluated at the action upper bound (rpm=1).
+static constexpr T MAX_THRUST_PER_ROTOR = dynamics.rotor_thrust_coefficients[0][0]
+                                        + dynamics.rotor_thrust_coefficients[0][1]
+                                        + dynamics.rotor_thrust_coefficients[0][2];
+static constexpr T MAX_THRUST = static_cast<T>(PARAMETERS_SPEC::N) * MAX_THRUST_PER_ROTOR;
+// Rotor moment arm in the x/y plane (single rotor offset; works as a characteristic length
+// to convert a force-scale disturbance into an equivalent moment-scale disturbance).
+static constexpr T ROTOR_ARM = dynamics.rotor_positions[0][0] < 0 ? -dynamics.rotor_positions[0][0] : dynamics.rotor_positions[0][0];
+// Midpoint of the 5-10% range. Per-axis std; total magnitude is ~sqrt(8/pi) * std.
+static constexpr T DISTURBANCE_FRACTION = static_cast<T>(0.0);
+static constexpr T DISTURBANCE_FORCE_STD = DISTURBANCE_FRACTION * MAX_THRUST;
+static constexpr T DISTURBANCE_TORQUE_STD = DISTURBANCE_FRACTION * MAX_THRUST * ROTOR_ARM;
+static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = {
+    {0, DISTURBANCE_FORCE_STD},  // random_force
+    {0, DISTURBANCE_TORQUE_STD}  // random_torque (z axis is internally scaled by 1/100 in sample_initial_state)
+};
 static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
     1.7, 2.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
