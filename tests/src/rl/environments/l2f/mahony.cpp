@@ -17,6 +17,7 @@ using TI = typename DEVICE::index_t;
 constexpr TI ACTION_HISTORY_LENGTH = 4;
 
 struct STATIC_PARAMETERS {
+    static constexpr auto ACTION_INTERFACE = l2f::parameters::ActionInterface::DIRECT_MOTOR;
     static constexpr TI N_SUBSTEPS = 1;
     static constexpr TI EPISODE_STEP_LIMIT = 5000;
     static constexpr bool CLOSED_FORM = false;
@@ -57,10 +58,33 @@ static void const_action(rlt::Matrix<rlt::matrix::Specification<T, TI, 1, E::ACT
     for (TI i = 0; i < E::ACTION_DIM; i++) rlt::set(a, 0, i, v);
 }
 
+static void set_q_from_world_z(ENV::State& state, T x, T y, T z){
+    if (z < -0.999999){
+        state.q_estimate[0] = 0;
+        state.q_estimate[1] = 1;
+        state.q_estimate[2] = 0;
+        state.q_estimate[3] = 0;
+        return;
+    }
+    T w = 1 + z;
+    T qx = y;
+    T qy = -x;
+    T qz = 0;
+    T qn = std::sqrt(w*w + qx*qx + qy*qy + qz*qz);
+    state.q_estimate[0] = w / qn;
+    state.q_estimate[1] = qx / qn;
+    state.q_estimate[2] = qy / qn;
+    state.q_estimate[3] = qz / qn;
+}
+
+static void world_z_from_q(const ENV::State& state, T world_z[3]){
+    l2f::quaternion_to_world_z_body<DEVICE, T>(state.q_estimate, world_z);
+}
+
 TEST(L2F_MAHONY, STATE_DIM){
     using STATE = STATIC_PARAMETERS::STATE_MAHONY;
     static_assert(STATE::REQUIRES_INTEGRATION == false);
-    static_assert(STATE::DIM == 6 + STATIC_PARAMETERS::STATE_GYRO_BIAS::DIM);
+    static_assert(STATE::DIM == 7 + STATIC_PARAMETERS::STATE_GYRO_BIAS::DIM);
     static_assert(STATIC_PARAMETERS::STATE_GYRO_BIAS::DIM == 3 + STATIC_PARAMETERS::STATE_LAA::DIM);
     SUCCEED();
 }
@@ -73,64 +97,62 @@ TEST(L2F_MAHONY, INITIAL_STATE_IDENTITY){
     rlt::sample_initial_parameters(device, env, params, rng);
     rlt::initial_state(device, env, params, state);
 
-    EXPECT_DOUBLE_EQ(state.world_z_body_estimate[0], 0.0);
-    EXPECT_DOUBLE_EQ(state.world_z_body_estimate[1], 0.0);
-    EXPECT_DOUBLE_EQ(state.world_z_body_estimate[2], 1.0);
-    for (TI i = 0; i < 3; i++) EXPECT_DOUBLE_EQ(state.gyro_bias_tangent[i], 0.0);
+    EXPECT_DOUBLE_EQ(state.q_estimate[0], 1.0);
+    EXPECT_DOUBLE_EQ(state.q_estimate[1], 0.0);
+    EXPECT_DOUBLE_EQ(state.q_estimate[2], 0.0);
+    EXPECT_DOUBLE_EQ(state.q_estimate[3], 0.0);
+    for (TI i = 0; i < 3; i++) EXPECT_DOUBLE_EQ(state.bias_estimate[i], 0.0);
     for (TI i = 0; i < 3; i++) EXPECT_DOUBLE_EQ(state.gyro_bias[i], 0.0);
 }
 
-TEST(L2F_MAHONY, OBSERVATION_USES_REDUCED_ATTITUDE){
+TEST(L2F_MAHONY, OBSERVATION_USES_QUATERNION_ESTIMATE){
     DEVICE device; RNG rng;
     rlt::init(device); rlt::malloc(device, rng); rlt::init(device, rng, (TI)4);
     ENV env; ENV::Parameters params; ENV::State state;
     rlt::malloc(device, env); rlt::init(device, env);
     rlt::sample_initial_parameters(device, env, params, rng);
     rlt::initial_state(device, env, params, state);
-    state.world_z_body_estimate[0] = 0.2;
-    state.world_z_body_estimate[1] = -0.3;
-    state.world_z_body_estimate[2] = std::sqrt(1 - 0.2*0.2 - 0.3*0.3);
+    T expected[3] = {0.2, -0.3, std::sqrt(1 - 0.2*0.2 - 0.3*0.3)};
+    set_q_from_world_z(state, expected[0], expected[1], expected[2]);
 
     using OBS = l2f::observation::OrientationMahonyWorldZ<l2f::observation::OrientationMahonyWorldZSpecification<T, TI>>;
     rlt::Matrix<rlt::matrix::Specification<T, TI, 1, OBS::DIM>> obs;
     rlt::malloc(device, obs);
     rlt::observe(device, env, params, state, OBS{}, obs, rng);
 
-    EXPECT_NEAR(rlt::get(obs, 0, 0), state.world_z_body_estimate[0], 1e-12);
-    EXPECT_NEAR(rlt::get(obs, 0, 1), state.world_z_body_estimate[1], 1e-12);
-    EXPECT_NEAR(rlt::get(obs, 0, 2), state.world_z_body_estimate[2], 1e-12);
+    EXPECT_NEAR(rlt::get(obs, 0, 0), expected[0], 1e-12);
+    EXPECT_NEAR(rlt::get(obs, 0, 1), expected[1], 1e-12);
+    EXPECT_NEAR(rlt::get(obs, 0, 2), expected[2], 1e-12);
     rlt::free(device, obs);
 }
 
-TEST(L2F_MAHONY, JSON_ROUND_TRIP_REDUCED_STATE){
+TEST(L2F_MAHONY, JSON_ROUND_TRIP_QUATERNION_STATE){
     DEVICE device; RNG rng;
     rlt::init(device); rlt::malloc(device, rng); rlt::init(device, rng, (TI)5);
     ENV env; ENV::Parameters params; ENV::State state, restored;
     rlt::malloc(device, env); rlt::init(device, env);
     rlt::sample_initial_parameters(device, env, params, rng);
     rlt::initial_state(device, env, params, state);
-    state.world_z_body_estimate[0] = 0.2;
-    state.world_z_body_estimate[1] = -0.3;
-    state.world_z_body_estimate[2] = std::sqrt(1 - 0.2*0.2 - 0.3*0.3);
-    state.gyro_bias_tangent[0] = 0.01;
-    state.gyro_bias_tangent[1] = 0.02;
-    state.gyro_bias_tangent[2] = -(state.gyro_bias_tangent[0]*state.world_z_body_estimate[0] + state.gyro_bias_tangent[1]*state.world_z_body_estimate[1])/state.world_z_body_estimate[2];
+    state.q_estimate[0] = std::cos(0.25);
+    state.q_estimate[1] = std::sin(0.25);
+    state.q_estimate[2] = 0;
+    state.q_estimate[3] = 0;
+    state.bias_estimate[0] = 0.01;
+    state.bias_estimate[1] = 0.02;
+    state.bias_estimate[2] = 0.03;
 
     auto parsed = nlohmann::json::parse(rlt::json(device, env, params, state));
     rlt::from_json(device, env, params, parsed, restored);
 
-    for(TI i = 0; i < 3; i++){
-        EXPECT_NEAR(restored.world_z_body_estimate[i], state.world_z_body_estimate[i], 1e-6);
-        EXPECT_NEAR(restored.gyro_bias_tangent[i], state.gyro_bias_tangent[i], 1e-6);
+    for(TI i = 0; i < 4; i++){
+        EXPECT_NEAR(restored.q_estimate[i], state.q_estimate[i], 1e-6);
     }
-    T dot = 0;
     for(TI i = 0; i < 3; i++){
-        dot += restored.gyro_bias_tangent[i] * restored.world_z_body_estimate[i];
+        EXPECT_NEAR(restored.bias_estimate[i], state.bias_estimate[i], 1e-6);
     }
-    EXPECT_NEAR(dot, 0.0, 1e-12);
 }
 
-TEST(L2F_MAHONY, FROM_JSON_ACCEPTS_LEGACY_QUATERNION_STATE){
+TEST(L2F_MAHONY, FROM_JSON_ACCEPTS_LEGACY_REDUCED_STATE){
     DEVICE device; RNG rng;
     rlt::init(device); rlt::malloc(device, rng); rlt::init(device, rng, (TI)6);
     ENV env; ENV::Parameters params; ENV::State state, restored;
@@ -139,24 +161,25 @@ TEST(L2F_MAHONY, FROM_JSON_ACCEPTS_LEGACY_QUATERNION_STATE){
     rlt::initial_state(device, env, params, state);
 
     auto parsed = nlohmann::json::parse(rlt::json(device, env, params, state));
-    parsed.erase("world_z_body_estimate");
-    parsed.erase("gyro_bias_tangent");
-    parsed["q_estimate"] = {std::cos(0.25), std::sin(0.25), 0, 0};
-    parsed["bias_estimate"] = {0.01, 0.02, 0.03};
+    parsed.erase("q_estimate");
+    parsed.erase("bias_estimate");
+    parsed["world_z_body_estimate"] = {0, std::sin(0.5), std::cos(0.5)};
+    parsed["gyro_bias_tangent"] = {0.01, 0.02, 0.03};
+    T expected_bias[3] = {0.01, 0.02, 0.03};
 
     rlt::from_json(device, env, params, parsed, restored);
 
-    EXPECT_NEAR(restored.world_z_body_estimate[0], 0.0, 1e-12);
-    EXPECT_NEAR(restored.world_z_body_estimate[1], std::sin(0.5), 1e-12);
-    EXPECT_NEAR(restored.world_z_body_estimate[2], std::cos(0.5), 1e-12);
-    T dot = 0;
+    T world_z[3];
+    world_z_from_q(restored, world_z);
+    EXPECT_NEAR(world_z[0], 0.0, 1e-12);
+    EXPECT_NEAR(world_z[1], std::sin(0.5), 1e-12);
+    EXPECT_NEAR(world_z[2], std::cos(0.5), 1e-12);
     for(TI i = 0; i < 3; i++){
-        dot += restored.gyro_bias_tangent[i] * restored.world_z_body_estimate[i];
+        EXPECT_NEAR(restored.bias_estimate[i], expected_bias[i], 1e-12);
     }
-    EXPECT_NEAR(dot, 0.0, 1e-12);
 }
 
-// With zero gyro bias and no observation noise, the reduced Mahony state should
+// With zero gyro bias and no observation noise, the Mahony state should
 // converge to the true world-Z-in-body direction in hover.
 TEST(L2F_MAHONY, NO_BIAS_HOVER_CONVERGENCE){
     DEVICE device; RNG rng;
@@ -171,9 +194,7 @@ TEST(L2F_MAHONY, NO_BIAS_HOVER_CONVERGENCE){
     state.orientation[0] = 1; state.orientation[1] = 0; state.orientation[2] = 0; state.orientation[3] = 0;
     for (TI i = 0; i < 3; i++) { state.linear_velocity[i] = 0; state.angular_velocity[i] = 0; state.position[i] = 0; }
 
-    state.world_z_body_estimate[0] = 0;
-    state.world_z_body_estimate[1] = std::sin(0.5);
-    state.world_z_body_estimate[2] = std::cos(0.5);
+    set_q_from_world_z(state, 0, std::sin(0.5), std::cos(0.5));
 
     rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENV::ACTION_DIM>> action;
     rlt::malloc(device, action);
@@ -186,9 +207,11 @@ TEST(L2F_MAHONY, NO_BIAS_HOVER_CONVERGENCE){
         rlt::step(device, env, params, state, action, next_state, rng);
         state = next_state;
     }
-    EXPECT_NEAR(state.world_z_body_estimate[0], 0.0, 5e-2);
-    EXPECT_NEAR(state.world_z_body_estimate[1], 0.0, 5e-2);
-    EXPECT_NEAR(state.world_z_body_estimate[2], 1.0, 5e-2);
+    T world_z[3];
+    world_z_from_q(state, world_z);
+    EXPECT_NEAR(world_z[0], 0.0, 5e-2);
+    EXPECT_NEAR(world_z[1], 0.0, 5e-2);
+    EXPECT_NEAR(world_z[2], 1.0, 5e-2);
     rlt::free(device, action);
 }
 
@@ -217,23 +240,25 @@ TEST(L2F_MAHONY, BIAS_REJECTION){
     const_action<ENV>(action, hover_normalized);
 
     T sim_dt = params.integration.dt;
-    TI n_steps = (TI)(60.0 / sim_dt);
+    TI n_steps = (TI)(600.0 / sim_dt);
     for (TI step = 0; step < n_steps; step++){
         rlt::step(device, env, params, state, action, next_state, rng);
         state = next_state;
     }
-    EXPECT_NEAR(state.gyro_bias_tangent[0], true_bias[0], 0.02)
-        << "x: estimated " << state.gyro_bias_tangent[0] << " vs true " << true_bias[0];
-    EXPECT_NEAR(state.gyro_bias_tangent[1], true_bias[1], 0.02)
-        << "y: estimated " << state.gyro_bias_tangent[1] << " vs true " << true_bias[1];
-    EXPECT_NEAR(state.gyro_bias_tangent[2], 0.0, 1e-6);
-    EXPECT_NEAR(state.world_z_body_estimate[0], 0.0, 5e-2);
-    EXPECT_NEAR(state.world_z_body_estimate[1], 0.0, 5e-2);
-    EXPECT_NEAR(state.world_z_body_estimate[2], 1.0, 5e-2);
+    EXPECT_NEAR(state.bias_estimate[0], true_bias[0], 0.02)
+        << "x: estimated " << state.bias_estimate[0] << " vs true " << true_bias[0];
+    EXPECT_NEAR(state.bias_estimate[1], true_bias[1], 0.02)
+        << "y: estimated " << state.bias_estimate[1] << " vs true " << true_bias[1];
+    EXPECT_NEAR(state.bias_estimate[2], 0.0, 1e-6);
+    T world_z[3];
+    world_z_from_q(state, world_z);
+    EXPECT_NEAR(world_z[0], 0.0, 5e-2);
+    EXPECT_NEAR(world_z[1], 0.0, 5e-2);
+    EXPECT_NEAR(world_z[2], 1.0, 5e-2);
     rlt::free(device, action);
 }
 
-TEST(L2F_MAHONY, PURE_YAW_BIAS_DOES_NOT_MOVE_REDUCED_ATTITUDE){
+TEST(L2F_MAHONY, PURE_YAW_BIAS_DOES_NOT_MOVE_WORLD_Z){
     DEVICE device; RNG rng;
     rlt::init(device); rlt::malloc(device, rng); rlt::init(device, rng, (TI)3);
     ENV env; ENV::Parameters params; ENV::State state, next_state;
@@ -257,11 +282,13 @@ TEST(L2F_MAHONY, PURE_YAW_BIAS_DOES_NOT_MOVE_REDUCED_ATTITUDE){
         rlt::step(device, env, params, state, action, next_state, rng);
         state = next_state;
     }
-    EXPECT_NEAR(state.world_z_body_estimate[0], 0.0, 1e-6);
-    EXPECT_NEAR(state.world_z_body_estimate[1], 0.0, 1e-6);
-    EXPECT_NEAR(state.world_z_body_estimate[2], 1.0, 1e-6);
-    EXPECT_NEAR(state.gyro_bias_tangent[0], 0.0, 1e-6);
-    EXPECT_NEAR(state.gyro_bias_tangent[1], 0.0, 1e-6);
-    EXPECT_NEAR(state.gyro_bias_tangent[2], 0.0, 1e-6);
+    T world_z[3];
+    world_z_from_q(state, world_z);
+    EXPECT_NEAR(world_z[0], 0.0, 1e-6);
+    EXPECT_NEAR(world_z[1], 0.0, 1e-6);
+    EXPECT_NEAR(world_z[2], 1.0, 1e-6);
+    EXPECT_NEAR(state.bias_estimate[0], 0.0, 1e-6);
+    EXPECT_NEAR(state.bias_estimate[1], 0.0, 1e-6);
+    EXPECT_NEAR(state.bias_estimate[2], 0.0, 1e-6);
     rlt::free(device, action);
 }

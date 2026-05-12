@@ -54,6 +54,39 @@ namespace rl_tools::rl::environments::l2f{
         world_z_body[1] = 2*q[2]*q[3] + 2*q[0]*q[1];
         world_z_body[2] = 1 - 2*q[1]*q[1] - 2*q[2]*q[2];
     }
+    template <typename DEVICE, typename T>
+    RL_TOOLS_FUNCTION_PLACEMENT void mahony_quaternion_from_accel(DEVICE& device, const T accel[3], T q[4]) {
+        T norm = math::sqrt(device.math, accel[0]*accel[0] + accel[1]*accel[1] + accel[2]*accel[2]);
+        if(norm < (T)1e-9){
+            return;
+        }
+        T ux = accel[0] / norm;
+        T uy = accel[1] / norm;
+        T uz = accel[2] / norm;
+        if(uz < (T)-0.999999){
+            q[0] = 0;
+            q[1] = 1;
+            q[2] = 0;
+            q[3] = 0;
+            return;
+        }
+        q[0] = (T)1 + uz;
+        q[1] = uy;
+        q[2] = -ux;
+        q[3] = 0;
+        T q_norm = math::sqrt(device.math, q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3]);
+        if(q_norm > (T)1e-12){
+            for(typename DEVICE::index_t i = 0; i < 4; i++){
+                q[i] /= q_norm;
+            }
+        }
+        else{
+            q[0] = 1;
+            q[1] = 0;
+            q[2] = 0;
+            q[3] = 0;
+        }
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
