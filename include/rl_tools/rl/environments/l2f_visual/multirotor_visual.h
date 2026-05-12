@@ -59,6 +59,8 @@ namespace rl_tools::rl::environments::l2f_visual {
     template <typename T>
     struct CameraRandomization {
         T fov_range = 0;
+        T offset_body_range[3] = {0, 0, 0};
+        T rotation_body_range[3] = {0, 0, 0};
     };
 
     template <typename T_SPEC>
