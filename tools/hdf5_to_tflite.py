@@ -1403,6 +1403,16 @@ def print_summary(lines):
     print("=" * 72)
 
 
+def h5_attr_str(value):
+    if value is None:
+        return None
+    if isinstance(value, bytes):
+        return value.decode()
+    if hasattr(value, "decode") and not isinstance(value, str):
+        return value.decode()
+    return str(value)
+
+
 def export_openmv_visual_split(*, args, h5_path, base, meta, meta_path,
                                per_branch_contig, per_branch_bin, y_bin,
                                full_int8_bytes, y_full_int8, report):
@@ -1684,8 +1694,9 @@ def main():
         y_ref = example_output_tensor(f)
         ordered_layers = collect_quant_layers(model_group)
         has_fast_tanh = uses_activation(model_group, "FAST_TANH")
-        actor_meta_bytes = f["actor"].attrs.get("meta") if "actor" in f else None
-        actor_meta_str = actor_meta_bytes.decode() if isinstance(actor_meta_bytes, bytes) else actor_meta_bytes
+        actor_group = f["actor"] if "actor" in f else None
+        actor_meta_str = h5_attr_str(actor_group.attrs.get("meta") if actor_group else None)
+        hdf5_checkpoint_name = h5_attr_str(actor_group.attrs.get("checkpoint_name") if actor_group else None)
     # Keep a pre-(split-image-wrap) reference so get_layer() can reach the
     # inner Conv/Dense weights — wrap_split_image_input replaces `model` with
     # a Keras Model whose top-level children are the wrapper inputs, not the
@@ -1834,6 +1845,8 @@ def main():
         except ValueError:
             actor_meta = None
     meta = {
+        "checkpoint_name": hdf5_checkpoint_name or os.path.abspath(args.input),
+        "source_hdf5_path": os.path.abspath(args.input),
         "inputs": [
             {
                 "path": os.path.basename(in_paths[tflite_i]),
@@ -1850,6 +1863,8 @@ def main():
             "dtype": "float32",
         },
     }
+    if hdf5_checkpoint_name:
+        meta["hdf5_checkpoint_name"] = hdf5_checkpoint_name
     if actor_meta is not None:
         meta["actor_meta"] = actor_meta
     elif actor_meta_str:
