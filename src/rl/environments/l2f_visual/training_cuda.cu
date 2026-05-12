@@ -194,9 +194,11 @@ struct STATIC_PARAMETERS {
     static constexpr TI CLOSED_FORM = false;
     static constexpr TI EPISODE_STEP_LIMIT = ::EPISODE_STEP_LIMIT;
     using STATE_BASE = l2f::StateBase<l2f::StateSpecification<T, TI>>;
-    using STATE_BASE_LAH = l2f::StateLinearAccelerationHistory<l2f::StateLinearAccelerationHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, STATE_BASE>>;
+    using STATE_BASE_LA = l2f::StateLinearAcceleration<l2f::StateSpecification<T, TI, STATE_BASE>>;
+    using STATE_BASE_LAH = l2f::StateLinearAccelerationHistory<l2f::StateLinearAccelerationHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, STATE_BASE_LA>>;
     using STATE_BASE_GB = l2f::StateGyroBias<l2f::StateGyroBiasSpecification<T, TI, STATE_BASE_LAH>>;
-    using STATE_TYPE = l2f::StateRotorsHistory<l2f::StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, l2f::StateRandomForce<l2f::StateSpecification<T, TI, l2f::StateLastAction<l2f::StateSpecification<T, TI, STATE_BASE_GB>>>>>>;
+    using STATE_BASE_MAHONY = l2f::StateMahony<l2f::StateMahonySpecification<T, TI, STATE_BASE_GB>>;
+    using STATE_TYPE = l2f::StateRotorsHistory<l2f::StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, l2f::StateRandomForce<l2f::StateSpecification<T, TI, l2f::StateLastAction<l2f::StateSpecification<T, TI, STATE_BASE_MAHONY>>>>>>;
     using OBSERVATION_TYPE = obs::Position<obs::PositionSpecification<T, TI,
             obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI,
             obs::LinearVelocity<obs::LinearVelocitySpecification<T, TI,
