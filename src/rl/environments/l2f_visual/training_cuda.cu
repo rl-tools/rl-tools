@@ -176,7 +176,7 @@ static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = {
     {0, DISTURBANCE_TORQUE_STD}  // random_torque (z axis is internally scaled by 1/100 in sample_initial_state)
 };
 static constexpr typename PARAMETERS_TYPE::IMU imu = {
-    {static_cast<T>(0), static_cast<T>(0), static_cast<T>(0)}
+    {static_cast<T>(0.02), static_cast<T>(0), static_cast<T>(0)}
 };
 static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
     1.7, 2.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
