@@ -18,6 +18,18 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION, typename OBS_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, const OBSERVATION& observation_type, Matrix<OBS_SPEC>& observation, RNG& rng);
     namespace rl::environments::l2f{
+        template<typename STATE>
+        RL_TOOLS_FUNCTION_PLACEMENT static auto gyro_bias_axis_impl(const STATE& state, typename STATE::TI axis, int) -> decltype(state.gyro_bias[axis]){
+            return state.gyro_bias[axis];
+        }
+        template<typename STATE>
+        RL_TOOLS_FUNCTION_PLACEMENT static typename STATE::T gyro_bias_axis_impl(const STATE&, typename STATE::TI, long){
+            return 0;
+        }
+        template<typename STATE>
+        RL_TOOLS_FUNCTION_PLACEMENT static typename STATE::T gyro_bias_axis(const STATE& state, typename STATE::TI axis){
+            return gyro_bias_axis_impl(state, axis, 0);
+        }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_TI, typename OBS_SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::LastComponent<OBSERVATION_TI>, Matrix<OBS_SPEC>& observation, RNG& rng){
             static_assert(OBS_SPEC::COLS == 0);
@@ -172,7 +184,7 @@ namespace rl_tools{
                 }
                 else{
                     T noise = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, (T)0, parameters.mdp.observation_noise.angular_velocity, rng);
-                    set(observation, 0, i, state.angular_velocity[i] + noise);
+                    set(observation, 0, i, state.angular_velocity[i] + gyro_bias_axis(state, i) + noise);
                 }
             }
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
@@ -340,7 +352,7 @@ namespace rl_tools{
                 else{
                      base = state.angular_velocity_history[STATE::HISTORY_MEM_LENGTH - OBSERVATION_SPEC::DELAY][i];
                 }
-                set(observation, 0, i, base + noise);
+                set(observation, 0, i, base + gyro_bias_axis(state, i) + noise);
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>

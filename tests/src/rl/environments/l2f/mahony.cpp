@@ -105,6 +105,71 @@ TEST(L2F_MAHONY, INITIAL_STATE_IDENTITY){
     for (TI i = 0; i < 3; i++) EXPECT_DOUBLE_EQ(state.gyro_bias[i], 0.0);
 }
 
+TEST(L2F_MAHONY, GYRO_BIAS_SAMPLES_UNIFORM_AND_HOLDS_WITH_ZERO_TAU){
+    DEVICE device; RNG rng;
+    rlt::init(device); rlt::malloc(device, rng); rlt::init(device, rng, (TI)7);
+    ENV env; ENV::Parameters params; ENV::State state, next_state;
+    rlt::malloc(device, env); rlt::init(device, env);
+    rlt::sample_initial_parameters(device, env, params, rng);
+    params.imu.gyro_bias.init_max = 0.02;
+    params.imu.gyro_bias.tau = 0;
+    params.imu.gyro_bias.sigma = 10.0;
+    rlt::sample_initial_state(device, env, params, state, rng);
+
+    T sampled_bias[3];
+    for(TI i = 0; i < 3; i++){
+        sampled_bias[i] = state.gyro_bias[i];
+        EXPECT_LE(std::abs(sampled_bias[i]), params.imu.gyro_bias.init_max);
+    }
+
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENV::ACTION_DIM>> action;
+    rlt::malloc(device, action);
+    const_action<ENV>(action, params.dynamics.hovering_throttle_relative * 2 - 1);
+
+    for(TI step_i = 0; step_i < 8; step_i++){
+        rlt::step(device, env, params, state, action, next_state, rng);
+        state = next_state;
+    }
+    for(TI i = 0; i < 3; i++){
+        EXPECT_DOUBLE_EQ(state.gyro_bias[i], sampled_bias[i]);
+    }
+    rlt::free(device, action);
+}
+
+TEST(L2F_MAHONY, ANGULAR_VELOCITY_OBSERVATION_USES_GYRO_BIAS){
+    DEVICE device; RNG rng;
+    rlt::init(device); rlt::malloc(device, rng); rlt::init(device, rng, (TI)8);
+    ENV env; ENV::Parameters params; ENV::State state;
+    rlt::malloc(device, env); rlt::init(device, env);
+    rlt::sample_initial_parameters(device, env, params, rng);
+    params.mdp.observation_noise.angular_velocity = 0;
+    rlt::initial_state(device, env, params, state);
+    state.angular_velocity[0] = 1.0;
+    state.angular_velocity[1] = -2.0;
+    state.angular_velocity[2] = 3.0;
+    state.gyro_bias[0] = 0.1;
+    state.gyro_bias[1] = -0.2;
+    state.gyro_bias[2] = 0.3;
+
+    using OBS = l2f::observation::AngularVelocity<l2f::observation::AngularVelocitySpecification<T, TI>>;
+    using OBS_PRIV = l2f::observation::AngularVelocity<l2f::observation::AngularVelocitySpecificationPrivileged<T, TI>>;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, OBS::DIM>> obs;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, 1, OBS_PRIV::DIM>> obs_priv;
+    rlt::malloc(device, obs);
+    rlt::malloc(device, obs_priv);
+
+    rlt::observe(device, env, params, state, OBS{}, obs, rng);
+    rlt::observe(device, env, params, state, OBS_PRIV{}, obs_priv, rng);
+
+    for(TI i = 0; i < 3; i++){
+        EXPECT_DOUBLE_EQ(rlt::get(obs, 0, i), state.angular_velocity[i] + state.gyro_bias[i]);
+        EXPECT_DOUBLE_EQ(rlt::get(obs_priv, 0, i), state.angular_velocity[i]);
+    }
+
+    rlt::free(device, obs);
+    rlt::free(device, obs_priv);
+}
+
 TEST(L2F_MAHONY, OBSERVATION_USES_QUATERNION_ESTIMATE){
     DEVICE device; RNG rng;
     rlt::init(device); rlt::malloc(device, rng); rlt::init(device, rng, (TI)4);

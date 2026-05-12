@@ -122,7 +122,10 @@ struct DOMAIN_RANDOMIZATION_OPTIONS {
     static constexpr bool DISTURBANCE_FORCE = false;
     static constexpr bool ROTOR_TIME_CONSTANT = false;
 };
-using PARAMETERS_TYPE = l2f::ParametersDomainRandomization<l2f::ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, l2f::ParametersDisturbances<l2f::ParametersSpecification<T, TI, l2f::ParametersBase<PARAMETERS_SPEC>>>>>;
+using PARAMETERS_BASE = l2f::ParametersBase<PARAMETERS_SPEC>;
+using PARAMETERS_IMU = l2f::ParametersIMU<l2f::ParametersSpecification<T, TI, PARAMETERS_BASE>>;
+using PARAMETERS_DISTURBANCES = l2f::ParametersDisturbances<l2f::ParametersSpecification<T, TI, PARAMETERS_IMU>>;
+using PARAMETERS_TYPE = l2f::ParametersDomainRandomization<l2f::ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, PARAMETERS_DISTURBANCES>>;
 
 static constexpr auto MODEL = l2f::parameters::dynamics::REGISTRY::crazyflie_openmv;
 
@@ -172,10 +175,13 @@ static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = {
     {0, DISTURBANCE_FORCE_STD},  // random_force
     {0, DISTURBANCE_TORQUE_STD}  // random_torque (z axis is internally scaled by 1/100 in sample_initial_state)
 };
+static constexpr typename PARAMETERS_TYPE::IMU imu = {
+    {static_cast<T>(0), static_cast<T>(0), static_cast<T>(0)}
+};
 static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
     1.7, 2.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
 };
-static constexpr PARAMETERS_TYPE nominal_parameters = { {{dynamics, integration, mdp}, disturbances}, domain_randomization };
+static constexpr PARAMETERS_TYPE nominal_parameters = { {{{dynamics, integration, mdp}, imu}, disturbances}, domain_randomization };
 
 // =========================================================================
 // Environment static parameters
@@ -188,7 +194,9 @@ struct STATIC_PARAMETERS {
     static constexpr TI CLOSED_FORM = false;
     static constexpr TI EPISODE_STEP_LIMIT = ::EPISODE_STEP_LIMIT;
     using STATE_BASE = l2f::StateBase<l2f::StateSpecification<T, TI>>;
-    using STATE_TYPE = l2f::StateRotorsHistory<l2f::StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, l2f::StateRandomForce<l2f::StateSpecification<T, TI, l2f::StateLastAction<l2f::StateSpecification<T, TI, l2f::StateLinearAccelerationHistory<l2f::StateLinearAccelerationHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, STATE_BASE>>>>>>>>;
+    using STATE_BASE_LAH = l2f::StateLinearAccelerationHistory<l2f::StateLinearAccelerationHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, STATE_BASE>>;
+    using STATE_BASE_GB = l2f::StateGyroBias<l2f::StateGyroBiasSpecification<T, TI, STATE_BASE_LAH>>;
+    using STATE_TYPE = l2f::StateRotorsHistory<l2f::StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, l2f::StateRandomForce<l2f::StateSpecification<T, TI, l2f::StateLastAction<l2f::StateSpecification<T, TI, STATE_BASE_GB>>>>>>;
     using OBSERVATION_TYPE = obs::Position<obs::PositionSpecification<T, TI,
             obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI,
             obs::LinearVelocity<obs::LinearVelocitySpecification<T, TI,

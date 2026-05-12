@@ -127,7 +127,7 @@ namespace rl_tools::rl::environments::l2f::parameters {
             typename PARAMETERS_TYPE::Disturbances::UnivariateGaussian{0, 0} //{0, 0.027 * 9.81 / 10000} // random_torque;
         };
         static constexpr typename PARAMETERS_TYPE::IMU imu = {
-            {0, 0, 0} // gyro_bias: init_max, tau, sigma (disabled by default)
+            {0, 0, 0} // gyro_bias: init_max, tau, sigma
         };
 
         static constexpr typename PARAMETERS_TYPE::Trajectory trajectory = {};

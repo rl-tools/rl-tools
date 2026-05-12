@@ -51,7 +51,7 @@ namespace rl_tools::rl::environments::l2f{
         struct IMU{
             struct GyroBias{
                 T init_max; // turn-on bias uniform half-range per axis
-                T tau;      // OU correlation time
+                T tau;      // OU correlation time, tau <= 0 holds the turn-on bias constant
                 T sigma;    // OU steady-state standard deviation
             };
             GyroBias gyro_bias;
