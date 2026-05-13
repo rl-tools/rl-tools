@@ -82,14 +82,8 @@ namespace rlt = rl_tools;
 
 // Uncomment to feed the student CNN all-black visual observations (stacked frames + target).
 // Rendering still runs; only the tensor handed to the policy is zeroed. Use to verify the
-// training pipeline and that the policy can learn attitude control from the state branch alone.
+// training pipeline and that the policy can learn yaw from the non-visual state branch alone.
 // #define RL_TOOLS_L2F_VISUAL_IMITATION_BLIND_TRAINING
-
-#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
-static constexpr bool STATE_ESTIMATION_MODE = true;
-#else
-static constexpr bool STATE_ESTIMATION_MODE = false;
-#endif
 
 // =========================================================================
 // Device types
@@ -127,7 +121,7 @@ static constexpr TI SIMULATION_FREQUENCY = 100;
 static constexpr TI EPISODE_STEP_LIMIT = 500;
 using PARAMETERS_SPEC = l2f::ParametersBaseSpecification<T, TI, 4, EPISODE_STEP_LIMIT, REWARD_FUNCTION>;
 struct DOMAIN_RANDOMIZATION_OPTIONS {
-    static constexpr bool THRUST_TO_WEIGHT = false;
+    static constexpr bool THRUST_TO_WEIGHT = true;
     static constexpr bool MASS = false;
     static constexpr bool TORQUE_TO_INERTIA = false;
     static constexpr bool MASS_SIZE_DEVIATION = false;
@@ -135,16 +129,19 @@ struct DOMAIN_RANDOMIZATION_OPTIONS {
     static constexpr bool DISTURBANCE_FORCE = false;
     static constexpr bool ROTOR_TIME_CONSTANT = false;
 };
-using PARAMETERS_TYPE = l2f::ParametersDomainRandomization<l2f::ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, l2f::ParametersDisturbances<l2f::ParametersSpecification<T, TI, l2f::ParametersBase<PARAMETERS_SPEC>>>>>;
+using PARAMETERS_BASE = l2f::ParametersBase<PARAMETERS_SPEC>;
+using PARAMETERS_IMU = l2f::ParametersIMU<l2f::ParametersSpecification<T, TI, PARAMETERS_BASE>>;
+using PARAMETERS_DISTURBANCES = l2f::ParametersDisturbances<l2f::ParametersSpecification<T, TI, PARAMETERS_IMU>>;
+using PARAMETERS_TYPE = l2f::ParametersDomainRandomization<l2f::ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, PARAMETERS_DISTURBANCES>>;
 
 static constexpr auto MODEL = l2f::parameters::dynamics::REGISTRY::crazyflie_openmv;
 
 static constexpr REWARD_FUNCTION reward_function = {
-    false, 1.00, 1.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00, 0.00,
-    {0.00, 0.00, 0.00, 0.00}, {0.00, 0.00, 0.00, 0.00}, 0.00
+    false, 0.10, 1.00, -100.00, 10.00, 0.00, 1.00, 0.05, 1.50, 0.00, 0.00,
+    {0.00, 0.00, 0.00, 0.00}, {1.50, 1.50, 1.50, 1.50}, 0.00
 };
 static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = {
-    1.0, 0.0, 0.3, 1.0, 1.0, true, -1, +1,
+    0.0, 0.8, rlt::math::PI<T>, 1.0, 1.0, true, -1, +1,
 };
 static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = {
     true, 1.0, 0, 10, 35, 10000, 50000,
@@ -154,26 +151,25 @@ static constexpr typename PARAMETERS_TYPE::Integration integration = {
     static_cast<T>(1) / static_cast<T>(SIMULATION_FREQUENCY)
 };
 static constexpr typename PARAMETERS_TYPE::MDP mdp = { init, reward_function, {}, {}, termination };
-static constexpr T DISTURBANCE_FORCE_STD = 0;
-static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = { {0, DISTURBANCE_FORCE_STD}, {0, 0} };
-static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
-    0, // thrust_to_weight_min
-    0, // thrust_to_weight_max
-    0,   // torque_to_inertia_min
-    0,   // torque_to_inertia_max
-    0,   // mass_min
-    0,   // mass_max
-    0,   // mass_size_deviation
-    0,   // rotor_time_constant_rising_min
-    0,   // rotor_time_constant_rising_max
-    0,   // rotor_time_constant_falling_min
-    0,   // rotor_time_constant_falling_max
-    0,   // rotor_torque_constant_min
-    0,   // rotor_torque_constant_max
-    0,   // orientation_offset_angle_max
-    0    // disturbance_force_max
+static constexpr T MAX_THRUST_PER_ROTOR = dynamics.rotor_thrust_coefficients[0][0]
+                                        + dynamics.rotor_thrust_coefficients[0][1]
+                                        + dynamics.rotor_thrust_coefficients[0][2];
+static constexpr T MAX_THRUST = static_cast<T>(PARAMETERS_SPEC::N) * MAX_THRUST_PER_ROTOR;
+static constexpr T ROTOR_ARM = dynamics.rotor_positions[0][0] < 0 ? -dynamics.rotor_positions[0][0] : dynamics.rotor_positions[0][0];
+static constexpr T DISTURBANCE_FRACTION = static_cast<T>(0.0);
+static constexpr T DISTURBANCE_FORCE_STD = DISTURBANCE_FRACTION * MAX_THRUST;
+static constexpr T DISTURBANCE_TORQUE_STD = DISTURBANCE_FRACTION * MAX_THRUST * ROTOR_ARM;
+static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = {
+    {0, DISTURBANCE_FORCE_STD},
+    {0, DISTURBANCE_TORQUE_STD}
 };
-static constexpr PARAMETERS_TYPE nominal_parameters = { {{dynamics, integration, mdp}, disturbances}, domain_randomization };
+static constexpr typename PARAMETERS_TYPE::IMU imu = {
+    {static_cast<T>(0.02), static_cast<T>(0), static_cast<T>(0)}
+};
+static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
+    1.7, 2.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+};
+static constexpr PARAMETERS_TYPE nominal_parameters = { {{{dynamics, integration, mdp}, imu}, disturbances}, domain_randomization };
 
 
 // =========================================================================
@@ -187,7 +183,11 @@ struct STATIC_PARAMETERS {
     static constexpr TI CLOSED_FORM = false;
     static constexpr TI EPISODE_STEP_LIMIT = ::EPISODE_STEP_LIMIT;
     using STATE_BASE = l2f::StateBase<l2f::StateSpecification<T, TI>>;
-    using STATE_TYPE = l2f::StateRotorsHistory<l2f::StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, l2f::StateRandomForce<l2f::StateSpecification<T, TI, l2f::StateLastAction<l2f::StateSpecification<T, TI, l2f::StateLinearAccelerationHistory<l2f::StateLinearAccelerationHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, STATE_BASE>>>>>>>>;
+    using STATE_BASE_LA = l2f::StateLinearAcceleration<l2f::StateSpecification<T, TI, STATE_BASE>>;
+    using STATE_BASE_LAH = l2f::StateLinearAccelerationHistory<l2f::StateLinearAccelerationHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, STATE_BASE_LA>>;
+    using STATE_BASE_GB = l2f::StateGyroBias<l2f::StateGyroBiasSpecification<T, TI, STATE_BASE_LAH>>;
+    using STATE_BASE_MAHONY = l2f::StateMahony<l2f::StateMahonySpecification<T, TI, STATE_BASE_GB>>;
+    using STATE_TYPE = l2f::StateRotorsHistory<l2f::StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, l2f::StateRandomForce<l2f::StateSpecification<T, TI, l2f::StateLastAction<l2f::StateSpecification<T, TI, STATE_BASE_MAHONY>>>>>>;
     using OBSERVATION_TYPE = obs::Position<obs::PositionSpecification<T, TI,
             obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI,
             obs::LinearVelocity<obs::LinearVelocitySpecification<T, TI,
@@ -228,11 +228,16 @@ static constexpr TI N_ENVIRONMENTS = N_ACTIVE_SCENES * N_ENVIRONMENTS_PER_SCENE;
 static constexpr TI CAM_WIDTH = 80;
 static constexpr TI CAM_HEIGHT = 50;
 static constexpr TI NUM_PROBES = 64;
-static constexpr T CAMERA_FOV = static_cast<T>(63.8) / static_cast<T>(180) * rlt::math::PI<T>;
+static constexpr T CAMERA_FOV = static_cast<T>(79.6) / static_cast<T>(180) * rlt::math::PI<T>;
 static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = static_cast<T>(5.0) / static_cast<T>(180) * rlt::math::PI<T>;
-static constexpr T TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE =
-    STATE_ESTIMATION_MODE ? static_cast<T>(0) : static_cast<T>(10.0) / static_cast<T>(180) * rlt::math::PI<T>;
-static_assert(TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE >= static_cast<T>(0), "Invalid l2f_visual imitation target frame roll/pitch randomization range");
+static constexpr T CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_X = static_cast<T>(0.01);
+static constexpr T CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_Y = static_cast<T>(0.01);
+static constexpr T CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_Z = static_cast<T>(0.01);
+static constexpr T CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_X = static_cast<T>(5.0) / static_cast<T>(180) * rlt::math::PI<T>;
+static constexpr T CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_Y = static_cast<T>(5.0) / static_cast<T>(180) * rlt::math::PI<T>;
+static constexpr T CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_Z = static_cast<T>(5.0) / static_cast<T>(180) * rlt::math::PI<T>;
+static constexpr T TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE = static_cast<T>(10.0) / static_cast<T>(180) * rlt::math::PI<T>;
+static_assert(TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE >= static_cast<T>(0), "Invalid l2f_visual yaw target frame roll/pitch randomization range");
 
 constexpr bool HIGH_FIDELITY_SHADING = true;
 static constexpr bool RENDER_ENABLE_MOTION_BLUR = false;
@@ -241,7 +246,7 @@ static constexpr bool RENDER_ENABLE_ANTI_ALIASING = true;
 static constexpr TI RENDER_ANTI_ALIASING_GRID_SIZE = 2;
 static constexpr T RENDER_SHUTTER_FRACTION_MIN = static_cast<T>(0.25);
 static constexpr T RENDER_SHUTTER_FRACTION_MAX = static_cast<T>(1);
-static_assert(RENDER_SHUTTER_FRACTION_MIN >= static_cast<T>(0) && RENDER_SHUTTER_FRACTION_MIN <= RENDER_SHUTTER_FRACTION_MAX && RENDER_SHUTTER_FRACTION_MAX <= static_cast<T>(1), "Invalid l2f_visual imitation shutter fraction range");
+static_assert(RENDER_SHUTTER_FRACTION_MIN >= static_cast<T>(0) && RENDER_SHUTTER_FRACTION_MIN <= RENDER_SHUTTER_FRACTION_MAX && RENDER_SHUTTER_FRACTION_MAX <= static_cast<T>(1), "Invalid l2f_visual yaw shutter fraction range");
 using VISUAL_SPEC = rlt::rl::environments::l2f_visual::Specification<T, TI, STATIC_PARAMETERS, N_ENVIRONMENTS_PER_SCENE, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, HIGH_FIDELITY_SHADING, RENDER_ENABLE_MOTION_BLUR, RENDER_MOTION_BLUR_SAMPLES, RENDER_ENABLE_ANTI_ALIASING, RENDER_ANTI_ALIASING_GRID_SIZE>;
 using ENVIRONMENT = rlt::rl::environments::l2f_visual::MultirrotorVisual<VISUAL_SPEC>;
 using CAMERA_DATA = rlt::rendering::raytracing::CameraData<T>;
@@ -277,9 +282,8 @@ using RAPTOR_MODEL = rlt::nn_models::sequential::Build<RAPTOR_CAPABILITY, RAPTOR
 static constexpr TI ACTOR_HIDDEN_DIM = 64;
 static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::RELU;
 static constexpr TI ACTION_DIM = ENVIRONMENT::ACTION_DIM;
-static constexpr TI STATE_ESTIMATION_TARGET_DIM = 3 + 3 + 9;
-static constexpr TI STATE_ESTIMATION_NUM_METRICS = 4;
-static constexpr TI TARGET_DIM = STATE_ESTIMATION_MODE ? STATE_ESTIMATION_TARGET_DIM : ACTION_DIM;
+static constexpr TI TARGET_DIM = 2;
+static constexpr TI YAW_NUM_METRICS = 3;
 static constexpr TI INDOOR_POSITION_DIM = 3;
 static constexpr TI OBSERVATION_DIM = ENVIRONMENT::OBSERVATION_DIM;
 static constexpr TI BATCH_SIZE = 512;
@@ -288,8 +292,8 @@ static constexpr TI STEPS_TOTAL = STEPS_PER_ENV * N_ENVIRONMENTS;
 static constexpr TI N_BATCHES = STEPS_TOTAL / BATCH_SIZE;
 static constexpr TI NUM_EPOCHS = 1000000;
 static constexpr TI TEACHER_FORCING_EPOCHS = 0;
-static constexpr T TEACHER_FORCING_FRACTION = 0.0;
-static constexpr T EFFECTIVE_TEACHER_FORCING_FRACTION = STATE_ESTIMATION_MODE ? static_cast<T>(1) : TEACHER_FORCING_FRACTION;
+static constexpr T TEACHER_FORCING_FRACTION = 1.0;
+static constexpr T EFFECTIVE_TEACHER_FORCING_FRACTION = TEACHER_FORCING_FRACTION;
 static constexpr TI N_TRAIN_PASSES = 4;
 static constexpr TI VIDEO_CADENCE = 10;
 static constexpr TI CHECKPOINT_CADENCE = 1000;
@@ -390,34 +394,29 @@ namespace imitation_kernels{
         return out;
     }
 
-    template<typename DEVICE>
-    __device__ void write_state_estimation_target(const typename ENVIRONMENT::State& state, T_ACTIVATION* target_ptr){
-        T conjugate_orientation[4] = {
-            state.orientation[0],
-            -state.orientation[1],
-            -state.orientation[2],
-            -state.orientation[3]
-        };
-        T relative_position_world[3] = {
-            -state.position[0],
-            -state.position[1],
-            -state.position[2]
-        };
-        T relative_position_body[3];
-        rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(conjugate_orientation, relative_position_world, relative_position_body);
-        T linear_velocity_body[3];
-        rlt::rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(conjugate_orientation, state.linear_velocity, linear_velocity_body);
-        for(TI axis_i = 0; axis_i < 3; axis_i++){
-            target_ptr[axis_i] = static_cast<T_ACTIVATION>(relative_position_body[axis_i]);
-            target_ptr[3 + axis_i] = static_cast<T_ACTIVATION>(linear_velocity_body[axis_i]);
+    __device__ void yaw_target_from_state(const typename ENVIRONMENT::State& state, T& yaw_cos, T& yaw_sin){
+        const T qw = state.orientation[0];
+        const T qx = state.orientation[1];
+        const T qy = state.orientation[2];
+        const T qz = state.orientation[3];
+        yaw_cos = static_cast<T>(1) - static_cast<T>(2) * (qy * qy + qz * qz);
+        yaw_sin = static_cast<T>(2) * (qx * qy + qw * qz);
+        T norm = sqrtf(yaw_cos * yaw_cos + yaw_sin * yaw_sin);
+        if(norm > static_cast<T>(1e-6)){
+            yaw_cos /= norm;
+            yaw_sin /= norm;
+        } else {
+            yaw_cos = static_cast<T>(1);
+            yaw_sin = static_cast<T>(0);
         }
-        T orientation_body_to_world[3][3];
-        rlt::rl::environments::l2f::quaternion_to_rotation_matrix<DEVICE, T>(state.orientation, orientation_body_to_world);
-        for(TI row_i = 0; row_i < 3; row_i++){
-            for(TI col_i = 0; col_i < 3; col_i++){
-                target_ptr[6 + row_i * 3 + col_i] = static_cast<T_ACTIVATION>(orientation_body_to_world[col_i][row_i]);
-            }
-        }
+    }
+
+    __device__ void write_yaw_target(const typename ENVIRONMENT::State& state, T_ACTIVATION* target_ptr){
+        T yaw_cos;
+        T yaw_sin;
+        yaw_target_from_state(state, yaw_cos, yaw_sin);
+        target_ptr[0] = static_cast<T_ACTIVATION>(yaw_cos);
+        target_ptr[1] = static_cast<T_ACTIVATION>(yaw_sin);
     }
 
     template<bool ENABLE_MOTION_BLUR, typename RENDERER>
@@ -527,7 +526,7 @@ namespace imitation_kernels{
         DEVICE device,
         ENVIRONMENT* envs, typename ENVIRONMENT::Parameters* env_params, typename ENVIRONMENT::State* states,
         bool* terminated_flags, TI* episode_step_arr, T* episode_return_arr,
-        T* teacher_actions_ptr, T_ACTIVATION* student_actions_ptr, T_ACTIVATION* all_targets_ptr,
+        T* teacher_actions_ptr, T_ACTIVATION* all_targets_ptr,
         RNG rng, TI step_i
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -537,21 +536,10 @@ namespace imitation_kernels{
         auto& params = env_params[env_i];
         auto& state = states[env_i];
         TI pos = step_i * N_ENVIRONMENTS + env_i;
-#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
-        (void)student_actions_ptr;
-        write_state_estimation_target<DEVICE>(state, all_targets_ptr + pos * TARGET_DIM);
-#else
-        for(TI d = 0; d < TARGET_DIM; d++){
-            all_targets_ptr[pos * TARGET_DIM + d] = (T_ACTIVATION)teacher_actions_ptr[env_i * ACTION_DIM + d];
-        }
-#endif
+        write_yaw_target(state, all_targets_ptr + pos * TARGET_DIM);
         T action_arr[ACTION_DIM];
         for(TI a = 0; a < ACTION_DIM; a++){
-#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
             action_arr[a] = teacher_actions_ptr[env_i * ACTION_DIM + a];
-#else
-            action_arr[a] = (T)student_actions_ptr[env_i * ACTION_DIM + a];
-#endif
         }
         rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ACTION_DIM, true, rlt::matrix::layouts::RowMajorAlignment<TI, 1>>> action_matrix;
         action_matrix._data = action_arr;
@@ -630,46 +618,37 @@ namespace imitation_kernels{
         }
     }
 
-#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
     __global__
-    void state_estimation_batch_metrics_kernel(const T_ACTIVATION* student_output_ptr, const T_ACTIVATION* target_ptr, T* metrics_out, TI batch_size){
+    void yaw_batch_metrics_kernel(const T_ACTIVATION* student_output_ptr, const T_ACTIVATION* target_ptr, T* metrics_out, TI batch_size){
         if(blockIdx.x == 0 && threadIdx.x == 0){
-            T position_mse = 0;
-            T linear_velocity_mse = 0;
-            T orientation_mse = 0;
-            T orientation_angle_error = 0;
+            T abs_error = 0;
+            T squared_error = 0;
+            T output_norm = 0;
             for(TI sample_i = 0; sample_i < batch_size; sample_i++){
                 const TI base = sample_i * TARGET_DIM;
-                for(TI axis_i = 0; axis_i < 3; axis_i++){
-                    T diff_position = static_cast<T>(student_output_ptr[base + axis_i]) - static_cast<T>(target_ptr[base + axis_i]);
-                    T diff_linear_velocity = static_cast<T>(student_output_ptr[base + 3 + axis_i]) - static_cast<T>(target_ptr[base + 3 + axis_i]);
-                    position_mse += diff_position * diff_position;
-                    linear_velocity_mse += diff_linear_velocity * diff_linear_velocity;
+                T pred_cos = static_cast<T>(student_output_ptr[base + 0]);
+                T pred_sin = static_cast<T>(student_output_ptr[base + 1]);
+                T pred_norm = sqrtf(pred_cos * pred_cos + pred_sin * pred_sin);
+                output_norm += pred_norm;
+                if(pred_norm > static_cast<T>(1e-6)){
+                    pred_cos /= pred_norm;
+                    pred_sin /= pred_norm;
+                } else {
+                    pred_cos = static_cast<T>(1);
+                    pred_sin = static_cast<T>(0);
                 }
-                T rotation_trace = 0;
-                for(TI rotation_i = 0; rotation_i < 9; rotation_i++){
-                    T pred = static_cast<T>(student_output_ptr[base + 6 + rotation_i]);
-                    T target = static_cast<T>(target_ptr[base + 6 + rotation_i]);
-                    T diff_orientation = pred - target;
-                    orientation_mse += diff_orientation * diff_orientation;
-                    rotation_trace += pred * target;
-                }
-                T cos_angle = (rotation_trace - static_cast<T>(1)) / static_cast<T>(2);
-                if(cos_angle < static_cast<T>(-1)){
-                    cos_angle = static_cast<T>(-1);
-                }
-                if(cos_angle > static_cast<T>(1)){
-                    cos_angle = static_cast<T>(1);
-                }
-                orientation_angle_error += acosf(cos_angle);
+                const T target_cos = static_cast<T>(target_ptr[base + 0]);
+                const T target_sin = static_cast<T>(target_ptr[base + 1]);
+                T error = atan2f(pred_sin * target_cos - pred_cos * target_sin,
+                                  pred_cos * target_cos + pred_sin * target_sin);
+                abs_error += fabsf(error);
+                squared_error += error * error;
             }
-            metrics_out[0] = batch_size > 0 ? position_mse / static_cast<T>(batch_size * 3) : static_cast<T>(0);
-            metrics_out[1] = batch_size > 0 ? linear_velocity_mse / static_cast<T>(batch_size * 3) : static_cast<T>(0);
-            metrics_out[2] = batch_size > 0 ? orientation_mse / static_cast<T>(batch_size * 9) : static_cast<T>(0);
-            metrics_out[3] = batch_size > 0 ? orientation_angle_error / static_cast<T>(batch_size) : static_cast<T>(0);
+            metrics_out[0] = batch_size > 0 ? abs_error / static_cast<T>(batch_size) : static_cast<T>(0);
+            metrics_out[1] = batch_size > 0 ? squared_error / static_cast<T>(batch_size) : static_cast<T>(0);
+            metrics_out[2] = batch_size > 0 ? output_norm / static_cast<T>(batch_size) : static_cast<T>(0);
         }
     }
-#endif
 
     __global__
     void reduce_episode_stats_kernel(
@@ -1014,11 +993,7 @@ int main(int argc, char** argv){
 
     rlt::utils::extrack::Config<TI> extrack_config;
     rlt::utils::extrack::Paths extrack_paths;
-#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
-    extrack_config.name = "l2f_visual_state_estimation_cuda";
-#else
-    extrack_config.name = "l2f_visual_imitation_cuda";
-#endif
+    extrack_config.name = "l2f_visual_yaw_cuda";
     rlt::init(device, extrack_config, extrack_paths, seed);
 
     RNG rng;
@@ -1158,6 +1133,12 @@ int main(int argc, char** argv){
         envs[env_i].use_target_mode = true;
         envs[env_i].parameters.fov = CAMERA_FOV;
         envs[env_i].parameters.camera_randomization.fov_range = CAMERA_FOV_RANDOMIZATION_RANGE;
+        envs[env_i].parameters.camera_randomization.offset_body_range[0] = CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_X;
+        envs[env_i].parameters.camera_randomization.offset_body_range[1] = CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_Y;
+        envs[env_i].parameters.camera_randomization.offset_body_range[2] = CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_Z;
+        envs[env_i].parameters.camera_randomization.rotation_body_range[0] = CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_X;
+        envs[env_i].parameters.camera_randomization.rotation_body_range[1] = CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_Y;
+        envs[env_i].parameters.camera_randomization.rotation_body_range[2] = CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_Z;
         rlt::initial_parameters(device, envs[env_i], env_parameters[env_i]);
         env_parameters[env_i].scene_translation[0] = 0;
         env_parameters[env_i].scene_translation[1] = 0;
@@ -1179,11 +1160,7 @@ int main(int argc, char** argv){
     std::vector<typename ENVIRONMENT::State> cpu_prestep_state_buf(TRAJECTORY_NUM_ENVS);
     std::vector<uint8_t> cpu_needs_reset_buf(TRAJECTORY_NUM_ENVS);
     std::vector<uint8_t> cpu_terminated_buf(TRAJECTORY_NUM_ENVS);
-#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
     std::vector<T> cpu_rollout_action_buf(TRAJECTORY_NUM_ENVS * ACTION_DIM);
-#else
-    std::vector<T_ACTIVATION> cpu_rollout_action_buf(TRAJECTORY_NUM_ENVS * ACTION_DIM);
-#endif
     std::vector<typename ENVIRONMENT::Parameters> cpu_params_snapshot_buf(TRAJECTORY_NUM_ENVS);
     T simulation_dt = static_cast<T>(1) / static_cast<T>(SIMULATION_FREQUENCY);
     TI global_step = 0;
@@ -1205,13 +1182,6 @@ int main(int argc, char** argv){
     rlt::copy(device, device_gpu, student_cpu, student_gpu);
     rlt::init(device_gpu, optimizer_gpu);
     rlt::reset_optimizer_state(device_gpu, optimizer_gpu, student_gpu);
-    using ROLLOUT_STUDENT_TYPE = typename STUDENT_TYPE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<true>>::template CHANGE_BATCH_SIZE<TI, N_ENVIRONMENTS>;
-    ROLLOUT_STUDENT_TYPE rollout_student_gpu;
-    typename ROLLOUT_STUDENT_TYPE::template Buffer<true> rollout_student_buffers;
-    rlt::malloc(device_gpu, rollout_student_gpu);
-    rlt::malloc(device_gpu, rollout_student_buffers);
-    rlt::copy(device, device_gpu, student_cpu, rollout_student_gpu);
-
     // GPU RAPTOR teacher
     RAPTOR_MODEL raptor_gpu;
     typename RAPTOR_MODEL::Buffer<true> raptor_buffer_gpu;
@@ -1282,11 +1252,9 @@ int main(int argc, char** argv){
     T* gpu_logged_batch_losses = nullptr;
     cudaMalloc(&gpu_logged_batch_losses, max_logged_loss_calls * sizeof(T));
     std::vector<T> cpu_logged_batch_losses(max_logged_loss_calls);
-#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
-    T* gpu_logged_state_estimation_metrics = nullptr;
-    cudaMalloc(&gpu_logged_state_estimation_metrics, max_logged_loss_calls * STATE_ESTIMATION_NUM_METRICS * sizeof(T));
-    std::vector<T> cpu_logged_state_estimation_metrics(max_logged_loss_calls * STATE_ESTIMATION_NUM_METRICS);
-#endif
+    T* gpu_logged_yaw_metrics = nullptr;
+    cudaMalloc(&gpu_logged_yaw_metrics, max_logged_loss_calls * YAW_NUM_METRICS * sizeof(T));
+    std::vector<T> cpu_logged_yaw_metrics(max_logged_loss_calls * YAW_NUM_METRICS);
     T* gpu_epoch_episode_stats = nullptr;
     cudaMalloc(&gpu_epoch_episode_stats, 7 * sizeof(T));
     std::array<T, 7> cpu_epoch_episode_stats{};
@@ -1305,9 +1273,6 @@ int main(int argc, char** argv){
     rlt::malloc(device_gpu, gpu_all_targets);
     rlt::malloc(device_gpu, gpu_d_action_train);
     rlt::malloc(device_gpu, gpu_student_output_train);
-
-    rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, TARGET_DIM>>> gpu_student_output_step;
-    rlt::malloc(device_gpu, gpu_student_output_step);
 
     static constexpr TI FRAME_STACK_HISTORY_ROWS = FRAME_STACK_HISTORY_LENGTH * N_ENVIRONMENTS;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, FRAME_STACK_HISTORY_ROWS, OBSERVATION_DIM>>> gpu_frame_stack_history;
@@ -1407,7 +1372,7 @@ int main(int argc, char** argv){
     // =========================================================================
     // Training loop
     // =========================================================================
-    std::cout << "Starting imitation learning (visual L2F hover, CUDA)" << std::endl;
+    std::cout << "Starting yaw prediction training (visual L2F, RAPTOR rollout, CUDA)" << std::endl;
 #ifdef RL_TOOLS_L2F_VISUAL_IMITATION_BLIND_TRAINING
     std::cout << "  [BLIND_TRAINING] enabled - visual observations zeroed at kernel level" << std::endl;
 #endif
@@ -1420,11 +1385,9 @@ int main(int argc, char** argv){
     std::cout << "  STATE_OBS_DIM: " << STATE_OBS_DIM << std::endl;
     std::cout << "  RAPTOR_OBS_DIM: " << RAPTOR_OBS_DIM << std::endl;
     std::cout << "  TARGET_DIM: " << TARGET_DIM << std::endl;
-#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
-    std::cout << "  [STATE_ESTIMATION] enabled - targets are relative position, linear velocity, and relative orientation in body frame" << std::endl;
-#endif
-    std::cout << "  TEACHER_FORCING_EPOCHS: " << TEACHER_FORCING_EPOCHS << std::endl;
-    std::cout << "  TEACHER_FORCING_FRACTION: " << EFFECTIVE_TEACHER_FORCING_FRACTION << std::endl;
+    std::cout << "  [YAW] targets are cos/sin yaw offsets from the target frame" << std::endl;
+    std::cout << "  RAPTOR_TEACHER_FORCING_EPOCHS: " << TEACHER_FORCING_EPOCHS << std::endl;
+    std::cout << "  RAPTOR_TEACHER_FORCING_FRACTION: " << EFFECTIVE_TEACHER_FORCING_FRACTION << std::endl;
     std::cout << "  FRAME_STACK_N: " << FRAME_STACK_N << std::endl;
     std::cout << "  FRAME_STACK_STRIDE: " << FRAME_STACK_STRIDE << " (" << (FRAME_STACK_STRIDE > 0 ? SIMULATION_FREQUENCY / FRAME_STACK_STRIDE : SIMULATION_FREQUENCY) << " Hz)" << std::endl;
     std::cout << "  STACKED_IMG_C: " << STACKED_IMG_C << std::endl;
@@ -1498,7 +1461,7 @@ int main(int argc, char** argv){
         if constexpr(RENDER_MOTION_BLUR_ACTIVE){
             render_shutter_fraction = rlt::random::uniform_real_distribution(device.random, RENDER_SHUTTER_FRACTION_MIN, RENDER_SHUTTER_FRACTION_MAX, rng);
         }
-        bool full_teacher_forcing = STATE_ESTIMATION_MODE;
+        bool full_teacher_forcing = true;
         bool record_video = (epoch_i % CHECKPOINT_CADENCE == 0);
         bool record_trajectories = (epoch_i % CHECKPOINT_CADENCE == 0);
         if(record_trajectories){
@@ -1759,31 +1722,17 @@ int main(int argc, char** argv){
                     fwrite(mosaic_frame.data(), 1, mosaic_frame.size(), ffmpeg_pipe);
                 }
                 {
-                    auto step_state_obs = rlt::view_range(device_gpu, gpu_all_state_observations, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
-                    auto step_state_obs_reshaped = rlt::reshape_row_major(device_gpu, step_state_obs, rlt::tensor::Shape<TI, 1, N_ENVIRONMENTS, STATE_OBS_DIM>{});
-                    auto step_combined = rlt::view_range(device_gpu, gpu_all_combined_observations, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
-                    using ROLLOUT_IMG_SHAPE = rlt::tensor::Shape<TI, 1, N_ENVIRONMENTS, IMG_H, IMG_W, COMBINED_IMG_C>;
-                    auto step_combined_reshaped = rlt::reshape_row_major(device_gpu, step_combined, ROLLOUT_IMG_SHAPE{});
-                    auto inputs = rlt::nn_models::parallel::pack_inputs(step_combined_reshaped, step_state_obs_reshaped);
-                    rlt::evaluate(device_gpu, rollout_student_gpu, inputs, gpu_student_output_step, rollout_student_buffers, rng_gpu);
-                }
-                {
                     imitation_kernels::epilogue_kernel<<<grid, block, 0, device_gpu.stream>>>(
                         tag_device, gpu_envs_arr, gpu_params_arr, gpu_states_arr,
                         gpu_terminated_arr, gpu_episode_step_arr,
                         gpu_episode_return_arr,
                         rlt::data(gpu_teacher_actions_step),
-                        rlt::data(gpu_student_output_step),
                         rlt::data(gpu_all_targets),
                         rng_gpu, step_i);
                 }
                 CUDA_CHECK("epilogue_kernel");
                 if(record_trajectories){
-#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
                     cudaMemcpyAsync(cpu_rollout_action_buf.data(), rlt::data(gpu_teacher_actions_step), TRAJECTORY_NUM_ENVS * ACTION_DIM * sizeof(T), cudaMemcpyDeviceToHost, device_gpu.stream);
-#else
-                    cudaMemcpyAsync(cpu_rollout_action_buf.data(), rlt::data(gpu_student_output_step), TRAJECTORY_NUM_ENVS * ACTION_DIM * sizeof(T_ACTIVATION), cudaMemcpyDeviceToHost, device_gpu.stream);
-#endif
                     cudaMemcpyAsync(cpu_terminated_buf.data(), gpu_terminated_arr, TRAJECTORY_NUM_ENVS * sizeof(bool), cudaMemcpyDeviceToHost, device_gpu.stream);
                     cudaStreamSynchronize(device_gpu.stream);
                     for(TI env_i = 0; env_i < TRAJECTORY_NUM_ENVS; env_i++){
@@ -1834,12 +1783,9 @@ int main(int argc, char** argv){
         T epoch_loss = 0;
         T epoch_loss_sum = 0;
         TI epoch_loss_count = 0;
-#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
-        T epoch_position_mse = 0;
-        T epoch_linear_velocity_mse = 0;
-        T epoch_orientation_mse = 0;
-        T epoch_orientation_angle_error_rad = 0;
-#endif
+        T epoch_yaw_abs_error_rad = 0;
+        T epoch_yaw_mse_rad = 0;
+        T epoch_yaw_output_norm = 0;
 
         for(TI pass = 0; pass < N_TRAIN_PASSES; pass++){
             // Shuffle batch order
@@ -1881,13 +1827,11 @@ int main(int argc, char** argv){
                         rlt::data(gpu_all_targets) + batch_offset * TARGET_DIM,
                         gpu_logged_batch_losses + epoch_loss_count,
                         BATCH_SIZE * TARGET_DIM);
-#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
-                    imitation_kernels::state_estimation_batch_metrics_kernel<<<1, 1, 0, device_gpu.stream>>>(
+                    imitation_kernels::yaw_batch_metrics_kernel<<<1, 1, 0, device_gpu.stream>>>(
                         rlt::data(gpu_student_output_train),
                         rlt::data(gpu_all_targets) + batch_offset * TARGET_DIM,
-                        gpu_logged_state_estimation_metrics + epoch_loss_count * STATE_ESTIMATION_NUM_METRICS,
+                        gpu_logged_yaw_metrics + epoch_loss_count * YAW_NUM_METRICS,
                         BATCH_SIZE);
-#endif
                     epoch_loss_count++;
                 }
 
@@ -1930,29 +1874,20 @@ int main(int argc, char** argv){
         }
         if(epoch_loss_count > 0){
             cudaMemcpy(cpu_logged_batch_losses.data(), gpu_logged_batch_losses, epoch_loss_count * sizeof(T), cudaMemcpyDeviceToHost);
-#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
-            cudaMemcpy(cpu_logged_state_estimation_metrics.data(), gpu_logged_state_estimation_metrics, epoch_loss_count * STATE_ESTIMATION_NUM_METRICS * sizeof(T), cudaMemcpyDeviceToHost);
-#endif
+            cudaMemcpy(cpu_logged_yaw_metrics.data(), gpu_logged_yaw_metrics, epoch_loss_count * YAW_NUM_METRICS * sizeof(T), cudaMemcpyDeviceToHost);
             for(TI loss_i = 0; loss_i < epoch_loss_count; loss_i++){
                 epoch_loss_sum += cpu_logged_batch_losses[loss_i];
-#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
-                epoch_position_mse += cpu_logged_state_estimation_metrics[loss_i * STATE_ESTIMATION_NUM_METRICS + 0];
-                epoch_linear_velocity_mse += cpu_logged_state_estimation_metrics[loss_i * STATE_ESTIMATION_NUM_METRICS + 1];
-                epoch_orientation_mse += cpu_logged_state_estimation_metrics[loss_i * STATE_ESTIMATION_NUM_METRICS + 2];
-                epoch_orientation_angle_error_rad += cpu_logged_state_estimation_metrics[loss_i * STATE_ESTIMATION_NUM_METRICS + 3];
-#endif
+                epoch_yaw_abs_error_rad += cpu_logged_yaw_metrics[loss_i * YAW_NUM_METRICS + 0];
+                epoch_yaw_mse_rad += cpu_logged_yaw_metrics[loss_i * YAW_NUM_METRICS + 1];
+                epoch_yaw_output_norm += cpu_logged_yaw_metrics[loss_i * YAW_NUM_METRICS + 2];
             }
         }
         epoch_loss = epoch_loss_count > 0 ? epoch_loss_sum / epoch_loss_count : (T)0;
-#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
         if(epoch_loss_count > 0){
-            epoch_position_mse /= static_cast<T>(epoch_loss_count);
-            epoch_linear_velocity_mse /= static_cast<T>(epoch_loss_count);
-            epoch_orientation_mse /= static_cast<T>(epoch_loss_count);
-            epoch_orientation_angle_error_rad /= static_cast<T>(epoch_loss_count);
+            epoch_yaw_abs_error_rad /= static_cast<T>(epoch_loss_count);
+            epoch_yaw_mse_rad /= static_cast<T>(epoch_loss_count);
+            epoch_yaw_output_norm /= static_cast<T>(epoch_loss_count);
         }
-#endif
-        rlt::copy(device_gpu, device_gpu, student_gpu, rollout_student_gpu);
         if(epoch_train_forward_calls == 0 && epoch_train_backward_calls == 0 && epoch_train_update_calls == 0){
             cudaStreamSynchronize(device_gpu.stream);
         }
@@ -2046,13 +1981,11 @@ int main(int argc, char** argv){
                   << std::setw(6) << std::setprecision(3) << train_update_avg_ms << "ms)"
                   << " epoch_time: " << std::setw(6) << std::setprecision(1) << epoch_elapsed.count() << "s"
                   << " total: " << std::setw(8) << std::setprecision(1) << training_elapsed.count() << "s";
-#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
-        std::cout << " pos_mse: " << std::setw(10) << std::setprecision(6) << std::fixed << epoch_position_mse
-                  << " vel_mse: " << std::setw(10) << std::setprecision(6) << std::fixed << epoch_linear_velocity_mse
-                  << " ori_mse: " << std::setw(10) << std::setprecision(6) << std::fixed << epoch_orientation_mse
-                  << " ori_deg: " << std::setw(7) << std::setprecision(2) << std::fixed
-                  << epoch_orientation_angle_error_rad * static_cast<T>(180) / rlt::math::PI<T>;
-#endif
+        std::cout << " yaw_abs_deg: " << std::setw(7) << std::setprecision(2) << std::fixed
+                  << epoch_yaw_abs_error_rad * static_cast<T>(180) / rlt::math::PI<T>
+                  << " yaw_rmse_deg: " << std::setw(7) << std::setprecision(2) << std::fixed
+                  << sqrtf(epoch_yaw_mse_rad) * static_cast<T>(180) / rlt::math::PI<T>
+                  << " yaw_norm: " << std::setw(6) << std::setprecision(3) << std::fixed << epoch_yaw_output_norm;
         if constexpr(RENDER_MOTION_BLUR_ACTIVE){
             std::cout << " shutter: " << std::setw(4) << std::setprecision(2) << render_shutter_fraction;
         }
@@ -2061,13 +1994,11 @@ int main(int argc, char** argv){
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
         rlt::set_step(device, device.logger, epoch_i);
         rlt::add_scalar(device, device.logger, "training/mse_loss", epoch_loss);
-#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
-        rlt::add_scalar(device, device.logger, "training/state_estimation/position_mse", epoch_position_mse);
-        rlt::add_scalar(device, device.logger, "training/state_estimation/linear_velocity_mse", epoch_linear_velocity_mse);
-        rlt::add_scalar(device, device.logger, "training/state_estimation/orientation_mse", epoch_orientation_mse);
-        rlt::add_scalar(device, device.logger, "training/state_estimation/orientation_angle_error_rad", epoch_orientation_angle_error_rad);
-        rlt::add_scalar(device, device.logger, "training/state_estimation/orientation_angle_error_deg", epoch_orientation_angle_error_rad * static_cast<T>(180) / rlt::math::PI<T>);
-#endif
+        rlt::add_scalar(device, device.logger, "training/yaw_abs_error_rad", epoch_yaw_abs_error_rad);
+        rlt::add_scalar(device, device.logger, "training/yaw_abs_error_deg", epoch_yaw_abs_error_rad * static_cast<T>(180) / rlt::math::PI<T>);
+        rlt::add_scalar(device, device.logger, "training/yaw_mse_rad", epoch_yaw_mse_rad);
+        rlt::add_scalar(device, device.logger, "training/yaw_rmse_deg", sqrtf(epoch_yaw_mse_rad) * static_cast<T>(180) / rlt::math::PI<T>);
+        rlt::add_scalar(device, device.logger, "training/yaw_output_norm", epoch_yaw_output_norm);
         rlt::add_scalar(device, device.logger, "training/episode_length", mean_episode_length);
         rlt::add_scalar(device, device.logger, "training/episodes", static_cast<T>(episode_count));
         if(episode_count_tf > 0){
@@ -2108,6 +2039,12 @@ int main(int argc, char** argv){
         rlt::add_scalar(device, device.logger, "rendering/motion_blur_samples", RENDER_MOTION_BLUR_ACTIVE ? static_cast<T>(RENDER_MOTION_BLUR_SAMPLES) : static_cast<T>(1));
         rlt::add_scalar(device, device.logger, "rendering/target_frame_roll_pitch_randomization_range", TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE);
         rlt::add_scalar(device, device.logger, "rendering/target_frame_brightness_mismatch_range", TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE);
+        rlt::add_scalar(device, device.logger, "rendering/camera_mount_offset_randomization_range_x", CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_X);
+        rlt::add_scalar(device, device.logger, "rendering/camera_mount_offset_randomization_range_y", CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_Y);
+        rlt::add_scalar(device, device.logger, "rendering/camera_mount_offset_randomization_range_z", CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_Z);
+        rlt::add_scalar(device, device.logger, "rendering/camera_mount_rotation_randomization_range_x", CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_X);
+        rlt::add_scalar(device, device.logger, "rendering/camera_mount_rotation_randomization_range_y", CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_Y);
+        rlt::add_scalar(device, device.logger, "rendering/camera_mount_rotation_randomization_range_z", CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_Z);
         if constexpr(RENDER_MOTION_BLUR_ACTIVE){
             rlt::add_scalar(device, device.logger, "rendering/shutter_fraction", render_shutter_fraction);
         }
@@ -2133,10 +2070,14 @@ int main(int argc, char** argv){
                 + ", \"shutter_fraction_min\": " + std::to_string(RENDER_SHUTTER_FRACTION_MIN)
                 + ", \"shutter_fraction_max\": " + std::to_string(RENDER_SHUTTER_FRACTION_MAX)
                 + ", \"target_frame_roll_pitch_randomization_range\": " + std::to_string(TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE)
-                + ", \"target_frame_brightness_mismatch_range\": " + std::to_string(TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE) + "}";
-            std::string output_string = STATE_ESTIMATION_MODE
-                ? "StateEstimation(RelativeTargetPositionBody,LinearVelocityBody,RelativeTargetOrientationBodyRotationMatrix)"
-                : "Action";
+                + ", \"target_frame_brightness_mismatch_range\": " + std::to_string(TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE)
+                + ", \"camera_mount_offset_randomization_range\": [" + std::to_string(CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_X)
+                + ", " + std::to_string(CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_Y)
+                + ", " + std::to_string(CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_Z) + "]"
+                + ", \"camera_mount_rotation_randomization_range\": [" + std::to_string(CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_X)
+                + ", " + std::to_string(CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_Y)
+                + ", " + std::to_string(CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_Z) + "]}";
+            std::string output_string = "YawOffsetCosSin";
             std::string meta = "{\"environment\": {\"name\": \"l2f_visual\", \"observation\": \"" + obs_string + "\", \"output\": \"" + output_string + "\", \"rendering\": " + rendering_string + "}}";
             // Per-branch CPU example tensors in canonical `[1, N_EXAMPLES, ...features]` shape.
             // Used directly by the REAL eval (via dense rank-reduced view_memory) and by the
@@ -2381,12 +2322,8 @@ int main(int argc, char** argv){
         cudaEventDestroy(train_update_stop_events[call_i]);
     }
     cudaFree(gpu_logged_batch_losses);
-#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
-    cudaFree(gpu_logged_state_estimation_metrics);
-#endif
+    cudaFree(gpu_logged_yaw_metrics);
     rlt::free(device_gpu, student_gpu);
-    rlt::free(device_gpu, rollout_student_gpu);
-    rlt::free(device_gpu, rollout_student_buffers);
     rlt::free(device_gpu, raptor_gpu);
     rlt::free(device_gpu, raptor_buffer_gpu);
     rlt::free(device_gpu, raptor_state_gpu);
@@ -2399,7 +2336,6 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, gpu_all_targets);
     rlt::free(device_gpu, gpu_d_action_train);
     rlt::free(device_gpu, gpu_student_output_train);
-    rlt::free(device_gpu, gpu_student_output_step);
     cudaFree(gpu_envs_arr);
     cudaFree(gpu_params_arr);
     cudaFree(gpu_states_arr);
