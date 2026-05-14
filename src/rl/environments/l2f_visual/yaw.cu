@@ -141,7 +141,7 @@ static constexpr REWARD_FUNCTION reward_function = {
     {0.00, 0.00, 0.00, 0.00}, {1.50, 1.50, 1.50, 1.50}, 0.00
 };
 static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = {
-    0.0, 0.8, rlt::math::PI<T>, 1.0, 1.0, true, -1, +1,
+    0.0, 0.0, 30.0/180.0*rlt::math::PI<T>, 0.0, 1.0, true, -1, +1,
 };
 static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = {
     true, 1.0, 0, 10, 35, 10000, 50000,
@@ -277,7 +277,13 @@ static constexpr TI ACTOR_HIDDEN_DIM = 64;
 static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::RELU;
 static constexpr TI ACTION_DIM = ENVIRONMENT::ACTION_DIM;
 static constexpr TI TARGET_DIM = 2;
-static constexpr TI YAW_NUM_METRICS = 3;
+static constexpr TI YAW_METRIC_ABS_ERROR_RAD = 0;
+static constexpr TI YAW_METRIC_MSE_RAD = 1;
+static constexpr TI YAW_METRIC_OUTPUT_NORM = 2;
+static constexpr TI YAW_METRIC_NULL_MSE_LOSS = 3;
+static constexpr TI YAW_METRIC_NULL_MSE_RAD = 4;
+static constexpr TI YAW_NUM_METRICS = 5;
+static constexpr T YAW_R2_EPS = static_cast<T>(1e-8);
 static constexpr TI INDOOR_POSITION_DIM = 3;
 static constexpr TI OBSERVATION_DIM = ENVIRONMENT::OBSERVATION_DIM;
 static constexpr TI BATCH_SIZE = 512;
@@ -613,10 +619,14 @@ namespace imitation_kernels{
             T abs_error = 0;
             T squared_error = 0;
             T output_norm = 0;
+            T null_mse_loss = 0;
+            T null_squared_error = 0;
             for(TI sample_i = 0; sample_i < batch_size; sample_i++){
                 const TI base = sample_i * TARGET_DIM;
                 T pred_cos = static_cast<T>(student_output_ptr[base + 0]);
                 T pred_sin = static_cast<T>(student_output_ptr[base + 1]);
+                const T target_cos = static_cast<T>(target_ptr[base + 0]);
+                const T target_sin = static_cast<T>(target_ptr[base + 1]);
                 T pred_norm = sqrtf(pred_cos * pred_cos + pred_sin * pred_sin);
                 output_norm += pred_norm;
                 if(pred_norm > static_cast<T>(1e-6)){
@@ -626,16 +636,21 @@ namespace imitation_kernels{
                     pred_cos = static_cast<T>(1);
                     pred_sin = static_cast<T>(0);
                 }
-                const T target_cos = static_cast<T>(target_ptr[base + 0]);
-                const T target_sin = static_cast<T>(target_ptr[base + 1]);
                 T error = atan2f(pred_sin * target_cos - pred_cos * target_sin,
                                   pred_cos * target_cos + pred_sin * target_sin);
+                T null_diff_cos = static_cast<T>(1) - target_cos;
+                T null_diff_sin = -target_sin;
+                T null_error = atan2f(-target_sin, target_cos);
                 abs_error += fabsf(error);
                 squared_error += error * error;
+                null_mse_loss += (null_diff_cos * null_diff_cos + null_diff_sin * null_diff_sin) / static_cast<T>(TARGET_DIM);
+                null_squared_error += null_error * null_error;
             }
-            metrics_out[0] = batch_size > 0 ? abs_error / static_cast<T>(batch_size) : static_cast<T>(0);
-            metrics_out[1] = batch_size > 0 ? squared_error / static_cast<T>(batch_size) : static_cast<T>(0);
-            metrics_out[2] = batch_size > 0 ? output_norm / static_cast<T>(batch_size) : static_cast<T>(0);
+            metrics_out[YAW_METRIC_ABS_ERROR_RAD] = batch_size > 0 ? abs_error / static_cast<T>(batch_size) : static_cast<T>(0);
+            metrics_out[YAW_METRIC_MSE_RAD] = batch_size > 0 ? squared_error / static_cast<T>(batch_size) : static_cast<T>(0);
+            metrics_out[YAW_METRIC_OUTPUT_NORM] = batch_size > 0 ? output_norm / static_cast<T>(batch_size) : static_cast<T>(0);
+            metrics_out[YAW_METRIC_NULL_MSE_LOSS] = batch_size > 0 ? null_mse_loss / static_cast<T>(batch_size) : static_cast<T>(0);
+            metrics_out[YAW_METRIC_NULL_MSE_RAD] = batch_size > 0 ? null_squared_error / static_cast<T>(batch_size) : static_cast<T>(0);
         }
     }
 
@@ -712,9 +727,9 @@ namespace imitation_kernels{
 }
 
 struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_PYTORCH<TYPE_POLICY>{
-    static constexpr T ALPHA = 3e-4;
-    static constexpr T EPSILON = 1e-5;
-    static constexpr T EPSILON_SQRT = 1e-5;
+    // static constexpr T ALPHA = 1e-1;
+    // static constexpr T EPSILON = 1e-5;
+    // static constexpr T EPSILON_SQRT = 1e-5;
 };
 
 template<typename CAPABILITY, typename T_TYPE_POLICY = TYPE_POLICY>
@@ -1758,6 +1773,8 @@ int main(int argc, char** argv){
         T epoch_yaw_abs_error_rad = 0;
         T epoch_yaw_mse_rad = 0;
         T epoch_yaw_output_norm = 0;
+        T epoch_yaw_null_mse_loss = 0;
+        T epoch_yaw_null_mse_rad = 0;
 
         for(TI pass = 0; pass < N_TRAIN_PASSES; pass++){
             // Shuffle batch order
@@ -1847,9 +1864,11 @@ int main(int argc, char** argv){
             cudaMemcpy(cpu_logged_yaw_metrics.data(), gpu_logged_yaw_metrics, epoch_loss_count * YAW_NUM_METRICS * sizeof(T), cudaMemcpyDeviceToHost);
             for(TI loss_i = 0; loss_i < epoch_loss_count; loss_i++){
                 epoch_loss_sum += cpu_logged_batch_losses[loss_i];
-                epoch_yaw_abs_error_rad += cpu_logged_yaw_metrics[loss_i * YAW_NUM_METRICS + 0];
-                epoch_yaw_mse_rad += cpu_logged_yaw_metrics[loss_i * YAW_NUM_METRICS + 1];
-                epoch_yaw_output_norm += cpu_logged_yaw_metrics[loss_i * YAW_NUM_METRICS + 2];
+                epoch_yaw_abs_error_rad += cpu_logged_yaw_metrics[loss_i * YAW_NUM_METRICS + YAW_METRIC_ABS_ERROR_RAD];
+                epoch_yaw_mse_rad += cpu_logged_yaw_metrics[loss_i * YAW_NUM_METRICS + YAW_METRIC_MSE_RAD];
+                epoch_yaw_output_norm += cpu_logged_yaw_metrics[loss_i * YAW_NUM_METRICS + YAW_METRIC_OUTPUT_NORM];
+                epoch_yaw_null_mse_loss += cpu_logged_yaw_metrics[loss_i * YAW_NUM_METRICS + YAW_METRIC_NULL_MSE_LOSS];
+                epoch_yaw_null_mse_rad += cpu_logged_yaw_metrics[loss_i * YAW_NUM_METRICS + YAW_METRIC_NULL_MSE_RAD];
             }
         }
         epoch_loss = epoch_loss_count > 0 ? epoch_loss_sum / epoch_loss_count : (T)0;
@@ -1857,6 +1876,8 @@ int main(int argc, char** argv){
             epoch_yaw_abs_error_rad /= static_cast<T>(epoch_loss_count);
             epoch_yaw_mse_rad /= static_cast<T>(epoch_loss_count);
             epoch_yaw_output_norm /= static_cast<T>(epoch_loss_count);
+            epoch_yaw_null_mse_loss /= static_cast<T>(epoch_loss_count);
+            epoch_yaw_null_mse_rad /= static_cast<T>(epoch_loss_count);
         }
         if(epoch_train_forward_calls == 0 && epoch_train_backward_calls == 0 && epoch_train_update_calls == 0){
             cudaStreamSynchronize(device_gpu.stream);
@@ -1925,6 +1946,8 @@ int main(int argc, char** argv){
         T train_forward_avg_ms = epoch_train_forward_calls > 0 ? static_cast<T>(epoch_train_forward_time_ms) / static_cast<T>(epoch_train_forward_calls) : 0;
         T train_backward_avg_ms = epoch_train_backward_calls > 0 ? static_cast<T>(epoch_train_backward_time_ms) / static_cast<T>(epoch_train_backward_calls) : 0;
         T train_update_avg_ms = epoch_train_update_calls > 0 ? static_cast<T>(epoch_train_update_time_ms) / static_cast<T>(epoch_train_update_calls) : 0;
+        T yaw_mse_r2_null = static_cast<T>(1) - epoch_loss / (epoch_yaw_null_mse_loss > YAW_R2_EPS ? epoch_yaw_null_mse_loss : YAW_R2_EPS);
+        T yaw_angle_r2_null = static_cast<T>(1) - epoch_yaw_mse_rad / (epoch_yaw_null_mse_rad > YAW_R2_EPS ? epoch_yaw_null_mse_rad : YAW_R2_EPS);
 
         std::cout << (full_teacher_forcing ? "[TF] " : "[TF=" + std::to_string((int)(EFFECTIVE_TEACHER_FORCING_FRACTION * 100)) + "%] ")
                   << "Epoch: " << std::setw(5) << epoch_i
@@ -1955,7 +1978,9 @@ int main(int argc, char** argv){
                   << epoch_yaw_abs_error_rad * static_cast<T>(180) / rlt::math::PI<T>
                   << " yaw_rmse_deg: " << std::setw(7) << std::setprecision(2) << std::fixed
                   << sqrtf(epoch_yaw_mse_rad) * static_cast<T>(180) / rlt::math::PI<T>
-                  << " yaw_norm: " << std::setw(6) << std::setprecision(3) << std::fixed << epoch_yaw_output_norm;
+                  << " yaw_norm: " << std::setw(6) << std::setprecision(3) << std::fixed << epoch_yaw_output_norm
+                  << " yaw_r2_mse: " << std::setw(7) << std::setprecision(3) << std::fixed << yaw_mse_r2_null
+                  << " yaw_r2_ang: " << std::setw(7) << std::setprecision(3) << std::fixed << yaw_angle_r2_null;
         if constexpr(RENDER_MOTION_BLUR_ACTIVE){
             std::cout << " shutter: " << std::setw(4) << std::setprecision(2) << render_shutter_fraction;
         }
@@ -1969,6 +1994,10 @@ int main(int argc, char** argv){
         rlt::add_scalar(device, device.logger, "training/yaw_mse_rad", epoch_yaw_mse_rad);
         rlt::add_scalar(device, device.logger, "training/yaw_rmse_deg", sqrtf(epoch_yaw_mse_rad) * static_cast<T>(180) / rlt::math::PI<T>);
         rlt::add_scalar(device, device.logger, "training/yaw_output_norm", epoch_yaw_output_norm);
+        rlt::add_scalar(device, device.logger, "training/yaw_null_mse_loss", epoch_yaw_null_mse_loss);
+        rlt::add_scalar(device, device.logger, "training/yaw_null_mse_rad", epoch_yaw_null_mse_rad);
+        rlt::add_scalar(device, device.logger, "training/yaw_mse_r2_null", yaw_mse_r2_null);
+        rlt::add_scalar(device, device.logger, "training/yaw_angle_r2_null", yaw_angle_r2_null);
         rlt::add_scalar(device, device.logger, "training/episode_length", mean_episode_length);
         rlt::add_scalar(device, device.logger, "training/episodes", static_cast<T>(episode_count));
         if(episode_count_tf > 0){
