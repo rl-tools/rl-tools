@@ -215,12 +215,16 @@ struct STATIC_PARAMETERS {
 // =========================================================================
 // Visual environment specification
 // =========================================================================
-static constexpr TI N_TOTAL_SCENES = 25;
+static constexpr TI N_TRAIN_SCENES = 25;
+static constexpr TI N_VALIDATION_SCENES = 5;
+static constexpr TI N_TOTAL_SCENES = N_TRAIN_SCENES + N_VALIDATION_SCENES;
 static constexpr TI N_ACTIVE_SCENES = 2;
 static constexpr TI N_ENVIRONMENTS_PER_SCENE = 64;
 static constexpr TI N_ENVIRONMENTS = N_ACTIVE_SCENES * N_ENVIRONMENTS_PER_SCENE;
+static_assert(N_ACTIVE_SCENES <= N_TRAIN_SCENES, "Active training scenes must fit within the training split");
 static constexpr TI CAM_WIDTH = 80;
 static constexpr TI CAM_HEIGHT = 50;
+static constexpr TI CAM_PIXELS = CAM_WIDTH * CAM_HEIGHT;
 static constexpr TI NUM_PROBES = 64;
 static constexpr T CAMERA_FOV = static_cast<T>(79.6) / static_cast<T>(180) * rlt::math::PI<T>;
 static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = static_cast<T>(5.0) / static_cast<T>(180) * rlt::math::PI<T>;
@@ -297,6 +301,7 @@ static constexpr T EFFECTIVE_TEACHER_FORCING_FRACTION = TEACHER_FORCING_FRACTION
 static constexpr TI N_TRAIN_PASSES = 4;
 static constexpr TI VIDEO_CADENCE = 10;
 static constexpr TI CHECKPOINT_CADENCE = 1000;
+static constexpr TI VALIDATION_CADENCE = 10;
 static constexpr bool EXPORT_CHECKPOINT_TAR = false;
 static constexpr bool EXPORT_CHECKPOINT_CODE = false;
 static constexpr TI N_EXAMPLES = 512;
@@ -324,6 +329,8 @@ static constexpr TI COMBINED_IMG_C_LOGICAL = STACKED_IMG_C + ENVIRONMENT::Observ
 // Pad up to next multiple of 8 so cuDNN uses the tensor-core fast path for Conv1 without inserting an NHWC layout-padding reformat kernel.
 static constexpr TI COMBINED_IMG_C = (COMBINED_IMG_C_LOGICAL + 7) & ~((TI)7);
 static constexpr TI COMBINED_OBS_DIM = ENVIRONMENT::Observation::HEIGHT * ENVIRONMENT::Observation::WIDTH * COMBINED_IMG_C;
+static constexpr TI VALIDATION_BATCH_SIZE = N_ENVIRONMENTS_PER_SCENE;
+static constexpr TI N_VALIDATION_YAW_BINS = 9;
 
 // =========================================================================
 // Trajectory recording
@@ -922,6 +929,35 @@ __global__ void build_frame_stacked_with_target_from_history_kernel(
 #endif
 }
 
+template<typename T_OUT>
+__global__ void build_validation_combined_with_target_kernel(
+    const float* __restrict__ obs,
+    const float* __restrict__ target_obs,
+    T_OUT* __restrict__ combined_out,
+    int obs_dim, int img_c, int n_frames, int combined_img_c, int combined_obs_dim
+){
+    int global_idx = blockIdx.x * blockDim.x + threadIdx.x;
+    if(global_idx >= VALIDATION_BATCH_SIZE * combined_obs_dim) return;
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_BLIND_TRAINING
+    combined_out[global_idx] = (T_OUT)0.0f;
+#else
+    int sample = global_idx / combined_obs_dim;
+    int offset = global_idx % combined_obs_dim;
+    int pixel = offset / combined_img_c;
+    int frame_channel = offset % combined_img_c;
+    int logical_channels = n_frames * img_c + img_c;
+    if(frame_channel < n_frames * img_c){
+        int channel = frame_channel % img_c;
+        combined_out[global_idx] = (T_OUT)obs[sample * obs_dim + pixel * img_c + channel];
+    } else if(frame_channel < logical_channels) {
+        int channel = frame_channel - n_frames * img_c;
+        combined_out[global_idx] = (T_OUT)target_obs[sample * obs_dim + pixel * img_c + channel];
+    } else {
+        combined_out[global_idx] = (T_OUT)0.0f;
+    }
+#endif
+}
+
 int main(int argc, char** argv){
 #ifdef RL_TOOLS_DEBUG_CUDA_CHECK
 #define CUDA_CHECK(msg) { cudaError_t e = cudaGetLastError(); if(e != cudaSuccess){ std::cerr << "CUDA ERROR [" << msg << "]: " << cudaGetErrorString(e) << std::endl; return 1; } e = cudaDeviceSynchronize(); if(e != cudaSuccess){ std::cerr << "CUDA SYNC ERROR [" << msg << "]: " << cudaGetErrorString(e) << std::endl; return 1; } }
@@ -969,9 +1005,12 @@ int main(int argc, char** argv){
         for(TI i = 0; i < N_TOTAL_SCENES; i++){
             scene_paths.push_back(all_glbs[i]);
         }
-        std::cout << "Selected " << scene_paths.size() << " scenes from " << scene_arg << std::endl;
+        std::cout << "Selected " << scene_paths.size() << " scenes from " << scene_arg
+                  << " (" << N_TRAIN_SCENES << " train, " << N_VALIDATION_SCENES << " validation)" << std::endl;
         for(TI i = 0; i < scene_paths.size(); i++){
-            std::cout << "  [" << i << "] " << std::filesystem::path(scene_paths[i]).filename().string() << std::endl;
+            std::cout << "  [" << i << "] "
+                      << (i < N_TRAIN_SCENES ? "train " : "valid ")
+                      << std::filesystem::path(scene_paths[i]).filename().string() << std::endl;
         }
     } else {
         scene_paths.resize(N_TOTAL_SCENES, scene_arg);
@@ -1092,7 +1131,7 @@ int main(int argc, char** argv){
     }
 
     std::array<TI, N_ACTIVE_SCENES> active_scene_indices{};
-    std::vector<TI> scene_permutation(N_TOTAL_SCENES);
+    std::vector<TI> scene_permutation(N_TRAIN_SCENES);
     std::iota(scene_permutation.begin(), scene_permutation.end(), 0);
     auto upload_active_scenes = [&](){
         std::array<TI, N_ENVIRONMENTS> env_scene{};
@@ -1199,12 +1238,24 @@ int main(int argc, char** argv){
     }
     CAMERA_DATA* gpu_target_cameras = nullptr;
     cudaMalloc(&gpu_target_cameras, N_ENVIRONMENTS * sizeof(CAMERA_DATA));
+    CAMERA_DATA* gpu_validation_cameras = nullptr;
+    CAMERA_DATA* gpu_validation_target_cameras = nullptr;
+    cudaMalloc(&gpu_validation_cameras, VALIDATION_BATCH_SIZE * sizeof(CAMERA_DATA));
+    cudaMalloc(&gpu_validation_target_cameras, VALIDATION_BATCH_SIZE * sizeof(CAMERA_DATA));
 
     // Event for cross-stream synchronization (make_cameras on device_gpu.stream → optix_stream)
     cudaEvent_t cameras_ready_event;
     cudaEventCreateWithFlags(&cameras_ready_event, cudaEventDisableTiming);
     cudaEvent_t target_cameras_ready_event;
     cudaEventCreateWithFlags(&target_cameras_ready_event, cudaEventDisableTiming);
+    cudaEvent_t validation_cameras_ready_event;
+    cudaEventCreateWithFlags(&validation_cameras_ready_event, cudaEventDisableTiming);
+    cudaEvent_t validation_target_cameras_ready_event;
+    cudaEventCreateWithFlags(&validation_target_cameras_ready_event, cudaEventDisableTiming);
+    cudaEvent_t validation_render_scatter_done_event;
+    cudaEventCreateWithFlags(&validation_render_scatter_done_event, cudaEventDisableTiming);
+    cudaEvent_t validation_target_render_scatter_done_event;
+    cudaEventCreateWithFlags(&validation_target_render_scatter_done_event, cudaEventDisableTiming);
     std::array<cudaEvent_t, N_ACTIVE_SCENES> render_scatter_done_events;
     std::array<cudaEvent_t, N_ACTIVE_SCENES> target_render_scatter_done_events;
     for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
@@ -1246,6 +1297,9 @@ int main(int argc, char** argv){
     T* gpu_logged_yaw_metrics = nullptr;
     cudaMalloc(&gpu_logged_yaw_metrics, max_logged_loss_calls * YAW_NUM_METRICS * sizeof(T));
     std::vector<T> cpu_logged_yaw_metrics(max_logged_loss_calls * YAW_NUM_METRICS);
+    T* gpu_validation_metrics = nullptr;
+    cudaMalloc(&gpu_validation_metrics, YAW_NUM_METRICS * sizeof(T));
+    std::array<T, YAW_NUM_METRICS> cpu_validation_metrics{};
     T* gpu_epoch_episode_stats = nullptr;
     cudaMalloc(&gpu_epoch_episode_stats, 7 * sizeof(T));
     std::array<T, 7> cpu_epoch_episode_stats{};
@@ -1257,11 +1311,19 @@ int main(int argc, char** argv){
     rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, STEPS_TOTAL, TARGET_DIM>>> gpu_all_targets;
     rlt::Matrix<rlt::matrix::Specification<T_GRADIENT, TI, BATCH_SIZE, TARGET_DIM>> gpu_d_action_train;
     rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, 1, BATCH_SIZE, TARGET_DIM>>> gpu_student_output_train;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, VALIDATION_BATCH_SIZE, OBSERVATION_DIM>>> gpu_validation_observations;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, VALIDATION_BATCH_SIZE, OBSERVATION_DIM>>> gpu_validation_target_observations;
+    rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, 1, BATCH_SIZE, IMG_H, IMG_W, COMBINED_IMG_C>>> gpu_validation_combined_observations;
+    rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, BATCH_SIZE, TARGET_DIM>>> gpu_validation_targets;
     rlt::malloc(device_gpu, gpu_all_observations);
     rlt::malloc(device_gpu, gpu_all_target_observations);
     rlt::malloc(device_gpu, gpu_all_targets);
     rlt::malloc(device_gpu, gpu_d_action_train);
     rlt::malloc(device_gpu, gpu_student_output_train);
+    rlt::malloc(device_gpu, gpu_validation_observations);
+    rlt::malloc(device_gpu, gpu_validation_target_observations);
+    rlt::malloc(device_gpu, gpu_validation_combined_observations);
+    rlt::malloc(device_gpu, gpu_validation_targets);
 
     static constexpr TI FRAME_STACK_HISTORY_ROWS = FRAME_STACK_HISTORY_LENGTH * N_ENVIRONMENTS;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, FRAME_STACK_HISTORY_ROWS, OBSERVATION_DIM>>> gpu_frame_stack_history;
@@ -1285,6 +1347,8 @@ int main(int argc, char** argv){
     ENVIRONMENT* gpu_envs_arr = nullptr;
     typename ENVIRONMENT::Parameters* gpu_params_arr = nullptr;
     typename ENVIRONMENT::State* gpu_states_arr = nullptr;
+    typename ENVIRONMENT::Parameters* gpu_validation_params_arr = nullptr;
+    typename ENVIRONMENT::State* gpu_validation_states_arr = nullptr;
     bool* gpu_terminated_arr = nullptr;
     TI* gpu_episode_step_arr = nullptr;
     bool* gpu_teacher_forcing_arr = nullptr;
@@ -1301,9 +1365,16 @@ int main(int argc, char** argv){
     T* gpu_scene_yaw_arr = nullptr;
     T* gpu_scene_yaw_cos_arr = nullptr;
     T* gpu_scene_yaw_sin_arr = nullptr;
+    T* gpu_validation_scene_translation_arr = nullptr;
+    T* gpu_validation_scene_yaw_cos_arr = nullptr;
+    T* gpu_validation_scene_yaw_sin_arr = nullptr;
+    T* gpu_validation_target_frame_roll_arr = nullptr;
+    T* gpu_validation_target_frame_pitch_arr = nullptr;
     cudaMalloc(&gpu_envs_arr, N_ENVIRONMENTS * sizeof(ENVIRONMENT));
     cudaMalloc(&gpu_params_arr, N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::Parameters));
     cudaMalloc(&gpu_states_arr, N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::State));
+    cudaMalloc(&gpu_validation_params_arr, VALIDATION_BATCH_SIZE * sizeof(typename ENVIRONMENT::Parameters));
+    cudaMalloc(&gpu_validation_states_arr, VALIDATION_BATCH_SIZE * sizeof(typename ENVIRONMENT::State));
     cudaMalloc(&gpu_terminated_arr, N_ENVIRONMENTS * sizeof(bool));
     cudaMalloc(&gpu_episode_step_arr, N_ENVIRONMENTS * sizeof(TI));
     cudaMalloc(&gpu_teacher_forcing_arr, N_ENVIRONMENTS * sizeof(bool));
@@ -1320,6 +1391,11 @@ int main(int argc, char** argv){
     cudaMalloc(&gpu_scene_yaw_arr, N_ENVIRONMENTS * sizeof(T));
     cudaMalloc(&gpu_scene_yaw_cos_arr, N_ENVIRONMENTS * sizeof(T));
     cudaMalloc(&gpu_scene_yaw_sin_arr, N_ENVIRONMENTS * sizeof(T));
+    cudaMalloc(&gpu_validation_scene_translation_arr, VALIDATION_BATCH_SIZE * 3 * sizeof(T));
+    cudaMalloc(&gpu_validation_scene_yaw_cos_arr, VALIDATION_BATCH_SIZE * sizeof(T));
+    cudaMalloc(&gpu_validation_scene_yaw_sin_arr, VALIDATION_BATCH_SIZE * sizeof(T));
+    cudaMalloc(&gpu_validation_target_frame_roll_arr, VALIDATION_BATCH_SIZE * sizeof(T));
+    cudaMalloc(&gpu_validation_target_frame_pitch_arr, VALIDATION_BATCH_SIZE * sizeof(T));
     {
         std::vector<T> ones(N_ENVIRONMENTS, (T)1);
         std::vector<T> zeros(N_ENVIRONMENTS, (T)0);
@@ -1358,6 +1434,189 @@ int main(int argc, char** argv){
     T episode_length_sum_student = 0;
     TI episode_count_student = 0;
 
+    struct ValidationSummary {
+        T yaw_abs_error_rad = 0;
+        T yaw_mse_rad = 0;
+        T yaw_output_norm = 0;
+        T yaw_null_mse_loss = 0;
+        T yaw_null_mse_rad = 0;
+        T yaw_angle_r2_uniform = 0;
+        std::array<T, N_VALIDATION_YAW_BINS> bin_yaw_mse_rad{};
+    };
+    const std::array<T, N_VALIDATION_YAW_BINS> validation_yaw_bins = {
+        -rlt::math::PI<T> / static_cast<T>(2),
+        -rlt::math::PI<T> / static_cast<T>(3),
+        -rlt::math::PI<T> / static_cast<T>(6),
+        -rlt::math::PI<T> / static_cast<T>(12),
+        static_cast<T>(0),
+        rlt::math::PI<T> / static_cast<T>(12),
+        rlt::math::PI<T> / static_cast<T>(6),
+        rlt::math::PI<T> / static_cast<T>(3),
+        rlt::math::PI<T> / static_cast<T>(2)
+    };
+    const std::array<const char*, N_VALIDATION_YAW_BINS> validation_yaw_bin_names = {
+        "m90", "m60", "m30", "m15", "p00", "p15", "p30", "p60", "p90"
+    };
+    typename ENVIRONMENT::Parameters validation_base_parameters;
+    rlt::initial_parameters(device, envs[0], validation_base_parameters);
+    std::vector<typename ENVIRONMENT::Parameters> cpu_validation_params(VALIDATION_BATCH_SIZE);
+    std::vector<typename ENVIRONMENT::State> cpu_validation_states(VALIDATION_BATCH_SIZE);
+    std::vector<T> cpu_validation_scene_translation(VALIDATION_BATCH_SIZE * 3);
+    std::vector<T> cpu_validation_scene_yaw_cos(VALIDATION_BATCH_SIZE);
+    std::vector<T> cpu_validation_scene_yaw_sin(VALIDATION_BATCH_SIZE);
+    std::vector<T> cpu_validation_target_frame_roll(VALIDATION_BATCH_SIZE, static_cast<T>(0));
+    std::vector<T> cpu_validation_target_frame_pitch(VALIDATION_BATCH_SIZE, static_cast<T>(0));
+    std::vector<T_ACTIVATION> cpu_validation_targets(VALIDATION_BATCH_SIZE * TARGET_DIM);
+
+    auto run_validation = [&]() -> ValidationSummary {
+        ValidationSummary summary;
+        std::array<T, N_VALIDATION_YAW_BINS> bin_weight{};
+        T total_weight = static_cast<T>(0);
+        constexpr TI VALIDATION_BLOCKSIZE = 32;
+        constexpr TI VALIDATION_N_BLOCKS = (VALIDATION_BATCH_SIZE + VALIDATION_BLOCKSIZE - 1) / VALIDATION_BLOCKSIZE;
+        dim3 validation_grid(VALIDATION_N_BLOCKS);
+        dim3 validation_block(VALIDATION_BLOCKSIZE);
+        rlt::devices::cuda::TAG<DEVICE_GPU, true> tag_device{};
+        const T cam_aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
+        for(TI validation_scene_i = 0; validation_scene_i < N_VALIDATION_SCENES; validation_scene_i++){
+            const TI scene_i = N_TRAIN_SCENES + validation_scene_i;
+            auto* renderer = renderers[scene_i];
+            auto* scene = scenes[scene_i];
+            OWLParams rgb_lp = (OWLParams)renderer->backend.rgb_launch_params;
+            cudaStream_t optix_stream = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
+            void* camera_buffer = (void*)owlBufferGetPointer((OWLBuffer)renderer->backend.owl_cameras_buffer, 0);
+            void* camera_open_buffer = nullptr;
+            imitation_kernels::set_active_scene_camera_open_buffer<RENDER_MOTION_BLUR_ACTIVE>(camera_open_buffer, renderer);
+            const uint32_t* fb_ptr = rlt::get_framebuffer_device_ptr(device, *renderer);
+            for(TI yaw_bin_i = 0; yaw_bin_i < N_VALIDATION_YAW_BINS; yaw_bin_i++){
+                const T yaw = validation_yaw_bins[yaw_bin_i];
+                const T yaw_half = yaw / static_cast<T>(2);
+                for(TI sample_i = 0; sample_i < VALIDATION_BATCH_SIZE; sample_i++){
+                    cpu_validation_params[sample_i] = validation_base_parameters;
+                    cpu_validation_states[sample_i] = {};
+                    cpu_validation_states[sample_i].orientation[0] = std::cos(yaw_half);
+                    cpu_validation_states[sample_i].orientation[1] = static_cast<T>(0);
+                    cpu_validation_states[sample_i].orientation[2] = static_cast<T>(0);
+                    cpu_validation_states[sample_i].orientation[3] = std::sin(yaw_half);
+                    const TI pos_i = sample_i % scene->num_indoor_positions;
+                    const auto& indoor_position = scene->indoor_positions[pos_i];
+                    cpu_validation_scene_translation[sample_i * 3 + 0] = indoor_position.position[0];
+                    cpu_validation_scene_translation[sample_i * 3 + 1] = indoor_position.position[1];
+                    cpu_validation_scene_translation[sample_i * 3 + 2] = indoor_position.position[2];
+                    const T scene_yaw = static_cast<T>(2) * rlt::math::PI<T>
+                        * static_cast<T>((sample_i + validation_scene_i * 7 + yaw_bin_i * 13) % VALIDATION_BATCH_SIZE)
+                        / static_cast<T>(VALIDATION_BATCH_SIZE);
+                    cpu_validation_scene_yaw_cos[sample_i] = std::cos(scene_yaw);
+                    cpu_validation_scene_yaw_sin[sample_i] = std::sin(scene_yaw);
+                    cpu_validation_targets[sample_i * TARGET_DIM + 0] = static_cast<T_ACTIVATION>(std::cos(yaw));
+                    cpu_validation_targets[sample_i * TARGET_DIM + 1] = static_cast<T_ACTIVATION>(std::sin(yaw));
+                }
+                cudaMemcpy(gpu_validation_params_arr, cpu_validation_params.data(), VALIDATION_BATCH_SIZE * sizeof(typename ENVIRONMENT::Parameters), cudaMemcpyHostToDevice);
+                cudaMemcpy(gpu_validation_states_arr, cpu_validation_states.data(), VALIDATION_BATCH_SIZE * sizeof(typename ENVIRONMENT::State), cudaMemcpyHostToDevice);
+                cudaMemcpy(gpu_validation_scene_translation_arr, cpu_validation_scene_translation.data(), VALIDATION_BATCH_SIZE * 3 * sizeof(T), cudaMemcpyHostToDevice);
+                cudaMemcpy(gpu_validation_scene_yaw_cos_arr, cpu_validation_scene_yaw_cos.data(), VALIDATION_BATCH_SIZE * sizeof(T), cudaMemcpyHostToDevice);
+                cudaMemcpy(gpu_validation_scene_yaw_sin_arr, cpu_validation_scene_yaw_sin.data(), VALIDATION_BATCH_SIZE * sizeof(T), cudaMemcpyHostToDevice);
+                cudaMemcpy(gpu_validation_target_frame_roll_arr, cpu_validation_target_frame_roll.data(), VALIDATION_BATCH_SIZE * sizeof(T), cudaMemcpyHostToDevice);
+                cudaMemcpy(gpu_validation_target_frame_pitch_arr, cpu_validation_target_frame_pitch.data(), VALIDATION_BATCH_SIZE * sizeof(T), cudaMemcpyHostToDevice);
+                cudaMemset(rlt::data(gpu_validation_targets), 0, BATCH_SIZE * TARGET_DIM * sizeof(T_ACTIVATION));
+                cudaMemcpy(rlt::data(gpu_validation_targets), cpu_validation_targets.data(), cpu_validation_targets.size() * sizeof(T_ACTIVATION), cudaMemcpyHostToDevice);
+
+                imitation_kernels::make_cameras_kernel<false><<<validation_grid, validation_block, 0, device_gpu.stream>>>(
+                    tag_device, gpu_validation_params_arr, gpu_validation_states_arr,
+                    gpu_validation_cameras,
+                    nullptr,
+                    nullptr,
+                    nullptr,
+                    static_cast<T>(0),
+                    static_cast<TI>(0),
+                    cam_aspect,
+                    gpu_validation_scene_translation_arr, gpu_validation_scene_yaw_cos_arr, gpu_validation_scene_yaw_sin_arr);
+                CUDA_CHECK("validation make_cameras_kernel");
+                cudaEventRecord(validation_cameras_ready_event, device_gpu.stream);
+                cudaStreamWaitEvent(optix_stream, validation_cameras_ready_event, 0);
+                if constexpr(RENDER_MOTION_BLUR_ACTIVE){
+                    cudaMemcpyAsync(camera_open_buffer, gpu_validation_cameras, VALIDATION_BATCH_SIZE * sizeof(CAMERA_DATA), cudaMemcpyDeviceToDevice, optix_stream);
+                }
+                cudaMemcpyAsync(camera_buffer, gpu_validation_cameras, VALIDATION_BATCH_SIZE * sizeof(CAMERA_DATA), cudaMemcpyDeviceToDevice, optix_stream);
+                rlt::render_rgb_only_launch(device, *renderer);
+                {
+                    int total_scatter = VALIDATION_BATCH_SIZE * CAM_PIXELS;
+                    int pf_block = 256;
+                    int pf_grid = (total_scatter + pf_block - 1) / pf_block;
+                    scatter_pixel_to_float_kernel<false><<<pf_grid, pf_block, 0, optix_stream>>>(
+                        fb_ptr, rlt::data(gpu_validation_observations), nullptr, 0, VALIDATION_BATCH_SIZE, CAM_PIXELS, OBSERVATION_DIM);
+                }
+                cudaEventRecord(validation_render_scatter_done_event, optix_stream);
+                cudaStreamWaitEvent(device_gpu.stream, validation_render_scatter_done_event, 0);
+
+                imitation_kernels::make_target_cameras_kernel<<<validation_grid, validation_block, 0, device_gpu.stream>>>(
+                    tag_device, gpu_validation_params_arr, gpu_validation_target_cameras,
+                    cam_aspect,
+                    gpu_validation_target_frame_roll_arr, gpu_validation_target_frame_pitch_arr,
+                    gpu_validation_scene_translation_arr, gpu_validation_scene_yaw_cos_arr, gpu_validation_scene_yaw_sin_arr);
+                CUDA_CHECK("validation make_target_cameras_kernel");
+                cudaEventRecord(validation_target_cameras_ready_event, device_gpu.stream);
+                cudaStreamWaitEvent(optix_stream, validation_target_cameras_ready_event, 0);
+                if constexpr(RENDER_MOTION_BLUR_ACTIVE){
+                    cudaMemcpyAsync(camera_open_buffer, gpu_validation_target_cameras, VALIDATION_BATCH_SIZE * sizeof(CAMERA_DATA), cudaMemcpyDeviceToDevice, optix_stream);
+                }
+                cudaMemcpyAsync(camera_buffer, gpu_validation_target_cameras, VALIDATION_BATCH_SIZE * sizeof(CAMERA_DATA), cudaMemcpyDeviceToDevice, optix_stream);
+                rlt::render_rgb_only_launch(device, *renderer);
+                {
+                    int total_scatter = VALIDATION_BATCH_SIZE * CAM_PIXELS;
+                    int pf_block = 256;
+                    int pf_grid = (total_scatter + pf_block - 1) / pf_block;
+                    scatter_pixel_to_float_kernel<false><<<pf_grid, pf_block, 0, optix_stream>>>(
+                        fb_ptr, rlt::data(gpu_validation_target_observations), nullptr, 0, VALIDATION_BATCH_SIZE, CAM_PIXELS, OBSERVATION_DIM);
+                }
+                cudaEventRecord(validation_target_render_scatter_done_event, optix_stream);
+                cudaStreamWaitEvent(device_gpu.stream, validation_target_render_scatter_done_event, 0);
+
+                cudaMemset(rlt::data(gpu_validation_combined_observations), 0, static_cast<size_t>(BATCH_SIZE) * static_cast<size_t>(COMBINED_OBS_DIM) * sizeof(T_ACTIVATION));
+                build_validation_combined_with_target_kernel<<<(VALIDATION_BATCH_SIZE * COMBINED_OBS_DIM + 255) / 256, 256, 0, device_gpu.stream>>>(
+                    rlt::data(gpu_validation_observations),
+                    rlt::data(gpu_validation_target_observations),
+                    rlt::data(gpu_validation_combined_observations),
+                    OBSERVATION_DIM, IMG_C, FRAME_STACK_N, COMBINED_IMG_C, COMBINED_OBS_DIM);
+                CUDA_CHECK("validation build_combined");
+                {
+                    auto inputs = rlt::nn_models::parallel::pack_inputs(gpu_validation_combined_observations);
+                    rlt::forward(device_gpu, student_gpu, inputs, gpu_student_output_train, student_buffers, rng_gpu);
+                }
+                CUDA_CHECK("validation forward");
+                imitation_kernels::yaw_batch_metrics_kernel<<<1, 1, 0, device_gpu.stream>>>(
+                    rlt::data(gpu_student_output_train),
+                    rlt::data(gpu_validation_targets),
+                    gpu_validation_metrics,
+                    VALIDATION_BATCH_SIZE);
+                cudaMemcpy(cpu_validation_metrics.data(), gpu_validation_metrics, YAW_NUM_METRICS * sizeof(T), cudaMemcpyDeviceToHost);
+                const T weight = static_cast<T>(VALIDATION_BATCH_SIZE);
+                summary.yaw_abs_error_rad += cpu_validation_metrics[YAW_METRIC_ABS_ERROR_RAD] * weight;
+                summary.yaw_mse_rad += cpu_validation_metrics[YAW_METRIC_MSE_RAD] * weight;
+                summary.yaw_output_norm += cpu_validation_metrics[YAW_METRIC_OUTPUT_NORM] * weight;
+                summary.yaw_null_mse_loss += cpu_validation_metrics[YAW_METRIC_NULL_MSE_LOSS] * weight;
+                summary.yaw_null_mse_rad += cpu_validation_metrics[YAW_METRIC_NULL_MSE_RAD] * weight;
+                summary.bin_yaw_mse_rad[yaw_bin_i] += cpu_validation_metrics[YAW_METRIC_MSE_RAD] * weight;
+                bin_weight[yaw_bin_i] += weight;
+                total_weight += weight;
+            }
+        }
+        if(total_weight > static_cast<T>(0)){
+            summary.yaw_abs_error_rad /= total_weight;
+            summary.yaw_mse_rad /= total_weight;
+            summary.yaw_output_norm /= total_weight;
+            summary.yaw_null_mse_loss /= total_weight;
+            summary.yaw_null_mse_rad /= total_weight;
+            summary.yaw_angle_r2_uniform = static_cast<T>(1) - summary.yaw_mse_rad / (summary.yaw_null_mse_rad > YAW_R2_EPS ? summary.yaw_null_mse_rad : YAW_R2_EPS);
+        }
+        for(TI yaw_bin_i = 0; yaw_bin_i < N_VALIDATION_YAW_BINS; yaw_bin_i++){
+            if(bin_weight[yaw_bin_i] > static_cast<T>(0)){
+                summary.bin_yaw_mse_rad[yaw_bin_i] /= bin_weight[yaw_bin_i];
+            }
+        }
+        return summary;
+    };
+
     // =========================================================================
     // Training loop
     // =========================================================================
@@ -1366,6 +1625,10 @@ int main(int argc, char** argv){
     std::cout << "  [BLIND_TRAINING] enabled - visual observations zeroed at kernel level" << std::endl;
 #endif
     std::cout << "  N_ENVIRONMENTS: " << N_ENVIRONMENTS << std::endl;
+    std::cout << "  N_TRAIN_SCENES: " << N_TRAIN_SCENES << std::endl;
+    std::cout << "  N_VALIDATION_SCENES: " << N_VALIDATION_SCENES << std::endl;
+    std::cout << "  VALIDATION_CADENCE: " << VALIDATION_CADENCE << std::endl;
+    std::cout << "  N_VALIDATION_YAW_BINS: " << N_VALIDATION_YAW_BINS << std::endl;
     std::cout << "  STEPS_PER_ENV: " << STEPS_PER_ENV << std::endl;
     std::cout << "  BATCH_SIZE: " << BATCH_SIZE << std::endl;
     std::cout << "  N_BATCHES: " << N_BATCHES << std::endl;
@@ -1921,6 +2184,11 @@ int main(int argc, char** argv){
         T episode_terminated_share = episode_count_started > 0 ? static_cast<T>(episode_count_terminated) / static_cast<T>(episode_count_started) : (T)0;
         T complete_terminated_share = complete_episode_count > 0 ? static_cast<T>(episode_count_terminated) / static_cast<T>(complete_episode_count) : (T)0;
         T complete_episode_length = complete_episode_count > 0 ? complete_episode_length_sum / static_cast<T>(complete_episode_count) : (T)0;
+        bool run_validation_epoch = (epoch_i % VALIDATION_CADENCE == 0);
+        ValidationSummary validation_summary;
+        if(run_validation_epoch){
+            validation_summary = run_validation();
+        }
 
         // Logging
         auto now = std::chrono::high_resolution_clock::now();
@@ -1981,6 +2249,12 @@ int main(int argc, char** argv){
                   << " yaw_norm: " << std::setw(6) << std::setprecision(3) << std::fixed << epoch_yaw_output_norm
                   << " yaw_r2_mse: " << std::setw(7) << std::setprecision(3) << std::fixed << yaw_mse_r2_null
                   << " yaw_r2_ang: " << std::setw(7) << std::setprecision(3) << std::fixed << yaw_angle_r2_null;
+        if(run_validation_epoch){
+            std::cout << " val_yaw_rmse_deg: " << std::setw(7) << std::setprecision(2) << std::fixed
+                      << sqrtf(validation_summary.yaw_mse_rad) * static_cast<T>(180) / rlt::math::PI<T>
+                      << " val_yaw_r2: " << std::setw(7) << std::setprecision(3) << std::fixed
+                      << validation_summary.yaw_angle_r2_uniform;
+        }
         if constexpr(RENDER_MOTION_BLUR_ACTIVE){
             std::cout << " shutter: " << std::setw(4) << std::setprecision(2) << render_shutter_fraction;
         }
@@ -1998,6 +2272,20 @@ int main(int argc, char** argv){
         rlt::add_scalar(device, device.logger, "training/yaw_null_mse_rad", epoch_yaw_null_mse_rad);
         rlt::add_scalar(device, device.logger, "training/yaw_mse_r2_null", yaw_mse_r2_null);
         rlt::add_scalar(device, device.logger, "training/yaw_angle_r2_null", yaw_angle_r2_null);
+        if(run_validation_epoch){
+            rlt::add_scalar(device, device.logger, "validation/yaw_abs_error_rad", validation_summary.yaw_abs_error_rad);
+            rlt::add_scalar(device, device.logger, "validation/yaw_abs_error_deg", validation_summary.yaw_abs_error_rad * static_cast<T>(180) / rlt::math::PI<T>);
+            rlt::add_scalar(device, device.logger, "validation/yaw_mse_rad", validation_summary.yaw_mse_rad);
+            rlt::add_scalar(device, device.logger, "validation/yaw_rmse_deg", sqrtf(validation_summary.yaw_mse_rad) * static_cast<T>(180) / rlt::math::PI<T>);
+            rlt::add_scalar(device, device.logger, "validation/yaw_output_norm", validation_summary.yaw_output_norm);
+            rlt::add_scalar(device, device.logger, "validation/yaw_null_mse_loss", validation_summary.yaw_null_mse_loss);
+            rlt::add_scalar(device, device.logger, "validation/yaw_null_mse_rad", validation_summary.yaw_null_mse_rad);
+            rlt::add_scalar(device, device.logger, "validation/yaw_angle_r2_uniform", validation_summary.yaw_angle_r2_uniform);
+            for(TI yaw_bin_i = 0; yaw_bin_i < N_VALIDATION_YAW_BINS; yaw_bin_i++){
+                std::string tag = std::string("validation/yaw_rmse_deg/bin_") + validation_yaw_bin_names[yaw_bin_i];
+                rlt::add_scalar(device, device.logger, tag.c_str(), sqrtf(validation_summary.bin_yaw_mse_rad[yaw_bin_i]) * static_cast<T>(180) / rlt::math::PI<T>);
+            }
+        }
         rlt::add_scalar(device, device.logger, "training/episode_length", mean_episode_length);
         rlt::add_scalar(device, device.logger, "training/episodes", static_cast<T>(episode_count));
         if(episode_count_tf > 0){
@@ -2245,8 +2533,14 @@ int main(int argc, char** argv){
         cudaFree(gpu_prev_cameras);
     }
     cudaFree(gpu_target_cameras);
+    cudaFree(gpu_validation_cameras);
+    cudaFree(gpu_validation_target_cameras);
     cudaEventDestroy(cameras_ready_event);
     cudaEventDestroy(target_cameras_ready_event);
+    cudaEventDestroy(validation_cameras_ready_event);
+    cudaEventDestroy(validation_target_cameras_ready_event);
+    cudaEventDestroy(validation_render_scatter_done_event);
+    cudaEventDestroy(validation_target_render_scatter_done_event);
     for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
         cudaEventDestroy(render_scatter_done_events[active_scene_i]);
         cudaEventDestroy(target_render_scatter_done_events[active_scene_i]);
@@ -2270,6 +2564,7 @@ int main(int argc, char** argv){
     }
     cudaFree(gpu_logged_batch_losses);
     cudaFree(gpu_logged_yaw_metrics);
+    cudaFree(gpu_validation_metrics);
     rlt::free(device_gpu, student_gpu);
     rlt::free(device_gpu, raptor_gpu);
     rlt::free(device_gpu, raptor_buffer_gpu);
@@ -2282,9 +2577,15 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, gpu_all_targets);
     rlt::free(device_gpu, gpu_d_action_train);
     rlt::free(device_gpu, gpu_student_output_train);
+    rlt::free(device_gpu, gpu_validation_observations);
+    rlt::free(device_gpu, gpu_validation_target_observations);
+    rlt::free(device_gpu, gpu_validation_combined_observations);
+    rlt::free(device_gpu, gpu_validation_targets);
     cudaFree(gpu_envs_arr);
     cudaFree(gpu_params_arr);
     cudaFree(gpu_states_arr);
+    cudaFree(gpu_validation_params_arr);
+    cudaFree(gpu_validation_states_arr);
     cudaFree(gpu_terminated_arr);
     cudaFree(gpu_episode_step_arr);
     cudaFree(gpu_teacher_forcing_arr);
@@ -2302,6 +2603,11 @@ int main(int argc, char** argv){
     cudaFree(gpu_scene_yaw_arr);
     cudaFree(gpu_scene_yaw_cos_arr);
     cudaFree(gpu_scene_yaw_sin_arr);
+    cudaFree(gpu_validation_scene_translation_arr);
+    cudaFree(gpu_validation_scene_yaw_cos_arr);
+    cudaFree(gpu_validation_scene_yaw_sin_arr);
+    cudaFree(gpu_validation_target_frame_roll_arr);
+    cudaFree(gpu_validation_target_frame_pitch_arr);
     cudaFree(gpu_indoor_positions);
     cudaFree(gpu_num_indoor_positions);
     cudaFree(gpu_env_scene);
