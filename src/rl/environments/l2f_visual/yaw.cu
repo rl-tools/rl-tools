@@ -326,8 +326,8 @@ static_assert(N_BATCHES > 0, "STEPS_TOTAL must be >= BATCH_SIZE");
 // =========================================================================
 // Frame stacking configuration
 // =========================================================================
-static constexpr TI FRAME_STACK_N = 10;
-static constexpr TI FRAME_STACK_STRIDE = 10; // 100Hz / 20 = 5Hz
+static constexpr TI FRAME_STACK_N = 1;
+static constexpr TI FRAME_STACK_STRIDE = 10;
 static constexpr TI FRAME_STACK_HISTORY_LENGTH = FRAME_STACK_STRIDE * (FRAME_STACK_N - 1) + 1;
 static constexpr TI STACKED_IMG_C = ENVIRONMENT::Observation::CHANNELS * FRAME_STACK_N;
 static constexpr TI STACKED_OBS_DIM = ENVIRONMENT::Observation::HEIGHT * ENVIRONMENT::Observation::WIDTH * STACKED_IMG_C;
