@@ -119,12 +119,12 @@ namespace obs = l2f::observation;
 using REWARD_FUNCTION = l2f::parameters::reward_functions::Squared<T>;
 static constexpr TI SIMULATION_FREQUENCY = 100;
 static constexpr TI EPISODE_STEP_LIMIT = 200;
-static constexpr T INIT_ORIENTATION_CURRICULUM_START_DEG = static_cast<T>(15);
+static constexpr T INIT_ORIENTATION_CURRICULUM_START_DEG = static_cast<T>(0);
 static constexpr T INIT_ORIENTATION_CURRICULUM_FULL_DEG = static_cast<T>(90);
-static constexpr T INIT_ORIENTATION_CURRICULUM_STEP_DEG = static_cast<T>(10);
+static constexpr T INIT_ORIENTATION_CURRICULUM_STEP_DEG = static_cast<T>(1);
 static constexpr T INIT_ORIENTATION_CURRICULUM_FRONTIER_RATIO = static_cast<T>(0.25);
-static constexpr T INIT_ORIENTATION_CURRICULUM_FRONTIER_MIN_DEG = static_cast<T>(5);
-static constexpr T INIT_ORIENTATION_CURRICULUM_FRONTIER_MAX_DEG = static_cast<T>(12);
+static constexpr T INIT_ORIENTATION_CURRICULUM_FRONTIER_MIN_DEG = static_cast<T>(2.5);
+static constexpr T INIT_ORIENTATION_CURRICULUM_FRONTIER_MAX_DEG = static_cast<T>(5);
 using PARAMETERS_SPEC = l2f::ParametersBaseSpecification<T, TI, 4, EPISODE_STEP_LIMIT, REWARD_FUNCTION>;
 struct DOMAIN_RANDOMIZATION_OPTIONS {
     static constexpr bool THRUST_TO_WEIGHT = true;
