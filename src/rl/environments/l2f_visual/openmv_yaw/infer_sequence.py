@@ -229,6 +229,147 @@ def yaw_from_output(y):
     return c, s, norm, yaw_rad, yaw_rad * 180.0 / math.pi
 
 
+def wrap_rad(angle):
+    return (angle + math.pi) % (2.0 * math.pi) - math.pi
+
+
+def deg(angle):
+    return angle * 180.0 / math.pi
+
+
+def parse_int_field(row, key):
+    value = row.get(key)
+    if value is None or value == "":
+        return None
+    return int(value)
+
+
+def quat_mul(a, b):
+    aw, ax, ay, az = a
+    bw, bx, by, bz = b
+    return np.asarray((
+        aw * bw - ax * bx - ay * by - az * bz,
+        aw * bx + ax * bw + ay * bz - az * by,
+        aw * by - ax * bz + ay * bw + az * bx,
+        aw * bz + ax * by - ay * bx + az * bw,
+    ), dtype=np.float64)
+
+
+def quat_from_rotvec(rot):
+    angle = float(np.linalg.norm(rot))
+    if angle < 1.0e-12:
+        return np.asarray((1.0, 0.5 * rot[0], 0.5 * rot[1], 0.5 * rot[2]), dtype=np.float64)
+    axis = rot / angle
+    half = 0.5 * angle
+    s = math.sin(half)
+    return np.asarray((math.cos(half), axis[0] * s, axis[1] * s, axis[2] * s), dtype=np.float64)
+
+
+def yaw_from_quat(q):
+    w, x, y, z = q
+    return math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
+
+
+def load_frame_time_us(capture_dir, frame_count):
+    index_path = capture_dir / "index.csv"
+    if not index_path.exists():
+        return None
+
+    frame_times = [None] * frame_count
+    with open(index_path, newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            frame_i = parse_int_field(row, "frame")
+            if frame_i is None or frame_i < 0 or frame_i >= frame_count:
+                continue
+            frame_t = parse_int_field(row, "frame_mid_us")
+            if frame_t is None:
+                frame_start = parse_int_field(row, "frame_start_us")
+                snapshot_done = parse_int_field(row, "snapshot_done_us")
+                if frame_start is not None and snapshot_done is not None:
+                    frame_t = (frame_start + snapshot_done) // 2
+            if frame_t is None:
+                ticks = parse_int_field(row, "ticks_us")
+                snapshot_us = parse_int_field(row, "snapshot_us")
+                if ticks is not None and snapshot_us is not None:
+                    frame_t = ticks + snapshot_us // 2
+                else:
+                    frame_t = ticks
+            frame_times[frame_i] = frame_t
+
+    if any(t is None for t in frame_times):
+        return None
+    return np.asarray(frame_times, dtype=np.float64)
+
+
+def load_gyro_groundtruth(capture_dir, frame_count, target_index, gyro_csv):
+    gyro_path = gyro_csv if gyro_csv is not None else capture_dir / "gyro.csv"
+    if not gyro_path.exists():
+        return None
+
+    frame_times_us = load_frame_time_us(capture_dir, frame_count)
+    if frame_times_us is None:
+        return None
+
+    samples = []
+    with open(gyro_path, newline="") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            t = parse_int_field(row, "ticks_us")
+            if t is None:
+                t = parse_int_field(row, "rel_us")
+            gx = row.get("gx_rad_s")
+            gy = row.get("gy_rad_s")
+            gz = row.get("gz_rad_s")
+            if t is None or gz is None or gz == "":
+                continue
+            if gx is None or gx == "":
+                gx = 0.0
+            if gy is None or gy == "":
+                gy = 0.0
+            samples.append((float(t), float(gx), float(gy), float(gz)))
+
+    samples.sort(key=lambda item: item[0])
+    times = []
+    omega_values = []
+    last_t = None
+    for t, gx, gy, gz in samples:
+        if last_t is not None and t <= last_t:
+            continue
+        times.append(t)
+        omega_values.append((gx, gy, gz))
+        last_t = t
+
+    if len(times) < 2:
+        return None
+
+    gyro_t_s = (np.asarray(times, dtype=np.float64) - times[0]) * 1.0e-6
+    omega = np.asarray(omega_values, dtype=np.float64)
+    yaw = np.zeros_like(gyro_t_s)
+    q = np.asarray((1.0, 0.0, 0.0, 0.0), dtype=np.float64)
+    for i in range(1, len(gyro_t_s)):
+        dt = gyro_t_s[i] - gyro_t_s[i - 1]
+        dq = quat_from_rotvec(0.5 * (omega[i - 1] + omega[i]) * dt)
+        q = quat_mul(q, dq)
+        q /= np.linalg.norm(q)
+        yaw[i] = yaw_from_quat(q)
+
+    frame_t_s = (frame_times_us - times[0]) * 1.0e-6
+    yaw = np.unwrap(yaw)
+    frame_yaw = np.interp(frame_t_s, gyro_t_s, yaw, left=yaw[0], right=yaw[-1])
+    target_yaw = frame_yaw[target_index]
+    rel_yaw = np.asarray([wrap_rad(y - target_yaw) for y in frame_yaw], dtype=np.float64)
+    return {
+        "path": gyro_path,
+        "sample_count": len(times),
+        "coverage_start_s": float(gyro_t_s[0]),
+        "coverage_end_s": float(gyro_t_s[-1]),
+        "frame_start_s": float(frame_t_s[0]),
+        "frame_end_s": float(frame_t_s[-1]),
+        "yaw_rad": rel_yaw,
+    }
+
+
 def text_size(draw, text, font):
     if hasattr(draw, "textbbox"):
         box = draw.textbbox((0, 0), text, font=font)
@@ -296,8 +437,8 @@ def write_projection_compound(paths, rows, cfg, output, target_index, columns, s
     tiles = []
     projections = []
     for path, row in zip(paths, rows):
-        yaw_rad = row["yaw_rad"] - target_yaw
-        yaw_deg = yaw_rad * 180.0 / math.pi
+        yaw_rad = wrap_rad(row["yaw_rad"] - target_yaw)
+        yaw_deg = deg(yaw_rad)
         frame = Image.open(path).convert("RGB")
         if frame.size != (cfg["width"], cfg["height"]):
             frame = frame.resize((cfg["width"], cfg["height"]), Image.Resampling.BILINEAR)
@@ -360,6 +501,8 @@ def main():
     ap.add_argument("--output-csv", type=Path, default=None)
     ap.add_argument("--output-image", type=Path, default=None)
     ap.add_argument("--no-output-image", action="store_true")
+    ap.add_argument("--gyro-csv", type=Path, default=None)
+    ap.add_argument("--no-gyro-groundtruth", action="store_true")
     ap.add_argument("--projection-columns", type=int, default=5)
     ap.add_argument("--projection-scale", type=int, default=6)
     ap.add_argument("--projection-sign", type=float, default=1.0,
@@ -371,6 +514,7 @@ def main():
     checkpoint = args.checkpoint.resolve()
     captures = args.captures.resolve()
     tflite_path = args.tflite.resolve() if args.tflite else default_tflite_path(checkpoint, args.quantize)
+    gyro_csv = args.gyro_csv.resolve() if args.gyro_csv else None
     output_csv = args.output_csv or (captures / "yaw_predictions.csv")
     output_image = args.output_image or (captures / "yaw_projection_compound.png")
 
@@ -394,7 +538,6 @@ def main():
     outputs = run_model(tflite_path, combined, cfg)
 
     rows = []
-    print("frame,path,raw_cos,raw_sin,norm,yaw_deg")
     for i, (path, y) in enumerate(zip(paths, outputs)):
         c, s, norm, yaw_rad, yaw_deg = yaw_from_output(y)
         row = {
@@ -409,8 +552,55 @@ def main():
             "norm_sin": s,
         }
         rows.append(row)
-        print("%d,%s,%+.6f,%+.6f,%.6f,%+.2f" %
-              (i, path.name, row["raw_cos"], row["raw_sin"], norm, yaw_deg))
+
+    target_yaw = rows[args.target_index]["yaw_rad"]
+    for row in rows:
+        pred_target_yaw = wrap_rad(row["yaw_rad"] - target_yaw)
+        row["pred_target_yaw_rad"] = pred_target_yaw
+        row["pred_target_yaw_deg"] = deg(pred_target_yaw)
+
+    gyro_truth = None
+    if not args.no_gyro_groundtruth:
+        gyro_truth = load_gyro_groundtruth(captures, len(rows), args.target_index, gyro_csv)
+        if gyro_truth is None:
+            print("gyro ground truth: unavailable")
+        else:
+            errors = []
+            for i, row in enumerate(rows):
+                gyro_yaw = float(gyro_truth["yaw_rad"][i])
+                err = wrap_rad(row["pred_target_yaw_rad"] - gyro_yaw)
+                row["gyro_yaw_rad"] = gyro_yaw
+                row["gyro_yaw_deg"] = deg(gyro_yaw)
+                row["gyro_error_rad"] = err
+                row["gyro_error_deg"] = deg(err)
+                errors.append(err)
+            errors = np.asarray(errors, dtype=np.float64)
+            print(
+                "gyro ground truth: csv=%s samples=%d coverage=%.3f..%.3fs frames=%.3f..%.3fs "
+                "mae=%.3fdeg rmse=%.3fdeg max=%.3fdeg" %
+                (
+                    gyro_truth["path"], gyro_truth["sample_count"],
+                    gyro_truth["coverage_start_s"], gyro_truth["coverage_end_s"],
+                    gyro_truth["frame_start_s"], gyro_truth["frame_end_s"],
+                    deg(float(np.mean(np.abs(errors)))),
+                    deg(float(np.sqrt(np.mean(errors * errors)))),
+                    deg(float(np.max(np.abs(errors)))),
+                )
+            )
+
+    if gyro_truth is None:
+        print("frame,path,raw_cos,raw_sin,norm,yaw_deg,pred_target_yaw_deg")
+        for row in rows:
+            print("%d,%s,%+.6f,%+.6f,%.6f,%+.2f,%+.2f" %
+                  (row["frame"], row["path"], row["raw_cos"], row["raw_sin"],
+                   row["norm"], row["yaw_deg"], row["pred_target_yaw_deg"]))
+    else:
+        print("frame,path,raw_cos,raw_sin,norm,yaw_deg,pred_target_yaw_deg,gyro_yaw_deg,gyro_error_deg")
+        for row in rows:
+            print("%d,%s,%+.6f,%+.6f,%.6f,%+.2f,%+.2f,%+.2f,%+.2f" %
+                  (row["frame"], row["path"], row["raw_cos"], row["raw_sin"],
+                   row["norm"], row["yaw_deg"], row["pred_target_yaw_deg"],
+                   row["gyro_yaw_deg"], row["gyro_error_deg"]))
 
     with open(output_csv, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
