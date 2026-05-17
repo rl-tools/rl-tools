@@ -118,7 +118,7 @@ namespace obs = l2f::observation;
 
 using REWARD_FUNCTION = l2f::parameters::reward_functions::Squared<T>;
 static constexpr TI SIMULATION_FREQUENCY = 100;
-static constexpr TI EPISODE_STEP_LIMIT = 200;
+static constexpr TI EPISODE_STEP_LIMIT = 50;
 static constexpr T INIT_ORIENTATION_CURRICULUM_START_DEG = static_cast<T>(0);
 static constexpr T INIT_ORIENTATION_CURRICULUM_FULL_DEG = static_cast<T>(90);
 static constexpr T INIT_ORIENTATION_CURRICULUM_STEP_DEG = static_cast<T>(1);
@@ -297,7 +297,7 @@ static constexpr T YAW_R2_EPS = static_cast<T>(1e-8);
 static constexpr TI INDOOR_POSITION_DIM = 3;
 static constexpr TI OBSERVATION_DIM = ENVIRONMENT::OBSERVATION_DIM;
 static constexpr TI BATCH_SIZE = 512;
-static constexpr TI STEPS_PER_ENV = 200;
+static constexpr TI STEPS_PER_ENV = 50;
 static constexpr TI STEPS_TOTAL = STEPS_PER_ENV * N_ENVIRONMENTS;
 static constexpr TI N_BATCHES = STEPS_TOTAL / BATCH_SIZE;
 static constexpr TI NUM_EPOCHS = 1000000;
@@ -336,7 +336,7 @@ static constexpr TI COMBINED_IMG_C_LOGICAL = STACKED_IMG_C + ENVIRONMENT::Observ
 static constexpr TI COMBINED_IMG_C = (COMBINED_IMG_C_LOGICAL + 7) & ~((TI)7);
 static constexpr TI COMBINED_OBS_DIM = ENVIRONMENT::Observation::HEIGHT * ENVIRONMENT::Observation::WIDTH * COMBINED_IMG_C;
 static constexpr TI VALIDATION_BATCH_SIZE = N_ENVIRONMENTS_PER_SCENE;
-static constexpr TI N_VALIDATION_YAW_BINS = 9;
+static constexpr TI N_VALIDATION_YAW_BINS = 11;
 
 // =========================================================================
 // Trajectory recording
@@ -1454,18 +1454,20 @@ int main(int argc, char** argv){
         std::array<T, N_VALIDATION_YAW_BINS> bin_yaw_mse_rad{};
     };
     const std::array<T, N_VALIDATION_YAW_BINS> validation_yaw_bins = {
-        -rlt::math::PI<T> / static_cast<T>(2),
-        -rlt::math::PI<T> / static_cast<T>(3),
-        -rlt::math::PI<T> / static_cast<T>(6),
-        -rlt::math::PI<T> / static_cast<T>(12),
+        -static_cast<T>(2)*rlt::math::PI<T> / static_cast<T>(180),
+        -static_cast<T>(4)*rlt::math::PI<T> / static_cast<T>(180),
+        -static_cast<T>(8)*rlt::math::PI<T> / static_cast<T>(180),
+        -static_cast<T>(16)*rlt::math::PI<T> / static_cast<T>(180),
+        -static_cast<T>(32)*rlt::math::PI<T> / static_cast<T>(180),
         static_cast<T>(0),
-        rlt::math::PI<T> / static_cast<T>(12),
-        rlt::math::PI<T> / static_cast<T>(6),
-        rlt::math::PI<T> / static_cast<T>(3),
-        rlt::math::PI<T> / static_cast<T>(2)
+        static_cast<T>(2)*rlt::math::PI<T> / static_cast<T>(180),
+        static_cast<T>(4)*rlt::math::PI<T> / static_cast<T>(180),
+        static_cast<T>(8)*rlt::math::PI<T> / static_cast<T>(180),
+        static_cast<T>(16)*rlt::math::PI<T> / static_cast<T>(180),
+        static_cast<T>(32)*rlt::math::PI<T> / static_cast<T>(180)
     };
     const std::array<const char*, N_VALIDATION_YAW_BINS> validation_yaw_bin_names = {
-        "m90", "m60", "m30", "m15", "p00", "p15", "p30", "p60", "p90"
+        "m02", "m04", "m08", "m16", "m32", "p00", "p02", "p04", "p08", "p16", "p32"
     };
     typename ENVIRONMENT::Parameters validation_base_parameters;
     rlt::initial_parameters(device, envs[0], validation_base_parameters);
