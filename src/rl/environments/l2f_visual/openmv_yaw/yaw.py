@@ -45,6 +45,7 @@ CAPTURE_RECORD_HZ = 10
 CAPTURE_RECORD_TICK_US = 1_000_000 // CAPTURE_RECORD_HZ
 CAPTURE_JPEG_QUALITY = 85
 CAPTURE_TARGET_NAME = "target.jpg"
+CAPTURE_SYNC_SETTLE_MS = 500
 
 VISUAL_YAW_RAW_BYTES = 8
 VISUAL_YAW_DATA_BYTES = 10
@@ -113,6 +114,16 @@ def write_jpeg(path, data):
         f.write(data)
     finally:
         f.close()
+
+
+def sync_filesystem():
+    sync_fn = getattr(os, "sync", None)
+    if sync_fn is not None:
+        try:
+            sync_fn()
+        except OSError as e:
+            print("sync failed:", e)
+    time.sleep_ms(CAPTURE_SYNC_SETTLE_MS)
 
 
 def compress_jpeg(img):
@@ -445,6 +456,7 @@ class YawFrameCapture:
                   (seq, reason, len(self.frames), capture_dir))
             t0 = time.ticks_us()
             self.write_outputs(capture_dir)
+            sync_filesystem()
             write_us = time.ticks_diff(time.ticks_us(), t0)
             self.save_count += 1
             print("record saved frames=%d target=%d write_us=%d dir=%s" %
