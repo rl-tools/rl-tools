@@ -34,6 +34,17 @@ VISUAL_YAW_FLAG_PREDICTION_VALID = 0x02
 VISUAL_YAW_FLAG_TARGET_CAPTURE_ACK = 0x04
 
 TARGET_CAPTURE_COMMAND_CURRENT = 0x01
+TARGET_CAPTURE_COMMAND_RECORD_START = 0x02
+TARGET_CAPTURE_COMMAND_RECORD_STOP_SAVE = 0x03
+TARGET_CAPTURE_COMMAND_RECORD_ABORT = 0x04
+
+CAPTURE_ENABLE = True
+CAPTURE_OUTPUT_ROOT = "/flash/capture"
+CAPTURE_MAX_FRAMES = 240
+CAPTURE_RECORD_HZ = 10
+CAPTURE_RECORD_TICK_US = 1_000_000 // CAPTURE_RECORD_HZ
+CAPTURE_JPEG_QUALITY = 85
+CAPTURE_TARGET_NAME = "target.jpg"
 
 VISUAL_YAW_RAW_BYTES = 8
 VISUAL_YAW_DATA_BYTES = 10
@@ -53,6 +64,396 @@ SELF_CHECK_INT8_FAIL_LSBS = 100
 def print_mem(label):
     gc.collect()
     print("%-24s free=%d alloc=%d" % (label, gc.mem_free(), gc.mem_alloc()))
+
+
+def ensure_dir(path):
+    try:
+        os.stat(path)
+        return True
+    except OSError:
+        try:
+            os.mkdir(path)
+            return True
+        except OSError as e:
+            print("mkdir failed:", path, e)
+            return False
+
+
+def prepare_capture_dir():
+    if not ensure_dir(CAPTURE_OUTPUT_ROOT):
+        raise RuntimeError("no capture output directory available")
+
+    for name in os.listdir(CAPTURE_OUTPUT_ROOT):
+        if (name.startswith("frame_") or
+                name == CAPTURE_TARGET_NAME or
+                name == "index.csv" or
+                name == "gyro.csv" or
+                name == "meta.txt" or
+                name == "stats.txt"):
+            path = CAPTURE_OUTPUT_ROOT + "/" + name
+            try:
+                os.remove(path)
+            except OSError as e:
+                print("remove failed:", path, e)
+    gc.collect()
+    return CAPTURE_OUTPUT_ROOT
+
+
+def write_text(path, text):
+    f = open(path, "w")
+    try:
+        f.write(text)
+    finally:
+        f.close()
+
+
+def write_jpeg(path, data):
+    f = open(path, "wb")
+    try:
+        f.write(data)
+    finally:
+        f.close()
+
+
+def compress_jpeg(img):
+    try:
+        return img.compress(copy=True, quality=CAPTURE_JPEG_QUALITY)
+    except TypeError:
+        tmp = img.copy()
+        try:
+            return tmp.compress(quality=CAPTURE_JPEG_QUALITY)
+        except TypeError:
+            return tmp.compress()
+
+
+def jpeg_bytes(img):
+    try:
+        return bytes(img.bytearray())
+    except Exception:
+        return bytes(img)
+
+
+def capture_frame_name(frame_i):
+    return "frame_%06d.jpg" % frame_i
+
+
+class BlueLed:
+    def __init__(self):
+        self.led = None
+        for arg in ("LED_BLUE", "blue", 3):
+            try:
+                self.led = machine.LED(arg)
+                break
+            except Exception:
+                pass
+        if self.led is None:
+            try:
+                self.led = machine.Pin("LED_BLUE", machine.Pin.OUT)
+            except Exception:
+                pass
+        self.off()
+
+    def on(self):
+        if self.led is None:
+            return
+        try:
+            self.led.on()
+        except Exception:
+            try:
+                self.led.value(1)
+            except Exception:
+                pass
+
+    def off(self):
+        if self.led is None:
+            return
+        try:
+            self.led.off()
+        except Exception:
+            try:
+                self.led.value(0)
+            except Exception:
+                pass
+
+
+class YawFrameCapture:
+    def __init__(self, runtime, width, height, storage_led=None):
+        self.runtime = runtime
+        self.width = width
+        self.height = height
+        self.storage_led = storage_led
+        self.save_count = 0
+        self.clear_episode()
+
+    def clear_episode(self):
+        self.active = False
+        self.frames = []
+        self.rows = []
+        self.target_data = None
+        self.target_seq = 0
+        self.target_ticks_us = 0
+        self.target_jpeg_us = 0
+        self.target_bias = 0.0
+        self.start_us = 0
+        self.stop_us = 0
+        self.start_seq = 0
+        self.stop_seq = 0
+        self.start_reason = 0
+        self.stop_reason = 0
+        self.next_record_us = 0
+        self.overflow = False
+        self.dropped = 0
+        self.sum_jpeg_us = 0
+        self.max_jpeg_us = 0
+        self.sum_capture_us = 0
+        self.max_capture_us = 0
+        self.max_capture_end_lag_us = -2147483648
+        gc.collect()
+
+    def start(self, seq, reason):
+        if not CAPTURE_ENABLE:
+            return
+        self.clear_episode()
+        self.active = True
+        self.start_us = time.ticks_us()
+        self.next_record_us = self.start_us
+        self.start_seq = seq
+        self.start_reason = reason
+        print("record start seq=%d reason=%d hz=%d max_frames=%d" %
+              (seq, reason, CAPTURE_RECORD_HZ, CAPTURE_MAX_FRAMES))
+
+    def abort(self, seq, reason):
+        if not CAPTURE_ENABLE:
+            return
+        n = len(self.frames)
+        self.clear_episode()
+        print("record abort seq=%d reason=%d discarded=%d" %
+              (seq, reason, n))
+
+    def capture_target(self, img, target_seq, ticks_us):
+        if not self.active:
+            return
+        t0 = time.ticks_us()
+        try:
+            data = jpeg_bytes(compress_jpeg(img))
+        except Exception as e:
+            self.dropped += 1
+            print("record target jpeg failed:", e)
+            gc.collect()
+            return
+        self.target_data = data
+        self.target_seq = target_seq
+        self.target_ticks_us = ticks_us
+        self.target_jpeg_us = time.ticks_diff(time.ticks_us(), t0)
+        print("record target seq=%d bytes=%d jpeg_us=%d" %
+              (target_seq, len(data), self.target_jpeg_us))
+
+    def set_target_bias(self, target_bias):
+        if self.active:
+            self.target_bias = target_bias
+
+    def append_frame(self, img, tx_seq, target_seq, flags, t0, t_snapshot,
+                     t_resize, t_predict, next_deadline, age_ms,
+                     yaw_raw_rad, target_bias, yaw_rad, yaw_norm):
+        if not self.active:
+            return
+        if time.ticks_diff(t_snapshot, self.next_record_us) < 0:
+            return
+        while time.ticks_diff(t_snapshot, self.next_record_us) >= 0:
+            self.next_record_us = time.ticks_add(
+                self.next_record_us, CAPTURE_RECORD_TICK_US)
+        frame_i = len(self.frames)
+        if frame_i >= CAPTURE_MAX_FRAMES:
+            self.overflow = True
+            self.dropped += 1
+            return
+
+        t_jpeg0 = time.ticks_us()
+        try:
+            data = jpeg_bytes(compress_jpeg(img))
+        except Exception as e:
+            self.dropped += 1
+            print("record frame jpeg failed:", e)
+            gc.collect()
+            return
+        t_end = time.ticks_us()
+        jpeg_us = time.ticks_diff(t_end, t_jpeg0)
+        snapshot_us = time.ticks_diff(t_snapshot, t0)
+        resize_us = time.ticks_diff(t_resize, t_snapshot)
+        predict_us = time.ticks_diff(t_predict, t_resize)
+        capture_us = time.ticks_diff(t_end, t0)
+        capture_end_lag_us = time.ticks_diff(t_end, next_deadline)
+        if capture_end_lag_us > self.max_capture_end_lag_us:
+            self.max_capture_end_lag_us = capture_end_lag_us
+        if jpeg_us > self.max_jpeg_us:
+            self.max_jpeg_us = jpeg_us
+        if capture_us > self.max_capture_us:
+            self.max_capture_us = capture_us
+        self.sum_jpeg_us += jpeg_us
+        self.sum_capture_us += capture_us
+
+        name = capture_frame_name(frame_i)
+        self.frames.append((name, data))
+        self.rows.append((
+            frame_i, name, t0, snapshot_us, resize_us, predict_us, jpeg_us,
+            capture_us, capture_end_lag_us, len(data), age_ms,
+            yaw_raw_rad, target_bias, yaw_rad, yaw_norm,
+            target_seq, flags, tx_seq, t0, t_snapshot, t_predict
+        ))
+
+    def build_meta(self):
+        bytes_total = 0
+        for _, data in self.frames:
+            bytes_total += len(data)
+        if self.target_data is not None:
+            bytes_total += len(self.target_data)
+        return (
+            "format=jpeg\n"
+            "width=%d\n"
+            "height=%d\n"
+            "channels=3\n"
+            "channel_order=RGB\n"
+            "jpeg_quality=%d\n"
+            "vision_hz=%d\n"
+            "tick_us=%d\n"
+            "capture_hz=%d\n"
+            "capture_tick_us=%d\n"
+            "max_frames=%d\n"
+            "frame_count=%d\n"
+            "dropped_frames=%d\n"
+            "overflow=%d\n"
+            "bytes_total=%d\n"
+            "target_path=%s\n"
+            "target_present=%d\n"
+            "target_seq=%d\n"
+            "target_ticks_us=%d\n"
+            "target_jpeg_us=%d\n"
+            "target_bias_rad=%.9g\n"
+            "start_ticks_us=%d\n"
+            "stop_ticks_us=%d\n"
+            "start_seq=%d\n"
+            "stop_seq=%d\n"
+            "start_reason=%d\n"
+            "stop_reason=%d\n"
+            "model_path=%s\n"
+            "checkpoint_name=%s\n"
+            "camera_sensor_fps=%d\n"
+            "camera_exposure_us=%d\n"
+            "camera_gain_db=%d\n"
+            "camera_pixformat=RGB565\n"
+            "camera_framesize=QVGA\n"
+            "camera_auto_rotation=false\n" %
+            (
+                self.width, self.height, CAPTURE_JPEG_QUALITY, VISION_HZ,
+                VISION_TICK_US, CAPTURE_RECORD_HZ, CAPTURE_RECORD_TICK_US,
+                CAPTURE_MAX_FRAMES, len(self.frames),
+                self.dropped, 1 if self.overflow else 0, bytes_total,
+                CAPTURE_TARGET_NAME, 1 if self.target_data is not None else 0,
+                self.target_seq, self.target_ticks_us, self.target_jpeg_us,
+                self.target_bias, self.start_us, self.stop_us,
+                self.start_seq, self.stop_seq,
+                self.start_reason, self.stop_reason,
+                self.runtime.model_path, self.runtime.checkpoint_name,
+                CAMERA_SENSOR_FPS, CAMERA_EXPOSURE_US, CAMERA_GAIN_DB
+            )
+        )
+
+    def write_outputs(self, capture_dir):
+        write_text(capture_dir + "/meta.txt", self.build_meta())
+        sum_write_us = 0
+        max_write_us = 0
+        target_write_us = 0
+        if self.target_data is not None:
+            t0 = time.ticks_us()
+            write_jpeg(capture_dir + "/" + CAPTURE_TARGET_NAME, self.target_data)
+            target_write_us = time.ticks_diff(time.ticks_us(), t0)
+            sum_write_us += target_write_us
+            max_write_us = target_write_us
+
+        write_uses = []
+        for name, data in self.frames:
+            t0 = time.ticks_us()
+            write_jpeg(capture_dir + "/" + name, data)
+            write_us = time.ticks_diff(time.ticks_us(), t0)
+            write_uses.append(write_us)
+            sum_write_us += write_us
+            if write_us > max_write_us:
+                max_write_us = write_us
+
+        index = open(capture_dir + "/index.csv", "w")
+        try:
+            index.write(
+                "frame,path,ticks_us,snapshot_us,resize_us,predict_us,jpeg_us,"
+                "capture_us,capture_end_lag_us,encoded_bytes,age_ms,"
+                "yaw_raw_rad,target_bias_rad,yaw_rad,yaw_norm,target_seq,"
+                "flags,tx_seq,frame_start_us,snapshot_done_us,predict_done_us,"
+                "write_us\n"
+            )
+            fmt = ("%d,%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,"
+                   "%.9g,%.9g,%.9g,%.9g,%d,%d,%d,%d,%d,%d,%d\n")
+            for i in range(len(self.rows)):
+                index.write(fmt % (self.rows[i] + (write_uses[i],)))
+        finally:
+            index.close()
+
+        n = len(self.frames)
+        avg_jpeg_us = self.sum_jpeg_us // n if n else 0
+        avg_capture_us = self.sum_capture_us // n if n else 0
+        write_count = n + (1 if self.target_data is not None else 0)
+        avg_write_us = sum_write_us // write_count if write_count else 0
+        stats = (
+            "frames=%d\n"
+            "target_present=%d\n"
+            "dropped_frames=%d\n"
+            "overflow=%d\n"
+            "avg_jpeg_us=%d\n"
+            "max_jpeg_us=%d\n"
+            "avg_capture_us=%d\n"
+            "max_capture_us=%d\n"
+            "max_capture_end_lag_us=%d\n"
+            "target_write_us=%d\n"
+            "avg_write_us=%d\n"
+            "max_write_us=%d\n" %
+            (
+                n, 1 if self.target_data is not None else 0,
+                self.dropped, 1 if self.overflow else 0,
+                avg_jpeg_us, self.max_jpeg_us,
+                avg_capture_us, self.max_capture_us,
+                self.max_capture_end_lag_us if n else 0,
+                target_write_us, avg_write_us, max_write_us
+            )
+        )
+        write_text(capture_dir + "/stats.txt", stats)
+        return sum_write_us, max_write_us
+
+    def stop_and_save(self, seq, reason):
+        if not CAPTURE_ENABLE:
+            return
+        if not self.active and not self.frames and self.target_data is None:
+            print("record stop ignored seq=%d reason=%d inactive" %
+                  (seq, reason))
+            return
+        self.active = False
+        self.stop_us = time.ticks_us()
+        self.stop_seq = seq
+        self.stop_reason = reason
+        if self.storage_led is not None:
+            self.storage_led.on()
+        try:
+            capture_dir = prepare_capture_dir()
+            print("record stop seq=%d reason=%d frames=%d; writing to %s" %
+                  (seq, reason, len(self.frames), capture_dir))
+            t0 = time.ticks_us()
+            self.write_outputs(capture_dir)
+            write_us = time.ticks_diff(time.ticks_us(), t0)
+            self.save_count += 1
+            print("record saved frames=%d target=%d write_us=%d dir=%s" %
+                  (len(self.frames), 1 if self.target_data is not None else 0,
+                   write_us, capture_dir))
+            self.clear_episode()
+        finally:
+            if self.storage_led is not None:
+                self.storage_led.off()
 
 
 def pick_first(files, predicate, label):
@@ -595,9 +996,22 @@ class CfYawCommandReceiver:
         self.data_idx = -1
         self.line_has_binary = False
         self.capture_requested = False
+        self.record_start_requested = False
+        self.record_stop_requested = False
+        self.record_abort_requested = False
         self.target_seq = 0
+        self.command_seq = 0
+        self.record_start_seq = 0
+        self.record_stop_seq = 0
+        self.record_abort_seq = 0
         self.reason = 0
+        self.record_start_reason = 0
+        self.record_stop_reason = 0
+        self.record_abort_reason = 0
         self.flags = 0
+        self.record_start_flags = 0
+        self.record_stop_flags = 0
+        self.record_abort_flags = 0
         self.frames_ok = 0
         self.frames_bad_crc = 0
         self.frame_restarts = 0
@@ -606,6 +1020,9 @@ class CfYawCommandReceiver:
 
     def poll(self, uart_bridge):
         self.capture_requested = False
+        self.record_start_requested = False
+        self.record_stop_requested = False
+        self.record_abort_requested = False
         n_avail = uart_bridge.any()
         if not n_avail:
             return False
@@ -614,7 +1031,10 @@ class CfYawCommandReceiver:
             return False
         for b in chunk:
             self.feed_byte(b)
-        return self.capture_requested
+        return (self.capture_requested or
+                self.record_start_requested or
+                self.record_stop_requested or
+                self.record_abort_requested)
 
     def feed_byte(self, b):
         if self.data_idx >= 0:
@@ -659,14 +1079,34 @@ class CfYawCommandReceiver:
         if rx_crc != ex_crc:
             self.frames_bad_crc += 1
             return
-        if self.raw[1] != TARGET_CAPTURE_COMMAND_CURRENT:
+
+        self.command_seq = self.raw[0]
+        command = self.raw[1]
+        reason = self.raw[2]
+        flags = self.raw[3]
+        if command == TARGET_CAPTURE_COMMAND_CURRENT:
+            self.target_seq = self.command_seq
+            self.reason = reason
+            self.flags = flags
+            self.capture_requested = True
+        elif command == TARGET_CAPTURE_COMMAND_RECORD_START:
+            self.record_start_seq = self.command_seq
+            self.record_start_reason = reason
+            self.record_start_flags = flags
+            self.record_start_requested = True
+        elif command == TARGET_CAPTURE_COMMAND_RECORD_STOP_SAVE:
+            self.record_stop_seq = self.command_seq
+            self.record_stop_reason = reason
+            self.record_stop_flags = flags
+            self.record_stop_requested = True
+        elif command == TARGET_CAPTURE_COMMAND_RECORD_ABORT:
+            self.record_abort_seq = self.command_seq
+            self.record_abort_reason = reason
+            self.record_abort_flags = flags
+            self.record_abort_requested = True
+        else:
             self.unknown_frames += 1
             return
-
-        self.target_seq = self.raw[0]
-        self.reason = self.raw[2]
-        self.flags = self.raw[3]
-        self.capture_requested = True
         self.frames_ok += 1
 
     def feed_text_byte(self, b):
@@ -741,6 +1181,9 @@ def run():
 
     frame_draw_hint = image.BILINEAR | image.SCALE_ASPECT_IGNORE
     scaled_frame_rgb565 = image.Image(img_w, img_h, image.RGB565)
+    target_frame_rgb565 = image.Image(img_w, img_h, image.RGB565)
+    storage_led = BlueLed()
+    capture = YawFrameCapture(runtime, img_w, img_h, storage_led)
 
     def resize_quantize_frame(src_img, dst_q):
         scaled_frame_rgb565.draw_image(src_img, 0, 0, hint=frame_draw_hint)
@@ -792,11 +1235,25 @@ def run():
         reset_button_last = reset_button_cur
 
         if cf_rx.poll(uart_bridge):
-            target_seq = cf_rx.target_seq
-            target_capture_pending = True
-            target_ack_pending = True
-            print("target reset (uart) seq=%d reason=%d flags=0x%02x" %
-                  (target_seq, cf_rx.reason, cf_rx.flags))
+            if cf_rx.record_start_requested:
+                capture.start(cf_rx.record_start_seq,
+                              cf_rx.record_start_reason)
+                if target_captured:
+                    capture.capture_target(target_frame_rgb565, target_seq,
+                                           time.ticks_us())
+                    capture.set_target_bias(target_bias)
+            if cf_rx.record_abort_requested:
+                capture.abort(cf_rx.record_abort_seq,
+                              cf_rx.record_abort_reason)
+            if cf_rx.record_stop_requested:
+                capture.stop_and_save(cf_rx.record_stop_seq,
+                                      cf_rx.record_stop_reason)
+            if cf_rx.capture_requested:
+                target_seq = cf_rx.target_seq
+                target_capture_pending = True
+                target_ack_pending = True
+                print("target reset (uart) seq=%d reason=%d flags=0x%02x" %
+                      (target_seq, cf_rx.reason, cf_rx.flags))
 
         img = camera_pending
         camera_pending = None
@@ -819,9 +1276,11 @@ def run():
             for i in range(frame_history_length):
                 if i != history_write_ptr:
                     frame_history_q[i][:] = frame_history_q[history_write_ptr]
+            target_frame_rgb565.draw_image(scaled_frame_rgb565, 0, 0)
             target_captured = True
             target_capture_pending = False
             captured_now = True
+            capture.capture_target(target_frame_rgb565, target_seq, t_resize)
             print("target captured seq=%d" % target_seq)
 
         update_sources(history_write_ptr)
@@ -830,6 +1289,7 @@ def run():
             y_bias = runtime.output_values(y_bias_raw)
             bias_cos, bias_sin, _ = normalize_yaw(float(y_bias[0]), float(y_bias[1]))
             target_bias = math.atan2(bias_sin, bias_cos)
+            capture.set_target_bias(target_bias)
 
         y_raw = runtime.model.predict(feeders)[0].flatten()
         y = runtime.output_values(y_raw)
@@ -848,6 +1308,10 @@ def run():
         build_visual_yaw_frame_into(yaw_frame, yaw_raw, yaw_crc_payload,
                                     yaw_seq, target_seq, flags, age_ms, yaw_rad)
         uart_bridge.write(yaw_frame)
+        capture.append_frame(scaled_frame_rgb565, yaw_seq, target_seq, flags,
+                             t0, t_snapshot, t_resize, t_predict,
+                             next_deadline, age_ms, yaw_raw_rad, target_bias,
+                             yaw_rad, yaw_norm)
         yaw_seq = (yaw_seq + 1) & 0xFF
         target_ack_pending = False
 
