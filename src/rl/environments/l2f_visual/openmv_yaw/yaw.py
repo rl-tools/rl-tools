@@ -17,8 +17,32 @@ DIAG_PRINT_EVERY = VISION_HZ
 
 CAMERA_FRAMEBUFFERS = 3
 CAMERA_SENSOR_FPS = 200
-CAMERA_EXPOSURE_US = 500
-CAMERA_GAIN_DB = 50
+CAMERA_EXPOSURE_US = 4000
+CAMERA_GAIN_DB = 20
+
+UART_BRIDGE_PORT = 4
+UART_BRIDGE_BAUD = 115200
+UART_RX_LINE_MAX = 160
+
+FRAME_START_MASK = 0x80
+FRAME_TYPE_MASK = 0x7F
+FRAME_TYPE_VISUAL_YAW = 0x10
+FRAME_TYPE_TARGET_CAPTURE = 0x11
+
+VISUAL_YAW_FLAG_TARGET_VALID = 0x01
+VISUAL_YAW_FLAG_PREDICTION_VALID = 0x02
+VISUAL_YAW_FLAG_TARGET_CAPTURE_ACK = 0x04
+
+TARGET_CAPTURE_COMMAND_CURRENT = 0x01
+
+VISUAL_YAW_RAW_BYTES = 8
+VISUAL_YAW_DATA_BYTES = 10
+VISUAL_YAW_FRAME_BYTES = 1 + VISUAL_YAW_DATA_BYTES
+VISUAL_YAW_CRC_PAYLOAD_BYTES = 7
+TARGET_CAPTURE_RAW_BYTES = 6
+TARGET_CAPTURE_DATA_BYTES = 7
+TARGET_CAPTURE_CRC_PAYLOAD_BYTES = 5
+YAW_Q_SCALE = 10000.0
 
 IMAGE_U8_SCALE = 1.0 / 255.0
 SELF_CHECK_FP32_MAX_ERR = 1.0e-3
@@ -469,6 +493,207 @@ def normalize_yaw(c, s):
     return 1.0, 0.0, 0.0
 
 
+def wrap_rad(a):
+    while a > math.pi:
+        a -= 2.0 * math.pi
+    while a < -math.pi:
+        a += 2.0 * math.pi
+    return a
+
+
+def clamp_int(v, lo, hi):
+    if v < lo:
+        return lo
+    if v > hi:
+        return hi
+    return v
+
+
+def q_s16(v, scale):
+    q = int(round(float(v) * scale))
+    return clamp_int(q, -32768, 32767)
+
+
+def put_u16_be(dst, idx, v):
+    dst[idx] = (v >> 8) & 0xFF
+    dst[idx + 1] = v & 0xFF
+
+
+def crc16_ccitt(buf, n):
+    crc = 0xFFFF
+    for i in range(n):
+        crc ^= buf[i] << 8
+        for _ in range(8):
+            if crc & 0x8000:
+                crc = ((crc << 1) ^ 0x1021) & 0xFFFF
+            else:
+                crc = (crc << 1) & 0xFFFF
+    return crc
+
+
+def pack7(raw, raw_len, out, out_offset):
+    acc = 0
+    nbits = 0
+    w = out_offset
+    for i in range(raw_len):
+        acc = (acc << 8) | raw[i]
+        nbits += 8
+        while nbits >= 7:
+            nbits -= 7
+            out[w] = (acc >> nbits) & 0x7F
+            w += 1
+    if nbits > 0:
+        out[w] = (acc << (7 - nbits)) & 0x7F
+
+
+def unpack7(packed, packed_len, out, raw_len):
+    acc = 0
+    nbits = 0
+    out_idx = 0
+    for i in range(packed_len):
+        acc = (acc << 7) | (packed[i] & 0x7F)
+        nbits += 7
+        if nbits >= 8 and out_idx < raw_len:
+            nbits -= 8
+            out[out_idx] = (acc >> nbits) & 0xFF
+            out_idx += 1
+
+
+def uart_text_byte(b):
+    return b == 9 or b == 10 or b == 13 or 32 <= b <= 126
+
+
+def build_visual_yaw_frame_into(frame, raw, crc_payload,
+                                seq, target_seq, flags, age_ms, yaw_rad):
+    start = FRAME_START_MASK | FRAME_TYPE_VISUAL_YAW
+    yaw_q = q_s16(yaw_rad, YAW_Q_SCALE)
+
+    raw[0] = seq & 0xFF
+    raw[1] = target_seq & 0xFF
+    raw[2] = flags & 0xFF
+    raw[3] = clamp_int(int(age_ms), 0, 255)
+    raw[4] = (yaw_q >> 8) & 0xFF
+    raw[5] = yaw_q & 0xFF
+
+    crc_payload[0] = start
+    for i in range(6):
+        crc_payload[i + 1] = raw[i]
+    crc = crc16_ccitt(crc_payload, VISUAL_YAW_CRC_PAYLOAD_BYTES)
+    put_u16_be(raw, 6, crc)
+
+    frame[0] = start
+    pack7(raw, VISUAL_YAW_RAW_BYTES, frame, 1)
+
+
+class CfYawCommandReceiver:
+    def __init__(self):
+        self.data_buf = bytearray(TARGET_CAPTURE_DATA_BYTES)
+        self.raw = bytearray(TARGET_CAPTURE_RAW_BYTES)
+        self.crc_payload = bytearray(TARGET_CAPTURE_CRC_PAYLOAD_BYTES)
+        self.rx_line_buf = bytearray()
+        self.start_byte = 0
+        self.data_idx = -1
+        self.line_has_binary = False
+        self.capture_requested = False
+        self.target_seq = 0
+        self.reason = 0
+        self.flags = 0
+        self.frames_ok = 0
+        self.frames_bad_crc = 0
+        self.frame_restarts = 0
+        self.unknown_frames = 0
+        self.dropped_binary_bytes = 0
+
+    def poll(self, uart_bridge):
+        self.capture_requested = False
+        n_avail = uart_bridge.any()
+        if not n_avail:
+            return False
+        chunk = uart_bridge.read(n_avail)
+        if not chunk:
+            return False
+        for b in chunk:
+            self.feed_byte(b)
+        return self.capture_requested
+
+    def feed_byte(self, b):
+        if self.data_idx >= 0:
+            if b & FRAME_START_MASK:
+                self.frame_restarts += 1
+                self.start_frame_or_drop(b)
+                return
+            self.data_buf[self.data_idx] = b
+            self.data_idx += 1
+            if self.data_idx == TARGET_CAPTURE_DATA_BYTES:
+                self.apply_target_capture_frame()
+                self.data_idx = -1
+            return
+
+        if b & FRAME_START_MASK:
+            self.start_frame_or_drop(b)
+            return
+
+        if uart_text_byte(b):
+            self.feed_text_byte(b)
+        else:
+            self.line_has_binary = True
+            self.dropped_binary_bytes += 1
+
+    def start_frame_or_drop(self, b):
+        frame_type = b & FRAME_TYPE_MASK
+        if frame_type == FRAME_TYPE_TARGET_CAPTURE:
+            self.start_byte = b
+            self.data_idx = 0
+        else:
+            self.data_idx = -1
+            self.unknown_frames += 1
+
+    def apply_target_capture_frame(self):
+        unpack7(self.data_buf, TARGET_CAPTURE_DATA_BYTES,
+                self.raw, TARGET_CAPTURE_RAW_BYTES)
+        rx_crc = (self.raw[4] << 8) | self.raw[5]
+        self.crc_payload[0] = self.start_byte
+        for i in range(4):
+            self.crc_payload[i + 1] = self.raw[i]
+        ex_crc = crc16_ccitt(self.crc_payload, TARGET_CAPTURE_CRC_PAYLOAD_BYTES)
+        if rx_crc != ex_crc:
+            self.frames_bad_crc += 1
+            return
+        if self.raw[1] != TARGET_CAPTURE_COMMAND_CURRENT:
+            self.unknown_frames += 1
+            return
+
+        self.target_seq = self.raw[0]
+        self.reason = self.raw[2]
+        self.flags = self.raw[3]
+        self.capture_requested = True
+        self.frames_ok += 1
+
+    def feed_text_byte(self, b):
+        self.rx_line_buf.append(b)
+        if b == 10:
+            line = bytes(self.rx_line_buf[:-1]).rstrip(b"\r")
+            self.rx_line_buf = bytearray()
+            if self.line_has_binary:
+                self.line_has_binary = False
+                return
+            self.handle_line(line)
+        elif len(self.rx_line_buf) > UART_RX_LINE_MAX:
+            self.rx_line_buf = bytearray()
+            self.line_has_binary = False
+
+    def handle_line(self, line):
+        if b"[u1br] arm rising edge" in line:
+            self.target_seq = (self.target_seq + 1) & 0xFF
+            self.reason = 0
+            self.flags = 0
+            self.capture_requested = True
+        try:
+            print("[cf]", line.decode("utf-8"))
+        except UnicodeError:
+            print("[cf-bin]", line)
+
+
 def run():
     print_mem("boot")
     print("cwd:", os.getcwd())
@@ -537,20 +762,41 @@ def run():
 
     reset_button = machine.Pin("SW", machine.Pin.IN, machine.Pin.PULL_UP)
     reset_button_last = reset_button.value()
+    uart_bridge = machine.UART(UART_BRIDGE_PORT, UART_BRIDGE_BAUD,
+                               timeout=0, timeout_char=0)
+    cf_rx = CfYawCommandReceiver()
+    yaw_frame = bytearray(VISUAL_YAW_FRAME_BYTES)
+    yaw_raw = bytearray(VISUAL_YAW_RAW_BYTES)
+    yaw_crc_payload = bytearray(VISUAL_YAW_CRC_PAYLOAD_BYTES)
+    yaw_seq = 0
+    target_seq = 0
+    target_capture_pending = True
+    target_ack_pending = False
+    target_bias = 0.0
     target_captured = False
     history_write_ptr = 0
     tick = 0
     camera_pending = csi0.snapshot(blocking=False)
     next_deadline = time.ticks_us()
 
-    print("starting yaw loop vision=%dHz" % VISION_HZ)
+    print("starting yaw loop vision=%dHz uart%d=%d" %
+          (VISION_HZ, UART_BRIDGE_PORT, UART_BRIDGE_BAUD))
     while True:
         t0 = time.ticks_us()
         reset_button_cur = reset_button.value()
         if reset_button_last == 1 and reset_button_cur == 0:
-            target_captured = False
-            print("target reset (button)")
+            target_seq = (target_seq + 1) & 0xFF
+            target_capture_pending = True
+            target_ack_pending = False
+            print("target reset (button) seq=%d" % target_seq)
         reset_button_last = reset_button_cur
+
+        if cf_rx.poll(uart_bridge):
+            target_seq = cf_rx.target_seq
+            target_capture_pending = True
+            target_ack_pending = True
+            print("target reset (uart) seq=%d reason=%d flags=0x%02x" %
+                  (target_seq, cf_rx.reason, cf_rx.flags))
 
         img = camera_pending
         camera_pending = None
@@ -567,21 +813,43 @@ def run():
         resize_quantize_frame(img, frame_history_q[history_write_ptr])
         t_resize = time.ticks_us()
         camera_pending = csi0.snapshot(blocking=False)
-        if not target_captured:
+        captured_now = False
+        if not target_captured or target_capture_pending:
             target_q[:] = frame_history_q[history_write_ptr]
             for i in range(frame_history_length):
                 if i != history_write_ptr:
                     frame_history_q[i][:] = frame_history_q[history_write_ptr]
             target_captured = True
-            print("target captured")
+            target_capture_pending = False
+            captured_now = True
+            print("target captured seq=%d" % target_seq)
 
         update_sources(history_write_ptr)
+        if captured_now:
+            y_bias_raw = runtime.model.predict(feeders)[0].flatten()
+            y_bias = runtime.output_values(y_bias_raw)
+            bias_cos, bias_sin, _ = normalize_yaw(float(y_bias[0]), float(y_bias[1]))
+            target_bias = math.atan2(bias_sin, bias_cos)
+
         y_raw = runtime.model.predict(feeders)[0].flatten()
         y = runtime.output_values(y_raw)
         yaw_cos, yaw_sin, yaw_norm = normalize_yaw(float(y[0]), float(y[1]))
-        yaw_rad = math.atan2(yaw_sin, yaw_cos)
+        yaw_raw_rad = math.atan2(yaw_sin, yaw_cos)
+        yaw_rad = wrap_rad(yaw_raw_rad - target_bias)
         yaw_deg = yaw_rad * 180.0 / math.pi
         t_predict = time.ticks_us()
+
+        flags = VISUAL_YAW_FLAG_PREDICTION_VALID
+        if target_captured:
+            flags |= VISUAL_YAW_FLAG_TARGET_VALID
+        if target_ack_pending:
+            flags |= VISUAL_YAW_FLAG_TARGET_CAPTURE_ACK
+        age_ms = time.ticks_diff(t_predict, t_snapshot) // 1000
+        build_visual_yaw_frame_into(yaw_frame, yaw_raw, yaw_crc_payload,
+                                    yaw_seq, target_seq, flags, age_ms, yaw_rad)
+        uart_bridge.write(yaw_frame)
+        yaw_seq = (yaw_seq + 1) & 0xFF
+        target_ack_pending = False
 
         history_write_ptr = (history_write_ptr + 1) % frame_history_length
 
@@ -592,9 +860,12 @@ def run():
             predict_us = time.ticks_diff(t_predict, t_resize)
             delay_us = time.ticks_diff(next_deadline, time.ticks_us())
             print("us=%5d cam=%5d resize=%4d pred=%5d delay=%d yaw=%+.1fdeg "
-                  "cos_sin=%+.3f,%+.3f norm=%.3f target=%d" %
+                  "raw=%+.1fdeg bias=%+.1fdeg cos_sin=%+.3f,%+.3f norm=%.3f "
+                  "target=%d seq=%d tx=%d" %
                   (elapsed_us, snapshot_us, resize_us, predict_us, delay_us,
-                   yaw_deg, yaw_cos, yaw_sin, yaw_norm, 1 if target_captured else 0))
+                   yaw_deg, yaw_raw_rad * 180.0 / math.pi,
+                   target_bias * 180.0 / math.pi, yaw_cos, yaw_sin, yaw_norm,
+                   1 if target_captured else 0, target_seq, yaw_seq))
 
         tick += 1
         delay = time.ticks_diff(next_deadline, time.ticks_us())
