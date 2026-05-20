@@ -37,6 +37,12 @@ TARGET_CAPTURE_COMMAND_CURRENT = 0x01
 TARGET_CAPTURE_COMMAND_RECORD_START = 0x02
 TARGET_CAPTURE_COMMAND_RECORD_STOP_SAVE = 0x03
 TARGET_CAPTURE_COMMAND_RECORD_ABORT = 0x04
+TARGET_CAPTURE_COMMAND_SELECT_SLOT = 0x05
+TARGET_CAPTURE_FLAG_REQUIRE_ACK = 0x01
+TARGET_CAPTURE_FLAG_SELECT_AFTER_CAPTURE = 0x02
+TARGET_CAPTURE_SLOT_SHIFT = 4
+TARGET_CAPTURE_SLOT_MASK = 0x03
+TARGET_SLOT_COUNT = 2
 
 CAPTURE_ENABLE = True
 CAPTURE_OUTPUT_ROOT = "/flash/capture"
@@ -45,6 +51,7 @@ CAPTURE_RECORD_HZ = 10
 CAPTURE_RECORD_TICK_US = 1_000_000 // CAPTURE_RECORD_HZ
 CAPTURE_JPEG_QUALITY = 85
 CAPTURE_TARGET_NAME = "target.jpg"
+CAPTURE_TARGET_SLOT_NAME = "target_slot%d.jpg"
 CAPTURE_SYNC_SETTLE_MS = 500
 
 VISUAL_YAW_RAW_BYTES = 8
@@ -86,6 +93,7 @@ def prepare_capture_dir():
 
     for name in os.listdir(CAPTURE_OUTPUT_ROOT):
         if (name.startswith("frame_") or
+                name.startswith("target_slot") or
                 name == CAPTURE_TARGET_NAME or
                 name == "index.csv" or
                 name == "gyro.csv" or
@@ -148,6 +156,13 @@ def capture_frame_name(frame_i):
     return "frame_%06d.jpg" % frame_i
 
 
+def target_slot_from_flags(flags):
+    slot = (flags >> TARGET_CAPTURE_SLOT_SHIFT) & TARGET_CAPTURE_SLOT_MASK
+    if slot >= TARGET_SLOT_COUNT:
+        return 0
+    return slot
+
+
 class BlueLed:
     def __init__(self):
         self.led = None
@@ -201,10 +216,16 @@ class YawFrameCapture:
         self.frames = []
         self.rows = []
         self.target_data = None
+        self.target_slot_data = [None] * TARGET_SLOT_COUNT
+        self.target_slot_seq = [0] * TARGET_SLOT_COUNT
+        self.target_slot_ticks_us = [0] * TARGET_SLOT_COUNT
+        self.target_slot_jpeg_us = [0] * TARGET_SLOT_COUNT
+        self.target_slot_bias = [0.0] * TARGET_SLOT_COUNT
         self.target_seq = 0
         self.target_ticks_us = 0
         self.target_jpeg_us = 0
         self.target_bias = 0.0
+        self.active_target_slot = 0
         self.start_us = 0
         self.stop_us = 0
         self.start_seq = 0
@@ -241,8 +262,21 @@ class YawFrameCapture:
         print("record abort seq=%d reason=%d discarded=%d" %
               (seq, reason, n))
 
-    def capture_target(self, img, target_seq, ticks_us):
+    def set_active_target_slot(self, target_slot):
+        if self.active and target_slot < TARGET_SLOT_COUNT:
+            self.active_target_slot = target_slot
+            data = self.target_slot_data[target_slot]
+            if data is not None:
+                self.target_data = data
+                self.target_seq = self.target_slot_seq[target_slot]
+                self.target_ticks_us = self.target_slot_ticks_us[target_slot]
+                self.target_jpeg_us = self.target_slot_jpeg_us[target_slot]
+                self.target_bias = self.target_slot_bias[target_slot]
+
+    def capture_target(self, img, target_seq, ticks_us, target_slot):
         if not self.active:
+            return
+        if target_slot >= TARGET_SLOT_COUNT:
             return
         t0 = time.ticks_us()
         try:
@@ -252,20 +286,29 @@ class YawFrameCapture:
             print("record target jpeg failed:", e)
             gc.collect()
             return
-        self.target_data = data
-        self.target_seq = target_seq
-        self.target_ticks_us = ticks_us
-        self.target_jpeg_us = time.ticks_diff(time.ticks_us(), t0)
-        print("record target seq=%d bytes=%d jpeg_us=%d" %
-              (target_seq, len(data), self.target_jpeg_us))
+        self.target_slot_data[target_slot] = data
+        self.target_slot_seq[target_slot] = target_seq
+        self.target_slot_ticks_us[target_slot] = ticks_us
+        self.target_slot_jpeg_us[target_slot] = time.ticks_diff(
+            time.ticks_us(), t0)
+        if target_slot == self.active_target_slot:
+            self.target_seq = target_seq
+            self.target_ticks_us = ticks_us
+            self.target_jpeg_us = self.target_slot_jpeg_us[target_slot]
+            self.target_data = data
+        print("record target slot=%d seq=%d bytes=%d jpeg_us=%d" %
+              (target_slot, target_seq, len(data), self.target_jpeg_us))
 
-    def set_target_bias(self, target_bias):
+    def set_target_bias(self, target_bias, target_slot):
         if self.active:
+            if target_slot < TARGET_SLOT_COUNT:
+                self.target_slot_bias[target_slot] = target_bias
             self.target_bias = target_bias
 
     def append_frame(self, img, tx_seq, target_seq, flags, t0, t_snapshot,
                      t_resize, t_predict, next_deadline, age_ms,
-                     yaw_raw_rad, target_bias, yaw_rad, yaw_norm):
+                     yaw_raw_rad, target_bias, yaw_rad, yaw_norm,
+                     active_target_slot):
         if not self.active:
             return
         if time.ticks_diff(t_snapshot, self.next_record_us) < 0:
@@ -309,15 +352,19 @@ class YawFrameCapture:
             frame_i, name, t0, snapshot_us, resize_us, predict_us, jpeg_us,
             capture_us, capture_end_lag_us, len(data), age_ms,
             yaw_raw_rad, target_bias, yaw_rad, yaw_norm,
-            target_seq, flags, tx_seq, t0, t_snapshot, t_predict
+            target_seq, flags, tx_seq, active_target_slot,
+            t0, t_snapshot, t_predict
         ))
 
     def build_meta(self):
         bytes_total = 0
         for _, data in self.frames:
             bytes_total += len(data)
-        if self.target_data is not None:
-            bytes_total += len(self.target_data)
+        target_present_count = 0
+        for data in self.target_slot_data:
+            if data is not None:
+                bytes_total += len(data)
+                target_present_count += 1
         return (
             "format=jpeg\n"
             "width=%d\n"
@@ -336,10 +383,18 @@ class YawFrameCapture:
             "bytes_total=%d\n"
             "target_path=%s\n"
             "target_present=%d\n"
+            "target_slots=%d\n"
+            "active_target_slot=%d\n"
             "target_seq=%d\n"
             "target_ticks_us=%d\n"
             "target_jpeg_us=%d\n"
             "target_bias_rad=%.9g\n"
+            "target_slot0_present=%d\n"
+            "target_slot0_seq=%d\n"
+            "target_slot0_bias_rad=%.9g\n"
+            "target_slot1_present=%d\n"
+            "target_slot1_seq=%d\n"
+            "target_slot1_bias_rad=%.9g\n"
             "start_ticks_us=%d\n"
             "stop_ticks_us=%d\n"
             "start_seq=%d\n"
@@ -359,9 +414,15 @@ class YawFrameCapture:
                 VISION_TICK_US, CAPTURE_RECORD_HZ, CAPTURE_RECORD_TICK_US,
                 CAPTURE_MAX_FRAMES, len(self.frames),
                 self.dropped, 1 if self.overflow else 0, bytes_total,
-                CAPTURE_TARGET_NAME, 1 if self.target_data is not None else 0,
+                CAPTURE_TARGET_NAME, target_present_count,
+                TARGET_SLOT_COUNT, self.active_target_slot,
                 self.target_seq, self.target_ticks_us, self.target_jpeg_us,
-                self.target_bias, self.start_us, self.stop_us,
+                self.target_bias,
+                1 if self.target_slot_data[0] is not None else 0,
+                self.target_slot_seq[0], self.target_slot_bias[0],
+                1 if self.target_slot_data[1] is not None else 0,
+                self.target_slot_seq[1], self.target_slot_bias[1],
+                self.start_us, self.stop_us,
                 self.start_seq, self.stop_seq,
                 self.start_reason, self.stop_reason,
                 self.runtime.model_path, self.runtime.checkpoint_name,
@@ -374,12 +435,33 @@ class YawFrameCapture:
         sum_write_us = 0
         max_write_us = 0
         target_write_us = 0
+        target_write_count = 0
+        target_present_count = 0
+        for slot in range(TARGET_SLOT_COUNT):
+            data = self.target_slot_data[slot]
+            if data is None:
+                continue
+            target_present_count += 1
+            t0 = time.ticks_us()
+            write_jpeg(capture_dir + "/" + (CAPTURE_TARGET_SLOT_NAME % slot),
+                       data)
+            write_us = time.ticks_diff(time.ticks_us(), t0)
+            target_write_count += 1
+            sum_write_us += write_us
+            if write_us > target_write_us:
+                target_write_us = write_us
+            if write_us > max_write_us:
+                max_write_us = write_us
         if self.target_data is not None:
             t0 = time.ticks_us()
             write_jpeg(capture_dir + "/" + CAPTURE_TARGET_NAME, self.target_data)
-            target_write_us = time.ticks_diff(time.ticks_us(), t0)
-            sum_write_us += target_write_us
-            max_write_us = target_write_us
+            write_us = time.ticks_diff(time.ticks_us(), t0)
+            target_write_count += 1
+            sum_write_us += write_us
+            if write_us > target_write_us:
+                target_write_us = write_us
+            if write_us > max_write_us:
+                max_write_us = write_us
 
         write_uses = []
         for name, data in self.frames:
@@ -397,11 +479,11 @@ class YawFrameCapture:
                 "frame,path,ticks_us,snapshot_us,resize_us,predict_us,jpeg_us,"
                 "capture_us,capture_end_lag_us,encoded_bytes,age_ms,"
                 "yaw_raw_rad,target_bias_rad,yaw_rad,yaw_norm,target_seq,"
-                "flags,tx_seq,frame_start_us,snapshot_done_us,predict_done_us,"
-                "write_us\n"
+                "flags,tx_seq,active_target_slot,frame_start_us,"
+                "snapshot_done_us,predict_done_us,write_us\n"
             )
             fmt = ("%d,%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,"
-                   "%.9g,%.9g,%.9g,%.9g,%d,%d,%d,%d,%d,%d,%d\n")
+                   "%.9g,%.9g,%.9g,%.9g,%d,%d,%d,%d,%d,%d,%d,%d\n")
             for i in range(len(self.rows)):
                 index.write(fmt % (self.rows[i] + (write_uses[i],)))
         finally:
@@ -410,7 +492,7 @@ class YawFrameCapture:
         n = len(self.frames)
         avg_jpeg_us = self.sum_jpeg_us // n if n else 0
         avg_capture_us = self.sum_capture_us // n if n else 0
-        write_count = n + (1 if self.target_data is not None else 0)
+        write_count = n + target_write_count
         avg_write_us = sum_write_us // write_count if write_count else 0
         stats = (
             "frames=%d\n"
@@ -426,7 +508,7 @@ class YawFrameCapture:
             "avg_write_us=%d\n"
             "max_write_us=%d\n" %
             (
-                n, 1 if self.target_data is not None else 0,
+                n, target_present_count,
                 self.dropped, 1 if self.overflow else 0,
                 avg_jpeg_us, self.max_jpeg_us,
                 avg_capture_us, self.max_capture_us,
@@ -459,9 +541,12 @@ class YawFrameCapture:
             sync_filesystem()
             write_us = time.ticks_diff(time.ticks_us(), t0)
             self.save_count += 1
+            target_count = 0
+            for data in self.target_slot_data:
+                if data is not None:
+                    target_count += 1
             print("record saved frames=%d target=%d write_us=%d dir=%s" %
-                  (len(self.frames), 1 if self.target_data is not None else 0,
-                   write_us, capture_dir))
+                  (len(self.frames), target_count, write_us, capture_dir))
             self.clear_episode()
         finally:
             if self.storage_led is not None:
@@ -1008,10 +1093,17 @@ class CfYawCommandReceiver:
         self.data_idx = -1
         self.line_has_binary = False
         self.capture_requested = False
+        self.select_requested = False
         self.record_start_requested = False
         self.record_stop_requested = False
         self.record_abort_requested = False
         self.target_seq = 0
+        self.capture_slot = 0
+        self.capture_select_after = True
+        self.select_seq = 0
+        self.select_slot = 0
+        self.select_reason = 0
+        self.select_flags = 0
         self.command_seq = 0
         self.record_start_seq = 0
         self.record_stop_seq = 0
@@ -1032,6 +1124,7 @@ class CfYawCommandReceiver:
 
     def poll(self, uart_bridge):
         self.capture_requested = False
+        self.select_requested = False
         self.record_start_requested = False
         self.record_stop_requested = False
         self.record_abort_requested = False
@@ -1044,6 +1137,7 @@ class CfYawCommandReceiver:
         for b in chunk:
             self.feed_byte(b)
         return (self.capture_requested or
+                self.select_requested or
                 self.record_start_requested or
                 self.record_stop_requested or
                 self.record_abort_requested)
@@ -1100,7 +1194,16 @@ class CfYawCommandReceiver:
             self.target_seq = self.command_seq
             self.reason = reason
             self.flags = flags
+            self.capture_slot = target_slot_from_flags(flags)
+            self.capture_select_after = (
+                flags & TARGET_CAPTURE_FLAG_SELECT_AFTER_CAPTURE) != 0
             self.capture_requested = True
+        elif command == TARGET_CAPTURE_COMMAND_SELECT_SLOT:
+            self.select_seq = self.command_seq
+            self.select_slot = target_slot_from_flags(flags)
+            self.select_reason = reason
+            self.select_flags = flags
+            self.select_requested = True
         elif command == TARGET_CAPTURE_COMMAND_RECORD_START:
             self.record_start_seq = self.command_seq
             self.record_start_reason = reason
@@ -1139,6 +1242,8 @@ class CfYawCommandReceiver:
             self.target_seq = (self.target_seq + 1) & 0xFF
             self.reason = 0
             self.flags = 0
+            self.capture_slot = 0
+            self.capture_select_after = True
             self.capture_requested = True
         try:
             print("[cf]", line.decode("utf-8"))
@@ -1162,6 +1267,7 @@ def run():
     frame_bytes = img_h * img_w * 3
     frame_history_q = [bytearray(frame_bytes) for _ in range(frame_history_length)]
     target_q = bytearray(frame_bytes)
+    target_slots_q = [bytearray(frame_bytes) for _ in range(TARGET_SLOT_COUNT)]
     scaled_frame_u8 = None if runtime.image_direct_s8 else bytearray(frame_bytes)
 
     zero = q_byte(0.0, runtime.image_scale, runtime.image_zp, runtime.image_dtype)
@@ -1170,6 +1276,9 @@ def run():
             buf[i] = zero
     for i in range(len(target_q)):
         target_q[i] = zero
+    for buf in target_slots_q:
+        for i in range(len(buf)):
+            buf[i] = zero
 
     sources_by_keras = [frame_history_q[0]] * runtime.num_inputs
     sources_by_keras[target_keras_index] = target_q
@@ -1194,6 +1303,10 @@ def run():
     frame_draw_hint = image.BILINEAR | image.SCALE_ASPECT_IGNORE
     scaled_frame_rgb565 = image.Image(img_w, img_h, image.RGB565)
     target_frame_rgb565 = image.Image(img_w, img_h, image.RGB565)
+    target_slot_frames = [
+        image.Image(img_w, img_h, image.RGB565)
+        for _ in range(TARGET_SLOT_COUNT)
+    ]
     storage_led = BlueLed()
     capture = YawFrameCapture(runtime, img_w, img_h, storage_led)
 
@@ -1226,6 +1339,12 @@ def run():
     yaw_seq = 0
     target_seq = 0
     target_capture_pending = True
+    target_capture_slot = 0
+    target_capture_select_after = True
+    target_slot_valid = [False] * TARGET_SLOT_COUNT
+    target_slot_seq = [0] * TARGET_SLOT_COUNT
+    target_slot_bias = [0.0] * TARGET_SLOT_COUNT
+    active_target_slot = 0
     target_ack_pending = False
     target_bias = 0.0
     target_captured = False
@@ -1241,19 +1360,26 @@ def run():
         reset_button_cur = reset_button.value()
         if reset_button_last == 1 and reset_button_cur == 0:
             target_seq = (target_seq + 1) & 0xFF
+            target_capture_slot = active_target_slot
+            target_capture_select_after = True
             target_capture_pending = True
             target_ack_pending = False
-            print("target reset (button) seq=%d" % target_seq)
+            print("target reset (button) slot=%d seq=%d" %
+                  (target_capture_slot, target_seq))
         reset_button_last = reset_button_cur
 
         if cf_rx.poll(uart_bridge):
             if cf_rx.record_start_requested:
                 capture.start(cf_rx.record_start_seq,
                               cf_rx.record_start_reason)
-                if target_captured:
-                    capture.capture_target(target_frame_rgb565, target_seq,
-                                           time.ticks_us())
-                    capture.set_target_bias(target_bias)
+                capture.set_active_target_slot(active_target_slot)
+                for slot in range(TARGET_SLOT_COUNT):
+                    if target_slot_valid[slot]:
+                        capture.capture_target(target_slot_frames[slot],
+                                               target_slot_seq[slot],
+                                               time.ticks_us(), slot)
+                        capture.set_target_bias(target_slot_bias[slot], slot)
+                capture.set_active_target_slot(active_target_slot)
             if cf_rx.record_abort_requested:
                 capture.abort(cf_rx.record_abort_seq,
                               cf_rx.record_abort_reason)
@@ -1262,10 +1388,29 @@ def run():
                                       cf_rx.record_stop_reason)
             if cf_rx.capture_requested:
                 target_seq = cf_rx.target_seq
+                target_capture_slot = cf_rx.capture_slot
+                target_capture_select_after = cf_rx.capture_select_after
                 target_capture_pending = True
-                target_ack_pending = True
-                print("target reset (uart) seq=%d reason=%d flags=0x%02x" %
-                      (target_seq, cf_rx.reason, cf_rx.flags))
+                print("target reset (uart) slot=%d select=%d seq=%d reason=%d flags=0x%02x" %
+                      (target_capture_slot, 1 if target_capture_select_after else 0,
+                       target_seq, cf_rx.reason, cf_rx.flags))
+            if cf_rx.select_requested:
+                slot = cf_rx.select_slot
+                if slot < TARGET_SLOT_COUNT and target_slot_valid[slot]:
+                    target_q[:] = target_slots_q[slot]
+                    target_frame_rgb565.draw_image(target_slot_frames[slot], 0, 0)
+                    active_target_slot = slot
+                    target_seq = cf_rx.select_seq
+                    target_bias = target_slot_bias[slot]
+                    target_captured = True
+                    target_ack_pending = True
+                    capture.set_active_target_slot(active_target_slot)
+                    print("target selected (uart) slot=%d seq=%d reason=%d flags=0x%02x" %
+                          (slot, target_seq, cf_rx.select_reason,
+                           cf_rx.select_flags))
+                else:
+                    print("target select ignored invalid slot=%d seq=%d" %
+                          (slot, cf_rx.select_seq))
 
         img = camera_pending
         camera_pending = None
@@ -1283,25 +1428,48 @@ def run():
         t_resize = time.ticks_us()
         camera_pending = csi0.snapshot(blocking=False)
         captured_now = False
+        captured_slot = active_target_slot
+        captured_select_after = False
         if not target_captured or target_capture_pending:
-            target_q[:] = frame_history_q[history_write_ptr]
+            captured_slot = target_capture_slot
+            if captured_slot >= TARGET_SLOT_COUNT:
+                captured_slot = 0
+            captured_select_after = (
+                target_capture_select_after or not target_captured)
+            target_slots_q[captured_slot][:] = frame_history_q[history_write_ptr]
             for i in range(frame_history_length):
                 if i != history_write_ptr:
                     frame_history_q[i][:] = frame_history_q[history_write_ptr]
-            target_frame_rgb565.draw_image(scaled_frame_rgb565, 0, 0)
-            target_captured = True
+            target_slot_frames[captured_slot].draw_image(scaled_frame_rgb565, 0, 0)
+            target_slot_valid[captured_slot] = True
+            target_slot_seq[captured_slot] = target_seq
+            if captured_select_after:
+                target_q[:] = target_slots_q[captured_slot]
+                target_frame_rgb565.draw_image(target_slot_frames[captured_slot], 0, 0)
+                active_target_slot = captured_slot
+                target_captured = True
+                target_ack_pending = True
             target_capture_pending = False
             captured_now = True
-            capture.capture_target(target_frame_rgb565, target_seq, t_resize)
-            print("target captured seq=%d" % target_seq)
+            capture.capture_target(target_slot_frames[captured_slot],
+                                   target_seq, t_resize, captured_slot)
+            capture.set_active_target_slot(active_target_slot)
+            print("target captured slot=%d select=%d seq=%d" %
+                  (captured_slot, 1 if captured_select_after else 0,
+                   target_seq))
 
         update_sources(history_write_ptr)
         if captured_now:
+            sources_by_keras[target_keras_index] = target_slots_q[captured_slot]
             y_bias_raw = runtime.model.predict(feeders)[0].flatten()
             y_bias = runtime.output_values(y_bias_raw)
             bias_cos, bias_sin, _ = normalize_yaw(float(y_bias[0]), float(y_bias[1]))
-            target_bias = math.atan2(bias_sin, bias_cos)
-            capture.set_target_bias(target_bias)
+            slot_bias = math.atan2(bias_sin, bias_cos)
+            target_slot_bias[captured_slot] = slot_bias
+            capture.set_target_bias(slot_bias, captured_slot)
+            if captured_select_after:
+                target_bias = slot_bias
+            sources_by_keras[target_keras_index] = target_q
 
         y_raw = runtime.model.predict(feeders)[0].flatten()
         y = runtime.output_values(y_raw)
@@ -1323,7 +1491,7 @@ def run():
         capture.append_frame(scaled_frame_rgb565, yaw_seq, target_seq, flags,
                              t0, t_snapshot, t_resize, t_predict,
                              next_deadline, age_ms, yaw_raw_rad, target_bias,
-                             yaw_rad, yaw_norm)
+                             yaw_rad, yaw_norm, active_target_slot)
         yaw_seq = (yaw_seq + 1) & 0xFF
         target_ack_pending = False
 
@@ -1337,11 +1505,12 @@ def run():
             delay_us = time.ticks_diff(next_deadline, time.ticks_us())
             print("us=%5d cam=%5d resize=%4d pred=%5d delay=%d yaw=%+.1fdeg "
                   "raw=%+.1fdeg bias=%+.1fdeg cos_sin=%+.3f,%+.3f norm=%.3f "
-                  "target=%d seq=%d tx=%d" %
+                  "target=%d slot=%d seq=%d tx=%d" %
                   (elapsed_us, snapshot_us, resize_us, predict_us, delay_us,
                    yaw_deg, yaw_raw_rad * 180.0 / math.pi,
                    target_bias * 180.0 / math.pi, yaw_cos, yaw_sin, yaw_norm,
-                   1 if target_captured else 0, target_seq, yaw_seq))
+                   1 if target_captured else 0, active_target_slot,
+                   target_seq, yaw_seq))
 
         tick += 1
         delay = time.ticks_diff(next_deadline, time.ticks_us())
