@@ -80,6 +80,31 @@ namespace rl_tools {
         OptixCameraData *cameras_close;
     };
 
+    struct DepthRayGenData
+    {
+        float *depth_ptr;
+        owl::vec2i  fb_size;
+        owl::vec2i  cam_size;
+        int    grid_cols;
+        int    num_cameras;
+        OptixTraversableHandle world;
+        OptixCameraData *cameras;
+        float max_depth;
+    };
+
+    struct MotionBlurDepthRayGenData
+    {
+        float *depth_ptr;
+        owl::vec2i  fb_size;
+        owl::vec2i  cam_size;
+        int    grid_cols;
+        int    num_cameras;
+        OptixTraversableHandle world;
+        OptixCameraData *cameras_open;
+        OptixCameraData *cameras_close;
+        float max_depth;
+    };
+
     /* variables for the miss program */
     struct MissProgData
     {

@@ -23,7 +23,8 @@ namespace rl_tools::rl::environments::l2f_visual {
         bool T_ENABLE_MOTION_BLUR = false,
         T_TI T_MOTION_BLUR_SAMPLES = 1,
         bool T_ENABLE_ANTI_ALIASING = false,
-        T_TI T_ANTI_ALIASING_GRID_SIZE = 1>
+        T_TI T_ANTI_ALIASING_GRID_SIZE = 1,
+        rendering::raytracing::OutputMode T_OUTPUT_MODE = rendering::raytracing::OutputMode::RGB>
     struct Specification {
         using T = T_T;
         using TI = T_TI;
@@ -37,10 +38,15 @@ namespace rl_tools::rl::environments::l2f_visual {
         static constexpr TI MOTION_BLUR_SAMPLES = T_MOTION_BLUR_SAMPLES;
         static constexpr bool ENABLE_ANTI_ALIASING = T_ENABLE_ANTI_ALIASING;
         static constexpr TI ANTI_ALIASING_GRID_SIZE = T_ANTI_ALIASING_GRID_SIZE;
+        static constexpr auto OUTPUT_MODE = T_OUTPUT_MODE;
+        static constexpr bool HAS_RGB = OUTPUT_MODE == rendering::raytracing::OutputMode::RGB || OUTPUT_MODE == rendering::raytracing::OutputMode::RGBD;
+        static constexpr bool HAS_DEPTH = OUTPUT_MODE == rendering::raytracing::OutputMode::RGBD || OUTPUT_MODE == rendering::raytracing::OutputMode::DEPTH;
+        static constexpr bool ENABLE_DEPTH = HAS_DEPTH;
+        static constexpr TI IMAGE_CHANNELS = HAS_DEPTH ? (HAS_RGB ? 4 : 1) : 3;
 
         using DYNAMICS_SPEC = l2f::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS>;
         using DYNAMICS_ENV = Multirotor<DYNAMICS_SPEC>;
-        using RENDERER_SPEC = rendering::raytracing::Specification<T, TI, CAM_WIDTH, CAM_HEIGHT, NUM_ENVS, NUM_PROBES, HIGH_FIDELITY_SHADING, ENABLE_MOTION_BLUR, MOTION_BLUR_SAMPLES, ENABLE_ANTI_ALIASING, ANTI_ALIASING_GRID_SIZE>;
+        using RENDERER_SPEC = rendering::raytracing::Specification<T, TI, CAM_WIDTH, CAM_HEIGHT, NUM_ENVS, NUM_PROBES, HIGH_FIDELITY_SHADING, ENABLE_MOTION_BLUR, MOTION_BLUR_SAMPLES, ENABLE_ANTI_ALIASING, ANTI_ALIASING_GRID_SIZE, OUTPUT_MODE>;
         using SCENE_SPEC = rendering::raytracing::scene::SceneSpecification<T, TI>;
     };
 
@@ -91,7 +97,7 @@ namespace rl_tools::rl::environments::l2f_visual {
         static constexpr TI ACTION_DIM = DYNAMICS_ENV::ACTION_DIM;
         static constexpr TI EPISODE_STEP_LIMIT = DYNAMICS_ENV::EPISODE_STEP_LIMIT;
 
-        using Observation = rl::environments::observation::Image<TI, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, 3>;
+        using Observation = rl::environments::observation::Image<TI, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, SPEC::IMAGE_CHANNELS>;
         using ObservationPrivileged = typename DYNAMICS_ENV::Observation;
         static constexpr TI OBSERVATION_DIM = Observation::DIM;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = ObservationPrivileged::DIM;

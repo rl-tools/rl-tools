@@ -176,11 +176,11 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void observe(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, const typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters& parameters, const typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::State& state, const rl::environments::observation::Image<typename SPEC::TI, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, 3>&, Matrix<OBS_SPEC>& observation, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT void observe(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, const typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters& parameters, const typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::State& state, const rl::environments::observation::Image<typename SPEC::TI, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, SPEC::IMAGE_CHANNELS>&, Matrix<OBS_SPEC>& observation, RNG& rng) {
         using T = typename OBS_SPEC::T;
         using TI = typename SPEC::TI;
         static_assert(OBS_SPEC::ROWS == 1);
-        static_assert(OBS_SPEC::COLS == SPEC::CAM_HEIGHT * SPEC::CAM_WIDTH * 3);
+        static_assert(OBS_SPEC::COLS == SPEC::CAM_HEIGHT * SPEC::CAM_WIDTH * SPEC::IMAGE_CHANNELS);
 
         auto camera = rl::environments::l2f_visual::make_camera_for_state(device, env, parameters, state);
         for (TI i = 0; i < SPEC::NUM_ENVS; i++) {
@@ -190,18 +190,28 @@ namespace rl_tools {
         set_cameras(device, *env.renderer, env.renderer->cameras);
         render(device, *env.renderer);
 
-        read_frame_buffer(device, *env.renderer, env.renderer->frame_buffer);
+        if constexpr (SPEC::HAS_RGB) {
+            read_frame_buffer(device, *env.renderer, env.renderer->frame_buffer);
+        }
+        if constexpr (SPEC::HAS_DEPTH) {
+            read_depth_buffer(device, *env.renderer, env.renderer->depth_buffer);
+        }
 
         constexpr TI CAM_PIXELS = SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT;
-        const uint32_t* fb_data = data(env.renderer->frame_buffer);
         for (TI i = 0; i < CAM_PIXELS; i++) {
-            const uint32_t rgba = fb_data[i];
-            const T r = static_cast<T>((rgba >>  0) & 0xFF) / static_cast<T>(255);
-            const T g = static_cast<T>((rgba >>  8) & 0xFF) / static_cast<T>(255);
-            const T b = static_cast<T>((rgba >> 16) & 0xFF) / static_cast<T>(255);
-            set(observation, 0, i * 3 + 0, r);
-            set(observation, 0, i * 3 + 1, g);
-            set(observation, 0, i * 3 + 2, b);
+            if constexpr (SPEC::HAS_RGB) {
+                const uint32_t rgba = data(env.renderer->frame_buffer)[i];
+                const T r = static_cast<T>((rgba >>  0) & 0xFF) / static_cast<T>(255);
+                const T g = static_cast<T>((rgba >>  8) & 0xFF) / static_cast<T>(255);
+                const T b = static_cast<T>((rgba >> 16) & 0xFF) / static_cast<T>(255);
+                set(observation, 0, i * SPEC::IMAGE_CHANNELS + 0, r);
+                set(observation, 0, i * SPEC::IMAGE_CHANNELS + 1, g);
+                set(observation, 0, i * SPEC::IMAGE_CHANNELS + 2, b);
+            }
+            if constexpr (SPEC::HAS_DEPTH) {
+                constexpr TI DEPTH_OFFSET = SPEC::HAS_RGB ? 3 : 0;
+                set(observation, 0, i * SPEC::IMAGE_CHANNELS + DEPTH_OFFSET, static_cast<T>(data(env.renderer->depth_buffer)[i]));
+            }
         }
     }
 
@@ -214,6 +224,7 @@ namespace rl_tools {
     RL_TOOLS_FUNCTION_PLACEMENT void observe_batch(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, const Tensor<PARAMETERS_SPEC>& parameters, const Tensor<STATE_SPEC>& states, typename SPEC::TI num_envs, Tensor<OUT_SPEC>& out_pixels) {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
+        static_assert(SPEC::HAS_RGB, "observe_batch with uint32_t pixels requires an RGB-capable l2f_visual specification");
         static_assert(utils::typing::is_same_v<typename PARAMETERS_SPEC::T, typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters>);
         static_assert(utils::typing::is_same_v<typename STATE_SPEC::T, typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::State>);
         static_assert(utils::typing::is_same_v<typename OUT_SPEC::T, uint32_t>);
