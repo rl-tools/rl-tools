@@ -1,5 +1,13 @@
 #define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 0
 
+#define RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB 0
+#define RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD 1
+#define RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH 2
+
+#ifndef RL_TOOLS_RENDERING_RAYTRACING_EXAMPLE_OUTPUT_MODE
+#define RL_TOOLS_RENDERING_RAYTRACING_EXAMPLE_OUTPUT_MODE RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB
+#endif
+
 #include <rl_tools/operations/cpu_mux.h>
 
 #include "environment/environment.h"
@@ -18,6 +26,13 @@
 #include <cuda_runtime.h>
 
 namespace rlt = rl_tools;
+
+static constexpr auto OUTPUT_MODE =
+    RL_TOOLS_RENDERING_RAYTRACING_EXAMPLE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
+        ? rlt::rendering::raytracing::OutputMode::DEPTH
+        : (RL_TOOLS_RENDERING_RAYTRACING_EXAMPLE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
+            ? rlt::rendering::raytracing::OutputMode::RGBD
+            : rlt::rendering::raytracing::OutputMode::RGB);
 
 int main(int argc, char** argv) {
     bool output_video = false;
@@ -39,7 +54,7 @@ int main(int argc, char** argv) {
     using TI = typename rlt::devices::DEVICE_FACTORY<>::index_t;
     static constexpr TI NUM_ENVS = 256;
     constexpr T PI = static_cast<T>(3.14159265358979323846);
-    using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, 64, 64, 64>;
+    using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, 64, 64, 64, false, false, 1, false, 1, OUTPUT_MODE>;
 
     static_assert(std::is_standard_layout_v<rlt::rl::environments::raytracing_example::Parameters<SPEC>>);
     static_assert(std::is_trivially_copyable_v<rlt::rl::environments::raytracing_example::Parameters<SPEC>>);
@@ -93,6 +108,12 @@ int main(int argc, char** argv) {
 
 
     constexpr TI STEPS = 1024*4;
+#if RL_TOOLS_RENDERING_RAYTRACING_EXAMPLE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
+    if (output_video) {
+        std::cerr << "--output-video requires RGB or RGBD output mode." << std::endl;
+        return 1;
+    }
+#else
     FILE* mp4_pipe = nullptr;
     std::vector<uint32_t> per_camera_rgba;
     std::vector<uint32_t> megaframe_rgba;
@@ -116,6 +137,7 @@ int main(int argc, char** argv) {
             return 1;
         }
     }
+#endif
 
     auto compute_states_and_cameras = [&](TI step_i) {
         for (TI env_i = 0; env_i < NUM_ENVS; env_i++) {
@@ -131,6 +153,10 @@ int main(int argc, char** argv) {
     };
 
     auto do_video_output = [&](TI step_i) -> int {
+#if RL_TOOLS_RENDERING_RAYTRACING_EXAMPLE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
+        (void)step_i;
+        return 0;
+#else
         if (mp4_pipe == nullptr) return 0;
         rlt::read_frame_buffer(device, *env.renderer, env.renderer->frame_buffer);
         const uint32_t* per_camera_rgba_ptr = rlt::data(env.renderer->frame_buffer);
@@ -154,6 +180,7 @@ int main(int argc, char** argv) {
             return 1;
         }
         return 0;
+#endif
     };
 
     cudaDeviceSynchronize();
@@ -165,7 +192,13 @@ int main(int argc, char** argv) {
 
     for (TI step_i = 0; step_i < STEPS; step_i++) {
         if (no_probe) {
+#if RL_TOOLS_RENDERING_RAYTRACING_EXAMPLE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
+            rlt::render_depth_only_launch(device, *env.renderer);
+#elif RL_TOOLS_RENDERING_RAYTRACING_EXAMPLE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
+            rlt::render_rgb_depth_only_launch(device, *env.renderer);
+#else
             rlt::render_rgb_only_launch(device, *env.renderer);
+#endif
         }
         else {
             rlt::render_launch(device, *env.renderer);
@@ -177,7 +210,13 @@ int main(int argc, char** argv) {
         }
 
         if (no_probe) {
+#if RL_TOOLS_RENDERING_RAYTRACING_EXAMPLE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
+            rlt::render_depth_only_sync(device, *env.renderer);
+#elif RL_TOOLS_RENDERING_RAYTRACING_EXAMPLE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
+            rlt::render_rgb_depth_only_sync(device, *env.renderer);
+#else
             rlt::render_rgb_only_sync(device, *env.renderer);
+#endif
         }
         else {
             rlt::render_sync(device, *env.renderer);
@@ -198,6 +237,7 @@ int main(int argc, char** argv) {
     std::cout << "raytracing_example: " << NUM_ENVS << " envs, " << STEPS << " batched observe steps" << std::endl;
     std::cout << "elapsed: " << elapsed << " s, effective frame throughput: " << fps << " frames/s" << std::endl;
 
+#if RL_TOOLS_RENDERING_RAYTRACING_EXAMPLE_OUTPUT_MODE != RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
     if (mp4_pipe != nullptr) {
         const int ffmpeg_status = pclose(mp4_pipe);
         mp4_pipe = nullptr;
@@ -207,8 +247,15 @@ int main(int argc, char** argv) {
         }
         std::cout << "video written: raytracing_example_megaframe.mp4" << std::endl;
     }
+#endif
 
+#if RL_TOOLS_RENDERING_RAYTRACING_EXAMPLE_OUTPUT_MODE != RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
     rlt::save_image(device, *env.renderer, "raytracing_example_grid.png");
+#endif
+#if RL_TOOLS_RENDERING_RAYTRACING_EXAMPLE_OUTPUT_MODE != RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB
+    rlt::save_depth_image(device, *env.renderer, "raytracing_example_depth.png");
+    rlt::save_depth(device, *env.renderer, "raytracing_example_depth.bin");
+#endif
 
     rlt::free(device, env);
     rlt::free(device, pixels);

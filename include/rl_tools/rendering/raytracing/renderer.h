@@ -14,10 +14,21 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     namespace rendering::raytracing{
 
-        template <typename T_T, typename T_TI, T_TI T_CAM_WIDTH, T_TI T_CAM_HEIGHT, T_TI T_NUM_CAMERAS, T_TI T_NUM_PROBES, bool T_HIGH_FIDELITY_SHADING = false, bool T_ENABLE_MOTION_BLUR = false, T_TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, T_TI T_ANTI_ALIASING_GRID_SIZE = 1>
+        enum class OutputMode {
+            RGB,
+            RGBD,
+            DEPTH
+        };
+
+        template <typename T_T, typename T_TI, T_TI T_CAM_WIDTH, T_TI T_CAM_HEIGHT, T_TI T_NUM_CAMERAS, T_TI T_NUM_PROBES, bool T_HIGH_FIDELITY_SHADING = false, bool T_ENABLE_MOTION_BLUR = false, T_TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, T_TI T_ANTI_ALIASING_GRID_SIZE = 1, OutputMode T_OUTPUT_MODE = OutputMode::RGB>
         struct Specification{
             using T = T_T;
             using TI = T_TI;
+            static constexpr OutputMode OUTPUT_MODE = T_OUTPUT_MODE;
+            static constexpr bool HAS_RGB = OUTPUT_MODE == OutputMode::RGB || OUTPUT_MODE == OutputMode::RGBD;
+            static constexpr bool HAS_DEPTH = OUTPUT_MODE == OutputMode::RGBD || OUTPUT_MODE == OutputMode::DEPTH;
+            static constexpr bool ENABLE_DEPTH = HAS_DEPTH;
+            static constexpr bool ENABLE_RGB = HAS_RGB;
             static constexpr TI CAM_WIDTH = T_CAM_WIDTH;
             static constexpr TI CAM_HEIGHT = T_CAM_HEIGHT;
             static constexpr TI NUM_CAMERAS = T_NUM_CAMERAS;
@@ -31,6 +42,7 @@ namespace rl_tools {
             static constexpr bool ENABLE_ANTI_ALIASING = T_ENABLE_ANTI_ALIASING && ANTI_ALIASING_GRID_SIZE > 1;
             static constexpr TI ANTI_ALIASING_SAMPLES = ENABLE_ANTI_ALIASING ? ANTI_ALIASING_GRID_SIZE * ANTI_ALIASING_GRID_SIZE : 1;
             static constexpr TI RGB_SAMPLES = (ENABLE_MOTION_BLUR ? MOTION_BLUR_SAMPLES : 1) * ANTI_ALIASING_SAMPLES;
+            static constexpr TI DEPTH_SAMPLES = RGB_SAMPLES;
             static_assert(ANTI_ALIASING_GRID_SIZE >= 1, "ANTI_ALIASING_GRID_SIZE must be at least 1");
             static_assert(!ENABLE_ANTI_ALIASING || ANTI_ALIASING_GRID_SIZE == 2 || ANTI_ALIASING_GRID_SIZE == 3 || ANTI_ALIASING_GRID_SIZE == 4, "ANTI_ALIASING_GRID_SIZE must be one of 2, 3, or 4");
             static constexpr TI GRID_COLS = [](){
@@ -91,16 +103,35 @@ namespace rl_tools {
             using SPEC = T_SPEC;
             void* context = nullptr;
             void* module = nullptr;
-            void* ray_gen = nullptr;
-            void* owl_frame_buffer = nullptr;
             void* owl_cameras_buffer = nullptr;
             void* world = nullptr;
-            void* rgb_launch_params = nullptr;
+            void* launch_params = nullptr;
             void* collision_ray_gen = nullptr;
             void* owl_collision_results_buffer = nullptr;
             void* probe_dirs_buffer = nullptr;
             void* coll_launch_params = nullptr;
         };
+
+        template <typename T_SPEC, bool T_HAS_RGB>
+        struct RGBBackendContext {};
+
+        template <typename T_SPEC>
+        struct RGBBackendContext<T_SPEC, true> {
+            void* ray_gen = nullptr;
+            void* owl_frame_buffer = nullptr;
+        };
+
+        template <typename T_SPEC, bool T_HAS_DEPTH>
+        struct DepthBackendContext {};
+
+        template <typename T_SPEC>
+        struct DepthBackendContext<T_SPEC, true> {
+            void* depth_ray_gen = nullptr;
+            void* owl_depth_buffer = nullptr;
+        };
+
+        template <typename T_SPEC>
+        struct RendererBackend: BackendContext<T_SPEC>, RGBBackendContext<T_SPEC, T_SPEC::HAS_RGB>, DepthBackendContext<T_SPEC, T_SPEC::HAS_DEPTH> {};
 
         template <typename T_SPEC, bool T_ENABLE_MOTION_BLUR>
         struct MotionBlurRendererStorage {};
@@ -114,17 +145,37 @@ namespace rl_tools {
             Tensor<CAMERA_TENSOR_SPEC> cameras_open;
         };
 
+        template <typename T_SPEC, bool T_HAS_RGB>
+        struct RGBRendererStorage {};
+
         template <typename T_SPEC>
-        struct Renderer: MotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_MOTION_BLUR>{
+        struct RGBRendererStorage<T_SPEC, true> {
+            using SPEC = T_SPEC;
+            using TI = typename SPEC::TI;
+            using FB_TENSOR_SPEC = tensor::Specification<uint32_t, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH>, true>;
+            Tensor<FB_TENSOR_SPEC> frame_buffer;
+        };
+
+        template <typename T_SPEC, bool T_HAS_DEPTH>
+        struct DepthRendererStorage {};
+
+        template <typename T_SPEC>
+        struct DepthRendererStorage<T_SPEC, true> {
+            using SPEC = T_SPEC;
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            using DEPTH_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH>, true>;
+            Tensor<DEPTH_TENSOR_SPEC> depth_buffer;
+        };
+
+        template <typename T_SPEC>
+        struct Renderer: MotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_MOTION_BLUR>, RGBRendererStorage<T_SPEC, T_SPEC::HAS_RGB>, DepthRendererStorage<T_SPEC, T_SPEC::HAS_DEPTH>{
             using SPEC = T_SPEC;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
 
             using CAMERA_TENSOR_SPEC = tensor::Specification<CameraData<T>, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS>, true>;
             Tensor<CAMERA_TENSOR_SPEC> cameras;
-
-            using FB_TENSOR_SPEC = tensor::Specification<uint32_t, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH>, true>;
-            Tensor<FB_TENSOR_SPEC> frame_buffer;
 
             using COLLISION_TENSOR_SPEC = tensor::Specification<CollisionResult, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::NUM_PROBES>, true>;
             Tensor<COLLISION_TENSOR_SPEC> collision_results;
@@ -136,7 +187,7 @@ namespace rl_tools {
             std::vector<MeshData<SPEC>> meshes;
             std::vector<rendering::raytracing::SceneLight> scene_lights;
 
-            BackendContext<SPEC> backend;
+            RendererBackend<SPEC> backend;
         };
     }
 }

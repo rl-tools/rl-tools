@@ -10,6 +10,6 @@ add_library(rendering_raytracing_stb INTERFACE)
 target_include_directories(rendering_raytracing_stb SYSTEM INTERFACE ${stb_SOURCE_DIR})
 
 add_subdirectory(backends)
-#add_subdirectory(benchmark)
+add_subdirectory(benchmark EXCLUDE_FROM_ALL)
 add_subdirectory(example)
 add_subdirectory(yaw_prediction)

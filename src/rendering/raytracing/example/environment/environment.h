@@ -4,7 +4,7 @@
 #include <array>
 
 namespace rl_tools::rl::environments::raytracing_example {
-    template <typename T_T, typename T_TI, T_TI T_NUM_ENVS, T_TI T_CAM_WIDTH = 64, T_TI T_CAM_HEIGHT = 64, T_TI T_NUM_PROBES = 64, bool T_HIGH_FIDELITY_SHADING = false, bool T_ENABLE_MOTION_BLUR = false, T_TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, T_TI T_ANTI_ALIASING_GRID_SIZE = 1>
+    template <typename T_T, typename T_TI, T_TI T_NUM_ENVS, T_TI T_CAM_WIDTH = 64, T_TI T_CAM_HEIGHT = 64, T_TI T_NUM_PROBES = 64, bool T_HIGH_FIDELITY_SHADING = false, bool T_ENABLE_MOTION_BLUR = false, T_TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, T_TI T_ANTI_ALIASING_GRID_SIZE = 1, rendering::raytracing::OutputMode T_OUTPUT_MODE = rendering::raytracing::OutputMode::RGB>
     struct Specification {
         using T = T_T;
         using TI = T_TI;
@@ -17,7 +17,11 @@ namespace rl_tools::rl::environments::raytracing_example {
         static constexpr TI MOTION_BLUR_SAMPLES = T_MOTION_BLUR_SAMPLES;
         static constexpr bool ENABLE_ANTI_ALIASING = T_ENABLE_ANTI_ALIASING;
         static constexpr TI ANTI_ALIASING_GRID_SIZE = T_ANTI_ALIASING_GRID_SIZE;
-        using RAYTRACING_SPEC = rendering::raytracing::Specification<T, TI, CAM_WIDTH, CAM_HEIGHT, NUM_ENVS, NUM_PROBES, HIGH_FIDELITY_SHADING, ENABLE_MOTION_BLUR, MOTION_BLUR_SAMPLES, ENABLE_ANTI_ALIASING, ANTI_ALIASING_GRID_SIZE>;
+        static constexpr auto OUTPUT_MODE = T_OUTPUT_MODE;
+        static constexpr bool HAS_RGB = OUTPUT_MODE == rendering::raytracing::OutputMode::RGB || OUTPUT_MODE == rendering::raytracing::OutputMode::RGBD;
+        static constexpr bool HAS_DEPTH = OUTPUT_MODE == rendering::raytracing::OutputMode::RGBD || OUTPUT_MODE == rendering::raytracing::OutputMode::DEPTH;
+        static constexpr bool ENABLE_DEPTH = HAS_DEPTH;
+        using RAYTRACING_SPEC = rendering::raytracing::Specification<T, TI, CAM_WIDTH, CAM_HEIGHT, NUM_ENVS, NUM_PROBES, HIGH_FIDELITY_SHADING, ENABLE_MOTION_BLUR, MOTION_BLUR_SAMPLES, ENABLE_ANTI_ALIASING, ANTI_ALIASING_GRID_SIZE, OUTPUT_MODE>;
     };
 
     enum class ObjectID : int {

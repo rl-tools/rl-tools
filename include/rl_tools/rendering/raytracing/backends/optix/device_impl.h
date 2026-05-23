@@ -7,6 +7,10 @@
 #include "device.h"
 #include <optix_device.h>
 
+#ifndef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_DEPTH_PROGRAMS
+#define RL_TOOLS_RENDERING_RAYTRACING_ENABLE_DEPTH_PROGRAMS 0
+#endif
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools
 {
@@ -29,94 +33,26 @@ namespace rl_tools
     return (1.f - t) * a + t * b;
   }
 
-  template <bool MOTION_BLUR, int NUM_SAMPLES, typename RAYGEN_DATA>
-  inline __device__ void simpleRayGenImpl()
+  struct PixelLaunchContext
   {
-    const RAYGEN_DATA &self = owl::getProgramData<RAYGEN_DATA>();
-    const owl::vec2i pixel_id = owl::getLaunchIndex();
+    int cam_idx;
+    int local_x;
+    int local_y;
+    int fb_offset;
+    bool valid;
+  };
 
+  template <typename RAYGEN_DATA>
+  inline __device__ PixelLaunchContext pixel_launch_context(const RAYGEN_DATA &self)
+  {
+    const owl::vec2i pixel_id = owl::getLaunchIndex();
     const int tile_col = pixel_id.x / self.cam_size.x;
     const int tile_row = pixel_id.y / self.cam_size.y;
     const int cam_idx  = tile_row * self.grid_cols + tile_col;
-
-    if (cam_idx >= self.num_cameras)
-      return;
-
     const int local_x = pixel_id.x - tile_col * self.cam_size.x;
     const int local_y = pixel_id.y - tile_row * self.cam_size.y;
-    const owl::vec2f screen = (owl::vec2f(local_x, local_y) + owl::vec2f(.5f)) / owl::vec2f(self.cam_size);
-
-    owl::vec3f accumulated_color(0.f);
-    for (int sample_i = 0; sample_i < NUM_SAMPLES; sample_i++) {
-      owl::vec3f pos;
-      owl::vec3f direction;
-      if constexpr (MOTION_BLUR) {
-        const OptixCameraData &cam_open = self.cameras_open[cam_idx];
-        const OptixCameraData &cam_close = self.cameras_close[cam_idx];
-        const float shutter_t = (float(sample_i) + .5f) * (1.f / float(NUM_SAMPLES));
-        const owl::vec3f dir_00 = lerp_camera_vec(cam_open.dir_00, cam_close.dir_00, shutter_t);
-        const owl::vec3f dir_du = lerp_camera_vec(cam_open.dir_du, cam_close.dir_du, shutter_t);
-        const owl::vec3f dir_dv = lerp_camera_vec(cam_open.dir_dv, cam_close.dir_dv, shutter_t);
-        pos = lerp_camera_vec(cam_open.pos, cam_close.pos, shutter_t);
-        direction = normalize(dir_00 + screen.u * dir_du + screen.v * dir_dv);
-      }
-      else {
-        const OptixCameraData &cam = self.cameras[cam_idx];
-        pos = cam.pos;
-        direction = normalize(cam.dir_00 + screen.u * cam.dir_du + screen.v * cam.dir_dv);
-      }
-
-      owl::vec3f color;
-      unsigned int p0 = 0, p1 = 0;
-      owl::packPointer(&color, p0, p1);
-      unsigned int p2 = 0;
-      optixTrace(self.world,
-                 (const float3&)pos,
-                 (const float3&)direction,
-                 0.f,
-                 1e30f,
-                 0.0f,
-                 OptixVisibilityMask(255),
-                 OPTIX_RAY_FLAG_DISABLE_ANYHIT,
-                 0, NUM_RAY_TYPES, 0,
-                 p0, p1, p2);
-      accumulated_color = accumulated_color + color;
-    }
-    accumulated_color = accumulated_color * (1.f / float(NUM_SAMPLES));
-
-    const int fb_offset = cam_idx * self.cam_size.x * self.cam_size.y
-                    + local_y * self.cam_size.x + local_x;
-    self.fb_ptr[fb_offset] = make_srgb_rgba_from_linear(accumulated_color);
-  }
-
-  OPTIX_RAYGEN_PROGRAM(simpleRayGen)()
-  {
-    simpleRayGenImpl<false, 1, RayGenData>();
-  }
-
-  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur2)()
-  {
-    simpleRayGenImpl<true, 2, MotionBlurRayGenData>();
-  }
-
-  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur4)()
-  {
-    simpleRayGenImpl<true, 4, MotionBlurRayGenData>();
-  }
-
-  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur8)()
-  {
-    simpleRayGenImpl<true, 8, MotionBlurRayGenData>();
-  }
-
-  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur16)()
-  {
-    simpleRayGenImpl<true, 16, MotionBlurRayGenData>();
-  }
-
-  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur32)()
-  {
-    simpleRayGenImpl<true, 32, MotionBlurRayGenData>();
+    const int fb_offset = cam_idx * self.cam_size.x * self.cam_size.y + local_y * self.cam_size.x + local_x;
+    return {cam_idx, local_x, local_y, fb_offset, cam_idx < self.num_cameras};
   }
 
   inline __device__ owl::vec3f trace_rgb_color(OptixTraversableHandle world, const owl::vec3f &pos, const owl::vec3f &direction)
@@ -138,148 +74,162 @@ namespace rl_tools
     return color;
   }
 
-  template <bool MOTION_BLUR, int MOTION_SAMPLES, int AA_GRID, typename RAYGEN_DATA>
-  inline __device__ void simpleRayGenAntiAliasingImpl()
+#if RL_TOOLS_RENDERING_RAYTRACING_ENABLE_DEPTH_PROGRAMS
+  inline __device__ float trace_depth_distance(OptixTraversableHandle world, const owl::vec3f &pos, const owl::vec3f &direction, float max_depth)
+  {
+    unsigned int u0 = __float_as_uint(max_depth);
+    unsigned int u1 = 0;
+    optixTrace(world,
+               (const float3&)pos,
+               (const float3&)direction,
+               0.f,
+               max_depth,
+               0.0f,
+               OptixVisibilityMask(255),
+               OPTIX_RAY_FLAG_DISABLE_ANYHIT,
+               1, NUM_RAY_TYPES, 1,
+               u0, u1);
+    return __uint_as_float(u0);
+  }
+#endif
+
+  struct RgbOutput
+  {
+    using Accumulator = owl::vec3f;
+    inline __device__ static Accumulator zero() { return owl::vec3f(0.f); }
+    template <typename RAYGEN_DATA>
+    inline __device__ static void accumulate(const RAYGEN_DATA &self, Accumulator &acc, const owl::vec3f &pos, const owl::vec3f &direction)
+    {
+      acc = acc + trace_rgb_color(self.world, pos, direction);
+    }
+    template <typename RAYGEN_DATA>
+    inline __device__ static void store(const RAYGEN_DATA &self, const PixelLaunchContext &ctx, Accumulator acc, int samples)
+    {
+      self.fb_ptr[ctx.fb_offset] = make_srgb_rgba_from_linear(acc * (1.f / float(samples)));
+    }
+  };
+
+#if RL_TOOLS_RENDERING_RAYTRACING_ENABLE_DEPTH_PROGRAMS
+  struct DepthOutput
+  {
+    using Accumulator = float;
+    inline __device__ static Accumulator zero() { return 0.f; }
+    template <typename RAYGEN_DATA>
+    inline __device__ static void accumulate(const RAYGEN_DATA &self, Accumulator &acc, const owl::vec3f &pos, const owl::vec3f &direction)
+    {
+      acc += trace_depth_distance(self.world, pos, direction, self.max_depth);
+    }
+    template <typename RAYGEN_DATA>
+    inline __device__ static void store(const RAYGEN_DATA &self, const PixelLaunchContext &ctx, Accumulator acc, int samples)
+    {
+      self.depth_ptr[ctx.fb_offset] = acc * (1.f / float(samples));
+    }
+  };
+#endif
+
+  template <typename OUTPUT, bool MOTION_BLUR, int MOTION_SAMPLES, int AA_GRID, typename RAYGEN_DATA>
+  inline __device__ void rayGenImpl()
   {
     const RAYGEN_DATA &self = owl::getProgramData<RAYGEN_DATA>();
-    const owl::vec2i pixel_id = owl::getLaunchIndex();
-
-    const int tile_col = pixel_id.x / self.cam_size.x;
-    const int tile_row = pixel_id.y / self.cam_size.y;
-    const int cam_idx  = tile_row * self.grid_cols + tile_col;
-
-    if (cam_idx >= self.num_cameras)
+    const PixelLaunchContext ctx = pixel_launch_context(self);
+    if (!ctx.valid)
       return;
 
-    const int local_x = pixel_id.x - tile_col * self.cam_size.x;
-    const int local_y = pixel_id.y - tile_row * self.cam_size.y;
+    typename OUTPUT::Accumulator accumulated = OUTPUT::zero();
     const float inv_aa_grid = 1.f / float(AA_GRID);
-
-    owl::vec3f accumulated_color(0.f);
-    if constexpr (MOTION_BLUR) {
-      const OptixCameraData &cam_open = self.cameras_open[cam_idx];
-      const OptixCameraData &cam_close = self.cameras_close[cam_idx];
-      for (int motion_i = 0; motion_i < MOTION_SAMPLES; motion_i++) {
+    for (int motion_i = 0; motion_i < MOTION_SAMPLES; motion_i++) {
+      owl::vec3f pos;
+      owl::vec3f dir_00;
+      owl::vec3f dir_du;
+      owl::vec3f dir_dv;
+      if constexpr (MOTION_BLUR) {
+        const OptixCameraData &cam_open = self.cameras_open[ctx.cam_idx];
+        const OptixCameraData &cam_close = self.cameras_close[ctx.cam_idx];
         const float shutter_t = (float(motion_i) + .5f) * (1.f / float(MOTION_SAMPLES));
-        const owl::vec3f dir_00 = lerp_camera_vec(cam_open.dir_00, cam_close.dir_00, shutter_t);
-        const owl::vec3f dir_du = lerp_camera_vec(cam_open.dir_du, cam_close.dir_du, shutter_t);
-        const owl::vec3f dir_dv = lerp_camera_vec(cam_open.dir_dv, cam_close.dir_dv, shutter_t);
-        const owl::vec3f pos = lerp_camera_vec(cam_open.pos, cam_close.pos, shutter_t);
-        for (int aa_y = 0; aa_y < AA_GRID; aa_y++) {
-          for (int aa_x = 0; aa_x < AA_GRID; aa_x++) {
-            const owl::vec2f screen = (owl::vec2f(local_x, local_y) + owl::vec2f((float(aa_x) + .5f) * inv_aa_grid, (float(aa_y) + .5f) * inv_aa_grid)) / owl::vec2f(self.cam_size);
-            const owl::vec3f direction = normalize(dir_00 + screen.u * dir_du + screen.v * dir_dv);
-            accumulated_color = accumulated_color + trace_rgb_color(self.world, pos, direction);
-          }
-        }
+        pos = lerp_camera_vec(cam_open.pos, cam_close.pos, shutter_t);
+        dir_00 = lerp_camera_vec(cam_open.dir_00, cam_close.dir_00, shutter_t);
+        dir_du = lerp_camera_vec(cam_open.dir_du, cam_close.dir_du, shutter_t);
+        dir_dv = lerp_camera_vec(cam_open.dir_dv, cam_close.dir_dv, shutter_t);
       }
-    }
-    else {
-      const OptixCameraData &cam = self.cameras[cam_idx];
+      else {
+        const OptixCameraData &cam = self.cameras[ctx.cam_idx];
+        pos = cam.pos;
+        dir_00 = cam.dir_00;
+        dir_du = cam.dir_du;
+        dir_dv = cam.dir_dv;
+      }
       for (int aa_y = 0; aa_y < AA_GRID; aa_y++) {
         for (int aa_x = 0; aa_x < AA_GRID; aa_x++) {
-          const owl::vec2f screen = (owl::vec2f(local_x, local_y) + owl::vec2f((float(aa_x) + .5f) * inv_aa_grid, (float(aa_y) + .5f) * inv_aa_grid)) / owl::vec2f(self.cam_size);
-          const owl::vec3f direction = normalize(cam.dir_00 + screen.u * cam.dir_du + screen.v * cam.dir_dv);
-          accumulated_color = accumulated_color + trace_rgb_color(self.world, cam.pos, direction);
+          const owl::vec2f screen = (owl::vec2f(ctx.local_x, ctx.local_y) + owl::vec2f((float(aa_x) + .5f) * inv_aa_grid, (float(aa_y) + .5f) * inv_aa_grid)) / owl::vec2f(self.cam_size);
+          const owl::vec3f direction = normalize(dir_00 + screen.u * dir_du + screen.v * dir_dv);
+          OUTPUT::accumulate(self, accumulated, pos, direction);
         }
       }
     }
-    accumulated_color = accumulated_color * (1.f / float(MOTION_SAMPLES * AA_GRID * AA_GRID));
-
-    const int fb_offset = cam_idx * self.cam_size.x * self.cam_size.y
-                    + local_y * self.cam_size.x + local_x;
-    self.fb_ptr[fb_offset] = make_srgb_rgba_from_linear(accumulated_color);
+    OUTPUT::store(self, ctx, accumulated, MOTION_SAMPLES * AA_GRID * AA_GRID);
   }
 
-  OPTIX_RAYGEN_PROGRAM(simpleRayGenAA2)()
-  {
-    simpleRayGenAntiAliasingImpl<false, 1, 2, RayGenData>();
-  }
+#define RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(NAME, MOTION_BLUR, MOTION_SAMPLES, AA_GRID, DATA) \
+  OPTIX_RAYGEN_PROGRAM(NAME)() { rayGenImpl<RgbOutput, MOTION_BLUR, MOTION_SAMPLES, AA_GRID, DATA>(); }
 
-  OPTIX_RAYGEN_PROGRAM(simpleRayGenAA3)()
-  {
-    simpleRayGenAntiAliasingImpl<false, 1, 3, RayGenData>();
-  }
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGen, false, 1, 1, RayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur2, true, 2, 1, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur4, true, 4, 1, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur8, true, 8, 1, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur16, true, 16, 1, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur32, true, 32, 1, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenAA2, false, 1, 2, RayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenAA3, false, 1, 3, RayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenAA4, false, 1, 4, RayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur2AA2, true, 2, 2, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur2AA3, true, 2, 3, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur2AA4, true, 2, 4, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur4AA2, true, 4, 2, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur4AA3, true, 4, 3, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur4AA4, true, 4, 4, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur8AA2, true, 8, 2, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur8AA3, true, 8, 3, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur8AA4, true, 8, 4, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur16AA2, true, 16, 2, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur16AA3, true, 16, 3, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur16AA4, true, 16, 4, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur32AA2, true, 32, 2, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur32AA3, true, 32, 3, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur32AA4, true, 32, 4, MotionBlurRayGenData)
 
-  OPTIX_RAYGEN_PROGRAM(simpleRayGenAA4)()
-  {
-    simpleRayGenAntiAliasingImpl<false, 1, 4, RayGenData>();
-  }
+#undef RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN
 
-  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur2AA2)()
-  {
-    simpleRayGenAntiAliasingImpl<true, 2, 2, MotionBlurRayGenData>();
-  }
+#if RL_TOOLS_RENDERING_RAYTRACING_ENABLE_DEPTH_PROGRAMS
+#define RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(NAME, MOTION_BLUR, MOTION_SAMPLES, AA_GRID, DATA) \
+  OPTIX_RAYGEN_PROGRAM(NAME)() { rayGenImpl<DepthOutput, MOTION_BLUR, MOTION_SAMPLES, AA_GRID, DATA>(); }
 
-  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur2AA3)()
-  {
-    simpleRayGenAntiAliasingImpl<true, 2, 3, MotionBlurRayGenData>();
-  }
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGen, false, 1, 1, DepthRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur2, true, 2, 1, MotionBlurDepthRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur4, true, 4, 1, MotionBlurDepthRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur8, true, 8, 1, MotionBlurDepthRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur16, true, 16, 1, MotionBlurDepthRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur32, true, 32, 1, MotionBlurDepthRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenAA2, false, 1, 2, DepthRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenAA3, false, 1, 3, DepthRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenAA4, false, 1, 4, DepthRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur2AA2, true, 2, 2, MotionBlurDepthRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur2AA3, true, 2, 3, MotionBlurDepthRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur2AA4, true, 2, 4, MotionBlurDepthRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur4AA2, true, 4, 2, MotionBlurDepthRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur4AA3, true, 4, 3, MotionBlurDepthRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur4AA4, true, 4, 4, MotionBlurDepthRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur8AA2, true, 8, 2, MotionBlurDepthRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur8AA3, true, 8, 3, MotionBlurDepthRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur8AA4, true, 8, 4, MotionBlurDepthRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur16AA2, true, 16, 2, MotionBlurDepthRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur16AA3, true, 16, 3, MotionBlurDepthRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur16AA4, true, 16, 4, MotionBlurDepthRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur32AA2, true, 32, 2, MotionBlurDepthRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur32AA3, true, 32, 3, MotionBlurDepthRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN(depthRayGenMotionBlur32AA4, true, 32, 4, MotionBlurDepthRayGenData)
 
-  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur2AA4)()
-  {
-    simpleRayGenAntiAliasingImpl<true, 2, 4, MotionBlurRayGenData>();
-  }
-
-  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur4AA2)()
-  {
-    simpleRayGenAntiAliasingImpl<true, 4, 2, MotionBlurRayGenData>();
-  }
-
-  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur4AA3)()
-  {
-    simpleRayGenAntiAliasingImpl<true, 4, 3, MotionBlurRayGenData>();
-  }
-
-  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur4AA4)()
-  {
-    simpleRayGenAntiAliasingImpl<true, 4, 4, MotionBlurRayGenData>();
-  }
-
-  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur8AA2)()
-  {
-    simpleRayGenAntiAliasingImpl<true, 8, 2, MotionBlurRayGenData>();
-  }
-
-  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur8AA3)()
-  {
-    simpleRayGenAntiAliasingImpl<true, 8, 3, MotionBlurRayGenData>();
-  }
-
-  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur8AA4)()
-  {
-    simpleRayGenAntiAliasingImpl<true, 8, 4, MotionBlurRayGenData>();
-  }
-
-  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur16AA2)()
-  {
-    simpleRayGenAntiAliasingImpl<true, 16, 2, MotionBlurRayGenData>();
-  }
-
-  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur16AA3)()
-  {
-    simpleRayGenAntiAliasingImpl<true, 16, 3, MotionBlurRayGenData>();
-  }
-
-  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur16AA4)()
-  {
-    simpleRayGenAntiAliasingImpl<true, 16, 4, MotionBlurRayGenData>();
-  }
-
-  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur32AA2)()
-  {
-    simpleRayGenAntiAliasingImpl<true, 32, 2, MotionBlurRayGenData>();
-  }
-
-  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur32AA3)()
-  {
-    simpleRayGenAntiAliasingImpl<true, 32, 3, MotionBlurRayGenData>();
-  }
-
-  OPTIX_RAYGEN_PROGRAM(simpleRayGenMotionBlur32AA4)()
-  {
-    simpleRayGenAntiAliasingImpl<true, 32, 4, MotionBlurRayGenData>();
-  }
+#undef RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN
+#endif
 
   OPTIX_CLOSEST_HIT_PROGRAM(TriangleMesh)()
   {

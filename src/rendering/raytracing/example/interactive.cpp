@@ -1,5 +1,13 @@
 #define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 0
 
+#define RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB 0
+#define RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD 1
+#define RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH 2
+
+#ifndef RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE
+#define RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB
+#endif
+
 #include <rl_tools/operations/cpu_mux.h>
 
 #include "environment/environment.h"
@@ -17,6 +25,13 @@
 #include <sys/stat.h>
 
 namespace rlt = rl_tools;
+
+static constexpr auto OUTPUT_MODE =
+    RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
+        ? rlt::rendering::raytracing::OutputMode::DEPTH
+        : (RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
+            ? rlt::rendering::raytracing::OutputMode::RGBD
+            : rlt::rendering::raytracing::OutputMode::RGB);
 
 // Minimal 5x7 bitmap font for overlay text
 struct FontGlyph {
@@ -84,6 +99,16 @@ static void draw_string(uint32_t* pixels, int width, int height, int x0, int y0,
     }
 }
 
+#if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE != RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB
+static void depth_to_rgba(const float* depth, uint32_t* pixels, int count, float max_depth) {
+    for (int i = 0; i < count; i++) {
+        float normalized = std::fmin(std::fmax(depth[i] / max_depth, 0.0f), 1.0f);
+        uint8_t value = static_cast<uint8_t>((1.0f - normalized) * 255.0f);
+        pixels[i] = (0xFFu << 24) | (uint32_t(value) << 16) | (uint32_t(value) << 8) | uint32_t(value);
+    }
+}
+#endif
+
 static void draw_overlay_background(uint32_t* pixels, int width, int /*height*/, int x0, int y0, int w, int h) {
     for (int row = y0; row < y0 + h; row++) {
         for (int col = x0; col < x0 + w; col++) {
@@ -131,6 +156,9 @@ struct InputState {
 };
 
 static InputState g_input;
+#if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
+static bool g_show_depth = true;
+#endif
 
 static std::string camera_cache_path(const std::string& scene_path) {
     const char* home = std::getenv("HOME");
@@ -169,6 +197,12 @@ static void key_callback(GLFWwindow* window, int key, int /*scancode*/, int acti
         glfwSetWindowShouldClose(window, GLFW_TRUE);
         return;
     }
+#if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
+    if (key == GLFW_KEY_TAB && action == GLFW_PRESS) {
+        g_show_depth = !g_show_depth;
+        return;
+    }
+#endif
     bool pressed = (action == GLFW_PRESS || action == GLFW_REPEAT);
     if (key == GLFW_KEY_W) g_input.forward = pressed;
     if (key == GLFW_KEY_S) g_input.backward = pressed;
@@ -218,7 +252,7 @@ int main(int argc, char** argv) {
     constexpr TI CAM_WIDTH = 640;
     constexpr TI CAM_HEIGHT = 480;
     constexpr TI NUM_ENVS = 1;
-    using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, CAM_WIDTH, CAM_HEIGHT, 64, true>;
+    using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, CAM_WIDTH, CAM_HEIGHT, 64, true, false, 1, false, 1, OUTPUT_MODE>;
     using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 
     DEVICE device;
@@ -255,6 +289,11 @@ int main(int argc, char** argv) {
 
     rlt::malloc(device, env);
     rlt::init(device, env);
+#if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
+    std::cout << "RGBD target enabled. Press Tab to toggle RGB/depth display." << std::endl;
+#elif RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
+    std::cout << "Depth target enabled." << std::endl;
+#endif
 
     rlt::rl::environments::raytracing_example::State<SPEC> state{};
     if (env.num_indoor_initial_states > 0) {
@@ -337,10 +376,32 @@ int main(int argc, char** argv) {
         rlt::set(device, env.renderer->cameras, rlt::make_camera_data(eye, look_at, up, SPEC::RAYTRACING_SPEC::COS_FOVY, aspect), static_cast<TI>(0));
 
         rlt::set_cameras(device, *env.renderer, env.renderer->cameras);
+#if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
+        rlt::render_depth_only(device, *env.renderer);
+        rlt::read_depth_buffer(device, *env.renderer, env.renderer->depth_buffer);
+        {
+            const float max_depth = env.renderer->camera_radius > 0 ? env.renderer->camera_radius * 2.0f : 1e30f;
+            depth_to_rgba(rlt::data(env.renderer->depth_buffer), pixels.data(), static_cast<int>(pixels.size()), max_depth);
+        }
+#elif RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
+        if (g_show_depth) {
+            rlt::render_depth_only(device, *env.renderer);
+            rlt::read_depth_buffer(device, *env.renderer, env.renderer->depth_buffer);
+            const float max_depth = env.renderer->camera_radius > 0 ? env.renderer->camera_radius * 2.0f : 1e30f;
+            depth_to_rgba(rlt::data(env.renderer->depth_buffer), pixels.data(), static_cast<int>(pixels.size()), max_depth);
+        }
+        else {
+            rlt::render_rgb_only(device, *env.renderer);
+            rlt::read_frame_buffer(device, *env.renderer, env.renderer->frame_buffer);
+            const uint32_t* fb_data = rlt::data(env.renderer->frame_buffer);
+            std::memcpy(pixels.data(), fb_data, pixels.size() * sizeof(uint32_t));
+        }
+#else
         rlt::render_rgb_only(device, *env.renderer);
         rlt::read_frame_buffer(device, *env.renderer, env.renderer->frame_buffer);
         const uint32_t* fb_data = rlt::data(env.renderer->frame_buffer);
         std::memcpy(pixels.data(), fb_data, pixels.size() * sizeof(uint32_t));
+#endif
 
         {
             Quaternion q = quaternion_from_yaw_pitch(g_input.yaw, g_input.pitch);
