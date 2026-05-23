@@ -1592,7 +1592,7 @@ int main(int argc, char** argv){
             const TI scene_i = N_TRAIN_SCENES + validation_scene_i;
             auto* renderer = renderers[scene_i];
             auto* scene = scenes[scene_i];
-            OWLParams rgb_lp = (OWLParams)renderer->backend.rgb_launch_params;
+            OWLParams rgb_lp = (OWLParams)renderer->backend.launch_params;
             cudaStream_t optix_stream = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
             void* camera_buffer = (void*)owlBufferGetPointer((OWLBuffer)renderer->backend.owl_cameras_buffer, 0);
             void* camera_open_buffer = nullptr;
@@ -1790,7 +1790,7 @@ int main(int argc, char** argv){
             TI actual_scene_i = active_scene_indices[active_scene_i];
             auto* renderer = renderers[actual_scene_i];
             active_renderers[active_scene_i] = renderer;
-            OWLParams rgb_lp = (OWLParams)renderer->backend.rgb_launch_params;
+            OWLParams rgb_lp = (OWLParams)renderer->backend.launch_params;
             active_scene_render_streams[active_scene_i] = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
             active_scene_camera_buffers[active_scene_i] = (void*)owlBufferGetPointer((OWLBuffer)renderer->backend.owl_cameras_buffer, 0);
             imitation_kernels::set_active_scene_camera_open_buffer<RENDER_MOTION_BLUR_ACTIVE>(active_scene_camera_open_buffers[active_scene_i], renderer);
