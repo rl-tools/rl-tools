@@ -28,6 +28,13 @@ namespace rl_tools
     return owl::make_rgba(color);
   }
 
+  inline __device__ uint32_t make_linear_rgba_from_linear(owl::vec3f color) {
+    color.x = fminf(fmaxf(color.x, 0.f), 1.f);
+    color.y = fminf(fmaxf(color.y, 0.f), 1.f);
+    color.z = fminf(fmaxf(color.z, 0.f), 1.f);
+    return owl::make_rgba(color);
+  }
+
   inline __device__ owl::vec3f lerp_camera_vec(const owl::vec3f &a, const owl::vec3f &b, float t)
   {
     return (1.f - t) * a + t * b;
@@ -93,6 +100,7 @@ namespace rl_tools
   }
 #endif
 
+  template <bool T_SRGB_OUTPUT>
   struct RgbOutput
   {
     using Accumulator = owl::vec3f;
@@ -105,7 +113,13 @@ namespace rl_tools
     template <typename RAYGEN_DATA>
     inline __device__ static void store(const RAYGEN_DATA &self, const PixelLaunchContext &ctx, Accumulator acc, int samples)
     {
-      self.fb_ptr[ctx.fb_offset] = make_srgb_rgba_from_linear(acc * (1.f / float(samples)));
+      const owl::vec3f color = acc * (1.f / float(samples));
+      if constexpr (T_SRGB_OUTPUT) {
+        self.fb_ptr[ctx.fb_offset] = make_srgb_rgba_from_linear(color);
+      }
+      else {
+        self.fb_ptr[ctx.fb_offset] = make_linear_rgba_from_linear(color);
+      }
     }
   };
 
@@ -169,33 +183,34 @@ namespace rl_tools
     OUTPUT::store(self, ctx, accumulated, MOTION_SAMPLES * AA_GRID * AA_GRID);
   }
 
-#define RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(NAME, MOTION_BLUR, MOTION_SAMPLES, AA_GRID, DATA) \
-  OPTIX_RAYGEN_PROGRAM(NAME)() { rayGenImpl<RgbOutput, MOTION_BLUR, MOTION_SAMPLES, AA_GRID, DATA>(); }
+#define RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(SRGB_NAME, LINEAR_NAME, MOTION_BLUR, MOTION_SAMPLES, AA_GRID, DATA) \
+  OPTIX_RAYGEN_PROGRAM(SRGB_NAME)() { rayGenImpl<RgbOutput<true>, MOTION_BLUR, MOTION_SAMPLES, AA_GRID, DATA>(); } \
+  OPTIX_RAYGEN_PROGRAM(LINEAR_NAME)() { rayGenImpl<RgbOutput<false>, MOTION_BLUR, MOTION_SAMPLES, AA_GRID, DATA>(); }
 
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGen, false, 1, 1, RayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur2, true, 2, 1, MotionBlurRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur4, true, 4, 1, MotionBlurRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur8, true, 8, 1, MotionBlurRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur16, true, 16, 1, MotionBlurRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur32, true, 32, 1, MotionBlurRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenAA2, false, 1, 2, RayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenAA3, false, 1, 3, RayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenAA4, false, 1, 4, RayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur2AA2, true, 2, 2, MotionBlurRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur2AA3, true, 2, 3, MotionBlurRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur2AA4, true, 2, 4, MotionBlurRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur4AA2, true, 4, 2, MotionBlurRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur4AA3, true, 4, 3, MotionBlurRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur4AA4, true, 4, 4, MotionBlurRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur8AA2, true, 8, 2, MotionBlurRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur8AA3, true, 8, 3, MotionBlurRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur8AA4, true, 8, 4, MotionBlurRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur16AA2, true, 16, 2, MotionBlurRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur16AA3, true, 16, 3, MotionBlurRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur16AA4, true, 16, 4, MotionBlurRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur32AA2, true, 32, 2, MotionBlurRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur32AA3, true, 32, 3, MotionBlurRayGenData)
-  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur32AA4, true, 32, 4, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGen, linearRayGen, false, 1, 1, RayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur2, linearRayGenMotionBlur2, true, 2, 1, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur4, linearRayGenMotionBlur4, true, 4, 1, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur8, linearRayGenMotionBlur8, true, 8, 1, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur16, linearRayGenMotionBlur16, true, 16, 1, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur32, linearRayGenMotionBlur32, true, 32, 1, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenAA2, linearRayGenAA2, false, 1, 2, RayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenAA3, linearRayGenAA3, false, 1, 3, RayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenAA4, linearRayGenAA4, false, 1, 4, RayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur2AA2, linearRayGenMotionBlur2AA2, true, 2, 2, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur2AA3, linearRayGenMotionBlur2AA3, true, 2, 3, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur2AA4, linearRayGenMotionBlur2AA4, true, 2, 4, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur4AA2, linearRayGenMotionBlur4AA2, true, 4, 2, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur4AA3, linearRayGenMotionBlur4AA3, true, 4, 3, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur4AA4, linearRayGenMotionBlur4AA4, true, 4, 4, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur8AA2, linearRayGenMotionBlur8AA2, true, 8, 2, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur8AA3, linearRayGenMotionBlur8AA3, true, 8, 3, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur8AA4, linearRayGenMotionBlur8AA4, true, 8, 4, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur16AA2, linearRayGenMotionBlur16AA2, true, 16, 2, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur16AA3, linearRayGenMotionBlur16AA3, true, 16, 3, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur16AA4, linearRayGenMotionBlur16AA4, true, 16, 4, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur32AA2, linearRayGenMotionBlur32AA2, true, 32, 2, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur32AA3, linearRayGenMotionBlur32AA3, true, 32, 3, MotionBlurRayGenData)
+  RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(simpleRayGenMotionBlur32AA4, linearRayGenMotionBlur32AA4, true, 32, 4, MotionBlurRayGenData)
 
 #undef RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN
 
@@ -231,68 +246,97 @@ namespace rl_tools
 #undef RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN
 #endif
 
-  OPTIX_CLOSEST_HIT_PROGRAM(TriangleMesh)()
+  template <bool LOAD_TEXTURES, bool NORMAL_SHADING, bool METALLIC_REFLECTIONS>
+  inline __device__ void triangleMeshBasicImpl()
   {
     owl::vec3f &prd = owl::getPRD<owl::vec3f>();
 
     const TrianglesGeomData &self = owl::getProgramData<TrianglesGeomData>();
 
-    // compute normal:
-    const int   prim_id = optixGetPrimitiveIndex();
-    const owl::vec3i index  = self.index[prim_id];
-    const owl::vec3f &vertex_a = self.vertex[index.x];
-    const owl::vec3f &vertex_b = self.vertex[index.y];
-    const owl::vec3f &vertex_c = self.vertex[index.z];
-    const owl::vec3f normal_geometric = normalize(cross(vertex_b - vertex_a, vertex_c - vertex_a));
+    owl::vec3f base_color = self.color;
+    owl::vec3f normal_geometric(0.f, 0.f, 1.f);
+    owl::vec3f ray_dir(0.f);
 
-    // determine base color: sample texture if available, otherwise use flat color
-    owl::vec3f base_color;
-    if (self.has_texture && self.tex_coord) {
-      const owl::vec2f bary = optixGetTriangleBarycentrics();
-      const owl::vec2f tc
-        = (1.f - bary.x - bary.y) * self.tex_coord[index.x]
-          +      bary.x           * self.tex_coord[index.y]
-          +             bary.y    * self.tex_coord[index.z];
-      owl::vec4f tex_color = tex2D<float4>(self.texture, tc.x, tc.y);
-      base_color = owl::vec3f(tex_color.x, tex_color.y, tex_color.z);
-    } else {
-      base_color = self.color;
+    if constexpr (LOAD_TEXTURES || NORMAL_SHADING || METALLIC_REFLECTIONS) {
+      const int prim_id = optixGetPrimitiveIndex();
+      const owl::vec3i index = self.index[prim_id];
+
+      if constexpr (NORMAL_SHADING || METALLIC_REFLECTIONS) {
+        const owl::vec3f &vertex_a = self.vertex[index.x];
+        const owl::vec3f &vertex_b = self.vertex[index.y];
+        const owl::vec3f &vertex_c = self.vertex[index.z];
+        normal_geometric = normalize(cross(vertex_b - vertex_a, vertex_c - vertex_a));
+        ray_dir = optixGetWorldRayDirection();
+      }
+
+      if constexpr (LOAD_TEXTURES) {
+        if (self.has_texture && self.tex_coord) {
+          const owl::vec2f bary = optixGetTriangleBarycentrics();
+          const owl::vec2f tc
+            = (1.f - bary.x - bary.y) * self.tex_coord[index.x]
+              +      bary.x           * self.tex_coord[index.y]
+              +             bary.y    * self.tex_coord[index.z];
+          owl::vec4f tex_color = tex2D<float4>(self.texture, tc.x, tc.y);
+          base_color = owl::vec3f(tex_color.x, tex_color.y, tex_color.z);
+        }
+      }
     }
 
-    const owl::vec3f ray_dir = optixGetWorldRayDirection();
-    owl::vec3f direct = (.2f + .8f * fabs(dot(ray_dir, normal_geometric))) * base_color;
+    owl::vec3f direct = base_color;
+    if constexpr (NORMAL_SHADING) {
+      direct = (.2f + .8f * fabs(dot(ray_dir, normal_geometric))) * base_color;
+    }
 
-    unsigned int depth = optixGetPayload_2();
-    if (depth < 1 && self.metallic > 0.f) {
-      owl::vec3f hit_point = ray_dir * optixGetRayTmax();
-      hit_point.x += optixGetWorldRayOrigin().x;
-      hit_point.y += optixGetWorldRayOrigin().y;
-      hit_point.z += optixGetWorldRayOrigin().z;
-      owl::vec3f n = dot(ray_dir, normal_geometric) > 0.f ? -normal_geometric : normal_geometric;
-      owl::vec3f reflect_dir = ray_dir - 2.f * dot(ray_dir, n) * n;
+    if constexpr (METALLIC_REFLECTIONS) {
+      unsigned int depth = optixGetPayload_2();
+      if (depth < 1 && self.metallic > 0.f) {
+        owl::vec3f hit_point = ray_dir * optixGetRayTmax();
+        hit_point.x += optixGetWorldRayOrigin().x;
+        hit_point.y += optixGetWorldRayOrigin().y;
+        hit_point.z += optixGetWorldRayOrigin().z;
+        owl::vec3f n = dot(ray_dir, normal_geometric) > 0.f ? -normal_geometric : normal_geometric;
+        owl::vec3f reflect_dir = ray_dir - 2.f * dot(ray_dir, n) * n;
 
-      owl::vec3f reflected_color;
-      unsigned int rp0 = 0, rp1 = 0;
-      owl::packPointer(&reflected_color, rp0, rp1);
-      unsigned int rp2 = depth + 1;
-      optixTrace(self.world,
-                 (const float3&)hit_point,
-                 (const float3&)reflect_dir,
-                 1e-3f,
-                 1e20f,
-                 0.0f,
-                 OptixVisibilityMask(255),
-                 OPTIX_RAY_FLAG_DISABLE_ANYHIT,
-                 0, NUM_RAY_TYPES, 0,
-                 rp0, rp1, rp2);
+        owl::vec3f reflected_color;
+        unsigned int rp0 = 0, rp1 = 0;
+        owl::packPointer(&reflected_color, rp0, rp1);
+        unsigned int rp2 = depth + 1;
+        optixTrace(self.world,
+                   (const float3&)hit_point,
+                   (const float3&)reflect_dir,
+                   1e-3f,
+                   1e20f,
+                   0.0f,
+                   OptixVisibilityMask(255),
+                   OPTIX_RAY_FLAG_DISABLE_ANYHIT,
+                   0, NUM_RAY_TYPES, 0,
+                   rp0, rp1, rp2);
 
-      float cos_theta = fabs(dot(ray_dir, n));
-      float fresnel = self.metallic * (0.04f + 0.96f * powf(1.f - cos_theta, 5.f));
-      prd = direct * ((1.f - fresnel) + fresnel * reflected_color);
-    } else {
+        float cos_theta = fabs(dot(ray_dir, n));
+        float fresnel = self.metallic * (0.04f + 0.96f * powf(1.f - cos_theta, 5.f));
+        prd = direct * ((1.f - fresnel) + fresnel * reflected_color);
+      } else {
+        prd = direct;
+      }
+    }
+    else {
       prd = direct;
     }
   }
+
+#define RL_TOOLS_RENDERING_RAYTRACING_BASIC_CLOSEST_HIT(NAME, LOAD_TEXTURES, NORMAL_SHADING, METALLIC_REFLECTIONS) \
+  OPTIX_CLOSEST_HIT_PROGRAM(NAME)() { triangleMeshBasicImpl<LOAD_TEXTURES, NORMAL_SHADING, METALLIC_REFLECTIONS>(); }
+
+  RL_TOOLS_RENDERING_RAYTRACING_BASIC_CLOSEST_HIT(TriangleMeshBasicTTT, true, true, true)
+  RL_TOOLS_RENDERING_RAYTRACING_BASIC_CLOSEST_HIT(TriangleMeshBasicTTF, true, true, false)
+  RL_TOOLS_RENDERING_RAYTRACING_BASIC_CLOSEST_HIT(TriangleMeshBasicTFT, true, false, true)
+  RL_TOOLS_RENDERING_RAYTRACING_BASIC_CLOSEST_HIT(TriangleMeshBasicTFF, true, false, false)
+  RL_TOOLS_RENDERING_RAYTRACING_BASIC_CLOSEST_HIT(TriangleMeshBasicFTT, false, true, true)
+  RL_TOOLS_RENDERING_RAYTRACING_BASIC_CLOSEST_HIT(TriangleMeshBasicFTF, false, true, false)
+  RL_TOOLS_RENDERING_RAYTRACING_BASIC_CLOSEST_HIT(TriangleMeshBasicFFT, false, false, true)
+  RL_TOOLS_RENDERING_RAYTRACING_BASIC_CLOSEST_HIT(TriangleMeshBasicFFF, false, false, false)
+
+#undef RL_TOOLS_RENDERING_RAYTRACING_BASIC_CLOSEST_HIT
 
   OPTIX_CLOSEST_HIT_PROGRAM(TriangleMeshPBR)()
   {
@@ -497,6 +541,13 @@ namespace rl_tools
     owl::vec3f &prd = owl::getPRD<owl::vec3f>();
     int checker_pattern = (pixel_id.x / 8) ^ (pixel_id.y/8);
     prd = (checker_pattern&1) ? self.color_1 : self.color_0;
+  }
+
+  OPTIX_MISS_PROGRAM(missConstant)()
+  {
+    const MissProgData &self = owl::getProgramData<MissProgData>();
+    owl::vec3f &prd = owl::getPRD<owl::vec3f>();
+    prd = self.color_0;
   }
 
   // =====================================================================

@@ -16,6 +16,18 @@
 #define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_HIGH_FIDELITY_SHADING 0
 #endif
 
+#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_BASIC 0
+#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_HIGH_FIDELITY 1
+#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_FAST_FLAT 2
+
+#ifndef RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE
+#if RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_HIGH_FIDELITY_SHADING
+#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_HIGH_FIDELITY
+#else
+#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_BASIC
+#endif
+#endif
+
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/backends/optix/operations_cuda.h>
 
@@ -41,9 +53,24 @@ using TI = int;
 
 static constexpr const char* OBJECTS20_LAYOUT_NAME = "canonical_staggered_v1";
 static constexpr TI NUM_ENVS = RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS;
-static constexpr bool HIGH_FIDELITY_SHADING = RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_HIGH_FIDELITY_SHADING != 0;
+template <int T_PROFILE>
+struct BenchmarkShadingProfile;
+template <>
+struct BenchmarkShadingProfile<RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_BASIC> {
+    using type = rlt::rendering::raytracing::BasicShading;
+};
+template <>
+struct BenchmarkShadingProfile<RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_HIGH_FIDELITY> {
+    using type = rlt::rendering::raytracing::HighFidelityShading;
+};
+template <>
+struct BenchmarkShadingProfile<RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_FAST_FLAT> {
+    using type = rlt::rendering::raytracing::FastFlatShading;
+};
+using ShadingProfile = typename BenchmarkShadingProfile<RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE>::type;
+static constexpr bool HIGH_FIDELITY_SHADING = ShadingProfile::PBR_SHADING;
 template <rlt::rendering::raytracing::OutputMode T_OUTPUT_MODE>
-using BenchmarkSpec = rlt::rendering::raytracing::Specification<T, TI, 64, 64, NUM_ENVS, 1, HIGH_FIDELITY_SHADING, false, 1, false, 1, T_OUTPUT_MODE>;
+using BenchmarkSpec = rlt::rendering::raytracing::Specification<T, TI, 64, 64, NUM_ENVS, 1, HIGH_FIDELITY_SHADING, false, 1, false, 1, T_OUTPUT_MODE, ShadingProfile>;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 
 enum class SceneAxis { OBJECTS_20, PROCTHOR };
@@ -283,6 +310,11 @@ static const char* step_name(StepAxis step) {
 static constexpr const char* output_name() {
     return RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH ? "depth"
         : (RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB ? "rgb" : "all");
+}
+
+static constexpr const char* shading_profile_name() {
+    return RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE == RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_FAST_FLAT ? "fast_flat"
+        : (RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE == RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_HIGH_FIDELITY ? "high_fidelity" : "basic");
 }
 
 template <typename SPEC>
@@ -849,6 +881,7 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
     RL_TOOLS_RENDERING_RAYTRACING_LOG("Benchmark combination: scene=" << scene_name(scene)
         << ", output=" << output_name_for_spec<SPEC>()
         << ", step_mode=" << step_name(step)
+        << ", shading_profile=" << shading_profile_name()
         << ", envs=" << SPEC::NUM_CAMERAS
         << ", resolution=" << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT
         << ", fov_deg=" << static_cast<double>(SPEC::COS_FOVY) * RAD_TO_DEG
@@ -940,6 +973,7 @@ int main(int argc, char** argv) {
     const std::string gpu_label = options.gpu_label.empty() ? cuda_name : options.gpu_label;
 
     RL_TOOLS_RENDERING_RAYTRACING_LOG("simulator matrix benchmark output=" << output_name()
+        << ", shading_profile=" << shading_profile_name()
         << ", compiled_envs=" << NUM_ENVS
         << ", cuda_device=" << cuda_name
         << ", gpu_label=" << gpu_label);

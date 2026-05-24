@@ -49,6 +49,7 @@ cmake --build build --target \
   rendering_raytracing_benchmark_rgbd \
   rendering_raytracing_sim_benchmark \
   rendering_raytracing_sim_benchmark_high_fidelity \
+  rendering_raytracing_sim_benchmark_fast_flat \
   rendering_raytracing_sim_benchmark_rgb \
   rendering_raytracing_sim_benchmark_depth \
   -j5
@@ -88,6 +89,21 @@ OUT_HIGH=$(mktemp -d /tmp/rltools_rt_matrix_high.XXXXXX)
 echo "$OUT_HIGH"
 ```
 
+Fast-flat matrix:
+
+```bash
+OUT_FAST=$(mktemp -d /tmp/rltools_rt_matrix_fast.XXXXXX)
+./build/src/rendering/raytracing/benchmark/rendering_raytracing_sim_benchmark_fast_flat \
+  --scene all \
+  --step-mode all \
+  --output all \
+  --seconds 10 \
+  --warmup-seconds 2 \
+  --gpu-label "$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1) fast flat" \
+  --output-dir "$OUT_FAST" | tee "$OUT_FAST/output.log"
+echo "$OUT_FAST"
+```
+
 Each matrix covers:
 
 | Axis | Values |
@@ -95,7 +111,7 @@ Each matrix covers:
 | Scene | `20_objects`, `procthor` |
 | Output | `rgb`, `depth` |
 | Step mode | `render_only`, `render_physics` |
-| Fidelity | low target, high-fidelity target |
+| Fidelity | basic target, high-fidelity target, fast-flat target |
 
 The benchmark writes one stitched PNG per row and CSV rows prefixed with `csv_result`.
 
@@ -104,6 +120,7 @@ Extract table rows:
 ```bash
 rg '^csv_result' "$OUT_LOW/output.log"
 rg '^csv_result' "$OUT_HIGH/output.log"
+rg '^csv_result' "$OUT_FAST/output.log"
 ```
 
 List verification images:
@@ -111,6 +128,7 @@ List verification images:
 ```bash
 ls -lh "$OUT_LOW"/*.png
 ls -lh "$OUT_HIGH"/*.png
+ls -lh "$OUT_FAST"/*.png
 ```
 
 ## Run Output-Specific Simulator Targets

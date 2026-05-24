@@ -52,96 +52,140 @@ namespace rl_tools {
 
     namespace rendering::raytracing::detail {
         template <bool T_DEPTH, typename SPEC>
+        const char* ray_gen_program_name(const char* depth_name, const char* srgb_name, const char* linear_name) {
+            if constexpr (T_DEPTH) {
+                return depth_name;
+            }
+            else if constexpr (SPEC::SHADING::SRGB_OUTPUT) {
+                return srgb_name;
+            }
+            else {
+                return linear_name;
+            }
+        }
+
+        template <bool T_DEPTH, typename SPEC>
         const char* ray_gen_program_name() {
             if constexpr (SPEC::ENABLE_MOTION_BLUR) {
                 if constexpr (SPEC::ENABLE_ANTI_ALIASING) {
                     if constexpr (SPEC::MOTION_BLUR_SAMPLES == 2) {
                         if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 2) {
-                            return T_DEPTH ? "depthRayGenMotionBlur2AA2" : "simpleRayGenMotionBlur2AA2";
+                            return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGenMotionBlur2AA2", "simpleRayGenMotionBlur2AA2", "linearRayGenMotionBlur2AA2");
                         }
                         else if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 3) {
-                            return T_DEPTH ? "depthRayGenMotionBlur2AA3" : "simpleRayGenMotionBlur2AA3";
+                            return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGenMotionBlur2AA3", "simpleRayGenMotionBlur2AA3", "linearRayGenMotionBlur2AA3");
                         }
                         else {
-                            return T_DEPTH ? "depthRayGenMotionBlur2AA4" : "simpleRayGenMotionBlur2AA4";
+                            return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGenMotionBlur2AA4", "simpleRayGenMotionBlur2AA4", "linearRayGenMotionBlur2AA4");
                         }
                     }
                     else if constexpr (SPEC::MOTION_BLUR_SAMPLES == 4) {
                         if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 2) {
-                            return T_DEPTH ? "depthRayGenMotionBlur4AA2" : "simpleRayGenMotionBlur4AA2";
+                            return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGenMotionBlur4AA2", "simpleRayGenMotionBlur4AA2", "linearRayGenMotionBlur4AA2");
                         }
                         else if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 3) {
-                            return T_DEPTH ? "depthRayGenMotionBlur4AA3" : "simpleRayGenMotionBlur4AA3";
+                            return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGenMotionBlur4AA3", "simpleRayGenMotionBlur4AA3", "linearRayGenMotionBlur4AA3");
                         }
                         else {
-                            return T_DEPTH ? "depthRayGenMotionBlur4AA4" : "simpleRayGenMotionBlur4AA4";
+                            return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGenMotionBlur4AA4", "simpleRayGenMotionBlur4AA4", "linearRayGenMotionBlur4AA4");
                         }
                     }
                     else if constexpr (SPEC::MOTION_BLUR_SAMPLES == 8) {
                         if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 2) {
-                            return T_DEPTH ? "depthRayGenMotionBlur8AA2" : "simpleRayGenMotionBlur8AA2";
+                            return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGenMotionBlur8AA2", "simpleRayGenMotionBlur8AA2", "linearRayGenMotionBlur8AA2");
                         }
                         else if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 3) {
-                            return T_DEPTH ? "depthRayGenMotionBlur8AA3" : "simpleRayGenMotionBlur8AA3";
+                            return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGenMotionBlur8AA3", "simpleRayGenMotionBlur8AA3", "linearRayGenMotionBlur8AA3");
                         }
                         else {
-                            return T_DEPTH ? "depthRayGenMotionBlur8AA4" : "simpleRayGenMotionBlur8AA4";
+                            return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGenMotionBlur8AA4", "simpleRayGenMotionBlur8AA4", "linearRayGenMotionBlur8AA4");
                         }
                     }
                     else if constexpr (SPEC::MOTION_BLUR_SAMPLES == 16) {
                         if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 2) {
-                            return T_DEPTH ? "depthRayGenMotionBlur16AA2" : "simpleRayGenMotionBlur16AA2";
+                            return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGenMotionBlur16AA2", "simpleRayGenMotionBlur16AA2", "linearRayGenMotionBlur16AA2");
                         }
                         else if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 3) {
-                            return T_DEPTH ? "depthRayGenMotionBlur16AA3" : "simpleRayGenMotionBlur16AA3";
+                            return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGenMotionBlur16AA3", "simpleRayGenMotionBlur16AA3", "linearRayGenMotionBlur16AA3");
                         }
                         else {
-                            return T_DEPTH ? "depthRayGenMotionBlur16AA4" : "simpleRayGenMotionBlur16AA4";
+                            return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGenMotionBlur16AA4", "simpleRayGenMotionBlur16AA4", "linearRayGenMotionBlur16AA4");
                         }
                     }
                     else {
                         if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 2) {
-                            return T_DEPTH ? "depthRayGenMotionBlur32AA2" : "simpleRayGenMotionBlur32AA2";
+                            return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGenMotionBlur32AA2", "simpleRayGenMotionBlur32AA2", "linearRayGenMotionBlur32AA2");
                         }
                         else if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 3) {
-                            return T_DEPTH ? "depthRayGenMotionBlur32AA3" : "simpleRayGenMotionBlur32AA3";
+                            return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGenMotionBlur32AA3", "simpleRayGenMotionBlur32AA3", "linearRayGenMotionBlur32AA3");
                         }
                         else {
-                            return T_DEPTH ? "depthRayGenMotionBlur32AA4" : "simpleRayGenMotionBlur32AA4";
+                            return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGenMotionBlur32AA4", "simpleRayGenMotionBlur32AA4", "linearRayGenMotionBlur32AA4");
                         }
                     }
                 }
                 else if constexpr (SPEC::MOTION_BLUR_SAMPLES == 2) {
-                    return T_DEPTH ? "depthRayGenMotionBlur2" : "simpleRayGenMotionBlur2";
+                    return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGenMotionBlur2", "simpleRayGenMotionBlur2", "linearRayGenMotionBlur2");
                 }
                 else if constexpr (SPEC::MOTION_BLUR_SAMPLES == 4) {
-                    return T_DEPTH ? "depthRayGenMotionBlur4" : "simpleRayGenMotionBlur4";
+                    return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGenMotionBlur4", "simpleRayGenMotionBlur4", "linearRayGenMotionBlur4");
                 }
                 else if constexpr (SPEC::MOTION_BLUR_SAMPLES == 8) {
-                    return T_DEPTH ? "depthRayGenMotionBlur8" : "simpleRayGenMotionBlur8";
+                    return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGenMotionBlur8", "simpleRayGenMotionBlur8", "linearRayGenMotionBlur8");
                 }
                 else if constexpr (SPEC::MOTION_BLUR_SAMPLES == 16) {
-                    return T_DEPTH ? "depthRayGenMotionBlur16" : "simpleRayGenMotionBlur16";
+                    return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGenMotionBlur16", "simpleRayGenMotionBlur16", "linearRayGenMotionBlur16");
                 }
                 else {
-                    return T_DEPTH ? "depthRayGenMotionBlur32" : "simpleRayGenMotionBlur32";
+                    return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGenMotionBlur32", "simpleRayGenMotionBlur32", "linearRayGenMotionBlur32");
                 }
             }
             else if constexpr (SPEC::ENABLE_ANTI_ALIASING) {
                 if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 2) {
-                    return T_DEPTH ? "depthRayGenAA2" : "simpleRayGenAA2";
+                    return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGenAA2", "simpleRayGenAA2", "linearRayGenAA2");
                 }
                 else if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 3) {
-                    return T_DEPTH ? "depthRayGenAA3" : "simpleRayGenAA3";
+                    return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGenAA3", "simpleRayGenAA3", "linearRayGenAA3");
                 }
                 else {
-                    return T_DEPTH ? "depthRayGenAA4" : "simpleRayGenAA4";
+                    return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGenAA4", "simpleRayGenAA4", "linearRayGenAA4");
                 }
             }
             else {
-                return T_DEPTH ? "depthRayGen" : "simpleRayGen";
+                return ray_gen_program_name<T_DEPTH, SPEC>("depthRayGen", "simpleRayGen", "linearRayGen");
             }
         }
+
+        template <typename SPEC>
+        const char* closest_hit_program_name() {
+            if constexpr (SPEC::SHADING::PBR_SHADING) {
+                return "TriangleMeshPBR";
+            }
+            else if constexpr (SPEC::SHADING::LOAD_TEXTURES) {
+                if constexpr (SPEC::SHADING::NORMAL_SHADING) {
+                    return SPEC::SHADING::METALLIC_REFLECTIONS ? "TriangleMeshBasicTTT" : "TriangleMeshBasicTTF";
+                }
+                else {
+                    return SPEC::SHADING::METALLIC_REFLECTIONS ? "TriangleMeshBasicTFT" : "TriangleMeshBasicTFF";
+                }
+            }
+            else {
+                if constexpr (SPEC::SHADING::NORMAL_SHADING) {
+                    return SPEC::SHADING::METALLIC_REFLECTIONS ? "TriangleMeshBasicFTT" : "TriangleMeshBasicFTF";
+                }
+                else {
+                    return SPEC::SHADING::METALLIC_REFLECTIONS ? "TriangleMeshBasicFFT" : "TriangleMeshBasicFFF";
+                }
+            }
+        }
+
+        template <typename SPEC>
+        struct BasicShadingUsage {
+            static constexpr bool USES_INDEX = SPEC::SHADING::LOAD_TEXTURES || SPEC::SHADING::NORMAL_SHADING || SPEC::SHADING::METALLIC_REFLECTIONS;
+            static constexpr bool USES_VERTEX = SPEC::SHADING::NORMAL_SHADING || SPEC::SHADING::METALLIC_REFLECTIONS;
+            static constexpr bool USES_TEXTURE = SPEC::SHADING::LOAD_TEXTURES;
+            static constexpr bool USES_WORLD = SPEC::SHADING::METALLIC_REFLECTIONS;
+        };
     }
 
     // =========================================================================
@@ -385,7 +429,11 @@ namespace rl_tools {
             { "color_1", OWL_FLOAT3, OWL_OFFSETOF(MissProgData, color_1)},
             { /* sentinel */ }
         };
-        OWLMissProg miss_prog = owlMissProgCreate(context, module, "miss",
+        const char* miss_program_name = "miss";
+        if constexpr (SPEC::HAS_RGB && !SPEC::SHADING::CHECKER_BACKGROUND) {
+            miss_program_name = "missConstant";
+        }
+        OWLMissProg miss_prog = owlMissProgCreate(context, module, miss_program_name,
                                                     sizeof(MissProgData), miss_prog_vars, -1);
         owlMissProgSet3f(miss_prog, "color_0", owl3f{.8f, 0.f, 0.f});
         owlMissProgSet3f(miss_prog, "color_1", owl3f{.8f, .8f, .8f});
@@ -531,9 +579,9 @@ namespace rl_tools {
 
         Assimp::Importer importer;
         unsigned int import_flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_ImproveCacheLocality;
-        if constexpr (SPEC::HAS_RGB && SPEC::HIGH_FIDELITY_SHADING) {
+        if constexpr (SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING) {
             import_flags |= aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace;
-        } else if constexpr (SPEC::HAS_RGB) {
+        } else if constexpr (SPEC::HAS_RGB && SPEC::SHADING::NORMAL_SHADING) {
             import_flags |= aiProcess_GenNormals;
         }
         const aiScene* scene = importer.ReadFile(filename, import_flags);
@@ -598,7 +646,7 @@ namespace rl_tools {
                 bbox_max = max(bbox_max, vertex);
             }
 
-            if constexpr (SPEC::HAS_RGB && SPEC::HIGH_FIDELITY_SHADING) {
+            if constexpr (SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING) {
                 if (mesh->mNormals) {
                     aiMatrix3x3 normal_matrix(global_transform);
                     for (unsigned int v = 0; v < mesh->mNumVertices; v++) {
@@ -621,7 +669,7 @@ namespace rl_tools {
                 }
             }
 
-            if constexpr (SPEC::HAS_RGB) {
+            if constexpr (SPEC::HAS_RGB && SPEC::SHADING::LOAD_TEXTURES) {
                 unsigned int uv_channel = 0;
                 if(mat != nullptr){
                     int uv_candidate = 0;
@@ -644,7 +692,7 @@ namespace rl_tools {
                     for(unsigned int v = 0; v < mesh->mNumVertices; v++){
                         const aiVector3D& tc = mesh->mTextureCoords[uv_channel][v];
                         md.tex_coords.push_back(tc.x);
-                        if constexpr (SPEC::HIGH_FIDELITY_SHADING) {
+                        if constexpr (SPEC::SHADING::PBR_SHADING) {
                             md.tex_coords.push_back(1.0f - tc.y);
                         } else {
                             md.tex_coords.push_back(tc.y);
@@ -654,7 +702,7 @@ namespace rl_tools {
             }
 
             // material / texture
-            if constexpr (SPEC::HIGH_FIDELITY_SHADING) {
+            if constexpr (SPEC::SHADING::PBR_SHADING) {
                 md.color[0] = 1.0f; md.color[1] = 1.0f; md.color[2] = 1.0f;
             } else {
                 md.color[0] = 0.8f; md.color[1] = 0.8f; md.color[2] = 0.8f;
@@ -662,7 +710,7 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_RGB) {
             if(mat != nullptr){
 
-                if constexpr (SPEC::HIGH_FIDELITY_SHADING) {
+                if constexpr (SPEC::SHADING::PBR_SHADING) {
                     aiColor4D base_color(1.0f, 1.0f, 1.0f, 1.0f);
                     if (aiGetMaterialColor(mat, AI_MATKEY_BASE_COLOR, &base_color) == AI_SUCCESS) {
                         md.color[0] = base_color.r; md.color[1] = base_color.g; md.color[2] = base_color.b;
@@ -677,8 +725,15 @@ namespace rl_tools {
                     if(aiGetMaterialColor(mat, AI_MATKEY_COLOR_DIFFUSE, &diffuse) == AI_SUCCESS){
                         md.color[0] = diffuse.r; md.color[1] = diffuse.g; md.color[2] = diffuse.b;
                     }
+                    else if constexpr (!SPEC::SHADING::LOAD_TEXTURES) {
+                        aiColor4D base_color;
+                        if (aiGetMaterialColor(mat, AI_MATKEY_BASE_COLOR, &base_color) == AI_SUCCESS) {
+                            md.color[0] = base_color.r; md.color[1] = base_color.g; md.color[2] = base_color.b;
+                        }
+                    }
                 }
 
+                if constexpr (SPEC::SHADING::LOAD_TEXTURES) {
                 if(mat->GetTextureCount(aiTextureType_DIFFUSE) > 0){
                     aiString tex_path;
                     if(mat->GetTexture(aiTextureType_DIFFUSE, 0, &tex_path) == AI_SUCCESS){
@@ -720,12 +775,15 @@ namespace rl_tools {
                         }
                     }
                 }
+                }
 
+                if constexpr (SPEC::SHADING::METALLIC_REFLECTIONS || SPEC::SHADING::PBR_SHADING) {
                 float metallic_factor = 0.0f;
                 mat->Get(AI_MATKEY_METALLIC_FACTOR, metallic_factor);
                 md.metallic = metallic_factor;
+                }
 
-                if constexpr (SPEC::HIGH_FIDELITY_SHADING) {
+                if constexpr (SPEC::SHADING::PBR_SHADING) {
                     float metallic_factor_pbr = 1.0f;
                     mat->Get(AI_MATKEY_METALLIC_FACTOR, metallic_factor_pbr);
                     md.metallic = metallic_factor_pbr;
@@ -734,6 +792,7 @@ namespace rl_tools {
                     mat->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughness_factor);
                     md.roughness = roughness_factor;
 
+                    if constexpr (SPEC::SHADING::LOAD_TEXTURES) {
                     if (mat->GetTextureCount(aiTextureType_NORMALS) > 0) {
                         aiString tex_path;
                         if (mat->GetTexture(aiTextureType_NORMALS, 0, &tex_path) == AI_SUCCESS) {
@@ -767,11 +826,13 @@ namespace rl_tools {
                             }
                         }
                     }
+                    }
 
                     aiColor3D emissive_color(0.f, 0.f, 0.f);
                     mat->Get(AI_MATKEY_COLOR_EMISSIVE, emissive_color);
                     md.emissive[0] = emissive_color.r; md.emissive[1] = emissive_color.g; md.emissive[2] = emissive_color.b;
 
+                    if constexpr (SPEC::SHADING::LOAD_TEXTURES) {
                     if (mat->GetTextureCount(aiTextureType_EMISSIVE) > 0) {
                         aiString tex_path;
                         if (mat->GetTexture(aiTextureType_EMISSIVE, 0, &tex_path) == AI_SUCCESS) {
@@ -820,6 +881,7 @@ namespace rl_tools {
                             }
                         }
                     }
+                    }
                     float opacity_val = 1.0f;
                     mat->Get(AI_MATKEY_OPACITY, opacity_val);
                     float transmission_factor = 0.0f;
@@ -830,6 +892,7 @@ namespace rl_tools {
                     md.opacity = opacity_val;
                 }
 
+                if constexpr (SPEC::SHADING::LOAD_TEXTURES) {
                 if(!md.has_texture && mat->GetTextureCount(aiTextureType_BASE_COLOR) > 0){
                     aiString tex_path;
                     if(mat->GetTexture(aiTextureType_BASE_COLOR, 0, &tex_path) == AI_SUCCESS){
@@ -845,6 +908,7 @@ namespace rl_tools {
                             }
                         }
                     }
+                }
                 }
             }
             }
@@ -869,7 +933,7 @@ namespace rl_tools {
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Meshes with textures: " << textured_count << "/" << renderer.meshes.size()
               << ", metallic: " << metallic_count << "/" << renderer.meshes.size());
 
-        if constexpr (SPEC::HAS_RGB && SPEC::HIGH_FIDELITY_SHADING) {
+        if constexpr (SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING) {
             renderer.scene_lights.clear();
             float inv_sqrt2 = 0.70710678f;
             renderer.scene_lights.push_back({0, {0,0,0}, {-inv_sqrt2, 0.f, inv_sqrt2}, {0.4f, 0.4f, 0.4f}, 0,0,0, 0,0});
@@ -928,7 +992,7 @@ namespace rl_tools {
 
         OWLGeomType triangles_geom_type;
         if constexpr (SPEC::HAS_RGB) {
-            if constexpr (SPEC::HIGH_FIDELITY_SHADING) {
+            if constexpr (SPEC::SHADING::PBR_SHADING) {
                 OWLVarDecl triangles_geom_vars[] = {
                     { "index",      OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, index)},
                     { "vertex",     OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, vertex)},
@@ -962,21 +1026,33 @@ namespace rl_tools {
                                                          triangles_geom_vars, -1);
                 owlGeomTypeSetClosestHit(triangles_geom_type, 0, module, "TriangleMeshPBR");
             } else {
-                OWLVarDecl triangles_geom_vars[] = {
-                    { "index",      OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, index)},
-                    { "vertex",     OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, vertex)},
-                    { "tex_coord",   OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, tex_coord)},
-                    { "color",      OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, color)},
-                    { "texture",    OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, texture)},
-                    { "has_texture", OWL_INT,     OWL_OFFSETOF(TrianglesGeomData, has_texture)},
-                    { "metallic",    OWL_FLOAT,   OWL_OFFSETOF(TrianglesGeomData, metallic)},
-                    { "world",       OWL_GROUP,   OWL_OFFSETOF(TrianglesGeomData, world)},
-                    { /* sentinel */ }
-                };
+                using SHADING_USAGE = rendering::raytracing::detail::BasicShadingUsage<SPEC>;
+                std::vector<OWLVarDecl> triangles_geom_vars;
+                if constexpr (SHADING_USAGE::USES_INDEX) {
+                    triangles_geom_vars.push_back({ "index", OWL_BUFPTR, OWL_OFFSETOF(TrianglesGeomData, index)});
+                }
+                if constexpr (SHADING_USAGE::USES_VERTEX) {
+                    triangles_geom_vars.push_back({ "vertex", OWL_BUFPTR, OWL_OFFSETOF(TrianglesGeomData, vertex)});
+                }
+                if constexpr (SHADING_USAGE::USES_TEXTURE) {
+                    triangles_geom_vars.push_back({ "tex_coord", OWL_BUFPTR, OWL_OFFSETOF(TrianglesGeomData, tex_coord)});
+                }
+                triangles_geom_vars.push_back({ "color", OWL_FLOAT3, OWL_OFFSETOF(TrianglesGeomData, color)});
+                if constexpr (SHADING_USAGE::USES_TEXTURE) {
+                    triangles_geom_vars.push_back({ "texture", OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, texture)});
+                    triangles_geom_vars.push_back({ "has_texture", OWL_INT, OWL_OFFSETOF(TrianglesGeomData, has_texture)});
+                }
+                if constexpr (SPEC::SHADING::METALLIC_REFLECTIONS) {
+                    triangles_geom_vars.push_back({ "metallic", OWL_FLOAT, OWL_OFFSETOF(TrianglesGeomData, metallic)});
+                }
+                if constexpr (SHADING_USAGE::USES_WORLD) {
+                    triangles_geom_vars.push_back({ "world", OWL_GROUP, OWL_OFFSETOF(TrianglesGeomData, world)});
+                }
+                triangles_geom_vars.push_back({});
                 triangles_geom_type = owlGeomTypeCreate(context, OWL_TRIANGLES,
                                                          sizeof(TrianglesGeomData),
-                                                         triangles_geom_vars, -1);
-                owlGeomTypeSetClosestHit(triangles_geom_type, 0, module, "TriangleMesh");
+                                                         triangles_geom_vars.data(), -1);
+                owlGeomTypeSetClosestHit(triangles_geom_type, 0, module, rendering::raytracing::detail::closest_hit_program_name<SPEC>());
             }
         }
         else {
@@ -1004,10 +1080,16 @@ namespace rl_tools {
             owlTrianglesSetVertices(geom, vb, num_vertices, sizeof(owl::vec3f), 0);
             owlTrianglesSetIndices(geom, ib, num_indices, sizeof(owl::vec3i), 0);
             if constexpr (SPEC::HAS_RGB) {
-                owlGeomSetBuffer(geom, "vertex", vb);
-                owlGeomSetBuffer(geom, "index", ib);
+                using SHADING_USAGE = rendering::raytracing::detail::BasicShadingUsage<SPEC>;
+                if constexpr (SPEC::SHADING::PBR_SHADING || SHADING_USAGE::USES_VERTEX) {
+                    owlGeomSetBuffer(geom, "vertex", vb);
+                }
+                if constexpr (SPEC::SHADING::PBR_SHADING || SHADING_USAGE::USES_INDEX) {
+                    owlGeomSetBuffer(geom, "index", ib);
+                }
                 owlGeomSet3f(geom, "color", owl3f{md.color[0], md.color[1], md.color[2]});
 
+                if constexpr (SPEC::SHADING::PBR_SHADING || SPEC::SHADING::LOAD_TEXTURES) {
                 if(!md.tex_coords.empty()){
                     size_t num_tc = md.tex_coords.size() / 2;
                     OWLBuffer tcb = owlDeviceBufferCreate(context, OWL_FLOAT2, num_tc, md.tex_coords.data());
@@ -1028,10 +1110,13 @@ namespace rl_tools {
                 } else {
                     owlGeomSet1i(geom, "has_texture", 0);
                 }
+                }
 
+                if constexpr (SPEC::SHADING::PBR_SHADING || SPEC::SHADING::METALLIC_REFLECTIONS) {
                 owlGeomSet1f(geom, "metallic", md.metallic);
+                }
 
-                if constexpr (SPEC::HIGH_FIDELITY_SHADING) {
+                if constexpr (SPEC::SHADING::PBR_SHADING) {
                     if (!md.normals.empty()) {
                         size_t num_normals = md.normals.size() / 3;
                         OWLBuffer nb = owlDeviceBufferCreate(context, OWL_FLOAT3, num_normals, md.normals.data());
@@ -1116,13 +1201,13 @@ namespace rl_tools {
         OWLGroup world = owlInstanceGroupCreate(context, 1, &triangles_group);
         owlGroupBuildAccel(world);
 
-        if constexpr (SPEC::HAS_RGB) {
+        if constexpr (SPEC::HAS_RGB && (SPEC::SHADING::PBR_SHADING || SPEC::SHADING::METALLIC_REFLECTIONS)) {
             for(size_t m = 0; m < geoms.size(); m++){
                 owlGeomSetGroup(geoms[m], "world", world);
             }
         }
 
-        if constexpr (SPEC::HAS_RGB && SPEC::HIGH_FIDELITY_SHADING) {
+        if constexpr (SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING) {
             OWLBuffer light_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(rendering::raytracing::SceneLight),
                                                             renderer.scene_lights.size(), renderer.scene_lights.data());
             for (size_t m = 0; m < geoms.size(); m++) {
