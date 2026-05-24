@@ -100,7 +100,7 @@ struct Options {
     std::string scene = "all";
     std::string step_mode = "all";
     std::string output = "all";
-    std::string orientation_mode = "random_yaw_pitch";
+    std::string orientation_mode = "uniform_so3";
     std::string gpu_label;
     std::string output_dir = ".";
     std::string output_png = "hyperdrone_procthor_frame.png";
@@ -163,7 +163,7 @@ static void print_help(const char* argv0) {
         << "  --scene <all|20_objects|procthor>\n"
         << "  --step-mode <all|render_only|render_physics>\n"
         << "  --output <all|rgb|depth>\n"
-        << "  --orientation-mode <random_yaw_pitch|look_at_scene_jitter|uniform_so3>\n"
+        << "  --orientation-mode <uniform_so3|random_yaw_pitch|look_at_scene_jitter>\n"
         << "  --gpu-label <label>\n"
         << "  --seconds <seconds>              Timed duration per combination (default: 10)\n"
         << "  --iterations <count>             Fixed timed iterations; overrides --seconds when >0\n"

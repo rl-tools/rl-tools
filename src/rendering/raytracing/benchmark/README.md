@@ -3,7 +3,7 @@
 This directory contains the benchmark targets for the OptiX raytracing renderer.
 The simulator matrix target is the preferred benchmark for simulator-paper tables because it emits CSV rows and stitched PNG verification images.
 
-The current shared renderer FOV is 80 degrees. AA and motion blur are disabled in the benchmark targets documented here. The simulator matrix samples deterministic random camera orientations from `--seed`; by default it uses the `random_yaw_pitch` distribution also used by the Madrona benchmark. `20_objects` is viewed from the scene origin and ProcTHOR from `[-3.92, -5.67, 1.0]`. The `20_objects` scene uses the shared `canonical_staggered_v1` staggered spatial layout with alternating box and sphere entries.
+The current shared renderer FOV is 80 degrees. AA and motion blur are disabled in the benchmark targets documented here. The simulator matrix samples one deterministic Haar-uniform SO(3) camera orientation per camera from `--seed` by default. `20_objects` is viewed from the scene origin and ProcTHOR from `[-3.92, -5.67, 1.0]`. The `20_objects` scene uses the shared `canonical_staggered_v1` staggered spatial layout with alternating box and sphere entries.
 
 ## Activate Environment
 
@@ -207,7 +207,7 @@ Simulator matrix options:
 --warmup-iterations <count>
 --sync-interval <count>
 --seed <camera orientation seed>
---orientation-mode random_yaw_pitch|look_at_scene_jitter|uniform_so3
+--orientation-mode uniform_so3|random_yaw_pitch|look_at_scene_jitter
 --gpu-label <label for CSV rows and PNG names>
 --output-dir <directory for PNGs and output.log>
 --procthor-path <path/to/ProcTHOR-Train-1.glb>
