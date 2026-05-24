@@ -3,7 +3,7 @@
 This directory contains the benchmark targets for the OptiX raytracing renderer.
 The simulator matrix target is the preferred benchmark for simulator-paper tables because it emits CSV rows and stitched PNG verification images.
 
-The current shared renderer FOV is 80 degrees. AA and motion blur are disabled in the benchmark targets documented here. The simulator matrix uses the fixed ProcTHOR camera position `[-3.92, -5.67, 1.0]` and deterministic random camera-orientation jitter from `--seed`. The `20_objects` scene uses the shared `canonical_staggered_v1` staggered spatial layout; sphere entries from the canonical layout are approximated as equal-sided boxes in this raytracing-only benchmark path.
+The current shared renderer FOV is 80 degrees. AA and motion blur are disabled in the benchmark targets documented here. The simulator matrix uses deterministic random camera-orientation jitter from `--seed`; `20_objects` is viewed from the scene origin and ProcTHOR from `[-3.92, -5.67, 1.0]`. The `20_objects` scene uses the shared `canonical_staggered_v1` staggered spatial layout with alternating box and sphere entries.
 
 ## Activate Environment
 
