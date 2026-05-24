@@ -12,6 +12,10 @@
 #define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS 4096
 #endif
 
+#ifndef RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_HIGH_FIDELITY_SHADING
+#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_HIGH_FIDELITY_SHADING 0
+#endif
+
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/backends/optix/operations_cuda.h>
 
@@ -35,8 +39,9 @@ using T = float;
 using TI = int;
 
 static constexpr TI NUM_ENVS = RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS;
+static constexpr bool HIGH_FIDELITY_SHADING = RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_HIGH_FIDELITY_SHADING != 0;
 template <rlt::rendering::raytracing::OutputMode T_OUTPUT_MODE>
-using BenchmarkSpec = rlt::rendering::raytracing::Specification<T, TI, 64, 64, NUM_ENVS, 1, false, false, 1, false, 1, T_OUTPUT_MODE>;
+using BenchmarkSpec = rlt::rendering::raytracing::Specification<T, TI, 64, 64, NUM_ENVS, 1, HIGH_FIDELITY_SHADING, false, 1, false, 1, T_OUTPUT_MODE>;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 
 enum class SceneAxis { OBJECTS_20, PROCTHOR };
