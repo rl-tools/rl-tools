@@ -21,3 +21,4 @@ RUN cmake --build build/ -j10 --target nn_models_port_checkpoint_raptor
 RUN ./build/src/nn_models/port_checkpoint/raptor/nn_models_port_checkpoint_raptor
 RUN cmake --build build/ -j10 --target rl_environments_l2f_visual_yaw_cuda
 RUN git clone https://github.com/rl-tools/procthor-train-200-glb.git glb
+WORKDIR /
