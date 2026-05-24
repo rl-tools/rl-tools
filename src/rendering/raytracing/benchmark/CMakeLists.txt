@@ -110,4 +110,40 @@ target_compile_definitions(rendering_raytracing_sim_benchmark_depth
     PRIVATE
         RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_OUTPUT_MODE=2
         RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS=${RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS}
+    )
+
+add_executable(rendering_raytracing_procthor_frame EXCLUDE_FROM_ALL simulator_matrix.cpp)
+target_link_libraries(rendering_raytracing_procthor_frame
+    PRIVATE
+        RLtools::RLtools
+        owl::owl
+        rendering_raytracing_device_ptx
+        assimp::assimp
+        rendering_raytracing_stb
+)
+target_compile_definitions(rendering_raytracing_procthor_frame
+    PRIVATE
+        RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_OUTPUT_MODE=0
+        RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS=1
+        RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_WIDTH=1000
+        RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_HEIGHT=1000
+        RL_TOOLS_RENDERING_RAYTRACING_SIM_FRAME_TOOL=1
+)
+
+add_executable(rendering_raytracing_procthor_frame_depth EXCLUDE_FROM_ALL simulator_matrix.cpp)
+target_link_libraries(rendering_raytracing_procthor_frame_depth
+    PRIVATE
+        RLtools::RLtools
+        owl::owl
+        rendering_raytracing_device_depth_ptx
+        assimp::assimp
+        rendering_raytracing_stb
+)
+target_compile_definitions(rendering_raytracing_procthor_frame_depth
+    PRIVATE
+        RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_OUTPUT_MODE=2
+        RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS=1
+        RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_WIDTH=1000
+        RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_HEIGHT=1000
+        RL_TOOLS_RENDERING_RAYTRACING_SIM_FRAME_TOOL=1
 )
