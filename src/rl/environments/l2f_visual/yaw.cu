@@ -244,10 +244,10 @@ static constexpr T TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE = static_cast<T>(
 static_assert(TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE >= static_cast<T>(0), "Invalid l2f_visual yaw target frame roll/pitch randomization range");
 
 using RENDER_SHADING = rlt::rendering::raytracing::HighFidelityShading;
-static constexpr bool RENDER_ENABLE_MOTION_BLUR = true;
-static constexpr TI RENDER_MOTION_BLUR_SAMPLES = 2;
-static constexpr bool RENDER_ENABLE_ANTI_ALIASING = true;
-static constexpr TI RENDER_ANTI_ALIASING_GRID_SIZE = 2;
+static constexpr bool RENDER_ENABLE_MOTION_BLUR = false;
+static constexpr TI RENDER_MOTION_BLUR_SAMPLES = 1;
+static constexpr bool RENDER_ENABLE_ANTI_ALIASING = false;
+static constexpr TI RENDER_ANTI_ALIASING_GRID_SIZE = 1;
 static constexpr T RENDER_SHUTTER_FRACTION_MIN = static_cast<T>(0.25);
 static constexpr T RENDER_SHUTTER_FRACTION_MAX = static_cast<T>(1);
 static_assert(RENDER_SHUTTER_FRACTION_MIN >= static_cast<T>(0) && RENDER_SHUTTER_FRACTION_MIN <= RENDER_SHUTTER_FRACTION_MAX && RENDER_SHUTTER_FRACTION_MAX <= static_cast<T>(1), "Invalid l2f_visual yaw shutter fraction range");

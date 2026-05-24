@@ -50,6 +50,17 @@ target_link_libraries(rendering_raytracing_antialiasing
         rendering_raytracing_stb
 )
 
+add_executable(rendering_raytracing_pose_trace EXCLUDE_FROM_ALL render_pose_trace.cpp)
+target_link_libraries(rendering_raytracing_pose_trace
+    PRIVATE
+        RLtools::RLtools
+        owl::owl
+        rendering_raytracing_device_ptx
+        rendering_raytracing_device_depth_ptx
+        assimp::assimp
+        rendering_raytracing_stb
+)
+
 find_package(glfw3 QUIET)
 find_package(OpenGL QUIET)
 if(glfw3_FOUND AND OpenGL_FOUND)

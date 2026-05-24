@@ -18,11 +18,17 @@
 
 #include <iostream>
 #include <fstream>
+#include <algorithm>
+#include <cerrno>
 #include <cmath>
 #include <cstring>
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
+#include <iomanip>
+#include <string>
 #include <sys/stat.h>
+#include <vector>
 
 namespace rlt = rl_tools;
 
@@ -160,6 +166,64 @@ static InputState g_input;
 static bool g_show_depth = true;
 #endif
 
+struct InteractiveOptions {
+    std::string scene_arg;
+    std::string record_camera_pose_path;
+    bool help = false;
+};
+
+struct RecordedCameraPose {
+    double timestamp_s;
+    size_t frame_index;
+    float position[3];
+    float look_at[3];
+    float up[3];
+    float yaw;
+    float pitch;
+};
+
+static void print_usage(const char* argv0) {
+    std::cerr << "Usage: " << argv0 << " [conta:HASH | scene.glb] [--record-camera-pose trace.json]" << std::endl;
+    std::cerr << "  Or set CONTA_ROOT to use the default scene" << std::endl;
+}
+
+static bool parse_options(int argc, char** argv, InteractiveOptions& options) {
+    for(int i = 1; i < argc; i++) {
+        std::string arg = argv[i];
+        if(arg == "-h" || arg == "--help") {
+            options.help = true;
+            return true;
+        }
+        const std::string record_prefix = "--record-camera-pose=";
+        const std::string record_trace_prefix = "--record-camera-trace=";
+        if(arg == "--record-camera-pose" || arg == "--record-camera-trace") {
+            if(i + 1 >= argc) {
+                std::cerr << "Missing value for " << arg << std::endl;
+                return false;
+            }
+            options.record_camera_pose_path = argv[++i];
+        }
+        else if(arg.compare(0, record_prefix.size(), record_prefix) == 0) {
+            options.record_camera_pose_path = arg.substr(record_prefix.size());
+        }
+        else if(arg.compare(0, record_trace_prefix.size(), record_trace_prefix) == 0) {
+            options.record_camera_pose_path = arg.substr(record_trace_prefix.size());
+        }
+        else if(!arg.empty() && arg[0] == '-') {
+            std::cerr << "Unknown argument: " << arg << std::endl;
+            return false;
+        }
+        else if(options.scene_arg.empty()) {
+            options.scene_arg = arg;
+        }
+        else {
+            std::cerr << "Multiple scene arguments provided: " << options.scene_arg << " and " << arg << std::endl;
+            return false;
+        }
+    }
+    return true;
+}
+
 static std::string camera_cache_path(const std::string& scene_path) {
     const char* home = std::getenv("HOME");
     if (!home) return "";
@@ -190,6 +254,149 @@ static bool load_camera_state(const std::string& path, float& x, float& y, float
             .read(reinterpret_cast<char*>(&yaw), 4)
             .read(reinterpret_cast<char*>(&pitch), 4)
             .good();
+}
+
+static std::string json_escape(const std::string& value) {
+    std::string escaped;
+    escaped.reserve(value.size());
+    for(char c : value) {
+        switch(c) {
+            case '"': escaped += "\\\""; break;
+            case '\\': escaped += "\\\\"; break;
+            case '\b': escaped += "\\b"; break;
+            case '\f': escaped += "\\f"; break;
+            case '\n': escaped += "\\n"; break;
+            case '\r': escaped += "\\r"; break;
+            case '\t': escaped += "\\t"; break;
+            default:
+                if(static_cast<unsigned char>(c) < 0x20) {
+                    char buffer[7];
+                    std::snprintf(buffer, sizeof(buffer), "\\u%04x", static_cast<unsigned char>(c));
+                    escaped += buffer;
+                }
+                else {
+                    escaped += c;
+                }
+        }
+    }
+    return escaped;
+}
+
+static void write_json_number(std::ostream& out, float value) {
+    if(std::isfinite(value)) {
+        out << value;
+    }
+    else {
+        out << "null";
+    }
+}
+
+static void write_json_vec3(std::ostream& out, const float v[3]) {
+    out << "[";
+    write_json_number(out, v[0]);
+    out << ", ";
+    write_json_number(out, v[1]);
+    out << ", ";
+    write_json_number(out, v[2]);
+    out << "]";
+}
+
+static void write_json_quaternion(std::ostream& out, const Quaternion& q) {
+    out << "[";
+    write_json_number(out, q.w);
+    out << ", ";
+    write_json_number(out, q.x);
+    out << ", ";
+    write_json_number(out, q.y);
+    out << ", ";
+    write_json_number(out, q.z);
+    out << "]";
+}
+
+static bool write_camera_trace_json(const std::string& path, const std::string& scene_path, const std::vector<RecordedCameraPose>& trace) {
+    if(path.empty()) return true;
+    const std::string tmp_path = path + ".tmp";
+
+    std::ofstream f(tmp_path);
+    if(!f) {
+        std::cerr << "Failed to write camera pose trace JSON: " << tmp_path << std::endl;
+        return false;
+    }
+
+    f << std::setprecision(9);
+    f << "{\n";
+    f << "  \"scene_path\": \"" << json_escape(scene_path) << "\",\n";
+    f << "  \"yaw_pitch_units\": \"radians\",\n";
+    f << "  \"frame_count\": " << trace.size() << ",\n";
+    f << "  \"poses\": [\n";
+    for(size_t i = 0; i < trace.size(); i++) {
+        const RecordedCameraPose& pose = trace[i];
+        const float forward[3] = {
+            pose.look_at[0] - pose.position[0],
+            pose.look_at[1] - pose.position[1],
+            pose.look_at[2] - pose.position[2]
+        };
+        const Quaternion q = quaternion_from_yaw_pitch(pose.yaw, pose.pitch);
+        const float l2f_position[3] = {pose.position[0], pose.position[2], pose.position[1]};
+        const Quaternion l2f_q{q.w, q.x, q.z, q.y};
+
+        f << "    {\n";
+        f << "      \"timestamp_s\": " << pose.timestamp_s << ",\n";
+        f << "      \"frame_index\": " << pose.frame_index << ",\n";
+        f << "      \"renderer\": {\n";
+        f << "        \"frame\": \"interactive_camera_input\",\n";
+        f << "        \"position\": ";
+        write_json_vec3(f, pose.position);
+        f << ",\n";
+        f << "        \"yaw\": ";
+        write_json_number(f, pose.yaw);
+        f << ",\n";
+        f << "        \"pitch\": ";
+        write_json_number(f, pose.pitch);
+        f << ",\n";
+        f << "        \"quaternion_wxyz\": ";
+        write_json_quaternion(f, q);
+        f << ",\n";
+        f << "        \"forward\": ";
+        write_json_vec3(f, forward);
+        f << ",\n";
+        f << "        \"up\": ";
+        write_json_vec3(f, pose.up);
+        f << ",\n";
+        f << "        \"look_at\": ";
+        write_json_vec3(f, pose.look_at);
+        f << "\n";
+        f << "      },\n";
+        f << "      \"glb_scene_overlay\": {\n";
+        f << "        \"position\": ";
+        write_json_vec3(f, pose.position);
+        f << ",\n";
+        f << "        \"quaternion_wxyz\": ";
+        write_json_quaternion(f, q);
+        f << "\n";
+        f << "      },\n";
+        f << "      \"l2f_flu_overlay\": {\n";
+        f << "        \"position\": ";
+        write_json_vec3(f, l2f_position);
+        f << ",\n";
+        f << "        \"quaternion_wxyz\": ";
+        write_json_quaternion(f, l2f_q);
+        f << "\n";
+        f << "      }\n";
+        f << "    }" << (i + 1 < trace.size() ? "," : "") << "\n";
+    }
+    f << "  ]\n";
+    f << "}\n";
+    f.close();
+    if(!f) {
+        std::cerr << "Failed while writing camera pose trace JSON: " << tmp_path << std::endl;
+        return false;
+    }
+    if(std::rename(tmp_path.c_str(), path.c_str()) != 0) {
+        std::cerr << "Failed to move camera pose trace JSON into place: " << std::strerror(errno) << std::endl;
+        return false;
+    }
+    return true;
 }
 
 static void key_callback(GLFWwindow* window, int key, int /*scancode*/, int action, int /*mods*/) {
@@ -255,13 +462,23 @@ int main(int argc, char** argv) {
     using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, CAM_WIDTH, CAM_HEIGHT, 64, rlt::rendering::raytracing::HighFidelityShading, false, 1, false, 1, OUTPUT_MODE>;
     using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 
+    InteractiveOptions options;
+    if(!parse_options(argc, argv, options)) {
+        print_usage(argv[0]);
+        return 1;
+    }
+    if(options.help) {
+        print_usage(argv[0]);
+        return 0;
+    }
+
     DEVICE device;
     rlt::init(device);
 
     static constexpr char DEFAULT_CONTA_HASH[] = "7f1c9129532798e0b63bc41edb6b4c09251cf8a0";
     std::string resolved_scene_path;
-    if (argc >= 2) {
-        const char* scene_arg = argv[1];
+    if (!options.scene_arg.empty()) {
+        const char* scene_arg = options.scene_arg.c_str();
         if (std::strncmp(scene_arg, "conta:", 6) == 0) {
             const char* hash_str = scene_arg + 6;
             const char* conta_root = std::getenv("CONTA_ROOT");
@@ -279,8 +496,7 @@ int main(int argc, char** argv) {
             resolved_scene_path = std::string(conta_root) + "/data/" + DEFAULT_CONTA_HASH;
             std::cout << "No scene argument given, using default: conta:" << DEFAULT_CONTA_HASH << std::endl;
         } else {
-            std::cerr << "Usage: " << argv[0] << " [conta:HASH | scene.glb]" << std::endl;
-            std::cerr << "  Or set CONTA_ROOT to use the default scene" << std::endl;
+            print_usage(argv[0]);
             return 1;
         }
     }
@@ -335,9 +551,12 @@ int main(int argc, char** argv) {
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, CAM_WIDTH, CAM_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
 
     std::vector<uint32_t> pixels(CAM_WIDTH * CAM_HEIGHT);
+    std::vector<RecordedCameraPose> camera_trace;
 
     constexpr float MOVE_SPEED = 3.0f;
     auto last_time = std::chrono::steady_clock::now();
+    const auto trace_start_time = last_time;
+    size_t frame_index = 0;
 
     while (!glfwWindowShouldClose(window)) {
         auto now = std::chrono::steady_clock::now();
@@ -374,6 +593,25 @@ int main(int argc, char** argv) {
         T up[3] = {0, 0, 1};
         T aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
         rlt::set(device, env.renderer->cameras, rlt::make_camera_data(eye, look_at, up, SPEC::RAYTRACING_SPEC::COS_FOVY, aspect), static_cast<TI>(0));
+
+        if(!options.record_camera_pose_path.empty()) {
+            RecordedCameraPose pose;
+            pose.timestamp_s = std::chrono::duration<double>(now - trace_start_time).count();
+            pose.frame_index = frame_index;
+            pose.position[0] = eye[0];
+            pose.position[1] = eye[1];
+            pose.position[2] = eye[2];
+            pose.look_at[0] = look_at[0];
+            pose.look_at[1] = look_at[1];
+            pose.look_at[2] = look_at[2];
+            pose.up[0] = up[0];
+            pose.up[1] = up[1];
+            pose.up[2] = up[2];
+            pose.yaw = g_input.yaw;
+            pose.pitch = g_input.pitch;
+            camera_trace.push_back(pose);
+        }
+        frame_index++;
 
         rlt::set_cameras(device, *env.renderer, env.renderer->cameras);
 #if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
@@ -441,11 +679,19 @@ int main(int argc, char** argv) {
     }
 
     save_camera_state(cam_cache, state.position[0], state.position[1], state.position[2], g_input.yaw, g_input.pitch);
+    const bool pose_recorded = write_camera_trace_json(
+        options.record_camera_pose_path,
+        resolved_scene_path,
+        camera_trace
+    );
+    if(pose_recorded && !options.record_camera_pose_path.empty()) {
+        std::cout << "Wrote camera pose trace JSON to " << options.record_camera_pose_path << std::endl;
+    }
 
     glDeleteTextures(1, &texture);
     glfwDestroyWindow(window);
     glfwTerminate();
 
     rlt::free(device, env);
-    return 0;
+    return pose_recorded ? 0 : 1;
 }
