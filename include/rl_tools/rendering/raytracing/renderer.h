@@ -55,7 +55,7 @@ namespace rl_tools {
             static constexpr TI FB_HEIGHT = GRID_ROWS * CAM_HEIGHT;
             static constexpr TI CAM_PIXELS = CAM_WIDTH * CAM_HEIGHT;
             static constexpr T BENCHMARK_SECONDS = 10.0;
-            static constexpr T COS_FOVY = 0.66;
+            static constexpr T COS_FOVY = 1.3962634015954636;
         };
 
         template <typename T_SPEC>
