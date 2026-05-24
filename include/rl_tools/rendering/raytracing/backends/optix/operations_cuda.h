@@ -1723,6 +1723,17 @@ namespace rl_tools {
         constexpr int grid_height = SPEC::GRID_ROWS * SPEC::CAM_HEIGHT;
         std::vector<uint32_t> grid_image(grid_width * grid_height, 0);
         const float max_depth = renderer.camera_radius > 0 ? renderer.camera_radius * 2.0f : 1e30f;
+        const float valid_max_depth = max_depth * 0.999f;
+        float min_valid_depth = std::numeric_limits<float>::max();
+        float max_valid_depth = std::numeric_limits<float>::lowest();
+        for(const float depth : depth_host){
+            if(std::isfinite(depth) && depth > 0.f && depth < valid_max_depth){
+                min_valid_depth = std::min(min_valid_depth, depth);
+                max_valid_depth = std::max(max_valid_depth, depth);
+            }
+        }
+        const bool has_valid_depth = min_valid_depth <= max_valid_depth;
+        const float valid_depth_range = has_valid_depth ? max_valid_depth - min_valid_depth : 0.f;
 
         for(int i = 0; i < (int)SPEC::NUM_CAMERAS; i++){
             int col = i % SPEC::GRID_COLS;
@@ -1733,8 +1744,11 @@ namespace rl_tools {
             for(int y = 0; y < (int)SPEC::CAM_HEIGHT; y++){
                 for(int x = 0; x < (int)SPEC::CAM_WIDTH; x++){
                     const float depth = depth_host[i * cam_pixels + y * SPEC::CAM_WIDTH + x];
-                    const float normalized = fminf(fmaxf(depth / max_depth, 0.f), 1.f);
-                    const uint8_t value = static_cast<uint8_t>((1.f - normalized) * 255.f);
+                    uint8_t value = 0;
+                    if(has_valid_depth && std::isfinite(depth) && depth > 0.f && depth < valid_max_depth){
+                        const float normalized = fminf(fmaxf((depth - min_valid_depth) / (valid_depth_range + 1e-6f), 0.f), 1.f);
+                        value = static_cast<uint8_t>((1.f - normalized) * 255.f);
+                    }
                     grid_image[(offset_y + y) * grid_width + offset_x + x] =
                         (0xFFu << 24) | (uint32_t(value) << 16) | (uint32_t(value) << 8) | uint32_t(value);
                 }
