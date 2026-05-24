@@ -855,20 +855,6 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
     rlt::init(device, env);
 
     std::vector<uint32_t> frame(static_cast<size_t>(WIDTH) * static_cast<size_t>(HEIGHT));
-    float min_depth = std::numeric_limits<float>::max();
-    float max_depth_value = std::numeric_limits<float>::lowest();
-
-    if constexpr (SPEC::HAS_DEPTH) {
-        const float miss_depth = env.renderer->camera_radius > 0 ? env.renderer->camera_radius * 2.0f : 1e30f;
-        for(const TracePose& pose : poses) {
-            rlt::set(device, env.renderer->cameras, rlt::make_camera_data(pose.eye, pose.look_at, pose.up, SPEC::RAYTRACING_SPEC::COS_FOVY, static_cast<T>(WIDTH) / static_cast<T>(HEIGHT)), static_cast<TI>(0));
-            rlt::set_cameras(device, *env.renderer, env.renderer->cameras);
-            rlt::render_depth_only(device, *env.renderer);
-            rlt::read_depth_buffer(device, *env.renderer, env.renderer->depth_buffer);
-            depth_range(rlt::data(env.renderer->depth_buffer), frame.size(), miss_depth, min_depth, max_depth_value);
-        }
-    }
-
     FILE* pipe = popen(record.ffmpeg_command.c_str(), "w");
     if(pipe == nullptr) {
         std::cerr << "Failed to start ffmpeg for " << record.path << std::endl;
@@ -885,6 +871,9 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
             rlt::render_depth_only(device, *env.renderer);
             rlt::read_depth_buffer(device, *env.renderer, env.renderer->depth_buffer);
             const float miss_depth = env.renderer->camera_radius > 0 ? env.renderer->camera_radius * 2.0f : 1e30f;
+            float min_depth = std::numeric_limits<float>::max();
+            float max_depth_value = std::numeric_limits<float>::lowest();
+            depth_range(rlt::data(env.renderer->depth_buffer), frame.size(), miss_depth, min_depth, max_depth_value);
             depth_to_rgba(rlt::data(env.renderer->depth_buffer), frame, miss_depth, min_depth, max_depth_value);
         }
         else {
@@ -928,6 +917,11 @@ static bool write_manifest(const Options& options, const std::string& scene_path
     manifest["trace_duration_s"] = trace_duration_s;
     manifest["source_implied_fps"] = source_implied_fps;
     manifest["timestamp_resampled"] = timestamp_resampled;
+    manifest["depth_visualization"] = {
+        {"mapping", "per_frame_min_max"},
+        {"near_value", 255},
+        {"far_value", 0}
+    };
     manifest["smoothing"] = {
         {"applied", smoothing_applied},
         {"algorithm", "offline_zero_phase_gaussian_quaternion_nlerp"},
