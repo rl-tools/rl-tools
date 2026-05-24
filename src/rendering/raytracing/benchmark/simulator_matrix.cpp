@@ -67,6 +67,7 @@ using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 enum class SceneAxis { OBJECTS_20, PROCTHOR };
 enum class StepAxis { RENDER_ONLY, RENDER_PHYSICS };
 enum class OutputAxis { RGB, DEPTH };
+enum class OrientationMode { LOOK_AT_SCENE_JITTER, RANDOM_YAW_PITCH, UNIFORM_SO3 };
 
 struct CameraOffset {
     T x;
@@ -84,6 +85,7 @@ struct Options {
     std::string scene = "all";
     std::string step_mode = "all";
     std::string output = "all";
+    std::string orientation_mode = "random_yaw_pitch";
     std::string gpu_label;
     std::string output_dir = ".";
     std::string procthor_path = "tests/data/ProcTHOR-Train-1.glb";
@@ -97,11 +99,9 @@ struct Options {
     uint32_t seed = 0;
 };
 
-struct CameraMotion {
-    T yaw_offset;
-    T pitch_offset;
-    T yaw_velocity;
-    T pitch_velocity;
+struct CameraPose {
+    T direction[3];
+    T up[3];
 };
 
 struct BenchmarkResult {
@@ -137,6 +137,7 @@ static void print_help(const char* argv0) {
         << "  --scene <all|20_objects|procthor>\n"
         << "  --step-mode <all|render_only|render_physics>\n"
         << "  --output <all|rgb|depth>\n"
+        << "  --orientation-mode <random_yaw_pitch|look_at_scene_jitter|uniform_so3>\n"
         << "  --gpu-label <label>\n"
         << "  --seconds <seconds>              Timed duration per combination (default: 10)\n"
         << "  --iterations <count>             Fixed timed iterations; overrides --seconds when >0\n"
@@ -203,6 +204,9 @@ static bool parse_options(int argc, char** argv, Options& options) {
         }
         else if(get_option_value(i, argc, argv, arg, "--output", value)) {
             options.output = value;
+        }
+        else if(get_option_value(i, argc, argv, arg, "--orientation-mode", value)) {
+            options.orientation_mode = value;
         }
         else if(get_option_value(i, argc, argv, arg, "--gpu-label", value)) {
             options.gpu_label = value;
@@ -294,6 +298,13 @@ static bool parse_options(int argc, char** argv, Options& options) {
         std::cerr << "--sync-interval must be > 0." << std::endl;
         return false;
     }
+    if(options.orientation_mode != "random_yaw_pitch" &&
+       options.orientation_mode != "look_at_scene_jitter" &&
+       options.orientation_mode != "uniform_so3" &&
+       options.orientation_mode != "uniform_so3_once_per_camera") {
+        std::cerr << "Unsupported --orientation-mode: " << options.orientation_mode << std::endl;
+        return false;
+    }
     return true;
 }
 
@@ -303,6 +314,21 @@ static const char* scene_name(SceneAxis scene) {
 
 static const char* step_name(StepAxis step) {
     return step == StepAxis::RENDER_ONLY ? "render_only" : "render_physics";
+}
+
+static OrientationMode orientation_mode(const Options& options) {
+    if(options.orientation_mode == "look_at_scene_jitter") {
+        return OrientationMode::LOOK_AT_SCENE_JITTER;
+    }
+    if(options.orientation_mode == "uniform_so3" || options.orientation_mode == "uniform_so3_once_per_camera") {
+        return OrientationMode::UNIFORM_SO3;
+    }
+    return OrientationMode::RANDOM_YAW_PITCH;
+}
+
+static const char* orientation_mode_name(OrientationMode mode) {
+    return mode == OrientationMode::LOOK_AT_SCENE_JITTER ? "look_at_scene_jitter"
+        : (mode == OrientationMode::UNIFORM_SO3 ? "uniform_so3_once_per_camera" : "random_yaw_pitch");
 }
 
 static constexpr const char* output_name() {
@@ -592,90 +618,125 @@ static void make_20_object_scene(rlt::rendering::raytracing::Renderer<SPEC>& ren
     renderer.camera_radius = static_cast<T>(6.0);
 }
 
-template <typename SPEC>
-static std::vector<CameraMotion> make_camera_states(const rlt::rendering::raytracing::Renderer<SPEC>& renderer, const Options& options) {
-    (void)renderer;
-    std::vector<CameraMotion> states(SPEC::NUM_CAMERAS);
-    std::mt19937 rng(options.seed);
-    std::uniform_real_distribution<T> yaw_dist(static_cast<T>(-0.08), static_cast<T>(0.08));
-    std::uniform_real_distribution<T> pitch_dist(static_cast<T>(-0.06), static_cast<T>(0.06));
-    std::uniform_real_distribution<T> velocity_dist(static_cast<T>(0.75), static_cast<T>(1.25));
-    std::bernoulli_distribution sign_dist(0.5);
-    for(int i = 0; i < static_cast<int>(SPEC::NUM_CAMERAS); i++) {
-        const T yaw_sign = sign_dist(rng) ? static_cast<T>(1) : static_cast<T>(-1);
-        const T pitch_sign = sign_dist(rng) ? static_cast<T>(1) : static_cast<T>(-1);
-        states[i].yaw_offset = yaw_dist(rng);
-        states[i].pitch_offset = pitch_dist(rng);
-        states[i].yaw_velocity = yaw_sign * static_cast<T>(0.015) * velocity_dist(rng);
-        states[i].pitch_velocity = pitch_sign * static_cast<T>(0.010) * velocity_dist(rng);
+static void normalize(T v[3]) {
+    const T norm = std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    if(norm < static_cast<T>(1e-6)) {
+        v[0] = static_cast<T>(1);
+        v[1] = static_cast<T>(0);
+        v[2] = static_cast<T>(0);
+        return;
     }
-    return states;
+    v[0] /= norm;
+    v[1] /= norm;
+    v[2] /= norm;
 }
 
-template <typename DEVICE, typename SPEC>
-static void write_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, SceneAxis scene, std::vector<CameraMotion>& states, bool advance, T dt) {
-    const T target[3] = {renderer.scene_center[0], renderer.scene_center[1], renderer.scene_center[2]};
+static void cross(const T a[3], const T b[3], T out[3]) {
+    out[0] = a[1] * b[2] - a[2] * b[1];
+    out[1] = a[2] * b[0] - a[0] * b[2];
+    out[2] = a[0] * b[1] - a[1] * b[0];
+}
+
+static void rotate_by_quaternion(T w, T x, T y, T z, const T v[3], T out[3]) {
+    const T qv[3] = {x, y, z};
+    T t[3];
+    cross(qv, v, t);
+    t[0] *= static_cast<T>(2);
+    t[1] *= static_cast<T>(2);
+    t[2] *= static_cast<T>(2);
+    T q_cross_t[3];
+    cross(qv, t, q_cross_t);
+    out[0] = v[0] + w * t[0] + q_cross_t[0];
+    out[1] = v[1] + w * t[1] + q_cross_t[1];
+    out[2] = v[2] + w * t[2] + q_cross_t[2];
+}
+
+template <typename SPEC>
+static std::vector<CameraPose> make_camera_poses(const rlt::rendering::raytracing::Renderer<SPEC>& renderer, SceneAxis scene, const Options& options) {
+    static constexpr T PI = static_cast<T>(3.14159265358979323846);
+    const OrientationMode mode = orientation_mode(options);
+    std::vector<CameraPose> poses(SPEC::NUM_CAMERAS);
+    std::mt19937 rng(options.seed);
+    std::uniform_real_distribution<T> unit_dist(static_cast<T>(0), static_cast<T>(1));
+    std::uniform_real_distribution<T> look_at_yaw_dist(static_cast<T>(-0.08), static_cast<T>(0.08));
+    std::uniform_real_distribution<T> look_at_pitch_dist(static_cast<T>(-0.06), static_cast<T>(0.06));
+    std::uniform_real_distribution<T> yaw_dist(-PI, PI);
+    std::uniform_real_distribution<T> pitch_dist(static_cast<T>(-0.35), static_cast<T>(0.35));
+
     const CameraOffset offset = camera_offset(scene);
     const T eye[3] = {offset.x, offset.y, offset.z};
-    const T up[3] = {static_cast<T>(0), static_cast<T>(0), static_cast<T>(1)};
-    const T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
-    T forward[3] = {
+    const T target[3] = {renderer.scene_center[0], renderer.scene_center[1], renderer.scene_center[2]};
+    const T world_up[3] = {static_cast<T>(0), static_cast<T>(0), static_cast<T>(1)};
+
+    T look_at_forward[3] = {
         target[0] - eye[0],
         target[1] - eye[1],
         target[2] - eye[2]
     };
-    T forward_norm = std::sqrt(forward[0] * forward[0] + forward[1] * forward[1] + forward[2] * forward[2]);
-    if(forward_norm < static_cast<T>(1e-6)) {
-        forward[0] = static_cast<T>(1);
-        forward[1] = static_cast<T>(0);
-        forward[2] = static_cast<T>(0);
-        forward_norm = static_cast<T>(1);
-    }
-    forward[0] /= forward_norm;
-    forward[1] /= forward_norm;
-    forward[2] /= forward_norm;
-    T right[3] = {
-        forward[1] * up[2] - forward[2] * up[1],
-        forward[2] * up[0] - forward[0] * up[2],
-        forward[0] * up[1] - forward[1] * up[0]
-    };
-    T right_norm = std::sqrt(right[0] * right[0] + right[1] * right[1] + right[2] * right[2]);
-    if(right_norm < static_cast<T>(1e-6)) {
-        right[0] = static_cast<T>(0);
-        right[1] = static_cast<T>(1);
-        right[2] = static_cast<T>(0);
-        right_norm = static_cast<T>(1);
-    }
-    right[0] /= right_norm;
-    right[1] /= right_norm;
-    right[2] /= right_norm;
+    normalize(look_at_forward);
+    T look_at_right[3];
+    cross(look_at_forward, world_up, look_at_right);
+    normalize(look_at_right);
+
     for(int i = 0; i < static_cast<int>(SPEC::NUM_CAMERAS); i++) {
-        CameraMotion& state = states[i];
-        if(advance) {
-            state.yaw_offset += state.yaw_velocity * dt;
-            state.pitch_offset += state.pitch_velocity * dt;
-            if(state.yaw_offset > static_cast<T>(0.08) || state.yaw_offset < static_cast<T>(-0.08)) {
-                state.yaw_velocity = -state.yaw_velocity;
-            }
-            if(state.pitch_offset > static_cast<T>(0.06) || state.pitch_offset < static_cast<T>(-0.06)) {
-                state.pitch_velocity = -state.pitch_velocity;
-            }
+        CameraPose& pose = poses[i];
+        if(mode == OrientationMode::LOOK_AT_SCENE_JITTER) {
+            const T yaw_offset = look_at_yaw_dist(rng);
+            const T pitch_offset = look_at_pitch_dist(rng);
+            pose.direction[0] = look_at_forward[0] + yaw_offset * look_at_right[0] + pitch_offset * world_up[0];
+            pose.direction[1] = look_at_forward[1] + yaw_offset * look_at_right[1] + pitch_offset * world_up[1];
+            pose.direction[2] = look_at_forward[2] + yaw_offset * look_at_right[2] + pitch_offset * world_up[2];
+            normalize(pose.direction);
+            pose.up[0] = world_up[0];
+            pose.up[1] = world_up[1];
+            pose.up[2] = world_up[2];
         }
-        T direction[3] = {
-            forward[0] + state.yaw_offset * right[0] + state.pitch_offset * up[0],
-            forward[1] + state.yaw_offset * right[1] + state.pitch_offset * up[1],
-            forward[2] + state.yaw_offset * right[2] + state.pitch_offset * up[2]
-        };
-        const T direction_norm = std::sqrt(direction[0] * direction[0] + direction[1] * direction[1] + direction[2] * direction[2]);
-        direction[0] /= direction_norm;
-        direction[1] /= direction_norm;
-        direction[2] /= direction_norm;
+        else if(mode == OrientationMode::UNIFORM_SO3) {
+            const T u1 = unit_dist(rng);
+            const T u2 = unit_dist(rng);
+            const T u3 = unit_dist(rng);
+            const T qx = std::sqrt(static_cast<T>(1) - u1) * std::sin(static_cast<T>(2) * PI * u2);
+            const T qy = std::sqrt(static_cast<T>(1) - u1) * std::cos(static_cast<T>(2) * PI * u2);
+            const T qz = std::sqrt(u1) * std::sin(static_cast<T>(2) * PI * u3);
+            const T qw = std::sqrt(u1) * std::cos(static_cast<T>(2) * PI * u3);
+            const T local_forward[3] = {static_cast<T>(1), static_cast<T>(0), static_cast<T>(0)};
+            const T local_up[3] = {static_cast<T>(0), static_cast<T>(0), static_cast<T>(1)};
+            rotate_by_quaternion(qw, qx, qy, qz, local_forward, pose.direction);
+            rotate_by_quaternion(qw, qx, qy, qz, local_up, pose.up);
+            normalize(pose.direction);
+            normalize(pose.up);
+        }
+        else {
+            const T yaw = yaw_dist(rng);
+            const T pitch = pitch_dist(rng);
+            const T cp = std::cos(pitch);
+            const T sp = std::sin(pitch);
+            const T cy = std::cos(yaw);
+            const T sy = std::sin(yaw);
+            pose.direction[0] = cp * cy;
+            pose.direction[1] = cp * sy;
+            pose.direction[2] = sp;
+            pose.up[0] = -sp * cy;
+            pose.up[1] = -sp * sy;
+            pose.up[2] = cp;
+        }
+    }
+    return poses;
+}
+
+template <typename DEVICE, typename SPEC>
+static void write_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, SceneAxis scene, const std::vector<CameraPose>& poses) {
+    const CameraOffset offset = camera_offset(scene);
+    const T eye[3] = {offset.x, offset.y, offset.z};
+    const T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
+    for(int i = 0; i < static_cast<int>(SPEC::NUM_CAMERAS); i++) {
+        const CameraPose& pose = poses[i];
         const T look_at[3] = {
-            eye[0] + direction[0],
-            eye[1] + direction[1],
-            eye[2] + direction[2]
+            eye[0] + pose.direction[0],
+            eye[1] + pose.direction[1],
+            eye[2] + pose.direction[2]
         };
-        rlt::set(device, renderer.cameras, rlt::make_camera_data(eye, look_at, up, SPEC::COS_FOVY, aspect), static_cast<TI>(i));
+        rlt::set(device, renderer.cameras, rlt::make_camera_data(eye, look_at, pose.up, SPEC::COS_FOVY, aspect), static_cast<TI>(i));
     }
 }
 
@@ -786,16 +847,15 @@ static FrameStats validate_current_frame(DEVICE& device, rlt::rendering::raytrac
 }
 
 template <typename DEVICE, typename SPEC>
-static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, SceneAxis scene, std::vector<CameraMotion>& camera_states, StepAxis step, const Options& options) {
+static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, SceneAxis scene, const std::vector<CameraPose>& camera_poses, StepAxis step, const Options& options) {
     const bool with_physics = step == StepAxis::RENDER_PHYSICS;
-    const T dt = static_cast<T>(1.0 / 60.0);
 
     if(options.warmup_seconds > 0) {
         auto warmup_start = std::chrono::high_resolution_clock::now();
         int warmup_iterations = 0;
         for(;;) {
             if(with_physics) {
-                write_cameras(device, renderer, scene, camera_states, true, dt);
+                write_cameras(device, renderer, scene, camera_poses);
                 rlt::set_cameras_async(device, renderer, renderer.cameras);
             }
             render_output(device, renderer);
@@ -810,7 +870,7 @@ static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing:
     else {
         for(int i = 0; i < options.warmup_iterations; i++) {
             if(with_physics) {
-                write_cameras(device, renderer, scene, camera_states, true, dt);
+                write_cameras(device, renderer, scene, camera_poses);
                 rlt::set_cameras_async(device, renderer, renderer.cameras);
             }
             render_output(device, renderer);
@@ -824,7 +884,7 @@ static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing:
     if(options.iterations > 0) {
         for(; iterations < options.iterations; iterations++) {
             if(with_physics) {
-                write_cameras(device, renderer, scene, camera_states, true, dt);
+                write_cameras(device, renderer, scene, camera_poses);
                 rlt::set_cameras_async(device, renderer, renderer.cameras);
                 render_output(device, renderer);
             }
@@ -842,7 +902,7 @@ static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing:
     else {
         for(;;) {
             if(with_physics) {
-                write_cameras(device, renderer, scene, camera_states, true, dt);
+                write_cameras(device, renderer, scene, camera_poses);
                 rlt::set_cameras_async(device, renderer, renderer.cameras);
                 render_output(device, renderer);
                 iterations++;
@@ -919,8 +979,9 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
     }
 
     rlt::upload_geometry(device, renderer);
-    std::vector<CameraMotion> camera_states = make_camera_states(renderer, options);
-    write_cameras(device, renderer, scene, camera_states, false, static_cast<T>(0));
+    const OrientationMode orientation = orientation_mode(options);
+    std::vector<CameraPose> camera_poses = make_camera_poses(renderer, scene, options);
+    write_cameras(device, renderer, scene, camera_poses);
     rlt::set_cameras(device, renderer, renderer.cameras);
     rlt::build_pipeline(device, renderer);
 
@@ -937,10 +998,10 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
         << ", resolution=" << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT
         << ", fov_deg=" << static_cast<double>(SPEC::COS_FOVY) * RAD_TO_DEG
         << ", camera_offset_flu=[" << offset.x << "," << offset.y << "," << offset.z << "]"
-        << ", camera_orientation_sampling=random_look_at_jitter"
+        << ", camera_orientation_sampling=" << orientation_mode_name(orientation)
         << ", seed=" << options.seed);
 
-    BenchmarkResult result = run_benchmark(device, renderer, scene, camera_states, step, options);
+    BenchmarkResult result = run_benchmark(device, renderer, scene, camera_poses, step, options);
 
     const std::string verification_name = std::string("verify_hyperdrone_")
         + scene_name(scene) + "_"
@@ -956,7 +1017,7 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
             << "/" << SPEC::NUM_CAMERAS << " camera frames look black or degenerate.");
     }
 
-    std::cout << "csv_header,scene,objects20_layout,output,step_mode,gpu_label,cuda_device,num_envs,width,height,camera_offset_x,camera_offset_y,camera_offset_z,iterations,elapsed_s,frames_per_s,pixels_per_s,mrays_per_s,cuda_free_mb_after_setup,cuda_total_mb,verification_png,plausible,bad_frames,frame_min,frame_max,frame_mean\n";
+    std::cout << "csv_header,scene,objects20_layout,output,step_mode,gpu_label,cuda_device,num_envs,width,height,camera_offset_x,camera_offset_y,camera_offset_z,camera_orientation_sampling,iterations,elapsed_s,frames_per_s,pixels_per_s,mrays_per_s,cuda_free_mb_after_setup,cuda_total_mb,verification_png,plausible,bad_frames,frame_min,frame_max,frame_mean\n";
     std::cout << "csv_result,"
         << csv_quote(scene_name(scene)) << ","
         << csv_quote(scene == SceneAxis::OBJECTS_20 ? OBJECTS20_LAYOUT_NAME : "") << ","
@@ -970,6 +1031,7 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
         << offset.x << ","
         << offset.y << ","
         << offset.z << ","
+        << csv_quote(orientation_mode_name(orientation)) << ","
         << result.iterations << ","
         << result.elapsed_s << ","
         << result.frames_per_s << ","
