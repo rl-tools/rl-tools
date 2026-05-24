@@ -59,10 +59,13 @@ struct RenderRecord {
     std::string name;
     std::string output;
     std::string fidelity;
+    std::string anti_aliasing;
     std::string path;
     std::string ffmpeg_command;
     TI width = 0;
     TI height = 0;
+    TI aa_grid_size = 1;
+    TI samples_per_pixel = 1;
     int ffmpeg_status = 0;
     bool ok = false;
 };
@@ -789,6 +792,14 @@ static std::string resolution_suffix(TI width, TI height) {
     return std::to_string(width) + "x" + std::to_string(height);
 }
 
+static std::string aa_suffix(bool enabled, TI grid_size) {
+    return enabled ? std::string("_aa") + std::to_string(grid_size) : std::string();
+}
+
+static std::string aa_name(bool enabled, TI grid_size) {
+    return enabled ? std::string("aa") + std::to_string(grid_size) : std::string("none");
+}
+
 static std::string ffmpeg_command(const Options& options, TI width, TI height, const std::string& output_path) {
     std::ostringstream cmd;
     cmd << shell_quote(options.ffmpeg)
@@ -840,12 +851,17 @@ template <typename SPEC>
 static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, const Options& options, const std::string& scene_path, const std::vector<TracePose>& poses, const char* output_name, const char* fidelity_name, RenderRecord& record) {
     constexpr TI WIDTH = SPEC::CAM_WIDTH;
     constexpr TI HEIGHT = SPEC::CAM_HEIGHT;
+    constexpr bool ENABLE_AA = SPEC::ENABLE_ANTI_ALIASING;
+    constexpr TI AA_GRID_SIZE = ENABLE_AA ? SPEC::ANTI_ALIASING_GRID_SIZE : 1;
     record.output = output_name;
     record.fidelity = fidelity_name[0] == '\0' ? "none" : fidelity_name;
+    record.anti_aliasing = aa_name(ENABLE_AA, AA_GRID_SIZE);
     record.width = WIDTH;
     record.height = HEIGHT;
+    record.aa_grid_size = AA_GRID_SIZE;
+    record.samples_per_pixel = AA_GRID_SIZE * AA_GRID_SIZE;
     const std::string base_name = fidelity_name[0] == '\0' ? std::string(output_name) : std::string(output_name) + "_" + fidelity_name;
-    record.name = base_name + "_" + resolution_suffix(WIDTH, HEIGHT);
+    record.name = base_name + "_" + resolution_suffix(WIDTH, HEIGHT) + aa_suffix(ENABLE_AA, AA_GRID_SIZE);
     record.path = join_path(options.output_dir, std::string("trace_") + record.name + ".mp4");
     record.ffmpeg_command = ffmpeg_command(options, WIDTH, HEIGHT, record.path);
 
@@ -911,6 +927,20 @@ static bool write_manifest(const Options& options, const std::string& scene_path
     for(TI resolution : RENDER_RESOLUTIONS) {
         manifest["resolutions"].push_back(resolution);
     }
+    manifest["anti_aliasing"] = json::array({
+        {
+            {"name", "none"},
+            {"enabled", false},
+            {"grid_size", 1},
+            {"samples_per_pixel", 1}
+        },
+        {
+            {"name", "aa2"},
+            {"enabled", true},
+            {"grid_size", 2},
+            {"samples_per_pixel", 4}
+        }
+    });
     manifest["frames"] = render_poses.size();
     manifest["source_frames"] = source_poses.size();
     manifest["rendered_frames"] = render_poses.size();
@@ -934,6 +964,9 @@ static bool write_manifest(const Options& options, const std::string& scene_path
         item["name"] = record.name;
         item["output"] = record.output;
         item["fidelity"] = record.fidelity;
+        item["anti_aliasing"] = record.anti_aliasing;
+        item["aa_grid_size"] = record.aa_grid_size;
+        item["samples_per_pixel"] = record.samples_per_pixel;
         item["width"] = record.width;
         item["height"] = record.height;
         item["path"] = record.path;
@@ -954,26 +987,26 @@ static bool write_manifest(const Options& options, const std::string& scene_path
     return true;
 }
 
-template <TI RESOLUTION>
+template <TI RESOLUTION, bool ENABLE_AA, TI AA_GRID_SIZE>
 static bool render_selected_settings_for_resolution(rlt::devices::DEVICE_FACTORY<>& device, const Options& options, const std::string& scene_path, const std::vector<TracePose>& poses, std::vector<RenderRecord>& records) {
     bool ok = true;
     if(should_render_setting(options, "rgb", "basic")) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::BasicShading, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::RGB>;
+        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::BasicShading, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::RGB>;
         records.emplace_back();
         ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "basic", records.back()) && ok;
     }
     if(should_render_setting(options, "rgb", "high_fidelity")) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::HighFidelityShading, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::RGB>;
+        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::HighFidelityShading, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::RGB>;
         records.emplace_back();
         ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "high_fidelity", records.back()) && ok;
     }
     if(should_render_setting(options, "rgb", "fast_flat")) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::FastFlatShading, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::RGB>;
+        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::FastFlatShading, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::RGB>;
         records.emplace_back();
         ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "fast_flat", records.back()) && ok;
     }
     if(should_render_depth(options)) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::BasicShading, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::DEPTH>;
+        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::BasicShading, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::DEPTH>;
         records.emplace_back();
         ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "depth", "", records.back()) && ok;
     }
@@ -1022,12 +1055,18 @@ int main(int argc, char** argv) {
     std::vector<RenderRecord> records;
     bool ok = true;
 
-    ok = render_selected_settings_for_resolution<64>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<128>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<256>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<512>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<1024>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<2048>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<64, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<64, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<128, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<128, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<256, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<256, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<512, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<512, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<1024, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<1024, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<2048, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<2048, true, 2>(device, options, scene_path, poses, records) && ok;
 
     if(records.empty()) {
         std::cerr << "No render settings selected by --settings=" << options.settings << std::endl;
