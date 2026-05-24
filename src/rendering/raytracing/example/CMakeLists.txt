@@ -61,6 +61,16 @@ target_link_libraries(rendering_raytracing_pose_trace
         rendering_raytracing_stb
 )
 
+add_executable(rendering_raytracing_pose_trace_motion_blur EXCLUDE_FROM_ALL render_pose_trace_motion_blur.cpp)
+target_link_libraries(rendering_raytracing_pose_trace_motion_blur
+    PRIVATE
+        RLtools::RLtools
+        owl::owl
+        rendering_raytracing_device_ptx
+        assimp::assimp
+        rendering_raytracing_stb
+)
+
 find_package(glfw3 QUIET)
 find_package(OpenGL QUIET)
 if(glfw3_FOUND AND OpenGL_FOUND)
