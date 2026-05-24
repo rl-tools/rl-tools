@@ -31,9 +31,8 @@ using T = float;
 using TI = typename rlt::devices::DEVICE_FACTORY<>::index_t;
 
 static constexpr TI NUM_CAMERAS = 1;
-static constexpr TI CAM_WIDTH = 640;
-static constexpr TI CAM_HEIGHT = 480;
 static constexpr TI NUM_PROBES = 1;
+static constexpr TI RENDER_RESOLUTIONS[] = {64, 128, 256, 512, 1024, 2048};
 
 struct TracePose {
     T eye[3];
@@ -62,6 +61,8 @@ struct RenderRecord {
     std::string fidelity;
     std::string path;
     std::string ffmpeg_command;
+    TI width = 0;
+    TI height = 0;
     int ffmpeg_status = 0;
     bool ok = false;
 };
@@ -76,6 +77,7 @@ static void print_usage(const char* argv0) {
         << "  --fps <n>                  MP4 frame rate; timestamped traces are resampled to this rate (default: 30)\n"
         << "  --ffmpeg <path>            ffmpeg binary (default: ffmpeg)\n"
         << "  --settings <list>          all, rgb, depth, basic, high_fidelity, fast_flat, or comma list; depth has no fidelity profile\n"
+        << "                              Always renders square resolutions 64, 128, 256, 512, 1024, and 2048\n"
         << "  --max-frames <n>           Limit trace frames when >0\n"
         << "  --smooth-sigma-s <s>       Gaussian smoothing sigma for position and orientation (default: 0)\n"
         << "  --smooth-position-sigma-s <s>\n"
@@ -783,11 +785,15 @@ static std::vector<TracePose> smooth_trace(const std::vector<TracePose>& input, 
     return output;
 }
 
-static std::string ffmpeg_command(const Options& options, const std::string& output_path) {
+static std::string resolution_suffix(TI width, TI height) {
+    return std::to_string(width) + "x" + std::to_string(height);
+}
+
+static std::string ffmpeg_command(const Options& options, TI width, TI height, const std::string& output_path) {
     std::ostringstream cmd;
     cmd << shell_quote(options.ffmpeg)
         << " -hide_banner -loglevel error -y -f rawvideo -pix_fmt rgba"
-        << " -s " << CAM_WIDTH << "x" << CAM_HEIGHT
+        << " -s " << width << "x" << height
         << " -r " << options.fps
         << " -i - -an -c:v libx264 -pix_fmt yuv420p "
         << shell_quote(output_path);
@@ -832,25 +838,30 @@ static void depth_to_rgba(const float* depth, std::vector<uint32_t>& frame, floa
 
 template <typename SPEC>
 static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, const Options& options, const std::string& scene_path, const std::vector<TracePose>& poses, const char* output_name, const char* fidelity_name, RenderRecord& record) {
+    constexpr TI WIDTH = SPEC::CAM_WIDTH;
+    constexpr TI HEIGHT = SPEC::CAM_HEIGHT;
     record.output = output_name;
     record.fidelity = fidelity_name[0] == '\0' ? "none" : fidelity_name;
-    record.name = fidelity_name[0] == '\0' ? std::string(output_name) : std::string(output_name) + "_" + fidelity_name;
+    record.width = WIDTH;
+    record.height = HEIGHT;
+    const std::string base_name = fidelity_name[0] == '\0' ? std::string(output_name) : std::string(output_name) + "_" + fidelity_name;
+    record.name = base_name + "_" + resolution_suffix(WIDTH, HEIGHT);
     record.path = join_path(options.output_dir, std::string("trace_") + record.name + ".mp4");
-    record.ffmpeg_command = ffmpeg_command(options, record.path);
+    record.ffmpeg_command = ffmpeg_command(options, WIDTH, HEIGHT, record.path);
 
     rlt::rl::environments::raytracing_example::Environment<SPEC> env;
     env.scene_path = scene_path.c_str();
     rlt::malloc(device, env);
     rlt::init(device, env);
 
-    std::vector<uint32_t> frame(static_cast<size_t>(CAM_WIDTH) * static_cast<size_t>(CAM_HEIGHT));
+    std::vector<uint32_t> frame(static_cast<size_t>(WIDTH) * static_cast<size_t>(HEIGHT));
     float min_depth = std::numeric_limits<float>::max();
     float max_depth_value = std::numeric_limits<float>::lowest();
 
     if constexpr (SPEC::HAS_DEPTH) {
         const float miss_depth = env.renderer->camera_radius > 0 ? env.renderer->camera_radius * 2.0f : 1e30f;
         for(const TracePose& pose : poses) {
-            rlt::set(device, env.renderer->cameras, rlt::make_camera_data(pose.eye, pose.look_at, pose.up, SPEC::RAYTRACING_SPEC::COS_FOVY, static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT)), static_cast<TI>(0));
+            rlt::set(device, env.renderer->cameras, rlt::make_camera_data(pose.eye, pose.look_at, pose.up, SPEC::RAYTRACING_SPEC::COS_FOVY, static_cast<T>(WIDTH) / static_cast<T>(HEIGHT)), static_cast<TI>(0));
             rlt::set_cameras(device, *env.renderer, env.renderer->cameras);
             rlt::render_depth_only(device, *env.renderer);
             rlt::read_depth_buffer(device, *env.renderer, env.renderer->depth_buffer);
@@ -868,7 +879,7 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
     bool ok = true;
     for(size_t frame_i = 0; frame_i < poses.size(); frame_i++) {
         const TracePose& pose = poses[frame_i];
-        rlt::set(device, env.renderer->cameras, rlt::make_camera_data(pose.eye, pose.look_at, pose.up, SPEC::RAYTRACING_SPEC::COS_FOVY, static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT)), static_cast<TI>(0));
+        rlt::set(device, env.renderer->cameras, rlt::make_camera_data(pose.eye, pose.look_at, pose.up, SPEC::RAYTRACING_SPEC::COS_FOVY, static_cast<T>(WIDTH) / static_cast<T>(HEIGHT)), static_cast<TI>(0));
         rlt::set_cameras(device, *env.renderer, env.renderer->cameras);
         if constexpr (SPEC::HAS_DEPTH) {
             rlt::render_depth_only(device, *env.renderer);
@@ -907,8 +918,10 @@ static bool write_manifest(const Options& options, const std::string& scene_path
     manifest["scene_path"] = scene_path;
     manifest["output_dir"] = options.output_dir;
     manifest["fps"] = options.fps;
-    manifest["width"] = CAM_WIDTH;
-    manifest["height"] = CAM_HEIGHT;
+    manifest["resolutions"] = json::array();
+    for(TI resolution : RENDER_RESOLUTIONS) {
+        manifest["resolutions"].push_back(resolution);
+    }
     manifest["frames"] = render_poses.size();
     manifest["source_frames"] = source_poses.size();
     manifest["rendered_frames"] = render_poses.size();
@@ -927,6 +940,8 @@ static bool write_manifest(const Options& options, const std::string& scene_path
         item["name"] = record.name;
         item["output"] = record.output;
         item["fidelity"] = record.fidelity;
+        item["width"] = record.width;
+        item["height"] = record.height;
         item["path"] = record.path;
         item["ffmpeg_command"] = record.ffmpeg_command;
         item["ffmpeg_status"] = record.ffmpeg_status;
@@ -943,6 +958,32 @@ static bool write_manifest(const Options& options, const std::string& scene_path
     f << manifest.dump(2) << "\n";
     std::cout << "Wrote " << manifest_path << std::endl;
     return true;
+}
+
+template <TI RESOLUTION>
+static bool render_selected_settings_for_resolution(rlt::devices::DEVICE_FACTORY<>& device, const Options& options, const std::string& scene_path, const std::vector<TracePose>& poses, std::vector<RenderRecord>& records) {
+    bool ok = true;
+    if(should_render_setting(options, "rgb", "basic")) {
+        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::BasicShading, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::RGB>;
+        records.emplace_back();
+        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "basic", records.back()) && ok;
+    }
+    if(should_render_setting(options, "rgb", "high_fidelity")) {
+        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::HighFidelityShading, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::RGB>;
+        records.emplace_back();
+        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "high_fidelity", records.back()) && ok;
+    }
+    if(should_render_setting(options, "rgb", "fast_flat")) {
+        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::FastFlatShading, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::RGB>;
+        records.emplace_back();
+        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "fast_flat", records.back()) && ok;
+    }
+    if(should_render_depth(options)) {
+        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::BasicShading, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::DEPTH>;
+        records.emplace_back();
+        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "depth", "", records.back()) && ok;
+    }
+    return ok;
 }
 
 int main(int argc, char** argv) {
@@ -987,26 +1028,12 @@ int main(int argc, char** argv) {
     std::vector<RenderRecord> records;
     bool ok = true;
 
-    if(should_render_setting(options, "rgb", "basic")) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, rlt::rendering::raytracing::BasicShading, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::RGB>;
-        records.emplace_back();
-        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "basic", records.back()) && ok;
-    }
-    if(should_render_setting(options, "rgb", "high_fidelity")) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, rlt::rendering::raytracing::HighFidelityShading, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::RGB>;
-        records.emplace_back();
-        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "high_fidelity", records.back()) && ok;
-    }
-    if(should_render_setting(options, "rgb", "fast_flat")) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, rlt::rendering::raytracing::FastFlatShading, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::RGB>;
-        records.emplace_back();
-        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "fast_flat", records.back()) && ok;
-    }
-    if(should_render_depth(options)) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, rlt::rendering::raytracing::BasicShading, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::DEPTH>;
-        records.emplace_back();
-        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "depth", "", records.back()) && ok;
-    }
+    ok = render_selected_settings_for_resolution<64>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<128>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<256>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<512>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<1024>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<2048>(device, options, scene_path, poses, records) && ok;
 
     if(records.empty()) {
         std::cerr << "No render settings selected by --settings=" << options.settings << std::endl;
