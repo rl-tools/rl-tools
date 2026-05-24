@@ -29,6 +29,7 @@
 #include <iostream>
 #include <cstdint>
 #include <limits>
+#include <random>
 #include <string>
 #include <sys/stat.h>
 #include <vector>
@@ -38,6 +39,7 @@ namespace rlt = rl_tools;
 using T = float;
 using TI = int;
 
+static constexpr const char* OBJECTS20_LAYOUT_NAME = "canonical_staggered_v1";
 static constexpr TI NUM_ENVS = RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS;
 static constexpr bool HIGH_FIDELITY_SHADING = RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_HIGH_FIDELITY_SHADING != 0;
 template <rlt::rendering::raytracing::OutputMode T_OUTPUT_MODE>
@@ -56,11 +58,13 @@ struct Options {
     std::string output_dir = ".";
     std::string procthor_path = "tests/data/ProcTHOR-Train-1.glb";
     double seconds = 10.0;
+    double warmup_seconds = 2.0;
     int iterations = 0;
     int warmup_iterations = 10;
     int sync_interval = 10;
     int num_envs = NUM_ENVS;
     int resolution = 64;
+    uint32_t seed = 0;
 };
 
 struct CameraMotion {
@@ -91,6 +95,7 @@ static constexpr T CAMERA_OFFSET[3] = {
     static_cast<T>(-5.67),
     static_cast<T>(1.0)
 };
+static constexpr double RAD_TO_DEG = 57.29577951308232;
 
 static bool has_prefix(const std::string& value, const char* prefix) {
     return value.compare(0, std::strlen(prefix), prefix) == 0;
@@ -110,8 +115,10 @@ static void print_help(const char* argv0) {
         << "  --gpu-label <label>\n"
         << "  --seconds <seconds>              Timed duration per combination (default: 10)\n"
         << "  --iterations <count>             Fixed timed iterations; overrides --seconds when >0\n"
-        << "  --warmup-iterations <count>      Warmup iterations before timing (default: 10)\n"
+        << "  --warmup-seconds <seconds>       Untimed warmup duration before timing (default: 2)\n"
+        << "  --warmup-iterations <count>      Legacy warmup count used when --warmup-seconds=0 (default: 10)\n"
         << "  --sync-interval <count>          Render-only async sync interval (default: 10)\n"
+        << "  --seed <count>                   Deterministic camera-orientation seed (default: 0)\n"
         << "  --num-envs <count>               Must match compile-time NUM_ENVS=" << NUM_ENVS << "\n"
         << "  --resolution <pixels>            Must be 64 for this benchmark target\n"
         << "  --output-dir <dir>\n"
@@ -193,6 +200,12 @@ static bool parse_options(int argc, char** argv, Options& options) {
                 return false;
             }
         }
+        else if(get_option_value(i, argc, argv, arg, "--warmup-seconds", value)) {
+            if(!parse_double(value, options.warmup_seconds)) {
+                std::cerr << "Invalid --warmup-seconds: " << value << std::endl;
+                return false;
+            }
+        }
         else if(get_option_value(i, argc, argv, arg, "--warmup-iterations", value)) {
             if(!parse_int(value, options.warmup_iterations)) {
                 std::cerr << "Invalid --warmup-iterations: " << value << std::endl;
@@ -217,6 +230,14 @@ static bool parse_options(int argc, char** argv, Options& options) {
                 return false;
             }
         }
+        else if(get_option_value(i, argc, argv, arg, "--seed", value)) {
+            int parsed_seed = 0;
+            if(!parse_int(value, parsed_seed) || parsed_seed < 0) {
+                std::cerr << "Invalid --seed: " << value << std::endl;
+                return false;
+            }
+            options.seed = static_cast<uint32_t>(parsed_seed);
+        }
         else {
             std::cerr << "Unknown argument: " << arg << std::endl;
             return false;
@@ -238,6 +259,10 @@ static bool parse_options(int argc, char** argv, Options& options) {
     }
     if(options.warmup_iterations < 0) {
         std::cerr << "--warmup-iterations must be >= 0." << std::endl;
+        return false;
+    }
+    if(options.warmup_seconds < 0) {
+        std::cerr << "--warmup-seconds must be >= 0." << std::endl;
         return false;
     }
     if(options.sync_interval <= 0) {
@@ -406,47 +431,98 @@ static void add_box(rlt::rendering::raytracing::Renderer<SPEC>& renderer, T cx, 
     renderer.meshes.push_back(std::move(md));
 }
 
+struct Objects20Position {
+    T x;
+    T y;
+    T z;
+};
+
+static constexpr Objects20Position OBJECTS20_POSITIONS[] = {
+    {-1.5f, -2.0f, 0.35f},
+    {-0.4f, -2.5f, 0.55f},
+    {0.9f, -2.2f, 0.45f},
+    {2.2f, -1.8f, 0.70f},
+    {3.2f, -0.8f, 0.35f},
+    {-2.2f, -0.9f, 0.60f},
+    {-0.9f, -0.8f, 0.45f},
+    {0.4f, -0.6f, 0.80f},
+    {1.8f, -0.3f, 0.50f},
+    {3.0f, 0.4f, 0.65f},
+    {-2.9f, 0.6f, 0.45f},
+    {-1.4f, 0.8f, 0.75f},
+    {0.1f, 1.0f, 0.50f},
+    {1.4f, 1.2f, 0.60f},
+    {2.8f, 1.5f, 0.40f},
+    {-2.4f, 2.2f, 0.70f},
+    {-0.8f, 2.4f, 0.35f},
+    {0.8f, 2.5f, 0.75f},
+    {2.2f, 2.4f, 0.45f},
+    {3.4f, 2.0f, 0.65f},
+};
+
+static void objects20_scale(int i, T& sx, T& sy, T& sz) {
+    if((i % 2) == 0) {
+        sx = static_cast<T>(0.35 + 0.05 * (i % 3));
+        sy = static_cast<T>(0.45 + 0.04 * ((i + 1) % 4));
+        sz = static_cast<T>(0.55 + 0.05 * ((i + 2) % 5));
+    }
+    else {
+        const T radius_scale = static_cast<T>(0.45 + 0.04 * (i % 4));
+        sx = radius_scale;
+        sy = radius_scale;
+        sz = radius_scale;
+    }
+}
+
+static void objects20_color(int i, T& r, T& g, T& b) {
+    static constexpr T palette[][3] = {
+        {0.85f, 0.20f, 0.18f},
+        {0.15f, 0.48f, 0.88f},
+        {0.95f, 0.72f, 0.20f},
+        {0.18f, 0.64f, 0.39f},
+        {0.70f, 0.34f, 0.82f},
+    };
+    const int index = i % 5;
+    r = palette[index][0];
+    g = palette[index][1];
+    b = palette[index][2];
+}
+
 template <typename SPEC>
 static void make_20_object_scene(rlt::rendering::raytracing::Renderer<SPEC>& renderer) {
     renderer.meshes.clear();
     for(int i = 0; i < 20; i++) {
-        const int col = i % 5;
-        const int row = i / 5;
-        const T x = (static_cast<T>(col) - static_cast<T>(2)) * static_cast<T>(1.45);
-        const T y = (static_cast<T>(row) - static_cast<T>(1.5)) * static_cast<T>(1.45);
-        const T sx = static_cast<T>(0.45 + 0.12 * (i % 3));
-        const T sy = static_cast<T>(0.55 + 0.10 * ((i + 1) % 3));
-        const T sz = static_cast<T>(0.45 + 0.18 * ((i + 2) % 4));
-        const T z = sz * static_cast<T>(0.5);
-        const T r = static_cast<T>(0.25 + 0.12 * (i % 5));
-        const T g = static_cast<T>(0.35 + 0.10 * (row % 4));
-        const T b = static_cast<T>(0.75 - 0.08 * (i % 5));
-        add_box(renderer, x, y, z, sx, sy, sz, r, g, b);
+        T sx, sy, sz, r, g, b;
+        objects20_scale(i, sx, sy, sz);
+        objects20_color(i, r, g, b);
+        const auto& position = OBJECTS20_POSITIONS[i];
+        add_box(renderer, position.x, position.y, position.z, sx, sy, sz, r, g, b);
     }
-    renderer.scene_center[0] = 0;
+    renderer.scene_center[0] = static_cast<T>(0.25);
     renderer.scene_center[1] = 0;
-    renderer.scene_center[2] = static_cast<T>(0.45);
-    renderer.scene_half_extent[0] = static_cast<T>(3.25);
-    renderer.scene_half_extent[1] = static_cast<T>(2.55);
+    renderer.scene_center[2] = static_cast<T>(0.60);
+    renderer.scene_half_extent[0] = static_cast<T>(3.65);
+    renderer.scene_half_extent[1] = static_cast<T>(2.75);
     renderer.scene_half_extent[2] = static_cast<T>(0.95);
     renderer.camera_radius = static_cast<T>(6.0);
 }
 
 template <typename SPEC>
-static std::vector<CameraMotion> make_camera_states(const rlt::rendering::raytracing::Renderer<SPEC>& renderer) {
+static std::vector<CameraMotion> make_camera_states(const rlt::rendering::raytracing::Renderer<SPEC>& renderer, const Options& options) {
     (void)renderer;
     std::vector<CameraMotion> states(SPEC::NUM_CAMERAS);
-    const int cols = SPEC::GRID_COLS;
-    const int rows = SPEC::GRID_ROWS;
+    std::mt19937 rng(options.seed);
+    std::uniform_real_distribution<T> yaw_dist(static_cast<T>(-0.08), static_cast<T>(0.08));
+    std::uniform_real_distribution<T> pitch_dist(static_cast<T>(-0.06), static_cast<T>(0.06));
+    std::uniform_real_distribution<T> velocity_dist(static_cast<T>(0.75), static_cast<T>(1.25));
+    std::bernoulli_distribution sign_dist(0.5);
     for(int i = 0; i < static_cast<int>(SPEC::NUM_CAMERAS); i++) {
-        const int col = i % cols;
-        const int row = i / cols;
-        const T x = cols > 1 ? (static_cast<T>(col) / static_cast<T>(cols - 1)) * static_cast<T>(2) - static_cast<T>(1) : static_cast<T>(0);
-        const T y = rows > 1 ? (static_cast<T>(row) / static_cast<T>(rows - 1)) * static_cast<T>(2) - static_cast<T>(1) : static_cast<T>(0);
-        states[i].yaw_offset = x * static_cast<T>(0.06);
-        states[i].pitch_offset = y * static_cast<T>(0.04);
-        states[i].yaw_velocity = static_cast<T>(0.015 + 0.001 * (i % 7));
-        states[i].pitch_velocity = static_cast<T>(0.010 + 0.001 * (i % 5));
+        const T yaw_sign = sign_dist(rng) ? static_cast<T>(1) : static_cast<T>(-1);
+        const T pitch_sign = sign_dist(rng) ? static_cast<T>(1) : static_cast<T>(-1);
+        states[i].yaw_offset = yaw_dist(rng);
+        states[i].pitch_offset = pitch_dist(rng);
+        states[i].yaw_velocity = yaw_sign * static_cast<T>(0.015) * velocity_dist(rng);
+        states[i].pitch_velocity = pitch_sign * static_cast<T>(0.010) * velocity_dist(rng);
     }
     return states;
 }
@@ -632,12 +708,31 @@ static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing:
     const bool with_physics = step == StepAxis::RENDER_PHYSICS;
     const T dt = static_cast<T>(1.0 / 60.0);
 
-    for(int i = 0; i < options.warmup_iterations; i++) {
-        if(with_physics) {
-            write_cameras(device, renderer, camera_states, true, dt);
-            rlt::set_cameras_async(device, renderer, renderer.cameras);
+    if(options.warmup_seconds > 0) {
+        auto warmup_start = std::chrono::high_resolution_clock::now();
+        int warmup_iterations = 0;
+        for(;;) {
+            if(with_physics) {
+                write_cameras(device, renderer, camera_states, true, dt);
+                rlt::set_cameras_async(device, renderer, renderer.cameras);
+            }
+            render_output(device, renderer);
+            warmup_iterations++;
+            auto now = std::chrono::high_resolution_clock::now();
+            const double elapsed = std::chrono::duration<double>(now - warmup_start).count();
+            if(elapsed >= options.warmup_seconds && warmup_iterations > 0) {
+                break;
+            }
         }
-        render_output(device, renderer);
+    }
+    else {
+        for(int i = 0; i < options.warmup_iterations; i++) {
+            if(with_physics) {
+                write_cameras(device, renderer, camera_states, true, dt);
+                rlt::set_cameras_async(device, renderer, renderer.cameras);
+            }
+            render_output(device, renderer);
+        }
     }
 
     cudaDeviceSynchronize();
@@ -742,7 +837,7 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
     }
 
     rlt::upload_geometry(device, renderer);
-    std::vector<CameraMotion> camera_states = make_camera_states(renderer);
+    std::vector<CameraMotion> camera_states = make_camera_states(renderer, options);
     write_cameras(device, renderer, camera_states, false, static_cast<T>(0));
     rlt::set_cameras(device, renderer, renderer.cameras);
     rlt::build_pipeline(device, renderer);
@@ -756,16 +851,20 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
         << ", step_mode=" << step_name(step)
         << ", envs=" << SPEC::NUM_CAMERAS
         << ", resolution=" << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT
-        << ", camera_offset_flu=[" << CAMERA_OFFSET[0] << "," << CAMERA_OFFSET[1] << "," << CAMERA_OFFSET[2] << "]");
+        << ", fov_deg=" << static_cast<double>(SPEC::COS_FOVY) * RAD_TO_DEG
+        << ", camera_offset_flu=[" << CAMERA_OFFSET[0] << "," << CAMERA_OFFSET[1] << "," << CAMERA_OFFSET[2] << "]"
+        << ", camera_orientation_sampling=random_look_at_jitter"
+        << ", seed=" << options.seed);
 
     BenchmarkResult result = run_benchmark(device, renderer, camera_states, step, options);
 
-    const std::string verification_name = std::string("rt_")
+    const std::string verification_name = std::string("verify_hyperdrone_")
         + scene_name(scene) + "_"
         + output_name_for_spec<SPEC>() + "_"
         + step_name(step) + "_"
         + sanitize_label(gpu_label) + "_"
-        + std::to_string(SPEC::NUM_CAMERAS) + "env.png";
+        + std::to_string(SPEC::NUM_CAMERAS) + "views_"
+        + std::to_string(SPEC::CAM_WIDTH) + "x" + std::to_string(SPEC::CAM_HEIGHT) + ".png";
     const std::string verification_path = join_path(options.output_dir, verification_name);
     FrameStats frame_stats = save_verification_image(device, renderer, verification_path);
     if(!frame_stats.plausible) {
@@ -773,9 +872,10 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
             << "/" << SPEC::NUM_CAMERAS << " camera frames look black or degenerate.");
     }
 
-    std::cout << "csv_header,scene,output,step_mode,gpu_label,cuda_device,num_envs,width,height,camera_offset_x,camera_offset_y,camera_offset_z,iterations,elapsed_s,frames_per_s,pixels_per_s,mrays_per_s,cuda_free_mb_after_setup,cuda_total_mb,verification_png,plausible,bad_frames,frame_min,frame_max,frame_mean\n";
+    std::cout << "csv_header,scene,objects20_layout,output,step_mode,gpu_label,cuda_device,num_envs,width,height,camera_offset_x,camera_offset_y,camera_offset_z,iterations,elapsed_s,frames_per_s,pixels_per_s,mrays_per_s,cuda_free_mb_after_setup,cuda_total_mb,verification_png,plausible,bad_frames,frame_min,frame_max,frame_mean\n";
     std::cout << "csv_result,"
         << csv_quote(scene_name(scene)) << ","
+        << csv_quote(scene == SceneAxis::OBJECTS_20 ? OBJECTS20_LAYOUT_NAME : "") << ","
         << csv_quote(output_name_for_spec<SPEC>()) << ","
         << csv_quote(step_name(step)) << ","
         << csv_quote(gpu_label) << ","

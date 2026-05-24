@@ -3,7 +3,7 @@
 This directory contains the benchmark targets for the OptiX raytracing renderer.
 The simulator matrix target is the preferred benchmark for simulator-paper tables because it emits CSV rows and stitched PNG verification images.
 
-The current shared renderer FOV is 80 degrees. AA and motion blur are disabled in the benchmark targets documented here.
+The current shared renderer FOV is 80 degrees. AA and motion blur are disabled in the benchmark targets documented here. The simulator matrix uses the fixed ProcTHOR camera position `[-3.92, -5.67, 1.0]` and deterministic random camera-orientation jitter from `--seed`. The `20_objects` scene uses the shared `canonical_staggered_v1` staggered spatial layout; sphere entries from the canonical layout are approximated as equal-sided boxes in this raytracing-only benchmark path.
 
 ## Activate Environment
 
@@ -56,7 +56,7 @@ cmake --build build --target \
 
 ## Run Simulator Matrix Benchmarks
 
-Use `--seconds 40` for stable table rows. This keeps each timed benchmark row in the requested 30-60 second range. PNG stitching and CSV logging happen after the timed section.
+The default timed duration is 10 seconds per row and the default warmup is 2 seconds. PNG stitching and CSV logging happen after the timed section.
 
 Low-fidelity matrix:
 
@@ -66,8 +66,8 @@ OUT_LOW=$(mktemp -d /tmp/rltools_rt_matrix_low.XXXXXX)
   --scene all \
   --step-mode all \
   --output all \
-  --seconds 40 \
-  --warmup-iterations 20 \
+  --seconds 10 \
+  --warmup-seconds 2 \
   --gpu-label "$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1) low fidelity" \
   --output-dir "$OUT_LOW" | tee "$OUT_LOW/output.log"
 echo "$OUT_LOW"
@@ -81,8 +81,8 @@ OUT_HIGH=$(mktemp -d /tmp/rltools_rt_matrix_high.XXXXXX)
   --scene all \
   --step-mode all \
   --output all \
-  --seconds 40 \
-  --warmup-iterations 20 \
+  --seconds 10 \
+  --warmup-seconds 2 \
   --gpu-label "$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1) high fidelity" \
   --output-dir "$OUT_HIGH" | tee "$OUT_HIGH/output.log"
 echo "$OUT_HIGH"
@@ -125,8 +125,8 @@ OUT_RGB=$(mktemp -d /tmp/rltools_rt_matrix_rgb.XXXXXX)
   --scene all \
   --step-mode all \
   --output rgb \
-  --seconds 40 \
-  --warmup-iterations 20 \
+  --seconds 10 \
+  --warmup-seconds 2 \
   --gpu-label "$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1) rgb-only" \
   --output-dir "$OUT_RGB" | tee "$OUT_RGB/output.log"
 echo "$OUT_RGB"
@@ -140,8 +140,8 @@ OUT_DEPTH=$(mktemp -d /tmp/rltools_rt_matrix_depth.XXXXXX)
   --scene all \
   --step-mode all \
   --output depth \
-  --seconds 40 \
-  --warmup-iterations 20 \
+  --seconds 10 \
+  --warmup-seconds 2 \
   --gpu-label "$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1) depth-only" \
   --output-dir "$OUT_DEPTH" | tee "$OUT_DEPTH/output.log"
 echo "$OUT_DEPTH"
@@ -185,11 +185,13 @@ Simulator matrix options:
 --output all|rgb|depth
 --seconds <timed seconds per row>
 --iterations <fixed iterations per row>
+--warmup-seconds <warmup seconds per row>
 --warmup-iterations <count>
 --sync-interval <count>
+--seed <camera orientation seed>
 --gpu-label <label for CSV rows and PNG names>
 --output-dir <directory for PNGs and output.log>
 --procthor-path <path/to/ProcTHOR-Train-1.glb>
 ```
 
-For paper-style numbers, prefer `--seconds 40` or fixed `--iterations` chosen from a calibration run so every row lands in the 30-60 second window.
+For paper-style numbers, keep the same `--seconds`, `--warmup-seconds`, `--seed`, FOV, resolution, and output settings across all simulator rows.
