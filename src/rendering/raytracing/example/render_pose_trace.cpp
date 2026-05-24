@@ -75,7 +75,7 @@ static void print_usage(const char* argv0) {
         << "  --output-dir <dir>         Output directory (default: .)\n"
         << "  --fps <n>                  MP4 frame rate; timestamped traces are resampled to this rate (default: 30)\n"
         << "  --ffmpeg <path>            ffmpeg binary (default: ffmpeg)\n"
-        << "  --settings <list>          all, rgb, depth, basic, high_fidelity, fast_flat, or comma list\n"
+        << "  --settings <list>          all, rgb, depth, basic, high_fidelity, fast_flat, or comma list; depth has no fidelity profile\n"
         << "  --max-frames <n>           Limit trace frames when >0\n"
         << "  --smooth-sigma-s <s>       Gaussian smoothing sigma for position and orientation (default: 0)\n"
         << "  --smooth-position-sigma-s <s>\n"
@@ -271,6 +271,11 @@ static bool should_render_setting(const Options& options, const char* output, co
     const bool output_ok = !has_output_filter || contains_token(tokens, output);
     const bool fidelity_ok = !has_fidelity_filter || contains_token(tokens, fidelity);
     return output_ok && fidelity_ok;
+}
+
+static bool should_render_depth(const Options& options) {
+    const std::vector<std::string> tokens = split_settings(options.settings);
+    return tokens.empty() || contains_token(tokens, "all") || contains_token(tokens, "depth");
 }
 
 static bool read_json_file(const std::string& path, json& out) {
@@ -828,8 +833,8 @@ static void depth_to_rgba(const float* depth, std::vector<uint32_t>& frame, floa
 template <typename SPEC>
 static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, const Options& options, const std::string& scene_path, const std::vector<TracePose>& poses, const char* output_name, const char* fidelity_name, RenderRecord& record) {
     record.output = output_name;
-    record.fidelity = fidelity_name;
-    record.name = std::string(output_name) + "_" + fidelity_name;
+    record.fidelity = fidelity_name[0] == '\0' ? "none" : fidelity_name;
+    record.name = fidelity_name[0] == '\0' ? std::string(output_name) : std::string(output_name) + "_" + fidelity_name;
     record.path = join_path(options.output_dir, std::string("trace_") + record.name + ".mp4");
     record.ffmpeg_command = ffmpeg_command(options, record.path);
 
@@ -997,20 +1002,10 @@ int main(int argc, char** argv) {
         records.emplace_back();
         ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "fast_flat", records.back()) && ok;
     }
-    if(should_render_setting(options, "depth", "basic")) {
+    if(should_render_depth(options)) {
         using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, rlt::rendering::raytracing::BasicShading, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::DEPTH>;
         records.emplace_back();
-        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "depth", "basic", records.back()) && ok;
-    }
-    if(should_render_setting(options, "depth", "high_fidelity")) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, rlt::rendering::raytracing::HighFidelityShading, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::DEPTH>;
-        records.emplace_back();
-        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "depth", "high_fidelity", records.back()) && ok;
-    }
-    if(should_render_setting(options, "depth", "fast_flat")) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, rlt::rendering::raytracing::FastFlatShading, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::DEPTH>;
-        records.emplace_back();
-        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "depth", "fast_flat", records.back()) && ok;
+        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "depth", "", records.back()) && ok;
     }
 
     if(records.empty()) {
