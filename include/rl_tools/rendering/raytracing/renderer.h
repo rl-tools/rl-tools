@@ -20,10 +20,42 @@ namespace rl_tools {
             DEPTH
         };
 
-        template <typename T_T, typename T_TI, T_TI T_CAM_WIDTH, T_TI T_CAM_HEIGHT, T_TI T_NUM_CAMERAS, T_TI T_NUM_PROBES, bool T_HIGH_FIDELITY_SHADING = false, bool T_ENABLE_MOTION_BLUR = false, T_TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, T_TI T_ANTI_ALIASING_GRID_SIZE = 1, OutputMode T_OUTPUT_MODE = OutputMode::RGB>
+        template <
+            bool T_LOAD_TEXTURES,
+            bool T_NORMAL_SHADING,
+            bool T_METALLIC_REFLECTIONS,
+            bool T_SRGB_OUTPUT,
+            bool T_CHECKER_BACKGROUND,
+            bool T_PBR_SHADING
+        >
+        struct ShadingOptions{
+            static constexpr bool LOAD_TEXTURES = T_LOAD_TEXTURES;
+            static constexpr bool NORMAL_SHADING = T_NORMAL_SHADING;
+            static constexpr bool METALLIC_REFLECTIONS = T_METALLIC_REFLECTIONS;
+            static constexpr bool SRGB_OUTPUT = T_SRGB_OUTPUT;
+            static constexpr bool CHECKER_BACKGROUND = T_CHECKER_BACKGROUND;
+            static constexpr bool PBR_SHADING = T_PBR_SHADING;
+        };
+
+        using BasicShading = ShadingOptions<true, true, true, true, true, false>;
+        using HighFidelityShading = ShadingOptions<true, true, true, true, true, true>;
+        using FastFlatShading = ShadingOptions<false, false, false, false, false, false>;
+
+        template <bool T_HIGH_FIDELITY_SHADING>
+        struct ShadingProfileFromHighFidelity{
+            using type = BasicShading;
+        };
+
+        template <>
+        struct ShadingProfileFromHighFidelity<true>{
+            using type = HighFidelityShading;
+        };
+
+        template <typename T_T, typename T_TI, T_TI T_CAM_WIDTH, T_TI T_CAM_HEIGHT, T_TI T_NUM_CAMERAS, T_TI T_NUM_PROBES, bool T_HIGH_FIDELITY_SHADING = false, bool T_ENABLE_MOTION_BLUR = false, T_TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, T_TI T_ANTI_ALIASING_GRID_SIZE = 1, OutputMode T_OUTPUT_MODE = OutputMode::RGB, typename T_SHADING = typename ShadingProfileFromHighFidelity<T_HIGH_FIDELITY_SHADING>::type>
         struct Specification{
             using T = T_T;
             using TI = T_TI;
+            using SHADING = T_SHADING;
             static constexpr OutputMode OUTPUT_MODE = T_OUTPUT_MODE;
             static constexpr bool HAS_RGB = OUTPUT_MODE == OutputMode::RGB || OUTPUT_MODE == OutputMode::RGBD;
             static constexpr bool HAS_DEPTH = OUTPUT_MODE == OutputMode::RGBD || OUTPUT_MODE == OutputMode::DEPTH;
@@ -33,7 +65,7 @@ namespace rl_tools {
             static constexpr TI CAM_HEIGHT = T_CAM_HEIGHT;
             static constexpr TI NUM_CAMERAS = T_NUM_CAMERAS;
             static constexpr TI NUM_PROBES = T_NUM_PROBES;
-            static constexpr bool HIGH_FIDELITY_SHADING = T_HIGH_FIDELITY_SHADING;
+            static constexpr bool HIGH_FIDELITY_SHADING = SHADING::PBR_SHADING;
             static constexpr TI MOTION_BLUR_SAMPLES = T_MOTION_BLUR_SAMPLES;
             static constexpr bool ENABLE_MOTION_BLUR = T_ENABLE_MOTION_BLUR && MOTION_BLUR_SAMPLES > 1;
             static_assert(MOTION_BLUR_SAMPLES >= 1, "MOTION_BLUR_SAMPLES must be at least 1");

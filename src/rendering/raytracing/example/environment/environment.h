@@ -4,15 +4,16 @@
 #include <array>
 
 namespace rl_tools::rl::environments::raytracing_example {
-    template <typename T_T, typename T_TI, T_TI T_NUM_ENVS, T_TI T_CAM_WIDTH = 64, T_TI T_CAM_HEIGHT = 64, T_TI T_NUM_PROBES = 64, bool T_HIGH_FIDELITY_SHADING = false, bool T_ENABLE_MOTION_BLUR = false, T_TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, T_TI T_ANTI_ALIASING_GRID_SIZE = 1, rendering::raytracing::OutputMode T_OUTPUT_MODE = rendering::raytracing::OutputMode::RGB>
+    template <typename T_T, typename T_TI, T_TI T_NUM_ENVS, T_TI T_CAM_WIDTH = 64, T_TI T_CAM_HEIGHT = 64, T_TI T_NUM_PROBES = 64, bool T_HIGH_FIDELITY_SHADING = false, bool T_ENABLE_MOTION_BLUR = false, T_TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, T_TI T_ANTI_ALIASING_GRID_SIZE = 1, rendering::raytracing::OutputMode T_OUTPUT_MODE = rendering::raytracing::OutputMode::RGB, typename T_SHADING = typename rendering::raytracing::ShadingProfileFromHighFidelity<T_HIGH_FIDELITY_SHADING>::type>
     struct Specification {
         using T = T_T;
         using TI = T_TI;
+        using SHADING = T_SHADING;
         static constexpr TI NUM_ENVS = T_NUM_ENVS;
         static constexpr TI CAM_WIDTH = T_CAM_WIDTH;
         static constexpr TI CAM_HEIGHT = T_CAM_HEIGHT;
         static constexpr TI NUM_PROBES = T_NUM_PROBES;
-        static constexpr bool HIGH_FIDELITY_SHADING = T_HIGH_FIDELITY_SHADING;
+        static constexpr bool HIGH_FIDELITY_SHADING = SHADING::PBR_SHADING;
         static constexpr bool ENABLE_MOTION_BLUR = T_ENABLE_MOTION_BLUR;
         static constexpr TI MOTION_BLUR_SAMPLES = T_MOTION_BLUR_SAMPLES;
         static constexpr bool ENABLE_ANTI_ALIASING = T_ENABLE_ANTI_ALIASING;
@@ -21,7 +22,7 @@ namespace rl_tools::rl::environments::raytracing_example {
         static constexpr bool HAS_RGB = OUTPUT_MODE == rendering::raytracing::OutputMode::RGB || OUTPUT_MODE == rendering::raytracing::OutputMode::RGBD;
         static constexpr bool HAS_DEPTH = OUTPUT_MODE == rendering::raytracing::OutputMode::RGBD || OUTPUT_MODE == rendering::raytracing::OutputMode::DEPTH;
         static constexpr bool ENABLE_DEPTH = HAS_DEPTH;
-        using RAYTRACING_SPEC = rendering::raytracing::Specification<T, TI, CAM_WIDTH, CAM_HEIGHT, NUM_ENVS, NUM_PROBES, HIGH_FIDELITY_SHADING, ENABLE_MOTION_BLUR, MOTION_BLUR_SAMPLES, ENABLE_ANTI_ALIASING, ANTI_ALIASING_GRID_SIZE, OUTPUT_MODE>;
+        using RAYTRACING_SPEC = rendering::raytracing::Specification<T, TI, CAM_WIDTH, CAM_HEIGHT, NUM_ENVS, NUM_PROBES, HIGH_FIDELITY_SHADING, ENABLE_MOTION_BLUR, MOTION_BLUR_SAMPLES, ENABLE_ANTI_ALIASING, ANTI_ALIASING_GRID_SIZE, OUTPUT_MODE, SHADING>;
     };
 
     enum class ObjectID : int {

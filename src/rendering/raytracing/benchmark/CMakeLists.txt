@@ -65,6 +65,23 @@ target_compile_definitions(rendering_raytracing_sim_benchmark_high_fidelity
         RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_HIGH_FIDELITY_SHADING=1
 )
 
+add_executable(rendering_raytracing_sim_benchmark_fast_flat EXCLUDE_FROM_ALL simulator_matrix.cpp)
+target_link_libraries(rendering_raytracing_sim_benchmark_fast_flat
+    PRIVATE
+        RLtools::RLtools
+        owl::owl
+        rendering_raytracing_device_ptx
+        rendering_raytracing_device_depth_ptx
+        assimp::assimp
+        rendering_raytracing_stb
+)
+target_compile_definitions(rendering_raytracing_sim_benchmark_fast_flat
+    PRIVATE
+        RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_OUTPUT_MODE=-1
+        RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS=${RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS}
+        RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE=2
+)
+
 add_executable(rendering_raytracing_sim_benchmark_rgb EXCLUDE_FROM_ALL simulator_matrix.cpp)
 target_link_libraries(rendering_raytracing_sim_benchmark_rgb
     PRIVATE
