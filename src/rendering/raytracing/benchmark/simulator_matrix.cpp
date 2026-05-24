@@ -12,6 +12,18 @@
 #define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS 4096
 #endif
 
+#ifndef RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_WIDTH
+#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_WIDTH 64
+#endif
+
+#ifndef RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_HEIGHT
+#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_HEIGHT 64
+#endif
+
+#ifndef RL_TOOLS_RENDERING_RAYTRACING_SIM_FRAME_TOOL
+#define RL_TOOLS_RENDERING_RAYTRACING_SIM_FRAME_TOOL 0
+#endif
+
 #define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_BASIC 0
 #define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_HIGH_FIDELITY 1
 #define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_FAST_FLAT 2
@@ -30,6 +42,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <iostream>
 #include <cstdint>
 #include <limits>
@@ -45,6 +58,8 @@ using TI = int;
 
 static constexpr const char* OBJECTS20_LAYOUT_NAME = "canonical_staggered_v1";
 static constexpr TI NUM_ENVS = RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS;
+static constexpr TI CAM_WIDTH = RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_WIDTH;
+static constexpr TI CAM_HEIGHT = RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_HEIGHT;
 template <int T_PROFILE>
 struct BenchmarkShadingProfile;
 template <>
@@ -61,7 +76,7 @@ struct BenchmarkShadingProfile<RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADI
 };
 using ShadingProfile = typename BenchmarkShadingProfile<RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE>::type;
 template <rlt::rendering::raytracing::OutputMode T_OUTPUT_MODE>
-using BenchmarkSpec = rlt::rendering::raytracing::Specification<T, TI, 64, 64, NUM_ENVS, 1, ShadingProfile, false, 1, false, 1, T_OUTPUT_MODE>;
+using BenchmarkSpec = rlt::rendering::raytracing::Specification<T, TI, CAM_WIDTH, CAM_HEIGHT, NUM_ENVS, 1, ShadingProfile, false, 1, false, 1, T_OUTPUT_MODE>;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 
 enum class SceneAxis { OBJECTS_20, PROCTHOR };
@@ -85,9 +100,10 @@ struct Options {
     std::string scene = "all";
     std::string step_mode = "all";
     std::string output = "all";
-    std::string orientation_mode = "random_yaw_pitch";
+    std::string orientation_mode = "uniform_so3";
     std::string gpu_label;
     std::string output_dir = ".";
+    std::string output_png = "hyperdrone_procthor_frame.png";
     std::string procthor_path = "tests/data/ProcTHOR-Train-1.glb";
     double seconds = 10.0;
     double warmup_seconds = 2.0;
@@ -95,8 +111,18 @@ struct Options {
     int warmup_iterations = 10;
     int sync_interval = 10;
     int num_envs = NUM_ENVS;
-    int resolution = 64;
+    int resolution = CAM_WIDTH;
     uint32_t seed = 0;
+    bool has_position = false;
+    bool has_forward = false;
+    bool has_look_at = false;
+    bool has_up = false;
+    bool has_orientation = false;
+    T position[3] = {-3.92f, -5.67f, 1.0f};
+    T forward[3] = {1.0f, 0.0f, 0.0f};
+    T look_at[3] = {0.0f, 0.0f, 0.0f};
+    T up[3] = {0.0f, 0.0f, 1.0f};
+    T orientation_wxyz[4] = {1.0f, 0.0f, 0.0f, 0.0f};
 };
 
 struct CameraPose {
@@ -137,7 +163,7 @@ static void print_help(const char* argv0) {
         << "  --scene <all|20_objects|procthor>\n"
         << "  --step-mode <all|render_only|render_physics>\n"
         << "  --output <all|rgb|depth>\n"
-        << "  --orientation-mode <random_yaw_pitch|look_at_scene_jitter|uniform_so3>\n"
+        << "  --orientation-mode <uniform_so3|random_yaw_pitch|look_at_scene_jitter>\n"
         << "  --gpu-label <label>\n"
         << "  --seconds <seconds>              Timed duration per combination (default: 10)\n"
         << "  --iterations <count>             Fixed timed iterations; overrides --seconds when >0\n"
@@ -146,9 +172,20 @@ static void print_help(const char* argv0) {
         << "  --sync-interval <count>          Render-only async sync interval (default: 10)\n"
         << "  --seed <count>                   Deterministic camera-orientation seed (default: 0)\n"
         << "  --num-envs <count>               Must match compile-time NUM_ENVS=" << NUM_ENVS << "\n"
-        << "  --resolution <pixels>            Must be 64 for this benchmark target\n"
+        << "  --resolution <pixels>            Must match compile-time resolution "
+        << CAM_WIDTH << "x" << CAM_HEIGHT << "\n"
         << "  --output-dir <dir>\n"
         << "  --procthor-path <file>\n";
+#if RL_TOOLS_RENDERING_RAYTRACING_SIM_FRAME_TOOL
+    std::cout
+        << "Frame target options:\n"
+        << "  --output-png <file>              Single-frame PNG path\n"
+        << "  --position-flu X Y Z             Camera position in ProcTHOR FLU coordinates\n"
+        << "  --forward-flu X Y Z              Camera forward direction in FLU coordinates\n"
+        << "  --look-at-flu X Y Z              Look-at target in FLU coordinates\n"
+        << "  --up-flu X Y Z                   Camera up vector in FLU coordinates\n"
+        << "  --orientation-flu-wxyz W X Y Z   Camera body quaternion in FLU coordinates\n";
+#endif
 }
 
 static bool parse_int(const std::string& value, int& out) {
@@ -169,6 +206,126 @@ static bool parse_double(const std::string& value, double& out) {
     }
     out = parsed;
     return true;
+}
+
+static bool parse_vec3_csv(const std::string& value, T out[3]) {
+    size_t start = 0;
+    for(int i = 0; i < 3; i++) {
+        const size_t end = value.find(',', start);
+        const std::string part = value.substr(start, end == std::string::npos ? std::string::npos : end - start);
+        double parsed = 0.0;
+        if(!parse_double(part, parsed)) {
+            return false;
+        }
+        out[i] = static_cast<T>(parsed);
+        if(i < 2) {
+            if(end == std::string::npos) {
+                return false;
+            }
+            start = end + 1;
+        }
+        else if(end != std::string::npos) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool parse_vec3_args(int& i, int argc, char** argv, const char* name, T out[3]) {
+    if(i + 3 >= argc) {
+        std::cerr << "Missing values for " << name << std::endl;
+        return false;
+    }
+    for(int component = 0; component < 3; component++) {
+        double parsed = 0.0;
+        if(!parse_double(argv[++i], parsed)) {
+            std::cerr << "Invalid " << name << " component: " << argv[i] << std::endl;
+            return false;
+        }
+        out[component] = static_cast<T>(parsed);
+    }
+    return true;
+}
+
+static bool get_vec3_option(int& i, int argc, char** argv, const std::string& arg, const char* name, T out[3], bool& seen) {
+    const std::string eq_prefix = std::string(name) + "=";
+    if(has_prefix(arg, eq_prefix.c_str())) {
+        const std::string value = value_after_prefix(arg, eq_prefix.c_str());
+        if(!parse_vec3_csv(value, out)) {
+            std::cerr << "Invalid " << name << ": " << value << std::endl;
+            return false;
+        }
+        seen = true;
+        return true;
+    }
+    if(arg == name) {
+        if(!parse_vec3_args(i, argc, argv, name, out)) {
+            return false;
+        }
+        seen = true;
+        return true;
+    }
+    return false;
+}
+
+static bool parse_vec4_csv(const std::string& value, T out[4]) {
+    size_t start = 0;
+    for(int i = 0; i < 4; i++) {
+        const size_t end = value.find(',', start);
+        const std::string part = value.substr(start, end == std::string::npos ? std::string::npos : end - start);
+        double parsed = 0.0;
+        if(!parse_double(part, parsed)) {
+            return false;
+        }
+        out[i] = static_cast<T>(parsed);
+        if(i < 3) {
+            if(end == std::string::npos) {
+                return false;
+            }
+            start = end + 1;
+        }
+        else if(end != std::string::npos) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static bool parse_vec4_args(int& i, int argc, char** argv, const char* name, T out[4]) {
+    if(i + 4 >= argc) {
+        std::cerr << "Missing values for " << name << std::endl;
+        return false;
+    }
+    for(int component = 0; component < 4; component++) {
+        double parsed = 0.0;
+        if(!parse_double(argv[++i], parsed)) {
+            std::cerr << "Invalid " << name << " component: " << argv[i] << std::endl;
+            return false;
+        }
+        out[component] = static_cast<T>(parsed);
+    }
+    return true;
+}
+
+static bool get_vec4_option(int& i, int argc, char** argv, const std::string& arg, const char* name, T out[4], bool& seen) {
+    const std::string eq_prefix = std::string(name) + "=";
+    if(has_prefix(arg, eq_prefix.c_str())) {
+        const std::string value = value_after_prefix(arg, eq_prefix.c_str());
+        if(!parse_vec4_csv(value, out)) {
+            std::cerr << "Invalid " << name << ": " << value << std::endl;
+            return false;
+        }
+        seen = true;
+        return true;
+    }
+    if(arg == name) {
+        if(!parse_vec4_args(i, argc, argv, name, out)) {
+            return false;
+        }
+        seen = true;
+        return true;
+    }
+    return false;
 }
 
 static bool get_option_value(int& i, int argc, char** argv, const std::string& arg, const char* name, std::string& out) {
@@ -214,8 +371,21 @@ static bool parse_options(int argc, char** argv, Options& options) {
         else if(get_option_value(i, argc, argv, arg, "--output-dir", value)) {
             options.output_dir = value;
         }
+        else if(get_option_value(i, argc, argv, arg, "--output-png", value)) {
+            options.output_png = value;
+        }
         else if(get_option_value(i, argc, argv, arg, "--procthor-path", value)) {
             options.procthor_path = value;
+        }
+        else if(get_vec3_option(i, argc, argv, arg, "--position-flu", options.position, options.has_position)) {
+        }
+        else if(get_vec3_option(i, argc, argv, arg, "--forward-flu", options.forward, options.has_forward)) {
+        }
+        else if(get_vec3_option(i, argc, argv, arg, "--look-at-flu", options.look_at, options.has_look_at)) {
+        }
+        else if(get_vec3_option(i, argc, argv, arg, "--up-flu", options.up, options.has_up)) {
+        }
+        else if(get_vec4_option(i, argc, argv, arg, "--orientation-flu-wxyz", options.orientation_wxyz, options.has_orientation)) {
         }
         else if(get_option_value(i, argc, argv, arg, "--seconds", value)) {
             if(!parse_double(value, options.seconds)) {
@@ -278,8 +448,17 @@ static bool parse_options(int argc, char** argv, Options& options) {
                   << ", but this target was built with " << NUM_ENVS << "." << std::endl;
         return false;
     }
-    if(options.resolution != 64) {
-        std::cerr << "This benchmark is standardized on 64x64. Requested " << options.resolution << "." << std::endl;
+    if(options.resolution != CAM_WIDTH || CAM_WIDTH != CAM_HEIGHT) {
+        std::cerr << "This target was built for " << CAM_WIDTH << "x" << CAM_HEIGHT
+                  << ". Requested square resolution " << options.resolution << "." << std::endl;
+        return false;
+    }
+    if(options.has_forward && options.has_look_at) {
+        std::cerr << "Use only one of --forward-flu or --look-at-flu." << std::endl;
+        return false;
+    }
+    if(options.has_orientation && (options.has_forward || options.has_look_at)) {
+        std::cerr << "Use --orientation-flu-wxyz without --forward-flu or --look-at-flu." << std::endl;
         return false;
     }
     if(options.seconds <= 0 && options.iterations <= 0) {
@@ -432,6 +611,14 @@ static std::string join_path(const std::string& dir, const std::string& file) {
         return dir + file;
     }
     return dir + "/" + file;
+}
+
+static void ensure_parent_dir(const std::string& path) {
+    const std::filesystem::path fs_path(path);
+    const std::filesystem::path parent = fs_path.parent_path();
+    if(!parent.empty()) {
+        std::filesystem::create_directories(parent);
+    }
 }
 
 static std::string csv_quote(const std::string& input) {
@@ -631,6 +818,21 @@ static void normalize(T v[3]) {
     v[2] /= norm;
 }
 
+static void normalize_quaternion(T q[4]) {
+    const T norm = std::sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2] + q[3] * q[3]);
+    if(norm < static_cast<T>(1e-6)) {
+        q[0] = static_cast<T>(1);
+        q[1] = static_cast<T>(0);
+        q[2] = static_cast<T>(0);
+        q[3] = static_cast<T>(0);
+        return;
+    }
+    q[0] /= norm;
+    q[1] /= norm;
+    q[2] /= norm;
+    q[3] /= norm;
+}
+
 static void cross(const T a[3], const T b[3], T out[3]) {
     out[0] = a[1] * b[2] - a[2] * b[1];
     out[1] = a[2] * b[0] - a[0] * b[2];
@@ -738,6 +940,56 @@ static void write_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<S
         };
         rlt::set(device, renderer.cameras, rlt::make_camera_data(eye, look_at, pose.up, SPEC::COS_FOVY, aspect), static_cast<TI>(i));
     }
+}
+
+template <typename DEVICE, typename SPEC>
+static void write_single_camera(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, const T eye[3], const CameraPose& pose) {
+    static_assert(SPEC::NUM_CAMERAS == 1, "single-frame target must be compiled with one camera");
+    const T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
+    const T look_at[3] = {
+        eye[0] + pose.direction[0],
+        eye[1] + pose.direction[1],
+        eye[2] + pose.direction[2]
+    };
+    rlt::set(device, renderer.cameras, rlt::make_camera_data(eye, look_at, pose.up, SPEC::COS_FOVY, aspect), static_cast<TI>(0));
+}
+
+template <typename SPEC>
+static CameraPose make_single_frame_pose(const rlt::rendering::raytracing::Renderer<SPEC>& renderer, const Options& options) {
+    CameraPose pose{};
+    const T eye[3] = {options.position[0], options.position[1], options.position[2]};
+    if(options.has_orientation) {
+        T q[4] = {
+            options.orientation_wxyz[0],
+            options.orientation_wxyz[1],
+            options.orientation_wxyz[2],
+            options.orientation_wxyz[3]
+        };
+        normalize_quaternion(q);
+        const T local_forward[3] = {static_cast<T>(1), static_cast<T>(0), static_cast<T>(0)};
+        const T local_up[3] = {static_cast<T>(0), static_cast<T>(0), static_cast<T>(1)};
+        rotate_by_quaternion(q[0], q[1], q[2], q[3], local_forward, pose.direction);
+        rotate_by_quaternion(q[0], q[1], q[2], q[3], local_up, pose.up);
+    }
+    else if(options.has_forward) {
+        pose.direction[0] = options.forward[0];
+        pose.direction[1] = options.forward[1];
+        pose.direction[2] = options.forward[2];
+    }
+    else {
+        const T* target = options.has_look_at ? options.look_at : renderer.scene_center;
+        pose.direction[0] = target[0] - eye[0];
+        pose.direction[1] = target[1] - eye[1];
+        pose.direction[2] = target[2] - eye[2];
+    }
+    normalize(pose.direction);
+    if(!options.has_orientation) {
+        pose.up[0] = options.up[0];
+        pose.up[1] = options.up[1];
+        pose.up[2] = options.up[2];
+    }
+    normalize(pose.up);
+    return pose;
 }
 
 template <typename DEVICE, typename SPEC>
@@ -968,6 +1220,64 @@ static FrameStats save_verification_image(DEVICE& device, rlt::rendering::raytra
 }
 
 template <typename DEVICE, typename SPEC>
+static bool run_procthor_frame(DEVICE& device, const Options& options, const std::string& cuda_name) {
+    static_assert(SPEC::NUM_CAMERAS == 1, "ProcTHOR frame target must use one camera");
+    rlt::rendering::raytracing::Renderer<SPEC> renderer;
+    rlt::malloc(device, renderer);
+
+    if(!setup_scene(device, renderer, SceneAxis::PROCTHOR, options)) {
+        RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Failed to set up ProcTHOR scene.");
+        rlt::free(device, renderer);
+        return false;
+    }
+
+    rlt::upload_geometry(device, renderer);
+    const CameraPose pose = make_single_frame_pose(renderer, options);
+    write_single_camera(device, renderer, options.position, pose);
+    rlt::set_cameras(device, renderer, renderer.cameras);
+    rlt::build_pipeline(device, renderer);
+    render_output(device, renderer);
+    cudaDeviceSynchronize();
+
+    ensure_parent_dir(options.output_png);
+    FrameStats frame_stats = save_verification_image(device, renderer, options.output_png);
+    std::cout
+        << "{\"library\":\"hyperdrone\""
+        << ",\"scene\":\"procthor\""
+        << ",\"output\":\"" << output_name_for_spec<SPEC>() << "\""
+        << ",\"cuda_device\":\"" << cuda_name << "\""
+        << ",\"width\":" << SPEC::CAM_WIDTH
+        << ",\"height\":" << SPEC::CAM_HEIGHT
+        << ",\"camera_position_flu\":["
+        << options.position[0] << "," << options.position[1] << "," << options.position[2] << "]"
+        << ",\"camera_forward_flu\":["
+        << pose.direction[0] << "," << pose.direction[1] << "," << pose.direction[2] << "]"
+        << ",\"camera_up_flu\":["
+        << pose.up[0] << "," << pose.up[1] << "," << pose.up[2] << "]"
+        << ",\"camera_orientation_mode\":\""
+        << (options.has_orientation ? "orientation_flu_wxyz" : (options.has_forward ? "forward_up" : (options.has_look_at ? "look_at_up" : "scene_center_up"))) << "\""
+        << ",\"camera_orientation_flu_wxyz\":"
+        << (options.has_orientation ? "[" : "null");
+    if(options.has_orientation) {
+        std::cout
+            << options.orientation_wxyz[0] << "," << options.orientation_wxyz[1] << ","
+            << options.orientation_wxyz[2] << "," << options.orientation_wxyz[3] << "]";
+    }
+    std::cout
+        << ",\"procthor_path\":\"" << options.procthor_path << "\""
+        << ",\"output_png\":\"" << options.output_png << "\""
+        << ",\"plausible\":" << (frame_stats.plausible ? "true" : "false")
+        << ",\"bad_frames\":" << frame_stats.bad_frames
+        << ",\"frame_min\":" << frame_stats.min_value
+        << ",\"frame_max\":" << frame_stats.max_value
+        << ",\"frame_mean\":" << frame_stats.mean_value
+        << "}\n";
+
+    rlt::free(device, renderer);
+    return frame_stats.plausible;
+}
+
+template <typename DEVICE, typename SPEC>
 static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, const Options& options, const std::string& cuda_name, const std::string& gpu_label) {
     rlt::rendering::raytracing::Renderer<SPEC> renderer;
     rlt::malloc(device, renderer);
@@ -1093,6 +1403,30 @@ int main(int argc, char** argv) {
 
     bool ok = true;
     (void)outputs;
+#if RL_TOOLS_RENDERING_RAYTRACING_SIM_FRAME_TOOL
+    if(options.scene != "procthor" && options.scene != "all") {
+        std::cerr << "The single-frame target only supports --scene procthor." << std::endl;
+        return 1;
+    }
+    if constexpr (RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB) {
+        if(options.output != "rgb" && options.output != "all") {
+            std::cerr << "The single-frame target is compiled for RGB output." << std::endl;
+            return 1;
+        }
+        ok = run_procthor_frame<DEVICE, BenchmarkSpec<rlt::rendering::raytracing::OutputMode::RGB>>(device, options, cuda_name);
+    }
+    else if constexpr (RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH) {
+        if(options.output != "depth" && options.output != "all") {
+            std::cerr << "The single-frame target is compiled for depth output." << std::endl;
+            return 1;
+        }
+        ok = run_procthor_frame<DEVICE, BenchmarkSpec<rlt::rendering::raytracing::OutputMode::DEPTH>>(device, options, cuda_name);
+    }
+    else {
+        std::cerr << "The single-frame target must be compiled for RGB or depth output." << std::endl;
+        return 1;
+    }
+#else
 #if RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB
     if(options.output == "depth") {
         std::cerr << "This target was compiled for RGB only; use rendering_raytracing_sim_benchmark or rendering_raytracing_sim_benchmark_depth for depth." << std::endl;
@@ -1114,6 +1448,7 @@ int main(int argc, char** argv) {
             ok = run_output_combinations<rlt::rendering::raytracing::OutputMode::DEPTH>(device, scenes, steps, options, cuda_name, gpu_label) && ok;
         }
     }
+#endif
 #endif
     return ok ? 0 : 1;
 }
