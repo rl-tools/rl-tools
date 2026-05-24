@@ -103,7 +103,7 @@ static void draw_string(uint32_t* pixels, int width, int height, int x0, int y0,
 static void depth_to_rgba(const float* depth, uint32_t* pixels, int count, float max_depth) {
     for (int i = 0; i < count; i++) {
         float normalized = std::fmin(std::fmax(depth[i] / max_depth, 0.0f), 1.0f);
-        uint8_t value = static_cast<uint8_t>((1.0f - normalized) * 255.0f);
+        uint8_t value = static_cast<uint8_t>(normalized * 255.0f);
         pixels[i] = (0xFFu << 24) | (uint32_t(value) << 16) | (uint32_t(value) << 8) | uint32_t(value);
     }
 }

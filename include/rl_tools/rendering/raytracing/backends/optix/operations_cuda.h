@@ -1747,7 +1747,7 @@ namespace rl_tools {
                     uint8_t value = 0;
                     if(has_valid_depth && std::isfinite(depth) && depth > 0.f && depth < valid_max_depth){
                         const float normalized = fminf(fmaxf((depth - min_valid_depth) / (valid_depth_range + 1e-6f), 0.f), 1.f);
-                        value = static_cast<uint8_t>((1.f - normalized) * 255.f);
+                        value = static_cast<uint8_t>(normalized * 255.f);
                     }
                     grid_image[(offset_y + y) * grid_width + offset_x + x] =
                         (0xFFu << 24) | (uint32_t(value) << 16) | (uint32_t(value) << 8) | uint32_t(value);
