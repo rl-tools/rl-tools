@@ -68,6 +68,18 @@ enum class SceneAxis { OBJECTS_20, PROCTHOR };
 enum class StepAxis { RENDER_ONLY, RENDER_PHYSICS };
 enum class OutputAxis { RGB, DEPTH };
 
+struct CameraOffset {
+    T x;
+    T y;
+    T z;
+};
+
+static CameraOffset camera_offset(SceneAxis scene) {
+    return scene == SceneAxis::OBJECTS_20
+        ? CameraOffset{static_cast<T>(0), static_cast<T>(0), static_cast<T>(0)}
+        : CameraOffset{static_cast<T>(-3.92), static_cast<T>(-5.67), static_cast<T>(1.0)};
+}
+
 struct Options {
     std::string scene = "all";
     std::string step_mode = "all";
@@ -108,11 +120,6 @@ struct FrameStats {
     double mean_value;
 };
 
-static constexpr T CAMERA_OFFSET[3] = {
-    static_cast<T>(-3.92),
-    static_cast<T>(-5.67),
-    static_cast<T>(1.0)
-};
 static constexpr double RAD_TO_DEG = 57.29577951308232;
 
 static bool has_prefix(const std::string& value, const char* prefix) {
@@ -454,6 +461,56 @@ static void add_box(rlt::rendering::raytracing::Renderer<SPEC>& renderer, T cx, 
     renderer.meshes.push_back(std::move(md));
 }
 
+template <typename SPEC>
+static void add_sphere(rlt::rendering::raytracing::Renderer<SPEC>& renderer, T cx, T cy, T cz, T radius, T r, T g, T b) {
+    static constexpr int SEGMENTS = 16;
+    static constexpr int RINGS = 8;
+    static constexpr T PI = static_cast<T>(3.14159265358979323846);
+    rlt::rendering::raytracing::MeshData<SPEC> md;
+    md.color[0] = r;
+    md.color[1] = g;
+    md.color[2] = b;
+    md.vertices.reserve(static_cast<size_t>((RINGS + 1) * SEGMENTS * 3));
+    md.normals.reserve(static_cast<size_t>((RINGS + 1) * SEGMENTS * 3));
+    md.indices.reserve(static_cast<size_t>(RINGS * SEGMENTS * 6));
+
+    for(int ring = 0; ring <= RINGS; ring++) {
+        const T theta = PI * static_cast<T>(ring) / static_cast<T>(RINGS);
+        const T sin_theta = std::sin(theta);
+        const T cos_theta = std::cos(theta);
+        for(int segment = 0; segment < SEGMENTS; segment++) {
+            const T phi = static_cast<T>(2) * PI * static_cast<T>(segment) / static_cast<T>(SEGMENTS);
+            const T nx = sin_theta * std::cos(phi);
+            const T ny = sin_theta * std::sin(phi);
+            const T nz = cos_theta;
+            md.vertices.push_back(cx + radius * nx);
+            md.vertices.push_back(cy + radius * ny);
+            md.vertices.push_back(cz + radius * nz);
+            md.normals.push_back(nx);
+            md.normals.push_back(ny);
+            md.normals.push_back(nz);
+        }
+    }
+
+    for(int ring = 0; ring < RINGS; ring++) {
+        for(int segment = 0; segment < SEGMENTS; segment++) {
+            const int next_segment = (segment + 1) % SEGMENTS;
+            const int a = ring * SEGMENTS + segment;
+            const int b = ring * SEGMENTS + next_segment;
+            const int c = (ring + 1) * SEGMENTS + next_segment;
+            const int d = (ring + 1) * SEGMENTS + segment;
+            md.indices.push_back(a);
+            md.indices.push_back(d);
+            md.indices.push_back(c);
+            md.indices.push_back(a);
+            md.indices.push_back(c);
+            md.indices.push_back(b);
+        }
+    }
+
+    renderer.meshes.push_back(std::move(md));
+}
+
 struct Objects20Position {
     T x;
     T y;
@@ -519,7 +576,12 @@ static void make_20_object_scene(rlt::rendering::raytracing::Renderer<SPEC>& ren
         objects20_scale(i, sx, sy, sz);
         objects20_color(i, r, g, b);
         const auto& position = OBJECTS20_POSITIONS[i];
-        add_box(renderer, position.x, position.y, position.z, sx, sy, sz, r, g, b);
+        if((i % 2) == 0) {
+            add_box(renderer, position.x, position.y, position.z, sx, sy, sz, r, g, b);
+        }
+        else {
+            add_sphere(renderer, position.x, position.y, position.z, sx * static_cast<T>(0.5), r, g, b);
+        }
     }
     renderer.scene_center[0] = static_cast<T>(0.25);
     renderer.scene_center[1] = 0;
@@ -551,14 +613,16 @@ static std::vector<CameraMotion> make_camera_states(const rlt::rendering::raytra
 }
 
 template <typename DEVICE, typename SPEC>
-static void write_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, std::vector<CameraMotion>& states, bool advance, T dt) {
+static void write_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, SceneAxis scene, std::vector<CameraMotion>& states, bool advance, T dt) {
     const T target[3] = {renderer.scene_center[0], renderer.scene_center[1], renderer.scene_center[2]};
+    const CameraOffset offset = camera_offset(scene);
+    const T eye[3] = {offset.x, offset.y, offset.z};
     const T up[3] = {static_cast<T>(0), static_cast<T>(0), static_cast<T>(1)};
     const T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
     T forward[3] = {
-        target[0] - CAMERA_OFFSET[0],
-        target[1] - CAMERA_OFFSET[1],
-        target[2] - CAMERA_OFFSET[2]
+        target[0] - eye[0],
+        target[1] - eye[1],
+        target[2] - eye[2]
     };
     T forward_norm = std::sqrt(forward[0] * forward[0] + forward[1] * forward[1] + forward[2] * forward[2]);
     if(forward_norm < static_cast<T>(1e-6)) {
@@ -597,11 +661,6 @@ static void write_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<S
                 state.pitch_velocity = -state.pitch_velocity;
             }
         }
-        const T eye[3] = {
-            CAMERA_OFFSET[0],
-            CAMERA_OFFSET[1],
-            CAMERA_OFFSET[2]
-        };
         T direction[3] = {
             forward[0] + state.yaw_offset * right[0] + state.pitch_offset * up[0],
             forward[1] + state.yaw_offset * right[1] + state.pitch_offset * up[1],
@@ -727,7 +786,7 @@ static FrameStats validate_current_frame(DEVICE& device, rlt::rendering::raytrac
 }
 
 template <typename DEVICE, typename SPEC>
-static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, std::vector<CameraMotion>& camera_states, StepAxis step, const Options& options) {
+static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, SceneAxis scene, std::vector<CameraMotion>& camera_states, StepAxis step, const Options& options) {
     const bool with_physics = step == StepAxis::RENDER_PHYSICS;
     const T dt = static_cast<T>(1.0 / 60.0);
 
@@ -736,7 +795,7 @@ static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing:
         int warmup_iterations = 0;
         for(;;) {
             if(with_physics) {
-                write_cameras(device, renderer, camera_states, true, dt);
+                write_cameras(device, renderer, scene, camera_states, true, dt);
                 rlt::set_cameras_async(device, renderer, renderer.cameras);
             }
             render_output(device, renderer);
@@ -751,7 +810,7 @@ static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing:
     else {
         for(int i = 0; i < options.warmup_iterations; i++) {
             if(with_physics) {
-                write_cameras(device, renderer, camera_states, true, dt);
+                write_cameras(device, renderer, scene, camera_states, true, dt);
                 rlt::set_cameras_async(device, renderer, renderer.cameras);
             }
             render_output(device, renderer);
@@ -765,7 +824,7 @@ static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing:
     if(options.iterations > 0) {
         for(; iterations < options.iterations; iterations++) {
             if(with_physics) {
-                write_cameras(device, renderer, camera_states, true, dt);
+                write_cameras(device, renderer, scene, camera_states, true, dt);
                 rlt::set_cameras_async(device, renderer, renderer.cameras);
                 render_output(device, renderer);
             }
@@ -783,7 +842,7 @@ static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing:
     else {
         for(;;) {
             if(with_physics) {
-                write_cameras(device, renderer, camera_states, true, dt);
+                write_cameras(device, renderer, scene, camera_states, true, dt);
                 rlt::set_cameras_async(device, renderer, renderer.cameras);
                 render_output(device, renderer);
                 iterations++;
@@ -861,13 +920,14 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
 
     rlt::upload_geometry(device, renderer);
     std::vector<CameraMotion> camera_states = make_camera_states(renderer, options);
-    write_cameras(device, renderer, camera_states, false, static_cast<T>(0));
+    write_cameras(device, renderer, scene, camera_states, false, static_cast<T>(0));
     rlt::set_cameras(device, renderer, renderer.cameras);
     rlt::build_pipeline(device, renderer);
 
     size_t free_mem = 0;
     size_t total_mem = 0;
     cudaMemGetInfo(&free_mem, &total_mem);
+    const CameraOffset offset = camera_offset(scene);
 
     RL_TOOLS_RENDERING_RAYTRACING_LOG("Benchmark combination: scene=" << scene_name(scene)
         << ", output=" << output_name_for_spec<SPEC>()
@@ -876,11 +936,11 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
         << ", envs=" << SPEC::NUM_CAMERAS
         << ", resolution=" << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT
         << ", fov_deg=" << static_cast<double>(SPEC::COS_FOVY) * RAD_TO_DEG
-        << ", camera_offset_flu=[" << CAMERA_OFFSET[0] << "," << CAMERA_OFFSET[1] << "," << CAMERA_OFFSET[2] << "]"
+        << ", camera_offset_flu=[" << offset.x << "," << offset.y << "," << offset.z << "]"
         << ", camera_orientation_sampling=random_look_at_jitter"
         << ", seed=" << options.seed);
 
-    BenchmarkResult result = run_benchmark(device, renderer, camera_states, step, options);
+    BenchmarkResult result = run_benchmark(device, renderer, scene, camera_states, step, options);
 
     const std::string verification_name = std::string("verify_hyperdrone_")
         + scene_name(scene) + "_"
@@ -907,9 +967,9 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
         << SPEC::NUM_CAMERAS << ","
         << SPEC::CAM_WIDTH << ","
         << SPEC::CAM_HEIGHT << ","
-        << CAMERA_OFFSET[0] << ","
-        << CAMERA_OFFSET[1] << ","
-        << CAMERA_OFFSET[2] << ","
+        << offset.x << ","
+        << offset.y << ","
+        << offset.z << ","
         << result.iterations << ","
         << result.elapsed_s << ","
         << result.frames_per_s << ","
