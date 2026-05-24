@@ -169,6 +169,7 @@ static bool g_show_depth = true;
 struct InteractiveOptions {
     std::string scene_arg;
     std::string record_camera_pose_path;
+    float linear_velocity = 3.0f;
     bool help = false;
 };
 
@@ -183,8 +184,18 @@ struct RecordedCameraPose {
 };
 
 static void print_usage(const char* argv0) {
-    std::cerr << "Usage: " << argv0 << " [conta:HASH | scene.glb] [--record-camera-pose trace.json]" << std::endl;
+    std::cerr << "Usage: " << argv0 << " [conta:HASH | scene.glb] [--record-camera-pose trace.json] [--linear-velocity m/s]" << std::endl;
     std::cerr << "  Or set CONTA_ROOT to use the default scene" << std::endl;
+}
+
+static bool parse_float_arg(const std::string& value, float& out) {
+    char* end = nullptr;
+    const float parsed = std::strtof(value.c_str(), &end);
+    if(end == value.c_str() || *end != '\0' || !std::isfinite(parsed)) {
+        return false;
+    }
+    out = parsed;
+    return true;
 }
 
 static bool parse_options(int argc, char** argv, InteractiveOptions& options) {
@@ -196,6 +207,7 @@ static bool parse_options(int argc, char** argv, InteractiveOptions& options) {
         }
         const std::string record_prefix = "--record-camera-pose=";
         const std::string record_trace_prefix = "--record-camera-trace=";
+        const std::string linear_velocity_prefix = "--linear-velocity=";
         if(arg == "--record-camera-pose" || arg == "--record-camera-trace") {
             if(i + 1 >= argc) {
                 std::cerr << "Missing value for " << arg << std::endl;
@@ -208,6 +220,22 @@ static bool parse_options(int argc, char** argv, InteractiveOptions& options) {
         }
         else if(arg.compare(0, record_trace_prefix.size(), record_trace_prefix) == 0) {
             options.record_camera_pose_path = arg.substr(record_trace_prefix.size());
+        }
+        else if(arg == "--linear-velocity") {
+            if(i + 1 >= argc) {
+                std::cerr << "Missing value for " << arg << std::endl;
+                return false;
+            }
+            if(!parse_float_arg(argv[++i], options.linear_velocity) || options.linear_velocity < 0.0f) {
+                std::cerr << "Invalid --linear-velocity" << std::endl;
+                return false;
+            }
+        }
+        else if(arg.compare(0, linear_velocity_prefix.size(), linear_velocity_prefix) == 0) {
+            if(!parse_float_arg(arg.substr(linear_velocity_prefix.size()), options.linear_velocity) || options.linear_velocity < 0.0f) {
+                std::cerr << "Invalid --linear-velocity" << std::endl;
+                return false;
+            }
         }
         else if(!arg.empty() && arg[0] == '-') {
             std::cerr << "Unknown argument: " << arg << std::endl;
@@ -411,10 +439,10 @@ static void key_callback(GLFWwindow* window, int key, int /*scancode*/, int acti
     }
 #endif
     bool pressed = (action == GLFW_PRESS || action == GLFW_REPEAT);
-    if (key == GLFW_KEY_W) g_input.forward = pressed;
-    if (key == GLFW_KEY_S) g_input.backward = pressed;
-    if (key == GLFW_KEY_A) g_input.left = pressed;
-    if (key == GLFW_KEY_D) g_input.right = pressed;
+    if (key == GLFW_KEY_W || key == GLFW_KEY_UP) g_input.forward = pressed;
+    if (key == GLFW_KEY_S || key == GLFW_KEY_DOWN) g_input.backward = pressed;
+    if (key == GLFW_KEY_A || key == GLFW_KEY_LEFT) g_input.left = pressed;
+    if (key == GLFW_KEY_D || key == GLFW_KEY_RIGHT) g_input.right = pressed;
     if (key == GLFW_KEY_SPACE) g_input.up = pressed;
     if (key == GLFW_KEY_LEFT_SHIFT) g_input.down = pressed;
 }
@@ -553,7 +581,8 @@ int main(int argc, char** argv) {
     std::vector<uint32_t> pixels(CAM_WIDTH * CAM_HEIGHT);
     std::vector<RecordedCameraPose> camera_trace;
 
-    constexpr float MOVE_SPEED = 3.0f;
+    constexpr float LINEAR_VELOCITY_RAMP_S = 0.5f;
+    float linear_velocity_ramp_elapsed_s = 0.0f;
     auto last_time = std::chrono::steady_clock::now();
     const auto trace_start_time = last_time;
     size_t frame_index = 0;
@@ -577,10 +606,15 @@ int main(int argc, char** argv) {
         if (g_input.down)     { dz -= 1; }
         float move_len = std::sqrt(dx * dx + dy * dy + dz * dz);
         if (move_len > 0) {
-            float speed = MOVE_SPEED * dt / move_len;
+            linear_velocity_ramp_elapsed_s = std::min(linear_velocity_ramp_elapsed_s + dt, LINEAR_VELOCITY_RAMP_S);
+            const float ramp = LINEAR_VELOCITY_RAMP_S > 0.0f ? linear_velocity_ramp_elapsed_s / LINEAR_VELOCITY_RAMP_S : 1.0f;
+            float speed = options.linear_velocity * ramp * dt / move_len;
             state.position[0] += dx * speed;
             state.position[1] += dy * speed;
             state.position[2] += dz * speed;
+        }
+        else {
+            linear_velocity_ramp_elapsed_s = 0.0f;
         }
         state.yaw = g_input.yaw;
 
