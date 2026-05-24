@@ -19,13 +19,12 @@ namespace rl_tools::rl::environments::l2f_visual {
         T_TI T_CAM_WIDTH = 64,
         T_TI T_CAM_HEIGHT = 64,
         T_TI T_NUM_PROBES = 64,
-        bool T_HIGH_FIDELITY_SHADING = false,
+        typename T_SHADING = rendering::raytracing::BasicShading,
         bool T_ENABLE_MOTION_BLUR = false,
         T_TI T_MOTION_BLUR_SAMPLES = 1,
         bool T_ENABLE_ANTI_ALIASING = false,
         T_TI T_ANTI_ALIASING_GRID_SIZE = 1,
-        rendering::raytracing::OutputMode T_OUTPUT_MODE = rendering::raytracing::OutputMode::RGB,
-        typename T_SHADING = typename rendering::raytracing::ShadingProfileFromHighFidelity<T_HIGH_FIDELITY_SHADING>::type>
+        rendering::raytracing::OutputMode T_OUTPUT_MODE = rendering::raytracing::OutputMode::RGB>
     struct Specification {
         using T = T_T;
         using TI = T_TI;
@@ -35,7 +34,6 @@ namespace rl_tools::rl::environments::l2f_visual {
         static constexpr TI CAM_WIDTH = T_CAM_WIDTH;
         static constexpr TI CAM_HEIGHT = T_CAM_HEIGHT;
         static constexpr TI NUM_PROBES = T_NUM_PROBES;
-        static constexpr bool HIGH_FIDELITY_SHADING = SHADING::PBR_SHADING;
         static constexpr bool ENABLE_MOTION_BLUR = T_ENABLE_MOTION_BLUR;
         static constexpr TI MOTION_BLUR_SAMPLES = T_MOTION_BLUR_SAMPLES;
         static constexpr bool ENABLE_ANTI_ALIASING = T_ENABLE_ANTI_ALIASING;
@@ -48,7 +46,7 @@ namespace rl_tools::rl::environments::l2f_visual {
 
         using DYNAMICS_SPEC = l2f::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS>;
         using DYNAMICS_ENV = Multirotor<DYNAMICS_SPEC>;
-        using RENDERER_SPEC = rendering::raytracing::Specification<T, TI, CAM_WIDTH, CAM_HEIGHT, NUM_ENVS, NUM_PROBES, HIGH_FIDELITY_SHADING, ENABLE_MOTION_BLUR, MOTION_BLUR_SAMPLES, ENABLE_ANTI_ALIASING, ANTI_ALIASING_GRID_SIZE, OUTPUT_MODE, SHADING>;
+        using RENDERER_SPEC = rendering::raytracing::Specification<T, TI, CAM_WIDTH, CAM_HEIGHT, NUM_ENVS, NUM_PROBES, SHADING, ENABLE_MOTION_BLUR, MOTION_BLUR_SAMPLES, ENABLE_ANTI_ALIASING, ANTI_ALIASING_GRID_SIZE, OUTPUT_MODE>;
         using SCENE_SPEC = rendering::raytracing::scene::SceneSpecification<T, TI>;
     };
 
