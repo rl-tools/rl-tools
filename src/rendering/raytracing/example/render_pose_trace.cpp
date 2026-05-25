@@ -64,12 +64,14 @@ struct RenderRecord {
     std::string path;
     std::string frames_dir;
     std::string frame_pattern;
+    std::string frame_format;
     std::string ffmpeg_command;
     TI width = 0;
     TI height = 0;
     TI aa_grid_size = 1;
     TI samples_per_pixel = 1;
     size_t frame_count = 0;
+    int frame_jpeg_quality = 0;
     int ffmpeg_status = 0;
     bool ok = false;
 };
@@ -86,7 +88,8 @@ static void print_usage(const char* argv0) {
         << "  --settings <list>          all, rgb, depth, medium, high, low, or comma list; depth has no rendering profile\n"
         << "                              Legacy aliases: basic, high_fidelity, fast_flat\n"
         << "                              Always renders square resolutions 64, 128, 256, 512, 1024, and 2048\n"
-        << "                              Also writes RGB JPEG frame sequences under <output-dir>/frames/<render-name>/\n"
+        << "                              Also writes RGB frame sequences under <output-dir>/frames/<render-name>/\n"
+        << "                              64x64 and 128x128 are PNG; larger resolutions are JPEG\n"
         << "  --max-frames <n>           Limit trace frames when >0\n"
         << "  --smooth-sigma-s <s>       Gaussian smoothing sigma for position and orientation (default: 0)\n"
         << "  --smooth-position-sigma-s <s>\n"
@@ -840,13 +843,25 @@ static bool write_frame(FILE* pipe, const std::vector<uint32_t>& frame, int fram
     return true;
 }
 
-static std::string frame_filename(const std::string& frames_dir, size_t frame_i) {
+static bool use_png_frames(TI width, TI height) {
+    return width == height && (width == 64 || width == 128);
+}
+
+static const char* frame_extension(bool png) {
+    return png ? "png" : "jpg";
+}
+
+static const char* frame_format_name(bool png) {
+    return png ? "png_rgb" : "jpeg_rgb";
+}
+
+static std::string frame_filename(const std::string& frames_dir, size_t frame_i, bool png) {
     char filename[64];
-    std::snprintf(filename, sizeof(filename), "frame_%06zu.jpg", frame_i);
+    std::snprintf(filename, sizeof(filename), "frame_%06zu.%s", frame_i, frame_extension(png));
     return join_path(frames_dir, filename);
 }
 
-static bool write_rgb_jpeg_frame(const std::string& path, const std::vector<uint32_t>& frame, std::vector<uint8_t>& rgb_frame, TI width, TI height) {
+static bool write_rgb_image_frame(const std::string& path, const std::vector<uint32_t>& frame, std::vector<uint8_t>& rgb_frame, TI width, TI height, bool png) {
     const size_t pixels = frame.size();
     if(rgb_frame.size() != pixels * 3) {
         rgb_frame.resize(pixels * 3);
@@ -857,8 +872,11 @@ static bool write_rgb_jpeg_frame(const std::string& path, const std::vector<uint
         rgb_frame[i * 3 + 1] = static_cast<uint8_t>((rgba >> 8) & 0xFF);
         rgb_frame[i * 3 + 2] = static_cast<uint8_t>((rgba >> 16) & 0xFF);
     }
-    if(stbi_write_jpg(path.c_str(), width, height, 3, rgb_frame.data(), FRAME_JPEG_QUALITY) == 0) {
-        std::cerr << "Failed writing RGB JPEG frame: " << path << std::endl;
+    const int write_ok = png
+        ? stbi_write_png(path.c_str(), width, height, 3, rgb_frame.data(), width * 3)
+        : stbi_write_jpg(path.c_str(), width, height, 3, rgb_frame.data(), FRAME_JPEG_QUALITY);
+    if(write_ok == 0) {
+        std::cerr << "Failed writing RGB " << (png ? "PNG" : "JPEG") << " frame: " << path << std::endl;
         return false;
     }
     return true;
@@ -907,7 +925,10 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
     record.name = base_name + "_" + resolution_suffix(WIDTH, HEIGHT) + aa_suffix(ENABLE_AA, AA_GRID_SIZE);
     record.path = join_path(options.output_dir, std::string("trace_") + record.name + ".mp4");
     record.frames_dir = join_path(join_path(options.output_dir, "frames"), record.name);
-    record.frame_pattern = join_path(record.frames_dir, "frame_%06d.jpg");
+    const bool png_frames = use_png_frames(WIDTH, HEIGHT);
+    record.frame_pattern = join_path(record.frames_dir, std::string("frame_%06d.") + frame_extension(png_frames));
+    record.frame_format = frame_format_name(png_frames);
+    record.frame_jpeg_quality = png_frames ? 0 : FRAME_JPEG_QUALITY;
     record.ffmpeg_command = ffmpeg_command(options, WIDTH, HEIGHT, record.path);
     record.frame_count = poses.size();
 
@@ -949,7 +970,7 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
             const uint32_t* fb_data = rlt::data(env.renderer->frame_buffer);
             std::memcpy(frame.data(), fb_data, frame.size() * sizeof(uint32_t));
         }
-        if(!write_rgb_jpeg_frame(frame_filename(record.frames_dir, frame_i), frame, rgb_frame, WIDTH, HEIGHT)) {
+        if(!write_rgb_image_frame(frame_filename(record.frames_dir, frame_i, png_frames), frame, rgb_frame, WIDTH, HEIGHT, png_frames)) {
             ok = false;
             break;
         }
@@ -1029,8 +1050,10 @@ static bool write_manifest(const Options& options, const std::string& scene_path
         item["path"] = record.path;
         item["frames_dir"] = record.frames_dir;
         item["frame_pattern"] = record.frame_pattern;
-        item["frame_format"] = "jpeg_rgb";
-        item["frame_jpeg_quality"] = FRAME_JPEG_QUALITY;
+        item["frame_format"] = record.frame_format;
+        if(record.frame_jpeg_quality > 0) {
+            item["frame_jpeg_quality"] = record.frame_jpeg_quality;
+        }
         item["frame_count"] = record.frame_count;
         item["ffmpeg_command"] = record.ffmpeg_command;
         item["ffmpeg_status"] = record.ffmpeg_status;
