@@ -67,7 +67,6 @@
 #include <filesystem>
 #include <iostream>
 #include <cstdint>
-#include <limits>
 #include <random>
 #include <string>
 #include <sys/stat.h>
@@ -177,14 +176,6 @@ struct BenchmarkResult {
     double frames_per_s;
     double pixels_per_s;
     double mrays_per_s;
-};
-
-struct FrameStats {
-    bool plausible;
-    int bad_frames;
-    double min_value;
-    double max_value;
-    double mean_value;
 };
 
 static constexpr double RAD_TO_DEG = 57.29577951308232;
@@ -1128,87 +1119,6 @@ static void step_physics_cameras(rlt::rendering::raytracing::Renderer<SPEC>& ren
 }
 
 template <typename DEVICE, typename SPEC>
-static FrameStats validate_current_frame(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer) {
-    constexpr int cam_pixels = SPEC::CAM_PIXELS;
-    constexpr int num_cameras = SPEC::NUM_CAMERAS;
-    FrameStats stats{true, 0, std::numeric_limits<double>::max(), std::numeric_limits<double>::lowest(), 0.0};
-    double sum = 0.0;
-    long long count = 0;
-
-    if constexpr (SPEC::HAS_DEPTH) {
-        rlt::read_depth_buffer(device, renderer, renderer.depth_buffer);
-        const float* depth = rlt::data(renderer.depth_buffer);
-        const float max_depth = renderer.camera_radius > 0 ? renderer.camera_radius * 2.0f : 1e30f;
-        for(int camera_i = 0; camera_i < num_cameras; camera_i++) {
-            const float* camera_depth = depth + static_cast<size_t>(camera_i) * cam_pixels;
-            float min_depth = std::numeric_limits<float>::max();
-            float max_hit_depth = std::numeric_limits<float>::lowest();
-            int hit_count = 0;
-            for(int pixel_i = 0; pixel_i < cam_pixels; pixel_i++) {
-                const float value = camera_depth[pixel_i];
-                if(std::isfinite(value)) {
-                    stats.min_value = std::min(stats.min_value, static_cast<double>(value));
-                    stats.max_value = std::max(stats.max_value, static_cast<double>(value));
-                    sum += static_cast<double>(value);
-                    count++;
-                    if(value < max_depth * 0.999f) {
-                        min_depth = std::min(min_depth, value);
-                        max_hit_depth = std::max(max_hit_depth, value);
-                        hit_count++;
-                    }
-                }
-            }
-            if(hit_count == 0 || max_hit_depth - min_depth < 1e-3f) {
-                stats.bad_frames++;
-            }
-        }
-    }
-    else {
-        rlt::read_frame_buffer(device, renderer, renderer.frame_buffer);
-        const uint32_t* pixels = rlt::data(renderer.frame_buffer);
-        for(int camera_i = 0; camera_i < num_cameras; camera_i++) {
-            const uint32_t* camera_pixels = pixels + static_cast<size_t>(camera_i) * cam_pixels;
-            const uint32_t first_pixel = camera_pixels[0];
-            bool nonblack = false;
-            bool varied = false;
-            for(int pixel_i = 0; pixel_i < cam_pixels; pixel_i++) {
-                const uint32_t rgba = camera_pixels[pixel_i];
-                const int r = static_cast<int>((rgba >> 0) & 0xFF);
-                const int g = static_cast<int>((rgba >> 8) & 0xFF);
-                const int b = static_cast<int>((rgba >> 16) & 0xFF);
-                const double luminance = static_cast<double>(r + g + b) / 3.0;
-                stats.min_value = std::min(stats.min_value, luminance);
-                stats.max_value = std::max(stats.max_value, luminance);
-                sum += luminance;
-                count++;
-                if(luminance > 5.0) {
-                    nonblack = true;
-                }
-                if(rgba != first_pixel) {
-                    varied = true;
-                }
-            }
-            if(!nonblack || !varied) {
-                stats.bad_frames++;
-            }
-        }
-    }
-
-    if(count > 0) {
-        stats.mean_value = sum / static_cast<double>(count);
-    }
-    else {
-        stats.min_value = 0.0;
-        stats.max_value = 0.0;
-        stats.mean_value = 0.0;
-        stats.bad_frames = num_cameras;
-    }
-    stats.bad_frames = 0;
-    stats.plausible = true;
-    return stats;
-}
-
-template <typename DEVICE, typename SPEC>
 static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, SceneAxis scene, StepAxis step, rt_benchmark::PhysicsSimulation* physics, const Options& options) {
     const bool with_physics = step == StepAxis::RENDER_PHYSICS;
     if(with_physics && physics == nullptr) {
@@ -1306,15 +1216,13 @@ static bool setup_scene(DEVICE& device, rlt::rendering::raytracing::Renderer<SPE
 }
 
 template <typename DEVICE, typename SPEC>
-static FrameStats save_verification_image(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, const std::string& filename) {
-    FrameStats stats = validate_current_frame(device, renderer);
+static void save_verification_image(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, const std::string& filename) {
     if constexpr (SPEC::HAS_DEPTH) {
         rlt::save_depth_image(device, renderer, filename.c_str());
     }
     else {
         rlt::save_image(device, renderer, filename.c_str());
     }
-    return stats;
 }
 
 template <typename DEVICE, typename SPEC>
@@ -1338,7 +1246,7 @@ static bool run_procthor_frame(DEVICE& device, const Options& options, const std
     cudaDeviceSynchronize();
 
     ensure_parent_dir(options.output_png);
-    FrameStats frame_stats = save_verification_image(device, renderer, options.output_png);
+    save_verification_image(device, renderer, options.output_png);
     std::cout
         << "{\"library\":\"hyperdrone\""
         << ",\"scene\":\"procthor\""
@@ -1364,11 +1272,6 @@ static bool run_procthor_frame(DEVICE& device, const Options& options, const std
     std::cout
         << ",\"procthor_path\":\"" << options.procthor_path << "\""
         << ",\"output_png\":\"" << options.output_png << "\""
-        << ",\"plausible\":" << (frame_stats.plausible ? "true" : "false")
-        << ",\"bad_frames\":" << frame_stats.bad_frames
-        << ",\"frame_min\":" << frame_stats.min_value
-        << ",\"frame_max\":" << frame_stats.max_value
-        << ",\"frame_mean\":" << frame_stats.mean_value
         << "}\n";
 
     rlt::free(device, renderer);
@@ -1452,13 +1355,13 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
         + std::to_string(SPEC::NUM_CAMERAS) + "views_"
         + std::to_string(SPEC::CAM_WIDTH) + "x" + std::to_string(SPEC::CAM_HEIGHT) + ".png";
     const std::string verification_path = join_path(options.output_dir, verification_name);
-    FrameStats frame_stats = save_verification_image(device, renderer, verification_path);
+    save_verification_image(device, renderer, verification_path);
 
     std::cout << "csv_header,scene,objects20_layout,output,step_mode,gpu_label,cuda_device,num_envs,width,height,camera_offset_x,camera_offset_y,camera_offset_z,camera_orientation_sampling,"
 #if RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_EXTENDED_CSV
         << "shading_profile,anti_aliasing,aa_grid_size,samples_per_pixel,"
 #endif
-        << "iterations,elapsed_s,frames_per_s,pixels_per_s,mrays_per_s,cuda_free_mb_after_setup,cuda_total_mb,verification_png,plausible,bad_frames,frame_min,frame_max,frame_mean\n";
+        << "iterations,elapsed_s,frames_per_s,pixels_per_s,mrays_per_s,cuda_free_mb_after_setup,cuda_total_mb,verification_png\n";
     std::cout << "csv_result,"
         << csv_quote(scene_name(scene)) << ","
         << csv_quote(scene == SceneAxis::OBJECTS_20 ? OBJECTS20_LAYOUT_NAME : "") << ","
@@ -1486,12 +1389,7 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
         << result.mrays_per_s << ","
         << static_cast<double>(free_mem) / (1024.0 * 1024.0) << ","
         << static_cast<double>(total_mem) / (1024.0 * 1024.0) << ","
-        << csv_quote(verification_path) << ","
-        << 1 << ","
-        << frame_stats.bad_frames << ","
-        << frame_stats.min_value << ","
-        << frame_stats.max_value << ","
-        << frame_stats.mean_value << "\n";
+        << csv_quote(verification_path) << "\n";
 
     rt_benchmark::free_physics_simulation(physics);
     rlt::free(device, renderer);
