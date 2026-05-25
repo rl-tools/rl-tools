@@ -31,8 +31,9 @@ target_link_libraries(rendering_raytracing_benchmark_rgbd
 target_compile_definitions(rendering_raytracing_benchmark_rgbd PRIVATE RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_OUTPUT_MODE=1)
 
 set(RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS "4096" CACHE STRING "Compile-time number of parallel camera environments for the simulator matrix raytracing benchmark")
+set(RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SOURCES simulator_matrix.cpp simulator_matrix_physics.cu)
 
-add_executable(rendering_raytracing_sim_benchmark simulator_matrix.cpp)
+add_executable(rendering_raytracing_sim_benchmark ${RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SOURCES})
 target_link_libraries(rendering_raytracing_sim_benchmark
     PRIVATE
         RLtools::RLtools
@@ -48,7 +49,7 @@ target_compile_definitions(rendering_raytracing_sim_benchmark
         RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS=${RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS}
 )
 
-add_executable(rendering_raytracing_sim_benchmark_sweep EXCLUDE_FROM_ALL simulator_matrix.cpp)
+add_executable(rendering_raytracing_sim_benchmark_sweep EXCLUDE_FROM_ALL ${RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SOURCES})
 target_link_libraries(rendering_raytracing_sim_benchmark_sweep
     PRIVATE
         RLtools::RLtools
@@ -67,7 +68,7 @@ target_compile_definitions(rendering_raytracing_sim_benchmark_sweep
 )
 
 function(add_rendering_raytracing_sim_benchmark_profile_target target_name shading_profile)
-    add_executable(${target_name} EXCLUDE_FROM_ALL simulator_matrix.cpp)
+    add_executable(${target_name} EXCLUDE_FROM_ALL ${RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SOURCES})
     target_link_libraries(${target_name}
         PRIVATE
             RLtools::RLtools
@@ -91,7 +92,7 @@ add_rendering_raytracing_sim_benchmark_profile_target(rendering_raytracing_sim_b
 add_rendering_raytracing_sim_benchmark_profile_target(rendering_raytracing_sim_benchmark_high_fidelity 1)
 add_rendering_raytracing_sim_benchmark_profile_target(rendering_raytracing_sim_benchmark_fast_flat 2)
 
-add_executable(rendering_raytracing_sim_benchmark_rgb EXCLUDE_FROM_ALL simulator_matrix.cpp)
+add_executable(rendering_raytracing_sim_benchmark_rgb EXCLUDE_FROM_ALL ${RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SOURCES})
 target_link_libraries(rendering_raytracing_sim_benchmark_rgb
     PRIVATE
         RLtools::RLtools
@@ -106,7 +107,7 @@ target_compile_definitions(rendering_raytracing_sim_benchmark_rgb
         RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS=${RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS}
 )
 
-add_executable(rendering_raytracing_sim_benchmark_depth EXCLUDE_FROM_ALL simulator_matrix.cpp)
+add_executable(rendering_raytracing_sim_benchmark_depth EXCLUDE_FROM_ALL ${RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SOURCES})
 target_link_libraries(rendering_raytracing_sim_benchmark_depth
     PRIVATE
         RLtools::RLtools
@@ -122,7 +123,7 @@ target_compile_definitions(rendering_raytracing_sim_benchmark_depth
     )
 
 function(add_rendering_raytracing_procthor_frame_target target_name output_mode ptx_target shading_profile)
-    add_executable(${target_name} EXCLUDE_FROM_ALL simulator_matrix.cpp)
+    add_executable(${target_name} EXCLUDE_FROM_ALL ${RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SOURCES})
     target_link_libraries(${target_name}
         PRIVATE
             RLtools::RLtools

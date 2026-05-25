@@ -55,6 +55,8 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/backends/optix/operations_cuda.h>
 
+#include "simulator_matrix_physics.h"
+
 #include <algorithm>
 #include <cerrno>
 #include <chrono>
@@ -74,6 +76,7 @@
 #include <vector>
 
 namespace rlt = rl_tools;
+namespace rt_benchmark = rl_tools::rendering::raytracing::benchmark;
 
 using T = float;
 using TI = int;
@@ -1114,6 +1117,16 @@ static void render_output(DEVICE& device, rlt::rendering::raytracing::Renderer<S
     render_output_sync(device, renderer);
 }
 
+template <typename SPEC>
+static void step_physics_cameras(rlt::rendering::raytracing::Renderer<SPEC>& renderer, rt_benchmark::PhysicsSimulation& physics, int iteration) {
+    void* camera_buffer = const_cast<void*>(owlBufferGetPointer((OWLBuffer)renderer.backend.owl_cameras_buffer, 0));
+    cudaStream_t stream = (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend.launch_params, 0);
+    if(!rt_benchmark::physics_step_cameras(physics, camera_buffer, stream, iteration)) {
+        std::cerr << "Physics camera step failed: " << rt_benchmark::physics_last_error() << std::endl;
+        std::exit(1);
+    }
+}
+
 template <typename DEVICE, typename SPEC>
 static FrameStats validate_current_frame(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer) {
     constexpr int cam_pixels = SPEC::CAM_PIXELS;
@@ -1196,16 +1209,19 @@ static FrameStats validate_current_frame(DEVICE& device, rlt::rendering::raytrac
 }
 
 template <typename DEVICE, typename SPEC>
-static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, SceneAxis scene, const std::vector<CameraPose>& camera_poses, StepAxis step, const Options& options) {
+static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, SceneAxis scene, StepAxis step, rt_benchmark::PhysicsSimulation* physics, const Options& options) {
     const bool with_physics = step == StepAxis::RENDER_PHYSICS;
+    if(with_physics && physics == nullptr) {
+        std::cerr << "render_physics requested without an initialized physics simulation" << std::endl;
+        std::exit(1);
+    }
 
     if(options.warmup_seconds > 0) {
         auto warmup_start = std::chrono::high_resolution_clock::now();
         int warmup_iterations = 0;
         for(;;) {
             if(with_physics) {
-                write_cameras(device, renderer, scene, camera_poses);
-                rlt::set_cameras_async(device, renderer, renderer.cameras);
+                step_physics_cameras(renderer, *physics, warmup_iterations);
             }
             render_output(device, renderer);
             warmup_iterations++;
@@ -1219,8 +1235,7 @@ static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing:
     else {
         for(int i = 0; i < options.warmup_iterations; i++) {
             if(with_physics) {
-                write_cameras(device, renderer, scene, camera_poses);
-                rlt::set_cameras_async(device, renderer, renderer.cameras);
+                step_physics_cameras(renderer, *physics, i);
             }
             render_output(device, renderer);
         }
@@ -1233,48 +1248,34 @@ static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing:
     if(options.iterations > 0) {
         for(; iterations < options.iterations; iterations++) {
             if(with_physics) {
-                write_cameras(device, renderer, scene, camera_poses);
-                rlt::set_cameras_async(device, renderer, renderer.cameras);
-                render_output(device, renderer);
+                step_physics_cameras(renderer, *physics, iterations);
             }
-            else {
-                render_output_launch(device, renderer);
-                if((iterations + 1) % options.sync_interval == 0) {
-                    render_output_sync(device, renderer);
-                }
+            render_output_launch(device, renderer);
+            if((iterations + 1) % options.sync_interval == 0) {
+                render_output_sync(device, renderer);
             }
         }
-        if(!with_physics && iterations % options.sync_interval != 0) {
+        if(iterations % options.sync_interval != 0) {
             render_output_sync(device, renderer);
         }
     }
     else {
         for(;;) {
             if(with_physics) {
-                write_cameras(device, renderer, scene, camera_poses);
-                rlt::set_cameras_async(device, renderer, renderer.cameras);
-                render_output(device, renderer);
-                iterations++;
+                step_physics_cameras(renderer, *physics, iterations);
+            }
+            render_output_launch(device, renderer);
+            iterations++;
+            if(iterations % options.sync_interval == 0) {
+                render_output_sync(device, renderer);
                 auto now = std::chrono::high_resolution_clock::now();
                 const double elapsed = std::chrono::duration<double>(now - wall_start).count();
                 if(elapsed >= options.seconds) {
                     break;
                 }
             }
-            else {
-                render_output_launch(device, renderer);
-                iterations++;
-                if(iterations % options.sync_interval == 0) {
-                    render_output_sync(device, renderer);
-                    auto now = std::chrono::high_resolution_clock::now();
-                    const double elapsed = std::chrono::duration<double>(now - wall_start).count();
-                    if(elapsed >= options.seconds) {
-                        break;
-                    }
-                }
-            }
         }
-        if(!with_physics && iterations % options.sync_interval != 0) {
+        if(iterations % options.sync_interval != 0) {
             render_output_sync(device, renderer);
         }
     }
@@ -1392,6 +1393,32 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
     rlt::set_cameras(device, renderer, renderer.cameras);
     rlt::build_pipeline(device, renderer);
 
+    rt_benchmark::PhysicsSimulation physics;
+    rt_benchmark::PhysicsSimulation* physics_ptr = nullptr;
+    if(step == StepAxis::RENDER_PHYSICS) {
+        std::vector<rt_benchmark::PhysicsCameraPose> physics_poses(camera_poses.size());
+        for(size_t i = 0; i < camera_poses.size(); i++) {
+            std::memcpy(physics_poses[i].direction, camera_poses[i].direction, sizeof(physics_poses[i].direction));
+            std::memcpy(physics_poses[i].up, camera_poses[i].up, sizeof(physics_poses[i].up));
+        }
+        const CameraOffset initial_offset = camera_offset(scene);
+        const float initial_position[3] = {initial_offset.x, initial_offset.y, initial_offset.z};
+        const float aspect = static_cast<float>(SPEC::CAM_WIDTH) / static_cast<float>(SPEC::CAM_HEIGHT);
+        if(!rt_benchmark::init_physics_simulation(
+               physics,
+               static_cast<int>(SPEC::NUM_CAMERAS),
+               initial_position,
+               physics_poses.data(),
+               static_cast<float>(SPEC::COS_FOVY),
+               aspect,
+               options.seed)) {
+            RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Failed to initialize physics simulation: " << rt_benchmark::physics_last_error());
+            rlt::free(device, renderer);
+            return false;
+        }
+        physics_ptr = &physics;
+    }
+
     size_t free_mem = 0;
     size_t total_mem = 0;
     cudaMemGetInfo(&free_mem, &total_mem);
@@ -1412,7 +1439,7 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
         << ", camera_orientation_sampling=" << orientation_mode_name(orientation)
         << ", seed=" << options.seed);
 
-    BenchmarkResult result = run_benchmark(device, renderer, scene, camera_poses, step, options);
+    BenchmarkResult result = run_benchmark(device, renderer, scene, step, physics_ptr, options);
 
     std::string verification_name = std::string("verify_hyperdrone_")
         + scene_name(scene) + "_"
@@ -1466,6 +1493,7 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
         << frame_stats.max_value << ","
         << frame_stats.mean_value << "\n";
 
+    rt_benchmark::free_physics_simulation(physics);
     rlt::free(device, renderer);
     return true;
 }

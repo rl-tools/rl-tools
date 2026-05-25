@@ -54,6 +54,9 @@ namespace rl_tools::random{
         template<typename T, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT T sample(const devices::random::CUDA& dev, T mean, T std, RNG& rng){
             // static_assert(utils::typing::is_same_v<T, float> || utils::typing::is_same_v<T, double>);
+            if(std == (T)0){
+                return mean;
+            }
             if constexpr(utils::typing::is_same_v<T, float>){
                 return curand_normal(&rng) * std + mean;
             }
