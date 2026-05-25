@@ -180,7 +180,7 @@ namespace rl_tools {
         }
 
         template <typename SPEC>
-        struct BasicShadingUsage {
+        struct MediumShadingUsage {
             static constexpr bool USES_INDEX = SPEC::SHADING::LOAD_TEXTURES || SPEC::SHADING::NORMAL_SHADING || SPEC::SHADING::METALLIC_REFLECTIONS;
             static constexpr bool USES_VERTEX = SPEC::SHADING::NORMAL_SHADING || SPEC::SHADING::METALLIC_REFLECTIONS;
             static constexpr bool USES_TEXTURE = SPEC::SHADING::LOAD_TEXTURES;
@@ -1026,7 +1026,7 @@ namespace rl_tools {
                                                          triangles_geom_vars, -1);
                 owlGeomTypeSetClosestHit(triangles_geom_type, 0, module, "TriangleMeshPBR");
             } else {
-                using SHADING_USAGE = rendering::raytracing::detail::BasicShadingUsage<SPEC>;
+                using SHADING_USAGE = rendering::raytracing::detail::MediumShadingUsage<SPEC>;
                 std::vector<OWLVarDecl> triangles_geom_vars;
                 if constexpr (SHADING_USAGE::USES_INDEX) {
                     triangles_geom_vars.push_back({ "index", OWL_BUFPTR, OWL_OFFSETOF(TrianglesGeomData, index)});
@@ -1080,7 +1080,7 @@ namespace rl_tools {
             owlTrianglesSetVertices(geom, vb, num_vertices, sizeof(owl::vec3f), 0);
             owlTrianglesSetIndices(geom, ib, num_indices, sizeof(owl::vec3i), 0);
             if constexpr (SPEC::HAS_RGB) {
-                using SHADING_USAGE = rendering::raytracing::detail::BasicShadingUsage<SPEC>;
+                using SHADING_USAGE = rendering::raytracing::detail::MediumShadingUsage<SPEC>;
                 if constexpr (SPEC::SHADING::PBR_SHADING || SHADING_USAGE::USES_VERTEX) {
                     owlGeomSetBuffer(geom, "vertex", vb);
                 }

@@ -66,39 +66,30 @@ target_compile_definitions(rendering_raytracing_sim_benchmark_sweep
         RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_EXTENDED_CSV=1
 )
 
-add_executable(rendering_raytracing_sim_benchmark_high_fidelity EXCLUDE_FROM_ALL simulator_matrix.cpp)
-target_link_libraries(rendering_raytracing_sim_benchmark_high_fidelity
-    PRIVATE
-        RLtools::RLtools
-        owl::owl
-        rendering_raytracing_device_ptx
-        rendering_raytracing_device_depth_ptx
-        assimp::assimp
-        rendering_raytracing_stb
-)
-target_compile_definitions(rendering_raytracing_sim_benchmark_high_fidelity
-    PRIVATE
-        RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_OUTPUT_MODE=-1
-        RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS=${RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS}
-        RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE=1
-)
+function(add_rendering_raytracing_sim_benchmark_profile_target target_name shading_profile)
+    add_executable(${target_name} EXCLUDE_FROM_ALL simulator_matrix.cpp)
+    target_link_libraries(${target_name}
+        PRIVATE
+            RLtools::RLtools
+            owl::owl
+            rendering_raytracing_device_ptx
+            rendering_raytracing_device_depth_ptx
+            assimp::assimp
+            rendering_raytracing_stb
+    )
+    target_compile_definitions(${target_name}
+        PRIVATE
+            RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_OUTPUT_MODE=-1
+            RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS=${RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS}
+            RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE=${shading_profile}
+    )
+endfunction()
 
-add_executable(rendering_raytracing_sim_benchmark_fast_flat EXCLUDE_FROM_ALL simulator_matrix.cpp)
-target_link_libraries(rendering_raytracing_sim_benchmark_fast_flat
-    PRIVATE
-        RLtools::RLtools
-        owl::owl
-        rendering_raytracing_device_ptx
-        rendering_raytracing_device_depth_ptx
-        assimp::assimp
-        rendering_raytracing_stb
-)
-target_compile_definitions(rendering_raytracing_sim_benchmark_fast_flat
-    PRIVATE
-        RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_OUTPUT_MODE=-1
-        RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS=${RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS}
-        RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE=2
-)
+add_rendering_raytracing_sim_benchmark_profile_target(rendering_raytracing_sim_benchmark_medium 0)
+add_rendering_raytracing_sim_benchmark_profile_target(rendering_raytracing_sim_benchmark_high 1)
+add_rendering_raytracing_sim_benchmark_profile_target(rendering_raytracing_sim_benchmark_low 2)
+add_rendering_raytracing_sim_benchmark_profile_target(rendering_raytracing_sim_benchmark_high_fidelity 1)
+add_rendering_raytracing_sim_benchmark_profile_target(rendering_raytracing_sim_benchmark_fast_flat 2)
 
 add_executable(rendering_raytracing_sim_benchmark_rgb EXCLUDE_FROM_ALL simulator_matrix.cpp)
 target_link_libraries(rendering_raytracing_sim_benchmark_rgb
@@ -152,11 +143,17 @@ function(add_rendering_raytracing_procthor_frame_target target_name output_mode 
 endfunction()
 
 add_rendering_raytracing_procthor_frame_target(rendering_raytracing_procthor_frame 0 rendering_raytracing_device_ptx 0)
+add_rendering_raytracing_procthor_frame_target(rendering_raytracing_procthor_frame_medium 0 rendering_raytracing_device_ptx 0)
+add_rendering_raytracing_procthor_frame_target(rendering_raytracing_procthor_frame_high 0 rendering_raytracing_device_ptx 1)
+add_rendering_raytracing_procthor_frame_target(rendering_raytracing_procthor_frame_low 0 rendering_raytracing_device_ptx 2)
 add_rendering_raytracing_procthor_frame_target(rendering_raytracing_procthor_frame_basic 0 rendering_raytracing_device_ptx 0)
 add_rendering_raytracing_procthor_frame_target(rendering_raytracing_procthor_frame_high_fidelity 0 rendering_raytracing_device_ptx 1)
 add_rendering_raytracing_procthor_frame_target(rendering_raytracing_procthor_frame_fast_flat 0 rendering_raytracing_device_ptx 2)
 
 add_rendering_raytracing_procthor_frame_target(rendering_raytracing_procthor_frame_depth 2 rendering_raytracing_device_depth_ptx 0)
+add_rendering_raytracing_procthor_frame_target(rendering_raytracing_procthor_frame_depth_medium 2 rendering_raytracing_device_depth_ptx 0)
+add_rendering_raytracing_procthor_frame_target(rendering_raytracing_procthor_frame_depth_high 2 rendering_raytracing_device_depth_ptx 1)
+add_rendering_raytracing_procthor_frame_target(rendering_raytracing_procthor_frame_depth_low 2 rendering_raytracing_device_depth_ptx 2)
 add_rendering_raytracing_procthor_frame_target(rendering_raytracing_procthor_frame_depth_basic 2 rendering_raytracing_device_depth_ptx 0)
 add_rendering_raytracing_procthor_frame_target(rendering_raytracing_procthor_frame_depth_high_fidelity 2 rendering_raytracing_device_depth_ptx 1)
 add_rendering_raytracing_procthor_frame_target(rendering_raytracing_procthor_frame_depth_fast_flat 2 rendering_raytracing_device_depth_ptx 2)

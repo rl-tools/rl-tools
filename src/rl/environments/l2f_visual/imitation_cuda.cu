@@ -234,7 +234,7 @@ static constexpr T TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE =
     STATE_ESTIMATION_MODE ? static_cast<T>(0) : static_cast<T>(10.0) / static_cast<T>(180) * rlt::math::PI<T>;
 static_assert(TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE >= static_cast<T>(0), "Invalid l2f_visual imitation target frame roll/pitch randomization range");
 
-using RENDER_SHADING = rlt::rendering::raytracing::HighFidelityShading;
+using RENDER_SHADING = rlt::rendering::raytracing::High;
 static constexpr bool RENDER_ENABLE_MOTION_BLUR = false;
 static constexpr TI RENDER_MOTION_BLUR_SAMPLES = 1;
 static constexpr bool RENDER_ENABLE_ANTI_ALIASING = true;
@@ -243,7 +243,7 @@ static constexpr T RENDER_SHUTTER_FRACTION_MIN = static_cast<T>(0.25);
 static constexpr T RENDER_SHUTTER_FRACTION_MAX = static_cast<T>(1);
 static_assert(RENDER_SHUTTER_FRACTION_MIN >= static_cast<T>(0) && RENDER_SHUTTER_FRACTION_MIN <= RENDER_SHUTTER_FRACTION_MAX && RENDER_SHUTTER_FRACTION_MAX <= static_cast<T>(1), "Invalid l2f_visual imitation shutter fraction range");
 using VISUAL_SPEC = rlt::rl::environments::l2f_visual::Specification<T, TI, STATIC_PARAMETERS, N_ENVIRONMENTS_PER_SCENE, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, RENDER_SHADING, RENDER_ENABLE_MOTION_BLUR, RENDER_MOTION_BLUR_SAMPLES, RENDER_ENABLE_ANTI_ALIASING, RENDER_ANTI_ALIASING_GRID_SIZE>;
-static_assert(VISUAL_SPEC::RENDERER_SPEC::SHADING::PBR_SHADING, "l2f visual imitation must use the high-fidelity renderer profile");
+static_assert(VISUAL_SPEC::RENDERER_SPEC::SHADING::PBR_SHADING, "l2f visual imitation must use the High renderer profile");
 using ENVIRONMENT = rlt::rl::environments::l2f_visual::MultirrotorVisual<VISUAL_SPEC>;
 using CAMERA_DATA = rlt::rendering::raytracing::CameraData<T>;
 static constexpr bool RENDER_MOTION_BLUR_ACTIVE = ENVIRONMENT::SPEC::RENDERER_SPEC::ENABLE_MOTION_BLUR;

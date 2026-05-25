@@ -28,7 +28,7 @@ static constexpr TI NUM_PROBES = 1;
 static constexpr TI NUM_PANELS = 6;
 
 template <TI SAMPLES>
-using RendererSpec = rlt::rendering::raytracing::Specification<T, TI, CAM_WIDTH, CAM_HEIGHT, NUM_CAMERAS, NUM_PROBES, rlt::rendering::raytracing::BasicShading, (SAMPLES > 1), SAMPLES>;
+using RendererSpec = rlt::rendering::raytracing::Specification<T, TI, CAM_WIDTH, CAM_HEIGHT, NUM_CAMERAS, NUM_PROBES, rlt::rendering::raytracing::Medium, (SAMPLES > 1), SAMPLES>;
 
 template <typename SPEC>
 using Renderer = rlt::rendering::raytracing::Renderer<SPEC>;

@@ -120,10 +120,10 @@ static constexpr TI N_ENVIRONMENTS = 1;
 static constexpr TI CAM_WIDTH = 80;
 static constexpr TI CAM_HEIGHT = 50;
 static constexpr TI NUM_PROBES = 64;
-using RENDER_SHADING = rlt::rendering::raytracing::HighFidelityShading;
+using RENDER_SHADING = rlt::rendering::raytracing::High;
 
 using VISUAL_SPEC = rlt::rl::environments::l2f_visual::Specification<T, TI, STATIC_PARAMETERS, N_ENVIRONMENTS, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, RENDER_SHADING>;
-static_assert(VISUAL_SPEC::RENDERER_SPEC::SHADING::PBR_SHADING, "l2f visual inference must use the high-fidelity renderer profile");
+static_assert(VISUAL_SPEC::RENDERER_SPEC::SHADING::PBR_SHADING, "l2f visual inference must use the High renderer profile");
 using ENVIRONMENT = rlt::rl::environments::l2f_visual::MultirrotorVisual<VISUAL_SPEC>;
 
 // =========================================================================

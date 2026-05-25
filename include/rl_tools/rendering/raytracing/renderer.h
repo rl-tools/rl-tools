@@ -37,11 +37,15 @@ namespace rl_tools {
             static constexpr bool PBR_SHADING = T_PBR_SHADING;
         };
 
-        using BasicShading = ShadingOptions<true, true, true, true, true, false>;
-        using HighFidelityShading = ShadingOptions<true, true, true, true, true, true>;
-        using FastFlatShading = ShadingOptions<false, false, false, false, false, false>;
+        using Medium = ShadingOptions<true, true, true, true, true, false>;
+        using High = ShadingOptions<true, true, true, true, true, true>;
+        using Low = ShadingOptions<false, false, false, false, false, false>;
 
-        template <typename T_T, typename T_TI, T_TI T_CAM_WIDTH, T_TI T_CAM_HEIGHT, T_TI T_NUM_CAMERAS, T_TI T_NUM_PROBES, typename T_SHADING = BasicShading, bool T_ENABLE_MOTION_BLUR = false, T_TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, T_TI T_ANTI_ALIASING_GRID_SIZE = 1, OutputMode T_OUTPUT_MODE = OutputMode::RGB>
+        using BasicShading = Medium;
+        using HighFidelityShading = High;
+        using FastFlatShading = Low;
+
+        template <typename T_T, typename T_TI, T_TI T_CAM_WIDTH, T_TI T_CAM_HEIGHT, T_TI T_NUM_CAMERAS, T_TI T_NUM_PROBES, typename T_SHADING = Medium, bool T_ENABLE_MOTION_BLUR = false, T_TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, T_TI T_ANTI_ALIASING_GRID_SIZE = 1, OutputMode T_OUTPUT_MODE = OutputMode::RGB>
         struct Specification{
             using T = T_T;
             using TI = T_TI;

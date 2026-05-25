@@ -23,7 +23,7 @@ static constexpr auto OUTPUT_MODE =
         : (RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
             ? rlt::rendering::raytracing::OutputMode::RGBD
             : rlt::rendering::raytracing::OutputMode::RGB);
-using SPEC = rlt::rendering::raytracing::Specification<T, TI, 128, 128, 4096, 64, rlt::rendering::raytracing::BasicShading, false, 1, false, 1, OUTPUT_MODE>;
+using SPEC = rlt::rendering::raytracing::Specification<T, TI, 128, 128, 4096, 64, rlt::rendering::raytracing::Medium, false, 1, false, 1, OUTPUT_MODE>;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 
 int main(int ac, char** av){

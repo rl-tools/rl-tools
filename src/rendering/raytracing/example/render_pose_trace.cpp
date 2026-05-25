@@ -59,7 +59,7 @@ struct Options {
 struct RenderRecord {
     std::string name;
     std::string output;
-    std::string fidelity;
+    std::string profile;
     std::string anti_aliasing;
     std::string path;
     std::string frames_dir;
@@ -83,7 +83,8 @@ static void print_usage(const char* argv0) {
         << "  --output-dir <dir>         Output directory (default: .)\n"
         << "  --fps <n>                  MP4 frame rate; timestamped traces are resampled to this rate (default: 30)\n"
         << "  --ffmpeg <path>            ffmpeg binary (default: ffmpeg)\n"
-        << "  --settings <list>          all, rgb, depth, basic, high_fidelity, fast_flat, or comma list; depth has no fidelity profile\n"
+        << "  --settings <list>          all, rgb, depth, medium, high, low, or comma list; depth has no rendering profile\n"
+        << "                              Legacy aliases: basic, high_fidelity, fast_flat\n"
         << "                              Always renders square resolutions 64, 128, 256, 512, 1024, and 2048\n"
         << "                              Also writes RGB JPEG frame sequences under <output-dir>/frames/<render-name>/\n"
         << "  --max-frames <n>           Limit trace frames when >0\n"
@@ -271,16 +272,29 @@ static bool contains_token(const std::vector<std::string>& tokens, const std::st
     return std::find(tokens.begin(), tokens.end(), value) != tokens.end();
 }
 
-static bool should_render_setting(const Options& options, const char* output, const char* fidelity) {
+static bool contains_profile_token(const std::vector<std::string>& tokens, const std::string& profile) {
+    return contains_token(tokens, profile)
+        || (profile == "medium" && contains_token(tokens, "basic"))
+        || (profile == "high" && contains_token(tokens, "high_fidelity"))
+        || (profile == "low" && contains_token(tokens, "fast_flat"));
+}
+
+static bool has_profile_filter(const std::vector<std::string>& tokens) {
+    return contains_token(tokens, "medium") || contains_token(tokens, "basic")
+        || contains_token(tokens, "high") || contains_token(tokens, "high_fidelity")
+        || contains_token(tokens, "low") || contains_token(tokens, "fast_flat");
+}
+
+static bool should_render_setting(const Options& options, const char* output, const char* profile) {
     const std::vector<std::string> tokens = split_settings(options.settings);
     if(tokens.empty() || contains_token(tokens, "all")) {
         return true;
     }
     const bool has_output_filter = contains_token(tokens, "rgb") || contains_token(tokens, "depth");
-    const bool has_fidelity_filter = contains_token(tokens, "basic") || contains_token(tokens, "high_fidelity") || contains_token(tokens, "fast_flat");
+    const bool has_profile_filter_value = has_profile_filter(tokens);
     const bool output_ok = !has_output_filter || contains_token(tokens, output);
-    const bool fidelity_ok = !has_fidelity_filter || contains_token(tokens, fidelity);
-    return output_ok && fidelity_ok;
+    const bool profile_ok = !has_profile_filter_value || contains_profile_token(tokens, profile);
+    return output_ok && profile_ok;
 }
 
 static bool should_render_depth(const Options& options) {
@@ -877,19 +891,19 @@ static void depth_to_rgba(const float* depth, std::vector<uint32_t>& frame, floa
 }
 
 template <typename SPEC>
-static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, const Options& options, const std::string& scene_path, const std::vector<TracePose>& poses, const char* output_name, const char* fidelity_name, RenderRecord& record) {
+static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, const Options& options, const std::string& scene_path, const std::vector<TracePose>& poses, const char* output_name, const char* profile_name, RenderRecord& record) {
     constexpr TI WIDTH = SPEC::CAM_WIDTH;
     constexpr TI HEIGHT = SPEC::CAM_HEIGHT;
     constexpr bool ENABLE_AA = SPEC::ENABLE_ANTI_ALIASING;
     constexpr TI AA_GRID_SIZE = ENABLE_AA ? SPEC::ANTI_ALIASING_GRID_SIZE : 1;
     record.output = output_name;
-    record.fidelity = fidelity_name[0] == '\0' ? "none" : fidelity_name;
+    record.profile = profile_name[0] == '\0' ? "none" : profile_name;
     record.anti_aliasing = aa_name(ENABLE_AA, AA_GRID_SIZE);
     record.width = WIDTH;
     record.height = HEIGHT;
     record.aa_grid_size = AA_GRID_SIZE;
     record.samples_per_pixel = AA_GRID_SIZE * AA_GRID_SIZE;
-    const std::string base_name = fidelity_name[0] == '\0' ? std::string(output_name) : std::string(output_name) + "_" + fidelity_name;
+    const std::string base_name = profile_name[0] == '\0' ? std::string(output_name) : std::string(output_name) + "_" + profile_name;
     record.name = base_name + "_" + resolution_suffix(WIDTH, HEIGHT) + aa_suffix(ENABLE_AA, AA_GRID_SIZE);
     record.path = join_path(options.output_dir, std::string("trace_") + record.name + ".mp4");
     record.frames_dir = join_path(join_path(options.output_dir, "frames"), record.name);
@@ -1005,7 +1019,8 @@ static bool write_manifest(const Options& options, const std::string& scene_path
         json item;
         item["name"] = record.name;
         item["output"] = record.output;
-        item["fidelity"] = record.fidelity;
+        item["profile"] = record.profile;
+        item["fidelity"] = record.profile;
         item["anti_aliasing"] = record.anti_aliasing;
         item["aa_grid_size"] = record.aa_grid_size;
         item["samples_per_pixel"] = record.samples_per_pixel;
@@ -1037,23 +1052,23 @@ static bool write_manifest(const Options& options, const std::string& scene_path
 template <TI RESOLUTION, bool ENABLE_AA, TI AA_GRID_SIZE>
 static bool render_selected_settings_for_resolution(rlt::devices::DEVICE_FACTORY<>& device, const Options& options, const std::string& scene_path, const std::vector<TracePose>& poses, std::vector<RenderRecord>& records) {
     bool ok = true;
-    if(should_render_setting(options, "rgb", "basic")) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::BasicShading, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::RGB>;
+    if(should_render_setting(options, "rgb", "medium")) {
+        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::Medium, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::RGB>;
         records.emplace_back();
-        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "basic", records.back()) && ok;
+        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "medium", records.back()) && ok;
     }
-    if(should_render_setting(options, "rgb", "high_fidelity")) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::HighFidelityShading, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::RGB>;
+    if(should_render_setting(options, "rgb", "high")) {
+        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::High, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::RGB>;
         records.emplace_back();
-        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "high_fidelity", records.back()) && ok;
+        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "high", records.back()) && ok;
     }
-    if(should_render_setting(options, "rgb", "fast_flat")) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::FastFlatShading, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::RGB>;
+    if(should_render_setting(options, "rgb", "low")) {
+        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::Low, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::RGB>;
         records.emplace_back();
-        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "fast_flat", records.back()) && ok;
+        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "low", records.back()) && ok;
     }
     if(should_render_depth(options)) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::BasicShading, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::DEPTH>;
+        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::Medium, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::DEPTH>;
         records.emplace_back();
         ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "depth", "", records.back()) && ok;
     }

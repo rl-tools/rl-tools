@@ -4,7 +4,7 @@
 #include <array>
 
 namespace rl_tools::rl::environments::raytracing_example {
-    template <typename T_T, typename T_TI, T_TI T_NUM_ENVS, T_TI T_CAM_WIDTH = 64, T_TI T_CAM_HEIGHT = 64, T_TI T_NUM_PROBES = 64, typename T_SHADING = rendering::raytracing::BasicShading, bool T_ENABLE_MOTION_BLUR = false, T_TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, T_TI T_ANTI_ALIASING_GRID_SIZE = 1, rendering::raytracing::OutputMode T_OUTPUT_MODE = rendering::raytracing::OutputMode::RGB>
+    template <typename T_T, typename T_TI, T_TI T_NUM_ENVS, T_TI T_CAM_WIDTH = 64, T_TI T_CAM_HEIGHT = 64, T_TI T_NUM_PROBES = 64, typename T_SHADING = rendering::raytracing::Medium, bool T_ENABLE_MOTION_BLUR = false, T_TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, T_TI T_ANTI_ALIASING_GRID_SIZE = 1, rendering::raytracing::OutputMode T_OUTPUT_MODE = rendering::raytracing::OutputMode::RGB>
     struct Specification {
         using T = T_T;
         using TI = T_TI;

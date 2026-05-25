@@ -19,7 +19,7 @@ namespace rl_tools::rl::environments::l2f_visual {
         T_TI T_CAM_WIDTH = 64,
         T_TI T_CAM_HEIGHT = 64,
         T_TI T_NUM_PROBES = 64,
-        typename T_SHADING = rendering::raytracing::BasicShading,
+        typename T_SHADING = rendering::raytracing::Medium,
         bool T_ENABLE_MOTION_BLUR = false,
         T_TI T_MOTION_BLUR_SAMPLES = 1,
         bool T_ENABLE_ANTI_ALIASING = false,
