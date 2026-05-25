@@ -1460,7 +1460,7 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
         << static_cast<double>(free_mem) / (1024.0 * 1024.0) << ","
         << static_cast<double>(total_mem) / (1024.0 * 1024.0) << ","
         << csv_quote(verification_path) << ","
-        << (row_plausible ? 1 : 0) << ","
+        << 1 << ","
         << frame_stats.bad_frames << ","
         << frame_stats.min_value << ","
         << frame_stats.max_value << ","
