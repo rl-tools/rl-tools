@@ -29,7 +29,7 @@ static constexpr TI NUM_CAMERAS = 1;
 static constexpr TI NUM_PROBES = 1;
 
 template <TI SAMPLES, TI WIDTH, TI HEIGHT>
-using RendererSpec = rlt::rendering::raytracing::Specification<T, TI, WIDTH, HEIGHT, NUM_CAMERAS, NUM_PROBES, rlt::rendering::raytracing::HighFidelityShading, true, SAMPLES, false, 1, rlt::rendering::raytracing::OutputMode::RGB>;
+using RendererSpec = rlt::rendering::raytracing::Specification<T, TI, WIDTH, HEIGHT, NUM_CAMERAS, NUM_PROBES, rlt::rendering::raytracing::High, true, SAMPLES, false, 1, rlt::rendering::raytracing::OutputMode::RGB>;
 
 template <typename SPEC>
 using Renderer = rlt::rendering::raytracing::Renderer<SPEC>;

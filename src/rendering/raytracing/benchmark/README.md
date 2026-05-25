@@ -49,8 +49,9 @@ cmake --build build --target \
   rendering_raytracing_benchmark_rgbd \
   rendering_raytracing_sim_benchmark \
   rendering_raytracing_sim_benchmark_sweep \
-  rendering_raytracing_sim_benchmark_high_fidelity \
-  rendering_raytracing_sim_benchmark_fast_flat \
+  rendering_raytracing_sim_benchmark_medium \
+  rendering_raytracing_sim_benchmark_high \
+  rendering_raytracing_sim_benchmark_low \
   rendering_raytracing_sim_benchmark_rgb \
   rendering_raytracing_sim_benchmark_depth \
   -j5
@@ -60,49 +61,49 @@ cmake --build build --target \
 
 The default timed duration is 10 seconds per row and the default warmup is 2 seconds. PNG stitching and CSV logging happen after the timed section.
 
-Low-fidelity matrix:
+Medium matrix:
 
 ```bash
-OUT_LOW=$(mktemp -d /tmp/rltools_rt_matrix_low.XXXXXX)
-./build/src/rendering/raytracing/benchmark/rendering_raytracing_sim_benchmark \
+OUT_MEDIUM=$(mktemp -d /tmp/rltools_rt_matrix_medium.XXXXXX)
+./build/src/rendering/raytracing/benchmark/rendering_raytracing_sim_benchmark_medium \
   --scene all \
   --step-mode all \
   --output all \
   --seconds 10 \
   --warmup-seconds 2 \
-  --gpu-label "$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1) low fidelity" \
-  --output-dir "$OUT_LOW" | tee "$OUT_LOW/output.log"
-echo "$OUT_LOW"
+  --gpu-label "$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1) medium" \
+  --output-dir "$OUT_MEDIUM" | tee "$OUT_MEDIUM/output.log"
+echo "$OUT_MEDIUM"
 ```
 
-High-fidelity matrix:
+High matrix:
 
 ```bash
 OUT_HIGH=$(mktemp -d /tmp/rltools_rt_matrix_high.XXXXXX)
-./build/src/rendering/raytracing/benchmark/rendering_raytracing_sim_benchmark_high_fidelity \
+./build/src/rendering/raytracing/benchmark/rendering_raytracing_sim_benchmark_high \
   --scene all \
   --step-mode all \
   --output all \
   --seconds 10 \
   --warmup-seconds 2 \
-  --gpu-label "$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1) high fidelity" \
+  --gpu-label "$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1) high" \
   --output-dir "$OUT_HIGH" | tee "$OUT_HIGH/output.log"
 echo "$OUT_HIGH"
 ```
 
-Fast-flat matrix:
+Low matrix:
 
 ```bash
-OUT_FAST=$(mktemp -d /tmp/rltools_rt_matrix_fast.XXXXXX)
-./build/src/rendering/raytracing/benchmark/rendering_raytracing_sim_benchmark_fast_flat \
+OUT_LOW=$(mktemp -d /tmp/rltools_rt_matrix_low.XXXXXX)
+./build/src/rendering/raytracing/benchmark/rendering_raytracing_sim_benchmark_low \
   --scene all \
   --step-mode all \
   --output all \
   --seconds 10 \
   --warmup-seconds 2 \
-  --gpu-label "$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1) fast flat" \
-  --output-dir "$OUT_FAST" | tee "$OUT_FAST/output.log"
-echo "$OUT_FAST"
+  --gpu-label "$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1) low" \
+  --output-dir "$OUT_LOW" | tee "$OUT_LOW/output.log"
+echo "$OUT_LOW"
 ```
 
 Each matrix covers:
@@ -112,29 +113,31 @@ Each matrix covers:
 | Scene | `20_objects`, `procthor` |
 | Output | `rgb`, `depth` |
 | Step mode | `render_only`, `render_physics` |
-| Fidelity | basic target, high-fidelity target, fast-flat target |
+| Profile | medium target, high target, low target |
+
+`High` uses PBR shading, `Medium` uses textured/basic shading, and `Low` uses flat per-geometry color.
 
 The benchmark writes one stitched PNG per row and CSV rows prefixed with `csv_result`.
 
 Extract table rows:
 
 ```bash
-rg '^csv_result' "$OUT_LOW/output.log"
+rg '^csv_result' "$OUT_MEDIUM/output.log"
 rg '^csv_result' "$OUT_HIGH/output.log"
-rg '^csv_result' "$OUT_FAST/output.log"
+rg '^csv_result' "$OUT_LOW/output.log"
 ```
 
 List verification images:
 
 ```bash
-ls -lh "$OUT_LOW"/*.png
+ls -lh "$OUT_MEDIUM"/*.png
 ls -lh "$OUT_HIGH"/*.png
-ls -lh "$OUT_FAST"/*.png
+ls -lh "$OUT_LOW"/*.png
 ```
 
 ## Run Single-Target Resolution and AA Sweep
 
-This target avoids creating one CMake target per resolution/profile/AA combination. It runs the renderer configurations sequentially for resolutions `64, 128, 256, 512, 1024, 2048`, RGB profiles `basic, high_fidelity, fast_flat`, depth once per resolution, and AA modes `none, aa2`. The sweep honors the usual simulator matrix scene, output, and step-mode filters. It keeps the 64x64 matrix workload as the reference and scales camera count down at higher resolutions to keep total pixels per iteration roughly constant.
+This target avoids creating one CMake target per resolution/profile/AA combination. It runs the renderer configurations sequentially for resolutions `64, 128, 256, 512, 1024, 2048`, RGB profiles `medium, high, low`, depth once per resolution, and AA modes `none, aa2`. The sweep honors the usual simulator matrix scene, output, and step-mode filters. It keeps the 64x64 matrix workload as the reference and scales camera count down at higher resolutions to keep total pixels per iteration roughly constant.
 
 ```bash
 OUT_SWEEP=$(mktemp -d /tmp/rltools_rt_matrix_sweep.XXXXXX)

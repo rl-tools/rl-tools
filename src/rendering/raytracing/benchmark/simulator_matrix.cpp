@@ -40,12 +40,16 @@
 #define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_EXTENDED_CSV 0
 #endif
 
-#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_BASIC 0
-#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_HIGH_FIDELITY 1
-#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_FAST_FLAT 2
+#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_MEDIUM 0
+#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_HIGH 1
+#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_LOW 2
+
+#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_BASIC RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_MEDIUM
+#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_HIGH_FIDELITY RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_HIGH
+#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_FAST_FLAT RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_LOW
 
 #ifndef RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE
-#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_BASIC
+#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_MEDIUM
 #endif
 
 #include <rl_tools/operations/cpu_mux.h>
@@ -83,16 +87,16 @@ static constexpr TI AA_GRID_SIZE = RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_A
 template <int T_PROFILE>
 struct BenchmarkShadingProfile;
 template <>
-struct BenchmarkShadingProfile<RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_BASIC> {
-    using type = rlt::rendering::raytracing::BasicShading;
+struct BenchmarkShadingProfile<RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_MEDIUM> {
+    using type = rlt::rendering::raytracing::Medium;
 };
 template <>
-struct BenchmarkShadingProfile<RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_HIGH_FIDELITY> {
-    using type = rlt::rendering::raytracing::HighFidelityShading;
+struct BenchmarkShadingProfile<RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_HIGH> {
+    using type = rlt::rendering::raytracing::High;
 };
 template <>
-struct BenchmarkShadingProfile<RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_FAST_FLAT> {
-    using type = rlt::rendering::raytracing::FastFlatShading;
+struct BenchmarkShadingProfile<RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_LOW> {
+    using type = rlt::rendering::raytracing::Low;
 };
 using ShadingProfile = typename BenchmarkShadingProfile<RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE>::type;
 template <rlt::rendering::raytracing::OutputMode T_OUTPUT_MODE>
@@ -592,14 +596,14 @@ static constexpr const char* output_name() {
 }
 
 static constexpr const char* shading_profile_name() {
-    return RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE == RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_FAST_FLAT ? "fast_flat"
-        : (RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE == RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_HIGH_FIDELITY ? "high_fidelity" : "basic");
+    return RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE == RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_LOW ? "low"
+        : (RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE == RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_HIGH ? "high" : "medium");
 }
 
 template <typename SPEC>
 static constexpr const char* shading_profile_name_for_spec() {
-    return std::is_same<typename SPEC::SHADING, rlt::rendering::raytracing::FastFlatShading>::value ? "fast_flat"
-        : (std::is_same<typename SPEC::SHADING, rlt::rendering::raytracing::HighFidelityShading>::value ? "high_fidelity" : "basic");
+    return std::is_same<typename SPEC::SHADING, rlt::rendering::raytracing::Low>::value ? "low"
+        : (std::is_same<typename SPEC::SHADING, rlt::rendering::raytracing::High>::value ? "high" : "medium");
 }
 
 template <typename SPEC>
@@ -1528,15 +1532,15 @@ static bool run_sweep_resolution_aa(DEVICE& device, const std::vector<SceneAxis>
     bool ok = true;
     for(OutputAxis output : outputs) {
         if(output == OutputAxis::RGB) {
-            using BASIC = SweepBenchmarkSpec<rlt::rendering::raytracing::OutputMode::RGB, T_RESOLUTION, T_RESOLUTION, NUM_CAMERAS_FOR_RESOLUTION, rlt::rendering::raytracing::BasicShading, T_ENABLE_AA, T_AA_GRID_SIZE>;
-            using HIGH_FIDELITY = SweepBenchmarkSpec<rlt::rendering::raytracing::OutputMode::RGB, T_RESOLUTION, T_RESOLUTION, NUM_CAMERAS_FOR_RESOLUTION, rlt::rendering::raytracing::HighFidelityShading, T_ENABLE_AA, T_AA_GRID_SIZE>;
-            using FAST_FLAT = SweepBenchmarkSpec<rlt::rendering::raytracing::OutputMode::RGB, T_RESOLUTION, T_RESOLUTION, NUM_CAMERAS_FOR_RESOLUTION, rlt::rendering::raytracing::FastFlatShading, T_ENABLE_AA, T_AA_GRID_SIZE>;
-            ok = run_sweep_spec<BASIC>(device, scenes, steps, options, cuda_name, gpu_label, first_config, config_index) && ok;
-            ok = run_sweep_spec<HIGH_FIDELITY>(device, scenes, steps, options, cuda_name, gpu_label, first_config, config_index) && ok;
-            ok = run_sweep_spec<FAST_FLAT>(device, scenes, steps, options, cuda_name, gpu_label, first_config, config_index) && ok;
+            using MEDIUM = SweepBenchmarkSpec<rlt::rendering::raytracing::OutputMode::RGB, T_RESOLUTION, T_RESOLUTION, NUM_CAMERAS_FOR_RESOLUTION, rlt::rendering::raytracing::Medium, T_ENABLE_AA, T_AA_GRID_SIZE>;
+            using HIGH = SweepBenchmarkSpec<rlt::rendering::raytracing::OutputMode::RGB, T_RESOLUTION, T_RESOLUTION, NUM_CAMERAS_FOR_RESOLUTION, rlt::rendering::raytracing::High, T_ENABLE_AA, T_AA_GRID_SIZE>;
+            using LOW = SweepBenchmarkSpec<rlt::rendering::raytracing::OutputMode::RGB, T_RESOLUTION, T_RESOLUTION, NUM_CAMERAS_FOR_RESOLUTION, rlt::rendering::raytracing::Low, T_ENABLE_AA, T_AA_GRID_SIZE>;
+            ok = run_sweep_spec<MEDIUM>(device, scenes, steps, options, cuda_name, gpu_label, first_config, config_index) && ok;
+            ok = run_sweep_spec<HIGH>(device, scenes, steps, options, cuda_name, gpu_label, first_config, config_index) && ok;
+            ok = run_sweep_spec<LOW>(device, scenes, steps, options, cuda_name, gpu_label, first_config, config_index) && ok;
         }
         else {
-            using DEPTH = SweepBenchmarkSpec<rlt::rendering::raytracing::OutputMode::DEPTH, T_RESOLUTION, T_RESOLUTION, NUM_CAMERAS_FOR_RESOLUTION, rlt::rendering::raytracing::BasicShading, T_ENABLE_AA, T_AA_GRID_SIZE>;
+            using DEPTH = SweepBenchmarkSpec<rlt::rendering::raytracing::OutputMode::DEPTH, T_RESOLUTION, T_RESOLUTION, NUM_CAMERAS_FOR_RESOLUTION, rlt::rendering::raytracing::Medium, T_ENABLE_AA, T_AA_GRID_SIZE>;
             ok = run_sweep_spec<DEPTH>(device, scenes, steps, options, cuda_name, gpu_label, first_config, config_index) && ok;
         }
     }
@@ -1545,8 +1549,8 @@ static bool run_sweep_resolution_aa(DEVICE& device, const std::vector<SceneAxis>
 
 static bool run_sweep(DEVICE& device, const std::vector<SceneAxis>& scenes, const std::vector<StepAxis>& steps, const std::vector<OutputAxis>& outputs, const Options& options, const std::string& cuda_name, const std::string& gpu_label) {
     RL_TOOLS_RENDERING_RAYTRACING_LOG("single-target sweep enabled: resolutions=64,128,256,512,1024,2048"
-        << ", rgb_profiles=basic,high_fidelity,fast_flat"
-        << ", depth_profiles=basic"
+        << ", rgb_profiles=medium,high,low"
+        << ", depth_profiles=medium"
         << ", anti_aliasing=none,aa2"
         << ", reference_pixels=" << SWEEP_REFERENCE_PIXELS
         << ", sweep_config_start=" << options.sweep_config_start
