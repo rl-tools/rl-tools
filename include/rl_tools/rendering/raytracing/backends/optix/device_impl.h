@@ -277,7 +277,7 @@ namespace rl_tools
               +      bary.x           * self.tex_coord[index.y]
               +             bary.y    * self.tex_coord[index.z];
           owl::vec4f tex_color = tex2D<float4>(self.texture, tc.x, tc.y);
-          base_color = owl::vec3f(tex_color.x, tex_color.y, tex_color.z);
+          base_color = owl::vec3f(tex_color.x, tex_color.y, tex_color.z) * self.color;
         }
       }
     }
