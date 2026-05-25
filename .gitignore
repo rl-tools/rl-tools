@@ -86,3 +86,4 @@ conta
 .claude
 /**/*.tflite
 /**/*.csv
+raytracing_pose_trace*

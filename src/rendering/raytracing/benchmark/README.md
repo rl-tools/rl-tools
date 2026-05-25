@@ -3,7 +3,7 @@
 This directory contains the benchmark targets for the OptiX raytracing renderer.
 The simulator matrix target is the preferred benchmark for simulator-paper tables because it emits CSV rows and stitched PNG verification images.
 
-The current shared renderer FOV is 80 degrees. AA and motion blur are disabled in the benchmark targets documented here. The simulator matrix samples one deterministic Haar-uniform SO(3) camera orientation per camera from `--seed` by default. `20_objects` is viewed from the scene origin and ProcTHOR from `[-3.92, -5.67, 1.0]`. The `20_objects` scene uses the shared `canonical_staggered_v1` staggered spatial layout with alternating box and sphere entries.
+The current shared renderer FOV is 80 degrees. AA and motion blur are disabled in the ordinary matrix targets; the single-target sweep below covers both no-AA and 2x AA. The simulator matrix samples one deterministic Haar-uniform SO(3) camera orientation per camera from `--seed` by default. `20_objects` is viewed from the scene origin and ProcTHOR from `[-3.92, -5.67, 1.0]`. The `20_objects` scene uses the shared `canonical_staggered_v1` staggered spatial layout with alternating box and sphere entries.
 
 ## Activate Environment
 
@@ -48,6 +48,7 @@ cmake --build build --target \
   rendering_raytracing_benchmark_depth \
   rendering_raytracing_benchmark_rgbd \
   rendering_raytracing_sim_benchmark \
+  rendering_raytracing_sim_benchmark_sweep \
   rendering_raytracing_sim_benchmark_high_fidelity \
   rendering_raytracing_sim_benchmark_fast_flat \
   rendering_raytracing_sim_benchmark_rgb \
@@ -131,6 +132,48 @@ ls -lh "$OUT_HIGH"/*.png
 ls -lh "$OUT_FAST"/*.png
 ```
 
+## Run Single-Target Resolution and AA Sweep
+
+This target avoids creating one CMake target per resolution/profile/AA combination. It runs the renderer configurations sequentially for resolutions `64, 128, 256, 512, 1024, 2048`, RGB profiles `basic, high_fidelity, fast_flat`, depth once per resolution, and AA modes `none, aa2`. The sweep honors the usual simulator matrix scene, output, and step-mode filters. It keeps the 64x64 matrix workload as the reference and scales camera count down at higher resolutions to keep total pixels per iteration roughly constant.
+
+```bash
+OUT_SWEEP=$(mktemp -d /tmp/rltools_rt_matrix_sweep.XXXXXX)
+./build/src/rendering/raytracing/benchmark/rendering_raytracing_sim_benchmark_sweep \
+  --scene all \
+  --step-mode all \
+  --output all \
+  --seconds 10 \
+  --warmup-seconds 2 \
+  --cooldown-seconds 10 \
+  --gpu-label "$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1) resolution-aa sweep" \
+  --output-dir "$OUT_SWEEP" | tee "$OUT_SWEEP/output.log"
+echo "$OUT_SWEEP"
+```
+
+With all scene, step, and output axes enabled, this emits 192 `csv_result` rows. The sweep CSV adds `shading_profile`, `anti_aliasing`, `aa_grid_size`, and `samples_per_pixel` columns.
+
+The May 24, 2026 local benchmark run used:
+
+```text
+target: rendering_raytracing_sim_benchmark_sweep
+output_dir: /tmp/rltools_rt_matrix_sweep_actual_20260524_03
+gpu_label: NVIDIA GeForce RTX 4090 Laptop GPU resolution-aa sweep 2026-05-24
+scene: all
+step_mode: all
+output: all
+orientation_mode: uniform_so3
+seed: 0
+num_envs: 4096
+seconds: 10
+warmup_seconds: 2
+warmup_iterations: 10
+sync_interval: 10
+cooldown_seconds: 10
+rows: 192
+```
+
+Because the local command runner terminated very long single invocations, that run was split into chunks with `--sweep-config-start` and `--sweep-config-count 3`, with a 10 second sleep between chunk invocations. This chunking does not change the timed row parameters; it only limits wall time per process. A full unchunked invocation uses the same benchmark target and omits those two chunk flags.
+
 ## Run Output-Specific Simulator Targets
 
 These targets are useful when validating compile-time RGB-only or depth-only code paths. The all-output matrix above already covers both outputs.
@@ -206,6 +249,9 @@ Simulator matrix options:
 --warmup-seconds <warmup seconds per row>
 --warmup-iterations <count>
 --sync-interval <count>
+--cooldown-seconds <seconds>          # sweep target only
+--sweep-config-start <index>          # sweep target only
+--sweep-config-count <count>          # sweep target only
 --seed <camera orientation seed>
 --orientation-mode uniform_so3|random_yaw_pitch|look_at_scene_jitter
 --gpu-label <label for CSV rows and PNG names>
