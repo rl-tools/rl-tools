@@ -33,6 +33,7 @@ using TI = typename rlt::devices::DEVICE_FACTORY<>::index_t;
 static constexpr TI NUM_CAMERAS = 1;
 static constexpr TI NUM_PROBES = 1;
 static constexpr TI RENDER_RESOLUTIONS[] = {64, 128, 256, 512, 1024, 2048};
+static constexpr int FRAME_JPEG_QUALITY = 90;
 
 struct TracePose {
     T eye[3];
@@ -61,11 +62,14 @@ struct RenderRecord {
     std::string fidelity;
     std::string anti_aliasing;
     std::string path;
+    std::string frames_dir;
+    std::string frame_pattern;
     std::string ffmpeg_command;
     TI width = 0;
     TI height = 0;
     TI aa_grid_size = 1;
     TI samples_per_pixel = 1;
+    size_t frame_count = 0;
     int ffmpeg_status = 0;
     bool ok = false;
 };
@@ -81,6 +85,7 @@ static void print_usage(const char* argv0) {
         << "  --ffmpeg <path>            ffmpeg binary (default: ffmpeg)\n"
         << "  --settings <list>          all, rgb, depth, basic, high_fidelity, fast_flat, or comma list; depth has no fidelity profile\n"
         << "                              Always renders square resolutions 64, 128, 256, 512, 1024, and 2048\n"
+        << "                              Also writes RGB JPEG frame sequences under <output-dir>/frames/<render-name>/\n"
         << "  --max-frames <n>           Limit trace frames when >0\n"
         << "  --smooth-sigma-s <s>       Gaussian smoothing sigma for position and orientation (default: 0)\n"
         << "  --smooth-position-sigma-s <s>\n"
@@ -821,6 +826,30 @@ static bool write_frame(FILE* pipe, const std::vector<uint32_t>& frame, int fram
     return true;
 }
 
+static std::string frame_filename(const std::string& frames_dir, size_t frame_i) {
+    char filename[64];
+    std::snprintf(filename, sizeof(filename), "frame_%06zu.jpg", frame_i);
+    return join_path(frames_dir, filename);
+}
+
+static bool write_rgb_jpeg_frame(const std::string& path, const std::vector<uint32_t>& frame, std::vector<uint8_t>& rgb_frame, TI width, TI height) {
+    const size_t pixels = frame.size();
+    if(rgb_frame.size() != pixels * 3) {
+        rgb_frame.resize(pixels * 3);
+    }
+    for(size_t i = 0; i < pixels; i++) {
+        const uint32_t rgba = frame[i];
+        rgb_frame[i * 3 + 0] = static_cast<uint8_t>((rgba >> 0) & 0xFF);
+        rgb_frame[i * 3 + 1] = static_cast<uint8_t>((rgba >> 8) & 0xFF);
+        rgb_frame[i * 3 + 2] = static_cast<uint8_t>((rgba >> 16) & 0xFF);
+    }
+    if(stbi_write_jpg(path.c_str(), width, height, 3, rgb_frame.data(), FRAME_JPEG_QUALITY) == 0) {
+        std::cerr << "Failed writing RGB JPEG frame: " << path << std::endl;
+        return false;
+    }
+    return true;
+}
+
 static void depth_range(const float* depth, size_t count, float max_depth, float& min_depth, float& max_valid_depth) {
     const float sentinel = max_depth * 0.999f;
     for(size_t i = 0; i < count; i++) {
@@ -863,7 +892,14 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
     const std::string base_name = fidelity_name[0] == '\0' ? std::string(output_name) : std::string(output_name) + "_" + fidelity_name;
     record.name = base_name + "_" + resolution_suffix(WIDTH, HEIGHT) + aa_suffix(ENABLE_AA, AA_GRID_SIZE);
     record.path = join_path(options.output_dir, std::string("trace_") + record.name + ".mp4");
+    record.frames_dir = join_path(join_path(options.output_dir, "frames"), record.name);
+    record.frame_pattern = join_path(record.frames_dir, "frame_%06d.jpg");
     record.ffmpeg_command = ffmpeg_command(options, WIDTH, HEIGHT, record.path);
+    record.frame_count = poses.size();
+
+    if(!mkdir_p(record.frames_dir)) {
+        return false;
+    }
 
     rlt::rl::environments::raytracing_example::Environment<SPEC> env;
     env.scene_path = scene_path.c_str();
@@ -879,6 +915,7 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
     }
 
     bool ok = true;
+    std::vector<uint8_t> rgb_frame(frame.size() * 3);
     for(size_t frame_i = 0; frame_i < poses.size(); frame_i++) {
         const TracePose& pose = poses[frame_i];
         rlt::set(device, env.renderer->cameras, rlt::make_camera_data(pose.eye, pose.look_at, pose.up, SPEC::RAYTRACING_SPEC::COS_FOVY, static_cast<T>(WIDTH) / static_cast<T>(HEIGHT)), static_cast<TI>(0));
@@ -898,6 +935,10 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
             const uint32_t* fb_data = rlt::data(env.renderer->frame_buffer);
             std::memcpy(frame.data(), fb_data, frame.size() * sizeof(uint32_t));
         }
+        if(!write_rgb_jpeg_frame(frame_filename(record.frames_dir, frame_i), frame, rgb_frame, WIDTH, HEIGHT)) {
+            ok = false;
+            break;
+        }
         if(!write_frame(pipe, frame, static_cast<int>(frame_i))) {
             ok = false;
             break;
@@ -911,6 +952,7 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
     }
     else {
         std::cout << "Wrote " << record.path << std::endl;
+        std::cout << "Wrote RGB frames to " << record.frames_dir << std::endl;
     }
 
     rlt::free(device, env);
@@ -970,6 +1012,11 @@ static bool write_manifest(const Options& options, const std::string& scene_path
         item["width"] = record.width;
         item["height"] = record.height;
         item["path"] = record.path;
+        item["frames_dir"] = record.frames_dir;
+        item["frame_pattern"] = record.frame_pattern;
+        item["frame_format"] = "jpeg_rgb";
+        item["frame_jpeg_quality"] = FRAME_JPEG_QUALITY;
+        item["frame_count"] = record.frame_count;
         item["ffmpeg_command"] = record.ffmpeg_command;
         item["ffmpeg_status"] = record.ffmpeg_status;
         item["ok"] = record.ok;
