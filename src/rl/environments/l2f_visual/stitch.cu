@@ -182,6 +182,20 @@ struct Options {
     bool help = false;
 };
 
+static int validate_scene_has_initial_states(const std::string& scene_path) {
+    DEVICE device;
+    rlt::init(device);
+
+    ENVIRONMENT env;
+    rlt::malloc(device, env);
+    env.scene_path = scene_path.c_str();
+    env.renderer_initialized = false;
+    rlt::init(device, env);
+    const bool valid = env.scene != nullptr && env.scene->num_indoor_positions > 0;
+    rlt::free(device, env);
+    return valid ? 0 : 1;
+}
+
 static void print_usage(const char* argv0) {
     std::cout
         << "Usage: " << argv0 << " --scene-dir <dir> [options]\n"
@@ -307,7 +321,12 @@ static int scene_sort_key(const std::filesystem::path& path) {
     return 0;
 }
 
-static bool collect_scene_paths(const Options& options, std::vector<std::string>& scene_paths) {
+static bool scene_has_initial_states(const char* executable_path, const std::string& scene_path) {
+    std::string command = shell_quote(executable_path) + " --validate-scene " + shell_quote(scene_path) + " >/dev/null 2>&1";
+    return std::system(command.c_str()) == 0;
+}
+
+static bool collect_scene_paths(const Options& options, const char* executable_path, std::vector<std::string>& scene_paths) {
     std::vector<std::string> available;
     std::filesystem::path scene_path(options.scene_path);
     if(std::filesystem::is_directory(scene_path)) {
@@ -336,14 +355,29 @@ static bool collect_scene_paths(const Options& options, std::vector<std::string>
         std::cerr << "No .glb scenes found at: " << options.scene_path << std::endl;
         return false;
     }
-    if(available.size() < options.scenes && !options.allow_repeat_scenes) {
-        std::cerr << "Need " << options.scenes << " scenes, found " << available.size()
-                  << ". Use --allow-repeat-scenes to repeat available files." << std::endl;
+
+    scene_paths.clear();
+    for(const std::string& candidate_path : available) {
+        std::cout << "Checking scene candidate: " << std::filesystem::path(candidate_path).filename().string() << std::flush;
+        if(scene_has_initial_states(executable_path, candidate_path)) {
+            scene_paths.push_back(candidate_path);
+            std::cout << " ok" << std::endl;
+            if(static_cast<TI>(scene_paths.size()) >= options.scenes) {
+                break;
+            }
+        }
+        else {
+            std::cout << " skipped: no initial states" << std::endl;
+        }
+    }
+    if(scene_paths.empty()) {
+        std::cerr << "No scenes with valid initial states found at: " << options.scene_path << std::endl;
         return false;
     }
-    scene_paths.resize(options.scenes);
-    for(TI scene_i = 0; scene_i < options.scenes; scene_i++) {
-        scene_paths[scene_i] = available[scene_i % available.size()];
+    if(static_cast<TI>(scene_paths.size()) < options.scenes && !options.allow_repeat_scenes) {
+        std::cerr << "Need " << options.scenes << " scenes with valid initial states, found "
+                  << scene_paths.size() << ". Use --allow-repeat-scenes to repeat usable files." << std::endl;
+        return false;
     }
     return true;
 }
@@ -356,7 +390,7 @@ static T squared_distance(const T* a, const T* b) {
 }
 
 template <typename SCENE>
-static void build_route_for_env(const SCENE& scene, TI seed, TI env_i, std::vector<T>& route_positions) {
+static void build_route_for_env(const SCENE& scene, TI env_i, std::mt19937_64& route_rng, std::vector<T>& route_positions) {
     const TI count = scene.num_indoor_positions;
     const TI base = env_i * WAYPOINTS_PER_ENV * 3;
     if(count == 0) {
@@ -368,7 +402,8 @@ static void build_route_for_env(const SCENE& scene, TI seed, TI env_i, std::vect
         return;
     }
     std::vector<unsigned char> used(count, 0);
-    TI current = (env_i * 1103515245ull + seed * 2654435761ull) % count;
+    std::uniform_int_distribution<unsigned long long> initial_position_distribution(0, count - 1);
+    TI current = static_cast<TI>(initial_position_distribution(route_rng));
     for(TI waypoint_i = 0; waypoint_i < WAYPOINTS_PER_ENV; waypoint_i++) {
         const auto& p = scene.indoor_positions[current].position;
         route_positions[base + waypoint_i * 3 + 0] = p[0];
@@ -408,7 +443,7 @@ static void build_route_for_env(const SCENE& scene, TI seed, TI env_i, std::vect
         }
         if(next == current) {
             std::fill(used.begin(), used.end(), 0);
-            next = (current + 1) % count;
+            next = static_cast<TI>(initial_position_distribution(route_rng));
         }
         current = next;
     }
@@ -595,6 +630,10 @@ int main(int argc, char** argv) {
     if(e != cudaSuccess) { std::cerr << "CUDA error [" << MSG << "]: " << cudaGetErrorString(e) << std::endl; return 1; } \
 } while(false)
 
+    if(argc == 3 && std::string(argv[1]) == "--validate-scene") {
+        return validate_scene_has_initial_states(argv[2]);
+    }
+
     Options options;
     if(!parse_options(argc, argv, options)) {
         print_usage(argv[0]);
@@ -606,7 +645,7 @@ int main(int argc, char** argv) {
     }
 
     std::vector<std::string> scene_paths;
-    if(!collect_scene_paths(options, scene_paths)) {
+    if(!collect_scene_paths(options, argv[0], scene_paths)) {
         return 1;
     }
 
@@ -628,22 +667,18 @@ int main(int argc, char** argv) {
     std::array<SCENE_TYPE*, MAX_SCENES> scenes{};
 
     {
-        ENVIRONMENT loader_env;
-        rlt::malloc(device, loader_env);
-        for(TI scene_i = 0; scene_i < options.scenes; scene_i++) {
+        TI scene_i = 0;
+        for(; scene_i < options.scenes; scene_i++) {
+            const std::string& scene_path = scene_paths[scene_i % scene_paths.size()];
             std::cout << "Loading scene " << scene_i << "/" << options.scenes << ": "
-                      << std::filesystem::path(scene_paths[scene_i]).filename().string() << std::flush;
-            if(scene_i > 0) {
-                loader_env.renderer = new RENDERER_TYPE{};
-                rlt::malloc(device, *loader_env.renderer);
-                loader_env.owns_renderer = true;
-                loader_env.scene = new SCENE_TYPE{};
-            }
-            loader_env.scene_path = scene_paths[scene_i].c_str();
+                      << std::filesystem::path(scene_path).filename().string() << std::flush;
+            ENVIRONMENT loader_env;
+            rlt::malloc(device, loader_env);
+            loader_env.scene_path = scene_path.c_str();
             loader_env.renderer_initialized = false;
             rlt::init(device, loader_env);
             if(loader_env.scene->num_indoor_positions == 0) {
-                std::cerr << "\nScene has no valid free-space positions: " << scene_paths[scene_i] << std::endl;
+                std::cerr << "\nScene passed preflight but has no valid free-space positions: " << scene_path << std::endl;
                 return 1;
             }
             std::cout << " (" << loader_env.scene->num_indoor_positions << " free-space points)" << std::endl;
@@ -674,8 +709,9 @@ int main(int argc, char** argv) {
     }
 
     std::vector<T> route_positions(N_ENVIRONMENTS * WAYPOINTS_PER_ENV * 3);
+    std::mt19937_64 route_rng(options.seed);
     for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++) {
-        build_route_for_env(*scenes[env_scene[env_i]], options.seed, env_i, route_positions);
+        build_route_for_env(*scenes[env_scene[env_i]], env_i, route_rng, route_positions);
     }
 
     std::vector<ENVIRONMENT> envs(N_ENVIRONMENTS);
