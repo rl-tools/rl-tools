@@ -30,7 +30,7 @@ using DEVICE_GPU = rlt::devices::CUDA<rlt::devices::DefaultCUDASpecification>;
 using REWARD_FUNCTION = l2f::parameters::reward_functions::Squared<T>;
 
 static constexpr TI SIMULATION_FREQUENCY = 100;
-static constexpr TI PHYSICS_EPISODE_STEP_LIMIT = 500;
+static constexpr TI PHYSICS_EPISODE_STEP_LIMIT = 10;
 static constexpr TI ACTION_DIM = 4;
 static constexpr TI NUM_ROTORS = 4;
 
