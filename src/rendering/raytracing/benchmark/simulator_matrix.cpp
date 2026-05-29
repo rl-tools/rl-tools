@@ -1109,8 +1109,10 @@ static void render_output(DEVICE& device, rlt::rendering::raytracing::Renderer<S
 }
 
 template <typename SPEC>
-static void step_physics_cameras(rlt::rendering::raytracing::Renderer<SPEC>& renderer, rt_benchmark::PhysicsSimulation& physics, int iteration) {
-    void* camera_buffer = const_cast<void*>(owlBufferGetPointer((OWLBuffer)renderer.backend.owl_cameras_buffer, 0));
+static void step_physics_cameras(rlt::rendering::raytracing::Renderer<SPEC>& renderer, rt_benchmark::PhysicsSimulation& physics, int iteration, void* camera_buffer_override = nullptr) {
+    void* camera_buffer = camera_buffer_override != nullptr
+        ? camera_buffer_override
+        : const_cast<void*>(owlBufferGetPointer((OWLBuffer)renderer.backend.owl_cameras_buffer, 0));
     cudaStream_t stream = (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend.launch_params, 0);
     if(!rt_benchmark::physics_step_cameras(physics, camera_buffer, stream, iteration)) {
         std::cerr << "Physics camera step failed: " << rt_benchmark::physics_last_error() << std::endl;
@@ -1119,7 +1121,7 @@ static void step_physics_cameras(rlt::rendering::raytracing::Renderer<SPEC>& ren
 }
 
 template <typename DEVICE, typename SPEC>
-static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, SceneAxis scene, StepAxis step, rt_benchmark::PhysicsSimulation* physics, const Options& options) {
+static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, SceneAxis scene, StepAxis step, rt_benchmark::PhysicsSimulation* physics, void* physics_camera_buffer, const Options& options) {
     const bool with_physics = step == StepAxis::RENDER_PHYSICS;
     if(with_physics && physics == nullptr) {
         std::cerr << "render_physics requested without an initialized physics simulation" << std::endl;
@@ -1131,7 +1133,7 @@ static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing:
         int warmup_iterations = 0;
         for(;;) {
             if(with_physics) {
-                step_physics_cameras(renderer, *physics, warmup_iterations);
+                step_physics_cameras(renderer, *physics, warmup_iterations, physics_camera_buffer);
             }
             render_output(device, renderer);
             warmup_iterations++;
@@ -1145,7 +1147,7 @@ static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing:
     else {
         for(int i = 0; i < options.warmup_iterations; i++) {
             if(with_physics) {
-                step_physics_cameras(renderer, *physics, i);
+                step_physics_cameras(renderer, *physics, i, physics_camera_buffer);
             }
             render_output(device, renderer);
         }
@@ -1158,7 +1160,7 @@ static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing:
     if(options.iterations > 0) {
         for(; iterations < options.iterations; iterations++) {
             if(with_physics) {
-                step_physics_cameras(renderer, *physics, iterations);
+                step_physics_cameras(renderer, *physics, iterations, physics_camera_buffer);
             }
             render_output_launch(device, renderer);
             if((iterations + 1) % options.sync_interval == 0) {
@@ -1172,7 +1174,7 @@ static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing:
     else {
         for(;;) {
             if(with_physics) {
-                step_physics_cameras(renderer, *physics, iterations);
+                step_physics_cameras(renderer, *physics, iterations, physics_camera_buffer);
             }
             render_output_launch(device, renderer);
             iterations++;
@@ -1298,6 +1300,7 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
 
     rt_benchmark::PhysicsSimulation physics;
     rt_benchmark::PhysicsSimulation* physics_ptr = nullptr;
+    void* physics_camera_buffer = nullptr;
     if(step == StepAxis::RENDER_PHYSICS) {
         std::vector<rt_benchmark::PhysicsCameraPose> physics_poses(camera_poses.size());
         for(size_t i = 0; i < camera_poses.size(); i++) {
@@ -1320,6 +1323,16 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
             return false;
         }
         physics_ptr = &physics;
+        const size_t camera_buffer_bytes =
+            static_cast<size_t>(SPEC::NUM_CAMERAS) *
+            sizeof(rlt::rendering::raytracing::CameraData<T>);
+        cudaError_t camera_alloc_status = cudaMalloc(&physics_camera_buffer, camera_buffer_bytes);
+        if(camera_alloc_status != cudaSuccess) {
+            RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Failed to allocate physics camera buffer: " << cudaGetErrorString(camera_alloc_status));
+            rt_benchmark::free_physics_simulation(physics);
+            rlt::free(device, renderer);
+            return false;
+        }
     }
 
     size_t free_mem = 0;
@@ -1342,7 +1355,7 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
         << ", camera_orientation_sampling=" << orientation_mode_name(orientation)
         << ", seed=" << options.seed);
 
-    BenchmarkResult result = run_benchmark(device, renderer, scene, step, physics_ptr, options);
+    BenchmarkResult result = run_benchmark(device, renderer, scene, step, physics_ptr, physics_camera_buffer, options);
 
     std::string verification_name = std::string("verify_hyperdrone_")
         + scene_name(scene) + "_"
@@ -1391,6 +1404,9 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
         << static_cast<double>(total_mem) / (1024.0 * 1024.0) << ","
         << csv_quote(verification_path) << "\n";
 
+    if(physics_camera_buffer != nullptr) {
+        cudaFree(physics_camera_buffer);
+    }
     rt_benchmark::free_physics_simulation(physics);
     rlt::free(device, renderer);
     return true;
