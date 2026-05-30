@@ -1,8 +1,8 @@
-// procthor2glb: Convert a Habitat ai2thor-hab scene_instance.json into a
+// procthor2glb: Convert a Habitat ai2thor-hab or HSSD scene_instance.json into a
 // single self-contained GLB file.
 //
 // Usage:
-//   procthor2glb <scene_instance.json> [-o output.glb] [--normalize]
+//   procthor2glb <scene_instance.json> [-o output.glb] [--normalize] [--hssd]
 //
 // The tool reads the scene_instance.json, loads the stage GLB and every
 // referenced object GLB, applies per-instance transforms (translation,
@@ -10,6 +10,7 @@
 // decoded to PNG so the output is a standard glTF 2.0 file.
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -39,6 +40,11 @@
 
 namespace fs = std::filesystem;
 using json = nlohmann::json;
+
+enum class DatasetMode {
+    AI2THOR,
+    HSSD,
+};
 
 // ---------------------------------------------------------------------------
 // Raw image loader: stores bytes as-is (KTX2 decoded later in the pipeline).
@@ -1003,25 +1009,132 @@ static std::array<double, 16> buildFrontUpCorrection(const double f[3],
 }
 
 // ---------------------------------------------------------------------------
-// Resolve asset path:  <dataset_root>/assets/<template_name>.glb
+// Resolve dataset-specific asset and config paths.
 // ---------------------------------------------------------------------------
-static std::string resolveAssetPath(const fs::path& datasetRoot,
-                                    const std::string& templateName) {
+static std::string resolveStageAssetPath(DatasetMode mode,
+                                         const fs::path& datasetRoot,
+                                         const std::string& templateName) {
+    if (mode == DatasetMode::HSSD) {
+        fs::path relative(templateName + ".glb");
+        if (relative.has_parent_path()) {
+            return (datasetRoot / relative).string();
+        }
+        return (datasetRoot / "stages" / (templateName + ".glb")).string();
+    }
     return (datasetRoot / "assets" / (templateName + ".glb")).string();
 }
 
+static std::string resolveStageConfigPath(DatasetMode mode,
+                                          const fs::path& datasetRoot,
+                                          const std::string& templateName) {
+    if (mode == DatasetMode::HSSD) {
+        fs::path relative(templateName + ".stage_config.json");
+        if (relative.has_parent_path()) {
+            return (datasetRoot / relative).string();
+        }
+        return (datasetRoot / "stages" / (templateName + ".stage_config.json")).string();
+    }
+    return (datasetRoot / "configs" / (templateName + ".stage_config.json")).string();
+}
+
+static std::string resolveObjectAssetPath(DatasetMode mode,
+                                          const fs::path& datasetRoot,
+                                          const std::string& templateName) {
+    if (mode == DatasetMode::HSSD) {
+        fs::path relative(templateName + ".glb");
+        if (relative.has_parent_path()) {
+            return (datasetRoot / relative).string();
+        }
+        if (!templateName.empty()) {
+            fs::path path = datasetRoot / "objects" / templateName.substr(0, 1) / (templateName + ".glb");
+            if (fs::exists(path)) return path.string();
+            path = datasetRoot / "objects" / "openings" / (templateName + ".glb");
+            if (fs::exists(path)) return path.string();
+            const std::string partMarker = "_part_";
+            const size_t partPos = templateName.find(partMarker);
+            if (partPos != std::string::npos) {
+                const std::string baseTemplate = templateName.substr(0, partPos);
+                path = datasetRoot / "objects" / "decomposed" / baseTemplate / (templateName + ".glb");
+                if (fs::exists(path)) return path.string();
+            }
+            return (datasetRoot / "objects" / templateName.substr(0, 1) / (templateName + ".glb")).string();
+        }
+    }
+    return (datasetRoot / "assets" / (templateName + ".glb")).string();
+}
+
+static std::string resolveObjectConfigPath(DatasetMode mode,
+                                           const fs::path& datasetRoot,
+                                           const std::string& templateName) {
+    if (mode == DatasetMode::HSSD) {
+        fs::path relative(templateName + ".object_config.json");
+        if (relative.has_parent_path()) {
+            return (datasetRoot / relative).string();
+        }
+        if (!templateName.empty()) {
+            fs::path path = datasetRoot / "objects" / templateName.substr(0, 1) / (templateName + ".object_config.json");
+            if (fs::exists(path)) return path.string();
+            path = datasetRoot / "objects" / "openings" / (templateName + ".object_config.json");
+            if (fs::exists(path)) return path.string();
+            const std::string partMarker = "_part_";
+            const size_t partPos = templateName.find(partMarker);
+            if (partPos != std::string::npos) {
+                const std::string baseTemplate = templateName.substr(0, partPos);
+                path = datasetRoot / "objects" / "decomposed" / baseTemplate / (templateName + ".object_config.json");
+                if (fs::exists(path)) return path.string();
+            }
+            return (datasetRoot / "objects" / templateName.substr(0, 1) / (templateName + ".object_config.json")).string();
+        }
+    }
+    return (datasetRoot / "configs" / (templateName + ".object_config.json")).string();
+}
+
 // ---------------------------------------------------------------------------
-// Find dataset root (directory containing both "assets" and "configs").
+// Find dataset root.
 // ---------------------------------------------------------------------------
-static fs::path findDatasetRoot(const fs::path& sceneJsonPath) {
+static fs::path findDatasetRoot(const fs::path& sceneJsonPath,
+                                DatasetMode mode) {
     fs::path dir = fs::canonical(sceneJsonPath).parent_path();
     for (int i = 0; i < 10; i++) {
-        if (fs::exists(dir / "assets") && fs::exists(dir / "configs"))
+        if (mode == DatasetMode::HSSD) {
+            if (fs::exists(dir / "stages") && fs::exists(dir / "objects"))
+                return dir;
+        } else if (fs::exists(dir / "assets") && fs::exists(dir / "configs")) {
             return dir;
+        }
         if (!dir.has_parent_path() || dir == dir.parent_path()) break;
         dir = dir.parent_path();
     }
     return fs::canonical(sceneJsonPath).parent_path().parent_path().parent_path();
+}
+
+static void readScale(const json& instance, double s[3]) {
+    auto readScaleValue = [&](const json& value) {
+        if (value.is_number()) {
+            const double scale = value.get<double>();
+            s[0] = scale;
+            s[1] = scale;
+            s[2] = scale;
+            return true;
+        }
+        if (value.is_array() && value.size() >= 3) {
+            for (int i = 0; i < 3; i++) {
+                if (!value[i].is_number()) return false;
+                s[i] = value[i].get<double>();
+            }
+            return true;
+        }
+        return false;
+    };
+    if (instance.count("non_uniform_scale") && readScaleValue(instance["non_uniform_scale"])) {
+        return;
+    }
+    if (instance.count("scale") && readScaleValue(instance["scale"])) {
+        return;
+    }
+    if (instance.count("uniform_scale")) {
+        readScaleValue(instance["uniform_scale"]);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -1029,13 +1142,14 @@ static fs::path findDatasetRoot(const fs::path& sceneJsonPath) {
 // ---------------------------------------------------------------------------
 int main(int argc, char* argv[]) {
     if (argc < 2) {
-        std::cerr << "Usage: procthor2glb <scene_instance.json> [-o output.glb] [--normalize]\n";
+        std::cerr << "Usage: procthor2glb <scene_instance.json> [-o output.glb] [--normalize] [--hssd]\n";
         return 1;
     }
 
     std::string inputPath;
     std::string outputPath;
     bool normalize = false;
+    DatasetMode datasetMode = DatasetMode::AI2THOR;
 
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
@@ -1043,18 +1157,22 @@ int main(int argc, char* argv[]) {
             outputPath = argv[++i];
         } else if (arg == "--normalize") {
             normalize = true;
+        } else if (arg == "--hssd") {
+            datasetMode = DatasetMode::HSSD;
         } else if (arg == "-h" || arg == "--help") {
             std::cout
                 << "Usage: procthor2glb <scene_instance.json> [-o output.glb] "
-                   "[--normalize]\n"
-                << "\nConvert a Habitat ai2thor-hab scene to a self-contained "
-                   "GLB.\n\n"
+                   "[--normalize] [--hssd]\n"
+                << "\nConvert a Habitat ai2thor-hab or HSSD scene to a "
+                   "self-contained GLB.\n\n"
                 << "Options:\n"
                 << "  -o, --output <file>  Output GLB path (default: "
                    "<scene_name>.glb)\n"
                 << "  --normalize          Decode KTX2 to PNG, dequantize meshes,\n"
                 << "                       and bake texture transforms into UVs\n"
                 << "                       for maximum viewer compatibility\n"
+                << "  --hssd               Resolve stages/ and objects/ in an HSSD\n"
+                << "                       dataset checkout\n"
                 << "  -h, --help           Show this help message\n";
             return 0;
         } else {
@@ -1082,7 +1200,10 @@ int main(int argc, char* argv[]) {
     }
 
     // -- Determine dataset root --
-    fs::path datasetRoot = findDatasetRoot(inputPath);
+    fs::path datasetRoot = findDatasetRoot(inputPath, datasetMode);
+    std::cout << "Dataset mode: "
+              << (datasetMode == DatasetMode::HSSD ? "hssd" : "ai2thor-hab")
+              << "\n";
     std::cout << "Dataset root: " << datasetRoot << "\n";
 
     // -- Default output name --
@@ -1109,15 +1230,14 @@ int main(int argc, char* argv[]) {
         auto& stageInst = sceneJson["stage_instance"];
         std::string tmpl = stageInst.value("template_name", "");
         if (!tmpl.empty()) {
-            std::string path = resolveAssetPath(datasetRoot, tmpl);
+            std::string path = resolveStageAssetPath(datasetMode, datasetRoot, tmpl);
             std::cout << "Loading stage: " << fs::path(path).filename().string()
                       << "\n";
             const auto* m = cache.load(path);
             if (m) {
                 // Read the stage_config.json for front/up orientation
                 std::string configPath =
-                    (datasetRoot / "configs" / (tmpl + ".stage_config.json"))
-                        .string();
+                    resolveStageConfigPath(datasetMode, datasetRoot, tmpl);
                 std::array<double, 16> stageMatrix{};
                 bool hasStageMatrix = false;
 
@@ -1182,7 +1302,7 @@ int main(int argc, char* argv[]) {
             std::string tmpl = objInst.value("template_name", "");
             if (tmpl.empty()) continue;
 
-            std::string path = resolveAssetPath(datasetRoot, tmpl);
+            std::string path = resolveObjectAssetPath(datasetMode, datasetRoot, tmpl);
             const auto* objModel = cache.load(path);
             if (!objModel) {
                 objSkipped++;
@@ -1211,11 +1331,19 @@ int main(int argc, char* argv[]) {
 
             // Non-uniform scale
             double s[3] = {1, 1, 1};
-            if (objInst.count("non_uniform_scale")) {
-                auto& sc = objInst["non_uniform_scale"];
-                for (int i = 0; i < 3 && i < (int)sc.size(); i++)
-                    s[i] = sc[i].get<double>();
+            if (datasetMode == DatasetMode::HSSD) {
+                std::ifstream cfgFile(resolveObjectConfigPath(datasetMode, datasetRoot, tmpl));
+                if (cfgFile.is_open()) {
+                    try {
+                        json cfg = json::parse(cfgFile);
+                        readScale(cfg, s);
+                    } catch (const json::exception& e) {
+                        std::cerr << "  warn: failed to parse object config for "
+                                  << tmpl << ": " << e.what() << "\n";
+                    }
+                }
             }
+            readScale(objInst, s);
 
             auto matrix = buildTRS(t, q, s);
             auto r = mergeModel(outModel, *objModel, &matrix);
@@ -1229,6 +1357,14 @@ int main(int argc, char* argv[]) {
     if (objSkipped > 0)
         std::cout << " (" << objSkipped << " failed to load)";
     std::cout << "\n";
+
+    if (sceneJson.count("articulated_object_instances") &&
+        sceneJson["articulated_object_instances"].is_array() &&
+        !sceneJson["articulated_object_instances"].empty()) {
+        std::cerr << "warn: skipping "
+                  << sceneJson["articulated_object_instances"].size()
+                  << " articulated_object_instances; URDF joint conversion is not implemented\n";
+    }
 
     // -- Finalize scene --
     outModel.scenes.push_back(outScene);
