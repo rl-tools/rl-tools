@@ -2,7 +2,7 @@
 // single self-contained GLB file.
 //
 // Usage:
-//   procthor2glb <scene_instance.json> [-o output.glb] [--normalize] [--hssd]
+//   procthor2glb <scene_instance.json> [-o output.glb] [--normalize] [--hssd] [--hssd-lighting file.json]
 //
 // The tool reads the scene_instance.json, loads the stage GLB and every
 // referenced object GLB, applies per-instance transforms (translation,
@@ -11,6 +11,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -21,6 +22,7 @@
 #include <map>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 // -- tiny_gltf (header-only glTF reader/writer) ----------------------------
@@ -225,6 +227,7 @@ static MergeResult mergeModel(tinygltf::Model& dst,
     for (auto node : src.nodes) {
         if (node.mesh >= 0) node.mesh += meshOff;
         if (node.skin >= 0) node.skin = -1;  // drop skins for now
+        if (node.light >= 0) node.light += lightOff;
         for (auto& c : node.children) c += nodeOff;
         // Remap KHR_lights_punctual light index
         auto extIt = node.extensions.find("KHR_lights_punctual");
@@ -1008,6 +1011,130 @@ static std::array<double, 16> buildFrontUpCorrection(const double f[3],
     return m;
 }
 
+static std::string lowerString(std::string value) {
+    for (char& c : value) {
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    }
+    return value;
+}
+
+static tinygltf::Value jsonToTinyValue(const json& value) {
+    if (value.is_boolean()) {
+        return tinygltf::Value(value.get<bool>());
+    }
+    if (value.is_number()) {
+        return tinygltf::Value(value.get<double>());
+    }
+    if (value.is_string()) {
+        return tinygltf::Value(value.get<std::string>());
+    }
+    if (value.is_array()) {
+        tinygltf::Value::Array array;
+        for (const auto& item : value) {
+            array.push_back(jsonToTinyValue(item));
+        }
+        return tinygltf::Value(std::move(array));
+    }
+    if (value.is_object()) {
+        tinygltf::Value::Object object;
+        for (auto it = value.begin(); it != value.end(); ++it) {
+            object[it.key()] = jsonToTinyValue(it.value());
+        }
+        return tinygltf::Value(std::move(object));
+    }
+    return tinygltf::Value();
+}
+
+static bool jsonVec3(const json& value, double out[3]) {
+    if (!value.is_array() || value.size() < 3) return false;
+    for (int i = 0; i < 3; i++) {
+        if (!value[i].is_number()) return false;
+        out[i] = value[i].get<double>();
+    }
+    return true;
+}
+
+static bool readVec3ByKeys(const json& object,
+                           const std::vector<std::string>& keys,
+                           double out[3]) {
+    for (const auto& key : keys) {
+        if (object.contains(key) && jsonVec3(object[key], out)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool readNumberByKeys(const json& object,
+                             const std::vector<std::string>& keys,
+                             double& out) {
+    for (const auto& key : keys) {
+        if (object.contains(key) && object[key].is_number()) {
+            out = object[key].get<double>();
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool readStringByKeys(const json& object,
+                             const std::vector<std::string>& keys,
+                             std::string& out) {
+    for (const auto& key : keys) {
+        if (object.contains(key) && object[key].is_string()) {
+            out = object[key].get<std::string>();
+            return true;
+        }
+    }
+    return false;
+}
+
+static std::array<double, 16> buildLightDirectionMatrix(const double t[3],
+                                                       const double direction[3]) {
+    double dir[3] = {direction[0], direction[1], direction[2]};
+    double len = std::sqrt(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
+    if (len < 1e-9) {
+        return {
+            1, 0, 0, 0,
+            0, 1, 0, 0,
+            0, 0, 1, 0,
+            t[0], t[1], t[2], 1
+        };
+    }
+    for (double& v : dir) v /= len;
+
+    double z[3] = {-dir[0], -dir[1], -dir[2]};
+    double up[3] = {0, 1, 0};
+    double x[3] = {
+        up[1] * z[2] - up[2] * z[1],
+        up[2] * z[0] - up[0] * z[2],
+        up[0] * z[1] - up[1] * z[0]
+    };
+    double x_len = std::sqrt(x[0] * x[0] + x[1] * x[1] + x[2] * x[2]);
+    if (x_len < 1e-9) {
+        up[0] = 1;
+        up[1] = 0;
+        up[2] = 0;
+        x[0] = up[1] * z[2] - up[2] * z[1];
+        x[1] = up[2] * z[0] - up[0] * z[2];
+        x[2] = up[0] * z[1] - up[1] * z[0];
+        x_len = std::sqrt(x[0] * x[0] + x[1] * x[1] + x[2] * x[2]);
+    }
+    for (double& v : x) v /= x_len;
+    double y[3] = {
+        z[1] * x[2] - z[2] * x[1],
+        z[2] * x[0] - z[0] * x[2],
+        z[0] * x[1] - z[1] * x[0]
+    };
+
+    return {
+        x[0], x[1], x[2], 0,
+        y[0], y[1], y[2], 0,
+        z[0], z[1], z[2], 0,
+        t[0], t[1], t[2], 1
+    };
+}
+
 // ---------------------------------------------------------------------------
 // Resolve dataset-specific asset and config paths.
 // ---------------------------------------------------------------------------
@@ -1137,32 +1264,476 @@ static void readScale(const json& instance, double s[3]) {
     }
 }
 
+struct HssdLightingImport {
+    int punctual = 0;
+    int unsupported = 0;
+    int environment = 0;
+    int missing_sources = 0;
+    bool found_source = false;
+};
+
+struct HssdLightingSource {
+    std::string label;
+    json value;
+    double positive_intensity_scale = 1.0;
+    double negative_intensity_scale = 1.0;
+};
+
+static HssdLightingSource habitatDefaultLightingSource() {
+    HssdLightingSource source;
+    source.label = "default_lighting:habitat_default";
+    source.value = {
+        {"lights", {
+            {"0", {
+                {"name", "habitat_default_minus_z"},
+                {"type", "directional"},
+                {"direction", {0.0, -0.5, -0.5}},
+                {"color", {0.5, 0.5, 0.5}}
+            }},
+            {"1", {
+                {"name", "habitat_default_plus_z"},
+                {"type", "directional"},
+                {"direction", {0.0, -0.5, 0.5}},
+                {"color", {0.5, 0.5, 0.5}}
+            }},
+            {"2", {
+                {"name", "habitat_default_minus_x"},
+                {"type", "directional"},
+                {"direction", {-0.5, -0.5, 0.0}},
+                {"color", {0.5, 0.5, 0.5}}
+            }},
+            {"3", {
+                {"name", "habitat_default_plus_x"},
+                {"type", "directional"},
+                {"direction", {0.5, -0.5, 0.0}},
+                {"color", {0.5, 0.5, 0.5}}
+            }}
+        }}
+    };
+    return source;
+}
+
+static fs::path resolveHssdReferencePath(const fs::path& datasetRoot,
+                                         const std::string& path) {
+    fs::path p(path);
+    if (p.is_absolute()) return p;
+    std::vector<fs::path> candidates;
+    candidates.push_back(datasetRoot / p);
+    if (!p.has_extension()) {
+        const fs::path lightingFile(path + ".lighting_config.json");
+        candidates.push_back(datasetRoot / lightingFile);
+        candidates.push_back(datasetRoot / "lights" / lightingFile);
+        candidates.push_back(datasetRoot / "lighting" / lightingFile);
+        candidates.push_back(datasetRoot / "data" / lightingFile);
+    }
+    for (const auto& candidate : candidates) {
+        if (fs::exists(candidate)) return candidate;
+    }
+    return candidates.front();
+}
+
+static bool readJsonFile(const fs::path& path, json& out) {
+    std::ifstream file(path);
+    if (!file.is_open()) return false;
+    try {
+        out = json::parse(file);
+    } catch (const json::exception&) {
+        return false;
+    }
+    return true;
+}
+
+static std::string lightTypeFromRecord(const json& record) {
+    std::string type;
+    const bool hasType = readStringByKeys(record, {"type", "light_type", "lightType"}, type);
+    type = lowerString(type);
+    if (type.find("spot") != std::string::npos) return "spot";
+    if (type.find("point") != std::string::npos) return "point";
+    if (type.find("directional") != std::string::npos ||
+        type.find("direct") != std::string::npos ||
+        type.find("sun") != std::string::npos) {
+        return "directional";
+    }
+    if (hasType && !type.empty()) return "";
+    if (record.contains("vector") && record["vector"].is_array() && record["vector"].size() >= 4 &&
+        record["vector"][3].is_number()) {
+        return std::abs(record["vector"][3].get<double>()) < 1e-9 ? "directional" : "point";
+    }
+    if (record.contains("position") && record["position"].is_array() && record["position"].size() >= 4 &&
+        record["position"][3].is_number()) {
+        return std::abs(record["position"][3].get<double>()) < 1e-9 ? "directional" : "point";
+    }
+    if (record.contains("direction") || record.contains("normal")) return "directional";
+    if (record.contains("position") || record.contains("translation")) return "point";
+    return "";
+}
+
+static bool isEnvironmentLightingRecord(const json& record) {
+    if (!record.is_object()) return false;
+    for (const auto& key : {"ambient", "environment", "envmap", "ibl", "sky", "skydome", "background"}) {
+        if (record.contains(key)) return true;
+    }
+    std::string type;
+    if (readStringByKeys(record, {"type", "light_type", "lightType"}, type)) {
+        type = lowerString(type);
+        return type.find("ambient") != std::string::npos ||
+               type.find("environment") != std::string::npos ||
+               type.find("ibl") != std::string::npos ||
+               type.find("sky") != std::string::npos;
+    }
+    return false;
+}
+
+static bool isLightLikeRecord(const json& record) {
+    if (!record.is_object()) return false;
+    if (!lightTypeFromRecord(record).empty()) return true;
+    if (isEnvironmentLightingRecord(record)) return true;
+    return (record.contains("color") || record.contains("intensity")) &&
+           (record.contains("position") || record.contains("translation") ||
+            record.contains("direction") || record.contains("vector"));
+}
+
+static void collectHssdLightRecords(const json& value,
+                                    std::vector<json>& records) {
+    if (value.is_array()) {
+        for (const auto& item : value) {
+            collectHssdLightRecords(item, records);
+        }
+        return;
+    }
+    if (!value.is_object()) return;
+    bool foundContainer = false;
+    for (const auto& key : {"lights", "light_setup", "lightSetup", "light_setups", "lightSetups", "lighting"}) {
+        if (value.contains(key)) {
+            collectHssdLightRecords(value[key], records);
+            foundContainer = true;
+        }
+    }
+    if (foundContainer) return;
+    bool foundMappedLight = false;
+    for (auto it = value.begin(); it != value.end(); ++it) {
+        if (it.value().is_object() && isLightLikeRecord(it.value())) {
+            collectHssdLightRecords(it.value(), records);
+            foundMappedLight = true;
+        }
+    }
+    if (foundMappedLight) return;
+    if (isLightLikeRecord(value)) {
+        records.push_back(value);
+        return;
+    }
+    for (auto it = value.begin(); it != value.end(); ++it) {
+        if (it.value().is_object() || it.value().is_array()) {
+            collectHssdLightRecords(it.value(), records);
+        }
+    }
+}
+
+static void addRawHssdLightingExtras(tinygltf::Value::Object& hssdLighting,
+                                     const std::string& key,
+                                     const json& value) {
+    if (!value.is_null() && !((value.is_object() || value.is_array()) && value.empty())) {
+        hssdLighting[key] = jsonToTinyValue(value);
+    }
+}
+
+static bool readLightVector(const json& record,
+                            const std::string& type,
+                            double position[3],
+                            double direction[3],
+                            bool& has_position,
+                            bool& has_direction) {
+    has_position = readVec3ByKeys(record, {"position", "translation"}, position);
+    has_direction = readVec3ByKeys(record, {"direction", "normal"}, direction);
+    if (record.contains("vector") && record["vector"].is_array() && record["vector"].size() >= 3) {
+        double v[3] = {0, 0, -1};
+        if (jsonVec3(record["vector"], v)) {
+            const bool directional_vector = record["vector"].size() >= 4 &&
+                record["vector"][3].is_number() &&
+                std::abs(record["vector"][3].get<double>()) < 1e-9;
+            if (directional_vector || type == "directional") {
+                direction[0] = v[0];
+                direction[1] = v[1];
+                direction[2] = v[2];
+                has_direction = true;
+            } else if (!has_position) {
+                position[0] = v[0];
+                position[1] = v[1];
+                position[2] = v[2];
+                has_position = true;
+            }
+        }
+    }
+    return has_position || has_direction;
+}
+
+static void addHssdUnsupportedLightNode(tinygltf::Model& model,
+                                        tinygltf::Scene& scene,
+                                        const json& record,
+                                        const std::string& source,
+                                        const std::string& reason) {
+    tinygltf::Node node;
+    node.name = "hssd_unsupported_light_" + std::to_string(model.nodes.size());
+    double t[3] = {0, 0, 0};
+    if (record.is_object() && readVec3ByKeys(record, {"position", "translation"}, t)) {
+        node.translation = {t[0], t[1], t[2]};
+    }
+    tinygltf::Value::Object extras;
+    extras["source"] = tinygltf::Value(source);
+    extras["supported_as_khr_lights_punctual"] = tinygltf::Value(false);
+    extras["reason"] = tinygltf::Value(reason);
+    extras["raw"] = jsonToTinyValue(record);
+    node.extras = tinygltf::Value(std::move(extras));
+    scene.nodes.push_back((int)model.nodes.size());
+    model.nodes.push_back(std::move(node));
+}
+
+static void addHssdPunctualLight(tinygltf::Model& model,
+                                 tinygltf::Scene& scene,
+                                 const json& record,
+                                 const std::string& source,
+                                 const std::string& type,
+                                 double positive_intensity_scale,
+                                 double negative_intensity_scale,
+                                 HssdLightingImport& stats) {
+    double position[3] = {0, 0, 0};
+    double direction[3] = {0, 0, -1};
+    bool has_position = false;
+    bool has_direction = false;
+    readLightVector(record, type, position, direction, has_position, has_direction);
+
+    tinygltf::Light light;
+    light.name = record.value("name", std::string("hssd_light_") + std::to_string(model.lights.size()));
+    light.type = type;
+    double color[3] = {1, 1, 1};
+    if (readVec3ByKeys(record, {"color", "diffuse_color", "diffuseColor"}, color)) {
+        light.color = {color[0], color[1], color[2]};
+    } else {
+        light.color = {1, 1, 1};
+    }
+    double intensity = 1.0;
+    readNumberByKeys(record, {"intensity", "intensity_scale", "intensityScale"}, intensity);
+    light.intensity = intensity * (intensity >= 0 ? positive_intensity_scale : negative_intensity_scale);
+    readNumberByKeys(record, {"range", "attenuation_range", "attenuationRange"}, light.range);
+    if (type == "spot") {
+        if (record.contains("spot") && record["spot"].is_object()) {
+            readNumberByKeys(record["spot"], {"innerConeAngle", "inner_cone_angle"}, light.spot.innerConeAngle);
+            readNumberByKeys(record["spot"], {"outerConeAngle", "outer_cone_angle"}, light.spot.outerConeAngle);
+        }
+        readNumberByKeys(record, {"innerConeAngle", "inner_cone_angle"}, light.spot.innerConeAngle);
+        readNumberByKeys(record, {"outerConeAngle", "outer_cone_angle"}, light.spot.outerConeAngle);
+    }
+    tinygltf::Value::Object lightExtras;
+    lightExtras["hssd_source"] = tinygltf::Value(source);
+    lightExtras["hssd_raw"] = jsonToTinyValue(record);
+    light.extras = tinygltf::Value(std::move(lightExtras));
+
+    const int lightIndex = (int)model.lights.size();
+    model.lights.push_back(std::move(light));
+
+    tinygltf::Node node;
+    node.name = model.lights.back().name + "_node";
+    node.light = lightIndex;
+    if (record.contains("matrix") && record["matrix"].is_array() && record["matrix"].size() >= 16) {
+        for (int i = 0; i < 16; i++) node.matrix.push_back(record["matrix"][i].get<double>());
+    } else if ((type == "spot" || type == "directional") && has_direction) {
+        const auto matrix = buildLightDirectionMatrix(position, direction);
+        node.matrix.assign(matrix.begin(), matrix.end());
+    } else if (record.contains("rotation") && record["rotation"].is_array() && record["rotation"].size() >= 4) {
+        for (int i = 0; i < 4; i++) node.rotation.push_back(record["rotation"][i].get<double>());
+        if (has_position) node.translation = {position[0], position[1], position[2]};
+    } else if (has_position) {
+        node.translation = {position[0], position[1], position[2]};
+    }
+    tinygltf::Value::Object nodeExtras;
+    nodeExtras["hssd_source"] = tinygltf::Value(source);
+    nodeExtras["hssd_raw"] = jsonToTinyValue(record);
+    node.extras = tinygltf::Value(std::move(nodeExtras));
+
+    scene.nodes.push_back((int)model.nodes.size());
+    model.nodes.push_back(std::move(node));
+    stats.punctual++;
+}
+
+static bool hasUnsupportedHssdPositionModel(const json& record,
+                                            std::string& positionModel) {
+    if (!readStringByKeys(record, {"position_model", "positionModel", "model"}, positionModel)) {
+        return false;
+    }
+    positionModel = lowerString(positionModel);
+    return positionModel != "global";
+}
+
+static HssdLightingImport importHssdLighting(tinygltf::Model& model,
+                                             tinygltf::Scene& scene,
+                                             const json& sceneJson,
+                                             const fs::path& datasetRoot,
+                                             const std::string& overridePath) {
+    HssdLightingImport stats;
+    tinygltf::Value::Object hssdLighting;
+
+    if (sceneJson.contains("default_lighting")) {
+        addRawHssdLightingExtras(hssdLighting, "default_lighting", sceneJson["default_lighting"]);
+    }
+    if (sceneJson.contains("default_pbr_shader_config")) {
+        addRawHssdLightingExtras(hssdLighting, "default_pbr_shader_config", sceneJson["default_pbr_shader_config"]);
+    }
+    if (sceneJson.contains("pbr_shader_region_configs")) {
+        addRawHssdLightingExtras(hssdLighting, "pbr_shader_region_configs", sceneJson["pbr_shader_region_configs"]);
+    }
+
+    std::vector<HssdLightingSource> sources;
+    auto addSourceFromPath = [&](const std::string& label, const std::string& pathText) {
+        if (pathText.empty()) return;
+        fs::path path = resolveHssdReferencePath(datasetRoot, pathText);
+        json value;
+        if (readJsonFile(path, value)) {
+            HssdLightingSource source;
+            source.label = label + ":" + path.string();
+            source.value = std::move(value);
+            readNumberByKeys(source.value, {"positive_intensity_scale", "positiveIntensityScale"},
+                             source.positive_intensity_scale);
+            readNumberByKeys(source.value, {"negative_intensity_scale", "negativeIntensityScale"},
+                             source.negative_intensity_scale);
+            sources.push_back(std::move(source));
+            stats.found_source = true;
+        } else {
+            stats.missing_sources++;
+            tinygltf::Value::Array missing;
+            if (hssdLighting.count("missing_sources") && hssdLighting["missing_sources"].IsArray()) {
+                missing = hssdLighting["missing_sources"].Get<tinygltf::Value::Array>();
+            }
+            missing.push_back(tinygltf::Value(path.string()));
+            hssdLighting["missing_sources"] = tinygltf::Value(std::move(missing));
+        }
+    };
+
+    if (!overridePath.empty()) {
+        addSourceFromPath("override", overridePath);
+        hssdLighting["override_lighting"] = tinygltf::Value(overridePath);
+    } else if (sceneJson.contains("default_lighting")) {
+        if (sceneJson["default_lighting"].is_string()) {
+            const std::string lightSetupKey = sceneJson["default_lighting"].get<std::string>();
+            const std::string lowerLightSetupKey = lowerString(lightSetupKey);
+            if (lightSetupKey.empty()) {
+                sources.push_back(habitatDefaultLightingSource());
+                hssdLighting["resolved_default_lighting"] = tinygltf::Value("habitat_default");
+                stats.found_source = true;
+            } else if (lowerLightSetupKey == "no_lights") {
+                hssdLighting["resolved_default_lighting"] = tinygltf::Value("no_lights");
+                stats.found_source = true;
+            } else {
+                addSourceFromPath("default_lighting", lightSetupKey);
+            }
+        } else if (sceneJson["default_lighting"].is_object() || sceneJson["default_lighting"].is_array()) {
+            HssdLightingSource source;
+            source.label = "default_lighting:inline";
+            source.value = sceneJson["default_lighting"];
+            readNumberByKeys(source.value, {"positive_intensity_scale", "positiveIntensityScale"},
+                             source.positive_intensity_scale);
+            readNumberByKeys(source.value, {"negative_intensity_scale", "negativeIntensityScale"},
+                             source.negative_intensity_scale);
+            sources.push_back(std::move(source));
+            stats.found_source = true;
+        }
+    }
+
+    for (const auto& source : sources) {
+        std::vector<json> records;
+        collectHssdLightRecords(source.value, records);
+        if (records.empty() && isEnvironmentLightingRecord(source.value)) {
+            records.push_back(source.value);
+        }
+        if (records.empty()) {
+            tinygltf::Value::Array unparsed;
+            if (hssdLighting.count("unparsed_sources") && hssdLighting["unparsed_sources"].IsArray()) {
+                unparsed = hssdLighting["unparsed_sources"].Get<tinygltf::Value::Array>();
+            }
+            tinygltf::Value::Object item;
+            item["source"] = tinygltf::Value(source.label);
+            item["raw"] = jsonToTinyValue(source.value);
+            unparsed.push_back(tinygltf::Value(std::move(item)));
+            hssdLighting["unparsed_sources"] = tinygltf::Value(std::move(unparsed));
+        }
+        for (const auto& record : records) {
+            const std::string type = lightTypeFromRecord(record);
+            double intensity = 1.0;
+            readNumberByKeys(record, {"intensity", "intensity_scale", "intensityScale"}, intensity);
+            std::string positionModel;
+            if (type == "point" || type == "spot" || type == "directional") {
+                if (intensity < 0) {
+                    stats.unsupported++;
+                    addHssdUnsupportedLightNode(model, scene, record, source.label, "negative_intensity_light");
+                } else if (hasUnsupportedHssdPositionModel(record, positionModel)) {
+                    stats.unsupported++;
+                    addHssdUnsupportedLightNode(model, scene, record, source.label,
+                                                "non_global_position_model:" + positionModel);
+                } else {
+                    addHssdPunctualLight(model, scene, record, source.label, type,
+                                         source.positive_intensity_scale,
+                                         source.negative_intensity_scale,
+                                         stats);
+                }
+            } else if (isEnvironmentLightingRecord(record)) {
+                stats.environment++;
+                addHssdUnsupportedLightNode(model, scene, record, source.label, "environment_or_ambient_light");
+            } else {
+                stats.unsupported++;
+                addHssdUnsupportedLightNode(model, scene, record, source.label, "unsupported_light_type");
+            }
+        }
+    }
+
+    hssdLighting["punctual_lights_emitted"] = tinygltf::Value(stats.punctual);
+    hssdLighting["unsupported_lights_preserved"] = tinygltf::Value(stats.unsupported);
+    hssdLighting["environment_records_preserved"] = tinygltf::Value(stats.environment);
+    hssdLighting["missing_source_count"] = tinygltf::Value(stats.missing_sources);
+
+    tinygltf::Value::Object modelExtras;
+    if (model.extras.IsObject()) {
+        modelExtras = model.extras.Get<tinygltf::Value::Object>();
+    }
+    modelExtras["hssd_lighting"] = tinygltf::Value(std::move(hssdLighting));
+    model.extras = tinygltf::Value(std::move(modelExtras));
+    return stats;
+}
+
 // ---------------------------------------------------------------------------
 // main
 // ---------------------------------------------------------------------------
 int main(int argc, char* argv[]) {
     if (argc < 2) {
-        std::cerr << "Usage: procthor2glb <scene_instance.json> [-o output.glb] [--normalize] [--hssd]\n";
+        std::cerr << "Usage: procthor2glb <scene_instance.json> [-o output.glb] [--normalize] [--hssd] [--hssd-lighting file.json]\n";
         return 1;
     }
 
     std::string inputPath;
     std::string outputPath;
+    std::string hssdLightingPath;
     bool normalize = false;
     DatasetMode datasetMode = DatasetMode::AI2THOR;
 
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
+        const std::string hssdLightingPrefix = "--hssd-lighting=";
         if ((arg == "-o" || arg == "--output") && i + 1 < argc) {
             outputPath = argv[++i];
         } else if (arg == "--normalize") {
             normalize = true;
         } else if (arg == "--hssd") {
             datasetMode = DatasetMode::HSSD;
+        } else if (arg == "--hssd-lighting") {
+            if (i + 1 >= argc) {
+                std::cerr << "error: missing value for --hssd-lighting\n";
+                return 1;
+            }
+            hssdLightingPath = argv[++i];
+        } else if (arg.compare(0, hssdLightingPrefix.size(), hssdLightingPrefix) == 0) {
+            hssdLightingPath = arg.substr(hssdLightingPrefix.size());
         } else if (arg == "-h" || arg == "--help") {
             std::cout
                 << "Usage: procthor2glb <scene_instance.json> [-o output.glb] "
-                   "[--normalize] [--hssd]\n"
+                   "[--normalize] [--hssd] [--hssd-lighting file.json]\n"
                 << "\nConvert a Habitat ai2thor-hab or HSSD scene to a "
                    "self-contained GLB.\n\n"
                 << "Options:\n"
@@ -1173,6 +1744,9 @@ int main(int argc, char* argv[]) {
                 << "                       for maximum viewer compatibility\n"
                 << "  --hssd               Resolve stages/ and objects/ in an HSSD\n"
                 << "                       dataset checkout\n"
+                << "  --hssd-lighting <file>\n"
+                << "                       Import an explicit HSSD/Habitat lighting\n"
+                << "                       JSON config instead of scene default_lighting\n"
                 << "  -h, --help           Show this help message\n";
             return 0;
         } else {
@@ -1364,6 +1938,28 @@ int main(int argc, char* argv[]) {
         std::cerr << "warn: skipping "
                   << sceneJson["articulated_object_instances"].size()
                   << " articulated_object_instances; URDF joint conversion is not implemented\n";
+    }
+
+    if (datasetMode == DatasetMode::HSSD) {
+        HssdLightingImport lightingStats = importHssdLighting(
+            outModel,
+            outScene,
+            sceneJson,
+            datasetRoot,
+            hssdLightingPath
+        );
+        std::cout << "HSSD lights: " << lightingStats.punctual
+                  << " punctual emitted, " << lightingStats.unsupported
+                  << " unsupported preserved, " << lightingStats.environment
+                  << " environment records preserved";
+        if (!lightingStats.found_source && hssdLightingPath.empty()) {
+            std::cout << " (no default_lighting config referenced by scene)";
+        }
+        if (lightingStats.missing_sources > 0) {
+            std::cout << " (" << lightingStats.missing_sources << " missing source"
+                      << (lightingStats.missing_sources == 1 ? "" : "s") << ")";
+        }
+        std::cout << "\n";
     }
 
     // -- Finalize scene --
