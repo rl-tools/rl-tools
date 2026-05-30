@@ -49,10 +49,12 @@ struct Options {
     std::string output_dir = ".";
     std::string ffmpeg = "ffmpeg";
     std::string settings = "all";
+    int resolution = 0;
     int fps = 30;
     int max_frames = 0;
     double smooth_position_sigma_s = 0.0;
     double smooth_orientation_sigma_s = 0.0;
+    bool write_frames = true;
     bool help = false;
 };
 
@@ -87,9 +89,11 @@ static void print_usage(const char* argv0) {
         << "  --ffmpeg <path>            ffmpeg binary (default: ffmpeg)\n"
         << "  --settings <list>          all, rgb, depth, medium, high, low, or comma list; depth has no rendering profile\n"
         << "                              Legacy aliases: basic, high_fidelity, fast_flat\n"
-        << "                              Always renders square resolutions 64, 128, 256, 512, 1024, and 2048\n"
-        << "                              Also writes RGB frame sequences under <output-dir>/frames/<render-name>/\n"
-        << "                              64x64 and 128x128 are PNG; larger resolutions are JPEG\n"
+        << "  --resolution <n>           Render one square resolution: 64, 128, 256, 512, 1024, or 2048\n"
+        << "                              By default all supported resolutions are rendered\n"
+        << "  --no-frames                Do not write per-frame PNG/JPEG image sequences\n"
+        << "                              By default frames are written under <output-dir>/frames/<render-name>/\n"
+        << "                              64x64 and 128x128 frames are PNG; larger frames are JPEG\n"
         << "  --max-frames <n>           Limit trace frames when >0\n"
         << "  --smooth-sigma-s <s>       Gaussian smoothing sigma for position and orientation (default: 0)\n"
         << "  --smooth-position-sigma-s <s>\n"
@@ -106,6 +110,19 @@ static bool parse_int(const std::string& value, int& out) {
     }
     out = static_cast<int>(parsed);
     return true;
+}
+
+static bool supported_resolution(TI resolution) {
+    for(TI supported : RENDER_RESOLUTIONS) {
+        if(resolution == supported) {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool should_render_resolution(const Options& options, TI resolution) {
+    return options.resolution == 0 || static_cast<TI>(options.resolution) == resolution;
 }
 
 static bool parse_double(const std::string& value, double& out) {
@@ -157,6 +174,15 @@ static bool parse_options(int argc, char** argv, Options& options) {
         }
         else if(option_value(i, argc, argv, arg, "--settings", value)) {
             options.settings = value;
+        }
+        else if(option_value(i, argc, argv, arg, "--resolution", value)) {
+            if(!parse_int(value, options.resolution) || options.resolution <= 0 || !supported_resolution(static_cast<TI>(options.resolution))) {
+                std::cerr << "Invalid --resolution: " << value << std::endl;
+                return false;
+            }
+        }
+        else if(arg == "--no-frames") {
+            options.write_frames = false;
         }
         else if(option_value(i, argc, argv, arg, "--fps", value)) {
             if(!parse_int(value, options.fps) || options.fps <= 0) {
@@ -924,15 +950,17 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
     const std::string base_name = profile_name[0] == '\0' ? std::string(output_name) : std::string(output_name) + "_" + profile_name;
     record.name = base_name + "_" + resolution_suffix(WIDTH, HEIGHT) + aa_suffix(ENABLE_AA, AA_GRID_SIZE);
     record.path = join_path(options.output_dir, std::string("trace_") + record.name + ".mp4");
-    record.frames_dir = join_path(join_path(options.output_dir, "frames"), record.name);
     const bool png_frames = use_png_frames(WIDTH, HEIGHT);
-    record.frame_pattern = join_path(record.frames_dir, std::string("frame_%06d.") + frame_extension(png_frames));
-    record.frame_format = frame_format_name(png_frames);
-    record.frame_jpeg_quality = png_frames ? 0 : FRAME_JPEG_QUALITY;
+    if(options.write_frames) {
+        record.frames_dir = join_path(join_path(options.output_dir, "frames"), record.name);
+        record.frame_pattern = join_path(record.frames_dir, std::string("frame_%06d.") + frame_extension(png_frames));
+        record.frame_format = frame_format_name(png_frames);
+        record.frame_jpeg_quality = png_frames ? 0 : FRAME_JPEG_QUALITY;
+    }
     record.ffmpeg_command = ffmpeg_command(options, WIDTH, HEIGHT, record.path);
     record.frame_count = poses.size();
 
-    if(!mkdir_p(record.frames_dir)) {
+    if(options.write_frames && !mkdir_p(record.frames_dir)) {
         return false;
     }
 
@@ -950,7 +978,7 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
     }
 
     bool ok = true;
-    std::vector<uint8_t> rgb_frame(frame.size() * 3);
+    std::vector<uint8_t> rgb_frame;
     for(size_t frame_i = 0; frame_i < poses.size(); frame_i++) {
         const TracePose& pose = poses[frame_i];
         rlt::set(device, env.renderer->cameras, rlt::make_camera_data(pose.eye, pose.look_at, pose.up, SPEC::RAYTRACING_SPEC::COS_FOVY, static_cast<T>(WIDTH) / static_cast<T>(HEIGHT)), static_cast<TI>(0));
@@ -970,7 +998,7 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
             const uint32_t* fb_data = rlt::data(env.renderer->frame_buffer);
             std::memcpy(frame.data(), fb_data, frame.size() * sizeof(uint32_t));
         }
-        if(!write_rgb_image_frame(frame_filename(record.frames_dir, frame_i, png_frames), frame, rgb_frame, WIDTH, HEIGHT, png_frames)) {
+        if(options.write_frames && !write_rgb_image_frame(frame_filename(record.frames_dir, frame_i, png_frames), frame, rgb_frame, WIDTH, HEIGHT, png_frames)) {
             ok = false;
             break;
         }
@@ -987,7 +1015,9 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
     }
     else {
         std::cout << "Wrote " << record.path << std::endl;
-        std::cout << "Wrote RGB frames to " << record.frames_dir << std::endl;
+        if(options.write_frames) {
+            std::cout << "Wrote RGB frames to " << record.frames_dir << std::endl;
+        }
     }
 
     rlt::free(device, env);
@@ -1002,8 +1032,11 @@ static bool write_manifest(const Options& options, const std::string& scene_path
     manifest["fps"] = options.fps;
     manifest["resolutions"] = json::array();
     for(TI resolution : RENDER_RESOLUTIONS) {
-        manifest["resolutions"].push_back(resolution);
+        if(should_render_resolution(options, resolution)) {
+            manifest["resolutions"].push_back(resolution);
+        }
     }
+    manifest["write_frames"] = options.write_frames;
     manifest["anti_aliasing"] = json::array({
         {
             {"name", "none"},
@@ -1048,11 +1081,14 @@ static bool write_manifest(const Options& options, const std::string& scene_path
         item["width"] = record.width;
         item["height"] = record.height;
         item["path"] = record.path;
-        item["frames_dir"] = record.frames_dir;
-        item["frame_pattern"] = record.frame_pattern;
-        item["frame_format"] = record.frame_format;
-        if(record.frame_jpeg_quality > 0) {
-            item["frame_jpeg_quality"] = record.frame_jpeg_quality;
+        item["write_frames"] = options.write_frames;
+        if(options.write_frames) {
+            item["frames_dir"] = record.frames_dir;
+            item["frame_pattern"] = record.frame_pattern;
+            item["frame_format"] = record.frame_format;
+            if(record.frame_jpeg_quality > 0) {
+                item["frame_jpeg_quality"] = record.frame_jpeg_quality;
+            }
         }
         item["frame_count"] = record.frame_count;
         item["ffmpeg_command"] = record.ffmpeg_command;
@@ -1074,6 +1110,9 @@ static bool write_manifest(const Options& options, const std::string& scene_path
 
 template <TI RESOLUTION, bool ENABLE_AA, TI AA_GRID_SIZE>
 static bool render_selected_settings_for_resolution(rlt::devices::DEVICE_FACTORY<>& device, const Options& options, const std::string& scene_path, const std::vector<TracePose>& poses, std::vector<RenderRecord>& records) {
+    if(!should_render_resolution(options, RESOLUTION)) {
+        return true;
+    }
     bool ok = true;
     if(should_render_setting(options, "rgb", "medium")) {
         using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::Medium, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::RGB>;
