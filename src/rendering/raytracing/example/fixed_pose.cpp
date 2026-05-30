@@ -33,6 +33,8 @@ using SPEC = rlt::rendering::raytracing::Specification<
 >;
 using Renderer = rlt::rendering::raytracing::Renderer<SPEC>;
 
+static constexpr char DEFAULT_SCENE_PATH[] = "/home/jonas/git/hssd-hab/glb/108736884_177263634.glb";
+
 struct Options {
     std::string scene_path;
     std::string output_path = "rendering_raytracing_fixed_pose.png";
@@ -40,17 +42,13 @@ struct Options {
 
 static void print_usage(const char* argv0) {
     std::cout
-        << "Usage: " << argv0 << " [--scene path.glb|conta:HASH] [--output path.png]\n";
+        << "Usage: " << argv0 << " [--scene path.glb|conta:HASH] [--output path.png]\n"
+        << "Default scene: " << DEFAULT_SCENE_PATH << "\n";
 }
 
 static std::string resolve_scene_arg(const std::string& scene_arg) {
     if(scene_arg.empty()) {
-        const char* conta_root = std::getenv("CONTA_ROOT");
-        if(conta_root) {
-            static constexpr char DEFAULT_CONTA_HASH[] = "7f1c9129532798e0b63bc41edb6b4c09251cf8a0";
-            return std::string(conta_root) + "/data/" + DEFAULT_CONTA_HASH;
-        }
-        return "tests/data/ProcTHOR-Train-1.glb";
+        return DEFAULT_SCENE_PATH;
     }
     if(scene_arg.compare(0, 6, "conta:") == 0) {
         const char* conta_root = std::getenv("CONTA_ROOT");
@@ -104,14 +102,20 @@ static bool parse_options(int argc, char** argv, Options& options) {
     return true;
 }
 
-static void yaw_pitch_from_interactive_quaternion(const T q[4], T& yaw, T& pitch) {
-    yaw = static_cast<T>(2) * std::atan2(q[2], q[0]);
-    if(std::abs(q[0]) > std::abs(q[2])) {
-        pitch = static_cast<T>(2) * std::atan2(q[1], q[0]);
-    }
-    else {
-        pitch = static_cast<T>(2) * std::atan2(-q[3], q[2]);
-    }
+static void rotate_vector_by_quaternion(const T q[4], const T v[3], T out[3]) {
+    const T uv[3] = {
+        q[2] * v[2] - q[3] * v[1],
+        q[3] * v[0] - q[1] * v[2],
+        q[1] * v[1] - q[2] * v[0]
+    };
+    const T uuv[3] = {
+        q[2] * uv[2] - q[3] * uv[1],
+        q[3] * uv[0] - q[1] * uv[2],
+        q[1] * uv[1] - q[2] * uv[0]
+    };
+    out[0] = v[0] + static_cast<T>(2) * (q[0] * uv[0] + uuv[0]);
+    out[1] = v[1] + static_cast<T>(2) * (q[0] * uv[1] + uuv[1]);
+    out[2] = v[2] + static_cast<T>(2) * (q[0] * uv[2] + uuv[2]);
 }
 
 int main(int argc, char** argv) {
@@ -141,20 +145,17 @@ int main(int argc, char** argv) {
         static_cast<T>(1.48)
     };
     constexpr T orientation_wxyz[4] = {
-        static_cast<T>(0.923),
-        static_cast<T>(-0.119),
-        static_cast<T>(0.363),
-        static_cast<T>(0.047)
+        static_cast<T>(0.915),
+        static_cast<T>(-0.052),
+        static_cast<T>(0.126),
+        static_cast<T>(0.379)
     };
-    T yaw;
-    T pitch;
-    yaw_pitch_from_interactive_quaternion(orientation_wxyz, yaw, pitch);
-    const T forward[3] = {
-        std::cos(yaw) * std::cos(pitch),
-        std::sin(yaw) * std::cos(pitch),
-        std::sin(pitch)
-    };
-    const T up[3] = {static_cast<T>(0), static_cast<T>(0), static_cast<T>(1)};
+    constexpr T forward_body[3] = {static_cast<T>(1), static_cast<T>(0), static_cast<T>(0)};
+    constexpr T up_body[3] = {static_cast<T>(0), static_cast<T>(0), static_cast<T>(1)};
+    T forward[3];
+    T up[3];
+    rotate_vector_by_quaternion(orientation_wxyz, forward_body, forward);
+    rotate_vector_by_quaternion(orientation_wxyz, up_body, up);
 
     const T look_at[3] = {
         position[0] + forward[0],

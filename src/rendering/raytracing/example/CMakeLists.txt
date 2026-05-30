@@ -62,7 +62,6 @@ target_link_libraries(rendering_raytracing_fixed_pose
 
 add_custom_target(rendering_raytracing_fixed_pose_png
     COMMAND $<TARGET_FILE:rendering_raytracing_fixed_pose>
-        --scene ${CMAKE_SOURCE_DIR}/tests/data/ProcTHOR-Train-1.glb
         --output ${CMAKE_SOURCE_DIR}/rendering_raytracing_fixed_pose.png
     DEPENDS rendering_raytracing_fixed_pose
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
