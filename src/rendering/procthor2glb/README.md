@@ -17,7 +17,7 @@ HSSD articulated scene files can be passed with `--hssd` as well, but `articulat
 ./build/src/rendering/procthor2glb/procthor2glb /home/jonas/git/hssd-hab/scenes-articulated/105515430_173104494.scene_instance.json --hssd --normalize -o /home/jonas/git/hssd-hab/glb/105515430_173104494_articulated_static.glb
 ```
 
-If an HSSD scene references a Habitat lighting setup through `default_lighting`, `--hssd` imports supported punctual lights into `KHR_lights_punctual` and preserves unsupported lighting records in GLB extras. An empty `default_lighting` value uses Habitat's built-in default lights; use `--hssd-lighting` to import an explicit lighting JSON file instead.
+If an HSSD scene references a Habitat lighting setup through `default_lighting`, `--hssd` imports supported punctual lights into `KHR_lights_punctual` and preserves unsupported lighting records in GLB extras. An empty or omitted `default_lighting` value uses Habitat's built-in default lights; use `--hssd-lighting` to import an explicit lighting JSON file instead.
 
 ```
 ./build/src/rendering/procthor2glb/procthor2glb /home/jonas/git/hssd-hab/scenes-uncluttered/105515430_173104494.scene_instance.json --hssd --hssd-lighting /path/to/lighting.json --normalize -o /home/jonas/git/hssd-hab/glb/105515430_173104494_lit.glb

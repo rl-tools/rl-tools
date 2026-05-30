@@ -1583,6 +1583,13 @@ static HssdLightingImport importHssdLighting(tinygltf::Model& model,
     }
 
     std::vector<HssdLightingSource> sources;
+    auto addHabitatDefaultLighting = [&](const std::string& source) {
+        sources.push_back(habitatDefaultLightingSource());
+        hssdLighting["default_lighting"] = tinygltf::Value("");
+        hssdLighting["default_lighting_source"] = tinygltf::Value(source);
+        hssdLighting["resolved_default_lighting"] = tinygltf::Value("habitat_default");
+        stats.found_source = true;
+    };
     auto addSourceFromPath = [&](const std::string& label, const std::string& pathText) {
         if (pathText.empty()) return;
         fs::path path = resolveHssdReferencePath(datasetRoot, pathText);
@@ -1616,9 +1623,7 @@ static HssdLightingImport importHssdLighting(tinygltf::Model& model,
             const std::string lightSetupKey = sceneJson["default_lighting"].get<std::string>();
             const std::string lowerLightSetupKey = lowerString(lightSetupKey);
             if (lightSetupKey.empty()) {
-                sources.push_back(habitatDefaultLightingSource());
-                hssdLighting["resolved_default_lighting"] = tinygltf::Value("habitat_default");
-                stats.found_source = true;
+                addHabitatDefaultLighting("scene_instance");
             } else if (lowerLightSetupKey == "no_lights") {
                 hssdLighting["resolved_default_lighting"] = tinygltf::Value("no_lights");
                 stats.found_source = true;
@@ -1636,6 +1641,8 @@ static HssdLightingImport importHssdLighting(tinygltf::Model& model,
             sources.push_back(std::move(source));
             stats.found_source = true;
         }
+    } else {
+        addHabitatDefaultLighting("scene_dataset_default");
     }
 
     for (const auto& source : sources) {
