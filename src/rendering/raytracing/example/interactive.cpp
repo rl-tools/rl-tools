@@ -136,18 +136,96 @@ struct Quaternion {
     float w, x, y, z;
 };
 
-static Quaternion quaternion_from_yaw_pitch(float yaw, float pitch) {
-    float half_yaw = yaw * 0.5f;
-    float half_pitch = pitch * 0.5f;
-    float cy = std::cos(half_yaw), sy = std::sin(half_yaw);
-    float cp = std::cos(half_pitch), sp = std::sin(half_pitch);
-    // Rotation order: yaw (around Y) then pitch (around Z-local, but here we use right-hand: pitch around X-local after yaw around Y)
-    return {
-        cy * cp,
-        cy * sp,
-        sy * cp,
-        -sy * sp
-    };
+static void cross3(const float a[3], const float b[3], float out[3]) {
+    out[0] = a[1] * b[2] - a[2] * b[1];
+    out[1] = a[2] * b[0] - a[0] * b[2];
+    out[2] = a[0] * b[1] - a[1] * b[0];
+}
+
+static bool normalize3(float v[3]) {
+    const float norm = std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+    if(norm <= 1e-6f) {
+        return false;
+    }
+    v[0] /= norm;
+    v[1] /= norm;
+    v[2] /= norm;
+    return true;
+}
+
+static Quaternion normalize_quaternion(Quaternion q) {
+    const float norm = std::sqrt(q.w * q.w + q.x * q.x + q.y * q.y + q.z * q.z);
+    if(norm <= 1e-6f) {
+        return {1.0f, 0.0f, 0.0f, 0.0f};
+    }
+    return {q.w / norm, q.x / norm, q.y / norm, q.z / norm};
+}
+
+static Quaternion quaternion_from_rotation_columns(const float x_axis[3], const float y_axis[3], const float z_axis[3]) {
+    const float m00 = x_axis[0], m01 = y_axis[0], m02 = z_axis[0];
+    const float m10 = x_axis[1], m11 = y_axis[1], m12 = z_axis[1];
+    const float m20 = x_axis[2], m21 = y_axis[2], m22 = z_axis[2];
+    Quaternion q;
+    const float trace = m00 + m11 + m22;
+    if(trace > 0.0f) {
+        const float s = std::sqrt(trace + 1.0f) * 2.0f;
+        q.w = 0.25f * s;
+        q.x = (m21 - m12) / s;
+        q.y = (m02 - m20) / s;
+        q.z = (m10 - m01) / s;
+    }
+    else if(m00 > m11 && m00 > m22) {
+        const float s = std::sqrt(1.0f + m00 - m11 - m22) * 2.0f;
+        q.w = (m21 - m12) / s;
+        q.x = 0.25f * s;
+        q.y = (m01 + m10) / s;
+        q.z = (m02 + m20) / s;
+    }
+    else if(m11 > m22) {
+        const float s = std::sqrt(1.0f + m11 - m00 - m22) * 2.0f;
+        q.w = (m02 - m20) / s;
+        q.x = (m01 + m10) / s;
+        q.y = 0.25f * s;
+        q.z = (m12 + m21) / s;
+    }
+    else {
+        const float s = std::sqrt(1.0f + m22 - m00 - m11) * 2.0f;
+        q.w = (m10 - m01) / s;
+        q.x = (m02 + m20) / s;
+        q.y = (m12 + m21) / s;
+        q.z = 0.25f * s;
+    }
+    return normalize_quaternion(q);
+}
+
+static Quaternion l2f_camera_quaternion(const float forward_in[3], const float up_reference_in[3]) {
+    float x_axis[3] = {forward_in[0], forward_in[1], forward_in[2]};
+    if(!normalize3(x_axis)) {
+        x_axis[0] = 1.0f;
+        x_axis[1] = 0.0f;
+        x_axis[2] = 0.0f;
+    }
+    float up_reference[3] = {up_reference_in[0], up_reference_in[1], up_reference_in[2]};
+    if(!normalize3(up_reference)) {
+        up_reference[0] = 0.0f;
+        up_reference[1] = 0.0f;
+        up_reference[2] = 1.0f;
+    }
+    float y_axis[3];
+    cross3(up_reference, x_axis, y_axis);
+    if(!normalize3(y_axis)) {
+        const float fallback_up[3] = {0.0f, 1.0f, 0.0f};
+        cross3(fallback_up, x_axis, y_axis);
+        if(!normalize3(y_axis)) {
+            y_axis[0] = 0.0f;
+            y_axis[1] = 1.0f;
+            y_axis[2] = 0.0f;
+        }
+    }
+    float z_axis[3];
+    cross3(x_axis, y_axis, z_axis);
+    normalize3(z_axis);
+    return quaternion_from_rotation_columns(x_axis, y_axis, z_axis);
 }
 
 struct InputState {
@@ -364,7 +442,7 @@ static bool write_camera_trace_json(const std::string& path, const std::string& 
             pose.look_at[1] - pose.position[1],
             pose.look_at[2] - pose.position[2]
         };
-        const Quaternion q = quaternion_from_yaw_pitch(pose.yaw, pose.pitch);
+        const Quaternion q = l2f_camera_quaternion(forward, pose.up);
 
         f << "    {\n";
         f << "      \"timestamp_s\": " << pose.timestamp_s << ",\n";
@@ -658,11 +736,16 @@ int main(int argc, char** argv) {
 #endif
 
         {
-            Quaternion q = quaternion_from_yaw_pitch(g_input.yaw, g_input.pitch);
+            const float forward[3] = {
+                look_at[0] - eye[0],
+                look_at[1] - eye[1],
+                look_at[2] - eye[2]
+            };
+            const Quaternion q = l2f_camera_quaternion(forward, up);
             char line_flu_pos[128];
             char line_flu_quat[128];
-            std::snprintf(line_flu_pos, sizeof(line_flu_pos), "FLU Pos: (%.2f, %.2f, %.2f)", state.position[0], state.position[1], state.position[2]);
-            std::snprintf(line_flu_quat, sizeof(line_flu_quat), "FLU Quat: (%.3f, %.3f, %.3f, %.3f)", q.w, q.x, q.y, q.z);
+            std::snprintf(line_flu_pos, sizeof(line_flu_pos), "Pos: (%.2f, %.2f, %.2f)", state.position[0], state.position[1], state.position[2]);
+            std::snprintf(line_flu_quat, sizeof(line_flu_quat), "Quat: (%.3f, %.3f, %.3f, %.3f)", q.w, q.x, q.y, q.z);
             int overlay_x = 4;
             int overlay_y = 4;
             int max_len = std::max(std::strlen(line_flu_pos), std::strlen(line_flu_quat));
