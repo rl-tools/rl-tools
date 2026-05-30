@@ -29,7 +29,11 @@ using SPEC = rlt::rendering::raytracing::Specification<
     CAM_HEIGHT,
     NUM_CAMERAS,
     NUM_PROBES,
-    rlt::rendering::raytracing::High
+    rlt::rendering::raytracing::High,
+    false,
+    1,
+    true,
+    2
 >;
 using Renderer = rlt::rendering::raytracing::Renderer<SPEC>;
 

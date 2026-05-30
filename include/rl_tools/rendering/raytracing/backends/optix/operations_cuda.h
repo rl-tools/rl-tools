@@ -293,6 +293,22 @@ namespace rl_tools {
             }
         }
 
+        static void swizzle_gltf_direction_to_renderer(float dx, float dy, float dz, float out[3]) {
+            float len = sqrtf(dx*dx + dy*dy + dz*dz);
+            if (len <= 1e-6f) {
+                out[0] = 0.f;
+                out[1] = 0.f;
+                out[2] = 1.f;
+                return;
+            }
+            dx /= len;
+            dy /= len;
+            dz /= len;
+            out[0] = dx;
+            out[1] = -dz;
+            out[2] = dy;
+        }
+
         static ParsedMetadata parse(const std::string& filename) {
             ParsedMetadata result;
             FILE* f = fopen(filename.c_str(), "rb");
@@ -346,15 +362,18 @@ namespace rl_tools {
                     sl.color[0] = color_r * intensity; sl.color[1] = color_g * intensity; sl.color[2] = color_b * intensity;
                     sl.attenuation_constant = 0.f; sl.attenuation_linear = 0.f; sl.attenuation_quadratic = 1.f;
 
-                    if (type_str == "spot" && ldef.contains("spot")) {
-                        float inner = ldef["spot"].value("innerConeAngle", 0.0f);
-                        float outer = ldef["spot"].value("outerConeAngle", 0.7854f);
+                    if (type_str == "directional") {
+                        swizzle_gltf_direction_to_renderer(world[8], world[9], world[10], sl.direction);
+                    } else if (type_str == "spot") {
+                        float inner = 0.0f;
+                        float outer = 0.7854f;
+                        if (ldef.contains("spot")) {
+                            inner = ldef["spot"].value("innerConeAngle", inner);
+                            outer = ldef["spot"].value("outerConeAngle", outer);
+                        }
                         sl.cos_inner_cone = cosf(inner);
                         sl.cos_outer_cone = cosf(outer);
-                        float dx = world[8], dy = world[9], dz = world[10];
-                        float len = sqrtf(dx*dx + dy*dy + dz*dz);
-                        if (len > 1e-6f) { dx /= len; dy /= len; dz /= len; }
-                        sl.direction[0] = dx; sl.direction[1] = -dz; sl.direction[2] = dy;
+                        swizzle_gltf_direction_to_renderer(-world[8], -world[9], -world[10], sl.direction);
                     }
 
                     result.lights.push_back(sl);
@@ -935,19 +954,24 @@ namespace rl_tools {
 
         if constexpr (SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING) {
             renderer.scene_lights.clear();
-            float inv_sqrt2 = 0.70710678f;
-            renderer.scene_lights.push_back({0, {0,0,0}, {-inv_sqrt2, 0.f, inv_sqrt2}, {0.4f, 0.4f, 0.4f}, 0,0,0, 0,0});
-            renderer.scene_lights.push_back({0, {0,0,0}, {0.f, -inv_sqrt2, inv_sqrt2}, {0.3f, 0.3f, 0.3f}, 0,0,0, 0,0});
-            renderer.scene_lights.push_back({0, {0,0,0}, {0.f, inv_sqrt2, inv_sqrt2}, {0.2f, 0.2f, 0.2f}, 0,0,0, 0,0});
 
             auto glb_meta = rendering::raytracing::glb::parse(filename);
-            for (auto& sl : glb_meta.lights) {
-                renderer.scene_lights.push_back(sl);
+            if (glb_meta.lights.empty()) {
+                float inv_sqrt2 = 0.70710678f;
+                renderer.scene_lights.push_back({0, {0,0,0}, {-inv_sqrt2, 0.f, inv_sqrt2}, {0.4f, 0.4f, 0.4f}, 0,0,0, 0,0});
+                renderer.scene_lights.push_back({0, {0,0,0}, {0.f, -inv_sqrt2, inv_sqrt2}, {0.3f, 0.3f, 0.3f}, 0,0,0, 0,0});
+                renderer.scene_lights.push_back({0, {0,0,0}, {0.f, inv_sqrt2, inv_sqrt2}, {0.2f, 0.2f, 0.2f}, 0,0,0, 0,0});
+            } else {
+                for (auto& sl : glb_meta.lights) {
+                    renderer.scene_lights.push_back(sl);
+                }
             }
-            RL_TOOLS_RENDERING_RAYTRACING_LOG("Scene lights: " << glb_meta.lights.size() << " from GLB + 3 directional fill");
-            for (size_t li = 0; li < glb_meta.lights.size(); li++) {
-                auto& sl = glb_meta.lights[li];
+            RL_TOOLS_RENDERING_RAYTRACING_LOG("Scene lights: " << glb_meta.lights.size() << " from GLB"
+                << (glb_meta.lights.empty() ? " + 3 directional fill fallback" : ""));
+            for (size_t li = 0; li < renderer.scene_lights.size(); li++) {
+                auto& sl = renderer.scene_lights[li];
                 RL_TOOLS_RENDERING_RAYTRACING_LOG("  light " << li << ": pos=(" << sl.position[0] << "," << sl.position[1] << "," << sl.position[2]
+                    << ") dir=(" << sl.direction[0] << "," << sl.direction[1] << "," << sl.direction[2]
                     << ") color=(" << sl.color[0] << "," << sl.color[1] << "," << sl.color[2] << ")");
             }
 
@@ -1189,7 +1213,7 @@ namespace rl_tools {
                 owlGeomSet1f(geom, "opacity", md.opacity);
                 owlGeomSet1i(geom, "alpha_mode", md.alpha_mode);
                 owlGeomSet1f(geom, "alpha_cutoff", md.alpha_cutoff);
-                owlGeomSet3f(geom, "ambient_color", owl3f{0.5f, 0.5f, 0.5f});
+                owlGeomSet3f(geom, "ambient_color", owl3f{0.14f, 0.14f, 0.14f});
                 }
             }
 
