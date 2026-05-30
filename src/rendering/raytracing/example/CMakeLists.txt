@@ -50,6 +50,24 @@ target_link_libraries(rendering_raytracing_antialiasing
         rendering_raytracing_stb
 )
 
+add_executable(rendering_raytracing_fixed_pose fixed_pose.cpp)
+target_link_libraries(rendering_raytracing_fixed_pose
+    PRIVATE
+        RLtools::RLtools
+        owl::owl
+        rendering_raytracing_device_ptx
+        assimp::assimp
+        rendering_raytracing_stb
+)
+
+add_custom_target(rendering_raytracing_fixed_pose_png
+    COMMAND $<TARGET_FILE:rendering_raytracing_fixed_pose>
+        --scene ${CMAKE_SOURCE_DIR}/tests/data/ProcTHOR-Train-1.glb
+        --output ${CMAKE_SOURCE_DIR}/rendering_raytracing_fixed_pose.png
+    DEPENDS rendering_raytracing_fixed_pose
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+
 add_executable(rendering_raytracing_pose_trace EXCLUDE_FROM_ALL render_pose_trace.cpp)
 target_link_libraries(rendering_raytracing_pose_trace
     PRIVATE
