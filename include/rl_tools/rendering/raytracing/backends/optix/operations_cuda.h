@@ -249,7 +249,8 @@ namespace rl_tools {
         struct MaterialMeta {
             int alpha_mode = 0;
             float alpha_cutoff = 0.5f;
-            float base_color_factor_alpha = 1.0f;
+            bool has_base_color_factor = false;
+            float base_color_factor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
         };
 
         struct ParsedMetadata {
@@ -389,7 +390,12 @@ namespace rl_tools {
                     mm.alpha_cutoff = mat.value("alphaCutoff", 0.5f);
                     if (mat.contains("pbrMetallicRoughness") && mat["pbrMetallicRoughness"].contains("baseColorFactor")) {
                         auto& bcf = mat["pbrMetallicRoughness"]["baseColorFactor"];
-                        if (bcf.size() >= 4) mm.base_color_factor_alpha = bcf[3].get<float>();
+                        if (bcf.size() >= 4) {
+                            mm.has_base_color_factor = true;
+                            for (int i = 0; i < 4; i++) {
+                                mm.base_color_factor[i] = bcf[i].get<float>();
+                            }
+                        }
                     }
                     result.materials.push_back(mm);
                 }
@@ -454,8 +460,13 @@ namespace rl_tools {
         }
         OWLMissProg miss_prog = owlMissProgCreate(context, module, miss_program_name,
                                                     sizeof(MissProgData), miss_prog_vars, -1);
-        owlMissProgSet3f(miss_prog, "color_0", owl3f{.8f, 0.f, 0.f});
-        owlMissProgSet3f(miss_prog, "color_1", owl3f{.8f, .8f, .8f});
+        if constexpr (SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING) {
+            owlMissProgSet3f(miss_prog, "color_0", owl3f{0.f, 0.f, 0.f});
+            owlMissProgSet3f(miss_prog, "color_1", owl3f{0.f, 0.f, 0.f});
+        } else {
+            owlMissProgSet3f(miss_prog, "color_0", owl3f{.8f, 0.f, 0.f});
+            owlMissProgSet3f(miss_prog, "color_1", owl3f{.8f, .8f, .8f});
+        }
 
         // Collision miss program (ray type 1) — always registered to keep SBT consistent
         OWLVarDecl collision_miss_vars[] = {
@@ -982,8 +993,13 @@ namespace rl_tools {
                     auto& mm = glb_meta.materials[mat_idx];
                     md.alpha_mode = mm.alpha_mode;
                     md.alpha_cutoff = mm.alpha_cutoff;
+                    if (mm.has_base_color_factor) {
+                        md.color[0] = mm.base_color_factor[0];
+                        md.color[1] = mm.base_color_factor[1];
+                        md.color[2] = mm.base_color_factor[2];
+                    }
                     if (mm.alpha_mode == 2) {
-                        md.opacity = fminf(md.opacity, mm.base_color_factor_alpha);
+                        md.opacity = fminf(md.opacity, mm.base_color_factor[3]);
                     }
                 }
             }
@@ -1213,7 +1229,7 @@ namespace rl_tools {
                 owlGeomSet1f(geom, "opacity", md.opacity);
                 owlGeomSet1i(geom, "alpha_mode", md.alpha_mode);
                 owlGeomSet1f(geom, "alpha_cutoff", md.alpha_cutoff);
-                owlGeomSet3f(geom, "ambient_color", owl3f{0.14f, 0.14f, 0.14f});
+                owlGeomSet3f(geom, "ambient_color", owl3f{0.10f, 0.10f, 0.10f});
                 }
             }
 

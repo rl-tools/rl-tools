@@ -8,7 +8,7 @@ hf download hssd/ai2thor-hab --repo-type dataset --local-dir data/ai2thor-hab
 ### HSSD
 ```
 mkdir -p /home/jonas/git/hssd-hab/glb
-./build/src/rendering/procthor2glb/procthor2glb /home/jonas/git/hssd-hab/scenes-uncluttered/105515430_173104494.scene_instance.json --hssd --normalize -o /home/jonas/git/hssd-hab/glb/105515430_173104494.glb
+./build/src/rendering/procthor2glb/procthor2glb /home/jonas/git/hssd-hab/scenes/105515430_173104494.scene_instance.json --hssd --normalize -o /home/jonas/git/hssd-hab/glb/105515430_173104494.glb
 ```
 
 HSSD articulated scene files can be passed with `--hssd` as well, but `articulated_object_instances` are skipped because URDF joint conversion is not implemented.
@@ -20,7 +20,7 @@ HSSD articulated scene files can be passed with `--hssd` as well, but `articulat
 If an HSSD scene references a Habitat lighting setup through `default_lighting`, `--hssd` imports supported punctual lights into `KHR_lights_punctual` and preserves unsupported lighting records in GLB extras. An empty or omitted `default_lighting` value uses Habitat's built-in default lights; use `--hssd-lighting` to import an explicit lighting JSON file instead.
 
 ```
-./build/src/rendering/procthor2glb/procthor2glb /home/jonas/git/hssd-hab/scenes-uncluttered/105515430_173104494.scene_instance.json --hssd --hssd-lighting /path/to/lighting.json --normalize -o /home/jonas/git/hssd-hab/glb/105515430_173104494_lit.glb
+./build/src/rendering/procthor2glb/procthor2glb /home/jonas/git/hssd-hab/scenes/105515430_173104494.scene_instance.json --hssd --hssd-lighting /path/to/lighting.json --normalize -o /home/jonas/git/hssd-hab/glb/105515430_173104494_lit.glb
 ```
 
 ### Bulk
@@ -31,5 +31,5 @@ If an HSSD scene references a Habitat lighting setup through `default_lighting`,
 ### HSSD Bulk
 ```
 mkdir -p /home/jonas/git/hssd-hab/glb
-find /home/jonas/git/hssd-hab/scenes-uncluttered -name '*.scene_instance.json' | sort -V | xargs -I{} -P 5 bash -c './build/src/rendering/procthor2glb/procthor2glb "$1" --hssd --normalize -o "/home/jonas/git/hssd-hab/glb/$(basename "$1" .scene_instance.json).glb"' _ {}
+find /home/jonas/git/hssd-hab/scenes -name '*.scene_instance.json' | sort -V | xargs -I{} -P 5 bash -c './build/src/rendering/procthor2glb/procthor2glb "$1" --hssd --normalize -o "/home/jonas/git/hssd-hab/glb/$(basename "$1" .scene_instance.json).glb"' _ {}
 ```

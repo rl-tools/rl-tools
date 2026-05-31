@@ -38,7 +38,7 @@ namespace rl_tools {
         };
 
         using Medium = ShadingOptions<true, true, true, true, true, false>;
-        using High = ShadingOptions<true, true, true, true, true, true>;
+        using High = ShadingOptions<true, true, true, true, false, true>;
         using Low = ShadingOptions<false, false, false, false, false, false>;
 
         using BasicShading = Medium;
