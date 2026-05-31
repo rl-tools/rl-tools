@@ -32,15 +32,38 @@ using TI = typename rlt::devices::DEVICE_FACTORY<>::index_t;
 
 static constexpr TI NUM_CAMERAS = 1;
 static constexpr TI NUM_PROBES = 1;
-static constexpr TI RENDER_RESOLUTIONS[] = {64, 128, 256, 512, 1024, 2048};
 static constexpr int FRAME_JPEG_QUALITY = 90;
+static constexpr double DEFAULT_SMOOTH_POSITION_SIGMA_S = 0.18;
+static constexpr double DEFAULT_SMOOTH_ORIENTATION_SIGMA_S = 0.18;
+static constexpr double DEFAULT_MAX_ORIENTATION_SPEED_RAD_S = 1.6;
+static constexpr double DEFAULT_ORIENTATION_JUMP_RAMP_MULTIPLIER = 5.0;
+
+struct RenderResolutionOption {
+    const char* name;
+    TI width;
+    TI height;
+    bool enabled_by_default;
+};
+
+static constexpr RenderResolutionOption RENDER_RESOLUTIONS[] = {
+    {"64", 64, 64, true},
+    {"128", 128, 128, true},
+    {"256", 256, 256, true},
+    {"512", 512, 512, true},
+    {"1024", 1024, 1024, true},
+    {"2048", 2048, 2048, true},
+    {"4k", 3840, 2160, false}
+};
 
 struct TracePose {
     T eye[3];
     T look_at[3];
     T up[3];
+    double yaw = 0.0;
+    double pitch = 0.0;
     double timestamp_s = 0.0;
     bool has_timestamp = false;
+    bool has_yaw_pitch = false;
 };
 
 struct Options {
@@ -48,12 +71,15 @@ struct Options {
     std::string scene_path;
     std::string output_dir = ".";
     std::string ffmpeg = "ffmpeg";
-    std::string settings = "all";
-    int resolution = 0;
+    std::string settings = "very_high";
+    int resolution_width = 0;
+    int resolution_height = 0;
     int fps = 30;
     int max_frames = 0;
-    double smooth_position_sigma_s = 0.0;
-    double smooth_orientation_sigma_s = 0.0;
+    double smooth_position_sigma_s = DEFAULT_SMOOTH_POSITION_SIGMA_S;
+    double smooth_orientation_sigma_s = DEFAULT_SMOOTH_ORIENTATION_SIGMA_S;
+    double max_orientation_speed_rad_s = DEFAULT_MAX_ORIENTATION_SPEED_RAD_S;
+    double orientation_jump_ramp_multiplier = DEFAULT_ORIENTATION_JUMP_RAMP_MULTIPLIER;
     bool write_frames = true;
     bool help = false;
 };
@@ -87,19 +113,25 @@ static void print_usage(const char* argv0) {
         << "  --output-dir <dir>         Output directory (default: .)\n"
         << "  --fps <n>                  MP4 frame rate; timestamped traces are resampled to this rate (default: 30)\n"
         << "  --ffmpeg <path>            ffmpeg binary (default: ffmpeg)\n"
-        << "  --settings <list>          all, rgb, depth, medium, high, low, or comma list; depth has no rendering profile\n"
-        << "                              Legacy aliases: basic, high_fidelity, fast_flat\n"
-        << "  --resolution <n>           Render one square resolution: 64, 128, 256, 512, 1024, or 2048\n"
-        << "                              By default all supported resolutions are rendered\n"
+        << "  --settings <list>          all, rgb, depth, very_high, or comma list; depth has no rendering profile\n"
+        << "                              medium, high, and low are temporarily disabled\n"
+        << "                              Legacy aliases: very_high_fidelity, basic, high_fidelity, fast_flat\n"
+        << "  --resolution <name>        Render one resolution: 64, 128, 256, 512, 1024, 2048, or 4k\n"
+        << "                              4k is UHD 3840x2160\n"
+        << "                              By default resolutions up to 2048 are rendered; 4k is opt-in\n"
         << "  --no-frames                Do not write per-frame PNG/JPEG image sequences\n"
         << "                              By default frames are written under <output-dir>/frames/<render-name>/\n"
         << "                              64x64 and 128x128 frames are PNG; larger frames are JPEG\n"
         << "  --max-frames <n>           Limit trace frames when >0\n"
-        << "  --smooth-sigma-s <s>       Gaussian smoothing sigma for position and orientation (default: 0)\n"
+        << "  --smooth-sigma-s <s>       Gaussian smoothing sigma for position and orientation (default: 0.18; use 0 to disable)\n"
         << "  --smooth-position-sigma-s <s>\n"
-        << "                              Gaussian smoothing sigma for position only (default: 0)\n"
+        << "                              Gaussian smoothing sigma for position only (default: 0.18)\n"
         << "  --smooth-orientation-sigma-s <s>\n"
-        << "                              Gaussian smoothing sigma for orientation only (default: 0)\n";
+        << "                              Gaussian smoothing sigma for orientation only (default: 0.18)\n"
+        << "  --max-orientation-speed-deg-s <deg/s>\n"
+        << "                              Detect orientation jumps before smoothing (default: 91.7; use 0 to disable)\n"
+        << "  --orientation-jump-ramp-multiplier <x>\n"
+        << "                              Lengthen detected jump slerp ramps by this factor (default: 5)\n";
 }
 
 static bool parse_int(const std::string& value, int& out) {
@@ -112,17 +144,43 @@ static bool parse_int(const std::string& value, int& out) {
     return true;
 }
 
-static bool supported_resolution(TI resolution) {
-    for(TI supported : RENDER_RESOLUTIONS) {
-        if(resolution == supported) {
+static bool parse_resolution(const std::string& value, int& width, int& height) {
+    std::string lower = value;
+    std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    for(const RenderResolutionOption& resolution : RENDER_RESOLUTIONS) {
+        if(lower == resolution.name) {
+            width = static_cast<int>(resolution.width);
+            height = static_cast<int>(resolution.height);
+            return true;
+        }
+    }
+
+    int square_resolution = 0;
+    if(!parse_int(value, square_resolution) || square_resolution <= 0) {
+        return false;
+    }
+    for(const RenderResolutionOption& resolution : RENDER_RESOLUTIONS) {
+        if(resolution.width == resolution.height && static_cast<TI>(square_resolution) == resolution.width) {
+            width = square_resolution;
+            height = square_resolution;
             return true;
         }
     }
     return false;
 }
 
-static bool should_render_resolution(const Options& options, TI resolution) {
-    return options.resolution == 0 || static_cast<TI>(options.resolution) == resolution;
+static bool should_render_resolution(const Options& options, TI width, TI height) {
+    if(options.resolution_width != 0 || options.resolution_height != 0) {
+        return static_cast<TI>(options.resolution_width) == width && static_cast<TI>(options.resolution_height) == height;
+    }
+    for(const RenderResolutionOption& resolution : RENDER_RESOLUTIONS) {
+        if(width == resolution.width && height == resolution.height) {
+            return resolution.enabled_by_default;
+        }
+    }
+    return false;
 }
 
 static bool parse_double(const std::string& value, double& out) {
@@ -176,7 +234,7 @@ static bool parse_options(int argc, char** argv, Options& options) {
             options.settings = value;
         }
         else if(option_value(i, argc, argv, arg, "--resolution", value)) {
-            if(!parse_int(value, options.resolution) || options.resolution <= 0 || !supported_resolution(static_cast<TI>(options.resolution))) {
+            if(!parse_resolution(value, options.resolution_width, options.resolution_height)) {
                 std::cerr << "Invalid --resolution: " << value << std::endl;
                 return false;
             }
@@ -214,6 +272,20 @@ static bool parse_options(int argc, char** argv, Options& options) {
         else if(option_value(i, argc, argv, arg, "--smooth-orientation-sigma-s", value)) {
             if(!parse_double(value, options.smooth_orientation_sigma_s) || options.smooth_orientation_sigma_s < 0.0) {
                 std::cerr << "Invalid --smooth-orientation-sigma-s: " << value << std::endl;
+                return false;
+            }
+        }
+        else if(option_value(i, argc, argv, arg, "--max-orientation-speed-deg-s", value)) {
+            double max_speed_deg_s = 0.0;
+            if(!parse_double(value, max_speed_deg_s) || max_speed_deg_s < 0.0) {
+                std::cerr << "Invalid --max-orientation-speed-deg-s: " << value << std::endl;
+                return false;
+            }
+            options.max_orientation_speed_rad_s = max_speed_deg_s * 3.14159265358979323846 / 180.0;
+        }
+        else if(option_value(i, argc, argv, arg, "--orientation-jump-ramp-multiplier", value)) {
+            if(!parse_double(value, options.orientation_jump_ramp_multiplier) || options.orientation_jump_ramp_multiplier < 1.0) {
+                std::cerr << "Invalid --orientation-jump-ramp-multiplier: " << value << std::endl;
                 return false;
             }
         }
@@ -303,13 +375,19 @@ static bool contains_token(const std::vector<std::string>& tokens, const std::st
 
 static bool contains_profile_token(const std::vector<std::string>& tokens, const std::string& profile) {
     return contains_token(tokens, profile)
+        || (profile == "very_high" &&
+            (contains_token(tokens, "very_high_fidelity") ||
+             contains_token(tokens, "veryhigh") ||
+             contains_token(tokens, "veryhigh_fidelity")))
         || (profile == "medium" && contains_token(tokens, "basic"))
         || (profile == "high" && contains_token(tokens, "high_fidelity"))
         || (profile == "low" && contains_token(tokens, "fast_flat"));
 }
 
 static bool has_profile_filter(const std::vector<std::string>& tokens) {
-    return contains_token(tokens, "medium") || contains_token(tokens, "basic")
+    return contains_token(tokens, "very_high") || contains_token(tokens, "very_high_fidelity")
+        || contains_token(tokens, "veryhigh") || contains_token(tokens, "veryhigh_fidelity")
+        || contains_token(tokens, "medium") || contains_token(tokens, "basic")
         || contains_token(tokens, "high") || contains_token(tokens, "high_fidelity")
         || contains_token(tokens, "low") || contains_token(tokens, "fast_flat");
 }
@@ -373,10 +451,32 @@ static void normalize(T v[3]) {
     v[2] /= norm;
 }
 
+static double wrap_angle_delta(double delta) {
+    constexpr double two_pi = 2.0 * 3.14159265358979323846;
+    delta = std::fmod(delta + 3.14159265358979323846, two_pi);
+    if(delta < 0.0) {
+        delta += two_pi;
+    }
+    return delta - 3.14159265358979323846;
+}
+
+static void set_pose_yaw_pitch(TracePose& pose, double yaw, double pitch) {
+    pose.yaw = yaw;
+    pose.pitch = pitch;
+    pose.has_yaw_pitch = true;
+    pose.up[0] = static_cast<T>(0);
+    pose.up[1] = static_cast<T>(0);
+    pose.up[2] = static_cast<T>(1);
+    pose.look_at[0] = pose.eye[0] + static_cast<T>(std::cos(yaw) * std::cos(pitch));
+    pose.look_at[1] = pose.eye[1] + static_cast<T>(std::sin(yaw) * std::cos(pitch));
+    pose.look_at[2] = pose.eye[2] + static_cast<T>(std::sin(pitch));
+}
+
 static bool parse_pose(const json& pose_json, TracePose& pose) {
     const json* source = &pose_json;
     pose.timestamp_s = 0.0;
     pose.has_timestamp = false;
+    pose.has_yaw_pitch = false;
     if(pose_json.contains("timestamp_s") && pose_json["timestamp_s"].is_number()) {
         pose.timestamp_s = pose_json["timestamp_s"].get<double>();
         pose.has_timestamp = true;
@@ -390,6 +490,11 @@ static bool parse_pose(const json& pose_json, TracePose& pose) {
     }
     if(!source->contains("position") || !read_vec3((*source)["position"], pose.eye)) {
         return false;
+    }
+    if(source->contains("yaw") && source->contains("pitch") && (*source)["yaw"].is_number() && (*source)["pitch"].is_number()) {
+        pose.yaw = (*source)["yaw"].get<double>();
+        pose.pitch = (*source)["pitch"].get<double>();
+        pose.has_yaw_pitch = true;
     }
     if(source->contains("up")) {
         if(!read_vec3((*source)["up"], pose.up)) {
@@ -416,11 +521,7 @@ static bool parse_pose(const json& pose_json, TracePose& pose) {
         return true;
     }
     if(source->contains("yaw") && source->contains("pitch") && (*source)["yaw"].is_number() && (*source)["pitch"].is_number()) {
-        const T yaw = (*source)["yaw"].get<T>();
-        const T pitch = (*source)["pitch"].get<T>();
-        pose.look_at[0] = pose.eye[0] + std::cos(yaw) * std::cos(pitch);
-        pose.look_at[1] = pose.eye[1] + std::sin(yaw) * std::cos(pitch);
-        pose.look_at[2] = pose.eye[2] + std::sin(pitch);
+        set_pose_yaw_pitch(pose, pose.yaw, pose.pitch);
         return true;
     }
     return false;
@@ -485,6 +586,96 @@ static void pose_forward(const TracePose& pose, T out[3]) {
     normalize(out);
 }
 
+static double dot_vec3(const T a[3], const T b[3]) {
+    return static_cast<double>(a[0]) * static_cast<double>(b[0])
+         + static_cast<double>(a[1]) * static_cast<double>(b[1])
+         + static_cast<double>(a[2]) * static_cast<double>(b[2]);
+}
+
+static bool normalize_vec3_checked(T v[3]) {
+    const double norm = std::sqrt(dot_vec3(v, v));
+    if(norm < 1e-9) {
+        return false;
+    }
+    v[0] = static_cast<T>(static_cast<double>(v[0]) / norm);
+    v[1] = static_cast<T>(static_cast<double>(v[1]) / norm);
+    v[2] = static_cast<T>(static_cast<double>(v[2]) / norm);
+    return true;
+}
+
+static void slerp_unit_vec3(const T a_in[3], const T b_in[3], double t, T out[3]) {
+    T a[3] = {a_in[0], a_in[1], a_in[2]};
+    T b[3] = {b_in[0], b_in[1], b_in[2]};
+    if(!normalize_vec3_checked(a)) {
+        a[0] = static_cast<T>(1);
+        a[1] = static_cast<T>(0);
+        a[2] = static_cast<T>(0);
+    }
+    if(!normalize_vec3_checked(b)) {
+        b[0] = a[0];
+        b[1] = a[1];
+        b[2] = a[2];
+    }
+
+    double d = dot_vec3(a, b);
+    d = std::min(std::max(d, -1.0), 1.0);
+    if(d > 0.9995) {
+        lerp_vec3(a, b, t, out);
+        normalize(out);
+        return;
+    }
+    if(d < -0.9995) {
+        T ortho[3] = {-a[1], a[0], static_cast<T>(0)};
+        if(!normalize_vec3_checked(ortho)) {
+            ortho[0] = -a[2];
+            ortho[1] = static_cast<T>(0);
+            ortho[2] = a[0];
+            normalize_vec3_checked(ortho);
+        }
+        const double angle = 3.14159265358979323846 * t;
+        const double ca = std::cos(angle);
+        const double sa = std::sin(angle);
+        for(int i = 0; i < 3; i++) {
+            out[i] = static_cast<T>(ca * static_cast<double>(a[i]) + sa * static_cast<double>(ortho[i]));
+        }
+        normalize(out);
+        return;
+    }
+
+    const double theta = std::acos(d);
+    const double sin_theta = std::sin(theta);
+    const double wa = std::sin((1.0 - t) * theta) / sin_theta;
+    const double wb = std::sin(t * theta) / sin_theta;
+    for(int i = 0; i < 3; i++) {
+        out[i] = static_cast<T>(wa * static_cast<double>(a[i]) + wb * static_cast<double>(b[i]));
+    }
+    normalize(out);
+}
+
+static void orthonormalize_up_for_forward(const T forward[3], const T preferred_up[3], T up[3]) {
+    up[0] = preferred_up[0];
+    up[1] = preferred_up[1];
+    up[2] = preferred_up[2];
+    const double projection = dot_vec3(up, forward);
+    for(int i = 0; i < 3; i++) {
+        up[i] = static_cast<T>(static_cast<double>(up[i]) - projection * static_cast<double>(forward[i]));
+    }
+    if(normalize_vec3_checked(up)) {
+        return;
+    }
+    T fallback[3] = {static_cast<T>(0), static_cast<T>(0), static_cast<T>(1)};
+    if(std::fabs(dot_vec3(fallback, forward)) > 0.95) {
+        fallback[0] = static_cast<T>(0);
+        fallback[1] = static_cast<T>(1);
+        fallback[2] = static_cast<T>(0);
+    }
+    const double fallback_projection = dot_vec3(fallback, forward);
+    for(int i = 0; i < 3; i++) {
+        up[i] = static_cast<T>(static_cast<double>(fallback[i]) - fallback_projection * static_cast<double>(forward[i]));
+    }
+    normalize(up);
+}
+
 static TracePose interpolate_pose(const TracePose& a, const TracePose& b, double timestamp_s) {
     const double duration = b.timestamp_s - a.timestamp_s;
     const double t = duration > 0.0 ? std::min(std::max((timestamp_s - a.timestamp_s) / duration, 0.0), 1.0) : 0.0;
@@ -492,16 +683,25 @@ static TracePose interpolate_pose(const TracePose& a, const TracePose& b, double
     TracePose out;
     lerp_vec3(a.eye, b.eye, t, out.eye);
 
+    if(a.has_yaw_pitch && b.has_yaw_pitch) {
+        const double yaw = a.yaw + wrap_angle_delta(b.yaw - a.yaw) * t;
+        const double pitch = static_cast<double>(a.pitch) + (static_cast<double>(b.pitch) - static_cast<double>(a.pitch)) * t;
+        set_pose_yaw_pitch(out, yaw, pitch);
+        out.timestamp_s = timestamp_s;
+        out.has_timestamp = true;
+        return out;
+    }
+
     T forward_a[3];
     T forward_b[3];
     T forward[3];
     pose_forward(a, forward_a);
     pose_forward(b, forward_b);
-    lerp_vec3(forward_a, forward_b, t, forward);
-    normalize(forward);
+    slerp_unit_vec3(forward_a, forward_b, t, forward);
 
-    lerp_vec3(a.up, b.up, t, out.up);
-    normalize(out.up);
+    T up_preferred[3];
+    slerp_unit_vec3(a.up, b.up, t, up_preferred);
+    orthonormalize_up_for_forward(forward, up_preferred, out.up);
 
     out.look_at[0] = out.eye[0] + forward[0];
     out.look_at[1] = out.eye[1] + forward[1];
@@ -592,6 +792,43 @@ static Quaternion normalize_quaternion(const Quaternion& q) {
     out.y = q.y / norm;
     out.z = q.z / norm;
     return out;
+}
+
+static double quaternion_angle(const Quaternion& a, const Quaternion& b) {
+    const Quaternion an = normalize_quaternion(a);
+    const Quaternion bn = normalize_quaternion(b);
+    double d = std::fabs(dot_quaternion(an, bn));
+    d = std::min(std::max(d, -1.0), 1.0);
+    return 2.0 * std::acos(d);
+}
+
+static Quaternion slerp_quaternion(const Quaternion& a_in, const Quaternion& b_in, double t) {
+    Quaternion a = normalize_quaternion(a_in);
+    Quaternion b = normalize_quaternion(b_in);
+    double d = dot_quaternion(a, b);
+    if(d < 0.0) {
+        b = negate_quaternion(b);
+        d = -d;
+    }
+    d = std::min(std::max(d, -1.0), 1.0);
+    if(d > 0.9995) {
+        Quaternion out;
+        out.w = a.w + (b.w - a.w) * t;
+        out.x = a.x + (b.x - a.x) * t;
+        out.y = a.y + (b.y - a.y) * t;
+        out.z = a.z + (b.z - a.z) * t;
+        return normalize_quaternion(out);
+    }
+    const double theta = std::acos(d);
+    const double sin_theta = std::sin(theta);
+    const double wa = std::sin((1.0 - t) * theta) / sin_theta;
+    const double wb = std::sin(t * theta) / sin_theta;
+    Quaternion out;
+    out.w = wa * a.w + wb * b.w;
+    out.x = wa * a.x + wb * b.x;
+    out.y = wa * a.y + wb * b.y;
+    out.z = wa * a.z + wb * b.z;
+    return normalize_quaternion(out);
 }
 
 static void cross3(const T a[3], const T b[3], T out[3]) {
@@ -732,6 +969,115 @@ static double gaussian_weight(double dt, double sigma_s) {
     return std::exp(-0.5 * x * x);
 }
 
+static bool trace_has_yaw_pitch(const std::vector<TracePose>& poses) {
+    if(poses.empty()) {
+        return false;
+    }
+    for(const TracePose& pose : poses) {
+        if(!pose.has_yaw_pitch || !std::isfinite(pose.yaw) || !std::isfinite(pose.pitch)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+static std::vector<double> gaussian_smooth_scalar(const std::vector<double>& values, const std::vector<double>& times, double sigma_s) {
+    if(sigma_s <= 0.0 || values.size() < 2) {
+        return values;
+    }
+    std::vector<double> output(values.size());
+    const double radius_s = 3.0 * sigma_s;
+    for(size_t i = 0; i < values.size(); i++) {
+        const auto begin_it = std::lower_bound(times.begin(), times.end(), times[i] - radius_s);
+        const auto end_it = std::upper_bound(times.begin(), times.end(), times[i] + radius_s);
+        const size_t begin = static_cast<size_t>(begin_it - times.begin());
+        const size_t end = static_cast<size_t>(end_it - times.begin());
+        double sum_w = 0.0;
+        double sum = 0.0;
+        for(size_t j = begin; j < end; j++) {
+            const double w = gaussian_weight(times[j] - times[i], sigma_s);
+            sum_w += w;
+            sum += w * values[j];
+        }
+        output[i] = sum_w > 0.0 ? sum / sum_w : values[i];
+    }
+    return output;
+}
+
+static void limit_yaw_pitch_speed(const std::vector<double>& input_yaw, const std::vector<double>& input_pitch, const std::vector<double>& times, double max_speed_rad_s, double ramp_multiplier, std::vector<double>& yaw, std::vector<double>& pitch) {
+    yaw = input_yaw;
+    pitch = input_pitch;
+    if(max_speed_rad_s <= 0.0 || yaw.size() < 2) {
+        return;
+    }
+    const double ramp_scale = std::max(ramp_multiplier, 1.0);
+    bool ramping = false;
+    for(size_t i = 1; i < yaw.size(); i++) {
+        double dt = times[i] - times[i - 1];
+        if(dt <= 1e-6 || !std::isfinite(dt)) {
+            dt = 1.0 / 30.0;
+        }
+        const double trigger_angle = max_speed_rad_s * dt;
+        const double ramp_angle = trigger_angle / ramp_scale;
+        const double input_delta_yaw = input_yaw[i] - input_yaw[i - 1];
+        const double input_delta_pitch = input_pitch[i] - input_pitch[i - 1];
+        const double input_angle = std::sqrt(input_delta_yaw * input_delta_yaw + input_delta_pitch * input_delta_pitch);
+        const double target_delta_yaw = input_yaw[i] - yaw[i - 1];
+        const double target_delta_pitch = input_pitch[i] - pitch[i - 1];
+        const double target_angle = std::sqrt(target_delta_yaw * target_delta_yaw + target_delta_pitch * target_delta_pitch);
+        if(ramping || input_angle > trigger_angle) {
+            if(ramp_angle > 0.0 && target_angle > ramp_angle) {
+                const double alpha = ramp_angle / target_angle;
+                yaw[i] = yaw[i - 1] + target_delta_yaw * alpha;
+                pitch[i] = pitch[i - 1] + target_delta_pitch * alpha;
+                ramping = true;
+            }
+            else {
+                yaw[i] = input_yaw[i];
+                pitch[i] = input_pitch[i];
+                ramping = false;
+            }
+        }
+    }
+}
+
+static std::vector<TracePose> filter_yaw_pitch_trace(const std::vector<TracePose>& input, const Options& options, bool& yaw_pitch_filter_applied) {
+    const bool filter_requested = options.max_orientation_speed_rad_s > 0.0;
+    yaw_pitch_filter_applied = false;
+    if(!filter_requested || input.size() < 2 || !trace_has_yaw_pitch(input)) {
+        return input;
+    }
+
+    const std::vector<double> times = smoothing_times(input, options.fps);
+    std::vector<double> input_yaw(input.size());
+    std::vector<double> input_pitch(input.size());
+    input_yaw[0] = input[0].yaw;
+    input_pitch[0] = input[0].pitch;
+    for(size_t i = 1; i < input.size(); i++) {
+        input_yaw[i] = input_yaw[i - 1] + wrap_angle_delta(input[i].yaw - input[i - 1].yaw);
+        input_pitch[i] = input[i].pitch;
+    }
+
+    std::vector<double> yaw;
+    std::vector<double> pitch;
+    limit_yaw_pitch_speed(
+        input_yaw,
+        input_pitch,
+        times,
+        options.max_orientation_speed_rad_s,
+        options.orientation_jump_ramp_multiplier,
+        yaw,
+        pitch
+    );
+
+    std::vector<TracePose> output = input;
+    for(size_t i = 0; i < output.size(); i++) {
+        set_pose_yaw_pitch(output[i], yaw[i], pitch[i]);
+    }
+    yaw_pitch_filter_applied = true;
+    return output;
+}
+
 static std::vector<Quaternion> pose_quaternions_continuous(const std::vector<TracePose>& poses) {
     std::vector<Quaternion> quaternions;
     quaternions.reserve(poses.size());
@@ -796,8 +1142,52 @@ static Quaternion smooth_orientation_at(const std::vector<Quaternion>& quaternio
     return normalize_quaternion(sum);
 }
 
-static std::vector<TracePose> smooth_trace(const std::vector<TracePose>& input, const Options& options, bool& smoothing_applied) {
-    const bool smoothing_requested = options.smooth_position_sigma_s > 0.0 || options.smooth_orientation_sigma_s > 0.0;
+static std::vector<Quaternion> limit_orientation_speed(const std::vector<Quaternion>& input, const std::vector<double>& times, double max_speed_rad_s, double ramp_multiplier) {
+    if(max_speed_rad_s <= 0.0 || input.size() < 2) {
+        return input;
+    }
+    const double ramp_scale = std::max(ramp_multiplier, 1.0);
+    std::vector<Quaternion> output = input;
+    bool ramping = false;
+    for(size_t i = 1; i < output.size(); i++) {
+        double dt = times[i] - times[i - 1];
+        if(dt <= 1e-6 || !std::isfinite(dt)) {
+            dt = 1.0 / 30.0;
+        }
+        const double trigger_angle = max_speed_rad_s * dt;
+        const double ramp_angle = trigger_angle / ramp_scale;
+        const double input_angle = quaternion_angle(input[i - 1], input[i]);
+        const double target_angle = quaternion_angle(output[i - 1], input[i]);
+        if(ramping || input_angle > trigger_angle) {
+            if(ramp_angle > 0.0 && target_angle > ramp_angle) {
+                output[i] = slerp_quaternion(output[i - 1], input[i], ramp_angle / target_angle);
+                ramping = true;
+            }
+            else {
+                output[i] = input[i];
+                ramping = false;
+            }
+        }
+    }
+    return output;
+}
+
+static void set_pose_orientation(TracePose& pose, const Quaternion& q) {
+    T forward[3];
+    T up[3];
+    quaternion_to_forward_up(q, forward, up);
+    pose.up[0] = up[0];
+    pose.up[1] = up[1];
+    pose.up[2] = up[2];
+    pose.look_at[0] = pose.eye[0] + forward[0];
+    pose.look_at[1] = pose.eye[1] + forward[1];
+    pose.look_at[2] = pose.eye[2] + forward[2];
+}
+
+static std::vector<TracePose> smooth_trace(const std::vector<TracePose>& input, const Options& options, bool& smoothing_applied, bool source_yaw_pitch_filter_applied) {
+    const bool smoothing_requested = options.smooth_position_sigma_s > 0.0 ||
+        options.smooth_orientation_sigma_s > 0.0 ||
+        (!source_yaw_pitch_filter_applied && options.max_orientation_speed_rad_s > 0.0);
     smoothing_applied = smoothing_requested && input.size() >= 2;
     if(!smoothing_applied) {
         return input;
@@ -817,19 +1207,49 @@ static std::vector<TracePose> smooth_trace(const std::vector<TracePose>& input, 
         }
     }
 
-    if(options.smooth_orientation_sigma_s > 0.0) {
-        const std::vector<Quaternion> quaternions = pose_quaternions_continuous(input);
-        for(size_t i = 0; i < input.size(); i++) {
-            const Quaternion q = smooth_orientation_at(quaternions, times, i, options.smooth_orientation_sigma_s);
-            T forward[3];
-            T up[3];
-            quaternion_to_forward_up(q, forward, up);
-            output[i].up[0] = up[0];
-            output[i].up[1] = up[1];
-            output[i].up[2] = up[2];
-            output[i].look_at[0] = output[i].eye[0] + forward[0];
-            output[i].look_at[1] = output[i].eye[1] + forward[1];
-            output[i].look_at[2] = output[i].eye[2] + forward[2];
+    if(options.smooth_orientation_sigma_s > 0.0 || (!source_yaw_pitch_filter_applied && options.max_orientation_speed_rad_s > 0.0)) {
+        if(trace_has_yaw_pitch(input)) {
+            std::vector<double> input_yaw(input.size());
+            std::vector<double> input_pitch(input.size());
+            input_yaw[0] = input[0].yaw;
+            input_pitch[0] = input[0].pitch;
+            for(size_t i = 1; i < input.size(); i++) {
+                input_yaw[i] = input_yaw[i - 1] + wrap_angle_delta(input[i].yaw - input[i - 1].yaw);
+                input_pitch[i] = input[i].pitch;
+            }
+            std::vector<double> yaw = input_yaw;
+            std::vector<double> pitch = input_pitch;
+            if(!source_yaw_pitch_filter_applied) {
+                limit_yaw_pitch_speed(
+                    input_yaw,
+                    input_pitch,
+                    times,
+                    options.max_orientation_speed_rad_s,
+                    options.orientation_jump_ramp_multiplier,
+                    yaw,
+                    pitch
+                );
+            }
+            yaw = gaussian_smooth_scalar(yaw, times, options.smooth_orientation_sigma_s);
+            pitch = gaussian_smooth_scalar(pitch, times, options.smooth_orientation_sigma_s);
+            for(size_t i = 0; i < input.size(); i++) {
+                set_pose_yaw_pitch(output[i], yaw[i], pitch[i]);
+            }
+        }
+        else {
+            std::vector<Quaternion> quaternions = pose_quaternions_continuous(input);
+            quaternions = limit_orientation_speed(
+                quaternions,
+                times,
+                options.max_orientation_speed_rad_s,
+                options.orientation_jump_ramp_multiplier
+            );
+            for(size_t i = 0; i < input.size(); i++) {
+                const Quaternion q = options.smooth_orientation_sigma_s > 0.0
+                    ? smooth_orientation_at(quaternions, times, i, options.smooth_orientation_sigma_s)
+                    : quaternions[i];
+                set_pose_orientation(output[i], q);
+            }
         }
     }
 
@@ -1024,16 +1444,21 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
     return record.ok;
 }
 
-static bool write_manifest(const Options& options, const std::string& scene_path, const std::vector<TracePose>& source_poses, const std::vector<TracePose>& render_poses, double trace_duration_s, double source_implied_fps, bool timestamp_resampled, bool smoothing_applied, const std::vector<RenderRecord>& records) {
+static bool write_manifest(const Options& options, const std::string& scene_path, const std::vector<TracePose>& source_poses, const std::vector<TracePose>& render_poses, double trace_duration_s, double source_implied_fps, bool timestamp_resampled, bool smoothing_applied, bool yaw_pitch_filter_applied, const std::vector<RenderRecord>& records) {
     json manifest;
     manifest["trace_path"] = options.trace_path;
     manifest["scene_path"] = scene_path;
     manifest["output_dir"] = options.output_dir;
     manifest["fps"] = options.fps;
     manifest["resolutions"] = json::array();
-    for(TI resolution : RENDER_RESOLUTIONS) {
-        if(should_render_resolution(options, resolution)) {
-            manifest["resolutions"].push_back(resolution);
+    for(const RenderResolutionOption& resolution : RENDER_RESOLUTIONS) {
+        if(should_render_resolution(options, resolution.width, resolution.height)) {
+            if(resolution.width == resolution.height) {
+                manifest["resolutions"].push_back(resolution.width);
+            }
+            else {
+                manifest["resolutions"].push_back(resolution.name);
+            }
         }
     }
     manifest["write_frames"] = options.write_frames;
@@ -1064,9 +1489,13 @@ static bool write_manifest(const Options& options, const std::string& scene_path
     };
     manifest["smoothing"] = {
         {"applied", smoothing_applied},
-        {"algorithm", "offline_zero_phase_gaussian_quaternion_nlerp"},
+        {"algorithm", yaw_pitch_filter_applied ? "source_yaw_pitch_speed_limit_then_resample_then_yaw_pitch_gaussian" : "yaw_pitch_or_quaternion_speed_limit_then_gaussian"},
+        {"source_yaw_pitch_filter_applied", yaw_pitch_filter_applied},
         {"position_sigma_s", options.smooth_position_sigma_s},
-        {"orientation_sigma_s", options.smooth_orientation_sigma_s}
+        {"orientation_sigma_s", options.smooth_orientation_sigma_s},
+        {"max_orientation_speed_rad_s", options.max_orientation_speed_rad_s},
+        {"max_orientation_speed_deg_s", options.max_orientation_speed_rad_s * 180.0 / 3.14159265358979323846},
+        {"orientation_jump_ramp_multiplier", options.orientation_jump_ramp_multiplier}
     };
     manifest["renders"] = json::array();
     for(const RenderRecord& record : records) {
@@ -1108,29 +1537,19 @@ static bool write_manifest(const Options& options, const std::string& scene_path
     return true;
 }
 
-template <TI RESOLUTION, bool ENABLE_AA, TI AA_GRID_SIZE>
+template <TI WIDTH, TI HEIGHT, bool ENABLE_AA, TI AA_GRID_SIZE>
 static bool render_selected_settings_for_resolution(rlt::devices::DEVICE_FACTORY<>& device, const Options& options, const std::string& scene_path, const std::vector<TracePose>& poses, std::vector<RenderRecord>& records) {
-    if(!should_render_resolution(options, RESOLUTION)) {
+    if(!should_render_resolution(options, WIDTH, HEIGHT)) {
         return true;
     }
     bool ok = true;
-    if(should_render_setting(options, "rgb", "medium")) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::Medium, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::RGB>;
+    if(should_render_setting(options, "rgb", "very_high")) {
+        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, WIDTH, HEIGHT, NUM_PROBES, rlt::rendering::raytracing::VeryHigh, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::RGB>;
         records.emplace_back();
-        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "medium", records.back()) && ok;
-    }
-    if(should_render_setting(options, "rgb", "high")) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::High, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::RGB>;
-        records.emplace_back();
-        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "high", records.back()) && ok;
-    }
-    if(should_render_setting(options, "rgb", "low")) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::Low, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::RGB>;
-        records.emplace_back();
-        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "low", records.back()) && ok;
+        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "very_high", records.back()) && ok;
     }
     if(should_render_depth(options)) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, RESOLUTION, RESOLUTION, NUM_PROBES, rlt::rendering::raytracing::Medium, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::DEPTH>;
+        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, WIDTH, HEIGHT, NUM_PROBES, rlt::rendering::raytracing::Medium, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::DEPTH>;
         records.emplace_back();
         ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "depth", "", records.back()) && ok;
     }
@@ -1156,20 +1575,36 @@ int main(int argc, char** argv) {
     if(!load_trace(options, scene_path, source_poses)) {
         return 1;
     }
+    bool yaw_pitch_filter_applied = false;
+    std::vector<TracePose> filtered_source_poses = filter_yaw_pitch_trace(source_poses, options, yaw_pitch_filter_applied);
+    if(yaw_pitch_filter_applied) {
+        std::cout << "Applied source yaw/pitch jump filter before resampling with max orientation speed "
+                  << (options.max_orientation_speed_rad_s * 180.0 / 3.14159265358979323846)
+                  << " deg/s with " << options.orientation_jump_ramp_multiplier
+                  << "x jump ramps" << std::endl;
+    }
     double trace_duration_s = 0.0;
     double source_implied_fps = 0.0;
     bool timestamp_resampled = false;
-    std::vector<TracePose> poses = resample_trace(source_poses, options.fps, trace_duration_s, source_implied_fps, timestamp_resampled);
+    std::vector<TracePose> poses = resample_trace(filtered_source_poses, options.fps, trace_duration_s, source_implied_fps, timestamp_resampled);
     if(timestamp_resampled) {
         std::cout << "Resampled " << source_poses.size() << " timestamped poses over " << trace_duration_s << "s to " << poses.size() << " frames at " << options.fps << " fps" << std::endl;
     }
     else {
         std::cout << "Rendering " << poses.size() << " poses without timestamp resampling" << std::endl;
     }
-    bool smoothing_applied = false;
-    poses = smooth_trace(poses, options, smoothing_applied);
-    if(smoothing_applied) {
-        std::cout << "Applied Gaussian smoothing with position sigma " << options.smooth_position_sigma_s << "s and orientation sigma " << options.smooth_orientation_sigma_s << "s" << std::endl;
+    bool post_resample_smoothing_applied = false;
+    poses = smooth_trace(poses, options, post_resample_smoothing_applied, yaw_pitch_filter_applied);
+    const bool smoothing_applied = yaw_pitch_filter_applied || post_resample_smoothing_applied;
+    if(post_resample_smoothing_applied) {
+        std::cout << "Applied post-resample trace smoothing with position sigma " << options.smooth_position_sigma_s << "s";
+        if(!yaw_pitch_filter_applied) {
+            std::cout << ", orientation sigma " << options.smooth_orientation_sigma_s
+                      << "s, and max orientation speed " << (options.max_orientation_speed_rad_s * 180.0 / 3.14159265358979323846)
+                      << " deg/s with " << options.orientation_jump_ramp_multiplier
+                      << "x jump ramps";
+        }
+        std::cout << std::endl;
     }
 
     using DEVICE = rlt::devices::DEVICE_FACTORY<>;
@@ -1179,23 +1614,25 @@ int main(int argc, char** argv) {
     std::vector<RenderRecord> records;
     bool ok = true;
 
-    ok = render_selected_settings_for_resolution<64, false, 1>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<64, true, 2>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<128, false, 1>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<128, true, 2>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<256, false, 1>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<256, true, 2>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<512, false, 1>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<512, true, 2>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<1024, false, 1>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<1024, true, 2>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<2048, false, 1>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<2048, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<64, 64, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<64, 64, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<128, 128, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<128, 128, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<256, 256, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<256, 256, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<512, 512, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<512, 512, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<1024, 1024, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<1024, 1024, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<2048, 2048, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<2048, 2048, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<3840, 2160, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<3840, 2160, true, 2>(device, options, scene_path, poses, records) && ok;
 
     if(records.empty()) {
         std::cerr << "No render settings selected by --settings=" << options.settings << std::endl;
         return 1;
     }
-    ok = write_manifest(options, scene_path, source_poses, poses, trace_duration_s, source_implied_fps, timestamp_resampled, smoothing_applied, records) && ok;
+    ok = write_manifest(options, scene_path, source_poses, poses, trace_duration_s, source_implied_fps, timestamp_resampled, smoothing_applied, yaw_pitch_filter_applied, records) && ok;
     return ok ? 0 : 1;
 }
