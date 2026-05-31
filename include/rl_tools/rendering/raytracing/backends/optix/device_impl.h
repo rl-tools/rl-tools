@@ -498,7 +498,7 @@ namespace rl_tools
       emissive_color = self.emissive;
     }
 
-    owl::vec3f ambient = self.ambient_color * base_color * occlusion;
+    owl::vec3f ambient = self.ambient_color * base_color * ((1.f - metallic) * occlusion);
     owl::vec3f color = ambient + Lo + emissive_color;
 
     unsigned int depth = optixGetPayload_2();
