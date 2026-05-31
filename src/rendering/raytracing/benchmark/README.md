@@ -51,6 +51,7 @@ cmake --build build --target \
   rendering_raytracing_sim_benchmark_sweep \
   rendering_raytracing_sim_benchmark_medium \
   rendering_raytracing_sim_benchmark_high \
+  rendering_raytracing_sim_benchmark_very_high \
   rendering_raytracing_sim_benchmark_low \
   rendering_raytracing_sim_benchmark_rgb \
   rendering_raytracing_sim_benchmark_depth \
@@ -91,6 +92,21 @@ OUT_HIGH=$(mktemp -d /tmp/rltools_rt_matrix_high.XXXXXX)
 echo "$OUT_HIGH"
 ```
 
+Very High matrix:
+
+```bash
+OUT_VERY_HIGH=$(mktemp -d /tmp/rltools_rt_matrix_very_high.XXXXXX)
+./build/src/rendering/raytracing/benchmark/rendering_raytracing_sim_benchmark_very_high \
+  --scene all \
+  --step-mode all \
+  --output all \
+  --seconds 10 \
+  --warmup-seconds 2 \
+  --gpu-label "$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1) very_high" \
+  --output-dir "$OUT_VERY_HIGH" | tee "$OUT_VERY_HIGH/output.log"
+echo "$OUT_VERY_HIGH"
+```
+
 Low matrix:
 
 ```bash
@@ -113,9 +129,9 @@ Each matrix covers:
 | Scene | `20_objects`, `procthor` |
 | Output | `rgb`, `depth` |
 | Step mode | `render_only`, `render_physics` |
-| Profile | medium target, high target, low target |
+| Profile | medium target, high target, very high target, low target |
 
-`High` uses PBR shading, `Medium` uses textured/basic shading, and `Low` uses flat per-geometry color.
+`High` uses PBR shading without punctual-light shadow rays, `VeryHigh` adds punctual-light shadow rays, `Medium` uses textured/basic shading, and `Low` uses flat per-geometry color.
 
 The benchmark writes one stitched PNG per row and CSV rows prefixed with `csv_result`.
 

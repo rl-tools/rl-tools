@@ -355,7 +355,8 @@ namespace rl_tools
 
 #undef RL_TOOLS_RENDERING_RAYTRACING_BASIC_CLOSEST_HIT
 
-  OPTIX_CLOSEST_HIT_PROGRAM(TriangleMeshPBR)()
+  template <bool ENABLE_PUNCTUAL_LIGHT_SHADOWS>
+  inline __device__ void triangleMeshPBRImpl()
   {
     owl::vec3f &prd = owl::getPRD<owl::vec3f>();
     const TrianglesGeomData &self = owl::getProgramData<TrianglesGeomData>();
@@ -461,7 +462,9 @@ namespace rl_tools
 
       float NdotL = fmaxf(dot(N, L), 0.f);
       if (NdotL <= 0.f) continue;
-      if (light.type != 0 && trace_shadow_occluded(self.world, hit_point + N * 2e-3f, L, light_distance)) continue;
+      if constexpr (ENABLE_PUNCTUAL_LIGHT_SHADOWS) {
+        if (light.type != 0 && trace_shadow_occluded(self.world, hit_point + N * 2e-3f, L, light_distance)) continue;
+      }
 
       owl::vec3f H = normalize(V + L);
       float NdotH = fmaxf(dot(N, H), 0.f);
@@ -550,6 +553,16 @@ namespace rl_tools
     }
 
     prd = color;
+  }
+
+  OPTIX_CLOSEST_HIT_PROGRAM(TriangleMeshPBR)()
+  {
+    triangleMeshPBRImpl<false>();
+  }
+
+  OPTIX_CLOSEST_HIT_PROGRAM(TriangleMeshPBRShadows)()
+  {
+    triangleMeshPBRImpl<true>();
   }
 
   OPTIX_MISS_PROGRAM(miss)()
