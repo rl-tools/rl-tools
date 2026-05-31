@@ -160,7 +160,7 @@ namespace rl_tools {
         template <typename SPEC>
         const char* closest_hit_program_name() {
             if constexpr (SPEC::SHADING::PBR_SHADING) {
-                return "TriangleMeshPBR";
+                return SPEC::SHADING::PUNCTUAL_LIGHT_SHADOWS ? "TriangleMeshPBRShadows" : "TriangleMeshPBR";
             }
             else if constexpr (SPEC::SHADING::LOAD_TEXTURES) {
                 if constexpr (SPEC::SHADING::NORMAL_SHADING) {
@@ -1039,7 +1039,7 @@ namespace rl_tools {
                 triangles_geom_type = owlGeomTypeCreate(context, OWL_TRIANGLES,
                                                          sizeof(TrianglesGeomData),
                                                          triangles_geom_vars, -1);
-                owlGeomTypeSetClosestHit(triangles_geom_type, 0, module, "TriangleMeshPBR");
+                owlGeomTypeSetClosestHit(triangles_geom_type, 0, module, rendering::raytracing::detail::closest_hit_program_name<SPEC>());
             } else {
                 using SHADING_USAGE = rendering::raytracing::detail::MediumShadingUsage<SPEC>;
                 std::vector<OWLVarDecl> triangles_geom_vars;

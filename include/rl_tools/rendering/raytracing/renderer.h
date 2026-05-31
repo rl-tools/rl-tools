@@ -26,7 +26,8 @@ namespace rl_tools {
             bool T_METALLIC_REFLECTIONS,
             bool T_SRGB_OUTPUT,
             bool T_CHECKER_BACKGROUND,
-            bool T_PBR_SHADING
+            bool T_PBR_SHADING,
+            bool T_PUNCTUAL_LIGHT_SHADOWS = false
         >
         struct ShadingOptions{
             static constexpr bool LOAD_TEXTURES = T_LOAD_TEXTURES;
@@ -35,14 +36,17 @@ namespace rl_tools {
             static constexpr bool SRGB_OUTPUT = T_SRGB_OUTPUT;
             static constexpr bool CHECKER_BACKGROUND = T_CHECKER_BACKGROUND;
             static constexpr bool PBR_SHADING = T_PBR_SHADING;
+            static constexpr bool PUNCTUAL_LIGHT_SHADOWS = T_PUNCTUAL_LIGHT_SHADOWS;
         };
 
         using Medium = ShadingOptions<true, true, true, true, true, false>;
         using High = ShadingOptions<true, true, true, true, false, true>;
+        using VeryHigh = ShadingOptions<true, true, true, true, false, true, true>;
         using Low = ShadingOptions<false, false, false, false, false, false>;
 
         using BasicShading = Medium;
         using HighFidelityShading = High;
+        using VeryHighFidelityShading = VeryHigh;
         using FastFlatShading = Low;
 
         template <typename T_T, typename T_TI, T_TI T_CAM_WIDTH, T_TI T_CAM_HEIGHT, T_TI T_NUM_CAMERAS, T_TI T_NUM_PROBES, typename T_SHADING = Medium, bool T_ENABLE_MOTION_BLUR = false, T_TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, T_TI T_ANTI_ALIASING_GRID_SIZE = 1, OutputMode T_OUTPUT_MODE = OutputMode::RGB>
