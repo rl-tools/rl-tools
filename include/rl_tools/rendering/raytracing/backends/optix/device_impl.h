@@ -81,6 +81,23 @@ namespace rl_tools
     return color;
   }
 
+  inline __device__ bool trace_shadow_occluded(OptixTraversableHandle world, const owl::vec3f &pos, const owl::vec3f &direction, float max_dist)
+  {
+    unsigned int u0 = __float_as_uint(max_dist);
+    unsigned int u1 = 0;
+    optixTrace(world,
+               (const float3&)pos,
+               (const float3&)direction,
+               1e-3f,
+               max_dist,
+               0.0f,
+               OptixVisibilityMask(255),
+               OPTIX_RAY_FLAG_DISABLE_ANYHIT | OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT,
+               1, NUM_RAY_TYPES, 1,
+               u0, u1);
+    return u1 != 0;
+  }
+
 #if RL_TOOLS_RENDERING_RAYTRACING_ENABLE_DEPTH_PROGRAMS
   inline __device__ float trace_depth_distance(OptixTraversableHandle world, const owl::vec3f &pos, const owl::vec3f &direction, float max_depth)
   {
@@ -423,12 +440,14 @@ namespace rl_tools
       owl::vec3f Lc(light.color[0], light.color[1], light.color[2]);
       owl::vec3f L;
       float attenuation = 1.f;
+      float light_distance = 1e20f;
 
       if (light.type == 0) {
         L = owl::vec3f(light.direction[0], light.direction[1], light.direction[2]);
       } else {
         owl::vec3f to_light = owl::vec3f(light.position[0], light.position[1], light.position[2]) - hit_point;
         float dist = length(to_light);
+        light_distance = fmaxf(dist - 1e-3f, 0.f);
         L = to_light * (1.f / fmaxf(dist, 1e-6f));
         attenuation = 1.f / (light.attenuation_constant + light.attenuation_linear * dist + light.attenuation_quadratic * dist * dist);
         if (light.type == 2) {
@@ -442,6 +461,7 @@ namespace rl_tools
 
       float NdotL = fmaxf(dot(N, L), 0.f);
       if (NdotL <= 0.f) continue;
+      if (light.type != 0 && trace_shadow_occluded(self.world, hit_point + N * 2e-3f, L, light_distance)) continue;
 
       owl::vec3f H = normalize(V + L);
       float NdotH = fmaxf(dot(N, H), 0.f);
@@ -514,7 +534,7 @@ namespace rl_tools
       optixTrace(self.world,
                  (const float3&)hit_point,
                  (const float3&)ray_dir,
-                 1e-3f,
+                 1e-5f,
                  1e20f,
                  0.0f,
                  OptixVisibilityMask(255),

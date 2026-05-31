@@ -17,8 +17,8 @@ using T = float;
 using TI = typename rlt::devices::DEVICE_FACTORY<>::index_t;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 
-static constexpr TI CAM_WIDTH = 640;
-static constexpr TI CAM_HEIGHT = 480;
+static constexpr TI CAM_WIDTH = 2048;
+static constexpr TI CAM_HEIGHT = 1024;
 static constexpr TI NUM_CAMERAS = 1;
 static constexpr TI NUM_PROBES = 1;
 
