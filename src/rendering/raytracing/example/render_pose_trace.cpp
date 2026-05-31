@@ -34,6 +34,7 @@ static constexpr TI NUM_CAMERAS = 1;
 static constexpr TI NUM_PROBES = 1;
 static constexpr int FRAME_JPEG_QUALITY = 90;
 static constexpr TI MIN_VIDEO_DIMENSION = 2048;
+static constexpr double DEFAULT_FOV_DEG = 80.0;
 static constexpr double DEFAULT_SMOOTH_POSITION_SIGMA_S = 1.0;
 static constexpr double DEFAULT_SMOOTH_ORIENTATION_SIGMA_S = 6.0;
 static constexpr double DEFAULT_MAX_ORIENTATION_SPEED_RAD_S = 1.6;
@@ -78,6 +79,7 @@ struct Options {
     int resolution_height = 0;
     int fps = 60;
     int max_frames = 0;
+    double fov_deg = DEFAULT_FOV_DEG;
     double smooth_position_sigma_s = DEFAULT_SMOOTH_POSITION_SIGMA_S;
     double smooth_orientation_sigma_s = DEFAULT_SMOOTH_ORIENTATION_SIGMA_S;
     double max_orientation_speed_rad_s = DEFAULT_MAX_ORIENTATION_SPEED_RAD_S;
@@ -117,6 +119,7 @@ static void print_usage(const char* argv0) {
         << "  --scene <path>             Scene path override\n"
         << "  --output-dir <dir>         Parent output directory; renders go under <dir>/<trace-name>/ (default: .)\n"
         << "  --fps <n>                  MP4 frame rate; timestamped traces are resampled to this rate (default: 60)\n"
+        << "  --fov <deg>                Horizontal FOV in degrees (default: 80)\n"
         << "  --ffmpeg <path>            ffmpeg binary (default: ffmpeg)\n"
         << "  --settings <list>          all, rgb, depth, very_high, or comma list; depth has no rendering profile\n"
         << "                              medium, high, and low are temporarily disabled\n"
@@ -200,6 +203,10 @@ static bool parse_double(const std::string& value, double& out) {
     return true;
 }
 
+static double degrees_to_radians(double degrees) {
+    return degrees * 3.14159265358979323846 / 180.0;
+}
+
 static bool option_value(int& i, int argc, char** argv, const std::string& arg, const char* name, std::string& out) {
     const std::string prefix = std::string(name) + "=";
     if(arg.compare(0, prefix.size(), prefix) == 0) {
@@ -255,6 +262,12 @@ static bool parse_options(int argc, char** argv, Options& options) {
         else if(option_value(i, argc, argv, arg, "--fps", value)) {
             if(!parse_int(value, options.fps) || options.fps <= 0) {
                 std::cerr << "Invalid --fps: " << value << std::endl;
+                return false;
+            }
+        }
+        else if(option_value(i, argc, argv, arg, "--fov", value) || option_value(i, argc, argv, arg, "--fov-deg", value)) {
+            if(!parse_double(value, options.fov_deg) || options.fov_deg <= 0.0 || options.fov_deg >= 180.0) {
+                std::cerr << "Invalid --fov: " << value << " (expected degrees in (0, 180))" << std::endl;
                 return false;
             }
         }
@@ -1469,9 +1482,10 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
 
     bool ok = true;
     std::vector<uint8_t> rgb_frame;
+    const T fov = static_cast<T>(degrees_to_radians(options.fov_deg));
     for(size_t frame_i = 0; frame_i < poses.size(); frame_i++) {
         const TracePose& pose = poses[frame_i];
-        rlt::set(device, env.renderer->cameras, rlt::make_camera_data(pose.eye, pose.look_at, pose.up, SPEC::RAYTRACING_SPEC::COS_FOVY, static_cast<T>(WIDTH) / static_cast<T>(HEIGHT)), static_cast<TI>(0));
+        rlt::set(device, env.renderer->cameras, rlt::make_camera_data(pose.eye, pose.look_at, pose.up, fov, static_cast<T>(WIDTH) / static_cast<T>(HEIGHT)), static_cast<TI>(0));
         rlt::set_cameras(device, *env.renderer, env.renderer->cameras);
         if constexpr (SPEC::HAS_DEPTH) {
             rlt::render_depth_only(device, *env.renderer);
@@ -1520,6 +1534,8 @@ static bool write_manifest(const Options& options, const std::string& scene_path
     manifest["scene_path"] = scene_path;
     manifest["output_dir"] = options.output_dir;
     manifest["fps"] = options.fps;
+    manifest["fov_deg"] = options.fov_deg;
+    manifest["fov_rad"] = degrees_to_radians(options.fov_deg);
     manifest["resolutions"] = json::array();
     for(const RenderResolutionOption& resolution : RENDER_RESOLUTIONS) {
         if(should_render_resolution(options, resolution.width, resolution.height)) {
