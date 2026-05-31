@@ -29,7 +29,7 @@ using SPEC = rlt::rendering::raytracing::Specification<
     CAM_HEIGHT,
     NUM_CAMERAS,
     NUM_PROBES,
-    rlt::rendering::raytracing::High,
+    rlt::rendering::raytracing::VeryHigh,
     false,
     1,
     true,
@@ -37,7 +37,7 @@ using SPEC = rlt::rendering::raytracing::Specification<
 >;
 using Renderer = rlt::rendering::raytracing::Renderer<SPEC>;
 
-static constexpr char DEFAULT_SCENE_PATH[] = "/home/jonas/git/hssd-hab/glb/108736884_177263634.glb";
+static constexpr char DEFAULT_SCENE_PATH[] = "/home/jonas/git/hssd-hab/glb/102343992.glb";
 
 struct Options {
     std::string scene_path;
@@ -144,15 +144,15 @@ int main(int argc, char** argv) {
     rlt::upload_geometry(device, renderer);
 
     constexpr T position[3] = {
-        static_cast<T>(-11.35),
-        static_cast<T>(9.93),
-        static_cast<T>(1.48)
+        static_cast<T>(12.08),
+        static_cast<T>(7.23),
+        static_cast<T>(2.26)
     };
     constexpr T orientation_wxyz[4] = {
-        static_cast<T>(0.915),
-        static_cast<T>(-0.052),
-        static_cast<T>(0.126),
-        static_cast<T>(0.379)
+        static_cast<T>(0.656),
+        static_cast<T>(0.117),
+        static_cast<T>(0.104),
+        static_cast<T>(-0.738)
     };
     constexpr T forward_body[3] = {static_cast<T>(1), static_cast<T>(0), static_cast<T>(0)};
     constexpr T up_body[3] = {static_cast<T>(0), static_cast<T>(0), static_cast<T>(1)};
