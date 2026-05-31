@@ -15,6 +15,7 @@
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#include <assimp/GltfMaterial.h>
 #include <nlohmann/json.hpp>
 
 #include <vector>
@@ -246,16 +247,8 @@ namespace rl_tools {
     }
 
     namespace rendering::raytracing::glb{
-        struct MaterialMeta {
-            int alpha_mode = 0;
-            float alpha_cutoff = 0.5f;
-            bool has_base_color_factor = false;
-            float base_color_factor[4] = {1.0f, 1.0f, 1.0f, 1.0f};
-        };
-
         struct ParsedMetadata {
             std::vector<rendering::raytracing::SceneLight> lights;
-            std::vector<MaterialMeta> materials;
         };
 
         static void node_world_transform(const nlohmann::json& nodes, int node_idx, const std::vector<int>& parent_map, float out[16]) {
@@ -378,26 +371,6 @@ namespace rl_tools {
                     }
 
                     result.lights.push_back(sl);
-                }
-            }
-
-            if (gltf.contains("materials")) {
-                for (auto& mat : gltf["materials"]) {
-                    MaterialMeta mm;
-                    std::string am = mat.value("alphaMode", "OPAQUE");
-                    if (am == "MASK") mm.alpha_mode = 1;
-                    else if (am == "BLEND") mm.alpha_mode = 2;
-                    mm.alpha_cutoff = mat.value("alphaCutoff", 0.5f);
-                    if (mat.contains("pbrMetallicRoughness") && mat["pbrMetallicRoughness"].contains("baseColorFactor")) {
-                        auto& bcf = mat["pbrMetallicRoughness"]["baseColorFactor"];
-                        if (bcf.size() >= 4) {
-                            mm.has_base_color_factor = true;
-                            for (int i = 0; i < 4; i++) {
-                                mm.base_color_factor[i] = bcf[i].get<float>();
-                            }
-                        }
-                    }
-                    result.materials.push_back(mm);
                 }
             }
 
@@ -914,12 +887,32 @@ namespace rl_tools {
                     }
                     float opacity_val = 1.0f;
                     mat->Get(AI_MATKEY_OPACITY, opacity_val);
+                    aiColor4D opacity_base_color(1.0f, 1.0f, 1.0f, 1.0f);
+                    if (aiGetMaterialColor(mat, AI_MATKEY_BASE_COLOR, &opacity_base_color) == AI_SUCCESS) {
+                        opacity_val = fminf(opacity_val, opacity_base_color.a);
+                    }
                     float transmission_factor = 0.0f;
                     mat->Get(AI_MATKEY_TRANSMISSION_FACTOR, transmission_factor);
                     if (transmission_factor > 0.0f) {
                         opacity_val = fminf(opacity_val, 1.0f - transmission_factor);
                     }
                     md.opacity = opacity_val;
+
+                    aiString alpha_mode;
+                    if (mat->Get(AI_MATKEY_GLTF_ALPHAMODE, alpha_mode) == AI_SUCCESS) {
+                        std::string alpha_mode_str = alpha_mode.C_Str();
+                        if (alpha_mode_str == "MASK") {
+                            md.alpha_mode = 1;
+                        } else if (alpha_mode_str == "BLEND") {
+                            md.alpha_mode = 2;
+                        } else {
+                            md.alpha_mode = 0;
+                        }
+                    }
+                    float alpha_cutoff = 0.5f;
+                    if (mat->Get(AI_MATKEY_GLTF_ALPHACUTOFF, alpha_cutoff) == AI_SUCCESS) {
+                        md.alpha_cutoff = alpha_cutoff;
+                    }
                 }
 
                 if constexpr (SPEC::SHADING::LOAD_TEXTURES) {
@@ -984,24 +977,6 @@ namespace rl_tools {
                 RL_TOOLS_RENDERING_RAYTRACING_LOG("  light " << li << ": pos=(" << sl.position[0] << "," << sl.position[1] << "," << sl.position[2]
                     << ") dir=(" << sl.direction[0] << "," << sl.direction[1] << "," << sl.direction[2]
                     << ") color=(" << sl.color[0] << "," << sl.color[1] << "," << sl.color[2] << ")");
-            }
-
-            for (size_t mi = 0; mi < renderer.meshes.size(); mi++) {
-                auto& md = renderer.meshes[mi];
-                unsigned int mat_idx = scene->mMeshes[mesh_source_indices[mi]]->mMaterialIndex;
-                if (mat_idx < glb_meta.materials.size()) {
-                    auto& mm = glb_meta.materials[mat_idx];
-                    md.alpha_mode = mm.alpha_mode;
-                    md.alpha_cutoff = mm.alpha_cutoff;
-                    if (mm.has_base_color_factor) {
-                        md.color[0] = mm.base_color_factor[0];
-                        md.color[1] = mm.base_color_factor[1];
-                        md.color[2] = mm.base_color_factor[2];
-                    }
-                    if (mm.alpha_mode == 2) {
-                        md.opacity = fminf(md.opacity, mm.base_color_factor[3]);
-                    }
-                }
             }
         }
 
