@@ -33,8 +33,8 @@ using TI = typename rlt::devices::DEVICE_FACTORY<>::index_t;
 static constexpr TI NUM_CAMERAS = 1;
 static constexpr TI NUM_PROBES = 1;
 static constexpr int FRAME_JPEG_QUALITY = 90;
-static constexpr double DEFAULT_SMOOTH_POSITION_SIGMA_S = 0.18;
-static constexpr double DEFAULT_SMOOTH_ORIENTATION_SIGMA_S = 0.18;
+static constexpr double DEFAULT_SMOOTH_POSITION_SIGMA_S = 1.0;
+static constexpr double DEFAULT_SMOOTH_ORIENTATION_SIGMA_S = 6.0;
 static constexpr double DEFAULT_MAX_ORIENTATION_SPEED_RAD_S = 1.6;
 static constexpr double DEFAULT_ORIENTATION_JUMP_RAMP_MULTIPLIER = 5.0;
 
@@ -74,13 +74,13 @@ struct Options {
     std::string settings = "very_high";
     int resolution_width = 0;
     int resolution_height = 0;
-    int fps = 30;
+    int fps = 60;
     int max_frames = 0;
     double smooth_position_sigma_s = DEFAULT_SMOOTH_POSITION_SIGMA_S;
     double smooth_orientation_sigma_s = DEFAULT_SMOOTH_ORIENTATION_SIGMA_S;
     double max_orientation_speed_rad_s = DEFAULT_MAX_ORIENTATION_SPEED_RAD_S;
     double orientation_jump_ramp_multiplier = DEFAULT_ORIENTATION_JUMP_RAMP_MULTIPLIER;
-    bool write_frames = true;
+    bool write_frames = false;
     bool help = false;
 };
 
@@ -111,7 +111,7 @@ static void print_usage(const char* argv0) {
         << "  --trace <path>             Camera pose JSON or trace JSON\n"
         << "  --scene <path>             Scene path override\n"
         << "  --output-dir <dir>         Output directory (default: .)\n"
-        << "  --fps <n>                  MP4 frame rate; timestamped traces are resampled to this rate (default: 30)\n"
+        << "  --fps <n>                  MP4 frame rate; timestamped traces are resampled to this rate (default: 60)\n"
         << "  --ffmpeg <path>            ffmpeg binary (default: ffmpeg)\n"
         << "  --settings <list>          all, rgb, depth, very_high, or comma list; depth has no rendering profile\n"
         << "                              medium, high, and low are temporarily disabled\n"
@@ -119,15 +119,16 @@ static void print_usage(const char* argv0) {
         << "  --resolution <name>        Render one resolution: 64, 128, 256, 512, 1024, 2048, or 4k\n"
         << "                              4k is UHD 3840x2160\n"
         << "                              By default resolutions up to 2048 are rendered; 4k is opt-in\n"
-        << "  --no-frames                Do not write per-frame PNG/JPEG image sequences\n"
-        << "                              By default frames are written under <output-dir>/frames/<render-name>/\n"
+        << "  --frames                   Write per-frame PNG/JPEG image sequences\n"
+        << "                              Frames are written under <output-dir>/frames/<render-name>/\n"
         << "                              64x64 and 128x128 frames are PNG; larger frames are JPEG\n"
+        << "  --no-frames                Do not write per-frame image sequences (default)\n"
         << "  --max-frames <n>           Limit trace frames when >0\n"
-        << "  --smooth-sigma-s <s>       Gaussian smoothing sigma for position and orientation (default: 0.18; use 0 to disable)\n"
+        << "  --smooth-sigma-s <s>       Gaussian smoothing sigma for position and orientation (use 0 to disable)\n"
         << "  --smooth-position-sigma-s <s>\n"
-        << "                              Gaussian smoothing sigma for position only (default: 0.18)\n"
+        << "                              Gaussian smoothing sigma for position only (default: 1)\n"
         << "  --smooth-orientation-sigma-s <s>\n"
-        << "                              Gaussian smoothing sigma for orientation only (default: 0.18)\n"
+        << "                              Gaussian smoothing sigma for orientation only (default: 6)\n"
         << "  --max-orientation-speed-deg-s <deg/s>\n"
         << "                              Detect orientation jumps before smoothing (default: 91.7; use 0 to disable)\n"
         << "  --orientation-jump-ramp-multiplier <x>\n"
@@ -241,6 +242,9 @@ static bool parse_options(int argc, char** argv, Options& options) {
         }
         else if(arg == "--no-frames") {
             options.write_frames = false;
+        }
+        else if(arg == "--frames") {
+            options.write_frames = true;
         }
         else if(option_value(i, argc, argv, arg, "--fps", value)) {
             if(!parse_int(value, options.fps) || options.fps <= 0) {
