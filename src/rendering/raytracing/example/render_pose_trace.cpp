@@ -33,6 +33,7 @@ using TI = typename rlt::devices::DEVICE_FACTORY<>::index_t;
 static constexpr TI NUM_CAMERAS = 1;
 static constexpr TI NUM_PROBES = 1;
 static constexpr int FRAME_JPEG_QUALITY = 90;
+static constexpr TI MIN_VIDEO_DIMENSION = 2048;
 static constexpr double DEFAULT_SMOOTH_POSITION_SIGMA_S = 1.0;
 static constexpr double DEFAULT_SMOOTH_ORIENTATION_SIGMA_S = 6.0;
 static constexpr double DEFAULT_MAX_ORIENTATION_SPEED_RAD_S = 1.6;
@@ -43,16 +44,17 @@ struct RenderResolutionOption {
     TI width;
     TI height;
     bool enabled_by_default;
+    const char* alias = nullptr;
 };
 
 static constexpr RenderResolutionOption RENDER_RESOLUTIONS[] = {
-    {"64", 64, 64, true},
-    {"128", 128, 128, true},
-    {"256", 256, 256, true},
-    {"512", 512, 512, true},
-    {"1024", 1024, 1024, true},
-    {"2048", 2048, 2048, true},
-    {"4k", 3840, 2160, false}
+    {"80", 80, 50, true},
+    {"120", 120, 68, true},
+    {"240", 240, 135, true},
+    {"480", 480, 270, true},
+    {"960", 960, 540, true},
+    {"1920", 1920, 1080, true},
+    {"3840", 3840, 2160, true, "4k"}
 };
 
 struct TracePose {
@@ -96,6 +98,9 @@ struct RenderRecord {
     std::string ffmpeg_command;
     TI width = 0;
     TI height = 0;
+    TI video_width = 0;
+    TI video_height = 0;
+    TI video_oversampling_factor = 1;
     TI aa_grid_size = 1;
     TI samples_per_pixel = 1;
     size_t frame_count = 0;
@@ -110,18 +115,19 @@ static void print_usage(const char* argv0) {
         << "Options:\n"
         << "  --trace <path>             Camera pose JSON or trace JSON\n"
         << "  --scene <path>             Scene path override\n"
-        << "  --output-dir <dir>         Output directory (default: .)\n"
+        << "  --output-dir <dir>         Parent output directory; renders go under <dir>/<trace-name>/ (default: .)\n"
         << "  --fps <n>                  MP4 frame rate; timestamped traces are resampled to this rate (default: 60)\n"
         << "  --ffmpeg <path>            ffmpeg binary (default: ffmpeg)\n"
         << "  --settings <list>          all, rgb, depth, very_high, or comma list; depth has no rendering profile\n"
         << "                              medium, high, and low are temporarily disabled\n"
         << "                              Legacy aliases: very_high_fidelity, basic, high_fidelity, fast_flat\n"
-        << "  --resolution <name>        Render one resolution: 64, 128, 256, 512, 1024, 2048, or 4k\n"
-        << "                              4k is UHD 3840x2160\n"
-        << "                              By default resolutions up to 2048 are rendered; 4k is opt-in\n"
+        << "  --resolution <name>        Render one resolution: 80, 120, 240, 480, 960, 1920, 3840, or 4k\n"
+        << "                              4k is an alias for UHD 3840x2160\n"
+        << "                              By default all listed resolutions are rendered\n"
+        << "                              Encoded videos are upscaled to at least 2048 pixels per axis\n"
         << "  --frames                   Write per-frame PNG/JPEG image sequences\n"
-        << "                              Frames are written under <output-dir>/frames/<render-name>/\n"
-        << "                              64x64 and 128x128 frames are PNG; larger frames are JPEG\n"
+        << "                              Frames are written under <output-dir>/<trace-name>/frames/<render-name>/\n"
+        << "                              80-wide and 120-wide frames are PNG; larger frames are JPEG\n"
         << "  --no-frames                Do not write per-frame image sequences (default)\n"
         << "  --max-frames <n>           Limit trace frames when >0\n"
         << "  --smooth-sigma-s <s>       Gaussian smoothing sigma for position and orientation (use 0 to disable)\n"
@@ -151,21 +157,21 @@ static bool parse_resolution(const std::string& value, int& width, int& height) 
         return static_cast<char>(std::tolower(c));
     });
     for(const RenderResolutionOption& resolution : RENDER_RESOLUTIONS) {
-        if(lower == resolution.name) {
+        if(lower == resolution.name || (resolution.alias != nullptr && lower == resolution.alias)) {
             width = static_cast<int>(resolution.width);
             height = static_cast<int>(resolution.height);
             return true;
         }
     }
 
-    int square_resolution = 0;
-    if(!parse_int(value, square_resolution) || square_resolution <= 0) {
+    int requested_width = 0;
+    if(!parse_int(value, requested_width) || requested_width <= 0) {
         return false;
     }
     for(const RenderResolutionOption& resolution : RENDER_RESOLUTIONS) {
-        if(resolution.width == resolution.height && static_cast<TI>(square_resolution) == resolution.width) {
-            width = square_resolution;
-            height = square_resolution;
+        if(static_cast<TI>(requested_width) == resolution.width) {
+            width = static_cast<int>(resolution.width);
+            height = static_cast<int>(resolution.height);
             return true;
         }
     }
@@ -344,6 +350,54 @@ static std::string join_path(const std::string& a, const std::string& b) {
         return a + b;
     }
     return a + "/" + b;
+}
+
+static std::string path_basename(const std::string& path) {
+    const size_t end = path.find_last_not_of("/\\");
+    if(end == std::string::npos) {
+        return std::string();
+    }
+    const size_t begin = path.find_last_of("/\\", end);
+    if(begin == std::string::npos) {
+        return path.substr(0, end + 1);
+    }
+    return path.substr(begin + 1, end - begin);
+}
+
+static std::string strip_extension(const std::string& path) {
+    const size_t dot = path.find_last_of('.');
+    if(dot == std::string::npos || dot == 0) {
+        return path;
+    }
+    return path.substr(0, dot);
+}
+
+static std::string sanitize_path_component(const std::string& value) {
+    std::string out;
+    bool wrote_separator = false;
+    for(unsigned char c : value) {
+        if(std::isalnum(c) || c == '-' || c == '_' || c == '.') {
+            out += static_cast<char>(c);
+            wrote_separator = false;
+        }
+        else if(!wrote_separator) {
+            out += '_';
+            wrote_separator = true;
+        }
+    }
+    while(!out.empty() && out[0] == '.') {
+        out.erase(out.begin());
+    }
+    while(!out.empty() && out.back() == '_') {
+        out.pop_back();
+    }
+    return out.empty() ? std::string("trace") : out;
+}
+
+static std::string trace_output_name(const std::string& trace_path) {
+    const std::string basename = path_basename(trace_path);
+    const std::string stem = strip_extension(basename);
+    return sanitize_path_component(stem.empty() ? basename : stem);
 }
 
 static std::string shell_quote(const std::string& value) {
@@ -1272,14 +1326,23 @@ static std::string aa_name(bool enabled, TI grid_size) {
     return enabled ? std::string("aa") + std::to_string(grid_size) : std::string("none");
 }
 
-static std::string ffmpeg_command(const Options& options, TI width, TI height, const std::string& output_path) {
+static TI video_oversampling_factor(TI width, TI height) {
+    const TI width_factor = width < MIN_VIDEO_DIMENSION ? (MIN_VIDEO_DIMENSION + width - 1) / width : static_cast<TI>(1);
+    const TI height_factor = height < MIN_VIDEO_DIMENSION ? (MIN_VIDEO_DIMENSION + height - 1) / height : static_cast<TI>(1);
+    return std::max(width_factor, height_factor);
+}
+
+static std::string ffmpeg_command(const Options& options, TI width, TI height, TI video_width, TI video_height, const std::string& output_path) {
     std::ostringstream cmd;
     cmd << shell_quote(options.ffmpeg)
         << " -hide_banner -loglevel error -y -f rawvideo -pix_fmt rgba"
         << " -s " << width << "x" << height
         << " -r " << options.fps
-        << " -i - -an -c:v libx264 -pix_fmt yuv420p "
-        << shell_quote(output_path);
+        << " -i -";
+    if(video_width != width || video_height != height) {
+        cmd << " -vf scale=" << video_width << ":" << video_height << ":flags=neighbor";
+    }
+    cmd << " -an -c:v libx264 -pix_fmt yuv420p " << shell_quote(output_path);
     return cmd.str();
 }
 
@@ -1294,7 +1357,7 @@ static bool write_frame(FILE* pipe, const std::vector<uint32_t>& frame, int fram
 }
 
 static bool use_png_frames(TI width, TI height) {
-    return width == height && (width == 64 || width == 128);
+    return width <= 120 && height <= 68;
 }
 
 static const char* frame_extension(bool png) {
@@ -1369,6 +1432,9 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
     record.anti_aliasing = aa_name(ENABLE_AA, AA_GRID_SIZE);
     record.width = WIDTH;
     record.height = HEIGHT;
+    record.video_oversampling_factor = video_oversampling_factor(WIDTH, HEIGHT);
+    record.video_width = WIDTH * record.video_oversampling_factor;
+    record.video_height = HEIGHT * record.video_oversampling_factor;
     record.aa_grid_size = AA_GRID_SIZE;
     record.samples_per_pixel = AA_GRID_SIZE * AA_GRID_SIZE;
     const std::string base_name = profile_name[0] == '\0' ? std::string(output_name) : std::string(output_name) + "_" + profile_name;
@@ -1381,7 +1447,7 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
         record.frame_format = frame_format_name(png_frames);
         record.frame_jpeg_quality = png_frames ? 0 : FRAME_JPEG_QUALITY;
     }
-    record.ffmpeg_command = ffmpeg_command(options, WIDTH, HEIGHT, record.path);
+    record.ffmpeg_command = ffmpeg_command(options, WIDTH, HEIGHT, record.video_width, record.video_height, record.path);
     record.frame_count = poses.size();
 
     if(options.write_frames && !mkdir_p(record.frames_dir)) {
@@ -1513,6 +1579,9 @@ static bool write_manifest(const Options& options, const std::string& scene_path
         item["samples_per_pixel"] = record.samples_per_pixel;
         item["width"] = record.width;
         item["height"] = record.height;
+        item["video_width"] = record.video_width;
+        item["video_height"] = record.video_height;
+        item["video_oversampling_factor"] = record.video_oversampling_factor;
         item["path"] = record.path;
         item["write_frames"] = options.write_frames;
         if(options.write_frames) {
@@ -1570,6 +1639,7 @@ int main(int argc, char** argv) {
         print_usage(argv[0]);
         return 0;
     }
+    options.output_dir = join_path(options.output_dir, trace_output_name(options.trace_path));
     if(!mkdir_p(options.output_dir)) {
         return 1;
     }
@@ -1618,18 +1688,18 @@ int main(int argc, char** argv) {
     std::vector<RenderRecord> records;
     bool ok = true;
 
-    ok = render_selected_settings_for_resolution<64, 64, false, 1>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<64, 64, true, 2>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<128, 128, false, 1>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<128, 128, true, 2>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<256, 256, false, 1>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<256, 256, true, 2>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<512, 512, false, 1>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<512, 512, true, 2>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<1024, 1024, false, 1>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<1024, 1024, true, 2>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<2048, 2048, false, 1>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<2048, 2048, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<80, 50, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<80, 50, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<120, 68, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<120, 68, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<240, 135, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<240, 135, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<480, 270, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<480, 270, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<960, 540, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<960, 540, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<1920, 1080, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<1920, 1080, true, 2>(device, options, scene_path, poses, records) && ok;
     ok = render_selected_settings_for_resolution<3840, 2160, false, 1>(device, options, scene_path, poses, records) && ok;
     ok = render_selected_settings_for_resolution<3840, 2160, true, 2>(device, options, scene_path, poses, records) && ok;
 
