@@ -128,8 +128,7 @@ static void print_usage(const char* argv0) {
         << "  --fps <n>                  MP4 frame rate; timestamped traces are resampled to this rate (default: 60)\n"
         << "  --fov <deg>                Horizontal FOV in degrees (default: 80)\n"
         << "  --ffmpeg <path>            ffmpeg binary (default: ffmpeg)\n"
-        << "  --settings <list>          all, rgb, depth, very_high, or comma list; depth has no rendering profile\n"
-        << "                              medium, high, and low are temporarily disabled\n"
+        << "  --settings <list>          all, rgb, depth, very_high, high, medium, low, or comma list; depth has no rendering profile\n"
         << "                              Legacy aliases: very_high_fidelity, basic, high_fidelity, fast_flat\n"
         << "  --resolution <name>        Render one resolution: 64, 128, 256, 512, 1024, 2048, or 4k\n"
         << "                              4k is UHD 3840x2160\n"
@@ -1698,6 +1697,21 @@ static bool render_selected_settings_for_resolution(rlt::devices::DEVICE_FACTORY
         using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, WIDTH, HEIGHT, NUM_PROBES, rlt::rendering::raytracing::VeryHigh, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::RGB>;
         records.emplace_back();
         ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "very_high", records.back()) && ok;
+    }
+    if(should_render_setting(options, "rgb", "high")) {
+        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, WIDTH, HEIGHT, NUM_PROBES, rlt::rendering::raytracing::High, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::RGB>;
+        records.emplace_back();
+        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "high", records.back()) && ok;
+    }
+    if(should_render_setting(options, "rgb", "medium")) {
+        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, WIDTH, HEIGHT, NUM_PROBES, rlt::rendering::raytracing::Medium, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::RGB>;
+        records.emplace_back();
+        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "medium", records.back()) && ok;
+    }
+    if(should_render_setting(options, "rgb", "low")) {
+        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, WIDTH, HEIGHT, NUM_PROBES, rlt::rendering::raytracing::Low, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::RGB>;
+        records.emplace_back();
+        ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "low", records.back()) && ok;
     }
     if(should_render_depth(options)) {
         using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, WIDTH, HEIGHT, NUM_PROBES, rlt::rendering::raytracing::Medium, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::DEPTH>;
