@@ -55,13 +55,13 @@ enum class AntiAliasingSelection {
 };
 
 static constexpr RenderResolutionOption RENDER_RESOLUTIONS[] = {
-    {"60", 60, 34, true},
-    {"120", 120, 68, true},
-    {"240", 240, 135, true},
-    {"480", 480, 270, true},
-    {"960", 960, 540, true},
-    {"1920", 1920, 1080, true},
-    {"3840", 3840, 2160, true, "4k"}
+    {"64", 64, 64, true},
+    {"128", 128, 128, true},
+    {"256", 256, 256, true},
+    {"512", 512, 512, true},
+    {"1024", 1024, 1024, true},
+    {"2048", 2048, 2048, true},
+    {"4k", 3840, 2160, true}
 };
 
 struct TracePose {
@@ -131,14 +131,14 @@ static void print_usage(const char* argv0) {
         << "  --settings <list>          all, rgb, depth, very_high, or comma list; depth has no rendering profile\n"
         << "                              medium, high, and low are temporarily disabled\n"
         << "                              Legacy aliases: very_high_fidelity, basic, high_fidelity, fast_flat\n"
-        << "  --resolution <name>        Render one resolution: 60, 120, 240, 480, 960, 1920, 3840, or 4k\n"
-        << "                              4k is an alias for UHD 3840x2160\n"
+        << "  --resolution <name>        Render one resolution: 64, 128, 256, 512, 1024, 2048, or 4k\n"
+        << "                              4k is UHD 3840x2160\n"
         << "                              By default all listed resolutions are rendered\n"
         << "                              Encoded videos are upscaled to at least 2048 pixels per axis\n"
         << "  --aa <mode>                Anti-aliasing mode: none, aa2, or both (default: both)\n"
         << "  --frames                   Write per-frame PNG/JPEG image sequences\n"
         << "                              Frames are written under <output-dir>/<trace-name>/frames/<render-name>/\n"
-        << "                              60-wide and 120-wide frames are PNG; larger frames are JPEG\n"
+        << "                              64x64 and 128x128 frames are PNG; larger frames are JPEG\n"
         << "  --no-frames                Do not write per-frame image sequences (default)\n"
         << "  --max-frames <n>           Limit trace frames when >0\n"
         << "  --smooth-sigma-s <s>       Gaussian smoothing sigma for position and orientation (use 0 to disable)\n"
@@ -1425,7 +1425,7 @@ static bool write_frame(FILE* pipe, const std::vector<uint32_t>& frame, int fram
 }
 
 static bool use_png_frames(TI width, TI height) {
-    return width <= 120 && height <= 68;
+    return width == height && (width == 64 || width == 128);
 }
 
 static const char* frame_extension(bool png) {
@@ -1766,18 +1766,18 @@ int main(int argc, char** argv) {
     std::vector<RenderRecord> records;
     bool ok = true;
 
-    ok = render_selected_settings_for_resolution<60, 34, false, 1>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<60, 34, true, 2>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<120, 68, false, 1>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<120, 68, true, 2>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<240, 135, false, 1>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<240, 135, true, 2>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<480, 270, false, 1>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<480, 270, true, 2>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<960, 540, false, 1>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<960, 540, true, 2>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<1920, 1080, false, 1>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<1920, 1080, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<64, 64, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<64, 64, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<128, 128, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<128, 128, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<256, 256, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<256, 256, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<512, 512, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<512, 512, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<1024, 1024, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<1024, 1024, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<2048, 2048, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<2048, 2048, true, 2>(device, options, scene_path, poses, records) && ok;
     ok = render_selected_settings_for_resolution<3840, 2160, false, 1>(device, options, scene_path, poses, records) && ok;
     ok = render_selected_settings_for_resolution<3840, 2160, true, 2>(device, options, scene_path, poses, records) && ok;
 
