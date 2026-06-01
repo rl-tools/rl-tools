@@ -48,8 +48,14 @@ struct RenderResolutionOption {
     const char* alias = nullptr;
 };
 
+enum class AntiAliasingSelection {
+    NONE,
+    AA2,
+    BOTH
+};
+
 static constexpr RenderResolutionOption RENDER_RESOLUTIONS[] = {
-    {"80", 80, 50, true},
+    {"60", 60, 34, true},
     {"120", 120, 68, true},
     {"240", 240, 135, true},
     {"480", 480, 270, true},
@@ -80,6 +86,7 @@ struct Options {
     int fps = 60;
     int max_frames = 0;
     double fov_deg = DEFAULT_FOV_DEG;
+    AntiAliasingSelection aa = AntiAliasingSelection::BOTH;
     double smooth_position_sigma_s = DEFAULT_SMOOTH_POSITION_SIGMA_S;
     double smooth_orientation_sigma_s = DEFAULT_SMOOTH_ORIENTATION_SIGMA_S;
     double max_orientation_speed_rad_s = DEFAULT_MAX_ORIENTATION_SPEED_RAD_S;
@@ -124,13 +131,14 @@ static void print_usage(const char* argv0) {
         << "  --settings <list>          all, rgb, depth, very_high, or comma list; depth has no rendering profile\n"
         << "                              medium, high, and low are temporarily disabled\n"
         << "                              Legacy aliases: very_high_fidelity, basic, high_fidelity, fast_flat\n"
-        << "  --resolution <name>        Render one resolution: 80, 120, 240, 480, 960, 1920, 3840, or 4k\n"
+        << "  --resolution <name>        Render one resolution: 60, 120, 240, 480, 960, 1920, 3840, or 4k\n"
         << "                              4k is an alias for UHD 3840x2160\n"
         << "                              By default all listed resolutions are rendered\n"
         << "                              Encoded videos are upscaled to at least 2048 pixels per axis\n"
+        << "  --aa <mode>                Anti-aliasing mode: none, aa2, or both (default: both)\n"
         << "  --frames                   Write per-frame PNG/JPEG image sequences\n"
         << "                              Frames are written under <output-dir>/<trace-name>/frames/<render-name>/\n"
-        << "                              80-wide and 120-wide frames are PNG; larger frames are JPEG\n"
+        << "                              60-wide and 120-wide frames are PNG; larger frames are JPEG\n"
         << "  --no-frames                Do not write per-frame image sequences (default)\n"
         << "  --max-frames <n>           Limit trace frames when >0\n"
         << "  --smooth-sigma-s <s>       Gaussian smoothing sigma for position and orientation (use 0 to disable)\n"
@@ -193,6 +201,47 @@ static bool should_render_resolution(const Options& options, TI width, TI height
     return false;
 }
 
+static const char* aa_selection_name(AntiAliasingSelection aa) {
+    switch(aa) {
+        case AntiAliasingSelection::NONE: return "none";
+        case AntiAliasingSelection::AA2: return "aa2";
+        case AntiAliasingSelection::BOTH: return "both";
+    }
+    return "both";
+}
+
+static bool parse_aa_selection(const std::string& value, AntiAliasingSelection& out) {
+    std::string lower = value;
+    std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) {
+        return static_cast<char>(std::tolower(c));
+    });
+    if(lower == "none" || lower == "off" || lower == "no") {
+        out = AntiAliasingSelection::NONE;
+        return true;
+    }
+    if(lower == "aa2" || lower == "2" || lower == "on") {
+        out = AntiAliasingSelection::AA2;
+        return true;
+    }
+    if(lower == "both" || lower == "all") {
+        out = AntiAliasingSelection::BOTH;
+        return true;
+    }
+    return false;
+}
+
+static bool should_render_aa(const Options& options, bool enabled, TI grid_size) {
+    switch(options.aa) {
+        case AntiAliasingSelection::NONE:
+            return !enabled;
+        case AntiAliasingSelection::AA2:
+            return enabled && grid_size == static_cast<TI>(2);
+        case AntiAliasingSelection::BOTH:
+            return true;
+    }
+    return true;
+}
+
 static bool parse_double(const std::string& value, double& out) {
     char* end = nullptr;
     const double parsed = std::strtod(value.c_str(), &end);
@@ -250,6 +299,12 @@ static bool parse_options(int argc, char** argv, Options& options) {
         else if(option_value(i, argc, argv, arg, "--resolution", value)) {
             if(!parse_resolution(value, options.resolution_width, options.resolution_height)) {
                 std::cerr << "Invalid --resolution: " << value << std::endl;
+                return false;
+            }
+        }
+        else if(option_value(i, argc, argv, arg, "--aa", value)) {
+            if(!parse_aa_selection(value, options.aa)) {
+                std::cerr << "Invalid --aa: " << value << " (expected none, aa2, or both)" << std::endl;
                 return false;
             }
         }
@@ -1548,20 +1603,24 @@ static bool write_manifest(const Options& options, const std::string& scene_path
         }
     }
     manifest["write_frames"] = options.write_frames;
-    manifest["anti_aliasing"] = json::array({
-        {
+    manifest["aa"] = aa_selection_name(options.aa);
+    manifest["anti_aliasing"] = json::array();
+    if(should_render_aa(options, false, 1)) {
+        manifest["anti_aliasing"].push_back({
             {"name", "none"},
             {"enabled", false},
             {"grid_size", 1},
             {"samples_per_pixel", 1}
-        },
-        {
+        });
+    }
+    if(should_render_aa(options, true, 2)) {
+        manifest["anti_aliasing"].push_back({
             {"name", "aa2"},
             {"enabled", true},
             {"grid_size", 2},
             {"samples_per_pixel", 4}
-        }
-    });
+        });
+    }
     manifest["frames"] = render_poses.size();
     manifest["source_frames"] = source_poses.size();
     manifest["rendered_frames"] = render_poses.size();
@@ -1629,6 +1688,9 @@ static bool write_manifest(const Options& options, const std::string& scene_path
 template <TI WIDTH, TI HEIGHT, bool ENABLE_AA, TI AA_GRID_SIZE>
 static bool render_selected_settings_for_resolution(rlt::devices::DEVICE_FACTORY<>& device, const Options& options, const std::string& scene_path, const std::vector<TracePose>& poses, std::vector<RenderRecord>& records) {
     if(!should_render_resolution(options, WIDTH, HEIGHT)) {
+        return true;
+    }
+    if(!should_render_aa(options, ENABLE_AA, AA_GRID_SIZE)) {
         return true;
     }
     bool ok = true;
@@ -1704,8 +1766,8 @@ int main(int argc, char** argv) {
     std::vector<RenderRecord> records;
     bool ok = true;
 
-    ok = render_selected_settings_for_resolution<80, 50, false, 1>(device, options, scene_path, poses, records) && ok;
-    ok = render_selected_settings_for_resolution<80, 50, true, 2>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<60, 34, false, 1>(device, options, scene_path, poses, records) && ok;
+    ok = render_selected_settings_for_resolution<60, 34, true, 2>(device, options, scene_path, poses, records) && ok;
     ok = render_selected_settings_for_resolution<120, 68, false, 1>(device, options, scene_path, poses, records) && ok;
     ok = render_selected_settings_for_resolution<120, 68, true, 2>(device, options, scene_path, poses, records) && ok;
     ok = render_selected_settings_for_resolution<240, 135, false, 1>(device, options, scene_path, poses, records) && ok;
