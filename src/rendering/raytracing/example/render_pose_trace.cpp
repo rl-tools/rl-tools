@@ -80,6 +80,7 @@ struct Options {
     std::string scene_path;
     std::string output_dir = ".";
     std::string ffmpeg = "ffmpeg";
+    bool ffmpeg_gpu = false;
     std::string settings = "very_high";
     int resolution_width = 0;
     int resolution_height = 0;
@@ -128,6 +129,7 @@ static void print_usage(const char* argv0) {
         << "  --fps <n>                  MP4 frame rate; timestamped traces are resampled to this rate (default: 60)\n"
         << "  --fov <deg>                Horizontal FOV in degrees (default: 80)\n"
         << "  --ffmpeg <path>            ffmpeg binary (default: ffmpeg)\n"
+        << "  --ffmpeg-gpu               Use NVIDIA NVENC H.264 encoding instead of libx264\n"
         << "  --settings <list>          all, rgb, depth, very_high, high, medium, low, or comma list; depth has no rendering profile\n"
         << "                              Legacy aliases: very_high_fidelity, basic, high_fidelity, fast_flat\n"
         << "  --resolution <name>        Render one resolution: 64, 128, 256, 512, 1024, 2048, or 4k\n"
@@ -229,6 +231,10 @@ static bool parse_aa_selection(const std::string& value, AntiAliasingSelection& 
     return false;
 }
 
+static const char* video_encoder_name(const Options& options) {
+    return options.ffmpeg_gpu ? "h264_nvenc" : "libx264";
+}
+
 static bool should_render_aa(const Options& options, bool enabled, TI grid_size) {
     switch(options.aa) {
         case AntiAliasingSelection::NONE:
@@ -291,6 +297,9 @@ static bool parse_options(int argc, char** argv, Options& options) {
         }
         else if(option_value(i, argc, argv, arg, "--ffmpeg", value)) {
             options.ffmpeg = value;
+        }
+        else if(arg == "--ffmpeg-gpu") {
+            options.ffmpeg_gpu = true;
         }
         else if(option_value(i, argc, argv, arg, "--settings", value)) {
             options.settings = value;
@@ -1409,7 +1418,11 @@ static std::string ffmpeg_command(const Options& options, TI width, TI height, T
     if(video_width != width || video_height != height) {
         cmd << " -vf scale=" << video_width << ":" << video_height << ":flags=neighbor";
     }
-    cmd << " -an -c:v libx264 -pix_fmt yuv420p " << shell_quote(output_path);
+    cmd << " -an -c:v " << video_encoder_name(options);
+    if(options.ffmpeg_gpu) {
+        cmd << " -preset p4 -tune hq -rc constqp -qp 19";
+    }
+    cmd << " -pix_fmt yuv420p " << shell_quote(output_path);
     return cmd.str();
 }
 
@@ -1590,6 +1603,8 @@ static bool write_manifest(const Options& options, const std::string& scene_path
     manifest["fps"] = options.fps;
     manifest["fov_deg"] = options.fov_deg;
     manifest["fov_rad"] = degrees_to_radians(options.fov_deg);
+    manifest["ffmpeg_gpu"] = options.ffmpeg_gpu;
+    manifest["ffmpeg_encoder"] = video_encoder_name(options);
     manifest["resolutions"] = json::array();
     for(const RenderResolutionOption& resolution : RENDER_RESOLUTIONS) {
         if(should_render_resolution(options, resolution.width, resolution.height)) {

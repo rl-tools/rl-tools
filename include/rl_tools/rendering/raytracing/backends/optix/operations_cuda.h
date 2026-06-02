@@ -219,6 +219,42 @@ namespace rl_tools {
     // Decode an embedded texture from assimp into RGBA8 pixels
     // =========================================================================
     namespace rendering::raytracing{
+        struct RepresentativeTextureColor {
+            float color[3] = {1.0f, 1.0f, 1.0f};
+        };
+
+        static float srgb_to_linear(unsigned char value) {
+            const float x = static_cast<float>(value) / 255.0f;
+            return x <= 0.04045f ? x / 12.92f : std::pow((x + 0.055f) / 1.055f, 2.4f);
+        }
+
+        static bool representative_texture_color(const std::vector<uint8_t>& pixels, int w, int h, RepresentativeTextureColor& out) {
+            if(w <= 0 || h <= 0 || pixels.size() < static_cast<size_t>(w) * static_cast<size_t>(h) * 4) {
+                return false;
+            }
+            double sum[3] = {0.0, 0.0, 0.0};
+            double weight_sum = 0.0;
+            for(int i = 0; i < w * h; i++) {
+                const double alpha = static_cast<double>(pixels[i * 4 + 3]) / 255.0;
+                sum[0] += static_cast<double>(srgb_to_linear(pixels[i * 4 + 0])) * alpha;
+                sum[1] += static_cast<double>(srgb_to_linear(pixels[i * 4 + 1])) * alpha;
+                sum[2] += static_cast<double>(srgb_to_linear(pixels[i * 4 + 2])) * alpha;
+                weight_sum += alpha;
+            }
+            if(weight_sum <= 0.0) {
+                for(int i = 0; i < w * h; i++) {
+                    sum[0] += static_cast<double>(srgb_to_linear(pixels[i * 4 + 0]));
+                    sum[1] += static_cast<double>(srgb_to_linear(pixels[i * 4 + 1]));
+                    sum[2] += static_cast<double>(srgb_to_linear(pixels[i * 4 + 2]));
+                }
+                weight_sum = static_cast<double>(w) * static_cast<double>(h);
+            }
+            out.color[0] = static_cast<float>(sum[0] / weight_sum);
+            out.color[1] = static_cast<float>(sum[1] / weight_sum);
+            out.color[2] = static_cast<float>(sum[2] / weight_sum);
+            return true;
+        }
+
         static bool decode_embedded_texture(const aiTexture* tex,
                                             std::vector<uint8_t>& pixels,
                                             int& w, int& h){
@@ -243,6 +279,57 @@ namespace rl_tools {
                 stbi_image_free(data);
                 return true;
             }
+        }
+
+        static bool load_representative_texture_color(const aiScene* scene,
+                                                      const aiMaterial* mat,
+                                                      aiTextureType texture_type,
+                                                      std::map<std::string, RepresentativeTextureColor>& cache,
+                                                      RepresentativeTextureColor& out,
+                                                      size_t& decoded_count) {
+            if(mat == nullptr || mat->GetTextureCount(texture_type) == 0) {
+                return false;
+            }
+            aiString tex_path;
+            if(mat->GetTexture(texture_type, 0, &tex_path) != AI_SUCCESS) {
+                return false;
+            }
+            const std::string path_str(tex_path.C_Str());
+            if(path_str.empty()) {
+                return false;
+            }
+            const std::string cache_key = std::to_string(static_cast<int>(texture_type)) + ":" + path_str;
+            auto cached = cache.find(cache_key);
+            if(cached != cache.end()) {
+                out = cached->second;
+                return true;
+            }
+
+            int w = 0;
+            int h = 0;
+            std::vector<uint8_t> pixels;
+            const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
+            if(emb_tex) {
+                if(!decode_embedded_texture(emb_tex, pixels, w, h)) {
+                    return false;
+                }
+            }
+            else {
+                int channels = 0;
+                unsigned char* data = stbi_load(path_str.c_str(), &w, &h, &channels, 4);
+                if(!data) {
+                    return false;
+                }
+                pixels.assign(data, data + static_cast<size_t>(w) * static_cast<size_t>(h) * 4);
+                stbi_image_free(data);
+            }
+
+            if(!representative_texture_color(pixels, w, h, out)) {
+                return false;
+            }
+            cache[cache_key] = out;
+            decoded_count++;
+            return true;
         }
     }
 
@@ -602,6 +689,9 @@ namespace rl_tools {
         [[maybe_unused]] std::map<std::string, size_t> tex_cache;
         struct DecodedTex { std::vector<uint8_t> pixels; int w, h; };
         [[maybe_unused]] std::vector<DecodedTex> decoded_textures;
+        [[maybe_unused]] std::map<std::string, rendering::raytracing::RepresentativeTextureColor> representative_texture_color_cache;
+        [[maybe_unused]] size_t representative_texture_color_meshes = 0;
+        [[maybe_unused]] size_t representative_texture_color_decoded = 0;
 
         size_t total_verts = 0, total_tris = 0;
 
@@ -733,6 +823,26 @@ namespace rl_tools {
                         if (aiGetMaterialColor(mat, AI_MATKEY_BASE_COLOR, &base_color) == AI_SUCCESS) {
                             md.color[0] = base_color.r; md.color[1] = base_color.g; md.color[2] = base_color.b;
                         }
+                    }
+                }
+
+                if constexpr (!SPEC::SHADING::LOAD_TEXTURES) {
+                    rendering::raytracing::RepresentativeTextureColor representative_color;
+                    bool has_representative_color = rendering::raytracing::load_representative_texture_color(
+                        scene, mat, aiTextureType_DIFFUSE, representative_texture_color_cache,
+                        representative_color, representative_texture_color_decoded
+                    );
+                    if(!has_representative_color) {
+                        has_representative_color = rendering::raytracing::load_representative_texture_color(
+                            scene, mat, aiTextureType_BASE_COLOR, representative_texture_color_cache,
+                            representative_color, representative_texture_color_decoded
+                        );
+                    }
+                    if(has_representative_color) {
+                        md.color[0] *= representative_color.color[0];
+                        md.color[1] *= representative_color.color[1];
+                        md.color[2] *= representative_color.color[2];
+                        representative_texture_color_meshes++;
                     }
                 }
 
@@ -955,6 +1065,11 @@ namespace rl_tools {
         }
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Meshes with textures: " << textured_count << "/" << renderer.meshes.size()
               << ", metallic: " << metallic_count << "/" << renderer.meshes.size());
+        if constexpr (SPEC::HAS_RGB && !SPEC::SHADING::LOAD_TEXTURES) {
+            RL_TOOLS_RENDERING_RAYTRACING_LOG("Representative texture colors: " << representative_texture_color_meshes
+                  << "/" << renderer.meshes.size() << " meshes, decoded "
+                  << representative_texture_color_decoded << " texture(s)");
+        }
 
         if constexpr (SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING) {
             renderer.scene_lights.clear();
