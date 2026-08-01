@@ -1,12 +1,19 @@
 #define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 1
 
-#include <rl_tools/operations/cpu_mux.h>
-#include <rl_tools/rendering/raytracing/backends/optix/operations_cuda.h>
+#ifndef RL_TOOLS_RENDERING_RAYTRACING_FIXED_POSE_SHADING
+#define RL_TOOLS_RENDERING_RAYTRACING_FIXED_POSE_SHADING 3
+#endif
+#ifndef RL_TOOLS_RENDERING_RAYTRACING_FIXED_POSE_OUTPUT_MODE
+#define RL_TOOLS_RENDERING_RAYTRACING_FIXED_POSE_OUTPUT_MODE 0
+#endif
 
-#include <cuda_runtime.h>
+#include <rl_tools/operations/cpu_mux.h>
+#include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+
 
 #include <cmath>
 #include <cstring>
+#include <cstdio>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -22,6 +29,24 @@ static constexpr TI CAM_HEIGHT = 1024;
 static constexpr TI NUM_CAMERAS = 1;
 static constexpr TI NUM_PROBES = 1;
 
+#if RL_TOOLS_RENDERING_RAYTRACING_FIXED_POSE_SHADING == 0
+using SHADING = rlt::rendering::raytracing::Low;
+#elif RL_TOOLS_RENDERING_RAYTRACING_FIXED_POSE_SHADING == 1
+using SHADING = rlt::rendering::raytracing::Medium;
+#elif RL_TOOLS_RENDERING_RAYTRACING_FIXED_POSE_SHADING == 2
+using SHADING = rlt::rendering::raytracing::High;
+#else
+using SHADING = rlt::rendering::raytracing::VeryHigh;
+#endif
+
+#if RL_TOOLS_RENDERING_RAYTRACING_FIXED_POSE_OUTPUT_MODE == 2
+static constexpr auto OUTPUT_MODE = rlt::rendering::raytracing::OutputMode::DEPTH;
+#elif RL_TOOLS_RENDERING_RAYTRACING_FIXED_POSE_OUTPUT_MODE == 1
+static constexpr auto OUTPUT_MODE = rlt::rendering::raytracing::OutputMode::RGBD;
+#else
+static constexpr auto OUTPUT_MODE = rlt::rendering::raytracing::OutputMode::RGB;
+#endif
+
 using SPEC = rlt::rendering::raytracing::Specification<
     T,
     TI,
@@ -29,11 +54,12 @@ using SPEC = rlt::rendering::raytracing::Specification<
     CAM_HEIGHT,
     NUM_CAMERAS,
     NUM_PROBES,
-    rlt::rendering::raytracing::VeryHigh,
+    SHADING,
     false,
     1,
     true,
-    2
+    2,
+    OUTPUT_MODE
 >;
 using Renderer = rlt::rendering::raytracing::Renderer<SPEC>;
 
@@ -42,11 +68,13 @@ static constexpr char DEFAULT_SCENE_PATH[] = "/home/jonas/git/hssd-hab/glb/10234
 struct Options {
     std::string scene_path;
     std::string output_path = "rendering_raytracing_fixed_pose.png";
+    T position[3] = {static_cast<T>(12.08), static_cast<T>(7.23), static_cast<T>(2.26)};
+    T orientation_wxyz[4] = {static_cast<T>(0.656), static_cast<T>(0.117), static_cast<T>(0.104), static_cast<T>(-0.738)};
 };
 
 static void print_usage(const char* argv0) {
     std::cout
-        << "Usage: " << argv0 << " [--scene path.glb|conta:HASH] [--output path.png]\n"
+        << "Usage: " << argv0 << " [--scene path.glb|conta:HASH] [--output path.png] [--position x,y,z] [--orientation w,x,y,z]\n"
         << "Default scene: " << DEFAULT_SCENE_PATH << "\n";
 }
 
@@ -85,6 +113,18 @@ static bool parse_options(int argc, char** argv, Options& options) {
                 return false;
             }
             options.output_path = argv[++i];
+        }
+        else if(arg == "--position" || arg == "-p") {
+            if(i + 1 >= argc || std::sscanf(argv[++i], "%f,%f,%f", &options.position[0], &options.position[1], &options.position[2]) != 3) {
+                std::cerr << "Invalid value for " << arg << " (expected x,y,z)" << std::endl;
+                return false;
+            }
+        }
+        else if(arg == "--orientation" || arg == "-q") {
+            if(i + 1 >= argc || std::sscanf(argv[++i], "%f,%f,%f,%f", &options.orientation_wxyz[0], &options.orientation_wxyz[1], &options.orientation_wxyz[2], &options.orientation_wxyz[3]) != 4) {
+                std::cerr << "Invalid value for " << arg << " (expected w,x,y,z)" << std::endl;
+                return false;
+            }
         }
         else if(!arg.empty() && arg[0] == '-') {
             std::cerr << "Unknown argument: " << arg << std::endl;
@@ -143,37 +183,39 @@ int main(int argc, char** argv) {
 
     rlt::upload_geometry(device, renderer);
 
-    constexpr T position[3] = {
-        static_cast<T>(12.08),
-        static_cast<T>(7.23),
-        static_cast<T>(2.26)
-    };
-    constexpr T orientation_wxyz[4] = {
-        static_cast<T>(0.656),
-        static_cast<T>(0.117),
-        static_cast<T>(0.104),
-        static_cast<T>(-0.738)
-    };
     constexpr T forward_body[3] = {static_cast<T>(1), static_cast<T>(0), static_cast<T>(0)};
     constexpr T up_body[3] = {static_cast<T>(0), static_cast<T>(0), static_cast<T>(1)};
     T forward[3];
     T up[3];
-    rotate_vector_by_quaternion(orientation_wxyz, forward_body, forward);
-    rotate_vector_by_quaternion(orientation_wxyz, up_body, up);
+    rotate_vector_by_quaternion(options.orientation_wxyz, forward_body, forward);
+    rotate_vector_by_quaternion(options.orientation_wxyz, up_body, up);
 
     const T look_at[3] = {
-        position[0] + forward[0],
-        position[1] + forward[1],
-        position[2] + forward[2]
+        options.position[0] + forward[0],
+        options.position[1] + forward[1],
+        options.position[2] + forward[2]
     };
     const T aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
 
-    rlt::set(device, renderer.cameras, rlt::make_camera_data(position, look_at, up, SPEC::COS_FOVY, aspect), static_cast<TI>(0));
+    rlt::set(device, renderer.cameras, rlt::make_camera_data(options.position, look_at, up, SPEC::COS_FOVY, aspect), static_cast<TI>(0));
     rlt::set_cameras(device, renderer, renderer.cameras);
     rlt::build_pipeline(device, renderer);
-    rlt::render_rgb_only(device, renderer);
-    cudaDeviceSynchronize();
+#if RL_TOOLS_RENDERING_RAYTRACING_FIXED_POSE_OUTPUT_MODE == 2
+    rlt::render_depth_only(device, renderer);
+    rlt::synchronize(device, renderer);
+    rlt::save_depth_image(device, renderer, options.output_path.c_str());
+    rlt::save_depth(device, renderer, (options.output_path + ".bin").c_str());
+#elif RL_TOOLS_RENDERING_RAYTRACING_FIXED_POSE_OUTPUT_MODE == 1
+    rlt::render_rgb_depth_only(device, renderer);
+    rlt::synchronize(device, renderer);
     rlt::save_image(device, renderer, options.output_path.c_str());
+    rlt::save_depth_image(device, renderer, (options.output_path + ".depth.png").c_str());
+    rlt::save_depth(device, renderer, (options.output_path + ".depth.bin").c_str());
+#else
+    rlt::render_rgb_only(device, renderer);
+    rlt::synchronize(device, renderer);
+    rlt::save_image(device, renderer, options.output_path.c_str());
+#endif
 
     std::cout << "Wrote " << options.output_path << std::endl;
 

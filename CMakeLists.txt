@@ -119,7 +119,11 @@ if(RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO)
 endif()
 
 if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
-    include(cmake/optional/optix.cmake)
+    if(APPLE)
+        include(cmake/optional/metal.cmake)
+    else()
+        include(cmake/optional/optix.cmake)
+    endif()
 endif()
 
 if(RL_TOOLS_ENABLE_TARGETS)

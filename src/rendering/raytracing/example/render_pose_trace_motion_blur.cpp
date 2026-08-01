@@ -1,7 +1,7 @@
 #define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 1
 
 #include <rl_tools/operations/cpu_mux.h>
-#include <rl_tools/rendering/raytracing/backends/optix/operations_cuda.h>
+#include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
 
 #include <nlohmann/json.hpp>
 

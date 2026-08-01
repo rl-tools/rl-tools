@@ -820,7 +820,7 @@ int main(int argc, char** argv) {
         cudaEventCreateWithFlags(&scene_done_events[scene_i], cudaEventDisableTiming);
         OWLParams rgb_lp = (OWLParams)renderers[scene_i]->backend.launch_params;
         scene_streams[scene_i] = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
-        scene_camera_buffers[scene_i] = (void*)owlBufferGetPointer((OWLBuffer)renderers[scene_i]->backend.owl_cameras_buffer, 0);
+        scene_camera_buffers[scene_i] = (void*)owlBufferGetPointer((OWLBuffer)renderers[scene_i]->backend.cameras_buffer, 0);
         scene_framebuffers[scene_i] = rlt::get_framebuffer_device_ptr(device, *renderers[scene_i]);
     }
 

@@ -14,4 +14,4 @@ rl_tools_fetchcontent_makeavailable_quiet(OWL)
 find_package(assimp REQUIRED)
 
 target_link_libraries(rl_tools_full INTERFACE owl::owl assimp::assimp)
-target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
+target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_RENDERING_ENABLE_RAYTRACING RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)

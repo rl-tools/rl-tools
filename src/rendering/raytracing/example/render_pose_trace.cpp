@@ -7,7 +7,6 @@
 
 #include <nlohmann/json.hpp>
 
-#include <cuda_runtime.h>
 
 #include <algorithm>
 #include <cerrno>

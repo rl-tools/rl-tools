@@ -14,7 +14,6 @@
 #include "environment/operations_cpu.h"
 
 #include <GLFW/glfw3.h>
-#include <cuda_runtime.h>
 
 #include <iostream>
 #include <fstream>

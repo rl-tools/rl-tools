@@ -1120,7 +1120,7 @@ template <typename SPEC>
 static void step_physics_cameras(rlt::rendering::raytracing::Renderer<SPEC>& renderer, rt_benchmark::PhysicsSimulation& physics, int iteration, void* camera_buffer_override = nullptr) {
     void* camera_buffer = camera_buffer_override != nullptr
         ? camera_buffer_override
-        : const_cast<void*>(owlBufferGetPointer((OWLBuffer)renderer.backend.owl_cameras_buffer, 0));
+        : const_cast<void*>(owlBufferGetPointer((OWLBuffer)renderer.backend.cameras_buffer, 0));
     cudaStream_t stream = (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend.launch_params, 0);
     if(!rt_benchmark::physics_step_cameras(physics, camera_buffer, stream, iteration)) {
         std::cerr << "Physics camera step failed: " << rt_benchmark::physics_last_error() << std::endl;
