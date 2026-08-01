@@ -124,7 +124,7 @@ namespace rl_tools {
 
         template <typename T_SPEC>
         struct MotionBlurBackendContext<T_SPEC, true> {
-            void* owl_cameras_open_buffer = nullptr;
+            void* cameras_open_buffer = nullptr;
         };
 
         template <typename T_SPEC>
@@ -132,11 +132,11 @@ namespace rl_tools {
             using SPEC = T_SPEC;
             void* context = nullptr;
             void* module = nullptr;
-            void* owl_cameras_buffer = nullptr;
+            void* cameras_buffer = nullptr;
             void* world = nullptr;
             void* launch_params = nullptr;
             void* collision_ray_gen = nullptr;
-            void* owl_collision_results_buffer = nullptr;
+            void* collision_results_buffer = nullptr;
             void* probe_dirs_buffer = nullptr;
             void* coll_launch_params = nullptr;
         };
@@ -147,7 +147,7 @@ namespace rl_tools {
         template <typename T_SPEC>
         struct RGBBackendContext<T_SPEC, true> {
             void* ray_gen = nullptr;
-            void* owl_frame_buffer = nullptr;
+            void* frame_buffer_handle = nullptr;
         };
 
         template <typename T_SPEC, bool T_HAS_DEPTH>
@@ -156,7 +156,7 @@ namespace rl_tools {
         template <typename T_SPEC>
         struct DepthBackendContext<T_SPEC, true> {
             void* depth_ray_gen = nullptr;
-            void* owl_depth_buffer = nullptr;
+            void* depth_buffer_handle = nullptr;
         };
 
         template <typename T_SPEC>

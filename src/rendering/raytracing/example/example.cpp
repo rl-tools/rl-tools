@@ -23,7 +23,6 @@
 #include <cstdio>
 #include <cstring>
 #include <array>
-#include <cuda_runtime.h>
 
 namespace rlt = rl_tools;
 
@@ -183,7 +182,7 @@ int main(int argc, char** argv) {
 #endif
     };
 
-    cudaDeviceSynchronize();
+    rlt::synchronize(device, *env.renderer);
     auto t0 = std::chrono::steady_clock::now();
 
     // Pipelined loop: overlap CPU camera computation with GPU rendering
@@ -229,7 +228,7 @@ int main(int argc, char** argv) {
             rlt::set_cameras(device, *env.renderer, env.renderer->cameras);
         }
     }
-    cudaDeviceSynchronize();
+    rlt::synchronize(device, *env.renderer);
     auto t1 = std::chrono::steady_clock::now();
     const double elapsed = std::chrono::duration<double>(t1 - t0).count();
 

@@ -8,7 +8,7 @@
 #include "operations_generic.h"
 
 #include <rl_tools/rl/environments/l2f/operations_generic.h>
-#include <rl_tools/rendering/raytracing/backends/optix/operations_cuda.h>
+#include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
 #include <rl_tools/rendering/raytracing/scene/procthor/operations_cpu.h>
 
 #include <array>

@@ -3,7 +3,7 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include "environment.h"
 
-#include <rl_tools/rendering/raytracing/backends/optix/operations_cuda.h>
+#include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
 #include <rl_tools/rendering/raytracing/scene/procthor/scene.h>
 #include <rl_tools/rendering/raytracing/scene/procthor/operations_cpu.h>
 

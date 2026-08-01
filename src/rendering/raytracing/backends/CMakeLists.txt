@@ -1,1 +1,5 @@
-add_subdirectory(optix)
+if(APPLE)
+    add_subdirectory(metal)
+else()
+    add_subdirectory(optix)
+endif()

@@ -6,7 +6,7 @@
 
 #include "scene.h"
 #include "../../renderer.h"
-#include "../../backends/optix/operations_cuda.h"
+#include "../../operations_cpu_mux.h"
 
 #include <array>
 #include <cmath>
@@ -51,7 +51,7 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
         const T half_extent[3] = {renderer.scene_half_extent[0], renderer.scene_half_extent[1], renderer.scene_half_extent[2]};
 
         RL_TOOLS_RENDERING_RAYTRACING_LOG("precompute_indoor_positions: center=[" << center[0] << "," << center[1] << "," << center[2] << "] half_extent=[" << half_extent[0] << "," << half_extent[1] << "," << half_extent[2] << "]");
-        utils::assert_exit(device, renderer.backend.owl_collision_results_buffer != nullptr, "precompute_indoor_positions: collision results buffer is null");
+        utils::assert_exit(device, renderer.backend.collision_results_buffer != nullptr, "precompute_indoor_positions: collision results buffer is null");
 
         struct Candidate {
             IndoorPosition<T> position;
@@ -116,7 +116,8 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
                 const rendering::raytracing::CollisionResult* camera_probes = probe_results + static_cast<size_t>(camera_i) * static_cast<size_t>(NUM_PROBES);
                 TI hit_count = 0;
                 TI very_near_hit_count = 0;
-                T min_hit_dist = std::numeric_limits<T>::infinity();
+                // finite sentinel: infinity() is undefined behavior under -ffast-math and breaks the min tracking on Apple clang
+                T min_hit_dist = std::numeric_limits<T>::max();
                 T sum_hit_dist = static_cast<T>(0);
 
                 for (TI probe_i = 0; probe_i < NUM_PROBES; probe_i++) {
@@ -200,10 +201,10 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
         constexpr auto NUM_PROBES = RENDERER_SPEC::NUM_PROBES;
         const rendering::raytracing::CollisionResult* results = read_collision_results_raw(device, renderer);
         if (results == nullptr) {
-            return std::numeric_limits<T>::infinity();
+            return std::numeric_limits<T>::max();
         }
         const rendering::raytracing::CollisionResult* camera_probes = results + static_cast<size_t>(camera_index) * static_cast<size_t>(NUM_PROBES);
-        T min_dist = std::numeric_limits<T>::infinity();
+        T min_dist = std::numeric_limits<T>::max();
         for (typename RENDERER_SPEC::TI probe_i = 0; probe_i < NUM_PROBES; probe_i++) {
             if (camera_probes[probe_i].hit) {
                 T dist = static_cast<T>(camera_probes[probe_i].distance);
