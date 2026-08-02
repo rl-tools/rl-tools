@@ -71,6 +71,17 @@ cd /path/to/repo   # generators write relative to cwd
 
 After regeneration, rebuild the compile tests before re-running `ctest`.
 
+### Raytracing Golden Renderings
+
+`tests/data/rendering_raytracing_golden/` holds reference renderings of `tests/data/ProcTHOR-Train-1.glb` produced by the OptiX backend, for consistency testing over time and across backends. The cases (shading tiers, AA, motion blur, RGBD) and camera poses are defined in `tests/src/rendering/raytracing/golden_cases.h`. The generator is `EXCLUDE_FROM_ALL` and not registered with ctest — regenerate deliberately (requires CUDA + OptiX):
+
+```bash
+cmake --build build --target test_rendering_raytracing_generate_golden -j5
+./build/tests/src/rendering/raytracing/test_rendering_raytracing_generate_golden
+```
+
+Outputs: `<case>.png` (2x2 grid of the 4 poses), `<case>_depth.bin` (`[num_cameras, height, width]` int header + float32 data, RGBD cases), `probes.bin` (`[num_cameras, num_probes]` int header + `CollisionResult` data). Same binary + same GPU/driver produce bit-identical output; across machines expect small silhouette differences, so downstream comparisons must be tolerance-based.
+
 ### HDF5 Test Data
 
 Some tests (`NN_LAYERS_RESNET_CUDA`, sequential persist tests) load `.h5` files from `tests/data/`. The path is set via `RL_TOOLS_TEST_DATA_PATH` (auto-detected by CMake). If these tests fail with "Object not found" HDF5 errors, check that dataset paths in the test source match the actual HDF5 group structure (inspect with `h5dump -H` or `python3 -c "import h5py; ..."`).
