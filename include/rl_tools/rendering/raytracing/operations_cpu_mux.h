@@ -8,8 +8,10 @@
     #include "backends/metal/operations_cpu.h"
 #elif defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
     #include "backends/optix/operations_cuda.h"
+#elif defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_GENERIC)
+    #include "backends/generic/operations_cpu.h"
 #else
-    #error "RLtools raytracing: no backend configured (RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX or RL_TOOLS_RENDERING_RAYTRACING_BACKEND_METAL)"
+    #error "RLtools raytracing: no backend configured (RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX, RL_TOOLS_RENDERING_RAYTRACING_BACKEND_METAL, or RL_TOOLS_RENDERING_RAYTRACING_BACKEND_GENERIC)"
 #endif
 
 #endif

@@ -1,0 +1,16 @@
+find_package(assimp REQUIRED)
+# Homebrew's assimp config hardcodes the libz.tbd path of the SDK it was built against, which may
+# not exist locally; rewrite such entries to plain `z`.
+get_target_property(RL_TOOLS_ASSIMP_LINK_LIBRARIES assimp::assimp INTERFACE_LINK_LIBRARIES)
+if(RL_TOOLS_ASSIMP_LINK_LIBRARIES)
+    set(RL_TOOLS_ASSIMP_LINK_LIBRARIES_FIXED "")
+    foreach(RL_TOOLS_ASSIMP_LINK_ENTRY IN LISTS RL_TOOLS_ASSIMP_LINK_LIBRARIES)
+        if(RL_TOOLS_ASSIMP_LINK_ENTRY MATCHES "libz\\.tbd")
+            list(APPEND RL_TOOLS_ASSIMP_LINK_LIBRARIES_FIXED "z")
+        else()
+            list(APPEND RL_TOOLS_ASSIMP_LINK_LIBRARIES_FIXED "${RL_TOOLS_ASSIMP_LINK_ENTRY}")
+        endif()
+    endforeach()
+    list(REMOVE_DUPLICATES RL_TOOLS_ASSIMP_LINK_LIBRARIES_FIXED)
+    set_target_properties(assimp::assimp PROPERTIES INTERFACE_LINK_LIBRARIES "${RL_TOOLS_ASSIMP_LINK_LIBRARIES_FIXED}")
+endif()

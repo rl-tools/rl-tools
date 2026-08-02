@@ -546,7 +546,7 @@ int main(int argc, char** argv) {
     constexpr TI CAM_WIDTH = 1280;
     constexpr TI CAM_HEIGHT = 960;
     constexpr TI NUM_ENVS = 1;
-    using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, CAM_WIDTH, CAM_HEIGHT, 64, rlt::rendering::raytracing::High, false, 1, true, 2, OUTPUT_MODE>;
+    using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, CAM_WIDTH, CAM_HEIGHT, 64, rlt::rendering::raytracing::VeryHigh, false, 1, true, 2, OUTPUT_MODE>;
     using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 
     InteractiveOptions options;
