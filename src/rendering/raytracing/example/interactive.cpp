@@ -239,9 +239,12 @@ struct InputState {
 };
 
 static InputState g_input;
+static bool g_capture_pose_requested = false;
 #if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
 static bool g_show_depth = true;
 #endif
+
+static constexpr char CAPTURED_POSE_PATH[] = "camera_poses.txt";
 
 struct InteractiveOptions {
     std::string scene_arg;
@@ -486,9 +489,34 @@ static bool write_camera_trace_json(const std::string& path, const std::string& 
     return true;
 }
 
+static bool append_captured_pose(const char* path, const float position[3], const float look_at[3], const float up[3], float yaw, float pitch) {
+    std::ofstream f(path, std::ios::app);
+    if(!f) {
+        return false;
+    }
+    const float forward[3] = {
+        look_at[0] - position[0],
+        look_at[1] - position[1],
+        look_at[2] - position[2]
+    };
+    const Quaternion q = l2f_camera_quaternion(forward, up);
+    f << std::setprecision(9);
+    f << "position=" << position[0] << "," << position[1] << "," << position[2];
+    f << " yaw=" << yaw;
+    f << " pitch=" << pitch;
+    f << " quaternion_wxyz=" << q.w << "," << q.x << "," << q.y << "," << q.z;
+    f << "\n";
+    f.close();
+    return static_cast<bool>(f);
+}
+
 static void key_callback(GLFWwindow* window, int key, int /*scancode*/, int action, int /*mods*/) {
     if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, GLFW_TRUE);
+        return;
+    }
+    if (key == GLFW_KEY_C && action == GLFW_PRESS) {
+        g_capture_pose_requested = true;
         return;
     }
 #if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
@@ -686,6 +714,16 @@ int main(int argc, char** argv) {
         T up[3] = {0, 0, 1};
         T aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
         rlt::set(device, env.renderer->cameras, rlt::make_camera_data(eye, look_at, up, SPEC::RAYTRACING_SPEC::COS_FOVY, aspect), static_cast<TI>(0));
+
+        if (g_capture_pose_requested) {
+            g_capture_pose_requested = false;
+            if (append_captured_pose(CAPTURED_POSE_PATH, eye, look_at, up, g_input.yaw, g_input.pitch)) {
+                std::cout << "Appended camera pose to " << CAPTURED_POSE_PATH << std::endl;
+            }
+            else {
+                std::cerr << "Failed to append camera pose to " << CAPTURED_POSE_PATH << std::endl;
+            }
+        }
 
         if(!options.record_camera_pose_path.empty()) {
             RecordedCameraPose pose;
