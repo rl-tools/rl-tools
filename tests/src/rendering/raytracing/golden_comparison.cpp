@@ -1,10 +1,10 @@
 // Renders the golden cases (tests/src/rendering/raytracing/golden_cases.h) and compares against
 // the OptiX golden renderings in tests/data/rendering_raytracing_golden (see AGENTS.md
 // "Raytracing Golden Renderings"). Two targets are compiled from this file:
-// - test_rendering_raytracing_golden_comparison: pinned to the generic (CPU) backend (included
+// - test_rendering_raytracing_golden_comparison_cpu: pinned to the generic (CPU) backend (included
 //   directly, not via the mux) so the CPU raytracer is tested in every build configuration.
-// - test_rendering_raytracing_golden_comparison_active: uses the mux, i.e. the backend the build
-//   is configured for (Metal on macOS, OptiX on CUDA machines).
+// - test_rendering_raytracing_golden_comparison_<metal|optix>: uses the mux, i.e. the backend the
+//   build is configured for (target name matches, e.g. _metal on macOS, _optix on CUDA machines).
 #include <rl_tools/operations/cpu.h>
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND)
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
@@ -14,12 +14,16 @@
 
 #if !defined(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND)
 #define RL_TOOLS_GOLDEN_SUITE RENDERING_RAYTRACING_GOLDEN_CPU
+#define RL_TOOLS_GOLDEN_BACKEND_NAME "cpu"
 #elif defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_METAL)
 #define RL_TOOLS_GOLDEN_SUITE RENDERING_RAYTRACING_GOLDEN_METAL
+#define RL_TOOLS_GOLDEN_BACKEND_NAME "metal"
 #elif defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
 #define RL_TOOLS_GOLDEN_SUITE RENDERING_RAYTRACING_GOLDEN_OPTIX
+#define RL_TOOLS_GOLDEN_BACKEND_NAME "optix"
 #else
 #define RL_TOOLS_GOLDEN_SUITE RENDERING_RAYTRACING_GOLDEN_GENERIC
+#define RL_TOOLS_GOLDEN_BACKEND_NAME "generic"
 #endif
 
 #include "golden_cases.h"
@@ -34,8 +38,11 @@
 #include <string>
 #include <vector>
 
-#ifndef RL_TOOLS_TEST_DATA_PATH
-#error "RL_TOOLS_TEST_DATA_PATH is required"
+// falls back to the CWD-relative convention (run from the repo root) like other targets
+#ifdef RL_TOOLS_TEST_DATA_PATH
+#define RL_TOOLS_GOLDEN_TEST_DATA_PATH RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)
+#else
+#define RL_TOOLS_GOLDEN_TEST_DATA_PATH "tests/data"
 #endif
 
 namespace rlt = rl_tools;
@@ -55,8 +62,11 @@ static constexpr double DEPTH_OUTLIER_FRACTION = 0.005;   // max fraction of out
 static constexpr int PROBE_HIT_MISMATCH_MAX = 2;
 static constexpr double PROBE_DISTANCE_REL = 1e-3;
 
-static const std::string SCENE_PATH = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH) "/ProcTHOR-Train-1.glb";
-static const std::string GOLDEN_DIR = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH) "/rendering_raytracing_golden";
+static const std::string SCENE_PATH = RL_TOOLS_GOLDEN_TEST_DATA_PATH "/ProcTHOR-Train-1.glb";
+static const std::string GOLDEN_DIR = RL_TOOLS_GOLDEN_TEST_DATA_PATH "/rendering_raytracing_golden";
+// Frames rendered by the backend under test are written here (gitignored) for visual comparison
+// against the goldens.
+static const std::string BACKEND_OUTPUT_DIR = GOLDEN_DIR + "/backend/" + RL_TOOLS_GOLDEN_BACKEND_NAME;
 
 namespace {
     bool goldens_available(){
@@ -68,6 +78,7 @@ namespace {
         std::vector<float> depth_buffer;      // camera-major
         std::vector<rlt::rendering::raytracing::CollisionResult> probes;
         float max_depth = 0;
+        float camera_radius = 0;
     };
 
     template <typename SPEC>
@@ -119,6 +130,7 @@ namespace {
             out.probes.assign(probe_results, probe_results + (size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);
         }
         out.max_depth = renderer.camera_radius > 0 ? renderer.camera_radius * 2.0f : 1e30f;
+        out.camera_radius = renderer.camera_radius;
 
         rlt::free(device, renderer);
         return true;
@@ -196,6 +208,15 @@ namespace {
         int channel_max[3] = {0, 0, 0};
     };
 
+    template <typename SPEC>
+    void write_backend_frames(const char* name, const Rendered& rendered){
+        std::filesystem::create_directories(BACKEND_OUTPUT_DIR);
+        rlt::rendering::raytracing::detail::write_grid_png<SPEC>(rendered.frame_buffer.data(), (BACKEND_OUTPUT_DIR + "/" + name + ".png").c_str());
+        if(!rendered.depth_buffer.empty()){
+            rlt::rendering::raytracing::detail::write_depth_grid_png<SPEC>(rendered.depth_buffer.data(), rendered.camera_radius, (BACKEND_OUTPUT_DIR + "/" + name + "_depth.png").c_str());
+        }
+    }
+
     RGBStats compare_rgb(const std::vector<uint32_t>& ours, const std::vector<uint32_t>& golden){
         RGBStats stats;
         const auto* ours_bytes = (const unsigned char*)ours.data();
@@ -223,6 +244,7 @@ namespace {
         rlt::init(device);
         Rendered rendered;
         ASSERT_TRUE(render_case<SPEC>(device, rendered)) << "failed to load scene: " << SCENE_PATH;
+        write_backend_frames<SPEC>(name, rendered);
         std::vector<uint32_t> golden;
         ASSERT_TRUE(load_golden_png<SPEC>(GOLDEN_DIR + "/" + name + ".png", golden)) << "failed to load golden: " << name;
         const RGBStats stats = compare_rgb(rendered.frame_buffer, golden);
@@ -240,6 +262,7 @@ namespace {
         rlt::init(device);
         Rendered rendered;
         ASSERT_TRUE(render_case<SPEC>(device, rendered)) << "failed to load scene: " << SCENE_PATH;
+        write_backend_frames<SPEC>(name, rendered);
 
         std::vector<uint32_t> golden_rgb;
         ASSERT_TRUE(load_golden_png<SPEC>(GOLDEN_DIR + "/" + name + ".png", golden_rgb)) << "failed to load golden: " << name;
