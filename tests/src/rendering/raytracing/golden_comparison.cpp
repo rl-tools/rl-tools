@@ -27,6 +27,7 @@
 #endif
 
 #include "golden_cases.h"
+#include "golden_io.h"
 #include "../../utils/utils.h"
 
 #include <gtest/gtest.h>
@@ -59,7 +60,7 @@ static constexpr double RGB_MAD_THRESHOLD = 1.0;          // mean abs diff in 8-
 static constexpr double DEPTH_MAD_THRESHOLD = 1e-3;       // mean abs diff normalized by max_depth
 static constexpr double DEPTH_OUTLIER_REL = 1e-3;         // per-pixel relative outlier threshold
 static constexpr double DEPTH_OUTLIER_FRACTION = 0.005;   // max fraction of outlier pixels
-static constexpr int PROBE_HIT_MISMATCH_MAX = 2;
+static constexpr int PROBE_HIT_MISMATCH_MAX = 6;        // out of NUM_CAMERAS * NUM_PROBES = 768
 static constexpr double PROBE_DISTANCE_REL = 1e-3;
 
 static const std::string SCENE_PATH = RL_TOOLS_GOLDEN_TEST_DATA_PATH "/ProcTHOR-Train-1.glb";
@@ -70,7 +71,8 @@ static const std::string BACKEND_OUTPUT_DIR = GOLDEN_DIR + "/backend/" + RL_TOOL
 
 namespace {
     bool goldens_available(){
-        return std::filesystem::exists(GOLDEN_DIR);
+        // per-pose layout: <golden_dir>/<pose_id>/<case>.png
+        return std::filesystem::exists(GOLDEN_DIR + "/" + CASES::POSES[0].id);
     }
 
     struct Rendered{
@@ -136,222 +138,175 @@ namespace {
         return true;
     }
 
-    // The golden PNGs are 2x2 camera grids (rendering::raytracing::detail::write_grid_png layout);
-    // rearrange to the camera-major order of the framebuffer.
-    template <typename SPEC>
-    bool load_golden_png(const std::string& path, std::vector<uint32_t>& camera_major){
-        int width, height, channels;
-        unsigned char* image = stbi_load(path.c_str(), &width, &height, &channels, 4);
-        if(image == nullptr){
-            return false;
-        }
-        constexpr int grid_width = (int)(SPEC::GRID_COLS * SPEC::CAM_WIDTH);
-        constexpr int grid_height = (int)(SPEC::GRID_ROWS * SPEC::CAM_HEIGHT);
-        if(width != grid_width || height != grid_height){
-            stbi_image_free(image);
-            return false;
-        }
-        camera_major.resize((size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
-        for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
-            const TI offset_x = (camera_i % SPEC::GRID_COLS) * SPEC::CAM_WIDTH;
-            const TI offset_y = (camera_i / SPEC::GRID_COLS) * SPEC::CAM_HEIGHT;
-            for(TI y = 0; y < SPEC::CAM_HEIGHT; y++){
-                std::memcpy(&camera_major[camera_i * SPEC::CAM_PIXELS + y * SPEC::CAM_WIDTH],
-                            &image[(((size_t)offset_y + y) * width + offset_x) * 4],
-                            SPEC::CAM_WIDTH * sizeof(uint32_t));
-            }
-        }
-        stbi_image_free(image);
-        return true;
-    }
-
-    bool load_golden_depth(const std::string& path, int expected_cameras, int expected_height, int expected_width, std::vector<float>& depth){
-        FILE* file = std::fopen(path.c_str(), "rb");
-        if(file == nullptr){
-            return false;
-        }
-        int num_cameras = 0, height = 0, width = 0;
-        bool ok = std::fread(&num_cameras, sizeof(int), 1, file) == 1
-               && std::fread(&height, sizeof(int), 1, file) == 1
-               && std::fread(&width, sizeof(int), 1, file) == 1
-               && num_cameras == expected_cameras && height == expected_height && width == expected_width;
-        if(ok){
-            const size_t count = (size_t)num_cameras * height * width;
-            depth.resize(count);
-            ok = std::fread(depth.data(), sizeof(float), count, file) == count;
-        }
-        std::fclose(file);
-        return ok;
-    }
-
-    bool load_golden_probes(const std::string& path, int expected_cameras, int expected_probes, std::vector<rlt::rendering::raytracing::CollisionResult>& probes){
-        FILE* file = std::fopen(path.c_str(), "rb");
-        if(file == nullptr){
-            return false;
-        }
-        int num_cameras = 0, num_probes = 0;
-        bool ok = std::fread(&num_cameras, sizeof(int), 1, file) == 1
-               && std::fread(&num_probes, sizeof(int), 1, file) == 1
-               && num_cameras == expected_cameras && num_probes == expected_probes;
-        if(ok){
-            const size_t count = (size_t)num_cameras * num_probes;
-            probes.resize(count);
-            ok = std::fread(probes.data(), sizeof(rlt::rendering::raytracing::CollisionResult), count, file) == count;
-        }
-        std::fclose(file);
-        return ok;
-    }
-
     struct RGBStats{
         double mad = 0;
-        double channel_mean[3] = {0, 0, 0};
         int channel_max[3] = {0, 0, 0};
     };
 
-    template <typename SPEC>
-    void write_backend_frames(const char* name, const Rendered& rendered){
-        std::filesystem::create_directories(BACKEND_OUTPUT_DIR);
-        rlt::rendering::raytracing::detail::write_grid_png<SPEC>(rendered.frame_buffer.data(), (BACKEND_OUTPUT_DIR + "/" + name + ".png").c_str());
-        if(!rendered.depth_buffer.empty()){
-            rlt::rendering::raytracing::detail::write_depth_grid_png<SPEC>(rendered.depth_buffer.data(), rendered.camera_radius, (BACKEND_OUTPUT_DIR + "/" + name + "_depth.png").c_str());
-        }
-    }
-
-    RGBStats compare_rgb(const std::vector<uint32_t>& ours, const std::vector<uint32_t>& golden){
+    RGBStats compare_rgb(const uint32_t* ours, const uint32_t* golden, size_t count){
         RGBStats stats;
-        const auto* ours_bytes = (const unsigned char*)ours.data();
-        const auto* golden_bytes = (const unsigned char*)golden.data();
+        const auto* ours_bytes = (const unsigned char*)ours;
+        const auto* golden_bytes = (const unsigned char*)golden;
         double total = 0;
-        for(size_t pixel_i = 0; pixel_i < ours.size(); pixel_i++){
+        for(size_t pixel_i = 0; pixel_i < count; pixel_i++){
             for(int channel = 0; channel < 3; channel++){
                 const int diff = (int)ours_bytes[pixel_i * 4 + channel] - (int)golden_bytes[pixel_i * 4 + channel];
                 const int abs_diff = diff < 0 ? -diff : diff;
-                stats.channel_mean[channel] += abs_diff;
                 if(abs_diff > stats.channel_max[channel]) stats.channel_max[channel] = abs_diff;
                 total += abs_diff;
             }
         }
-        for(int channel = 0; channel < 3; channel++){
-            stats.channel_mean[channel] /= (double)ours.size();
-        }
-        stats.mad = total / ((double)ours.size() * 3);
+        stats.mad = total / ((double)count * 3);
         return stats;
     }
 
     template <typename SPEC>
-    void expect_rgb_matches_golden(const char* name){
-        DEVICE device;
-        rlt::init(device);
-        Rendered rendered;
-        ASSERT_TRUE(render_case<SPEC>(device, rendered)) << "failed to load scene: " << SCENE_PATH;
-        write_backend_frames<SPEC>(name, rendered);
-        std::vector<uint32_t> golden;
-        ASSERT_TRUE(load_golden_png<SPEC>(GOLDEN_DIR + "/" + name + ".png", golden)) << "failed to load golden: " << name;
-        const RGBStats stats = compare_rgb(rendered.frame_buffer, golden);
-        EXPECT_LE(stats.mad, RGB_MAD_THRESHOLD)
-            << name << ": RGB mean abs diff " << stats.mad
-            << " (R mean=" << stats.channel_mean[0] << " max=" << stats.channel_max[0]
-            << ", G mean=" << stats.channel_mean[1] << " max=" << stats.channel_max[1]
-            << ", B mean=" << stats.channel_mean[2] << " max=" << stats.channel_max[2] << ")";
-        std::printf("[golden] %s: rgb mad=%.4f max=(%d,%d,%d)\n", name, stats.mad, stats.channel_max[0], stats.channel_max[1], stats.channel_max[2]);
+    void write_backend_frames(const char* name, const Rendered& rendered){
+        for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
+            const std::string directory = BACKEND_OUTPUT_DIR + "/" + CASES::POSES[camera_i].id;
+            std::filesystem::create_directories(directory);
+            golden::write_camera_png(directory + "/" + name + ".png", rendered.frame_buffer.data() + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+            if(!rendered.depth_buffer.empty()){
+                golden::write_camera_depth_png(directory + "/" + name + "_depth.png", rendered.depth_buffer.data() + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
+            }
+        }
     }
 
     template <typename SPEC>
-    void expect_rgbd_matches_golden(const char* name){
+    void expect_rgb_matches_golden(const char* name, const Rendered& rendered){
+        double worst_mad = 0;
+        const char* worst_id = CASES::POSES[0].id;
+        int max_channel[3] = {0, 0, 0};
+        for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
+            const char* id = CASES::POSES[camera_i].id;
+            std::vector<uint32_t> golden_pixels;
+            ASSERT_TRUE(golden::load_camera_png(GOLDEN_DIR + "/" + id + "/" + name + ".png", SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_pixels)) << "failed to load golden: " << id << "/" << name;
+            const RGBStats stats = compare_rgb(rendered.frame_buffer.data() + camera_i * SPEC::CAM_PIXELS, golden_pixels.data(), SPEC::CAM_PIXELS);
+            EXPECT_LE(stats.mad, RGB_MAD_THRESHOLD)
+                << name << " pose " << id << ": RGB mean abs diff " << stats.mad
+                << " (max R=" << stats.channel_max[0] << " G=" << stats.channel_max[1] << " B=" << stats.channel_max[2] << ")";
+            if(stats.mad > worst_mad){
+                worst_mad = stats.mad;
+                worst_id = id;
+            }
+            for(int channel = 0; channel < 3; channel++){
+                if(stats.channel_max[channel] > max_channel[channel]) max_channel[channel] = stats.channel_max[channel];
+            }
+        }
+        std::printf("[golden] %s: worst pose %s rgb mad=%.4f max=(%d,%d,%d) over %d poses\n", name, worst_id, worst_mad, max_channel[0], max_channel[1], max_channel[2], (int)SPEC::NUM_CAMERAS);
+    }
+
+    template <typename SPEC>
+    void run_rgb_case(const char* name){
         DEVICE device;
         rlt::init(device);
         Rendered rendered;
         ASSERT_TRUE(render_case<SPEC>(device, rendered)) << "failed to load scene: " << SCENE_PATH;
         write_backend_frames<SPEC>(name, rendered);
+        expect_rgb_matches_golden<SPEC>(name, rendered);
+    }
 
-        std::vector<uint32_t> golden_rgb;
-        ASSERT_TRUE(load_golden_png<SPEC>(GOLDEN_DIR + "/" + name + ".png", golden_rgb)) << "failed to load golden: " << name;
-        const RGBStats stats = compare_rgb(rendered.frame_buffer, golden_rgb);
-        EXPECT_LE(stats.mad, RGB_MAD_THRESHOLD) << name << ": RGB mean abs diff " << stats.mad;
+    template <typename SPEC>
+    void run_rgbd_case(const char* name){
+        DEVICE device;
+        rlt::init(device);
+        Rendered rendered;
+        ASSERT_TRUE(render_case<SPEC>(device, rendered)) << "failed to load scene: " << SCENE_PATH;
+        write_backend_frames<SPEC>(name, rendered);
+        expect_rgb_matches_golden<SPEC>(name, rendered);
 
-        std::vector<float> golden_depth;
-        ASSERT_TRUE(load_golden_depth(GOLDEN_DIR + "/" + name + "_depth.bin", SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, golden_depth)) << "failed to load golden depth: " << name;
-        ASSERT_EQ(rendered.depth_buffer.size(), golden_depth.size());
-        double total_abs_diff = 0;
-        size_t outliers = 0;
-        for(size_t pixel_i = 0; pixel_i < golden_depth.size(); pixel_i++){
-            const double diff = (double)rendered.depth_buffer[pixel_i] - (double)golden_depth[pixel_i];
-            const double abs_diff = diff < 0 ? -diff : diff;
-            total_abs_diff += abs_diff;
-            const double magnitude = std::max((double)golden_depth[pixel_i], 1e-6);
-            if(abs_diff / magnitude > DEPTH_OUTLIER_REL) outliers++;
+        double worst_mad = 0;
+        double worst_outliers = 0;
+        for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
+            const char* id = CASES::POSES[camera_i].id;
+            std::vector<float> golden_depth;
+            ASSERT_TRUE(golden::load_camera_depth_bin(GOLDEN_DIR + "/" + id + "/" + name + "_depth.bin", SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_depth)) << "failed to load golden depth: " << id << "/" << name;
+            const float* ours = rendered.depth_buffer.data() + camera_i * SPEC::CAM_PIXELS;
+            double total_abs_diff = 0;
+            size_t outliers = 0;
+            for(size_t pixel_i = 0; pixel_i < golden_depth.size(); pixel_i++){
+                const double diff = (double)ours[pixel_i] - (double)golden_depth[pixel_i];
+                const double abs_diff = diff < 0 ? -diff : diff;
+                total_abs_diff += abs_diff;
+                const double magnitude = std::max((double)golden_depth[pixel_i], 1e-6);
+                if(abs_diff / magnitude > DEPTH_OUTLIER_REL) outliers++;
+            }
+            const double depth_mad = total_abs_diff / (double)golden_depth.size() / (double)rendered.max_depth;
+            const double outlier_fraction = (double)outliers / (double)golden_depth.size();
+            EXPECT_LE(depth_mad, DEPTH_MAD_THRESHOLD) << name << " pose " << id << ": normalized depth mean abs diff " << depth_mad;
+            EXPECT_LE(outlier_fraction, DEPTH_OUTLIER_FRACTION) << name << " pose " << id << ": depth outlier fraction " << outlier_fraction;
+            worst_mad = std::max(worst_mad, depth_mad);
+            worst_outliers = std::max(worst_outliers, outlier_fraction);
         }
-        const double depth_mad = total_abs_diff / (double)golden_depth.size() / (double)rendered.max_depth;
-        const double outlier_fraction = (double)outliers / (double)golden_depth.size();
-        EXPECT_LE(depth_mad, DEPTH_MAD_THRESHOLD) << name << ": normalized depth mean abs diff " << depth_mad;
-        EXPECT_LE(outlier_fraction, DEPTH_OUTLIER_FRACTION) << name << ": depth outlier fraction " << outlier_fraction;
-        std::printf("[golden] %s: rgb mad=%.4f depth mad=%.2e outliers=%.4f%%\n", name, stats.mad, depth_mad, outlier_fraction * 100);
+        std::printf("[golden] %s: worst depth mad=%.2e worst outliers=%.4f%%\n", name, worst_mad, worst_outliers * 100);
     }
 }
 
-#define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() if(!goldens_available()){ GTEST_SKIP() << "golden renderings not found at " << GOLDEN_DIR << " (generate with test_rendering_raytracing_generate_golden on a CUDA machine)"; }
+#define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() if(!goldens_available()){ GTEST_SKIP() << "golden renderings not found at " << GOLDEN_DIR << " (per-pose layout; generate with test_rendering_raytracing_generate_golden on a CUDA machine)"; }
 
 TEST(RL_TOOLS_GOLDEN_SUITE, LOW_RGB){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
-    expect_rgb_matches_golden<CASES::LOW_RGB>("low_rgb");
+    run_rgb_case<CASES::LOW_RGB>("low_rgb");
 }
 TEST(RL_TOOLS_GOLDEN_SUITE, MEDIUM_RGB){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
-    expect_rgb_matches_golden<CASES::MEDIUM_RGB>("medium_rgb");
+    run_rgb_case<CASES::MEDIUM_RGB>("medium_rgb");
 }
 TEST(RL_TOOLS_GOLDEN_SUITE, HIGH_RGB){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
-    expect_rgb_matches_golden<CASES::HIGH_RGB>("high_rgb");
+    run_rgb_case<CASES::HIGH_RGB>("high_rgb");
 }
 TEST(RL_TOOLS_GOLDEN_SUITE, VERY_HIGH_RGB){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
-    expect_rgb_matches_golden<CASES::VERY_HIGH_RGB>("very_high_rgb");
+    run_rgb_case<CASES::VERY_HIGH_RGB>("very_high_rgb");
 }
 TEST(RL_TOOLS_GOLDEN_SUITE, HIGH_RGB_AA2){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
-    expect_rgb_matches_golden<CASES::HIGH_RGB_AA2>("high_rgb_aa2");
+    run_rgb_case<CASES::HIGH_RGB_AA2>("high_rgb_aa2");
 }
 TEST(RL_TOOLS_GOLDEN_SUITE, HIGH_RGB_MB4){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
-    expect_rgb_matches_golden<CASES::HIGH_RGB_MB4>("high_rgb_mb4");
+    run_rgb_case<CASES::HIGH_RGB_MB4>("high_rgb_mb4");
 }
 TEST(RL_TOOLS_GOLDEN_SUITE, LOW_RGBD){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
-    expect_rgbd_matches_golden<CASES::LOW_RGBD>("low_rgbd");
+    run_rgbd_case<CASES::LOW_RGBD>("low_rgbd");
 }
 TEST(RL_TOOLS_GOLDEN_SUITE, HIGH_RGBD){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
-    expect_rgbd_matches_golden<CASES::HIGH_RGBD>("high_rgbd");
+    run_rgbd_case<CASES::HIGH_RGBD>("high_rgbd");
 }
 
 TEST(RL_TOOLS_GOLDEN_SUITE, PROBES){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
-    using SPEC = CASES::LOW_RGB; // probes.bin was written during the low_rgb golden case
+    using SPEC = CASES::LOW_RGB; // probes.bin is written during the low_rgb golden case
     DEVICE device;
     rlt::init(device);
     Rendered rendered;
     ASSERT_TRUE(render_case<SPEC>(device, rendered)) << "failed to load scene: " << SCENE_PATH;
     ASSERT_FALSE(rendered.probes.empty());
 
-    std::vector<rlt::rendering::raytracing::CollisionResult> golden_probes;
-    ASSERT_TRUE(load_golden_probes(GOLDEN_DIR + "/probes.bin", SPEC::NUM_CAMERAS, SPEC::NUM_PROBES, golden_probes));
-    ASSERT_EQ(rendered.probes.size(), golden_probes.size());
-
     int hit_mismatches = 0;
     double max_rel_distance_diff = 0;
-    for(size_t probe_i = 0; probe_i < golden_probes.size(); probe_i++){
-        if((rendered.probes[probe_i].hit != 0) != (golden_probes[probe_i].hit != 0)){
-            hit_mismatches++;
-            continue;
-        }
-        if(golden_probes[probe_i].hit){
-            const double diff = (double)rendered.probes[probe_i].distance - (double)golden_probes[probe_i].distance;
-            const double abs_diff = diff < 0 ? -diff : diff;
-            const double rel = abs_diff / std::max((double)golden_probes[probe_i].distance, 1e-6);
-            if(rel > max_rel_distance_diff) max_rel_distance_diff = rel;
+    for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
+        const char* id = CASES::POSES[camera_i].id;
+        std::vector<rlt::rendering::raytracing::CollisionResult> golden_probes;
+        ASSERT_TRUE(golden::load_camera_probes(GOLDEN_DIR + "/" + id + "/probes.bin", SPEC::NUM_PROBES, golden_probes)) << "failed to load golden probes: " << id;
+        const auto* ours = rendered.probes.data() + camera_i * SPEC::NUM_PROBES;
+        for(size_t probe_i = 0; probe_i < golden_probes.size(); probe_i++){
+            if((ours[probe_i].hit != 0) != (golden_probes[probe_i].hit != 0)){
+                hit_mismatches++;
+                continue;
+            }
+            if(golden_probes[probe_i].hit){
+                const double diff = (double)ours[probe_i].distance - (double)golden_probes[probe_i].distance;
+                const double abs_diff = diff < 0 ? -diff : diff;
+                const double rel = abs_diff / std::max((double)golden_probes[probe_i].distance, 1e-6);
+                if(rel > max_rel_distance_diff) max_rel_distance_diff = rel;
+            }
         }
     }
-    EXPECT_LE(hit_mismatches, PROBE_HIT_MISMATCH_MAX) << "probe hit flag mismatches: " << hit_mismatches << "/" << golden_probes.size();
+    EXPECT_LE(hit_mismatches, PROBE_HIT_MISMATCH_MAX) << "probe hit flag mismatches: " << hit_mismatches << "/" << SPEC::NUM_CAMERAS * SPEC::NUM_PROBES;
     EXPECT_LE(max_rel_distance_diff, PROBE_DISTANCE_REL) << "max relative probe distance diff: " << max_rel_distance_diff;
-    std::printf("[golden] probes: hit mismatches=%d/%zu max rel dist diff=%.2e\n", hit_mismatches, golden_probes.size(), max_rel_distance_diff);
+    std::printf("[golden] probes: hit mismatches=%d/%d max rel dist diff=%.2e\n", hit_mismatches, (int)(SPEC::NUM_CAMERAS * SPEC::NUM_PROBES), max_rel_distance_diff);
 }

@@ -2,6 +2,7 @@
 #include <rl_tools/rendering/raytracing/backends/optix/operations_cuda.h>
 
 #include "golden_cases.h"
+#include "golden_io.h"
 #include "../../utils/utils.h"
 
 #include <cuda_runtime.h>
@@ -83,13 +84,25 @@ bool run_case(DEVICE& device, const char* name, bool write_probes) {
     }
 
     if(ok) {
-        const std::string base = OUTPUT_DIR + "/" + name;
-        rlt::save_image(device, renderer, (base + ".png").c_str());
-        if constexpr(SPEC::HAS_DEPTH) {
-            rlt::save_depth(device, renderer, (base + "_depth.bin").c_str());
-        }
+        // per-pose layout: <OUTPUT_DIR>/<pose_id>/<case>.png etc. (see golden_io.h)
+        const rlt::rendering::raytracing::CollisionResult* probe_results = nullptr;
         if(write_probes) {
-            rlt::save_probes(device, renderer, (OUTPUT_DIR + "/probes.bin").c_str());
+            probe_results = rlt::read_collision_results_raw(device, renderer);
+        }
+        for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
+            const std::string directory = OUTPUT_DIR + "/" + CASES::POSES[camera_i].id;
+            std::filesystem::create_directories(directory);
+            ok &= golden::write_camera_png(directory + "/" + std::string(name) + ".png", frame_buffer + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+            if constexpr(SPEC::HAS_DEPTH) {
+                const float* depth_buffer = rlt::data(renderer.depth_buffer);
+                ok &= golden::write_camera_depth_bin(directory + "/" + std::string(name) + "_depth.bin", depth_buffer + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+            }
+            if(write_probes && probe_results != nullptr) {
+                ok &= golden::write_camera_probes(directory + "/probes.bin", probe_results + camera_i * SPEC::NUM_PROBES, SPEC::NUM_PROBES);
+            }
+        }
+        if(!ok) {
+            std::cerr << "[golden] " << name << ": failed to write outputs" << std::endl;
         }
     }
 
