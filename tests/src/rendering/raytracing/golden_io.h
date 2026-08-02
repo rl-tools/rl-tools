@@ -60,6 +60,41 @@ namespace golden {
         return write_camera_png(path, image.data(), width, height);
     }
 
+    // per-channel abs diff, amplified so small deviations are visible (value = min(255, 8 * |a - b|))
+    inline bool write_camera_diff_png(const std::string& path, const uint32_t* ours, const uint32_t* golden, int width, int height){
+        std::vector<uint32_t> image((size_t)width * height);
+        const auto* ours_bytes = (const unsigned char*)ours;
+        const auto* golden_bytes = (const unsigned char*)golden;
+        auto* image_bytes = (unsigned char*)image.data();
+        for(size_t pixel_i = 0; pixel_i < (size_t)width * height; pixel_i++){
+            for(int channel = 0; channel < 3; channel++){
+                const int diff = (int)ours_bytes[pixel_i * 4 + channel] - (int)golden_bytes[pixel_i * 4 + channel];
+                const int amplified = (diff < 0 ? -diff : diff) * 8;
+                image_bytes[pixel_i * 4 + channel] = (unsigned char)(amplified > 255 ? 255 : amplified);
+            }
+            image_bytes[pixel_i * 4 + 3] = 255;
+        }
+        return write_camera_png(path, image.data(), width, height);
+    }
+
+    // grayscale abs depth diff, normalized to the maximum difference in the image
+    inline bool write_camera_depth_diff_png(const std::string& path, const float* ours, const float* golden, int width, int height){
+        float max_diff = 0;
+        for(int pixel_i = 0; pixel_i < width * height; pixel_i++){
+            const float diff = ours[pixel_i] - golden[pixel_i];
+            const float abs_diff = diff < 0 ? -diff : diff;
+            max_diff = abs_diff > max_diff ? abs_diff : max_diff;
+        }
+        std::vector<uint32_t> image((size_t)width * height);
+        for(int pixel_i = 0; pixel_i < width * height; pixel_i++){
+            const float diff = ours[pixel_i] - golden[pixel_i];
+            const float abs_diff = diff < 0 ? -diff : diff;
+            const unsigned char gray = max_diff > 0 ? (unsigned char)(abs_diff / max_diff * 255.f) : 0;
+            image[pixel_i] = (0xFFu << 24) | ((uint32_t)gray << 16) | ((uint32_t)gray << 8) | (uint32_t)gray;
+        }
+        return write_camera_png(path, image.data(), width, height);
+    }
+
     inline bool write_camera_depth_bin(const std::string& path, const float* depth, int width, int height){
         FILE* file = std::fopen(path.c_str(), "wb");
         if(file == nullptr){

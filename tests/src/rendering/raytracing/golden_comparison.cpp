@@ -182,6 +182,11 @@ namespace {
             std::vector<uint32_t> golden_pixels;
             ASSERT_TRUE(golden::load_camera_png(GOLDEN_DIR + "/" + id + "/" + name + ".png", SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_pixels)) << "failed to load golden: " << id << "/" << name;
             const RGBStats stats = compare_rgb(rendered.frame_buffer.data() + camera_i * SPEC::CAM_PIXELS, golden_pixels.data(), SPEC::CAM_PIXELS);
+            {
+                const std::string directory = BACKEND_OUTPUT_DIR + "/" + id;
+                std::filesystem::create_directories(directory);
+                golden::write_camera_diff_png(directory + "/" + name + "_diff.png", rendered.frame_buffer.data() + camera_i * SPEC::CAM_PIXELS, golden_pixels.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+            }
             EXPECT_LE(stats.mad, RGB_MAD_THRESHOLD)
                 << name << " pose " << id << ": RGB mean abs diff " << stats.mad
                 << " (max R=" << stats.channel_max[0] << " G=" << stats.channel_max[1] << " B=" << stats.channel_max[2] << ")";
@@ -222,6 +227,11 @@ namespace {
             std::vector<float> golden_depth;
             ASSERT_TRUE(golden::load_camera_depth_bin(GOLDEN_DIR + "/" + id + "/" + name + "_depth.bin", SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_depth)) << "failed to load golden depth: " << id << "/" << name;
             const float* ours = rendered.depth_buffer.data() + camera_i * SPEC::CAM_PIXELS;
+            {
+                const std::string directory = BACKEND_OUTPUT_DIR + "/" + id;
+                std::filesystem::create_directories(directory);
+                golden::write_camera_depth_diff_png(directory + "/" + name + "_depth_diff.png", ours, golden_depth.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+            }
             double total_abs_diff = 0;
             size_t outliers = 0;
             for(size_t pixel_i = 0; pixel_i < golden_depth.size(); pixel_i++){
