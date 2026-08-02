@@ -745,7 +745,7 @@ static std::string cuda_device_name() {
 
 template <typename SPEC>
 static void add_box(rlt::rendering::raytracing::Renderer<SPEC>& renderer, T cx, T cy, T cz, T sx, T sy, T sz, T r, T g, T b) {
-    rlt::rendering::raytracing::MeshData<SPEC> md;
+    rlt::rendering::raytracing::MeshData md;
     md.color[0] = r;
     md.color[1] = g;
     md.color[2] = b;
@@ -777,7 +777,7 @@ static void add_sphere(rlt::rendering::raytracing::Renderer<SPEC>& renderer, T c
     static constexpr int SEGMENTS = 16;
     static constexpr int RINGS = 8;
     static constexpr T PI = static_cast<T>(3.14159265358979323846);
-    rlt::rendering::raytracing::MeshData<SPEC> md;
+    rlt::rendering::raytracing::MeshData md;
     md.color[0] = r;
     md.color[1] = g;
     md.color[2] = b;

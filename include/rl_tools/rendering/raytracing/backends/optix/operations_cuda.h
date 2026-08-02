@@ -474,11 +474,11 @@ namespace rl_tools {
                     owlGeomSetBuffer(geom, "tex_coord", tcb);
                 }
 
-                if(md.has_texture && md.tex_width > 0 && md.tex_height > 0){
+                if(md.texture.present()){
                     OWLTexture tex = owlTexture2DCreate(context,
                                                          OWL_TEXEL_FORMAT_RGBA8,
-                                                         md.tex_width, md.tex_height,
-                                                         md.tex_pixels.data(),
+                                                         md.texture.width, md.texture.height,
+                                                         md.texture.pixels.data(),
                                                          OWL_TEXTURE_LINEAR,
                                                          OWL_TEXTURE_WRAP,
                                                          OWL_TEXTURE_WRAP,
@@ -503,11 +503,11 @@ namespace rl_tools {
 
                     owlGeomSet1f(geom, "roughness", md.roughness);
 
-                if (md.has_normal_map && md.normal_tex_width > 0 && md.normal_tex_height > 0) {
+                if (md.normal_map.present()) {
                     OWLTexture nm_tex = owlTexture2DCreate(context,
                                                            OWL_TEXEL_FORMAT_RGBA8,
-                                                           md.normal_tex_width, md.normal_tex_height,
-                                                           md.normal_tex_pixels.data(),
+                                                           md.normal_map.width, md.normal_map.height,
+                                                           md.normal_map.pixels.data(),
                                                            OWL_TEXTURE_LINEAR,
                                                            OWL_TEXTURE_WRAP,
                                                            OWL_TEXTURE_WRAP,
@@ -518,11 +518,11 @@ namespace rl_tools {
                     owlGeomSet1i(geom, "has_normal_map", 0);
                 }
 
-                if (md.has_metallic_roughness_map && md.mr_tex_width > 0 && md.mr_tex_height > 0) {
+                if (md.metallic_roughness_map.present()) {
                     OWLTexture mr_tex = owlTexture2DCreate(context,
                                                            OWL_TEXEL_FORMAT_RGBA8,
-                                                           md.mr_tex_width, md.mr_tex_height,
-                                                           md.metallic_roughness_tex_pixels.data(),
+                                                           md.metallic_roughness_map.width, md.metallic_roughness_map.height,
+                                                           md.metallic_roughness_map.pixels.data(),
                                                            OWL_TEXTURE_LINEAR,
                                                            OWL_TEXTURE_WRAP,
                                                            OWL_TEXTURE_WRAP,
@@ -534,11 +534,11 @@ namespace rl_tools {
                 }
 
                 owlGeomSet3f(geom, "emissive", owl3f{md.emissive[0], md.emissive[1], md.emissive[2]});
-                if (md.has_emissive_map && md.emissive_tex_width > 0 && md.emissive_tex_height > 0) {
+                if (md.emissive_map.present()) {
                     OWLTexture em_tex = owlTexture2DCreate(context,
                                                            OWL_TEXEL_FORMAT_RGBA8,
-                                                           md.emissive_tex_width, md.emissive_tex_height,
-                                                           md.emissive_tex_pixels.data(),
+                                                           md.emissive_map.width, md.emissive_map.height,
+                                                           md.emissive_map.pixels.data(),
                                                            OWL_TEXTURE_LINEAR,
                                                            OWL_TEXTURE_WRAP,
                                                            OWL_TEXTURE_WRAP,
@@ -549,11 +549,11 @@ namespace rl_tools {
                     owlGeomSet1i(geom, "has_emissive_map", 0);
                 }
 
-                if (md.has_occlusion_map && md.occlusion_tex_width > 0 && md.occlusion_tex_height > 0) {
+                if (md.occlusion_map.present()) {
                     OWLTexture ao_tex = owlTexture2DCreate(context,
                                                            OWL_TEXEL_FORMAT_RGBA8,
-                                                           md.occlusion_tex_width, md.occlusion_tex_height,
-                                                           md.occlusion_tex_pixels.data(),
+                                                           md.occlusion_map.width, md.occlusion_map.height,
+                                                           md.occlusion_map.pixels.data(),
                                                            OWL_TEXTURE_LINEAR,
                                                            OWL_TEXTURE_WRAP,
                                                            OWL_TEXTURE_WRAP,

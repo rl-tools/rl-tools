@@ -112,27 +112,27 @@ int main(int ac, char** av){
     long long total_rays = total_rgb_rays + total_depth_rays + total_probe_rays;
     double total_mrays = total_rays / 1e6;
 
-    RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("=== BENCHMARK RESULTS (async) ===");
-    RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Cameras per batch:   " << SPEC::NUM_CAMERAS);
-    RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Resolution per cam:  " << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT);
-    RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Probes per camera:   " << SPEC::NUM_PROBES);
-    RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Batch iterations:    " << num_iterations);
-    RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Total frames:        " << total_frames);
+    RL_TOOLS_RENDERING_RAYTRACING_LOG("=== BENCHMARK RESULTS (async) ===");
+    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Cameras per batch:   " << SPEC::NUM_CAMERAS);
+    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Resolution per cam:  " << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT);
+    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Probes per camera:   " << SPEC::NUM_PROBES);
+    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Batch iterations:    " << num_iterations);
+    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Total frames:        " << total_frames);
 #if RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_OUTPUT_MODE != RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
-    RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Total RGB pixels:    " << total_rgb_pixels);
-    RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  RGB samples/pixel:   " << SPEC::RGB_SAMPLES);
+    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Total RGB pixels:    " << total_rgb_pixels);
+    RL_TOOLS_RENDERING_RAYTRACING_LOG("  RGB samples/pixel:   " << SPEC::RGB_SAMPLES);
 #endif
 #if RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_OUTPUT_MODE != RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB
-    RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Depth samples/pixel: " << SPEC::DEPTH_SAMPLES);
-    RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Total depth rays:    " << total_depth_rays);
+    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Depth samples/pixel: " << SPEC::DEPTH_SAMPLES);
+    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Total depth rays:    " << total_depth_rays);
 #endif
-    RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Total probe rays:    " << total_probe_rays);
-    RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Wall-clock time:     " << wall_ms << " ms");
-    RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Avg per iter:        " << wall_ms / num_iterations << " ms");
-    RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Avg per frame:       " << wall_ms / total_frames << " ms");
-    RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Throughput:          " << (total_frames / (wall_ms / 1000.0)) << " frames/sec");
-    RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Total MRays/sec:     " << (total_mrays / (wall_ms / 1000.0)));
-    RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("=========================");
+    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Total probe rays:    " << total_probe_rays);
+    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Wall-clock time:     " << wall_ms << " ms");
+    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Avg per iter:        " << wall_ms / num_iterations << " ms");
+    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Avg per frame:       " << wall_ms / total_frames << " ms");
+    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Throughput:          " << (total_frames / (wall_ms / 1000.0)) << " frames/sec");
+    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Total MRays/sec:     " << (total_mrays / (wall_ms / 1000.0)));
+    RL_TOOLS_RENDERING_RAYTRACING_LOG("=========================");
 
     // Save outputs
 #if RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_OUTPUT_MODE != RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
@@ -151,6 +151,6 @@ int main(int ac, char** av){
 
     rlt::free(device, renderer);
 
-    RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("seems all went OK; app is done, this should be the last output ...");
+    RL_TOOLS_RENDERING_RAYTRACING_LOG("seems all went OK; app is done, this should be the last output ...");
     return 0;
 }

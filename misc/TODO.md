@@ -76,3 +76,6 @@
 
 # Features
 - Look into implementing TQC, DroQ and CrossQ
+
+- We should separate library code under `src` from targets. Since RLtools there should not really be library code. But in some cases it is unavoidable (like in the rendering/raytracing OptiX and Metal backends). We should move these clear parts of the library that should be shared between targets into `src/rl_tools` to mirror `include/rl_tools`. The other normal targets can stay put.
+- Make the consistency tests output the backbone frames into tests/data/rendering_raytracing_golden/backend/{name} and then gitignore them (just as a user interface to compare visually)
