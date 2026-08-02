@@ -1,0 +1,4 @@
+include(cmake/optional/assimp_fixup.cmake)
+
+target_link_libraries(rl_tools_full INTERFACE assimp::assimp)
+target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_RENDERING_ENABLE_RAYTRACING RL_TOOLS_RENDERING_RAYTRACING_BACKEND_GENERIC)

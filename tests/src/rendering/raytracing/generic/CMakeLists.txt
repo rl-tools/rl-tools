@@ -1,0 +1,3 @@
+add_executable(test_rendering_raytracing_generic backend.cpp)
+target_link_libraries(test_rendering_raytracing_generic PRIVATE RLtools::Core GTest::gtest_main)
+gtest_discover_tests(test_rendering_raytracing_generic)
