@@ -202,32 +202,32 @@ namespace rl_tools {
             record.alpha_cutoff = md.alpha_cutoff;
             record.alpha_mode = md.alpha_mode;
 
-            if(md.has_texture && md.tex_width > 0 && md.tex_height > 0){
-                auto texture = metal::make_texture(ctx.device.get(), md.tex_pixels.data(), md.tex_width, md.tex_height, true);
+            if(md.texture.present()){
+                auto texture = metal::make_texture(ctx.device.get(), md.texture.pixels.data(), md.texture.width, md.texture.height, true);
                 record.texture = texture->gpuResourceID();
                 record.has_texture = 1;
                 ctx.mesh_textures.push_back(texture);
             }
-            if(md.has_normal_map && md.normal_tex_width > 0 && md.normal_tex_height > 0){
-                auto texture = metal::make_texture(ctx.device.get(), md.normal_tex_pixels.data(), md.normal_tex_width, md.normal_tex_height, false);
+            if(md.normal_map.present()){
+                auto texture = metal::make_texture(ctx.device.get(), md.normal_map.pixels.data(), md.normal_map.width, md.normal_map.height, false);
                 record.normal_map = texture->gpuResourceID();
                 record.has_normal_map = 1;
                 ctx.mesh_textures.push_back(texture);
             }
-            if(md.has_metallic_roughness_map && md.mr_tex_width > 0 && md.mr_tex_height > 0){
-                auto texture = metal::make_texture(ctx.device.get(), md.metallic_roughness_tex_pixels.data(), md.mr_tex_width, md.mr_tex_height, false);
+            if(md.metallic_roughness_map.present()){
+                auto texture = metal::make_texture(ctx.device.get(), md.metallic_roughness_map.pixels.data(), md.metallic_roughness_map.width, md.metallic_roughness_map.height, false);
                 record.metallic_roughness_map = texture->gpuResourceID();
                 record.has_metallic_roughness_map = 1;
                 ctx.mesh_textures.push_back(texture);
             }
-            if(md.has_emissive_map && md.emissive_tex_width > 0 && md.emissive_tex_height > 0){
-                auto texture = metal::make_texture(ctx.device.get(), md.emissive_tex_pixels.data(), md.emissive_tex_width, md.emissive_tex_height, true);
+            if(md.emissive_map.present()){
+                auto texture = metal::make_texture(ctx.device.get(), md.emissive_map.pixels.data(), md.emissive_map.width, md.emissive_map.height, true);
                 record.emissive_map = texture->gpuResourceID();
                 record.has_emissive_map = 1;
                 ctx.mesh_textures.push_back(texture);
             }
-            if(md.has_occlusion_map && md.occlusion_tex_width > 0 && md.occlusion_tex_height > 0){
-                auto texture = metal::make_texture(ctx.device.get(), md.occlusion_tex_pixels.data(), md.occlusion_tex_width, md.occlusion_tex_height, false);
+            if(md.occlusion_map.present()){
+                auto texture = metal::make_texture(ctx.device.get(), md.occlusion_map.pixels.data(), md.occlusion_map.width, md.occlusion_map.height, false);
                 record.occlusion_map = texture->gpuResourceID();
                 record.has_occlusion_map = 1;
                 ctx.mesh_textures.push_back(texture);

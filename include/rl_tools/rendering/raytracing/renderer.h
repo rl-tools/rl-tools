@@ -87,33 +87,29 @@ namespace rl_tools {
             static constexpr T COS_FOVY = 1.3962634015954636;
         };
 
-        template <typename T_SPEC>
+        struct MeshTexture{
+            std::vector<uint8_t> pixels; // RGBA8
+            int width = 0;
+            int height = 0;
+            bool present() const {
+                return !pixels.empty() && width > 0 && height > 0;
+            }
+        };
+
         struct MeshData{
-            using SPEC = T_SPEC;
-            using T = typename SPEC::T;
             std::vector<float> vertices; // vec3f flat
             std::vector<int> indices;    // vec3i flat
             std::vector<float> tex_coords; // vec2f flat
+            std::vector<float> normals;
             float color[3];
-            std::vector<uint8_t> tex_pixels; // RGBA8
-            int tex_width = 0, tex_height = 0;
-            bool has_texture = false;
+            MeshTexture texture;
+            MeshTexture normal_map;
+            MeshTexture metallic_roughness_map;
+            MeshTexture emissive_map;
+            MeshTexture occlusion_map;
             float metallic = 0.0f;
             float roughness = 1.0f;
-            std::vector<float> normals;
-            std::vector<uint8_t> normal_tex_pixels;
-            int normal_tex_width = 0, normal_tex_height = 0;
-            bool has_normal_map = false;
-            std::vector<uint8_t> metallic_roughness_tex_pixels;
-            int mr_tex_width = 0, mr_tex_height = 0;
-            bool has_metallic_roughness_map = false;
             float emissive[3] = {0, 0, 0};
-            std::vector<uint8_t> emissive_tex_pixels;
-            int emissive_tex_width = 0, emissive_tex_height = 0;
-            bool has_emissive_map = false;
-            std::vector<uint8_t> occlusion_tex_pixels;
-            int occlusion_tex_width = 0, occlusion_tex_height = 0;
-            bool has_occlusion_map = false;
             float opacity = 1.0f;
             int alpha_mode = 0;
             float alpha_cutoff = 0.5f;
@@ -213,7 +209,7 @@ namespace rl_tools {
             T scene_half_extent[3] = {0, 0, 0};
             T camera_radius = 0;
 
-            std::vector<MeshData<SPEC>> meshes;
+            std::vector<MeshData> meshes;
             std::vector<rendering::raytracing::SceneLight> scene_lights;
 
             RendererBackend<SPEC> backend;

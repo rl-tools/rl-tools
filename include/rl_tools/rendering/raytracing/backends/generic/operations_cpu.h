@@ -41,13 +41,13 @@ namespace rl_tools {
             return *(State<SPEC>*)renderer.backend.context;
         }
 
-        template <typename TI, typename MESH_DATA>
-        TextureView<TI> texture_view(const MESH_DATA& mesh_data, const std::vector<unsigned char>& pixels, int width, int height, bool present){
+        template <typename TI>
+        TextureView<TI> texture_view(const rendering::raytracing::MeshTexture& texture){
             TextureView<TI> view;
-            if(present && width > 0 && height > 0){
-                view.pixels = pixels.data();
-                view.width = (TI)width;
-                view.height = (TI)height;
+            if(texture.present()){
+                view.pixels = texture.pixels.data();
+                view.width = (TI)texture.width;
+                view.height = (TI)texture.height;
             }
             return view;
         }
@@ -118,11 +118,11 @@ namespace rl_tools {
             view.vertices = md.vertices.data();
             view.tex_coords = md.tex_coords.empty() ? nullptr : md.tex_coords.data();
             view.normals = md.normals.empty() ? nullptr : md.normals.data();
-            view.texture = generic::texture_view<TI>(md, md.tex_pixels, md.tex_width, md.tex_height, md.has_texture);
-            view.normal_map = generic::texture_view<TI>(md, md.normal_tex_pixels, md.normal_tex_width, md.normal_tex_height, md.has_normal_map);
-            view.metallic_roughness_map = generic::texture_view<TI>(md, md.metallic_roughness_tex_pixels, md.mr_tex_width, md.mr_tex_height, md.has_metallic_roughness_map);
-            view.emissive_map = generic::texture_view<TI>(md, md.emissive_tex_pixels, md.emissive_tex_width, md.emissive_tex_height, md.has_emissive_map);
-            view.occlusion_map = generic::texture_view<TI>(md, md.occlusion_tex_pixels, md.occlusion_tex_width, md.occlusion_tex_height, md.has_occlusion_map);
+            view.texture = generic::texture_view<TI>(md.texture);
+            view.normal_map = generic::texture_view<TI>(md.normal_map);
+            view.metallic_roughness_map = generic::texture_view<TI>(md.metallic_roughness_map);
+            view.emissive_map = generic::texture_view<TI>(md.emissive_map);
+            view.occlusion_map = generic::texture_view<TI>(md.occlusion_map);
             for(int component = 0; component < 3; component++){
                 view.color[component] = md.color[component];
                 view.emissive[component] = md.emissive[component];

@@ -6,8 +6,12 @@
 
 #include "renderer.h"
 
+// STATIC gives the stb implementations internal linkage so multiple TUs of one binary may include
+// this header without duplicate-symbol link errors.
+#define STB_IMAGE_WRITE_STATIC
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
+#define STB_IMAGE_STATIC
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 #include <assimp/Importer.hpp>
@@ -29,23 +33,8 @@
 #include <cstdint>
 #include <iostream>
 
-#define RL_TOOLS_RENDERING_RAYTRACING_TERMINAL_BLUE "\033[0;34m"
-#define RL_TOOLS_RENDERING_RAYTRACING_TERMINAL_LIGHT_BLUE "\033[1;34m"
-#define RL_TOOLS_RENDERING_RAYTRACING_TERMINAL_RED "\033[0;31m"
-#define RL_TOOLS_RENDERING_RAYTRACING_TERMINAL_DEFAULT "\033[0m"
-
-#define RL_TOOLS_RENDERING_RAYTRACING_LOG(message)                                            \
-std::cout << RL_TOOLS_RENDERING_RAYTRACING_TERMINAL_BLUE;                               \
-std::cout << "#rl_tools::rendering::raytracing: " << message << std::endl;   \
-std::cout << RL_TOOLS_RENDERING_RAYTRACING_TERMINAL_DEFAULT;
-#define RL_TOOLS_RENDERING_RAYTRACING_LOG_OK(message)                                         \
-std::cout << RL_TOOLS_RENDERING_RAYTRACING_TERMINAL_LIGHT_BLUE;                         \
-std::cout << "#rl_tools::rendering::raytracing: " << message << std::endl;   \
-std::cout << RL_TOOLS_RENDERING_RAYTRACING_TERMINAL_DEFAULT;
-#define RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR(message)                                        \
-std::cerr << RL_TOOLS_RENDERING_RAYTRACING_TERMINAL_RED;                                \
-std::cerr << "#rl_tools::rendering::raytracing: " << message << std::endl;   \
-std::cerr << RL_TOOLS_RENDERING_RAYTRACING_TERMINAL_DEFAULT;
+#define RL_TOOLS_RENDERING_RAYTRACING_LOG(message) do { std::cout << "\033[0;34m" << "#rl_tools::rendering::raytracing: " << message << "\033[0m" << std::endl; } while(false)
+#define RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR(message) do { std::cerr << "\033[0;31m" << "#rl_tools::rendering::raytracing: " << message << "\033[0m" << std::endl; } while(false)
 
 #ifndef RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
 #define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 0
@@ -237,6 +226,9 @@ namespace rl_tools {
         }
     }
 
+    // Lights are parsed from the raw GLB JSON instead of using Assimp's aiScene::mLights: Assimp's
+    // KHR_lights_punctual import associates lights to nodes by name and mangles per-light
+    // intensity/attenuation (see commit 8278f9a9 "removing assimp loading because it fumbled the lights").
     namespace rendering::raytracing::glb{
         struct ParsedMetadata {
             std::vector<rendering::raytracing::SceneLight> lights;
@@ -405,7 +397,6 @@ namespace rl_tools {
         size_t total_verts = 0, total_tris = 0;
 
         renderer.meshes.clear();
-        std::vector<unsigned int> mesh_source_indices;
 
         // Build mesh-index → global transform map by walking the node tree
         std::vector<std::vector<aiMatrix4x4>> mesh_transforms(scene->mNumMeshes);
@@ -427,7 +418,7 @@ namespace rl_tools {
                 transforms.push_back(aiMatrix4x4());
             }
             for(const auto& global_transform : transforms){
-            rendering::raytracing::MeshData<SPEC> md;
+            rendering::raytracing::MeshData md;
             [[maybe_unused]] const aiMaterial* mat = nullptr;
             if constexpr (SPEC::HAS_RGB) {
                 if(mesh->mMaterialIndex < scene->mNumMaterials){
@@ -566,20 +557,18 @@ namespace rl_tools {
                         auto it = tex_cache.find(path_str);
                         if(it != tex_cache.end()){
                             auto& cached = decoded_textures[it->second];
-                            md.tex_pixels = cached.pixels;
-                            md.tex_width = cached.w;
-                            md.tex_height = cached.h;
-                            md.has_texture = true;
+                            md.texture.pixels = cached.pixels;
+                            md.texture.width = cached.w;
+                            md.texture.height = cached.h;
                         } else {
                             const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
                             if(emb_tex){
                                 int w, h;
                                 std::vector<uint8_t> pixels;
                                 if(rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)){
-                                    md.tex_pixels = pixels;
-                                    md.tex_width = w;
-                                    md.tex_height = h;
-                                    md.has_texture = true;
+                                    md.texture.pixels = pixels;
+                                    md.texture.width = w;
+                                    md.texture.height = h;
                                     tex_cache[path_str] = decoded_textures.size();
                                     decoded_textures.push_back({std::move(pixels), w, h});
                                 }
@@ -587,13 +576,12 @@ namespace rl_tools {
                                 int w, h, channels;
                                 unsigned char* data = stbi_load(path_str.c_str(), &w, &h, &channels, 4);
                                 if(data){
-                                    md.tex_pixels.assign(data, data + w * h * 4);
-                                    md.tex_width = w;
-                                    md.tex_height = h;
-                                    md.has_texture = true;
+                                    md.texture.pixels.assign(data, data + w * h * 4);
+                                    md.texture.width = w;
+                                    md.texture.height = h;
                                     stbi_image_free(data);
                                     tex_cache[path_str] = decoded_textures.size();
-                                    decoded_textures.push_back({md.tex_pixels, w, h});
+                                    decoded_textures.push_back({md.texture.pixels, w, h});
                                 }
                             }
                         }
@@ -625,10 +613,9 @@ namespace rl_tools {
                                 int w, h;
                                 std::vector<uint8_t> pixels;
                                 if (rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)) {
-                                    md.normal_tex_pixels = std::move(pixels);
-                                    md.normal_tex_width = w;
-                                    md.normal_tex_height = h;
-                                    md.has_normal_map = true;
+                                    md.normal_map.pixels = std::move(pixels);
+                                    md.normal_map.width = w;
+                                    md.normal_map.height = h;
                                 }
                             }
                         }
@@ -642,10 +629,9 @@ namespace rl_tools {
                                 int w, h;
                                 std::vector<uint8_t> pixels;
                                 if (rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)) {
-                                    md.metallic_roughness_tex_pixels = std::move(pixels);
-                                    md.mr_tex_width = w;
-                                    md.mr_tex_height = h;
-                                    md.has_metallic_roughness_map = true;
+                                    md.metallic_roughness_map.pixels = std::move(pixels);
+                                    md.metallic_roughness_map.width = w;
+                                    md.metallic_roughness_map.height = h;
                                 }
                             }
                         }
@@ -665,10 +651,9 @@ namespace rl_tools {
                                 int w, h;
                                 std::vector<uint8_t> pixels;
                                 if (rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)) {
-                                    md.emissive_tex_pixels = std::move(pixels);
-                                    md.emissive_tex_width = w;
-                                    md.emissive_tex_height = h;
-                                    md.has_emissive_map = true;
+                                    md.emissive_map.pixels = std::move(pixels);
+                                    md.emissive_map.width = w;
+                                    md.emissive_map.height = h;
                                 }
                             }
                         }
@@ -682,10 +667,9 @@ namespace rl_tools {
                                 int w, h;
                                 std::vector<uint8_t> pixels;
                                 if (rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)) {
-                                    md.occlusion_tex_pixels = std::move(pixels);
-                                    md.occlusion_tex_width = w;
-                                    md.occlusion_tex_height = h;
-                                    md.has_occlusion_map = true;
+                                    md.occlusion_map.pixels = std::move(pixels);
+                                    md.occlusion_map.width = w;
+                                    md.occlusion_map.height = h;
                                 }
                             }
                         }
@@ -697,10 +681,9 @@ namespace rl_tools {
                                 int w, h;
                                 std::vector<uint8_t> pixels;
                                 if (rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)) {
-                                    md.occlusion_tex_pixels = std::move(pixels);
-                                    md.occlusion_tex_width = w;
-                                    md.occlusion_tex_height = h;
-                                    md.has_occlusion_map = true;
+                                    md.occlusion_map.pixels = std::move(pixels);
+                                    md.occlusion_map.width = w;
+                                    md.occlusion_map.height = h;
                                 }
                             }
                         }
@@ -737,7 +720,7 @@ namespace rl_tools {
                 }
 
                 if constexpr (SPEC::SHADING::LOAD_TEXTURES) {
-                if(!md.has_texture && mat->GetTextureCount(aiTextureType_BASE_COLOR) > 0){
+                if(!md.texture.present() && mat->GetTextureCount(aiTextureType_BASE_COLOR) > 0){
                     aiString tex_path;
                     if(mat->GetTexture(aiTextureType_BASE_COLOR, 0, &tex_path) == AI_SUCCESS){
                         const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
@@ -745,10 +728,9 @@ namespace rl_tools {
                             int w, h;
                             std::vector<uint8_t> pixels;
                             if(rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)){
-                                md.tex_pixels = pixels;
-                                md.tex_width = w;
-                                md.tex_height = h;
-                                md.has_texture = true;
+                                md.texture.pixels = pixels;
+                                md.texture.width = w;
+                                md.texture.height = h;
                             }
                         }
                     }
@@ -759,7 +741,6 @@ namespace rl_tools {
 
             total_verts += md.vertices.size() / 3;
             total_tris += md.indices.size() / 3;
-            mesh_source_indices.push_back(m);
             renderer.meshes.push_back(std::move(md));
             } // end for global_transform
         }
@@ -771,7 +752,7 @@ namespace rl_tools {
         int textured_count = 0;
         int metallic_count = 0;
         for(auto& m : renderer.meshes){
-            if(m.has_texture) textured_count++;
+            if(m.texture.present()) textured_count++;
             if(m.metallic > 0.f) metallic_count++;
         }
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Meshes with textures: " << textured_count << "/" << renderer.meshes.size()
@@ -936,7 +917,7 @@ namespace rl_tools {
 
         stbi_write_png(filename, grid_width, grid_height, 4,
                        grid_image.data(), grid_width * sizeof(uint32_t));
-        RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("Written grid image (" << SPEC::GRID_COLS << "x" << SPEC::GRID_ROWS
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("Written grid image (" << SPEC::GRID_COLS << "x" << SPEC::GRID_ROWS
                << " cameras, " << grid_width << "x" << grid_height << " px) to " << filename);
         }
 
@@ -954,7 +935,8 @@ namespace rl_tools {
         float max_valid_depth = std::numeric_limits<float>::lowest();
         for(size_t depth_i = 0; depth_i < depth_count; depth_i++){
             const float depth = depth_host[depth_i];
-            if(std::isfinite(depth) && depth > 0.f && depth < valid_max_depth){
+            // no std::isfinite: unreliable under -ffast-math; the range check excludes inf/NaN
+            if(depth > 0.f && depth < valid_max_depth){
                 min_valid_depth = std::min(min_valid_depth, depth);
                 max_valid_depth = std::max(max_valid_depth, depth);
             }
@@ -972,7 +954,7 @@ namespace rl_tools {
                 for(int x = 0; x < (int)SPEC::CAM_WIDTH; x++){
                     const float depth = depth_host[i * cam_pixels + y * SPEC::CAM_WIDTH + x];
                     uint8_t value = 0;
-                    if(has_valid_depth && std::isfinite(depth) && depth > 0.f && depth < valid_max_depth){
+                    if(has_valid_depth && depth > 0.f && depth < valid_max_depth){
                         const float normalized = fminf(fmaxf((depth - min_valid_depth) / (valid_depth_range + 1e-6f), 0.f), 1.f);
                         value = static_cast<uint8_t>(normalized * 255.f);
                     }
@@ -984,7 +966,7 @@ namespace rl_tools {
 
         stbi_write_png(filename, grid_width, grid_height, 4,
                        grid_image.data(), grid_width * sizeof(uint32_t));
-        RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("Written depth image (" << SPEC::GRID_COLS << "x" << SPEC::GRID_ROWS
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("Written depth image (" << SPEC::GRID_COLS << "x" << SPEC::GRID_ROWS
                << " cameras, " << grid_width << "x" << grid_height << " px) to " << filename);
         }
 
@@ -1001,7 +983,7 @@ namespace rl_tools {
             fwrite(&w, sizeof(int), 1, f);
             fwrite(depth_host, sizeof(float), depth_count, f);
             fclose(f);
-            RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("Written depth data (" << depth_count << " values) to " << filename);
+            RL_TOOLS_RENDERING_RAYTRACING_LOG("Written depth data (" << depth_count << " values) to " << filename);
         }
         }
 
@@ -1021,17 +1003,17 @@ namespace rl_tools {
             }
         }
 
-        RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("=== COLLISION PROBE RESULTS ===");
-        RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Total probes:  " << SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);
-        RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Hits:          " << total_hits
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("=== COLLISION PROBE RESULTS ===");
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("  Total probes:  " << SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("  Hits:          " << total_hits
                << " (" << (100.0 * total_hits / (SPEC::NUM_CAMERAS * SPEC::NUM_PROBES)) << "%)");
-        RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Misses:        " << (SPEC::NUM_CAMERAS * SPEC::NUM_PROBES - total_hits));
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("  Misses:        " << (SPEC::NUM_CAMERAS * SPEC::NUM_PROBES - total_hits));
         if(total_hits > 0){
-            RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Min hit dist:  " << min_hit_dist);
-            RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Max hit dist:  " << max_hit_dist);
-            RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("  Avg hit dist:  " << (sum_hit_dist / total_hits));
+            RL_TOOLS_RENDERING_RAYTRACING_LOG("  Min hit dist:  " << min_hit_dist);
+            RL_TOOLS_RENDERING_RAYTRACING_LOG("  Max hit dist:  " << max_hit_dist);
+            RL_TOOLS_RENDERING_RAYTRACING_LOG("  Avg hit dist:  " << (sum_hit_dist / total_hits));
         }
-        RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("===============================");
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("===============================");
 
         {
             FILE* f = fopen(filename, "wb");
@@ -1042,7 +1024,7 @@ namespace rl_tools {
                 fwrite(probe_results, sizeof(CollisionResult),
                        (size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES, f);
                 fclose(f);
-                RL_TOOLS_RENDERING_RAYTRACING_LOG_OK("Written probe data (" << SPEC::NUM_CAMERAS * SPEC::NUM_PROBES
+                RL_TOOLS_RENDERING_RAYTRACING_LOG("Written probe data (" << SPEC::NUM_CAMERAS * SPEC::NUM_PROBES
                        << " results) to " << filename);
             }
         }
