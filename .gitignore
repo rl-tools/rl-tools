@@ -88,4 +88,4 @@ conta
 /**/*.tflite
 /**/*.csv
 raytracing_pose_trace*
-/tests/data/rendering_raytracing_golden/backend/
+camera_poses.txt
