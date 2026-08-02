@@ -230,8 +230,13 @@ namespace rl_tools {
     // KHR_lights_punctual import associates lights to nodes by name and mangles per-light
     // intensity/attenuation (see commit 8278f9a9 "removing assimp loading because it fumbled the lights").
     namespace rendering::raytracing::glb{
+        struct MaterialFactors {
+            float metallic;
+            float roughness;
+        };
         struct ParsedMetadata {
             std::vector<rendering::raytracing::SceneLight> lights;
+            std::map<std::string, MaterialFactors> material_factors; // by material name; glTF spec defaults when absent
         };
 
         static inline void node_world_transform(const nlohmann::json& nodes, int node_idx, const std::vector<int>& parent_map, float out[16]) {
@@ -304,6 +309,30 @@ namespace rl_tools {
 
             nlohmann::json gltf = nlohmann::json::parse(json_str, nullptr, false);
             if (gltf.is_discarded()) return result;
+
+            // Assimp's defaults for absent glTF pbrMetallicRoughness factors vary across versions;
+            // the GLB JSON is authoritative here so scene import is identical on every machine.
+            // Absent metallicFactor resolves to 1 when a metallicRoughnessTexture is present (the
+            // factor is the texture's multiplier, the texture decides per texel) and to 0 otherwise
+            // (untextured materials without an explicit factor are authored as non-metallic in this
+            // pipeline; the glTF spec default of 1 would render them as mirrors). Absent
+            // roughnessFactor resolves to the spec default 1.
+            if (gltf.contains("materials")) {
+                for (auto& material : gltf["materials"]) {
+                    if (!material.contains("name") || !material.contains("pbrMetallicRoughness")) continue;
+                    auto& pbr = material["pbrMetallicRoughness"];
+                    MaterialFactors factors{1.0f, 1.0f};
+                    if (pbr.contains("metallicFactor")) {
+                        factors.metallic = pbr["metallicFactor"].get<float>();
+                    } else {
+                        factors.metallic = pbr.contains("metallicRoughnessTexture") ? 1.0f : 0.0f;
+                    }
+                    if (pbr.contains("roughnessFactor")) {
+                        factors.roughness = pbr["roughnessFactor"].get<float>();
+                    }
+                    result.material_factors[material["name"].get<std::string>()] = factors;
+                }
+            }
 
             auto& nodes = gltf["nodes"];
             std::vector<int> parent_map(nodes.size(), -1);
@@ -397,6 +426,7 @@ namespace rl_tools {
         size_t total_verts = 0, total_tris = 0;
 
         renderer.meshes.clear();
+        const auto glb_metadata = rendering::raytracing::glb::parse(filename);
 
         // Build mesh-index → global transform map by walking the node tree
         std::vector<std::vector<aiMatrix4x4>> mesh_transforms(scene->mNumMeshes);
@@ -739,6 +769,18 @@ namespace rl_tools {
             }
             }
 
+            if constexpr (SPEC::HAS_RGB && (SPEC::SHADING::METALLIC_REFLECTIONS || SPEC::SHADING::PBR_SHADING)) {
+                if(mat != nullptr){
+                    const auto glb_factors = glb_metadata.material_factors.find(mat->GetName().C_Str());
+                    if(glb_factors != glb_metadata.material_factors.end()){
+                        md.metallic = glb_factors->second.metallic;
+                        if constexpr (SPEC::SHADING::PBR_SHADING) {
+                            md.roughness = glb_factors->second.roughness;
+                        }
+                    }
+                }
+            }
+
             total_verts += md.vertices.size() / 3;
             total_tris += md.indices.size() / 3;
             renderer.meshes.push_back(std::move(md));
@@ -766,19 +808,18 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING) {
             renderer.scene_lights.clear();
 
-            auto glb_meta = rendering::raytracing::glb::parse(filename);
-            if (glb_meta.lights.empty()) {
+            if (glb_metadata.lights.empty()) {
                 float inv_sqrt2 = 0.70710678f;
                 renderer.scene_lights.push_back({0, {0,0,0}, {-inv_sqrt2, 0.f, inv_sqrt2}, {0.4f, 0.4f, 0.4f}, 0,0,0, 0,0});
                 renderer.scene_lights.push_back({0, {0,0,0}, {0.f, -inv_sqrt2, inv_sqrt2}, {0.3f, 0.3f, 0.3f}, 0,0,0, 0,0});
                 renderer.scene_lights.push_back({0, {0,0,0}, {0.f, inv_sqrt2, inv_sqrt2}, {0.2f, 0.2f, 0.2f}, 0,0,0, 0,0});
             } else {
-                for (auto& sl : glb_meta.lights) {
+                for (auto& sl : glb_metadata.lights) {
                     renderer.scene_lights.push_back(sl);
                 }
             }
-            RL_TOOLS_RENDERING_RAYTRACING_LOG("Scene lights: " << glb_meta.lights.size() << " from GLB"
-                << (glb_meta.lights.empty() ? " + 3 directional fill fallback" : ""));
+            RL_TOOLS_RENDERING_RAYTRACING_LOG("Scene lights: " << glb_metadata.lights.size() << " from GLB"
+                << (glb_metadata.lights.empty() ? " + 3 directional fill fallback" : ""));
             for (size_t li = 0; li < renderer.scene_lights.size(); li++) {
                 auto& sl = renderer.scene_lights[li];
                 RL_TOOLS_RENDERING_RAYTRACING_LOG("  light " << li << ": pos=(" << sl.position[0] << "," << sl.position[1] << "," << sl.position[2]
