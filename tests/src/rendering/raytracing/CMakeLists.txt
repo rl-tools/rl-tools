@@ -21,4 +21,16 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
             GTest::gtest_main
     )
     gtest_discover_tests(test_rendering_raytracing_golden_comparison PROPERTIES TIMEOUT 300)
+
+    add_executable(test_rendering_raytracing_golden_comparison_active golden_comparison.cpp)
+    target_link_libraries(test_rendering_raytracing_golden_comparison_active
+        PRIVATE
+            RLtools::RLtools
+            rendering_raytracing_backend
+            rendering_raytracing_backend_depth
+            rendering_raytracing_stb
+            GTest::gtest_main
+    )
+    target_compile_definitions(test_rendering_raytracing_golden_comparison_active PRIVATE RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND)
+    gtest_discover_tests(test_rendering_raytracing_golden_comparison_active PROPERTIES TIMEOUT 300)
 endif()

@@ -1,10 +1,26 @@
-// Renders the golden cases (tests/src/rendering/raytracing/golden_cases.h) with the generic (CPU)
-// raytracing backend and compares against the OptiX golden renderings in
-// tests/data/rendering_raytracing_golden (see AGENTS.md "Raytracing Golden Renderings").
-// The generic backend is included directly (not via the mux) so this test exercises the CPU
-// raytracer in every build configuration.
+// Renders the golden cases (tests/src/rendering/raytracing/golden_cases.h) and compares against
+// the OptiX golden renderings in tests/data/rendering_raytracing_golden (see AGENTS.md
+// "Raytracing Golden Renderings"). Two targets are compiled from this file:
+// - test_rendering_raytracing_golden_comparison: pinned to the generic (CPU) backend (included
+//   directly, not via the mux) so the CPU raytracer is tested in every build configuration.
+// - test_rendering_raytracing_golden_comparison_active: uses the mux, i.e. the backend the build
+//   is configured for (Metal on macOS, OptiX on CUDA machines).
 #include <rl_tools/operations/cpu.h>
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND)
+#include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#else
 #include <rl_tools/rendering/raytracing/backends/generic/operations_cpu.h>
+#endif
+
+#if !defined(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND)
+#define RL_TOOLS_GOLDEN_SUITE RENDERING_RAYTRACING_GOLDEN_CPU
+#elif defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_METAL)
+#define RL_TOOLS_GOLDEN_SUITE RENDERING_RAYTRACING_GOLDEN_METAL
+#elif defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#define RL_TOOLS_GOLDEN_SUITE RENDERING_RAYTRACING_GOLDEN_OPTIX
+#else
+#define RL_TOOLS_GOLDEN_SUITE RENDERING_RAYTRACING_GOLDEN_GENERIC
+#endif
 
 #include "golden_cases.h"
 #include "../../utils/utils.h"
@@ -252,40 +268,40 @@ namespace {
 
 #define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() if(!goldens_available()){ GTEST_SKIP() << "golden renderings not found at " << GOLDEN_DIR << " (generate with test_rendering_raytracing_generate_golden on a CUDA machine)"; }
 
-TEST(RENDERING_RAYTRACING_GOLDEN, LOW_RGB){
+TEST(RL_TOOLS_GOLDEN_SUITE, LOW_RGB){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
     expect_rgb_matches_golden<CASES::LOW_RGB>("low_rgb");
 }
-TEST(RENDERING_RAYTRACING_GOLDEN, MEDIUM_RGB){
+TEST(RL_TOOLS_GOLDEN_SUITE, MEDIUM_RGB){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
     expect_rgb_matches_golden<CASES::MEDIUM_RGB>("medium_rgb");
 }
-TEST(RENDERING_RAYTRACING_GOLDEN, HIGH_RGB){
+TEST(RL_TOOLS_GOLDEN_SUITE, HIGH_RGB){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
     expect_rgb_matches_golden<CASES::HIGH_RGB>("high_rgb");
 }
-TEST(RENDERING_RAYTRACING_GOLDEN, VERY_HIGH_RGB){
+TEST(RL_TOOLS_GOLDEN_SUITE, VERY_HIGH_RGB){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
     expect_rgb_matches_golden<CASES::VERY_HIGH_RGB>("very_high_rgb");
 }
-TEST(RENDERING_RAYTRACING_GOLDEN, HIGH_RGB_AA2){
+TEST(RL_TOOLS_GOLDEN_SUITE, HIGH_RGB_AA2){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
     expect_rgb_matches_golden<CASES::HIGH_RGB_AA2>("high_rgb_aa2");
 }
-TEST(RENDERING_RAYTRACING_GOLDEN, HIGH_RGB_MB4){
+TEST(RL_TOOLS_GOLDEN_SUITE, HIGH_RGB_MB4){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
     expect_rgb_matches_golden<CASES::HIGH_RGB_MB4>("high_rgb_mb4");
 }
-TEST(RENDERING_RAYTRACING_GOLDEN, LOW_RGBD){
+TEST(RL_TOOLS_GOLDEN_SUITE, LOW_RGBD){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
     expect_rgbd_matches_golden<CASES::LOW_RGBD>("low_rgbd");
 }
-TEST(RENDERING_RAYTRACING_GOLDEN, HIGH_RGBD){
+TEST(RL_TOOLS_GOLDEN_SUITE, HIGH_RGBD){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
     expect_rgbd_matches_golden<CASES::HIGH_RGBD>("high_rgbd");
 }
 
-TEST(RENDERING_RAYTRACING_GOLDEN, PROBES){
+TEST(RL_TOOLS_GOLDEN_SUITE, PROBES){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
     using SPEC = CASES::LOW_RGB; // probes.bin was written during the low_rgb golden case
     DEVICE device;
