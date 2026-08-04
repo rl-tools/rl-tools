@@ -5,6 +5,7 @@
 #define RL_TOOLS_RENDERING_RAYTRACING_RENDERER_H
 
 #include "types.h"
+#include "scene.h"
 #include "../../containers/tensor/tensor.h"
 
 #include <vector>
@@ -87,34 +88,6 @@ namespace rl_tools {
             static constexpr T COS_FOVY = 1.3962634015954636;
         };
 
-        struct MeshTexture{
-            std::vector<uint8_t> pixels; // RGBA8
-            int width = 0;
-            int height = 0;
-            bool present() const {
-                return !pixels.empty() && width > 0 && height > 0;
-            }
-        };
-
-        struct MeshData{
-            std::vector<float> vertices; // vec3f flat
-            std::vector<int> indices;    // vec3i flat
-            std::vector<float> tex_coords; // vec2f flat
-            std::vector<float> normals;
-            float color[3];
-            MeshTexture texture;
-            MeshTexture normal_map;
-            MeshTexture metallic_roughness_map;
-            MeshTexture emissive_map;
-            MeshTexture occlusion_map;
-            float metallic = 0.0f;
-            float roughness = 1.0f;
-            float emissive[3] = {0, 0, 0};
-            float opacity = 1.0f;
-            int alpha_mode = 0;
-            float alpha_cutoff = 0.5f;
-        };
-
         template <typename T_SPEC, bool T_ENABLE_MOTION_BLUR>
         struct MotionBlurBackendContext {};
 
@@ -166,7 +139,7 @@ namespace rl_tools {
             using SPEC = T_SPEC;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
-            using CAMERA_TENSOR_SPEC = tensor::Specification<CameraData<T>, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS>, true>;
+            using CAMERA_TENSOR_SPEC = tensor::Specification<Camera<T>, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS>, true>;
             Tensor<CAMERA_TENSOR_SPEC> cameras_open;
         };
 
@@ -199,7 +172,7 @@ namespace rl_tools {
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
 
-            using CAMERA_TENSOR_SPEC = tensor::Specification<CameraData<T>, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS>, true>;
+            using CAMERA_TENSOR_SPEC = tensor::Specification<Camera<T>, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS>, true>;
             Tensor<CAMERA_TENSOR_SPEC> cameras;
 
             using COLLISION_TENSOR_SPEC = tensor::Specification<CollisionResult, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::NUM_PROBES>, true>;
@@ -208,9 +181,6 @@ namespace rl_tools {
             T scene_center[3] = {0, 0, 0};
             T scene_half_extent[3] = {0, 0, 0};
             T camera_radius = 0;
-
-            std::vector<MeshData> meshes;
-            std::vector<rendering::raytracing::SceneLight> scene_lights;
 
             RendererBackend<SPEC> backend;
         };

@@ -25,7 +25,7 @@ namespace rl_tools {
         };
 
         template <typename T_T>
-        struct CameraData {
+        struct Camera {
             T_T pos[3];
             T_T dir_00[3];
             T_T dir_du[3];

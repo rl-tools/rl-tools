@@ -38,7 +38,7 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
     void destroy_scene(SceneHandle* handle);
 
     // Sample a batch of camera pairs for rotation prediction training
-    // cameras_out: array of SCENE_NUM_CAMERAS CameraData structs
+    // cameras_out: array of SCENE_NUM_CAMERAS Camera structs
     //   [0..batch_size-1] = image A cameras (reference)
     //   [batch_size..2*batch_size-1] = image B cameras (displaced by random rotation)
     // targets_out: array of batch_size * 3 floats (p_x, p_y, phi/pi per sample)
@@ -48,7 +48,7 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
     // fov_range: [min, max] range for random FOV in radians
     void sample_camera_batch(
         SceneHandle* handle,
-        rl_tools::rendering::raytracing::CameraData<float>* cameras_out,
+        rl_tools::rendering::raytracing::Camera<float>* cameras_out,
         float* targets_out,
         unsigned long batch_size,
         float max_angle,
@@ -58,7 +58,7 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
 
     // Set cameras and render (blocking)
     template <bool ASYNC>
-    void render_batch(SceneHandle* handle, const rl_tools::rendering::raytracing::CameraData<float>* cameras);
+    void render_batch(SceneHandle* handle, const rl_tools::rendering::raytracing::Camera<float>* cameras);
 
     // Get number of indoor initial states found
     unsigned long get_num_indoor_states(SceneHandle* handle);

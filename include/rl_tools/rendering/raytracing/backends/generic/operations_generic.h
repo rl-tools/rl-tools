@@ -98,8 +98,8 @@ namespace rl_tools {
             T miss_color_1[3] = {0, 0, 0};
             T max_depth = 0;
             T max_dist = 0;
-            const CameraData<T>* cameras_close = nullptr;
-            const CameraData<T>* cameras_open = nullptr;
+            const Camera<T>* cameras_close = nullptr;
+            const Camera<T>* cameras_open = nullptr;
             unsigned int* frame_buffer = nullptr;
             float* depth_buffer = nullptr;
             CollisionResult* collision_results = nullptr;
@@ -721,8 +721,8 @@ namespace rl_tools {
                         for(TI motion_i = 0; motion_i < MOTION_SAMPLES; motion_i++){
                             Vec3<T> pos, dir_00, dir_du, dir_dv;
                             if constexpr (SPEC::ENABLE_MOTION_BLUR){
-                                const CameraData<T>& cam_open = scene.cameras_open[camera_i];
-                                const CameraData<T>& cam_close = scene.cameras_close[camera_i];
+                                const Camera<T>& cam_open = scene.cameras_open[camera_i];
+                                const Camera<T>& cam_close = scene.cameras_close[camera_i];
                                 const T shutter_t = ((T)motion_i + (T)0.5) * ((T)1 / (T)MOTION_SAMPLES);
                                 pos = ((T)1 - shutter_t) * to_vec3(cam_open.pos) + shutter_t * to_vec3(cam_close.pos);
                                 dir_00 = ((T)1 - shutter_t) * to_vec3(cam_open.dir_00) + shutter_t * to_vec3(cam_close.dir_00);
@@ -730,7 +730,7 @@ namespace rl_tools {
                                 dir_dv = ((T)1 - shutter_t) * to_vec3(cam_open.dir_dv) + shutter_t * to_vec3(cam_close.dir_dv);
                             }
                             else{
-                                const CameraData<T>& cam = scene.cameras_close[camera_i];
+                                const Camera<T>& cam = scene.cameras_close[camera_i];
                                 pos = to_vec3(cam.pos);
                                 dir_00 = to_vec3(cam.dir_00);
                                 dir_du = to_vec3(cam.dir_du);
@@ -774,7 +774,7 @@ namespace rl_tools {
             using TI = typename SPEC::TI;
             const auto& math_device = device.math;
             for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
-                const CameraData<T>& cam = scene.cameras_close[camera_i];
+                const Camera<T>& cam = scene.cameras_close[camera_i];
                 for(TI probe_i = 0; probe_i < SPEC::NUM_PROBES; probe_i++){
                     Vec3<T> direction;
                     if(probe_i == 0){

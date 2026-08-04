@@ -245,7 +245,7 @@ static_assert(RENDER_SHUTTER_FRACTION_MIN >= static_cast<T>(0) && RENDER_SHUTTER
 using VISUAL_SPEC = rlt::rl::environments::l2f_visual::Specification<T, TI, STATIC_PARAMETERS, N_ENVIRONMENTS_PER_SCENE, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, RENDER_SHADING, RENDER_ENABLE_MOTION_BLUR, RENDER_MOTION_BLUR_SAMPLES, RENDER_ENABLE_ANTI_ALIASING, RENDER_ANTI_ALIASING_GRID_SIZE>;
 static_assert(VISUAL_SPEC::RENDERER_SPEC::SHADING::PBR_SHADING, "l2f visual imitation must use the High renderer profile");
 using ENVIRONMENT = rlt::rl::environments::l2f_visual::MultirrotorVisual<VISUAL_SPEC>;
-using CAMERA_DATA = rlt::rendering::raytracing::CameraData<T>;
+using CAMERA_DATA = rlt::rendering::raytracing::Camera<T>;
 static constexpr bool RENDER_MOTION_BLUR_ACTIVE = ENVIRONMENT::SPEC::RENDERER_SPEC::ENABLE_MOTION_BLUR;
 static constexpr bool RENDER_ANTI_ALIASING_ACTIVE = ENVIRONMENT::SPEC::RENDERER_SPEC::ENABLE_ANTI_ALIASING;
 
@@ -602,7 +602,7 @@ namespace imitation_kernels{
     void make_target_cameras_kernel(
         DEVICE device,
         typename ENVIRONMENT::Parameters* env_params,
-        rlt::rendering::raytracing::CameraData<T>* target_cameras,
+        rlt::rendering::raytracing::Camera<T>* target_cameras,
         T aspect,
         const T* target_frame_roll_arr,
         const T* target_frame_pitch_arr,

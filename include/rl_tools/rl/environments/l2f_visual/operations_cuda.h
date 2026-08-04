@@ -51,7 +51,7 @@ namespace rl_tools::rl::environments::l2f_visual::cuda{
     }
 
     template <typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::CameraData<typename SPEC::T> make_camera_for_state(
+    RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::Camera<typename SPEC::T> make_camera_for_state(
         DEVICE&,
         const typename MultirrotorVisual<SPEC>::Parameters& parameters,
         const typename MultirrotorVisual<SPEC>::State& state,
@@ -92,7 +92,7 @@ namespace rl_tools::rl::environments::l2f_visual::cuda{
     }
 
     template <typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::CameraData<typename SPEC::T> make_target_camera(
+    RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::Camera<typename SPEC::T> make_target_camera(
         DEVICE& device,
         const typename MultirrotorVisual<SPEC>::Parameters& parameters,
         typename SPEC::T aspect,
@@ -145,7 +145,7 @@ namespace rl_tools::rl::environments::l2f_visual::cuda{
         return make_camera_data(position, look_at, up, parameters.fov, aspect);
     }
     template <typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::CameraData<typename SPEC::T> make_target_camera(
+    RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::Camera<typename SPEC::T> make_target_camera(
         DEVICE&,
         const typename MultirrotorVisual<SPEC>::Parameters& parameters,
         typename SPEC::T aspect,

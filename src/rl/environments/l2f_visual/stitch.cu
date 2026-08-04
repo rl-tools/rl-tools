@@ -151,7 +151,7 @@ static constexpr bool RENDER_ENABLE_ANTI_ALIASING = true;
 static constexpr TI RENDER_ANTI_ALIASING_GRID_SIZE = 2;
 using VISUAL_SPEC = rlt::rl::environments::l2f_visual::Specification<T, TI, STATIC_PARAMETERS, N_ENVIRONMENTS_PER_SCENE, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES, RENDER_SHADING, RENDER_ENABLE_MOTION_BLUR, RENDER_MOTION_BLUR_SAMPLES, RENDER_ENABLE_ANTI_ALIASING, RENDER_ANTI_ALIASING_GRID_SIZE>;
 using ENVIRONMENT = rlt::rl::environments::l2f_visual::MultirrotorVisual<VISUAL_SPEC>;
-using CAMERA_DATA = rlt::rendering::raytracing::CameraData<T>;
+using CAMERA_DATA = rlt::rendering::raytracing::Camera<T>;
 
 static constexpr TI RAPTOR_HIDDEN_DIM = 16;
 using RAPTOR_OBSERVATION_TYPE = obs::Position<obs::PositionSpecification<T, TI,

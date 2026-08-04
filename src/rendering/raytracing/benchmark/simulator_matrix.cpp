@@ -743,9 +743,8 @@ static std::string cuda_device_name() {
     return "unknown";
 }
 
-template <typename SPEC>
-static void add_box(rlt::rendering::raytracing::Renderer<SPEC>& renderer, T cx, T cy, T cz, T sx, T sy, T sz, T r, T g, T b) {
-    rlt::rendering::raytracing::MeshData md;
+static void add_box(rlt::rendering::raytracing::Scene& render_scene, T cx, T cy, T cz, T sx, T sy, T sz, T r, T g, T b) {
+    rlt::rendering::raytracing::Mesh md;
     md.color[0] = r;
     md.color[1] = g;
     md.color[2] = b;
@@ -769,15 +768,14 @@ static void add_box(rlt::rendering::raytracing::Renderer<SPEC>& renderer, T cx, 
     };
     md.vertices.assign(vertices, vertices + sizeof(vertices) / sizeof(vertices[0]));
     md.indices.assign(indices, indices + sizeof(indices) / sizeof(indices[0]));
-    renderer.meshes.push_back(std::move(md));
+    render_scene.meshes.push_back(std::move(md));
 }
 
-template <typename SPEC>
-static void add_sphere(rlt::rendering::raytracing::Renderer<SPEC>& renderer, T cx, T cy, T cz, T radius, T r, T g, T b) {
+static void add_sphere(rlt::rendering::raytracing::Scene& render_scene, T cx, T cy, T cz, T radius, T r, T g, T b) {
     static constexpr int SEGMENTS = 16;
     static constexpr int RINGS = 8;
     static constexpr T PI = static_cast<T>(3.14159265358979323846);
-    rlt::rendering::raytracing::MeshData md;
+    rlt::rendering::raytracing::Mesh md;
     md.color[0] = r;
     md.color[1] = g;
     md.color[2] = b;
@@ -819,7 +817,7 @@ static void add_sphere(rlt::rendering::raytracing::Renderer<SPEC>& renderer, T c
         }
     }
 
-    renderer.meshes.push_back(std::move(md));
+    render_scene.meshes.push_back(std::move(md));
 }
 
 struct Objects20Position {
@@ -879,21 +877,27 @@ static void objects20_color(int i, T& r, T& g, T& b) {
     b = palette[index][2];
 }
 
-template <typename SPEC>
-static void make_20_object_scene(rlt::rendering::raytracing::Renderer<SPEC>& renderer) {
-    renderer.meshes.clear();
+static void make_20_object_scene(rlt::rendering::raytracing::Scene& render_scene) {
+    render_scene.meshes.clear();
     for(int i = 0; i < 20; i++) {
         T sx, sy, sz, r, g, b;
         objects20_scale(i, sx, sy, sz);
         objects20_color(i, r, g, b);
         const auto& position = OBJECTS20_POSITIONS[i];
         if((i % 2) == 0) {
-            add_box(renderer, position.x, position.y, position.z, sx, sy, sz, r, g, b);
+            add_box(render_scene, position.x, position.y, position.z, sx, sy, sz, r, g, b);
         }
         else {
-            add_sphere(renderer, position.x, position.y, position.z, sx * static_cast<T>(0.5), r, g, b);
+            add_sphere(render_scene, position.x, position.y, position.z, sx * static_cast<T>(0.5), r, g, b);
         }
     }
+}
+
+// the 20-object benchmark scene uses hand-picked bounds (closer orbit than the AABB-derived
+// camera radius); they are re-applied after init, including the max_depth the depth ray gen
+// consumed from the auto-computed radius, so outputs stay comparable across revisions
+template <typename SPEC>
+static void apply_20_object_bounds(rlt::rendering::raytracing::Renderer<SPEC>& renderer) {
     renderer.scene_center[0] = static_cast<T>(0.25);
     renderer.scene_center[1] = 0;
     renderer.scene_center[2] = static_cast<T>(0.60);
@@ -901,6 +905,9 @@ static void make_20_object_scene(rlt::rendering::raytracing::Renderer<SPEC>& ren
     renderer.scene_half_extent[1] = static_cast<T>(2.75);
     renderer.scene_half_extent[2] = static_cast<T>(0.95);
     renderer.camera_radius = static_cast<T>(6.0);
+    if constexpr (SPEC::HAS_DEPTH) {
+        owlRayGenSet1f((OWLRayGen)renderer.backend.depth_ray_gen, "max_depth", static_cast<float>(renderer.camera_radius * 2.0f));
+    }
 }
 
 static void normalize(T v[3]) {
@@ -1215,14 +1222,14 @@ static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing:
     };
 }
 
-template <typename DEVICE, typename SPEC>
-static bool setup_scene(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, SceneAxis scene, const Options& options) {
+template <typename SPEC, typename DEVICE>
+static bool setup_scene(DEVICE& device, rlt::rendering::raytracing::Scene& render_scene, SceneAxis scene, const Options& options) {
     if(scene == SceneAxis::OBJECTS_20) {
-        make_20_object_scene(renderer);
+        make_20_object_scene(render_scene);
         return true;
     }
     RL_TOOLS_RENDERING_RAYTRACING_LOG("Loading ProcTHOR scene: " << options.procthor_path);
-    return rlt::load_model(device, renderer, options.procthor_path);
+    return rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, render_scene, options.procthor_path);
 }
 
 template <typename DEVICE, typename SPEC>
@@ -1241,17 +1248,17 @@ static bool run_procthor_frame(DEVICE& device, const Options& options, const std
     rlt::rendering::raytracing::Renderer<SPEC> renderer;
     rlt::malloc(device, renderer);
 
-    if(!setup_scene(device, renderer, SceneAxis::PROCTHOR, options)) {
+    rlt::rendering::raytracing::Scene render_scene;
+    if(!setup_scene<SPEC>(device, render_scene, SceneAxis::PROCTHOR, options)) {
         RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Failed to set up ProcTHOR scene.");
         rlt::free(device, renderer);
         return false;
     }
 
-    rlt::upload_geometry(device, renderer);
+    rlt::init(device, renderer, render_scene);
     const CameraPose pose = make_single_frame_pose(renderer, options);
     write_single_camera(device, renderer, options.position, pose);
     rlt::set_cameras(device, renderer, renderer.cameras);
-    rlt::build_pipeline(device, renderer);
     render_output(device, renderer);
     cudaDeviceSynchronize();
 
@@ -1293,18 +1300,21 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
     rlt::rendering::raytracing::Renderer<SPEC> renderer;
     rlt::malloc(device, renderer);
 
-    if(!setup_scene(device, renderer, scene, options)) {
+    rlt::rendering::raytracing::Scene render_scene;
+    if(!setup_scene<SPEC>(device, render_scene, scene, options)) {
         RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Failed to set up scene: " << scene_name(scene));
         rlt::free(device, renderer);
         return false;
     }
 
-    rlt::upload_geometry(device, renderer);
+    rlt::init(device, renderer, render_scene);
+    if(scene == SceneAxis::OBJECTS_20) {
+        apply_20_object_bounds(renderer);
+    }
     const OrientationMode orientation = orientation_mode(options);
     std::vector<CameraPose> camera_poses = make_camera_poses(renderer, scene, options);
     write_cameras(device, renderer, scene, camera_poses);
     rlt::set_cameras(device, renderer, renderer.cameras);
-    rlt::build_pipeline(device, renderer);
 
     rt_benchmark::PhysicsSimulation physics;
     rt_benchmark::PhysicsSimulation* physics_ptr = nullptr;
@@ -1333,7 +1343,7 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
         physics_ptr = &physics;
         const size_t camera_buffer_bytes =
             static_cast<size_t>(SPEC::NUM_CAMERAS) *
-            sizeof(rlt::rendering::raytracing::CameraData<T>);
+            sizeof(rlt::rendering::raytracing::Camera<T>);
         cudaError_t camera_alloc_status = cudaMalloc(&physics_camera_buffer, camera_buffer_bytes);
         if(camera_alloc_status != cudaSuccess) {
             RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Failed to allocate physics camera buffer: " << cudaGetErrorString(camera_alloc_status));

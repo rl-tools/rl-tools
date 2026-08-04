@@ -77,13 +77,13 @@ struct SceneLight{
 };
 static_assert(sizeof(SceneLight) == 60, "SceneLight layout must match rendering/raytracing/types.h");
 
-struct CameraData{
+struct Camera{
     packed_float3 pos;
     packed_float3 dir_00;
     packed_float3 dir_du;
     packed_float3 dir_dv;
 };
-static_assert(sizeof(CameraData) == 48, "CameraData layout must match rendering/raytracing/types.h");
+static_assert(sizeof(Camera) == 48, "Camera layout must match rendering/raytracing/types.h");
 
 struct CollisionResult{
     float distance;
@@ -441,8 +441,8 @@ struct RGBTracer{
 
 kernel void render_rgb(
     constant LaunchParams& params [[buffer(0)]],
-    device const CameraData* cameras_close [[buffer(1)]],
-    device const CameraData* cameras_open [[buffer(2)]],
+    device const Camera* cameras_close [[buffer(1)]],
+    device const Camera* cameras_open [[buffer(2)]],
     device uint* fb [[buffer(3)]],
     device const MeshRecord* meshes [[buffer(4)]],
     device const SceneLight* scene_lights [[buffer(5)]],
@@ -463,8 +463,8 @@ kernel void render_rgb(
         float3 dir_du;
         float3 dir_dv;
         if (fc_motion_blur) {
-            device const CameraData& cam_open = cameras_open[ctx.cam_idx];
-            device const CameraData& cam_close = cameras_close[ctx.cam_idx];
+            device const Camera& cam_open = cameras_open[ctx.cam_idx];
+            device const Camera& cam_close = cameras_close[ctx.cam_idx];
             const float shutter_t = (float(motion_i) + .5f) * (1.f / float(fc_motion_samples));
             pos = lerp_camera_vec(float3(cam_open.pos), float3(cam_close.pos), shutter_t);
             dir_00 = lerp_camera_vec(float3(cam_open.dir_00), float3(cam_close.dir_00), shutter_t);
@@ -472,7 +472,7 @@ kernel void render_rgb(
             dir_dv = lerp_camera_vec(float3(cam_open.dir_dv), float3(cam_close.dir_dv), shutter_t);
         }
         else {
-            device const CameraData& cam = cameras_close[ctx.cam_idx];
+            device const Camera& cam = cameras_close[ctx.cam_idx];
             pos = float3(cam.pos);
             dir_00 = float3(cam.dir_00);
             dir_du = float3(cam.dir_du);
@@ -498,8 +498,8 @@ kernel void render_rgb(
 
 kernel void render_depth(
     constant LaunchParams& params [[buffer(0)]],
-    device const CameraData* cameras_close [[buffer(1)]],
-    device const CameraData* cameras_open [[buffer(2)]],
+    device const Camera* cameras_close [[buffer(1)]],
+    device const Camera* cameras_open [[buffer(2)]],
     device float* depth_out [[buffer(3)]],
     primitive_acceleration_structure accel [[buffer(8)]],
     uint2 pixel_id [[thread_position_in_grid]])
@@ -516,8 +516,8 @@ kernel void render_depth(
         float3 dir_du;
         float3 dir_dv;
         if (fc_motion_blur) {
-            device const CameraData& cam_open = cameras_open[ctx.cam_idx];
-            device const CameraData& cam_close = cameras_close[ctx.cam_idx];
+            device const Camera& cam_open = cameras_open[ctx.cam_idx];
+            device const Camera& cam_close = cameras_close[ctx.cam_idx];
             const float shutter_t = (float(motion_i) + .5f) * (1.f / float(fc_motion_samples));
             pos = lerp_camera_vec(float3(cam_open.pos), float3(cam_close.pos), shutter_t);
             dir_00 = lerp_camera_vec(float3(cam_open.dir_00), float3(cam_close.dir_00), shutter_t);
@@ -525,7 +525,7 @@ kernel void render_depth(
             dir_dv = lerp_camera_vec(float3(cam_open.dir_dv), float3(cam_close.dir_dv), shutter_t);
         }
         else {
-            device const CameraData& cam = cameras_close[ctx.cam_idx];
+            device const Camera& cam = cameras_close[ctx.cam_idx];
             pos = float3(cam.pos);
             dir_00 = float3(cam.dir_00);
             dir_du = float3(cam.dir_du);
@@ -545,7 +545,7 @@ kernel void render_depth(
 
 kernel void render_collision(
     constant LaunchParams& params [[buffer(0)]],
-    device const CameraData* cameras [[buffer(1)]],
+    device const Camera* cameras [[buffer(1)]],
     device const packed_float3* probe_directions [[buffer(6)]],
     device CollisionResult* results [[buffer(7)]],
     primitive_acceleration_structure accel [[buffer(8)]],
@@ -557,7 +557,7 @@ kernel void render_collision(
     if (cam_idx >= (int)params.num_cameras || probe_idx >= (int)params.num_probes)
         return;
 
-    device const CameraData& cam = cameras[cam_idx];
+    device const Camera& cam = cameras[cam_idx];
 
     float3 dir;
     if (probe_idx == 0) {

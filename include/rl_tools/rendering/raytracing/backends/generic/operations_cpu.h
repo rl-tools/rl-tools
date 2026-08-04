@@ -21,15 +21,15 @@ namespace rl_tools {
         struct State{
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
-            std::vector<MeshView<T, TI>> meshes; // views into Renderer::meshes (which outlives the backend)
+            std::vector<MeshView<T, TI>> meshes; // views into the Scene passed to init (which must outlive rendering)
             std::vector<TI> triangle_mesh;
             std::vector<TI> triangle_local;
             std::vector<BVHNode<T, TI>> nodes;
             std::vector<TI> primitives;
             std::vector<SceneLight> lights;
             std::vector<T> probe_directions;
-            std::vector<CameraData<T>> cameras;
-            std::vector<CameraData<T>> cameras_open;
+            std::vector<Camera<T>> cameras;
+            std::vector<Camera<T>> cameras_open;
             std::vector<unsigned int> frame_buffer;
             std::vector<float> depth_buffer;
             std::vector<CollisionResult> collision_results;
@@ -42,7 +42,7 @@ namespace rl_tools {
         }
 
         template <typename TI>
-        TextureView<TI> texture_view(const rendering::raytracing::MeshTexture& texture){
+        TextureView<TI> texture_view(const rendering::raytracing::Texture& texture){
             TextureView<TI> view;
             if(texture.present()){
                 view.pixels = texture.pixels.data();
@@ -100,19 +100,20 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void upload_geometry(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const rendering::raytracing::Scene& scene){
         namespace generic = rendering::raytracing::backends::generic;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         auto& backend_state = generic::state(renderer);
 
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << renderer.meshes.size() << " geometries ...");
+        rendering::raytracing::detail::compute_scene_bounds(renderer, scene);
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << scene.meshes.size() << " geometries ...");
 
         backend_state.meshes.clear();
         backend_state.triangle_mesh.clear();
         backend_state.triangle_local.clear();
-        for(size_t mesh_i = 0; mesh_i < renderer.meshes.size(); mesh_i++){
-            const auto& md = renderer.meshes[mesh_i];
+        for(size_t mesh_i = 0; mesh_i < scene.meshes.size(); mesh_i++){
+            const auto& md = scene.meshes[mesh_i];
             generic::MeshView<T, TI> view;
             view.indices = md.indices.data();
             view.vertices = md.vertices.data();
@@ -154,7 +155,7 @@ namespace rl_tools {
         generic::build_bvh(device, backend_state.scene, backend_state.nodes.data(), backend_state.primitives.data(), temp_primitives.data(), centroids.data());
         renderer.backend.world = backend_state.nodes.data();
 
-        backend_state.lights.assign(renderer.scene_lights.begin(), renderer.scene_lights.end());
+        backend_state.lights = rendering::raytracing::detail::effective_scene_lights<SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING>(scene);
         backend_state.scene.lights = backend_state.lights.data();
         backend_state.scene.num_lights = (TI)backend_state.lights.size();
 
@@ -181,9 +182,9 @@ namespace rl_tools {
         namespace generic = rendering::raytracing::backends::generic;
         rendering::raytracing::detail::generate_camera_poses(device, renderer, center, radius, up, fov);
         auto& backend_state = generic::state(renderer);
-        std::memcpy(backend_state.cameras.data(), data(renderer.cameras), SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::CameraData<typename SPEC::T>));
+        std::memcpy(backend_state.cameras.data(), data(renderer.cameras), SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>));
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            std::memcpy(backend_state.cameras_open.data(), data(renderer.cameras), SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::CameraData<typename SPEC::T>));
+            std::memcpy(backend_state.cameras_open.data(), data(renderer.cameras), SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>));
         }
         renderer.backend.cameras_buffer = backend_state.cameras.data();
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
@@ -193,11 +194,11 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
     void set_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
-        static_assert(utils::typing::is_same_v<typename CAMERAS_SPEC::T, rendering::raytracing::CameraData<typename SPEC::T>>);
+        static_assert(utils::typing::is_same_v<typename CAMERAS_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
         static_assert(get<0>(typename CAMERAS_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
         namespace generic = rendering::raytracing::backends::generic;
         auto& backend_state = generic::state(renderer);
-        constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::CameraData<typename SPEC::T>);
+        constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>);
         std::memcpy(backend_state.cameras.data(), data(cameras), camera_bytes);
         renderer.backend.cameras_buffer = backend_state.cameras.data();
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
@@ -214,13 +215,13 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC, typename CAMERAS_OPEN_SPEC, typename CAMERAS_CLOSE_SPEC>
     void set_motion_blur_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_OPEN_SPEC>& cameras_open, const Tensor<CAMERAS_CLOSE_SPEC>& cameras_close){
         static_assert(SPEC::ENABLE_MOTION_BLUR, "set_motion_blur_cameras requires a motion-blur renderer specification");
-        static_assert(utils::typing::is_same_v<typename CAMERAS_OPEN_SPEC::T, rendering::raytracing::CameraData<typename SPEC::T>>);
-        static_assert(utils::typing::is_same_v<typename CAMERAS_CLOSE_SPEC::T, rendering::raytracing::CameraData<typename SPEC::T>>);
+        static_assert(utils::typing::is_same_v<typename CAMERAS_OPEN_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
+        static_assert(utils::typing::is_same_v<typename CAMERAS_CLOSE_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
         static_assert(get<0>(typename CAMERAS_OPEN_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
         static_assert(get<0>(typename CAMERAS_CLOSE_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
         namespace generic = rendering::raytracing::backends::generic;
         auto& backend_state = generic::state(renderer);
-        constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::CameraData<typename SPEC::T>);
+        constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>);
         std::memcpy(backend_state.cameras_open.data(), data(cameras_open), camera_bytes);
         std::memcpy(backend_state.cameras.data(), data(cameras_close), camera_bytes);
         renderer.backend.cameras_buffer = backend_state.cameras.data();
@@ -239,11 +240,6 @@ namespace rl_tools {
         backend_state.scene.probe_directions = backend_state.probe_directions.data();
         renderer.backend.probe_dirs_buffer = backend_state.probe_directions.data();
 #endif
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void build_pipeline(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        // nothing to compile for the software backend
     }
 
     template <typename DEVICE, typename SPEC>

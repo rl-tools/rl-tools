@@ -175,13 +175,14 @@ int main(int argc, char** argv) {
     Renderer renderer;
     rlt::malloc(device, renderer);
 
-    if(!rlt::load_model(device, renderer, options.scene_path)) {
+    rlt::rendering::raytracing::Scene scene;
+    if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, options.scene_path)) {
         std::cerr << "Failed to load scene: " << options.scene_path << std::endl;
         rlt::free(device, renderer);
         return 1;
     }
 
-    rlt::upload_geometry(device, renderer);
+    rlt::init(device, renderer, scene);
 
     constexpr T forward_body[3] = {static_cast<T>(1), static_cast<T>(0), static_cast<T>(0)};
     constexpr T up_body[3] = {static_cast<T>(0), static_cast<T>(0), static_cast<T>(1)};
@@ -199,7 +200,6 @@ int main(int argc, char** argv) {
 
     rlt::set(device, renderer.cameras, rlt::make_camera_data(options.position, look_at, up, SPEC::COS_FOVY, aspect), static_cast<TI>(0));
     rlt::set_cameras(device, renderer, renderer.cameras);
-    rlt::build_pipeline(device, renderer);
 #if RL_TOOLS_RENDERING_RAYTRACING_FIXED_POSE_OUTPUT_MODE == 2
     rlt::render_depth_only(device, renderer);
     rlt::synchronize(device, renderer);

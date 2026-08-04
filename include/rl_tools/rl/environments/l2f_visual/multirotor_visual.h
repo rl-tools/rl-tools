@@ -105,8 +105,10 @@ namespace rl_tools::rl::environments::l2f_visual {
 
         using RENDERER_SPEC = typename SPEC::RENDERER_SPEC;
         rendering::raytracing::Renderer<RENDERER_SPEC>* renderer = nullptr;
+        rendering::raytracing::Scene* render_scene = nullptr;
         rendering::raytracing::scene::procthor::Scene<typename SPEC::SCENE_SPEC>* scene = nullptr;
         bool owns_renderer = false;
+        bool owns_render_scene = false;
 
         const char* scene_path = nullptr;
 
