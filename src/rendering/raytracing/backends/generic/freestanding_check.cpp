@@ -69,7 +69,7 @@ extern "C" void rl_tools_rendering_raytracing_generic_freestanding_check(){
     static T centroids[3];
     generic::build_bvh(device, scene, nodes, primitives, temp_primitives, centroids);
 
-    static rlt::rendering::raytracing::CameraData<T> camera;
+    static rlt::rendering::raytracing::Camera<T> camera;
     static T probe_directions[3 * Spec::NUM_PROBES];
     static unsigned int frame_buffer[Spec::NUM_CAMERAS * Spec::CAM_PIXELS];
     static float depth_buffer[Spec::NUM_CAMERAS * Spec::CAM_PIXELS];

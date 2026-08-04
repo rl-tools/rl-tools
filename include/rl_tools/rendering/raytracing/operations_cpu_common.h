@@ -391,17 +391,16 @@ namespace rl_tools {
     }
 
     // =========================================================================
-    // load_model: Assimp model loading
+    // load: Assimp scene/object loading
     // =========================================================================
-    template <typename DEVICE, typename SPEC>
-    bool load_model(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const std::string& filename){
-        using T = typename SPEC::T;
-
+    namespace rendering::raytracing::detail{
+    template <typename SHADING, bool HAS_RGB>
+    bool load_scene_data(std::vector<rendering::raytracing::Mesh>& out_meshes, std::vector<rendering::raytracing::SceneLight>& out_lights, const std::string& filename){
         Assimp::Importer importer;
         unsigned int import_flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_ImproveCacheLocality;
-        if constexpr (SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING) {
+        if constexpr (HAS_RGB && SHADING::PBR_SHADING) {
             import_flags |= aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace;
-        } else if constexpr (SPEC::HAS_RGB && SPEC::SHADING::NORMAL_SHADING) {
+        } else if constexpr (HAS_RGB && SHADING::NORMAL_SHADING) {
             import_flags |= aiProcess_GenNormals;
         }
         const aiScene* scene = importer.ReadFile(filename, import_flags);
@@ -413,9 +412,6 @@ namespace rl_tools {
 
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Loaded model with " << scene->mNumMeshes << " mesh(es)");
 
-        float bbox_min[3] = {std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
-        float bbox_max[3] = {std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest()};
-
         [[maybe_unused]] std::map<std::string, size_t> tex_cache;
         struct DecodedTex { std::vector<uint8_t> pixels; int w, h; };
         [[maybe_unused]] std::vector<DecodedTex> decoded_textures;
@@ -425,7 +421,7 @@ namespace rl_tools {
 
         size_t total_verts = 0, total_tris = 0;
 
-        renderer.meshes.clear();
+        const size_t first_new_mesh = out_meshes.size();
         const auto glb_metadata = rendering::raytracing::glb::parse(filename);
 
         // Build mesh-index → global transform map by walking the node tree
@@ -448,9 +444,9 @@ namespace rl_tools {
                 transforms.push_back(aiMatrix4x4());
             }
             for(const auto& global_transform : transforms){
-            rendering::raytracing::MeshData md;
+            rendering::raytracing::Mesh md;
             [[maybe_unused]] const aiMaterial* mat = nullptr;
-            if constexpr (SPEC::HAS_RGB) {
+            if constexpr (HAS_RGB) {
                 if(mesh->mMaterialIndex < scene->mNumMaterials){
                     mat = scene->mMaterials[mesh->mMaterialIndex];
                 }
@@ -460,18 +456,12 @@ namespace rl_tools {
             for(unsigned int v = 0; v < mesh->mNumVertices; v++){
                 aiVector3D pos = mesh->mVertices[v];
                 pos = global_transform * pos;
-                float flu_x = pos.x, flu_y = -pos.z, flu_z = pos.y;
-                md.vertices.push_back(flu_x);
-                md.vertices.push_back(flu_y);
-                md.vertices.push_back(flu_z);
-                const float vertex[3] = {flu_x, flu_y, flu_z};
-                for(int d = 0; d < 3; d++){
-                    bbox_min[d] = std::min(bbox_min[d], vertex[d]);
-                    bbox_max[d] = std::max(bbox_max[d], vertex[d]);
-                }
+                md.vertices.push_back(pos.x);
+                md.vertices.push_back(-pos.z);
+                md.vertices.push_back(pos.y);
             }
 
-            if constexpr (SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING) {
+            if constexpr (HAS_RGB && SHADING::PBR_SHADING) {
                 if (mesh->mNormals) {
                     aiMatrix3x3 normal_matrix(global_transform);
                     for (unsigned int v = 0; v < mesh->mNumVertices; v++) {
@@ -494,7 +484,7 @@ namespace rl_tools {
                 }
             }
 
-            if constexpr (SPEC::HAS_RGB && SPEC::SHADING::LOAD_TEXTURES) {
+            if constexpr (HAS_RGB && SHADING::LOAD_TEXTURES) {
                 unsigned int uv_channel = 0;
                 if(mat != nullptr){
                     int uv_candidate = 0;
@@ -517,7 +507,7 @@ namespace rl_tools {
                     for(unsigned int v = 0; v < mesh->mNumVertices; v++){
                         const aiVector3D& tc = mesh->mTextureCoords[uv_channel][v];
                         md.tex_coords.push_back(tc.x);
-                        if constexpr (SPEC::SHADING::PBR_SHADING) {
+                        if constexpr (SHADING::PBR_SHADING) {
                             md.tex_coords.push_back(1.0f - tc.y);
                         } else {
                             md.tex_coords.push_back(tc.y);
@@ -527,15 +517,15 @@ namespace rl_tools {
             }
 
             // material / texture
-            if constexpr (SPEC::SHADING::PBR_SHADING) {
+            if constexpr (SHADING::PBR_SHADING) {
                 md.color[0] = 1.0f; md.color[1] = 1.0f; md.color[2] = 1.0f;
             } else {
                 md.color[0] = 0.8f; md.color[1] = 0.8f; md.color[2] = 0.8f;
             }
-            if constexpr (SPEC::HAS_RGB) {
+            if constexpr (HAS_RGB) {
             if(mat != nullptr){
 
-                if constexpr (SPEC::SHADING::PBR_SHADING) {
+                if constexpr (SHADING::PBR_SHADING) {
                     aiColor4D base_color(1.0f, 1.0f, 1.0f, 1.0f);
                     if (aiGetMaterialColor(mat, AI_MATKEY_BASE_COLOR, &base_color) == AI_SUCCESS) {
                         md.color[0] = base_color.r; md.color[1] = base_color.g; md.color[2] = base_color.b;
@@ -550,7 +540,7 @@ namespace rl_tools {
                     if(aiGetMaterialColor(mat, AI_MATKEY_COLOR_DIFFUSE, &diffuse) == AI_SUCCESS){
                         md.color[0] = diffuse.r; md.color[1] = diffuse.g; md.color[2] = diffuse.b;
                     }
-                    else if constexpr (!SPEC::SHADING::LOAD_TEXTURES) {
+                    else if constexpr (!SHADING::LOAD_TEXTURES) {
                         aiColor4D base_color;
                         if (aiGetMaterialColor(mat, AI_MATKEY_BASE_COLOR, &base_color) == AI_SUCCESS) {
                             md.color[0] = base_color.r; md.color[1] = base_color.g; md.color[2] = base_color.b;
@@ -558,7 +548,7 @@ namespace rl_tools {
                     }
                 }
 
-                if constexpr (!SPEC::SHADING::LOAD_TEXTURES) {
+                if constexpr (!SHADING::LOAD_TEXTURES) {
                     rendering::raytracing::RepresentativeTextureColor representative_color;
                     bool has_representative_color = rendering::raytracing::load_representative_texture_color(
                         scene, mat, aiTextureType_DIFFUSE, representative_texture_color_cache,
@@ -578,7 +568,7 @@ namespace rl_tools {
                     }
                 }
 
-                if constexpr (SPEC::SHADING::LOAD_TEXTURES) {
+                if constexpr (SHADING::LOAD_TEXTURES) {
                 if(mat->GetTextureCount(aiTextureType_DIFFUSE) > 0){
                     aiString tex_path;
                     if(mat->GetTexture(aiTextureType_DIFFUSE, 0, &tex_path) == AI_SUCCESS){
@@ -619,13 +609,13 @@ namespace rl_tools {
                 }
                 }
 
-                if constexpr (SPEC::SHADING::METALLIC_REFLECTIONS || SPEC::SHADING::PBR_SHADING) {
+                if constexpr (SHADING::METALLIC_REFLECTIONS || SHADING::PBR_SHADING) {
                 float metallic_factor = 0.0f;
                 mat->Get(AI_MATKEY_METALLIC_FACTOR, metallic_factor);
                 md.metallic = metallic_factor;
                 }
 
-                if constexpr (SPEC::SHADING::PBR_SHADING) {
+                if constexpr (SHADING::PBR_SHADING) {
                     float metallic_factor_pbr = 1.0f;
                     mat->Get(AI_MATKEY_METALLIC_FACTOR, metallic_factor_pbr);
                     md.metallic = metallic_factor_pbr;
@@ -634,7 +624,7 @@ namespace rl_tools {
                     mat->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughness_factor);
                     md.roughness = roughness_factor;
 
-                    if constexpr (SPEC::SHADING::LOAD_TEXTURES) {
+                    if constexpr (SHADING::LOAD_TEXTURES) {
                     if (mat->GetTextureCount(aiTextureType_NORMALS) > 0) {
                         aiString tex_path;
                         if (mat->GetTexture(aiTextureType_NORMALS, 0, &tex_path) == AI_SUCCESS) {
@@ -672,7 +662,7 @@ namespace rl_tools {
                     mat->Get(AI_MATKEY_COLOR_EMISSIVE, emissive_color);
                     md.emissive[0] = emissive_color.r; md.emissive[1] = emissive_color.g; md.emissive[2] = emissive_color.b;
 
-                    if constexpr (SPEC::SHADING::LOAD_TEXTURES) {
+                    if constexpr (SHADING::LOAD_TEXTURES) {
                     if (mat->GetTextureCount(aiTextureType_EMISSIVE) > 0) {
                         aiString tex_path;
                         if (mat->GetTexture(aiTextureType_EMISSIVE, 0, &tex_path) == AI_SUCCESS) {
@@ -749,7 +739,7 @@ namespace rl_tools {
                     }
                 }
 
-                if constexpr (SPEC::SHADING::LOAD_TEXTURES) {
+                if constexpr (SHADING::LOAD_TEXTURES) {
                 if(!md.texture.present() && mat->GetTextureCount(aiTextureType_BASE_COLOR) > 0){
                     aiString tex_path;
                     if(mat->GetTexture(aiTextureType_BASE_COLOR, 0, &tex_path) == AI_SUCCESS){
@@ -769,12 +759,12 @@ namespace rl_tools {
             }
             }
 
-            if constexpr (SPEC::HAS_RGB && (SPEC::SHADING::METALLIC_REFLECTIONS || SPEC::SHADING::PBR_SHADING)) {
+            if constexpr (HAS_RGB && (SHADING::METALLIC_REFLECTIONS || SHADING::PBR_SHADING)) {
                 if(mat != nullptr){
                     const auto glb_factors = glb_metadata.material_factors.find(mat->GetName().C_Str());
                     if(glb_factors != glb_metadata.material_factors.end()){
                         md.metallic = glb_factors->second.metallic;
-                        if constexpr (SPEC::SHADING::PBR_SHADING) {
+                        if constexpr (SHADING::PBR_SHADING) {
                             md.roughness = glb_factors->second.roughness;
                         }
                     }
@@ -783,52 +773,49 @@ namespace rl_tools {
 
             total_verts += md.vertices.size() / 3;
             total_tris += md.indices.size() / 3;
-            renderer.meshes.push_back(std::move(md));
+            out_meshes.push_back(std::move(md));
             } // end for global_transform
         }
 
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Total vertices: " << total_verts << ", triangles: " << total_tris);
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("Bounding box: [" << bbox_min[0] << "," << bbox_min[1] << "," << bbox_min[2] << "] - ["
-              << bbox_max[0] << "," << bbox_max[1] << "," << bbox_max[2] << "]");
 
+        const size_t num_new_meshes = out_meshes.size() - first_new_mesh;
         int textured_count = 0;
         int metallic_count = 0;
-        for(auto& m : renderer.meshes){
-            if(m.texture.present()) textured_count++;
-            if(m.metallic > 0.f) metallic_count++;
+        for(size_t m = first_new_mesh; m < out_meshes.size(); m++){
+            if(out_meshes[m].texture.present()) textured_count++;
+            if(out_meshes[m].metallic > 0.f) metallic_count++;
         }
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("Meshes with textures: " << textured_count << "/" << renderer.meshes.size()
-              << ", metallic: " << metallic_count << "/" << renderer.meshes.size());
-        if constexpr (SPEC::HAS_RGB && !SPEC::SHADING::LOAD_TEXTURES) {
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("Meshes with textures: " << textured_count << "/" << num_new_meshes
+              << ", metallic: " << metallic_count << "/" << num_new_meshes);
+        if constexpr (HAS_RGB && !SHADING::LOAD_TEXTURES) {
             RL_TOOLS_RENDERING_RAYTRACING_LOG("Representative texture colors: " << representative_texture_color_meshes
-                  << "/" << renderer.meshes.size() << " meshes, decoded "
+                  << "/" << num_new_meshes << " meshes, decoded "
                   << representative_texture_color_decoded << " texture(s)");
         }
 
-        if constexpr (SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING) {
-            renderer.scene_lights.clear();
-
-            if (glb_metadata.lights.empty()) {
-                float inv_sqrt2 = 0.70710678f;
-                renderer.scene_lights.push_back({0, {0,0,0}, {-inv_sqrt2, 0.f, inv_sqrt2}, {0.4f, 0.4f, 0.4f}, 0,0,0, 0,0});
-                renderer.scene_lights.push_back({0, {0,0,0}, {0.f, -inv_sqrt2, inv_sqrt2}, {0.3f, 0.3f, 0.3f}, 0,0,0, 0,0});
-                renderer.scene_lights.push_back({0, {0,0,0}, {0.f, inv_sqrt2, inv_sqrt2}, {0.2f, 0.2f, 0.2f}, 0,0,0, 0,0});
-            } else {
-                for (auto& sl : glb_metadata.lights) {
-                    renderer.scene_lights.push_back(sl);
-                }
-            }
-            RL_TOOLS_RENDERING_RAYTRACING_LOG("Scene lights: " << glb_metadata.lights.size() << " from GLB"
-                << (glb_metadata.lights.empty() ? " + 3 directional fill fallback" : ""));
-            for (size_t li = 0; li < renderer.scene_lights.size(); li++) {
-                auto& sl = renderer.scene_lights[li];
-                RL_TOOLS_RENDERING_RAYTRACING_LOG("  light " << li << ": pos=(" << sl.position[0] << "," << sl.position[1] << "," << sl.position[2]
-                    << ") dir=(" << sl.direction[0] << "," << sl.direction[1] << "," << sl.direction[2]
-                    << ") color=(" << sl.color[0] << "," << sl.color[1] << "," << sl.color[2] << ")");
-            }
+        for (auto& sl : glb_metadata.lights) {
+            out_lights.push_back(sl);
         }
 
-        // Adjust camera based on bounding box
+        return true;
+    }
+
+    template <typename SPEC>
+    void compute_scene_bounds(rendering::raytracing::Renderer<SPEC>& renderer, const rendering::raytracing::Scene& scene){
+        float bbox_min[3] = {std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
+        float bbox_max[3] = {std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest()};
+        for(const auto& mesh : scene.meshes){
+            for(size_t vertex_i = 0; vertex_i + 2 < mesh.vertices.size(); vertex_i += 3){
+                for(int d = 0; d < 3; d++){
+                    bbox_min[d] = std::min(bbox_min[d], mesh.vertices[vertex_i + d]);
+                    bbox_max[d] = std::max(bbox_max[d], mesh.vertices[vertex_i + d]);
+                }
+            }
+        }
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("Bounding box: [" << bbox_min[0] << "," << bbox_min[1] << "," << bbox_min[2] << "] - ["
+              << bbox_max[0] << "," << bbox_max[1] << "," << bbox_max[2] << "]");
+
         float center[3], size[3];
         for(int d = 0; d < 3; d++){
             center[d] = 0.5f * (bbox_min[d] + bbox_max[d]);
@@ -846,12 +833,62 @@ namespace rl_tools {
         rendering::raytracing::vec3::sub(look_from, center, look_offset);
         renderer.camera_radius = rendering::raytracing::vec3::length(look_offset);
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Camera positioned at [" << look_from[0] << "," << look_from[1] << "," << look_from[2] << "]");
+    }
 
+    // Lights as uploaded to the device: only the PBR tiers consume punctual lights
+    template <bool APPLY>
+    std::vector<rendering::raytracing::SceneLight> effective_scene_lights(const rendering::raytracing::Scene& scene){
+        std::vector<rendering::raytracing::SceneLight> lights;
+        if constexpr (APPLY) {
+            lights = scene.lights;
+            RL_TOOLS_RENDERING_RAYTRACING_LOG("Scene lights: " << lights.size());
+            for (size_t li = 0; li < lights.size(); li++) {
+                auto& sl = lights[li];
+                RL_TOOLS_RENDERING_RAYTRACING_LOG("  light " << li << ": pos=(" << sl.position[0] << "," << sl.position[1] << "," << sl.position[2]
+                    << ") dir=(" << sl.direction[0] << "," << sl.direction[1] << "," << sl.direction[2]
+                    << ") color=(" << sl.color[0] << "," << sl.color[1] << "," << sl.color[2] << ")");
+            }
+        }
+        return lights;
+    }
+    } // namespace rendering::raytracing::detail
+
+    template <typename SHADING = rendering::raytracing::VeryHigh, bool HAS_RGB = true, typename DEVICE>
+    bool load(DEVICE& device, rendering::raytracing::Object& object, const std::string& filename){
+        return rendering::raytracing::detail::load_scene_data<SHADING, HAS_RGB>(object.meshes, object.lights, filename);
+    }
+
+    // Scene-level load: a scene file without any punctual lights gets a neutral 3-directional
+    // fill so PBR-shaded content is not lit by ambient only. Object/asset loads deliberately do
+    // not: fill lighting is a scene decision, not an asset property.
+    template <typename SHADING = rendering::raytracing::VeryHigh, bool HAS_RGB = true, typename DEVICE>
+    bool load(DEVICE& device, rendering::raytracing::Scene& scene, const std::string& filename){
+        if(!rendering::raytracing::detail::load_scene_data<SHADING, HAS_RGB>(scene.meshes, scene.lights, filename)){
+            return false;
+        }
+        if(scene.lights.empty()){
+            float inv_sqrt2 = 0.70710678f;
+            scene.lights.push_back({0, {0,0,0}, {-inv_sqrt2, 0.f, inv_sqrt2}, {0.4f, 0.4f, 0.4f}, 0,0,0, 0,0});
+            scene.lights.push_back({0, {0,0,0}, {0.f, -inv_sqrt2, inv_sqrt2}, {0.3f, 0.3f, 0.3f}, 0,0,0, 0,0});
+            scene.lights.push_back({0, {0,0,0}, {0.f, inv_sqrt2, inv_sqrt2}, {0.2f, 0.2f, 0.2f}, 0,0,0, 0,0});
+            RL_TOOLS_RENDERING_RAYTRACING_LOG("Scene file has no lights: adding 3 directional fill lights");
+        }
         return true;
     }
 
+    template <typename DEVICE>
+    void add(DEVICE& device, rendering::raytracing::Scene& scene, const rendering::raytracing::Object& object){
+        scene.meshes.insert(scene.meshes.end(), object.meshes.begin(), object.meshes.end());
+        scene.lights.insert(scene.lights.end(), object.lights.begin(), object.lights.end());
+    }
+
+    template <typename DEVICE>
+    void add(DEVICE& device, rendering::raytracing::Scene& scene, const rendering::raytracing::Mesh& mesh){
+        scene.meshes.push_back(mesh);
+    }
+
     template <typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::CameraData<T> make_camera_data(const T position[3], const T look_at[3], const T up[3], T fov, T aspect){
+    RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::Camera<T> make_camera_data(const T position[3], const T look_at[3], const T up[3], T fov, T aspect){
         namespace v3 = rendering::raytracing::vec3;
         T raw_dir[3], dir[3];
         v3::sub(look_at, position, raw_dir);
@@ -871,7 +908,7 @@ namespace rl_tools {
         v3::scale(du, T{-0.5}, half_du);
         v3::scale(dv, T{0.5}, half_dv);
         v3::add(dir, half_du, tmp);
-        rendering::raytracing::CameraData<T> cam;
+        rendering::raytracing::Camera<T> cam;
         v3::add(tmp, half_dv, cam.dir_00);
         cam.pos[0] = position[0]; cam.pos[1] = position[1]; cam.pos[2] = position[2];
         cam.dir_du[0] = du[0]; cam.dir_du[1] = du[1]; cam.dir_du[2] = du[2];

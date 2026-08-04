@@ -57,12 +57,13 @@ int main(int ac, char** av){
         return 1;
     }
     RL_TOOLS_RENDERING_RAYTRACING_LOG("Loading model: " << model_file);
-    if(!rlt::load_model(device, renderer, model_file)){
+    rlt::rendering::raytracing::Scene scene;
+    if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, model_file)){
         RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Failed to load model: " << model_file);
         return 1;
     }
 
-    rlt::upload_geometry(device, renderer);
+    rlt::init(device, renderer, scene);
 
     // Generate cameras
     const T scene_center[3] = {renderer.scene_center[0], renderer.scene_center[1], renderer.scene_center[2]};
@@ -70,7 +71,6 @@ int main(int ac, char** av){
 
     rlt::generate_cameras(device, renderer, scene_center, renderer.camera_radius, look_up, SPEC::COS_FOVY);
     rlt::generate_probe_directions(device, renderer);
-    rlt::build_pipeline(device, renderer);
 
     // Warmup
     rlt::render(device, renderer);

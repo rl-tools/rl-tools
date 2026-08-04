@@ -67,7 +67,7 @@ constexpr TI NUM_PROBES = 1;
 
 using VISUAL_SPEC = rlt::rl::environments::l2f_visual::Specification<T, TI, test_l2f_visual_cuda::STATIC_PARAMETERS, NUM_ENVS, CAM_WIDTH, CAM_HEIGHT, NUM_PROBES>;
 using ENV = rlt::rl::environments::l2f_visual::MultirrotorVisual<VISUAL_SPEC>;
-using CAMERA = rlt::rendering::raytracing::CameraData<T>;
+using CAMERA = rlt::rendering::raytracing::Camera<T>;
 
 __global__ void build_l2f_visual_cameras(
     DEVICE_TAG device,

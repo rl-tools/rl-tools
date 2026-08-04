@@ -54,7 +54,7 @@ namespace rl_tools {
         owl::vec3f dir_du;
         owl::vec3f dir_dv;
     };
-    static_assert(sizeof(OptixCameraData) == sizeof(rendering::raytracing::CameraData<float>), "OptixCameraData and CameraData<float> must have identical layout");
+    static_assert(sizeof(OptixCameraData) == sizeof(rendering::raytracing::Camera<float>), "OptixCameraData and Camera<float> must have identical layout");
 
     /* variables for the ray generation program */
     struct RayGenData

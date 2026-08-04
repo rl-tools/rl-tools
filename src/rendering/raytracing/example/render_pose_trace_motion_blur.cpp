@@ -445,15 +445,14 @@ static size_t output_frame_count(const std::vector<TracePose>& poses, const std:
 }
 
 template <typename SPEC>
-static bool setup_renderer(DEVICE& device, Renderer<SPEC>& renderer, const std::string& scene_path) {
+static bool setup_renderer(DEVICE& device, Renderer<SPEC>& renderer, rlt::rendering::raytracing::Scene& scene, const std::string& scene_path) {
     rlt::malloc(device, renderer);
-    if(!rlt::load_model(device, renderer, scene_path)) {
+    if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, scene_path)) {
         return false;
     }
-    rlt::upload_geometry(device, renderer);
+    rlt::init(device, renderer, scene);
     const T up[3] = {0, 0, 1};
     rlt::generate_cameras(device, renderer, renderer.scene_center, renderer.camera_radius, up, SPEC::COS_FOVY);
-    rlt::build_pipeline(device, renderer);
     return true;
 }
 
@@ -514,7 +513,8 @@ static bool render_trace(DEVICE& device, const Options& options, const std::stri
     using SPEC = RendererSpec<SAMPLES, WIDTH, HEIGHT>;
 
     Renderer<SPEC> renderer;
-    if(!setup_renderer(device, renderer, scene_path)) {
+    rlt::rendering::raytracing::Scene scene;
+    if(!setup_renderer(device, renderer, scene, scene_path)) {
         std::cerr << "Failed to initialize renderer for scene: " << scene_path << std::endl;
         return false;
     }

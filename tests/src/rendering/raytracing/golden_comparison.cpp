@@ -88,11 +88,12 @@ namespace {
         using Renderer = rlt::rendering::raytracing::Renderer<SPEC>;
         Renderer renderer;
         rlt::malloc(device, renderer);
-        if(!rlt::load_model(device, renderer, SCENE_PATH)){
+        rlt::rendering::raytracing::Scene scene;
+        if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, SCENE_PATH)){
             rlt::free(device, renderer);
             return false;
         }
-        rlt::upload_geometry(device, renderer);
+        rlt::init(device, renderer, scene);
 
         // camera setup mirrors tests/src/rendering/raytracing/generate_golden.cpp — keep in sync
         constexpr T aspect = (T)SPEC::CAM_WIDTH / (T)SPEC::CAM_HEIGHT;
@@ -116,7 +117,6 @@ namespace {
             rlt::set_cameras(device, renderer, renderer.cameras);
         }
         rlt::generate_probe_directions(device, renderer);
-        rlt::build_pipeline(device, renderer);
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
 

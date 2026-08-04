@@ -580,7 +580,7 @@ int main(int argc, char** argv) {
     cudaMalloc(&gpu_total_loss, 2 * sizeof(float));
 
     std::vector<float> cpu_targets(TOTAL_OUTPUT_ELEMENTS);
-    std::vector<rlt::rendering::raytracing::CameraData<float>> cameras(NUM_CAMERAS);
+    std::vector<rlt::rendering::raytracing::Camera<float>> cameras(NUM_CAMERAS);
 
     // ---- Extrack setup ----
     rlt::utils::extrack::Config<TI> extrack_config;

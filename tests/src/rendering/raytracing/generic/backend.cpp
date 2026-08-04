@@ -94,7 +94,7 @@ namespace {
         }
     };
 
-    rlt::rendering::raytracing::CameraData<T> forward_camera(T position_x){
+    rlt::rendering::raytracing::Camera<T> forward_camera(T position_x){
         // center ray = dir_00 + 0.5*dir_du + 0.5*dir_dv = (1, 0, 0)
         return {{position_x, 0, 0}, {1, 0.5f, 0.5f}, {0, -1, 0}, {0, 0, -1}};
     }
@@ -134,7 +134,7 @@ TEST(RENDERING_RAYTRACING_GENERIC, COLLISION_ANALYTIC){
     CubeScene cube(device);
     using SPEC = Spec<ShadingLow, 4>;
     // camera at the origin (inside the cube): forward probe and axis probes all hit at distance 1
-    const rlt::rendering::raytracing::CameraData<T> camera = forward_camera(0);
+    const rlt::rendering::raytracing::Camera<T> camera = forward_camera(0);
     const T probe_directions[4 * 3] = {
         1, 0, 0, // probe 0 is overridden by the camera forward direction
         0, 1, 0,
@@ -153,7 +153,7 @@ TEST(RENDERING_RAYTRACING_GENERIC, COLLISION_ANALYTIC){
     }
 
     // camera outside, looking away from the cube: forward probe misses, probe towards the cube hits at 4
-    const rlt::rendering::raytracing::CameraData<T> camera_away = {{-5, 0, 0}, {-1, 0.5f, 0.5f}, {0, -1, 0}, {0, 0, -1}};
+    const rlt::rendering::raytracing::Camera<T> camera_away = {{-5, 0, 0}, {-1, 0.5f, 0.5f}, {0, -1, 0}, {0, 0, -1}};
     const T probe_directions_away[4 * 3] = {
         -1, 0, 0,
         1, 0, 0,
@@ -195,7 +195,7 @@ TEST(RENDERING_RAYTRACING_GENERIC, RGB_FLAT_AND_MISS){
     {
         // camera looking away: miss; checker cell (0, 0) selects miss_color_0 = (0.8, 0, 0) -> r = 204
         using SPEC = Spec<ShadingLowChecker, 1>;
-        const rlt::rendering::raytracing::CameraData<T> camera_away = {{-5, 0, 0}, {-1, 0.5f, 0.5f}, {0, -1, 0}, {0, 0, -1}};
+        const rlt::rendering::raytracing::Camera<T> camera_away = {{-5, 0, 0}, {-1, 0.5f, 0.5f}, {0, -1, 0}, {0, 0, -1}};
         cube.scene.cameras_close = &camera_away;
         cube.scene.cameras_open = &camera_away;
         pixel = 0;

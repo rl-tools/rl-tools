@@ -361,12 +361,14 @@ namespace rl_tools {
     }
 
     // =========================================================================
-    // upload_geometry: upload meshes + build single shared BVH
+    // init: upload meshes, build single shared BVH, build programs/pipeline/SBT
     // =========================================================================
     template <typename DEVICE, typename SPEC>
-    void upload_geometry(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const rendering::raytracing::Scene& scene){
         OWLContext context = (OWLContext)renderer.backend.context;
         OWLModule module = (OWLModule)renderer.backend.module;
+
+        rendering::raytracing::detail::compute_scene_bounds(renderer, scene);
 
         OWLGeomType triangles_geom_type;
         if constexpr (SPEC::HAS_RGB) {
@@ -443,11 +445,11 @@ namespace rl_tools {
         }
         owlGeomTypeSetClosestHit(triangles_geom_type, 1, module, "collisionHit");
 
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << renderer.meshes.size() << " geometries ...");
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << scene.meshes.size() << " geometries ...");
 
         std::vector<OWLGeom> geoms;
-        for(size_t m = 0; m < renderer.meshes.size(); m++){
-            auto& md = renderer.meshes[m];
+        for(size_t m = 0; m < scene.meshes.size(); m++){
+            const auto& md = scene.meshes[m];
             size_t num_vertices = md.vertices.size() / 3;
             size_t num_indices = md.indices.size() / 3;
 
@@ -586,11 +588,12 @@ namespace rl_tools {
         }
 
         if constexpr (SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING) {
+            const auto scene_lights = rendering::raytracing::detail::effective_scene_lights<true>(scene);
             OWLBuffer light_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(rendering::raytracing::SceneLight),
-                                                            renderer.scene_lights.size(), renderer.scene_lights.data());
+                                                            scene_lights.size(), scene_lights.data());
             for (size_t m = 0; m < geoms.size(); m++) {
                 owlGeomSetBuffer(geoms[m], "scene_lights", light_buffer);
-                owlGeomSet1i(geoms[m], "num_scene_lights", (int)renderer.scene_lights.size());
+                owlGeomSet1i(geoms[m], "num_scene_lights", (int)scene_lights.size());
             }
         }
 
@@ -605,6 +608,22 @@ namespace rl_tools {
         if(renderer.backend.collision_ray_gen)
             owlRayGenSetGroup((OWLRayGen)renderer.backend.collision_ray_gen, "world", world);
         renderer.backend.world = world;
+
+        // programs/pipeline/SBT must be (re)built after the geometry set changes; the launch
+        // params are spec-dependent and created once. Device buffers from a previous init are
+        // released with the OWL context in free, not here.
+        owlBuildPrograms(context);
+        owlBuildPipeline(context);
+        owlBuildSBT(context);
+
+        if(renderer.backend.launch_params == nullptr){
+            OWLParams launch_params = owlParamsCreate(context, 0, nullptr, 0);
+            renderer.backend.launch_params = launch_params;
+            if(renderer.backend.collision_ray_gen){
+                OWLParams coll_lp = owlParamsCreate(context, 0, nullptr, 0);
+                renderer.backend.coll_launch_params = coll_lp;
+            }
+        }
     }
 
     template <typename DEVICE, typename SPEC>
@@ -644,7 +663,7 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
     void set_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
-        static_assert(utils::typing::is_same_v<typename CAMERAS_SPEC::T, rendering::raytracing::CameraData<typename SPEC::T>>);
+        static_assert(utils::typing::is_same_v<typename CAMERAS_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
         static_assert(get<0>(typename CAMERAS_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
 
         OWLContext context = (OWLContext)renderer.backend.context;
@@ -684,8 +703,8 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC, typename CAMERAS_OPEN_SPEC, typename CAMERAS_CLOSE_SPEC>
     void set_motion_blur_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_OPEN_SPEC>& cameras_open, const Tensor<CAMERAS_CLOSE_SPEC>& cameras_close){
         static_assert(SPEC::ENABLE_MOTION_BLUR, "set_motion_blur_cameras requires a motion-blur renderer specification");
-        static_assert(utils::typing::is_same_v<typename CAMERAS_OPEN_SPEC::T, rendering::raytracing::CameraData<typename SPEC::T>>);
-        static_assert(utils::typing::is_same_v<typename CAMERAS_CLOSE_SPEC::T, rendering::raytracing::CameraData<typename SPEC::T>>);
+        static_assert(utils::typing::is_same_v<typename CAMERAS_OPEN_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
+        static_assert(utils::typing::is_same_v<typename CAMERAS_CLOSE_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
         static_assert(get<0>(typename CAMERAS_OPEN_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
         static_assert(get<0>(typename CAMERAS_CLOSE_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
 
@@ -733,25 +752,6 @@ namespace rl_tools {
         owlRayGenSet1i    ((OWLRayGen)renderer.backend.collision_ray_gen, "num_cameras", SPEC::NUM_CAMERAS);
         owlRayGenSet1f    ((OWLRayGen)renderer.backend.collision_ray_gen, "max_dist", renderer.camera_radius * 2.0f);
 #endif
-    }
-
-    // =========================================================================
-    // build_pipeline: build programs, pipeline, and SBT for both contexts
-    // =========================================================================
-    template <typename DEVICE, typename SPEC>
-    void build_pipeline(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        OWLContext context = (OWLContext)renderer.backend.context;
-
-        owlBuildPrograms(context);
-        owlBuildPipeline(context);
-        owlBuildSBT(context);
-
-        OWLParams launch_params = owlParamsCreate(context, 0, nullptr, 0);
-        renderer.backend.launch_params = launch_params;
-        if(renderer.backend.collision_ray_gen){
-            OWLParams coll_lp = owlParamsCreate(context, 0, nullptr, 0);
-            renderer.backend.coll_launch_params = coll_lp;
-        }
     }
 
     template <typename DEVICE, typename SPEC>
@@ -867,7 +867,7 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
     void set_cameras_async(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
-        static_assert(utils::typing::is_same_v<typename CAMERAS_SPEC::T, rendering::raytracing::CameraData<typename SPEC::T>>);
+        static_assert(utils::typing::is_same_v<typename CAMERAS_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
         static_assert(get<0>(typename CAMERAS_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
 
         OWLContext context = (OWLContext)renderer.backend.context;

@@ -134,23 +134,30 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void upload_geometry(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const rendering::raytracing::Scene& scene){
         namespace metal = rendering::raytracing::backends::metal;
         auto& ctx = metal::context(renderer);
         NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
 
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << renderer.meshes.size() << " geometries ...");
+        rendering::raytracing::detail::compute_scene_bounds(renderer, scene);
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << scene.meshes.size() << " geometries ...");
+
+        // scene-dependent resources from a previous init are released here; the compiled library
+        // and pipelines below are spec-dependent and survive re-init
+        ctx.mesh_buffers.clear();
+        ctx.mesh_textures.clear();
+        ctx.scene_lights = NS::SharedPtr<MTL::Buffer>{};
 
         const uint8_t dummy_pixel[4] = {255, 255, 255, 255};
         ctx.dummy_texture = metal::make_texture(ctx.device.get(), dummy_pixel, 1, 1, false);
         const MTL::ResourceID dummy_texture_id = ctx.dummy_texture->gpuResourceID();
 
-        std::vector<metal::MeshRecord> mesh_records(renderer.meshes.size());
+        std::vector<metal::MeshRecord> mesh_records(scene.meshes.size());
         std::vector<NS::Object*> geometry_descriptors;
-        geometry_descriptors.reserve(renderer.meshes.size());
+        geometry_descriptors.reserve(scene.meshes.size());
 
-        for(size_t m = 0; m < renderer.meshes.size(); m++){
-            auto& md = renderer.meshes[m];
+        for(size_t m = 0; m < scene.meshes.size(); m++){
+            const auto& md = scene.meshes[m];
             metal::MeshRecord& record = mesh_records[m];
             record = {};
             record.texture = dummy_texture_id;
@@ -250,10 +257,9 @@ namespace rl_tools {
 
         ctx.mesh_records = NS::TransferPtr(ctx.device->newBuffer(mesh_records.data(), mesh_records.size() * sizeof(metal::MeshRecord), MTL::ResourceStorageModeShared));
 
-        if constexpr (SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING) {
-            if(!renderer.scene_lights.empty()){
-                ctx.scene_lights = NS::TransferPtr(ctx.device->newBuffer(renderer.scene_lights.data(), renderer.scene_lights.size() * sizeof(rendering::raytracing::SceneLight), MTL::ResourceStorageModeShared));
-            }
+        const auto scene_lights = rendering::raytracing::detail::effective_scene_lights<SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING>(scene);
+        if(!scene_lights.empty()){
+            ctx.scene_lights = NS::TransferPtr(ctx.device->newBuffer(scene_lights.data(), scene_lights.size() * sizeof(rendering::raytracing::SceneLight), MTL::ResourceStorageModeShared));
         }
 
         auto* params = (metal::LaunchParams*)ctx.launch_params->contents();
@@ -265,7 +271,7 @@ namespace rl_tools {
         params->grid_cols = SPEC::GRID_COLS;
         params->num_cameras = SPEC::NUM_CAMERAS;
         params->num_probes = SPEC::NUM_PROBES;
-        params->num_scene_lights = (uint32_t)renderer.scene_lights.size();
+        params->num_scene_lights = (uint32_t)scene_lights.size();
         params->max_depth = renderer.camera_radius > 0 ? renderer.camera_radius * 2.0f : 1e30f;
         params->max_dist = renderer.camera_radius * 2.0f;
         params->ambient_color[0] = 0.10f;
@@ -279,6 +285,60 @@ namespace rl_tools {
             params->miss_color_1[0] = .8f; params->miss_color_1[1] = .8f; params->miss_color_1[2] = .8f;
         }
 
+        if(!ctx.pipelines_built){
+            auto constants = NS::TransferPtr(MTL::FunctionConstantValues::alloc()->init());
+            bool srgb_output = SPEC::SHADING::SRGB_OUTPUT;
+            bool motion_blur = SPEC::ENABLE_MOTION_BLUR;
+            int motion_samples = SPEC::ENABLE_MOTION_BLUR ? (int)SPEC::MOTION_BLUR_SAMPLES : 1;
+            int aa_grid = SPEC::ENABLE_ANTI_ALIASING ? (int)SPEC::ANTI_ALIASING_GRID_SIZE : 1;
+            bool checker_background = SPEC::SHADING::CHECKER_BACKGROUND;
+            bool load_textures = SPEC::SHADING::LOAD_TEXTURES;
+            bool normal_shading = SPEC::SHADING::NORMAL_SHADING;
+            bool metallic_reflections = SPEC::SHADING::METALLIC_REFLECTIONS;
+            bool pbr_shading = SPEC::SHADING::PBR_SHADING;
+            bool punctual_light_shadows = SPEC::SHADING::PUNCTUAL_LIGHT_SHADOWS;
+            constants->setConstantValue(&srgb_output, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::SRGB_OUTPUT);
+            constants->setConstantValue(&motion_blur, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::MOTION_BLUR);
+            constants->setConstantValue(&motion_samples, MTL::DataTypeInt, (NS::UInteger)metal::function_constants::MOTION_SAMPLES);
+            constants->setConstantValue(&aa_grid, MTL::DataTypeInt, (NS::UInteger)metal::function_constants::AA_GRID);
+            constants->setConstantValue(&checker_background, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::CHECKER_BACKGROUND);
+            constants->setConstantValue(&load_textures, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::LOAD_TEXTURES);
+            constants->setConstantValue(&normal_shading, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::NORMAL_SHADING);
+            constants->setConstantValue(&metallic_reflections, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::METALLIC_REFLECTIONS);
+            constants->setConstantValue(&pbr_shading, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::PBR_SHADING);
+            constants->setConstantValue(&punctual_light_shadows, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::PUNCTUAL_LIGHT_SHADOWS);
+
+            auto make_pipeline = [&](const char* name) -> NS::SharedPtr<MTL::ComputePipelineState> {
+                NS::Error* error = nullptr;
+                auto function = NS::TransferPtr(ctx.library->newFunction(NS::String::string(name, NS::UTF8StringEncoding), constants.get(), &error));
+                if(function.get() == nullptr){
+                    RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Metal function specialization failed for " << name << ": " << (error != nullptr ? error->localizedDescription()->utf8String() : "unknown error"));
+                    utils::assert_exit(device, false, "Metal function specialization failed");
+                }
+                error = nullptr;
+                auto pipeline = NS::TransferPtr(ctx.device->newComputePipelineState(function.get(), &error));
+                if(pipeline.get() == nullptr){
+                    RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Metal pipeline creation failed for " << name << ": " << (error != nullptr ? error->localizedDescription()->utf8String() : "unknown error"));
+                    utils::assert_exit(device, false, "Metal pipeline creation failed");
+                }
+                return pipeline;
+            };
+
+            if constexpr (SPEC::HAS_RGB) {
+                ctx.rgb_pipeline = make_pipeline("render_rgb");
+                renderer.backend.ray_gen = ctx.rgb_pipeline.get();
+            }
+            if constexpr (SPEC::HAS_DEPTH) {
+                ctx.depth_pipeline = make_pipeline("render_depth");
+                renderer.backend.depth_ray_gen = ctx.depth_pipeline.get();
+            }
+#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
+            ctx.collision_pipeline = make_pipeline("render_collision");
+            renderer.backend.collision_ray_gen = ctx.collision_pipeline.get();
+#endif
+            ctx.pipelines_built = true;
+        }
+
         pool->release();
     }
 
@@ -290,7 +350,7 @@ namespace rl_tools {
         rendering::raytracing::detail::generate_camera_poses(device, renderer, center, radius, up, fov);
 
         auto& ctx = metal::context(renderer);
-        constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::CameraData<typename SPEC::T>);
+        constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>);
         ctx.cameras = NS::TransferPtr(ctx.device->newBuffer(data(renderer.cameras), camera_bytes, MTL::ResourceStorageModeShared));
         renderer.backend.cameras_buffer = ctx.cameras.get();
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
@@ -301,13 +361,13 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
     void set_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
-        static_assert(utils::typing::is_same_v<typename CAMERAS_SPEC::T, rendering::raytracing::CameraData<typename SPEC::T>>);
+        static_assert(utils::typing::is_same_v<typename CAMERAS_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
         static_assert(get<0>(typename CAMERAS_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
         namespace metal = rendering::raytracing::backends::metal;
         auto& ctx = metal::context(renderer);
         metal::wait_in_flight(ctx);
 
-        constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::CameraData<typename SPEC::T>);
+        constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>);
         if(ctx.cameras.get() == nullptr){
             ctx.cameras = NS::TransferPtr(ctx.device->newBuffer(data(cameras), camera_bytes, MTL::ResourceStorageModeShared));
             renderer.backend.cameras_buffer = ctx.cameras.get();
@@ -332,15 +392,15 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC, typename CAMERAS_OPEN_SPEC, typename CAMERAS_CLOSE_SPEC>
     void set_motion_blur_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_OPEN_SPEC>& cameras_open, const Tensor<CAMERAS_CLOSE_SPEC>& cameras_close){
         static_assert(SPEC::ENABLE_MOTION_BLUR, "set_motion_blur_cameras requires a motion-blur renderer specification");
-        static_assert(utils::typing::is_same_v<typename CAMERAS_OPEN_SPEC::T, rendering::raytracing::CameraData<typename SPEC::T>>);
-        static_assert(utils::typing::is_same_v<typename CAMERAS_CLOSE_SPEC::T, rendering::raytracing::CameraData<typename SPEC::T>>);
+        static_assert(utils::typing::is_same_v<typename CAMERAS_OPEN_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
+        static_assert(utils::typing::is_same_v<typename CAMERAS_CLOSE_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
         static_assert(get<0>(typename CAMERAS_OPEN_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
         static_assert(get<0>(typename CAMERAS_CLOSE_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
         namespace metal = rendering::raytracing::backends::metal;
         auto& ctx = metal::context(renderer);
         metal::wait_in_flight(ctx);
 
-        constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::CameraData<typename SPEC::T>);
+        constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>);
         if(ctx.cameras.get() == nullptr){
             ctx.cameras = NS::TransferPtr(ctx.device->newBuffer(data(cameras_close), camera_bytes, MTL::ResourceStorageModeShared));
             ctx.cameras_open = NS::TransferPtr(ctx.device->newBuffer(data(cameras_open), camera_bytes, MTL::ResourceStorageModeShared));
@@ -365,66 +425,6 @@ namespace rl_tools {
         ctx.probe_directions = NS::TransferPtr(ctx.device->newBuffer(dirs.data(), dirs.size() * sizeof(float), MTL::ResourceStorageModeShared));
         renderer.backend.probe_dirs_buffer = ctx.probe_directions.get();
 #endif
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void build_pipeline(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        namespace metal = rendering::raytracing::backends::metal;
-        auto& ctx = metal::context(renderer);
-        NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
-
-        auto constants = NS::TransferPtr(MTL::FunctionConstantValues::alloc()->init());
-        bool srgb_output = SPEC::SHADING::SRGB_OUTPUT;
-        bool motion_blur = SPEC::ENABLE_MOTION_BLUR;
-        int motion_samples = SPEC::ENABLE_MOTION_BLUR ? (int)SPEC::MOTION_BLUR_SAMPLES : 1;
-        int aa_grid = SPEC::ENABLE_ANTI_ALIASING ? (int)SPEC::ANTI_ALIASING_GRID_SIZE : 1;
-        bool checker_background = SPEC::SHADING::CHECKER_BACKGROUND;
-        bool load_textures = SPEC::SHADING::LOAD_TEXTURES;
-        bool normal_shading = SPEC::SHADING::NORMAL_SHADING;
-        bool metallic_reflections = SPEC::SHADING::METALLIC_REFLECTIONS;
-        bool pbr_shading = SPEC::SHADING::PBR_SHADING;
-        bool punctual_light_shadows = SPEC::SHADING::PUNCTUAL_LIGHT_SHADOWS;
-        constants->setConstantValue(&srgb_output, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::SRGB_OUTPUT);
-        constants->setConstantValue(&motion_blur, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::MOTION_BLUR);
-        constants->setConstantValue(&motion_samples, MTL::DataTypeInt, (NS::UInteger)metal::function_constants::MOTION_SAMPLES);
-        constants->setConstantValue(&aa_grid, MTL::DataTypeInt, (NS::UInteger)metal::function_constants::AA_GRID);
-        constants->setConstantValue(&checker_background, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::CHECKER_BACKGROUND);
-        constants->setConstantValue(&load_textures, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::LOAD_TEXTURES);
-        constants->setConstantValue(&normal_shading, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::NORMAL_SHADING);
-        constants->setConstantValue(&metallic_reflections, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::METALLIC_REFLECTIONS);
-        constants->setConstantValue(&pbr_shading, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::PBR_SHADING);
-        constants->setConstantValue(&punctual_light_shadows, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::PUNCTUAL_LIGHT_SHADOWS);
-
-        auto make_pipeline = [&](const char* name) -> NS::SharedPtr<MTL::ComputePipelineState> {
-            NS::Error* error = nullptr;
-            auto function = NS::TransferPtr(ctx.library->newFunction(NS::String::string(name, NS::UTF8StringEncoding), constants.get(), &error));
-            if(function.get() == nullptr){
-                RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Metal function specialization failed for " << name << ": " << (error != nullptr ? error->localizedDescription()->utf8String() : "unknown error"));
-                utils::assert_exit(device, false, "Metal function specialization failed");
-            }
-            error = nullptr;
-            auto pipeline = NS::TransferPtr(ctx.device->newComputePipelineState(function.get(), &error));
-            if(pipeline.get() == nullptr){
-                RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Metal pipeline creation failed for " << name << ": " << (error != nullptr ? error->localizedDescription()->utf8String() : "unknown error"));
-                utils::assert_exit(device, false, "Metal pipeline creation failed");
-            }
-            return pipeline;
-        };
-
-        if constexpr (SPEC::HAS_RGB) {
-            ctx.rgb_pipeline = make_pipeline("render_rgb");
-            renderer.backend.ray_gen = ctx.rgb_pipeline.get();
-        }
-        if constexpr (SPEC::HAS_DEPTH) {
-            ctx.depth_pipeline = make_pipeline("render_depth");
-            renderer.backend.depth_ray_gen = ctx.depth_pipeline.get();
-        }
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        ctx.collision_pipeline = make_pipeline("render_collision");
-        renderer.backend.collision_ray_gen = ctx.collision_pipeline.get();
-#endif
-
-        pool->release();
     }
 
     template <typename DEVICE, typename SPEC>

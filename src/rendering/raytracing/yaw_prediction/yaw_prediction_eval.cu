@@ -163,7 +163,7 @@ static Metrics evaluate_scene(
     std::vector<WorstPair>& worst_pairs,
     TI worst_pair_limit
 ) {
-    std::vector<rlt::rendering::raytracing::CameraData<float>> cameras(yp::SCENE_NUM_CAMERAS);
+    std::vector<rlt::rendering::raytracing::Camera<float>> cameras(yp::SCENE_NUM_CAMERAS);
     std::vector<float> targets(TOTAL_OUTPUT_ELEMENTS);
     std::vector<float> predictions(TOTAL_OUTPUT_ELEMENTS);
     std::vector<uint32_t> framebuffer_host(yp::SCENE_NUM_CAMERAS * CAM_WIDTH * CAM_HEIGHT);

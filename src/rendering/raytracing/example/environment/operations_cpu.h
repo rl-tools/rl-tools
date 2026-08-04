@@ -41,35 +41,44 @@ namespace rl_tools {
             env.owns_renderer = true;
             malloc(device, *env.renderer);
         }
+        if (env.scene == nullptr) {
+            env.scene = new rendering::raytracing::Scene{};
+            env.owns_scene = true;
+        }
     }
 
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::environments::raytracing_example::Environment<SPEC>& env) {
-        if (env.renderer == nullptr) {
-            return;
+        if (env.renderer != nullptr) {
+            free(device, *env.renderer);
+            if (env.owns_renderer) {
+                delete env.renderer;
+            }
+            env.renderer = nullptr;
+            env.owns_renderer = false;
         }
-        free(device, *env.renderer);
-        if (env.owns_renderer) {
-            delete env.renderer;
+        if (env.scene != nullptr) {
+            if (env.owns_scene) {
+                delete env.scene;
+            }
+            env.scene = nullptr;
+            env.owns_scene = false;
         }
-        env.renderer = nullptr;
-        env.owns_renderer = false;
     }
 
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, rl::environments::raytracing_example::Environment<SPEC>& env) {
         utils::assert_exit(device, env.scene_path != nullptr, "raytracing_example::init: scene_path is null");
-        const bool loaded = load_model(device, *env.renderer, std::string(env.scene_path));
+        const bool loaded = load<typename SPEC::RAYTRACING_SPEC::SHADING, SPEC::RAYTRACING_SPEC::HAS_RGB>(device, *env.scene, std::string(env.scene_path));
         utils::assert_exit(device, loaded, "raytracing_example::init: failed to load scene");
 
-        upload_geometry(device, *env.renderer);
+        init(device, *env.renderer, *env.scene);
         {
             using T = typename SPEC::T;
             const T up[3] = {0, 0, 1};
             generate_cameras(device, *env.renderer, env.renderer->scene_center, env.renderer->camera_radius, up, SPEC::RAYTRACING_SPEC::COS_FOVY);
         }
         generate_probe_directions(device, *env.renderer);
-        build_pipeline(device, *env.renderer);
         precompute_indoor_initial_states(device, env);
     }
 
@@ -172,7 +181,7 @@ namespace rl_tools {
     }
 
     template <typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::CameraData<typename SPEC::T> make_camera_for_state(const rl::environments::raytracing_example::Environment<SPEC>& env, const rl::environments::raytracing_example::Parameters<SPEC>& parameters, const rl::environments::raytracing_example::State<SPEC>& state) {
+    RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::Camera<typename SPEC::T> make_camera_for_state(const rl::environments::raytracing_example::Environment<SPEC>& env, const rl::environments::raytracing_example::Parameters<SPEC>& parameters, const rl::environments::raytracing_example::State<SPEC>& state) {
         using T = typename SPEC::T;
         const T cy = std::cos(state.yaw);
         const T sy = std::sin(state.yaw);

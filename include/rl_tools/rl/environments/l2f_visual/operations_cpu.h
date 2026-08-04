@@ -25,6 +25,10 @@ namespace rl_tools {
             env.owns_renderer = true;
             malloc(device, *env.renderer);
         }
+        if (env.render_scene == nullptr) {
+            env.render_scene = new rendering::raytracing::Scene{};
+            env.owns_render_scene = true;
+        }
         if (env.scene == nullptr) {
             env.scene = new rendering::raytracing::scene::procthor::Scene<typename SPEC::SCENE_SPEC>{};
         }
@@ -39,6 +43,13 @@ namespace rl_tools {
             }
             env.renderer = nullptr;
             env.owns_renderer = false;
+        }
+        if (env.render_scene != nullptr) {
+            if (env.owns_render_scene) {
+                delete env.render_scene;
+            }
+            env.render_scene = nullptr;
+            env.owns_render_scene = false;
         }
         if (env.scene != nullptr) {
             delete env.scene;
@@ -58,16 +69,15 @@ namespace rl_tools {
         if(env.scene_path == nullptr){
             return;
         }
-        const bool loaded = load_model(device, *env.renderer, std::string(env.scene_path));
+        const bool loaded = load<typename SPEC::RENDERER_SPEC::SHADING, SPEC::RENDERER_SPEC::HAS_RGB>(device, *env.render_scene, std::string(env.scene_path));
         utils::assert_exit(device, loaded, "l2f_visual::init: failed to load scene");
 
-        upload_geometry(device, *env.renderer);
+        init(device, *env.renderer, *env.render_scene);
         {
             typename rl::environments::l2f_visual::Parameters<SPEC> default_params;
             const T up[3] = {0, 0, 1};
             generate_cameras(device, *env.renderer, env.renderer->scene_center, env.renderer->camera_radius, up, default_params.fov);
             generate_probe_directions(device, *env.renderer);
-            build_pipeline(device, *env.renderer);
             T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
             rendering::raytracing::scene::procthor::precompute_indoor_positions(device, *env.scene, *env.renderer, default_params.fov, aspect);
         }
@@ -126,7 +136,7 @@ namespace rl_tools {
 
     namespace rl::environments::l2f_visual {
         template <typename DEVICE, typename SPEC>
-        RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::CameraData<typename SPEC::T> make_camera_for_state(DEVICE&, const MultirrotorVisual<SPEC>&, const typename MultirrotorVisual<SPEC>::Parameters& parameters, const typename MultirrotorVisual<SPEC>::State& state) {
+        RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::Camera<typename SPEC::T> make_camera_for_state(DEVICE&, const MultirrotorVisual<SPEC>&, const typename MultirrotorVisual<SPEC>::Parameters& parameters, const typename MultirrotorVisual<SPEC>::State& state) {
             using T = typename SPEC::T;
             auto rotate_scene_yaw = [&](const T in[3], T out[3]){
                 T c = std::cos(parameters.scene_yaw);

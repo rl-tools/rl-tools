@@ -34,12 +34,13 @@ bool run_case(DEVICE& device, const char* name, bool write_probes) {
 
     Renderer renderer;
     rlt::malloc(device, renderer);
-    if(!rlt::load_model(device, renderer, SCENE_PATH)) {
+    rlt::rendering::raytracing::Scene scene;
+    if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, SCENE_PATH)) {
         std::cerr << "[golden] " << name << ": failed to load scene: " << SCENE_PATH << std::endl;
         rlt::free(device, renderer);
         return false;
     }
-    rlt::upload_geometry(device, renderer);
+    rlt::init(device, renderer, scene);
 
     constexpr T aspect = (T)SPEC::CAM_WIDTH / (T)SPEC::CAM_HEIGHT;
     for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
@@ -62,7 +63,6 @@ bool run_case(DEVICE& device, const char* name, bool write_probes) {
         rlt::set_cameras(device, renderer, renderer.cameras);
     }
     rlt::generate_probe_directions(device, renderer);
-    rlt::build_pipeline(device, renderer);
     rlt::render(device, renderer);
     cudaDeviceSynchronize();
 

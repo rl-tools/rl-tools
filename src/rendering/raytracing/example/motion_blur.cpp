@@ -67,20 +67,15 @@ Options parse_options(int argc, char** argv) {
 }
 
 template <typename SPEC>
-bool setup_renderer(DEVICE& device, Renderer<SPEC>& renderer, const std::string& scene_path) {
+void setup_renderer(DEVICE& device, Renderer<SPEC>& renderer, const rlt::rendering::raytracing::Scene& scene) {
     rlt::malloc(device, renderer);
-    if (!rlt::load_model(device, renderer, scene_path)) {
-        return false;
-    }
-    rlt::upload_geometry(device, renderer);
+    rlt::init(device, renderer, scene);
 
     const T up[3] = {0, 0, 1};
     rlt::generate_cameras(device, renderer, renderer.scene_center, renderer.camera_radius, up, SPEC::COS_FOVY);
-    rlt::build_pipeline(device, renderer);
-    return true;
 }
 
-rlt::rendering::raytracing::CameraData<T> make_orbit_camera(const Renderer<RendererSpec<1>>& renderer, T angle) {
+rlt::rendering::raytracing::Camera<T> make_orbit_camera(const Renderer<RendererSpec<1>>& renderer, T angle) {
     const T center[3] = {
         renderer.scene_center[0],
         renderer.scene_center[1],
@@ -103,7 +98,7 @@ rlt::rendering::raytracing::CameraData<T> make_orbit_camera(const Renderer<Rende
 }
 
 template <typename SPEC>
-void render_panel(DEVICE& device, Renderer<SPEC>& renderer, const rlt::rendering::raytracing::CameraData<T>& camera_open, const rlt::rendering::raytracing::CameraData<T>& camera_close, std::vector<uint32_t>& panel) {
+void render_panel(DEVICE& device, Renderer<SPEC>& renderer, const rlt::rendering::raytracing::Camera<T>& camera_open, const rlt::rendering::raytracing::Camera<T>& camera_close, std::vector<uint32_t>& panel) {
     if constexpr (SPEC::ENABLE_MOTION_BLUR) {
         rlt::set(device, renderer.cameras_open, camera_open, static_cast<TI>(0));
         rlt::set(device, renderer.cameras, camera_close, static_cast<TI>(0));
@@ -143,15 +138,17 @@ int main(int argc, char** argv) {
     Renderer<RendererSpec<16>> renderer_16;
     Renderer<RendererSpec<32>> renderer_32;
 
-    if (!setup_renderer(device, renderer_1, options.scene_path) ||
-        !setup_renderer(device, renderer_2, options.scene_path) ||
-        !setup_renderer(device, renderer_4, options.scene_path) ||
-        !setup_renderer(device, renderer_8, options.scene_path) ||
-        !setup_renderer(device, renderer_16, options.scene_path) ||
-        !setup_renderer(device, renderer_32, options.scene_path)) {
-        std::cerr << "Failed to initialize one or more renderers for scene: " << options.scene_path << std::endl;
+    rlt::rendering::raytracing::Scene scene;
+    if (!rlt::load<rlt::rendering::raytracing::Medium, true>(device, scene, options.scene_path)) {
+        std::cerr << "Failed to load scene: " << options.scene_path << std::endl;
         return 1;
     }
+    setup_renderer(device, renderer_1, scene);
+    setup_renderer(device, renderer_2, scene);
+    setup_renderer(device, renderer_4, scene);
+    setup_renderer(device, renderer_8, scene);
+    setup_renderer(device, renderer_16, scene);
+    setup_renderer(device, renderer_32, scene);
 
     constexpr TI OUT_WIDTH = CAM_WIDTH * NUM_PANELS;
     constexpr TI OUT_HEIGHT = CAM_HEIGHT;

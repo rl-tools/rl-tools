@@ -35,11 +35,11 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
         }
     }
 
-    using CameraData = rlt::rendering::raytracing::CameraData<float>;
+    using Camera = rlt::rendering::raytracing::Camera<float>;
 
     void sample_camera_batch(
         SceneHandle* handle,
-        CameraData* cameras_out,
+        Camera* cameras_out,
         float* targets_out,
         unsigned long batch_size,
         float max_angle,
@@ -125,7 +125,7 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
             };
             const T world_up[3] = {0, 0, 1};
 
-            auto make_base_cam = [&]() -> CameraData {
+            auto make_base_cam = [&]() -> Camera {
                 const T look_at[3] = {
                     position[0] + handle->env.look_ahead * cby,
                     position[1] + handle->env.look_ahead * sby,
@@ -134,7 +134,7 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
                 return rlt::make_camera_data(position, look_at, world_up, fov_rad, aspect);
             };
 
-            auto make_rotated_cam = [&]() -> CameraData {
+            auto make_rotated_cam = [&]() -> Camera {
                 const T dir_b[3] = {
                     R[0][2]*right_a[0] + R[1][2]*up_a[0] + R[2][2]*forward_a[0],
                     R[0][2]*right_a[1] + R[1][2]*up_a[1] + R[2][2]*forward_a[1],
@@ -196,8 +196,8 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
     }
 
     template <bool ASYNC>
-    void render_batch(SceneHandle* handle, const CameraData* cameras) {
-        std::memcpy(rlt::data(handle->env.renderer->cameras), cameras, SCENE_NUM_CAMERAS * sizeof(CameraData));
+    void render_batch(SceneHandle* handle, const Camera* cameras) {
+        std::memcpy(rlt::data(handle->env.renderer->cameras), cameras, SCENE_NUM_CAMERAS * sizeof(Camera));
         if constexpr (ASYNC){
             rlt::set_cameras_async(handle->device, *handle->env.renderer, handle->env.renderer->cameras);
             rlt::render_rgb_only_launch(handle->device, *handle->env.renderer);
@@ -206,8 +206,8 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
             rlt::render_rgb_only(handle->device, *handle->env.renderer);
         }
     }
-    template void render_batch<true>(SceneHandle* handle, const CameraData* cameras);
-    template void render_batch<false>(SceneHandle* handle, const CameraData* cameras);
+    template void render_batch<true>(SceneHandle* handle, const Camera* cameras);
+    template void render_batch<false>(SceneHandle* handle, const Camera* cameras);
 
     unsigned long get_num_indoor_states(SceneHandle* handle) {
         return handle->env.num_indoor_initial_states;

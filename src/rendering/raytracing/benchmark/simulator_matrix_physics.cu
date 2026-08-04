@@ -100,7 +100,7 @@ using ENVIRONMENT_SPEC = l2f::Specification<T, TI, StaticParameters>;
 using ENVIRONMENT = rlt::rl::environments::Multirotor<ENVIRONMENT_SPEC>;
 using STATE = typename ENVIRONMENT::State;
 using PARAMETERS = typename ENVIRONMENT::Parameters;
-using CAMERA_DATA = rlt::rendering::raytracing::CameraData<T>;
+using CAMERA_DATA = rlt::rendering::raytracing::Camera<T>;
 static_assert(StaticParameters::EPISODE_STEP_LIMIT == PHYSICS_EPISODE_STEP_LIMIT);
 static_assert(!StaticParameters::PRIVILEGED_OBSERVATION_NOISE);
 
