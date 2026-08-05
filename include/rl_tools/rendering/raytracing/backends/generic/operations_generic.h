@@ -122,6 +122,7 @@ namespace rl_tools {
             const Camera<T>* cameras_open = nullptr;
             unsigned int* frame_buffer = nullptr;
             float* depth_buffer = nullptr;
+            unsigned int* segmentation_buffer = nullptr;
             CollisionResult* collision_results = nullptr;
         };
 
@@ -885,6 +886,32 @@ namespace rl_tools {
                         else{
                             scene.depth_buffer[fb_offset] = (float)(accumulated_depth * ((T)1 / (T)SAMPLES));
                         }
+                    }
+                }
+            }
+        }
+
+        // single-sample by design: instance labels cannot be averaged, so anti-aliasing and
+        // motion blur do not apply (shutter-close camera, pixel-center ray)
+        template <typename DEVICE, typename SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT void render_segmentation_frame(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene){
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            const auto& math_device = device.math;
+            for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
+                const Camera<T>& cam = scene.cameras_close[camera_i];
+                const Vec3<T> pos = to_vec3(cam.pos);
+                const Vec3<T> dir_00 = to_vec3(cam.dir_00);
+                const Vec3<T> dir_du = to_vec3(cam.dir_du);
+                const Vec3<T> dir_dv = to_vec3(cam.dir_dv);
+                for(TI y = 0; y < SPEC::CAM_HEIGHT; y++){
+                    for(TI x = 0; x < SPEC::CAM_WIDTH; x++){
+                        const TI fb_offset = camera_i * SPEC::CAM_PIXELS + y * SPEC::CAM_WIDTH + x;
+                        const T screen_x = ((T)x + (T)0.5) / (T)SPEC::CAM_WIDTH;
+                        const T screen_y = ((T)y + (T)0.5) / (T)SPEC::CAM_HEIGHT;
+                        const Vec3<T> direction = normalize(math_device, dir_00 + screen_x * dir_du + screen_y * dir_dv);
+                        const Hit<T, TI> hit = trace_closest(scene, pos, direction, (T)0, (T)1e30);
+                        scene.segmentation_buffer[fb_offset] = hit.valid ? (unsigned int)hit.instance : 0xFFFFFFFFu;
                     }
                 }
             }

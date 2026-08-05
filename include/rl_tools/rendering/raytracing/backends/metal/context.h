@@ -110,6 +110,7 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         NS::SharedPtr<MTL::ComputePipelineState> rgb_pipeline;
         NS::SharedPtr<MTL::ComputePipelineState> depth_pipeline;
         NS::SharedPtr<MTL::ComputePipelineState> collision_pipeline;
+        NS::SharedPtr<MTL::ComputePipelineState> segmentation_pipeline;
         NS::SharedPtr<MTL::AccelerationStructure> acceleration_structure; // instance (top-level) AS
         std::vector<NS::SharedPtr<MTL::AccelerationStructure>> object_acceleration_structures;
         NS::SharedPtr<MTL::Buffer> instance_descriptors;
@@ -124,6 +125,7 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         NS::SharedPtr<MTL::Buffer> cameras_open;
         NS::SharedPtr<MTL::Buffer> frame_buffer;
         NS::SharedPtr<MTL::Buffer> depth_buffer;
+        NS::SharedPtr<MTL::Buffer> segmentation_buffer;
         NS::SharedPtr<MTL::Buffer> collision_results;
         NS::SharedPtr<MTL::Buffer> probe_directions;
         NS::SharedPtr<MTL::Buffer> launch_params;

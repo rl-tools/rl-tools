@@ -584,6 +584,31 @@ kernel void render_depth(
     depth_out[ctx.fb_offset] = accumulated * (1.f / float(samples));
 }
 
+// single-sample by design: instance labels cannot be averaged, so anti-aliasing and motion blur
+// do not apply (shutter-close camera, pixel-center ray)
+kernel void render_segmentation(
+    constant LaunchParams& params [[buffer(0)]],
+    device const Camera* cameras_close [[buffer(1)]],
+    device uint* segmentation_out [[buffer(3)]],
+    instance_acceleration_structure accel [[buffer(8)]],
+    uint2 pixel_id [[thread_position_in_grid]])
+{
+    const PixelLaunchContext ctx = pixel_launch_context(params, pixel_id);
+    if (!ctx.valid)
+        return;
+
+    device const Camera& cam = cameras_close[ctx.cam_idx];
+    const float2 screen = (float2(ctx.local_x, ctx.local_y) + float2(0.5f, 0.5f)) / float2(params.cam_width, params.cam_height);
+    const float3 direction = normalize(float3(cam.dir_00) + screen.x * float3(cam.dir_du) + screen.y * float3(cam.dir_dv));
+
+    ray r(float3(cam.pos), direction, 0.f, 1e30f);
+    intersector<triangle_data, instancing> i;
+    i.assume_geometry_type(geometry_type::triangle);
+    i.force_opacity(forced_opacity::opaque);
+    intersection_result<triangle_data, instancing> hit = i.intersect(r, accel);
+    segmentation_out[ctx.fb_offset] = hit.type == intersection_type::none ? 0xFFFFFFFFu : (uint)hit.instance_id;
+}
+
 kernel void render_collision(
     constant LaunchParams& params [[buffer(0)]],
     device const Camera* cameras [[buffer(1)]],

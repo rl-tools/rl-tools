@@ -624,9 +624,10 @@ namespace rl_tools
     result.distance = self.max_dist;
     result.hit = 0;
 
-    unsigned int u0, u1;
+    unsigned int u0, u1, u2;
     u0 = __float_as_uint(result.distance);
     u1 = result.hit;
+    u2 = 0xFFFFFFFFu;
 
     optixTrace(
         self.world,
@@ -638,7 +639,7 @@ namespace rl_tools
         OptixVisibilityMask(255),
         OPTIX_RAY_FLAG_DISABLE_ANYHIT,
         1, NUM_RAY_TYPES, 1, // SBT offset, stride, miss (ray type 1)
-        u0, u1);
+        u0, u1, u2);
 
     result.distance = __uint_as_float(u0);
     result.hit = u1;
@@ -649,12 +650,53 @@ namespace rl_tools
   {
     optixSetPayload_0(__float_as_uint(optixGetRayTmax()));
     optixSetPayload_1(1);
+    optixSetPayload_2(optixGetInstanceIndex()); // consumed by segmentationRayGen; collision ignores it
   }
 
   OPTIX_MISS_PROGRAM(collisionMiss)()
   {
-    // Payloads stay as initialized by caller: distance = max_dist, hit = 0
+    // Payloads stay as initialized by caller: distance = max_dist, hit = 0, instance = sentinel
   }
+
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SEGMENTATION_PROGRAMS
+  // single-sample by design: instance labels cannot be averaged, so anti-aliasing and motion
+  // blur do not apply (shutter-close camera, pixel-center ray); traces the collision ray type,
+  // whose hit program reports the instance index in payload 2
+  OPTIX_RAYGEN_PROGRAM(segmentationRayGen)()
+  {
+    const SegmentationRayGenData &self = owl::getProgramData<SegmentationRayGenData>();
+    const owl::vec2i pixel = owl::getLaunchIndex();
+    const int tile_col = pixel.x / self.cam_size.x;
+    const int tile_row = pixel.y / self.cam_size.y;
+    const int cam_idx = tile_row * self.grid_cols + tile_col;
+    if (cam_idx >= self.num_cameras)
+      return;
+    const int local_x = pixel.x - tile_col * self.cam_size.x;
+    const int local_y = pixel.y - tile_row * self.cam_size.y;
+    const int fb_offset = cam_idx * self.cam_size.x * self.cam_size.y + local_y * self.cam_size.x + local_x;
+
+    const OptixCameraData &cam = self.cameras[cam_idx];
+    const float screen_x = ((float)local_x + 0.5f) / (float)self.cam_size.x;
+    const float screen_y = ((float)local_y + 0.5f) / (float)self.cam_size.y;
+    const owl::vec3f direction = normalize(cam.dir_00 + screen_x * cam.dir_du + screen_y * cam.dir_dv);
+
+    unsigned int u0 = __float_as_uint(1e30f);
+    unsigned int u1 = 0;
+    unsigned int u2 = 0xFFFFFFFFu;
+    optixTrace(
+        self.world,
+        (const float3&)cam.pos,
+        (const float3&)direction,
+        0.f,
+        1e30f,
+        0.0f,
+        OptixVisibilityMask(255),
+        OPTIX_RAY_FLAG_DISABLE_ANYHIT,
+        1, NUM_RAY_TYPES, 1, // collision ray type
+        u0, u1, u2);
+    self.seg_ptr[fb_offset] = u2;
+  }
+#endif
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

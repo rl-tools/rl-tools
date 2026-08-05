@@ -18,7 +18,12 @@ namespace rl_tools {
         enum class OutputMode {
             RGB,
             RGBD,
-            DEPTH
+            DEPTH,
+            // segmentation writes one uint32 instance index per pixel (miss = 0xFFFFFFFF), always
+            // single-sample from the shutter-close camera: labels cannot be averaged, so
+            // anti-aliasing and motion-blur settings do not apply to it
+            SEGMENTATION,
+            RGBD_SEGMENTATION
         };
 
         template <
@@ -56,8 +61,9 @@ namespace rl_tools {
             using TI = T_TI;
             using SHADING = T_SHADING;
             static constexpr OutputMode OUTPUT_MODE = T_OUTPUT_MODE;
-            static constexpr bool HAS_RGB = OUTPUT_MODE == OutputMode::RGB || OUTPUT_MODE == OutputMode::RGBD;
-            static constexpr bool HAS_DEPTH = OUTPUT_MODE == OutputMode::RGBD || OUTPUT_MODE == OutputMode::DEPTH;
+            static constexpr bool HAS_RGB = OUTPUT_MODE == OutputMode::RGB || OUTPUT_MODE == OutputMode::RGBD || OUTPUT_MODE == OutputMode::RGBD_SEGMENTATION;
+            static constexpr bool HAS_DEPTH = OUTPUT_MODE == OutputMode::RGBD || OUTPUT_MODE == OutputMode::DEPTH || OUTPUT_MODE == OutputMode::RGBD_SEGMENTATION;
+            static constexpr bool HAS_SEGMENTATION = OUTPUT_MODE == OutputMode::SEGMENTATION || OUTPUT_MODE == OutputMode::RGBD_SEGMENTATION;
             static constexpr bool ENABLE_DEPTH = HAS_DEPTH;
             static constexpr bool ENABLE_RGB = HAS_RGB;
             static constexpr TI CAM_WIDTH = T_CAM_WIDTH;
@@ -128,8 +134,17 @@ namespace rl_tools {
             void* depth_buffer_handle = nullptr;
         };
 
+        template <typename T_SPEC, bool T_HAS_SEGMENTATION>
+        struct SegmentationBackendContext {};
+
         template <typename T_SPEC>
-        struct RendererBackend: BackendContext<T_SPEC>, RGBBackendContext<T_SPEC, T_SPEC::HAS_RGB>, DepthBackendContext<T_SPEC, T_SPEC::HAS_DEPTH> {};
+        struct SegmentationBackendContext<T_SPEC, true> {
+            void* segmentation_ray_gen = nullptr;
+            void* segmentation_buffer_handle = nullptr;
+        };
+
+        template <typename T_SPEC>
+        struct RendererBackend: BackendContext<T_SPEC>, RGBBackendContext<T_SPEC, T_SPEC::HAS_RGB>, DepthBackendContext<T_SPEC, T_SPEC::HAS_DEPTH>, SegmentationBackendContext<T_SPEC, T_SPEC::HAS_SEGMENTATION> {};
 
         template <typename T_SPEC, bool T_ENABLE_MOTION_BLUR>
         struct MotionBlurRendererStorage {};
@@ -166,8 +181,19 @@ namespace rl_tools {
             Tensor<DEPTH_TENSOR_SPEC> depth_buffer;
         };
 
+        template <typename T_SPEC, bool T_HAS_SEGMENTATION>
+        struct SegmentationRendererStorage {};
+
         template <typename T_SPEC>
-        struct Renderer: MotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_MOTION_BLUR>, RGBRendererStorage<T_SPEC, T_SPEC::HAS_RGB>, DepthRendererStorage<T_SPEC, T_SPEC::HAS_DEPTH>{
+        struct SegmentationRendererStorage<T_SPEC, true> {
+            using SPEC = T_SPEC;
+            using TI = typename SPEC::TI;
+            using SEGMENTATION_TENSOR_SPEC = tensor::Specification<uint32_t, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH>, true>;
+            Tensor<SEGMENTATION_TENSOR_SPEC> segmentation_buffer;
+        };
+
+        template <typename T_SPEC>
+        struct Renderer: MotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_MOTION_BLUR>, RGBRendererStorage<T_SPEC, T_SPEC::HAS_RGB>, DepthRendererStorage<T_SPEC, T_SPEC::HAS_DEPTH>, SegmentationRendererStorage<T_SPEC, T_SPEC::HAS_SEGMENTATION>{
             using SPEC = T_SPEC;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;

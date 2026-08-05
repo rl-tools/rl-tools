@@ -11,6 +11,13 @@
 #define RL_TOOLS_SCENE_SUITE RENDERING_RAYTRACING_GENERIC_SCENE
 #endif
 
+#include "../../../utils/utils.h"
+#ifdef RL_TOOLS_TEST_DATA_PATH
+#define RL_TOOLS_SCENE_TEST_DATA_PATH RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)
+#else
+#define RL_TOOLS_SCENE_TEST_DATA_PATH "tests/data"
+#endif
+
 #include <gtest/gtest.h>
 
 #include <vector>
@@ -360,6 +367,218 @@ TEST(RL_TOOLS_SCENE_SUITE, OBJECT_LIGHT_FOLLOWS_INSTANCE){
     const long difference_negative_y = side_difference(-2.5f);
     EXPECT_GT(std::abs(difference_positive_y), 0);
     EXPECT_LT(difference_positive_y * difference_negative_y, 0); // the bright side follows the lamp
+
+    rlt::free(device, renderer);
+}
+
+TEST(RL_TOOLS_SCENE_SUITE, SPLIT_VS_WELDED){
+    DEVICE device;
+    rlt::init(device);
+
+    const char* scene_path = RL_TOOLS_SCENE_TEST_DATA_PATH "/ProcTHOR-Train-1.glb";
+    if(FILE* file = std::fopen(scene_path, "rb")){
+        std::fclose(file);
+    }
+    else{
+        GTEST_SKIP() << "scene file not found (run from the repo root): " << scene_path;
+    }
+
+    using SPLIT_SPEC = rlt::rendering::raytracing::Specification<T, TI, 128, 128, 1, 4, rlt::rendering::raytracing::VeryHigh>;
+    rlt::rendering::raytracing::Renderer<SPLIT_SPEC> renderer;
+    rlt::malloc(device, renderer);
+    rlt::generate_probe_directions(device, renderer);
+
+    const T camera_position[3] = {-2.849f, -8.234f, 1.548f};
+    const T look_at[3] = {-2.0f, -8.0f, 1.3f};
+
+    rlt::rendering::raytracing::Scene welded;
+    ASSERT_TRUE((rlt::load<typename SPLIT_SPEC::SHADING, SPLIT_SPEC::HAS_RGB>(device, welded, scene_path)));
+    rlt::init(device, renderer, welded);
+    std::vector<uint32_t> frame_welded;
+    render_pixels(device, renderer, camera_position, look_at, frame_welded);
+
+    rlt::rendering::raytracing::ObjectAssembly assembly;
+    ASSERT_TRUE((rlt::load<typename SPLIT_SPEC::SHADING, SPLIT_SPEC::HAS_RGB>(device, assembly, scene_path)));
+    EXPECT_EQ(assembly.parts.size(), (size_t)192);
+    rlt::rendering::raytracing::Scene split;
+    const auto placement = rlt::add(device, split, assembly);
+    EXPECT_EQ(placement.first_instance, (size_t)0);
+    EXPECT_EQ(placement.num_instances, (size_t)192);
+    rlt::init(device, renderer, split);
+    std::vector<uint32_t> frame_split;
+    render_pixels(device, renderer, camera_position, look_at, frame_split);
+
+    // same geometry through different frames (root-local + instance transform vs baked world):
+    // float paths differ, so tight tolerance instead of equality
+    double absolute_difference_sum = 0;
+    size_t mismatched = 0;
+    for(size_t pixel_i = 0; pixel_i < frame_welded.size(); pixel_i++){
+        for(int channel = 0; channel < 3; channel++){
+            const int a = (int)((frame_welded[pixel_i] >> (8 * channel)) & 0xFF);
+            const int b = (int)((frame_split[pixel_i] >> (8 * channel)) & 0xFF);
+            const int diff = a > b ? a - b : b - a;
+            absolute_difference_sum += diff;
+            if(diff > 2){ mismatched++; break; }
+        }
+    }
+    const double mean_absolute_difference = absolute_difference_sum / (double)(frame_welded.size() * 3);
+    EXPECT_LE(mean_absolute_difference, 1.0);
+    EXPECT_LE(mismatched, frame_welded.size() / 50);
+
+    rlt::free(device, renderer);
+}
+
+namespace {
+    using SEGMENTATION_SPEC = rlt::rendering::raytracing::Specification<T, TI, 32, 32, 1, 4, rlt::rendering::raytracing::Low, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::SEGMENTATION>;
+
+    template <typename RENDERER_SPEC>
+    std::vector<uint32_t> render_segmentation_pixels(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC>& renderer, const T position[3], const T look_at[3]){
+        set_test_camera(device, renderer, position, look_at);
+        rlt::render(device, renderer);
+        rlt::synchronize(device, renderer);
+        rlt::read_segmentation_buffer(device, renderer, renderer.segmentation_buffer);
+        const uint32_t* segmentation = rlt::data(renderer.segmentation_buffer);
+        return std::vector<uint32_t>(segmentation, segmentation + RENDERER_SPEC::CAM_PIXELS);
+    }
+}
+
+TEST(RL_TOOLS_SCENE_SUITE, SEGMENTATION_ANALYTIC){
+    DEVICE device;
+    rlt::init(device);
+
+    rlt::rendering::raytracing::Object cube;
+    cube.meshes.push_back(make_cube(0, 1));
+
+    rlt::rendering::raytracing::Scene scene;
+    rlt::add(device, scene, cube); // instance 0 at the origin
+    float transform[12];
+    const float position_offset[3] = {0, 3, 0};
+    const float orientation_wxyz[4] = {1, 0, 0, 0};
+    rlt::make_transform(position_offset, orientation_wxyz, transform);
+    rlt::add(device, scene, cube, transform); // instance 1 to the left
+
+    rlt::rendering::raytracing::Renderer<SEGMENTATION_SPEC> renderer;
+    rlt::malloc(device, renderer);
+    rlt::generate_probe_directions(device, renderer);
+    rlt::init(device, renderer, scene);
+
+    const T camera_position[3] = {-5, 0, 0};
+    const T look_at[3] = {0, 0, 0};
+    const auto segmentation = render_segmentation_pixels(device, renderer, camera_position, look_at);
+
+    const size_t center = (SEGMENTATION_SPEC::CAM_HEIGHT / 2) * SEGMENTATION_SPEC::CAM_WIDTH + SEGMENTATION_SPEC::CAM_WIDTH / 2;
+    EXPECT_EQ(segmentation[center], 0u); // instance 0 covers the view center
+    EXPECT_EQ(segmentation[0], 0xFFFFFFFFu); // background misses
+    size_t first_count = 0, second_count = 0;
+    for(uint32_t id : segmentation){
+        first_count += id == 0u;
+        second_count += id == 1u;
+    }
+    EXPECT_GT(first_count, (size_t)0);
+    EXPECT_GT(second_count, (size_t)0); // the offset instance is visible with its own id
+
+    rlt::free(device, renderer);
+}
+
+TEST(RL_TOOLS_SCENE_SUITE, ASSEMBLY_COMPOSE){
+    DEVICE device;
+    rlt::init(device);
+
+    // two-part assembly: body at the assembly origin, a smaller part offset to the left
+    rlt::rendering::raytracing::ObjectAssembly assembly;
+    {
+        rlt::rendering::raytracing::Object body;
+        body.meshes.push_back(make_cube(0, 1));
+        body.name = "body";
+        assembly.objects.push_back(body);
+        rlt::rendering::raytracing::ObjectAssembly::Part part{0, {1,0,0,0, 0,1,0,0, 0,0,1,0}};
+        assembly.parts.push_back(part);
+    }
+    {
+        rlt::rendering::raytracing::Object attachment;
+        attachment.meshes.push_back(make_cube(0, 0.5f));
+        attachment.name = "attachment";
+        assembly.objects.push_back(attachment);
+        rlt::rendering::raytracing::ObjectAssembly::Part part{1, {1,0,0,0, 0,1,0,2.0f, 0,0,1,0}};
+        assembly.parts.push_back(part);
+    }
+
+    rlt::rendering::raytracing::Scene scene;
+    const auto placement_a = rlt::add(device, scene, assembly);
+    float pose[12];
+    const float position_b[3] = {2, -4, 0};
+    const float orientation_wxyz[4] = {1, 0, 0, 0};
+    rlt::make_transform(position_b, orientation_wxyz, pose);
+    const auto placement_b = rlt::add(device, scene, assembly, pose);
+
+    EXPECT_EQ(placement_a.first_instance, (size_t)0);
+    EXPECT_EQ(placement_a.num_instances, (size_t)2);
+    EXPECT_EQ(placement_b.first_instance, (size_t)2);
+    EXPECT_EQ(placement_b.num_instances, (size_t)2);
+
+    rlt::rendering::raytracing::Renderer<SEGMENTATION_SPEC> renderer;
+    rlt::malloc(device, renderer);
+    rlt::generate_probe_directions(device, renderer);
+    rlt::init(device, renderer, scene);
+
+    const T camera_position[3] = {-8, 0, 0};
+    const T look_at[3] = {0, 0, 0};
+    const auto segmentation = render_segmentation_pixels(device, renderer, camera_position, look_at);
+
+    size_t id_counts[4] = {};
+    for(uint32_t id : segmentation){
+        if(id < 4) id_counts[id]++;
+    }
+    for(int instance_i = 0; instance_i < 4; instance_i++){
+        EXPECT_GT(id_counts[instance_i], (size_t)0) << "instance " << instance_i << " not visible";
+    }
+
+    rlt::free(device, renderer);
+}
+
+TEST(RL_TOOLS_SCENE_SUITE, ASSEMBLY_STATIC_ARTICULATION){
+    DEVICE device;
+    rlt::init(device);
+
+    // one flat "propeller" part offset from the body: articulating it at add-time (composing an
+    // extra local rotation) is exactly the operation a per-step update will perform in Phase 3
+    rlt::rendering::raytracing::ObjectAssembly assembly;
+    rlt::rendering::raytracing::Object propeller;
+    {
+        rlt::rendering::raytracing::Mesh blade = make_cube(0, 1);
+        for(size_t vertex_i = 1; vertex_i < blade.vertices.size(); vertex_i += 3){
+            blade.vertices[vertex_i] *= 0.1f; // thin in y: a blade along x
+        }
+        propeller.meshes.push_back(blade);
+    }
+    assembly.objects.push_back(propeller);
+    assembly.parts.push_back({0, {1,0,0,0, 0,1,0,0, 0,0,1,0}});
+
+    rlt::rendering::raytracing::Renderer<DEPTH_SPEC> renderer;
+    rlt::malloc(device, renderer);
+    rlt::generate_probe_directions(device, renderer);
+
+    auto blade_center_depth = [&](float spin_radians){
+        rlt::rendering::raytracing::ObjectAssembly articulated = assembly;
+        const float half = spin_radians / 2.0f;
+        float spin[12];
+        const float origin[3] = {0, 0, 0};
+        const float quaternion_wxyz[4] = {std::cos(half), 0, 0, std::sin(half)};
+        rlt::make_transform(origin, quaternion_wxyz, spin);
+        float composed[12];
+        rlt::rendering::raytracing::detail::compose_transforms(articulated.parts[0].transform, spin, composed);
+        std::memcpy(articulated.parts[0].transform, composed, sizeof(composed));
+
+        rlt::rendering::raytracing::Scene scene;
+        rlt::add(device, scene, articulated);
+        rlt::init(device, renderer, scene);
+        return render_center_depth(device, renderer);
+    };
+
+    // blade along x: the axial ray from x=-5 hits the near face at x=-1 -> depth 4;
+    // spun 90 degrees the blade lies along y and the near face sits at x=-0.1 -> depth 4.9
+    EXPECT_NEAR(blade_center_depth(0.0f), 4.0f, 1e-4f);
+    EXPECT_NEAR(blade_center_depth(3.14159265f / 2.0f), 4.9f, 1e-3f);
 
     rlt::free(device, renderer);
 }
