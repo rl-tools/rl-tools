@@ -3,6 +3,7 @@
 #define RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB 0
 #define RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD 1
 #define RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH 2
+#define RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_SEGMENTATION 3
 
 #ifndef RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE
 #define RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB
@@ -32,11 +33,13 @@
 namespace rlt = rl_tools;
 
 static constexpr auto OUTPUT_MODE =
-    RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
-        ? rlt::rendering::raytracing::OutputMode::DEPTH
-        : (RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
-            ? rlt::rendering::raytracing::OutputMode::RGBD
-            : rlt::rendering::raytracing::OutputMode::RGB);
+    RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_SEGMENTATION
+        ? rlt::rendering::raytracing::OutputMode::SEGMENTATION
+        : (RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
+            ? rlt::rendering::raytracing::OutputMode::DEPTH
+            : (RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
+                ? rlt::rendering::raytracing::OutputMode::RGBD
+                : rlt::rendering::raytracing::OutputMode::RGB));
 
 // Minimal 5x7 bitmap font for overlay text
 struct FontGlyph {
@@ -104,7 +107,7 @@ static void draw_string(uint32_t* pixels, int width, int height, int x0, int y0,
     }
 }
 
-#if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE != RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB
+#if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD || RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
 static void depth_to_rgba(const float* depth, uint32_t* pixels, int count, float max_depth) {
     for (int i = 0; i < count; i++) {
         float normalized = std::fmin(std::fmax(depth[i] / max_depth, 0.0f), 1.0f);
@@ -624,6 +627,8 @@ int main(int argc, char** argv) {
     std::cout << "RGBD target enabled. Press Tab to toggle RGB/depth display." << std::endl;
 #elif RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
     std::cout << "Depth target enabled." << std::endl;
+#elif RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_SEGMENTATION
+    std::cout << "Segmentation target enabled." << std::endl;
 #endif
 
     rlt::rl::environments::raytracing_example::State<SPEC> state{};
@@ -764,6 +769,15 @@ int main(int argc, char** argv) {
             rlt::read_frame_buffer(device, *env.renderer, env.renderer->frame_buffer);
             const uint32_t* fb_data = rlt::data(env.renderer->frame_buffer);
             std::memcpy(pixels.data(), fb_data, pixels.size() * sizeof(uint32_t));
+        }
+#elif RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_SEGMENTATION
+        rlt::render_segmentation_only(device, *env.renderer);
+        rlt::read_segmentation_buffer(device, *env.renderer, env.renderer->segmentation_buffer);
+        {
+            const uint32_t* segmentation = rlt::data(env.renderer->segmentation_buffer);
+            for (size_t pixel_i = 0; pixel_i < pixels.size(); pixel_i++) {
+                pixels[pixel_i] = rlt::rendering::raytracing::detail::segmentation_id_to_rgba(segmentation[pixel_i]);
+            }
         }
 #else
         rlt::render_rgb_only(device, *env.renderer);
