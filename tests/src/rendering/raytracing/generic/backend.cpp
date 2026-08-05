@@ -69,7 +69,13 @@ namespace {
         generic::BVHNode<T, TI> nodes[24];
         TI primitives[12];
         TI temp_primitives[12];
+        T bounds_min[12 * 3];
+        T bounds_max[12 * 3];
         T centroids[12 * 3];
+        generic::ObjectView<T, TI> object;
+        generic::InstanceView<T, TI> instance;
+        generic::BVHNode<T, TI> tlas_node;
+        TI tlas_primitive;
 
         CubeScene(DEVICE& device){
             mesh.indices = CUBE_INDICES;
@@ -90,7 +96,41 @@ namespace {
             scene.max_dist = 100;
             scene.miss_color_0[0] = 0.8f; scene.miss_color_0[1] = 0.0f; scene.miss_color_0[2] = 0.0f;
             scene.miss_color_1[0] = 0.8f; scene.miss_color_1[1] = 0.8f; scene.miss_color_1[2] = 0.8f;
-            generic::build_bvh(device, scene, nodes, primitives, temp_primitives, centroids);
+
+            for(TI triangle = 0; triangle < 12; triangle++){
+                primitives[triangle] = triangle;
+                T triangle_min[3] = {1e30f, 1e30f, 1e30f};
+                T triangle_max[3] = {-1e30f, -1e30f, -1e30f};
+                generic::expand_triangle_bounds(scene, triangle, triangle_min, triangle_max);
+                for(int axis = 0; axis < 3; axis++){
+                    bounds_min[3 * triangle + axis] = triangle_min[axis];
+                    bounds_max[3 * triangle + axis] = triangle_max[axis];
+                    centroids[3 * triangle + axis] = (triangle_min[axis] + triangle_max[axis]) * 0.5f;
+                }
+            }
+            object.nodes = nodes;
+            object.primitives = primitives;
+            object.num_nodes = generic::build_bvh_nodes(nodes, primitives, temp_primitives, bounds_min, bounds_max, centroids, (TI)12);
+            scene.objects = &object;
+            scene.num_objects = 1;
+
+            const T identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
+            instance.object = 0;
+            instance.identity = true;
+            for(int element = 0; element < 12; element++){
+                instance.object_to_world[element] = identity[element];
+                instance.world_to_object[element] = identity[element];
+            }
+            scene.instances = &instance;
+            scene.num_instances = 1;
+
+            tlas_node = nodes[0];
+            tlas_node.left_or_first = 0;
+            tlas_node.count = 1;
+            tlas_primitive = 0;
+            scene.tlas_nodes = &tlas_node;
+            scene.tlas_primitives = &tlas_primitive;
+            scene.num_tlas_nodes = 1;
         }
     };
 
@@ -103,13 +143,13 @@ namespace {
 TEST(RENDERING_RAYTRACING_GENERIC, BVH_BUILD){
     DEVICE device;
     CubeScene cube(device);
-    ASSERT_GE(cube.scene.num_nodes, (TI)1);
-    ASSERT_LE(cube.scene.num_nodes, (TI)23);
+    ASSERT_GE(cube.object.num_nodes, (TI)1);
+    ASSERT_LE(cube.object.num_nodes, (TI)23);
     // every triangle appears exactly once in the leaf permutation
     bool seen[12] = {};
     for(TI i = 0; i < 12; i++){
-        ASSERT_LT(cube.scene.primitives[i], (TI)12);
-        seen[cube.scene.primitives[i]] = true;
+        ASSERT_LT(cube.object.primitives[i], (TI)12);
+        seen[cube.object.primitives[i]] = true;
     }
     for(TI i = 0; i < 12; i++){
         ASSERT_TRUE(seen[i]);

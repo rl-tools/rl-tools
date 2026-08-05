@@ -483,11 +483,13 @@ namespace rl_tools {
         }
         owlGeomTypeSetClosestHit(triangles_geom_type, 1, module, "collisionHit");
 
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << scene.meshes.size() << " geometries ...");
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << scene.objects.size() << " object(s), " << scene.instances.size() << " instance(s) ...");
 
         std::vector<OWLGeom> geoms;
-        for(size_t m = 0; m < scene.meshes.size(); m++){
-            const auto& md = scene.meshes[m];
+        std::vector<OWLGroup> object_groups;
+        for(size_t object_i = 0; object_i < scene.objects.size(); object_i++){
+            std::vector<OWLGeom> object_geoms;
+            for(const auto& md : scene.objects[object_i].meshes){
             size_t num_vertices = md.vertices.size() / 3;
             size_t num_indices = md.indices.size() / 3;
 
@@ -612,11 +614,27 @@ namespace rl_tools {
             }
 
             geoms.push_back(geom);
+            object_geoms.push_back(geom);
+            }
+            OWLGroup triangles_group = owlTrianglesGeomGroupCreate(context, object_geoms.size(), object_geoms.data());
+            owlGroupBuildAccel(triangles_group);
+            object_groups.push_back(triangles_group);
         }
 
-        OWLGroup triangles_group = owlTrianglesGeomGroupCreate(context, geoms.size(), geoms.data());
-        owlGroupBuildAccel(triangles_group);
-        OWLGroup world = owlInstanceGroupCreate(context, 1, &triangles_group);
+        std::vector<OWLGroup> instance_children;
+        std::vector<float> instance_transforms; // 12 per instance: owl affine3f (linear columns vx, vy, vz, then translation)
+        for(const auto& instance : scene.instances){
+            instance_children.push_back(object_groups[instance.object]);
+            const float* transform = instance.transform; // 3x4 row-major [R|t]
+            const float owl_transform[12] = {
+                transform[0], transform[4], transform[8],
+                transform[1], transform[5], transform[9],
+                transform[2], transform[6], transform[10],
+                transform[3], transform[7], transform[11]
+            };
+            instance_transforms.insert(instance_transforms.end(), owl_transform, owl_transform + 12);
+        }
+        OWLGroup world = owlInstanceGroupCreate(context, instance_children.size(), instance_children.data(), nullptr, instance_transforms.data(), OWL_MATRIX_FORMAT_OWL);
         owlGroupBuildAccel(world);
 
         if constexpr (SPEC::HAS_RGB && (SPEC::SHADING::PBR_SHADING || SPEC::SHADING::METALLIC_REFLECTIONS)) {

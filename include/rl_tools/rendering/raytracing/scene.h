@@ -41,14 +41,21 @@ namespace rl_tools {
 
         struct Object{
             std::vector<Mesh> meshes;
-            std::vector<SceneLight> lights;
+            std::vector<SceneLight> lights; // object-local frame; transformed by the instance placing the object
+        };
+
+        struct Instance{
+            size_t object;        // index into Scene::objects
+            float transform[12];  // object→world, 3x4 row-major [R|t]
+            bool identity;
         };
 
         // Host-side truth about what is rendered; filled by load/add, consumed by init(device,
         // renderer, scene). The scene must stay alive while the renderer uses it: the generic
         // backend renders directly from the mesh memory owned here.
         struct Scene{
-            std::vector<Mesh> meshes;
+            std::vector<Object> objects;
+            std::vector<Instance> instances;
             std::vector<SceneLight> lights;
         };
     }

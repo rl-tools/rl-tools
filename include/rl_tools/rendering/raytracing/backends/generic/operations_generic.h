@@ -80,6 +80,22 @@ namespace rl_tools {
             TI count;
         };
 
+        // BLAS of one object: a BVH over a contiguous range of scene-global triangle ids
+        template <typename T, typename TI>
+        struct ObjectView{
+            const BVHNode<T, TI>* nodes = nullptr;
+            const TI* primitives = nullptr; // leaf permutation of scene-global triangle indices
+            TI num_nodes = 0;
+        };
+
+        template <typename T, typename TI>
+        struct InstanceView{
+            TI object = 0;
+            T object_to_world[12]; // 3x4 row-major [R|t]
+            T world_to_object[12];
+            bool identity = true;
+        };
+
         template <typename T, typename TI>
         struct SceneView{
             const MeshView<T, TI>* meshes = nullptr;
@@ -87,9 +103,13 @@ namespace rl_tools {
             const TI* triangle_mesh = nullptr;  // global triangle -> mesh index
             const TI* triangle_local = nullptr; // global triangle -> local primitive index within the mesh
             TI num_triangles = 0;
-            const BVHNode<T, TI>* nodes = nullptr;
-            const TI* primitives = nullptr;     // BVH leaf permutation of global triangle indices
-            TI num_nodes = 0;
+            const ObjectView<T, TI>* objects = nullptr;
+            TI num_objects = 0;
+            const InstanceView<T, TI>* instances = nullptr;
+            TI num_instances = 0;
+            const BVHNode<T, TI>* tlas_nodes = nullptr;
+            const TI* tlas_primitives = nullptr; // TLAS leaf permutation of instance indices
+            TI num_tlas_nodes = 0;
             const SceneLight* lights = nullptr;
             TI num_lights = 0;
             const T* probe_directions = nullptr; // 3 per probe
@@ -188,8 +208,37 @@ namespace rl_tools {
             T u;
             T v;
             TI triangle;
+            TI instance;
             bool valid;
         };
+
+        template <typename T>
+        RL_TOOLS_FUNCTION_PLACEMENT Vec3<T> transform_point(const T transform[12], Vec3<T> point){
+            return Vec3<T>{
+                transform[0] * point.x + transform[1] * point.y + transform[2]  * point.z + transform[3],
+                transform[4] * point.x + transform[5] * point.y + transform[6]  * point.z + transform[7],
+                transform[8] * point.x + transform[9] * point.y + transform[10] * point.z + transform[11]
+            };
+        }
+
+        template <typename T>
+        RL_TOOLS_FUNCTION_PLACEMENT Vec3<T> transform_vector(const T transform[12], Vec3<T> vector){
+            return Vec3<T>{
+                transform[0] * vector.x + transform[1] * vector.y + transform[2]  * vector.z,
+                transform[4] * vector.x + transform[5] * vector.y + transform[6]  * vector.z,
+                transform[8] * vector.x + transform[9] * vector.y + transform[10] * vector.z
+            };
+        }
+
+        // normals transform with the inverse-transpose: multiply by the world_to_object columns
+        template <typename T>
+        RL_TOOLS_FUNCTION_PLACEMENT Vec3<T> transform_normal(const T world_to_object[12], Vec3<T> normal){
+            return Vec3<T>{
+                world_to_object[0] * normal.x + world_to_object[4] * normal.y + world_to_object[8]  * normal.z,
+                world_to_object[1] * normal.x + world_to_object[5] * normal.y + world_to_object[9]  * normal.z,
+                world_to_object[2] * normal.x + world_to_object[6] * normal.y + world_to_object[10] * normal.z
+            };
+        }
 
         template <typename T, typename TI>
         RL_TOOLS_FUNCTION_PLACEMENT void triangle_vertices(const SceneView<T, TI>& scene, TI triangle, Vec3<T>& vertex_a, Vec3<T>& vertex_b, Vec3<T>& vertex_c){
@@ -252,6 +301,41 @@ namespace rl_tools {
             return true;
         }
 
+        // BLAS traversal against one instance; the ray is transformed into object space with an
+        // unnormalized direction, so hit.t stays parameterized in world units and is comparable
+        // across instances.
+        template <typename T, typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT void intersect_blas_closest(const SceneView<T, TI>& scene, TI instance_index, Vec3<T> origin, Vec3<T> direction, T t_min, Hit<T, TI>& best){
+            const InstanceView<T, TI>& instance = scene.instances[instance_index];
+            const ObjectView<T, TI>& object = scene.objects[instance.object];
+            if(object.num_nodes == 0) return;
+            if(!instance.identity){
+                origin = transform_point(instance.world_to_object, origin);
+                direction = transform_vector(instance.world_to_object, direction);
+            }
+            TI stack[constants::TRAVERSAL_STACK_SIZE<TI>];
+            TI stack_pointer = 0;
+            stack[stack_pointer++] = 0;
+            while(stack_pointer > 0){
+                const BVHNode<T, TI>& node = object.nodes[stack[--stack_pointer]];
+                if(!intersect_aabb(node, origin, direction, t_min, best.t)) continue;
+                if(node.count > 0){
+                    for(TI i = 0; i < node.count; i++){
+                        const TI triangle = object.primitives[node.left_or_first + i];
+                        if(intersect_triangle(scene, triangle, origin, direction, t_min, best.t, best)){
+                            best.instance = instance_index;
+                        }
+                    }
+                }
+                else{
+                    if(stack_pointer + 2 <= constants::TRAVERSAL_STACK_SIZE<TI>){
+                        stack[stack_pointer++] = node.left_or_first + 1;
+                        stack[stack_pointer++] = node.left_or_first;
+                    }
+                }
+            }
+        }
+
         template <typename T, typename TI>
         RL_TOOLS_FUNCTION_PLACEMENT Hit<T, TI> trace_closest(const SceneView<T, TI>& scene, Vec3<T> origin, Vec3<T> direction, T t_min, T t_max){
             Hit<T, TI> best;
@@ -259,18 +343,19 @@ namespace rl_tools {
             best.u = 0;
             best.v = 0;
             best.triangle = 0;
+            best.instance = 0;
             best.valid = false;
-            if(scene.num_nodes == 0) return best;
+            if(scene.num_tlas_nodes == 0) return best;
             TI stack[constants::TRAVERSAL_STACK_SIZE<TI>];
             TI stack_pointer = 0;
             stack[stack_pointer++] = 0;
             while(stack_pointer > 0){
-                const BVHNode<T, TI>& node = scene.nodes[stack[--stack_pointer]];
+                const BVHNode<T, TI>& node = scene.tlas_nodes[stack[--stack_pointer]];
                 if(!intersect_aabb(node, origin, direction, t_min, best.t)) continue;
                 if(node.count > 0){
                     for(TI i = 0; i < node.count; i++){
-                        const TI triangle = scene.primitives[node.left_or_first + i];
-                        intersect_triangle(scene, triangle, origin, direction, t_min, best.t, best);
+                        const TI instance_index = scene.tlas_primitives[node.left_or_first + i];
+                        intersect_blas_closest(scene, instance_index, origin, direction, t_min, best);
                     }
                 }
                 else{
@@ -284,20 +369,51 @@ namespace rl_tools {
         }
 
         template <typename T, typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT bool trace_any(const SceneView<T, TI>& scene, Vec3<T> origin, Vec3<T> direction, T t_min, T t_max){
-            if(scene.num_nodes == 0) return false;
+        RL_TOOLS_FUNCTION_PLACEMENT bool intersect_blas_any(const SceneView<T, TI>& scene, TI instance_index, Vec3<T> origin, Vec3<T> direction, T t_min, T t_max){
+            const InstanceView<T, TI>& instance = scene.instances[instance_index];
+            const ObjectView<T, TI>& object = scene.objects[instance.object];
+            if(object.num_nodes == 0) return false;
+            if(!instance.identity){
+                origin = transform_point(instance.world_to_object, origin);
+                direction = transform_vector(instance.world_to_object, direction);
+            }
             TI stack[constants::TRAVERSAL_STACK_SIZE<TI>];
             TI stack_pointer = 0;
             stack[stack_pointer++] = 0;
             Hit<T, TI> hit;
             hit.valid = false;
             while(stack_pointer > 0){
-                const BVHNode<T, TI>& node = scene.nodes[stack[--stack_pointer]];
+                const BVHNode<T, TI>& node = object.nodes[stack[--stack_pointer]];
                 if(!intersect_aabb(node, origin, direction, t_min, t_max)) continue;
                 if(node.count > 0){
                     for(TI i = 0; i < node.count; i++){
-                        const TI triangle = scene.primitives[node.left_or_first + i];
+                        const TI triangle = object.primitives[node.left_or_first + i];
                         if(intersect_triangle(scene, triangle, origin, direction, t_min, t_max, hit)) return true;
+                    }
+                }
+                else{
+                    if(stack_pointer + 2 <= constants::TRAVERSAL_STACK_SIZE<TI>){
+                        stack[stack_pointer++] = node.left_or_first + 1;
+                        stack[stack_pointer++] = node.left_or_first;
+                    }
+                }
+            }
+            return false;
+        }
+
+        template <typename T, typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT bool trace_any(const SceneView<T, TI>& scene, Vec3<T> origin, Vec3<T> direction, T t_min, T t_max){
+            if(scene.num_tlas_nodes == 0) return false;
+            TI stack[constants::TRAVERSAL_STACK_SIZE<TI>];
+            TI stack_pointer = 0;
+            stack[stack_pointer++] = 0;
+            while(stack_pointer > 0){
+                const BVHNode<T, TI>& node = scene.tlas_nodes[stack[--stack_pointer]];
+                if(!intersect_aabb(node, origin, direction, t_min, t_max)) continue;
+                if(node.count > 0){
+                    for(TI i = 0; i < node.count; i++){
+                        const TI instance_index = scene.tlas_primitives[node.left_or_first + i];
+                        if(intersect_blas_any(scene, instance_index, origin, direction, t_min, t_max)) return true;
                     }
                 }
                 else{
@@ -337,29 +453,18 @@ namespace rl_tools {
         };
 
         // Median split on the largest centroid-bounds axis; the two-pass partition through
-        // temp_primitives preserves relative order, so the build is deterministic.
-        template <typename DEVICE, typename T, typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT void build_bvh(DEVICE& device, SceneView<T, TI>& scene, BVHNode<T, TI>* nodes, TI* primitives, TI* temp_primitives, T* centroids){
-            const TI num_triangles = scene.num_triangles;
-            scene.nodes = nodes;
-            scene.primitives = primitives;
-            if(num_triangles == 0){
-                scene.num_nodes = 0;
-                return;
-            }
-            for(TI triangle = 0; triangle < num_triangles; triangle++){
-                primitives[triangle] = triangle;
-                T bounds_min[3] = {(T)1e30, (T)1e30, (T)1e30};
-                T bounds_max[3] = {(T)-1e30, (T)-1e30, (T)-1e30};
-                expand_triangle_bounds(scene, triangle, bounds_min, bounds_max);
-                for(int axis = 0; axis < 3; axis++){
-                    centroids[3 * triangle + axis] = (bounds_min[axis] + bounds_max[axis]) * (T)0.5;
-                }
+        // temp_primitives preserves relative order, so the build is deterministic. Serves both
+        // BLAS (primitives = global triangle ids) and TLAS (primitives = instance indices);
+        // bounds/centroid arrays are indexed by primitive value. Returns the node count.
+        template <typename T, typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT TI build_bvh_nodes(BVHNode<T, TI>* nodes, TI* primitives, TI* temp_primitives, const T* primitive_bounds_min, const T* primitive_bounds_max, const T* centroids, TI count){
+            if(count == 0){
+                return 0;
             }
             TI node_count = 1;
             BVHBuildEntry<TI> stack[constants::BUILD_STACK_SIZE<TI>];
             TI stack_pointer = 0;
-            stack[stack_pointer++] = {0, 0, num_triangles};
+            stack[stack_pointer++] = {0, 0, count};
             while(stack_pointer > 0){
                 const BVHBuildEntry<TI> entry = stack[--stack_pointer];
                 BVHNode<T, TI>& node = nodes[entry.node];
@@ -370,11 +475,12 @@ namespace rl_tools {
                 T centroid_min[3] = {(T)1e30, (T)1e30, (T)1e30};
                 T centroid_max[3] = {(T)-1e30, (T)-1e30, (T)-1e30};
                 for(TI i = 0; i < entry.count; i++){
-                    const TI triangle = primitives[entry.start + i];
-                    expand_triangle_bounds(scene, triangle, node.bounds_min, node.bounds_max);
+                    const TI primitive = primitives[entry.start + i];
                     for(int axis = 0; axis < 3; axis++){
-                        centroid_min[axis] = minimum(centroid_min[axis], centroids[3 * triangle + axis]);
-                        centroid_max[axis] = maximum(centroid_max[axis], centroids[3 * triangle + axis]);
+                        node.bounds_min[axis] = minimum(node.bounds_min[axis], primitive_bounds_min[3 * primitive + axis]);
+                        node.bounds_max[axis] = maximum(node.bounds_max[axis], primitive_bounds_max[3 * primitive + axis]);
+                        centroid_min[axis] = minimum(centroid_min[axis], centroids[3 * primitive + axis]);
+                        centroid_max[axis] = maximum(centroid_max[axis], centroids[3 * primitive + axis]);
                     }
                 }
                 bool leaf = entry.count <= constants::LEAF_SIZE<TI> || stack_pointer + 2 > constants::BUILD_STACK_SIZE<TI>;
@@ -398,13 +504,13 @@ namespace rl_tools {
                 const T split = (centroid_min[split_axis] + centroid_max[split_axis]) * (T)0.5;
                 TI num_left = 0;
                 for(TI i = 0; i < entry.count; i++){
-                    const TI triangle = primitives[entry.start + i];
-                    if(centroids[3 * triangle + split_axis] < split) temp_primitives[num_left++] = triangle;
+                    const TI primitive = primitives[entry.start + i];
+                    if(centroids[3 * primitive + split_axis] < split) temp_primitives[num_left++] = primitive;
                 }
                 TI num_total = num_left;
                 for(TI i = 0; i < entry.count; i++){
-                    const TI triangle = primitives[entry.start + i];
-                    if(!(centroids[3 * triangle + split_axis] < split)) temp_primitives[num_total++] = triangle;
+                    const TI primitive = primitives[entry.start + i];
+                    if(!(centroids[3 * primitive + split_axis] < split)) temp_primitives[num_total++] = primitive;
                 }
                 if(num_left == 0 || num_left == entry.count){
                     num_left = entry.count / 2; // degenerate split: halve in the current (deterministic) order
@@ -421,7 +527,7 @@ namespace rl_tools {
                 stack[stack_pointer++] = {right_child, entry.start + num_left, entry.count - num_left};
                 stack[stack_pointer++] = {left_child, entry.start, num_left};
             }
-            scene.num_nodes = node_count;
+            return node_count;
         }
 
         template <typename SPEC, typename T, typename TI>
@@ -452,9 +558,15 @@ namespace rl_tools {
                 const int* index = &self.indices[3 * local];
 
                 if constexpr (SPEC::SHADING::NORMAL_SHADING || SPEC::SHADING::METALLIC_REFLECTIONS){
-                    const Vec3<T> vertex_a = to_vec3(&self.vertices[3 * (TI)index[0]]);
-                    const Vec3<T> vertex_b = to_vec3(&self.vertices[3 * (TI)index[1]]);
-                    const Vec3<T> vertex_c = to_vec3(&self.vertices[3 * (TI)index[2]]);
+                    Vec3<T> vertex_a = to_vec3(&self.vertices[3 * (TI)index[0]]);
+                    Vec3<T> vertex_b = to_vec3(&self.vertices[3 * (TI)index[1]]);
+                    Vec3<T> vertex_c = to_vec3(&self.vertices[3 * (TI)index[2]]);
+                    const InstanceView<T, TI>& instance = scene.instances[hit.instance];
+                    if(!instance.identity){
+                        vertex_a = transform_point(instance.object_to_world, vertex_a);
+                        vertex_b = transform_point(instance.object_to_world, vertex_b);
+                        vertex_c = transform_point(instance.object_to_world, vertex_c);
+                    }
                     normal_geometric = normalize(math_device, cross(vertex_b - vertex_a, vertex_c - vertex_a));
                     ray_dir = ray_direction;
                 }
@@ -507,9 +619,15 @@ namespace rl_tools {
             const TI local = scene.triangle_local[hit.triangle];
             const int* index = &self.indices[3 * local];
 
-            const Vec3<T> vertex_a = to_vec3(&self.vertices[3 * (TI)index[0]]);
-            const Vec3<T> vertex_b = to_vec3(&self.vertices[3 * (TI)index[1]]);
-            const Vec3<T> vertex_c = to_vec3(&self.vertices[3 * (TI)index[2]]);
+            Vec3<T> vertex_a = to_vec3(&self.vertices[3 * (TI)index[0]]);
+            Vec3<T> vertex_b = to_vec3(&self.vertices[3 * (TI)index[1]]);
+            Vec3<T> vertex_c = to_vec3(&self.vertices[3 * (TI)index[2]]);
+            const InstanceView<T, TI>& hit_instance = scene.instances[hit.instance];
+            if(!hit_instance.identity){
+                vertex_a = transform_point(hit_instance.object_to_world, vertex_a);
+                vertex_b = transform_point(hit_instance.object_to_world, vertex_b);
+                vertex_c = transform_point(hit_instance.object_to_world, vertex_c);
+            }
             const T w0 = (T)1 - hit.u - hit.v;
 
             const Vec3<T> edge1 = vertex_b - vertex_a;
@@ -518,7 +636,11 @@ namespace rl_tools {
 
             Vec3<T> N;
             if(self.normals != nullptr){
-                N = normalize(math_device, w0 * to_vec3(&self.normals[3 * (TI)index[0]]) + hit.u * to_vec3(&self.normals[3 * (TI)index[1]]) + hit.v * to_vec3(&self.normals[3 * (TI)index[2]]));
+                Vec3<T> normal_interpolated = w0 * to_vec3(&self.normals[3 * (TI)index[0]]) + hit.u * to_vec3(&self.normals[3 * (TI)index[1]]) + hit.v * to_vec3(&self.normals[3 * (TI)index[2]]);
+                if(!hit_instance.identity){
+                    normal_interpolated = transform_normal(hit_instance.world_to_object, normal_interpolated);
+                }
+                N = normalize(math_device, normal_interpolated);
             }
             else{
                 N = normal_geometric;

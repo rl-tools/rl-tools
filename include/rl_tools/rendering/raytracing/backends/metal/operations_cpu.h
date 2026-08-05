@@ -54,6 +54,11 @@ namespace rl_tools {
                 encoder->setBuffer(ctx.scene_lights.get(), 0, bindings::SCENE_LIGHTS);
             }
             encoder->setAccelerationStructure(ctx.acceleration_structure.get(), bindings::ACCELERATION_STRUCTURE);
+            encoder->setBuffer(ctx.instance_record_base.get(), 0, bindings::INSTANCE_RECORD_BASE);
+            encoder->setBuffer(ctx.instance_data.get(), 0, bindings::INSTANCE_DATA);
+            for(auto& object_acceleration_structure : ctx.object_acceleration_structures){
+                encoder->useResource(object_acceleration_structure.get(), MTL::ResourceUsageRead);
+            }
             for(auto& buffer : ctx.mesh_buffers){
                 encoder->useResource(buffer.get(), MTL::ResourceUsageRead);
             }
@@ -76,6 +81,9 @@ namespace rl_tools {
             encoder->setBuffer(ctx.probe_directions.get(), 0, bindings::PROBE_DIRECTIONS);
             encoder->setBuffer(ctx.collision_results.get(), 0, bindings::COLLISION_RESULTS);
             encoder->setAccelerationStructure(ctx.acceleration_structure.get(), bindings::ACCELERATION_STRUCTURE);
+            for(auto& object_acceleration_structure : ctx.object_acceleration_structures){
+                encoder->useResource(object_acceleration_structure.get(), MTL::ResourceUsageRead);
+            }
             encoder->dispatchThreads(MTL::Size::Make(SPEC::NUM_CAMERAS, SPEC::NUM_PROBES, 1), MTL::Size::Make(8, 8, 1));
             encoder->endEncoding();
         }
@@ -140,24 +148,32 @@ namespace rl_tools {
         NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
 
         rendering::raytracing::detail::compute_scene_bounds(renderer, scene);
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << scene.meshes.size() << " geometries ...");
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << scene.objects.size() << " object(s), " << scene.instances.size() << " instance(s) ...");
 
         // scene-dependent resources from a previous init are released here; the compiled library
         // and pipelines below are spec-dependent and survive re-init
         ctx.mesh_buffers.clear();
         ctx.mesh_textures.clear();
+        ctx.object_acceleration_structures.clear();
         ctx.scene_lights = NS::SharedPtr<MTL::Buffer>{};
 
         const uint8_t dummy_pixel[4] = {255, 255, 255, 255};
         ctx.dummy_texture = metal::make_texture(ctx.device.get(), dummy_pixel, 1, 1, false);
         const MTL::ResourceID dummy_texture_id = ctx.dummy_texture->gpuResourceID();
 
-        std::vector<metal::MeshRecord> mesh_records(scene.meshes.size());
-        std::vector<NS::Object*> geometry_descriptors;
-        geometry_descriptors.reserve(scene.meshes.size());
+        size_t total_meshes = 0;
+        for(const auto& object : scene.objects){
+            total_meshes += object.meshes.size();
+        }
+        std::vector<metal::MeshRecord> mesh_records(total_meshes);
+        std::vector<uint32_t> object_record_base;
+        std::vector<std::vector<NS::Object*>> object_geometry_descriptors(scene.objects.size());
 
-        for(size_t m = 0; m < scene.meshes.size(); m++){
-            const auto& md = scene.meshes[m];
+        size_t m = 0;
+        for(size_t object_i = 0; object_i < scene.objects.size(); object_i++){
+            object_record_base.push_back((uint32_t)m);
+            for(const auto& md : scene.objects[object_i].meshes){
+            auto& geometry_descriptors = object_geometry_descriptors[object_i];
             metal::MeshRecord& record = mesh_records[m];
             record = {};
             record.texture = dummy_texture_id;
@@ -239,20 +255,86 @@ namespace rl_tools {
                 record.has_occlusion_map = 1;
                 ctx.mesh_textures.push_back(texture);
             }
+            m++;
+            }
         }
 
-        NS::Array* geometry_array = NS::Array::array((const NS::Object* const*)geometry_descriptors.data(), geometry_descriptors.size());
-        MTL::PrimitiveAccelerationStructureDescriptor* accel_descriptor = MTL::PrimitiveAccelerationStructureDescriptor::descriptor();
-        accel_descriptor->setGeometryDescriptors(geometry_array);
-        MTL::AccelerationStructureSizes sizes = ctx.device->accelerationStructureSizes(accel_descriptor);
-        ctx.acceleration_structure = NS::TransferPtr(ctx.device->newAccelerationStructure(sizes.accelerationStructureSize));
-        auto scratch_buffer = NS::TransferPtr(ctx.device->newBuffer(sizes.buildScratchBufferSize, MTL::ResourceStorageModePrivate));
-        MTL::CommandBuffer* command_buffer = ctx.queue->commandBuffer();
-        MTL::AccelerationStructureCommandEncoder* encoder = command_buffer->accelerationStructureCommandEncoder();
-        encoder->buildAccelerationStructure(ctx.acceleration_structure.get(), accel_descriptor, scratch_buffer.get(), 0);
-        encoder->endEncoding();
-        command_buffer->commit();
-        command_buffer->waitUntilCompleted();
+        // one primitive (bottom-level) acceleration structure per object, shared by its instances
+        {
+            MTL::CommandBuffer* command_buffer = ctx.queue->commandBuffer();
+            MTL::AccelerationStructureCommandEncoder* encoder = command_buffer->accelerationStructureCommandEncoder();
+            std::vector<NS::SharedPtr<MTL::Buffer>> scratch_buffers;
+            for(size_t object_i = 0; object_i < scene.objects.size(); object_i++){
+                auto& geometry_descriptors = object_geometry_descriptors[object_i];
+                NS::Array* geometry_array = NS::Array::array((const NS::Object* const*)geometry_descriptors.data(), geometry_descriptors.size());
+                MTL::PrimitiveAccelerationStructureDescriptor* accel_descriptor = MTL::PrimitiveAccelerationStructureDescriptor::descriptor();
+                accel_descriptor->setGeometryDescriptors(geometry_array);
+                MTL::AccelerationStructureSizes sizes = ctx.device->accelerationStructureSizes(accel_descriptor);
+                auto object_acceleration_structure = NS::TransferPtr(ctx.device->newAccelerationStructure(sizes.accelerationStructureSize));
+                auto scratch_buffer = NS::TransferPtr(ctx.device->newBuffer(sizes.buildScratchBufferSize, MTL::ResourceStorageModePrivate));
+                encoder->buildAccelerationStructure(object_acceleration_structure.get(), accel_descriptor, scratch_buffer.get(), 0);
+                scratch_buffers.push_back(scratch_buffer);
+                ctx.object_acceleration_structures.push_back(object_acceleration_structure);
+            }
+            encoder->endEncoding();
+            command_buffer->commit();
+            command_buffer->waitUntilCompleted();
+        }
+
+        // instance (top-level) acceleration structure over the placed objects
+        {
+            std::vector<MTL::AccelerationStructureInstanceDescriptor> instance_descriptors(scene.instances.size());
+            std::vector<metal::InstanceData> instance_data(scene.instances.size());
+            std::vector<uint32_t> instance_record_base(scene.instances.size());
+            for(size_t instance_i = 0; instance_i < scene.instances.size(); instance_i++){
+                const auto& instance = scene.instances[instance_i];
+                auto& descriptor = instance_descriptors[instance_i];
+                descriptor = {};
+                for(int column = 0; column < 4; column++){
+                    descriptor.transformationMatrix.columns[column] = MTL::PackedFloat3{instance.transform[0 + column], instance.transform[4 + column], instance.transform[8 + column]};
+                }
+                descriptor.options = MTL::AccelerationStructureInstanceOptionOpaque;
+                descriptor.mask = 0xFFFFFFFFu;
+                descriptor.intersectionFunctionTableOffset = 0;
+                descriptor.accelerationStructureIndex = (uint32_t)instance.object;
+
+                auto& data = instance_data[instance_i];
+                data = {};
+                for(int element = 0; element < 12; element++){
+                    data.object_to_world[element] = instance.transform[element];
+                }
+                if(instance.identity){
+                    std::memcpy(data.world_to_object, data.object_to_world, sizeof(data.world_to_object));
+                }
+                else{
+                    rendering::raytracing::detail::invert_transform(instance.transform, data.world_to_object);
+                }
+                data.identity = instance.identity ? 1 : 0;
+                instance_record_base[instance_i] = object_record_base[instance.object];
+            }
+            ctx.instance_descriptors = NS::TransferPtr(ctx.device->newBuffer(instance_descriptors.data(), instance_descriptors.size() * sizeof(MTL::AccelerationStructureInstanceDescriptor), MTL::ResourceStorageModeShared));
+            ctx.instance_data = NS::TransferPtr(ctx.device->newBuffer(instance_data.data(), instance_data.size() * sizeof(metal::InstanceData), MTL::ResourceStorageModeShared));
+            ctx.instance_record_base = NS::TransferPtr(ctx.device->newBuffer(instance_record_base.data(), instance_record_base.size() * sizeof(uint32_t), MTL::ResourceStorageModeShared));
+
+            std::vector<NS::Object*> object_acceleration_structure_pointers;
+            for(auto& object_acceleration_structure : ctx.object_acceleration_structures){
+                object_acceleration_structure_pointers.push_back(object_acceleration_structure.get());
+            }
+            NS::Array* object_array = NS::Array::array((const NS::Object* const*)object_acceleration_structure_pointers.data(), object_acceleration_structure_pointers.size());
+            MTL::InstanceAccelerationStructureDescriptor* instance_accel_descriptor = MTL::InstanceAccelerationStructureDescriptor::descriptor();
+            instance_accel_descriptor->setInstancedAccelerationStructures(object_array);
+            instance_accel_descriptor->setInstanceCount(scene.instances.size());
+            instance_accel_descriptor->setInstanceDescriptorBuffer(ctx.instance_descriptors.get());
+            MTL::AccelerationStructureSizes sizes = ctx.device->accelerationStructureSizes(instance_accel_descriptor);
+            ctx.acceleration_structure = NS::TransferPtr(ctx.device->newAccelerationStructure(sizes.accelerationStructureSize));
+            auto scratch_buffer = NS::TransferPtr(ctx.device->newBuffer(sizes.buildScratchBufferSize, MTL::ResourceStorageModePrivate));
+            MTL::CommandBuffer* command_buffer = ctx.queue->commandBuffer();
+            MTL::AccelerationStructureCommandEncoder* encoder = command_buffer->accelerationStructureCommandEncoder();
+            encoder->buildAccelerationStructure(ctx.acceleration_structure.get(), instance_accel_descriptor, scratch_buffer.get(), 0);
+            encoder->endEncoding();
+            command_buffer->commit();
+            command_buffer->waitUntilCompleted();
+        }
         renderer.backend.world = ctx.acceleration_structure.get();
 
         ctx.mesh_records = NS::TransferPtr(ctx.device->newBuffer(mesh_records.data(), mesh_records.size() * sizeof(metal::MeshRecord), MTL::ResourceStorageModeShared));

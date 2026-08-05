@@ -34,6 +34,8 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         constexpr int PROBE_DIRECTIONS = 6;
         constexpr int COLLISION_RESULTS = 7;
         constexpr int ACCELERATION_STRUCTURE = 8;
+        constexpr int INSTANCE_RECORD_BASE = 9;
+        constexpr int INSTANCE_DATA = 10;
     }
     namespace function_constants{
         constexpr int SRGB_OUTPUT = 0;
@@ -93,6 +95,14 @@ namespace rl_tools::rendering::raytracing::backends::metal{
     static_assert(sizeof(MTL::ResourceID) == 8, "MTL::ResourceID expected to be 8 bytes");
     static_assert(sizeof(MeshRecord) == 144, "MeshRecord layout must match the MSL declaration in device.metal");
 
+    struct InstanceData{
+        float object_to_world[12]; // 3x4 row-major [R|t]
+        float world_to_object[12];
+        int32_t identity;
+        int32_t padding[3];
+    };
+    static_assert(sizeof(InstanceData) == 112, "InstanceData layout must match the MSL declaration in device.metal");
+
     struct Context{
         NS::SharedPtr<MTL::Device> device;
         NS::SharedPtr<MTL::CommandQueue> queue;
@@ -100,7 +110,11 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         NS::SharedPtr<MTL::ComputePipelineState> rgb_pipeline;
         NS::SharedPtr<MTL::ComputePipelineState> depth_pipeline;
         NS::SharedPtr<MTL::ComputePipelineState> collision_pipeline;
-        NS::SharedPtr<MTL::AccelerationStructure> acceleration_structure;
+        NS::SharedPtr<MTL::AccelerationStructure> acceleration_structure; // instance (top-level) AS
+        std::vector<NS::SharedPtr<MTL::AccelerationStructure>> object_acceleration_structures;
+        NS::SharedPtr<MTL::Buffer> instance_descriptors;
+        NS::SharedPtr<MTL::Buffer> instance_record_base;
+        NS::SharedPtr<MTL::Buffer> instance_data;
         std::vector<NS::SharedPtr<MTL::Buffer>> mesh_buffers;
         std::vector<NS::SharedPtr<MTL::Texture>> mesh_textures;
         NS::SharedPtr<MTL::Texture> dummy_texture;

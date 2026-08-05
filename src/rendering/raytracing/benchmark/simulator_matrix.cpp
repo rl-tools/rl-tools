@@ -743,7 +743,7 @@ static std::string cuda_device_name() {
     return "unknown";
 }
 
-static void add_box(rlt::rendering::raytracing::Scene& render_scene, T cx, T cy, T cz, T sx, T sy, T sz, T r, T g, T b) {
+static void add_box(rlt::rendering::raytracing::Object& objects20, T cx, T cy, T cz, T sx, T sy, T sz, T r, T g, T b) {
     rlt::rendering::raytracing::Mesh md;
     md.color[0] = r;
     md.color[1] = g;
@@ -768,10 +768,10 @@ static void add_box(rlt::rendering::raytracing::Scene& render_scene, T cx, T cy,
     };
     md.vertices.assign(vertices, vertices + sizeof(vertices) / sizeof(vertices[0]));
     md.indices.assign(indices, indices + sizeof(indices) / sizeof(indices[0]));
-    render_scene.meshes.push_back(std::move(md));
+    objects20.meshes.push_back(std::move(md));
 }
 
-static void add_sphere(rlt::rendering::raytracing::Scene& render_scene, T cx, T cy, T cz, T radius, T r, T g, T b) {
+static void add_sphere(rlt::rendering::raytracing::Object& objects20, T cx, T cy, T cz, T radius, T r, T g, T b) {
     static constexpr int SEGMENTS = 16;
     static constexpr int RINGS = 8;
     static constexpr T PI = static_cast<T>(3.14159265358979323846);
@@ -817,7 +817,7 @@ static void add_sphere(rlt::rendering::raytracing::Scene& render_scene, T cx, T 
         }
     }
 
-    render_scene.meshes.push_back(std::move(md));
+    objects20.meshes.push_back(std::move(md));
 }
 
 struct Objects20Position {
@@ -878,19 +878,22 @@ static void objects20_color(int i, T& r, T& g, T& b) {
 }
 
 static void make_20_object_scene(rlt::rendering::raytracing::Scene& render_scene) {
-    render_scene.meshes.clear();
+    render_scene = {};
+    rlt::rendering::raytracing::Object objects20;
     for(int i = 0; i < 20; i++) {
         T sx, sy, sz, r, g, b;
         objects20_scale(i, sx, sy, sz);
         objects20_color(i, r, g, b);
         const auto& position = OBJECTS20_POSITIONS[i];
         if((i % 2) == 0) {
-            add_box(render_scene, position.x, position.y, position.z, sx, sy, sz, r, g, b);
+            add_box(objects20, position.x, position.y, position.z, sx, sy, sz, r, g, b);
         }
         else {
-            add_sphere(render_scene, position.x, position.y, position.z, sx * static_cast<T>(0.5), r, g, b);
+            add_sphere(objects20, position.x, position.y, position.z, sx * static_cast<T>(0.5), r, g, b);
         }
     }
+    render_scene.objects.push_back(std::move(objects20));
+    render_scene.instances.push_back({0, {1,0,0,0, 0,1,0,0, 0,0,1,0}, true});
 }
 
 // the 20-object benchmark scene uses hand-picked bounds (closer orbit than the AABB-derived
