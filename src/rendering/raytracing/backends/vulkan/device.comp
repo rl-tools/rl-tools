@@ -1,0 +1,648 @@
+// Vulkan device programs for the RLtools raytracing renderer, compiled once per entry point
+// (ENTRY_RGB / ENTRY_DEPTH / ENTRY_COLLISION). This file is a function-for-function mirror of
+// backends/metal/device.metal (which mirrors backends/optix/device_impl.h) — keep the shading
+// logic in sync; the golden-image parity suite is the drift detector. Metal's RGBTracer<DEPTH>
+// template recursion is restructured here as shade_*_local + SecondaryRequest because GLSL
+// forbids recursion: the leaf trace shades without secondary rays (= DEPTH=1 behavior).
+// Struct layouts (LaunchParams, MeshRecord) and binding/spec-constant indices must match
+// include/rl_tools/rendering/raytracing/backends/vulkan/context.h.
+#version 460
+#extension GL_EXT_ray_query : require
+#extension GL_EXT_buffer_reference : require
+#if defined(ENTRY_RGB)
+#extension GL_EXT_nonuniform_qualifier : require
+#endif
+
+layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
+
+layout(constant_id = 0) const bool fc_srgb_output = false;
+layout(constant_id = 1) const bool fc_motion_blur = false;
+layout(constant_id = 2) const int fc_motion_samples = 1;
+layout(constant_id = 3) const int fc_aa_grid = 1;
+layout(constant_id = 4) const bool fc_checker_background = false;
+layout(constant_id = 5) const bool fc_load_textures = false;
+layout(constant_id = 6) const bool fc_normal_shading = false;
+layout(constant_id = 7) const bool fc_metallic_reflections = false;
+layout(constant_id = 8) const bool fc_pbr_shading = false;
+layout(constant_id = 9) const bool fc_punctual_light_shadows = false;
+
+layout(std430, set = 0, binding = 0) readonly buffer LaunchParamsBuffer{
+    uint fb_width;
+    uint fb_height;
+    uint cam_width;
+    uint cam_height;
+    uint grid_cols;
+    uint num_cameras;
+    uint num_probes;
+    uint num_scene_lights;
+    float max_depth;
+    float max_dist;
+    float ambient_color[3];
+    float miss_color_0[3];
+    float miss_color_1[3];
+    float padding[3];
+} params;
+
+struct Camera{
+    float pos[3];
+    float dir_00[3];
+    float dir_du[3];
+    float dir_dv[3];
+};
+
+layout(std430, set = 0, binding = 1) readonly buffer CamerasCloseBuffer{ Camera cameras_close[]; };
+layout(set = 0, binding = 8) uniform accelerationStructureEXT tlas;
+
+#if defined(ENTRY_RGB) || defined(ENTRY_DEPTH)
+layout(std430, set = 0, binding = 2) readonly buffer CamerasOpenBuffer{ Camera cameras_open[]; };
+#endif
+
+#if defined(ENTRY_RGB)
+layout(buffer_reference, std430, buffer_reference_align = 4) readonly buffer IntArray{ int v[]; };
+layout(buffer_reference, std430, buffer_reference_align = 4) readonly buffer FloatArray{ float v[]; };
+
+struct MeshRecord{
+    IntArray index;
+    FloatArray vertices;
+    FloatArray tex_coord;
+    FloatArray normal;
+    uint texture;
+    uint normal_map;
+    uint metallic_roughness_map;
+    uint emissive_map;
+    uint occlusion_map;
+    float color[3];
+    float metallic;
+    float roughness;
+    float opacity;
+    float emissive[3];
+    float alpha_cutoff;
+    int alpha_mode;
+    int has_texture;
+    int has_normal_map;
+    int has_metallic_roughness_map;
+    int has_emissive_map;
+    int has_occlusion_map;
+    int has_tex_coord;
+    int has_normals;
+    int padding[1];
+};
+
+struct SceneLight{
+    int type; // 0=directional, 1=point, 2=spot
+    float position[3];
+    float direction[3];
+    float color[3];
+    float attenuation_constant;
+    float attenuation_linear;
+    float attenuation_quadratic;
+    float cos_inner_cone;
+    float cos_outer_cone;
+};
+
+layout(std430, set = 0, binding = 3) writeonly buffer FrameBuffer{ uint fb[]; };
+layout(std430, set = 0, binding = 4) readonly buffer MeshRecordsBuffer{ MeshRecord meshes[]; };
+layout(std430, set = 0, binding = 5) readonly buffer SceneLightsBuffer{ SceneLight scene_lights[]; };
+layout(set = 0, binding = 10) uniform sampler2D scene_textures[];
+#endif
+
+#if defined(ENTRY_DEPTH)
+layout(std430, set = 0, binding = 9) writeonly buffer DepthBuffer{ float depth_out[]; };
+#endif
+
+#if defined(ENTRY_COLLISION)
+struct CollisionResult{
+    float distance;
+    int hit;
+};
+layout(std430, set = 0, binding = 6) readonly buffer ProbeDirectionsBuffer{ float probe_directions[]; };
+layout(std430, set = 0, binding = 7) writeonly buffer CollisionResultsBuffer{ CollisionResult collision_results[]; };
+#endif
+
+vec3 camera_pos(Camera cam){ return vec3(cam.pos[0], cam.pos[1], cam.pos[2]); }
+vec3 camera_dir_00(Camera cam){ return vec3(cam.dir_00[0], cam.dir_00[1], cam.dir_00[2]); }
+vec3 camera_dir_du(Camera cam){ return vec3(cam.dir_du[0], cam.dir_du[1], cam.dir_du[2]); }
+vec3 camera_dir_dv(Camera cam){ return vec3(cam.dir_dv[0], cam.dir_dv[1], cam.dir_dv[2]); }
+
+struct Hit{
+    bool valid;
+    float t;
+    int geometry_index;
+    int primitive_index;
+    vec2 bary;
+};
+
+Hit trace_closest(vec3 origin, vec3 direction, float tmin, float tmax){
+    rayQueryEXT rq;
+    rayQueryInitializeEXT(rq, tlas, gl_RayFlagsOpaqueEXT, 0xffu, origin, tmin, direction, tmax);
+    while(rayQueryProceedEXT(rq)){}
+    Hit hit;
+    hit.valid = rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionTriangleEXT;
+    if(hit.valid){
+        hit.t = rayQueryGetIntersectionTEXT(rq, true);
+        hit.geometry_index = rayQueryGetIntersectionGeometryIndexEXT(rq, true);
+        hit.primitive_index = rayQueryGetIntersectionPrimitiveIndexEXT(rq, true);
+        hit.bary = rayQueryGetIntersectionBarycentricsEXT(rq, true);
+    }
+    return hit;
+}
+
+struct PixelLaunchContext{
+    int cam_idx;
+    int local_x;
+    int local_y;
+    int fb_offset;
+    bool valid;
+};
+
+PixelLaunchContext pixel_launch_context(uvec2 pixel_id){
+    PixelLaunchContext ctx;
+    const int tile_col = int(pixel_id.x / params.cam_width);
+    const int tile_row = int(pixel_id.y / params.cam_height);
+    ctx.cam_idx = tile_row * int(params.grid_cols) + tile_col;
+    ctx.local_x = int(pixel_id.x) - tile_col * int(params.cam_width);
+    ctx.local_y = int(pixel_id.y) - tile_row * int(params.cam_height);
+    ctx.fb_offset = ctx.cam_idx * int(params.cam_width) * int(params.cam_height) + ctx.local_y * int(params.cam_width) + ctx.local_x;
+    ctx.valid = pixel_id.x < params.fb_width && pixel_id.y < params.fb_height && ctx.cam_idx < int(params.num_cameras);
+    return ctx;
+}
+
+#if defined(ENTRY_RGB)
+uint make_8bit(float f){
+    return uint(min(255, max(0, int(f * 256.0))));
+}
+
+uint make_rgba(vec3 color){
+    return (make_8bit(color.x) << 0) | (make_8bit(color.y) << 8) | (make_8bit(color.z) << 16) | (0xffu << 24);
+}
+
+float linear_to_srgb(float x){
+    if(x <= 0.0031308){
+        return 12.92 * x;
+    }
+    return 1.055 * pow(x, 1.0 / 2.4) - 0.055;
+}
+
+uint make_srgb_rgba_from_linear(vec3 color){
+    color.x = linear_to_srgb(min(max(color.x, 0.0), 1.0));
+    color.y = linear_to_srgb(min(max(color.y, 0.0), 1.0));
+    color.z = linear_to_srgb(min(max(color.z, 0.0), 1.0));
+    return make_rgba(color);
+}
+
+uint make_linear_rgba_from_linear(vec3 color){
+    color.x = min(max(color.x, 0.0), 1.0);
+    color.y = min(max(color.y, 0.0), 1.0);
+    color.z = min(max(color.z, 0.0), 1.0);
+    return make_rgba(color);
+}
+
+vec3 miss_color(uvec2 pixel_id){
+    if(fc_checker_background){
+        int checker_pattern = (int(pixel_id.x) / 8) ^ (int(pixel_id.y) / 8);
+        if((checker_pattern & 1) != 0){
+            return vec3(params.miss_color_1[0], params.miss_color_1[1], params.miss_color_1[2]);
+        }
+        return vec3(params.miss_color_0[0], params.miss_color_0[1], params.miss_color_0[2]);
+    }
+    return vec3(params.miss_color_0[0], params.miss_color_0[1], params.miss_color_0[2]);
+}
+
+bool trace_shadow_occluded(vec3 pos, vec3 direction, float max_dist){
+    rayQueryEXT rq;
+    rayQueryInitializeEXT(rq, tlas, gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT, 0xffu, pos, 1e-3, direction, max_dist);
+    while(rayQueryProceedEXT(rq)){}
+    return rayQueryGetIntersectionTypeEXT(rq, true) != gl_RayQueryCommittedIntersectionNoneEXT;
+}
+
+ivec3 fetch_index(int mesh, int primitive){
+    return ivec3(meshes[mesh].index.v[3 * primitive], meshes[mesh].index.v[3 * primitive + 1], meshes[mesh].index.v[3 * primitive + 2]);
+}
+vec3 fetch_vertex(int mesh, int i){
+    return vec3(meshes[mesh].vertices.v[3 * i], meshes[mesh].vertices.v[3 * i + 1], meshes[mesh].vertices.v[3 * i + 2]);
+}
+vec2 fetch_tex_coord(int mesh, int i){
+    return vec2(meshes[mesh].tex_coord.v[2 * i], meshes[mesh].tex_coord.v[2 * i + 1]);
+}
+vec3 fetch_normal(int mesh, int i){
+    return vec3(meshes[mesh].normal.v[3 * i], meshes[mesh].normal.v[3 * i + 1], meshes[mesh].normal.v[3 * i + 2]);
+}
+vec4 sample_texture(uint texture_index, vec2 tc){
+    return textureLod(scene_textures[nonuniformEXT(texture_index)], tc, 0.0);
+}
+
+struct SecondaryRequest{
+    bool want_reflection;
+    vec3 reflect_dir;
+    float reflection_weight; // basic: fresnel factor, pbr: blend weight
+    bool want_transparency;
+    float alpha;
+    int alpha_mode;
+    vec3 hit_point;
+    vec3 ray_dir;
+};
+
+vec3 shade_basic_local(Hit hit, vec3 ray_origin, vec3 ray_dir, out SecondaryRequest request){
+    const int mesh = hit.geometry_index;
+    request.want_reflection = false;
+    request.want_transparency = false;
+
+    vec3 base_color = vec3(meshes[mesh].color[0], meshes[mesh].color[1], meshes[mesh].color[2]);
+    vec3 normal_geometric = vec3(0.0, 0.0, 1.0);
+
+    if(fc_load_textures || fc_normal_shading || fc_metallic_reflections){
+        const ivec3 index = fetch_index(mesh, hit.primitive_index);
+
+        if(fc_normal_shading || fc_metallic_reflections){
+            const vec3 vertex_a = fetch_vertex(mesh, index.x);
+            const vec3 vertex_b = fetch_vertex(mesh, index.y);
+            const vec3 vertex_c = fetch_vertex(mesh, index.z);
+            normal_geometric = normalize(cross(vertex_b - vertex_a, vertex_c - vertex_a));
+        }
+
+        if(fc_load_textures){
+            if(meshes[mesh].has_texture != 0 && meshes[mesh].has_tex_coord != 0){
+                const vec2 bary = hit.bary;
+                const vec2 tc
+                    = (1.0 - bary.x - bary.y) * fetch_tex_coord(mesh, index.x)
+                    +        bary.x           * fetch_tex_coord(mesh, index.y)
+                    +               bary.y    * fetch_tex_coord(mesh, index.z);
+                vec4 tex_color = sample_texture(meshes[mesh].texture, tc);
+                base_color = tex_color.xyz * vec3(meshes[mesh].color[0], meshes[mesh].color[1], meshes[mesh].color[2]);
+            }
+        }
+    }
+
+    vec3 direct = base_color;
+    if(fc_normal_shading){
+        direct = (0.2 + 0.8 * abs(dot(ray_dir, normal_geometric))) * base_color;
+    }
+
+    if(fc_metallic_reflections){
+        if(meshes[mesh].metallic > 0.0){
+            vec3 hit_point = ray_origin + ray_dir * hit.t;
+            vec3 n = dot(ray_dir, normal_geometric) > 0.0 ? -normal_geometric : normal_geometric;
+            float cos_theta = abs(dot(ray_dir, n));
+            request.want_reflection = true;
+            request.reflect_dir = ray_dir - 2.0 * dot(ray_dir, n) * n;
+            request.reflection_weight = meshes[mesh].metallic * (0.04 + 0.96 * pow(1.0 - cos_theta, 5.0));
+            request.hit_point = hit_point;
+            request.ray_dir = ray_dir;
+        }
+    }
+    return direct;
+}
+
+vec3 shade_pbr_local(Hit hit, vec3 ray_origin, vec3 ray_dir, uvec2 pixel_id, out SecondaryRequest request){
+    const int mesh = hit.geometry_index;
+    request.want_reflection = false;
+    request.want_transparency = false;
+
+    const ivec3 index = fetch_index(mesh, hit.primitive_index);
+    const vec3 vertex_a = fetch_vertex(mesh, index.x);
+    const vec3 vertex_b = fetch_vertex(mesh, index.y);
+    const vec3 vertex_c = fetch_vertex(mesh, index.z);
+    const vec2 bary = hit.bary;
+    const float w0 = 1.0 - bary.x - bary.y;
+
+    const vec3 edge1 = vertex_b - vertex_a;
+    const vec3 edge2 = vertex_c - vertex_a;
+    const vec3 normal_geometric = normalize(cross(edge1, edge2));
+
+    vec3 N;
+    if(meshes[mesh].has_normals != 0){
+        N = normalize(w0 * fetch_normal(mesh, index.x) + bary.x * fetch_normal(mesh, index.y) + bary.y * fetch_normal(mesh, index.z));
+    }
+    else{
+        N = normal_geometric;
+    }
+
+    if(dot(ray_dir, N) > 0.0){
+        N = -N;
+    }
+
+    const bool has_tex_coord = meshes[mesh].has_tex_coord != 0;
+    const vec2 tc = has_tex_coord
+        ? w0 * fetch_tex_coord(mesh, index.x) + bary.x * fetch_tex_coord(mesh, index.y) + bary.y * fetch_tex_coord(mesh, index.z)
+        : vec2(0.0);
+
+    vec3 base_color = vec3(meshes[mesh].color[0], meshes[mesh].color[1], meshes[mesh].color[2]);
+    float alpha = meshes[mesh].opacity;
+    if(meshes[mesh].has_texture != 0 && has_tex_coord){
+        vec4 tex_color = sample_texture(meshes[mesh].texture, tc);
+        base_color = tex_color.xyz * vec3(meshes[mesh].color[0], meshes[mesh].color[1], meshes[mesh].color[2]);
+        alpha *= tex_color.w;
+    }
+
+    float metallic = meshes[mesh].metallic;
+    float roughness = meshes[mesh].roughness;
+    if(meshes[mesh].has_metallic_roughness_map != 0 && has_tex_coord){
+        vec4 mr_sample = sample_texture(meshes[mesh].metallic_roughness_map, tc);
+        roughness = mr_sample.y * meshes[mesh].roughness;
+        metallic = mr_sample.z * meshes[mesh].metallic;
+    }
+
+    if(meshes[mesh].has_normal_map != 0 && has_tex_coord){
+        const vec2 tc0 = fetch_tex_coord(mesh, index.x);
+        const vec2 tc1 = fetch_tex_coord(mesh, index.y);
+        const vec2 tc2 = fetch_tex_coord(mesh, index.z);
+        const vec2 duv1 = tc1 - tc0;
+        const vec2 duv2 = tc2 - tc0;
+        float det = duv1.x * duv2.y - duv2.x * duv1.y;
+        if(abs(det) > 1e-8){
+            float inv_det = 1.0 / det;
+            vec3 T = normalize(inv_det * (duv2.y * edge1 - duv1.y * edge2));
+            T = normalize(T - dot(T, N) * N);
+            vec3 B = cross(N, T);
+            vec4 nm_sample = sample_texture(meshes[mesh].normal_map, vec2(w0 * tc0.x + bary.x * tc1.x + bary.y * tc2.x, w0 * tc0.y + bary.x * tc1.y + bary.y * tc2.y));
+            vec3 n_tangent = vec3(nm_sample.x * 2.0 - 1.0, -(nm_sample.y * 2.0 - 1.0), nm_sample.z * 2.0 - 1.0);
+            N = normalize(T * n_tangent.x + B * n_tangent.y + N * n_tangent.z);
+        }
+    }
+
+    roughness = max(roughness, 0.04);
+    float roughness_alpha = roughness * roughness;
+    float alpha2 = roughness_alpha * roughness_alpha;
+    float k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
+
+    vec3 V = -ray_dir;
+    float NdotV = max(dot(N, V), 1e-4);
+    vec3 F0 = vec3(0.04) * (1.0 - metallic) + base_color * metallic;
+
+    vec3 hit_point = ray_origin + ray_dir * hit.t;
+
+    vec3 Lo = vec3(0.0);
+    for(int li = 0; li < int(params.num_scene_lights); li++){
+        vec3 Lc = vec3(scene_lights[li].color[0], scene_lights[li].color[1], scene_lights[li].color[2]);
+        vec3 L;
+        float attenuation = 1.0;
+        float light_distance = 1e20;
+
+        if(scene_lights[li].type == 0){
+            L = vec3(scene_lights[li].direction[0], scene_lights[li].direction[1], scene_lights[li].direction[2]);
+        }
+        else{
+            vec3 to_light = vec3(scene_lights[li].position[0], scene_lights[li].position[1], scene_lights[li].position[2]) - hit_point;
+            float dist = length(to_light);
+            light_distance = max(dist - 1e-3, 0.0);
+            L = to_light * (1.0 / max(dist, 1e-6));
+            attenuation = 1.0 / (scene_lights[li].attenuation_constant + scene_lights[li].attenuation_linear * dist + scene_lights[li].attenuation_quadratic * dist * dist);
+            if(scene_lights[li].type == 2){
+                vec3 spot_dir = vec3(scene_lights[li].direction[0], scene_lights[li].direction[1], scene_lights[li].direction[2]);
+                float cos_angle = dot(-L, spot_dir);
+                float denom = scene_lights[li].cos_inner_cone - scene_lights[li].cos_outer_cone;
+                float spot_t = (cos_angle - scene_lights[li].cos_outer_cone) / (abs(denom) > 1e-6 ? denom : 1e-6);
+                attenuation *= max(min(spot_t, 1.0), 0.0);
+            }
+        }
+
+        float NdotL = max(dot(N, L), 0.0);
+        if(NdotL <= 0.0){
+            continue;
+        }
+        if(fc_punctual_light_shadows){
+            if(scene_lights[li].type != 0 && trace_shadow_occluded(hit_point + N * 2e-3, L, light_distance)){
+                continue;
+            }
+        }
+
+        vec3 H = normalize(V + L);
+        float NdotH = max(dot(N, H), 0.0);
+        float VdotH = max(dot(V, H), 0.0);
+
+        float denom_D = NdotH * NdotH * (alpha2 - 1.0) + 1.0;
+        float D = alpha2 / (3.14159265 * denom_D * denom_D);
+
+        float G1_V = NdotV / (NdotV * (1.0 - k) + k);
+        float G1_L = NdotL / (NdotL * (1.0 - k) + k);
+        float G = G1_V * G1_L;
+
+        float pow5 = pow(1.0 - VdotH, 5.0);
+        vec3 F = F0 + (vec3(1.0) - F0) * pow5;
+
+        vec3 specular = D * G * F * (1.0 / (4.0 * NdotV * NdotL + 1e-4));
+        vec3 kd = (vec3(1.0) - F) * (1.0 - metallic);
+        vec3 diffuse = kd * base_color * (1.0 / 3.14159265);
+
+        Lo = Lo + (diffuse + specular) * Lc * (attenuation * NdotL);
+    }
+
+    float occlusion = 1.0;
+    if(meshes[mesh].has_occlusion_map != 0 && has_tex_coord){
+        vec4 ao_sample = sample_texture(meshes[mesh].occlusion_map, tc);
+        occlusion = ao_sample.x;
+    }
+
+    vec3 emissive_color;
+    if(meshes[mesh].has_emissive_map != 0 && has_tex_coord){
+        vec4 em_sample = sample_texture(meshes[mesh].emissive_map, tc);
+        emissive_color = em_sample.xyz * vec3(meshes[mesh].emissive[0], meshes[mesh].emissive[1], meshes[mesh].emissive[2]);
+    }
+    else{
+        emissive_color = vec3(meshes[mesh].emissive[0], meshes[mesh].emissive[1], meshes[mesh].emissive[2]);
+    }
+
+    vec3 ambient = vec3(params.ambient_color[0], params.ambient_color[1], params.ambient_color[2]) * base_color * ((1.0 - metallic) * occlusion);
+    vec3 color = ambient + Lo + emissive_color;
+
+    if(metallic > 0.1){
+        float fresnel_refl = F0.x + (1.0 - F0.x) * pow(1.0 - max(dot(V, N), 0.0), 5.0);
+        request.want_reflection = true;
+        request.reflect_dir = ray_dir - 2.0 * dot(ray_dir, N) * N;
+        request.reflection_weight = fresnel_refl * (1.0 - roughness);
+    }
+
+    bool transparent = (meshes[mesh].alpha_mode == 2 && alpha < 0.99) || (meshes[mesh].alpha_mode == 1 && alpha < meshes[mesh].alpha_cutoff);
+    if(transparent){
+        request.want_transparency = true;
+    }
+    request.alpha = alpha;
+    request.alpha_mode = meshes[mesh].alpha_mode;
+    request.hit_point = hit_point;
+    request.ray_dir = ray_dir;
+
+    return color;
+}
+
+vec3 trace_leaf(vec3 origin, vec3 direction, float tmin, uvec2 pixel_id){
+    Hit hit = trace_closest(origin, direction, tmin, 1e20);
+    if(!hit.valid){
+        return miss_color(pixel_id);
+    }
+    SecondaryRequest request;
+    if(fc_pbr_shading){
+        return shade_pbr_local(hit, origin, direction, pixel_id, request);
+    }
+    return shade_basic_local(hit, origin, direction, request);
+}
+
+vec3 trace_primary(vec3 origin, vec3 direction, float tmin, float tmax, uvec2 pixel_id){
+    Hit hit = trace_closest(origin, direction, tmin, tmax);
+    if(!hit.valid){
+        return miss_color(pixel_id);
+    }
+    SecondaryRequest request;
+    if(fc_pbr_shading){
+        vec3 color = shade_pbr_local(hit, origin, direction, pixel_id, request);
+        if(request.want_reflection){
+            vec3 reflected_color = trace_leaf(request.hit_point, request.reflect_dir, 1e-3, pixel_id);
+            color = color * (1.0 - request.reflection_weight) + reflected_color * request.reflection_weight;
+        }
+        if(request.want_transparency){
+            vec3 behind_color = trace_leaf(request.hit_point, request.ray_dir, 1e-5, pixel_id);
+            if(request.alpha_mode == 1){
+                color = behind_color;
+            }
+            else{
+                color = color * request.alpha + behind_color * (1.0 - request.alpha);
+            }
+        }
+        return color;
+    }
+    vec3 direct = shade_basic_local(hit, origin, direction, request);
+    if(fc_metallic_reflections && request.want_reflection){
+        vec3 reflected_color = trace_leaf(request.hit_point, request.reflect_dir, 1e-3, pixel_id);
+        float fresnel = request.reflection_weight;
+        return direct * ((1.0 - fresnel) + fresnel * reflected_color);
+    }
+    return direct;
+}
+
+void main(){
+    const uvec2 pixel_id = gl_GlobalInvocationID.xy;
+    const PixelLaunchContext ctx = pixel_launch_context(pixel_id);
+    if(!ctx.valid){
+        return;
+    }
+
+    vec3 accumulated = vec3(0.0);
+    const float inv_aa_grid = 1.0 / float(fc_aa_grid);
+    for(int motion_i = 0; motion_i < fc_motion_samples; motion_i++){
+        vec3 pos;
+        vec3 dir_00;
+        vec3 dir_du;
+        vec3 dir_dv;
+        if(fc_motion_blur){
+            Camera cam_open = cameras_open[ctx.cam_idx];
+            Camera cam_close = cameras_close[ctx.cam_idx];
+            const float shutter_t = (float(motion_i) + 0.5) * (1.0 / float(fc_motion_samples));
+            pos = mix(camera_pos(cam_open), camera_pos(cam_close), shutter_t);
+            dir_00 = mix(camera_dir_00(cam_open), camera_dir_00(cam_close), shutter_t);
+            dir_du = mix(camera_dir_du(cam_open), camera_dir_du(cam_close), shutter_t);
+            dir_dv = mix(camera_dir_dv(cam_open), camera_dir_dv(cam_close), shutter_t);
+        }
+        else{
+            Camera cam = cameras_close[ctx.cam_idx];
+            pos = camera_pos(cam);
+            dir_00 = camera_dir_00(cam);
+            dir_du = camera_dir_du(cam);
+            dir_dv = camera_dir_dv(cam);
+        }
+        for(int aa_y = 0; aa_y < fc_aa_grid; aa_y++){
+            for(int aa_x = 0; aa_x < fc_aa_grid; aa_x++){
+                const vec2 screen = (vec2(ctx.local_x, ctx.local_y) + vec2((float(aa_x) + 0.5) * inv_aa_grid, (float(aa_y) + 0.5) * inv_aa_grid)) / vec2(params.cam_width, params.cam_height);
+                const vec3 direction = normalize(dir_00 + screen.x * dir_du + screen.y * dir_dv);
+                accumulated += trace_primary(pos, direction, 0.0, 1e30, pixel_id);
+            }
+        }
+    }
+    const int samples = fc_motion_samples * fc_aa_grid * fc_aa_grid;
+    const vec3 color = accumulated * (1.0 / float(samples));
+    if(fc_srgb_output){
+        fb[ctx.fb_offset] = make_srgb_rgba_from_linear(color);
+    }
+    else{
+        fb[ctx.fb_offset] = make_linear_rgba_from_linear(color);
+    }
+}
+#endif
+
+#if defined(ENTRY_DEPTH)
+float trace_depth_distance(vec3 pos, vec3 direction, float max_depth){
+    rayQueryEXT rq;
+    rayQueryInitializeEXT(rq, tlas, gl_RayFlagsOpaqueEXT, 0xffu, pos, 0.0, direction, max_depth);
+    while(rayQueryProceedEXT(rq)){}
+    if(rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionNoneEXT){
+        return max_depth;
+    }
+    return rayQueryGetIntersectionTEXT(rq, true);
+}
+
+void main(){
+    const uvec2 pixel_id = gl_GlobalInvocationID.xy;
+    const PixelLaunchContext ctx = pixel_launch_context(pixel_id);
+    if(!ctx.valid){
+        return;
+    }
+
+    float accumulated = 0.0;
+    const float inv_aa_grid = 1.0 / float(fc_aa_grid);
+    for(int motion_i = 0; motion_i < fc_motion_samples; motion_i++){
+        vec3 pos;
+        vec3 dir_00;
+        vec3 dir_du;
+        vec3 dir_dv;
+        if(fc_motion_blur){
+            Camera cam_open = cameras_open[ctx.cam_idx];
+            Camera cam_close = cameras_close[ctx.cam_idx];
+            const float shutter_t = (float(motion_i) + 0.5) * (1.0 / float(fc_motion_samples));
+            pos = mix(camera_pos(cam_open), camera_pos(cam_close), shutter_t);
+            dir_00 = mix(camera_dir_00(cam_open), camera_dir_00(cam_close), shutter_t);
+            dir_du = mix(camera_dir_du(cam_open), camera_dir_du(cam_close), shutter_t);
+            dir_dv = mix(camera_dir_dv(cam_open), camera_dir_dv(cam_close), shutter_t);
+        }
+        else{
+            Camera cam = cameras_close[ctx.cam_idx];
+            pos = camera_pos(cam);
+            dir_00 = camera_dir_00(cam);
+            dir_du = camera_dir_du(cam);
+            dir_dv = camera_dir_dv(cam);
+        }
+        for(int aa_y = 0; aa_y < fc_aa_grid; aa_y++){
+            for(int aa_x = 0; aa_x < fc_aa_grid; aa_x++){
+                const vec2 screen = (vec2(ctx.local_x, ctx.local_y) + vec2((float(aa_x) + 0.5) * inv_aa_grid, (float(aa_y) + 0.5) * inv_aa_grid)) / vec2(params.cam_width, params.cam_height);
+                const vec3 direction = normalize(dir_00 + screen.x * dir_du + screen.y * dir_dv);
+                accumulated += trace_depth_distance(pos, direction, params.max_depth);
+            }
+        }
+    }
+    const int samples = fc_motion_samples * fc_aa_grid * fc_aa_grid;
+    depth_out[ctx.fb_offset] = accumulated * (1.0 / float(samples));
+}
+#endif
+
+#if defined(ENTRY_COLLISION)
+void main(){
+    const int cam_idx = int(gl_GlobalInvocationID.x);
+    const int probe_idx = int(gl_GlobalInvocationID.y);
+
+    if(cam_idx >= int(params.num_cameras) || probe_idx >= int(params.num_probes)){
+        return;
+    }
+
+    Camera cam = cameras_close[cam_idx];
+
+    vec3 dir;
+    if(probe_idx == 0){
+        dir = normalize(camera_dir_00(cam) + 0.5 * camera_dir_du(cam) + 0.5 * camera_dir_dv(cam));
+    }
+    else{
+        dir = vec3(probe_directions[3 * probe_idx], probe_directions[3 * probe_idx + 1], probe_directions[3 * probe_idx + 2]);
+    }
+
+    rayQueryEXT rq;
+    rayQueryInitializeEXT(rq, tlas, gl_RayFlagsOpaqueEXT, 0xffu, camera_pos(cam), 1e-3, dir, params.max_dist);
+    while(rayQueryProceedEXT(rq)){}
+
+    CollisionResult result;
+    if(rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionNoneEXT){
+        result.distance = params.max_dist;
+        result.hit = 0;
+    }
+    else{
+        result.distance = rayQueryGetIntersectionTEXT(rq, true);
+        result.hit = 1;
+    }
+    collision_results[cam_idx * int(params.num_probes) + probe_idx] = result;
+}
+#endif

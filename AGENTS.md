@@ -30,6 +30,8 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_EXPERIMENTAL=ON -DRL_TOOLS_
 **Environment variables:**
 - `CUDACXX=/usr/local/cuda-13.1/bin/nvcc` — required for CUDA test targets
 
+**Raytracing backend selection:** `-DRL_TOOLS_RENDERING_RAYTRACING_BACKEND=AUTO|OPTIX|METAL|VULKAN|GENERIC` (`AUTO` resolves to `METAL` on macOS, `OPTIX` elsewhere). The `VULKAN` backend uses compute shaders with `VK_KHR_ray_query` (structural mirror of the Metal backend, GLSL compiled to SPIR-V at build time via `glslangValidator`); it needs the Vulkan dev headers and `glslang-tools` installed, runs headless, and works on Mesa's lavapipe CPU driver (`VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json`) for GPU-less machines/CI. `RL_TOOLS_VULKAN_DEVICE_INDEX` overrides device selection.
+
 ### Running Tests
 
 ```bash
