@@ -24,8 +24,12 @@ namespace rl_tools {
             std::vector<MeshView<T, TI>> meshes; // views into the Scene passed to init (which must outlive rendering)
             std::vector<TI> triangle_mesh;
             std::vector<TI> triangle_local;
-            std::vector<BVHNode<T, TI>> nodes;
-            std::vector<TI> primitives;
+            std::vector<ObjectView<T, TI>> objects;
+            std::vector<InstanceView<T, TI>> instances;
+            std::vector<BVHNode<T, TI>> nodes;   // all BLAS nodes, one slice per object
+            std::vector<TI> primitives;          // all BLAS leaf permutations (global triangle ids), one slice per object
+            std::vector<BVHNode<T, TI>> tlas_nodes;
+            std::vector<TI> tlas_primitives;
             std::vector<SceneLight> lights;
             std::vector<T> probe_directions;
             std::vector<Camera<T>> cameras;
@@ -107,39 +111,45 @@ namespace rl_tools {
         auto& backend_state = generic::state(renderer);
 
         rendering::raytracing::detail::compute_scene_bounds(renderer, scene);
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << scene.meshes.size() << " geometries ...");
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << scene.objects.size() << " object(s), " << scene.instances.size() << " instance(s) ...");
 
         backend_state.meshes.clear();
         backend_state.triangle_mesh.clear();
         backend_state.triangle_local.clear();
-        for(size_t mesh_i = 0; mesh_i < scene.meshes.size(); mesh_i++){
-            const auto& md = scene.meshes[mesh_i];
-            generic::MeshView<T, TI> view;
-            view.indices = md.indices.data();
-            view.vertices = md.vertices.data();
-            view.tex_coords = md.tex_coords.empty() ? nullptr : md.tex_coords.data();
-            view.normals = md.normals.empty() ? nullptr : md.normals.data();
-            view.texture = generic::texture_view<TI>(md.texture);
-            view.normal_map = generic::texture_view<TI>(md.normal_map);
-            view.metallic_roughness_map = generic::texture_view<TI>(md.metallic_roughness_map);
-            view.emissive_map = generic::texture_view<TI>(md.emissive_map);
-            view.occlusion_map = generic::texture_view<TI>(md.occlusion_map);
-            for(int component = 0; component < 3; component++){
-                view.color[component] = md.color[component];
-                view.emissive[component] = md.emissive[component];
-            }
-            view.metallic = md.metallic;
-            view.roughness = md.roughness;
-            view.opacity = md.opacity;
-            view.alpha_cutoff = md.alpha_cutoff;
-            view.alpha_mode = md.alpha_mode;
-            backend_state.meshes.push_back(view);
+        std::vector<TI> object_first_triangle;
+        std::vector<TI> object_triangle_count;
+        for(const auto& object : scene.objects){
+            object_first_triangle.push_back((TI)backend_state.triangle_mesh.size());
+            for(const auto& md : object.meshes){
+                const TI mesh_i = (TI)backend_state.meshes.size();
+                generic::MeshView<T, TI> view;
+                view.indices = md.indices.data();
+                view.vertices = md.vertices.data();
+                view.tex_coords = md.tex_coords.empty() ? nullptr : md.tex_coords.data();
+                view.normals = md.normals.empty() ? nullptr : md.normals.data();
+                view.texture = generic::texture_view<TI>(md.texture);
+                view.normal_map = generic::texture_view<TI>(md.normal_map);
+                view.metallic_roughness_map = generic::texture_view<TI>(md.metallic_roughness_map);
+                view.emissive_map = generic::texture_view<TI>(md.emissive_map);
+                view.occlusion_map = generic::texture_view<TI>(md.occlusion_map);
+                for(int component = 0; component < 3; component++){
+                    view.color[component] = md.color[component];
+                    view.emissive[component] = md.emissive[component];
+                }
+                view.metallic = md.metallic;
+                view.roughness = md.roughness;
+                view.opacity = md.opacity;
+                view.alpha_cutoff = md.alpha_cutoff;
+                view.alpha_mode = md.alpha_mode;
+                backend_state.meshes.push_back(view);
 
-            const TI num_triangles = (TI)(md.indices.size() / 3);
-            for(TI triangle = 0; triangle < num_triangles; triangle++){
-                backend_state.triangle_mesh.push_back((TI)mesh_i);
-                backend_state.triangle_local.push_back(triangle);
+                const TI mesh_triangles = (TI)(md.indices.size() / 3);
+                for(TI triangle = 0; triangle < mesh_triangles; triangle++){
+                    backend_state.triangle_mesh.push_back(mesh_i);
+                    backend_state.triangle_local.push_back(triangle);
+                }
             }
+            object_triangle_count.push_back((TI)backend_state.triangle_mesh.size() - object_first_triangle.back());
         }
         backend_state.scene.meshes = backend_state.meshes.data();
         backend_state.scene.num_meshes = (TI)backend_state.meshes.size();
@@ -148,12 +158,113 @@ namespace rl_tools {
         backend_state.scene.num_triangles = (TI)backend_state.triangle_mesh.size();
 
         const size_t num_triangles = backend_state.triangle_mesh.size();
+        std::vector<T> triangle_bounds_min(num_triangles > 0 ? 3 * num_triangles : 1);
+        std::vector<T> triangle_bounds_max(num_triangles > 0 ? 3 * num_triangles : 1);
+        std::vector<T> centroids(num_triangles > 0 ? 3 * num_triangles : 1);
+        for(TI triangle = 0; triangle < (TI)num_triangles; triangle++){
+            T bounds_min[3] = {(T)1e30, (T)1e30, (T)1e30};
+            T bounds_max[3] = {(T)-1e30, (T)-1e30, (T)-1e30};
+            generic::expand_triangle_bounds(backend_state.scene, triangle, bounds_min, bounds_max);
+            for(int axis = 0; axis < 3; axis++){
+                triangle_bounds_min[3 * triangle + axis] = bounds_min[axis];
+                triangle_bounds_max[3 * triangle + axis] = bounds_max[axis];
+                centroids[3 * triangle + axis] = (bounds_min[axis] + bounds_max[axis]) * (T)0.5;
+            }
+        }
+
+        backend_state.objects.clear();
         backend_state.nodes.resize(num_triangles > 0 ? 2 * num_triangles : 1);
         backend_state.primitives.resize(num_triangles > 0 ? num_triangles : 1);
         std::vector<TI> temp_primitives(backend_state.primitives.size());
-        std::vector<T> centroids(3 * backend_state.primitives.size());
-        generic::build_bvh(device, backend_state.scene, backend_state.nodes.data(), backend_state.primitives.data(), temp_primitives.data(), centroids.data());
-        renderer.backend.world = backend_state.nodes.data();
+        for(size_t object_i = 0; object_i < scene.objects.size(); object_i++){
+            const TI first = object_first_triangle[object_i];
+            const TI count = object_triangle_count[object_i];
+            generic::ObjectView<T, TI> object_view;
+            object_view.nodes = backend_state.nodes.data() + 2 * (size_t)first;
+            object_view.primitives = backend_state.primitives.data() + first;
+            for(TI i = 0; i < count; i++){
+                backend_state.primitives[first + i] = first + i;
+            }
+            object_view.num_nodes = generic::build_bvh_nodes(backend_state.nodes.data() + 2 * (size_t)first, backend_state.primitives.data() + first, temp_primitives.data(), triangle_bounds_min.data(), triangle_bounds_max.data(), centroids.data(), count);
+            backend_state.objects.push_back(object_view);
+        }
+        backend_state.scene.objects = backend_state.objects.data();
+        backend_state.scene.num_objects = (TI)backend_state.objects.size();
+
+        backend_state.instances.clear();
+        for(const auto& instance : scene.instances){
+            generic::InstanceView<T, TI> instance_view;
+            instance_view.object = (TI)instance.object;
+            instance_view.identity = instance.identity;
+            for(int element = 0; element < 12; element++){
+                instance_view.object_to_world[element] = (T)instance.transform[element];
+            }
+            if(instance.identity){
+                for(int element = 0; element < 12; element++){
+                    instance_view.world_to_object[element] = instance_view.object_to_world[element];
+                }
+            }
+            else{
+                float world_to_object[12];
+                rendering::raytracing::detail::invert_transform(instance.transform, world_to_object);
+                for(int element = 0; element < 12; element++){
+                    instance_view.world_to_object[element] = (T)world_to_object[element];
+                }
+            }
+            backend_state.instances.push_back(instance_view);
+        }
+        backend_state.scene.instances = backend_state.instances.data();
+        backend_state.scene.num_instances = (TI)backend_state.instances.size();
+
+        const size_t num_instances = backend_state.instances.size();
+        std::vector<T> instance_bounds_min(num_instances > 0 ? 3 * num_instances : 1);
+        std::vector<T> instance_bounds_max(num_instances > 0 ? 3 * num_instances : 1);
+        std::vector<T> instance_centroids(num_instances > 0 ? 3 * num_instances : 1);
+        for(size_t instance_i = 0; instance_i < num_instances; instance_i++){
+            const auto& instance_view = backend_state.instances[instance_i];
+            const auto& object_view = backend_state.objects[instance_view.object];
+            T bounds_min[3] = {(T)1e30, (T)1e30, (T)1e30};
+            T bounds_max[3] = {(T)-1e30, (T)-1e30, (T)-1e30};
+            if(object_view.num_nodes > 0){
+                const auto& root = object_view.nodes[0];
+                if(instance_view.identity){
+                    for(int axis = 0; axis < 3; axis++){
+                        bounds_min[axis] = root.bounds_min[axis];
+                        bounds_max[axis] = root.bounds_max[axis];
+                    }
+                }
+                else{
+                    for(int corner = 0; corner < 8; corner++){
+                        const float local[3] = {
+                            (corner & 1) ? (float)root.bounds_max[0] : (float)root.bounds_min[0],
+                            (corner & 2) ? (float)root.bounds_max[1] : (float)root.bounds_min[1],
+                            (corner & 4) ? (float)root.bounds_max[2] : (float)root.bounds_min[2]
+                        };
+                        float world[3];
+                        rendering::raytracing::detail::transform_point(instance_view.object_to_world, local, world);
+                        for(int axis = 0; axis < 3; axis++){
+                            bounds_min[axis] = generic::minimum(bounds_min[axis], (T)world[axis]);
+                            bounds_max[axis] = generic::maximum(bounds_max[axis], (T)world[axis]);
+                        }
+                    }
+                }
+            }
+            for(int axis = 0; axis < 3; axis++){
+                instance_bounds_min[3 * instance_i + axis] = bounds_min[axis];
+                instance_bounds_max[3 * instance_i + axis] = bounds_max[axis];
+                instance_centroids[3 * instance_i + axis] = (bounds_min[axis] + bounds_max[axis]) * (T)0.5;
+            }
+        }
+        backend_state.tlas_nodes.resize(num_instances > 0 ? 2 * num_instances : 1);
+        backend_state.tlas_primitives.resize(num_instances > 0 ? num_instances : 1);
+        std::vector<TI> tlas_temp(backend_state.tlas_primitives.size());
+        for(size_t instance_i = 0; instance_i < num_instances; instance_i++){
+            backend_state.tlas_primitives[instance_i] = (TI)instance_i;
+        }
+        backend_state.scene.num_tlas_nodes = generic::build_bvh_nodes(backend_state.tlas_nodes.data(), backend_state.tlas_primitives.data(), tlas_temp.data(), instance_bounds_min.data(), instance_bounds_max.data(), instance_centroids.data(), (TI)num_instances);
+        backend_state.scene.tlas_nodes = backend_state.tlas_nodes.data();
+        backend_state.scene.tlas_primitives = backend_state.tlas_primitives.data();
+        renderer.backend.world = backend_state.tlas_nodes.data();
 
         backend_state.lights = rendering::raytracing::detail::effective_scene_lights<SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING>(scene);
         backend_state.scene.lights = backend_state.lights.data();

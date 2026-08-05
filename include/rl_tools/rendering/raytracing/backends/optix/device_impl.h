@@ -263,6 +263,18 @@ namespace rl_tools
 #undef RL_TOOLS_RENDERING_RAYTRACING_DEPTH_RAYGEN
 #endif
 
+  // geometry lives in object space under the instance (top-level) group; the intrinsics apply
+  // the current instance transform (exact for identity instances)
+  inline __device__ owl::vec3f transform_point_to_world(const owl::vec3f& point){
+    const float3 world = optixTransformPointFromObjectToWorldSpace(make_float3(point.x, point.y, point.z));
+    return owl::vec3f(world.x, world.y, world.z);
+  }
+
+  inline __device__ owl::vec3f transform_normal_to_world(const owl::vec3f& normal){
+    const float3 world = optixTransformNormalFromObjectToWorldSpace(make_float3(normal.x, normal.y, normal.z));
+    return owl::vec3f(world.x, world.y, world.z);
+  }
+
   template <bool LOAD_TEXTURES, bool NORMAL_SHADING, bool METALLIC_REFLECTIONS>
   inline __device__ void triangleMeshBasicImpl()
   {
@@ -279,9 +291,9 @@ namespace rl_tools
       const owl::vec3i index = self.index[prim_id];
 
       if constexpr (NORMAL_SHADING || METALLIC_REFLECTIONS) {
-        const owl::vec3f &vertex_a = self.vertex[index.x];
-        const owl::vec3f &vertex_b = self.vertex[index.y];
-        const owl::vec3f &vertex_c = self.vertex[index.z];
+        const owl::vec3f vertex_a = transform_point_to_world(self.vertex[index.x]);
+        const owl::vec3f vertex_b = transform_point_to_world(self.vertex[index.y]);
+        const owl::vec3f vertex_c = transform_point_to_world(self.vertex[index.z]);
         normal_geometric = normalize(cross(vertex_b - vertex_a, vertex_c - vertex_a));
         ray_dir = optixGetWorldRayDirection();
       }
@@ -363,9 +375,9 @@ namespace rl_tools
 
     const int prim_id = optixGetPrimitiveIndex();
     const owl::vec3i index = self.index[prim_id];
-    const owl::vec3f &vertex_a = self.vertex[index.x];
-    const owl::vec3f &vertex_b = self.vertex[index.y];
-    const owl::vec3f &vertex_c = self.vertex[index.z];
+    const owl::vec3f vertex_a = transform_point_to_world(self.vertex[index.x]);
+    const owl::vec3f vertex_b = transform_point_to_world(self.vertex[index.y]);
+    const owl::vec3f vertex_c = transform_point_to_world(self.vertex[index.z]);
     const owl::vec2f bary = optixGetTriangleBarycentrics();
     const float w0 = 1.f - bary.x - bary.y;
 
@@ -375,7 +387,7 @@ namespace rl_tools
 
     owl::vec3f N;
     if (self.normal) {
-      N = normalize(w0 * self.normal[index.x] + bary.x * self.normal[index.y] + bary.y * self.normal[index.z]);
+      N = normalize(transform_normal_to_world(w0 * self.normal[index.x] + bary.x * self.normal[index.y] + bary.y * self.normal[index.z]));
     } else {
       N = normal_geometric;
     }

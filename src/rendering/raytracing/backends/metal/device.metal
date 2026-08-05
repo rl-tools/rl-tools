@@ -85,6 +85,27 @@ struct Camera{
 };
 static_assert(sizeof(Camera) == 48, "Camera layout must match rendering/raytracing/types.h");
 
+struct InstanceData{
+    float object_to_world[12]; // 3x4 row-major [R|t]
+    float world_to_object[12];
+    int identity;
+    int padding[3];
+};
+static_assert(sizeof(InstanceData) == 112, "InstanceData layout must match context.h");
+
+inline float3 transform_point(device const float* m, float3 p){
+    return float3(m[0]*p.x + m[1]*p.y + m[2]*p.z + m[3],
+                  m[4]*p.x + m[5]*p.y + m[6]*p.z + m[7],
+                  m[8]*p.x + m[9]*p.y + m[10]*p.z + m[11]);
+}
+
+// normals transform with the inverse-transpose: multiply by the world_to_object columns
+inline float3 transform_normal(device const float* m, float3 n){
+    return float3(m[0]*n.x + m[4]*n.y + m[8]*n.z,
+                  m[1]*n.x + m[5]*n.y + m[9]*n.z,
+                  m[2]*n.x + m[6]*n.y + m[10]*n.z);
+}
+
 struct CollisionResult{
     float distance;
     int hit;
@@ -143,9 +164,11 @@ inline PixelLaunchContext pixel_launch_context(constant LaunchParams& params, ui
 }
 
 struct TraceContext{
-    primitive_acceleration_structure accel;
+    instance_acceleration_structure accel;
     device const MeshRecord* meshes;
     device const SceneLight* scene_lights;
+    device const uint* instance_record_base;
+    device const InstanceData* instance_data;
     constant LaunchParams* params;
     uint2 pixel_id;
 };
@@ -158,22 +181,22 @@ inline float3 miss_color(thread const TraceContext& ctx){
     return float3(ctx.params->miss_color_0);
 }
 
-inline bool trace_shadow_occluded(primitive_acceleration_structure accel, float3 pos, float3 direction, float max_dist){
+inline bool trace_shadow_occluded(instance_acceleration_structure accel, float3 pos, float3 direction, float max_dist){
     ray r(pos, direction, 1e-3f, max_dist);
-    intersector<triangle_data> i;
+    intersector<triangle_data, instancing> i;
     i.assume_geometry_type(geometry_type::triangle);
     i.force_opacity(forced_opacity::opaque);
     i.accept_any_intersection(true);
-    intersection_result<triangle_data> hit = i.intersect(r, accel);
+    intersection_result<triangle_data, instancing> hit = i.intersect(r, accel);
     return hit.type != intersection_type::none;
 }
 
-inline float trace_depth_distance(primitive_acceleration_structure accel, float3 pos, float3 direction, float max_depth){
+inline float trace_depth_distance(instance_acceleration_structure accel, float3 pos, float3 direction, float max_depth){
     ray r(pos, direction, 0.f, max_depth);
-    intersector<triangle_data> i;
+    intersector<triangle_data, instancing> i;
     i.assume_geometry_type(geometry_type::triangle);
     i.force_opacity(forced_opacity::opaque);
-    intersection_result<triangle_data> hit = i.intersect(r, accel);
+    intersection_result<triangle_data, instancing> hit = i.intersect(r, accel);
     return hit.type == intersection_type::none ? max_depth : hit.distance;
 }
 
@@ -197,9 +220,10 @@ struct SecondaryTrace<DEPTH, false>{
 };
 
 template <int DEPTH>
-inline float3 shade_basic(thread const TraceContext& ctx, thread const ray& r, thread const intersection_result<triangle_data>& hit){
+inline float3 shade_basic(thread const TraceContext& ctx, thread const ray& r, thread const intersection_result<triangle_data, instancing>& hit){
     constexpr bool SECONDARY = DEPTH < 1;
-    device const MeshRecord& self = ctx.meshes[hit.geometry_id];
+    device const MeshRecord& self = ctx.meshes[ctx.instance_record_base[hit.instance_id] + hit.geometry_id];
+    device const InstanceData& instance = ctx.instance_data[hit.instance_id];
 
     float3 base_color = float3(self.color);
     float3 normal_geometric = float3(0.f, 0.f, 1.f);
@@ -210,9 +234,14 @@ inline float3 shade_basic(thread const TraceContext& ctx, thread const ray& r, t
         const int3 index = int3(self.index[prim_id]);
 
         if (fc_normal_shading || fc_metallic_reflections) {
-            const float3 vertex_a = float3(self.vertices[index.x]);
-            const float3 vertex_b = float3(self.vertices[index.y]);
-            const float3 vertex_c = float3(self.vertices[index.z]);
+            float3 vertex_a = float3(self.vertices[index.x]);
+            float3 vertex_b = float3(self.vertices[index.y]);
+            float3 vertex_c = float3(self.vertices[index.z]);
+            if (!instance.identity) {
+                vertex_a = transform_point(instance.object_to_world, vertex_a);
+                vertex_b = transform_point(instance.object_to_world, vertex_b);
+                vertex_c = transform_point(instance.object_to_world, vertex_c);
+            }
             normal_geometric = normalize(cross(vertex_b - vertex_a, vertex_c - vertex_a));
             ray_dir = r.direction;
         }
@@ -253,15 +282,21 @@ inline float3 shade_basic(thread const TraceContext& ctx, thread const ray& r, t
 }
 
 template <int DEPTH>
-inline float3 shade_pbr(thread const TraceContext& ctx, thread const ray& r, thread const intersection_result<triangle_data>& hit){
+inline float3 shade_pbr(thread const TraceContext& ctx, thread const ray& r, thread const intersection_result<triangle_data, instancing>& hit){
     constexpr bool SECONDARY = DEPTH < 1;
-    device const MeshRecord& self = ctx.meshes[hit.geometry_id];
+    device const MeshRecord& self = ctx.meshes[ctx.instance_record_base[hit.instance_id] + hit.geometry_id];
+    device const InstanceData& instance = ctx.instance_data[hit.instance_id];
 
     const int prim_id = hit.primitive_id;
     const int3 index = int3(self.index[prim_id]);
-    const float3 vertex_a = float3(self.vertices[index.x]);
-    const float3 vertex_b = float3(self.vertices[index.y]);
-    const float3 vertex_c = float3(self.vertices[index.z]);
+    float3 vertex_a = float3(self.vertices[index.x]);
+    float3 vertex_b = float3(self.vertices[index.y]);
+    float3 vertex_c = float3(self.vertices[index.z]);
+    if (!instance.identity) {
+        vertex_a = transform_point(instance.object_to_world, vertex_a);
+        vertex_b = transform_point(instance.object_to_world, vertex_b);
+        vertex_c = transform_point(instance.object_to_world, vertex_c);
+    }
     const float2 bary = hit.triangle_barycentric_coord;
     const float w0 = 1.f - bary.x - bary.y;
 
@@ -271,7 +306,11 @@ inline float3 shade_pbr(thread const TraceContext& ctx, thread const ray& r, thr
 
     float3 N;
     if (self.normal != nullptr) {
-        N = normalize(w0 * float3(self.normal[index.x]) + bary.x * float3(self.normal[index.y]) + bary.y * float3(self.normal[index.z]));
+        float3 normal_interpolated = w0 * float3(self.normal[index.x]) + bary.x * float3(self.normal[index.y]) + bary.y * float3(self.normal[index.z]);
+        if (!instance.identity) {
+            normal_interpolated = transform_normal(instance.world_to_object, normal_interpolated);
+        }
+        N = normalize(normal_interpolated);
     } else {
         N = normal_geometric;
     }
@@ -425,10 +464,10 @@ template <int DEPTH>
 struct RGBTracer{
     static float3 trace(thread const TraceContext& ctx, float3 origin, float3 direction, float tmin, float tmax){
         ray r(origin, direction, tmin, tmax);
-        intersector<triangle_data> i;
+        intersector<triangle_data, instancing> i;
         i.assume_geometry_type(geometry_type::triangle);
         i.force_opacity(forced_opacity::opaque);
-        intersection_result<triangle_data> hit = i.intersect(r, ctx.accel);
+        intersection_result<triangle_data, instancing> hit = i.intersect(r, ctx.accel);
         if (hit.type == intersection_type::none) {
             return miss_color(ctx);
         }
@@ -446,14 +485,16 @@ kernel void render_rgb(
     device uint* fb [[buffer(3)]],
     device const MeshRecord* meshes [[buffer(4)]],
     device const SceneLight* scene_lights [[buffer(5)]],
-    primitive_acceleration_structure accel [[buffer(8)]],
+    instance_acceleration_structure accel [[buffer(8)]],
+    device const uint* instance_record_base [[buffer(9)]],
+    device const InstanceData* instance_data [[buffer(10)]],
     uint2 pixel_id [[thread_position_in_grid]])
 {
     const PixelLaunchContext ctx = pixel_launch_context(params, pixel_id);
     if (!ctx.valid)
         return;
 
-    TraceContext trace_ctx{accel, meshes, scene_lights, &params, pixel_id};
+    TraceContext trace_ctx{accel, meshes, scene_lights, instance_record_base, instance_data, &params, pixel_id};
 
     float3 accumulated = float3(0.f);
     const float inv_aa_grid = 1.f / float(fc_aa_grid);
@@ -501,7 +542,7 @@ kernel void render_depth(
     device const Camera* cameras_close [[buffer(1)]],
     device const Camera* cameras_open [[buffer(2)]],
     device float* depth_out [[buffer(3)]],
-    primitive_acceleration_structure accel [[buffer(8)]],
+    instance_acceleration_structure accel [[buffer(8)]],
     uint2 pixel_id [[thread_position_in_grid]])
 {
     const PixelLaunchContext ctx = pixel_launch_context(params, pixel_id);
@@ -548,7 +589,7 @@ kernel void render_collision(
     device const Camera* cameras [[buffer(1)]],
     device const packed_float3* probe_directions [[buffer(6)]],
     device CollisionResult* results [[buffer(7)]],
-    primitive_acceleration_structure accel [[buffer(8)]],
+    instance_acceleration_structure accel [[buffer(8)]],
     uint2 idx [[thread_position_in_grid]])
 {
     const int cam_idx   = (int)idx.x;
@@ -567,10 +608,10 @@ kernel void render_collision(
     }
 
     ray r(float3(cam.pos), dir, 1e-3f, params.max_dist);
-    intersector<triangle_data> i;
+    intersector<triangle_data, instancing> i;
     i.assume_geometry_type(geometry_type::triangle);
     i.force_opacity(forced_opacity::opaque);
-    intersection_result<triangle_data> hit = i.intersect(r, accel);
+    intersection_result<triangle_data, instancing> hit = i.intersect(r, accel);
 
     CollisionResult result;
     if (hit.type == intersection_type::none) {

@@ -851,15 +851,60 @@ namespace rl_tools {
         return true;
     }
 
+    inline bool transform_is_identity(const float transform[12]){
+        const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
+        for(int element = 0; element < 12; element++){
+            if(transform[element] != identity[element]){
+                return false;
+            }
+        }
+        return true;
+    }
+
+    inline void transform_point(const float transform[12], const float point[3], float out[3]){
+        for(int row = 0; row < 3; row++){
+            out[row] = transform[row * 4 + 0] * point[0] + transform[row * 4 + 1] * point[1] + transform[row * 4 + 2] * point[2] + transform[row * 4 + 3];
+        }
+    }
+
+    inline void transform_vector(const float transform[12], const float vector[3], float out[3]){
+        for(int row = 0; row < 3; row++){
+            out[row] = transform[row * 4 + 0] * vector[0] + transform[row * 4 + 1] * vector[1] + transform[row * 4 + 2] * vector[2];
+        }
+    }
+
+    inline void invert_transform(const float transform[12], float out[12]){
+        const float a = transform[0], b = transform[1], c = transform[2];
+        const float d = transform[4], e = transform[5], f = transform[6];
+        const float g = transform[8], h = transform[9], i = transform[10];
+        const float cofactor_a = e*i - f*h;
+        const float cofactor_b = f*g - d*i;
+        const float cofactor_c = d*h - e*g;
+        const float inv_det = 1.0f / (a*cofactor_a + b*cofactor_b + c*cofactor_c);
+        out[0] = cofactor_a * inv_det; out[1] = (c*h - b*i) * inv_det; out[2]  = (b*f - c*e) * inv_det;
+        out[4] = cofactor_b * inv_det; out[5] = (a*i - c*g) * inv_det; out[6]  = (c*d - a*f) * inv_det;
+        out[8] = cofactor_c * inv_det; out[9] = (b*g - a*h) * inv_det; out[10] = (a*e - b*d) * inv_det;
+        out[3]  = -(out[0]*transform[3] + out[1]*transform[7] + out[2] *transform[11]);
+        out[7]  = -(out[4]*transform[3] + out[5]*transform[7] + out[6] *transform[11]);
+        out[11] = -(out[8]*transform[3] + out[9]*transform[7] + out[10]*transform[11]);
+    }
+
     template <typename SPEC>
     void compute_scene_bounds(rendering::raytracing::Renderer<SPEC>& renderer, const rendering::raytracing::Scene& scene){
         float bbox_min[3] = {std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
         float bbox_max[3] = {std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest()};
-        for(const auto& mesh : scene.meshes){
-            for(size_t vertex_i = 0; vertex_i + 2 < mesh.vertices.size(); vertex_i += 3){
-                for(int d = 0; d < 3; d++){
-                    bbox_min[d] = std::min(bbox_min[d], mesh.vertices[vertex_i + d]);
-                    bbox_max[d] = std::max(bbox_max[d], mesh.vertices[vertex_i + d]);
+        for(const auto& instance : scene.instances){
+            for(const auto& mesh : scene.objects[instance.object].meshes){
+                for(size_t vertex_i = 0; vertex_i + 2 < mesh.vertices.size(); vertex_i += 3){
+                    float world[3] = {mesh.vertices[vertex_i], mesh.vertices[vertex_i + 1], mesh.vertices[vertex_i + 2]};
+                    if(!instance.identity){
+                        const float local[3] = {world[0], world[1], world[2]};
+                        transform_point(instance.transform, local, world);
+                    }
+                    for(int d = 0; d < 3; d++){
+                        bbox_min[d] = std::min(bbox_min[d], world[d]);
+                        bbox_max[d] = std::max(bbox_max[d], world[d]);
+                    }
                 }
             }
         }
@@ -885,12 +930,29 @@ namespace rl_tools {
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Camera positioned at [" << look_from[0] << "," << look_from[1] << "," << look_from[2] << "]");
     }
 
-    // Lights as uploaded to the device: only the PBR tiers consume punctual lights
+    // Lights as uploaded to the device: only the PBR tiers consume punctual lights. Object lights
+    // are authored in the object's local frame and follow the instance placing it.
     template <bool APPLY>
     std::vector<rendering::raytracing::SceneLight> effective_scene_lights(const rendering::raytracing::Scene& scene){
         std::vector<rendering::raytracing::SceneLight> lights;
         if constexpr (APPLY) {
             lights = scene.lights;
+            for(const auto& instance : scene.instances){
+                for(const auto& object_light : scene.objects[instance.object].lights){
+                    rendering::raytracing::SceneLight light = object_light;
+                    if(!instance.identity){
+                        transform_point(instance.transform, object_light.position, light.position);
+                        transform_vector(instance.transform, object_light.direction, light.direction);
+                        const float length = sqrtf(light.direction[0]*light.direction[0] + light.direction[1]*light.direction[1] + light.direction[2]*light.direction[2]);
+                        if(length > 0){
+                            light.direction[0] /= length;
+                            light.direction[1] /= length;
+                            light.direction[2] /= length;
+                        }
+                    }
+                    lights.push_back(light);
+                }
+            }
             RL_TOOLS_RENDERING_RAYTRACING_LOG("Scene lights: " << lights.size());
             for (size_t li = 0; li < lights.size(); li++) {
                 auto& sl = lights[li];
@@ -908,14 +970,18 @@ namespace rl_tools {
         return rendering::raytracing::detail::load_scene_data<SHADING, HAS_RGB>(object.meshes, object.lights, filename);
     }
 
-    // Scene-level load: a scene file without any punctual lights gets a neutral 3-directional
-    // fill so PBR-shaded content is not lit by ambient only. Object/asset loads deliberately do
-    // not: fill lighting is a scene decision, not an asset property.
+    // Scene-level load: the scene file becomes one welded static object placed at identity. A
+    // scene file without any punctual lights gets a neutral 3-directional fill so PBR-shaded
+    // content is not lit by ambient only. Object/asset loads deliberately do not: fill lighting
+    // is a scene decision, not an asset property.
     template <typename SHADING = rendering::raytracing::VeryHigh, bool HAS_RGB = true, typename DEVICE>
     bool load(DEVICE& device, rendering::raytracing::Scene& scene, const std::string& filename){
-        if(!rendering::raytracing::detail::load_scene_data<SHADING, HAS_RGB>(scene.meshes, scene.lights, filename)){
+        rendering::raytracing::Object object;
+        if(!rendering::raytracing::detail::load_scene_data<SHADING, HAS_RGB>(object.meshes, scene.lights, filename)){
             return false;
         }
+        scene.objects.push_back(std::move(object));
+        scene.instances.push_back({scene.objects.size() - 1, {1,0,0,0, 0,1,0,0, 0,0,1,0}, true});
         if(scene.lights.empty()){
             float inv_sqrt2 = 0.70710678f;
             scene.lights.push_back({0, {0,0,0}, {-inv_sqrt2, 0.f, inv_sqrt2}, {0.4f, 0.4f, 0.4f}, 0,0,0, 0,0});
@@ -927,14 +993,31 @@ namespace rl_tools {
     }
 
     template <typename DEVICE>
-    void add(DEVICE& device, rendering::raytracing::Scene& scene, const rendering::raytracing::Object& object){
-        scene.meshes.insert(scene.meshes.end(), object.meshes.begin(), object.meshes.end());
-        scene.lights.insert(scene.lights.end(), object.lights.begin(), object.lights.end());
+    size_t add(DEVICE& device, rendering::raytracing::Scene& scene, const rendering::raytracing::Object& object, const float transform[12]){
+        scene.objects.push_back(object);
+        scene.instances.push_back({scene.objects.size() - 1, {}, rendering::raytracing::detail::transform_is_identity(transform)});
+        std::memcpy(scene.instances.back().transform, transform, 12 * sizeof(float));
+        return scene.instances.size() - 1;
     }
 
     template <typename DEVICE>
-    void add(DEVICE& device, rendering::raytracing::Scene& scene, const rendering::raytracing::Mesh& mesh){
-        scene.meshes.push_back(mesh);
+    size_t add(DEVICE& device, rendering::raytracing::Scene& scene, const rendering::raytracing::Object& object){
+        const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
+        return add(device, scene, object, identity);
+    }
+
+    template <typename DEVICE>
+    size_t add(DEVICE& device, rendering::raytracing::Scene& scene, const rendering::raytracing::Mesh& mesh){
+        rendering::raytracing::Object object;
+        object.meshes.push_back(mesh);
+        return add(device, scene, object);
+    }
+
+    inline void make_transform(const float position[3], const float orientation_wxyz[4], float out[12]){
+        const float w = orientation_wxyz[0], x = orientation_wxyz[1], y = orientation_wxyz[2], z = orientation_wxyz[3];
+        out[0] = 1 - 2*(y*y + z*z); out[1] = 2*(x*y - w*z);     out[2] = 2*(x*z + w*y);     out[3] = position[0];
+        out[4] = 2*(x*y + w*z);     out[5] = 1 - 2*(x*x + z*z); out[6] = 2*(y*z - w*x);     out[7] = position[1];
+        out[8] = 2*(x*z - w*y);     out[9] = 2*(y*z + w*x);     out[10] = 1 - 2*(x*x + y*y); out[11] = position[2];
     }
 
     template <typename T>
