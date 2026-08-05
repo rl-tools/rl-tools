@@ -174,6 +174,17 @@ namespace rl_tools {
             }
         }
 
+        static inline bool decode_image_bytes(const std::vector<uint8_t>& bytes,
+                                              std::vector<uint8_t>& pixels,
+                                              int& w, int& h){
+            int channels;
+            unsigned char* data = stbi_load_from_memory(bytes.data(), (int)bytes.size(), &w, &h, &channels, 4);
+            if(!data) return false;
+            pixels.assign(data, data + (size_t)w * h * 4);
+            stbi_image_free(data);
+            return true;
+        }
+
         static inline bool load_representative_texture_color(const aiScene* scene,
                                                       const aiMaterial* mat,
                                                       aiTextureType texture_type,
@@ -230,13 +241,15 @@ namespace rl_tools {
     // KHR_lights_punctual import associates lights to nodes by name and mangles per-light
     // intensity/attenuation (see commit 8278f9a9 "removing assimp loading because it fumbled the lights").
     namespace rendering::raytracing::glb{
-        struct MaterialFactors {
+        struct Material {
             float metallic;
             float roughness;
+            int metallic_roughness_image = -1; // glTF image index, -1 when the material has no MR texture
         };
         struct ParsedMetadata {
             std::vector<rendering::raytracing::SceneLight> lights;
-            std::map<std::string, MaterialFactors> material_factors; // by material name; glTF spec defaults when absent
+            std::map<std::string, Material> materials; // by material name; glTF spec defaults when absent
+            std::map<int, std::vector<uint8_t>> images; // encoded bytes of referenced MR images, by glTF image index
         };
 
         static inline void node_world_transform(const nlohmann::json& nodes, int node_idx, const std::vector<int>& parent_map, float out[16]) {
@@ -305,34 +318,68 @@ namespace rl_tools {
 
             std::string json_str(json_len, '\0');
             if (fread(&json_str[0], 1, json_len, f) != json_len) { fclose(f); return result; }
-            fclose(f);
+
+            // BIN chunk (glTF buffer 0) directly follows the JSON chunk; chunk lengths include padding
+            long bin_data_start = -1;
+            long bin_data_length = 0;
+            if (fread(chunk_header, 4, 2, f) == 2 && chunk_header[1] == 0x004E4942u) {
+                bin_data_start = 12 + 8 + (long)json_len + 8;
+                bin_data_length = (long)chunk_header[0];
+            }
 
             nlohmann::json gltf = nlohmann::json::parse(json_str, nullptr, false);
-            if (gltf.is_discarded()) return result;
+            if (gltf.is_discarded()) { fclose(f); return result; }
 
             // Assimp's defaults for absent glTF pbrMetallicRoughness factors vary across versions;
             // the GLB JSON is authoritative here so scene import is identical on every machine.
-            // Absent metallicFactor resolves to 1 when a metallicRoughnessTexture is present (the
-            // factor is the texture's multiplier, the texture decides per texel) and to 0 otherwise
-            // (untextured materials without an explicit factor are authored as non-metallic in this
-            // pipeline; the glTF spec default of 1 would render them as mirrors). Absent
-            // roughnessFactor resolves to the spec default 1.
+            // Absent factors resolve to the glTF spec default 1: exporters omit values equal to
+            // the default, which is why intentionally non-metallic materials carry an explicit
+            // metallicFactor of 0 while chrome/steel/gold-style materials omit it entirely.
             if (gltf.contains("materials")) {
                 for (auto& material : gltf["materials"]) {
-                    if (!material.contains("name") || !material.contains("pbrMetallicRoughness")) continue;
-                    auto& pbr = material["pbrMetallicRoughness"];
-                    MaterialFactors factors{1.0f, 1.0f};
-                    if (pbr.contains("metallicFactor")) {
-                        factors.metallic = pbr["metallicFactor"].get<float>();
-                    } else {
-                        factors.metallic = pbr.contains("metallicRoughnessTexture") ? 1.0f : 0.0f;
+                    if (!material.contains("name")) continue;
+                    Material material_import{1.0f, 1.0f};
+                    if (material.contains("pbrMetallicRoughness")) {
+                        auto& pbr = material["pbrMetallicRoughness"];
+                        if (pbr.contains("metallicFactor")) {
+                            material_import.metallic = pbr["metallicFactor"].get<float>();
+                        }
+                        if (pbr.contains("roughnessFactor")) {
+                            material_import.roughness = pbr["roughnessFactor"].get<float>();
+                        }
+                        if (pbr.contains("metallicRoughnessTexture") && pbr["metallicRoughnessTexture"].contains("index")) {
+                            const int texture_index = pbr["metallicRoughnessTexture"]["index"].get<int>();
+                            if (gltf.contains("textures") && texture_index >= 0 && texture_index < (int)gltf["textures"].size()
+                                && gltf["textures"][texture_index].contains("source")) {
+                                material_import.metallic_roughness_image = gltf["textures"][texture_index]["source"].get<int>();
+                            }
+                        }
                     }
-                    if (pbr.contains("roughnessFactor")) {
-                        factors.roughness = pbr["roughnessFactor"].get<float>();
+                    result.materials[material["name"].get<std::string>()] = material_import;
+                }
+
+                if (bin_data_start >= 0 && gltf.contains("images") && gltf.contains("bufferViews")) {
+                    for (auto& [material_name, material_import] : result.materials) {
+                        const int image_index = material_import.metallic_roughness_image;
+                        if (image_index < 0 || result.images.count(image_index) > 0) continue;
+                        if (image_index >= (int)gltf["images"].size()) continue;
+                        const auto& image = gltf["images"][image_index];
+                        if (!image.contains("bufferView")) continue;
+                        const int buffer_view_index = image["bufferView"].get<int>();
+                        if (buffer_view_index < 0 || buffer_view_index >= (int)gltf["bufferViews"].size()) continue;
+                        const auto& buffer_view = gltf["bufferViews"][buffer_view_index];
+                        if (buffer_view.value("buffer", 0) != 0) continue;
+                        const long byte_offset = (long)buffer_view.value("byteOffset", 0LL);
+                        const long byte_length = (long)buffer_view.value("byteLength", 0LL);
+                        if (byte_length <= 0 || byte_offset < 0 || byte_offset + byte_length > bin_data_length) continue;
+                        if (fseek(f, bin_data_start + byte_offset, SEEK_SET) != 0) continue;
+                        std::vector<uint8_t> bytes((size_t)byte_length);
+                        if (fread(bytes.data(), 1, (size_t)byte_length, f) != (size_t)byte_length) continue;
+                        result.images[image_index] = std::move(bytes);
                     }
-                    result.material_factors[material["name"].get<std::string>()] = factors;
                 }
             }
+            fclose(f);
 
             auto& nodes = gltf["nodes"];
             std::vector<int> parent_map(nodes.size(), -1);
@@ -641,14 +688,17 @@ namespace rl_tools {
                         }
                     }
 
-                    if (mat->GetTextureCount(aiTextureType_UNKNOWN) > 0) {
-                        aiString tex_path;
-                        if (mat->GetTexture(aiTextureType_UNKNOWN, 0, &tex_path) == AI_SUCCESS) {
-                            const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
-                            if (emb_tex) {
+                    // the metallicRoughness texture is resolved from the GLB JSON, not through
+                    // Assimp's texture-type taxonomy (which relabels it across versions and orders
+                    // embedded textures differently from the glTF image array)
+                    {
+                        const auto glb_material = glb_metadata.materials.find(mat->GetName().C_Str());
+                        if (glb_material != glb_metadata.materials.end() && glb_material->second.metallic_roughness_image >= 0) {
+                            const auto image = glb_metadata.images.find(glb_material->second.metallic_roughness_image);
+                            if (image != glb_metadata.images.end()) {
                                 int w, h;
                                 std::vector<uint8_t> pixels;
-                                if (rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)) {
+                                if (rendering::raytracing::decode_image_bytes(image->second, pixels, w, h)) {
                                     md.metallic_roughness_map.pixels = std::move(pixels);
                                     md.metallic_roughness_map.width = w;
                                     md.metallic_roughness_map.height = h;
@@ -761,11 +811,11 @@ namespace rl_tools {
 
             if constexpr (HAS_RGB && (SHADING::METALLIC_REFLECTIONS || SHADING::PBR_SHADING)) {
                 if(mat != nullptr){
-                    const auto glb_factors = glb_metadata.material_factors.find(mat->GetName().C_Str());
-                    if(glb_factors != glb_metadata.material_factors.end()){
-                        md.metallic = glb_factors->second.metallic;
+                    const auto glb_material = glb_metadata.materials.find(mat->GetName().C_Str());
+                    if(glb_material != glb_metadata.materials.end()){
+                        md.metallic = glb_material->second.metallic;
                         if constexpr (SHADING::PBR_SHADING) {
-                            md.roughness = glb_factors->second.roughness;
+                            md.roughness = glb_material->second.roughness;
                         }
                     }
                 }
