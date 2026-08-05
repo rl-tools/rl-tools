@@ -247,17 +247,20 @@ namespace rl_tools {
             int metallic_roughness_image = -1; // glTF image index, -1 when the material has no MR texture
         };
         struct ParsedMetadata {
-            std::vector<rendering::raytracing::SceneLight> lights;
+            std::vector<rendering::raytracing::SceneLight> lights; // world frame (welded scene loads)
+            std::map<int, std::vector<rendering::raytracing::SceneLight>> root_lights; // by scene-root ordinal, in the root node's frame (assembly loads)
             std::map<std::string, Material> materials; // by material name; glTF spec defaults when absent
             std::map<int, std::vector<uint8_t>> images; // encoded bytes of referenced MR images, by glTF image index
         };
 
-        static inline void node_world_transform(const nlohmann::json& nodes, int node_idx, const std::vector<int>& parent_map, float out[16]) {
+        // accumulates local transforms from the ancestors down to node_idx; stop_ancestor (when
+        // >= 0) is excluded, yielding the transform relative to that ancestor's frame
+        static inline void node_world_transform(const nlohmann::json& nodes, int node_idx, const std::vector<int>& parent_map, float out[16], int stop_ancestor = -1) {
             float identity[16] = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
             std::memcpy(out, identity, sizeof(identity));
 
             std::vector<int> chain;
-            for (int cur = node_idx; cur >= 0; cur = parent_map[cur]) chain.push_back(cur);
+            for (int cur = node_idx; cur >= 0 && cur != stop_ancestor; cur = parent_map[cur]) chain.push_back(cur);
 
             for (int i = (int)chain.size() - 1; i >= 0; i--) {
                 const auto& node = nodes[chain[i]];
@@ -389,8 +392,43 @@ namespace rl_tools {
                 }
             }
 
+            std::map<int, int> root_ordinal;
+            if (gltf.contains("scenes")) {
+                const int scene_index = gltf.value("scene", 0);
+                if (scene_index >= 0 && scene_index < (int)gltf["scenes"].size() && gltf["scenes"][scene_index].contains("nodes")) {
+                    int ordinal = 0;
+                    for (auto& root : gltf["scenes"][scene_index]["nodes"]) root_ordinal[root.get<int>()] = ordinal++;
+                }
+            }
+
             if (gltf.contains("extensions") && gltf["extensions"].contains("KHR_lights_punctual")) {
                 auto& light_defs = gltf["extensions"]["KHR_lights_punctual"]["lights"];
+                const auto make_light = [](const nlohmann::json& ldef, const std::string& type_str, float intensity, float color_r, float color_g, float color_b, const float transform[16]) {
+                    rendering::raytracing::SceneLight sl{};
+                    if (type_str == "directional") sl.type = 0;
+                    else if (type_str == "spot") sl.type = 2;
+                    else sl.type = 1;
+
+                    sl.position[0] = transform[12]; sl.position[1] = -transform[14]; sl.position[2] = transform[13];
+                    sl.color[0] = color_r * intensity; sl.color[1] = color_g * intensity; sl.color[2] = color_b * intensity;
+                    sl.attenuation_constant = 0.f; sl.attenuation_linear = 0.f; sl.attenuation_quadratic = 1.f;
+
+                    if (type_str == "directional") {
+                        swizzle_gltf_direction_to_renderer(transform[8], transform[9], transform[10], sl.direction);
+                    } else if (type_str == "spot") {
+                        float inner = 0.0f;
+                        float outer = 0.7854f;
+                        if (ldef.contains("spot")) {
+                            inner = ldef["spot"].value("innerConeAngle", inner);
+                            outer = ldef["spot"].value("outerConeAngle", outer);
+                        }
+                        sl.cos_inner_cone = cosf(inner);
+                        sl.cos_outer_cone = cosf(outer);
+                        swizzle_gltf_direction_to_renderer(-transform[8], -transform[9], -transform[10], sl.direction);
+                    }
+                    return sl;
+                };
+
                 for (int ni = 0; ni < (int)nodes.size(); ni++) {
                     auto& node = nodes[ni];
                     if (!node.contains("extensions") || !node["extensions"].contains("KHR_lights_punctual")) continue;
@@ -404,32 +442,16 @@ namespace rl_tools {
 
                     float world[16];
                     node_world_transform(nodes, ni, parent_map, world);
-                    float px = world[12], py = world[13], pz = world[14];
+                    result.lights.push_back(make_light(ldef, type_str, intensity, color_r, color_g, color_b, world));
 
-                    rendering::raytracing::SceneLight sl{};
-                    if (type_str == "directional") sl.type = 0;
-                    else if (type_str == "spot") sl.type = 2;
-                    else sl.type = 1;
-
-                    sl.position[0] = px; sl.position[1] = -pz; sl.position[2] = py;
-                    sl.color[0] = color_r * intensity; sl.color[1] = color_g * intensity; sl.color[2] = color_b * intensity;
-                    sl.attenuation_constant = 0.f; sl.attenuation_linear = 0.f; sl.attenuation_quadratic = 1.f;
-
-                    if (type_str == "directional") {
-                        swizzle_gltf_direction_to_renderer(world[8], world[9], world[10], sl.direction);
-                    } else if (type_str == "spot") {
-                        float inner = 0.0f;
-                        float outer = 0.7854f;
-                        if (ldef.contains("spot")) {
-                            inner = ldef["spot"].value("innerConeAngle", inner);
-                            outer = ldef["spot"].value("outerConeAngle", outer);
-                        }
-                        sl.cos_inner_cone = cosf(inner);
-                        sl.cos_outer_cone = cosf(outer);
-                        swizzle_gltf_direction_to_renderer(-world[8], -world[9], -world[10], sl.direction);
+                    int owning_root = ni;
+                    while (parent_map[owning_root] >= 0) owning_root = parent_map[owning_root];
+                    const auto ordinal = root_ordinal.find(owning_root);
+                    if (ordinal != root_ordinal.end()) {
+                        float relative[16];
+                        node_world_transform(nodes, ni, parent_map, relative, owning_root);
+                        result.root_lights[ordinal->second].push_back(make_light(ldef, type_str, intensity, color_r, color_g, color_b, relative));
                     }
-
-                    result.lights.push_back(sl);
                 }
             }
 
@@ -441,6 +463,354 @@ namespace rl_tools {
     // load: Assimp scene/object loading
     // =========================================================================
     namespace rendering::raytracing::detail{
+    struct DecodedTexture{
+        std::vector<uint8_t> pixels;
+        int width;
+        int height;
+    };
+    struct MeshConversionState{
+        std::map<std::string, size_t> tex_cache;
+        std::vector<DecodedTexture> decoded_textures;
+        std::map<std::string, rendering::raytracing::RepresentativeTextureColor> representative_texture_color_cache;
+        size_t representative_texture_color_meshes = 0;
+        size_t representative_texture_color_decoded = 0;
+    };
+
+    template <typename SHADING, bool HAS_RGB>
+    rendering::raytracing::Mesh convert_mesh(const aiScene* scene, const aiMesh* mesh, const aiMatrix4x4& global_transform, const rendering::raytracing::glb::ParsedMetadata& glb_metadata, MeshConversionState& state){
+        rendering::raytracing::Mesh md;
+        [[maybe_unused]] const aiMaterial* mat = nullptr;
+        if constexpr (HAS_RGB) {
+            if(mesh->mMaterialIndex < scene->mNumMaterials){
+                mat = scene->mMaterials[mesh->mMaterialIndex];
+            }
+        }
+
+        // vertices: apply node transform, then GLB (Y-up) → FLU (Z-up)
+        for(unsigned int v = 0; v < mesh->mNumVertices; v++){
+            aiVector3D pos = mesh->mVertices[v];
+            pos = global_transform * pos;
+            md.vertices.push_back(pos.x);
+            md.vertices.push_back(-pos.z);
+            md.vertices.push_back(pos.y);
+        }
+
+        if constexpr (HAS_RGB && SHADING::PBR_SHADING) {
+            if (mesh->mNormals) {
+                aiMatrix3x3 normal_matrix(global_transform);
+                for (unsigned int v = 0; v < mesh->mNumVertices; v++) {
+                    aiVector3D n = normal_matrix * mesh->mNormals[v];
+                    n.Normalize();
+                    md.normals.push_back(n.x);
+                    md.normals.push_back(-n.z);
+                    md.normals.push_back(n.y);
+                }
+            }
+        }
+
+        // indices
+        for(unsigned int f = 0; f < mesh->mNumFaces; f++){
+            const aiFace& face = mesh->mFaces[f];
+            if(face.mNumIndices == 3){
+                md.indices.push_back(face.mIndices[0]);
+                md.indices.push_back(face.mIndices[1]);
+                md.indices.push_back(face.mIndices[2]);
+            }
+        }
+
+        if constexpr (HAS_RGB && SHADING::LOAD_TEXTURES) {
+            unsigned int uv_channel = 0;
+            if(mat != nullptr){
+                int uv_candidate = 0;
+                if(mat->Get(AI_MATKEY_UVWSRC(aiTextureType_BASE_COLOR, 0), uv_candidate) == AI_SUCCESS && uv_candidate >= 0){
+                    uv_channel = (unsigned int)uv_candidate;
+                }
+                else if(mat->Get(AI_MATKEY_UVWSRC(aiTextureType_DIFFUSE, 0), uv_candidate) == AI_SUCCESS && uv_candidate >= 0){
+                    uv_channel = (unsigned int)uv_candidate;
+                }
+            }
+            if(uv_channel >= AI_MAX_NUMBER_OF_TEXTURECOORDS || !mesh->mTextureCoords[uv_channel]){
+                for(unsigned int channel_i = 0; channel_i < AI_MAX_NUMBER_OF_TEXTURECOORDS; channel_i++){
+                    if(mesh->mTextureCoords[channel_i]){
+                        uv_channel = channel_i;
+                        break;
+                    }
+                }
+            }
+            if(mesh->mTextureCoords[uv_channel]){
+                for(unsigned int v = 0; v < mesh->mNumVertices; v++){
+                    const aiVector3D& tc = mesh->mTextureCoords[uv_channel][v];
+                    md.tex_coords.push_back(tc.x);
+                    if constexpr (SHADING::PBR_SHADING) {
+                        md.tex_coords.push_back(1.0f - tc.y);
+                    } else {
+                        md.tex_coords.push_back(tc.y);
+                    }
+                }
+            }
+        }
+
+        // material / texture
+        if constexpr (SHADING::PBR_SHADING) {
+            md.color[0] = 1.0f; md.color[1] = 1.0f; md.color[2] = 1.0f;
+        } else {
+            md.color[0] = 0.8f; md.color[1] = 0.8f; md.color[2] = 0.8f;
+        }
+        if constexpr (HAS_RGB) {
+        if(mat != nullptr){
+
+            if constexpr (SHADING::PBR_SHADING) {
+                aiColor4D base_color(1.0f, 1.0f, 1.0f, 1.0f);
+                if (aiGetMaterialColor(mat, AI_MATKEY_BASE_COLOR, &base_color) == AI_SUCCESS) {
+                    md.color[0] = base_color.r; md.color[1] = base_color.g; md.color[2] = base_color.b;
+                } else {
+                    aiColor4D diffuse;
+                    if (aiGetMaterialColor(mat, AI_MATKEY_COLOR_DIFFUSE, &diffuse) == AI_SUCCESS) {
+                        md.color[0] = diffuse.r; md.color[1] = diffuse.g; md.color[2] = diffuse.b;
+                    }
+                }
+            } else {
+                aiColor4D diffuse;
+                if(aiGetMaterialColor(mat, AI_MATKEY_COLOR_DIFFUSE, &diffuse) == AI_SUCCESS){
+                    md.color[0] = diffuse.r; md.color[1] = diffuse.g; md.color[2] = diffuse.b;
+                }
+                else if constexpr (!SHADING::LOAD_TEXTURES) {
+                    aiColor4D base_color;
+                    if (aiGetMaterialColor(mat, AI_MATKEY_BASE_COLOR, &base_color) == AI_SUCCESS) {
+                        md.color[0] = base_color.r; md.color[1] = base_color.g; md.color[2] = base_color.b;
+                    }
+                }
+            }
+
+            if constexpr (!SHADING::LOAD_TEXTURES) {
+                rendering::raytracing::RepresentativeTextureColor representative_color;
+                bool has_representative_color = rendering::raytracing::load_representative_texture_color(
+                    scene, mat, aiTextureType_DIFFUSE, state.representative_texture_color_cache,
+                    representative_color, state.representative_texture_color_decoded
+                );
+                if(!has_representative_color) {
+                    has_representative_color = rendering::raytracing::load_representative_texture_color(
+                        scene, mat, aiTextureType_BASE_COLOR, state.representative_texture_color_cache,
+                        representative_color, state.representative_texture_color_decoded
+                    );
+                }
+                if(has_representative_color) {
+                    md.color[0] *= representative_color.color[0];
+                    md.color[1] *= representative_color.color[1];
+                    md.color[2] *= representative_color.color[2];
+                    state.representative_texture_color_meshes++;
+                }
+            }
+
+            if constexpr (SHADING::LOAD_TEXTURES) {
+            if(mat->GetTextureCount(aiTextureType_DIFFUSE) > 0){
+                aiString tex_path;
+                if(mat->GetTexture(aiTextureType_DIFFUSE, 0, &tex_path) == AI_SUCCESS){
+                    std::string path_str(tex_path.C_Str());
+
+                    auto it = state.tex_cache.find(path_str);
+                    if(it != state.tex_cache.end()){
+                        auto& cached = state.decoded_textures[it->second];
+                        md.texture.pixels = cached.pixels;
+                        md.texture.width = cached.width;
+                        md.texture.height = cached.height;
+                    } else {
+                        const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
+                        if(emb_tex){
+                            int w, h;
+                            std::vector<uint8_t> pixels;
+                            if(rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)){
+                                md.texture.pixels = pixels;
+                                md.texture.width = w;
+                                md.texture.height = h;
+                                state.tex_cache[path_str] = state.decoded_textures.size();
+                                state.decoded_textures.push_back({std::move(pixels), w, h});
+                            }
+                        } else if(!path_str.empty()){
+                            int w, h, channels;
+                            unsigned char* data = stbi_load(path_str.c_str(), &w, &h, &channels, 4);
+                            if(data){
+                                md.texture.pixels.assign(data, data + w * h * 4);
+                                md.texture.width = w;
+                                md.texture.height = h;
+                                stbi_image_free(data);
+                                state.tex_cache[path_str] = state.decoded_textures.size();
+                                state.decoded_textures.push_back({md.texture.pixels, w, h});
+                            }
+                        }
+                    }
+                }
+            }
+            }
+
+            if constexpr (SHADING::METALLIC_REFLECTIONS || SHADING::PBR_SHADING) {
+            float metallic_factor = 0.0f;
+            mat->Get(AI_MATKEY_METALLIC_FACTOR, metallic_factor);
+            md.metallic = metallic_factor;
+            }
+
+            if constexpr (SHADING::PBR_SHADING) {
+                float metallic_factor_pbr = 1.0f;
+                mat->Get(AI_MATKEY_METALLIC_FACTOR, metallic_factor_pbr);
+                md.metallic = metallic_factor_pbr;
+
+                float roughness_factor = 1.0f;
+                mat->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughness_factor);
+                md.roughness = roughness_factor;
+
+                if constexpr (SHADING::LOAD_TEXTURES) {
+                if (mat->GetTextureCount(aiTextureType_NORMALS) > 0) {
+                    aiString tex_path;
+                    if (mat->GetTexture(aiTextureType_NORMALS, 0, &tex_path) == AI_SUCCESS) {
+                        const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
+                        if (emb_tex) {
+                            int w, h;
+                            std::vector<uint8_t> pixels;
+                            if (rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)) {
+                                md.normal_map.pixels = std::move(pixels);
+                                md.normal_map.width = w;
+                                md.normal_map.height = h;
+                            }
+                        }
+                    }
+                }
+
+                // the metallicRoughness texture is resolved from the GLB JSON, not through
+                // Assimp's texture-type taxonomy (which relabels it across versions and orders
+                // embedded textures differently from the glTF image array)
+                {
+                    const auto glb_material = glb_metadata.materials.find(mat->GetName().C_Str());
+                    if (glb_material != glb_metadata.materials.end() && glb_material->second.metallic_roughness_image >= 0) {
+                        const auto image = glb_metadata.images.find(glb_material->second.metallic_roughness_image);
+                        if (image != glb_metadata.images.end()) {
+                            int w, h;
+                            std::vector<uint8_t> pixels;
+                            if (rendering::raytracing::decode_image_bytes(image->second, pixels, w, h)) {
+                                md.metallic_roughness_map.pixels = std::move(pixels);
+                                md.metallic_roughness_map.width = w;
+                                md.metallic_roughness_map.height = h;
+                            }
+                        }
+                    }
+                }
+                }
+
+                aiColor3D emissive_color(0.f, 0.f, 0.f);
+                mat->Get(AI_MATKEY_COLOR_EMISSIVE, emissive_color);
+                md.emissive[0] = emissive_color.r; md.emissive[1] = emissive_color.g; md.emissive[2] = emissive_color.b;
+
+                if constexpr (SHADING::LOAD_TEXTURES) {
+                if (mat->GetTextureCount(aiTextureType_EMISSIVE) > 0) {
+                    aiString tex_path;
+                    if (mat->GetTexture(aiTextureType_EMISSIVE, 0, &tex_path) == AI_SUCCESS) {
+                        const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
+                        if (emb_tex) {
+                            int w, h;
+                            std::vector<uint8_t> pixels;
+                            if (rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)) {
+                                md.emissive_map.pixels = std::move(pixels);
+                                md.emissive_map.width = w;
+                                md.emissive_map.height = h;
+                            }
+                        }
+                    }
+                }
+
+                if (mat->GetTextureCount(aiTextureType_AMBIENT_OCCLUSION) > 0) {
+                    aiString tex_path;
+                    if (mat->GetTexture(aiTextureType_AMBIENT_OCCLUSION, 0, &tex_path) == AI_SUCCESS) {
+                        const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
+                        if (emb_tex) {
+                            int w, h;
+                            std::vector<uint8_t> pixels;
+                            if (rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)) {
+                                md.occlusion_map.pixels = std::move(pixels);
+                                md.occlusion_map.width = w;
+                                md.occlusion_map.height = h;
+                            }
+                        }
+                    }
+                } else if (mat->GetTextureCount(aiTextureType_LIGHTMAP) > 0) {
+                    aiString tex_path;
+                    if (mat->GetTexture(aiTextureType_LIGHTMAP, 0, &tex_path) == AI_SUCCESS) {
+                        const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
+                        if (emb_tex) {
+                            int w, h;
+                            std::vector<uint8_t> pixels;
+                            if (rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)) {
+                                md.occlusion_map.pixels = std::move(pixels);
+                                md.occlusion_map.width = w;
+                                md.occlusion_map.height = h;
+                            }
+                        }
+                    }
+                }
+                }
+                float opacity_val = 1.0f;
+                mat->Get(AI_MATKEY_OPACITY, opacity_val);
+                aiColor4D opacity_base_color(1.0f, 1.0f, 1.0f, 1.0f);
+                if (aiGetMaterialColor(mat, AI_MATKEY_BASE_COLOR, &opacity_base_color) == AI_SUCCESS) {
+                    opacity_val = fminf(opacity_val, opacity_base_color.a);
+                }
+                float transmission_factor = 0.0f;
+                mat->Get(AI_MATKEY_TRANSMISSION_FACTOR, transmission_factor);
+                if (transmission_factor > 0.0f) {
+                    opacity_val = fminf(opacity_val, 1.0f - transmission_factor);
+                }
+                md.opacity = opacity_val;
+
+                aiString alpha_mode;
+                if (mat->Get(AI_MATKEY_GLTF_ALPHAMODE, alpha_mode) == AI_SUCCESS) {
+                    std::string alpha_mode_str = alpha_mode.C_Str();
+                    if (alpha_mode_str == "MASK") {
+                        md.alpha_mode = 1;
+                    } else if (alpha_mode_str == "BLEND") {
+                        md.alpha_mode = 2;
+                    } else {
+                        md.alpha_mode = 0;
+                    }
+                }
+                float alpha_cutoff = 0.5f;
+                if (mat->Get(AI_MATKEY_GLTF_ALPHACUTOFF, alpha_cutoff) == AI_SUCCESS) {
+                    md.alpha_cutoff = alpha_cutoff;
+                }
+            }
+
+            if constexpr (SHADING::LOAD_TEXTURES) {
+            if(!md.texture.present() && mat->GetTextureCount(aiTextureType_BASE_COLOR) > 0){
+                aiString tex_path;
+                if(mat->GetTexture(aiTextureType_BASE_COLOR, 0, &tex_path) == AI_SUCCESS){
+                    const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
+                    if(emb_tex){
+                        int w, h;
+                        std::vector<uint8_t> pixels;
+                        if(rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)){
+                            md.texture.pixels = pixels;
+                            md.texture.width = w;
+                            md.texture.height = h;
+                        }
+                    }
+                }
+            }
+            }
+        }
+        }
+
+        if constexpr (HAS_RGB && (SHADING::METALLIC_REFLECTIONS || SHADING::PBR_SHADING)) {
+            if(mat != nullptr){
+                const auto glb_material = glb_metadata.materials.find(mat->GetName().C_Str());
+                if(glb_material != glb_metadata.materials.end()){
+                    md.metallic = glb_material->second.metallic;
+                    if constexpr (SHADING::PBR_SHADING) {
+                        md.roughness = glb_material->second.roughness;
+                    }
+                }
+            }
+        }
+
+        return md;
+    }
+
     template <typename SHADING, bool HAS_RGB>
     bool load_scene_data(std::vector<rendering::raytracing::Mesh>& out_meshes, std::vector<rendering::raytracing::SceneLight>& out_lights, const std::string& filename){
         Assimp::Importer importer;
@@ -459,12 +829,7 @@ namespace rl_tools {
 
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Loaded model with " << scene->mNumMeshes << " mesh(es)");
 
-        [[maybe_unused]] std::map<std::string, size_t> tex_cache;
-        struct DecodedTex { std::vector<uint8_t> pixels; int w, h; };
-        [[maybe_unused]] std::vector<DecodedTex> decoded_textures;
-        [[maybe_unused]] std::map<std::string, rendering::raytracing::RepresentativeTextureColor> representative_texture_color_cache;
-        [[maybe_unused]] size_t representative_texture_color_meshes = 0;
-        [[maybe_unused]] size_t representative_texture_color_decoded = 0;
+        [[maybe_unused]] MeshConversionState conversion_state;
 
         size_t total_verts = 0, total_tris = 0;
 
@@ -491,336 +856,7 @@ namespace rl_tools {
                 transforms.push_back(aiMatrix4x4());
             }
             for(const auto& global_transform : transforms){
-            rendering::raytracing::Mesh md;
-            [[maybe_unused]] const aiMaterial* mat = nullptr;
-            if constexpr (HAS_RGB) {
-                if(mesh->mMaterialIndex < scene->mNumMaterials){
-                    mat = scene->mMaterials[mesh->mMaterialIndex];
-                }
-            }
-
-            // vertices: apply node transform, then GLB (Y-up) → FLU (Z-up)
-            for(unsigned int v = 0; v < mesh->mNumVertices; v++){
-                aiVector3D pos = mesh->mVertices[v];
-                pos = global_transform * pos;
-                md.vertices.push_back(pos.x);
-                md.vertices.push_back(-pos.z);
-                md.vertices.push_back(pos.y);
-            }
-
-            if constexpr (HAS_RGB && SHADING::PBR_SHADING) {
-                if (mesh->mNormals) {
-                    aiMatrix3x3 normal_matrix(global_transform);
-                    for (unsigned int v = 0; v < mesh->mNumVertices; v++) {
-                        aiVector3D n = normal_matrix * mesh->mNormals[v];
-                        n.Normalize();
-                        md.normals.push_back(n.x);
-                        md.normals.push_back(-n.z);
-                        md.normals.push_back(n.y);
-                    }
-                }
-            }
-
-            // indices
-            for(unsigned int f = 0; f < mesh->mNumFaces; f++){
-                const aiFace& face = mesh->mFaces[f];
-                if(face.mNumIndices == 3){
-                    md.indices.push_back(face.mIndices[0]);
-                    md.indices.push_back(face.mIndices[1]);
-                    md.indices.push_back(face.mIndices[2]);
-                }
-            }
-
-            if constexpr (HAS_RGB && SHADING::LOAD_TEXTURES) {
-                unsigned int uv_channel = 0;
-                if(mat != nullptr){
-                    int uv_candidate = 0;
-                    if(mat->Get(AI_MATKEY_UVWSRC(aiTextureType_BASE_COLOR, 0), uv_candidate) == AI_SUCCESS && uv_candidate >= 0){
-                        uv_channel = (unsigned int)uv_candidate;
-                    }
-                    else if(mat->Get(AI_MATKEY_UVWSRC(aiTextureType_DIFFUSE, 0), uv_candidate) == AI_SUCCESS && uv_candidate >= 0){
-                        uv_channel = (unsigned int)uv_candidate;
-                    }
-                }
-                if(uv_channel >= AI_MAX_NUMBER_OF_TEXTURECOORDS || !mesh->mTextureCoords[uv_channel]){
-                    for(unsigned int channel_i = 0; channel_i < AI_MAX_NUMBER_OF_TEXTURECOORDS; channel_i++){
-                        if(mesh->mTextureCoords[channel_i]){
-                            uv_channel = channel_i;
-                            break;
-                        }
-                    }
-                }
-                if(mesh->mTextureCoords[uv_channel]){
-                    for(unsigned int v = 0; v < mesh->mNumVertices; v++){
-                        const aiVector3D& tc = mesh->mTextureCoords[uv_channel][v];
-                        md.tex_coords.push_back(tc.x);
-                        if constexpr (SHADING::PBR_SHADING) {
-                            md.tex_coords.push_back(1.0f - tc.y);
-                        } else {
-                            md.tex_coords.push_back(tc.y);
-                        }
-                    }
-                }
-            }
-
-            // material / texture
-            if constexpr (SHADING::PBR_SHADING) {
-                md.color[0] = 1.0f; md.color[1] = 1.0f; md.color[2] = 1.0f;
-            } else {
-                md.color[0] = 0.8f; md.color[1] = 0.8f; md.color[2] = 0.8f;
-            }
-            if constexpr (HAS_RGB) {
-            if(mat != nullptr){
-
-                if constexpr (SHADING::PBR_SHADING) {
-                    aiColor4D base_color(1.0f, 1.0f, 1.0f, 1.0f);
-                    if (aiGetMaterialColor(mat, AI_MATKEY_BASE_COLOR, &base_color) == AI_SUCCESS) {
-                        md.color[0] = base_color.r; md.color[1] = base_color.g; md.color[2] = base_color.b;
-                    } else {
-                        aiColor4D diffuse;
-                        if (aiGetMaterialColor(mat, AI_MATKEY_COLOR_DIFFUSE, &diffuse) == AI_SUCCESS) {
-                            md.color[0] = diffuse.r; md.color[1] = diffuse.g; md.color[2] = diffuse.b;
-                        }
-                    }
-                } else {
-                    aiColor4D diffuse;
-                    if(aiGetMaterialColor(mat, AI_MATKEY_COLOR_DIFFUSE, &diffuse) == AI_SUCCESS){
-                        md.color[0] = diffuse.r; md.color[1] = diffuse.g; md.color[2] = diffuse.b;
-                    }
-                    else if constexpr (!SHADING::LOAD_TEXTURES) {
-                        aiColor4D base_color;
-                        if (aiGetMaterialColor(mat, AI_MATKEY_BASE_COLOR, &base_color) == AI_SUCCESS) {
-                            md.color[0] = base_color.r; md.color[1] = base_color.g; md.color[2] = base_color.b;
-                        }
-                    }
-                }
-
-                if constexpr (!SHADING::LOAD_TEXTURES) {
-                    rendering::raytracing::RepresentativeTextureColor representative_color;
-                    bool has_representative_color = rendering::raytracing::load_representative_texture_color(
-                        scene, mat, aiTextureType_DIFFUSE, representative_texture_color_cache,
-                        representative_color, representative_texture_color_decoded
-                    );
-                    if(!has_representative_color) {
-                        has_representative_color = rendering::raytracing::load_representative_texture_color(
-                            scene, mat, aiTextureType_BASE_COLOR, representative_texture_color_cache,
-                            representative_color, representative_texture_color_decoded
-                        );
-                    }
-                    if(has_representative_color) {
-                        md.color[0] *= representative_color.color[0];
-                        md.color[1] *= representative_color.color[1];
-                        md.color[2] *= representative_color.color[2];
-                        representative_texture_color_meshes++;
-                    }
-                }
-
-                if constexpr (SHADING::LOAD_TEXTURES) {
-                if(mat->GetTextureCount(aiTextureType_DIFFUSE) > 0){
-                    aiString tex_path;
-                    if(mat->GetTexture(aiTextureType_DIFFUSE, 0, &tex_path) == AI_SUCCESS){
-                        std::string path_str(tex_path.C_Str());
-
-                        auto it = tex_cache.find(path_str);
-                        if(it != tex_cache.end()){
-                            auto& cached = decoded_textures[it->second];
-                            md.texture.pixels = cached.pixels;
-                            md.texture.width = cached.w;
-                            md.texture.height = cached.h;
-                        } else {
-                            const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
-                            if(emb_tex){
-                                int w, h;
-                                std::vector<uint8_t> pixels;
-                                if(rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)){
-                                    md.texture.pixels = pixels;
-                                    md.texture.width = w;
-                                    md.texture.height = h;
-                                    tex_cache[path_str] = decoded_textures.size();
-                                    decoded_textures.push_back({std::move(pixels), w, h});
-                                }
-                            } else if(!path_str.empty()){
-                                int w, h, channels;
-                                unsigned char* data = stbi_load(path_str.c_str(), &w, &h, &channels, 4);
-                                if(data){
-                                    md.texture.pixels.assign(data, data + w * h * 4);
-                                    md.texture.width = w;
-                                    md.texture.height = h;
-                                    stbi_image_free(data);
-                                    tex_cache[path_str] = decoded_textures.size();
-                                    decoded_textures.push_back({md.texture.pixels, w, h});
-                                }
-                            }
-                        }
-                    }
-                }
-                }
-
-                if constexpr (SHADING::METALLIC_REFLECTIONS || SHADING::PBR_SHADING) {
-                float metallic_factor = 0.0f;
-                mat->Get(AI_MATKEY_METALLIC_FACTOR, metallic_factor);
-                md.metallic = metallic_factor;
-                }
-
-                if constexpr (SHADING::PBR_SHADING) {
-                    float metallic_factor_pbr = 1.0f;
-                    mat->Get(AI_MATKEY_METALLIC_FACTOR, metallic_factor_pbr);
-                    md.metallic = metallic_factor_pbr;
-
-                    float roughness_factor = 1.0f;
-                    mat->Get(AI_MATKEY_ROUGHNESS_FACTOR, roughness_factor);
-                    md.roughness = roughness_factor;
-
-                    if constexpr (SHADING::LOAD_TEXTURES) {
-                    if (mat->GetTextureCount(aiTextureType_NORMALS) > 0) {
-                        aiString tex_path;
-                        if (mat->GetTexture(aiTextureType_NORMALS, 0, &tex_path) == AI_SUCCESS) {
-                            const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
-                            if (emb_tex) {
-                                int w, h;
-                                std::vector<uint8_t> pixels;
-                                if (rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)) {
-                                    md.normal_map.pixels = std::move(pixels);
-                                    md.normal_map.width = w;
-                                    md.normal_map.height = h;
-                                }
-                            }
-                        }
-                    }
-
-                    // the metallicRoughness texture is resolved from the GLB JSON, not through
-                    // Assimp's texture-type taxonomy (which relabels it across versions and orders
-                    // embedded textures differently from the glTF image array)
-                    {
-                        const auto glb_material = glb_metadata.materials.find(mat->GetName().C_Str());
-                        if (glb_material != glb_metadata.materials.end() && glb_material->second.metallic_roughness_image >= 0) {
-                            const auto image = glb_metadata.images.find(glb_material->second.metallic_roughness_image);
-                            if (image != glb_metadata.images.end()) {
-                                int w, h;
-                                std::vector<uint8_t> pixels;
-                                if (rendering::raytracing::decode_image_bytes(image->second, pixels, w, h)) {
-                                    md.metallic_roughness_map.pixels = std::move(pixels);
-                                    md.metallic_roughness_map.width = w;
-                                    md.metallic_roughness_map.height = h;
-                                }
-                            }
-                        }
-                    }
-                    }
-
-                    aiColor3D emissive_color(0.f, 0.f, 0.f);
-                    mat->Get(AI_MATKEY_COLOR_EMISSIVE, emissive_color);
-                    md.emissive[0] = emissive_color.r; md.emissive[1] = emissive_color.g; md.emissive[2] = emissive_color.b;
-
-                    if constexpr (SHADING::LOAD_TEXTURES) {
-                    if (mat->GetTextureCount(aiTextureType_EMISSIVE) > 0) {
-                        aiString tex_path;
-                        if (mat->GetTexture(aiTextureType_EMISSIVE, 0, &tex_path) == AI_SUCCESS) {
-                            const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
-                            if (emb_tex) {
-                                int w, h;
-                                std::vector<uint8_t> pixels;
-                                if (rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)) {
-                                    md.emissive_map.pixels = std::move(pixels);
-                                    md.emissive_map.width = w;
-                                    md.emissive_map.height = h;
-                                }
-                            }
-                        }
-                    }
-
-                    if (mat->GetTextureCount(aiTextureType_AMBIENT_OCCLUSION) > 0) {
-                        aiString tex_path;
-                        if (mat->GetTexture(aiTextureType_AMBIENT_OCCLUSION, 0, &tex_path) == AI_SUCCESS) {
-                            const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
-                            if (emb_tex) {
-                                int w, h;
-                                std::vector<uint8_t> pixels;
-                                if (rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)) {
-                                    md.occlusion_map.pixels = std::move(pixels);
-                                    md.occlusion_map.width = w;
-                                    md.occlusion_map.height = h;
-                                }
-                            }
-                        }
-                    } else if (mat->GetTextureCount(aiTextureType_LIGHTMAP) > 0) {
-                        aiString tex_path;
-                        if (mat->GetTexture(aiTextureType_LIGHTMAP, 0, &tex_path) == AI_SUCCESS) {
-                            const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
-                            if (emb_tex) {
-                                int w, h;
-                                std::vector<uint8_t> pixels;
-                                if (rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)) {
-                                    md.occlusion_map.pixels = std::move(pixels);
-                                    md.occlusion_map.width = w;
-                                    md.occlusion_map.height = h;
-                                }
-                            }
-                        }
-                    }
-                    }
-                    float opacity_val = 1.0f;
-                    mat->Get(AI_MATKEY_OPACITY, opacity_val);
-                    aiColor4D opacity_base_color(1.0f, 1.0f, 1.0f, 1.0f);
-                    if (aiGetMaterialColor(mat, AI_MATKEY_BASE_COLOR, &opacity_base_color) == AI_SUCCESS) {
-                        opacity_val = fminf(opacity_val, opacity_base_color.a);
-                    }
-                    float transmission_factor = 0.0f;
-                    mat->Get(AI_MATKEY_TRANSMISSION_FACTOR, transmission_factor);
-                    if (transmission_factor > 0.0f) {
-                        opacity_val = fminf(opacity_val, 1.0f - transmission_factor);
-                    }
-                    md.opacity = opacity_val;
-
-                    aiString alpha_mode;
-                    if (mat->Get(AI_MATKEY_GLTF_ALPHAMODE, alpha_mode) == AI_SUCCESS) {
-                        std::string alpha_mode_str = alpha_mode.C_Str();
-                        if (alpha_mode_str == "MASK") {
-                            md.alpha_mode = 1;
-                        } else if (alpha_mode_str == "BLEND") {
-                            md.alpha_mode = 2;
-                        } else {
-                            md.alpha_mode = 0;
-                        }
-                    }
-                    float alpha_cutoff = 0.5f;
-                    if (mat->Get(AI_MATKEY_GLTF_ALPHACUTOFF, alpha_cutoff) == AI_SUCCESS) {
-                        md.alpha_cutoff = alpha_cutoff;
-                    }
-                }
-
-                if constexpr (SHADING::LOAD_TEXTURES) {
-                if(!md.texture.present() && mat->GetTextureCount(aiTextureType_BASE_COLOR) > 0){
-                    aiString tex_path;
-                    if(mat->GetTexture(aiTextureType_BASE_COLOR, 0, &tex_path) == AI_SUCCESS){
-                        const aiTexture* emb_tex = scene->GetEmbeddedTexture(tex_path.C_Str());
-                        if(emb_tex){
-                            int w, h;
-                            std::vector<uint8_t> pixels;
-                            if(rendering::raytracing::decode_embedded_texture(emb_tex, pixels, w, h)){
-                                md.texture.pixels = pixels;
-                                md.texture.width = w;
-                                md.texture.height = h;
-                            }
-                        }
-                    }
-                }
-                }
-            }
-            }
-
-            if constexpr (HAS_RGB && (SHADING::METALLIC_REFLECTIONS || SHADING::PBR_SHADING)) {
-                if(mat != nullptr){
-                    const auto glb_material = glb_metadata.materials.find(mat->GetName().C_Str());
-                    if(glb_material != glb_metadata.materials.end()){
-                        md.metallic = glb_material->second.metallic;
-                        if constexpr (SHADING::PBR_SHADING) {
-                            md.roughness = glb_material->second.roughness;
-                        }
-                    }
-                }
-            }
-
+            rendering::raytracing::Mesh md = convert_mesh<SHADING, HAS_RGB>(scene, mesh, global_transform, glb_metadata, conversion_state);
             total_verts += md.vertices.size() / 3;
             total_tris += md.indices.size() / 3;
             out_meshes.push_back(std::move(md));
@@ -839,9 +875,9 @@ namespace rl_tools {
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Meshes with textures: " << textured_count << "/" << num_new_meshes
               << ", metallic: " << metallic_count << "/" << num_new_meshes);
         if constexpr (HAS_RGB && !SHADING::LOAD_TEXTURES) {
-            RL_TOOLS_RENDERING_RAYTRACING_LOG("Representative texture colors: " << representative_texture_color_meshes
+            RL_TOOLS_RENDERING_RAYTRACING_LOG("Representative texture colors: " << conversion_state.representative_texture_color_meshes
                   << "/" << num_new_meshes << " meshes, decoded "
-                  << representative_texture_color_decoded << " texture(s)");
+                  << conversion_state.representative_texture_color_decoded << " texture(s)");
         }
 
         for (auto& sl : glb_metadata.lights) {
@@ -870,6 +906,80 @@ namespace rl_tools {
     inline void transform_vector(const float transform[12], const float vector[3], float out[3]){
         for(int row = 0; row < 3; row++){
             out[row] = transform[row * 4 + 0] * vector[0] + transform[row * 4 + 1] * vector[1] + transform[row * 4 + 2] * vector[2];
+        }
+    }
+
+    // conjugates an Assimp (glTF Y-up) node transform into the FLU frame: T_flu = S * T * S^-1,
+    // with S the same Y-up -> FLU swizzle that is applied to vertices
+    inline void flu_from_assimp(const aiMatrix4x4& transform, float out[12]){
+        out[0] = transform.a1;  out[1] = -transform.a3; out[2]  = transform.a2;  out[3]  = transform.a4;
+        out[4] = -transform.c1; out[5] = transform.c3;  out[6]  = -transform.c2; out[7]  = -transform.c4;
+        out[8] = transform.b1;  out[9] = -transform.b3; out[10] = transform.b2;  out[11] = transform.b4;
+    }
+
+    template <typename SHADING, bool HAS_RGB>
+    bool load_assembly_data(rendering::raytracing::ObjectAssembly& assembly, const std::string& filename){
+        Assimp::Importer importer;
+        unsigned int import_flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_ImproveCacheLocality;
+        if constexpr (HAS_RGB && SHADING::PBR_SHADING) {
+            import_flags |= aiProcess_GenSmoothNormals | aiProcess_CalcTangentSpace;
+        } else if constexpr (HAS_RGB && SHADING::NORMAL_SHADING) {
+            import_flags |= aiProcess_GenNormals;
+        }
+        const aiScene* scene = importer.ReadFile(filename, import_flags);
+        if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode){
+            RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Assimp error: " << importer.GetErrorString());
+            return false;
+        }
+        const auto glb_metadata = rendering::raytracing::glb::parse(filename);
+        MeshConversionState conversion_state; // shared across parts: textures used by several parts decode once
+
+        const aiNode* file_root = scene->mRootNode;
+        const size_t first_new_part = assembly.parts.size();
+        for(unsigned int root_i = 0; root_i < file_root->mNumChildren; root_i++){
+            const aiNode* root = file_root->mChildren[root_i];
+            rendering::raytracing::Object object;
+            object.name = root->mName.C_Str();
+
+            // geometry lands in the root node's frame: the recursion starts below the root's own
+            // transform, which becomes the part placement instead
+            std::function<void(const aiNode*, const aiMatrix4x4&)> collect = [&](const aiNode* node, const aiMatrix4x4& parent_transform){
+                const aiMatrix4x4 relative_transform = parent_transform * node->mTransformation;
+                for(unsigned int mesh_i = 0; mesh_i < node->mNumMeshes; mesh_i++){
+                    object.meshes.push_back(convert_mesh<SHADING, HAS_RGB>(scene, scene->mMeshes[node->mMeshes[mesh_i]], relative_transform, glb_metadata, conversion_state));
+                }
+                for(unsigned int child_i = 0; child_i < node->mNumChildren; child_i++){
+                    collect(node->mChildren[child_i], relative_transform);
+                }
+            };
+            for(unsigned int mesh_i = 0; mesh_i < root->mNumMeshes; mesh_i++){
+                object.meshes.push_back(convert_mesh<SHADING, HAS_RGB>(scene, scene->mMeshes[root->mMeshes[mesh_i]], aiMatrix4x4(), glb_metadata, conversion_state));
+            }
+            for(unsigned int child_i = 0; child_i < root->mNumChildren; child_i++){
+                collect(root->mChildren[child_i], aiMatrix4x4());
+            }
+
+            const auto root_lights = glb_metadata.root_lights.find((int)root_i);
+            if(root_lights != glb_metadata.root_lights.end()){
+                object.lights = root_lights->second;
+            }
+
+            rendering::raytracing::ObjectAssembly::Part part;
+            part.object = assembly.objects.size();
+            flu_from_assimp(root->mTransformation, part.transform);
+            assembly.objects.push_back(std::move(object));
+            assembly.parts.push_back(part);
+        }
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("Loaded assembly with " << (assembly.parts.size() - first_new_part) << " part(s)");
+        return true;
+    }
+
+    inline void compose_transforms(const float a[12], const float b[12], float out[12]){
+        for(int row = 0; row < 3; row++){
+            for(int column = 0; column < 3; column++){
+                out[row * 4 + column] = a[row * 4] * b[column] + a[row * 4 + 1] * b[4 + column] + a[row * 4 + 2] * b[8 + column];
+            }
+            out[row * 4 + 3] = a[row * 4] * b[3] + a[row * 4 + 1] * b[7] + a[row * 4 + 2] * b[11] + a[row * 4 + 3];
         }
     }
 
@@ -1013,6 +1123,31 @@ namespace rl_tools {
         return add(device, scene, object);
     }
 
+    template <typename SHADING = rendering::raytracing::VeryHigh, bool HAS_RGB = true, typename DEVICE>
+    bool load(DEVICE& device, rendering::raytracing::ObjectAssembly& assembly, const std::string& filename){
+        return rendering::raytracing::detail::load_assembly_data<SHADING, HAS_RGB>(assembly, filename);
+    }
+
+    template <typename DEVICE>
+    rendering::raytracing::Placement add(DEVICE& device, rendering::raytracing::Scene& scene, const rendering::raytracing::ObjectAssembly& assembly, const float transform[12]){
+        rendering::raytracing::Placement placement{scene.instances.size(), assembly.parts.size()};
+        const size_t object_base = scene.objects.size();
+        scene.objects.insert(scene.objects.end(), assembly.objects.begin(), assembly.objects.end());
+        for(const auto& part : assembly.parts){
+            float composed[12];
+            rendering::raytracing::detail::compose_transforms(transform, part.transform, composed);
+            scene.instances.push_back({object_base + part.object, {}, rendering::raytracing::detail::transform_is_identity(composed)});
+            std::memcpy(scene.instances.back().transform, composed, sizeof(composed));
+        }
+        return placement;
+    }
+
+    template <typename DEVICE>
+    rendering::raytracing::Placement add(DEVICE& device, rendering::raytracing::Scene& scene, const rendering::raytracing::ObjectAssembly& assembly){
+        const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
+        return add(device, scene, assembly, identity);
+    }
+
     inline void make_transform(const float position[3], const float orientation_wxyz[4], float out[12]){
         const float w = orientation_wxyz[0], x = orientation_wxyz[1], y = orientation_wxyz[2], z = orientation_wxyz[3];
         out[0] = 1 - 2*(y*y + z*z); out[1] = 2*(x*y - w*z);     out[2] = 2*(x*z + w*y);     out[3] = position[0];
@@ -1130,6 +1265,33 @@ namespace rl_tools {
                        grid_image.data(), grid_width * sizeof(uint32_t));
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Written grid image (" << SPEC::GRID_COLS << "x" << SPEC::GRID_ROWS
                << " cameras, " << grid_width << "x" << grid_height << " px) to " << filename);
+        }
+
+        // one distinct color per instance id (golden-ratio hue hash); miss sentinel renders black
+        template <typename SPEC>
+        void write_segmentation_grid_png(const uint32_t* segmentation, const char* filename){
+            constexpr typename SPEC::TI num_pixels = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+            std::vector<uint32_t> colored(num_pixels);
+            for(size_t pixel_i = 0; pixel_i < (size_t)num_pixels; pixel_i++){
+                const uint32_t id = segmentation[pixel_i];
+                if(id == 0xFFFFFFFFu){
+                    colored[pixel_i] = 0xFF000000u;
+                    continue;
+                }
+                const float hue = std::fmod((float)id * 0.61803398875f, 1.0f) * 6.0f;
+                const float descending = 1.0f - std::fabs(std::fmod(hue, 2.0f) - 1.0f);
+                float r = 0, g = 0, b = 0;
+                switch((int)hue){
+                    case 0: r = 1; g = descending; break;
+                    case 1: r = descending; g = 1; break;
+                    case 2: g = 1; b = descending; break;
+                    case 3: g = descending; b = 1; break;
+                    case 4: r = descending; b = 1; break;
+                    default: r = 1; b = descending; break;
+                }
+                colored[pixel_i] = 0xFF000000u | ((uint32_t)(b * 255) << 16) | ((uint32_t)(g * 255) << 8) | (uint32_t)(r * 255);
+            }
+            write_grid_png<SPEC>(colored.data(), filename);
         }
 
         template <typename SPEC>

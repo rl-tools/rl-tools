@@ -36,6 +36,7 @@ namespace rl_tools {
             std::vector<Camera<T>> cameras_open;
             std::vector<unsigned int> frame_buffer;
             std::vector<float> depth_buffer;
+            std::vector<unsigned int> segmentation_buffer;
             std::vector<CollisionResult> collision_results;
             SceneView<T, TI> scene;
         };
@@ -93,6 +94,12 @@ namespace rl_tools {
             backend_state->depth_buffer.resize((size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
             backend_state->scene.depth_buffer = backend_state->depth_buffer.data();
             renderer.backend.depth_buffer_handle = backend_state->depth_buffer.data();
+        }
+        if constexpr (SPEC::HAS_SEGMENTATION) {
+            malloc(device, renderer.segmentation_buffer);
+            backend_state->segmentation_buffer.resize((size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
+            backend_state->scene.segmentation_buffer = backend_state->segmentation_buffer.data();
+            renderer.backend.segmentation_buffer_handle = backend_state->segmentation_buffer.data();
         }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         backend_state->collision_results.resize((size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);
@@ -390,6 +397,24 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
+    void render_segmentation_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::HAS_SEGMENTATION, "render_segmentation_only requires a segmentation-capable renderer specification");
+        namespace generic = rendering::raytracing::backends::generic;
+        generic::render_segmentation_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void render_segmentation_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::HAS_SEGMENTATION, "render_segmentation_only requires a segmentation-capable renderer specification");
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void render_segmentation_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        render_segmentation_only_launch(device, renderer);
+        render_segmentation_only_sync(device, renderer);
+    }
+
+    template <typename DEVICE, typename SPEC>
     void render_rgb_depth_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         static_assert(SPEC::HAS_RGB && SPEC::HAS_DEPTH, "render_rgb_depth_only requires an RGBD renderer specification");
         render_rgb_only_launch(device, renderer);
@@ -433,6 +458,9 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_DEPTH) {
             render_depth_only_launch(device, renderer);
         }
+        if constexpr (SPEC::HAS_SEGMENTATION) {
+            render_segmentation_only_launch(device, renderer);
+        }
         render_collision_only_launch(device, renderer);
     }
 
@@ -472,6 +500,23 @@ namespace rl_tools {
         namespace generic = rendering::raytracing::backends::generic;
         constexpr typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
         std::memcpy(data(out_depth), generic::state(renderer).depth_buffer.data(), expected * sizeof(float));
+    }
+
+    template <typename DEVICE, typename SPEC, typename SEGMENTATION_SPEC>
+    void read_segmentation_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<SEGMENTATION_SPEC>& out_segmentation){
+        static_assert(SPEC::HAS_SEGMENTATION, "read_segmentation_buffer requires a segmentation-capable renderer specification");
+        static_assert(utils::typing::is_same_v<typename SEGMENTATION_SPEC::T, uint32_t>);
+        static_assert(get<0>(typename SEGMENTATION_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
+        namespace generic = rendering::raytracing::backends::generic;
+        constexpr typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+        std::memcpy(data(out_segmentation), generic::state(renderer).segmentation_buffer.data(), expected * sizeof(uint32_t));
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void save_segmentation_image(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const char* filename){
+        static_assert(SPEC::HAS_SEGMENTATION, "save_segmentation_image requires a segmentation-capable renderer specification");
+        namespace generic = rendering::raytracing::backends::generic;
+        rendering::raytracing::detail::write_segmentation_grid_png<SPEC>(generic::state(renderer).segmentation_buffer.data(), filename);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -568,6 +613,9 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_DEPTH) {
             free(device, renderer.depth_buffer);
+        }
+        if constexpr (SPEC::HAS_SEGMENTATION) {
+            free(device, renderer.segmentation_buffer);
         }
         free(device, renderer.collision_results);
     }

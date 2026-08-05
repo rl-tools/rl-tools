@@ -26,6 +26,8 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     extern "C" char device_ptx[];
     extern "C" char device_depth_ptx[];
+    extern "C" char device_segmentation_ptx[];
+    extern "C" char device_depth_segmentation_ptx[];
 
     namespace rendering::raytracing::detail {
         template <bool T_DEPTH, typename SPEC>
@@ -182,13 +184,22 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_DEPTH) {
             malloc(device, renderer.depth_buffer);
         }
+        if constexpr (SPEC::HAS_SEGMENTATION) {
+            malloc(device, renderer.segmentation_buffer);
+        }
         malloc(device, renderer.collision_results);
 
         OWLContext context = owlContextCreate(nullptr, 1);
         owlContextSetRayTypeCount(context, 2);
         owlContextSetNumPayloadValues(context, 3);
         const char* ptx = nullptr;
-        if constexpr (SPEC::HAS_DEPTH) {
+        if constexpr (SPEC::HAS_SEGMENTATION && SPEC::HAS_DEPTH) {
+            ptx = device_depth_segmentation_ptx;
+        }
+        else if constexpr (SPEC::HAS_SEGMENTATION) {
+            ptx = device_segmentation_ptx;
+        }
+        else if constexpr (SPEC::HAS_DEPTH) {
             ptx = device_depth_ptx;
         }
         else {
@@ -206,6 +217,11 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_DEPTH) {
             depth_buffer = owlDeviceBufferCreate(context, OWL_FLOAT,
                                                 (size_t)SPEC::NUM_CAMERAS * cam_pixels, nullptr);
+        }
+        OWLBuffer segmentation_buffer = nullptr;
+        if constexpr (SPEC::HAS_SEGMENTATION) {
+            segmentation_buffer = owlDeviceBufferCreate(context, OWL_UINT,
+                                                        (size_t)SPEC::NUM_CAMERAS * cam_pixels, nullptr);
         }
 
         // RGB miss program (ray type 0)
@@ -307,6 +323,22 @@ namespace rl_tools {
             }
         }
 
+        OWLRayGen segmentation_ray_gen = nullptr;
+        if constexpr (SPEC::HAS_SEGMENTATION) {
+            OWLVarDecl segmentation_ray_gen_vars[] = {
+                { "seg_ptr",     OWL_BUFPTR, OWL_OFFSETOF(SegmentationRayGenData, seg_ptr)},
+                { "fb_size",     OWL_INT2,   OWL_OFFSETOF(SegmentationRayGenData, fb_size)},
+                { "cam_size",    OWL_INT2,   OWL_OFFSETOF(SegmentationRayGenData, cam_size)},
+                { "grid_cols",   OWL_INT,    OWL_OFFSETOF(SegmentationRayGenData, grid_cols)},
+                { "num_cameras", OWL_INT,    OWL_OFFSETOF(SegmentationRayGenData, num_cameras)},
+                { "world",       OWL_GROUP,  OWL_OFFSETOF(SegmentationRayGenData, world)},
+                { "cameras",     OWL_BUFPTR, OWL_OFFSETOF(SegmentationRayGenData, cameras)},
+                { /* sentinel */ }
+            };
+            segmentation_ray_gen = owlRayGenCreate(context, module, "segmentationRayGen",
+                                                   sizeof(SegmentationRayGenData), segmentation_ray_gen_vars, -1);
+        }
+
         const owl2i fb_size  = {(int)SPEC::FB_WIDTH, (int)SPEC::FB_HEIGHT};
         const owl2i cam_size = {(int)SPEC::CAM_WIDTH, (int)SPEC::CAM_HEIGHT};
 
@@ -316,6 +348,16 @@ namespace rl_tools {
             owlRayGenSet2i    (ray_gen, "cam_size", cam_size);
             owlRayGenSet1i    (ray_gen, "grid_cols", SPEC::GRID_COLS);
             owlRayGenSet1i    (ray_gen, "num_cameras", SPEC::NUM_CAMERAS);
+        }
+        if constexpr (SPEC::HAS_SEGMENTATION) {
+            owlRayGenSetBuffer(segmentation_ray_gen, "seg_ptr", segmentation_buffer);
+            owlRayGenSet2i    (segmentation_ray_gen, "fb_size", fb_size);
+            owlRayGenSet2i    (segmentation_ray_gen, "cam_size", cam_size);
+            owlRayGenSet1i    (segmentation_ray_gen, "grid_cols", SPEC::GRID_COLS);
+            owlRayGenSet1i    (segmentation_ray_gen, "num_cameras", SPEC::NUM_CAMERAS);
+            owlRayGenSetBuffer(segmentation_ray_gen, "cameras", cameras_buffer);
+            renderer.backend.segmentation_ray_gen = segmentation_ray_gen;
+            renderer.backend.segmentation_buffer_handle = segmentation_buffer;
         }
         if constexpr (SPEC::HAS_DEPTH) {
             owlRayGenSetBuffer(depth_ray_gen, "depth_ptr", depth_buffer);
@@ -661,6 +703,9 @@ namespace rl_tools {
             owlRayGenSetGroup((OWLRayGen)renderer.backend.depth_ray_gen, "world", world);
             owlRayGenSet1f((OWLRayGen)renderer.backend.depth_ray_gen, "max_depth", max_depth);
         }
+        if constexpr (SPEC::HAS_SEGMENTATION) {
+            owlRayGenSetGroup((OWLRayGen)renderer.backend.segmentation_ray_gen, "world", world);
+        }
         if(renderer.backend.collision_ray_gen){
             owlRayGenSetGroup((OWLRayGen)renderer.backend.collision_ray_gen, "world", world);
             owlRayGenSet1f((OWLRayGen)renderer.backend.collision_ray_gen, "max_dist", renderer.camera_radius * 2.0f);
@@ -744,6 +789,9 @@ namespace rl_tools {
             OWLRayGen depth_ray_gen = (OWLRayGen)renderer.backend.depth_ray_gen;
             owlAsyncLaunch2D(depth_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
         }
+        if constexpr (SPEC::HAS_SEGMENTATION) {
+            owlAsyncLaunch2D((OWLRayGen)renderer.backend.segmentation_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
+        }
         if(renderer.backend.collision_ray_gen){
             OWLRayGen collision_ray_gen = (OWLRayGen)renderer.backend.collision_ray_gen;
             OWLParams coll_lp = (OWLParams)renderer.backend.coll_launch_params;
@@ -766,6 +814,9 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void render_collision_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        if constexpr (SPEC::HAS_SEGMENTATION) {
+            owlAsyncLaunch2D((OWLRayGen)renderer.backend.segmentation_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
+        }
         if(renderer.backend.collision_ray_gen){
             OWLRayGen collision_ray_gen = (OWLRayGen)renderer.backend.collision_ray_gen;
             OWLParams coll_lp = (OWLParams)renderer.backend.coll_launch_params;
@@ -872,6 +923,42 @@ namespace rl_tools {
         static_assert(get<0>(typename FB_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
         constexpr typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
         cudaMemcpy(data(out_pixels), owlBufferGetPointer((OWLBuffer)renderer.backend.frame_buffer_handle, 0), expected * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void render_segmentation_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::HAS_SEGMENTATION, "render_segmentation_only requires a segmentation-capable renderer specification");
+        owlAsyncLaunch2D((OWLRayGen)renderer.backend.segmentation_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, (OWLParams)renderer.backend.launch_params);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void render_segmentation_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::HAS_SEGMENTATION, "render_segmentation_only requires a segmentation-capable renderer specification");
+        owlLaunchSync((OWLParams)renderer.backend.launch_params);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void render_segmentation_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        render_segmentation_only_launch(device, renderer);
+        render_segmentation_only_sync(device, renderer);
+    }
+
+    template <typename DEVICE, typename SPEC, typename SEGMENTATION_SPEC>
+    void read_segmentation_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<SEGMENTATION_SPEC>& out_segmentation){
+        static_assert(SPEC::HAS_SEGMENTATION, "read_segmentation_buffer requires a segmentation-capable renderer specification");
+        static_assert(utils::typing::is_same_v<typename SEGMENTATION_SPEC::T, uint32_t>);
+        static_assert(get<0>(typename SEGMENTATION_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
+        constexpr typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+        cudaMemcpy(data(out_segmentation), owlBufferGetPointer((OWLBuffer)renderer.backend.segmentation_buffer_handle, 0), expected * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void save_segmentation_image(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const char* filename){
+        static_assert(SPEC::HAS_SEGMENTATION, "save_segmentation_image requires a segmentation-capable renderer specification");
+        const size_t segmentation_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+        std::vector<uint32_t> segmentation_host(segmentation_count);
+        cudaMemcpy(segmentation_host.data(), owlBufferGetPointer((OWLBuffer)renderer.backend.segmentation_buffer_handle, 0), segmentation_count * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+        rendering::raytracing::detail::write_segmentation_grid_png<SPEC>(segmentation_host.data(), filename);
     }
 
     template <typename DEVICE, typename SPEC, typename DEPTH_SPEC>

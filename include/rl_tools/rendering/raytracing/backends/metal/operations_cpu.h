@@ -131,6 +131,11 @@ namespace rl_tools {
             ctx->depth_buffer = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(float), MTL::ResourceStorageModeShared));
             renderer.backend.depth_buffer_handle = ctx->depth_buffer.get();
         }
+        if constexpr (SPEC::HAS_SEGMENTATION) {
+            malloc(device, renderer.segmentation_buffer);
+            ctx->segmentation_buffer = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(uint32_t), MTL::ResourceStorageModeShared));
+            renderer.backend.segmentation_buffer_handle = ctx->segmentation_buffer.get();
+        }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         ctx->collision_results = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES * sizeof(rendering::raytracing::CollisionResult), MTL::ResourceStorageModeShared));
         renderer.backend.collision_results_buffer = ctx->collision_results.get();
@@ -414,6 +419,10 @@ namespace rl_tools {
                 ctx.depth_pipeline = make_pipeline("render_depth");
                 renderer.backend.depth_ray_gen = ctx.depth_pipeline.get();
             }
+            if constexpr (SPEC::HAS_SEGMENTATION) {
+                ctx.segmentation_pipeline = make_pipeline("render_segmentation");
+                renderer.backend.segmentation_ray_gen = ctx.segmentation_pipeline.get();
+            }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
             ctx.collision_pipeline = make_pipeline("render_collision");
             renderer.backend.collision_ray_gen = ctx.collision_pipeline.get();
@@ -520,6 +529,9 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_DEPTH) {
             metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.depth_pipeline.get(), ctx.depth_buffer.get());
+        }
+        if constexpr (SPEC::HAS_SEGMENTATION) {
+            metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.segmentation_pipeline.get(), ctx.segmentation_buffer.get());
         }
         command_buffer->commit();
         ctx.in_flight = NS::RetainPtr(command_buffer);
@@ -635,6 +647,32 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
+    void render_segmentation_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::HAS_SEGMENTATION, "render_segmentation_only requires a segmentation-capable renderer specification");
+        namespace metal = rendering::raytracing::backends::metal;
+        auto& ctx = metal::context(renderer);
+        NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+        MTL::CommandBuffer* command_buffer = ctx.queue->commandBuffer();
+        metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.segmentation_pipeline.get(), ctx.segmentation_buffer.get());
+        command_buffer->commit();
+        ctx.in_flight = NS::RetainPtr(command_buffer);
+        pool->release();
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void render_segmentation_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::HAS_SEGMENTATION, "render_segmentation_only requires a segmentation-capable renderer specification");
+        namespace metal = rendering::raytracing::backends::metal;
+        metal::wait_in_flight(metal::context(renderer));
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void render_segmentation_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        render_segmentation_only_launch(device, renderer);
+        render_segmentation_only_sync(device, renderer);
+    }
+
+    template <typename DEVICE, typename SPEC>
     void render_rgb_depth_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         static_assert(SPEC::HAS_RGB && SPEC::HAS_DEPTH, "render_rgb_depth_only requires an RGBD renderer specification");
         namespace metal = rendering::raytracing::backends::metal;
@@ -698,6 +736,25 @@ namespace rl_tools {
         static_assert(SPEC::HAS_RGB, "save_image requires an RGB-capable renderer specification");
         namespace metal = rendering::raytracing::backends::metal;
         rendering::raytracing::detail::write_grid_png<SPEC>((const uint32_t*)metal::context(renderer).frame_buffer->contents(), filename);
+    }
+
+    template <typename DEVICE, typename SPEC, typename SEGMENTATION_SPEC>
+    void read_segmentation_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<SEGMENTATION_SPEC>& out_segmentation){
+        static_assert(SPEC::HAS_SEGMENTATION, "read_segmentation_buffer requires a segmentation-capable renderer specification");
+        static_assert(utils::typing::is_same_v<typename SEGMENTATION_SPEC::T, uint32_t>);
+        static_assert(get<0>(typename SEGMENTATION_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
+        namespace metal = rendering::raytracing::backends::metal;
+        auto& ctx = metal::context(renderer);
+        constexpr typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+        std::memcpy(data(out_segmentation), ctx.segmentation_buffer->contents(), expected * sizeof(uint32_t));
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void save_segmentation_image(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const char* filename){
+        static_assert(SPEC::HAS_SEGMENTATION, "save_segmentation_image requires a segmentation-capable renderer specification");
+        namespace metal = rendering::raytracing::backends::metal;
+        auto& ctx = metal::context(renderer);
+        rendering::raytracing::detail::write_segmentation_grid_png<SPEC>((const uint32_t*)ctx.segmentation_buffer->contents(), filename);
     }
 
     template <typename DEVICE, typename SPEC>

@@ -6,6 +6,7 @@
 #include "types.h"
 
 #include <vector>
+#include <string>
 #include <cstdint>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -42,6 +43,25 @@ namespace rl_tools {
         struct Object{
             std::vector<Mesh> meshes;
             std::vector<SceneLight> lights; // object-local frame; transformed by the instance placing the object
+            std::string name; // the glTF root node's name for assembly parts; empty otherwise
+        };
+
+        // Load product of a split GLB: one part per glTF scene-root node, each an Object in the
+        // root node's local frame (its origin is the articulation pivot) plus the root's placement
+        // within the assembly frame. Deliberately one grouping level, no trees: deeper glTF
+        // hierarchy carries no articulation semantics and the Scene stays a flat instance list.
+        struct ObjectAssembly{
+            struct Part{
+                size_t object;       // index into ObjectAssembly::objects
+                float transform[12]; // part frame relative to the assembly frame, 3x4 row-major [R|t]
+            };
+            std::vector<Object> objects;
+            std::vector<Part> parts;
+        };
+
+        struct Placement{
+            size_t first_instance; // parts are placed as consecutive instances
+            size_t num_instances;
         };
 
         struct Instance{
