@@ -46,7 +46,7 @@ if(RL_TOOLS_ENABLE_HDF5)
     add_subdirectory(swift_app)
 endif()
 
-if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_BACKEND_ENABLE_CUDNN)
+if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_BACKEND_ENABLE_CUDNN AND TARGET owl::owl AND TARGET rendering_raytracing_device_ptx)
     # Per-resolution scene library (reused across ablation targets with same resolution)
     function(add_yaw_prediction_scene_lib RESOLUTION)
         set(TARGET rendering_raytracing_yaw_prediction_scene_${RESOLUTION})

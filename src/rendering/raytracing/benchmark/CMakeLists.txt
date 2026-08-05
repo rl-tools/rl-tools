@@ -6,6 +6,53 @@ target_link_libraries(rendering_raytracing_benchmark
         rendering_raytracing_stb
 )
 
+add_executable(rendering_raytracing_benchmark_64 EXCLUDE_FROM_ALL benchmark.cpp)
+target_link_libraries(rendering_raytracing_benchmark_64
+    PRIVATE
+        RLtools::RLtools
+        rendering_raytracing_backend
+        rendering_raytracing_stb
+)
+target_compile_definitions(rendering_raytracing_benchmark_64 PRIVATE
+    RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_WIDTH=64
+    RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_HEIGHT=64
+)
+
+function(add_rendering_raytracing_benchmark_dynamic SUFFIX)
+    cmake_parse_arguments(ARG "" "SHADING;OUTPUT_MODE;AA;MB;CONSUME;TILE;NUM_CAMERAS" "" ${ARGN})
+    set(TARGET_NAME rendering_raytracing_benchmark_dynamic_${SUFFIX})
+    add_executable(${TARGET_NAME} EXCLUDE_FROM_ALL benchmark_dynamic.cpp)
+    if(ARG_OUTPUT_MODE AND ARG_OUTPUT_MODE EQUAL 1)
+        set(BACKEND_TARGET rendering_raytracing_backend_depth)
+    else()
+        set(BACKEND_TARGET rendering_raytracing_backend)
+    endif()
+    target_link_libraries(${TARGET_NAME} PRIVATE RLtools::RLtools ${BACKEND_TARGET} rendering_raytracing_stb)
+    foreach(OPTION SHADING OUTPUT_MODE AA MB CONSUME TILE NUM_CAMERAS)
+        if(DEFINED ARG_${OPTION})
+            if(OPTION STREQUAL "AA")
+                set(DEFINE_NAME AA_GRID)
+            elseif(OPTION STREQUAL "MB")
+                set(DEFINE_NAME MB_SAMPLES)
+            else()
+                set(DEFINE_NAME ${OPTION})
+            endif()
+            target_compile_definitions(${TARGET_NAME} PRIVATE RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_DYNAMIC_${DEFINE_NAME}=${ARG_${OPTION}})
+        endif()
+    endforeach()
+endfunction()
+
+add_rendering_raytracing_benchmark_dynamic(low SHADING 0)
+add_rendering_raytracing_benchmark_dynamic(medium SHADING 1)
+add_rendering_raytracing_benchmark_dynamic(high SHADING 2)
+add_rendering_raytracing_benchmark_dynamic(veryhigh SHADING 3)
+add_rendering_raytracing_benchmark_dynamic(high_aa2 SHADING 2 AA 2)
+add_rendering_raytracing_benchmark_dynamic(high_mb4 SHADING 2 MB 4)
+add_rendering_raytracing_benchmark_dynamic(high_rgbd SHADING 2 OUTPUT_MODE 1)
+add_rendering_raytracing_benchmark_dynamic(high_consume SHADING 2 CONSUME 1)
+add_rendering_raytracing_benchmark_dynamic(high_tile2 SHADING 2 TILE 2)
+add_rendering_raytracing_benchmark_dynamic(high_n256 SHADING 2 NUM_CAMERAS 256)
+
 add_executable(rendering_raytracing_benchmark_depth EXCLUDE_FROM_ALL benchmark.cpp)
 target_link_libraries(rendering_raytracing_benchmark_depth
     PRIVATE
