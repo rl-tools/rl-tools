@@ -121,6 +121,39 @@ static std::array<double, 16> buildTRS(const double t[3],
     return m;
 }
 
+// Column-major 4x4 product a * b
+static std::array<double, 16> matMul(const std::array<double, 16>& a,
+                                     const std::array<double, 16>& b) {
+    std::array<double, 16> out{};
+    for (int col = 0; col < 4; col++)
+        for (int row = 0; row < 4; row++)
+            for (int k = 0; k < 4; k++)
+                out[col * 4 + row] += a[k * 4 + row] * b[col * 4 + k];
+    return out;
+}
+
+static std::array<double, 16> nodeLocalMatrix(const tinygltf::Node& node) {
+    if (node.matrix.size() == 16) {
+        std::array<double, 16> m{};
+        std::copy(node.matrix.begin(), node.matrix.end(), m.begin());
+        return m;
+    }
+    double t[3] = {0, 0, 0};
+    Quat q{1, 0, 0, 0};
+    double s[3] = {1, 1, 1};
+    if (node.translation.size() == 3)
+        for (int i = 0; i < 3; i++) t[i] = node.translation[i];
+    if (node.rotation.size() == 4) {  // glTF stores [x, y, z, w]
+        q.x = node.rotation[0];
+        q.y = node.rotation[1];
+        q.z = node.rotation[2];
+        q.w = node.rotation[3];
+    }
+    if (node.scale.size() == 3)
+        for (int i = 0; i < 3; i++) s[i] = node.scale[i];
+    return buildTRS(t, q, s);
+}
+
 // ---------------------------------------------------------------------------
 // Merge a source glTF model into a destination model.
 // Returns the index of a wrapper node (with optional transform) that parents
@@ -130,9 +163,13 @@ struct MergeResult {
     int rootNode;
 };
 
-static MergeResult mergeModel(tinygltf::Model& dst,
-                              const tinygltf::Model& src,
-                              const std::array<double, 16>* instanceMatrix) {
+struct MergedNodes {
+    int nodeOffset;
+    std::vector<int> sourceRoots;  // src-relative indices of the source scene's root nodes
+};
+
+static MergedNodes mergeModelNodes(tinygltf::Model& dst,
+                                   const tinygltf::Model& src) {
     const int bufOff   = (int)dst.buffers.size();
     const int bvOff    = (int)dst.bufferViews.size();
     const int accOff   = (int)dst.accessors.size();
@@ -256,17 +293,88 @@ static MergeResult mergeModel(tinygltf::Model& dst,
             if (!isChild[i]) srcRoots.push_back(i);
     }
 
+    return {nodeOff, srcRoots};
+}
+
+static MergeResult mergeModel(tinygltf::Model& dst,
+                              const tinygltf::Model& src,
+                              const std::array<double, 16>* instanceMatrix) {
+    const MergedNodes merged = mergeModelNodes(dst, src);
+
     // Create wrapper node with optional transform
     tinygltf::Node wrapper;
     wrapper.name = "instance";
-    for (int r : srcRoots)
-        wrapper.children.push_back(r + nodeOff);
+    for (int r : merged.sourceRoots)
+        wrapper.children.push_back(r + merged.nodeOffset);
     if (instanceMatrix)
         wrapper.matrix.assign(instanceMatrix->begin(), instanceMatrix->end());
 
     int wrapperIdx = (int)dst.nodes.size();
     dst.nodes.push_back(wrapper);
     return {wrapperIdx};
+}
+
+static bool nodeHasDirectContent(const tinygltf::Model& src, int idx) {
+    const tinygltf::Node& node = src.nodes[idx];
+    return node.mesh >= 0 || node.light >= 0 ||
+           node.extensions.count("KHR_lights_punctual") > 0;
+}
+
+static bool subtreeHasContent(const tinygltf::Model& src, int idx) {
+    if (nodeHasDirectContent(src, idx)) return true;
+    for (int c : src.nodes[idx].children)
+        if (subtreeHasContent(src, c)) return true;
+    return false;
+}
+
+static void collectSplitRoots(tinygltf::Model& dst,
+                              const tinygltf::Model& src,
+                              int nodeOff,
+                              int idx,
+                              const std::array<double, 16>& parentMatrix,
+                              const std::string& fallbackName,
+                              std::vector<int>& outRoots) {
+    if (!subtreeHasContent(src, idx)) return;
+    const tinygltf::Node& node = src.nodes[idx];
+    bool splitHere = nodeHasDirectContent(src, idx);
+    if (!splitHere)
+        for (int c : node.children)
+            if (nodeHasDirectContent(src, c)) { splitHere = true; break; }
+    std::array<double, 16> composed = matMul(parentMatrix, nodeLocalMatrix(node));
+    if (splitHere) {
+        tinygltf::Node& promoted = dst.nodes[idx + nodeOff];
+        promoted.matrix.assign(composed.begin(), composed.end());
+        promoted.translation.clear();
+        promoted.rotation.clear();
+        promoted.scale.clear();
+        if (promoted.name.empty())
+            promoted.name = fallbackName + "#part" + std::to_string(outRoots.size());
+        outRoots.push_back(idx + nodeOff);
+    } else {
+        for (int c : node.children)
+            collectSplitRoots(dst, src, nodeOff, c, composed, fallbackName, outRoots);
+    }
+}
+
+// Split-merge for the stage: consumers downstream create one instance per
+// scene-root node, so instead of welding the whole source under a single
+// wrapper, promote each minimal subtree that carries content (a mesh or light
+// on the node itself or on a direct child) to its own scene root, baking the
+// ancestor transforms into the promoted node. For a ProcTHOR stage this turns
+// Level -> Room -> Wall/Floor/Ceiling into one root per wall/floor/ceiling,
+// keeping their semantic names; a stage whose root carries the mesh directly
+// degenerates to a single root, matching the previous welded behavior.
+static std::vector<int> mergeModelSplit(tinygltf::Model& dst,
+                                        const tinygltf::Model& src,
+                                        const std::array<double, 16>* instanceMatrix,
+                                        const std::string& fallbackName) {
+    const MergedNodes merged = mergeModelNodes(dst, src);
+    std::array<double, 16> base = {1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1};
+    if (instanceMatrix) base = *instanceMatrix;
+    std::vector<int> roots;
+    for (int r : merged.sourceRoots)
+        collectSplitRoots(dst, src, merged.nodeOffset, r, base, fallbackName, roots);
+    return roots;
 }
 
 // ---------------------------------------------------------------------------
@@ -1858,11 +1966,14 @@ int main(int argc, char* argv[]) {
                               << configPath << "\n";
                 }
 
-                auto r = mergeModel(outModel, *m,
-                                    hasStageMatrix ? &stageMatrix : nullptr);
-                outScene.nodes.push_back(r.rootNode);
+                auto stageRoots = mergeModelSplit(outModel, *m,
+                                                  hasStageMatrix ? &stageMatrix : nullptr,
+                                                  fs::path(tmpl).stem().string());
+                for (int r : stageRoots)
+                    outScene.nodes.push_back(r);
                 mergeExtensions(outModel, *m);
-                std::cout << "  -> meshes=" << m->meshes.size()
+                std::cout << "  -> parts=" << stageRoots.size()
+                          << "  meshes=" << m->meshes.size()
                           << "  materials=" << m->materials.size()
                           << "  textures=" << m->textures.size() << "\n";
             } else {
@@ -1928,6 +2039,7 @@ int main(int argc, char* argv[]) {
 
             auto matrix = buildTRS(t, q, s);
             auto r = mergeModel(outModel, *objModel, &matrix);
+            outModel.nodes[r.rootNode].name = fs::path(tmpl).stem().string();
             outScene.nodes.push_back(r.rootNode);
             mergeExtensions(outModel, *objModel);
             objCount++;
