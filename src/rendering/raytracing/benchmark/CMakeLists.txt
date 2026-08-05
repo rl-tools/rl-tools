@@ -6,6 +6,18 @@ target_link_libraries(rendering_raytracing_benchmark
         rendering_raytracing_stb
 )
 
+add_executable(rendering_raytracing_benchmark_64 EXCLUDE_FROM_ALL benchmark.cpp)
+target_link_libraries(rendering_raytracing_benchmark_64
+    PRIVATE
+        RLtools::RLtools
+        rendering_raytracing_backend
+        rendering_raytracing_stb
+)
+target_compile_definitions(rendering_raytracing_benchmark_64 PRIVATE
+    RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_WIDTH=64
+    RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_HEIGHT=64
+)
+
 add_executable(rendering_raytracing_benchmark_depth EXCLUDE_FROM_ALL benchmark.cpp)
 target_link_libraries(rendering_raytracing_benchmark_depth
     PRIVATE
