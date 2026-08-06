@@ -39,6 +39,10 @@ namespace rl_tools {
                 ctx.in_flight_collision->waitUntilCompleted();
                 ctx.in_flight_collision.reset();
             }
+            if(ctx.in_flight_update.get() != nullptr){
+                ctx.in_flight_update->waitUntilCompleted();
+                ctx.in_flight_update.reset();
+            }
         }
 
         template <typename SPEC>
@@ -401,13 +405,7 @@ namespace rl_tools {
             ctx.overlay_structures = NS::TransferPtr(ctx.device->newBuffer(overlay_entries.data(), overlay_entries.size() * sizeof(metal::OverlayStructureEntry), MTL::ResourceStorageModeShared));
             std::vector<uint32_t> attachments_init((size_t)SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA, 0xFFFFFFFFu);
             ctx.overlay_attachments = NS::TransferPtr(ctx.device->newBuffer(attachments_init.data(), attachments_init.size() * sizeof(uint32_t), MTL::ResourceStorageModeShared));
-            for(auto& overlay_state : renderer.overlays){
-                for(auto& slot : overlay_state.slots){
-                    slot.active = false;
-                }
-                overlay_state.dirty = true;
-            }
-            renderer.attachments_dirty = true;
+            rendering::raytracing::detail::reset_overlay_state(renderer);
         }
         else if(ctx.overlay_structures.get() == nullptr){
             // never dereferenced (fc_overlay_count == 0) but keeps the kernel bindings valid
@@ -518,8 +516,12 @@ namespace rl_tools {
         init(device, renderer, scene, empty_pool);
     }
 
+    // the host must not mutate the shared instance/descriptor buffers while renders or builds
+    // are in flight, hence the wait at the top; the commit is not waited on — command buffers on
+    // one queue execute in commit order and Metal's hazard tracking orders the acceleration
+    // structure writes before any subsequent render pass that reads them
     template <typename DEVICE, typename SPEC>
-    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    void update_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
         namespace metal = rendering::raytracing::backends::metal;
         using TI = typename SPEC::TI;
@@ -601,9 +603,26 @@ namespace rl_tools {
         if(command_buffer != nullptr){
             encoder->endEncoding();
             command_buffer->commit();
-            command_buffer->waitUntilCompleted();
+            ctx.in_flight_update = NS::RetainPtr(command_buffer);
         }
         autorelease_pool->release();
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void update_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
+        namespace metal = rendering::raytracing::backends::metal;
+        auto& ctx = metal::context(renderer);
+        if(ctx.in_flight_update.get() != nullptr){
+            ctx.in_flight_update->waitUntilCompleted();
+            ctx.in_flight_update.reset();
+        }
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        update_launch(device, renderer);
+        update_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>

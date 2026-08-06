@@ -148,6 +148,7 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         NS::SharedPtr<MTL::Buffer> launch_params;
         NS::SharedPtr<MTL::CommandBuffer> in_flight;
         NS::SharedPtr<MTL::CommandBuffer> in_flight_collision;
+        NS::SharedPtr<MTL::CommandBuffer> in_flight_update;
         bool pipelines_built = false;
     };
 }

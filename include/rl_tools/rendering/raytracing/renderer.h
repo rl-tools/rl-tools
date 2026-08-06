@@ -225,15 +225,11 @@ namespace rl_tools {
             OverlayState overlays[SPEC::NUM_OVERLAYS];
             TI attachments[SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA];
             bool attachments_dirty = false;
+            // the flattened pool tables live on the renderer (not in backend state) because the
+            // backend-independent host verbs (spawn, set_transform) consume them
             std::vector<AssetRecord> assets;
             std::vector<TI> asset_part_objects;      // global object index per part
             std::vector<float> asset_part_transforms; // 12 per part, assembly-local
-
-            OverlayRendererStorage(){
-                for(TI attachment_i = 0; attachment_i < SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA; attachment_i++){
-                    attachments[attachment_i] = INVALID_OVERLAY;
-                }
-            }
         };
 
         template <typename T_SPEC>
