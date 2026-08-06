@@ -884,6 +884,18 @@ namespace rl_tools {
         }
     }
 
+    // owl group builds are synchronous; splitting them onto the launch stream (raw
+    // optixAccelBuild over device-side descriptors) is future work, so launch == update here
+    template <typename DEVICE, typename SPEC>
+    void update_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        update(device, renderer);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void update_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
+    }
+
     template <typename DEVICE, typename SPEC>
     void generate_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer,
                           const typename SPEC::T center[3], typename SPEC::T radius,

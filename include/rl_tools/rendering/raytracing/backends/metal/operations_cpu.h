@@ -39,6 +39,10 @@ namespace rl_tools {
                 ctx.in_flight_collision->waitUntilCompleted();
                 ctx.in_flight_collision.reset();
             }
+            if(ctx.in_flight_update.get() != nullptr){
+                ctx.in_flight_update->waitUntilCompleted();
+                ctx.in_flight_update.reset();
+            }
         }
 
         template <typename SPEC>
@@ -512,8 +516,12 @@ namespace rl_tools {
         init(device, renderer, scene, empty_pool);
     }
 
+    // the host must not mutate the shared instance/descriptor buffers while renders or builds
+    // are in flight, hence the wait at the top; the commit is not waited on — command buffers on
+    // one queue execute in commit order and Metal's hazard tracking orders the acceleration
+    // structure writes before any subsequent render pass that reads them
     template <typename DEVICE, typename SPEC>
-    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    void update_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
         namespace metal = rendering::raytracing::backends::metal;
         using TI = typename SPEC::TI;
@@ -595,9 +603,26 @@ namespace rl_tools {
         if(command_buffer != nullptr){
             encoder->endEncoding();
             command_buffer->commit();
-            command_buffer->waitUntilCompleted();
+            ctx.in_flight_update = NS::RetainPtr(command_buffer);
         }
         autorelease_pool->release();
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void update_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
+        namespace metal = rendering::raytracing::backends::metal;
+        auto& ctx = metal::context(renderer);
+        if(ctx.in_flight_update.get() != nullptr){
+            ctx.in_flight_update->waitUntilCompleted();
+            ctx.in_flight_update.reset();
+        }
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        update_launch(device, renderer);
+        update_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
