@@ -69,7 +69,17 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, rl::environments::raytracing_example::Environment<SPEC>& env) {
         utils::assert_exit(device, env.scene_path != nullptr, "raytracing_example::init: scene_path is null");
-        const bool loaded = load<typename SPEC::RAYTRACING_SPEC::SHADING, SPEC::RAYTRACING_SPEC::HAS_RGB>(device, *env.scene, std::string(env.scene_path));
+        bool loaded;
+        if constexpr (SPEC::RAYTRACING_SPEC::HAS_SEGMENTATION) {
+            rendering::raytracing::ObjectAssembly assembly;
+            loaded = load<typename SPEC::RAYTRACING_SPEC::SHADING, SPEC::RAYTRACING_SPEC::HAS_RGB>(device, assembly, std::string(env.scene_path));
+            if(loaded){
+                add(device, *env.scene, assembly);
+            }
+        }
+        else {
+            loaded = load<typename SPEC::RAYTRACING_SPEC::SHADING, SPEC::RAYTRACING_SPEC::HAS_RGB>(device, *env.scene, std::string(env.scene_path));
+        }
         utils::assert_exit(device, loaded, "raytracing_example::init: failed to load scene");
 
         init(device, *env.renderer, *env.scene);
