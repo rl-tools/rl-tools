@@ -59,6 +59,10 @@ namespace {
         static constexpr TI MOTION_BLUR_SAMPLES = 1;
         static constexpr bool ENABLE_ANTI_ALIASING = T_ENABLE_ANTI_ALIASING;
         static constexpr TI ANTI_ALIASING_GRID_SIZE = T_ANTI_ALIASING_GRID_SIZE;
+        static constexpr TI NUM_OVERLAYS = 0;
+        static constexpr TI MAX_OVERLAY_INSTANCES = 0;
+        static constexpr TI MAX_OVERLAYS_PER_CAMERA = 0;
+        static constexpr bool ENABLE_OVERLAYS = false;
     };
 
     struct CubeScene{

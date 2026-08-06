@@ -115,6 +115,7 @@ namespace rl_tools
   {
     unsigned int u0 = __float_as_uint(max_dist);
     unsigned int u1 = 0;
+    unsigned int u2 = 0; // collisionHit writes payload 2 (instance id); must be declared here
     optixTrace(world,
                (const float3&)pos,
                (const float3&)direction,
@@ -124,7 +125,7 @@ namespace rl_tools
                OptixVisibilityMask(255),
                OPTIX_RAY_FLAG_DISABLE_ANYHIT | OPTIX_RAY_FLAG_TERMINATE_ON_FIRST_HIT,
                1, NUM_RAY_TYPES, 1,
-               u0, u1);
+               u0, u1, u2);
     return u1 != 0;
   }
 
@@ -145,6 +146,7 @@ namespace rl_tools
   {
     unsigned int u0 = __float_as_uint(max_depth);
     unsigned int u1 = 0;
+    unsigned int u2 = 0; // collisionHit writes payload 2 (instance id); must be declared here
     optixTrace(world,
                (const float3&)pos,
                (const float3&)direction,
@@ -154,7 +156,7 @@ namespace rl_tools
                OptixVisibilityMask(255),
                OPTIX_RAY_FLAG_DISABLE_ANYHIT,
                1, NUM_RAY_TYPES, 1,
-               u0, u1);
+               u0, u1, u2);
     return __uint_as_float(u0);
   }
 
