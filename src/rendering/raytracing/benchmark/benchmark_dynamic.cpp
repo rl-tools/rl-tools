@@ -237,32 +237,33 @@ int main(int ac, char** av){
     }
     if constexpr(TILE > 1){
         float bbox_min[3] = {1e30f, 1e30f, 1e30f}, bbox_max[3] = {-1e30f, -1e30f, -1e30f};
-        for(const auto& mesh : scene.meshes){
-            for(size_t vertex_i = 0; vertex_i + 2 < mesh.vertices.size(); vertex_i += 3){
-                for(int d = 0; d < 3; d++){
-                    bbox_min[d] = std::min(bbox_min[d], mesh.vertices[vertex_i + d]);
-                    bbox_max[d] = std::max(bbox_max[d], mesh.vertices[vertex_i + d]);
+        for(const auto& object : scene.objects){
+            for(const auto& mesh : object.meshes){
+                for(size_t vertex_i = 0; vertex_i + 2 < mesh.vertices.size(); vertex_i += 3){
+                    for(int d = 0; d < 3; d++){
+                        bbox_min[d] = std::min(bbox_min[d], mesh.vertices[vertex_i + d]);
+                        bbox_max[d] = std::max(bbox_max[d], mesh.vertices[vertex_i + d]);
+                    }
                 }
             }
         }
         const float tile_offset[2] = {bbox_max[0] - bbox_min[0] + 1.0f, bbox_max[1] - bbox_min[1] + 1.0f};
-        const size_t num_original_meshes = scene.meshes.size();
+        const size_t num_original_instances = scene.instances.size();
         for(TI tile_x = 0; tile_x < TILE; tile_x++){
             for(TI tile_y = 0; tile_y < TILE; tile_y++){
                 if(tile_x == 0 && tile_y == 0){
                     continue;
                 }
-                for(size_t mesh_i = 0; mesh_i < num_original_meshes; mesh_i++){
-                    rlt::rendering::raytracing::Mesh mesh = scene.meshes[mesh_i];
-                    for(size_t vertex_i = 0; vertex_i + 2 < mesh.vertices.size(); vertex_i += 3){
-                        mesh.vertices[vertex_i] += tile_x * tile_offset[0];
-                        mesh.vertices[vertex_i + 1] += tile_y * tile_offset[1];
-                    }
-                    scene.meshes.push_back(mesh);
+                for(size_t instance_i = 0; instance_i < num_original_instances; instance_i++){
+                    rlt::rendering::raytracing::Instance instance = scene.instances[instance_i];
+                    instance.transform[3] += tile_x * tile_offset[0];
+                    instance.transform[7] += tile_y * tile_offset[1];
+                    instance.identity = false;
+                    scene.instances.push_back(instance);
                 }
             }
         }
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("Tiled scene " << TILE << "x" << TILE << ": " << scene.meshes.size() << " meshes");
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("Tiled scene " << TILE << "x" << TILE << ": " << scene.instances.size() << " instances");
     }
     rlt::init(device, renderer, scene);
     rlt::generate_probe_directions(device, renderer);

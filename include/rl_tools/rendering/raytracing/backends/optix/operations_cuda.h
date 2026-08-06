@@ -367,7 +367,6 @@ namespace rl_tools {
             owlRayGenSet2i    (segmentation_ray_gen, "cam_size", cam_size);
             owlRayGenSet1i    (segmentation_ray_gen, "grid_cols", SPEC::GRID_COLS);
             owlRayGenSet1i    (segmentation_ray_gen, "num_cameras", SPEC::NUM_CAMERAS);
-            owlRayGenSetBuffer(segmentation_ray_gen, "cameras", cameras_buffer);
             renderer.backend.segmentation_ray_gen = segmentation_ray_gen;
             renderer.backend.segmentation_buffer_handle = segmentation_buffer;
         }
@@ -406,6 +405,9 @@ namespace rl_tools {
             else {
                 owlRayGenSetBuffer(depth_ray_gen, "cameras", cameras_buffer);
             }
+        }
+        if constexpr (SPEC::HAS_SEGMENTATION) {
+            owlRayGenSetBuffer(segmentation_ray_gen, "cameras", cameras_buffer);
         }
 
         renderer.backend.context = context;
@@ -1250,6 +1252,9 @@ namespace rl_tools {
     void free(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         RL_TOOLS_RENDERING_RAYTRACING_LOG("destroying devicegroups ...");
         if(renderer.backend.context) owlContextDestroy((OWLContext)renderer.backend.context);
+        // OWL's LaunchParams teardown cudaFrees in an invalid context state once params are
+        // non-empty; clear the latent error so it cannot poison the next renderer lifecycle
+        cudaGetLastError();
         renderer.backend.context = nullptr;
         delete (rendering::raytracing::backends::optix::OverlayState*)renderer.backend.overlay_state;
         renderer.backend.overlay_state = nullptr;
