@@ -55,7 +55,7 @@ namespace rl_tools {
         using VeryHighFidelityShading = VeryHigh;
         using FastFlatShading = Low;
 
-        template <typename T_T, typename T_TI, T_TI T_CAM_WIDTH, T_TI T_CAM_HEIGHT, T_TI T_NUM_CAMERAS, T_TI T_NUM_PROBES, typename T_SHADING = Medium, bool T_ENABLE_MOTION_BLUR = false, T_TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, T_TI T_ANTI_ALIASING_GRID_SIZE = 1, OutputMode T_OUTPUT_MODE = OutputMode::RGB>
+        template <typename T_T, typename T_TI, T_TI T_CAM_WIDTH, T_TI T_CAM_HEIGHT, T_TI T_NUM_CAMERAS, T_TI T_NUM_PROBES, typename T_SHADING = Medium, bool T_ENABLE_MOTION_BLUR = false, T_TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, T_TI T_ANTI_ALIASING_GRID_SIZE = 1, OutputMode T_OUTPUT_MODE = OutputMode::RGB, T_TI T_NUM_OVERLAYS = 0, T_TI T_MAX_OVERLAY_INSTANCES = 0, T_TI T_MAX_OVERLAYS_PER_CAMERA = 0>
         struct Specification{
             using T = T_T;
             using TI = T_TI;
@@ -92,6 +92,12 @@ namespace rl_tools {
             static constexpr TI CAM_PIXELS = CAM_WIDTH * CAM_HEIGHT;
             static constexpr T BENCHMARK_SECONDS = 10.0;
             static constexpr T COS_FOVY = 1.3962634015954636;
+            // dynamic overlays: per-camera dynamic content composed onto the static shared world
+            static constexpr TI NUM_OVERLAYS = T_NUM_OVERLAYS;
+            static constexpr TI MAX_OVERLAY_INSTANCES = T_MAX_OVERLAY_INSTANCES;
+            static constexpr TI MAX_OVERLAYS_PER_CAMERA = T_MAX_OVERLAYS_PER_CAMERA;
+            static constexpr bool ENABLE_OVERLAYS = NUM_OVERLAYS > 0 && MAX_OVERLAY_INSTANCES > 0 && MAX_OVERLAYS_PER_CAMERA > 0;
+            static_assert(ENABLE_OVERLAYS || (NUM_OVERLAYS == 0 && MAX_OVERLAY_INSTANCES == 0 && MAX_OVERLAYS_PER_CAMERA == 0), "overlay constants must be all zero (disabled) or all nonzero");
         };
 
         template <typename T_SPEC, bool T_ENABLE_MOTION_BLUR>
@@ -114,6 +120,7 @@ namespace rl_tools {
             void* collision_results_buffer = nullptr;
             void* probe_dirs_buffer = nullptr;
             void* coll_launch_params = nullptr;
+            void* overlay_state = nullptr;
         };
 
         template <typename T_SPEC, bool T_HAS_RGB>
@@ -192,8 +199,45 @@ namespace rl_tools {
             Tensor<SEGMENTATION_TENSOR_SPEC> segmentation_buffer;
         };
 
+        template <typename T_SPEC, bool T_ENABLE_OVERLAYS>
+        struct OverlayRendererStorage {};
+
         template <typename T_SPEC>
-        struct Renderer: MotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_MOTION_BLUR>, RGBRendererStorage<T_SPEC, T_SPEC::HAS_RGB>, DepthRendererStorage<T_SPEC, T_SPEC::HAS_DEPTH>, SegmentationRendererStorage<T_SPEC, T_SPEC::HAS_SEGMENTATION>{
+        struct OverlayRendererStorage<T_SPEC, true> {
+            using SPEC = T_SPEC;
+            using TI = typename SPEC::TI;
+            static constexpr TI INVALID_OVERLAY = ~(TI)0;
+
+            struct OverlaySlot {
+                TI object = 0;          // global object index (scene objects + pool objects)
+                float transform[12];    // object -> world
+                bool active = false;
+            };
+            struct OverlayState {
+                OverlaySlot slots[SPEC::MAX_OVERLAY_INSTANCES];
+                bool dirty = false;
+            };
+            // pool assemblies flattened at init so spawn needs no pool access in the hot path
+            struct AssetRecord {
+                TI first_part;          // into asset_part_objects/asset_part_transforms
+                TI num_parts;
+            };
+            OverlayState overlays[SPEC::NUM_OVERLAYS];
+            TI attachments[SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA];
+            bool attachments_dirty = false;
+            std::vector<AssetRecord> assets;
+            std::vector<TI> asset_part_objects;      // global object index per part
+            std::vector<float> asset_part_transforms; // 12 per part, assembly-local
+
+            OverlayRendererStorage(){
+                for(TI attachment_i = 0; attachment_i < SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA; attachment_i++){
+                    attachments[attachment_i] = INVALID_OVERLAY;
+                }
+            }
+        };
+
+        template <typename T_SPEC>
+        struct Renderer: MotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_MOTION_BLUR>, RGBRendererStorage<T_SPEC, T_SPEC::HAS_RGB>, DepthRendererStorage<T_SPEC, T_SPEC::HAS_DEPTH>, SegmentationRendererStorage<T_SPEC, T_SPEC::HAS_SEGMENTATION>, OverlayRendererStorage<T_SPEC, T_SPEC::ENABLE_OVERLAYS>{
             using SPEC = T_SPEC;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;

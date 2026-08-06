@@ -29,6 +29,18 @@ namespace rl_tools {
     extern "C" char device_segmentation_ptx[];
     extern "C" char device_depth_segmentation_ptx[];
 
+    namespace rendering::raytracing::backends::optix {
+        // inactive overlay slots point at a shared degenerate-triangle group, so every overlay
+        // instance group keeps a fixed child count and instance-id layout across rebuilds
+        struct OverlayState {
+            std::vector<OWLGroup> object_groups;
+            OWLGroup filler_group = nullptr;
+            std::vector<OWLGroup> overlay_groups;
+            OWLBuffer traversables_buffer = nullptr;
+            OWLBuffer attachments_buffer = nullptr;
+        };
+    }
+
     namespace rendering::raytracing::detail {
         template <bool T_DEPTH, typename SPEC>
         const char* ray_gen_program_name(const char* depth_name, const char* srgb_name, const char* linear_name) {
@@ -191,7 +203,7 @@ namespace rl_tools {
 
         OWLContext context = owlContextCreate(nullptr, 1);
         owlContextSetRayTypeCount(context, 2);
-        owlContextSetNumPayloadValues(context, 3);
+        owlContextSetNumPayloadValues(context, 4); // color ptr (2), recursion depth, hit distance
         const char* ptx = nullptr;
         if constexpr (SPEC::HAS_SEGMENTATION && SPEC::HAS_DEPTH) {
             ptx = device_depth_segmentation_ptx;
@@ -444,7 +456,11 @@ namespace rl_tools {
     // init: upload meshes, build single shared BVH, build programs/pipeline/SBT
     // =========================================================================
     template <typename DEVICE, typename SPEC>
-    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const rendering::raytracing::Scene& scene){
+    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer);
+
+    template <typename DEVICE, typename SPEC>
+    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool){
+        namespace optix = rendering::raytracing::backends::optix;
         OWLContext context = (OWLContext)renderer.backend.context;
         OWLModule module = (OWLModule)renderer.backend.module;
 
@@ -527,11 +543,19 @@ namespace rl_tools {
 
         RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << scene.objects.size() << " object(s), " << scene.instances.size() << " instance(s) ...");
 
+        std::vector<const rendering::raytracing::Object*> all_objects;
+        for(const auto& object : scene.objects){
+            all_objects.push_back(&object);
+        }
+        if constexpr (SPEC::ENABLE_OVERLAYS){
+            rendering::raytracing::detail::register_pool_assets(device, renderer, pool, all_objects);
+        }
+
         std::vector<OWLGeom> geoms;
         std::vector<OWLGroup> object_groups;
-        for(size_t object_i = 0; object_i < scene.objects.size(); object_i++){
+        for(size_t object_i = 0; object_i < all_objects.size(); object_i++){
             std::vector<OWLGeom> object_geoms;
-            for(const auto& md : scene.objects[object_i].meshes){
+            for(const auto& md : all_objects[object_i]->meshes){
             size_t num_vertices = md.vertices.size() / 3;
             size_t num_indices = md.indices.size() / 3;
 
@@ -663,10 +687,34 @@ namespace rl_tools {
             object_groups.push_back(triangles_group);
         }
 
+        delete (optix::OverlayState*)renderer.backend.overlay_state;
+        renderer.backend.overlay_state = nullptr;
+        if constexpr (SPEC::ENABLE_OVERLAYS){
+            auto* overlay_state = new optix::OverlayState{};
+            overlay_state->object_groups = object_groups;
+            // degenerate triangle: valid to build, never reported as a hit
+            const float filler_vertices[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+            const int filler_indices[3] = {0, 1, 2};
+            OWLBuffer filler_vertex_buffer = owlDeviceBufferCreate(context, OWL_FLOAT3, 3, filler_vertices);
+            OWLBuffer filler_index_buffer = owlDeviceBufferCreate(context, OWL_INT3, 1, filler_indices);
+            OWLGeom filler_geom = owlGeomCreate(context, triangles_geom_type);
+            owlTrianglesSetVertices(filler_geom, filler_vertex_buffer, 3, sizeof(owl::vec3f), 0);
+            owlTrianglesSetIndices(filler_geom, filler_index_buffer, 1, sizeof(owl::vec3i), 0);
+            if constexpr (SPEC::HAS_RGB){
+                owlGeomSet3f(filler_geom, "color", owl3f{0.f, 0.f, 0.f});
+            }
+            geoms.push_back(filler_geom);
+            overlay_state->filler_group = owlTrianglesGeomGroupCreate(context, 1, &filler_geom);
+            owlGroupBuildAccel(overlay_state->filler_group);
+            renderer.backend.overlay_state = overlay_state;
+        }
+
         std::vector<OWLGroup> instance_children;
+        std::vector<uint32_t> instance_ids; // user instance ids == global instance ids
         std::vector<float> instance_transforms; // 12 per instance: owl affine3f (linear columns vx, vy, vz, then translation)
         for(const auto& instance : scene.instances){
             instance_children.push_back(object_groups[instance.object]);
+            instance_ids.push_back((uint32_t)instance_ids.size());
             const float* transform = instance.transform; // 3x4 row-major [R|t]
             const float owl_transform[12] = {
                 transform[0], transform[4], transform[8],
@@ -676,7 +724,7 @@ namespace rl_tools {
             };
             instance_transforms.insert(instance_transforms.end(), owl_transform, owl_transform + 12);
         }
-        OWLGroup world = owlInstanceGroupCreate(context, instance_children.size(), instance_children.data(), nullptr, instance_transforms.data(), OWL_MATRIX_FORMAT_OWL);
+        OWLGroup world = owlInstanceGroupCreate(context, instance_children.size(), instance_children.data(), instance_ids.data(), instance_transforms.data(), OWL_MATRIX_FORMAT_OWL);
         owlGroupBuildAccel(world);
 
         if constexpr (SPEC::HAS_RGB && (SPEC::SHADING::PBR_SHADING || SPEC::SHADING::METALLIC_REFLECTIONS)) {
@@ -719,13 +767,126 @@ namespace rl_tools {
         owlBuildPipeline(context);
         owlBuildSBT(context);
 
+        if constexpr (SPEC::ENABLE_OVERLAYS){
+            auto* overlay_state = (optix::OverlayState*)renderer.backend.overlay_state;
+            const float identity_owl[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0};
+            std::vector<OWLGroup> overlay_children(SPEC::MAX_OVERLAY_INSTANCES, overlay_state->filler_group);
+            std::vector<float> overlay_transforms;
+            for(size_t slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
+                overlay_transforms.insert(overlay_transforms.end(), identity_owl, identity_owl + 12);
+            }
+            for(size_t overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+                std::vector<uint32_t> overlay_instance_ids(SPEC::MAX_OVERLAY_INSTANCES);
+                for(size_t slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
+                    overlay_instance_ids[slot] = (uint32_t)(scene.instances.size() + overlay * SPEC::MAX_OVERLAY_INSTANCES + slot);
+                }
+                OWLGroup overlay_group = owlInstanceGroupCreate(context, SPEC::MAX_OVERLAY_INSTANCES, overlay_children.data(), overlay_instance_ids.data(), overlay_transforms.data(), OWL_MATRIX_FORMAT_OWL);
+                owlGroupBuildAccel(overlay_group);
+                overlay_state->overlay_groups.push_back(overlay_group);
+            }
+            overlay_state->traversables_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(unsigned long long), SPEC::NUM_OVERLAYS, nullptr);
+            overlay_state->attachments_buffer = owlDeviceBufferCreate(context, OWL_UINT, (size_t)SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA, nullptr);
+            for(auto& overlay_slot_state : renderer.overlays){
+                for(auto& slot : overlay_slot_state.slots){
+                    slot.active = false;
+                }
+                overlay_slot_state.dirty = true;
+            }
+            renderer.attachments_dirty = true;
+        }
+
         if(renderer.backend.launch_params == nullptr){
-            OWLParams launch_params = owlParamsCreate(context, 0, nullptr, 0);
+            OWLVarDecl launch_params_vars[] = {
+                { "overlays",      OWL_BUFPTR, OWL_OFFSETOF(OverlayLaunchParams, overlays)},
+                { "attachments",   OWL_BUFPTR, OWL_OFFSETOF(OverlayLaunchParams, attachments)},
+                { "overlay_count", OWL_INT,    OWL_OFFSETOF(OverlayLaunchParams, overlay_count)},
+                { "cam_width",     OWL_INT,    OWL_OFFSETOF(OverlayLaunchParams, cam_width)},
+                { "cam_height",    OWL_INT,    OWL_OFFSETOF(OverlayLaunchParams, cam_height)},
+                { "grid_cols",     OWL_INT,    OWL_OFFSETOF(OverlayLaunchParams, grid_cols)},
+                { /* sentinel */ }
+            };
+            OWLParams launch_params = owlParamsCreate(context, sizeof(OverlayLaunchParams), launch_params_vars, -1);
             renderer.backend.launch_params = launch_params;
             if(renderer.backend.collision_ray_gen){
-                OWLParams coll_lp = owlParamsCreate(context, 0, nullptr, 0);
+                OWLParams coll_lp = owlParamsCreate(context, sizeof(OverlayLaunchParams), launch_params_vars, -1);
                 renderer.backend.coll_launch_params = coll_lp;
             }
+        }
+        OWLParams all_launch_params[2] = {(OWLParams)renderer.backend.launch_params, (OWLParams)renderer.backend.coll_launch_params};
+        for(OWLParams launch_params : all_launch_params){
+            if(launch_params == nullptr) continue;
+            owlParamsSet1i(launch_params, "overlay_count", (int)SPEC::MAX_OVERLAYS_PER_CAMERA);
+            owlParamsSet1i(launch_params, "cam_width", (int)SPEC::CAM_WIDTH);
+            owlParamsSet1i(launch_params, "cam_height", (int)SPEC::CAM_HEIGHT);
+            owlParamsSet1i(launch_params, "grid_cols", (int)SPEC::GRID_COLS);
+            if constexpr (SPEC::ENABLE_OVERLAYS){
+                auto* overlay_state = (optix::OverlayState*)renderer.backend.overlay_state;
+                owlParamsSetBuffer(launch_params, "overlays", overlay_state->traversables_buffer);
+                owlParamsSetBuffer(launch_params, "attachments", overlay_state->attachments_buffer);
+            }
+        }
+
+        if constexpr (SPEC::ENABLE_OVERLAYS){
+            update(device, renderer); // publish the (empty) overlays and the attachment table
+        }
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const rendering::raytracing::Scene& scene){
+        static const rendering::raytracing::AssetPool empty_pool{};
+        init(device, renderer, scene, empty_pool);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
+        namespace optix = rendering::raytracing::backends::optix;
+        using TI = typename SPEC::TI;
+        auto* overlay_state = (optix::OverlayState*)renderer.backend.overlay_state;
+
+        bool any_rebuilt = false;
+        for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+            auto& overlay_slot_state = renderer.overlays[overlay];
+            if(!overlay_slot_state.dirty) continue;
+            OWLGroup overlay_group = overlay_state->overlay_groups[overlay];
+            for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
+                const auto& host_slot = overlay_slot_state.slots[slot];
+                if(host_slot.active){
+                    const float* transform = host_slot.transform; // 3x4 row-major [R|t]
+                    const float owl_transform[12] = {
+                        transform[0], transform[4], transform[8],
+                        transform[1], transform[5], transform[9],
+                        transform[2], transform[6], transform[10],
+                        transform[3], transform[7], transform[11]
+                    };
+                    owlInstanceGroupSetChild(overlay_group, (int)slot, overlay_state->object_groups[host_slot.object]);
+                    owlInstanceGroupSetTransform(overlay_group, (int)slot, owl_transform, OWL_MATRIX_FORMAT_OWL);
+                }
+                else{
+                    const float identity_owl[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0};
+                    owlInstanceGroupSetChild(overlay_group, (int)slot, overlay_state->filler_group);
+                    owlInstanceGroupSetTransform(overlay_group, (int)slot, identity_owl, OWL_MATRIX_FORMAT_OWL);
+                }
+            }
+            owlGroupBuildAccel(overlay_group);
+            overlay_slot_state.dirty = false;
+            any_rebuilt = true;
+        }
+        if(any_rebuilt){
+            // re-published every rebuild: a rebuild may relocate a group's traversable
+            std::vector<unsigned long long> traversables(SPEC::NUM_OVERLAYS);
+            for(size_t overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+                traversables[overlay] = (unsigned long long)owlGroupGetTraversable(overlay_state->overlay_groups[overlay], 0);
+            }
+            owlBufferUpload(overlay_state->traversables_buffer, traversables.data(), 0, SPEC::NUM_OVERLAYS);
+        }
+        if(renderer.attachments_dirty){
+            std::vector<uint32_t> attachments((size_t)SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA);
+            for(size_t index = 0; index < attachments.size(); index++){
+                attachments[index] = (uint32_t)renderer.attachments[index];
+            }
+            owlBufferUpload(overlay_state->attachments_buffer, attachments.data(), 0, attachments.size());
+            renderer.attachments_dirty = false;
         }
     }
 
@@ -814,9 +975,6 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void render_collision_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        if constexpr (SPEC::HAS_SEGMENTATION) {
-            owlAsyncLaunch2D((OWLRayGen)renderer.backend.segmentation_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
-        }
         if(renderer.backend.collision_ray_gen){
             OWLRayGen collision_ray_gen = (OWLRayGen)renderer.backend.collision_ray_gen;
             OWLParams coll_lp = (OWLParams)renderer.backend.coll_launch_params;
@@ -1087,6 +1245,8 @@ namespace rl_tools {
         RL_TOOLS_RENDERING_RAYTRACING_LOG("destroying devicegroups ...");
         if(renderer.backend.context) owlContextDestroy((OWLContext)renderer.backend.context);
         renderer.backend.context = nullptr;
+        delete (rendering::raytracing::backends::optix::OverlayState*)renderer.backend.overlay_state;
+        renderer.backend.overlay_state = nullptr;
         free(device, renderer.cameras);
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
             free(device, renderer.cameras_open);

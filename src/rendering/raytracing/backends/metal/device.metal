@@ -19,6 +19,7 @@ constant bool fc_normal_shading [[function_constant(6)]];
 constant bool fc_metallic_reflections [[function_constant(7)]];
 constant bool fc_pbr_shading [[function_constant(8)]];
 constant bool fc_punctual_light_shadows [[function_constant(9)]];
+constant int fc_overlay_count [[function_constant(10)]];
 
 struct LaunchParams{
     uint fb_width;
@@ -163,15 +164,59 @@ inline PixelLaunchContext pixel_launch_context(constant LaunchParams& params, ui
     return {cam_idx, local_x, local_y, fb_offset, cam_idx < (int)params.num_cameras};
 }
 
+struct OverlayStructure{
+    instance_acceleration_structure structure;
+    uint num_active;
+    uint padding;
+};
+
 struct TraceContext{
     instance_acceleration_structure accel;
     device const MeshRecord* meshes;
     device const SceneLight* scene_lights;
     device const uint* instance_record_base;
     device const InstanceData* instance_data;
+    device const OverlayStructure* overlays;
+    device const uint* attachments;
     constant LaunchParams* params;
     uint2 pixel_id;
+    int camera;
 };
+
+// min-t composition of the shared world and the overlays attached to this camera; at
+// fc_overlay_count == 0 the loop specializes away and this is a plain intersect
+inline intersection_result<triangle_data, instancing> intersect_composed(
+    instance_acceleration_structure accel,
+    device const OverlayStructure* overlays,
+    device const uint* attachments,
+    int camera,
+    ray r,
+    bool accept_any)
+{
+    intersector<triangle_data, instancing> i;
+    i.assume_geometry_type(geometry_type::triangle);
+    i.force_opacity(forced_opacity::opaque);
+    i.accept_any_intersection(accept_any);
+    intersection_result<triangle_data, instancing> best = i.intersect(r, accel);
+    for (int k = 0; k < fc_overlay_count; k++) {
+        if (accept_any && best.type != intersection_type::none) {
+            return best;
+        }
+        const uint overlay = attachments[camera * fc_overlay_count + k];
+        if (overlay == 0xFFFFFFFFu) continue;
+        device const OverlayStructure& entry = overlays[overlay];
+        if (entry.num_active == 0) continue;
+        ray clamped = r;
+        if (best.type != intersection_type::none) {
+            clamped.max_distance = best.distance;
+        }
+        intersection_result<triangle_data, instancing> hit = i.intersect(clamped, entry.structure);
+        if (hit.type != intersection_type::none) {
+            best = hit;
+        }
+    }
+    return best;
+}
 
 inline float3 miss_color(thread const TraceContext& ctx){
     if (fc_checker_background) {
@@ -181,22 +226,15 @@ inline float3 miss_color(thread const TraceContext& ctx){
     return float3(ctx.params->miss_color_0);
 }
 
-inline bool trace_shadow_occluded(instance_acceleration_structure accel, float3 pos, float3 direction, float max_dist){
+inline bool trace_shadow_occluded(thread const TraceContext& ctx, float3 pos, float3 direction, float max_dist){
     ray r(pos, direction, 1e-3f, max_dist);
-    intersector<triangle_data, instancing> i;
-    i.assume_geometry_type(geometry_type::triangle);
-    i.force_opacity(forced_opacity::opaque);
-    i.accept_any_intersection(true);
-    intersection_result<triangle_data, instancing> hit = i.intersect(r, accel);
+    intersection_result<triangle_data, instancing> hit = intersect_composed(ctx.accel, ctx.overlays, ctx.attachments, ctx.camera, r, true);
     return hit.type != intersection_type::none;
 }
 
-inline float trace_depth_distance(instance_acceleration_structure accel, float3 pos, float3 direction, float max_depth){
+inline float trace_depth_distance(instance_acceleration_structure accel, device const OverlayStructure* overlays, device const uint* attachments, int camera, float3 pos, float3 direction, float max_depth){
     ray r(pos, direction, 0.f, max_depth);
-    intersector<triangle_data, instancing> i;
-    i.assume_geometry_type(geometry_type::triangle);
-    i.force_opacity(forced_opacity::opaque);
-    intersection_result<triangle_data, instancing> hit = i.intersect(r, accel);
+    intersection_result<triangle_data, instancing> hit = intersect_composed(accel, overlays, attachments, camera, r, false);
     return hit.type == intersection_type::none ? max_depth : hit.distance;
 }
 
@@ -222,8 +260,8 @@ struct SecondaryTrace<DEPTH, false>{
 template <int DEPTH>
 inline float3 shade_basic(thread const TraceContext& ctx, thread const ray& r, thread const intersection_result<triangle_data, instancing>& hit){
     constexpr bool SECONDARY = DEPTH < 1;
-    device const MeshRecord& self = ctx.meshes[ctx.instance_record_base[hit.instance_id] + hit.geometry_id];
-    device const InstanceData& instance = ctx.instance_data[hit.instance_id];
+    device const MeshRecord& self = ctx.meshes[ctx.instance_record_base[hit.user_instance_id] + hit.geometry_id];
+    device const InstanceData& instance = ctx.instance_data[hit.user_instance_id];
 
     float3 base_color = float3(self.color);
     float3 normal_geometric = float3(0.f, 0.f, 1.f);
@@ -284,8 +322,8 @@ inline float3 shade_basic(thread const TraceContext& ctx, thread const ray& r, t
 template <int DEPTH>
 inline float3 shade_pbr(thread const TraceContext& ctx, thread const ray& r, thread const intersection_result<triangle_data, instancing>& hit){
     constexpr bool SECONDARY = DEPTH < 1;
-    device const MeshRecord& self = ctx.meshes[ctx.instance_record_base[hit.instance_id] + hit.geometry_id];
-    device const InstanceData& instance = ctx.instance_data[hit.instance_id];
+    device const MeshRecord& self = ctx.meshes[ctx.instance_record_base[hit.user_instance_id] + hit.geometry_id];
+    device const InstanceData& instance = ctx.instance_data[hit.user_instance_id];
 
     const int prim_id = hit.primitive_id;
     const int3 index = int3(self.index[prim_id]);
@@ -395,7 +433,7 @@ inline float3 shade_pbr(thread const TraceContext& ctx, thread const ray& r, thr
         float NdotL = fmax(dot(N, L), 0.f);
         if (NdotL <= 0.f) continue;
         if (fc_punctual_light_shadows) {
-            if (light.type != 0 && trace_shadow_occluded(ctx.accel, hit_point + N * 2e-3f, L, light_distance)) continue;
+            if (light.type != 0 && trace_shadow_occluded(ctx, hit_point + N * 2e-3f, L, light_distance)) continue;
         }
 
         float3 H = normalize(V + L);
@@ -464,10 +502,7 @@ template <int DEPTH>
 struct RGBTracer{
     static float3 trace(thread const TraceContext& ctx, float3 origin, float3 direction, float tmin, float tmax){
         ray r(origin, direction, tmin, tmax);
-        intersector<triangle_data, instancing> i;
-        i.assume_geometry_type(geometry_type::triangle);
-        i.force_opacity(forced_opacity::opaque);
-        intersection_result<triangle_data, instancing> hit = i.intersect(r, ctx.accel);
+        intersection_result<triangle_data, instancing> hit = intersect_composed(ctx.accel, ctx.overlays, ctx.attachments, ctx.camera, r, false);
         if (hit.type == intersection_type::none) {
             return miss_color(ctx);
         }
@@ -488,13 +523,15 @@ kernel void render_rgb(
     instance_acceleration_structure accel [[buffer(8)]],
     device const uint* instance_record_base [[buffer(9)]],
     device const InstanceData* instance_data [[buffer(10)]],
+    device const OverlayStructure* overlays [[buffer(11)]],
+    device const uint* overlay_attachments [[buffer(12)]],
     uint2 pixel_id [[thread_position_in_grid]])
 {
     const PixelLaunchContext ctx = pixel_launch_context(params, pixel_id);
     if (!ctx.valid)
         return;
 
-    TraceContext trace_ctx{accel, meshes, scene_lights, instance_record_base, instance_data, &params, pixel_id};
+    TraceContext trace_ctx{accel, meshes, scene_lights, instance_record_base, instance_data, overlays, overlay_attachments, &params, pixel_id, ctx.cam_idx};
 
     float3 accumulated = float3(0.f);
     const float inv_aa_grid = 1.f / float(fc_aa_grid);
@@ -543,6 +580,8 @@ kernel void render_depth(
     device const Camera* cameras_open [[buffer(2)]],
     device float* depth_out [[buffer(3)]],
     instance_acceleration_structure accel [[buffer(8)]],
+    device const OverlayStructure* overlays [[buffer(11)]],
+    device const uint* overlay_attachments [[buffer(12)]],
     uint2 pixel_id [[thread_position_in_grid]])
 {
     const PixelLaunchContext ctx = pixel_launch_context(params, pixel_id);
@@ -576,7 +615,7 @@ kernel void render_depth(
             for (int aa_x = 0; aa_x < fc_aa_grid; aa_x++) {
                 const float2 screen = (float2(ctx.local_x, ctx.local_y) + float2((float(aa_x) + .5f) * inv_aa_grid, (float(aa_y) + .5f) * inv_aa_grid)) / float2(params.cam_width, params.cam_height);
                 const float3 direction = normalize(dir_00 + screen.x * dir_du + screen.y * dir_dv);
-                accumulated += trace_depth_distance(accel, pos, direction, params.max_depth);
+                accumulated += trace_depth_distance(accel, overlays, overlay_attachments, ctx.cam_idx, pos, direction, params.max_depth);
             }
         }
     }
@@ -591,6 +630,8 @@ kernel void render_segmentation(
     device const Camera* cameras_close [[buffer(1)]],
     device uint* segmentation_out [[buffer(3)]],
     instance_acceleration_structure accel [[buffer(8)]],
+    device const OverlayStructure* overlays [[buffer(11)]],
+    device const uint* overlay_attachments [[buffer(12)]],
     uint2 pixel_id [[thread_position_in_grid]])
 {
     const PixelLaunchContext ctx = pixel_launch_context(params, pixel_id);
@@ -602,11 +643,8 @@ kernel void render_segmentation(
     const float3 direction = normalize(float3(cam.dir_00) + screen.x * float3(cam.dir_du) + screen.y * float3(cam.dir_dv));
 
     ray r(float3(cam.pos), direction, 0.f, 1e30f);
-    intersector<triangle_data, instancing> i;
-    i.assume_geometry_type(geometry_type::triangle);
-    i.force_opacity(forced_opacity::opaque);
-    intersection_result<triangle_data, instancing> hit = i.intersect(r, accel);
-    segmentation_out[ctx.fb_offset] = hit.type == intersection_type::none ? 0xFFFFFFFFu : (uint)hit.instance_id;
+    intersection_result<triangle_data, instancing> hit = intersect_composed(accel, overlays, overlay_attachments, ctx.cam_idx, r, false);
+    segmentation_out[ctx.fb_offset] = hit.type == intersection_type::none ? 0xFFFFFFFFu : (uint)hit.user_instance_id;
 }
 
 kernel void render_collision(
@@ -615,6 +653,8 @@ kernel void render_collision(
     device const packed_float3* probe_directions [[buffer(6)]],
     device CollisionResult* results [[buffer(7)]],
     instance_acceleration_structure accel [[buffer(8)]],
+    device const OverlayStructure* overlays [[buffer(11)]],
+    device const uint* overlay_attachments [[buffer(12)]],
     uint2 idx [[thread_position_in_grid]])
 {
     const int cam_idx   = (int)idx.x;
@@ -633,10 +673,7 @@ kernel void render_collision(
     }
 
     ray r(float3(cam.pos), dir, 1e-3f, params.max_dist);
-    intersector<triangle_data, instancing> i;
-    i.assume_geometry_type(geometry_type::triangle);
-    i.force_opacity(forced_opacity::opaque);
-    intersection_result<triangle_data, instancing> hit = i.intersect(r, accel);
+    intersection_result<triangle_data, instancing> hit = intersect_composed(accel, overlays, overlay_attachments, cam_idx, r, false);
 
     CollisionResult result;
     if (hit.type == intersection_type::none) {
