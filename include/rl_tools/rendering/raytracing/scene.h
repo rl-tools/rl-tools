@@ -60,8 +60,27 @@ namespace rl_tools {
         };
 
         struct Placement{
-            size_t first_instance; // parts are placed as consecutive instances (or overlay slots)
+            size_t first_instance; // parts are placed as consecutive instances
             size_t num_instances;
+        };
+
+        // Typed overlay addressing: declare the layout as chained constexpr ranges so the
+        // Specification's NUM_OVERLAYS is the last range's end() and cannot drift from it.
+        struct OverlayIndex{
+            size_t index;
+        };
+        struct OverlayRange{
+            size_t first;
+            size_t count;
+            constexpr OverlayIndex operator[](size_t offset) const { return {first + offset}; }
+            constexpr size_t end() const { return first + count; }
+        };
+
+        // returned by spawn: the contiguous slot run holding one instantiated asset
+        struct OverlayPlacement{
+            size_t first_slot;
+            size_t num_parts;
+            size_t first_part; // into the renderer's flattened per-part tables (for rigid moves)
         };
 
         // Assets available to dynamic overlays: registered before init (BLASes built once, frozen
@@ -69,7 +88,9 @@ namespace rl_tools {
         struct AssetPool{
             std::vector<ObjectAssembly> assemblies;
         };
-        using AssetHandle = size_t;
+        struct AssetHandle{
+            size_t index;
+        };
 
         struct Instance{
             size_t object;        // index into Scene::objects
