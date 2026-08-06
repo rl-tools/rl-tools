@@ -2,7 +2,7 @@ set(RL_TOOLS_VULKAN_DEVICE_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/device.comp)
 set(RL_TOOLS_VULKAN_SPIRV_DIR ${CMAKE_CURRENT_BINARY_DIR}/spirv)
 
 set(RL_TOOLS_VULKAN_SPIRV_HEADERS "")
-foreach(RL_TOOLS_VULKAN_VARIANT rgb depth collision)
+foreach(RL_TOOLS_VULKAN_VARIANT rgb depth collision segmentation)
     string(TOUPPER ${RL_TOOLS_VULKAN_VARIANT} RL_TOOLS_VULKAN_VARIANT_UPPER)
     set(RL_TOOLS_VULKAN_SPIRV_HEADER ${RL_TOOLS_VULKAN_SPIRV_DIR}/device_spirv_${RL_TOOLS_VULKAN_VARIANT}.h)
     add_custom_command(
@@ -29,3 +29,6 @@ target_link_libraries(rendering_raytracing_backend INTERFACE rendering_raytracin
 
 add_library(rendering_raytracing_backend_depth INTERFACE)
 target_link_libraries(rendering_raytracing_backend_depth INTERFACE rendering_raytracing_vulkan assimp::assimp)
+
+add_library(rendering_raytracing_backend_segmentation INTERFACE)
+target_link_libraries(rendering_raytracing_backend_segmentation INTERFACE rendering_raytracing_vulkan assimp::assimp)
