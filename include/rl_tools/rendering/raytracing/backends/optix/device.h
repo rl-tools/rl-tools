@@ -105,6 +105,18 @@ namespace rl_tools {
         float max_depth;
     };
 
+    // launch params shared by every raygen/hit program: overlay traversables + per-camera
+    // attachment table for min-t composition; overlay_count == 0 keeps every loop empty
+    struct OverlayLaunchParams
+    {
+        unsigned long long *overlays;   // OptixTraversableHandle per overlay
+        uint32_t *attachments;          // [num_cameras * overlay_count]
+        int overlay_count;
+        int cam_width;                  // framebuffer tile math so closest-hit programs can
+        int cam_height;                 // recover the camera index for composed secondaries
+        int grid_cols;
+    };
+
     /* variables for the miss program */
     struct MissProgData
     {

@@ -999,6 +999,31 @@ namespace rl_tools {
         out[11] = -(out[8]*transform[3] + out[9]*transform[7] + out[10]*transform[11]);
     }
 
+    // flattens the asset pool for overlay spawns: appends pool objects to the combined object
+    // list and records per-part global object indices + local transforms on the renderer
+    template <typename DEVICE, typename SPEC>
+    void register_pool_assets(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const rendering::raytracing::AssetPool& pool, std::vector<const rendering::raytracing::Object*>& all_objects){
+        using TI = typename SPEC::TI;
+        renderer.assets.clear();
+        renderer.asset_part_objects.clear();
+        renderer.asset_part_transforms.clear();
+        for(const auto& assembly : pool.assemblies){
+            typename rendering::raytracing::Renderer<SPEC>::AssetRecord record;
+            record.first_part = (TI)renderer.asset_part_objects.size();
+            record.num_parts = (TI)assembly.parts.size();
+            utils::assert_exit(device, record.num_parts <= SPEC::MAX_OVERLAY_INSTANCES, "asset has more parts than the overlay capacity");
+            const TI object_base = (TI)all_objects.size();
+            for(const auto& object : assembly.objects){
+                all_objects.push_back(&object);
+            }
+            for(const auto& part : assembly.parts){
+                renderer.asset_part_objects.push_back(object_base + (TI)part.object);
+                renderer.asset_part_transforms.insert(renderer.asset_part_transforms.end(), part.transform, part.transform + 12);
+            }
+            renderer.assets.push_back(record);
+        }
+    }
+
     template <typename SPEC>
     void compute_scene_bounds(rendering::raytracing::Renderer<SPEC>& renderer, const rendering::raytracing::Scene& scene){
         float bbox_min[3] = {std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
@@ -1146,6 +1171,91 @@ namespace rl_tools {
     rendering::raytracing::Placement add(DEVICE& device, rendering::raytracing::Scene& scene, const rendering::raytracing::ObjectAssembly& assembly){
         const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
         return add(device, scene, assembly, identity);
+    }
+
+    template <typename DEVICE>
+    rendering::raytracing::AssetHandle add(DEVICE& device, rendering::raytracing::AssetPool& pool, const rendering::raytracing::ObjectAssembly& assembly){
+        pool.assemblies.push_back(assembly);
+        return pool.assemblies.size() - 1;
+    }
+
+    template <typename DEVICE>
+    rendering::raytracing::AssetHandle add(DEVICE& device, rendering::raytracing::AssetPool& pool, const rendering::raytracing::Object& object){
+        rendering::raytracing::ObjectAssembly assembly;
+        assembly.objects.push_back(object);
+        assembly.parts.push_back({0, {1,0,0,0, 0,1,0,0, 0,0,1,0}});
+        return add(device, pool, assembly);
+    }
+
+    template <typename DEVICE>
+    rendering::raytracing::AssetHandle add(DEVICE& device, rendering::raytracing::AssetPool& pool, const rendering::raytracing::Mesh& mesh){
+        rendering::raytracing::Object object;
+        object.meshes.push_back(mesh);
+        return add(device, pool, object);
+    }
+
+    // Overlay verbs mutate host-side truth on the renderer and mark it dirty; update(device,
+    // renderer) is the single point where the backend consumes it. All bookkeeping is
+    // deterministic: slot allocation is a first-fit scan, so identical call sequences yield
+    // identical slots (and therefore identical global instance ids).
+    template <typename DEVICE, typename SPEC>
+    void attach(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, typename SPEC::TI camera, typename SPEC::TI slot, typename SPEC::TI overlay){
+        static_assert(SPEC::ENABLE_OVERLAYS, "attach requires an overlay-enabled renderer specification");
+        renderer.attachments[camera * SPEC::MAX_OVERLAYS_PER_CAMERA + slot] = overlay;
+        renderer.attachments_dirty = true;
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void detach(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, typename SPEC::TI camera, typename SPEC::TI slot){
+        static_assert(SPEC::ENABLE_OVERLAYS, "detach requires an overlay-enabled renderer specification");
+        renderer.attachments[camera * SPEC::MAX_OVERLAYS_PER_CAMERA + slot] = rendering::raytracing::Renderer<SPEC>::INVALID_OVERLAY;
+        renderer.attachments_dirty = true;
+    }
+
+    template <typename DEVICE, typename SPEC>
+    rendering::raytracing::Placement spawn(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, typename SPEC::TI overlay, rendering::raytracing::AssetHandle asset, const float transform[12]){
+        static_assert(SPEC::ENABLE_OVERLAYS, "spawn requires an overlay-enabled renderer specification");
+        using TI = typename SPEC::TI;
+        auto& state = renderer.overlays[overlay];
+        const auto& record = renderer.assets[asset];
+
+        TI first_slot = SPEC::MAX_OVERLAY_INSTANCES;
+        TI run = 0;
+        for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
+            run = state.slots[slot].active ? 0 : run + 1;
+            if(run == record.num_parts){
+                first_slot = slot + 1 - record.num_parts;
+                break;
+            }
+        }
+        utils::assert_exit(device, first_slot < SPEC::MAX_OVERLAY_INSTANCES, "spawn: overlay capacity exceeded");
+
+        for(TI part = 0; part < record.num_parts; part++){
+            auto& slot = state.slots[first_slot + part];
+            slot.object = renderer.asset_part_objects[record.first_part + part];
+            rendering::raytracing::detail::compose_transforms(transform, &renderer.asset_part_transforms[(record.first_part + part) * 12], slot.transform);
+            slot.active = true;
+        }
+        state.dirty = true;
+        return {(size_t)first_slot, (size_t)record.num_parts};
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void despawn(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, typename SPEC::TI overlay, const rendering::raytracing::Placement& placement){
+        static_assert(SPEC::ENABLE_OVERLAYS, "despawn requires an overlay-enabled renderer specification");
+        auto& state = renderer.overlays[overlay];
+        for(size_t part = 0; part < placement.num_instances; part++){
+            state.slots[placement.first_instance + part].active = false;
+        }
+        state.dirty = true;
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void set_transform(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, typename SPEC::TI overlay, const rendering::raytracing::Placement& placement, typename SPEC::TI part, const float transform[12]){
+        static_assert(SPEC::ENABLE_OVERLAYS, "set_transform requires an overlay-enabled renderer specification");
+        auto& state = renderer.overlays[overlay];
+        std::memcpy(state.slots[placement.first_instance + part].transform, transform, 12 * sizeof(float));
+        state.dirty = true;
     }
 
     inline void make_transform(const float position[3], const float orientation_wxyz[4], float out[12]){

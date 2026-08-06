@@ -56,8 +56,13 @@ namespace rl_tools {
             encoder->setAccelerationStructure(ctx.acceleration_structure.get(), bindings::ACCELERATION_STRUCTURE);
             encoder->setBuffer(ctx.instance_record_base.get(), 0, bindings::INSTANCE_RECORD_BASE);
             encoder->setBuffer(ctx.instance_data.get(), 0, bindings::INSTANCE_DATA);
+            encoder->setBuffer(ctx.overlay_structures.get(), 0, bindings::OVERLAY_STRUCTURES);
+            encoder->setBuffer(ctx.overlay_attachments.get(), 0, bindings::OVERLAY_ATTACHMENTS);
             for(auto& object_acceleration_structure : ctx.object_acceleration_structures){
                 encoder->useResource(object_acceleration_structure.get(), MTL::ResourceUsageRead);
+            }
+            for(auto& overlay_acceleration_structure : ctx.overlay_acceleration_structures){
+                encoder->useResource(overlay_acceleration_structure.get(), MTL::ResourceUsageRead);
             }
             for(auto& buffer : ctx.mesh_buffers){
                 encoder->useResource(buffer.get(), MTL::ResourceUsageRead);
@@ -81,8 +86,13 @@ namespace rl_tools {
             encoder->setBuffer(ctx.probe_directions.get(), 0, bindings::PROBE_DIRECTIONS);
             encoder->setBuffer(ctx.collision_results.get(), 0, bindings::COLLISION_RESULTS);
             encoder->setAccelerationStructure(ctx.acceleration_structure.get(), bindings::ACCELERATION_STRUCTURE);
+            encoder->setBuffer(ctx.overlay_structures.get(), 0, bindings::OVERLAY_STRUCTURES);
+            encoder->setBuffer(ctx.overlay_attachments.get(), 0, bindings::OVERLAY_ATTACHMENTS);
             for(auto& object_acceleration_structure : ctx.object_acceleration_structures){
                 encoder->useResource(object_acceleration_structure.get(), MTL::ResourceUsageRead);
+            }
+            for(auto& overlay_acceleration_structure : ctx.overlay_acceleration_structures){
+                encoder->useResource(overlay_acceleration_structure.get(), MTL::ResourceUsageRead);
             }
             encoder->dispatchThreads(MTL::Size::Make(SPEC::NUM_CAMERAS, SPEC::NUM_PROBES, 1), MTL::Size::Make(8, 8, 1));
             encoder->endEncoding();
@@ -147,10 +157,13 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const rendering::raytracing::Scene& scene){
+    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer);
+
+    template <typename DEVICE, typename SPEC>
+    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool){
         namespace metal = rendering::raytracing::backends::metal;
         auto& ctx = metal::context(renderer);
-        NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
+        NS::AutoreleasePool* autorelease_pool = NS::AutoreleasePool::alloc()->init();
 
         rendering::raytracing::detail::compute_scene_bounds(renderer, scene);
         RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << scene.objects.size() << " object(s), " << scene.instances.size() << " instance(s) ...");
@@ -166,18 +179,26 @@ namespace rl_tools {
         ctx.dummy_texture = metal::make_texture(ctx.device.get(), dummy_pixel, 1, 1, false);
         const MTL::ResourceID dummy_texture_id = ctx.dummy_texture->gpuResourceID();
 
-        size_t total_meshes = 0;
+        std::vector<const rendering::raytracing::Object*> all_objects;
         for(const auto& object : scene.objects){
-            total_meshes += object.meshes.size();
+            all_objects.push_back(&object);
+        }
+        if constexpr (SPEC::ENABLE_OVERLAYS){
+            rendering::raytracing::detail::register_pool_assets(device, renderer, pool, all_objects);
+        }
+
+        size_t total_meshes = 0;
+        for(const auto* object : all_objects){
+            total_meshes += object->meshes.size();
         }
         std::vector<metal::MeshRecord> mesh_records(total_meshes);
         std::vector<uint32_t> object_record_base;
-        std::vector<std::vector<NS::Object*>> object_geometry_descriptors(scene.objects.size());
+        std::vector<std::vector<NS::Object*>> object_geometry_descriptors(all_objects.size());
 
         size_t m = 0;
-        for(size_t object_i = 0; object_i < scene.objects.size(); object_i++){
+        for(size_t object_i = 0; object_i < all_objects.size(); object_i++){
             object_record_base.push_back((uint32_t)m);
-            for(const auto& md : scene.objects[object_i].meshes){
+            for(const auto& md : all_objects[object_i]->meshes){
             auto& geometry_descriptors = object_geometry_descriptors[object_i];
             metal::MeshRecord& record = mesh_records[m];
             record = {};
@@ -269,7 +290,7 @@ namespace rl_tools {
             MTL::CommandBuffer* command_buffer = ctx.queue->commandBuffer();
             MTL::AccelerationStructureCommandEncoder* encoder = command_buffer->accelerationStructureCommandEncoder();
             std::vector<NS::SharedPtr<MTL::Buffer>> scratch_buffers;
-            for(size_t object_i = 0; object_i < scene.objects.size(); object_i++){
+            for(size_t object_i = 0; object_i < all_objects.size(); object_i++){
                 auto& geometry_descriptors = object_geometry_descriptors[object_i];
                 NS::Array* geometry_array = NS::Array::array((const NS::Object* const*)geometry_descriptors.data(), geometry_descriptors.size());
                 MTL::PrimitiveAccelerationStructureDescriptor* accel_descriptor = MTL::PrimitiveAccelerationStructureDescriptor::descriptor();
@@ -286,11 +307,18 @@ namespace rl_tools {
             command_buffer->waitUntilCompleted();
         }
 
-        // instance (top-level) acceleration structure over the placed objects
+        // instance (top-level) acceleration structure over the placed objects; overlay slots get
+        // their own tiny instance structures but share the global instance-id-indexed data arrays
+        ctx.object_record_base = object_record_base;
+        ctx.num_scene_instances = (uint32_t)scene.instances.size();
         {
-            std::vector<MTL::AccelerationStructureInstanceDescriptor> instance_descriptors(scene.instances.size());
-            std::vector<metal::InstanceData> instance_data(scene.instances.size());
-            std::vector<uint32_t> instance_record_base(scene.instances.size());
+            size_t total_instances = scene.instances.size();
+            if constexpr (SPEC::ENABLE_OVERLAYS){
+                total_instances += (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
+            }
+            std::vector<MTL::AccelerationStructureUserIDInstanceDescriptor> instance_descriptors(scene.instances.size());
+            std::vector<metal::InstanceData> instance_data(total_instances, metal::InstanceData{});
+            std::vector<uint32_t> instance_record_base(total_instances, 0);
             for(size_t instance_i = 0; instance_i < scene.instances.size(); instance_i++){
                 const auto& instance = scene.instances[instance_i];
                 auto& descriptor = instance_descriptors[instance_i];
@@ -302,6 +330,7 @@ namespace rl_tools {
                 descriptor.mask = 0xFFFFFFFFu;
                 descriptor.intersectionFunctionTableOffset = 0;
                 descriptor.accelerationStructureIndex = (uint32_t)instance.object;
+                descriptor.userID = (uint32_t)instance_i;
 
                 auto& data = instance_data[instance_i];
                 data = {};
@@ -317,7 +346,7 @@ namespace rl_tools {
                 data.identity = instance.identity ? 1 : 0;
                 instance_record_base[instance_i] = object_record_base[instance.object];
             }
-            ctx.instance_descriptors = NS::TransferPtr(ctx.device->newBuffer(instance_descriptors.data(), instance_descriptors.size() * sizeof(MTL::AccelerationStructureInstanceDescriptor), MTL::ResourceStorageModeShared));
+            ctx.instance_descriptors = NS::TransferPtr(ctx.device->newBuffer(instance_descriptors.data(), instance_descriptors.size() * sizeof(MTL::AccelerationStructureUserIDInstanceDescriptor), MTL::ResourceStorageModeShared));
             ctx.instance_data = NS::TransferPtr(ctx.device->newBuffer(instance_data.data(), instance_data.size() * sizeof(metal::InstanceData), MTL::ResourceStorageModeShared));
             ctx.instance_record_base = NS::TransferPtr(ctx.device->newBuffer(instance_record_base.data(), instance_record_base.size() * sizeof(uint32_t), MTL::ResourceStorageModeShared));
 
@@ -330,6 +359,7 @@ namespace rl_tools {
             instance_accel_descriptor->setInstancedAccelerationStructures(object_array);
             instance_accel_descriptor->setInstanceCount(scene.instances.size());
             instance_accel_descriptor->setInstanceDescriptorBuffer(ctx.instance_descriptors.get());
+            instance_accel_descriptor->setInstanceDescriptorType(MTL::AccelerationStructureInstanceDescriptorTypeUserID);
             MTL::AccelerationStructureSizes sizes = ctx.device->accelerationStructureSizes(instance_accel_descriptor);
             ctx.acceleration_structure = NS::TransferPtr(ctx.device->newAccelerationStructure(sizes.accelerationStructureSize));
             auto scratch_buffer = NS::TransferPtr(ctx.device->newBuffer(sizes.buildScratchBufferSize, MTL::ResourceStorageModePrivate));
@@ -341,6 +371,49 @@ namespace rl_tools {
             command_buffer->waitUntilCompleted();
         }
         renderer.backend.world = ctx.acceleration_structure.get();
+
+        ctx.overlay_acceleration_structures.clear();
+        ctx.overlay_instance_descriptors.clear();
+        ctx.overlay_scratch_buffers.clear();
+        if constexpr (SPEC::ENABLE_OVERLAYS){
+            std::vector<metal::OverlayStructureEntry> overlay_entries(SPEC::NUM_OVERLAYS, metal::OverlayStructureEntry{});
+            std::vector<NS::Object*> object_acceleration_structure_pointers;
+            for(auto& object_acceleration_structure : ctx.object_acceleration_structures){
+                object_acceleration_structure_pointers.push_back(object_acceleration_structure.get());
+            }
+            NS::Array* object_array = NS::Array::array((const NS::Object* const*)object_acceleration_structure_pointers.data(), object_acceleration_structure_pointers.size());
+            for(size_t overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+                auto descriptor_buffer = NS::TransferPtr(ctx.device->newBuffer((size_t)SPEC::MAX_OVERLAY_INSTANCES * sizeof(MTL::AccelerationStructureUserIDInstanceDescriptor), MTL::ResourceStorageModeShared));
+                MTL::InstanceAccelerationStructureDescriptor* overlay_descriptor = MTL::InstanceAccelerationStructureDescriptor::descriptor();
+                overlay_descriptor->setInstancedAccelerationStructures(object_array);
+                overlay_descriptor->setInstanceCount(SPEC::MAX_OVERLAY_INSTANCES);
+                overlay_descriptor->setInstanceDescriptorBuffer(descriptor_buffer.get());
+                overlay_descriptor->setInstanceDescriptorType(MTL::AccelerationStructureInstanceDescriptorTypeUserID);
+                MTL::AccelerationStructureSizes overlay_sizes = ctx.device->accelerationStructureSizes(overlay_descriptor);
+                auto overlay_acceleration_structure = NS::TransferPtr(ctx.device->newAccelerationStructure(overlay_sizes.accelerationStructureSize));
+                auto overlay_scratch = NS::TransferPtr(ctx.device->newBuffer(overlay_sizes.buildScratchBufferSize, MTL::ResourceStorageModePrivate));
+                ctx.overlay_instance_descriptors.push_back(descriptor_buffer);
+                ctx.overlay_acceleration_structures.push_back(overlay_acceleration_structure);
+                ctx.overlay_scratch_buffers.push_back(overlay_scratch);
+                overlay_entries[overlay].structure = overlay_acceleration_structure->gpuResourceID();
+                overlay_entries[overlay].num_active = 0;
+            }
+            ctx.overlay_structures = NS::TransferPtr(ctx.device->newBuffer(overlay_entries.data(), overlay_entries.size() * sizeof(metal::OverlayStructureEntry), MTL::ResourceStorageModeShared));
+            std::vector<uint32_t> attachments_init((size_t)SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA, 0xFFFFFFFFu);
+            ctx.overlay_attachments = NS::TransferPtr(ctx.device->newBuffer(attachments_init.data(), attachments_init.size() * sizeof(uint32_t), MTL::ResourceStorageModeShared));
+            for(auto& overlay_state : renderer.overlays){
+                for(auto& slot : overlay_state.slots){
+                    slot.active = false;
+                }
+                overlay_state.dirty = true;
+            }
+            renderer.attachments_dirty = true;
+        }
+        else if(ctx.overlay_structures.get() == nullptr){
+            // never dereferenced (fc_overlay_count == 0) but keeps the kernel bindings valid
+            ctx.overlay_structures = NS::TransferPtr(ctx.device->newBuffer(sizeof(metal::OverlayStructureEntry), MTL::ResourceStorageModeShared));
+            ctx.overlay_attachments = NS::TransferPtr(ctx.device->newBuffer(sizeof(uint32_t), MTL::ResourceStorageModeShared));
+        }
 
         ctx.mesh_records = NS::TransferPtr(ctx.device->newBuffer(mesh_records.data(), mesh_records.size() * sizeof(metal::MeshRecord), MTL::ResourceStorageModeShared));
 
@@ -384,6 +457,7 @@ namespace rl_tools {
             bool metallic_reflections = SPEC::SHADING::METALLIC_REFLECTIONS;
             bool pbr_shading = SPEC::SHADING::PBR_SHADING;
             bool punctual_light_shadows = SPEC::SHADING::PUNCTUAL_LIGHT_SHADOWS;
+            int overlay_count = (int)SPEC::MAX_OVERLAYS_PER_CAMERA;
             constants->setConstantValue(&srgb_output, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::SRGB_OUTPUT);
             constants->setConstantValue(&motion_blur, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::MOTION_BLUR);
             constants->setConstantValue(&motion_samples, MTL::DataTypeInt, (NS::UInteger)metal::function_constants::MOTION_SAMPLES);
@@ -394,6 +468,7 @@ namespace rl_tools {
             constants->setConstantValue(&metallic_reflections, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::METALLIC_REFLECTIONS);
             constants->setConstantValue(&pbr_shading, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::PBR_SHADING);
             constants->setConstantValue(&punctual_light_shadows, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::PUNCTUAL_LIGHT_SHADOWS);
+            constants->setConstantValue(&overlay_count, MTL::DataTypeInt, (NS::UInteger)metal::function_constants::OVERLAY_COUNT);
 
             auto make_pipeline = [&](const char* name) -> NS::SharedPtr<MTL::ComputePipelineState> {
                 NS::Error* error = nullptr;
@@ -430,7 +505,105 @@ namespace rl_tools {
             ctx.pipelines_built = true;
         }
 
-        pool->release();
+        if constexpr (SPEC::ENABLE_OVERLAYS){
+            update(device, renderer); // publish the (empty) overlays and the attachment table
+        }
+
+        autorelease_pool->release();
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const rendering::raytracing::Scene& scene){
+        static const rendering::raytracing::AssetPool empty_pool{};
+        init(device, renderer, scene, empty_pool);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
+        namespace metal = rendering::raytracing::backends::metal;
+        using TI = typename SPEC::TI;
+        auto& ctx = metal::context(renderer);
+        metal::wait_in_flight(ctx);
+        NS::AutoreleasePool* autorelease_pool = NS::AutoreleasePool::alloc()->init();
+
+        auto* overlay_entries = (metal::OverlayStructureEntry*)ctx.overlay_structures->contents();
+        auto* instance_data = (metal::InstanceData*)ctx.instance_data->contents();
+        auto* instance_record_base = (uint32_t*)ctx.instance_record_base->contents();
+
+        MTL::CommandBuffer* command_buffer = nullptr;
+        MTL::AccelerationStructureCommandEncoder* encoder = nullptr;
+        std::vector<NS::Object*> object_acceleration_structure_pointers;
+        for(auto& object_acceleration_structure : ctx.object_acceleration_structures){
+            object_acceleration_structure_pointers.push_back(object_acceleration_structure.get());
+        }
+        NS::Array* object_array = NS::Array::array((const NS::Object* const*)object_acceleration_structure_pointers.data(), object_acceleration_structure_pointers.size());
+
+        for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+            auto& overlay_state = renderer.overlays[overlay];
+            if(!overlay_state.dirty) continue;
+            const size_t base = (size_t)ctx.num_scene_instances + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES;
+            auto* descriptors = (MTL::AccelerationStructureUserIDInstanceDescriptor*)ctx.overlay_instance_descriptors[overlay]->contents();
+            uint32_t num_active = 0;
+            for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
+                const auto& host_slot = overlay_state.slots[slot];
+                if(!host_slot.active) continue;
+                const size_t global = base + slot;
+                auto& descriptor = descriptors[num_active];
+                descriptor = {};
+                for(int column = 0; column < 4; column++){
+                    descriptor.transformationMatrix.columns[column] = MTL::PackedFloat3{host_slot.transform[0 + column], host_slot.transform[4 + column], host_slot.transform[8 + column]};
+                }
+                descriptor.options = MTL::AccelerationStructureInstanceOptionOpaque;
+                descriptor.mask = 0xFFFFFFFFu;
+                descriptor.intersectionFunctionTableOffset = 0;
+                descriptor.accelerationStructureIndex = (uint32_t)host_slot.object;
+                descriptor.userID = (uint32_t)global;
+
+                auto& data = instance_data[global];
+                data = {};
+                for(int element = 0; element < 12; element++){
+                    data.object_to_world[element] = host_slot.transform[element];
+                }
+                const bool identity = rendering::raytracing::detail::transform_is_identity(host_slot.transform);
+                if(identity){
+                    std::memcpy(data.world_to_object, data.object_to_world, sizeof(data.world_to_object));
+                }
+                else{
+                    rendering::raytracing::detail::invert_transform(host_slot.transform, data.world_to_object);
+                }
+                data.identity = identity ? 1 : 0;
+                instance_record_base[global] = ctx.object_record_base[host_slot.object];
+                num_active++;
+            }
+            overlay_entries[overlay].num_active = num_active;
+            if(num_active > 0){
+                if(command_buffer == nullptr){
+                    command_buffer = ctx.queue->commandBuffer();
+                    encoder = command_buffer->accelerationStructureCommandEncoder();
+                }
+                MTL::InstanceAccelerationStructureDescriptor* overlay_descriptor = MTL::InstanceAccelerationStructureDescriptor::descriptor();
+                overlay_descriptor->setInstancedAccelerationStructures(object_array);
+                overlay_descriptor->setInstanceCount(num_active);
+                overlay_descriptor->setInstanceDescriptorBuffer(ctx.overlay_instance_descriptors[overlay].get());
+                overlay_descriptor->setInstanceDescriptorType(MTL::AccelerationStructureInstanceDescriptorTypeUserID);
+                encoder->buildAccelerationStructure(ctx.overlay_acceleration_structures[overlay].get(), overlay_descriptor, ctx.overlay_scratch_buffers[overlay].get(), 0);
+            }
+            overlay_state.dirty = false;
+        }
+        if(renderer.attachments_dirty){
+            auto* attachments = (uint32_t*)ctx.overlay_attachments->contents();
+            for(size_t index = 0; index < (size_t)SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA; index++){
+                attachments[index] = (uint32_t)renderer.attachments[index];
+            }
+            renderer.attachments_dirty = false;
+        }
+        if(command_buffer != nullptr){
+            encoder->endEncoding();
+            command_buffer->commit();
+            command_buffer->waitUntilCompleted();
+        }
+        autorelease_pool->release();
     }
 
     template <typename DEVICE, typename SPEC>

@@ -96,6 +96,15 @@ namespace rl_tools {
             bool identity = true;
         };
 
+        // dynamic overlay: a tiny TLAS whose leaf primitives are GLOBAL instance indices into
+        // SceneView::instances, so BLAS traversal and shading work on overlays verbatim
+        template <typename T, typename TI>
+        struct OverlayView{
+            const BVHNode<T, TI>* tlas_nodes = nullptr;
+            const TI* tlas_primitives = nullptr;
+            TI num_tlas_nodes = 0;
+        };
+
         template <typename T, typename TI>
         struct SceneView{
             const MeshView<T, TI>* meshes = nullptr;
@@ -110,6 +119,9 @@ namespace rl_tools {
             const BVHNode<T, TI>* tlas_nodes = nullptr;
             const TI* tlas_primitives = nullptr; // TLAS leaf permutation of instance indices
             TI num_tlas_nodes = 0;
+            const OverlayView<T, TI>* overlays = nullptr;
+            TI num_overlays = 0;
+            const TI* attachments = nullptr; // NUM_CAMERAS * MAX_OVERLAYS_PER_CAMERA, ~0 = empty
             const SceneLight* lights = nullptr;
             TI num_lights = 0;
             const T* probe_directions = nullptr; // 3 per probe
@@ -338,24 +350,17 @@ namespace rl_tools {
         }
 
         template <typename T, typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT Hit<T, TI> trace_closest(const SceneView<T, TI>& scene, Vec3<T> origin, Vec3<T> direction, T t_min, T t_max){
-            Hit<T, TI> best;
-            best.t = t_max;
-            best.u = 0;
-            best.v = 0;
-            best.triangle = 0;
-            best.instance = 0;
-            best.valid = false;
-            if(scene.num_tlas_nodes == 0) return best;
+        RL_TOOLS_FUNCTION_PLACEMENT void traverse_tlas_closest(const SceneView<T, TI>& scene, const BVHNode<T, TI>* tlas_nodes, const TI* tlas_primitives, TI num_tlas_nodes, Vec3<T> origin, Vec3<T> direction, T t_min, Hit<T, TI>& best){
+            if(num_tlas_nodes == 0) return;
             TI stack[constants::TRAVERSAL_STACK_SIZE<TI>];
             TI stack_pointer = 0;
             stack[stack_pointer++] = 0;
             while(stack_pointer > 0){
-                const BVHNode<T, TI>& node = scene.tlas_nodes[stack[--stack_pointer]];
+                const BVHNode<T, TI>& node = tlas_nodes[stack[--stack_pointer]];
                 if(!intersect_aabb(node, origin, direction, t_min, best.t)) continue;
                 if(node.count > 0){
                     for(TI i = 0; i < node.count; i++){
-                        const TI instance_index = scene.tlas_primitives[node.left_or_first + i];
+                        const TI instance_index = tlas_primitives[node.left_or_first + i];
                         intersect_blas_closest(scene, instance_index, origin, direction, t_min, best);
                     }
                 }
@@ -366,6 +371,18 @@ namespace rl_tools {
                     }
                 }
             }
+        }
+
+        template <typename T, typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT Hit<T, TI> trace_closest(const SceneView<T, TI>& scene, Vec3<T> origin, Vec3<T> direction, T t_min, T t_max){
+            Hit<T, TI> best;
+            best.t = t_max;
+            best.u = 0;
+            best.v = 0;
+            best.triangle = 0;
+            best.instance = 0;
+            best.valid = false;
+            traverse_tlas_closest(scene, scene.tlas_nodes, scene.tlas_primitives, scene.num_tlas_nodes, origin, direction, t_min, best);
             return best;
         }
 
@@ -403,17 +420,17 @@ namespace rl_tools {
         }
 
         template <typename T, typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT bool trace_any(const SceneView<T, TI>& scene, Vec3<T> origin, Vec3<T> direction, T t_min, T t_max){
-            if(scene.num_tlas_nodes == 0) return false;
+        RL_TOOLS_FUNCTION_PLACEMENT bool traverse_tlas_any(const SceneView<T, TI>& scene, const BVHNode<T, TI>* tlas_nodes, const TI* tlas_primitives, TI num_tlas_nodes, Vec3<T> origin, Vec3<T> direction, T t_min, T t_max){
+            if(num_tlas_nodes == 0) return false;
             TI stack[constants::TRAVERSAL_STACK_SIZE<TI>];
             TI stack_pointer = 0;
             stack[stack_pointer++] = 0;
             while(stack_pointer > 0){
-                const BVHNode<T, TI>& node = scene.tlas_nodes[stack[--stack_pointer]];
+                const BVHNode<T, TI>& node = tlas_nodes[stack[--stack_pointer]];
                 if(!intersect_aabb(node, origin, direction, t_min, t_max)) continue;
                 if(node.count > 0){
                     for(TI i = 0; i < node.count; i++){
-                        const TI instance_index = scene.tlas_primitives[node.left_or_first + i];
+                        const TI instance_index = tlas_primitives[node.left_or_first + i];
                         if(intersect_blas_any(scene, instance_index, origin, direction, t_min, t_max)) return true;
                     }
                 }
@@ -428,8 +445,54 @@ namespace rl_tools {
         }
 
         template <typename T, typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT bool trace_any(const SceneView<T, TI>& scene, Vec3<T> origin, Vec3<T> direction, T t_min, T t_max){
+            return traverse_tlas_any(scene, scene.tlas_nodes, scene.tlas_primitives, scene.num_tlas_nodes, origin, direction, t_min, t_max);
+        }
+
+        template <typename T, typename TI>
         RL_TOOLS_FUNCTION_PLACEMENT T trace_depth_distance(const SceneView<T, TI>& scene, Vec3<T> origin, Vec3<T> direction, T max_depth){
             const Hit<T, TI> hit = trace_closest(scene, origin, direction, (T)0, max_depth);
+            return hit.valid ? hit.t : max_depth;
+        }
+
+        template <typename SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::TI camera_from_pixel(typename SPEC::TI pixel_x, typename SPEC::TI pixel_y){
+            return (pixel_y / SPEC::CAM_HEIGHT) * SPEC::GRID_COLS + pixel_x / SPEC::CAM_WIDTH;
+        }
+
+        // composed tracing: the shared world plus the overlays attached to the ray's camera.
+        // K = 0 compiles down to the raw single-structure trace.
+        template <typename SPEC, typename T, typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT Hit<T, TI> trace_closest_composed(const SceneView<T, TI>& scene, TI camera, Vec3<T> origin, Vec3<T> direction, T t_min, T t_max){
+            Hit<T, TI> best = trace_closest(scene, origin, direction, t_min, t_max);
+            if constexpr (SPEC::ENABLE_OVERLAYS){
+                for(TI attachment = 0; attachment < SPEC::MAX_OVERLAYS_PER_CAMERA; attachment++){
+                    const TI overlay = scene.attachments[camera * SPEC::MAX_OVERLAYS_PER_CAMERA + attachment];
+                    if(overlay == ~(TI)0) continue;
+                    const OverlayView<T, TI>& view = scene.overlays[overlay];
+                    traverse_tlas_closest(scene, view.tlas_nodes, view.tlas_primitives, view.num_tlas_nodes, origin, direction, t_min, best);
+                }
+            }
+            return best;
+        }
+
+        template <typename SPEC, typename T, typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT bool trace_any_composed(const SceneView<T, TI>& scene, TI camera, Vec3<T> origin, Vec3<T> direction, T t_min, T t_max){
+            if(trace_any(scene, origin, direction, t_min, t_max)) return true;
+            if constexpr (SPEC::ENABLE_OVERLAYS){
+                for(TI attachment = 0; attachment < SPEC::MAX_OVERLAYS_PER_CAMERA; attachment++){
+                    const TI overlay = scene.attachments[camera * SPEC::MAX_OVERLAYS_PER_CAMERA + attachment];
+                    if(overlay == ~(TI)0) continue;
+                    const OverlayView<T, TI>& view = scene.overlays[overlay];
+                    if(traverse_tlas_any(scene, view.tlas_nodes, view.tlas_primitives, view.num_tlas_nodes, origin, direction, t_min, t_max)) return true;
+                }
+            }
+            return false;
+        }
+
+        template <typename SPEC, typename T, typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT T trace_depth_distance_composed(const SceneView<T, TI>& scene, TI camera, Vec3<T> origin, Vec3<T> direction, T max_depth){
+            const Hit<T, TI> hit = trace_closest_composed<SPEC>(scene, camera, origin, direction, (T)0, max_depth);
             return hit.valid ? hit.t : max_depth;
         }
 
@@ -733,7 +796,7 @@ namespace rl_tools {
                 const T NdotL = maximum(dot(N, L), (T)0);
                 if(NdotL <= (T)0) continue;
                 if constexpr (SPEC::SHADING::PUNCTUAL_LIGHT_SHADOWS){
-                    if(light.type != 0 && trace_any(scene, hit_point + N * (T)2e-3, L, (T)1e-3, light_distance)) continue;
+                    if(light.type != 0 && trace_any_composed<SPEC>(scene, camera_from_pixel<SPEC>(pixel_x, pixel_y), hit_point + N * (T)2e-3, L, (T)1e-3, light_distance)) continue;
                 }
 
                 const Vec3<T> H = normalize(math_device, V + L);
@@ -808,7 +871,7 @@ namespace rl_tools {
         RL_TOOLS_FUNCTION_PLACEMENT Vec3<typename SPEC::T> trace_rgb(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene, typename SPEC::TI pixel_x, typename SPEC::TI pixel_y, Vec3<typename SPEC::T> origin, Vec3<typename SPEC::T> direction, typename SPEC::T t_min, typename SPEC::T t_max){
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
-            const Hit<T, TI> hit = trace_closest(scene, origin, direction, t_min, t_max);
+            const Hit<T, TI> hit = trace_closest_composed<SPEC>(scene, camera_from_pixel<SPEC>(pixel_x, pixel_y), origin, direction, t_min, t_max);
             if(!hit.valid){
                 return miss_color<SPEC>(scene, pixel_x, pixel_y);
             }
@@ -868,7 +931,7 @@ namespace rl_tools {
                                         accumulated_rgb = accumulated_rgb + trace_rgb<DEVICE, SPEC, 0>(device, scene, pixel_x, pixel_y, pos, direction, (T)0, (T)1e30);
                                     }
                                     else{
-                                        accumulated_depth += trace_depth_distance(scene, pos, direction, scene.max_depth);
+                                        accumulated_depth += trace_depth_distance_composed<SPEC>(scene, camera_i, pos, direction, scene.max_depth);
                                     }
                                 }
                             }
@@ -910,7 +973,7 @@ namespace rl_tools {
                         const T screen_x = ((T)x + (T)0.5) / (T)SPEC::CAM_WIDTH;
                         const T screen_y = ((T)y + (T)0.5) / (T)SPEC::CAM_HEIGHT;
                         const Vec3<T> direction = normalize(math_device, dir_00 + screen_x * dir_du + screen_y * dir_dv);
-                        const Hit<T, TI> hit = trace_closest(scene, pos, direction, (T)0, (T)1e30);
+                        const Hit<T, TI> hit = trace_closest_composed<SPEC>(scene, camera_i, pos, direction, (T)0, (T)1e30);
                         scene.segmentation_buffer[fb_offset] = hit.valid ? (unsigned int)hit.instance : 0xFFFFFFFFu;
                     }
                 }
@@ -932,7 +995,7 @@ namespace rl_tools {
                     else{
                         direction = to_vec3(&scene.probe_directions[3 * probe_i]);
                     }
-                    const Hit<T, TI> hit = trace_closest(scene, to_vec3(cam.pos), direction, (T)1e-3, scene.max_dist);
+                    const Hit<T, TI> hit = trace_closest_composed<SPEC>(scene, camera_i, to_vec3(cam.pos), direction, (T)1e-3, scene.max_dist);
                     CollisionResult result;
                     if(!hit.valid){
                         result.distance = (float)scene.max_dist;

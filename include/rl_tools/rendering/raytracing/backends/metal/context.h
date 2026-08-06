@@ -36,6 +36,8 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         constexpr int ACCELERATION_STRUCTURE = 8;
         constexpr int INSTANCE_RECORD_BASE = 9;
         constexpr int INSTANCE_DATA = 10;
+        constexpr int OVERLAY_STRUCTURES = 11;
+        constexpr int OVERLAY_ATTACHMENTS = 12;
     }
     namespace function_constants{
         constexpr int SRGB_OUTPUT = 0;
@@ -48,6 +50,7 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         constexpr int METALLIC_REFLECTIONS = 7;
         constexpr int PBR_SHADING = 8;
         constexpr int PUNCTUAL_LIGHT_SHADOWS = 9;
+        constexpr int OVERLAY_COUNT = 10;
     }
 
     struct LaunchParams{
@@ -103,6 +106,13 @@ namespace rl_tools::rendering::raytracing::backends::metal{
     };
     static_assert(sizeof(InstanceData) == 112, "InstanceData layout must match the MSL declaration in device.metal");
 
+    struct OverlayStructureEntry{
+        MTL::ResourceID structure;
+        uint32_t num_active;
+        uint32_t padding;
+    };
+    static_assert(sizeof(OverlayStructureEntry) == 16, "OverlayStructureEntry layout must match the MSL declaration in device.metal");
+
     struct Context{
         NS::SharedPtr<MTL::Device> device;
         NS::SharedPtr<MTL::CommandQueue> queue;
@@ -116,6 +126,13 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         NS::SharedPtr<MTL::Buffer> instance_descriptors;
         NS::SharedPtr<MTL::Buffer> instance_record_base;
         NS::SharedPtr<MTL::Buffer> instance_data;
+        std::vector<NS::SharedPtr<MTL::AccelerationStructure>> overlay_acceleration_structures;
+        std::vector<NS::SharedPtr<MTL::Buffer>> overlay_instance_descriptors;
+        std::vector<NS::SharedPtr<MTL::Buffer>> overlay_scratch_buffers;
+        NS::SharedPtr<MTL::Buffer> overlay_structures;
+        NS::SharedPtr<MTL::Buffer> overlay_attachments;
+        std::vector<uint32_t> object_record_base;
+        uint32_t num_scene_instances = 0;
         std::vector<NS::SharedPtr<MTL::Buffer>> mesh_buffers;
         std::vector<NS::SharedPtr<MTL::Texture>> mesh_textures;
         NS::SharedPtr<MTL::Texture> dummy_texture;

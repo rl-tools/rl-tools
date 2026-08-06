@@ -16,6 +16,16 @@ namespace rl_tools
 {
   static constexpr int NUM_RAY_TYPES = 2;
 
+  extern "C" __constant__ OverlayLaunchParams optixLaunchParams;
+
+  inline __device__ int camera_from_fb_tile()
+  {
+    const owl::vec2i pixel_id = owl::getLaunchIndex();
+    const int tile_col = pixel_id.x / optixLaunchParams.cam_width;
+    const int tile_row = pixel_id.y / optixLaunchParams.cam_height;
+    return tile_row * optixLaunchParams.grid_cols + tile_col;
+  }
+
   inline __device__ float linear_to_srgb(float x) {
     if (x <= 0.0031308f) return 12.92f * x;
     return 1.055f * powf(x, 1.f / 2.4f) - 0.055f;
@@ -62,22 +72,42 @@ namespace rl_tools
     return {cam_idx, local_x, local_y, fb_offset, cam_idx < self.num_cameras};
   }
 
-  inline __device__ owl::vec3f trace_rgb_color(OptixTraversableHandle world, const owl::vec3f &pos, const owl::vec3f &direction)
+  inline __device__ owl::vec3f trace_rgb_color_composed(OptixTraversableHandle world, int camera, unsigned int depth, const owl::vec3f &pos, const owl::vec3f &direction, float tmin, float tmax)
   {
     owl::vec3f color;
     unsigned int p0 = 0, p1 = 0;
     owl::packPointer(&color, p0, p1);
-    unsigned int p2 = 0;
+    unsigned int p2 = depth;
+    unsigned int p3 = __float_as_uint(1e30f);
     optixTrace(world,
                (const float3&)pos,
                (const float3&)direction,
-               0.f,
-               1e30f,
+               tmin,
+               tmax,
                0.0f,
                OptixVisibilityMask(255),
                OPTIX_RAY_FLAG_DISABLE_ANYHIT,
                0, NUM_RAY_TYPES, 0,
-               p0, p1, p2);
+               p0, p1, p2, p3);
+    const int overlay_count = optixLaunchParams.overlay_count;
+    float best_t = __uint_as_float(p3);
+    for (int k = 0; k < overlay_count; k++) {
+      const uint32_t overlay = optixLaunchParams.attachments[camera * overlay_count + k];
+      if (overlay == 0xFFFFFFFFu) continue;
+      unsigned int q2 = depth;
+      unsigned int q3 = __float_as_uint(best_t);
+      optixTrace((OptixTraversableHandle)optixLaunchParams.overlays[overlay],
+                 (const float3&)pos,
+                 (const float3&)direction,
+                 tmin,
+                 fminf(best_t, tmax),
+                 0.0f,
+                 OptixVisibilityMask(255),
+                 OPTIX_RAY_FLAG_DISABLE_ANYHIT,
+                 0, NUM_RAY_TYPES, 1, // no-op miss: an overlay miss keeps the current color
+                 p0, p1, q2, q3);
+      best_t = fminf(best_t, __uint_as_float(q3));
+    }
     return color;
   }
 
@@ -98,6 +128,18 @@ namespace rl_tools
     return u1 != 0;
   }
 
+  inline __device__ bool trace_shadow_occluded_composed(OptixTraversableHandle world, int camera, const owl::vec3f &pos, const owl::vec3f &direction, float max_dist)
+  {
+    if (trace_shadow_occluded(world, pos, direction, max_dist)) return true;
+    const int overlay_count = optixLaunchParams.overlay_count;
+    for (int k = 0; k < overlay_count; k++) {
+      const uint32_t overlay = optixLaunchParams.attachments[camera * overlay_count + k];
+      if (overlay == 0xFFFFFFFFu) continue;
+      if (trace_shadow_occluded((OptixTraversableHandle)optixLaunchParams.overlays[overlay], pos, direction, max_dist)) return true;
+    }
+    return false;
+  }
+
 #if RL_TOOLS_RENDERING_RAYTRACING_ENABLE_DEPTH_PROGRAMS
   inline __device__ float trace_depth_distance(OptixTraversableHandle world, const owl::vec3f &pos, const owl::vec3f &direction, float max_depth)
   {
@@ -115,6 +157,18 @@ namespace rl_tools
                u0, u1);
     return __uint_as_float(u0);
   }
+
+  inline __device__ float trace_depth_distance_composed(OptixTraversableHandle world, int camera, const owl::vec3f &pos, const owl::vec3f &direction, float max_depth)
+  {
+    float best = trace_depth_distance(world, pos, direction, max_depth);
+    const int overlay_count = optixLaunchParams.overlay_count;
+    for (int k = 0; k < overlay_count; k++) {
+      const uint32_t overlay = optixLaunchParams.attachments[camera * overlay_count + k];
+      if (overlay == 0xFFFFFFFFu) continue;
+      best = trace_depth_distance((OptixTraversableHandle)optixLaunchParams.overlays[overlay], pos, direction, best);
+    }
+    return best;
+  }
 #endif
 
   template <bool T_SRGB_OUTPUT>
@@ -123,9 +177,9 @@ namespace rl_tools
     using Accumulator = owl::vec3f;
     inline __device__ static Accumulator zero() { return owl::vec3f(0.f); }
     template <typename RAYGEN_DATA>
-    inline __device__ static void accumulate(const RAYGEN_DATA &self, Accumulator &acc, const owl::vec3f &pos, const owl::vec3f &direction)
+    inline __device__ static void accumulate(const RAYGEN_DATA &self, Accumulator &acc, int camera, const owl::vec3f &pos, const owl::vec3f &direction)
     {
-      acc = acc + trace_rgb_color(self.world, pos, direction);
+      acc = acc + trace_rgb_color_composed(self.world, camera, 0, pos, direction, 0.f, 1e30f);
     }
     template <typename RAYGEN_DATA>
     inline __device__ static void store(const RAYGEN_DATA &self, const PixelLaunchContext &ctx, Accumulator acc, int samples)
@@ -146,9 +200,9 @@ namespace rl_tools
     using Accumulator = float;
     inline __device__ static Accumulator zero() { return 0.f; }
     template <typename RAYGEN_DATA>
-    inline __device__ static void accumulate(const RAYGEN_DATA &self, Accumulator &acc, const owl::vec3f &pos, const owl::vec3f &direction)
+    inline __device__ static void accumulate(const RAYGEN_DATA &self, Accumulator &acc, int camera, const owl::vec3f &pos, const owl::vec3f &direction)
     {
-      acc += trace_depth_distance(self.world, pos, direction, self.max_depth);
+      acc += trace_depth_distance_composed(self.world, camera, pos, direction, self.max_depth);
     }
     template <typename RAYGEN_DATA>
     inline __device__ static void store(const RAYGEN_DATA &self, const PixelLaunchContext &ctx, Accumulator acc, int samples)
@@ -193,7 +247,7 @@ namespace rl_tools
         for (int aa_x = 0; aa_x < AA_GRID; aa_x++) {
           const owl::vec2f screen = (owl::vec2f(ctx.local_x, ctx.local_y) + owl::vec2f((float(aa_x) + .5f) * inv_aa_grid, (float(aa_y) + .5f) * inv_aa_grid)) / owl::vec2f(self.cam_size);
           const owl::vec3f direction = normalize(dir_00 + screen.u * dir_du + screen.v * dir_dv);
-          OUTPUT::accumulate(self, accumulated, pos, direction);
+          OUTPUT::accumulate(self, accumulated, ctx.cam_idx, pos, direction);
         }
       }
     }
@@ -326,20 +380,7 @@ namespace rl_tools
         owl::vec3f n = dot(ray_dir, normal_geometric) > 0.f ? -normal_geometric : normal_geometric;
         owl::vec3f reflect_dir = ray_dir - 2.f * dot(ray_dir, n) * n;
 
-        owl::vec3f reflected_color;
-        unsigned int rp0 = 0, rp1 = 0;
-        owl::packPointer(&reflected_color, rp0, rp1);
-        unsigned int rp2 = depth + 1;
-        optixTrace(self.world,
-                   (const float3&)hit_point,
-                   (const float3&)reflect_dir,
-                   1e-3f,
-                   1e20f,
-                   0.0f,
-                   OptixVisibilityMask(255),
-                   OPTIX_RAY_FLAG_DISABLE_ANYHIT,
-                   0, NUM_RAY_TYPES, 0,
-                   rp0, rp1, rp2);
+        const owl::vec3f reflected_color = trace_rgb_color_composed(self.world, camera_from_fb_tile(), depth + 1, hit_point, reflect_dir, 1e-3f, 1e20f);
 
         float cos_theta = fabs(dot(ray_dir, n));
         float fresnel = self.metallic * (0.04f + 0.96f * powf(1.f - cos_theta, 5.f));
@@ -351,6 +392,7 @@ namespace rl_tools
     else {
       prd = direct;
     }
+    optixSetPayload_3(__float_as_uint(optixGetRayTmax()));
   }
 
 #define RL_TOOLS_RENDERING_RAYTRACING_BASIC_CLOSEST_HIT(NAME, LOAD_TEXTURES, NORMAL_SHADING, METALLIC_REFLECTIONS) \
@@ -447,6 +489,8 @@ namespace rl_tools
     hit_point.y += optixGetWorldRayOrigin().y;
     hit_point.z += optixGetWorldRayOrigin().z;
 
+    const int camera = camera_from_fb_tile();
+
     owl::vec3f Lo(0.f);
     for (int li = 0; li < self.num_scene_lights; li++) {
       const rendering::raytracing::SceneLight& light = self.scene_lights[li];
@@ -475,7 +519,7 @@ namespace rl_tools
       float NdotL = fmaxf(dot(N, L), 0.f);
       if (NdotL <= 0.f) continue;
       if constexpr (ENABLE_PUNCTUAL_LIGHT_SHADOWS) {
-        if (light.type != 0 && trace_shadow_occluded(self.world, hit_point + N * 2e-3f, L, light_distance)) continue;
+        if (light.type != 0 && trace_shadow_occluded_composed(self.world, camera, hit_point + N * 2e-3f, L, light_distance)) continue;
       }
 
       owl::vec3f H = normalize(V + L);
@@ -520,20 +564,7 @@ namespace rl_tools
     if (depth < 1 && metallic > 0.1f) {
       owl::vec3f reflect_dir = ray_dir - 2.f * dot(ray_dir, N) * N;
 
-      owl::vec3f reflected_color;
-      unsigned int rp0 = 0, rp1 = 0;
-      owl::packPointer(&reflected_color, rp0, rp1);
-      unsigned int rp2 = depth + 1;
-      optixTrace(self.world,
-                 (const float3&)hit_point,
-                 (const float3&)reflect_dir,
-                 1e-3f,
-                 1e20f,
-                 0.0f,
-                 OptixVisibilityMask(255),
-                 OPTIX_RAY_FLAG_DISABLE_ANYHIT,
-                 0, NUM_RAY_TYPES, 0,
-                 rp0, rp1, rp2);
+      const owl::vec3f reflected_color = trace_rgb_color_composed(self.world, camera, depth + 1, hit_point, reflect_dir, 1e-3f, 1e20f);
 
       float fresnel_refl = F0.x + (1.f - F0.x) * powf(1.f - fmaxf(dot(V, N), 0.f), 5.f);
       float reflection_weight = fresnel_refl * (1.f - roughness);
@@ -542,20 +573,7 @@ namespace rl_tools
 
     bool transparent = (self.alpha_mode == 2 && alpha < 0.99f) || (self.alpha_mode == 1 && alpha < self.alpha_cutoff);
     if (transparent && depth < 1) {
-      owl::vec3f behind_color;
-      unsigned int tp0 = 0, tp1 = 0;
-      owl::packPointer(&behind_color, tp0, tp1);
-      unsigned int tp2 = depth + 1;
-      optixTrace(self.world,
-                 (const float3&)hit_point,
-                 (const float3&)ray_dir,
-                 1e-5f,
-                 1e20f,
-                 0.0f,
-                 OptixVisibilityMask(255),
-                 OPTIX_RAY_FLAG_DISABLE_ANYHIT,
-                 0, NUM_RAY_TYPES, 0,
-                 tp0, tp1, tp2);
+      const owl::vec3f behind_color = trace_rgb_color_composed(self.world, camera, depth + 1, hit_point, ray_dir, 1e-5f, 1e20f);
 
       if (self.alpha_mode == 1) {
         color = behind_color;
@@ -565,6 +583,7 @@ namespace rl_tools
     }
 
     prd = color;
+    optixSetPayload_3(__float_as_uint(optixGetRayTmax()));
   }
 
   OPTIX_CLOSEST_HIT_PROGRAM(TriangleMeshPBR)()
@@ -640,6 +659,22 @@ namespace rl_tools
         OPTIX_RAY_FLAG_DISABLE_ANYHIT,
         1, NUM_RAY_TYPES, 1, // SBT offset, stride, miss (ray type 1)
         u0, u1, u2);
+    const int overlay_count = optixLaunchParams.overlay_count;
+    for (int k = 0; k < overlay_count; k++) {
+      const uint32_t overlay = optixLaunchParams.attachments[cam_idx * overlay_count + k];
+      if (overlay == 0xFFFFFFFFu) continue;
+      optixTrace(
+          (OptixTraversableHandle)optixLaunchParams.overlays[overlay],
+          (const float3&)cam.pos,
+          (const float3&)dir,
+          1e-3f,
+          __uint_as_float(u0),
+          0.0f,
+          OptixVisibilityMask(255),
+          OPTIX_RAY_FLAG_DISABLE_ANYHIT,
+          1, NUM_RAY_TYPES, 1,
+          u0, u1, u2);
+    }
 
     result.distance = __uint_as_float(u0);
     result.hit = u1;
@@ -650,7 +685,7 @@ namespace rl_tools
   {
     optixSetPayload_0(__float_as_uint(optixGetRayTmax()));
     optixSetPayload_1(1);
-    optixSetPayload_2(optixGetInstanceIndex()); // consumed by segmentationRayGen; collision ignores it
+    optixSetPayload_2(optixGetInstanceId()); // global instance id; consumed by segmentationRayGen, collision ignores it
   }
 
   OPTIX_MISS_PROGRAM(collisionMiss)()
@@ -694,6 +729,22 @@ namespace rl_tools
         OPTIX_RAY_FLAG_DISABLE_ANYHIT,
         1, NUM_RAY_TYPES, 1, // collision ray type
         u0, u1, u2);
+    const int overlay_count = optixLaunchParams.overlay_count;
+    for (int k = 0; k < overlay_count; k++) {
+      const uint32_t overlay = optixLaunchParams.attachments[cam_idx * overlay_count + k];
+      if (overlay == 0xFFFFFFFFu) continue;
+      optixTrace(
+          (OptixTraversableHandle)optixLaunchParams.overlays[overlay],
+          (const float3&)cam.pos,
+          (const float3&)direction,
+          0.f,
+          __uint_as_float(u0),
+          0.0f,
+          OptixVisibilityMask(255),
+          OPTIX_RAY_FLAG_DISABLE_ANYHIT,
+          1, NUM_RAY_TYPES, 1,
+          u0, u1, u2);
+    }
     self.seg_ptr[fb_offset] = u2;
   }
 #endif

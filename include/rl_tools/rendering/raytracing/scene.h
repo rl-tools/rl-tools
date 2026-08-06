@@ -60,9 +60,16 @@ namespace rl_tools {
         };
 
         struct Placement{
-            size_t first_instance; // parts are placed as consecutive instances
+            size_t first_instance; // parts are placed as consecutive instances (or overlay slots)
             size_t num_instances;
         };
+
+        // Assets available to dynamic overlays: registered before init (BLASes built once, frozen
+        // after), instantiated per step via spawn. Must outlive rendering, like Scene.
+        struct AssetPool{
+            std::vector<ObjectAssembly> assemblies;
+        };
+        using AssetHandle = size_t;
 
         struct Instance{
             size_t object;        // index into Scene::objects
