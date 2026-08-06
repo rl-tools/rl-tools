@@ -1378,28 +1378,29 @@ namespace rl_tools {
         }
 
         // one distinct color per instance id (golden-ratio hue hash); miss sentinel renders black
+        inline uint32_t segmentation_id_to_rgba(uint32_t id){
+            if(id == 0xFFFFFFFFu){
+                return 0xFF000000u;
+            }
+            const float hue = std::fmod((float)id * 0.61803398875f, 1.0f) * 6.0f;
+            const float descending = 1.0f - std::fabs(std::fmod(hue, 2.0f) - 1.0f);
+            float r = 0, g = 0, b = 0;
+            switch((int)hue){
+                case 0: r = 1; g = descending; break;
+                case 1: r = descending; g = 1; break;
+                case 2: g = 1; b = descending; break;
+                case 3: g = descending; b = 1; break;
+                case 4: r = descending; b = 1; break;
+                default: r = 1; b = descending; break;
+            }
+            return 0xFF000000u | ((uint32_t)(b * 255) << 16) | ((uint32_t)(g * 255) << 8) | (uint32_t)(r * 255);
+        }
         template <typename SPEC>
         void write_segmentation_grid_png(const uint32_t* segmentation, const char* filename){
             constexpr typename SPEC::TI num_pixels = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
             std::vector<uint32_t> colored(num_pixels);
             for(size_t pixel_i = 0; pixel_i < (size_t)num_pixels; pixel_i++){
-                const uint32_t id = segmentation[pixel_i];
-                if(id == 0xFFFFFFFFu){
-                    colored[pixel_i] = 0xFF000000u;
-                    continue;
-                }
-                const float hue = std::fmod((float)id * 0.61803398875f, 1.0f) * 6.0f;
-                const float descending = 1.0f - std::fabs(std::fmod(hue, 2.0f) - 1.0f);
-                float r = 0, g = 0, b = 0;
-                switch((int)hue){
-                    case 0: r = 1; g = descending; break;
-                    case 1: r = descending; g = 1; break;
-                    case 2: g = 1; b = descending; break;
-                    case 3: g = descending; b = 1; break;
-                    case 4: r = descending; b = 1; break;
-                    default: r = 1; b = descending; break;
-                }
-                colored[pixel_i] = 0xFF000000u | ((uint32_t)(b * 255) << 16) | ((uint32_t)(g * 255) << 8) | (uint32_t)(r * 255);
+                colored[pixel_i] = segmentation_id_to_rgba(segmentation[pixel_i]);
             }
             write_grid_png<SPEC>(colored.data(), filename);
         }

@@ -131,4 +131,15 @@ if(glfw3_FOUND AND OpenGL_FOUND)
             OpenGL::GL
     )
     target_compile_definitions(rendering_raytracing_interactive_rgbd PRIVATE RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE=1)
+
+    add_executable(rendering_raytracing_interactive_segmentation EXCLUDE_FROM_ALL interactive.cpp)
+    target_link_libraries(rendering_raytracing_interactive_segmentation
+        PRIVATE
+            RLtools::RLtools
+            rendering_raytracing_backend_segmentation
+            rendering_raytracing_stb
+            glfw
+            OpenGL::GL
+    )
+    target_compile_definitions(rendering_raytracing_interactive_segmentation PRIVATE RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE=3)
 endif()
