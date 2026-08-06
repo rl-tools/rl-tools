@@ -716,7 +716,7 @@ namespace rl_tools {
         }
 
         std::vector<OWLGroup> instance_children;
-        std::vector<uint32_t> instance_ids; // user instance ids == global instance ids
+        std::vector<uint32_t> instance_ids; // user instance ids == global instance ids (contract: segmentation_object, operations_cpu_common.h)
         std::vector<float> instance_transforms; // 12 per instance: owl affine3f (linear columns vx, vy, vz, then translation)
         for(const auto& instance : scene.instances){
             instance_children.push_back(object_groups[instance.object]);
@@ -784,7 +784,7 @@ namespace rl_tools {
             for(size_t overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
                 std::vector<uint32_t> overlay_instance_ids(SPEC::MAX_OVERLAY_INSTANCES);
                 for(size_t slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
-                    overlay_instance_ids[slot] = (uint32_t)(scene.instances.size() + overlay * SPEC::MAX_OVERLAY_INSTANCES + slot);
+                    overlay_instance_ids[slot] = (uint32_t)(scene.instances.size() + overlay * SPEC::MAX_OVERLAY_INSTANCES + slot); // global id layout (contract: segmentation_object)
                 }
                 OWLGroup overlay_group = owlInstanceGroupCreate(context, SPEC::MAX_OVERLAY_INSTANCES, overlay_children.data(), overlay_instance_ids.data(), overlay_transforms.data(), OWL_MATRIX_FORMAT_OWL);
                 owlGroupBuildAccel(overlay_group);

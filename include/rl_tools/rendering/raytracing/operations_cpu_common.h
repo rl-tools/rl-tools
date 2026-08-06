@@ -1024,6 +1024,9 @@ namespace rl_tools {
         }
     }
 
+    // Deterministic first-fit is a contract, not an implementation detail: the chosen slot defines
+    // the global instance id (segmentation output), which must be reproducible across runs and
+    // identical across backends. Do not replace with a free-list or best-fit strategy.
     template <typename SPEC>
     typename SPEC::TI first_fit_slot(const rendering::raytracing::Renderer<SPEC>& renderer, size_t overlay, typename SPEC::TI num_parts){
         using TI = typename SPEC::TI;
@@ -1353,6 +1356,9 @@ namespace rl_tools {
     // global id layout: scene instances occupy [0, S); overlay o's slot s sits at S + o*CAP + s;
     // object indices count scene objects first, then each pool assembly's objects in
     // registration order. Returns nullptr for the miss sentinel and out-of-range ids.
+    // This layout is cross-backend API surface: the generic flat instance array, Metal's user-ID
+    // descriptors, and OptiX's user instance ids all realize it identically, and segmentation
+    // consumers depend on that equivalence — treat any change to it as breaking.
     template <typename DEVICE, typename SPEC>
     const rendering::raytracing::Object* segmentation_object(DEVICE& device, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool, const rendering::raytracing::Renderer<SPEC>& renderer, uint32_t id){
         if(id == 0xFFFFFFFFu){
