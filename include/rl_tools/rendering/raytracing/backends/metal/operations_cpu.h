@@ -401,13 +401,7 @@ namespace rl_tools {
             ctx.overlay_structures = NS::TransferPtr(ctx.device->newBuffer(overlay_entries.data(), overlay_entries.size() * sizeof(metal::OverlayStructureEntry), MTL::ResourceStorageModeShared));
             std::vector<uint32_t> attachments_init((size_t)SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA, 0xFFFFFFFFu);
             ctx.overlay_attachments = NS::TransferPtr(ctx.device->newBuffer(attachments_init.data(), attachments_init.size() * sizeof(uint32_t), MTL::ResourceStorageModeShared));
-            for(auto& overlay_state : renderer.overlays){
-                for(auto& slot : overlay_state.slots){
-                    slot.active = false;
-                }
-                overlay_state.dirty = true;
-            }
-            renderer.attachments_dirty = true;
+            rendering::raytracing::detail::reset_overlay_state(renderer);
         }
         else if(ctx.overlay_structures.get() == nullptr){
             // never dereferenced (fc_overlay_count == 0) but keeps the kernel bindings valid

@@ -786,13 +786,7 @@ namespace rl_tools {
             }
             overlay_state->traversables_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(unsigned long long), SPEC::NUM_OVERLAYS, nullptr);
             overlay_state->attachments_buffer = owlDeviceBufferCreate(context, OWL_UINT, (size_t)SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA, nullptr);
-            for(auto& overlay_slot_state : renderer.overlays){
-                for(auto& slot : overlay_slot_state.slots){
-                    slot.active = false;
-                }
-                overlay_slot_state.dirty = true;
-            }
-            renderer.attachments_dirty = true;
+            rendering::raytracing::detail::reset_overlay_state(renderer);
         }
 
         if(renderer.backend.launch_params == nullptr){
