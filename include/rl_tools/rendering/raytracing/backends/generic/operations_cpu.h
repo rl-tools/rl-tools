@@ -310,6 +310,7 @@ namespace rl_tools {
             }
             inactive_slot.object = 0;
             inactive_slot.identity = true;
+            // flat array position == global instance id (contract: segmentation_object, operations_cpu_common.h)
             backend_state.instances.resize(backend_state.num_scene_instances + (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES, inactive_slot);
             const size_t bounds_size = 3 * backend_state.instances.size();
             backend_state.overlay_bounds_min.resize(bounds_size);
