@@ -38,6 +38,10 @@ namespace rl_tools {
             std::vector<OWLGroup> overlay_groups;
             OWLBuffer traversables_buffer = nullptr;
             OWLBuffer attachments_buffer = nullptr;
+            OWLBuffer instance_classes_buffer = nullptr;
+            std::vector<unsigned int> instance_classes; // host mirror, per global instance id
+            std::vector<unsigned int> object_classes;   // per global object
+            size_t num_scene_instances = 0;
         };
     }
 
@@ -791,6 +795,25 @@ namespace rl_tools {
             rendering::raytracing::detail::reset_overlay_state(renderer);
         }
 
+        std::vector<unsigned int> host_instance_classes(scene.instances.size() + (SPEC::ENABLE_OVERLAYS ? (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES : 0), 0);
+        for(size_t instance_i = 0; instance_i < scene.instances.size(); instance_i++){
+            host_instance_classes[instance_i] = all_objects[scene.instances[instance_i].object]->segmentation_class;
+        }
+        if(host_instance_classes.empty()){
+            host_instance_classes.push_back(0);
+        }
+        OWLBuffer instance_classes_buffer = owlDeviceBufferCreate(context, OWL_UINT, host_instance_classes.size(), host_instance_classes.data());
+        if constexpr (SPEC::ENABLE_OVERLAYS){
+            auto* overlay_state = (optix::OverlayState*)renderer.backend.overlay_state;
+            overlay_state->instance_classes_buffer = instance_classes_buffer;
+            overlay_state->instance_classes = host_instance_classes;
+            overlay_state->num_scene_instances = scene.instances.size();
+            overlay_state->object_classes.clear();
+            for(const auto* object_pointer : all_objects){
+                overlay_state->object_classes.push_back(object_pointer->segmentation_class);
+            }
+        }
+
         if(renderer.backend.launch_params == nullptr){
             OWLVarDecl launch_params_vars[] = {
                 { "overlays",      OWL_BUFPTR, OWL_OFFSETOF(OverlayLaunchParams, overlays)},
@@ -799,6 +822,8 @@ namespace rl_tools {
                 { "cam_width",     OWL_INT,    OWL_OFFSETOF(OverlayLaunchParams, cam_width)},
                 { "cam_height",    OWL_INT,    OWL_OFFSETOF(OverlayLaunchParams, cam_height)},
                 { "grid_cols",     OWL_INT,    OWL_OFFSETOF(OverlayLaunchParams, grid_cols)},
+                { "instance_classes", OWL_BUFPTR, OWL_OFFSETOF(OverlayLaunchParams, instance_classes)},
+                { "semantic_segmentation", OWL_INT, OWL_OFFSETOF(OverlayLaunchParams, semantic_segmentation)},
                 { /* sentinel */ }
             };
             OWLParams launch_params = owlParamsCreate(context, sizeof(OverlayLaunchParams), launch_params_vars, -1);
@@ -815,6 +840,8 @@ namespace rl_tools {
             owlParamsSet1i(launch_params, "cam_width", (int)SPEC::CAM_WIDTH);
             owlParamsSet1i(launch_params, "cam_height", (int)SPEC::CAM_HEIGHT);
             owlParamsSet1i(launch_params, "grid_cols", (int)SPEC::GRID_COLS);
+            owlParamsSet1i(launch_params, "semantic_segmentation", SPEC::SEMANTIC_SEGMENTATION ? 1 : 0);
+            owlParamsSetBuffer(launch_params, "instance_classes", instance_classes_buffer);
             if constexpr (SPEC::ENABLE_OVERLAYS){
                 auto* overlay_state = (optix::OverlayState*)renderer.backend.overlay_state;
                 owlParamsSetBuffer(launch_params, "overlays", overlay_state->traversables_buffer);
@@ -857,6 +884,7 @@ namespace rl_tools {
                     };
                     owlInstanceGroupSetChild(overlay_group, (int)slot, overlay_state->object_groups[host_slot.object]);
                     owlInstanceGroupSetTransform(overlay_group, (int)slot, owl_transform, OWL_MATRIX_FORMAT_OWL);
+                    overlay_state->instance_classes[overlay_state->num_scene_instances + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES + slot] = overlay_state->object_classes[host_slot.object];
                 }
                 else{
                     const float identity_owl[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0};
@@ -875,6 +903,7 @@ namespace rl_tools {
                 traversables[overlay] = (unsigned long long)owlGroupGetTraversable(overlay_state->overlay_groups[overlay], 0);
             }
             owlBufferUpload(overlay_state->traversables_buffer, traversables.data(), 0, SPEC::NUM_OVERLAYS);
+            owlBufferUpload(overlay_state->instance_classes_buffer, overlay_state->instance_classes.data(), 0, overlay_state->instance_classes.size());
         }
         if(renderer.attachments_dirty){
             std::vector<uint32_t> attachments((size_t)SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA);

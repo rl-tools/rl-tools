@@ -1025,6 +1025,20 @@ namespace rl_tools {
     }
 
     template <typename SPEC>
+    typename SPEC::TI first_fit_slot(const rendering::raytracing::Renderer<SPEC>& renderer, size_t overlay, typename SPEC::TI num_parts){
+        using TI = typename SPEC::TI;
+        const auto& state = renderer.overlays[overlay];
+        TI run = 0;
+        for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
+            run = state.slots[slot].active ? 0 : run + 1;
+            if(run == num_parts){
+                return slot + 1 - num_parts;
+            }
+        }
+        return SPEC::MAX_OVERLAY_INSTANCES;
+    }
+
+    template <typename SPEC>
     void reset_overlay_state(rendering::raytracing::Renderer<SPEC>& renderer){
         using TI = typename SPEC::TI;
         for(auto& overlay_state : renderer.overlays){
@@ -1209,6 +1223,33 @@ namespace rl_tools {
         return add(device, pool, object);
     }
 
+    // Validation predicates for boundaries (language bindings, C interface) that must not trip
+    // the fail-fast asserts inside the verbs: check first, then call.
+    template <typename DEVICE, typename SPEC>
+    bool can_attach(DEVICE& device, const rendering::raytracing::Renderer<SPEC>& renderer, typename SPEC::TI camera, rendering::raytracing::OverlayIndex overlay){
+        static_assert(SPEC::ENABLE_OVERLAYS, "can_attach requires an overlay-enabled renderer specification");
+        using TI = typename SPEC::TI;
+        if(camera >= SPEC::NUM_CAMERAS || overlay.index >= SPEC::NUM_OVERLAYS){
+            return false;
+        }
+        const TI* row = &renderer.attachments[camera * SPEC::MAX_OVERLAYS_PER_CAMERA];
+        for(TI slot = 0; slot < SPEC::MAX_OVERLAYS_PER_CAMERA; slot++){
+            if(row[slot] == (TI)overlay.index || row[slot] == rendering::raytracing::Renderer<SPEC>::INVALID_OVERLAY){
+                return true;
+            }
+        }
+        return false;
+    }
+
+    template <typename DEVICE, typename SPEC>
+    bool can_spawn(DEVICE& device, const rendering::raytracing::Renderer<SPEC>& renderer, rendering::raytracing::OverlayIndex overlay, rendering::raytracing::AssetHandle asset){
+        static_assert(SPEC::ENABLE_OVERLAYS, "can_spawn requires an overlay-enabled renderer specification");
+        if(overlay.index >= SPEC::NUM_OVERLAYS || asset.index >= renderer.assets.size()){
+            return false;
+        }
+        return rendering::raytracing::detail::first_fit_slot<SPEC>(renderer, overlay.index, renderer.assets[asset.index].num_parts) < SPEC::MAX_OVERLAY_INSTANCES;
+    }
+
     // Overlay verbs mutate host-side truth on the renderer and mark it dirty; update(device,
     // renderer) is the single point where the backend consumes it. All bookkeeping is
     // deterministic: slot allocation is a first-fit scan, so identical call sequences yield
@@ -1263,15 +1304,7 @@ namespace rl_tools {
         auto& state = renderer.overlays[overlay.index];
         const auto& record = renderer.assets[asset.index];
 
-        TI first_slot = SPEC::MAX_OVERLAY_INSTANCES;
-        TI run = 0;
-        for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
-            run = state.slots[slot].active ? 0 : run + 1;
-            if(run == record.num_parts){
-                first_slot = slot + 1 - record.num_parts;
-                break;
-            }
-        }
+        const TI first_slot = rendering::raytracing::detail::first_fit_slot<SPEC>(renderer, overlay.index, record.num_parts);
         if(first_slot >= SPEC::MAX_OVERLAY_INSTANCES){
             utils::assert_exit(device, false, "spawn: overlay capacity exceeded");
             return {0, 0, 0};

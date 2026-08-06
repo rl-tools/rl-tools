@@ -135,6 +135,7 @@ namespace rl_tools {
             unsigned int* frame_buffer = nullptr;
             float* depth_buffer = nullptr;
             unsigned int* segmentation_buffer = nullptr;
+            const unsigned int* instance_classes = nullptr; // indexed by global instance id
             CollisionResult* collision_results = nullptr;
         };
 
@@ -974,7 +975,7 @@ namespace rl_tools {
                         const T screen_y = ((T)y + (T)0.5) / (T)SPEC::CAM_HEIGHT;
                         const Vec3<T> direction = normalize(math_device, dir_00 + screen_x * dir_du + screen_y * dir_dv);
                         const Hit<T, TI> hit = trace_closest_composed<SPEC>(scene, camera_i, pos, direction, (T)0, (T)1e30);
-                        scene.segmentation_buffer[fb_offset] = hit.valid ? (unsigned int)hit.instance : 0xFFFFFFFFu;
+                        scene.segmentation_buffer[fb_offset] = hit.valid ? (SPEC::SEMANTIC_SEGMENTATION ? scene.instance_classes[hit.instance] : (unsigned int)hit.instance) : 0xFFFFFFFFu;
                     }
                 }
             }
