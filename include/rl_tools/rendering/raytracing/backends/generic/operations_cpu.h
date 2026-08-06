@@ -308,13 +308,7 @@ namespace rl_tools {
             backend_state.overlay_bounds_min.resize(bounds_size);
             backend_state.overlay_bounds_max.resize(bounds_size);
             backend_state.overlay_centroids.resize(bounds_size);
-            for(auto& overlay_state : renderer.overlays){
-                for(auto& slot : overlay_state.slots){
-                    slot.active = false;
-                }
-                overlay_state.dirty = true;
-            }
-            renderer.attachments_dirty = true;
+            rendering::raytracing::detail::reset_overlay_state(renderer);
         }
         backend_state.scene.instances = backend_state.instances.data();
         backend_state.scene.num_instances = (TI)backend_state.instances.size();
