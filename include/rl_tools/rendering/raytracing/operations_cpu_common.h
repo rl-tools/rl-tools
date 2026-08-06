@@ -1216,6 +1216,10 @@ namespace rl_tools {
     rendering::raytracing::Placement spawn(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, typename SPEC::TI overlay, rendering::raytracing::AssetHandle asset, const float transform[12]){
         static_assert(SPEC::ENABLE_OVERLAYS, "spawn requires an overlay-enabled renderer specification");
         using TI = typename SPEC::TI;
+        if(overlay >= SPEC::NUM_OVERLAYS){
+            utils::assert_exit(device, false, "spawn: overlay index out of range");
+            return {0, 0};
+        }
         auto& state = renderer.overlays[overlay];
         const auto& record = renderer.assets[asset];
 
@@ -1228,9 +1232,12 @@ namespace rl_tools {
                 break;
             }
         }
-        utils::assert_exit(device, first_slot < SPEC::MAX_OVERLAY_INSTANCES, "spawn: overlay capacity exceeded");
+        if(first_slot >= SPEC::MAX_OVERLAY_INSTANCES){
+            utils::assert_exit(device, false, "spawn: overlay capacity exceeded");
+            return {0, 0};
+        }
 
-        for(TI part = 0; part < record.num_parts; part++){
+        for(TI part = 0; part < record.num_parts && first_slot + part < SPEC::MAX_OVERLAY_INSTANCES; part++){
             auto& slot = state.slots[first_slot + part];
             slot.object = renderer.asset_part_objects[record.first_part + part];
             rendering::raytracing::detail::compose_transforms(transform, &renderer.asset_part_transforms[(record.first_part + part) * 12], slot.transform);
