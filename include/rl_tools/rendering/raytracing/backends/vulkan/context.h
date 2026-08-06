@@ -25,8 +25,14 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         constexpr uint32_t COLLISION_RESULTS = 7;
         constexpr uint32_t ACCELERATION_STRUCTURE = 8;
         constexpr uint32_t DEPTH_BUFFER = 9;
-        constexpr uint32_t TEXTURES = 10;
-        constexpr uint32_t COUNT = 11;
+        constexpr uint32_t SEGMENTATION_BUFFER = 10;
+        constexpr uint32_t INSTANCE_RECORD_BASE = 11;
+        constexpr uint32_t INSTANCE_DATA = 12;
+        constexpr uint32_t OVERLAY_ATTACHMENTS = 13;
+        constexpr uint32_t OVERLAY_NUM_ACTIVE = 14;
+        constexpr uint32_t OVERLAY_TLAS = 15;
+        constexpr uint32_t TEXTURES = 16; // variable-descriptor-count binding must have the largest binding number in the set
+        constexpr uint32_t COUNT = 17;
     }
     namespace specialization_constants{
         constexpr uint32_t SRGB_OUTPUT = 0;
@@ -39,7 +45,8 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         constexpr uint32_t METALLIC_REFLECTIONS = 7;
         constexpr uint32_t PBR_SHADING = 8;
         constexpr uint32_t PUNCTUAL_LIGHT_SHADOWS = 9;
-        constexpr uint32_t COUNT = 10;
+        constexpr uint32_t OVERLAY_COUNT = 10;
+        constexpr uint32_t COUNT = 11;
     }
     constexpr uint32_t WORKGROUP_SIZE = 8;
     constexpr uint32_t MAX_TEXTURE_DESCRIPTORS = 4096;
@@ -90,6 +97,14 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
     };
     static_assert(sizeof(MeshRecord) == 128, "MeshRecord layout must match the GLSL declaration in device.comp");
 
+    struct InstanceData{
+        float object_to_world[12]; // 3x4 row-major [R|t]
+        float world_to_object[12];
+        uint32_t identity;
+        uint32_t padding[3];
+    };
+    static_assert(sizeof(InstanceData) == 112, "InstanceData layout must match the GLSL std430 declaration in device.comp");
+
     struct BufferResource{
         VkBuffer buffer = VK_NULL_HANDLE;
         VkDeviceMemory memory = VK_NULL_HANDLE;
@@ -123,9 +138,11 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         VkShaderModule module_rgb = VK_NULL_HANDLE;
         VkShaderModule module_depth = VK_NULL_HANDLE;
         VkShaderModule module_collision = VK_NULL_HANDLE;
+        VkShaderModule module_segmentation = VK_NULL_HANDLE;
         VkPipeline rgb_pipeline = VK_NULL_HANDLE;
         VkPipeline depth_pipeline = VK_NULL_HANDLE;
         VkPipeline collision_pipeline = VK_NULL_HANDLE;
+        VkPipeline segmentation_pipeline = VK_NULL_HANDLE;
         VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
         VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
         VkSampler sampler = VK_NULL_HANDLE;
@@ -140,18 +157,32 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         BufferResource mesh_records;
         BufferResource scene_lights;
         BufferResource mesh_data;
-        BufferResource blas_buffer;
         BufferResource tlas_buffer;
         BufferResource instance_buffer;
+        BufferResource segmentation_buffer;
+        BufferResource instance_data;
+        BufferResource instance_record_base;
+        BufferResource overlay_attachments;
+        BufferResource overlay_num_active;
+        BufferResource overlay_scratch;
         BufferResource dummy;
 
         std::vector<ImageResource> mesh_textures; // index 0 = dummy 1x1 white
-        VkAccelerationStructureKHR blas = VK_NULL_HANDLE;
+        std::vector<VkAccelerationStructureKHR> blas_list; // one per object
+        std::vector<BufferResource> blas_buffers;
+        std::vector<VkDeviceAddress> blas_addresses;
+        std::vector<uint32_t> object_record_base; // object -> first index into mesh_records
+        uint32_t num_scene_instances = 0;
         VkAccelerationStructureKHR tlas = VK_NULL_HANDLE;
+        std::vector<VkAccelerationStructureKHR> overlay_tlas; // one per overlay, rebuilt in place by update()
+        std::vector<BufferResource> overlay_tlas_buffers;
+        std::vector<BufferResource> overlay_instance_buffers;
+        VkDeviceSize overlay_scratch_stride = 0;
 
         VkCommandBuffer cb_rgb = VK_NULL_HANDLE;
         VkCommandBuffer cb_depth = VK_NULL_HANDLE;
         VkCommandBuffer cb_collision = VK_NULL_HANDLE;
+        VkCommandBuffer cb_segmentation = VK_NULL_HANDLE;
         VkFence fence_render = VK_NULL_HANDLE;
         VkFence fence_collision = VK_NULL_HANDLE;
         bool render_in_flight = false;
