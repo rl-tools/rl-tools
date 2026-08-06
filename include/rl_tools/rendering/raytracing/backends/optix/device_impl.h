@@ -747,7 +747,7 @@ namespace rl_tools
           1, NUM_RAY_TYPES, 1,
           u0, u1, u2);
     }
-    self.seg_ptr[fb_offset] = u2;
+    self.seg_ptr[fb_offset] = (optixLaunchParams.semantic_segmentation && u2 != 0xFFFFFFFFu) ? optixLaunchParams.instance_classes[u2] : u2;
   }
 #endif
 }

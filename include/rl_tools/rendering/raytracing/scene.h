@@ -43,6 +43,7 @@ namespace rl_tools {
         struct Object{
             std::vector<Mesh> meshes;
             std::vector<SceneLight> lights; // object-local frame; transformed by the instance placing the object
+            uint32_t segmentation_class = 0; // user-assigned (e.g. from Object::name via a user taxonomy); reported by SEMANTIC_SEGMENTATION specs
             std::string name; // the glTF root node's name for assembly parts; empty otherwise
         };
 
@@ -84,7 +85,8 @@ namespace rl_tools {
         };
 
         // Assets available to dynamic overlays: registered before init (BLASes built once, frozen
-        // after), instantiated per step via spawn. Must outlive rendering, like Scene.
+        // after), instantiated per step via spawn. Must outlive rendering, like Scene; a boundary
+        // that outlives its caller (e.g. language bindings) must own copies of both.
         struct AssetPool{
             std::vector<ObjectAssembly> assemblies;
         };

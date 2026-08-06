@@ -31,6 +31,8 @@ namespace rl_tools {
             std::vector<BVHNode<T, TI>> tlas_nodes;
             std::vector<TI> tlas_primitives;
             TI num_scene_instances = 0;
+            std::vector<unsigned int> object_classes;   // per global object
+            std::vector<unsigned int> instance_classes; // per global instance id
             std::vector<OverlayView<T, TI>> overlay_views;
             std::vector<BVHNode<T, TI>> overlay_tlas_nodes;    // one 2*CAP slice per overlay
             std::vector<TI> overlay_tlas_primitives;           // one CAP slice per overlay (global instance ids)
@@ -192,6 +194,11 @@ namespace rl_tools {
             rendering::raytracing::detail::register_pool_assets(device, renderer, pool, all_objects);
         }
 
+        backend_state.object_classes.clear();
+        for(const auto* object_pointer : all_objects){
+            backend_state.object_classes.push_back(object_pointer->segmentation_class);
+        }
+
         backend_state.meshes.clear();
         backend_state.triangle_mesh.clear();
         backend_state.triangle_local.clear();
@@ -310,6 +317,11 @@ namespace rl_tools {
             backend_state.overlay_centroids.resize(bounds_size);
             rendering::raytracing::detail::reset_overlay_state(renderer);
         }
+        backend_state.instance_classes.assign(backend_state.instances.size(), 0);
+        for(TI instance_i = 0; instance_i < backend_state.num_scene_instances; instance_i++){
+            backend_state.instance_classes[instance_i] = backend_state.object_classes[backend_state.instances[instance_i].object];
+        }
+        backend_state.scene.instance_classes = backend_state.instance_classes.data();
         backend_state.scene.instances = backend_state.instances.data();
         backend_state.scene.num_instances = (TI)backend_state.instances.size();
 
@@ -411,6 +423,7 @@ namespace rl_tools {
                     backend_state.overlay_bounds_max[3 * (size_t)global + axis] = bounds_max[axis];
                     backend_state.overlay_centroids[3 * (size_t)global + axis] = (bounds_min[axis] + bounds_max[axis]) * (T)0.5;
                 }
+                backend_state.instance_classes[global] = backend_state.object_classes[host_slot.object];
                 primitives[num_active++] = global;
             }
             backend_state.overlay_views[overlay].num_tlas_nodes = generic::build_bvh_nodes(

@@ -55,7 +55,7 @@ namespace rl_tools {
         using VeryHighFidelityShading = VeryHigh;
         using FastFlatShading = Low;
 
-        template <typename T_T, typename T_TI, T_TI T_CAM_WIDTH, T_TI T_CAM_HEIGHT, T_TI T_NUM_CAMERAS, T_TI T_NUM_PROBES, typename T_SHADING = Medium, bool T_ENABLE_MOTION_BLUR = false, T_TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, T_TI T_ANTI_ALIASING_GRID_SIZE = 1, OutputMode T_OUTPUT_MODE = OutputMode::RGB, T_TI T_NUM_OVERLAYS = 0, T_TI T_MAX_OVERLAY_INSTANCES = 0, T_TI T_MAX_OVERLAYS_PER_CAMERA = 0>
+        template <typename T_T, typename T_TI, T_TI T_CAM_WIDTH, T_TI T_CAM_HEIGHT, T_TI T_NUM_CAMERAS, T_TI T_NUM_PROBES, typename T_SHADING = Medium, bool T_ENABLE_MOTION_BLUR = false, T_TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, T_TI T_ANTI_ALIASING_GRID_SIZE = 1, OutputMode T_OUTPUT_MODE = OutputMode::RGB, T_TI T_NUM_OVERLAYS = 0, T_TI T_MAX_OVERLAY_INSTANCES = 0, T_TI T_MAX_OVERLAYS_PER_CAMERA = 0, bool T_SEMANTIC_SEGMENTATION = false>
         struct Specification{
             using T = T_T;
             using TI = T_TI;
@@ -97,6 +97,8 @@ namespace rl_tools {
             static constexpr TI MAX_OVERLAY_INSTANCES = T_MAX_OVERLAY_INSTANCES;
             static constexpr TI MAX_OVERLAYS_PER_CAMERA = T_MAX_OVERLAYS_PER_CAMERA;
             static constexpr bool ENABLE_OVERLAYS = NUM_OVERLAYS > 0 && MAX_OVERLAY_INSTANCES > 0 && MAX_OVERLAYS_PER_CAMERA > 0;
+            static constexpr bool SEMANTIC_SEGMENTATION = T_SEMANTIC_SEGMENTATION; // segmentation output carries Object::segmentation_class instead of the instance id
+            static_assert(!SEMANTIC_SEGMENTATION || HAS_SEGMENTATION, "SEMANTIC_SEGMENTATION requires a segmentation output mode");
             static_assert(ENABLE_OVERLAYS || (NUM_OVERLAYS == 0 && MAX_OVERLAY_INSTANCES == 0 && MAX_OVERLAYS_PER_CAMERA == 0), "overlay constants must be all zero (disabled) or all nonzero");
         };
 

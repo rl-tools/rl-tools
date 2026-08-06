@@ -20,6 +20,7 @@ constant bool fc_metallic_reflections [[function_constant(7)]];
 constant bool fc_pbr_shading [[function_constant(8)]];
 constant bool fc_punctual_light_shadows [[function_constant(9)]];
 constant int fc_overlay_count [[function_constant(10)]];
+constant bool fc_semantic_segmentation [[function_constant(11)]];
 
 struct LaunchParams{
     uint fb_width;
@@ -632,6 +633,7 @@ kernel void render_segmentation(
     instance_acceleration_structure accel [[buffer(8)]],
     device const OverlayStructure* overlays [[buffer(11)]],
     device const uint* overlay_attachments [[buffer(12)]],
+    device const uint* instance_classes [[buffer(13)]],
     uint2 pixel_id [[thread_position_in_grid]])
 {
     const PixelLaunchContext ctx = pixel_launch_context(params, pixel_id);
@@ -644,7 +646,7 @@ kernel void render_segmentation(
 
     ray r(float3(cam.pos), direction, 0.f, 1e30f);
     intersection_result<triangle_data, instancing> hit = intersect_composed(accel, overlays, overlay_attachments, ctx.cam_idx, r, false);
-    segmentation_out[ctx.fb_offset] = hit.type == intersection_type::none ? 0xFFFFFFFFu : (uint)hit.user_instance_id;
+    segmentation_out[ctx.fb_offset] = hit.type == intersection_type::none ? 0xFFFFFFFFu : (fc_semantic_segmentation ? instance_classes[hit.user_instance_id] : (uint)hit.user_instance_id);
 }
 
 kernel void render_collision(
