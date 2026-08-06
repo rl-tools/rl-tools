@@ -1,17 +1,16 @@
 // Vulkan device programs for the RLtools raytracing renderer, compiled once per entry point
-// (ENTRY_RGB / ENTRY_DEPTH / ENTRY_COLLISION). This file is a function-for-function mirror of
-// backends/metal/device.metal (which mirrors backends/optix/device_impl.h) — keep the shading
-// logic in sync; the golden-image parity suite is the drift detector. Metal's RGBTracer<DEPTH>
-// template recursion is restructured here as shade_*_local + SecondaryRequest because GLSL
-// forbids recursion: the leaf trace shades without secondary rays (= DEPTH=1 behavior).
-// Struct layouts (LaunchParams, MeshRecord) and binding/spec-constant indices must match
-// include/rl_tools/rendering/raytracing/backends/vulkan/context.h.
+// (ENTRY_RGB / ENTRY_DEPTH / ENTRY_COLLISION / ENTRY_SEGMENTATION). This file is a
+// function-for-function mirror of backends/metal/device.metal (which mirrors
+// backends/optix/device_impl.h) — keep the shading logic in sync; the golden-image parity
+// suite is the drift detector. Metal's RGBTracer<DEPTH> template recursion is restructured
+// here as shade_*_local + SecondaryRequest because GLSL forbids recursion: the leaf trace
+// shades without secondary rays (= DEPTH=1 behavior).
+// Struct layouts (LaunchParams, MeshRecord, InstanceData) and binding/spec-constant indices
+// must match include/rl_tools/rendering/raytracing/backends/vulkan/context.h.
 #version 460
 #extension GL_EXT_ray_query : require
 #extension GL_EXT_buffer_reference : require
-#if defined(ENTRY_RGB)
 #extension GL_EXT_nonuniform_qualifier : require
-#endif
 
 layout(local_size_x = 8, local_size_y = 8, local_size_z = 1) in;
 
@@ -25,6 +24,7 @@ layout(constant_id = 6) const bool fc_normal_shading = false;
 layout(constant_id = 7) const bool fc_metallic_reflections = false;
 layout(constant_id = 8) const bool fc_pbr_shading = false;
 layout(constant_id = 9) const bool fc_punctual_light_shadows = false;
+layout(constant_id = 10) const int fc_overlay_count = 0;
 
 layout(std430, set = 0, binding = 0) readonly buffer LaunchParamsBuffer{
     uint fb_width;
@@ -52,6 +52,9 @@ struct Camera{
 
 layout(std430, set = 0, binding = 1) readonly buffer CamerasCloseBuffer{ Camera cameras_close[]; };
 layout(set = 0, binding = 8) uniform accelerationStructureEXT tlas;
+layout(std430, set = 0, binding = 13) readonly buffer OverlayAttachmentsBuffer{ uint overlay_attachments[]; };
+layout(std430, set = 0, binding = 14) readonly buffer OverlayNumActiveBuffer{ uint overlay_num_active[]; };
+layout(set = 0, binding = 15) uniform accelerationStructureEXT overlay_tlas[];
 
 #if defined(ENTRY_RGB) || defined(ENTRY_DEPTH)
 layout(std430, set = 0, binding = 2) readonly buffer CamerasOpenBuffer{ Camera cameras_open[]; };
@@ -100,14 +103,44 @@ struct SceneLight{
     float cos_outer_cone;
 };
 
+struct InstanceData{
+    float object_to_world[12]; // 3x4 row-major [R|t]
+    float world_to_object[12];
+    uint identity;
+    uint padding0;
+    uint padding1;
+    uint padding2;
+};
+
 layout(std430, set = 0, binding = 3) writeonly buffer FrameBuffer{ uint fb[]; };
 layout(std430, set = 0, binding = 4) readonly buffer MeshRecordsBuffer{ MeshRecord meshes[]; };
 layout(std430, set = 0, binding = 5) readonly buffer SceneLightsBuffer{ SceneLight scene_lights[]; };
-layout(set = 0, binding = 10) uniform sampler2D scene_textures[];
+layout(std430, set = 0, binding = 11) readonly buffer InstanceRecordBaseBuffer{ uint instance_record_base[]; };
+layout(std430, set = 0, binding = 12) readonly buffer InstanceDataBuffer{ InstanceData instance_data[]; };
+layout(set = 0, binding = 16) uniform sampler2D scene_textures[];
+
+vec3 transform_point_to_world(int instance, vec3 p){
+    const float m[12] = instance_data[instance].object_to_world;
+    return vec3(m[0]*p.x + m[1]*p.y + m[2]*p.z + m[3],
+                m[4]*p.x + m[5]*p.y + m[6]*p.z + m[7],
+                m[8]*p.x + m[9]*p.y + m[10]*p.z + m[11]);
+}
+
+// normals transform with the inverse-transpose: multiply by the world_to_object columns
+vec3 transform_normal_to_world(int instance, vec3 n){
+    const float m[12] = instance_data[instance].world_to_object;
+    return vec3(m[0]*n.x + m[4]*n.y + m[8]*n.z,
+                m[1]*n.x + m[5]*n.y + m[9]*n.z,
+                m[2]*n.x + m[6]*n.y + m[10]*n.z);
+}
 #endif
 
 #if defined(ENTRY_DEPTH)
 layout(std430, set = 0, binding = 9) writeonly buffer DepthBuffer{ float depth_out[]; };
+#endif
+
+#if defined(ENTRY_SEGMENTATION)
+layout(std430, set = 0, binding = 10) writeonly buffer SegmentationBuffer{ uint segmentation_out[]; };
 #endif
 
 #if defined(ENTRY_COLLISION)
@@ -127,24 +160,47 @@ vec3 camera_dir_dv(Camera cam){ return vec3(cam.dir_dv[0], cam.dir_dv[1], cam.di
 struct Hit{
     bool valid;
     float t;
+    int instance_id;
     int geometry_index;
     int primitive_index;
     vec2 bary;
 };
 
-Hit trace_closest(vec3 origin, vec3 direction, float tmin, float tmax){
+Hit trace_single(accelerationStructureEXT as, vec3 origin, vec3 direction, float tmin, float tmax, uint flags){
     rayQueryEXT rq;
-    rayQueryInitializeEXT(rq, tlas, gl_RayFlagsOpaqueEXT, 0xffu, origin, tmin, direction, tmax);
+    rayQueryInitializeEXT(rq, as, flags, 0xffu, origin, tmin, direction, tmax);
     while(rayQueryProceedEXT(rq)){}
     Hit hit;
     hit.valid = rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionTriangleEXT;
     if(hit.valid){
         hit.t = rayQueryGetIntersectionTEXT(rq, true);
+        hit.instance_id = rayQueryGetIntersectionInstanceCustomIndexEXT(rq, true);
         hit.geometry_index = rayQueryGetIntersectionGeometryIndexEXT(rq, true);
         hit.primitive_index = rayQueryGetIntersectionPrimitiveIndexEXT(rq, true);
         hit.bary = rayQueryGetIntersectionBarycentricsEXT(rq, true);
     }
     return hit;
+}
+
+// min-t composition of the shared world and the overlays attached to this camera; at
+// fc_overlay_count == 0 the loop specializes away and this is a plain intersect
+Hit intersect_composed(int camera, vec3 origin, vec3 direction, float tmin, float tmax, bool accept_any){
+    const uint flags = accept_any ? (gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT) : gl_RayFlagsOpaqueEXT;
+    Hit best = trace_single(tlas, origin, direction, tmin, tmax, flags);
+    for(int k = 0; k < fc_overlay_count; k++){
+        if(accept_any && best.valid){
+            return best;
+        }
+        const uint overlay = overlay_attachments[camera * fc_overlay_count + k];
+        if(overlay == 0xFFFFFFFFu){ continue; }
+        if(overlay_num_active[overlay] == 0u){ continue; }
+        const float clamped_tmax = best.valid ? best.t : tmax;
+        Hit hit = trace_single(overlay_tlas[nonuniformEXT(overlay)], origin, direction, tmin, clamped_tmax, flags);
+        if(hit.valid){
+            best = hit;
+        }
+    }
+    return best;
 }
 
 struct PixelLaunchContext{
@@ -208,11 +264,9 @@ vec3 miss_color(uvec2 pixel_id){
     return vec3(params.miss_color_0[0], params.miss_color_0[1], params.miss_color_0[2]);
 }
 
-bool trace_shadow_occluded(vec3 pos, vec3 direction, float max_dist){
-    rayQueryEXT rq;
-    rayQueryInitializeEXT(rq, tlas, gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT, 0xffu, pos, 1e-3, direction, max_dist);
-    while(rayQueryProceedEXT(rq)){}
-    return rayQueryGetIntersectionTypeEXT(rq, true) != gl_RayQueryCommittedIntersectionNoneEXT;
+bool trace_shadow_occluded(int camera, vec3 pos, vec3 direction, float max_dist){
+    Hit hit = intersect_composed(camera, pos, direction, 1e-3, max_dist, true);
+    return hit.valid;
 }
 
 ivec3 fetch_index(int mesh, int primitive){
@@ -243,7 +297,7 @@ struct SecondaryRequest{
 };
 
 vec3 shade_basic_local(Hit hit, vec3 ray_origin, vec3 ray_dir, out SecondaryRequest request){
-    const int mesh = hit.geometry_index;
+    const int mesh = int(instance_record_base[hit.instance_id]) + hit.geometry_index;
     request.want_reflection = false;
     request.want_transparency = false;
 
@@ -254,9 +308,14 @@ vec3 shade_basic_local(Hit hit, vec3 ray_origin, vec3 ray_dir, out SecondaryRequ
         const ivec3 index = fetch_index(mesh, hit.primitive_index);
 
         if(fc_normal_shading || fc_metallic_reflections){
-            const vec3 vertex_a = fetch_vertex(mesh, index.x);
-            const vec3 vertex_b = fetch_vertex(mesh, index.y);
-            const vec3 vertex_c = fetch_vertex(mesh, index.z);
+            vec3 vertex_a = fetch_vertex(mesh, index.x);
+            vec3 vertex_b = fetch_vertex(mesh, index.y);
+            vec3 vertex_c = fetch_vertex(mesh, index.z);
+            if(instance_data[hit.instance_id].identity == 0u){
+                vertex_a = transform_point_to_world(hit.instance_id, vertex_a);
+                vertex_b = transform_point_to_world(hit.instance_id, vertex_b);
+                vertex_c = transform_point_to_world(hit.instance_id, vertex_c);
+            }
             normal_geometric = normalize(cross(vertex_b - vertex_a, vertex_c - vertex_a));
         }
 
@@ -293,15 +352,21 @@ vec3 shade_basic_local(Hit hit, vec3 ray_origin, vec3 ray_dir, out SecondaryRequ
     return direct;
 }
 
-vec3 shade_pbr_local(Hit hit, vec3 ray_origin, vec3 ray_dir, uvec2 pixel_id, out SecondaryRequest request){
-    const int mesh = hit.geometry_index;
+vec3 shade_pbr_local(Hit hit, vec3 ray_origin, vec3 ray_dir, uvec2 pixel_id, int camera, out SecondaryRequest request){
+    const int mesh = int(instance_record_base[hit.instance_id]) + hit.geometry_index;
     request.want_reflection = false;
     request.want_transparency = false;
 
+    const bool instance_identity = instance_data[hit.instance_id].identity != 0u;
     const ivec3 index = fetch_index(mesh, hit.primitive_index);
-    const vec3 vertex_a = fetch_vertex(mesh, index.x);
-    const vec3 vertex_b = fetch_vertex(mesh, index.y);
-    const vec3 vertex_c = fetch_vertex(mesh, index.z);
+    vec3 vertex_a = fetch_vertex(mesh, index.x);
+    vec3 vertex_b = fetch_vertex(mesh, index.y);
+    vec3 vertex_c = fetch_vertex(mesh, index.z);
+    if(!instance_identity){
+        vertex_a = transform_point_to_world(hit.instance_id, vertex_a);
+        vertex_b = transform_point_to_world(hit.instance_id, vertex_b);
+        vertex_c = transform_point_to_world(hit.instance_id, vertex_c);
+    }
     const vec2 bary = hit.bary;
     const float w0 = 1.0 - bary.x - bary.y;
 
@@ -311,7 +376,11 @@ vec3 shade_pbr_local(Hit hit, vec3 ray_origin, vec3 ray_dir, uvec2 pixel_id, out
 
     vec3 N;
     if(meshes[mesh].has_normals != 0){
-        N = normalize(w0 * fetch_normal(mesh, index.x) + bary.x * fetch_normal(mesh, index.y) + bary.y * fetch_normal(mesh, index.z));
+        vec3 normal_interpolated = w0 * fetch_normal(mesh, index.x) + bary.x * fetch_normal(mesh, index.y) + bary.y * fetch_normal(mesh, index.z);
+        if(!instance_identity){
+            normal_interpolated = transform_normal_to_world(hit.instance_id, normal_interpolated);
+        }
+        N = normalize(normal_interpolated);
     }
     else{
         N = normal_geometric;
@@ -401,7 +470,7 @@ vec3 shade_pbr_local(Hit hit, vec3 ray_origin, vec3 ray_dir, uvec2 pixel_id, out
             continue;
         }
         if(fc_punctual_light_shadows){
-            if(scene_lights[li].type != 0 && trace_shadow_occluded(hit_point + N * 2e-3, L, light_distance)){
+            if(scene_lights[li].type != 0 && trace_shadow_occluded(camera, hit_point + N * 2e-3, L, light_distance)){
                 continue;
             }
         }
@@ -464,32 +533,32 @@ vec3 shade_pbr_local(Hit hit, vec3 ray_origin, vec3 ray_dir, uvec2 pixel_id, out
     return color;
 }
 
-vec3 trace_leaf(vec3 origin, vec3 direction, float tmin, uvec2 pixel_id){
-    Hit hit = trace_closest(origin, direction, tmin, 1e20);
+vec3 trace_leaf(int camera, vec3 origin, vec3 direction, float tmin, uvec2 pixel_id){
+    Hit hit = intersect_composed(camera, origin, direction, tmin, 1e20, false);
     if(!hit.valid){
         return miss_color(pixel_id);
     }
     SecondaryRequest request;
     if(fc_pbr_shading){
-        return shade_pbr_local(hit, origin, direction, pixel_id, request);
+        return shade_pbr_local(hit, origin, direction, pixel_id, camera, request);
     }
     return shade_basic_local(hit, origin, direction, request);
 }
 
-vec3 trace_primary(vec3 origin, vec3 direction, float tmin, float tmax, uvec2 pixel_id){
-    Hit hit = trace_closest(origin, direction, tmin, tmax);
+vec3 trace_primary(int camera, vec3 origin, vec3 direction, float tmin, float tmax, uvec2 pixel_id){
+    Hit hit = intersect_composed(camera, origin, direction, tmin, tmax, false);
     if(!hit.valid){
         return miss_color(pixel_id);
     }
     SecondaryRequest request;
     if(fc_pbr_shading){
-        vec3 color = shade_pbr_local(hit, origin, direction, pixel_id, request);
+        vec3 color = shade_pbr_local(hit, origin, direction, pixel_id, camera, request);
         if(request.want_reflection){
-            vec3 reflected_color = trace_leaf(request.hit_point, request.reflect_dir, 1e-3, pixel_id);
+            vec3 reflected_color = trace_leaf(camera, request.hit_point, request.reflect_dir, 1e-3, pixel_id);
             color = color * (1.0 - request.reflection_weight) + reflected_color * request.reflection_weight;
         }
         if(request.want_transparency){
-            vec3 behind_color = trace_leaf(request.hit_point, request.ray_dir, 1e-5, pixel_id);
+            vec3 behind_color = trace_leaf(camera, request.hit_point, request.ray_dir, 1e-5, pixel_id);
             if(request.alpha_mode == 1){
                 color = behind_color;
             }
@@ -501,7 +570,7 @@ vec3 trace_primary(vec3 origin, vec3 direction, float tmin, float tmax, uvec2 pi
     }
     vec3 direct = shade_basic_local(hit, origin, direction, request);
     if(fc_metallic_reflections && request.want_reflection){
-        vec3 reflected_color = trace_leaf(request.hit_point, request.reflect_dir, 1e-3, pixel_id);
+        vec3 reflected_color = trace_leaf(camera, request.hit_point, request.reflect_dir, 1e-3, pixel_id);
         float fresnel = request.reflection_weight;
         return direct * ((1.0 - fresnel) + fresnel * reflected_color);
     }
@@ -542,7 +611,7 @@ void main(){
             for(int aa_x = 0; aa_x < fc_aa_grid; aa_x++){
                 const vec2 screen = (vec2(ctx.local_x, ctx.local_y) + vec2((float(aa_x) + 0.5) * inv_aa_grid, (float(aa_y) + 0.5) * inv_aa_grid)) / vec2(params.cam_width, params.cam_height);
                 const vec3 direction = normalize(dir_00 + screen.x * dir_du + screen.y * dir_dv);
-                accumulated += trace_primary(pos, direction, 0.0, 1e30, pixel_id);
+                accumulated += trace_primary(ctx.cam_idx, pos, direction, 0.0, 1e30, pixel_id);
             }
         }
     }
@@ -558,14 +627,9 @@ void main(){
 #endif
 
 #if defined(ENTRY_DEPTH)
-float trace_depth_distance(vec3 pos, vec3 direction, float max_depth){
-    rayQueryEXT rq;
-    rayQueryInitializeEXT(rq, tlas, gl_RayFlagsOpaqueEXT, 0xffu, pos, 0.0, direction, max_depth);
-    while(rayQueryProceedEXT(rq)){}
-    if(rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionNoneEXT){
-        return max_depth;
-    }
-    return rayQueryGetIntersectionTEXT(rq, true);
+float trace_depth_distance(int camera, vec3 pos, vec3 direction, float max_depth){
+    Hit hit = intersect_composed(camera, pos, direction, 0.0, max_depth, false);
+    return hit.valid ? hit.t : max_depth;
 }
 
 void main(){
@@ -602,7 +666,7 @@ void main(){
             for(int aa_x = 0; aa_x < fc_aa_grid; aa_x++){
                 const vec2 screen = (vec2(ctx.local_x, ctx.local_y) + vec2((float(aa_x) + 0.5) * inv_aa_grid, (float(aa_y) + 0.5) * inv_aa_grid)) / vec2(params.cam_width, params.cam_height);
                 const vec3 direction = normalize(dir_00 + screen.x * dir_du + screen.y * dir_dv);
-                accumulated += trace_depth_distance(pos, direction, params.max_depth);
+                accumulated += trace_depth_distance(ctx.cam_idx, pos, direction, params.max_depth);
             }
         }
     }
@@ -630,19 +694,34 @@ void main(){
         dir = vec3(probe_directions[3 * probe_idx], probe_directions[3 * probe_idx + 1], probe_directions[3 * probe_idx + 2]);
     }
 
-    rayQueryEXT rq;
-    rayQueryInitializeEXT(rq, tlas, gl_RayFlagsOpaqueEXT, 0xffu, camera_pos(cam), 1e-3, dir, params.max_dist);
-    while(rayQueryProceedEXT(rq)){}
+    Hit hit = intersect_composed(cam_idx, camera_pos(cam), dir, 1e-3, params.max_dist, false);
 
     CollisionResult result;
-    if(rayQueryGetIntersectionTypeEXT(rq, true) == gl_RayQueryCommittedIntersectionNoneEXT){
+    if(!hit.valid){
         result.distance = params.max_dist;
         result.hit = 0;
     }
     else{
-        result.distance = rayQueryGetIntersectionTEXT(rq, true);
+        result.distance = hit.t;
         result.hit = 1;
     }
     collision_results[cam_idx * int(params.num_probes) + probe_idx] = result;
+}
+#endif
+
+#if defined(ENTRY_SEGMENTATION)
+// single-sample by design: instance labels cannot be averaged, so anti-aliasing and motion
+// blur do not apply (shutter-close camera, pixel-center ray)
+void main(){
+    const uvec2 pixel_id = gl_GlobalInvocationID.xy;
+    const PixelLaunchContext ctx = pixel_launch_context(pixel_id);
+    if(!ctx.valid){
+        return;
+    }
+    Camera cam = cameras_close[ctx.cam_idx];
+    const vec2 screen = (vec2(ctx.local_x, ctx.local_y) + vec2(0.5, 0.5)) / vec2(params.cam_width, params.cam_height);
+    const vec3 direction = normalize(camera_dir_00(cam) + screen.x * camera_dir_du(cam) + screen.y * camera_dir_dv(cam));
+    Hit hit = intersect_composed(ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30, false);
+    segmentation_out[ctx.fb_offset] = hit.valid ? uint(hit.instance_id) : 0xFFFFFFFFu;
 }
 #endif
