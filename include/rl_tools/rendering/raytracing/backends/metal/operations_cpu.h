@@ -339,7 +339,7 @@ namespace rl_tools {
                 descriptor.mask = 0xFFFFFFFFu;
                 descriptor.intersectionFunctionTableOffset = 0;
                 descriptor.accelerationStructureIndex = (uint32_t)instance.object;
-                descriptor.userID = (uint32_t)instance_i;
+                descriptor.userID = (uint32_t)instance_i; // global instance id (contract: segmentation_object, operations_cpu_common.h)
 
                 auto& data = instance_data[instance_i];
                 data = {};
@@ -572,7 +572,7 @@ namespace rl_tools {
                 descriptor.mask = 0xFFFFFFFFu;
                 descriptor.intersectionFunctionTableOffset = 0;
                 descriptor.accelerationStructureIndex = (uint32_t)host_slot.object;
-                descriptor.userID = (uint32_t)global;
+                descriptor.userID = (uint32_t)global; // global instance id (contract: segmentation_object, operations_cpu_common.h)
 
                 auto& data = instance_data[global];
                 data = {};
