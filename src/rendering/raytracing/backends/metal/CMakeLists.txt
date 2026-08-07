@@ -1,5 +1,7 @@
 set(RL_TOOLS_METAL_DEVICE_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/device.metal)
 set(RL_TOOLS_METAL_DEVICE_EMBED ${CMAKE_CURRENT_BINARY_DIR}/device_msl.cpp)
+# resolved relative to this file so out-of-tree consumers (hypert JIT) get the right path
+get_filename_component(RL_TOOLS_METAL_EMBED_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../cmake/scripts/embed_text.cmake ABSOLUTE)
 
 add_custom_command(
     OUTPUT ${RL_TOOLS_METAL_DEVICE_EMBED}
@@ -7,8 +9,8 @@ add_custom_command(
         -DINPUT_FILE=${RL_TOOLS_METAL_DEVICE_SOURCE}
         -DOUTPUT_FILE=${RL_TOOLS_METAL_DEVICE_EMBED}
         -DSYMBOL_NAME=rl_tools_rendering_raytracing_metal_device_source
-        -P ${CMAKE_SOURCE_DIR}/cmake/scripts/embed_text.cmake
-    DEPENDS ${RL_TOOLS_METAL_DEVICE_SOURCE} ${CMAKE_SOURCE_DIR}/cmake/scripts/embed_text.cmake
+        -P ${RL_TOOLS_METAL_EMBED_SCRIPT}
+    DEPENDS ${RL_TOOLS_METAL_DEVICE_SOURCE} ${RL_TOOLS_METAL_EMBED_SCRIPT}
     COMMENT "Embedding Metal device source"
 )
 
