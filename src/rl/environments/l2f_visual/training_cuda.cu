@@ -1508,7 +1508,7 @@ int main(int argc, char** argv){
                 int total_scatter = n_envs_s * CAM_WIDTH * CAM_HEIGHT;
                 int pf_block = 256;
                 int pf_grid = (total_scatter + pf_block - 1) / pf_block;
-                rlt::render_rgb_only_launch(device, renderer);
+                rlt::render_launch(device, renderer);
                 const uint32_t* fb_ptr = active_scene_framebuffer_ptrs[active_scene_i];
                 if constexpr(BRIGHTNESS_RANDOMIZATION_RANGE > 0){
                     scatter_pixel_to_float_kernel<true><<<pf_grid, pf_block, 0, optix_stream>>>(fb_ptr, obs_ptr, gpu_brightness_scale_arr, base_env, n_envs_s, CAM_WIDTH * CAM_HEIGHT, OBSERVATION_DIM);
@@ -1555,7 +1555,7 @@ int main(int argc, char** argv){
                 int total_scatter = n_envs_s * CAM_WIDTH * CAM_HEIGHT;
                 int pf_block = 256;
                 int pf_grid = (total_scatter + pf_block - 1) / pf_block;
-                rlt::render_rgb_only_launch(device, renderer);
+                rlt::render_launch(device, renderer);
                 const uint32_t* fb_ptr = active_scene_framebuffer_ptrs[active_scene_i];
                 if constexpr(BRIGHTNESS_RANDOMIZATION_RANGE > 0 || TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE > 0){
                     scatter_pixel_to_float_kernel<true><<<pf_grid, pf_block, 0, optix_stream>>>(fb_ptr, target_obs_ptr, gpu_target_brightness_scale_arr, base_env, n_envs_s, CAM_WIDTH * CAM_HEIGHT, OBSERVATION_DIM);
