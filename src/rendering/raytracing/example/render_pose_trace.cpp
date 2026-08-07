@@ -1554,7 +1554,7 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
         rlt::set(device, env.renderer->cameras, rlt::make_camera_data(pose.eye, pose.look_at, pose.up, fov, static_cast<T>(WIDTH) / static_cast<T>(HEIGHT)), static_cast<TI>(0));
         rlt::set_cameras(device, *env.renderer, env.renderer->cameras);
         if constexpr (SPEC::HAS_DEPTH) {
-            rlt::render_depth_only(device, *env.renderer);
+            rlt::render(device, *env.renderer);
             rlt::read_depth_buffer(device, *env.renderer, env.renderer->depth_buffer);
             const float miss_depth = env.renderer->camera_radius > 0 ? env.renderer->camera_radius * 2.0f : 1e30f;
             float min_depth = std::numeric_limits<float>::max();
@@ -1563,7 +1563,7 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
             depth_to_rgba(rlt::data(env.renderer->depth_buffer), frame, miss_depth, min_depth, max_depth_value);
         }
         else {
-            rlt::render_rgb_only(device, *env.renderer);
+            rlt::render(device, *env.renderer);
             rlt::read_frame_buffer(device, *env.renderer, env.renderer->frame_buffer);
             const uint32_t* fb_data = rlt::data(env.renderer->frame_buffer);
             std::memcpy(frame.data(), fb_data, frame.size() * sizeof(uint32_t));
@@ -1708,27 +1708,27 @@ static bool render_selected_settings_for_resolution(rlt::devices::DEVICE_FACTORY
     }
     bool ok = true;
     if(should_render_setting(options, "rgb", "very_high")) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, WIDTH, HEIGHT, NUM_PROBES, rlt::rendering::raytracing::VeryHigh, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::RGB>;
+        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, WIDTH, HEIGHT, NUM_PROBES, rlt::rendering::raytracing::VeryHigh, false, 1, ENABLE_AA, AA_GRID_SIZE>;
         records.emplace_back();
         ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "very_high", records.back()) && ok;
     }
     if(should_render_setting(options, "rgb", "high")) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, WIDTH, HEIGHT, NUM_PROBES, rlt::rendering::raytracing::High, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::RGB>;
+        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, WIDTH, HEIGHT, NUM_PROBES, rlt::rendering::raytracing::High, false, 1, ENABLE_AA, AA_GRID_SIZE>;
         records.emplace_back();
         ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "high", records.back()) && ok;
     }
     if(should_render_setting(options, "rgb", "medium")) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, WIDTH, HEIGHT, NUM_PROBES, rlt::rendering::raytracing::Medium, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::RGB>;
+        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, WIDTH, HEIGHT, NUM_PROBES, rlt::rendering::raytracing::Medium, false, 1, ENABLE_AA, AA_GRID_SIZE>;
         records.emplace_back();
         ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "medium", records.back()) && ok;
     }
     if(should_render_setting(options, "rgb", "low")) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, WIDTH, HEIGHT, NUM_PROBES, rlt::rendering::raytracing::Low, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::RGB>;
+        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, WIDTH, HEIGHT, NUM_PROBES, rlt::rendering::raytracing::Low, false, 1, ENABLE_AA, AA_GRID_SIZE>;
         records.emplace_back();
         ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "rgb", "low", records.back()) && ok;
     }
     if(should_render_depth(options)) {
-        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, WIDTH, HEIGHT, NUM_PROBES, rlt::rendering::raytracing::Medium, false, 1, ENABLE_AA, AA_GRID_SIZE, rlt::rendering::raytracing::OutputMode::DEPTH>;
+        using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_CAMERAS, WIDTH, HEIGHT, NUM_PROBES, rlt::rendering::raytracing::Medium, false, 1, ENABLE_AA, AA_GRID_SIZE, false, true>;
         records.emplace_back();
         ok = render_trace_for_setting<SPEC>(device, options, scene_path, poses, "depth", "", records.back()) && ok;
     }

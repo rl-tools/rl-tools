@@ -121,6 +121,7 @@ namespace {
         }
         rlt::generate_probe_directions(device, renderer);
         rlt::render(device, renderer);
+        rlt::probe(device, renderer);
         rlt::synchronize(device, renderer);
 
         constexpr size_t pixel_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;

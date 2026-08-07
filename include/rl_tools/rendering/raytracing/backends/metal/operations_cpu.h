@@ -723,6 +723,8 @@ namespace rl_tools {
 #endif
     }
 
+    // render produces the image outputs the spec declares; the collision-probe pass is the
+    // separate probe verb so it can be scheduled independently (e.g. alongside update)
     template <typename DEVICE, typename SPEC>
     void render_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         namespace metal = rendering::raytracing::backends::metal;
@@ -740,19 +742,17 @@ namespace rl_tools {
         }
         command_buffer->commit();
         ctx.in_flight = NS::RetainPtr(command_buffer);
-        if(renderer.backend.collision_ray_gen != nullptr){
-            MTL::CommandBuffer* collision_command_buffer = ctx.queue->commandBuffer();
-            metal::encode_collision_pass<SPEC>(ctx, collision_command_buffer);
-            collision_command_buffer->commit();
-            ctx.in_flight_collision = NS::RetainPtr(collision_command_buffer);
-        }
         pool->release();
     }
 
     template <typename DEVICE, typename SPEC>
     void render_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         namespace metal = rendering::raytracing::backends::metal;
-        metal::wait_in_flight(metal::context(renderer));
+        auto& ctx = metal::context(renderer);
+        if(ctx.in_flight.get() != nullptr){
+            ctx.in_flight->waitUntilCompleted();
+            ctx.in_flight.reset();
+        }
     }
 
     template <typename DEVICE, typename SPEC>
@@ -762,7 +762,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void render_collision_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    void probe_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         namespace metal = rendering::raytracing::backends::metal;
         auto& ctx = metal::context(renderer);
         if(renderer.backend.collision_ray_gen != nullptr){
@@ -776,7 +776,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void render_collision_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    void probe_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         namespace metal = rendering::raytracing::backends::metal;
         auto& ctx = metal::context(renderer);
         if(ctx.in_flight_collision.get() != nullptr){
@@ -786,132 +786,9 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void render_collision_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_collision_only_launch(device, renderer);
-        render_collision_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB, "render_rgb_only requires an RGB-capable renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        auto& ctx = metal::context(renderer);
-        NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
-        MTL::CommandBuffer* command_buffer = ctx.queue->commandBuffer();
-        metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.rgb_pipeline.get(), ctx.frame_buffer.get());
-        command_buffer->commit();
-        ctx.in_flight = NS::RetainPtr(command_buffer);
-        pool->release();
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB, "render_rgb_only requires an RGB-capable renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        auto& ctx = metal::context(renderer);
-        if(ctx.in_flight.get() != nullptr){
-            ctx.in_flight->waitUntilCompleted();
-            ctx.in_flight.reset();
-        }
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_rgb_only_launch(device, renderer);
-        render_rgb_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_depth_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_DEPTH, "render_depth_only requires a depth-capable renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        auto& ctx = metal::context(renderer);
-        NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
-        MTL::CommandBuffer* command_buffer = ctx.queue->commandBuffer();
-        metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.depth_pipeline.get(), ctx.depth_buffer.get());
-        command_buffer->commit();
-        ctx.in_flight = NS::RetainPtr(command_buffer);
-        pool->release();
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_depth_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_DEPTH, "render_depth_only requires a depth-capable renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        auto& ctx = metal::context(renderer);
-        if(ctx.in_flight.get() != nullptr){
-            ctx.in_flight->waitUntilCompleted();
-            ctx.in_flight.reset();
-        }
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_depth_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_depth_only_launch(device, renderer);
-        render_depth_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_segmentation_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_SEGMENTATION, "render_segmentation_only requires a segmentation-capable renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        auto& ctx = metal::context(renderer);
-        NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
-        MTL::CommandBuffer* command_buffer = ctx.queue->commandBuffer();
-        metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.segmentation_pipeline.get(), ctx.segmentation_buffer.get());
-        command_buffer->commit();
-        ctx.in_flight = NS::RetainPtr(command_buffer);
-        pool->release();
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_segmentation_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_SEGMENTATION, "render_segmentation_only requires a segmentation-capable renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        metal::wait_in_flight(metal::context(renderer));
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_segmentation_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_segmentation_only_launch(device, renderer);
-        render_segmentation_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_depth_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB && SPEC::HAS_DEPTH, "render_rgb_depth_only requires an RGBD renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        auto& ctx = metal::context(renderer);
-        NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
-        MTL::CommandBuffer* command_buffer = ctx.queue->commandBuffer();
-        metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.rgb_pipeline.get(), ctx.frame_buffer.get());
-        metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.depth_pipeline.get(), ctx.depth_buffer.get());
-        command_buffer->commit();
-        ctx.in_flight = NS::RetainPtr(command_buffer);
-        pool->release();
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_depth_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB && SPEC::HAS_DEPTH, "render_rgb_depth_only requires an RGBD renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        auto& ctx = metal::context(renderer);
-        if(ctx.in_flight.get() != nullptr){
-            ctx.in_flight->waitUntilCompleted();
-            ctx.in_flight.reset();
-        }
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_depth_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_rgb_depth_only_launch(device, renderer);
-        render_rgb_depth_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
-    void render_rgb_only_async(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
-        set_cameras_async(device, renderer, cameras);
-        render_rgb_only_launch(device, renderer);
+    void probe(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        probe_launch(device, renderer);
+        probe_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC, typename FB_SPEC>

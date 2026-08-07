@@ -29,13 +29,15 @@ namespace rlt = rl_tools;
 
 using T = float;
 using TI = int;
-static constexpr auto OUTPUT_MODE =
-    RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
-        ? rlt::rendering::raytracing::OutputMode::DEPTH
-        : (RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
-            ? rlt::rendering::raytracing::OutputMode::RGBD
-            : rlt::rendering::raytracing::OutputMode::RGB);
-using SPEC = rlt::rendering::raytracing::Specification<T, TI, RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_WIDTH, RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_HEIGHT, RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_NUM_CAMERAS, RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_NUM_PROBES, rlt::rendering::raytracing::Medium, false, 1, false, 1, OUTPUT_MODE>;
+struct CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+    static constexpr TI CAM_WIDTH = RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_WIDTH;
+    static constexpr TI CAM_HEIGHT = RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_HEIGHT;
+    static constexpr TI NUM_CAMERAS = RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_NUM_CAMERAS;
+    static constexpr TI NUM_PROBES = RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_NUM_PROBES;
+    static constexpr bool OUTPUT_RGB = RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_OUTPUT_MODE != RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH;
+    static constexpr bool OUTPUT_DEPTH = RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_OUTPUT_MODE != RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB;
+};
+using SPEC = rlt::rendering::raytracing::Specification<CONFIG>;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 
 int main(int ac, char** av){
@@ -86,6 +88,7 @@ int main(int ac, char** av){
 
     // Warmup
     rlt::render(device, renderer);
+    rlt::probe(device, renderer);
     RL_TOOLS_RENDERING_RAYTRACING_LOG("Warmup launch complete");
 
     // Benchmark
@@ -95,15 +98,18 @@ int main(int ac, char** av){
           << " probes/cam for ~" << SPEC::BENCHMARK_SECONDS << "s ...");
 
     rlt::render_sync(device, renderer);
+    rlt::probe_sync(device, renderer);
 
     auto wall_start = std::chrono::high_resolution_clock::now();
 
     for(;;){
         rlt::render_launch(device, renderer);
+        rlt::probe_launch(device, renderer);
         num_iterations++;
 
         if(num_iterations % 10 == 0){
             rlt::render_sync(device, renderer);
+            rlt::probe_sync(device, renderer);
             auto now = std::chrono::high_resolution_clock::now();
             double elapsed = std::chrono::duration<double>(now - wall_start).count();
             if(elapsed >= SPEC::BENCHMARK_SECONDS) break;
@@ -111,6 +117,7 @@ int main(int ac, char** av){
     }
 
     rlt::render_sync(device, renderer);
+    rlt::probe_sync(device, renderer);
 
     auto wall_end = std::chrono::high_resolution_clock::now();
     double wall_ms = std::chrono::duration<double, std::milli>(wall_end - wall_start).count();

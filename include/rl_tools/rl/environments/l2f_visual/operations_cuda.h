@@ -228,13 +228,13 @@ namespace rl_tools{
         constexpr TI CAM_PIXELS = SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT;
         set_cameras_async(device, *env.renderer, cameras);
         if constexpr (SPEC::HAS_RGB && SPEC::HAS_DEPTH) {
-            render_rgb_depth_only(device, *env.renderer);
+            render(device, *env.renderer);
         }
         else if constexpr (SPEC::HAS_RGB) {
-            render_rgb_only(device, *env.renderer);
+            render(device, *env.renderer);
         }
         else {
-            render_depth_only(device, *env.renderer);
+            render(device, *env.renderer);
         }
         TI total_pixels = SPEC::NUM_ENVS * CAM_PIXELS;
         int block_size = 256;
