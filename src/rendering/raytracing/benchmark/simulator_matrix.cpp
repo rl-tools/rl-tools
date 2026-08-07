@@ -107,10 +107,19 @@ struct BenchmarkShadingProfile<RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADI
     using type = rlt::rendering::raytracing::Low;
 };
 using ShadingProfile = typename BenchmarkShadingProfile<RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE>::type;
-template <rlt::rendering::raytracing::OutputMode T_OUTPUT_MODE>
-using BenchmarkSpec = rlt::rendering::raytracing::Specification<T, TI, CAM_WIDTH, CAM_HEIGHT, NUM_ENVS, 1, ShadingProfile, false, 1, ENABLE_AA, AA_GRID_SIZE, T_OUTPUT_MODE>;
-template <rlt::rendering::raytracing::OutputMode T_OUTPUT_MODE, TI T_WIDTH, TI T_HEIGHT, TI T_NUM_CAMERAS, typename T_SHADING, bool T_ENABLE_AA, TI T_AA_GRID_SIZE>
-using SweepBenchmarkSpec = rlt::rendering::raytracing::Specification<T, TI, T_WIDTH, T_HEIGHT, T_NUM_CAMERAS, 1, T_SHADING, false, 1, T_ENABLE_AA, T_AA_GRID_SIZE, T_OUTPUT_MODE>;
+template <bool T_OUTPUT_RGB, bool T_OUTPUT_DEPTH, TI T_WIDTH = CAM_WIDTH, TI T_HEIGHT = CAM_HEIGHT, TI T_NUM_CAMERAS = NUM_ENVS, typename T_SHADING = ShadingProfile, bool T_ENABLE_AA = ENABLE_AA, TI T_AA_GRID_SIZE = AA_GRID_SIZE>
+struct BenchmarkConfig: rlt::rendering::raytracing::config::Default<T, TI>{
+    static constexpr TI CAM_WIDTH = T_WIDTH, CAM_HEIGHT = T_HEIGHT, NUM_CAMERAS = T_NUM_CAMERAS, NUM_PROBES = 1;
+    using SHADING = T_SHADING;
+    static constexpr bool OUTPUT_RGB = T_OUTPUT_RGB;
+    static constexpr bool OUTPUT_DEPTH = T_OUTPUT_DEPTH;
+    static constexpr bool ENABLE_ANTI_ALIASING = T_ENABLE_AA;
+    static constexpr TI ANTI_ALIASING_GRID_SIZE = T_AA_GRID_SIZE;
+};
+template <bool T_OUTPUT_RGB, bool T_OUTPUT_DEPTH>
+using BenchmarkSpec = rlt::rendering::raytracing::Specification<BenchmarkConfig<T_OUTPUT_RGB, T_OUTPUT_DEPTH>>;
+template <bool T_OUTPUT_RGB, bool T_OUTPUT_DEPTH, TI T_WIDTH, TI T_HEIGHT, TI T_NUM_CAMERAS, typename T_SHADING, bool T_ENABLE_AA, TI T_AA_GRID_SIZE>
+using SweepBenchmarkSpec = rlt::rendering::raytracing::Specification<BenchmarkConfig<T_OUTPUT_RGB, T_OUTPUT_DEPTH, T_WIDTH, T_HEIGHT, T_NUM_CAMERAS, T_SHADING, T_ENABLE_AA, T_AA_GRID_SIZE>>;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 
 static constexpr long long SWEEP_REFERENCE_PIXELS = static_cast<long long>(NUM_ENVS) * static_cast<long long>(CAM_WIDTH) * static_cast<long long>(CAM_HEIGHT);
@@ -1103,20 +1112,20 @@ static CameraPose make_single_frame_pose(const rlt::rendering::raytracing::Rende
 template <typename DEVICE, typename SPEC>
 static void render_output_launch(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer) {
     if constexpr (SPEC::HAS_DEPTH) {
-        rlt::render_depth_only_launch(device, renderer);
+        rlt::render_launch(device, renderer);
     }
     else {
-        rlt::render_rgb_only_launch(device, renderer);
+        rlt::render_launch(device, renderer);
     }
 }
 
 template <typename DEVICE, typename SPEC>
 static void render_output_sync(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer) {
     if constexpr (SPEC::HAS_DEPTH) {
-        rlt::render_depth_only_sync(device, renderer);
+        rlt::render_sync(device, renderer);
     }
     else {
-        rlt::render_rgb_only_sync(device, renderer);
+        rlt::render_sync(device, renderer);
     }
 }
 
@@ -1433,9 +1442,9 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
     return true;
 }
 
-template <rlt::rendering::raytracing::OutputMode T_OUTPUT_MODE>
+template <bool T_OUTPUT_RGB, bool T_OUTPUT_DEPTH>
 static bool run_output_combinations(DEVICE& device, const std::vector<SceneAxis>& scenes, const std::vector<StepAxis>& steps, const Options& options, const std::string& cuda_name, const std::string& gpu_label) {
-    using SPEC = BenchmarkSpec<T_OUTPUT_MODE>;
+    using SPEC = BenchmarkSpec<T_OUTPUT_RGB, T_OUTPUT_DEPTH>;
     bool ok = true;
     for(SceneAxis scene : scenes) {
         for(StepAxis step : steps) {
@@ -1491,15 +1500,15 @@ static bool run_sweep_resolution_aa(DEVICE& device, const std::vector<SceneAxis>
     bool ok = true;
     for(OutputAxis output : outputs) {
         if(output == OutputAxis::RGB) {
-            using MEDIUM = SweepBenchmarkSpec<rlt::rendering::raytracing::OutputMode::RGB, T_RESOLUTION, T_RESOLUTION, NUM_CAMERAS_FOR_RESOLUTION, rlt::rendering::raytracing::Medium, T_ENABLE_AA, T_AA_GRID_SIZE>;
-            using HIGH = SweepBenchmarkSpec<rlt::rendering::raytracing::OutputMode::RGB, T_RESOLUTION, T_RESOLUTION, NUM_CAMERAS_FOR_RESOLUTION, rlt::rendering::raytracing::High, T_ENABLE_AA, T_AA_GRID_SIZE>;
-            using LOW = SweepBenchmarkSpec<rlt::rendering::raytracing::OutputMode::RGB, T_RESOLUTION, T_RESOLUTION, NUM_CAMERAS_FOR_RESOLUTION, rlt::rendering::raytracing::Low, T_ENABLE_AA, T_AA_GRID_SIZE>;
+            using MEDIUM = SweepBenchmarkSpec<true, false, T_RESOLUTION, T_RESOLUTION, NUM_CAMERAS_FOR_RESOLUTION, rlt::rendering::raytracing::Medium, T_ENABLE_AA, T_AA_GRID_SIZE>;
+            using HIGH = SweepBenchmarkSpec<true, false, T_RESOLUTION, T_RESOLUTION, NUM_CAMERAS_FOR_RESOLUTION, rlt::rendering::raytracing::High, T_ENABLE_AA, T_AA_GRID_SIZE>;
+            using LOW = SweepBenchmarkSpec<true, false, T_RESOLUTION, T_RESOLUTION, NUM_CAMERAS_FOR_RESOLUTION, rlt::rendering::raytracing::Low, T_ENABLE_AA, T_AA_GRID_SIZE>;
             ok = run_sweep_spec<MEDIUM>(device, scenes, steps, options, cuda_name, gpu_label, first_config, config_index) && ok;
             ok = run_sweep_spec<HIGH>(device, scenes, steps, options, cuda_name, gpu_label, first_config, config_index) && ok;
             ok = run_sweep_spec<LOW>(device, scenes, steps, options, cuda_name, gpu_label, first_config, config_index) && ok;
         }
         else {
-            using DEPTH = SweepBenchmarkSpec<rlt::rendering::raytracing::OutputMode::DEPTH, T_RESOLUTION, T_RESOLUTION, NUM_CAMERAS_FOR_RESOLUTION, rlt::rendering::raytracing::Medium, T_ENABLE_AA, T_AA_GRID_SIZE>;
+            using DEPTH = SweepBenchmarkSpec<false, true, T_RESOLUTION, T_RESOLUTION, NUM_CAMERAS_FOR_RESOLUTION, rlt::rendering::raytracing::Medium, T_ENABLE_AA, T_AA_GRID_SIZE>;
             ok = run_sweep_spec<DEPTH>(device, scenes, steps, options, cuda_name, gpu_label, first_config, config_index) && ok;
         }
     }
@@ -1578,14 +1587,14 @@ int main(int argc, char** argv) {
             std::cerr << "The single-frame target is compiled for RGB output." << std::endl;
             return 1;
         }
-        ok = run_procthor_frame<DEVICE, BenchmarkSpec<rlt::rendering::raytracing::OutputMode::RGB>>(device, options, cuda_name);
+        ok = run_procthor_frame<DEVICE, BenchmarkSpec<true, false>>(device, options, cuda_name);
     }
     else if constexpr (RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH) {
         if(options.output != "depth" && options.output != "all") {
             std::cerr << "The single-frame target is compiled for depth output." << std::endl;
             return 1;
         }
-        ok = run_procthor_frame<DEVICE, BenchmarkSpec<rlt::rendering::raytracing::OutputMode::DEPTH>>(device, options, cuda_name);
+        ok = run_procthor_frame<DEVICE, BenchmarkSpec<false, true>>(device, options, cuda_name);
     }
     else {
         std::cerr << "The single-frame target must be compiled for RGB or depth output." << std::endl;
@@ -1597,20 +1606,20 @@ int main(int argc, char** argv) {
         std::cerr << "This target was compiled for RGB only; use rendering_raytracing_sim_benchmark or rendering_raytracing_sim_benchmark_depth for depth." << std::endl;
         return 1;
     }
-    ok = run_output_combinations<rlt::rendering::raytracing::OutputMode::RGB>(device, scenes, steps, options, cuda_name, gpu_label) && ok;
+    ok = run_output_combinations<true, false>(device, scenes, steps, options, cuda_name, gpu_label) && ok;
 #elif RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
     if(options.output == "rgb") {
         std::cerr << "This target was compiled for depth only; use rendering_raytracing_sim_benchmark or rendering_raytracing_sim_benchmark_rgb for RGB." << std::endl;
         return 1;
     }
-    ok = run_output_combinations<rlt::rendering::raytracing::OutputMode::DEPTH>(device, scenes, steps, options, cuda_name, gpu_label) && ok;
+    ok = run_output_combinations<false, true>(device, scenes, steps, options, cuda_name, gpu_label) && ok;
 #else
     for(OutputAxis output : outputs) {
         if(output == OutputAxis::RGB) {
-            ok = run_output_combinations<rlt::rendering::raytracing::OutputMode::RGB>(device, scenes, steps, options, cuda_name, gpu_label) && ok;
+            ok = run_output_combinations<true, false>(device, scenes, steps, options, cuda_name, gpu_label) && ok;
         }
         else {
-            ok = run_output_combinations<rlt::rendering::raytracing::OutputMode::DEPTH>(device, scenes, steps, options, cuda_name, gpu_label) && ok;
+            ok = run_output_combinations<false, true>(device, scenes, steps, options, cuda_name, gpu_label) && ok;
         }
     }
 #endif

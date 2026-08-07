@@ -456,7 +456,7 @@ int main(int argc, char** argv) {
         for (TI s = 0; s < num_scenes_per_batch; s++) {
             TI scene_idx = scene_indices[s];
             auto& handle = loaded_scenes[scene_idx].handle;
-            rlt::render_rgb_only_sync(handle->device, *handle->env.renderer);
+            rlt::render_sync(handle->device, *handle->env.renderer);
         }
 
         // ---- Convert rendered framebuffers to float tensors ----

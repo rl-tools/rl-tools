@@ -65,16 +65,8 @@ namespace rl_tools {
             size_t num_instances;
         };
 
-        // Typed overlay addressing: declare the layout as chained constexpr ranges so the
-        // Specification's NUM_OVERLAYS is the last range's end() and cannot drift from it.
         struct OverlayIndex{
             size_t index;
-        };
-        struct OverlayRange{
-            size_t first;
-            size_t count;
-            constexpr OverlayIndex operator[](size_t offset) const { return {first + offset}; }
-            constexpr size_t end() const { return first + count; }
         };
 
         // returned by spawn: the contiguous slot run holding one instantiated asset
