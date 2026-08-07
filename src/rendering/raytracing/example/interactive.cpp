@@ -32,14 +32,9 @@
 
 namespace rlt = rl_tools;
 
-static constexpr auto OUTPUT_MODE =
-    RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_SEGMENTATION
-        ? rlt::rendering::raytracing::OutputMode::SEGMENTATION
-        : (RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
-            ? rlt::rendering::raytracing::OutputMode::DEPTH
-            : (RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
-                ? rlt::rendering::raytracing::OutputMode::RGBD
-                : rlt::rendering::raytracing::OutputMode::RGB));
+static constexpr bool OUTPUT_RGB = RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB || RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD;
+static constexpr bool OUTPUT_DEPTH = RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD || RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH;
+static constexpr bool OUTPUT_SEGMENTATION = RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_SEGMENTATION;
 
 // Minimal 5x7 bitmap font for overlay text
 struct FontGlyph {
@@ -577,7 +572,7 @@ int main(int argc, char** argv) {
     constexpr TI CAM_WIDTH = 1280;
     constexpr TI CAM_HEIGHT = 960;
     constexpr TI NUM_ENVS = 1;
-    using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, CAM_WIDTH, CAM_HEIGHT, 64, rlt::rendering::raytracing::High, false, 1, true, 2, OUTPUT_MODE>;
+    using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, CAM_WIDTH, CAM_HEIGHT, 64, rlt::rendering::raytracing::High, false, 1, true, 2, OUTPUT_RGB, OUTPUT_DEPTH, OUTPUT_SEGMENTATION>;
     using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 
     InteractiveOptions options;
@@ -751,7 +746,7 @@ int main(int argc, char** argv) {
 
         rlt::set_cameras(device, *env.renderer, env.renderer->cameras);
 #if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
-        rlt::render_depth_only(device, *env.renderer);
+        rlt::render(device, *env.renderer);
         rlt::read_depth_buffer(device, *env.renderer, env.renderer->depth_buffer);
         {
             const float max_depth = env.renderer->camera_radius > 0 ? env.renderer->camera_radius * 2.0f : 1e30f;
@@ -759,19 +754,19 @@ int main(int argc, char** argv) {
         }
 #elif RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
         if (g_show_depth) {
-            rlt::render_depth_only(device, *env.renderer);
+            rlt::render(device, *env.renderer);
             rlt::read_depth_buffer(device, *env.renderer, env.renderer->depth_buffer);
             const float max_depth = env.renderer->camera_radius > 0 ? env.renderer->camera_radius * 2.0f : 1e30f;
             depth_to_rgba(rlt::data(env.renderer->depth_buffer), pixels.data(), static_cast<int>(pixels.size()), max_depth);
         }
         else {
-            rlt::render_rgb_only(device, *env.renderer);
+            rlt::render(device, *env.renderer);
             rlt::read_frame_buffer(device, *env.renderer, env.renderer->frame_buffer);
             const uint32_t* fb_data = rlt::data(env.renderer->frame_buffer);
             std::memcpy(pixels.data(), fb_data, pixels.size() * sizeof(uint32_t));
         }
 #elif RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_SEGMENTATION
-        rlt::render_segmentation_only(device, *env.renderer);
+        rlt::render(device, *env.renderer);
         rlt::read_segmentation_buffer(device, *env.renderer, env.renderer->segmentation_buffer);
         {
             const uint32_t* segmentation = rlt::data(env.renderer->segmentation_buffer);
@@ -780,7 +775,7 @@ int main(int argc, char** argv) {
             }
         }
 #else
-        rlt::render_rgb_only(device, *env.renderer);
+        rlt::render(device, *env.renderer);
         rlt::read_frame_buffer(device, *env.renderer, env.renderer->frame_buffer);
         const uint32_t* fb_data = rlt::data(env.renderer->frame_buffer);
         std::memcpy(pixels.data(), fb_data, pixels.size() * sizeof(uint32_t));

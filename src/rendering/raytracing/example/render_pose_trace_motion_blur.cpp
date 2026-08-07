@@ -29,7 +29,13 @@ static constexpr TI NUM_CAMERAS = 1;
 static constexpr TI NUM_PROBES = 1;
 
 template <TI SAMPLES, TI WIDTH, TI HEIGHT>
-using RendererSpec = rlt::rendering::raytracing::Specification<T, TI, WIDTH, HEIGHT, NUM_CAMERAS, NUM_PROBES, rlt::rendering::raytracing::High, true, SAMPLES, false, 1, rlt::rendering::raytracing::OutputMode::RGB>;
+struct RendererConfig: rlt::rendering::raytracing::config::Default<T, TI>{
+    static constexpr TI CAM_WIDTH = WIDTH, CAM_HEIGHT = HEIGHT, NUM_CAMERAS = ::NUM_CAMERAS, NUM_PROBES = ::NUM_PROBES;
+    using SHADING = rlt::rendering::raytracing::High;
+    static constexpr bool ENABLE_MOTION_BLUR = true;
+    static constexpr TI MOTION_BLUR_SAMPLES = SAMPLES;
+};
+using RendererSpec = rlt::rendering::raytracing::Specification<RendererConfig>;
 
 template <typename SPEC>
 using Renderer = rlt::rendering::raytracing::Renderer<SPEC>;
@@ -548,7 +554,7 @@ static bool render_trace(DEVICE& device, const Options& options, const std::stri
         rlt::set(device, renderer.cameras_open, rlt::make_camera_data(open_pose.eye, open_pose.look_at, open_pose.up, SPEC::COS_FOVY, aspect), static_cast<TI>(0));
         rlt::set(device, renderer.cameras, rlt::make_camera_data(close_pose.eye, close_pose.look_at, close_pose.up, SPEC::COS_FOVY, aspect), static_cast<TI>(0));
         rlt::set_motion_blur_cameras(device, renderer, renderer.cameras_open, renderer.cameras);
-        rlt::render_rgb_only(device, renderer);
+        rlt::render(device, renderer);
         rlt::read_frame_buffer(device, renderer, renderer.frame_buffer);
 
         const uint32_t* fb_data = rlt::data(renderer.frame_buffer);

@@ -1058,6 +1058,14 @@ namespace rl_tools {
 
     template <typename SPEC>
     void compute_scene_bounds(rendering::raytracing::Renderer<SPEC>& renderer, const rendering::raytracing::Scene& scene){
+        // resolved-configuration echo: makes a silently-defaulted (e.g. misspelled) fringe
+        // config member visible on the first run
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("config: " << SPEC::NUM_CAMERAS << " camera(s) " << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT
+            << " outputs[rgb=" << SPEC::HAS_RGB << " depth=" << SPEC::HAS_DEPTH << " segmentation=" << SPEC::HAS_SEGMENTATION << (SPEC::SEMANTIC_SEGMENTATION ? " (semantic)" : "") << "]"
+            << " probes=" << SPEC::NUM_PROBES
+            << " motion_blur_samples=" << (SPEC::ENABLE_MOTION_BLUR ? SPEC::MOTION_BLUR_SAMPLES : 0)
+            << " anti_aliasing_grid=" << (SPEC::ENABLE_ANTI_ALIASING ? SPEC::ANTI_ALIASING_GRID_SIZE : 0)
+            << " overlays=" << SPEC::NUM_OVERLAYS << "x" << SPEC::MAX_OVERLAY_INSTANCES << " overlays_per_camera=" << SPEC::MAX_OVERLAYS_PER_CAMERA);
         float bbox_min[3] = {std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
         float bbox_max[3] = {std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest()};
         for(const auto& instance : scene.instances){

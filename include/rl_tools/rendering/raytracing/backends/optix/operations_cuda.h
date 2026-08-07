@@ -1010,86 +1010,6 @@ namespace rl_tools {
         render_sync(device, renderer);
     }
 
-    template <typename DEVICE, typename SPEC>
-    void render_collision_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        if(renderer.backend.collision_ray_gen){
-            OWLRayGen collision_ray_gen = (OWLRayGen)renderer.backend.collision_ray_gen;
-            OWLParams coll_lp = (OWLParams)renderer.backend.coll_launch_params;
-            owlAsyncLaunch2D(collision_ray_gen, SPEC::NUM_CAMERAS, SPEC::NUM_PROBES, coll_lp);
-        }
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_collision_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        if(renderer.backend.coll_launch_params)
-            owlLaunchSync((OWLParams)renderer.backend.coll_launch_params);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_collision_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_collision_only_launch(device, renderer);
-        render_collision_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB, "render_rgb_only requires an RGB-capable renderer specification");
-        OWLRayGen ray_gen = (OWLRayGen)renderer.backend.ray_gen;
-        OWLParams launch_params = (OWLParams)renderer.backend.launch_params;
-        owlAsyncLaunch2D(ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB, "render_rgb_only requires an RGB-capable renderer specification");
-        owlLaunchSync((OWLParams)renderer.backend.launch_params);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_rgb_only_launch(device, renderer);
-        render_rgb_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_depth_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_DEPTH, "render_depth_only requires a depth-capable renderer specification");
-        OWLRayGen depth_ray_gen = (OWLRayGen)renderer.backend.depth_ray_gen;
-        OWLParams launch_params = (OWLParams)renderer.backend.launch_params;
-        owlAsyncLaunch2D(depth_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_depth_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_DEPTH, "render_depth_only requires a depth-capable renderer specification");
-        owlLaunchSync((OWLParams)renderer.backend.launch_params);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_depth_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_depth_only_launch(device, renderer);
-        render_depth_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_depth_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB && SPEC::HAS_DEPTH, "render_rgb_depth_only requires an RGBD renderer specification");
-        render_rgb_only_launch(device, renderer);
-        render_depth_only_launch(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_depth_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB && SPEC::HAS_DEPTH, "render_rgb_depth_only requires an RGBD renderer specification");
-        owlLaunchSync((OWLParams)renderer.backend.launch_params);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_depth_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_rgb_depth_only_launch(device, renderer);
-        render_rgb_depth_only_sync(device, renderer);
-    }
-
     template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
     void set_cameras_async(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
         static_assert(utils::typing::is_same_v<typename CAMERAS_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
@@ -1105,12 +1025,6 @@ namespace rl_tools {
         }
     }
 
-    template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
-    void render_rgb_only_async(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
-        set_cameras_async(device, renderer, cameras);
-        render_rgb_only_launch(device, renderer);
-    }
-
     template <typename DEVICE, typename SPEC, typename FB_SPEC>
     void read_frame_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<FB_SPEC>& out_pixels){
         static_assert(SPEC::HAS_RGB, "read_frame_buffer requires an RGB-capable renderer specification");
@@ -1118,24 +1032,6 @@ namespace rl_tools {
         static_assert(get<0>(typename FB_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
         constexpr typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
         cudaMemcpy(data(out_pixels), owlBufferGetPointer((OWLBuffer)renderer.backend.frame_buffer_handle, 0), expected * sizeof(uint32_t), cudaMemcpyDeviceToHost);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_segmentation_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_SEGMENTATION, "render_segmentation_only requires a segmentation-capable renderer specification");
-        owlAsyncLaunch2D((OWLRayGen)renderer.backend.segmentation_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, (OWLParams)renderer.backend.launch_params);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_segmentation_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_SEGMENTATION, "render_segmentation_only requires a segmentation-capable renderer specification");
-        owlLaunchSync((OWLParams)renderer.backend.launch_params);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_segmentation_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_segmentation_only_launch(device, renderer);
-        render_segmentation_only_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC, typename SEGMENTATION_SPEC>

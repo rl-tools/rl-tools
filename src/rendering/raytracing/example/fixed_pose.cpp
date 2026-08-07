@@ -39,28 +39,18 @@ using SHADING = rlt::rendering::raytracing::High;
 using SHADING = rlt::rendering::raytracing::VeryHigh;
 #endif
 
-#if RL_TOOLS_RENDERING_RAYTRACING_FIXED_POSE_OUTPUT_MODE == 2
-static constexpr auto OUTPUT_MODE = rlt::rendering::raytracing::OutputMode::DEPTH;
-#elif RL_TOOLS_RENDERING_RAYTRACING_FIXED_POSE_OUTPUT_MODE == 1
-static constexpr auto OUTPUT_MODE = rlt::rendering::raytracing::OutputMode::RGBD;
-#else
-static constexpr auto OUTPUT_MODE = rlt::rendering::raytracing::OutputMode::RGB;
-#endif
+static constexpr bool OUTPUT_RGB = RL_TOOLS_RENDERING_RAYTRACING_FIXED_POSE_OUTPUT_MODE != 2;
+static constexpr bool OUTPUT_DEPTH = RL_TOOLS_RENDERING_RAYTRACING_FIXED_POSE_OUTPUT_MODE != 0;
 
-using SPEC = rlt::rendering::raytracing::Specification<
-    T,
-    TI,
-    CAM_WIDTH,
-    CAM_HEIGHT,
-    NUM_CAMERAS,
-    NUM_PROBES,
-    SHADING,
-    false,
-    1,
-    true,
-    2,
-    OUTPUT_MODE
->;
+struct CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+    static constexpr TI CAM_WIDTH = ::CAM_WIDTH, CAM_HEIGHT = ::CAM_HEIGHT, NUM_CAMERAS = ::NUM_CAMERAS, NUM_PROBES = ::NUM_PROBES;
+    using SHADING = ::SHADING;
+    static constexpr bool OUTPUT_RGB = ::OUTPUT_RGB;
+    static constexpr bool OUTPUT_DEPTH = ::OUTPUT_DEPTH;
+    static constexpr bool ENABLE_ANTI_ALIASING = true;
+    static constexpr TI ANTI_ALIASING_GRID_SIZE = 2;
+};
+using SPEC = rlt::rendering::raytracing::Specification<CONFIG>;
 using Renderer = rlt::rendering::raytracing::Renderer<SPEC>;
 
 static constexpr char DEFAULT_SCENE_PATH[] = "/home/jonas/git/hssd-hab/glb/102343992.glb";
@@ -201,18 +191,18 @@ int main(int argc, char** argv) {
     rlt::set(device, renderer.cameras, rlt::make_camera_data(options.position, look_at, up, SPEC::COS_FOVY, aspect), static_cast<TI>(0));
     rlt::set_cameras(device, renderer, renderer.cameras);
 #if RL_TOOLS_RENDERING_RAYTRACING_FIXED_POSE_OUTPUT_MODE == 2
-    rlt::render_depth_only(device, renderer);
+    rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
     rlt::save_depth_image(device, renderer, options.output_path.c_str());
     rlt::save_depth(device, renderer, (options.output_path + ".bin").c_str());
 #elif RL_TOOLS_RENDERING_RAYTRACING_FIXED_POSE_OUTPUT_MODE == 1
-    rlt::render_rgb_depth_only(device, renderer);
+    rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
     rlt::save_image(device, renderer, options.output_path.c_str());
     rlt::save_depth_image(device, renderer, (options.output_path + ".depth.png").c_str());
     rlt::save_depth(device, renderer, (options.output_path + ".depth.bin").c_str());
 #else
-    rlt::render_rgb_only(device, renderer);
+    rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
     rlt::save_image(device, renderer, options.output_path.c_str());
 #endif
