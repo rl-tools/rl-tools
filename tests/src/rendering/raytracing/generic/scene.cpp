@@ -841,6 +841,43 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SPIN_DYNAMIC){
     rlt::free(device, renderer);
 }
 
+// producer path: writes land in the transforms tensor directly (no host verb, no dirty flag),
+// update() must pick them up regardless
+TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_TRANSFORMS_TENSOR){
+    DEVICE device;
+    rlt::init(device);
+
+    auto scene = make_far_anchor_scene(device);
+    rlt::rendering::raytracing::AssetPool pool;
+    const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
+
+    rlt::rendering::raytracing::Renderer<OVERLAY_DEPTH_SPEC> renderer;
+    rlt::malloc(device, renderer);
+    rlt::generate_probe_directions(device, renderer);
+    rlt::init(device, renderer, scene, pool);
+    rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
+
+    const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
+    const auto cube = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, identity);
+    rlt::update(device, renderer);
+    EXPECT_NEAR(render_center_depth(device, renderer), 4.0f, 1e-4f); // near face at x=-1, camera at x=-5
+
+    float shifted[12];
+    const float shifted_position[3] = {0.5f, 0, 0};
+    const float identity_wxyz[4] = {1, 0, 0, 0};
+    rlt::make_transform(shifted_position, identity_wxyz, shifted);
+    float* entry = rlt::data(rlt::transforms(device, renderer)) + cube.first_slot * 12;
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_SCENE_TEST_ACTIVE_BACKEND) && defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+    cudaMemcpy(entry, shifted, sizeof(shifted), cudaMemcpyHostToDevice); // device-resident tensor
+#else
+    std::memcpy(entry, shifted, sizeof(shifted));
+#endif
+    rlt::update(device, renderer);
+    EXPECT_NEAR(render_center_depth(device, renderer), 4.5f, 1e-4f);
+
+    rlt::free(device, renderer);
+}
+
 struct OVERLAY_RGB_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI CAM_WIDTH = 32, CAM_HEIGHT = 32, NUM_CAMERAS = 1, NUM_PROBES = 4;
     using SHADING = rlt::rendering::raytracing::Low;

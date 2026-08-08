@@ -983,6 +983,41 @@ namespace rl_tools {
         }
     }
 
+    inline constexpr float IDENTITY_TRANSFORM[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
+
+    // stages host-verb writes (the per-slot transform_entry mirrors) into the transforms tensor;
+    // backends whose tensor is host-resident call this at the top of update(). Device producers
+    // write the tensor directly and are not staged — a dirty overlay row is owned by the host.
+    template <typename SPEC>
+    void flush_overlay_transforms(rendering::raytracing::Renderer<SPEC>& renderer){
+        using TI = typename SPEC::TI;
+        float* transforms = data(renderer.transforms);
+        for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+            auto& overlay_state = renderer.overlays[overlay];
+            if(!overlay_state.dirty) continue;
+            for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
+                std::memcpy(transforms + ((size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES + slot) * 12, overlay_state.slots[slot].transform_entry, 12 * sizeof(float));
+            }
+            overlay_state.dirty = false;
+        }
+    }
+
+    // world = pose ∘ part_local ∘ articulation: the root slot's tensor entry carries the
+    // placement pose, non-root entries articulate their part in the part frame
+    template <typename SPEC>
+    void compose_overlay_slot_transform(const rendering::raytracing::Renderer<SPEC>& renderer, typename SPEC::TI overlay, typename SPEC::TI slot_index, float out[12]){
+        const auto& slot = renderer.overlays[overlay].slots[slot_index];
+        const float* row = data(renderer.transforms) + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES * 12;
+        float composed[12];
+        compose_transforms(row + (size_t)slot.pose_slot * 12, slot.part_local, composed);
+        if(slot_index == slot.pose_slot){
+            std::memcpy(out, composed, sizeof(composed));
+        }
+        else{
+            compose_transforms(composed, row + (size_t)slot_index * 12, out);
+        }
+    }
+
     inline void invert_transform(const float transform[12], float out[12]){
         const float a = transform[0], b = transform[1], c = transform[2];
         const float d = transform[4], e = transform[5], f = transform[6];
@@ -1324,7 +1359,9 @@ namespace rl_tools {
         for(TI part = 0; part < record.num_parts && first_slot + part < SPEC::MAX_OVERLAY_INSTANCES; part++){
             auto& slot = state.slots[first_slot + part];
             slot.object = renderer.asset_part_objects[record.first_part + part];
-            rendering::raytracing::detail::compose_transforms(transform, &renderer.asset_part_transforms[(record.first_part + part) * 12], slot.transform);
+            slot.pose_slot = first_slot;
+            std::memcpy(slot.part_local, &renderer.asset_part_transforms[(record.first_part + part) * 12], sizeof(slot.part_local));
+            std::memcpy(slot.transform_entry, part == 0 ? transform : rendering::raytracing::detail::IDENTITY_TRANSFORM, sizeof(slot.transform_entry));
             slot.active = true;
         }
         state.dirty = true;
@@ -1341,23 +1378,32 @@ namespace rl_tools {
         state.dirty = true;
     }
 
+    // per-part: part 0 sets the placement pose, other parts articulate in their part frame
+    // (world = pose ∘ part_local ∘ articulation)
     template <typename DEVICE, typename SPEC>
     void set_transform(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, typename SPEC::TI part, const float transform[12]){
         static_assert(SPEC::ENABLE_OVERLAYS, "set_transform requires an overlay-enabled renderer specification");
         auto& state = renderer.overlays[overlay.index];
-        std::memcpy(state.slots[placement.first_slot + part].transform, transform, 12 * sizeof(float));
+        std::memcpy(state.slots[placement.first_slot + part].transform_entry, transform, 12 * sizeof(float));
         state.dirty = true;
     }
 
-    // rigid move: re-derives every part as pose ∘ part-local, replacing any articulation state
+    // rigid move: sets the placement pose and resets per-part articulation state
     template <typename DEVICE, typename SPEC>
     void set_transform(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const float transform[12]){
         static_assert(SPEC::ENABLE_OVERLAYS, "set_transform requires an overlay-enabled renderer specification");
         auto& state = renderer.overlays[overlay.index];
-        for(size_t part = 0; part < placement.num_parts; part++){
-            rendering::raytracing::detail::compose_transforms(transform, &renderer.asset_part_transforms[(placement.first_part + part) * 12], state.slots[placement.first_slot + part].transform);
+        std::memcpy(state.slots[placement.first_slot].transform_entry, transform, 12 * sizeof(float));
+        for(size_t part = 1; part < placement.num_parts; part++){
+            std::memcpy(state.slots[placement.first_slot + part].transform_entry, rendering::raytracing::detail::IDENTITY_TRANSFORM, 12 * sizeof(float));
         }
         state.dirty = true;
+    }
+
+    template <typename DEVICE, typename SPEC>
+    auto& transforms(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::ENABLE_OVERLAYS, "transforms requires an overlay-enabled renderer specification");
+        return renderer.transforms;
     }
 
     // decodes a rendered segmentation id back to the object it references. Single owner of the

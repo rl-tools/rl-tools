@@ -1,0 +1,200 @@
+#include "../../../../../include/rl_tools/rendering/raytracing/backends/optix/overlay_accel.h"
+
+#include <optix.h>
+#include <optix_stubs.h>
+// owl keeps its own function table private to libowl.so, so this library carries one of its own
+#include <optix_function_table_definition.h>
+#include <cuda_runtime.h>
+
+#include <cstdio>
+#include <cstdlib>
+#include <vector>
+
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools::rendering::raytracing::backends::optix{
+    namespace overlay_accel_detail{
+        inline void check_cuda(cudaError_t result, const char* what){
+            if(result != cudaSuccess){
+                std::fprintf(stderr, "overlay_accel: %s failed: %s\n", what, cudaGetErrorString(result));
+                std::abort();
+            }
+        }
+        inline void check_optix(OptixResult result, const char* what){
+            if(result != OPTIX_SUCCESS){
+                std::fprintf(stderr, "overlay_accel: %s failed: %d\n", what, (int)result);
+                std::abort();
+            }
+        }
+        constexpr size_t align_up(size_t value, size_t alignment){
+            return (value + alignment - 1) & ~(alignment - 1);
+        }
+
+        __device__ inline void compose_transforms(const float a[12], const float b[12], float out[12]){
+            for(int row = 0; row < 3; row++){
+                for(int column = 0; column < 3; column++){
+                    out[row * 4 + column] = a[row * 4] * b[column] + a[row * 4 + 1] * b[4 + column] + a[row * 4 + 2] * b[8 + column];
+                }
+                out[row * 4 + 3] = a[row * 4] * b[3] + a[row * 4 + 1] * b[7] + a[row * 4 + 2] * b[11] + a[row * 4 + 3];
+            }
+        }
+
+        __global__ void fill_instances(const OverlaySlotStructure* structure, const float* transforms, const OverlayObjectEntry* objects, OptixInstance* instances, unsigned int* instance_classes, unsigned long long filler_traversable, unsigned int num_overlays, unsigned int max_instances, unsigned int num_scene_instances){
+            const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+            if(index >= num_overlays * max_instances){
+                return;
+            }
+            const unsigned int overlay = index / max_instances;
+            const unsigned int slot = index % max_instances;
+            const OverlaySlotStructure row = structure[index];
+            OptixInstance instance{};
+            instance.instanceId = num_scene_instances + index; // global id layout (contract: segmentation_object, operations_cpu_common.h)
+            instance.visibilityMask = 255;
+            instance.flags = OPTIX_INSTANCE_FLAG_NONE;
+            if(row.active != 0){
+                const float* overlay_transforms = transforms + (size_t)overlay * max_instances * 12;
+                float composed[12];
+                compose_transforms(overlay_transforms + (size_t)row.pose_slot * 12, row.part_local, composed);
+                if(slot == row.pose_slot){
+                    for(int element = 0; element < 12; element++){
+                        instance.transform[element] = composed[element];
+                    }
+                }
+                else{
+                    compose_transforms(composed, overlay_transforms + (size_t)slot * 12, instance.transform);
+                }
+                const OverlayObjectEntry object = objects[row.object];
+                instance.sbtOffset = object.sbt_offset;
+                instance.traversableHandle = object.traversable;
+                instance_classes[num_scene_instances + index] = object.segmentation_class;
+            }
+            else{
+                instance.transform[0] = 1.0f; instance.transform[5] = 1.0f; instance.transform[10] = 1.0f;
+                instance.sbtOffset = 0; // degenerate filler triangle never hits, so any valid record works
+                instance.traversableHandle = filler_traversable;
+                instance_classes[num_scene_instances + index] = 0;
+            }
+            instances[index] = instance;
+        }
+    }
+
+    struct OverlayAccelState{
+        OptixDeviceContext context;
+        unsigned int num_overlays;
+        unsigned int max_instances;
+        unsigned int num_scene_instances;
+        unsigned long long filler_traversable;
+        OverlaySlotStructure* structure = nullptr;
+        OverlayObjectEntry* objects = nullptr;
+        OptixInstance* instances = nullptr;
+        CUdeviceptr tlas_slab = 0;
+        size_t tlas_stride = 0;
+        CUdeviceptr scratch_slab = 0;
+        size_t scratch_stride = 0;
+        std::vector<unsigned long long> traversables;
+    };
+
+    namespace overlay_accel_detail{
+        inline OptixBuildInput make_build_input(const OverlayAccelState& state, unsigned int overlay){
+            OptixBuildInput build_input{};
+            build_input.type = OPTIX_BUILD_INPUT_TYPE_INSTANCES;
+            build_input.instanceArray.instances = (CUdeviceptr)(state.instances + (size_t)overlay * state.max_instances);
+            build_input.instanceArray.numInstances = state.max_instances;
+            return build_input;
+        }
+        inline OptixAccelBuildOptions build_options(){
+            OptixAccelBuildOptions options{};
+            options.buildFlags = OPTIX_BUILD_FLAG_PREFER_FAST_TRACE;
+            options.operation = OPTIX_BUILD_OPERATION_BUILD;
+            return options;
+        }
+        inline void enqueue_builds(OverlayAccelState& state, cudaStream_t stream){
+            const OptixAccelBuildOptions options = build_options();
+            for(unsigned int overlay = 0; overlay < state.num_overlays; overlay++){
+                const OptixBuildInput build_input = make_build_input(state, overlay);
+                OptixTraversableHandle handle = 0;
+                check_optix(optixAccelBuild(state.context, stream, &options, &build_input, 1,
+                                            state.scratch_slab + (CUdeviceptr)overlay * state.scratch_stride, state.scratch_stride,
+                                            state.tlas_slab + (CUdeviceptr)overlay * state.tlas_stride, state.tlas_stride,
+                                            &handle, nullptr, 0), "optixAccelBuild");
+                state.traversables[overlay] = handle; // stable: fixed output buffer per overlay
+            }
+        }
+    }
+
+    OverlayAccelState* overlay_accel_create(void* optix_device_context, unsigned int num_overlays, unsigned int max_instances, unsigned int num_scene_instances, unsigned long long filler_traversable){
+        namespace detail = overlay_accel_detail;
+        static const OptixResult optix_init_result = optixInit();
+        detail::check_optix(optix_init_result, "optixInit");
+        auto* state = new OverlayAccelState{};
+        state->context = (OptixDeviceContext)optix_device_context;
+        state->num_overlays = num_overlays;
+        state->max_instances = max_instances;
+        state->num_scene_instances = num_scene_instances;
+        state->filler_traversable = filler_traversable;
+        const size_t num_slots = (size_t)num_overlays * max_instances;
+        detail::check_cuda(cudaMalloc(&state->structure, num_slots * sizeof(OverlaySlotStructure)), "structure cudaMalloc");
+        detail::check_cuda(cudaMemset(state->structure, 0, num_slots * sizeof(OverlaySlotStructure)), "structure cudaMemset");
+        detail::check_cuda(cudaMalloc(&state->instances, num_slots * sizeof(OptixInstance)), "instances cudaMalloc");
+
+        const OptixAccelBuildOptions options = detail::build_options();
+        const OptixBuildInput size_input = detail::make_build_input(*state, 0);
+        OptixAccelBufferSizes sizes{};
+        detail::check_optix(optixAccelComputeMemoryUsage(state->context, &options, &size_input, 1, &sizes), "optixAccelComputeMemoryUsage");
+        state->tlas_stride = detail::align_up(sizes.outputSizeInBytes, OPTIX_ACCEL_BUFFER_BYTE_ALIGNMENT);
+        state->scratch_stride = detail::align_up(sizes.tempSizeInBytes, OPTIX_ACCEL_BUFFER_BYTE_ALIGNMENT);
+        detail::check_cuda(cudaMalloc((void**)&state->tlas_slab, (size_t)num_overlays * state->tlas_stride), "tlas cudaMalloc");
+        detail::check_cuda(cudaMalloc((void**)&state->scratch_slab, (size_t)num_overlays * state->scratch_stride), "scratch cudaMalloc");
+        state->traversables.assign(num_overlays, 0);
+
+        // initial build: the zeroed structure emits filler-only instances (transforms/objects/classes
+        // unread), so the stable per-overlay handles exist before the first update
+        unsigned int* scratch_classes = nullptr;
+        detail::check_cuda(cudaMalloc(&scratch_classes, (num_scene_instances + num_slots) * sizeof(unsigned int)), "classes scratch cudaMalloc");
+        const unsigned int block_size = 128;
+        const unsigned int grid_size = (unsigned int)((num_slots + block_size - 1) / block_size);
+        detail::fill_instances<<<grid_size, block_size>>>(state->structure, nullptr, nullptr, state->instances, scratch_classes, filler_traversable, num_overlays, max_instances, num_scene_instances);
+        detail::check_cuda(cudaGetLastError(), "fill_instances launch");
+        detail::enqueue_builds(*state, nullptr);
+        detail::check_cuda(cudaStreamSynchronize(nullptr), "initial build sync");
+        detail::check_cuda(cudaFree(scratch_classes), "classes scratch cudaFree");
+        return state;
+    }
+
+    void overlay_accel_destroy(OverlayAccelState* state){
+        if(state == nullptr){
+            return;
+        }
+        cudaFree(state->structure);
+        cudaFree(state->objects);
+        cudaFree(state->instances);
+        cudaFree((void*)state->tlas_slab);
+        cudaFree((void*)state->scratch_slab);
+        delete state;
+    }
+
+    OverlaySlotStructure* overlay_accel_structure(OverlayAccelState* state){
+        return state->structure;
+    }
+
+    void overlay_accel_upload_objects(OverlayAccelState* state, const OverlayObjectEntry* objects, unsigned int num_objects){
+        namespace detail = overlay_accel_detail;
+        cudaFree(state->objects);
+        detail::check_cuda(cudaMalloc(&state->objects, (size_t)num_objects * sizeof(OverlayObjectEntry)), "objects cudaMalloc");
+        detail::check_cuda(cudaMemcpy(state->objects, objects, (size_t)num_objects * sizeof(OverlayObjectEntry), cudaMemcpyHostToDevice), "objects upload");
+    }
+
+    const unsigned long long* overlay_accel_traversables(const OverlayAccelState* state){
+        return state->traversables.data();
+    }
+
+    void overlay_accel_build(OverlayAccelState* state, const float* transforms, unsigned int* instance_classes, cudaStream_t stream){
+        namespace detail = overlay_accel_detail;
+        const size_t num_slots = (size_t)state->num_overlays * state->max_instances;
+        const unsigned int block_size = 128;
+        const unsigned int grid_size = (unsigned int)((num_slots + block_size - 1) / block_size);
+        detail::fill_instances<<<grid_size, block_size, 0, stream>>>(state->structure, transforms, state->objects, state->instances, instance_classes, state->filler_traversable, state->num_overlays, state->max_instances, state->num_scene_instances);
+        detail::check_cuda(cudaGetLastError(), "fill_instances launch");
+        detail::enqueue_builds(*state, stream);
+    }
+}
+RL_TOOLS_NAMESPACE_WRAPPER_END

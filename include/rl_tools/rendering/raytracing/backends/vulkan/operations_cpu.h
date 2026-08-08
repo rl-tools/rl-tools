@@ -258,6 +258,7 @@ namespace rl_tools {
             ctx.blas_buffers.clear();
             ctx.blas_addresses.clear();
             ctx.object_record_base.clear();
+            ctx.object_classes.clear();
             ctx.num_scene_instances = 0;
             for(auto& overlay : ctx.overlay_tlas){
                 ctx.vkDestroyAccelerationStructureKHR(ctx.device, overlay, nullptr);
@@ -275,6 +276,7 @@ namespace rl_tools {
             ctx.overlay_scratch_stride = 0;
             destroy_buffer(ctx, ctx.instance_data);
             destroy_buffer(ctx, ctx.instance_record_base);
+            destroy_buffer(ctx, ctx.instance_classes);
             destroy_buffer(ctx, ctx.overlay_attachments);
             destroy_buffer(ctx, ctx.overlay_num_active);
             destroy_buffer(ctx, ctx.tlas_buffer);
@@ -329,6 +331,9 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_SEGMENTATION) {
             malloc(device, renderer.segmentation_buffer);
+        }
+        if constexpr (SPEC::ENABLE_OVERLAYS) {
+            malloc(device, renderer.transforms);
         }
         malloc(device, renderer.collision_results);
 
@@ -642,8 +647,10 @@ namespace rl_tools {
         // that object's meshes in the flat order (mesh_records, offsets, BLAS geometry all agree)
         std::vector<const rendering::raytracing::Mesh*> all_meshes;
         ctx.object_record_base.assign(all_objects.size(), 0);
+        ctx.object_classes.assign(all_objects.size(), 0);
         for(size_t object_i = 0; object_i < all_objects.size(); object_i++){
             ctx.object_record_base[object_i] = (uint32_t)all_meshes.size();
+            ctx.object_classes[object_i] = all_objects[object_i]->segmentation_class;
             for(const auto& mesh : all_objects[object_i]->meshes){
                 all_meshes.push_back(&mesh);
             }
@@ -949,11 +956,14 @@ namespace rl_tools {
         // overlay pool; the shading code needs no overlay-vs-base branch
         ctx.instance_data = vk::create_buffer(device, ctx, (total_instances > 0 ? total_instances : 1) * sizeof(vk::InstanceData), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, HOST_MEMORY, true);
         ctx.instance_record_base = vk::create_buffer(device, ctx, (total_instances > 0 ? total_instances : 1) * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, HOST_MEMORY, true);
+        ctx.instance_classes = vk::create_buffer(device, ctx, (total_instances > 0 ? total_instances : 1) * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, HOST_MEMORY, true);
         {
             auto* instance_data = (vk::InstanceData*)ctx.instance_data.mapped;
             auto* instance_record_base = (uint32_t*)ctx.instance_record_base.mapped;
+            auto* instance_classes = (uint32_t*)ctx.instance_classes.mapped;
             std::memset(instance_data, 0, ctx.instance_data.size);
             std::memset(instance_record_base, 0, ctx.instance_record_base.size);
+            std::memset(instance_classes, 0, ctx.instance_classes.size);
             for(size_t instance_i = 0; instance_i < num_scene_instances; instance_i++){
                 const auto& instance = scene.instances[instance_i];
                 auto& data = instance_data[instance_i];
@@ -968,6 +978,7 @@ namespace rl_tools {
                 }
                 data.identity = instance.identity ? 1 : 0;
                 instance_record_base[instance_i] = ctx.object_record_base[instance.object];
+                instance_classes[instance_i] = ctx.object_classes[instance.object];
             }
         }
 
@@ -1057,6 +1068,7 @@ namespace rl_tools {
                 VkBool32 pbr_shading;
                 VkBool32 punctual_light_shadows;
                 int32_t overlay_count;
+                VkBool32 semantic_segmentation;
             };
             static_assert(sizeof(SpecializationData) == vk::specialization_constants::COUNT * 4);
             SpecializationData specialization_data{};
@@ -1071,6 +1083,7 @@ namespace rl_tools {
             specialization_data.pbr_shading = SPEC::SHADING::PBR_SHADING ? VK_TRUE : VK_FALSE;
             specialization_data.punctual_light_shadows = SPEC::SHADING::PUNCTUAL_LIGHT_SHADOWS ? VK_TRUE : VK_FALSE;
             specialization_data.overlay_count = SPEC::ENABLE_OVERLAYS ? (int32_t)SPEC::MAX_OVERLAYS_PER_CAMERA : 0;
+            specialization_data.semantic_segmentation = SPEC::SEMANTIC_SEGMENTATION ? VK_TRUE : VK_FALSE;
             VkSpecializationMapEntry map_entries[vk::specialization_constants::COUNT];
             for(uint32_t constant_i = 0; constant_i < vk::specialization_constants::COUNT; constant_i++){
                 map_entries[constant_i] = {constant_i, constant_i * 4, 4};
@@ -1158,6 +1171,7 @@ namespace rl_tools {
             buffer_infos[vk::bindings::SEGMENTATION_BUFFER] = buffer_or_dummy(ctx.segmentation_buffer);
             buffer_infos[vk::bindings::INSTANCE_RECORD_BASE] = buffer_or_dummy(ctx.instance_record_base);
             buffer_infos[vk::bindings::INSTANCE_DATA] = buffer_or_dummy(ctx.instance_data);
+            buffer_infos[vk::bindings::INSTANCE_CLASSES] = buffer_or_dummy(ctx.instance_classes);
             buffer_infos[vk::bindings::OVERLAY_ATTACHMENTS] = buffer_or_dummy(ctx.overlay_attachments);
             buffer_infos[vk::bindings::OVERLAY_NUM_ACTIVE] = buffer_or_dummy(ctx.overlay_num_active);
 
@@ -1276,10 +1290,14 @@ namespace rl_tools {
 
         auto* instance_data = (vk::InstanceData*)ctx.instance_data.mapped;
         auto* instance_record_base = (uint32_t*)ctx.instance_record_base.mapped;
+        auto* instance_classes = (uint32_t*)ctx.instance_classes.mapped;
         auto* overlay_num_active = (uint32_t*)ctx.overlay_num_active.mapped;
+        rendering::raytracing::detail::flush_overlay_transforms(renderer);
 
-        // no allocation, no descriptor writes, no command-buffer re-recording: dirty overlays are
-        // rebuilt in place from their mapped descriptor buffers and preallocated scratch slices
+        // no allocation, no descriptor writes, no command-buffer re-recording: overlays are
+        // rebuilt in place from their mapped descriptor buffers and preallocated scratch slices.
+        // Rebuilt unconditionally: producers may write the transforms tensor directly, which
+        // leaves no host-observable dirty flag
         std::vector<VkAccelerationStructureGeometryKHR> build_geometries;
         std::vector<VkAccelerationStructureBuildGeometryInfoKHR> build_infos;
         std::vector<VkAccelerationStructureBuildRangeInfoKHR> build_ranges;
@@ -1287,7 +1305,6 @@ namespace rl_tools {
 
         for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
             auto& overlay_state = renderer.overlays[overlay];
-            if(!overlay_state.dirty) continue;
             const size_t base = (size_t)ctx.num_scene_instances + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES;
             auto* descriptors = (VkAccelerationStructureInstanceKHR*)ctx.overlay_instance_buffers[overlay].mapped;
             uint32_t num_active = 0;
@@ -1295,9 +1312,11 @@ namespace rl_tools {
                 const auto& host_slot = overlay_state.slots[slot];
                 if(!host_slot.active) continue;
                 const size_t global = base + slot;
+                float world[12];
+                rendering::raytracing::detail::compose_overlay_slot_transform(renderer, overlay, slot, world);
                 VkAccelerationStructureInstanceKHR& descriptor = descriptors[num_active];
                 descriptor = {};
-                std::memcpy(descriptor.transform.matrix, host_slot.transform, sizeof(descriptor.transform.matrix));
+                std::memcpy(descriptor.transform.matrix, world, sizeof(descriptor.transform.matrix));
                 descriptor.instanceCustomIndex = (uint32_t)global;
                 descriptor.mask = 0xFF;
                 descriptor.accelerationStructureReference = ctx.blas_addresses[host_slot.object];
@@ -1305,17 +1324,18 @@ namespace rl_tools {
                 auto& data = instance_data[global];
                 data = {};
                 for(int element = 0; element < 12; element++){
-                    data.object_to_world[element] = host_slot.transform[element];
+                    data.object_to_world[element] = world[element];
                 }
-                const bool identity = rendering::raytracing::detail::transform_is_identity(host_slot.transform);
+                const bool identity = rendering::raytracing::detail::transform_is_identity(world);
                 if(identity){
                     std::memcpy(data.world_to_object, data.object_to_world, sizeof(data.world_to_object));
                 }
                 else{
-                    rendering::raytracing::detail::invert_transform(host_slot.transform, data.world_to_object);
+                    rendering::raytracing::detail::invert_transform(world, data.world_to_object);
                 }
                 data.identity = identity ? 1 : 0;
                 instance_record_base[global] = ctx.object_record_base[host_slot.object];
+                instance_classes[global] = ctx.object_classes[host_slot.object];
                 num_active++;
             }
             overlay_num_active[overlay] = num_active;
@@ -1339,7 +1359,6 @@ namespace rl_tools {
                 build_ranges.push_back(range);
                 build_overlays.push_back(overlay);
             }
-            overlay_state.dirty = false;
         }
         if(renderer.attachments_dirty){
             auto* attachments = (uint32_t*)ctx.overlay_attachments.mapped;
@@ -1456,15 +1475,6 @@ namespace rl_tools {
             SPEC::HAS_RGB ? ctx.cb_rgb : VK_NULL_HANDLE,
             SPEC::HAS_DEPTH ? ctx.cb_depth : VK_NULL_HANDLE,
             SPEC::HAS_SEGMENTATION ? ctx.cb_segmentation : VK_NULL_HANDLE);
-        if(renderer.backend.collision_ray_gen != nullptr){
-            vk::wait_collision_in_flight(device, ctx);
-            VkSubmitInfo submit_info{};
-            submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-            submit_info.commandBufferCount = 1;
-            submit_info.pCommandBuffers = &ctx.cb_collision;
-            vk::check(device, vkQueueSubmit(ctx.queue, 1, &submit_info, ctx.fence_collision), "Vulkan: collision submit failed");
-            ctx.collision_in_flight = true;
-        }
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1480,8 +1490,10 @@ namespace rl_tools {
         render_sync(device, renderer);
     }
 
+    // render produces the image outputs the spec declares; the collision-probe pass is the
+    // separate probe verb so it can be scheduled independently (e.g. alongside update)
     template <typename DEVICE, typename SPEC>
-    void render_collision_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    void probe_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         namespace vk = rendering::raytracing::backends::vulkan;
         auto& ctx = vk::context(renderer);
         if(renderer.backend.collision_ray_gen != nullptr){
@@ -1496,110 +1508,16 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void render_collision_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    void probe_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         namespace vk = rendering::raytracing::backends::vulkan;
         auto& ctx = vk::context(renderer);
         vk::wait_collision_in_flight(device, ctx);
     }
 
     template <typename DEVICE, typename SPEC>
-    void render_collision_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_collision_only_launch(device, renderer);
-        render_collision_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB, "render_rgb_only requires an RGB-capable renderer specification");
-        namespace vk = rendering::raytracing::backends::vulkan;
-        auto& ctx = vk::context(renderer);
-        vk::submit_render(device, ctx, ctx.cb_rgb);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB, "render_rgb_only requires an RGB-capable renderer specification");
-        namespace vk = rendering::raytracing::backends::vulkan;
-        auto& ctx = vk::context(renderer);
-        vk::wait_render_in_flight(device, ctx);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_rgb_only_launch(device, renderer);
-        render_rgb_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_depth_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_DEPTH, "render_depth_only requires a depth-capable renderer specification");
-        namespace vk = rendering::raytracing::backends::vulkan;
-        auto& ctx = vk::context(renderer);
-        vk::submit_render(device, ctx, ctx.cb_depth);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_depth_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_DEPTH, "render_depth_only requires a depth-capable renderer specification");
-        namespace vk = rendering::raytracing::backends::vulkan;
-        auto& ctx = vk::context(renderer);
-        vk::wait_render_in_flight(device, ctx);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_depth_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_depth_only_launch(device, renderer);
-        render_depth_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_segmentation_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_SEGMENTATION, "render_segmentation_only requires a segmentation-capable renderer specification");
-        namespace vk = rendering::raytracing::backends::vulkan;
-        auto& ctx = vk::context(renderer);
-        vk::submit_render(device, ctx, ctx.cb_segmentation);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_segmentation_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_SEGMENTATION, "render_segmentation_only requires a segmentation-capable renderer specification");
-        namespace vk = rendering::raytracing::backends::vulkan;
-        auto& ctx = vk::context(renderer);
-        vk::wait_render_in_flight(device, ctx);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_segmentation_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_segmentation_only_launch(device, renderer);
-        render_segmentation_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_depth_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB && SPEC::HAS_DEPTH, "render_rgb_depth_only requires an RGBD renderer specification");
-        namespace vk = rendering::raytracing::backends::vulkan;
-        auto& ctx = vk::context(renderer);
-        vk::submit_render(device, ctx, ctx.cb_rgb, ctx.cb_depth);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_depth_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB && SPEC::HAS_DEPTH, "render_rgb_depth_only requires an RGBD renderer specification");
-        namespace vk = rendering::raytracing::backends::vulkan;
-        auto& ctx = vk::context(renderer);
-        vk::wait_render_in_flight(device, ctx);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_depth_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_rgb_depth_only_launch(device, renderer);
-        render_rgb_depth_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
-    void render_rgb_only_async(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
-        set_cameras_async(device, renderer, cameras);
-        render_rgb_only_launch(device, renderer);
+    void probe(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        probe_launch(device, renderer);
+        probe_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC, typename FB_SPEC>
@@ -1770,6 +1688,9 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_SEGMENTATION) {
             free(device, renderer.segmentation_buffer);
+        }
+        if constexpr (SPEC::ENABLE_OVERLAYS) {
+            free(device, renderer.transforms);
         }
         free(device, renderer.collision_results);
     }

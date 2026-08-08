@@ -118,6 +118,9 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_DEPTH) {
             malloc(device, renderer.depth_buffer);
         }
+        if constexpr (SPEC::ENABLE_OVERLAYS) {
+            malloc(device, renderer.transforms);
+        }
         malloc(device, renderer.collision_results);
 
         auto* backend_state = new generic::State<SPEC>{};
@@ -388,10 +391,12 @@ namespace rl_tools {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         auto& backend_state = generic::state(renderer);
+        rendering::raytracing::detail::flush_overlay_transforms(renderer);
 
+        // rebuilt unconditionally: producers may write the transforms tensor directly, which
+        // leaves no host-observable dirty flag
         for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
             auto& overlay_state = renderer.overlays[overlay];
-            if(!overlay_state.dirty) continue;
             const TI base = backend_state.num_scene_instances + overlay * SPEC::MAX_OVERLAY_INSTANCES;
             TI* primitives = backend_state.overlay_tlas_primitives.data() + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES;
             TI num_active = 0;
@@ -399,11 +404,13 @@ namespace rl_tools {
                 const auto& host_slot = overlay_state.slots[slot];
                 if(!host_slot.active) continue;
                 const TI global = base + slot;
+                float world[12];
+                rendering::raytracing::detail::compose_overlay_slot_transform(renderer, overlay, slot, world);
                 auto& instance_view = backend_state.instances[global];
                 instance_view.object = host_slot.object;
-                instance_view.identity = rendering::raytracing::detail::transform_is_identity(host_slot.transform);
+                instance_view.identity = rendering::raytracing::detail::transform_is_identity(world);
                 for(int element = 0; element < 12; element++){
-                    instance_view.object_to_world[element] = (T)host_slot.transform[element];
+                    instance_view.object_to_world[element] = (T)world[element];
                 }
                 if(instance_view.identity){
                     for(int element = 0; element < 12; element++){
@@ -412,7 +419,7 @@ namespace rl_tools {
                 }
                 else{
                     float world_to_object[12];
-                    rendering::raytracing::detail::invert_transform(host_slot.transform, world_to_object);
+                    rendering::raytracing::detail::invert_transform(world, world_to_object);
                     for(int element = 0; element < 12; element++){
                         instance_view.world_to_object[element] = (T)world_to_object[element];
                     }
@@ -435,7 +442,6 @@ namespace rl_tools {
                 backend_state.overlay_bounds_max.data(),
                 backend_state.overlay_centroids.data(),
                 num_active);
-            overlay_state.dirty = false;
         }
         if(renderer.attachments_dirty){
             std::memcpy(backend_state.overlay_attachments.data(), renderer.attachments, backend_state.overlay_attachments.size() * sizeof(TI));
@@ -700,6 +706,9 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_SEGMENTATION) {
             free(device, renderer.segmentation_buffer);
+        }
+        if constexpr (SPEC::ENABLE_OVERLAYS) {
+            free(device, renderer.transforms);
         }
         free(device, renderer.collision_results);
     }
