@@ -11,7 +11,7 @@ rl_tools_fetchcontent_makeavailable_quiet(procthor2glb_stb)
 FetchContent_Declare(
     procthor2glb_tinygltf
     GIT_REPOSITORY https://github.com/syoyo/tinygltf.git
-    GIT_TAG        9ab0d0d5f73bfd8ae29d0eb43653b045d44f3ce1
+    GIT_TAG        0d9ce1a9561688c6c6e7471430d15a50a0b15f1a # v3.0.1
     EXCLUDE_FROM_ALL
 )
 rl_tools_fetchcontent_makeavailable_quiet(procthor2glb_tinygltf)
