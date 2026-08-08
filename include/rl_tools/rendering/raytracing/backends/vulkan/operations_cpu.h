@@ -1041,13 +1041,7 @@ namespace rl_tools {
                     attachments[index] = 0xFFFFFFFFu;
                 }
             }
-            for(auto& overlay_state : renderer.overlays){
-                for(auto& slot : overlay_state.slots){
-                    slot.active = false;
-                }
-                overlay_state.dirty = true;
-            }
-            renderer.attachments_dirty = true;
+            rendering::raytracing::detail::reset_overlay_state(renderer);
         }
 
         if(!ctx.pipelines_built){
@@ -1374,6 +1368,18 @@ namespace rl_tools {
             vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1, &build_barrier, 0, nullptr, 0, nullptr);
             vk::one_shot_end(device, ctx, command_buffer);
         }
+    }
+
+    // update() ends with a queue-idle wait (one_shot_end), so launch == update here; a truly
+    // asynchronous build path (dedicated fence, cb freed in update_sync) is future work
+    template <typename DEVICE, typename SPEC>
+    void update_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        update(device, renderer);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void update_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
     }
 
     template <typename DEVICE, typename SPEC>
