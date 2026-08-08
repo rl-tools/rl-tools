@@ -38,6 +38,10 @@ namespace rl_tools {
             std::vector<OWLGroup> overlay_groups;
             OWLBuffer traversables_buffer = nullptr;
             OWLBuffer attachments_buffer = nullptr;
+            OWLBuffer instance_classes_buffer = nullptr;
+            std::vector<unsigned int> instance_classes; // host mirror, per global instance id
+            std::vector<unsigned int> object_classes;   // per global object
+            size_t num_scene_instances = 0;
         };
     }
 
@@ -712,7 +716,7 @@ namespace rl_tools {
         }
 
         std::vector<OWLGroup> instance_children;
-        std::vector<uint32_t> instance_ids; // user instance ids == global instance ids
+        std::vector<uint32_t> instance_ids; // user instance ids == global instance ids (contract: segmentation_object, operations_cpu_common.h)
         std::vector<float> instance_transforms; // 12 per instance: owl affine3f (linear columns vx, vy, vz, then translation)
         for(const auto& instance : scene.instances){
             instance_children.push_back(object_groups[instance.object]);
@@ -780,7 +784,7 @@ namespace rl_tools {
             for(size_t overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
                 std::vector<uint32_t> overlay_instance_ids(SPEC::MAX_OVERLAY_INSTANCES);
                 for(size_t slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
-                    overlay_instance_ids[slot] = (uint32_t)(scene.instances.size() + overlay * SPEC::MAX_OVERLAY_INSTANCES + slot);
+                    overlay_instance_ids[slot] = (uint32_t)(scene.instances.size() + overlay * SPEC::MAX_OVERLAY_INSTANCES + slot); // global id layout (contract: segmentation_object)
                 }
                 OWLGroup overlay_group = owlInstanceGroupCreate(context, SPEC::MAX_OVERLAY_INSTANCES, overlay_children.data(), overlay_instance_ids.data(), overlay_transforms.data(), OWL_MATRIX_FORMAT_OWL);
                 owlGroupBuildAccel(overlay_group);
@@ -791,6 +795,25 @@ namespace rl_tools {
             rendering::raytracing::detail::reset_overlay_state(renderer);
         }
 
+        std::vector<unsigned int> host_instance_classes(scene.instances.size() + (SPEC::ENABLE_OVERLAYS ? (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES : 0), 0);
+        for(size_t instance_i = 0; instance_i < scene.instances.size(); instance_i++){
+            host_instance_classes[instance_i] = all_objects[scene.instances[instance_i].object]->segmentation_class;
+        }
+        if(host_instance_classes.empty()){
+            host_instance_classes.push_back(0);
+        }
+        OWLBuffer instance_classes_buffer = owlDeviceBufferCreate(context, OWL_UINT, host_instance_classes.size(), host_instance_classes.data());
+        if constexpr (SPEC::ENABLE_OVERLAYS){
+            auto* overlay_state = (optix::OverlayState*)renderer.backend.overlay_state;
+            overlay_state->instance_classes_buffer = instance_classes_buffer;
+            overlay_state->instance_classes = host_instance_classes;
+            overlay_state->num_scene_instances = scene.instances.size();
+            overlay_state->object_classes.clear();
+            for(const auto* object_pointer : all_objects){
+                overlay_state->object_classes.push_back(object_pointer->segmentation_class);
+            }
+        }
+
         if(renderer.backend.launch_params == nullptr){
             OWLVarDecl launch_params_vars[] = {
                 { "overlays",      OWL_BUFPTR, OWL_OFFSETOF(OverlayLaunchParams, overlays)},
@@ -799,6 +822,8 @@ namespace rl_tools {
                 { "cam_width",     OWL_INT,    OWL_OFFSETOF(OverlayLaunchParams, cam_width)},
                 { "cam_height",    OWL_INT,    OWL_OFFSETOF(OverlayLaunchParams, cam_height)},
                 { "grid_cols",     OWL_INT,    OWL_OFFSETOF(OverlayLaunchParams, grid_cols)},
+                { "instance_classes", OWL_BUFPTR, OWL_OFFSETOF(OverlayLaunchParams, instance_classes)},
+                { "semantic_segmentation", OWL_INT, OWL_OFFSETOF(OverlayLaunchParams, semantic_segmentation)},
                 { /* sentinel */ }
             };
             OWLParams launch_params = owlParamsCreate(context, sizeof(OverlayLaunchParams), launch_params_vars, -1);
@@ -815,6 +840,8 @@ namespace rl_tools {
             owlParamsSet1i(launch_params, "cam_width", (int)SPEC::CAM_WIDTH);
             owlParamsSet1i(launch_params, "cam_height", (int)SPEC::CAM_HEIGHT);
             owlParamsSet1i(launch_params, "grid_cols", (int)SPEC::GRID_COLS);
+            owlParamsSet1i(launch_params, "semantic_segmentation", SPEC::SEMANTIC_SEGMENTATION ? 1 : 0);
+            owlParamsSetBuffer(launch_params, "instance_classes", instance_classes_buffer);
             if constexpr (SPEC::ENABLE_OVERLAYS){
                 auto* overlay_state = (optix::OverlayState*)renderer.backend.overlay_state;
                 owlParamsSetBuffer(launch_params, "overlays", overlay_state->traversables_buffer);
@@ -857,6 +884,7 @@ namespace rl_tools {
                     };
                     owlInstanceGroupSetChild(overlay_group, (int)slot, overlay_state->object_groups[host_slot.object]);
                     owlInstanceGroupSetTransform(overlay_group, (int)slot, owl_transform, OWL_MATRIX_FORMAT_OWL);
+                    overlay_state->instance_classes[overlay_state->num_scene_instances + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES + slot] = overlay_state->object_classes[host_slot.object];
                 }
                 else{
                     const float identity_owl[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0};
@@ -875,6 +903,7 @@ namespace rl_tools {
                 traversables[overlay] = (unsigned long long)owlGroupGetTraversable(overlay_state->overlay_groups[overlay], 0);
             }
             owlBufferUpload(overlay_state->traversables_buffer, traversables.data(), 0, SPEC::NUM_OVERLAYS);
+            owlBufferUpload(overlay_state->instance_classes_buffer, overlay_state->instance_classes.data(), 0, overlay_state->instance_classes.size());
         }
         if(renderer.attachments_dirty){
             std::vector<uint32_t> attachments((size_t)SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA);
@@ -981,86 +1010,6 @@ namespace rl_tools {
         render_sync(device, renderer);
     }
 
-    template <typename DEVICE, typename SPEC>
-    void render_collision_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        if(renderer.backend.collision_ray_gen){
-            OWLRayGen collision_ray_gen = (OWLRayGen)renderer.backend.collision_ray_gen;
-            OWLParams coll_lp = (OWLParams)renderer.backend.coll_launch_params;
-            owlAsyncLaunch2D(collision_ray_gen, SPEC::NUM_CAMERAS, SPEC::NUM_PROBES, coll_lp);
-        }
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_collision_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        if(renderer.backend.coll_launch_params)
-            owlLaunchSync((OWLParams)renderer.backend.coll_launch_params);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_collision_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_collision_only_launch(device, renderer);
-        render_collision_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB, "render_rgb_only requires an RGB-capable renderer specification");
-        OWLRayGen ray_gen = (OWLRayGen)renderer.backend.ray_gen;
-        OWLParams launch_params = (OWLParams)renderer.backend.launch_params;
-        owlAsyncLaunch2D(ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB, "render_rgb_only requires an RGB-capable renderer specification");
-        owlLaunchSync((OWLParams)renderer.backend.launch_params);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_rgb_only_launch(device, renderer);
-        render_rgb_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_depth_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_DEPTH, "render_depth_only requires a depth-capable renderer specification");
-        OWLRayGen depth_ray_gen = (OWLRayGen)renderer.backend.depth_ray_gen;
-        OWLParams launch_params = (OWLParams)renderer.backend.launch_params;
-        owlAsyncLaunch2D(depth_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_depth_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_DEPTH, "render_depth_only requires a depth-capable renderer specification");
-        owlLaunchSync((OWLParams)renderer.backend.launch_params);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_depth_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_depth_only_launch(device, renderer);
-        render_depth_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_depth_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB && SPEC::HAS_DEPTH, "render_rgb_depth_only requires an RGBD renderer specification");
-        render_rgb_only_launch(device, renderer);
-        render_depth_only_launch(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_depth_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB && SPEC::HAS_DEPTH, "render_rgb_depth_only requires an RGBD renderer specification");
-        owlLaunchSync((OWLParams)renderer.backend.launch_params);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_depth_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_rgb_depth_only_launch(device, renderer);
-        render_rgb_depth_only_sync(device, renderer);
-    }
-
     template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
     void set_cameras_async(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
         static_assert(utils::typing::is_same_v<typename CAMERAS_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
@@ -1076,10 +1025,27 @@ namespace rl_tools {
         }
     }
 
-    template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
-    void render_rgb_only_async(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
-        set_cameras_async(device, renderer, cameras);
-        render_rgb_only_launch(device, renderer);
+    // device-resident camera input: cameras_device points at NUM_CAMERAS packed Camera<T>
+    // structs (12 floats each) in CUDA device memory. The copy is enqueued on the render
+    // stream, so it orders after the previous launch (no overwrite hazard) and before the
+    // next one; a non-null producer_stream is awaited via an event, never a host sync.
+    template <typename DEVICE, typename SPEC>
+    void set_cameras_device(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const typename SPEC::T* cameras_device, cudaStream_t producer_stream = nullptr){
+        OWLParams launch_params = (OWLParams)renderer.backend.launch_params;
+        cudaStream_t stream = (cudaStream_t)owlParamsGetCudaStream(launch_params, 0);
+        if(producer_stream != nullptr && producer_stream != stream){
+            cudaEvent_t cameras_ready;
+            cudaEventCreateWithFlags(&cameras_ready, cudaEventDisableTiming);
+            cudaEventRecord(cameras_ready, producer_stream);
+            cudaStreamWaitEvent(stream, cameras_ready, 0);
+            cudaEventDestroy(cameras_ready);
+        }
+        void* d_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.cameras_buffer, 0);
+        cudaMemcpyAsync(d_ptr, cameras_device, SPEC::NUM_CAMERAS * sizeof(OptixCameraData), cudaMemcpyDeviceToDevice, stream);
+        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+            void* d_open_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.cameras_open_buffer, 0);
+            cudaMemcpyAsync(d_open_ptr, cameras_device, SPEC::NUM_CAMERAS * sizeof(OptixCameraData), cudaMemcpyDeviceToDevice, stream);
+        }
     }
 
     template <typename DEVICE, typename SPEC, typename FB_SPEC>
@@ -1089,24 +1055,6 @@ namespace rl_tools {
         static_assert(get<0>(typename FB_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
         constexpr typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
         cudaMemcpy(data(out_pixels), owlBufferGetPointer((OWLBuffer)renderer.backend.frame_buffer_handle, 0), expected * sizeof(uint32_t), cudaMemcpyDeviceToHost);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_segmentation_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_SEGMENTATION, "render_segmentation_only requires a segmentation-capable renderer specification");
-        owlAsyncLaunch2D((OWLRayGen)renderer.backend.segmentation_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, (OWLParams)renderer.backend.launch_params);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_segmentation_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_SEGMENTATION, "render_segmentation_only requires a segmentation-capable renderer specification");
-        owlLaunchSync((OWLParams)renderer.backend.launch_params);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_segmentation_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_segmentation_only_launch(device, renderer);
-        render_segmentation_only_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC, typename SEGMENTATION_SPEC>

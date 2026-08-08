@@ -40,8 +40,18 @@ namespace golden {
         };
         static constexpr T MOTION_BLUR_DELTA[3] = {0.2, 0.1, 0};
 
-        template <typename SHADING, bool ENABLE_MOTION_BLUR = false, TI MOTION_BLUR_SAMPLES = 1, bool ENABLE_ANTI_ALIASING = false, TI ANTI_ALIASING_GRID_SIZE = 1, rl_tools::rendering::raytracing::OutputMode OUTPUT_MODE = rl_tools::rendering::raytracing::OutputMode::RGB>
-        using Specification = rl_tools::rendering::raytracing::Specification<T, TI, CAM_WIDTH, CAM_HEIGHT, NUM_CAMERAS, NUM_PROBES, SHADING, ENABLE_MOTION_BLUR, MOTION_BLUR_SAMPLES, ENABLE_ANTI_ALIASING, ANTI_ALIASING_GRID_SIZE, OUTPUT_MODE>;
+        template <typename T_SHADING, bool T_ENABLE_MOTION_BLUR = false, TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, TI T_ANTI_ALIASING_GRID_SIZE = 1, bool T_OUTPUT_DEPTH = false>
+        struct Config: rl_tools::rendering::raytracing::config::Default<T, TI>{
+            static constexpr TI CAM_WIDTH = Cases::CAM_WIDTH, CAM_HEIGHT = Cases::CAM_HEIGHT, NUM_CAMERAS = Cases::NUM_CAMERAS, NUM_PROBES = Cases::NUM_PROBES;
+            using SHADING = T_SHADING;
+            static constexpr bool OUTPUT_DEPTH = T_OUTPUT_DEPTH;
+            static constexpr bool ENABLE_MOTION_BLUR = T_ENABLE_MOTION_BLUR;
+            static constexpr TI MOTION_BLUR_SAMPLES = T_MOTION_BLUR_SAMPLES;
+            static constexpr bool ENABLE_ANTI_ALIASING = T_ENABLE_ANTI_ALIASING;
+            static constexpr TI ANTI_ALIASING_GRID_SIZE = T_ANTI_ALIASING_GRID_SIZE;
+        };
+        template <typename T_SHADING, bool T_ENABLE_MOTION_BLUR = false, TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, TI T_ANTI_ALIASING_GRID_SIZE = 1, bool T_OUTPUT_DEPTH = false>
+        using Specification = rl_tools::rendering::raytracing::Specification<Config<T_SHADING, T_ENABLE_MOTION_BLUR, T_MOTION_BLUR_SAMPLES, T_ENABLE_ANTI_ALIASING, T_ANTI_ALIASING_GRID_SIZE, T_OUTPUT_DEPTH>>;
 
         using LOW_RGB = Specification<rl_tools::rendering::raytracing::Low>;
         using MEDIUM_RGB = Specification<rl_tools::rendering::raytracing::Medium>;
@@ -49,8 +59,8 @@ namespace golden {
         using VERY_HIGH_RGB = Specification<rl_tools::rendering::raytracing::VeryHigh>;
         using HIGH_RGB_AA2 = Specification<rl_tools::rendering::raytracing::High, false, 1, true, 2>;
         using HIGH_RGB_MB4 = Specification<rl_tools::rendering::raytracing::High, true, 4>;
-        using LOW_RGBD = Specification<rl_tools::rendering::raytracing::Low, false, 1, false, 1, rl_tools::rendering::raytracing::OutputMode::RGBD>;
-        using HIGH_RGBD = Specification<rl_tools::rendering::raytracing::High, false, 1, false, 1, rl_tools::rendering::raytracing::OutputMode::RGBD>;
+        using LOW_RGBD = Specification<rl_tools::rendering::raytracing::Low, false, 1, false, 1, true>;
+        using HIGH_RGBD = Specification<rl_tools::rendering::raytracing::High, false, 1, false, 1, true>;
     };
 }
 

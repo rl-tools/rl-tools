@@ -62,6 +62,7 @@ namespace rl_tools {
             encoder->setBuffer(ctx.instance_data.get(), 0, bindings::INSTANCE_DATA);
             encoder->setBuffer(ctx.overlay_structures.get(), 0, bindings::OVERLAY_STRUCTURES);
             encoder->setBuffer(ctx.overlay_attachments.get(), 0, bindings::OVERLAY_ATTACHMENTS);
+            encoder->setBuffer(ctx.instance_classes.get(), 0, bindings::INSTANCE_CLASSES);
             for(auto& object_acceleration_structure : ctx.object_acceleration_structures){
                 encoder->useResource(object_acceleration_structure.get(), MTL::ResourceUsageRead);
             }
@@ -314,6 +315,10 @@ namespace rl_tools {
         // instance (top-level) acceleration structure over the placed objects; overlay slots get
         // their own tiny instance structures but share the global instance-id-indexed data arrays
         ctx.object_record_base = object_record_base;
+        ctx.object_classes.clear();
+        for(const auto* object_pointer : all_objects){
+            ctx.object_classes.push_back(object_pointer->segmentation_class);
+        }
         ctx.num_scene_instances = (uint32_t)scene.instances.size();
         {
             size_t total_instances = scene.instances.size();
@@ -334,7 +339,7 @@ namespace rl_tools {
                 descriptor.mask = 0xFFFFFFFFu;
                 descriptor.intersectionFunctionTableOffset = 0;
                 descriptor.accelerationStructureIndex = (uint32_t)instance.object;
-                descriptor.userID = (uint32_t)instance_i;
+                descriptor.userID = (uint32_t)instance_i; // global instance id (contract: segmentation_object, operations_cpu_common.h)
 
                 auto& data = instance_data[instance_i];
                 data = {};
@@ -353,6 +358,11 @@ namespace rl_tools {
             ctx.instance_descriptors = NS::TransferPtr(ctx.device->newBuffer(instance_descriptors.data(), instance_descriptors.size() * sizeof(MTL::AccelerationStructureUserIDInstanceDescriptor), MTL::ResourceStorageModeShared));
             ctx.instance_data = NS::TransferPtr(ctx.device->newBuffer(instance_data.data(), instance_data.size() * sizeof(metal::InstanceData), MTL::ResourceStorageModeShared));
             ctx.instance_record_base = NS::TransferPtr(ctx.device->newBuffer(instance_record_base.data(), instance_record_base.size() * sizeof(uint32_t), MTL::ResourceStorageModeShared));
+            std::vector<uint32_t> instance_classes(total_instances > 0 ? total_instances : 1, 0);
+            for(size_t instance_i = 0; instance_i < scene.instances.size(); instance_i++){
+                instance_classes[instance_i] = ctx.object_classes[scene.instances[instance_i].object];
+            }
+            ctx.instance_classes = NS::TransferPtr(ctx.device->newBuffer(instance_classes.data(), instance_classes.size() * sizeof(uint32_t), MTL::ResourceStorageModeShared));
 
             std::vector<NS::Object*> object_acceleration_structure_pointers;
             for(auto& object_acceleration_structure : ctx.object_acceleration_structures){
@@ -456,6 +466,7 @@ namespace rl_tools {
             bool pbr_shading = SPEC::SHADING::PBR_SHADING;
             bool punctual_light_shadows = SPEC::SHADING::PUNCTUAL_LIGHT_SHADOWS;
             int overlay_count = (int)SPEC::MAX_OVERLAYS_PER_CAMERA;
+            bool semantic_segmentation = SPEC::SEMANTIC_SEGMENTATION;
             constants->setConstantValue(&srgb_output, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::SRGB_OUTPUT);
             constants->setConstantValue(&motion_blur, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::MOTION_BLUR);
             constants->setConstantValue(&motion_samples, MTL::DataTypeInt, (NS::UInteger)metal::function_constants::MOTION_SAMPLES);
@@ -467,6 +478,7 @@ namespace rl_tools {
             constants->setConstantValue(&pbr_shading, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::PBR_SHADING);
             constants->setConstantValue(&punctual_light_shadows, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::PUNCTUAL_LIGHT_SHADOWS);
             constants->setConstantValue(&overlay_count, MTL::DataTypeInt, (NS::UInteger)metal::function_constants::OVERLAY_COUNT);
+            constants->setConstantValue(&semantic_segmentation, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::SEMANTIC_SEGMENTATION);
 
             auto make_pipeline = [&](const char* name) -> NS::SharedPtr<MTL::ComputePipelineState> {
                 NS::Error* error = nullptr;
@@ -560,7 +572,7 @@ namespace rl_tools {
                 descriptor.mask = 0xFFFFFFFFu;
                 descriptor.intersectionFunctionTableOffset = 0;
                 descriptor.accelerationStructureIndex = (uint32_t)host_slot.object;
-                descriptor.userID = (uint32_t)global;
+                descriptor.userID = (uint32_t)global; // global instance id (contract: segmentation_object, operations_cpu_common.h)
 
                 auto& data = instance_data[global];
                 data = {};
@@ -576,6 +588,7 @@ namespace rl_tools {
                 }
                 data.identity = identity ? 1 : 0;
                 instance_record_base[global] = ctx.object_record_base[host_slot.object];
+                ((uint32_t*)ctx.instance_classes->contents())[global] = ctx.object_classes[host_slot.object];
                 num_active++;
             }
             overlay_entries[overlay].num_active = num_active;
@@ -710,6 +723,8 @@ namespace rl_tools {
 #endif
     }
 
+    // render produces the image outputs the spec declares; the collision-probe pass is the
+    // separate probe verb so it can be scheduled independently (e.g. alongside update)
     template <typename DEVICE, typename SPEC>
     void render_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         namespace metal = rendering::raytracing::backends::metal;
@@ -727,19 +742,17 @@ namespace rl_tools {
         }
         command_buffer->commit();
         ctx.in_flight = NS::RetainPtr(command_buffer);
-        if(renderer.backend.collision_ray_gen != nullptr){
-            MTL::CommandBuffer* collision_command_buffer = ctx.queue->commandBuffer();
-            metal::encode_collision_pass<SPEC>(ctx, collision_command_buffer);
-            collision_command_buffer->commit();
-            ctx.in_flight_collision = NS::RetainPtr(collision_command_buffer);
-        }
         pool->release();
     }
 
     template <typename DEVICE, typename SPEC>
     void render_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         namespace metal = rendering::raytracing::backends::metal;
-        metal::wait_in_flight(metal::context(renderer));
+        auto& ctx = metal::context(renderer);
+        if(ctx.in_flight.get() != nullptr){
+            ctx.in_flight->waitUntilCompleted();
+            ctx.in_flight.reset();
+        }
     }
 
     template <typename DEVICE, typename SPEC>
@@ -749,7 +762,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void render_collision_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    void probe_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         namespace metal = rendering::raytracing::backends::metal;
         auto& ctx = metal::context(renderer);
         if(renderer.backend.collision_ray_gen != nullptr){
@@ -763,7 +776,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void render_collision_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    void probe_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         namespace metal = rendering::raytracing::backends::metal;
         auto& ctx = metal::context(renderer);
         if(ctx.in_flight_collision.get() != nullptr){
@@ -773,132 +786,9 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void render_collision_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_collision_only_launch(device, renderer);
-        render_collision_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB, "render_rgb_only requires an RGB-capable renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        auto& ctx = metal::context(renderer);
-        NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
-        MTL::CommandBuffer* command_buffer = ctx.queue->commandBuffer();
-        metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.rgb_pipeline.get(), ctx.frame_buffer.get());
-        command_buffer->commit();
-        ctx.in_flight = NS::RetainPtr(command_buffer);
-        pool->release();
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB, "render_rgb_only requires an RGB-capable renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        auto& ctx = metal::context(renderer);
-        if(ctx.in_flight.get() != nullptr){
-            ctx.in_flight->waitUntilCompleted();
-            ctx.in_flight.reset();
-        }
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_rgb_only_launch(device, renderer);
-        render_rgb_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_depth_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_DEPTH, "render_depth_only requires a depth-capable renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        auto& ctx = metal::context(renderer);
-        NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
-        MTL::CommandBuffer* command_buffer = ctx.queue->commandBuffer();
-        metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.depth_pipeline.get(), ctx.depth_buffer.get());
-        command_buffer->commit();
-        ctx.in_flight = NS::RetainPtr(command_buffer);
-        pool->release();
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_depth_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_DEPTH, "render_depth_only requires a depth-capable renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        auto& ctx = metal::context(renderer);
-        if(ctx.in_flight.get() != nullptr){
-            ctx.in_flight->waitUntilCompleted();
-            ctx.in_flight.reset();
-        }
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_depth_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_depth_only_launch(device, renderer);
-        render_depth_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_segmentation_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_SEGMENTATION, "render_segmentation_only requires a segmentation-capable renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        auto& ctx = metal::context(renderer);
-        NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
-        MTL::CommandBuffer* command_buffer = ctx.queue->commandBuffer();
-        metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.segmentation_pipeline.get(), ctx.segmentation_buffer.get());
-        command_buffer->commit();
-        ctx.in_flight = NS::RetainPtr(command_buffer);
-        pool->release();
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_segmentation_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_SEGMENTATION, "render_segmentation_only requires a segmentation-capable renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        metal::wait_in_flight(metal::context(renderer));
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_segmentation_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_segmentation_only_launch(device, renderer);
-        render_segmentation_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_depth_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB && SPEC::HAS_DEPTH, "render_rgb_depth_only requires an RGBD renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        auto& ctx = metal::context(renderer);
-        NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
-        MTL::CommandBuffer* command_buffer = ctx.queue->commandBuffer();
-        metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.rgb_pipeline.get(), ctx.frame_buffer.get());
-        metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.depth_pipeline.get(), ctx.depth_buffer.get());
-        command_buffer->commit();
-        ctx.in_flight = NS::RetainPtr(command_buffer);
-        pool->release();
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_depth_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB && SPEC::HAS_DEPTH, "render_rgb_depth_only requires an RGBD renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        auto& ctx = metal::context(renderer);
-        if(ctx.in_flight.get() != nullptr){
-            ctx.in_flight->waitUntilCompleted();
-            ctx.in_flight.reset();
-        }
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_depth_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_rgb_depth_only_launch(device, renderer);
-        render_rgb_depth_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
-    void render_rgb_only_async(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
-        set_cameras_async(device, renderer, cameras);
-        render_rgb_only_launch(device, renderer);
+    void probe(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        probe_launch(device, renderer);
+        probe_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC, typename FB_SPEC>

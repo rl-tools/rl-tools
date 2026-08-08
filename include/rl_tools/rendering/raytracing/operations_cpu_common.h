@@ -1024,6 +1024,23 @@ namespace rl_tools {
         }
     }
 
+    // Deterministic first-fit is a contract, not an implementation detail: the chosen slot defines
+    // the global instance id (segmentation output), which must be reproducible across runs and
+    // identical across backends. Do not replace with a free-list or best-fit strategy.
+    template <typename SPEC>
+    typename SPEC::TI first_fit_slot(const rendering::raytracing::Renderer<SPEC>& renderer, size_t overlay, typename SPEC::TI num_parts){
+        using TI = typename SPEC::TI;
+        const auto& state = renderer.overlays[overlay];
+        TI run = 0;
+        for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
+            run = state.slots[slot].active ? 0 : run + 1;
+            if(run == num_parts){
+                return slot + 1 - num_parts;
+            }
+        }
+        return SPEC::MAX_OVERLAY_INSTANCES;
+    }
+
     template <typename SPEC>
     void reset_overlay_state(rendering::raytracing::Renderer<SPEC>& renderer){
         using TI = typename SPEC::TI;
@@ -1041,6 +1058,14 @@ namespace rl_tools {
 
     template <typename SPEC>
     void compute_scene_bounds(rendering::raytracing::Renderer<SPEC>& renderer, const rendering::raytracing::Scene& scene){
+        // resolved-configuration echo: makes a silently-defaulted (e.g. misspelled) fringe
+        // config member visible on the first run
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("config: " << SPEC::NUM_CAMERAS << " camera(s) " << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT
+            << " outputs[rgb=" << SPEC::HAS_RGB << " depth=" << SPEC::HAS_DEPTH << " segmentation=" << SPEC::HAS_SEGMENTATION << (SPEC::SEMANTIC_SEGMENTATION ? " (semantic)" : "") << "]"
+            << " probes=" << SPEC::NUM_PROBES
+            << " motion_blur_samples=" << (SPEC::ENABLE_MOTION_BLUR ? SPEC::MOTION_BLUR_SAMPLES : 0)
+            << " anti_aliasing_grid=" << (SPEC::ENABLE_ANTI_ALIASING ? SPEC::ANTI_ALIASING_GRID_SIZE : 0)
+            << " overlays=" << SPEC::NUM_OVERLAYS << "x" << SPEC::MAX_OVERLAY_INSTANCES << " overlays_per_camera=" << SPEC::MAX_OVERLAYS_PER_CAMERA);
         float bbox_min[3] = {std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max()};
         float bbox_max[3] = {std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest()};
         for(const auto& instance : scene.instances){
@@ -1209,6 +1234,33 @@ namespace rl_tools {
         return add(device, pool, object);
     }
 
+    // Validation predicates for boundaries (language bindings, C interface) that must not trip
+    // the fail-fast asserts inside the verbs: check first, then call.
+    template <typename DEVICE, typename SPEC>
+    bool can_attach(DEVICE& device, const rendering::raytracing::Renderer<SPEC>& renderer, typename SPEC::TI camera, rendering::raytracing::OverlayIndex overlay){
+        static_assert(SPEC::ENABLE_OVERLAYS, "can_attach requires an overlay-enabled renderer specification");
+        using TI = typename SPEC::TI;
+        if(camera >= SPEC::NUM_CAMERAS || overlay.index >= SPEC::NUM_OVERLAYS){
+            return false;
+        }
+        const TI* row = &renderer.attachments[camera * SPEC::MAX_OVERLAYS_PER_CAMERA];
+        for(TI slot = 0; slot < SPEC::MAX_OVERLAYS_PER_CAMERA; slot++){
+            if(row[slot] == (TI)overlay.index || row[slot] == rendering::raytracing::Renderer<SPEC>::INVALID_OVERLAY){
+                return true;
+            }
+        }
+        return false;
+    }
+
+    template <typename DEVICE, typename SPEC>
+    bool can_spawn(DEVICE& device, const rendering::raytracing::Renderer<SPEC>& renderer, rendering::raytracing::OverlayIndex overlay, rendering::raytracing::AssetHandle asset){
+        static_assert(SPEC::ENABLE_OVERLAYS, "can_spawn requires an overlay-enabled renderer specification");
+        if(overlay.index >= SPEC::NUM_OVERLAYS || asset.index >= renderer.assets.size()){
+            return false;
+        }
+        return rendering::raytracing::detail::first_fit_slot<SPEC>(renderer, overlay.index, renderer.assets[asset.index].num_parts) < SPEC::MAX_OVERLAY_INSTANCES;
+    }
+
     // Overlay verbs mutate host-side truth on the renderer and mark it dirty; update(device,
     // renderer) is the single point where the backend consumes it. All bookkeeping is
     // deterministic: slot allocation is a first-fit scan, so identical call sequences yield
@@ -1263,15 +1315,7 @@ namespace rl_tools {
         auto& state = renderer.overlays[overlay.index];
         const auto& record = renderer.assets[asset.index];
 
-        TI first_slot = SPEC::MAX_OVERLAY_INSTANCES;
-        TI run = 0;
-        for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
-            run = state.slots[slot].active ? 0 : run + 1;
-            if(run == record.num_parts){
-                first_slot = slot + 1 - record.num_parts;
-                break;
-            }
-        }
+        const TI first_slot = rendering::raytracing::detail::first_fit_slot<SPEC>(renderer, overlay.index, record.num_parts);
         if(first_slot >= SPEC::MAX_OVERLAY_INSTANCES){
             utils::assert_exit(device, false, "spawn: overlay capacity exceeded");
             return {0, 0, 0};
@@ -1320,6 +1364,9 @@ namespace rl_tools {
     // global id layout: scene instances occupy [0, S); overlay o's slot s sits at S + o*CAP + s;
     // object indices count scene objects first, then each pool assembly's objects in
     // registration order. Returns nullptr for the miss sentinel and out-of-range ids.
+    // This layout is cross-backend API surface: the generic flat instance array, Metal's user-ID
+    // descriptors, and OptiX's user instance ids all realize it identically, and segmentation
+    // consumers depend on that equivalence — treat any change to it as breaking.
     template <typename DEVICE, typename SPEC>
     const rendering::raytracing::Object* segmentation_object(DEVICE& device, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool, const rendering::raytracing::Renderer<SPEC>& renderer, uint32_t id){
         if(id == 0xFFFFFFFFu){

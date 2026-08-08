@@ -15,17 +15,6 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     namespace rendering::raytracing{
 
-        enum class OutputMode {
-            RGB,
-            RGBD,
-            DEPTH,
-            // segmentation writes one uint32 instance index per pixel (miss = 0xFFFFFFFF), always
-            // single-sample from the shutter-close camera: labels cannot be averaged, so
-            // anti-aliasing and motion-blur settings do not apply to it
-            SEGMENTATION,
-            RGBD_SEGMENTATION
-        };
-
         template <
             bool T_LOAD_TEXTURES,
             bool T_NORMAL_SHADING,
@@ -55,27 +44,55 @@ namespace rl_tools {
         using VeryHighFidelityShading = VeryHigh;
         using FastFlatShading = Low;
 
-        template <typename T_T, typename T_TI, T_TI T_CAM_WIDTH, T_TI T_CAM_HEIGHT, T_TI T_NUM_CAMERAS, T_TI T_NUM_PROBES, typename T_SHADING = Medium, bool T_ENABLE_MOTION_BLUR = false, T_TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, T_TI T_ANTI_ALIASING_GRID_SIZE = 1, OutputMode T_OUTPUT_MODE = OutputMode::RGB, T_TI T_NUM_OVERLAYS = 0, T_TI T_MAX_OVERLAY_INSTANCES = 0, T_TI T_MAX_OVERLAYS_PER_CAMERA = 0>
+        namespace config{
+            // Fringe defaults only: the required geometry — CAM_WIDTH, CAM_HEIGHT, NUM_CAMERAS,
+            // NUM_PROBES — is deliberately absent from this base, so a missing (or misspelled)
+            // required member fails to compile instead of silently falling back to a default.
+            template <typename T_T, typename T_TI>
+            struct Default{
+                using T = T_T;
+                using TI = T_TI;
+                using SHADING = Medium;
+                static constexpr bool OUTPUT_RGB = true;
+                static constexpr bool OUTPUT_DEPTH = false;
+                // segmentation writes one uint32 instance index per pixel (miss = 0xFFFFFFFF),
+                // always single-sample from the shutter-close camera: labels cannot be averaged,
+                // so anti-aliasing and motion-blur settings do not apply to it
+                static constexpr bool OUTPUT_SEGMENTATION = false;
+                static constexpr bool SEMANTIC_SEGMENTATION = false;
+                static constexpr bool ENABLE_MOTION_BLUR = false;
+                static constexpr T_TI MOTION_BLUR_SAMPLES = 1;
+                static constexpr bool ENABLE_ANTI_ALIASING = false;
+                static constexpr T_TI ANTI_ALIASING_GRID_SIZE = 1;
+                static constexpr T_TI NUM_OVERLAYS = 0;
+                static constexpr T_TI MAX_OVERLAY_INSTANCES = 0;
+                static constexpr T_TI MAX_OVERLAYS_PER_CAMERA = 0;
+            };
+        }
+
+        template <typename T_CONFIG>
         struct Specification{
-            using T = T_T;
-            using TI = T_TI;
-            using SHADING = T_SHADING;
-            static constexpr OutputMode OUTPUT_MODE = T_OUTPUT_MODE;
-            static constexpr bool HAS_RGB = OUTPUT_MODE == OutputMode::RGB || OUTPUT_MODE == OutputMode::RGBD || OUTPUT_MODE == OutputMode::RGBD_SEGMENTATION;
-            static constexpr bool HAS_DEPTH = OUTPUT_MODE == OutputMode::RGBD || OUTPUT_MODE == OutputMode::DEPTH || OUTPUT_MODE == OutputMode::RGBD_SEGMENTATION;
-            static constexpr bool HAS_SEGMENTATION = OUTPUT_MODE == OutputMode::SEGMENTATION || OUTPUT_MODE == OutputMode::RGBD_SEGMENTATION;
+            using CONFIG = T_CONFIG;
+            using T = typename CONFIG::T;
+            using TI = typename CONFIG::TI;
+            using SHADING = typename CONFIG::SHADING;
+            static constexpr bool HAS_RGB = CONFIG::OUTPUT_RGB;
+            static constexpr bool HAS_DEPTH = CONFIG::OUTPUT_DEPTH;
+            static constexpr bool HAS_SEGMENTATION = CONFIG::OUTPUT_SEGMENTATION;
             static constexpr bool ENABLE_DEPTH = HAS_DEPTH;
             static constexpr bool ENABLE_RGB = HAS_RGB;
-            static constexpr TI CAM_WIDTH = T_CAM_WIDTH;
-            static constexpr TI CAM_HEIGHT = T_CAM_HEIGHT;
-            static constexpr TI NUM_CAMERAS = T_NUM_CAMERAS;
-            static constexpr TI NUM_PROBES = T_NUM_PROBES;
-            static constexpr TI MOTION_BLUR_SAMPLES = T_MOTION_BLUR_SAMPLES;
-            static constexpr bool ENABLE_MOTION_BLUR = T_ENABLE_MOTION_BLUR && MOTION_BLUR_SAMPLES > 1;
+            static constexpr TI CAM_WIDTH = CONFIG::CAM_WIDTH;
+            static constexpr TI CAM_HEIGHT = CONFIG::CAM_HEIGHT;
+            static constexpr TI NUM_CAMERAS = CONFIG::NUM_CAMERAS;
+            static constexpr TI NUM_PROBES = CONFIG::NUM_PROBES;
+            static_assert(CAM_WIDTH > 0 && CAM_HEIGHT > 0 && NUM_CAMERAS > 0, "camera geometry must be nonzero");
+            static_assert(HAS_RGB || HAS_DEPTH || HAS_SEGMENTATION || NUM_PROBES > 0, "the renderer must produce at least one output (an image target or collision probes)");
+            static constexpr TI MOTION_BLUR_SAMPLES = CONFIG::MOTION_BLUR_SAMPLES;
+            static constexpr bool ENABLE_MOTION_BLUR = CONFIG::ENABLE_MOTION_BLUR && MOTION_BLUR_SAMPLES > 1;
             static_assert(MOTION_BLUR_SAMPLES >= 1, "MOTION_BLUR_SAMPLES must be at least 1");
             static_assert(!ENABLE_MOTION_BLUR || MOTION_BLUR_SAMPLES == 2 || MOTION_BLUR_SAMPLES == 4 || MOTION_BLUR_SAMPLES == 8 || MOTION_BLUR_SAMPLES == 16 || MOTION_BLUR_SAMPLES == 32, "MOTION_BLUR_SAMPLES must be one of 2, 4, 8, 16, or 32");
-            static constexpr TI ANTI_ALIASING_GRID_SIZE = T_ANTI_ALIASING_GRID_SIZE;
-            static constexpr bool ENABLE_ANTI_ALIASING = T_ENABLE_ANTI_ALIASING && ANTI_ALIASING_GRID_SIZE > 1;
+            static constexpr TI ANTI_ALIASING_GRID_SIZE = CONFIG::ANTI_ALIASING_GRID_SIZE;
+            static constexpr bool ENABLE_ANTI_ALIASING = CONFIG::ENABLE_ANTI_ALIASING && ANTI_ALIASING_GRID_SIZE > 1;
             static constexpr TI ANTI_ALIASING_SAMPLES = ENABLE_ANTI_ALIASING ? ANTI_ALIASING_GRID_SIZE * ANTI_ALIASING_GRID_SIZE : 1;
             static constexpr TI RGB_SAMPLES = (ENABLE_MOTION_BLUR ? MOTION_BLUR_SAMPLES : 1) * ANTI_ALIASING_SAMPLES;
             static constexpr TI DEPTH_SAMPLES = RGB_SAMPLES;
@@ -93,10 +110,12 @@ namespace rl_tools {
             static constexpr T BENCHMARK_SECONDS = 10.0;
             static constexpr T COS_FOVY = 1.3962634015954636;
             // dynamic overlays: per-camera dynamic content composed onto the static shared world
-            static constexpr TI NUM_OVERLAYS = T_NUM_OVERLAYS;
-            static constexpr TI MAX_OVERLAY_INSTANCES = T_MAX_OVERLAY_INSTANCES;
-            static constexpr TI MAX_OVERLAYS_PER_CAMERA = T_MAX_OVERLAYS_PER_CAMERA;
+            static constexpr TI NUM_OVERLAYS = CONFIG::NUM_OVERLAYS;
+            static constexpr TI MAX_OVERLAY_INSTANCES = CONFIG::MAX_OVERLAY_INSTANCES;
+            static constexpr TI MAX_OVERLAYS_PER_CAMERA = CONFIG::MAX_OVERLAYS_PER_CAMERA;
             static constexpr bool ENABLE_OVERLAYS = NUM_OVERLAYS > 0 && MAX_OVERLAY_INSTANCES > 0 && MAX_OVERLAYS_PER_CAMERA > 0;
+            static constexpr bool SEMANTIC_SEGMENTATION = CONFIG::SEMANTIC_SEGMENTATION; // segmentation output carries Object::segmentation_class instead of the instance id
+            static_assert(!SEMANTIC_SEGMENTATION || HAS_SEGMENTATION, "SEMANTIC_SEGMENTATION requires OUTPUT_SEGMENTATION");
             static_assert(ENABLE_OVERLAYS || (NUM_OVERLAYS == 0 && MAX_OVERLAY_INSTANCES == 0 && MAX_OVERLAYS_PER_CAMERA == 0), "overlay constants must be all zero (disabled) or all nonzero");
         };
 

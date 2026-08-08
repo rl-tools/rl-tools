@@ -31,6 +31,8 @@ namespace rl_tools {
             std::vector<BVHNode<T, TI>> tlas_nodes;
             std::vector<TI> tlas_primitives;
             TI num_scene_instances = 0;
+            std::vector<unsigned int> object_classes;   // per global object
+            std::vector<unsigned int> instance_classes; // per global instance id
             std::vector<OverlayView<T, TI>> overlay_views;
             std::vector<BVHNode<T, TI>> overlay_tlas_nodes;    // one 2*CAP slice per overlay
             std::vector<TI> overlay_tlas_primitives;           // one CAP slice per overlay (global instance ids)
@@ -192,6 +194,11 @@ namespace rl_tools {
             rendering::raytracing::detail::register_pool_assets(device, renderer, pool, all_objects);
         }
 
+        backend_state.object_classes.clear();
+        for(const auto* object_pointer : all_objects){
+            backend_state.object_classes.push_back(object_pointer->segmentation_class);
+        }
+
         backend_state.meshes.clear();
         backend_state.triangle_mesh.clear();
         backend_state.triangle_local.clear();
@@ -303,6 +310,7 @@ namespace rl_tools {
             }
             inactive_slot.object = 0;
             inactive_slot.identity = true;
+            // flat array position == global instance id (contract: segmentation_object, operations_cpu_common.h)
             backend_state.instances.resize(backend_state.num_scene_instances + (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES, inactive_slot);
             const size_t bounds_size = 3 * backend_state.instances.size();
             backend_state.overlay_bounds_min.resize(bounds_size);
@@ -310,6 +318,11 @@ namespace rl_tools {
             backend_state.overlay_centroids.resize(bounds_size);
             rendering::raytracing::detail::reset_overlay_state(renderer);
         }
+        backend_state.instance_classes.assign(backend_state.instances.size(), 0);
+        for(TI instance_i = 0; instance_i < backend_state.num_scene_instances; instance_i++){
+            backend_state.instance_classes[instance_i] = backend_state.object_classes[backend_state.instances[instance_i].object];
+        }
+        backend_state.scene.instance_classes = backend_state.instance_classes.data();
         backend_state.scene.instances = backend_state.instances.data();
         backend_state.scene.num_instances = (TI)backend_state.instances.size();
 
@@ -411,6 +424,7 @@ namespace rl_tools {
                     backend_state.overlay_bounds_max[3 * (size_t)global + axis] = bounds_max[axis];
                     backend_state.overlay_centroids[3 * (size_t)global + axis] = (bounds_min[axis] + bounds_max[axis]) * (T)0.5;
                 }
+                backend_state.instance_classes[global] = backend_state.object_classes[host_slot.object];
                 primitives[num_active++] = global;
             }
             backend_state.overlay_views[overlay].num_tlas_nodes = generic::build_bvh_nodes(
@@ -506,108 +520,20 @@ namespace rl_tools {
 #endif
     }
 
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB, "render_rgb_only requires an RGB-capable renderer specification");
-        namespace generic = rendering::raytracing::backends::generic;
-        generic::render_frame<DEVICE, SPEC, generic::OutputRGB>(device, generic::state(renderer).scene);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB, "render_rgb_only requires an RGB-capable renderer specification");
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_rgb_only_launch(device, renderer);
-        render_rgb_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_depth_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_DEPTH, "render_depth_only requires a depth-capable renderer specification");
-        namespace generic = rendering::raytracing::backends::generic;
-        generic::render_frame<DEVICE, SPEC, generic::OutputDepth>(device, generic::state(renderer).scene);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_depth_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_DEPTH, "render_depth_only requires a depth-capable renderer specification");
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_depth_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_depth_only_launch(device, renderer);
-        render_depth_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_segmentation_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_SEGMENTATION, "render_segmentation_only requires a segmentation-capable renderer specification");
-        namespace generic = rendering::raytracing::backends::generic;
-        generic::render_segmentation_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_segmentation_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_SEGMENTATION, "render_segmentation_only requires a segmentation-capable renderer specification");
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_segmentation_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_segmentation_only_launch(device, renderer);
-        render_segmentation_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_depth_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB && SPEC::HAS_DEPTH, "render_rgb_depth_only requires an RGBD renderer specification");
-        render_rgb_only_launch(device, renderer);
-        render_depth_only_launch(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_depth_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB && SPEC::HAS_DEPTH, "render_rgb_depth_only requires an RGBD renderer specification");
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_rgb_depth_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_rgb_depth_only_launch(device, renderer);
-        render_rgb_depth_only_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_collision_only_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        namespace generic = rendering::raytracing::backends::generic;
-        if(renderer.backend.collision_ray_gen != nullptr){
-            generic::render_collision<DEVICE, SPEC>(device, generic::state(renderer).scene);
-        }
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_collision_only_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void render_collision_only(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_collision_only_launch(device, renderer);
-        render_collision_only_sync(device, renderer);
-    }
-
+    // render produces the image outputs the spec declares; the collision-probe pass is the
+    // separate probe verb so it can be scheduled independently (e.g. alongside update)
     template <typename DEVICE, typename SPEC>
     void render_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        namespace generic = rendering::raytracing::backends::generic;
         if constexpr (SPEC::HAS_RGB) {
-            render_rgb_only_launch(device, renderer);
+            generic::render_frame<DEVICE, SPEC, generic::OutputRGB>(device, generic::state(renderer).scene);
         }
         if constexpr (SPEC::HAS_DEPTH) {
-            render_depth_only_launch(device, renderer);
+            generic::render_frame<DEVICE, SPEC, generic::OutputDepth>(device, generic::state(renderer).scene);
         }
         if constexpr (SPEC::HAS_SEGMENTATION) {
-            render_segmentation_only_launch(device, renderer);
+            generic::render_segmentation_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
         }
-        render_collision_only_launch(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -620,10 +546,22 @@ namespace rl_tools {
         render_sync(device, renderer);
     }
 
-    template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
-    void render_rgb_only_async(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
-        set_cameras_async(device, renderer, cameras);
-        render_rgb_only_launch(device, renderer);
+    template <typename DEVICE, typename SPEC>
+    void probe_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        namespace generic = rendering::raytracing::backends::generic;
+        if(renderer.backend.collision_ray_gen != nullptr){
+            generic::render_collision<DEVICE, SPEC>(device, generic::state(renderer).scene);
+        }
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void probe_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void probe(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        probe_launch(device, renderer);
+        probe_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC, typename FB_SPEC>

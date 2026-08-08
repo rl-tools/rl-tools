@@ -29,12 +29,13 @@ using DEVICE = rlt::devices::DefaultCPU;
 using T = float;
 using TI = typename DEVICE::index_t;
 using rlt::rendering::raytracing::OverlayIndex;
-using rlt::rendering::raytracing::OverlayRange;
-static_assert(OverlayRange{2, 3}[1].index == 3, "range indexing is base + offset");
-static_assert(OverlayRange{2, 3}.end() == 5, "chained layouts derive NUM_OVERLAYS from the last end()");
 
 namespace {
-    using SPEC = rlt::rendering::raytracing::Specification<T, TI, 16, 16, 1, 4, rlt::rendering::raytracing::Low>;
+    struct SPEC_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+        static constexpr TI CAM_WIDTH = 16, CAM_HEIGHT = 16, NUM_CAMERAS = 1, NUM_PROBES = 4;
+        using SHADING = rlt::rendering::raytracing::Low;
+    };
+    using SPEC = rlt::rendering::raytracing::Specification<SPEC_CONFIG>;
     using Renderer = rlt::rendering::raytracing::Renderer<SPEC>;
 
     rlt::rendering::raytracing::Mesh make_cube(T center_x, T half_extent){
@@ -79,8 +80,18 @@ namespace {
     }
 
     // 1x1: the single pixel's ray is exactly the optical axis (dir_00 + 0.5 du + 0.5 dv)
-    using DEPTH_SPEC = rlt::rendering::raytracing::Specification<T, TI, 1, 1, 1, 4, rlt::rendering::raytracing::Low, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::DEPTH>;
-    using PBR_SPEC = rlt::rendering::raytracing::Specification<T, TI, 32, 32, 1, 4, rlt::rendering::raytracing::VeryHigh>;
+    struct DEPTH_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+        static constexpr TI CAM_WIDTH = 1, CAM_HEIGHT = 1, NUM_CAMERAS = 1, NUM_PROBES = 4;
+        using SHADING = rlt::rendering::raytracing::Low;
+        static constexpr bool OUTPUT_RGB = false;
+        static constexpr bool OUTPUT_DEPTH = true;
+    };
+    using DEPTH_SPEC = rlt::rendering::raytracing::Specification<DEPTH_CONFIG>;
+    struct PBR_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+        static constexpr TI CAM_WIDTH = 32, CAM_HEIGHT = 32, NUM_CAMERAS = 1, NUM_PROBES = 4;
+        using SHADING = rlt::rendering::raytracing::VeryHigh;
+    };
+    using PBR_SPEC = rlt::rendering::raytracing::Specification<PBR_CONFIG>;
 
     template <typename RENDERER_SPEC>
     float render_center_depth(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC>& renderer){
@@ -376,6 +387,20 @@ TEST(RL_TOOLS_SCENE_SUITE, OBJECT_LIGHT_FOLLOWS_INSTANCE){
     rlt::free(device, renderer);
 }
 
+struct SPLIT_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+    static constexpr TI CAM_WIDTH = 128, CAM_HEIGHT = 128, NUM_CAMERAS = 1, NUM_PROBES = 4;
+    using SHADING = rlt::rendering::raytracing::VeryHigh;
+};
+using SPLIT_SPEC = rlt::rendering::raytracing::Specification<SPLIT_CONFIG>;
+
+struct SEGMENTATION_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+    static constexpr TI CAM_WIDTH = 32, CAM_HEIGHT = 32, NUM_CAMERAS = 1, NUM_PROBES = 4;
+    using SHADING = rlt::rendering::raytracing::Low;
+    static constexpr bool OUTPUT_RGB = false;
+    static constexpr bool OUTPUT_SEGMENTATION = true;
+};
+using SEGMENTATION_SPEC = rlt::rendering::raytracing::Specification<SEGMENTATION_CONFIG>;
+
 TEST(RL_TOOLS_SCENE_SUITE, SPLIT_VS_WELDED){
     DEVICE device;
     rlt::init(device);
@@ -388,7 +413,6 @@ TEST(RL_TOOLS_SCENE_SUITE, SPLIT_VS_WELDED){
         GTEST_SKIP() << "scene file not found (run from the repo root): " << scene_path;
     }
 
-    using SPLIT_SPEC = rlt::rendering::raytracing::Specification<T, TI, 128, 128, 1, 4, rlt::rendering::raytracing::VeryHigh>;
     rlt::rendering::raytracing::Renderer<SPLIT_SPEC> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
@@ -434,7 +458,6 @@ TEST(RL_TOOLS_SCENE_SUITE, SPLIT_VS_WELDED){
 }
 
 namespace {
-    using SEGMENTATION_SPEC = rlt::rendering::raytracing::Specification<T, TI, 32, 32, 1, 4, rlt::rendering::raytracing::Low, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::SEGMENTATION>;
 
     template <typename RENDERER_SPEC>
     std::vector<uint32_t> render_segmentation_pixels(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC>& renderer, const T position[3], const T look_at[3]){
@@ -607,10 +630,18 @@ namespace {
     }
 }
 
+struct OVERLAY_SEG_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+    static constexpr TI CAM_WIDTH = 32, CAM_HEIGHT = 32, NUM_CAMERAS = 2, NUM_PROBES = 4;
+    using SHADING = rlt::rendering::raytracing::Low;
+    static constexpr bool OUTPUT_RGB = false;
+    static constexpr bool OUTPUT_SEGMENTATION = true;
+    static constexpr TI NUM_OVERLAYS = 2, MAX_OVERLAY_INSTANCES = 8, MAX_OVERLAYS_PER_CAMERA = 2;
+};
+using OVERLAY_SEG_SPEC = rlt::rendering::raytracing::Specification<OVERLAY_SEG_CONFIG>;
+
 TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_ATTACHMENT_SCOPES){
     DEVICE device;
     rlt::init(device);
-    using OVERLAY_SEG_SPEC = rlt::rendering::raytracing::Specification<T, TI, 32, 32, 2, 4, rlt::rendering::raytracing::Low, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::SEGMENTATION, 2, 8, 2>;
 
     rlt::rendering::raytracing::Scene scene;
     rlt::add(device, scene, make_cube(0, 1)); // shared world: global instance id 0
@@ -623,10 +654,13 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_ATTACHMENT_SCOPES){
     rlt::generate_probe_directions(device, renderer);
     rlt::init(device, renderer, scene, pool);
 
+    EXPECT_TRUE(rlt::can_attach(device, renderer, (TI)0, OverlayIndex{0}));
+    EXPECT_FALSE(rlt::can_attach(device, renderer, (TI)0, OverlayIndex{5})); // out of range
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0}); // overlay 0: camera 0 only (per-agent)
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0}); // idempotent: must not consume the second slot
     rlt::attach(device, renderer, (TI)0, OverlayIndex{1}); // overlay 1: both cameras (shared)
     rlt::attach(device, renderer, (TI)1, OverlayIndex{1});
+    EXPECT_TRUE(rlt::can_attach(device, renderer, (TI)0, OverlayIndex{1})); // already attached: idempotent re-attach allowed
 
     float transform[12];
     const float orientation_wxyz[4] = {1, 0, 0, 0};
@@ -683,10 +717,73 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_ATTACHMENT_SCOPES){
     rlt::free(device, renderer);
 }
 
+struct SEMANTIC_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+    static constexpr TI CAM_WIDTH = 32, CAM_HEIGHT = 32, NUM_CAMERAS = 1, NUM_PROBES = 4;
+    using SHADING = rlt::rendering::raytracing::Low;
+    static constexpr bool OUTPUT_RGB = false;
+    static constexpr bool OUTPUT_SEGMENTATION = true;
+    static constexpr TI NUM_OVERLAYS = 1, MAX_OVERLAY_INSTANCES = 8, MAX_OVERLAYS_PER_CAMERA = 1;
+    static constexpr bool SEMANTIC_SEGMENTATION = true;
+};
+using SEMANTIC_SPEC = rlt::rendering::raytracing::Specification<SEMANTIC_CONFIG>;
+
+TEST(RL_TOOLS_SCENE_SUITE, SEMANTIC_SEGMENTATION){
+    DEVICE device;
+    rlt::init(device);
+
+    rlt::rendering::raytracing::Scene scene;
+    rlt::add(device, scene, make_cube(0, 1)); // instance id 0
+    scene.objects[0].segmentation_class = 7;
+    rlt::rendering::raytracing::AssetPool pool;
+    const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
+    pool.assemblies[cube_asset.index].objects[0].segmentation_class = 3;
+
+    rlt::rendering::raytracing::Renderer<SEMANTIC_SPEC> renderer;
+    rlt::malloc(device, renderer);
+    rlt::generate_probe_directions(device, renderer);
+    rlt::init(device, renderer, scene, pool);
+    rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
+
+    float transform[12];
+    const float orientation_wxyz[4] = {1, 0, 0, 0};
+    const float position[3] = {0, 3, 0};
+    rlt::make_transform(position, orientation_wxyz, transform);
+    rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, transform); // instance id 1
+    rlt::update(device, renderer);
+
+    const T camera_position[3] = {-8, 0, 0};
+    const T look_at[3] = {0, 0, 0};
+    set_same_pose_cameras(device, renderer, camera_position, look_at);
+    rlt::render(device, renderer);
+    rlt::synchronize(device, renderer);
+    rlt::read_segmentation_buffer(device, renderer, renderer.segmentation_buffer);
+    const uint32_t* segmentation = rlt::data(renderer.segmentation_buffer);
+
+    size_t scene_class_count = 0, overlay_class_count = 0, raw_instance_id_count = 0;
+    for(TI pixel_i = 0; pixel_i < SEMANTIC_SPEC::CAM_PIXELS; pixel_i++){
+        scene_class_count += segmentation[pixel_i] == 7u;
+        overlay_class_count += segmentation[pixel_i] == 3u;
+        raw_instance_id_count += segmentation[pixel_i] == 0u || segmentation[pixel_i] == 1u;
+    }
+    EXPECT_GT(scene_class_count, (size_t)0);   // scene cube reports its class, not id 0
+    EXPECT_GT(overlay_class_count, (size_t)0); // overlay cube reports its class, not id 1
+    EXPECT_EQ(raw_instance_id_count, (size_t)0);
+
+    rlt::free(device, renderer);
+}
+
+struct OVERLAY_DEPTH_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+    static constexpr TI CAM_WIDTH = 1, CAM_HEIGHT = 1, NUM_CAMERAS = 1, NUM_PROBES = 4;
+    using SHADING = rlt::rendering::raytracing::Low;
+    static constexpr bool OUTPUT_RGB = false;
+    static constexpr bool OUTPUT_DEPTH = true;
+    static constexpr TI NUM_OVERLAYS = 1, MAX_OVERLAY_INSTANCES = 8, MAX_OVERLAYS_PER_CAMERA = 1;
+};
+using OVERLAY_DEPTH_SPEC = rlt::rendering::raytracing::Specification<OVERLAY_DEPTH_CONFIG>;
+
 TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SPIN_DYNAMIC){
     DEVICE device;
     rlt::init(device);
-    using OVERLAY_DEPTH_SPEC = rlt::rendering::raytracing::Specification<T, TI, 1, 1, 1, 4, rlt::rendering::raytracing::Low, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::DEPTH, 1, 8, 1>;
 
     rlt::rendering::raytracing::ObjectAssembly blade_assembly;
     {
@@ -744,10 +841,16 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SPIN_DYNAMIC){
     rlt::free(device, renderer);
 }
 
+struct OVERLAY_RGB_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+    static constexpr TI CAM_WIDTH = 32, CAM_HEIGHT = 32, NUM_CAMERAS = 1, NUM_PROBES = 4;
+    using SHADING = rlt::rendering::raytracing::Low;
+    static constexpr TI NUM_OVERLAYS = 1, MAX_OVERLAY_INSTANCES = 8, MAX_OVERLAYS_PER_CAMERA = 1;
+};
+using OVERLAY_RGB_SPEC = rlt::rendering::raytracing::Specification<OVERLAY_RGB_CONFIG>;
+
 TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SPAWN_DESPAWN){
     DEVICE device;
     rlt::init(device);
-    using OVERLAY_RGB_SPEC = rlt::rendering::raytracing::Specification<T, TI, 32, 32, 1, 4, rlt::rendering::raytracing::Low, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::RGB, 1, 8, 1>;
 
     auto scene = make_far_anchor_scene(device);
     rlt::rendering::raytracing::AssetPool pool;
@@ -770,12 +873,15 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SPAWN_DESPAWN){
         placements[spawn_i] = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, transform);
         EXPECT_EQ(placements[spawn_i].first_slot, (size_t)spawn_i); // deterministic first-fit
     }
+    EXPECT_FALSE(rlt::can_spawn(device, renderer, OverlayIndex{0}, cube_asset)); // capacity exhausted
     rlt::update(device, renderer);
     const T camera_position[3] = {-8, 0, 0};
     const T look_at[3] = {0, 0, 0};
     std::vector<uint32_t> full;
     render_pixels(device, renderer, camera_position, look_at, full);
     rlt::despawn(device, renderer, OverlayIndex{0}, placements[3]);
+    EXPECT_TRUE(rlt::can_spawn(device, renderer, OverlayIndex{0}, cube_asset)); // hole reopened
+    EXPECT_FALSE(rlt::can_spawn(device, renderer, OverlayIndex{0}, rlt::rendering::raytracing::AssetHandle{99})); // bad handle
     rlt::update(device, renderer);
     std::vector<uint32_t> with_hole;
     render_pixels(device, renderer, camera_position, look_at, with_hole);
@@ -795,10 +901,16 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SPAWN_DESPAWN){
     rlt::free(device, renderer);
 }
 
+struct OVERLAY_PBR_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+    static constexpr TI CAM_WIDTH = 32, CAM_HEIGHT = 32, NUM_CAMERAS = 2, NUM_PROBES = 4;
+    using SHADING = rlt::rendering::raytracing::VeryHigh;
+    static constexpr TI NUM_OVERLAYS = 1, MAX_OVERLAY_INSTANCES = 8, MAX_OVERLAYS_PER_CAMERA = 1;
+};
+using OVERLAY_PBR_SPEC = rlt::rendering::raytracing::Specification<OVERLAY_PBR_CONFIG>;
+
 TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SECONDARY_RAYS){
     DEVICE device;
     rlt::init(device);
-    using OVERLAY_PBR_SPEC = rlt::rendering::raytracing::Specification<T, TI, 32, 32, 2, 4, rlt::rendering::raytracing::VeryHigh, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::RGB, 1, 8, 1>;
 
     rlt::rendering::raytracing::Scene scene;
     {
@@ -846,10 +958,16 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SECONDARY_RAYS){
     rlt::free(device, renderer);
 }
 
+struct OVERLAY_PROBE_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+    static constexpr TI CAM_WIDTH = 4, CAM_HEIGHT = 4, NUM_CAMERAS = 2, NUM_PROBES = 4;
+    using SHADING = rlt::rendering::raytracing::Low;
+    static constexpr TI NUM_OVERLAYS = 1, MAX_OVERLAY_INSTANCES = 8, MAX_OVERLAYS_PER_CAMERA = 1;
+};
+using OVERLAY_PROBE_SPEC = rlt::rendering::raytracing::Specification<OVERLAY_PROBE_CONFIG>;
+
 TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_PROBES){
     DEVICE device;
     rlt::init(device);
-    using OVERLAY_PROBE_SPEC = rlt::rendering::raytracing::Specification<T, TI, 4, 4, 2, 4, rlt::rendering::raytracing::Low, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::RGB, 1, 8, 1>;
 
     auto scene = make_far_anchor_scene(device);
     rlt::rendering::raytracing::AssetPool pool;
@@ -872,6 +990,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_PROBES){
     const T look_at[3] = {-1, 0, 0};
     set_same_pose_cameras(device, renderer, camera_position, look_at);
     rlt::render(device, renderer);
+    rlt::probe(device, renderer);
     rlt::synchronize(device, renderer);
     const auto* probes = rlt::read_collision_results_raw(device, renderer);
     ASSERT_NE(probes, nullptr);
@@ -882,10 +1001,16 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_PROBES){
     rlt::free(device, renderer);
 }
 
+struct OVERLAY_MANY_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+    static constexpr TI CAM_WIDTH = 4, CAM_HEIGHT = 4, NUM_CAMERAS = 1, NUM_PROBES = 4;
+    using SHADING = rlt::rendering::raytracing::Low;
+    static constexpr TI NUM_OVERLAYS = 64, MAX_OVERLAY_INSTANCES = 8, MAX_OVERLAYS_PER_CAMERA = 1;
+};
+using OVERLAY_MANY_SPEC = rlt::rendering::raytracing::Specification<OVERLAY_MANY_CONFIG>;
+
 TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_UPDATE_COST_SMOKE){
     DEVICE device;
     rlt::init(device);
-    using OVERLAY_MANY_SPEC = rlt::rendering::raytracing::Specification<T, TI, 4, 4, 1, 4, rlt::rendering::raytracing::Low, false, 1, false, 1, rlt::rendering::raytracing::OutputMode::RGB, 64, 8, 1>;
 
     auto scene = make_far_anchor_scene(device);
     rlt::rendering::raytracing::AssetPool pool;
@@ -934,8 +1059,8 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_UPDATE_COST_SMOKE){
             rlt::set_transform(device, renderer, OverlayIndex{overlay}, placements[overlay][0], (TI)0, transform);
         }
         rlt::update_launch(device, renderer);
-        rlt::render_rgb_only_launch(device, renderer);
-        rlt::render_rgb_only_sync(device, renderer);
+        rlt::render_launch(device, renderer);
+        rlt::render_sync(device, renderer);
     }
     const auto async_end = std::chrono::steady_clock::now();
     const double async_ms_per_step = std::chrono::duration<double, std::milli>(async_end - async_start).count() / (double)STEPS;

@@ -1535,7 +1535,7 @@ int main(int argc, char** argv){
                 cudaMemcpyAsync(camera_open_buffer, gpu_validation_cameras, VALIDATION_BATCH_SIZE * sizeof(CAMERA_DATA), cudaMemcpyDeviceToDevice, optix_stream);
             }
             cudaMemcpyAsync(camera_buffer, gpu_validation_cameras, VALIDATION_BATCH_SIZE * sizeof(CAMERA_DATA), cudaMemcpyDeviceToDevice, optix_stream);
-            rlt::render_rgb_only_launch(device, *renderer);
+            rlt::render_launch(device, *renderer);
             {
                 int total_scatter = VALIDATION_BATCH_SIZE * CAM_PIXELS;
                 int pf_block = 256;
@@ -1558,7 +1558,7 @@ int main(int argc, char** argv){
                 cudaMemcpyAsync(camera_open_buffer, gpu_validation_target_cameras, VALIDATION_BATCH_SIZE * sizeof(CAMERA_DATA), cudaMemcpyDeviceToDevice, optix_stream);
             }
             cudaMemcpyAsync(camera_buffer, gpu_validation_target_cameras, VALIDATION_BATCH_SIZE * sizeof(CAMERA_DATA), cudaMemcpyDeviceToDevice, optix_stream);
-            rlt::render_rgb_only_launch(device, *renderer);
+            rlt::render_launch(device, *renderer);
             {
                 int total_scatter = VALIDATION_BATCH_SIZE * CAM_PIXELS;
                 int pf_block = 256;
@@ -1924,7 +1924,7 @@ int main(int argc, char** argv){
                     if(step_i % RENDER_TIMING_SAMPLE_PERIOD == 0){
                         cudaEventRecord(render_pass_start_events[event_i], optix_stream);
                     }
-                    rlt::render_rgb_only_launch(device, renderer);
+                    rlt::render_launch(device, renderer);
                     if(step_i % RENDER_TIMING_SAMPLE_PERIOD == 0){
                         cudaEventRecord(render_pass_stop_events[event_i], optix_stream);
                     }
@@ -1990,7 +1990,7 @@ int main(int argc, char** argv){
                     if(step_i % RENDER_TIMING_SAMPLE_PERIOD == 0){
                         cudaEventRecord(target_render_pass_start_events[event_i], optix_stream);
                     }
-                    rlt::render_rgb_only_launch(device, renderer);
+                    rlt::render_launch(device, renderer);
                     if(step_i % RENDER_TIMING_SAMPLE_PERIOD == 0){
                         cudaEventRecord(target_render_pass_stop_events[event_i], optix_stream);
                     }

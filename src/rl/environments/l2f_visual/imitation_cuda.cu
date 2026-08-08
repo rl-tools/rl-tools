@@ -1616,7 +1616,7 @@ int main(int argc, char** argv){
                     if(step_i % RENDER_TIMING_SAMPLE_PERIOD == 0){
                         cudaEventRecord(render_pass_start_events[event_i], optix_stream);
                     }
-                    rlt::render_rgb_only_launch(device, renderer);
+                    rlt::render_launch(device, renderer);
                     if(step_i % RENDER_TIMING_SAMPLE_PERIOD == 0){
                         cudaEventRecord(render_pass_stop_events[event_i], optix_stream);
                     }
@@ -1682,7 +1682,7 @@ int main(int argc, char** argv){
                     if(step_i % RENDER_TIMING_SAMPLE_PERIOD == 0){
                         cudaEventRecord(target_render_pass_start_events[event_i], optix_stream);
                     }
-                    rlt::render_rgb_only_launch(device, renderer);
+                    rlt::render_launch(device, renderer);
                     if(step_i % RENDER_TIMING_SAMPLE_PERIOD == 0){
                         cudaEventRecord(target_render_pass_stop_events[event_i], optix_stream);
                     }
