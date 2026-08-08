@@ -63,6 +63,7 @@ namespace {
         static constexpr TI MAX_OVERLAY_INSTANCES = 0;
         static constexpr TI MAX_OVERLAYS_PER_CAMERA = 0;
         static constexpr bool ENABLE_OVERLAYS = false;
+        static constexpr bool SEMANTIC_SEGMENTATION = false;
     };
 
     struct CubeScene{

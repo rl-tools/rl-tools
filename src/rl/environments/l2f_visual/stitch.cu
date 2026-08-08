@@ -914,7 +914,7 @@ int main(int argc, char** argv) {
                 cudaMemcpyDeviceToDevice,
                 stream
             );
-            rlt::render_rgb_only_launch(device, *renderers[scene_i]);
+            rlt::render_launch(device, *renderers[scene_i]);
             stitch_kernels::scatter_scene_framebuffer_kernel<<<SCATTER_BLOCKS, BLOCK, 0, stream>>>(
                 scene_framebuffers[scene_i],
                 gpu_mosaic,

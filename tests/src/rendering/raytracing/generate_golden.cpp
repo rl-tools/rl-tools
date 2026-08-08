@@ -64,6 +64,7 @@ bool run_case(DEVICE& device, const char* name, bool write_probes) {
     }
     rlt::generate_probe_directions(device, renderer);
     rlt::render(device, renderer);
+        rlt::probe(device, renderer);
     cudaDeviceSynchronize();
 
     bool ok = true;

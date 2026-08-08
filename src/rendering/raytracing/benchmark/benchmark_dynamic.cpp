@@ -78,10 +78,7 @@ static constexpr const char* BACKEND_NAME = "vulkan";
 static constexpr const char* BACKEND_NAME = "generic";
 #endif
 
-static constexpr auto OUTPUT_MODE =
-    RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_DYNAMIC_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
-        ? rlt::rendering::raytracing::OutputMode::RGBD
-        : rlt::rendering::raytracing::OutputMode::RGB;
+static constexpr bool OUTPUT_DEPTH_ENABLED = RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_DYNAMIC_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD;
 static constexpr TI NUM_CAMERAS = RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_DYNAMIC_NUM_CAMERAS;
 static constexpr TI NUM_PROBES = 64;
 static constexpr TI AA_GRID = RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_DYNAMIC_AA_GRID;
@@ -91,10 +88,18 @@ static constexpr bool ENABLE_AA = AA_GRID > 1;
 static constexpr bool CONSUME = RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_DYNAMIC_CONSUME != 0;
 static constexpr TI TILE = RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_DYNAMIC_TILE;
 
-using SPEC = rlt::rendering::raytracing::Specification<T, TI,
-    RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_DYNAMIC_WIDTH,
-    RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_DYNAMIC_HEIGHT,
-    NUM_CAMERAS, NUM_PROBES, SHADING, ENABLE_MB, MB_SAMPLES, ENABLE_AA, AA_GRID, OUTPUT_MODE>;
+struct CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+    static constexpr TI CAM_WIDTH = RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_DYNAMIC_WIDTH;
+    static constexpr TI CAM_HEIGHT = RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_DYNAMIC_HEIGHT;
+    static constexpr TI NUM_CAMERAS = ::NUM_CAMERAS, NUM_PROBES = ::NUM_PROBES;
+    using SHADING = ::SHADING;
+    static constexpr bool OUTPUT_DEPTH = OUTPUT_DEPTH_ENABLED;
+    static constexpr bool ENABLE_MOTION_BLUR = ENABLE_MB;
+    static constexpr TI MOTION_BLUR_SAMPLES = MB_SAMPLES;
+    static constexpr bool ENABLE_ANTI_ALIASING = ENABLE_AA;
+    static constexpr TI ANTI_ALIASING_GRID_SIZE = AA_GRID;
+};
+using SPEC = rlt::rendering::raytracing::Specification<CONFIG>;
 using SCENE_SPEC = rlt::rendering::raytracing::scene::SceneSpecification<T, TI, 512>;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using Camera = rlt::rendering::raytracing::Camera<T>;
@@ -284,7 +289,7 @@ int main(int ac, char** av){
             rlt::set(device, renderer.cameras, rlt::make_camera_data(from[camera_i].v, to[camera_i].v, up, FOV, ASPECT), camera_i);
         }
         rlt::set_cameras(device, renderer, renderer.cameras);
-        rlt::render_collision_only(device, renderer);
+        rlt::probe(device, renderer);
         const auto* probe_results = rlt::read_collision_results_raw(device, renderer);
         for(TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++){
             T delta[3];

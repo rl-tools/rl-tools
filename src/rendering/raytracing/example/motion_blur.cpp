@@ -27,7 +27,12 @@ static constexpr TI NUM_PROBES = 1;
 static constexpr TI NUM_PANELS = 6;
 
 template <TI SAMPLES>
-using RendererSpec = rlt::rendering::raytracing::Specification<T, TI, CAM_WIDTH, CAM_HEIGHT, NUM_CAMERAS, NUM_PROBES, rlt::rendering::raytracing::Medium, (SAMPLES > 1), SAMPLES>;
+struct RendererConfig: rlt::rendering::raytracing::config::Default<T, TI>{
+    static constexpr TI CAM_WIDTH = ::CAM_WIDTH, CAM_HEIGHT = ::CAM_HEIGHT, NUM_CAMERAS = ::NUM_CAMERAS, NUM_PROBES = ::NUM_PROBES;
+    static constexpr bool ENABLE_MOTION_BLUR = SAMPLES > 1;
+    static constexpr TI MOTION_BLUR_SAMPLES = SAMPLES;
+};
+using RendererSpec = rlt::rendering::raytracing::Specification<RendererConfig>;
 
 template <typename SPEC>
 using Renderer = rlt::rendering::raytracing::Renderer<SPEC>;
@@ -109,7 +114,7 @@ void render_panel(DEVICE& device, Renderer<SPEC>& renderer, const rlt::rendering
         rlt::set_cameras(device, renderer, renderer.cameras);
     }
 
-    rlt::render_rgb_only(device, renderer);
+    rlt::render(device, renderer);
     rlt::read_frame_buffer(device, renderer, renderer.frame_buffer);
 
     const uint32_t* src = rlt::data(renderer.frame_buffer);

@@ -200,10 +200,10 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
         std::memcpy(rlt::data(handle->env.renderer->cameras), cameras, SCENE_NUM_CAMERAS * sizeof(Camera));
         if constexpr (ASYNC){
             rlt::set_cameras_async(handle->device, *handle->env.renderer, handle->env.renderer->cameras);
-            rlt::render_rgb_only_launch(handle->device, *handle->env.renderer);
+            rlt::render_launch(handle->device, *handle->env.renderer);
         } else {
             rlt::set_cameras(handle->device, *handle->env.renderer, handle->env.renderer->cameras);
-            rlt::render_rgb_only(handle->device, *handle->env.renderer);
+            rlt::render(handle->device, *handle->env.renderer);
         }
     }
     template void render_batch<true>(SceneHandle* handle, const Camera* cameras);

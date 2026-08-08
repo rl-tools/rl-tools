@@ -43,6 +43,7 @@ namespace rl_tools {
         struct Object{
             std::vector<Mesh> meshes;
             std::vector<SceneLight> lights; // object-local frame; transformed by the instance placing the object
+            uint32_t segmentation_class = 0; // user-assigned (e.g. from Object::name via a user taxonomy); reported by SEMANTIC_SEGMENTATION specs
             std::string name; // the glTF root node's name for assembly parts; empty otherwise
         };
 
@@ -64,16 +65,8 @@ namespace rl_tools {
             size_t num_instances;
         };
 
-        // Typed overlay addressing: declare the layout as chained constexpr ranges so the
-        // Specification's NUM_OVERLAYS is the last range's end() and cannot drift from it.
         struct OverlayIndex{
             size_t index;
-        };
-        struct OverlayRange{
-            size_t first;
-            size_t count;
-            constexpr OverlayIndex operator[](size_t offset) const { return {first + offset}; }
-            constexpr size_t end() const { return first + count; }
         };
 
         // returned by spawn: the contiguous slot run holding one instantiated asset
@@ -84,7 +77,8 @@ namespace rl_tools {
         };
 
         // Assets available to dynamic overlays: registered before init (BLASes built once, frozen
-        // after), instantiated per step via spawn. Must outlive rendering, like Scene.
+        // after), instantiated per step via spawn. Must outlive rendering, like Scene; a boundary
+        // that outlives its caller (e.g. language bindings) must own copies of both.
         struct AssetPool{
             std::vector<ObjectAssembly> assemblies;
         };

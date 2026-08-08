@@ -38,6 +38,7 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         constexpr int INSTANCE_DATA = 10;
         constexpr int OVERLAY_STRUCTURES = 11;
         constexpr int OVERLAY_ATTACHMENTS = 12;
+        constexpr int INSTANCE_CLASSES = 13;
     }
     namespace function_constants{
         constexpr int SRGB_OUTPUT = 0;
@@ -51,6 +52,7 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         constexpr int PBR_SHADING = 8;
         constexpr int PUNCTUAL_LIGHT_SHADOWS = 9;
         constexpr int OVERLAY_COUNT = 10;
+        constexpr int SEMANTIC_SEGMENTATION = 11;
     }
 
     struct LaunchParams{
@@ -131,7 +133,9 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         std::vector<NS::SharedPtr<MTL::Buffer>> overlay_scratch_buffers;
         NS::SharedPtr<MTL::Buffer> overlay_structures;
         NS::SharedPtr<MTL::Buffer> overlay_attachments;
+        NS::SharedPtr<MTL::Buffer> instance_classes;
         std::vector<uint32_t> object_record_base;
+        std::vector<uint32_t> object_classes;
         uint32_t num_scene_instances = 0;
         std::vector<NS::SharedPtr<MTL::Buffer>> mesh_buffers;
         std::vector<NS::SharedPtr<MTL::Texture>> mesh_textures;

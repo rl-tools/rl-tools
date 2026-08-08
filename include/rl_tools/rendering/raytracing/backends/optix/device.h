@@ -115,6 +115,8 @@ namespace rl_tools {
         int cam_width;                  // framebuffer tile math so closest-hit programs can
         int cam_height;                 // recover the camera index for composed secondaries
         int grid_cols;
+        unsigned int *instance_classes; // per global instance id (semantic segmentation)
+        int semantic_segmentation;
     };
 
     /* variables for the miss program */
