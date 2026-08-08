@@ -15,6 +15,13 @@
 #include <string>
 #include <map>
 
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#include <cuda_runtime.h>
+#define HYPERT_CORE_HAS_CUDA 1
+#else
+#define HYPERT_CORE_HAS_CUDA 0
+#endif
+
 namespace nb = nanobind;
 namespace rlt = rl_tools;
 namespace rrt = rl_tools::rendering::raytracing;
@@ -126,6 +133,50 @@ static rrt::Mesh make_mesh(FloatArray vertices, nb::ndarray<const int32_t, nb::c
     return mesh;
 }
 
+#if HYPERT_CORE_HAS_CUDA
+// GPU staging buffer for device-resident render inputs: uploads a host float32 array once;
+// slices along axis 0 are handed out as DLPack CUDA views (e.g. one pre-sampled camera set
+// per slice)
+struct CudaBuffer {
+    void* pointer = nullptr;
+    std::vector<size_t> shape;
+
+    explicit CudaBuffer(nb::ndarray<const float, nb::c_contig, nb::device::cpu> source){
+        shape.assign(source.shape_ptr(), source.shape_ptr() + source.ndim());
+        const size_t bytes = source.size() * sizeof(float);
+        if(cudaMalloc(&pointer, bytes) != cudaSuccess){
+            throw std::runtime_error("hypert: cudaMalloc failed");
+        }
+        if(cudaMemcpy(pointer, source.data(), bytes, cudaMemcpyHostToDevice) != cudaSuccess){
+            cudaFree(pointer);
+            pointer = nullptr;
+            throw std::runtime_error("hypert: upload to CUDA device memory failed");
+        }
+    }
+    ~CudaBuffer(){
+        if(pointer != nullptr){
+            cudaFree(pointer);
+        }
+    }
+    CudaBuffer(const CudaBuffer&) = delete;
+    CudaBuffer& operator=(const CudaBuffer&) = delete;
+
+    size_t slice_elements() const {
+        size_t count = 1;
+        for(size_t dimension = 1; dimension < shape.size(); dimension++){
+            count *= shape[dimension];
+        }
+        return count;
+    }
+    const float* slice_pointer(size_t index) const {
+        if(shape.empty() || index >= shape[0]){
+            throw std::out_of_range("hypert: CudaBuffer slice index out of range");
+        }
+        return (const float*)pointer + index * slice_elements();
+    }
+};
+#endif
+
 // JIT renderer library handle: dlopened once per path and kept for the process lifetime so
 // repeated Renderer construction is cheap and CUDA/OWL teardown ordering stays trivial
 struct JitLibrary {
@@ -187,13 +238,20 @@ struct JitRenderer {
             throw std::invalid_argument("hypert: output array must have shape (num_cameras, height, width)");
         }
     }
-    void check_cameras_shape(const FloatArray& cameras) const {
+    void check_cameras_dims(size_t ndim, const int64_t* dims) const {
         const hypert::Config c = renderer->config();
-        const bool flat = cameras.ndim() == 2 && cameras.shape(0) == c.num_cameras && cameras.shape(1) == 12;
-        const bool structured = cameras.ndim() == 3 && cameras.shape(0) == c.num_cameras && cameras.shape(1) == 4 && cameras.shape(2) == 3;
+        const bool flat = ndim == 2 && dims[0] == c.num_cameras && dims[1] == 12;
+        const bool structured = ndim == 3 && dims[0] == c.num_cameras && dims[1] == 4 && dims[2] == 3;
         if(!flat && !structured){
             throw std::invalid_argument("hypert: cameras must have shape (num_cameras, 12) or (num_cameras, 4, 3) and dtype float32");
         }
+    }
+    void check_cameras_shape(const FloatArray& cameras) const {
+        int64_t dims[3] = {0, 0, 0};
+        for(size_t dimension = 0; dimension < cameras.ndim() && dimension < 3; dimension++){
+            dims[dimension] = (int64_t)cameras.shape(dimension);
+        }
+        check_cameras_dims(cameras.ndim(), dims);
     }
 };
 
@@ -374,7 +432,8 @@ NB_MODULE(hypert_core, m){
         return make_owned_array(out, {3, 4});
     }, nb::arg("a"), nb::arg("b"));
 
-    nb::class_<JitRenderer>(m, "JitRenderer")
+    auto jit_renderer_class = nb::class_<JitRenderer>(m, "JitRenderer");
+    jit_renderer_class
         .def(nb::init<const std::string&, const std::string&>(), nb::arg("library_path"), nb::arg("expected_config"))
         .def_prop_ro("backend", [](const JitRenderer& jit){ return std::string(jit.renderer->backend()); })
         .def("init", [](JitRenderer& jit, const rrt::Scene& scene, const rrt::AssetPool* pool){
@@ -507,4 +566,41 @@ NB_MODULE(hypert_core, m){
             extract_transform(transform, values);
             jit.renderer->set_part_transform(overlay, hypert::OverlayPlacementData{placement[0], placement[1], placement[2]}, part, values);
         }, nb::arg("overlay"), nb::arg("placement"), nb::arg("part"), nb::arg("transform"));
+
+#if HYPERT_CORE_HAS_CUDA
+    m.attr("HAS_CUDA") = true;
+
+    nb::class_<CudaBuffer>(m, "CudaBuffer")
+        .def(nb::init<nb::ndarray<const float, nb::c_contig, nb::device::cpu>>(), nb::arg("source"))
+        .def_prop_ro("shape", [](const CudaBuffer& buffer){ return buffer.shape; })
+        .def("slice_dlpack", [](CudaBuffer& buffer, size_t index){
+            std::vector<size_t> slice_shape(buffer.shape.begin() + 1, buffer.shape.end());
+            return nb::ndarray<>((void*)buffer.slice_pointer(index), slice_shape.size(), slice_shape.data(),
+                                 nb::find(&buffer), nullptr, nb::dtype<float>(), nb::device::cuda::value, 0);
+        }, nb::arg("index"))
+        .def("dlpack", [](CudaBuffer& buffer){
+            return nb::ndarray<>(buffer.pointer, buffer.shape.size(), buffer.shape.data(),
+                                 nb::find(&buffer), nullptr, nb::dtype<float>(), nb::device::cuda::value, 0);
+        });
+
+    jit_renderer_class
+        .def("set_cameras_device", [](JitRenderer& jit, nb::ndarray<const float, nb::c_contig, nb::device::cuda> cameras, uintptr_t stream){
+            int64_t dims[3] = {0, 0, 0};
+            for(size_t dimension = 0; dimension < cameras.ndim() && dimension < 3; dimension++){
+                dims[dimension] = (int64_t)cameras.shape(dimension);
+            }
+            jit.check_cameras_dims(cameras.ndim(), dims);
+            jit.renderer->set_cameras_device(cameras.data(), stream);
+        }, nb::arg("cameras"), nb::arg("stream") = 0)
+        // benchmark fast path: index a pre-uploaded set without any per-call DLPack traffic
+        .def("set_cameras_from_cuda_buffer", [](JitRenderer& jit, CudaBuffer& buffer, size_t index, uintptr_t stream){
+            const hypert::Config c = jit.renderer->config();
+            if(buffer.slice_elements() != (size_t)c.num_cameras * 12){
+                throw std::invalid_argument("hypert: CudaBuffer slices must hold num_cameras * 12 floats");
+            }
+            jit.renderer->set_cameras_device(buffer.slice_pointer(index), stream);
+        }, nb::arg("buffer"), nb::arg("index"), nb::arg("stream") = 0);
+#else
+    m.attr("HAS_CUDA") = false;
+#endif
 }

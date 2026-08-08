@@ -1025,6 +1025,29 @@ namespace rl_tools {
         }
     }
 
+    // device-resident camera input: cameras_device points at NUM_CAMERAS packed Camera<T>
+    // structs (12 floats each) in CUDA device memory. The copy is enqueued on the render
+    // stream, so it orders after the previous launch (no overwrite hazard) and before the
+    // next one; a non-null producer_stream is awaited via an event, never a host sync.
+    template <typename DEVICE, typename SPEC>
+    void set_cameras_device(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const typename SPEC::T* cameras_device, cudaStream_t producer_stream = nullptr){
+        OWLParams launch_params = (OWLParams)renderer.backend.launch_params;
+        cudaStream_t stream = (cudaStream_t)owlParamsGetCudaStream(launch_params, 0);
+        if(producer_stream != nullptr && producer_stream != stream){
+            cudaEvent_t cameras_ready;
+            cudaEventCreateWithFlags(&cameras_ready, cudaEventDisableTiming);
+            cudaEventRecord(cameras_ready, producer_stream);
+            cudaStreamWaitEvent(stream, cameras_ready, 0);
+            cudaEventDestroy(cameras_ready);
+        }
+        void* d_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.cameras_buffer, 0);
+        cudaMemcpyAsync(d_ptr, cameras_device, SPEC::NUM_CAMERAS * sizeof(OptixCameraData), cudaMemcpyDeviceToDevice, stream);
+        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+            void* d_open_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.cameras_open_buffer, 0);
+            cudaMemcpyAsync(d_open_ptr, cameras_device, SPEC::NUM_CAMERAS * sizeof(OptixCameraData), cudaMemcpyDeviceToDevice, stream);
+        }
+    }
+
     template <typename DEVICE, typename SPEC, typename FB_SPEC>
     void read_frame_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<FB_SPEC>& out_pixels){
         static_assert(SPEC::HAS_RGB, "read_frame_buffer requires an RGB-capable renderer specification");

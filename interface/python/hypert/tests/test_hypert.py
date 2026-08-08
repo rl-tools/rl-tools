@@ -178,6 +178,28 @@ def test_dlpack_camera_input():
     assert abs(renderer.depth()[0, 8, 8] - 2.0) < 1e-2
 
 
+@pytest.mark.skipif(hypert.backend() != "OPTIX", reason="device camera input requires the OptiX backend")
+def test_device_camera_input():
+    renderer = hypert.Renderer(width=32, height=32, num_cameras=2, output="depth", shading="low")
+    renderer.init(make_scene(2.0))
+    cameras = np.stack([
+        np.asarray(renderer.camera(position=(0.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0), fov=math.radians(60.0))).reshape(12),
+        np.asarray(renderer.camera(position=(-1.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0), fov=math.radians(60.0))).reshape(12),
+    ])
+    renderer.set_cameras(cameras)
+    renderer.render("depth")
+    host_frame = renderer.depth()
+
+    tensor_set = hypert.cuda_upload(cameras[None])  # one set of two cameras
+    renderer.set_cameras(tensor_set.view(0))        # dispatches on __dlpack_device__ == kDLCUDA
+    renderer.render("depth")
+    device_frame = renderer.depth()
+
+    assert np.array_equal(host_frame, device_frame)
+    assert abs(device_frame[0, 16, 16] - 2.0) < 1e-2
+    assert abs(device_frame[1, 16, 16] - 3.0) < 1e-2
+
+
 def test_renderer_lifecycle():
     # two full create/render/destroy cycles in one process (regression: OWL's PinnedHostMem
     # cudaFree-on-pinned-memory bug killed the second lifecycle on the OptiX backend)
