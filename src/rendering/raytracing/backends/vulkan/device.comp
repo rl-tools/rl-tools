@@ -25,6 +25,7 @@ layout(constant_id = 7) const bool fc_metallic_reflections = false;
 layout(constant_id = 8) const bool fc_pbr_shading = false;
 layout(constant_id = 9) const bool fc_punctual_light_shadows = false;
 layout(constant_id = 10) const int fc_overlay_count = 0;
+layout(constant_id = 11) const bool fc_semantic_segmentation = false;
 
 layout(std430, set = 0, binding = 0) readonly buffer LaunchParamsBuffer{
     uint fb_width;
@@ -117,7 +118,7 @@ layout(std430, set = 0, binding = 4) readonly buffer MeshRecordsBuffer{ MeshReco
 layout(std430, set = 0, binding = 5) readonly buffer SceneLightsBuffer{ SceneLight scene_lights[]; };
 layout(std430, set = 0, binding = 11) readonly buffer InstanceRecordBaseBuffer{ uint instance_record_base[]; };
 layout(std430, set = 0, binding = 12) readonly buffer InstanceDataBuffer{ InstanceData instance_data[]; };
-layout(set = 0, binding = 16) uniform sampler2D scene_textures[];
+layout(set = 0, binding = 17) uniform sampler2D scene_textures[];
 
 vec3 transform_point_to_world(int instance, vec3 p){
     const float m[12] = instance_data[instance].object_to_world;
@@ -141,6 +142,7 @@ layout(std430, set = 0, binding = 9) writeonly buffer DepthBuffer{ float depth_o
 
 #if defined(ENTRY_SEGMENTATION)
 layout(std430, set = 0, binding = 10) writeonly buffer SegmentationBuffer{ uint segmentation_out[]; };
+layout(std430, set = 0, binding = 16) readonly buffer InstanceClassesBuffer{ uint instance_classes[]; };
 #endif
 
 #if defined(ENTRY_COLLISION)
@@ -722,6 +724,6 @@ void main(){
     const vec2 screen = (vec2(ctx.local_x, ctx.local_y) + vec2(0.5, 0.5)) / vec2(params.cam_width, params.cam_height);
     const vec3 direction = normalize(camera_dir_00(cam) + screen.x * camera_dir_du(cam) + screen.y * camera_dir_dv(cam));
     Hit hit = intersect_composed(ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30, false);
-    segmentation_out[ctx.fb_offset] = hit.valid ? uint(hit.instance_id) : 0xFFFFFFFFu;
+    segmentation_out[ctx.fb_offset] = hit.valid ? (fc_semantic_segmentation ? instance_classes[uint(hit.instance_id)] : uint(hit.instance_id)) : 0xFFFFFFFFu;
 }
 #endif

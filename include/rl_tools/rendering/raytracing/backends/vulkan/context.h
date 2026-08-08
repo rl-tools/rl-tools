@@ -31,8 +31,9 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         constexpr uint32_t OVERLAY_ATTACHMENTS = 13;
         constexpr uint32_t OVERLAY_NUM_ACTIVE = 14;
         constexpr uint32_t OVERLAY_TLAS = 15;
-        constexpr uint32_t TEXTURES = 16; // variable-descriptor-count binding must have the largest binding number in the set
-        constexpr uint32_t COUNT = 17;
+        constexpr uint32_t INSTANCE_CLASSES = 16;
+        constexpr uint32_t TEXTURES = 17; // variable-descriptor-count binding must have the largest binding number in the set
+        constexpr uint32_t COUNT = 18;
     }
     namespace specialization_constants{
         constexpr uint32_t SRGB_OUTPUT = 0;
@@ -46,7 +47,8 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         constexpr uint32_t PBR_SHADING = 8;
         constexpr uint32_t PUNCTUAL_LIGHT_SHADOWS = 9;
         constexpr uint32_t OVERLAY_COUNT = 10;
-        constexpr uint32_t COUNT = 11;
+        constexpr uint32_t SEMANTIC_SEGMENTATION = 11;
+        constexpr uint32_t COUNT = 12;
     }
     constexpr uint32_t WORKGROUP_SIZE = 8;
     constexpr uint32_t MAX_TEXTURE_DESCRIPTORS = 4096;
@@ -162,6 +164,7 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         BufferResource segmentation_buffer;
         BufferResource instance_data;
         BufferResource instance_record_base;
+        BufferResource instance_classes;
         BufferResource overlay_attachments;
         BufferResource overlay_num_active;
         BufferResource overlay_scratch;
@@ -172,6 +175,7 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         std::vector<BufferResource> blas_buffers;
         std::vector<VkDeviceAddress> blas_addresses;
         std::vector<uint32_t> object_record_base; // object -> first index into mesh_records
+        std::vector<uint32_t> object_classes; // object -> segmentation_class, consumed by update() for overlay slots
         uint32_t num_scene_instances = 0;
         VkAccelerationStructureKHR tlas = VK_NULL_HANDLE;
         std::vector<VkAccelerationStructureKHR> overlay_tlas; // one per overlay, rebuilt in place by update()
