@@ -142,7 +142,16 @@ class Renderer:
         core = load_core()
         return core.make_camera(tuple(position), tuple(look_at), tuple(up), float(fov), self.aspect)
 
-    def set_cameras(self, cameras):
+    def set_cameras(self, cameras, stream=0):
+        """Upload camera ray-gen bases. Accepts host arrays/tensors (any DLPack producer)
+        or CUDA-resident tensors, which are handed over device-to-device without touching
+        the host; stream is the producer's cudaStream_t handle (0 = default stream)."""
+        device = getattr(cameras, "__dlpack_device__", None)
+        if device is not None and device()[0] == 2:  # kDLCUDA
+            if not hasattr(self._renderer, "set_cameras_device"):
+                raise RuntimeError("hypert: device-resident camera input requires the OptiX backend")
+            self._renderer.set_cameras_device(cameras, stream)
+            return
         self._renderer.set_cameras(_as_cameras(cameras, self.num_cameras))
 
     def set_motion_blur_cameras(self, cameras_open, cameras_close):

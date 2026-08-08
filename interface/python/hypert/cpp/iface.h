@@ -65,6 +65,10 @@ namespace hypert {
         virtual void synchronize() = 0;
 
         virtual void set_cameras(const float* cameras) = 0; // num_cameras * 12 floats (pos, dir_00, dir_du, dir_dv)
+        // cameras in CUDA device memory, same packed layout; producer_stream (a
+        // cudaStream_t handle, 0 = none) is awaited via an event on the render stream —
+        // no host synchronization. OptiX backend only.
+        virtual void set_cameras_device(const float* cameras, unsigned long long producer_stream) = 0;
         virtual void set_motion_blur_cameras(const float* cameras_open, const float* cameras_close) = 0;
         virtual void generate_cameras(const float center[3], float radius, const float up[3], float fov) = 0;
         virtual void generate_probe_directions() = 0;

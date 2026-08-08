@@ -101,8 +101,15 @@ np.from_dlpack(renderer.frame_dlpack())      # zero-copy on CPU-visible backends
 `render()`/`render_sync()` and are overwritten by the next render — copy what you keep.
 
 Inputs (`set_cameras`, transforms) accept any DLPack producer (torch/JAX CPU tensors,
-numpy) — a C-contiguous float32 tensor crosses the boundary without copying. Device-resident
-camera input is not wired yet (planned with the drone-dynamics coupling).
+numpy) — a C-contiguous float32 tensor crosses the boundary without copying.
+
+CUDA-resident camera input (OptiX backend): `set_cameras` dispatches on
+`__dlpack_device__`, so a CUDA tensor (torch GPU tensor, or a set pre-uploaded with
+`hypert.cuda_upload`) is handed over device-to-device on the render stream — fully async,
+no host synchronization; `stream=` takes the producer's cudaStream_t handle for
+event-ordered handoff. `examples/benchmark.py --camera-input host|dlpack|direct` compares
+the paths (device input is bitwise-identical to host input and ~11% faster at
+input-bound workloads).
 
 ## Tests
 

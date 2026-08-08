@@ -66,6 +66,10 @@ find_package(nanobind CONFIG REQUIRED)
 nanobind_add_module(hypert_core core.cpp)
 target_link_libraries(hypert_core PRIVATE RLtools::RLtools hypert_stb ${CMAKE_DL_LIBS})
 set_target_properties(hypert_core PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+if(HYPERT_BACKEND STREQUAL "OPTIX")
+    find_package(CUDAToolkit REQUIRED)
+    target_link_libraries(hypert_core PRIVATE CUDA::cudart)
+endif()
 
 # JIT renderer configurations: one line per requested constant set, appended by the Python
 # frontend. Editing the file triggers reconfiguration on the next cmake --build.

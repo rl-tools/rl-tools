@@ -9,6 +9,7 @@ import math
 
 from ._build import backend, build_dir, load_core
 from ._config import OUTPUT_MODE, SHADING, RendererConfig
+from ._cuda import CudaTensorSet, cuda_upload
 from ._renderer import Renderer
 
 __all__ = [
@@ -20,9 +21,11 @@ __all__ = [
     "RendererConfig",
     "Scene",
     "SceneLight",
+    "CudaTensorSet",
     "backend",
     "build_dir",
     "compose_transforms",
+    "cuda_upload",
     "load_assembly",
     "load_object",
     "load_scene",

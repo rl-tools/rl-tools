@@ -57,20 +57,29 @@ namespace hypert_impl {
     template <> struct ShadingSelector<1> { using type = rrt::Medium; };
     template <> struct ShadingSelector<2> { using type = rrt::High; };
     template <> struct ShadingSelector<3> { using type = rrt::VeryHigh; };
-    using SHADING = typename ShadingSelector<HYPERT_SHADING>::type;
 
-    static constexpr rrt::OutputMode OUTPUT_MODE = static_cast<rrt::OutputMode>(HYPERT_OUTPUT_MODE);
+    // the hypert output-mode id (0=rgb 1=rgbd 2=depth 3=segmentation 4=rgbd_segmentation)
+    // maps onto the config's independent channel switches
+    struct RendererConfiguration: rrt::config::Default<T, TI>{
+        static constexpr TI CAM_WIDTH = HYPERT_WIDTH;
+        static constexpr TI CAM_HEIGHT = HYPERT_HEIGHT;
+        static constexpr TI NUM_CAMERAS = HYPERT_NUM_CAMERAS;
+        static constexpr TI NUM_PROBES = HYPERT_NUM_PROBES;
+        using SHADING = typename ShadingSelector<HYPERT_SHADING>::type;
+        static constexpr bool OUTPUT_RGB = HYPERT_OUTPUT_MODE == 0 || HYPERT_OUTPUT_MODE == 1 || HYPERT_OUTPUT_MODE == 4;
+        static constexpr bool OUTPUT_DEPTH = HYPERT_OUTPUT_MODE == 1 || HYPERT_OUTPUT_MODE == 2 || HYPERT_OUTPUT_MODE == 4;
+        static constexpr bool OUTPUT_SEGMENTATION = HYPERT_OUTPUT_MODE == 3 || HYPERT_OUTPUT_MODE == 4;
+        static constexpr bool SEMANTIC_SEGMENTATION = HYPERT_SEMANTIC_SEGMENTATION != 0;
+        static constexpr bool ENABLE_MOTION_BLUR = HYPERT_MB_SAMPLES > 1;
+        static constexpr TI MOTION_BLUR_SAMPLES = HYPERT_MB_SAMPLES;
+        static constexpr bool ENABLE_ANTI_ALIASING = HYPERT_AA_GRID > 1;
+        static constexpr TI ANTI_ALIASING_GRID_SIZE = HYPERT_AA_GRID;
+        static constexpr TI NUM_OVERLAYS = HYPERT_NUM_OVERLAYS;
+        static constexpr TI MAX_OVERLAY_INSTANCES = HYPERT_MAX_OVERLAY_INSTANCES;
+        static constexpr TI MAX_OVERLAYS_PER_CAMERA = HYPERT_MAX_OVERLAYS_PER_CAMERA;
+    };
 
-    using RENDERER_SPEC = rrt::Specification<
-        T, TI,
-        HYPERT_WIDTH, HYPERT_HEIGHT, HYPERT_NUM_CAMERAS, HYPERT_NUM_PROBES,
-        SHADING,
-        (HYPERT_MB_SAMPLES > 1), HYPERT_MB_SAMPLES,
-        (HYPERT_AA_GRID > 1), HYPERT_AA_GRID,
-        OUTPUT_MODE,
-        HYPERT_NUM_OVERLAYS, HYPERT_MAX_OVERLAY_INSTANCES, HYPERT_MAX_OVERLAYS_PER_CAMERA,
-        HYPERT_SEMANTIC_SEGMENTATION != 0
-    >;
+    using RENDERER_SPEC = rrt::Specification<RendererConfiguration>;
 
     // template so if-constexpr branches on the spec's feature flags are discarded without
     // being instantiated on configs that lack the corresponding storage/operations
@@ -161,6 +170,16 @@ namespace hypert_impl {
             rlt::set_cameras(device, renderer, renderer.cameras);
         }
 
+        void set_cameras_device(const float* cameras, unsigned long long producer_stream) override {
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+            require_init();
+            rlt::set_cameras_device(device, renderer, cameras, (cudaStream_t)producer_stream);
+#else
+            (void)cameras; (void)producer_stream;
+            throw std::runtime_error("hypert: device-resident camera input is only supported on the OptiX backend");
+#endif
+        }
+
         void set_motion_blur_cameras(const float* cameras_open, const float* cameras_close) override {
             if constexpr (SPEC::ENABLE_MOTION_BLUR){
                 std::memcpy(rlt::data(renderer.cameras_open), cameras_open, sizeof(rrt::Camera<T>) * SPEC::NUM_CAMERAS);
@@ -181,55 +200,49 @@ namespace hypert_impl {
             rlt::generate_probe_directions(device, renderer);
         }
 
+        // the revamped API renders all enabled image channels together (render*) with
+        // probes split out (probe*) on the backends that have been ported to the split;
+        // OptiX/Vulkan still launch probes inside render*. Channel-specific targets are
+        // validated against the spec, then map to the unified render.
         void render(hypert::RenderTarget target, hypert::RenderPhase phase) override {
             require_init();
             using RT = hypert::RenderTarget;
             using RP = hypert::RenderPhase;
             switch(target){
-                case RT::ALL:
-                    if(phase == RP::LAUNCH) rlt::render_launch(device, renderer);
-                    else if(phase == RP::SYNC) rlt::render_sync(device, renderer);
-                    else rlt::render(device, renderer);
-                    return;
                 case RT::RGB:
-                    if constexpr (SPEC::HAS_RGB){
-                        if(phase == RP::LAUNCH) rlt::render_rgb_only_launch(device, renderer);
-                        else if(phase == RP::SYNC) rlt::render_rgb_only_sync(device, renderer);
-                        else rlt::render_rgb_only(device, renderer);
-                        return;
-                    }
+                    if constexpr (!SPEC::HAS_RGB){ throw std::runtime_error("hypert: this renderer has no RGB output"); }
                     break;
                 case RT::DEPTH:
-                    if constexpr (SPEC::HAS_DEPTH){
-                        if(phase == RP::LAUNCH) rlt::render_depth_only_launch(device, renderer);
-                        else if(phase == RP::SYNC) rlt::render_depth_only_sync(device, renderer);
-                        else rlt::render_depth_only(device, renderer);
-                        return;
-                    }
+                    if constexpr (!SPEC::HAS_DEPTH){ throw std::runtime_error("hypert: this renderer has no depth output"); }
                     break;
                 case RT::SEGMENTATION:
-                    if constexpr (SPEC::HAS_SEGMENTATION){
-                        if(phase == RP::LAUNCH) rlt::render_segmentation_only_launch(device, renderer);
-                        else if(phase == RP::SYNC) rlt::render_segmentation_only_sync(device, renderer);
-                        else rlt::render_segmentation_only(device, renderer);
-                        return;
-                    }
+                    if constexpr (!SPEC::HAS_SEGMENTATION){ throw std::runtime_error("hypert: this renderer has no segmentation output"); }
                     break;
                 case RT::RGB_DEPTH:
-                    if constexpr (SPEC::HAS_RGB && SPEC::HAS_DEPTH){
-                        if(phase == RP::LAUNCH) rlt::render_rgb_depth_only_launch(device, renderer);
-                        else if(phase == RP::SYNC) rlt::render_rgb_depth_only_sync(device, renderer);
-                        else rlt::render_rgb_depth_only(device, renderer);
-                        return;
-                    }
+                    if constexpr (!(SPEC::HAS_RGB && SPEC::HAS_DEPTH)){ throw std::runtime_error("hypert: this renderer has no RGB+depth output"); }
                     break;
-                case RT::COLLISION:
-                    if(phase == RP::LAUNCH) rlt::render_collision_only_launch(device, renderer);
-                    else if(phase == RP::SYNC) rlt::render_collision_only_sync(device, renderer);
-                    else rlt::render_collision_only(device, renderer);
-                    return;
+                default:
+                    break;
             }
-            throw std::runtime_error("hypert: render target not available in this renderer's output mode");
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_METAL) || defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_GENERIC)
+            const bool wants_image = target != RT::COLLISION;
+            const bool wants_probes = target == RT::ALL || target == RT::COLLISION;
+            if(wants_image){
+                if(phase == RP::LAUNCH) rlt::render_launch(device, renderer);
+                else if(phase == RP::SYNC) rlt::render_sync(device, renderer);
+                else rlt::render(device, renderer);
+            }
+            if(wants_probes){
+                if(phase == RP::LAUNCH) rlt::probe_launch(device, renderer);
+                else if(phase == RP::SYNC) rlt::probe_sync(device, renderer);
+                else rlt::probe(device, renderer);
+            }
+#else
+            // OptiX and Vulkan launch probe rays as part of render*
+            if(phase == RP::LAUNCH) rlt::render_launch(device, renderer);
+            else if(phase == RP::SYNC) rlt::render_sync(device, renderer);
+            else rlt::render(device, renderer);
+#endif
         }
 
         void read_frame_buffer(uint32_t* dst) override {
