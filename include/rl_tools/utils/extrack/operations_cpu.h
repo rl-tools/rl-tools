@@ -16,13 +16,19 @@
 #include <string>
 #include <algorithm>
 #include <system_error>
+#include <vector>
+#include <iterator>
 
 #include <cstdlib>
 
 #if defined(_WIN32) || defined(_WIN64)
 #include <process.h>
+#include <stdlib.h>
 #else
 #include <unistd.h>
+#endif
+#ifdef __APPLE__
+#include <crt_externs.h>
 #endif
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -48,6 +54,62 @@ namespace rl_tools{
         }
     }
 #endif
+    namespace utils::extrack::detail {
+        inline std::vector<std::string> get_command_line_arguments(){
+            std::vector<std::string> arguments;
+#if defined(_WIN32) || defined(_WIN64)
+            if(__argv != nullptr){
+                for(int argument_i = 0; argument_i < __argc; argument_i++){
+                    arguments.emplace_back(__argv[argument_i]);
+                }
+            }
+#elif defined(__APPLE__)
+            int argc = *_NSGetArgc();
+            char** argv = *_NSGetArgv();
+            if(argv != nullptr){
+                for(int argument_i = 0; argument_i < argc; argument_i++){
+                    arguments.emplace_back(argv[argument_i]);
+                }
+            }
+#else
+            std::ifstream cmdline_file("/proc/self/cmdline", std::ios::binary);
+            std::string cmdline((std::istreambuf_iterator<char>(cmdline_file)), std::istreambuf_iterator<char>());
+            std::string::size_type start = 0;
+            while(start < cmdline.size()){
+                std::string::size_type end = cmdline.find('\0', start);
+                if(end == std::string::npos){
+                    end = cmdline.size();
+                }
+                arguments.push_back(cmdline.substr(start, end - start));
+                start = end + 1;
+            }
+#endif
+            return arguments;
+        }
+        inline std::string shell_quote(const std::string& argument){
+            bool needs_quoting = argument.empty();
+            for(char c : argument){
+                bool safe = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-' || c == '.' || c == '/' || c == '=' || c == ':' || c == ',' || c == '+' || c == '@' || c == '%';
+                if(!safe){
+                    needs_quoting = true;
+                    break;
+                }
+            }
+            if(!needs_quoting){
+                return argument;
+            }
+            std::string quoted = "'";
+            for(char c : argument){
+                if(c == '\''){
+                    quoted += "'\\''";
+                } else {
+                    quoted += c;
+                }
+            }
+            quoted += "'";
+            return quoted;
+        }
+    }
     // note usage examples in ./extrack.h
     template <typename DEVICE, typename TI>
     void init(DEVICE& device, utils::extrack::Config<TI>& config, utils::extrack::Paths& paths, typename DEVICE::index_t seed = 0){
@@ -266,7 +328,26 @@ namespace rl_tools{
             add_text(device, device.logger, "pid", (std::string("`") + std::to_string(pid) + "`").c_str());
         }
 #endif
-
+        {
+            std::vector<std::string> arguments = utils::extrack::detail::get_command_line_arguments();
+            std::string arguments_string;
+            for(TI argument_i = 1; argument_i < arguments.size(); argument_i++){
+                if(argument_i > 1){
+                    arguments_string += " ";
+                }
+                arguments_string += utils::extrack::detail::shell_quote(arguments[argument_i]);
+            }
+            std::filesystem::create_directories(paths.seed);
+            std::ofstream cmd_file(paths.seed / "cmd.txt");
+            cmd_file << "cwd=" << std::filesystem::current_path().string() << "\n";
+            if(!arguments.empty()){
+                cmd_file << "executable=" << arguments[0] << "\n";
+            }
+            cmd_file << "args=" << arguments_string << "\n";
+            cmd_file.close();
+            std::string command = arguments.empty() ? "" : utils::extrack::detail::shell_quote(arguments[0]) + (arguments_string.empty() ? "" : " " + arguments_string);
+            add_text(device, device.logger, "cmd", (std::string("`") + command + "`").c_str());
+        }
     }
     template <typename DEVICE, typename TI>
     std::filesystem::path get_step_folder(DEVICE& device, utils::extrack::Config<TI>& config, utils::extrack::Paths& paths, typename DEVICE::index_t step){
