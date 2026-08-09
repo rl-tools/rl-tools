@@ -989,8 +989,8 @@ namespace rl_tools {
     // stages host-verb writes (the per-slot transform_entry mirrors) into the transforms tensor;
     // backends whose tensor is host-resident call this at the top of update(). Device producers
     // write the tensor directly and are not staged — a dirty overlay row is owned by the host.
-    template <typename SPEC>
-    void flush_overlay_transforms(rendering::raytracing::Renderer<SPEC>& renderer){
+    template <typename SPEC, typename BACKEND>
+    void flush_overlay_transforms(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         using TI = typename SPEC::TI;
         float* transforms = data(renderer.transforms);
         for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
@@ -1005,8 +1005,8 @@ namespace rl_tools {
 
     // world = pose ∘ part_local ∘ articulation: the root slot's tensor entry carries the
     // placement pose, non-root entries articulate their part in the part frame
-    template <typename SPEC>
-    void compose_overlay_slot_transform(const rendering::raytracing::Renderer<SPEC>& renderer, typename SPEC::TI overlay, typename SPEC::TI slot_index, float out[12]){
+    template <typename SPEC, typename BACKEND>
+    void compose_overlay_slot_transform(const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, typename SPEC::TI overlay, typename SPEC::TI slot_index, float out[12]){
         const auto& slot = renderer.overlays[overlay].slots[slot_index];
         const float* row = data(renderer.transforms) + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES * 12;
         float composed[12];
@@ -1037,14 +1037,14 @@ namespace rl_tools {
 
     // flattens the asset pool for overlay spawns: appends pool objects to the combined object
     // list and records per-part global object indices + local transforms on the renderer
-    template <typename DEVICE, typename SPEC>
-    void register_pool_assets(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const rendering::raytracing::AssetPool& pool, std::vector<const rendering::raytracing::Object*>& all_objects){
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void register_pool_assets(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const rendering::raytracing::AssetPool& pool, std::vector<const rendering::raytracing::Object*>& all_objects){
         using TI = typename SPEC::TI;
         renderer.assets.clear();
         renderer.asset_part_objects.clear();
         renderer.asset_part_transforms.clear();
         for(const auto& assembly : pool.assemblies){
-            typename rendering::raytracing::Renderer<SPEC>::AssetRecord record;
+            typename rendering::raytracing::Renderer<SPEC, BACKEND>::AssetRecord record;
             record.first_part = (TI)renderer.asset_part_objects.size();
             record.num_parts = (TI)assembly.parts.size();
             utils::assert_exit(device, record.num_parts <= SPEC::MAX_OVERLAY_INSTANCES, "asset has more parts than the overlay capacity");
@@ -1063,8 +1063,8 @@ namespace rl_tools {
     // Deterministic first-fit is a contract, not an implementation detail: the chosen slot defines
     // the global instance id (segmentation output), which must be reproducible across runs and
     // identical across backends. Do not replace with a free-list or best-fit strategy.
-    template <typename SPEC>
-    typename SPEC::TI first_fit_slot(const rendering::raytracing::Renderer<SPEC>& renderer, size_t overlay, typename SPEC::TI num_parts){
+    template <typename SPEC, typename BACKEND>
+    typename SPEC::TI first_fit_slot(const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, size_t overlay, typename SPEC::TI num_parts){
         using TI = typename SPEC::TI;
         const auto& state = renderer.overlays[overlay];
         TI run = 0;
@@ -1077,8 +1077,8 @@ namespace rl_tools {
         return SPEC::MAX_OVERLAY_INSTANCES;
     }
 
-    template <typename SPEC>
-    void reset_overlay_state(rendering::raytracing::Renderer<SPEC>& renderer){
+    template <typename SPEC, typename BACKEND>
+    void reset_overlay_state(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         using TI = typename SPEC::TI;
         for(auto& overlay_state : renderer.overlays){
             for(auto& slot : overlay_state.slots){
@@ -1087,13 +1087,13 @@ namespace rl_tools {
             overlay_state.dirty = true;
         }
         for(TI attachment_i = 0; attachment_i < SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA; attachment_i++){
-            renderer.attachments[attachment_i] = rendering::raytracing::Renderer<SPEC>::INVALID_OVERLAY;
+            renderer.attachments[attachment_i] = rendering::raytracing::Renderer<SPEC, BACKEND>::INVALID_OVERLAY;
         }
         renderer.attachments_dirty = true;
     }
 
-    template <typename SPEC>
-    void compute_scene_bounds(rendering::raytracing::Renderer<SPEC>& renderer, const rendering::raytracing::Scene& scene){
+    template <typename SPEC, typename BACKEND>
+    void compute_scene_bounds(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const rendering::raytracing::Scene& scene){
         // resolved-configuration echo: makes a silently-defaulted (e.g. misspelled) fringe
         // config member visible on the first run
         RL_TOOLS_RENDERING_RAYTRACING_LOG("config: " << SPEC::NUM_CAMERAS << " camera(s) " << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT
@@ -1243,8 +1243,8 @@ namespace rl_tools {
     namespace rendering::raytracing::detail{
         // content-hash lookup into the library's owned scenes; loads the file into a fresh
         // library-owned scene on a miss. Callers key their per-scene data off the returned index.
-        template <typename DEVICE, typename SPEC>
-        typename SPEC::TI library_lookup_or_load(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC>& library, const char* scene_path, bool& is_new){
+        template <typename DEVICE, typename SPEC, typename BACKEND>
+        typename SPEC::TI library_lookup_or_load(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, BACKEND>& library, const char* scene_path, bool& is_new){
             using TI = typename SPEC::TI;
             uint64_t hash = 0;
             utils::assert_exit(device, hash_scene_file(scene_path, hash), "library: failed to read scene file");
@@ -1258,7 +1258,7 @@ namespace rl_tools {
             is_new = true;
             library.hashes.push_back(hash);
             library.scenes.emplace_back();
-            library.assets.emplace_back();
+            library.assets.push_back(nullptr);
             const bool loaded = load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, library.scenes.back(), std::string(scene_path));
             utils::assert_exit(device, loaded, "library: failed to load scene");
             return (TI)(library.scenes.size() - 1);
@@ -1334,8 +1334,8 @@ namespace rl_tools {
 
     // Validation predicates for boundaries (language bindings, C interface) that must not trip
     // the fail-fast asserts inside the verbs: check first, then call.
-    template <typename DEVICE, typename SPEC>
-    bool can_attach(DEVICE& device, const rendering::raytracing::Renderer<SPEC>& renderer, typename SPEC::TI camera, rendering::raytracing::OverlayIndex overlay){
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    bool can_attach(DEVICE& device, const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, typename SPEC::TI camera, rendering::raytracing::OverlayIndex overlay){
         static_assert(SPEC::ENABLE_OVERLAYS, "can_attach requires an overlay-enabled renderer specification");
         using TI = typename SPEC::TI;
         if(camera >= SPEC::NUM_CAMERAS || overlay.index >= SPEC::NUM_OVERLAYS){
@@ -1343,15 +1343,15 @@ namespace rl_tools {
         }
         const TI* row = &renderer.attachments[camera * SPEC::MAX_OVERLAYS_PER_CAMERA];
         for(TI slot = 0; slot < SPEC::MAX_OVERLAYS_PER_CAMERA; slot++){
-            if(row[slot] == (TI)overlay.index || row[slot] == rendering::raytracing::Renderer<SPEC>::INVALID_OVERLAY){
+            if(row[slot] == (TI)overlay.index || row[slot] == rendering::raytracing::Renderer<SPEC, BACKEND>::INVALID_OVERLAY){
                 return true;
             }
         }
         return false;
     }
 
-    template <typename DEVICE, typename SPEC>
-    bool can_spawn(DEVICE& device, const rendering::raytracing::Renderer<SPEC>& renderer, rendering::raytracing::OverlayIndex overlay, rendering::raytracing::AssetHandle asset){
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    bool can_spawn(DEVICE& device, const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, rendering::raytracing::AssetHandle asset){
         static_assert(SPEC::ENABLE_OVERLAYS, "can_spawn requires an overlay-enabled renderer specification");
         if(overlay.index >= SPEC::NUM_OVERLAYS || asset.index >= renderer.assets.size()){
             return false;
@@ -1363,12 +1363,12 @@ namespace rl_tools {
     // renderer) is the single point where the backend consumes it. All bookkeeping is
     // deterministic: slot allocation is a first-fit scan, so identical call sequences yield
     // identical slots (and therefore identical global instance ids).
-    template <typename DEVICE, typename SPEC>
-    void attach(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, typename SPEC::TI camera, rendering::raytracing::OverlayIndex overlay){
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void attach(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, typename SPEC::TI camera, rendering::raytracing::OverlayIndex overlay){
         static_assert(SPEC::ENABLE_OVERLAYS, "attach requires an overlay-enabled renderer specification");
         using TI = typename SPEC::TI;
         utils::assert_exit(device, overlay.index < SPEC::NUM_OVERLAYS, "attach: overlay index out of range");
-        constexpr TI INVALID = rendering::raytracing::Renderer<SPEC>::INVALID_OVERLAY;
+        constexpr TI INVALID = rendering::raytracing::Renderer<SPEC, BACKEND>::INVALID_OVERLAY;
         TI* row = &renderer.attachments[camera * SPEC::MAX_OVERLAYS_PER_CAMERA];
         TI free_slot = SPEC::MAX_OVERLAYS_PER_CAMERA;
         for(TI slot = 0; slot < SPEC::MAX_OVERLAYS_PER_CAMERA; slot++){
@@ -1384,22 +1384,22 @@ namespace rl_tools {
         renderer.attachments_dirty = true;
     }
 
-    template <typename DEVICE, typename SPEC>
-    void detach(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, typename SPEC::TI camera, rendering::raytracing::OverlayIndex overlay){
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void detach(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, typename SPEC::TI camera, rendering::raytracing::OverlayIndex overlay){
         static_assert(SPEC::ENABLE_OVERLAYS, "detach requires an overlay-enabled renderer specification");
         using TI = typename SPEC::TI;
         TI* row = &renderer.attachments[camera * SPEC::MAX_OVERLAYS_PER_CAMERA];
         for(TI slot = 0; slot < SPEC::MAX_OVERLAYS_PER_CAMERA; slot++){
             if(row[slot] == (TI)overlay.index){
-                row[slot] = rendering::raytracing::Renderer<SPEC>::INVALID_OVERLAY;
+                row[slot] = rendering::raytracing::Renderer<SPEC, BACKEND>::INVALID_OVERLAY;
                 renderer.attachments_dirty = true;
                 return;
             }
         }
     }
 
-    template <typename DEVICE, typename SPEC>
-    rendering::raytracing::OverlayPlacement spawn(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, rendering::raytracing::OverlayIndex overlay, rendering::raytracing::AssetHandle asset, const float transform[12]){
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    rendering::raytracing::OverlayPlacement spawn(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, rendering::raytracing::AssetHandle asset, const float transform[12]){
         static_assert(SPEC::ENABLE_OVERLAYS, "spawn requires an overlay-enabled renderer specification");
         using TI = typename SPEC::TI;
         if(overlay.index >= SPEC::NUM_OVERLAYS){
@@ -1431,8 +1431,8 @@ namespace rl_tools {
         return {(size_t)first_slot, (size_t)record.num_parts, (size_t)record.first_part};
     }
 
-    template <typename DEVICE, typename SPEC>
-    void despawn(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement){
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void despawn(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement){
         static_assert(SPEC::ENABLE_OVERLAYS, "despawn requires an overlay-enabled renderer specification");
         auto& state = renderer.overlays[overlay.index];
         for(size_t part = 0; part < placement.num_parts; part++){
@@ -1443,8 +1443,8 @@ namespace rl_tools {
 
     // per-part: part 0 sets the placement pose, other parts articulate in their part frame
     // (world = pose ∘ part_local ∘ articulation)
-    template <typename DEVICE, typename SPEC>
-    void set_transform(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, typename SPEC::TI part, const float transform[12]){
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void set_transform(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, typename SPEC::TI part, const float transform[12]){
         static_assert(SPEC::ENABLE_OVERLAYS, "set_transform requires an overlay-enabled renderer specification");
         auto& state = renderer.overlays[overlay.index];
         std::memcpy(state.slots[placement.first_slot + part].transform_entry, transform, 12 * sizeof(float));
@@ -1452,8 +1452,8 @@ namespace rl_tools {
     }
 
     // rigid move: sets the placement pose and resets per-part articulation state
-    template <typename DEVICE, typename SPEC>
-    void set_transform(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const float transform[12]){
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void set_transform(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const float transform[12]){
         static_assert(SPEC::ENABLE_OVERLAYS, "set_transform requires an overlay-enabled renderer specification");
         auto& state = renderer.overlays[overlay.index];
         std::memcpy(state.slots[placement.first_slot].transform_entry, transform, 12 * sizeof(float));
@@ -1463,8 +1463,8 @@ namespace rl_tools {
         state.dirty = true;
     }
 
-    template <typename DEVICE, typename SPEC>
-    auto& transforms(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    auto& transforms(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         static_assert(SPEC::ENABLE_OVERLAYS, "transforms requires an overlay-enabled renderer specification");
         return renderer.transforms;
     }
@@ -1474,19 +1474,19 @@ namespace rl_tools {
     // kernels; the launch verbs consume them directly. Under motion blur the pair is
     // cameras_open (shutter open) and cameras_close (shutter close, aliasing cameras) — both
     // must be written each step (identical values for a blur-free frame).
-    template <typename DEVICE, typename SPEC>
-    auto& cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    auto& cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         return renderer.cameras;
     }
 
-    template <typename DEVICE, typename SPEC>
-    auto& cameras_open(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    auto& cameras_open(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         static_assert(SPEC::ENABLE_MOTION_BLUR, "cameras_open requires a motion-blur renderer specification");
         return renderer.cameras_open;
     }
 
-    template <typename DEVICE, typename SPEC>
-    auto& cameras_close(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    auto& cameras_close(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         static_assert(SPEC::ENABLE_MOTION_BLUR, "cameras_close requires a motion-blur renderer specification");
         return renderer.cameras;
     }
@@ -1494,31 +1494,31 @@ namespace rl_tools {
     // output tensors, same backend-native residency as the inputs: consumers on the device read
     // them in place (zero-copy); host readers stage through an explicit copy at readback
     // boundaries (after a _sync)
-    template <typename DEVICE, typename SPEC>
-    auto& frame_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    auto& frame_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         static_assert(SPEC::HAS_RGB, "frame_buffer requires an RGB-capable renderer specification");
         return renderer.frame_buffer;
     }
 
-    template <typename DEVICE, typename SPEC>
-    auto& depth_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    auto& depth_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         static_assert(SPEC::HAS_DEPTH, "depth_buffer requires a depth-capable renderer specification");
         return renderer.depth_buffer;
     }
 
-    template <typename DEVICE, typename SPEC>
-    auto& segmentation_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    auto& segmentation_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         static_assert(SPEC::HAS_SEGMENTATION, "segmentation_buffer requires a segmentation-capable renderer specification");
         return renderer.segmentation_buffer;
     }
 
-    template <typename DEVICE, typename SPEC>
-    auto& collision_results(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    auto& collision_results(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         return renderer.collision_results;
     }
 
-    template <typename DEVICE, typename SPEC>
-    auto& observation(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    auto& observation(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         static_assert(SPEC::HAS_OBSERVATION, "observation requires OUTPUT_OBSERVATION in the renderer specification");
         return renderer.observation;
     }
@@ -1530,8 +1530,8 @@ namespace rl_tools {
     // This layout is cross-backend API surface: the generic flat instance array, Metal's user-ID
     // descriptors, and OptiX's user instance ids all realize it identically, and segmentation
     // consumers depend on that equivalence — treat any change to it as breaking.
-    template <typename DEVICE, typename SPEC>
-    const rendering::raytracing::Object* segmentation_object(DEVICE& device, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool, const rendering::raytracing::Renderer<SPEC>& renderer, uint32_t id){
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    const rendering::raytracing::Object* segmentation_object(DEVICE& device, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool, const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, uint32_t id){
         if(id == 0xFFFFFFFFu){
             return nullptr;
         }

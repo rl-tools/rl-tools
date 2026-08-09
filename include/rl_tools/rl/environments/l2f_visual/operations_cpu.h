@@ -149,40 +149,22 @@ namespace rl_tools {
         auto camera = rl::environments::l2f_visual::make_camera_for_state(device, env, parameters, state);
         std::array<rendering::raytracing::Camera<typename SPEC::T>, SPEC::NUM_ENVS> camera_staging;
         camera_staging.fill(camera);
-        // control-plane path (video rendering): host staging crosses into the backend-native
-        // camera tensors explicitly (device-resident on OptiX)
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-        cudaMemcpy(data(cameras(device, *env.renderer)), camera_staging.data(), sizeof(camera_staging), cudaMemcpyHostToDevice);
+        copy_to_renderer(device, *env.renderer, camera_staging.data(), data(cameras(device, *env.renderer)), camera_staging.size());
         if constexpr (SPEC::RENDERER_SPEC::ENABLE_MOTION_BLUR) {
-            cudaMemcpy(data(cameras_open(device, *env.renderer)), camera_staging.data(), sizeof(camera_staging), cudaMemcpyHostToDevice);
+            copy_to_renderer(device, *env.renderer, camera_staging.data(), data(cameras_open(device, *env.renderer)), camera_staging.size());
         }
-#else
-        std::memcpy(data(cameras(device, *env.renderer)), camera_staging.data(), sizeof(camera_staging));
-        if constexpr (SPEC::RENDERER_SPEC::ENABLE_MOTION_BLUR) {
-            std::memcpy(data(cameras_open(device, *env.renderer)), camera_staging.data(), sizeof(camera_staging));
-        }
-#endif
         render(device, *env.renderer);
 
         // the ray gen writes the float observation directly; host readers stage after the sync
         constexpr TI CAM_PIXELS = SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT;
         std::vector<float> rgb_staging(SPEC::HAS_RGB ? CAM_PIXELS * 3 : 0);
         std::vector<float> depth_staging(SPEC::HAS_DEPTH ? CAM_PIXELS : 0);
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
         if constexpr (SPEC::HAS_RGB) {
-            cudaMemcpy(rgb_staging.data(), data(env.renderer->observation), CAM_PIXELS * 3 * sizeof(float), cudaMemcpyDeviceToHost);
+            copy_from_renderer(device, *env.renderer, data(env.renderer->observation), rgb_staging.data(), CAM_PIXELS * 3);
         }
         if constexpr (SPEC::HAS_DEPTH) {
-            cudaMemcpy(depth_staging.data(), data(env.renderer->depth_buffer), CAM_PIXELS * sizeof(float), cudaMemcpyDeviceToHost);
+            copy_from_renderer(device, *env.renderer, data(env.renderer->depth_buffer), depth_staging.data(), CAM_PIXELS);
         }
-#else
-        if constexpr (SPEC::HAS_RGB) {
-            std::memcpy(rgb_staging.data(), data(env.renderer->observation), CAM_PIXELS * 3 * sizeof(float));
-        }
-        if constexpr (SPEC::HAS_DEPTH) {
-            std::memcpy(depth_staging.data(), data(env.renderer->depth_buffer), CAM_PIXELS * sizeof(float));
-        }
-#endif
         for (TI i = 0; i < CAM_PIXELS; i++) {
             if constexpr (SPEC::HAS_RGB) {
                 set(observation, 0, i * SPEC::IMAGE_CHANNELS + 0, static_cast<T>(rgb_staging[i * 3 + 0]));
@@ -221,23 +203,12 @@ namespace rl_tools {
         for (TI env_i = 0; env_i < num_envs; env_i++) {
             camera_staging[env_i] = rl::environments::l2f_visual::make_camera_for_state(device, env, get_ref(device, parameters, env_i), get_ref(device, states, env_i));
         }
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-        cudaMemcpy(data(cameras(device, *env.renderer)), camera_staging.data(), num_envs * sizeof(rendering::raytracing::Camera<typename SPEC::T>), cudaMemcpyHostToDevice);
+        copy_to_renderer(device, *env.renderer, camera_staging.data(), data(cameras(device, *env.renderer)), num_envs);
         if constexpr (SPEC::RENDERER_SPEC::ENABLE_MOTION_BLUR) {
-            cudaMemcpy(data(cameras_open(device, *env.renderer)), camera_staging.data(), num_envs * sizeof(rendering::raytracing::Camera<typename SPEC::T>), cudaMemcpyHostToDevice);
+            copy_to_renderer(device, *env.renderer, camera_staging.data(), data(cameras_open(device, *env.renderer)), num_envs);
         }
-#else
-        std::memcpy(data(cameras(device, *env.renderer)), camera_staging.data(), num_envs * sizeof(rendering::raytracing::Camera<typename SPEC::T>));
-        if constexpr (SPEC::RENDERER_SPEC::ENABLE_MOTION_BLUR) {
-            std::memcpy(data(cameras_open(device, *env.renderer)), camera_staging.data(), num_envs * sizeof(rendering::raytracing::Camera<typename SPEC::T>));
-        }
-#endif
         render(device, *env.renderer);
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-        cudaMemcpy(data(out_pixels), data(env.renderer->frame_buffer), (size_t)SPEC::NUM_ENVS * SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT * sizeof(uint32_t), cudaMemcpyDeviceToHost);
-#else
-        std::memcpy(data(out_pixels), data(env.renderer->frame_buffer), (size_t)SPEC::NUM_ENVS * SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT * sizeof(uint32_t));
-#endif
+        copy_from_renderer(device, *env.renderer, data(env.renderer->frame_buffer), data(out_pixels), (size_t)SPEC::NUM_ENVS * SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT);
     }
     template <typename DEVICE, typename SPEC>
     std::string json(DEVICE& device, const rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, const typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters& parameters){
