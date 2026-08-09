@@ -7,6 +7,7 @@ FETCHCONTENT_SOURCE_DIR_<NAME> overrides (per-dependency, so everything else sti
 normally); those overrides skip FetchContent's populate step, so patch scripts that
 normally run at populate time are applied here explicitly.
 """
+import re
 import shutil
 import subprocess
 
@@ -19,9 +20,39 @@ SEEDED_SOURCES = {
     "NLOHMANN_JSON": "nlohmann_json-src",
 }
 
+# FetchContent name -> cmake file declaring its GIT_TAG; seeds are validated against the
+# declared pin so a repin upstream can never be shadowed by a stale seeded checkout
+PINNED_SOURCES = {"OWL": "cmake/optional/optix.cmake"}
+
+
+def declared_pin(fetch_name):
+    relative = PINNED_SOURCES.get(fetch_name)
+    if relative is None:
+        return None
+    declaration = source_root() / relative
+    if not declaration.exists():
+        return None
+    match = re.search(
+        r"FetchContent_Declare\(\s*" + fetch_name + r"\b.*?GIT_TAG\s+([0-9a-fA-F]{7,40})",
+        declaration.read_text(), re.IGNORECASE | re.DOTALL,
+    )
+    return match.group(1) if match else None
+
+
+def checkout_head(tree):
+    result = subprocess.run(
+        ["git", "-C", str(tree), "rev-parse", "HEAD"], capture_output=True, text=True,
+    )
+    return result.stdout.strip() if result.returncode == 0 else None
+
+
+def matches_pin(tree, pin):
+    return pin is None or checkout_head(tree) == pin
+
 # cmake -P scripts under <source_root>/cmake/patches, applied to the named FetchContent
-# source dir; each script is idempotent and documents its upstream-removal condition
-PATCH_SCRIPTS = {"OWL": ("owl_pinned_host_mem.cmake", "OWL_SOURCE_DIR")}
+# source dir; each script is idempotent and documents its upstream-removal condition.
+# (Empty since the OWL PinnedHostMem fix landed upstream with the 978a6664 repin.)
+PATCH_SCRIPTS = {}
 
 
 def apply_patch_scripts(seeded):
@@ -47,11 +78,14 @@ def seed_dependencies(build_dir_name):
     ) if dependency_root.is_dir() else []
     seeded = {}
     for fetch_name, source_name in SEEDED_SOURCES.items():
+        pin = declared_pin(fetch_name)
         target = target_base / source_name
+        if target.exists() and not matches_pin(target, pin):
+            shutil.rmtree(target)
         if not target.exists():
             for donor in donors:
                 source = donor / source_name
-                if source.is_dir():
+                if source.is_dir() and matches_pin(source, pin):
                     target_base.mkdir(parents=True, exist_ok=True)
                     shutil.copytree(source, target, symlinks=True)
                     break

@@ -93,3 +93,73 @@ jobs:
         # Execute tests defined by the CMake configuration. Note that --build-config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
         # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
         run: ctest --build-config ${{ matrix.build_type }} --output-on-failure
+
+  raytracing-generic:
+    name: Raytracing Generic
+    runs-on: ubuntu-24.04
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: "5"
+      CTEST_PARALLEL_LEVEL: "5"
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install raytracing dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libassimp-dev cmake
+
+      - name: Configure CMake
+        run: >
+          cmake -S . -B build-raytracing-generic
+          -DCMAKE_BUILD_TYPE=Release
+          -DRL_TOOLS_ENABLE_TARGETS=ON
+          -DRL_TOOLS_ENABLE_TESTS=ON
+          -DRL_TOOLS_BACKEND_DISABLE_CUDA=ON
+          -DRL_TOOLS_RENDERING_ENABLE_RAYTRACING=ON
+          -DRL_TOOLS_RENDERING_RAYTRACING_BACKEND=GENERIC
+
+      - name: Build overlay scenarios
+        run: cmake --build build-raytracing-generic --target test_rendering_raytracing_overlay_scenarios_generic --parallel 5
+
+      - name: Test overlay scenarios
+        working-directory: build-raytracing-generic
+        run: ctest -L overlay --no-tests=error --output-on-failure --timeout 20 -j5
+
+  raytracing-vulkan:
+    name: Raytracing Vulkan
+    runs-on: ubuntu-24.04
+    env:
+      CMAKE_BUILD_PARALLEL_LEVEL: "5"
+      CTEST_PARALLEL_LEVEL: "5"
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install raytracing dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libassimp-dev libvulkan-dev glslang-tools mesa-vulkan-drivers cmake
+
+      - name: Select Lavapipe driver
+        run: |
+          lavapipe_manifest="$(find /usr/share/vulkan/icd.d -maxdepth 1 -name 'lvp_icd*.json' -print -quit)"
+          test -n "$lavapipe_manifest"
+          echo "VK_DRIVER_FILES=$lavapipe_manifest" >> "$GITHUB_ENV"
+
+      - name: Configure CMake
+        run: >
+          cmake -S . -B build-raytracing-vulkan
+          -DCMAKE_BUILD_TYPE=Release
+          -DRL_TOOLS_ENABLE_TARGETS=ON
+          -DRL_TOOLS_ENABLE_TESTS=ON
+          -DRL_TOOLS_BACKEND_DISABLE_CUDA=ON
+          -DRL_TOOLS_RENDERING_ENABLE_RAYTRACING=ON
+          -DRL_TOOLS_RENDERING_RAYTRACING_BACKEND=VULKAN
+
+      - name: Build overlay scenarios
+        run: cmake --build build-raytracing-vulkan --target test_rendering_raytracing_overlay_scenarios_vulkan --parallel 5
+
+      - name: Test overlay scenarios
+        working-directory: build-raytracing-vulkan
+        run: ctest -L overlay --no-tests=error --output-on-failure --timeout 20 -j5
