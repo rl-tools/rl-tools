@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "hyperdrone"
+version = "0.1.0"
+description = "Drone simulation stack for RLtools: raytracing renderer, L2F multirotor dynamics, environment setup"
+requires-python = ">=3.9"
+dependencies = ["numpy", "nanobind>=2.0"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["hyperdrone"]
+
+[tool.hatch.build.targets.sdist]
+only-include = ["hyperdrone", "hatch_build.py", "README.md", "pyproject.toml"]
+
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"

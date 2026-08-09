@@ -11,7 +11,7 @@ rl_tools_fetchcontent_makeavailable_quiet(procthor2glb_stb)
 FetchContent_Declare(
     procthor2glb_tinygltf
     GIT_REPOSITORY https://github.com/syoyo/tinygltf.git
-    GIT_TAG        9ab0d0d5f73bfd8ae29d0eb43653b045d44f3ce1
+    GIT_TAG        0d9ce1a9561688c6c6e7471430d15a50a0b15f1a # v3.0.1
     EXCLUDE_FROM_ALL
 )
 rl_tools_fetchcontent_makeavailable_quiet(procthor2glb_tinygltf)
@@ -28,10 +28,14 @@ add_executable(procthor2glb
     procthor2glb.cpp
     ${procthor2glb_basisu_SOURCE_DIR}/transcoder/basisu_transcoder.cpp
 )
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    set_source_files_properties(${procthor2glb_basisu_SOURCE_DIR}/transcoder/basisu_transcoder.cpp
+        PROPERTIES COMPILE_OPTIONS "-Wno-stringop-overflow")
+endif()
 target_link_libraries(procthor2glb PRIVATE RLtools::RLtools)
 target_include_directories(procthor2glb SYSTEM PRIVATE
     ${procthor2glb_stb_SOURCE_DIR}
-    ${procthor2glb_tinygltf_SOURCE_DIR}
+    ${procthor2glb_tinygltf_SOURCE_DIR}/attic # tinygltf >= v3 is a C rewrite; the v2 C++ single-header lives in attic/
     ${procthor2glb_basisu_SOURCE_DIR}/transcoder
 )
 
