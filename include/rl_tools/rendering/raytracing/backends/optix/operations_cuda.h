@@ -1200,9 +1200,6 @@ namespace rl_tools {
     void free(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         RL_TOOLS_RENDERING_RAYTRACING_LOG("destroying devicegroups ...");
         if(renderer.backend.context) owlContextDestroy((OWLContext)renderer.backend.context);
-        // OWL's LaunchParams teardown cudaFrees in an invalid context state once params are
-        // non-empty; clear the latent error so it cannot poison the next renderer lifecycle
-        cudaGetLastError();
         renderer.backend.context = nullptr;
         delete (rendering::raytracing::backends::optix::OverlayState*)renderer.backend.overlay_state;
         renderer.backend.overlay_state = nullptr;
