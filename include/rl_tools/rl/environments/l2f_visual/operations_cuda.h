@@ -7,6 +7,7 @@
 #include "multirotor_visual.h"
 #include <rl_tools/rl/environments/l2f/quaternion_helper.h>
 #include <rl_tools/rendering/raytracing/backends/optix/operations_cuda.h>
+#include <rl_tools/rendering/raytracing/operations_cpu.h>
 #include <cuda_runtime.h>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START

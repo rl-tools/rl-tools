@@ -11,6 +11,7 @@
 #else
 #include <rl_tools/rendering/raytracing/backends/generic/operations_cpu.h>
 #endif
+#include <rl_tools/rendering/raytracing/operations_cpu.h>
 
 #if !defined(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND)
 #define RL_TOOLS_GOLDEN_SUITE RENDERING_RAYTRACING_GOLDEN_CPU
@@ -51,7 +52,13 @@
 
 namespace rlt = rl_tools;
 
-using DEVICE = rlt::devices::DefaultCPU;
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND
+using RENDER_DEVICE = rlt::devices::rendering::Default;
+#else
+using RENDER_DEVICE = rlt::devices::rendering::Generic;
+#endif
+using DEVICE_SPEC = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::devices::random::CPU, rlt::devices::logging::CPU, RENDER_DEVICE>;
+using DEVICE = rlt::devices::CPU<DEVICE_SPEC>;
 using T = float;
 using TI = typename DEVICE::index_t;
 using CASES = golden::Cases<T, TI>;
@@ -88,7 +95,7 @@ namespace {
 
     template <typename SPEC>
     bool render_case(DEVICE& device, Rendered& out){
-        using Renderer = rlt::rendering::raytracing::Renderer<SPEC>;
+        using Renderer = rlt::rendering::raytracing::Renderer<SPEC, RENDER_DEVICE>;
         Renderer renderer;
         rlt::malloc(device, renderer);
         rlt::rendering::raytracing::Scene scene;
@@ -100,18 +107,12 @@ namespace {
 
         // camera setup mirrors tests/src/rendering/raytracing/generate_golden.cpp — keep in sync
         constexpr T aspect = (T)SPEC::CAM_WIDTH / (T)SPEC::CAM_HEIGHT;
-        constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rlt::rendering::raytracing::Camera<T>);
         std::vector<rlt::rendering::raytracing::Camera<T>> camera_staging(SPEC::NUM_CAMERAS);
         for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
             const golden::Pose<T>& pose = CASES::POSES[camera_i];
             camera_staging[camera_i] = rlt::make_camera_data(pose.position, pose.look_at, pose.up, SPEC::COS_FOVY, aspect);
         }
-        // cameras(device, renderer) is backend-native: device-resident on OptiX, host-visible elsewhere
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND) && defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-        cudaMemcpy(rlt::data(rlt::cameras(device, renderer)), camera_staging.data(), camera_bytes, cudaMemcpyHostToDevice);
-#else
-        std::memcpy(rlt::data(rlt::cameras(device, renderer)), camera_staging.data(), camera_bytes);
-#endif
+        rlt::copy_to_renderer(device, renderer, camera_staging.data(), rlt::data(rlt::cameras(device, renderer)), camera_staging.size());
         if constexpr(SPEC::ENABLE_MOTION_BLUR){
             for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
                 const golden::Pose<T>& pose = CASES::POSES[camera_i];
@@ -122,41 +123,24 @@ namespace {
                 }
                 camera_staging[camera_i] = rlt::make_camera_data(position, look_at, pose.up, SPEC::COS_FOVY, aspect);
             }
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND) && defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-            cudaMemcpy(rlt::data(rlt::cameras_open(device, renderer)), camera_staging.data(), camera_bytes, cudaMemcpyHostToDevice);
-#else
-            std::memcpy(rlt::data(rlt::cameras_open(device, renderer)), camera_staging.data(), camera_bytes);
-#endif
+            rlt::copy_to_renderer(device, renderer, camera_staging.data(), rlt::data(rlt::cameras_open(device, renderer)), camera_staging.size());
         }
         rlt::generate_probe_directions(device, renderer);
         rlt::render(device, renderer);
         rlt::probe(device, renderer);
         rlt::synchronize(device, renderer);
 
-        // outputs are backend-native tensors (device-resident on OptiX): stage to host
         constexpr size_t pixel_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
         out.frame_buffer.resize(pixel_count);
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND) && defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-        cudaMemcpy(out.frame_buffer.data(), rlt::data(rlt::frame_buffer(device, renderer)), pixel_count * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+        rlt::copy_from_renderer(device, renderer, rlt::data(rlt::frame_buffer(device, renderer)), out.frame_buffer.data(), pixel_count);
         if constexpr(SPEC::HAS_DEPTH){
             out.depth_buffer.resize(pixel_count);
-            cudaMemcpy(out.depth_buffer.data(), rlt::data(rlt::depth_buffer(device, renderer)), pixel_count * sizeof(float), cudaMemcpyDeviceToHost);
+            rlt::copy_from_renderer(device, renderer, rlt::data(rlt::depth_buffer(device, renderer)), out.depth_buffer.data(), pixel_count);
         }
         if(rlt::data(renderer.collision_results) != nullptr){
             out.probes.resize((size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);
-            cudaMemcpy(out.probes.data(), rlt::data(rlt::collision_results(device, renderer)), out.probes.size() * sizeof(rlt::rendering::raytracing::CollisionResult), cudaMemcpyDeviceToHost);
+            rlt::copy_from_renderer(device, renderer, rlt::data(rlt::collision_results(device, renderer)), out.probes.data(), out.probes.size());
         }
-#else
-        std::memcpy(out.frame_buffer.data(), rlt::data(rlt::frame_buffer(device, renderer)), pixel_count * sizeof(uint32_t));
-        if constexpr(SPEC::HAS_DEPTH){
-            out.depth_buffer.resize(pixel_count);
-            std::memcpy(out.depth_buffer.data(), rlt::data(rlt::depth_buffer(device, renderer)), pixel_count * sizeof(float));
-        }
-        if(rlt::data(renderer.collision_results) != nullptr){
-            out.probes.resize((size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);
-            std::memcpy(out.probes.data(), rlt::data(rlt::collision_results(device, renderer)), out.probes.size() * sizeof(rlt::rendering::raytracing::CollisionResult));
-        }
-#endif
         out.max_depth = renderer.camera_radius > 0 ? renderer.camera_radius * 2.0f : 1e30f;
         out.camera_radius = renderer.camera_radius;
 

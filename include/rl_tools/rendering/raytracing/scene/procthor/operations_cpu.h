@@ -36,8 +36,8 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
         return x - std::floor(x);
     }
 
-    template <typename DEVICE, typename SCENE_SPEC, typename RENDERER_SPEC>
-    void precompute_indoor_positions(DEVICE& device, Scene<SCENE_SPEC>& scene, rendering::raytracing::Renderer<RENDERER_SPEC>& renderer, typename SCENE_SPEC::T fov, typename SCENE_SPEC::T aspect) {
+    template <typename DEVICE, typename SCENE_SPEC, typename RENDERER_SPEC, typename RENDER_DEVICE>
+    void precompute_indoor_positions(DEVICE& device, Scene<SCENE_SPEC>& scene, rendering::raytracing::Renderer<RENDERER_SPEC, RENDER_DEVICE>& renderer, typename SCENE_SPEC::T fov, typename SCENE_SPEC::T aspect) {
         using T = typename SCENE_SPEC::T;
         using TI = typename SCENE_SPEC::TI;
         constexpr TI NUM_CAMERAS = RENDERER_SPEC::NUM_CAMERAS;
@@ -52,7 +52,7 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
         const T half_extent[3] = {renderer.scene_half_extent[0], renderer.scene_half_extent[1], renderer.scene_half_extent[2]};
 
         RL_TOOLS_RENDERING_RAYTRACING_LOG("precompute_indoor_positions: center=[" << center[0] << "," << center[1] << "," << center[2] << "] half_extent=[" << half_extent[0] << "," << half_extent[1] << "," << half_extent[2] << "]");
-        utils::assert_exit(device, renderer.backend.collision_results_buffer != nullptr, "precompute_indoor_positions: collision results buffer is null");
+        utils::assert_exit(device, data(collision_results(device, renderer)) != nullptr, "precompute_indoor_positions: collision results buffer is null");
 
         struct Candidate {
             IndoorPosition<T> position;
@@ -110,22 +110,11 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
                 camera_staging[camera_i] = make_camera_data(cam_position, cam_look_at, cam_up, fov, aspect);
             }
 
-            // probes trace from the shutter-close cameras; the tensor is backend-native so the
-            // host staging crosses into it explicitly (device-resident on OptiX)
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-            cudaMemcpy(data(cameras(device, renderer)), camera_staging.data(), NUM_CAMERAS * sizeof(rendering::raytracing::Camera<T>), cudaMemcpyHostToDevice);
-#else
-            std::memcpy(data(cameras(device, renderer)), camera_staging.data(), NUM_CAMERAS * sizeof(rendering::raytracing::Camera<T>));
-#endif
+            copy_to_renderer(device, renderer, camera_staging.data(), data(cameras(device, renderer)), NUM_CAMERAS);
             probe(device, renderer);
 
-            // collision results are backend-native (device-resident on OptiX): stage to host
             std::vector<rendering::raytracing::CollisionResult> probe_staging((size_t)NUM_CAMERAS * NUM_PROBES);
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-            cudaMemcpy(probe_staging.data(), data(collision_results(device, renderer)), probe_staging.size() * sizeof(rendering::raytracing::CollisionResult), cudaMemcpyDeviceToHost);
-#else
-            std::memcpy(probe_staging.data(), data(collision_results(device, renderer)), probe_staging.size() * sizeof(rendering::raytracing::CollisionResult));
-#endif
+            copy_from_renderer(device, renderer, data(collision_results(device, renderer)), probe_staging.data(), probe_staging.size());
             const rendering::raytracing::CollisionResult* probe_results = probe_staging.data();
             for (TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++) {
                 const rendering::raytracing::CollisionResult* camera_probes = probe_results + static_cast<size_t>(camera_i) * static_cast<size_t>(NUM_PROBES);
@@ -210,19 +199,15 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
         return scene.indoor_positions[index];
     }
 
-    template <typename DEVICE, typename RENDERER_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT typename RENDERER_SPEC::T evaluate_clearance(DEVICE& device, rendering::raytracing::Renderer<RENDERER_SPEC>& renderer, typename RENDERER_SPEC::TI camera_index) {
+    template <typename DEVICE, typename RENDERER_SPEC, typename RENDER_DEVICE>
+    RL_TOOLS_FUNCTION_PLACEMENT typename RENDERER_SPEC::T evaluate_clearance(DEVICE& device, rendering::raytracing::Renderer<RENDERER_SPEC, RENDER_DEVICE>& renderer, typename RENDERER_SPEC::TI camera_index) {
         using T = typename RENDERER_SPEC::T;
         constexpr auto NUM_PROBES = RENDERER_SPEC::NUM_PROBES;
         if (data(renderer.collision_results) == nullptr) {
             return std::numeric_limits<T>::max();
         }
         std::vector<rendering::raytracing::CollisionResult> probe_staging(NUM_PROBES);
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-        cudaMemcpy(probe_staging.data(), data(renderer.collision_results) + (size_t)camera_index * NUM_PROBES, NUM_PROBES * sizeof(rendering::raytracing::CollisionResult), cudaMemcpyDeviceToHost);
-#else
-        std::memcpy(probe_staging.data(), data(renderer.collision_results) + (size_t)camera_index * NUM_PROBES, NUM_PROBES * sizeof(rendering::raytracing::CollisionResult));
-#endif
+        copy_from_renderer(device, renderer, data(renderer.collision_results) + (size_t)camera_index * NUM_PROBES, probe_staging.data(), NUM_PROBES);
         const rendering::raytracing::CollisionResult* camera_probes = probe_staging.data();
         T min_dist = std::numeric_limits<T>::max();
         for (typename RENDERER_SPEC::TI probe_i = 0; probe_i < NUM_PROBES; probe_i++) {

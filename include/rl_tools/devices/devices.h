@@ -6,6 +6,7 @@
 #include "../rl_tools.h"
 
 #include "../utils/generic/typing.h"
+#include "rendering.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
@@ -32,7 +33,8 @@ namespace rl_tools {
         enum class Type {
             math,
             random,
-            logging
+            logging,
+            rendering
         };
     }
 }

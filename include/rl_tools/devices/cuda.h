@@ -58,6 +58,7 @@ namespace rl_tools::devices{
             static constexpr bool compatible = OTHER_DEVICE::DEVICE_ID == DeviceId::CUDA;
             using SPEC = T_SPEC;
             typename SPEC::LOGGING* logger = nullptr;
+            typename devices::rendering::component<SPEC>::TYPE render;
             cublasHandle_t handle;
             bool graph_capture_active = false;
             cudaStream_t stream;
@@ -125,6 +126,7 @@ namespace rl_tools::devices{
         using MATH_DEVICE_ACCURATE = math::CUDA;
         using RANDOM = random::CUDA;
         using LOGGING = logging::CUDA;
+        using RENDERING = devices::rendering::Default;
         static constexpr bool TAG = false;
         static constexpr bool KERNEL = false;
         // Optional strict checking for external CUDA/cuBLAS/cuDNN calls.
