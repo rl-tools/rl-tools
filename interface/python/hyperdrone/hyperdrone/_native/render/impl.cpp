@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstring>
 #include <stdexcept>
+#include <vector>
 
 #ifndef HYPERDRONE_RENDER_WIDTH
 #error "HYPERDRONE_RENDER_WIDTH must be defined"
@@ -81,6 +82,30 @@ namespace hyperdrone_render_impl {
 
     using RENDERER_SPEC = rrt::Specification<RendererConfiguration>;
 
+    // renderer input/output tensors are backend-native (CUDA device memory on OptiX, host
+    // elsewhere); host staging crosses that boundary explicitly
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+    static constexpr bool BUFFERS_ON_HOST = false;
+    template <typename VALUE>
+    void copy_from_renderer(VALUE* destination, const VALUE* source, size_t count){
+        cudaMemcpy(destination, source, count * sizeof(VALUE), cudaMemcpyDeviceToHost);
+    }
+    template <typename VALUE>
+    void copy_to_renderer(VALUE* destination, const VALUE* source, size_t count){
+        cudaMemcpy(destination, source, count * sizeof(VALUE), cudaMemcpyHostToDevice);
+    }
+#else
+    static constexpr bool BUFFERS_ON_HOST = true;
+    template <typename VALUE>
+    void copy_from_renderer(VALUE* destination, const VALUE* source, size_t count){
+        std::memcpy(destination, source, count * sizeof(VALUE));
+    }
+    template <typename VALUE>
+    void copy_to_renderer(VALUE* destination, const VALUE* source, size_t count){
+        std::memcpy(destination, source, count * sizeof(VALUE));
+    }
+#endif
+
     // template so if-constexpr branches on the spec's feature flags are discarded without
     // being instantiated on configs that lack the corresponding storage/operations
     template <typename T_SPEC>
@@ -89,6 +114,11 @@ namespace hyperdrone_render_impl {
         DEVICE device;
         rrt::Renderer<SPEC> renderer;
         bool initialized = false;
+        // host staging for the readback paths; unused (and never allocated) on backends
+        // whose output tensors are host-resident
+        std::vector<uint32_t> host_frame, host_segmentation;
+        std::vector<float> host_depth;
+        std::vector<rrt::CollisionResult> host_collisions;
 
         RendererImpl(){
             rlt::init(device);
@@ -165,15 +195,36 @@ namespace hyperdrone_render_impl {
             rlt::synchronize(device, renderer);
         }
 
+        // camera input is a renderer-owned tensor written in place; under motion blur both
+        // shutter poses must be written every step, so a blur-free update writes both
         void set_cameras(const float* cameras) override {
-            std::memcpy(rlt::data(renderer.cameras), cameras, sizeof(rrt::Camera<T>) * SPEC::NUM_CAMERAS);
-            rlt::set_cameras(device, renderer, renderer.cameras);
+            const rrt::Camera<T>* source = (const rrt::Camera<T>*)cameras;
+            copy_to_renderer(rlt::data(rlt::cameras(device, renderer)), source, SPEC::NUM_CAMERAS);
+            if constexpr (SPEC::ENABLE_MOTION_BLUR){
+                copy_to_renderer(rlt::data(rlt::cameras_open(device, renderer)), source, SPEC::NUM_CAMERAS);
+            }
         }
 
         void set_cameras_device(const float* cameras, unsigned long long producer_stream) override {
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
             require_init();
-            rlt::set_cameras_device(device, renderer, cameras, (cudaStream_t)producer_stream);
+            // enqueued on the render stream: orders after the previous launch (no overwrite
+            // hazard) and before the next one; a foreign producer stream is awaited via an
+            // event, never a host sync
+            cudaStream_t render_stream = rlt::stream(device, renderer);
+            cudaStream_t producer = (cudaStream_t)producer_stream;
+            if(producer != nullptr && producer != render_stream){
+                cudaEvent_t cameras_ready;
+                cudaEventCreateWithFlags(&cameras_ready, cudaEventDisableTiming);
+                cudaEventRecord(cameras_ready, producer);
+                cudaStreamWaitEvent(render_stream, cameras_ready, 0);
+                cudaEventDestroy(cameras_ready);
+            }
+            const size_t bytes = sizeof(rrt::Camera<T>) * SPEC::NUM_CAMERAS;
+            cudaMemcpyAsync(rlt::data(rlt::cameras(device, renderer)), cameras, bytes, cudaMemcpyDeviceToDevice, render_stream);
+            if constexpr (SPEC::ENABLE_MOTION_BLUR){
+                cudaMemcpyAsync(rlt::data(rlt::cameras_open(device, renderer)), cameras, bytes, cudaMemcpyDeviceToDevice, render_stream);
+            }
 #else
             (void)cameras; (void)producer_stream;
             throw std::runtime_error("hyperdrone: device-resident camera input is only supported on the OptiX backend");
@@ -182,9 +233,8 @@ namespace hyperdrone_render_impl {
 
         void set_motion_blur_cameras(const float* cameras_open, const float* cameras_close) override {
             if constexpr (SPEC::ENABLE_MOTION_BLUR){
-                std::memcpy(rlt::data(renderer.cameras_open), cameras_open, sizeof(rrt::Camera<T>) * SPEC::NUM_CAMERAS);
-                std::memcpy(rlt::data(renderer.cameras), cameras_close, sizeof(rrt::Camera<T>) * SPEC::NUM_CAMERAS);
-                rlt::set_motion_blur_cameras(device, renderer, renderer.cameras_open, renderer.cameras);
+                copy_to_renderer(rlt::data(rlt::cameras_open(device, renderer)), (const rrt::Camera<T>*)cameras_open, SPEC::NUM_CAMERAS);
+                copy_to_renderer(rlt::data(rlt::cameras_close(device, renderer)), (const rrt::Camera<T>*)cameras_close, SPEC::NUM_CAMERAS);
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer was compiled without motion blur (motion_blur_samples <= 1)");
@@ -240,8 +290,7 @@ namespace hyperdrone_render_impl {
         void read_frame_buffer(uint32_t* dst) override {
             if constexpr (SPEC::HAS_RGB){
                 require_init();
-                rlt::read_frame_buffer(device, renderer, renderer.frame_buffer);
-                std::memcpy(dst, rlt::data(renderer.frame_buffer), sizeof(uint32_t) * SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
+                copy_from_renderer(dst, rlt::data(rlt::frame_buffer(device, renderer)), SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer has no RGB output");
@@ -251,8 +300,7 @@ namespace hyperdrone_render_impl {
         void read_depth_buffer(float* dst) override {
             if constexpr (SPEC::HAS_DEPTH){
                 require_init();
-                rlt::read_depth_buffer(device, renderer, renderer.depth_buffer);
-                std::memcpy(dst, rlt::data(renderer.depth_buffer), sizeof(float) * SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
+                copy_from_renderer(dst, rlt::data(rlt::depth_buffer(device, renderer)), SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer has no depth output");
@@ -262,8 +310,7 @@ namespace hyperdrone_render_impl {
         void read_segmentation_buffer(uint32_t* dst) override {
             if constexpr (SPEC::HAS_SEGMENTATION){
                 require_init();
-                rlt::read_segmentation_buffer(device, renderer, renderer.segmentation_buffer);
-                std::memcpy(dst, rlt::data(renderer.segmentation_buffer), sizeof(uint32_t) * SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
+                copy_from_renderer(dst, rlt::data(rlt::segmentation_buffer(device, renderer)), SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer has no segmentation output");
@@ -272,18 +319,19 @@ namespace hyperdrone_render_impl {
 
         void read_collision_results(float* distances, int32_t* hits) override {
             require_init();
-            rlt::read_collision_results(device, renderer, renderer.collision_results);
-            const rrt::CollisionResult* results = rlt::data(renderer.collision_results);
-            for(TI i = 0; i < SPEC::NUM_CAMERAS * SPEC::NUM_PROBES; i++){
-                distances[i] = results[i].distance;
-                hits[i] = results[i].hit;
+            constexpr TI count = SPEC::NUM_CAMERAS * SPEC::NUM_PROBES;
+            host_collisions.resize(count);
+            copy_from_renderer(host_collisions.data(), rlt::data(rlt::collision_results(device, renderer)), count);
+            for(TI i = 0; i < count; i++){
+                distances[i] = host_collisions[i].distance;
+                hits[i] = host_collisions[i].hit;
             }
         }
 
         uint32_t* framebuffer_device_ptr() override {
             if constexpr (SPEC::HAS_RGB){
                 require_init();
-                return rlt::get_framebuffer_device_ptr(device, renderer);
+                return rlt::data(rlt::frame_buffer(device, renderer));
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer has no RGB output");
@@ -293,7 +341,7 @@ namespace hyperdrone_render_impl {
         float* depthbuffer_device_ptr() override {
             if constexpr (SPEC::HAS_DEPTH){
                 require_init();
-                return rlt::get_depthbuffer_device_ptr(device, renderer);
+                return rlt::data(rlt::depth_buffer(device, renderer));
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer has no depth output");
@@ -316,13 +364,28 @@ namespace hyperdrone_render_impl {
             return depthbuffer_device_ptr();
         }
 
+        // stable host-side view of an output channel. On host-resident backends that is the
+        // renderer's own tensor (zero copy, refreshed in place by rendering); on OptiX it is
+        // an impl-owned staging buffer refreshed from device memory.
+        template <typename VALUE, typename TENSOR>
+        VALUE* host_view(std::vector<VALUE>& staging, TENSOR& tensor, bool refresh){
+            if constexpr (BUFFERS_ON_HOST){
+                (void)staging; (void)refresh;
+                return rlt::data(tensor);
+            }
+            else {
+                staging.resize(SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
+                if(refresh){
+                    copy_from_renderer(staging.data(), rlt::data(tensor), staging.size());
+                }
+                return staging.data();
+            }
+        }
+
         uint32_t* frame_buffer_host(bool refresh) override {
             if constexpr (SPEC::HAS_RGB){
                 require_init();
-                if(refresh){
-                    rlt::read_frame_buffer(device, renderer, renderer.frame_buffer);
-                }
-                return rlt::data(renderer.frame_buffer);
+                return host_view(host_frame, rlt::frame_buffer(device, renderer), refresh);
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer has no RGB output");
@@ -332,10 +395,7 @@ namespace hyperdrone_render_impl {
         float* depth_buffer_host(bool refresh) override {
             if constexpr (SPEC::HAS_DEPTH){
                 require_init();
-                if(refresh){
-                    rlt::read_depth_buffer(device, renderer, renderer.depth_buffer);
-                }
-                return rlt::data(renderer.depth_buffer);
+                return host_view(host_depth, rlt::depth_buffer(device, renderer), refresh);
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer has no depth output");
@@ -345,10 +405,7 @@ namespace hyperdrone_render_impl {
         uint32_t* segmentation_buffer_host(bool refresh) override {
             if constexpr (SPEC::HAS_SEGMENTATION){
                 require_init();
-                if(refresh){
-                    rlt::read_segmentation_buffer(device, renderer, renderer.segmentation_buffer);
-                }
-                return rlt::data(renderer.segmentation_buffer);
+                return host_view(host_segmentation, rlt::segmentation_buffer(device, renderer), refresh);
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer has no segmentation output");
