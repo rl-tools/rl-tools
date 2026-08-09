@@ -8,13 +8,13 @@
 
 #include <gtest/gtest.h>
 
+#include "../overlay_scenario_cases.h"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
-#include <initializer_list>
-#include <string>
 #include <vector>
 
 #ifndef RL_TOOLS_OVERLAY_SCENARIOS_SUITE
@@ -28,32 +28,12 @@ using T = float;
 using TI = typename DEVICE::index_t;
 using rlt::rendering::raytracing::AssetHandle;
 using rlt::rendering::raytracing::AssetPool;
-using rlt::rendering::raytracing::Object;
-using rlt::rendering::raytracing::OverlayIndex;
-using rlt::rendering::raytracing::OverlayPlacement;
 using rlt::rendering::raytracing::Scene;
 
 namespace {
-    constexpr TI NUM_CAMERAS = 4;
-
-    struct StaticConfig: rlt::rendering::raytracing::config::Default<T, TI>{
-        static constexpr TI CAM_WIDTH = 64;
-        static constexpr TI CAM_HEIGHT = 64;
-        static constexpr TI NUM_CAMERAS = ::NUM_CAMERAS;
-        static constexpr TI NUM_PROBES = 1;
-        using SHADING = rlt::rendering::raytracing::Low;
-        static constexpr bool OUTPUT_RGB = true;
-        static constexpr bool OUTPUT_DEPTH = true;
-        static constexpr bool OUTPUT_SEGMENTATION = true;
-    };
-    using StaticSpec = rlt::rendering::raytracing::Specification<StaticConfig>;
-
-    struct OverlayConfig: StaticConfig{
-        static constexpr TI NUM_OVERLAYS = 10;
-        static constexpr TI MAX_OVERLAY_INSTANCES = 4;
-        static constexpr TI MAX_OVERLAYS_PER_CAMERA = 4;
-    };
-    using OverlaySpec = rlt::rendering::raytracing::Specification<OverlayConfig>;
+    constexpr TI NUM_CAMERAS = static_cast<TI>(overlay_scenarios::NUM_CAMERAS);
+    using StaticSpec = overlay_scenarios::StaticSpecification<T, TI>;
+    using OverlaySpec = overlay_scenarios::OverlaySpecification<T, TI>;
 
     template <typename SPEC>
     struct RendererOwner{
@@ -70,42 +50,6 @@ namespace {
         RendererOwner(const RendererOwner&) = delete;
         RendererOwner& operator=(const RendererOwner&) = delete;
     };
-
-    rlt::rendering::raytracing::Mesh make_quad(T half_extent, const std::array<T, 3>& color){
-        rlt::rendering::raytracing::Mesh mesh;
-        mesh.vertices = {
-            0, -half_extent, -half_extent,
-            0, +half_extent, -half_extent,
-            0, +half_extent, +half_extent,
-            0, -half_extent, +half_extent,
-        };
-        mesh.indices = {0, 2, 1, 0, 3, 2};
-        for(size_t channel = 0; channel < 3; channel++){
-            mesh.color[channel] = color[channel];
-        }
-        return mesh;
-    }
-
-    std::array<float, 12> pose(float x, float y, float z){
-        return {1, 0, 0, x, 0, 1, 0, y, 0, 0, 1, z};
-    }
-
-    Scene make_shared_scene(DEVICE& device){
-        Scene scene;
-        Object background;
-        background.name = "shared-scene";
-        background.meshes.push_back(make_quad(10.0f, {0.2f, 0.2f, 0.2f}));
-        const auto transform = pose(8.0f, 0.0f, 0.0f);
-        rlt::add(device, scene, background, transform.data());
-        return scene;
-    }
-
-    AssetHandle add_asset(DEVICE& device, AssetPool& pool, const std::string& name, const std::array<T, 3>& color, T half_extent = 0.34f){
-        Object object;
-        object.name = name;
-        object.meshes.push_back(make_quad(half_extent, color));
-        return rlt::add(device, pool, object);
-    }
 
     template <typename SPEC>
     void set_identical_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer){
@@ -292,32 +236,10 @@ namespace {
     }
 
     template <typename SPEC>
-    uint32_t placement_id(const Scene& scene, size_t overlay, const OverlayPlacement& placement, size_t part = 0){
-        return (uint32_t)(scene.instances.size() + overlay * SPEC::MAX_OVERLAY_INSTANCES + placement.first_slot + part);
-    }
-
-    template <typename SPEC>
     void expect_maps_to_asset(DEVICE& device, const Scene& scene, const AssetPool& pool, const rlt::rendering::raytracing::Renderer<SPEC>& renderer, uint32_t id, AssetHandle asset){
         const auto* object = rlt::segmentation_object(device, scene, pool, renderer, id);
         ASSERT_NE(object, nullptr);
         EXPECT_EQ(object, &pool.assemblies[asset.index].objects[0]);
-    }
-
-    template <typename SPEC>
-    OverlayPlacement spawn_at(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, size_t overlay, AssetHandle asset, const std::array<float, 12>& transform){
-        return rlt::spawn(device, renderer, OverlayIndex{overlay}, asset, transform.data());
-    }
-
-    template <typename SPEC>
-    void attach_to(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, size_t overlay, std::initializer_list<TI> cameras){
-        for(TI camera : cameras){
-            rlt::attach(device, renderer, camera, OverlayIndex{overlay});
-        }
-    }
-
-    template <typename SPEC>
-    void move(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, size_t overlay, const OverlayPlacement& placement, const std::array<float, 12>& transform){
-        rlt::set_transform(device, renderer, OverlayIndex{overlay}, placement, transform.data());
     }
 
     template <typename SPEC>
@@ -346,14 +268,16 @@ namespace {
 TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, SHARED_SCENE_NO_DYNAMIC_OBJECTS){
     DEVICE device;
     rlt::init(device);
-    Scene scene = make_shared_scene(device);
-    AssetPool pool;
+    auto state = overlay_scenarios::prepare(device, overlay_scenarios::Scenario::SHARED_SCENE_NO_DYNAMIC);
+    auto& scene = state.scene;
+    auto& pool = state.pool;
     RendererOwner<StaticSpec> baseline_owner(device);
     rlt::init(device, baseline_owner.renderer, scene);
     set_identical_cameras(device, baseline_owner.renderer);
     RendererOwner<OverlaySpec> overlay_owner(device);
     rlt::init(device, overlay_owner.renderer, scene, pool);
     set_identical_cameras(device, overlay_owner.renderer);
+    overlay_scenarios::build_initial(device, overlay_owner.renderer, state);
     rlt::update(device, overlay_owner.renderer);
 
     const auto baseline = capture(device, baseline_owner.renderer);
@@ -374,21 +298,22 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, SHARED_SCENE_NO_DYNAMIC_OBJECTS){
 TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, ALL_DYNAMIC_OBJECTS_SHARE_MESHES_AND_TRANSFORMS){
     DEVICE device;
     rlt::init(device);
-    Scene scene = make_shared_scene(device);
-    AssetPool pool;
-    const auto red = add_asset(device, pool, "shared-red", {0.9f, 0.1f, 0.1f});
-    const auto green = add_asset(device, pool, "shared-green", {0.1f, 0.9f, 0.1f});
+    auto state = overlay_scenarios::prepare(device, overlay_scenarios::Scenario::ALL_SHARED_MESH_TRANSFORM);
+    auto& scene = state.scene;
+    auto& pool = state.pool;
+    const auto red = state.assets[0];
+    const auto green = state.assets[1];
     RendererOwner<OverlaySpec> owner(device);
     rlt::init(device, owner.renderer, scene, pool);
     set_identical_cameras(device, owner.renderer);
-    attach_to(device, owner.renderer, 0, {0, 1, 2, 3});
+    overlay_scenarios::build_initial(device, owner.renderer, state);
 
-    const auto red_placement = spawn_at(device, owner.renderer, 0, red, pose(4.0f, -0.9f, 0.0f));
-    const auto green_placement = spawn_at(device, owner.renderer, 0, green, pose(4.0f, 0.9f, 0.0f));
+    const auto red_placement = state.placements[0];
+    const auto green_placement = state.placements[1];
     EXPECT_EQ(red_placement.first_slot, (size_t)0);
     EXPECT_EQ(green_placement.first_slot, (size_t)1);
-    const uint32_t red_id = placement_id<OverlaySpec>(scene, 0, red_placement);
-    const uint32_t green_id = placement_id<OverlaySpec>(scene, 0, green_placement);
+    const uint32_t red_id = state.ids[0];
+    const uint32_t green_id = state.ids[1];
     expect_maps_to_asset(device, scene, pool, owner.renderer, red_id, red);
     expect_maps_to_asset(device, scene, pool, owner.renderer, green_id, green);
 
@@ -403,7 +328,7 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, ALL_DYNAMIC_OBJECTS_SHARE_MESHES_AND_TRAN
     }
     expect_repeat_after_noop_update(device, owner.renderer, first);
 
-    move(device, owner.renderer, 0, red_placement, pose(3.2f, -0.9f, 0.8f));
+    overlay_scenarios::apply_update(device, owner.renderer, state);
     rlt::update(device, owner.renderer);
     const auto second = capture(device, owner.renderer);
     expect_raw_frame_valid(second);
@@ -424,26 +349,22 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, ALL_DYNAMIC_OBJECTS_SHARE_MESHES_AND_TRAN
 TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, SOME_DYNAMIC_OBJECTS_SHARE_MESHES_AND_TRANSFORMS){
     DEVICE device;
     rlt::init(device);
-    Scene scene = make_shared_scene(device);
-    AssetPool pool;
-    const auto shared = add_asset(device, pool, "partially-shared", {0.9f, 0.1f, 0.1f});
+    auto state = overlay_scenarios::prepare(device, overlay_scenarios::Scenario::PARTIALLY_SHARED_MESH_TRANSFORM);
+    auto& scene = state.scene;
+    auto& pool = state.pool;
+    const auto shared = state.assets[0];
     std::array<AssetHandle, NUM_CAMERAS> private_assets;
     for(TI camera = 0; camera < NUM_CAMERAS; camera++){
-        private_assets[camera] = add_asset(device, pool, "private-" + std::to_string(camera), {0.1f, 0.1f, 0.9f});
+        private_assets[camera] = state.assets[1 + camera];
     }
     RendererOwner<OverlaySpec> owner(device);
     rlt::init(device, owner.renderer, scene, pool);
     set_identical_cameras(device, owner.renderer);
-    attach_to(device, owner.renderer, 0, {0, 1});
-    const auto shared_placement = spawn_at(device, owner.renderer, 0, shared, pose(4.0f, -1.0f, 1.0f));
-    const uint32_t shared_id = placement_id<OverlaySpec>(scene, 0, shared_placement);
-    std::array<OverlayPlacement, NUM_CAMERAS> private_placements;
+    overlay_scenarios::build_initial(device, owner.renderer, state);
+    const uint32_t shared_id = state.ids[0];
     std::array<uint32_t, NUM_CAMERAS> private_ids;
     for(TI camera = 0; camera < NUM_CAMERAS; camera++){
-        const size_t overlay = 1 + camera;
-        attach_to(device, owner.renderer, overlay, {camera});
-        private_placements[camera] = spawn_at(device, owner.renderer, overlay, private_assets[camera], pose(4.0f, -1.2f + 0.8f * camera, -0.9f));
-        private_ids[camera] = placement_id<OverlaySpec>(scene, overlay, private_placements[camera]);
+        private_ids[camera] = state.ids[1 + camera];
         expect_maps_to_asset(device, scene, pool, owner.renderer, private_ids[camera], private_assets[camera]);
     }
     expect_maps_to_asset(device, scene, pool, owner.renderer, shared_id, shared);
@@ -469,7 +390,7 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, SOME_DYNAMIC_OBJECTS_SHARE_MESHES_AND_TRA
     expect_same_instance_pixels(first, 0, 1, shared_id);
     expect_repeat_after_noop_update(device, owner.renderer, first);
 
-    move(device, owner.renderer, 0, shared_placement, pose(3.2f, -1.0f, 0.4f));
+    overlay_scenarios::apply_update(device, owner.renderer, state);
     rlt::update(device, owner.renderer);
     const auto second = capture(device, owner.renderer);
     expect_static_scene(device, scene, pool, owner.renderer, second);
@@ -498,19 +419,18 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, SOME_DYNAMIC_OBJECTS_SHARE_MESHES_AND_TRA
 TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, ALL_DYNAMIC_OBJECTS_SHARE_ONLY_MESHES){
     DEVICE device;
     rlt::init(device);
-    Scene scene = make_shared_scene(device);
-    AssetPool pool;
-    const auto shared_mesh = add_asset(device, pool, "mesh-shared-pose-private", {0.1f, 0.9f, 0.1f});
+    auto state = overlay_scenarios::prepare(device, overlay_scenarios::Scenario::SHARED_MESH_INDIVIDUAL_TRANSFORM);
+    auto& scene = state.scene;
+    auto& pool = state.pool;
+    const auto shared_mesh = state.assets[0];
     RendererOwner<OverlaySpec> owner(device);
     rlt::init(device, owner.renderer, scene, pool);
     set_identical_cameras(device, owner.renderer);
-    std::array<OverlayPlacement, NUM_CAMERAS> placements;
+    overlay_scenarios::build_initial(device, owner.renderer, state);
     std::array<uint32_t, NUM_CAMERAS> ids;
     std::array<InstanceObservation, NUM_CAMERAS> observations;
     for(TI camera = 0; camera < NUM_CAMERAS; camera++){
-        attach_to(device, owner.renderer, camera, {camera});
-        placements[camera] = spawn_at(device, owner.renderer, camera, shared_mesh, pose(4.0f, -1.2f + 0.8f * camera, 0.0f));
-        ids[camera] = placement_id<OverlaySpec>(scene, camera, placements[camera]);
+        ids[camera] = state.ids[camera];
         expect_maps_to_asset(device, scene, pool, owner.renderer, ids[camera], shared_mesh);
     }
 
@@ -531,7 +451,7 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, ALL_DYNAMIC_OBJECTS_SHARE_ONLY_MESHES){
     }
     expect_repeat_after_noop_update(device, owner.renderer, first);
 
-    move(device, owner.renderer, 2, placements[2], pose(3.2f, 0.4f, 0.8f));
+    overlay_scenarios::apply_update(device, owner.renderer, state);
     rlt::update(device, owner.renderer);
     const auto second = capture(device, owner.renderer);
     expect_static_scene(device, scene, pool, owner.renderer, second);
@@ -556,24 +476,21 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, ALL_DYNAMIC_OBJECTS_SHARE_ONLY_MESHES){
 TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, DYNAMIC_OBJECT_SETS_ARE_DISJOINT){
     DEVICE device;
     rlt::init(device);
-    Scene scene = make_shared_scene(device);
-    AssetPool pool;
-    const std::array<std::array<T, 3>, NUM_CAMERAS> colors = {{{0.9f, 0.1f, 0.1f}, {0.1f, 0.9f, 0.1f}, {0.1f, 0.1f, 0.9f}, {0.9f, 0.1f, 0.1f}}};
-    const std::array<T, NUM_CAMERAS> half_extents = {0.20f, 0.28f, 0.36f, 0.44f};
-    const std::array<int, NUM_CAMERAS> dominant_channels = {0, 1, 2, 0};
+    auto state = overlay_scenarios::prepare(device, overlay_scenarios::Scenario::DISJOINT);
+    auto& scene = state.scene;
+    auto& pool = state.pool;
+    const auto& scenario_definition = overlay_scenarios::definition(state.scenario);
     std::array<AssetHandle, NUM_CAMERAS> assets;
     for(TI camera = 0; camera < NUM_CAMERAS; camera++){
-        assets[camera] = add_asset(device, pool, "disjoint-" + std::to_string(camera), colors[camera], half_extents[camera]);
+        assets[camera] = state.assets[camera];
     }
     RendererOwner<OverlaySpec> owner(device);
     rlt::init(device, owner.renderer, scene, pool);
     set_identical_cameras(device, owner.renderer);
-    std::array<OverlayPlacement, NUM_CAMERAS> placements;
+    overlay_scenarios::build_initial(device, owner.renderer, state);
     std::array<uint32_t, NUM_CAMERAS> ids;
     for(TI camera = 0; camera < NUM_CAMERAS; camera++){
-        attach_to(device, owner.renderer, camera, {camera});
-        placements[camera] = spawn_at(device, owner.renderer, camera, assets[camera], pose(4.0f, -1.2f + 0.8f * camera, 0.0f));
-        ids[camera] = placement_id<OverlaySpec>(scene, camera, placements[camera]);
+        ids[camera] = state.ids[camera];
         expect_maps_to_asset(device, scene, pool, owner.renderer, ids[camera], assets[camera]);
         if(camera > 0){
             EXPECT_NE(rlt::segmentation_object(device, scene, pool, owner.renderer, ids[camera]), rlt::segmentation_object(device, scene, pool, owner.renderer, ids[camera - 1]));
@@ -586,7 +503,7 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, DYNAMIC_OBJECT_SETS_ARE_DISJOINT){
     expect_static_scene(device, scene, pool, owner.renderer, first);
     size_t previous_count = 0;
     for(TI camera = 0; camera < NUM_CAMERAS; camera++){
-        const auto observation = expect_visible(first, camera, ids[camera], dominant_channels[camera]);
+        const auto observation = expect_visible(first, camera, ids[camera], scenario_definition.assets[camera].dominant_channel);
         EXPECT_GT(observation.count, previous_count);
         previous_count = observation.count;
         for(TI other = 0; other < NUM_CAMERAS; other++){
@@ -597,7 +514,7 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, DYNAMIC_OBJECT_SETS_ARE_DISJOINT){
     }
     expect_repeat_after_noop_update(device, owner.renderer, first);
 
-    move(device, owner.renderer, 1, placements[1], pose(3.2f, -0.4f, 0.8f));
+    overlay_scenarios::apply_update(device, owner.renderer, state);
     rlt::update(device, owner.renderer);
     const auto second = capture(device, owner.renderer);
     expect_static_scene(device, scene, pool, owner.renderer, second);
@@ -605,7 +522,7 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, DYNAMIC_OBJECT_SETS_ARE_DISJOINT){
         if(camera == 1){
             expect_camera_changed(first, second, camera);
             expect_instance_moved(first, second, camera, ids[camera]);
-            expect_visible(second, camera, ids[camera], dominant_channels[camera]);
+            expect_visible(second, camera, ids[camera], scenario_definition.assets[camera].dominant_channel);
         }
         else{
             EXPECT_TRUE(camera_equal(first, camera, second, camera));
@@ -622,41 +539,31 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, DYNAMIC_OBJECT_SETS_ARE_DISJOINT){
 TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, MIXED_DYNAMIC_SHARING_SCOPES){
     DEVICE device;
     rlt::init(device);
-    Scene scene = make_shared_scene(device);
-    AssetPool pool;
-    const auto shared_all = add_asset(device, pool, "shared-all", {0.9f, 0.1f, 0.1f});
-    const auto shared_subset = add_asset(device, pool, "shared-subset", {0.1f, 0.9f, 0.1f});
-    const auto mesh_only = add_asset(device, pool, "mesh-only", {0.1f, 0.1f, 0.9f});
-    const std::array<T, NUM_CAMERAS> private_half_extents = {0.20f, 0.24f, 0.28f, 0.32f};
+    auto state = overlay_scenarios::prepare(device, overlay_scenarios::Scenario::MIXED);
+    auto& scene = state.scene;
+    auto& pool = state.pool;
+    const auto shared_all = state.assets[0];
+    const auto shared_subset = state.assets[1];
+    const auto mesh_only = state.assets[2];
     std::array<AssetHandle, NUM_CAMERAS> private_assets;
     for(TI camera = 0; camera < NUM_CAMERAS; camera++){
-        private_assets[camera] = add_asset(device, pool, "mixed-private-" + std::to_string(camera), {0.9f, 0.1f, 0.1f}, private_half_extents[camera]);
+        private_assets[camera] = state.assets[3 + camera];
     }
     RendererOwner<OverlaySpec> owner(device);
     rlt::init(device, owner.renderer, scene, pool);
     set_identical_cameras(device, owner.renderer);
+    overlay_scenarios::build_initial(device, owner.renderer, state);
 
-    attach_to(device, owner.renderer, 0, {0, 1, 2, 3});
-    const auto shared_all_placement = spawn_at(device, owner.renderer, 0, shared_all, pose(4.0f, -1.3f, 1.3f));
-    const uint32_t shared_all_id = placement_id<OverlaySpec>(scene, 0, shared_all_placement);
-    attach_to(device, owner.renderer, 1, {0, 1});
-    const auto shared_subset_placement = spawn_at(device, owner.renderer, 1, shared_subset, pose(4.0f, 0.3f, 1.3f));
-    const uint32_t shared_subset_id = placement_id<OverlaySpec>(scene, 1, shared_subset_placement);
-
-    std::array<OverlayPlacement, NUM_CAMERAS> mesh_placements;
+    const uint32_t shared_all_id = state.ids[0];
+    const uint32_t shared_subset_id = state.ids[1];
     std::array<uint32_t, NUM_CAMERAS> mesh_ids;
     std::array<uint32_t, NUM_CAMERAS> private_ids;
     for(TI camera = 0; camera < NUM_CAMERAS; camera++){
-        const size_t mesh_overlay = 2 + camera;
-        attach_to(device, owner.renderer, mesh_overlay, {camera});
-        mesh_placements[camera] = spawn_at(device, owner.renderer, mesh_overlay, mesh_only, pose(4.0f, -1.2f + 0.8f * camera, 0.0f));
-        mesh_ids[camera] = placement_id<OverlaySpec>(scene, mesh_overlay, mesh_placements[camera]);
+        const size_t mesh_placement = 2 + 2 * camera;
+        mesh_ids[camera] = state.ids[mesh_placement];
         expect_maps_to_asset(device, scene, pool, owner.renderer, mesh_ids[camera], mesh_only);
 
-        const size_t private_overlay = 6 + camera;
-        attach_to(device, owner.renderer, private_overlay, {camera});
-        const auto placement = spawn_at(device, owner.renderer, private_overlay, private_assets[camera], pose(4.0f, -1.2f + 0.8f * camera, -1.3f));
-        private_ids[camera] = placement_id<OverlaySpec>(scene, private_overlay, placement);
+        private_ids[camera] = state.ids[mesh_placement + 1];
         expect_maps_to_asset(device, scene, pool, owner.renderer, private_ids[camera], private_assets[camera]);
     }
     expect_maps_to_asset(device, scene, pool, owner.renderer, shared_all_id, shared_all);
@@ -690,7 +597,7 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, MIXED_DYNAMIC_SHARING_SCOPES){
     expect_same_instance_pixels(first, 0, 1, shared_subset_id);
     expect_repeat_after_noop_update(device, owner.renderer, first);
 
-    move(device, owner.renderer, 4, mesh_placements[2], pose(3.2f, 0.4f, 0.7f));
+    overlay_scenarios::apply_update(device, owner.renderer, state);
     rlt::update(device, owner.renderer);
     const auto second = capture(device, owner.renderer);
     expect_static_scene(device, scene, pool, owner.renderer, second);
