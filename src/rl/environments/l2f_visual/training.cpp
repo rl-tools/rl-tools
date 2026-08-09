@@ -253,38 +253,34 @@ int main(int argc, char** argv){
     LOOP_STATE ts;
     TI seed = 0;
 
-    // 1. Allocate (each env gets its own renderer+scene)
+    // 1. Allocate the environment state and the shared renderer all envs reference
     rlt::malloc(device, ts);
-
-    // 2. Post-fixup: share env[0]'s renderer+scene with env[1..N-1]
-    auto& env0 = rlt::get_ref(device, ts.envs, static_cast<TI>(0));
-    for (TI env_i = 1; env_i < NUM_ENVS; env_i++) {
-        auto& env = rlt::get_ref(device, ts.envs, env_i);
-        // Free independently allocated renderer+scene
-        if (env.owns_renderer && env.renderer != nullptr) {
-            rlt::free(device, *env.renderer);
-            delete env.renderer;
-        }
-        if (env.scene != nullptr) {
-            delete env.scene;
-        }
-        // Point to env[0]'s shared instances
-        env.renderer = env0.renderer;
-        env.scene = env0.scene;
-        env.owns_renderer = false;
+    using LIBRARY_TYPE = rlt::rendering::raytracing::AssetLibrary<typename ENVIRONMENT::SPEC::RENDERER_SPEC>;
+    using SCENE_TYPE = rlt::rendering::raytracing::scene::procthor::Scene<typename ENVIRONMENT::SPEC::SCENE_SPEC>;
+    auto* library = new LIBRARY_TYPE{};
+    auto* renderer = new rlt::rendering::raytracing::Renderer<typename ENVIRONMENT::SPEC::RENDERER_SPEC>{};
+    auto* procthor_scene = new SCENE_TYPE{};
+    rlt::malloc(device, *library);
+    rlt::malloc(device, *renderer, *library);
+    rlt::init(device, *renderer, *library, scene_path);
+    {
+        const T scene_fov = typename ENVIRONMENT::Parameters{}.fov;
+        const T scene_up[3] = {0, 0, 1};
+        rlt::generate_cameras(device, *renderer, renderer->scene_center, renderer->camera_radius, scene_up, scene_fov);
+        rlt::generate_probe_directions(device, *renderer);
+        rlt::rendering::raytracing::scene::procthor::precompute_indoor_positions(device, *procthor_scene, *renderer, scene_fov, (T)ENVIRONMENT::SPEC::CAM_WIDTH / (T)ENVIRONMENT::SPEC::CAM_HEIGHT);
     }
 
-    // 3. Configure all envs
+    // 2. Wire every env to the shared renderer (non-owning references)
+    auto& env0 = rlt::get_ref(device, ts.envs, static_cast<TI>(0));
     for (TI env_i = 0; env_i < NUM_ENVS; env_i++) {
         auto& env = rlt::get_ref(device, ts.envs, env_i);
+        env.renderer = renderer;
+        env.scene = procthor_scene;
         env.use_target_mode = true;
-        env.scene_path = scene_path;
-        if (env_i > 0) {
-            env.renderer_initialized = true; // only env[0] will do full init
-        }
     }
 
-    // 4. Init (env[0] loads scene, builds pipeline, precomputes indoor positions; others skip)
+    // 3. Init
     rlt::init(device, ts, seed);
 
     // 5. Pick target position from precomputed indoor positions

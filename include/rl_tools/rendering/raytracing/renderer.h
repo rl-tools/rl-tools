@@ -9,6 +9,7 @@
 #include "../../containers/tensor/tensor.h"
 
 #include <vector>
+#include <deque>
 #include <cstdint>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -67,6 +68,11 @@ namespace rl_tools {
                 static constexpr T_TI NUM_OVERLAYS = 0;
                 static constexpr T_TI MAX_OVERLAY_INSTANCES = 0;
                 static constexpr T_TI MAX_OVERLAYS_PER_CAMERA = 0;
+                // spec-driven observation output: the RGB ray gen writes OBSERVATION_T pixels
+                // ([0,1] linear or sRGB per SHADING) directly — no format-conversion pass. The
+                // packed frame buffer remains the video/golden output.
+                static constexpr bool OUTPUT_OBSERVATION = false;
+                using OBSERVATION_T = float;
             };
         }
 
@@ -117,6 +123,10 @@ namespace rl_tools {
             static constexpr bool SEMANTIC_SEGMENTATION = CONFIG::SEMANTIC_SEGMENTATION; // segmentation output carries Object::segmentation_class instead of the instance id
             static_assert(!SEMANTIC_SEGMENTATION || HAS_SEGMENTATION, "SEMANTIC_SEGMENTATION requires OUTPUT_SEGMENTATION");
             static_assert(ENABLE_OVERLAYS || (NUM_OVERLAYS == 0 && MAX_OVERLAY_INSTANCES == 0 && MAX_OVERLAYS_PER_CAMERA == 0), "overlay constants must be all zero (disabled) or all nonzero");
+            static constexpr bool HAS_OBSERVATION = CONFIG::OUTPUT_OBSERVATION;
+            using OBSERVATION_T = typename CONFIG::OBSERVATION_T;
+            static constexpr TI OBSERVATION_CHANNELS = 3;
+            static_assert(!HAS_OBSERVATION || HAS_RGB, "OUTPUT_OBSERVATION requires OUTPUT_RGB (the RGB ray gen writes it)");
         };
 
         template <typename T_SPEC, bool T_ENABLE_MOTION_BLUR>
@@ -169,8 +179,52 @@ namespace rl_tools {
             void* segmentation_buffer_handle = nullptr;
         };
 
+        template <typename T_SPEC, bool T_HAS_OBSERVATION>
+        struct ObservationBackendContext {};
+
         template <typename T_SPEC>
-        struct RendererBackend: BackendContext<T_SPEC>, RGBBackendContext<T_SPEC, T_SPEC::HAS_RGB>, DepthBackendContext<T_SPEC, T_SPEC::HAS_DEPTH>, SegmentationBackendContext<T_SPEC, T_SPEC::HAS_SEGMENTATION> {};
+        struct ObservationBackendContext<T_SPEC, true> {
+            void* observation_buffer_handle = nullptr;
+        };
+
+        template <typename T_SPEC>
+        struct RendererBackend: BackendContext<T_SPEC>, RGBBackendContext<T_SPEC, T_SPEC::HAS_RGB>, DepthBackendContext<T_SPEC, T_SPEC::HAS_DEPTH>, SegmentationBackendContext<T_SPEC, T_SPEC::HAS_SEGMENTATION>, ObservationBackendContext<T_SPEC, T_SPEC::HAS_OBSERVATION> {
+            // non-null when the renderer was malloc'd against a shared AssetLibrary: the library
+            // owns the backend context (and everything scene-shaped built in it); the renderer
+            // owns only its own cameras/outputs/ray gens/params
+            void* library = nullptr;
+        };
+
+        namespace detail{
+            // per-unique-scene build the library hands to renderer init — internal
+            struct SceneAssets {
+                void* world = nullptr;
+                void* instance_classes_buffer = nullptr;
+                void* filler_group = nullptr;
+                std::vector<void*> object_groups;
+                size_t num_scene_instances = 0;
+            };
+        }
+
+        // shared scene store: renderers malloc'd against a library share one backend context and
+        // one geometry/texture/BLAS build per unique scene — init(device, renderer, library,
+        // path) deduplicates by file content hash and returns the unique-scene index, so callers
+        // key their own per-scene data off it. The library owns the host scenes its builds
+        // reference (deque: stable addresses). On backends without cross-renderer sharing
+        // (generic/Metal/Vulkan) each renderer still builds its own device copy — the caller
+        // code is uniform, the sharing is a backend property.
+        template <typename T_SPEC>
+        struct AssetLibrary {
+            using SPEC = T_SPEC;
+            using TI = typename SPEC::TI;
+            void* context = nullptr;
+            void* module = nullptr;
+            void* geom_type = nullptr;
+            std::deque<Scene> scenes;
+            std::deque<detail::SceneAssets> assets;
+            std::vector<uint64_t> hashes;
+            AssetPool pool;
+        };
 
         template <typename T_SPEC, bool T_ENABLE_MOTION_BLUR>
         struct MotionBlurRendererStorage {};
@@ -218,6 +272,17 @@ namespace rl_tools {
             Tensor<SEGMENTATION_TENSOR_SPEC> segmentation_buffer;
         };
 
+        template <typename T_SPEC, bool T_HAS_OBSERVATION>
+        struct ObservationRendererStorage {};
+
+        template <typename T_SPEC>
+        struct ObservationRendererStorage<T_SPEC, true> {
+            using SPEC = T_SPEC;
+            using TI = typename SPEC::TI;
+            using OBSERVATION_TENSOR_SPEC = tensor::Specification<typename SPEC::OBSERVATION_T, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, SPEC::OBSERVATION_CHANNELS>, true>;
+            Tensor<OBSERVATION_TENSOR_SPEC> observation;
+        };
+
         template <typename T_SPEC, bool T_ENABLE_OVERLAYS>
         struct OverlayRendererStorage {};
 
@@ -260,11 +325,15 @@ namespace rl_tools {
         };
 
         template <typename T_SPEC>
-        struct Renderer: MotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_MOTION_BLUR>, RGBRendererStorage<T_SPEC, T_SPEC::HAS_RGB>, DepthRendererStorage<T_SPEC, T_SPEC::HAS_DEPTH>, SegmentationRendererStorage<T_SPEC, T_SPEC::HAS_SEGMENTATION>, OverlayRendererStorage<T_SPEC, T_SPEC::ENABLE_OVERLAYS>{
+        struct Renderer: MotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_MOTION_BLUR>, RGBRendererStorage<T_SPEC, T_SPEC::HAS_RGB>, DepthRendererStorage<T_SPEC, T_SPEC::HAS_DEPTH>, SegmentationRendererStorage<T_SPEC, T_SPEC::HAS_SEGMENTATION>, ObservationRendererStorage<T_SPEC, T_SPEC::HAS_OBSERVATION>, OverlayRendererStorage<T_SPEC, T_SPEC::ENABLE_OVERLAYS>{
             using SPEC = T_SPEC;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
 
+            // camera input consumed directly by render/probe: backend-native residency (device
+            // memory on OptiX, host on generic, shared/mapped on Metal/Vulkan) — access via
+            // cameras(device, renderer); under motion blur this is the shutter-close camera and
+            // cameras_open holds the shutter-open pose (see cameras_open/cameras_close accessors)
             using CAMERA_TENSOR_SPEC = tensor::Specification<Camera<T>, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS>, true>;
             Tensor<CAMERA_TENSOR_SPEC> cameras;
 

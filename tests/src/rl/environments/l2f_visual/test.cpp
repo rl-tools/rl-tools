@@ -82,32 +82,66 @@ T norm3(const T v[3]){
     return std::sqrt(dot3(v, v));
 }
 
+
+// user-side composition: a shared library + one renderer + the env-side scene metadata
+struct TestVisuals {
+    rlt::rendering::raytracing::AssetLibrary<typename ENV::SPEC::RENDERER_SPEC> library;
+    rlt::rendering::raytracing::Renderer<typename ENV::SPEC::RENDERER_SPEC> renderer;
+    rlt::rendering::raytracing::scene::procthor::Scene<typename ENV::SPEC::SCENE_SPEC> scene;
+};
+
+static TestVisuals* setup_visuals(DEVICE& device, ENV& env){
+    if(DEFAULT_SCENE_PATH == nullptr){
+        return nullptr;
+    }
+    auto* visuals = new TestVisuals{};
+    rlt::malloc(device, visuals->library);
+    rlt::malloc(device, visuals->renderer, visuals->library);
+    rlt::init(device, visuals->renderer, visuals->library, DEFAULT_SCENE_PATH);
+    const T fov = typename ENV::Parameters{}.fov;
+    const T up[3] = {0, 0, 1};
+    rlt::generate_cameras(device, visuals->renderer, visuals->renderer.scene_center, visuals->renderer.camera_radius, up, fov);
+    rlt::generate_probe_directions(device, visuals->renderer);
+    rlt::rendering::raytracing::scene::procthor::precompute_indoor_positions(device, visuals->scene, visuals->renderer, fov, (T)ENV::SPEC::CAM_WIDTH / (T)ENV::SPEC::CAM_HEIGHT);
+    env.renderer = &visuals->renderer;
+    env.scene = &visuals->scene;
+    return visuals;
+}
+
+static void teardown_visuals(DEVICE& device, TestVisuals* visuals){
+    if(visuals != nullptr){
+        rlt::free(device, visuals->renderer);
+        rlt::free(device, visuals->library);
+        delete visuals;
+    }
+}
+
 TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, LIFECYCLE) {
     DEVICE device;
     ENV env;
-    env.scene_path = DEFAULT_SCENE_PATH;
 
     rlt::malloc(device, env);
-    EXPECT_NE(env.renderer, nullptr);
-    EXPECT_NE(env.scene, nullptr);
-    EXPECT_TRUE(env.owns_renderer);
-
-    rlt::init(device, env);
-    if(env.scene_path != nullptr){
+    auto* visuals = setup_visuals(device, env);
+    if(visuals != nullptr){
+        EXPECT_NE(env.renderer, nullptr);
+        EXPECT_NE(env.scene, nullptr);
         EXPECT_GT(env.scene->num_indoor_positions, 0);
     }
+
+    rlt::init(device, env);
 
     rlt::free(device, env);
     EXPECT_EQ(env.renderer, nullptr);
     EXPECT_EQ(env.scene, nullptr);
+    teardown_visuals(device, visuals);
 }
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, SAMPLE_INITIAL_STATE) {
     DEVICE device;
     ENV env;
-    env.scene_path = DEFAULT_SCENE_PATH;
 
     rlt::malloc(device, env);
+    auto* visuals = setup_visuals(device, env);
     rlt::init(device, env);
 
     ENV::Parameters parameters;
@@ -127,14 +161,15 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, SAMPLE_INITIAL_STATE) {
     }
 
     rlt::free(device, env);
+    teardown_visuals(device, visuals);
 }
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, STEP_AND_REWARD) {
     DEVICE device;
     ENV env;
-    env.scene_path = DEFAULT_SCENE_PATH;
 
     rlt::malloc(device, env);
+    auto* visuals = setup_visuals(device, env);
     rlt::init(device, env);
 
     ENV::Parameters parameters;
@@ -159,17 +194,18 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, STEP_AND_REWARD) {
     EXPECT_FALSE(term);
 
     rlt::free(device, env);
+    teardown_visuals(device, visuals);
 }
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, OBSERVE_IMAGE) {
     DEVICE device;
     ENV env;
-    env.scene_path = DEFAULT_SCENE_PATH;
 
     rlt::malloc(device, env);
+    auto* visuals = setup_visuals(device, env);
     rlt::init(device, env);
 
-    if(!env.renderer_initialized){
+    if(visuals == nullptr){
         GTEST_SKIP() << "No scene file available, skipping image observation test";
     }
 
@@ -198,6 +234,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, OBSERVE_IMAGE) {
 
     rlt::free(device, observation);
     rlt::free(device, env);
+    teardown_visuals(device, visuals);
 }
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, SAMPLE_INITIAL_PARAMETERS_INITIALIZES_VISUAL_FIELDS) {

@@ -31,6 +31,7 @@
 #include <cstring>
 #include <cstdio>
 #include <cstdint>
+#include <fstream>
 #include <iostream>
 
 #define RL_TOOLS_RENDERING_RAYTRACING_LOG(message) do { std::cout << "\033[0;34m" << "#rl_tools::rendering::raytracing: " << message << "\033[0m" << std::endl; } while(false)
@@ -1180,18 +1181,55 @@ namespace rl_tools {
         return rendering::raytracing::detail::load_scene_data<SHADING, HAS_RGB>(object.meshes, object.lights, filename);
     }
 
-    // Scene-level load: the scene file becomes one welded static object placed at identity. A
-    // scene file without any punctual lights gets a neutral 3-directional fill so PBR-shaded
-    // content is not lit by ambient only. Object/asset loads deliberately do not: fill lighting
-    // is a scene decision, not an asset property.
+    namespace rendering::raytracing::detail{
+        // FNV-1a over the file bytes: deterministic scene-content identity for library dedup
+        inline bool hash_scene_file(const char* path, uint64_t& hash_out){
+            std::ifstream file(path, std::ios::binary);
+            if(!file){
+                return false;
+            }
+            uint64_t hash = 1469598103934665603ull;
+            char buffer[1 << 16];
+            while(file.read(buffer, sizeof(buffer)) || file.gcount() > 0){
+                const std::streamsize count = file.gcount();
+                for(std::streamsize byte_i = 0; byte_i < count; byte_i++){
+                    hash = (hash ^ (uint64_t)(unsigned char)buffer[byte_i]) * 1099511628211ull;
+                }
+                if(count < (std::streamsize)sizeof(buffer)){
+                    break;
+                }
+            }
+            hash_out = hash;
+            return true;
+        }
+    }
+
+    // Appends the scene file as one welded static object placed at identity: explicit
+    // composition, the append twin of load below.
     template <typename SHADING = rendering::raytracing::VeryHigh, bool HAS_RGB = true, typename DEVICE>
-    bool load(DEVICE& device, rendering::raytracing::Scene& scene, const std::string& filename){
+    bool add(DEVICE& device, rendering::raytracing::Scene& scene, const std::string& filename){
         rendering::raytracing::Object object;
         if(!rendering::raytracing::detail::load_scene_data<SHADING, HAS_RGB>(object.meshes, scene.lights, filename)){
             return false;
         }
         scene.objects.push_back(std::move(object));
         scene.instances.push_back({scene.objects.size() - 1, {1,0,0,0, 0,1,0,0, 0,0,1,0}, true});
+        return true;
+    }
+
+    // Scene-level load: the scene file becomes one welded static object placed at identity. The
+    // scene must be empty — reusing a scene across loads silently accumulates geometry (every
+    // renderer re-uploads every previously loaded scene) and no rendering test can see it, so it
+    // is a hard failure; composition is the explicit add(device, scene, filename). A scene file
+    // without any punctual lights gets a neutral 3-directional fill so PBR-shaded content is not
+    // lit by ambient only. Object/asset loads deliberately do not: fill lighting is a scene
+    // decision, not an asset property.
+    template <typename SHADING = rendering::raytracing::VeryHigh, bool HAS_RGB = true, typename DEVICE>
+    bool load(DEVICE& device, rendering::raytracing::Scene& scene, const std::string& filename){
+        utils::assert_exit(device, scene.objects.empty() && scene.instances.empty() && scene.lights.empty(), "load: scene is not empty — use add(device, scene, filename) to compose");
+        if(!add<SHADING, HAS_RGB>(device, scene, filename)){
+            return false;
+        }
         if(scene.lights.empty()){
             float inv_sqrt2 = 0.70710678f;
             scene.lights.push_back({0, {0,0,0}, {-inv_sqrt2, 0.f, inv_sqrt2}, {0.4f, 0.4f, 0.4f}, 0,0,0, 0,0});
@@ -1200,6 +1238,31 @@ namespace rl_tools {
             RL_TOOLS_RENDERING_RAYTRACING_LOG("Scene file has no lights: adding 3 directional fill lights");
         }
         return true;
+    }
+
+    namespace rendering::raytracing::detail{
+        // content-hash lookup into the library's owned scenes; loads the file into a fresh
+        // library-owned scene on a miss. Callers key their per-scene data off the returned index.
+        template <typename DEVICE, typename SPEC>
+        typename SPEC::TI library_lookup_or_load(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC>& library, const char* scene_path, bool& is_new){
+            using TI = typename SPEC::TI;
+            uint64_t hash = 0;
+            utils::assert_exit(device, hash_scene_file(scene_path, hash), "library: failed to read scene file");
+            for(TI scene_i = 0; scene_i < (TI)library.hashes.size(); scene_i++){
+                if(library.hashes[scene_i] == hash){
+                    is_new = false;
+                    RL_TOOLS_RENDERING_RAYTRACING_LOG("library: scene " << scene_path << " shares build " << scene_i << " (content hash match)");
+                    return scene_i;
+                }
+            }
+            is_new = true;
+            library.hashes.push_back(hash);
+            library.scenes.emplace_back();
+            library.assets.emplace_back();
+            const bool loaded = load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, library.scenes.back(), std::string(scene_path));
+            utils::assert_exit(device, loaded, "library: failed to load scene");
+            return (TI)(library.scenes.size() - 1);
+        }
     }
 
     template <typename DEVICE>
@@ -1406,6 +1469,60 @@ namespace rl_tools {
         return renderer.transforms;
     }
 
+    // camera input tensors, backend-native residency like transforms: device memory on OptiX,
+    // host on generic, shared/mapped on Metal/Vulkan. Producers write them via rlt::copy or
+    // kernels; the launch verbs consume them directly. Under motion blur the pair is
+    // cameras_open (shutter open) and cameras_close (shutter close, aliasing cameras) — both
+    // must be written each step (identical values for a blur-free frame).
+    template <typename DEVICE, typename SPEC>
+    auto& cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        return renderer.cameras;
+    }
+
+    template <typename DEVICE, typename SPEC>
+    auto& cameras_open(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::ENABLE_MOTION_BLUR, "cameras_open requires a motion-blur renderer specification");
+        return renderer.cameras_open;
+    }
+
+    template <typename DEVICE, typename SPEC>
+    auto& cameras_close(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::ENABLE_MOTION_BLUR, "cameras_close requires a motion-blur renderer specification");
+        return renderer.cameras;
+    }
+
+    // output tensors, same backend-native residency as the inputs: consumers on the device read
+    // them in place (zero-copy); host readers stage through an explicit copy at readback
+    // boundaries (after a _sync)
+    template <typename DEVICE, typename SPEC>
+    auto& frame_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::HAS_RGB, "frame_buffer requires an RGB-capable renderer specification");
+        return renderer.frame_buffer;
+    }
+
+    template <typename DEVICE, typename SPEC>
+    auto& depth_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::HAS_DEPTH, "depth_buffer requires a depth-capable renderer specification");
+        return renderer.depth_buffer;
+    }
+
+    template <typename DEVICE, typename SPEC>
+    auto& segmentation_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::HAS_SEGMENTATION, "segmentation_buffer requires a segmentation-capable renderer specification");
+        return renderer.segmentation_buffer;
+    }
+
+    template <typename DEVICE, typename SPEC>
+    auto& collision_results(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        return renderer.collision_results;
+    }
+
+    template <typename DEVICE, typename SPEC>
+    auto& observation(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::HAS_OBSERVATION, "observation requires OUTPUT_OBSERVATION in the renderer specification");
+        return renderer.observation;
+    }
+
     // decodes a rendered segmentation id back to the object it references. Single owner of the
     // global id layout: scene instances occupy [0, S); overlay o's slot s sits at S + o*CAP + s;
     // object indices count scene objects first, then each pool assembly's objects in
@@ -1484,8 +1601,10 @@ namespace rl_tools {
     }
 
     namespace rendering::raytracing::detail{
-        template <typename DEVICE, typename SPEC>
-        void generate_camera_poses(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer,
+        // fills a host staging buffer; the backend-specific generate_cameras writes it into the
+        // backend-native camera tensors
+        template <typename SPEC, typename DEVICE>
+        void generate_camera_poses(DEVICE& device, rendering::raytracing::Camera<typename SPEC::T>* cameras_out,
                                    const typename SPEC::T center[3], typename SPEC::T radius,
                                    const typename SPEC::T up[3], typename SPEC::T fov){
         using T = typename SPEC::T;
@@ -1509,7 +1628,7 @@ namespace rl_tools {
             if(cam_pos[2] < center[2] - radius * T{0.1})
                 cam_pos[2] = center[2] + radius * T{0.3};
 
-            set(device, renderer.cameras, make_camera_data(cam_pos, center, up, fov, aspect), i);
+            cameras_out[i] = make_camera_data(cam_pos, center, up, fov, aspect);
         }
 
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Generated " << SPEC::NUM_CAMERAS << " camera positions");

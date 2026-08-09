@@ -10,6 +10,7 @@
 
 #include <array>
 #include <cmath>
+#include <cstring>
 #include <vector>
 #include <algorithm>
 #include <limits>
@@ -78,6 +79,7 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
         candidates.reserve(static_cast<size_t>(MAX_BATCHES) * static_cast<size_t>(NUM_CAMERAS));
 
         std::array<IndoorPosition<T>, NUM_CAMERAS> batch_positions{};
+        std::vector<rendering::raytracing::Camera<T>> camera_staging(NUM_CAMERAS);
         TI total_tested = 0, no_hits = 0, failed_hit_ratio = 0, failed_avg_dist = 0, failed_min_dist = 0;
         T best_min_hit_dist = 0;
 
@@ -105,13 +107,26 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
                     pos.position[2]
                 };
                 const T cam_up[3] = {0, 0, 1};
-                set(device, renderer.cameras, make_camera_data(cam_position, cam_look_at, cam_up, fov, aspect), camera_i);
+                camera_staging[camera_i] = make_camera_data(cam_position, cam_look_at, cam_up, fov, aspect);
             }
 
-            set_cameras(device, renderer, renderer.cameras);
+            // probes trace from the shutter-close cameras; the tensor is backend-native so the
+            // host staging crosses into it explicitly (device-resident on OptiX)
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+            cudaMemcpy(data(cameras(device, renderer)), camera_staging.data(), NUM_CAMERAS * sizeof(rendering::raytracing::Camera<T>), cudaMemcpyHostToDevice);
+#else
+            std::memcpy(data(cameras(device, renderer)), camera_staging.data(), NUM_CAMERAS * sizeof(rendering::raytracing::Camera<T>));
+#endif
             probe(device, renderer);
 
-            const rendering::raytracing::CollisionResult* probe_results = read_collision_results_raw(device, renderer);
+            // collision results are backend-native (device-resident on OptiX): stage to host
+            std::vector<rendering::raytracing::CollisionResult> probe_staging((size_t)NUM_CAMERAS * NUM_PROBES);
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+            cudaMemcpy(probe_staging.data(), data(collision_results(device, renderer)), probe_staging.size() * sizeof(rendering::raytracing::CollisionResult), cudaMemcpyDeviceToHost);
+#else
+            std::memcpy(probe_staging.data(), data(collision_results(device, renderer)), probe_staging.size() * sizeof(rendering::raytracing::CollisionResult));
+#endif
+            const rendering::raytracing::CollisionResult* probe_results = probe_staging.data();
             for (TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++) {
                 const rendering::raytracing::CollisionResult* camera_probes = probe_results + static_cast<size_t>(camera_i) * static_cast<size_t>(NUM_PROBES);
                 TI hit_count = 0;
@@ -199,11 +214,16 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
     RL_TOOLS_FUNCTION_PLACEMENT typename RENDERER_SPEC::T evaluate_clearance(DEVICE& device, rendering::raytracing::Renderer<RENDERER_SPEC>& renderer, typename RENDERER_SPEC::TI camera_index) {
         using T = typename RENDERER_SPEC::T;
         constexpr auto NUM_PROBES = RENDERER_SPEC::NUM_PROBES;
-        const rendering::raytracing::CollisionResult* results = read_collision_results_raw(device, renderer);
-        if (results == nullptr) {
+        if (data(renderer.collision_results) == nullptr) {
             return std::numeric_limits<T>::max();
         }
-        const rendering::raytracing::CollisionResult* camera_probes = results + static_cast<size_t>(camera_index) * static_cast<size_t>(NUM_PROBES);
+        std::vector<rendering::raytracing::CollisionResult> probe_staging(NUM_PROBES);
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+        cudaMemcpy(probe_staging.data(), data(renderer.collision_results) + (size_t)camera_index * NUM_PROBES, NUM_PROBES * sizeof(rendering::raytracing::CollisionResult), cudaMemcpyDeviceToHost);
+#else
+        std::memcpy(probe_staging.data(), data(renderer.collision_results) + (size_t)camera_index * NUM_PROBES, NUM_PROBES * sizeof(rendering::raytracing::CollisionResult));
+#endif
+        const rendering::raytracing::CollisionResult* camera_probes = probe_staging.data();
         T min_dist = std::numeric_limits<T>::max();
         for (typename RENDERER_SPEC::TI probe_i = 0; probe_i < NUM_PROBES; probe_i++) {
             if (camera_probes[probe_i].hit) {

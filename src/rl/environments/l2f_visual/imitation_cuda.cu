@@ -64,6 +64,7 @@
 #include <cuda_bf16.h>
 
 #include <array>
+#include <deque>
 #include <cmath>
 #include <chrono>
 #include <iostream>
@@ -421,10 +422,10 @@ namespace imitation_kernels{
         }
     }
 
-    template<bool ENABLE_MOTION_BLUR, typename RENDERER>
-    void set_active_scene_camera_open_buffer(void*& camera_open_buffer, RENDERER* renderer){
+    template<bool ENABLE_MOTION_BLUR, typename DEVICE, typename RENDERER>
+    void set_active_scene_camera_open_buffer(DEVICE& device, void*& camera_open_buffer, RENDERER* renderer){
         if constexpr(ENABLE_MOTION_BLUR){
-            camera_open_buffer = (void*)owlBufferGetPointer((OWLBuffer)renderer->backend.cameras_open_buffer, 0);
+            camera_open_buffer = (void*)rlt::data(rlt::cameras_open(device, *renderer));
         }
     }
 
@@ -844,26 +845,28 @@ void render_target_observation(
     target_state.orientation[3] = (T)0;
     auto camera = rlt::rl::environments::l2f_visual::make_camera_for_state(device, env, parameters, target_state);
 
-    for(TI camera_i = 0; camera_i < N_ENVIRONMENTS_PER_SCENE; camera_i++){
-        rlt::set(device, env.renderer->cameras, camera, camera_i);
+    std::vector<CAMERA_DATA> camera_staging(N_ENVIRONMENTS_PER_SCENE, camera);
+    cudaMemcpy(rlt::data(rlt::cameras(device, *env.renderer)), camera_staging.data(), camera_staging.size() * sizeof(CAMERA_DATA), cudaMemcpyHostToDevice);
+    if constexpr(RENDER_MOTION_BLUR_ACTIVE){
+        cudaMemcpy(rlt::data(rlt::cameras_open(device, *env.renderer)), camera_staging.data(), camera_staging.size() * sizeof(CAMERA_DATA), cudaMemcpyHostToDevice);
     }
-    rlt::set_cameras(device, *env.renderer, env.renderer->cameras);
     rlt::render(device, *env.renderer);
-    rlt::read_frame_buffer(device, *env.renderer, env.renderer->frame_buffer);
 
     constexpr TI CAM_PIXELS = CAM_WIDTH * CAM_HEIGHT;
-    const uint32_t* fb_data = rlt::data(env.renderer->frame_buffer);
+    std::vector<float> obs_staging((size_t)CAM_PIXELS * 3);
+    cudaMemcpy(obs_staging.data(), rlt::data(rlt::observation(device, *env.renderer)), obs_staging.size() * sizeof(float), cudaMemcpyDeviceToHost);
     for(TI pixel_i = 0; pixel_i < CAM_PIXELS; pixel_i++){
-        const uint32_t rgba = fb_data[pixel_i];
-        rlt::set(observation, 0, pixel_i * 3 + 0, static_cast<T>((rgba >>  0) & 0xFF) / static_cast<T>(255));
-        rlt::set(observation, 0, pixel_i * 3 + 1, static_cast<T>((rgba >>  8) & 0xFF) / static_cast<T>(255));
-        rlt::set(observation, 0, pixel_i * 3 + 2, static_cast<T>((rgba >> 16) & 0xFF) / static_cast<T>(255));
+        rlt::set(observation, 0, pixel_i * 3 + 0, static_cast<T>(obs_staging[pixel_i * 3 + 0]));
+        rlt::set(observation, 0, pixel_i * 3 + 1, static_cast<T>(obs_staging[pixel_i * 3 + 1]));
+        rlt::set(observation, 0, pixel_i * 3 + 2, static_cast<T>(obs_staging[pixel_i * 3 + 2]));
     }
 }
 
+// observation assembly: the ray gen already wrote float pixels (renderer observation
+// output) — this only scatters into the batch layout and applies augmentation
 template <bool APPLY_BRIGHTNESS>
 __global__ void scatter_pixel_to_float_kernel(
-    const uint32_t* __restrict__ fb, float* __restrict__ output,
+    const float* __restrict__ observation, float* __restrict__ output,
     const float* __restrict__ brightness_scales,
     int base_env, int n_envs,
     int pixels_per_camera, int obs_dim
@@ -873,11 +876,10 @@ __global__ void scatter_pixel_to_float_kernel(
     if(tid >= total) return;
     int local_env = tid / pixels_per_camera;
     int pixel_idx = tid % pixels_per_camera;
-    int fb_pixel = local_env * pixels_per_camera + pixel_idx;
-    uint32_t rgba = fb[fb_pixel];
-    float r = static_cast<float>((rgba >>  0) & 0xFF) / 255.0f;
-    float g = static_cast<float>((rgba >>  8) & 0xFF) / 255.0f;
-    float b = static_cast<float>((rgba >> 16) & 0xFF) / 255.0f;
+    int in_base = (local_env * pixels_per_camera + pixel_idx) * 3;
+    float r = observation[in_base + 0];
+    float g = observation[in_base + 1];
+    float b = observation[in_base + 2];
     int global_env = base_env + local_env;
     if constexpr(APPLY_BRIGHTNESS){
         float scale = brightness_scales[global_env];
@@ -1065,39 +1067,40 @@ int main(int argc, char** argv){
     // =========================================================================
     using RENDERER_TYPE = rlt::rendering::raytracing::Renderer<typename ENVIRONMENT::SPEC::RENDERER_SPEC>;
     using SCENE_TYPE = rlt::rendering::raytracing::scene::procthor::Scene<typename ENVIRONMENT::SPEC::SCENE_SPEC>;
+    using LIBRARY_TYPE = rlt::rendering::raytracing::AssetLibrary<typename ENVIRONMENT::SPEC::RENDERER_SPEC>;
 
     ENVIRONMENT envs[N_ENVIRONMENTS];
     typename ENVIRONMENT::Parameters env_parameters[N_ENVIRONMENTS];
 
+    auto* library = new LIBRARY_TYPE{};
+    rlt::malloc(device, *library);
+    auto* renderer_storage = new std::array<RENDERER_TYPE, N_TOTAL_SCENES>{};
     std::array<RENDERER_TYPE*, N_TOTAL_SCENES> renderers{};
+    std::deque<SCENE_TYPE> procthor_scenes;
     std::array<SCENE_TYPE*, N_TOTAL_SCENES> scenes{};
 
     // Load all scenes
     {
-        ENVIRONMENT loader_env;
-        rlt::malloc(device, loader_env);
         for(TI s = 0; s < N_TOTAL_SCENES; s++){
             std::cout << "Loading scene [" << s << "]: " << std::filesystem::path(scene_paths[s]).filename().string() << std::flush;
-            if(s > 0){
-                loader_env.renderer = new RENDERER_TYPE{};
-                rlt::malloc(device, *loader_env.renderer);
-                loader_env.owns_renderer = true;
-                loader_env.scene = new SCENE_TYPE{};
+            renderers[s] = &(*renderer_storage)[s];
+            rlt::malloc(device, *renderers[s], *library);
+            TI scene_id = rlt::init(device, *renderers[s], *library, scene_paths[s].c_str());
+            const T scene_fov = typename ENVIRONMENT::Parameters{}.fov;
+            const T scene_up[3] = {0, 0, 1};
+            rlt::generate_cameras(device, *renderers[s], renderers[s]->scene_center, renderers[s]->camera_radius, scene_up, scene_fov);
+            rlt::generate_probe_directions(device, *renderers[s]);
+            if(scene_id == (TI)procthor_scenes.size()){
+                procthor_scenes.emplace_back();
+                rlt::rendering::raytracing::scene::procthor::precompute_indoor_positions(device, procthor_scenes[scene_id], *renderers[s], scene_fov, (T)CAM_WIDTH / (T)CAM_HEIGHT);
             }
-            loader_env.scene_path = scene_paths[s].c_str();
-            loader_env.renderer_initialized = false;
-            rlt::init(device, loader_env);
-            TI num_pos = loader_env.scene->num_indoor_positions;
+            TI num_pos = procthor_scenes[scene_id].num_indoor_positions;
             std::cout << " — " << num_pos << " indoor positions" << std::endl;
             if(num_pos == 0){
                 std::cerr << "Scene has no valid positions with 1m clearance: " << scene_paths[s] << std::endl;
                 return 1;
             }
-            renderers[s] = loader_env.renderer;
-            scenes[s] = loader_env.scene;
-            loader_env.renderer = nullptr;
-            loader_env.scene = nullptr;
-            loader_env.owns_renderer = false;
+            scenes[s] = &procthor_scenes[scene_id];
         }
         std::cout << "Loaded " << N_TOTAL_SCENES << " scenes" << std::endl;
     }
@@ -1144,9 +1147,6 @@ int main(int argc, char** argv){
         active_scene_indices[active_scene_i] = active_scene_i;
     }
     upload_active_scenes();
-    for(TI scene_i = 0; scene_i < N_TOTAL_SCENES; scene_i++){
-        rlt::set_cameras(device, *renderers[scene_i], renderers[scene_i]->cameras);
-    }
 
     // Set up envs (use first renderer for env0 reference)
     for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
@@ -1154,8 +1154,6 @@ int main(int argc, char** argv){
         rlt::malloc(device, envs[env_i].dynamics);
         envs[env_i].renderer = renderers[scene_i];
         envs[env_i].scene = scenes[scene_i];
-        envs[env_i].owns_renderer = false;
-        envs[env_i].renderer_initialized = true;
         envs[env_i].use_target_mode = true;
         envs[env_i].parameters.fov = CAMERA_FOV;
         envs[env_i].parameters.camera_randomization.fov_range = CAMERA_FOV_RANDOMIZATION_RANGE;
@@ -1463,7 +1461,7 @@ int main(int argc, char** argv){
         std::array<cudaStream_t, N_ACTIVE_SCENES> active_scene_render_streams{};
         std::array<void*, N_ACTIVE_SCENES> active_scene_camera_buffers{};
         std::array<void*, N_ACTIVE_SCENES> active_scene_camera_open_buffers{};
-        std::array<const uint32_t*, N_ACTIVE_SCENES> active_scene_framebuffer_ptrs{};
+        std::array<const float*, N_ACTIVE_SCENES> active_scene_observation_ptrs{};
         std::shuffle(scene_permutation.begin(), scene_permutation.end(), scene_rng);
         for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
             active_scene_indices[active_scene_i] = scene_permutation[active_scene_i];
@@ -1479,11 +1477,10 @@ int main(int argc, char** argv){
             TI actual_scene_i = active_scene_indices[active_scene_i];
             auto* renderer = renderers[actual_scene_i];
             active_renderers[active_scene_i] = renderer;
-            OWLParams rgb_lp = (OWLParams)renderer->backend.launch_params;
-            active_scene_render_streams[active_scene_i] = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
-            active_scene_camera_buffers[active_scene_i] = (void*)owlBufferGetPointer((OWLBuffer)renderer->backend.cameras_buffer, 0);
-            imitation_kernels::set_active_scene_camera_open_buffer<RENDER_MOTION_BLUR_ACTIVE>(active_scene_camera_open_buffers[active_scene_i], renderer);
-            active_scene_framebuffer_ptrs[active_scene_i] = rlt::get_framebuffer_device_ptr(device, *renderer);
+            active_scene_render_streams[active_scene_i] = rlt::stream(device, *renderer);
+            active_scene_camera_buffers[active_scene_i] = (void*)rlt::data(rlt::cameras(device, *renderer));
+            imitation_kernels::set_active_scene_camera_open_buffer<RENDER_MOTION_BLUR_ACTIVE>(device, active_scene_camera_open_buffers[active_scene_i], renderer);
+            active_scene_observation_ptrs[active_scene_i] = rlt::data(rlt::observation(device, *renderer));
         }
         {
             std::vector<unsigned char> reset_terminated(N_ENVIRONMENTS, 1);
@@ -1620,11 +1617,11 @@ int main(int argc, char** argv){
                     if(step_i % RENDER_TIMING_SAMPLE_PERIOD == 0){
                         cudaEventRecord(render_pass_stop_events[event_i], optix_stream);
                     }
-                    const uint32_t* fb_ptr = active_scene_framebuffer_ptrs[active_scene_i];
+                    const float* obs_src_ptr = active_scene_observation_ptrs[active_scene_i];
                     if constexpr(OBSERVATION_NOISE_STD == 0 && BRIGHTNESS_RANDOMIZATION_RANGE > 0){
-                        scatter_pixel_to_float_kernel<true><<<pf_grid, pf_block, 0, optix_stream>>>(fb_ptr, obs_ptr, gpu_brightness_scale_arr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
+                        scatter_pixel_to_float_kernel<true><<<pf_grid, pf_block, 0, optix_stream>>>(obs_src_ptr, obs_ptr, gpu_brightness_scale_arr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
                     } else {
-                        scatter_pixel_to_float_kernel<false><<<pf_grid, pf_block, 0, optix_stream>>>(fb_ptr, obs_ptr, nullptr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
+                        scatter_pixel_to_float_kernel<false><<<pf_grid, pf_block, 0, optix_stream>>>(obs_src_ptr, obs_ptr, nullptr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
                     }
                     cudaEventRecord(render_scatter_done_events[active_scene_i], optix_stream);
                 }
@@ -1686,11 +1683,11 @@ int main(int argc, char** argv){
                     if(step_i % RENDER_TIMING_SAMPLE_PERIOD == 0){
                         cudaEventRecord(target_render_pass_stop_events[event_i], optix_stream);
                     }
-                    const uint32_t* fb_ptr = active_scene_framebuffer_ptrs[active_scene_i];
+                    const float* obs_src_ptr = active_scene_observation_ptrs[active_scene_i];
                     if constexpr(BRIGHTNESS_RANDOMIZATION_RANGE > 0 || TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE > 0){
-                        scatter_pixel_to_float_kernel<true><<<pf_grid, pf_block, 0, optix_stream>>>(fb_ptr, target_obs_ptr, gpu_target_brightness_scale_arr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
+                        scatter_pixel_to_float_kernel<true><<<pf_grid, pf_block, 0, optix_stream>>>(obs_src_ptr, target_obs_ptr, gpu_target_brightness_scale_arr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
                     } else {
-                        scatter_pixel_to_float_kernel<false><<<pf_grid, pf_block, 0, optix_stream>>>(fb_ptr, target_obs_ptr, nullptr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
+                        scatter_pixel_to_float_kernel<false><<<pf_grid, pf_block, 0, optix_stream>>>(obs_src_ptr, target_obs_ptr, nullptr, base_env, n_envs_s, CAM_PIXELS, OBSERVATION_DIM);
                     }
                     cudaEventRecord(target_render_scatter_done_events[active_scene_i], optix_stream);
                 }

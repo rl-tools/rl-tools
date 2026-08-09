@@ -197,12 +197,14 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
 
     template <bool ASYNC>
     void render_batch(SceneHandle* handle, const Camera* cameras) {
-        std::memcpy(rlt::data(handle->env.renderer->cameras), cameras, SCENE_NUM_CAMERAS * sizeof(Camera));
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+        cudaMemcpy(rlt::data(rlt::cameras(handle->device, *handle->env.renderer)), cameras, SCENE_NUM_CAMERAS * sizeof(Camera), cudaMemcpyHostToDevice);
+#else
+        std::memcpy(rlt::data(rlt::cameras(handle->device, *handle->env.renderer)), cameras, SCENE_NUM_CAMERAS * sizeof(Camera));
+#endif
         if constexpr (ASYNC){
-            rlt::set_cameras_async(handle->device, *handle->env.renderer, handle->env.renderer->cameras);
             rlt::render_launch(handle->device, *handle->env.renderer);
         } else {
-            rlt::set_cameras(handle->device, *handle->env.renderer, handle->env.renderer->cameras);
             rlt::render(handle->device, *handle->env.renderer);
         }
     }
@@ -214,6 +216,6 @@ namespace rl_tools::rendering::raytracing::yaw_prediction {
     }
 
     uint32_t* get_framebuffer_device_ptr(SceneHandle* handle) {
-        return rlt::get_framebuffer_device_ptr(handle->device, *handle->env.renderer);
+        return rlt::data(rlt::frame_buffer(handle->device, *handle->env.renderer));
     }
 }

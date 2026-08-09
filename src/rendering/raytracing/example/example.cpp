@@ -134,6 +134,9 @@ int main(int argc, char** argv) {
     }
 #endif
 
+    // camera staging fills while the GPU renders; upload_cameras pushes it into the
+    // backend-native cameras tensor once the previous launch has synced
+    std::vector<rlt::rendering::raytracing::Camera<T>> camera_staging(NUM_ENVS);
     auto compute_states_and_cameras = [&](TI step_i) {
         for (TI env_i = 0; env_i < NUM_ENVS; env_i++) {
             const T yaw_phase = static_cast<T>(0.02 * env_i + 0.08 * step_i);
@@ -143,8 +146,15 @@ int main(int argc, char** argv) {
             s.velocity[2] = 0;
             s.yaw = static_cast<T>(0.5) * PI * (static_cast<T>(1) + std::sin(yaw_phase));
             rlt::set(device, states, s, env_i);
-            rlt::set(device, env.renderer->cameras, rlt::make_camera_for_state(env, rlt::get_ref(device, parameters, env_i), s), env_i);
+            camera_staging[env_i] = rlt::make_camera_for_state(env, rlt::get_ref(device, parameters, env_i), s);
         }
+    };
+    auto upload_cameras = [&]() {
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+        cudaMemcpy(rlt::data(rlt::cameras(device, *env.renderer)), camera_staging.data(), NUM_ENVS * sizeof(rlt::rendering::raytracing::Camera<T>), cudaMemcpyHostToDevice);
+#else
+        std::memcpy(rlt::data(rlt::cameras(device, *env.renderer)), camera_staging.data(), NUM_ENVS * sizeof(rlt::rendering::raytracing::Camera<T>));
+#endif
     };
 
     auto do_video_output = [&](TI step_i) -> int {
@@ -153,8 +163,14 @@ int main(int argc, char** argv) {
         return 0;
 #else
         if (mp4_pipe == nullptr) return 0;
-        rlt::read_frame_buffer(device, *env.renderer, env.renderer->frame_buffer);
-        const uint32_t* per_camera_rgba_ptr = rlt::data(env.renderer->frame_buffer);
+        constexpr size_t pixel_count = (size_t)NUM_ENVS * SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT;
+        static std::vector<uint32_t> frame_staging(pixel_count);
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+        cudaMemcpy(frame_staging.data(), rlt::data(rlt::frame_buffer(device, *env.renderer)), pixel_count * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+#else
+        std::memcpy(frame_staging.data(), rlt::data(rlt::frame_buffer(device, *env.renderer)), pixel_count * sizeof(uint32_t));
+#endif
+        const uint32_t* per_camera_rgba_ptr = frame_staging.data();
         for (TI camera_i = 0; camera_i < NUM_ENVS; camera_i++) {
             const TI col = camera_i % SPEC::RAYTRACING_SPEC::GRID_COLS;
             const TI row = camera_i / SPEC::RAYTRACING_SPEC::GRID_COLS;
@@ -183,7 +199,7 @@ int main(int argc, char** argv) {
 
     // Pipelined loop: overlap CPU camera computation with GPU rendering
     compute_states_and_cameras(0);
-    rlt::set_cameras(device, *env.renderer, env.renderer->cameras);
+    upload_cameras();
 
     for (TI step_i = 0; step_i < STEPS; step_i++) {
         if (no_probe) {
@@ -221,7 +237,7 @@ int main(int argc, char** argv) {
 
         // Upload next frame's cameras (GPU is idle now, buffer is safe to overwrite)
         if (step_i + 1 < STEPS) {
-            rlt::set_cameras(device, *env.renderer, env.renderer->cameras);
+            upload_cameras();
         }
     }
     rlt::synchronize(device, *env.renderer);

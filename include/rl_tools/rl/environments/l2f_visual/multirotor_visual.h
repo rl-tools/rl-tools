@@ -57,6 +57,9 @@ namespace rl_tools::rl::environments::l2f_visual {
             static constexpr TI MOTION_BLUR_SAMPLES = T_MOTION_BLUR_SAMPLES;
             static constexpr bool ENABLE_ANTI_ALIASING = T_ENABLE_ANTI_ALIASING;
             static constexpr TI ANTI_ALIASING_GRID_SIZE = T_ANTI_ALIASING_GRID_SIZE;
+            // the RGB observation is consumed as the renderer's float observation output —
+            // written by the ray gen at full precision, no format-conversion pass
+            static constexpr bool OUTPUT_OBSERVATION = T_OUTPUT_RGB;
         };
         using RENDERER_SPEC = rendering::raytracing::Specification<RENDERER_CONFIG>;
         using SCENE_SPEC = rendering::raytracing::scene::SceneSpecification<T, TI>;
@@ -115,17 +118,13 @@ namespace rl_tools::rl::environments::l2f_visual {
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = ObservationPrivileged::DIM;
         static constexpr bool PRIVILEGED_OBSERVATION_AVAILABLE = true;
 
+        // non-owning references — the target owns the renderer (typically malloc'd against a
+        // shared rendering::raytracing::AssetLibrary) and the scene metadata
         using RENDERER_SPEC = typename SPEC::RENDERER_SPEC;
         rendering::raytracing::Renderer<RENDERER_SPEC>* renderer = nullptr;
-        rendering::raytracing::Scene* render_scene = nullptr;
         rendering::raytracing::scene::procthor::Scene<typename SPEC::SCENE_SPEC>* scene = nullptr;
-        bool owns_renderer = false;
-        bool owns_render_scene = false;
-
-        const char* scene_path = nullptr;
 
         bool use_target_mode = false;
-        bool renderer_initialized = false;
 
         DYNAMICS_ENV dynamics;
         Parameters parameters;

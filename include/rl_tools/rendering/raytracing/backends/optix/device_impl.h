@@ -187,6 +187,21 @@ namespace rl_tools
     inline __device__ static void store(const RAYGEN_DATA &self, const PixelLaunchContext &ctx, Accumulator acc, int samples)
     {
       const owl::vec3f color = acc * (1.f / float(samples));
+      if (self.obs_ptr != nullptr) {
+        // the observation is the frame-buffer color before 8-bit quantization — same transfer
+        // curve, full float precision
+        float *obs = self.obs_ptr + (size_t)ctx.fb_offset * 3;
+        if constexpr (T_SRGB_OUTPUT) {
+          obs[0] = linear_to_srgb(fminf(fmaxf(color.x, 0.f), 1.f));
+          obs[1] = linear_to_srgb(fminf(fmaxf(color.y, 0.f), 1.f));
+          obs[2] = linear_to_srgb(fminf(fmaxf(color.z, 0.f), 1.f));
+        }
+        else {
+          obs[0] = fminf(fmaxf(color.x, 0.f), 1.f);
+          obs[1] = fminf(fmaxf(color.y, 0.f), 1.f);
+          obs[2] = fminf(fmaxf(color.z, 0.f), 1.f);
+        }
+      }
       if constexpr (T_SRGB_OUTPUT) {
         self.fb_ptr[ctx.fb_offset] = make_srgb_rgba_from_linear(color);
       }

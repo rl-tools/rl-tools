@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <array>
+#include <deque>
 #include <chrono>
 #include <cmath>
 #include <cstdio>
@@ -186,13 +187,25 @@ static int validate_scene_has_initial_states(const std::string& scene_path) {
     DEVICE device;
     rlt::init(device);
 
-    ENVIRONMENT env;
-    rlt::malloc(device, env);
-    env.scene_path = scene_path.c_str();
-    env.renderer_initialized = false;
-    rlt::init(device, env);
-    const bool valid = env.scene != nullptr && env.scene->num_indoor_positions > 0;
-    rlt::free(device, env);
+    using LIBRARY_TYPE = rlt::rendering::raytracing::AssetLibrary<typename ENVIRONMENT::SPEC::RENDERER_SPEC>;
+    using SCENE_TYPE = rlt::rendering::raytracing::scene::procthor::Scene<typename ENVIRONMENT::SPEC::SCENE_SPEC>;
+    auto* library = new LIBRARY_TYPE{};
+    auto* renderer = new rlt::rendering::raytracing::Renderer<typename ENVIRONMENT::SPEC::RENDERER_SPEC>{};
+    auto* scene = new SCENE_TYPE{};
+    rlt::malloc(device, *library);
+    rlt::malloc(device, *renderer, *library);
+    rlt::init(device, *renderer, *library, scene_path.c_str());
+    const T scene_fov = typename ENVIRONMENT::Parameters{}.fov;
+    const T scene_up[3] = {0, 0, 1};
+    rlt::generate_cameras(device, *renderer, renderer->scene_center, renderer->camera_radius, scene_up, scene_fov);
+    rlt::generate_probe_directions(device, *renderer);
+    rlt::rendering::raytracing::scene::procthor::precompute_indoor_positions(device, *scene, *renderer, scene_fov, (T)CAM_WIDTH / (T)CAM_HEIGHT);
+    const bool valid = scene->num_indoor_positions > 0;
+    rlt::free(device, *renderer);
+    rlt::free(device, *library);
+    delete scene;
+    delete renderer;
+    delete library;
     return valid ? 0 : 1;
 }
 
@@ -663,7 +676,12 @@ int main(int argc, char** argv) {
 
     using RENDERER_TYPE = rlt::rendering::raytracing::Renderer<typename ENVIRONMENT::SPEC::RENDERER_SPEC>;
     using SCENE_TYPE = rlt::rendering::raytracing::scene::procthor::Scene<typename ENVIRONMENT::SPEC::SCENE_SPEC>;
+    using LIBRARY_TYPE = rlt::rendering::raytracing::AssetLibrary<typename ENVIRONMENT::SPEC::RENDERER_SPEC>;
+    auto* library = new LIBRARY_TYPE{};
+    rlt::malloc(device, *library);
+    auto* renderer_storage = new std::array<RENDERER_TYPE, MAX_SCENES>{};
     std::array<RENDERER_TYPE*, MAX_SCENES> renderers{};
+    std::deque<SCENE_TYPE> procthor_scenes;
     std::array<SCENE_TYPE*, MAX_SCENES> scenes{};
 
     {
@@ -672,21 +690,23 @@ int main(int argc, char** argv) {
             const std::string& scene_path = scene_paths[scene_i % scene_paths.size()];
             std::cout << "Loading scene " << scene_i << "/" << options.scenes << ": "
                       << std::filesystem::path(scene_path).filename().string() << std::flush;
-            ENVIRONMENT loader_env;
-            rlt::malloc(device, loader_env);
-            loader_env.scene_path = scene_path.c_str();
-            loader_env.renderer_initialized = false;
-            rlt::init(device, loader_env);
-            if(loader_env.scene->num_indoor_positions == 0) {
+            renderers[scene_i] = &(*renderer_storage)[scene_i];
+            rlt::malloc(device, *renderers[scene_i], *library);
+            TI scene_id = rlt::init(device, *renderers[scene_i], *library, scene_path.c_str());
+            const T scene_fov = typename ENVIRONMENT::Parameters{}.fov;
+            const T scene_up[3] = {0, 0, 1};
+            rlt::generate_cameras(device, *renderers[scene_i], renderers[scene_i]->scene_center, renderers[scene_i]->camera_radius, scene_up, scene_fov);
+            rlt::generate_probe_directions(device, *renderers[scene_i]);
+            if(scene_id == (TI)procthor_scenes.size()){
+                procthor_scenes.emplace_back();
+                rlt::rendering::raytracing::scene::procthor::precompute_indoor_positions(device, procthor_scenes[scene_id], *renderers[scene_i], scene_fov, (T)CAM_WIDTH / (T)CAM_HEIGHT);
+            }
+            if(procthor_scenes[scene_id].num_indoor_positions == 0) {
                 std::cerr << "\nScene passed preflight but has no valid free-space positions: " << scene_path << std::endl;
                 return 1;
             }
-            std::cout << " (" << loader_env.scene->num_indoor_positions << " free-space points)" << std::endl;
-            renderers[scene_i] = loader_env.renderer;
-            scenes[scene_i] = loader_env.scene;
-            loader_env.renderer = nullptr;
-            loader_env.scene = nullptr;
-            loader_env.owns_renderer = false;
+            std::cout << " (" << procthor_scenes[scene_id].num_indoor_positions << " free-space points)" << std::endl;
+            scenes[scene_i] = &procthor_scenes[scene_id];
         }
     }
 
@@ -721,8 +741,6 @@ int main(int argc, char** argv) {
         rlt::malloc(device, envs[env_i].dynamics);
         envs[env_i].renderer = renderers[scene_i];
         envs[env_i].scene = scenes[scene_i];
-        envs[env_i].owns_renderer = false;
-        envs[env_i].renderer_initialized = true;
         envs[env_i].use_target_mode = true;
         envs[env_i].parameters.fov = CAMERA_FOV;
         envs[env_i].parameters.camera_randomization.fov_range = CAMERA_FOV_RANDOMIZATION_RANGE;
@@ -818,10 +836,9 @@ int main(int argc, char** argv) {
     std::vector<const uint32_t*> scene_framebuffers(options.scenes);
     for(TI scene_i = 0; scene_i < options.scenes; scene_i++) {
         cudaEventCreateWithFlags(&scene_done_events[scene_i], cudaEventDisableTiming);
-        OWLParams rgb_lp = (OWLParams)renderers[scene_i]->backend.launch_params;
-        scene_streams[scene_i] = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
-        scene_camera_buffers[scene_i] = (void*)owlBufferGetPointer((OWLBuffer)renderers[scene_i]->backend.cameras_buffer, 0);
-        scene_framebuffers[scene_i] = rlt::get_framebuffer_device_ptr(device, *renderers[scene_i]);
+        scene_streams[scene_i] = rlt::stream(device, *renderers[scene_i]);
+        scene_camera_buffers[scene_i] = (void*)rlt::data(rlt::cameras(device, *renderers[scene_i]));
+        scene_framebuffers[scene_i] = rlt::data(rlt::frame_buffer(device, *renderers[scene_i]));
     }
 
     std::string ffmpeg_cmd;

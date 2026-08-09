@@ -43,12 +43,6 @@ namespace rl_tools {
             std::vector<TI> overlay_temp_primitives;
             std::vector<SceneLight> lights;
             std::vector<T> probe_directions;
-            std::vector<Camera<T>> cameras;
-            std::vector<Camera<T>> cameras_open;
-            std::vector<unsigned int> frame_buffer;
-            std::vector<float> depth_buffer;
-            std::vector<unsigned int> segmentation_buffer;
-            std::vector<CollisionResult> collision_results;
             SceneView<T, TI> scene;
         };
 
@@ -124,30 +118,35 @@ namespace rl_tools {
         malloc(device, renderer.collision_results);
 
         auto* backend_state = new generic::State<SPEC>{};
-        backend_state->cameras.resize(SPEC::NUM_CAMERAS);
-        backend_state->scene.cameras_close = backend_state->cameras.data();
+        // the renderer-owned camera tensors are the render input — no staging copy
+        backend_state->scene.cameras_close = data(renderer.cameras);
+        renderer.backend.cameras_buffer = data(renderer.cameras);
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            backend_state->cameras_open.resize(SPEC::NUM_CAMERAS);
-            backend_state->scene.cameras_open = backend_state->cameras_open.data();
+            backend_state->scene.cameras_open = data(renderer.cameras_open);
+            renderer.backend.cameras_open_buffer = data(renderer.cameras_open);
         }
         else {
-            backend_state->scene.cameras_open = backend_state->cameras.data();
+            backend_state->scene.cameras_open = data(renderer.cameras);
         }
+        // the renderer-owned output tensors are the render targets — no staging copy
         if constexpr (SPEC::HAS_RGB) {
-            backend_state->frame_buffer.resize((size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
-            backend_state->scene.frame_buffer = backend_state->frame_buffer.data();
-            renderer.backend.frame_buffer_handle = backend_state->frame_buffer.data();
+            backend_state->scene.frame_buffer = data(renderer.frame_buffer);
+            renderer.backend.frame_buffer_handle = data(renderer.frame_buffer);
         }
         if constexpr (SPEC::HAS_DEPTH) {
-            backend_state->depth_buffer.resize((size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
-            backend_state->scene.depth_buffer = backend_state->depth_buffer.data();
-            renderer.backend.depth_buffer_handle = backend_state->depth_buffer.data();
+            backend_state->scene.depth_buffer = data(renderer.depth_buffer);
+            renderer.backend.depth_buffer_handle = data(renderer.depth_buffer);
         }
         if constexpr (SPEC::HAS_SEGMENTATION) {
             malloc(device, renderer.segmentation_buffer);
-            backend_state->segmentation_buffer.resize((size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
-            backend_state->scene.segmentation_buffer = backend_state->segmentation_buffer.data();
-            renderer.backend.segmentation_buffer_handle = backend_state->segmentation_buffer.data();
+            backend_state->scene.segmentation_buffer = data(renderer.segmentation_buffer);
+            renderer.backend.segmentation_buffer_handle = data(renderer.segmentation_buffer);
+        }
+        if constexpr (SPEC::HAS_OBSERVATION) {
+            static_assert(utils::typing::is_same_v<typename SPEC::OBSERVATION_T, float>, "The generic raytracing backend requires OBSERVATION_T = float");
+            malloc(device, renderer.observation);
+            backend_state->scene.observation = data(renderer.observation);
+            renderer.backend.observation_buffer_handle = data(renderer.observation);
         }
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             backend_state->overlay_views.resize(SPEC::NUM_OVERLAYS);
@@ -166,9 +165,8 @@ namespace rl_tools {
             backend_state->scene.attachments = backend_state->overlay_attachments.data();
         }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        backend_state->collision_results.resize((size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);
-        backend_state->scene.collision_results = backend_state->collision_results.data();
-        renderer.backend.collision_results_buffer = backend_state->collision_results.data();
+        backend_state->scene.collision_results = data(renderer.collision_results);
+        renderer.backend.collision_results_buffer = data(renderer.collision_results);
         renderer.backend.collision_ray_gen = backend_state; // non-null marker: collision rays available
 #endif
         renderer.backend.context = backend_state;
@@ -463,53 +461,10 @@ namespace rl_tools {
     void generate_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer,
                           const typename SPEC::T center[3], typename SPEC::T radius,
                           const typename SPEC::T up[3], typename SPEC::T fov){
-        namespace generic = rendering::raytracing::backends::generic;
-        rendering::raytracing::detail::generate_camera_poses(device, renderer, center, radius, up, fov);
-        auto& backend_state = generic::state(renderer);
-        std::memcpy(backend_state.cameras.data(), data(renderer.cameras), SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>));
+        rendering::raytracing::detail::generate_camera_poses<SPEC>(device, data(renderer.cameras), center, radius, up, fov);
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            std::memcpy(backend_state.cameras_open.data(), data(renderer.cameras), SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>));
+            std::memcpy(data(renderer.cameras_open), data(renderer.cameras), SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>));
         }
-        renderer.backend.cameras_buffer = backend_state.cameras.data();
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            renderer.backend.cameras_open_buffer = backend_state.cameras_open.data();
-        }
-    }
-
-    template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
-    void set_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
-        static_assert(utils::typing::is_same_v<typename CAMERAS_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
-        static_assert(get<0>(typename CAMERAS_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        namespace generic = rendering::raytracing::backends::generic;
-        auto& backend_state = generic::state(renderer);
-        constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>);
-        std::memcpy(backend_state.cameras.data(), data(cameras), camera_bytes);
-        renderer.backend.cameras_buffer = backend_state.cameras.data();
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            std::memcpy(backend_state.cameras_open.data(), data(cameras), camera_bytes);
-            renderer.backend.cameras_open_buffer = backend_state.cameras_open.data();
-        }
-    }
-
-    template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
-    void set_cameras_async(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
-        set_cameras(device, renderer, cameras);
-    }
-
-    template <typename DEVICE, typename SPEC, typename CAMERAS_OPEN_SPEC, typename CAMERAS_CLOSE_SPEC>
-    void set_motion_blur_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_OPEN_SPEC>& cameras_open, const Tensor<CAMERAS_CLOSE_SPEC>& cameras_close){
-        static_assert(SPEC::ENABLE_MOTION_BLUR, "set_motion_blur_cameras requires a motion-blur renderer specification");
-        static_assert(utils::typing::is_same_v<typename CAMERAS_OPEN_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
-        static_assert(utils::typing::is_same_v<typename CAMERAS_CLOSE_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
-        static_assert(get<0>(typename CAMERAS_OPEN_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        static_assert(get<0>(typename CAMERAS_CLOSE_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        namespace generic = rendering::raytracing::backends::generic;
-        auto& backend_state = generic::state(renderer);
-        constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>);
-        std::memcpy(backend_state.cameras_open.data(), data(cameras_open), camera_bytes);
-        std::memcpy(backend_state.cameras.data(), data(cameras_close), camera_bytes);
-        renderer.backend.cameras_buffer = backend_state.cameras.data();
-        renderer.backend.cameras_open_buffer = backend_state.cameras_open.data();
     }
 
     template <typename DEVICE, typename SPEC>
@@ -570,64 +525,28 @@ namespace rl_tools {
         probe_sync(device, renderer);
     }
 
-    template <typename DEVICE, typename SPEC, typename FB_SPEC>
-    void read_frame_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<FB_SPEC>& out_pixels){
-        static_assert(SPEC::HAS_RGB, "read_frame_buffer requires an RGB-capable renderer specification");
-        static_assert(utils::typing::is_same_v<typename FB_SPEC::T, uint32_t>);
-        static_assert(get<0>(typename FB_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        namespace generic = rendering::raytracing::backends::generic;
-        constexpr typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-        std::memcpy(data(out_pixels), generic::state(renderer).frame_buffer.data(), expected * sizeof(uint32_t));
-    }
-
-    template <typename DEVICE, typename SPEC, typename DEPTH_SPEC>
-    void read_depth_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<DEPTH_SPEC>& out_depth){
-        static_assert(SPEC::HAS_DEPTH, "read_depth_buffer requires a depth-capable renderer specification");
-        static_assert(utils::typing::is_same_v<typename DEPTH_SPEC::T, float>);
-        static_assert(get<0>(typename DEPTH_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        static_assert(get<1>(typename DEPTH_SPEC::SHAPE{}) == SPEC::CAM_HEIGHT);
-        static_assert(get<2>(typename DEPTH_SPEC::SHAPE{}) == SPEC::CAM_WIDTH);
-        namespace generic = rendering::raytracing::backends::generic;
-        constexpr typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-        std::memcpy(data(out_depth), generic::state(renderer).depth_buffer.data(), expected * sizeof(float));
-    }
-
-    template <typename DEVICE, typename SPEC, typename SEGMENTATION_SPEC>
-    void read_segmentation_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<SEGMENTATION_SPEC>& out_segmentation){
-        static_assert(SPEC::HAS_SEGMENTATION, "read_segmentation_buffer requires a segmentation-capable renderer specification");
-        static_assert(utils::typing::is_same_v<typename SEGMENTATION_SPEC::T, uint32_t>);
-        static_assert(get<0>(typename SEGMENTATION_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        namespace generic = rendering::raytracing::backends::generic;
-        constexpr typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-        std::memcpy(data(out_segmentation), generic::state(renderer).segmentation_buffer.data(), expected * sizeof(uint32_t));
-    }
-
     template <typename DEVICE, typename SPEC>
     void save_segmentation_image(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const char* filename){
         static_assert(SPEC::HAS_SEGMENTATION, "save_segmentation_image requires a segmentation-capable renderer specification");
-        namespace generic = rendering::raytracing::backends::generic;
-        rendering::raytracing::detail::write_segmentation_grid_png<SPEC>(generic::state(renderer).segmentation_buffer.data(), filename);
+        rendering::raytracing::detail::write_segmentation_grid_png<SPEC>(data(renderer.segmentation_buffer), filename);
     }
 
     template <typename DEVICE, typename SPEC>
     void save_image(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const char* filename){
         static_assert(SPEC::HAS_RGB, "save_image requires an RGB-capable renderer specification");
-        namespace generic = rendering::raytracing::backends::generic;
-        rendering::raytracing::detail::write_grid_png<SPEC>((const uint32_t*)generic::state(renderer).frame_buffer.data(), filename);
+        rendering::raytracing::detail::write_grid_png<SPEC>(data(renderer.frame_buffer), filename);
     }
 
     template <typename DEVICE, typename SPEC>
     void save_depth_image(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const char* filename){
         static_assert(SPEC::HAS_DEPTH, "save_depth_image requires a depth-capable renderer specification");
-        namespace generic = rendering::raytracing::backends::generic;
-        rendering::raytracing::detail::write_depth_grid_png<SPEC>(generic::state(renderer).depth_buffer.data(), renderer.camera_radius, filename);
+        rendering::raytracing::detail::write_depth_grid_png<SPEC>(data(renderer.depth_buffer), renderer.camera_radius, filename);
     }
 
     template <typename DEVICE, typename SPEC>
     void save_depth(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const char* filename){
         static_assert(SPEC::HAS_DEPTH, "save_depth requires a depth-capable renderer specification");
-        namespace generic = rendering::raytracing::backends::generic;
-        rendering::raytracing::detail::write_depth_bin<SPEC>(generic::state(renderer).depth_buffer.data(), filename);
+        rendering::raytracing::detail::write_depth_bin<SPEC>(data(renderer.depth_buffer), filename);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -637,50 +556,8 @@ namespace rl_tools {
         (void)filename;
         return;
 #else
-        namespace generic = rendering::raytracing::backends::generic;
-        rendering::raytracing::detail::write_probes_bin_and_log<SPEC>(generic::state(renderer).collision_results.data(), filename);
+        rendering::raytracing::detail::write_probes_bin_and_log<SPEC>(data(renderer.collision_results), filename);
 #endif
-    }
-
-    template <typename DEVICE, typename SPEC, typename COLL_SPEC>
-    void read_collision_results(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<COLL_SPEC>& out){
-        static_assert(utils::typing::is_same_v<typename COLL_SPEC::T, rendering::raytracing::CollisionResult>);
-        static_assert(get<0>(typename COLL_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        static_assert(get<1>(typename COLL_SPEC::SHAPE{}) == SPEC::NUM_PROBES);
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        namespace generic = rendering::raytracing::backends::generic;
-        if(renderer.backend.collision_results_buffer != nullptr){
-            std::memcpy(data(out), generic::state(renderer).collision_results.data(),
-                        SPEC::NUM_CAMERAS * SPEC::NUM_PROBES * sizeof(rendering::raytracing::CollisionResult));
-        }
-#endif
-    }
-
-    template <typename DEVICE, typename SPEC>
-    const rendering::raytracing::CollisionResult* read_collision_results_raw(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-#if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        return nullptr;
-#else
-        namespace generic = rendering::raytracing::backends::generic;
-        if(renderer.backend.collision_results_buffer == nullptr){
-            return nullptr;
-        }
-        return generic::state(renderer).collision_results.data();
-#endif
-    }
-
-    template <typename DEVICE, typename SPEC>
-    uint32_t* get_framebuffer_device_ptr(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB, "get_framebuffer_device_ptr requires an RGB-capable renderer specification");
-        namespace generic = rendering::raytracing::backends::generic;
-        return (uint32_t*)generic::state(renderer).frame_buffer.data();
-    }
-
-    template <typename DEVICE, typename SPEC>
-    float* get_depthbuffer_device_ptr(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_DEPTH, "get_depthbuffer_device_ptr requires a depth-capable renderer specification");
-        namespace generic = rendering::raytracing::backends::generic;
-        return generic::state(renderer).depth_buffer.data();
     }
 
     template <typename DEVICE, typename SPEC>
@@ -707,10 +584,34 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_SEGMENTATION) {
             free(device, renderer.segmentation_buffer);
         }
+        if constexpr (SPEC::HAS_OBSERVATION) {
+            free(device, renderer.observation);
+        }
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             free(device, renderer.transforms);
         }
         free(device, renderer.collision_results);
+    }
+
+    // shared-asset-library fallbacks: this backend has no cross-renderer sharing, so the
+    // library is empty and every renderer builds its own copy — the API stays uniform
+    template <typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC>& library){}
+
+    template <typename DEVICE, typename SPEC>
+    void free(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC>& library){}
+
+    template <typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, rendering::raytracing::AssetLibrary<SPEC>& library){
+        malloc(device, renderer);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    typename SPEC::TI init(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, rendering::raytracing::AssetLibrary<SPEC>& library, const char* scene_path){
+        bool is_new = false;
+        const auto scene_id = rendering::raytracing::detail::library_lookup_or_load(device, library, scene_path, is_new);
+        init(device, renderer, library.scenes[scene_id], library.pool);
+        return scene_id;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
