@@ -6,8 +6,7 @@ include(FetchContent)
 FetchContent_Declare(
     OWL
     GIT_REPOSITORY https://github.com/NVIDIA/OWL.git
-    GIT_TAG        4f88b300f95e818b0469b1611adf601d46e3533e
-    PATCH_COMMAND ${CMAKE_COMMAND} -DOWL_SOURCE_DIR=<SOURCE_DIR> -P ${CMAKE_CURRENT_LIST_DIR}/../patches/owl_pinned_host_mem.cmake
+    GIT_TAG        978a66642ad00759ae24920afe02775f20b979b6
     EXCLUDE_FROM_ALL
 )
 rl_tools_fetchcontent_makeavailable_quiet(OWL)
