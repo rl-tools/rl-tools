@@ -229,7 +229,9 @@ namespace rl_tools {
 
             struct OverlaySlot {
                 TI object = 0;          // global object index (scene objects + pool objects)
-                float transform[12];    // object -> world
+                TI pose_slot = 0;       // root slot of the owning placement; the root's transforms entry moves the whole placement
+                float part_local[12];   // static attachment (part -> assembly), captured at spawn
+                float transform_entry[12]; // host mirror of the transforms-tensor entry (root: pose, non-root: articulation in the part frame)
                 bool active = false;
             };
             struct OverlayState {
@@ -242,6 +244,12 @@ namespace rl_tools {
                 TI num_parts;
             };
             OverlayState overlays[SPEC::NUM_OVERLAYS];
+            // dynamic transform input consumed by update(): entry [o][s] is the placement pose at
+            // its root slot and a part-frame articulation elsewhere (world = pose ∘ part_local ∘
+            // articulation). Backend-native residency (device memory on OptiX) — access via
+            // transforms(device, renderer); host verbs stage through the slot mirrors instead.
+            using TRANSFORMS_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES, 12>, true>;
+            Tensor<TRANSFORMS_TENSOR_SPEC> transforms;
             TI attachments[SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA];
             bool attachments_dirty = false;
             // the flattened pool tables live on the renderer (not in backend state) because the

@@ -7,6 +7,7 @@
 #include "../../renderer.h"
 #include "../../operations_cpu_common.h"
 #include "device.h"
+#include "overlay_accel.h"
 
 #include "owl/owl.h"
 
@@ -30,17 +31,19 @@ namespace rl_tools {
     extern "C" char device_depth_segmentation_ptx[];
 
     namespace rendering::raytracing::backends::optix {
-        // inactive overlay slots point at a shared degenerate-triangle group, so every overlay
-        // instance group keeps a fixed child count and instance-id layout across rebuilds
+        // inactive overlay slots point at a shared degenerate-triangle BLAS, so every overlay
+        // TLAS keeps a fixed instance count and instance-id layout across rebuilds
         struct OverlayState {
             std::vector<OWLGroup> object_groups;
             OWLGroup filler_group = nullptr;
-            std::vector<OWLGroup> overlay_groups;
+            OverlayAccelState* accel = nullptr;
             OWLBuffer traversables_buffer = nullptr;
             OWLBuffer attachments_buffer = nullptr;
             OWLBuffer instance_classes_buffer = nullptr;
-            std::vector<unsigned int> instance_classes; // host mirror, per global instance id
-            std::vector<unsigned int> object_classes;   // per global object
+            // pageable staging for host-verb writes: cudaMemcpyAsync returns only after pageable
+            // sources are consumed, so rows can be rewritten on the next update without hazards
+            std::vector<OverlaySlotStructure> structure_staging;
+            std::vector<float> transforms_staging;
             size_t num_scene_instances = 0;
         };
     }
@@ -202,6 +205,15 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_SEGMENTATION) {
             malloc(device, renderer.segmentation_buffer);
+        }
+        if constexpr (SPEC::ENABLE_OVERLAYS) {
+            // device-resident transform input (see transforms(device, renderer)): producers write
+            // it directly, update_launch consumes it on the render stream
+            using TRANSFORMS_SPEC = typename decltype(renderer.transforms)::SPEC;
+            float* transforms_device = nullptr;
+            cudaMalloc(&transforms_device, TRANSFORMS_SPEC::SIZE_BYTES);
+            cudaMemset(transforms_device, 0, TRANSFORMS_SPEC::SIZE_BYTES);
+            renderer.transforms._data = transforms_device;
         }
         malloc(device, renderer.collision_results);
 
@@ -775,22 +787,21 @@ namespace rl_tools {
 
         if constexpr (SPEC::ENABLE_OVERLAYS){
             auto* overlay_state = (optix::OverlayState*)renderer.backend.overlay_state;
-            const float identity_owl[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0};
-            std::vector<OWLGroup> overlay_children(SPEC::MAX_OVERLAY_INSTANCES, overlay_state->filler_group);
-            std::vector<float> overlay_transforms;
-            for(size_t slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
-                overlay_transforms.insert(overlay_transforms.end(), identity_owl, identity_owl + 12);
+            // per-object BLAS traversables and SBT offsets are only final after owlBuildSBT above;
+            // baked into a device table the fill kernel joins against slot structure
+            std::vector<optix::OverlayObjectEntry> object_entries(overlay_state->object_groups.size());
+            for(size_t object_i = 0; object_i < overlay_state->object_groups.size(); object_i++){
+                object_entries[object_i].traversable = (unsigned long long)owlGroupGetTraversable(overlay_state->object_groups[object_i], 0);
+                object_entries[object_i].sbt_offset = owlGroupGetSBTOffset(overlay_state->object_groups[object_i]);
+                object_entries[object_i].segmentation_class = all_objects[object_i]->segmentation_class;
             }
-            for(size_t overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
-                std::vector<uint32_t> overlay_instance_ids(SPEC::MAX_OVERLAY_INSTANCES);
-                for(size_t slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
-                    overlay_instance_ids[slot] = (uint32_t)(scene.instances.size() + overlay * SPEC::MAX_OVERLAY_INSTANCES + slot); // global id layout (contract: segmentation_object)
-                }
-                OWLGroup overlay_group = owlInstanceGroupCreate(context, SPEC::MAX_OVERLAY_INSTANCES, overlay_children.data(), overlay_instance_ids.data(), overlay_transforms.data(), OWL_MATRIX_FORMAT_OWL);
-                owlGroupBuildAccel(overlay_group);
-                overlay_state->overlay_groups.push_back(overlay_group);
-            }
-            overlay_state->traversables_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(unsigned long long), SPEC::NUM_OVERLAYS, nullptr);
+            overlay_state->accel = optix::overlay_accel_create(owlContextGetOptixContext(context, 0), SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES, (unsigned int)scene.instances.size(), (unsigned long long)owlGroupGetTraversable(overlay_state->filler_group, 0));
+            optix::overlay_accel_upload_objects(overlay_state->accel, object_entries.data(), (unsigned int)object_entries.size());
+            overlay_state->structure_staging.assign((size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES, optix::OverlaySlotStructure{});
+            overlay_state->transforms_staging.assign((size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12, 0.0f);
+            // published once: raw builds into fixed per-overlay buffers keep the handles stable,
+            // so no per-rebuild re-publication is needed
+            overlay_state->traversables_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(unsigned long long), SPEC::NUM_OVERLAYS, optix::overlay_accel_traversables(overlay_state->accel));
             overlay_state->attachments_buffer = owlDeviceBufferCreate(context, OWL_UINT, (size_t)SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA, nullptr);
             rendering::raytracing::detail::reset_overlay_state(renderer);
         }
@@ -806,12 +817,7 @@ namespace rl_tools {
         if constexpr (SPEC::ENABLE_OVERLAYS){
             auto* overlay_state = (optix::OverlayState*)renderer.backend.overlay_state;
             overlay_state->instance_classes_buffer = instance_classes_buffer;
-            overlay_state->instance_classes = host_instance_classes;
             overlay_state->num_scene_instances = scene.instances.size();
-            overlay_state->object_classes.clear();
-            for(const auto* object_pointer : all_objects){
-                overlay_state->object_classes.push_back(object_pointer->segmentation_class);
-            }
         }
 
         if(renderer.backend.launch_params == nullptr){
@@ -860,50 +866,42 @@ namespace rl_tools {
         init(device, renderer, scene, empty_pool);
     }
 
+    // fully stream-ordered on the render stream: staging uploads for host-verb writes, then the
+    // device-side instance fill and per-overlay raw optixAccelBuild — no host synchronization
     template <typename DEVICE, typename SPEC>
-    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    void update_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
         namespace optix = rendering::raytracing::backends::optix;
         using TI = typename SPEC::TI;
         auto* overlay_state = (optix::OverlayState*)renderer.backend.overlay_state;
-
-        bool any_rebuilt = false;
-        for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
-            auto& overlay_slot_state = renderer.overlays[overlay];
-            if(!overlay_slot_state.dirty) continue;
-            OWLGroup overlay_group = overlay_state->overlay_groups[overlay];
-            for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
-                const auto& host_slot = overlay_slot_state.slots[slot];
-                if(host_slot.active){
-                    const float* transform = host_slot.transform; // 3x4 row-major [R|t]
-                    const float owl_transform[12] = {
-                        transform[0], transform[4], transform[8],
-                        transform[1], transform[5], transform[9],
-                        transform[2], transform[6], transform[10],
-                        transform[3], transform[7], transform[11]
-                    };
-                    owlInstanceGroupSetChild(overlay_group, (int)slot, overlay_state->object_groups[host_slot.object]);
-                    owlInstanceGroupSetTransform(overlay_group, (int)slot, owl_transform, OWL_MATRIX_FORMAT_OWL);
-                    overlay_state->instance_classes[overlay_state->num_scene_instances + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES + slot] = overlay_state->object_classes[host_slot.object];
-                }
-                else{
-                    const float identity_owl[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0};
-                    owlInstanceGroupSetChild(overlay_group, (int)slot, overlay_state->filler_group);
-                    owlInstanceGroupSetTransform(overlay_group, (int)slot, identity_owl, OWL_MATRIX_FORMAT_OWL);
-                }
-            }
-            owlGroupBuildAccel(overlay_group);
-            overlay_slot_state.dirty = false;
-            any_rebuilt = true;
+        cudaStream_t cuda_stream = (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend.launch_params, 0);
+        cudaStream_t coll_stream = renderer.backend.coll_launch_params != nullptr ? (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend.coll_launch_params, 0) : cuda_stream;
+        if(coll_stream != cuda_stream){
+            // probe launches trace the overlay TLASes on their own stream: order this rebuild
+            // after in-flight probes and subsequent probes after this rebuild, without host syncs
+            cudaEvent_t probes_done;
+            cudaEventCreateWithFlags(&probes_done, cudaEventDisableTiming);
+            cudaEventRecord(probes_done, coll_stream);
+            cudaStreamWaitEvent(cuda_stream, probes_done, 0);
+            cudaEventDestroy(probes_done);
         }
-        if(any_rebuilt){
-            // re-published every rebuild: a rebuild may relocate a group's traversable
-            std::vector<unsigned long long> traversables(SPEC::NUM_OVERLAYS);
-            for(size_t overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
-                traversables[overlay] = (unsigned long long)owlGroupGetTraversable(overlay_state->overlay_groups[overlay], 0);
+
+        for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+            auto& overlay_host = renderer.overlays[overlay];
+            if(!overlay_host.dirty) continue;
+            const size_t base = (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES;
+            for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
+                const auto& host_slot = overlay_host.slots[slot];
+                auto& row = overlay_state->structure_staging[base + slot];
+                row.active = host_slot.active ? 1u : 0u;
+                row.pose_slot = (unsigned int)host_slot.pose_slot;
+                row.object = (unsigned int)host_slot.object;
+                std::memcpy(row.part_local, host_slot.part_local, sizeof(row.part_local));
+                std::memcpy(&overlay_state->transforms_staging[(base + slot) * 12], host_slot.transform_entry, 12 * sizeof(float));
             }
-            owlBufferUpload(overlay_state->traversables_buffer, traversables.data(), 0, SPEC::NUM_OVERLAYS);
-            owlBufferUpload(overlay_state->instance_classes_buffer, overlay_state->instance_classes.data(), 0, overlay_state->instance_classes.size());
+            cudaMemcpyAsync(optix::overlay_accel_structure(overlay_state->accel) + base, &overlay_state->structure_staging[base], SPEC::MAX_OVERLAY_INSTANCES * sizeof(optix::OverlaySlotStructure), cudaMemcpyHostToDevice, cuda_stream);
+            cudaMemcpyAsync(data(renderer.transforms) + base * 12, &overlay_state->transforms_staging[base * 12], SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float), cudaMemcpyHostToDevice, cuda_stream);
+            overlay_host.dirty = false;
         }
         if(renderer.attachments_dirty){
             std::vector<uint32_t> attachments((size_t)SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA);
@@ -913,18 +911,26 @@ namespace rl_tools {
             owlBufferUpload(overlay_state->attachments_buffer, attachments.data(), 0, attachments.size());
             renderer.attachments_dirty = false;
         }
-    }
-
-    // owl group builds are synchronous; splitting them onto the launch stream (raw
-    // optixAccelBuild over device-side descriptors) is future work, so launch == update here
-    template <typename DEVICE, typename SPEC>
-    void update_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        update(device, renderer);
+        optix::overlay_accel_build(overlay_state->accel, data(renderer.transforms), (unsigned int*)owlBufferGetPointer(overlay_state->instance_classes_buffer, 0), cuda_stream);
+        if(coll_stream != cuda_stream){
+            cudaEvent_t built;
+            cudaEventCreateWithFlags(&built, cudaEventDisableTiming);
+            cudaEventRecord(built, cuda_stream);
+            cudaStreamWaitEvent(coll_stream, built, 0);
+            cudaEventDestroy(built);
+        }
     }
 
     template <typename DEVICE, typename SPEC>
     void update_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
+        cudaStreamSynchronize((cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend.launch_params, 0));
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        update_launch(device, renderer);
+        update_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -990,6 +996,23 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_SEGMENTATION) {
             owlAsyncLaunch2D((OWLRayGen)renderer.backend.segmentation_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
         }
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void render_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        owlLaunchSync((OWLParams)renderer.backend.launch_params);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void render(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        render_launch(device, renderer);
+        render_sync(device, renderer);
+    }
+
+    // render produces the image outputs the spec declares; the collision-probe pass is the
+    // separate probe verb so it can be scheduled independently (e.g. alongside update)
+    template <typename DEVICE, typename SPEC>
+    void probe_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         if(renderer.backend.collision_ray_gen){
             OWLRayGen collision_ray_gen = (OWLRayGen)renderer.backend.collision_ray_gen;
             OWLParams coll_lp = (OWLParams)renderer.backend.coll_launch_params;
@@ -998,16 +1021,15 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void render_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        owlLaunchSync((OWLParams)renderer.backend.launch_params);
+    void probe_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         if(renderer.backend.coll_launch_params)
             owlLaunchSync((OWLParams)renderer.backend.coll_launch_params);
     }
 
     template <typename DEVICE, typename SPEC>
-    void render(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        render_launch(device, renderer);
-        render_sync(device, renderer);
+    void probe(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        probe_launch(device, renderer);
+        probe_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
@@ -1191,6 +1213,13 @@ namespace rl_tools {
         return (float*)owlBufferGetPointer((OWLBuffer)renderer.backend.depth_buffer_handle, 0);
     }
 
+    // render stream shared by render/probe/update launches; producers writing renderer inputs
+    // from their own kernels can run on it to get ordering without events or host syncs
+    template <typename DEVICE, typename SPEC>
+    cudaStream_t stream(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        return (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend.launch_params, 0);
+    }
+
     template <typename DEVICE, typename SPEC>
     void synchronize(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         cudaDeviceSynchronize();
@@ -1201,8 +1230,18 @@ namespace rl_tools {
         RL_TOOLS_RENDERING_RAYTRACING_LOG("destroying devicegroups ...");
         if(renderer.backend.context) owlContextDestroy((OWLContext)renderer.backend.context);
         renderer.backend.context = nullptr;
-        delete (rendering::raytracing::backends::optix::OverlayState*)renderer.backend.overlay_state;
-        renderer.backend.overlay_state = nullptr;
+        if(renderer.backend.overlay_state != nullptr){
+            auto* overlay_state = (rendering::raytracing::backends::optix::OverlayState*)renderer.backend.overlay_state;
+            rendering::raytracing::backends::optix::overlay_accel_destroy(overlay_state->accel);
+            delete overlay_state;
+            renderer.backend.overlay_state = nullptr;
+        }
+        if constexpr (SPEC::ENABLE_OVERLAYS){
+            if(renderer.transforms._data != nullptr){
+                cudaFree(renderer.transforms._data);
+                renderer.transforms._data = nullptr;
+            }
+        }
         free(device, renderer.cameras);
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
             free(device, renderer.cameras_open);

@@ -119,6 +119,9 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_DEPTH) {
             malloc(device, renderer.depth_buffer);
         }
+        if constexpr (SPEC::ENABLE_OVERLAYS) {
+            malloc(device, renderer.transforms);
+        }
         malloc(device, renderer.collision_results);
 
         auto* ctx = new metal::Context{};
@@ -553,9 +556,11 @@ namespace rl_tools {
         }
         NS::Array* object_array = NS::Array::array((const NS::Object* const*)object_acceleration_structure_pointers.data(), object_acceleration_structure_pointers.size());
 
+        rendering::raytracing::detail::flush_overlay_transforms(renderer);
+        // rebuilt unconditionally: producers may write the transforms tensor directly, which
+        // leaves no host-observable dirty flag
         for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
             auto& overlay_state = renderer.overlays[overlay];
-            if(!overlay_state.dirty) continue;
             const size_t base = (size_t)ctx.num_scene_instances + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES;
             auto* descriptors = (MTL::AccelerationStructureUserIDInstanceDescriptor*)ctx.overlay_instance_descriptors[overlay]->contents();
             uint32_t num_active = 0;
@@ -563,10 +568,12 @@ namespace rl_tools {
                 const auto& host_slot = overlay_state.slots[slot];
                 if(!host_slot.active) continue;
                 const size_t global = base + slot;
+                float world[12];
+                rendering::raytracing::detail::compose_overlay_slot_transform(renderer, overlay, slot, world);
                 auto& descriptor = descriptors[num_active];
                 descriptor = {};
                 for(int column = 0; column < 4; column++){
-                    descriptor.transformationMatrix.columns[column] = MTL::PackedFloat3{host_slot.transform[0 + column], host_slot.transform[4 + column], host_slot.transform[8 + column]};
+                    descriptor.transformationMatrix.columns[column] = MTL::PackedFloat3{world[0 + column], world[4 + column], world[8 + column]};
                 }
                 descriptor.options = MTL::AccelerationStructureInstanceOptionOpaque;
                 descriptor.mask = 0xFFFFFFFFu;
@@ -577,14 +584,14 @@ namespace rl_tools {
                 auto& data = instance_data[global];
                 data = {};
                 for(int element = 0; element < 12; element++){
-                    data.object_to_world[element] = host_slot.transform[element];
+                    data.object_to_world[element] = world[element];
                 }
-                const bool identity = rendering::raytracing::detail::transform_is_identity(host_slot.transform);
+                const bool identity = rendering::raytracing::detail::transform_is_identity(world);
                 if(identity){
                     std::memcpy(data.world_to_object, data.object_to_world, sizeof(data.world_to_object));
                 }
                 else{
-                    rendering::raytracing::detail::invert_transform(host_slot.transform, data.world_to_object);
+                    rendering::raytracing::detail::invert_transform(world, data.world_to_object);
                 }
                 data.identity = identity ? 1 : 0;
                 instance_record_base[global] = ctx.object_record_base[host_slot.object];
@@ -604,7 +611,6 @@ namespace rl_tools {
                 overlay_descriptor->setInstanceDescriptorType(MTL::AccelerationStructureInstanceDescriptorTypeUserID);
                 encoder->buildAccelerationStructure(ctx.overlay_acceleration_structures[overlay].get(), overlay_descriptor, ctx.overlay_scratch_buffers[overlay].get(), 0);
             }
-            overlay_state.dirty = false;
         }
         if(renderer.attachments_dirty){
             auto* attachments = (uint32_t*)ctx.overlay_attachments->contents();
@@ -930,6 +936,9 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_DEPTH) {
             free(device, renderer.depth_buffer);
+        }
+        if constexpr (SPEC::ENABLE_OVERLAYS) {
+            free(device, renderer.transforms);
         }
         free(device, renderer.collision_results);
     }
