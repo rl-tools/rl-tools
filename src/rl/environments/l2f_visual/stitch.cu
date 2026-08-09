@@ -818,10 +818,9 @@ int main(int argc, char** argv) {
     std::vector<const uint32_t*> scene_framebuffers(options.scenes);
     for(TI scene_i = 0; scene_i < options.scenes; scene_i++) {
         cudaEventCreateWithFlags(&scene_done_events[scene_i], cudaEventDisableTiming);
-        OWLParams rgb_lp = (OWLParams)renderers[scene_i]->backend.launch_params;
-        scene_streams[scene_i] = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
-        scene_camera_buffers[scene_i] = (void*)owlBufferGetPointer((OWLBuffer)renderers[scene_i]->backend.cameras_buffer, 0);
-        scene_framebuffers[scene_i] = rlt::get_framebuffer_device_ptr(device, *renderers[scene_i]);
+        scene_streams[scene_i] = rlt::stream(device, *renderers[scene_i]);
+        scene_camera_buffers[scene_i] = (void*)rlt::data(rlt::cameras(device, *renderers[scene_i]));
+        scene_framebuffers[scene_i] = rlt::data(rlt::frame_buffer(device, *renderers[scene_i]));
     }
 
     std::string ffmpeg_cmd;

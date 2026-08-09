@@ -1551,22 +1551,37 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
     const T fov = static_cast<T>(degrees_to_radians(options.fov_deg));
     for(size_t frame_i = 0; frame_i < poses.size(); frame_i++) {
         const TracePose& pose = poses[frame_i];
-        rlt::set(device, env.renderer->cameras, rlt::make_camera_data(pose.eye, pose.look_at, pose.up, fov, static_cast<T>(WIDTH) / static_cast<T>(HEIGHT)), static_cast<TI>(0));
-        rlt::set_cameras(device, *env.renderer, env.renderer->cameras);
+        const auto camera = rlt::make_camera_data(pose.eye, pose.look_at, pose.up, fov, static_cast<T>(WIDTH) / static_cast<T>(HEIGHT));
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+        cudaMemcpy(rlt::data(rlt::cameras(device, *env.renderer)), &camera, sizeof(camera), cudaMemcpyHostToDevice);
+#else
+        std::memcpy(rlt::data(rlt::cameras(device, *env.renderer)), &camera, sizeof(camera));
+#endif
         if constexpr (SPEC::HAS_DEPTH) {
             rlt::render(device, *env.renderer);
-            rlt::read_depth_buffer(device, *env.renderer, env.renderer->depth_buffer);
+            std::vector<float> depth_staging(frame.size());
+{
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+            cudaMemcpy(depth_staging.data(), rlt::data(rlt::depth_buffer(device, *env.renderer)), (depth_staging.size()) * sizeof(float), cudaMemcpyDeviceToHost);
+#else
+            std::memcpy(depth_staging.data(), rlt::data(rlt::depth_buffer(device, *env.renderer)), (depth_staging.size()) * sizeof(float));
+#endif
+        }
             const float miss_depth = env.renderer->camera_radius > 0 ? env.renderer->camera_radius * 2.0f : 1e30f;
             float min_depth = std::numeric_limits<float>::max();
             float max_depth_value = std::numeric_limits<float>::lowest();
-            depth_range(rlt::data(env.renderer->depth_buffer), frame.size(), miss_depth, min_depth, max_depth_value);
-            depth_to_rgba(rlt::data(env.renderer->depth_buffer), frame, miss_depth, min_depth, max_depth_value);
+            depth_range(depth_staging.data(), frame.size(), miss_depth, min_depth, max_depth_value);
+            depth_to_rgba(depth_staging.data(), frame, miss_depth, min_depth, max_depth_value);
         }
         else {
             rlt::render(device, *env.renderer);
-            rlt::read_frame_buffer(device, *env.renderer, env.renderer->frame_buffer);
-            const uint32_t* fb_data = rlt::data(env.renderer->frame_buffer);
-            std::memcpy(frame.data(), fb_data, frame.size() * sizeof(uint32_t));
+{
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+            cudaMemcpy(frame.data(), rlt::data(rlt::frame_buffer(device, *env.renderer)), (frame.size()) * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+#else
+            std::memcpy(frame.data(), rlt::data(rlt::frame_buffer(device, *env.renderer)), (frame.size()) * sizeof(uint32_t));
+#endif
+        }
         }
         if(options.write_frames && !write_rgb_image_frame(frame_filename(record.frames_dir, frame_i, png_frames), frame, rgb_frame, WIDTH, HEIGHT, png_frames)) {
             ok = false;

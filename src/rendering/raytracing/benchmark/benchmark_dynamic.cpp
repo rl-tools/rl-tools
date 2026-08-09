@@ -177,22 +177,38 @@ static Camera evaluate_pose(const std::array<Vec3, NUM_WAYPOINTS>& waypoints, T 
 
 template <typename DEVICE, typename RENDERER>
 void upload_poses(DEVICE& device, RENDERER& renderer, const Camera* poses, const Camera* poses_open){
-    std::memcpy(rlt::data(renderer.cameras), poses, sizeof(Camera) * NUM_CAMERAS);
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+    cudaMemcpy(rlt::data(rlt::cameras(device, renderer)), poses, sizeof(Camera) * NUM_CAMERAS, cudaMemcpyHostToDevice);
     if constexpr(RENDERER::SPEC::ENABLE_MOTION_BLUR){
-        std::memcpy(rlt::data(renderer.cameras_open), poses_open, sizeof(Camera) * NUM_CAMERAS);
-        rlt::set_motion_blur_cameras(device, renderer, renderer.cameras_open, renderer.cameras);
+        cudaMemcpy(rlt::data(rlt::cameras_open(device, renderer)), poses_open, sizeof(Camera) * NUM_CAMERAS, cudaMemcpyHostToDevice);
     }
-    else{
-        rlt::set_cameras(device, renderer, renderer.cameras);
+#else
+    std::memcpy(rlt::data(rlt::cameras(device, renderer)), poses, sizeof(Camera) * NUM_CAMERAS);
+    if constexpr(RENDERER::SPEC::ENABLE_MOTION_BLUR){
+        std::memcpy(rlt::data(rlt::cameras_open(device, renderer)), poses_open, sizeof(Camera) * NUM_CAMERAS);
     }
+#endif
 }
 
+// host staging for the consume/checksum path: outputs are backend-native tensors
+// (device-resident on OptiX)
 template <typename DEVICE, typename RENDERER>
-void consume_outputs(DEVICE& device, RENDERER& renderer){
-    rlt::read_frame_buffer(device, renderer, renderer.frame_buffer);
+void consume_outputs(DEVICE& device, RENDERER& renderer, std::vector<uint32_t>& frame_staging, std::vector<float>& depth_staging){
+    constexpr size_t pixel_count = (size_t)RENDERER::SPEC::NUM_CAMERAS * RENDERER::SPEC::CAM_PIXELS;
+    frame_staging.resize(pixel_count);
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+    cudaMemcpy(frame_staging.data(), rlt::data(rlt::frame_buffer(device, renderer)), pixel_count * sizeof(uint32_t), cudaMemcpyDeviceToHost);
     if constexpr(RENDERER::SPEC::HAS_DEPTH){
-        rlt::read_depth_buffer(device, renderer, renderer.depth_buffer);
+        depth_staging.resize(pixel_count);
+        cudaMemcpy(depth_staging.data(), rlt::data(rlt::depth_buffer(device, renderer)), pixel_count * sizeof(float), cudaMemcpyDeviceToHost);
     }
+#else
+    std::memcpy(frame_staging.data(), rlt::data(rlt::frame_buffer(device, renderer)), pixel_count * sizeof(uint32_t));
+    if constexpr(RENDERER::SPEC::HAS_DEPTH){
+        depth_staging.resize(pixel_count);
+        std::memcpy(depth_staging.data(), rlt::data(rlt::depth_buffer(device, renderer)), pixel_count * sizeof(float));
+    }
+#endif
 }
 
 template <typename DEVICE, typename RENDERER>
@@ -284,13 +300,20 @@ int main(int ac, char** av){
     };
     auto segment_clear = [&](const std::vector<Vec3>& from, const std::vector<Vec3>& to, std::vector<bool>& clear){
         namespace v3 = rlt::rendering::raytracing::vec3;
+        std::vector<Camera> camera_staging(NUM_CAMERAS);
         for(TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++){
             const T up[3] = {0, 0, 1};
-            rlt::set(device, renderer.cameras, rlt::make_camera_data(from[camera_i].v, to[camera_i].v, up, FOV, ASPECT), camera_i);
+            camera_staging[camera_i] = rlt::make_camera_data(from[camera_i].v, to[camera_i].v, up, FOV, ASPECT);
         }
-        rlt::set_cameras(device, renderer, renderer.cameras);
+        upload_poses(device, renderer, camera_staging.data(), camera_staging.data());
         rlt::probe(device, renderer);
-        const auto* probe_results = rlt::read_collision_results_raw(device, renderer);
+        std::vector<rlt::rendering::raytracing::CollisionResult> probe_staging((size_t)NUM_CAMERAS * NUM_PROBES);
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+        cudaMemcpy(probe_staging.data(), rlt::data(rlt::collision_results(device, renderer)), probe_staging.size() * sizeof(rlt::rendering::raytracing::CollisionResult), cudaMemcpyDeviceToHost);
+#else
+        std::memcpy(probe_staging.data(), rlt::data(rlt::collision_results(device, renderer)), probe_staging.size() * sizeof(rlt::rendering::raytracing::CollisionResult));
+#endif
+        const auto* probe_results = probe_staging.data();
         for(TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++){
             T delta[3];
             v3::sub(to[camera_i].v, from[camera_i].v, delta);
@@ -369,9 +392,11 @@ int main(int ac, char** av){
     };
 
     uint64_t checksum = 0;
+    std::vector<uint32_t> frame_staging;
+    std::vector<float> depth_staging;
     auto accumulate_checksum = [&](){
         constexpr size_t pixel_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-        const uint32_t* frame = rlt::data(renderer.frame_buffer);
+        const uint32_t* frame = frame_staging.data();
         for(size_t pixel_i = 0; pixel_i < pixel_count; pixel_i += 4097){
             checksum = checksum * 1099511628211ull + frame[pixel_i];
         }
@@ -412,7 +437,7 @@ int main(int ac, char** av){
         rlt::render_launch(device, renderer);
         if constexpr(CONSUME){
             rlt::render_sync(device, renderer);
-            consume_outputs(device, renderer);
+            consume_outputs(device, renderer, frame_staging, depth_staging);
             accumulate_checksum();
         }
         auto step_end = std::chrono::high_resolution_clock::now();
@@ -428,7 +453,7 @@ int main(int ac, char** av){
     }
 
     if constexpr(!CONSUME){
-        rlt::read_frame_buffer(device, renderer, renderer.frame_buffer);
+        consume_outputs(device, renderer, frame_staging, depth_staging);
         accumulate_checksum();
     }
 

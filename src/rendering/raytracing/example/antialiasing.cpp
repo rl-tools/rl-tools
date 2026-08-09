@@ -31,7 +31,8 @@ struct RendererConfig: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr bool ENABLE_ANTI_ALIASING = AA_GRID > 1;
     static constexpr TI ANTI_ALIASING_GRID_SIZE = AA_GRID;
 };
-using RendererSpec = rlt::rendering::raytracing::Specification<RendererConfig>;
+template <TI AA_GRID>
+using RendererSpec = rlt::rendering::raytracing::Specification<RendererConfig<AA_GRID>>;
 
 template <typename SPEC>
 using Renderer = rlt::rendering::raytracing::Renderer<SPEC>;
@@ -103,14 +104,20 @@ rlt::rendering::raytracing::Camera<T> make_orbit_camera(const Renderer<RendererS
 
 template <typename SPEC>
 void render_panel(DEVICE& device, Renderer<SPEC>& renderer, const rlt::rendering::raytracing::Camera<T>& camera, std::vector<uint32_t>& panel) {
-    rlt::set(device, renderer.cameras, camera, static_cast<TI>(0));
-    rlt::set_cameras(device, renderer, renderer.cameras);
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+    cudaMemcpy(rlt::data(rlt::cameras(device, renderer)), &camera, sizeof(camera), cudaMemcpyHostToDevice);
+#else
+    std::memcpy(rlt::data(rlt::cameras(device, renderer)), &camera, sizeof(camera));
+#endif
 
     rlt::render(device, renderer);
-    rlt::read_frame_buffer(device, renderer, renderer.frame_buffer);
 
-    const uint32_t* src = rlt::data(renderer.frame_buffer);
-    panel.assign(src, src + static_cast<size_t>(CAM_WIDTH) * static_cast<size_t>(CAM_HEIGHT));
+    panel.resize(static_cast<size_t>(CAM_WIDTH) * static_cast<size_t>(CAM_HEIGHT));
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+    cudaMemcpy(panel.data(), rlt::data(rlt::frame_buffer(device, renderer)), panel.size() * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+#else
+    std::memcpy(panel.data(), rlt::data(rlt::frame_buffer(device, renderer)), panel.size() * sizeof(uint32_t));
+#endif
 }
 
 void copy_panel(const std::vector<uint32_t>& panel, std::vector<uint32_t>& frame, TI panel_i) {

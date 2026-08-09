@@ -1048,6 +1048,7 @@ static void write_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<S
     const CameraOffset offset = camera_offset(scene);
     const T eye[3] = {offset.x, offset.y, offset.z};
     const T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
+    std::vector<rlt::rendering::raytracing::Camera<T>> camera_staging(SPEC::NUM_CAMERAS);
     for(int i = 0; i < static_cast<int>(SPEC::NUM_CAMERAS); i++) {
         const CameraPose& pose = poses[i];
         const T look_at[3] = {
@@ -1055,8 +1056,9 @@ static void write_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<S
             eye[1] + pose.direction[1],
             eye[2] + pose.direction[2]
         };
-        rlt::set(device, renderer.cameras, rlt::make_camera_data(eye, look_at, pose.up, SPEC::COS_FOVY, aspect), static_cast<TI>(i));
+        camera_staging[i] = rlt::make_camera_data(eye, look_at, pose.up, SPEC::COS_FOVY, aspect);
     }
+    cudaMemcpy(rlt::data(rlt::cameras(device, renderer)), camera_staging.data(), SPEC::NUM_CAMERAS * sizeof(rlt::rendering::raytracing::Camera<T>), cudaMemcpyHostToDevice);
 }
 
 template <typename DEVICE, typename SPEC>
@@ -1068,7 +1070,8 @@ static void write_single_camera(DEVICE& device, rlt::rendering::raytracing::Rend
         eye[1] + pose.direction[1],
         eye[2] + pose.direction[2]
     };
-    rlt::set(device, renderer.cameras, rlt::make_camera_data(eye, look_at, pose.up, SPEC::COS_FOVY, aspect), static_cast<TI>(0));
+    const auto camera = rlt::make_camera_data(eye, look_at, pose.up, SPEC::COS_FOVY, aspect);
+    cudaMemcpy(rlt::data(rlt::cameras(device, renderer)), &camera, sizeof(camera), cudaMemcpyHostToDevice);
 }
 
 template <typename SPEC>
@@ -1139,7 +1142,7 @@ template <typename SPEC>
 static void step_physics_cameras(rlt::rendering::raytracing::Renderer<SPEC>& renderer, rt_benchmark::PhysicsSimulation& physics, int iteration, void* camera_buffer_override = nullptr) {
     void* camera_buffer = camera_buffer_override != nullptr
         ? camera_buffer_override
-        : const_cast<void*>(owlBufferGetPointer((OWLBuffer)renderer.backend.cameras_buffer, 0));
+        : (void*)rlt::data(renderer.cameras);
     cudaStream_t stream = (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend.launch_params, 0);
     if(!rt_benchmark::physics_step_cameras(physics, camera_buffer, stream, iteration)) {
         std::cerr << "Physics camera step failed: " << rt_benchmark::physics_last_error() << std::endl;
@@ -1270,7 +1273,6 @@ static bool run_procthor_frame(DEVICE& device, const Options& options, const std
     rlt::init(device, renderer, render_scene);
     const CameraPose pose = make_single_frame_pose(renderer, options);
     write_single_camera(device, renderer, options.position, pose);
-    rlt::set_cameras(device, renderer, renderer.cameras);
     render_output(device, renderer);
     cudaDeviceSynchronize();
 
@@ -1326,7 +1328,6 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
     const OrientationMode orientation = orientation_mode(options);
     std::vector<CameraPose> camera_poses = make_camera_poses(renderer, scene, options);
     write_cameras(device, renderer, scene, camera_poses);
-    rlt::set_cameras(device, renderer, renderer.cameras);
 
     rt_benchmark::PhysicsSimulation physics;
     rt_benchmark::PhysicsSimulation* physics_ptr = nullptr;

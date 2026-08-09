@@ -185,16 +185,14 @@ void render_target_frame(
     target_state.orientation[2] = (T)0;
     target_state.orientation[3] = (T)0;
     auto camera = rlt::rl::environments::l2f_visual::make_camera_for_state(device, env, parameters, target_state);
-    rlt::set(device, env.renderer->cameras, camera, (TI)0);
-    rlt::set_cameras(device, *env.renderer, env.renderer->cameras);
+    cudaMemcpy(rlt::data(rlt::cameras(device, *env.renderer)), &camera, sizeof(camera), cudaMemcpyHostToDevice);
     rlt::render(device, *env.renderer);
-    rlt::read_frame_buffer(device, *env.renderer, env.renderer->frame_buffer);
-    const uint32_t* fb = rlt::data(env.renderer->frame_buffer);
+    std::vector<float> obs_staging((size_t)IMG_PIXELS * 3);
+    cudaMemcpy(obs_staging.data(), rlt::data(rlt::observation(device, *env.renderer)), obs_staging.size() * sizeof(float), cudaMemcpyDeviceToHost);
     for(TI p = 0; p < IMG_PIXELS; p++){
-        uint32_t rgba = fb[p];
-        target_frame_out[p * IMG_C + 0] = static_cast<T>((rgba >>  0) & 0xFF) / static_cast<T>(255);
-        target_frame_out[p * IMG_C + 1] = static_cast<T>((rgba >>  8) & 0xFF) / static_cast<T>(255);
-        target_frame_out[p * IMG_C + 2] = static_cast<T>((rgba >> 16) & 0xFF) / static_cast<T>(255);
+        target_frame_out[p * IMG_C + 0] = static_cast<T>(obs_staging[p * 3 + 0]);
+        target_frame_out[p * IMG_C + 1] = static_cast<T>(obs_staging[p * 3 + 1]);
+        target_frame_out[p * IMG_C + 2] = static_cast<T>(obs_staging[p * 3 + 2]);
     }
 }
 
@@ -505,21 +503,13 @@ int main(int argc, char** argv){
 
             // Render
             auto camera = rlt::rl::environments::l2f_visual::make_camera_for_state(device, env, env_parameters, state);
-            rlt::set(device, env.renderer->cameras, camera, (TI)0);
-            rlt::set_cameras(device, *env.renderer, env.renderer->cameras);
+            cudaMemcpy(rlt::data(rlt::cameras(device, *env.renderer)), &camera, sizeof(camera), cudaMemcpyHostToDevice);
             rlt::render(device, *env.renderer);
-            rlt::read_frame_buffer(device, *env.renderer, env.renderer->frame_buffer);
 
-            // RGBA → float into frame ring buffer
+            // renderer observation output (float) into the frame ring buffer
             TI ring_idx = step_i % FRAME_HISTORY_SIZE;
             float* frame_dst = frame_history.data() + ring_idx * OBS_DIM_SINGLE;
-            const uint32_t* fb = rlt::data(env.renderer->frame_buffer);
-            for(TI p = 0; p < IMG_PIXELS; p++){
-                uint32_t rgba = fb[p];
-                frame_dst[p * IMG_C + 0] = static_cast<T>((rgba >>  0) & 0xFF) / static_cast<T>(255);
-                frame_dst[p * IMG_C + 1] = static_cast<T>((rgba >>  8) & 0xFF) / static_cast<T>(255);
-                frame_dst[p * IMG_C + 2] = static_cast<T>((rgba >> 16) & 0xFF) / static_cast<T>(255);
-            }
+            cudaMemcpy(frame_dst, rlt::data(rlt::observation(device, *env.renderer)), (size_t)IMG_PIXELS * 3 * sizeof(float), cudaMemcpyDeviceToHost);
 
             // Apply rendering perturbations
             if(config.brightness_scale != 1.0f || config.brightness_offset != 0.0f){
@@ -569,10 +559,12 @@ int main(int argc, char** argv){
             rlt::step(device, env.dynamics, env_parameters.dynamics, state, action_mat, next_state, sweep_rng);
             terminated = rlt::terminated(device, env.dynamics, env_parameters.dynamics, next_state, sweep_rng);
 
-            // Record video frame
+            // Record video frame (packed uint8 frame buffer, rendered alongside the observation)
             if(ffmpeg_pipe){
+                std::vector<uint32_t> fb_staging((size_t)IMG_PIXELS);
+                cudaMemcpy(fb_staging.data(), rlt::data(rlt::frame_buffer(device, *env.renderer)), fb_staging.size() * sizeof(uint32_t), cudaMemcpyDeviceToHost);
                 for(TI p = 0; p < IMG_PIXELS; p++){
-                    uint32_t rgba = fb[p];
+                    uint32_t rgba = fb_staging[p];
                     video_frame[p * 3 + 0] = (rgba >>  0) & 0xFF;
                     video_frame[p * 3 + 1] = (rgba >>  8) & 0xFF;
                     video_frame[p * 3 + 2] = (rgba >> 16) & 0xFF;

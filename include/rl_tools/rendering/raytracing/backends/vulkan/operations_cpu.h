@@ -319,23 +319,9 @@ namespace rl_tools {
         using TI = typename SPEC::TI;
         static_assert(utils::typing::is_same_v<typename SPEC::T, float>, "The Vulkan raytracing backend requires T = float");
 
-        malloc(device, renderer.cameras);
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            malloc(device, renderer.cameras_open);
-        }
-        if constexpr (SPEC::HAS_RGB) {
-            malloc(device, renderer.frame_buffer);
-        }
-        if constexpr (SPEC::HAS_DEPTH) {
-            malloc(device, renderer.depth_buffer);
-        }
-        if constexpr (SPEC::HAS_SEGMENTATION) {
-            malloc(device, renderer.segmentation_buffer);
-        }
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             malloc(device, renderer.transforms);
         }
-        malloc(device, renderer.collision_results);
 
         auto* ctx = new vk::Context{};
 
@@ -584,25 +570,41 @@ namespace rl_tools {
         ctx->launch_params = vk::create_buffer(device, *ctx, sizeof(vk::LaunchParams), STORAGE, HOST_MEMORY, true);
         ctx->cameras = vk::create_buffer(device, *ctx, camera_bytes, STORAGE, HOST_MEMORY, true);
         renderer.backend.cameras_buffer = (void*)ctx->cameras.buffer;
+        // camera tensors alias the mapped shader buffers (see cameras(device, renderer)):
+        // host writes are consumed by the next launch with no staging copy
+        renderer.cameras._data = (rendering::raytracing::Camera<typename SPEC::T>*)ctx->cameras.mapped;
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
             ctx->cameras_open = vk::create_buffer(device, *ctx, camera_bytes, STORAGE, HOST_MEMORY, true);
             renderer.backend.cameras_open_buffer = (void*)ctx->cameras_open.buffer;
+            renderer.cameras_open._data = (rendering::raytracing::Camera<typename SPEC::T>*)ctx->cameras_open.mapped;
         }
+        // the output tensors alias the mapped shader buffers (see frame_buffer/depth_buffer/
+        // segmentation_buffer/collision_results/observation accessors) — consumers read in place
         if constexpr (SPEC::HAS_RGB) {
             ctx->frame_buffer = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(uint32_t), STORAGE, HOST_MEMORY, true);
             renderer.backend.frame_buffer_handle = (void*)ctx->frame_buffer.buffer;
+            renderer.frame_buffer._data = (uint32_t*)ctx->frame_buffer.mapped;
         }
         if constexpr (SPEC::HAS_DEPTH) {
             ctx->depth_buffer = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(float), STORAGE, HOST_MEMORY, true);
             renderer.backend.depth_buffer_handle = (void*)ctx->depth_buffer.buffer;
+            renderer.depth_buffer._data = (float*)ctx->depth_buffer.mapped;
         }
         if constexpr (SPEC::HAS_SEGMENTATION) {
             ctx->segmentation_buffer = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(uint32_t), STORAGE, HOST_MEMORY, true);
             renderer.backend.segmentation_buffer_handle = (void*)ctx->segmentation_buffer.buffer;
+            renderer.segmentation_buffer._data = (uint32_t*)ctx->segmentation_buffer.mapped;
+        }
+        if constexpr (SPEC::HAS_OBSERVATION) {
+            static_assert(utils::typing::is_same_v<typename SPEC::OBSERVATION_T, float>, "The Vulkan raytracing backend requires OBSERVATION_T = float");
+            ctx->observation = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * SPEC::OBSERVATION_CHANNELS * sizeof(float), STORAGE, HOST_MEMORY, true);
+            renderer.backend.observation_buffer_handle = (void*)ctx->observation.buffer;
+            renderer.observation._data = (float*)ctx->observation.mapped;
         }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         ctx->collision_results = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES * sizeof(rendering::raytracing::CollisionResult), STORAGE, HOST_MEMORY, true);
         renderer.backend.collision_results_buffer = (void*)ctx->collision_results.buffer;
+        renderer.collision_results._data = (rendering::raytracing::CollisionResult*)ctx->collision_results.mapped;
         ctx->probe_directions = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_PROBES * 3 * sizeof(float), STORAGE, HOST_MEMORY, true);
 #endif
         ctx->dummy = vk::create_buffer(device, *ctx, 64, STORAGE, HOST_MEMORY, false);
@@ -1069,6 +1071,7 @@ namespace rl_tools {
                 VkBool32 punctual_light_shadows;
                 int32_t overlay_count;
                 VkBool32 semantic_segmentation;
+                VkBool32 has_observation;
             };
             static_assert(sizeof(SpecializationData) == vk::specialization_constants::COUNT * 4);
             SpecializationData specialization_data{};
@@ -1084,6 +1087,7 @@ namespace rl_tools {
             specialization_data.punctual_light_shadows = SPEC::SHADING::PUNCTUAL_LIGHT_SHADOWS ? VK_TRUE : VK_FALSE;
             specialization_data.overlay_count = SPEC::ENABLE_OVERLAYS ? (int32_t)SPEC::MAX_OVERLAYS_PER_CAMERA : 0;
             specialization_data.semantic_segmentation = SPEC::SEMANTIC_SEGMENTATION ? VK_TRUE : VK_FALSE;
+            specialization_data.has_observation = SPEC::HAS_OBSERVATION ? VK_TRUE : VK_FALSE;
             VkSpecializationMapEntry map_entries[vk::specialization_constants::COUNT];
             for(uint32_t constant_i = 0; constant_i < vk::specialization_constants::COUNT; constant_i++){
                 map_entries[constant_i] = {constant_i, constant_i * 4, 4};
@@ -1169,6 +1173,7 @@ namespace rl_tools {
             buffer_infos[vk::bindings::COLLISION_RESULTS] = buffer_or_dummy(ctx.collision_results);
             buffer_infos[vk::bindings::DEPTH_BUFFER] = buffer_or_dummy(ctx.depth_buffer);
             buffer_infos[vk::bindings::SEGMENTATION_BUFFER] = buffer_or_dummy(ctx.segmentation_buffer);
+            buffer_infos[vk::bindings::OBSERVATION] = buffer_or_dummy(ctx.observation);
             buffer_infos[vk::bindings::INSTANCE_RECORD_BASE] = buffer_or_dummy(ctx.instance_record_base);
             buffer_infos[vk::bindings::INSTANCE_DATA] = buffer_or_dummy(ctx.instance_data);
             buffer_infos[vk::bindings::INSTANCE_CLASSES] = buffer_or_dummy(ctx.instance_classes);
@@ -1406,51 +1411,12 @@ namespace rl_tools {
                           const typename SPEC::T center[3], typename SPEC::T radius,
                           const typename SPEC::T up[3], typename SPEC::T fov){
         namespace vk = rendering::raytracing::backends::vulkan;
-        rendering::raytracing::detail::generate_camera_poses(device, renderer, center, radius, up, fov);
-
         auto& ctx = vk::context(renderer);
         vk::wait_in_flight(device, ctx);
-        constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>);
-        std::memcpy(ctx.cameras.mapped, data(renderer.cameras), camera_bytes);
+        rendering::raytracing::detail::generate_camera_poses<SPEC>(device, data(renderer.cameras), center, radius, up, fov);
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            std::memcpy(ctx.cameras_open.mapped, data(renderer.cameras), camera_bytes);
+            std::memcpy(data(renderer.cameras_open), data(renderer.cameras), (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>));
         }
-    }
-
-    template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
-    void set_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
-        static_assert(utils::typing::is_same_v<typename CAMERAS_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
-        static_assert(get<0>(typename CAMERAS_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        namespace vk = rendering::raytracing::backends::vulkan;
-        auto& ctx = vk::context(renderer);
-        vk::wait_in_flight(device, ctx);
-
-        constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>);
-        std::memcpy(ctx.cameras.mapped, data(cameras), camera_bytes);
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            std::memcpy(ctx.cameras_open.mapped, data(cameras), camera_bytes);
-        }
-    }
-
-    template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
-    void set_cameras_async(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
-        set_cameras(device, renderer, cameras);
-    }
-
-    template <typename DEVICE, typename SPEC, typename CAMERAS_OPEN_SPEC, typename CAMERAS_CLOSE_SPEC>
-    void set_motion_blur_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_OPEN_SPEC>& cameras_open, const Tensor<CAMERAS_CLOSE_SPEC>& cameras_close){
-        static_assert(SPEC::ENABLE_MOTION_BLUR, "set_motion_blur_cameras requires a motion-blur renderer specification");
-        static_assert(utils::typing::is_same_v<typename CAMERAS_OPEN_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
-        static_assert(utils::typing::is_same_v<typename CAMERAS_CLOSE_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
-        static_assert(get<0>(typename CAMERAS_OPEN_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        static_assert(get<0>(typename CAMERAS_CLOSE_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        namespace vk = rendering::raytracing::backends::vulkan;
-        auto& ctx = vk::context(renderer);
-        vk::wait_in_flight(device, ctx);
-
-        constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>);
-        std::memcpy(ctx.cameras_open.mapped, data(cameras_open), camera_bytes);
-        std::memcpy(ctx.cameras.mapped, data(cameras_close), camera_bytes);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1520,64 +1486,32 @@ namespace rl_tools {
         probe_sync(device, renderer);
     }
 
-    template <typename DEVICE, typename SPEC, typename FB_SPEC>
-    void read_frame_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<FB_SPEC>& out_pixels){
-        static_assert(SPEC::HAS_RGB, "read_frame_buffer requires an RGB-capable renderer specification");
-        static_assert(utils::typing::is_same_v<typename FB_SPEC::T, uint32_t>);
-        static_assert(get<0>(typename FB_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        namespace vk = rendering::raytracing::backends::vulkan;
-        constexpr typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-        std::memcpy(data(out_pixels), vk::context(renderer).frame_buffer.mapped, expected * sizeof(uint32_t));
-    }
-
-    template <typename DEVICE, typename SPEC, typename DEPTH_SPEC>
-    void read_depth_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<DEPTH_SPEC>& out_depth){
-        static_assert(SPEC::HAS_DEPTH, "read_depth_buffer requires a depth-capable renderer specification");
-        static_assert(utils::typing::is_same_v<typename DEPTH_SPEC::T, float>);
-        static_assert(get<0>(typename DEPTH_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        static_assert(get<1>(typename DEPTH_SPEC::SHAPE{}) == SPEC::CAM_HEIGHT);
-        static_assert(get<2>(typename DEPTH_SPEC::SHAPE{}) == SPEC::CAM_WIDTH);
-        namespace vk = rendering::raytracing::backends::vulkan;
-        constexpr typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-        std::memcpy(data(out_depth), vk::context(renderer).depth_buffer.mapped, expected * sizeof(float));
-    }
-
-    template <typename DEVICE, typename SPEC, typename SEGMENTATION_SPEC>
-    void read_segmentation_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<SEGMENTATION_SPEC>& out_segmentation){
-        static_assert(SPEC::HAS_SEGMENTATION, "read_segmentation_buffer requires a segmentation-capable renderer specification");
-        static_assert(utils::typing::is_same_v<typename SEGMENTATION_SPEC::T, uint32_t>);
-        static_assert(get<0>(typename SEGMENTATION_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        namespace vk = rendering::raytracing::backends::vulkan;
-        constexpr typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-        std::memcpy(data(out_segmentation), vk::context(renderer).segmentation_buffer.mapped, expected * sizeof(uint32_t));
-    }
-
     template <typename DEVICE, typename SPEC>
     void save_image(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const char* filename){
         static_assert(SPEC::HAS_RGB, "save_image requires an RGB-capable renderer specification");
         namespace vk = rendering::raytracing::backends::vulkan;
-        rendering::raytracing::detail::write_grid_png<SPEC>((const uint32_t*)vk::context(renderer).frame_buffer.mapped, filename);
+        rendering::raytracing::detail::write_grid_png<SPEC>(data(renderer.frame_buffer), filename);
     }
 
     template <typename DEVICE, typename SPEC>
     void save_segmentation_image(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const char* filename){
         static_assert(SPEC::HAS_SEGMENTATION, "save_segmentation_image requires a segmentation-capable renderer specification");
         namespace vk = rendering::raytracing::backends::vulkan;
-        rendering::raytracing::detail::write_segmentation_grid_png<SPEC>((const uint32_t*)vk::context(renderer).segmentation_buffer.mapped, filename);
+        rendering::raytracing::detail::write_segmentation_grid_png<SPEC>(data(renderer.segmentation_buffer), filename);
     }
 
     template <typename DEVICE, typename SPEC>
     void save_depth_image(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const char* filename){
         static_assert(SPEC::HAS_DEPTH, "save_depth_image requires a depth-capable renderer specification");
         namespace vk = rendering::raytracing::backends::vulkan;
-        rendering::raytracing::detail::write_depth_grid_png<SPEC>((const float*)vk::context(renderer).depth_buffer.mapped, renderer.camera_radius, filename);
+        rendering::raytracing::detail::write_depth_grid_png<SPEC>(data(renderer.depth_buffer), renderer.camera_radius, filename);
     }
 
     template <typename DEVICE, typename SPEC>
     void save_depth(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const char* filename){
         static_assert(SPEC::HAS_DEPTH, "save_depth requires a depth-capable renderer specification");
         namespace vk = rendering::raytracing::backends::vulkan;
-        rendering::raytracing::detail::write_depth_bin<SPEC>((const float*)vk::context(renderer).depth_buffer.mapped, filename);
+        rendering::raytracing::detail::write_depth_bin<SPEC>(data(renderer.depth_buffer), filename);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1588,50 +1522,8 @@ namespace rl_tools {
         return;
 #else
         namespace vk = rendering::raytracing::backends::vulkan;
-        const auto* probe_results = (const rendering::raytracing::CollisionResult*)vk::context(renderer).collision_results.mapped;
-        rendering::raytracing::detail::write_probes_bin_and_log<SPEC>(probe_results, filename);
+        rendering::raytracing::detail::write_probes_bin_and_log<SPEC>(data(renderer.collision_results), filename);
 #endif
-    }
-
-    template <typename DEVICE, typename SPEC, typename COLL_SPEC>
-    void read_collision_results(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<COLL_SPEC>& out){
-        static_assert(utils::typing::is_same_v<typename COLL_SPEC::T, rendering::raytracing::CollisionResult>);
-        static_assert(get<0>(typename COLL_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        static_assert(get<1>(typename COLL_SPEC::SHAPE{}) == SPEC::NUM_PROBES);
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        namespace vk = rendering::raytracing::backends::vulkan;
-        if(renderer.backend.collision_results_buffer != nullptr){
-            std::memcpy(data(out), vk::context(renderer).collision_results.mapped,
-                        SPEC::NUM_CAMERAS * SPEC::NUM_PROBES * sizeof(rendering::raytracing::CollisionResult));
-        }
-#endif
-    }
-
-    template <typename DEVICE, typename SPEC>
-    const rendering::raytracing::CollisionResult* read_collision_results_raw(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-#if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        return nullptr;
-#else
-        namespace vk = rendering::raytracing::backends::vulkan;
-        if(renderer.backend.collision_results_buffer == nullptr){
-            return nullptr;
-        }
-        return (const rendering::raytracing::CollisionResult*)vk::context(renderer).collision_results.mapped;
-#endif
-    }
-
-    template <typename DEVICE, typename SPEC>
-    uint32_t* get_framebuffer_device_ptr(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB, "get_framebuffer_device_ptr requires an RGB-capable renderer specification");
-        namespace vk = rendering::raytracing::backends::vulkan;
-        return (uint32_t*)vk::context(renderer).frame_buffer.mapped;
-    }
-
-    template <typename DEVICE, typename SPEC>
-    float* get_depthbuffer_device_ptr(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_DEPTH, "get_depthbuffer_device_ptr requires a depth-capable renderer specification");
-        namespace vk = rendering::raytracing::backends::vulkan;
-        return (float*)vk::context(renderer).depth_buffer.mapped;
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1654,6 +1546,7 @@ namespace rl_tools {
             vk::destroy_buffer(ctx, ctx.frame_buffer);
             vk::destroy_buffer(ctx, ctx.depth_buffer);
             vk::destroy_buffer(ctx, ctx.segmentation_buffer);
+            vk::destroy_buffer(ctx, ctx.observation);
             vk::destroy_buffer(ctx, ctx.collision_results);
             vk::destroy_buffer(ctx, ctx.probe_directions);
             vk::destroy_buffer(ctx, ctx.dummy);
@@ -1676,23 +1569,27 @@ namespace rl_tools {
             delete &ctx;
             renderer.backend.context = nullptr;
         }
-        free(device, renderer.cameras);
+        // the input and output tensors alias mapped buffers destroyed with the context
+        renderer.cameras._data = nullptr;
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            free(device, renderer.cameras_open);
+            renderer.cameras_open._data = nullptr;
         }
         if constexpr (SPEC::HAS_RGB) {
-            free(device, renderer.frame_buffer);
+            renderer.frame_buffer._data = nullptr;
         }
         if constexpr (SPEC::HAS_DEPTH) {
-            free(device, renderer.depth_buffer);
+            renderer.depth_buffer._data = nullptr;
         }
         if constexpr (SPEC::HAS_SEGMENTATION) {
-            free(device, renderer.segmentation_buffer);
+            renderer.segmentation_buffer._data = nullptr;
         }
+        if constexpr (SPEC::HAS_OBSERVATION) {
+            renderer.observation._data = nullptr;
+        }
+        renderer.collision_results._data = nullptr;
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             free(device, renderer.transforms);
         }
-        free(device, renderer.collision_results);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
