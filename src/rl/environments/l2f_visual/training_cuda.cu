@@ -508,10 +508,10 @@ namespace ppo_visual {
         return out;
     }
 
-    template<bool ENABLE_MOTION_BLUR, typename RENDERER>
-    void set_active_scene_camera_open_buffer(void*& camera_open_buffer, RENDERER* renderer){
+    template<bool ENABLE_MOTION_BLUR, typename DEVICE, typename RENDERER>
+    void set_active_scene_camera_open_buffer(DEVICE& device, void*& camera_open_buffer, RENDERER* renderer){
         if constexpr(ENABLE_MOTION_BLUR){
-            camera_open_buffer = (void*)owlBufferGetPointer((OWLBuffer)renderer->backend.cameras_open_buffer, 0);
+            camera_open_buffer = (void*)rlt::data(rlt::cameras_open(device, *renderer));
         }
     }
 
@@ -762,9 +762,11 @@ namespace ppo_visual {
 // =========================================================================
 // Pixel scatter / brightness / noise kernels
 // =========================================================================
+// observation assembly: the ray gen already wrote float pixels (renderer observation
+// output) — this only scatters into the batch layout and applies augmentation
 template <bool APPLY_BRIGHTNESS>
 __global__ void scatter_pixel_to_float_kernel(
-    const uint32_t* __restrict__ fb, float* __restrict__ output,
+    const float* __restrict__ observation, float* __restrict__ output,
     const float* __restrict__ brightness_scales,
     int base_env, int n_envs,
     int pixels_per_camera, int obs_dim
@@ -774,11 +776,10 @@ __global__ void scatter_pixel_to_float_kernel(
     if(tid >= total) return;
     int local_env = tid / pixels_per_camera;
     int pixel_idx = tid % pixels_per_camera;
-    int fb_pixel = local_env * pixels_per_camera + pixel_idx;
-    uint32_t rgba = fb[fb_pixel];
-    float r = static_cast<float>((rgba >>  0) & 0xFF) / 255.0f;
-    float g = static_cast<float>((rgba >>  8) & 0xFF) / 255.0f;
-    float b = static_cast<float>((rgba >> 16) & 0xFF) / 255.0f;
+    int in_base = (local_env * pixels_per_camera + pixel_idx) * 3;
+    float r = observation[in_base + 0];
+    float g = observation[in_base + 1];
+    float b = observation[in_base + 2];
     int global_env = base_env + local_env;
     if constexpr(APPLY_BRIGHTNESS){
         float scale = brightness_scales[global_env];
@@ -996,6 +997,9 @@ int main(int argc, char** argv){
                 loader_env.owns_renderer = true;
                 loader_env.scene = new SCENE_TYPE{};
             }
+            // load() appends: without a fresh scene every renderer would re-upload all previously
+            // loaded scenes (quadratic VRAM growth, invisible to rendering tests)
+            *loader_env.render_scene = rlt::rendering::raytracing::Scene{};
             loader_env.scene_path = scene_paths[s].c_str();
             loader_env.renderer_initialized = false;
             rlt::init(device, loader_env);
@@ -1055,9 +1059,6 @@ int main(int argc, char** argv){
         active_scene_indices[active_scene_i] = active_scene_i;
     }
     upload_active_scenes();
-    for(TI scene_i = 0; scene_i < N_TOTAL_SCENES; scene_i++){
-        rlt::set_cameras(device, *renderers[scene_i], renderers[scene_i]->cameras);
-    }
 
     // Set up envs (scene_i = env_i / N_ENVIRONMENTS_PER_SCENE for initial assignment)
     for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
@@ -1397,16 +1398,15 @@ int main(int argc, char** argv){
         std::array<cudaStream_t, N_ACTIVE_SCENES> active_scene_render_streams{};
         std::array<void*, N_ACTIVE_SCENES> active_scene_camera_buffers{};
         std::array<void*, N_ACTIVE_SCENES> active_scene_camera_open_buffers{};
-        std::array<const uint32_t*, N_ACTIVE_SCENES> active_scene_framebuffer_ptrs{};
+        std::array<const float*, N_ACTIVE_SCENES> active_scene_observation_ptrs{};
         for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
             TI actual_scene_i = active_scene_indices[active_scene_i];
             auto* renderer = renderers[actual_scene_i];
             active_renderers[active_scene_i] = renderer;
-            OWLParams rgb_lp = (OWLParams)renderer->backend.launch_params;
-            active_scene_render_streams[active_scene_i] = (cudaStream_t)owlParamsGetCudaStream(rgb_lp, 0);
-            active_scene_camera_buffers[active_scene_i] = (void*)owlBufferGetPointer((OWLBuffer)renderer->backend.cameras_buffer, 0);
-            ppo_visual::set_active_scene_camera_open_buffer<RENDER_MOTION_BLUR_ACTIVE>(active_scene_camera_open_buffers[active_scene_i], renderer);
-            active_scene_framebuffer_ptrs[active_scene_i] = rlt::get_framebuffer_device_ptr(device, *renderer);
+            active_scene_render_streams[active_scene_i] = rlt::stream(device, *renderer);
+            active_scene_camera_buffers[active_scene_i] = (void*)rlt::data(rlt::cameras(device, *renderer));
+            ppo_visual::set_active_scene_camera_open_buffer<RENDER_MOTION_BLUR_ACTIVE>(device, active_scene_camera_open_buffers[active_scene_i], renderer);
+            active_scene_observation_ptrs[active_scene_i] = rlt::data(rlt::observation(device, *renderer));
         }
 
         // Episodes flow across PPO steps inside a scene set. At scene-set boundaries all envs
@@ -1509,11 +1509,11 @@ int main(int argc, char** argv){
                 int pf_block = 256;
                 int pf_grid = (total_scatter + pf_block - 1) / pf_block;
                 rlt::render_launch(device, renderer);
-                const uint32_t* fb_ptr = active_scene_framebuffer_ptrs[active_scene_i];
+                const float* obs_src_ptr = active_scene_observation_ptrs[active_scene_i];
                 if constexpr(BRIGHTNESS_RANDOMIZATION_RANGE > 0){
-                    scatter_pixel_to_float_kernel<true><<<pf_grid, pf_block, 0, optix_stream>>>(fb_ptr, obs_ptr, gpu_brightness_scale_arr, base_env, n_envs_s, CAM_WIDTH * CAM_HEIGHT, OBSERVATION_DIM);
+                    scatter_pixel_to_float_kernel<true><<<pf_grid, pf_block, 0, optix_stream>>>(obs_src_ptr, obs_ptr, gpu_brightness_scale_arr, base_env, n_envs_s, CAM_WIDTH * CAM_HEIGHT, OBSERVATION_DIM);
                 } else {
-                    scatter_pixel_to_float_kernel<false><<<pf_grid, pf_block, 0, optix_stream>>>(fb_ptr, obs_ptr, nullptr, base_env, n_envs_s, CAM_WIDTH * CAM_HEIGHT, OBSERVATION_DIM);
+                    scatter_pixel_to_float_kernel<false><<<pf_grid, pf_block, 0, optix_stream>>>(obs_src_ptr, obs_ptr, nullptr, base_env, n_envs_s, CAM_WIDTH * CAM_HEIGHT, OBSERVATION_DIM);
                 }
                 cudaEventRecord(render_scatter_done_events[active_scene_i], optix_stream);
             }
@@ -1556,11 +1556,11 @@ int main(int argc, char** argv){
                 int pf_block = 256;
                 int pf_grid = (total_scatter + pf_block - 1) / pf_block;
                 rlt::render_launch(device, renderer);
-                const uint32_t* fb_ptr = active_scene_framebuffer_ptrs[active_scene_i];
+                const float* obs_src_ptr = active_scene_observation_ptrs[active_scene_i];
                 if constexpr(BRIGHTNESS_RANDOMIZATION_RANGE > 0 || TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE > 0){
-                    scatter_pixel_to_float_kernel<true><<<pf_grid, pf_block, 0, optix_stream>>>(fb_ptr, target_obs_ptr, gpu_target_brightness_scale_arr, base_env, n_envs_s, CAM_WIDTH * CAM_HEIGHT, OBSERVATION_DIM);
+                    scatter_pixel_to_float_kernel<true><<<pf_grid, pf_block, 0, optix_stream>>>(obs_src_ptr, target_obs_ptr, gpu_target_brightness_scale_arr, base_env, n_envs_s, CAM_WIDTH * CAM_HEIGHT, OBSERVATION_DIM);
                 } else {
-                    scatter_pixel_to_float_kernel<false><<<pf_grid, pf_block, 0, optix_stream>>>(fb_ptr, target_obs_ptr, nullptr, base_env, n_envs_s, CAM_WIDTH * CAM_HEIGHT, OBSERVATION_DIM);
+                    scatter_pixel_to_float_kernel<false><<<pf_grid, pf_block, 0, optix_stream>>>(obs_src_ptr, target_obs_ptr, nullptr, base_env, n_envs_s, CAM_WIDTH * CAM_HEIGHT, OBSERVATION_DIM);
                 }
                 cudaEventRecord(target_render_scatter_done_events[active_scene_i], optix_stream);
             }

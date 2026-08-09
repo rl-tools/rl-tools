@@ -1406,6 +1406,60 @@ namespace rl_tools {
         return renderer.transforms;
     }
 
+    // camera input tensors, backend-native residency like transforms: device memory on OptiX,
+    // host on generic, shared/mapped on Metal/Vulkan. Producers write them via rlt::copy or
+    // kernels; the launch verbs consume them directly. Under motion blur the pair is
+    // cameras_open (shutter open) and cameras_close (shutter close, aliasing cameras) — both
+    // must be written each step (identical values for a blur-free frame).
+    template <typename DEVICE, typename SPEC>
+    auto& cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        return renderer.cameras;
+    }
+
+    template <typename DEVICE, typename SPEC>
+    auto& cameras_open(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::ENABLE_MOTION_BLUR, "cameras_open requires a motion-blur renderer specification");
+        return renderer.cameras_open;
+    }
+
+    template <typename DEVICE, typename SPEC>
+    auto& cameras_close(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::ENABLE_MOTION_BLUR, "cameras_close requires a motion-blur renderer specification");
+        return renderer.cameras;
+    }
+
+    // output tensors, same backend-native residency as the inputs: consumers on the device read
+    // them in place (zero-copy); host readers stage through an explicit copy at readback
+    // boundaries (after a _sync)
+    template <typename DEVICE, typename SPEC>
+    auto& frame_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::HAS_RGB, "frame_buffer requires an RGB-capable renderer specification");
+        return renderer.frame_buffer;
+    }
+
+    template <typename DEVICE, typename SPEC>
+    auto& depth_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::HAS_DEPTH, "depth_buffer requires a depth-capable renderer specification");
+        return renderer.depth_buffer;
+    }
+
+    template <typename DEVICE, typename SPEC>
+    auto& segmentation_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::HAS_SEGMENTATION, "segmentation_buffer requires a segmentation-capable renderer specification");
+        return renderer.segmentation_buffer;
+    }
+
+    template <typename DEVICE, typename SPEC>
+    auto& collision_results(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        return renderer.collision_results;
+    }
+
+    template <typename DEVICE, typename SPEC>
+    auto& observation(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        static_assert(SPEC::HAS_OBSERVATION, "observation requires OUTPUT_OBSERVATION in the renderer specification");
+        return renderer.observation;
+    }
+
     // decodes a rendered segmentation id back to the object it references. Single owner of the
     // global id layout: scene instances occupy [0, S); overlay o's slot s sits at S + o*CAP + s;
     // object indices count scene objects first, then each pool assembly's objects in
@@ -1484,8 +1538,10 @@ namespace rl_tools {
     }
 
     namespace rendering::raytracing::detail{
-        template <typename DEVICE, typename SPEC>
-        void generate_camera_poses(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer,
+        // fills a host staging buffer; the backend-specific generate_cameras writes it into the
+        // backend-native camera tensors
+        template <typename SPEC, typename DEVICE>
+        void generate_camera_poses(DEVICE& device, rendering::raytracing::Camera<typename SPEC::T>* cameras_out,
                                    const typename SPEC::T center[3], typename SPEC::T radius,
                                    const typename SPEC::T up[3], typename SPEC::T fov){
         using T = typename SPEC::T;
@@ -1509,7 +1565,7 @@ namespace rl_tools {
             if(cam_pos[2] < center[2] - radius * T{0.1})
                 cam_pos[2] = center[2] + radius * T{0.3};
 
-            set(device, renderer.cameras, make_camera_data(cam_pos, center, up, fov, aspect), i);
+            cameras_out[i] = make_camera_data(cam_pos, center, up, fov, aspect);
         }
 
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Generated " << SPEC::NUM_CAMERAS << " camera positions");

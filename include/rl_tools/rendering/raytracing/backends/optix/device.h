@@ -60,6 +60,7 @@ namespace rl_tools {
     struct RayGenData
     {
         uint32_t *fb_ptr;
+        float *obs_ptr;           // observation output (3 floats per pixel), null when disabled
         owl::vec2i  fb_size;      // total framebuffer size (full grid)
         owl::vec2i  cam_size;     // per-camera resolution
         int    grid_cols;    // number of columns in the grid
@@ -71,6 +72,7 @@ namespace rl_tools {
     struct MotionBlurRayGenData
     {
         uint32_t *fb_ptr;
+        float *obs_ptr;
         owl::vec2i  fb_size;
         owl::vec2i  cam_size;
         int    grid_cols;

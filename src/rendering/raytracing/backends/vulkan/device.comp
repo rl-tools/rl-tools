@@ -26,6 +26,7 @@ layout(constant_id = 8) const bool fc_pbr_shading = false;
 layout(constant_id = 9) const bool fc_punctual_light_shadows = false;
 layout(constant_id = 10) const int fc_overlay_count = 0;
 layout(constant_id = 11) const bool fc_semantic_segmentation = false;
+layout(constant_id = 12) const bool fc_has_observation = false;
 
 layout(std430, set = 0, binding = 0) readonly buffer LaunchParamsBuffer{
     uint fb_width;
@@ -118,7 +119,8 @@ layout(std430, set = 0, binding = 4) readonly buffer MeshRecordsBuffer{ MeshReco
 layout(std430, set = 0, binding = 5) readonly buffer SceneLightsBuffer{ SceneLight scene_lights[]; };
 layout(std430, set = 0, binding = 11) readonly buffer InstanceRecordBaseBuffer{ uint instance_record_base[]; };
 layout(std430, set = 0, binding = 12) readonly buffer InstanceDataBuffer{ InstanceData instance_data[]; };
-layout(set = 0, binding = 17) uniform sampler2D scene_textures[];
+layout(std430, set = 0, binding = 17) writeonly buffer ObservationBuffer{ float observation[]; };
+layout(set = 0, binding = 18) uniform sampler2D scene_textures[];
 
 vec3 transform_point_to_world(int instance, vec3 p){
     const float m[12] = instance_data[instance].object_to_world;
@@ -619,6 +621,16 @@ void main(){
     }
     const int samples = fc_motion_samples * fc_aa_grid * fc_aa_grid;
     const vec3 color = accumulated * (1.0 / float(samples));
+    if(fc_has_observation){
+        // the observation is the frame-buffer color before 8-bit quantization
+        vec3 obs_color = clamp(color, 0.0, 1.0);
+        if(fc_srgb_output){
+            obs_color = vec3(linear_to_srgb(obs_color.x), linear_to_srgb(obs_color.y), linear_to_srgb(obs_color.z));
+        }
+        observation[ctx.fb_offset * 3 + 0] = obs_color.x;
+        observation[ctx.fb_offset * 3 + 1] = obs_color.y;
+        observation[ctx.fb_offset * 3 + 2] = obs_color.z;
+    }
     if(fc_srgb_output){
         fb[ctx.fb_offset] = make_srgb_rgba_from_linear(color);
     }

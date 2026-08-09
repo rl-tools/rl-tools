@@ -32,8 +32,9 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         constexpr uint32_t OVERLAY_NUM_ACTIVE = 14;
         constexpr uint32_t OVERLAY_TLAS = 15;
         constexpr uint32_t INSTANCE_CLASSES = 16;
-        constexpr uint32_t TEXTURES = 17; // variable-descriptor-count binding must have the largest binding number in the set
-        constexpr uint32_t COUNT = 18;
+        constexpr uint32_t OBSERVATION = 17;
+        constexpr uint32_t TEXTURES = 18; // variable-descriptor-count binding must have the largest binding number in the set
+        constexpr uint32_t COUNT = 19;
     }
     namespace specialization_constants{
         constexpr uint32_t SRGB_OUTPUT = 0;
@@ -48,7 +49,8 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         constexpr uint32_t PUNCTUAL_LIGHT_SHADOWS = 9;
         constexpr uint32_t OVERLAY_COUNT = 10;
         constexpr uint32_t SEMANTIC_SEGMENTATION = 11;
-        constexpr uint32_t COUNT = 12;
+        constexpr uint32_t HAS_OBSERVATION = 12;
+        constexpr uint32_t COUNT = 13;
     }
     constexpr uint32_t WORKGROUP_SIZE = 8;
     constexpr uint32_t MAX_TEXTURE_DESCRIPTORS = 4096;
@@ -162,6 +164,7 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         BufferResource tlas_buffer;
         BufferResource instance_buffer;
         BufferResource segmentation_buffer;
+        BufferResource observation;
         BufferResource instance_data;
         BufferResource instance_record_base;
         BufferResource instance_classes;

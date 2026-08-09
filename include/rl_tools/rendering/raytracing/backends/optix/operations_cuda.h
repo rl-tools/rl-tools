@@ -193,19 +193,6 @@ namespace rl_tools {
     void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         using TI = typename SPEC::TI;
 
-        malloc(device, renderer.cameras);
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            malloc(device, renderer.cameras_open);
-        }
-        if constexpr (SPEC::HAS_RGB) {
-            malloc(device, renderer.frame_buffer);
-        }
-        if constexpr (SPEC::HAS_DEPTH) {
-            malloc(device, renderer.depth_buffer);
-        }
-        if constexpr (SPEC::HAS_SEGMENTATION) {
-            malloc(device, renderer.segmentation_buffer);
-        }
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             // device-resident transform input (see transforms(device, renderer)): producers write
             // it directly, update_launch consumes it on the render stream
@@ -215,7 +202,6 @@ namespace rl_tools {
             cudaMemset(transforms_device, 0, TRANSFORMS_SPEC::SIZE_BYTES);
             renderer.transforms._data = transforms_device;
         }
-        malloc(device, renderer.collision_results);
 
         OWLContext context = owlContextCreate(nullptr, 1);
         owlContextSetRayTypeCount(context, 2);
@@ -236,20 +222,34 @@ namespace rl_tools {
         OWLModule module = owlModuleCreate(context, ptx);
 
         constexpr TI cam_pixels = SPEC::CAM_PIXELS;
+        // device-resident outputs (see frame_buffer/depth_buffer/segmentation_buffer/observation
+        // accessors): the tensors alias the OWL buffers the ray gens write, so device consumers
+        // read them in place and host readers stage through an explicit copy
         OWLBuffer frame_buffer = nullptr;
         if constexpr (SPEC::HAS_RGB) {
             frame_buffer = owlDeviceBufferCreate(context, OWL_INT,
                                                  (size_t)SPEC::NUM_CAMERAS * cam_pixels, nullptr);
+            renderer.frame_buffer._data = (uint32_t*)owlBufferGetPointer(frame_buffer, 0);
+        }
+        OWLBuffer observation_buffer = nullptr;
+        if constexpr (SPEC::HAS_OBSERVATION) {
+            static_assert(utils::typing::is_same_v<typename SPEC::OBSERVATION_T, float>, "The OptiX raytracing backend requires OBSERVATION_T = float");
+            observation_buffer = owlDeviceBufferCreate(context, OWL_FLOAT,
+                                                       (size_t)SPEC::NUM_CAMERAS * cam_pixels * SPEC::OBSERVATION_CHANNELS, nullptr);
+            renderer.backend.observation_buffer_handle = observation_buffer;
+            renderer.observation._data = (float*)owlBufferGetPointer(observation_buffer, 0);
         }
         OWLBuffer depth_buffer = nullptr;
         if constexpr (SPEC::HAS_DEPTH) {
             depth_buffer = owlDeviceBufferCreate(context, OWL_FLOAT,
                                                 (size_t)SPEC::NUM_CAMERAS * cam_pixels, nullptr);
+            renderer.depth_buffer._data = (float*)owlBufferGetPointer(depth_buffer, 0);
         }
         OWLBuffer segmentation_buffer = nullptr;
         if constexpr (SPEC::HAS_SEGMENTATION) {
             segmentation_buffer = owlDeviceBufferCreate(context, OWL_UINT,
                                                         (size_t)SPEC::NUM_CAMERAS * cam_pixels, nullptr);
+            renderer.segmentation_buffer._data = (uint32_t*)owlBufferGetPointer(segmentation_buffer, 0);
         }
 
         // RGB miss program (ray type 0)
@@ -286,6 +286,7 @@ namespace rl_tools {
             if constexpr (SPEC::ENABLE_MOTION_BLUR) {
                 OWLVarDecl ray_gen_vars[] = {
                     { "fb_ptr",        OWL_BUFPTR, OWL_OFFSETOF(MotionBlurRayGenData, fb_ptr)},
+                    { "obs_ptr",       OWL_RAW_POINTER, OWL_OFFSETOF(MotionBlurRayGenData, obs_ptr)},
                     { "fb_size",       OWL_INT2,   OWL_OFFSETOF(MotionBlurRayGenData, fb_size)},
                     { "cam_size",      OWL_INT2,   OWL_OFFSETOF(MotionBlurRayGenData, cam_size)},
                     { "grid_cols",     OWL_INT,    OWL_OFFSETOF(MotionBlurRayGenData, grid_cols)},
@@ -302,6 +303,7 @@ namespace rl_tools {
             else {
                 OWLVarDecl ray_gen_vars[] = {
                     { "fb_ptr",       OWL_BUFPTR, OWL_OFFSETOF(RayGenData, fb_ptr)},
+                    { "obs_ptr",      OWL_RAW_POINTER, OWL_OFFSETOF(RayGenData, obs_ptr)},
                     { "fb_size",      OWL_INT2,   OWL_OFFSETOF(RayGenData, fb_size)},
                     { "cam_size",     OWL_INT2,   OWL_OFFSETOF(RayGenData, cam_size)},
                     { "grid_cols",    OWL_INT,    OWL_OFFSETOF(RayGenData, grid_cols)},
@@ -372,6 +374,7 @@ namespace rl_tools {
 
         if constexpr (SPEC::HAS_RGB) {
             owlRayGenSetBuffer(ray_gen, "fb_ptr", frame_buffer);
+            owlRayGenSetPointer(ray_gen, "obs_ptr", SPEC::HAS_OBSERVATION ? owlBufferGetPointer(observation_buffer, 0) : nullptr);
             owlRayGenSet2i    (ray_gen, "fb_size", fb_size);
             owlRayGenSet2i    (ray_gen, "cam_size", cam_size);
             owlRayGenSet1i    (ray_gen, "grid_cols", SPEC::GRID_COLS);
@@ -399,10 +402,14 @@ namespace rl_tools {
         // init builds the SBT: OWL serializes raygen variables into the SBT records only during
         // owlBuildSBT, so anything set later would be baked in as null.
         OWLBuffer cameras_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(OptixCameraData), SPEC::NUM_CAMERAS, nullptr);
+        // device-resident camera input (see cameras(device, renderer)): the tensors alias the
+        // OWL buffers the ray gens bind, so producer writes are consumed with no copy
+        renderer.cameras._data = (rendering::raytracing::Camera<typename SPEC::T>*)owlBufferGetPointer(cameras_buffer, 0);
         OWLBuffer cameras_open_buffer = nullptr;
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
             cameras_open_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(OptixCameraData), SPEC::NUM_CAMERAS, nullptr);
             renderer.backend.cameras_open_buffer = cameras_open_buffer;
+            renderer.cameras_open._data = (rendering::raytracing::Camera<typename SPEC::T>*)owlBufferGetPointer(cameras_open_buffer, 0);
         }
         if constexpr (SPEC::HAS_RGB) {
             if constexpr (SPEC::ENABLE_MOTION_BLUR) {
@@ -453,8 +460,11 @@ namespace rl_tools {
                                                        sizeof(CollisionRayGenData),
                                                        collision_ray_gen_vars, -1);
 
-        OWLBuffer collision_results_buffer = owlHostPinnedBufferCreate(context, OWL_USER_TYPE(CollisionResult),
-                                                                        (size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);
+        // device-resident (was host-pinned, which cost a PCIe write per probe launch): device
+        // consumers read collision_results(device, renderer) in place, host readers copy
+        OWLBuffer collision_results_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(CollisionResult),
+                                                                   (size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES, nullptr);
+        renderer.collision_results._data = (rendering::raytracing::CollisionResult*)owlBufferGetPointer(collision_results_buffer, 0);
         OWLBuffer probe_dirs_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(owl::vec3f), SPEC::NUM_PROBES, nullptr);
 
         owlRayGenSetBuffer(collision_ray_gen, "results", collision_results_buffer);
@@ -866,6 +876,28 @@ namespace rl_tools {
         init(device, renderer, scene, empty_pool);
     }
 
+    namespace rendering::raytracing::backends::optix{
+        // producers write the renderer's device tensors on the caller's stream (device.stream);
+        // the launch verbs bridge it to the backend-owned streams with an event so producer
+        // writes are ordered before consumption — callers never handle streams. A CPU device has
+        // no stream member and resolves to the null overload (host writes are synchronous).
+        template <typename DEVICE>
+        auto producer_stream(DEVICE& device, int) -> decltype(device.stream) { return device.stream; }
+        template <typename DEVICE>
+        cudaStream_t producer_stream(DEVICE& device, long){ return nullptr; }
+
+        inline void await_producer(cudaStream_t producer, cudaStream_t consumer){
+            if(producer == nullptr || producer == consumer){
+                return;
+            }
+            cudaEvent_t ready;
+            cudaEventCreateWithFlags(&ready, cudaEventDisableTiming);
+            cudaEventRecord(ready, producer);
+            cudaStreamWaitEvent(consumer, ready, 0);
+            cudaEventDestroy(ready);
+        }
+    }
+
     // fully stream-ordered on the render stream: staging uploads for host-verb writes, then the
     // device-side instance fill and per-overlay raw optixAccelBuild — no host synchronization
     template <typename DEVICE, typename SPEC>
@@ -876,6 +908,7 @@ namespace rl_tools {
         auto* overlay_state = (optix::OverlayState*)renderer.backend.overlay_state;
         cudaStream_t cuda_stream = (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend.launch_params, 0);
         cudaStream_t coll_stream = renderer.backend.coll_launch_params != nullptr ? (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend.coll_launch_params, 0) : cuda_stream;
+        optix::await_producer(optix::producer_stream(device, 0), cuda_stream);
         if(coll_stream != cuda_stream){
             // probe launches trace the overlay TLASes on their own stream: order this rebuild
             // after in-flight probes and subsequent probes after this rebuild, without host syncs
@@ -937,35 +970,13 @@ namespace rl_tools {
     void generate_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer,
                           const typename SPEC::T center[3], typename SPEC::T radius,
                           const typename SPEC::T up[3], typename SPEC::T fov){
-        rendering::raytracing::detail::generate_camera_poses(device, renderer, center, radius, up, fov);
+        std::vector<rendering::raytracing::Camera<typename SPEC::T>> staging(SPEC::NUM_CAMERAS);
+        rendering::raytracing::detail::generate_camera_poses<SPEC>(device, staging.data(), center, radius, up, fov);
 
-        owlBufferUpload((OWLBuffer)renderer.backend.cameras_buffer, data(renderer.cameras), 0, SPEC::NUM_CAMERAS);
+        owlBufferUpload((OWLBuffer)renderer.backend.cameras_buffer, staging.data(), 0, SPEC::NUM_CAMERAS);
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            owlBufferUpload((OWLBuffer)renderer.backend.cameras_open_buffer, data(renderer.cameras), 0, SPEC::NUM_CAMERAS);
+            owlBufferUpload((OWLBuffer)renderer.backend.cameras_open_buffer, staging.data(), 0, SPEC::NUM_CAMERAS);
         }
-    }
-
-    template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
-    void set_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
-        static_assert(utils::typing::is_same_v<typename CAMERAS_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
-        static_assert(get<0>(typename CAMERAS_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-
-        owlBufferUpload((OWLBuffer)renderer.backend.cameras_buffer, data(cameras), 0, SPEC::NUM_CAMERAS);
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            owlBufferUpload((OWLBuffer)renderer.backend.cameras_open_buffer, data(cameras), 0, SPEC::NUM_CAMERAS);
-        }
-    }
-
-    template <typename DEVICE, typename SPEC, typename CAMERAS_OPEN_SPEC, typename CAMERAS_CLOSE_SPEC>
-    void set_motion_blur_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_OPEN_SPEC>& cameras_open, const Tensor<CAMERAS_CLOSE_SPEC>& cameras_close){
-        static_assert(SPEC::ENABLE_MOTION_BLUR, "set_motion_blur_cameras requires a motion-blur renderer specification");
-        static_assert(utils::typing::is_same_v<typename CAMERAS_OPEN_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
-        static_assert(utils::typing::is_same_v<typename CAMERAS_CLOSE_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
-        static_assert(get<0>(typename CAMERAS_OPEN_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        static_assert(get<0>(typename CAMERAS_CLOSE_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-
-        owlBufferUpload((OWLBuffer)renderer.backend.cameras_open_buffer, data(cameras_open), 0, SPEC::NUM_CAMERAS);
-        owlBufferUpload((OWLBuffer)renderer.backend.cameras_buffer, data(cameras_close), 0, SPEC::NUM_CAMERAS);
     }
 
     // =========================================================================
@@ -984,7 +995,9 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void render_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        namespace optix = rendering::raytracing::backends::optix;
         OWLParams launch_params = (OWLParams)renderer.backend.launch_params;
+        optix::await_producer(optix::producer_stream(device, 0), (cudaStream_t)owlParamsGetCudaStream(launch_params, 0));
         if constexpr (SPEC::HAS_RGB) {
             OWLRayGen ray_gen = (OWLRayGen)renderer.backend.ray_gen;
             owlAsyncLaunch2D(ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
@@ -1013,9 +1026,11 @@ namespace rl_tools {
     // separate probe verb so it can be scheduled independently (e.g. alongside update)
     template <typename DEVICE, typename SPEC>
     void probe_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        namespace optix = rendering::raytracing::backends::optix;
         if(renderer.backend.collision_ray_gen){
             OWLRayGen collision_ray_gen = (OWLRayGen)renderer.backend.collision_ray_gen;
             OWLParams coll_lp = (OWLParams)renderer.backend.coll_launch_params;
+            optix::await_producer(optix::producer_stream(device, 0), (cudaStream_t)owlParamsGetCudaStream(coll_lp, 0));
             owlAsyncLaunch2D(collision_ray_gen, SPEC::NUM_CAMERAS, SPEC::NUM_PROBES, coll_lp);
         }
     }
@@ -1032,80 +1047,13 @@ namespace rl_tools {
         probe_sync(device, renderer);
     }
 
-    template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
-    void set_cameras_async(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
-        static_assert(utils::typing::is_same_v<typename CAMERAS_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
-        static_assert(get<0>(typename CAMERAS_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-
-        OWLParams launch_params = (OWLParams)renderer.backend.launch_params;
-        cudaStream_t stream = (cudaStream_t)owlParamsGetCudaStream(launch_params, 0);
-        void* d_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.cameras_buffer, 0);
-        cudaMemcpyAsync(d_ptr, data(cameras), SPEC::NUM_CAMERAS * sizeof(OptixCameraData), cudaMemcpyHostToDevice, stream);
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            void* d_open_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.cameras_open_buffer, 0);
-            cudaMemcpyAsync(d_open_ptr, data(cameras), SPEC::NUM_CAMERAS * sizeof(OptixCameraData), cudaMemcpyHostToDevice, stream);
-        }
-    }
-
-    // device-resident camera input: cameras_device points at NUM_CAMERAS packed Camera<T>
-    // structs (12 floats each) in CUDA device memory. The copy is enqueued on the render
-    // stream, so it orders after the previous launch (no overwrite hazard) and before the
-    // next one; a non-null producer_stream is awaited via an event, never a host sync.
-    template <typename DEVICE, typename SPEC>
-    void set_cameras_device(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const typename SPEC::T* cameras_device, cudaStream_t producer_stream = nullptr){
-        OWLParams launch_params = (OWLParams)renderer.backend.launch_params;
-        cudaStream_t stream = (cudaStream_t)owlParamsGetCudaStream(launch_params, 0);
-        if(producer_stream != nullptr && producer_stream != stream){
-            cudaEvent_t cameras_ready;
-            cudaEventCreateWithFlags(&cameras_ready, cudaEventDisableTiming);
-            cudaEventRecord(cameras_ready, producer_stream);
-            cudaStreamWaitEvent(stream, cameras_ready, 0);
-            cudaEventDestroy(cameras_ready);
-        }
-        void* d_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.cameras_buffer, 0);
-        cudaMemcpyAsync(d_ptr, cameras_device, SPEC::NUM_CAMERAS * sizeof(OptixCameraData), cudaMemcpyDeviceToDevice, stream);
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            void* d_open_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.cameras_open_buffer, 0);
-            cudaMemcpyAsync(d_open_ptr, cameras_device, SPEC::NUM_CAMERAS * sizeof(OptixCameraData), cudaMemcpyDeviceToDevice, stream);
-        }
-    }
-
-    template <typename DEVICE, typename SPEC, typename FB_SPEC>
-    void read_frame_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<FB_SPEC>& out_pixels){
-        static_assert(SPEC::HAS_RGB, "read_frame_buffer requires an RGB-capable renderer specification");
-        static_assert(utils::typing::is_same_v<typename FB_SPEC::T, uint32_t>);
-        static_assert(get<0>(typename FB_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        constexpr typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-        cudaMemcpy(data(out_pixels), owlBufferGetPointer((OWLBuffer)renderer.backend.frame_buffer_handle, 0), expected * sizeof(uint32_t), cudaMemcpyDeviceToHost);
-    }
-
-    template <typename DEVICE, typename SPEC, typename SEGMENTATION_SPEC>
-    void read_segmentation_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<SEGMENTATION_SPEC>& out_segmentation){
-        static_assert(SPEC::HAS_SEGMENTATION, "read_segmentation_buffer requires a segmentation-capable renderer specification");
-        static_assert(utils::typing::is_same_v<typename SEGMENTATION_SPEC::T, uint32_t>);
-        static_assert(get<0>(typename SEGMENTATION_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        constexpr typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-        cudaMemcpy(data(out_segmentation), owlBufferGetPointer((OWLBuffer)renderer.backend.segmentation_buffer_handle, 0), expected * sizeof(uint32_t), cudaMemcpyDeviceToHost);
-    }
-
     template <typename DEVICE, typename SPEC>
     void save_segmentation_image(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const char* filename){
         static_assert(SPEC::HAS_SEGMENTATION, "save_segmentation_image requires a segmentation-capable renderer specification");
         const size_t segmentation_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
         std::vector<uint32_t> segmentation_host(segmentation_count);
-        cudaMemcpy(segmentation_host.data(), owlBufferGetPointer((OWLBuffer)renderer.backend.segmentation_buffer_handle, 0), segmentation_count * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+        cudaMemcpy(segmentation_host.data(), data(renderer.segmentation_buffer), segmentation_count * sizeof(uint32_t), cudaMemcpyDeviceToHost);
         rendering::raytracing::detail::write_segmentation_grid_png<SPEC>(segmentation_host.data(), filename);
-    }
-
-    template <typename DEVICE, typename SPEC, typename DEPTH_SPEC>
-    void read_depth_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<DEPTH_SPEC>& out_depth){
-        static_assert(SPEC::HAS_DEPTH, "read_depth_buffer requires a depth-capable renderer specification");
-        static_assert(utils::typing::is_same_v<typename DEPTH_SPEC::T, float>);
-        static_assert(get<0>(typename DEPTH_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        static_assert(get<1>(typename DEPTH_SPEC::SHAPE{}) == SPEC::CAM_HEIGHT);
-        static_assert(get<2>(typename DEPTH_SPEC::SHAPE{}) == SPEC::CAM_WIDTH);
-        constexpr typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-        cudaMemcpy(data(out_depth), owlBufferGetPointer((OWLBuffer)renderer.backend.depth_buffer_handle, 0), expected * sizeof(float), cudaMemcpyDeviceToHost);
     }
 
     // =========================================================================
@@ -1119,10 +1067,7 @@ namespace rl_tools {
         const size_t fb_count = (size_t)SPEC::NUM_CAMERAS * cam_pixels;
 
         std::vector<uint32_t> fb_host(fb_count);
-        cudaMemcpy(fb_host.data(),
-                   owlBufferGetPointer((OWLBuffer)renderer.backend.frame_buffer_handle, 0),
-                   fb_count * sizeof(uint32_t),
-                   cudaMemcpyDeviceToHost);
+        cudaMemcpy(fb_host.data(), data(renderer.frame_buffer), fb_count * sizeof(uint32_t), cudaMemcpyDeviceToHost);
         rendering::raytracing::detail::write_grid_png<SPEC>(fb_host.data(), filename);
     }
 
@@ -1134,10 +1079,7 @@ namespace rl_tools {
         const size_t depth_count = (size_t)SPEC::NUM_CAMERAS * cam_pixels;
 
         std::vector<float> depth_host(depth_count);
-        cudaMemcpy(depth_host.data(),
-                   owlBufferGetPointer((OWLBuffer)renderer.backend.depth_buffer_handle, 0),
-                   depth_count * sizeof(float),
-                   cudaMemcpyDeviceToHost);
+        cudaMemcpy(depth_host.data(), data(renderer.depth_buffer), depth_count * sizeof(float), cudaMemcpyDeviceToHost);
 
         rendering::raytracing::detail::write_depth_grid_png<SPEC>(depth_host.data(), renderer.camera_radius, filename);
     }
@@ -1147,10 +1089,7 @@ namespace rl_tools {
         static_assert(SPEC::HAS_DEPTH, "save_depth requires a depth-capable renderer specification");
         constexpr size_t depth_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
         std::vector<float> depth_host(depth_count);
-        cudaMemcpy(depth_host.data(),
-                   owlBufferGetPointer((OWLBuffer)renderer.backend.depth_buffer_handle, 0),
-                   depth_count * sizeof(float),
-                   cudaMemcpyDeviceToHost);
+        cudaMemcpy(depth_host.data(), data(renderer.depth_buffer), depth_count * sizeof(float), cudaMemcpyDeviceToHost);
         rendering::raytracing::detail::write_depth_bin<SPEC>(depth_host.data(), filename);
     }
 
@@ -1164,53 +1103,11 @@ namespace rl_tools {
         (void)filename;
         return;
 #else
-        const CollisionResult* probe_results =
-            (const CollisionResult*)owlBufferGetPointer((OWLBuffer)renderer.backend.collision_results_buffer, 0);
-
-        rendering::raytracing::detail::write_probes_bin_and_log<SPEC>(probe_results, filename);
+        constexpr size_t probe_count = (size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES;
+        std::vector<CollisionResult> probes_host(probe_count);
+        cudaMemcpy(probes_host.data(), data(renderer.collision_results), probe_count * sizeof(CollisionResult), cudaMemcpyDeviceToHost);
+        rendering::raytracing::detail::write_probes_bin_and_log<SPEC>(probes_host.data(), filename);
 #endif
-    }
-
-
-    // =========================================================================
-    // read_collision_results: typed access to collision probe buffer
-    // =========================================================================
-    template <typename DEVICE, typename SPEC, typename COLL_SPEC>
-    void read_collision_results(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<COLL_SPEC>& out){
-        static_assert(utils::typing::is_same_v<typename COLL_SPEC::T, rendering::raytracing::CollisionResult>);
-        static_assert(get<0>(typename COLL_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        static_assert(get<1>(typename COLL_SPEC::SHAPE{}) == SPEC::NUM_PROBES);
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        if(renderer.backend.collision_results_buffer != nullptr){
-            memcpy(data(out),
-                   owlBufferGetPointer((OWLBuffer)renderer.backend.collision_results_buffer, 0),
-                   SPEC::NUM_CAMERAS * SPEC::NUM_PROBES * sizeof(rendering::raytracing::CollisionResult));
-        }
-#endif
-    }
-
-    template <typename DEVICE, typename SPEC>
-    const rendering::raytracing::CollisionResult* read_collision_results_raw(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-#if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        return nullptr;
-#else
-        if(renderer.backend.collision_results_buffer == nullptr){
-            return nullptr;
-        }
-        return (const rendering::raytracing::CollisionResult*)owlBufferGetPointer((OWLBuffer)renderer.backend.collision_results_buffer, 0);
-#endif
-    }
-
-    template <typename DEVICE, typename SPEC>
-    uint32_t* get_framebuffer_device_ptr(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB, "get_framebuffer_device_ptr requires an RGB-capable renderer specification");
-        return (uint32_t*)owlBufferGetPointer((OWLBuffer)renderer.backend.frame_buffer_handle, 0);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    float* get_depthbuffer_device_ptr(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_DEPTH, "get_depthbuffer_device_ptr requires a depth-capable renderer specification");
-        return (float*)owlBufferGetPointer((OWLBuffer)renderer.backend.depth_buffer_handle, 0);
     }
 
     // render stream shared by render/probe/update launches; producers writing renderer inputs
@@ -1220,9 +1117,15 @@ namespace rl_tools {
         return (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend.launch_params, 0);
     }
 
+    // scoped to the renderer's own streams — never a whole-device barrier
     template <typename DEVICE, typename SPEC>
     void synchronize(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        cudaDeviceSynchronize();
+        if(renderer.backend.launch_params != nullptr){
+            cudaStreamSynchronize((cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend.launch_params, 0));
+        }
+        if(renderer.backend.coll_launch_params != nullptr){
+            cudaStreamSynchronize((cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend.coll_launch_params, 0));
+        }
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1242,17 +1145,24 @@ namespace rl_tools {
                 renderer.transforms._data = nullptr;
             }
         }
-        free(device, renderer.cameras);
+        // the input and output tensors alias OWL buffers destroyed with the context
+        renderer.cameras._data = nullptr;
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            free(device, renderer.cameras_open);
+            renderer.cameras_open._data = nullptr;
         }
         if constexpr (SPEC::HAS_RGB) {
-            free(device, renderer.frame_buffer);
+            renderer.frame_buffer._data = nullptr;
         }
         if constexpr (SPEC::HAS_DEPTH) {
-            free(device, renderer.depth_buffer);
+            renderer.depth_buffer._data = nullptr;
         }
-        free(device, renderer.collision_results);
+        if constexpr (SPEC::HAS_SEGMENTATION) {
+            renderer.segmentation_buffer._data = nullptr;
+        }
+        if constexpr (SPEC::HAS_OBSERVATION) {
+            renderer.observation._data = nullptr;
+        }
+        renderer.collision_results._data = nullptr;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

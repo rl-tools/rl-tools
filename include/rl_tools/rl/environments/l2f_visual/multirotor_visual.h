@@ -57,6 +57,9 @@ namespace rl_tools::rl::environments::l2f_visual {
             static constexpr TI MOTION_BLUR_SAMPLES = T_MOTION_BLUR_SAMPLES;
             static constexpr bool ENABLE_ANTI_ALIASING = T_ENABLE_ANTI_ALIASING;
             static constexpr TI ANTI_ALIASING_GRID_SIZE = T_ANTI_ALIASING_GRID_SIZE;
+            // the RGB observation is consumed as the renderer's float observation output —
+            // written by the ray gen at full precision, no format-conversion pass
+            static constexpr bool OUTPUT_OBSERVATION = T_OUTPUT_RGB;
         };
         using RENDERER_SPEC = rendering::raytracing::Specification<RENDERER_CONFIG>;
         using SCENE_SPEC = rendering::raytracing::scene::SceneSpecification<T, TI>;

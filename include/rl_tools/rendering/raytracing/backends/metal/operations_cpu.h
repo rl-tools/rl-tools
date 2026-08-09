@@ -63,6 +63,9 @@ namespace rl_tools {
             encoder->setBuffer(ctx.overlay_structures.get(), 0, bindings::OVERLAY_STRUCTURES);
             encoder->setBuffer(ctx.overlay_attachments.get(), 0, bindings::OVERLAY_ATTACHMENTS);
             encoder->setBuffer(ctx.instance_classes.get(), 0, bindings::INSTANCE_CLASSES);
+            if(ctx.observation.get() != nullptr){
+                encoder->setBuffer(ctx.observation.get(), 0, bindings::OBSERVATION);
+            }
             for(auto& object_acceleration_structure : ctx.object_acceleration_structures){
                 encoder->useResource(object_acceleration_structure.get(), MTL::ResourceUsageRead);
             }
@@ -109,20 +112,9 @@ namespace rl_tools {
         namespace metal = rendering::raytracing::backends::metal;
         static_assert(utils::typing::is_same_v<typename SPEC::T, float>, "The Metal raytracing backend requires T = float");
 
-        malloc(device, renderer.cameras);
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            malloc(device, renderer.cameras_open);
-        }
-        if constexpr (SPEC::HAS_RGB) {
-            malloc(device, renderer.frame_buffer);
-        }
-        if constexpr (SPEC::HAS_DEPTH) {
-            malloc(device, renderer.depth_buffer);
-        }
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             malloc(device, renderer.transforms);
         }
-        malloc(device, renderer.collision_results);
 
         auto* ctx = new metal::Context{};
         ctx->device = NS::TransferPtr(MTL::CreateSystemDefaultDevice());
@@ -141,24 +133,47 @@ namespace rl_tools {
         }
 
         constexpr typename SPEC::TI cam_pixels = SPEC::CAM_PIXELS;
+        // the output tensors alias the shared MTLBuffers the kernels write (see frame_buffer/
+        // depth_buffer/segmentation_buffer/collision_results/observation accessors)
         if constexpr (SPEC::HAS_RGB) {
             ctx->frame_buffer = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(uint32_t), MTL::ResourceStorageModeShared));
             renderer.backend.frame_buffer_handle = ctx->frame_buffer.get();
+            renderer.frame_buffer._data = (uint32_t*)ctx->frame_buffer->contents();
         }
         if constexpr (SPEC::HAS_DEPTH) {
             ctx->depth_buffer = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(float), MTL::ResourceStorageModeShared));
             renderer.backend.depth_buffer_handle = ctx->depth_buffer.get();
+            renderer.depth_buffer._data = (float*)ctx->depth_buffer->contents();
         }
         if constexpr (SPEC::HAS_SEGMENTATION) {
-            malloc(device, renderer.segmentation_buffer);
             ctx->segmentation_buffer = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(uint32_t), MTL::ResourceStorageModeShared));
             renderer.backend.segmentation_buffer_handle = ctx->segmentation_buffer.get();
+            renderer.segmentation_buffer._data = (uint32_t*)ctx->segmentation_buffer->contents();
+        }
+        if constexpr (SPEC::HAS_OBSERVATION) {
+            static_assert(utils::typing::is_same_v<typename SPEC::OBSERVATION_T, float>, "The Metal raytracing backend requires OBSERVATION_T = float");
+            ctx->observation = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * SPEC::OBSERVATION_CHANNELS * sizeof(float), MTL::ResourceStorageModeShared));
+            renderer.backend.observation_buffer_handle = ctx->observation.get();
+            renderer.observation._data = (float*)ctx->observation->contents();
         }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         ctx->collision_results = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES * sizeof(rendering::raytracing::CollisionResult), MTL::ResourceStorageModeShared));
         renderer.backend.collision_results_buffer = ctx->collision_results.get();
+        renderer.collision_results._data = (rendering::raytracing::CollisionResult*)ctx->collision_results->contents();
 #endif
         ctx->launch_params = NS::TransferPtr(ctx->device->newBuffer(sizeof(metal::LaunchParams), MTL::ResourceStorageModeShared));
+
+        // camera tensors alias the shared MTLBuffers the encoders bind (see cameras(device,
+        // renderer)): host writes are consumed by the next launch with no staging copy
+        constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>);
+        ctx->cameras = NS::TransferPtr(ctx->device->newBuffer(camera_bytes, MTL::ResourceStorageModeShared));
+        renderer.backend.cameras_buffer = ctx->cameras.get();
+        renderer.cameras._data = (rendering::raytracing::Camera<typename SPEC::T>*)ctx->cameras->contents();
+        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+            ctx->cameras_open = NS::TransferPtr(ctx->device->newBuffer(camera_bytes, MTL::ResourceStorageModeShared));
+            renderer.backend.cameras_open_buffer = ctx->cameras_open.get();
+            renderer.cameras_open._data = (rendering::raytracing::Camera<typename SPEC::T>*)ctx->cameras_open->contents();
+        }
 
         renderer.backend.context = ctx;
         renderer.backend.module = ctx->library.get();
@@ -470,6 +485,7 @@ namespace rl_tools {
             bool punctual_light_shadows = SPEC::SHADING::PUNCTUAL_LIGHT_SHADOWS;
             int overlay_count = (int)SPEC::MAX_OVERLAYS_PER_CAMERA;
             bool semantic_segmentation = SPEC::SEMANTIC_SEGMENTATION;
+            bool has_observation = SPEC::HAS_OBSERVATION;
             constants->setConstantValue(&srgb_output, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::SRGB_OUTPUT);
             constants->setConstantValue(&motion_blur, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::MOTION_BLUR);
             constants->setConstantValue(&motion_samples, MTL::DataTypeInt, (NS::UInteger)metal::function_constants::MOTION_SAMPLES);
@@ -482,6 +498,7 @@ namespace rl_tools {
             constants->setConstantValue(&punctual_light_shadows, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::PUNCTUAL_LIGHT_SHADOWS);
             constants->setConstantValue(&overlay_count, MTL::DataTypeInt, (NS::UInteger)metal::function_constants::OVERLAY_COUNT);
             constants->setConstantValue(&semantic_segmentation, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::SEMANTIC_SEGMENTATION);
+            constants->setConstantValue(&has_observation, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::HAS_OBSERVATION);
 
             auto make_pipeline = [&](const char* name) -> NS::SharedPtr<MTL::ComputePipelineState> {
                 NS::Error* error = nullptr;
@@ -649,69 +666,11 @@ namespace rl_tools {
                           const typename SPEC::T center[3], typename SPEC::T radius,
                           const typename SPEC::T up[3], typename SPEC::T fov){
         namespace metal = rendering::raytracing::backends::metal;
-        rendering::raytracing::detail::generate_camera_poses(device, renderer, center, radius, up, fov);
-
         auto& ctx = metal::context(renderer);
-        constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>);
-        ctx.cameras = NS::TransferPtr(ctx.device->newBuffer(data(renderer.cameras), camera_bytes, MTL::ResourceStorageModeShared));
-        renderer.backend.cameras_buffer = ctx.cameras.get();
+        metal::wait_in_flight(ctx);
+        rendering::raytracing::detail::generate_camera_poses<SPEC>(device, data(renderer.cameras), center, radius, up, fov);
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            ctx.cameras_open = NS::TransferPtr(ctx.device->newBuffer(data(renderer.cameras), camera_bytes, MTL::ResourceStorageModeShared));
-            renderer.backend.cameras_open_buffer = ctx.cameras_open.get();
-        }
-    }
-
-    template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
-    void set_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
-        static_assert(utils::typing::is_same_v<typename CAMERAS_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
-        static_assert(get<0>(typename CAMERAS_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        namespace metal = rendering::raytracing::backends::metal;
-        auto& ctx = metal::context(renderer);
-        metal::wait_in_flight(ctx);
-
-        constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>);
-        if(ctx.cameras.get() == nullptr){
-            ctx.cameras = NS::TransferPtr(ctx.device->newBuffer(data(cameras), camera_bytes, MTL::ResourceStorageModeShared));
-            renderer.backend.cameras_buffer = ctx.cameras.get();
-            if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-                ctx.cameras_open = NS::TransferPtr(ctx.device->newBuffer(data(cameras), camera_bytes, MTL::ResourceStorageModeShared));
-                renderer.backend.cameras_open_buffer = ctx.cameras_open.get();
-            }
-        }
-        else{
-            std::memcpy(ctx.cameras->contents(), data(cameras), camera_bytes);
-            if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-                std::memcpy(ctx.cameras_open->contents(), data(cameras), camera_bytes);
-            }
-        }
-    }
-
-    template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
-    void set_cameras_async(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
-        set_cameras(device, renderer, cameras);
-    }
-
-    template <typename DEVICE, typename SPEC, typename CAMERAS_OPEN_SPEC, typename CAMERAS_CLOSE_SPEC>
-    void set_motion_blur_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_OPEN_SPEC>& cameras_open, const Tensor<CAMERAS_CLOSE_SPEC>& cameras_close){
-        static_assert(SPEC::ENABLE_MOTION_BLUR, "set_motion_blur_cameras requires a motion-blur renderer specification");
-        static_assert(utils::typing::is_same_v<typename CAMERAS_OPEN_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
-        static_assert(utils::typing::is_same_v<typename CAMERAS_CLOSE_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
-        static_assert(get<0>(typename CAMERAS_OPEN_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        static_assert(get<0>(typename CAMERAS_CLOSE_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        namespace metal = rendering::raytracing::backends::metal;
-        auto& ctx = metal::context(renderer);
-        metal::wait_in_flight(ctx);
-
-        constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>);
-        if(ctx.cameras.get() == nullptr){
-            ctx.cameras = NS::TransferPtr(ctx.device->newBuffer(data(cameras_close), camera_bytes, MTL::ResourceStorageModeShared));
-            ctx.cameras_open = NS::TransferPtr(ctx.device->newBuffer(data(cameras_open), camera_bytes, MTL::ResourceStorageModeShared));
-            renderer.backend.cameras_buffer = ctx.cameras.get();
-            renderer.backend.cameras_open_buffer = ctx.cameras_open.get();
-        }
-        else{
-            std::memcpy(ctx.cameras_open->contents(), data(cameras_open), camera_bytes);
-            std::memcpy(ctx.cameras->contents(), data(cameras_close), camera_bytes);
+            std::memcpy(data(renderer.cameras_open), data(renderer.cameras), (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>));
         }
     }
 
@@ -797,44 +756,11 @@ namespace rl_tools {
         probe_sync(device, renderer);
     }
 
-    template <typename DEVICE, typename SPEC, typename FB_SPEC>
-    void read_frame_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<FB_SPEC>& out_pixels){
-        static_assert(SPEC::HAS_RGB, "read_frame_buffer requires an RGB-capable renderer specification");
-        static_assert(utils::typing::is_same_v<typename FB_SPEC::T, uint32_t>);
-        static_assert(get<0>(typename FB_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        namespace metal = rendering::raytracing::backends::metal;
-        constexpr typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-        std::memcpy(data(out_pixels), metal::context(renderer).frame_buffer->contents(), expected * sizeof(uint32_t));
-    }
-
-    template <typename DEVICE, typename SPEC, typename DEPTH_SPEC>
-    void read_depth_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<DEPTH_SPEC>& out_depth){
-        static_assert(SPEC::HAS_DEPTH, "read_depth_buffer requires a depth-capable renderer specification");
-        static_assert(utils::typing::is_same_v<typename DEPTH_SPEC::T, float>);
-        static_assert(get<0>(typename DEPTH_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        static_assert(get<1>(typename DEPTH_SPEC::SHAPE{}) == SPEC::CAM_HEIGHT);
-        static_assert(get<2>(typename DEPTH_SPEC::SHAPE{}) == SPEC::CAM_WIDTH);
-        namespace metal = rendering::raytracing::backends::metal;
-        constexpr typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-        std::memcpy(data(out_depth), metal::context(renderer).depth_buffer->contents(), expected * sizeof(float));
-    }
-
     template <typename DEVICE, typename SPEC>
     void save_image(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const char* filename){
         static_assert(SPEC::HAS_RGB, "save_image requires an RGB-capable renderer specification");
         namespace metal = rendering::raytracing::backends::metal;
-        rendering::raytracing::detail::write_grid_png<SPEC>((const uint32_t*)metal::context(renderer).frame_buffer->contents(), filename);
-    }
-
-    template <typename DEVICE, typename SPEC, typename SEGMENTATION_SPEC>
-    void read_segmentation_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<SEGMENTATION_SPEC>& out_segmentation){
-        static_assert(SPEC::HAS_SEGMENTATION, "read_segmentation_buffer requires a segmentation-capable renderer specification");
-        static_assert(utils::typing::is_same_v<typename SEGMENTATION_SPEC::T, uint32_t>);
-        static_assert(get<0>(typename SEGMENTATION_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        namespace metal = rendering::raytracing::backends::metal;
-        auto& ctx = metal::context(renderer);
-        constexpr typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-        std::memcpy(data(out_segmentation), ctx.segmentation_buffer->contents(), expected * sizeof(uint32_t));
+        rendering::raytracing::detail::write_grid_png<SPEC>(data(renderer.frame_buffer), filename);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -842,21 +768,21 @@ namespace rl_tools {
         static_assert(SPEC::HAS_SEGMENTATION, "save_segmentation_image requires a segmentation-capable renderer specification");
         namespace metal = rendering::raytracing::backends::metal;
         auto& ctx = metal::context(renderer);
-        rendering::raytracing::detail::write_segmentation_grid_png<SPEC>((const uint32_t*)ctx.segmentation_buffer->contents(), filename);
+        rendering::raytracing::detail::write_segmentation_grid_png<SPEC>(data(renderer.segmentation_buffer), filename);
     }
 
     template <typename DEVICE, typename SPEC>
     void save_depth_image(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const char* filename){
         static_assert(SPEC::HAS_DEPTH, "save_depth_image requires a depth-capable renderer specification");
         namespace metal = rendering::raytracing::backends::metal;
-        rendering::raytracing::detail::write_depth_grid_png<SPEC>((const float*)metal::context(renderer).depth_buffer->contents(), renderer.camera_radius, filename);
+        rendering::raytracing::detail::write_depth_grid_png<SPEC>(data(renderer.depth_buffer), renderer.camera_radius, filename);
     }
 
     template <typename DEVICE, typename SPEC>
     void save_depth(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const char* filename){
         static_assert(SPEC::HAS_DEPTH, "save_depth requires a depth-capable renderer specification");
         namespace metal = rendering::raytracing::backends::metal;
-        rendering::raytracing::detail::write_depth_bin<SPEC>((const float*)metal::context(renderer).depth_buffer->contents(), filename);
+        rendering::raytracing::detail::write_depth_bin<SPEC>(data(renderer.depth_buffer), filename);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -867,50 +793,8 @@ namespace rl_tools {
         return;
 #else
         namespace metal = rendering::raytracing::backends::metal;
-        const auto* probe_results = (const rendering::raytracing::CollisionResult*)metal::context(renderer).collision_results->contents();
-        rendering::raytracing::detail::write_probes_bin_and_log<SPEC>(probe_results, filename);
+        rendering::raytracing::detail::write_probes_bin_and_log<SPEC>(data(renderer.collision_results), filename);
 #endif
-    }
-
-    template <typename DEVICE, typename SPEC, typename COLL_SPEC>
-    void read_collision_results(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<COLL_SPEC>& out){
-        static_assert(utils::typing::is_same_v<typename COLL_SPEC::T, rendering::raytracing::CollisionResult>);
-        static_assert(get<0>(typename COLL_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        static_assert(get<1>(typename COLL_SPEC::SHAPE{}) == SPEC::NUM_PROBES);
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        namespace metal = rendering::raytracing::backends::metal;
-        if(renderer.backend.collision_results_buffer != nullptr){
-            std::memcpy(data(out), metal::context(renderer).collision_results->contents(),
-                        SPEC::NUM_CAMERAS * SPEC::NUM_PROBES * sizeof(rendering::raytracing::CollisionResult));
-        }
-#endif
-    }
-
-    template <typename DEVICE, typename SPEC>
-    const rendering::raytracing::CollisionResult* read_collision_results_raw(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-#if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        return nullptr;
-#else
-        namespace metal = rendering::raytracing::backends::metal;
-        if(renderer.backend.collision_results_buffer == nullptr){
-            return nullptr;
-        }
-        return (const rendering::raytracing::CollisionResult*)metal::context(renderer).collision_results->contents();
-#endif
-    }
-
-    template <typename DEVICE, typename SPEC>
-    uint32_t* get_framebuffer_device_ptr(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB, "get_framebuffer_device_ptr requires an RGB-capable renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        return (uint32_t*)metal::context(renderer).frame_buffer->contents();
-    }
-
-    template <typename DEVICE, typename SPEC>
-    float* get_depthbuffer_device_ptr(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_DEPTH, "get_depthbuffer_device_ptr requires a depth-capable renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        return (float*)metal::context(renderer).depth_buffer->contents();
     }
 
     template <typename DEVICE, typename SPEC>
@@ -927,20 +811,27 @@ namespace rl_tools {
             delete (metal::Context*)renderer.backend.context;
             renderer.backend.context = nullptr;
         }
-        free(device, renderer.cameras);
+        // the input and output tensors alias shared MTLBuffers destroyed with the context
+        renderer.cameras._data = nullptr;
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            free(device, renderer.cameras_open);
+            renderer.cameras_open._data = nullptr;
         }
         if constexpr (SPEC::HAS_RGB) {
-            free(device, renderer.frame_buffer);
+            renderer.frame_buffer._data = nullptr;
         }
         if constexpr (SPEC::HAS_DEPTH) {
-            free(device, renderer.depth_buffer);
+            renderer.depth_buffer._data = nullptr;
         }
+        if constexpr (SPEC::HAS_SEGMENTATION) {
+            renderer.segmentation_buffer._data = nullptr;
+        }
+        if constexpr (SPEC::HAS_OBSERVATION) {
+            renderer.observation._data = nullptr;
+        }
+        renderer.collision_results._data = nullptr;
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             free(device, renderer.transforms);
         }
-        free(device, renderer.collision_results);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

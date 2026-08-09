@@ -713,7 +713,7 @@ int main(int argc, char** argv) {
         };
         T up[3] = {0, 0, 1};
         T aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
-        rlt::set(device, env.renderer->cameras, rlt::make_camera_data(eye, look_at, up, SPEC::RAYTRACING_SPEC::COS_FOVY, aspect), static_cast<TI>(0));
+        const auto camera = rlt::make_camera_data(eye, look_at, up, SPEC::RAYTRACING_SPEC::COS_FOVY, aspect);
 
         if (g_capture_pose_requested) {
             g_capture_pose_requested = false;
@@ -744,41 +744,73 @@ int main(int argc, char** argv) {
         }
         frame_index++;
 
-        rlt::set_cameras(device, *env.renderer, env.renderer->cameras);
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+        cudaMemcpy(rlt::data(rlt::cameras(device, *env.renderer)), &camera, sizeof(camera), cudaMemcpyHostToDevice);
+#else
+        std::memcpy(rlt::data(rlt::cameras(device, *env.renderer)), &camera, sizeof(camera));
+#endif
 #if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
         rlt::render(device, *env.renderer);
-        rlt::read_depth_buffer(device, *env.renderer, env.renderer->depth_buffer);
         {
+            std::vector<float> depth_staging(pixels.size());
+{
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+            cudaMemcpy(depth_staging.data(), rlt::data(rlt::depth_buffer(device, *env.renderer)), (depth_staging.size()) * sizeof(float), cudaMemcpyDeviceToHost);
+#else
+            std::memcpy(depth_staging.data(), rlt::data(rlt::depth_buffer(device, *env.renderer)), (depth_staging.size()) * sizeof(float));
+#endif
+        }
             const float max_depth = env.renderer->camera_radius > 0 ? env.renderer->camera_radius * 2.0f : 1e30f;
-            depth_to_rgba(rlt::data(env.renderer->depth_buffer), pixels.data(), static_cast<int>(pixels.size()), max_depth);
+            depth_to_rgba(depth_staging.data(), pixels.data(), static_cast<int>(pixels.size()), max_depth);
         }
 #elif RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
         if (g_show_depth) {
             rlt::render(device, *env.renderer);
-            rlt::read_depth_buffer(device, *env.renderer, env.renderer->depth_buffer);
+            std::vector<float> depth_staging(pixels.size());
+{
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+            cudaMemcpy(depth_staging.data(), rlt::data(rlt::depth_buffer(device, *env.renderer)), (depth_staging.size()) * sizeof(float), cudaMemcpyDeviceToHost);
+#else
+            std::memcpy(depth_staging.data(), rlt::data(rlt::depth_buffer(device, *env.renderer)), (depth_staging.size()) * sizeof(float));
+#endif
+        }
             const float max_depth = env.renderer->camera_radius > 0 ? env.renderer->camera_radius * 2.0f : 1e30f;
-            depth_to_rgba(rlt::data(env.renderer->depth_buffer), pixels.data(), static_cast<int>(pixels.size()), max_depth);
+            depth_to_rgba(depth_staging.data(), pixels.data(), static_cast<int>(pixels.size()), max_depth);
         }
         else {
             rlt::render(device, *env.renderer);
-            rlt::read_frame_buffer(device, *env.renderer, env.renderer->frame_buffer);
-            const uint32_t* fb_data = rlt::data(env.renderer->frame_buffer);
-            std::memcpy(pixels.data(), fb_data, pixels.size() * sizeof(uint32_t));
+{
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+            cudaMemcpy(pixels.data(), rlt::data(rlt::frame_buffer(device, *env.renderer)), (pixels.size()) * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+#else
+            std::memcpy(pixels.data(), rlt::data(rlt::frame_buffer(device, *env.renderer)), (pixels.size()) * sizeof(uint32_t));
+#endif
+        }
         }
 #elif RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_SEGMENTATION
         rlt::render(device, *env.renderer);
-        rlt::read_segmentation_buffer(device, *env.renderer, env.renderer->segmentation_buffer);
         {
-            const uint32_t* segmentation = rlt::data(env.renderer->segmentation_buffer);
+            std::vector<uint32_t> segmentation_staging(pixels.size());
+{
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+            cudaMemcpy(segmentation_staging.data(), rlt::data(rlt::segmentation_buffer(device, *env.renderer)), (segmentation_staging.size()) * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+#else
+            std::memcpy(segmentation_staging.data(), rlt::data(rlt::segmentation_buffer(device, *env.renderer)), (segmentation_staging.size()) * sizeof(uint32_t));
+#endif
+        }
             for (size_t pixel_i = 0; pixel_i < pixels.size(); pixel_i++) {
-                pixels[pixel_i] = rlt::rendering::raytracing::detail::segmentation_id_to_rgba(segmentation[pixel_i]);
+                pixels[pixel_i] = rlt::rendering::raytracing::detail::segmentation_id_to_rgba(segmentation_staging[pixel_i]);
             }
         }
 #else
         rlt::render(device, *env.renderer);
-        rlt::read_frame_buffer(device, *env.renderer, env.renderer->frame_buffer);
-        const uint32_t* fb_data = rlt::data(env.renderer->frame_buffer);
-        std::memcpy(pixels.data(), fb_data, pixels.size() * sizeof(uint32_t));
+{
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+            cudaMemcpy(pixels.data(), rlt::data(rlt::frame_buffer(device, *env.renderer)), (pixels.size()) * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+#else
+            std::memcpy(pixels.data(), rlt::data(rlt::frame_buffer(device, *env.renderer)), (pixels.size()) * sizeof(uint32_t));
+#endif
+        }
 #endif
 
         {
