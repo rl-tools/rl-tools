@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 
 import numpy as np
+from scipy.spatial.transform import Rotation
 
 from hyperdrone import render
 
@@ -28,14 +29,9 @@ def normalize(vectors):
     return vectors / np.linalg.norm(vectors, axis=-1, keepdims=True)
 
 
-rng = np.random.default_rng(0)
-u1, u2, u3 = rng.uniform(size=(3, NUM_CAMERAS))  # Shoemake uniform quaternions
-qx = np.sqrt(1 - u1) * np.sin(2 * np.pi * u2)
-qy = np.sqrt(1 - u1) * np.cos(2 * np.pi * u2)
-qz = np.sqrt(u1) * np.sin(2 * np.pi * u3)
-qw = np.sqrt(u1) * np.cos(2 * np.pi * u3)
-forwards = np.stack([1 - 2 * (qy * qy + qz * qz), 2 * (qx * qy + qw * qz), 2 * (qx * qz - qw * qy)], axis=-1)
-ups = np.stack([2 * (qx * qz + qw * qy), 2 * (qy * qz - qw * qx), 1 - 2 * (qx * qx + qy * qy)], axis=-1)
+rotations = Rotation.random(NUM_CAMERAS, rng=np.random.default_rng(0)).as_matrix()
+forwards = rotations[:, :, 0]  # camera forward = body +X column
+ups = rotations[:, :, 2]       # camera up = body +Z column
 
 scale = 2.0 * math.tan(FOV / 2.0)
 du = normalize(np.cross(forwards, ups)) * scale
