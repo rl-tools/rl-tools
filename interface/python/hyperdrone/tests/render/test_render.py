@@ -108,6 +108,160 @@ def test_collision_probes():
     assert abs(distances[0, 0] - 3.0) < 1e-2
 
 
+def test_motion_blur_camera_buffers_and_split_render():
+    renderer = render.Renderer(
+        width=16,
+        height=16,
+        num_cameras=1,
+        output="depth",
+        shading="low",
+        motion_blur_samples=2,
+        anti_aliasing_grid=2,
+    )
+    renderer.init(make_scene(2.0))
+    camera_open = renderer.camera(position=(0.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0))
+    camera_close = renderer.camera(position=(-1.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0))
+    renderer.set_motion_blur_cameras(camera_open[None], camera_close[None])
+    renderer.render_launch("depth")
+    renderer.render_sync("depth")
+    blurred_depth = renderer.depth()[0, 8, 8]
+    assert 2.0 < blurred_depth < 3.0
+
+    renderer.set_cameras(camera_open[None])
+    renderer.render("depth")
+    assert abs(renderer.depth()[0, 8, 8] - 2.0) < 1e-2
+
+
+def test_overlay_pipeline_and_output_saves(tmp_path):
+    scene = make_scene(8.0)
+    asset_pool = render.AssetPool()
+    dynamic = render.Object(name="dynamic", segmentation_class=23)
+    dynamic.add_mesh(make_quad(0.0, half_size=0.35, color=(1.0, 0.0, 0.0)))
+    asset = asset_pool.add_object(dynamic)
+    assembly_path = tmp_path / "overlay_assembly.glb"
+    write_minimal_glb(assembly_path)
+    assembly_asset = asset_pool.add_assembly(render.load_assembly(assembly_path, shading="low"))
+    assert asset_pool.num_assets == 2
+
+    renderer = render.Renderer(
+        width=48,
+        height=48,
+        num_cameras=2,
+        num_probes=2,
+        output="rgbd_segmentation",
+        shading="low",
+        num_overlays=2,
+        max_overlay_instances=2,
+        max_overlays_per_camera=2,
+    )
+    renderer.init(scene, asset_pool)
+    look_forward(renderer)
+    renderer.generate_probe_directions()
+    assert renderer.can_attach(0, 0)
+    assert renderer.can_spawn(0, asset)
+    renderer.attach(0, 0)
+    placement = renderer.spawn(0, asset, render.make_transform(position=(4.0, 0.75, 0.0)))
+    assert placement == (0, 1, 0)
+    renderer.update()
+    renderer.render()
+
+    instance_id = scene.num_instances + placement[0]
+    segmentation_live = renderer.segmentation(copy=False)
+    first_mask = segmentation_live[0] == instance_id
+    assert first_mask.sum() > 4
+    assert not np.any(segmentation_live[1] == instance_id)
+    assert np.mean(renderer.frame()[0][first_mask, 0]) > 100
+    assert np.mean(renderer.depth()[0][first_mask]) < 5.0
+
+    renderer.set_transform(0, placement, render.make_transform(position=(4.0, -0.75, 0.0)))
+    renderer.update()
+    renderer.render_launch()
+    renderer.render_sync()
+    second_view = renderer.segmentation(copy=False)
+    second_mask = second_view[0] == instance_id
+    assert np.shares_memory(segmentation_live, second_view)
+    assert second_mask.sum() > 4
+    assert not np.array_equal(first_mask, second_mask)
+
+    renderer.detach(0, 0)
+    renderer.attach(1, 0)
+    renderer.update()
+    renderer.render()
+    segmentation = renderer.segmentation()
+    assert not np.any(segmentation[0] == instance_id)
+    assert np.any(segmentation[1] == instance_id)
+
+    renderer.despawn(0, placement)
+    renderer.update()
+    renderer.render()
+    assert not np.any(renderer.segmentation() == instance_id)
+    assert renderer.can_spawn(0, asset)
+    replacement = renderer.spawn(0, asset, render.make_transform(position=(4.0, -0.75, 0.0)))
+    assert replacement == placement
+    renderer.update()
+    renderer.render()
+    assert np.any(renderer.segmentation()[1] == instance_id)
+
+    assert not renderer.can_spawn(0, assembly_asset)
+    renderer.despawn(0, replacement)
+    assert renderer.can_spawn(0, assembly_asset)
+    assembly_placement = renderer.spawn(0, assembly_asset, render.make_transform())
+    assert assembly_placement == (0, 2, 1)
+    renderer.set_part_transform(
+        0,
+        assembly_placement,
+        1,
+        render.make_transform(position=(0.0, 2.0, 0.0)),
+    )
+    renderer.update()
+    renderer.render()
+    segmentation = renderer.segmentation()
+    assert np.any(segmentation[1] == instance_id)
+    assert np.any(segmentation[1] == instance_id + 1)
+    assert not np.any(segmentation[0] == instance_id)
+    assert not np.any(segmentation[0] == instance_id + 1)
+
+    outputs = {
+        "frame.png": renderer.save_image,
+        "depth.png": renderer.save_depth_image,
+        "depth.bin": renderer.save_depth_raw,
+        "segmentation.png": renderer.save_segmentation_image,
+        "probes.bin": renderer.save_probes,
+    }
+    for name, save in outputs.items():
+        path = tmp_path / name
+        save(path)
+        assert path.stat().st_size > 0
+
+
+def test_semantic_segmentation_with_overlay():
+    scene = make_scene(8.0)
+    scene.set_object_segmentation_class(0, 7)
+    asset_pool = render.AssetPool()
+    dynamic = render.Object(name="semantic", segmentation_class=23)
+    dynamic.add_mesh(make_quad(0.0, half_size=0.25))
+    asset = asset_pool.add_object(dynamic)
+    renderer = render.Renderer(
+        width=24,
+        height=24,
+        output="segmentation",
+        shading="low",
+        num_overlays=1,
+        max_overlay_instances=1,
+        max_overlays_per_camera=1,
+        semantic_segmentation=True,
+    )
+    renderer.init(scene, asset_pool)
+    look_forward(renderer)
+    renderer.attach(0, 0)
+    renderer.spawn(0, asset, render.make_transform(position=(4.0, 0.0, 0.0)))
+    renderer.update()
+    renderer.render("segmentation")
+    classes = renderer.segmentation()
+    assert np.any(classes == 7)
+    assert np.any(classes == 23)
+
+
 def test_jit_cache_reuse():
     config = render.RendererConfig(
         width=16, height=16, num_cameras=1, num_probes=1, shading=0, output_mode=2,
