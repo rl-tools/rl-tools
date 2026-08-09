@@ -26,7 +26,7 @@ using TI = typename DEVICE::index_t;
 using CASES = golden::Cases<T, TI>;
 
 static const std::string SCENE_PATH = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH) "/ProcTHOR-Train-1.glb";
-static const std::string OUTPUT_DIR = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH) "/rendering_raytracing_golden";
+static const std::string OUTPUT_DIR = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH) "/rendering_raytracing_golden/procthor_static_scene";
 
 template <typename SPEC>
 bool run_case(DEVICE& device, const char* name, bool write_probes) {

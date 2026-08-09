@@ -107,8 +107,13 @@ jobs:
       - name: Install raytracing dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libassimp-dev cmake
+          sudo apt-get install -y libassimp-dev git-lfs cmake
 
+      - name: Download raytracing golden data
+        run: ./tests/download_data.sh --raytracing-goldens
+
+      # Publication gate: switch this to ON after the overlay corpus is published and
+      # tests/download_data.sh is pinned to the corresponding test-data revision.
       - name: Configure CMake
         run: >
           cmake -S . -B build-raytracing-generic
@@ -118,13 +123,36 @@ jobs:
           -DRL_TOOLS_BACKEND_DISABLE_CUDA=ON
           -DRL_TOOLS_RENDERING_ENABLE_RAYTRACING=ON
           -DRL_TOOLS_RENDERING_RAYTRACING_BACKEND=GENERIC
+          -DRL_TOOLS_REQUIRE_RAYTRACING_GOLDENS=OFF
 
-      - name: Build overlay scenarios
-        run: cmake --build build-raytracing-generic --target test_rendering_raytracing_overlay_scenarios_generic --parallel 5
+      - name: Build overlay tests
+        run: >
+          cmake --build build-raytracing-generic
+          --target
+          test_rendering_raytracing_golden_io
+          test_rendering_raytracing_overlay_scenarios_generic
+          test_rendering_raytracing_overlay_golden_comparison_generic
+          --parallel 5
+
+      - name: Test golden I/O
+        working-directory: build-raytracing-generic
+        run: ctest -L '^golden-io$' --no-tests=error --output-on-failure --timeout 20 -j5
 
       - name: Test overlay scenarios
         working-directory: build-raytracing-generic
-        run: ctest -L overlay --no-tests=error --output-on-failure --timeout 20 -j5
+        run: ctest -L '^overlay$' --no-tests=error --output-on-failure --timeout 20 -j5
+
+      - name: Test overlay goldens
+        working-directory: build-raytracing-generic
+        run: ctest -L '^overlay-golden$' --no-tests=error --output-on-failure --timeout 300 -j5
+
+      - name: Upload overlay golden artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: raytracing-golden-artifacts-generic
+          path: build-raytracing-generic/raytracing_golden_artifacts
+          if-no-files-found: ignore
 
   raytracing-vulkan:
     name: Raytracing Vulkan
@@ -139,7 +167,10 @@ jobs:
       - name: Install raytracing dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libassimp-dev libvulkan-dev glslang-tools mesa-vulkan-drivers cmake
+          sudo apt-get install -y libassimp-dev libvulkan-dev glslang-tools mesa-vulkan-drivers git-lfs cmake
+
+      - name: Download raytracing golden data
+        run: ./tests/download_data.sh --raytracing-goldens
 
       - name: Select Lavapipe driver
         run: |
@@ -147,6 +178,8 @@ jobs:
           test -n "$lavapipe_manifest"
           echo "VK_DRIVER_FILES=$lavapipe_manifest" >> "$GITHUB_ENV"
 
+      # Publication gate: switch this to ON after the overlay corpus is published and
+      # tests/download_data.sh is pinned to the corresponding test-data revision.
       - name: Configure CMake
         run: >
           cmake -S . -B build-raytracing-vulkan
@@ -156,10 +189,28 @@ jobs:
           -DRL_TOOLS_BACKEND_DISABLE_CUDA=ON
           -DRL_TOOLS_RENDERING_ENABLE_RAYTRACING=ON
           -DRL_TOOLS_RENDERING_RAYTRACING_BACKEND=VULKAN
+          -DRL_TOOLS_REQUIRE_RAYTRACING_GOLDENS=OFF
 
-      - name: Build overlay scenarios
-        run: cmake --build build-raytracing-vulkan --target test_rendering_raytracing_overlay_scenarios_vulkan --parallel 5
+      - name: Build overlay tests
+        run: >
+          cmake --build build-raytracing-vulkan
+          --target
+          test_rendering_raytracing_overlay_scenarios_vulkan
+          test_rendering_raytracing_overlay_golden_comparison_vulkan
+          --parallel 5
 
       - name: Test overlay scenarios
         working-directory: build-raytracing-vulkan
-        run: ctest -L overlay --no-tests=error --output-on-failure --timeout 20 -j5
+        run: ctest -L '^overlay$' --no-tests=error --output-on-failure --timeout 20 -j5
+
+      - name: Test overlay goldens
+        working-directory: build-raytracing-vulkan
+        run: ctest -L '^overlay-golden$' --no-tests=error --output-on-failure --timeout 300 -j5
+
+      - name: Upload overlay golden artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: raytracing-golden-artifacts-vulkan
+          path: build-raytracing-vulkan/raytracing_golden_artifacts
+          if-no-files-found: ignore
