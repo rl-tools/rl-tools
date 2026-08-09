@@ -21,6 +21,7 @@ constant bool fc_pbr_shading [[function_constant(8)]];
 constant bool fc_punctual_light_shadows [[function_constant(9)]];
 constant int fc_overlay_count [[function_constant(10)]];
 constant bool fc_semantic_segmentation [[function_constant(11)]];
+constant bool fc_has_observation [[function_constant(12)]];
 
 struct LaunchParams{
     uint fb_width;
@@ -526,6 +527,7 @@ kernel void render_rgb(
     device const InstanceData* instance_data [[buffer(10)]],
     device const OverlayStructure* overlays [[buffer(11)]],
     device const uint* overlay_attachments [[buffer(12)]],
+    device float* observation [[buffer(14), function_constant(fc_has_observation)]],
     uint2 pixel_id [[thread_position_in_grid]])
 {
     const PixelLaunchContext ctx = pixel_launch_context(params, pixel_id);
@@ -567,6 +569,16 @@ kernel void render_rgb(
     }
     const int samples = fc_motion_samples * fc_aa_grid * fc_aa_grid;
     const float3 color = accumulated * (1.f / float(samples));
+    if (fc_has_observation) {
+        // the observation is the frame-buffer color before 8-bit quantization
+        float3 obs_color = clamp(color, 0.f, 1.f);
+        if (fc_srgb_output) {
+            obs_color = float3(linear_to_srgb(obs_color.x), linear_to_srgb(obs_color.y), linear_to_srgb(obs_color.z));
+        }
+        observation[ctx.fb_offset * 3 + 0] = obs_color.x;
+        observation[ctx.fb_offset * 3 + 1] = obs_color.y;
+        observation[ctx.fb_offset * 3 + 2] = obs_color.z;
+    }
     if (fc_srgb_output) {
         fb[ctx.fb_offset] = make_srgb_rgba_from_linear(color);
     }

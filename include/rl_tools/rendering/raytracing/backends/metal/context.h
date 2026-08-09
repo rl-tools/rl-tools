@@ -39,6 +39,7 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         constexpr int OVERLAY_STRUCTURES = 11;
         constexpr int OVERLAY_ATTACHMENTS = 12;
         constexpr int INSTANCE_CLASSES = 13;
+        constexpr int OBSERVATION = 14;
     }
     namespace function_constants{
         constexpr int SRGB_OUTPUT = 0;
@@ -53,6 +54,7 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         constexpr int PUNCTUAL_LIGHT_SHADOWS = 9;
         constexpr int OVERLAY_COUNT = 10;
         constexpr int SEMANTIC_SEGMENTATION = 11;
+        constexpr int HAS_OBSERVATION = 12;
     }
 
     struct LaunchParams{
@@ -147,6 +149,7 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         NS::SharedPtr<MTL::Buffer> frame_buffer;
         NS::SharedPtr<MTL::Buffer> depth_buffer;
         NS::SharedPtr<MTL::Buffer> segmentation_buffer;
+        NS::SharedPtr<MTL::Buffer> observation;
         NS::SharedPtr<MTL::Buffer> collision_results;
         NS::SharedPtr<MTL::Buffer> probe_directions;
         NS::SharedPtr<MTL::Buffer> launch_params;

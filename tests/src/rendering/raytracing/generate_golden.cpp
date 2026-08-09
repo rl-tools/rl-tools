@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #ifndef RL_TOOLS_TEST_DATA_PATH
 #error "RL_TOOLS_TEST_DATA_PATH is required"
@@ -43,10 +44,13 @@ bool run_case(DEVICE& device, const char* name, bool write_probes) {
     rlt::init(device, renderer, scene);
 
     constexpr T aspect = (T)SPEC::CAM_WIDTH / (T)SPEC::CAM_HEIGHT;
+    constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rlt::rendering::raytracing::Camera<T>);
+    std::vector<rlt::rendering::raytracing::Camera<T>> camera_staging(SPEC::NUM_CAMERAS);
     for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
         const golden::Pose<T>& pose = CASES::POSES[camera_i];
-        rlt::set(device, renderer.cameras, rlt::make_camera_data(pose.position, pose.look_at, pose.up, SPEC::COS_FOVY, aspect), camera_i);
+        camera_staging[camera_i] = rlt::make_camera_data(pose.position, pose.look_at, pose.up, SPEC::COS_FOVY, aspect);
     }
+    cudaMemcpy(rlt::data(rlt::cameras(device, renderer)), camera_staging.data(), camera_bytes, cudaMemcpyHostToDevice);
     if constexpr(SPEC::ENABLE_MOTION_BLUR) {
         for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
             const golden::Pose<T>& pose = CASES::POSES[camera_i];
@@ -55,12 +59,9 @@ bool run_case(DEVICE& device, const char* name, bool write_probes) {
                 position[dim_i] = pose.position[dim_i] - CASES::MOTION_BLUR_DELTA[dim_i];
                 look_at[dim_i] = pose.look_at[dim_i] - CASES::MOTION_BLUR_DELTA[dim_i];
             }
-            rlt::set(device, renderer.cameras_open, rlt::make_camera_data(position, look_at, pose.up, SPEC::COS_FOVY, aspect), camera_i);
+            camera_staging[camera_i] = rlt::make_camera_data(position, look_at, pose.up, SPEC::COS_FOVY, aspect);
         }
-        rlt::set_motion_blur_cameras(device, renderer, renderer.cameras_open, renderer.cameras);
-    }
-    else {
-        rlt::set_cameras(device, renderer, renderer.cameras);
+        cudaMemcpy(rlt::data(rlt::cameras_open(device, renderer)), camera_staging.data(), camera_bytes, cudaMemcpyHostToDevice);
     }
     rlt::generate_probe_directions(device, renderer);
     rlt::render(device, renderer);
@@ -68,17 +69,19 @@ bool run_case(DEVICE& device, const char* name, bool write_probes) {
     cudaDeviceSynchronize();
 
     bool ok = true;
-    rlt::read_frame_buffer(device, renderer, renderer.frame_buffer);
-    const uint32_t* frame_buffer = rlt::data(renderer.frame_buffer);
     const size_t pixel_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+    std::vector<uint32_t> frame_buffer_staging(pixel_count);
+    cudaMemcpy(frame_buffer_staging.data(), rlt::data(rlt::frame_buffer(device, renderer)), pixel_count * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    const uint32_t* frame_buffer = frame_buffer_staging.data();
     if(std::all_of(frame_buffer, frame_buffer + pixel_count, [&](uint32_t pixel){ return pixel == frame_buffer[0]; })) {
         std::cerr << "[golden] " << name << ": frame buffer is constant" << std::endl;
         ok = false;
     }
+    std::vector<float> depth_staging;
     if constexpr(SPEC::HAS_DEPTH) {
-        rlt::read_depth_buffer(device, renderer, renderer.depth_buffer);
-        const float* depth_buffer = rlt::data(renderer.depth_buffer);
-        if(std::all_of(depth_buffer, depth_buffer + pixel_count, [&](float depth){ return depth == depth_buffer[0]; })) {
+        depth_staging.resize(pixel_count);
+        cudaMemcpy(depth_staging.data(), rlt::data(rlt::depth_buffer(device, renderer)), pixel_count * sizeof(float), cudaMemcpyDeviceToHost);
+        if(std::all_of(depth_staging.begin(), depth_staging.end(), [&](float depth){ return depth == depth_staging[0]; })) {
             std::cerr << "[golden] " << name << ": depth buffer is constant" << std::endl;
             ok = false;
         }
@@ -86,16 +89,19 @@ bool run_case(DEVICE& device, const char* name, bool write_probes) {
 
     if(ok) {
         // per-pose layout: <OUTPUT_DIR>/<pose_id>/<case>.png etc. (see golden_io.h)
+        std::vector<rlt::rendering::raytracing::CollisionResult> probe_staging;
         const rlt::rendering::raytracing::CollisionResult* probe_results = nullptr;
         if(write_probes) {
-            probe_results = rlt::read_collision_results_raw(device, renderer);
+            probe_staging.resize((size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);
+            cudaMemcpy(probe_staging.data(), rlt::data(rlt::collision_results(device, renderer)), probe_staging.size() * sizeof(rlt::rendering::raytracing::CollisionResult), cudaMemcpyDeviceToHost);
+            probe_results = probe_staging.data();
         }
         for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
             const std::string directory = OUTPUT_DIR + "/" + CASES::POSES[camera_i].id;
             std::filesystem::create_directories(directory);
             ok &= golden::write_camera_png(directory + "/" + std::string(name) + ".png", frame_buffer + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
             if constexpr(SPEC::HAS_DEPTH) {
-                const float* depth_buffer = rlt::data(renderer.depth_buffer);
+                const float* depth_buffer = depth_staging.data();
                 ok &= golden::write_camera_depth_bin(directory + "/" + std::string(name) + "_depth.bin", depth_buffer + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
             }
             if(write_probes && probe_results != nullptr) {

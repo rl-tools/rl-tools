@@ -189,23 +189,69 @@ namespace rl_tools {
     // =========================================================================
     // malloc: create OWL context and allocate buffers
     // =========================================================================
-    template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    namespace rendering::raytracing::backends::optix{
+        // context-scoped resources (context, module, miss programs): created once per renderer
+        // in standalone mode, once per AssetLibrary in shared mode
+        template <typename SPEC>
+        void create_context_resources(void*& context_out, void*& module_out){
+            OWLContext context = owlContextCreate(nullptr, 1);
+            owlContextSetRayTypeCount(context, 2);
+            owlContextSetNumPayloadValues(context, 4); // color ptr (2), recursion depth, hit distance
+            const char* ptx = nullptr;
+            if constexpr (SPEC::HAS_SEGMENTATION && SPEC::HAS_DEPTH) {
+                ptx = device_depth_segmentation_ptx;
+            }
+            else if constexpr (SPEC::HAS_SEGMENTATION) {
+                ptx = device_segmentation_ptx;
+            }
+            else if constexpr (SPEC::HAS_DEPTH) {
+                ptx = device_depth_ptx;
+            }
+            else {
+                ptx = device_ptx;
+            }
+            OWLModule module = owlModuleCreate(context, ptx);
+
+            // RGB miss program (ray type 0)
+            OWLVarDecl miss_prog_vars[] = {
+                { "color_0", OWL_FLOAT3, OWL_OFFSETOF(MissProgData, color_0)},
+                { "color_1", OWL_FLOAT3, OWL_OFFSETOF(MissProgData, color_1)},
+                { /* sentinel */ }
+            };
+            const char* miss_program_name = "miss";
+            if constexpr (SPEC::HAS_RGB && !SPEC::SHADING::CHECKER_BACKGROUND) {
+                miss_program_name = "missConstant";
+            }
+            OWLMissProg miss_prog = owlMissProgCreate(context, module, miss_program_name,
+                                                        sizeof(MissProgData), miss_prog_vars, -1);
+            if constexpr (SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING) {
+                owlMissProgSet3f(miss_prog, "color_0", owl3f{0.f, 0.f, 0.f});
+                owlMissProgSet3f(miss_prog, "color_1", owl3f{0.f, 0.f, 0.f});
+            } else {
+                owlMissProgSet3f(miss_prog, "color_0", owl3f{.8f, 0.f, 0.f});
+                owlMissProgSet3f(miss_prog, "color_1", owl3f{.8f, .8f, .8f});
+            }
+
+            // Collision miss program (ray type 1) — always registered to keep SBT consistent
+            OWLVarDecl collision_miss_vars[] = {
+                { "dummy", OWL_INT, OWL_OFFSETOF(CollisionMissData, dummy)},
+                { /* sentinel */ }
+            };
+            OWLMissProg collision_miss_prog = owlMissProgCreate(context, module, "collisionMiss",
+                                                                 sizeof(CollisionMissData), collision_miss_vars, -1);
+            (void)collision_miss_prog;
+
+            context_out = context;
+            module_out = module;
+        }
+    }
+
+    namespace rendering::raytracing::backends::optix::detail{
+        // everything renderer-private: framebuffers, cameras, ray gens, collision resources
+        template <typename DEVICE, typename SPEC>
+        void malloc_renderer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, OWLContext context, OWLModule module){
         using TI = typename SPEC::TI;
 
-        malloc(device, renderer.cameras);
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            malloc(device, renderer.cameras_open);
-        }
-        if constexpr (SPEC::HAS_RGB) {
-            malloc(device, renderer.frame_buffer);
-        }
-        if constexpr (SPEC::HAS_DEPTH) {
-            malloc(device, renderer.depth_buffer);
-        }
-        if constexpr (SPEC::HAS_SEGMENTATION) {
-            malloc(device, renderer.segmentation_buffer);
-        }
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             // device-resident transform input (see transforms(device, renderer)): producers write
             // it directly, update_launch consumes it on the render stream
@@ -215,77 +261,44 @@ namespace rl_tools {
             cudaMemset(transforms_device, 0, TRANSFORMS_SPEC::SIZE_BYTES);
             renderer.transforms._data = transforms_device;
         }
-        malloc(device, renderer.collision_results);
-
-        OWLContext context = owlContextCreate(nullptr, 1);
-        owlContextSetRayTypeCount(context, 2);
-        owlContextSetNumPayloadValues(context, 4); // color ptr (2), recursion depth, hit distance
-        const char* ptx = nullptr;
-        if constexpr (SPEC::HAS_SEGMENTATION && SPEC::HAS_DEPTH) {
-            ptx = device_depth_segmentation_ptx;
-        }
-        else if constexpr (SPEC::HAS_SEGMENTATION) {
-            ptx = device_segmentation_ptx;
-        }
-        else if constexpr (SPEC::HAS_DEPTH) {
-            ptx = device_depth_ptx;
-        }
-        else {
-            ptx = device_ptx;
-        }
-        OWLModule module = owlModuleCreate(context, ptx);
 
         constexpr TI cam_pixels = SPEC::CAM_PIXELS;
+        // device-resident outputs (see frame_buffer/depth_buffer/segmentation_buffer/observation
+        // accessors): the tensors alias the OWL buffers the ray gens write, so device consumers
+        // read them in place and host readers stage through an explicit copy
         OWLBuffer frame_buffer = nullptr;
         if constexpr (SPEC::HAS_RGB) {
             frame_buffer = owlDeviceBufferCreate(context, OWL_INT,
                                                  (size_t)SPEC::NUM_CAMERAS * cam_pixels, nullptr);
+            renderer.frame_buffer._data = (uint32_t*)owlBufferGetPointer(frame_buffer, 0);
+        }
+        OWLBuffer observation_buffer = nullptr;
+        if constexpr (SPEC::HAS_OBSERVATION) {
+            static_assert(utils::typing::is_same_v<typename SPEC::OBSERVATION_T, float>, "The OptiX raytracing backend requires OBSERVATION_T = float");
+            observation_buffer = owlDeviceBufferCreate(context, OWL_FLOAT,
+                                                       (size_t)SPEC::NUM_CAMERAS * cam_pixels * SPEC::OBSERVATION_CHANNELS, nullptr);
+            renderer.backend.observation_buffer_handle = observation_buffer;
+            renderer.observation._data = (float*)owlBufferGetPointer(observation_buffer, 0);
         }
         OWLBuffer depth_buffer = nullptr;
         if constexpr (SPEC::HAS_DEPTH) {
             depth_buffer = owlDeviceBufferCreate(context, OWL_FLOAT,
                                                 (size_t)SPEC::NUM_CAMERAS * cam_pixels, nullptr);
+            renderer.depth_buffer._data = (float*)owlBufferGetPointer(depth_buffer, 0);
         }
         OWLBuffer segmentation_buffer = nullptr;
         if constexpr (SPEC::HAS_SEGMENTATION) {
             segmentation_buffer = owlDeviceBufferCreate(context, OWL_UINT,
                                                         (size_t)SPEC::NUM_CAMERAS * cam_pixels, nullptr);
+            renderer.segmentation_buffer._data = (uint32_t*)owlBufferGetPointer(segmentation_buffer, 0);
         }
-
-        // RGB miss program (ray type 0)
-        OWLVarDecl miss_prog_vars[] = {
-            { "color_0", OWL_FLOAT3, OWL_OFFSETOF(MissProgData, color_0)},
-            { "color_1", OWL_FLOAT3, OWL_OFFSETOF(MissProgData, color_1)},
-            { /* sentinel */ }
-        };
-        const char* miss_program_name = "miss";
-        if constexpr (SPEC::HAS_RGB && !SPEC::SHADING::CHECKER_BACKGROUND) {
-            miss_program_name = "missConstant";
-        }
-        OWLMissProg miss_prog = owlMissProgCreate(context, module, miss_program_name,
-                                                    sizeof(MissProgData), miss_prog_vars, -1);
-        if constexpr (SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING) {
-            owlMissProgSet3f(miss_prog, "color_0", owl3f{0.f, 0.f, 0.f});
-            owlMissProgSet3f(miss_prog, "color_1", owl3f{0.f, 0.f, 0.f});
-        } else {
-            owlMissProgSet3f(miss_prog, "color_0", owl3f{.8f, 0.f, 0.f});
-            owlMissProgSet3f(miss_prog, "color_1", owl3f{.8f, .8f, .8f});
-        }
-
-        // Collision miss program (ray type 1) — always registered to keep SBT consistent
-        OWLVarDecl collision_miss_vars[] = {
-            { "dummy", OWL_INT, OWL_OFFSETOF(CollisionMissData, dummy)},
-            { /* sentinel */ }
-        };
-        OWLMissProg collision_miss_prog = owlMissProgCreate(context, module, "collisionMiss",
-                                                             sizeof(CollisionMissData), collision_miss_vars, -1);
-        (void)collision_miss_prog;
 
         OWLRayGen ray_gen = nullptr;
         if constexpr (SPEC::HAS_RGB) {
             if constexpr (SPEC::ENABLE_MOTION_BLUR) {
                 OWLVarDecl ray_gen_vars[] = {
                     { "fb_ptr",        OWL_BUFPTR, OWL_OFFSETOF(MotionBlurRayGenData, fb_ptr)},
+                    { "obs_ptr",       OWL_RAW_POINTER, OWL_OFFSETOF(MotionBlurRayGenData, obs_ptr)},
                     { "fb_size",       OWL_INT2,   OWL_OFFSETOF(MotionBlurRayGenData, fb_size)},
                     { "cam_size",      OWL_INT2,   OWL_OFFSETOF(MotionBlurRayGenData, cam_size)},
                     { "grid_cols",     OWL_INT,    OWL_OFFSETOF(MotionBlurRayGenData, grid_cols)},
@@ -302,6 +315,7 @@ namespace rl_tools {
             else {
                 OWLVarDecl ray_gen_vars[] = {
                     { "fb_ptr",       OWL_BUFPTR, OWL_OFFSETOF(RayGenData, fb_ptr)},
+                    { "obs_ptr",      OWL_RAW_POINTER, OWL_OFFSETOF(RayGenData, obs_ptr)},
                     { "fb_size",      OWL_INT2,   OWL_OFFSETOF(RayGenData, fb_size)},
                     { "cam_size",     OWL_INT2,   OWL_OFFSETOF(RayGenData, cam_size)},
                     { "grid_cols",    OWL_INT,    OWL_OFFSETOF(RayGenData, grid_cols)},
@@ -372,6 +386,7 @@ namespace rl_tools {
 
         if constexpr (SPEC::HAS_RGB) {
             owlRayGenSetBuffer(ray_gen, "fb_ptr", frame_buffer);
+            owlRayGenSetPointer(ray_gen, "obs_ptr", SPEC::HAS_OBSERVATION ? owlBufferGetPointer(observation_buffer, 0) : nullptr);
             owlRayGenSet2i    (ray_gen, "fb_size", fb_size);
             owlRayGenSet2i    (ray_gen, "cam_size", cam_size);
             owlRayGenSet1i    (ray_gen, "grid_cols", SPEC::GRID_COLS);
@@ -399,10 +414,14 @@ namespace rl_tools {
         // init builds the SBT: OWL serializes raygen variables into the SBT records only during
         // owlBuildSBT, so anything set later would be baked in as null.
         OWLBuffer cameras_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(OptixCameraData), SPEC::NUM_CAMERAS, nullptr);
+        // device-resident camera input (see cameras(device, renderer)): the tensors alias the
+        // OWL buffers the ray gens bind, so producer writes are consumed with no copy
+        renderer.cameras._data = (rendering::raytracing::Camera<typename SPEC::T>*)owlBufferGetPointer(cameras_buffer, 0);
         OWLBuffer cameras_open_buffer = nullptr;
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
             cameras_open_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(OptixCameraData), SPEC::NUM_CAMERAS, nullptr);
             renderer.backend.cameras_open_buffer = cameras_open_buffer;
+            renderer.cameras_open._data = (rendering::raytracing::Camera<typename SPEC::T>*)owlBufferGetPointer(cameras_open_buffer, 0);
         }
         if constexpr (SPEC::HAS_RGB) {
             if constexpr (SPEC::ENABLE_MOTION_BLUR) {
@@ -453,8 +472,11 @@ namespace rl_tools {
                                                        sizeof(CollisionRayGenData),
                                                        collision_ray_gen_vars, -1);
 
-        OWLBuffer collision_results_buffer = owlHostPinnedBufferCreate(context, OWL_USER_TYPE(CollisionResult),
-                                                                        (size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);
+        // device-resident (was host-pinned, which cost a PCIe write per probe launch): device
+        // consumers read collision_results(device, renderer) in place, host readers copy
+        OWLBuffer collision_results_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(CollisionResult),
+                                                                   (size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES, nullptr);
+        renderer.collision_results._data = (rendering::raytracing::CollisionResult*)owlBufferGetPointer(collision_results_buffer, 0);
         OWLBuffer probe_dirs_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(owl::vec3f), SPEC::NUM_PROBES, nullptr);
 
         owlRayGenSetBuffer(collision_ray_gen, "results", collision_results_buffer);
@@ -468,6 +490,40 @@ namespace rl_tools {
         renderer.backend.collision_results_buffer = collision_results_buffer;
         renderer.backend.probe_dirs_buffer = probe_dirs_buffer;
 #endif
+        }
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        namespace optix = rendering::raytracing::backends::optix;
+        void* context = nullptr;
+        void* module = nullptr;
+        optix::create_context_resources<SPEC>(context, module);
+        optix::detail::malloc_renderer(device, renderer, (OWLContext)context, (OWLModule)module);
+    }
+
+    // shared-library mode: the library owns the context; the renderer allocates only its own
+    // cameras/outputs/ray gens against it
+    template <typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, rendering::raytracing::AssetLibrary<SPEC>& library){
+        namespace optix = rendering::raytracing::backends::optix;
+        optix::detail::malloc_renderer(device, renderer, (OWLContext)library.context, (OWLModule)library.module);
+        renderer.backend.library = &library;
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC>& library){
+        rendering::raytracing::backends::optix::create_context_resources<SPEC>(library.context, library.module);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void free(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC>& library){
+        if(library.context != nullptr){
+            owlContextDestroy((OWLContext)library.context);
+            library.context = nullptr;
+            library.module = nullptr;
+            library.geom_type = nullptr;
+        }
     }
 
     // =========================================================================
@@ -476,90 +532,428 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void update(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer);
 
+    namespace rendering::raytracing::backends::optix::detail{
+        template <typename SPEC>
+        OWLGeomType create_geom_type(OWLContext context, OWLModule module){
+        OWLGeomType triangles_geom_type;
+            if constexpr (SPEC::HAS_RGB) {
+                if constexpr (SPEC::SHADING::PBR_SHADING) {
+                    OWLVarDecl triangles_geom_vars[] = {
+                        { "index",      OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, index)},
+                        { "vertex",     OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, vertex)},
+                        { "tex_coord",   OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, tex_coord)},
+                        { "color",      OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, color)},
+                        { "texture",    OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, texture)},
+                        { "has_texture", OWL_INT,     OWL_OFFSETOF(TrianglesGeomData, has_texture)},
+                        { "metallic",    OWL_FLOAT,   OWL_OFFSETOF(TrianglesGeomData, metallic)},
+                        { "world",       OWL_GROUP,   OWL_OFFSETOF(TrianglesGeomData, world)},
+                        { "normal",      OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, normal)},
+                        { "roughness",   OWL_FLOAT,   OWL_OFFSETOF(TrianglesGeomData, roughness)},
+                        { "normal_map",  OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, normal_map)},
+                        { "has_normal_map", OWL_INT,  OWL_OFFSETOF(TrianglesGeomData, has_normal_map)},
+                        { "metallic_roughness_map", OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, metallic_roughness_map)},
+                        { "has_metallic_roughness_map", OWL_INT, OWL_OFFSETOF(TrianglesGeomData, has_metallic_roughness_map)},
+                        { "emissive",      OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, emissive)},
+                        { "emissive_map",  OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, emissive_map)},
+                        { "has_emissive_map", OWL_INT,  OWL_OFFSETOF(TrianglesGeomData, has_emissive_map)},
+                        { "occlusion_map", OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, occlusion_map)},
+                        { "has_occlusion_map", OWL_INT, OWL_OFFSETOF(TrianglesGeomData, has_occlusion_map)},
+                        { "opacity",       OWL_FLOAT,   OWL_OFFSETOF(TrianglesGeomData, opacity)},
+                        { "alpha_mode",    OWL_INT,     OWL_OFFSETOF(TrianglesGeomData, alpha_mode)},
+                        { "alpha_cutoff",  OWL_FLOAT,   OWL_OFFSETOF(TrianglesGeomData, alpha_cutoff)},
+                        { "scene_lights",  OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, scene_lights)},
+                        { "num_scene_lights", OWL_INT,  OWL_OFFSETOF(TrianglesGeomData, num_scene_lights)},
+                        { "ambient_color", OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, ambient_color)},
+                        { /* sentinel */ }
+                    };
+                    triangles_geom_type = owlGeomTypeCreate(context, OWL_TRIANGLES,
+                                                             sizeof(TrianglesGeomData),
+                                                             triangles_geom_vars, -1);
+                    owlGeomTypeSetClosestHit(triangles_geom_type, 0, module, rendering::raytracing::detail::closest_hit_program_name<SPEC>());
+                } else {
+                    using SHADING_USAGE = rendering::raytracing::detail::MediumShadingUsage<SPEC>;
+                    std::vector<OWLVarDecl> triangles_geom_vars;
+                    if constexpr (SHADING_USAGE::USES_INDEX) {
+                        triangles_geom_vars.push_back({ "index", OWL_BUFPTR, OWL_OFFSETOF(TrianglesGeomData, index)});
+                    }
+                    if constexpr (SHADING_USAGE::USES_VERTEX) {
+                        triangles_geom_vars.push_back({ "vertex", OWL_BUFPTR, OWL_OFFSETOF(TrianglesGeomData, vertex)});
+                    }
+                    if constexpr (SHADING_USAGE::USES_TEXTURE) {
+                        triangles_geom_vars.push_back({ "tex_coord", OWL_BUFPTR, OWL_OFFSETOF(TrianglesGeomData, tex_coord)});
+                    }
+                    triangles_geom_vars.push_back({ "color", OWL_FLOAT3, OWL_OFFSETOF(TrianglesGeomData, color)});
+                    if constexpr (SHADING_USAGE::USES_TEXTURE) {
+                        triangles_geom_vars.push_back({ "texture", OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, texture)});
+                        triangles_geom_vars.push_back({ "has_texture", OWL_INT, OWL_OFFSETOF(TrianglesGeomData, has_texture)});
+                    }
+                    if constexpr (SPEC::SHADING::METALLIC_REFLECTIONS) {
+                        triangles_geom_vars.push_back({ "metallic", OWL_FLOAT, OWL_OFFSETOF(TrianglesGeomData, metallic)});
+                    }
+                    if constexpr (SHADING_USAGE::USES_WORLD) {
+                        triangles_geom_vars.push_back({ "world", OWL_GROUP, OWL_OFFSETOF(TrianglesGeomData, world)});
+                    }
+                    triangles_geom_vars.push_back({});
+                    triangles_geom_type = owlGeomTypeCreate(context, OWL_TRIANGLES,
+                                                             sizeof(TrianglesGeomData),
+                                                             triangles_geom_vars.data(), -1);
+                    owlGeomTypeSetClosestHit(triangles_geom_type, 0, module, rendering::raytracing::detail::closest_hit_program_name<SPEC>());
+                }
+            }
+            else {
+                OWLVarDecl triangles_geom_vars[] = {
+                    { /* sentinel */ }
+                };
+                triangles_geom_type = owlGeomTypeCreate(context, OWL_TRIANGLES,
+                                                         sizeof(CollisionGeomData),
+                                                         triangles_geom_vars, -1);
+            }
+            owlGeomTypeSetClosestHit(triangles_geom_type, 1, module, "collisionHit");
+            return triangles_geom_type;
+        }
+
+        // scene objects (and pool assets) all become the same all_objects order everywhere —
+        // part of the deterministic global instance-id layout
+        inline void collect_all_objects(const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool, std::vector<const rendering::raytracing::Object*>& all_objects){
+            all_objects.clear();
+            for(const auto& object : scene.objects){
+                all_objects.push_back(&object);
+            }
+            for(const auto& assembly : pool.assemblies){
+                for(const auto& object : assembly.objects){
+                    all_objects.push_back(&object);
+                }
+            }
+        }
+
+        // one geometry/texture/BLAS build per unique scene: standalone renderers build into
+        // their own context, shared-library renderers reference the library's single build
+        template <typename DEVICE, typename SPEC>
+        void build_scene_assets(DEVICE& device, OWLContext context, OWLGeomType triangles_geom_type, const rendering::raytracing::Scene& scene, const std::vector<const rendering::raytracing::Object*>& all_objects, rendering::raytracing::detail::SceneAssets& assets){
+            namespace optix = rendering::raytracing::backends::optix;
+            RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << scene.objects.size() << " object(s), " << scene.instances.size() << " instance(s), " << (all_objects.size() - scene.objects.size()) << " pool object(s) ...");
+
+            std::vector<OWLGeom> geoms;
+            std::vector<OWLGroup> object_groups;
+            for(size_t object_i = 0; object_i < all_objects.size(); object_i++){
+                std::vector<OWLGeom> object_geoms;
+                for(const auto& md : all_objects[object_i]->meshes){
+            size_t num_vertices = md.vertices.size() / 3;
+                size_t num_indices = md.indices.size() / 3;
+
+                OWLBuffer vb = owlDeviceBufferCreate(context, OWL_FLOAT3, num_vertices, md.vertices.data());
+                OWLBuffer ib = owlDeviceBufferCreate(context, OWL_INT3, num_indices, md.indices.data());
+
+                OWLGeom geom = owlGeomCreate(context, triangles_geom_type);
+                owlTrianglesSetVertices(geom, vb, num_vertices, sizeof(owl::vec3f), 0);
+                owlTrianglesSetIndices(geom, ib, num_indices, sizeof(owl::vec3i), 0);
+                if constexpr (SPEC::HAS_RGB) {
+                    using SHADING_USAGE = rendering::raytracing::detail::MediumShadingUsage<SPEC>;
+                    if constexpr (SPEC::SHADING::PBR_SHADING || SHADING_USAGE::USES_VERTEX) {
+                        owlGeomSetBuffer(geom, "vertex", vb);
+                    }
+                    if constexpr (SPEC::SHADING::PBR_SHADING || SHADING_USAGE::USES_INDEX) {
+                        owlGeomSetBuffer(geom, "index", ib);
+                    }
+                    owlGeomSet3f(geom, "color", owl3f{md.color[0], md.color[1], md.color[2]});
+
+                    if constexpr (SPEC::SHADING::PBR_SHADING || SPEC::SHADING::LOAD_TEXTURES) {
+                    if(!md.tex_coords.empty()){
+                        size_t num_tc = md.tex_coords.size() / 2;
+                        OWLBuffer tcb = owlDeviceBufferCreate(context, OWL_FLOAT2, num_tc, md.tex_coords.data());
+                        owlGeomSetBuffer(geom, "tex_coord", tcb);
+                    }
+
+                    if(md.texture.present()){
+                        OWLTexture tex = owlTexture2DCreate(context,
+                                                             OWL_TEXEL_FORMAT_RGBA8,
+                                                             md.texture.width, md.texture.height,
+                                                             md.texture.pixels.data(),
+                                                             OWL_TEXTURE_LINEAR,
+                                                             OWL_TEXTURE_WRAP,
+                                                             OWL_TEXTURE_WRAP,
+                                                             OWL_COLOR_SPACE_SRGB);
+                        owlGeomSetTexture(geom, "texture", tex);
+                        owlGeomSet1i(geom, "has_texture", 1);
+                    } else {
+                        owlGeomSet1i(geom, "has_texture", 0);
+                    }
+                    }
+
+                    if constexpr (SPEC::SHADING::PBR_SHADING || SPEC::SHADING::METALLIC_REFLECTIONS) {
+                    owlGeomSet1f(geom, "metallic", md.metallic);
+                    }
+
+                    if constexpr (SPEC::SHADING::PBR_SHADING) {
+                        if (!md.normals.empty()) {
+                            size_t num_normals = md.normals.size() / 3;
+                            OWLBuffer nb = owlDeviceBufferCreate(context, OWL_FLOAT3, num_normals, md.normals.data());
+                            owlGeomSetBuffer(geom, "normal", nb);
+                        }
+
+                        owlGeomSet1f(geom, "roughness", md.roughness);
+
+                    if (md.normal_map.present()) {
+                        OWLTexture nm_tex = owlTexture2DCreate(context,
+                                                               OWL_TEXEL_FORMAT_RGBA8,
+                                                               md.normal_map.width, md.normal_map.height,
+                                                               md.normal_map.pixels.data(),
+                                                               OWL_TEXTURE_LINEAR,
+                                                               OWL_TEXTURE_WRAP,
+                                                               OWL_TEXTURE_WRAP,
+                                                               OWL_COLOR_SPACE_LINEAR);
+                        owlGeomSetTexture(geom, "normal_map", nm_tex);
+                        owlGeomSet1i(geom, "has_normal_map", 1);
+                    } else {
+                        owlGeomSet1i(geom, "has_normal_map", 0);
+                    }
+
+                    if (md.metallic_roughness_map.present()) {
+                        OWLTexture mr_tex = owlTexture2DCreate(context,
+                                                               OWL_TEXEL_FORMAT_RGBA8,
+                                                               md.metallic_roughness_map.width, md.metallic_roughness_map.height,
+                                                               md.metallic_roughness_map.pixels.data(),
+                                                               OWL_TEXTURE_LINEAR,
+                                                               OWL_TEXTURE_WRAP,
+                                                               OWL_TEXTURE_WRAP,
+                                                               OWL_COLOR_SPACE_LINEAR);
+                        owlGeomSetTexture(geom, "metallic_roughness_map", mr_tex);
+                        owlGeomSet1i(geom, "has_metallic_roughness_map", 1);
+                    } else {
+                        owlGeomSet1i(geom, "has_metallic_roughness_map", 0);
+                    }
+
+                    owlGeomSet3f(geom, "emissive", owl3f{md.emissive[0], md.emissive[1], md.emissive[2]});
+                    if (md.emissive_map.present()) {
+                        OWLTexture em_tex = owlTexture2DCreate(context,
+                                                               OWL_TEXEL_FORMAT_RGBA8,
+                                                               md.emissive_map.width, md.emissive_map.height,
+                                                               md.emissive_map.pixels.data(),
+                                                               OWL_TEXTURE_LINEAR,
+                                                               OWL_TEXTURE_WRAP,
+                                                               OWL_TEXTURE_WRAP,
+                                                               OWL_COLOR_SPACE_SRGB);
+                        owlGeomSetTexture(geom, "emissive_map", em_tex);
+                        owlGeomSet1i(geom, "has_emissive_map", 1);
+                    } else {
+                        owlGeomSet1i(geom, "has_emissive_map", 0);
+                    }
+
+                    if (md.occlusion_map.present()) {
+                        OWLTexture ao_tex = owlTexture2DCreate(context,
+                                                               OWL_TEXEL_FORMAT_RGBA8,
+                                                               md.occlusion_map.width, md.occlusion_map.height,
+                                                               md.occlusion_map.pixels.data(),
+                                                               OWL_TEXTURE_LINEAR,
+                                                               OWL_TEXTURE_WRAP,
+                                                               OWL_TEXTURE_WRAP,
+                                                               OWL_COLOR_SPACE_LINEAR);
+                        owlGeomSetTexture(geom, "occlusion_map", ao_tex);
+                        owlGeomSet1i(geom, "has_occlusion_map", 1);
+                    } else {
+                        owlGeomSet1i(geom, "has_occlusion_map", 0);
+                    }
+
+                    owlGeomSet1f(geom, "opacity", md.opacity);
+                    owlGeomSet1i(geom, "alpha_mode", md.alpha_mode);
+                    owlGeomSet1f(geom, "alpha_cutoff", md.alpha_cutoff);
+                    owlGeomSet3f(geom, "ambient_color", owl3f{0.10f, 0.10f, 0.10f});
+                    }
+                }
+
+                geoms.push_back(geom);
+                object_geoms.push_back(geom);
+                }
+            OWLGroup triangles_group = owlTrianglesGeomGroupCreate(context, object_geoms.size(), object_geoms.data());
+                owlGroupBuildAccel(triangles_group);
+                object_groups.push_back(triangles_group);
+            }
+
+            if constexpr (SPEC::ENABLE_OVERLAYS){
+                // degenerate triangle: valid to build, never reported as a hit
+                const float filler_vertices[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+                const int filler_indices[3] = {0, 1, 2};
+                OWLBuffer filler_vertex_buffer = owlDeviceBufferCreate(context, OWL_FLOAT3, 3, filler_vertices);
+                OWLBuffer filler_index_buffer = owlDeviceBufferCreate(context, OWL_INT3, 1, filler_indices);
+                OWLGeom filler_geom = owlGeomCreate(context, triangles_geom_type);
+                owlTrianglesSetVertices(filler_geom, filler_vertex_buffer, 3, sizeof(owl::vec3f), 0);
+                owlTrianglesSetIndices(filler_geom, filler_index_buffer, 1, sizeof(owl::vec3i), 0);
+                if constexpr (SPEC::HAS_RGB){
+                    owlGeomSet3f(filler_geom, "color", owl3f{0.f, 0.f, 0.f});
+                }
+                geoms.push_back(filler_geom);
+                OWLGroup filler_group = owlTrianglesGeomGroupCreate(context, 1, &filler_geom);
+                owlGroupBuildAccel(filler_group);
+                assets.filler_group = filler_group;
+            }
+
+            std::vector<OWLGroup> instance_children;
+            std::vector<uint32_t> instance_ids; // user instance ids == global instance ids (contract: segmentation_object, operations_cpu_common.h)
+            std::vector<float> instance_transforms; // 12 per instance: owl affine3f (linear columns vx, vy, vz, then translation)
+            for(const auto& instance : scene.instances){
+                instance_children.push_back(object_groups[instance.object]);
+                instance_ids.push_back((uint32_t)instance_ids.size());
+                const float* transform = instance.transform; // 3x4 row-major [R|t]
+                const float owl_transform[12] = {
+                    transform[0], transform[4], transform[8],
+                    transform[1], transform[5], transform[9],
+                    transform[2], transform[6], transform[10],
+                    transform[3], transform[7], transform[11]
+                };
+                instance_transforms.insert(instance_transforms.end(), owl_transform, owl_transform + 12);
+            }
+            OWLGroup world = owlInstanceGroupCreate(context, instance_children.size(), instance_children.data(), instance_ids.data(), instance_transforms.data(), OWL_MATRIX_FORMAT_OWL);
+            owlGroupBuildAccel(world);
+
+            if constexpr (SPEC::HAS_RGB && (SPEC::SHADING::PBR_SHADING || SPEC::SHADING::METALLIC_REFLECTIONS)) {
+                for(size_t m = 0; m < geoms.size(); m++){
+                    owlGeomSetGroup(geoms[m], "world", world);
+                }
+            }
+
+            if constexpr (SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING) {
+                const auto scene_lights = rendering::raytracing::detail::effective_scene_lights<true>(scene);
+                OWLBuffer light_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(rendering::raytracing::SceneLight),
+                                                                scene_lights.size(), scene_lights.data());
+                for (size_t m = 0; m < geoms.size(); m++) {
+                    owlGeomSetBuffer(geoms[m], "scene_lights", light_buffer);
+                    owlGeomSet1i(geoms[m], "num_scene_lights", (int)scene_lights.size());
+                }
+            }
+
+            std::vector<unsigned int> host_instance_classes(scene.instances.size() + (SPEC::ENABLE_OVERLAYS ? (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES : 0), 0);
+            for(size_t instance_i = 0; instance_i < scene.instances.size(); instance_i++){
+                host_instance_classes[instance_i] = all_objects[scene.instances[instance_i].object]->segmentation_class;
+            }
+            if(host_instance_classes.empty()){
+                host_instance_classes.push_back(0);
+            }
+            OWLBuffer instance_classes_buffer = owlDeviceBufferCreate(context, OWL_UINT, host_instance_classes.size(), host_instance_classes.data());
+
+            assets.world = world;
+            assets.instance_classes_buffer = instance_classes_buffer;
+            assets.num_scene_instances = scene.instances.size();
+            assets.object_groups.clear();
+            for(OWLGroup object_group : object_groups){
+                assets.object_groups.push_back((void*)object_group);
+            }
+        }
+
+        // wires one renderer to a scene build: bounds, overlay state, ray gen vars, launch
+        // params, and the context-level programs/pipeline/SBT rebuild
+        template <typename DEVICE, typename SPEC>
+        void init_renderer_scene(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const rendering::raytracing::Scene& scene, const std::vector<const rendering::raytracing::Object*>& all_objects, const rendering::raytracing::detail::SceneAssets& assets){
+            namespace optix = rendering::raytracing::backends::optix;
+            OWLContext context = (OWLContext)renderer.backend.context;
+            rendering::raytracing::detail::compute_scene_bounds(renderer, scene);
+            OWLGroup world = (OWLGroup)assets.world;
+            OWLBuffer instance_classes_buffer = (OWLBuffer)assets.instance_classes_buffer;
+
+            delete (optix::OverlayState*)renderer.backend.overlay_state;
+            renderer.backend.overlay_state = nullptr;
+            if constexpr (SPEC::ENABLE_OVERLAYS){
+                auto* overlay_state = new optix::OverlayState{};
+                for(void* object_group : assets.object_groups){
+                    overlay_state->object_groups.push_back((OWLGroup)object_group);
+                }
+                overlay_state->filler_group = (OWLGroup)assets.filler_group;
+                renderer.backend.overlay_state = overlay_state;
+            }
+
+            if constexpr (SPEC::HAS_RGB) {
+                owlRayGenSetGroup((OWLRayGen)renderer.backend.ray_gen, "world", world);
+            }
+            if constexpr (SPEC::HAS_DEPTH) {
+                const float max_depth = renderer.camera_radius > 0 ? renderer.camera_radius * 2.0f : 1e30f;
+                owlRayGenSetGroup((OWLRayGen)renderer.backend.depth_ray_gen, "world", world);
+                owlRayGenSet1f((OWLRayGen)renderer.backend.depth_ray_gen, "max_depth", max_depth);
+            }
+            if constexpr (SPEC::HAS_SEGMENTATION) {
+                owlRayGenSetGroup((OWLRayGen)renderer.backend.segmentation_ray_gen, "world", world);
+            }
+            if(renderer.backend.collision_ray_gen){
+                owlRayGenSetGroup((OWLRayGen)renderer.backend.collision_ray_gen, "world", world);
+                owlRayGenSet1f((OWLRayGen)renderer.backend.collision_ray_gen, "max_dist", renderer.camera_radius * 2.0f);
+            }
+            renderer.backend.world = world;
+
+            // programs/pipeline/SBT must be (re)built after the geometry set changes; the launch
+            // params are spec-dependent and created once. In shared-library mode later scene
+            // builds only append SBT records, so earlier renderers' baked offsets stay valid.
+            owlBuildPrograms(context);
+            owlBuildPipeline(context);
+            owlBuildSBT(context);
+
+            if constexpr (SPEC::ENABLE_OVERLAYS){
+                auto* overlay_state = (optix::OverlayState*)renderer.backend.overlay_state;
+                // per-object BLAS traversables and SBT offsets are only final after owlBuildSBT above;
+                // baked into a device table the fill kernel joins against slot structure
+                std::vector<optix::OverlayObjectEntry> object_entries(overlay_state->object_groups.size());
+                for(size_t object_i = 0; object_i < overlay_state->object_groups.size(); object_i++){
+                    object_entries[object_i].traversable = (unsigned long long)owlGroupGetTraversable(overlay_state->object_groups[object_i], 0);
+                    object_entries[object_i].sbt_offset = owlGroupGetSBTOffset(overlay_state->object_groups[object_i]);
+                    object_entries[object_i].segmentation_class = all_objects[object_i]->segmentation_class;
+                }
+                overlay_state->accel = optix::overlay_accel_create(owlContextGetOptixContext(context, 0), SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES, (unsigned int)scene.instances.size(), (unsigned long long)owlGroupGetTraversable(overlay_state->filler_group, 0));
+                optix::overlay_accel_upload_objects(overlay_state->accel, object_entries.data(), (unsigned int)object_entries.size());
+                overlay_state->structure_staging.assign((size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES, optix::OverlaySlotStructure{});
+                overlay_state->transforms_staging.assign((size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12, 0.0f);
+                // published once: raw builds into fixed per-overlay buffers keep the handles stable,
+                // so no per-rebuild re-publication is needed
+                overlay_state->traversables_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(unsigned long long), SPEC::NUM_OVERLAYS, optix::overlay_accel_traversables(overlay_state->accel));
+                overlay_state->attachments_buffer = owlDeviceBufferCreate(context, OWL_UINT, (size_t)SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA, nullptr);
+                rendering::raytracing::detail::reset_overlay_state(renderer);
+                overlay_state->instance_classes_buffer = instance_classes_buffer;
+                overlay_state->num_scene_instances = scene.instances.size();
+            }
+
+            if(renderer.backend.launch_params == nullptr){
+                OWLVarDecl launch_params_vars[] = {
+                    { "overlays",      OWL_BUFPTR, OWL_OFFSETOF(OverlayLaunchParams, overlays)},
+                    { "attachments",   OWL_BUFPTR, OWL_OFFSETOF(OverlayLaunchParams, attachments)},
+                    { "overlay_count", OWL_INT,    OWL_OFFSETOF(OverlayLaunchParams, overlay_count)},
+                    { "cam_width",     OWL_INT,    OWL_OFFSETOF(OverlayLaunchParams, cam_width)},
+                    { "cam_height",    OWL_INT,    OWL_OFFSETOF(OverlayLaunchParams, cam_height)},
+                    { "grid_cols",     OWL_INT,    OWL_OFFSETOF(OverlayLaunchParams, grid_cols)},
+                    { "instance_classes", OWL_BUFPTR, OWL_OFFSETOF(OverlayLaunchParams, instance_classes)},
+                    { "semantic_segmentation", OWL_INT, OWL_OFFSETOF(OverlayLaunchParams, semantic_segmentation)},
+                    { /* sentinel */ }
+                };
+                OWLParams launch_params = owlParamsCreate(context, sizeof(OverlayLaunchParams), launch_params_vars, -1);
+                renderer.backend.launch_params = launch_params;
+                if(renderer.backend.collision_ray_gen){
+                    OWLParams coll_lp = owlParamsCreate(context, sizeof(OverlayLaunchParams), launch_params_vars, -1);
+                    renderer.backend.coll_launch_params = coll_lp;
+                }
+            }
+            OWLParams all_launch_params[2] = {(OWLParams)renderer.backend.launch_params, (OWLParams)renderer.backend.coll_launch_params};
+            for(OWLParams launch_params : all_launch_params){
+                if(launch_params == nullptr) continue;
+                owlParamsSet1i(launch_params, "overlay_count", (int)SPEC::MAX_OVERLAYS_PER_CAMERA);
+                owlParamsSet1i(launch_params, "cam_width", (int)SPEC::CAM_WIDTH);
+                owlParamsSet1i(launch_params, "cam_height", (int)SPEC::CAM_HEIGHT);
+                owlParamsSet1i(launch_params, "grid_cols", (int)SPEC::GRID_COLS);
+                owlParamsSet1i(launch_params, "semantic_segmentation", SPEC::SEMANTIC_SEGMENTATION ? 1 : 0);
+                owlParamsSetBuffer(launch_params, "instance_classes", instance_classes_buffer);
+                if constexpr (SPEC::ENABLE_OVERLAYS){
+                    auto* overlay_state = (optix::OverlayState*)renderer.backend.overlay_state;
+                    owlParamsSetBuffer(launch_params, "overlays", overlay_state->traversables_buffer);
+                    owlParamsSetBuffer(launch_params, "attachments", overlay_state->attachments_buffer);
+                }
+            }
+
+            if constexpr (SPEC::ENABLE_OVERLAYS){
+                update(device, renderer); // publish the (empty) overlays and the attachment table
+            }
+        }
+    }
+
     template <typename DEVICE, typename SPEC>
     void init(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool){
         namespace optix = rendering::raytracing::backends::optix;
         OWLContext context = (OWLContext)renderer.backend.context;
         OWLModule module = (OWLModule)renderer.backend.module;
-
-        rendering::raytracing::detail::compute_scene_bounds(renderer, scene);
-
-        OWLGeomType triangles_geom_type;
-        if constexpr (SPEC::HAS_RGB) {
-            if constexpr (SPEC::SHADING::PBR_SHADING) {
-                OWLVarDecl triangles_geom_vars[] = {
-                    { "index",      OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, index)},
-                    { "vertex",     OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, vertex)},
-                    { "tex_coord",   OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, tex_coord)},
-                    { "color",      OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, color)},
-                    { "texture",    OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, texture)},
-                    { "has_texture", OWL_INT,     OWL_OFFSETOF(TrianglesGeomData, has_texture)},
-                    { "metallic",    OWL_FLOAT,   OWL_OFFSETOF(TrianglesGeomData, metallic)},
-                    { "world",       OWL_GROUP,   OWL_OFFSETOF(TrianglesGeomData, world)},
-                    { "normal",      OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, normal)},
-                    { "roughness",   OWL_FLOAT,   OWL_OFFSETOF(TrianglesGeomData, roughness)},
-                    { "normal_map",  OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, normal_map)},
-                    { "has_normal_map", OWL_INT,  OWL_OFFSETOF(TrianglesGeomData, has_normal_map)},
-                    { "metallic_roughness_map", OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, metallic_roughness_map)},
-                    { "has_metallic_roughness_map", OWL_INT, OWL_OFFSETOF(TrianglesGeomData, has_metallic_roughness_map)},
-                    { "emissive",      OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, emissive)},
-                    { "emissive_map",  OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, emissive_map)},
-                    { "has_emissive_map", OWL_INT,  OWL_OFFSETOF(TrianglesGeomData, has_emissive_map)},
-                    { "occlusion_map", OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, occlusion_map)},
-                    { "has_occlusion_map", OWL_INT, OWL_OFFSETOF(TrianglesGeomData, has_occlusion_map)},
-                    { "opacity",       OWL_FLOAT,   OWL_OFFSETOF(TrianglesGeomData, opacity)},
-                    { "alpha_mode",    OWL_INT,     OWL_OFFSETOF(TrianglesGeomData, alpha_mode)},
-                    { "alpha_cutoff",  OWL_FLOAT,   OWL_OFFSETOF(TrianglesGeomData, alpha_cutoff)},
-                    { "scene_lights",  OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, scene_lights)},
-                    { "num_scene_lights", OWL_INT,  OWL_OFFSETOF(TrianglesGeomData, num_scene_lights)},
-                    { "ambient_color", OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, ambient_color)},
-                    { /* sentinel */ }
-                };
-                triangles_geom_type = owlGeomTypeCreate(context, OWL_TRIANGLES,
-                                                         sizeof(TrianglesGeomData),
-                                                         triangles_geom_vars, -1);
-                owlGeomTypeSetClosestHit(triangles_geom_type, 0, module, rendering::raytracing::detail::closest_hit_program_name<SPEC>());
-            } else {
-                using SHADING_USAGE = rendering::raytracing::detail::MediumShadingUsage<SPEC>;
-                std::vector<OWLVarDecl> triangles_geom_vars;
-                if constexpr (SHADING_USAGE::USES_INDEX) {
-                    triangles_geom_vars.push_back({ "index", OWL_BUFPTR, OWL_OFFSETOF(TrianglesGeomData, index)});
-                }
-                if constexpr (SHADING_USAGE::USES_VERTEX) {
-                    triangles_geom_vars.push_back({ "vertex", OWL_BUFPTR, OWL_OFFSETOF(TrianglesGeomData, vertex)});
-                }
-                if constexpr (SHADING_USAGE::USES_TEXTURE) {
-                    triangles_geom_vars.push_back({ "tex_coord", OWL_BUFPTR, OWL_OFFSETOF(TrianglesGeomData, tex_coord)});
-                }
-                triangles_geom_vars.push_back({ "color", OWL_FLOAT3, OWL_OFFSETOF(TrianglesGeomData, color)});
-                if constexpr (SHADING_USAGE::USES_TEXTURE) {
-                    triangles_geom_vars.push_back({ "texture", OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, texture)});
-                    triangles_geom_vars.push_back({ "has_texture", OWL_INT, OWL_OFFSETOF(TrianglesGeomData, has_texture)});
-                }
-                if constexpr (SPEC::SHADING::METALLIC_REFLECTIONS) {
-                    triangles_geom_vars.push_back({ "metallic", OWL_FLOAT, OWL_OFFSETOF(TrianglesGeomData, metallic)});
-                }
-                if constexpr (SHADING_USAGE::USES_WORLD) {
-                    triangles_geom_vars.push_back({ "world", OWL_GROUP, OWL_OFFSETOF(TrianglesGeomData, world)});
-                }
-                triangles_geom_vars.push_back({});
-                triangles_geom_type = owlGeomTypeCreate(context, OWL_TRIANGLES,
-                                                         sizeof(TrianglesGeomData),
-                                                         triangles_geom_vars.data(), -1);
-                owlGeomTypeSetClosestHit(triangles_geom_type, 0, module, rendering::raytracing::detail::closest_hit_program_name<SPEC>());
-            }
-        }
-        else {
-            OWLVarDecl triangles_geom_vars[] = {
-                { /* sentinel */ }
-            };
-            triangles_geom_type = owlGeomTypeCreate(context, OWL_TRIANGLES,
-                                                     sizeof(CollisionGeomData),
-                                                     triangles_geom_vars, -1);
-        }
-        owlGeomTypeSetClosestHit(triangles_geom_type, 1, module, "collisionHit");
-
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << scene.objects.size() << " object(s), " << scene.instances.size() << " instance(s) ...");
+        OWLGeomType triangles_geom_type = optix::detail::create_geom_type<SPEC>(context, module);
 
         std::vector<const rendering::raytracing::Object*> all_objects;
         for(const auto& object : scene.objects){
@@ -569,301 +963,70 @@ namespace rl_tools {
             rendering::raytracing::detail::register_pool_assets(device, renderer, pool, all_objects);
         }
 
-        std::vector<OWLGeom> geoms;
-        std::vector<OWLGroup> object_groups;
-        for(size_t object_i = 0; object_i < all_objects.size(); object_i++){
-            std::vector<OWLGeom> object_geoms;
-            for(const auto& md : all_objects[object_i]->meshes){
-            size_t num_vertices = md.vertices.size() / 3;
-            size_t num_indices = md.indices.size() / 3;
+        rendering::raytracing::detail::SceneAssets assets;
+        optix::detail::build_scene_assets<DEVICE, SPEC>(device, context, triangles_geom_type, scene, all_objects, assets);
+        optix::detail::init_renderer_scene(device, renderer, scene, all_objects, assets);
+    }
 
-            OWLBuffer vb = owlDeviceBufferCreate(context, OWL_FLOAT3, num_vertices, md.vertices.data());
-            OWLBuffer ib = owlDeviceBufferCreate(context, OWL_INT3, num_indices, md.indices.data());
-
-            OWLGeom geom = owlGeomCreate(context, triangles_geom_type);
-            owlTrianglesSetVertices(geom, vb, num_vertices, sizeof(owl::vec3f), 0);
-            owlTrianglesSetIndices(geom, ib, num_indices, sizeof(owl::vec3i), 0);
-            if constexpr (SPEC::HAS_RGB) {
-                using SHADING_USAGE = rendering::raytracing::detail::MediumShadingUsage<SPEC>;
-                if constexpr (SPEC::SHADING::PBR_SHADING || SHADING_USAGE::USES_VERTEX) {
-                    owlGeomSetBuffer(geom, "vertex", vb);
-                }
-                if constexpr (SPEC::SHADING::PBR_SHADING || SHADING_USAGE::USES_INDEX) {
-                    owlGeomSetBuffer(geom, "index", ib);
-                }
-                owlGeomSet3f(geom, "color", owl3f{md.color[0], md.color[1], md.color[2]});
-
-                if constexpr (SPEC::SHADING::PBR_SHADING || SPEC::SHADING::LOAD_TEXTURES) {
-                if(!md.tex_coords.empty()){
-                    size_t num_tc = md.tex_coords.size() / 2;
-                    OWLBuffer tcb = owlDeviceBufferCreate(context, OWL_FLOAT2, num_tc, md.tex_coords.data());
-                    owlGeomSetBuffer(geom, "tex_coord", tcb);
-                }
-
-                if(md.texture.present()){
-                    OWLTexture tex = owlTexture2DCreate(context,
-                                                         OWL_TEXEL_FORMAT_RGBA8,
-                                                         md.texture.width, md.texture.height,
-                                                         md.texture.pixels.data(),
-                                                         OWL_TEXTURE_LINEAR,
-                                                         OWL_TEXTURE_WRAP,
-                                                         OWL_TEXTURE_WRAP,
-                                                         OWL_COLOR_SPACE_SRGB);
-                    owlGeomSetTexture(geom, "texture", tex);
-                    owlGeomSet1i(geom, "has_texture", 1);
-                } else {
-                    owlGeomSet1i(geom, "has_texture", 0);
-                }
-                }
-
-                if constexpr (SPEC::SHADING::PBR_SHADING || SPEC::SHADING::METALLIC_REFLECTIONS) {
-                owlGeomSet1f(geom, "metallic", md.metallic);
-                }
-
-                if constexpr (SPEC::SHADING::PBR_SHADING) {
-                    if (!md.normals.empty()) {
-                        size_t num_normals = md.normals.size() / 3;
-                        OWLBuffer nb = owlDeviceBufferCreate(context, OWL_FLOAT3, num_normals, md.normals.data());
-                        owlGeomSetBuffer(geom, "normal", nb);
-                    }
-
-                    owlGeomSet1f(geom, "roughness", md.roughness);
-
-                if (md.normal_map.present()) {
-                    OWLTexture nm_tex = owlTexture2DCreate(context,
-                                                           OWL_TEXEL_FORMAT_RGBA8,
-                                                           md.normal_map.width, md.normal_map.height,
-                                                           md.normal_map.pixels.data(),
-                                                           OWL_TEXTURE_LINEAR,
-                                                           OWL_TEXTURE_WRAP,
-                                                           OWL_TEXTURE_WRAP,
-                                                           OWL_COLOR_SPACE_LINEAR);
-                    owlGeomSetTexture(geom, "normal_map", nm_tex);
-                    owlGeomSet1i(geom, "has_normal_map", 1);
-                } else {
-                    owlGeomSet1i(geom, "has_normal_map", 0);
-                }
-
-                if (md.metallic_roughness_map.present()) {
-                    OWLTexture mr_tex = owlTexture2DCreate(context,
-                                                           OWL_TEXEL_FORMAT_RGBA8,
-                                                           md.metallic_roughness_map.width, md.metallic_roughness_map.height,
-                                                           md.metallic_roughness_map.pixels.data(),
-                                                           OWL_TEXTURE_LINEAR,
-                                                           OWL_TEXTURE_WRAP,
-                                                           OWL_TEXTURE_WRAP,
-                                                           OWL_COLOR_SPACE_LINEAR);
-                    owlGeomSetTexture(geom, "metallic_roughness_map", mr_tex);
-                    owlGeomSet1i(geom, "has_metallic_roughness_map", 1);
-                } else {
-                    owlGeomSet1i(geom, "has_metallic_roughness_map", 0);
-                }
-
-                owlGeomSet3f(geom, "emissive", owl3f{md.emissive[0], md.emissive[1], md.emissive[2]});
-                if (md.emissive_map.present()) {
-                    OWLTexture em_tex = owlTexture2DCreate(context,
-                                                           OWL_TEXEL_FORMAT_RGBA8,
-                                                           md.emissive_map.width, md.emissive_map.height,
-                                                           md.emissive_map.pixels.data(),
-                                                           OWL_TEXTURE_LINEAR,
-                                                           OWL_TEXTURE_WRAP,
-                                                           OWL_TEXTURE_WRAP,
-                                                           OWL_COLOR_SPACE_SRGB);
-                    owlGeomSetTexture(geom, "emissive_map", em_tex);
-                    owlGeomSet1i(geom, "has_emissive_map", 1);
-                } else {
-                    owlGeomSet1i(geom, "has_emissive_map", 0);
-                }
-
-                if (md.occlusion_map.present()) {
-                    OWLTexture ao_tex = owlTexture2DCreate(context,
-                                                           OWL_TEXEL_FORMAT_RGBA8,
-                                                           md.occlusion_map.width, md.occlusion_map.height,
-                                                           md.occlusion_map.pixels.data(),
-                                                           OWL_TEXTURE_LINEAR,
-                                                           OWL_TEXTURE_WRAP,
-                                                           OWL_TEXTURE_WRAP,
-                                                           OWL_COLOR_SPACE_LINEAR);
-                    owlGeomSetTexture(geom, "occlusion_map", ao_tex);
-                    owlGeomSet1i(geom, "has_occlusion_map", 1);
-                } else {
-                    owlGeomSet1i(geom, "has_occlusion_map", 0);
-                }
-
-                owlGeomSet1f(geom, "opacity", md.opacity);
-                owlGeomSet1i(geom, "alpha_mode", md.alpha_mode);
-                owlGeomSet1f(geom, "alpha_cutoff", md.alpha_cutoff);
-                owlGeomSet3f(geom, "ambient_color", owl3f{0.10f, 0.10f, 0.10f});
-                }
+    // shared-library mode: one geometry/texture/BLAS build per unique scene (content-hash
+    // dedup inside the library), then the renderer is wired to the shared build. Returns the
+    // unique-scene index so callers can key their own per-scene data.
+    template <typename DEVICE, typename SPEC>
+    typename SPEC::TI init(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, rendering::raytracing::AssetLibrary<SPEC>& library, const char* scene_path){
+        namespace optix = rendering::raytracing::backends::optix;
+        using TI = typename SPEC::TI;
+        utils::assert_exit(device, renderer.backend.library == &library, "init: the renderer was not malloc'd against this library");
+        bool is_new = false;
+        const TI scene_id = rendering::raytracing::detail::library_lookup_or_load(device, library, scene_path, is_new);
+        const rendering::raytracing::Scene& scene = library.scenes[scene_id];
+        if(is_new){
+            if(library.geom_type == nullptr){
+                library.geom_type = optix::detail::create_geom_type<SPEC>((OWLContext)library.context, (OWLModule)library.module);
             }
-
-            geoms.push_back(geom);
-            object_geoms.push_back(geom);
-            }
-            OWLGroup triangles_group = owlTrianglesGeomGroupCreate(context, object_geoms.size(), object_geoms.data());
-            owlGroupBuildAccel(triangles_group);
-            object_groups.push_back(triangles_group);
+            std::vector<const rendering::raytracing::Object*> build_objects;
+            optix::detail::collect_all_objects(scene, library.pool, build_objects);
+            optix::detail::build_scene_assets<DEVICE, SPEC>(device, (OWLContext)library.context, (OWLGeomType)library.geom_type, scene, build_objects, library.assets[scene_id]);
         }
-
-        delete (optix::OverlayState*)renderer.backend.overlay_state;
-        renderer.backend.overlay_state = nullptr;
+        std::vector<const rendering::raytracing::Object*> all_objects;
+        for(const auto& object : scene.objects){
+            all_objects.push_back(&object);
+        }
         if constexpr (SPEC::ENABLE_OVERLAYS){
-            auto* overlay_state = new optix::OverlayState{};
-            overlay_state->object_groups = object_groups;
-            // degenerate triangle: valid to build, never reported as a hit
-            const float filler_vertices[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-            const int filler_indices[3] = {0, 1, 2};
-            OWLBuffer filler_vertex_buffer = owlDeviceBufferCreate(context, OWL_FLOAT3, 3, filler_vertices);
-            OWLBuffer filler_index_buffer = owlDeviceBufferCreate(context, OWL_INT3, 1, filler_indices);
-            OWLGeom filler_geom = owlGeomCreate(context, triangles_geom_type);
-            owlTrianglesSetVertices(filler_geom, filler_vertex_buffer, 3, sizeof(owl::vec3f), 0);
-            owlTrianglesSetIndices(filler_geom, filler_index_buffer, 1, sizeof(owl::vec3i), 0);
-            if constexpr (SPEC::HAS_RGB){
-                owlGeomSet3f(filler_geom, "color", owl3f{0.f, 0.f, 0.f});
-            }
-            geoms.push_back(filler_geom);
-            overlay_state->filler_group = owlTrianglesGeomGroupCreate(context, 1, &filler_geom);
-            owlGroupBuildAccel(overlay_state->filler_group);
-            renderer.backend.overlay_state = overlay_state;
+            rendering::raytracing::detail::register_pool_assets(device, renderer, library.pool, all_objects);
         }
-
-        std::vector<OWLGroup> instance_children;
-        std::vector<uint32_t> instance_ids; // user instance ids == global instance ids (contract: segmentation_object, operations_cpu_common.h)
-        std::vector<float> instance_transforms; // 12 per instance: owl affine3f (linear columns vx, vy, vz, then translation)
-        for(const auto& instance : scene.instances){
-            instance_children.push_back(object_groups[instance.object]);
-            instance_ids.push_back((uint32_t)instance_ids.size());
-            const float* transform = instance.transform; // 3x4 row-major [R|t]
-            const float owl_transform[12] = {
-                transform[0], transform[4], transform[8],
-                transform[1], transform[5], transform[9],
-                transform[2], transform[6], transform[10],
-                transform[3], transform[7], transform[11]
-            };
-            instance_transforms.insert(instance_transforms.end(), owl_transform, owl_transform + 12);
+        else{
+            optix::detail::collect_all_objects(scene, library.pool, all_objects);
         }
-        OWLGroup world = owlInstanceGroupCreate(context, instance_children.size(), instance_children.data(), instance_ids.data(), instance_transforms.data(), OWL_MATRIX_FORMAT_OWL);
-        owlGroupBuildAccel(world);
-
-        if constexpr (SPEC::HAS_RGB && (SPEC::SHADING::PBR_SHADING || SPEC::SHADING::METALLIC_REFLECTIONS)) {
-            for(size_t m = 0; m < geoms.size(); m++){
-                owlGeomSetGroup(geoms[m], "world", world);
-            }
-        }
-
-        if constexpr (SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING) {
-            const auto scene_lights = rendering::raytracing::detail::effective_scene_lights<true>(scene);
-            OWLBuffer light_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(rendering::raytracing::SceneLight),
-                                                            scene_lights.size(), scene_lights.data());
-            for (size_t m = 0; m < geoms.size(); m++) {
-                owlGeomSetBuffer(geoms[m], "scene_lights", light_buffer);
-                owlGeomSet1i(geoms[m], "num_scene_lights", (int)scene_lights.size());
-            }
-        }
-
-        if constexpr (SPEC::HAS_RGB) {
-            owlRayGenSetGroup((OWLRayGen)renderer.backend.ray_gen, "world", world);
-        }
-        if constexpr (SPEC::HAS_DEPTH) {
-            const float max_depth = renderer.camera_radius > 0 ? renderer.camera_radius * 2.0f : 1e30f;
-            owlRayGenSetGroup((OWLRayGen)renderer.backend.depth_ray_gen, "world", world);
-            owlRayGenSet1f((OWLRayGen)renderer.backend.depth_ray_gen, "max_depth", max_depth);
-        }
-        if constexpr (SPEC::HAS_SEGMENTATION) {
-            owlRayGenSetGroup((OWLRayGen)renderer.backend.segmentation_ray_gen, "world", world);
-        }
-        if(renderer.backend.collision_ray_gen){
-            owlRayGenSetGroup((OWLRayGen)renderer.backend.collision_ray_gen, "world", world);
-            owlRayGenSet1f((OWLRayGen)renderer.backend.collision_ray_gen, "max_dist", renderer.camera_radius * 2.0f);
-        }
-        renderer.backend.world = world;
-
-        // programs/pipeline/SBT must be (re)built after the geometry set changes; the launch
-        // params are spec-dependent and created once. Device buffers from a previous init are
-        // released with the OWL context in free, not here.
-        owlBuildPrograms(context);
-        owlBuildPipeline(context);
-        owlBuildSBT(context);
-
-        if constexpr (SPEC::ENABLE_OVERLAYS){
-            auto* overlay_state = (optix::OverlayState*)renderer.backend.overlay_state;
-            // per-object BLAS traversables and SBT offsets are only final after owlBuildSBT above;
-            // baked into a device table the fill kernel joins against slot structure
-            std::vector<optix::OverlayObjectEntry> object_entries(overlay_state->object_groups.size());
-            for(size_t object_i = 0; object_i < overlay_state->object_groups.size(); object_i++){
-                object_entries[object_i].traversable = (unsigned long long)owlGroupGetTraversable(overlay_state->object_groups[object_i], 0);
-                object_entries[object_i].sbt_offset = owlGroupGetSBTOffset(overlay_state->object_groups[object_i]);
-                object_entries[object_i].segmentation_class = all_objects[object_i]->segmentation_class;
-            }
-            overlay_state->accel = optix::overlay_accel_create(owlContextGetOptixContext(context, 0), SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES, (unsigned int)scene.instances.size(), (unsigned long long)owlGroupGetTraversable(overlay_state->filler_group, 0));
-            optix::overlay_accel_upload_objects(overlay_state->accel, object_entries.data(), (unsigned int)object_entries.size());
-            overlay_state->structure_staging.assign((size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES, optix::OverlaySlotStructure{});
-            overlay_state->transforms_staging.assign((size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12, 0.0f);
-            // published once: raw builds into fixed per-overlay buffers keep the handles stable,
-            // so no per-rebuild re-publication is needed
-            overlay_state->traversables_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(unsigned long long), SPEC::NUM_OVERLAYS, optix::overlay_accel_traversables(overlay_state->accel));
-            overlay_state->attachments_buffer = owlDeviceBufferCreate(context, OWL_UINT, (size_t)SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA, nullptr);
-            rendering::raytracing::detail::reset_overlay_state(renderer);
-        }
-
-        std::vector<unsigned int> host_instance_classes(scene.instances.size() + (SPEC::ENABLE_OVERLAYS ? (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES : 0), 0);
-        for(size_t instance_i = 0; instance_i < scene.instances.size(); instance_i++){
-            host_instance_classes[instance_i] = all_objects[scene.instances[instance_i].object]->segmentation_class;
-        }
-        if(host_instance_classes.empty()){
-            host_instance_classes.push_back(0);
-        }
-        OWLBuffer instance_classes_buffer = owlDeviceBufferCreate(context, OWL_UINT, host_instance_classes.size(), host_instance_classes.data());
-        if constexpr (SPEC::ENABLE_OVERLAYS){
-            auto* overlay_state = (optix::OverlayState*)renderer.backend.overlay_state;
-            overlay_state->instance_classes_buffer = instance_classes_buffer;
-            overlay_state->num_scene_instances = scene.instances.size();
-        }
-
-        if(renderer.backend.launch_params == nullptr){
-            OWLVarDecl launch_params_vars[] = {
-                { "overlays",      OWL_BUFPTR, OWL_OFFSETOF(OverlayLaunchParams, overlays)},
-                { "attachments",   OWL_BUFPTR, OWL_OFFSETOF(OverlayLaunchParams, attachments)},
-                { "overlay_count", OWL_INT,    OWL_OFFSETOF(OverlayLaunchParams, overlay_count)},
-                { "cam_width",     OWL_INT,    OWL_OFFSETOF(OverlayLaunchParams, cam_width)},
-                { "cam_height",    OWL_INT,    OWL_OFFSETOF(OverlayLaunchParams, cam_height)},
-                { "grid_cols",     OWL_INT,    OWL_OFFSETOF(OverlayLaunchParams, grid_cols)},
-                { "instance_classes", OWL_BUFPTR, OWL_OFFSETOF(OverlayLaunchParams, instance_classes)},
-                { "semantic_segmentation", OWL_INT, OWL_OFFSETOF(OverlayLaunchParams, semantic_segmentation)},
-                { /* sentinel */ }
-            };
-            OWLParams launch_params = owlParamsCreate(context, sizeof(OverlayLaunchParams), launch_params_vars, -1);
-            renderer.backend.launch_params = launch_params;
-            if(renderer.backend.collision_ray_gen){
-                OWLParams coll_lp = owlParamsCreate(context, sizeof(OverlayLaunchParams), launch_params_vars, -1);
-                renderer.backend.coll_launch_params = coll_lp;
-            }
-        }
-        OWLParams all_launch_params[2] = {(OWLParams)renderer.backend.launch_params, (OWLParams)renderer.backend.coll_launch_params};
-        for(OWLParams launch_params : all_launch_params){
-            if(launch_params == nullptr) continue;
-            owlParamsSet1i(launch_params, "overlay_count", (int)SPEC::MAX_OVERLAYS_PER_CAMERA);
-            owlParamsSet1i(launch_params, "cam_width", (int)SPEC::CAM_WIDTH);
-            owlParamsSet1i(launch_params, "cam_height", (int)SPEC::CAM_HEIGHT);
-            owlParamsSet1i(launch_params, "grid_cols", (int)SPEC::GRID_COLS);
-            owlParamsSet1i(launch_params, "semantic_segmentation", SPEC::SEMANTIC_SEGMENTATION ? 1 : 0);
-            owlParamsSetBuffer(launch_params, "instance_classes", instance_classes_buffer);
-            if constexpr (SPEC::ENABLE_OVERLAYS){
-                auto* overlay_state = (optix::OverlayState*)renderer.backend.overlay_state;
-                owlParamsSetBuffer(launch_params, "overlays", overlay_state->traversables_buffer);
-                owlParamsSetBuffer(launch_params, "attachments", overlay_state->attachments_buffer);
-            }
-        }
-
-        if constexpr (SPEC::ENABLE_OVERLAYS){
-            update(device, renderer); // publish the (empty) overlays and the attachment table
-        }
+        optix::detail::init_renderer_scene(device, renderer, scene, all_objects, library.assets[scene_id]);
+        return scene_id;
     }
 
     template <typename DEVICE, typename SPEC>
     void init(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const rendering::raytracing::Scene& scene){
         static const rendering::raytracing::AssetPool empty_pool{};
         init(device, renderer, scene, empty_pool);
+    }
+
+    namespace rendering::raytracing::backends::optix{
+        // producers write the renderer's device tensors on the caller's stream (device.stream);
+        // the launch verbs bridge it to the backend-owned streams with an event so producer
+        // writes are ordered before consumption — callers never handle streams. A CPU device has
+        // no stream member and resolves to the null overload (host writes are synchronous).
+        template <typename DEVICE>
+        auto producer_stream(DEVICE& device, int) -> decltype(device.stream) { return device.stream; }
+        template <typename DEVICE>
+        cudaStream_t producer_stream(DEVICE& device, long){ return nullptr; }
+
+        inline void await_producer(cudaStream_t producer, cudaStream_t consumer){
+            if(producer == nullptr || producer == consumer){
+                return;
+            }
+            cudaEvent_t ready;
+            cudaEventCreateWithFlags(&ready, cudaEventDisableTiming);
+            cudaEventRecord(ready, producer);
+            cudaStreamWaitEvent(consumer, ready, 0);
+            cudaEventDestroy(ready);
+        }
     }
 
     // fully stream-ordered on the render stream: staging uploads for host-verb writes, then the
@@ -876,6 +1039,7 @@ namespace rl_tools {
         auto* overlay_state = (optix::OverlayState*)renderer.backend.overlay_state;
         cudaStream_t cuda_stream = (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend.launch_params, 0);
         cudaStream_t coll_stream = renderer.backend.coll_launch_params != nullptr ? (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend.coll_launch_params, 0) : cuda_stream;
+        optix::await_producer(optix::producer_stream(device, 0), cuda_stream);
         if(coll_stream != cuda_stream){
             // probe launches trace the overlay TLASes on their own stream: order this rebuild
             // after in-flight probes and subsequent probes after this rebuild, without host syncs
@@ -937,35 +1101,13 @@ namespace rl_tools {
     void generate_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer,
                           const typename SPEC::T center[3], typename SPEC::T radius,
                           const typename SPEC::T up[3], typename SPEC::T fov){
-        rendering::raytracing::detail::generate_camera_poses(device, renderer, center, radius, up, fov);
+        std::vector<rendering::raytracing::Camera<typename SPEC::T>> staging(SPEC::NUM_CAMERAS);
+        rendering::raytracing::detail::generate_camera_poses<SPEC>(device, staging.data(), center, radius, up, fov);
 
-        owlBufferUpload((OWLBuffer)renderer.backend.cameras_buffer, data(renderer.cameras), 0, SPEC::NUM_CAMERAS);
+        owlBufferUpload((OWLBuffer)renderer.backend.cameras_buffer, staging.data(), 0, SPEC::NUM_CAMERAS);
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            owlBufferUpload((OWLBuffer)renderer.backend.cameras_open_buffer, data(renderer.cameras), 0, SPEC::NUM_CAMERAS);
+            owlBufferUpload((OWLBuffer)renderer.backend.cameras_open_buffer, staging.data(), 0, SPEC::NUM_CAMERAS);
         }
-    }
-
-    template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
-    void set_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
-        static_assert(utils::typing::is_same_v<typename CAMERAS_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
-        static_assert(get<0>(typename CAMERAS_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-
-        owlBufferUpload((OWLBuffer)renderer.backend.cameras_buffer, data(cameras), 0, SPEC::NUM_CAMERAS);
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            owlBufferUpload((OWLBuffer)renderer.backend.cameras_open_buffer, data(cameras), 0, SPEC::NUM_CAMERAS);
-        }
-    }
-
-    template <typename DEVICE, typename SPEC, typename CAMERAS_OPEN_SPEC, typename CAMERAS_CLOSE_SPEC>
-    void set_motion_blur_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_OPEN_SPEC>& cameras_open, const Tensor<CAMERAS_CLOSE_SPEC>& cameras_close){
-        static_assert(SPEC::ENABLE_MOTION_BLUR, "set_motion_blur_cameras requires a motion-blur renderer specification");
-        static_assert(utils::typing::is_same_v<typename CAMERAS_OPEN_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
-        static_assert(utils::typing::is_same_v<typename CAMERAS_CLOSE_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
-        static_assert(get<0>(typename CAMERAS_OPEN_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        static_assert(get<0>(typename CAMERAS_CLOSE_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-
-        owlBufferUpload((OWLBuffer)renderer.backend.cameras_open_buffer, data(cameras_open), 0, SPEC::NUM_CAMERAS);
-        owlBufferUpload((OWLBuffer)renderer.backend.cameras_buffer, data(cameras_close), 0, SPEC::NUM_CAMERAS);
     }
 
     // =========================================================================
@@ -984,7 +1126,9 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void render_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        namespace optix = rendering::raytracing::backends::optix;
         OWLParams launch_params = (OWLParams)renderer.backend.launch_params;
+        optix::await_producer(optix::producer_stream(device, 0), (cudaStream_t)owlParamsGetCudaStream(launch_params, 0));
         if constexpr (SPEC::HAS_RGB) {
             OWLRayGen ray_gen = (OWLRayGen)renderer.backend.ray_gen;
             owlAsyncLaunch2D(ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
@@ -1013,9 +1157,11 @@ namespace rl_tools {
     // separate probe verb so it can be scheduled independently (e.g. alongside update)
     template <typename DEVICE, typename SPEC>
     void probe_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        namespace optix = rendering::raytracing::backends::optix;
         if(renderer.backend.collision_ray_gen){
             OWLRayGen collision_ray_gen = (OWLRayGen)renderer.backend.collision_ray_gen;
             OWLParams coll_lp = (OWLParams)renderer.backend.coll_launch_params;
+            optix::await_producer(optix::producer_stream(device, 0), (cudaStream_t)owlParamsGetCudaStream(coll_lp, 0));
             owlAsyncLaunch2D(collision_ray_gen, SPEC::NUM_CAMERAS, SPEC::NUM_PROBES, coll_lp);
         }
     }
@@ -1032,80 +1178,13 @@ namespace rl_tools {
         probe_sync(device, renderer);
     }
 
-    template <typename DEVICE, typename SPEC, typename CAMERAS_SPEC>
-    void set_cameras_async(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const Tensor<CAMERAS_SPEC>& cameras){
-        static_assert(utils::typing::is_same_v<typename CAMERAS_SPEC::T, rendering::raytracing::Camera<typename SPEC::T>>);
-        static_assert(get<0>(typename CAMERAS_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-
-        OWLParams launch_params = (OWLParams)renderer.backend.launch_params;
-        cudaStream_t stream = (cudaStream_t)owlParamsGetCudaStream(launch_params, 0);
-        void* d_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.cameras_buffer, 0);
-        cudaMemcpyAsync(d_ptr, data(cameras), SPEC::NUM_CAMERAS * sizeof(OptixCameraData), cudaMemcpyHostToDevice, stream);
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            void* d_open_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.cameras_open_buffer, 0);
-            cudaMemcpyAsync(d_open_ptr, data(cameras), SPEC::NUM_CAMERAS * sizeof(OptixCameraData), cudaMemcpyHostToDevice, stream);
-        }
-    }
-
-    // device-resident camera input: cameras_device points at NUM_CAMERAS packed Camera<T>
-    // structs (12 floats each) in CUDA device memory. The copy is enqueued on the render
-    // stream, so it orders after the previous launch (no overwrite hazard) and before the
-    // next one; a non-null producer_stream is awaited via an event, never a host sync.
-    template <typename DEVICE, typename SPEC>
-    void set_cameras_device(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const typename SPEC::T* cameras_device, cudaStream_t producer_stream = nullptr){
-        OWLParams launch_params = (OWLParams)renderer.backend.launch_params;
-        cudaStream_t stream = (cudaStream_t)owlParamsGetCudaStream(launch_params, 0);
-        if(producer_stream != nullptr && producer_stream != stream){
-            cudaEvent_t cameras_ready;
-            cudaEventCreateWithFlags(&cameras_ready, cudaEventDisableTiming);
-            cudaEventRecord(cameras_ready, producer_stream);
-            cudaStreamWaitEvent(stream, cameras_ready, 0);
-            cudaEventDestroy(cameras_ready);
-        }
-        void* d_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.cameras_buffer, 0);
-        cudaMemcpyAsync(d_ptr, cameras_device, SPEC::NUM_CAMERAS * sizeof(OptixCameraData), cudaMemcpyDeviceToDevice, stream);
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            void* d_open_ptr = (void*)owlBufferGetPointer((OWLBuffer)renderer.backend.cameras_open_buffer, 0);
-            cudaMemcpyAsync(d_open_ptr, cameras_device, SPEC::NUM_CAMERAS * sizeof(OptixCameraData), cudaMemcpyDeviceToDevice, stream);
-        }
-    }
-
-    template <typename DEVICE, typename SPEC, typename FB_SPEC>
-    void read_frame_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<FB_SPEC>& out_pixels){
-        static_assert(SPEC::HAS_RGB, "read_frame_buffer requires an RGB-capable renderer specification");
-        static_assert(utils::typing::is_same_v<typename FB_SPEC::T, uint32_t>);
-        static_assert(get<0>(typename FB_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        constexpr typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-        cudaMemcpy(data(out_pixels), owlBufferGetPointer((OWLBuffer)renderer.backend.frame_buffer_handle, 0), expected * sizeof(uint32_t), cudaMemcpyDeviceToHost);
-    }
-
-    template <typename DEVICE, typename SPEC, typename SEGMENTATION_SPEC>
-    void read_segmentation_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<SEGMENTATION_SPEC>& out_segmentation){
-        static_assert(SPEC::HAS_SEGMENTATION, "read_segmentation_buffer requires a segmentation-capable renderer specification");
-        static_assert(utils::typing::is_same_v<typename SEGMENTATION_SPEC::T, uint32_t>);
-        static_assert(get<0>(typename SEGMENTATION_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        constexpr typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-        cudaMemcpy(data(out_segmentation), owlBufferGetPointer((OWLBuffer)renderer.backend.segmentation_buffer_handle, 0), expected * sizeof(uint32_t), cudaMemcpyDeviceToHost);
-    }
-
     template <typename DEVICE, typename SPEC>
     void save_segmentation_image(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, const char* filename){
         static_assert(SPEC::HAS_SEGMENTATION, "save_segmentation_image requires a segmentation-capable renderer specification");
         const size_t segmentation_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
         std::vector<uint32_t> segmentation_host(segmentation_count);
-        cudaMemcpy(segmentation_host.data(), owlBufferGetPointer((OWLBuffer)renderer.backend.segmentation_buffer_handle, 0), segmentation_count * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+        cudaMemcpy(segmentation_host.data(), data(renderer.segmentation_buffer), segmentation_count * sizeof(uint32_t), cudaMemcpyDeviceToHost);
         rendering::raytracing::detail::write_segmentation_grid_png<SPEC>(segmentation_host.data(), filename);
-    }
-
-    template <typename DEVICE, typename SPEC, typename DEPTH_SPEC>
-    void read_depth_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<DEPTH_SPEC>& out_depth){
-        static_assert(SPEC::HAS_DEPTH, "read_depth_buffer requires a depth-capable renderer specification");
-        static_assert(utils::typing::is_same_v<typename DEPTH_SPEC::T, float>);
-        static_assert(get<0>(typename DEPTH_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        static_assert(get<1>(typename DEPTH_SPEC::SHAPE{}) == SPEC::CAM_HEIGHT);
-        static_assert(get<2>(typename DEPTH_SPEC::SHAPE{}) == SPEC::CAM_WIDTH);
-        constexpr typename SPEC::TI expected = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-        cudaMemcpy(data(out_depth), owlBufferGetPointer((OWLBuffer)renderer.backend.depth_buffer_handle, 0), expected * sizeof(float), cudaMemcpyDeviceToHost);
     }
 
     // =========================================================================
@@ -1119,10 +1198,7 @@ namespace rl_tools {
         const size_t fb_count = (size_t)SPEC::NUM_CAMERAS * cam_pixels;
 
         std::vector<uint32_t> fb_host(fb_count);
-        cudaMemcpy(fb_host.data(),
-                   owlBufferGetPointer((OWLBuffer)renderer.backend.frame_buffer_handle, 0),
-                   fb_count * sizeof(uint32_t),
-                   cudaMemcpyDeviceToHost);
+        cudaMemcpy(fb_host.data(), data(renderer.frame_buffer), fb_count * sizeof(uint32_t), cudaMemcpyDeviceToHost);
         rendering::raytracing::detail::write_grid_png<SPEC>(fb_host.data(), filename);
     }
 
@@ -1134,10 +1210,7 @@ namespace rl_tools {
         const size_t depth_count = (size_t)SPEC::NUM_CAMERAS * cam_pixels;
 
         std::vector<float> depth_host(depth_count);
-        cudaMemcpy(depth_host.data(),
-                   owlBufferGetPointer((OWLBuffer)renderer.backend.depth_buffer_handle, 0),
-                   depth_count * sizeof(float),
-                   cudaMemcpyDeviceToHost);
+        cudaMemcpy(depth_host.data(), data(renderer.depth_buffer), depth_count * sizeof(float), cudaMemcpyDeviceToHost);
 
         rendering::raytracing::detail::write_depth_grid_png<SPEC>(depth_host.data(), renderer.camera_radius, filename);
     }
@@ -1147,10 +1220,7 @@ namespace rl_tools {
         static_assert(SPEC::HAS_DEPTH, "save_depth requires a depth-capable renderer specification");
         constexpr size_t depth_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
         std::vector<float> depth_host(depth_count);
-        cudaMemcpy(depth_host.data(),
-                   owlBufferGetPointer((OWLBuffer)renderer.backend.depth_buffer_handle, 0),
-                   depth_count * sizeof(float),
-                   cudaMemcpyDeviceToHost);
+        cudaMemcpy(depth_host.data(), data(renderer.depth_buffer), depth_count * sizeof(float), cudaMemcpyDeviceToHost);
         rendering::raytracing::detail::write_depth_bin<SPEC>(depth_host.data(), filename);
     }
 
@@ -1164,53 +1234,11 @@ namespace rl_tools {
         (void)filename;
         return;
 #else
-        const CollisionResult* probe_results =
-            (const CollisionResult*)owlBufferGetPointer((OWLBuffer)renderer.backend.collision_results_buffer, 0);
-
-        rendering::raytracing::detail::write_probes_bin_and_log<SPEC>(probe_results, filename);
+        constexpr size_t probe_count = (size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES;
+        std::vector<CollisionResult> probes_host(probe_count);
+        cudaMemcpy(probes_host.data(), data(renderer.collision_results), probe_count * sizeof(CollisionResult), cudaMemcpyDeviceToHost);
+        rendering::raytracing::detail::write_probes_bin_and_log<SPEC>(probes_host.data(), filename);
 #endif
-    }
-
-
-    // =========================================================================
-    // read_collision_results: typed access to collision probe buffer
-    // =========================================================================
-    template <typename DEVICE, typename SPEC, typename COLL_SPEC>
-    void read_collision_results(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, Tensor<COLL_SPEC>& out){
-        static_assert(utils::typing::is_same_v<typename COLL_SPEC::T, rendering::raytracing::CollisionResult>);
-        static_assert(get<0>(typename COLL_SPEC::SHAPE{}) == SPEC::NUM_CAMERAS);
-        static_assert(get<1>(typename COLL_SPEC::SHAPE{}) == SPEC::NUM_PROBES);
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        if(renderer.backend.collision_results_buffer != nullptr){
-            memcpy(data(out),
-                   owlBufferGetPointer((OWLBuffer)renderer.backend.collision_results_buffer, 0),
-                   SPEC::NUM_CAMERAS * SPEC::NUM_PROBES * sizeof(rendering::raytracing::CollisionResult));
-        }
-#endif
-    }
-
-    template <typename DEVICE, typename SPEC>
-    const rendering::raytracing::CollisionResult* read_collision_results_raw(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-#if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        return nullptr;
-#else
-        if(renderer.backend.collision_results_buffer == nullptr){
-            return nullptr;
-        }
-        return (const rendering::raytracing::CollisionResult*)owlBufferGetPointer((OWLBuffer)renderer.backend.collision_results_buffer, 0);
-#endif
-    }
-
-    template <typename DEVICE, typename SPEC>
-    uint32_t* get_framebuffer_device_ptr(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_RGB, "get_framebuffer_device_ptr requires an RGB-capable renderer specification");
-        return (uint32_t*)owlBufferGetPointer((OWLBuffer)renderer.backend.frame_buffer_handle, 0);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    float* get_depthbuffer_device_ptr(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        static_assert(SPEC::HAS_DEPTH, "get_depthbuffer_device_ptr requires a depth-capable renderer specification");
-        return (float*)owlBufferGetPointer((OWLBuffer)renderer.backend.depth_buffer_handle, 0);
     }
 
     // render stream shared by render/probe/update launches; producers writing renderer inputs
@@ -1220,16 +1248,25 @@ namespace rl_tools {
         return (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend.launch_params, 0);
     }
 
+    // scoped to the renderer's own streams — never a whole-device barrier
     template <typename DEVICE, typename SPEC>
     void synchronize(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        cudaDeviceSynchronize();
+        if(renderer.backend.launch_params != nullptr){
+            cudaStreamSynchronize((cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend.launch_params, 0));
+        }
+        if(renderer.backend.coll_launch_params != nullptr){
+            cudaStreamSynchronize((cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend.coll_launch_params, 0));
+        }
     }
 
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         RL_TOOLS_RENDERING_RAYTRACING_LOG("destroying devicegroups ...");
-        if(renderer.backend.context) owlContextDestroy((OWLContext)renderer.backend.context);
+        if(renderer.backend.context != nullptr && renderer.backend.library == nullptr){
+            owlContextDestroy((OWLContext)renderer.backend.context); // library-backed renderers borrow the context — the library destroys it
+        }
         renderer.backend.context = nullptr;
+        renderer.backend.library = nullptr;
         if(renderer.backend.overlay_state != nullptr){
             auto* overlay_state = (rendering::raytracing::backends::optix::OverlayState*)renderer.backend.overlay_state;
             rendering::raytracing::backends::optix::overlay_accel_destroy(overlay_state->accel);
@@ -1242,17 +1279,24 @@ namespace rl_tools {
                 renderer.transforms._data = nullptr;
             }
         }
-        free(device, renderer.cameras);
+        // the input and output tensors alias OWL buffers destroyed with the context
+        renderer.cameras._data = nullptr;
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            free(device, renderer.cameras_open);
+            renderer.cameras_open._data = nullptr;
         }
         if constexpr (SPEC::HAS_RGB) {
-            free(device, renderer.frame_buffer);
+            renderer.frame_buffer._data = nullptr;
         }
         if constexpr (SPEC::HAS_DEPTH) {
-            free(device, renderer.depth_buffer);
+            renderer.depth_buffer._data = nullptr;
         }
-        free(device, renderer.collision_results);
+        if constexpr (SPEC::HAS_SEGMENTATION) {
+            renderer.segmentation_buffer._data = nullptr;
+        }
+        if constexpr (SPEC::HAS_OBSERVATION) {
+            renderer.observation._data = nullptr;
+        }
+        renderer.collision_results._data = nullptr;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

@@ -137,6 +137,7 @@ namespace rl_tools {
             unsigned int* segmentation_buffer = nullptr;
             const unsigned int* instance_classes = nullptr; // indexed by global instance id
             CollisionResult* collision_results = nullptr;
+            float* observation = nullptr; // 3 per pixel, written pre-quantization when set
         };
 
         namespace constants{
@@ -940,6 +941,21 @@ namespace rl_tools {
                         constexpr TI SAMPLES = MOTION_SAMPLES * AA_GRID * AA_GRID;
                         if constexpr (utils::typing::is_same_v<OUTPUT, OutputRGB>){
                             const Vec3<T> color = accumulated_rgb * ((T)1 / (T)SAMPLES);
+                            if(scene.observation != nullptr){
+                                // the observation is the frame-buffer color before 8-bit
+                                // quantization — same transfer curve, full float precision
+                                float* observation = scene.observation + fb_offset * 3;
+                                if constexpr (SPEC::SHADING::SRGB_OUTPUT){
+                                    observation[0] = (float)linear_to_srgb(math_device, clamp01(color.x));
+                                    observation[1] = (float)linear_to_srgb(math_device, clamp01(color.y));
+                                    observation[2] = (float)linear_to_srgb(math_device, clamp01(color.z));
+                                }
+                                else{
+                                    observation[0] = (float)clamp01(color.x);
+                                    observation[1] = (float)clamp01(color.y);
+                                    observation[2] = (float)clamp01(color.z);
+                                }
+                            }
                             if constexpr (SPEC::SHADING::SRGB_OUTPUT){
                                 scene.frame_buffer[fb_offset] = make_srgb_rgba_from_linear(math_device, color);
                             }

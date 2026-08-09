@@ -22,6 +22,8 @@
 
 #include <vector>
 #include <chrono>
+#include <filesystem>
+#include <string>
 
 namespace rlt = rl_tools;
 
@@ -56,12 +58,33 @@ namespace {
         return mesh;
     }
 
+    // cameras(device, renderer) is a backend-native tensor: host staging crosses into it
+    // explicitly (device-resident on OptiX, host-visible everywhere else)
+    template <typename RENDERER_SPEC>
+    void write_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC>& renderer, const rlt::rendering::raytracing::Camera<T>* staging, TI count){
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_SCENE_TEST_ACTIVE_BACKEND) && defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+        cudaMemcpy(rlt::data(rlt::cameras(device, renderer)), staging, count * sizeof(rlt::rendering::raytracing::Camera<T>), cudaMemcpyHostToDevice);
+#else
+        std::memcpy(rlt::data(rlt::cameras(device, renderer)), staging, count * sizeof(rlt::rendering::raytracing::Camera<T>));
+#endif
+    }
+
+    // host staging reads from the backend-native output tensors (device-resident on OptiX)
+    template <typename ELEMENT, typename TENSOR>
+    void read_output(const TENSOR& tensor, ELEMENT* out, size_t count){
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_SCENE_TEST_ACTIVE_BACKEND) && defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+        cudaMemcpy(out, rlt::data(tensor), count * sizeof(ELEMENT), cudaMemcpyDeviceToHost);
+#else
+        std::memcpy(out, rlt::data(tensor), count * sizeof(ELEMENT));
+#endif
+    }
+
     template <typename RENDERER_SPEC>
     void set_test_camera(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC>& renderer, const T position[3], const T look_at[3]){
         const T up[3] = {0, 0, 1};
         constexpr T aspect = (T)RENDERER_SPEC::CAM_WIDTH / (T)RENDERER_SPEC::CAM_HEIGHT;
-        rlt::set(device, renderer.cameras, rlt::make_camera_data(position, look_at, up, RENDERER_SPEC::COS_FOVY, aspect), (TI)0);
-        rlt::set_cameras(device, renderer, renderer.cameras);
+        const auto camera = rlt::make_camera_data(position, look_at, up, RENDERER_SPEC::COS_FOVY, aspect);
+        write_cameras(device, renderer, &camera, 1);
     }
 
     template <typename RENDERER_SPEC>
@@ -69,8 +92,8 @@ namespace {
         set_test_camera(device, renderer, position, look_at);
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
-        rlt::read_frame_buffer(device, renderer, renderer.frame_buffer);
-        pixels.assign(rlt::data(renderer.frame_buffer), rlt::data(renderer.frame_buffer) + RENDERER_SPEC::CAM_PIXELS);
+        pixels.resize(RENDERER_SPEC::CAM_PIXELS);
+        read_output(rlt::frame_buffer(device, renderer), pixels.data(), RENDERER_SPEC::CAM_PIXELS);
     }
 
     void render_frame(DEVICE& device, Renderer& renderer, std::vector<uint32_t>& pixels){
@@ -100,8 +123,8 @@ namespace {
         set_test_camera(device, renderer, position, look_at);
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
-        rlt::read_depth_buffer(device, renderer, renderer.depth_buffer);
-        const float* depth = rlt::data(renderer.depth_buffer);
+        std::vector<float> depth(RENDERER_SPEC::CAM_PIXELS);
+        read_output(rlt::depth_buffer(device, renderer), depth.data(), RENDERER_SPEC::CAM_PIXELS);
         return depth[(RENDERER_SPEC::CAM_HEIGHT / 2) * RENDERER_SPEC::CAM_WIDTH + RENDERER_SPEC::CAM_WIDTH / 2];
     }
 }
@@ -464,9 +487,9 @@ namespace {
         set_test_camera(device, renderer, position, look_at);
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
-        rlt::read_segmentation_buffer(device, renderer, renderer.segmentation_buffer);
-        const uint32_t* segmentation = rlt::data(renderer.segmentation_buffer);
-        return std::vector<uint32_t>(segmentation, segmentation + RENDERER_SPEC::CAM_PIXELS);
+        std::vector<uint32_t> segmentation(RENDERER_SPEC::CAM_PIXELS);
+        read_output(rlt::segmentation_buffer(device, renderer), segmentation.data(), RENDERER_SPEC::CAM_PIXELS);
+        return segmentation;
     }
 }
 
@@ -616,10 +639,11 @@ namespace {
     void set_same_pose_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC>& renderer, const T position[3], const T look_at[3]){
         const T up[3] = {0, 0, 1};
         constexpr T aspect = (T)RENDERER_SPEC::CAM_WIDTH / (T)RENDERER_SPEC::CAM_HEIGHT;
+        std::vector<rlt::rendering::raytracing::Camera<T>> staging(RENDERER_SPEC::NUM_CAMERAS);
         for(TI camera_i = 0; camera_i < RENDERER_SPEC::NUM_CAMERAS; camera_i++){
-            rlt::set(device, renderer.cameras, rlt::make_camera_data(position, look_at, up, RENDERER_SPEC::COS_FOVY, aspect), camera_i);
+            staging[camera_i] = rlt::make_camera_data(position, look_at, up, RENDERER_SPEC::COS_FOVY, aspect);
         }
-        rlt::set_cameras(device, renderer, renderer.cameras);
+        write_cameras(device, renderer, staging.data(), RENDERER_SPEC::NUM_CAMERAS);
     }
 
     rlt::rendering::raytracing::Scene make_far_anchor_scene(DEVICE& device){
@@ -677,8 +701,9 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_ATTACHMENT_SCOPES){
     set_same_pose_cameras(device, renderer, camera_position, look_at);
     rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
-    rlt::read_segmentation_buffer(device, renderer, renderer.segmentation_buffer);
-    const uint32_t* segmentation = rlt::data(renderer.segmentation_buffer);
+    std::vector<uint32_t> segmentation_staging((size_t)decltype(renderer)::SPEC::NUM_CAMERAS * decltype(renderer)::SPEC::CAM_PIXELS);
+    read_output(rlt::segmentation_buffer(device, renderer), segmentation_staging.data(), segmentation_staging.size());
+    const uint32_t* segmentation = segmentation_staging.data();
 
     size_t counts[2][10] = {};
     for(TI camera_i = 0; camera_i < 2; camera_i++){
@@ -707,7 +732,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_ATTACHMENT_SCOPES){
     rlt::update(device, renderer);
     rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
-    rlt::read_segmentation_buffer(device, renderer, renderer.segmentation_buffer);
+    read_output(rlt::segmentation_buffer(device, renderer), segmentation_staging.data(), segmentation_staging.size());
     size_t detached_count = 0;
     for(TI pixel_i = 0; pixel_i < OVERLAY_SEG_SPEC::CAM_PIXELS; pixel_i++){
         detached_count += segmentation[pixel_i] == 1u;
@@ -756,8 +781,9 @@ TEST(RL_TOOLS_SCENE_SUITE, SEMANTIC_SEGMENTATION){
     set_same_pose_cameras(device, renderer, camera_position, look_at);
     rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
-    rlt::read_segmentation_buffer(device, renderer, renderer.segmentation_buffer);
-    const uint32_t* segmentation = rlt::data(renderer.segmentation_buffer);
+    std::vector<uint32_t> segmentation_staging((size_t)decltype(renderer)::SPEC::NUM_CAMERAS * decltype(renderer)::SPEC::CAM_PIXELS);
+    read_output(rlt::segmentation_buffer(device, renderer), segmentation_staging.data(), segmentation_staging.size());
+    const uint32_t* segmentation = segmentation_staging.data();
 
     size_t scene_class_count = 0, overlay_class_count = 0, raw_instance_id_count = 0;
     for(TI pixel_i = 0; pixel_i < SEMANTIC_SPEC::CAM_PIXELS; pixel_i++){
@@ -878,6 +904,53 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_TRANSFORMS_TENSOR){
     rlt::free(device, renderer);
 }
 
+// the scene-accumulation bug class: reusing a scene across loads silently re-uploads all
+// previously loaded geometry into every subsequent renderer — load refuses a non-empty scene,
+// composition must be the explicit add
+TEST(RL_TOOLS_SCENE_SUITE, LOAD_ASSERTS_EMPTY){
+    DEVICE device;
+    rlt::init(device);
+    const std::string scene_file = std::string(RL_TOOLS_SCENE_TEST_DATA_PATH) + "/ProcTHOR-Train-1.glb";
+    if(!std::filesystem::exists(scene_file)){
+        GTEST_SKIP() << "scene file not available";
+    }
+    rlt::rendering::raytracing::Scene scene;
+    ASSERT_TRUE(rlt::load(device, scene, scene_file));
+    EXPECT_EQ(scene.objects.size(), (size_t)1);
+    EXPECT_DEATH((void)rlt::load(device, scene, scene_file), "");
+    ASSERT_TRUE(rlt::add(device, scene, scene_file)); // composition is explicit
+    EXPECT_EQ(scene.objects.size(), (size_t)2);
+}
+
+TEST(RL_TOOLS_SCENE_SUITE, CAMERAS_TENSOR){
+    DEVICE device;
+    rlt::init(device);
+
+    rlt::rendering::raytracing::Scene scene;
+    rlt::add(device, scene, make_cube(0, 1));
+
+    rlt::rendering::raytracing::Renderer<DEPTH_SPEC> renderer;
+    rlt::malloc(device, renderer);
+    rlt::generate_probe_directions(device, renderer);
+    rlt::init(device, renderer, scene);
+
+    // two successive writes through the cameras() accessor: each launch must consume the
+    // latest tensor contents (no camera state cached at init or across renders)
+    EXPECT_NEAR(render_center_depth(device, renderer), 4.0f, 1e-4f); // camera at x=-5, near face at x=-1
+    const T position[3] = {-7, 0, 0};
+    const T look_at[3] = {0, 0, 0};
+    set_test_camera(device, renderer, position, look_at);
+    rlt::render(device, renderer);
+    rlt::synchronize(device, renderer);
+    {
+        float center_depth = 0;
+        read_output(rlt::depth_buffer(device, renderer), &center_depth, 1);
+        EXPECT_NEAR(center_depth, 6.0f, 1e-4f);
+    }
+
+    rlt::free(device, renderer);
+}
+
 struct OVERLAY_RGB_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI CAM_WIDTH = 32, CAM_HEIGHT = 32, NUM_CAMERAS = 1, NUM_PROBES = 4;
     using SHADING = rlt::rendering::raytracing::Low;
@@ -981,8 +1054,9 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SECONDARY_RAYS){
     set_same_pose_cameras(device, renderer, camera_position, look_at);
     rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
-    rlt::read_frame_buffer(device, renderer, renderer.frame_buffer);
-    const uint32_t* pixels = rlt::data(renderer.frame_buffer);
+    std::vector<uint32_t> pixel_staging((size_t)decltype(renderer)::SPEC::NUM_CAMERAS * decltype(renderer)::SPEC::CAM_PIXELS);
+    read_output(rlt::frame_buffer(device, renderer), pixel_staging.data(), pixel_staging.size());
+    const uint32_t* pixels = pixel_staging.data();
 
     long brightness[2] = {0, 0};
     for(TI camera_i = 0; camera_i < 2; camera_i++){
@@ -1029,8 +1103,10 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_PROBES){
     rlt::render(device, renderer);
     rlt::probe(device, renderer);
     rlt::synchronize(device, renderer);
-    const auto* probes = rlt::read_collision_results_raw(device, renderer);
-    ASSERT_NE(probes, nullptr);
+    std::vector<rlt::rendering::raytracing::CollisionResult> probe_staging((size_t)OVERLAY_PROBE_SPEC::NUM_CAMERAS * OVERLAY_PROBE_SPEC::NUM_PROBES);
+    read_output(rlt::collision_results(device, renderer), probe_staging.data(), probe_staging.size());
+    const auto* probes = probe_staging.data();
+    ASSERT_NE(rlt::data(renderer.collision_results), nullptr);
     EXPECT_EQ(probes[0].hit, 1); // camera 0, forward probe: overlay cube at distance 2
     EXPECT_NEAR(probes[0].distance, 2.0f, 1e-4f);
     EXPECT_EQ(probes[OVERLAY_PROBE_SPEC::NUM_PROBES].hit, 0); // camera 1, forward probe: nothing
