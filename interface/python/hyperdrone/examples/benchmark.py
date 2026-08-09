@@ -8,9 +8,9 @@
   (uniform_so3 default), 2s untimed warmup, then a timed async render_launch loop with a
   sync every 10 iterations for ~10 seconds.
 
-Orientation sampling uses the same distributions as the C++ benchmark (Shoemake uniform
-quaternions / yaw-pitch / look-at jitter) with numpy's RNG, so the workload is
-statistically identical but not orientation-for-orientation bit-equal to the C++ run.
+Orientation sampling uses the same distributions as the C++ benchmark (Haar-uniform SO3
+via scipy Rotation.random / yaw-pitch / look-at jitter) with numpy's RNG, so the workload
+is statistically identical but not orientation-for-orientation bit-equal to the C++ run.
 
 --camera-input additionally exercises hyperdrone's per-iteration camera-input paths
 (host upload, DLPack device hand-over, direct device indexing); the default (static)
@@ -23,6 +23,7 @@ import time
 from pathlib import Path
 
 import numpy as np
+from scipy.spatial.transform import Rotation
 
 import hyperdrone
 from hyperdrone import render
@@ -91,23 +92,9 @@ def sample_orientations(rng, count, mode, look_at_forward):
     C++ simulator-matrix benchmark."""
     world_up = np.array([0.0, 0.0, 1.0])
     if mode == "uniform_so3":
-        u1, u2, u3 = rng.uniform(size=(3, count))
-        qx = np.sqrt(1 - u1) * np.sin(2 * np.pi * u2)
-        qy = np.sqrt(1 - u1) * np.cos(2 * np.pi * u2)
-        qz = np.sqrt(u1) * np.sin(2 * np.pi * u3)
-        qw = np.sqrt(u1) * np.cos(2 * np.pi * u3)
-        rotation = np.empty((count, 3, 3))
-        rotation[:, 0, 0] = 1 - 2 * (qy * qy + qz * qz)
-        rotation[:, 0, 1] = 2 * (qx * qy - qw * qz)
-        rotation[:, 0, 2] = 2 * (qx * qz + qw * qy)
-        rotation[:, 1, 0] = 2 * (qx * qy + qw * qz)
-        rotation[:, 1, 1] = 1 - 2 * (qx * qx + qz * qz)
-        rotation[:, 1, 2] = 2 * (qy * qz - qw * qx)
-        rotation[:, 2, 0] = 2 * (qx * qz - qw * qy)
-        rotation[:, 2, 1] = 2 * (qy * qz + qw * qx)
-        rotation[:, 2, 2] = 1 - 2 * (qx * qx + qy * qy)
-        forwards = rotation[:, :, 0]
-        ups = rotation[:, :, 2]
+        rotation = Rotation.random(count, rng=rng).as_matrix()
+        forwards = rotation[:, :, 0]  # camera forward = body +X column
+        ups = rotation[:, :, 2]       # camera up = body +Z column
     elif mode == "look_at_scene_jitter":
         yaw_offset = rng.uniform(-0.08, 0.08, size=(count, 1))
         pitch_offset = rng.uniform(-0.06, 0.06, size=(count, 1))
