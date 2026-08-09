@@ -56,6 +56,7 @@
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/backends/optix/operations_cuda.h>
+#include <rl_tools/rendering/raytracing/operations_cpu.h>
 
 #include "simulator_matrix_physics.h"
 
@@ -918,7 +919,7 @@ static void apply_20_object_bounds(rlt::rendering::raytracing::Renderer<SPEC>& r
     renderer.scene_half_extent[2] = static_cast<T>(0.95);
     renderer.camera_radius = static_cast<T>(6.0);
     if constexpr (SPEC::HAS_DEPTH) {
-        owlRayGenSet1f((OWLRayGen)renderer.backend.depth_ray_gen, "max_depth", static_cast<float>(renderer.camera_radius * 2.0f));
+        owlRayGenSet1f(renderer.backend->depth_ray_gen, "max_depth", static_cast<float>(renderer.camera_radius * 2.0f));
     }
 }
 
@@ -1143,7 +1144,7 @@ static void step_physics_cameras(rlt::rendering::raytracing::Renderer<SPEC>& ren
     void* camera_buffer = camera_buffer_override != nullptr
         ? camera_buffer_override
         : (void*)rlt::data(renderer.cameras);
-    cudaStream_t stream = (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend.launch_params, 0);
+    cudaStream_t stream = (cudaStream_t)owlParamsGetCudaStream(renderer.backend->launch_params, 0);
     if(!rt_benchmark::physics_step_cameras(physics, camera_buffer, stream, iteration)) {
         std::cerr << "Physics camera step failed: " << rt_benchmark::physics_last_error() << std::endl;
         std::exit(1);

@@ -17,12 +17,13 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::devices{
     namespace cpu{
-        template <typename T_MATH, typename T_RANDOM, typename T_LOGGING>
+        template <typename T_MATH, typename T_RANDOM, typename T_LOGGING, typename T_RENDERING = devices::rendering::Default>
         struct Specification{
             using EXECUTION_HINTS = ExecutionHints;
             using MATH = T_MATH;
             using RANDOM = T_RANDOM;
             using LOGGING = T_LOGGING;
+            using RENDERING = T_RENDERING;
             using index_t = size_t;
         };
         struct Base{
@@ -58,6 +59,7 @@ namespace rl_tools::devices{
         typename SPEC::MATH math;
         typename SPEC::RANDOM random;
         typename SPEC::LOGGING logger;
+        typename devices::rendering::component<SPEC>::TYPE render;
         bool initialized = false;
         index_t malloc_counter = 0;
     };
