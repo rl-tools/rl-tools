@@ -20,71 +20,23 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
 
+    // the env owns only its dynamics — the renderer and scene metadata are non-owning
+    // references wired in by the target (see rendering::raytracing::AssetLibrary)
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env) {
-        if (env.renderer == nullptr) {
-            env.renderer = new rendering::raytracing::Renderer<typename SPEC::RENDERER_SPEC>{};
-            env.owns_renderer = true;
-            malloc(device, *env.renderer);
-        }
-        if (env.render_scene == nullptr) {
-            env.render_scene = new rendering::raytracing::Scene{};
-            env.owns_render_scene = true;
-        }
-        if (env.scene == nullptr) {
-            env.scene = new rendering::raytracing::scene::procthor::Scene<typename SPEC::SCENE_SPEC>{};
-        }
+        malloc(device, env.dynamics);
     }
 
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env) {
-        if (env.renderer != nullptr) {
-            free(device, *env.renderer);
-            if (env.owns_renderer) {
-                delete env.renderer;
-            }
-            env.renderer = nullptr;
-            env.owns_renderer = false;
-        }
-        if (env.render_scene != nullptr) {
-            if (env.owns_render_scene) {
-                delete env.render_scene;
-            }
-            env.render_scene = nullptr;
-            env.owns_render_scene = false;
-        }
-        if (env.scene != nullptr) {
-            delete env.scene;
-            env.scene = nullptr;
-        }
+        free(device, env.dynamics);
+        env.renderer = nullptr;
+        env.scene = nullptr;
     }
 
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env) {
-        using T = typename SPEC::T;
         init(device, env.dynamics);
-
-        if (env.renderer_initialized) {
-            return;
-        }
-
-        if(env.scene_path == nullptr){
-            return;
-        }
-        const bool loaded = load<typename SPEC::RENDERER_SPEC::SHADING, SPEC::RENDERER_SPEC::HAS_RGB>(device, *env.render_scene, std::string(env.scene_path));
-        utils::assert_exit(device, loaded, "l2f_visual::init: failed to load scene");
-
-        init(device, *env.renderer, *env.render_scene);
-        {
-            typename rl::environments::l2f_visual::Parameters<SPEC> default_params;
-            const T up[3] = {0, 0, 1};
-            generate_cameras(device, *env.renderer, env.renderer->scene_center, env.renderer->camera_radius, up, default_params.fov);
-            generate_probe_directions(device, *env.renderer);
-            T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
-            rendering::raytracing::scene::procthor::precompute_indoor_positions(device, *env.scene, *env.renderer, default_params.fov, aspect);
-        }
-
-        env.renderer_initialized = true;
     }
 
     template <typename DEVICE, typename SPEC, typename RNG>

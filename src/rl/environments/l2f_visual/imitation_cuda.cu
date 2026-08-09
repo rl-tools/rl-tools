@@ -64,6 +64,7 @@
 #include <cuda_bf16.h>
 
 #include <array>
+#include <deque>
 #include <cmath>
 #include <chrono>
 #include <iostream>
@@ -1066,42 +1067,40 @@ int main(int argc, char** argv){
     // =========================================================================
     using RENDERER_TYPE = rlt::rendering::raytracing::Renderer<typename ENVIRONMENT::SPEC::RENDERER_SPEC>;
     using SCENE_TYPE = rlt::rendering::raytracing::scene::procthor::Scene<typename ENVIRONMENT::SPEC::SCENE_SPEC>;
+    using LIBRARY_TYPE = rlt::rendering::raytracing::AssetLibrary<typename ENVIRONMENT::SPEC::RENDERER_SPEC>;
 
     ENVIRONMENT envs[N_ENVIRONMENTS];
     typename ENVIRONMENT::Parameters env_parameters[N_ENVIRONMENTS];
 
+    auto* library = new LIBRARY_TYPE{};
+    rlt::malloc(device, *library);
+    auto* renderer_storage = new std::array<RENDERER_TYPE, N_TOTAL_SCENES>{};
     std::array<RENDERER_TYPE*, N_TOTAL_SCENES> renderers{};
+    std::deque<SCENE_TYPE> procthor_scenes;
     std::array<SCENE_TYPE*, N_TOTAL_SCENES> scenes{};
 
     // Load all scenes
     {
-        ENVIRONMENT loader_env;
-        rlt::malloc(device, loader_env);
         for(TI s = 0; s < N_TOTAL_SCENES; s++){
             std::cout << "Loading scene [" << s << "]: " << std::filesystem::path(scene_paths[s]).filename().string() << std::flush;
-            if(s > 0){
-                loader_env.renderer = new RENDERER_TYPE{};
-                rlt::malloc(device, *loader_env.renderer);
-                loader_env.owns_renderer = true;
-                loader_env.scene = new SCENE_TYPE{};
+            renderers[s] = &(*renderer_storage)[s];
+            rlt::malloc(device, *renderers[s], *library);
+            TI scene_id = rlt::init(device, *renderers[s], *library, scene_paths[s].c_str());
+            const T scene_fov = typename ENVIRONMENT::Parameters{}.fov;
+            const T scene_up[3] = {0, 0, 1};
+            rlt::generate_cameras(device, *renderers[s], renderers[s]->scene_center, renderers[s]->camera_radius, scene_up, scene_fov);
+            rlt::generate_probe_directions(device, *renderers[s]);
+            if(scene_id == (TI)procthor_scenes.size()){
+                procthor_scenes.emplace_back();
+                rlt::rendering::raytracing::scene::procthor::precompute_indoor_positions(device, procthor_scenes[scene_id], *renderers[s], scene_fov, (T)CAM_WIDTH / (T)CAM_HEIGHT);
             }
-            // load() appends: without a fresh scene every renderer would re-upload all previously
-            // loaded scenes (quadratic VRAM growth, invisible to rendering tests)
-            *loader_env.render_scene = rlt::rendering::raytracing::Scene{};
-            loader_env.scene_path = scene_paths[s].c_str();
-            loader_env.renderer_initialized = false;
-            rlt::init(device, loader_env);
-            TI num_pos = loader_env.scene->num_indoor_positions;
+            TI num_pos = procthor_scenes[scene_id].num_indoor_positions;
             std::cout << " — " << num_pos << " indoor positions" << std::endl;
             if(num_pos == 0){
                 std::cerr << "Scene has no valid positions with 1m clearance: " << scene_paths[s] << std::endl;
                 return 1;
             }
-            renderers[s] = loader_env.renderer;
-            scenes[s] = loader_env.scene;
-            loader_env.renderer = nullptr;
-            loader_env.scene = nullptr;
-            loader_env.owns_renderer = false;
+            scenes[s] = &procthor_scenes[scene_id];
         }
         std::cout << "Loaded " << N_TOTAL_SCENES << " scenes" << std::endl;
     }
@@ -1155,8 +1154,6 @@ int main(int argc, char** argv){
         rlt::malloc(device, envs[env_i].dynamics);
         envs[env_i].renderer = renderers[scene_i];
         envs[env_i].scene = scenes[scene_i];
-        envs[env_i].owns_renderer = false;
-        envs[env_i].renderer_initialized = true;
         envs[env_i].use_target_mode = true;
         envs[env_i].parameters.fov = CAMERA_FOV;
         envs[env_i].parameters.camera_randomization.fov_range = CAMERA_FOV_RANDOMIZATION_RANGE;

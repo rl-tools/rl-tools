@@ -9,6 +9,7 @@
 #include "../../containers/tensor/tensor.h"
 
 #include <vector>
+#include <deque>
 #include <cstdint>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -187,7 +188,43 @@ namespace rl_tools {
         };
 
         template <typename T_SPEC>
-        struct RendererBackend: BackendContext<T_SPEC>, RGBBackendContext<T_SPEC, T_SPEC::HAS_RGB>, DepthBackendContext<T_SPEC, T_SPEC::HAS_DEPTH>, SegmentationBackendContext<T_SPEC, T_SPEC::HAS_SEGMENTATION>, ObservationBackendContext<T_SPEC, T_SPEC::HAS_OBSERVATION> {};
+        struct RendererBackend: BackendContext<T_SPEC>, RGBBackendContext<T_SPEC, T_SPEC::HAS_RGB>, DepthBackendContext<T_SPEC, T_SPEC::HAS_DEPTH>, SegmentationBackendContext<T_SPEC, T_SPEC::HAS_SEGMENTATION>, ObservationBackendContext<T_SPEC, T_SPEC::HAS_OBSERVATION> {
+            // non-null when the renderer was malloc'd against a shared AssetLibrary: the library
+            // owns the backend context (and everything scene-shaped built in it); the renderer
+            // owns only its own cameras/outputs/ray gens/params
+            void* library = nullptr;
+        };
+
+        namespace detail{
+            // per-unique-scene build the library hands to renderer init — internal
+            struct SceneAssets {
+                void* world = nullptr;
+                void* instance_classes_buffer = nullptr;
+                void* filler_group = nullptr;
+                std::vector<void*> object_groups;
+                size_t num_scene_instances = 0;
+            };
+        }
+
+        // shared scene store: renderers malloc'd against a library share one backend context and
+        // one geometry/texture/BLAS build per unique scene — init(device, renderer, library,
+        // path) deduplicates by file content hash and returns the unique-scene index, so callers
+        // key their own per-scene data off it. The library owns the host scenes its builds
+        // reference (deque: stable addresses). On backends without cross-renderer sharing
+        // (generic/Metal/Vulkan) each renderer still builds its own device copy — the caller
+        // code is uniform, the sharing is a backend property.
+        template <typename T_SPEC>
+        struct AssetLibrary {
+            using SPEC = T_SPEC;
+            using TI = typename SPEC::TI;
+            void* context = nullptr;
+            void* module = nullptr;
+            void* geom_type = nullptr;
+            std::deque<Scene> scenes;
+            std::deque<detail::SceneAssets> assets;
+            std::vector<uint64_t> hashes;
+            AssetPool pool;
+        };
 
         template <typename T_SPEC, bool T_ENABLE_MOTION_BLUR>
         struct MotionBlurRendererStorage {};
