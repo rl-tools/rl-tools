@@ -44,13 +44,12 @@ bool run_case(DEVICE& device, const char* name, bool write_probes) {
     rlt::init(device, renderer, scene);
 
     constexpr T aspect = (T)SPEC::CAM_WIDTH / (T)SPEC::CAM_HEIGHT;
-    constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rlt::rendering::raytracing::Camera<T>);
     std::vector<rlt::rendering::raytracing::Camera<T>> camera_staging(SPEC::NUM_CAMERAS);
     for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
         const golden::Pose<T>& pose = CASES::POSES[camera_i];
         camera_staging[camera_i] = rlt::make_camera_data(pose.position, pose.look_at, pose.up, SPEC::COS_FOVY, aspect);
     }
-    cudaMemcpy(rlt::data(rlt::cameras(device, renderer)), camera_staging.data(), camera_bytes, cudaMemcpyHostToDevice);
+    rlt::copy_to_renderer(device, renderer, camera_staging.data(), rlt::data(rlt::cameras(device, renderer)), camera_staging.size());
     if constexpr(SPEC::ENABLE_MOTION_BLUR) {
         for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
             const golden::Pose<T>& pose = CASES::POSES[camera_i];
@@ -61,7 +60,7 @@ bool run_case(DEVICE& device, const char* name, bool write_probes) {
             }
             camera_staging[camera_i] = rlt::make_camera_data(position, look_at, pose.up, SPEC::COS_FOVY, aspect);
         }
-        cudaMemcpy(rlt::data(rlt::cameras_open(device, renderer)), camera_staging.data(), camera_bytes, cudaMemcpyHostToDevice);
+        rlt::copy_to_renderer(device, renderer, camera_staging.data(), rlt::data(rlt::cameras_open(device, renderer)), camera_staging.size());
     }
     rlt::generate_probe_directions(device, renderer);
     rlt::render(device, renderer);
@@ -71,7 +70,7 @@ bool run_case(DEVICE& device, const char* name, bool write_probes) {
     bool ok = true;
     const size_t pixel_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
     std::vector<uint32_t> frame_buffer_staging(pixel_count);
-    cudaMemcpy(frame_buffer_staging.data(), rlt::data(rlt::frame_buffer(device, renderer)), pixel_count * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    rlt::copy_from_renderer(device, renderer, rlt::data(rlt::frame_buffer(device, renderer)), frame_buffer_staging.data(), pixel_count);
     const uint32_t* frame_buffer = frame_buffer_staging.data();
     if(std::all_of(frame_buffer, frame_buffer + pixel_count, [&](uint32_t pixel){ return pixel == frame_buffer[0]; })) {
         std::cerr << "[golden] " << name << ": frame buffer is constant" << std::endl;
@@ -80,7 +79,7 @@ bool run_case(DEVICE& device, const char* name, bool write_probes) {
     std::vector<float> depth_staging;
     if constexpr(SPEC::HAS_DEPTH) {
         depth_staging.resize(pixel_count);
-        cudaMemcpy(depth_staging.data(), rlt::data(rlt::depth_buffer(device, renderer)), pixel_count * sizeof(float), cudaMemcpyDeviceToHost);
+        rlt::copy_from_renderer(device, renderer, rlt::data(rlt::depth_buffer(device, renderer)), depth_staging.data(), pixel_count);
         if(std::all_of(depth_staging.begin(), depth_staging.end(), [&](float depth){ return depth == depth_staging[0]; })) {
             std::cerr << "[golden] " << name << ": depth buffer is constant" << std::endl;
             ok = false;
@@ -93,7 +92,7 @@ bool run_case(DEVICE& device, const char* name, bool write_probes) {
         const rlt::rendering::raytracing::CollisionResult* probe_results = nullptr;
         if(write_probes) {
             probe_staging.resize((size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);
-            cudaMemcpy(probe_staging.data(), rlt::data(rlt::collision_results(device, renderer)), probe_staging.size() * sizeof(rlt::rendering::raytracing::CollisionResult), cudaMemcpyDeviceToHost);
+            rlt::copy_from_renderer(device, renderer, rlt::data(rlt::collision_results(device, renderer)), probe_staging.data(), probe_staging.size());
             probe_results = probe_staging.data();
         }
         for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {

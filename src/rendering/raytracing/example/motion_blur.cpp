@@ -32,7 +32,8 @@ struct RendererConfig: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr bool ENABLE_MOTION_BLUR = SAMPLES > 1;
     static constexpr TI MOTION_BLUR_SAMPLES = SAMPLES;
 };
-using RendererSpec = rlt::rendering::raytracing::Specification<RendererConfig>;
+template <TI SAMPLES>
+using RendererSpec = rlt::rendering::raytracing::Specification<RendererConfig<SAMPLES>>;
 
 template <typename SPEC>
 using Renderer = rlt::rendering::raytracing::Renderer<SPEC>;
