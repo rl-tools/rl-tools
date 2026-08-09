@@ -4,6 +4,7 @@
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
 #include <rl_tools/rl/environments/l2f/multirotor.h>
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -42,14 +43,15 @@ using Renderer = rlt::rendering::raytracing::Renderer<SPEC>;
 
 static constexpr T GRAVITY = 9.81;
 static constexpr T ONBOARD_FOV = SPEC::COS_FOVY;
-static constexpr T THIRD_PERSON_FOV = 0.5;
-static constexpr T CAMERA_MOUNT_BODY[3] = {-0.01, 0, 0.038};
-static constexpr T TRIPOD_POSITION[3] = {-6.6, -5.3, 1.75};
+static constexpr T THIRD_PERSON_FOV = 0.65;
+static constexpr T CAMERA_MOUNT_BODY[3] = {0.10, 0, 0.32};
+static constexpr T CAMERA_PITCH_DOWN = 0.3;
+static constexpr T TRIPOD_POSITION[3] = {-7.6, -7.0, 2.0};
 static constexpr T PROP_RATE = 45.0;
 
 struct Options {
     std::string scene_path = "tests/data/ProcTHOR-Train-1.glb";
-    std::string drone_path = "src/rendering/raytracing/example/drone.glb";
+    std::string drone_path = "tests/data/x500.glb";
     std::string output_prefix = "drone";
     std::string ffmpeg = "ffmpeg";
     T center[3] = {-5.0, -5.2, 1.55};
@@ -201,13 +203,39 @@ int main(int argc, char** argv) {
         std::cerr << "Failed to load drone assembly: " << options.drone_path << std::endl;
         return 1;
     }
-    std::vector<TI> prop_parts;
+    // node origins are not required to sit at the rotor hubs (e.g. generated meshes with
+    // identity node transforms), so each prop spins about its part-local AABB center
+    struct PropPart {
+        TI part;
+        T pivot[2];
+        T direction;
+        T angle;
+    };
+    std::vector<PropPart> props;
     for (size_t part_i = 0; part_i < drone_assembly.parts.size(); part_i++) {
-        const std::string& name = drone_assembly.objects[drone_assembly.parts[part_i].object].name;
-        if (name.rfind("prop_", 0) == 0) {
-            prop_parts.push_back(part_i);
+        const auto& object = drone_assembly.objects[drone_assembly.parts[part_i].object];
+        if (object.name.rfind("prop_", 0) == 0) {
+            T low[3] = {0, 0, 0}, high[3] = {0, 0, 0};
+            bool first = true;
+            for (const auto& mesh : object.meshes) {
+                for (size_t vertex_i = 0; vertex_i + 2 < mesh.vertices.size(); vertex_i += 3) {
+                    for (TI dim = 0; dim < 3; dim++) {
+                        const T value = mesh.vertices[vertex_i + dim];
+                        low[dim] = first ? value : std::min(low[dim], value);
+                        high[dim] = first ? value : std::max(high[dim], value);
+                    }
+                    first = false;
+                }
+            }
+            PropPart prop;
+            prop.part = part_i;
+            prop.pivot[0] = (low[0] + high[0]) / 2;
+            prop.pivot[1] = (low[1] + high[1]) / 2;
+            prop.direction = prop.pivot[0] * prop.pivot[1] > 0 ? 1 : -1;
+            prop.angle = 0;
+            props.push_back(prop);
         }
-        else if (name == "body" && part_i != 0) {
+        else if (object.name == "body" && part_i != 0) {
             std::cerr << "Drone assembly part 0 must be the body (the pose part), got it at part " << part_i << std::endl;
             return 1;
         }
@@ -246,7 +274,6 @@ int main(int argc, char** argv) {
     const T aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
     constexpr size_t CAM_PIXELS = static_cast<size_t>(CAM_WIDTH) * static_cast<size_t>(CAM_HEIGHT);
     std::vector<uint32_t> frame(NUM_CAMERAS * CAM_PIXELS);
-    std::vector<T> prop_angles(prop_parts.size(), 0);
     T last_yaw = 0;
 
     for (int frame_i = 0; frame_i < options.frames; frame_i++) {
@@ -256,23 +283,25 @@ int main(int argc, char** argv) {
         float pose_transform[12];
         pose_to_transform(pose, pose_transform);
         rlt::set_transform(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, pose_transform);
-        for (size_t prop_i = 0; prop_i < prop_parts.size(); prop_i++) {
-            const T direction = (prop_i == 0 || prop_i == 3) ? 1 : -1;
-            prop_angles[prop_i] += direction * PROP_RATE / options.fps;
-            const float half_angle = prop_angles[prop_i] / 2;
-            const float spin_quaternion_wxyz[4] = {std::cos(half_angle), 0, 0, std::sin(half_angle)};
-            const float origin[3] = {0, 0, 0};
-            float spin[12];
-            rlt::make_transform(origin, spin_quaternion_wxyz, spin);
-            rlt::set_transform(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, prop_parts[prop_i], spin);
+        for (auto& prop : props) {
+            prop.angle += prop.direction * PROP_RATE / options.fps;
+            const float c = std::cos(prop.angle), s = std::sin(prop.angle);
+            const float px = prop.pivot[0], py = prop.pivot[1];
+            const float spin[12] = {
+                c, -s, 0, px - c * px + s * py,
+                s,  c, 0, py - s * px - c * py,
+                0,  0, 1, 0,
+            };
+            rlt::set_transform(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, prop.part, spin);
         }
 
         rlt::rendering::raytracing::Camera<T> cameras[NUM_CAMERAS];
         {
             T mount[3], forward[3], up[3];
             rotate_body_to_world(pose, CAMERA_MOUNT_BODY, mount);
-            const T forward_body[3] = {1, 0, 0};
-            const T up_body[3] = {0, 0, 1};
+            const T pitch_cos = std::cos(CAMERA_PITCH_DOWN), pitch_sin = std::sin(CAMERA_PITCH_DOWN);
+            const T forward_body[3] = {pitch_cos, 0, -pitch_sin};
+            const T up_body[3] = {pitch_sin, 0, pitch_cos};
             rotate_body_to_world(pose, forward_body, forward);
             rotate_body_to_world(pose, up_body, up);
             const T position[3] = {pose.position[0] + mount[0], pose.position[1] + mount[1], pose.position[2] + mount[2]};
