@@ -2,7 +2,7 @@
 
 Batch raytracing for visual RL: N cameras over one static scene plus per-camera dynamic
 overlays, rendered by one of four backends (OptiX, Vulkan, Metal, generic CPU) behind a single
-`Renderer<SPEC, RENDER_DEVICE>` interface (`RENDER_DEVICE` defaults to the configured backend).
+`Renderer<SPEC, BACKEND>` interface (`BACKEND` defaults to the configured backend).
 Everything is wired for a training step in which dynamics,
 rendering, and observation never touch the CPU: the host's only per-step role is issuing
 asynchronous enqueues.
@@ -14,12 +14,13 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
 
 ## Convention
 
-- **Backend selection is typed dispatch.** CPU and CUDA devices contain a `render` component.
-  Public verbs such as `render(device, renderer)` forward to
-  `render(device.render, device, renderer)`, where overload resolution selects the backend.
-  The renderer's second template argument selects the matching backend state type, so mixing an
-  OptiX device component with a Generic renderer is a compile error. The CMake backend macro only
-  chooses the default types and mux include; it does not determine how an untyped handle is cast.
+- **Backend selection is typed dispatch.** The renderer's second template argument is the
+  backend tag (`backends::{Generic,Optix,Metal,Vulkan}`, defaulting to `backends::Default`,
+  which the CMake backend macro resolves). Each backend header overloads the public verbs
+  directly on `Renderer<SPEC, backends::X>`, so `render(device, renderer)` resolves to the
+  backend baked into the renderer's type, and the same tag selects the backend state types.
+  The `DEVICE` argument keeps its usual RLtools meaning: it says where caller-owned tensors
+  live and (on CUDA) carries the producer stream — it does not select the render backend.
 - **State is a tensor behind an accessor.** Renderer inputs and outputs are backend-native
   `Tensor` members exposed by accessors — `cameras()`, `cameras_open()`/`cameras_close()`
   (motion blur), `transforms()` (overlays), `frame_buffer()`, `depth_buffer()`,
@@ -28,7 +29,7 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
 - **Data moves via typed copies and kernels.** No raw backend handles or `cudaStream_t` appear in
   public signatures. Device producers (extraction kernels) write the input tensors in place;
   device consumers read the output tensors in place; host readers/writers stage through
-  `copy_to_renderer`/`copy_from_renderer`, which dispatch through the same rendering component.
+  `copy_to_renderer`/`copy_from_renderer`.
 - **Verbs enqueue; waiting is separate.** `render`/`probe`/`update` each split into `_launch`
   (pure enqueue) and `_sync` (true boundary: readback, benchmarks, teardown); the fused verb is
   launch + sync. On OptiX, calling a launch verb with a CUDA device makes the backend stream
@@ -93,9 +94,9 @@ rlt::probe_launch(device, renderer);
 | Metal | `backends/metal` (MSL) | macOS; **not buildable on the Linux dev machine — changes are pattern-exact and must be validated on macOS before release** |
 
 Backend selection: `-DRL_TOOLS_RENDERING_RAYTRACING_BACKEND=AUTO|OPTIX|METAL|VULKAN|GENERIC`
-(mux in `operations_cpu_mux.h`). Code that needs a non-default backend can pair an explicit
-`devices::rendering::{Generic,Optix,Metal,Vulkan}` renderer argument with the same rendering
-component in its CPU/CUDA device specification. The cross-backend parity suite is
+(mux in `operations_cpu_mux.h`). Code that needs a non-default backend passes an explicit
+`backends::{Generic,Optix,Metal,Vulkan}` as the renderer's second template argument and
+includes that backend's operations header directly. The cross-backend parity suite is
 `tests/src/rendering/raytracing/generic/scene.cpp`, compiled once pinned to generic and once
 against the active backend; golden image/probe comparisons live next to it.
 

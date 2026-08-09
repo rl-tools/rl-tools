@@ -5,7 +5,6 @@
 #ifdef RL_TOOLS_RENDERING_RAYTRACING_SCENE_TEST_ACTIVE_BACKEND
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
 #endif
-#include <rl_tools/rendering/raytracing/operations_cpu.h>
 
 #ifndef RL_TOOLS_SCENE_SUITE
 #define RL_TOOLS_SCENE_SUITE RENDERING_RAYTRACING_GENERIC_SCENE
@@ -28,12 +27,11 @@
 namespace rlt = rl_tools;
 
 #ifdef RL_TOOLS_RENDERING_RAYTRACING_SCENE_TEST_ACTIVE_BACKEND
-using RENDER_DEVICE = rlt::devices::rendering::Default;
+using BACKEND = rlt::rendering::raytracing::backends::Default;
 #else
-using RENDER_DEVICE = rlt::devices::rendering::Generic;
+using BACKEND = rlt::rendering::raytracing::backends::Generic;
 #endif
-using DEVICE_SPEC = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::devices::random::CPU, rlt::devices::logging::CPU, RENDER_DEVICE>;
-using DEVICE = rlt::devices::CPU<DEVICE_SPEC>;
+using DEVICE = rlt::devices::DefaultCPU;
 using T = float;
 using TI = typename DEVICE::index_t;
 using rlt::rendering::raytracing::OverlayIndex;
@@ -44,7 +42,7 @@ namespace {
         using SHADING = rlt::rendering::raytracing::Low;
     };
     using SPEC = rlt::rendering::raytracing::Specification<SPEC_CONFIG>;
-    using Renderer = rlt::rendering::raytracing::Renderer<SPEC, RENDER_DEVICE>;
+    using Renderer = rlt::rendering::raytracing::Renderer<SPEC, BACKEND>;
 
     rlt::rendering::raytracing::Mesh make_cube(T center_x, T half_extent){
         rlt::rendering::raytracing::Mesh mesh;
@@ -65,17 +63,17 @@ namespace {
     }
 
     template <typename RENDERER_SPEC>
-    void write_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, RENDER_DEVICE>& renderer, const rlt::rendering::raytracing::Camera<T>* staging, TI count){
+    void write_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, BACKEND>& renderer, const rlt::rendering::raytracing::Camera<T>* staging, TI count){
         rlt::copy_to_renderer(device, renderer, staging, rlt::data(rlt::cameras(device, renderer)), count);
     }
 
     template <typename RENDERER_SPEC, typename ELEMENT, typename TENSOR>
-    void read_output(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, RENDER_DEVICE>& renderer, const TENSOR& tensor, ELEMENT* out, size_t count){
+    void read_output(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, BACKEND>& renderer, const TENSOR& tensor, ELEMENT* out, size_t count){
         rlt::copy_from_renderer(device, renderer, rlt::data(tensor), out, count);
     }
 
     template <typename RENDERER_SPEC>
-    void set_test_camera(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, RENDER_DEVICE>& renderer, const T position[3], const T look_at[3]){
+    void set_test_camera(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, BACKEND>& renderer, const T position[3], const T look_at[3]){
         const T up[3] = {0, 0, 1};
         constexpr T aspect = (T)RENDERER_SPEC::CAM_WIDTH / (T)RENDERER_SPEC::CAM_HEIGHT;
         const auto camera = rlt::make_camera_data(position, look_at, up, RENDERER_SPEC::COS_FOVY, aspect);
@@ -83,7 +81,7 @@ namespace {
     }
 
     template <typename RENDERER_SPEC>
-    void render_pixels(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, RENDER_DEVICE>& renderer, const T position[3], const T look_at[3], std::vector<uint32_t>& pixels){
+    void render_pixels(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, BACKEND>& renderer, const T position[3], const T look_at[3], std::vector<uint32_t>& pixels){
         set_test_camera(device, renderer, position, look_at);
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
@@ -112,7 +110,7 @@ namespace {
     using PBR_SPEC = rlt::rendering::raytracing::Specification<PBR_CONFIG>;
 
     template <typename RENDERER_SPEC>
-    float render_center_depth(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, RENDER_DEVICE>& renderer){
+    float render_center_depth(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, BACKEND>& renderer){
         const T position[3] = {-5, 0, 0};
         const T look_at[3] = {0, 0, 0};
         set_test_camera(device, renderer, position, look_at);
@@ -208,7 +206,7 @@ TEST(RL_TOOLS_SCENE_SUITE, INSTANCE_DEPTH_ANALYTIC){
     rlt::rendering::raytracing::Object cube;
     cube.meshes.push_back(make_cube(0, 1));
 
-    rlt::rendering::raytracing::Renderer<DEPTH_SPEC, RENDER_DEVICE> renderer;
+    rlt::rendering::raytracing::Renderer<DEPTH_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
 
@@ -346,7 +344,7 @@ TEST(RL_TOOLS_SCENE_SUITE, BAKED_VS_INSTANCED_ORACLE){
     compare_scenes(renderer_low);
     rlt::free(device, renderer_low);
 
-    rlt::rendering::raytracing::Renderer<PBR_SPEC, RENDER_DEVICE> renderer_pbr;
+    rlt::rendering::raytracing::Renderer<PBR_SPEC, BACKEND> renderer_pbr;
     rlt::malloc(device, renderer_pbr);
     rlt::generate_probe_directions(device, renderer_pbr);
     compare_scenes(renderer_pbr);
@@ -368,7 +366,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OBJECT_LIGHT_FOLLOWS_INSTANCE){
     lamp.meshes.push_back(make_cube(0, 0.2f));
     lamp.lights.push_back({1, {0, 0, 1.5f}, {0, 0, -1}, {5, 5, 5}, 1, 0, 1, 0, 0}); // point light above the lamp body
 
-    rlt::rendering::raytracing::Renderer<PBR_SPEC, RENDER_DEVICE> renderer;
+    rlt::rendering::raytracing::Renderer<PBR_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
 
@@ -431,7 +429,7 @@ TEST(RL_TOOLS_SCENE_SUITE, SPLIT_VS_WELDED){
         GTEST_SKIP() << "scene file not found (run from the repo root): " << scene_path;
     }
 
-    rlt::rendering::raytracing::Renderer<SPLIT_SPEC, RENDER_DEVICE> renderer;
+    rlt::rendering::raytracing::Renderer<SPLIT_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
 
@@ -478,7 +476,7 @@ TEST(RL_TOOLS_SCENE_SUITE, SPLIT_VS_WELDED){
 namespace {
 
     template <typename RENDERER_SPEC>
-    std::vector<uint32_t> render_segmentation_pixels(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, RENDER_DEVICE>& renderer, const T position[3], const T look_at[3]){
+    std::vector<uint32_t> render_segmentation_pixels(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, BACKEND>& renderer, const T position[3], const T look_at[3]){
         set_test_camera(device, renderer, position, look_at);
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
@@ -503,7 +501,7 @@ TEST(RL_TOOLS_SCENE_SUITE, SEGMENTATION_ANALYTIC){
     rlt::make_transform(position_offset, orientation_wxyz, transform);
     rlt::add(device, scene, cube, transform); // instance 1 to the left
 
-    rlt::rendering::raytracing::Renderer<SEGMENTATION_SPEC, RENDER_DEVICE> renderer;
+    rlt::rendering::raytracing::Renderer<SEGMENTATION_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
     rlt::init(device, renderer, scene);
@@ -562,7 +560,7 @@ TEST(RL_TOOLS_SCENE_SUITE, ASSEMBLY_COMPOSE){
     EXPECT_EQ(placement_b.first_instance, (size_t)2);
     EXPECT_EQ(placement_b.num_instances, (size_t)2);
 
-    rlt::rendering::raytracing::Renderer<SEGMENTATION_SPEC, RENDER_DEVICE> renderer;
+    rlt::rendering::raytracing::Renderer<SEGMENTATION_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
     rlt::init(device, renderer, scene);
@@ -600,7 +598,7 @@ TEST(RL_TOOLS_SCENE_SUITE, ASSEMBLY_STATIC_ARTICULATION){
     assembly.objects.push_back(propeller);
     assembly.parts.push_back({0, {1,0,0,0, 0,1,0,0, 0,0,1,0}});
 
-    rlt::rendering::raytracing::Renderer<DEPTH_SPEC, RENDER_DEVICE> renderer;
+    rlt::rendering::raytracing::Renderer<DEPTH_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
 
@@ -631,7 +629,7 @@ TEST(RL_TOOLS_SCENE_SUITE, ASSEMBLY_STATIC_ARTICULATION){
 
 namespace {
     template <typename RENDERER_SPEC>
-    void set_same_pose_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, RENDER_DEVICE>& renderer, const T position[3], const T look_at[3]){
+    void set_same_pose_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, BACKEND>& renderer, const T position[3], const T look_at[3]){
         const T up[3] = {0, 0, 1};
         constexpr T aspect = (T)RENDERER_SPEC::CAM_WIDTH / (T)RENDERER_SPEC::CAM_HEIGHT;
         std::vector<rlt::rendering::raytracing::Camera<T>> staging(RENDERER_SPEC::NUM_CAMERAS);
@@ -668,7 +666,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_ATTACHMENT_SCOPES){
     const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
     pool.assemblies[cube_asset.index].objects[0].name = "overlay-cube";
 
-    rlt::rendering::raytracing::Renderer<OVERLAY_SEG_SPEC, RENDER_DEVICE> renderer;
+    rlt::rendering::raytracing::Renderer<OVERLAY_SEG_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
     rlt::init(device, renderer, scene, pool);
@@ -758,7 +756,7 @@ TEST(RL_TOOLS_SCENE_SUITE, SEMANTIC_SEGMENTATION){
     const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
     pool.assemblies[cube_asset.index].objects[0].segmentation_class = 3;
 
-    rlt::rendering::raytracing::Renderer<SEMANTIC_SPEC, RENDER_DEVICE> renderer;
+    rlt::rendering::raytracing::Renderer<SEMANTIC_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
     rlt::init(device, renderer, scene, pool);
@@ -822,7 +820,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SPIN_DYNAMIC){
     rlt::rendering::raytracing::AssetPool pool;
     const auto blade_asset = rlt::add(device, pool, blade_assembly);
 
-    rlt::rendering::raytracing::Renderer<OVERLAY_DEPTH_SPEC, RENDER_DEVICE> renderer;
+    rlt::rendering::raytracing::Renderer<OVERLAY_DEPTH_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
     rlt::init(device, renderer, scene, pool);
@@ -872,7 +870,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_TRANSFORMS_TENSOR){
     rlt::rendering::raytracing::AssetPool pool;
     const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
 
-    rlt::rendering::raytracing::Renderer<OVERLAY_DEPTH_SPEC, RENDER_DEVICE> renderer;
+    rlt::rendering::raytracing::Renderer<OVERLAY_DEPTH_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
     rlt::init(device, renderer, scene, pool);
@@ -920,7 +918,7 @@ TEST(RL_TOOLS_SCENE_SUITE, CAMERAS_TENSOR){
     rlt::rendering::raytracing::Scene scene;
     rlt::add(device, scene, make_cube(0, 1));
 
-    rlt::rendering::raytracing::Renderer<DEPTH_SPEC, RENDER_DEVICE> renderer;
+    rlt::rendering::raytracing::Renderer<DEPTH_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
     rlt::init(device, renderer, scene);
@@ -959,7 +957,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SPAWN_DESPAWN){
     overlay_cube.color[0] = 1.0f; overlay_cube.color[1] = 0.2f; overlay_cube.color[2] = 0.1f; // distinct from the anchor
     const auto cube_asset = rlt::add(device, pool, overlay_cube);
 
-    rlt::rendering::raytracing::Renderer<OVERLAY_RGB_SPEC, RENDER_DEVICE> renderer;
+    rlt::rendering::raytracing::Renderer<OVERLAY_RGB_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
     rlt::init(device, renderer, scene, pool);
@@ -1027,7 +1025,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SECONDARY_RAYS){
     rlt::rendering::raytracing::AssetPool pool;
     const auto cube_asset = rlt::add(device, pool, make_cube(0, 0.8f));
 
-    rlt::rendering::raytracing::Renderer<OVERLAY_PBR_SPEC, RENDER_DEVICE> renderer;
+    rlt::rendering::raytracing::Renderer<OVERLAY_PBR_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
     rlt::init(device, renderer, scene, pool);
@@ -1075,7 +1073,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_PROBES){
     rlt::rendering::raytracing::AssetPool pool;
     const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
 
-    rlt::rendering::raytracing::Renderer<OVERLAY_PROBE_SPEC, RENDER_DEVICE> renderer;
+    rlt::rendering::raytracing::Renderer<OVERLAY_PROBE_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
     rlt::init(device, renderer, scene, pool);
@@ -1120,7 +1118,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_UPDATE_COST_SMOKE){
     rlt::rendering::raytracing::AssetPool pool;
     const auto cube_asset = rlt::add(device, pool, make_cube(0, 0.3f));
 
-    rlt::rendering::raytracing::Renderer<OVERLAY_MANY_SPEC, RENDER_DEVICE> renderer;
+    rlt::rendering::raytracing::Renderer<OVERLAY_MANY_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
     rlt::init(device, renderer, scene, pool);

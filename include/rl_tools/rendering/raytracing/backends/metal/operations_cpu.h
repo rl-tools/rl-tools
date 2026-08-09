@@ -17,18 +17,18 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     namespace rendering::raytracing::backends {
         template <typename SPEC>
-        struct RendererState<devices::rendering::Metal, SPEC>: metal::Context {};
+        struct RendererState<rendering::raytracing::backends::Metal, SPEC>: metal::Context {};
 
         template <typename SPEC>
-        struct LibraryState<devices::rendering::Metal, SPEC> {};
+        struct LibraryState<rendering::raytracing::backends::Metal, SPEC> {};
 
         template <typename SPEC>
-        struct SceneState<devices::rendering::Metal, SPEC> {};
+        struct SceneState<rendering::raytracing::backends::Metal, SPEC> {};
     }
 
     namespace rendering::raytracing::backends::metal{
         template <typename SPEC>
-        Context& context(rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer){
+        Context& context(rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
             return *renderer.backend;
         }
 
@@ -119,7 +119,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void malloc(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer){
+    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
         namespace metal = rendering::raytracing::backends::metal;
         static_assert(utils::typing::is_same_v<typename SPEC::T, float>, "The Metal raytracing backend requires T = float");
 
@@ -127,7 +127,7 @@ namespace rl_tools {
             malloc(device, renderer.transforms);
         }
 
-        renderer.backend = new rendering::raytracing::backends::RendererState<devices::rendering::Metal, SPEC>{};
+        renderer.backend = new rendering::raytracing::backends::RendererState<rendering::raytracing::backends::Metal, SPEC>{};
         auto* ctx = renderer.backend;
         ctx->device = NS::TransferPtr(MTL::CreateSystemDefaultDevice());
         utils::assert_exit(device, ctx->device.get() != nullptr, "Metal: no default device available");
@@ -182,10 +182,10 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void update(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer);
+    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer);
 
     template <typename DEVICE, typename SPEC>
-    void init(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool){
+    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool){
         namespace metal = rendering::raytracing::backends::metal;
         auto& ctx = metal::context(renderer);
         NS::AutoreleasePool* autorelease_pool = NS::AutoreleasePool::alloc()->init();
@@ -532,16 +532,16 @@ namespace rl_tools {
         }
 
         if constexpr (SPEC::ENABLE_OVERLAYS){
-            update(render_device, device, renderer); // publish the (empty) overlays and the attachment table
+            update(device, renderer); // publish the (empty) overlays and the attachment table
         }
 
         autorelease_pool->release();
     }
 
     template <typename DEVICE, typename SPEC>
-    void init(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer, const rendering::raytracing::Scene& scene){
+    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, const rendering::raytracing::Scene& scene){
         static const rendering::raytracing::AssetPool empty_pool{};
-        init(render_device, device, renderer, scene, empty_pool);
+        init(device, renderer, scene, empty_pool);
     }
 
     // the host must not mutate the shared instance/descriptor buffers while renders or builds
@@ -549,7 +549,7 @@ namespace rl_tools {
     // one queue execute in commit order and Metal's hazard tracking orders the acceleration
     // structure writes before any subsequent render pass that reads them
     template <typename DEVICE, typename SPEC>
-    void update_launch(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer){
+    void update_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
         static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
         namespace metal = rendering::raytracing::backends::metal;
         using TI = typename SPEC::TI;
@@ -641,7 +641,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void update_sync(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer){
+    void update_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
         static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
         namespace metal = rendering::raytracing::backends::metal;
         auto& ctx = metal::context(renderer);
@@ -652,13 +652,13 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void update(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer){
-        update_launch(render_device, device, renderer);
-        update_sync(render_device, device, renderer);
+    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
+        update_launch(device, renderer);
+        update_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
-    void generate_cameras(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer,
+    void generate_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer,
                           const typename SPEC::T center[3], typename SPEC::T radius,
                           const typename SPEC::T up[3], typename SPEC::T fov){
         namespace metal = rendering::raytracing::backends::metal;
@@ -671,19 +671,19 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC, typename T>
-    void copy_to_renderer(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer, const T* source, T* destination, size_t count){
+    void copy_to_renderer(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, const T* source, T* destination, size_t count){
         rendering::raytracing::backends::metal::wait_in_flight(rendering::raytracing::backends::metal::context(renderer));
         std::memcpy(destination, source, count * sizeof(T));
     }
 
     template <typename DEVICE, typename SPEC, typename T>
-    void copy_from_renderer(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer, const T* source, T* destination, size_t count){
+    void copy_from_renderer(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, const T* source, T* destination, size_t count){
         rendering::raytracing::backends::metal::wait_in_flight(rendering::raytracing::backends::metal::context(renderer));
         std::memcpy(destination, source, count * sizeof(T));
     }
 
     template <typename DEVICE, typename SPEC>
-    void generate_probe_directions(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer){
+    void generate_probe_directions(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
 #if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Probe rays disabled (RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS=1)");
         return;
@@ -698,7 +698,7 @@ namespace rl_tools {
     // render produces the image outputs the spec declares; the collision-probe pass is the
     // separate probe verb so it can be scheduled independently (e.g. alongside update)
     template <typename DEVICE, typename SPEC>
-    void render_launch(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer){
+    void render_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
         namespace metal = rendering::raytracing::backends::metal;
         auto& ctx = metal::context(renderer);
         NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
@@ -718,7 +718,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void render_sync(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer){
+    void render_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
         namespace metal = rendering::raytracing::backends::metal;
         auto& ctx = metal::context(renderer);
         if(ctx.in_flight.get() != nullptr){
@@ -728,13 +728,13 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void render(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer){
-        render_launch(render_device, device, renderer);
-        render_sync(render_device, device, renderer);
+    void render(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
+        render_launch(device, renderer);
+        render_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
-    void probe_launch(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer){
+    void probe_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
         namespace metal = rendering::raytracing::backends::metal;
         auto& ctx = metal::context(renderer);
         if(ctx.collision_pipeline.get() != nullptr){
@@ -748,7 +748,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void probe_sync(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer){
+    void probe_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
         namespace metal = rendering::raytracing::backends::metal;
         auto& ctx = metal::context(renderer);
         if(ctx.in_flight_collision.get() != nullptr){
@@ -758,20 +758,20 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void probe(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer){
-        probe_launch(render_device, device, renderer);
-        probe_sync(render_device, device, renderer);
+    void probe(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
+        probe_launch(device, renderer);
+        probe_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
-    void save_image(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer, const char* filename){
+    void save_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, const char* filename){
         static_assert(SPEC::HAS_RGB, "save_image requires an RGB-capable renderer specification");
         namespace metal = rendering::raytracing::backends::metal;
         rendering::raytracing::detail::write_grid_png<SPEC>(data(renderer.frame_buffer), filename);
     }
 
     template <typename DEVICE, typename SPEC>
-    void save_segmentation_image(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer, const char* filename){
+    void save_segmentation_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, const char* filename){
         static_assert(SPEC::HAS_SEGMENTATION, "save_segmentation_image requires a segmentation-capable renderer specification");
         namespace metal = rendering::raytracing::backends::metal;
         auto& ctx = metal::context(renderer);
@@ -779,21 +779,21 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void save_depth_image(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer, const char* filename){
+    void save_depth_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, const char* filename){
         static_assert(SPEC::HAS_DEPTH, "save_depth_image requires a depth-capable renderer specification");
         namespace metal = rendering::raytracing::backends::metal;
         rendering::raytracing::detail::write_depth_grid_png<SPEC>(data(renderer.depth_buffer), renderer.camera_radius, filename);
     }
 
     template <typename DEVICE, typename SPEC>
-    void save_depth(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer, const char* filename){
+    void save_depth(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, const char* filename){
         static_assert(SPEC::HAS_DEPTH, "save_depth requires a depth-capable renderer specification");
         namespace metal = rendering::raytracing::backends::metal;
         rendering::raytracing::detail::write_depth_bin<SPEC>(data(renderer.depth_buffer), filename);
     }
 
     template <typename DEVICE, typename SPEC>
-    void save_probes(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer, const char* filename){
+    void save_probes(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, const char* filename){
 #if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         RL_TOOLS_RENDERING_RAYTRACING_LOG("save_probes skipped: probe rays are disabled.");
         (void)filename;
@@ -805,13 +805,13 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void synchronize(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer){
+    void synchronize(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
         namespace metal = rendering::raytracing::backends::metal;
         metal::wait_in_flight(metal::context(renderer));
     }
 
     template <typename DEVICE, typename SPEC>
-    void free(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer){
+    void free(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
         namespace metal = rendering::raytracing::backends::metal;
         if(renderer.backend != nullptr){
             metal::wait_in_flight(metal::context(renderer));
@@ -844,30 +844,32 @@ namespace rl_tools {
     // shared-asset-library fallbacks: this backend has no cross-renderer sharing, so the
     // library is empty and every renderer builds its own copy — the API stays uniform
     template <typename DEVICE, typename SPEC>
-    void malloc(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, devices::rendering::Metal>& library){
-        library.backend = new rendering::raytracing::backends::LibraryState<devices::rendering::Metal, SPEC>{};
+    void malloc(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Metal>& library){
+        library.backend = new rendering::raytracing::backends::LibraryState<rendering::raytracing::backends::Metal, SPEC>{};
     }
 
     template <typename DEVICE, typename SPEC>
-    void free(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, devices::rendering::Metal>& library){
+    void free(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Metal>& library){
         for(auto* assets : library.assets){
             delete assets;
         }
         library.assets.clear();
+        library.scenes.clear();
+        library.hashes.clear();
         delete library.backend;
         library.backend = nullptr;
     }
 
     template <typename DEVICE, typename SPEC>
-    void malloc(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer, rendering::raytracing::AssetLibrary<SPEC, devices::rendering::Metal>& library){
-        malloc(render_device, device, renderer);
+    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Metal>& library){
+        malloc(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
-    typename SPEC::TI init(devices::rendering::Metal& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Metal>& renderer, rendering::raytracing::AssetLibrary<SPEC, devices::rendering::Metal>& library, const char* scene_path){
+    typename SPEC::TI init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Metal>& library, const char* scene_path){
         bool is_new = false;
         const auto scene_id = rendering::raytracing::detail::library_lookup_or_load(device, library, scene_path, is_new);
-        init(render_device, device, renderer, library.scenes[scene_id], library.pool);
+        init(device, renderer, library.scenes[scene_id], library.pool);
         return scene_id;
     }
 }

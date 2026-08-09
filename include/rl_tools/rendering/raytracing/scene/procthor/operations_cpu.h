@@ -36,8 +36,8 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
         return x - std::floor(x);
     }
 
-    template <typename DEVICE, typename SCENE_SPEC, typename RENDERER_SPEC, typename RENDER_DEVICE>
-    void precompute_indoor_positions(DEVICE& device, Scene<SCENE_SPEC>& scene, rendering::raytracing::Renderer<RENDERER_SPEC, RENDER_DEVICE>& renderer, typename SCENE_SPEC::T fov, typename SCENE_SPEC::T aspect) {
+    template <typename DEVICE, typename SCENE_SPEC, typename RENDERER_SPEC, typename BACKEND>
+    void precompute_indoor_positions(DEVICE& device, Scene<SCENE_SPEC>& scene, rendering::raytracing::Renderer<RENDERER_SPEC, BACKEND>& renderer, typename SCENE_SPEC::T fov, typename SCENE_SPEC::T aspect) {
         using T = typename SCENE_SPEC::T;
         using TI = typename SCENE_SPEC::TI;
         constexpr TI NUM_CAMERAS = RENDERER_SPEC::NUM_CAMERAS;
@@ -199,8 +199,8 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
         return scene.indoor_positions[index];
     }
 
-    template <typename DEVICE, typename RENDERER_SPEC, typename RENDER_DEVICE>
-    RL_TOOLS_FUNCTION_PLACEMENT typename RENDERER_SPEC::T evaluate_clearance(DEVICE& device, rendering::raytracing::Renderer<RENDERER_SPEC, RENDER_DEVICE>& renderer, typename RENDERER_SPEC::TI camera_index) {
+    template <typename DEVICE, typename RENDERER_SPEC, typename BACKEND>
+    RL_TOOLS_FUNCTION_PLACEMENT typename RENDERER_SPEC::T evaluate_clearance(DEVICE& device, rendering::raytracing::Renderer<RENDERER_SPEC, BACKEND>& renderer, typename RENDERER_SPEC::TI camera_index) {
         using T = typename RENDERER_SPEC::T;
         constexpr auto NUM_PROBES = RENDERER_SPEC::NUM_PROBES;
         if (data(renderer.collision_results) == nullptr) {

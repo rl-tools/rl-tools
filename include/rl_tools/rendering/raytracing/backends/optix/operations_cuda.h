@@ -50,7 +50,7 @@ namespace rl_tools {
 
     namespace rendering::raytracing::backends {
         template <typename SPEC>
-        struct RendererState<devices::rendering::Optix, SPEC> {
+        struct RendererState<rendering::raytracing::backends::Optix, SPEC> {
             OWLContext context = nullptr;
             OWLModule module = nullptr;
             OWLBuffer cameras_buffer = nullptr;
@@ -69,18 +69,18 @@ namespace rl_tools {
             OWLRayGen segmentation_ray_gen = nullptr;
             OWLBuffer segmentation_buffer = nullptr;
             OWLBuffer observation_buffer = nullptr;
-            rendering::raytracing::AssetLibrary<SPEC, devices::rendering::Optix>* library = nullptr;
+            rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Optix>* library = nullptr;
         };
 
         template <typename SPEC>
-        struct LibraryState<devices::rendering::Optix, SPEC> {
+        struct LibraryState<rendering::raytracing::backends::Optix, SPEC> {
             OWLContext context = nullptr;
             OWLModule module = nullptr;
             OWLGeomType geom_type = nullptr;
         };
 
         template <typename SPEC>
-        struct SceneState<devices::rendering::Optix, SPEC> {
+        struct SceneState<rendering::raytracing::backends::Optix, SPEC> {
             OWLGroup world = nullptr;
             OWLBuffer instance_classes_buffer = nullptr;
             OWLGroup filler_group = nullptr;
@@ -290,7 +290,7 @@ namespace rl_tools {
     namespace rendering::raytracing::backends::optix::detail{
         // everything renderer-private: framebuffers, cameras, ray gens, collision resources
         template <typename DEVICE, typename SPEC>
-        void malloc_renderer(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer, OWLContext context, OWLModule module){
+        void malloc_renderer(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, OWLContext context, OWLModule module){
         using TI = typename SPEC::TI;
 
         if constexpr (SPEC::ENABLE_OVERLAYS) {
@@ -535,43 +535,42 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void malloc(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer){
+    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
         namespace optix = rendering::raytracing::backends::optix;
-        renderer.backend = new rendering::raytracing::backends::RendererState<devices::rendering::Optix, SPEC>{};
+        renderer.backend = new rendering::raytracing::backends::RendererState<rendering::raytracing::backends::Optix, SPEC>{};
         OWLContext context = nullptr;
         OWLModule module = nullptr;
         optix::create_context_resources<SPEC>(context, module);
-        optix::detail::malloc_renderer(render_device, device, renderer, context, module);
+        optix::detail::malloc_renderer(device, renderer, context, module);
     }
 
     // shared-library mode: the library owns the context; the renderer allocates only its own
     // cameras/outputs/ray gens against it
     template <typename DEVICE, typename SPEC>
-    void malloc(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer, rendering::raytracing::AssetLibrary<SPEC, devices::rendering::Optix>& library){
+    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Optix>& library){
         namespace optix = rendering::raytracing::backends::optix;
-        renderer.backend = new rendering::raytracing::backends::RendererState<devices::rendering::Optix, SPEC>{};
-        optix::detail::malloc_renderer(render_device, device, renderer, library.backend->context, library.backend->module);
+        renderer.backend = new rendering::raytracing::backends::RendererState<rendering::raytracing::backends::Optix, SPEC>{};
+        optix::detail::malloc_renderer(device, renderer, library.backend->context, library.backend->module);
         renderer.backend->library = &library;
     }
 
     template <typename DEVICE, typename SPEC>
-    void malloc(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, devices::rendering::Optix>& library){
-        library.backend = new rendering::raytracing::backends::LibraryState<devices::rendering::Optix, SPEC>{};
+    void malloc(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Optix>& library){
+        library.backend = new rendering::raytracing::backends::LibraryState<rendering::raytracing::backends::Optix, SPEC>{};
         rendering::raytracing::backends::optix::create_context_resources<SPEC>(library.backend->context, library.backend->module);
     }
 
     template <typename DEVICE, typename SPEC>
-    void free(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, devices::rendering::Optix>& library){
+    void free(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Optix>& library){
         if(library.backend != nullptr && library.backend->context != nullptr){
             owlContextDestroy(library.backend->context);
-            library.backend->context = nullptr;
-            library.backend->module = nullptr;
-            library.backend->geom_type = nullptr;
         }
         for(auto* assets : library.assets){
             delete assets;
         }
         library.assets.clear();
+        library.scenes.clear();
+        library.hashes.clear();
         delete library.backend;
         library.backend = nullptr;
     }
@@ -580,7 +579,7 @@ namespace rl_tools {
     // init: upload meshes, build single shared BVH, build programs/pipeline/SBT
     // =========================================================================
     template <typename DEVICE, typename SPEC>
-    void update(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer);
+    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer);
 
     namespace rendering::raytracing::backends::optix::detail{
         template <typename SPEC>
@@ -679,7 +678,7 @@ namespace rl_tools {
         // one geometry/texture/BLAS build per unique scene: standalone renderers build into
         // their own context, shared-library renderers reference the library's single build
         template <typename DEVICE, typename SPEC>
-        void build_scene_assets(DEVICE& device, OWLContext context, OWLGeomType triangles_geom_type, const rendering::raytracing::Scene& scene, const std::vector<const rendering::raytracing::Object*>& all_objects, rendering::raytracing::backends::SceneState<devices::rendering::Optix, SPEC>& assets){
+        void build_scene_assets(DEVICE& device, OWLContext context, OWLGeomType triangles_geom_type, const rendering::raytracing::Scene& scene, const std::vector<const rendering::raytracing::Object*>& all_objects, rendering::raytracing::backends::SceneState<rendering::raytracing::backends::Optix, SPEC>& assets){
             namespace optix = rendering::raytracing::backends::optix;
             RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << scene.objects.size() << " object(s), " << scene.instances.size() << " instance(s), " << (all_objects.size() - scene.objects.size()) << " pool object(s) ...");
 
@@ -892,7 +891,7 @@ namespace rl_tools {
         // wires one renderer to a scene build: bounds, overlay state, ray gen vars, launch
         // params, and the context-level programs/pipeline/SBT rebuild
         template <typename DEVICE, typename SPEC>
-        void init_renderer_scene(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer, const rendering::raytracing::Scene& scene, const std::vector<const rendering::raytracing::Object*>& all_objects, const rendering::raytracing::backends::SceneState<devices::rendering::Optix, SPEC>& assets){
+        void init_renderer_scene(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, const rendering::raytracing::Scene& scene, const std::vector<const rendering::raytracing::Object*>& all_objects, const rendering::raytracing::backends::SceneState<rendering::raytracing::backends::Optix, SPEC>& assets){
             namespace optix = rendering::raytracing::backends::optix;
             OWLContext context = (OWLContext)renderer.backend->context;
             rendering::raytracing::detail::compute_scene_bounds(renderer, scene);
@@ -993,13 +992,13 @@ namespace rl_tools {
             }
 
             if constexpr (SPEC::ENABLE_OVERLAYS){
-                update(render_device, device, renderer); // publish the (empty) overlays and the attachment table
+                update(device, renderer); // publish the (empty) overlays and the attachment table
             }
         }
     }
 
     template <typename DEVICE, typename SPEC>
-    void init(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool){
+    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool){
         namespace optix = rendering::raytracing::backends::optix;
         OWLContext context = (OWLContext)renderer.backend->context;
         OWLModule module = (OWLModule)renderer.backend->module;
@@ -1013,16 +1012,16 @@ namespace rl_tools {
             rendering::raytracing::detail::register_pool_assets(device, renderer, pool, all_objects);
         }
 
-        rendering::raytracing::backends::SceneState<devices::rendering::Optix, SPEC> assets;
+        rendering::raytracing::backends::SceneState<rendering::raytracing::backends::Optix, SPEC> assets;
         optix::detail::build_scene_assets<DEVICE, SPEC>(device, context, triangles_geom_type, scene, all_objects, assets);
-        optix::detail::init_renderer_scene(render_device, device, renderer, scene, all_objects, assets);
+        optix::detail::init_renderer_scene(device, renderer, scene, all_objects, assets);
     }
 
     // shared-library mode: one geometry/texture/BLAS build per unique scene (content-hash
     // dedup inside the library), then the renderer is wired to the shared build. Returns the
     // unique-scene index so callers can key their own per-scene data.
     template <typename DEVICE, typename SPEC>
-    typename SPEC::TI init(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer, rendering::raytracing::AssetLibrary<SPEC, devices::rendering::Optix>& library, const char* scene_path){
+    typename SPEC::TI init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Optix>& library, const char* scene_path){
         namespace optix = rendering::raytracing::backends::optix;
         using TI = typename SPEC::TI;
         utils::assert_exit(device, renderer.backend->library == &library, "init: the renderer was not malloc'd against this library");
@@ -1035,7 +1034,7 @@ namespace rl_tools {
             }
             std::vector<const rendering::raytracing::Object*> build_objects;
             optix::detail::collect_all_objects(scene, library.pool, build_objects);
-            library.assets[scene_id] = new rendering::raytracing::backends::SceneState<devices::rendering::Optix, SPEC>{};
+            library.assets[scene_id] = new rendering::raytracing::backends::SceneState<rendering::raytracing::backends::Optix, SPEC>{};
             optix::detail::build_scene_assets<DEVICE, SPEC>(device, library.backend->context, library.backend->geom_type, scene, build_objects, *library.assets[scene_id]);
         }
         std::vector<const rendering::raytracing::Object*> all_objects;
@@ -1048,14 +1047,14 @@ namespace rl_tools {
         else{
             optix::detail::collect_all_objects(scene, library.pool, all_objects);
         }
-        optix::detail::init_renderer_scene(render_device, device, renderer, scene, all_objects, *library.assets[scene_id]);
+        optix::detail::init_renderer_scene(device, renderer, scene, all_objects, *library.assets[scene_id]);
         return scene_id;
     }
 
     template <typename DEVICE, typename SPEC>
-    void init(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer, const rendering::raytracing::Scene& scene){
+    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, const rendering::raytracing::Scene& scene){
         static const rendering::raytracing::AssetPool empty_pool{};
-        init(render_device, device, renderer, scene, empty_pool);
+        init(device, renderer, scene, empty_pool);
     }
 
     namespace rendering::raytracing::backends::optix{
@@ -1083,7 +1082,7 @@ namespace rl_tools {
     // fully stream-ordered on the render stream: staging uploads for host-verb writes, then the
     // device-side instance fill and per-overlay raw optixAccelBuild — no host synchronization
     template <typename DEVICE, typename SPEC>
-    void update_launch(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer){
+    void update_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
         static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
         namespace optix = rendering::raytracing::backends::optix;
         using TI = typename SPEC::TI;
@@ -1137,19 +1136,19 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void update_sync(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer){
+    void update_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
         static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
         cudaStreamSynchronize((cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend->launch_params, 0));
     }
 
     template <typename DEVICE, typename SPEC>
-    void update(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer){
-        update_launch(render_device, device, renderer);
-        update_sync(render_device, device, renderer);
+    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
+        update_launch(device, renderer);
+        update_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
-    void generate_cameras(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer,
+    void generate_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer,
                           const typename SPEC::T center[3], typename SPEC::T radius,
                           const typename SPEC::T up[3], typename SPEC::T fov){
         std::vector<rendering::raytracing::Camera<typename SPEC::T>> staging(SPEC::NUM_CAMERAS);
@@ -1162,12 +1161,12 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC, typename T>
-    void copy_to_renderer(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer, const T* source, T* destination, size_t count){
+    void copy_to_renderer(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, const T* source, T* destination, size_t count){
         cudaMemcpy(destination, source, count * sizeof(T), cudaMemcpyHostToDevice);
     }
 
     template <typename DEVICE, typename SPEC, typename T>
-    void copy_from_renderer(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer, const T* source, T* destination, size_t count){
+    void copy_from_renderer(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, const T* source, T* destination, size_t count){
         cudaMemcpy(destination, source, count * sizeof(T), cudaMemcpyDeviceToHost);
     }
 
@@ -1175,7 +1174,7 @@ namespace rl_tools {
     // generate_probe_directions: Fibonacci probe directions + upload
     // =========================================================================
     template <typename DEVICE, typename SPEC>
-    void generate_probe_directions(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer){
+    void generate_probe_directions(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
 #if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Probe rays disabled (RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS=1)");
         return;
@@ -1186,7 +1185,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void render_launch(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer){
+    void render_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
         namespace optix = rendering::raytracing::backends::optix;
         OWLParams launch_params = (OWLParams)renderer.backend->launch_params;
         optix::await_producer(optix::producer_stream(device, 0), (cudaStream_t)owlParamsGetCudaStream(launch_params, 0));
@@ -1204,20 +1203,20 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void render_sync(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer){
+    void render_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
         owlLaunchSync((OWLParams)renderer.backend->launch_params);
     }
 
     template <typename DEVICE, typename SPEC>
-    void render(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer){
-        render_launch(render_device, device, renderer);
-        render_sync(render_device, device, renderer);
+    void render(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
+        render_launch(device, renderer);
+        render_sync(device, renderer);
     }
 
     // render produces the image outputs the spec declares; the collision-probe pass is the
     // separate probe verb so it can be scheduled independently (e.g. alongside update)
     template <typename DEVICE, typename SPEC>
-    void probe_launch(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer){
+    void probe_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
         namespace optix = rendering::raytracing::backends::optix;
         if(renderer.backend->collision_ray_gen){
             OWLRayGen collision_ray_gen = (OWLRayGen)renderer.backend->collision_ray_gen;
@@ -1228,19 +1227,19 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void probe_sync(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer){
+    void probe_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
         if(renderer.backend->coll_launch_params)
             owlLaunchSync((OWLParams)renderer.backend->coll_launch_params);
     }
 
     template <typename DEVICE, typename SPEC>
-    void probe(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer){
-        probe_launch(render_device, device, renderer);
-        probe_sync(render_device, device, renderer);
+    void probe(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
+        probe_launch(device, renderer);
+        probe_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
-    void save_segmentation_image(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer, const char* filename){
+    void save_segmentation_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, const char* filename){
         static_assert(SPEC::HAS_SEGMENTATION, "save_segmentation_image requires a segmentation-capable renderer specification");
         const size_t segmentation_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
         std::vector<uint32_t> segmentation_host(segmentation_count);
@@ -1252,7 +1251,7 @@ namespace rl_tools {
     // save_image: readback framebuffer, rearrange to grid, write PNG
     // =========================================================================
     template <typename DEVICE, typename SPEC>
-    void save_image(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer, const char* filename){
+    void save_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, const char* filename){
         static_assert(SPEC::HAS_RGB, "save_image requires an RGB-capable renderer specification");
         using TI = typename SPEC::TI;
         constexpr TI cam_pixels = SPEC::CAM_PIXELS;
@@ -1264,7 +1263,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void save_depth_image(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer, const char* filename){
+    void save_depth_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, const char* filename){
         static_assert(SPEC::HAS_DEPTH, "save_depth_image requires a depth-capable renderer specification");
         using TI = typename SPEC::TI;
         constexpr TI cam_pixels = SPEC::CAM_PIXELS;
@@ -1277,7 +1276,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void save_depth(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer, const char* filename){
+    void save_depth(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, const char* filename){
         static_assert(SPEC::HAS_DEPTH, "save_depth requires a depth-capable renderer specification");
         constexpr size_t depth_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
         std::vector<float> depth_host(depth_count);
@@ -1289,7 +1288,7 @@ namespace rl_tools {
     // save_probes: readback collision results, write binary
     // =========================================================================
     template <typename DEVICE, typename SPEC>
-    void save_probes(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer, const char* filename){
+    void save_probes(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, const char* filename){
 #if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         RL_TOOLS_RENDERING_RAYTRACING_LOG("save_probes skipped: probe rays are disabled.");
         (void)filename;
@@ -1305,13 +1304,13 @@ namespace rl_tools {
     // render stream shared by render/probe/update launches; producers writing renderer inputs
     // from their own kernels can run on it to get ordering without events or host syncs
     template <typename DEVICE, typename SPEC>
-    cudaStream_t stream(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer){
+    cudaStream_t stream(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
         return (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend->launch_params, 0);
     }
 
     // scoped to the renderer's own streams — never a whole-device barrier
     template <typename DEVICE, typename SPEC>
-    void synchronize(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer){
+    void synchronize(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
         if(renderer.backend->launch_params != nullptr){
             cudaStreamSynchronize((cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend->launch_params, 0));
         }
@@ -1321,18 +1320,19 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void free(devices::rendering::Optix& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Optix>& renderer){
+    void free(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
         RL_TOOLS_RENDERING_RAYTRACING_LOG("destroying devicegroups ...");
-        if(renderer.backend->context != nullptr && renderer.backend->library == nullptr){
-            owlContextDestroy((OWLContext)renderer.backend->context); // library-backed renderers borrow the context — the library destroys it
-        }
-        renderer.backend->context = nullptr;
-        renderer.backend->library = nullptr;
-        if(renderer.backend->overlay_state != nullptr){
-            auto* overlay_state = (rendering::raytracing::backends::optix::OverlayState*)renderer.backend->overlay_state;
-            rendering::raytracing::backends::optix::overlay_accel_destroy(overlay_state->accel);
-            delete overlay_state;
-            renderer.backend->overlay_state = nullptr;
+        if(renderer.backend != nullptr){
+            if(renderer.backend->context != nullptr && renderer.backend->library == nullptr){
+                owlContextDestroy((OWLContext)renderer.backend->context); // library-backed renderers borrow the context — the library destroys it
+            }
+            if(renderer.backend->overlay_state != nullptr){
+                auto* overlay_state = (rendering::raytracing::backends::optix::OverlayState*)renderer.backend->overlay_state;
+                rendering::raytracing::backends::optix::overlay_accel_destroy(overlay_state->accel);
+                delete overlay_state;
+            }
+            delete renderer.backend;
+            renderer.backend = nullptr;
         }
         if constexpr (SPEC::ENABLE_OVERLAYS){
             if(renderer.transforms._data != nullptr){
@@ -1358,8 +1358,6 @@ namespace rl_tools {
             renderer.observation._data = nullptr;
         }
         renderer.collision_results._data = nullptr;
-        delete renderer.backend;
-        renderer.backend = nullptr;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
