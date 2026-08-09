@@ -200,10 +200,9 @@ namespace hyperdrone_render_impl {
             rlt::generate_probe_directions(device, renderer);
         }
 
-        // the revamped API renders all enabled image channels together (render*) with
-        // probes split out (probe*) on the backends that have been ported to the split;
-        // OptiX/Vulkan still launch probes inside render*. Channel-specific targets are
-        // validated against the spec, then map to the unified render.
+        // the renderer API renders all enabled image channels together (render*) with
+        // probe rays split out (probe*) uniformly across backends. Channel-specific
+        // targets are validated against the spec, then map to the unified render.
         void render(hyperdrone::render::RenderTarget target, hyperdrone::render::RenderPhase phase) override {
             require_init();
             using RT = hyperdrone::render::RenderTarget;
@@ -224,7 +223,6 @@ namespace hyperdrone_render_impl {
                 default:
                     break;
             }
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_METAL) || defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_GENERIC)
             const bool wants_image = target != RT::COLLISION;
             const bool wants_probes = target == RT::ALL || target == RT::COLLISION;
             if(wants_image){
@@ -237,12 +235,6 @@ namespace hyperdrone_render_impl {
                 else if(phase == RP::SYNC) rlt::probe_sync(device, renderer);
                 else rlt::probe(device, renderer);
             }
-#else
-            // OptiX and Vulkan launch probe rays as part of render*
-            if(phase == RP::LAUNCH) rlt::render_launch(device, renderer);
-            else if(phase == RP::SYNC) rlt::render_sync(device, renderer);
-            else rlt::render(device, renderer);
-#endif
         }
 
         void read_frame_buffer(uint32_t* dst) override {

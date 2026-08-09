@@ -46,8 +46,9 @@ def configure(component, directory):
         f"-DHYPERDRONE_VARIANT={component.variant.upper()}",
         f"-DHYPERDRONE_NATIVE_ROOT={native_root()}",
         f"-DPython_EXECUTABLE={sys.executable}",
-        # the rl_tools root CMakeLists appends the build-dir basename to this
-        f"-DFETCHCONTENT_BASE_DIR={dependencies_root()}",
+        # fully qualified: the rl_tools root CMakeLists cannot append the build-dir
+        # basename to an externally-passed value (non-FORCE cache set)
+        f"-DFETCHCONTENT_BASE_DIR={dependencies_root() / directory.name}",
     ]
     for fetch_name, path in sorted(seeded.items()):
         arguments.append(f"-DFETCHCONTENT_SOURCE_DIR_{fetch_name}={path}")
