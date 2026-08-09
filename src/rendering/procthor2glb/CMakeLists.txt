@@ -28,10 +28,14 @@ add_executable(procthor2glb
     procthor2glb.cpp
     ${procthor2glb_basisu_SOURCE_DIR}/transcoder/basisu_transcoder.cpp
 )
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    set_source_files_properties(${procthor2glb_basisu_SOURCE_DIR}/transcoder/basisu_transcoder.cpp
+        PROPERTIES COMPILE_OPTIONS "-Wno-stringop-overflow")
+endif()
 target_link_libraries(procthor2glb PRIVATE RLtools::RLtools)
 target_include_directories(procthor2glb SYSTEM PRIVATE
     ${procthor2glb_stb_SOURCE_DIR}
-    ${procthor2glb_tinygltf_SOURCE_DIR}
+    ${procthor2glb_tinygltf_SOURCE_DIR}/attic # tinygltf >= v3 is a C rewrite; the v2 C++ single-header lives in attic/
     ${procthor2glb_basisu_SOURCE_DIR}/transcoder
 )
 
