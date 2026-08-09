@@ -7,7 +7,6 @@
 #include "types.h"
 #include "scene.h"
 #include "../../containers/tensor/tensor.h"
-#include "../../devices/rendering.h"
 
 #include <vector>
 #include <deque>
@@ -131,13 +130,31 @@ namespace rl_tools {
         };
 
         namespace backends {
-            template <typename T_RENDER_DEVICE, typename T_SPEC>
+            struct None {};
+            struct Generic {};
+            struct Optix {};
+            struct Metal {};
+            struct Vulkan {};
+
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_METAL)
+            using Default = Metal;
+#elif defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+            using Default = Optix;
+#elif defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_VULKAN)
+            using Default = Vulkan;
+#elif defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_GENERIC)
+            using Default = Generic;
+#else
+            using Default = None;
+#endif
+
+            template <typename T_BACKEND, typename T_SPEC>
             struct RendererState;
 
-            template <typename T_RENDER_DEVICE, typename T_SPEC>
+            template <typename T_BACKEND, typename T_SPEC>
             struct LibraryState;
 
-            template <typename T_RENDER_DEVICE, typename T_SPEC>
+            template <typename T_BACKEND, typename T_SPEC>
             struct SceneState;
         }
 
@@ -148,13 +165,13 @@ namespace rl_tools {
         // reference (deque: stable addresses). On backends without cross-renderer sharing
         // (generic/Metal/Vulkan) each renderer still builds its own device copy — the caller
         // code is uniform, the sharing is a backend property.
-        template <typename T_SPEC, typename T_RENDER_DEVICE = devices::rendering::Default>
+        template <typename T_SPEC, typename T_BACKEND = backends::Default>
         struct AssetLibrary {
             using SPEC = T_SPEC;
-            using RENDER_DEVICE = T_RENDER_DEVICE;
+            using BACKEND = T_BACKEND;
             using TI = typename SPEC::TI;
-            using BACKEND_STATE = backends::LibraryState<RENDER_DEVICE, SPEC>;
-            using SCENE_STATE = backends::SceneState<RENDER_DEVICE, SPEC>;
+            using BACKEND_STATE = backends::LibraryState<BACKEND, SPEC>;
+            using SCENE_STATE = backends::SceneState<BACKEND, SPEC>;
             BACKEND_STATE* backend = nullptr;
             std::deque<Scene> scenes;
             std::deque<SCENE_STATE*> assets;
@@ -260,11 +277,11 @@ namespace rl_tools {
             std::vector<float> asset_part_transforms; // 12 per part, assembly-local
         };
 
-        template <typename T_SPEC, typename T_RENDER_DEVICE = devices::rendering::Default>
+        template <typename T_SPEC, typename T_BACKEND = backends::Default>
         struct Renderer: MotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_MOTION_BLUR>, RGBRendererStorage<T_SPEC, T_SPEC::HAS_RGB>, DepthRendererStorage<T_SPEC, T_SPEC::HAS_DEPTH>, SegmentationRendererStorage<T_SPEC, T_SPEC::HAS_SEGMENTATION>, ObservationRendererStorage<T_SPEC, T_SPEC::HAS_OBSERVATION>, OverlayRendererStorage<T_SPEC, T_SPEC::ENABLE_OVERLAYS>{
             using SPEC = T_SPEC;
-            using RENDER_DEVICE = T_RENDER_DEVICE;
-            using BACKEND_STATE = backends::RendererState<RENDER_DEVICE, SPEC>;
+            using BACKEND = T_BACKEND;
+            using BACKEND_STATE = backends::RendererState<BACKEND, SPEC>;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
 

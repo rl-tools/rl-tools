@@ -1,6 +1,5 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/backends/optix/operations_cuda.h>
-#include <rl_tools/rendering/raytracing/operations_cpu.h>
 
 #include "golden_cases.h"
 #include "golden_io.h"

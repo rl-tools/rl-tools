@@ -56,7 +56,6 @@
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/backends/optix/operations_cuda.h>
-#include <rl_tools/rendering/raytracing/operations_cpu.h>
 
 #include "simulator_matrix_physics.h"
 

@@ -49,19 +49,19 @@ namespace rl_tools {
 
     namespace rendering::raytracing::backends {
         template <typename SPEC>
-        struct RendererState<devices::rendering::Generic, SPEC>: generic::State<SPEC> {};
+        struct RendererState<rendering::raytracing::backends::Generic, SPEC>: generic::State<SPEC> {};
 
         template <typename SPEC>
-        struct LibraryState<devices::rendering::Generic, SPEC> {};
+        struct LibraryState<rendering::raytracing::backends::Generic, SPEC> {};
 
         template <typename SPEC>
-        struct SceneState<devices::rendering::Generic, SPEC> {};
+        struct SceneState<rendering::raytracing::backends::Generic, SPEC> {};
     }
 
     namespace rendering::raytracing::backends::generic{
 
         template <typename SPEC>
-        State<SPEC>& state(rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer){
+        State<SPEC>& state(rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
             return *renderer.backend;
         }
 
@@ -111,7 +111,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void malloc(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer){
+    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
         namespace generic = rendering::raytracing::backends::generic;
         using TI = typename SPEC::TI;
         static_assert(utils::typing::is_same_v<typename SPEC::T, float>, "The generic raytracing backend requires T = float");
@@ -129,9 +129,11 @@ namespace rl_tools {
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             malloc(device, renderer.transforms);
         }
+#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         malloc(device, renderer.collision_results);
+#endif
 
-        auto* backend_state = new rendering::raytracing::backends::RendererState<devices::rendering::Generic, SPEC>{};
+        auto* backend_state = new rendering::raytracing::backends::RendererState<rendering::raytracing::backends::Generic, SPEC>{};
         renderer.backend = backend_state;
         // the renderer-owned camera tensors are the render input — no staging copy
         backend_state->scene.cameras_close = data(renderer.cameras);
@@ -179,10 +181,10 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void update(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer);
+    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer);
 
     template <typename DEVICE, typename SPEC>
-    void init(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool){
+    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool){
         namespace generic = rendering::raytracing::backends::generic;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
@@ -377,18 +379,18 @@ namespace rl_tools {
         backend_state.scene.max_dist = renderer.camera_radius * 2.0f;
 
         if constexpr (SPEC::ENABLE_OVERLAYS){
-            update(render_device, device, renderer); // publish the (empty) overlays and the attachment table
+            update(device, renderer); // publish the (empty) overlays and the attachment table
         }
     }
 
     template <typename DEVICE, typename SPEC>
-    void init(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer, const rendering::raytracing::Scene& scene){
+    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const rendering::raytracing::Scene& scene){
         static const rendering::raytracing::AssetPool empty_pool{};
-        init(render_device, device, renderer, scene, empty_pool);
+        init(device, renderer, scene, empty_pool);
     }
 
     template <typename DEVICE, typename SPEC>
-    void update(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer){
+    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
         static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
         namespace generic = rendering::raytracing::backends::generic;
         using T = typename SPEC::T;
@@ -453,17 +455,17 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void update_launch(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer){
-        update(render_device, device, renderer);
+    void update_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
+        update(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
-    void update_sync(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer){
+    void update_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
         static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
     }
 
     template <typename DEVICE, typename SPEC>
-    void generate_cameras(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer,
+    void generate_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer,
                           const typename SPEC::T center[3], typename SPEC::T radius,
                           const typename SPEC::T up[3], typename SPEC::T fov){
         rendering::raytracing::detail::generate_camera_poses<SPEC>(device, data(renderer.cameras), center, radius, up, fov);
@@ -473,17 +475,17 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC, typename T>
-    void copy_to_renderer(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer, const T* source, T* destination, size_t count){
+    void copy_to_renderer(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const T* source, T* destination, size_t count){
         std::memcpy(destination, source, count * sizeof(T));
     }
 
     template <typename DEVICE, typename SPEC, typename T>
-    void copy_from_renderer(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer, const T* source, T* destination, size_t count){
+    void copy_from_renderer(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const T* source, T* destination, size_t count){
         std::memcpy(destination, source, count * sizeof(T));
     }
 
     template <typename DEVICE, typename SPEC>
-    void generate_probe_directions(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer){
+    void generate_probe_directions(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
 #if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Probe rays disabled (RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS=1)");
         return;
@@ -498,7 +500,7 @@ namespace rl_tools {
     // render produces the image outputs the spec declares; the collision-probe pass is the
     // separate probe verb so it can be scheduled independently (e.g. alongside update)
     template <typename DEVICE, typename SPEC>
-    void render_launch(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer){
+    void render_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
         namespace generic = rendering::raytracing::backends::generic;
         if constexpr (SPEC::HAS_RGB) {
             generic::render_frame<DEVICE, SPEC, generic::OutputRGB>(device, generic::state(renderer).scene);
@@ -512,17 +514,17 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void render_sync(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer){
+    void render_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
     }
 
     template <typename DEVICE, typename SPEC>
-    void render(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer){
-        render_launch(render_device, device, renderer);
-        render_sync(render_device, device, renderer);
+    void render(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
+        render_launch(device, renderer);
+        render_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
-    void probe_launch(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer){
+    void probe_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
         namespace generic = rendering::raytracing::backends::generic;
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         generic::render_collision<DEVICE, SPEC>(device, generic::state(renderer).scene);
@@ -530,41 +532,41 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void probe_sync(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer){
+    void probe_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
     }
 
     template <typename DEVICE, typename SPEC>
-    void probe(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer){
-        probe_launch(render_device, device, renderer);
-        probe_sync(render_device, device, renderer);
+    void probe(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
+        probe_launch(device, renderer);
+        probe_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
-    void save_segmentation_image(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer, const char* filename){
+    void save_segmentation_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const char* filename){
         static_assert(SPEC::HAS_SEGMENTATION, "save_segmentation_image requires a segmentation-capable renderer specification");
         rendering::raytracing::detail::write_segmentation_grid_png<SPEC>(data(renderer.segmentation_buffer), filename);
     }
 
     template <typename DEVICE, typename SPEC>
-    void save_image(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer, const char* filename){
+    void save_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const char* filename){
         static_assert(SPEC::HAS_RGB, "save_image requires an RGB-capable renderer specification");
         rendering::raytracing::detail::write_grid_png<SPEC>(data(renderer.frame_buffer), filename);
     }
 
     template <typename DEVICE, typename SPEC>
-    void save_depth_image(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer, const char* filename){
+    void save_depth_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const char* filename){
         static_assert(SPEC::HAS_DEPTH, "save_depth_image requires a depth-capable renderer specification");
         rendering::raytracing::detail::write_depth_grid_png<SPEC>(data(renderer.depth_buffer), renderer.camera_radius, filename);
     }
 
     template <typename DEVICE, typename SPEC>
-    void save_depth(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer, const char* filename){
+    void save_depth(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const char* filename){
         static_assert(SPEC::HAS_DEPTH, "save_depth requires a depth-capable renderer specification");
         rendering::raytracing::detail::write_depth_bin<SPEC>(data(renderer.depth_buffer), filename);
     }
 
     template <typename DEVICE, typename SPEC>
-    void save_probes(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer, const char* filename){
+    void save_probes(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const char* filename){
 #if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         RL_TOOLS_RENDERING_RAYTRACING_LOG("save_probes skipped: probe rays are disabled.");
         (void)filename;
@@ -575,11 +577,11 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void synchronize(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer){
+    void synchronize(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
     }
 
     template <typename DEVICE, typename SPEC>
-    void free(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer){
+    void free(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
         namespace generic = rendering::raytracing::backends::generic;
         if(renderer.backend != nullptr){
             delete renderer.backend;
@@ -604,36 +606,40 @@ namespace rl_tools {
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             free(device, renderer.transforms);
         }
+#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         free(device, renderer.collision_results);
+#endif
     }
 
     // shared-asset-library fallbacks: this backend has no cross-renderer sharing, so the
     // library is empty and every renderer builds its own copy — the API stays uniform
     template <typename DEVICE, typename SPEC>
-    void malloc(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, devices::rendering::Generic>& library){
-        library.backend = new rendering::raytracing::backends::LibraryState<devices::rendering::Generic, SPEC>{};
+    void malloc(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Generic>& library){
+        library.backend = new rendering::raytracing::backends::LibraryState<rendering::raytracing::backends::Generic, SPEC>{};
     }
 
     template <typename DEVICE, typename SPEC>
-    void free(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, devices::rendering::Generic>& library){
+    void free(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Generic>& library){
         for(auto* assets : library.assets){
             delete assets;
         }
         library.assets.clear();
+        library.scenes.clear();
+        library.hashes.clear();
         delete library.backend;
         library.backend = nullptr;
     }
 
     template <typename DEVICE, typename SPEC>
-    void malloc(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer, rendering::raytracing::AssetLibrary<SPEC, devices::rendering::Generic>& library){
-        malloc(render_device, device, renderer);
+    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Generic>& library){
+        malloc(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
-    typename SPEC::TI init(devices::rendering::Generic& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Generic>& renderer, rendering::raytracing::AssetLibrary<SPEC, devices::rendering::Generic>& library, const char* scene_path){
+    typename SPEC::TI init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Generic>& library, const char* scene_path){
         bool is_new = false;
         const auto scene_id = rendering::raytracing::detail::library_lookup_or_load(device, library, scene_path, is_new);
-        init(render_device, device, renderer, library.scenes[scene_id], library.pool);
+        init(device, renderer, library.scenes[scene_id], library.pool);
         return scene_id;
     }
 }

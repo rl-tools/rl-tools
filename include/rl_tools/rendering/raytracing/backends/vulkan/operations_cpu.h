@@ -18,18 +18,18 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     namespace rendering::raytracing::backends {
         template <typename SPEC>
-        struct RendererState<devices::rendering::Vulkan, SPEC>: vulkan::Context {};
+        struct RendererState<rendering::raytracing::backends::Vulkan, SPEC>: vulkan::Context {};
 
         template <typename SPEC>
-        struct LibraryState<devices::rendering::Vulkan, SPEC> {};
+        struct LibraryState<rendering::raytracing::backends::Vulkan, SPEC> {};
 
         template <typename SPEC>
-        struct SceneState<devices::rendering::Vulkan, SPEC> {};
+        struct SceneState<rendering::raytracing::backends::Vulkan, SPEC> {};
     }
 
     namespace rendering::raytracing::backends::vulkan{
         template <typename SPEC>
-        Context& context(rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer){
+        Context& context(rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
             return *renderer.backend;
         }
 
@@ -336,7 +336,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void malloc(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer){
+    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
         namespace vk = rendering::raytracing::backends::vulkan;
         using TI = typename SPEC::TI;
         static_assert(utils::typing::is_same_v<typename SPEC::T, float>, "The Vulkan raytracing backend requires T = float");
@@ -345,7 +345,7 @@ namespace rl_tools {
             malloc(device, renderer.transforms);
         }
 
-        renderer.backend = new rendering::raytracing::backends::RendererState<devices::rendering::Vulkan, SPEC>{};
+        renderer.backend = new rendering::raytracing::backends::RendererState<rendering::raytracing::backends::Vulkan, SPEC>{};
         auto* ctx = renderer.backend;
 
         VkApplicationInfo application_info{};
@@ -628,10 +628,10 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void update(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer);
+    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer);
 
     template <typename DEVICE, typename SPEC>
-    void init(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool){
+    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool){
         namespace vk = rendering::raytracing::backends::vulkan;
         using TI = typename SPEC::TI;
         auto& ctx = vk::context(renderer);
@@ -1283,18 +1283,18 @@ namespace rl_tools {
         }
 
         if constexpr (SPEC::ENABLE_OVERLAYS){
-            update(render_device, device, renderer); // publish the (empty) overlays and the attachment table
+            update(device, renderer); // publish the (empty) overlays and the attachment table
         }
     }
 
     template <typename DEVICE, typename SPEC>
-    void init(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer, const rendering::raytracing::Scene& scene){
+    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const rendering::raytracing::Scene& scene){
         static const rendering::raytracing::AssetPool empty_pool{};
-        init(render_device, device, renderer, scene, empty_pool);
+        init(device, renderer, scene, empty_pool);
     }
 
     template <typename DEVICE, typename SPEC>
-    void update_launch(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer){
+    void update_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
         static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
         namespace vk = rendering::raytracing::backends::vulkan;
         using TI = typename SPEC::TI;
@@ -1412,20 +1412,20 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void update_sync(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer){
+    void update_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
         static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
         namespace vk = rendering::raytracing::backends::vulkan;
         vk::wait_update_in_flight(device, vk::context(renderer));
     }
 
     template <typename DEVICE, typename SPEC>
-    void update(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer){
-        update_launch(render_device, device, renderer);
-        update_sync(render_device, device, renderer);
+    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
+        update_launch(device, renderer);
+        update_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
-    void generate_cameras(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer,
+    void generate_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer,
                           const typename SPEC::T center[3], typename SPEC::T radius,
                           const typename SPEC::T up[3], typename SPEC::T fov){
         namespace vk = rendering::raytracing::backends::vulkan;
@@ -1438,21 +1438,21 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC, typename T>
-    void copy_to_renderer(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer, const T* source, T* destination, size_t count){
+    void copy_to_renderer(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const T* source, T* destination, size_t count){
         auto& context = rendering::raytracing::backends::vulkan::context(renderer);
         rendering::raytracing::backends::vulkan::wait_in_flight(device, context);
         std::memcpy(destination, source, count * sizeof(T));
     }
 
     template <typename DEVICE, typename SPEC, typename T>
-    void copy_from_renderer(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer, const T* source, T* destination, size_t count){
+    void copy_from_renderer(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const T* source, T* destination, size_t count){
         auto& context = rendering::raytracing::backends::vulkan::context(renderer);
         rendering::raytracing::backends::vulkan::wait_in_flight(device, context);
         std::memcpy(destination, source, count * sizeof(T));
     }
 
     template <typename DEVICE, typename SPEC>
-    void generate_probe_directions(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer){
+    void generate_probe_directions(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
 #if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Probe rays disabled (RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS=1)");
         return;
@@ -1465,7 +1465,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void render_launch(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer){
+    void render_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
         namespace vk = rendering::raytracing::backends::vulkan;
         auto& ctx = vk::context(renderer);
         vk::submit_render(device, ctx,
@@ -1475,22 +1475,22 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void render_sync(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer){
+    void render_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
         namespace vk = rendering::raytracing::backends::vulkan;
         auto& ctx = vk::context(renderer);
         vk::wait_in_flight(device, ctx);
     }
 
     template <typename DEVICE, typename SPEC>
-    void render(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer){
-        render_launch(render_device, device, renderer);
-        render_sync(render_device, device, renderer);
+    void render(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
+        render_launch(device, renderer);
+        render_sync(device, renderer);
     }
 
     // render produces the image outputs the spec declares; the collision-probe pass is the
     // separate probe verb so it can be scheduled independently (e.g. alongside update)
     template <typename DEVICE, typename SPEC>
-    void probe_launch(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer){
+    void probe_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
         namespace vk = rendering::raytracing::backends::vulkan;
         auto& ctx = vk::context(renderer);
         if(ctx.collision_pipeline != VK_NULL_HANDLE){
@@ -1505,48 +1505,48 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void probe_sync(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer){
+    void probe_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
         namespace vk = rendering::raytracing::backends::vulkan;
         auto& ctx = vk::context(renderer);
         vk::wait_collision_in_flight(device, ctx);
     }
 
     template <typename DEVICE, typename SPEC>
-    void probe(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer){
-        probe_launch(render_device, device, renderer);
-        probe_sync(render_device, device, renderer);
+    void probe(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
+        probe_launch(device, renderer);
+        probe_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
-    void save_image(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer, const char* filename){
+    void save_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const char* filename){
         static_assert(SPEC::HAS_RGB, "save_image requires an RGB-capable renderer specification");
         namespace vk = rendering::raytracing::backends::vulkan;
         rendering::raytracing::detail::write_grid_png<SPEC>(data(renderer.frame_buffer), filename);
     }
 
     template <typename DEVICE, typename SPEC>
-    void save_segmentation_image(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer, const char* filename){
+    void save_segmentation_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const char* filename){
         static_assert(SPEC::HAS_SEGMENTATION, "save_segmentation_image requires a segmentation-capable renderer specification");
         namespace vk = rendering::raytracing::backends::vulkan;
         rendering::raytracing::detail::write_segmentation_grid_png<SPEC>(data(renderer.segmentation_buffer), filename);
     }
 
     template <typename DEVICE, typename SPEC>
-    void save_depth_image(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer, const char* filename){
+    void save_depth_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const char* filename){
         static_assert(SPEC::HAS_DEPTH, "save_depth_image requires a depth-capable renderer specification");
         namespace vk = rendering::raytracing::backends::vulkan;
         rendering::raytracing::detail::write_depth_grid_png<SPEC>(data(renderer.depth_buffer), renderer.camera_radius, filename);
     }
 
     template <typename DEVICE, typename SPEC>
-    void save_depth(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer, const char* filename){
+    void save_depth(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const char* filename){
         static_assert(SPEC::HAS_DEPTH, "save_depth requires a depth-capable renderer specification");
         namespace vk = rendering::raytracing::backends::vulkan;
         rendering::raytracing::detail::write_depth_bin<SPEC>(data(renderer.depth_buffer), filename);
     }
 
     template <typename DEVICE, typename SPEC>
-    void save_probes(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer, const char* filename){
+    void save_probes(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const char* filename){
 #if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         RL_TOOLS_RENDERING_RAYTRACING_LOG("save_probes skipped: probe rays are disabled.");
         (void)filename;
@@ -1558,14 +1558,14 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void synchronize(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer){
+    void synchronize(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
         namespace vk = rendering::raytracing::backends::vulkan;
         auto& ctx = vk::context(renderer);
         vk::wait_in_flight(device, ctx);
     }
 
     template <typename DEVICE, typename SPEC>
-    void free(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer){
+    void free(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
         namespace vk = rendering::raytracing::backends::vulkan;
         if(renderer.backend != nullptr){
             auto& ctx = vk::context(renderer);
@@ -1627,30 +1627,32 @@ namespace rl_tools {
     // shared-asset-library fallbacks: this backend has no cross-renderer sharing, so the
     // library is empty and every renderer builds its own copy — the API stays uniform
     template <typename DEVICE, typename SPEC>
-    void malloc(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, devices::rendering::Vulkan>& library){
-        library.backend = new rendering::raytracing::backends::LibraryState<devices::rendering::Vulkan, SPEC>{};
+    void malloc(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Vulkan>& library){
+        library.backend = new rendering::raytracing::backends::LibraryState<rendering::raytracing::backends::Vulkan, SPEC>{};
     }
 
     template <typename DEVICE, typename SPEC>
-    void free(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, devices::rendering::Vulkan>& library){
+    void free(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Vulkan>& library){
         for(auto* assets : library.assets){
             delete assets;
         }
         library.assets.clear();
+        library.scenes.clear();
+        library.hashes.clear();
         delete library.backend;
         library.backend = nullptr;
     }
 
     template <typename DEVICE, typename SPEC>
-    void malloc(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer, rendering::raytracing::AssetLibrary<SPEC, devices::rendering::Vulkan>& library){
-        malloc(render_device, device, renderer);
+    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Vulkan>& library){
+        malloc(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
-    typename SPEC::TI init(devices::rendering::Vulkan& render_device, DEVICE& device, rendering::raytracing::Renderer<SPEC, devices::rendering::Vulkan>& renderer, rendering::raytracing::AssetLibrary<SPEC, devices::rendering::Vulkan>& library, const char* scene_path){
+    typename SPEC::TI init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Vulkan>& library, const char* scene_path){
         bool is_new = false;
         const auto scene_id = rendering::raytracing::detail::library_lookup_or_load(device, library, scene_path, is_new);
-        init(render_device, device, renderer, library.scenes[scene_id], library.pool);
+        init(device, renderer, library.scenes[scene_id], library.pool);
         return scene_id;
     }
 }

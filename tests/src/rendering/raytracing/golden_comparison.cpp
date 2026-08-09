@@ -11,7 +11,6 @@
 #else
 #include <rl_tools/rendering/raytracing/backends/generic/operations_cpu.h>
 #endif
-#include <rl_tools/rendering/raytracing/operations_cpu.h>
 
 #if !defined(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND)
 #define RL_TOOLS_GOLDEN_SUITE RENDERING_RAYTRACING_GOLDEN_CPU
@@ -53,12 +52,11 @@
 namespace rlt = rl_tools;
 
 #ifdef RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND
-using RENDER_DEVICE = rlt::devices::rendering::Default;
+using BACKEND = rlt::rendering::raytracing::backends::Default;
 #else
-using RENDER_DEVICE = rlt::devices::rendering::Generic;
+using BACKEND = rlt::rendering::raytracing::backends::Generic;
 #endif
-using DEVICE_SPEC = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::devices::random::CPU, rlt::devices::logging::CPU, RENDER_DEVICE>;
-using DEVICE = rlt::devices::CPU<DEVICE_SPEC>;
+using DEVICE = rlt::devices::DefaultCPU;
 using T = float;
 using TI = typename DEVICE::index_t;
 using CASES = golden::Cases<T, TI>;
@@ -95,7 +93,7 @@ namespace {
 
     template <typename SPEC>
     bool render_case(DEVICE& device, Rendered& out){
-        using Renderer = rlt::rendering::raytracing::Renderer<SPEC, RENDER_DEVICE>;
+        using Renderer = rlt::rendering::raytracing::Renderer<SPEC, BACKEND>;
         Renderer renderer;
         rlt::malloc(device, renderer);
         rlt::rendering::raytracing::Scene scene;
