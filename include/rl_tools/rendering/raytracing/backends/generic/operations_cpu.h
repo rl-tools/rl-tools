@@ -592,6 +592,27 @@ namespace rl_tools {
         }
         free(device, renderer.collision_results);
     }
+
+    // shared-asset-library fallbacks: this backend has no cross-renderer sharing, so the
+    // library is empty and every renderer builds its own copy — the API stays uniform
+    template <typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC>& library){}
+
+    template <typename DEVICE, typename SPEC>
+    void free(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC>& library){}
+
+    template <typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, rendering::raytracing::AssetLibrary<SPEC>& library){
+        malloc(device, renderer);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    typename SPEC::TI init(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, rendering::raytracing::AssetLibrary<SPEC>& library, const char* scene_path){
+        bool is_new = false;
+        const auto scene_id = rendering::raytracing::detail::library_lookup_or_load(device, library, scene_path, is_new);
+        init(device, renderer, library.scenes[scene_id], library.pool);
+        return scene_id;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

@@ -22,6 +22,8 @@
 
 #include <vector>
 #include <chrono>
+#include <filesystem>
+#include <string>
 
 namespace rlt = rl_tools;
 
@@ -900,6 +902,24 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_TRANSFORMS_TENSOR){
     EXPECT_NEAR(render_center_depth(device, renderer), 4.5f, 1e-4f);
 
     rlt::free(device, renderer);
+}
+
+// the scene-accumulation bug class: reusing a scene across loads silently re-uploads all
+// previously loaded geometry into every subsequent renderer — load refuses a non-empty scene,
+// composition must be the explicit add
+TEST(RL_TOOLS_SCENE_SUITE, LOAD_ASSERTS_EMPTY){
+    DEVICE device;
+    rlt::init(device);
+    const std::string scene_file = std::string(RL_TOOLS_SCENE_TEST_DATA_PATH) + "/ProcTHOR-Train-1.glb";
+    if(!std::filesystem::exists(scene_file)){
+        GTEST_SKIP() << "scene file not available";
+    }
+    rlt::rendering::raytracing::Scene scene;
+    ASSERT_TRUE(rlt::load(device, scene, scene_file));
+    EXPECT_EQ(scene.objects.size(), (size_t)1);
+    EXPECT_DEATH((void)rlt::load(device, scene, scene_file), "");
+    ASSERT_TRUE(rlt::add(device, scene, scene_file)); // composition is explicit
+    EXPECT_EQ(scene.objects.size(), (size_t)2);
 }
 
 TEST(RL_TOOLS_SCENE_SUITE, CAMERAS_TENSOR){

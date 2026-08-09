@@ -118,17 +118,13 @@ namespace rl_tools::rl::environments::l2f_visual {
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = ObservationPrivileged::DIM;
         static constexpr bool PRIVILEGED_OBSERVATION_AVAILABLE = true;
 
+        // non-owning references — the target owns the renderer (typically malloc'd against a
+        // shared rendering::raytracing::AssetLibrary) and the scene metadata
         using RENDERER_SPEC = typename SPEC::RENDERER_SPEC;
         rendering::raytracing::Renderer<RENDERER_SPEC>* renderer = nullptr;
-        rendering::raytracing::Scene* render_scene = nullptr;
         rendering::raytracing::scene::procthor::Scene<typename SPEC::SCENE_SPEC>* scene = nullptr;
-        bool owns_renderer = false;
-        bool owns_render_scene = false;
-
-        const char* scene_path = nullptr;
 
         bool use_target_mode = false;
-        bool renderer_initialized = false;
 
         DYNAMICS_ENV dynamics;
         Parameters parameters;

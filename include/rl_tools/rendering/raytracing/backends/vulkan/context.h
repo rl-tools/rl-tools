@@ -192,6 +192,8 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         VkCommandBuffer cb_segmentation = VK_NULL_HANDLE;
         VkFence fence_render = VK_NULL_HANDLE;
         VkFence fence_collision = VK_NULL_HANDLE;
+        VkFence fence_update = VK_NULL_HANDLE;
+        VkCommandBuffer update_command_buffer = VK_NULL_HANDLE;
         bool render_in_flight = false;
         bool collision_in_flight = false;
         bool pipelines_built = false;

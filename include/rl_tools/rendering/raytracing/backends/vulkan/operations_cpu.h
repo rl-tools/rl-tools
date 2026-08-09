@@ -233,9 +233,20 @@ namespace rl_tools {
         }
 
         template <typename DEVICE>
+        void wait_update_in_flight(DEVICE& device, Context& ctx){
+            if(ctx.update_command_buffer != VK_NULL_HANDLE){
+                check(device, vkWaitForFences(ctx.device, 1, &ctx.fence_update, VK_TRUE, UINT64_MAX), "Vulkan: update fence wait failed");
+                check(device, vkResetFences(ctx.device, 1, &ctx.fence_update), "Vulkan: update fence reset failed");
+                vkFreeCommandBuffers(ctx.device, ctx.command_pool, 1, &ctx.update_command_buffer);
+                ctx.update_command_buffer = VK_NULL_HANDLE;
+            }
+        }
+
+        template <typename DEVICE>
         void wait_in_flight(DEVICE& device, Context& ctx){
             wait_render_in_flight(device, ctx);
             wait_collision_in_flight(device, ctx);
+            wait_update_in_flight(device, ctx);
         }
 
         inline void destroy_scene_resources(Context& ctx){
@@ -491,6 +502,7 @@ namespace rl_tools {
         fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
         vk::check(device, vkCreateFence(ctx->device, &fence_info, nullptr, &ctx->fence_render), "Vulkan: fence creation failed");
         vk::check(device, vkCreateFence(ctx->device, &fence_info, nullptr, &ctx->fence_collision), "Vulkan: fence creation failed");
+        vk::check(device, vkCreateFence(ctx->device, &fence_info, nullptr, &ctx->fence_update), "Vulkan: fence creation failed");
 
         VkSamplerCreateInfo sampler_info{};
         sampler_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -1286,12 +1298,12 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+    void update_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
         namespace vk = rendering::raytracing::backends::vulkan;
         using TI = typename SPEC::TI;
         auto& ctx = vk::context(renderer);
-        vk::wait_in_flight(device, ctx); // single-buffered renderer: mapped writes below cannot race the GPU
+        vk::wait_in_flight(device, ctx); // single-buffered renderer: mapped writes below cannot race the GPU or a previous in-flight build
 
         auto* instance_data = (vk::InstanceData*)ctx.instance_data.mapped;
         auto* instance_record_base = (uint32_t*)ctx.instance_record_base.mapped;
@@ -1390,20 +1402,30 @@ namespace rl_tools {
             build_barrier.srcAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR;
             build_barrier.dstAccessMask = VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR;
             vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 0, 1, &build_barrier, 0, nullptr, 0, nullptr);
-            vk::one_shot_end(device, ctx, command_buffer);
+            // genuinely asynchronous: fenced submit, no queue-idle wait — the in-cb barrier
+            // orders subsequent same-queue render dispatches after the build, and update_sync
+            // (or the next launch's wait_update_in_flight) reclaims the command buffer
+            vk::check(device, vkEndCommandBuffer(command_buffer), "Vulkan: update command buffer end failed");
+            VkSubmitInfo submit_info{};
+            submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            submit_info.commandBufferCount = 1;
+            submit_info.pCommandBuffers = &command_buffer;
+            vk::check(device, vkQueueSubmit(ctx.queue, 1, &submit_info, ctx.fence_update), "Vulkan: update submit failed");
+            ctx.update_command_buffer = command_buffer;
         }
-    }
-
-    // update() ends with a queue-idle wait (one_shot_end), so launch == update here; a truly
-    // asynchronous build path (dedicated fence, cb freed in update_sync) is future work
-    template <typename DEVICE, typename SPEC>
-    void update_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
-        update(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
     void update_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
         static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
+        namespace vk = rendering::raytracing::backends::vulkan;
+        vk::wait_update_in_flight(device, vk::context(renderer));
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer){
+        update_launch(device, renderer);
+        update_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1563,6 +1585,7 @@ namespace rl_tools {
             vkDestroySampler(ctx.device, ctx.sampler, nullptr);
             vkDestroyFence(ctx.device, ctx.fence_render, nullptr);
             vkDestroyFence(ctx.device, ctx.fence_collision, nullptr);
+            vkDestroyFence(ctx.device, ctx.fence_update, nullptr);
             vkDestroyCommandPool(ctx.device, ctx.command_pool, nullptr);
             vkDestroyDevice(ctx.device, nullptr);
             vkDestroyInstance(ctx.instance, nullptr);
@@ -1590,6 +1613,27 @@ namespace rl_tools {
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             free(device, renderer.transforms);
         }
+    }
+
+    // shared-asset-library fallbacks: this backend has no cross-renderer sharing, so the
+    // library is empty and every renderer builds its own copy — the API stays uniform
+    template <typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC>& library){}
+
+    template <typename DEVICE, typename SPEC>
+    void free(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC>& library){}
+
+    template <typename DEVICE, typename SPEC>
+    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, rendering::raytracing::AssetLibrary<SPEC>& library){
+        malloc(device, renderer);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    typename SPEC::TI init(DEVICE& device, rendering::raytracing::Renderer<SPEC>& renderer, rendering::raytracing::AssetLibrary<SPEC>& library, const char* scene_path){
+        bool is_new = false;
+        const auto scene_id = rendering::raytracing::detail::library_lookup_or_load(device, library, scene_path, is_new);
+        init(device, renderer, library.scenes[scene_id], library.pool);
+        return scene_id;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

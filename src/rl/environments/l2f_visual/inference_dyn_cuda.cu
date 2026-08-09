@@ -381,8 +381,24 @@ int main(int argc, char** argv){
     ENVIRONMENT env;
     typename ENVIRONMENT::Parameters env_parameters;
     rlt::malloc(device, env);
+    using LIBRARY_TYPE = rlt::rendering::raytracing::AssetLibrary<typename ENVIRONMENT::SPEC::RENDERER_SPEC>;
+    using SCENE_TYPE = rlt::rendering::raytracing::scene::procthor::Scene<typename ENVIRONMENT::SPEC::SCENE_SPEC>;
+    auto* library = new LIBRARY_TYPE{};
+    auto* renderer = new rlt::rendering::raytracing::Renderer<typename ENVIRONMENT::SPEC::RENDERER_SPEC>{};
+    auto* procthor_scene = new SCENE_TYPE{};
+    rlt::malloc(device, *library);
+    rlt::malloc(device, *renderer, *library);
+    rlt::init(device, *renderer, *library, scene_path);
+    {
+        const T scene_fov = typename ENVIRONMENT::Parameters{}.fov;
+        const T scene_up[3] = {0, 0, 1};
+        rlt::generate_cameras(device, *renderer, renderer->scene_center, renderer->camera_radius, scene_up, scene_fov);
+        rlt::generate_probe_directions(device, *renderer);
+        rlt::rendering::raytracing::scene::procthor::precompute_indoor_positions(device, *procthor_scene, *renderer, scene_fov, (T)CAM_WIDTH / (T)CAM_HEIGHT);
+    }
+    env.renderer = renderer;
+    env.scene = procthor_scene;
     env.use_target_mode = true;
-    env.scene_path = scene_path;
     rlt::init(device, env);
 
     env_parameters.scene_hash = scene_hash;
