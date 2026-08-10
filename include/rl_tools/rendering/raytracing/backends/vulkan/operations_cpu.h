@@ -668,6 +668,7 @@ namespace rl_tools {
         ctx->probe_directions = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_PROBES * 3 * sizeof(float), STORAGE, HOST_MEMORY, true);
 #endif
         ctx->dummy = vk::create_buffer(device, *ctx, 64, STORAGE, HOST_MEMORY, false);
+        rendering::raytracing::detail::announce_backend(renderer);
     }
 
     template <typename DEVICE, typename SPEC>

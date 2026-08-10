@@ -149,6 +149,19 @@ namespace rl_tools {
             struct Metal {};
             struct Vulkan {};
 
+            template <typename T_BACKEND>
+            struct Name;
+            template <> struct Name<None>    { static constexpr const char* VALUE = "none"; };
+            template <> struct Name<Generic> { static constexpr const char* VALUE = "generic"; };
+            template <> struct Name<Optix>   { static constexpr const char* VALUE = "optix"; };
+            template <> struct Name<Metal>   { static constexpr const char* VALUE = "metal"; };
+            template <> struct Name<Vulkan>  { static constexpr const char* VALUE = "vulkan"; };
+
+            template <typename T_BACKEND>
+            constexpr const char* name(){
+                return Name<T_BACKEND>::VALUE;
+            }
+
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_METAL)
             using Default = Metal;
 #elif defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
