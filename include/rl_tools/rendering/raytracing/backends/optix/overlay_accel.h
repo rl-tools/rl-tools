@@ -47,6 +47,10 @@ namespace rl_tools::rendering::raytracing::backends::optix{
     // observation) / depth buffer with the exact quantization of the single-launch path;
     // null accumulator pointers skip the corresponding output
     void overlay_accel_resolve(const float* rgb_accumulation, unsigned int* frame_buffer, float* observation, int srgb_output, const float* depth_accumulation, float* depth_buffer, unsigned int num_pixels, unsigned int num_samples, cudaStream_t stream);
+    // expands per-slot shutter pairs (pairs: [2][num_slots][12], open then close) into the
+    // per-sample transforms_motion slabs (slerp at (s+0.5)/num_samples) and writes the close
+    // entries into the transforms tensor — the on-device counterpart of set_transform_pair
+    void overlay_accel_expand_motion(const float* pairs, float* transforms_motion, float* transforms, unsigned int num_slots, unsigned int num_samples, cudaStream_t stream);
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

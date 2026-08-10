@@ -7,7 +7,7 @@
 // same build tree, so passing rl_tools scene types by pointer is safe. Everything
 // renderer-spec dependent is hidden behind the vtable; buffer exchange uses raw pointers
 // sized by config(). Bump HYPERDRONE_RENDER_IFACE_VERSION on any change to this file.
-#define HYPERDRONE_RENDER_IFACE_VERSION 2
+#define HYPERDRONE_RENDER_IFACE_VERSION 3
 
 namespace rl_tools { namespace rendering { namespace raytracing {
     struct Scene;
@@ -112,6 +112,13 @@ namespace hyperdrone::render {
         // dynamic motion blur: shutter-open/close transforms, slerped across the motion samples
         virtual void set_transform_pair(size_t overlay, const OverlayPlacementData& placement, const float open[12], const float close[12]) = 0;
         virtual void set_part_transform_pair(size_t overlay, const OverlayPlacementData& placement, size_t part, const float open[12], const float close[12]) = 0;
+        // GPU-resident producer path: cameras_open/cameras_close in CUDA device memory (OptiX
+        // only), the whole transforms_pair tensor ([2][num_overlays*max_instances][12] entries,
+        // open then close), and the on-device expansion into the per-sample slabs
+        virtual void set_motion_blur_cameras_device(const float* cameras_open, const float* cameras_close, unsigned long long producer_stream) = 0;
+        virtual void set_transforms_pair(const float* pairs) = 0;
+        virtual float* transforms_pair_device_ptr() = 0;
+        virtual void expand_motion_transforms() = 0;
     };
 }
 

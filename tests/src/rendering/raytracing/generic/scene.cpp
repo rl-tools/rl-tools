@@ -1065,6 +1065,65 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_STATIC_EQUIVALENCE){
     rlt::free(device, renderer_plain);
 }
 
+// device-producer path: shutter pairs written into the transforms_pair tensor and expanded by
+// the backend (CPU on generic/Vulkan, kernel on OptiX) must reproduce the set_transform_pair
+// result, and the close state must land in the transforms tensor
+TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_PAIR_EXPANSION){
+    DEVICE device;
+    rlt::init(device);
+
+    auto scene = make_far_anchor_scene(device);
+    rlt::rendering::raytracing::AssetPool pool;
+    const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
+
+    rlt::rendering::raytracing::Renderer<DYNAMIC_MB_DEPTH_SPEC, BACKEND> renderer;
+    rlt::malloc(device, renderer);
+    rlt::generate_probe_directions(device, renderer);
+    rlt::init(device, renderer, scene, pool);
+    rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
+
+    const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
+    const auto cube = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, identity);
+
+    float open[12], close[12];
+    const float identity_wxyz[4] = {1, 0, 0, 0};
+    const float open_position[3] = {-0.5f, 0, 0};
+    const float close_position[3] = {0.5f, 0, 0};
+    rlt::make_transform(open_position, identity_wxyz, open);
+    rlt::make_transform(close_position, identity_wxyz, close);
+
+    rlt::set_transform_pair(device, renderer, OverlayIndex{0}, cube, open, close);
+    rlt::update(device, renderer);
+    const float depth_reference = render_center_depth_static_camera(device, renderer);
+
+    // overwrite the host-verb state through the producer path: same pair via the tensor
+    constexpr size_t SLOTS = (size_t)DYNAMIC_MB_DEPTH_SPEC::NUM_OVERLAYS * DYNAMIC_MB_DEPTH_SPEC::MAX_OVERLAY_INSTANCES;
+    float* pairs = rlt::data(rlt::transforms_pair(device, renderer));
+    rlt::copy_to_renderer(device, renderer, open, pairs + cube.first_slot * 12, 12);
+    rlt::copy_to_renderer(device, renderer, close, pairs + (SLOTS + cube.first_slot) * 12, 12);
+    rlt::expand_motion_transforms(device, renderer);
+    rlt::update(device, renderer);
+    const float depth_expanded = render_center_depth_static_camera(device, renderer);
+    if constexpr (rlt::utils::typing::is_same_v<BACKEND, rlt::rendering::raytracing::backends::Generic>){
+        EXPECT_EQ(depth_expanded, depth_reference); // same freestanding slerp on the same compiler
+    }
+    else{
+        EXPECT_NEAR(depth_expanded, depth_reference, 1e-3f); // device vs host slerp ULPs
+    }
+
+    // the close state must land in the transforms tensor (segmentation/probes/steady state)
+    float close_entry[12];
+    rlt::copy_from_renderer(device, renderer, rlt::data(rlt::transforms(device, renderer)) + cube.first_slot * 12, close_entry, 12);
+    for(int element = 0; element < 12; element++){
+        EXPECT_EQ(close_entry[element], close[element]);
+    }
+
+    const float depth_expanded_again = render_center_depth_static_camera(device, renderer);
+    EXPECT_EQ(depth_expanded, depth_expanded_again); // identical inputs -> bit-identical output
+
+    rlt::free(device, renderer);
+}
+
 struct DYNAMIC_MB_SEG_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI CAM_WIDTH = 16, CAM_HEIGHT = 16, NUM_CAMERAS = 1, NUM_PROBES = 4;
     using SHADING = rlt::rendering::raytracing::Low;
