@@ -3,8 +3,8 @@
 // "Raytracing Golden Renderings"). Two targets are compiled from this file:
 // - test_rendering_raytracing_golden_comparison_cpu: pinned to the generic (CPU) backend (included
 //   directly, not via the mux) so the CPU raytracer is tested in every build configuration.
-// - test_rendering_raytracing_golden_comparison_<metal|optix>: uses the mux, i.e. the backend the
-//   build is configured for (target name matches, e.g. _metal on macOS, _optix on CUDA machines).
+// - test_rendering_raytracing_golden_comparison_<metal|optix|vulkan>: uses the mux, i.e. the
+//   backend the build is configured for (target name matches, e.g. _metal on macOS).
 #include <rl_tools/operations/cpu.h>
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND)
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
@@ -14,7 +14,7 @@
 
 #if !defined(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND)
 #define RL_TOOLS_GOLDEN_SUITE RENDERING_RAYTRACING_GOLDEN_CPU
-#define RL_TOOLS_GOLDEN_BACKEND_NAME "cpu"
+#define RL_TOOLS_GOLDEN_BACKEND_NAME "generic"
 #elif defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_METAL)
 #define RL_TOOLS_GOLDEN_SUITE RENDERING_RAYTRACING_GOLDEN_METAL
 #define RL_TOOLS_GOLDEN_BACKEND_NAME "metal"
@@ -31,6 +31,7 @@
 
 #include "golden_cases.h"
 #include "golden_io.h"
+#include "golden_render.h"
 #include "../../utils/utils.h"
 
 #include <gtest/gtest.h>
@@ -60,6 +61,7 @@ using DEVICE = rlt::devices::DefaultCPU;
 using T = float;
 using TI = typename DEVICE::index_t;
 using CASES = golden::Cases<T, TI>;
+using Rendered = golden::Rendered<T>;
 
 // Tolerances for CPU-vs-OptiX-golden comparison. The goldens come from a different machine and RT
 // implementation; per AGENTS.md, silhouette pixels may land on different surfaces, so all metrics
@@ -81,69 +83,6 @@ namespace {
     bool goldens_available(){
         // per-pose layout: <golden_dir>/<pose_id>/<case>.png
         return std::filesystem::exists(GOLDEN_DIR + "/" + CASES::POSES[0].id);
-    }
-
-    struct Rendered{
-        std::vector<uint32_t> frame_buffer;   // camera-major
-        std::vector<float> depth_buffer;      // camera-major
-        std::vector<rlt::rendering::raytracing::CollisionResult> probes;
-        float max_depth = 0;
-        float camera_radius = 0;
-    };
-
-    template <typename SPEC>
-    bool render_case(DEVICE& device, Rendered& out){
-        using Renderer = rlt::rendering::raytracing::Renderer<SPEC, BACKEND>;
-        Renderer renderer;
-        rlt::malloc(device, renderer);
-        rlt::rendering::raytracing::Scene scene;
-        if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, SCENE_PATH)){
-            rlt::free(device, renderer);
-            return false;
-        }
-        rlt::init(device, renderer, scene);
-
-        // camera setup mirrors tests/src/rendering/raytracing/generate_golden.cpp — keep in sync
-        constexpr T aspect = (T)SPEC::CAM_WIDTH / (T)SPEC::CAM_HEIGHT;
-        std::vector<rlt::rendering::raytracing::Camera<T>> camera_staging(SPEC::NUM_CAMERAS);
-        for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
-            const golden::Pose<T>& pose = CASES::POSES[camera_i];
-            camera_staging[camera_i] = rlt::make_camera_data(pose.position, pose.look_at, pose.up, SPEC::COS_FOVY, aspect);
-        }
-        rlt::copy_to_renderer(device, renderer, camera_staging.data(), rlt::data(rlt::cameras(device, renderer)), camera_staging.size());
-        if constexpr(SPEC::ENABLE_MOTION_BLUR){
-            for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
-                const golden::Pose<T>& pose = CASES::POSES[camera_i];
-                T position[3], look_at[3];
-                for(TI dim_i = 0; dim_i < 3; dim_i++){
-                    position[dim_i] = pose.position[dim_i] - CASES::MOTION_BLUR_DELTA[dim_i];
-                    look_at[dim_i] = pose.look_at[dim_i] - CASES::MOTION_BLUR_DELTA[dim_i];
-                }
-                camera_staging[camera_i] = rlt::make_camera_data(position, look_at, pose.up, SPEC::COS_FOVY, aspect);
-            }
-            rlt::copy_to_renderer(device, renderer, camera_staging.data(), rlt::data(rlt::cameras_open(device, renderer)), camera_staging.size());
-        }
-        rlt::generate_probe_directions(device, renderer);
-        rlt::render(device, renderer);
-        rlt::probe(device, renderer);
-        rlt::synchronize(device, renderer);
-
-        constexpr size_t pixel_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-        out.frame_buffer.resize(pixel_count);
-        rlt::copy_from_renderer(device, renderer, rlt::data(rlt::frame_buffer(device, renderer)), out.frame_buffer.data(), pixel_count);
-        if constexpr(SPEC::HAS_DEPTH){
-            out.depth_buffer.resize(pixel_count);
-            rlt::copy_from_renderer(device, renderer, rlt::data(rlt::depth_buffer(device, renderer)), out.depth_buffer.data(), pixel_count);
-        }
-        if(rlt::data(renderer.collision_results) != nullptr){
-            out.probes.resize((size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);
-            rlt::copy_from_renderer(device, renderer, rlt::data(rlt::collision_results(device, renderer)), out.probes.data(), out.probes.size());
-        }
-        out.max_depth = renderer.camera_radius > 0 ? renderer.camera_radius * 2.0f : 1e30f;
-        out.camera_radius = renderer.camera_radius;
-
-        rlt::free(device, renderer);
-        return true;
     }
 
     struct RGBStats{
@@ -214,7 +153,7 @@ namespace {
         DEVICE device;
         rlt::init(device);
         Rendered rendered;
-        ASSERT_TRUE(render_case<SPEC>(device, rendered)) << "failed to load scene: " << SCENE_PATH;
+        ASSERT_TRUE((golden::render_case<SPEC, BACKEND, DEVICE, CASES>(device, SCENE_PATH, rendered))) << "failed to load scene: " << SCENE_PATH;
         write_backend_frames<SPEC>(name, rendered);
         expect_rgb_matches_golden<SPEC>(name, rendered);
     }
@@ -224,7 +163,7 @@ namespace {
         DEVICE device;
         rlt::init(device);
         Rendered rendered;
-        ASSERT_TRUE(render_case<SPEC>(device, rendered)) << "failed to load scene: " << SCENE_PATH;
+        ASSERT_TRUE((golden::render_case<SPEC, BACKEND, DEVICE, CASES>(device, SCENE_PATH, rendered))) << "failed to load scene: " << SCENE_PATH;
         write_backend_frames<SPEC>(name, rendered);
         expect_rgb_matches_golden<SPEC>(name, rendered);
 
@@ -260,7 +199,7 @@ namespace {
     }
 }
 
-#define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() if(!goldens_available()){ GTEST_SKIP() << "golden renderings not found at " << GOLDEN_DIR << " (per-pose layout; generate with test_rendering_raytracing_generate_golden on a CUDA machine)"; }
+#define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() if(!goldens_available()){ GTEST_SKIP() << "golden renderings not found at " << GOLDEN_DIR << " (per-pose layout; generate with test_rendering_raytracing_generate_golden_<backend> --output-dir " << GOLDEN_DIR << ")"; }
 
 TEST(RL_TOOLS_GOLDEN_SUITE, LOW_RGB){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
@@ -301,7 +240,7 @@ TEST(RL_TOOLS_GOLDEN_SUITE, PROBES){
     DEVICE device;
     rlt::init(device);
     Rendered rendered;
-    ASSERT_TRUE(render_case<SPEC>(device, rendered)) << "failed to load scene: " << SCENE_PATH;
+    ASSERT_TRUE((golden::render_case<SPEC, BACKEND, DEVICE, CASES>(device, SCENE_PATH, rendered))) << "failed to load scene: " << SCENE_PATH;
     ASSERT_FALSE(rendered.probes.empty());
 
     int hit_mismatches = 0;
