@@ -48,6 +48,17 @@ target_link_libraries(rendering_raytracing_drone
         rendering_raytracing_stb
 )
 
+if(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED STREQUAL "OPTIX")
+    add_executable(rendering_raytracing_drone_device drone_device.cu)
+    target_link_libraries(rendering_raytracing_drone_device
+        PRIVATE
+            RLtools::RLtools
+            rendering_raytracing_backend
+            rendering_raytracing_stb
+    )
+    set_target_properties(rendering_raytracing_drone_device PROPERTIES CUDA_STANDARD 17 CUDA_STANDARD_REQUIRED ON)
+endif()
+
 add_executable(rendering_raytracing_fixed_pose fixed_pose.cpp)
 target_link_libraries(rendering_raytracing_fixed_pose
     PRIVATE
