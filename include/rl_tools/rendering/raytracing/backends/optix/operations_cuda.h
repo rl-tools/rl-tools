@@ -69,6 +69,9 @@ namespace rl_tools {
             OWLRayGen segmentation_ray_gen = nullptr;
             OWLBuffer segmentation_buffer = nullptr;
             OWLBuffer observation_buffer = nullptr;
+            OWLBuffer rgb_accumulator_buffer = nullptr;
+            OWLBuffer depth_accumulator_buffer = nullptr;
+            float* shutter_device = nullptr; // per-pass shutter time, written by the overlay fill kernel
             rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Optix>* library = nullptr;
         };
 
@@ -105,7 +108,25 @@ namespace rl_tools {
 
         template <bool T_DEPTH, typename SPEC>
         const char* ray_gen_program_name() {
-            if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
+                // the motion loop runs at launch level (one pass per sample), so only the AA grid
+                // is compiled in; accumulation is linear, srgb/linear resolve happens later
+                if constexpr (SPEC::ENABLE_ANTI_ALIASING) {
+                    if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 2) {
+                        return ray_gen_program_name<T_DEPTH, SPEC>("depthAccumRayGenAA2", "accumRayGenAA2", "accumRayGenAA2");
+                    }
+                    else if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 3) {
+                        return ray_gen_program_name<T_DEPTH, SPEC>("depthAccumRayGenAA3", "accumRayGenAA3", "accumRayGenAA3");
+                    }
+                    else {
+                        return ray_gen_program_name<T_DEPTH, SPEC>("depthAccumRayGenAA4", "accumRayGenAA4", "accumRayGenAA4");
+                    }
+                }
+                else {
+                    return ray_gen_program_name<T_DEPTH, SPEC>("depthAccumRayGen", "accumRayGen", "accumRayGen");
+                }
+            }
+            else if constexpr (SPEC::ENABLE_MOTION_BLUR) {
                 if constexpr (SPEC::ENABLE_ANTI_ALIASING) {
                     if constexpr (SPEC::MOTION_BLUR_SAMPLES == 2) {
                         if constexpr (SPEC::ANTI_ALIASING_GRID_SIZE == 2) {
@@ -302,6 +323,16 @@ namespace rl_tools {
             cudaMemset(transforms_device, 0, TRANSFORMS_SPEC::SIZE_BYTES);
             renderer.transforms._data = transforms_device;
         }
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
+            using TRANSFORMS_MOTION_SPEC = typename decltype(renderer.transforms_motion)::SPEC;
+            float* transforms_motion_device = nullptr;
+            cudaMalloc(&transforms_motion_device, TRANSFORMS_MOTION_SPEC::SIZE_BYTES);
+            cudaMemset(transforms_motion_device, 0, TRANSFORMS_MOTION_SPEC::SIZE_BYTES);
+            renderer.transforms_motion._data = transforms_motion_device;
+            renderer.transforms_motion_staging.assign((size_t)SPEC::MOTION_BLUR_SAMPLES * SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12, 0.0f);
+            cudaMalloc(&renderer.backend->shutter_device, sizeof(float));
+            cudaMemset(renderer.backend->shutter_device, 0, sizeof(float));
+        }
 
         constexpr TI cam_pixels = SPEC::CAM_PIXELS;
         // device-resident outputs (see frame_buffer/depth_buffer/segmentation_buffer/observation
@@ -333,10 +364,43 @@ namespace rl_tools {
                                                         (size_t)SPEC::NUM_CAMERAS * cam_pixels, nullptr);
             renderer.segmentation_buffer._data = (uint32_t*)owlBufferGetPointer(segmentation_buffer, 0);
         }
+        OWLBuffer rgb_accumulator_buffer = nullptr;
+        OWLBuffer depth_accumulator_buffer = nullptr;
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
+            if constexpr (SPEC::HAS_RGB) {
+                rgb_accumulator_buffer = owlDeviceBufferCreate(context, OWL_FLOAT,
+                                                               (size_t)SPEC::NUM_CAMERAS * cam_pixels * 3, nullptr);
+                renderer.backend->rgb_accumulator_buffer = rgb_accumulator_buffer;
+                renderer.rgb_accumulator._data = (float*)owlBufferGetPointer(rgb_accumulator_buffer, 0);
+            }
+            if constexpr (SPEC::HAS_DEPTH) {
+                depth_accumulator_buffer = owlDeviceBufferCreate(context, OWL_FLOAT,
+                                                                 (size_t)SPEC::NUM_CAMERAS * cam_pixels, nullptr);
+                renderer.backend->depth_accumulator_buffer = depth_accumulator_buffer;
+                renderer.depth_accumulator._data = (float*)owlBufferGetPointer(depth_accumulator_buffer, 0);
+            }
+        }
 
         OWLRayGen ray_gen = nullptr;
         if constexpr (SPEC::HAS_RGB) {
-            if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
+                OWLVarDecl ray_gen_vars[] = {
+                    { "accum_ptr",     OWL_RAW_POINTER, OWL_OFFSETOF(AccumulateRayGenData, accum_ptr)},
+                    { "shutter_ptr",   OWL_RAW_POINTER, OWL_OFFSETOF(AccumulateRayGenData, shutter_ptr)},
+                    { "fb_size",       OWL_INT2,   OWL_OFFSETOF(AccumulateRayGenData, fb_size)},
+                    { "cam_size",      OWL_INT2,   OWL_OFFSETOF(AccumulateRayGenData, cam_size)},
+                    { "grid_cols",     OWL_INT,    OWL_OFFSETOF(AccumulateRayGenData, grid_cols)},
+                    { "num_cameras",   OWL_INT,    OWL_OFFSETOF(AccumulateRayGenData, num_cameras)},
+                    { "world",         OWL_GROUP,  OWL_OFFSETOF(AccumulateRayGenData, world)},
+                    { "cameras_open",  OWL_BUFPTR, OWL_OFFSETOF(AccumulateRayGenData, cameras_open)},
+                    { "cameras_close", OWL_BUFPTR, OWL_OFFSETOF(AccumulateRayGenData, cameras_close)},
+                    { /* sentinel */ }
+                };
+                const char* ray_gen_name = rendering::raytracing::detail::ray_gen_program_name<false, SPEC>();
+                ray_gen = owlRayGenCreate(context, module, ray_gen_name,
+                                          sizeof(AccumulateRayGenData), ray_gen_vars, -1);
+            }
+            else if constexpr (SPEC::ENABLE_MOTION_BLUR) {
                 OWLVarDecl ray_gen_vars[] = {
                     { "fb_ptr",        OWL_BUFPTR, OWL_OFFSETOF(MotionBlurRayGenData, fb_ptr)},
                     { "obs_ptr",       OWL_RAW_POINTER, OWL_OFFSETOF(MotionBlurRayGenData, obs_ptr)},
@@ -373,7 +437,24 @@ namespace rl_tools {
 
         OWLRayGen depth_ray_gen = nullptr;
         if constexpr (SPEC::HAS_DEPTH) {
-            if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
+                OWLVarDecl depth_ray_gen_vars[] = {
+                    { "depth_accum_ptr", OWL_RAW_POINTER, OWL_OFFSETOF(AccumulateDepthRayGenData, depth_accum_ptr)},
+                    { "shutter_ptr",   OWL_RAW_POINTER, OWL_OFFSETOF(AccumulateDepthRayGenData, shutter_ptr)},
+                    { "fb_size",       OWL_INT2,   OWL_OFFSETOF(AccumulateDepthRayGenData, fb_size)},
+                    { "cam_size",      OWL_INT2,   OWL_OFFSETOF(AccumulateDepthRayGenData, cam_size)},
+                    { "grid_cols",     OWL_INT,    OWL_OFFSETOF(AccumulateDepthRayGenData, grid_cols)},
+                    { "num_cameras",   OWL_INT,    OWL_OFFSETOF(AccumulateDepthRayGenData, num_cameras)},
+                    { "world",         OWL_GROUP,  OWL_OFFSETOF(AccumulateDepthRayGenData, world)},
+                    { "cameras_open",  OWL_BUFPTR, OWL_OFFSETOF(AccumulateDepthRayGenData, cameras_open)},
+                    { "cameras_close", OWL_BUFPTR, OWL_OFFSETOF(AccumulateDepthRayGenData, cameras_close)},
+                    { "max_depth",     OWL_FLOAT,  OWL_OFFSETOF(AccumulateDepthRayGenData, max_depth)},
+                    { /* sentinel */ }
+                };
+                depth_ray_gen = owlRayGenCreate(context, module, rendering::raytracing::detail::ray_gen_program_name<true, SPEC>(),
+                                                sizeof(AccumulateDepthRayGenData), depth_ray_gen_vars, -1);
+            }
+            else if constexpr (SPEC::ENABLE_MOTION_BLUR) {
                 OWLVarDecl depth_ray_gen_vars[] = {
                     { "depth_ptr",     OWL_BUFPTR, OWL_OFFSETOF(MotionBlurDepthRayGenData, depth_ptr)},
                     { "fb_size",       OWL_INT2,   OWL_OFFSETOF(MotionBlurDepthRayGenData, fb_size)},
@@ -426,8 +507,14 @@ namespace rl_tools {
         const owl2i cam_size = {(int)SPEC::CAM_WIDTH, (int)SPEC::CAM_HEIGHT};
 
         if constexpr (SPEC::HAS_RGB) {
-            owlRayGenSetBuffer(ray_gen, "fb_ptr", frame_buffer);
-            owlRayGenSetPointer(ray_gen, "obs_ptr", SPEC::HAS_OBSERVATION ? owlBufferGetPointer(observation_buffer, 0) : nullptr);
+            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
+                owlRayGenSetPointer(ray_gen, "accum_ptr", owlBufferGetPointer(rgb_accumulator_buffer, 0));
+                owlRayGenSetPointer(ray_gen, "shutter_ptr", renderer.backend->shutter_device);
+            }
+            else {
+                owlRayGenSetBuffer(ray_gen, "fb_ptr", frame_buffer);
+                owlRayGenSetPointer(ray_gen, "obs_ptr", SPEC::HAS_OBSERVATION ? owlBufferGetPointer(observation_buffer, 0) : nullptr);
+            }
             owlRayGenSet2i    (ray_gen, "fb_size", fb_size);
             owlRayGenSet2i    (ray_gen, "cam_size", cam_size);
             owlRayGenSet1i    (ray_gen, "grid_cols", SPEC::GRID_COLS);
@@ -443,7 +530,13 @@ namespace rl_tools {
             renderer.backend->segmentation_buffer = segmentation_buffer;
         }
         if constexpr (SPEC::HAS_DEPTH) {
-            owlRayGenSetBuffer(depth_ray_gen, "depth_ptr", depth_buffer);
+            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
+                owlRayGenSetPointer(depth_ray_gen, "depth_accum_ptr", owlBufferGetPointer(depth_accumulator_buffer, 0));
+                owlRayGenSetPointer(depth_ray_gen, "shutter_ptr", renderer.backend->shutter_device);
+            }
+            else {
+                owlRayGenSetBuffer(depth_ray_gen, "depth_ptr", depth_buffer);
+            }
             owlRayGenSet2i    (depth_ray_gen, "fb_size", fb_size);
             owlRayGenSet2i    (depth_ray_gen, "cam_size", cam_size);
             owlRayGenSet1i    (depth_ray_gen, "grid_cols", SPEC::GRID_COLS);
@@ -1117,6 +1210,16 @@ namespace rl_tools {
             cudaMemcpyAsync(data(renderer.transforms) + base * 12, &overlay_state->transforms_staging[base * 12], SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float), cudaMemcpyHostToDevice, cuda_stream);
             overlay_host.dirty = false;
         }
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+            bool motion_dirty = false;
+            for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+                motion_dirty |= renderer.transforms_motion_dirty[overlay];
+                renderer.transforms_motion_dirty[overlay] = false;
+            }
+            if(motion_dirty){
+                cudaMemcpyAsync(data(renderer.transforms_motion), renderer.transforms_motion_staging.data(), renderer.transforms_motion_staging.size() * sizeof(float), cudaMemcpyHostToDevice, cuda_stream);
+            }
+        }
         if(renderer.attachments_dirty){
             std::vector<uint32_t> attachments((size_t)SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA);
             for(size_t index = 0; index < attachments.size(); index++){
@@ -1125,7 +1228,7 @@ namespace rl_tools {
             owlBufferUpload(overlay_state->attachments_buffer, attachments.data(), 0, attachments.size());
             renderer.attachments_dirty = false;
         }
-        optix::overlay_accel_build(overlay_state->accel, data(renderer.transforms), (unsigned int*)owlBufferGetPointer(overlay_state->instance_classes_buffer, 0), cuda_stream);
+        optix::overlay_accel_build(overlay_state->accel, data(renderer.transforms), (unsigned int*)owlBufferGetPointer(overlay_state->instance_classes_buffer, 0), 1.0f, nullptr, cuda_stream);
         if(coll_stream != cuda_stream){
             cudaEvent_t built;
             cudaEventCreateWithFlags(&built, cudaEventDisableTiming);
@@ -1187,8 +1290,75 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void render_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
         namespace optix = rendering::raytracing::backends::optix;
+        using TI = typename SPEC::TI;
         OWLParams launch_params = (OWLParams)renderer.backend->launch_params;
-        optix::await_producer(optix::producer_stream(device, 0), (cudaStream_t)owlParamsGetCudaStream(launch_params, 0));
+        cudaStream_t cuda_stream = (cudaStream_t)owlParamsGetCudaStream(launch_params, 0);
+        optix::await_producer(optix::producer_stream(device, 0), cuda_stream);
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+            // one enqueue-only pass per motion sample: overlay TLAS rebuild from the per-sample
+            // transforms slab (the fill kernel also publishes the pass's shutter time), then the
+            // accumulate ray gens; the shutter-close rebuild restores the steady state for
+            // segmentation/probes before the resolve kernel averages the accumulators
+            auto* overlay_state = (optix::OverlayState*)renderer.backend->overlay_state;
+            unsigned int* instance_classes = (unsigned int*)owlBufferGetPointer(overlay_state->instance_classes_buffer, 0);
+            cudaStream_t coll_stream = renderer.backend->coll_launch_params != nullptr ? (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend->coll_launch_params, 0) : cuda_stream;
+            if(coll_stream != cuda_stream){
+                cudaEvent_t probes_done;
+                cudaEventCreateWithFlags(&probes_done, cudaEventDisableTiming);
+                cudaEventRecord(probes_done, coll_stream);
+                cudaStreamWaitEvent(cuda_stream, probes_done, 0);
+                cudaEventDestroy(probes_done);
+            }
+            if constexpr (SPEC::HAS_RGB){
+                cudaMemsetAsync(data(renderer.rgb_accumulator), 0, decltype(renderer.rgb_accumulator)::SPEC::SIZE_BYTES, cuda_stream);
+            }
+            if constexpr (SPEC::HAS_DEPTH){
+                cudaMemsetAsync(data(renderer.depth_accumulator), 0, decltype(renderer.depth_accumulator)::SPEC::SIZE_BYTES, cuda_stream);
+            }
+            constexpr size_t SLAB = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12;
+            for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
+                const float shutter_t = ((float)sample + 0.5f) / (float)SPEC::MOTION_BLUR_SAMPLES;
+                optix::overlay_accel_build(overlay_state->accel, data(renderer.transforms_motion) + sample * SLAB, instance_classes, shutter_t, renderer.backend->shutter_device, cuda_stream);
+                if constexpr (SPEC::HAS_RGB){
+                    owlAsyncLaunch2D((OWLRayGen)renderer.backend->ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
+                }
+                if constexpr (SPEC::HAS_DEPTH){
+                    owlAsyncLaunch2D((OWLRayGen)renderer.backend->depth_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
+                }
+            }
+            optix::overlay_accel_build(overlay_state->accel, data(renderer.transforms), instance_classes, 1.0f, nullptr, cuda_stream);
+            if(coll_stream != cuda_stream){
+                cudaEvent_t built;
+                cudaEventCreateWithFlags(&built, cudaEventDisableTiming);
+                cudaEventRecord(built, cuda_stream);
+                cudaStreamWaitEvent(coll_stream, built, 0);
+                cudaEventDestroy(built);
+            }
+            if constexpr (SPEC::HAS_SEGMENTATION){
+                owlAsyncLaunch2D((OWLRayGen)renderer.backend->segmentation_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
+            }
+            const float* rgb_accumulation = nullptr;
+            unsigned int* frame_buffer = nullptr;
+            float* observation = nullptr;
+            const float* depth_accumulation = nullptr;
+            float* depth_buffer = nullptr;
+            if constexpr (SPEC::HAS_RGB){
+                rgb_accumulation = data(renderer.rgb_accumulator);
+                frame_buffer = data(renderer.frame_buffer);
+            }
+            if constexpr (SPEC::HAS_OBSERVATION){
+                observation = data(renderer.observation);
+            }
+            if constexpr (SPEC::HAS_DEPTH){
+                depth_accumulation = data(renderer.depth_accumulator);
+                depth_buffer = data(renderer.depth_buffer);
+            }
+            optix::overlay_accel_resolve(rgb_accumulation, frame_buffer, observation, SPEC::SHADING::SRGB_OUTPUT ? 1 : 0,
+                                         depth_accumulation, depth_buffer,
+                                         (unsigned int)((size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS),
+                                         (unsigned int)SPEC::MOTION_BLUR_SAMPLES, cuda_stream);
+            return;
+        }
         if constexpr (SPEC::HAS_RGB) {
             OWLRayGen ray_gen = (OWLRayGen)renderer.backend->ray_gen;
             owlAsyncLaunch2D(ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
@@ -1331,6 +1501,9 @@ namespace rl_tools {
                 rendering::raytracing::backends::optix::overlay_accel_destroy(overlay_state->accel);
                 delete overlay_state;
             }
+            if(renderer.backend->shutter_device != nullptr){
+                cudaFree(renderer.backend->shutter_device);
+            }
             delete renderer.backend;
             renderer.backend = nullptr;
         }
@@ -1338,6 +1511,18 @@ namespace rl_tools {
             if(renderer.transforms._data != nullptr){
                 cudaFree(renderer.transforms._data);
                 renderer.transforms._data = nullptr;
+            }
+        }
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+            if(renderer.transforms_motion._data != nullptr){
+                cudaFree(renderer.transforms_motion._data);
+                renderer.transforms_motion._data = nullptr;
+            }
+            if constexpr (SPEC::HAS_RGB){
+                renderer.rgb_accumulator._data = nullptr;
+            }
+            if constexpr (SPEC::HAS_DEPTH){
+                renderer.depth_accumulator._data = nullptr;
             }
         }
         // the input and output tensors alias OWL buffers destroyed with the context

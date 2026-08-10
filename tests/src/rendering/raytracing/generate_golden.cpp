@@ -38,12 +38,12 @@ using CASES = golden::Cases<T, TI>;
 static const std::string SCENE_PATH = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH) "/ProcTHOR-Train-1.glb";
 static const std::string DEFAULT_OUTPUT_DIR = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH) "/rendering_raytracing_golden/backend/" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME;
 
-template <typename SPEC>
+template <typename SPEC, bool T_CAMERA_MOTION = true>
 bool run_case(DEVICE& device, const std::string& output_dir, const char* name, bool write_probes) {
     std::cout << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] rendering " << name << std::endl;
 
     golden::Rendered<T> rendered;
-    if(!golden::render_case<SPEC, BACKEND, DEVICE, CASES>(device, SCENE_PATH, rendered)) {
+    if(!golden::render_case<SPEC, BACKEND, DEVICE, CASES, T_CAMERA_MOTION>(device, SCENE_PATH, rendered)) {
         std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << name << ": failed to load scene: " << SCENE_PATH << std::endl;
         return false;
     }
@@ -131,6 +131,8 @@ int main(int argc, char** argv) {
     ok &= run_case<CASES::VERY_HIGH_RGB>(device, output_dir, "very_high_rgb", false);
     ok &= run_case<CASES::HIGH_RGB_AA2>(device, output_dir, "high_rgb_aa2", false);
     ok &= run_case<CASES::HIGH_RGB_MB4>(device, output_dir, "high_rgb_mb4", false);
+    ok &= run_case<CASES::HIGH_RGB_MB4_DYNAMIC>(device, output_dir, "high_rgb_mb4_dynamic", false);
+    ok &= run_case<CASES::HIGH_RGB_MB4_DYNAMIC, false>(device, output_dir, "high_rgb_mb4_object", false);
     ok &= run_case<CASES::LOW_RGBD>(device, output_dir, "low_rgbd", false);
     ok &= run_case<CASES::HIGH_RGBD>(device, output_dir, "high_rgbd", false);
 

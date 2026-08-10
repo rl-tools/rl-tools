@@ -132,6 +132,36 @@ def test_motion_blur_camera_buffers_and_split_render():
     assert abs(renderer.depth()[0, 8, 8] - 2.0) < 1e-2
 
 
+def test_dynamic_motion_blur_object():
+    # static camera (shutter open == close), overlay translating from x=2 to x=4 across the
+    # shutter: 2 samples at midpoint times hit x=2.5 and x=3.5, so the blurred depth is 3.0
+    scene = make_scene(8.0)
+    asset_pool = render.AssetPool()
+    dynamic = render.Object(name="dynamic")
+    dynamic.add_mesh(make_quad(0.0, half_size=1.0, color=(0.0, 1.0, 0.0)))
+    asset = asset_pool.add_object(dynamic)
+    renderer = render.Renderer(
+        width=1,
+        height=1,
+        output="depth",
+        shading="low",
+        motion_blur_samples=2,
+        num_overlays=1,
+        max_overlay_instances=2,
+        max_overlays_per_camera=1,
+        dynamic_motion_blur=True,
+    )
+    renderer.init(scene, asset_pool)
+    camera = renderer.camera(position=(0.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0), fov=math.radians(60.0))
+    renderer.set_motion_blur_cameras(camera[None], camera[None])
+    renderer.attach(0, 0)
+    placement = renderer.spawn(0, asset, render.make_transform(position=(4.0, 0.0, 0.0)))
+    renderer.set_transform_pair(0, placement, render.make_transform(position=(2.0, 0.0, 0.0)), render.make_transform(position=(4.0, 0.0, 0.0)))
+    renderer.update()
+    renderer.render("depth")
+    assert abs(renderer.depth()[0, 0, 0] - 3.0) < 1e-2
+
+
 def test_overlay_pipeline_and_output_saves(tmp_path):
     scene = make_scene(8.0)
     asset_pool = render.AssetPool()

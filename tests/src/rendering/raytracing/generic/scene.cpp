@@ -893,6 +893,240 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_TRANSFORMS_TENSOR){
     rlt::free(device, renderer);
 }
 
+struct DYNAMIC_MB_DEPTH_CONFIG: OVERLAY_DEPTH_CONFIG{
+    static constexpr bool ENABLE_MOTION_BLUR = true;
+    static constexpr TI MOTION_BLUR_SAMPLES = 2;
+    static constexpr bool ENABLE_DYNAMIC_MOTION_BLUR = true;
+};
+using DYNAMIC_MB_DEPTH_SPEC = rlt::rendering::raytracing::Specification<DYNAMIC_MB_DEPTH_CONFIG>;
+
+namespace {
+    void spin_transform(float radians, float out[12]){
+        const float half = radians / 2.0f;
+        const float origin[3] = {0, 0, 0};
+        const float quaternion_wxyz[4] = {std::cos(half), 0, 0, std::sin(half)};
+        rlt::make_transform(origin, quaternion_wxyz, out);
+    }
+
+    template <typename RENDERER_SPEC>
+    void mirror_cameras_open(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, BACKEND>& renderer){
+        std::vector<rlt::rendering::raytracing::Camera<T>> staging(RENDERER_SPEC::NUM_CAMERAS);
+        rlt::copy_from_renderer(device, renderer, rlt::data(rlt::cameras(device, renderer)), staging.data(), RENDERER_SPEC::NUM_CAMERAS);
+        rlt::copy_to_renderer(device, renderer, staging.data(), rlt::data(rlt::cameras_open(device, renderer)), RENDERER_SPEC::NUM_CAMERAS);
+    }
+
+    // static camera under motion blur (open == close): all blur comes from the geometry
+    template <typename RENDERER_SPEC>
+    float render_center_depth_static_camera(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, BACKEND>& renderer){
+        const T position[3] = {-5, 0, 0};
+        const T look_at[3] = {0, 0, 0};
+        set_test_camera(device, renderer, position, look_at);
+        mirror_cameras_open(device, renderer);
+        rlt::render(device, renderer);
+        rlt::synchronize(device, renderer);
+        float depth = 0;
+        read_output(device, renderer, rlt::depth_buffer(device, renderer), &depth, 1);
+        return depth;
+    }
+}
+
+// dynamic motion blur averages per-sample geometry: with a static camera and a 2-sample blur
+// from spin 0 (open) to spin 90 degrees (close), the passes render the slerp midpoints 22.5
+// and 67.5 degrees exactly — the blurred depth must equal the mean of those two constant-pose
+// renders (constant poses via the single-pose verb, which replicates across samples)
+TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_DEPTH){
+    DEVICE device;
+    rlt::init(device);
+
+    rlt::rendering::raytracing::ObjectAssembly blade_assembly;
+    {
+        rlt::rendering::raytracing::Object blade;
+        rlt::rendering::raytracing::Mesh mesh = make_cube(0, 1);
+        for(size_t vertex_i = 1; vertex_i < mesh.vertices.size(); vertex_i += 3){
+            mesh.vertices[vertex_i] *= 0.1f;
+        }
+        blade.meshes.push_back(mesh);
+        blade_assembly.objects.push_back(blade);
+        blade_assembly.parts.push_back({0, {1,0,0,0, 0,1,0,0, 0,0,1,0}});
+    }
+
+    auto scene = make_far_anchor_scene(device);
+    rlt::rendering::raytracing::AssetPool pool;
+    const auto blade_asset = rlt::add(device, pool, blade_assembly);
+
+    rlt::rendering::raytracing::Renderer<DYNAMIC_MB_DEPTH_SPEC, BACKEND> renderer;
+    rlt::malloc(device, renderer);
+    rlt::generate_probe_directions(device, renderer);
+    rlt::init(device, renderer, scene, pool);
+    rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
+
+    const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
+    const auto blade = rlt::spawn(device, renderer, OverlayIndex{0}, blade_asset, identity);
+
+    float spin[12];
+    spin_transform(3.14159265f / 8.0f, spin);
+    rlt::set_transform(device, renderer, OverlayIndex{0}, blade, spin);
+    rlt::update(device, renderer);
+    const float depth_midpoint_first = render_center_depth_static_camera(device, renderer);
+
+    spin_transform(3.0f * 3.14159265f / 8.0f, spin);
+    rlt::set_transform(device, renderer, OverlayIndex{0}, blade, spin);
+    rlt::update(device, renderer);
+    const float depth_midpoint_second = render_center_depth_static_camera(device, renderer);
+    EXPECT_GT(std::abs(depth_midpoint_first - depth_midpoint_second), 1e-3f);
+
+    float open[12], close[12];
+    spin_transform(0.0f, open);
+    spin_transform(3.14159265f / 2.0f, close);
+    rlt::set_transform_pair(device, renderer, OverlayIndex{0}, blade, open, close);
+    rlt::update(device, renderer);
+    const float depth_blurred = render_center_depth_static_camera(device, renderer);
+    EXPECT_NEAR(depth_blurred, (depth_midpoint_first + depth_midpoint_second) / 2.0f, 1e-4f);
+
+    const float depth_blurred_again = render_center_depth_static_camera(device, renderer);
+    EXPECT_EQ(depth_blurred, depth_blurred_again); // identical inputs -> bit-identical output
+
+    rlt::free(device, renderer);
+}
+
+// producer path for the per-sample tensor: direct writes into transforms_motion (no host verb,
+// no dirty flag) must be consumed by the sample passes
+TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_TRANSFORMS_TENSOR){
+    DEVICE device;
+    rlt::init(device);
+
+    auto scene = make_far_anchor_scene(device);
+    rlt::rendering::raytracing::AssetPool pool;
+    const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
+
+    rlt::rendering::raytracing::Renderer<DYNAMIC_MB_DEPTH_SPEC, BACKEND> renderer;
+    rlt::malloc(device, renderer);
+    rlt::generate_probe_directions(device, renderer);
+    rlt::init(device, renderer, scene, pool);
+    rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
+
+    const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
+    const auto cube = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, identity);
+    rlt::update(device, renderer);
+    EXPECT_NEAR(render_center_depth_static_camera(device, renderer), 4.0f, 1e-4f);
+
+    float shifted[12];
+    const float identity_wxyz[4] = {1, 0, 0, 0};
+    const float near_position[3] = {0.5f, 0, 0};
+    rlt::make_transform(near_position, identity_wxyz, shifted);
+    constexpr size_t SLAB = (size_t)DYNAMIC_MB_DEPTH_SPEC::NUM_OVERLAYS * DYNAMIC_MB_DEPTH_SPEC::MAX_OVERLAY_INSTANCES * 12;
+    float* base = rlt::data(rlt::transforms_motion(device, renderer));
+    rlt::copy_to_renderer(device, renderer, shifted, base + 0 * SLAB + cube.first_slot * 12, 12);
+    rlt::copy_to_renderer(device, renderer, identity, base + 1 * SLAB + cube.first_slot * 12, 12);
+    rlt::update(device, renderer);
+    // sample 0 near face at x=-0.5 (depth 4.5), sample 1 at x=-1 (depth 4.0)
+    EXPECT_NEAR(render_center_depth_static_camera(device, renderer), 4.25f, 1e-4f);
+
+    rlt::free(device, renderer);
+}
+
+// a dynamic-motion-blur spec driven only by the single-pose verbs must render pixel-identical
+// to a plain overlay renderer: constant entries replicate across samples, the camera is static
+TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_STATIC_EQUIVALENCE){
+    DEVICE device;
+    rlt::init(device);
+
+    auto scene = make_far_anchor_scene(device);
+    rlt::rendering::raytracing::AssetPool pool;
+    const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
+
+    rlt::rendering::raytracing::Renderer<DYNAMIC_MB_DEPTH_SPEC, BACKEND> renderer_dynamic;
+    rlt::rendering::raytracing::Renderer<OVERLAY_DEPTH_SPEC, BACKEND> renderer_plain;
+    rlt::malloc(device, renderer_dynamic);
+    rlt::malloc(device, renderer_plain);
+    rlt::generate_probe_directions(device, renderer_dynamic);
+    rlt::generate_probe_directions(device, renderer_plain);
+    rlt::init(device, renderer_dynamic, scene, pool);
+    rlt::init(device, renderer_plain, scene, pool);
+
+    float spun[12];
+    spin_transform(0.7f, spun);
+    float depths[2];
+    {
+        rlt::attach(device, renderer_dynamic, (TI)0, OverlayIndex{0});
+        const auto cube = rlt::spawn(device, renderer_dynamic, OverlayIndex{0}, cube_asset, spun);
+        rlt::update(device, renderer_dynamic);
+        depths[0] = render_center_depth_static_camera(device, renderer_dynamic);
+    }
+    {
+        rlt::attach(device, renderer_plain, (TI)0, OverlayIndex{0});
+        const auto cube = rlt::spawn(device, renderer_plain, OverlayIndex{0}, cube_asset, spun);
+        rlt::update(device, renderer_plain);
+        depths[1] = render_center_depth(device, renderer_plain);
+    }
+    EXPECT_EQ(depths[0], depths[1]);
+
+    rlt::free(device, renderer_dynamic);
+    rlt::free(device, renderer_plain);
+}
+
+struct DYNAMIC_MB_SEG_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+    static constexpr TI CAM_WIDTH = 16, CAM_HEIGHT = 16, NUM_CAMERAS = 1, NUM_PROBES = 4;
+    using SHADING = rlt::rendering::raytracing::Low;
+    static constexpr bool OUTPUT_SEGMENTATION = true;
+    static constexpr TI NUM_OVERLAYS = 1, MAX_OVERLAY_INSTANCES = 8, MAX_OVERLAYS_PER_CAMERA = 1;
+    static constexpr bool ENABLE_MOTION_BLUR = true;
+    static constexpr TI MOTION_BLUR_SAMPLES = 2;
+    static constexpr bool ENABLE_DYNAMIC_MOTION_BLUR = true;
+};
+using DYNAMIC_MB_SEG_SPEC = rlt::rendering::raytracing::Specification<DYNAMIC_MB_SEG_CONFIG>;
+
+// segmentation stays single-sample at the shutter-close state: an overlay translating through
+// the shutter labels only its close pose, never the open one
+TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_SEGMENTATION_CLOSE){
+    DEVICE device;
+    rlt::init(device);
+
+    auto scene = make_far_anchor_scene(device);
+    const uint32_t num_scene_instances = (uint32_t)scene.instances.size();
+    rlt::rendering::raytracing::AssetPool pool;
+    const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
+
+    rlt::rendering::raytracing::Renderer<DYNAMIC_MB_SEG_SPEC, BACKEND> renderer;
+    rlt::malloc(device, renderer);
+    rlt::generate_probe_directions(device, renderer);
+    rlt::init(device, renderer, scene, pool);
+    rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
+
+    const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
+    const auto cube = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, identity);
+    float open[12];
+    const float identity_wxyz[4] = {1, 0, 0, 0};
+    const float open_position[3] = {0, 3, 0};
+    rlt::make_transform(open_position, identity_wxyz, open);
+    rlt::set_transform_pair(device, renderer, OverlayIndex{0}, cube, open, identity);
+    rlt::update(device, renderer);
+
+    const T position[3] = {-8, 0, 0};
+    const T look_at[3] = {0, 0, 0};
+    set_test_camera(device, renderer, position, look_at);
+    mirror_cameras_open(device, renderer);
+    rlt::render(device, renderer);
+    rlt::synchronize(device, renderer);
+
+    std::vector<uint32_t> segmentation(DYNAMIC_MB_SEG_SPEC::CAM_PIXELS);
+    read_output(device, renderer, rlt::segmentation_buffer(device, renderer), segmentation.data(), segmentation.size());
+    const uint32_t cube_id = num_scene_instances + (uint32_t)cube.first_slot;
+    constexpr TI CENTER = (DYNAMIC_MB_SEG_SPEC::CAM_HEIGHT / 2) * DYNAMIC_MB_SEG_SPEC::CAM_WIDTH + DYNAMIC_MB_SEG_SPEC::CAM_WIDTH / 2;
+    EXPECT_EQ(segmentation[CENTER], cube_id);
+    for(TI y = 0; y < DYNAMIC_MB_SEG_SPEC::CAM_HEIGHT; y++){
+        for(TI x = 0; x < DYNAMIC_MB_SEG_SPEC::CAM_WIDTH; x++){
+            if(segmentation[y * DYNAMIC_MB_SEG_SPEC::CAM_WIDTH + x] == cube_id){
+                // labels only at the close pose (image center), never at the open pose
+                EXPECT_LE(std::abs((int)x - (int)DYNAMIC_MB_SEG_SPEC::CAM_WIDTH / 2), 3);
+                EXPECT_LE(std::abs((int)y - (int)DYNAMIC_MB_SEG_SPEC::CAM_HEIGHT / 2), 3);
+            }
+        }
+    }
+
+    rlt::free(device, renderer);
+}
+
 // the scene-accumulation bug class: reusing a scene across loads silently re-uploads all
 // previously loaded geometry into every subsequent renderer — load refuses a non-empty scene,
 // composition must be the explicit add

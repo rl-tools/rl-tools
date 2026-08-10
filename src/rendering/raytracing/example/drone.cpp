@@ -37,6 +37,9 @@ struct CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI NUM_OVERLAYS = 1;
     static constexpr TI MAX_OVERLAY_INSTANCES = 8;
     static constexpr TI MAX_OVERLAYS_PER_CAMERA = 1;
+    static constexpr bool ENABLE_MOTION_BLUR = true;
+    static constexpr TI MOTION_BLUR_SAMPLES = 16;
+    static constexpr bool ENABLE_DYNAMIC_MOTION_BLUR = true;
 };
 using SPEC = rlt::rendering::raytracing::Specification<CONFIG>;
 using Renderer = rlt::rendering::raytracing::Renderer<SPEC>;
@@ -59,7 +62,6 @@ struct Options {
     int frames = 390;
     double fps = 60.0;
     int snapshot = 0;
-    int shutter_samples = 16;
 };
 
 Options parse_options(int argc, char** argv) {
@@ -92,11 +94,8 @@ Options parse_options(int argc, char** argv) {
         else if (std::strcmp(argv[i], "--snapshot") == 0 && i + 1 < argc) {
             options.snapshot = std::atoi(argv[++i]);
         }
-        else if (std::strcmp(argv[i], "--shutter-samples") == 0 && i + 1 < argc) {
-            options.shutter_samples = std::atoi(argv[++i]);
-        }
         else if (std::strcmp(argv[i], "--help") == 0 || std::strcmp(argv[i], "-h") == 0) {
-            std::cout << "Usage: " << argv[0] << " [--scene <path.glb>] [--drone <path.glb>] [--output-prefix <prefix>] [--ffmpeg <path>|none] [--center <x,y,z>] [--frames <n>] [--fps <fps>] [--snapshot <every-n>] [--shutter-samples <n>]\n";
+            std::cout << "Usage: " << argv[0] << " [--scene <path.glb>] [--drone <path.glb>] [--output-prefix <prefix>] [--ffmpeg <path>|none] [--center <x,y,z>] [--frames <n>] [--fps <fps>] [--snapshot <every-n>]\n";
             std::exit(0);
         }
         else {
@@ -161,14 +160,6 @@ static void pose_to_transform(const Pose& pose, float out[12]) {
         out[row * 4 + 2] = pose.basis[2][row];
         out[row * 4 + 3] = pose.position[row];
     }
-}
-
-static void upload_cameras(DEVICE& device, Renderer& renderer, const rlt::rendering::raytracing::Camera<T> cameras[NUM_CAMERAS]) {
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-    cudaMemcpy(rlt::data(rlt::cameras(device, renderer)), cameras, NUM_CAMERAS * sizeof(cameras[0]), cudaMemcpyHostToDevice);
-#else
-    std::memcpy(rlt::data(rlt::cameras(device, renderer)), cameras, NUM_CAMERAS * sizeof(cameras[0]));
-#endif
 }
 
 static FILE* open_video_pipe(const Options& options, const std::string& output_path) {
@@ -273,72 +264,75 @@ int main(int argc, char** argv) {
     const T aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
     constexpr size_t CAM_PIXELS = static_cast<size_t>(CAM_WIDTH) * static_cast<size_t>(CAM_HEIGHT);
     std::vector<uint32_t> frame(NUM_CAMERAS * CAM_PIXELS);
-    std::vector<uint32_t> sample(NUM_CAMERAS * CAM_PIXELS);
-    std::vector<uint32_t> accumulator(3 * NUM_CAMERAS * CAM_PIXELS);
-    const int shutter_samples = std::max(1, options.shutter_samples);
 
+    const auto make_cameras = [&](const Pose& pose, rlt::rendering::raytracing::Camera<T> cameras[NUM_CAMERAS]){
+        {
+            T mount[3], forward[3], up[3];
+            rotate_body_to_world(pose, CAMERA_MOUNT_BODY, mount);
+            const T pitch_cos = std::cos(CAMERA_PITCH_DOWN), pitch_sin = std::sin(CAMERA_PITCH_DOWN);
+            const T forward_body[3] = {pitch_cos, 0, -pitch_sin};
+            const T up_body[3] = {pitch_sin, 0, pitch_cos};
+            rotate_body_to_world(pose, forward_body, forward);
+            rotate_body_to_world(pose, up_body, up);
+            const T position[3] = {pose.position[0] + mount[0], pose.position[1] + mount[1], pose.position[2] + mount[2]};
+            const T look_at[3] = {position[0] + forward[0], position[1] + forward[1], position[2] + forward[2]};
+            cameras[ONBOARD_CAMERA] = rlt::make_camera_data(position, look_at, up, ONBOARD_FOV, aspect);
+        }
+        {
+            const T up[3] = {0, 0, 1};
+            cameras[THIRD_PERSON_CAMERA] = rlt::make_camera_data(TRIPOD_POSITION, pose.position, up, THIRD_PERSON_FOV, aspect);
+        }
+    };
+    const auto prop_spin = [](const auto& prop, T angle, float out[12]){
+        const float c = std::cos(angle), s = std::sin(angle);
+        const float px = prop.pivot[0], py = prop.pivot[1];
+        const float spin[12] = {
+            c, -s, 0, px - c * px + s * py,
+            s,  c, 0, py - s * px - c * py,
+            0,  0, 1, 0,
+        };
+        std::memcpy(out, spin, sizeof(spin));
+    };
+
+    // native dynamic motion blur: shutter-open/close states per frame, the renderer slerps the
+    // per-sample transforms and accumulates MOTION_BLUR_SAMPLES passes on the device
     for (int frame_i = 0; frame_i < options.frames; frame_i++) {
-        std::fill(accumulator.begin(), accumulator.end(), 0u);
-        for (int sample_i = 0; sample_i < shutter_samples; sample_i++) {
-            const T time = static_cast<T>((frame_i + (sample_i + 0.5) / shutter_samples * SHUTTER_FRACTION) / options.fps);
-            const Pose pose = flat_pose(device, trajectory, options.center, time);
+        const T time_open = static_cast<T>(frame_i / options.fps);
+        const T time_close = static_cast<T>((frame_i + SHUTTER_FRACTION) / options.fps);
+        const Pose pose_open = flat_pose(device, trajectory, options.center, time_open);
+        const Pose pose_close = flat_pose(device, trajectory, options.center, time_close);
 
-            float pose_transform[12];
-            pose_to_transform(pose, pose_transform);
-            rlt::set_transform(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, pose_transform);
-            for (const auto& prop : props) {
-                const T angle = prop.direction * PROP_RATE * time;
-                const float c = std::cos(angle), s = std::sin(angle);
-                const float px = prop.pivot[0], py = prop.pivot[1];
-                const float spin[12] = {
-                    c, -s, 0, px - c * px + s * py,
-                    s,  c, 0, py - s * px - c * py,
-                    0,  0, 1, 0,
-                };
-                rlt::set_transform(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, prop.part, spin);
-            }
+        float pose_transform_open[12], pose_transform_close[12];
+        pose_to_transform(pose_open, pose_transform_open);
+        pose_to_transform(pose_close, pose_transform_close);
+        rlt::set_transform_pair(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, pose_transform_open, pose_transform_close);
+        for (const auto& prop : props) {
+            float spin_open[12], spin_close[12];
+            prop_spin(prop, prop.direction * PROP_RATE * time_open, spin_open);
+            prop_spin(prop, prop.direction * PROP_RATE * time_close, spin_close);
+            rlt::set_transform_pair(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, prop.part, spin_open, spin_close);
+        }
 
-            rlt::rendering::raytracing::Camera<T> cameras[NUM_CAMERAS];
-            {
-                T mount[3], forward[3], up[3];
-                rotate_body_to_world(pose, CAMERA_MOUNT_BODY, mount);
-                const T pitch_cos = std::cos(CAMERA_PITCH_DOWN), pitch_sin = std::sin(CAMERA_PITCH_DOWN);
-                const T forward_body[3] = {pitch_cos, 0, -pitch_sin};
-                const T up_body[3] = {pitch_sin, 0, pitch_cos};
-                rotate_body_to_world(pose, forward_body, forward);
-                rotate_body_to_world(pose, up_body, up);
-                const T position[3] = {pose.position[0] + mount[0], pose.position[1] + mount[1], pose.position[2] + mount[2]};
-                const T look_at[3] = {position[0] + forward[0], position[1] + forward[1], position[2] + forward[2]};
-                cameras[ONBOARD_CAMERA] = rlt::make_camera_data(position, look_at, up, ONBOARD_FOV, aspect);
-            }
-            {
-                const T up[3] = {0, 0, 1};
-                cameras[THIRD_PERSON_CAMERA] = rlt::make_camera_data(TRIPOD_POSITION, pose.position, up, THIRD_PERSON_FOV, aspect);
-            }
-            upload_cameras(device, renderer, cameras);
+        rlt::rendering::raytracing::Camera<T> cameras_open[NUM_CAMERAS], cameras_close[NUM_CAMERAS];
+        make_cameras(pose_open, cameras_open);
+        make_cameras(pose_close, cameras_close);
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+        cudaMemcpy(rlt::data(rlt::cameras_open(device, renderer)), cameras_open, sizeof(cameras_open), cudaMemcpyHostToDevice);
+        cudaMemcpy(rlt::data(rlt::cameras_close(device, renderer)), cameras_close, sizeof(cameras_close), cudaMemcpyHostToDevice);
+#else
+        std::memcpy(rlt::data(rlt::cameras_open(device, renderer)), cameras_open, sizeof(cameras_open));
+        std::memcpy(rlt::data(rlt::cameras_close(device, renderer)), cameras_close, sizeof(cameras_close));
+#endif
 
-            rlt::update(device, renderer);
-            rlt::render(device, renderer);
-            rlt::synchronize(device, renderer);
+        rlt::update(device, renderer);
+        rlt::render(device, renderer);
+        rlt::synchronize(device, renderer);
 
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-            cudaMemcpy(sample.data(), rlt::data(rlt::frame_buffer(device, renderer)), sample.size() * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+        cudaMemcpy(frame.data(), rlt::data(rlt::frame_buffer(device, renderer)), frame.size() * sizeof(uint32_t), cudaMemcpyDeviceToHost);
 #else
-            std::memcpy(sample.data(), rlt::data(rlt::frame_buffer(device, renderer)), sample.size() * sizeof(uint32_t));
+        std::memcpy(frame.data(), rlt::data(rlt::frame_buffer(device, renderer)), frame.size() * sizeof(uint32_t));
 #endif
-            for (size_t pixel_i = 0; pixel_i < sample.size(); pixel_i++) {
-                const uint32_t value = sample[pixel_i];
-                accumulator[3 * pixel_i + 0] += value & 0xff;
-                accumulator[3 * pixel_i + 1] += (value >> 8) & 0xff;
-                accumulator[3 * pixel_i + 2] += (value >> 16) & 0xff;
-            }
-        }
-        for (size_t pixel_i = 0; pixel_i < frame.size(); pixel_i++) {
-            const uint32_t r = accumulator[3 * pixel_i + 0] / shutter_samples;
-            const uint32_t g = accumulator[3 * pixel_i + 1] / shutter_samples;
-            const uint32_t b = accumulator[3 * pixel_i + 2] / shutter_samples;
-            frame[pixel_i] = r | (g << 8) | (b << 16) | (0xffu << 24);
-        }
 
         if (video) {
             const size_t bytes = CAM_PIXELS * sizeof(uint32_t);

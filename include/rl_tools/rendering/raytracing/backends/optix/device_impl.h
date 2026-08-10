@@ -271,6 +271,87 @@ namespace rl_tools
     OUTPUT::store(self, ctx, accumulated, MOTION_SAMPLES * AA_GRID * AA_GRID);
   }
 
+  // dynamic-motion-blur pass outputs: accumulate the pass's linear mean into a float buffer
+  // (transfer curve + quantization happen once, in the resolve kernel), so there is no
+  // srgb/linear raygen split. Each thread owns its pixel — no atomics.
+  struct RgbAccumulateOutput
+  {
+    using Accumulator = owl::vec3f;
+    inline __device__ static Accumulator zero() { return owl::vec3f(0.f); }
+    template <typename RAYGEN_DATA>
+    inline __device__ static void accumulate(const RAYGEN_DATA &self, Accumulator &acc, int camera, const owl::vec3f &pos, const owl::vec3f &direction)
+    {
+      acc = acc + trace_rgb_color_composed(self.world, camera, 0, pos, direction, 0.f, 1e30f);
+    }
+    template <typename RAYGEN_DATA>
+    inline __device__ static void store(const RAYGEN_DATA &self, const PixelLaunchContext &ctx, Accumulator acc, int samples)
+    {
+      const owl::vec3f mean = acc * (1.f / float(samples));
+      float *accumulation = self.accum_ptr + (size_t)ctx.fb_offset * 3;
+      accumulation[0] += mean.x;
+      accumulation[1] += mean.y;
+      accumulation[2] += mean.z;
+    }
+  };
+
+#if RL_TOOLS_RENDERING_RAYTRACING_ENABLE_DEPTH_PROGRAMS
+  struct DepthAccumulateOutput
+  {
+    using Accumulator = float;
+    inline __device__ static Accumulator zero() { return 0.f; }
+    template <typename RAYGEN_DATA>
+    inline __device__ static void accumulate(const RAYGEN_DATA &self, Accumulator &acc, int camera, const owl::vec3f &pos, const owl::vec3f &direction)
+    {
+      acc += trace_depth_distance_composed(self.world, camera, pos, direction, self.max_depth);
+    }
+    template <typename RAYGEN_DATA>
+    inline __device__ static void store(const RAYGEN_DATA &self, const PixelLaunchContext &ctx, Accumulator acc, int samples)
+    {
+      self.depth_accum_ptr[ctx.fb_offset] += acc * (1.f / float(samples));
+    }
+  };
+#endif
+
+  template <typename OUTPUT, int AA_GRID, typename RAYGEN_DATA>
+  inline __device__ void rayGenAccumulateImpl()
+  {
+    const RAYGEN_DATA &self = owl::getProgramData<RAYGEN_DATA>();
+    const PixelLaunchContext ctx = pixel_launch_context(self);
+    if (!ctx.valid)
+      return;
+
+    const float shutter_t = *self.shutter_ptr;
+    const OptixCameraData &cam_open = self.cameras_open[ctx.cam_idx];
+    const OptixCameraData &cam_close = self.cameras_close[ctx.cam_idx];
+    const owl::vec3f pos = lerp_camera_vec(cam_open.pos, cam_close.pos, shutter_t);
+    const owl::vec3f dir_00 = lerp_camera_vec(cam_open.dir_00, cam_close.dir_00, shutter_t);
+    const owl::vec3f dir_du = lerp_camera_vec(cam_open.dir_du, cam_close.dir_du, shutter_t);
+    const owl::vec3f dir_dv = lerp_camera_vec(cam_open.dir_dv, cam_close.dir_dv, shutter_t);
+
+    typename OUTPUT::Accumulator accumulated = OUTPUT::zero();
+    const float inv_aa_grid = 1.f / float(AA_GRID);
+    for (int aa_y = 0; aa_y < AA_GRID; aa_y++) {
+      for (int aa_x = 0; aa_x < AA_GRID; aa_x++) {
+        const owl::vec2f screen = (owl::vec2f(ctx.local_x, ctx.local_y) + owl::vec2f((float(aa_x) + .5f) * inv_aa_grid, (float(aa_y) + .5f) * inv_aa_grid)) / owl::vec2f(self.cam_size);
+        const owl::vec3f direction = normalize(dir_00 + screen.u * dir_du + screen.v * dir_dv);
+        OUTPUT::accumulate(self, accumulated, ctx.cam_idx, pos, direction);
+      }
+    }
+    OUTPUT::store(self, ctx, accumulated, AA_GRID * AA_GRID);
+  }
+
+  OPTIX_RAYGEN_PROGRAM(accumRayGen)() { rayGenAccumulateImpl<RgbAccumulateOutput, 1, AccumulateRayGenData>(); }
+  OPTIX_RAYGEN_PROGRAM(accumRayGenAA2)() { rayGenAccumulateImpl<RgbAccumulateOutput, 2, AccumulateRayGenData>(); }
+  OPTIX_RAYGEN_PROGRAM(accumRayGenAA3)() { rayGenAccumulateImpl<RgbAccumulateOutput, 3, AccumulateRayGenData>(); }
+  OPTIX_RAYGEN_PROGRAM(accumRayGenAA4)() { rayGenAccumulateImpl<RgbAccumulateOutput, 4, AccumulateRayGenData>(); }
+
+#if RL_TOOLS_RENDERING_RAYTRACING_ENABLE_DEPTH_PROGRAMS
+  OPTIX_RAYGEN_PROGRAM(depthAccumRayGen)() { rayGenAccumulateImpl<DepthAccumulateOutput, 1, AccumulateDepthRayGenData>(); }
+  OPTIX_RAYGEN_PROGRAM(depthAccumRayGenAA2)() { rayGenAccumulateImpl<DepthAccumulateOutput, 2, AccumulateDepthRayGenData>(); }
+  OPTIX_RAYGEN_PROGRAM(depthAccumRayGenAA3)() { rayGenAccumulateImpl<DepthAccumulateOutput, 3, AccumulateDepthRayGenData>(); }
+  OPTIX_RAYGEN_PROGRAM(depthAccumRayGenAA4)() { rayGenAccumulateImpl<DepthAccumulateOutput, 4, AccumulateDepthRayGenData>(); }
+#endif
+
 #define RL_TOOLS_RENDERING_RAYTRACING_RGB_RAYGEN(SRGB_NAME, LINEAR_NAME, MOTION_BLUR, MOTION_SAMPLES, AA_GRID, DATA) \
   OPTIX_RAYGEN_PROGRAM(SRGB_NAME)() { rayGenImpl<RgbOutput<true>, MOTION_BLUR, MOTION_SAMPLES, AA_GRID, DATA>(); } \
   OPTIX_RAYGEN_PROGRAM(LINEAR_NAME)() { rayGenImpl<RgbOutput<false>, MOTION_BLUR, MOTION_SAMPLES, AA_GRID, DATA>(); }
