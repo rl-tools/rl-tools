@@ -544,6 +544,58 @@ namespace hyperdrone_render_impl {
                 throw std::runtime_error("hyperdrone: this renderer was compiled without dynamic motion blur (dynamic_motion_blur=False)");
             }
         }
+        void set_motion_blur_cameras_device(const float* cameras_open, const float* cameras_close, unsigned long long producer_stream) override {
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+            if constexpr (SPEC::ENABLE_MOTION_BLUR){
+                require_init();
+                cudaStream_t render_stream = rlt::stream(device, renderer);
+                cudaStream_t producer = (cudaStream_t)producer_stream;
+                if(producer != nullptr && producer != render_stream){
+                    cudaEvent_t cameras_ready;
+                    cudaEventCreateWithFlags(&cameras_ready, cudaEventDisableTiming);
+                    cudaEventRecord(cameras_ready, producer);
+                    cudaStreamWaitEvent(render_stream, cameras_ready, 0);
+                    cudaEventDestroy(cameras_ready);
+                }
+                const size_t bytes = sizeof(rrt::Camera<T>) * SPEC::NUM_CAMERAS;
+                cudaMemcpyAsync(rlt::data(rlt::cameras_open(device, renderer)), cameras_open, bytes, cudaMemcpyDeviceToDevice, render_stream);
+                cudaMemcpyAsync(rlt::data(rlt::cameras_close(device, renderer)), cameras_close, bytes, cudaMemcpyDeviceToDevice, render_stream);
+            }
+            else {
+                throw std::runtime_error("hyperdrone: this renderer was compiled without motion blur (motion_blur_samples <= 1)");
+            }
+#else
+            (void)cameras_open; (void)cameras_close; (void)producer_stream;
+            throw std::runtime_error("hyperdrone: device-resident camera input is only supported on the OptiX backend");
+#endif
+        }
+        void set_transforms_pair(const float* pairs) override {
+            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+                require_init();
+                copy_to_renderer(rlt::data(rlt::transforms_pair(device, renderer)), pairs, (size_t)2 * SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12);
+            }
+            else {
+                throw std::runtime_error("hyperdrone: this renderer was compiled without dynamic motion blur (dynamic_motion_blur=False)");
+            }
+        }
+        float* transforms_pair_device_ptr() override {
+            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+                require_init();
+                return rlt::data(rlt::transforms_pair(device, renderer));
+            }
+            else {
+                throw std::runtime_error("hyperdrone: this renderer was compiled without dynamic motion blur (dynamic_motion_blur=False)");
+            }
+        }
+        void expand_motion_transforms() override {
+            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+                require_init();
+                rlt::expand_motion_transforms(device, renderer);
+            }
+            else {
+                throw std::runtime_error("hyperdrone: this renderer was compiled without dynamic motion blur (dynamic_motion_blur=False)");
+            }
+        }
     };
 
     static char config_string_buffer[256];
