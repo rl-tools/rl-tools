@@ -183,6 +183,17 @@ namespace rl_tools {
         OptixCameraData *cameras;
     };
 
+    struct NormalsRayGenData
+    {
+        float *normals_ptr;
+        owl::vec2i  fb_size;
+        owl::vec2i  cam_size;
+        int    grid_cols;
+        int    num_cameras;
+        OptixTraversableHandle world;
+        OptixCameraData *cameras;
+    };
+
     struct CollisionRayGenData
     {
         CollisionResult *results;    // [num_cameras * num_probes] output

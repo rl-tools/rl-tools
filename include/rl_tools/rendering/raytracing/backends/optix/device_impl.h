@@ -10,11 +10,16 @@
 #ifndef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_DEPTH_PROGRAMS
 #define RL_TOOLS_RENDERING_RAYTRACING_ENABLE_DEPTH_PROGRAMS 0
 #endif
+#ifndef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_NORMALS_PROGRAMS
+#define RL_TOOLS_RENDERING_RAYTRACING_ENABLE_NORMALS_PROGRAMS 0
+#endif
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools
 {
-  static constexpr int NUM_RAY_TYPES = 2;
+  // ray type 2 (normals) only exists in normals-enabled PTX; the host mirrors this via
+  // owlContextSetRayTypeCount keyed on SPEC::HAS_NORMALS, keeping the SBT stride in sync
+  static constexpr int NUM_RAY_TYPES = RL_TOOLS_RENDERING_RAYTRACING_ENABLE_NORMALS_PROGRAMS ? 3 : 2;
 
   extern "C" __constant__ OverlayLaunchParams optixLaunchParams;
 
@@ -790,6 +795,83 @@ namespace rl_tools
   {
     // Payloads stay as initialized by caller: distance = max_dist, hit = 0, instance = sentinel
   }
+
+#if RL_TOOLS_RENDERING_RAYTRACING_ENABLE_NORMALS_PROGRAMS
+  // normals ray type (2): the hit program reports the hit distance in payload 0 (consumed by
+  // the overlay min-t composition) and the world-frame geometric normal, oriented against the
+  // ray, in payloads 1-3
+  OPTIX_CLOSEST_HIT_PROGRAM(normalsHit)()
+  {
+    const TrianglesGeomData &self = owl::getProgramData<TrianglesGeomData>();
+    const owl::vec3i index = self.index[optixGetPrimitiveIndex()];
+    const owl::vec3f vertex_a = transform_point_to_world(self.vertex[index.x]);
+    const owl::vec3f vertex_b = transform_point_to_world(self.vertex[index.y]);
+    const owl::vec3f vertex_c = transform_point_to_world(self.vertex[index.z]);
+    owl::vec3f normal = normalize(cross(vertex_b - vertex_a, vertex_c - vertex_a));
+    const owl::vec3f ray_dir = optixGetWorldRayDirection();
+    if (dot(ray_dir, normal) > 0.f) normal = -normal;
+    optixSetPayload_0(__float_as_uint(optixGetRayTmax()));
+    optixSetPayload_1(__float_as_uint(normal.x));
+    optixSetPayload_2(__float_as_uint(normal.y));
+    optixSetPayload_3(__float_as_uint(normal.z));
+  }
+
+  // single-sample by design: unit normals cannot be averaged, so anti-aliasing and motion
+  // blur do not apply (shutter-close camera, pixel-center ray); miss keeps the (0,0,0) sentinel
+  OPTIX_RAYGEN_PROGRAM(normalsRayGen)()
+  {
+    const NormalsRayGenData &self = owl::getProgramData<NormalsRayGenData>();
+    const owl::vec2i pixel = owl::getLaunchIndex();
+    const int tile_col = pixel.x / self.cam_size.x;
+    const int tile_row = pixel.y / self.cam_size.y;
+    const int cam_idx = tile_row * self.grid_cols + tile_col;
+    if (cam_idx >= self.num_cameras)
+      return;
+    const int local_x = pixel.x - tile_col * self.cam_size.x;
+    const int local_y = pixel.y - tile_row * self.cam_size.y;
+    const int fb_offset = cam_idx * self.cam_size.x * self.cam_size.y + local_y * self.cam_size.x + local_x;
+
+    const OptixCameraData &cam = self.cameras[cam_idx];
+    const float screen_x = ((float)local_x + 0.5f) / (float)self.cam_size.x;
+    const float screen_y = ((float)local_y + 0.5f) / (float)self.cam_size.y;
+    const owl::vec3f direction = normalize(cam.dir_00 + screen_x * cam.dir_du + screen_y * cam.dir_dv);
+
+    unsigned int u0 = __float_as_uint(1e30f);
+    unsigned int u1 = __float_as_uint(0.f);
+    unsigned int u2 = __float_as_uint(0.f);
+    unsigned int u3 = __float_as_uint(0.f);
+    optixTrace(
+        self.world,
+        (const float3&)cam.pos,
+        (const float3&)direction,
+        0.f,
+        1e30f,
+        0.0f,
+        OptixVisibilityMask(255),
+        OPTIX_RAY_FLAG_DISABLE_ANYHIT,
+        2, NUM_RAY_TYPES, 1, // normals ray type; no-op miss keeps the current payloads
+        u0, u1, u2, u3);
+    const int overlay_count = optixLaunchParams.overlay_count;
+    for (int k = 0; k < overlay_count; k++) {
+      const uint32_t overlay = optixLaunchParams.attachments[cam_idx * overlay_count + k];
+      if (overlay == 0xFFFFFFFFu) continue;
+      optixTrace(
+          (OptixTraversableHandle)optixLaunchParams.overlays[overlay],
+          (const float3&)cam.pos,
+          (const float3&)direction,
+          0.f,
+          __uint_as_float(u0),
+          0.0f,
+          OptixVisibilityMask(255),
+          OPTIX_RAY_FLAG_DISABLE_ANYHIT,
+          2, NUM_RAY_TYPES, 1,
+          u0, u1, u2, u3);
+    }
+    self.normals_ptr[fb_offset * 3 + 0] = __uint_as_float(u1);
+    self.normals_ptr[fb_offset * 3 + 1] = __uint_as_float(u2);
+    self.normals_ptr[fb_offset * 3 + 2] = __uint_as_float(u3);
+  }
+#endif
 
 #ifdef RL_TOOLS_RENDERING_RAYTRACING_ENABLE_SEGMENTATION_PROGRAMS
   // single-sample by design: instance labels cannot be averaged, so anti-aliasing and motion

@@ -333,6 +333,19 @@ TEST_F(GoldenIoTest, PartialGridFillsUnusedQuadrantsBlack){
     EXPECT_EQ(loaded, cameras);
 }
 
+// the normals encoding is corpus surface: normals.png is the machine-compared target, so the
+// mapping (and its unreachable miss pixel) must never drift
+TEST_F(GoldenIoTest, NormalEncodingIsPinned){
+    const float miss[3] = {0.f, 0.f, 0.f};
+    EXPECT_EQ(golden::normal_rgba(miss), golden::rgba(128, 128, 128));
+    const float facing_camera[3] = {-1.f, 0.f, 0.f};
+    EXPECT_EQ(golden::normal_rgba(facing_camera), golden::rgba(0, 128, 128));
+    const float diagonal[3] = {0.57735f, -0.57735f, 0.57735f};
+    EXPECT_EQ(golden::normal_rgba(diagonal), golden::rgba(201, 54, 201));
+    const float out_of_range[3] = {2.f, -2.f, 1.f};
+    EXPECT_EQ(golden::normal_rgba(out_of_range), golden::rgba(255, 0, 255));
+}
+
 TEST_F(GoldenIoTest, LayoutPathsAreStable){
     const std::string root = "golden-root";
     EXPECT_EQ(golden::layout::procthor_static_scene_directory(root), "golden-root/procthor_static_scene");
@@ -348,6 +361,7 @@ TEST_F(GoldenIoTest, LayoutPathsAreStable){
     EXPECT_EQ(targets.depth_png, targets.directory + "/depth.png");
     EXPECT_EQ(targets.segmentation_bin, targets.directory + "/segmentation.bin");
     EXPECT_EQ(targets.segmentation_png, targets.directory + "/segmentation.png");
+    EXPECT_EQ(targets.normals_png, targets.directory + "/normals.png");
 
     const auto reviews = golden::layout::scenario_review_paths(
         "artifact-root", "vulkan", "partial_shared", "updated", "oblique"
@@ -362,4 +376,7 @@ TEST_F(GoldenIoTest, LayoutPathsAreStable){
     EXPECT_EQ(reviews.segmentation_target_png, reviews.directory + "/segmentation_target.png");
     EXPECT_EQ(reviews.segmentation_current_png, reviews.directory + "/segmentation_current.png");
     EXPECT_EQ(reviews.segmentation_diff_png, reviews.directory + "/segmentation_diff.png");
+    EXPECT_EQ(reviews.normals_target_png, reviews.directory + "/normals_target.png");
+    EXPECT_EQ(reviews.normals_current_png, reviews.directory + "/normals_current.png");
+    EXPECT_EQ(reviews.normals_diff_png, reviews.directory + "/normals_diff.png");
 }

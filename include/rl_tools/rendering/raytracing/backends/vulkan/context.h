@@ -35,8 +35,9 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         constexpr uint32_t OBSERVATION = 17;
         constexpr uint32_t RGB_ACCUMULATOR = 18;
         constexpr uint32_t DEPTH_ACCUMULATOR = 19;
-        constexpr uint32_t TEXTURES = 20; // variable-descriptor-count binding must have the largest binding number in the set
-        constexpr uint32_t COUNT = 21;
+        constexpr uint32_t NORMALS_BUFFER = 20;
+        constexpr uint32_t TEXTURES = 21; // variable-descriptor-count binding must have the largest binding number in the set
+        constexpr uint32_t COUNT = 22;
     }
     namespace specialization_constants{
         constexpr uint32_t SRGB_OUTPUT = 0;
@@ -148,11 +149,13 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         VkShaderModule module_depth = VK_NULL_HANDLE;
         VkShaderModule module_collision = VK_NULL_HANDLE;
         VkShaderModule module_segmentation = VK_NULL_HANDLE;
+        VkShaderModule module_normals = VK_NULL_HANDLE;
         VkShaderModule module_resolve = VK_NULL_HANDLE;
         VkPipeline rgb_pipeline = VK_NULL_HANDLE;
         VkPipeline depth_pipeline = VK_NULL_HANDLE;
         VkPipeline collision_pipeline = VK_NULL_HANDLE;
         VkPipeline segmentation_pipeline = VK_NULL_HANDLE;
+        VkPipeline normals_pipeline = VK_NULL_HANDLE;
         VkPipeline resolve_pipeline = VK_NULL_HANDLE;
         VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
         VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
@@ -171,6 +174,7 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         BufferResource tlas_buffer;
         BufferResource instance_buffer;
         BufferResource segmentation_buffer;
+        BufferResource normals_buffer;
         BufferResource observation;
         BufferResource instance_data;
         BufferResource instance_record_base;
@@ -200,6 +204,7 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         VkCommandBuffer cb_depth = VK_NULL_HANDLE;
         VkCommandBuffer cb_collision = VK_NULL_HANDLE;
         VkCommandBuffer cb_segmentation = VK_NULL_HANDLE;
+        VkCommandBuffer cb_normals = VK_NULL_HANDLE;
         VkCommandBuffer cb_dynamic = VK_NULL_HANDLE; // dynamic motion blur frame, re-recorded per render_launch
         VkFence fence_render = VK_NULL_HANDLE;
         VkFence fence_collision = VK_NULL_HANDLE;

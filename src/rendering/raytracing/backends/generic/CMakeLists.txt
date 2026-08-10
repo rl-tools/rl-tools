@@ -7,6 +7,9 @@ target_link_libraries(rendering_raytracing_backend_depth INTERFACE assimp::assim
 add_library(rendering_raytracing_backend_segmentation INTERFACE)
 target_link_libraries(rendering_raytracing_backend_segmentation INTERFACE assimp::assimp)
 
+add_library(rendering_raytracing_backend_normals INTERFACE)
+target_link_libraries(rendering_raytracing_backend_normals INTERFACE assimp::assimp)
+
 # Rule-13 guard: the freestanding kernels header must compile without any C++ standard library
 # headers. Compile-only; never executed.
 add_library(rendering_raytracing_generic_freestanding_check OBJECT freestanding_check.cpp)

@@ -167,6 +167,10 @@ namespace rl_tools {
             malloc(device, renderer.segmentation_buffer);
             backend_state->scene.segmentation_buffer = data(renderer.segmentation_buffer);
         }
+        if constexpr (SPEC::HAS_NORMALS) {
+            malloc(device, renderer.normals_buffer);
+            backend_state->scene.normals_buffer = data(renderer.normals_buffer);
+        }
         if constexpr (SPEC::HAS_OBSERVATION) {
             static_assert(utils::typing::is_same_v<typename SPEC::OBSERVATION_T, float>, "The generic raytracing backend requires OBSERVATION_T = float");
             malloc(device, renderer.observation);
@@ -590,6 +594,9 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_SEGMENTATION) {
                 generic::render_segmentation_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
             }
+            if constexpr (SPEC::HAS_NORMALS) {
+                generic::render_normals_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
+            }
             return;
         }
         if constexpr (SPEC::HAS_RGB) {
@@ -600,6 +607,9 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_SEGMENTATION) {
             generic::render_segmentation_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
+        }
+        if constexpr (SPEC::HAS_NORMALS) {
+            generic::render_normals_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
         }
     }
 
@@ -635,6 +645,12 @@ namespace rl_tools {
     void save_segmentation_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const char* filename){
         static_assert(SPEC::HAS_SEGMENTATION, "save_segmentation_image requires a segmentation-capable renderer specification");
         rendering::raytracing::detail::write_segmentation_grid_png<SPEC>(data(renderer.segmentation_buffer), filename);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void save_normals_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const char* filename){
+        static_assert(SPEC::HAS_NORMALS, "save_normals_image requires a normals-capable renderer specification");
+        rendering::raytracing::detail::write_normals_grid_png<SPEC>(data(renderer.normals_buffer), filename);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -689,6 +705,9 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_SEGMENTATION) {
             free(device, renderer.segmentation_buffer);
+        }
+        if constexpr (SPEC::HAS_NORMALS) {
+            free(device, renderer.normals_buffer);
         }
         if constexpr (SPEC::HAS_OBSERVATION) {
             free(device, renderer.observation);

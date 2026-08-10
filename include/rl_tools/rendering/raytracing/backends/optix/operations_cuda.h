@@ -29,6 +29,10 @@ namespace rl_tools {
     extern "C" char device_depth_ptx[];
     extern "C" char device_segmentation_ptx[];
     extern "C" char device_depth_segmentation_ptx[];
+    extern "C" char device_normals_ptx[];
+    extern "C" char device_depth_normals_ptx[];
+    extern "C" char device_segmentation_normals_ptx[];
+    extern "C" char device_depth_segmentation_normals_ptx[];
 
     namespace rendering::raytracing::backends::optix {
         // inactive overlay slots point at a shared degenerate-triangle BLAS, so every overlay
@@ -68,6 +72,8 @@ namespace rl_tools {
             OWLBuffer depth_buffer = nullptr;
             OWLRayGen segmentation_ray_gen = nullptr;
             OWLBuffer segmentation_buffer = nullptr;
+            OWLRayGen normals_ray_gen = nullptr;
+            OWLBuffer normals_buffer = nullptr;
             OWLBuffer observation_buffer = nullptr;
             OWLBuffer rgb_accumulator_buffer = nullptr;
             OWLBuffer depth_accumulator_buffer = nullptr;
@@ -257,10 +263,26 @@ namespace rl_tools {
         template <typename SPEC>
         void create_context_resources(OWLContext& context_out, OWLModule& module_out){
             OWLContext context = owlContextCreate(nullptr, 1);
-            owlContextSetRayTypeCount(context, 2);
+            // ray type 2 (normals) only exists in the normals-enabled PTX variants; the count
+            // must match the NUM_RAY_TYPES the selected PTX was compiled with (SBT stride)
+            owlContextSetRayTypeCount(context, SPEC::HAS_NORMALS ? 3 : 2);
             owlContextSetNumPayloadValues(context, 4); // color ptr (2), recursion depth, hit distance
             const char* ptx = nullptr;
-            if constexpr (SPEC::HAS_SEGMENTATION && SPEC::HAS_DEPTH) {
+            if constexpr (SPEC::HAS_NORMALS) {
+                if constexpr (SPEC::HAS_SEGMENTATION && SPEC::HAS_DEPTH) {
+                    ptx = device_depth_segmentation_normals_ptx;
+                }
+                else if constexpr (SPEC::HAS_SEGMENTATION) {
+                    ptx = device_segmentation_normals_ptx;
+                }
+                else if constexpr (SPEC::HAS_DEPTH) {
+                    ptx = device_depth_normals_ptx;
+                }
+                else {
+                    ptx = device_normals_ptx;
+                }
+            }
+            else if constexpr (SPEC::HAS_SEGMENTATION && SPEC::HAS_DEPTH) {
                 ptx = device_depth_segmentation_ptx;
             }
             else if constexpr (SPEC::HAS_SEGMENTATION) {
@@ -368,6 +390,12 @@ namespace rl_tools {
             segmentation_buffer = owlDeviceBufferCreate(context, OWL_UINT,
                                                         (size_t)SPEC::NUM_CAMERAS * cam_pixels, nullptr);
             renderer.segmentation_buffer._data = (uint32_t*)owlBufferGetPointer(segmentation_buffer, 0);
+        }
+        OWLBuffer normals_buffer = nullptr;
+        if constexpr (SPEC::HAS_NORMALS) {
+            normals_buffer = owlDeviceBufferCreate(context, OWL_FLOAT,
+                                                   (size_t)SPEC::NUM_CAMERAS * cam_pixels * 3, nullptr);
+            renderer.normals_buffer._data = (float*)owlBufferGetPointer(normals_buffer, 0);
         }
         OWLBuffer rgb_accumulator_buffer = nullptr;
         OWLBuffer depth_accumulator_buffer = nullptr;
@@ -508,6 +536,22 @@ namespace rl_tools {
                                                    sizeof(SegmentationRayGenData), segmentation_ray_gen_vars, -1);
         }
 
+        OWLRayGen normals_ray_gen = nullptr;
+        if constexpr (SPEC::HAS_NORMALS) {
+            OWLVarDecl normals_ray_gen_vars[] = {
+                { "normals_ptr", OWL_BUFPTR, OWL_OFFSETOF(NormalsRayGenData, normals_ptr)},
+                { "fb_size",     OWL_INT2,   OWL_OFFSETOF(NormalsRayGenData, fb_size)},
+                { "cam_size",    OWL_INT2,   OWL_OFFSETOF(NormalsRayGenData, cam_size)},
+                { "grid_cols",   OWL_INT,    OWL_OFFSETOF(NormalsRayGenData, grid_cols)},
+                { "num_cameras", OWL_INT,    OWL_OFFSETOF(NormalsRayGenData, num_cameras)},
+                { "world",       OWL_GROUP,  OWL_OFFSETOF(NormalsRayGenData, world)},
+                { "cameras",     OWL_BUFPTR, OWL_OFFSETOF(NormalsRayGenData, cameras)},
+                { /* sentinel */ }
+            };
+            normals_ray_gen = owlRayGenCreate(context, module, "normalsRayGen",
+                                              sizeof(NormalsRayGenData), normals_ray_gen_vars, -1);
+        }
+
         const owl2i fb_size  = {(int)SPEC::FB_WIDTH, (int)SPEC::FB_HEIGHT};
         const owl2i cam_size = {(int)SPEC::CAM_WIDTH, (int)SPEC::CAM_HEIGHT};
 
@@ -533,6 +577,15 @@ namespace rl_tools {
             owlRayGenSet1i    (segmentation_ray_gen, "num_cameras", SPEC::NUM_CAMERAS);
             renderer.backend->segmentation_ray_gen = segmentation_ray_gen;
             renderer.backend->segmentation_buffer = segmentation_buffer;
+        }
+        if constexpr (SPEC::HAS_NORMALS) {
+            owlRayGenSetBuffer(normals_ray_gen, "normals_ptr", normals_buffer);
+            owlRayGenSet2i    (normals_ray_gen, "fb_size", fb_size);
+            owlRayGenSet2i    (normals_ray_gen, "cam_size", cam_size);
+            owlRayGenSet1i    (normals_ray_gen, "grid_cols", SPEC::GRID_COLS);
+            owlRayGenSet1i    (normals_ray_gen, "num_cameras", SPEC::NUM_CAMERAS);
+            renderer.backend->normals_ray_gen = normals_ray_gen;
+            renderer.backend->normals_buffer = normals_buffer;
         }
         if constexpr (SPEC::HAS_DEPTH) {
             if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
@@ -582,6 +635,9 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_SEGMENTATION) {
             owlRayGenSetBuffer(segmentation_ray_gen, "cameras", cameras_buffer);
+        }
+        if constexpr (SPEC::HAS_NORMALS) {
+            owlRayGenSetBuffer(normals_ray_gen, "cameras", cameras_buffer);
         }
 
         renderer.backend->context = context;
@@ -720,10 +776,10 @@ namespace rl_tools {
                 } else {
                     using SHADING_USAGE = rendering::raytracing::detail::MediumShadingUsage<SPEC>;
                     std::vector<OWLVarDecl> triangles_geom_vars;
-                    if constexpr (SHADING_USAGE::USES_INDEX) {
+                    if constexpr (SHADING_USAGE::USES_INDEX || SPEC::HAS_NORMALS) {
                         triangles_geom_vars.push_back({ "index", OWL_BUFPTR, OWL_OFFSETOF(TrianglesGeomData, index)});
                     }
-                    if constexpr (SHADING_USAGE::USES_VERTEX) {
+                    if constexpr (SHADING_USAGE::USES_VERTEX || SPEC::HAS_NORMALS) {
                         triangles_geom_vars.push_back({ "vertex", OWL_BUFPTR, OWL_OFFSETOF(TrianglesGeomData, vertex)});
                     }
                     if constexpr (SHADING_USAGE::USES_TEXTURE) {
@@ -747,6 +803,16 @@ namespace rl_tools {
                     owlGeomTypeSetClosestHit(triangles_geom_type, 0, module, rendering::raytracing::detail::closest_hit_program_name<SPEC>());
                 }
             }
+            else if constexpr (SPEC::HAS_NORMALS) {
+                OWLVarDecl triangles_geom_vars[] = {
+                    { "index",  OWL_BUFPTR, OWL_OFFSETOF(TrianglesGeomData, index)},
+                    { "vertex", OWL_BUFPTR, OWL_OFFSETOF(TrianglesGeomData, vertex)},
+                    { /* sentinel */ }
+                };
+                triangles_geom_type = owlGeomTypeCreate(context, OWL_TRIANGLES,
+                                                         sizeof(TrianglesGeomData),
+                                                         triangles_geom_vars, -1);
+            }
             else {
                 OWLVarDecl triangles_geom_vars[] = {
                     { /* sentinel */ }
@@ -756,6 +822,9 @@ namespace rl_tools {
                                                          triangles_geom_vars, -1);
             }
             owlGeomTypeSetClosestHit(triangles_geom_type, 1, module, "collisionHit");
+            if constexpr (SPEC::HAS_NORMALS) {
+                owlGeomTypeSetClosestHit(triangles_geom_type, 2, module, "normalsHit");
+            }
             return triangles_geom_type;
         }
 
@@ -794,14 +863,16 @@ namespace rl_tools {
                 OWLGeom geom = owlGeomCreate(context, triangles_geom_type);
                 owlTrianglesSetVertices(geom, vb, num_vertices, sizeof(owl::vec3f), 0);
                 owlTrianglesSetIndices(geom, ib, num_indices, sizeof(owl::vec3i), 0);
-                if constexpr (SPEC::HAS_RGB) {
+                {
                     using SHADING_USAGE = rendering::raytracing::detail::MediumShadingUsage<SPEC>;
-                    if constexpr (SPEC::SHADING::PBR_SHADING || SHADING_USAGE::USES_VERTEX) {
+                    if constexpr ((SPEC::HAS_RGB && (SPEC::SHADING::PBR_SHADING || SHADING_USAGE::USES_VERTEX)) || SPEC::HAS_NORMALS) {
                         owlGeomSetBuffer(geom, "vertex", vb);
                     }
-                    if constexpr (SPEC::SHADING::PBR_SHADING || SHADING_USAGE::USES_INDEX) {
+                    if constexpr ((SPEC::HAS_RGB && (SPEC::SHADING::PBR_SHADING || SHADING_USAGE::USES_INDEX)) || SPEC::HAS_NORMALS) {
                         owlGeomSetBuffer(geom, "index", ib);
                     }
+                }
+                if constexpr (SPEC::HAS_RGB) {
                     owlGeomSet3f(geom, "color", owl3f{md.color[0], md.color[1], md.color[2]});
 
                     if constexpr (SPEC::SHADING::PBR_SHADING || SPEC::SHADING::LOAD_TEXTURES) {
@@ -1017,6 +1088,9 @@ namespace rl_tools {
             }
             if constexpr (SPEC::HAS_SEGMENTATION) {
                 owlRayGenSetGroup((OWLRayGen)renderer.backend->segmentation_ray_gen, "world", world);
+            }
+            if constexpr (SPEC::HAS_NORMALS) {
+                owlRayGenSetGroup((OWLRayGen)renderer.backend->normals_ray_gen, "world", world);
             }
             if(renderer.backend->collision_ray_gen){
                 owlRayGenSetGroup((OWLRayGen)renderer.backend->collision_ray_gen, "world", world);
@@ -1368,6 +1442,9 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_SEGMENTATION){
                 owlAsyncLaunch2D((OWLRayGen)renderer.backend->segmentation_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
             }
+            if constexpr (SPEC::HAS_NORMALS){
+                owlAsyncLaunch2D((OWLRayGen)renderer.backend->normals_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
+            }
             const float* rgb_accumulation = nullptr;
             unsigned int* frame_buffer = nullptr;
             float* observation = nullptr;
@@ -1400,6 +1477,9 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_SEGMENTATION) {
             owlAsyncLaunch2D((OWLRayGen)renderer.backend->segmentation_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
+        }
+        if constexpr (SPEC::HAS_NORMALS) {
+            owlAsyncLaunch2D((OWLRayGen)renderer.backend->normals_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
         }
     }
 
@@ -1446,6 +1526,15 @@ namespace rl_tools {
         std::vector<uint32_t> segmentation_host(segmentation_count);
         cudaMemcpy(segmentation_host.data(), data(renderer.segmentation_buffer), segmentation_count * sizeof(uint32_t), cudaMemcpyDeviceToHost);
         rendering::raytracing::detail::write_segmentation_grid_png<SPEC>(segmentation_host.data(), filename);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void save_normals_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, const char* filename){
+        static_assert(SPEC::HAS_NORMALS, "save_normals_image requires a normals-capable renderer specification");
+        const size_t normals_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS * 3;
+        std::vector<float> normals_host(normals_count);
+        cudaMemcpy(normals_host.data(), data(renderer.normals_buffer), normals_count * sizeof(float), cudaMemcpyDeviceToHost);
+        rendering::raytracing::detail::write_normals_grid_png<SPEC>(normals_host.data(), filename);
     }
 
     // =========================================================================
@@ -1573,6 +1662,9 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_SEGMENTATION) {
             renderer.segmentation_buffer._data = nullptr;
+        }
+        if constexpr (SPEC::HAS_NORMALS) {
+            renderer.normals_buffer._data = nullptr;
         }
         if constexpr (SPEC::HAS_OBSERVATION) {
             renderer.observation._data = nullptr;

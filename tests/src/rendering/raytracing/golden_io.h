@@ -24,6 +24,7 @@
 #include "golden_layout.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -506,6 +507,24 @@ namespace golden {
         return write_camera_grid_png(target_path, target, num_cameras, camera_width, camera_height)
             && write_camera_grid_png(current_path, current, num_cameras, camera_width, camera_height)
             && write_camera_grid_diff_png(diff_path, current, target, num_cameras, camera_width, camera_height);
+    }
+
+    // pinned normals encoding: round((clamp(n, -1, 1) * 0.5 + 0.5) * 255) per channel — must
+    // match rendering::raytracing::detail::normal_to_rgba (operations_cpu_common.h), which owns
+    // the renderer-side save verbs. Encoded normals reuse the rgb grid/diff/review machinery.
+    inline uint32_t normal_rgba(const float normal[3]){
+        uint8_t channels[3];
+        for(int component = 0; component < 3; component++){
+            const float clamped = std::min(std::max(normal[component], -1.f), 1.f);
+            channels[component] = (uint8_t)std::lround((clamped * 0.5f + 0.5f) * 255.f);
+        }
+        return rgba(channels[0], channels[1], channels[2]);
+    }
+
+    inline void colorize_normals(const float* normals, size_t count, uint32_t* image){
+        for(size_t pixel_i = 0; pixel_i < count; pixel_i++){
+            image[pixel_i] = normal_rgba(&normals[pixel_i * 3]);
+        }
     }
 
     inline uint32_t segmentation_false_color(uint32_t instance_id){

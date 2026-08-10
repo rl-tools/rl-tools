@@ -195,6 +195,10 @@ namespace rl_tools {
             ctx->segmentation_buffer = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(uint32_t), MTL::ResourceStorageModeShared));
             renderer.segmentation_buffer._data = (uint32_t*)ctx->segmentation_buffer->contents();
         }
+        if constexpr (SPEC::HAS_NORMALS) {
+            ctx->normals_buffer = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * 3 * sizeof(float), MTL::ResourceStorageModeShared));
+            renderer.normals_buffer._data = (float*)ctx->normals_buffer->contents();
+        }
         if constexpr (SPEC::HAS_OBSERVATION) {
             static_assert(utils::typing::is_same_v<typename SPEC::OBSERVATION_T, float>, "The Metal raytracing backend requires OBSERVATION_T = float");
             ctx->observation = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * SPEC::OBSERVATION_CHANNELS * sizeof(float), MTL::ResourceStorageModeShared));
@@ -594,6 +598,9 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_SEGMENTATION) {
                 ctx.segmentation_pipeline = make_pipeline("render_segmentation");
             }
+            if constexpr (SPEC::HAS_NORMALS) {
+                ctx.normals_pipeline = make_pipeline("render_normals");
+            }
             if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
                 ctx.resolve_pipeline = make_pipeline("resolve_outputs");
             }
@@ -907,6 +914,9 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_SEGMENTATION) {
                 metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.segmentation_pipeline.get(), ctx.segmentation_buffer.get());
             }
+            if constexpr (SPEC::HAS_NORMALS) {
+                metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.normals_pipeline.get(), ctx.normals_buffer.get());
+            }
             metal::encode_resolve_pass<SPEC>(ctx, command_buffer);
             command_buffer->commit();
             ctx.in_flight = NS::RetainPtr(command_buffer);
@@ -921,6 +931,9 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_SEGMENTATION) {
             metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.segmentation_pipeline.get(), ctx.segmentation_buffer.get());
+        }
+        if constexpr (SPEC::HAS_NORMALS) {
+            metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.normals_pipeline.get(), ctx.normals_buffer.get());
         }
         command_buffer->commit();
         ctx.in_flight = NS::RetainPtr(command_buffer);
@@ -989,6 +1002,13 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
+    void save_normals_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, const char* filename){
+        static_assert(SPEC::HAS_NORMALS, "save_normals_image requires a normals-capable renderer specification");
+        namespace metal = rendering::raytracing::backends::metal;
+        rendering::raytracing::detail::write_normals_grid_png<SPEC>(data(renderer.normals_buffer), filename);
+    }
+
+    template <typename DEVICE, typename SPEC>
     void save_depth_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, const char* filename){
         static_assert(SPEC::HAS_DEPTH, "save_depth_image requires a depth-capable renderer specification");
         namespace metal = rendering::raytracing::backends::metal;
@@ -1041,6 +1061,9 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_SEGMENTATION) {
             renderer.segmentation_buffer._data = nullptr;
+        }
+        if constexpr (SPEC::HAS_NORMALS) {
+            renderer.normals_buffer._data = nullptr;
         }
         if constexpr (SPEC::HAS_OBSERVATION) {
             renderer.observation._data = nullptr;

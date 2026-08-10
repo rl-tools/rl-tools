@@ -317,12 +317,12 @@ namespace rl_tools {
         }
 
         template <typename DEVICE>
-        void submit_render(DEVICE& device, Context& ctx, VkCommandBuffer first, VkCommandBuffer second = VK_NULL_HANDLE, VkCommandBuffer third = VK_NULL_HANDLE){
+        void submit_render(DEVICE& device, Context& ctx, VkCommandBuffer first, VkCommandBuffer second = VK_NULL_HANDLE, VkCommandBuffer third = VK_NULL_HANDLE, VkCommandBuffer fourth = VK_NULL_HANDLE){
             wait_render_in_flight(device, ctx);
-            const VkCommandBuffer inputs[3] = {first, second, third};
-            VkCommandBuffer command_buffers[3];
+            const VkCommandBuffer inputs[4] = {first, second, third, fourth};
+            VkCommandBuffer command_buffers[4];
             uint32_t count = 0;
-            for(int input_i = 0; input_i < 3; input_i++){
+            for(int input_i = 0; input_i < 4; input_i++){
                 if(inputs[input_i] != VK_NULL_HANDLE){
                     command_buffers[count++] = inputs[input_i];
                 }
@@ -520,6 +520,7 @@ namespace rl_tools {
         vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_depth), "Vulkan: command buffer allocation failed");
         vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_collision), "Vulkan: command buffer allocation failed");
         vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_segmentation), "Vulkan: command buffer allocation failed");
+        vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_normals), "Vulkan: command buffer allocation failed");
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
             vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_dynamic), "Vulkan: command buffer allocation failed");
         }
@@ -600,6 +601,10 @@ namespace rl_tools {
             spirv = rendering::raytracing::backends::vulkan::device_spirv_segmentation(spirv_size);
             ctx->module_segmentation = make_module(spirv, spirv_size);
         }
+        if constexpr (SPEC::HAS_NORMALS) {
+            spirv = rendering::raytracing::backends::vulkan::device_spirv_normals(spirv_size);
+            ctx->module_normals = make_module(spirv, spirv_size);
+        }
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
             spirv = rendering::raytracing::backends::vulkan::device_spirv_resolve(spirv_size);
             ctx->module_resolve = make_module(spirv, spirv_size);
@@ -636,6 +641,10 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_SEGMENTATION) {
             ctx->segmentation_buffer = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(uint32_t), STORAGE, HOST_MEMORY, true);
             renderer.segmentation_buffer._data = (uint32_t*)ctx->segmentation_buffer.mapped;
+        }
+        if constexpr (SPEC::HAS_NORMALS) {
+            ctx->normals_buffer = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * 3 * sizeof(float), STORAGE, HOST_MEMORY, true);
+            renderer.normals_buffer._data = (float*)ctx->normals_buffer.mapped;
         }
         if constexpr (SPEC::HAS_OBSERVATION) {
             static_assert(utils::typing::is_same_v<typename SPEC::OBSERVATION_T, float>, "The Vulkan raytracing backend requires OBSERVATION_T = float");
@@ -1187,6 +1196,9 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_SEGMENTATION) {
                 ctx.segmentation_pipeline = make_pipeline(ctx.module_segmentation);
             }
+            if constexpr (SPEC::HAS_NORMALS) {
+                ctx.normals_pipeline = make_pipeline(ctx.module_normals);
+            }
             if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
                 ctx.resolve_pipeline = make_pipeline(ctx.module_resolve);
             }
@@ -1246,6 +1258,7 @@ namespace rl_tools {
             buffer_infos[vk::bindings::OVERLAY_NUM_ACTIVE] = buffer_or_dummy(ctx.overlay_num_active);
             buffer_infos[vk::bindings::RGB_ACCUMULATOR] = buffer_or_dummy(ctx.rgb_accumulator);
             buffer_infos[vk::bindings::DEPTH_ACCUMULATOR] = buffer_or_dummy(ctx.depth_accumulator);
+            buffer_infos[vk::bindings::NORMALS_BUFFER] = buffer_or_dummy(ctx.normals_buffer);
 
             std::vector<VkWriteDescriptorSet> writes;
             for(uint32_t binding_i = 0; binding_i < vk::bindings::COUNT; binding_i++){
@@ -1335,6 +1348,9 @@ namespace rl_tools {
             }
             if constexpr (SPEC::HAS_SEGMENTATION) {
                 record(ctx.cb_segmentation, ctx.segmentation_pipeline, fb_groups_x, fb_groups_y);
+            }
+            if constexpr (SPEC::HAS_NORMALS) {
+                record(ctx.cb_normals, ctx.normals_pipeline, fb_groups_x, fb_groups_y);
             }
             if(ctx.collision_pipeline != VK_NULL_HANDLE){
                 record(ctx.cb_collision, ctx.collision_pipeline, (SPEC::NUM_CAMERAS + vk::WORKGROUP_SIZE - 1) / vk::WORKGROUP_SIZE, (SPEC::NUM_PROBES + vk::WORKGROUP_SIZE - 1) / vk::WORKGROUP_SIZE);
@@ -1709,6 +1725,10 @@ namespace rl_tools {
                 vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, ctx.segmentation_pipeline);
                 vkCmdDispatch(command_buffer, fb_groups_x, fb_groups_y, 1);
             }
+            if constexpr (SPEC::HAS_NORMALS){
+                vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, ctx.normals_pipeline);
+                vkCmdDispatch(command_buffer, fb_groups_x, fb_groups_y, 1);
+            }
             vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, ctx.resolve_pipeline);
             vkCmdDispatch(command_buffer, fb_groups_x, fb_groups_y, 1);
             VkMemoryBarrier to_host{};
@@ -1728,7 +1748,8 @@ namespace rl_tools {
         vk::submit_render(device, ctx,
             SPEC::HAS_RGB ? ctx.cb_rgb : VK_NULL_HANDLE,
             SPEC::HAS_DEPTH ? ctx.cb_depth : VK_NULL_HANDLE,
-            SPEC::HAS_SEGMENTATION ? ctx.cb_segmentation : VK_NULL_HANDLE);
+            SPEC::HAS_SEGMENTATION ? ctx.cb_segmentation : VK_NULL_HANDLE,
+            SPEC::HAS_NORMALS ? ctx.cb_normals : VK_NULL_HANDLE);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1789,6 +1810,13 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
+    void save_normals_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const char* filename){
+        static_assert(SPEC::HAS_NORMALS, "save_normals_image requires a normals-capable renderer specification");
+        namespace vk = rendering::raytracing::backends::vulkan;
+        rendering::raytracing::detail::write_normals_grid_png<SPEC>(data(renderer.normals_buffer), filename);
+    }
+
+    template <typename DEVICE, typename SPEC>
     void save_depth_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const char* filename){
         static_assert(SPEC::HAS_DEPTH, "save_depth_image requires a depth-capable renderer specification");
         namespace vk = rendering::raytracing::backends::vulkan;
@@ -1834,6 +1862,7 @@ namespace rl_tools {
             vk::destroy_buffer(ctx, ctx.frame_buffer);
             vk::destroy_buffer(ctx, ctx.depth_buffer);
             vk::destroy_buffer(ctx, ctx.segmentation_buffer);
+            vk::destroy_buffer(ctx, ctx.normals_buffer);
             vk::destroy_buffer(ctx, ctx.observation);
             vk::destroy_buffer(ctx, ctx.collision_results);
             vk::destroy_buffer(ctx, ctx.probe_directions);
@@ -1844,11 +1873,13 @@ namespace rl_tools {
             if(ctx.depth_pipeline != VK_NULL_HANDLE){ vkDestroyPipeline(ctx.device, ctx.depth_pipeline, nullptr); }
             if(ctx.collision_pipeline != VK_NULL_HANDLE){ vkDestroyPipeline(ctx.device, ctx.collision_pipeline, nullptr); }
             if(ctx.segmentation_pipeline != VK_NULL_HANDLE){ vkDestroyPipeline(ctx.device, ctx.segmentation_pipeline, nullptr); }
+            if(ctx.normals_pipeline != VK_NULL_HANDLE){ vkDestroyPipeline(ctx.device, ctx.normals_pipeline, nullptr); }
             if(ctx.resolve_pipeline != VK_NULL_HANDLE){ vkDestroyPipeline(ctx.device, ctx.resolve_pipeline, nullptr); }
             if(ctx.module_rgb != VK_NULL_HANDLE){ vkDestroyShaderModule(ctx.device, ctx.module_rgb, nullptr); }
             if(ctx.module_depth != VK_NULL_HANDLE){ vkDestroyShaderModule(ctx.device, ctx.module_depth, nullptr); }
             if(ctx.module_collision != VK_NULL_HANDLE){ vkDestroyShaderModule(ctx.device, ctx.module_collision, nullptr); }
             if(ctx.module_segmentation != VK_NULL_HANDLE){ vkDestroyShaderModule(ctx.device, ctx.module_segmentation, nullptr); }
+            if(ctx.module_normals != VK_NULL_HANDLE){ vkDestroyShaderModule(ctx.device, ctx.module_normals, nullptr); }
             if(ctx.module_resolve != VK_NULL_HANDLE){ vkDestroyShaderModule(ctx.device, ctx.module_resolve, nullptr); }
             vkDestroyPipelineLayout(ctx.device, ctx.pipeline_layout, nullptr);
             vkDestroyDescriptorSetLayout(ctx.device, ctx.descriptor_set_layout, nullptr);
@@ -1875,6 +1906,9 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_SEGMENTATION) {
             renderer.segmentation_buffer._data = nullptr;
+        }
+        if constexpr (SPEC::HAS_NORMALS) {
+            renderer.normals_buffer._data = nullptr;
         }
         if constexpr (SPEC::HAS_OBSERVATION) {
             renderer.observation._data = nullptr;
