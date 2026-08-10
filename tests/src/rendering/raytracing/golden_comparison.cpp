@@ -79,8 +79,8 @@ static const std::string GOLDEN_ROOT = RL_TOOLS_GOLDEN_TEST_DATA_PATH "/renderin
 #endif
 
 static std::string procthor_golden_dir(){
-    const std::string scenario_dir = GOLDEN_ROOT + "/procthor_static_scene";
-    return std::filesystem::is_regular_file(scenario_dir + "/" + CASES::POSES[0].id + "/low_rgb.png") ? scenario_dir : GOLDEN_ROOT;
+    const std::string scenario_dir = golden::layout::procthor_static_scene_directory(GOLDEN_ROOT);
+    return std::filesystem::is_regular_file(golden::layout::join(golden::layout::procthor_pose_directory(GOLDEN_ROOT, CASES::POSES[0].id), "low_rgb.png")) ? scenario_dir : GOLDEN_ROOT;
 }
 
 static const std::string GOLDEN_DIR = procthor_golden_dir();
@@ -250,7 +250,7 @@ namespace {
                 const std::string directory = BACKEND_OUTPUT_DIR + "/" + id;
                 std::filesystem::create_directories(directory);
                 golden::write_camera_depth_png(directory + "/" + name + "_depth_target.png", golden_depth.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
-                golden::write_camera_depth_diff_png(directory + "/" + name + "_depth_diff.png", ours, golden_depth.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+                golden::write_camera_depth_diff_png(directory + "/" + name + "_depth_diff.png", golden_depth.data(), ours, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
             }
             double total_abs_diff = 0;
             size_t outliers = 0;

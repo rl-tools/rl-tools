@@ -16,15 +16,16 @@ function(rl_tools_configure_raytracing_golden_target TARGET_NAME)
     endif()
 endfunction()
 
-function(rl_tools_configure_overlay_golden_comparison TARGET_NAME BACKEND_NAME SUITE_NAME)
+function(rl_tools_configure_overlay_golden_comparison TARGET_NAME BACKEND_NAME)
     rl_tools_configure_raytracing_golden_target(${TARGET_NAME})
+    string(TOUPPER ${BACKEND_NAME} RL_TOOLS_OVERLAY_GOLDEN_BACKEND_UPPER)
     target_compile_definitions(${TARGET_NAME}
         PRIVATE
             RL_TOOLS_OVERLAY_GOLDEN_BACKEND_NAME="${BACKEND_NAME}"
-            RL_TOOLS_OVERLAY_GOLDEN_SUITE=${SUITE_NAME}
+            RL_TOOLS_OVERLAY_GOLDEN_SUITE=RENDERING_RAYTRACING_OVERLAY_GOLDEN_${RL_TOOLS_OVERLAY_GOLDEN_BACKEND_UPPER}
     )
     gtest_discover_tests(${TARGET_NAME}
-        PROPERTIES TIMEOUT 300 LABELS "overlay-golden;golden"
+        PROPERTIES TIMEOUT 300 LABELS "overlay-golden;overlay-golden-${BACKEND_NAME}"
     )
 endfunction()
 
@@ -36,9 +37,11 @@ target_link_libraries(test_rendering_raytracing_golden_io
         GTest::gtest_main
 )
 gtest_discover_tests(test_rendering_raytracing_golden_io
-    PROPERTIES TIMEOUT 20 LABELS "golden-io;golden"
+    PROPERTIES TIMEOUT 20 LABELS "golden-io"
 )
 
+# the four device ptx targets are defined together in the OptiX backend CMakeLists,
+# so their availability is equivalent
 if(TARGET owl::owl AND TARGET rendering_raytracing_device_ptx AND TARGET assimp::assimp AND RL_TOOLS_TEST_DATA_PATH)
     add_executable(test_rendering_raytracing_generate_golden EXCLUDE_FROM_ALL generate_golden.cpp)
     target_link_libraries(test_rendering_raytracing_generate_golden
@@ -50,17 +53,7 @@ if(TARGET owl::owl AND TARGET rendering_raytracing_device_ptx AND TARGET assimp:
             assimp::assimp
             rendering_raytracing_stb
     )
-endif()
 
-if(
-    TARGET owl::owl
-    AND TARGET rendering_raytracing_device_ptx
-    AND TARGET rendering_raytracing_device_depth_ptx
-    AND TARGET rendering_raytracing_device_segmentation_ptx
-    AND TARGET rendering_raytracing_device_depth_segmentation_ptx
-    AND TARGET assimp::assimp
-    AND RL_TOOLS_TEST_DATA_PATH
-)
     add_executable(test_rendering_raytracing_generate_overlay_golden EXCLUDE_FROM_ALL generate_overlay_golden.cpp)
     target_link_libraries(test_rendering_raytracing_generate_overlay_golden
         PRIVATE
@@ -71,6 +64,7 @@ if(
             rendering_raytracing_device_segmentation_ptx
             rendering_raytracing_device_depth_segmentation_ptx
             assimp::assimp
+            nlohmann_json::nlohmann_json
             rendering_raytracing_stb
     )
 endif()
@@ -88,8 +82,9 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
     rl_tools_configure_raytracing_golden_target(test_rendering_raytracing_golden_comparison_cpu)
     gtest_discover_tests(test_rendering_raytracing_golden_comparison_cpu PROPERTIES TIMEOUT 300)
 
-    add_executable(test_rendering_raytracing_overlay_golden_comparison_generic overlay_golden_comparison.cpp)
-    target_link_libraries(test_rendering_raytracing_overlay_golden_comparison_generic
+    # backend-independent validation of the published overlay corpus itself
+    add_executable(test_rendering_raytracing_overlay_corpus_validation overlay_corpus_validation.cpp)
+    target_link_libraries(test_rendering_raytracing_overlay_corpus_validation
         PRIVATE
             RLtools::RLtools
             assimp::assimp
@@ -97,10 +92,22 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
             rendering_raytracing_stb
             GTest::gtest_main
     )
+    rl_tools_configure_raytracing_golden_target(test_rendering_raytracing_overlay_corpus_validation)
+    gtest_discover_tests(test_rendering_raytracing_overlay_corpus_validation
+        PROPERTIES TIMEOUT 60 LABELS "overlay-golden;overlay-golden-corpus"
+    )
+
+    add_executable(test_rendering_raytracing_overlay_golden_comparison_generic overlay_golden_comparison.cpp)
+    target_link_libraries(test_rendering_raytracing_overlay_golden_comparison_generic
+        PRIVATE
+            RLtools::RLtools
+            assimp::assimp
+            rendering_raytracing_stb
+            GTest::gtest_main
+    )
     rl_tools_configure_overlay_golden_comparison(
         test_rendering_raytracing_overlay_golden_comparison_generic
         generic
-        RENDERING_RAYTRACING_OVERLAY_GOLDEN_GENERIC
     )
 
     # the backend this build is configured for vs the OptiX goldens; in GENERIC
@@ -122,7 +129,6 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
         gtest_discover_tests(${RL_TOOLS_GOLDEN_BACKEND_TARGET} PROPERTIES TIMEOUT 300)
 
         set(RL_TOOLS_OVERLAY_GOLDEN_BACKEND_TARGET test_rendering_raytracing_overlay_golden_comparison_${RL_TOOLS_GOLDEN_BACKEND_TARGET_SUFFIX})
-        string(TOUPPER ${RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED} RL_TOOLS_OVERLAY_GOLDEN_BACKEND_UPPER)
         add_executable(${RL_TOOLS_OVERLAY_GOLDEN_BACKEND_TARGET} overlay_golden_comparison.cpp)
         target_link_libraries(${RL_TOOLS_OVERLAY_GOLDEN_BACKEND_TARGET}
             PRIVATE
@@ -130,7 +136,6 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
                 rendering_raytracing_backend
                 rendering_raytracing_backend_depth
                 rendering_raytracing_backend_segmentation
-                nlohmann_json::nlohmann_json
                 rendering_raytracing_stb
                 GTest::gtest_main
         )
@@ -140,7 +145,6 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
         rl_tools_configure_overlay_golden_comparison(
             ${RL_TOOLS_OVERLAY_GOLDEN_BACKEND_TARGET}
             ${RL_TOOLS_GOLDEN_BACKEND_TARGET_SUFFIX}
-            RENDERING_RAYTRACING_OVERLAY_GOLDEN_${RL_TOOLS_OVERLAY_GOLDEN_BACKEND_UPPER}
         )
     endif()
 endif()

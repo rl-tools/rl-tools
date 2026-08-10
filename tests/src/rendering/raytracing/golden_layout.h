@@ -3,7 +3,6 @@
 
 #include <filesystem>
 #include <string>
-#include <system_error>
 
 namespace golden {
     namespace layout {
@@ -43,14 +42,6 @@ namespace golden {
 
         inline std::string legacy_procthor_pose_directory(const std::string& golden_root, const std::string& pose_id){
             return join(golden_root, pose_id);
-        }
-
-        inline std::string readable_procthor_pose_directory(const std::string& golden_root, const std::string& pose_id){
-            const std::string preferred = procthor_pose_directory(golden_root, pose_id);
-            std::error_code error;
-            return std::filesystem::is_directory(preferred, error)
-                ? preferred
-                : legacy_procthor_pose_directory(golden_root, pose_id);
         }
 
         inline std::string overlay_directory(const std::string& golden_root){

@@ -33,7 +33,7 @@ namespace overlay_goldens {
     }
 
     inline std::size_t capture_state_count(overlay_scenarios::Scenario scenario){
-        return scenario == overlay_scenarios::Scenario::SHARED_SCENE_NO_DYNAMIC ? 1 : 2;
+        return overlay_scenarios::has_update(overlay_scenarios::definition(scenario)) ? 2 : 1;
     }
 }
 

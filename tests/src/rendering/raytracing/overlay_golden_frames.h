@@ -1,0 +1,186 @@
+#ifndef TESTS_RENDERING_RAYTRACING_OVERLAY_GOLDEN_FRAMES_H
+#define TESTS_RENDERING_RAYTRACING_OVERLAY_GOLDEN_FRAMES_H
+
+// Shared harness for the overlay golden generator, the per-backend comparators, and the corpus
+// validation test: frame capture plumbing plus the invariant constants and predicates that
+// generation and comparison must agree on.
+
+#include "golden_io.h"
+#include "golden_layout.h"
+#include "overlay_golden_cases.h"
+
+#include <array>
+#include <cstddef>
+#include <cstdint>
+#include <string>
+#include <vector>
+
+namespace overlay_goldens {
+    static constexpr std::size_t MIN_VISIBLE_ID_PIXELS = 4;
+    static constexpr std::size_t MIN_UPDATE_CHANGED_PIXELS = 8;
+    static constexpr std::size_t MIN_POSE_CHANGED_PIXELS = 32;
+    static constexpr std::size_t MIN_POSE_SEGMENTATION_CHANGED_PIXELS = 8;
+    static constexpr std::size_t MIN_SCENARIO_DISTINCT_PIXELS = 16;
+
+    struct Frame {
+        std::vector<std::uint32_t> rgb;
+        std::vector<float> depth;
+        std::vector<std::uint32_t> segmentation;
+        float max_depth = 0;
+    };
+
+    struct DifferenceCounts {
+        std::size_t rgb = 0;
+        std::size_t depth = 0;
+        std::size_t segmentation = 0;
+    };
+
+    template <typename DEVICE, typename RENDERER>
+    void set_view(DEVICE& device, RENDERER& renderer, const View& view){
+        using SPEC = typename RENDERER::SPEC;
+        using T = typename SPEC::T;
+        constexpr T aspect = (T)SPEC::CAM_WIDTH / (T)SPEC::CAM_HEIGHT;
+        const auto camera = rl_tools::make_camera_data(view.position, view.look_at, view.up, SPEC::COS_FOVY, aspect);
+        std::array<rl_tools::rendering::raytracing::Camera<T>, SPEC::NUM_CAMERAS> cameras;
+        cameras.fill(camera);
+        rl_tools::copy_to_renderer(device, renderer, cameras.data(), rl_tools::data(rl_tools::cameras(device, renderer)), cameras.size());
+    }
+
+    template <typename DEVICE, typename RENDERER>
+    Frame capture(DEVICE& device, RENDERER& renderer){
+        using SPEC = typename RENDERER::SPEC;
+        rl_tools::render(device, renderer);
+        rl_tools::synchronize(device, renderer);
+        const std::size_t count = (std::size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+        Frame frame;
+        frame.rgb.resize(count);
+        frame.depth.resize(count);
+        frame.segmentation.resize(count);
+        rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::frame_buffer(device, renderer)), frame.rgb.data(), count);
+        rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::depth_buffer(device, renderer)), frame.depth.data(), count);
+        rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::segmentation_buffer(device, renderer)), frame.segmentation.data(), count);
+        frame.max_depth = renderer.camera_radius > 0 ? renderer.camera_radius * 2.0f : 1e30f;
+        return frame;
+    }
+
+    template <typename SPEC>
+    DifferenceCounts camera_difference(const Frame& first, const Frame& second, std::size_t camera){
+        DifferenceCounts difference;
+        const std::size_t offset = camera * SPEC::CAM_PIXELS;
+        for(std::size_t pixel = 0; pixel < SPEC::CAM_PIXELS; pixel++){
+            const std::size_t index = offset + pixel;
+            difference.rgb += first.rgb[index] != second.rgb[index];
+            difference.depth += first.depth[index] != second.depth[index];
+            difference.segmentation += first.segmentation[index] != second.segmentation[index];
+        }
+        return difference;
+    }
+
+    template <typename SPEC>
+    DifferenceCounts frame_difference(const Frame& first, const Frame& second){
+        DifferenceCounts difference;
+        for(std::size_t camera = 0; camera < SPEC::NUM_CAMERAS; camera++){
+            const auto camera_counts = camera_difference<SPEC>(first, second, camera);
+            difference.rgb += camera_counts.rgb;
+            difference.depth += camera_counts.depth;
+            difference.segmentation += camera_counts.segmentation;
+        }
+        return difference;
+    }
+
+    template <typename SPEC>
+    std::size_t camera_id_count(const Frame& frame, std::size_t camera, std::uint32_t id){
+        const std::size_t offset = camera * SPEC::CAM_PIXELS;
+        std::size_t count = 0;
+        for(std::size_t pixel = 0; pixel < SPEC::CAM_PIXELS; pixel++){
+            count += frame.segmentation[offset + pixel] == id;
+        }
+        return count;
+    }
+
+    inline std::vector<std::uint32_t> expected_ids(overlay_scenarios::Scenario scenario, std::size_t camera){
+        std::vector<std::uint32_t> ids = {0};
+        for(const auto& placement : overlay_scenarios::definition(scenario).placements){
+            if((placement.cameras & overlay_scenarios::camera_bit(camera)) != 0){
+                ids.push_back(placement.expected_id);
+            }
+        }
+        return ids;
+    }
+
+    inline bool id_expected_in_camera(overlay_scenarios::Scenario scenario, std::size_t camera, std::uint32_t id){
+        if(id == 0){
+            return true;
+        }
+        for(const auto& placement : overlay_scenarios::definition(scenario).placements){
+            if(placement.expected_id == id && (placement.cameras & overlay_scenarios::camera_bit(camera)) != 0){
+                return true;
+            }
+        }
+        return false;
+    }
+
+    struct CameraUpdateScope {
+        bool should_change = false;
+        DifferenceCounts difference;
+    };
+
+    template <typename SPEC>
+    std::array<CameraUpdateScope, overlay_scenarios::NUM_CAMERAS> update_scope(overlay_scenarios::Scenario scenario, const Frame& initial, const Frame& updated){
+        const auto affected = overlay_scenarios::affected_camera_mask(overlay_scenarios::definition(scenario));
+        std::array<CameraUpdateScope, overlay_scenarios::NUM_CAMERAS> scope;
+        for(std::size_t camera = 0; camera < overlay_scenarios::NUM_CAMERAS; camera++){
+            scope[camera].should_change = (affected & overlay_scenarios::camera_bit(camera)) != 0;
+            scope[camera].difference = camera_difference<SPEC>(initial, updated, camera);
+        }
+        return scope;
+    }
+
+    inline bool update_scope_ok(const CameraUpdateScope& scope){
+        return scope.should_change
+            ? scope.difference.rgb > MIN_UPDATE_CHANGED_PIXELS
+                && scope.difference.depth > MIN_UPDATE_CHANGED_PIXELS
+                && scope.difference.segmentation > MIN_UPDATE_CHANGED_PIXELS
+            : scope.difference.rgb == 0
+                && scope.difference.depth == 0
+                && scope.difference.segmentation == 0;
+    }
+
+    template <typename SPEC>
+    bool views_distinct(overlay_scenarios::Scenario scenario, const Frame& first, const Frame& second){
+        const auto difference = frame_difference<SPEC>(first, second);
+        const bool dynamic = !overlay_scenarios::definition(scenario).placements.empty();
+        return difference.rgb > MIN_POSE_CHANGED_PIXELS
+            && difference.depth > MIN_POSE_CHANGED_PIXELS
+            && (!dynamic || difference.segmentation > MIN_POSE_SEGMENTATION_CHANGED_PIXELS);
+    }
+
+    template <typename SPEC>
+    bool scenarios_distinct(const Frame& first, const Frame& second){
+        const auto difference = frame_difference<SPEC>(first, second);
+        return difference.rgb > MIN_SCENARIO_DISTINCT_PIXELS
+            && difference.depth > MIN_SCENARIO_DISTINCT_PIXELS
+            && difference.segmentation > MIN_SCENARIO_DISTINCT_PIXELS;
+    }
+
+    template <typename SPEC>
+    bool load_target_frame(
+        const std::string& golden_root,
+        overlay_scenarios::Scenario scenario,
+        CaptureState state,
+        const View& view,
+        Frame& target
+    ){
+        const auto paths = golden::layout::scenario_target_paths(
+            golden_root,
+            overlay_scenarios::scenario_id(scenario),
+            capture_state_id(state),
+            view.id
+        );
+        return golden::load_camera_grid_png(paths.rgb_png, SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.rgb)
+            && golden::load_multi_camera_float_bin(paths.depth_bin, SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.depth)
+            && golden::load_multi_camera_uint32_bin(paths.segmentation_bin, SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.segmentation);
+    }
+}
+
+#endif

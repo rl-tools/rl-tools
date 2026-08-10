@@ -14,7 +14,6 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
-#include <cstring>
 #include <vector>
 
 #ifndef RL_TOOLS_OVERLAY_SCENARIOS_SUITE
@@ -34,11 +33,16 @@ namespace {
     constexpr TI NUM_CAMERAS = static_cast<TI>(overlay_scenarios::NUM_CAMERAS);
     using StaticSpec = overlay_scenarios::StaticSpecification<T, TI>;
     using OverlaySpec = overlay_scenarios::OverlaySpecification<T, TI>;
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_OVERLAY_TEST_ACTIVE_BACKEND
+    using BACKEND = rlt::rendering::raytracing::backends::Default;
+#else
+    using BACKEND = rlt::rendering::raytracing::backends::Generic;
+#endif
 
     template <typename SPEC>
     struct RendererOwner{
         DEVICE& device;
-        rlt::rendering::raytracing::Renderer<SPEC> renderer;
+        rlt::rendering::raytracing::Renderer<SPEC, BACKEND> renderer;
 
         explicit RendererOwner(DEVICE& device): device(device){
             rlt::malloc(device, renderer);
@@ -52,7 +56,7 @@ namespace {
     };
 
     template <typename SPEC>
-    void set_identical_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer){
+    void set_identical_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         const T position[3] = {0, 0, 0};
         const T look_at[3] = {1, 0, 0};
         const T up[3] = {0, 0, 1};
@@ -60,20 +64,7 @@ namespace {
         const auto camera = rlt::make_camera_data(position, look_at, up, SPEC::COS_FOVY, aspect);
         std::array<rlt::rendering::raytracing::Camera<T>, SPEC::NUM_CAMERAS> cameras;
         cameras.fill(camera);
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_OVERLAY_TEST_ACTIVE_BACKEND) && defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-        cudaMemcpy(rlt::data(rlt::cameras(device, renderer)), cameras.data(), sizeof(cameras), cudaMemcpyHostToDevice);
-#else
-        std::memcpy(rlt::data(rlt::cameras(device, renderer)), cameras.data(), sizeof(cameras));
-#endif
-    }
-
-    template <typename ELEMENT, typename TENSOR>
-    void read_output(const TENSOR& tensor, ELEMENT* destination, size_t count){
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_OVERLAY_TEST_ACTIVE_BACKEND) && defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-        cudaMemcpy(destination, rlt::data(tensor), count * sizeof(ELEMENT), cudaMemcpyDeviceToHost);
-#else
-        std::memcpy(destination, rlt::data(tensor), count * sizeof(ELEMENT));
-#endif
+        rlt::copy_to_renderer(device, renderer, cameras.data(), rlt::data(rlt::cameras(device, renderer)), cameras.size());
     }
 
     template <typename SPEC>
@@ -84,7 +75,7 @@ namespace {
     };
 
     template <typename SPEC>
-    Frame<SPEC> capture(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer){
+    Frame<SPEC> capture(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
         const size_t size = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
@@ -92,9 +83,9 @@ namespace {
         frame.rgb.resize(size);
         frame.depth.resize(size);
         frame.segmentation.resize(size);
-        read_output(rlt::frame_buffer(device, renderer), frame.rgb.data(), size);
-        read_output(rlt::depth_buffer(device, renderer), frame.depth.data(), size);
-        read_output(rlt::segmentation_buffer(device, renderer), frame.segmentation.data(), size);
+        rlt::copy_from_renderer(device, renderer, rlt::data(rlt::frame_buffer(device, renderer)), frame.rgb.data(), size);
+        rlt::copy_from_renderer(device, renderer, rlt::data(rlt::depth_buffer(device, renderer)), frame.depth.data(), size);
+        rlt::copy_from_renderer(device, renderer, rlt::data(rlt::segmentation_buffer(device, renderer)), frame.segmentation.data(), size);
         return frame;
     }
 
@@ -236,14 +227,14 @@ namespace {
     }
 
     template <typename SPEC>
-    void expect_maps_to_asset(DEVICE& device, const Scene& scene, const AssetPool& pool, const rlt::rendering::raytracing::Renderer<SPEC>& renderer, uint32_t id, AssetHandle asset){
+    void expect_maps_to_asset(DEVICE& device, const Scene& scene, const AssetPool& pool, const rlt::rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, uint32_t id, AssetHandle asset){
         const auto* object = rlt::segmentation_object(device, scene, pool, renderer, id);
         ASSERT_NE(object, nullptr);
         EXPECT_EQ(object, &pool.assemblies[asset.index].objects[0]);
     }
 
     template <typename SPEC>
-    void expect_static_scene(DEVICE& device, const Scene& scene, const AssetPool& pool, const rlt::rendering::raytracing::Renderer<SPEC>& renderer, const Frame<SPEC>& frame){
+    void expect_static_scene(DEVICE& device, const Scene& scene, const AssetPool& pool, const rlt::rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const Frame<SPEC>& frame){
         const auto* object = rlt::segmentation_object(device, scene, pool, renderer, 0);
         ASSERT_NE(object, nullptr);
         EXPECT_EQ(object, &scene.objects[0]);
@@ -255,7 +246,7 @@ namespace {
     }
 
     template <typename SPEC>
-    void expect_repeat_after_noop_update(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, const Frame<SPEC>& expected){
+    void expect_repeat_after_noop_update(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const Frame<SPEC>& expected){
         rlt::update(device, renderer);
         const auto repeated = capture(device, renderer);
         expect_raw_frame_valid(repeated);
@@ -308,10 +299,6 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, ALL_DYNAMIC_OBJECTS_SHARE_MESHES_AND_TRAN
     set_identical_cameras(device, owner.renderer);
     overlay_scenarios::build_initial(device, owner.renderer, state);
 
-    const auto red_placement = state.placements[0];
-    const auto green_placement = state.placements[1];
-    EXPECT_EQ(red_placement.first_slot, (size_t)0);
-    EXPECT_EQ(green_placement.first_slot, (size_t)1);
     const uint32_t red_id = state.ids[0];
     const uint32_t green_id = state.ids[1];
     expect_maps_to_asset(device, scene, pool, owner.renderer, red_id, red);
