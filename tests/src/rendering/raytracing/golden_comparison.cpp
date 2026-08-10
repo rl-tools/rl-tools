@@ -72,6 +72,12 @@ static constexpr double DEPTH_OUTLIER_REL = 1e-3;         // per-pixel relative 
 static constexpr double DEPTH_OUTLIER_FRACTION = 0.005;   // max fraction of outlier pixels
 static constexpr int PROBE_HIT_MISMATCH_MAX = 6;        // out of NUM_CAMERAS * NUM_PROBES = 768
 static constexpr double PROBE_DISTANCE_REL = 1e-3;
+// encoded normals compare like RGB, but silhouette/internal-edge bands (a different triangle
+// winning the same pixel across backends) produce large per-pixel deltas, so the mean budget is
+// wider while the outlier band stays bounded (same rationale as the overlay comparator)
+static constexpr double NORMALS_MAD_THRESHOLD = 2.0;
+static constexpr int NORMALS_OUTLIER_CHANNEL_DELTA = 8;
+static constexpr double NORMALS_OUTLIER_FRACTION = 0.02;
 
 static const std::string SCENE_PATH = RL_TOOLS_GOLDEN_TEST_DATA_PATH "/ProcTHOR-Train-1.glb";
 static const std::string GOLDEN_ROOT = RL_TOOLS_GOLDEN_TEST_DATA_PATH "/rendering_raytracing_golden";
@@ -209,6 +215,55 @@ namespace {
         }
         std::printf("[golden] %s: worst depth mad=%.2e worst outliers=%.4f%%\n", name, worst_mad, worst_outliers * 100);
     }
+
+    void run_normals_case(){
+        using SPEC = CASES::NORMALS;
+        DEVICE device;
+        rlt::init(device);
+        Rendered rendered;
+        ASSERT_TRUE((golden::render_case<SPEC, BACKEND, DEVICE, CASES>(device, SCENE_PATH, rendered))) << "failed to load scene: " << SCENE_PATH;
+
+        const size_t pixel_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+        std::vector<uint32_t> encoded(pixel_count);
+        golden::colorize_normals(rendered.normals.data(), pixel_count, encoded.data());
+
+        double worst_mad = 0;
+        double worst_outliers = 0;
+        for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
+            const char* id = CASES::POSES[camera_i].id;
+            std::vector<uint32_t> golden_pixels;
+            ASSERT_TRUE(golden::load_camera_png(GOLDEN_DIR + "/" + id + "/normals.png", SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_pixels)) << "failed to load golden: " << id << "/normals";
+            const uint32_t* ours = encoded.data() + camera_i * SPEC::CAM_PIXELS;
+            {
+                const std::string directory = BACKEND_OUTPUT_DIR + "/" + id;
+                std::filesystem::create_directories(directory);
+                golden::write_camera_png(directory + "/normals_current.png", ours, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+                golden::write_camera_png(directory + "/normals_target.png", golden_pixels.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+                golden::write_camera_diff_png(directory + "/normals_diff.png", ours, golden_pixels.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+            }
+            double total = 0;
+            size_t outlier_pixels = 0;
+            const auto* ours_bytes = reinterpret_cast<const uint8_t*>(ours);
+            const auto* golden_bytes = reinterpret_cast<const uint8_t*>(golden_pixels.data());
+            for(size_t pixel_i = 0; pixel_i < (size_t)SPEC::CAM_PIXELS; pixel_i++){
+                bool outlier = false;
+                for(size_t channel = 0; channel < 3; channel++){
+                    const int difference = (int)ours_bytes[pixel_i * 4 + channel] - (int)golden_bytes[pixel_i * 4 + channel];
+                    const int absolute = difference < 0 ? -difference : difference;
+                    total += absolute;
+                    outlier = outlier || absolute > NORMALS_OUTLIER_CHANNEL_DELTA;
+                }
+                outlier_pixels += outlier;
+            }
+            const double mad = total / ((double)SPEC::CAM_PIXELS * 3);
+            const double outlier_fraction = (double)outlier_pixels / (double)SPEC::CAM_PIXELS;
+            EXPECT_LE(mad, NORMALS_MAD_THRESHOLD) << "normals pose " << id << ": encoded mean abs diff " << mad;
+            EXPECT_LE(outlier_fraction, NORMALS_OUTLIER_FRACTION) << "normals pose " << id << ": outlier fraction " << outlier_fraction;
+            worst_mad = std::max(worst_mad, mad);
+            worst_outliers = std::max(worst_outliers, outlier_fraction);
+        }
+        std::printf("[golden] normals: worst mad=%.4f worst outliers=%.4f%% over %d poses\n", worst_mad, worst_outliers * 100, (int)SPEC::NUM_CAMERAS);
+    }
 }
 
 #if defined(RL_TOOLS_REQUIRE_RAYTRACING_GOLDENS)
@@ -258,6 +313,11 @@ TEST(RL_TOOLS_GOLDEN_SUITE, LOW_RGBD){
 TEST(RL_TOOLS_GOLDEN_SUITE, HIGH_RGBD){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
     run_rgbd_case<CASES::HIGH_RGBD>("high_rgbd");
+}
+
+TEST(RL_TOOLS_GOLDEN_SUITE, NORMALS){
+    RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
+    run_normals_case();
 }
 
 TEST(RL_TOOLS_GOLDEN_SUITE, PROBES){

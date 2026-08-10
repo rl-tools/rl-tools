@@ -14,6 +14,7 @@ namespace golden {
     struct Rendered {
         std::vector<uint32_t> frame_buffer;
         std::vector<T> depth_buffer;
+        std::vector<T> normals; // 3 per pixel, raw float output (encoding happens at write/compare)
         std::vector<rl_tools::rendering::raytracing::CollisionResult> probes;
         T max_depth = 0;
         T camera_radius = 0;
@@ -105,11 +106,17 @@ namespace golden {
         rl_tools::synchronize(device, renderer);
 
         constexpr size_t pixel_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-        out.frame_buffer.resize(pixel_count);
-        rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::frame_buffer(device, renderer)), out.frame_buffer.data(), pixel_count);
+        if constexpr(SPEC::HAS_RGB) {
+            out.frame_buffer.resize(pixel_count);
+            rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::frame_buffer(device, renderer)), out.frame_buffer.data(), pixel_count);
+        }
         if constexpr(SPEC::HAS_DEPTH) {
             out.depth_buffer.resize(pixel_count);
             rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::depth_buffer(device, renderer)), out.depth_buffer.data(), pixel_count);
+        }
+        if constexpr(SPEC::HAS_NORMALS) {
+            out.normals.resize(pixel_count * 3);
+            rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::normals_buffer(device, renderer)), out.normals.data(), out.normals.size());
         }
         if(rl_tools::data(renderer.collision_results) != nullptr) {
             out.probes.resize((size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);

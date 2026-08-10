@@ -78,6 +78,16 @@ namespace golden {
         using HIGH_RGB_MB4_DYNAMIC = rl_tools::rendering::raytracing::Specification<DynamicOverlayConfig<rl_tools::rendering::raytracing::High, 4>>;
         using LOW_RGBD = Specification<rl_tools::rendering::raytracing::Low, false, 1, false, 1, true>;
         using HIGH_RGBD = Specification<rl_tools::rendering::raytracing::High, false, 1, false, 1, true>;
+
+        // normals is single-sample and independent of the shading tier and AA/MB settings, so
+        // one case covers every pose: the golden is a single per-pose normals.png
+        struct NormalsConfig: rl_tools::rendering::raytracing::config::Default<T, TI>{
+            static constexpr TI CAM_WIDTH = Cases::CAM_WIDTH, CAM_HEIGHT = Cases::CAM_HEIGHT, NUM_CAMERAS = Cases::NUM_CAMERAS, NUM_PROBES = Cases::NUM_PROBES;
+            using SHADING = rl_tools::rendering::raytracing::Low;
+            static constexpr bool OUTPUT_RGB = false;
+            static constexpr bool OUTPUT_NORMALS = true;
+        };
+        using NORMALS = rl_tools::rendering::raytracing::Specification<NormalsConfig>;
     };
 }
 
