@@ -27,6 +27,7 @@ class RendererConfig:
     max_overlay_instances: int
     max_overlays_per_camera: int
     semantic_segmentation: bool
+    dynamic_motion_blur: bool = False
 
     def __post_init__(self):
         if self.width < 1 or self.height < 1 or self.num_cameras < 1 or self.num_probes < 1:
@@ -44,6 +45,8 @@ class RendererConfig:
             raise ValueError("overlay parameters (num_overlays, max_overlay_instances, max_overlays_per_camera) must be all zero or all nonzero")
         if self.semantic_segmentation and self.output_mode not in (OUTPUT_MODE["segmentation"], OUTPUT_MODE["rgbd_segmentation"]):
             raise ValueError("semantic_segmentation requires a segmentation output mode")
+        if self.dynamic_motion_blur and (self.motion_blur_samples < 2 or self.num_overlays == 0):
+            raise ValueError("dynamic_motion_blur requires motion_blur_samples >= 2 and overlays")
 
     @property
     def has_rgb(self):
@@ -63,7 +66,7 @@ class RendererConfig:
             f"w={self.width};h={self.height};nc={self.num_cameras};np={self.num_probes};"
             f"sh={self.shading};om={self.output_mode};mb={self.motion_blur_samples};aa={self.anti_aliasing_grid};"
             f"no={self.num_overlays};moi={self.max_overlay_instances};mopc={self.max_overlays_per_camera};"
-            f"ss={1 if self.semantic_segmentation else 0}"
+            f"ss={1 if self.semantic_segmentation else 0};dmb={1 if self.dynamic_motion_blur else 0}"
         )
 
     def key(self):
@@ -83,4 +86,5 @@ class RendererConfig:
             "HYPERDRONE_RENDER_MAX_OVERLAY_INSTANCES": self.max_overlay_instances,
             "HYPERDRONE_RENDER_MAX_OVERLAYS_PER_CAMERA": self.max_overlays_per_camera,
             "HYPERDRONE_RENDER_SEMANTIC_SEGMENTATION": 1 if self.semantic_segmentation else 0,
+            "HYPERDRONE_RENDER_DYNAMIC_MB": 1 if self.dynamic_motion_blur else 0,
         }

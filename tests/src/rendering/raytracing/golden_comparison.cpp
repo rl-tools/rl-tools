@@ -3,8 +3,8 @@
 // "Raytracing Golden Renderings"). Two targets are compiled from this file:
 // - test_rendering_raytracing_golden_comparison_cpu: pinned to the generic (CPU) backend (included
 //   directly, not via the mux) so the CPU raytracer is tested in every build configuration.
-// - test_rendering_raytracing_golden_comparison_<metal|optix>: uses the mux, i.e. the backend the
-//   build is configured for (target name matches, e.g. _metal on macOS, _optix on CUDA machines).
+// - test_rendering_raytracing_golden_comparison_<metal|optix|vulkan>: uses the mux, i.e. the
+//   backend the build is configured for (target name matches, e.g. _metal on macOS).
 #include <rl_tools/operations/cpu.h>
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND)
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
@@ -14,7 +14,7 @@
 
 #if !defined(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND)
 #define RL_TOOLS_GOLDEN_SUITE RENDERING_RAYTRACING_GOLDEN_CPU
-#define RL_TOOLS_GOLDEN_BACKEND_NAME "cpu"
+#define RL_TOOLS_GOLDEN_BACKEND_NAME "generic"
 #elif defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_METAL)
 #define RL_TOOLS_GOLDEN_SUITE RENDERING_RAYTRACING_GOLDEN_METAL
 #define RL_TOOLS_GOLDEN_BACKEND_NAME "metal"
@@ -31,6 +31,7 @@
 
 #include "golden_cases.h"
 #include "golden_io.h"
+#include "golden_render.h"
 #include "../../utils/utils.h"
 
 #include <gtest/gtest.h>
@@ -60,6 +61,7 @@ using DEVICE = rlt::devices::DefaultCPU;
 using T = float;
 using TI = typename DEVICE::index_t;
 using CASES = golden::Cases<T, TI>;
+using Rendered = golden::Rendered<T>;
 
 // Tolerances for CPU-vs-OptiX-golden comparison. The goldens come from a different machine and RT
 // implementation; per AGENTS.md, silhouette pixels may land on different surfaces, so all metrics
@@ -72,78 +74,25 @@ static constexpr int PROBE_HIT_MISMATCH_MAX = 6;        // out of NUM_CAMERAS * 
 static constexpr double PROBE_DISTANCE_REL = 1e-3;
 
 static const std::string SCENE_PATH = RL_TOOLS_GOLDEN_TEST_DATA_PATH "/ProcTHOR-Train-1.glb";
-static const std::string GOLDEN_DIR = RL_TOOLS_GOLDEN_TEST_DATA_PATH "/rendering_raytracing_golden";
-// Frames rendered by the backend under test are written here (gitignored) for visual comparison
-// against the goldens.
-static const std::string BACKEND_OUTPUT_DIR = GOLDEN_DIR + "/backend/" + RL_TOOLS_GOLDEN_BACKEND_NAME;
+static const std::string GOLDEN_ROOT = RL_TOOLS_GOLDEN_TEST_DATA_PATH "/rendering_raytracing_golden";
+
+#ifndef RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ARTIFACT_ROOT
+#define RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ARTIFACT_ROOT "build/raytracing_golden_artifacts"
+#endif
+
+static std::string procthor_golden_dir(){
+    const std::string scenario_dir = golden::layout::procthor_static_scene_directory(GOLDEN_ROOT);
+    return std::filesystem::is_regular_file(golden::layout::join(golden::layout::procthor_pose_directory(GOLDEN_ROOT, CASES::POSES[0].id), "low_rgb.png")) ? scenario_dir : GOLDEN_ROOT;
+}
+
+static const std::string GOLDEN_DIR = procthor_golden_dir();
+static const std::string BACKEND_OUTPUT_DIR = std::string(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ARTIFACT_ROOT)
+                                                    + "/" + RL_TOOLS_GOLDEN_BACKEND_NAME + "/procthor_static_scene";
 
 namespace {
     bool goldens_available(){
         // per-pose layout: <golden_dir>/<pose_id>/<case>.png
-        return std::filesystem::exists(GOLDEN_DIR + "/" + CASES::POSES[0].id);
-    }
-
-    struct Rendered{
-        std::vector<uint32_t> frame_buffer;   // camera-major
-        std::vector<float> depth_buffer;      // camera-major
-        std::vector<rlt::rendering::raytracing::CollisionResult> probes;
-        float max_depth = 0;
-        float camera_radius = 0;
-    };
-
-    template <typename SPEC>
-    bool render_case(DEVICE& device, Rendered& out){
-        using Renderer = rlt::rendering::raytracing::Renderer<SPEC, BACKEND>;
-        Renderer renderer;
-        rlt::malloc(device, renderer);
-        rlt::rendering::raytracing::Scene scene;
-        if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, SCENE_PATH)){
-            rlt::free(device, renderer);
-            return false;
-        }
-        rlt::init(device, renderer, scene);
-
-        // camera setup mirrors tests/src/rendering/raytracing/generate_golden.cpp — keep in sync
-        constexpr T aspect = (T)SPEC::CAM_WIDTH / (T)SPEC::CAM_HEIGHT;
-        std::vector<rlt::rendering::raytracing::Camera<T>> camera_staging(SPEC::NUM_CAMERAS);
-        for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
-            const golden::Pose<T>& pose = CASES::POSES[camera_i];
-            camera_staging[camera_i] = rlt::make_camera_data(pose.position, pose.look_at, pose.up, SPEC::COS_FOVY, aspect);
-        }
-        rlt::copy_to_renderer(device, renderer, camera_staging.data(), rlt::data(rlt::cameras(device, renderer)), camera_staging.size());
-        if constexpr(SPEC::ENABLE_MOTION_BLUR){
-            for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
-                const golden::Pose<T>& pose = CASES::POSES[camera_i];
-                T position[3], look_at[3];
-                for(TI dim_i = 0; dim_i < 3; dim_i++){
-                    position[dim_i] = pose.position[dim_i] - CASES::MOTION_BLUR_DELTA[dim_i];
-                    look_at[dim_i] = pose.look_at[dim_i] - CASES::MOTION_BLUR_DELTA[dim_i];
-                }
-                camera_staging[camera_i] = rlt::make_camera_data(position, look_at, pose.up, SPEC::COS_FOVY, aspect);
-            }
-            rlt::copy_to_renderer(device, renderer, camera_staging.data(), rlt::data(rlt::cameras_open(device, renderer)), camera_staging.size());
-        }
-        rlt::generate_probe_directions(device, renderer);
-        rlt::render(device, renderer);
-        rlt::probe(device, renderer);
-        rlt::synchronize(device, renderer);
-
-        constexpr size_t pixel_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-        out.frame_buffer.resize(pixel_count);
-        rlt::copy_from_renderer(device, renderer, rlt::data(rlt::frame_buffer(device, renderer)), out.frame_buffer.data(), pixel_count);
-        if constexpr(SPEC::HAS_DEPTH){
-            out.depth_buffer.resize(pixel_count);
-            rlt::copy_from_renderer(device, renderer, rlt::data(rlt::depth_buffer(device, renderer)), out.depth_buffer.data(), pixel_count);
-        }
-        if(rlt::data(renderer.collision_results) != nullptr){
-            out.probes.resize((size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);
-            rlt::copy_from_renderer(device, renderer, rlt::data(rlt::collision_results(device, renderer)), out.probes.data(), out.probes.size());
-        }
-        out.max_depth = renderer.camera_radius > 0 ? renderer.camera_radius * 2.0f : 1e30f;
-        out.camera_radius = renderer.camera_radius;
-
-        rlt::free(device, renderer);
-        return true;
+        return std::filesystem::exists(GOLDEN_DIR + "/" + CASES::POSES[0].id + "/low_rgb.png");
     }
 
     struct RGBStats{
@@ -173,9 +122,9 @@ namespace {
         for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
             const std::string directory = BACKEND_OUTPUT_DIR + "/" + CASES::POSES[camera_i].id;
             std::filesystem::create_directories(directory);
-            golden::write_camera_png(directory + "/" + name + ".png", rendered.frame_buffer.data() + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+            golden::write_camera_png(directory + "/" + name + "_current.png", rendered.frame_buffer.data() + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
             if(!rendered.depth_buffer.empty()){
-                golden::write_camera_depth_png(directory + "/" + name + "_depth.png", rendered.depth_buffer.data() + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
+                golden::write_camera_depth_png(directory + "/" + name + "_depth_current.png", rendered.depth_buffer.data() + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
             }
         }
     }
@@ -193,6 +142,7 @@ namespace {
             {
                 const std::string directory = BACKEND_OUTPUT_DIR + "/" + id;
                 std::filesystem::create_directories(directory);
+                golden::write_camera_png(directory + "/" + name + "_target.png", golden_pixels.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
                 golden::write_camera_diff_png(directory + "/" + name + "_diff.png", rendered.frame_buffer.data() + camera_i * SPEC::CAM_PIXELS, golden_pixels.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
             }
             EXPECT_LE(stats.mad, RGB_MAD_THRESHOLD)
@@ -209,12 +159,12 @@ namespace {
         std::printf("[golden] %s: worst pose %s rgb mad=%.4f max=(%d,%d,%d) over %d poses\n", name, worst_id, worst_mad, max_channel[0], max_channel[1], max_channel[2], (int)SPEC::NUM_CAMERAS);
     }
 
-    template <typename SPEC>
+    template <typename SPEC, bool T_CAMERA_MOTION = true>
     void run_rgb_case(const char* name){
         DEVICE device;
         rlt::init(device);
         Rendered rendered;
-        ASSERT_TRUE(render_case<SPEC>(device, rendered)) << "failed to load scene: " << SCENE_PATH;
+        ASSERT_TRUE((golden::render_case<SPEC, BACKEND, DEVICE, CASES, T_CAMERA_MOTION>(device, SCENE_PATH, rendered))) << "failed to load scene: " << SCENE_PATH;
         write_backend_frames<SPEC>(name, rendered);
         expect_rgb_matches_golden<SPEC>(name, rendered);
     }
@@ -224,7 +174,7 @@ namespace {
         DEVICE device;
         rlt::init(device);
         Rendered rendered;
-        ASSERT_TRUE(render_case<SPEC>(device, rendered)) << "failed to load scene: " << SCENE_PATH;
+        ASSERT_TRUE((golden::render_case<SPEC, BACKEND, DEVICE, CASES>(device, SCENE_PATH, rendered))) << "failed to load scene: " << SCENE_PATH;
         write_backend_frames<SPEC>(name, rendered);
         expect_rgb_matches_golden<SPEC>(name, rendered);
 
@@ -238,7 +188,8 @@ namespace {
             {
                 const std::string directory = BACKEND_OUTPUT_DIR + "/" + id;
                 std::filesystem::create_directories(directory);
-                golden::write_camera_depth_diff_png(directory + "/" + name + "_depth_diff.png", ours, golden_depth.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+                golden::write_camera_depth_png(directory + "/" + name + "_depth_target.png", golden_depth.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
+                golden::write_camera_depth_diff_png(directory + "/" + name + "_depth_diff.png", golden_depth.data(), ours, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
             }
             double total_abs_diff = 0;
             size_t outliers = 0;
@@ -260,7 +211,11 @@ namespace {
     }
 }
 
-#define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() if(!goldens_available()){ GTEST_SKIP() << "golden renderings not found at " << GOLDEN_DIR << " (per-pose layout; generate with test_rendering_raytracing_generate_golden on a CUDA machine)"; }
+#if defined(RL_TOOLS_REQUIRE_RAYTRACING_GOLDENS)
+#define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() ASSERT_TRUE(goldens_available()) << "required golden renderings not found at " << GOLDEN_DIR
+#else
+#define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() if(!goldens_available()){ GTEST_SKIP() << "golden renderings not found at " << GOLDEN_DIR << " (per-pose layout; generate with test_rendering_raytracing_generate_golden_<backend> --output-dir " << GOLDEN_DIR << ")"; }
+#endif
 
 TEST(RL_TOOLS_GOLDEN_SUITE, LOW_RGB){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
@@ -286,6 +241,16 @@ TEST(RL_TOOLS_GOLDEN_SUITE, HIGH_RGB_MB4){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
     run_rgb_case<CASES::HIGH_RGB_MB4>("high_rgb_mb4");
 }
+// dynamic-object motion blur: moving camera + spinning/translating overlay
+TEST(RL_TOOLS_GOLDEN_SUITE, HIGH_RGB_MB4_DYNAMIC){
+    RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
+    run_rgb_case<CASES::HIGH_RGB_MB4_DYNAMIC>("high_rgb_mb4_dynamic");
+}
+// object-only isolation: static camera (shutter open == close), the blur is purely the overlay's
+TEST(RL_TOOLS_GOLDEN_SUITE, HIGH_RGB_MB4_OBJECT){
+    RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
+    run_rgb_case<CASES::HIGH_RGB_MB4_DYNAMIC, false>("high_rgb_mb4_object");
+}
 TEST(RL_TOOLS_GOLDEN_SUITE, LOW_RGBD){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
     run_rgbd_case<CASES::LOW_RGBD>("low_rgbd");
@@ -301,7 +266,7 @@ TEST(RL_TOOLS_GOLDEN_SUITE, PROBES){
     DEVICE device;
     rlt::init(device);
     Rendered rendered;
-    ASSERT_TRUE(render_case<SPEC>(device, rendered)) << "failed to load scene: " << SCENE_PATH;
+    ASSERT_TRUE((golden::render_case<SPEC, BACKEND, DEVICE, CASES>(device, SCENE_PATH, rendered))) << "failed to load scene: " << SCENE_PATH;
     ASSERT_FALSE(rendered.probes.empty());
 
     int hit_mismatches = 0;

@@ -76,7 +76,7 @@ class Renderer:
     def __init__(self, width, height, num_cameras=1, num_probes=1, output="rgb", shading="high",
                  motion_blur_samples=0, anti_aliasing_grid=0,
                  num_overlays=0, max_overlay_instances=0, max_overlays_per_camera=0,
-                 semantic_segmentation=False):
+                 semantic_segmentation=False, dynamic_motion_blur=False):
         if isinstance(shading, str):
             shading = SHADING[shading.lower()]
         if isinstance(output, str):
@@ -94,6 +94,7 @@ class Renderer:
             max_overlay_instances=int(max_overlay_instances),
             max_overlays_per_camera=int(max_overlays_per_camera),
             semantic_segmentation=bool(semantic_segmentation),
+            dynamic_motion_blur=bool(dynamic_motion_blur),
         )
         library = ensure_renderer_library(self.config)
         core = load_core()
@@ -284,3 +285,9 @@ class Renderer:
 
     def set_part_transform(self, overlay, placement, part, transform):
         self._renderer.set_part_transform(overlay, tuple(placement), part, _as_transform(transform))
+
+    def set_transform_pair(self, overlay, placement, open_transform, close_transform):
+        self._renderer.set_transform_pair(overlay, tuple(placement), _as_transform(open_transform), _as_transform(close_transform))
+
+    def set_part_transform_pair(self, overlay, placement, part, open_transform, close_transform):
+        self._renderer.set_part_transform_pair(overlay, tuple(placement), part, _as_transform(open_transform), _as_transform(close_transform))
