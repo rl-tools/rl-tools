@@ -220,7 +220,21 @@ NB_MODULE(hyperdrone_render_core, m){
             extract_transform(open, open_values);
             extract_transform(close, close_values);
             jit->set_part_transform_pair(overlay, hdr::OverlayPlacementData{placement[0], placement[1], placement[2]}, part, open_values, close_values);
-        }, nb::arg("overlay"), nb::arg("placement"), nb::arg("part"), nb::arg("open"), nb::arg("close"));
+        }, nb::arg("overlay"), nb::arg("placement"), nb::arg("part"), nb::arg("open"), nb::arg("close"))
+        .def("set_transforms_pair", [](JitRenderer& jit, nb::ndarray<const float, nb::c_contig, nb::device::cpu> pairs){
+            const hdr::Config c = jit->config();
+            const size_t expected = (size_t)2 * c.num_overlays * c.max_overlay_instances * 12;
+            if(pairs.size() != expected){
+                throw std::invalid_argument("hyperdrone: transforms_pair must hold 2 * num_overlays * max_overlay_instances * 12 floats (open then close)");
+            }
+            jit->set_transforms_pair(pairs.data());
+        }, nb::arg("pairs"))
+        .def("transforms_pair_device_ptr", [](JitRenderer& jit){
+            return (uintptr_t)jit->transforms_pair_device_ptr();
+        })
+        .def("expand_motion_transforms", [](JitRenderer& jit){
+            jit->expand_motion_transforms();
+        });
 
 #if HYPERDRONE_RENDER_CORE_HAS_CUDA
     m.attr("HAS_CUDA") = true;
@@ -243,7 +257,19 @@ NB_MODULE(hyperdrone_render_core, m){
                 throw std::invalid_argument("hyperdrone: CudaBuffer slices must hold num_cameras * 12 floats");
             }
             jit->set_cameras_device(buffer.slice_pointer(index), stream);
-        }, nb::arg("buffer"), nb::arg("index"), nb::arg("stream") = 0);
+        }, nb::arg("buffer"), nb::arg("index"), nb::arg("stream") = 0)
+        .def("set_motion_blur_cameras_device", [](JitRenderer& jit, nb::ndarray<const float, nb::c_contig, nb::device::cuda> cameras_open, nb::ndarray<const float, nb::c_contig, nb::device::cuda> cameras_close, uintptr_t stream){
+            int64_t dims[3] = {0, 0, 0};
+            for(size_t dimension = 0; dimension < cameras_open.ndim() && dimension < 3; dimension++){
+                dims[dimension] = (int64_t)cameras_open.shape(dimension);
+            }
+            jit.check_cameras_dims(cameras_open.ndim(), dims);
+            for(size_t dimension = 0; dimension < cameras_close.ndim() && dimension < 3; dimension++){
+                dims[dimension] = (int64_t)cameras_close.shape(dimension);
+            }
+            jit.check_cameras_dims(cameras_close.ndim(), dims);
+            jit->set_motion_blur_cameras_device(cameras_open.data(), cameras_close.data(), stream);
+        }, nb::arg("cameras_open"), nb::arg("cameras_close"), nb::arg("stream") = 0);
 #else
     m.attr("HAS_CUDA") = false;
 #endif

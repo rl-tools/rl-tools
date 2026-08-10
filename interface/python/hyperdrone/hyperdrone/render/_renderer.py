@@ -291,3 +291,16 @@ class Renderer:
 
     def set_part_transform_pair(self, overlay, placement, part, open_transform, close_transform):
         self._renderer.set_part_transform_pair(overlay, tuple(placement), part, _as_transform(open_transform), _as_transform(close_transform))
+
+    def set_transforms_pair(self, pairs):
+        # [2, num_overlays * max_overlay_instances, 12] float32 entries, shutter open then close
+        self._renderer.set_transforms_pair(np.ascontiguousarray(pairs, dtype=np.float32))
+
+    def transforms_pair_device_ptr(self):
+        return self._renderer.transforms_pair_device_ptr()
+
+    def expand_motion_transforms(self):
+        self._renderer.expand_motion_transforms()
+
+    def set_motion_blur_cameras_device(self, cameras_open, cameras_close, stream=0):
+        self._renderer.set_motion_blur_cameras_device(cameras_open, cameras_close, int(stream))
