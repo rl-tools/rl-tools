@@ -11,6 +11,9 @@ description = "The fastest drone simulator and renderer (raytracer)."
 requires-python = ">=3.9"
 dependencies = ["numpy", "nanobind>=2.0"]
 
+[project.optional-dependencies]
+examples = ["huggingface_hub", "scipy", "matplotlib", "imageio", "imageio-ffmpeg"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["hyperdrone"]
 
