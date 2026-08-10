@@ -96,9 +96,10 @@ same API as before under `hyperdrone.render.*`.
 ```python
 renderer.frame()                  # snapshot copy (safe to keep)
 renderer.frame(copy=False)        # numpy view of the staging buffer (refreshed in place)
-renderer.frame_dlpack()           # DLPack producer over the LIVE buffer where rendering
-                                  # writes: CUDA device memory on OptiX, CPU elsewhere
-torch.from_dlpack(renderer.frame_dlpack())   # zero-copy GPU tensor on OptiX
+rgba = torch.from_dlpack(renderer.frame_dlpack())
+# live uint8 (num_cameras, height, width, 4), zero-copy GPU tensor on OptiX
+packed = torch.from_dlpack(renderer.frame_raw_dlpack())
+# same memory as packed uint32 (num_cameras, height, width)
 ```
 
 Inputs accept any DLPack producer. CUDA-resident camera input (OptiX):

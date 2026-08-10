@@ -376,16 +376,24 @@ def test_dlpack_export():
     look_forward(renderer)
     renderer.render("rgb_depth")
     frame_live = renderer.frame_dlpack()
+    frame_raw_live = renderer.frame_raw_dlpack()
     depth_live = renderer.depth_dlpack()
     device = frame_live.__dlpack_device__()
+    assert frame_raw_live.__dlpack_device__() == device
     if renderer.backend == "optix":
         assert device == (2, 0)  # kDLCUDA
     else:
         assert device[0] == 1  # kDLCPU: live buffer is host-visible, numpy can alias it
         frame_array = np.from_dlpack(frame_live)
+        frame_raw_array = np.from_dlpack(frame_raw_live)
         depth_array = np.from_dlpack(depth_live)
-        assert frame_array.shape == (1, 16, 16)
-        assert np.array_equal(frame_array, renderer.frame_raw())
+        assert frame_array.shape == (1, 16, 16, 4)
+        assert frame_array.dtype == np.uint8
+        assert np.array_equal(frame_array, renderer.frame())
+        assert frame_raw_array.shape == (1, 16, 16)
+        assert frame_raw_array.dtype == np.uint32
+        assert np.array_equal(frame_raw_array, renderer.frame_raw())
+        assert np.shares_memory(frame_array, frame_raw_array)
         assert np.array_equal(depth_array, renderer.depth())
 
 
