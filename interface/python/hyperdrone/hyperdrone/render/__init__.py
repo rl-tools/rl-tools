@@ -8,7 +8,7 @@ AUTO default: Metal on macOS, OptiX elsewhere).
 """
 from .. import cuda as _cuda
 from ._component import backend, component, load_core
-from ._config import OUTPUT_MODE, SHADING, RendererConfig
+from ._config import FIDELITY, OUTPUT_MODE, RendererConfig
 from ._renderer import Renderer
 from ._scene import (
     compose_transforms,
@@ -21,6 +21,7 @@ from ._scene import (
 
 __all__ = [
     "AssetPool",
+    "FIDELITY",
     "Mesh",
     "Object",
     "ObjectAssembly",

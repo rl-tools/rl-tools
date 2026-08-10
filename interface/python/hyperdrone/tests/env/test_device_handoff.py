@@ -32,7 +32,7 @@ from test_env import make_room
 num_drones = 4
 scene = make_room()
 sim = dynamics.Sim(num_drones=num_drones, model="crazyflie", device="cuda")
-renderer = render.Renderer(width=32, height=32, num_cameras=num_drones, output="rgb", shading="low")
+renderer = render.Renderer(width=32, height=32, num_cameras=num_drones, output="rgb", fidelity="low")
 world = env.World(scene, sim, renderer)
 assert world._device_handoff
 
