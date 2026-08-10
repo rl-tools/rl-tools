@@ -40,33 +40,52 @@ gtest_discover_tests(test_rendering_raytracing_golden_io
     PROPERTIES TIMEOUT 20 LABELS "golden-io"
 )
 
-# the four device ptx targets are defined together in the OptiX backend CMakeLists,
-# so their availability is equivalent
-if(TARGET owl::owl AND TARGET rendering_raytracing_device_ptx AND TARGET assimp::assimp AND RL_TOOLS_TEST_DATA_PATH)
-    add_executable(test_rendering_raytracing_generate_golden EXCLUDE_FROM_ALL generate_golden.cpp)
-    target_link_libraries(test_rendering_raytracing_generate_golden
+if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
+    add_executable(test_rendering_raytracing_generate_golden_generic EXCLUDE_FROM_ALL generate_golden.cpp)
+    target_link_libraries(test_rendering_raytracing_generate_golden_generic
         PRIVATE
             RLtools::RLtools
-            owl::owl
-            rendering_raytracing_device_ptx
-            rendering_raytracing_device_depth_ptx
             assimp::assimp
             rendering_raytracing_stb
+    )
+    target_compile_definitions(test_rendering_raytracing_generate_golden_generic PRIVATE
+        RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME="generic"
     )
 
-    add_executable(test_rendering_raytracing_generate_overlay_golden EXCLUDE_FROM_ALL generate_overlay_golden.cpp)
-    target_link_libraries(test_rendering_raytracing_generate_overlay_golden
-        PRIVATE
-            RLtools::RLtools
-            owl::owl
-            rendering_raytracing_device_ptx
-            rendering_raytracing_device_depth_ptx
-            rendering_raytracing_device_segmentation_ptx
-            rendering_raytracing_device_depth_segmentation_ptx
-            assimp::assimp
-            nlohmann_json::nlohmann_json
-            rendering_raytracing_stb
-    )
+    if(NOT RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED STREQUAL "GENERIC")
+        string(TOLOWER ${RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED} RL_TOOLS_GOLDEN_GENERATOR_BACKEND_SUFFIX)
+        set(RL_TOOLS_GOLDEN_GENERATOR_BACKEND_TARGET test_rendering_raytracing_generate_golden_${RL_TOOLS_GOLDEN_GENERATOR_BACKEND_SUFFIX})
+        add_executable(${RL_TOOLS_GOLDEN_GENERATOR_BACKEND_TARGET} EXCLUDE_FROM_ALL generate_golden.cpp)
+        target_link_libraries(${RL_TOOLS_GOLDEN_GENERATOR_BACKEND_TARGET}
+            PRIVATE
+                RLtools::RLtools
+                rendering_raytracing_backend
+                rendering_raytracing_backend_depth
+                rendering_raytracing_stb
+        )
+        target_compile_definitions(${RL_TOOLS_GOLDEN_GENERATOR_BACKEND_TARGET} PRIVATE
+            RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_GENERATOR_ACTIVE_BACKEND
+            RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME="${RL_TOOLS_GOLDEN_GENERATOR_BACKEND_SUFFIX}"
+        )
+    endif()
+
+    # the overlay generator stays OptiX-only; the four device ptx targets are defined
+    # together in the OptiX backend CMakeLists, so their availability is equivalent
+    if(TARGET owl::owl AND TARGET rendering_raytracing_device_ptx AND TARGET assimp::assimp)
+        add_executable(test_rendering_raytracing_generate_overlay_golden EXCLUDE_FROM_ALL generate_overlay_golden.cpp)
+        target_link_libraries(test_rendering_raytracing_generate_overlay_golden
+            PRIVATE
+                RLtools::RLtools
+                owl::owl
+                rendering_raytracing_device_ptx
+                rendering_raytracing_device_depth_ptx
+                rendering_raytracing_device_segmentation_ptx
+                rendering_raytracing_device_depth_segmentation_ptx
+                assimp::assimp
+                nlohmann_json::nlohmann_json
+                rendering_raytracing_stb
+        )
+    endif()
 endif()
 
 if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
