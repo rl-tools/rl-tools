@@ -2,7 +2,7 @@ set(RL_TOOLS_VULKAN_DEVICE_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/device.comp)
 set(RL_TOOLS_VULKAN_SPIRV_DIR ${CMAKE_CURRENT_BINARY_DIR}/spirv)
 
 set(RL_TOOLS_VULKAN_SPIRV_HEADERS "")
-foreach(RL_TOOLS_VULKAN_VARIANT rgb depth collision segmentation)
+foreach(RL_TOOLS_VULKAN_VARIANT rgb depth collision segmentation resolve)
     string(TOUPPER ${RL_TOOLS_VULKAN_VARIANT} RL_TOOLS_VULKAN_VARIANT_UPPER)
     set(RL_TOOLS_VULKAN_SPIRV_HEADER ${RL_TOOLS_VULKAN_SPIRV_DIR}/device_spirv_${RL_TOOLS_VULKAN_VARIANT}.h)
     add_custom_command(

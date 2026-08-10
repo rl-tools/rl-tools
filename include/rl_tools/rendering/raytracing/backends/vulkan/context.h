@@ -33,8 +33,10 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         constexpr uint32_t OVERLAY_TLAS = 15;
         constexpr uint32_t INSTANCE_CLASSES = 16;
         constexpr uint32_t OBSERVATION = 17;
-        constexpr uint32_t TEXTURES = 18; // variable-descriptor-count binding must have the largest binding number in the set
-        constexpr uint32_t COUNT = 19;
+        constexpr uint32_t RGB_ACCUMULATOR = 18;
+        constexpr uint32_t DEPTH_ACCUMULATOR = 19;
+        constexpr uint32_t TEXTURES = 20; // variable-descriptor-count binding must have the largest binding number in the set
+        constexpr uint32_t COUNT = 21;
     }
     namespace specialization_constants{
         constexpr uint32_t SRGB_OUTPUT = 0;
@@ -50,7 +52,10 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         constexpr uint32_t OVERLAY_COUNT = 10;
         constexpr uint32_t SEMANTIC_SEGMENTATION = 11;
         constexpr uint32_t HAS_OBSERVATION = 12;
-        constexpr uint32_t COUNT = 13;
+        constexpr uint32_t DYNAMIC_MOTION_BLUR = 13;
+        constexpr uint32_t RESOLVE_RGB = 14;
+        constexpr uint32_t RESOLVE_DEPTH = 15;
+        constexpr uint32_t COUNT = 16;
     }
     constexpr uint32_t WORKGROUP_SIZE = 8;
     constexpr uint32_t MAX_TEXTURE_DESCRIPTORS = 4096;
@@ -143,10 +148,12 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         VkShaderModule module_depth = VK_NULL_HANDLE;
         VkShaderModule module_collision = VK_NULL_HANDLE;
         VkShaderModule module_segmentation = VK_NULL_HANDLE;
+        VkShaderModule module_resolve = VK_NULL_HANDLE;
         VkPipeline rgb_pipeline = VK_NULL_HANDLE;
         VkPipeline depth_pipeline = VK_NULL_HANDLE;
         VkPipeline collision_pipeline = VK_NULL_HANDLE;
         VkPipeline segmentation_pipeline = VK_NULL_HANDLE;
+        VkPipeline resolve_pipeline = VK_NULL_HANDLE;
         VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
         VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
         VkSampler sampler = VK_NULL_HANDLE;
@@ -171,6 +178,8 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         BufferResource overlay_attachments;
         BufferResource overlay_num_active;
         BufferResource overlay_scratch;
+        BufferResource rgb_accumulator;
+        BufferResource depth_accumulator;
         BufferResource dummy;
 
         std::vector<ImageResource> mesh_textures; // index 0 = dummy 1x1 white
@@ -184,12 +193,14 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         std::vector<VkAccelerationStructureKHR> overlay_tlas; // one per overlay, rebuilt in place by update()
         std::vector<BufferResource> overlay_tlas_buffers;
         std::vector<BufferResource> overlay_instance_buffers;
+        std::vector<BufferResource> overlay_sample_instance_buffers; // dynamic motion blur: one per motion sample, NUM_OVERLAYS * MAX_OVERLAY_INSTANCES descriptors each
         VkDeviceSize overlay_scratch_stride = 0;
 
         VkCommandBuffer cb_rgb = VK_NULL_HANDLE;
         VkCommandBuffer cb_depth = VK_NULL_HANDLE;
         VkCommandBuffer cb_collision = VK_NULL_HANDLE;
         VkCommandBuffer cb_segmentation = VK_NULL_HANDLE;
+        VkCommandBuffer cb_dynamic = VK_NULL_HANDLE; // dynamic motion blur frame, re-recorded per render_launch
         VkFence fence_render = VK_NULL_HANDLE;
         VkFence fence_collision = VK_NULL_HANDLE;
         VkFence fence_update = VK_NULL_HANDLE;

@@ -38,8 +38,15 @@ namespace rl_tools::rendering::raytracing::backends::optix{
     const unsigned long long* overlay_accel_traversables(const OverlayAccelState* state);
     // enqueues the instance fill kernel and one optixAccelBuild per overlay on stream; no host sync.
     // transforms: [num_overlays * max_instances * 12] device; instance_classes: per global
-    // instance id, device — the kernel maintains the overlay range [num_scene_instances, ...)
-    void overlay_accel_build(OverlayAccelState* state, const float* transforms, unsigned int* instance_classes, cudaStream_t stream);
+    // instance id, device — the kernel maintains the overlay range [num_scene_instances, ...).
+    // shutter_out (optional device float): the fill kernel stores shutter_t there on-stream, so
+    // per-pass shutter times reach the accumulate ray gens without per-launch param uploads
+    // (which would race: OWL stages launch params through a single pinned host buffer)
+    void overlay_accel_build(OverlayAccelState* state, const float* transforms, unsigned int* instance_classes, float shutter_t, float* shutter_out, cudaStream_t stream);
+    // divides the linear accumulators by num_samples and writes the packed frame buffer (+
+    // observation) / depth buffer with the exact quantization of the single-launch path;
+    // null accumulator pointers skip the corresponding output
+    void overlay_accel_resolve(const float* rgb_accumulation, unsigned int* frame_buffer, float* observation, int srgb_output, const float* depth_accumulation, float* depth_buffer, unsigned int num_pixels, unsigned int num_samples, cudaStream_t stream);
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

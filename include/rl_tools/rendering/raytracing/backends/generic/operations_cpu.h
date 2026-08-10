@@ -129,6 +129,17 @@ namespace rl_tools {
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             malloc(device, renderer.transforms);
         }
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
+            malloc(device, renderer.transforms_motion);
+            std::memset(data(renderer.transforms_motion), 0, decltype(renderer.transforms_motion)::SPEC::SIZE_BYTES);
+            renderer.transforms_motion_staging.assign((size_t)SPEC::MOTION_BLUR_SAMPLES * SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12, 0.0f);
+            if constexpr (SPEC::HAS_RGB) {
+                malloc(device, renderer.rgb_accumulator);
+            }
+            if constexpr (SPEC::HAS_DEPTH) {
+                malloc(device, renderer.depth_accumulator);
+            }
+        }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         malloc(device, renderer.collision_results);
 #endif
@@ -158,6 +169,14 @@ namespace rl_tools {
             static_assert(utils::typing::is_same_v<typename SPEC::OBSERVATION_T, float>, "The generic raytracing backend requires OBSERVATION_T = float");
             malloc(device, renderer.observation);
             backend_state->scene.observation = data(renderer.observation);
+        }
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
+            if constexpr (SPEC::HAS_RGB) {
+                backend_state->scene.rgb_accumulation = data(renderer.rgb_accumulator);
+            }
+            if constexpr (SPEC::HAS_DEPTH) {
+                backend_state->scene.depth_accumulation = data(renderer.depth_accumulator);
+            }
         }
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             backend_state->overlay_views.resize(SPEC::NUM_OVERLAYS);
@@ -389,65 +408,81 @@ namespace rl_tools {
         init(device, renderer, scene, empty_pool);
     }
 
+    namespace rendering::raytracing::backends::generic{
+        // instance/BVH rebuild for the overlays from an arbitrary transforms slab — the regular
+        // update() path passes the transforms tensor, the dynamic-motion-blur loop passes
+        // per-sample slabs of transforms_motion
+        template <typename DEVICE, typename SPEC>
+        void rebuild_overlay_instances(DEVICE& device, rl_tools::rendering::raytracing::Renderer<SPEC, rl_tools::rendering::raytracing::backends::Generic>& renderer, const float* transforms_base){
+            namespace generic = rl_tools::rendering::raytracing::backends::generic;
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            auto& backend_state = generic::state(renderer);
+            for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+                auto& overlay_state = renderer.overlays[overlay];
+                const TI base = backend_state.num_scene_instances + overlay * SPEC::MAX_OVERLAY_INSTANCES;
+                TI* primitives = backend_state.overlay_tlas_primitives.data() + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES;
+                TI num_active = 0;
+                for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
+                    const auto& host_slot = overlay_state.slots[slot];
+                    if(!host_slot.active) continue;
+                    const TI global = base + slot;
+                    float world[12];
+                    rl_tools::rendering::raytracing::detail::compose_overlay_slot_transform(renderer, transforms_base, overlay, slot, world);
+                    auto& instance_view = backend_state.instances[global];
+                    instance_view.object = host_slot.object;
+                    instance_view.identity = rl_tools::rendering::raytracing::detail::transform_is_identity(world);
+                    for(int element = 0; element < 12; element++){
+                        instance_view.object_to_world[element] = (T)world[element];
+                    }
+                    if(instance_view.identity){
+                        for(int element = 0; element < 12; element++){
+                            instance_view.world_to_object[element] = instance_view.object_to_world[element];
+                        }
+                    }
+                    else{
+                        float world_to_object[12];
+                        rl_tools::rendering::raytracing::detail::invert_transform(world, world_to_object);
+                        for(int element = 0; element < 12; element++){
+                            instance_view.world_to_object[element] = (T)world_to_object[element];
+                        }
+                    }
+                    T bounds_min[3], bounds_max[3];
+                    generic::instance_world_bounds(backend_state, instance_view, bounds_min, bounds_max);
+                    for(int axis = 0; axis < 3; axis++){
+                        backend_state.overlay_bounds_min[3 * (size_t)global + axis] = bounds_min[axis];
+                        backend_state.overlay_bounds_max[3 * (size_t)global + axis] = bounds_max[axis];
+                        backend_state.overlay_centroids[3 * (size_t)global + axis] = (bounds_min[axis] + bounds_max[axis]) * (T)0.5;
+                    }
+                    backend_state.instance_classes[global] = backend_state.object_classes[host_slot.object];
+                    primitives[num_active++] = global;
+                }
+                backend_state.overlay_views[overlay].num_tlas_nodes = generic::build_bvh_nodes(
+                    backend_state.overlay_tlas_nodes.data() + (size_t)overlay * 2 * SPEC::MAX_OVERLAY_INSTANCES,
+                    primitives,
+                    backend_state.overlay_temp_primitives.data(),
+                    backend_state.overlay_bounds_min.data(),
+                    backend_state.overlay_bounds_max.data(),
+                    backend_state.overlay_centroids.data(),
+                    num_active);
+            }
+        }
+    }
+
     template <typename DEVICE, typename SPEC>
     void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
         static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
         namespace generic = rendering::raytracing::backends::generic;
-        using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         auto& backend_state = generic::state(renderer);
         rendering::raytracing::detail::flush_overlay_transforms(renderer);
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+            rendering::raytracing::detail::flush_overlay_motion_transforms(renderer);
+        }
 
         // rebuilt unconditionally: producers may write the transforms tensor directly, which
         // leaves no host-observable dirty flag
-        for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
-            auto& overlay_state = renderer.overlays[overlay];
-            const TI base = backend_state.num_scene_instances + overlay * SPEC::MAX_OVERLAY_INSTANCES;
-            TI* primitives = backend_state.overlay_tlas_primitives.data() + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES;
-            TI num_active = 0;
-            for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
-                const auto& host_slot = overlay_state.slots[slot];
-                if(!host_slot.active) continue;
-                const TI global = base + slot;
-                float world[12];
-                rendering::raytracing::detail::compose_overlay_slot_transform(renderer, overlay, slot, world);
-                auto& instance_view = backend_state.instances[global];
-                instance_view.object = host_slot.object;
-                instance_view.identity = rendering::raytracing::detail::transform_is_identity(world);
-                for(int element = 0; element < 12; element++){
-                    instance_view.object_to_world[element] = (T)world[element];
-                }
-                if(instance_view.identity){
-                    for(int element = 0; element < 12; element++){
-                        instance_view.world_to_object[element] = instance_view.object_to_world[element];
-                    }
-                }
-                else{
-                    float world_to_object[12];
-                    rendering::raytracing::detail::invert_transform(world, world_to_object);
-                    for(int element = 0; element < 12; element++){
-                        instance_view.world_to_object[element] = (T)world_to_object[element];
-                    }
-                }
-                T bounds_min[3], bounds_max[3];
-                generic::instance_world_bounds(backend_state, instance_view, bounds_min, bounds_max);
-                for(int axis = 0; axis < 3; axis++){
-                    backend_state.overlay_bounds_min[3 * (size_t)global + axis] = bounds_min[axis];
-                    backend_state.overlay_bounds_max[3 * (size_t)global + axis] = bounds_max[axis];
-                    backend_state.overlay_centroids[3 * (size_t)global + axis] = (bounds_min[axis] + bounds_max[axis]) * (T)0.5;
-                }
-                backend_state.instance_classes[global] = backend_state.object_classes[host_slot.object];
-                primitives[num_active++] = global;
-            }
-            backend_state.overlay_views[overlay].num_tlas_nodes = generic::build_bvh_nodes(
-                backend_state.overlay_tlas_nodes.data() + (size_t)overlay * 2 * SPEC::MAX_OVERLAY_INSTANCES,
-                primitives,
-                backend_state.overlay_temp_primitives.data(),
-                backend_state.overlay_bounds_min.data(),
-                backend_state.overlay_bounds_max.data(),
-                backend_state.overlay_centroids.data(),
-                num_active);
-        }
+        generic::rebuild_overlay_instances(device, renderer, data(renderer.transforms));
         if(renderer.attachments_dirty){
             std::memcpy(backend_state.overlay_attachments.data(), renderer.attachments, backend_state.overlay_attachments.size() * sizeof(TI));
             renderer.attachments_dirty = false;
@@ -498,10 +533,46 @@ namespace rl_tools {
     }
 
     // render produces the image outputs the spec declares; the collision-probe pass is the
-    // separate probe verb so it can be scheduled independently (e.g. alongside update)
+    // separate probe verb so it can be scheduled independently (e.g. alongside update).
+    // Under dynamic motion blur it runs MOTION_BLUR_SAMPLES sequential passes, rebuilding the
+    // overlay BVHs from the per-sample transforms_motion slab before each, accumulating linear
+    // radiance, then restores the shutter-close state (segmentation, probes, steady state)
+    // before resolving.
     template <typename DEVICE, typename SPEC>
     void render_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
         namespace generic = rendering::raytracing::backends::generic;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+            constexpr size_t SLAB = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12;
+            if constexpr (SPEC::HAS_RGB) {
+                std::memset(data(renderer.rgb_accumulator), 0, decltype(renderer.rgb_accumulator)::SPEC::SIZE_BYTES);
+            }
+            if constexpr (SPEC::HAS_DEPTH) {
+                std::memset(data(renderer.depth_accumulator), 0, decltype(renderer.depth_accumulator)::SPEC::SIZE_BYTES);
+            }
+            for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
+                generic::rebuild_overlay_instances(device, renderer, data(renderer.transforms_motion) + sample * SLAB);
+                const T shutter_t = ((T)sample + (T)0.5) / (T)SPEC::MOTION_BLUR_SAMPLES;
+                if constexpr (SPEC::HAS_RGB) {
+                    generic::render_frame_accumulate<DEVICE, SPEC, generic::OutputRGB>(device, generic::state(renderer).scene, shutter_t);
+                }
+                if constexpr (SPEC::HAS_DEPTH) {
+                    generic::render_frame_accumulate<DEVICE, SPEC, generic::OutputDepth>(device, generic::state(renderer).scene, shutter_t);
+                }
+            }
+            generic::rebuild_overlay_instances(device, renderer, data(renderer.transforms));
+            if constexpr (SPEC::HAS_RGB) {
+                generic::resolve_frame<DEVICE, SPEC, generic::OutputRGB>(device, generic::state(renderer).scene);
+            }
+            if constexpr (SPEC::HAS_DEPTH) {
+                generic::resolve_frame<DEVICE, SPEC, generic::OutputDepth>(device, generic::state(renderer).scene);
+            }
+            if constexpr (SPEC::HAS_SEGMENTATION) {
+                generic::render_segmentation_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
+            }
+            return;
+        }
         if constexpr (SPEC::HAS_RGB) {
             generic::render_frame<DEVICE, SPEC, generic::OutputRGB>(device, generic::state(renderer).scene);
         }
@@ -605,6 +676,15 @@ namespace rl_tools {
         }
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             free(device, renderer.transforms);
+        }
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
+            free(device, renderer.transforms_motion);
+            if constexpr (SPEC::HAS_RGB) {
+                free(device, renderer.rgb_accumulator);
+            }
+            if constexpr (SPEC::HAS_DEPTH) {
+                free(device, renderer.depth_accumulator);
+            }
         }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         free(device, renderer.collision_results);

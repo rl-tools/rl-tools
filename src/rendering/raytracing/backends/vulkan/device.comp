@@ -27,6 +27,16 @@ layout(constant_id = 9) const bool fc_punctual_light_shadows = false;
 layout(constant_id = 10) const int fc_overlay_count = 0;
 layout(constant_id = 11) const bool fc_semantic_segmentation = false;
 layout(constant_id = 12) const bool fc_has_observation = false;
+// dynamic motion blur: the motion loop runs at submit level (one dispatch per sample against
+// per-sample overlay TLAS state); each pass reads its shutter time from the push constant and
+// adds its linear mean into the accumulation buffers, resolved by ENTRY_RESOLVE
+layout(constant_id = 13) const bool fc_dynamic_motion_blur = false;
+layout(constant_id = 14) const bool fc_resolve_rgb = false;
+layout(constant_id = 15) const bool fc_resolve_depth = false;
+
+#if defined(ENTRY_RGB) || defined(ENTRY_DEPTH)
+layout(push_constant) uniform PushConstants{ float shutter_t; } push;
+#endif
 
 layout(std430, set = 0, binding = 0) readonly buffer LaunchParamsBuffer{
     uint fb_width;
@@ -60,6 +70,18 @@ layout(set = 0, binding = 15) uniform accelerationStructureEXT overlay_tlas[];
 
 #if defined(ENTRY_RGB) || defined(ENTRY_DEPTH)
 layout(std430, set = 0, binding = 2) readonly buffer CamerasOpenBuffer{ Camera cameras_open[]; };
+#endif
+
+#if defined(ENTRY_RGB) || defined(ENTRY_RESOLVE)
+layout(std430, set = 0, binding = 18) buffer RgbAccumulationBuffer{ float rgb_accumulation[]; };
+#endif
+#if defined(ENTRY_DEPTH) || defined(ENTRY_RESOLVE)
+layout(std430, set = 0, binding = 19) buffer DepthAccumulationBuffer{ float depth_accumulation[]; };
+#endif
+#if defined(ENTRY_RESOLVE)
+layout(std430, set = 0, binding = 3) writeonly buffer ResolveFrameBuffer{ uint fb[]; };
+layout(std430, set = 0, binding = 9) writeonly buffer ResolveDepthBuffer{ float depth_out[]; };
+layout(std430, set = 0, binding = 17) writeonly buffer ResolveObservationBuffer{ float observation[]; };
 #endif
 
 #if defined(ENTRY_RGB)
@@ -120,7 +142,7 @@ layout(std430, set = 0, binding = 5) readonly buffer SceneLightsBuffer{ SceneLig
 layout(std430, set = 0, binding = 11) readonly buffer InstanceRecordBaseBuffer{ uint instance_record_base[]; };
 layout(std430, set = 0, binding = 12) readonly buffer InstanceDataBuffer{ InstanceData instance_data[]; };
 layout(std430, set = 0, binding = 17) writeonly buffer ObservationBuffer{ float observation[]; };
-layout(set = 0, binding = 18) uniform sampler2D scene_textures[];
+layout(set = 0, binding = 20) uniform sampler2D scene_textures[];
 
 vec3 transform_point_to_world(int instance, vec3 p){
     const float m[12] = instance_data[instance].object_to_world;
@@ -227,7 +249,7 @@ PixelLaunchContext pixel_launch_context(uvec2 pixel_id){
     return ctx;
 }
 
-#if defined(ENTRY_RGB)
+#if defined(ENTRY_RGB) || defined(ENTRY_RESOLVE)
 uint make_8bit(float f){
     return uint(min(255, max(0, int(f * 256.0))));
 }
@@ -256,7 +278,9 @@ uint make_linear_rgba_from_linear(vec3 color){
     color.z = min(max(color.z, 0.0), 1.0);
     return make_rgba(color);
 }
+#endif
 
+#if defined(ENTRY_RGB)
 vec3 miss_color(uvec2 pixel_id){
     if(fc_checker_background){
         int checker_pattern = (int(pixel_id.x) / 8) ^ (int(pixel_id.y) / 8);
@@ -590,7 +614,8 @@ void main(){
 
     vec3 accumulated = vec3(0.0);
     const float inv_aa_grid = 1.0 / float(fc_aa_grid);
-    for(int motion_i = 0; motion_i < fc_motion_samples; motion_i++){
+    const int motion_samples = fc_dynamic_motion_blur ? 1 : fc_motion_samples;
+    for(int motion_i = 0; motion_i < motion_samples; motion_i++){
         vec3 pos;
         vec3 dir_00;
         vec3 dir_du;
@@ -598,7 +623,7 @@ void main(){
         if(fc_motion_blur){
             Camera cam_open = cameras_open[ctx.cam_idx];
             Camera cam_close = cameras_close[ctx.cam_idx];
-            const float shutter_t = (float(motion_i) + 0.5) * (1.0 / float(fc_motion_samples));
+            const float shutter_t = fc_dynamic_motion_blur ? push.shutter_t : (float(motion_i) + 0.5) * (1.0 / float(fc_motion_samples));
             pos = mix(camera_pos(cam_open), camera_pos(cam_close), shutter_t);
             dir_00 = mix(camera_dir_00(cam_open), camera_dir_00(cam_close), shutter_t);
             dir_du = mix(camera_dir_du(cam_open), camera_dir_du(cam_close), shutter_t);
@@ -619,8 +644,16 @@ void main(){
             }
         }
     }
-    const int samples = fc_motion_samples * fc_aa_grid * fc_aa_grid;
+    const int samples = motion_samples * fc_aa_grid * fc_aa_grid;
     const vec3 color = accumulated * (1.0 / float(samples));
+    if(fc_dynamic_motion_blur){
+        // one pass of the launch-level motion loop: add this pass's linear mean (each
+        // invocation owns its pixel — no atomics); ENTRY_RESOLVE averages and quantizes
+        rgb_accumulation[ctx.fb_offset * 3 + 0] += color.x;
+        rgb_accumulation[ctx.fb_offset * 3 + 1] += color.y;
+        rgb_accumulation[ctx.fb_offset * 3 + 2] += color.z;
+        return;
+    }
     if(fc_has_observation){
         // the observation is the frame-buffer color before 8-bit quantization
         vec3 obs_color = clamp(color, 0.0, 1.0);
@@ -655,7 +688,8 @@ void main(){
 
     float accumulated = 0.0;
     const float inv_aa_grid = 1.0 / float(fc_aa_grid);
-    for(int motion_i = 0; motion_i < fc_motion_samples; motion_i++){
+    const int motion_samples = fc_dynamic_motion_blur ? 1 : fc_motion_samples;
+    for(int motion_i = 0; motion_i < motion_samples; motion_i++){
         vec3 pos;
         vec3 dir_00;
         vec3 dir_du;
@@ -663,7 +697,7 @@ void main(){
         if(fc_motion_blur){
             Camera cam_open = cameras_open[ctx.cam_idx];
             Camera cam_close = cameras_close[ctx.cam_idx];
-            const float shutter_t = (float(motion_i) + 0.5) * (1.0 / float(fc_motion_samples));
+            const float shutter_t = fc_dynamic_motion_blur ? push.shutter_t : (float(motion_i) + 0.5) * (1.0 / float(fc_motion_samples));
             pos = mix(camera_pos(cam_open), camera_pos(cam_close), shutter_t);
             dir_00 = mix(camera_dir_00(cam_open), camera_dir_00(cam_close), shutter_t);
             dir_du = mix(camera_dir_du(cam_open), camera_dir_du(cam_close), shutter_t);
@@ -684,8 +718,49 @@ void main(){
             }
         }
     }
-    const int samples = fc_motion_samples * fc_aa_grid * fc_aa_grid;
+    const int samples = motion_samples * fc_aa_grid * fc_aa_grid;
+    if(fc_dynamic_motion_blur){
+        depth_accumulation[ctx.fb_offset] += accumulated * (1.0 / float(samples));
+        return;
+    }
     depth_out[ctx.fb_offset] = accumulated * (1.0 / float(samples));
+}
+#endif
+
+#if defined(ENTRY_RESOLVE)
+// divides the accumulated linear radiance by the sample count and writes the declared outputs
+// with the same transfer curve + quantization as the single-dispatch path
+void main(){
+    const uvec2 pixel_id = gl_GlobalInvocationID.xy;
+    const PixelLaunchContext ctx = pixel_launch_context(pixel_id);
+    if(!ctx.valid){
+        return;
+    }
+    const float inv_samples = 1.0 / float(fc_motion_samples);
+    if(fc_resolve_rgb){
+        const vec3 color = vec3(
+            rgb_accumulation[ctx.fb_offset * 3 + 0],
+            rgb_accumulation[ctx.fb_offset * 3 + 1],
+            rgb_accumulation[ctx.fb_offset * 3 + 2]) * inv_samples;
+        if(fc_has_observation){
+            vec3 obs_color = clamp(color, 0.0, 1.0);
+            if(fc_srgb_output){
+                obs_color = vec3(linear_to_srgb(obs_color.x), linear_to_srgb(obs_color.y), linear_to_srgb(obs_color.z));
+            }
+            observation[ctx.fb_offset * 3 + 0] = obs_color.x;
+            observation[ctx.fb_offset * 3 + 1] = obs_color.y;
+            observation[ctx.fb_offset * 3 + 2] = obs_color.z;
+        }
+        if(fc_srgb_output){
+            fb[ctx.fb_offset] = make_srgb_rgba_from_linear(color);
+        }
+        else{
+            fb[ctx.fb_offset] = make_linear_rgba_from_linear(color);
+        }
+    }
+    if(fc_resolve_depth){
+        depth_out[ctx.fb_offset] = depth_accumulation[ctx.fb_offset] * inv_samples;
+    }
 }
 #endif
 

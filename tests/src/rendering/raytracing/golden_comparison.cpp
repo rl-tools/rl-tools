@@ -148,12 +148,12 @@ namespace {
         std::printf("[golden] %s: worst pose %s rgb mad=%.4f max=(%d,%d,%d) over %d poses\n", name, worst_id, worst_mad, max_channel[0], max_channel[1], max_channel[2], (int)SPEC::NUM_CAMERAS);
     }
 
-    template <typename SPEC>
+    template <typename SPEC, bool T_CAMERA_MOTION = true>
     void run_rgb_case(const char* name){
         DEVICE device;
         rlt::init(device);
         Rendered rendered;
-        ASSERT_TRUE((golden::render_case<SPEC, BACKEND, DEVICE, CASES>(device, SCENE_PATH, rendered))) << "failed to load scene: " << SCENE_PATH;
+        ASSERT_TRUE((golden::render_case<SPEC, BACKEND, DEVICE, CASES, T_CAMERA_MOTION>(device, SCENE_PATH, rendered))) << "failed to load scene: " << SCENE_PATH;
         write_backend_frames<SPEC>(name, rendered);
         expect_rgb_matches_golden<SPEC>(name, rendered);
     }
@@ -224,6 +224,16 @@ TEST(RL_TOOLS_GOLDEN_SUITE, HIGH_RGB_AA2){
 TEST(RL_TOOLS_GOLDEN_SUITE, HIGH_RGB_MB4){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
     run_rgb_case<CASES::HIGH_RGB_MB4>("high_rgb_mb4");
+}
+// dynamic-object motion blur: moving camera + spinning/translating overlay
+TEST(RL_TOOLS_GOLDEN_SUITE, HIGH_RGB_MB4_DYNAMIC){
+    RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
+    run_rgb_case<CASES::HIGH_RGB_MB4_DYNAMIC>("high_rgb_mb4_dynamic");
+}
+// object-only isolation: static camera (shutter open == close), the blur is purely the overlay's
+TEST(RL_TOOLS_GOLDEN_SUITE, HIGH_RGB_MB4_OBJECT){
+    RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
+    run_rgb_case<CASES::HIGH_RGB_MB4_DYNAMIC, false>("high_rgb_mb4_object");
 }
 TEST(RL_TOOLS_GOLDEN_SUITE, LOW_RGBD){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();

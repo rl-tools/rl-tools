@@ -44,6 +44,9 @@
 #ifndef HYPERDRONE_RENDER_SEMANTIC_SEGMENTATION
 #define HYPERDRONE_RENDER_SEMANTIC_SEGMENTATION 0
 #endif
+#ifndef HYPERDRONE_RENDER_DYNAMIC_MB
+#define HYPERDRONE_RENDER_DYNAMIC_MB 0
+#endif
 
 namespace rlt = rl_tools;
 namespace rrt = rl_tools::rendering::raytracing;
@@ -78,6 +81,7 @@ namespace hyperdrone_render_impl {
         static constexpr TI NUM_OVERLAYS = HYPERDRONE_RENDER_NUM_OVERLAYS;
         static constexpr TI MAX_OVERLAY_INSTANCES = HYPERDRONE_RENDER_MAX_OVERLAY_INSTANCES;
         static constexpr TI MAX_OVERLAYS_PER_CAMERA = HYPERDRONE_RENDER_MAX_OVERLAYS_PER_CAMERA;
+        static constexpr bool ENABLE_DYNAMIC_MOTION_BLUR = HYPERDRONE_RENDER_DYNAMIC_MB != 0;
     };
 
     using RENDERER_SPEC = rrt::Specification<RendererConfiguration>;
@@ -142,6 +146,7 @@ namespace hyperdrone_render_impl {
             c.max_overlay_instances = HYPERDRONE_RENDER_MAX_OVERLAY_INSTANCES;
             c.max_overlays_per_camera = HYPERDRONE_RENDER_MAX_OVERLAYS_PER_CAMERA;
             c.semantic_segmentation = HYPERDRONE_RENDER_SEMANTIC_SEGMENTATION != 0;
+            c.dynamic_motion_blur = HYPERDRONE_RENDER_DYNAMIC_MB != 0;
             return c;
         }
 
@@ -519,16 +524,36 @@ namespace hyperdrone_render_impl {
                 throw std::runtime_error("hyperdrone: this renderer was compiled without overlays");
             }
         }
+        void set_transform_pair(size_t overlay, const hyperdrone::render::OverlayPlacementData& placement, const float open[12], const float close[12]) override {
+            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+                require_init();
+                rrt::OverlayPlacement p{placement.first_slot, placement.num_parts, placement.first_part};
+                rlt::set_transform_pair(device, renderer, rrt::OverlayIndex{overlay}, p, open, close);
+            }
+            else {
+                throw std::runtime_error("hyperdrone: this renderer was compiled without dynamic motion blur (dynamic_motion_blur=False)");
+            }
+        }
+        void set_part_transform_pair(size_t overlay, const hyperdrone::render::OverlayPlacementData& placement, size_t part, const float open[12], const float close[12]) override {
+            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+                require_init();
+                rrt::OverlayPlacement p{placement.first_slot, placement.num_parts, placement.first_part};
+                rlt::set_transform_pair(device, renderer, rrt::OverlayIndex{overlay}, p, (TI)part, open, close);
+            }
+            else {
+                throw std::runtime_error("hyperdrone: this renderer was compiled without dynamic motion blur (dynamic_motion_blur=False)");
+            }
+        }
     };
 
     static char config_string_buffer[256];
     const char* build_config_string(){
         std::snprintf(config_string_buffer, sizeof(config_string_buffer),
-            "w=%d;h=%d;nc=%d;np=%d;sh=%d;om=%d;mb=%d;aa=%d;no=%d;moi=%d;mopc=%d;ss=%d",
+            "w=%d;h=%d;nc=%d;np=%d;sh=%d;om=%d;mb=%d;aa=%d;no=%d;moi=%d;mopc=%d;ss=%d;dmb=%d",
             (int)HYPERDRONE_RENDER_WIDTH, (int)HYPERDRONE_RENDER_HEIGHT, (int)HYPERDRONE_RENDER_NUM_CAMERAS, (int)HYPERDRONE_RENDER_NUM_PROBES,
             (int)HYPERDRONE_RENDER_SHADING, (int)HYPERDRONE_RENDER_OUTPUT_MODE, (int)HYPERDRONE_RENDER_MB_SAMPLES, (int)HYPERDRONE_RENDER_AA_GRID,
             (int)HYPERDRONE_RENDER_NUM_OVERLAYS, (int)HYPERDRONE_RENDER_MAX_OVERLAY_INSTANCES, (int)HYPERDRONE_RENDER_MAX_OVERLAYS_PER_CAMERA,
-            (int)(HYPERDRONE_RENDER_SEMANTIC_SEGMENTATION != 0));
+            (int)(HYPERDRONE_RENDER_SEMANTIC_SEGMENTATION != 0), (int)(HYPERDRONE_RENDER_DYNAMIC_MB != 0));
         return config_string_buffer;
     }
 }

@@ -63,6 +63,11 @@ namespace rl_tools {
                 static constexpr bool SEMANTIC_SEGMENTATION = false;
                 static constexpr bool ENABLE_MOTION_BLUR = false;
                 static constexpr T_TI MOTION_BLUR_SAMPLES = 1;
+                // dynamic motion blur renders MOTION_BLUR_SAMPLES sequential passes per frame,
+                // rebuilding the overlay acceleration structures from per-sample transforms
+                // (transforms_motion) between passes and accumulating linear radiance on the
+                // device — overlays blur, not just the camera. Requires motion blur + overlays.
+                static constexpr bool ENABLE_DYNAMIC_MOTION_BLUR = false;
                 static constexpr bool ENABLE_ANTI_ALIASING = false;
                 static constexpr T_TI ANTI_ALIASING_GRID_SIZE = 1;
                 static constexpr T_TI NUM_OVERLAYS = 0;
@@ -123,6 +128,8 @@ namespace rl_tools {
             static constexpr bool SEMANTIC_SEGMENTATION = CONFIG::SEMANTIC_SEGMENTATION; // segmentation output carries Object::segmentation_class instead of the instance id
             static_assert(!SEMANTIC_SEGMENTATION || HAS_SEGMENTATION, "SEMANTIC_SEGMENTATION requires OUTPUT_SEGMENTATION");
             static_assert(ENABLE_OVERLAYS || (NUM_OVERLAYS == 0 && MAX_OVERLAY_INSTANCES == 0 && MAX_OVERLAYS_PER_CAMERA == 0), "overlay constants must be all zero (disabled) or all nonzero");
+            static constexpr bool ENABLE_DYNAMIC_MOTION_BLUR = CONFIG::ENABLE_DYNAMIC_MOTION_BLUR && ENABLE_MOTION_BLUR && ENABLE_OVERLAYS;
+            static_assert(!CONFIG::ENABLE_DYNAMIC_MOTION_BLUR || (ENABLE_MOTION_BLUR && ENABLE_OVERLAYS), "ENABLE_DYNAMIC_MOTION_BLUR requires ENABLE_MOTION_BLUR (MOTION_BLUR_SAMPLES > 1) and overlays");
             static constexpr bool HAS_OBSERVATION = CONFIG::OUTPUT_OBSERVATION;
             using OBSERVATION_T = typename CONFIG::OBSERVATION_T;
             static constexpr TI OBSERVATION_CHANNELS = 3;
@@ -277,8 +284,33 @@ namespace rl_tools {
             std::vector<float> asset_part_transforms; // 12 per part, assembly-local
         };
 
+        template <typename T_SPEC, bool T_ENABLE_DYNAMIC_MOTION_BLUR>
+        struct DynamicMotionBlurRendererStorage {};
+
+        template <typename T_SPEC>
+        struct DynamicMotionBlurRendererStorage<T_SPEC, true> {
+            using SPEC = T_SPEC;
+            using TI = typename SPEC::TI;
+            // per-sample overlay transform input consumed by the dynamic-motion-blur render loop:
+            // sample-major so slab s (base + s * NUM_OVERLAYS * MAX_OVERLAY_INSTANCES * 12) has
+            // the exact layout of the transforms tensor and feeds the same build path. Row
+            // semantics match transforms (root: pose, non-root: part-frame articulation).
+            using TRANSFORMS_MOTION_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::MOTION_BLUR_SAMPLES, SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES, 12>, true>;
+            Tensor<TRANSFORMS_MOTION_TENSOR_SPEC> transforms_motion;
+            // host mirror of transforms_motion for the verb path (the tensor is device-resident
+            // on OptiX); staged per dirty overlay, same ownership contract as transform_entry
+            std::vector<float> transforms_motion_staging;
+            bool transforms_motion_dirty[SPEC::NUM_OVERLAYS] = {};
+            // linear-radiance accumulators, resolved into the packed frame buffer / depth buffer
+            // after the last sample pass; allocated only for the enabled outputs
+            using RGB_ACCUMULATOR_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, 3>, true>;
+            Tensor<RGB_ACCUMULATOR_TENSOR_SPEC> rgb_accumulator;
+            using DEPTH_ACCUMULATOR_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH>, true>;
+            Tensor<DEPTH_ACCUMULATOR_TENSOR_SPEC> depth_accumulator;
+        };
+
         template <typename T_SPEC, typename T_BACKEND = backends::Default>
-        struct Renderer: MotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_MOTION_BLUR>, RGBRendererStorage<T_SPEC, T_SPEC::HAS_RGB>, DepthRendererStorage<T_SPEC, T_SPEC::HAS_DEPTH>, SegmentationRendererStorage<T_SPEC, T_SPEC::HAS_SEGMENTATION>, ObservationRendererStorage<T_SPEC, T_SPEC::HAS_OBSERVATION>, OverlayRendererStorage<T_SPEC, T_SPEC::ENABLE_OVERLAYS>{
+        struct Renderer: MotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_MOTION_BLUR>, RGBRendererStorage<T_SPEC, T_SPEC::HAS_RGB>, DepthRendererStorage<T_SPEC, T_SPEC::HAS_DEPTH>, SegmentationRendererStorage<T_SPEC, T_SPEC::HAS_SEGMENTATION>, ObservationRendererStorage<T_SPEC, T_SPEC::HAS_OBSERVATION>, OverlayRendererStorage<T_SPEC, T_SPEC::ENABLE_OVERLAYS>, DynamicMotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_DYNAMIC_MOTION_BLUR>{
             using SPEC = T_SPEC;
             using BACKEND = T_BACKEND;
             using BACKEND_STATE = backends::RendererState<BACKEND, SPEC>;
