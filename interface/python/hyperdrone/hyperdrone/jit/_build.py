@@ -1,5 +1,6 @@
 import os
 import subprocess
+from pathlib import Path
 
 from ._lock import FileLock
 from ._patches import seed_dependencies
@@ -34,6 +35,21 @@ def source_dir(component):
     return native_root() / component.name
 
 
+def fetchcontent_base(directory):
+    return (dependencies_root() / directory.name).resolve()
+
+
+def configured_fetchcontent_base(directory):
+    cache_file = directory / "CMakeCache.txt"
+    if not cache_file.exists():
+        return None
+    prefix = "FETCHCONTENT_BASE_DIR:"
+    for line in cache_file.read_text().splitlines():
+        if line.startswith(prefix):
+            return Path(line.split("=", 1)[1]).resolve()
+    return None
+
+
 def configure(component, directory):
     import sys
     seeded = seed_dependencies(directory.name)
@@ -48,7 +64,7 @@ def configure(component, directory):
         f"-DPython_EXECUTABLE={sys.executable}",
         # fully qualified: the rl_tools root CMakeLists cannot append the build-dir
         # basename to an externally-passed value (non-FORCE cache set)
-        f"-DFETCHCONTENT_BASE_DIR={dependencies_root() / directory.name}",
+        f"-DFETCHCONTENT_BASE_DIR={fetchcontent_base(directory)}",
     ]
     for fetch_name, path in sorted(seeded.items()):
         arguments.append(f"-DFETCHCONTENT_SOURCE_DIR_{fetch_name}={path}")
@@ -61,18 +77,21 @@ def configure(component, directory):
 
 def ensure_configured(component):
     directory = build_dir(component)
-    if (directory / "CMakeCache.txt").exists():
+    expected_fetchcontent_base = fetchcontent_base(directory)
+    if configured_fetchcontent_base(directory) == expected_fetchcontent_base:
         return directory
     with lock(component):
-        if not (directory / "CMakeCache.txt").exists():
+        if configured_fetchcontent_base(directory) != expected_fetchcontent_base:
+            fresh = not (directory / "CMakeCache.txt").exists()
             directory.mkdir(parents=True, exist_ok=True)
             try:
                 configure(component, directory)
             except BaseException:
                 # a failed configure must not leave a tree that looks configured; the
                 # FetchContent state lives in .dependencies/ and survives for the retry
-                import shutil
-                shutil.rmtree(directory, ignore_errors=True)
+                if fresh:
+                    import shutil
+                    shutil.rmtree(directory, ignore_errors=True)
                 raise
     return directory
 

@@ -78,7 +78,7 @@ def test_world_end_to_end():
     num_drones = 4
     scene = make_room()
     sim = dynamics.Sim(num_drones=num_drones, model="crazyflie", device="cpu")
-    renderer = render.Renderer(width=32, height=32, num_cameras=num_drones, output="rgbd", shading="low")
+    renderer = render.Renderer(width=32, height=32, num_cameras=num_drones, output="rgbd", fidelity="low")
     world = env.World(scene, sim, renderer)
     sampler = env.FreeSpaceSampler(scene, clearance=CLEARANCE, batch=64, probes=32)
     positions = sampler.sample(num_drones, seed=0)
@@ -102,7 +102,7 @@ def test_world_camera_tracks_drone():
     num_drones = 2
     scene = make_room()
     sim = dynamics.Sim(num_drones=num_drones, model="crazyflie", device="cpu")
-    renderer = render.Renderer(width=16, height=16, num_cameras=num_drones, output="depth", shading="low")
+    renderer = render.Renderer(width=16, height=16, num_cameras=num_drones, output="depth", fidelity="low")
     world = env.World(scene, sim, renderer)
     world.spawn(np.array([[0.0, 0.0, 1.5], [1.0, 0.0, 1.5]], dtype=np.float32))
     actions = np.zeros((num_drones, sim.action_dim), dtype=np.float32)

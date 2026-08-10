@@ -15,8 +15,8 @@ def test_backend_announcement_reaches_python_for_each_renderer():
     script = """
 from hyperdrone import render
 
-first = render.Renderer(width=1, height=1, output="depth", shading="low")
-second = render.Renderer(width=1, height=1, output="depth", shading="low")
+first = render.Renderer(width=1, height=1, output="depth", fidelity="low")
+second = render.Renderer(width=1, height=1, output="depth", fidelity="low")
 print(f"HYPERDRONE_TEST_BACKEND={first.backend}")
 print(f"HYPERDRONE_TEST_BACKEND={second.backend}")
 """
@@ -75,7 +75,7 @@ def look_forward(renderer):
 
 def test_depth():
     distance = 2.0
-    renderer = render.Renderer(width=64, height=64, num_cameras=1, output="depth", shading="low")
+    renderer = render.Renderer(width=64, height=64, num_cameras=1, output="depth", fidelity="low")
     renderer.init(make_scene(distance))
     look_forward(renderer)
     renderer.render("depth")
@@ -86,7 +86,7 @@ def test_depth():
 
 
 def test_rgb():
-    renderer = render.Renderer(width=32, height=32, num_cameras=2, output="rgb", shading="low")
+    renderer = render.Renderer(width=32, height=32, num_cameras=2, output="rgb", fidelity="low")
     renderer.init(make_scene())
     look_forward(renderer)
     renderer.render("rgb")
@@ -119,7 +119,7 @@ def test_segmentation():
         wall = render.Object(name=f"wall_{index}")
         wall.add_mesh(make_quad_span(2.0, y_low, y_high))
         scene.add_object(wall)
-    renderer = render.Renderer(width=32, height=32, num_cameras=1, output="segmentation", shading="low")
+    renderer = render.Renderer(width=32, height=32, num_cameras=1, output="segmentation", fidelity="low")
     renderer.init(scene)
     look_forward(renderer)
     renderer.render("segmentation")
@@ -130,7 +130,7 @@ def test_segmentation():
 
 
 def test_collision_probes():
-    renderer = render.Renderer(width=16, height=16, num_cameras=1, num_probes=4, output="depth", shading="low")
+    renderer = render.Renderer(width=16, height=16, num_cameras=1, num_probes=4, output="depth", fidelity="low")
     renderer.init(make_scene(3.0))
     look_forward(renderer)
     renderer.generate_probe_directions()
@@ -148,7 +148,7 @@ def test_motion_blur_camera_buffers_and_split_render():
         height=16,
         num_cameras=1,
         output="depth",
-        shading="low",
+        fidelity="low",
         motion_blur_samples=2,
         anti_aliasing_grid=2,
     )
@@ -178,7 +178,7 @@ def test_dynamic_motion_blur_object():
         width=1,
         height=1,
         output="depth",
-        shading="low",
+        fidelity="low",
         motion_blur_samples=2,
         num_overlays=1,
         max_overlay_instances=2,
@@ -216,7 +216,7 @@ def test_overlay_pipeline_and_output_saves(tmp_path):
     asset = asset_pool.add_object(dynamic)
     assembly_path = tmp_path / "overlay_assembly.glb"
     write_minimal_glb(assembly_path)
-    assembly_asset = asset_pool.add_assembly(render.load_assembly(assembly_path, shading="low"))
+    assembly_asset = asset_pool.add_assembly(render.load_assembly(assembly_path, fidelity="low"))
     assert asset_pool.num_assets == 2
 
     renderer = render.Renderer(
@@ -225,7 +225,7 @@ def test_overlay_pipeline_and_output_saves(tmp_path):
         num_cameras=2,
         num_probes=2,
         output="rgbd_segmentation",
-        shading="low",
+        fidelity="low",
         num_overlays=2,
         max_overlay_instances=2,
         max_overlays_per_camera=2,
@@ -321,7 +321,7 @@ def test_semantic_segmentation_with_overlay():
         width=24,
         height=24,
         output="segmentation",
-        shading="low",
+        fidelity="low",
         num_overlays=1,
         max_overlay_instances=1,
         max_overlays_per_camera=1,
@@ -340,21 +340,21 @@ def test_semantic_segmentation_with_overlay():
 
 def test_jit_cache_reuse():
     config = render.RendererConfig(
-        width=16, height=16, num_cameras=1, num_probes=1, shading=0, output_mode=2,
+        width=16, height=16, num_cameras=1, num_probes=1, fidelity=0, output_mode=2,
         motion_blur_samples=1, anti_aliasing_grid=1, num_overlays=0,
         max_overlay_instances=0, max_overlays_per_camera=0, semantic_segmentation=False,
     )
     from hyperdrone.render import _component
     library = jit.build_dir(_component.component()) / "jit" / f"render_{config.key()}.so"
-    renderer = render.Renderer(width=16, height=16, num_cameras=1, output="depth", shading="low")
+    renderer = render.Renderer(width=16, height=16, num_cameras=1, output="depth", fidelity="low")
     assert library.exists()
     modification_time = library.stat().st_mtime
-    renderer_again = render.Renderer(width=16, height=16, num_cameras=1, output="depth", shading="low")
+    renderer_again = render.Renderer(width=16, height=16, num_cameras=1, output="depth", fidelity="low")
     assert library.stat().st_mtime == modification_time
 
 
 def test_zero_copy_host_view():
-    renderer = render.Renderer(width=16, height=16, num_cameras=1, output="depth", shading="low")
+    renderer = render.Renderer(width=16, height=16, num_cameras=1, output="depth", fidelity="low")
     renderer.init(make_scene(2.0))
     look_forward(renderer)
     renderer.render("depth")
@@ -371,7 +371,7 @@ def test_zero_copy_host_view():
 
 
 def test_dlpack_export():
-    renderer = render.Renderer(width=16, height=16, num_cameras=1, output="rgbd", shading="low")
+    renderer = render.Renderer(width=16, height=16, num_cameras=1, output="rgbd", fidelity="low")
     renderer.init(make_scene(2.0))
     look_forward(renderer)
     renderer.render("rgb_depth")
@@ -391,7 +391,7 @@ def test_dlpack_export():
 
 def test_dlpack_camera_input():
     # any DLPack producer works as camera input; numpy's own arrays go through the same path
-    renderer = render.Renderer(width=16, height=16, num_cameras=1, output="depth", shading="low")
+    renderer = render.Renderer(width=16, height=16, num_cameras=1, output="depth", fidelity="low")
     renderer.init(make_scene(2.0))
     camera = renderer.camera(position=(0.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0), fov=math.radians(60.0))
 
@@ -412,7 +412,7 @@ def test_dlpack_camera_input():
 
 @pytest.mark.skipif(render.backend() != "OPTIX", reason="device camera input requires the OptiX backend")
 def test_device_camera_input():
-    renderer = render.Renderer(width=32, height=32, num_cameras=2, output="depth", shading="low")
+    renderer = render.Renderer(width=32, height=32, num_cameras=2, output="depth", fidelity="low")
     renderer.init(make_scene(2.0))
     cameras = np.stack([
         np.asarray(renderer.camera(position=(0.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0), fov=math.radians(60.0))).reshape(12),
@@ -438,7 +438,7 @@ def test_renderer_lifecycle():
     import gc
 
     for _ in range(2):
-        renderer = render.Renderer(width=16, height=16, num_cameras=1, output="depth", shading="low")
+        renderer = render.Renderer(width=16, height=16, num_cameras=1, output="depth", fidelity="low")
         renderer.init(make_scene())
         look_forward(renderer)
         renderer.render("depth")
@@ -448,7 +448,7 @@ def test_renderer_lifecycle():
 
 
 def test_error_on_wrong_output():
-    renderer = render.Renderer(width=16, height=16, num_cameras=1, output="depth", shading="low")
+    renderer = render.Renderer(width=16, height=16, num_cameras=1, output="depth", fidelity="low")
     renderer.init(make_scene())
     with pytest.raises(RuntimeError):
         renderer.frame()
@@ -509,11 +509,11 @@ def write_minimal_glb(path, color=(0.0, 1.0, 0.0)):
 def test_glb_roundtrip(tmp_path):
     glb = tmp_path / "quad.glb"
     write_minimal_glb(glb)
-    scene = render.load_scene(glb, shading="medium")
+    scene = render.load_scene(glb, fidelity="medium")
     assert scene.num_objects == 1
     assert scene.num_instances == 1
     assert scene.num_lights == 3  # neutral fill lights added for light-less files
-    renderer = render.Renderer(width=32, height=32, num_cameras=1, output="rgbd", shading="medium")
+    renderer = render.Renderer(width=32, height=32, num_cameras=1, output="rgbd", fidelity="medium")
     renderer.init(scene)
     look_forward(renderer)
     renderer.render("rgb_depth")
@@ -527,7 +527,7 @@ def test_glb_roundtrip(tmp_path):
 def test_glb_assembly_names(tmp_path):
     glb = tmp_path / "quad.glb"
     write_minimal_glb(glb)
-    assembly = render.load_assembly(glb, shading="low")
+    assembly = render.load_assembly(glb, fidelity="low")
     assert assembly.num_objects == 2
     assert assembly.object_names() == ["quad", "quad_far"]
     scene = render.Scene()
@@ -540,10 +540,10 @@ GLB = Path(os.environ.get("HYPERDRONE_RLTOOLS_ROOT", Path(__file__).resolve().pa
 
 @pytest.mark.skipif(not GLB.exists(), reason="ProcTHOR test scene not available")
 def test_glb_scene():
-    scene = render.load_scene(GLB, shading="high")
+    scene = render.load_scene(GLB, fidelity="high")
     assert scene.num_objects >= 1
     assert scene.num_instances >= 1
-    renderer = render.Renderer(width=64, height=48, num_cameras=1, output="rgbd", shading="high")
+    renderer = render.Renderer(width=64, height=48, num_cameras=1, output="rgbd", fidelity="high")
     renderer.init(scene)
     bounds = renderer.scene_bounds
     assert bounds["camera_radius"] > 0
@@ -559,7 +559,7 @@ def test_glb_scene():
 
 @pytest.mark.skipif(not GLB.exists(), reason="ProcTHOR test scene not available")
 def test_glb_assembly_segmentation_names():
-    assembly = render.load_assembly(GLB, shading="low")
+    assembly = render.load_assembly(GLB, fidelity="low")
     assert assembly.num_objects >= 1
     names = assembly.object_names()
     assert len(names) == assembly.num_objects

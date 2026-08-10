@@ -49,15 +49,13 @@ def source_root():
 
 
 def dependencies_root():
-    """FetchContent sources live next to the checkout for repo builds (shared with other
-    build dirs, seedable); for vendored installs they go to the cache — site-packages may
-    be read-only and must never accumulate build state."""
-    root = source_root()
-    try:
-        root.relative_to(package_root())
-        return cache_root() / ".dependencies"
-    except ValueError:
-        return root / ".dependencies"
+    """FetchContent sources and build state live under the configured cache root.
+
+    Source checkouts and installed packages may be read-only; neither should accumulate
+    generated files. Keeping dependencies beside the component build trees also makes
+    HYPERDRONE_CACHE_DIR a complete, relocatable build cache.
+    """
+    return cache_root() / ".dependencies"
 
 
 def workspace_tag():

@@ -63,6 +63,34 @@ def test_cache_hit_does_not_rebuild():
     assert artifact.stat().st_mtime_ns == modification_time
 
 
+def test_existing_tree_moves_fetchcontent_state_into_cache():
+    from hyperdrone.jit import _workspace
+
+    component = toy_component()
+    config = ToyConfig(value=8)
+    jit.ensure(component, config)
+    cache_file = jit.build_dir(component) / "CMakeCache.txt"
+    expected = (_workspace.dependencies_root() / jit.build_dir(component).name).resolve()
+    stale = (jit.cache_root().parent / "old-source-checkout" / ".dependencies").resolve()
+    contents = cache_file.read_text()
+    expected_entry = next(
+        line for line in contents.splitlines()
+        if line.startswith("FETCHCONTENT_BASE_DIR:")
+    )
+    assert expected_entry.split("=", 1)[1] == str(expected)
+    stale_entry = f"{expected_entry.split('=', 1)[0]}={stale}"
+    contents = contents.replace(expected_entry, stale_entry)
+    cache_file.write_text(contents)
+
+    jit.ensure(component, config)
+
+    migrated_entry = next(
+        line for line in cache_file.read_text().splitlines()
+        if line.startswith("FETCHCONTENT_BASE_DIR:")
+    )
+    assert migrated_entry.split("=", 1)[1] == str(expected)
+
+
 def test_concurrent_builds_do_not_race():
     # two fresh processes race ensure() on the same new config; the per-tree lock must
     # serialize them and both must come back with a valid artifact
@@ -92,7 +120,10 @@ def test_concurrent_builds_do_not_race():
 
 
 def test_workspace_layout():
+    from hyperdrone.jit import _workspace
+
     component = toy_component()
     directory = jit.build_dir(component)
     assert directory.name == f"toy-cpu-{jit.workspace_tag()}"
     assert directory.parent == jit.cache_root()
+    assert _workspace.dependencies_root() == jit.cache_root() / ".dependencies"

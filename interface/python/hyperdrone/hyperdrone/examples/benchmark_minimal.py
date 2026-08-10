@@ -1,6 +1,6 @@
 """Minimal form of benchmark.py's default run — the configuration of
 `rendering_raytracing_sim_benchmark_medium --scene procthor` (render_only, rgb cell):
-4096 static cameras @ 64x64, medium shading, fov 80 degrees, all at one eye position
+4096 static cameras @ 64x64, medium fidelity, fov 80 degrees, all at one eye position
 inside the ProcTHOR house, uniform-SO3 orientations (seed 0), 2s untimed warmup, then a
 timed async render_launch loop with a sync every 10 iterations for ~10 seconds."""
 import math
@@ -18,9 +18,9 @@ FOV = 1.3962634015954636  # 80 degrees, the renderer config default
 EYE = np.array([-3.92, -5.67, 1.0])
 WARMUP_SECONDS, SECONDS, SYNC_INTERVAL = 2.0, 10.0, 10
 
-scene = render.load_scene(procthor_scene_path(), shading="medium")
+scene = render.load_scene(procthor_scene_path(), fidelity="medium")
 renderer = render.Renderer(width=WIDTH, height=HEIGHT, num_cameras=NUM_CAMERAS, num_probes=1,
-                           output="rgb", shading="medium")
+                           output="rgb", fidelity="medium")
 renderer.init(scene)
 
 

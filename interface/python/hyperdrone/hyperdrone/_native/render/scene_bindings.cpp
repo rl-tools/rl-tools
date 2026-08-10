@@ -28,14 +28,14 @@ using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 static DEVICE g_device;
 
 template <typename TARGET>
-static bool load_dispatch(TARGET& target, const std::string& path, int shading, bool rgb){
-    switch(shading){
+static bool load_dispatch(TARGET& target, const std::string& path, int fidelity, bool rgb){
+    switch(fidelity){
         case 0: return rgb ? rlt::load<rrt::Low, true>(g_device, target, path) : rlt::load<rrt::Low, false>(g_device, target, path);
         case 1: return rgb ? rlt::load<rrt::Medium, true>(g_device, target, path) : rlt::load<rrt::Medium, false>(g_device, target, path);
         case 2: return rgb ? rlt::load<rrt::High, true>(g_device, target, path) : rlt::load<rrt::High, false>(g_device, target, path);
         case 3: return rgb ? rlt::load<rrt::VeryHigh, true>(g_device, target, path) : rlt::load<rrt::VeryHigh, false>(g_device, target, path);
     }
-    throw std::invalid_argument("hyperdrone: shading must be in [0, 3]");
+    throw std::invalid_argument("hyperdrone: fidelity must be in [0, 3]");
 }
 
 static rrt::Mesh make_mesh(FloatArray vertices, nb::ndarray<const int32_t, nb::c_contig, nb::device::cpu> indices,
@@ -182,16 +182,16 @@ void register_scene_bindings(nb::module_& m){
 
     nb::class_<rrt::Scene>(m, "Scene")
         .def(nb::init<>())
-        .def("load", [](rrt::Scene& scene, const std::string& path, int shading, bool rgb){
+        .def("load", [](rrt::Scene& scene, const std::string& path, int fidelity, bool rgb){
             bool success;
             {
                 nb::gil_scoped_release release;
-                success = load_dispatch(scene, path, shading, rgb);
+                success = load_dispatch(scene, path, fidelity, rgb);
             }
             if(!success){
                 throw std::runtime_error("hyperdrone: failed to load scene from " + path);
             }
-        }, nb::arg("path"), nb::arg("shading") = 2, nb::arg("rgb") = true)
+        }, nb::arg("path"), nb::arg("fidelity") = 2, nb::arg("rgb") = true)
         .def("add_object", [](rrt::Scene& scene, const rrt::Object& object, nb::object transform){
             if(transform.is_none()){
                 return rlt::add(g_device, scene, object);
@@ -232,31 +232,31 @@ void register_scene_bindings(nb::module_& m){
             return make_owned_array(scene.instances.at(index).transform, {3, 4});
         });
 
-    m.def("load_object", [](const std::string& path, int shading, bool rgb){
+    m.def("load_object", [](const std::string& path, int fidelity, bool rgb){
         rrt::Object object;
         bool success;
         {
             nb::gil_scoped_release release;
-            success = load_dispatch(object, path, shading, rgb);
+            success = load_dispatch(object, path, fidelity, rgb);
         }
         if(!success){
             throw std::runtime_error("hyperdrone: failed to load object from " + path);
         }
         return object;
-    }, nb::arg("path"), nb::arg("shading") = 2, nb::arg("rgb") = true);
+    }, nb::arg("path"), nb::arg("fidelity") = 2, nb::arg("rgb") = true);
 
-    m.def("load_assembly", [](const std::string& path, int shading, bool rgb){
+    m.def("load_assembly", [](const std::string& path, int fidelity, bool rgb){
         rrt::ObjectAssembly assembly;
         bool success;
         {
             nb::gil_scoped_release release;
-            success = load_dispatch(assembly, path, shading, rgb);
+            success = load_dispatch(assembly, path, fidelity, rgb);
         }
         if(!success){
             throw std::runtime_error("hyperdrone: failed to load assembly from " + path);
         }
         return assembly;
-    }, nb::arg("path"), nb::arg("shading") = 2, nb::arg("rgb") = true);
+    }, nb::arg("path"), nb::arg("fidelity") = 2, nb::arg("rgb") = true);
 
     m.def("make_camera", [](Vec3 position, Vec3 look_at, Vec3 up, float fov, float aspect){
         rrt::Camera<float> camera = rlt::make_camera_data(position.data(), look_at.data(), up.data(), fov, aspect);

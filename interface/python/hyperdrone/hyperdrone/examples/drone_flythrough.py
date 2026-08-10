@@ -60,13 +60,13 @@ def build_room(rng, num_pillars=32, half=8.0, height=4.0):
 
 
 if arguments.model and Path(arguments.model).exists():
-    scene = render.load_scene(arguments.model, shading="medium")
+    scene = render.load_scene(arguments.model, fidelity="medium")
 else:
     scene = build_room(np.random.default_rng(0))
 
 sim = dynamics.Sim(num_drones=arguments.drones, model=arguments.drone_model, device=arguments.device)
 renderer = render.Renderer(width=arguments.width, height=arguments.height,
-                           num_cameras=arguments.drones, output="rgb", shading="medium")
+                           num_cameras=arguments.drones, output="rgb", fidelity="medium")
 world = env.World(scene, sim, renderer)
 
 print(f"backend={renderer.backend} dynamics={sim.device} drones={arguments.drones} "
