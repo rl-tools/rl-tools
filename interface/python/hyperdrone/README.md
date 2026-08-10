@@ -59,6 +59,10 @@ Each component and variant gets its own build tree (`render-optix-*`, `dynamics-
 ...); switching never invalidates another's cache. All configure/build steps run under a
 per-tree file lock, so many worker processes can share one cache safely.
 
+Whenever a renderer is successfully allocated, RLtools reports the selected backend on
+stderr, for example `#rl_tools::rendering::raytracing: backend=metal`. The
+`Renderer.backend` property provides the same lowercase name programmatically.
+
 ## Rendering
 
 ```python

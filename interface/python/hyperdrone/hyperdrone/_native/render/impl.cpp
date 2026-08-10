@@ -115,8 +115,10 @@ namespace hyperdrone_render_impl {
     template <typename T_SPEC>
     struct RendererImpl final : hyperdrone::render::Renderer {
         using SPEC = T_SPEC;
+        using RENDERER = rrt::Renderer<SPEC>;
+        using BACKEND = typename RENDERER::BACKEND;
         DEVICE device;
-        rrt::Renderer<SPEC> renderer;
+        RENDERER renderer;
         bool initialized = false;
         // host staging for the readback paths; unused (and never allocated) on backends
         // whose output tensors are host-resident
@@ -151,15 +153,7 @@ namespace hyperdrone_render_impl {
         }
 
         const char* backend() const override {
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-            return "optix";
-#elif defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_METAL)
-            return "metal";
-#elif defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_VULKAN)
-            return "vulkan";
-#else
-            return "generic";
-#endif
+            return rrt::backends::name<BACKEND>();
         }
 
         void init(const rrt::Scene* scene, const rrt::AssetPool* pool) override {

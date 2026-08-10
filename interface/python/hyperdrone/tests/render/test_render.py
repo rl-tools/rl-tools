@@ -1,5 +1,7 @@
 import math
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -7,6 +9,38 @@ import pytest
 
 import hyperdrone
 from hyperdrone import jit, render
+
+
+def test_backend_announcement_reaches_python_for_each_renderer():
+    script = """
+from hyperdrone import render
+
+first = render.Renderer(width=1, height=1, output="depth", shading="low")
+second = render.Renderer(width=1, height=1, output="depth", shading="low")
+print(f"HYPERDRONE_TEST_BACKEND={first.backend}")
+print(f"HYPERDRONE_TEST_BACKEND={second.backend}")
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=os.environ.copy(),
+    )
+    expected_backend = render.backend().lower()
+    announcement = f"#rl_tools::rendering::raytracing: backend={expected_backend}"
+    announcements = [
+        line
+        for line in result.stderr.splitlines()
+        if line.startswith("#rl_tools::rendering::raytracing: backend=")
+    ]
+    assert announcements == [announcement, announcement]
+    backend_markers = [
+        line.removeprefix("HYPERDRONE_TEST_BACKEND=")
+        for line in result.stdout.splitlines()
+        if line.startswith("HYPERDRONE_TEST_BACKEND=")
+    ]
+    assert backend_markers == [expected_backend, expected_backend]
 
 
 def make_quad(center_x, half_size=1.0, color=(1.0, 0.0, 0.0)):
