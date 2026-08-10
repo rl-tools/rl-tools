@@ -3,8 +3,8 @@ rendering their onboard cameras every step. On OptiX + CUDA the camera hand-off 
 device-resident (no host synchronization in the loop); the same script runs — slowly — on
 GENERIC + cpu anywhere.
 
-  python drone_flythrough.py --drones 1024 --steps 200 --width 64 --height 64
-  python drone_flythrough.py --drones 16 --steps 600 --width 128 --height 128 --video out.mp4
+  python -m hyperdrone.examples.drone_flythrough --drones 1024 --steps 200 --width 64 --height 64
+  python -m hyperdrone.examples.drone_flythrough --drones 16 --steps 600 --width 128 --height 128 --video out.mp4
 """
 import argparse
 import math

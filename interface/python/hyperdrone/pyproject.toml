@@ -5,7 +5,9 @@ build-backend = "hatchling.build"
 [project]
 name = "hyperdrone"
 version = "0.1.0"
-description = "Drone simulation stack for RLtools: raytracing renderer, L2F multirotor dynamics, environment setup"
+authors = [{name = "Jonas Eschmann", email = "jonas.eschmann@gmail.com"}]
+license = {text = "MIT"}
+description = "The fastest drone simulator and renderer (raytracer)."
 requires-python = ">=3.9"
 dependencies = ["numpy", "nanobind>=2.0"]
 
