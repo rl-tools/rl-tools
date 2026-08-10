@@ -24,7 +24,8 @@ fi
 if [[ ! -e "${DATA_DIR}" ]]; then
     GIT_LFS_SKIP_SMUDGE=1 git clone --branch master --no-checkout "${DATA_SOURCE}" "${DATA_DIR}"
 elif [[ -d "${DATA_DIR}/.git" ]]; then
-    GIT_LFS_SKIP_SMUDGE=1 git -C "${DATA_DIR}" fetch origin master
+    # fetch all heads: published revisions may live on branches other than master
+    GIT_LFS_SKIP_SMUDGE=1 git -C "${DATA_DIR}" fetch origin
 else
     echo "Test data path exists but is not a Git checkout: ${DATA_DIR}" >&2
     exit 1
@@ -34,7 +35,7 @@ if [[ "${DOWNLOAD_SET}" == "--raytracing-goldens" ]]; then
     git -C "${DATA_DIR}" sparse-checkout init --no-cone
     GIT_LFS_SKIP_SMUDGE=1 git -C "${DATA_DIR}" sparse-checkout set '/.gitattributes' '/rendering_raytracing_golden/'
 elif [[ "$(git -C "${DATA_DIR}" config --bool core.sparseCheckout || true)" == "true" ]]; then
-    git -C "${DATA_DIR}" sparse-checkout disable
+    GIT_LFS_SKIP_SMUDGE=1 git -C "${DATA_DIR}" sparse-checkout disable
 fi
 
 GIT_LFS_SKIP_SMUDGE=1 git -C "${DATA_DIR}" checkout --detach "${DATA_REVISION}"

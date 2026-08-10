@@ -7,13 +7,18 @@
 #include "renderer.h"
 
 // STATIC gives the stb implementations internal linkage so multiple TUs of one binary may include
-// this header without duplicate-symbol link errors.
+// this header without duplicate-symbol link errors; RL_TOOLS_STB_PROVIDED arbitrates with other
+// stb-providing headers (e.g. the test golden_io.h) so the implementation lands exactly once per
+// TU regardless of include order (stb's implementation section has no include guard).
+#ifndef RL_TOOLS_STB_PROVIDED
+#define RL_TOOLS_STB_PROVIDED
 #define STB_IMAGE_WRITE_STATIC
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 #define STB_IMAGE_STATIC
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+#endif
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>

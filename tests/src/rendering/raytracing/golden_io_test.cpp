@@ -1,10 +1,3 @@
-#define STB_IMAGE_STATIC
-#define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
-#define STB_IMAGE_WRITE_STATIC
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include <stb_image_write.h>
-
 #include "golden_io.h"
 
 #include <gtest/gtest.h>
@@ -243,6 +236,101 @@ TEST_F(GoldenIoTest, FourCameraGridPngRoundTrip){
     loaded = sentinel;
     EXPECT_FALSE(golden::load_camera_grid_png(png_path, NUM_CAMERAS, WIDTH + 1, HEIGHT, loaded));
     EXPECT_EQ(loaded, sentinel);
+}
+
+// pins the published on-disk format: a coordinated writer/reader change (e.g. swapping the
+// height/width fields or transposing the grid) round-trips green but silently changes what the
+// two-repo corpus means, so header bytes, payload order, and quadrant order are asserted literally
+TEST_F(GoldenIoTest, MultiCameraHeaderAndPayloadBytesArePinned){
+    constexpr int NUM_CAMERAS = 4;
+    constexpr int WIDTH = 3;
+    constexpr int HEIGHT = 2;
+    std::vector<uint32_t> values(NUM_CAMERAS * WIDTH * HEIGHT);
+    for(int camera_i = 0; camera_i < NUM_CAMERAS; camera_i++){
+        for(int row = 0; row < HEIGHT; row++){
+            for(int column = 0; column < WIDTH; column++){
+                values[(size_t)(camera_i * HEIGHT + row) * WIDTH + column] = static_cast<uint32_t>(camera_i * 100 + row * 10 + column);
+            }
+        }
+    }
+    const std::string binary_path = path("pinned.bin");
+    ASSERT_TRUE(golden::write_multi_camera_uint32_bin(binary_path, values.data(), NUM_CAMERAS, WIDTH, HEIGHT));
+    const std::vector<unsigned char> bytes = read_bytes(binary_path);
+    ASSERT_EQ(bytes.size(), golden::detail::MULTI_CAMERA_BINARY_HEADER_SIZE + values.size() * sizeof(uint32_t));
+
+    const unsigned char expected_header[golden::detail::MULTI_CAMERA_BINARY_HEADER_SIZE] = {
+        'R', 'L', 'T', 'M', 'C', 'A', 'M', 0,
+        1, 0, 0, 0,     // version
+        40, 0, 0, 0,    // header size
+        2, 0, 0, 0,     // element type: UINT32
+        4, 0, 0, 0,     // num_cameras
+        2, 0, 0, 0,     // height
+        3, 0, 0, 0,     // width
+        24, 0, 0, 0, 0, 0, 0, 0 // element count
+    };
+    EXPECT_EQ(std::memcmp(bytes.data(), expected_header, sizeof(expected_header)), 0);
+
+    for(int camera_i = 0; camera_i < NUM_CAMERAS; camera_i++){
+        for(int row = 0; row < HEIGHT; row++){
+            for(int column = 0; column < WIDTH; column++){
+                const size_t offset = golden::detail::MULTI_CAMERA_BINARY_HEADER_SIZE
+                    + ((size_t)(camera_i * HEIGHT + row) * WIDTH + column) * sizeof(uint32_t);
+                const uint32_t value = (uint32_t)bytes[offset]
+                    | ((uint32_t)bytes[offset + 1] << 8)
+                    | ((uint32_t)bytes[offset + 2] << 16)
+                    | ((uint32_t)bytes[offset + 3] << 24);
+                EXPECT_EQ(value, static_cast<uint32_t>(camera_i * 100 + row * 10 + column))
+                    << "camera " << camera_i << " row " << row << " column " << column;
+            }
+        }
+    }
+}
+
+TEST_F(GoldenIoTest, GridQuadrantOrderIsPinned){
+    const std::vector<uint32_t> cameras = {
+        golden::rgba(10, 0, 0),
+        golden::rgba(0, 20, 0),
+        golden::rgba(0, 0, 30),
+        golden::rgba(40, 40, 40)
+    };
+    std::vector<uint32_t> grid;
+    ASSERT_TRUE(golden::make_camera_grid(cameras.data(), 4, 1, 1, grid));
+    ASSERT_EQ(grid.size(), (size_t)4);
+    // 2x2 grid, row-major: cameras 0,1 on the top row and 2,3 on the bottom row
+    EXPECT_EQ(grid[0], cameras[0]);
+    EXPECT_EQ(grid[1], cameras[1]);
+    EXPECT_EQ(grid[2], cameras[2]);
+    EXPECT_EQ(grid[3], cameras[3]);
+    std::vector<uint32_t> split;
+    ASSERT_TRUE(golden::split_camera_grid(grid.data(), 4, 1, 1, split));
+    EXPECT_EQ(split, cameras);
+}
+
+TEST_F(GoldenIoTest, PartialGridFillsUnusedQuadrantsBlack){
+    constexpr int NUM_CAMERAS = 3;
+    constexpr int WIDTH = 3;
+    constexpr int HEIGHT = 2;
+    std::vector<uint32_t> cameras(NUM_CAMERAS * WIDTH * HEIGHT);
+    for(size_t pixel_i = 0; pixel_i < cameras.size(); pixel_i++){
+        cameras[pixel_i] = golden::rgba(static_cast<uint8_t>(pixel_i * 7), static_cast<uint8_t>(pixel_i * 3), 90);
+    }
+    std::vector<uint32_t> grid;
+    ASSERT_TRUE(golden::make_camera_grid(cameras.data(), NUM_CAMERAS, WIDTH, HEIGHT, grid));
+    ASSERT_EQ(grid.size(), (size_t)(WIDTH * 2 * HEIGHT * 2));
+    for(int row = HEIGHT; row < HEIGHT * 2; row++){
+        for(int column = WIDTH; column < WIDTH * 2; column++){
+            EXPECT_EQ(grid[(size_t)row * WIDTH * 2 + column], 0xFF000000u) << "row " << row << " column " << column;
+        }
+    }
+    std::vector<uint32_t> split;
+    ASSERT_TRUE(golden::split_camera_grid(grid.data(), NUM_CAMERAS, WIDTH, HEIGHT, split));
+    EXPECT_EQ(split, cameras);
+
+    const std::string png_path = path("partial_grid.png");
+    ASSERT_TRUE(golden::write_camera_grid_png(png_path, cameras.data(), NUM_CAMERAS, WIDTH, HEIGHT));
+    std::vector<uint32_t> loaded;
+    ASSERT_TRUE(golden::load_camera_grid_png(png_path, NUM_CAMERAS, WIDTH, HEIGHT, loaded));
+    EXPECT_EQ(loaded, cameras);
 }
 
 TEST_F(GoldenIoTest, LayoutPathsAreStable){

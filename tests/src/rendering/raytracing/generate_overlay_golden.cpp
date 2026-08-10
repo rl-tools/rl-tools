@@ -1,11 +1,9 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/backends/optix/operations_cuda.h>
 
-#include "golden_io.h"
-#include "overlay_golden_cases.h"
+#include "overlay_golden_frames.h"
+#include "overlay_golden_manifest.h"
 #include "../../utils/utils.h"
-
-#include <cuda_runtime.h>
 
 #include <algorithm>
 #include <array>
@@ -27,108 +25,44 @@ using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using T = float;
 using TI = typename DEVICE::index_t;
 using SPEC = overlay_scenarios::OverlaySpecification<T, TI>;
+using RENDERER = rlt::rendering::raytracing::Renderer<SPEC>;
+using overlay_goldens::Frame;
 
 static const std::string GOLDEN_ROOT = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH) "/rendering_raytracing_golden";
 
 namespace {
-    static constexpr size_t MIN_VISIBLE_PIXELS = 4;
-    static constexpr size_t MIN_UPDATE_CHANGED_PIXELS = 8;
-    static constexpr size_t MIN_POSE_CHANGED_PIXELS = 32;
-    static constexpr size_t MIN_POSE_SEGMENTATION_CHANGED_PIXELS = 8;
-
-    struct Frame {
-        std::vector<uint32_t> rgb;
-        std::vector<float> depth;
-        std::vector<uint32_t> segmentation;
-        float max_depth = 0;
+    struct FrameContext {
+        overlay_scenarios::Scenario scenario;
+        overlay_goldens::CaptureState state;
+        const char* view;
     };
 
-    struct DifferenceCounts {
-        size_t rgb = 0;
-        size_t depth = 0;
-        size_t segmentation = 0;
-    };
-
-    void set_view(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, const overlay_goldens::View& view){
-        constexpr T aspect = (T)SPEC::CAM_WIDTH / (T)SPEC::CAM_HEIGHT;
-        const auto camera = rlt::make_camera_data(view.position, view.look_at, view.up, SPEC::COS_FOVY, aspect);
-        std::array<rlt::rendering::raytracing::Camera<T>, SPEC::NUM_CAMERAS> cameras;
-        cameras.fill(camera);
-        cudaMemcpy(rlt::data(rlt::cameras(device, renderer)), cameras.data(), sizeof(cameras), cudaMemcpyHostToDevice);
-    }
-
-    Frame capture(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer){
-        rlt::render(device, renderer);
-        rlt::synchronize(device, renderer);
-        const size_t count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-        Frame frame;
-        frame.rgb.resize(count);
-        frame.depth.resize(count);
-        frame.segmentation.resize(count);
-        cudaMemcpy(frame.rgb.data(), rlt::data(rlt::frame_buffer(device, renderer)), count * sizeof(uint32_t), cudaMemcpyDeviceToHost);
-        cudaMemcpy(frame.depth.data(), rlt::data(rlt::depth_buffer(device, renderer)), count * sizeof(float), cudaMemcpyDeviceToHost);
-        cudaMemcpy(frame.segmentation.data(), rlt::data(rlt::segmentation_buffer(device, renderer)), count * sizeof(uint32_t), cudaMemcpyDeviceToHost);
-        frame.max_depth = renderer.camera_radius > 0 ? renderer.camera_radius * 2.0f : 1e30f;
-        return frame;
-    }
-
-    DifferenceCounts camera_difference(const Frame& first, const Frame& second, TI camera){
-        DifferenceCounts difference;
-        const size_t offset = (size_t)camera * SPEC::CAM_PIXELS;
-        for(size_t pixel = 0; pixel < SPEC::CAM_PIXELS; pixel++){
-            const size_t index = offset + pixel;
-            difference.rgb += first.rgb[index] != second.rgb[index];
-            difference.depth += first.depth[index] != second.depth[index];
-            difference.segmentation += first.segmentation[index] != second.segmentation[index];
+    bool report(bool ok, const FrameContext& context, const std::string& what){
+        if(!ok){
+            std::cerr << "[overlay-golden] " << overlay_scenarios::scenario_id(context.scenario)
+                      << "/" << overlay_goldens::capture_state_id(context.state)
+                      << "/" << context.view << ": " << what << std::endl;
         }
-        return difference;
-    }
-
-    DifferenceCounts frame_difference(const Frame& first, const Frame& second){
-        DifferenceCounts difference;
-        for(TI camera = 0; camera < SPEC::NUM_CAMERAS; camera++){
-            const auto camera_counts = camera_difference(first, second, camera);
-            difference.rgb += camera_counts.rgb;
-            difference.depth += camera_counts.depth;
-            difference.segmentation += camera_counts.segmentation;
-        }
-        return difference;
-    }
-
-    size_t camera_id_count(const Frame& frame, TI camera, uint32_t id){
-        const auto begin = frame.segmentation.begin() + (size_t)camera * SPEC::CAM_PIXELS;
-        return static_cast<size_t>(std::count(begin, begin + SPEC::CAM_PIXELS, id));
-    }
-
-    bool id_expected_in_camera(overlay_scenarios::Scenario scenario, TI camera, uint32_t id){
-        if(id == 0){
-            return true;
-        }
-        for(const auto& placement : overlay_scenarios::definition(scenario).placements){
-            if(placement.expected_id == id && (placement.cameras & overlay_scenarios::camera_bit(camera)) != 0){
-                return true;
-            }
-        }
-        return false;
+        return ok;
     }
 
     bool valid_topology(overlay_scenarios::Scenario scenario, const Frame& frame){
-        const auto& definition = overlay_scenarios::definition(scenario);
+        const auto& scenario_definition = overlay_scenarios::definition(scenario);
         for(TI camera = 0; camera < SPEC::NUM_CAMERAS; camera++){
-            if(camera_id_count(frame, camera, 0) <= SPEC::CAM_PIXELS / 2){
+            if(overlay_goldens::camera_id_count<SPEC>(frame, camera, 0) <= SPEC::CAM_PIXELS / 2){
                 return false;
             }
             const size_t offset = (size_t)camera * SPEC::CAM_PIXELS;
             for(size_t pixel = 0; pixel < SPEC::CAM_PIXELS; pixel++){
                 const uint32_t id = frame.segmentation[offset + pixel];
-                if(id != golden::SEGMENTATION_BACKGROUND_ID && !id_expected_in_camera(scenario, camera, id)){
+                if(id != golden::SEGMENTATION_BACKGROUND_ID && !overlay_goldens::id_expected_in_camera(scenario, camera, id)){
                     return false;
                 }
             }
-            for(const auto& placement : definition.placements){
+            for(const auto& placement : scenario_definition.placements){
                 const bool expected = (placement.cameras & overlay_scenarios::camera_bit(camera)) != 0;
-                const size_t count = camera_id_count(frame, camera, placement.expected_id);
-                if((expected && count <= MIN_VISIBLE_PIXELS) || (!expected && count != 0)){
+                const size_t count = overlay_goldens::camera_id_count<SPEC>(frame, camera, placement.expected_id);
+                if((expected && count <= overlay_goldens::MIN_VISIBLE_ID_PIXELS) || (!expected && count != 0)){
                     return false;
                 }
             }
@@ -166,9 +100,9 @@ namespace {
     }
 
     bool valid_placement_materials(overlay_scenarios::Scenario scenario, const Frame& frame){
-        const auto& definition = overlay_scenarios::definition(scenario);
-        for(const auto& placement : definition.placements){
-            const auto& asset = definition.assets[placement.asset];
+        const auto& scenario_definition = overlay_scenarios::definition(scenario);
+        for(const auto& placement : scenario_definition.placements){
+            const auto& asset = scenario_definition.assets[placement.asset];
             for(TI camera = 0; camera < SPEC::NUM_CAMERAS; camera++){
                 if((placement.cameras & overlay_scenarios::camera_bit(camera)) == 0){
                     continue;
@@ -210,61 +144,83 @@ namespace {
         return true;
     }
 
-    bool valid_frame(overlay_scenarios::Scenario scenario, const Frame& frame){
+    bool validate_frame(const FrameContext& context, const Frame& frame){
         const bool rgb_varies = std::any_of(frame.rgb.begin() + 1, frame.rgb.end(), [&](uint32_t pixel){ return pixel != frame.rgb[0]; });
         const bool valid_alpha = std::all_of(frame.rgb.begin(), frame.rgb.end(), [](uint32_t pixel){ return (pixel >> 24) == 0xFFu; });
         const bool valid_depth = std::all_of(frame.depth.begin(), frame.depth.end(), [](float depth){ return std::isfinite(depth) && depth > 0; });
-        return rgb_varies
-            && valid_alpha
-            && valid_depth
-            && valid_topology(scenario, frame)
-            && valid_shared_instance_pixels(scenario, frame)
-            && valid_placement_materials(scenario, frame);
+        bool ok = report(rgb_varies, context, "RGB output is constant");
+        ok = report(valid_alpha, context, "RGB output has non-opaque alpha") && ok;
+        ok = report(valid_depth, context, "depth output has non-finite or non-positive values") && ok;
+        ok = report(valid_topology(context.scenario, frame), context, "segmentation topology does not match the scenario table") && ok;
+        ok = report(valid_shared_instance_pixels(context.scenario, frame), context, "shared placements are not pixel-identical across cameras") && ok;
+        ok = report(valid_placement_materials(context.scenario, frame), context, "placement materials do not match the scenario assets") && ok;
+        return ok;
     }
 
-    bool write_frame(
-        overlay_scenarios::Scenario scenario,
-        overlay_goldens::CaptureState state,
-        const overlay_goldens::View& view,
-        const Frame& frame
-    ){
-        const auto paths = golden::layout::scenario_target_paths(
-            GOLDEN_ROOT,
-            overlay_scenarios::scenario_id(scenario),
-            overlay_goldens::capture_state_id(state),
-            view.id
-        );
-        std::filesystem::create_directories(paths.directory);
-        return golden::write_camera_grid_png(paths.rgb_png, frame.rgb.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
-            && golden::write_multi_camera_float_bin(paths.depth_bin, frame.depth.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
-            && golden::write_depth_grid_png(paths.depth_png, frame.depth.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, frame.max_depth)
-            && golden::write_multi_camera_uint32_bin(paths.segmentation_bin, frame.segmentation.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
-            && golden::write_segmentation_grid_png(paths.segmentation_png, frame.segmentation.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
-    }
-
-    bool validate_update_scope(overlay_scenarios::Scenario scenario, const Frame& initial, const Frame& updated){
-        const auto affected = overlay_scenarios::definition(scenario).affected_camera_mask;
+    // non-moving placements must be untouched by the update even inside affected cameras
+    bool valid_static_placements(const FrameContext& context, const Frame& initial, const Frame& updated){
+        const auto& scenario_definition = overlay_scenarios::definition(context.scenario);
         bool ok = true;
-        for(TI camera = 0; camera < SPEC::NUM_CAMERAS; camera++){
-            const bool should_change = (affected & overlay_scenarios::camera_bit(camera)) != 0;
-            const auto difference = camera_difference(initial, updated, camera);
-            if(should_change){
-                ok = ok
-                  && difference.rgb > MIN_UPDATE_CHANGED_PIXELS
-                  && difference.depth > MIN_UPDATE_CHANGED_PIXELS
-                  && difference.segmentation > MIN_UPDATE_CHANGED_PIXELS;
+        for(size_t placement_i = 0; placement_i < scenario_definition.placements.size(); placement_i++){
+            if(overlay_scenarios::moves(scenario_definition, placement_i)){
+                continue;
             }
-            else{
-                ok = ok && difference.rgb == 0 && difference.depth == 0 && difference.segmentation == 0;
+            const auto& placement = scenario_definition.placements[placement_i];
+            for(TI camera = 0; camera < SPEC::NUM_CAMERAS; camera++){
+                if((placement.cameras & overlay_scenarios::camera_bit(camera)) == 0){
+                    continue;
+                }
+                const size_t offset = (size_t)camera * SPEC::CAM_PIXELS;
+                size_t common = 0;
+                bool equal = true;
+                for(size_t pixel = 0; pixel < SPEC::CAM_PIXELS; pixel++){
+                    const size_t index = offset + pixel;
+                    if(initial.segmentation[index] == placement.expected_id && updated.segmentation[index] == placement.expected_id){
+                        common++;
+                        equal = equal
+                            && initial.rgb[index] == updated.rgb[index]
+                            && initial.depth[index] == updated.depth[index];
+                    }
+                }
+                ok = report(equal && common > overlay_goldens::MIN_VISIBLE_ID_PIXELS, context,
+                            "non-moving placement with ID " + std::to_string(placement.expected_id)
+                            + " drifted in camera " + std::to_string(camera)) && ok;
             }
         }
         return ok;
     }
 
+    bool validate_update_scope(const FrameContext& context, const Frame& initial, const Frame& updated){
+        const auto scope = overlay_goldens::update_scope<SPEC>(context.scenario, initial, updated);
+        bool ok = true;
+        for(TI camera = 0; camera < SPEC::NUM_CAMERAS; camera++){
+            ok = report(overlay_goldens::update_scope_ok(scope[camera]), context,
+                        std::string("update scope violated in camera ") + std::to_string(camera)
+                        + (scope[camera].should_change ? " (expected changes)" : " (expected bitwise-identical output)")) && ok;
+        }
+        return ok;
+    }
+
+    bool write_frame(const FrameContext& context, const Frame& frame){
+        const auto paths = golden::layout::scenario_target_paths(
+            GOLDEN_ROOT,
+            overlay_scenarios::scenario_id(context.scenario),
+            overlay_goldens::capture_state_id(context.state),
+            context.view
+        );
+        std::filesystem::create_directories(paths.directory);
+        const bool ok = golden::write_camera_grid_png(paths.rgb_png, frame.rgb.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
+            && golden::write_multi_camera_float_bin(paths.depth_bin, frame.depth.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
+            && golden::write_depth_grid_png(paths.depth_png, frame.depth.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, frame.max_depth)
+            && golden::write_multi_camera_uint32_bin(paths.segmentation_bin, frame.segmentation.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
+            && golden::write_segmentation_grid_png(paths.segmentation_png, frame.segmentation.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+        return report(ok, context, "failed to write golden files to " + paths.directory);
+    }
+
     bool run_scenario(DEVICE& device, overlay_scenarios::Scenario scenario, Frame& centered_initial){
         std::cout << "[overlay-golden] rendering " << overlay_scenarios::scenario_id(scenario) << std::endl;
         auto state = overlay_scenarios::prepare(device, scenario);
-        rlt::rendering::raytracing::Renderer<SPEC> renderer;
+        RENDERER renderer;
         rlt::malloc(device, renderer);
         rlt::generate_probe_directions(device, renderer);
         rlt::init(device, renderer, state.scene, state.pool);
@@ -274,20 +230,20 @@ namespace {
         bool ok = true;
         std::array<Frame, overlay_goldens::VIEWS.size()> initial_frames;
         for(size_t view_i = 0; view_i < overlay_goldens::VIEWS.size(); view_i++){
-            set_view(device, renderer, overlay_goldens::VIEWS[view_i]);
-            initial_frames[view_i] = capture(device, renderer);
-            ok = valid_frame(scenario, initial_frames[view_i])
-              && write_frame(scenario, overlay_goldens::CaptureState::INITIAL, overlay_goldens::VIEWS[view_i], initial_frames[view_i])
-              && ok;
+            const FrameContext context{scenario, overlay_goldens::CaptureState::INITIAL, overlay_goldens::VIEWS[view_i].id};
+            overlay_goldens::set_view(device, renderer, overlay_goldens::VIEWS[view_i]);
+            initial_frames[view_i] = overlay_goldens::capture(device, renderer);
+            const bool wrote = write_frame(context, initial_frames[view_i]);
+            ok = validate_frame(context, initial_frames[view_i]) && wrote && ok;
         }
         for(size_t first = 0; first < initial_frames.size(); first++){
             for(size_t second = first + 1; second < initial_frames.size(); second++){
-                const auto difference = frame_difference(initial_frames[first], initial_frames[second]);
-                const bool dynamic = scenario != overlay_scenarios::Scenario::SHARED_SCENE_NO_DYNAMIC;
-                ok = difference.rgb > MIN_POSE_CHANGED_PIXELS
-                  && difference.depth > MIN_POSE_CHANGED_PIXELS
-                  && (!dynamic || difference.segmentation > MIN_POSE_SEGMENTATION_CHANGED_PIXELS)
-                  && ok;
+                const bool distinct = overlay_goldens::views_distinct<SPEC>(scenario, initial_frames[first], initial_frames[second]);
+                if(!distinct){
+                    std::cerr << "[overlay-golden] " << overlay_scenarios::scenario_id(scenario) << ": views are not visibly distinct: "
+                              << overlay_goldens::VIEWS[first].id << " and " << overlay_goldens::VIEWS[second].id << std::endl;
+                }
+                ok = distinct && ok;
             }
         }
         centered_initial = initial_frames[0];
@@ -296,22 +252,20 @@ namespace {
             overlay_scenarios::apply_update(device, renderer, state);
             rlt::update(device, renderer);
             for(size_t view_i = 0; view_i < overlay_goldens::VIEWS.size(); view_i++){
-                set_view(device, renderer, overlay_goldens::VIEWS[view_i]);
-                const auto updated = capture(device, renderer);
-                ok = valid_frame(scenario, updated)
-                  && validate_update_scope(scenario, initial_frames[view_i], updated)
-                  && write_frame(scenario, overlay_goldens::CaptureState::UPDATED, overlay_goldens::VIEWS[view_i], updated)
+                const FrameContext context{scenario, overlay_goldens::CaptureState::UPDATED, overlay_goldens::VIEWS[view_i].id};
+                overlay_goldens::set_view(device, renderer, overlay_goldens::VIEWS[view_i]);
+                const auto updated = overlay_goldens::capture(device, renderer);
+                const bool wrote = write_frame(context, updated);
+                ok = validate_frame(context, updated)
+                  && validate_update_scope(context, initial_frames[view_i], updated)
+                  && valid_static_placements(context, initial_frames[view_i], updated)
+                  && wrote
                   && ok;
             }
         }
 
         rlt::free(device, renderer);
         return ok;
-    }
-
-    bool visibly_distinct(const Frame& first, const Frame& second){
-        const auto difference = frame_difference(first, second);
-        return difference.rgb > 16 && difference.depth > 16 && difference.segmentation > 16;
     }
 
     bool write_manifest(){
@@ -321,32 +275,7 @@ namespace {
         if(!output){
             return false;
         }
-        output << "{\n"
-               << "  \"schema_version\": 1,\n"
-               << "  \"binary_format_version\": " << golden::MULTI_CAMERA_BINARY_VERSION << ",\n"
-               << "  \"reference_backend\": \"optix\",\n"
-               << "  \"num_cameras\": " << SPEC::NUM_CAMERAS << ",\n"
-               << "  \"width\": " << SPEC::CAM_WIDTH << ",\n"
-               << "  \"height\": " << SPEC::CAM_HEIGHT << ",\n"
-               << "  \"camera_grid\": \"2x2 row-major logical cameras 0,1,2,3\",\n"
-               << "  \"views\": [";
-        for(size_t view_i = 0; view_i < overlay_goldens::VIEWS.size(); view_i++){
-            output << (view_i == 0 ? "" : ", ") << "\"" << overlay_goldens::VIEWS[view_i].id << "\"";
-        }
-        output << "],\n  \"scenarios\": [";
-        for(size_t scenario_i = 0; scenario_i < overlay_scenarios::SCENARIOS.size(); scenario_i++){
-            output << (scenario_i == 0 ? "" : ", ") << "\"" << overlay_scenarios::scenario_id(overlay_scenarios::SCENARIOS[scenario_i]) << "\"";
-        }
-        output << "],\n  \"capture_states\": {\n";
-        for(size_t scenario_i = 0; scenario_i < overlay_scenarios::SCENARIOS.size(); scenario_i++){
-            const auto scenario = overlay_scenarios::SCENARIOS[scenario_i];
-            output << "    \"" << overlay_scenarios::scenario_id(scenario) << "\": [\"initial\"";
-            if(overlay_goldens::capture_state_count(scenario) == 2){
-                output << ", \"updated\"";
-            }
-            output << "]" << (scenario_i + 1 == overlay_scenarios::SCENARIOS.size() ? "\n" : ",\n");
-        }
-        output << "  }\n}\n";
+        output << overlay_goldens::expected_manifest<SPEC>().dump(2) << "\n";
         return output.good();
     }
 }
@@ -363,7 +292,7 @@ int main(){
     }
     for(size_t first = 0; first < centered_initial.size(); first++){
         for(size_t second = first + 1; second < centered_initial.size(); second++){
-            if(!visibly_distinct(centered_initial[first], centered_initial[second])){
+            if(!overlay_goldens::scenarios_distinct<SPEC>(centered_initial[first], centered_initial[second])){
                 std::cerr << "[overlay-golden] scenarios are not visibly distinct: "
                           << overlay_scenarios::scenario_id(overlay_scenarios::SCENARIOS[first]) << " and "
                           << overlay_scenarios::scenario_id(overlay_scenarios::SCENARIOS[second]) << std::endl;

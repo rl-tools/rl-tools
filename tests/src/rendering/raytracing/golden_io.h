@@ -3,7 +3,22 @@
 
 // Golden file I/O shared by generators and comparison tests. The original per-camera depth and
 // probe functions retain their native legacy format; overlay buffers use the versioned, little-
-// endian multi-camera format below. The including TU must provide stb_image/stb_image_write.
+// endian multi-camera format below (fixed header, then camera-major row-major payload; the wire
+// field order is num_cameras, height, width).
+
+// RL_TOOLS_STB_PROVIDED arbitrates between this header and the renderer's
+// operations_cpu_common.h so that whichever is included first provides the static stb
+// implementation exactly once per TU (stb's implementation section has no include guard).
+#ifndef RL_TOOLS_STB_PROVIDED
+#define RL_TOOLS_STB_PROVIDED
+#define STB_IMAGE_WRITE_STATIC
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb_image_write.h>
+#define STB_IMAGE_STATIC
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+#endif
+
 #include <rl_tools/rendering/raytracing/types.h>
 
 #include "golden_layout.h"
@@ -26,16 +41,18 @@ namespace golden {
         uint32_t version = 0;
         MultiCameraElementType element_type = MultiCameraElementType::FLOAT32;
         uint32_t num_cameras = 0;
-        uint32_t width = 0;
         uint32_t height = 0;
+        uint32_t width = 0;
         uint64_t element_count = 0;
     };
 
     static constexpr uint32_t MULTI_CAMERA_BINARY_VERSION = 1;
     static constexpr uint32_t SEGMENTATION_BACKGROUND_ID = 0xFFFFFFFFu;
+    static constexpr int GRID_COLUMNS = 2;
+    static constexpr int GRID_ROWS = 2;
+    static constexpr int GRID_MAX_CAMERAS = GRID_COLUMNS * GRID_ROWS;
 
     namespace detail {
-        // Fixed little-endian header, followed by camera-major IEEE float32 or uint32 payload.
         static constexpr unsigned char MULTI_CAMERA_BINARY_MAGIC[8] = {'R', 'L', 'T', 'M', 'C', 'A', 'M', 0};
         static constexpr uint32_t MULTI_CAMERA_BINARY_HEADER_SIZE = 40;
 
@@ -64,11 +81,11 @@ namespace golden {
             size_t& camera_pixel_count,
             size_t& grid_pixel_count
         ){
-            return num_cameras <= 4
-                && camera_width <= std::numeric_limits<int>::max() / 2
-                && camera_height <= std::numeric_limits<int>::max() / 2
+            return num_cameras <= GRID_MAX_CAMERAS
+                && camera_width <= std::numeric_limits<int>::max() / GRID_COLUMNS
+                && camera_height <= std::numeric_limits<int>::max() / GRID_ROWS
                 && checked_element_count(num_cameras, camera_width, camera_height, camera_pixel_count)
-                && checked_element_count(1, camera_width * 2, camera_height * 2, grid_pixel_count);
+                && checked_element_count(1, camera_width * GRID_COLUMNS, camera_height * GRID_ROWS, grid_pixel_count);
         }
 
         inline bool write_u32_le(FILE* file, uint32_t value){
@@ -190,6 +207,60 @@ namespace golden {
                 && info.width == (uint32_t)expected_width
                 && info.height == (uint32_t)expected_height;
         }
+
+        inline bool write_multi_camera_bin(
+            const std::string& path,
+            MultiCameraElementType element_type,
+            const uint32_t* bits,
+            int num_cameras,
+            int width,
+            int height
+        ){
+            size_t count = 0;
+            if(bits == nullptr || !checked_element_count(num_cameras, width, height, count)){
+                return false;
+            }
+            FILE* file = std::fopen(path.c_str(), "wb");
+            if(file == nullptr){
+                return false;
+            }
+            bool ok = write_multi_camera_header(file, element_type, num_cameras, width, height, count);
+            for(size_t value_i = 0; ok && value_i < count; value_i++){
+                ok = write_u32_le(file, bits[value_i]);
+            }
+            ok = std::fclose(file) == 0 && ok;
+            return ok;
+        }
+
+        inline bool load_multi_camera_bin(
+            const std::string& path,
+            MultiCameraElementType element_type,
+            int expected_num_cameras,
+            int expected_width,
+            int expected_height,
+            std::vector<uint32_t>& bits
+        ){
+            FILE* file = std::fopen(path.c_str(), "rb");
+            if(file == nullptr){
+                return false;
+            }
+            MultiCameraBinaryInfo info;
+            bool ok = read_multi_camera_header(file, info)
+                && header_matches(info, element_type, expected_num_cameras, expected_width, expected_height);
+            std::vector<uint32_t> loaded;
+            if(ok){
+                loaded.resize((size_t)info.element_count);
+                for(size_t value_i = 0; ok && value_i < loaded.size(); value_i++){
+                    ok = read_u32_le(file, loaded[value_i]);
+                }
+                ok = ok && has_no_trailing_data(file);
+            }
+            ok = std::fclose(file) == 0 && ok;
+            if(ok){
+                bits.swap(loaded);
+            }
+            return ok;
+        }
     }
 
     inline bool write_multi_camera_uint32_bin(
@@ -199,20 +270,7 @@ namespace golden {
         int width,
         int height
     ){
-        size_t count = 0;
-        if(values == nullptr || !detail::checked_element_count(num_cameras, width, height, count)){
-            return false;
-        }
-        FILE* file = std::fopen(path.c_str(), "wb");
-        if(file == nullptr){
-            return false;
-        }
-        bool ok = detail::write_multi_camera_header(file, MultiCameraElementType::UINT32, num_cameras, width, height, count);
-        for(size_t value_i = 0; ok && value_i < count; value_i++){
-            ok = detail::write_u32_le(file, values[value_i]);
-        }
-        ok = std::fclose(file) == 0 && ok;
-        return ok;
+        return detail::write_multi_camera_bin(path, MultiCameraElementType::UINT32, values, num_cameras, width, height);
     }
 
     inline bool write_multi_camera_float_bin(
@@ -228,18 +286,9 @@ namespace golden {
         if(values == nullptr || !detail::checked_element_count(num_cameras, width, height, count)){
             return false;
         }
-        FILE* file = std::fopen(path.c_str(), "wb");
-        if(file == nullptr){
-            return false;
-        }
-        bool ok = detail::write_multi_camera_header(file, MultiCameraElementType::FLOAT32, num_cameras, width, height, count);
-        for(size_t value_i = 0; ok && value_i < count; value_i++){
-            uint32_t bits = 0;
-            std::memcpy(&bits, values + value_i, sizeof(bits));
-            ok = detail::write_u32_le(file, bits);
-        }
-        ok = std::fclose(file) == 0 && ok;
-        return ok;
+        std::vector<uint32_t> bits(count);
+        std::memcpy(bits.data(), values, count * sizeof(uint32_t));
+        return detail::write_multi_camera_bin(path, MultiCameraElementType::FLOAT32, bits.data(), num_cameras, width, height);
     }
 
     inline bool load_multi_camera_uint32_bin(
@@ -249,26 +298,7 @@ namespace golden {
         int expected_height,
         std::vector<uint32_t>& values
     ){
-        FILE* file = std::fopen(path.c_str(), "rb");
-        if(file == nullptr){
-            return false;
-        }
-        MultiCameraBinaryInfo info;
-        bool ok = detail::read_multi_camera_header(file, info)
-            && detail::header_matches(info, MultiCameraElementType::UINT32, expected_num_cameras, expected_width, expected_height);
-        std::vector<uint32_t> loaded;
-        if(ok){
-            loaded.resize((size_t)info.element_count);
-            for(size_t value_i = 0; ok && value_i < loaded.size(); value_i++){
-                ok = detail::read_u32_le(file, loaded[value_i]);
-            }
-            ok = ok && detail::has_no_trailing_data(file);
-        }
-        ok = std::fclose(file) == 0 && ok;
-        if(ok){
-            values.swap(loaded);
-        }
-        return ok;
+        return detail::load_multi_camera_bin(path, MultiCameraElementType::UINT32, expected_num_cameras, expected_width, expected_height, values);
     }
 
     inline bool load_multi_camera_float_bin(
@@ -280,30 +310,14 @@ namespace golden {
     ){
         static_assert(sizeof(float) == sizeof(uint32_t) && std::numeric_limits<float>::is_iec559,
                       "golden float binaries require IEEE-754 32-bit floats");
-        FILE* file = std::fopen(path.c_str(), "rb");
-        if(file == nullptr){
+        std::vector<uint32_t> bits;
+        if(!detail::load_multi_camera_bin(path, MultiCameraElementType::FLOAT32, expected_num_cameras, expected_width, expected_height, bits)){
             return false;
         }
-        MultiCameraBinaryInfo info;
-        bool ok = detail::read_multi_camera_header(file, info)
-            && detail::header_matches(info, MultiCameraElementType::FLOAT32, expected_num_cameras, expected_width, expected_height);
-        std::vector<float> loaded;
-        if(ok){
-            loaded.resize((size_t)info.element_count);
-            for(size_t value_i = 0; ok && value_i < loaded.size(); value_i++){
-                uint32_t bits = 0;
-                ok = detail::read_u32_le(file, bits);
-                if(ok){
-                    std::memcpy(loaded.data() + value_i, &bits, sizeof(bits));
-                }
-            }
-            ok = ok && detail::has_no_trailing_data(file);
-        }
-        ok = std::fclose(file) == 0 && ok;
-        if(ok){
-            values.swap(loaded);
-        }
-        return ok;
+        std::vector<float> loaded(bits.size());
+        std::memcpy(loaded.data(), bits.data(), bits.size() * sizeof(uint32_t));
+        values.swap(loaded);
+        return true;
     }
 
     inline bool write_camera_png(const std::string& path, const uint32_t* pixels, int width, int height){
@@ -345,11 +359,11 @@ namespace golden {
             return false;
         }
         std::vector<uint32_t> grid(grid_pixel_count, 0xFF000000u);
-        const int grid_width = camera_width * 2;
+        const int grid_width = camera_width * GRID_COLUMNS;
         const size_t pixels_per_camera = (size_t)camera_width * camera_height;
         for(int camera_i = 0; camera_i < num_cameras; camera_i++){
-            const int offset_x = (camera_i % 2) * camera_width;
-            const int offset_y = (camera_i / 2) * camera_height;
+            const int offset_x = (camera_i % GRID_COLUMNS) * camera_width;
+            const int offset_y = (camera_i / GRID_COLUMNS) * camera_height;
             for(int y = 0; y < camera_height; y++){
                 std::memcpy(
                     grid.data() + (size_t)(offset_y + y) * grid_width + offset_x,
@@ -382,11 +396,11 @@ namespace golden {
             return false;
         }
         std::vector<uint32_t> cameras(camera_pixel_count);
-        const int grid_width = camera_width * 2;
+        const int grid_width = camera_width * GRID_COLUMNS;
         const size_t pixels_per_camera = (size_t)camera_width * camera_height;
         for(int camera_i = 0; camera_i < num_cameras; camera_i++){
-            const int offset_x = (camera_i % 2) * camera_width;
-            const int offset_y = (camera_i / 2) * camera_height;
+            const int offset_x = (camera_i % GRID_COLUMNS) * camera_width;
+            const int offset_y = (camera_i / GRID_COLUMNS) * camera_height;
             for(int y = 0; y < camera_height; y++){
                 std::memcpy(
                     cameras.data() + (size_t)camera_i * pixels_per_camera + (size_t)y * camera_width,
@@ -408,7 +422,7 @@ namespace golden {
     ){
         std::vector<uint32_t> grid;
         return make_camera_grid(camera_major_pixels, num_cameras, camera_width, camera_height, grid)
-            && write_camera_png(path, grid.data(), camera_width * 2, camera_height * 2);
+            && write_camera_png(path, grid.data(), camera_width * GRID_COLUMNS, camera_height * GRID_ROWS);
     }
 
     inline bool load_camera_grid_png(
@@ -418,58 +432,46 @@ namespace golden {
         int expected_camera_height,
         std::vector<uint32_t>& camera_major_pixels
     ){
-        if(expected_num_cameras <= 0 || expected_num_cameras > 4
+        if(expected_num_cameras <= 0 || expected_num_cameras > GRID_MAX_CAMERAS
             || expected_camera_width <= 0 || expected_camera_height <= 0
-            || expected_camera_width > std::numeric_limits<int>::max() / 2
-            || expected_camera_height > std::numeric_limits<int>::max() / 2){
+            || expected_camera_width > std::numeric_limits<int>::max() / GRID_COLUMNS
+            || expected_camera_height > std::numeric_limits<int>::max() / GRID_ROWS){
             return false;
         }
         std::vector<uint32_t> grid;
-        return load_camera_png(path, expected_camera_width * 2, expected_camera_height * 2, grid)
+        return load_camera_png(path, expected_camera_width * GRID_COLUMNS, expected_camera_height * GRID_ROWS, grid)
             && split_camera_grid(grid.data(), expected_num_cameras, expected_camera_width, expected_camera_height, camera_major_pixels);
     }
 
-    // normalized grayscale visualization (min/max of the valid range per image)
-    inline bool write_camera_depth_png(const std::string& path, const float* depth, int width, int height, float max_depth){
-        const float valid_max_depth = max_depth * 0.999f;
-        float min_valid = 3.4e38f, max_valid = -3.4e38f;
-        for(int pixel_i = 0; pixel_i < width * height; pixel_i++){
-            const float value = depth[pixel_i];
-            if(value > 0.f && value < valid_max_depth){
-                min_valid = value < min_valid ? value : min_valid;
-                max_valid = value > max_valid ? value : max_valid;
-            }
-        }
-        const bool has_valid = min_valid <= max_valid;
-        const float range = has_valid ? max_valid - min_valid : 0.f;
-        std::vector<uint32_t> image((size_t)width * height, 0xFF000000u);
-        for(int pixel_i = 0; pixel_i < width * height; pixel_i++){
-            const float value = depth[pixel_i];
-            uint8_t gray = 0;
-            if(has_valid && value > 0.f && value < valid_max_depth){
-                float normalized = (value - min_valid) / (range + 1e-6f);
-                normalized = normalized < 0.f ? 0.f : (normalized > 1.f ? 1.f : normalized);
-                gray = (uint8_t)(normalized * 255.f);
-            }
-            image[pixel_i] = (0xFFu << 24) | ((uint32_t)gray << 16) | ((uint32_t)gray << 8) | (uint32_t)gray;
-        }
-        return write_camera_png(path, image.data(), width, height);
+    inline uint32_t rgba(uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha = 255){
+        return (uint32_t)red
+             | ((uint32_t)green << 8)
+             | ((uint32_t)blue << 16)
+             | ((uint32_t)alpha << 24);
     }
 
     // per-channel abs diff, amplified so small deviations are visible (value = min(255, 8 * |a - b|))
-    inline bool write_camera_diff_png(const std::string& path, const uint32_t* ours, const uint32_t* golden, int width, int height){
-        std::vector<uint32_t> image((size_t)width * height);
-        const auto* ours_bytes = (const unsigned char*)ours;
-        const auto* golden_bytes = (const unsigned char*)golden;
-        auto* image_bytes = (unsigned char*)image.data();
-        for(size_t pixel_i = 0; pixel_i < (size_t)width * height; pixel_i++){
+    inline void colorize_rgb_diff(const uint32_t* target, const uint32_t* current, size_t count, uint32_t* image){
+        const auto* target_bytes = (const unsigned char*)target;
+        const auto* current_bytes = (const unsigned char*)current;
+        auto* image_bytes = (unsigned char*)image;
+        for(size_t pixel_i = 0; pixel_i < count; pixel_i++){
             for(int channel = 0; channel < 3; channel++){
-                const int diff = (int)ours_bytes[pixel_i * 4 + channel] - (int)golden_bytes[pixel_i * 4 + channel];
-                const int amplified = (diff < 0 ? -diff : diff) * 8;
-                image_bytes[pixel_i * 4 + channel] = (unsigned char)(amplified > 255 ? 255 : amplified);
+                const int delta = (int)current_bytes[pixel_i * 4 + channel] - (int)target_bytes[pixel_i * 4 + channel];
+                const int amplified = (delta < 0 ? -delta : delta) * 8;
+                image_bytes[pixel_i * 4 + channel] = (unsigned char)std::min(amplified, 255);
             }
             image_bytes[pixel_i * 4 + 3] = 255;
         }
+    }
+
+    inline bool write_camera_diff_png(const std::string& path, const uint32_t* ours, const uint32_t* golden, int width, int height){
+        size_t count = 0;
+        if(ours == nullptr || golden == nullptr || !detail::checked_element_count(1, width, height, count)){
+            return false;
+        }
+        std::vector<uint32_t> image(count);
+        colorize_rgb_diff(golden, ours, count, image.data());
         return write_camera_png(path, image.data(), width, height);
     }
 
@@ -483,22 +485,11 @@ namespace golden {
     ){
         size_t count = 0;
         if(current == nullptr || target == nullptr
-            || !detail::checked_element_count(num_cameras, camera_width, camera_height, count)
-            || num_cameras > 4){
+            || !detail::checked_element_count(num_cameras, camera_width, camera_height, count)){
             return false;
         }
         std::vector<uint32_t> diff(count);
-        const auto* current_bytes = (const unsigned char*)current;
-        const auto* target_bytes = (const unsigned char*)target;
-        auto* diff_bytes = (unsigned char*)diff.data();
-        for(size_t pixel_i = 0; pixel_i < count; pixel_i++){
-            for(int channel = 0; channel < 3; channel++){
-                const int delta = (int)current_bytes[pixel_i * 4 + channel] - (int)target_bytes[pixel_i * 4 + channel];
-                const int amplified = (delta < 0 ? -delta : delta) * 8;
-                diff_bytes[pixel_i * 4 + channel] = (unsigned char)std::min(amplified, 255);
-            }
-            diff_bytes[pixel_i * 4 + 3] = 255;
-        }
+        colorize_rgb_diff(target, current, count, diff.data());
         return write_camera_grid_png(path, diff.data(), num_cameras, camera_width, camera_height);
     }
 
@@ -515,13 +506,6 @@ namespace golden {
         return write_camera_grid_png(target_path, target, num_cameras, camera_width, camera_height)
             && write_camera_grid_png(current_path, current, num_cameras, camera_width, camera_height)
             && write_camera_grid_diff_png(diff_path, current, target, num_cameras, camera_width, camera_height);
-    }
-
-    inline uint32_t rgba(uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha = 255){
-        return (uint32_t)red
-             | ((uint32_t)green << 8)
-             | ((uint32_t)blue << 16)
-             | ((uint32_t)alpha << 24);
     }
 
     inline uint32_t segmentation_false_color(uint32_t instance_id){
@@ -566,39 +550,6 @@ namespace golden {
         }
     }
 
-    inline bool write_camera_segmentation_png(
-        const std::string& path,
-        const uint32_t* segmentation,
-        int width,
-        int height
-    ){
-        size_t count = 0;
-        if(segmentation == nullptr || !detail::checked_element_count(1, width, height, count)){
-            return false;
-        }
-        std::vector<uint32_t> image(count);
-        colorize_segmentation(segmentation, count, image.data());
-        return write_camera_png(path, image.data(), width, height);
-    }
-
-    inline bool write_camera_segmentation_diff_png(
-        const std::string& path,
-        const uint32_t* target,
-        const uint32_t* current,
-        int width,
-        int height
-    ){
-        size_t count = 0;
-        if(target == nullptr || current == nullptr || !detail::checked_element_count(1, width, height, count)){
-            return false;
-        }
-        std::vector<uint32_t> image(count);
-        for(size_t pixel_i = 0; pixel_i < count; pixel_i++){
-            image[pixel_i] = segmentation_diff_color(target[pixel_i], current[pixel_i]);
-        }
-        return write_camera_png(path, image.data(), width, height);
-    }
-
     inline bool write_segmentation_grid_png(
         const std::string& path,
         const uint32_t* segmentation,
@@ -607,7 +558,7 @@ namespace golden {
         int camera_height
     ){
         size_t count = 0;
-        if(segmentation == nullptr || num_cameras > 4
+        if(segmentation == nullptr
             || !detail::checked_element_count(num_cameras, camera_width, camera_height, count)){
             return false;
         }
@@ -625,7 +576,7 @@ namespace golden {
         int camera_height
     ){
         size_t count = 0;
-        if(target == nullptr || current == nullptr || num_cameras > 4
+        if(target == nullptr || current == nullptr
             || !detail::checked_element_count(num_cameras, camera_width, camera_height, count)){
             return false;
         }
@@ -649,24 +600,6 @@ namespace golden {
         return write_segmentation_grid_png(target_path, target, num_cameras, camera_width, camera_height)
             && write_segmentation_grid_png(current_path, current, num_cameras, camera_width, camera_height)
             && write_segmentation_diff_grid_png(diff_path, target, current, num_cameras, camera_width, camera_height);
-    }
-
-    // grayscale abs depth diff, normalized to the maximum difference in the image
-    inline bool write_camera_depth_diff_png(const std::string& path, const float* ours, const float* golden, int width, int height){
-        float max_diff = 0;
-        for(int pixel_i = 0; pixel_i < width * height; pixel_i++){
-            const float diff = ours[pixel_i] - golden[pixel_i];
-            const float abs_diff = diff < 0 ? -diff : diff;
-            max_diff = abs_diff > max_diff ? abs_diff : max_diff;
-        }
-        std::vector<uint32_t> image((size_t)width * height);
-        for(int pixel_i = 0; pixel_i < width * height; pixel_i++){
-            const float diff = ours[pixel_i] - golden[pixel_i];
-            const float abs_diff = diff < 0 ? -diff : diff;
-            const unsigned char gray = max_diff > 0 ? (unsigned char)(abs_diff / max_diff * 255.f) : 0;
-            image[pixel_i] = (0xFFu << 24) | ((uint32_t)gray << 16) | ((uint32_t)gray << 8) | (uint32_t)gray;
-        }
-        return write_camera_png(path, image.data(), width, height);
     }
 
     struct DepthVisualizationRange{
@@ -786,6 +719,26 @@ namespace golden {
         }
     }
 
+    inline bool write_camera_depth_png(const std::string& path, const float* depth, int width, int height, float max_depth){
+        size_t count = 0;
+        if(depth == nullptr || !detail::checked_element_count(1, width, height, count)){
+            return false;
+        }
+        std::vector<uint32_t> image(count);
+        colorize_depth(depth, count, depth_visualization_range(depth, count, max_depth), image.data());
+        return write_camera_png(path, image.data(), width, height);
+    }
+
+    inline bool write_camera_depth_diff_png(const std::string& path, const float* target, const float* current, int width, int height, float max_depth){
+        size_t count = 0;
+        if(target == nullptr || current == nullptr || !detail::checked_element_count(1, width, height, count)){
+            return false;
+        }
+        std::vector<uint32_t> image(count);
+        colorize_depth_diff(target, current, count, depth_visualization_range(target, current, count, max_depth), image.data());
+        return write_camera_png(path, image.data(), width, height);
+    }
+
     inline bool write_depth_grid_png(
         const std::string& path,
         const float* depth,
@@ -795,7 +748,7 @@ namespace golden {
         const DepthVisualizationRange& range
     ){
         size_t count = 0;
-        if(depth == nullptr || num_cameras > 4
+        if(depth == nullptr
             || !detail::checked_element_count(num_cameras, camera_width, camera_height, count)){
             return false;
         }
@@ -837,7 +790,7 @@ namespace golden {
         float amplification = 8.f
     ){
         size_t count = 0;
-        if(target == nullptr || current == nullptr || num_cameras > 4
+        if(target == nullptr || current == nullptr
             || !detail::checked_element_count(num_cameras, camera_width, camera_height, count)){
             return false;
         }

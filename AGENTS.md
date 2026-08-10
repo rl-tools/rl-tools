@@ -75,7 +75,7 @@ After regeneration, rebuild the compile tests before re-running `ctest`.
 
 ### Raytracing Golden Renderings
 
-Canonical renderings live in the separate test-data repository under `tests/data/rendering_raytracing_golden/`: the existing ProcTHOR suite uses `procthor_static_scene/`, and synthetic overlay cases use `overlay/<scenario>/<state>/<view>/{rgb.png,depth.bin,depth.png,segmentation.bin,segmentation.png}`. PNGs are 2x2 grids in camera order `0,1 / 2,3`; versioned depth and segmentation binaries contain `[4,64,64]`. On a fresh checkout, `./tests/download_data.sh --raytracing-goldens` downloads only this corpus. Configure `RL_TOOLS_REQUIRE_RAYTRACING_GOLDENS=ON` when missing manifests or LFS objects must fail instead of skip.
+Canonical renderings live in the separate test-data repository under `tests/data/rendering_raytracing_golden/`: the existing ProcTHOR suite uses `procthor_static_scene/`, and synthetic overlay cases use `overlay/<scenario>/<state>/<view>/{rgb.png,depth.bin,depth.png,segmentation.bin,segmentation.png}`. PNGs are 2x2 grids in camera order `0,1 / 2,3`; versioned depth and segmentation binaries contain `[4,64,64]`. `rgb.png` and the two `.bin` files are the machine-compared targets; `segmentation.png` is validated against `segmentation.bin` by the corpus test, while `depth.png` is an advisory review image only (its normalization depends on the generation-time camera radius). On a fresh checkout, `./tests/download_data.sh --raytracing-goldens` downloads only this corpus. Configure `RL_TOOLS_REQUIRE_RAYTRACING_GOLDENS=ON` when missing manifests or LFS objects must fail instead of skip.
 
 The generators are OptiX-only, excluded from the default build, and must be run deliberately from the repository root:
 
@@ -86,7 +86,7 @@ cmake --build build --target test_rendering_raytracing_generate_golden \
 ./build/tests/src/rendering/raytracing/test_rendering_raytracing_generate_overlay_golden
 ```
 
-Run overlay comparisons with `ctest --test-dir build -L '^overlay-golden$' --output-on-failure --timeout 300 -j5`. Comparators write target/current/diff review images below `build/raytracing_golden_artifacts/<backend>/`; override `RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ARTIFACT_ROOT` at configure time if needed.
+Run overlay comparisons with `ctest --test-dir build -L '^overlay-golden$' --output-on-failure --timeout 300 -j5` (this selects the backend comparators plus the backend-independent corpus validation suite; per-backend sub-labels `overlay-golden-<backend>` and `overlay-golden-corpus` exist too). Comparators write target/current/diff review images below `build/raytracing_golden_artifacts/<backend>/`; override `RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ARTIFACT_ROOT` at configure time if needed.
 
 Publishing is a two-repository operation after reviewing the generated canonical files and comparison artifacts: first, a maintainer creates a branch from the detached revision in `tests/data`, commits and pushes the test-data changes, and records that commit hash; second, update `DATA_REVISION` in `tests/download_data.sh` to that hash and enable the CI `RL_TOOLS_REQUIRE_RAYTRACING_GOLDENS` publication gate in the RL-Tools repository. Do not enable the gate before both steps are complete.
 

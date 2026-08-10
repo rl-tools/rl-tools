@@ -54,11 +54,13 @@ namespace overlay_scenarios {
         std::size_t overlay;
         std::size_t asset;
         CameraMask cameras;
-        Transform initial_transform;
-        Transform updated_transform;
-        bool moves_in_updated_state;
-        std::size_t expected_first_slot;
+        Transform transform;
         std::uint32_t expected_id;
+    };
+
+    struct MoveDefinition {
+        std::size_t placement;
+        Transform transform;
     };
 
     struct Definition {
@@ -66,7 +68,7 @@ namespace overlay_scenarios {
         const char* id;
         std::vector<AssetDefinition> assets;
         std::vector<PlacementDefinition> placements;
-        CameraMask affected_camera_mask;
+        std::vector<MoveDefinition> moves;
     };
 
     constexpr Transform pose(float x, float y, float z){
@@ -83,7 +85,7 @@ namespace overlay_scenarios {
             "shared_scene_no_dynamic",
             {},
             {},
-            0,
+            {},
         };
         static const Definition all_shared_mesh_transform = {
             Scenario::ALL_SHARED_MESH_TRANSFORM,
@@ -93,10 +95,12 @@ namespace overlay_scenarios {
                 {"shared-green", {{0.1f, 0.9f, 0.1f}}, 0.34f, 1},
             },
             {
-                {0, 0, ALL_CAMERAS, pose(4.0f, -0.9f, 0.0f), pose(3.2f, -0.9f, 0.8f), true, 0, 1},
-                {0, 1, ALL_CAMERAS, pose(4.0f, 0.9f, 0.0f), pose(4.0f, 0.9f, 0.0f), false, 1, 2},
+                {0, 0, ALL_CAMERAS, pose(4.0f, -0.9f, 0.0f), 1},
+                {0, 1, ALL_CAMERAS, pose(4.0f, 0.9f, 0.0f), 2},
             },
-            ALL_CAMERAS,
+            {
+                {0, pose(3.2f, -0.9f, 0.8f)},
+            },
         };
         static const Definition partially_shared_mesh_transform = {
             Scenario::PARTIALLY_SHARED_MESH_TRANSFORM,
@@ -109,13 +113,15 @@ namespace overlay_scenarios {
                 {"private-3", {{0.1f, 0.1f, 0.9f}}, 0.34f, 2},
             },
             {
-                {0, 0, static_cast<CameraMask>(camera_bit(0) | camera_bit(1)), pose(4.0f, -1.0f, 1.0f), pose(3.2f, -1.0f, 0.4f), true, 0, 1},
-                {1, 1, camera_bit(0), pose(4.0f, camera_y(0), -0.9f), pose(4.0f, camera_y(0), -0.9f), false, 0, 5},
-                {2, 2, camera_bit(1), pose(4.0f, camera_y(1), -0.9f), pose(4.0f, camera_y(1), -0.9f), false, 0, 9},
-                {3, 3, camera_bit(2), pose(4.0f, camera_y(2), -0.9f), pose(4.0f, camera_y(2), -0.9f), false, 0, 13},
-                {4, 4, camera_bit(3), pose(4.0f, camera_y(3), -0.9f), pose(4.0f, camera_y(3), -0.9f), false, 0, 17},
+                {0, 0, static_cast<CameraMask>(camera_bit(0) | camera_bit(1)), pose(4.0f, -1.0f, 1.0f), 1},
+                {1, 1, camera_bit(0), pose(4.0f, camera_y(0), -0.9f), 5},
+                {2, 2, camera_bit(1), pose(4.0f, camera_y(1), -0.9f), 9},
+                {3, 3, camera_bit(2), pose(4.0f, camera_y(2), -0.9f), 13},
+                {4, 4, camera_bit(3), pose(4.0f, camera_y(3), -0.9f), 17},
             },
-            static_cast<CameraMask>(camera_bit(0) | camera_bit(1)),
+            {
+                {0, pose(3.2f, -1.0f, 0.4f)},
+            },
         };
         static const Definition shared_mesh_individual_transform = {
             Scenario::SHARED_MESH_INDIVIDUAL_TRANSFORM,
@@ -124,12 +130,14 @@ namespace overlay_scenarios {
                 {"mesh-shared-pose-private", {{0.1f, 0.9f, 0.1f}}, 0.34f, 1},
             },
             {
-                {0, 0, camera_bit(0), pose(4.0f, camera_y(0), 0.0f), pose(4.0f, camera_y(0), 0.0f), false, 0, 1},
-                {1, 0, camera_bit(1), pose(4.0f, camera_y(1), 0.0f), pose(4.0f, camera_y(1), 0.0f), false, 0, 5},
-                {2, 0, camera_bit(2), pose(4.0f, camera_y(2), 0.0f), pose(3.2f, 0.4f, 0.8f), true, 0, 9},
-                {3, 0, camera_bit(3), pose(4.0f, camera_y(3), 0.0f), pose(4.0f, camera_y(3), 0.0f), false, 0, 13},
+                {0, 0, camera_bit(0), pose(4.0f, camera_y(0), 0.0f), 1},
+                {1, 0, camera_bit(1), pose(4.0f, camera_y(1), 0.0f), 5},
+                {2, 0, camera_bit(2), pose(4.0f, camera_y(2), 0.0f), 9},
+                {3, 0, camera_bit(3), pose(4.0f, camera_y(3), 0.0f), 13},
             },
-            camera_bit(2),
+            {
+                {2, pose(3.2f, 0.4f, 0.8f)},
+            },
         };
         static const Definition disjoint = {
             Scenario::DISJOINT,
@@ -141,12 +149,14 @@ namespace overlay_scenarios {
                 {"disjoint-3", {{0.9f, 0.1f, 0.1f}}, 0.44f, 0},
             },
             {
-                {0, 0, camera_bit(0), pose(4.0f, camera_y(0), 0.0f), pose(4.0f, camera_y(0), 0.0f), false, 0, 1},
-                {1, 1, camera_bit(1), pose(4.0f, camera_y(1), 0.0f), pose(3.2f, -0.4f, 0.8f), true, 0, 5},
-                {2, 2, camera_bit(2), pose(4.0f, camera_y(2), 0.0f), pose(4.0f, camera_y(2), 0.0f), false, 0, 9},
-                {3, 3, camera_bit(3), pose(4.0f, camera_y(3), 0.0f), pose(4.0f, camera_y(3), 0.0f), false, 0, 13},
+                {0, 0, camera_bit(0), pose(4.0f, camera_y(0), 0.0f), 1},
+                {1, 1, camera_bit(1), pose(4.0f, camera_y(1), 0.0f), 5},
+                {2, 2, camera_bit(2), pose(4.0f, camera_y(2), 0.0f), 9},
+                {3, 3, camera_bit(3), pose(4.0f, camera_y(3), 0.0f), 13},
             },
-            camera_bit(1),
+            {
+                {1, pose(3.2f, -0.4f, 0.8f)},
+            },
         };
         static const Definition mixed = {
             Scenario::MIXED,
@@ -161,18 +171,20 @@ namespace overlay_scenarios {
                 {"mixed-private-3", {{0.9f, 0.1f, 0.1f}}, 0.32f, 0},
             },
             {
-                {0, 0, ALL_CAMERAS, pose(4.0f, -1.3f, 1.3f), pose(4.0f, -1.3f, 1.3f), false, 0, 1},
-                {1, 1, static_cast<CameraMask>(camera_bit(0) | camera_bit(1)), pose(4.0f, 0.3f, 1.3f), pose(4.0f, 0.3f, 1.3f), false, 0, 5},
-                {2, 2, camera_bit(0), pose(4.0f, camera_y(0), 0.0f), pose(4.0f, camera_y(0), 0.0f), false, 0, 9},
-                {6, 3, camera_bit(0), pose(4.0f, camera_y(0), -1.3f), pose(4.0f, camera_y(0), -1.3f), false, 0, 25},
-                {3, 2, camera_bit(1), pose(4.0f, camera_y(1), 0.0f), pose(4.0f, camera_y(1), 0.0f), false, 0, 13},
-                {7, 4, camera_bit(1), pose(4.0f, camera_y(1), -1.3f), pose(4.0f, camera_y(1), -1.3f), false, 0, 29},
-                {4, 2, camera_bit(2), pose(4.0f, camera_y(2), 0.0f), pose(3.2f, 0.4f, 0.7f), true, 0, 17},
-                {8, 5, camera_bit(2), pose(4.0f, camera_y(2), -1.3f), pose(4.0f, camera_y(2), -1.3f), false, 0, 33},
-                {5, 2, camera_bit(3), pose(4.0f, camera_y(3), 0.0f), pose(4.0f, camera_y(3), 0.0f), false, 0, 21},
-                {9, 6, camera_bit(3), pose(4.0f, camera_y(3), -1.3f), pose(4.0f, camera_y(3), -1.3f), false, 0, 37},
+                {0, 0, ALL_CAMERAS, pose(4.0f, -1.3f, 1.3f), 1},
+                {1, 1, static_cast<CameraMask>(camera_bit(0) | camera_bit(1)), pose(4.0f, 0.3f, 1.3f), 5},
+                {2, 2, camera_bit(0), pose(4.0f, camera_y(0), 0.0f), 9},
+                {6, 3, camera_bit(0), pose(4.0f, camera_y(0), -1.3f), 25},
+                {3, 2, camera_bit(1), pose(4.0f, camera_y(1), 0.0f), 13},
+                {7, 4, camera_bit(1), pose(4.0f, camera_y(1), -1.3f), 29},
+                {4, 2, camera_bit(2), pose(4.0f, camera_y(2), 0.0f), 17},
+                {8, 5, camera_bit(2), pose(4.0f, camera_y(2), -1.3f), 33},
+                {5, 2, camera_bit(3), pose(4.0f, camera_y(3), 0.0f), 21},
+                {9, 6, camera_bit(3), pose(4.0f, camera_y(3), -1.3f), 37},
             },
-            camera_bit(2),
+            {
+                {6, pose(3.2f, 0.4f, 0.7f)},
+            },
         };
 
         switch(scenario){
@@ -188,6 +200,27 @@ namespace overlay_scenarios {
 
     inline const char* scenario_id(Scenario scenario){
         return definition(scenario).id;
+    }
+
+    inline bool has_update(const Definition& scenario_definition){
+        return !scenario_definition.moves.empty();
+    }
+
+    inline bool moves(const Definition& scenario_definition, std::size_t placement){
+        for(const auto& move : scenario_definition.moves){
+            if(move.placement == placement){
+                return true;
+            }
+        }
+        return false;
+    }
+
+    inline CameraMask affected_camera_mask(const Definition& scenario_definition){
+        CameraMask mask = 0;
+        for(const auto& move : scenario_definition.moves){
+            mask |= scenario_definition.placements[move.placement].cameras;
+        }
+        return mask;
     }
 
     template <typename T_T, typename T_TI>
@@ -224,7 +257,6 @@ namespace overlay_scenarios {
         std::vector<rl_tools::rendering::raytracing::AssetHandle> assets;
         std::vector<rl_tools::rendering::raytracing::OverlayPlacement> placements;
         std::vector<std::uint32_t> ids;
-        std::array<std::size_t, NUM_CAMERAS> cameras = {{0, 1, 2, 3}};
         bool initial_built = false;
     };
 
@@ -277,13 +309,8 @@ namespace overlay_scenarios {
         return state;
     }
 
-    template <typename TI>
-    constexpr std::array<TI, NUM_CAMERAS> identity_camera_mapping(){
-        return {{static_cast<TI>(0), static_cast<TI>(1), static_cast<TI>(2), static_cast<TI>(3)}};
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void build_initial(DEVICE& device, rl_tools::rendering::raytracing::Renderer<SPEC>& renderer, State& state, const std::array<typename SPEC::TI, NUM_CAMERAS>& camera_mapping){
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void build_initial(DEVICE& device, rl_tools::rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, State& state){
         static_assert(SPEC::ENABLE_OVERLAYS, "Overlay scenarios require an overlay specification");
         static_assert(static_cast<std::size_t>(SPEC::NUM_CAMERAS) >= NUM_CAMERAS, "Overlay scenarios require four mapped cameras");
         static_assert(static_cast<std::size_t>(SPEC::NUM_OVERLAYS) >= NUM_OVERLAYS, "Overlay scenarios require ten overlays");
@@ -296,22 +323,16 @@ namespace overlay_scenarios {
         std::array<bool, SPEC::NUM_OVERLAYS> attached = {};
         state.placements.reserve(scenario_definition.placements.size());
         state.ids.reserve(scenario_definition.placements.size());
-        for(std::size_t logical_camera = 0; logical_camera < NUM_CAMERAS; logical_camera++){
-            state.cameras[logical_camera] = static_cast<std::size_t>(camera_mapping[logical_camera]);
-        }
         for(const auto& placement_definition : scenario_definition.placements){
             if(!attached[placement_definition.overlay]){
-                for(std::size_t logical_camera = 0; logical_camera < NUM_CAMERAS; logical_camera++){
-                    if((placement_definition.cameras & camera_bit(logical_camera)) != 0){
-                        rl_tools::attach(device, renderer, camera_mapping[logical_camera], rl_tools::rendering::raytracing::OverlayIndex{placement_definition.overlay});
+                for(std::size_t camera = 0; camera < NUM_CAMERAS; camera++){
+                    if((placement_definition.cameras & camera_bit(camera)) != 0){
+                        rl_tools::attach(device, renderer, static_cast<typename SPEC::TI>(camera), rl_tools::rendering::raytracing::OverlayIndex{placement_definition.overlay});
                     }
                 }
                 attached[placement_definition.overlay] = true;
             }
-            const auto placement = rl_tools::spawn(device, renderer, rl_tools::rendering::raytracing::OverlayIndex{placement_definition.overlay}, state.assets[placement_definition.asset], placement_definition.initial_transform.data());
-            if(placement.first_slot != placement_definition.expected_first_slot){
-                throw std::logic_error("Overlay scenario placement slot changed");
-            }
+            const auto placement = rl_tools::spawn(device, renderer, rl_tools::rendering::raytracing::OverlayIndex{placement_definition.overlay}, state.assets[placement_definition.asset], placement_definition.transform.data());
             const auto id = static_cast<std::uint32_t>(state.scene.instances.size() + placement_definition.overlay * SPEC::MAX_OVERLAY_INSTANCES + placement.first_slot);
             if(id != placement_definition.expected_id){
                 throw std::logic_error("Overlay scenario instance ID changed");
@@ -322,22 +343,15 @@ namespace overlay_scenarios {
         state.initial_built = true;
     }
 
-    template <typename DEVICE, typename SPEC>
-    void build_initial(DEVICE& device, rl_tools::rendering::raytracing::Renderer<SPEC>& renderer, State& state){
-        build_initial(device, renderer, state, identity_camera_mapping<typename SPEC::TI>());
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void apply_update(DEVICE& device, rl_tools::rendering::raytracing::Renderer<SPEC>& renderer, const State& state){
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void apply_update(DEVICE& device, rl_tools::rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const State& state){
         if(!state.initial_built){
             throw std::logic_error("Overlay scenario initial state has not been built");
         }
         const auto& scenario_definition = definition(state.scenario);
-        for(std::size_t placement_i = 0; placement_i < scenario_definition.placements.size(); placement_i++){
-            const auto& placement_definition = scenario_definition.placements[placement_i];
-            if(placement_definition.moves_in_updated_state){
-                rl_tools::set_transform(device, renderer, rl_tools::rendering::raytracing::OverlayIndex{placement_definition.overlay}, state.placements[placement_i], placement_definition.updated_transform.data());
-            }
+        for(const auto& move : scenario_definition.moves){
+            const auto& placement_definition = scenario_definition.placements[move.placement];
+            rl_tools::set_transform(device, renderer, rl_tools::rendering::raytracing::OverlayIndex{placement_definition.overlay}, state.placements[move.placement], move.transform.data());
         }
     }
 }
