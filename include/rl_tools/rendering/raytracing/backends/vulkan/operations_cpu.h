@@ -294,6 +294,10 @@ namespace rl_tools {
                 destroy_buffer(ctx, buffer);
             }
             ctx.overlay_instance_buffers.clear();
+            for(auto& buffer : ctx.overlay_sample_instance_buffers){
+                destroy_buffer(ctx, buffer);
+            }
+            ctx.overlay_sample_instance_buffers.clear();
             destroy_buffer(ctx, ctx.overlay_scratch);
             ctx.overlay_scratch_stride = 0;
             destroy_buffer(ctx, ctx.instance_data);
@@ -343,6 +347,11 @@ namespace rl_tools {
 
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             malloc(device, renderer.transforms);
+        }
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
+            malloc(device, renderer.transforms_motion);
+            std::memset(data(renderer.transforms_motion), 0, decltype(renderer.transforms_motion)::SPEC::SIZE_BYTES);
+            renderer.transforms_motion_staging.assign((size_t)SPEC::MOTION_BLUR_SAMPLES * SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12, 0.0f);
         }
 
         renderer.backend = new rendering::raytracing::backends::RendererState<rendering::raytracing::backends::Vulkan, SPEC>{};
@@ -509,6 +518,9 @@ namespace rl_tools {
         vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_depth), "Vulkan: command buffer allocation failed");
         vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_collision), "Vulkan: command buffer allocation failed");
         vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_segmentation), "Vulkan: command buffer allocation failed");
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
+            vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_dynamic), "Vulkan: command buffer allocation failed");
+        }
 
         VkFenceCreateInfo fence_info{};
         fence_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
@@ -555,6 +567,11 @@ namespace rl_tools {
             pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
             pipeline_layout_info.setLayoutCount = 1;
             pipeline_layout_info.pSetLayouts = &ctx->descriptor_set_layout;
+            // per-pass shutter time for the dynamic-motion-blur dispatches; harmless for entry
+            // points that do not declare the push-constant block
+            VkPushConstantRange push_constant_range{VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float)};
+            pipeline_layout_info.pushConstantRangeCount = 1;
+            pipeline_layout_info.pPushConstantRanges = &push_constant_range;
             vk::check(device, vkCreatePipelineLayout(ctx->device, &pipeline_layout_info, nullptr, &ctx->pipeline_layout), "Vulkan: pipeline layout creation failed");
         }
 
@@ -580,6 +597,10 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_SEGMENTATION) {
             spirv = rendering::raytracing::backends::vulkan::device_spirv_segmentation(spirv_size);
             ctx->module_segmentation = make_module(spirv, spirv_size);
+        }
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
+            spirv = rendering::raytracing::backends::vulkan::device_spirv_resolve(spirv_size);
+            ctx->module_resolve = make_module(spirv, spirv_size);
         }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         spirv = rendering::raytracing::backends::vulkan::device_spirv_collision(spirv_size);
@@ -618,6 +639,17 @@ namespace rl_tools {
             static_assert(utils::typing::is_same_v<typename SPEC::OBSERVATION_T, float>, "The Vulkan raytracing backend requires OBSERVATION_T = float");
             ctx->observation = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * SPEC::OBSERVATION_CHANNELS * sizeof(float), STORAGE, HOST_MEMORY, true);
             renderer.observation._data = (float*)ctx->observation.mapped;
+        }
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
+            constexpr VkBufferUsageFlags ACCUMULATOR = VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT; // vkCmdFillBuffer zeroes them at frame start
+            if constexpr (SPEC::HAS_RGB) {
+                ctx->rgb_accumulator = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * 3 * sizeof(float), ACCUMULATOR, HOST_MEMORY, true);
+                renderer.rgb_accumulator._data = (float*)ctx->rgb_accumulator.mapped;
+            }
+            if constexpr (SPEC::HAS_DEPTH) {
+                ctx->depth_accumulator = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(float), ACCUMULATOR, HOST_MEMORY, true);
+                renderer.depth_accumulator._data = (float*)ctx->depth_accumulator.mapped;
+            }
         }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         ctx->collision_results = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES * sizeof(rendering::raytracing::CollisionResult), STORAGE, HOST_MEMORY, true);
@@ -815,7 +847,14 @@ namespace rl_tools {
 
         const size_t num_objects = all_objects.size();
         const size_t num_scene_instances = scene.instances.size();
-        const size_t total_instances = num_scene_instances + (SPEC::ENABLE_OVERLAYS ? (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES : 0);
+        // dynamic motion blur appends one extra overlay id range per motion sample: sample s's
+        // instances carry shifted custom indices (num_scene + num_overlay_slots * (1 + s) + slot)
+        // so each pass's hits index a private slice of the instance side tables with no shader
+        // changes; the contract ids [num_scene, num_scene + num_overlay_slots) stay exclusive to
+        // the shutter-close state that segmentation reads
+        constexpr size_t num_overlay_slots = SPEC::ENABLE_OVERLAYS ? (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES : 0;
+        constexpr size_t overlay_id_ranges = SPEC::ENABLE_DYNAMIC_MOTION_BLUR ? (size_t)1 + SPEC::MOTION_BLUR_SAMPLES : 1;
+        const size_t total_instances = num_scene_instances + num_overlay_slots * overlay_id_ranges;
         utils::assert_exit(device, total_instances < ((size_t)1 << 24), "Vulkan: instanceCustomIndex limits instance ids to 24 bits");
         ctx.num_scene_instances = (uint32_t)num_scene_instances;
         {
@@ -1057,6 +1096,13 @@ namespace rl_tools {
                 ctx.vkCmdBuildAccelerationStructuresKHR(command_buffer, (uint32_t)SPEC::NUM_OVERLAYS, empty_build_infos.data(), empty_range_pointers.data());
                 vk::one_shot_end(device, ctx, command_buffer);
             }
+            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+                for(size_t sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
+                    ctx.overlay_sample_instance_buffers.push_back(vk::create_buffer(device, ctx, (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * sizeof(VkAccelerationStructureInstanceKHR),
+                        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                        HOST_MEMORY, true));
+                }
+            }
             ctx.overlay_num_active = vk::create_buffer(device, ctx, (size_t)SPEC::NUM_OVERLAYS * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, HOST_MEMORY, true);
             std::memset(ctx.overlay_num_active.mapped, 0, ctx.overlay_num_active.size);
             ctx.overlay_attachments = vk::create_buffer(device, ctx, (size_t)SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, HOST_MEMORY, true);
@@ -1084,6 +1130,9 @@ namespace rl_tools {
                 int32_t overlay_count;
                 VkBool32 semantic_segmentation;
                 VkBool32 has_observation;
+                VkBool32 dynamic_motion_blur;
+                VkBool32 resolve_rgb;
+                VkBool32 resolve_depth;
             };
             static_assert(sizeof(SpecializationData) == vk::specialization_constants::COUNT * 4);
             SpecializationData specialization_data{};
@@ -1100,6 +1149,9 @@ namespace rl_tools {
             specialization_data.overlay_count = SPEC::ENABLE_OVERLAYS ? (int32_t)SPEC::MAX_OVERLAYS_PER_CAMERA : 0;
             specialization_data.semantic_segmentation = SPEC::SEMANTIC_SEGMENTATION ? VK_TRUE : VK_FALSE;
             specialization_data.has_observation = SPEC::HAS_OBSERVATION ? VK_TRUE : VK_FALSE;
+            specialization_data.dynamic_motion_blur = SPEC::ENABLE_DYNAMIC_MOTION_BLUR ? VK_TRUE : VK_FALSE;
+            specialization_data.resolve_rgb = (SPEC::ENABLE_DYNAMIC_MOTION_BLUR && SPEC::HAS_RGB) ? VK_TRUE : VK_FALSE;
+            specialization_data.resolve_depth = (SPEC::ENABLE_DYNAMIC_MOTION_BLUR && SPEC::HAS_DEPTH) ? VK_TRUE : VK_FALSE;
             VkSpecializationMapEntry map_entries[vk::specialization_constants::COUNT];
             for(uint32_t constant_i = 0; constant_i < vk::specialization_constants::COUNT; constant_i++){
                 map_entries[constant_i] = {constant_i, constant_i * 4, 4};
@@ -1132,6 +1184,9 @@ namespace rl_tools {
             }
             if constexpr (SPEC::HAS_SEGMENTATION) {
                 ctx.segmentation_pipeline = make_pipeline(ctx.module_segmentation);
+            }
+            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
+                ctx.resolve_pipeline = make_pipeline(ctx.module_resolve);
             }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
             ctx.collision_pipeline = make_pipeline(ctx.module_collision);
@@ -1187,6 +1242,8 @@ namespace rl_tools {
             buffer_infos[vk::bindings::INSTANCE_CLASSES] = buffer_or_dummy(ctx.instance_classes);
             buffer_infos[vk::bindings::OVERLAY_ATTACHMENTS] = buffer_or_dummy(ctx.overlay_attachments);
             buffer_infos[vk::bindings::OVERLAY_NUM_ACTIVE] = buffer_or_dummy(ctx.overlay_num_active);
+            buffer_infos[vk::bindings::RGB_ACCUMULATOR] = buffer_or_dummy(ctx.rgb_accumulator);
+            buffer_infos[vk::bindings::DEPTH_ACCUMULATOR] = buffer_or_dummy(ctx.depth_accumulator);
 
             std::vector<VkWriteDescriptorSet> writes;
             for(uint32_t binding_i = 0; binding_i < vk::bindings::COUNT; binding_i++){
@@ -1373,6 +1430,52 @@ namespace rl_tools {
                 build_overlays.push_back(overlay);
             }
         }
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+            // per-sample overlay instance descriptors + shifted-id side-table slices consumed by
+            // render_launch's per-sample builds; layout mirrors the shutter-close path above
+            rendering::raytracing::detail::flush_overlay_motion_transforms(renderer);
+            constexpr size_t SLAB = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12;
+            constexpr size_t num_overlay_slots = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
+            for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
+                const float* transforms_base = data(renderer.transforms_motion) + sample * SLAB;
+                auto* sample_descriptors = (VkAccelerationStructureInstanceKHR*)ctx.overlay_sample_instance_buffers[sample].mapped;
+                for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+                    auto& overlay_state = renderer.overlays[overlay];
+                    auto* descriptors = sample_descriptors + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES;
+                    uint32_t num_active = 0;
+                    for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
+                        const auto& host_slot = overlay_state.slots[slot];
+                        if(!host_slot.active) continue;
+                        const size_t global = (size_t)ctx.num_scene_instances + num_overlay_slots * (1 + (size_t)sample) + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES + slot;
+                        float world[12];
+                        rendering::raytracing::detail::compose_overlay_slot_transform(renderer, transforms_base, overlay, slot, world);
+                        VkAccelerationStructureInstanceKHR& descriptor = descriptors[num_active];
+                        descriptor = {};
+                        std::memcpy(descriptor.transform.matrix, world, sizeof(descriptor.transform.matrix));
+                        descriptor.instanceCustomIndex = (uint32_t)global;
+                        descriptor.mask = 0xFF;
+                        descriptor.accelerationStructureReference = ctx.blas_addresses[host_slot.object];
+
+                        auto& data_entry = instance_data[global];
+                        data_entry = {};
+                        for(int element = 0; element < 12; element++){
+                            data_entry.object_to_world[element] = world[element];
+                        }
+                        const bool identity = rendering::raytracing::detail::transform_is_identity(world);
+                        if(identity){
+                            std::memcpy(data_entry.world_to_object, data_entry.object_to_world, sizeof(data_entry.world_to_object));
+                        }
+                        else{
+                            rendering::raytracing::detail::invert_transform(world, data_entry.world_to_object);
+                        }
+                        data_entry.identity = identity ? 1 : 0;
+                        instance_record_base[global] = ctx.object_record_base[host_slot.object];
+                        instance_classes[global] = ctx.object_classes[host_slot.object];
+                        num_active++;
+                    }
+                }
+            }
+        }
         if(renderer.attachments_dirty){
             auto* attachments = (uint32_t*)ctx.overlay_attachments.mapped;
             for(size_t index = 0; index < (size_t)SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA; index++){
@@ -1467,7 +1570,138 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void render_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
         namespace vk = rendering::raytracing::backends::vulkan;
+        using TI = typename SPEC::TI;
         auto& ctx = vk::context(renderer);
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+            // one command buffer per frame, re-recorded because the build ranges track the live
+            // instance counts: zero the accumulators, then per motion sample build the overlay
+            // TLASes in place from that sample's descriptor slice and run the accumulate
+            // dispatches, then restore the shutter-close state (segmentation, probes, steady
+            // state) and resolve — a single fenced submit, no host work in between
+            vk::wait_render_in_flight(device, ctx);
+            uint32_t num_active_per_overlay[SPEC::NUM_OVERLAYS];
+            for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+                uint32_t num_active = 0;
+                for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
+                    num_active += renderer.overlays[overlay].slots[slot].active ? 1 : 0;
+                }
+                num_active_per_overlay[overlay] = num_active;
+            }
+            VkCommandBuffer command_buffer = ctx.cb_dynamic;
+            vk::check(device, vkResetCommandBuffer(command_buffer, 0), "Vulkan: dynamic command buffer reset failed");
+            VkCommandBufferBeginInfo begin_info{};
+            begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            vk::check(device, vkBeginCommandBuffer(command_buffer, &begin_info), "Vulkan: dynamic command buffer begin failed");
+
+            const auto barrier = [&](VkPipelineStageFlags src_stage, VkAccessFlags src_access, VkPipelineStageFlags dst_stage, VkAccessFlags dst_access){
+                VkMemoryBarrier memory_barrier{};
+                memory_barrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+                memory_barrier.srcAccessMask = src_access;
+                memory_barrier.dstAccessMask = dst_access;
+                vkCmdPipelineBarrier(command_buffer, src_stage, dst_stage, 0, 1, &memory_barrier, 0, nullptr, 0, nullptr);
+            };
+            // order behind a possibly in-flight update build and clear the accumulators
+            barrier(VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                    VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR | VK_ACCESS_SHADER_WRITE_BIT,
+                    VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+                    VK_ACCESS_TRANSFER_WRITE_BIT | VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR);
+            if constexpr (SPEC::HAS_RGB){
+                vkCmdFillBuffer(command_buffer, ctx.rgb_accumulator.buffer, 0, VK_WHOLE_SIZE, 0);
+            }
+            if constexpr (SPEC::HAS_DEPTH){
+                vkCmdFillBuffer(command_buffer, ctx.depth_accumulator.buffer, 0, VK_WHOLE_SIZE, 0);
+            }
+            barrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
+                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+
+            VkDeviceAddress scratch_address = vk::buffer_address(ctx, ctx.overlay_scratch);
+            scratch_address = (scratch_address + ctx.min_scratch_alignment - 1) & ~(VkDeviceAddress)(ctx.min_scratch_alignment - 1);
+            const auto record_builds = [&](auto&& instance_address_for_overlay){
+                std::vector<VkAccelerationStructureGeometryKHR> geometries;
+                std::vector<VkAccelerationStructureBuildGeometryInfoKHR> build_infos;
+                std::vector<VkAccelerationStructureBuildRangeInfoKHR> ranges;
+                std::vector<size_t> overlays;
+                for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+                    if(num_active_per_overlay[overlay] == 0) continue;
+                    VkAccelerationStructureGeometryKHR geometry{};
+                    geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+                    geometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+                    geometry.geometry.instances = {};
+                    geometry.geometry.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
+                    geometry.geometry.instances.data.deviceAddress = instance_address_for_overlay(overlay);
+                    geometries.push_back(geometry);
+                    VkAccelerationStructureBuildGeometryInfoKHR build_info{};
+                    build_info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+                    build_info.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+                    build_info.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+                    build_info.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+                    build_info.geometryCount = 1;
+                    build_infos.push_back(build_info);
+                    VkAccelerationStructureBuildRangeInfoKHR range{};
+                    range.primitiveCount = num_active_per_overlay[overlay];
+                    ranges.push_back(range);
+                    overlays.push_back(overlay);
+                }
+                if(build_infos.empty()){
+                    return;
+                }
+                std::vector<const VkAccelerationStructureBuildRangeInfoKHR*> range_pointers(build_infos.size());
+                for(size_t build_i = 0; build_i < build_infos.size(); build_i++){
+                    build_infos[build_i].pGeometries = &geometries[build_i];
+                    build_infos[build_i].dstAccelerationStructure = ctx.overlay_tlas[overlays[build_i]];
+                    build_infos[build_i].scratchData.deviceAddress = scratch_address + (VkDeviceAddress)overlays[build_i] * ctx.overlay_scratch_stride;
+                    range_pointers[build_i] = &ranges[build_i];
+                }
+                ctx.vkCmdBuildAccelerationStructuresKHR(command_buffer, (uint32_t)build_infos.size(), build_infos.data(), range_pointers.data());
+            };
+            constexpr uint32_t fb_groups_x = (SPEC::FB_WIDTH + vk::WORKGROUP_SIZE - 1) / vk::WORKGROUP_SIZE;
+            constexpr uint32_t fb_groups_y = (SPEC::FB_HEIGHT + vk::WORKGROUP_SIZE - 1) / vk::WORKGROUP_SIZE;
+            vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, ctx.pipeline_layout, 0, 1, &ctx.descriptor_set, 0, nullptr);
+            constexpr VkDeviceSize sample_overlay_stride = (VkDeviceSize)SPEC::MAX_OVERLAY_INSTANCES * sizeof(VkAccelerationStructureInstanceKHR);
+            for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
+                const VkDeviceAddress sample_base = vk::buffer_address(ctx, ctx.overlay_sample_instance_buffers[sample]);
+                record_builds([&](TI overlay){ return sample_base + (VkDeviceAddress)overlay * sample_overlay_stride; });
+                barrier(VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,
+                        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR);
+                const float shutter_t = ((float)sample + 0.5f) / (float)SPEC::MOTION_BLUR_SAMPLES;
+                vkCmdPushConstants(command_buffer, ctx.pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(float), &shutter_t);
+                if constexpr (SPEC::HAS_RGB){
+                    vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, ctx.rgb_pipeline);
+                    vkCmdDispatch(command_buffer, fb_groups_x, fb_groups_y, 1);
+                }
+                if constexpr (SPEC::HAS_DEPTH){
+                    vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, ctx.depth_pipeline);
+                    vkCmdDispatch(command_buffer, fb_groups_x, fb_groups_y, 1);
+                }
+                // WAR: the in-place rebuild of the next sample must wait for this pass's ray
+                // queries, and its accumulator writes must be visible to the next pass
+                barrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                        VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR | VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                        VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR | VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
+            }
+            record_builds([&](TI overlay){ return vk::buffer_address(ctx, ctx.overlay_instance_buffers[overlay]); });
+            barrier(VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,
+                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR);
+            if constexpr (SPEC::HAS_SEGMENTATION){
+                vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, ctx.segmentation_pipeline);
+                vkCmdDispatch(command_buffer, fb_groups_x, fb_groups_y, 1);
+            }
+            vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, ctx.resolve_pipeline);
+            vkCmdDispatch(command_buffer, fb_groups_x, fb_groups_y, 1);
+            VkMemoryBarrier to_host{};
+            to_host.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+            to_host.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT;
+            to_host.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+            vkCmdPipelineBarrier(command_buffer, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_PIPELINE_STAGE_HOST_BIT, 0, 1, &to_host, 0, nullptr, 0, nullptr);
+            vk::check(device, vkEndCommandBuffer(command_buffer), "Vulkan: dynamic command buffer end failed");
+            VkSubmitInfo submit_info{};
+            submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+            submit_info.commandBufferCount = 1;
+            submit_info.pCommandBuffers = &command_buffer;
+            vk::check(device, vkQueueSubmit(ctx.queue, 1, &submit_info, ctx.fence_render), "Vulkan: dynamic render submit failed");
+            ctx.render_in_flight = true;
+            return;
+        }
         vk::submit_render(device, ctx,
             SPEC::HAS_RGB ? ctx.cb_rgb : VK_NULL_HANDLE,
             SPEC::HAS_DEPTH ? ctx.cb_depth : VK_NULL_HANDLE,
@@ -1580,15 +1814,19 @@ namespace rl_tools {
             vk::destroy_buffer(ctx, ctx.observation);
             vk::destroy_buffer(ctx, ctx.collision_results);
             vk::destroy_buffer(ctx, ctx.probe_directions);
+            vk::destroy_buffer(ctx, ctx.rgb_accumulator);
+            vk::destroy_buffer(ctx, ctx.depth_accumulator);
             vk::destroy_buffer(ctx, ctx.dummy);
             if(ctx.rgb_pipeline != VK_NULL_HANDLE){ vkDestroyPipeline(ctx.device, ctx.rgb_pipeline, nullptr); }
             if(ctx.depth_pipeline != VK_NULL_HANDLE){ vkDestroyPipeline(ctx.device, ctx.depth_pipeline, nullptr); }
             if(ctx.collision_pipeline != VK_NULL_HANDLE){ vkDestroyPipeline(ctx.device, ctx.collision_pipeline, nullptr); }
             if(ctx.segmentation_pipeline != VK_NULL_HANDLE){ vkDestroyPipeline(ctx.device, ctx.segmentation_pipeline, nullptr); }
+            if(ctx.resolve_pipeline != VK_NULL_HANDLE){ vkDestroyPipeline(ctx.device, ctx.resolve_pipeline, nullptr); }
             if(ctx.module_rgb != VK_NULL_HANDLE){ vkDestroyShaderModule(ctx.device, ctx.module_rgb, nullptr); }
             if(ctx.module_depth != VK_NULL_HANDLE){ vkDestroyShaderModule(ctx.device, ctx.module_depth, nullptr); }
             if(ctx.module_collision != VK_NULL_HANDLE){ vkDestroyShaderModule(ctx.device, ctx.module_collision, nullptr); }
             if(ctx.module_segmentation != VK_NULL_HANDLE){ vkDestroyShaderModule(ctx.device, ctx.module_segmentation, nullptr); }
+            if(ctx.module_resolve != VK_NULL_HANDLE){ vkDestroyShaderModule(ctx.device, ctx.module_resolve, nullptr); }
             vkDestroyPipelineLayout(ctx.device, ctx.pipeline_layout, nullptr);
             vkDestroyDescriptorSetLayout(ctx.device, ctx.descriptor_set_layout, nullptr);
             vkDestroySampler(ctx.device, ctx.sampler, nullptr);
@@ -1621,6 +1859,15 @@ namespace rl_tools {
         renderer.collision_results._data = nullptr;
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             free(device, renderer.transforms);
+        }
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
+            free(device, renderer.transforms_motion);
+            if constexpr (SPEC::HAS_RGB) {
+                renderer.rgb_accumulator._data = nullptr;
+            }
+            if constexpr (SPEC::HAS_DEPTH) {
+                renderer.depth_accumulator._data = nullptr;
+            }
         }
     }
 

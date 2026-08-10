@@ -122,6 +122,9 @@ namespace rl_tools {
     void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
         namespace metal = rendering::raytracing::backends::metal;
         static_assert(utils::typing::is_same_v<typename SPEC::T, float>, "The Metal raytracing backend requires T = float");
+        // implemented on generic/OptiX/Vulkan; the Metal port (per-sample builds + accumulate
+        // tail + resolve kernel, same shape as Vulkan) must be written and validated on macOS
+        static_assert(!SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "dynamic motion blur is not yet implemented on the Metal backend");
 
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             malloc(device, renderer.transforms);

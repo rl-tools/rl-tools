@@ -7,13 +7,18 @@
 #include "renderer.h"
 
 // STATIC gives the stb implementations internal linkage so multiple TUs of one binary may include
-// this header without duplicate-symbol link errors.
+// this header without duplicate-symbol link errors; RL_TOOLS_STB_PROVIDED arbitrates with other
+// stb-providing headers (e.g. the test golden_io.h) so the implementation lands exactly once per
+// TU regardless of include order (stb's implementation section has no include guard).
+#ifndef RL_TOOLS_STB_PROVIDED
+#define RL_TOOLS_STB_PROVIDED
 #define STB_IMAGE_WRITE_STATIC
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
 #define STB_IMAGE_STATIC
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+#endif
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
@@ -1004,11 +1009,13 @@ namespace rl_tools {
     }
 
     // world = pose ∘ part_local ∘ articulation: the root slot's tensor entry carries the
-    // placement pose, non-root entries articulate their part in the part frame
+    // placement pose, non-root entries articulate their part in the part frame. The
+    // transforms_base overload lets the dynamic-motion-blur loop compose from a per-sample
+    // slab of transforms_motion, which shares the transforms tensor layout.
     template <typename SPEC, typename BACKEND>
-    void compose_overlay_slot_transform(const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, typename SPEC::TI overlay, typename SPEC::TI slot_index, float out[12]){
+    void compose_overlay_slot_transform(const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const float* transforms_base, typename SPEC::TI overlay, typename SPEC::TI slot_index, float out[12]){
         const auto& slot = renderer.overlays[overlay].slots[slot_index];
-        const float* row = data(renderer.transforms) + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES * 12;
+        const float* row = transforms_base + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES * 12;
         float composed[12];
         compose_transforms(row + (size_t)slot.pose_slot * 12, slot.part_local, composed);
         if(slot_index == slot.pose_slot){
@@ -1017,6 +1024,11 @@ namespace rl_tools {
         else{
             compose_transforms(composed, row + (size_t)slot_index * 12, out);
         }
+    }
+
+    template <typename SPEC, typename BACKEND>
+    void compose_overlay_slot_transform(const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, typename SPEC::TI overlay, typename SPEC::TI slot_index, float out[12]){
+        compose_overlay_slot_transform(renderer, data(renderer.transforms), overlay, slot_index, out);
     }
 
     inline void invert_transform(const float transform[12], float out[12]){
@@ -1033,6 +1045,104 @@ namespace rl_tools {
         out[3]  = -(out[0]*transform[3] + out[1]*transform[7] + out[2] *transform[11]);
         out[7]  = -(out[4]*transform[3] + out[5]*transform[7] + out[6] *transform[11]);
         out[11] = -(out[8]*transform[3] + out[9]*transform[7] + out[10]*transform[11]);
+    }
+
+    // rotation slerp (shortest arc) + translation lerp between two rigid 3x4 transforms; the
+    // single host-side interpolant behind set_transform_pair, so every backend consumes
+    // identical per-sample matrices. Exact for single-axis rotations below 180 degrees per
+    // shutter interval — faster motion must supply per-sample transforms directly.
+    inline void slerp_transform(const float a[12], const float b[12], float t, float out[12]){
+        auto quaternion_from_transform = [](const float m[12], float q[4]){
+            const float trace = m[0] + m[5] + m[10];
+            if(trace > 0){
+                const float s = std::sqrt(trace + 1.0f) * 2;
+                q[0] = 0.25f * s;
+                q[1] = (m[9] - m[6]) / s;
+                q[2] = (m[2] - m[8]) / s;
+                q[3] = (m[4] - m[1]) / s;
+            }
+            else if(m[0] > m[5] && m[0] > m[10]){
+                const float s = std::sqrt(1.0f + m[0] - m[5] - m[10]) * 2;
+                q[0] = (m[9] - m[6]) / s;
+                q[1] = 0.25f * s;
+                q[2] = (m[1] + m[4]) / s;
+                q[3] = (m[2] + m[8]) / s;
+            }
+            else if(m[5] > m[10]){
+                const float s = std::sqrt(1.0f + m[5] - m[0] - m[10]) * 2;
+                q[0] = (m[2] - m[8]) / s;
+                q[1] = (m[1] + m[4]) / s;
+                q[2] = 0.25f * s;
+                q[3] = (m[6] + m[9]) / s;
+            }
+            else{
+                const float s = std::sqrt(1.0f + m[10] - m[0] - m[5]) * 2;
+                q[0] = (m[4] - m[1]) / s;
+                q[1] = (m[2] + m[8]) / s;
+                q[2] = (m[6] + m[9]) / s;
+                q[3] = 0.25f * s;
+            }
+        };
+        float qa[4], qb[4];
+        quaternion_from_transform(a, qa);
+        quaternion_from_transform(b, qb);
+        float dot = qa[0]*qb[0] + qa[1]*qb[1] + qa[2]*qb[2] + qa[3]*qb[3];
+        if(dot < 0){
+            for(int i = 0; i < 4; i++) qb[i] = -qb[i];
+            dot = -dot;
+        }
+        float wa, wb;
+        if(dot > 0.9995f){
+            wa = 1 - t;
+            wb = t;
+        }
+        else{
+            const float theta = std::acos(dot);
+            const float sin_theta = std::sin(theta);
+            wa = std::sin((1 - t) * theta) / sin_theta;
+            wb = std::sin(t * theta) / sin_theta;
+        }
+        float q[4] = {wa*qa[0] + wb*qb[0], wa*qa[1] + wb*qb[1], wa*qa[2] + wb*qb[2], wa*qa[3] + wb*qb[3]};
+        const float norm = std::sqrt(q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3]);
+        for(int i = 0; i < 4; i++) q[i] /= norm;
+        const float w = q[0], x = q[1], y = q[2], z = q[3];
+        out[0] = 1 - 2*(y*y + z*z); out[1] = 2*(x*y - w*z);     out[2]  = 2*(x*z + w*y);
+        out[4] = 2*(x*y + w*z);     out[5] = 1 - 2*(x*x + z*z); out[6]  = 2*(y*z - w*x);
+        out[8] = 2*(x*z - w*y);     out[9] = 2*(y*z + w*x);     out[10] = 1 - 2*(x*x + y*y);
+        out[3]  = (1 - t) * a[3]  + t * b[3];
+        out[7]  = (1 - t) * a[7]  + t * b[7];
+        out[11] = (1 - t) * a[11] + t * b[11];
+    }
+
+    // writes one entry into every motion sample of the staging mirror (constant across the
+    // shutter = sharp); the single-pose verbs route through this so a dynamic-motion-blur spec
+    // driven only by them renders identically to camera-only blur
+    template <typename SPEC, typename BACKEND>
+    void stage_motion_entry(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, typename SPEC::TI overlay, typename SPEC::TI slot, const float entry[12]){
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+            constexpr size_t SLAB = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12;
+            for(typename SPEC::TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
+                std::memcpy(renderer.transforms_motion_staging.data() + sample * SLAB + ((size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES + slot) * 12, entry, 12 * sizeof(float));
+            }
+            renderer.transforms_motion_dirty[overlay] = true;
+        }
+    }
+
+    // stages host-verb writes into the transforms_motion tensor, mirroring
+    // flush_overlay_transforms; backends with a host-resident tensor call it in update()
+    template <typename SPEC, typename BACKEND>
+    void flush_overlay_motion_transforms(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
+        using TI = typename SPEC::TI;
+        constexpr size_t SLAB = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12;
+        float* transforms_motion = data(renderer.transforms_motion);
+        for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+            if(!renderer.transforms_motion_dirty[overlay]) continue;
+            for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
+                const size_t offset = sample * SLAB + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES * 12;
+                std::memcpy(transforms_motion + offset, renderer.transforms_motion_staging.data() + offset, (size_t)SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float));
+            }
+            renderer.transforms_motion_dirty[overlay] = false;
+        }
     }
 
     // flattens the asset pool for overlay spawns: appends pool objects to the combined object
@@ -1426,6 +1536,7 @@ namespace rl_tools {
             std::memcpy(slot.part_local, &renderer.asset_part_transforms[(record.first_part + part) * 12], sizeof(slot.part_local));
             std::memcpy(slot.transform_entry, part == 0 ? transform : rendering::raytracing::detail::IDENTITY_TRANSFORM, sizeof(slot.transform_entry));
             slot.active = true;
+            rendering::raytracing::detail::stage_motion_entry(renderer, (TI)overlay.index, first_slot + part, slot.transform_entry);
         }
         state.dirty = true;
         return {(size_t)first_slot, (size_t)record.num_parts, (size_t)record.first_part};
@@ -1446,19 +1557,58 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void set_transform(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, typename SPEC::TI part, const float transform[12]){
         static_assert(SPEC::ENABLE_OVERLAYS, "set_transform requires an overlay-enabled renderer specification");
+        using TI = typename SPEC::TI;
         auto& state = renderer.overlays[overlay.index];
         std::memcpy(state.slots[placement.first_slot + part].transform_entry, transform, 12 * sizeof(float));
         state.dirty = true;
+        rendering::raytracing::detail::stage_motion_entry(renderer, (TI)overlay.index, (TI)(placement.first_slot + part), transform);
     }
 
     // rigid move: sets the placement pose and resets per-part articulation state
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void set_transform(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const float transform[12]){
         static_assert(SPEC::ENABLE_OVERLAYS, "set_transform requires an overlay-enabled renderer specification");
+        using TI = typename SPEC::TI;
         auto& state = renderer.overlays[overlay.index];
         std::memcpy(state.slots[placement.first_slot].transform_entry, transform, 12 * sizeof(float));
+        rendering::raytracing::detail::stage_motion_entry(renderer, (TI)overlay.index, (TI)placement.first_slot, transform);
         for(size_t part = 1; part < placement.num_parts; part++){
             std::memcpy(state.slots[placement.first_slot + part].transform_entry, rendering::raytracing::detail::IDENTITY_TRANSFORM, 12 * sizeof(float));
+            rendering::raytracing::detail::stage_motion_entry(renderer, (TI)overlay.index, (TI)(placement.first_slot + part), rendering::raytracing::detail::IDENTITY_TRANSFORM);
+        }
+        state.dirty = true;
+    }
+
+    // dynamic motion blur: per-part shutter-open/close entries, slerped into every motion sample
+    // at the same midpoint shutter times the camera lerp uses; the close entry also becomes the
+    // steady-state transform (segmentation, probes, and the next frame render at shutter close)
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void set_transform_pair(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, typename SPEC::TI part, const float open[12], const float close[12]){
+        static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "set_transform_pair requires a dynamic-motion-blur renderer specification");
+        using TI = typename SPEC::TI;
+        auto& state = renderer.overlays[overlay.index];
+        std::memcpy(state.slots[placement.first_slot + part].transform_entry, close, 12 * sizeof(float));
+        state.dirty = true;
+        constexpr size_t SLAB = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12;
+        for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
+            const float shutter_t = ((float)sample + 0.5f) / (float)SPEC::MOTION_BLUR_SAMPLES;
+            float entry[12];
+            rendering::raytracing::detail::slerp_transform(open, close, shutter_t, entry);
+            std::memcpy(renderer.transforms_motion_staging.data() + sample * SLAB + ((size_t)overlay.index * SPEC::MAX_OVERLAY_INSTANCES + placement.first_slot + part) * 12, entry, 12 * sizeof(float));
+        }
+        renderer.transforms_motion_dirty[overlay.index] = true;
+    }
+
+    // rigid move with shutter-open/close poses: resets articulation in every sample
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void set_transform_pair(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const float open[12], const float close[12]){
+        static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "set_transform_pair requires a dynamic-motion-blur renderer specification");
+        using TI = typename SPEC::TI;
+        set_transform_pair(device, renderer, overlay, placement, (TI)0, open, close);
+        auto& state = renderer.overlays[overlay.index];
+        for(size_t part = 1; part < placement.num_parts; part++){
+            std::memcpy(state.slots[placement.first_slot + part].transform_entry, rendering::raytracing::detail::IDENTITY_TRANSFORM, 12 * sizeof(float));
+            rendering::raytracing::detail::stage_motion_entry(renderer, (TI)overlay.index, (TI)(placement.first_slot + part), rendering::raytracing::detail::IDENTITY_TRANSFORM);
         }
         state.dirty = true;
     }
@@ -1467,6 +1617,12 @@ namespace rl_tools {
     auto& transforms(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         static_assert(SPEC::ENABLE_OVERLAYS, "transforms requires an overlay-enabled renderer specification");
         return renderer.transforms;
+    }
+
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    auto& transforms_motion(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
+        static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "transforms_motion requires a dynamic-motion-blur renderer specification");
+        return renderer.transforms_motion;
     }
 
     // camera input tensors, backend-native residency like transforms: device memory on OptiX,

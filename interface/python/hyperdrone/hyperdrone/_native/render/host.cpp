@@ -208,7 +208,19 @@ NB_MODULE(hyperdrone_render_core, m){
             float values[12];
             extract_transform(transform, values);
             jit->set_part_transform(overlay, hdr::OverlayPlacementData{placement[0], placement[1], placement[2]}, part, values);
-        }, nb::arg("overlay"), nb::arg("placement"), nb::arg("part"), nb::arg("transform"));
+        }, nb::arg("overlay"), nb::arg("placement"), nb::arg("part"), nb::arg("transform"))
+        .def("set_transform_pair", [](JitRenderer& jit, size_t overlay, std::array<size_t, 3> placement, Transform open, Transform close){
+            float open_values[12], close_values[12];
+            extract_transform(open, open_values);
+            extract_transform(close, close_values);
+            jit->set_transform_pair(overlay, hdr::OverlayPlacementData{placement[0], placement[1], placement[2]}, open_values, close_values);
+        }, nb::arg("overlay"), nb::arg("placement"), nb::arg("open"), nb::arg("close"))
+        .def("set_part_transform_pair", [](JitRenderer& jit, size_t overlay, std::array<size_t, 3> placement, size_t part, Transform open, Transform close){
+            float open_values[12], close_values[12];
+            extract_transform(open, open_values);
+            extract_transform(close, close_values);
+            jit->set_part_transform_pair(overlay, hdr::OverlayPlacementData{placement[0], placement[1], placement[2]}, part, open_values, close_values);
+        }, nb::arg("overlay"), nb::arg("placement"), nb::arg("part"), nb::arg("open"), nb::arg("close"));
 
 #if HYPERDRONE_RENDER_CORE_HAS_CUDA
     m.attr("HAS_CUDA") = true;

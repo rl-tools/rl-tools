@@ -38,8 +38,11 @@ namespace rl_tools::rendering::raytracing::backends::optix{
             }
         }
 
-        __global__ void fill_instances(const OverlaySlotStructure* structure, const float* transforms, const OverlayObjectEntry* objects, OptixInstance* instances, unsigned int* instance_classes, unsigned long long filler_traversable, unsigned int num_overlays, unsigned int max_instances, unsigned int num_scene_instances){
+        __global__ void fill_instances(const OverlaySlotStructure* structure, const float* transforms, const OverlayObjectEntry* objects, OptixInstance* instances, unsigned int* instance_classes, unsigned long long filler_traversable, unsigned int num_overlays, unsigned int max_instances, unsigned int num_scene_instances, float shutter_t, float* shutter_out){
             const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+            if(index == 0 && shutter_out != nullptr){
+                *shutter_out = shutter_t; // stream-ordered publication for the accumulate ray gens
+            }
             if(index >= num_overlays * max_instances){
                 return;
             }
@@ -152,7 +155,7 @@ namespace rl_tools::rendering::raytracing::backends::optix{
         detail::check_cuda(cudaMalloc(&scratch_classes, (num_scene_instances + num_slots) * sizeof(unsigned int)), "classes scratch cudaMalloc");
         const unsigned int block_size = 128;
         const unsigned int grid_size = (unsigned int)((num_slots + block_size - 1) / block_size);
-        detail::fill_instances<<<grid_size, block_size>>>(state->structure, nullptr, nullptr, state->instances, scratch_classes, filler_traversable, num_overlays, max_instances, num_scene_instances);
+        detail::fill_instances<<<grid_size, block_size>>>(state->structure, nullptr, nullptr, state->instances, scratch_classes, filler_traversable, num_overlays, max_instances, num_scene_instances, 0.0f, nullptr);
         detail::check_cuda(cudaGetLastError(), "fill_instances launch");
         detail::enqueue_builds(*state, nullptr);
         detail::check_cuda(cudaStreamSynchronize(nullptr), "initial build sync");
@@ -187,14 +190,63 @@ namespace rl_tools::rendering::raytracing::backends::optix{
         return state->traversables.data();
     }
 
-    void overlay_accel_build(OverlayAccelState* state, const float* transforms, unsigned int* instance_classes, cudaStream_t stream){
+    void overlay_accel_build(OverlayAccelState* state, const float* transforms, unsigned int* instance_classes, float shutter_t, float* shutter_out, cudaStream_t stream){
         namespace detail = overlay_accel_detail;
         const size_t num_slots = (size_t)state->num_overlays * state->max_instances;
         const unsigned int block_size = 128;
         const unsigned int grid_size = (unsigned int)((num_slots + block_size - 1) / block_size);
-        detail::fill_instances<<<grid_size, block_size, 0, stream>>>(state->structure, transforms, state->objects, state->instances, instance_classes, state->filler_traversable, state->num_overlays, state->max_instances, state->num_scene_instances);
+        detail::fill_instances<<<grid_size, block_size, 0, stream>>>(state->structure, transforms, state->objects, state->instances, instance_classes, state->filler_traversable, state->num_overlays, state->max_instances, state->num_scene_instances, shutter_t, shutter_out);
         detail::check_cuda(cudaGetLastError(), "fill_instances launch");
         detail::enqueue_builds(*state, stream);
+    }
+
+    namespace overlay_accel_detail{
+        __device__ inline unsigned int resolve_make_8bit(float f){
+            const int value = (int)(f * 256.0f);
+            return (unsigned int)(value < 0 ? 0 : (value > 255 ? 255 : value));
+        }
+        __device__ inline float resolve_linear_to_srgb(float x){
+            if(x <= 0.0031308f) return 12.92f * x;
+            return 1.055f * powf(x, 1.0f / 2.4f) - 0.055f;
+        }
+        __device__ inline float resolve_clamp01(float x){
+            return fminf(fmaxf(x, 0.0f), 1.0f);
+        }
+        __global__ void resolve_accumulators(const float* rgb_accumulation, unsigned int* frame_buffer, float* observation, int srgb_output, const float* depth_accumulation, float* depth_buffer, unsigned int num_pixels, float inv_samples){
+            const unsigned int pixel = blockIdx.x * blockDim.x + threadIdx.x;
+            if(pixel >= num_pixels){
+                return;
+            }
+            if(rgb_accumulation != nullptr){
+                float color[3];
+                for(int channel = 0; channel < 3; channel++){
+                    color[channel] = rgb_accumulation[(size_t)pixel * 3 + channel] * inv_samples;
+                    if(srgb_output != 0){
+                        color[channel] = resolve_linear_to_srgb(resolve_clamp01(color[channel]));
+                    }
+                    else{
+                        color[channel] = resolve_clamp01(color[channel]);
+                    }
+                }
+                if(observation != nullptr){
+                    observation[(size_t)pixel * 3 + 0] = color[0];
+                    observation[(size_t)pixel * 3 + 1] = color[1];
+                    observation[(size_t)pixel * 3 + 2] = color[2];
+                }
+                frame_buffer[pixel] = (resolve_make_8bit(color[0]) << 0) | (resolve_make_8bit(color[1]) << 8) | (resolve_make_8bit(color[2]) << 16) | (0xffu << 24);
+            }
+            if(depth_accumulation != nullptr){
+                depth_buffer[pixel] = depth_accumulation[pixel] * inv_samples;
+            }
+        }
+    }
+
+    void overlay_accel_resolve(const float* rgb_accumulation, unsigned int* frame_buffer, float* observation, int srgb_output, const float* depth_accumulation, float* depth_buffer, unsigned int num_pixels, unsigned int num_samples, cudaStream_t stream){
+        namespace detail = overlay_accel_detail;
+        const unsigned int block_size = 128;
+        const unsigned int grid_size = (num_pixels + block_size - 1) / block_size;
+        detail::resolve_accumulators<<<grid_size, block_size, 0, stream>>>(rgb_accumulation, frame_buffer, observation, srgb_output, depth_accumulation, depth_buffer, num_pixels, 1.0f / (float)num_samples);
+        detail::check_cuda(cudaGetLastError(), "resolve_accumulators launch");
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
