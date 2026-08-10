@@ -17,6 +17,7 @@ namespace golden {
             std::string depth_png;
             std::string segmentation_bin;
             std::string segmentation_png;
+            std::string normals_png;
         };
 
         struct ScenarioReviewPaths{
@@ -30,6 +31,9 @@ namespace golden {
             std::string segmentation_target_png;
             std::string segmentation_current_png;
             std::string segmentation_diff_png;
+            std::string normals_target_png;
+            std::string normals_current_png;
+            std::string normals_diff_png;
         };
 
         inline std::string procthor_static_scene_directory(const std::string& golden_root){
@@ -65,7 +69,8 @@ namespace golden {
                 join(directory, "depth.bin"),
                 join(directory, "depth.png"),
                 join(directory, "segmentation.bin"),
-                join(directory, "segmentation.png")
+                join(directory, "segmentation.png"),
+                join(directory, "normals.png")
             };
         }
 
@@ -87,7 +92,10 @@ namespace golden {
                 join(directory, "depth_diff.png"),
                 join(directory, "segmentation_target.png"),
                 join(directory, "segmentation_current.png"),
-                join(directory, "segmentation_diff.png")
+                join(directory, "segmentation_diff.png"),
+                join(directory, "normals_target.png"),
+                join(directory, "normals_current.png"),
+                join(directory, "normals_diff.png")
             };
         }
     }

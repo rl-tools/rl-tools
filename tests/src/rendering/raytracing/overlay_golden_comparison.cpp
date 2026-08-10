@@ -61,6 +61,12 @@ static constexpr double DEPTH_OUTLIER_FRACTION = 0.005;
 static constexpr double SEGMENTATION_MISMATCH_FRACTION = 0.02;
 static constexpr double BACKGROUND_MISMATCH_FRACTION = 0.005;
 static constexpr double ID_AREA_RELATIVE_TOLERANCE = 0.35;
+// encoded normals compare like RGB, but silhouette/internal-edge bands (a different triangle
+// winning the same pixel across backends) produce large per-pixel deltas, so the mean budget is
+// wider while the outlier band stays bounded like segmentation's
+static constexpr double NORMALS_MAD_THRESHOLD = 2.0;
+static constexpr int NORMALS_OUTLIER_CHANNEL_DELTA = 8;
+static constexpr double NORMALS_OUTLIER_FRACTION = 0.02;
 
 static const std::string GOLDEN_ROOT = RL_TOOLS_OVERLAY_GOLDEN_TEST_DATA_PATH "/rendering_raytracing_golden";
 static const std::string ARTIFACT_ROOT = RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ARTIFACT_ROOT;
@@ -88,6 +94,7 @@ namespace {
                 EXPECT_EQ(scope[camera].difference.rgb, (size_t)0) << view << " camera " << camera << " RGB";
                 EXPECT_EQ(scope[camera].difference.depth, (size_t)0) << view << " camera " << camera << " depth";
                 EXPECT_EQ(scope[camera].difference.segmentation, (size_t)0) << view << " camera " << camera << " segmentation";
+                EXPECT_EQ(scope[camera].difference.normals, (size_t)0) << view << " camera " << camera << " normals";
             }
         }
     }
@@ -225,6 +232,10 @@ namespace {
             review_paths.segmentation_target_png, review_paths.segmentation_current_png, review_paths.segmentation_diff_png,
             target.segmentation.data(), current.segmentation.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT
         ));
+        ASSERT_TRUE(golden::write_rgb_review_grid_pngs(
+            review_paths.normals_target_png, review_paths.normals_current_png, review_paths.normals_diff_png,
+            target.normals.data(), current.normals.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT
+        ));
 
         double rgb_total = 0;
         size_t rgb_channels = 0;
@@ -235,6 +246,8 @@ namespace {
         size_t background_mismatches = 0;
         size_t depth_pixels = 0;
         size_t depth_outliers = 0;
+        double normals_total = 0;
+        size_t normals_outlier_pixels = 0;
 
         const size_t count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
         for(size_t index = 0; index < count; index++){
@@ -251,6 +264,17 @@ namespace {
                 rgb_outlier = rgb_outlier || absolute > RGB_OUTLIER_CHANNEL_DELTA;
             }
             rgb_outlier_pixels += rgb_outlier;
+
+            const auto* target_normal_bytes = reinterpret_cast<const uint8_t*>(target.normals.data() + index);
+            const auto* current_normal_bytes = reinterpret_cast<const uint8_t*>(current.normals.data() + index);
+            bool normals_outlier = false;
+            for(size_t channel = 0; channel < 3; channel++){
+                const int difference = (int)current_normal_bytes[channel] - (int)target_normal_bytes[channel];
+                const int absolute = difference < 0 ? -difference : difference;
+                normals_total += absolute;
+                normals_outlier = normals_outlier || absolute > NORMALS_OUTLIER_CHANNEL_DELTA;
+            }
+            normals_outlier_pixels += normals_outlier;
 
             const uint32_t target_id = target.segmentation[index];
             segmentation_mismatches += target_id != current.segmentation[index];
@@ -276,6 +300,8 @@ namespace {
         EXPECT_LE(segmentation_mismatch, SEGMENTATION_MISMATCH_FRACTION) << view.id;
         EXPECT_LE((double)background_mismatches / count, BACKGROUND_MISMATCH_FRACTION) << view.id << " background";
         EXPECT_LE(depth_outlier_fraction, DEPTH_OUTLIER_FRACTION) << view.id;
+        EXPECT_LE(normals_total / std::max((double)rgb_channels, 1.0), NORMALS_MAD_THRESHOLD) << view.id << " normals";
+        EXPECT_LE((double)normals_outlier_pixels / count, NORMALS_OUTLIER_FRACTION) << view.id << " normals";
     }
 
     void run_scenario(overlay_scenarios::Scenario scenario){

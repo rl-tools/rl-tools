@@ -1,5 +1,5 @@
 // Vulkan device programs for the RLtools raytracing renderer, compiled once per entry point
-// (ENTRY_RGB / ENTRY_DEPTH / ENTRY_COLLISION / ENTRY_SEGMENTATION). This file is a
+// (ENTRY_RGB / ENTRY_DEPTH / ENTRY_COLLISION / ENTRY_SEGMENTATION / ENTRY_NORMALS). This file is a
 // function-for-function mirror of backends/metal/device.metal (which mirrors
 // backends/optix/device_impl.h) — keep the shading logic in sync; the golden-image parity
 // suite is the drift detector. Metal's RGBTracer<DEPTH> template recursion is restructured
@@ -84,7 +84,7 @@ layout(std430, set = 0, binding = 9) writeonly buffer ResolveDepthBuffer{ float 
 layout(std430, set = 0, binding = 17) writeonly buffer ResolveObservationBuffer{ float observation[]; };
 #endif
 
-#if defined(ENTRY_RGB)
+#if defined(ENTRY_RGB) || defined(ENTRY_NORMALS)
 layout(buffer_reference, std430, buffer_reference_align = 4) readonly buffer IntArray{ int v[]; };
 layout(buffer_reference, std430, buffer_reference_align = 4) readonly buffer FloatArray{ float v[]; };
 
@@ -115,6 +115,28 @@ struct MeshRecord{
     int padding[1];
 };
 
+struct InstanceData{
+    float object_to_world[12]; // 3x4 row-major [R|t]
+    float world_to_object[12];
+    uint identity;
+    uint padding0;
+    uint padding1;
+    uint padding2;
+};
+
+layout(std430, set = 0, binding = 4) readonly buffer MeshRecordsBuffer{ MeshRecord meshes[]; };
+layout(std430, set = 0, binding = 11) readonly buffer InstanceRecordBaseBuffer{ uint instance_record_base[]; };
+layout(std430, set = 0, binding = 12) readonly buffer InstanceDataBuffer{ InstanceData instance_data[]; };
+
+vec3 transform_point_to_world(int instance, vec3 p){
+    const float m[12] = instance_data[instance].object_to_world;
+    return vec3(m[0]*p.x + m[1]*p.y + m[2]*p.z + m[3],
+                m[4]*p.x + m[5]*p.y + m[6]*p.z + m[7],
+                m[8]*p.x + m[9]*p.y + m[10]*p.z + m[11]);
+}
+#endif
+
+#if defined(ENTRY_RGB)
 struct SceneLight{
     int type; // 0=directional, 1=point, 2=spot
     float position[3];
@@ -127,29 +149,10 @@ struct SceneLight{
     float cos_outer_cone;
 };
 
-struct InstanceData{
-    float object_to_world[12]; // 3x4 row-major [R|t]
-    float world_to_object[12];
-    uint identity;
-    uint padding0;
-    uint padding1;
-    uint padding2;
-};
-
 layout(std430, set = 0, binding = 3) writeonly buffer FrameBuffer{ uint fb[]; };
-layout(std430, set = 0, binding = 4) readonly buffer MeshRecordsBuffer{ MeshRecord meshes[]; };
 layout(std430, set = 0, binding = 5) readonly buffer SceneLightsBuffer{ SceneLight scene_lights[]; };
-layout(std430, set = 0, binding = 11) readonly buffer InstanceRecordBaseBuffer{ uint instance_record_base[]; };
-layout(std430, set = 0, binding = 12) readonly buffer InstanceDataBuffer{ InstanceData instance_data[]; };
 layout(std430, set = 0, binding = 17) writeonly buffer ObservationBuffer{ float observation[]; };
-layout(set = 0, binding = 20) uniform sampler2D scene_textures[];
-
-vec3 transform_point_to_world(int instance, vec3 p){
-    const float m[12] = instance_data[instance].object_to_world;
-    return vec3(m[0]*p.x + m[1]*p.y + m[2]*p.z + m[3],
-                m[4]*p.x + m[5]*p.y + m[6]*p.z + m[7],
-                m[8]*p.x + m[9]*p.y + m[10]*p.z + m[11]);
-}
+layout(set = 0, binding = 21) uniform sampler2D scene_textures[];
 
 // normals transform with the inverse-transpose: multiply by the world_to_object columns
 vec3 transform_normal_to_world(int instance, vec3 n){
@@ -167,6 +170,10 @@ layout(std430, set = 0, binding = 9) writeonly buffer DepthBuffer{ float depth_o
 #if defined(ENTRY_SEGMENTATION)
 layout(std430, set = 0, binding = 10) writeonly buffer SegmentationBuffer{ uint segmentation_out[]; };
 layout(std430, set = 0, binding = 16) readonly buffer InstanceClassesBuffer{ uint instance_classes[]; };
+#endif
+
+#if defined(ENTRY_NORMALS)
+layout(std430, set = 0, binding = 20) writeonly buffer NormalsBuffer{ float normals_out[]; };
 #endif
 
 #if defined(ENTRY_COLLISION)
@@ -296,13 +303,18 @@ bool trace_shadow_occluded(int camera, vec3 pos, vec3 direction, float max_dist)
     Hit hit = intersect_composed(camera, pos, direction, 1e-3, max_dist, true);
     return hit.valid;
 }
+#endif
 
+#if defined(ENTRY_RGB) || defined(ENTRY_NORMALS)
 ivec3 fetch_index(int mesh, int primitive){
     return ivec3(meshes[mesh].index.v[3 * primitive], meshes[mesh].index.v[3 * primitive + 1], meshes[mesh].index.v[3 * primitive + 2]);
 }
 vec3 fetch_vertex(int mesh, int i){
     return vec3(meshes[mesh].vertices.v[3 * i], meshes[mesh].vertices.v[3 * i + 1], meshes[mesh].vertices.v[3 * i + 2]);
 }
+#endif
+
+#if defined(ENTRY_RGB)
 vec2 fetch_tex_coord(int mesh, int i){
     return vec2(meshes[mesh].tex_coord.v[2 * i], meshes[mesh].tex_coord.v[2 * i + 1]);
 }
@@ -812,5 +824,42 @@ void main(){
     const vec3 direction = normalize(camera_dir_00(cam) + screen.x * camera_dir_du(cam) + screen.y * camera_dir_dv(cam));
     Hit hit = intersect_composed(ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30, false);
     segmentation_out[ctx.fb_offset] = hit.valid ? (fc_semantic_segmentation ? instance_classes[uint(hit.instance_id)] : uint(hit.instance_id)) : 0xFFFFFFFFu;
+}
+#endif
+
+#if defined(ENTRY_NORMALS)
+// single-sample by design: unit normals cannot be averaged, so anti-aliasing and motion blur
+// do not apply (shutter-close camera, pixel-center ray); world-frame geometric normal,
+// oriented against the ray, zero on miss
+void main(){
+    const uvec2 pixel_id = gl_GlobalInvocationID.xy;
+    const PixelLaunchContext ctx = pixel_launch_context(pixel_id);
+    if(!ctx.valid){
+        return;
+    }
+    Camera cam = cameras_close[ctx.cam_idx];
+    const vec2 screen = (vec2(ctx.local_x, ctx.local_y) + vec2(0.5, 0.5)) / vec2(params.cam_width, params.cam_height);
+    const vec3 direction = normalize(camera_dir_00(cam) + screen.x * camera_dir_du(cam) + screen.y * camera_dir_dv(cam));
+    Hit hit = intersect_composed(ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30, false);
+    vec3 normal = vec3(0.0);
+    if(hit.valid){
+        const int mesh = int(instance_record_base[hit.instance_id]) + hit.geometry_index;
+        const ivec3 index = fetch_index(mesh, hit.primitive_index);
+        vec3 vertex_a = fetch_vertex(mesh, index.x);
+        vec3 vertex_b = fetch_vertex(mesh, index.y);
+        vec3 vertex_c = fetch_vertex(mesh, index.z);
+        if(instance_data[hit.instance_id].identity == 0u){
+            vertex_a = transform_point_to_world(hit.instance_id, vertex_a);
+            vertex_b = transform_point_to_world(hit.instance_id, vertex_b);
+            vertex_c = transform_point_to_world(hit.instance_id, vertex_c);
+        }
+        normal = normalize(cross(vertex_b - vertex_a, vertex_c - vertex_a));
+        if(dot(direction, normal) > 0.0){
+            normal = -normal;
+        }
+    }
+    normals_out[ctx.fb_offset * 3 + 0] = normal.x;
+    normals_out[ctx.fb_offset * 3 + 1] = normal.y;
+    normals_out[ctx.fb_offset * 3 + 2] = normal.z;
 }
 #endif

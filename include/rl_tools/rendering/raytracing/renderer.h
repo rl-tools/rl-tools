@@ -61,6 +61,11 @@ namespace rl_tools {
                 // so anti-aliasing and motion-blur settings do not apply to it
                 static constexpr bool OUTPUT_SEGMENTATION = false;
                 static constexpr bool SEMANTIC_SEGMENTATION = false;
+                // normals writes the world-frame (FLU) geometric unit normal of the hit surface,
+                // oriented against the ray, as float3 per pixel (miss = 0,0,0); like segmentation
+                // it is always single-sample from the shutter-close camera: unit normals cannot
+                // be averaged, so anti-aliasing and motion-blur settings do not apply to it
+                static constexpr bool OUTPUT_NORMALS = false;
                 static constexpr bool ENABLE_MOTION_BLUR = false;
                 static constexpr T_TI MOTION_BLUR_SAMPLES = 1;
                 // dynamic motion blur renders MOTION_BLUR_SAMPLES sequential passes per frame,
@@ -90,6 +95,7 @@ namespace rl_tools {
             static constexpr bool HAS_RGB = CONFIG::OUTPUT_RGB;
             static constexpr bool HAS_DEPTH = CONFIG::OUTPUT_DEPTH;
             static constexpr bool HAS_SEGMENTATION = CONFIG::OUTPUT_SEGMENTATION;
+            static constexpr bool HAS_NORMALS = CONFIG::OUTPUT_NORMALS;
             static constexpr bool ENABLE_DEPTH = HAS_DEPTH;
             static constexpr bool ENABLE_RGB = HAS_RGB;
             static constexpr TI CAM_WIDTH = CONFIG::CAM_WIDTH;
@@ -97,7 +103,7 @@ namespace rl_tools {
             static constexpr TI NUM_CAMERAS = CONFIG::NUM_CAMERAS;
             static constexpr TI NUM_PROBES = CONFIG::NUM_PROBES;
             static_assert(CAM_WIDTH > 0 && CAM_HEIGHT > 0 && NUM_CAMERAS > 0, "camera geometry must be nonzero");
-            static_assert(HAS_RGB || HAS_DEPTH || HAS_SEGMENTATION || NUM_PROBES > 0, "the renderer must produce at least one output (an image target or collision probes)");
+            static_assert(HAS_RGB || HAS_DEPTH || HAS_SEGMENTATION || HAS_NORMALS || NUM_PROBES > 0, "the renderer must produce at least one output (an image target or collision probes)");
             static constexpr TI MOTION_BLUR_SAMPLES = CONFIG::MOTION_BLUR_SAMPLES;
             static constexpr bool ENABLE_MOTION_BLUR = CONFIG::ENABLE_MOTION_BLUR && MOTION_BLUR_SAMPLES > 1;
             static_assert(MOTION_BLUR_SAMPLES >= 1, "MOTION_BLUR_SAMPLES must be at least 1");
@@ -232,6 +238,17 @@ namespace rl_tools {
             Tensor<SEGMENTATION_TENSOR_SPEC> segmentation_buffer;
         };
 
+        template <typename T_SPEC, bool T_HAS_NORMALS>
+        struct NormalsRendererStorage {};
+
+        template <typename T_SPEC>
+        struct NormalsRendererStorage<T_SPEC, true> {
+            using SPEC = T_SPEC;
+            using TI = typename SPEC::TI;
+            using NORMALS_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, 3>, true>;
+            Tensor<NORMALS_TENSOR_SPEC> normals_buffer;
+        };
+
         template <typename T_SPEC, bool T_HAS_OBSERVATION>
         struct ObservationRendererStorage {};
 
@@ -316,7 +333,7 @@ namespace rl_tools {
         };
 
         template <typename T_SPEC, typename T_BACKEND = backends::Default>
-        struct Renderer: MotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_MOTION_BLUR>, RGBRendererStorage<T_SPEC, T_SPEC::HAS_RGB>, DepthRendererStorage<T_SPEC, T_SPEC::HAS_DEPTH>, SegmentationRendererStorage<T_SPEC, T_SPEC::HAS_SEGMENTATION>, ObservationRendererStorage<T_SPEC, T_SPEC::HAS_OBSERVATION>, OverlayRendererStorage<T_SPEC, T_SPEC::ENABLE_OVERLAYS>, DynamicMotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_DYNAMIC_MOTION_BLUR>{
+        struct Renderer: MotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_MOTION_BLUR>, RGBRendererStorage<T_SPEC, T_SPEC::HAS_RGB>, DepthRendererStorage<T_SPEC, T_SPEC::HAS_DEPTH>, SegmentationRendererStorage<T_SPEC, T_SPEC::HAS_SEGMENTATION>, NormalsRendererStorage<T_SPEC, T_SPEC::HAS_NORMALS>, ObservationRendererStorage<T_SPEC, T_SPEC::HAS_OBSERVATION>, OverlayRendererStorage<T_SPEC, T_SPEC::ENABLE_OVERLAYS>, DynamicMotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_DYNAMIC_MOTION_BLUR>{
             using SPEC = T_SPEC;
             using BACKEND = T_BACKEND;
             using BACKEND_STATE = backends::RendererState<BACKEND, SPEC>;

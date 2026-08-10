@@ -26,3 +26,6 @@ target_link_libraries(rendering_raytracing_backend_depth INTERFACE rendering_ray
 
 add_library(rendering_raytracing_backend_segmentation INTERFACE)
 target_link_libraries(rendering_raytracing_backend_segmentation INTERFACE rendering_raytracing_metal assimp::assimp)
+
+add_library(rendering_raytracing_backend_normals INTERFACE)
+target_link_libraries(rendering_raytracing_backend_normals INTERFACE rendering_raytracing_metal assimp::assimp)

@@ -1157,7 +1157,7 @@ namespace rl_tools {
         // resolved-configuration echo: makes a silently-defaulted (e.g. misspelled) fringe
         // config member visible on the first run
         RL_TOOLS_RENDERING_RAYTRACING_LOG("config: " << SPEC::NUM_CAMERAS << " camera(s) " << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT
-            << " outputs[rgb=" << SPEC::HAS_RGB << " depth=" << SPEC::HAS_DEPTH << " segmentation=" << SPEC::HAS_SEGMENTATION << (SPEC::SEMANTIC_SEGMENTATION ? " (semantic)" : "") << "]"
+            << " outputs[rgb=" << SPEC::HAS_RGB << " depth=" << SPEC::HAS_DEPTH << " segmentation=" << SPEC::HAS_SEGMENTATION << (SPEC::SEMANTIC_SEGMENTATION ? " (semantic)" : "") << " normals=" << SPEC::HAS_NORMALS << "]"
             << " probes=" << SPEC::NUM_PROBES
             << " motion_blur_samples=" << (SPEC::ENABLE_MOTION_BLUR ? SPEC::MOTION_BLUR_SAMPLES : 0)
             << " anti_aliasing_grid=" << (SPEC::ENABLE_ANTI_ALIASING ? SPEC::ANTI_ALIASING_GRID_SIZE : 0)
@@ -1625,6 +1625,12 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
+    auto& normals_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
+        static_assert(SPEC::HAS_NORMALS, "normals_buffer requires a normals-capable renderer specification");
+        return renderer.normals_buffer;
+    }
+
+    template <typename DEVICE, typename SPEC, typename BACKEND>
     auto& collision_results(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         return renderer.collision_results;
     }
@@ -1821,6 +1827,29 @@ namespace rl_tools {
             std::vector<uint32_t> colored(num_pixels);
             for(size_t pixel_i = 0; pixel_i < (size_t)num_pixels; pixel_i++){
                 colored[pixel_i] = segmentation_id_to_rgba(segmentation[pixel_i]);
+            }
+            write_grid_png<SPEC>(colored.data(), filename);
+        }
+
+        // pinned normals encoding, the single owner shared by save verbs and the golden corpus:
+        // each component maps through round((clamp(n, -1, 1) * 0.5 + 0.5) * 255). The miss value
+        // (0,0,0) encodes to (128,128,128), which no unit normal can reach (a unit vector has a
+        // component of magnitude >= 1/sqrt(3)).
+        inline uint32_t normal_to_rgba(const float normal[3]){
+            uint32_t rgba = 0xFF000000u;
+            for(int component = 0; component < 3; component++){
+                const float clamped = fminf(fmaxf(normal[component], -1.f), 1.f);
+                const uint32_t value = (uint32_t)lroundf((clamped * 0.5f + 0.5f) * 255.f);
+                rgba |= value << (8 * component);
+            }
+            return rgba;
+        }
+        template <typename SPEC>
+        void write_normals_grid_png(const float* normals_host, const char* filename){
+            constexpr typename SPEC::TI num_pixels = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+            std::vector<uint32_t> colored(num_pixels);
+            for(size_t pixel_i = 0; pixel_i < (size_t)num_pixels; pixel_i++){
+                colored[pixel_i] = normal_to_rgba(&normals_host[pixel_i * 3]);
             }
             write_grid_png<SPEC>(colored.data(), filename);
         }

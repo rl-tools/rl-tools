@@ -24,6 +24,7 @@ if(NOT RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED STREQUAL "GENERIC")
             rendering_raytracing_backend
             rendering_raytracing_backend_depth
             rendering_raytracing_backend_segmentation
+            rendering_raytracing_backend_normals
             rendering_raytracing_stb
             GTest::gtest_main
     )
@@ -41,6 +42,7 @@ if(NOT RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED STREQUAL "GENERIC")
             rendering_raytracing_backend
             rendering_raytracing_backend_depth
             rendering_raytracing_backend_segmentation
+            rendering_raytracing_backend_normals
             rendering_raytracing_stb
             GTest::gtest_main
     )

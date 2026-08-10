@@ -524,6 +524,58 @@ TEST(RL_TOOLS_SCENE_SUITE, SEGMENTATION_ANALYTIC){
     rlt::free(device, renderer);
 }
 
+struct NORMALS_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+    static constexpr TI CAM_WIDTH = 32, CAM_HEIGHT = 32, NUM_CAMERAS = 1, NUM_PROBES = 4;
+    using SHADING = rlt::rendering::raytracing::Low;
+    static constexpr bool OUTPUT_RGB = false;
+    static constexpr bool OUTPUT_NORMALS = true;
+};
+using NORMALS_SPEC = rlt::rendering::raytracing::Specification<NORMALS_CONFIG>;
+
+// viewed head-on from the -X axis only the x = -1 face of the cube is visible, so every hit
+// pixel must report exactly its world normal (-1, 0, 0) (oriented against the ray) and every
+// miss the (0, 0, 0) sentinel
+TEST(RL_TOOLS_SCENE_SUITE, NORMALS_ANALYTIC){
+    DEVICE device;
+    rlt::init(device);
+
+    rlt::rendering::raytracing::Scene scene;
+    rlt::add(device, scene, make_cube(0, 1));
+
+    rlt::rendering::raytracing::Renderer<NORMALS_SPEC, BACKEND> renderer;
+    rlt::malloc(device, renderer);
+    rlt::generate_probe_directions(device, renderer);
+    rlt::init(device, renderer, scene);
+
+    const T camera_position[3] = {-5, 0, 0};
+    const T look_at[3] = {0, 0, 0};
+    set_test_camera(device, renderer, camera_position, look_at);
+    rlt::render(device, renderer);
+    rlt::synchronize(device, renderer);
+    std::vector<float> normals((size_t)NORMALS_SPEC::CAM_PIXELS * 3);
+    read_output(device, renderer, rlt::normals_buffer(device, renderer), normals.data(), normals.size());
+
+    const size_t center = (size_t)((NORMALS_SPEC::CAM_HEIGHT / 2) * NORMALS_SPEC::CAM_WIDTH + NORMALS_SPEC::CAM_WIDTH / 2) * 3;
+    EXPECT_NEAR(normals[center + 0], -1.f, 1e-5f);
+    EXPECT_NEAR(normals[center + 1], 0.f, 1e-5f);
+    EXPECT_NEAR(normals[center + 2], 0.f, 1e-5f);
+    EXPECT_EQ(normals[0], 0.f); // background misses
+    EXPECT_EQ(normals[1], 0.f);
+    EXPECT_EQ(normals[2], 0.f);
+    size_t hit_count = 0;
+    for(size_t pixel_i = 0; pixel_i < (size_t)NORMALS_SPEC::CAM_PIXELS; pixel_i++){
+        const float x = normals[pixel_i * 3 + 0], y = normals[pixel_i * 3 + 1], z = normals[pixel_i * 3 + 2];
+        if(x == 0.f && y == 0.f && z == 0.f) continue;
+        EXPECT_NEAR(x, -1.f, 1e-5f);
+        EXPECT_NEAR(y, 0.f, 1e-5f);
+        EXPECT_NEAR(z, 0.f, 1e-5f);
+        hit_count++;
+    }
+    EXPECT_GT(hit_count, (size_t)0);
+
+    rlt::free(device, renderer);
+}
+
 TEST(RL_TOOLS_SCENE_SUITE, ASSEMBLY_COMPOSE){
     DEVICE device;
     rlt::init(device);

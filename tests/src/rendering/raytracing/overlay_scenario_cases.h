@@ -233,6 +233,7 @@ namespace overlay_scenarios {
         static constexpr bool OUTPUT_RGB = true;
         static constexpr bool OUTPUT_DEPTH = true;
         static constexpr bool OUTPUT_SEGMENTATION = true;
+        static constexpr bool OUTPUT_NORMALS = true;
     };
 
     template <typename T_T, typename T_TI>

@@ -144,6 +144,21 @@ namespace {
         return true;
     }
 
+    // the encoded miss pixel (128,128,128) is unreachable for unit normals (a unit vector has a
+    // component of magnitude >= 1/sqrt(3), i.e. an encoded channel <= 54 or >= 201), so normals
+    // must be exactly gray on segmentation background and never gray on a hit
+    bool valid_normals(const Frame& frame){
+        constexpr float zero_normal[3] = {0.f, 0.f, 0.f};
+        const uint32_t miss_pixel = golden::normal_rgba(zero_normal);
+        for(size_t index = 0; index < frame.normals.size(); index++){
+            const bool miss = frame.segmentation[index] == golden::SEGMENTATION_BACKGROUND_ID;
+            if((frame.normals[index] == miss_pixel) != miss || (frame.normals[index] >> 24) != 0xFFu){
+                return false;
+            }
+        }
+        return true;
+    }
+
     bool validate_frame(const FrameContext& context, const Frame& frame){
         const bool rgb_varies = std::any_of(frame.rgb.begin() + 1, frame.rgb.end(), [&](uint32_t pixel){ return pixel != frame.rgb[0]; });
         const bool valid_alpha = std::all_of(frame.rgb.begin(), frame.rgb.end(), [](uint32_t pixel){ return (pixel >> 24) == 0xFFu; });
@@ -151,6 +166,7 @@ namespace {
         bool ok = report(rgb_varies, context, "RGB output is constant");
         ok = report(valid_alpha, context, "RGB output has non-opaque alpha") && ok;
         ok = report(valid_depth, context, "depth output has non-finite or non-positive values") && ok;
+        ok = report(valid_normals(frame), context, "normals output does not match the segmentation hit/miss topology") && ok;
         ok = report(valid_topology(context.scenario, frame), context, "segmentation topology does not match the scenario table") && ok;
         ok = report(valid_shared_instance_pixels(context.scenario, frame), context, "shared placements are not pixel-identical across cameras") && ok;
         ok = report(valid_placement_materials(context.scenario, frame), context, "placement materials do not match the scenario assets") && ok;
@@ -179,7 +195,8 @@ namespace {
                         common++;
                         equal = equal
                             && initial.rgb[index] == updated.rgb[index]
-                            && initial.depth[index] == updated.depth[index];
+                            && initial.depth[index] == updated.depth[index]
+                            && initial.normals[index] == updated.normals[index];
                     }
                 }
                 ok = report(equal && common > overlay_goldens::MIN_VISIBLE_ID_PIXELS, context,
@@ -213,7 +230,8 @@ namespace {
             && golden::write_multi_camera_float_bin(paths.depth_bin, frame.depth.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
             && golden::write_depth_grid_png(paths.depth_png, frame.depth.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, frame.max_depth)
             && golden::write_multi_camera_uint32_bin(paths.segmentation_bin, frame.segmentation.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
-            && golden::write_segmentation_grid_png(paths.segmentation_png, frame.segmentation.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+            && golden::write_segmentation_grid_png(paths.segmentation_png, frame.segmentation.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
+            && golden::write_camera_grid_png(paths.normals_png, frame.normals.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
         return report(ok, context, "failed to write golden files to " + paths.directory);
     }
 

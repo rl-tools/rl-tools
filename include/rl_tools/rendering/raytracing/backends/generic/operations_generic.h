@@ -135,6 +135,7 @@ namespace rl_tools {
             unsigned int* frame_buffer = nullptr;
             float* depth_buffer = nullptr;
             unsigned int* segmentation_buffer = nullptr;
+            float* normals_buffer = nullptr; // 3 per pixel, world-frame unit normal or zero on miss
             const unsigned int* instance_classes = nullptr; // indexed by global instance id
             CollisionResult* collision_results = nullptr;
             float* observation = nullptr; // 3 per pixel, written pre-quantization when set
@@ -1089,6 +1090,48 @@ namespace rl_tools {
                         const Vec3<T> direction = normalize(math_device, dir_00 + screen_x * dir_du + screen_y * dir_dv);
                         const Hit<T, TI> hit = trace_closest_composed<SPEC>(scene, camera_i, pos, direction, (T)0, (T)1e30);
                         scene.segmentation_buffer[fb_offset] = hit.valid ? (SPEC::SEMANTIC_SEGMENTATION ? scene.instance_classes[hit.instance] : (unsigned int)hit.instance) : 0xFFFFFFFFu;
+                    }
+                }
+            }
+        }
+
+        // single-sample by design: unit normals cannot be averaged, so anti-aliasing and motion
+        // blur do not apply (shutter-close camera, pixel-center ray); the geometric normal is
+        // world-frame (FLU), oriented against the ray, zero on miss
+        template <typename DEVICE, typename SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT void render_normals_frame(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene){
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            const auto& math_device = device.math;
+            for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
+                const Camera<T>& cam = scene.cameras_close[camera_i];
+                const Vec3<T> pos = to_vec3(cam.pos);
+                const Vec3<T> dir_00 = to_vec3(cam.dir_00);
+                const Vec3<T> dir_du = to_vec3(cam.dir_du);
+                const Vec3<T> dir_dv = to_vec3(cam.dir_dv);
+                for(TI y = 0; y < SPEC::CAM_HEIGHT; y++){
+                    for(TI x = 0; x < SPEC::CAM_WIDTH; x++){
+                        const TI fb_offset = camera_i * SPEC::CAM_PIXELS + y * SPEC::CAM_WIDTH + x;
+                        const T screen_x = ((T)x + (T)0.5) / (T)SPEC::CAM_WIDTH;
+                        const T screen_y = ((T)y + (T)0.5) / (T)SPEC::CAM_HEIGHT;
+                        const Vec3<T> direction = normalize(math_device, dir_00 + screen_x * dir_du + screen_y * dir_dv);
+                        const Hit<T, TI> hit = trace_closest_composed<SPEC>(scene, camera_i, pos, direction, (T)0, (T)1e30);
+                        Vec3<T> normal = {0, 0, 0};
+                        if(hit.valid){
+                            Vec3<T> vertex_a, vertex_b, vertex_c;
+                            triangle_vertices(scene, hit.triangle, vertex_a, vertex_b, vertex_c);
+                            const InstanceView<T, TI>& instance = scene.instances[hit.instance];
+                            if(!instance.identity){
+                                vertex_a = transform_point(instance.object_to_world, vertex_a);
+                                vertex_b = transform_point(instance.object_to_world, vertex_b);
+                                vertex_c = transform_point(instance.object_to_world, vertex_c);
+                            }
+                            normal = normalize(math_device, cross(vertex_b - vertex_a, vertex_c - vertex_a));
+                            if(dot(direction, normal) > (T)0) normal = -normal;
+                        }
+                        scene.normals_buffer[fb_offset * 3 + 0] = (float)normal.x;
+                        scene.normals_buffer[fb_offset * 3 + 1] = (float)normal.y;
+                        scene.normals_buffer[fb_offset * 3 + 2] = (float)normal.z;
                     }
                 }
             }

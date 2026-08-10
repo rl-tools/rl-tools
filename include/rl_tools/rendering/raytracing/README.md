@@ -26,9 +26,9 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   (motion blur), `transforms()` (overlays), `transforms_motion()` (dynamic motion blur:
   per-sample overlay transforms, sample-major so slab `s` shares the `transforms()` layout),
   `transforms_pair()` (dynamic motion blur producer input: shutter-open/close entries),
-  `frame_buffer()`, `depth_buffer()`, `segmentation_buffer()`, `collision_results()`,
-  `observation()`. Residency is a backend property: CUDA device memory on OptiX, host on
-  generic, shared/mapped on Metal/Vulkan.
+  `frame_buffer()`, `depth_buffer()`, `segmentation_buffer()`, `normals_buffer()`,
+  `collision_results()`, `observation()`. Residency is a backend property: CUDA device memory
+  on OptiX, host on generic, shared/mapped on Metal/Vulkan.
 - **Data moves via typed copies and kernels.** No raw backend handles or `cudaStream_t` appear in
   public signatures. Device producers (extraction kernels) write the input tensors in place;
   device consumers read the output tensors in place; host readers/writers stage through
@@ -42,6 +42,11 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
 - **Spec-driven observation output.** With `OUTPUT_OBSERVATION`, the RGB ray gen writes float
   pixels (frame-buffer color before 8-bit quantization) directly to `observation()` — no
   format-conversion pass. The packed `uint32` frame buffer remains the video/golden output.
+- **Normals output.** With `OUTPUT_NORMALS`, a segmentation-style single-sample pass
+  (shutter-close camera, pixel-center ray) writes the world-frame (FLU) geometric unit normal
+  of the hit surface, oriented against the ray, as float3 per pixel to `normals_buffer()`
+  (miss = zero). Unit normals cannot be averaged, so anti-aliasing and motion-blur settings do
+  not apply, and the pass stays out of the dynamic-motion-blur accumulate/resolve machinery.
 - **Determinism is a contract.** Fixed seed ⇒ identical results, no atomics. The global
   instance-id layout (scene instances `[0,S)`, overlay `o` slot `s` at `S + o*MAX + s`) is
   cross-backend API surface consumed by segmentation.

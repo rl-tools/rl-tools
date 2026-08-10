@@ -727,6 +727,54 @@ kernel void render_segmentation(
     segmentation_out[ctx.fb_offset] = hit.type == intersection_type::none ? 0xFFFFFFFFu : (fc_semantic_segmentation ? instance_classes[hit.user_instance_id] : (uint)hit.user_instance_id);
 }
 
+// single-sample by design: unit normals cannot be averaged, so anti-aliasing and motion blur
+// do not apply (shutter-close camera, pixel-center ray); world-frame geometric normal,
+// oriented against the ray, zero on miss
+kernel void render_normals(
+    constant LaunchParams& params [[buffer(0)]],
+    device const Camera* cameras_close [[buffer(1)]],
+    device float* normals_out [[buffer(3)]],
+    device const MeshRecord* meshes [[buffer(4)]],
+    instance_acceleration_structure accel [[buffer(8)]],
+    device const uint* instance_record_base [[buffer(9)]],
+    device const InstanceData* instance_data [[buffer(10)]],
+    device const OverlayStructure* overlays [[buffer(11)]],
+    device const uint* overlay_attachments [[buffer(12)]],
+    uint2 pixel_id [[thread_position_in_grid]])
+{
+    const PixelLaunchContext ctx = pixel_launch_context(params, pixel_id);
+    if (!ctx.valid)
+        return;
+
+    device const Camera& cam = cameras_close[ctx.cam_idx];
+    const float2 screen = (float2(ctx.local_x, ctx.local_y) + float2(0.5f, 0.5f)) / float2(params.cam_width, params.cam_height);
+    const float3 direction = normalize(float3(cam.dir_00) + screen.x * float3(cam.dir_du) + screen.y * float3(cam.dir_dv));
+
+    ray r(float3(cam.pos), direction, 0.f, 1e30f);
+    intersection_result<triangle_data, instancing> hit = intersect_composed(accel, overlays, overlay_attachments, ctx.cam_idx, r, false);
+    float3 normal = float3(0.f);
+    if (hit.type != intersection_type::none) {
+        device const MeshRecord& self = meshes[instance_record_base[hit.user_instance_id] + hit.geometry_id];
+        device const InstanceData& instance = instance_data[hit.user_instance_id];
+        const int3 index = int3(self.index[hit.primitive_id]);
+        float3 vertex_a = float3(self.vertices[index.x]);
+        float3 vertex_b = float3(self.vertices[index.y]);
+        float3 vertex_c = float3(self.vertices[index.z]);
+        if (!instance.identity) {
+            vertex_a = transform_point(instance.object_to_world, vertex_a);
+            vertex_b = transform_point(instance.object_to_world, vertex_b);
+            vertex_c = transform_point(instance.object_to_world, vertex_c);
+        }
+        normal = normalize(cross(vertex_b - vertex_a, vertex_c - vertex_a));
+        if (dot(direction, normal) > 0.f) {
+            normal = -normal;
+        }
+    }
+    normals_out[ctx.fb_offset * 3 + 0] = normal.x;
+    normals_out[ctx.fb_offset * 3 + 1] = normal.y;
+    normals_out[ctx.fb_offset * 3 + 2] = normal.z;
+}
+
 kernel void render_collision(
     constant LaunchParams& params [[buffer(0)]],
     device const Camera* cameras [[buffer(1)]],

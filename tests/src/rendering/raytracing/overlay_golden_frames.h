@@ -26,6 +26,7 @@ namespace overlay_goldens {
         std::vector<std::uint32_t> rgb;
         std::vector<float> depth;
         std::vector<std::uint32_t> segmentation;
+        std::vector<std::uint32_t> normals; // golden::normal_rgba-encoded, reuses the rgb grid/diff machinery
         float max_depth = 0;
     };
 
@@ -33,6 +34,7 @@ namespace overlay_goldens {
         std::size_t rgb = 0;
         std::size_t depth = 0;
         std::size_t segmentation = 0;
+        std::size_t normals = 0;
     };
 
     template <typename DEVICE, typename RENDERER>
@@ -59,6 +61,10 @@ namespace overlay_goldens {
         rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::frame_buffer(device, renderer)), frame.rgb.data(), count);
         rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::depth_buffer(device, renderer)), frame.depth.data(), count);
         rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::segmentation_buffer(device, renderer)), frame.segmentation.data(), count);
+        std::vector<float> normals_raw(count * 3);
+        rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::normals_buffer(device, renderer)), normals_raw.data(), normals_raw.size());
+        frame.normals.resize(count);
+        golden::colorize_normals(normals_raw.data(), count, frame.normals.data());
         frame.max_depth = renderer.camera_radius > 0 ? renderer.camera_radius * 2.0f : 1e30f;
         return frame;
     }
@@ -72,6 +78,7 @@ namespace overlay_goldens {
             difference.rgb += first.rgb[index] != second.rgb[index];
             difference.depth += first.depth[index] != second.depth[index];
             difference.segmentation += first.segmentation[index] != second.segmentation[index];
+            difference.normals += first.normals[index] != second.normals[index];
         }
         return difference;
     }
@@ -84,6 +91,7 @@ namespace overlay_goldens {
             difference.rgb += camera_counts.rgb;
             difference.depth += camera_counts.depth;
             difference.segmentation += camera_counts.segmentation;
+            difference.normals += camera_counts.normals;
         }
         return difference;
     }
@@ -136,6 +144,9 @@ namespace overlay_goldens {
         return scope;
     }
 
+    // normals only participates in the bitwise-identical direction: the modality is piecewise
+    // constant per face, so translated axis-aligned geometry can legitimately change rgb/depth/
+    // segmentation while leaving the normals image (nearly) untouched
     inline bool update_scope_ok(const CameraUpdateScope& scope){
         return scope.should_change
             ? scope.difference.rgb > MIN_UPDATE_CHANGED_PIXELS
@@ -143,7 +154,8 @@ namespace overlay_goldens {
                 && scope.difference.segmentation > MIN_UPDATE_CHANGED_PIXELS
             : scope.difference.rgb == 0
                 && scope.difference.depth == 0
-                && scope.difference.segmentation == 0;
+                && scope.difference.segmentation == 0
+                && scope.difference.normals == 0;
     }
 
     template <typename SPEC>
@@ -179,7 +191,8 @@ namespace overlay_goldens {
         );
         return golden::load_camera_grid_png(paths.rgb_png, SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.rgb)
             && golden::load_multi_camera_float_bin(paths.depth_bin, SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.depth)
-            && golden::load_multi_camera_uint32_bin(paths.segmentation_bin, SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.segmentation);
+            && golden::load_multi_camera_uint32_bin(paths.segmentation_bin, SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.segmentation)
+            && golden::load_camera_grid_png(paths.normals_png, SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.normals);
     }
 }
 

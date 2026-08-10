@@ -69,7 +69,7 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
         )
     endif()
 
-    # the overlay generator stays OptiX-only; the four device ptx targets are defined
+    # the overlay generator stays OptiX-only; the device ptx variants are defined
     # together in the OptiX backend CMakeLists, so their availability is equivalent
     if(TARGET owl::owl AND TARGET rendering_raytracing_device_ptx AND TARGET assimp::assimp)
         add_executable(test_rendering_raytracing_generate_overlay_golden EXCLUDE_FROM_ALL generate_overlay_golden.cpp)
@@ -81,6 +81,7 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
                 rendering_raytracing_device_depth_ptx
                 rendering_raytracing_device_segmentation_ptx
                 rendering_raytracing_device_depth_segmentation_ptx
+                rendering_raytracing_device_depth_segmentation_normals_ptx
                 assimp::assimp
                 nlohmann_json::nlohmann_json
                 rendering_raytracing_stb
@@ -155,6 +156,7 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
                 rendering_raytracing_backend
                 rendering_raytracing_backend_depth
                 rendering_raytracing_backend_segmentation
+                rendering_raytracing_backend_normals
                 rendering_raytracing_stb
                 GTest::gtest_main
         )
