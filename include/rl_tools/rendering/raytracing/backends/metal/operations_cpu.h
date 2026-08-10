@@ -158,6 +158,8 @@ namespace rl_tools {
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
             malloc(device, renderer.transforms_motion);
             std::memset(data(renderer.transforms_motion), 0, decltype(renderer.transforms_motion)::SPEC::SIZE_BYTES);
+            malloc(device, renderer.transforms_pair);
+            std::memset(data(renderer.transforms_pair), 0, decltype(renderer.transforms_pair)::SPEC::SIZE_BYTES);
             renderer.transforms_motion_staging.assign((size_t)SPEC::MOTION_BLUR_SAMPLES * SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12, 0.0f);
         }
 
@@ -776,6 +778,27 @@ namespace rl_tools {
         update_sync(device, renderer);
     }
 
+    // CPU expansion into the host-resident tensors (residency is a backend property; the
+    // device-resident path is the OptiX backend)
+    template <typename DEVICE, typename SPEC>
+    void expand_motion_transforms_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
+        static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "expand_motion_transforms requires a dynamic-motion-blur renderer specification");
+        namespace metal = rendering::raytracing::backends::metal;
+        metal::wait_in_flight(metal::context(renderer));
+        rendering::raytracing::detail::expand_motion_transforms_host(renderer);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void expand_motion_transforms_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
+        static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "expand_motion_transforms requires a dynamic-motion-blur renderer specification");
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void expand_motion_transforms(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
+        expand_motion_transforms_launch(device, renderer);
+        expand_motion_transforms_sync(device, renderer);
+    }
+
     template <typename DEVICE, typename SPEC>
     void generate_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer,
                           const typename SPEC::T center[3], typename SPEC::T radius,
@@ -1028,6 +1051,7 @@ namespace rl_tools {
         }
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
             free(device, renderer.transforms_motion);
+            free(device, renderer.transforms_pair);
             if constexpr (SPEC::HAS_RGB) {
                 renderer.rgb_accumulator._data = nullptr;
             }

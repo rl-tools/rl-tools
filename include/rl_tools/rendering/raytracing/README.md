@@ -65,9 +65,9 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   The steady-state step becomes kernel → expand → update → render with no host data path —
   the host's per-frame role is enqueues only (kernel launches, `optixAccelBuild` enqueues, and
   OWL's constant 48-byte launch-param upload per launch). Per overlay, use either the
-  `set_transform*` host verbs or the pair path, not both. On generic/Vulkan the same verb
+  `set_transform*` host verbs or the pair path, not both. On generic/Vulkan/Metal the same verb
   expands on the CPU into the host-resident tensors (residency is a backend property; Vulkan's
-  per-frame instance-descriptor composition is CPU-side by architecture). End-to-end example:
+  and Metal's per-frame instance-descriptor composition is CPU-side by architecture). End-to-end example:
   `src/rendering/raytracing/example/drone_device.cu`.
 
 ## Lifecycle
