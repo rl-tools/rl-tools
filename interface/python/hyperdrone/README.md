@@ -136,8 +136,9 @@ including GENERIC on CPU-only machines) and is deterministic given a seed. `Worl
 sugar, not load-bearing: it wires `sim.step → camera_bases → set_cameras → render` with
 the right streams and nothing else.
 
-End-to-end example: `examples/drone_flythrough.py`; renderer benchmark:
-`examples/benchmark.py` (flag-compatible with the C++ benchmark counterpart).
+End-to-end example: `python -m hyperdrone.examples.drone_flythrough`; renderer benchmark:
+`python -m hyperdrone.examples.benchmark` (flag-compatible with the C++ benchmark
+counterpart).
 
 ## Tests
 

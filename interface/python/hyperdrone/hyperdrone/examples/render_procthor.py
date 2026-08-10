@@ -7,9 +7,9 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from hyperdrone import render
+from hyperdrone import jit, render
 
-ROOT = Path(os.environ.get("HYPERDRONE_RLTOOLS_ROOT", Path(__file__).resolve().parents[4]))
+ROOT = Path(os.environ.get("HYPERDRONE_RLTOOLS_ROOT", jit.source_root()))
 GLB = ROOT / "tests" / "data" / "ProcTHOR-Train-1.glb"
 
 POSITION = np.array([-0.97, -4.42, 1.5])

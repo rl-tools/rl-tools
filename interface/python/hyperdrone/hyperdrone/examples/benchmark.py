@@ -26,9 +26,9 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 
 import hyperdrone
-from hyperdrone import render
+from hyperdrone import jit, render
 
-ROOT = Path(os.environ.get("HYPERDRONE_RLTOOLS_ROOT", Path(__file__).resolve().parents[4]))
+ROOT = Path(os.environ.get("HYPERDRONE_RLTOOLS_ROOT", jit.source_root()))
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-m", "--model", default=ROOT / "tests" / "data" / "ProcTHOR-Train-1.glb")

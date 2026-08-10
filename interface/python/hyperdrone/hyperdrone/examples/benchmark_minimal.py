@@ -4,15 +4,16 @@
 inside the ProcTHOR house, uniform-SO3 orientations (seed 0), 2s untimed warmup, then a
 timed async render_launch loop with a sync every 10 iterations for ~10 seconds."""
 import math
+import os
 import time
 from pathlib import Path
 
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-from hyperdrone import render
+from hyperdrone import jit, render
 
-ROOT = Path(__file__).resolve().parents[4]
+ROOT = Path(os.environ.get("HYPERDRONE_RLTOOLS_ROOT", jit.source_root()))
 NUM_CAMERAS = 4096
 WIDTH, HEIGHT = 64, 64
 FOV = 1.3962634015954636  # 80 degrees, the renderer config default
