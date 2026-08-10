@@ -57,41 +57,100 @@ namespace rl_tools{
             }
         }
 
-        // rotation slerp (shortest arc) + translation lerp between two rigid 3x4 transforms; the
-        // single interpolant behind set_transform_pair and expand_motion_transforms, so every
-        // consumer derives identical per-sample matrices from the same shutter pair. Exact for
-        // single-axis rotations below 180 degrees per shutter interval — faster motion must
-        // supply per-sample transforms directly.
+        RL_TOOLS_FUNCTION_PLACEMENT inline void rotate_by_quaternion(const float q[4], const float v[3], float out[3]){
+            const float w = q[0], x = q[1], y = q[2], z = q[3];
+            const float ux = y*v[2] - z*v[1], uy = z*v[0] - x*v[2], uz = x*v[1] - y*v[0];
+            const float uux = y*uz - z*uy, uuy = z*ux - x*uz, uuz = x*uy - y*ux;
+            out[0] = v[0] + 2*(w*ux + uux);
+            out[1] = v[1] + 2*(w*uy + uuy);
+            out[2] = v[2] + 2*(w*uz + uuz);
+        }
+
+        // constant-twist (screw motion) interpolation between two rigid 3x4 transforms: the
+        // rotation follows the shortest-arc slerp path and the translation follows the screw of
+        // the relative motion, so a fixed rotation axis line stays fixed — a translation lerp
+        // instead would cut the chord and displace an off-origin pivot (e.g. a spinning prop hub)
+        // at mid-shutter samples. The single interpolant behind set_transform_pair and
+        // expand_motion_transforms, so every consumer derives identical per-sample matrices from
+        // the same shutter pair. Exact for constant-velocity rigid motion below 180 degrees per
+        // shutter interval — faster motion must supply per-sample transforms directly.
         RL_TOOLS_FUNCTION_PLACEMENT inline void slerp_transform(const float a[12], const float b[12], float t, float out[12]){
             float qa[4], qb[4];
             quaternion_from_transform(a, qa);
             quaternion_from_transform(b, qb);
-            float dot = qa[0]*qb[0] + qa[1]*qb[1] + qa[2]*qb[2] + qa[3]*qb[3];
-            if(dot < 0){
-                for(int i = 0; i < 4; i++) qb[i] = -qb[i];
-                dot = -dot;
+            float relative[4] = {
+                 qb[0]*qa[0] + qb[1]*qa[1] + qb[2]*qa[2] + qb[3]*qa[3],
+                -qb[0]*qa[1] + qb[1]*qa[0] - qb[2]*qa[3] + qb[3]*qa[2],
+                -qb[0]*qa[2] + qb[1]*qa[3] + qb[2]*qa[0] - qb[3]*qa[1],
+                -qb[0]*qa[3] - qb[1]*qa[2] + qb[2]*qa[1] + qb[3]*qa[0]
+            };
+            if(relative[0] < 0){
+                for(int i = 0; i < 4; i++) relative[i] = -relative[i];
             }
-            float wa, wb;
-            if(dot > 0.9995f){
-                wa = 1 - t;
-                wb = t;
+            {
+                const float norm = sqrtf(relative[0]*relative[0] + relative[1]*relative[1] + relative[2]*relative[2] + relative[3]*relative[3]);
+                for(int i = 0; i < 4; i++) relative[i] /= norm;
+            }
+            const float sin_half_angle = sqrtf(relative[1]*relative[1] + relative[2]*relative[2] + relative[3]*relative[3]);
+            const float translation_a[3] = {a[3], a[7], a[11]};
+            float translation_a_relative[3];
+            rotate_by_quaternion(relative, translation_a, translation_a_relative);
+            const float displacement[3] = {b[3] - translation_a_relative[0], b[7] - translation_a_relative[1], b[11] - translation_a_relative[2]};
+            float relative_t[4];
+            float translation_relative_t[3];
+            if(sin_half_angle > 1e-3f){
+                const float half_angle = atan2f(sin_half_angle, relative[0]);
+                const float axis[3] = {relative[1] / sin_half_angle, relative[2] / sin_half_angle, relative[3] / sin_half_angle};
+                const float sin_t_half = sinf(t * half_angle);
+                relative_t[0] = cosf(t * half_angle);
+                relative_t[1] = axis[0] * sin_t_half;
+                relative_t[2] = axis[1] * sin_t_half;
+                relative_t[3] = axis[2] * sin_t_half;
+                const float displacement_along_axis = displacement[0]*axis[0] + displacement[1]*axis[1] + displacement[2]*axis[2];
+                const float perpendicular[3] = {displacement[0] - displacement_along_axis*axis[0], displacement[1] - displacement_along_axis*axis[1], displacement[2] - displacement_along_axis*axis[2]};
+                const float axis_cross_perpendicular[3] = {
+                    axis[1]*perpendicular[2] - axis[2]*perpendicular[1],
+                    axis[2]*perpendicular[0] - axis[0]*perpendicular[2],
+                    axis[0]*perpendicular[1] - axis[1]*perpendicular[0]
+                };
+                const float cot_half_angle = relative[0] / sin_half_angle;
+                float center[3], center_rotated[3];
+                for(int i = 0; i < 3; i++){
+                    center[i] = 0.5f * (perpendicular[i] + cot_half_angle * axis_cross_perpendicular[i]);
+                }
+                rotate_by_quaternion(relative_t, center, center_rotated);
+                for(int i = 0; i < 3; i++){
+                    translation_relative_t[i] = center[i] - center_rotated[i] + t * displacement_along_axis * axis[i];
+                }
             }
             else{
-                const float theta = acosf(dot);
-                const float sin_theta = sinf(theta);
-                wa = sinf((1 - t) * theta) / sin_theta;
-                wb = sinf(t * theta) / sin_theta;
+                relative_t[0] = 1 + t * (relative[0] - 1);
+                relative_t[1] = t * relative[1];
+                relative_t[2] = t * relative[2];
+                relative_t[3] = t * relative[3];
+                const float norm = sqrtf(relative_t[0]*relative_t[0] + relative_t[1]*relative_t[1] + relative_t[2]*relative_t[2] + relative_t[3]*relative_t[3]);
+                for(int i = 0; i < 4; i++) relative_t[i] /= norm;
+                for(int i = 0; i < 3; i++){
+                    translation_relative_t[i] = t * displacement[i];
+                }
             }
-            float q[4] = {wa*qa[0] + wb*qb[0], wa*qa[1] + wb*qb[1], wa*qa[2] + wb*qb[2], wa*qa[3] + wb*qb[3]};
+            float q[4] = {
+                relative_t[0]*qa[0] - relative_t[1]*qa[1] - relative_t[2]*qa[2] - relative_t[3]*qa[3],
+                relative_t[0]*qa[1] + relative_t[1]*qa[0] + relative_t[2]*qa[3] - relative_t[3]*qa[2],
+                relative_t[0]*qa[2] - relative_t[1]*qa[3] + relative_t[2]*qa[0] + relative_t[3]*qa[1],
+                relative_t[0]*qa[3] + relative_t[1]*qa[2] - relative_t[2]*qa[1] + relative_t[3]*qa[0]
+            };
             const float norm = sqrtf(q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3]);
             for(int i = 0; i < 4; i++) q[i] /= norm;
             const float w = q[0], x = q[1], y = q[2], z = q[3];
             out[0] = 1 - 2*(y*y + z*z); out[1] = 2*(x*y - w*z);     out[2]  = 2*(x*z + w*y);
             out[4] = 2*(x*y + w*z);     out[5] = 1 - 2*(x*x + z*z); out[6]  = 2*(y*z - w*x);
             out[8] = 2*(x*z - w*y);     out[9] = 2*(y*z + w*x);     out[10] = 1 - 2*(x*x + y*y);
-            out[3]  = (1 - t) * a[3]  + t * b[3];
-            out[7]  = (1 - t) * a[7]  + t * b[7];
-            out[11] = (1 - t) * a[11] + t * b[11];
+            float translation_a_rotated[3];
+            rotate_by_quaternion(relative_t, translation_a, translation_a_rotated);
+            out[3]  = translation_a_rotated[0] + translation_relative_t[0];
+            out[7]  = translation_a_rotated[1] + translation_relative_t[1];
+            out[11] = translation_a_rotated[2] + translation_relative_t[2];
         }
     }
 }
