@@ -124,7 +124,7 @@ static void rotate_body_to_world(const Pose& pose, const T v[3], T out[3]) {
     }
 }
 
-static Pose flat_pose(DEVICE& device, const lissajous::Parameters<T>& trajectory, const T center[3], T time, T& last_yaw) {
+static Pose flat_pose(DEVICE& device, const lissajous::Parameters<T>& trajectory, const T center[3], T time) {
     const auto step = lissajous::evaluate(device, trajectory, time);
     const T finite_difference_h = 1e-3;
     const auto step_before = lissajous::evaluate(device, trajectory, time - finite_difference_h);
@@ -141,11 +141,7 @@ static Pose flat_pose(DEVICE& device, const lissajous::Parameters<T>& trajectory
     thrust[2] += GRAVITY;
     normalize(thrust, pose.basis[2]);
 
-    const T speed_xy = std::sqrt(step.linear_velocity[0]*step.linear_velocity[0] + step.linear_velocity[1]*step.linear_velocity[1]);
-    if (speed_xy > 1e-3) {
-        last_yaw = std::atan2(step.linear_velocity[1], step.linear_velocity[0]);
-    }
-    const T heading[3] = {std::cos(last_yaw), std::sin(last_yaw), 0};
+    const T heading[3] = {1, 0, 0};
     T left[3];
     cross(pose.basis[2], heading, left);
     normalize(left, pose.basis[1]);
@@ -274,11 +270,10 @@ int main(int argc, char** argv) {
     const T aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
     constexpr size_t CAM_PIXELS = static_cast<size_t>(CAM_WIDTH) * static_cast<size_t>(CAM_HEIGHT);
     std::vector<uint32_t> frame(NUM_CAMERAS * CAM_PIXELS);
-    T last_yaw = 0;
 
     for (int frame_i = 0; frame_i < options.frames; frame_i++) {
         const T time = static_cast<T>(frame_i / options.fps);
-        const Pose pose = flat_pose(device, trajectory, options.center, time, last_yaw);
+        const Pose pose = flat_pose(device, trajectory, options.center, time);
 
         float pose_transform[12];
         pose_to_transform(pose, pose_transform);
