@@ -31,6 +31,12 @@ checkout needed):
 pip install hyperdrone-<version>.tar.gz
 ```
 
+Install the dependencies used by the packaged examples with:
+
+```bash
+pip install "hyperdrone[examples]"
+```
+
 Requirements: CMake >= 3.24, a C++17 compiler, and per feature: assimp (system package)
 for GLB loading, CUDA + OptiX driver for the OptiX render backend and cuda dynamics,
 Vulkan dev + glslang for the VULKAN backend. Nothing beyond the compiler for
@@ -44,6 +50,7 @@ GENERIC + cpu.
 | `HYPERDRONE_DYNAMICS_DEVICE` | `CPU` \| `CUDA` \| `AUTO` (default: cuda when available) |
 | `HYPERDRONE_CACHE_DIR` | cache root (default `~/.cache/hyperdrone`) |
 | `HYPERDRONE_RLTOOLS_ROOT` | rl-tools source root override (default: enclosing checkout, else the vendored tree) |
+| `HYPERDRONE_PROCTHOR_PATH` | local ProcTHOR example scene override (otherwise downloaded and cached) |
 | `HYPERDRONE_SKIP_BUILD` | skip the CMake staleness check when the artifacts already exist |
 | `HYPERDRONE_OFFLINE` | forbid network during builds (requires seeded/vendored dependencies) |
 | `HYPERDRONE_BUILD_JOBS` | parallel build jobs (default 5) |
@@ -57,8 +64,9 @@ per-tree file lock, so many worker processes can share one cache safely.
 ```python
 import math, numpy as np
 from hyperdrone import render
+from hyperdrone.examples.data import procthor_scene_path
 
-scene = render.load_scene("tests/data/ProcTHOR-Train-1.glb", shading="high")
+scene = render.load_scene(procthor_scene_path(), shading="high")
 
 renderer = render.Renderer(width=320, height=240, num_cameras=4, output="rgbd", shading="high")
 renderer.init(scene)

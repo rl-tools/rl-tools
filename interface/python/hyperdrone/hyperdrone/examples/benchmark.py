@@ -18,7 +18,6 @@ matches the C++ render_only protocol.
 """
 import argparse
 import math
-import os
 import time
 from pathlib import Path
 
@@ -26,12 +25,13 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 
 import hyperdrone
-from hyperdrone import jit, render
+from hyperdrone import render
+from hyperdrone.examples.data import procthor_scene_path
 
-ROOT = Path(os.environ.get("HYPERDRONE_RLTOOLS_ROOT", jit.source_root()))
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-m", "--model", default=ROOT / "tests" / "data" / "ProcTHOR-Train-1.glb")
+parser.add_argument("-m", "--model", default=None,
+                    help="GLB scene (default: cached ProcTHOR-Train-1 download)")
 parser.add_argument("--width", type=int, default=64)
 parser.add_argument("--height", type=int, default=64)
 parser.add_argument("--cameras", type=int, default=4096)
@@ -118,9 +118,10 @@ def camera_bases(positions, forwards, ups, fov, aspect):
     return np.concatenate([positions, dir_00, du, -dv], axis=-1).astype(np.float32)
 
 
-scene_source = str(arguments.model)
-if Path(arguments.model).exists():
-    scene = render.load_scene(arguments.model, shading=arguments.shading)
+model = Path(arguments.model) if arguments.model else procthor_scene_path()
+scene_source = str(model)
+if model.exists():
+    scene = render.load_scene(model, shading=arguments.shading)
     eye = PROCTHOR_EYE
 else:
     scene_source = "procedural room (GLB not found)"
