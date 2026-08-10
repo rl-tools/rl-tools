@@ -166,6 +166,12 @@ NB_MODULE(hyperdrone_render_core, m){
         }, nb::arg("refresh") = true)
         .def("frame_dlpack", [](JitRenderer& jit){
             const hdr::Config c = jit->config();
+            uint8_t* pointer = reinterpret_cast<uint8_t*>(jit->frame_buffer_live());
+            return nb::ndarray<>(pointer, {c.num_cameras, c.height, c.width, 4}, nb::find(&jit), {},
+                                 nb::dtype<uint8_t>(), jit->buffer_device_type(), 0);
+        })
+        .def("frame_raw_dlpack", [](JitRenderer& jit){
+            const hdr::Config c = jit->config();
             uint32_t* pointer = jit->frame_buffer_live();
             return nb::ndarray<>(pointer, {c.num_cameras, c.height, c.width}, nb::find(&jit), {},
                                  nb::dtype<uint32_t>(), jit->buffer_device_type(), 0);
