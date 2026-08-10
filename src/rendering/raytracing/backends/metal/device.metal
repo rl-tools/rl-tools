@@ -22,6 +22,13 @@ constant bool fc_punctual_light_shadows [[function_constant(9)]];
 constant int fc_overlay_count [[function_constant(10)]];
 constant bool fc_semantic_segmentation [[function_constant(11)]];
 constant bool fc_has_observation [[function_constant(12)]];
+// dynamic motion blur: the motion loop runs at submit level (one dispatch per sample against
+// per-sample overlay structure state); each pass reads its shutter time from the SHUTTER
+// binding and adds its linear mean into the accumulation buffers, resolved by resolve_outputs
+constant bool fc_dynamic_motion_blur [[function_constant(13)]];
+constant bool fc_resolve_rgb [[function_constant(14)]];
+constant bool fc_resolve_depth [[function_constant(15)]];
+constant bool fc_resolve_observation = fc_resolve_rgb && fc_has_observation;
 
 struct LaunchParams{
     uint fb_width;
@@ -528,6 +535,8 @@ kernel void render_rgb(
     device const OverlayStructure* overlays [[buffer(11)]],
     device const uint* overlay_attachments [[buffer(12)]],
     device float* observation [[buffer(14), function_constant(fc_has_observation)]],
+    device float* rgb_accumulation [[buffer(15), function_constant(fc_dynamic_motion_blur)]],
+    constant float& shutter [[buffer(17), function_constant(fc_dynamic_motion_blur)]],
     uint2 pixel_id [[thread_position_in_grid]])
 {
     const PixelLaunchContext ctx = pixel_launch_context(params, pixel_id);
@@ -538,7 +547,8 @@ kernel void render_rgb(
 
     float3 accumulated = float3(0.f);
     const float inv_aa_grid = 1.f / float(fc_aa_grid);
-    for (int motion_i = 0; motion_i < fc_motion_samples; motion_i++) {
+    const int motion_samples = fc_dynamic_motion_blur ? 1 : fc_motion_samples;
+    for (int motion_i = 0; motion_i < motion_samples; motion_i++) {
         float3 pos;
         float3 dir_00;
         float3 dir_du;
@@ -546,7 +556,7 @@ kernel void render_rgb(
         if (fc_motion_blur) {
             device const Camera& cam_open = cameras_open[ctx.cam_idx];
             device const Camera& cam_close = cameras_close[ctx.cam_idx];
-            const float shutter_t = (float(motion_i) + .5f) * (1.f / float(fc_motion_samples));
+            const float shutter_t = fc_dynamic_motion_blur ? shutter : (float(motion_i) + .5f) * (1.f / float(fc_motion_samples));
             pos = lerp_camera_vec(float3(cam_open.pos), float3(cam_close.pos), shutter_t);
             dir_00 = lerp_camera_vec(float3(cam_open.dir_00), float3(cam_close.dir_00), shutter_t);
             dir_du = lerp_camera_vec(float3(cam_open.dir_du), float3(cam_close.dir_du), shutter_t);
@@ -567,8 +577,16 @@ kernel void render_rgb(
             }
         }
     }
-    const int samples = fc_motion_samples * fc_aa_grid * fc_aa_grid;
+    const int samples = motion_samples * fc_aa_grid * fc_aa_grid;
     const float3 color = accumulated * (1.f / float(samples));
+    if (fc_dynamic_motion_blur) {
+        // one pass of the launch-level motion loop: add this pass's linear mean (each thread
+        // owns its pixel — no atomics); resolve_outputs averages and quantizes
+        rgb_accumulation[ctx.fb_offset * 3 + 0] += color.x;
+        rgb_accumulation[ctx.fb_offset * 3 + 1] += color.y;
+        rgb_accumulation[ctx.fb_offset * 3 + 2] += color.z;
+        return;
+    }
     if (fc_has_observation) {
         // the observation is the frame-buffer color before 8-bit quantization
         float3 obs_color = clamp(color, 0.f, 1.f);
@@ -595,6 +613,8 @@ kernel void render_depth(
     instance_acceleration_structure accel [[buffer(8)]],
     device const OverlayStructure* overlays [[buffer(11)]],
     device const uint* overlay_attachments [[buffer(12)]],
+    device float* depth_accumulation [[buffer(16), function_constant(fc_dynamic_motion_blur)]],
+    constant float& shutter [[buffer(17), function_constant(fc_dynamic_motion_blur)]],
     uint2 pixel_id [[thread_position_in_grid]])
 {
     const PixelLaunchContext ctx = pixel_launch_context(params, pixel_id);
@@ -603,7 +623,8 @@ kernel void render_depth(
 
     float accumulated = 0.f;
     const float inv_aa_grid = 1.f / float(fc_aa_grid);
-    for (int motion_i = 0; motion_i < fc_motion_samples; motion_i++) {
+    const int motion_samples = fc_dynamic_motion_blur ? 1 : fc_motion_samples;
+    for (int motion_i = 0; motion_i < motion_samples; motion_i++) {
         float3 pos;
         float3 dir_00;
         float3 dir_du;
@@ -611,7 +632,7 @@ kernel void render_depth(
         if (fc_motion_blur) {
             device const Camera& cam_open = cameras_open[ctx.cam_idx];
             device const Camera& cam_close = cameras_close[ctx.cam_idx];
-            const float shutter_t = (float(motion_i) + .5f) * (1.f / float(fc_motion_samples));
+            const float shutter_t = fc_dynamic_motion_blur ? shutter : (float(motion_i) + .5f) * (1.f / float(fc_motion_samples));
             pos = lerp_camera_vec(float3(cam_open.pos), float3(cam_close.pos), shutter_t);
             dir_00 = lerp_camera_vec(float3(cam_open.dir_00), float3(cam_close.dir_00), shutter_t);
             dir_du = lerp_camera_vec(float3(cam_open.dir_du), float3(cam_close.dir_du), shutter_t);
@@ -632,8 +653,53 @@ kernel void render_depth(
             }
         }
     }
-    const int samples = fc_motion_samples * fc_aa_grid * fc_aa_grid;
+    const int samples = motion_samples * fc_aa_grid * fc_aa_grid;
+    if (fc_dynamic_motion_blur) {
+        depth_accumulation[ctx.fb_offset] += accumulated * (1.f / float(samples));
+        return;
+    }
     depth_out[ctx.fb_offset] = accumulated * (1.f / float(samples));
+}
+
+// divides the accumulated linear radiance by the sample count and writes the declared outputs
+// with the same transfer curve + quantization as the single-dispatch path
+kernel void resolve_outputs(
+    constant LaunchParams& params [[buffer(0)]],
+    device uint* fb [[buffer(3), function_constant(fc_resolve_rgb)]],
+    device float* observation [[buffer(14), function_constant(fc_resolve_observation)]],
+    device const float* rgb_accumulation [[buffer(15), function_constant(fc_resolve_rgb)]],
+    device const float* depth_accumulation [[buffer(16), function_constant(fc_resolve_depth)]],
+    device float* depth_out [[buffer(18), function_constant(fc_resolve_depth)]],
+    uint2 pixel_id [[thread_position_in_grid]])
+{
+    const PixelLaunchContext ctx = pixel_launch_context(params, pixel_id);
+    if (!ctx.valid)
+        return;
+    const float inv_samples = 1.f / float(fc_motion_samples);
+    if (fc_resolve_rgb) {
+        const float3 color = float3(
+            rgb_accumulation[ctx.fb_offset * 3 + 0],
+            rgb_accumulation[ctx.fb_offset * 3 + 1],
+            rgb_accumulation[ctx.fb_offset * 3 + 2]) * inv_samples;
+        if (fc_resolve_observation) {
+            float3 obs_color = clamp(color, 0.f, 1.f);
+            if (fc_srgb_output) {
+                obs_color = float3(linear_to_srgb(obs_color.x), linear_to_srgb(obs_color.y), linear_to_srgb(obs_color.z));
+            }
+            observation[ctx.fb_offset * 3 + 0] = obs_color.x;
+            observation[ctx.fb_offset * 3 + 1] = obs_color.y;
+            observation[ctx.fb_offset * 3 + 2] = obs_color.z;
+        }
+        if (fc_srgb_output) {
+            fb[ctx.fb_offset] = make_srgb_rgba_from_linear(color);
+        }
+        else {
+            fb[ctx.fb_offset] = make_linear_rgba_from_linear(color);
+        }
+    }
+    if (fc_resolve_depth) {
+        depth_out[ctx.fb_offset] = depth_accumulation[ctx.fb_offset] * inv_samples;
+    }
 }
 
 // single-sample by design: instance labels cannot be averaged, so anti-aliasing and motion blur

@@ -54,7 +54,8 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   shutter-open/close entries into the samples (exact below 180° per shutter); faster motion
   writes `transforms_motion()` directly. The single-pose verbs replicate across samples, so a
   dynamic spec driven only by them renders pixel-identically to camera-only blur. All passes
-  are enqueue-only: one fenced submit on Vulkan, stream-ordered launches on OptiX.
+  are enqueue-only: one fenced submit on Vulkan, one command buffer on Metal, stream-ordered
+  launches on OptiX.
 
 ## Lifecycle
 
@@ -104,7 +105,7 @@ rlt::probe_launch(device, renderer);
 | OptiX | `backends/optix` (PTX via OWL) | production training path; shared `AssetLibrary` context |
 | Vulkan | `backends/vulkan` (GLSL → SPIR-V) | `VK_KHR_ray_query` compute; headless; runs on lavapipe for CI; genuinely-async `update` |
 | generic | `backends/generic` | freestanding CPU reference and determinism oracle |
-| Metal | `backends/metal` (MSL) | macOS; **not buildable on the Linux dev machine — changes are pattern-exact and must be validated on macOS before release**; dynamic motion blur not yet ported (compile-time `static_assert`) |
+| Metal | `backends/metal` (MSL) | macOS; **not buildable on the Linux dev machine — changes are pattern-exact and must be validated on macOS before release** |
 
 Backend selection: `-DRL_TOOLS_RENDERING_RAYTRACING_BACKEND=AUTO|OPTIX|METAL|VULKAN|GENERIC`
 (mux in `operations_cpu_mux.h`). Code that needs a non-default backend passes an explicit

@@ -40,6 +40,10 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         constexpr int OVERLAY_ATTACHMENTS = 12;
         constexpr int INSTANCE_CLASSES = 13;
         constexpr int OBSERVATION = 14;
+        constexpr int RGB_ACCUMULATOR = 15;
+        constexpr int DEPTH_ACCUMULATOR = 16;
+        constexpr int SHUTTER = 17;
+        constexpr int DEPTH_OUTPUT = 18;
     }
     namespace function_constants{
         constexpr int SRGB_OUTPUT = 0;
@@ -55,6 +59,9 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         constexpr int OVERLAY_COUNT = 10;
         constexpr int SEMANTIC_SEGMENTATION = 11;
         constexpr int HAS_OBSERVATION = 12;
+        constexpr int DYNAMIC_MOTION_BLUR = 13;
+        constexpr int RESOLVE_RGB = 14;
+        constexpr int RESOLVE_DEPTH = 15;
     }
 
     struct LaunchParams{
@@ -125,6 +132,7 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         NS::SharedPtr<MTL::ComputePipelineState> depth_pipeline;
         NS::SharedPtr<MTL::ComputePipelineState> collision_pipeline;
         NS::SharedPtr<MTL::ComputePipelineState> segmentation_pipeline;
+        NS::SharedPtr<MTL::ComputePipelineState> resolve_pipeline;
         NS::SharedPtr<MTL::AccelerationStructure> acceleration_structure; // instance (top-level) AS
         std::vector<NS::SharedPtr<MTL::AccelerationStructure>> object_acceleration_structures;
         NS::SharedPtr<MTL::Buffer> instance_descriptors;
@@ -132,6 +140,7 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         NS::SharedPtr<MTL::Buffer> instance_data;
         std::vector<NS::SharedPtr<MTL::AccelerationStructure>> overlay_acceleration_structures;
         std::vector<NS::SharedPtr<MTL::Buffer>> overlay_instance_descriptors;
+        std::vector<NS::SharedPtr<MTL::Buffer>> overlay_sample_instance_descriptors; // dynamic motion blur: [sample * NUM_OVERLAYS + overlay], MAX_OVERLAY_INSTANCES descriptors each
         std::vector<NS::SharedPtr<MTL::Buffer>> overlay_scratch_buffers;
         NS::SharedPtr<MTL::Buffer> overlay_structures;
         NS::SharedPtr<MTL::Buffer> overlay_attachments;
@@ -148,6 +157,8 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         NS::SharedPtr<MTL::Buffer> cameras_open;
         NS::SharedPtr<MTL::Buffer> frame_buffer;
         NS::SharedPtr<MTL::Buffer> depth_buffer;
+        NS::SharedPtr<MTL::Buffer> rgb_accumulator;
+        NS::SharedPtr<MTL::Buffer> depth_accumulator;
         NS::SharedPtr<MTL::Buffer> segmentation_buffer;
         NS::SharedPtr<MTL::Buffer> observation;
         NS::SharedPtr<MTL::Buffer> collision_results;

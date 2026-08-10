@@ -57,13 +57,22 @@ namespace rl_tools {
         }
 
         template <typename SPEC>
-        void encode_fullscreen_pass(Context& ctx, MTL::CommandBuffer* command_buffer, MTL::ComputePipelineState* pipeline, MTL::Buffer* output){
+        void encode_fullscreen_pass(Context& ctx, MTL::CommandBuffer* command_buffer, MTL::ComputePipelineState* pipeline, MTL::Buffer* output, float shutter_t = 0.f){
             MTL::ComputeCommandEncoder* encoder = command_buffer->computeCommandEncoder();
             encoder->setComputePipelineState(pipeline);
             encoder->setBuffer(ctx.launch_params.get(), 0, bindings::LAUNCH_PARAMS);
             encoder->setBuffer(ctx.cameras.get(), 0, bindings::CAMERAS_CLOSE);
             encoder->setBuffer(ctx.cameras_open.get() != nullptr ? ctx.cameras_open.get() : ctx.cameras.get(), 0, bindings::CAMERAS_OPEN);
             encoder->setBuffer(output, 0, bindings::OUTPUT);
+            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+                if(ctx.rgb_accumulator.get() != nullptr){
+                    encoder->setBuffer(ctx.rgb_accumulator.get(), 0, bindings::RGB_ACCUMULATOR);
+                }
+                if(ctx.depth_accumulator.get() != nullptr){
+                    encoder->setBuffer(ctx.depth_accumulator.get(), 0, bindings::DEPTH_ACCUMULATOR);
+                }
+                encoder->setBytes(&shutter_t, sizeof(float), bindings::SHUTTER);
+            }
             encoder->setBuffer(ctx.mesh_records.get(), 0, bindings::MESH_RECORDS);
             if(ctx.scene_lights.get() != nullptr){
                 encoder->setBuffer(ctx.scene_lights.get(), 0, bindings::SCENE_LIGHTS);
@@ -97,6 +106,26 @@ namespace rl_tools {
         }
 
         template <typename SPEC>
+        void encode_resolve_pass(Context& ctx, MTL::CommandBuffer* command_buffer){
+            MTL::ComputeCommandEncoder* encoder = command_buffer->computeCommandEncoder();
+            encoder->setComputePipelineState(ctx.resolve_pipeline.get());
+            encoder->setBuffer(ctx.launch_params.get(), 0, bindings::LAUNCH_PARAMS);
+            if constexpr (SPEC::HAS_RGB){
+                encoder->setBuffer(ctx.frame_buffer.get(), 0, bindings::OUTPUT);
+                encoder->setBuffer(ctx.rgb_accumulator.get(), 0, bindings::RGB_ACCUMULATOR);
+            }
+            if constexpr (SPEC::HAS_OBSERVATION){
+                encoder->setBuffer(ctx.observation.get(), 0, bindings::OBSERVATION);
+            }
+            if constexpr (SPEC::HAS_DEPTH){
+                encoder->setBuffer(ctx.depth_accumulator.get(), 0, bindings::DEPTH_ACCUMULATOR);
+                encoder->setBuffer(ctx.depth_buffer.get(), 0, bindings::DEPTH_OUTPUT);
+            }
+            encoder->dispatchThreads(MTL::Size::Make(SPEC::FB_WIDTH, SPEC::FB_HEIGHT, 1), MTL::Size::Make(8, 8, 1));
+            encoder->endEncoding();
+        }
+
+        template <typename SPEC>
         void encode_collision_pass(Context& ctx, MTL::CommandBuffer* command_buffer){
             MTL::ComputeCommandEncoder* encoder = command_buffer->computeCommandEncoder();
             encoder->setComputePipelineState(ctx.collision_pipeline.get());
@@ -122,12 +151,14 @@ namespace rl_tools {
     void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
         namespace metal = rendering::raytracing::backends::metal;
         static_assert(utils::typing::is_same_v<typename SPEC::T, float>, "The Metal raytracing backend requires T = float");
-        // implemented on generic/OptiX/Vulkan; the Metal port (per-sample builds + accumulate
-        // tail + resolve kernel, same shape as Vulkan) must be written and validated on macOS
-        static_assert(!SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "dynamic motion blur is not yet implemented on the Metal backend");
 
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             malloc(device, renderer.transforms);
+        }
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
+            malloc(device, renderer.transforms_motion);
+            std::memset(data(renderer.transforms_motion), 0, decltype(renderer.transforms_motion)::SPEC::SIZE_BYTES);
+            renderer.transforms_motion_staging.assign((size_t)SPEC::MOTION_BLUR_SAMPLES * SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12, 0.0f);
         }
 
         renderer.backend = new rendering::raytracing::backends::RendererState<rendering::raytracing::backends::Metal, SPEC>{};
@@ -166,6 +197,18 @@ namespace rl_tools {
             static_assert(utils::typing::is_same_v<typename SPEC::OBSERVATION_T, float>, "The Metal raytracing backend requires OBSERVATION_T = float");
             ctx->observation = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * SPEC::OBSERVATION_CHANNELS * sizeof(float), MTL::ResourceStorageModeShared));
             renderer.observation._data = (float*)ctx->observation->contents();
+        }
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
+            // linear-radiance accumulators for the launch-level motion loop, resolved into the
+            // packed frame buffer / depth buffer by resolve_outputs after the last sample pass
+            if constexpr (SPEC::HAS_RGB) {
+                ctx->rgb_accumulator = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * 3 * sizeof(float), MTL::ResourceStorageModeShared));
+                renderer.rgb_accumulator._data = (float*)ctx->rgb_accumulator->contents();
+            }
+            if constexpr (SPEC::HAS_DEPTH) {
+                ctx->depth_accumulator = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(float), MTL::ResourceStorageModeShared));
+                renderer.depth_accumulator._data = (float*)ctx->depth_accumulator->contents();
+            }
         }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         ctx->collision_results = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES * sizeof(rendering::raytracing::CollisionResult), MTL::ResourceStorageModeShared));
@@ -346,7 +389,14 @@ namespace rl_tools {
         {
             size_t total_instances = scene.instances.size();
             if constexpr (SPEC::ENABLE_OVERLAYS){
-                total_instances += (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
+                // dynamic motion blur appends one extra overlay id range per motion sample:
+                // sample s's instances carry shifted user ids (num_scene + num_overlay_slots *
+                // (1 + s) + slot) so each pass's hits index a private slice of the instance side
+                // tables with no shader changes; the contract ids [num_scene, num_scene +
+                // num_overlay_slots) stay exclusive to the shutter-close state segmentation reads
+                constexpr size_t num_overlay_slots = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
+                constexpr size_t overlay_id_ranges = SPEC::ENABLE_DYNAMIC_MOTION_BLUR ? (size_t)1 + SPEC::MOTION_BLUR_SAMPLES : 1;
+                total_instances += num_overlay_slots * overlay_id_ranges;
             }
             std::vector<MTL::AccelerationStructureUserIDInstanceDescriptor> instance_descriptors(scene.instances.size());
             std::vector<metal::InstanceData> instance_data(total_instances, metal::InstanceData{});
@@ -409,6 +459,7 @@ namespace rl_tools {
         }
         ctx.overlay_acceleration_structures.clear();
         ctx.overlay_instance_descriptors.clear();
+        ctx.overlay_sample_instance_descriptors.clear();
         ctx.overlay_scratch_buffers.clear();
         if constexpr (SPEC::ENABLE_OVERLAYS){
             std::vector<metal::OverlayStructureEntry> overlay_entries(SPEC::NUM_OVERLAYS, metal::OverlayStructureEntry{});
@@ -432,6 +483,13 @@ namespace rl_tools {
                 ctx.overlay_scratch_buffers.push_back(overlay_scratch);
                 overlay_entries[overlay].structure = overlay_acceleration_structure->gpuResourceID();
                 overlay_entries[overlay].num_active = 0;
+            }
+            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+                for(size_t sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
+                    for(size_t overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+                        ctx.overlay_sample_instance_descriptors.push_back(NS::TransferPtr(ctx.device->newBuffer((size_t)SPEC::MAX_OVERLAY_INSTANCES * sizeof(MTL::AccelerationStructureUserIDInstanceDescriptor), MTL::ResourceStorageModeShared)));
+                    }
+                }
             }
             ctx.overlay_structures = NS::TransferPtr(ctx.device->newBuffer(overlay_entries.data(), overlay_entries.size() * sizeof(metal::OverlayStructureEntry), MTL::ResourceStorageModeShared));
             std::vector<uint32_t> attachments_init((size_t)SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA, 0xFFFFFFFFu);
@@ -489,6 +547,9 @@ namespace rl_tools {
             int overlay_count = (int)SPEC::MAX_OVERLAYS_PER_CAMERA;
             bool semantic_segmentation = SPEC::SEMANTIC_SEGMENTATION;
             bool has_observation = SPEC::HAS_OBSERVATION;
+            bool dynamic_motion_blur = SPEC::ENABLE_DYNAMIC_MOTION_BLUR;
+            bool resolve_rgb = SPEC::ENABLE_DYNAMIC_MOTION_BLUR && SPEC::HAS_RGB;
+            bool resolve_depth = SPEC::ENABLE_DYNAMIC_MOTION_BLUR && SPEC::HAS_DEPTH;
             constants->setConstantValue(&srgb_output, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::SRGB_OUTPUT);
             constants->setConstantValue(&motion_blur, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::MOTION_BLUR);
             constants->setConstantValue(&motion_samples, MTL::DataTypeInt, (NS::UInteger)metal::function_constants::MOTION_SAMPLES);
@@ -502,6 +563,9 @@ namespace rl_tools {
             constants->setConstantValue(&overlay_count, MTL::DataTypeInt, (NS::UInteger)metal::function_constants::OVERLAY_COUNT);
             constants->setConstantValue(&semantic_segmentation, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::SEMANTIC_SEGMENTATION);
             constants->setConstantValue(&has_observation, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::HAS_OBSERVATION);
+            constants->setConstantValue(&dynamic_motion_blur, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::DYNAMIC_MOTION_BLUR);
+            constants->setConstantValue(&resolve_rgb, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::RESOLVE_RGB);
+            constants->setConstantValue(&resolve_depth, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::RESOLVE_DEPTH);
 
             auto make_pipeline = [&](const char* name) -> NS::SharedPtr<MTL::ComputePipelineState> {
                 NS::Error* error = nullptr;
@@ -527,6 +591,9 @@ namespace rl_tools {
             }
             if constexpr (SPEC::HAS_SEGMENTATION) {
                 ctx.segmentation_pipeline = make_pipeline("render_segmentation");
+            }
+            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
+                ctx.resolve_pipeline = make_pipeline("resolve_outputs");
             }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
             ctx.collision_pipeline = make_pipeline("render_collision");
@@ -628,6 +695,55 @@ namespace rl_tools {
                 encoder->buildAccelerationStructure(ctx.overlay_acceleration_structures[overlay].get(), overlay_descriptor, ctx.overlay_scratch_buffers[overlay].get(), 0);
             }
         }
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+            // per-sample overlay instance descriptors + shifted-id side-table slices consumed by
+            // render_launch's per-sample builds; layout mirrors the shutter-close path above
+            rendering::raytracing::detail::flush_overlay_motion_transforms(renderer);
+            constexpr size_t SLAB = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12;
+            constexpr size_t num_overlay_slots = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
+            for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
+                const float* transforms_base = data(renderer.transforms_motion) + sample * SLAB;
+                for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+                    auto& overlay_state = renderer.overlays[overlay];
+                    auto* descriptors = (MTL::AccelerationStructureUserIDInstanceDescriptor*)ctx.overlay_sample_instance_descriptors[(size_t)sample * SPEC::NUM_OVERLAYS + overlay]->contents();
+                    uint32_t num_active = 0;
+                    for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
+                        const auto& host_slot = overlay_state.slots[slot];
+                        if(!host_slot.active) continue;
+                        const size_t global = (size_t)ctx.num_scene_instances + num_overlay_slots * (1 + (size_t)sample) + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES + slot;
+                        float world[12];
+                        rendering::raytracing::detail::compose_overlay_slot_transform(renderer, transforms_base, overlay, slot, world);
+                        auto& descriptor = descriptors[num_active];
+                        descriptor = {};
+                        for(int column = 0; column < 4; column++){
+                            descriptor.transformationMatrix.columns[column] = MTL::PackedFloat3{world[0 + column], world[4 + column], world[8 + column]};
+                        }
+                        descriptor.options = MTL::AccelerationStructureInstanceOptionOpaque;
+                        descriptor.mask = 0xFFFFFFFFu;
+                        descriptor.intersectionFunctionTableOffset = 0;
+                        descriptor.accelerationStructureIndex = (uint32_t)host_slot.object;
+                        descriptor.userID = (uint32_t)global;
+
+                        auto& data_entry = instance_data[global];
+                        data_entry = {};
+                        for(int element = 0; element < 12; element++){
+                            data_entry.object_to_world[element] = world[element];
+                        }
+                        const bool identity = rendering::raytracing::detail::transform_is_identity(world);
+                        if(identity){
+                            std::memcpy(data_entry.world_to_object, data_entry.object_to_world, sizeof(data_entry.world_to_object));
+                        }
+                        else{
+                            rendering::raytracing::detail::invert_transform(world, data_entry.world_to_object);
+                        }
+                        data_entry.identity = identity ? 1 : 0;
+                        instance_record_base[global] = ctx.object_record_base[host_slot.object];
+                        ((uint32_t*)ctx.instance_classes->contents())[global] = ctx.object_classes[host_slot.object];
+                        num_active++;
+                    }
+                }
+            }
+        }
         if(renderer.attachments_dirty){
             auto* attachments = (uint32_t*)ctx.overlay_attachments->contents();
             for(size_t index = 0; index < (size_t)SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA; index++){
@@ -703,9 +819,77 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void render_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
         namespace metal = rendering::raytracing::backends::metal;
+        using TI = typename SPEC::TI;
         auto& ctx = metal::context(renderer);
         NS::AutoreleasePool* pool = NS::AutoreleasePool::alloc()->init();
         MTL::CommandBuffer* command_buffer = ctx.queue->commandBuffer();
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+            // one command buffer per frame: zero the accumulators, then per motion sample build
+            // the overlay structures in place from that sample's descriptors and run the
+            // accumulate dispatches, then restore the shutter-close state (segmentation, probes,
+            // steady state) and resolve — encoder order plus Metal hazard tracking on the
+            // acceleration structures and accumulators serializes builds against dispatches
+            uint32_t num_active_per_overlay[SPEC::NUM_OVERLAYS];
+            uint32_t total_active = 0;
+            for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+                uint32_t num_active = 0;
+                for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
+                    num_active += renderer.overlays[overlay].slots[slot].active ? 1 : 0;
+                }
+                num_active_per_overlay[overlay] = num_active;
+                total_active += num_active;
+            }
+            {
+                MTL::BlitCommandEncoder* blit = command_buffer->blitCommandEncoder();
+                if constexpr (SPEC::HAS_RGB){
+                    blit->fillBuffer(ctx.rgb_accumulator.get(), NS::Range::Make(0, ctx.rgb_accumulator->length()), 0);
+                }
+                if constexpr (SPEC::HAS_DEPTH){
+                    blit->fillBuffer(ctx.depth_accumulator.get(), NS::Range::Make(0, ctx.depth_accumulator->length()), 0);
+                }
+                blit->endEncoding();
+            }
+            std::vector<NS::Object*> object_acceleration_structure_pointers;
+            for(auto& object_acceleration_structure : ctx.object_acceleration_structures){
+                object_acceleration_structure_pointers.push_back(object_acceleration_structure.get());
+            }
+            NS::Array* object_array = NS::Array::array((const NS::Object* const*)object_acceleration_structure_pointers.data(), object_acceleration_structure_pointers.size());
+            const auto encode_overlay_builds = [&](auto&& descriptor_buffer_for_overlay){
+                if(total_active == 0){
+                    return;
+                }
+                MTL::AccelerationStructureCommandEncoder* encoder = command_buffer->accelerationStructureCommandEncoder();
+                for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+                    if(num_active_per_overlay[overlay] == 0) continue;
+                    MTL::InstanceAccelerationStructureDescriptor* overlay_descriptor = MTL::InstanceAccelerationStructureDescriptor::descriptor();
+                    overlay_descriptor->setInstancedAccelerationStructures(object_array);
+                    overlay_descriptor->setInstanceCount(num_active_per_overlay[overlay]);
+                    overlay_descriptor->setInstanceDescriptorBuffer(descriptor_buffer_for_overlay(overlay));
+                    overlay_descriptor->setInstanceDescriptorType(MTL::AccelerationStructureInstanceDescriptorTypeUserID);
+                    encoder->buildAccelerationStructure(ctx.overlay_acceleration_structures[overlay].get(), overlay_descriptor, ctx.overlay_scratch_buffers[overlay].get(), 0);
+                }
+                encoder->endEncoding();
+            };
+            for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
+                encode_overlay_builds([&](TI overlay){ return ctx.overlay_sample_instance_descriptors[(size_t)sample * SPEC::NUM_OVERLAYS + overlay].get(); });
+                const float shutter_t = ((float)sample + 0.5f) / (float)SPEC::MOTION_BLUR_SAMPLES;
+                if constexpr (SPEC::HAS_RGB) {
+                    metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.rgb_pipeline.get(), ctx.frame_buffer.get(), shutter_t);
+                }
+                if constexpr (SPEC::HAS_DEPTH) {
+                    metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.depth_pipeline.get(), ctx.depth_buffer.get(), shutter_t);
+                }
+            }
+            encode_overlay_builds([&](TI overlay){ return ctx.overlay_instance_descriptors[overlay].get(); });
+            if constexpr (SPEC::HAS_SEGMENTATION) {
+                metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.segmentation_pipeline.get(), ctx.segmentation_buffer.get());
+            }
+            metal::encode_resolve_pass<SPEC>(ctx, command_buffer);
+            command_buffer->commit();
+            ctx.in_flight = NS::RetainPtr(command_buffer);
+            pool->release();
+            return;
+        }
         if constexpr (SPEC::HAS_RGB) {
             metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.rgb_pipeline.get(), ctx.frame_buffer.get());
         }
@@ -841,6 +1025,15 @@ namespace rl_tools {
         renderer.collision_results._data = nullptr;
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             free(device, renderer.transforms);
+        }
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
+            free(device, renderer.transforms_motion);
+            if constexpr (SPEC::HAS_RGB) {
+                renderer.rgb_accumulator._data = nullptr;
+            }
+            if constexpr (SPEC::HAS_DEPTH) {
+                renderer.depth_accumulator._data = nullptr;
+            }
         }
     }
 
