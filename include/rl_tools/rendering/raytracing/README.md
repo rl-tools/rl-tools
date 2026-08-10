@@ -51,14 +51,15 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   passes (camera lerped at the same `(i+0.5)/N` shutter times), accumulating linear radiance
   per pixel (each thread owns its pixel — no atomics), then restores the shutter-close overlay
   state (segmentation and probes stay single-sample at shutter close, ids unchanged) and
-  resolves with the standard transfer curve + quantization. `set_transform_pair` slerps
-  shutter-open/close entries into the samples (exact below 180° per shutter); faster motion
-  writes `transforms_motion()` directly. The single-pose verbs replicate across samples, so a
+  resolves with the standard transfer curve + quantization. `set_transform_pair` expands
+  shutter-open/close entries into the samples by constant-twist screw interpolation (exact for
+  constant-velocity rigid motion below 180° per shutter — an off-origin rotation axis such as a
+  prop hub stays fixed); faster motion writes `transforms_motion()` directly. The single-pose verbs replicate across samples, so a
   dynamic spec driven only by them renders pixel-identically to camera-only blur. All passes
   are enqueue-only: one fenced submit on Vulkan, stream-ordered launches on OptiX.
 - **GPU-resident dynamic motion blur** (OptiX): a sim kernel writes the shutter pair into
   `transforms_pair()` (entry layout `[2][num_overlays * max_instances][12]`, open then close)
-  and the camera pair in place; `expand_motion_transforms_launch` then slerps the samples into
+  and the camera pair in place; `expand_motion_transforms_launch` then expands the samples into
   `transforms_motion()` and the close state into `transforms()` on the render stream
   (`transforms_generic.h` is the single interpolant shared by the host verb and the kernel).
   The steady-state step becomes kernel → expand → update → render with no host data path —

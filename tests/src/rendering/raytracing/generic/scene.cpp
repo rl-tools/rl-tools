@@ -989,6 +989,34 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_DEPTH){
     rlt::free(device, renderer);
 }
 
+// the pair interpolant is a constant-twist screw motion: a rotation about an off-origin pivot
+// (prop hub, pivot baked into the translation as (I - R) * pivot) must stay a rotation about
+// that pivot at every shutter sample — a translation lerp would cut the chord between the
+// endpoint translations and dislocate the hub by |pivot| * (1 - cos(delta/2)) at mid-shutter
+TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_PAIR_PIVOT){
+    const float pivot[2] = {0.09f, 0.09f};
+    const auto pivot_spin = [&](float angle, float out[12]){
+        const float c = std::cos(angle), s = std::sin(angle);
+        out[0] = c;  out[1] = -s; out[2]  = 0; out[3]  = pivot[0] - c * pivot[0] + s * pivot[1];
+        out[4] = s;  out[5] = c;  out[6]  = 0; out[7]  = pivot[1] - s * pivot[0] - c * pivot[1];
+        out[8] = 0;  out[9] = 0;  out[10] = 1; out[11] = 0;
+    };
+    const float angle_open = 12.34f;
+    const float angle_close = angle_open + 1.25f;
+    float open[12], close[12];
+    pivot_spin(angle_open, open);
+    pivot_spin(angle_close, close);
+    for(TI sample = 0; sample < 16; sample++){
+        const float shutter_t = ((float)sample + 0.5f) / 16.0f;
+        float interpolated[12], exact[12];
+        rlt::rendering::raytracing::detail::slerp_transform(open, close, shutter_t, interpolated);
+        pivot_spin(angle_open + shutter_t * (angle_close - angle_open), exact);
+        for(int element = 0; element < 12; element++){
+            EXPECT_NEAR(interpolated[element], exact[element], 1e-5f);
+        }
+    }
+}
+
 // producer path for the per-sample tensor: direct writes into transforms_motion (no host verb,
 // no dirty flag) must be consumed by the sample passes
 TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_TRANSFORMS_TENSOR){
