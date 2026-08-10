@@ -297,6 +297,12 @@ namespace rl_tools {
             // semantics match transforms (root: pose, non-root: part-frame articulation).
             using TRANSFORMS_MOTION_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::MOTION_BLUR_SAMPLES, SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES, 12>, true>;
             Tensor<TRANSFORMS_MOTION_TENSOR_SPEC> transforms_motion;
+            // device-producer input: shutter-open (index 0) and shutter-close (index 1) entries
+            // per slot, expanded into transforms_motion (and the close state into transforms) by
+            // expand_motion_transforms — on OptiX both the producer write and the expansion stay
+            // on the device, so a sim kernel can drive dynamic blur with no host data path
+            using TRANSFORMS_PAIR_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, 2, SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES, 12>, true>;
+            Tensor<TRANSFORMS_PAIR_TENSOR_SPEC> transforms_pair;
             // host mirror of transforms_motion for the verb path (the tensor is device-resident
             // on OptiX); staged per dirty overlay, same ownership contract as transform_entry
             std::vector<float> transforms_motion_staging;

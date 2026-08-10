@@ -1,4 +1,6 @@
 #include "../../../../../include/rl_tools/rendering/raytracing/backends/optix/overlay_accel.h"
+#define RL_TOOLS_FUNCTION_PLACEMENT __device__ __host__
+#include "../../../../../include/rl_tools/rendering/raytracing/transforms_generic.h"
 
 #include <optix.h>
 #include <optix_stubs.h>
@@ -29,14 +31,7 @@ namespace rl_tools::rendering::raytracing::backends::optix{
             return (value + alignment - 1) & ~(alignment - 1);
         }
 
-        __device__ inline void compose_transforms(const float a[12], const float b[12], float out[12]){
-            for(int row = 0; row < 3; row++){
-                for(int column = 0; column < 3; column++){
-                    out[row * 4 + column] = a[row * 4] * b[column] + a[row * 4 + 1] * b[4 + column] + a[row * 4 + 2] * b[8 + column];
-                }
-                out[row * 4 + 3] = a[row * 4] * b[3] + a[row * 4 + 1] * b[7] + a[row * 4 + 2] * b[11] + a[row * 4 + 3];
-            }
-        }
+        using rl_tools::rendering::raytracing::detail::compose_transforms;
 
         __global__ void fill_instances(const OverlaySlotStructure* structure, const float* transforms, const OverlayObjectEntry* objects, OptixInstance* instances, unsigned int* instance_classes, unsigned long long filler_traversable, unsigned int num_overlays, unsigned int max_instances, unsigned int num_scene_instances, float shutter_t, float* shutter_out){
             const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
@@ -247,6 +242,34 @@ namespace rl_tools::rendering::raytracing::backends::optix{
         const unsigned int grid_size = (num_pixels + block_size - 1) / block_size;
         detail::resolve_accumulators<<<grid_size, block_size, 0, stream>>>(rgb_accumulation, frame_buffer, observation, srgb_output, depth_accumulation, depth_buffer, num_pixels, 1.0f / (float)num_samples);
         detail::check_cuda(cudaGetLastError(), "resolve_accumulators launch");
+    }
+
+    namespace overlay_accel_detail{
+        __global__ void expand_motion(const float* pairs, float* transforms_motion, float* transforms, unsigned int num_slots, unsigned int num_samples){
+            const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+            if(index >= num_slots * num_samples){
+                return;
+            }
+            const unsigned int slot = index / num_samples;
+            const unsigned int sample = index % num_samples;
+            const float* open = pairs + (size_t)slot * 12;
+            const float* close = pairs + ((size_t)num_slots + slot) * 12;
+            const float shutter_t = ((float)sample + 0.5f) / (float)num_samples;
+            rl_tools::rendering::raytracing::detail::slerp_transform(open, close, shutter_t, transforms_motion + ((size_t)sample * num_slots + slot) * 12);
+            if(sample == 0){
+                for(int element = 0; element < 12; element++){
+                    transforms[(size_t)slot * 12 + element] = close[element];
+                }
+            }
+        }
+    }
+
+    void overlay_accel_expand_motion(const float* pairs, float* transforms_motion, float* transforms, unsigned int num_slots, unsigned int num_samples, cudaStream_t stream){
+        namespace detail = overlay_accel_detail;
+        const unsigned int block_size = 128;
+        const unsigned int grid_size = (num_slots * num_samples + block_size - 1) / block_size;
+        detail::expand_motion<<<grid_size, block_size, 0, stream>>>(pairs, transforms_motion, transforms, num_slots, num_samples);
+        detail::check_cuda(cudaGetLastError(), "expand_motion launch");
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

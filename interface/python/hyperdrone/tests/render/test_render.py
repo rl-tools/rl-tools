@@ -161,6 +161,18 @@ def test_dynamic_motion_blur_object():
     renderer.render("depth")
     assert abs(renderer.depth()[0, 0, 0] - 3.0) < 1e-2
 
+    # producer path: the same shutter pair through the transforms_pair tensor + on-device
+    # expansion must reproduce the host-verb result
+    num_slots = 1 * 2  # num_overlays * max_overlay_instances
+    pairs = np.zeros((2, num_slots, 12), dtype=np.float32)
+    pairs[0, placement[0]] = np.asarray(render.make_transform(position=(2.0, 0.0, 0.0)), dtype=np.float32).reshape(12)
+    pairs[1, placement[0]] = np.asarray(render.make_transform(position=(4.0, 0.0, 0.0)), dtype=np.float32).reshape(12)
+    renderer.set_transforms_pair(pairs)
+    renderer.expand_motion_transforms()
+    renderer.update()
+    renderer.render("depth")
+    assert abs(renderer.depth()[0, 0, 0] - 3.0) < 1e-2
+
 
 def test_overlay_pipeline_and_output_saves(tmp_path):
     scene = make_scene(8.0)
