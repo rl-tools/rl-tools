@@ -23,6 +23,11 @@
 
 namespace rlt = rl_tools;
 
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_OVERLAY_TEST_ACTIVE_BACKEND
+using BACKEND = rlt::rendering::raytracing::backends::Default;
+#else
+using BACKEND = rlt::rendering::raytracing::backends::Generic;
+#endif
 using DEVICE = rlt::devices::DefaultCPU;
 using T = float;
 using TI = typename DEVICE::index_t;
@@ -58,7 +63,7 @@ namespace {
     template <typename SPEC>
     struct RendererOwner{
         DEVICE& device;
-        rlt::rendering::raytracing::Renderer<SPEC> renderer;
+        rlt::rendering::raytracing::Renderer<SPEC, BACKEND> renderer;
 
         explicit RendererOwner(DEVICE& device): device(device){
             rlt::malloc(device, renderer);
@@ -108,7 +113,7 @@ namespace {
     }
 
     template <typename SPEC>
-    void set_identical_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer){
+    void set_identical_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         const T position[3] = {0, 0, 0};
         const T look_at[3] = {1, 0, 0};
         const T up[3] = {0, 0, 1};
@@ -140,7 +145,7 @@ namespace {
     };
 
     template <typename SPEC>
-    Frame<SPEC> capture(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer){
+    Frame<SPEC> capture(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
         const size_t size = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
@@ -297,31 +302,31 @@ namespace {
     }
 
     template <typename SPEC>
-    void expect_maps_to_asset(DEVICE& device, const Scene& scene, const AssetPool& pool, const rlt::rendering::raytracing::Renderer<SPEC>& renderer, uint32_t id, AssetHandle asset){
+    void expect_maps_to_asset(DEVICE& device, const Scene& scene, const AssetPool& pool, const rlt::rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, uint32_t id, AssetHandle asset){
         const auto* object = rlt::segmentation_object(device, scene, pool, renderer, id);
         ASSERT_NE(object, nullptr);
         EXPECT_EQ(object, &pool.assemblies[asset.index].objects[0]);
     }
 
     template <typename SPEC>
-    OverlayPlacement spawn_at(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, size_t overlay, AssetHandle asset, const std::array<float, 12>& transform){
+    OverlayPlacement spawn_at(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, size_t overlay, AssetHandle asset, const std::array<float, 12>& transform){
         return rlt::spawn(device, renderer, OverlayIndex{overlay}, asset, transform.data());
     }
 
     template <typename SPEC>
-    void attach_to(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, size_t overlay, std::initializer_list<TI> cameras){
+    void attach_to(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, size_t overlay, std::initializer_list<TI> cameras){
         for(TI camera : cameras){
             rlt::attach(device, renderer, camera, OverlayIndex{overlay});
         }
     }
 
     template <typename SPEC>
-    void move(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, size_t overlay, const OverlayPlacement& placement, const std::array<float, 12>& transform){
+    void move(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, size_t overlay, const OverlayPlacement& placement, const std::array<float, 12>& transform){
         rlt::set_transform(device, renderer, OverlayIndex{overlay}, placement, transform.data());
     }
 
     template <typename SPEC>
-    void expect_static_scene(DEVICE& device, const Scene& scene, const AssetPool& pool, const rlt::rendering::raytracing::Renderer<SPEC>& renderer, const Frame<SPEC>& frame){
+    void expect_static_scene(DEVICE& device, const Scene& scene, const AssetPool& pool, const rlt::rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const Frame<SPEC>& frame){
         const auto* object = rlt::segmentation_object(device, scene, pool, renderer, 0);
         ASSERT_NE(object, nullptr);
         EXPECT_EQ(object, &scene.objects[0]);
@@ -333,7 +338,7 @@ namespace {
     }
 
     template <typename SPEC>
-    void expect_repeat_after_noop_update(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, const Frame<SPEC>& expected){
+    void expect_repeat_after_noop_update(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const Frame<SPEC>& expected){
         rlt::update(device, renderer);
         const auto repeated = capture(device, renderer);
         expect_raw_frame_valid(repeated);
