@@ -5,6 +5,7 @@
 #define RL_TOOLS_RENDERING_RAYTRACING_OPERATIONS_CPU_COMMON_H
 
 #include "renderer.h"
+#include "transforms_generic.h"
 
 // STATIC gives the stb implementations internal linkage so multiple TUs of one binary may include
 // this header without duplicate-symbol link errors; RL_TOOLS_STB_PROVIDED arbitrates with other
@@ -980,14 +981,8 @@ namespace rl_tools {
         return true;
     }
 
-    inline void compose_transforms(const float a[12], const float b[12], float out[12]){
-        for(int row = 0; row < 3; row++){
-            for(int column = 0; column < 3; column++){
-                out[row * 4 + column] = a[row * 4] * b[column] + a[row * 4 + 1] * b[4 + column] + a[row * 4 + 2] * b[8 + column];
-            }
-            out[row * 4 + 3] = a[row * 4] * b[3] + a[row * 4 + 1] * b[7] + a[row * 4 + 2] * b[11] + a[row * 4 + 3];
-        }
-    }
+    // compose_transforms and slerp_transform live in transforms_generic.h (shared with device
+    // producers)
 
     inline constexpr float IDENTITY_TRANSFORM[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
 
@@ -1047,73 +1042,6 @@ namespace rl_tools {
         out[11] = -(out[8]*transform[3] + out[9]*transform[7] + out[10]*transform[11]);
     }
 
-    // rotation slerp (shortest arc) + translation lerp between two rigid 3x4 transforms; the
-    // single host-side interpolant behind set_transform_pair, so every backend consumes
-    // identical per-sample matrices. Exact for single-axis rotations below 180 degrees per
-    // shutter interval — faster motion must supply per-sample transforms directly.
-    inline void slerp_transform(const float a[12], const float b[12], float t, float out[12]){
-        auto quaternion_from_transform = [](const float m[12], float q[4]){
-            const float trace = m[0] + m[5] + m[10];
-            if(trace > 0){
-                const float s = std::sqrt(trace + 1.0f) * 2;
-                q[0] = 0.25f * s;
-                q[1] = (m[9] - m[6]) / s;
-                q[2] = (m[2] - m[8]) / s;
-                q[3] = (m[4] - m[1]) / s;
-            }
-            else if(m[0] > m[5] && m[0] > m[10]){
-                const float s = std::sqrt(1.0f + m[0] - m[5] - m[10]) * 2;
-                q[0] = (m[9] - m[6]) / s;
-                q[1] = 0.25f * s;
-                q[2] = (m[1] + m[4]) / s;
-                q[3] = (m[2] + m[8]) / s;
-            }
-            else if(m[5] > m[10]){
-                const float s = std::sqrt(1.0f + m[5] - m[0] - m[10]) * 2;
-                q[0] = (m[2] - m[8]) / s;
-                q[1] = (m[1] + m[4]) / s;
-                q[2] = 0.25f * s;
-                q[3] = (m[6] + m[9]) / s;
-            }
-            else{
-                const float s = std::sqrt(1.0f + m[10] - m[0] - m[5]) * 2;
-                q[0] = (m[4] - m[1]) / s;
-                q[1] = (m[2] + m[8]) / s;
-                q[2] = (m[6] + m[9]) / s;
-                q[3] = 0.25f * s;
-            }
-        };
-        float qa[4], qb[4];
-        quaternion_from_transform(a, qa);
-        quaternion_from_transform(b, qb);
-        float dot = qa[0]*qb[0] + qa[1]*qb[1] + qa[2]*qb[2] + qa[3]*qb[3];
-        if(dot < 0){
-            for(int i = 0; i < 4; i++) qb[i] = -qb[i];
-            dot = -dot;
-        }
-        float wa, wb;
-        if(dot > 0.9995f){
-            wa = 1 - t;
-            wb = t;
-        }
-        else{
-            const float theta = std::acos(dot);
-            const float sin_theta = std::sin(theta);
-            wa = std::sin((1 - t) * theta) / sin_theta;
-            wb = std::sin(t * theta) / sin_theta;
-        }
-        float q[4] = {wa*qa[0] + wb*qb[0], wa*qa[1] + wb*qb[1], wa*qa[2] + wb*qb[2], wa*qa[3] + wb*qb[3]};
-        const float norm = std::sqrt(q[0]*q[0] + q[1]*q[1] + q[2]*q[2] + q[3]*q[3]);
-        for(int i = 0; i < 4; i++) q[i] /= norm;
-        const float w = q[0], x = q[1], y = q[2], z = q[3];
-        out[0] = 1 - 2*(y*y + z*z); out[1] = 2*(x*y - w*z);     out[2]  = 2*(x*z + w*y);
-        out[4] = 2*(x*y + w*z);     out[5] = 1 - 2*(x*x + z*z); out[6]  = 2*(y*z - w*x);
-        out[8] = 2*(x*z - w*y);     out[9] = 2*(y*z + w*x);     out[10] = 1 - 2*(x*x + y*y);
-        out[3]  = (1 - t) * a[3]  + t * b[3];
-        out[7]  = (1 - t) * a[7]  + t * b[7];
-        out[11] = (1 - t) * a[11] + t * b[11];
-    }
-
     // writes one entry into every motion sample of the staging mirror (constant across the
     // shutter = sharp); the single-pose verbs route through this so a dynamic-motion-blur spec
     // driven only by them renders identically to camera-only blur
@@ -1125,6 +1053,28 @@ namespace rl_tools {
                 std::memcpy(renderer.transforms_motion_staging.data() + sample * SLAB + ((size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES + slot) * 12, entry, 12 * sizeof(float));
             }
             renderer.transforms_motion_dirty[overlay] = true;
+        }
+    }
+
+    // CPU expansion of the transforms_pair tensor for backends whose tensors are host-resident
+    // (generic/Vulkan); OptiX runs the same math on-device (overlay_accel_expand_motion).
+    // Producer-style: writes the tensors directly with no dirty flags, so the host-verb flush
+    // never clobbers it — per overlay, use either the set_transform* verbs or the pair path.
+    template <typename SPEC, typename BACKEND>
+    void expand_motion_transforms_host(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
+        using TI = typename SPEC::TI;
+        constexpr size_t SLOTS = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
+        const float* pairs = data(renderer.transforms_pair);
+        float* transforms_motion = data(renderer.transforms_motion);
+        float* transforms = data(renderer.transforms);
+        for(size_t slot = 0; slot < SLOTS; slot++){
+            const float* open = pairs + slot * 12;
+            const float* close = pairs + (SLOTS + slot) * 12;
+            for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
+                const float shutter_t = ((float)sample + 0.5f) / (float)SPEC::MOTION_BLUR_SAMPLES;
+                slerp_transform(open, close, shutter_t, transforms_motion + ((size_t)sample * SLOTS + slot) * 12);
+            }
+            std::memcpy(transforms + slot * 12, close, 12 * sizeof(float));
         }
     }
 
@@ -1623,6 +1573,12 @@ namespace rl_tools {
     auto& transforms_motion(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "transforms_motion requires a dynamic-motion-blur renderer specification");
         return renderer.transforms_motion;
+    }
+
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    auto& transforms_pair(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
+        static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "transforms_pair requires a dynamic-motion-blur renderer specification");
+        return renderer.transforms_pair;
     }
 
     // camera input tensors, backend-native residency like transforms: device memory on OptiX,
