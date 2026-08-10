@@ -93,6 +93,62 @@ bool run_case(DEVICE& device, const std::string& output_dir, const char* name, b
     return ok;
 }
 
+bool run_normals_case(DEVICE& device, const std::string& output_dir) {
+    std::cout << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] rendering normals" << std::endl;
+    using SPEC = CASES::NORMALS;
+
+    golden::Rendered<T> rendered;
+    if(!golden::render_case<SPEC, BACKEND, DEVICE, CASES>(device, SCENE_PATH, rendered)) {
+        std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] normals: failed to load scene: " << SCENE_PATH << std::endl;
+        return false;
+    }
+
+    bool ok = true;
+    const size_t pixel_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+    if(rendered.normals.size() != pixel_count * 3) {
+        std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] normals: buffer has the wrong size" << std::endl;
+        ok = false;
+    }
+    else {
+        size_t hits = 0;
+        size_t invalid = 0;
+        for(size_t pixel_i = 0; pixel_i < pixel_count; pixel_i++) {
+            const T x = rendered.normals[pixel_i * 3 + 0];
+            const T y = rendered.normals[pixel_i * 3 + 1];
+            const T z = rendered.normals[pixel_i * 3 + 2];
+            if(x == 0 && y == 0 && z == 0) {
+                continue;
+            }
+            hits++;
+            const T norm = std::sqrt(x * x + y * y + z * z);
+            invalid += norm < (T)0.999 || norm > (T)1.001;
+        }
+        if(invalid > 0) {
+            std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] normals: " << invalid << " pixel(s) are neither unit-length nor the zero miss sentinel" << std::endl;
+            ok = false;
+        }
+        if(hits == 0) {
+            std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] normals: no hit pixels" << std::endl;
+            ok = false;
+        }
+    }
+
+    if(ok) {
+        std::vector<uint32_t> encoded(pixel_count);
+        golden::colorize_normals(rendered.normals.data(), pixel_count, encoded.data());
+        for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
+            const std::string directory = output_dir + "/" + CASES::POSES[camera_i].id;
+            std::filesystem::create_directories(directory);
+            ok &= golden::write_camera_png(directory + "/normals.png", encoded.data() + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+        }
+        if(!ok) {
+            std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] normals: failed to write outputs" << std::endl;
+        }
+    }
+
+    return ok;
+}
+
 int main(int argc, char** argv) {
     std::string output_dir = DEFAULT_OUTPUT_DIR;
     for(int arg_i = 1; arg_i < argc; arg_i++) {
@@ -135,6 +191,7 @@ int main(int argc, char** argv) {
     ok &= run_case<CASES::HIGH_RGB_MB4_DYNAMIC, false>(device, output_dir, "high_rgb_mb4_object", false);
     ok &= run_case<CASES::LOW_RGBD>(device, output_dir, "low_rgbd", false);
     ok &= run_case<CASES::HIGH_RGBD>(device, output_dir, "high_rgbd", false);
+    ok &= run_normals_case(device, output_dir);
 
     if(!ok) {
         std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] FAILED" << std::endl;
