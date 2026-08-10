@@ -77,12 +77,12 @@ After regeneration, rebuild the compile tests before re-running `ctest`.
 
 Canonical renderings live in the separate test-data repository under `tests/data/rendering_raytracing_golden/`: the existing ProcTHOR suite uses `procthor_static_scene/`, and synthetic overlay cases use `overlay/<scenario>/<state>/<view>/{rgb.png,depth.bin,depth.png,segmentation.bin,segmentation.png}`. PNGs are 2x2 grids in camera order `0,1 / 2,3`; versioned depth and segmentation binaries contain `[4,64,64]`. `rgb.png` and the two `.bin` files are the machine-compared targets; `segmentation.png` is validated against `segmentation.bin` by the corpus test, while `depth.png` is an advisory review image only (its normalization depends on the generation-time camera radius). On a fresh checkout, `./tests/download_data.sh --raytracing-goldens` downloads only this corpus. Configure `RL_TOOLS_REQUIRE_RAYTRACING_GOLDENS=ON` when missing manifests or LFS objects must fail instead of skip.
 
-The generators are OptiX-only, excluded from the default build, and must be run deliberately from the repository root:
+The generators are excluded from the default build and must be run deliberately from the repository root. The ProcTHOR generator builds per backend (`test_rendering_raytracing_generate_golden_generic` plus `test_rendering_raytracing_generate_golden_<active-backend>`); candidates default to `rendering_raytracing_golden/backend/<backend>` and are promoted to the canonical `procthor_static_scene/` via `--output-dir`. The overlay generator remains OptiX-only:
 
 ```bash
-cmake --build build --target test_rendering_raytracing_generate_golden \
+cmake --build build --target test_rendering_raytracing_generate_golden_generic \
                            test_rendering_raytracing_generate_overlay_golden -j5
-./build/tests/src/rendering/raytracing/test_rendering_raytracing_generate_golden
+./build/tests/src/rendering/raytracing/test_rendering_raytracing_generate_golden_generic
 ./build/tests/src/rendering/raytracing/test_rendering_raytracing_generate_overlay_golden
 ```
 
