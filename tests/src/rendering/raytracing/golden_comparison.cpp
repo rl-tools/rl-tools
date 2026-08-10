@@ -74,15 +74,25 @@ static constexpr int PROBE_HIT_MISMATCH_MAX = 6;        // out of NUM_CAMERAS * 
 static constexpr double PROBE_DISTANCE_REL = 1e-3;
 
 static const std::string SCENE_PATH = RL_TOOLS_GOLDEN_TEST_DATA_PATH "/ProcTHOR-Train-1.glb";
-static const std::string GOLDEN_DIR = RL_TOOLS_GOLDEN_TEST_DATA_PATH "/rendering_raytracing_golden";
-// Frames rendered by the backend under test are written here (gitignored) for visual comparison
-// against the goldens.
-static const std::string BACKEND_OUTPUT_DIR = GOLDEN_DIR + "/backend/" + RL_TOOLS_GOLDEN_BACKEND_NAME;
+static const std::string GOLDEN_ROOT = RL_TOOLS_GOLDEN_TEST_DATA_PATH "/rendering_raytracing_golden";
+
+#ifndef RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ARTIFACT_ROOT
+#define RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ARTIFACT_ROOT "build/raytracing_golden_artifacts"
+#endif
+
+static std::string procthor_golden_dir(){
+    const std::string scenario_dir = golden::layout::procthor_static_scene_directory(GOLDEN_ROOT);
+    return std::filesystem::is_regular_file(golden::layout::join(golden::layout::procthor_pose_directory(GOLDEN_ROOT, CASES::POSES[0].id), "low_rgb.png")) ? scenario_dir : GOLDEN_ROOT;
+}
+
+static const std::string GOLDEN_DIR = procthor_golden_dir();
+static const std::string BACKEND_OUTPUT_DIR = std::string(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ARTIFACT_ROOT)
+                                                    + "/" + RL_TOOLS_GOLDEN_BACKEND_NAME + "/procthor_static_scene";
 
 namespace {
     bool goldens_available(){
         // per-pose layout: <golden_dir>/<pose_id>/<case>.png
-        return std::filesystem::exists(GOLDEN_DIR + "/" + CASES::POSES[0].id);
+        return std::filesystem::exists(GOLDEN_DIR + "/" + CASES::POSES[0].id + "/low_rgb.png");
     }
 
     struct RGBStats{
@@ -112,9 +122,9 @@ namespace {
         for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
             const std::string directory = BACKEND_OUTPUT_DIR + "/" + CASES::POSES[camera_i].id;
             std::filesystem::create_directories(directory);
-            golden::write_camera_png(directory + "/" + name + ".png", rendered.frame_buffer.data() + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+            golden::write_camera_png(directory + "/" + name + "_current.png", rendered.frame_buffer.data() + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
             if(!rendered.depth_buffer.empty()){
-                golden::write_camera_depth_png(directory + "/" + name + "_depth.png", rendered.depth_buffer.data() + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
+                golden::write_camera_depth_png(directory + "/" + name + "_depth_current.png", rendered.depth_buffer.data() + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
             }
         }
     }
@@ -132,6 +142,7 @@ namespace {
             {
                 const std::string directory = BACKEND_OUTPUT_DIR + "/" + id;
                 std::filesystem::create_directories(directory);
+                golden::write_camera_png(directory + "/" + name + "_target.png", golden_pixels.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
                 golden::write_camera_diff_png(directory + "/" + name + "_diff.png", rendered.frame_buffer.data() + camera_i * SPEC::CAM_PIXELS, golden_pixels.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
             }
             EXPECT_LE(stats.mad, RGB_MAD_THRESHOLD)
@@ -177,7 +188,8 @@ namespace {
             {
                 const std::string directory = BACKEND_OUTPUT_DIR + "/" + id;
                 std::filesystem::create_directories(directory);
-                golden::write_camera_depth_diff_png(directory + "/" + name + "_depth_diff.png", ours, golden_depth.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+                golden::write_camera_depth_png(directory + "/" + name + "_depth_target.png", golden_depth.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
+                golden::write_camera_depth_diff_png(directory + "/" + name + "_depth_diff.png", golden_depth.data(), ours, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
             }
             double total_abs_diff = 0;
             size_t outliers = 0;
@@ -199,7 +211,11 @@ namespace {
     }
 }
 
+#if defined(RL_TOOLS_REQUIRE_RAYTRACING_GOLDENS)
+#define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() ASSERT_TRUE(goldens_available()) << "required golden renderings not found at " << GOLDEN_DIR
+#else
 #define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() if(!goldens_available()){ GTEST_SKIP() << "golden renderings not found at " << GOLDEN_DIR << " (per-pose layout; generate with test_rendering_raytracing_generate_golden_<backend> --output-dir " << GOLDEN_DIR << ")"; }
+#endif
 
 TEST(RL_TOOLS_GOLDEN_SUITE, LOW_RGB){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
