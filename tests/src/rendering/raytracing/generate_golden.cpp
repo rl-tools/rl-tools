@@ -1,141 +1,143 @@
-#include <rl_tools/operations/cpu_mux.h>
-#include <rl_tools/rendering/raytracing/backends/optix/operations_cuda.h>
+#include <rl_tools/operations/cpu.h>
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_GENERATOR_ACTIVE_BACKEND)
+#include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#else
+#include <rl_tools/rendering/raytracing/backends/generic/operations_cpu.h>
+#endif
 
-#include "golden_cases.h"
 #include "golden_io.h"
+#include "golden_render.h"
 #include "../../utils/utils.h"
-
-#include <cuda_runtime.h>
 
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>
 #include <iostream>
 #include <string>
-#include <vector>
 
 #ifndef RL_TOOLS_TEST_DATA_PATH
 #error "RL_TOOLS_TEST_DATA_PATH is required"
 #endif
 
+#ifndef RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME
+#error "RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME is required"
+#endif
+
 namespace rlt = rl_tools;
 
-using DEVICE = rlt::devices::DEVICE_FACTORY<>;
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_GENERATOR_ACTIVE_BACKEND)
+using BACKEND = rlt::rendering::raytracing::backends::Default;
+#else
+using BACKEND = rlt::rendering::raytracing::backends::Generic;
+#endif
+using DEVICE = rlt::devices::DefaultCPU;
 using T = float;
 using TI = typename DEVICE::index_t;
 using CASES = golden::Cases<T, TI>;
 
 static const std::string SCENE_PATH = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH) "/ProcTHOR-Train-1.glb";
-static const std::string OUTPUT_DIR = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH) "/rendering_raytracing_golden";
+static const std::string DEFAULT_OUTPUT_DIR = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH) "/rendering_raytracing_golden/backend/" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME;
 
 template <typename SPEC>
-bool run_case(DEVICE& device, const char* name, bool write_probes) {
-    using Renderer = rlt::rendering::raytracing::Renderer<SPEC>;
-    std::cout << "[golden] rendering " << name << std::endl;
+bool run_case(DEVICE& device, const std::string& output_dir, const char* name, bool write_probes) {
+    std::cout << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] rendering " << name << std::endl;
 
-    Renderer renderer;
-    rlt::malloc(device, renderer);
-    rlt::rendering::raytracing::Scene scene;
-    if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, SCENE_PATH)) {
-        std::cerr << "[golden] " << name << ": failed to load scene: " << SCENE_PATH << std::endl;
-        rlt::free(device, renderer);
+    golden::Rendered<T> rendered;
+    if(!golden::render_case<SPEC, BACKEND, DEVICE, CASES>(device, SCENE_PATH, rendered)) {
+        std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << name << ": failed to load scene: " << SCENE_PATH << std::endl;
         return false;
     }
-    rlt::init(device, renderer, scene);
-
-    constexpr T aspect = (T)SPEC::CAM_WIDTH / (T)SPEC::CAM_HEIGHT;
-    std::vector<rlt::rendering::raytracing::Camera<T>> camera_staging(SPEC::NUM_CAMERAS);
-    for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
-        const golden::Pose<T>& pose = CASES::POSES[camera_i];
-        camera_staging[camera_i] = rlt::make_camera_data(pose.position, pose.look_at, pose.up, SPEC::COS_FOVY, aspect);
-    }
-    rlt::copy_to_renderer(device, renderer, camera_staging.data(), rlt::data(rlt::cameras(device, renderer)), camera_staging.size());
-    if constexpr(SPEC::ENABLE_MOTION_BLUR) {
-        for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
-            const golden::Pose<T>& pose = CASES::POSES[camera_i];
-            T position[3], look_at[3];
-            for(TI dim_i = 0; dim_i < 3; dim_i++) {
-                position[dim_i] = pose.position[dim_i] - CASES::MOTION_BLUR_DELTA[dim_i];
-                look_at[dim_i] = pose.look_at[dim_i] - CASES::MOTION_BLUR_DELTA[dim_i];
-            }
-            camera_staging[camera_i] = rlt::make_camera_data(position, look_at, pose.up, SPEC::COS_FOVY, aspect);
-        }
-        rlt::copy_to_renderer(device, renderer, camera_staging.data(), rlt::data(rlt::cameras_open(device, renderer)), camera_staging.size());
-    }
-    rlt::generate_probe_directions(device, renderer);
-    rlt::render(device, renderer);
-        rlt::probe(device, renderer);
-    cudaDeviceSynchronize();
 
     bool ok = true;
     const size_t pixel_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-    std::vector<uint32_t> frame_buffer_staging(pixel_count);
-    rlt::copy_from_renderer(device, renderer, rlt::data(rlt::frame_buffer(device, renderer)), frame_buffer_staging.data(), pixel_count);
-    const uint32_t* frame_buffer = frame_buffer_staging.data();
-    if(std::all_of(frame_buffer, frame_buffer + pixel_count, [&](uint32_t pixel){ return pixel == frame_buffer[0]; })) {
-        std::cerr << "[golden] " << name << ": frame buffer is constant" << std::endl;
+    if(rendered.frame_buffer.size() != pixel_count) {
+        std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << name << ": frame buffer has the wrong size" << std::endl;
         ok = false;
     }
-    std::vector<float> depth_staging;
+    else if(std::all_of(rendered.frame_buffer.begin(), rendered.frame_buffer.end(), [&](uint32_t pixel){ return pixel == rendered.frame_buffer[0]; })) {
+        std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << name << ": frame buffer is constant" << std::endl;
+        ok = false;
+    }
     if constexpr(SPEC::HAS_DEPTH) {
-        depth_staging.resize(pixel_count);
-        rlt::copy_from_renderer(device, renderer, rlt::data(rlt::depth_buffer(device, renderer)), depth_staging.data(), pixel_count);
-        if(std::all_of(depth_staging.begin(), depth_staging.end(), [&](float depth){ return depth == depth_staging[0]; })) {
-            std::cerr << "[golden] " << name << ": depth buffer is constant" << std::endl;
+        if(rendered.depth_buffer.size() != pixel_count) {
+            std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << name << ": depth buffer has the wrong size" << std::endl;
+            ok = false;
+        }
+        else if(std::all_of(rendered.depth_buffer.begin(), rendered.depth_buffer.end(), [&](T depth){ return depth == rendered.depth_buffer[0]; })) {
+            std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << name << ": depth buffer is constant" << std::endl;
             ok = false;
         }
     }
+    if(write_probes && rendered.probes.size() != (size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES) {
+        std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << name << ": probe buffer is unavailable" << std::endl;
+        ok = false;
+    }
 
     if(ok) {
-        // per-pose layout: <OUTPUT_DIR>/<pose_id>/<case>.png etc. (see golden_io.h)
-        std::vector<rlt::rendering::raytracing::CollisionResult> probe_staging;
-        const rlt::rendering::raytracing::CollisionResult* probe_results = nullptr;
-        if(write_probes) {
-            probe_staging.resize((size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);
-            rlt::copy_from_renderer(device, renderer, rlt::data(rlt::collision_results(device, renderer)), probe_staging.data(), probe_staging.size());
-            probe_results = probe_staging.data();
-        }
         for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
-            const std::string directory = OUTPUT_DIR + "/" + CASES::POSES[camera_i].id;
+            const std::string directory = output_dir + "/" + CASES::POSES[camera_i].id;
             std::filesystem::create_directories(directory);
-            ok &= golden::write_camera_png(directory + "/" + std::string(name) + ".png", frame_buffer + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+            ok &= golden::write_camera_png(directory + "/" + std::string(name) + ".png", rendered.frame_buffer.data() + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
             if constexpr(SPEC::HAS_DEPTH) {
-                const float* depth_buffer = depth_staging.data();
-                ok &= golden::write_camera_depth_bin(directory + "/" + std::string(name) + "_depth.bin", depth_buffer + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+                ok &= golden::write_camera_depth_bin(directory + "/" + std::string(name) + "_depth.bin", rendered.depth_buffer.data() + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
             }
-            if(write_probes && probe_results != nullptr) {
-                ok &= golden::write_camera_probes(directory + "/probes.bin", probe_results + camera_i * SPEC::NUM_PROBES, SPEC::NUM_PROBES);
+            if(write_probes) {
+                ok &= golden::write_camera_probes(directory + "/probes.bin", rendered.probes.data() + camera_i * SPEC::NUM_PROBES, SPEC::NUM_PROBES);
             }
         }
         if(!ok) {
-            std::cerr << "[golden] " << name << ": failed to write outputs" << std::endl;
+            std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << name << ": failed to write outputs" << std::endl;
         }
     }
 
-    rlt::free(device, renderer);
     return ok;
 }
 
-int main() {
-    std::filesystem::create_directories(OUTPUT_DIR);
+int main(int argc, char** argv) {
+    std::string output_dir = DEFAULT_OUTPUT_DIR;
+    for(int arg_i = 1; arg_i < argc; arg_i++) {
+        const std::string argument = argv[arg_i];
+        if(argument == "--output-dir") {
+            if(arg_i + 1 >= argc) {
+                std::cerr << "--output-dir requires a path" << std::endl;
+                return 2;
+            }
+            output_dir = argv[++arg_i];
+        }
+        else if(argument == "--help" || argument == "-h") {
+            std::cout << "Usage: " << argv[0] << " [--output-dir path]" << std::endl;
+            std::cout << "Default output: " << DEFAULT_OUTPUT_DIR << std::endl;
+            return 0;
+        }
+        else {
+            std::cerr << "unknown argument: " << argument << std::endl;
+            return 2;
+        }
+    }
+    if(output_dir.empty()) {
+        std::cerr << "--output-dir must not be empty" << std::endl;
+        return 2;
+    }
+
+    std::filesystem::create_directories(output_dir);
 
     DEVICE device;
     rlt::init(device);
 
     bool ok = true;
-    ok &= run_case<CASES::LOW_RGB>(device, "low_rgb", true);
-    ok &= run_case<CASES::MEDIUM_RGB>(device, "medium_rgb", false);
-    ok &= run_case<CASES::HIGH_RGB>(device, "high_rgb", false);
-    ok &= run_case<CASES::VERY_HIGH_RGB>(device, "very_high_rgb", false);
-    ok &= run_case<CASES::HIGH_RGB_AA2>(device, "high_rgb_aa2", false);
-    ok &= run_case<CASES::HIGH_RGB_MB4>(device, "high_rgb_mb4", false);
-    ok &= run_case<CASES::LOW_RGBD>(device, "low_rgbd", false);
-    ok &= run_case<CASES::HIGH_RGBD>(device, "high_rgbd", false);
+    ok &= run_case<CASES::LOW_RGB>(device, output_dir, "low_rgb", true);
+    ok &= run_case<CASES::MEDIUM_RGB>(device, output_dir, "medium_rgb", false);
+    ok &= run_case<CASES::HIGH_RGB>(device, output_dir, "high_rgb", false);
+    ok &= run_case<CASES::VERY_HIGH_RGB>(device, output_dir, "very_high_rgb", false);
+    ok &= run_case<CASES::HIGH_RGB_AA2>(device, output_dir, "high_rgb_aa2", false);
+    ok &= run_case<CASES::HIGH_RGB_MB4>(device, output_dir, "high_rgb_mb4", false);
+    ok &= run_case<CASES::LOW_RGBD>(device, output_dir, "low_rgbd", false);
+    ok &= run_case<CASES::HIGH_RGBD>(device, output_dir, "high_rgbd", false);
 
     if(!ok) {
-        std::cerr << "[golden] FAILED" << std::endl;
+        std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] FAILED" << std::endl;
         return 1;
     }
-    std::cout << "[golden] done: " << OUTPUT_DIR << std::endl;
+    std::cout << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] done: " << output_dir << std::endl;
     return 0;
 }
