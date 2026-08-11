@@ -16,7 +16,9 @@ namespace golden {
         std::vector<T> depth_buffer;
         std::vector<T> normals; // 3 per pixel, raw float output (encoding happens at write/compare)
         std::vector<T> flow;    // 2 per pixel, raw float backward flow in pixels
+        std::vector<uint32_t> segmentation;
         std::vector<rl_tools::rendering::raytracing::CollisionResult> probes;
+        size_t num_instances = 0;
         T max_depth = 0;
         T camera_radius = 0;
     };
@@ -33,10 +35,22 @@ namespace golden {
         Renderer renderer;
         rl_tools::malloc(device, renderer);
         rl_tools::rendering::raytracing::Scene scene;
-        if(!rl_tools::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, scene_path)) {
+        // segmentation is per-instance, so segmentation-capable cases load the scene as one
+        // instance per GLB root node (ids pinned by node order) instead of the welded single
+        // object the RGB cases use — welded, everything reports instance 0
+        if constexpr(SPEC::HAS_SEGMENTATION) {
+            rl_tools::rendering::raytracing::ObjectAssembly assembly;
+            if(!rl_tools::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, assembly, scene_path)) {
+                rl_tools::free(device, renderer);
+                return false;
+            }
+            rl_tools::add(device, scene, assembly);
+        }
+        else if(!rl_tools::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, scene_path)) {
             rl_tools::free(device, renderer);
             return false;
         }
+        out.num_instances = scene.instances.size();
         rl_tools::rendering::raytracing::AssetPool pool;
         if constexpr(SPEC::ENABLE_OVERLAYS) {
             rl_tools::rendering::raytracing::Mesh mesh;
@@ -122,6 +136,10 @@ namespace golden {
         if constexpr(SPEC::HAS_FLOW) {
             out.flow.resize(pixel_count * 2);
             rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::flow_buffer(device, renderer)), out.flow.data(), out.flow.size());
+        }
+        if constexpr(SPEC::HAS_SEGMENTATION) {
+            out.segmentation.resize(pixel_count);
+            rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::segmentation_buffer(device, renderer)), out.segmentation.data(), pixel_count);
         }
         if(rl_tools::data(renderer.collision_results) != nullptr) {
             out.probes.resize((size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);
