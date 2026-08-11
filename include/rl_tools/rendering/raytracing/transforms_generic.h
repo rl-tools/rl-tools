@@ -25,6 +25,22 @@ namespace rl_tools{
             }
         }
 
+        RL_TOOLS_FUNCTION_PLACEMENT inline void invert_transform(const float transform[12], float out[12]){
+            const float a = transform[0], b = transform[1], c = transform[2];
+            const float d = transform[4], e = transform[5], f = transform[6];
+            const float g = transform[8], h = transform[9], i = transform[10];
+            const float cofactor_a = e*i - f*h;
+            const float cofactor_b = f*g - d*i;
+            const float cofactor_c = d*h - e*g;
+            const float inv_det = 1.0f / (a*cofactor_a + b*cofactor_b + c*cofactor_c);
+            out[0] = cofactor_a * inv_det; out[1] = (c*h - b*i) * inv_det; out[2]  = (b*f - c*e) * inv_det;
+            out[4] = cofactor_b * inv_det; out[5] = (a*i - c*g) * inv_det; out[6]  = (c*d - a*f) * inv_det;
+            out[8] = cofactor_c * inv_det; out[9] = (b*g - a*h) * inv_det; out[10] = (a*e - b*d) * inv_det;
+            out[3]  = -(out[0]*transform[3] + out[1]*transform[7] + out[2] *transform[11]);
+            out[7]  = -(out[4]*transform[3] + out[5]*transform[7] + out[6] *transform[11]);
+            out[11] = -(out[8]*transform[3] + out[9]*transform[7] + out[10]*transform[11]);
+        }
+
         RL_TOOLS_FUNCTION_PLACEMENT inline void quaternion_from_transform(const float m[12], float q[4]){
             const float trace = m[0] + m[5] + m[10];
             if(trace > 0){

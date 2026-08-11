@@ -67,6 +67,11 @@ static constexpr double ID_AREA_RELATIVE_TOLERANCE = 0.35;
 static constexpr double NORMALS_MAD_THRESHOLD = 2.0;
 static constexpr int NORMALS_OUTLIER_CHANNEL_DELTA = 8;
 static constexpr double NORMALS_OUTLIER_FRACTION = 0.02;
+// endpoint error on segmentation-agreeing pixels: geometry-derived flow matches to float
+// precision across backends except in the silhouette band the segmentation gate excludes
+static constexpr double FLOW_MEAN_EPE_THRESHOLD = 0.05;  // px
+static constexpr double FLOW_OUTLIER_EPE = 0.5;          // px
+static constexpr double FLOW_OUTLIER_FRACTION = 0.005;
 
 static const std::string GOLDEN_ROOT = RL_TOOLS_OVERLAY_GOLDEN_TEST_DATA_PATH "/rendering_raytracing_golden";
 static const std::string ARTIFACT_ROOT = RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ARTIFACT_ROOT;
@@ -95,6 +100,7 @@ namespace {
                 EXPECT_EQ(scope[camera].difference.depth, (size_t)0) << view << " camera " << camera << " depth";
                 EXPECT_EQ(scope[camera].difference.segmentation, (size_t)0) << view << " camera " << camera << " segmentation";
                 EXPECT_EQ(scope[camera].difference.normals, (size_t)0) << view << " camera " << camera << " normals";
+                EXPECT_EQ(scope[camera].difference.flow, (size_t)0) << view << " camera " << camera << " flow";
             }
         }
     }
@@ -236,6 +242,15 @@ namespace {
             review_paths.normals_target_png, review_paths.normals_current_png, review_paths.normals_diff_png,
             target.normals.data(), current.normals.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT
         ));
+        {
+            rlt::rendering::raytracing::detail::write_flow_grid_png<SPEC>(target.flow.data(), review_paths.flow_target_png.c_str());
+            rlt::rendering::raytracing::detail::write_flow_grid_png<SPEC>(current.flow.data(), review_paths.flow_current_png.c_str());
+            std::vector<float> flow_difference(target.flow.size());
+            for(size_t value_i = 0; value_i < flow_difference.size(); value_i++){
+                flow_difference[value_i] = current.flow[value_i] - target.flow[value_i];
+            }
+            rlt::rendering::raytracing::detail::write_flow_grid_png<SPEC>(flow_difference.data(), review_paths.flow_diff_png.c_str());
+        }
 
         double rgb_total = 0;
         size_t rgb_channels = 0;
@@ -248,6 +263,9 @@ namespace {
         size_t depth_outliers = 0;
         double normals_total = 0;
         size_t normals_outlier_pixels = 0;
+        double flow_epe_total = 0;
+        size_t flow_pixels = 0;
+        size_t flow_outliers = 0;
 
         const size_t count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
         for(size_t index = 0; index < count; index++){
@@ -285,6 +303,13 @@ namespace {
                 const double magnitude = std::max((double)target.depth[index], 1e-6);
                 depth_pixels++;
                 depth_outliers += absolute / magnitude > DEPTH_OUTLIER_REL;
+
+                const double flow_du = (double)current.flow[index * 2 + 0] - target.flow[index * 2 + 0];
+                const double flow_dv = (double)current.flow[index * 2 + 1] - target.flow[index * 2 + 1];
+                const double endpoint_error = std::sqrt(flow_du * flow_du + flow_dv * flow_dv);
+                flow_epe_total += endpoint_error;
+                flow_pixels++;
+                flow_outliers += endpoint_error > FLOW_OUTLIER_EPE;
             }
         }
 
@@ -302,6 +327,8 @@ namespace {
         EXPECT_LE(depth_outlier_fraction, DEPTH_OUTLIER_FRACTION) << view.id;
         EXPECT_LE(normals_total / std::max((double)rgb_channels, 1.0), NORMALS_MAD_THRESHOLD) << view.id << " normals";
         EXPECT_LE((double)normals_outlier_pixels / count, NORMALS_OUTLIER_FRACTION) << view.id << " normals";
+        EXPECT_LE(flow_epe_total / std::max((double)flow_pixels, 1.0), FLOW_MEAN_EPE_THRESHOLD) << view.id << " flow";
+        EXPECT_LE((double)flow_outliers / std::max((double)flow_pixels, 1.0), FLOW_OUTLIER_FRACTION) << view.id << " flow";
     }
 
     void run_scenario(overlay_scenarios::Scenario scenario){

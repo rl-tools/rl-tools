@@ -44,7 +44,8 @@ struct LaunchParams{
     packed_float3 ambient_color;
     packed_float3 miss_color_0;
     packed_float3 miss_color_1;
-    float padding[3];
+    uint first_overlay_instance;
+    float padding[2];
 };
 static_assert(sizeof(LaunchParams) == 88, "LaunchParams layout must match context.h");
 
@@ -114,6 +115,26 @@ inline float3 transform_normal(device const float* m, float3 n){
     return float3(m[0]*n.x + m[4]*n.y + m[8]*n.z,
                   m[1]*n.x + m[5]*n.y + m[9]*n.z,
                   m[2]*n.x + m[6]*n.y + m[10]*n.z);
+}
+
+// world point → screen fraction through the linear camera model: solves
+// dir_00 + screen_x·dir_du + screen_y·dir_dv = lambda·(point − pos) by Cramer's rule;
+// returns false for a degenerate basis or a point at/behind the camera (lambda <= 0)
+inline bool project_camera(device const Camera& cam, float3 point, thread float& screen_x, thread float& screen_y){
+    const float3 direction = point - float3(cam.pos);
+    const float3 dir_du = float3(cam.dir_du);
+    const float3 dir_dv = float3(cam.dir_dv);
+    const float3 negative_direction = -direction;
+    const float3 cross_dv_negative_direction = cross(dir_dv, negative_direction);
+    const float det = dot(dir_du, cross_dv_negative_direction);
+    if (det > -1e-12f && det < 1e-12f)
+        return false;
+    const float inv_det = 1.f / det;
+    const float3 b = -float3(cam.dir_00);
+    screen_x = dot(b, cross_dv_negative_direction) * inv_det;
+    screen_y = dot(dir_du, cross(b, negative_direction)) * inv_det;
+    const float lambda = dot(dir_du, cross(dir_dv, b)) * inv_det;
+    return lambda > 0.f;
 }
 
 struct CollisionResult{
@@ -773,6 +794,48 @@ kernel void render_normals(
     normals_out[ctx.fb_offset * 3 + 0] = normal.x;
     normals_out[ctx.fb_offset * 3 + 1] = normal.y;
     normals_out[ctx.fb_offset * 3 + 2] = normal.z;
+}
+
+// single-sample by design (shutter-close camera, pixel-center ray): backward flow of the
+// shutter-close frame in pixels — the hit point is carried to shutter open by its instance's
+// shutter delta (identity for the static world) and projected through the shutter-open camera;
+// miss (and behind-the-open-camera projections) write (0, 0)
+kernel void render_flow(
+    constant LaunchParams& params [[buffer(0)]],
+    device const Camera* cameras_close [[buffer(1)]],
+    device const Camera* cameras_open [[buffer(2)]],
+    device float* flow_out [[buffer(3)]],
+    instance_acceleration_structure accel [[buffer(8)]],
+    device const OverlayStructure* overlays [[buffer(11)]],
+    device const uint* overlay_attachments [[buffer(12)]],
+    device const float* flow_deltas [[buffer(19)]],
+    uint2 pixel_id [[thread_position_in_grid]])
+{
+    const PixelLaunchContext ctx = pixel_launch_context(params, pixel_id);
+    if (!ctx.valid)
+        return;
+
+    device const Camera& cam = cameras_close[ctx.cam_idx];
+    const float2 screen = (float2(ctx.local_x, ctx.local_y) + float2(0.5f, 0.5f)) / float2(params.cam_width, params.cam_height);
+    const float3 direction = normalize(float3(cam.dir_00) + screen.x * float3(cam.dir_du) + screen.y * float3(cam.dir_dv));
+
+    ray r(float3(cam.pos), direction, 0.f, 1e30f);
+    intersection_result<triangle_data, instancing> hit = intersect_composed(accel, overlays, overlay_attachments, ctx.cam_idx, r, false);
+    float2 flow = float2(0.f);
+    if (hit.type != intersection_type::none) {
+        float3 point = float3(cam.pos) + direction * hit.distance;
+        if (fc_overlay_count > 0 && (uint)hit.user_instance_id >= params.first_overlay_instance) {
+            point = transform_point(flow_deltas + ((uint)hit.user_instance_id - params.first_overlay_instance) * 12, point);
+        }
+        device const Camera& cam_open = cameras_open[ctx.cam_idx];
+        float open_x, open_y;
+        if (project_camera(cam_open, point, open_x, open_y)) {
+            flow = float2(((float)ctx.local_x + 0.5f) - open_x * (float)params.cam_width,
+                          ((float)ctx.local_y + 0.5f) - open_y * (float)params.cam_height);
+        }
+    }
+    flow_out[ctx.fb_offset * 2 + 0] = flow.x;
+    flow_out[ctx.fb_offset * 2 + 1] = flow.y;
 }
 
 kernel void render_collision(
