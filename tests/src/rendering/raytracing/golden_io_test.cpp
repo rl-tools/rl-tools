@@ -346,6 +346,25 @@ TEST_F(GoldenIoTest, NormalEncodingIsPinned){
     EXPECT_EQ(golden::normal_rgba(out_of_range), golden::rgba(255, 0, 255));
 }
 
+// the segmentation false-color encoding is corpus surface in both the overlay and
+// procthor_static_scene suites: segmentation.png is validated to be exactly this encoding of
+// segmentation.bin, so the mapping must never drift
+TEST_F(GoldenIoTest, SegmentationEncodingIsPinned){
+    EXPECT_EQ(golden::segmentation_false_color(golden::SEGMENTATION_BACKGROUND_ID), golden::rgba(16, 16, 16));
+    EXPECT_EQ(golden::segmentation_false_color(0u), golden::rgba(146, 255, 42));
+    EXPECT_EQ(golden::segmentation_false_color(1u), golden::rgba(234, 38, 144));
+    EXPECT_EQ(golden::segmentation_false_color(2u), golden::rgba(142, 243, 57));
+    EXPECT_EQ(golden::segmentation_false_color(40u), golden::rgba(92, 35, 248));
+    for(uint32_t instance_id = 0; instance_id < 4096; instance_id++){
+        const uint32_t color = golden::segmentation_false_color(instance_id);
+        ASSERT_EQ(color >> 24, 0xFFu) << "instance id " << instance_id;
+        // every channel >= 32 keeps the background gray (16,16,16) unreachable for real ids
+        ASSERT_GE(color & 0xFFu, 32u) << "instance id " << instance_id;
+        ASSERT_GE((color >> 8) & 0xFFu, 32u) << "instance id " << instance_id;
+        ASSERT_GE((color >> 16) & 0xFFu, 32u) << "instance id " << instance_id;
+    }
+}
+
 TEST_F(GoldenIoTest, LayoutPathsAreStable){
     const std::string root = "golden-root";
     EXPECT_EQ(golden::layout::procthor_static_scene_directory(root), "golden-root/procthor_static_scene");

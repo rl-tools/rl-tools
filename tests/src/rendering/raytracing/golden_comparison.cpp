@@ -78,6 +78,10 @@ static constexpr double PROBE_DISTANCE_REL = 1e-3;
 static constexpr double NORMALS_MAD_THRESHOLD = 2.0;
 static constexpr int NORMALS_OUTLIER_CHANNEL_DELTA = 8;
 static constexpr double NORMALS_OUTLIER_FRACTION = 0.02;
+// instance ids are pinned cross-backend (AGENTS.md), so only silhouette pixels (a different
+// surface winning the same pixel) may disagree; same bounds as the overlay comparator
+static constexpr double SEGMENTATION_MISMATCH_FRACTION = 0.02;
+static constexpr double SEGMENTATION_BACKGROUND_MISMATCH_FRACTION = 0.005;
 
 static const std::string SCENE_PATH = RL_TOOLS_GOLDEN_TEST_DATA_PATH "/ProcTHOR-Train-1.glb";
 static const std::string GOLDEN_ROOT = RL_TOOLS_GOLDEN_TEST_DATA_PATH "/rendering_raytracing_golden";
@@ -217,7 +221,7 @@ namespace {
     }
 
     void run_normals_case(){
-        using SPEC = CASES::NORMALS;
+        using SPEC = CASES::GEOMETRY;
         DEVICE device;
         rlt::init(device);
         Rendered rendered;
@@ -263,6 +267,59 @@ namespace {
             worst_outliers = std::max(worst_outliers, outlier_fraction);
         }
         std::printf("[golden] normals: worst mad=%.4f worst outliers=%.4f%% over %d poses\n", worst_mad, worst_outliers * 100, (int)SPEC::NUM_CAMERAS);
+    }
+
+    void run_segmentation_case(){
+        using SPEC = CASES::GEOMETRY;
+        DEVICE device;
+        rlt::init(device);
+        Rendered rendered;
+        ASSERT_TRUE((golden::render_case<SPEC, BACKEND, DEVICE, CASES>(device, SCENE_PATH, rendered))) << "failed to load scene: " << SCENE_PATH;
+        ASSERT_EQ(rendered.segmentation.size(), (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
+
+        double worst_mismatches = 0;
+        double worst_background_mismatches = 0;
+        for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
+            const char* id = CASES::POSES[camera_i].id;
+            std::vector<uint32_t> golden_segmentation;
+            ASSERT_TRUE(golden::load_multi_camera_uint32_bin(GOLDEN_DIR + "/" + id + "/segmentation.bin", 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_segmentation)) << "failed to load golden: " << id << "/segmentation.bin";
+            const uint32_t* ours = rendered.segmentation.data() + camera_i * SPEC::CAM_PIXELS;
+            {
+                // the review PNG is corpus surface too: it must be exactly the false-color
+                // encoding of segmentation.bin (mirrors the overlay corpus validation)
+                std::vector<uint32_t> golden_png;
+                ASSERT_TRUE(golden::load_camera_png(GOLDEN_DIR + "/" + id + "/segmentation.png", SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_png)) << "failed to load golden: " << id << "/segmentation.png";
+                std::vector<uint32_t> expected(golden_segmentation.size());
+                golden::colorize_segmentation(golden_segmentation.data(), golden_segmentation.size(), expected.data());
+                EXPECT_EQ(golden_png, expected) << "segmentation pose " << id << ": review PNG does not match segmentation.bin";
+            }
+            {
+                const std::string directory = BACKEND_OUTPUT_DIR + "/" + id;
+                std::filesystem::create_directories(directory);
+                std::vector<uint32_t> image(SPEC::CAM_PIXELS);
+                golden::colorize_segmentation(ours, SPEC::CAM_PIXELS, image.data());
+                golden::write_camera_png(directory + "/segmentation_current.png", image.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+                golden::colorize_segmentation(golden_segmentation.data(), SPEC::CAM_PIXELS, image.data());
+                golden::write_camera_png(directory + "/segmentation_target.png", image.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+                for(size_t pixel_i = 0; pixel_i < (size_t)SPEC::CAM_PIXELS; pixel_i++){
+                    image[pixel_i] = golden::segmentation_diff_color(golden_segmentation[pixel_i], ours[pixel_i]);
+                }
+                golden::write_camera_png(directory + "/segmentation_diff.png", image.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+            }
+            size_t mismatches = 0;
+            size_t background_mismatches = 0;
+            for(size_t pixel_i = 0; pixel_i < (size_t)SPEC::CAM_PIXELS; pixel_i++){
+                mismatches += ours[pixel_i] != golden_segmentation[pixel_i];
+                background_mismatches += (ours[pixel_i] == golden::SEGMENTATION_BACKGROUND_ID) != (golden_segmentation[pixel_i] == golden::SEGMENTATION_BACKGROUND_ID);
+            }
+            const double mismatch_fraction = (double)mismatches / (double)SPEC::CAM_PIXELS;
+            const double background_fraction = (double)background_mismatches / (double)SPEC::CAM_PIXELS;
+            EXPECT_LE(mismatch_fraction, SEGMENTATION_MISMATCH_FRACTION) << "segmentation pose " << id << ": id mismatch fraction " << mismatch_fraction;
+            EXPECT_LE(background_fraction, SEGMENTATION_BACKGROUND_MISMATCH_FRACTION) << "segmentation pose " << id << ": hit/miss mismatch fraction " << background_fraction;
+            worst_mismatches = std::max(worst_mismatches, mismatch_fraction);
+            worst_background_mismatches = std::max(worst_background_mismatches, background_fraction);
+        }
+        std::printf("[golden] segmentation: worst mismatches=%.4f%% worst hit/miss mismatches=%.4f%% over %d poses\n", worst_mismatches * 100, worst_background_mismatches * 100, (int)SPEC::NUM_CAMERAS);
     }
 }
 
@@ -318,6 +375,11 @@ TEST(RL_TOOLS_GOLDEN_SUITE, HIGH_RGBD){
 TEST(RL_TOOLS_GOLDEN_SUITE, NORMALS){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
     run_normals_case();
+}
+
+TEST(RL_TOOLS_GOLDEN_SUITE, SEGMENTATION){
+    RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
+    run_segmentation_case();
 }
 
 TEST(RL_TOOLS_GOLDEN_SUITE, PROBES){

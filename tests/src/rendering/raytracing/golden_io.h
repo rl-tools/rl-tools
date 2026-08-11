@@ -527,6 +527,10 @@ namespace golden {
         }
     }
 
+    // corpus surface for both the overlay and procthor_static_scene suites: segmentation.png
+    // stores ids through this encoding and is validated against segmentation.bin, so the mapping
+    // must never drift (pinned by GoldenIoTest.SegmentationEncodingIsPinned); every non-background
+    // channel is >= 32, so the background gray (16,16,16) is unreachable for real ids
     inline uint32_t segmentation_false_color(uint32_t instance_id){
         if(instance_id == SEGMENTATION_BACKGROUND_ID){
             return rgba(16, 16, 16);
