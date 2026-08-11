@@ -15,7 +15,9 @@ namespace golden {
         std::vector<uint32_t> frame_buffer;
         std::vector<T> depth_buffer;
         std::vector<T> normals; // 3 per pixel, raw float output (encoding happens at write/compare)
+        std::vector<uint32_t> segmentation;
         std::vector<rl_tools::rendering::raytracing::CollisionResult> probes;
+        size_t num_instances = 0;
         T max_depth = 0;
         T camera_radius = 0;
     };
@@ -36,6 +38,7 @@ namespace golden {
             rl_tools::free(device, renderer);
             return false;
         }
+        out.num_instances = scene.instances.size();
         rl_tools::rendering::raytracing::AssetPool pool;
         if constexpr(SPEC::ENABLE_OVERLAYS) {
             rl_tools::rendering::raytracing::Mesh mesh;
@@ -117,6 +120,10 @@ namespace golden {
         if constexpr(SPEC::HAS_NORMALS) {
             out.normals.resize(pixel_count * 3);
             rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::normals_buffer(device, renderer)), out.normals.data(), out.normals.size());
+        }
+        if constexpr(SPEC::HAS_SEGMENTATION) {
+            out.segmentation.resize(pixel_count);
+            rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::segmentation_buffer(device, renderer)), out.segmentation.data(), pixel_count);
         }
         if(rl_tools::data(renderer.collision_results) != nullptr) {
             out.probes.resize((size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);
