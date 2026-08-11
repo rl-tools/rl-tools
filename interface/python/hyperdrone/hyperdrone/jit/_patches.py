@@ -1,6 +1,6 @@
 """Quarantine for third-party dependency workarounds.
 
-Seeding: FetchContent sources land in <source_root>/.dependencies/<build-dir-basename>.
+Seeding: FetchContent sources land in <cache_root>/.dependencies/<build-dir-basename>.
 New build trees are seeded from any already-populated sibling so offline machines work and
 locally patched trees are not silently re-cloned. Seeded sources are handed to CMake via
 FETCHCONTENT_SOURCE_DIR_<NAME> overrides (per-dependency, so everything else still fetches

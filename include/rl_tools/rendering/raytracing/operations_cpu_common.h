@@ -49,6 +49,23 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
+    namespace rendering::raytracing::detail{
+        template <typename BACKEND>
+        void announce_backend(){
+            std::fprintf(
+                stderr,
+                "#rl_tools::rendering::raytracing: backend=%s\n",
+                rendering::raytracing::backends::name<BACKEND>()
+            );
+            std::fflush(stderr);
+        }
+
+        template <typename SPEC, typename BACKEND>
+        void announce_backend(const rendering::raytracing::Renderer<SPEC, BACKEND>&){
+            announce_backend<BACKEND>();
+        }
+    }
+
     // =========================================================================
     // Default cube geometry
     // =========================================================================

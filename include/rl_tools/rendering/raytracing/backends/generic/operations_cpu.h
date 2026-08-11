@@ -211,6 +211,7 @@ namespace rl_tools {
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         backend_state->scene.collision_results = data(renderer.collision_results);
 #endif
+        rendering::raytracing::detail::announce_backend(renderer);
     }
 
     template <typename DEVICE, typename SPEC>

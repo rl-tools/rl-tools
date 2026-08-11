@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 from .. import jit
 
-SHADING = {"low": 0, "medium": 1, "high": 2, "veryhigh": 3}
+FIDELITY = {"low": 0, "medium": 1, "high": 2, "veryhigh": 3}
 OUTPUT_MODE = {"rgb": 0, "rgbd": 1, "depth": 2, "segmentation": 3, "rgbd_segmentation": 4}
 
 RENDER_TARGET = {"all": 0, "rgb": 1, "depth": 2, "segmentation": 3, "rgb_depth": 4, "collision": 5}
@@ -19,7 +19,7 @@ class RendererConfig:
     height: int
     num_cameras: int
     num_probes: int
-    shading: int
+    fidelity: int
     output_mode: int
     motion_blur_samples: int
     anti_aliasing_grid: int
@@ -32,8 +32,8 @@ class RendererConfig:
     def __post_init__(self):
         if self.width < 1 or self.height < 1 or self.num_cameras < 1 or self.num_probes < 1:
             raise ValueError("width, height, num_cameras, and num_probes must be >= 1")
-        if self.shading not in SHADING.values():
-            raise ValueError(f"shading must be one of {sorted(SHADING)}")
+        if self.fidelity not in FIDELITY.values():
+            raise ValueError(f"fidelity must be one of {sorted(FIDELITY)}")
         if self.output_mode not in OUTPUT_MODE.values():
             raise ValueError(f"output must be one of {sorted(OUTPUT_MODE)}")
         if self.motion_blur_samples not in VALID_MOTION_BLUR_SAMPLES:
@@ -64,7 +64,7 @@ class RendererConfig:
         # must match build_config_string() in _native/render/impl.cpp exactly
         return (
             f"w={self.width};h={self.height};nc={self.num_cameras};np={self.num_probes};"
-            f"sh={self.shading};om={self.output_mode};mb={self.motion_blur_samples};aa={self.anti_aliasing_grid};"
+            f"sh={self.fidelity};om={self.output_mode};mb={self.motion_blur_samples};aa={self.anti_aliasing_grid};"
             f"no={self.num_overlays};moi={self.max_overlay_instances};mopc={self.max_overlays_per_camera};"
             f"ss={1 if self.semantic_segmentation else 0};dmb={1 if self.dynamic_motion_blur else 0}"
         )
@@ -78,7 +78,7 @@ class RendererConfig:
             "HYPERDRONE_RENDER_HEIGHT": self.height,
             "HYPERDRONE_RENDER_NUM_CAMERAS": self.num_cameras,
             "HYPERDRONE_RENDER_NUM_PROBES": self.num_probes,
-            "HYPERDRONE_RENDER_SHADING": self.shading,
+            "HYPERDRONE_RENDER_SHADING": self.fidelity,
             "HYPERDRONE_RENDER_OUTPUT_MODE": self.output_mode,
             "HYPERDRONE_RENDER_MB_SAMPLES": self.motion_blur_samples,
             "HYPERDRONE_RENDER_AA_GRID": self.anti_aliasing_grid,

@@ -18,7 +18,7 @@ class FreeSpaceSampler:
         self._margin = float(margin)
         self._renderer = render.Renderer(
             width=1, height=1, num_cameras=self._batch, num_probes=int(probes),
-            output="depth", shading="low",
+            output="depth", fidelity="low",
         )
         self._renderer.init(scene)
         self._renderer.generate_probe_directions()

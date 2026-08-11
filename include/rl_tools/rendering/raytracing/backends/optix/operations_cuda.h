@@ -736,6 +736,7 @@ namespace rl_tools {
         renderer.backend->collision_results_buffer = collision_results_buffer;
         renderer.backend->probe_dirs_buffer = probe_dirs_buffer;
 #endif
+        rendering::raytracing::detail::announce_backend(renderer);
         }
     }
 

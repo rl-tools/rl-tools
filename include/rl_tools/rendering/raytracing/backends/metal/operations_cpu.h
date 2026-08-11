@@ -242,6 +242,7 @@ namespace rl_tools {
             ctx->cameras_open = NS::TransferPtr(ctx->device->newBuffer(camera_bytes, MTL::ResourceStorageModeShared));
             renderer.cameras_open._data = (rendering::raytracing::Camera<typename SPEC::T>*)ctx->cameras_open->contents();
         }
+        rendering::raytracing::detail::announce_backend(renderer);
     }
 
     template <typename DEVICE, typename SPEC>

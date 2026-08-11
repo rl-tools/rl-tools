@@ -3,8 +3,8 @@ rendering their onboard cameras every step. On OptiX + CUDA the camera hand-off 
 device-resident (no host synchronization in the loop); the same script runs — slowly — on
 GENERIC + cpu anywhere.
 
-  python drone_flythrough.py --drones 1024 --steps 200 --width 64 --height 64
-  python drone_flythrough.py --drones 16 --steps 600 --width 128 --height 128 --video out.mp4
+  python -m hyperdrone.examples.drone_flythrough --drones 1024 --steps 200 --width 64 --height 64
+  python -m hyperdrone.examples.drone_flythrough --drones 16 --steps 600 --width 128 --height 128 --video out.mp4
 """
 import argparse
 import math
@@ -60,13 +60,13 @@ def build_room(rng, num_pillars=32, half=8.0, height=4.0):
 
 
 if arguments.model and Path(arguments.model).exists():
-    scene = render.load_scene(arguments.model, shading="medium")
+    scene = render.load_scene(arguments.model, fidelity="medium")
 else:
     scene = build_room(np.random.default_rng(0))
 
 sim = dynamics.Sim(num_drones=arguments.drones, model=arguments.drone_model, device=arguments.device)
 renderer = render.Renderer(width=arguments.width, height=arguments.height,
-                           num_cameras=arguments.drones, output="rgb", shading="medium")
+                           num_cameras=arguments.drones, output="rgb", fidelity="medium")
 world = env.World(scene, sim, renderer)
 
 print(f"backend={renderer.backend} dynamics={sim.device} drones={arguments.drones} "
