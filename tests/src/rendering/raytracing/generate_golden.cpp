@@ -93,42 +93,60 @@ bool run_case(DEVICE& device, const std::string& output_dir, const char* name, b
     return ok;
 }
 
-bool run_normals_case(DEVICE& device, const std::string& output_dir) {
-    std::cout << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] rendering normals" << std::endl;
-    using SPEC = CASES::NORMALS;
+bool run_geometry_case(DEVICE& device, const std::string& output_dir) {
+    std::cout << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] rendering geometry (normals + segmentation)" << std::endl;
+    using SPEC = CASES::GEOMETRY;
 
     golden::Rendered<T> rendered;
     if(!golden::render_case<SPEC, BACKEND, DEVICE, CASES>(device, SCENE_PATH, rendered)) {
-        std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] normals: failed to load scene: " << SCENE_PATH << std::endl;
+        std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] geometry: failed to load scene: " << SCENE_PATH << std::endl;
         return false;
     }
 
     bool ok = true;
     const size_t pixel_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
     if(rendered.normals.size() != pixel_count * 3) {
-        std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] normals: buffer has the wrong size" << std::endl;
+        std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] geometry: normals buffer has the wrong size" << std::endl;
+        ok = false;
+    }
+    else if(rendered.segmentation.size() != pixel_count) {
+        std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] geometry: segmentation buffer has the wrong size" << std::endl;
         ok = false;
     }
     else {
         size_t hits = 0;
         size_t invalid = 0;
+        size_t invalid_ids = 0;
+        size_t topology_mismatches = 0;
         for(size_t pixel_i = 0; pixel_i < pixel_count; pixel_i++) {
             const T x = rendered.normals[pixel_i * 3 + 0];
             const T y = rendered.normals[pixel_i * 3 + 1];
             const T z = rendered.normals[pixel_i * 3 + 2];
-            if(x == 0 && y == 0 && z == 0) {
+            const bool normals_miss = x == 0 && y == 0 && z == 0;
+            const bool segmentation_miss = rendered.segmentation[pixel_i] == golden::SEGMENTATION_BACKGROUND_ID;
+            topology_mismatches += normals_miss != segmentation_miss;
+            if(normals_miss) {
                 continue;
             }
             hits++;
             const T norm = std::sqrt(x * x + y * y + z * z);
             invalid += norm < (T)0.999 || norm > (T)1.001;
+            invalid_ids += rendered.segmentation[pixel_i] >= rendered.num_instances;
         }
         if(invalid > 0) {
-            std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] normals: " << invalid << " pixel(s) are neither unit-length nor the zero miss sentinel" << std::endl;
+            std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] geometry: " << invalid << " normal(s) are neither unit-length nor the zero miss sentinel" << std::endl;
+            ok = false;
+        }
+        if(invalid_ids > 0) {
+            std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] geometry: " << invalid_ids << " segmentation id(s) exceed the scene instance count " << rendered.num_instances << std::endl;
+            ok = false;
+        }
+        if(topology_mismatches > 0) {
+            std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] geometry: " << topology_mismatches << " pixel(s) disagree between the normals and segmentation hit/miss topology" << std::endl;
             ok = false;
         }
         if(hits == 0) {
-            std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] normals: no hit pixels" << std::endl;
+            std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] geometry: no hit pixels" << std::endl;
             ok = false;
         }
     }
@@ -136,13 +154,69 @@ bool run_normals_case(DEVICE& device, const std::string& output_dir) {
     if(ok) {
         std::vector<uint32_t> encoded(pixel_count);
         golden::colorize_normals(rendered.normals.data(), pixel_count, encoded.data());
+        std::vector<uint32_t> segmentation_encoded(pixel_count);
+        golden::colorize_segmentation(rendered.segmentation.data(), pixel_count, segmentation_encoded.data());
         for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
             const std::string directory = output_dir + "/" + CASES::POSES[camera_i].id;
             std::filesystem::create_directories(directory);
             ok &= golden::write_camera_png(directory + "/normals.png", encoded.data() + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+            ok &= golden::write_multi_camera_uint32_bin(directory + "/segmentation.bin", rendered.segmentation.data() + camera_i * SPEC::CAM_PIXELS, 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+            ok &= golden::write_camera_png(directory + "/segmentation.png", segmentation_encoded.data() + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
         }
         if(!ok) {
-            std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] normals: failed to write outputs" << std::endl;
+            std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] geometry: failed to write outputs" << std::endl;
+        }
+    }
+
+    return ok;
+}
+
+template <typename SPEC, bool T_CAMERA_MOTION = true>
+bool run_flow_case(DEVICE& device, const std::string& output_dir, const char* name) {
+    std::cout << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] rendering " << name << std::endl;
+
+    golden::Rendered<T> rendered;
+    if(!golden::render_case<SPEC, BACKEND, DEVICE, CASES, T_CAMERA_MOTION>(device, SCENE_PATH, rendered)) {
+        std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << name << ": failed to load scene: " << SCENE_PATH << std::endl;
+        return false;
+    }
+
+    bool ok = true;
+    const size_t pixel_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+    if(rendered.flow.size() != pixel_count * 2) {
+        std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << name << ": flow buffer has the wrong size" << std::endl;
+        ok = false;
+    }
+    else {
+        size_t nonzero = 0;
+        size_t invalid = 0;
+        for(size_t pixel_i = 0; pixel_i < pixel_count; pixel_i++) {
+            const T u = rendered.flow[pixel_i * 2 + 0];
+            const T v = rendered.flow[pixel_i * 2 + 1];
+            invalid += !std::isfinite(u) || !std::isfinite(v)
+                || std::fabs(u) > (T)SPEC::CAM_WIDTH || std::fabs(v) > (T)SPEC::CAM_HEIGHT;
+            nonzero += u != 0 || v != 0;
+        }
+        if(invalid > 0) {
+            std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << name << ": " << invalid << " non-finite or unbounded flow pixel(s)" << std::endl;
+            ok = false;
+        }
+        if(nonzero == 0) {
+            std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << name << ": flow is identically zero (missing camera pair or object motion?)" << std::endl;
+            ok = false;
+        }
+    }
+
+    if(ok) {
+        for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
+            const std::string directory = output_dir + "/" + CASES::POSES[camera_i].id;
+            std::filesystem::create_directories(directory);
+            const float* camera_flow = rendered.flow.data() + (size_t)camera_i * SPEC::CAM_PIXELS * 2;
+            ok &= golden::write_multi_camera_float_bin(directory + "/" + std::string(name) + ".bin", camera_flow, 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, 2);
+            rlt::rendering::raytracing::detail::write_flow_grid_png<CASES::SingleCamera>(camera_flow, (directory + "/" + std::string(name) + ".png").c_str());
+        }
+        if(!ok) {
+            std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << name << ": failed to write outputs" << std::endl;
         }
     }
 
@@ -191,7 +265,9 @@ int main(int argc, char** argv) {
     ok &= run_case<CASES::HIGH_RGB_MB4_DYNAMIC, false>(device, output_dir, "high_rgb_mb4_object", false);
     ok &= run_case<CASES::LOW_RGBD>(device, output_dir, "low_rgbd", false);
     ok &= run_case<CASES::HIGH_RGBD>(device, output_dir, "high_rgbd", false);
-    ok &= run_normals_case(device, output_dir);
+    ok &= run_geometry_case(device, output_dir);
+    ok &= run_flow_case<CASES::FLOW>(device, output_dir, "flow");
+    ok &= run_flow_case<CASES::FLOW_DYNAMIC, false>(device, output_dir, "flow_dynamic");
 
     if(!ok) {
         std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] FAILED" << std::endl;

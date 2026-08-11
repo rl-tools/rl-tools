@@ -194,6 +194,20 @@ namespace rl_tools {
         OptixCameraData *cameras;
     };
 
+    struct FlowRayGenData
+    {
+        float *flow_ptr;
+        owl::vec2i  fb_size;
+        owl::vec2i  cam_size;
+        int    grid_cols;
+        int    num_cameras;
+        OptixTraversableHandle world;
+        OptixCameraData *cameras_open;
+        OptixCameraData *cameras_close;
+        const float *flow_deltas;            // 12 per overlay slot (world_open ∘ world_close⁻¹), null without overlays
+        unsigned int first_overlay_instance; // global instance ids >= this index the delta table
+    };
+
     struct CollisionRayGenData
     {
         CollisionResult *results;    // [num_cameras * num_probes] output

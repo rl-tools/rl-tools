@@ -1,5 +1,5 @@
 // Vulkan device programs for the RLtools raytracing renderer, compiled once per entry point
-// (ENTRY_RGB / ENTRY_DEPTH / ENTRY_COLLISION / ENTRY_SEGMENTATION / ENTRY_NORMALS). This file is a
+// (ENTRY_RGB / ENTRY_DEPTH / ENTRY_COLLISION / ENTRY_SEGMENTATION / ENTRY_NORMALS / ENTRY_FLOW). This file is a
 // function-for-function mirror of backends/metal/device.metal (which mirrors
 // backends/optix/device_impl.h) — keep the shading logic in sync; the golden-image parity
 // suite is the drift detector. Metal's RGBTracer<DEPTH> template recursion is restructured
@@ -52,7 +52,8 @@ layout(std430, set = 0, binding = 0) readonly buffer LaunchParamsBuffer{
     float ambient_color[3];
     float miss_color_0[3];
     float miss_color_1[3];
-    float padding[3];
+    uint first_overlay_instance;
+    float padding[2];
 } params;
 
 struct Camera{
@@ -68,7 +69,7 @@ layout(std430, set = 0, binding = 13) readonly buffer OverlayAttachmentsBuffer{ 
 layout(std430, set = 0, binding = 14) readonly buffer OverlayNumActiveBuffer{ uint overlay_num_active[]; };
 layout(set = 0, binding = 15) uniform accelerationStructureEXT overlay_tlas[];
 
-#if defined(ENTRY_RGB) || defined(ENTRY_DEPTH)
+#if defined(ENTRY_RGB) || defined(ENTRY_DEPTH) || defined(ENTRY_FLOW)
 layout(std430, set = 0, binding = 2) readonly buffer CamerasOpenBuffer{ Camera cameras_open[]; };
 #endif
 
@@ -152,7 +153,7 @@ struct SceneLight{
 layout(std430, set = 0, binding = 3) writeonly buffer FrameBuffer{ uint fb[]; };
 layout(std430, set = 0, binding = 5) readonly buffer SceneLightsBuffer{ SceneLight scene_lights[]; };
 layout(std430, set = 0, binding = 17) writeonly buffer ObservationBuffer{ float observation[]; };
-layout(set = 0, binding = 21) uniform sampler2D scene_textures[];
+layout(set = 0, binding = 23) uniform sampler2D scene_textures[];
 
 // normals transform with the inverse-transpose: multiply by the world_to_object columns
 vec3 transform_normal_to_world(int instance, vec3 n){
@@ -174,6 +175,11 @@ layout(std430, set = 0, binding = 16) readonly buffer InstanceClassesBuffer{ uin
 
 #if defined(ENTRY_NORMALS)
 layout(std430, set = 0, binding = 20) writeonly buffer NormalsBuffer{ float normals_out[]; };
+#endif
+
+#if defined(ENTRY_FLOW)
+layout(std430, set = 0, binding = 21) writeonly buffer FlowBuffer{ float flow_out[]; };
+layout(std430, set = 0, binding = 22) readonly buffer FlowDeltasBuffer{ float flow_deltas[]; };
 #endif
 
 #if defined(ENTRY_COLLISION)
@@ -861,5 +867,67 @@ void main(){
     normals_out[ctx.fb_offset * 3 + 0] = normal.x;
     normals_out[ctx.fb_offset * 3 + 1] = normal.y;
     normals_out[ctx.fb_offset * 3 + 2] = normal.z;
+}
+#endif
+
+#if defined(ENTRY_FLOW)
+vec3 apply_flow_delta(uint base, vec3 p){
+    return vec3(
+        flow_deltas[base + 0]*p.x + flow_deltas[base + 1]*p.y + flow_deltas[base + 2]*p.z + flow_deltas[base + 3],
+        flow_deltas[base + 4]*p.x + flow_deltas[base + 5]*p.y + flow_deltas[base + 6]*p.z + flow_deltas[base + 7],
+        flow_deltas[base + 8]*p.x + flow_deltas[base + 9]*p.y + flow_deltas[base + 10]*p.z + flow_deltas[base + 11]);
+}
+
+// world point → screen fraction through the linear camera model: solves
+// dir_00 + screen_x·dir_du + screen_y·dir_dv = lambda·(point − pos) by Cramer's rule;
+// returns false for a degenerate basis or a point at/behind the camera (lambda <= 0)
+bool project_camera(Camera cam, vec3 point, out float screen_x, out float screen_y){
+    const vec3 direction = point - camera_pos(cam);
+    const vec3 dir_du = camera_dir_du(cam);
+    const vec3 dir_dv = camera_dir_dv(cam);
+    const vec3 negative_direction = -direction;
+    const vec3 cross_dv_negative_direction = cross(dir_dv, negative_direction);
+    const float det = dot(dir_du, cross_dv_negative_direction);
+    if(det > -1e-12 && det < 1e-12){
+        return false;
+    }
+    const float inv_det = 1.0 / det;
+    const vec3 b = -camera_dir_00(cam);
+    screen_x = dot(b, cross_dv_negative_direction) * inv_det;
+    screen_y = dot(dir_du, cross(b, negative_direction)) * inv_det;
+    const float lambda = dot(dir_du, cross(dir_dv, b)) * inv_det;
+    return lambda > 0.0;
+}
+
+// single-sample by design (shutter-close camera, pixel-center ray): backward flow of the
+// shutter-close frame in pixels — the hit point is carried to shutter open by its instance's
+// shutter delta (identity for the static world) and projected through the shutter-open camera;
+// miss (and behind-the-open-camera projections) write (0, 0)
+void main(){
+    const uvec2 pixel_id = gl_GlobalInvocationID.xy;
+    const PixelLaunchContext ctx = pixel_launch_context(pixel_id);
+    if(!ctx.valid){
+        return;
+    }
+    Camera cam = cameras_close[ctx.cam_idx];
+    const vec2 screen = (vec2(ctx.local_x, ctx.local_y) + vec2(0.5, 0.5)) / vec2(params.cam_width, params.cam_height);
+    const vec3 direction = normalize(camera_dir_00(cam) + screen.x * camera_dir_du(cam) + screen.y * camera_dir_dv(cam));
+    Hit hit = intersect_composed(ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30, false);
+    vec2 flow = vec2(0.0);
+    if(hit.valid){
+        vec3 point = camera_pos(cam) + direction * hit.t;
+        if(fc_overlay_count > 0 && uint(hit.instance_id) >= params.first_overlay_instance){
+            point = apply_flow_delta((uint(hit.instance_id) - params.first_overlay_instance) * 12u, point);
+        }
+        Camera cam_open = cameras_open[ctx.cam_idx];
+        float open_x;
+        float open_y;
+        if(project_camera(cam_open, point, open_x, open_y)){
+            flow = vec2((float(ctx.local_x) + 0.5) - open_x * float(params.cam_width),
+                        (float(ctx.local_y) + 0.5) - open_y * float(params.cam_height));
+        }
+    }
+    flow_out[ctx.fb_offset * 2 + 0] = flow.x;
+    flow_out[ctx.fb_offset * 2 + 1] = flow.y;
 }
 #endif

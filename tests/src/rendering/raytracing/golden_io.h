@@ -44,10 +44,15 @@ namespace golden {
         uint32_t num_cameras = 0;
         uint32_t height = 0;
         uint32_t width = 0;
+        uint32_t channels = 1;
         uint64_t element_count = 0;
     };
 
     static constexpr uint32_t MULTI_CAMERA_BINARY_VERSION = 1;
+    // additive channel extension: version-2 headers carry a channels field via the header_size
+    // mechanism; single-channel files keep the byte-identical version-1 header, so the published
+    // scalar corpus stays valid and stable
+    static constexpr uint32_t MULTI_CAMERA_BINARY_VERSION_CHANNELS = 2;
     static constexpr uint32_t SEGMENTATION_BACKGROUND_ID = 0xFFFFFFFFu;
     static constexpr int GRID_COLUMNS = 2;
     static constexpr int GRID_ROWS = 2;
@@ -56,6 +61,7 @@ namespace golden {
     namespace detail {
         static constexpr unsigned char MULTI_CAMERA_BINARY_MAGIC[8] = {'R', 'L', 'T', 'M', 'C', 'A', 'M', 0};
         static constexpr uint32_t MULTI_CAMERA_BINARY_HEADER_SIZE = 40;
+        static constexpr uint32_t MULTI_CAMERA_BINARY_HEADER_SIZE_CHANNELS = 44;
 
         inline bool checked_element_count(int num_cameras, int width, int height, size_t& count){
             if(num_cameras <= 0 || width <= 0 || height <= 0){
@@ -72,6 +78,18 @@ namespace golden {
                 return false;
             }
             count = cameras * camera_pixels;
+            return true;
+        }
+
+        inline bool checked_element_count_channels(int num_cameras, int width, int height, int channels, size_t& count){
+            size_t pixel_count = 0;
+            if(channels <= 0 || !checked_element_count(num_cameras, width, height, pixel_count)){
+                return false;
+            }
+            if((size_t)channels > std::numeric_limits<size_t>::max() / pixel_count){
+                return false;
+            }
+            count = pixel_count * (size_t)channels;
             return true;
         }
 
@@ -147,16 +165,21 @@ namespace golden {
             int num_cameras,
             int width,
             int height,
+            int channels,
             size_t element_count
         ){
-            return std::fwrite(MULTI_CAMERA_BINARY_MAGIC, sizeof(MULTI_CAMERA_BINARY_MAGIC), 1, file) == 1
-                && write_u32_le(file, MULTI_CAMERA_BINARY_VERSION)
-                && write_u32_le(file, MULTI_CAMERA_BINARY_HEADER_SIZE)
+            const bool multi_channel = channels != 1;
+            bool ok = std::fwrite(MULTI_CAMERA_BINARY_MAGIC, sizeof(MULTI_CAMERA_BINARY_MAGIC), 1, file) == 1
+                && write_u32_le(file, multi_channel ? MULTI_CAMERA_BINARY_VERSION_CHANNELS : MULTI_CAMERA_BINARY_VERSION)
+                && write_u32_le(file, multi_channel ? MULTI_CAMERA_BINARY_HEADER_SIZE_CHANNELS : MULTI_CAMERA_BINARY_HEADER_SIZE)
                 && write_u32_le(file, (uint32_t)element_type)
                 && write_u32_le(file, (uint32_t)num_cameras)
                 && write_u32_le(file, (uint32_t)height)
-                && write_u32_le(file, (uint32_t)width)
-                && write_u64_le(file, (uint64_t)element_count);
+                && write_u32_le(file, (uint32_t)width);
+            if(multi_channel){
+                ok = ok && write_u32_le(file, (uint32_t)channels);
+            }
+            return ok && write_u64_le(file, (uint64_t)element_count);
         }
 
         inline bool read_multi_camera_header(FILE* file, MultiCameraBinaryInfo& info){
@@ -170,11 +193,21 @@ namespace golden {
                 || !read_u32_le(file, element_type)
                 || !read_u32_le(file, info.num_cameras)
                 || !read_u32_le(file, info.height)
-                || !read_u32_le(file, info.width)
-                || !read_u64_le(file, info.element_count)){
+                || !read_u32_le(file, info.width)){
                 return false;
             }
-            if(info.version != MULTI_CAMERA_BINARY_VERSION || header_size != MULTI_CAMERA_BINARY_HEADER_SIZE){
+            if(info.version == MULTI_CAMERA_BINARY_VERSION && header_size == MULTI_CAMERA_BINARY_HEADER_SIZE){
+                info.channels = 1;
+            }
+            else if(info.version == MULTI_CAMERA_BINARY_VERSION_CHANNELS && header_size == MULTI_CAMERA_BINARY_HEADER_SIZE_CHANNELS){
+                if(!read_u32_le(file, info.channels) || info.channels == 0){
+                    return false;
+                }
+            }
+            else{
+                return false;
+            }
+            if(!read_u64_le(file, info.element_count)){
                 return false;
             }
             if(element_type != (uint32_t)MultiCameraElementType::FLOAT32
@@ -186,7 +219,8 @@ namespace golden {
             return info.num_cameras <= (uint32_t)std::numeric_limits<int>::max()
                 && info.width <= (uint32_t)std::numeric_limits<int>::max()
                 && info.height <= (uint32_t)std::numeric_limits<int>::max()
-                && checked_element_count((int)info.num_cameras, (int)info.width, (int)info.height, expected_count)
+                && info.channels <= (uint32_t)std::numeric_limits<int>::max()
+                && checked_element_count_channels((int)info.num_cameras, (int)info.width, (int)info.height, (int)info.channels, expected_count)
                 && info.element_count == (uint64_t)expected_count;
         }
 
@@ -200,13 +234,15 @@ namespace golden {
             MultiCameraElementType element_type,
             int expected_num_cameras,
             int expected_width,
-            int expected_height
+            int expected_height,
+            int expected_channels = 1
         ){
-            return expected_num_cameras > 0 && expected_width > 0 && expected_height > 0
+            return expected_num_cameras > 0 && expected_width > 0 && expected_height > 0 && expected_channels > 0
                 && info.element_type == element_type
                 && info.num_cameras == (uint32_t)expected_num_cameras
                 && info.width == (uint32_t)expected_width
-                && info.height == (uint32_t)expected_height;
+                && info.height == (uint32_t)expected_height
+                && info.channels == (uint32_t)expected_channels;
         }
 
         inline bool write_multi_camera_bin(
@@ -215,17 +251,18 @@ namespace golden {
             const uint32_t* bits,
             int num_cameras,
             int width,
-            int height
+            int height,
+            int channels = 1
         ){
             size_t count = 0;
-            if(bits == nullptr || !checked_element_count(num_cameras, width, height, count)){
+            if(bits == nullptr || !checked_element_count_channels(num_cameras, width, height, channels, count)){
                 return false;
             }
             FILE* file = std::fopen(path.c_str(), "wb");
             if(file == nullptr){
                 return false;
             }
-            bool ok = write_multi_camera_header(file, element_type, num_cameras, width, height, count);
+            bool ok = write_multi_camera_header(file, element_type, num_cameras, width, height, channels, count);
             for(size_t value_i = 0; ok && value_i < count; value_i++){
                 ok = write_u32_le(file, bits[value_i]);
             }
@@ -239,7 +276,8 @@ namespace golden {
             int expected_num_cameras,
             int expected_width,
             int expected_height,
-            std::vector<uint32_t>& bits
+            std::vector<uint32_t>& bits,
+            int expected_channels = 1
         ){
             FILE* file = std::fopen(path.c_str(), "rb");
             if(file == nullptr){
@@ -247,7 +285,7 @@ namespace golden {
             }
             MultiCameraBinaryInfo info;
             bool ok = read_multi_camera_header(file, info)
-                && header_matches(info, element_type, expected_num_cameras, expected_width, expected_height);
+                && header_matches(info, element_type, expected_num_cameras, expected_width, expected_height, expected_channels);
             std::vector<uint32_t> loaded;
             if(ok){
                 loaded.resize((size_t)info.element_count);
@@ -279,17 +317,18 @@ namespace golden {
         const float* values,
         int num_cameras,
         int width,
-        int height
+        int height,
+        int channels = 1
     ){
         static_assert(sizeof(float) == sizeof(uint32_t) && std::numeric_limits<float>::is_iec559,
                       "golden float binaries require IEEE-754 32-bit floats");
         size_t count = 0;
-        if(values == nullptr || !detail::checked_element_count(num_cameras, width, height, count)){
+        if(values == nullptr || !detail::checked_element_count_channels(num_cameras, width, height, channels, count)){
             return false;
         }
         std::vector<uint32_t> bits(count);
         std::memcpy(bits.data(), values, count * sizeof(uint32_t));
-        return detail::write_multi_camera_bin(path, MultiCameraElementType::FLOAT32, bits.data(), num_cameras, width, height);
+        return detail::write_multi_camera_bin(path, MultiCameraElementType::FLOAT32, bits.data(), num_cameras, width, height, channels);
     }
 
     inline bool load_multi_camera_uint32_bin(
@@ -307,12 +346,13 @@ namespace golden {
         int expected_num_cameras,
         int expected_width,
         int expected_height,
-        std::vector<float>& values
+        std::vector<float>& values,
+        int expected_channels = 1
     ){
         static_assert(sizeof(float) == sizeof(uint32_t) && std::numeric_limits<float>::is_iec559,
                       "golden float binaries require IEEE-754 32-bit floats");
         std::vector<uint32_t> bits;
-        if(!detail::load_multi_camera_bin(path, MultiCameraElementType::FLOAT32, expected_num_cameras, expected_width, expected_height, bits)){
+        if(!detail::load_multi_camera_bin(path, MultiCameraElementType::FLOAT32, expected_num_cameras, expected_width, expected_height, bits, expected_channels)){
             return false;
         }
         std::vector<float> loaded(bits.size());
@@ -527,6 +567,10 @@ namespace golden {
         }
     }
 
+    // corpus surface for both the overlay and procthor_static_scene suites: segmentation.png
+    // stores ids through this encoding and is validated against segmentation.bin, so the mapping
+    // must never drift (pinned by GoldenIoTest.SegmentationEncodingIsPinned); every non-background
+    // channel is >= 32, so the background gray (16,16,16) is unreachable for real ids
     inline uint32_t segmentation_false_color(uint32_t instance_id){
         if(instance_id == SEGMENTATION_BACKGROUND_ID){
             return rgba(16, 16, 16);

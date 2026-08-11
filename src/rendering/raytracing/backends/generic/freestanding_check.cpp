@@ -94,6 +94,7 @@ extern "C" void rl_tools_rendering_raytracing_generic_freestanding_check(){
     static unsigned int frame_buffer[Spec::NUM_CAMERAS * Spec::CAM_PIXELS];
     static float depth_buffer[Spec::NUM_CAMERAS * Spec::CAM_PIXELS];
     static float normals_buffer[Spec::NUM_CAMERAS * Spec::CAM_PIXELS * 3];
+    static float flow_buffer[Spec::NUM_CAMERAS * Spec::CAM_PIXELS * 2];
     static rlt::rendering::raytracing::CollisionResult collision_results[Spec::NUM_CAMERAS * Spec::NUM_PROBES];
     scene.cameras_close = &camera;
     scene.cameras_open = &camera;
@@ -101,6 +102,7 @@ extern "C" void rl_tools_rendering_raytracing_generic_freestanding_check(){
     scene.frame_buffer = frame_buffer;
     scene.depth_buffer = depth_buffer;
     scene.normals_buffer = normals_buffer;
+    scene.flow_buffer = flow_buffer;
     scene.collision_results = collision_results;
     scene.max_depth = 10;
     scene.max_dist = 10;
@@ -109,5 +111,6 @@ extern "C" void rl_tools_rendering_raytracing_generic_freestanding_check(){
     generic::render_frame<DEVICE, SpecBasic, generic::OutputRGB>(device, scene);
     generic::render_frame<DEVICE, Spec, generic::OutputDepth>(device, scene);
     generic::render_normals_frame<DEVICE, Spec>(device, scene);
+    generic::render_flow_frame<DEVICE, Spec>(device, scene);
     generic::render_collision<DEVICE, Spec>(device, scene);
 }

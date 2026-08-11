@@ -86,6 +86,9 @@ namespace rl_tools {
             if(ctx.observation.get() != nullptr){
                 encoder->setBuffer(ctx.observation.get(), 0, bindings::OBSERVATION);
             }
+            if(ctx.flow_deltas.get() != nullptr){
+                encoder->setBuffer(ctx.flow_deltas.get(), 0, bindings::FLOW_DELTAS);
+            }
             for(auto& object_acceleration_structure : ctx.object_acceleration_structures){
                 encoder->useResource(object_acceleration_structure.get(), MTL::ResourceUsageRead);
             }
@@ -199,6 +202,14 @@ namespace rl_tools {
             ctx->normals_buffer = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * 3 * sizeof(float), MTL::ResourceStorageModeShared));
             renderer.normals_buffer._data = (float*)ctx->normals_buffer->contents();
         }
+        if constexpr (SPEC::HAS_FLOW) {
+            ctx->flow_buffer = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * 2 * sizeof(float), MTL::ResourceStorageModeShared));
+            renderer.flow_buffer._data = (float*)ctx->flow_buffer->contents();
+            if constexpr (SPEC::ENABLE_OVERLAYS) {
+                ctx->flow_deltas = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float), MTL::ResourceStorageModeShared));
+                renderer.flow_deltas._data = (float*)ctx->flow_deltas->contents();
+            }
+        }
         if constexpr (SPEC::HAS_OBSERVATION) {
             static_assert(utils::typing::is_same_v<typename SPEC::OBSERVATION_T, float>, "The Metal raytracing backend requires OBSERVATION_T = float");
             ctx->observation = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * SPEC::OBSERVATION_CHANNELS * sizeof(float), MTL::ResourceStorageModeShared));
@@ -227,7 +238,7 @@ namespace rl_tools {
         constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>);
         ctx->cameras = NS::TransferPtr(ctx->device->newBuffer(camera_bytes, MTL::ResourceStorageModeShared));
         renderer.cameras._data = (rendering::raytracing::Camera<typename SPEC::T>*)ctx->cameras->contents();
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+        if constexpr (SPEC::HAS_CAMERA_PAIR) {
             ctx->cameras_open = NS::TransferPtr(ctx->device->newBuffer(camera_bytes, MTL::ResourceStorageModeShared));
             renderer.cameras_open._data = (rendering::raytracing::Camera<typename SPEC::T>*)ctx->cameras_open->contents();
         }
@@ -538,6 +549,7 @@ namespace rl_tools {
             params->miss_color_0[0] = .8f; params->miss_color_0[1] = 0.f; params->miss_color_0[2] = 0.f;
             params->miss_color_1[0] = .8f; params->miss_color_1[1] = .8f; params->miss_color_1[2] = .8f;
         }
+        params->first_overlay_instance = (uint32_t)scene.instances.size();
 
         if(!ctx.pipelines_built){
             auto constants = NS::TransferPtr(MTL::FunctionConstantValues::alloc()->init());
@@ -602,6 +614,9 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_NORMALS) {
                 ctx.normals_pipeline = make_pipeline("render_normals");
             }
+            if constexpr (SPEC::HAS_FLOW) {
+                ctx.flow_pipeline = make_pipeline("render_flow");
+            }
             if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
                 ctx.resolve_pipeline = make_pipeline("resolve_outputs");
             }
@@ -649,6 +664,9 @@ namespace rl_tools {
         }
         NS::Array* object_array = NS::Array::array((const NS::Object* const*)object_acceleration_structure_pointers.data(), object_acceleration_structure_pointers.size());
 
+        if constexpr (SPEC::HAS_FLOW){
+            rendering::raytracing::detail::compose_flow_deltas(renderer, data(renderer.flow_deltas));
+        }
         rendering::raytracing::detail::flush_overlay_transforms(renderer);
         // rebuilt unconditionally: producers may write the transforms tensor directly, which
         // leaves no host-observable dirty flag
@@ -815,7 +833,7 @@ namespace rl_tools {
         auto& ctx = metal::context(renderer);
         metal::wait_in_flight(ctx);
         rendering::raytracing::detail::generate_camera_poses<SPEC>(device, data(renderer.cameras), center, radius, up, fov);
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+        if constexpr (SPEC::HAS_CAMERA_PAIR) {
             std::memcpy(data(renderer.cameras_open), data(renderer.cameras), (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>));
         }
     }
@@ -918,6 +936,9 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_NORMALS) {
                 metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.normals_pipeline.get(), ctx.normals_buffer.get());
             }
+            if constexpr (SPEC::HAS_FLOW) {
+                metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.flow_pipeline.get(), ctx.flow_buffer.get());
+            }
             metal::encode_resolve_pass<SPEC>(ctx, command_buffer);
             command_buffer->commit();
             ctx.in_flight = NS::RetainPtr(command_buffer);
@@ -935,6 +956,9 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_NORMALS) {
             metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.normals_pipeline.get(), ctx.normals_buffer.get());
+        }
+        if constexpr (SPEC::HAS_FLOW) {
+            metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.flow_pipeline.get(), ctx.flow_buffer.get());
         }
         command_buffer->commit();
         ctx.in_flight = NS::RetainPtr(command_buffer);
@@ -1010,6 +1034,13 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
+    void save_flow_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, const char* filename){
+        static_assert(SPEC::HAS_FLOW, "save_flow_image requires a flow-capable renderer specification");
+        namespace metal = rendering::raytracing::backends::metal;
+        rendering::raytracing::detail::write_flow_grid_png<SPEC>(data(renderer.flow_buffer), filename);
+    }
+
+    template <typename DEVICE, typename SPEC>
     void save_depth_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, const char* filename){
         static_assert(SPEC::HAS_DEPTH, "save_depth_image requires a depth-capable renderer specification");
         namespace metal = rendering::raytracing::backends::metal;
@@ -1051,7 +1082,7 @@ namespace rl_tools {
         }
         // the input and output tensors alias shared MTLBuffers destroyed with the context
         renderer.cameras._data = nullptr;
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+        if constexpr (SPEC::HAS_CAMERA_PAIR) {
             renderer.cameras_open._data = nullptr;
         }
         if constexpr (SPEC::HAS_RGB) {
@@ -1065,6 +1096,12 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_NORMALS) {
             renderer.normals_buffer._data = nullptr;
+        }
+        if constexpr (SPEC::HAS_FLOW) {
+            renderer.flow_buffer._data = nullptr;
+            if constexpr (SPEC::ENABLE_OVERLAYS) {
+                renderer.flow_deltas._data = nullptr;
+            }
         }
         if constexpr (SPEC::HAS_OBSERVATION) {
             renderer.observation._data = nullptr;

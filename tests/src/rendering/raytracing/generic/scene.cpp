@@ -576,6 +576,142 @@ TEST(RL_TOOLS_SCENE_SUITE, NORMALS_ANALYTIC){
     rlt::free(device, renderer);
 }
 
+struct FLOW_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
+    static constexpr TI CAM_WIDTH = 64, CAM_HEIGHT = 64, NUM_CAMERAS = 1, NUM_PROBES = 4;
+    using SHADING = rlt::rendering::raytracing::Low;
+    static constexpr bool OUTPUT_RGB = false;
+    static constexpr bool OUTPUT_FLOW = true;
+};
+using FLOW_SPEC = rlt::rendering::raytracing::Specification<FLOW_CONFIG>;
+
+namespace {
+    template <typename RENDERER_SPEC>
+    void set_flow_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, BACKEND>& renderer, const T position_open[3], const T look_at_open[3], const T position_close[3], const T look_at_close[3]){
+        const T up[3] = {0, 0, 1};
+        constexpr T aspect = (T)RENDERER_SPEC::CAM_WIDTH / (T)RENDERER_SPEC::CAM_HEIGHT;
+        const auto camera_open = rlt::make_camera_data(position_open, look_at_open, up, (T)RENDERER_SPEC::COS_FOVY, aspect);
+        const auto camera_close = rlt::make_camera_data(position_close, look_at_close, up, (T)RENDERER_SPEC::COS_FOVY, aspect);
+        rlt::copy_to_renderer(device, renderer, &camera_close, rlt::data(rlt::cameras_close(device, renderer)), 1);
+        rlt::copy_to_renderer(device, renderer, &camera_open, rlt::data(rlt::cameras_open(device, renderer)), 1);
+    }
+}
+
+// the camera translates laterally by delta between shutter open and close; every pixel on the
+// cube's front face (a constant-viewing-distance plane) must report the closed-form uniform
+// flow -delta * W / (X * 2 tan(fov/2)) px, and with open == close the flow must vanish
+TEST(RL_TOOLS_SCENE_SUITE, FLOW_ANALYTIC){
+    DEVICE device;
+    rlt::init(device);
+
+    rlt::rendering::raytracing::Scene scene;
+    rlt::add(device, scene, make_cube(0, 1));
+
+    rlt::rendering::raytracing::Renderer<FLOW_SPEC, BACKEND> renderer;
+    rlt::malloc(device, renderer);
+    rlt::generate_probe_directions(device, renderer);
+    rlt::init(device, renderer, scene);
+
+    const T position[3] = {-5, 0, 0};
+    const T look_at[3] = {0, 0, 0};
+    std::vector<float> flow((size_t)FLOW_SPEC::CAM_PIXELS * 2);
+
+    set_flow_cameras(device, renderer, position, look_at, position, look_at);
+    rlt::render(device, renderer);
+    rlt::synchronize(device, renderer);
+    read_output(device, renderer, rlt::flow_buffer(device, renderer), flow.data(), flow.size());
+    const size_t center = (size_t)((FLOW_SPEC::CAM_HEIGHT / 2) * FLOW_SPEC::CAM_WIDTH + FLOW_SPEC::CAM_WIDTH / 2) * 2;
+    EXPECT_NEAR(flow[center + 0], 0.f, 1e-3f); // static pair: reprojection noise only
+    EXPECT_NEAR(flow[center + 1], 0.f, 1e-3f);
+    EXPECT_EQ(flow[0], 0.f); // background misses write the exact zero
+    EXPECT_EQ(flow[1], 0.f);
+
+    const T delta = 0.5;
+    const T position_open[3] = {-5, delta, 0};
+    const T look_at_open[3] = {0, delta, 0};
+    set_flow_cameras(device, renderer, position_open, look_at_open, position, look_at);
+    rlt::render(device, renderer);
+    rlt::synchronize(device, renderer);
+    read_output(device, renderer, rlt::flow_buffer(device, renderer), flow.data(), flow.size());
+
+    const T image_plane_scale = (T)2 * std::tan((T)FLOW_SPEC::COS_FOVY / (T)2);
+    const T viewing_distance = 4; // front face x = -1, camera x = -5
+    const float expected_u = (float)(-delta * (T)FLOW_SPEC::CAM_WIDTH / (viewing_distance * image_plane_scale));
+    size_t hit_count = 0;
+    for(size_t pixel_i = 0; pixel_i < (size_t)FLOW_SPEC::CAM_PIXELS; pixel_i++){
+        const float u = flow[pixel_i * 2 + 0], v = flow[pixel_i * 2 + 1];
+        if(u == 0.f && v == 0.f) continue;
+        EXPECT_NEAR(u, expected_u, 1e-2f);
+        EXPECT_NEAR(v, 0.f, 1e-2f);
+        hit_count++;
+    }
+    EXPECT_GT(hit_count, (size_t)0);
+
+    rlt::free(device, renderer);
+}
+
+struct FLOW_OVERLAY_CONFIG: FLOW_CONFIG{
+    static constexpr TI NUM_OVERLAYS = 1, MAX_OVERLAY_INSTANCES = 4, MAX_OVERLAYS_PER_CAMERA = 1;
+};
+using FLOW_OVERLAY_SPEC = rlt::rendering::raytracing::Specification<FLOW_OVERLAY_CONFIG>;
+
+// static camera pair, overlay translated across the shutter via set_transform_pair: overlay
+// pixels must report the projected object displacement (through the shutter-delta table) while
+// the static background stays at (near-)zero flow
+TEST(RL_TOOLS_SCENE_SUITE, FLOW_OVERLAY_ANALYTIC){
+    DEVICE device;
+    rlt::init(device);
+
+    rlt::rendering::raytracing::Scene scene;
+    rlt::add(device, scene, make_cube(0, 1)); // background: front face at x = -1
+    rlt::rendering::raytracing::AssetPool pool;
+    const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
+
+    rlt::rendering::raytracing::Renderer<FLOW_OVERLAY_SPEC, BACKEND> renderer;
+    rlt::malloc(device, renderer);
+    rlt::generate_probe_directions(device, renderer);
+    rlt::init(device, renderer, scene, pool);
+    rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
+
+    const float orientation_wxyz[4] = {1, 0, 0, 0};
+    const float position_close[3] = {-2.5f, 0, 0};
+    float close_transform[12];
+    rlt::make_transform(position_close, orientation_wxyz, close_transform);
+    const auto placement = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, close_transform);
+    const float object_delta_y = 0.3f;
+    const float position_open[3] = {-2.5f, object_delta_y, 0};
+    float open_transform[12];
+    rlt::make_transform(position_open, orientation_wxyz, open_transform);
+    rlt::set_transform_pair(device, renderer, OverlayIndex{0}, placement, open_transform, close_transform);
+    rlt::update(device, renderer);
+
+    const T camera_position[3] = {-5, 0, 0};
+    const T look_at[3] = {0, 0, 0};
+    set_flow_cameras(device, renderer, camera_position, look_at, camera_position, look_at);
+    rlt::render(device, renderer);
+    rlt::synchronize(device, renderer);
+    std::vector<float> flow((size_t)FLOW_OVERLAY_SPEC::CAM_PIXELS * 2);
+    read_output(device, renderer, rlt::flow_buffer(device, renderer), flow.data(), flow.size());
+
+    const T image_plane_scale = (T)2 * std::tan((T)FLOW_OVERLAY_SPEC::COS_FOVY / (T)2);
+    const T viewing_distance = (T)1.5; // overlay front face x = -3.5, camera x = -5
+    const float expected_u = (float)((T)object_delta_y * (T)FLOW_OVERLAY_SPEC::CAM_WIDTH / (viewing_distance * image_plane_scale));
+    size_t overlay_count = 0;
+    for(size_t pixel_i = 0; pixel_i < (size_t)FLOW_OVERLAY_SPEC::CAM_PIXELS; pixel_i++){
+        const float u = flow[pixel_i * 2 + 0], v = flow[pixel_i * 2 + 1];
+        if(std::fabs(u) < 1.f && std::fabs(v) < 1.f){
+            EXPECT_NEAR(u, 0.f, 1e-2f); // background (or miss): static under the static pair
+            EXPECT_NEAR(v, 0.f, 1e-2f);
+            continue;
+        }
+        EXPECT_NEAR(u, expected_u, 1e-2f);
+        EXPECT_NEAR(v, 0.f, 1e-2f);
+        overlay_count++;
+    }
+    EXPECT_GT(overlay_count, (size_t)16);
+
+    rlt::free(device, renderer);
+}
+
 TEST(RL_TOOLS_SCENE_SUITE, ASSEMBLY_COMPOSE){
     DEVICE device;
     rlt::init(device);

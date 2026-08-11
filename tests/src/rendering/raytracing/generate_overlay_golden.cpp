@@ -159,6 +159,28 @@ namespace {
         return true;
     }
 
+    // hit pixels must carry the ego-motion flow of the fixed FLOW_PAIR_OFFSET camera pair
+    // (nonzero, bounded), miss pixels the exact (0, 0) sentinel
+    bool valid_flow(const Frame& frame){
+        size_t nonzero = 0;
+        for(size_t index = 0; index < frame.segmentation.size(); index++){
+            const float u = frame.flow[index * 2 + 0];
+            const float v = frame.flow[index * 2 + 1];
+            if(!std::isfinite(u) || !std::isfinite(v) || std::fabs(u) > (float)SPEC::CAM_WIDTH || std::fabs(v) > (float)SPEC::CAM_HEIGHT){
+                return false;
+            }
+            if(frame.segmentation[index] == golden::SEGMENTATION_BACKGROUND_ID){
+                if(u != 0.f || v != 0.f){
+                    return false;
+                }
+            }
+            else{
+                nonzero += u != 0.f || v != 0.f;
+            }
+        }
+        return nonzero > 0;
+    }
+
     bool validate_frame(const FrameContext& context, const Frame& frame){
         const bool rgb_varies = std::any_of(frame.rgb.begin() + 1, frame.rgb.end(), [&](uint32_t pixel){ return pixel != frame.rgb[0]; });
         const bool valid_alpha = std::all_of(frame.rgb.begin(), frame.rgb.end(), [](uint32_t pixel){ return (pixel >> 24) == 0xFFu; });
@@ -167,6 +189,7 @@ namespace {
         ok = report(valid_alpha, context, "RGB output has non-opaque alpha") && ok;
         ok = report(valid_depth, context, "depth output has non-finite or non-positive values") && ok;
         ok = report(valid_normals(frame), context, "normals output does not match the segmentation hit/miss topology") && ok;
+        ok = report(valid_flow(frame), context, "flow output violates the hit/miss contract or is unbounded") && ok;
         ok = report(valid_topology(context.scenario, frame), context, "segmentation topology does not match the scenario table") && ok;
         ok = report(valid_shared_instance_pixels(context.scenario, frame), context, "shared placements are not pixel-identical across cameras") && ok;
         ok = report(valid_placement_materials(context.scenario, frame), context, "placement materials do not match the scenario assets") && ok;
@@ -196,7 +219,9 @@ namespace {
                         equal = equal
                             && initial.rgb[index] == updated.rgb[index]
                             && initial.depth[index] == updated.depth[index]
-                            && initial.normals[index] == updated.normals[index];
+                            && initial.normals[index] == updated.normals[index]
+                            && initial.flow[index * 2 + 0] == updated.flow[index * 2 + 0]
+                            && initial.flow[index * 2 + 1] == updated.flow[index * 2 + 1];
                     }
                 }
                 ok = report(equal && common > overlay_goldens::MIN_VISIBLE_ID_PIXELS, context,
@@ -231,7 +256,9 @@ namespace {
             && golden::write_depth_grid_png(paths.depth_png, frame.depth.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, frame.max_depth)
             && golden::write_multi_camera_uint32_bin(paths.segmentation_bin, frame.segmentation.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
             && golden::write_segmentation_grid_png(paths.segmentation_png, frame.segmentation.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
-            && golden::write_camera_grid_png(paths.normals_png, frame.normals.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+            && golden::write_camera_grid_png(paths.normals_png, frame.normals.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
+            && golden::write_multi_camera_float_bin(paths.flow_bin, frame.flow.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, 2);
+        rlt::rendering::raytracing::detail::write_flow_grid_png<SPEC>(frame.flow.data(), paths.flow_png.c_str()); // advisory review image
         return report(ok, context, "failed to write golden files to " + paths.directory);
     }
 

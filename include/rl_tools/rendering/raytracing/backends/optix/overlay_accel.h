@@ -51,6 +51,10 @@ namespace rl_tools::rendering::raytracing::backends::optix{
     // per-sample transforms_motion slabs (slerp at (s+0.5)/num_samples) and writes the close
     // entries into the transforms tensor — the on-device counterpart of set_transform_pair
     void overlay_accel_expand_motion(const float* pairs, float* transforms_motion, float* transforms, unsigned int num_slots, unsigned int num_samples, cudaStream_t stream);
+
+    // flow shutter-delta expansion for the device-resident pair path: per active slot
+    // world_open ∘ world_close⁻¹ from the transforms_pair slabs and the slot structure table
+    void overlay_accel_expand_flow_deltas(const float* pairs, const OverlaySlotStructure* structure, float* deltas, unsigned int num_overlays, unsigned int max_instances, cudaStream_t stream);
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
