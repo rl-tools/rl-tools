@@ -34,7 +34,18 @@ namespace golden {
         Renderer renderer;
         rl_tools::malloc(device, renderer);
         rl_tools::rendering::raytracing::Scene scene;
-        if(!rl_tools::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, scene_path)) {
+        // segmentation is per-instance, so segmentation-capable cases load the scene as one
+        // instance per GLB root node (ids pinned by node order) instead of the welded single
+        // object the RGB cases use — welded, everything reports instance 0
+        if constexpr(SPEC::HAS_SEGMENTATION) {
+            rl_tools::rendering::raytracing::ObjectAssembly assembly;
+            if(!rl_tools::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, assembly, scene_path)) {
+                rl_tools::free(device, renderer);
+                return false;
+            }
+            rl_tools::add(device, scene, assembly);
+        }
+        else if(!rl_tools::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, scene_path)) {
             rl_tools::free(device, renderer);
             return false;
         }
