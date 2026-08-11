@@ -66,6 +66,14 @@ namespace rl_tools {
                 // it is always single-sample from the shutter-close camera: unit normals cannot
                 // be averaged, so anti-aliasing and motion-blur settings do not apply to it
                 static constexpr bool OUTPUT_NORMALS = false;
+                // flow writes the backward optical flow of the shutter-close frame as float2 per
+                // pixel in pixel units (miss = 0,0): p_close - p_open, where p_open is the
+                // shutter-open camera's projection of the surface point after applying its
+                // instance's shutter motion. The two instants are the motion-blur pair inputs
+                // (cameras_open/cameras_close, set_transform_pair) — a producer drives
+                // frame-to-frame flow by writing last frame's state into the open slots. Always
+                // single-sample from the shutter-close camera, like segmentation.
+                static constexpr bool OUTPUT_FLOW = false;
                 static constexpr bool ENABLE_MOTION_BLUR = false;
                 static constexpr T_TI MOTION_BLUR_SAMPLES = 1;
                 // dynamic motion blur renders MOTION_BLUR_SAMPLES sequential passes per frame,
@@ -96,6 +104,7 @@ namespace rl_tools {
             static constexpr bool HAS_DEPTH = CONFIG::OUTPUT_DEPTH;
             static constexpr bool HAS_SEGMENTATION = CONFIG::OUTPUT_SEGMENTATION;
             static constexpr bool HAS_NORMALS = CONFIG::OUTPUT_NORMALS;
+            static constexpr bool HAS_FLOW = CONFIG::OUTPUT_FLOW;
             static constexpr bool ENABLE_DEPTH = HAS_DEPTH;
             static constexpr bool ENABLE_RGB = HAS_RGB;
             static constexpr TI CAM_WIDTH = CONFIG::CAM_WIDTH;
@@ -103,9 +112,12 @@ namespace rl_tools {
             static constexpr TI NUM_CAMERAS = CONFIG::NUM_CAMERAS;
             static constexpr TI NUM_PROBES = CONFIG::NUM_PROBES;
             static_assert(CAM_WIDTH > 0 && CAM_HEIGHT > 0 && NUM_CAMERAS > 0, "camera geometry must be nonzero");
-            static_assert(HAS_RGB || HAS_DEPTH || HAS_SEGMENTATION || HAS_NORMALS || NUM_PROBES > 0, "the renderer must produce at least one output (an image target or collision probes)");
+            static_assert(HAS_RGB || HAS_DEPTH || HAS_SEGMENTATION || HAS_NORMALS || HAS_FLOW || NUM_PROBES > 0, "the renderer must produce at least one output (an image target or collision probes)");
             static constexpr TI MOTION_BLUR_SAMPLES = CONFIG::MOTION_BLUR_SAMPLES;
             static constexpr bool ENABLE_MOTION_BLUR = CONFIG::ENABLE_MOTION_BLUR && MOTION_BLUR_SAMPLES > 1;
+            // flow consumes the shutter-open camera (and overlay shutter poses) without motion
+            // blur, so the pair storage is gated on this rather than on ENABLE_MOTION_BLUR
+            static constexpr bool HAS_CAMERA_PAIR = ENABLE_MOTION_BLUR || HAS_FLOW;
             static_assert(MOTION_BLUR_SAMPLES >= 1, "MOTION_BLUR_SAMPLES must be at least 1");
             static_assert(!ENABLE_MOTION_BLUR || MOTION_BLUR_SAMPLES == 2 || MOTION_BLUR_SAMPLES == 4 || MOTION_BLUR_SAMPLES == 8 || MOTION_BLUR_SAMPLES == 16 || MOTION_BLUR_SAMPLES == 32, "MOTION_BLUR_SAMPLES must be one of 2, 4, 8, 16, or 32");
             static constexpr TI ANTI_ALIASING_GRID_SIZE = CONFIG::ANTI_ALIASING_GRID_SIZE;
@@ -192,11 +204,11 @@ namespace rl_tools {
             AssetPool pool;
         };
 
-        template <typename T_SPEC, bool T_ENABLE_MOTION_BLUR>
-        struct MotionBlurRendererStorage {};
+        template <typename T_SPEC, bool T_HAS_CAMERA_PAIR>
+        struct CameraPairRendererStorage {};
 
         template <typename T_SPEC>
-        struct MotionBlurRendererStorage<T_SPEC, true> {
+        struct CameraPairRendererStorage<T_SPEC, true> {
             using SPEC = T_SPEC;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
@@ -249,6 +261,32 @@ namespace rl_tools {
             Tensor<NORMALS_TENSOR_SPEC> normals_buffer;
         };
 
+        template <typename T_SPEC, bool T_HAS_FLOW>
+        struct FlowRendererStorage {};
+
+        template <typename T_SPEC>
+        struct FlowRendererStorage<T_SPEC, true> {
+            using SPEC = T_SPEC;
+            using TI = typename SPEC::TI;
+            using FLOW_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, 2>, true>;
+            Tensor<FLOW_TENSOR_SPEC> flow_buffer;
+        };
+
+        template <typename T_SPEC, bool T_HAS_FLOW_OVERLAYS>
+        struct FlowOverlayRendererStorage {};
+
+        template <typename T_SPEC>
+        struct FlowOverlayRendererStorage<T_SPEC, true> {
+            using SPEC = T_SPEC;
+            using TI = typename SPEC::TI;
+            // per-slot shutter motion consumed by the flow pass: world_open ∘ world_close⁻¹,
+            // composed by update() from the shutter-open mirrors (host verbs) or by the pair
+            // expansion (transforms_pair producers); identity for slots held over the shutter.
+            // Backend-native residency like transforms.
+            using FLOW_DELTAS_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES, 12>, true>;
+            Tensor<FLOW_DELTAS_TENSOR_SPEC> flow_deltas;
+        };
+
         template <typename T_SPEC, bool T_HAS_OBSERVATION>
         struct ObservationRendererStorage {};
 
@@ -274,6 +312,7 @@ namespace rl_tools {
                 TI pose_slot = 0;       // root slot of the owning placement; the root's transforms entry moves the whole placement
                 float part_local[12];   // static attachment (part -> assembly), captured at spawn
                 float transform_entry[12]; // host mirror of the transforms-tensor entry (root: pose, non-root: articulation in the part frame)
+                float transform_entry_open[12]; // shutter-open counterpart, kept in lockstep by the verbs (pair verbs write it, single-pose verbs replicate); consumed by the flow shutter-delta composition
                 bool active = false;
             };
             struct OverlayState {
@@ -333,7 +372,7 @@ namespace rl_tools {
         };
 
         template <typename T_SPEC, typename T_BACKEND = backends::Default>
-        struct Renderer: MotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_MOTION_BLUR>, RGBRendererStorage<T_SPEC, T_SPEC::HAS_RGB>, DepthRendererStorage<T_SPEC, T_SPEC::HAS_DEPTH>, SegmentationRendererStorage<T_SPEC, T_SPEC::HAS_SEGMENTATION>, NormalsRendererStorage<T_SPEC, T_SPEC::HAS_NORMALS>, ObservationRendererStorage<T_SPEC, T_SPEC::HAS_OBSERVATION>, OverlayRendererStorage<T_SPEC, T_SPEC::ENABLE_OVERLAYS>, DynamicMotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_DYNAMIC_MOTION_BLUR>{
+        struct Renderer: CameraPairRendererStorage<T_SPEC, T_SPEC::HAS_CAMERA_PAIR>, RGBRendererStorage<T_SPEC, T_SPEC::HAS_RGB>, DepthRendererStorage<T_SPEC, T_SPEC::HAS_DEPTH>, SegmentationRendererStorage<T_SPEC, T_SPEC::HAS_SEGMENTATION>, NormalsRendererStorage<T_SPEC, T_SPEC::HAS_NORMALS>, FlowRendererStorage<T_SPEC, T_SPEC::HAS_FLOW>, FlowOverlayRendererStorage<T_SPEC, T_SPEC::HAS_FLOW && T_SPEC::ENABLE_OVERLAYS>, ObservationRendererStorage<T_SPEC, T_SPEC::HAS_OBSERVATION>, OverlayRendererStorage<T_SPEC, T_SPEC::ENABLE_OVERLAYS>, DynamicMotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_DYNAMIC_MOTION_BLUR>{
             using SPEC = T_SPEC;
             using BACKEND = T_BACKEND;
             using BACKEND_STATE = backends::RendererState<BACKEND, SPEC>;

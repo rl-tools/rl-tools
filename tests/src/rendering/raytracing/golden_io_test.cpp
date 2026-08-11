@@ -286,6 +286,48 @@ TEST_F(GoldenIoTest, MultiCameraHeaderAndPayloadBytesArePinned){
     }
 }
 
+// the version-2 (channels) header is corpus surface like the version-1 header above; a
+// single-channel write must keep emitting the byte-identical version-1 header
+TEST_F(GoldenIoTest, MultiCameraChannelsHeaderBytesArePinned){
+    constexpr int NUM_CAMERAS = 4;
+    constexpr int WIDTH = 3;
+    constexpr int HEIGHT = 2;
+    constexpr int CHANNELS = 2;
+    std::vector<float> values((size_t)NUM_CAMERAS * WIDTH * HEIGHT * CHANNELS);
+    for(size_t value_i = 0; value_i < values.size(); value_i++){
+        values[value_i] = (float)value_i - 10.5f;
+    }
+    const std::string binary_path = path("pinned_channels.bin");
+    ASSERT_TRUE(golden::write_multi_camera_float_bin(binary_path, values.data(), NUM_CAMERAS, WIDTH, HEIGHT, CHANNELS));
+    const std::vector<unsigned char> bytes = read_bytes(binary_path);
+    ASSERT_EQ(bytes.size(), golden::detail::MULTI_CAMERA_BINARY_HEADER_SIZE_CHANNELS + values.size() * sizeof(uint32_t));
+
+    const unsigned char expected_header[golden::detail::MULTI_CAMERA_BINARY_HEADER_SIZE_CHANNELS] = {
+        'R', 'L', 'T', 'M', 'C', 'A', 'M', 0,
+        2, 0, 0, 0,     // version
+        44, 0, 0, 0,    // header size
+        1, 0, 0, 0,     // element type: FLOAT32
+        4, 0, 0, 0,     // num_cameras
+        2, 0, 0, 0,     // height
+        3, 0, 0, 0,     // width
+        2, 0, 0, 0,     // channels
+        48, 0, 0, 0, 0, 0, 0, 0 // element count
+    };
+    EXPECT_EQ(std::memcmp(bytes.data(), expected_header, sizeof(expected_header)), 0);
+
+    std::vector<float> loaded;
+    ASSERT_TRUE(golden::load_multi_camera_float_bin(binary_path, NUM_CAMERAS, WIDTH, HEIGHT, loaded, CHANNELS));
+    EXPECT_EQ(loaded, values);
+    EXPECT_FALSE(golden::load_multi_camera_float_bin(binary_path, NUM_CAMERAS, WIDTH, HEIGHT, loaded)); // channel mismatch must be rejected
+
+    const std::string scalar_path = path("pinned_channels_scalar.bin");
+    std::vector<float> scalar((size_t)NUM_CAMERAS * WIDTH * HEIGHT, 1.f);
+    ASSERT_TRUE(golden::write_multi_camera_float_bin(scalar_path, scalar.data(), NUM_CAMERAS, WIDTH, HEIGHT));
+    const std::vector<unsigned char> scalar_bytes = read_bytes(scalar_path);
+    EXPECT_EQ(scalar_bytes[8], 1); // single-channel writes keep the version-1 header
+    EXPECT_EQ(scalar_bytes[12], 40);
+}
+
 TEST_F(GoldenIoTest, GridQuadrantOrderIsPinned){
     const std::vector<uint32_t> cameras = {
         golden::rgba(10, 0, 0),
@@ -362,6 +404,8 @@ TEST_F(GoldenIoTest, LayoutPathsAreStable){
     EXPECT_EQ(targets.segmentation_bin, targets.directory + "/segmentation.bin");
     EXPECT_EQ(targets.segmentation_png, targets.directory + "/segmentation.png");
     EXPECT_EQ(targets.normals_png, targets.directory + "/normals.png");
+    EXPECT_EQ(targets.flow_bin, targets.directory + "/flow.bin");
+    EXPECT_EQ(targets.flow_png, targets.directory + "/flow.png");
 
     const auto reviews = golden::layout::scenario_review_paths(
         "artifact-root", "vulkan", "partial_shared", "updated", "oblique"
@@ -379,4 +423,7 @@ TEST_F(GoldenIoTest, LayoutPathsAreStable){
     EXPECT_EQ(reviews.normals_target_png, reviews.directory + "/normals_target.png");
     EXPECT_EQ(reviews.normals_current_png, reviews.directory + "/normals_current.png");
     EXPECT_EQ(reviews.normals_diff_png, reviews.directory + "/normals_diff.png");
+    EXPECT_EQ(reviews.flow_target_png, reviews.directory + "/flow_target.png");
+    EXPECT_EQ(reviews.flow_current_png, reviews.directory + "/flow_current.png");
+    EXPECT_EQ(reviews.flow_diff_png, reviews.directory + "/flow_diff.png");
 }

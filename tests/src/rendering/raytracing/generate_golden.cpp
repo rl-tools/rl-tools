@@ -149,6 +149,58 @@ bool run_normals_case(DEVICE& device, const std::string& output_dir) {
     return ok;
 }
 
+template <typename SPEC, bool T_CAMERA_MOTION = true>
+bool run_flow_case(DEVICE& device, const std::string& output_dir, const char* name) {
+    std::cout << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] rendering " << name << std::endl;
+
+    golden::Rendered<T> rendered;
+    if(!golden::render_case<SPEC, BACKEND, DEVICE, CASES, T_CAMERA_MOTION>(device, SCENE_PATH, rendered)) {
+        std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << name << ": failed to load scene: " << SCENE_PATH << std::endl;
+        return false;
+    }
+
+    bool ok = true;
+    const size_t pixel_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+    if(rendered.flow.size() != pixel_count * 2) {
+        std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << name << ": flow buffer has the wrong size" << std::endl;
+        ok = false;
+    }
+    else {
+        size_t nonzero = 0;
+        size_t invalid = 0;
+        for(size_t pixel_i = 0; pixel_i < pixel_count; pixel_i++) {
+            const T u = rendered.flow[pixel_i * 2 + 0];
+            const T v = rendered.flow[pixel_i * 2 + 1];
+            invalid += !std::isfinite(u) || !std::isfinite(v)
+                || std::fabs(u) > (T)SPEC::CAM_WIDTH || std::fabs(v) > (T)SPEC::CAM_HEIGHT;
+            nonzero += u != 0 || v != 0;
+        }
+        if(invalid > 0) {
+            std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << name << ": " << invalid << " non-finite or unbounded flow pixel(s)" << std::endl;
+            ok = false;
+        }
+        if(nonzero == 0) {
+            std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << name << ": flow is identically zero (missing camera pair or object motion?)" << std::endl;
+            ok = false;
+        }
+    }
+
+    if(ok) {
+        for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
+            const std::string directory = output_dir + "/" + CASES::POSES[camera_i].id;
+            std::filesystem::create_directories(directory);
+            const float* camera_flow = rendered.flow.data() + (size_t)camera_i * SPEC::CAM_PIXELS * 2;
+            ok &= golden::write_multi_camera_float_bin(directory + "/" + std::string(name) + ".bin", camera_flow, 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, 2);
+            rlt::rendering::raytracing::detail::write_flow_grid_png<CASES::SingleCamera>(camera_flow, (directory + "/" + std::string(name) + ".png").c_str());
+        }
+        if(!ok) {
+            std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << name << ": failed to write outputs" << std::endl;
+        }
+    }
+
+    return ok;
+}
+
 int main(int argc, char** argv) {
     std::string output_dir = DEFAULT_OUTPUT_DIR;
     for(int arg_i = 1; arg_i < argc; arg_i++) {
@@ -192,6 +244,8 @@ int main(int argc, char** argv) {
     ok &= run_case<CASES::LOW_RGBD>(device, output_dir, "low_rgbd", false);
     ok &= run_case<CASES::HIGH_RGBD>(device, output_dir, "high_rgbd", false);
     ok &= run_normals_case(device, output_dir);
+    ok &= run_flow_case<CASES::FLOW>(device, output_dir, "flow");
+    ok &= run_flow_case<CASES::FLOW_DYNAMIC, false>(device, output_dir, "flow_dynamic");
 
     if(!ok) {
         std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] FAILED" << std::endl;

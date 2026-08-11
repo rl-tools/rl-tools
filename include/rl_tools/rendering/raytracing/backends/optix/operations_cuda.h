@@ -48,6 +48,7 @@ namespace rl_tools {
             // sources are consumed, so rows can be rewritten on the next update without hazards
             std::vector<OverlaySlotStructure> structure_staging;
             std::vector<float> transforms_staging;
+            std::vector<float> flow_deltas_staging;
             size_t num_scene_instances = 0;
         };
     }
@@ -74,6 +75,9 @@ namespace rl_tools {
             OWLBuffer segmentation_buffer = nullptr;
             OWLRayGen normals_ray_gen = nullptr;
             OWLBuffer normals_buffer = nullptr;
+            OWLRayGen flow_ray_gen = nullptr;
+            OWLBuffer flow_buffer = nullptr;
+            OWLBuffer flow_deltas_buffer = nullptr;
             OWLBuffer observation_buffer = nullptr;
             OWLBuffer rgb_accumulator_buffer = nullptr;
             OWLBuffer depth_accumulator_buffer = nullptr;
@@ -397,6 +401,19 @@ namespace rl_tools {
                                                    (size_t)SPEC::NUM_CAMERAS * cam_pixels * 3, nullptr);
             renderer.normals_buffer._data = (float*)owlBufferGetPointer(normals_buffer, 0);
         }
+        OWLBuffer flow_buffer = nullptr;
+        OWLBuffer flow_deltas_buffer = nullptr;
+        if constexpr (SPEC::HAS_FLOW) {
+            flow_buffer = owlDeviceBufferCreate(context, OWL_FLOAT,
+                                                (size_t)SPEC::NUM_CAMERAS * cam_pixels * 2, nullptr);
+            renderer.flow_buffer._data = (float*)owlBufferGetPointer(flow_buffer, 0);
+            if constexpr (SPEC::ENABLE_OVERLAYS) {
+                flow_deltas_buffer = owlDeviceBufferCreate(context, OWL_FLOAT,
+                                                           (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12, nullptr);
+                renderer.backend->flow_deltas_buffer = flow_deltas_buffer;
+                renderer.flow_deltas._data = (float*)owlBufferGetPointer(flow_deltas_buffer, 0);
+            }
+        }
         OWLBuffer rgb_accumulator_buffer = nullptr;
         OWLBuffer depth_accumulator_buffer = nullptr;
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
@@ -552,6 +569,25 @@ namespace rl_tools {
                                               sizeof(NormalsRayGenData), normals_ray_gen_vars, -1);
         }
 
+        OWLRayGen flow_ray_gen = nullptr;
+        if constexpr (SPEC::HAS_FLOW) {
+            OWLVarDecl flow_ray_gen_vars[] = {
+                { "flow_ptr",      OWL_BUFPTR, OWL_OFFSETOF(FlowRayGenData, flow_ptr)},
+                { "fb_size",       OWL_INT2,   OWL_OFFSETOF(FlowRayGenData, fb_size)},
+                { "cam_size",      OWL_INT2,   OWL_OFFSETOF(FlowRayGenData, cam_size)},
+                { "grid_cols",     OWL_INT,    OWL_OFFSETOF(FlowRayGenData, grid_cols)},
+                { "num_cameras",   OWL_INT,    OWL_OFFSETOF(FlowRayGenData, num_cameras)},
+                { "world",         OWL_GROUP,  OWL_OFFSETOF(FlowRayGenData, world)},
+                { "cameras_open",  OWL_BUFPTR, OWL_OFFSETOF(FlowRayGenData, cameras_open)},
+                { "cameras_close", OWL_BUFPTR, OWL_OFFSETOF(FlowRayGenData, cameras_close)},
+                { "flow_deltas",   OWL_RAW_POINTER, OWL_OFFSETOF(FlowRayGenData, flow_deltas)},
+                { "first_overlay_instance", OWL_UINT, OWL_OFFSETOF(FlowRayGenData, first_overlay_instance)},
+                { /* sentinel */ }
+            };
+            flow_ray_gen = owlRayGenCreate(context, module, "flowRayGen",
+                                           sizeof(FlowRayGenData), flow_ray_gen_vars, -1);
+        }
+
         const owl2i fb_size  = {(int)SPEC::FB_WIDTH, (int)SPEC::FB_HEIGHT};
         const owl2i cam_size = {(int)SPEC::CAM_WIDTH, (int)SPEC::CAM_HEIGHT};
 
@@ -587,6 +623,17 @@ namespace rl_tools {
             renderer.backend->normals_ray_gen = normals_ray_gen;
             renderer.backend->normals_buffer = normals_buffer;
         }
+        if constexpr (SPEC::HAS_FLOW) {
+            owlRayGenSetBuffer(flow_ray_gen, "flow_ptr", flow_buffer);
+            owlRayGenSet2i    (flow_ray_gen, "fb_size", fb_size);
+            owlRayGenSet2i    (flow_ray_gen, "cam_size", cam_size);
+            owlRayGenSet1i    (flow_ray_gen, "grid_cols", SPEC::GRID_COLS);
+            owlRayGenSet1i    (flow_ray_gen, "num_cameras", SPEC::NUM_CAMERAS);
+            owlRayGenSetPointer(flow_ray_gen, "flow_deltas", flow_deltas_buffer != nullptr ? owlBufferGetPointer(flow_deltas_buffer, 0) : nullptr);
+            owlRayGenSet1ui   (flow_ray_gen, "first_overlay_instance", 0u); // scene-dependent: rebound in init_renderer_scene before the SBT build
+            renderer.backend->flow_ray_gen = flow_ray_gen;
+            renderer.backend->flow_buffer = flow_buffer;
+        }
         if constexpr (SPEC::HAS_DEPTH) {
             if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
                 owlRayGenSetPointer(depth_ray_gen, "depth_accum_ptr", owlBufferGetPointer(depth_accumulator_buffer, 0));
@@ -610,7 +657,7 @@ namespace rl_tools {
         // OWL buffers the ray gens bind, so producer writes are consumed with no copy
         renderer.cameras._data = (rendering::raytracing::Camera<typename SPEC::T>*)owlBufferGetPointer(cameras_buffer, 0);
         OWLBuffer cameras_open_buffer = nullptr;
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+        if constexpr (SPEC::HAS_CAMERA_PAIR) {
             cameras_open_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(OptixCameraData), SPEC::NUM_CAMERAS, nullptr);
             renderer.backend->cameras_open_buffer = cameras_open_buffer;
             renderer.cameras_open._data = (rendering::raytracing::Camera<typename SPEC::T>*)owlBufferGetPointer(cameras_open_buffer, 0);
@@ -638,6 +685,10 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_NORMALS) {
             owlRayGenSetBuffer(normals_ray_gen, "cameras", cameras_buffer);
+        }
+        if constexpr (SPEC::HAS_FLOW) {
+            owlRayGenSetBuffer(flow_ray_gen, "cameras_open", cameras_open_buffer);
+            owlRayGenSetBuffer(flow_ray_gen, "cameras_close", cameras_buffer);
         }
 
         renderer.backend->context = context;
@@ -1092,6 +1143,10 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_NORMALS) {
                 owlRayGenSetGroup((OWLRayGen)renderer.backend->normals_ray_gen, "world", world);
             }
+            if constexpr (SPEC::HAS_FLOW) {
+                owlRayGenSetGroup((OWLRayGen)renderer.backend->flow_ray_gen, "world", world);
+                owlRayGenSet1ui((OWLRayGen)renderer.backend->flow_ray_gen, "first_overlay_instance", (unsigned int)scene.instances.size());
+            }
             if(renderer.backend->collision_ray_gen){
                 owlRayGenSetGroup((OWLRayGen)renderer.backend->collision_ray_gen, "world", world);
                 owlRayGenSet1f((OWLRayGen)renderer.backend->collision_ray_gen, "max_dist", renderer.camera_radius * 2.0f);
@@ -1119,6 +1174,9 @@ namespace rl_tools {
                 optix::overlay_accel_upload_objects(overlay_state->accel, object_entries.data(), (unsigned int)object_entries.size());
                 overlay_state->structure_staging.assign((size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES, optix::OverlaySlotStructure{});
                 overlay_state->transforms_staging.assign((size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12, 0.0f);
+                if constexpr (SPEC::HAS_FLOW) {
+                    overlay_state->flow_deltas_staging.assign((size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12, 0.0f);
+                }
                 // published once: raw builds into fixed per-overlay buffers keep the handles stable,
                 // so no per-rebuild re-publication is needed
                 overlay_state->traversables_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(unsigned long long), SPEC::NUM_OVERLAYS, optix::overlay_accel_traversables(overlay_state->accel));
@@ -1272,6 +1330,10 @@ namespace rl_tools {
             cudaEventDestroy(probes_done);
         }
 
+        if constexpr (SPEC::HAS_FLOW){
+            // dirty-gated internally; must run before the loop below consumes the dirty flags
+            rendering::raytracing::detail::compose_flow_deltas(renderer, overlay_state->flow_deltas_staging.data());
+        }
         for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
             auto& overlay_host = renderer.overlays[overlay];
             if(!overlay_host.dirty) continue;
@@ -1287,6 +1349,9 @@ namespace rl_tools {
             }
             cudaMemcpyAsync(optix::overlay_accel_structure(overlay_state->accel) + base, &overlay_state->structure_staging[base], SPEC::MAX_OVERLAY_INSTANCES * sizeof(optix::OverlaySlotStructure), cudaMemcpyHostToDevice, cuda_stream);
             cudaMemcpyAsync(data(renderer.transforms) + base * 12, &overlay_state->transforms_staging[base * 12], SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float), cudaMemcpyHostToDevice, cuda_stream);
+            if constexpr (SPEC::HAS_FLOW){
+                cudaMemcpyAsync(data(renderer.flow_deltas) + base * 12, &overlay_state->flow_deltas_staging[base * 12], SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float), cudaMemcpyHostToDevice, cuda_stream);
+            }
             overlay_host.dirty = false;
         }
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
@@ -1333,6 +1398,12 @@ namespace rl_tools {
         namespace optix = rendering::raytracing::backends::optix;
         cudaStream_t cuda_stream = (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend->launch_params, 0);
         optix::await_producer(optix::producer_stream(device, 0), cuda_stream);
+        if constexpr (SPEC::HAS_FLOW){
+            auto* overlay_state = (optix::OverlayState*)renderer.backend->overlay_state;
+            optix::overlay_accel_expand_flow_deltas(data(renderer.transforms_pair), optix::overlay_accel_structure(overlay_state->accel), data(renderer.flow_deltas),
+                                                    (unsigned int)SPEC::NUM_OVERLAYS, (unsigned int)SPEC::MAX_OVERLAY_INSTANCES,
+                                                    (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend->launch_params, 0));
+        }
         optix::overlay_accel_expand_motion(data(renderer.transforms_pair), data(renderer.transforms_motion), data(renderer.transforms),
                                            (unsigned int)((size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES), (unsigned int)SPEC::MOTION_BLUR_SAMPLES, cuda_stream);
     }
@@ -1363,7 +1434,7 @@ namespace rl_tools {
         rendering::raytracing::detail::generate_camera_poses<SPEC>(device, staging.data(), center, radius, up, fov);
 
         owlBufferUpload((OWLBuffer)renderer.backend->cameras_buffer, staging.data(), 0, SPEC::NUM_CAMERAS);
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+        if constexpr (SPEC::HAS_CAMERA_PAIR) {
             owlBufferUpload((OWLBuffer)renderer.backend->cameras_open_buffer, staging.data(), 0, SPEC::NUM_CAMERAS);
         }
     }
@@ -1445,6 +1516,9 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_NORMALS){
                 owlAsyncLaunch2D((OWLRayGen)renderer.backend->normals_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
             }
+            if constexpr (SPEC::HAS_FLOW){
+                owlAsyncLaunch2D((OWLRayGen)renderer.backend->flow_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
+            }
             const float* rgb_accumulation = nullptr;
             unsigned int* frame_buffer = nullptr;
             float* observation = nullptr;
@@ -1480,6 +1554,9 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_NORMALS) {
             owlAsyncLaunch2D((OWLRayGen)renderer.backend->normals_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
+        }
+        if constexpr (SPEC::HAS_FLOW) {
+            owlAsyncLaunch2D((OWLRayGen)renderer.backend->flow_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
         }
     }
 
@@ -1535,6 +1612,15 @@ namespace rl_tools {
         std::vector<float> normals_host(normals_count);
         cudaMemcpy(normals_host.data(), data(renderer.normals_buffer), normals_count * sizeof(float), cudaMemcpyDeviceToHost);
         rendering::raytracing::detail::write_normals_grid_png<SPEC>(normals_host.data(), filename);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void save_flow_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, const char* filename){
+        static_assert(SPEC::HAS_FLOW, "save_flow_image requires a flow-capable renderer specification");
+        const size_t flow_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS * 2;
+        std::vector<float> flow_host(flow_count);
+        cudaMemcpy(flow_host.data(), data(renderer.flow_buffer), flow_count * sizeof(float), cudaMemcpyDeviceToHost);
+        rendering::raytracing::detail::write_flow_grid_png<SPEC>(flow_host.data(), filename);
     }
 
     // =========================================================================
@@ -1651,7 +1737,7 @@ namespace rl_tools {
         }
         // the input and output tensors alias OWL buffers destroyed with the context
         renderer.cameras._data = nullptr;
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+        if constexpr (SPEC::HAS_CAMERA_PAIR) {
             renderer.cameras_open._data = nullptr;
         }
         if constexpr (SPEC::HAS_RGB) {
@@ -1665,6 +1751,12 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_NORMALS) {
             renderer.normals_buffer._data = nullptr;
+        }
+        if constexpr (SPEC::HAS_FLOW) {
+            renderer.flow_buffer._data = nullptr;
+            if constexpr (SPEC::ENABLE_OVERLAYS) {
+                renderer.flow_deltas._data = nullptr;
+            }
         }
         if constexpr (SPEC::HAS_OBSERVATION) {
             renderer.observation._data = nullptr;

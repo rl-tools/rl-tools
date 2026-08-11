@@ -796,6 +796,105 @@ namespace rl_tools
     // Payloads stay as initialized by caller: distance = max_dist, hit = 0, instance = sentinel
   }
 
+  // world point → screen fraction through the linear camera model: solves
+  // dir_00 + screen_x·dir_du + screen_y·dir_dv = lambda·(point − pos) by Cramer's rule;
+  // returns false for a degenerate basis or a point at/behind the camera (lambda <= 0)
+  inline __device__ bool project_camera(const OptixCameraData &cam, const owl::vec3f &point, float &screen_x, float &screen_y)
+  {
+    const owl::vec3f direction = point - cam.pos;
+    const owl::vec3f negative_direction = -direction;
+    const owl::vec3f cross_dv_negative_direction = cross(cam.dir_dv, negative_direction);
+    const float det = dot(cam.dir_du, cross_dv_negative_direction);
+    if (det > -1e-12f && det < 1e-12f)
+      return false;
+    const float inv_det = 1.f / det;
+    const owl::vec3f b = -cam.dir_00;
+    screen_x = dot(b, cross_dv_negative_direction) * inv_det;
+    screen_y = dot(cam.dir_du, cross(b, negative_direction)) * inv_det;
+    const float lambda = dot(cam.dir_du, cross(cam.dir_dv, b)) * inv_det;
+    return lambda > 0.f;
+  }
+
+  inline __device__ owl::vec3f transform_point_rows(const float *m, const owl::vec3f &p)
+  {
+    return owl::vec3f(
+        m[0]*p.x + m[1]*p.y + m[2]*p.z + m[3],
+        m[4]*p.x + m[5]*p.y + m[6]*p.z + m[7],
+        m[8]*p.x + m[9]*p.y + m[10]*p.z + m[11]);
+  }
+
+  // single-sample by design (shutter-close camera, pixel-center ray): backward flow of the
+  // shutter-close frame in pixels. Traces the collision ray type, whose hit program reports the
+  // distance (payload 0) and global instance id (payload 2) — the hit point is carried to
+  // shutter open by its instance's shutter delta and projected through the shutter-open camera;
+  // miss (and behind-the-open-camera projections) write (0, 0). Compiled into every PTX variant
+  // (like the collision programs): no extra ray type or hit program, so no variant is needed.
+  OPTIX_RAYGEN_PROGRAM(flowRayGen)()
+  {
+    const FlowRayGenData &self = owl::getProgramData<FlowRayGenData>();
+    const owl::vec2i pixel = owl::getLaunchIndex();
+    const int tile_col = pixel.x / self.cam_size.x;
+    const int tile_row = pixel.y / self.cam_size.y;
+    const int cam_idx = tile_row * self.grid_cols + tile_col;
+    if (cam_idx >= self.num_cameras)
+      return;
+    const int local_x = pixel.x - tile_col * self.cam_size.x;
+    const int local_y = pixel.y - tile_row * self.cam_size.y;
+    const int fb_offset = cam_idx * self.cam_size.x * self.cam_size.y + local_y * self.cam_size.x + local_x;
+
+    const OptixCameraData &cam = self.cameras_close[cam_idx];
+    const float screen_x = ((float)local_x + 0.5f) / (float)self.cam_size.x;
+    const float screen_y = ((float)local_y + 0.5f) / (float)self.cam_size.y;
+    const owl::vec3f direction = normalize(cam.dir_00 + screen_x * cam.dir_du + screen_y * cam.dir_dv);
+
+    unsigned int u0 = __float_as_uint(1e30f);
+    unsigned int u1 = 0;
+    unsigned int u2 = 0xFFFFFFFFu;
+    optixTrace(
+        self.world,
+        (const float3&)cam.pos,
+        (const float3&)direction,
+        0.f,
+        1e30f,
+        0.0f,
+        OptixVisibilityMask(255),
+        OPTIX_RAY_FLAG_DISABLE_ANYHIT,
+        1, NUM_RAY_TYPES, 1, // collision ray type
+        u0, u1, u2);
+    const int overlay_count = optixLaunchParams.overlay_count;
+    for (int k = 0; k < overlay_count; k++) {
+      const uint32_t overlay = optixLaunchParams.attachments[cam_idx * overlay_count + k];
+      if (overlay == 0xFFFFFFFFu) continue;
+      optixTrace(
+          (OptixTraversableHandle)optixLaunchParams.overlays[overlay],
+          (const float3&)cam.pos,
+          (const float3&)direction,
+          0.f,
+          __uint_as_float(u0),
+          0.0f,
+          OptixVisibilityMask(255),
+          OPTIX_RAY_FLAG_DISABLE_ANYHIT,
+          1, NUM_RAY_TYPES, 1,
+          u0, u1, u2);
+    }
+    float flow_u = 0.f, flow_v = 0.f;
+    if (u1 != 0u) {
+      const float t = __uint_as_float(u0);
+      owl::vec3f point = owl::vec3f(cam.pos) + direction * t;
+      if (self.flow_deltas != nullptr && u2 >= self.first_overlay_instance) {
+        point = transform_point_rows(self.flow_deltas + (size_t)(u2 - self.first_overlay_instance) * 12, point);
+      }
+      const OptixCameraData &cam_open = self.cameras_open[cam_idx];
+      float open_x, open_y;
+      if (project_camera(cam_open, point, open_x, open_y)) {
+        flow_u = ((float)local_x + 0.5f) - open_x * (float)self.cam_size.x;
+        flow_v = ((float)local_y + 0.5f) - open_y * (float)self.cam_size.y;
+      }
+    }
+    self.flow_ptr[fb_offset * 2 + 0] = flow_u;
+    self.flow_ptr[fb_offset * 2 + 1] = flow_v;
+  }
+
 #if RL_TOOLS_RENDERING_RAYTRACING_ENABLE_NORMALS_PROGRAMS
   // normals ray type (2): the hit program reports the hit distance in payload 0 (consumed by
   // the overlay min-t composition) and the world-frame geometric normal, oriented against the

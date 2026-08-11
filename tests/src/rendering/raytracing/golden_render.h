@@ -15,6 +15,7 @@ namespace golden {
         std::vector<uint32_t> frame_buffer;
         std::vector<T> depth_buffer;
         std::vector<T> normals; // 3 per pixel, raw float output (encoding happens at write/compare)
+        std::vector<T> flow;    // 2 per pixel, raw float backward flow in pixels
         std::vector<rl_tools::rendering::raytracing::CollisionResult> probes;
         T max_depth = 0;
         T camera_radius = 0;
@@ -66,7 +67,7 @@ namespace golden {
             camera_staging[camera_i] = rl_tools::make_camera_data(pose.position, pose.look_at, pose.up, SPEC::COS_FOVY, aspect);
         }
         rl_tools::copy_to_renderer(device, renderer, camera_staging.data(), rl_tools::data(rl_tools::cameras(device, renderer)), camera_staging.size());
-        if constexpr(SPEC::ENABLE_MOTION_BLUR) {
+        if constexpr(SPEC::HAS_CAMERA_PAIR) {
             if constexpr(T_CAMERA_MOTION) {
                 for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
                     const Pose<T>& pose = CASES::POSES[camera_i];
@@ -93,7 +94,7 @@ namespace golden {
             float close_transform[12];
             spin_pose(CASES::OVERLAY_POSITION_CLOSE, CASES::OVERLAY_SPIN_CLOSE, close_transform);
             const auto placement = rl_tools::spawn(device, renderer, rl_tools::rendering::raytracing::OverlayIndex{0}, rl_tools::rendering::raytracing::AssetHandle{0}, close_transform);
-            if constexpr(SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
+            if constexpr(SPEC::ENABLE_DYNAMIC_MOTION_BLUR || (SPEC::HAS_FLOW && SPEC::ENABLE_OVERLAYS)) {
                 float open_transform[12];
                 spin_pose(CASES::OVERLAY_POSITION_OPEN, CASES::OVERLAY_SPIN_OPEN, open_transform);
                 rl_tools::set_transform_pair(device, renderer, rl_tools::rendering::raytracing::OverlayIndex{0}, placement, open_transform, close_transform);
@@ -117,6 +118,10 @@ namespace golden {
         if constexpr(SPEC::HAS_NORMALS) {
             out.normals.resize(pixel_count * 3);
             rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::normals_buffer(device, renderer)), out.normals.data(), out.normals.size());
+        }
+        if constexpr(SPEC::HAS_FLOW) {
+            out.flow.resize(pixel_count * 2);
+            rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::flow_buffer(device, renderer)), out.flow.data(), out.flow.size());
         }
         if(rl_tools::data(renderer.collision_results) != nullptr) {
             out.probes.resize((size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);

@@ -136,6 +136,9 @@ namespace rl_tools {
             float* depth_buffer = nullptr;
             unsigned int* segmentation_buffer = nullptr;
             float* normals_buffer = nullptr; // 3 per pixel, world-frame unit normal or zero on miss
+            float* flow_buffer = nullptr;    // 2 per pixel, backward flow of the shutter-close frame in pixels
+            const float* flow_deltas = nullptr; // 12 per overlay slot: world_open ∘ world_close⁻¹
+            TI first_overlay_instance = 0;   // global instance ids >= this index the flow-delta table
             const unsigned int* instance_classes = nullptr; // indexed by global instance id
             CollisionResult* collision_results = nullptr;
             float* observation = nullptr; // 3 per pixel, written pre-quantization when set
@@ -1090,6 +1093,72 @@ namespace rl_tools {
                         const Vec3<T> direction = normalize(math_device, dir_00 + screen_x * dir_du + screen_y * dir_dv);
                         const Hit<T, TI> hit = trace_closest_composed<SPEC>(scene, camera_i, pos, direction, (T)0, (T)1e30);
                         scene.segmentation_buffer[fb_offset] = hit.valid ? (SPEC::SEMANTIC_SEGMENTATION ? scene.instance_classes[hit.instance] : (unsigned int)hit.instance) : 0xFFFFFFFFu;
+                    }
+                }
+            }
+        }
+
+        // world point → screen fraction through the linear camera model: solves
+        // dir_00 + screen_x·dir_du + screen_y·dir_dv = lambda·(point − pos) by Cramer's rule;
+        // returns false for a degenerate basis or a point at/behind the camera (lambda <= 0)
+        template <typename T>
+        RL_TOOLS_FUNCTION_PLACEMENT bool project_camera(const Camera<T>& cam, Vec3<T> point, T& screen_x, T& screen_y){
+            const Vec3<T> direction = point - to_vec3(cam.pos);
+            const Vec3<T> dir_du = to_vec3(cam.dir_du);
+            const Vec3<T> dir_dv = to_vec3(cam.dir_dv);
+            const Vec3<T> negative_direction = -direction;
+            const Vec3<T> cross_dv_negative_direction = cross(dir_dv, negative_direction);
+            const T det = dot(dir_du, cross_dv_negative_direction);
+            if(det > (T)-1e-12 && det < (T)1e-12){
+                return false;
+            }
+            const T inv_det = (T)1 / det;
+            const Vec3<T> b = -to_vec3(cam.dir_00);
+            screen_x = dot(b, cross_dv_negative_direction) * inv_det;
+            screen_y = dot(dir_du, cross(b, negative_direction)) * inv_det;
+            const T lambda = dot(dir_du, cross(dir_dv, b)) * inv_det;
+            return lambda > (T)0;
+        }
+
+        // single-sample by design (shutter-close camera, pixel-center ray): backward flow of the
+        // shutter-close frame in pixels — the hit point is carried to shutter open by its
+        // instance's shutter delta (identity for the static world) and projected through the
+        // shutter-open camera; miss (and behind-the-open-camera projections) write (0, 0)
+        template <typename DEVICE, typename SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT void render_flow_frame(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene){
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            const auto& math_device = device.math;
+            for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
+                const Camera<T>& cam = scene.cameras_close[camera_i];
+                const Camera<T>& cam_open = scene.cameras_open[camera_i];
+                const Vec3<T> pos = to_vec3(cam.pos);
+                const Vec3<T> dir_00 = to_vec3(cam.dir_00);
+                const Vec3<T> dir_du = to_vec3(cam.dir_du);
+                const Vec3<T> dir_dv = to_vec3(cam.dir_dv);
+                for(TI y = 0; y < SPEC::CAM_HEIGHT; y++){
+                    for(TI x = 0; x < SPEC::CAM_WIDTH; x++){
+                        const TI fb_offset = camera_i * SPEC::CAM_PIXELS + y * SPEC::CAM_WIDTH + x;
+                        const T screen_x = ((T)x + (T)0.5) / (T)SPEC::CAM_WIDTH;
+                        const T screen_y = ((T)y + (T)0.5) / (T)SPEC::CAM_HEIGHT;
+                        const Vec3<T> direction = normalize(math_device, dir_00 + screen_x * dir_du + screen_y * dir_dv);
+                        const Hit<T, TI> hit = trace_closest_composed<SPEC>(scene, camera_i, pos, direction, (T)0, (T)1e30);
+                        T flow_u = 0, flow_v = 0;
+                        if(hit.valid){
+                            Vec3<T> point = pos + direction * hit.t;
+                            if constexpr (SPEC::ENABLE_OVERLAYS){
+                                if(hit.instance >= scene.first_overlay_instance){
+                                    point = transform_point(&scene.flow_deltas[(TI)(hit.instance - scene.first_overlay_instance) * 12], point);
+                                }
+                            }
+                            T open_x, open_y;
+                            if(project_camera(cam_open, point, open_x, open_y)){
+                                flow_u = ((T)x + (T)0.5) - open_x * (T)SPEC::CAM_WIDTH;
+                                flow_v = ((T)y + (T)0.5) - open_y * (T)SPEC::CAM_HEIGHT;
+                            }
+                        }
+                        scene.flow_buffer[fb_offset * 2 + 0] = (float)flow_u;
+                        scene.flow_buffer[fb_offset * 2 + 1] = (float)flow_v;
                     }
                 }
             }

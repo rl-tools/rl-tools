@@ -88,6 +88,34 @@ namespace golden {
             static constexpr bool OUTPUT_NORMALS = true;
         };
         using NORMALS = rl_tools::rendering::raytracing::Specification<NormalsConfig>;
+
+        // flow is single-sample like normals; the flow case drives the camera pair with
+        // MOTION_BLUR_DELTA (ego-motion flow), flow_dynamic isolates object flow: static
+        // camera pair plus the dynamic-overlay shutter poses through the delta table
+        struct FlowConfig: rl_tools::rendering::raytracing::config::Default<T, TI>{
+            static constexpr TI CAM_WIDTH = Cases::CAM_WIDTH, CAM_HEIGHT = Cases::CAM_HEIGHT, NUM_CAMERAS = Cases::NUM_CAMERAS, NUM_PROBES = Cases::NUM_PROBES;
+            using SHADING = rl_tools::rendering::raytracing::Low;
+            static constexpr bool OUTPUT_RGB = false;
+            static constexpr bool OUTPUT_FLOW = true;
+        };
+        using FLOW = rl_tools::rendering::raytracing::Specification<FlowConfig>;
+        struct FlowDynamicConfig: FlowConfig{
+            static constexpr TI NUM_OVERLAYS = 1;
+            static constexpr TI MAX_OVERLAY_INSTANCES = 4;
+            static constexpr TI MAX_OVERLAYS_PER_CAMERA = 1;
+        };
+        using FLOW_DYNAMIC = rl_tools::rendering::raytracing::Specification<FlowDynamicConfig>;
+
+        // single-camera pseudo-spec for the per-pose grid writers (detail::write_*_grid_png)
+        struct SingleCamera{
+            using TI = Cases::TI;
+            static constexpr TI NUM_CAMERAS = 1;
+            static constexpr TI CAM_WIDTH = Cases::CAM_WIDTH;
+            static constexpr TI CAM_HEIGHT = Cases::CAM_HEIGHT;
+            static constexpr TI CAM_PIXELS = CAM_WIDTH * CAM_HEIGHT;
+            static constexpr TI GRID_COLS = 1;
+            static constexpr TI GRID_ROWS = 1;
+        };
     };
 }
 

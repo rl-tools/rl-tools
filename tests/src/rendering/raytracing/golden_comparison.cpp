@@ -78,6 +78,11 @@ static constexpr double PROBE_DISTANCE_REL = 1e-3;
 static constexpr double NORMALS_MAD_THRESHOLD = 2.0;
 static constexpr int NORMALS_OUTLIER_CHANNEL_DELTA = 8;
 static constexpr double NORMALS_OUTLIER_FRACTION = 0.02;
+// endpoint error over all pixels (this suite has no segmentation gate): silhouette flips land
+// in the outlier fraction, everything else matches to float precision
+static constexpr double FLOW_MEAN_EPE_THRESHOLD = 0.1;   // px
+static constexpr double FLOW_OUTLIER_EPE = 0.5;          // px
+static constexpr double FLOW_OUTLIER_FRACTION = 0.005;
 
 static const std::string SCENE_PATH = RL_TOOLS_GOLDEN_TEST_DATA_PATH "/ProcTHOR-Train-1.glb";
 static const std::string GOLDEN_ROOT = RL_TOOLS_GOLDEN_TEST_DATA_PATH "/rendering_raytracing_golden";
@@ -264,6 +269,50 @@ namespace {
         }
         std::printf("[golden] normals: worst mad=%.4f worst outliers=%.4f%% over %d poses\n", worst_mad, worst_outliers * 100, (int)SPEC::NUM_CAMERAS);
     }
+
+    template <typename SPEC, bool T_CAMERA_MOTION = true>
+    void run_flow_case(const char* name){
+        DEVICE device;
+        rlt::init(device);
+        Rendered rendered;
+        ASSERT_TRUE((golden::render_case<SPEC, BACKEND, DEVICE, CASES, T_CAMERA_MOTION>(device, SCENE_PATH, rendered))) << "failed to load scene: " << SCENE_PATH;
+
+        double worst_epe = 0;
+        double worst_outliers = 0;
+        for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
+            const char* id = CASES::POSES[camera_i].id;
+            std::vector<float> golden_flow;
+            ASSERT_TRUE(golden::load_multi_camera_float_bin(GOLDEN_DIR + "/" + id + "/" + name + ".bin", 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_flow, 2)) << "failed to load golden: " << id << "/" << name;
+            const float* ours = rendered.flow.data() + (size_t)camera_i * SPEC::CAM_PIXELS * 2;
+            {
+                const std::string directory = BACKEND_OUTPUT_DIR + "/" + id;
+                std::filesystem::create_directories(directory);
+                rlt::rendering::raytracing::detail::write_flow_grid_png<CASES::SingleCamera>(ours, (directory + "/" + name + "_current.png").c_str());
+                rlt::rendering::raytracing::detail::write_flow_grid_png<CASES::SingleCamera>(golden_flow.data(), (directory + "/" + name + "_target.png").c_str());
+                std::vector<float> difference(golden_flow.size());
+                for(size_t value_i = 0; value_i < difference.size(); value_i++){
+                    difference[value_i] = ours[value_i] - golden_flow[value_i];
+                }
+                rlt::rendering::raytracing::detail::write_flow_grid_png<CASES::SingleCamera>(difference.data(), (directory + "/" + name + "_diff.png").c_str());
+            }
+            double epe_total = 0;
+            size_t outliers = 0;
+            for(size_t pixel_i = 0; pixel_i < (size_t)SPEC::CAM_PIXELS; pixel_i++){
+                const double du = (double)ours[pixel_i * 2 + 0] - golden_flow[pixel_i * 2 + 0];
+                const double dv = (double)ours[pixel_i * 2 + 1] - golden_flow[pixel_i * 2 + 1];
+                const double endpoint_error = std::sqrt(du * du + dv * dv);
+                epe_total += endpoint_error;
+                outliers += endpoint_error > FLOW_OUTLIER_EPE;
+            }
+            const double mean_epe = epe_total / (double)SPEC::CAM_PIXELS;
+            const double outlier_fraction = (double)outliers / (double)SPEC::CAM_PIXELS;
+            EXPECT_LE(mean_epe, FLOW_MEAN_EPE_THRESHOLD) << name << " pose " << id << ": mean endpoint error " << mean_epe;
+            EXPECT_LE(outlier_fraction, FLOW_OUTLIER_FRACTION) << name << " pose " << id << ": flow outlier fraction " << outlier_fraction;
+            worst_epe = std::max(worst_epe, mean_epe);
+            worst_outliers = std::max(worst_outliers, outlier_fraction);
+        }
+        std::printf("[golden] %s: worst mean epe=%.4f px worst outliers=%.4f%% over %d poses\n", name, worst_epe, worst_outliers * 100, (int)SPEC::NUM_CAMERAS);
+    }
 }
 
 #if defined(RL_TOOLS_REQUIRE_RAYTRACING_GOLDENS)
@@ -318,6 +367,18 @@ TEST(RL_TOOLS_GOLDEN_SUITE, HIGH_RGBD){
 TEST(RL_TOOLS_GOLDEN_SUITE, NORMALS){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
     run_normals_case();
+}
+
+TEST(RL_TOOLS_GOLDEN_SUITE, FLOW){
+    RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
+    run_flow_case<CASES::FLOW>("flow");
+}
+
+// object-only flow: static camera pair, the overlay moves between its shutter poses through
+// the delta table
+TEST(RL_TOOLS_GOLDEN_SUITE, FLOW_DYNAMIC){
+    RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
+    run_flow_case<CASES::FLOW_DYNAMIC, false>("flow_dynamic");
 }
 
 TEST(RL_TOOLS_GOLDEN_SUITE, PROBES){

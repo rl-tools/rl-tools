@@ -117,7 +117,7 @@ namespace rl_tools {
         static_assert(utils::typing::is_same_v<typename SPEC::T, float>, "The generic raytracing backend requires T = float");
 
         malloc(device, renderer.cameras);
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+        if constexpr (SPEC::HAS_CAMERA_PAIR) {
             malloc(device, renderer.cameras_open);
         }
         if constexpr (SPEC::HAS_RGB) {
@@ -150,7 +150,7 @@ namespace rl_tools {
         renderer.backend = backend_state;
         // the renderer-owned camera tensors are the render input — no staging copy
         backend_state->scene.cameras_close = data(renderer.cameras);
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+        if constexpr (SPEC::HAS_CAMERA_PAIR) {
             backend_state->scene.cameras_open = data(renderer.cameras_open);
         }
         else {
@@ -170,6 +170,14 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_NORMALS) {
             malloc(device, renderer.normals_buffer);
             backend_state->scene.normals_buffer = data(renderer.normals_buffer);
+        }
+        if constexpr (SPEC::HAS_FLOW) {
+            malloc(device, renderer.flow_buffer);
+            backend_state->scene.flow_buffer = data(renderer.flow_buffer);
+            if constexpr (SPEC::ENABLE_OVERLAYS) {
+                malloc(device, renderer.flow_deltas);
+                backend_state->scene.flow_deltas = data(renderer.flow_deltas);
+            }
         }
         if constexpr (SPEC::HAS_OBSERVATION) {
             static_assert(utils::typing::is_same_v<typename SPEC::OBSERVATION_T, float>, "The generic raytracing backend requires OBSERVATION_T = float");
@@ -359,6 +367,7 @@ namespace rl_tools {
         backend_state.scene.instance_classes = backend_state.instance_classes.data();
         backend_state.scene.instances = backend_state.instances.data();
         backend_state.scene.num_instances = (TI)backend_state.instances.size();
+        backend_state.scene.first_overlay_instance = backend_state.num_scene_instances;
 
         // the main TLAS spans only the shared-world instances; overlay slots live in their own TLASes
         const size_t num_instances = backend_state.num_scene_instances;
@@ -481,6 +490,9 @@ namespace rl_tools {
         namespace generic = rendering::raytracing::backends::generic;
         using TI = typename SPEC::TI;
         auto& backend_state = generic::state(renderer);
+        if constexpr (SPEC::HAS_FLOW){
+            rendering::raytracing::detail::compose_flow_deltas(renderer, data(renderer.flow_deltas));
+        }
         rendering::raytracing::detail::flush_overlay_transforms(renderer);
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
             rendering::raytracing::detail::flush_overlay_motion_transforms(renderer);
@@ -527,7 +539,7 @@ namespace rl_tools {
                           const typename SPEC::T center[3], typename SPEC::T radius,
                           const typename SPEC::T up[3], typename SPEC::T fov){
         rendering::raytracing::detail::generate_camera_poses<SPEC>(device, data(renderer.cameras), center, radius, up, fov);
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+        if constexpr (SPEC::HAS_CAMERA_PAIR) {
             std::memcpy(data(renderer.cameras_open), data(renderer.cameras), SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>));
         }
     }
@@ -597,6 +609,9 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_NORMALS) {
                 generic::render_normals_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
             }
+            if constexpr (SPEC::HAS_FLOW) {
+                generic::render_flow_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
+            }
             return;
         }
         if constexpr (SPEC::HAS_RGB) {
@@ -610,6 +625,9 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_NORMALS) {
             generic::render_normals_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
+        }
+        if constexpr (SPEC::HAS_FLOW) {
+            generic::render_flow_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
         }
     }
 
@@ -654,6 +672,12 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
+    void save_flow_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const char* filename){
+        static_assert(SPEC::HAS_FLOW, "save_flow_image requires a flow-capable renderer specification");
+        rendering::raytracing::detail::write_flow_grid_png<SPEC>(data(renderer.flow_buffer), filename);
+    }
+
+    template <typename DEVICE, typename SPEC>
     void save_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const char* filename){
         static_assert(SPEC::HAS_RGB, "save_image requires an RGB-capable renderer specification");
         rendering::raytracing::detail::write_grid_png<SPEC>(data(renderer.frame_buffer), filename);
@@ -694,7 +718,7 @@ namespace rl_tools {
             renderer.backend = nullptr;
         }
         free(device, renderer.cameras);
-        if constexpr (SPEC::ENABLE_MOTION_BLUR) {
+        if constexpr (SPEC::HAS_CAMERA_PAIR) {
             free(device, renderer.cameras_open);
         }
         if constexpr (SPEC::HAS_RGB) {
@@ -708,6 +732,12 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_NORMALS) {
             free(device, renderer.normals_buffer);
+        }
+        if constexpr (SPEC::HAS_FLOW) {
+            free(device, renderer.flow_buffer);
+            if constexpr (SPEC::ENABLE_OVERLAYS) {
+                free(device, renderer.flow_deltas);
+            }
         }
         if constexpr (SPEC::HAS_OBSERVATION) {
             free(device, renderer.observation);
