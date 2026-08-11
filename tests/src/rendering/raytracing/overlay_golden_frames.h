@@ -21,12 +21,18 @@ namespace overlay_goldens {
     static constexpr std::size_t MIN_POSE_CHANGED_PIXELS = 32;
     static constexpr std::size_t MIN_POSE_SEGMENTATION_CHANGED_PIXELS = 8;
     static constexpr std::size_t MIN_SCENARIO_DISTINCT_PIXELS = 16;
+    // fixed shutter-open camera offset for the flow modality: every capture renders with the
+    // close camera at the view pose and the open camera translated by this world-frame delta,
+    // so the flow goldens carry nonzero ego-motion flow. Corpus surface — changing it changes
+    // every flow golden.
+    static constexpr float FLOW_PAIR_OFFSET[3] = {0.05f, 0.08f, 0.03f};
 
     struct Frame {
         std::vector<std::uint32_t> rgb;
         std::vector<float> depth;
         std::vector<std::uint32_t> segmentation;
         std::vector<std::uint32_t> normals; // golden::normal_rgba-encoded, reuses the rgb grid/diff machinery
+        std::vector<float> flow;            // 2 per pixel, raw float backward flow (machine target: flow.bin)
         float max_depth = 0;
     };
 
@@ -35,6 +41,7 @@ namespace overlay_goldens {
         std::size_t depth = 0;
         std::size_t segmentation = 0;
         std::size_t normals = 0;
+        std::size_t flow = 0;
     };
 
     template <typename DEVICE, typename RENDERER>
@@ -46,6 +53,16 @@ namespace overlay_goldens {
         std::array<rl_tools::rendering::raytracing::Camera<T>, SPEC::NUM_CAMERAS> cameras;
         cameras.fill(camera);
         rl_tools::copy_to_renderer(device, renderer, cameras.data(), rl_tools::data(rl_tools::cameras(device, renderer)), cameras.size());
+        if constexpr (SPEC::HAS_CAMERA_PAIR){
+            T position_open[3], look_at_open[3];
+            for(int dim_i = 0; dim_i < 3; dim_i++){
+                position_open[dim_i] = view.position[dim_i] + (T)FLOW_PAIR_OFFSET[dim_i];
+                look_at_open[dim_i] = view.look_at[dim_i] + (T)FLOW_PAIR_OFFSET[dim_i];
+            }
+            const auto camera_open = rl_tools::make_camera_data(position_open, look_at_open, view.up, SPEC::COS_FOVY, aspect);
+            cameras.fill(camera_open);
+            rl_tools::copy_to_renderer(device, renderer, cameras.data(), rl_tools::data(rl_tools::cameras_open(device, renderer)), cameras.size());
+        }
     }
 
     template <typename DEVICE, typename RENDERER>
@@ -65,6 +82,8 @@ namespace overlay_goldens {
         rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::normals_buffer(device, renderer)), normals_raw.data(), normals_raw.size());
         frame.normals.resize(count);
         golden::colorize_normals(normals_raw.data(), count, frame.normals.data());
+        frame.flow.resize(count * 2);
+        rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::flow_buffer(device, renderer)), frame.flow.data(), frame.flow.size());
         frame.max_depth = renderer.camera_radius > 0 ? renderer.camera_radius * 2.0f : 1e30f;
         return frame;
     }
@@ -79,6 +98,8 @@ namespace overlay_goldens {
             difference.depth += first.depth[index] != second.depth[index];
             difference.segmentation += first.segmentation[index] != second.segmentation[index];
             difference.normals += first.normals[index] != second.normals[index];
+            difference.flow += first.flow[index * 2 + 0] != second.flow[index * 2 + 0]
+                            || first.flow[index * 2 + 1] != second.flow[index * 2 + 1];
         }
         return difference;
     }
@@ -92,6 +113,7 @@ namespace overlay_goldens {
             difference.depth += camera_counts.depth;
             difference.segmentation += camera_counts.segmentation;
             difference.normals += camera_counts.normals;
+            difference.flow += camera_counts.flow;
         }
         return difference;
     }
@@ -144,9 +166,9 @@ namespace overlay_goldens {
         return scope;
     }
 
-    // normals only participates in the bitwise-identical direction: the modality is piecewise
-    // constant per face, so translated axis-aligned geometry can legitimately change rgb/depth/
-    // segmentation while leaving the normals image (nearly) untouched
+    // normals and flow only participate in the bitwise-identical direction: normals is
+    // piecewise constant per face and flow depends on the camera pair, so an affected camera
+    // need not change them, but an unaffected camera must reproduce them exactly
     inline bool update_scope_ok(const CameraUpdateScope& scope){
         return scope.should_change
             ? scope.difference.rgb > MIN_UPDATE_CHANGED_PIXELS
@@ -155,7 +177,8 @@ namespace overlay_goldens {
             : scope.difference.rgb == 0
                 && scope.difference.depth == 0
                 && scope.difference.segmentation == 0
-                && scope.difference.normals == 0;
+                && scope.difference.normals == 0
+                && scope.difference.flow == 0;
     }
 
     template <typename SPEC>
@@ -192,7 +215,8 @@ namespace overlay_goldens {
         return golden::load_camera_grid_png(paths.rgb_png, SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.rgb)
             && golden::load_multi_camera_float_bin(paths.depth_bin, SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.depth)
             && golden::load_multi_camera_uint32_bin(paths.segmentation_bin, SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.segmentation)
-            && golden::load_camera_grid_png(paths.normals_png, SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.normals);
+            && golden::load_camera_grid_png(paths.normals_png, SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.normals)
+            && golden::load_multi_camera_float_bin(paths.flow_bin, SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.flow, 2);
     }
 }
 

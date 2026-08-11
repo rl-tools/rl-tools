@@ -27,8 +27,9 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   per-sample overlay transforms, sample-major so slab `s` shares the `transforms()` layout),
   `transforms_pair()` (dynamic motion blur producer input: shutter-open/close entries),
   `frame_buffer()`, `depth_buffer()`, `segmentation_buffer()`, `normals_buffer()`,
-  `collision_results()`, `observation()`. Residency is a backend property: CUDA device memory
-  on OptiX, host on generic, shared/mapped on Metal/Vulkan.
+  `flow_buffer()`, `flow_deltas()`, `collision_results()`, `observation()`. Residency is a
+  backend property: CUDA device memory on OptiX, host on generic, shared/mapped on
+  Metal/Vulkan.
 - **Data moves via typed copies and kernels.** No raw backend handles or `cudaStream_t` appear in
   public signatures. Device producers (extraction kernels) write the input tensors in place;
   device consumers read the output tensors in place; host readers/writers stage through
@@ -47,6 +48,15 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   of the hit surface, oriented against the ray, as float3 per pixel to `normals_buffer()`
   (miss = zero). Unit normals cannot be averaged, so anti-aliasing and motion-blur settings do
   not apply, and the pass stays out of the dynamic-motion-blur accumulate/resolve machinery.
+- **Flow output.** With `OUTPUT_FLOW`, another single-sample pass writes the backward optical
+  flow of the shutter-close frame in pixels to `flow_buffer()` (float2, miss = zero): the hit
+  point is carried to shutter open by its instance's shutter motion and projected through the
+  shutter-open camera. The two instants are the motion-blur pair inputs — `cameras_open()`
+  (whose storage flow enables independently of motion blur) and the `set_transform_pair`
+  shutter poses, composed per overlay slot into `flow_deltas()` (world_open ∘ world_close⁻¹;
+  single-pose verbs replicate, so held objects contribute pure camera flow). A producer drives
+  frame-to-frame flow by writing last frame's state into the open slots. On the device-resident
+  pair path the deltas are expanded on-device alongside `expand_motion_transforms`.
 - **Determinism is a contract.** Fixed seed ⇒ identical results, no atomics. The global
   instance-id layout (scene instances `[0,S)`, overlay `o` slot `s` at `S + o*MAX + s`) is
   cross-backend API surface consumed by segmentation.

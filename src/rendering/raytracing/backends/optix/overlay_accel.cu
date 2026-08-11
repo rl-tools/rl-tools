@@ -271,5 +271,55 @@ namespace rl_tools::rendering::raytracing::backends::optix{
         detail::expand_motion<<<grid_size, block_size, 0, stream>>>(pairs, transforms_motion, transforms, num_slots, num_samples);
         detail::check_cuda(cudaGetLastError(), "expand_motion launch");
     }
+
+    namespace overlay_accel_detail{
+        // world composition mirrors fill_instances; the delta carries the shutter-close hit
+        // point to its shutter-open position for the flow ray gen
+        __device__ void compose_world(const float* overlay_transforms, const OverlaySlotStructure& row, unsigned int slot, float out[12]){
+            float composed[12];
+            compose_transforms(overlay_transforms + (size_t)row.pose_slot * 12, row.part_local, composed);
+            if(slot == row.pose_slot){
+                for(int element = 0; element < 12; element++){
+                    out[element] = composed[element];
+                }
+            }
+            else{
+                compose_transforms(composed, overlay_transforms + (size_t)slot * 12, out);
+            }
+        }
+
+        __global__ void expand_flow_deltas(const float* pairs, const OverlaySlotStructure* structure, float* deltas, unsigned int num_overlays, unsigned int max_instances){
+            const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+            const unsigned int num_slots = num_overlays * max_instances;
+            if(index >= num_slots){
+                return;
+            }
+            const unsigned int overlay = index / max_instances;
+            const unsigned int slot = index % max_instances;
+            float* delta = deltas + (size_t)index * 12;
+            const OverlaySlotStructure row = structure[index];
+            if(row.active == 0){
+                for(int element = 0; element < 12; element++){
+                    delta[element] = (element % 5 == 0) ? 1.0f : 0.0f; // identity [R|t] rows
+                }
+                return;
+            }
+            const float* open_row = pairs + (size_t)overlay * max_instances * 12;
+            const float* close_row = pairs + ((size_t)num_slots + (size_t)overlay * max_instances) * 12;
+            float world_open[12], world_close[12], world_close_inverse[12];
+            compose_world(open_row, row, slot, world_open);
+            compose_world(close_row, row, slot, world_close);
+            rl_tools::rendering::raytracing::detail::invert_transform(world_close, world_close_inverse);
+            compose_transforms(world_open, world_close_inverse, delta);
+        }
+    }
+
+    void overlay_accel_expand_flow_deltas(const float* pairs, const OverlaySlotStructure* structure, float* deltas, unsigned int num_overlays, unsigned int max_instances, cudaStream_t stream){
+        namespace detail = overlay_accel_detail;
+        const unsigned int block_size = 128;
+        const unsigned int grid_size = (num_overlays * max_instances + block_size - 1) / block_size;
+        detail::expand_flow_deltas<<<grid_size, block_size, 0, stream>>>(pairs, structure, deltas, num_overlays, max_instances);
+        detail::check_cuda(cudaGetLastError(), "expand_flow_deltas launch");
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

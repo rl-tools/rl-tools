@@ -44,6 +44,7 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         constexpr int DEPTH_ACCUMULATOR = 16;
         constexpr int SHUTTER = 17;
         constexpr int DEPTH_OUTPUT = 18;
+        constexpr int FLOW_DELTAS = 19;
     }
     namespace function_constants{
         constexpr int SRGB_OUTPUT = 0;
@@ -78,7 +79,8 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         float ambient_color[3];
         float miss_color_0[3];
         float miss_color_1[3];
-        float padding[3];
+        uint32_t first_overlay_instance; // global instance ids >= this index the flow-delta table
+        float padding[2];
     };
     static_assert(sizeof(LaunchParams) == 88, "LaunchParams layout must match the MSL declaration in device.metal");
 
@@ -133,6 +135,7 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         NS::SharedPtr<MTL::ComputePipelineState> collision_pipeline;
         NS::SharedPtr<MTL::ComputePipelineState> segmentation_pipeline;
         NS::SharedPtr<MTL::ComputePipelineState> normals_pipeline;
+        NS::SharedPtr<MTL::ComputePipelineState> flow_pipeline;
         NS::SharedPtr<MTL::ComputePipelineState> resolve_pipeline;
         NS::SharedPtr<MTL::AccelerationStructure> acceleration_structure; // instance (top-level) AS
         std::vector<NS::SharedPtr<MTL::AccelerationStructure>> object_acceleration_structures;
@@ -162,6 +165,8 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         NS::SharedPtr<MTL::Buffer> depth_accumulator;
         NS::SharedPtr<MTL::Buffer> segmentation_buffer;
         NS::SharedPtr<MTL::Buffer> normals_buffer;
+        NS::SharedPtr<MTL::Buffer> flow_buffer;
+        NS::SharedPtr<MTL::Buffer> flow_deltas;
         NS::SharedPtr<MTL::Buffer> observation;
         NS::SharedPtr<MTL::Buffer> collision_results;
         NS::SharedPtr<MTL::Buffer> probe_directions;
