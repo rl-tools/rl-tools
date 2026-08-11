@@ -1,22 +1,20 @@
 """Render the ProcTHOR-Train-1 test scene from an eye-height position inside the house
 (four yaw angles) and show the RGB frames and depth maps with matplotlib."""
 import math
-import os
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 from hyperdrone import render
+from hyperdrone.examples.data import procthor_scene_path
 
-ROOT = Path(os.environ.get("HYPERDRONE_RLTOOLS_ROOT", Path(__file__).resolve().parents[4]))
-GLB = ROOT / "tests" / "data" / "ProcTHOR-Train-1.glb"
+GLB = procthor_scene_path()
 
 POSITION = np.array([-0.97, -4.42, 1.5])
 YAWS_DEGREES = (150.0, 195.0, 240.0, 285.0)
 
-scene = render.load_scene(GLB, shading="high")
-renderer = render.Renderer(width=320, height=240, num_cameras=len(YAWS_DEGREES), output="rgbd", shading="high")
+scene = render.load_scene(GLB, fidelity="high")
+renderer = render.Renderer(width=320, height=240, num_cameras=len(YAWS_DEGREES), output="rgbd", fidelity="high")
 renderer.init(scene)
 
 cameras = []

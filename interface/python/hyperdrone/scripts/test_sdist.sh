@@ -30,7 +30,7 @@ wall.add_mesh(render.Mesh(
     np.array([[0, 1, 2], [0, 2, 3]], dtype=np.int32),
 ))
 scene.add_object(wall)
-renderer = render.Renderer(width=16, height=16, num_cameras=1, output="depth", shading="low")
+renderer = render.Renderer(width=16, height=16, num_cameras=1, output="depth", fidelity="low")
 renderer.init(scene)
 renderer.set_cameras(renderer.camera(position=(0, 0, 0), look_at=(1, 0, 0)))
 renderer.render("depth")

@@ -31,6 +31,12 @@ checkout needed):
 pip install hyperdrone-<version>.tar.gz
 ```
 
+Install the dependencies used by the packaged examples with:
+
+```bash
+pip install "hyperdrone[examples]"
+```
+
 Requirements: CMake >= 3.24, a C++17 compiler, and per feature: assimp (system package)
 for GLB loading, CUDA + OptiX driver for the OptiX render backend and cuda dynamics,
 Vulkan dev + glslang for the VULKAN backend. Nothing beyond the compiler for
@@ -42,25 +48,33 @@ GENERIC + cpu.
 |---|---|
 | `HYPERDRONE_RENDER_BACKEND` | `OPTIX` \| `METAL` \| `VULKAN` \| `GENERIC` \| `AUTO` (default: Metal on macOS, OptiX elsewhere) |
 | `HYPERDRONE_DYNAMICS_DEVICE` | `CPU` \| `CUDA` \| `AUTO` (default: cuda when available) |
-| `HYPERDRONE_CACHE_DIR` | cache root (default `~/.cache/hyperdrone`) |
+| `HYPERDRONE_CACHE_DIR` | root for CMake build trees and downloaded build dependencies (default `~/.cache/hyperdrone`) |
 | `HYPERDRONE_RLTOOLS_ROOT` | rl-tools source root override (default: enclosing checkout, else the vendored tree) |
+| `HYPERDRONE_PROCTHOR_PATH` | local ProcTHOR example scene override (otherwise downloaded and cached) |
 | `HYPERDRONE_SKIP_BUILD` | skip the CMake staleness check when the artifacts already exist |
 | `HYPERDRONE_OFFLINE` | forbid network during builds (requires seeded/vendored dependencies) |
 | `HYPERDRONE_BUILD_JOBS` | parallel build jobs (default 5) |
 
 Each component and variant gets its own build tree (`render-optix-*`, `dynamics-cuda-*`,
 ...); switching never invalidates another's cache. All configure/build steps run under a
-per-tree file lock, so many worker processes can share one cache safely.
+per-tree file lock, so many worker processes can share one cache safely. CMake
+FetchContent sources and native build state live in `<cache>/.dependencies`; the native
+build does not write generated files into an editable checkout or installed package.
+
+Whenever a renderer is successfully allocated, RLtools reports the selected backend on
+stderr, for example `#rl_tools::rendering::raytracing: backend=metal`. The
+`Renderer.backend` property provides the same lowercase name programmatically.
 
 ## Rendering
 
 ```python
 import math, numpy as np
 from hyperdrone import render
+from hyperdrone.examples.data import procthor_scene_path
 
-scene = render.load_scene("tests/data/ProcTHOR-Train-1.glb", shading="high")
+scene = render.load_scene(procthor_scene_path(), fidelity="high")
 
-renderer = render.Renderer(width=320, height=240, num_cameras=4, output="rgbd", shading="high")
+renderer = render.Renderer(width=320, height=240, num_cameras=4, output="rgbd", fidelity="high")
 renderer.init(scene)
 
 camera = renderer.camera(position=(0, 0, 1.5), look_at=(1, 0, 1.5), fov=math.radians(80))
@@ -82,9 +96,10 @@ same API as before under `hyperdrone.render.*`.
 ```python
 renderer.frame()                  # snapshot copy (safe to keep)
 renderer.frame(copy=False)        # numpy view of the staging buffer (refreshed in place)
-renderer.frame_dlpack()           # DLPack producer over the LIVE buffer where rendering
-                                  # writes: CUDA device memory on OptiX, CPU elsewhere
-torch.from_dlpack(renderer.frame_dlpack())   # zero-copy GPU tensor on OptiX
+rgba = torch.from_dlpack(renderer.frame_dlpack())
+# live uint8 (num_cameras, height, width, 4), zero-copy GPU tensor on OptiX
+packed = torch.from_dlpack(renderer.frame_raw_dlpack())
+# same memory as packed uint32 (num_cameras, height, width)
 ```
 
 Inputs accept any DLPack producer. CUDA-resident camera input (OptiX):
@@ -121,11 +136,11 @@ variant (cpu or cuda).
 ```python
 from hyperdrone import dynamics, env, render
 
-scene = render.load_scene("warehouse.glb", shading="medium")
+scene = render.load_scene("warehouse.glb", fidelity="medium")
 positions = env.FreeSpaceSampler(scene, clearance=0.5).sample(4096, seed=0)
 
 sim = dynamics.Sim(num_drones=4096, model="crazyflie")
-renderer = render.Renderer(width=64, height=64, num_cameras=4096, output="rgb", shading="medium")
+renderer = render.Renderer(width=64, height=64, num_cameras=4096, output="rgb", fidelity="medium")
 world = env.World(scene, sim, renderer)
 world.spawn(positions)
 frames = world.step(actions).frame()
@@ -136,8 +151,9 @@ including GENERIC on CPU-only machines) and is deterministic given a seed. `Worl
 sugar, not load-bearing: it wires `sim.step → camera_bases → set_cameras → render` with
 the right streams and nothing else.
 
-End-to-end example: `examples/drone_flythrough.py`; renderer benchmark:
-`examples/benchmark.py` (flag-compatible with the C++ benchmark counterpart).
+End-to-end example: `python -m hyperdrone.examples.drone_flythrough`; renderer benchmark:
+`python -m hyperdrone.examples.benchmark` (flag-compatible with the C++ benchmark
+counterpart).
 
 ## Tests
 

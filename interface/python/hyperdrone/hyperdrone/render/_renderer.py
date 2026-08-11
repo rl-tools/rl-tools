@@ -8,7 +8,7 @@ from ._config import (
     RENDER_PHASE,
     RENDER_TARGET,
     SAVE_TARGET,
-    SHADING,
+    FIDELITY,
     RendererConfig,
 )
 
@@ -67,18 +67,18 @@ class _DLPackBuffer:
 class Renderer:
     """A JIT-compiled instantiation of the RLtools raytracer.
 
-    Compile-time constants (resolution, camera count, output mode, shading tier, motion
+    Compile-time constants (resolution, camera count, output mode, fidelity tier, motion
     blur, anti-aliasing, overlay capacities) are passed here; the first use of a new
     combination compiles a renderer library into the hyperdrone cache, subsequent uses
     load the cached library directly.
     """
 
-    def __init__(self, width, height, num_cameras=1, num_probes=1, output="rgb", shading="high",
+    def __init__(self, width, height, num_cameras=1, num_probes=1, output="rgb", fidelity="high",
                  motion_blur_samples=0, anti_aliasing_grid=0,
                  num_overlays=0, max_overlay_instances=0, max_overlays_per_camera=0,
                  semantic_segmentation=False, dynamic_motion_blur=False):
-        if isinstance(shading, str):
-            shading = SHADING[shading.lower()]
+        if isinstance(fidelity, str):
+            fidelity = FIDELITY[fidelity.lower()]
         if isinstance(output, str):
             output = OUTPUT_MODE[output.lower()]
         self.config = RendererConfig(
@@ -86,7 +86,7 @@ class Renderer:
             height=int(height),
             num_cameras=int(num_cameras),
             num_probes=int(num_probes),
-            shading=shading,
+            fidelity=fidelity,
             output_mode=output,
             motion_blur_samples=max(1, int(motion_blur_samples)),
             anti_aliasing_grid=max(1, int(anti_aliasing_grid)),
@@ -224,11 +224,15 @@ class Renderer:
         return out
 
     def frame_dlpack(self):
-        """DLPack producer over the live packed-RGBA8 buffer where rendering writes it:
-        CUDA device memory on the OptiX backend, CPU-visible memory elsewhere. Zero-copy —
-        consume with torch.from_dlpack / jax.numpy.from_dlpack / np.from_dlpack (CPU only).
-        Valid after render()/render_sync(); overwritten by the next render."""
+        """Live RGBA8 buffer as a zero-copy uint8 DLPack producer with shape
+        (num_cameras, height, width, 4). CUDA device memory on OptiX, CPU-visible memory
+        elsewhere. Valid after render()/render_sync(); overwritten by the next render."""
         return _DLPackBuffer(self, self._renderer.frame_dlpack, self._renderer.buffer_device_type())
+
+    def frame_raw_dlpack(self):
+        """The same live framebuffer in its native packed representation: a zero-copy
+        uint32 DLPack producer with shape (num_cameras, height, width)."""
+        return _DLPackBuffer(self, self._renderer.frame_raw_dlpack, self._renderer.buffer_device_type())
 
     def depth_dlpack(self):
         """DLPack producer over the live depth buffer; see frame_dlpack for semantics."""

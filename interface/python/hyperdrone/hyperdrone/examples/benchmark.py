@@ -2,7 +2,7 @@
 (src/rendering/raytracing/benchmark/simulator_matrix.cpp), matching the configuration of
 `rendering_raytracing_sim_benchmark_medium --scene procthor` (render_only cell):
 
-  4096 cameras @ 64x64, medium shading, RGB output, 1 probe, AA/MB off, fov 80 degrees,
+  4096 cameras @ 64x64, medium fidelity, RGB output, 1 probe, AA/MB off, fov 80 degrees,
   all cameras at the fixed FLU eye position [-3.92, -5.67, 1.0] inside the ProcTHOR
   house, per-camera orientations sampled once from a seeded distribution
   (uniform_so3 default), 2s untimed warmup, then a timed async render_launch loop with a
@@ -18,7 +18,6 @@ matches the C++ render_only protocol.
 """
 import argparse
 import math
-import os
 import time
 from pathlib import Path
 
@@ -27,16 +26,17 @@ from scipy.spatial.transform import Rotation
 
 import hyperdrone
 from hyperdrone import render
+from hyperdrone.examples.data import procthor_scene_path
 
-ROOT = Path(os.environ.get("HYPERDRONE_RLTOOLS_ROOT", Path(__file__).resolve().parents[4]))
 
 parser = argparse.ArgumentParser()
-parser.add_argument("-m", "--model", default=ROOT / "tests" / "data" / "ProcTHOR-Train-1.glb")
+parser.add_argument("-m", "--model", default=None,
+                    help="GLB scene (default: cached ProcTHOR-Train-1 download)")
 parser.add_argument("--width", type=int, default=64)
 parser.add_argument("--height", type=int, default=64)
 parser.add_argument("--cameras", type=int, default=4096)
 parser.add_argument("--output", choices=("rgb", "depth"), default="rgb")
-parser.add_argument("--shading", default="medium")
+parser.add_argument("--fidelity", default="medium")
 parser.add_argument("--orientation-mode", choices=("uniform_so3", "random_yaw_pitch", "look_at_scene_jitter"), default="uniform_so3")
 parser.add_argument("--seconds", type=float, default=10.0)
 parser.add_argument("--iterations", type=int, default=0, help="fixed timed iterations; overrides --seconds when > 0")
@@ -118,9 +118,10 @@ def camera_bases(positions, forwards, ups, fov, aspect):
     return np.concatenate([positions, dir_00, du, -dv], axis=-1).astype(np.float32)
 
 
-scene_source = str(arguments.model)
-if Path(arguments.model).exists():
-    scene = render.load_scene(arguments.model, shading=arguments.shading)
+model = Path(arguments.model) if arguments.model else procthor_scene_path()
+scene_source = str(model)
+if model.exists():
+    scene = render.load_scene(model, fidelity=arguments.fidelity)
     eye = PROCTHOR_EYE
 else:
     scene_source = "procedural room (GLB not found)"
@@ -128,7 +129,7 @@ else:
     eye = None
 
 renderer = render.Renderer(width=WIDTH, height=HEIGHT, num_cameras=NUM_CAMERAS, num_probes=1,
-                           output=arguments.output, shading=arguments.shading)
+                           output=arguments.output, fidelity=arguments.fidelity)
 renderer.init(scene)
 if eye is None:
     eye = np.asarray(renderer.scene_bounds["center"], dtype=np.float64)
@@ -216,7 +217,7 @@ print("=== BENCHMARK RESULTS (simulator-matrix config, python) ===")
 print(f"  Backend:             {renderer.backend}")
 print(f"  Scene:               {scene_source}")
 print(f"  Output:              {arguments.output}")
-print(f"  Shading:             {arguments.shading}")
+print(f"  Fidelity:             {arguments.fidelity}")
 print(f"  Cameras per batch:   {NUM_CAMERAS}")
 print(f"  Resolution per cam:  {WIDTH}x{HEIGHT}")
 print(f"  FOV:                 {math.degrees(FOV):.1f} deg")
