@@ -87,6 +87,7 @@ namespace hyperdrone_dynamics_impl {
         if(name == "crazyflie"){ out = pd::registry<pd::REGISTRY::crazyflie, PARAMETERS_SPEC>; return true; }
         if(name == "crazyflie_openmv"){ out = pd::registry<pd::REGISTRY::crazyflie_openmv, PARAMETERS_SPEC>; return true; }
         if(name == "mrs"){ out = pd::registry<pd::REGISTRY::mrs, PARAMETERS_SPEC>; return true; }
+        if(name == "x500"){ out = pd::registry<pd::REGISTRY::x500, PARAMETERS_SPEC>; return true; }
         if(name == "x500_real"){ out = pd::registry<pd::REGISTRY::x500_real, PARAMETERS_SPEC>; return true; }
         if(name == "x500_sim"){ out = pd::registry<pd::REGISTRY::x500_sim, PARAMETERS_SPEC>; return true; }
         if(name == "arpl"){ out = pd::registry<pd::REGISTRY::arpl, PARAMETERS_SPEC>; return true; }

@@ -6,6 +6,7 @@ MODELS = (
     "crazyflie",
     "crazyflie_openmv",
     "mrs",
+    "x500",
     "x500_real",
     "x500_sim",
     "arpl",

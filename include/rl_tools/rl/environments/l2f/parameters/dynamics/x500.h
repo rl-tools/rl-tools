@@ -1,14 +1,14 @@
 #include "../../../../../version.h"
-#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_L2F_PARAMETERS_DYNAMICS_X500_REAL_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_ENVIRONMENTS_L2F_PARAMETERS_DYNAMICS_X500_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
-#define RL_TOOLS_RL_ENVIRONMENTS_L2F_PARAMETERS_DYNAMICS_X500_REAL_H
+#define RL_TOOLS_RL_ENVIRONMENTS_L2F_PARAMETERS_DYNAMICS_X500_H
 #include "../../multirotor.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f::parameters::dynamics{
     namespace x500{
         template<typename T, typename TI>
-        constexpr Dynamics<T, TI, 4> real = {
+        constexpr Dynamics<T, TI, 4> remap = { // same as x500_real but with Crazyflie motor indices
             // Rotor positions
             {
                 {
@@ -18,17 +18,17 @@ namespace rl_tools::rl::environments::l2f::parameters::dynamics{
                 },
                 {
                     -0.176776695296636,
+                    -0.176776695296636,
+                    0
+                },
+                {
+                    -0.176776695296636,
                     +0.176776695296636,
                     0
                 },
                 {
                     +0.176776695296636,
                     +0.176776695296636,
-                    0
-                },
-                {
-                    -0.176776695296636,
-                    -0.176776695296636,
                     0
                 },
             },
@@ -42,8 +42,8 @@ namespace rl_tools::rl::environments::l2f::parameters::dynamics{
             // Rotor torque directions
             {
                 {0, 0, -1},
-                {0, 0, -1},
                 {0, 0, +1},
+                {0, 0, -1},
                 {0, 0, +1},
             },
             // thrust constants

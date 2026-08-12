@@ -7,6 +7,7 @@
 #include "dynamics/crazyflie_openmv.h"
 #include "dynamics/mrs.h"
 #include "dynamics/arpl.h"
+#include "dynamics/x500.h"
 #include "dynamics/x500_real.h"
 #include "dynamics/x500_sim.h"
 #include "dynamics/fs.h"
@@ -22,6 +23,7 @@ namespace rl_tools::rl::environments::l2f::parameters{
             crazyflie,
             crazyflie_openmv,
             mrs,
+            x500,
             x500_real,
             x500_sim,
             arpl,
@@ -38,6 +40,8 @@ namespace rl_tools::rl::environments::l2f::parameters{
                 return dynamics::crazyflie_openmv<typename SPEC::T, typename SPEC::TI>;
             }else if constexpr (MODEL == REGISTRY::mrs){
                 return dynamics::mrs<typename SPEC::T, typename SPEC::TI>;
+            }else if constexpr (MODEL == REGISTRY::x500){
+                return dynamics::x500::remap<typename SPEC::T, typename SPEC::TI>;
             }else if constexpr (MODEL == REGISTRY::x500_real){
                 return dynamics::x500::real<typename SPEC::T, typename SPEC::TI>;
             }else if constexpr (MODEL == REGISTRY::x500_sim){
@@ -68,6 +72,8 @@ namespace rl_tools::rl::environments::l2f::parameters{
                 return "crazyflie_openmv";
             }else if constexpr (MODEL == REGISTRY::mrs){
                 return "mrs";
+            }else if constexpr (MODEL == REGISTRY::x500){
+                return "x500";
             }else if constexpr (MODEL == REGISTRY::x500_real){
                 return "x500_real";
             }else if constexpr (MODEL == REGISTRY::x500_sim){
