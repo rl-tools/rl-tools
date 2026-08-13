@@ -11,19 +11,19 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::car{
-    uint16_t read_u16(std::ifstream& stream) {
+    inline uint16_t read_u16(std::ifstream& stream) {
         uint16_t result;
         stream.read(reinterpret_cast<char*>(&result), sizeof(result));
         return result;
     }
 
-    uint32_t read_u32(std::ifstream& stream) {
+    inline uint32_t read_u32(std::ifstream& stream) {
         uint32_t result;
         stream.read(reinterpret_cast<char*>(&result), sizeof(result));
         return result;
     }
 
-    int32_t read_i32(std::ifstream& stream) {
+    inline int32_t read_i32(std::ifstream& stream) {
         int32_t result;
         stream.read(reinterpret_cast<char*>(&result), sizeof(result));
         return result;

@@ -179,7 +179,7 @@ namespace rl_tools {
 #endif
     }
 
-    void print_graph(cudaGraph_t graph){
+    inline void print_graph(cudaGraph_t graph){
 
         // Step 8: Retrieve and list nodes and dependencies
         // Get all nodes

@@ -8,10 +8,10 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
 
-    std::string get_type_string(nn::parameters::Plain p){
+    inline std::string get_type_string(nn::parameters::Plain p){
         return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Plain";
     }
-    std::string get_type_string(nn::parameters::Gradient p){
+    inline std::string get_type_string(nn::parameters::Gradient p){
         return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Gradient";
     }
 
