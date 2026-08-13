@@ -11,7 +11,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
 #ifdef RL_TOOLS_ENABLE_ZLIB
-    bool compress_zlib(const std::string& input, std::vector<uint8_t>& compressed_output) {
+    inline bool compress_zlib(const std::string& input, std::vector<uint8_t>& compressed_output) {
         z_stream zs;
         memset(&zs, 0, sizeof(zs));
 

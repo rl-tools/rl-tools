@@ -25,7 +25,7 @@ static void append(char* target, int target_size, const char* message, int &posi
 }
 
 
-void rl_tools_inference_executor_status_message(RLtoolsInferenceExecutorStatus status, char* target, int target_size){
+inline void rl_tools_inference_executor_status_message(RLtoolsInferenceExecutorStatus status, char* target, int target_size){
     int position = 0;
     if(status.OK){
         append(target, target_size, "OK", position);

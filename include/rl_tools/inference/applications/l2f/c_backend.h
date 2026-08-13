@@ -35,11 +35,11 @@ namespace rl_tools::inference::applications::l2f{
 
 
 // Main functions (possibly with side effects)
-void rl_tools_inference_applications_l2f_reset(){
+inline void rl_tools_inference_applications_l2f_reset(){
     using namespace rl_tools::inference::applications::l2f;
     rl_tools::reset(device, executor, CONFIG::policy(), rng);
 }
-void rl_tools_inference_applications_l2f_init(){
+inline void rl_tools_inference_applications_l2f_init(){
     using namespace rl_tools::inference::applications::l2f;
     TI seed = 0;
     rl_tools::malloc(device, executor);
@@ -47,11 +47,11 @@ void rl_tools_inference_applications_l2f_init(){
     rl_tools_inference_applications_l2f_reset();
 }
 
-const char* rl_tools_inference_applications_l2f_checkpoint_name(){
+inline const char* rl_tools_inference_applications_l2f_checkpoint_name(){
     return rl_tools::checkpoint::meta::name;
 }
 
-float rl_tools_inference_applications_l2f_test(RLtoolsInferenceApplicationsL2FAction* p_output){
+inline float rl_tools_inference_applications_l2f_test(RLtoolsInferenceApplicationsL2FAction* p_output){
     using namespace rl_tools::inference::applications::l2f;
 #ifndef RL_TOOLS_DISABLE_TEST
     rl_tools::Mode<rl_tools::mode::Evaluation<>> mode;
@@ -82,14 +82,14 @@ float rl_tools_inference_applications_l2f_test(RLtoolsInferenceApplicationsL2FAc
 #endif
 }
 
-void rl_tools_inference_applications_l2f_set_force_sync_native(uint32_t force_sync_native){
+inline void rl_tools_inference_applications_l2f_set_force_sync_native(uint32_t force_sync_native){
     using namespace rl_tools::inference::applications::l2f;
     executor.executor.force_sync_native = force_sync_native;
     executor.executor.force_sync_native_initialized = true;
 }
 
 
-RLtoolsInferenceExecutorStatus rl_tools_inference_applications_l2f_control(RLtoolsInferenceTimestamp nanoseconds, RLtoolsInferenceApplicationsL2FObservation* c_observation, RLtoolsInferenceApplicationsL2FAction* c_action){
+inline RLtoolsInferenceExecutorStatus rl_tools_inference_applications_l2f_control(RLtoolsInferenceTimestamp nanoseconds, RLtoolsInferenceApplicationsL2FObservation* c_observation, RLtoolsInferenceApplicationsL2FAction* c_action){
     using namespace rl_tools::inference::applications::l2f;
     static_assert(RL_TOOLS_INTERFACE_APPLICATIONS_L2F_ACTION_DIM == OUTPUT_DIM);
     rl_tools::inference::applications::l2f::Observation<SPEC> observation;
