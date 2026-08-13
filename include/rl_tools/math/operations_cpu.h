@@ -28,15 +28,15 @@ namespace rl_tools::math {
     }
 #else
     template <typename T>
-    bool is_nan(const devices::math::CPU, T){
+    inline bool is_nan(const devices::math::CPU, T){
         return false;
     }
-    bool is_nan(const devices::math::CPU, const float x){
+    inline bool is_nan(const devices::math::CPU, const float x){
         is_nan_struct_float u;
         u.f = x;
         return (u.i & 0x7f800000) == 0x7f800000 && (u.i & 0x007fffff) != 0;
     }
-    bool is_nan(const devices::math::CPU, const double x){
+    inline bool is_nan(const devices::math::CPU, const double x){
         is_nan_struct_double u;
         u.f = x;
         return (u.i & 0x7ff0000000000000) == 0x7ff0000000000000 && (u.i & 0x000fffffffffffff) != 0;

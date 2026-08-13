@@ -70,7 +70,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace devices::cpu{
-        void display_compile_options() {
+        inline void display_compile_options() {
             bool isOptimal = true;
             const char* ANSI_RED = "\033[31m";
             const char* ANSI_GREEN = "\033[32m";
