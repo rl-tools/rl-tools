@@ -1,3 +1,11 @@
+add_executable(rendering_raytracing_minimal minimal.cpp)
+target_link_libraries(rendering_raytracing_minimal
+    PRIVATE
+        RLtools::RLtools
+        rendering_raytracing_backend
+        rendering_raytracing_stb
+)
+
 add_executable(rendering_raytracing_example example.cpp)
 target_link_libraries(rendering_raytracing_example
     PRIVATE
