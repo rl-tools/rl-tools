@@ -6,6 +6,14 @@ target_link_libraries(rendering_raytracing_minimal
         rendering_raytracing_stb
 )
 
+add_executable(rendering_raytracing_minimal_overlay minimal_overlay.cpp)
+target_link_libraries(rendering_raytracing_minimal_overlay
+    PRIVATE
+        RLtools::RLtools
+        rendering_raytracing_backend
+        rendering_raytracing_stb
+)
+
 add_executable(rendering_raytracing_example example.cpp)
 target_link_libraries(rendering_raytracing_example
     PRIVATE
