@@ -39,14 +39,15 @@ pip install "hyperdrone[examples]"
 
 Requirements: CMake >= 3.24, a C++17 compiler, and per feature: assimp (system package)
 for GLB loading, CUDA + OptiX driver for the OptiX render backend and cuda dynamics,
-Vulkan dev + glslang for the VULKAN backend. Nothing beyond the compiler for
-GENERIC + cpu.
+Vulkan dev + glslang for the VULKAN backend. The WEBGPU backend fetches a hash-pinned
+wgpu-native prebuilt at first build (no extra system packages). Nothing beyond the
+compiler for GENERIC + cpu.
 
 ## Environment
 
 | Variable | Meaning |
 |---|---|
-| `HYPERDRONE_RENDER_BACKEND` | `OPTIX` \| `METAL` \| `VULKAN` \| `GENERIC` \| `AUTO` (default: Metal on macOS, OptiX elsewhere) |
+| `HYPERDRONE_RENDER_BACKEND` | `OPTIX` \| `METAL` \| `VULKAN` \| `WEBGPU` \| `GENERIC` \| `AUTO` (default: Metal on macOS, OptiX elsewhere) |
 | `HYPERDRONE_DYNAMICS_DEVICE` | `CPU` \| `CUDA` \| `AUTO` (default: cuda when available) |
 | `HYPERDRONE_CACHE_DIR` | root for CMake build trees and downloaded build dependencies (default `~/.cache/hyperdrone`) |
 | `HYPERDRONE_RLTOOLS_ROOT` | rl-tools source root override (default: enclosing checkout, else the vendored tree) |

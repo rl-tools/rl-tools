@@ -34,7 +34,7 @@ override fc_num_overlays: u32 = 0u;
 override fc_overlay_capacity: u32 = 0u;
 
 const ABSENT: u32 = 0xFFFFFFFFu;
-const TRAVERSAL_STACK_SIZE: u32 = 96u;
+const TRAVERSAL_STACK_SIZE: u32 = 48u;
 const PI: f32 = 3.14159265;
 
 struct LaunchParams{
@@ -58,6 +58,8 @@ struct LaunchParams{
     tlas_node_offset: u32,
     tlas_node_count: u32,
     tlas_primitive_offset: u32,
+    srgb_lut_offset: u32,
+    mesh_records_offset: u32,
     scene_lights_offset: u32,
     instance_classes_offset: u32,
     overlay_node_offset: u32,
@@ -85,12 +87,15 @@ struct Camera{
     dir_dv: array<f32, 3>,
 }
 
+// two vec4 loads instead of eight scalar loads; byte-identical to the host BVHNode
+// (bounds_min[3], bounds_max[3], left_or_first, count)
 struct BVHNode{
-    bounds_min: array<f32, 3>,
-    bounds_max: array<f32, 3>,
-    left_or_first: u32,
-    count: u32,
+    a: vec4<f32>, // bounds_min.xyz, bounds_max.x
+    b: vec4<f32>, // bounds_max.yz, bitcast(left_or_first), bitcast(count)
 }
+fn bvh_left_or_first(node: BVHNode) -> u32{ return bitcast<u32>(node.b.z); }
+fn bvh_count(node: BVHNode) -> u32{ return bitcast<u32>(node.b.w); }
+
 
 struct TextureRef{
     offset: u32,
@@ -147,16 +152,17 @@ struct DispatchParams{
 
 // exactly 8 storage buffers (browsers tier maxStorageBuffersPerShaderStage to the spec default
 // of 8): the small per-frame inputs (cameras, overlay tables, flow deltas, probe directions)
-// are sections of FRAME_INPUTS and all outputs sections of OUTPUTS, addressed by the
-// LaunchParams element offsets like SCENE_GEOMETRY always was. LaunchParams stays in the
-// storage address space: as a uniform, the NVIDIA driver (595.84, via naga's SPIR-V)
-// miscompiles the punctual-shadow branch in shade_pbr_local
+// are sections of FRAME_INPUTS, all outputs sections of OUTPUTS, and the shading-only mesh
+// records a section of SCENE_GEOMETRY, addressed by the LaunchParams element offsets — the
+// leaf-ordered TRIANGLES stream keeps its own vec4-typed binding for the hot intersection loop.
+// LaunchParams stays in the storage address space: as a uniform, the NVIDIA driver (595.84, via
+// naga's SPIR-V) miscompiles the punctual-shadow branch in shade_pbr_local
 @group(0) @binding(0) var<storage, read> params: LaunchParams;
 @group(0) @binding(1) var<uniform> dispatch_params: DispatchParams;
 @group(0) @binding(2) var<storage, read> scene_geometry: array<u32>;
 @group(0) @binding(3) var<storage, read> texture_data: array<u32>; // packed RGBA8, one texel per u32
 @group(0) @binding(4) var<storage, read> bvh_nodes: array<BVHNode>; // BLAS slices, scene TLAS, overlay TLAS regions
-@group(0) @binding(5) var<storage, read> meshes: array<MeshRecord>;
+@group(0) @binding(5) var<storage, read> triangles: array<vec4<f32>>; // leaf-ordered packed: 3 x vec4 per triangle, first w = bitcast global id
 @group(0) @binding(6) var<storage, read> instance_data: array<InstanceData>;
 @group(0) @binding(7) var<storage, read> frame_inputs: array<u32>;
 @group(0) @binding(8) var<storage, read_write> outputs: array<u32>;
@@ -169,18 +175,6 @@ fn camera_pos(cam: Camera) -> vec3<f32>{ return to_vec3(cam.pos); }
 fn camera_dir_00(cam: Camera) -> vec3<f32>{ return to_vec3(cam.dir_00); }
 fn camera_dir_du(cam: Camera) -> vec3<f32>{ return to_vec3(cam.dir_du); }
 fn camera_dir_dv(cam: Camera) -> vec3<f32>{ return to_vec3(cam.dir_dv); }
-
-fn load_camera(index: u32) -> Camera{
-    let base = params.cameras_offset + index * 12u;
-    var camera: Camera;
-    camera.pos = array<f32, 3>(frame_f32(base), frame_f32(base + 1u), frame_f32(base + 2u));
-    camera.dir_00 = array<f32, 3>(frame_f32(base + 3u), frame_f32(base + 4u), frame_f32(base + 5u));
-    camera.dir_du = array<f32, 3>(frame_f32(base + 6u), frame_f32(base + 7u), frame_f32(base + 8u));
-    camera.dir_dv = array<f32, 3>(frame_f32(base + 9u), frame_f32(base + 10u), frame_f32(base + 11u));
-    return camera;
-}
-fn camera_close(cam_idx: i32) -> Camera{ return load_camera(u32(cam_idx)); }
-fn camera_open(cam_idx: i32) -> Camera{ return load_camera(params.num_cameras + u32(cam_idx)); }
 
 fn geometry_u32(index: u32) -> u32{
     return scene_geometry[index];
@@ -204,6 +198,18 @@ fn out_add_f32(index: u32, value: f32){
     outputs[index] = bitcast<u32>(bitcast<f32>(outputs[index]) + value);
 }
 
+fn load_camera(index: u32) -> Camera{
+    let base = params.cameras_offset + index * 12u;
+    var camera: Camera;
+    camera.pos = array<f32, 3>(frame_f32(base), frame_f32(base + 1u), frame_f32(base + 2u));
+    camera.dir_00 = array<f32, 3>(frame_f32(base + 3u), frame_f32(base + 4u), frame_f32(base + 5u));
+    camera.dir_du = array<f32, 3>(frame_f32(base + 6u), frame_f32(base + 7u), frame_f32(base + 8u));
+    camera.dir_dv = array<f32, 3>(frame_f32(base + 9u), frame_f32(base + 10u), frame_f32(base + 11u));
+    return camera;
+}
+fn camera_close(cam_idx: i32) -> Camera{ return load_camera(u32(cam_idx)); }
+fn camera_open(cam_idx: i32) -> Camera{ return load_camera(params.num_cameras + u32(cam_idx)); }
+
 fn load_scene_light(light_i: u32) -> SceneLight{
     let base = params.scene_lights_offset + light_i * 15u;
     var light: SceneLight;
@@ -217,6 +223,40 @@ fn load_scene_light(light_i: u32) -> SceneLight{
     light.cos_inner_cone = geometry_f32(base + 13u);
     light.cos_outer_cone = geometry_f32(base + 14u);
     return light;
+}
+
+fn mesh_record_base(mesh: u32) -> u32{ return params.mesh_records_offset + mesh * 30u; }
+fn mesh_index_offset(mesh: u32) -> u32{ return geometry_u32(mesh_record_base(mesh)); }
+fn mesh_vertex_offset(mesh: u32) -> u32{ return geometry_u32(mesh_record_base(mesh) + 1u); }
+fn mesh_tex_coord_offset(mesh: u32) -> u32{ return geometry_u32(mesh_record_base(mesh) + 2u); }
+fn mesh_normal_offset(mesh: u32) -> u32{ return geometry_u32(mesh_record_base(mesh) + 3u); }
+fn load_texture_ref(base: u32) -> TextureRef{
+    var reference: TextureRef;
+    reference.offset = geometry_u32(base);
+    reference.width = geometry_u32(base + 1u);
+    reference.height = geometry_u32(base + 2u);
+    return reference;
+}
+fn load_mesh_record(mesh: u32) -> MeshRecord{
+    let base = mesh_record_base(mesh);
+    var record: MeshRecord;
+    record.index_offset = geometry_u32(base);
+    record.vertex_offset = geometry_u32(base + 1u);
+    record.tex_coord_offset = geometry_u32(base + 2u);
+    record.normal_offset = geometry_u32(base + 3u);
+    record.texture = load_texture_ref(base + 4u);
+    record.normal_map = load_texture_ref(base + 7u);
+    record.metallic_roughness_map = load_texture_ref(base + 10u);
+    record.emissive_map = load_texture_ref(base + 13u);
+    record.occlusion_map = load_texture_ref(base + 16u);
+    record.color = array<f32, 3>(geometry_f32(base + 19u), geometry_f32(base + 20u), geometry_f32(base + 21u));
+    record.metallic = geometry_f32(base + 22u);
+    record.roughness = geometry_f32(base + 23u);
+    record.opacity = geometry_f32(base + 24u);
+    record.emissive = array<f32, 3>(geometry_f32(base + 25u), geometry_f32(base + 26u), geometry_f32(base + 27u));
+    record.alpha_cutoff = geometry_f32(base + 28u);
+    record.alpha_mode = bitcast<i32>(geometry_u32(base + 29u));
+    return record;
 }
 
 fn transform_point(transform: array<f32, 12>, point: vec3<f32>) -> vec3<f32>{
@@ -260,19 +300,19 @@ fn fetch_triangle_local(triangle: u32) -> u32{
     return geometry_u32(params.triangle_local_offset + triangle);
 }
 fn fetch_index(mesh: u32, primitive: u32) -> vec3<u32>{
-    let base = meshes[mesh].index_offset + 3u * primitive;
+    let base = mesh_index_offset(mesh) + 3u * primitive;
     return vec3<u32>(geometry_u32(base), geometry_u32(base + 1u), geometry_u32(base + 2u));
 }
 fn fetch_vertex(mesh: u32, index: u32) -> vec3<f32>{
-    let base = meshes[mesh].vertex_offset + 3u * index;
+    let base = mesh_vertex_offset(mesh) + 3u * index;
     return vec3<f32>(geometry_f32(base), geometry_f32(base + 1u), geometry_f32(base + 2u));
 }
 fn fetch_tex_coord(mesh: u32, index: u32) -> vec2<f32>{
-    let base = meshes[mesh].tex_coord_offset + 2u * index;
+    let base = mesh_tex_coord_offset(mesh) + 2u * index;
     return vec2<f32>(geometry_f32(base), geometry_f32(base + 1u));
 }
 fn fetch_normal(mesh: u32, index: u32) -> vec3<f32>{
-    let base = meshes[mesh].normal_offset + 3u * index;
+    let base = mesh_normal_offset(mesh) + 3u * index;
     return vec3<f32>(geometry_f32(base), geometry_f32(base + 1u), geometry_f32(base + 2u));
 }
 
@@ -282,17 +322,20 @@ fn triangle_vertices(triangle: u32) -> array<vec3<f32>, 3>{
     return array<vec3<f32>, 3>(fetch_vertex(mesh, index.x), fetch_vertex(mesh, index.y), fetch_vertex(mesh, index.z));
 }
 
-// Moeller-Trumbore, no culling; barycentric convention matches the other backends
-// (u on the second vertex, v on the third, w0 = 1 - u - v on the first).
-fn intersect_triangle(triangle: u32, origin: vec3<f32>, direction: vec3<f32>, t_min: f32, t_max: f32, hit: ptr<function, Hit>) -> bool{
-    let vertices = triangle_vertices(triangle);
-    let edge1 = vertices[1] - vertices[0];
-    let edge2 = vertices[2] - vertices[0];
+// Moeller-Trumbore over the leaf-ordered packed stream, no culling; barycentric convention
+// matches the other backends (u on the second vertex, v on the third, w0 = 1 - u - v on the
+// first); the packed slot's first w component carries the global triangle id for shading
+fn intersect_triangle_packed(packed_slot: u32, origin: vec3<f32>, direction: vec3<f32>, t_min: f32, t_max: f32, hit: ptr<function, Hit>) -> bool{
+    let p0 = triangles[packed_slot * 3u];
+    let p1 = triangles[packed_slot * 3u + 1u];
+    let p2 = triangles[packed_slot * 3u + 2u];
+    let edge1 = p1.xyz - p0.xyz;
+    let edge2 = p2.xyz - p0.xyz;
     let pvec = cross(direction, edge2);
     let det = dot(edge1, pvec);
     if(det > -1e-9 && det < 1e-9){ return false; }
     let inv_det = 1.0 / det;
-    let tvec = origin - vertices[0];
+    let tvec = origin - p0.xyz;
     let u = dot(tvec, pvec) * inv_det;
     if(u < 0.0 || u > 1.0){ return false; }
     let qvec = cross(tvec, edge1);
@@ -303,106 +346,144 @@ fn intersect_triangle(triangle: u32, origin: vec3<f32>, direction: vec3<f32>, t_
     (*hit).t = t;
     (*hit).u = u;
     (*hit).v = v;
-    (*hit).triangle = triangle;
+    (*hit).triangle = bitcast<u32>(p0.w);
     (*hit).valid = true;
     return true;
 }
 
-// Branchy slab test: avoids 1/0 = inf, which is undefined behavior under fast-math.
-// locals are var so the runtime axis index goes through references, not value expressions
-fn intersect_aabb(node: BVHNode, origin_in: vec3<f32>, direction_in: vec3<f32>, t_min_in: f32, t_max_in: f32) -> bool{
-    var bounds_min = node.bounds_min;
-    var bounds_max = node.bounds_max;
-    var origin = origin_in;
-    var direction = direction_in;
-    var t_min = t_min_in;
-    var t_max = t_max_in;
-    for(var axis = 0; axis < 3; axis++){
-        let d = direction[axis];
-        let o = origin[axis];
-        if(d > -1e-12 && d < 1e-12){
-            if(o < bounds_min[axis] || o > bounds_max[axis]){ return false; }
-        }
-        else{
-            let inv = 1.0 / d;
-            var t1 = (bounds_min[axis] - o) * inv;
-            var t2 = (bounds_max[axis] - o) * inv;
-            if(t1 > t2){ let tmp = t1; t1 = t2; t2 = tmp; }
-            t_min = max(t_min, t1);
-            t_max = min(t_max, t2);
-            if(t_min > t_max){ return false; }
-        }
-    }
-    return true;
+// the reciprocal is computed once per traversal, not per node; near-zero components get a
+// signed huge value instead of relying on 1/0 = inf (inf semantics are not guaranteed in WGSL)
+fn safe_inverse(direction: vec3<f32>) -> vec3<f32>{
+    return vec3<f32>(
+        select(1.0 / direction.x, select(-1e30, 1e30, direction.x >= 0.0), abs(direction.x) < 1e-12),
+        select(1.0 / direction.y, select(-1e30, 1e30, direction.y >= 0.0), abs(direction.y) < 1e-12),
+        select(1.0 / direction.z, select(-1e30, 1e30, direction.z >= 0.0), abs(direction.z) < 1e-12)
+    );
+}
+
+fn intersect_aabb(node: BVHNode, origin: vec3<f32>, inv_direction: vec3<f32>, t_min: f32, t_max: f32) -> bool{
+    let t1 = (node.a.xyz - origin) * inv_direction;
+    let t2 = (vec3<f32>(node.a.w, node.b.x, node.b.y) - origin) * inv_direction;
+    let t_enter = max(max(min(t1.x, t2.x), min(t1.y, t2.y)), max(min(t1.z, t2.z), t_min));
+    let t_exit = min(min(max(t1.x, t2.x), max(t1.y, t2.y)), min(max(t1.z, t2.z), t_max));
+    return t_enter <= t_exit;
+}
+
+// entry distance for ordered traversal; MISS_DISTANCE on miss
+const MISS_DISTANCE: f32 = 1e30;
+fn intersect_aabb_distance(node: BVHNode, origin: vec3<f32>, inv_direction: vec3<f32>, t_min: f32, t_max: f32) -> f32{
+    let t1 = (node.a.xyz - origin) * inv_direction;
+    let t2 = (vec3<f32>(node.a.w, node.b.x, node.b.y) - origin) * inv_direction;
+    let t_enter = max(max(min(t1.x, t2.x), min(t1.y, t2.y)), max(min(t1.z, t2.z), t_min));
+    let t_exit = min(min(max(t1.x, t2.x), max(t1.y, t2.y)), min(max(t1.z, t2.z), t_max));
+    return select(MISS_DISTANCE, t_enter, t_enter <= t_exit);
 }
 
 // BLAS traversal against one instance; the ray is transformed into object space with an
 // unnormalized direction, so hit.t stays parameterized in world units and is comparable
-// across instances.
+// across instances. Ordered: both children are tested at the parent and the nearer subtree is
+// descended first, so the best.t cull prunes the far subtree early.
 fn intersect_blas_closest(instance_index: u32, origin_in: vec3<f32>, direction_in: vec3<f32>, t_min: f32, best: ptr<function, Hit>){
-    let instance = instance_data[instance_index];
-    let record_base = params.object_records_offset + 4u * instance.object;
+    // per-field loads: identity instances skip the 96-byte matrix load entirely
+    let object = instance_data[instance_index].object;
+    let record_base = params.object_records_offset + 4u * object;
     let node_base = geometry_u32(record_base);
     let node_count = geometry_u32(record_base + 1u);
-    let primitive_base = geometry_u32(record_base + 2u);
+    let first_triangle = geometry_u32(record_base + 2u);
     if(node_count == 0u){ return; }
     var origin = origin_in;
     var direction = direction_in;
-    if(instance.identity == 0u){
-        origin = transform_point(instance.world_to_object, origin_in);
-        direction = transform_vector(instance.world_to_object, direction_in);
+    if(instance_data[instance_index].identity == 0u){
+        let world_to_object = instance_data[instance_index].world_to_object;
+        origin = transform_point(world_to_object, origin_in);
+        direction = transform_vector(world_to_object, direction_in);
     }
+    let inv_direction = safe_inverse(direction);
+    if(intersect_aabb_distance(bvh_nodes[node_base], origin, inv_direction, t_min, (*best).t) >= (*best).t){ return; }
     var stack: array<u32, TRAVERSAL_STACK_SIZE>;
     var stack_pointer = 0u;
-    stack[stack_pointer] = 0u;
-    stack_pointer++;
-    while(stack_pointer > 0u){
-        stack_pointer--;
-        let node = bvh_nodes[node_base + stack[stack_pointer]];
-        if(!intersect_aabb(node, origin, direction, t_min, (*best).t)){ continue; }
-        if(node.count > 0u){
-            for(var i = 0u; i < node.count; i++){
-                let triangle = geometry_u32(primitive_base + node.left_or_first + i);
-                if(intersect_triangle(triangle, origin, direction, t_min, (*best).t, best)){
+    var node_index = 0u;
+    loop{
+        let node = bvh_nodes[node_base + node_index];
+        let left_or_first = bvh_left_or_first(node);
+        let count = bvh_count(node);
+        if(count > 0u){
+            for(var i = 0u; i < count; i++){
+                if(intersect_triangle_packed(first_triangle + left_or_first + i, origin, direction, t_min, (*best).t, best)){
                     (*best).instance = instance_index;
                 }
             }
         }
         else{
-            if(stack_pointer + 2u <= TRAVERSAL_STACK_SIZE){
-                stack[stack_pointer] = node.left_or_first + 1u;
-                stack_pointer++;
-                stack[stack_pointer] = node.left_or_first;
+            let t_left = intersect_aabb_distance(bvh_nodes[node_base + left_or_first], origin, inv_direction, t_min, (*best).t);
+            let t_right = intersect_aabb_distance(bvh_nodes[node_base + left_or_first + 1u], origin, inv_direction, t_min, (*best).t);
+            var near_index = left_or_first;
+            var near_t = t_left;
+            var far_index = left_or_first + 1u;
+            var far_t = t_right;
+            if(t_right < t_left){
+                near_index = left_or_first + 1u;
+                near_t = t_right;
+                far_index = left_or_first;
+                far_t = t_left;
+            }
+            if(far_t < (*best).t && stack_pointer < TRAVERSAL_STACK_SIZE){
+                stack[stack_pointer] = far_index;
                 stack_pointer++;
             }
+            if(near_t < (*best).t){
+                node_index = near_index;
+                continue;
+            }
         }
+        if(stack_pointer == 0u){ return; }
+        stack_pointer--;
+        node_index = stack[stack_pointer];
     }
 }
 
 fn traverse_scene_tlas_closest(origin: vec3<f32>, direction: vec3<f32>, t_min: f32, best: ptr<function, Hit>){
     if(params.tlas_node_count == 0u){ return; }
+    let inv_direction = safe_inverse(direction);
+    if(intersect_aabb_distance(bvh_nodes[params.tlas_node_offset], origin, inv_direction, t_min, (*best).t) >= (*best).t){ return; }
     var stack: array<u32, TRAVERSAL_STACK_SIZE>;
     var stack_pointer = 0u;
-    stack[stack_pointer] = 0u;
-    stack_pointer++;
-    while(stack_pointer > 0u){
-        stack_pointer--;
-        let node = bvh_nodes[params.tlas_node_offset + stack[stack_pointer]];
-        if(!intersect_aabb(node, origin, direction, t_min, (*best).t)){ continue; }
-        if(node.count > 0u){
-            for(var i = 0u; i < node.count; i++){
-                let instance_index = geometry_u32(params.tlas_primitive_offset + node.left_or_first + i);
+    var node_index = 0u;
+    loop{
+        let node = bvh_nodes[params.tlas_node_offset + node_index];
+        let left_or_first = bvh_left_or_first(node);
+        let count = bvh_count(node);
+        if(count > 0u){
+            for(var i = 0u; i < count; i++){
+                let instance_index = geometry_u32(params.tlas_primitive_offset + left_or_first + i);
                 intersect_blas_closest(instance_index, origin, direction, t_min, best);
             }
         }
         else{
-            if(stack_pointer + 2u <= TRAVERSAL_STACK_SIZE){
-                stack[stack_pointer] = node.left_or_first + 1u;
-                stack_pointer++;
-                stack[stack_pointer] = node.left_or_first;
+            let t_left = intersect_aabb_distance(bvh_nodes[params.tlas_node_offset + left_or_first], origin, inv_direction, t_min, (*best).t);
+            let t_right = intersect_aabb_distance(bvh_nodes[params.tlas_node_offset + left_or_first + 1u], origin, inv_direction, t_min, (*best).t);
+            var near_index = left_or_first;
+            var near_t = t_left;
+            var far_index = left_or_first + 1u;
+            var far_t = t_right;
+            if(t_right < t_left){
+                near_index = left_or_first + 1u;
+                near_t = t_right;
+                far_index = left_or_first;
+                far_t = t_left;
+            }
+            if(far_t < (*best).t && stack_pointer < TRAVERSAL_STACK_SIZE){
+                stack[stack_pointer] = far_index;
                 stack_pointer++;
             }
+            if(near_t < (*best).t){
+                node_index = near_index;
+                continue;
+            }
         }
+        if(stack_pointer == 0u){ return; }
+        stack_pointer--;
+        node_index = stack[stack_pointer];
     }
 }
 
@@ -412,44 +493,64 @@ fn traverse_overlay_tlas_closest(region: u32, overlay: u32, origin: vec3<f32>, d
     if(num_tlas_nodes == 0u){ return; }
     let node_base = params.overlay_node_offset + slot * 2u * fc_overlay_capacity;
     let primitive_base = params.overlay_primitives_offset + slot * fc_overlay_capacity;
+    let inv_direction = safe_inverse(direction);
+    if(intersect_aabb_distance(bvh_nodes[node_base], origin, inv_direction, t_min, (*best).t) >= (*best).t){ return; }
     var stack: array<u32, TRAVERSAL_STACK_SIZE>;
     var stack_pointer = 0u;
-    stack[stack_pointer] = 0u;
-    stack_pointer++;
-    while(stack_pointer > 0u){
-        stack_pointer--;
-        let node = bvh_nodes[node_base + stack[stack_pointer]];
-        if(!intersect_aabb(node, origin, direction, t_min, (*best).t)){ continue; }
-        if(node.count > 0u){
-            for(var i = 0u; i < node.count; i++){
-                let instance_index = frame_u32(primitive_base + node.left_or_first + i);
+    var node_index = 0u;
+    loop{
+        let node = bvh_nodes[node_base + node_index];
+        let left_or_first = bvh_left_or_first(node);
+        let count = bvh_count(node);
+        if(count > 0u){
+            for(var i = 0u; i < count; i++){
+                let instance_index = frame_u32(primitive_base + left_or_first + i);
                 intersect_blas_closest(instance_index, origin, direction, t_min, best);
             }
         }
         else{
-            if(stack_pointer + 2u <= TRAVERSAL_STACK_SIZE){
-                stack[stack_pointer] = node.left_or_first + 1u;
-                stack_pointer++;
-                stack[stack_pointer] = node.left_or_first;
+            let t_left = intersect_aabb_distance(bvh_nodes[node_base + left_or_first], origin, inv_direction, t_min, (*best).t);
+            let t_right = intersect_aabb_distance(bvh_nodes[node_base + left_or_first + 1u], origin, inv_direction, t_min, (*best).t);
+            var near_index = left_or_first;
+            var near_t = t_left;
+            var far_index = left_or_first + 1u;
+            var far_t = t_right;
+            if(t_right < t_left){
+                near_index = left_or_first + 1u;
+                near_t = t_right;
+                far_index = left_or_first;
+                far_t = t_left;
+            }
+            if(far_t < (*best).t && stack_pointer < TRAVERSAL_STACK_SIZE){
+                stack[stack_pointer] = far_index;
                 stack_pointer++;
             }
+            if(near_t < (*best).t){
+                node_index = near_index;
+                continue;
+            }
         }
+        if(stack_pointer == 0u){ return; }
+        stack_pointer--;
+        node_index = stack[stack_pointer];
     }
 }
 
 fn intersect_blas_any(instance_index: u32, origin_in: vec3<f32>, direction_in: vec3<f32>, t_min: f32, t_max: f32) -> bool{
-    let instance = instance_data[instance_index];
-    let record_base = params.object_records_offset + 4u * instance.object;
+    let object = instance_data[instance_index].object;
+    let record_base = params.object_records_offset + 4u * object;
     let node_base = geometry_u32(record_base);
     let node_count = geometry_u32(record_base + 1u);
-    let primitive_base = geometry_u32(record_base + 2u);
+    let first_triangle = geometry_u32(record_base + 2u);
     if(node_count == 0u){ return false; }
     var origin = origin_in;
     var direction = direction_in;
-    if(instance.identity == 0u){
-        origin = transform_point(instance.world_to_object, origin_in);
-        direction = transform_vector(instance.world_to_object, direction_in);
+    if(instance_data[instance_index].identity == 0u){
+        let world_to_object = instance_data[instance_index].world_to_object;
+        origin = transform_point(world_to_object, origin_in);
+        direction = transform_vector(world_to_object, direction_in);
     }
+    let inv_direction = safe_inverse(direction);
     var stack: array<u32, TRAVERSAL_STACK_SIZE>;
     var stack_pointer = 0u;
     stack[stack_pointer] = 0u;
@@ -459,18 +560,19 @@ fn intersect_blas_any(instance_index: u32, origin_in: vec3<f32>, direction_in: v
     while(stack_pointer > 0u){
         stack_pointer--;
         let node = bvh_nodes[node_base + stack[stack_pointer]];
-        if(!intersect_aabb(node, origin, direction, t_min, t_max)){ continue; }
-        if(node.count > 0u){
-            for(var i = 0u; i < node.count; i++){
-                let triangle = geometry_u32(primitive_base + node.left_or_first + i);
-                if(intersect_triangle(triangle, origin, direction, t_min, t_max, &hit)){ return true; }
+        if(!intersect_aabb(node, origin, inv_direction, t_min, t_max)){ continue; }
+        let left_or_first = bvh_left_or_first(node);
+        let count = bvh_count(node);
+        if(count > 0u){
+            for(var i = 0u; i < count; i++){
+                if(intersect_triangle_packed(first_triangle + left_or_first + i, origin, direction, t_min, t_max, &hit)){ return true; }
             }
         }
         else{
             if(stack_pointer + 2u <= TRAVERSAL_STACK_SIZE){
-                stack[stack_pointer] = node.left_or_first + 1u;
+                stack[stack_pointer] = left_or_first + 1u;
                 stack_pointer++;
-                stack[stack_pointer] = node.left_or_first;
+                stack[stack_pointer] = left_or_first;
                 stack_pointer++;
             }
         }
@@ -480,6 +582,7 @@ fn intersect_blas_any(instance_index: u32, origin_in: vec3<f32>, direction_in: v
 
 fn traverse_scene_tlas_any(origin: vec3<f32>, direction: vec3<f32>, t_min: f32, t_max: f32) -> bool{
     if(params.tlas_node_count == 0u){ return false; }
+    let inv_direction = safe_inverse(direction);
     var stack: array<u32, TRAVERSAL_STACK_SIZE>;
     var stack_pointer = 0u;
     stack[stack_pointer] = 0u;
@@ -487,18 +590,20 @@ fn traverse_scene_tlas_any(origin: vec3<f32>, direction: vec3<f32>, t_min: f32, 
     while(stack_pointer > 0u){
         stack_pointer--;
         let node = bvh_nodes[params.tlas_node_offset + stack[stack_pointer]];
-        if(!intersect_aabb(node, origin, direction, t_min, t_max)){ continue; }
-        if(node.count > 0u){
-            for(var i = 0u; i < node.count; i++){
-                let instance_index = geometry_u32(params.tlas_primitive_offset + node.left_or_first + i);
+        if(!intersect_aabb(node, origin, inv_direction, t_min, t_max)){ continue; }
+        let left_or_first = bvh_left_or_first(node);
+        let count = bvh_count(node);
+        if(count > 0u){
+            for(var i = 0u; i < count; i++){
+                let instance_index = geometry_u32(params.tlas_primitive_offset + left_or_first + i);
                 if(intersect_blas_any(instance_index, origin, direction, t_min, t_max)){ return true; }
             }
         }
         else{
             if(stack_pointer + 2u <= TRAVERSAL_STACK_SIZE){
-                stack[stack_pointer] = node.left_or_first + 1u;
+                stack[stack_pointer] = left_or_first + 1u;
                 stack_pointer++;
-                stack[stack_pointer] = node.left_or_first;
+                stack[stack_pointer] = left_or_first;
                 stack_pointer++;
             }
         }
@@ -512,6 +617,7 @@ fn traverse_overlay_tlas_any(region: u32, overlay: u32, origin: vec3<f32>, direc
     if(num_tlas_nodes == 0u){ return false; }
     let node_base = params.overlay_node_offset + slot * 2u * fc_overlay_capacity;
     let primitive_base = params.overlay_primitives_offset + slot * fc_overlay_capacity;
+    let inv_direction = safe_inverse(direction);
     var stack: array<u32, TRAVERSAL_STACK_SIZE>;
     var stack_pointer = 0u;
     stack[stack_pointer] = 0u;
@@ -519,18 +625,20 @@ fn traverse_overlay_tlas_any(region: u32, overlay: u32, origin: vec3<f32>, direc
     while(stack_pointer > 0u){
         stack_pointer--;
         let node = bvh_nodes[node_base + stack[stack_pointer]];
-        if(!intersect_aabb(node, origin, direction, t_min, t_max)){ continue; }
-        if(node.count > 0u){
-            for(var i = 0u; i < node.count; i++){
-                let instance_index = frame_u32(primitive_base + node.left_or_first + i);
+        if(!intersect_aabb(node, origin, inv_direction, t_min, t_max)){ continue; }
+        let left_or_first = bvh_left_or_first(node);
+        let count = bvh_count(node);
+        if(count > 0u){
+            for(var i = 0u; i < count; i++){
+                let instance_index = frame_u32(primitive_base + left_or_first + i);
                 if(intersect_blas_any(instance_index, origin, direction, t_min, t_max)){ return true; }
             }
         }
         else{
             if(stack_pointer + 2u <= TRAVERSAL_STACK_SIZE){
-                stack[stack_pointer] = node.left_or_first + 1u;
+                stack[stack_pointer] = left_or_first + 1u;
                 stack_pointer++;
-                stack[stack_pointer] = node.left_or_first;
+                stack[stack_pointer] = left_or_first;
                 stack_pointer++;
             }
         }
@@ -633,11 +741,9 @@ fn trace_shadow_occluded(camera: i32, pos: vec3<f32>, direction: vec3<f32>, max_
     return trace_any_composed(camera, pos, direction, 1e-3, max_dist);
 }
 
+// host-precomputed 256-entry table; unpack4x8unorm yields exact k/255, so the index is exact
 fn srgb_texel_to_linear(x: f32) -> f32{
-    if(x <= 0.04045){
-        return x / 12.92;
-    }
-    return pow((x + 0.055) / 1.055, 2.4);
+    return geometry_f32(params.srgb_lut_offset + u32(round(x * 255.0)));
 }
 
 // GPU-style normalized-coordinate bilinear sampling with repeat wrap; sRGB decode happens per
@@ -683,7 +789,7 @@ struct SecondaryRequest{
 
 fn shade_basic_local(hit: Hit, ray_origin: vec3<f32>, ray_dir: vec3<f32>, request: ptr<function, SecondaryRequest>) -> vec3<f32>{
     let mesh = fetch_triangle_mesh(hit.triangle);
-    let rec = meshes[mesh];
+    let rec = load_mesh_record(mesh);
     (*request).want_reflection = false;
     (*request).want_transparency = false;
 
@@ -739,7 +845,7 @@ fn shade_basic_local(hit: Hit, ray_origin: vec3<f32>, ray_dir: vec3<f32>, reques
 
 fn shade_pbr_local(hit: Hit, ray_origin: vec3<f32>, ray_dir: vec3<f32>, camera: i32, request: ptr<function, SecondaryRequest>) -> vec3<f32>{
     let mesh = fetch_triangle_mesh(hit.triangle);
-    let rec = meshes[mesh];
+    let rec = load_mesh_record(mesh);
     (*request).want_reflection = false;
     (*request).want_transparency = false;
 
@@ -993,7 +1099,7 @@ fn shutter_camera(cam_idx: i32, motion_i: i32) -> ShutterCamera{
     return result;
 }
 
-@compute @workgroup_size(8, 8, 1)
+@compute @workgroup_size(8, 4, 1)
 fn main_rgb(@builtin(global_invocation_id) global_id: vec3<u32>){
     let pixel_id = global_id.xy;
     let ctx = pixel_launch_context(pixel_id);
@@ -1042,7 +1148,7 @@ fn main_rgb(@builtin(global_invocation_id) global_id: vec3<u32>){
     }
 }
 
-@compute @workgroup_size(8, 8, 1)
+@compute @workgroup_size(8, 4, 1)
 fn main_depth(@builtin(global_invocation_id) global_id: vec3<u32>){
     let pixel_id = global_id.xy;
     let ctx = pixel_launch_context(pixel_id);
@@ -1073,7 +1179,7 @@ fn main_depth(@builtin(global_invocation_id) global_id: vec3<u32>){
 
 // divides the accumulated linear radiance by the sample count and writes the declared outputs
 // with the same transfer curve + quantization as the single-dispatch path
-@compute @workgroup_size(8, 8, 1)
+@compute @workgroup_size(8, 4, 1)
 fn main_resolve(@builtin(global_invocation_id) global_id: vec3<u32>){
     let pixel_id = global_id.xy;
     let ctx = pixel_launch_context(pixel_id);
@@ -1107,7 +1213,7 @@ fn main_resolve(@builtin(global_invocation_id) global_id: vec3<u32>){
     }
 }
 
-@compute @workgroup_size(8, 8, 1)
+@compute @workgroup_size(8, 4, 1)
 fn main_collision(@builtin(global_invocation_id) global_id: vec3<u32>){
     let cam_idx = i32(global_id.x);
     let probe_idx = i32(global_id.y);
@@ -1145,7 +1251,7 @@ fn main_collision(@builtin(global_invocation_id) global_id: vec3<u32>){
 
 // single-sample by design: instance labels cannot be averaged, so anti-aliasing and motion
 // blur do not apply (shutter-close camera, pixel-center ray)
-@compute @workgroup_size(8, 8, 1)
+@compute @workgroup_size(8, 4, 1)
 fn main_segmentation(@builtin(global_invocation_id) global_id: vec3<u32>){
     let pixel_id = global_id.xy;
     let ctx = pixel_launch_context(pixel_id);
@@ -1166,7 +1272,7 @@ fn main_segmentation(@builtin(global_invocation_id) global_id: vec3<u32>){
 // single-sample by design: unit normals cannot be averaged, so anti-aliasing and motion blur
 // do not apply (shutter-close camera, pixel-center ray); world-frame geometric normal,
 // oriented against the ray, zero on miss
-@compute @workgroup_size(8, 8, 1)
+@compute @workgroup_size(8, 4, 1)
 fn main_normals(@builtin(global_invocation_id) global_id: vec3<u32>){
     let pixel_id = global_id.xy;
     let ctx = pixel_launch_context(pixel_id);
@@ -1229,7 +1335,7 @@ fn project_camera(cam: Camera, point: vec3<f32>) -> vec3<f32>{
 // shutter-close frame in pixels — the hit point is carried to shutter open by its instance's
 // shutter delta (identity for the static world) and projected through the shutter-open camera;
 // miss (and behind-the-open-camera projections) write (0, 0)
-@compute @workgroup_size(8, 8, 1)
+@compute @workgroup_size(8, 4, 1)
 fn main_flow(@builtin(global_invocation_id) global_id: vec3<u32>){
     let pixel_id = global_id.xy;
     let ctx = pixel_launch_context(pixel_id);
