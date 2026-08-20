@@ -28,8 +28,8 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   `transforms_pair()` (dynamic motion blur producer input: shutter-open/close entries),
   `frame_buffer()`, `depth_buffer()`, `segmentation_buffer()`, `normals_buffer()`,
   `flow_buffer()`, `flow_deltas()`, `collision_results()`, `observation()`. Residency is a
-  backend property: CUDA device memory on OptiX, host on generic, shared/mapped on
-  Metal/Vulkan.
+  backend property: CUDA device memory on OptiX, host on generic and WebGPU (WebGPU settles
+  outputs from staging at the sync boundary), shared/mapped on Metal/Vulkan.
 - **Data moves via tensor copies and kernels.** No raw backend handles or `cudaStream_t` appear in
   public signatures. Device producers (extraction kernels) write the input tensors in place;
   device consumers read the output tensors in place; host readers/writers cross the residency
@@ -38,7 +38,7 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   (readback) and `rlt::copy(device, renderer.device, host_tensor, rlt::cameras(device, renderer))`
   (upload). `renderer.device` (`backends::Device<BACKEND>`, populated in `malloc`) carries only
   what the copy needs — the renderer-owned streams on OptiX, the in-flight context on
-  Metal/Vulkan — and the copy orders itself after the renderer's in-flight work, so no separate
+  Metal/Vulkan/WebGPU — and the copy orders itself after the renderer's in-flight work, so no separate
   `synchronize` is needed at readback/upload boundaries. It is a copy-dispatch handle only:
   backend selection for the verbs remains the renderer's template argument.
 - **Verbs enqueue; waiting is separate.** `render`/`probe`/`update` each split into `_launch`

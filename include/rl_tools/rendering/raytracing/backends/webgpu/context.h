@@ -128,6 +128,14 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         uint64_t size = 0;
     };
 
+    // staging -> host-tensor readback registered in malloc; lets the in-flight settle run against
+    // the Context alone (the renderer memory-domain copy has no SPEC)
+    struct ReadbackTarget{
+        BufferResource* staging = nullptr;
+        void* destination = nullptr;
+        size_t bytes = 0;
+    };
+
     struct Context{
         WGPUInstance instance = nullptr;
         WGPUAdapter adapter = nullptr;
@@ -181,6 +189,8 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         BufferResource staging_flow;
         BufferResource staging_observation;
         BufferResource staging_collision;
+        std::vector<ReadbackTarget> render_readbacks;
+        std::vector<ReadbackTarget> probe_readbacks;
 
         // host mirrors consumed by the per-update overlay rebuilds (queueWriteBuffer sources)
         std::vector<InstanceData> instance_data_host;
