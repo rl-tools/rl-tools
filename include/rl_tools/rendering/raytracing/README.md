@@ -169,3 +169,13 @@ CTest.
 Python (hypert) consumers JIT against these headers out of tree: `data()` on the accessor
 tensors yields stable device pointers suitable for dlpack/`__cuda_array_interface__` wrapping,
 and the `_launch`/`_sync` verb split maps onto phase-based scheduling.
+
+Browser demo: `src/rendering/raytracing/example/web/build.sh` compiles the WebGPU backend to
+WASM with an activated emsdk (`--use-port=emdawnwebgpu`, ASYNCIFY, `-fexceptions` — assimp
+relies on internal try/catch) and the page in `static/raytracing/` runs the drone
+motion-blur demo (`drone.cpp` semantics) live on canvases; assets are fetched by sha1 from the
+conta-data store (`?assets=local` serves `static/raytracing/assets/`, populated by
+`link_local_assets.sh`). The blocking-wait seams and adapter acquisition switch on
+`__EMSCRIPTEN__` in `backends/webgpu/operations_cpu.h`; browsers cap
+`maxStorageBuffersPerShaderStage` at the spec default of 8, which is why the bind layout packs
+per-frame inputs and outputs into the `FRAME_INPUTS`/`OUTPUTS` arenas.
