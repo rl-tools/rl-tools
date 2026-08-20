@@ -2,10 +2,8 @@
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
 
 #include <cmath>
-#include <cstdint>
 #include <iostream>
 #include <string>
-#include <vector>
 
 namespace rlt = rl_tools;
 
@@ -32,13 +30,13 @@ void yaw_transform(const T position[3], T yaw, float transform[12]){
 
 int render_and_save(DEVICE& device, Renderer& renderer, const std::string& output_prefix, const std::string& suffix){
     rlt::render(device, renderer);
-    rlt::synchronize(device, renderer);
-    std::vector<uint32_t> frame_buffer(static_cast<size_t>(SPEC::NUM_CAMERAS) * SPEC::CAM_PIXELS);
-    rlt::copy_from_renderer(device, renderer, rlt::data(rlt::frame_buffer(device, renderer)), frame_buffer.data(), frame_buffer.size());
+    rlt::Tensor<typename decltype(renderer.frame_buffer)::SPEC> frame_buffer;
+    rlt::malloc(device, frame_buffer);
+    rlt::copy(renderer.device, device, rlt::frame_buffer(device, renderer), frame_buffer);
     int status = 0;
     for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
         const std::string path = output_prefix + "_camera_" + std::to_string(camera_i) + suffix + ".png";
-        if(stbi_write_png(path.c_str(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, 4, frame_buffer.data() + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH * 4) == 0){
+        if(stbi_write_png(path.c_str(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, 4, rlt::data(frame_buffer) + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH * 4) == 0){
             std::cerr << "Failed to write " << path << std::endl;
             status = 1;
         }
@@ -46,6 +44,7 @@ int render_and_save(DEVICE& device, Renderer& renderer, const std::string& outpu
             std::cout << "Wrote " << path << std::endl;
         }
     }
+    rlt::free(device, frame_buffer);
     return status;
 }
 
@@ -114,10 +113,12 @@ int main(int argc, char** argv){
     const T up[3] = {0, 0, 1};
     const T camera_0_position[3] = {drone_a_position[0] - static_cast<T>(1.0), drone_a_position[1], drone_a_position[2] + static_cast<T>(0.8)};
     const T camera_1_position[3] = {drone_b_position[0] + static_cast<T>(1.0), drone_b_position[1], drone_b_position[2] + static_cast<T>(0.8)};
-    std::vector<rlt::rendering::raytracing::Camera<T>> camera_staging(SPEC::NUM_CAMERAS);
-    camera_staging[0] = rlt::make_camera_data(camera_0_position, drone_b_position, up, SPEC::COS_FOVY, aspect);
-    camera_staging[1] = rlt::make_camera_data(camera_1_position, drone_a_position, up, SPEC::COS_FOVY, aspect);
-    rlt::copy_to_renderer(device, renderer, camera_staging.data(), rlt::data(rlt::cameras(device, renderer)), camera_staging.size());
+    rlt::Tensor<typename Renderer::CAMERA_TENSOR_SPEC> camera_staging;
+    rlt::malloc(device, camera_staging);
+    rlt::set(device, camera_staging, rlt::make_camera_data(camera_0_position, drone_b_position, up, SPEC::COS_FOVY, aspect), 0);
+    rlt::set(device, camera_staging, rlt::make_camera_data(camera_1_position, drone_a_position, up, SPEC::COS_FOVY, aspect), 1);
+    rlt::copy(device, renderer.device, camera_staging, rlt::cameras(device, renderer));
+    rlt::free(device, camera_staging);
 
     int status = render_and_save(device, renderer, output_prefix, "");
 

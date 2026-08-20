@@ -545,14 +545,13 @@ namespace rl_tools {
         }
     }
 
-    template <typename DEVICE, typename SPEC, typename T>
-    void copy_to_renderer(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const T* source, T* destination, size_t count){
-        std::memcpy(destination, source, count * sizeof(T));
+    template <typename TO_DEVICE, typename FROM_SPEC, typename TO_SPEC>
+    void copy(rendering::raytracing::backends::Device<rendering::raytracing::backends::Generic>& from_device, TO_DEVICE& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to){
+        copy(to_device, to_device, from, to);
     }
-
-    template <typename DEVICE, typename SPEC, typename T>
-    void copy_from_renderer(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const T* source, T* destination, size_t count){
-        std::memcpy(destination, source, count * sizeof(T));
+    template <typename FROM_DEVICE, typename FROM_SPEC, typename TO_SPEC>
+    void copy(FROM_DEVICE& from_device, rendering::raytracing::backends::Device<rendering::raytracing::backends::Generic>& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to){
+        copy(from_device, from_device, from, to);
     }
 
     template <typename DEVICE, typename SPEC>

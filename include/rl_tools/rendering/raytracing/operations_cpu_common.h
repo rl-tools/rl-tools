@@ -1659,8 +1659,9 @@ namespace rl_tools {
     }
 
     // output tensors, same backend-native residency as the inputs: consumers on the device read
-    // them in place (zero-copy); host readers stage through an explicit copy at readback
-    // boundaries (after a _sync)
+    // them in place (zero-copy); host readers stage through a memory-domain copy at readback
+    // boundaries — copy(renderer.device, device, ...) — which orders itself after the
+    // renderer's in-flight work
     template <typename DEVICE, typename SPEC, typename BACKEND>
     auto& frame_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         static_assert(SPEC::HAS_RGB, "frame_buffer requires an RGB-capable renderer specification");

@@ -8,6 +8,7 @@
 #include "golden_io.h"
 #include "golden_layout.h"
 #include "overlay_golden_cases.h"
+#include "render_copy.h"
 
 #include <array>
 #include <cstddef>
@@ -52,7 +53,7 @@ namespace overlay_goldens {
         const auto camera = rl_tools::make_camera_data(view.position, view.look_at, view.up, SPEC::COS_FOVY, aspect);
         std::array<rl_tools::rendering::raytracing::Camera<T>, SPEC::NUM_CAMERAS> cameras;
         cameras.fill(camera);
-        rl_tools::copy_to_renderer(device, renderer, cameras.data(), rl_tools::data(rl_tools::cameras(device, renderer)), cameras.size());
+        golden::copy_in(device, renderer.device, cameras.data(), rl_tools::cameras(device, renderer));
         if constexpr (SPEC::HAS_CAMERA_PAIR){
             T position_open[3], look_at_open[3];
             for(int dim_i = 0; dim_i < 3; dim_i++){
@@ -61,7 +62,7 @@ namespace overlay_goldens {
             }
             const auto camera_open = rl_tools::make_camera_data(position_open, look_at_open, view.up, SPEC::COS_FOVY, aspect);
             cameras.fill(camera_open);
-            rl_tools::copy_to_renderer(device, renderer, cameras.data(), rl_tools::data(rl_tools::cameras_open(device, renderer)), cameras.size());
+            golden::copy_in(device, renderer.device, cameras.data(), rl_tools::cameras_open(device, renderer));
         }
     }
 
@@ -72,18 +73,14 @@ namespace overlay_goldens {
         rl_tools::synchronize(device, renderer);
         const std::size_t count = (std::size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
         Frame frame;
-        frame.rgb.resize(count);
-        frame.depth.resize(count);
-        frame.segmentation.resize(count);
-        rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::frame_buffer(device, renderer)), frame.rgb.data(), count);
-        rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::depth_buffer(device, renderer)), frame.depth.data(), count);
-        rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::segmentation_buffer(device, renderer)), frame.segmentation.data(), count);
-        std::vector<float> normals_raw(count * 3);
-        rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::normals_buffer(device, renderer)), normals_raw.data(), normals_raw.size());
+        golden::copy_out(renderer.device, device, rl_tools::frame_buffer(device, renderer), frame.rgb);
+        golden::copy_out(renderer.device, device, rl_tools::depth_buffer(device, renderer), frame.depth);
+        golden::copy_out(renderer.device, device, rl_tools::segmentation_buffer(device, renderer), frame.segmentation);
+        std::vector<float> normals_raw;
+        golden::copy_out(renderer.device, device, rl_tools::normals_buffer(device, renderer), normals_raw);
         frame.normals.resize(count);
         golden::colorize_normals(normals_raw.data(), count, frame.normals.data());
-        frame.flow.resize(count * 2);
-        rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::flow_buffer(device, renderer)), frame.flow.data(), frame.flow.size());
+        golden::copy_out(renderer.device, device, rl_tools::flow_buffer(device, renderer), frame.flow);
         frame.max_depth = renderer.camera_radius > 0 ? renderer.camera_radius * 2.0f : 1e30f;
         return frame;
     }

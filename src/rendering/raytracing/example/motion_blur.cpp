@@ -105,26 +105,22 @@ rlt::rendering::raytracing::Camera<T> make_orbit_camera(const Renderer<RendererS
 
 template <typename SPEC>
 void render_panel(DEVICE& device, Renderer<SPEC>& renderer, const rlt::rendering::raytracing::Camera<T>& camera_open, const rlt::rendering::raytracing::Camera<T>& camera_close, std::vector<uint32_t>& panel) {
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-    cudaMemcpy(rlt::data(rlt::cameras(device, renderer)), &camera_close, sizeof(camera_close), cudaMemcpyHostToDevice);
+    auto camera_close_staging = camera_close;
+    rlt::Tensor<typename decltype(renderer.cameras)::SPEC> camera_alias;
+    camera_alias._data = &camera_close_staging;
+    rlt::copy(device, renderer.device, camera_alias, rlt::cameras(device, renderer));
     if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-        cudaMemcpy(rlt::data(rlt::cameras_open(device, renderer)), &camera_open, sizeof(camera_open), cudaMemcpyHostToDevice);
+        auto camera_open_staging = camera_open;
+        camera_alias._data = &camera_open_staging;
+        rlt::copy(device, renderer.device, camera_alias, rlt::cameras_open(device, renderer));
     }
-#else
-    std::memcpy(rlt::data(rlt::cameras(device, renderer)), &camera_close, sizeof(camera_close));
-    if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-        std::memcpy(rlt::data(rlt::cameras_open(device, renderer)), &camera_open, sizeof(camera_open));
-    }
-#endif
 
     rlt::render(device, renderer);
 
     panel.resize(static_cast<size_t>(CAM_WIDTH) * static_cast<size_t>(CAM_HEIGHT));
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-    cudaMemcpy(panel.data(), rlt::data(rlt::frame_buffer(device, renderer)), panel.size() * sizeof(uint32_t), cudaMemcpyDeviceToHost);
-#else
-    std::memcpy(panel.data(), rlt::data(rlt::frame_buffer(device, renderer)), panel.size() * sizeof(uint32_t));
-#endif
+    rlt::Tensor<typename decltype(renderer.frame_buffer)::SPEC> frame_alias;
+    frame_alias._data = panel.data();
+    rlt::copy(renderer.device, device, rlt::frame_buffer(device, renderer), frame_alias);
 }
 
 void copy_panel(const std::vector<uint32_t>& panel, std::vector<uint32_t>& frame, TI panel_i) {
