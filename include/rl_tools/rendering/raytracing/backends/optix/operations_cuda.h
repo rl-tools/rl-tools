@@ -51,11 +51,8 @@ namespace rl_tools {
             std::vector<float> flow_deltas_staging;
             size_t num_scene_instances = 0;
         };
-    }
 
-    namespace rendering::raytracing::backends {
-        template <typename SPEC>
-        struct RendererState<rendering::raytracing::backends::Optix, SPEC> {
+        struct State {
             OWLContext context = nullptr;
             OWLModule module = nullptr;
             OWLBuffer cameras_buffer = nullptr;
@@ -66,7 +63,7 @@ namespace rl_tools {
             OWLBuffer collision_results_buffer = nullptr;
             OWLBuffer probe_dirs_buffer = nullptr;
             OWLParams coll_launch_params = nullptr;
-            optix::OverlayState* overlay_state = nullptr;
+            OverlayState* overlay_state = nullptr;
             OWLRayGen ray_gen = nullptr;
             OWLBuffer frame_buffer = nullptr;
             OWLRayGen depth_ray_gen = nullptr;
@@ -82,6 +79,12 @@ namespace rl_tools {
             OWLBuffer rgb_accumulator_buffer = nullptr;
             OWLBuffer depth_accumulator_buffer = nullptr;
             float* shutter_device = nullptr; // per-pass shutter time, written by the overlay fill kernel
+        };
+    }
+
+    namespace rendering::raytracing::backends {
+        template <typename SPEC>
+        struct RendererState<rendering::raytracing::backends::Optix, SPEC>: optix::State {
             rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Optix>* library = nullptr;
         };
 
@@ -744,6 +747,7 @@ namespace rl_tools {
     void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
         namespace optix = rendering::raytracing::backends::optix;
         renderer.backend = new rendering::raytracing::backends::RendererState<rendering::raytracing::backends::Optix, SPEC>{};
+        renderer.device.state = renderer.backend;
         OWLContext context = nullptr;
         OWLModule module = nullptr;
         optix::create_context_resources<SPEC>(context, module);
@@ -756,6 +760,7 @@ namespace rl_tools {
     void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Optix>& library){
         namespace optix = rendering::raytracing::backends::optix;
         renderer.backend = new rendering::raytracing::backends::RendererState<rendering::raytracing::backends::Optix, SPEC>{};
+        renderer.device.state = renderer.backend;
         optix::detail::malloc_renderer(device, renderer, library.backend->context, library.backend->module);
         renderer.backend->library = &library;
     }
@@ -1440,14 +1445,34 @@ namespace rl_tools {
         }
     }
 
-    template <typename DEVICE, typename SPEC, typename T>
-    void copy_to_renderer(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, const T* source, T* destination, size_t count){
-        cudaMemcpy(destination, source, count * sizeof(T), cudaMemcpyHostToDevice);
+    namespace rendering::raytracing::backends::optix {
+        inline void synchronize(rendering::raytracing::backends::Device<rendering::raytracing::backends::Optix>& device){
+            if(device.state->launch_params != nullptr){
+                cudaStreamSynchronize((cudaStream_t)owlParamsGetCudaStream((OWLParams)device.state->launch_params, 0));
+            }
+            if(device.state->coll_launch_params != nullptr){
+                cudaStreamSynchronize((cudaStream_t)owlParamsGetCudaStream((OWLParams)device.state->coll_launch_params, 0));
+            }
+        }
     }
 
-    template <typename DEVICE, typename SPEC, typename T>
-    void copy_from_renderer(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, const T* source, T* destination, size_t count){
-        cudaMemcpy(destination, source, count * sizeof(T), cudaMemcpyDeviceToHost);
+    // renderer memory-domain copies: ordered after the renderer's in-flight work on both
+    // renderer-owned streams, so no separate synchronize() is needed at readback/upload boundaries
+    template <typename TO_DEVICE, typename FROM_SPEC, typename TO_SPEC>
+    void copy(rendering::raytracing::backends::Device<rendering::raytracing::backends::Optix>& from_device, TO_DEVICE& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to){
+        static_assert(tensor::same_dimensions_shape<typename FROM_SPEC::SHAPE, typename TO_SPEC::SHAPE>());
+        static_assert(tensor::same_dimensions_shape<typename FROM_SPEC::STRIDE, typename TO_SPEC::STRIDE>() && tensor::dense_row_major_layout<FROM_SPEC>(), "renderer copies require matching dense row-major layouts");
+        static_assert(utils::typing::is_same_v<typename FROM_SPEC::T, typename TO_SPEC::T>);
+        rendering::raytracing::backends::optix::synchronize(from_device);
+        cudaMemcpy(to._data, from._data, FROM_SPEC::SIZE_BYTES, cudaMemcpyDeviceToHost);
+    }
+    template <typename FROM_DEVICE, typename FROM_SPEC, typename TO_SPEC>
+    void copy(FROM_DEVICE& from_device, rendering::raytracing::backends::Device<rendering::raytracing::backends::Optix>& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to){
+        static_assert(tensor::same_dimensions_shape<typename FROM_SPEC::SHAPE, typename TO_SPEC::SHAPE>());
+        static_assert(tensor::same_dimensions_shape<typename FROM_SPEC::STRIDE, typename TO_SPEC::STRIDE>() && tensor::dense_row_major_layout<FROM_SPEC>(), "renderer copies require matching dense row-major layouts");
+        static_assert(utils::typing::is_same_v<typename FROM_SPEC::T, typename TO_SPEC::T>);
+        rendering::raytracing::backends::optix::synchronize(to_device);
+        cudaMemcpy(to._data, from._data, FROM_SPEC::SIZE_BYTES, cudaMemcpyHostToDevice);
     }
 
     // =========================================================================
@@ -1602,7 +1627,9 @@ namespace rl_tools {
         static_assert(SPEC::HAS_SEGMENTATION, "save_segmentation_image requires a segmentation-capable renderer specification");
         const size_t segmentation_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
         std::vector<uint32_t> segmentation_host(segmentation_count);
-        cudaMemcpy(segmentation_host.data(), data(renderer.segmentation_buffer), segmentation_count * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+        Tensor<typename decltype(renderer.segmentation_buffer)::SPEC> segmentation_alias;
+        segmentation_alias._data = segmentation_host.data();
+        copy(renderer.device, device, renderer.segmentation_buffer, segmentation_alias);
         rendering::raytracing::detail::write_segmentation_grid_png<SPEC>(segmentation_host.data(), filename);
     }
 
@@ -1611,7 +1638,9 @@ namespace rl_tools {
         static_assert(SPEC::HAS_NORMALS, "save_normals_image requires a normals-capable renderer specification");
         const size_t normals_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS * 3;
         std::vector<float> normals_host(normals_count);
-        cudaMemcpy(normals_host.data(), data(renderer.normals_buffer), normals_count * sizeof(float), cudaMemcpyDeviceToHost);
+        Tensor<typename decltype(renderer.normals_buffer)::SPEC> normals_alias;
+        normals_alias._data = normals_host.data();
+        copy(renderer.device, device, renderer.normals_buffer, normals_alias);
         rendering::raytracing::detail::write_normals_grid_png<SPEC>(normals_host.data(), filename);
     }
 
@@ -1620,7 +1649,9 @@ namespace rl_tools {
         static_assert(SPEC::HAS_FLOW, "save_flow_image requires a flow-capable renderer specification");
         const size_t flow_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS * 2;
         std::vector<float> flow_host(flow_count);
-        cudaMemcpy(flow_host.data(), data(renderer.flow_buffer), flow_count * sizeof(float), cudaMemcpyDeviceToHost);
+        Tensor<typename decltype(renderer.flow_buffer)::SPEC> flow_alias;
+        flow_alias._data = flow_host.data();
+        copy(renderer.device, device, renderer.flow_buffer, flow_alias);
         rendering::raytracing::detail::write_flow_grid_png<SPEC>(flow_host.data(), filename);
     }
 
@@ -1635,7 +1666,9 @@ namespace rl_tools {
         const size_t fb_count = (size_t)SPEC::NUM_CAMERAS * cam_pixels;
 
         std::vector<uint32_t> fb_host(fb_count);
-        cudaMemcpy(fb_host.data(), data(renderer.frame_buffer), fb_count * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+        Tensor<typename decltype(renderer.frame_buffer)::SPEC> fb_alias;
+        fb_alias._data = fb_host.data();
+        copy(renderer.device, device, renderer.frame_buffer, fb_alias);
         rendering::raytracing::detail::write_grid_png<SPEC>(fb_host.data(), filename);
     }
 
@@ -1647,7 +1680,9 @@ namespace rl_tools {
         const size_t depth_count = (size_t)SPEC::NUM_CAMERAS * cam_pixels;
 
         std::vector<float> depth_host(depth_count);
-        cudaMemcpy(depth_host.data(), data(renderer.depth_buffer), depth_count * sizeof(float), cudaMemcpyDeviceToHost);
+        Tensor<typename decltype(renderer.depth_buffer)::SPEC> depth_alias;
+        depth_alias._data = depth_host.data();
+        copy(renderer.device, device, renderer.depth_buffer, depth_alias);
 
         rendering::raytracing::detail::write_depth_grid_png<SPEC>(depth_host.data(), renderer.camera_radius, filename);
     }
@@ -1657,7 +1692,9 @@ namespace rl_tools {
         static_assert(SPEC::HAS_DEPTH, "save_depth requires a depth-capable renderer specification");
         constexpr size_t depth_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
         std::vector<float> depth_host(depth_count);
-        cudaMemcpy(depth_host.data(), data(renderer.depth_buffer), depth_count * sizeof(float), cudaMemcpyDeviceToHost);
+        Tensor<typename decltype(renderer.depth_buffer)::SPEC> depth_alias;
+        depth_alias._data = depth_host.data();
+        copy(renderer.device, device, renderer.depth_buffer, depth_alias);
         rendering::raytracing::detail::write_depth_bin<SPEC>(depth_host.data(), filename);
     }
 
@@ -1673,7 +1710,9 @@ namespace rl_tools {
 #else
         constexpr size_t probe_count = (size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES;
         std::vector<CollisionResult> probes_host(probe_count);
-        cudaMemcpy(probes_host.data(), data(renderer.collision_results), probe_count * sizeof(CollisionResult), cudaMemcpyDeviceToHost);
+        Tensor<typename decltype(renderer.collision_results)::SPEC> probes_alias;
+        probes_alias._data = probes_host.data();
+        copy(renderer.device, device, renderer.collision_results, probes_alias);
         rendering::raytracing::detail::write_probes_bin_and_log<SPEC>(probes_host.data(), filename);
 #endif
     }
@@ -1688,12 +1727,7 @@ namespace rl_tools {
     // scoped to the renderer's own streams — never a whole-device barrier
     template <typename DEVICE, typename SPEC>
     void synchronize(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
-        if(renderer.backend->launch_params != nullptr){
-            cudaStreamSynchronize((cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend->launch_params, 0));
-        }
-        if(renderer.backend->coll_launch_params != nullptr){
-            cudaStreamSynchronize((cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend->coll_launch_params, 0));
-        }
+        rendering::raytracing::backends::optix::synchronize(renderer.device);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1713,6 +1747,7 @@ namespace rl_tools {
             }
             delete renderer.backend;
             renderer.backend = nullptr;
+            renderer.device.state = nullptr;
         }
         if constexpr (SPEC::ENABLE_OVERLAYS){
             if(renderer.transforms._data != nullptr){

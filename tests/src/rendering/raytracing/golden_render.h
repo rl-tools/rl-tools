@@ -2,6 +2,7 @@
 #define TESTS_RENDERING_RAYTRACING_GOLDEN_RENDER_H
 
 #include "golden_cases.h"
+#include "render_copy.h"
 
 #include <cmath>
 #include <cstddef>
@@ -80,7 +81,7 @@ namespace golden {
             const Pose<T>& pose = CASES::POSES[camera_i];
             camera_staging[camera_i] = rl_tools::make_camera_data(pose.position, pose.look_at, pose.up, SPEC::COS_FOVY, aspect);
         }
-        rl_tools::copy_to_renderer(device, renderer, camera_staging.data(), rl_tools::data(rl_tools::cameras(device, renderer)), camera_staging.size());
+        copy_in(device, renderer.device, camera_staging.data(), rl_tools::cameras(device, renderer));
         if constexpr(SPEC::HAS_CAMERA_PAIR) {
             if constexpr(T_CAMERA_MOTION) {
                 for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
@@ -93,7 +94,7 @@ namespace golden {
                     camera_staging[camera_i] = rl_tools::make_camera_data(position, look_at, pose.up, SPEC::COS_FOVY, aspect);
                 }
             }
-            rl_tools::copy_to_renderer(device, renderer, camera_staging.data(), rl_tools::data(rl_tools::cameras_open(device, renderer)), camera_staging.size());
+            copy_in(device, renderer.device, camera_staging.data(), rl_tools::cameras_open(device, renderer));
         }
         if constexpr(SPEC::ENABLE_OVERLAYS) {
             for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
@@ -120,30 +121,23 @@ namespace golden {
         rl_tools::probe(device, renderer);
         rl_tools::synchronize(device, renderer);
 
-        constexpr size_t pixel_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
         if constexpr(SPEC::HAS_RGB) {
-            out.frame_buffer.resize(pixel_count);
-            rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::frame_buffer(device, renderer)), out.frame_buffer.data(), pixel_count);
+            copy_out(renderer.device, device, rl_tools::frame_buffer(device, renderer), out.frame_buffer);
         }
         if constexpr(SPEC::HAS_DEPTH) {
-            out.depth_buffer.resize(pixel_count);
-            rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::depth_buffer(device, renderer)), out.depth_buffer.data(), pixel_count);
+            copy_out(renderer.device, device, rl_tools::depth_buffer(device, renderer), out.depth_buffer);
         }
         if constexpr(SPEC::HAS_NORMALS) {
-            out.normals.resize(pixel_count * 3);
-            rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::normals_buffer(device, renderer)), out.normals.data(), out.normals.size());
+            copy_out(renderer.device, device, rl_tools::normals_buffer(device, renderer), out.normals);
         }
         if constexpr(SPEC::HAS_FLOW) {
-            out.flow.resize(pixel_count * 2);
-            rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::flow_buffer(device, renderer)), out.flow.data(), out.flow.size());
+            copy_out(renderer.device, device, rl_tools::flow_buffer(device, renderer), out.flow);
         }
         if constexpr(SPEC::HAS_SEGMENTATION) {
-            out.segmentation.resize(pixel_count);
-            rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::segmentation_buffer(device, renderer)), out.segmentation.data(), pixel_count);
+            copy_out(renderer.device, device, rl_tools::segmentation_buffer(device, renderer), out.segmentation);
         }
         if(rl_tools::data(renderer.collision_results) != nullptr) {
-            out.probes.resize((size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);
-            rl_tools::copy_from_renderer(device, renderer, rl_tools::data(rl_tools::collision_results(device, renderer)), out.probes.data(), out.probes.size());
+            copy_out(renderer.device, device, rl_tools::collision_results(device, renderer), out.probes);
         }
         out.max_depth = renderer.camera_radius > 0 ? renderer.camera_radius * T{2} : static_cast<T>(1e30);
         out.camera_radius = renderer.camera_radius;

@@ -194,6 +194,33 @@ namespace rl_tools {
 
             template <typename T_BACKEND, typename T_SPEC>
             struct SceneState;
+
+            namespace optix { struct State; }
+            namespace metal { struct Context; }
+            namespace vulkan { struct Context; }
+            // renderer.device: memory-domain handle for tensor copies at readback/upload
+            // boundaries — copy(renderer.device, device, ...) dispatches on the backend residency
+            // and orders the copy after the renderer's in-flight work; backend selection for the
+            // verbs stays the Renderer's template argument
+            template <typename T_BACKEND>
+            struct Device {
+                using index_t = size_t;
+            };
+            template <>
+            struct Device<Optix>{
+                using index_t = size_t;
+                optix::State* state = nullptr;
+            };
+            template <>
+            struct Device<Metal>{
+                using index_t = size_t;
+                metal::Context* context = nullptr;
+            };
+            template <>
+            struct Device<Vulkan>{
+                using index_t = size_t;
+                vulkan::Context* context = nullptr;
+            };
         }
 
         // shared scene store: renderers malloc'd against a library share one backend context and
@@ -406,6 +433,7 @@ namespace rl_tools {
             T scene_half_extent[3] = {0, 0, 0};
             T camera_radius = 0;
 
+            backends::Device<BACKEND> device;
             BACKEND_STATE* backend = nullptr;
         };
     }

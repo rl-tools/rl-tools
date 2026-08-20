@@ -1552,21 +1552,18 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
     for(size_t frame_i = 0; frame_i < poses.size(); frame_i++) {
         const TracePose& pose = poses[frame_i];
         const auto camera = rlt::make_camera_data(pose.eye, pose.look_at, pose.up, fov, static_cast<T>(WIDTH) / static_cast<T>(HEIGHT));
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-        cudaMemcpy(rlt::data(rlt::cameras(device, *env.renderer)), &camera, sizeof(camera), cudaMemcpyHostToDevice);
-#else
-        std::memcpy(rlt::data(rlt::cameras(device, *env.renderer)), &camera, sizeof(camera));
-#endif
+        auto camera_staging = camera;
+        rlt::Tensor<typename decltype(env.renderer->cameras)::SPEC> camera_alias;
+        camera_alias._data = &camera_staging;
+        rlt::copy(device, env.renderer->device, camera_alias, rlt::cameras(device, *env.renderer));
         if constexpr (SPEC::HAS_DEPTH) {
             rlt::render(device, *env.renderer);
             std::vector<float> depth_staging(frame.size());
-{
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-            cudaMemcpy(depth_staging.data(), rlt::data(rlt::depth_buffer(device, *env.renderer)), (depth_staging.size()) * sizeof(float), cudaMemcpyDeviceToHost);
-#else
-            std::memcpy(depth_staging.data(), rlt::data(rlt::depth_buffer(device, *env.renderer)), (depth_staging.size()) * sizeof(float));
-#endif
-        }
+            {
+                rlt::Tensor<typename decltype(env.renderer->depth_buffer)::SPEC> depth_alias;
+                depth_alias._data = depth_staging.data();
+                rlt::copy(env.renderer->device, device, rlt::depth_buffer(device, *env.renderer), depth_alias);
+            }
             const float miss_depth = env.renderer->camera_radius > 0 ? env.renderer->camera_radius * 2.0f : 1e30f;
             float min_depth = std::numeric_limits<float>::max();
             float max_depth_value = std::numeric_limits<float>::lowest();
@@ -1575,12 +1572,10 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
         }
         else {
             rlt::render(device, *env.renderer);
-{
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-            cudaMemcpy(frame.data(), rlt::data(rlt::frame_buffer(device, *env.renderer)), (frame.size()) * sizeof(uint32_t), cudaMemcpyDeviceToHost);
-#else
-            std::memcpy(frame.data(), rlt::data(rlt::frame_buffer(device, *env.renderer)), (frame.size()) * sizeof(uint32_t));
-#endif
+            {
+                rlt::Tensor<typename decltype(env.renderer->frame_buffer)::SPEC> frame_alias;
+                frame_alias._data = frame.data();
+                rlt::copy(env.renderer->device, device, rlt::frame_buffer(device, *env.renderer), frame_alias);
         }
         }
         if(options.write_frames && !write_rgb_image_frame(frame_filename(record.frames_dir, frame_i, png_frames), frame, rgb_frame, WIDTH, HEIGHT, png_frames)) {

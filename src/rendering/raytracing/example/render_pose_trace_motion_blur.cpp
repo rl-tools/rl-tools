@@ -554,21 +554,19 @@ static bool render_trace(DEVICE& device, const Options& options, const std::stri
 
         const auto camera_open = rlt::make_camera_data(open_pose.eye, open_pose.look_at, open_pose.up, SPEC::COS_FOVY, aspect);
         const auto camera_close = rlt::make_camera_data(close_pose.eye, close_pose.look_at, close_pose.up, SPEC::COS_FOVY, aspect);
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-        cudaMemcpy(rlt::data(rlt::cameras_open(device, renderer)), &camera_open, sizeof(camera_open), cudaMemcpyHostToDevice);
-        cudaMemcpy(rlt::data(rlt::cameras(device, renderer)), &camera_close, sizeof(camera_close), cudaMemcpyHostToDevice);
-#else
-        std::memcpy(rlt::data(rlt::cameras_open(device, renderer)), &camera_open, sizeof(camera_open));
-        std::memcpy(rlt::data(rlt::cameras(device, renderer)), &camera_close, sizeof(camera_close));
-#endif
+        auto camera_open_staging = camera_open;
+        auto camera_close_staging = camera_close;
+        rlt::Tensor<typename decltype(renderer.cameras)::SPEC> camera_alias;
+        camera_alias._data = &camera_open_staging;
+        rlt::copy(device, renderer.device, camera_alias, rlt::cameras_open(device, renderer));
+        camera_alias._data = &camera_close_staging;
+        rlt::copy(device, renderer.device, camera_alias, rlt::cameras(device, renderer));
         rlt::render(device, renderer);
 
         std::vector<uint32_t> frame_staging((size_t)SPEC::CAM_PIXELS);
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-        cudaMemcpy(frame_staging.data(), rlt::data(rlt::frame_buffer(device, renderer)), frame_staging.size() * sizeof(uint32_t), cudaMemcpyDeviceToHost);
-#else
-        std::memcpy(frame_staging.data(), rlt::data(rlt::frame_buffer(device, renderer)), frame_staging.size() * sizeof(uint32_t));
-#endif
+        rlt::Tensor<typename decltype(renderer.frame_buffer)::SPEC> frame_alias;
+        frame_alias._data = frame_staging.data();
+        rlt::copy(renderer.device, device, rlt::frame_buffer(device, renderer), frame_alias);
         const uint32_t* fb_data = frame_staging.data();
         std::memcpy(frame.data(), fb_data, frame.size() * sizeof(uint32_t));
         if(!write_frame(pipe, frame, frame_i)) {

@@ -11,6 +11,7 @@
 #endif
 
 #include "../../../utils/utils.h"
+#include "../render_copy.h"
 #ifdef RL_TOOLS_TEST_DATA_PATH
 #define RL_TOOLS_SCENE_TEST_DATA_PATH RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)
 #else
@@ -63,13 +64,16 @@ namespace {
     }
 
     template <typename RENDERER_SPEC>
-    void write_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, BACKEND>& renderer, const rlt::rendering::raytracing::Camera<T>* staging, TI count){
-        rlt::copy_to_renderer(device, renderer, staging, rlt::data(rlt::cameras(device, renderer)), count);
+    void write_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, BACKEND>& renderer, const rlt::rendering::raytracing::Camera<T>* staging){
+        golden::copy_in(device, renderer.device, staging, rlt::cameras(device, renderer));
     }
 
+    // full-tensor readback: out must hold TENSOR::SPEC::SIZE elements
     template <typename RENDERER_SPEC, typename ELEMENT, typename TENSOR>
-    void read_output(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, BACKEND>& renderer, const TENSOR& tensor, ELEMENT* out, size_t count){
-        rlt::copy_from_renderer(device, renderer, rlt::data(tensor), out, count);
+    void read_output(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, BACKEND>& renderer, const TENSOR& tensor, ELEMENT* out){
+        rlt::Tensor<rlt::tensor::Specification<ELEMENT, typename TENSOR::SPEC::TI, typename TENSOR::SPEC::SHAPE>> alias;
+        alias._data = out;
+        rlt::copy(renderer.device, device, tensor, alias);
     }
 
     template <typename RENDERER_SPEC>
@@ -77,7 +81,7 @@ namespace {
         const T up[3] = {0, 0, 1};
         constexpr T aspect = (T)RENDERER_SPEC::CAM_WIDTH / (T)RENDERER_SPEC::CAM_HEIGHT;
         const auto camera = rlt::make_camera_data(position, look_at, up, RENDERER_SPEC::COS_FOVY, aspect);
-        write_cameras(device, renderer, &camera, 1);
+        write_cameras(device, renderer, &camera);
     }
 
     template <typename RENDERER_SPEC>
@@ -86,7 +90,7 @@ namespace {
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
         pixels.resize(RENDERER_SPEC::CAM_PIXELS);
-        read_output(device, renderer, rlt::frame_buffer(device, renderer), pixels.data(), RENDERER_SPEC::CAM_PIXELS);
+        read_output(device, renderer, rlt::frame_buffer(device, renderer), pixels.data());
     }
 
     void render_frame(DEVICE& device, Renderer& renderer, std::vector<uint32_t>& pixels){
@@ -117,7 +121,7 @@ namespace {
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
         std::vector<float> depth(RENDERER_SPEC::CAM_PIXELS);
-        read_output(device, renderer, rlt::depth_buffer(device, renderer), depth.data(), RENDERER_SPEC::CAM_PIXELS);
+        read_output(device, renderer, rlt::depth_buffer(device, renderer), depth.data());
         return depth[(RENDERER_SPEC::CAM_HEIGHT / 2) * RENDERER_SPEC::CAM_WIDTH + RENDERER_SPEC::CAM_WIDTH / 2];
     }
 }
@@ -481,7 +485,7 @@ namespace {
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
         std::vector<uint32_t> segmentation(RENDERER_SPEC::CAM_PIXELS);
-        read_output(device, renderer, rlt::segmentation_buffer(device, renderer), segmentation.data(), RENDERER_SPEC::CAM_PIXELS);
+        read_output(device, renderer, rlt::segmentation_buffer(device, renderer), segmentation.data());
         return segmentation;
     }
 }
@@ -553,7 +557,7 @@ TEST(RL_TOOLS_SCENE_SUITE, NORMALS_ANALYTIC){
     rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
     std::vector<float> normals((size_t)NORMALS_SPEC::CAM_PIXELS * 3);
-    read_output(device, renderer, rlt::normals_buffer(device, renderer), normals.data(), normals.size());
+    read_output(device, renderer, rlt::normals_buffer(device, renderer), normals.data());
 
     const size_t center = (size_t)((NORMALS_SPEC::CAM_HEIGHT / 2) * NORMALS_SPEC::CAM_WIDTH + NORMALS_SPEC::CAM_WIDTH / 2) * 3;
     EXPECT_NEAR(normals[center + 0], -1.f, 1e-5f);
@@ -591,8 +595,8 @@ namespace {
         constexpr T aspect = (T)RENDERER_SPEC::CAM_WIDTH / (T)RENDERER_SPEC::CAM_HEIGHT;
         const auto camera_open = rlt::make_camera_data(position_open, look_at_open, up, (T)RENDERER_SPEC::COS_FOVY, aspect);
         const auto camera_close = rlt::make_camera_data(position_close, look_at_close, up, (T)RENDERER_SPEC::COS_FOVY, aspect);
-        rlt::copy_to_renderer(device, renderer, &camera_close, rlt::data(rlt::cameras_close(device, renderer)), 1);
-        rlt::copy_to_renderer(device, renderer, &camera_open, rlt::data(rlt::cameras_open(device, renderer)), 1);
+        golden::copy_in(device, renderer.device, &camera_close, rlt::cameras_close(device, renderer));
+        golden::copy_in(device, renderer.device, &camera_open, rlt::cameras_open(device, renderer));
     }
 }
 
@@ -618,7 +622,7 @@ TEST(RL_TOOLS_SCENE_SUITE, FLOW_ANALYTIC){
     set_flow_cameras(device, renderer, position, look_at, position, look_at);
     rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
-    read_output(device, renderer, rlt::flow_buffer(device, renderer), flow.data(), flow.size());
+    read_output(device, renderer, rlt::flow_buffer(device, renderer), flow.data());
     const size_t center = (size_t)((FLOW_SPEC::CAM_HEIGHT / 2) * FLOW_SPEC::CAM_WIDTH + FLOW_SPEC::CAM_WIDTH / 2) * 2;
     EXPECT_NEAR(flow[center + 0], 0.f, 1e-3f); // static pair: reprojection noise only
     EXPECT_NEAR(flow[center + 1], 0.f, 1e-3f);
@@ -631,7 +635,7 @@ TEST(RL_TOOLS_SCENE_SUITE, FLOW_ANALYTIC){
     set_flow_cameras(device, renderer, position_open, look_at_open, position, look_at);
     rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
-    read_output(device, renderer, rlt::flow_buffer(device, renderer), flow.data(), flow.size());
+    read_output(device, renderer, rlt::flow_buffer(device, renderer), flow.data());
 
     const T image_plane_scale = (T)2 * std::tan((T)FLOW_SPEC::COS_FOVY / (T)2);
     const T viewing_distance = 4; // front face x = -1, camera x = -5
@@ -690,7 +694,7 @@ TEST(RL_TOOLS_SCENE_SUITE, FLOW_OVERLAY_ANALYTIC){
     rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
     std::vector<float> flow((size_t)FLOW_OVERLAY_SPEC::CAM_PIXELS * 2);
-    read_output(device, renderer, rlt::flow_buffer(device, renderer), flow.data(), flow.size());
+    read_output(device, renderer, rlt::flow_buffer(device, renderer), flow.data());
 
     const T image_plane_scale = (T)2 * std::tan((T)FLOW_OVERLAY_SPEC::COS_FOVY / (T)2);
     const T viewing_distance = (T)1.5; // overlay front face x = -3.5, camera x = -5
@@ -824,7 +828,7 @@ namespace {
         for(TI camera_i = 0; camera_i < RENDERER_SPEC::NUM_CAMERAS; camera_i++){
             staging[camera_i] = rlt::make_camera_data(position, look_at, up, RENDERER_SPEC::COS_FOVY, aspect);
         }
-        write_cameras(device, renderer, staging.data(), RENDERER_SPEC::NUM_CAMERAS);
+        write_cameras(device, renderer, staging.data());
     }
 
     rlt::rendering::raytracing::Scene make_far_anchor_scene(DEVICE& device){
@@ -883,7 +887,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_ATTACHMENT_SCOPES){
     rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
     std::vector<uint32_t> segmentation_staging((size_t)decltype(renderer)::SPEC::NUM_CAMERAS * decltype(renderer)::SPEC::CAM_PIXELS);
-    read_output(device, renderer, rlt::segmentation_buffer(device, renderer), segmentation_staging.data(), segmentation_staging.size());
+    read_output(device, renderer, rlt::segmentation_buffer(device, renderer), segmentation_staging.data());
     const uint32_t* segmentation = segmentation_staging.data();
 
     size_t counts[2][10] = {};
@@ -913,7 +917,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_ATTACHMENT_SCOPES){
     rlt::update(device, renderer);
     rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
-    read_output(device, renderer, rlt::segmentation_buffer(device, renderer), segmentation_staging.data(), segmentation_staging.size());
+    read_output(device, renderer, rlt::segmentation_buffer(device, renderer), segmentation_staging.data());
     size_t detached_count = 0;
     for(TI pixel_i = 0; pixel_i < OVERLAY_SEG_SPEC::CAM_PIXELS; pixel_i++){
         detached_count += segmentation[pixel_i] == 1u;
@@ -963,7 +967,7 @@ TEST(RL_TOOLS_SCENE_SUITE, SEMANTIC_SEGMENTATION){
     rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
     std::vector<uint32_t> segmentation_staging((size_t)decltype(renderer)::SPEC::NUM_CAMERAS * decltype(renderer)::SPEC::CAM_PIXELS);
-    read_output(device, renderer, rlt::segmentation_buffer(device, renderer), segmentation_staging.data(), segmentation_staging.size());
+    read_output(device, renderer, rlt::segmentation_buffer(device, renderer), segmentation_staging.data());
     const uint32_t* segmentation = segmentation_staging.data();
 
     size_t scene_class_count = 0, overlay_class_count = 0, raw_instance_id_count = 0;
@@ -1073,8 +1077,11 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_TRANSFORMS_TENSOR){
     const float shifted_position[3] = {0.5f, 0, 0};
     const float identity_wxyz[4] = {1, 0, 0, 0};
     rlt::make_transform(shifted_position, identity_wxyz, shifted);
-    float* entry = rlt::data(rlt::transforms(device, renderer)) + cube.first_slot * 12;
-    rlt::copy_to_renderer(device, renderer, shifted, entry, 12);
+    rlt::Tensor<rlt::tensor::Specification<float, TI, rlt::tensor::Shape<TI, 12>>> shifted_host;
+    shifted_host._data = shifted;
+    auto overlay_slots = rlt::view(device, rlt::transforms(device, renderer), 0);
+    auto entry = rlt::view(device, overlay_slots, cube.first_slot);
+    rlt::copy(device, renderer.device, shifted_host, entry);
     rlt::update(device, renderer);
     EXPECT_NEAR(render_center_depth(device, renderer), 4.5f, 1e-4f);
 
@@ -1098,9 +1105,9 @@ namespace {
 
     template <typename RENDERER_SPEC>
     void mirror_cameras_open(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, BACKEND>& renderer){
-        std::vector<rlt::rendering::raytracing::Camera<T>> staging(RENDERER_SPEC::NUM_CAMERAS);
-        rlt::copy_from_renderer(device, renderer, rlt::data(rlt::cameras(device, renderer)), staging.data(), RENDERER_SPEC::NUM_CAMERAS);
-        rlt::copy_to_renderer(device, renderer, staging.data(), rlt::data(rlt::cameras_open(device, renderer)), RENDERER_SPEC::NUM_CAMERAS);
+        std::vector<rlt::rendering::raytracing::Camera<T>> staging;
+        golden::copy_out(renderer.device, device, rlt::cameras(device, renderer), staging);
+        golden::copy_in(device, renderer.device, staging.data(), rlt::cameras_open(device, renderer));
     }
 
     // static camera under motion blur (open == close): all blur comes from the geometry
@@ -1113,7 +1120,7 @@ namespace {
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
         float depth = 0;
-        read_output(device, renderer, rlt::depth_buffer(device, renderer), &depth, 1);
+        read_output(device, renderer, rlt::depth_buffer(device, renderer), &depth);
         return depth;
     }
 }
@@ -1230,10 +1237,17 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_TRANSFORMS_TENSOR){
     const float identity_wxyz[4] = {1, 0, 0, 0};
     const float near_position[3] = {0.5f, 0, 0};
     rlt::make_transform(near_position, identity_wxyz, shifted);
-    constexpr size_t SLAB = (size_t)DYNAMIC_MB_DEPTH_SPEC::NUM_OVERLAYS * DYNAMIC_MB_DEPTH_SPEC::MAX_OVERLAY_INSTANCES * 12;
-    float* base = rlt::data(rlt::transforms_motion(device, renderer));
-    rlt::copy_to_renderer(device, renderer, shifted, base + 0 * SLAB + cube.first_slot * 12, 12);
-    rlt::copy_to_renderer(device, renderer, identity, base + 1 * SLAB + cube.first_slot * 12, 12);
+    rlt::Tensor<rlt::tensor::Specification<float, TI, rlt::tensor::Shape<TI, 12>, true, rlt::tensor::RowMajorStride<rlt::tensor::Shape<TI, 12>>, true>> entry_host;
+    auto sample_0 = rlt::view(device, rlt::transforms_motion(device, renderer), 0);
+    auto sample_0_overlay = rlt::view(device, sample_0, 0);
+    auto sample_0_entry = rlt::view(device, sample_0_overlay, cube.first_slot);
+    entry_host._data = shifted;
+    rlt::copy(device, renderer.device, entry_host, sample_0_entry);
+    auto sample_1 = rlt::view(device, rlt::transforms_motion(device, renderer), 1);
+    auto sample_1_overlay = rlt::view(device, sample_1, 0);
+    auto sample_1_entry = rlt::view(device, sample_1_overlay, cube.first_slot);
+    entry_host._data = identity;
+    rlt::copy(device, renderer.device, entry_host, sample_1_entry);
     rlt::update(device, renderer);
     // sample 0 near face at x=-0.5 (depth 4.5), sample 1 at x=-1 (depth 4.0)
     EXPECT_NEAR(render_center_depth_static_camera(device, renderer), 4.25f, 1e-4f);
@@ -1313,10 +1327,17 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_PAIR_EXPANSION){
     const float depth_reference = render_center_depth_static_camera(device, renderer);
 
     // overwrite the host-verb state through the producer path: same pair via the tensor
-    constexpr size_t SLOTS = (size_t)DYNAMIC_MB_DEPTH_SPEC::NUM_OVERLAYS * DYNAMIC_MB_DEPTH_SPEC::MAX_OVERLAY_INSTANCES;
-    float* pairs = rlt::data(rlt::transforms_pair(device, renderer));
-    rlt::copy_to_renderer(device, renderer, open, pairs + cube.first_slot * 12, 12);
-    rlt::copy_to_renderer(device, renderer, close, pairs + (SLOTS + cube.first_slot) * 12, 12);
+    rlt::Tensor<rlt::tensor::Specification<float, TI, rlt::tensor::Shape<TI, 12>, true, rlt::tensor::RowMajorStride<rlt::tensor::Shape<TI, 12>>, true>> pair_host;
+    auto pair_open = rlt::view(device, rlt::transforms_pair(device, renderer), 0);
+    auto pair_open_overlay = rlt::view(device, pair_open, 0);
+    auto pair_open_entry = rlt::view(device, pair_open_overlay, cube.first_slot);
+    pair_host._data = open;
+    rlt::copy(device, renderer.device, pair_host, pair_open_entry);
+    auto pair_close = rlt::view(device, rlt::transforms_pair(device, renderer), 1);
+    auto pair_close_overlay = rlt::view(device, pair_close, 0);
+    auto pair_close_entry = rlt::view(device, pair_close_overlay, cube.first_slot);
+    pair_host._data = close;
+    rlt::copy(device, renderer.device, pair_host, pair_close_entry);
     rlt::expand_motion_transforms(device, renderer);
     rlt::update(device, renderer);
     const float depth_expanded = render_center_depth_static_camera(device, renderer);
@@ -1329,7 +1350,11 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_PAIR_EXPANSION){
 
     // the close state must land in the transforms tensor (segmentation/probes/steady state)
     float close_entry[12];
-    rlt::copy_from_renderer(device, renderer, rlt::data(rlt::transforms(device, renderer)) + cube.first_slot * 12, close_entry, 12);
+    rlt::Tensor<rlt::tensor::Specification<float, TI, rlt::tensor::Shape<TI, 12>>> close_entry_host;
+    close_entry_host._data = close_entry;
+    auto close_overlay = rlt::view(device, rlt::transforms(device, renderer), 0);
+    auto close_slot_entry = rlt::view(device, close_overlay, cube.first_slot);
+    rlt::copy(renderer.device, device, close_slot_entry, close_entry_host);
     for(int element = 0; element < 12; element++){
         EXPECT_EQ(close_entry[element], close[element]);
     }
@@ -1385,7 +1410,7 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_SEGMENTATION_CLOSE){
     rlt::synchronize(device, renderer);
 
     std::vector<uint32_t> segmentation(DYNAMIC_MB_SEG_SPEC::CAM_PIXELS);
-    read_output(device, renderer, rlt::segmentation_buffer(device, renderer), segmentation.data(), segmentation.size());
+    read_output(device, renderer, rlt::segmentation_buffer(device, renderer), segmentation.data());
     const uint32_t cube_id = num_scene_instances + (uint32_t)cube.first_slot;
     constexpr TI CENTER = (DYNAMIC_MB_SEG_SPEC::CAM_HEIGHT / 2) * DYNAMIC_MB_SEG_SPEC::CAM_WIDTH + DYNAMIC_MB_SEG_SPEC::CAM_WIDTH / 2;
     EXPECT_EQ(segmentation[CENTER], cube_id);
@@ -1442,7 +1467,7 @@ TEST(RL_TOOLS_SCENE_SUITE, CAMERAS_TENSOR){
     rlt::synchronize(device, renderer);
     {
         float center_depth = 0;
-        read_output(device, renderer, rlt::depth_buffer(device, renderer), &center_depth, 1);
+        read_output(device, renderer, rlt::depth_buffer(device, renderer), &center_depth);
         EXPECT_NEAR(center_depth, 6.0f, 1e-4f);
     }
 
@@ -1553,7 +1578,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SECONDARY_RAYS){
     rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
     std::vector<uint32_t> pixel_staging((size_t)decltype(renderer)::SPEC::NUM_CAMERAS * decltype(renderer)::SPEC::CAM_PIXELS);
-    read_output(device, renderer, rlt::frame_buffer(device, renderer), pixel_staging.data(), pixel_staging.size());
+    read_output(device, renderer, rlt::frame_buffer(device, renderer), pixel_staging.data());
     const uint32_t* pixels = pixel_staging.data();
 
     long brightness[2] = {0, 0};
@@ -1602,7 +1627,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_PROBES){
     rlt::probe(device, renderer);
     rlt::synchronize(device, renderer);
     std::vector<rlt::rendering::raytracing::CollisionResult> probe_staging((size_t)OVERLAY_PROBE_SPEC::NUM_CAMERAS * OVERLAY_PROBE_SPEC::NUM_PROBES);
-    read_output(device, renderer, rlt::collision_results(device, renderer), probe_staging.data(), probe_staging.size());
+    read_output(device, renderer, rlt::collision_results(device, renderer), probe_staging.data());
     const auto* probes = probe_staging.data();
     ASSERT_NE(rlt::data(renderer.collision_results), nullptr);
     EXPECT_EQ(probes[0].hit, 1); // camera 0, forward probe: overlay cube at distance 2

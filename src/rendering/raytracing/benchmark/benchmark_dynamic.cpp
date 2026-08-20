@@ -177,17 +177,14 @@ static Camera evaluate_pose(const std::array<Vec3, NUM_WAYPOINTS>& waypoints, T 
 
 template <typename DEVICE, typename RENDERER>
 void upload_poses(DEVICE& device, RENDERER& renderer, const Camera* poses, const Camera* poses_open){
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-    cudaMemcpy(rlt::data(rlt::cameras(device, renderer)), poses, sizeof(Camera) * NUM_CAMERAS, cudaMemcpyHostToDevice);
+    using CAMERA_ALIAS_SPEC = rlt::tensor::Specification<Camera, TI, typename decltype(renderer.cameras)::SPEC::SHAPE, true, rlt::tensor::RowMajorStride<typename decltype(renderer.cameras)::SPEC::SHAPE>, true>;
+    rlt::Tensor<CAMERA_ALIAS_SPEC> camera_alias;
+    camera_alias._data = poses;
+    rlt::copy(device, renderer.device, camera_alias, rlt::cameras(device, renderer));
     if constexpr(RENDERER::SPEC::ENABLE_MOTION_BLUR){
-        cudaMemcpy(rlt::data(rlt::cameras_open(device, renderer)), poses_open, sizeof(Camera) * NUM_CAMERAS, cudaMemcpyHostToDevice);
+        camera_alias._data = poses_open;
+        rlt::copy(device, renderer.device, camera_alias, rlt::cameras_open(device, renderer));
     }
-#else
-    std::memcpy(rlt::data(rlt::cameras(device, renderer)), poses, sizeof(Camera) * NUM_CAMERAS);
-    if constexpr(RENDERER::SPEC::ENABLE_MOTION_BLUR){
-        std::memcpy(rlt::data(rlt::cameras_open(device, renderer)), poses_open, sizeof(Camera) * NUM_CAMERAS);
-    }
-#endif
 }
 
 // host staging for the consume/checksum path: outputs are backend-native tensors
@@ -196,19 +193,15 @@ template <typename DEVICE, typename RENDERER>
 void consume_outputs(DEVICE& device, RENDERER& renderer, std::vector<uint32_t>& frame_staging, std::vector<float>& depth_staging){
     constexpr size_t pixel_count = (size_t)RENDERER::SPEC::NUM_CAMERAS * RENDERER::SPEC::CAM_PIXELS;
     frame_staging.resize(pixel_count);
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-    cudaMemcpy(frame_staging.data(), rlt::data(rlt::frame_buffer(device, renderer)), pixel_count * sizeof(uint32_t), cudaMemcpyDeviceToHost);
+    rlt::Tensor<typename decltype(renderer.frame_buffer)::SPEC> frame_alias;
+    frame_alias._data = frame_staging.data();
+    rlt::copy(renderer.device, device, rlt::frame_buffer(device, renderer), frame_alias);
     if constexpr(RENDERER::SPEC::HAS_DEPTH){
         depth_staging.resize(pixel_count);
-        cudaMemcpy(depth_staging.data(), rlt::data(rlt::depth_buffer(device, renderer)), pixel_count * sizeof(float), cudaMemcpyDeviceToHost);
+        rlt::Tensor<typename decltype(renderer.depth_buffer)::SPEC> depth_alias;
+        depth_alias._data = depth_staging.data();
+        rlt::copy(renderer.device, device, rlt::depth_buffer(device, renderer), depth_alias);
     }
-#else
-    std::memcpy(frame_staging.data(), rlt::data(rlt::frame_buffer(device, renderer)), pixel_count * sizeof(uint32_t));
-    if constexpr(RENDERER::SPEC::HAS_DEPTH){
-        depth_staging.resize(pixel_count);
-        std::memcpy(depth_staging.data(), rlt::data(rlt::depth_buffer(device, renderer)), pixel_count * sizeof(float));
-    }
-#endif
 }
 
 template <typename DEVICE, typename RENDERER>
@@ -308,11 +301,9 @@ int main(int ac, char** av){
         upload_poses(device, renderer, camera_staging.data(), camera_staging.data());
         rlt::probe(device, renderer);
         std::vector<rlt::rendering::raytracing::CollisionResult> probe_staging((size_t)NUM_CAMERAS * NUM_PROBES);
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-        cudaMemcpy(probe_staging.data(), rlt::data(rlt::collision_results(device, renderer)), probe_staging.size() * sizeof(rlt::rendering::raytracing::CollisionResult), cudaMemcpyDeviceToHost);
-#else
-        std::memcpy(probe_staging.data(), rlt::data(rlt::collision_results(device, renderer)), probe_staging.size() * sizeof(rlt::rendering::raytracing::CollisionResult));
-#endif
+        rlt::Tensor<typename decltype(renderer.collision_results)::SPEC> probe_alias;
+        probe_alias._data = probe_staging.data();
+        rlt::copy(renderer.device, device, rlt::collision_results(device, renderer), probe_alias);
         const auto* probe_results = probe_staging.data();
         for(TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++){
             T delta[3];
