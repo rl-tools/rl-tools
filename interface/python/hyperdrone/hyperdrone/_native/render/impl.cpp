@@ -5,6 +5,7 @@
 
 #include <cstdio>
 #include <cstring>
+#include <type_traits>
 #include <stdexcept>
 #include <vector>
 
@@ -87,27 +88,12 @@ namespace hyperdrone_render_impl {
     using RENDERER_SPEC = rrt::Specification<RendererConfiguration>;
 
     // renderer input/output tensors are backend-native (CUDA device memory on OptiX, host
-    // elsewhere); host staging crosses that boundary explicitly
+    // elsewhere); rlt::copy against renderer.device crosses that boundary and orders the copy
+    // after the renderer's in-flight work
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
     static constexpr bool BUFFERS_ON_HOST = false;
-    template <typename VALUE>
-    void copy_from_renderer(VALUE* destination, const VALUE* source, size_t count){
-        cudaMemcpy(destination, source, count * sizeof(VALUE), cudaMemcpyDeviceToHost);
-    }
-    template <typename VALUE>
-    void copy_to_renderer(VALUE* destination, const VALUE* source, size_t count){
-        cudaMemcpy(destination, source, count * sizeof(VALUE), cudaMemcpyHostToDevice);
-    }
 #else
     static constexpr bool BUFFERS_ON_HOST = true;
-    template <typename VALUE>
-    void copy_from_renderer(VALUE* destination, const VALUE* source, size_t count){
-        std::memcpy(destination, source, count * sizeof(VALUE));
-    }
-    template <typename VALUE>
-    void copy_to_renderer(VALUE* destination, const VALUE* source, size_t count){
-        std::memcpy(destination, source, count * sizeof(VALUE));
-    }
 #endif
 
     // template so if-constexpr branches on the spec's feature flags are discarded without
@@ -120,6 +106,25 @@ namespace hyperdrone_render_impl {
         DEVICE device;
         RENDERER renderer;
         bool initialized = false;
+
+        // alias tensors shaped like the renderer tensor let the raw pointers of the C interface
+        // cross the memory-domain copy without intermediate staging
+        template <typename TENSOR, typename VALUE>
+        void copy_in(const VALUE* source, TENSOR& tensor){
+            using TENSOR_SPEC = typename TENSOR::SPEC;
+            static_assert(std::is_same<VALUE, typename TENSOR_SPEC::T>::value);
+            rlt::Tensor<rlt::tensor::Specification<VALUE, typename TENSOR_SPEC::TI, typename TENSOR_SPEC::SHAPE, true, rlt::tensor::RowMajorStride<typename TENSOR_SPEC::SHAPE>, true>> alias;
+            alias._data = source;
+            rlt::copy(device, renderer.device, alias, tensor);
+        }
+        template <typename TENSOR, typename VALUE>
+        void copy_out(const TENSOR& tensor, VALUE* destination){
+            using TENSOR_SPEC = typename TENSOR::SPEC;
+            static_assert(std::is_same<VALUE, typename TENSOR_SPEC::T>::value);
+            rlt::Tensor<rlt::tensor::Specification<VALUE, typename TENSOR_SPEC::TI, typename TENSOR_SPEC::SHAPE>> alias;
+            alias._data = destination;
+            rlt::copy(renderer.device, device, tensor, alias);
+        }
         // host staging for the readback paths; unused (and never allocated) on backends
         // whose output tensors are host-resident
         std::vector<uint32_t> host_frame, host_segmentation;
@@ -198,9 +203,9 @@ namespace hyperdrone_render_impl {
         // shutter poses must be written every step, so a blur-free update writes both
         void set_cameras(const float* cameras) override {
             const rrt::Camera<T>* source = (const rrt::Camera<T>*)cameras;
-            copy_to_renderer(rlt::data(rlt::cameras(device, renderer)), source, SPEC::NUM_CAMERAS);
+            copy_in(source, rlt::cameras(device, renderer));
             if constexpr (SPEC::ENABLE_MOTION_BLUR){
-                copy_to_renderer(rlt::data(rlt::cameras_open(device, renderer)), source, SPEC::NUM_CAMERAS);
+                copy_in(source, rlt::cameras_open(device, renderer));
             }
         }
 
@@ -232,8 +237,8 @@ namespace hyperdrone_render_impl {
 
         void set_motion_blur_cameras(const float* cameras_open, const float* cameras_close) override {
             if constexpr (SPEC::ENABLE_MOTION_BLUR){
-                copy_to_renderer(rlt::data(rlt::cameras_open(device, renderer)), (const rrt::Camera<T>*)cameras_open, SPEC::NUM_CAMERAS);
-                copy_to_renderer(rlt::data(rlt::cameras_close(device, renderer)), (const rrt::Camera<T>*)cameras_close, SPEC::NUM_CAMERAS);
+                copy_in((const rrt::Camera<T>*)cameras_open, rlt::cameras_open(device, renderer));
+                copy_in((const rrt::Camera<T>*)cameras_close, rlt::cameras_close(device, renderer));
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer was compiled without motion blur (motion_blur_samples <= 1)");
@@ -289,7 +294,7 @@ namespace hyperdrone_render_impl {
         void read_frame_buffer(uint32_t* dst) override {
             if constexpr (SPEC::HAS_RGB){
                 require_init();
-                copy_from_renderer(dst, rlt::data(rlt::frame_buffer(device, renderer)), SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
+                copy_out(rlt::frame_buffer(device, renderer), dst);
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer has no RGB output");
@@ -299,7 +304,7 @@ namespace hyperdrone_render_impl {
         void read_depth_buffer(float* dst) override {
             if constexpr (SPEC::HAS_DEPTH){
                 require_init();
-                copy_from_renderer(dst, rlt::data(rlt::depth_buffer(device, renderer)), SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
+                copy_out(rlt::depth_buffer(device, renderer), dst);
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer has no depth output");
@@ -309,7 +314,7 @@ namespace hyperdrone_render_impl {
         void read_segmentation_buffer(uint32_t* dst) override {
             if constexpr (SPEC::HAS_SEGMENTATION){
                 require_init();
-                copy_from_renderer(dst, rlt::data(rlt::segmentation_buffer(device, renderer)), SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
+                copy_out(rlt::segmentation_buffer(device, renderer), dst);
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer has no segmentation output");
@@ -320,7 +325,7 @@ namespace hyperdrone_render_impl {
             require_init();
             constexpr TI count = SPEC::NUM_CAMERAS * SPEC::NUM_PROBES;
             host_collisions.resize(count);
-            copy_from_renderer(host_collisions.data(), rlt::data(rlt::collision_results(device, renderer)), count);
+            copy_out(rlt::collision_results(device, renderer), host_collisions.data());
             for(TI i = 0; i < count; i++){
                 distances[i] = host_collisions[i].distance;
                 hits[i] = host_collisions[i].hit;
@@ -375,7 +380,7 @@ namespace hyperdrone_render_impl {
             else {
                 staging.resize(SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
                 if(refresh){
-                    copy_from_renderer(staging.data(), rlt::data(tensor), staging.size());
+                    copy_out(tensor, staging.data());
                 }
                 return staging.data();
             }
@@ -566,7 +571,7 @@ namespace hyperdrone_render_impl {
         void set_transforms_pair(const float* pairs) override {
             if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
                 require_init();
-                copy_to_renderer(rlt::data(rlt::transforms_pair(device, renderer)), pairs, (size_t)2 * SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12);
+                copy_in(pairs, rlt::transforms_pair(device, renderer));
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer was compiled without dynamic motion blur (dynamic_motion_blur=False)");
