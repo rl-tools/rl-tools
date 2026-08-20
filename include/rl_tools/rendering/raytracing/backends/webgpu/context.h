@@ -46,15 +46,13 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         constexpr uint32_t OVERLAY_PRIMITIVES = 24;
         constexpr uint32_t DISPATCH_PARAMS = 25; // dynamic-offset uniform: {shutter_t, overlay_region}
         constexpr uint32_t TRIANGLES = 26; // leaf-ordered packed triangles: 3 x vec4 {vertex.xyz, w: bitcast global id / 0 / 0}
-        constexpr uint32_t BVH4_NODES = 27; // 4-wide BLAS nodes (SoA child bounds + packed child codes)
-        constexpr uint32_t COUNT = 28;
+        constexpr uint32_t COUNT = 27;
     }
     // must match the @workgroup_size of every entry point in device.wgsl
     constexpr uint32_t WORKGROUP_SIZE_X = 8;
     constexpr uint32_t WORKGROUP_SIZE_Y = 4;
-    // must match TRAVERSAL_STACK_SIZE in device.wgsl; the host asserts every built tree's
-    // worst-case traversal stack usage against this bound (binary trees push at most one entry
-    // per level, 4-wide trees up to three)
+    // must match TRAVERSAL_STACK_SIZE in device.wgsl; the ordered traversal pushes at most one
+    // entry per tree level, so the host asserts every built tree's depth against this bound
     constexpr uint32_t TRAVERSAL_STACK_SIZE = 48;
     // one 256-byte slot per dynamic-motion-blur sample (+ slot 0 for the shutter-close state);
     // 256 is a multiple of every legal minUniformBufferOffsetAlignment
@@ -63,25 +61,6 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
 
     using BVHNode = generic::BVHNode<float, uint32_t>;
     static_assert(sizeof(BVHNode) == 32, "BVHNode layout must match the WGSL declaration in device.wgsl");
-
-    // 4-wide BLAS node: SoA child bounds for vectorized slab tests; empty slots (child ==
-    // 0xFFFFFFFF) are masked out of the distance vector in the shader — inverted bounds cannot
-    // fail a min/max-normalizing slab test. Child codes: internal = global node index; leaf =
-    // BVH4_LEAF_BIT | (first << BVH4_LEAF_FIRST_SHIFT) | count (first is relative to the
-    // object's triangle range in the packed stream)
-    constexpr uint32_t BVH4_LEAF_BIT = 0x80000000u;
-    constexpr uint32_t BVH4_LEAF_FIRST_SHIFT = 8;
-    constexpr uint32_t BVH4_LEAF_COUNT_MASK = 0xFFu;
-    struct BVH4Node{
-        float min_x[4];
-        float min_y[4];
-        float min_z[4];
-        float max_x[4];
-        float max_y[4];
-        float max_z[4];
-        uint32_t child[4];
-    };
-    static_assert(sizeof(BVH4Node) == 112, "BVH4Node layout must match the WGSL declaration in device.wgsl");
 
     struct LaunchParams{
         uint32_t fb_width;
@@ -100,7 +79,7 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         uint32_t first_overlay_instance; // global instance ids >= this index the flow-delta table
         uint32_t triangle_mesh_offset;   // u32 elements into SCENE_GEOMETRY
         uint32_t triangle_local_offset;
-        uint32_t object_records_offset;  // stride 4 per object: {bvh4_root, bvh4_node_count, first_triangle, 0}
+        uint32_t object_records_offset;  // stride 4 per object: {node_offset, node_count, first_triangle, 0}
         uint32_t tlas_node_offset;       // BVHNode elements into BVH_NODES
         uint32_t tlas_node_count;
         uint32_t tlas_primitive_offset;  // u32 elements into SCENE_GEOMETRY
@@ -187,7 +166,6 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         BufferResource scene_geometry;
         BufferResource texture_data;
         BufferResource bvh_nodes;
-        BufferResource bvh4_nodes;
         BufferResource triangles;
         BufferResource segmentation_buffer;
         BufferResource normals_buffer;
