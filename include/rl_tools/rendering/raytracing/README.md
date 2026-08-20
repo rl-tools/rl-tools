@@ -15,7 +15,7 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
 ## Convention
 
 - **Backend selection is typed dispatch.** The renderer's second template argument is the
-  backend tag (`backends::{Generic,Optix,Metal,Vulkan}`, defaulting to `backends::Default`,
+  backend tag (`backends::{Generic,Optix,Metal,Vulkan,Webgpu}`, defaulting to `backends::Default`,
   which the CMake backend macro resolves). Each backend header overloads the public verbs
   directly on `Renderer<SPEC, backends::X>`, so `render(device, renderer)` resolves to the
   backend baked into the renderer's type, and the same tag selects the backend state types.
@@ -134,10 +134,11 @@ rlt::probe_launch(device, renderer);
 | Vulkan | `backends/vulkan` (GLSL → SPIR-V) | `VK_KHR_ray_query` compute; headless; runs on lavapipe for CI; genuinely-async `update` |
 | generic | `backends/generic` | freestanding CPU reference and determinism oracle |
 | Metal | `backends/metal` (MSL) | macOS; **not buildable on the Linux dev machine — changes are pattern-exact and must be validated on macOS before release** |
+| WebGPU | `backends/webgpu` (WGSL) | standard webgpu.h only (browser/WASM-ready): host-built generic BVH traversed in WGSL compute, content-deduplicated texture pool sampled in-shader; wgpu-native runtime (hash-pinned prebuilt), headless, runs on lavapipe |
 
-Backend selection: `-DRL_TOOLS_RENDERING_RAYTRACING_BACKEND=AUTO|OPTIX|METAL|VULKAN|GENERIC`
+Backend selection: `-DRL_TOOLS_RENDERING_RAYTRACING_BACKEND=AUTO|OPTIX|METAL|VULKAN|WEBGPU|GENERIC`
 (mux in `operations_cpu_mux.h`). Code that needs a non-default backend passes an explicit
-`backends::{Generic,Optix,Metal,Vulkan}` as the renderer's second template argument and
+`backends::{Generic,Optix,Metal,Vulkan,Webgpu}` as the renderer's second template argument and
 includes that backend's operations header directly. The cross-backend parity suite is
 `tests/src/rendering/raytracing/generic/scene.cpp`, compiled once pinned to generic and once
 against the active backend; golden image/probe comparisons live next to it.

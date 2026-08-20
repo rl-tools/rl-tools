@@ -160,6 +160,7 @@ namespace rl_tools {
             struct Optix {};
             struct Metal {};
             struct Vulkan {};
+            struct Webgpu {};
 
             template <typename T_BACKEND>
             struct Name;
@@ -168,6 +169,7 @@ namespace rl_tools {
             template <> struct Name<Optix>   { static constexpr const char* VALUE = "optix"; };
             template <> struct Name<Metal>   { static constexpr const char* VALUE = "metal"; };
             template <> struct Name<Vulkan>  { static constexpr const char* VALUE = "vulkan"; };
+            template <> struct Name<Webgpu>  { static constexpr const char* VALUE = "webgpu"; };
 
             template <typename T_BACKEND>
             constexpr const char* name(){
@@ -180,6 +182,8 @@ namespace rl_tools {
             using Default = Optix;
 #elif defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_VULKAN)
             using Default = Vulkan;
+#elif defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_WEBGPU)
+            using Default = Webgpu;
 #elif defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_GENERIC)
             using Default = Generic;
 #else

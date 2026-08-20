@@ -33,6 +33,7 @@ TEST(RENDERING_RAYTRACING_BACKEND_ANNOUNCEMENT, CANONICAL_NAMES){
     EXPECT_STREQ(rrt::backends::name<rrt::backends::Optix>(), "optix");
     EXPECT_STREQ(rrt::backends::name<rrt::backends::Metal>(), "metal");
     EXPECT_STREQ(rrt::backends::name<rrt::backends::Vulkan>(), "vulkan");
+    EXPECT_STREQ(rrt::backends::name<rrt::backends::Webgpu>(), "webgpu");
 }
 
 TEST(RENDERING_RAYTRACING_BACKEND_ANNOUNCEMENT, EACH_MALLOC_WRITES_TO_STDERR){
