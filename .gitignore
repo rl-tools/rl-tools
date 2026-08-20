@@ -90,3 +90,5 @@ conta
 /**/*.csv
 raytracing_pose_trace*
 camera_poses.txt
+/static/raytracing/build
+/static/raytracing/assets
