@@ -352,17 +352,19 @@ namespace rl_tools {
             cudaMemset(transforms_device, 0, TRANSFORMS_SPEC::SIZE_BYTES);
             renderer.transforms._data = transforms_device;
         }
+        if constexpr (SPEC::HAS_TRANSFORM_PAIR) {
+            using TRANSFORMS_PAIR_SPEC = typename decltype(renderer.transforms_pair)::SPEC;
+            float* transforms_pair_device = nullptr;
+            cudaMalloc(&transforms_pair_device, TRANSFORMS_PAIR_SPEC::SIZE_BYTES);
+            cudaMemset(transforms_pair_device, 0, TRANSFORMS_PAIR_SPEC::SIZE_BYTES);
+            renderer.transforms_pair._data = transforms_pair_device;
+        }
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
             using TRANSFORMS_MOTION_SPEC = typename decltype(renderer.transforms_motion)::SPEC;
             float* transforms_motion_device = nullptr;
             cudaMalloc(&transforms_motion_device, TRANSFORMS_MOTION_SPEC::SIZE_BYTES);
             cudaMemset(transforms_motion_device, 0, TRANSFORMS_MOTION_SPEC::SIZE_BYTES);
             renderer.transforms_motion._data = transforms_motion_device;
-            using TRANSFORMS_PAIR_SPEC = typename decltype(renderer.transforms_pair)::SPEC;
-            float* transforms_pair_device = nullptr;
-            cudaMalloc(&transforms_pair_device, TRANSFORMS_PAIR_SPEC::SIZE_BYTES);
-            cudaMemset(transforms_pair_device, 0, TRANSFORMS_PAIR_SPEC::SIZE_BYTES);
-            renderer.transforms_pair._data = transforms_pair_device;
             renderer.transforms_motion_staging.assign((size_t)SPEC::MOTION_BLUR_SAMPLES * SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12, 0.0f);
             cudaMalloc(&renderer.backend->shutter_device, sizeof(float));
             cudaMemset(renderer.backend->shutter_device, 0, sizeof(float));
@@ -1397,10 +1399,11 @@ namespace rl_tools {
     // expands the device-resident transforms_pair tensor into the per-sample transforms_motion
     // slabs (and the close state into transforms) entirely on the render stream — with a CUDA
     // device argument the kernel is ordered behind the producer stream via an event, so a sim
-    // kernel writing the pair tensor needs no host synchronization
+    // kernel writing the pair tensor needs no host synchronization. Flow-only specifications
+    // skip the slerp: the pair feeds transforms (close) and flow_deltas
     template <typename DEVICE, typename SPEC>
     void expand_motion_transforms_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
-        static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "expand_motion_transforms requires a dynamic-motion-blur renderer specification");
+        static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur or flow renderer specification");
         namespace optix = rendering::raytracing::backends::optix;
         cudaStream_t cuda_stream = (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend->launch_params, 0);
         optix::await_producer(optix::producer_stream(device, 0), cuda_stream);
@@ -1410,13 +1413,19 @@ namespace rl_tools {
                                                     (unsigned int)SPEC::NUM_OVERLAYS, (unsigned int)SPEC::MAX_OVERLAY_INSTANCES,
                                                     (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend->launch_params, 0));
         }
-        optix::overlay_accel_expand_motion(data(renderer.transforms_pair), data(renderer.transforms_motion), data(renderer.transforms),
-                                           (unsigned int)((size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES), (unsigned int)SPEC::MOTION_BLUR_SAMPLES, cuda_stream);
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+            optix::overlay_accel_expand_motion(data(renderer.transforms_pair), data(renderer.transforms_motion), data(renderer.transforms),
+                                               (unsigned int)((size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES), (unsigned int)SPEC::MOTION_BLUR_SAMPLES, cuda_stream);
+        }
+        else{
+            optix::overlay_accel_expand_motion(data(renderer.transforms_pair), nullptr, data(renderer.transforms),
+                                               (unsigned int)((size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES), 1u, cuda_stream);
+        }
     }
 
     template <typename DEVICE, typename SPEC>
     void expand_motion_transforms_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
-        static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "expand_motion_transforms requires a dynamic-motion-blur renderer specification");
+        static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur or flow renderer specification");
         cudaStreamSynchronize((cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend->launch_params, 0));
     }
 
@@ -1755,14 +1764,16 @@ namespace rl_tools {
                 renderer.transforms._data = nullptr;
             }
         }
+        if constexpr (SPEC::HAS_TRANSFORM_PAIR){
+            if(renderer.transforms_pair._data != nullptr){
+                cudaFree(renderer.transforms_pair._data);
+                renderer.transforms_pair._data = nullptr;
+            }
+        }
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
             if(renderer.transforms_motion._data != nullptr){
                 cudaFree(renderer.transforms_motion._data);
                 renderer.transforms_motion._data = nullptr;
-            }
-            if(renderer.transforms_pair._data != nullptr){
-                cudaFree(renderer.transforms_pair._data);
-                renderer.transforms_pair._data = nullptr;
             }
             if constexpr (SPEC::HAS_RGB){
                 renderer.rgb_accumulator._data = nullptr;

@@ -233,12 +233,14 @@ namespace rl_tools {
             bool valid;
         };
 
-        template <typename T>
-        RL_TOOLS_FUNCTION_PLACEMENT Vec3<T> transform_point(const T transform[12], Vec3<T> point){
+        // the transform element type deduces independently of T: the flow-delta table is float
+        // even when the scene is instantiated with T = double
+        template <typename T_TRANSFORM, typename T>
+        RL_TOOLS_FUNCTION_PLACEMENT Vec3<T> transform_point(const T_TRANSFORM transform[12], Vec3<T> point){
             return Vec3<T>{
-                transform[0] * point.x + transform[1] * point.y + transform[2]  * point.z + transform[3],
-                transform[4] * point.x + transform[5] * point.y + transform[6]  * point.z + transform[7],
-                transform[8] * point.x + transform[9] * point.y + transform[10] * point.z + transform[11]
+                (T)transform[0] * point.x + (T)transform[1] * point.y + (T)transform[2]  * point.z + (T)transform[3],
+                (T)transform[4] * point.x + (T)transform[5] * point.y + (T)transform[6]  * point.z + (T)transform[7],
+                (T)transform[8] * point.x + (T)transform[9] * point.y + (T)transform[10] * point.z + (T)transform[11]
             };
         }
 

@@ -109,7 +109,7 @@ namespace golden {
             float close_transform[12];
             spin_pose(CASES::OVERLAY_POSITION_CLOSE, CASES::OVERLAY_SPIN_CLOSE, close_transform);
             const auto placement = rl_tools::spawn(device, renderer, rl_tools::rendering::raytracing::OverlayIndex{0}, rl_tools::rendering::raytracing::AssetHandle{0}, close_transform);
-            if constexpr(SPEC::ENABLE_DYNAMIC_MOTION_BLUR || (SPEC::HAS_FLOW && SPEC::ENABLE_OVERLAYS)) {
+            if constexpr(SPEC::HAS_TRANSFORM_PAIR) {
                 float open_transform[12];
                 spin_pose(CASES::OVERLAY_POSITION_OPEN, CASES::OVERLAY_SPIN_OPEN, open_transform);
                 rl_tools::set_transform_pair(device, renderer, rl_tools::rendering::raytracing::OverlayIndex{0}, placement, open_transform, close_transform);
