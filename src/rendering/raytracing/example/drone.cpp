@@ -316,23 +316,19 @@ int main(int argc, char** argv) {
         rlt::rendering::raytracing::Camera<T> cameras_open[NUM_CAMERAS], cameras_close[NUM_CAMERAS];
         make_cameras(pose_open, cameras_open);
         make_cameras(pose_close, cameras_close);
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-        cudaMemcpy(rlt::data(rlt::cameras_open(device, renderer)), cameras_open, sizeof(cameras_open), cudaMemcpyHostToDevice);
-        cudaMemcpy(rlt::data(rlt::cameras_close(device, renderer)), cameras_close, sizeof(cameras_close), cudaMemcpyHostToDevice);
-#else
-        std::memcpy(rlt::data(rlt::cameras_open(device, renderer)), cameras_open, sizeof(cameras_open));
-        std::memcpy(rlt::data(rlt::cameras_close(device, renderer)), cameras_close, sizeof(cameras_close));
-#endif
+        rlt::Tensor<typename decltype(renderer.cameras)::SPEC> camera_alias;
+        camera_alias._data = cameras_open;
+        rlt::copy(device, renderer.device, camera_alias, rlt::cameras_open(device, renderer));
+        camera_alias._data = cameras_close;
+        rlt::copy(device, renderer.device, camera_alias, rlt::cameras_close(device, renderer));
 
         rlt::update(device, renderer);
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
 
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-        cudaMemcpy(frame.data(), rlt::data(rlt::frame_buffer(device, renderer)), frame.size() * sizeof(uint32_t), cudaMemcpyDeviceToHost);
-#else
-        std::memcpy(frame.data(), rlt::data(rlt::frame_buffer(device, renderer)), frame.size() * sizeof(uint32_t));
-#endif
+        rlt::Tensor<typename decltype(renderer.frame_buffer)::SPEC> frame_alias;
+        frame_alias._data = frame.data();
+        rlt::copy(renderer.device, device, rlt::frame_buffer(device, renderer), frame_alias);
 
         if (video) {
             const size_t bytes = CAM_PIXELS * sizeof(uint32_t);

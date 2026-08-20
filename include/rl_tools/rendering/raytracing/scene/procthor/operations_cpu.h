@@ -110,11 +110,15 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
                 camera_staging[camera_i] = make_camera_data(cam_position, cam_look_at, cam_up, fov, aspect);
             }
 
-            copy_to_renderer(device, renderer, camera_staging.data(), data(cameras(device, renderer)), NUM_CAMERAS);
+            Tensor<tensor::Specification<rendering::raytracing::Camera<T>, TI, typename decltype(renderer.cameras)::SPEC::SHAPE>> camera_alias;
+            camera_alias._data = camera_staging.data();
+            copy(device, renderer.device, camera_alias, cameras(device, renderer));
             probe(device, renderer);
 
             std::vector<rendering::raytracing::CollisionResult> probe_staging((size_t)NUM_CAMERAS * NUM_PROBES);
-            copy_from_renderer(device, renderer, data(collision_results(device, renderer)), probe_staging.data(), probe_staging.size());
+            Tensor<tensor::Specification<rendering::raytracing::CollisionResult, TI, typename decltype(renderer.collision_results)::SPEC::SHAPE>> probe_alias;
+            probe_alias._data = probe_staging.data();
+            copy(renderer.device, device, collision_results(device, renderer), probe_alias);
             const rendering::raytracing::CollisionResult* probe_results = probe_staging.data();
             for (TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++) {
                 const rendering::raytracing::CollisionResult* camera_probes = probe_results + static_cast<size_t>(camera_i) * static_cast<size_t>(NUM_PROBES);
@@ -207,7 +211,10 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
             return std::numeric_limits<T>::max();
         }
         std::vector<rendering::raytracing::CollisionResult> probe_staging(NUM_PROBES);
-        copy_from_renderer(device, renderer, data(renderer.collision_results) + (size_t)camera_index * NUM_PROBES, probe_staging.data(), NUM_PROBES);
+        auto camera_results = view(device, renderer.collision_results, camera_index);
+        Tensor<tensor::Specification<rendering::raytracing::CollisionResult, typename RENDERER_SPEC::TI, typename decltype(camera_results)::SPEC::SHAPE>> probe_alias;
+        probe_alias._data = probe_staging.data();
+        copy(renderer.device, device, camera_results, probe_alias);
         const rendering::raytracing::CollisionResult* camera_probes = probe_staging.data();
         T min_dist = std::numeric_limits<T>::max();
         for (typename RENDERER_SPEC::TI probe_i = 0; probe_i < NUM_PROBES; probe_i++) {

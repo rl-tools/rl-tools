@@ -179,19 +179,18 @@ namespace rl_tools {
         const auto camera = make_camera_data(position, look_at, up,
             SPEC::RAYTRACING_SPEC::COS_FOVY,
             static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT));
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-        cudaMemcpy(data(cameras(device, *env.renderer)), &camera, sizeof(camera), cudaMemcpyHostToDevice);
-#else
-        std::memcpy(data(cameras(device, *env.renderer)), &camera, sizeof(camera));
-#endif
+        auto camera_staging = camera;
+        Tensor<tensor::Specification<rendering::raytracing::Camera<typename SPEC::T>, typename SPEC::TI, tensor::Shape<typename SPEC::TI, 1>>> camera_alias;
+        camera_alias._data = &camera_staging;
+        auto camera_slot = view_range(device, cameras(device, *env.renderer), 0, tensor::ViewSpec<0, 1>{});
+        copy(device, env.renderer->device, camera_alias, camera_slot);
         render(device, *env.renderer);
 
         std::vector<uint32_t> frame_staging((size_t)SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT);
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-        cudaMemcpy(frame_staging.data(), data(frame_buffer(device, *env.renderer)), frame_staging.size() * sizeof(uint32_t), cudaMemcpyDeviceToHost);
-#else
-        std::memcpy(frame_staging.data(), data(frame_buffer(device, *env.renderer)), frame_staging.size() * sizeof(uint32_t));
-#endif
+        auto frame_camera_0 = view(device, frame_buffer(device, *env.renderer), 0);
+        Tensor<tensor::Specification<uint32_t, typename SPEC::TI, typename decltype(frame_camera_0)::SPEC::SHAPE>> frame_alias;
+        frame_alias._data = frame_staging.data();
+        copy(env.renderer->device, device, frame_camera_0, frame_alias);
         for (typename SPEC::TI i = 0; i < static_cast<typename SPEC::TI>(SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT); i++) {
             set(observation, 0, i, static_cast<typename OBS_SPEC::T>(frame_staging[i]));
         }
@@ -255,16 +254,10 @@ namespace rl_tools {
         for (typename SPEC::TI env_i = 0; env_i < num_envs; env_i++) {
             camera_staging[env_i] = make_camera_for_state(env, get_ref(device, parameters, env_i), get_ref(device, states, env_i));
         }
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-        cudaMemcpy(data(cameras(device, *env.renderer)), camera_staging.data(), num_envs * sizeof(rendering::raytracing::Camera<typename SPEC::T>), cudaMemcpyHostToDevice);
-#else
-        std::memcpy(data(cameras(device, *env.renderer)), camera_staging.data(), num_envs * sizeof(rendering::raytracing::Camera<typename SPEC::T>));
-#endif
+        Tensor<tensor::Specification<rendering::raytracing::Camera<typename SPEC::T>, typename SPEC::TI, typename decltype(env.renderer->cameras)::SPEC::SHAPE>> camera_alias;
+        camera_alias._data = camera_staging.data();
+        copy(device, env.renderer->device, camera_alias, cameras(device, *env.renderer));
         render(device, *env.renderer);
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-        cudaMemcpy(data(out_pixels), data(frame_buffer(device, *env.renderer)), (size_t)SPEC::NUM_ENVS * SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT * sizeof(uint32_t), cudaMemcpyDeviceToHost);
-#else
-        std::memcpy(data(out_pixels), data(frame_buffer(device, *env.renderer)), (size_t)SPEC::NUM_ENVS * SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT * sizeof(uint32_t));
-#endif
+        copy(env.renderer->device, device, frame_buffer(device, *env.renderer), out_pixels);
     }
 }

@@ -357,6 +357,7 @@ namespace rl_tools {
         }
 
         renderer.backend = new rendering::raytracing::backends::RendererState<rendering::raytracing::backends::Vulkan, SPEC>{};
+        renderer.device.context = renderer.backend;
         auto* ctx = renderer.backend;
 
         VkApplicationInfo application_info{};
@@ -1605,18 +1606,17 @@ namespace rl_tools {
         }
     }
 
-    template <typename DEVICE, typename SPEC, typename T>
-    void copy_to_renderer(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const T* source, T* destination, size_t count){
-        auto& context = rendering::raytracing::backends::vulkan::context(renderer);
-        rendering::raytracing::backends::vulkan::wait_in_flight(device, context);
-        std::memcpy(destination, source, count * sizeof(T));
+    // renderer memory-domain copies: mapped host-coherent buffers are host-addressable after the
+    // in-flight wait, so the transfer delegates to the host-device tensor copy
+    template <typename TO_DEVICE, typename FROM_SPEC, typename TO_SPEC>
+    void copy(rendering::raytracing::backends::Device<rendering::raytracing::backends::Vulkan>& from_device, TO_DEVICE& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to){
+        rendering::raytracing::backends::vulkan::wait_in_flight(to_device, *from_device.context);
+        copy(to_device, to_device, from, to);
     }
-
-    template <typename DEVICE, typename SPEC, typename T>
-    void copy_from_renderer(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const T* source, T* destination, size_t count){
-        auto& context = rendering::raytracing::backends::vulkan::context(renderer);
-        rendering::raytracing::backends::vulkan::wait_in_flight(device, context);
-        std::memcpy(destination, source, count * sizeof(T));
+    template <typename FROM_DEVICE, typename FROM_SPEC, typename TO_SPEC>
+    void copy(FROM_DEVICE& from_device, rendering::raytracing::backends::Device<rendering::raytracing::backends::Vulkan>& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to){
+        rendering::raytracing::backends::vulkan::wait_in_flight(from_device, *to_device.context);
+        copy(from_device, from_device, from, to);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1828,6 +1828,7 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void save_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const char* filename){
+        rendering::raytracing::backends::vulkan::wait_in_flight(device, rendering::raytracing::backends::vulkan::context(renderer));
         static_assert(SPEC::HAS_RGB, "save_image requires an RGB-capable renderer specification");
         namespace vk = rendering::raytracing::backends::vulkan;
         rendering::raytracing::detail::write_grid_png<SPEC>(data(renderer.frame_buffer), filename);
@@ -1835,6 +1836,7 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void save_segmentation_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const char* filename){
+        rendering::raytracing::backends::vulkan::wait_in_flight(device, rendering::raytracing::backends::vulkan::context(renderer));
         static_assert(SPEC::HAS_SEGMENTATION, "save_segmentation_image requires a segmentation-capable renderer specification");
         namespace vk = rendering::raytracing::backends::vulkan;
         rendering::raytracing::detail::write_segmentation_grid_png<SPEC>(data(renderer.segmentation_buffer), filename);
@@ -1842,6 +1844,7 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void save_normals_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const char* filename){
+        rendering::raytracing::backends::vulkan::wait_in_flight(device, rendering::raytracing::backends::vulkan::context(renderer));
         static_assert(SPEC::HAS_NORMALS, "save_normals_image requires a normals-capable renderer specification");
         namespace vk = rendering::raytracing::backends::vulkan;
         rendering::raytracing::detail::write_normals_grid_png<SPEC>(data(renderer.normals_buffer), filename);
@@ -1849,6 +1852,7 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void save_flow_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const char* filename){
+        rendering::raytracing::backends::vulkan::wait_in_flight(device, rendering::raytracing::backends::vulkan::context(renderer));
         static_assert(SPEC::HAS_FLOW, "save_flow_image requires a flow-capable renderer specification");
         namespace vk = rendering::raytracing::backends::vulkan;
         rendering::raytracing::detail::write_flow_grid_png<SPEC>(data(renderer.flow_buffer), filename);
@@ -1856,6 +1860,7 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void save_depth_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const char* filename){
+        rendering::raytracing::backends::vulkan::wait_in_flight(device, rendering::raytracing::backends::vulkan::context(renderer));
         static_assert(SPEC::HAS_DEPTH, "save_depth_image requires a depth-capable renderer specification");
         namespace vk = rendering::raytracing::backends::vulkan;
         rendering::raytracing::detail::write_depth_grid_png<SPEC>(data(renderer.depth_buffer), renderer.camera_radius, filename);
@@ -1863,6 +1868,7 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void save_depth(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const char* filename){
+        rendering::raytracing::backends::vulkan::wait_in_flight(device, rendering::raytracing::backends::vulkan::context(renderer));
         static_assert(SPEC::HAS_DEPTH, "save_depth requires a depth-capable renderer specification");
         namespace vk = rendering::raytracing::backends::vulkan;
         rendering::raytracing::detail::write_depth_bin<SPEC>(data(renderer.depth_buffer), filename);
@@ -1870,6 +1876,7 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void save_probes(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const char* filename){
+        rendering::raytracing::backends::vulkan::wait_in_flight(device, rendering::raytracing::backends::vulkan::context(renderer));
 #if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         RL_TOOLS_RENDERING_RAYTRACING_LOG("save_probes skipped: probe rays are disabled.");
         (void)filename;
@@ -1934,6 +1941,7 @@ namespace rl_tools {
             vkDestroyInstance(ctx.instance, nullptr);
             delete renderer.backend;
             renderer.backend = nullptr;
+            renderer.device.context = nullptr;
         }
         // the input and output tensors alias mapped buffers destroyed with the context
         renderer.cameras._data = nullptr;

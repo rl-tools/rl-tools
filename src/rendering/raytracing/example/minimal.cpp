@@ -2,10 +2,8 @@
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
 
 #include <cmath>
-#include <cstdint>
 #include <iostream>
 #include <string>
-#include <vector>
 
 namespace rlt = rl_tools;
 
@@ -43,7 +41,8 @@ int main(int argc, char** argv){
     constexpr T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
     constexpr T position[3] = {static_cast<T>(-6.28), static_cast<T>(-4.18), static_cast<T>(1.5)};
     const T up[3] = {0, 0, 1};
-    std::vector<rlt::rendering::raytracing::Camera<T>> camera_staging(SPEC::NUM_CAMERAS);
+    rlt::Tensor<typename Renderer::CAMERA_TENSOR_SPEC> camera_staging;
+    rlt::malloc(device, camera_staging);
     for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
         const T angle = 2 * PI * static_cast<T>(camera_i) / static_cast<T>(SPEC::NUM_CAMERAS);
         const T look_at[3] = {
@@ -51,20 +50,20 @@ int main(int argc, char** argv){
             position[1] + std::sin(angle),
             position[2]
         };
-        camera_staging[camera_i] = rlt::make_camera_data(position, look_at, up, SPEC::COS_FOVY, aspect);
+        rlt::set(device, camera_staging, rlt::make_camera_data(position, look_at, up, SPEC::COS_FOVY, aspect), camera_i);
     }
-    rlt::copy_to_renderer(device, renderer, camera_staging.data(), rlt::data(rlt::cameras(device, renderer)), camera_staging.size());
+    rlt::copy(device, renderer.device, camera_staging, rlt::cameras(device, renderer));
 
     rlt::render(device, renderer);
-    rlt::synchronize(device, renderer);
 
-    std::vector<uint32_t> frame_buffer(static_cast<size_t>(SPEC::NUM_CAMERAS) * SPEC::CAM_PIXELS);
-    rlt::copy_from_renderer(device, renderer, rlt::data(rlt::frame_buffer(device, renderer)), frame_buffer.data(), frame_buffer.size());
+    rlt::Tensor<typename decltype(renderer.frame_buffer)::SPEC> frame_buffer;
+    rlt::malloc(device, frame_buffer);
+    rlt::copy(renderer.device, device, rlt::frame_buffer(device, renderer), frame_buffer);
 
     int status = 0;
     for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
         const std::string path = output_prefix + "_" + std::to_string(camera_i) + ".png";
-        if(stbi_write_png(path.c_str(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, 4, frame_buffer.data() + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH * 4) == 0){
+        if(stbi_write_png(path.c_str(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, 4, rlt::data(frame_buffer) + camera_i * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH * 4) == 0){
             std::cerr << "Failed to write " << path << std::endl;
             status = 1;
         }
@@ -73,6 +72,8 @@ int main(int argc, char** argv){
         }
     }
 
+    rlt::free(device, camera_staging);
+    rlt::free(device, frame_buffer);
     rlt::free(device, renderer);
     return status;
 }
