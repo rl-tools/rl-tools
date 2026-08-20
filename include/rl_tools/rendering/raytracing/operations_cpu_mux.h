@@ -10,10 +10,12 @@
     #include "backends/optix/operations_cuda.h"
 #elif defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_VULKAN)
     #include "backends/vulkan/operations_cpu.h"
+#elif defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_WEBGPU)
+    #include "backends/webgpu/operations_cpu.h"
 #elif defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_GENERIC)
     #include "backends/generic/operations_cpu.h"
 #else
-    #error "RLtools raytracing: no backend configured (RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX, RL_TOOLS_RENDERING_RAYTRACING_BACKEND_METAL, RL_TOOLS_RENDERING_RAYTRACING_BACKEND_VULKAN, or RL_TOOLS_RENDERING_RAYTRACING_BACKEND_GENERIC)"
+    #error "RLtools raytracing: no backend configured (RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX, RL_TOOLS_RENDERING_RAYTRACING_BACKEND_METAL, RL_TOOLS_RENDERING_RAYTRACING_BACKEND_VULKAN, RL_TOOLS_RENDERING_RAYTRACING_BACKEND_WEBGPU, or RL_TOOLS_RENDERING_RAYTRACING_BACKEND_GENERIC)"
 #endif
 
 #endif
