@@ -12,7 +12,8 @@
 // renderer memory-domain copy (registered ReadbackTargets let the settle run on the Context
 // alone). The only non-standard calls are wgpuDevicePoll (blocking wait) and
 // wgpuInstanceEnumerateAdapters (RL_TOOLS_WEBGPU_DEVICE_INDEX), both isolated in the helpers
-// below.
+// below; the __EMSCRIPTEN__ (browser) build replaces them with wgpuInstanceRequestAdapter and
+// ASYNCIFY event-loop yields.
 #include "../../renderer.h"
 #include "../../operations_cpu_common.h"
 #include "../generic/operations_generic.h"
@@ -20,7 +21,11 @@
 #include "device_source.h"
 
 #include <webgpu/webgpu.h>
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#else
 #include <webgpu/wgpu.h>
+#endif
 
 #include <vector>
 #include <cstring>
@@ -78,17 +83,25 @@ namespace rl_tools {
             std::fprintf(stderr, "\n");
         }
 
-        // the single blocking-wait primitive: wgpu-native's wgpuDevicePoll(wait). A Dawn or
-        // browser port swaps this for wgpuInstanceWaitAny / wgpuDeviceTick without touching
-        // the call sites
+        // the single blocking-wait primitive: wgpu-native's wgpuDevicePoll(wait). In the browser
+        // there is no blocking wait — the ASYNCIFY'd emscripten_sleep yields to the JS event loop
+        // so the AllowProcessEvents callbacks can fire; call sites spin on their request flags
         inline void device_poll_blocking(Context& ctx){
+#ifdef __EMSCRIPTEN__
+            wgpuInstanceProcessEvents(ctx.instance);
+            emscripten_sleep(1);
+#else
             wgpuDevicePoll(ctx.device, true, nullptr);
+#endif
         }
 
         template <typename DEVICE>
         BufferResource create_buffer(DEVICE& device, Context& ctx, uint64_t size, WGPUBufferUsage usage){
             BufferResource resource;
             resource.size = size < 256 ? 256 : size; // covers the largest WGSL binding stride so disabled features can bind placeholders
+            if((usage & WGPUBufferUsage_Storage) != 0 && ctx.max_storage_buffer_binding_size > 0){
+                utils::assert_exit(device, resource.size <= ctx.max_storage_buffer_binding_size, "WebGPU: buffer exceeds maxStorageBufferBindingSize");
+            }
             WGPUBufferDescriptor descriptor{};
             descriptor.usage = usage;
             descriptor.size = resource.size;
@@ -171,13 +184,9 @@ namespace rl_tools {
             destroy_buffer(ctx.texture_data);
             destroy_buffer(ctx.bvh_nodes);
             destroy_buffer(ctx.mesh_records);
-            destroy_buffer(ctx.scene_lights);
             destroy_buffer(ctx.instance_data);
-            destroy_buffer(ctx.instance_classes);
-            destroy_buffer(ctx.overlay_attachments);
-            destroy_buffer(ctx.overlay_meta);
-            destroy_buffer(ctx.overlay_nodes);
-            destroy_buffer(ctx.overlay_primitives);
+            ctx.instance_classes_offset = 0;
+            ctx.overlay_node_offset = 0;
             ctx.instance_data_host.clear();
             ctx.instance_classes_host.clear();
             ctx.object_classes.clear();
@@ -356,10 +365,40 @@ namespace rl_tools {
         ctx->instance = wgpuCreateInstance(nullptr);
         utils::assert_exit(device, ctx->instance != nullptr, "WebGPU: instance creation failed");
 
+#ifdef __EMSCRIPTEN__
+        {
+            struct AdapterRequest{
+                bool done = false;
+                WGPUAdapter adapter = nullptr;
+            } request;
+            WGPURequestAdapterOptions options{};
+            options.powerPreference = WGPUPowerPreference_HighPerformance;
+            WGPURequestAdapterCallbackInfo callback_info{};
+            callback_info.mode = WGPUCallbackMode_AllowProcessEvents;
+            callback_info.callback = [](WGPURequestAdapterStatus status, WGPUAdapter adapter, WGPUStringView message, void* userdata1, void*){
+                auto* request = (AdapterRequest*)userdata1;
+                if(status != WGPURequestAdapterStatus_Success){
+                    std::fprintf(stderr, "#rl_tools::rendering::raytracing: WebGPU adapter request failed: ");
+                    wg::print_string_view(message);
+                    std::fprintf(stderr, "\n");
+                }
+                request->adapter = adapter;
+                request->done = true;
+            };
+            callback_info.userdata1 = &request;
+            wgpuInstanceRequestAdapter(ctx->instance, &options, callback_info);
+            while(!request.done){
+                wgpuInstanceProcessEvents(ctx->instance);
+                emscripten_sleep(1);
+            }
+            ctx->adapter = request.adapter;
+            utils::assert_exit(device, ctx->adapter != nullptr, "WebGPU: no suitable adapter available");
+        }
+#else
         // adapter selection mirrors the Vulkan backend: filter on capability (a GL adapter only
         // exposes the 8-storage-buffer minimum), prefer discrete GPUs, RL_TOOLS_WEBGPU_DEVICE_INDEX
         // forces an enumeration index. wgpuInstanceEnumerateAdapters is a wgpu-native extension;
-        // a Dawn/browser port replaces this block with wgpuInstanceRequestAdapter
+        // the browser has no enumeration, so the emscripten path asks via wgpuInstanceRequestAdapter
         const char* device_index_env = std::getenv("RL_TOOLS_WEBGPU_DEVICE_INDEX");
         const int64_t requested_device_index = device_index_env != nullptr ? std::atoll(device_index_env) : -1;
         {
@@ -371,7 +410,7 @@ namespace rl_tools {
             for(size_t adapter_i = 0; adapter_i < adapter_count; adapter_i++){
                 WGPULimits limits{};
                 const bool qualifies = wgpuAdapterGetLimits(adapters[adapter_i], &limits) == WGPUStatus_Success
-                    && limits.maxStorageBuffersPerShaderStage >= wg::bindings::COUNT - 1;
+                    && limits.maxStorageBuffersPerShaderStage >= wg::bindings::STORAGE_COUNT;
                 if(requested_device_index >= 0){
                     if((int64_t)adapter_i == requested_device_index){
                         utils::assert_exit(device, qualifies, "WebGPU: the requested adapter supports too few storage buffers per stage");
@@ -403,6 +442,7 @@ namespace rl_tools {
                 }
             }
         }
+#endif
 
         {
             WGPUAdapterInfo info{};
@@ -415,8 +455,9 @@ namespace rl_tools {
 
         WGPULimits adapter_limits{};
         utils::assert_exit(device, wgpuAdapterGetLimits(ctx->adapter, &adapter_limits) == WGPUStatus_Success, "WebGPU: adapter limit query failed");
-        utils::assert_exit(device, adapter_limits.maxStorageBuffersPerShaderStage >= wg::bindings::COUNT - 1, "WebGPU: adapter supports too few storage buffers per stage");
+        utils::assert_exit(device, adapter_limits.maxStorageBuffersPerShaderStage >= wg::bindings::STORAGE_COUNT, "WebGPU: adapter supports too few storage buffers per stage");
         ctx->max_storage_buffers_per_shader_stage = adapter_limits.maxStorageBuffersPerShaderStage;
+        ctx->max_storage_buffer_binding_size = adapter_limits.maxStorageBufferBindingSize;
 
         {
             // request the adapter's own limits: the scene buffers (geometry, textures, BVH) can
@@ -448,6 +489,9 @@ namespace rl_tools {
             wgpuAdapterRequestDevice(ctx->adapter, &descriptor, callback_info);
             while(!request.done){
                 wgpuInstanceProcessEvents(ctx->instance);
+#ifdef __EMSCRIPTEN__
+                emscripten_sleep(1);
+#endif
             }
             ctx->device = request.device;
         }
@@ -474,15 +518,7 @@ namespace rl_tools {
             for(uint32_t binding_i = 0; binding_i < wg::bindings::COUNT; binding_i++){
                 set_entry(binding_i, WGPUBufferBindingType_ReadOnlyStorage);
             }
-            set_entry(wg::bindings::FRAME_BUFFER, WGPUBufferBindingType_Storage);
-            set_entry(wg::bindings::COLLISION_RESULTS, WGPUBufferBindingType_Storage);
-            set_entry(wg::bindings::DEPTH_BUFFER, WGPUBufferBindingType_Storage);
-            set_entry(wg::bindings::SEGMENTATION_BUFFER, WGPUBufferBindingType_Storage);
-            set_entry(wg::bindings::OBSERVATION, WGPUBufferBindingType_Storage);
-            set_entry(wg::bindings::RGB_ACCUMULATOR, WGPUBufferBindingType_Storage);
-            set_entry(wg::bindings::DEPTH_ACCUMULATOR, WGPUBufferBindingType_Storage);
-            set_entry(wg::bindings::NORMALS_BUFFER, WGPUBufferBindingType_Storage);
-            set_entry(wg::bindings::FLOW_BUFFER, WGPUBufferBindingType_Storage);
+            set_entry(wg::bindings::OUTPUTS, WGPUBufferBindingType_Storage);
             set_entry(wg::bindings::DISPATCH_PARAMS, WGPUBufferBindingType_Uniform);
             layout_entries[wg::bindings::DISPATCH_PARAMS].buffer.hasDynamicOffset = true;
             layout_entries[wg::bindings::DISPATCH_PARAMS].buffer.minBindingSize = sizeof(wg::DispatchParams);
@@ -563,48 +599,31 @@ namespace rl_tools {
         const WGPUBufferUsage STORAGE_UPLOAD = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst;
         const WGPUBufferUsage STORAGE_OUTPUT = WGPUBufferUsage_Storage | WGPUBufferUsage_CopySrc | WGPUBufferUsage_CopyDst;
         const WGPUBufferUsage STAGING = WGPUBufferUsage_MapRead | WGPUBufferUsage_CopyDst;
-        constexpr typename SPEC::TI cam_pixels = SPEC::CAM_PIXELS;
-        constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>);
+        using LAYOUT = wg::BufferLayout<SPEC>;
         ctx->launch_params = wg::create_buffer(device, *ctx, sizeof(wg::LaunchParams), STORAGE_UPLOAD);
-        ctx->cameras = wg::create_buffer(device, *ctx, camera_bytes, STORAGE_UPLOAD);
-        ctx->cameras_open = wg::create_buffer(device, *ctx, SPEC::HAS_CAMERA_PAIR ? camera_bytes : 0, STORAGE_UPLOAD);
-        // outputs and their MapRead staging counterparts; disabled outputs get 256-byte
-        // placeholders (every rw binding needs its own buffer — writable aliasing is invalid)
-        ctx->frame_buffer = wg::create_buffer(device, *ctx, SPEC::HAS_RGB ? (size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(uint32_t) : 0, STORAGE_OUTPUT);
-        ctx->depth_buffer = wg::create_buffer(device, *ctx, SPEC::HAS_DEPTH ? (size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(float) : 0, STORAGE_OUTPUT);
-        ctx->segmentation_buffer = wg::create_buffer(device, *ctx, SPEC::HAS_SEGMENTATION ? (size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(uint32_t) : 0, STORAGE_OUTPUT);
-        ctx->normals_buffer = wg::create_buffer(device, *ctx, SPEC::HAS_NORMALS ? (size_t)SPEC::NUM_CAMERAS * cam_pixels * 3 * sizeof(float) : 0, STORAGE_OUTPUT);
-        ctx->flow_buffer = wg::create_buffer(device, *ctx, SPEC::HAS_FLOW ? (size_t)SPEC::NUM_CAMERAS * cam_pixels * 2 * sizeof(float) : 0, STORAGE_OUTPUT);
-        ctx->flow_deltas = wg::create_buffer(device, *ctx, (SPEC::HAS_FLOW && SPEC::ENABLE_OVERLAYS) ? (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float) : 0, STORAGE_UPLOAD);
-        ctx->observation = wg::create_buffer(device, *ctx, SPEC::HAS_OBSERVATION ? (size_t)SPEC::NUM_CAMERAS * cam_pixels * SPEC::OBSERVATION_CHANNELS * sizeof(float) : 0, STORAGE_OUTPUT);
-        ctx->rgb_accumulator = wg::create_buffer(device, *ctx, (SPEC::ENABLE_DYNAMIC_MOTION_BLUR && SPEC::HAS_RGB) ? (size_t)SPEC::NUM_CAMERAS * cam_pixels * 3 * sizeof(float) : 0, STORAGE_OUTPUT);
-        ctx->depth_accumulator = wg::create_buffer(device, *ctx, (SPEC::ENABLE_DYNAMIC_MOTION_BLUR && SPEC::HAS_DEPTH) ? (size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(float) : 0, STORAGE_OUTPUT);
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        ctx->collision_results = wg::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES * sizeof(rendering::raytracing::CollisionResult), STORAGE_OUTPUT);
-        ctx->probe_directions = wg::create_buffer(device, *ctx, (size_t)SPEC::NUM_PROBES * 3 * sizeof(float), STORAGE_UPLOAD);
-        ctx->staging_collision = wg::create_buffer(device, *ctx, ctx->collision_results.size, STAGING);
-#else
-        ctx->collision_results = wg::create_buffer(device, *ctx, 0, STORAGE_OUTPUT);
-        ctx->probe_directions = wg::create_buffer(device, *ctx, 0, STORAGE_UPLOAD);
-#endif
+        ctx->frame_inputs = wg::create_buffer(device, *ctx, (size_t)LAYOUT::FRAME_INPUTS_WORDS * sizeof(uint32_t), STORAGE_UPLOAD);
+        ctx->outputs = wg::create_buffer(device, *ctx, (size_t)LAYOUT::OUTPUTS_WORDS * sizeof(uint32_t), STORAGE_OUTPUT);
         if constexpr (SPEC::HAS_RGB) {
-            ctx->staging_frame_buffer = wg::create_buffer(device, *ctx, ctx->frame_buffer.size, STAGING);
+            ctx->staging_frame_buffer = wg::create_buffer(device, *ctx, (size_t)LAYOUT::FRAME_BUFFER_WORDS * sizeof(uint32_t), STAGING);
         }
         if constexpr (SPEC::HAS_DEPTH) {
-            ctx->staging_depth = wg::create_buffer(device, *ctx, ctx->depth_buffer.size, STAGING);
+            ctx->staging_depth = wg::create_buffer(device, *ctx, (size_t)LAYOUT::DEPTH_WORDS * sizeof(uint32_t), STAGING);
         }
         if constexpr (SPEC::HAS_SEGMENTATION) {
-            ctx->staging_segmentation = wg::create_buffer(device, *ctx, ctx->segmentation_buffer.size, STAGING);
+            ctx->staging_segmentation = wg::create_buffer(device, *ctx, (size_t)LAYOUT::SEGMENTATION_WORDS * sizeof(uint32_t), STAGING);
         }
         if constexpr (SPEC::HAS_NORMALS) {
-            ctx->staging_normals = wg::create_buffer(device, *ctx, ctx->normals_buffer.size, STAGING);
+            ctx->staging_normals = wg::create_buffer(device, *ctx, (size_t)LAYOUT::NORMALS_WORDS * sizeof(uint32_t), STAGING);
         }
         if constexpr (SPEC::HAS_FLOW) {
-            ctx->staging_flow = wg::create_buffer(device, *ctx, ctx->flow_buffer.size, STAGING);
+            ctx->staging_flow = wg::create_buffer(device, *ctx, (size_t)LAYOUT::FLOW_WORDS * sizeof(uint32_t), STAGING);
         }
         if constexpr (SPEC::HAS_OBSERVATION) {
-            ctx->staging_observation = wg::create_buffer(device, *ctx, ctx->observation.size, STAGING);
+            ctx->staging_observation = wg::create_buffer(device, *ctx, (size_t)LAYOUT::OBSERVATION_WORDS * sizeof(uint32_t), STAGING);
         }
+#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
+        ctx->staging_collision = wg::create_buffer(device, *ctx, (size_t)LAYOUT::COLLISION_WORDS * sizeof(uint32_t), STAGING);
+#endif
         if constexpr (SPEC::HAS_RGB) {
             ctx->render_readbacks.push_back({&ctx->staging_frame_buffer, data(renderer.frame_buffer), decltype(renderer.frame_buffer)::SPEC::SIZE_BYTES});
         }
@@ -861,6 +880,10 @@ namespace rl_tools {
         }
         const uint32_t object_records_offset = append_section(object_records.data(), object_records.size() * sizeof(uint32_t));
 
+        const auto scene_lights = rendering::raytracing::detail::effective_scene_lights<SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING>(scene);
+        const uint32_t scene_lights_offset = append_section(scene_lights.data(), scene_lights.size() * sizeof(rendering::raytracing::SceneLight));
+        ctx.instance_classes_offset = append_section(ctx.instance_classes_host.data(), ctx.instance_classes_host.size() * sizeof(uint32_t));
+
         const WGPUBufferUsage STORAGE_UPLOAD = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst;
         auto upload = [&](wg::BufferResource& resource, const void* upload_data, size_t bytes){
             resource = wg::create_buffer(device, ctx, bytes, STORAGE_UPLOAD);
@@ -871,14 +894,27 @@ namespace rl_tools {
         upload(ctx.scene_geometry, geometry.data(), geometry.size() * sizeof(uint32_t));
         upload(ctx.texture_data, texture_texels.data(), texture_texels.size() * sizeof(uint32_t));
         upload(ctx.mesh_records, mesh_records.data(), mesh_records.size() * sizeof(wg::MeshRecord));
+
+        constexpr size_t regions = SPEC::ENABLE_OVERLAYS ? overlay_id_ranges : 1;
+        const size_t region_overlays = regions * (SPEC::ENABLE_OVERLAYS ? SPEC::NUM_OVERLAYS : 1);
+        ctx.overlay_nodes_host.assign(region_overlays * 2 * (SPEC::ENABLE_OVERLAYS ? SPEC::MAX_OVERLAY_INSTANCES : 1), wg::BVHNode{});
+        ctx.overlay_primitives_host.assign(region_overlays * (SPEC::ENABLE_OVERLAYS ? SPEC::MAX_OVERLAY_INSTANCES : 1), 0);
+        ctx.overlay_meta_host.assign(region_overlays * 2, 0);
+        ctx.overlay_bounds_min.assign(3 * (total_instances > 0 ? total_instances : 1), 0.0f);
+        ctx.overlay_bounds_max.assign(3 * (total_instances > 0 ? total_instances : 1), 0.0f);
+        ctx.overlay_centroids.assign(3 * (total_instances > 0 ? total_instances : 1), 0.0f);
+        ctx.overlay_temp_primitives.assign(SPEC::ENABLE_OVERLAYS ? SPEC::MAX_OVERLAY_INSTANCES : 1, 0);
+
         {
+            using LAYOUT = wg::BufferLayout<SPEC>;
             std::vector<wg::BVHNode> all_nodes = blas_nodes;
             const uint32_t tlas_node_offset = (uint32_t)all_nodes.size();
             all_nodes.insert(all_nodes.end(), tlas_nodes.begin(), tlas_nodes.end());
+            ctx.overlay_node_offset = (uint32_t)all_nodes.size();
+            if constexpr (SPEC::ENABLE_OVERLAYS){
+                all_nodes.insert(all_nodes.end(), ctx.overlay_nodes_host.begin(), ctx.overlay_nodes_host.end());
+            }
             upload(ctx.bvh_nodes, all_nodes.data(), all_nodes.size() * sizeof(wg::BVHNode));
-
-            const auto scene_lights = rendering::raytracing::detail::effective_scene_lights<SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING>(scene);
-            upload(ctx.scene_lights, scene_lights.data(), scene_lights.size() * sizeof(rendering::raytracing::SceneLight));
 
             wg::LaunchParams params{};
             params.fb_width = SPEC::FB_WIDTH;
@@ -908,29 +944,35 @@ namespace rl_tools {
             params.tlas_node_offset = tlas_node_offset;
             params.tlas_node_count = tlas_node_count;
             params.tlas_primitive_offset = tlas_primitive_offset;
+            params.scene_lights_offset = scene_lights_offset;
+            params.instance_classes_offset = ctx.instance_classes_offset;
+            params.overlay_node_offset = ctx.overlay_node_offset;
+            params.attachments_offset = LAYOUT::ATTACHMENTS_OFFSET;
+            params.overlay_meta_offset = LAYOUT::OVERLAY_META_OFFSET;
+            params.overlay_primitives_offset = LAYOUT::OVERLAY_PRIMITIVES_OFFSET;
+            params.flow_deltas_offset = LAYOUT::FLOW_DELTAS_OFFSET;
+            params.probe_directions_offset = LAYOUT::PROBE_DIRECTIONS_OFFSET;
+            params.cameras_offset = LAYOUT::CAMERAS_OFFSET;
+            params.out_frame_buffer = LAYOUT::FRAME_BUFFER_OFFSET;
+            params.out_depth = LAYOUT::DEPTH_OFFSET;
+            params.out_segmentation = LAYOUT::SEGMENTATION_OFFSET;
+            params.out_normals = LAYOUT::NORMALS_OFFSET;
+            params.out_flow = LAYOUT::FLOW_OFFSET;
+            params.out_observation = LAYOUT::OBSERVATION_OFFSET;
+            params.out_rgb_accumulator = LAYOUT::RGB_ACCUMULATOR_OFFSET;
+            params.out_depth_accumulator = LAYOUT::DEPTH_ACCUMULATOR_OFFSET;
+            params.out_collision = LAYOUT::COLLISION_OFFSET;
             wgpuQueueWriteBuffer(ctx.queue, ctx.launch_params.buffer, 0, &params, sizeof(params));
         }
         upload(ctx.instance_data, ctx.instance_data_host.data(), ctx.instance_data_host.size() * sizeof(wg::InstanceData));
-        upload(ctx.instance_classes, ctx.instance_classes_host.data(), ctx.instance_classes_host.size() * sizeof(uint32_t));
 
-        {
-            constexpr size_t regions = SPEC::ENABLE_OVERLAYS ? overlay_id_ranges : 1;
-            const size_t region_overlays = regions * (SPEC::ENABLE_OVERLAYS ? SPEC::NUM_OVERLAYS : 1);
-            ctx.overlay_nodes_host.assign(region_overlays * 2 * (SPEC::ENABLE_OVERLAYS ? SPEC::MAX_OVERLAY_INSTANCES : 1), wg::BVHNode{});
-            ctx.overlay_primitives_host.assign(region_overlays * (SPEC::ENABLE_OVERLAYS ? SPEC::MAX_OVERLAY_INSTANCES : 1), 0);
-            ctx.overlay_meta_host.assign(region_overlays * 2, 0);
-            ctx.overlay_bounds_min.assign(3 * (total_instances > 0 ? total_instances : 1), 0.0f);
-            ctx.overlay_bounds_max.assign(3 * (total_instances > 0 ? total_instances : 1), 0.0f);
-            ctx.overlay_centroids.assign(3 * (total_instances > 0 ? total_instances : 1), 0.0f);
-            ctx.overlay_temp_primitives.assign(SPEC::ENABLE_OVERLAYS ? SPEC::MAX_OVERLAY_INSTANCES : 1, 0);
-            upload(ctx.overlay_nodes, ctx.overlay_nodes_host.data(), ctx.overlay_nodes_host.size() * sizeof(wg::BVHNode));
-            upload(ctx.overlay_primitives, ctx.overlay_primitives_host.data(), ctx.overlay_primitives_host.size() * sizeof(uint32_t));
-            upload(ctx.overlay_meta, ctx.overlay_meta_host.data(), ctx.overlay_meta_host.size() * sizeof(uint32_t));
-            std::vector<uint32_t> attachments((size_t)SPEC::NUM_CAMERAS * (SPEC::ENABLE_OVERLAYS ? SPEC::MAX_OVERLAYS_PER_CAMERA : 1), wg::ABSENT);
-            upload(ctx.overlay_attachments, attachments.data(), attachments.size() * sizeof(uint32_t));
-            if constexpr (SPEC::ENABLE_OVERLAYS){
-                rendering::raytracing::detail::reset_overlay_state(renderer);
-            }
+        if constexpr (SPEC::ENABLE_OVERLAYS){
+            using LAYOUT = wg::BufferLayout<SPEC>;
+            wgpuQueueWriteBuffer(ctx.queue, ctx.frame_inputs.buffer, (uint64_t)LAYOUT::OVERLAY_META_OFFSET * sizeof(uint32_t), ctx.overlay_meta_host.data(), ctx.overlay_meta_host.size() * sizeof(uint32_t));
+            wgpuQueueWriteBuffer(ctx.queue, ctx.frame_inputs.buffer, (uint64_t)LAYOUT::OVERLAY_PRIMITIVES_OFFSET * sizeof(uint32_t), ctx.overlay_primitives_host.data(), ctx.overlay_primitives_host.size() * sizeof(uint32_t));
+            std::vector<uint32_t> attachments((size_t)LAYOUT::ATTACHMENTS_WORDS, wg::ABSENT);
+            wgpuQueueWriteBuffer(ctx.queue, ctx.frame_inputs.buffer, (uint64_t)LAYOUT::ATTACHMENTS_OFFSET * sizeof(uint32_t), attachments.data(), attachments.size() * sizeof(uint32_t));
+            rendering::raytracing::detail::reset_overlay_state(renderer);
         }
 
         {
@@ -942,31 +984,14 @@ namespace rl_tools {
                 entries[binding].size = WGPU_WHOLE_SIZE;
             };
             set_entry(wg::bindings::LAUNCH_PARAMS, ctx.launch_params);
-            set_entry(wg::bindings::CAMERAS_CLOSE, ctx.cameras);
-            set_entry(wg::bindings::CAMERAS_OPEN, SPEC::HAS_CAMERA_PAIR ? ctx.cameras_open : ctx.cameras);
-            set_entry(wg::bindings::FRAME_BUFFER, ctx.frame_buffer);
-            set_entry(wg::bindings::MESH_RECORDS, ctx.mesh_records);
-            set_entry(wg::bindings::SCENE_LIGHTS, ctx.scene_lights);
-            set_entry(wg::bindings::PROBE_DIRECTIONS, ctx.probe_directions);
-            set_entry(wg::bindings::COLLISION_RESULTS, ctx.collision_results);
-            set_entry(wg::bindings::BVH_NODES, ctx.bvh_nodes);
-            set_entry(wg::bindings::DEPTH_BUFFER, ctx.depth_buffer);
-            set_entry(wg::bindings::SEGMENTATION_BUFFER, ctx.segmentation_buffer);
-            set_entry(wg::bindings::SCENE_GEOMETRY, ctx.scene_geometry);
-            set_entry(wg::bindings::INSTANCE_DATA, ctx.instance_data);
-            set_entry(wg::bindings::OVERLAY_ATTACHMENTS, ctx.overlay_attachments);
-            set_entry(wg::bindings::OVERLAY_META, ctx.overlay_meta);
-            set_entry(wg::bindings::OVERLAY_NODES, ctx.overlay_nodes);
-            set_entry(wg::bindings::INSTANCE_CLASSES, ctx.instance_classes);
-            set_entry(wg::bindings::OBSERVATION, ctx.observation);
-            set_entry(wg::bindings::RGB_ACCUMULATOR, ctx.rgb_accumulator);
-            set_entry(wg::bindings::DEPTH_ACCUMULATOR, ctx.depth_accumulator);
-            set_entry(wg::bindings::NORMALS_BUFFER, ctx.normals_buffer);
-            set_entry(wg::bindings::FLOW_BUFFER, ctx.flow_buffer);
-            set_entry(wg::bindings::FLOW_DELTAS, ctx.flow_deltas);
-            set_entry(wg::bindings::TEXTURE_DATA, ctx.texture_data);
-            set_entry(wg::bindings::OVERLAY_PRIMITIVES, ctx.overlay_primitives);
             set_entry(wg::bindings::DISPATCH_PARAMS, ctx.dispatch_params);
+            set_entry(wg::bindings::SCENE_GEOMETRY, ctx.scene_geometry);
+            set_entry(wg::bindings::TEXTURE_DATA, ctx.texture_data);
+            set_entry(wg::bindings::BVH_NODES, ctx.bvh_nodes);
+            set_entry(wg::bindings::MESH_RECORDS, ctx.mesh_records);
+            set_entry(wg::bindings::INSTANCE_DATA, ctx.instance_data);
+            set_entry(wg::bindings::FRAME_INPUTS, ctx.frame_inputs);
+            set_entry(wg::bindings::OUTPUTS, ctx.outputs);
             entries[wg::bindings::DISPATCH_PARAMS].size = sizeof(wg::DispatchParams);
             WGPUBindGroupDescriptor descriptor{};
             descriptor.layout = ctx.bind_group_layout;
@@ -994,9 +1019,10 @@ namespace rl_tools {
         using TI = typename SPEC::TI;
         auto& ctx = wg::context(renderer);
 
+        using LAYOUT = wg::BufferLayout<SPEC>;
         if constexpr (SPEC::HAS_FLOW){
             rendering::raytracing::detail::compose_flow_deltas(renderer, data(renderer.flow_deltas));
-            wgpuQueueWriteBuffer(ctx.queue, ctx.flow_deltas.buffer, 0, data(renderer.flow_deltas), (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float));
+            wgpuQueueWriteBuffer(ctx.queue, ctx.frame_inputs.buffer, (uint64_t)LAYOUT::FLOW_DELTAS_OFFSET * sizeof(uint32_t), data(renderer.flow_deltas), (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float));
         }
         rendering::raytracing::detail::flush_overlay_transforms(renderer);
 
@@ -1016,17 +1042,17 @@ namespace rl_tools {
             for(size_t index = 0; index < attachments.size(); index++){
                 attachments[index] = (uint32_t)renderer.attachments[index];
             }
-            wgpuQueueWriteBuffer(ctx.queue, ctx.overlay_attachments.buffer, 0, attachments.data(), attachments.size() * sizeof(uint32_t));
+            wgpuQueueWriteBuffer(ctx.queue, ctx.frame_inputs.buffer, (uint64_t)LAYOUT::ATTACHMENTS_OFFSET * sizeof(uint32_t), attachments.data(), attachments.size() * sizeof(uint32_t));
             renderer.attachments_dirty = false;
         }
         const size_t overlay_tail = (size_t)ctx.total_instances - ctx.num_scene_instances;
         if(overlay_tail > 0){
             wgpuQueueWriteBuffer(ctx.queue, ctx.instance_data.buffer, (uint64_t)ctx.num_scene_instances * sizeof(wg::InstanceData), ctx.instance_data_host.data() + ctx.num_scene_instances, overlay_tail * sizeof(wg::InstanceData));
-            wgpuQueueWriteBuffer(ctx.queue, ctx.instance_classes.buffer, (uint64_t)ctx.num_scene_instances * sizeof(uint32_t), ctx.instance_classes_host.data() + ctx.num_scene_instances, overlay_tail * sizeof(uint32_t));
+            wgpuQueueWriteBuffer(ctx.queue, ctx.scene_geometry.buffer, (uint64_t)(ctx.instance_classes_offset + ctx.num_scene_instances) * sizeof(uint32_t), ctx.instance_classes_host.data() + ctx.num_scene_instances, overlay_tail * sizeof(uint32_t));
         }
-        wgpuQueueWriteBuffer(ctx.queue, ctx.overlay_nodes.buffer, 0, ctx.overlay_nodes_host.data(), ctx.overlay_nodes_host.size() * sizeof(wg::BVHNode));
-        wgpuQueueWriteBuffer(ctx.queue, ctx.overlay_primitives.buffer, 0, ctx.overlay_primitives_host.data(), ctx.overlay_primitives_host.size() * sizeof(uint32_t));
-        wgpuQueueWriteBuffer(ctx.queue, ctx.overlay_meta.buffer, 0, ctx.overlay_meta_host.data(), ctx.overlay_meta_host.size() * sizeof(uint32_t));
+        wgpuQueueWriteBuffer(ctx.queue, ctx.bvh_nodes.buffer, (uint64_t)ctx.overlay_node_offset * sizeof(wg::BVHNode), ctx.overlay_nodes_host.data(), ctx.overlay_nodes_host.size() * sizeof(wg::BVHNode));
+        wgpuQueueWriteBuffer(ctx.queue, ctx.frame_inputs.buffer, (uint64_t)LAYOUT::OVERLAY_PRIMITIVES_OFFSET * sizeof(uint32_t), ctx.overlay_primitives_host.data(), ctx.overlay_primitives_host.size() * sizeof(uint32_t));
+        wgpuQueueWriteBuffer(ctx.queue, ctx.frame_inputs.buffer, (uint64_t)LAYOUT::OVERLAY_META_OFFSET * sizeof(uint32_t), ctx.overlay_meta_host.data(), ctx.overlay_meta_host.size() * sizeof(uint32_t));
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1091,7 +1117,7 @@ namespace rl_tools {
         namespace wg = rendering::raytracing::backends::webgpu;
         auto& ctx = wg::context(renderer);
         std::vector<float> directions = rendering::raytracing::detail::generate_probe_direction_vectors<SPEC>();
-        wgpuQueueWriteBuffer(ctx.queue, ctx.probe_directions.buffer, 0, directions.data(), directions.size() * sizeof(float));
+        wgpuQueueWriteBuffer(ctx.queue, ctx.frame_inputs.buffer, (uint64_t)wg::BufferLayout<SPEC>::PROBE_DIRECTIONS_OFFSET * sizeof(uint32_t), directions.data(), directions.size() * sizeof(float));
 #endif
     }
 
@@ -1102,10 +1128,11 @@ namespace rl_tools {
         auto& ctx = wg::context(renderer);
         render_sync(device, renderer); // single-buffered: settle a previous launch before reusing the staging buffers
 
+        using LAYOUT = wg::BufferLayout<SPEC>;
         constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>);
-        wgpuQueueWriteBuffer(ctx.queue, ctx.cameras.buffer, 0, data(renderer.cameras), camera_bytes);
+        wgpuQueueWriteBuffer(ctx.queue, ctx.frame_inputs.buffer, (uint64_t)LAYOUT::CAMERAS_OFFSET * sizeof(uint32_t), data(renderer.cameras), camera_bytes);
         if constexpr (SPEC::HAS_CAMERA_PAIR) {
-            wgpuQueueWriteBuffer(ctx.queue, ctx.cameras_open.buffer, 0, data(renderer.cameras_open), camera_bytes);
+            wgpuQueueWriteBuffer(ctx.queue, ctx.frame_inputs.buffer, (uint64_t)LAYOUT::CAMERAS_OFFSET * sizeof(uint32_t) + camera_bytes, data(renderer.cameras_open), camera_bytes);
         }
 
         constexpr uint32_t fb_groups_x = (SPEC::FB_WIDTH + wg::WORKGROUP_SIZE - 1) / wg::WORKGROUP_SIZE;
@@ -1113,10 +1140,10 @@ namespace rl_tools {
         WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(ctx.device, nullptr);
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
             if constexpr (SPEC::HAS_RGB){
-                wgpuCommandEncoderClearBuffer(encoder, ctx.rgb_accumulator.buffer, 0, WGPU_WHOLE_SIZE);
+                wgpuCommandEncoderClearBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::RGB_ACCUMULATOR_OFFSET * sizeof(uint32_t), (uint64_t)LAYOUT::RGB_ACCUMULATOR_WORDS * sizeof(uint32_t));
             }
             if constexpr (SPEC::HAS_DEPTH){
-                wgpuCommandEncoderClearBuffer(encoder, ctx.depth_accumulator.buffer, 0, WGPU_WHOLE_SIZE);
+                wgpuCommandEncoderClearBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::DEPTH_ACCUMULATOR_OFFSET * sizeof(uint32_t), (uint64_t)LAYOUT::DEPTH_ACCUMULATOR_WORDS * sizeof(uint32_t));
             }
         }
         {
@@ -1171,22 +1198,22 @@ namespace rl_tools {
             wgpuComputePassEncoderRelease(pass);
         }
         if constexpr (SPEC::HAS_RGB){
-            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.frame_buffer.buffer, 0, ctx.staging_frame_buffer.buffer, 0, ctx.frame_buffer.size);
+            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::FRAME_BUFFER_OFFSET * sizeof(uint32_t), ctx.staging_frame_buffer.buffer, 0, (uint64_t)LAYOUT::FRAME_BUFFER_WORDS * sizeof(uint32_t));
         }
         if constexpr (SPEC::HAS_DEPTH){
-            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.depth_buffer.buffer, 0, ctx.staging_depth.buffer, 0, ctx.depth_buffer.size);
+            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::DEPTH_OFFSET * sizeof(uint32_t), ctx.staging_depth.buffer, 0, (uint64_t)LAYOUT::DEPTH_WORDS * sizeof(uint32_t));
         }
         if constexpr (SPEC::HAS_SEGMENTATION){
-            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.segmentation_buffer.buffer, 0, ctx.staging_segmentation.buffer, 0, ctx.segmentation_buffer.size);
+            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::SEGMENTATION_OFFSET * sizeof(uint32_t), ctx.staging_segmentation.buffer, 0, (uint64_t)LAYOUT::SEGMENTATION_WORDS * sizeof(uint32_t));
         }
         if constexpr (SPEC::HAS_NORMALS){
-            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.normals_buffer.buffer, 0, ctx.staging_normals.buffer, 0, ctx.normals_buffer.size);
+            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::NORMALS_OFFSET * sizeof(uint32_t), ctx.staging_normals.buffer, 0, (uint64_t)LAYOUT::NORMALS_WORDS * sizeof(uint32_t));
         }
         if constexpr (SPEC::HAS_FLOW){
-            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.flow_buffer.buffer, 0, ctx.staging_flow.buffer, 0, ctx.flow_buffer.size);
+            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::FLOW_OFFSET * sizeof(uint32_t), ctx.staging_flow.buffer, 0, (uint64_t)LAYOUT::FLOW_WORDS * sizeof(uint32_t));
         }
         if constexpr (SPEC::HAS_OBSERVATION){
-            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.observation.buffer, 0, ctx.staging_observation.buffer, 0, ctx.observation.size);
+            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::OBSERVATION_OFFSET * sizeof(uint32_t), ctx.staging_observation.buffer, 0, (uint64_t)LAYOUT::OBSERVATION_WORDS * sizeof(uint32_t));
         }
         WGPUCommandBuffer command_buffer = wgpuCommandEncoderFinish(encoder, nullptr);
         wgpuCommandEncoderRelease(encoder);
@@ -1218,7 +1245,7 @@ namespace rl_tools {
         }
         probe_sync(device, renderer);
         constexpr size_t camera_bytes = (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>);
-        wgpuQueueWriteBuffer(ctx.queue, ctx.cameras.buffer, 0, data(renderer.cameras), camera_bytes);
+        wgpuQueueWriteBuffer(ctx.queue, ctx.frame_inputs.buffer, (uint64_t)wg::BufferLayout<SPEC>::CAMERAS_OFFSET * sizeof(uint32_t), data(renderer.cameras), camera_bytes);
         WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(ctx.device, nullptr);
         {
             WGPUComputePassEncoder pass = wgpuCommandEncoderBeginComputePass(encoder, nullptr);
@@ -1229,7 +1256,7 @@ namespace rl_tools {
             wgpuComputePassEncoderEnd(pass);
             wgpuComputePassEncoderRelease(pass);
         }
-        wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.collision_results.buffer, 0, ctx.staging_collision.buffer, 0, ctx.collision_results.size);
+        wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, (uint64_t)wg::BufferLayout<SPEC>::COLLISION_OFFSET * sizeof(uint32_t), ctx.staging_collision.buffer, 0, (uint64_t)wg::BufferLayout<SPEC>::COLLISION_WORDS * sizeof(uint32_t));
         WGPUCommandBuffer command_buffer = wgpuCommandEncoderFinish(encoder, nullptr);
         wgpuCommandEncoderRelease(encoder);
         wgpuQueueSubmit(ctx.queue, 1, &command_buffer);
@@ -1316,19 +1343,8 @@ namespace rl_tools {
             wg::wait_in_flight(device, ctx);
             wg::destroy_scene_resources(ctx);
             wg::destroy_buffer(ctx.launch_params);
-            wg::destroy_buffer(ctx.cameras);
-            wg::destroy_buffer(ctx.cameras_open);
-            wg::destroy_buffer(ctx.frame_buffer);
-            wg::destroy_buffer(ctx.depth_buffer);
-            wg::destroy_buffer(ctx.segmentation_buffer);
-            wg::destroy_buffer(ctx.normals_buffer);
-            wg::destroy_buffer(ctx.flow_buffer);
-            wg::destroy_buffer(ctx.flow_deltas);
-            wg::destroy_buffer(ctx.observation);
-            wg::destroy_buffer(ctx.collision_results);
-            wg::destroy_buffer(ctx.probe_directions);
-            wg::destroy_buffer(ctx.rgb_accumulator);
-            wg::destroy_buffer(ctx.depth_accumulator);
+            wg::destroy_buffer(ctx.frame_inputs);
+            wg::destroy_buffer(ctx.outputs);
             wg::destroy_buffer(ctx.dispatch_params);
             wg::destroy_buffer(ctx.staging_frame_buffer);
             wg::destroy_buffer(ctx.staging_depth);
