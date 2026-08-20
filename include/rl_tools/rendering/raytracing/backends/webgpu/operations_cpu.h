@@ -15,6 +15,7 @@
 #include "../../operations_cpu_common.h"
 #include "../generic/operations_generic.h"
 #include "context.h"
+#include "bvh_sah.h"
 #include "device_source.h"
 
 #include <webgpu/webgpu.h>
@@ -26,6 +27,7 @@
 #include <cstdio>
 #include <string>
 #include <unordered_map>
+#include <cmath>
 #include <utility>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -140,6 +142,8 @@ namespace rl_tools {
             destroy_buffer(ctx.scene_geometry);
             destroy_buffer(ctx.texture_data);
             destroy_buffer(ctx.bvh_nodes);
+            destroy_buffer(ctx.bvh4_nodes);
+            destroy_buffer(ctx.triangles);
             destroy_buffer(ctx.mesh_records);
             destroy_buffer(ctx.scene_lights);
             destroy_buffer(ctx.instance_data);
@@ -165,6 +169,26 @@ namespace rl_tools {
             ctx.overlay_temp_primitives.clear();
             ctx.num_scene_instances = 0;
             ctx.total_instances = 0;
+        }
+
+        inline uint32_t bvh_max_depth(const BVHNode* nodes, uint32_t num_nodes){
+            if(num_nodes == 0){
+                return 0;
+            }
+            uint32_t max_depth = 0;
+            std::vector<std::pair<uint32_t, uint32_t>> stack;
+            stack.push_back({0, 1});
+            while(!stack.empty()){
+                const auto [node_i, depth] = stack.back();
+                stack.pop_back();
+                max_depth = depth > max_depth ? depth : max_depth;
+                const auto& node = nodes[node_i];
+                if(node.count == 0){
+                    stack.push_back({node.left_or_first, depth + 1});
+                    stack.push_back({node.left_or_first + 1, depth + 1});
+                }
+            }
+            return max_depth;
         }
 
         // world-space AABB of one instance from its object's BLAS root bounds
@@ -222,8 +246,8 @@ namespace rl_tools {
         // rebuilds one overlay region (region 0 = shutter close, 1 + s = dynamic-motion-blur
         // sample s) into the host mirrors; the caller uploads them in one batch. transforms_base
         // selects the transform slab (nullptr = the slot-mirror path via the 4-arg composer)
-        template <typename SPEC, typename BACKEND_TAG>
-        void rebuild_overlay_region(rendering::raytracing::Renderer<SPEC, BACKEND_TAG>& renderer, Context& ctx, uint32_t region, const float* transforms_base){
+        template <typename DEVICE, typename SPEC, typename BACKEND_TAG>
+        void rebuild_overlay_region(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND_TAG>& renderer, Context& ctx, uint32_t region, const float* transforms_base){
             using TI = typename SPEC::TI;
             constexpr size_t num_overlay_slots = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
             for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
@@ -254,6 +278,7 @@ namespace rl_tools {
                 }
                 BVHNode* nodes = ctx.overlay_nodes_host.data() + region_overlay * 2 * SPEC::MAX_OVERLAY_INSTANCES;
                 const uint32_t num_nodes = generic::build_bvh_nodes(nodes, primitives, ctx.overlay_temp_primitives.data(), ctx.overlay_bounds_min.data(), ctx.overlay_bounds_max.data(), ctx.overlay_centroids.data(), num_active);
+                utils::assert_exit(device, bvh_max_depth(nodes, num_nodes) <= TRAVERSAL_STACK_SIZE, "WebGPU: overlay BVH depth exceeds the traversal stack");
                 ctx.overlay_meta_host[region_overlay * 2 + 0] = num_active;
                 ctx.overlay_meta_host[region_overlay * 2 + 1] = num_nodes;
             }
@@ -619,6 +644,18 @@ namespace rl_tools {
         wg::wait_in_flight(device, renderer);
         wg::destroy_scene_resources(ctx);
 
+        // both builders are deterministic; median is the shared generic baseline for A/B and
+        // debugging, sah the default (the overlay TLAS rebuilds always use the generic builder)
+        const char* bvh_builder_env = std::getenv("RL_TOOLS_WEBGPU_BVH");
+        const bool median_builder = bvh_builder_env != nullptr && std::strcmp(bvh_builder_env, "median") == 0;
+        RL_TOOLS_RENDERING_RAYTRACING_LOG("WebGPU BVH builder: " << (median_builder ? "median (baseline)" : "sah"));
+        const auto build_bvh = [&](wg::BVHNode* build_nodes, uint32_t* build_primitives, uint32_t* build_temp, const float* build_bounds_min, const float* build_bounds_max, const float* build_centroids, uint32_t build_count) -> uint32_t {
+            if(median_builder){
+                return generic::build_bvh_nodes(build_nodes, build_primitives, build_temp, build_bounds_min, build_bounds_max, build_centroids, build_count);
+            }
+            return wg::build_bvh_nodes_sah(build_nodes, build_primitives, build_temp, build_bounds_min, build_bounds_max, build_centroids, build_count);
+        };
+
         // meshes flattened across all objects (scene objects then pool objects); the global
         // triangle numbering ties the BLAS leaf permutations to the shading tables
         std::vector<const rendering::raytracing::Mesh*> all_meshes;
@@ -675,15 +712,23 @@ namespace rl_tools {
         ctx.object_primitive_offset.assign(all_objects.size(), 0);
         ctx.object_root_bounds_min.assign(3 * all_objects.size() + 1, 0.0f);
         ctx.object_root_bounds_max.assign(3 * all_objects.size() + 1, 0.0f);
+        std::vector<wg::BVH4Node> bvh4_nodes_host;
         for(size_t object_i = 0; object_i < all_objects.size(); object_i++){
             const uint32_t first = object_first_triangle[object_i];
             const uint32_t count = object_triangle_count[object_i];
             for(uint32_t i = 0; i < count; i++){
                 blas_primitives[(size_t)first + i] = first + i;
             }
-            const uint32_t num_nodes = generic::build_bvh_nodes(blas_nodes.data() + 2 * (size_t)first, blas_primitives.data() + first, temp_primitives.data(), triangle_bounds_min.data(), triangle_bounds_max.data(), centroids.data(), count);
-            ctx.object_node_offset[object_i] = 2 * first;
-            ctx.object_node_count[object_i] = num_nodes;
+            const uint32_t num_nodes = build_bvh(blas_nodes.data() + 2 * (size_t)first, blas_primitives.data() + first, temp_primitives.data(), triangle_bounds_min.data(), triangle_bounds_max.data(), centroids.data(), count);
+            for(uint32_t node_i = 0; node_i < num_nodes; node_i++){
+                const auto& node = blas_nodes[2 * (size_t)first + node_i];
+                utils::assert_exit(device, node.count == 0 || (node.count <= wg::BVH4_LEAF_COUNT_MASK && node.left_or_first < (1u << 23)), "WebGPU: BLAS leaf exceeds the BVH4 leaf encoding");
+            }
+            const uint32_t bvh4_root = wg::collapse_bvh4(blas_nodes.data() + 2 * (size_t)first, num_nodes, bvh4_nodes_host);
+            const uint32_t bvh4_count = (uint32_t)bvh4_nodes_host.size() - bvh4_root;
+            utils::assert_exit(device, wg::bvh4_max_stack(bvh4_nodes_host, bvh4_root, bvh4_count) <= wg::TRAVERSAL_STACK_SIZE, "WebGPU: BLAS depth exceeds the traversal stack");
+            ctx.object_node_offset[object_i] = bvh4_root;
+            ctx.object_node_count[object_i] = bvh4_count;
             ctx.object_primitive_offset[object_i] = first;
             if(num_nodes > 0){
                 const auto& root = blas_nodes[2 * (size_t)first];
@@ -733,7 +778,8 @@ namespace rl_tools {
                 tlas_primitives[instance_i] = (uint32_t)instance_i;
             }
             std::vector<uint32_t> tlas_temp(tlas_primitives.size());
-            tlas_node_count = generic::build_bvh_nodes(tlas_nodes.data(), tlas_primitives.data(), tlas_temp.data(), instance_bounds_min.data(), instance_bounds_max.data(), instance_centroids.data(), (uint32_t)num_scene_instances);
+            tlas_node_count = build_bvh(tlas_nodes.data(), tlas_primitives.data(), tlas_temp.data(), instance_bounds_min.data(), instance_bounds_max.data(), instance_centroids.data(), (uint32_t)num_scene_instances);
+            utils::assert_exit(device, wg::bvh_max_depth(tlas_nodes.data(), tlas_node_count) <= wg::TRAVERSAL_STACK_SIZE, "WebGPU: TLAS depth exceeds the traversal stack");
         }
 
         // one packed u32 buffer for everything the shader addresses by element offset
@@ -807,15 +853,41 @@ namespace rl_tools {
         }
         const uint32_t triangle_mesh_offset = append_section(triangle_mesh.data(), triangle_mesh.size() * sizeof(uint32_t));
         const uint32_t triangle_local_offset = append_section(triangle_local.data(), triangle_local.size() * sizeof(uint32_t));
-        const uint32_t blas_primitives_offset = append_section(blas_primitives.data(), blas_primitives.size() * sizeof(uint32_t));
         const uint32_t tlas_primitive_offset = append_section(tlas_primitives.data(), tlas_primitives.size() * sizeof(uint32_t));
         std::vector<uint32_t> object_records(4 * (all_objects.size() > 0 ? all_objects.size() : 1), 0);
         for(size_t object_i = 0; object_i < all_objects.size(); object_i++){
             object_records[4 * object_i + 0] = ctx.object_node_offset[object_i];
             object_records[4 * object_i + 1] = ctx.object_node_count[object_i];
-            object_records[4 * object_i + 2] = blas_primitives_offset + ctx.object_primitive_offset[object_i];
+            object_records[4 * object_i + 2] = ctx.object_primitive_offset[object_i];
         }
         const uint32_t object_records_offset = append_section(object_records.data(), object_records.size() * sizeof(uint32_t));
+        // sRGB texel decode table: replaces the per-texel pow in the shader's bilinear filter
+        // (unpack4x8unorm yields exact k/255 values, so the lookup is exact)
+        float srgb_lut[256];
+        for(int value = 0; value < 256; value++){
+            const float x = (float)value / 255.0f;
+            srgb_lut[value] = x <= 0.04045f ? x / 12.92f : std::pow((x + 0.055f) / 1.055f, 2.4f);
+        }
+        const uint32_t srgb_lut_offset = append_section(srgb_lut, sizeof(srgb_lut));
+
+        // leaf-ordered packed triangles: the BLAS leaf ranges index this stream directly (slot =
+        // first_triangle + leaf-relative index), so the hot intersection loop reads 3 contiguous
+        // vec4s instead of chasing triangle table -> mesh record -> index -> vertex indirections;
+        // the original global triangle id rides in the first w component for the shading tables
+        std::vector<float> packed_triangles(12 * (num_triangles > 0 ? num_triangles : 1), 0.0f);
+        for(size_t slot = 0; slot < num_triangles; slot++){
+            const uint32_t triangle = blas_primitives[slot];
+            const auto& mesh = *all_meshes[triangle_mesh[triangle]];
+            const int* index = &mesh.indices[3 * (size_t)triangle_local[triangle]];
+            for(int vertex_i = 0; vertex_i < 3; vertex_i++){
+                const float* vertex = &mesh.vertices[3 * (size_t)index[vertex_i]];
+                float* out = &packed_triangles[12 * slot + 4 * (size_t)vertex_i];
+                out[0] = vertex[0];
+                out[1] = vertex[1];
+                out[2] = vertex[2];
+            }
+            std::memcpy(&packed_triangles[12 * slot + 3], &triangle, sizeof(uint32_t));
+        }
 
         const WGPUBufferUsage STORAGE_UPLOAD = WGPUBufferUsage_Storage | WGPUBufferUsage_CopyDst;
         auto upload = [&](wg::BufferResource& resource, const void* upload_data, size_t bytes){
@@ -826,12 +898,14 @@ namespace rl_tools {
         };
         upload(ctx.scene_geometry, geometry.data(), geometry.size() * sizeof(uint32_t));
         upload(ctx.texture_data, texture_texels.data(), texture_texels.size() * sizeof(uint32_t));
+        upload(ctx.triangles, packed_triangles.data(), packed_triangles.size() * sizeof(float));
+        upload(ctx.bvh4_nodes, bvh4_nodes_host.data(), bvh4_nodes_host.size() * sizeof(wg::BVH4Node));
         upload(ctx.mesh_records, mesh_records.data(), mesh_records.size() * sizeof(wg::MeshRecord));
         {
-            std::vector<wg::BVHNode> all_nodes = blas_nodes;
-            const uint32_t tlas_node_offset = (uint32_t)all_nodes.size();
-            all_nodes.insert(all_nodes.end(), tlas_nodes.begin(), tlas_nodes.end());
-            upload(ctx.bvh_nodes, all_nodes.data(), all_nodes.size() * sizeof(wg::BVHNode));
+            // the binary buffer carries only the scene TLAS now — the BLAS levels live in the
+            // 4-wide bvh4_nodes buffer
+            const uint32_t tlas_node_offset = 0;
+            upload(ctx.bvh_nodes, tlas_nodes.data(), tlas_nodes.size() * sizeof(wg::BVHNode));
 
             const auto scene_lights = rendering::raytracing::detail::effective_scene_lights<SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING>(scene);
             upload(ctx.scene_lights, scene_lights.data(), scene_lights.size() * sizeof(rendering::raytracing::SceneLight));
@@ -864,6 +938,7 @@ namespace rl_tools {
             params.tlas_node_offset = tlas_node_offset;
             params.tlas_node_count = tlas_node_count;
             params.tlas_primitive_offset = tlas_primitive_offset;
+            params.srgb_lut_offset = srgb_lut_offset;
             wgpuQueueWriteBuffer(ctx.queue, ctx.launch_params.buffer, 0, &params, sizeof(params));
         }
         upload(ctx.instance_data, ctx.instance_data_host.data(), ctx.instance_data_host.size() * sizeof(wg::InstanceData));
@@ -922,6 +997,8 @@ namespace rl_tools {
             set_entry(wg::bindings::FLOW_DELTAS, ctx.flow_deltas);
             set_entry(wg::bindings::TEXTURE_DATA, ctx.texture_data);
             set_entry(wg::bindings::OVERLAY_PRIMITIVES, ctx.overlay_primitives);
+            set_entry(wg::bindings::TRIANGLES, ctx.triangles);
+            set_entry(wg::bindings::BVH4_NODES, ctx.bvh4_nodes);
             set_entry(wg::bindings::DISPATCH_PARAMS, ctx.dispatch_params);
             entries[wg::bindings::DISPATCH_PARAMS].size = sizeof(wg::DispatchParams);
             WGPUBindGroupDescriptor descriptor{};
@@ -959,12 +1036,12 @@ namespace rl_tools {
         // rebuilt unconditionally: producers may write the transforms tensor directly, which
         // leaves no host-observable dirty flag. queueWriteBuffer is ordered before subsequent
         // submits, so no synchronization with in-flight renders is needed
-        wg::rebuild_overlay_region(renderer, ctx, 0, (const float*)nullptr);
+        wg::rebuild_overlay_region(device, renderer, ctx, 0, (const float*)nullptr);
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
             rendering::raytracing::detail::flush_overlay_motion_transforms(renderer);
             constexpr size_t SLAB = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12;
             for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
-                wg::rebuild_overlay_region(renderer, ctx, 1 + (uint32_t)sample, data(renderer.transforms_motion) + sample * SLAB);
+                wg::rebuild_overlay_region(device, renderer, ctx, 1 + (uint32_t)sample, data(renderer.transforms_motion) + sample * SLAB);
             }
         }
         if(renderer.attachments_dirty){
@@ -1063,8 +1140,8 @@ namespace rl_tools {
             wgpuQueueWriteBuffer(ctx.queue, ctx.cameras_open.buffer, 0, data(renderer.cameras_open), camera_bytes);
         }
 
-        constexpr uint32_t fb_groups_x = (SPEC::FB_WIDTH + wg::WORKGROUP_SIZE - 1) / wg::WORKGROUP_SIZE;
-        constexpr uint32_t fb_groups_y = (SPEC::FB_HEIGHT + wg::WORKGROUP_SIZE - 1) / wg::WORKGROUP_SIZE;
+        constexpr uint32_t fb_groups_x = (SPEC::FB_WIDTH + wg::WORKGROUP_SIZE_X - 1) / wg::WORKGROUP_SIZE_X;
+        constexpr uint32_t fb_groups_y = (SPEC::FB_HEIGHT + wg::WORKGROUP_SIZE_Y - 1) / wg::WORKGROUP_SIZE_Y;
         WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(ctx.device, nullptr);
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
             if constexpr (SPEC::HAS_RGB){
@@ -1202,7 +1279,7 @@ namespace rl_tools {
             const uint32_t dynamic_offset = 0;
             wgpuComputePassEncoderSetPipeline(pass, ctx.collision_pipeline);
             wgpuComputePassEncoderSetBindGroup(pass, 0, ctx.bind_group, 1, &dynamic_offset);
-            wgpuComputePassEncoderDispatchWorkgroups(pass, (SPEC::NUM_CAMERAS + wg::WORKGROUP_SIZE - 1) / wg::WORKGROUP_SIZE, (SPEC::NUM_PROBES + wg::WORKGROUP_SIZE - 1) / wg::WORKGROUP_SIZE, 1);
+            wgpuComputePassEncoderDispatchWorkgroups(pass, (SPEC::NUM_CAMERAS + wg::WORKGROUP_SIZE_X - 1) / wg::WORKGROUP_SIZE_X, (SPEC::NUM_PROBES + wg::WORKGROUP_SIZE_Y - 1) / wg::WORKGROUP_SIZE_Y, 1);
             wgpuComputePassEncoderEnd(pass);
             wgpuComputePassEncoderRelease(pass);
         }
