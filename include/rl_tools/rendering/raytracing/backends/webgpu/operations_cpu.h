@@ -142,7 +142,6 @@ namespace rl_tools {
             destroy_buffer(ctx.scene_geometry);
             destroy_buffer(ctx.texture_data);
             destroy_buffer(ctx.bvh_nodes);
-            destroy_buffer(ctx.bvh4_nodes);
             destroy_buffer(ctx.triangles);
             destroy_buffer(ctx.mesh_records);
             destroy_buffer(ctx.scene_lights);
@@ -712,7 +711,6 @@ namespace rl_tools {
         ctx.object_primitive_offset.assign(all_objects.size(), 0);
         ctx.object_root_bounds_min.assign(3 * all_objects.size() + 1, 0.0f);
         ctx.object_root_bounds_max.assign(3 * all_objects.size() + 1, 0.0f);
-        std::vector<wg::BVH4Node> bvh4_nodes_host;
         for(size_t object_i = 0; object_i < all_objects.size(); object_i++){
             const uint32_t first = object_first_triangle[object_i];
             const uint32_t count = object_triangle_count[object_i];
@@ -720,15 +718,9 @@ namespace rl_tools {
                 blas_primitives[(size_t)first + i] = first + i;
             }
             const uint32_t num_nodes = build_bvh(blas_nodes.data() + 2 * (size_t)first, blas_primitives.data() + first, temp_primitives.data(), triangle_bounds_min.data(), triangle_bounds_max.data(), centroids.data(), count);
-            for(uint32_t node_i = 0; node_i < num_nodes; node_i++){
-                const auto& node = blas_nodes[2 * (size_t)first + node_i];
-                utils::assert_exit(device, node.count == 0 || (node.count <= wg::BVH4_LEAF_COUNT_MASK && node.left_or_first < (1u << 23)), "WebGPU: BLAS leaf exceeds the BVH4 leaf encoding");
-            }
-            const uint32_t bvh4_root = wg::collapse_bvh4(blas_nodes.data() + 2 * (size_t)first, num_nodes, bvh4_nodes_host);
-            const uint32_t bvh4_count = (uint32_t)bvh4_nodes_host.size() - bvh4_root;
-            utils::assert_exit(device, wg::bvh4_max_stack(bvh4_nodes_host, bvh4_root, bvh4_count) <= wg::TRAVERSAL_STACK_SIZE, "WebGPU: BLAS depth exceeds the traversal stack");
-            ctx.object_node_offset[object_i] = bvh4_root;
-            ctx.object_node_count[object_i] = bvh4_count;
+            utils::assert_exit(device, wg::bvh_max_depth(blas_nodes.data() + 2 * (size_t)first, num_nodes) <= wg::TRAVERSAL_STACK_SIZE, "WebGPU: BLAS depth exceeds the traversal stack");
+            ctx.object_node_offset[object_i] = 2 * first;
+            ctx.object_node_count[object_i] = num_nodes;
             ctx.object_primitive_offset[object_i] = first;
             if(num_nodes > 0){
                 const auto& root = blas_nodes[2 * (size_t)first];
@@ -899,13 +891,12 @@ namespace rl_tools {
         upload(ctx.scene_geometry, geometry.data(), geometry.size() * sizeof(uint32_t));
         upload(ctx.texture_data, texture_texels.data(), texture_texels.size() * sizeof(uint32_t));
         upload(ctx.triangles, packed_triangles.data(), packed_triangles.size() * sizeof(float));
-        upload(ctx.bvh4_nodes, bvh4_nodes_host.data(), bvh4_nodes_host.size() * sizeof(wg::BVH4Node));
         upload(ctx.mesh_records, mesh_records.data(), mesh_records.size() * sizeof(wg::MeshRecord));
         {
-            // the binary buffer carries only the scene TLAS now — the BLAS levels live in the
-            // 4-wide bvh4_nodes buffer
-            const uint32_t tlas_node_offset = 0;
-            upload(ctx.bvh_nodes, tlas_nodes.data(), tlas_nodes.size() * sizeof(wg::BVHNode));
+            std::vector<wg::BVHNode> all_nodes = blas_nodes;
+            const uint32_t tlas_node_offset = (uint32_t)all_nodes.size();
+            all_nodes.insert(all_nodes.end(), tlas_nodes.begin(), tlas_nodes.end());
+            upload(ctx.bvh_nodes, all_nodes.data(), all_nodes.size() * sizeof(wg::BVHNode));
 
             const auto scene_lights = rendering::raytracing::detail::effective_scene_lights<SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING>(scene);
             upload(ctx.scene_lights, scene_lights.data(), scene_lights.size() * sizeof(rendering::raytracing::SceneLight));
@@ -998,7 +989,6 @@ namespace rl_tools {
             set_entry(wg::bindings::TEXTURE_DATA, ctx.texture_data);
             set_entry(wg::bindings::OVERLAY_PRIMITIVES, ctx.overlay_primitives);
             set_entry(wg::bindings::TRIANGLES, ctx.triangles);
-            set_entry(wg::bindings::BVH4_NODES, ctx.bvh4_nodes);
             set_entry(wg::bindings::DISPATCH_PARAMS, ctx.dispatch_params);
             entries[wg::bindings::DISPATCH_PARAMS].size = sizeof(wg::DispatchParams);
             WGPUBindGroupDescriptor descriptor{};

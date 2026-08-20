@@ -10,10 +10,6 @@
 // The generic median-split builder remains the baseline (RL_TOOLS_WEBGPU_BVH=median) and is
 // still used for the per-frame overlay TLAS rebuilds.
 #include "../generic/operations_generic.h"
-#include "context.h"
-
-#include <vector>
-#include <cstdint>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rendering::raytracing::backends::webgpu{
@@ -180,93 +176,6 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         return node_count;
     }
 
-    // deterministic binary -> 4-wide collapse: each BVH4 node's slots are the binary node's
-    // grandchildren (or the child itself when it is a leaf), so internal levels halve. Child
-    // codes are global indices into the shared BVH4 vector (internal) or packed leaf ranges;
-    // empty slots are marked by the 0xFFFFFFFF child code (masked in the shader).
-    // Returns the root's global index; appends the object's nodes to out.
-    inline uint32_t collapse_bvh4(const BVHNode* binary_nodes, uint32_t num_binary_nodes, std::vector<BVH4Node>& out){
-        const uint32_t root = (uint32_t)out.size();
-        if(num_binary_nodes == 0){
-            return root;
-        }
-        const auto leaf_code = [](const BVHNode& node) -> uint32_t {
-            return BVH4_LEAF_BIT | (node.left_or_first << BVH4_LEAF_FIRST_SHIFT) | node.count;
-        };
-        out.push_back({});
-        std::vector<std::pair<uint32_t, uint32_t>> stack; // (bvh4 index, binary index)
-        stack.push_back({root, 0});
-        while(!stack.empty()){
-            const auto [bvh4_index, binary_index] = stack.back();
-            stack.pop_back();
-            const BVHNode& binary = binary_nodes[binary_index];
-            uint32_t slot_binary[4];
-            uint32_t num_slots = 0;
-            if(binary.count > 0){
-                slot_binary[num_slots++] = binary_index; // single-leaf tree: the root doubles as its only slot
-            }
-            else{
-                for(uint32_t child_i = 0; child_i < 2; child_i++){
-                    const uint32_t child = binary.left_or_first + child_i;
-                    if(binary_nodes[child].count > 0){
-                        slot_binary[num_slots++] = child;
-                    }
-                    else{
-                        slot_binary[num_slots++] = binary_nodes[child].left_or_first;
-                        slot_binary[num_slots++] = binary_nodes[child].left_or_first + 1;
-                    }
-                }
-            }
-            BVH4Node node;
-            for(uint32_t slot = 0; slot < 4; slot++){
-                node.min_x[slot] = 1e30f; node.min_y[slot] = 1e30f; node.min_z[slot] = 1e30f;
-                node.max_x[slot] = -1e30f; node.max_y[slot] = -1e30f; node.max_z[slot] = -1e30f;
-                node.child[slot] = 0xFFFFFFFFu;
-            }
-            for(uint32_t slot = 0; slot < num_slots; slot++){
-                const BVHNode& slot_node = binary_nodes[slot_binary[slot]];
-                node.min_x[slot] = slot_node.bounds_min[0];
-                node.min_y[slot] = slot_node.bounds_min[1];
-                node.min_z[slot] = slot_node.bounds_min[2];
-                node.max_x[slot] = slot_node.bounds_max[0];
-                node.max_y[slot] = slot_node.bounds_max[1];
-                node.max_z[slot] = slot_node.bounds_max[2];
-                if(slot_node.count > 0){
-                    node.child[slot] = leaf_code(slot_node);
-                }
-                else{
-                    const uint32_t child_bvh4 = (uint32_t)out.size();
-                    out.push_back({});
-                    node.child[slot] = child_bvh4;
-                    stack.push_back({child_bvh4, slot_binary[slot]});
-                }
-            }
-            out[bvh4_index] = node;
-        }
-        return root;
-    }
-
-    // worst-case traversal stack usage: up to 3 siblings pushed per level along the deepest path
-    inline uint32_t bvh4_max_stack(const std::vector<BVH4Node>& nodes, uint32_t root, uint32_t num_nodes){
-        if(num_nodes == 0){
-            return 0;
-        }
-        uint32_t max_depth = 0;
-        std::vector<std::pair<uint32_t, uint32_t>> stack;
-        stack.push_back({root, 1});
-        while(!stack.empty()){
-            const auto [node_i, depth] = stack.back();
-            stack.pop_back();
-            max_depth = depth > max_depth ? depth : max_depth;
-            for(uint32_t slot = 0; slot < 4; slot++){
-                const uint32_t code = nodes[node_i].child[slot];
-                if(code != 0xFFFFFFFFu && (code & BVH4_LEAF_BIT) == 0){
-                    stack.push_back({code, depth + 1});
-                }
-            }
-        }
-        return 3 * max_depth + 1;
-    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

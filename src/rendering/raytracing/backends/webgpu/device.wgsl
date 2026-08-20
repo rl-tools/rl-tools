@@ -77,24 +77,6 @@ struct BVHNode{
 fn bvh_left_or_first(node: BVHNode) -> u32{ return bitcast<u32>(node.b.z); }
 fn bvh_count(node: BVHNode) -> u32{ return bitcast<u32>(node.b.w); }
 
-// 4-wide BLAS node: SoA child bounds so all four slabs are tested with vec4 ops; empty slots
-// (child == BVH4_EMPTY) are masked out of the distance vector — inverted bounds alone cannot
-// fail a min/max-normalizing slab test. Child codes: internal = global node index,
-// leaf = BVH4_LEAF_BIT | (first << 8) | count
-struct BVH4Node{
-    min_x: vec4<f32>,
-    min_y: vec4<f32>,
-    min_z: vec4<f32>,
-    max_x: vec4<f32>,
-    max_y: vec4<f32>,
-    max_z: vec4<f32>,
-    child: vec4<u32>,
-}
-const BVH4_EMPTY: u32 = 0xFFFFFFFFu;
-const BVH4_LEAF_BIT: u32 = 0x80000000u;
-const BVH4_LEAF_FIRST_SHIFT: u32 = 8u;
-const BVH4_LEAF_FIRST_MASK: u32 = 0x7FFFFFu;
-const BVH4_LEAF_COUNT_MASK: u32 = 0xFFu;
 
 struct TextureRef{
     offset: u32,
@@ -181,7 +163,6 @@ struct DispatchParams{
 @group(0) @binding(24) var<storage, read> overlay_primitives: array<u32>;
 @group(0) @binding(25) var<uniform> dispatch_params: DispatchParams;
 @group(0) @binding(26) var<storage, read> triangles: array<vec4<f32>>; // leaf-ordered packed: 3 x vec4 per triangle, first w = bitcast global id
-@group(0) @binding(27) var<storage, read> bvh4_nodes: array<BVH4Node>;
 
 fn to_vec3(a: array<f32, 3>) -> vec3<f32>{
     return vec3<f32>(a[0], a[1], a[2]);
@@ -319,34 +300,15 @@ fn intersect_aabb_distance(node: BVHNode, origin: vec3<f32>, inv_direction: vec3
     return select(MISS_DISTANCE, t_enter, t_enter <= t_exit);
 }
 
-// streams the bounds pairs axis by axis (indexing the storage array per field instead of
-// loading the 112-byte node into registers) to keep the live register set small
-fn intersect_bvh4_children(code: u32, origin: vec3<f32>, inv_direction: vec3<f32>, t_min: f32, t_max: f32) -> vec4<f32>{
-    let t1x = (bvh4_nodes[code].min_x - vec4<f32>(origin.x)) * vec4<f32>(inv_direction.x);
-    let t2x = (bvh4_nodes[code].max_x - vec4<f32>(origin.x)) * vec4<f32>(inv_direction.x);
-    var t_enter = min(t1x, t2x);
-    var t_exit = max(t1x, t2x);
-    let t1y = (bvh4_nodes[code].min_y - vec4<f32>(origin.y)) * vec4<f32>(inv_direction.y);
-    let t2y = (bvh4_nodes[code].max_y - vec4<f32>(origin.y)) * vec4<f32>(inv_direction.y);
-    t_enter = max(t_enter, min(t1y, t2y));
-    t_exit = min(t_exit, max(t1y, t2y));
-    let t1z = (bvh4_nodes[code].min_z - vec4<f32>(origin.z)) * vec4<f32>(inv_direction.z);
-    let t2z = (bvh4_nodes[code].max_z - vec4<f32>(origin.z)) * vec4<f32>(inv_direction.z);
-    t_enter = max(max(t_enter, min(t1z, t2z)), vec4<f32>(t_min));
-    t_exit = min(min(t_exit, max(t1z, t2z)), vec4<f32>(t_max));
-    return select(vec4<f32>(MISS_DISTANCE), t_enter, t_enter <= t_exit);
-}
-
-// BLAS traversal against one instance over the 4-wide nodes; the ray is transformed into
-// object space with an unnormalized direction, so hit.t stays parameterized in world units and
-// is comparable across instances. All four child slabs are tested with vec4 ops; hit children
-// are sorted near-first by a 4-element sorting network, the nearest is descended directly and
-// the rest are pushed far-to-near (culled against best.t at push time).
+// BLAS traversal against one instance; the ray is transformed into object space with an
+// unnormalized direction, so hit.t stays parameterized in world units and is comparable
+// across instances. Ordered: both children are tested at the parent and the nearer subtree is
+// descended first, so the best.t cull prunes the far subtree early.
 fn intersect_blas_closest(instance_index: u32, origin_in: vec3<f32>, direction_in: vec3<f32>, t_min: f32, best: ptr<function, Hit>){
     // per-field loads: identity instances skip the 96-byte matrix load entirely
     let object = instance_data[instance_index].object;
     let record_base = params.object_records_offset + 4u * object;
-    let bvh4_root = geometry_u32(record_base);
+    let node_base = geometry_u32(record_base);
     let node_count = geometry_u32(record_base + 1u);
     let first_triangle = geometry_u32(record_base + 2u);
     if(node_count == 0u){ return; }
@@ -358,43 +320,46 @@ fn intersect_blas_closest(instance_index: u32, origin_in: vec3<f32>, direction_i
         direction = transform_vector(world_to_object, direction_in);
     }
     let inv_direction = safe_inverse(direction);
+    if(intersect_aabb_distance(bvh_nodes[node_base], origin, inv_direction, t_min, (*best).t) >= (*best).t){ return; }
     var stack: array<u32, TRAVERSAL_STACK_SIZE>;
     var stack_pointer = 0u;
-    var code = bvh4_root;
+    var node_index = 0u;
     loop{
-        if((code & BVH4_LEAF_BIT) != 0u){
-            let leaf_first = (code >> BVH4_LEAF_FIRST_SHIFT) & BVH4_LEAF_FIRST_MASK;
-            let leaf_count = code & BVH4_LEAF_COUNT_MASK;
-            for(var i = 0u; i < leaf_count; i++){
-                if(intersect_triangle_packed(first_triangle + leaf_first + i, origin, direction, t_min, (*best).t, best)){
+        let node = bvh_nodes[node_base + node_index];
+        let left_or_first = bvh_left_or_first(node);
+        let count = bvh_count(node);
+        if(count > 0u){
+            for(var i = 0u; i < count; i++){
+                if(intersect_triangle_packed(first_triangle + left_or_first + i, origin, direction, t_min, (*best).t, best)){
                     (*best).instance = instance_index;
                 }
             }
         }
         else{
-            let child = bvh4_nodes[code].child;
-            var dist = intersect_bvh4_children(code, origin, inv_direction, t_min, (*best).t);
-            dist = select(vec4<f32>(MISS_DISTANCE), dist, child != vec4<u32>(BVH4_EMPTY));
-            var d0 = dist.x; var c0 = child.x;
-            var d1 = dist.y; var c1 = child.y;
-            var d2 = dist.z; var c2 = child.z;
-            var d3 = dist.w; var c3 = child.w;
-            if(d1 < d0){ let td = d0; d0 = d1; d1 = td; let tc = c0; c0 = c1; c1 = tc; }
-            if(d3 < d2){ let td = d2; d2 = d3; d3 = td; let tc = c2; c2 = c3; c3 = tc; }
-            if(d2 < d0){ let td = d0; d0 = d2; d2 = td; let tc = c0; c0 = c2; c2 = tc; }
-            if(d3 < d1){ let td = d1; d1 = d3; d3 = td; let tc = c1; c1 = c3; c3 = tc; }
-            if(d2 < d1){ let td = d1; d1 = d2; d2 = td; let tc = c1; c1 = c2; c2 = tc; }
-            if(d3 < (*best).t && stack_pointer < TRAVERSAL_STACK_SIZE){ stack[stack_pointer] = c3; stack_pointer++; }
-            if(d2 < (*best).t && stack_pointer < TRAVERSAL_STACK_SIZE){ stack[stack_pointer] = c2; stack_pointer++; }
-            if(d1 < (*best).t && stack_pointer < TRAVERSAL_STACK_SIZE){ stack[stack_pointer] = c1; stack_pointer++; }
-            if(d0 < (*best).t){
-                code = c0;
+            let t_left = intersect_aabb_distance(bvh_nodes[node_base + left_or_first], origin, inv_direction, t_min, (*best).t);
+            let t_right = intersect_aabb_distance(bvh_nodes[node_base + left_or_first + 1u], origin, inv_direction, t_min, (*best).t);
+            var near_index = left_or_first;
+            var near_t = t_left;
+            var far_index = left_or_first + 1u;
+            var far_t = t_right;
+            if(t_right < t_left){
+                near_index = left_or_first + 1u;
+                near_t = t_right;
+                far_index = left_or_first;
+                far_t = t_left;
+            }
+            if(far_t < (*best).t && stack_pointer < TRAVERSAL_STACK_SIZE){
+                stack[stack_pointer] = far_index;
+                stack_pointer++;
+            }
+            if(near_t < (*best).t){
+                node_index = near_index;
                 continue;
             }
         }
         if(stack_pointer == 0u){ return; }
         stack_pointer--;
-        code = stack[stack_pointer];
+        node_index = stack[stack_pointer];
     }
 }
 
@@ -495,7 +460,7 @@ fn traverse_overlay_tlas_closest(region: u32, overlay: u32, origin: vec3<f32>, d
 fn intersect_blas_any(instance_index: u32, origin_in: vec3<f32>, direction_in: vec3<f32>, t_min: f32, t_max: f32) -> bool{
     let object = instance_data[instance_index].object;
     let record_base = params.object_records_offset + 4u * object;
-    let bvh4_root = geometry_u32(record_base);
+    let node_base = geometry_u32(record_base);
     let node_count = geometry_u32(record_base + 1u);
     let first_triangle = geometry_u32(record_base + 2u);
     if(node_count == 0u){ return false; }
@@ -509,31 +474,31 @@ fn intersect_blas_any(instance_index: u32, origin_in: vec3<f32>, direction_in: v
     let inv_direction = safe_inverse(direction);
     var stack: array<u32, TRAVERSAL_STACK_SIZE>;
     var stack_pointer = 0u;
-    var code = bvh4_root;
+    stack[stack_pointer] = 0u;
+    stack_pointer++;
     var hit: Hit;
     hit.valid = false;
-    loop{
-        if((code & BVH4_LEAF_BIT) != 0u){
-            let leaf_first = (code >> BVH4_LEAF_FIRST_SHIFT) & BVH4_LEAF_FIRST_MASK;
-            let leaf_count = code & BVH4_LEAF_COUNT_MASK;
-            for(var i = 0u; i < leaf_count; i++){
-                if(intersect_triangle_packed(first_triangle + leaf_first + i, origin, direction, t_min, t_max, &hit)){ return true; }
+    while(stack_pointer > 0u){
+        stack_pointer--;
+        let node = bvh_nodes[node_base + stack[stack_pointer]];
+        if(!intersect_aabb(node, origin, inv_direction, t_min, t_max)){ continue; }
+        let left_or_first = bvh_left_or_first(node);
+        let count = bvh_count(node);
+        if(count > 0u){
+            for(var i = 0u; i < count; i++){
+                if(intersect_triangle_packed(first_triangle + left_or_first + i, origin, direction, t_min, t_max, &hit)){ return true; }
             }
         }
         else{
-            let child = bvh4_nodes[code].child;
-            var dist = intersect_bvh4_children(code, origin, inv_direction, t_min, t_max);
-            dist = select(vec4<f32>(MISS_DISTANCE), dist, child != vec4<u32>(BVH4_EMPTY));
-            if(dist.x < MISS_DISTANCE && stack_pointer < TRAVERSAL_STACK_SIZE){ stack[stack_pointer] = child.x; stack_pointer++; }
-            if(dist.y < MISS_DISTANCE && stack_pointer < TRAVERSAL_STACK_SIZE){ stack[stack_pointer] = child.y; stack_pointer++; }
-            if(dist.z < MISS_DISTANCE && stack_pointer < TRAVERSAL_STACK_SIZE){ stack[stack_pointer] = child.z; stack_pointer++; }
-            if(dist.w < MISS_DISTANCE && stack_pointer < TRAVERSAL_STACK_SIZE){ stack[stack_pointer] = child.w; stack_pointer++; }
+            if(stack_pointer + 2u <= TRAVERSAL_STACK_SIZE){
+                stack[stack_pointer] = left_or_first + 1u;
+                stack_pointer++;
+                stack[stack_pointer] = left_or_first;
+                stack_pointer++;
+            }
         }
-        if(stack_pointer == 0u){ return false; }
-        stack_pointer--;
-        code = stack[stack_pointer];
     }
-    return false; // unreachable: the loop only exits through the returns above
+    return false;
 }
 
 fn traverse_scene_tlas_any(origin: vec3<f32>, direction: vec3<f32>, t_min: f32, t_max: f32) -> bool{
