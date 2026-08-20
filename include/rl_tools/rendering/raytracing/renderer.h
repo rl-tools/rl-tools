@@ -202,6 +202,7 @@ namespace rl_tools {
             namespace optix { struct State; }
             namespace metal { struct Context; }
             namespace vulkan { struct Context; }
+            namespace webgpu { struct Context; }
             // renderer.device: memory-domain handle for tensor copies at readback/upload
             // boundaries — copy(renderer.device, device, ...) dispatches on the backend residency
             // and orders the copy after the renderer's in-flight work; backend selection for the
@@ -224,6 +225,11 @@ namespace rl_tools {
             struct Device<Vulkan>{
                 using index_t = size_t;
                 vulkan::Context* context = nullptr;
+            };
+            template <>
+            struct Device<Webgpu>{
+                using index_t = size_t;
+                webgpu::Context* context = nullptr;
             };
         }
 
