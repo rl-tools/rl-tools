@@ -150,11 +150,9 @@ int main(int argc, char** argv) {
         }
     };
     auto upload_cameras = [&]() {
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-        cudaMemcpy(rlt::data(rlt::cameras(device, *env.renderer)), camera_staging.data(), NUM_ENVS * sizeof(rlt::rendering::raytracing::Camera<T>), cudaMemcpyHostToDevice);
-#else
-        std::memcpy(rlt::data(rlt::cameras(device, *env.renderer)), camera_staging.data(), NUM_ENVS * sizeof(rlt::rendering::raytracing::Camera<T>));
-#endif
+        rlt::Tensor<typename decltype(env.renderer->cameras)::SPEC> camera_alias;
+        camera_alias._data = camera_staging.data();
+        rlt::copy(device, env.renderer->device, camera_alias, rlt::cameras(device, *env.renderer));
     };
 
     auto do_video_output = [&](TI step_i) -> int {
@@ -165,11 +163,9 @@ int main(int argc, char** argv) {
         if (mp4_pipe == nullptr) return 0;
         constexpr size_t pixel_count = (size_t)NUM_ENVS * SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT;
         static std::vector<uint32_t> frame_staging(pixel_count);
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-        cudaMemcpy(frame_staging.data(), rlt::data(rlt::frame_buffer(device, *env.renderer)), pixel_count * sizeof(uint32_t), cudaMemcpyDeviceToHost);
-#else
-        std::memcpy(frame_staging.data(), rlt::data(rlt::frame_buffer(device, *env.renderer)), pixel_count * sizeof(uint32_t));
-#endif
+        rlt::Tensor<typename decltype(env.renderer->frame_buffer)::SPEC> frame_alias;
+        frame_alias._data = frame_staging.data();
+        rlt::copy(env.renderer->device, device, rlt::frame_buffer(device, *env.renderer), frame_alias);
         const uint32_t* per_camera_rgba_ptr = frame_staging.data();
         for (TI camera_i = 0; camera_i < NUM_ENVS; camera_i++) {
             const TI col = camera_i % SPEC::RAYTRACING_SPEC::GRID_COLS;

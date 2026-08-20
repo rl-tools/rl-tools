@@ -8,9 +8,11 @@
 // (wgpu-native is the reference runtime; Dawn/emscripten are drop-in alternatives). Standard
 // WebGPU exposes no acceleration structures, so the BVHs are built on the host with the generic
 // backend's deterministic builder and traversed in WGSL (device.wgsl); outputs are copied into
-// staging buffers and read back into the host-resident tensors by the *_sync verbs. The only
-// non-standard calls are wgpuDevicePoll (blocking wait) and wgpuInstanceEnumerateAdapters
-// (RL_TOOLS_WEBGPU_DEVICE_INDEX), both isolated in the helpers below.
+// staging buffers and read back into the host-resident tensors by the *_sync verbs and the
+// renderer memory-domain copy (registered ReadbackTargets let the settle run on the Context
+// alone). The only non-standard calls are wgpuDevicePoll (blocking wait) and
+// wgpuInstanceEnumerateAdapters (RL_TOOLS_WEBGPU_DEVICE_INDEX), both isolated in the helpers
+// below.
 #include "../../renderer.h"
 #include "../../operations_cpu_common.h"
 #include "../generic/operations_generic.h"
@@ -132,6 +134,34 @@ namespace rl_tools {
             utils::assert_exit(device, mapped != nullptr, "WebGPU: mapped range unavailable");
             std::memcpy(destination, mapped, bytes);
             wgpuBufferUnmap(staging.buffer);
+        }
+
+        template <typename DEVICE>
+        void settle_render(DEVICE& device, Context& ctx){
+            if(!ctx.render_in_flight){
+                return;
+            }
+            for(auto& target : ctx.render_readbacks){
+                read_back(device, ctx, *target.staging, target.destination, target.bytes);
+            }
+            ctx.render_in_flight = false;
+        }
+
+        template <typename DEVICE>
+        void settle_probe(DEVICE& device, Context& ctx){
+            if(!ctx.collision_in_flight){
+                return;
+            }
+            for(auto& target : ctx.probe_readbacks){
+                read_back(device, ctx, *target.staging, target.destination, target.bytes);
+            }
+            ctx.collision_in_flight = false;
+        }
+
+        template <typename DEVICE>
+        void wait_in_flight(DEVICE& device, Context& ctx){
+            settle_render(device, ctx);
+            settle_probe(device, ctx);
         }
 
         inline void destroy_scene_resources(Context& ctx){
@@ -291,14 +321,6 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer);
 
-    namespace rendering::raytracing::backends::webgpu{
-        template <typename DEVICE, typename SPEC>
-        void wait_in_flight(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
-            render_sync(device, renderer);
-            probe_sync(device, renderer);
-        }
-    }
-
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
         namespace wg = rendering::raytracing::backends::webgpu;
@@ -352,6 +374,7 @@ namespace rl_tools {
 #endif
 
         renderer.backend = new rendering::raytracing::backends::RendererState<rendering::raytracing::backends::Webgpu, SPEC>{};
+        renderer.device.context = renderer.backend;
         auto* ctx = renderer.backend;
 
         ctx->instance = wgpuCreateInstance(nullptr);
@@ -606,6 +629,27 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_OBSERVATION) {
             ctx->staging_observation = wg::create_buffer(device, *ctx, ctx->observation.size, STAGING);
         }
+        if constexpr (SPEC::HAS_RGB) {
+            ctx->render_readbacks.push_back({&ctx->staging_frame_buffer, data(renderer.frame_buffer), decltype(renderer.frame_buffer)::SPEC::SIZE_BYTES});
+        }
+        if constexpr (SPEC::HAS_DEPTH) {
+            ctx->render_readbacks.push_back({&ctx->staging_depth, data(renderer.depth_buffer), decltype(renderer.depth_buffer)::SPEC::SIZE_BYTES});
+        }
+        if constexpr (SPEC::HAS_SEGMENTATION) {
+            ctx->render_readbacks.push_back({&ctx->staging_segmentation, data(renderer.segmentation_buffer), decltype(renderer.segmentation_buffer)::SPEC::SIZE_BYTES});
+        }
+        if constexpr (SPEC::HAS_NORMALS) {
+            ctx->render_readbacks.push_back({&ctx->staging_normals, data(renderer.normals_buffer), decltype(renderer.normals_buffer)::SPEC::SIZE_BYTES});
+        }
+        if constexpr (SPEC::HAS_FLOW) {
+            ctx->render_readbacks.push_back({&ctx->staging_flow, data(renderer.flow_buffer), decltype(renderer.flow_buffer)::SPEC::SIZE_BYTES});
+        }
+        if constexpr (SPEC::HAS_OBSERVATION) {
+            ctx->render_readbacks.push_back({&ctx->staging_observation, data(renderer.observation), decltype(renderer.observation)::SPEC::SIZE_BYTES});
+        }
+#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
+        ctx->probe_readbacks.push_back({&ctx->staging_collision, data(renderer.collision_results), decltype(renderer.collision_results)::SPEC::SIZE_BYTES});
+#endif
         {
             // one 256-byte slot per dynamic-motion-blur sample plus slot 0 for the shutter-close
             // state; slot s + 1 carries that sample's shutter time and overlay BVH region
@@ -640,7 +684,7 @@ namespace rl_tools {
         }
         RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << all_objects.size() << " objects / " << scene.instances.size() << " instances ...");
 
-        wg::wait_in_flight(device, renderer);
+        wg::wait_in_flight(device, ctx);
         wg::destroy_scene_resources(ctx);
 
         // both builders are deterministic; median is the shared generic baseline for A/B and
@@ -1092,16 +1136,17 @@ namespace rl_tools {
         }
     }
 
-    template <typename DEVICE, typename SPEC, typename T>
-    void copy_to_renderer(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, const T* source, T* destination, size_t count){
-        rendering::raytracing::backends::webgpu::wait_in_flight(device, renderer);
-        std::memcpy(destination, source, count * sizeof(T));
+    // renderer memory-domain copies: the in-flight wait settles the staging readbacks into the
+    // host-resident tensors, so the transfer delegates to the host-device tensor copy
+    template <typename TO_DEVICE, typename FROM_SPEC, typename TO_SPEC>
+    void copy(rendering::raytracing::backends::Device<rendering::raytracing::backends::Webgpu>& from_device, TO_DEVICE& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to){
+        rendering::raytracing::backends::webgpu::wait_in_flight(to_device, *from_device.context);
+        copy(to_device, to_device, from, to);
     }
-
-    template <typename DEVICE, typename SPEC, typename T>
-    void copy_from_renderer(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, const T* source, T* destination, size_t count){
-        rendering::raytracing::backends::webgpu::wait_in_flight(device, renderer);
-        std::memcpy(destination, source, count * sizeof(T));
+    template <typename FROM_DEVICE, typename FROM_SPEC, typename TO_SPEC>
+    void copy(FROM_DEVICE& from_device, rendering::raytracing::backends::Device<rendering::raytracing::backends::Webgpu>& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to){
+        rendering::raytracing::backends::webgpu::wait_in_flight(from_device, *to_device.context);
+        copy(from_device, from_device, from, to);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1220,29 +1265,7 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void render_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
         namespace wg = rendering::raytracing::backends::webgpu;
-        auto& ctx = wg::context(renderer);
-        if(!ctx.render_in_flight){
-            return;
-        }
-        if constexpr (SPEC::HAS_RGB){
-            wg::read_back(device, ctx, ctx.staging_frame_buffer, data(renderer.frame_buffer), decltype(renderer.frame_buffer)::SPEC::SIZE_BYTES);
-        }
-        if constexpr (SPEC::HAS_DEPTH){
-            wg::read_back(device, ctx, ctx.staging_depth, data(renderer.depth_buffer), decltype(renderer.depth_buffer)::SPEC::SIZE_BYTES);
-        }
-        if constexpr (SPEC::HAS_SEGMENTATION){
-            wg::read_back(device, ctx, ctx.staging_segmentation, data(renderer.segmentation_buffer), decltype(renderer.segmentation_buffer)::SPEC::SIZE_BYTES);
-        }
-        if constexpr (SPEC::HAS_NORMALS){
-            wg::read_back(device, ctx, ctx.staging_normals, data(renderer.normals_buffer), decltype(renderer.normals_buffer)::SPEC::SIZE_BYTES);
-        }
-        if constexpr (SPEC::HAS_FLOW){
-            wg::read_back(device, ctx, ctx.staging_flow, data(renderer.flow_buffer), decltype(renderer.flow_buffer)::SPEC::SIZE_BYTES);
-        }
-        if constexpr (SPEC::HAS_OBSERVATION){
-            wg::read_back(device, ctx, ctx.staging_observation, data(renderer.observation), decltype(renderer.observation)::SPEC::SIZE_BYTES);
-        }
-        ctx.render_in_flight = false;
+        wg::settle_render(device, wg::context(renderer));
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1284,14 +1307,7 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void probe_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
         namespace wg = rendering::raytracing::backends::webgpu;
-        auto& ctx = wg::context(renderer);
-        if(!ctx.collision_in_flight){
-            return;
-        }
-#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        wg::read_back(device, ctx, ctx.staging_collision, data(renderer.collision_results), decltype(renderer.collision_results)::SPEC::SIZE_BYTES);
-#endif
-        ctx.collision_in_flight = false;
+        wg::settle_probe(device, wg::context(renderer));
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1302,42 +1318,49 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void save_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, const char* filename){
+        rendering::raytracing::backends::webgpu::wait_in_flight(device, rendering::raytracing::backends::webgpu::context(renderer));
         static_assert(SPEC::HAS_RGB, "save_image requires an RGB-capable renderer specification");
         rendering::raytracing::detail::write_grid_png<SPEC>(data(renderer.frame_buffer), filename);
     }
 
     template <typename DEVICE, typename SPEC>
     void save_segmentation_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, const char* filename){
+        rendering::raytracing::backends::webgpu::wait_in_flight(device, rendering::raytracing::backends::webgpu::context(renderer));
         static_assert(SPEC::HAS_SEGMENTATION, "save_segmentation_image requires a segmentation-capable renderer specification");
         rendering::raytracing::detail::write_segmentation_grid_png<SPEC>(data(renderer.segmentation_buffer), filename);
     }
 
     template <typename DEVICE, typename SPEC>
     void save_normals_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, const char* filename){
+        rendering::raytracing::backends::webgpu::wait_in_flight(device, rendering::raytracing::backends::webgpu::context(renderer));
         static_assert(SPEC::HAS_NORMALS, "save_normals_image requires a normals-capable renderer specification");
         rendering::raytracing::detail::write_normals_grid_png<SPEC>(data(renderer.normals_buffer), filename);
     }
 
     template <typename DEVICE, typename SPEC>
     void save_flow_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, const char* filename){
+        rendering::raytracing::backends::webgpu::wait_in_flight(device, rendering::raytracing::backends::webgpu::context(renderer));
         static_assert(SPEC::HAS_FLOW, "save_flow_image requires a flow-capable renderer specification");
         rendering::raytracing::detail::write_flow_grid_png<SPEC>(data(renderer.flow_buffer), filename);
     }
 
     template <typename DEVICE, typename SPEC>
     void save_depth_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, const char* filename){
+        rendering::raytracing::backends::webgpu::wait_in_flight(device, rendering::raytracing::backends::webgpu::context(renderer));
         static_assert(SPEC::HAS_DEPTH, "save_depth_image requires a depth-capable renderer specification");
         rendering::raytracing::detail::write_depth_grid_png<SPEC>(data(renderer.depth_buffer), renderer.camera_radius, filename);
     }
 
     template <typename DEVICE, typename SPEC>
     void save_depth(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, const char* filename){
+        rendering::raytracing::backends::webgpu::wait_in_flight(device, rendering::raytracing::backends::webgpu::context(renderer));
         static_assert(SPEC::HAS_DEPTH, "save_depth requires a depth-capable renderer specification");
         rendering::raytracing::detail::write_depth_bin<SPEC>(data(renderer.depth_buffer), filename);
     }
 
     template <typename DEVICE, typename SPEC>
     void save_probes(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, const char* filename){
+        rendering::raytracing::backends::webgpu::wait_in_flight(device, rendering::raytracing::backends::webgpu::context(renderer));
 #if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         RL_TOOLS_RENDERING_RAYTRACING_LOG("save_probes skipped: probe rays are disabled.");
         (void)filename;
@@ -1349,7 +1372,7 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void synchronize(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
-        rendering::raytracing::backends::webgpu::wait_in_flight(device, renderer);
+        rendering::raytracing::backends::webgpu::wait_in_flight(device, rendering::raytracing::backends::webgpu::context(renderer));
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1357,7 +1380,7 @@ namespace rl_tools {
         namespace wg = rendering::raytracing::backends::webgpu;
         if(renderer.backend != nullptr){
             auto& ctx = wg::context(renderer);
-            wg::wait_in_flight(device, renderer);
+            wg::wait_in_flight(device, ctx);
             wg::destroy_scene_resources(ctx);
             wg::destroy_buffer(ctx.launch_params);
             wg::destroy_buffer(ctx.cameras);
@@ -1397,6 +1420,7 @@ namespace rl_tools {
             if(ctx.instance != nullptr){ wgpuInstanceRelease(ctx.instance); }
             delete renderer.backend;
             renderer.backend = nullptr;
+            renderer.device.context = nullptr;
         }
         free(device, renderer.cameras);
         if constexpr (SPEC::HAS_CAMERA_PAIR) {

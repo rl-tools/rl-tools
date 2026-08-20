@@ -9,6 +9,7 @@
 #include <gtest/gtest.h>
 
 #include "../overlay_scenario_cases.h"
+#include "../render_copy.h"
 
 #include <algorithm>
 #include <array>
@@ -64,7 +65,7 @@ namespace {
         const auto camera = rlt::make_camera_data(position, look_at, up, SPEC::COS_FOVY, aspect);
         std::array<rlt::rendering::raytracing::Camera<T>, SPEC::NUM_CAMERAS> cameras;
         cameras.fill(camera);
-        rlt::copy_to_renderer(device, renderer, cameras.data(), rlt::data(rlt::cameras(device, renderer)), cameras.size());
+        golden::copy_in(device, renderer.device, cameras.data(), rlt::cameras(device, renderer));
     }
 
     template <typename SPEC>
@@ -78,14 +79,10 @@ namespace {
     Frame<SPEC> capture(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         rlt::render(device, renderer);
         rlt::synchronize(device, renderer);
-        const size_t size = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
         Frame<SPEC> frame;
-        frame.rgb.resize(size);
-        frame.depth.resize(size);
-        frame.segmentation.resize(size);
-        rlt::copy_from_renderer(device, renderer, rlt::data(rlt::frame_buffer(device, renderer)), frame.rgb.data(), size);
-        rlt::copy_from_renderer(device, renderer, rlt::data(rlt::depth_buffer(device, renderer)), frame.depth.data(), size);
-        rlt::copy_from_renderer(device, renderer, rlt::data(rlt::segmentation_buffer(device, renderer)), frame.segmentation.data(), size);
+        golden::copy_out(renderer.device, device, rlt::frame_buffer(device, renderer), frame.rgb);
+        golden::copy_out(renderer.device, device, rlt::depth_buffer(device, renderer), frame.depth);
+        golden::copy_out(renderer.device, device, rlt::segmentation_buffer(device, renderer), frame.segmentation);
         return frame;
     }
 

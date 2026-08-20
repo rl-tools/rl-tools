@@ -149,9 +149,11 @@ namespace rl_tools {
         auto camera = rl::environments::l2f_visual::make_camera_for_state(device, env, parameters, state);
         std::array<rendering::raytracing::Camera<typename SPEC::T>, SPEC::NUM_ENVS> camera_staging;
         camera_staging.fill(camera);
-        copy_to_renderer(device, *env.renderer, camera_staging.data(), data(cameras(device, *env.renderer)), camera_staging.size());
+        Tensor<tensor::Specification<rendering::raytracing::Camera<typename SPEC::T>, TI, typename decltype(env.renderer->cameras)::SPEC::SHAPE>> camera_alias;
+        camera_alias._data = camera_staging.data();
+        copy(device, env.renderer->device, camera_alias, cameras(device, *env.renderer));
         if constexpr (SPEC::RENDERER_SPEC::ENABLE_MOTION_BLUR) {
-            copy_to_renderer(device, *env.renderer, camera_staging.data(), data(cameras_open(device, *env.renderer)), camera_staging.size());
+            copy(device, env.renderer->device, camera_alias, cameras_open(device, *env.renderer));
         }
         render(device, *env.renderer);
 
@@ -160,10 +162,16 @@ namespace rl_tools {
         std::vector<float> rgb_staging(SPEC::HAS_RGB ? CAM_PIXELS * 3 : 0);
         std::vector<float> depth_staging(SPEC::HAS_DEPTH ? CAM_PIXELS : 0);
         if constexpr (SPEC::HAS_RGB) {
-            copy_from_renderer(device, *env.renderer, data(env.renderer->observation), rgb_staging.data(), CAM_PIXELS * 3);
+            auto observation_camera_0 = view(device, env.renderer->observation, 0);
+            Tensor<tensor::Specification<float, TI, typename decltype(observation_camera_0)::SPEC::SHAPE>> rgb_alias;
+            rgb_alias._data = rgb_staging.data();
+            copy(env.renderer->device, device, observation_camera_0, rgb_alias);
         }
         if constexpr (SPEC::HAS_DEPTH) {
-            copy_from_renderer(device, *env.renderer, data(env.renderer->depth_buffer), depth_staging.data(), CAM_PIXELS);
+            auto depth_camera_0 = view(device, env.renderer->depth_buffer, 0);
+            Tensor<tensor::Specification<float, TI, typename decltype(depth_camera_0)::SPEC::SHAPE>> depth_alias;
+            depth_alias._data = depth_staging.data();
+            copy(env.renderer->device, device, depth_camera_0, depth_alias);
         }
         for (TI i = 0; i < CAM_PIXELS; i++) {
             if constexpr (SPEC::HAS_RGB) {
@@ -203,12 +211,14 @@ namespace rl_tools {
         for (TI env_i = 0; env_i < num_envs; env_i++) {
             camera_staging[env_i] = rl::environments::l2f_visual::make_camera_for_state(device, env, get_ref(device, parameters, env_i), get_ref(device, states, env_i));
         }
-        copy_to_renderer(device, *env.renderer, camera_staging.data(), data(cameras(device, *env.renderer)), num_envs);
+        Tensor<tensor::Specification<rendering::raytracing::Camera<typename SPEC::T>, TI, typename decltype(env.renderer->cameras)::SPEC::SHAPE>> camera_alias;
+        camera_alias._data = camera_staging.data();
+        copy(device, env.renderer->device, camera_alias, cameras(device, *env.renderer));
         if constexpr (SPEC::RENDERER_SPEC::ENABLE_MOTION_BLUR) {
-            copy_to_renderer(device, *env.renderer, camera_staging.data(), data(cameras_open(device, *env.renderer)), num_envs);
+            copy(device, env.renderer->device, camera_alias, cameras_open(device, *env.renderer));
         }
         render(device, *env.renderer);
-        copy_from_renderer(device, *env.renderer, data(env.renderer->frame_buffer), data(out_pixels), (size_t)SPEC::NUM_ENVS * SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT);
+        copy(env.renderer->device, device, env.renderer->frame_buffer, out_pixels);
     }
     template <typename DEVICE, typename SPEC>
     std::string json(DEVICE& device, const rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, const typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters& parameters){

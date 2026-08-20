@@ -188,12 +188,10 @@ int main(int argc, char** argv) {
     };
     const T aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
 
-    const auto camera = rlt::make_camera_data(options.position, look_at, up, SPEC::COS_FOVY, aspect);
-#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
-    cudaMemcpy(rlt::data(rlt::cameras(device, renderer)), &camera, sizeof(camera), cudaMemcpyHostToDevice);
-#else
-    std::memcpy(rlt::data(rlt::cameras(device, renderer)), &camera, sizeof(camera));
-#endif
+    auto camera = rlt::make_camera_data(options.position, look_at, up, SPEC::COS_FOVY, aspect);
+    rlt::Tensor<typename decltype(renderer.cameras)::SPEC> camera_alias;
+    camera_alias._data = &camera;
+    rlt::copy(device, renderer.device, camera_alias, rlt::cameras(device, renderer));
 #if RL_TOOLS_RENDERING_RAYTRACING_FIXED_POSE_OUTPUT_MODE == 2
     rlt::render(device, renderer);
     rlt::synchronize(device, renderer);
