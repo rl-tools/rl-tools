@@ -12,41 +12,35 @@
 #include <vector>
 #include <cstdint>
 
+#ifndef RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
+#define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 0
+#endif
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rendering::raytracing::backends::webgpu{
     // Bind group 0 layout shared between the host code and the WGSL kernels in device.wgsl.
     // Standard WebGPU has no acceleration structures and no buffer device addresses, so relative
     // to the Vulkan backend the TLAS/overlay-TLAS bindings become BVH storage buffers and the
     // MeshRecord addresses become element offsets into one packed SCENE_GEOMETRY buffer.
+    // Exactly 8 storage buffers: browsers tier maxStorageBuffersPerShaderStage down to the spec
+    // default of 8 regardless of hardware, so the small per-frame inputs live as sections of the
+    // FRAME_INPUTS arena and every output is a section of the OUTPUTS arena, both addressed by
+    // element offsets carried in LaunchParams (the SCENE_GEOMETRY pattern). Mesh records live in
+    // SCENE_GEOMETRY (shading-only after the packed-triangle intersection path) so the
+    // leaf-ordered TRIANGLES stream keeps its own vec4-typed binding. LaunchParams itself is
+    // read-only storage, not uniform — see the binding comment in device.wgsl.
     namespace bindings{
         constexpr uint32_t LAUNCH_PARAMS = 0;
-        constexpr uint32_t CAMERAS_CLOSE = 1;
-        constexpr uint32_t CAMERAS_OPEN = 2;
-        constexpr uint32_t FRAME_BUFFER = 3;
-        constexpr uint32_t MESH_RECORDS = 4;
-        constexpr uint32_t SCENE_LIGHTS = 5;
-        constexpr uint32_t PROBE_DIRECTIONS = 6;
-        constexpr uint32_t COLLISION_RESULTS = 7;
-        constexpr uint32_t BVH_NODES = 8; // per-object BLAS slices followed by the scene TLAS
-        constexpr uint32_t DEPTH_BUFFER = 9;
-        constexpr uint32_t SEGMENTATION_BUFFER = 10;
-        constexpr uint32_t SCENE_GEOMETRY = 11; // u32-addressed: mesh data, triangle tables, BLAS/TLAS leaf permutations, object records
-        constexpr uint32_t INSTANCE_DATA = 12;
-        constexpr uint32_t OVERLAY_ATTACHMENTS = 13;
-        constexpr uint32_t OVERLAY_META = 14; // per region x overlay: {num_active, num_tlas_nodes}
-        constexpr uint32_t OVERLAY_NODES = 15;
-        constexpr uint32_t INSTANCE_CLASSES = 16;
-        constexpr uint32_t OBSERVATION = 17;
-        constexpr uint32_t RGB_ACCUMULATOR = 18;
-        constexpr uint32_t DEPTH_ACCUMULATOR = 19;
-        constexpr uint32_t NORMALS_BUFFER = 20;
-        constexpr uint32_t FLOW_BUFFER = 21;
-        constexpr uint32_t FLOW_DELTAS = 22;
-        constexpr uint32_t TEXTURE_DATA = 23; // packed RGBA8 texels, one u32 each, sampled in the shader
-        constexpr uint32_t OVERLAY_PRIMITIVES = 24;
-        constexpr uint32_t DISPATCH_PARAMS = 25; // dynamic-offset uniform: {shutter_t, overlay_region}
-        constexpr uint32_t TRIANGLES = 26; // leaf-ordered packed triangles: 3 x vec4 {vertex.xyz, w: bitcast global id / 0 / 0}
-        constexpr uint32_t COUNT = 27;
+        constexpr uint32_t DISPATCH_PARAMS = 1; // dynamic-offset uniform: {shutter_t, overlay_region}
+        constexpr uint32_t SCENE_GEOMETRY = 2;  // u32-addressed: mesh data, triangle tables, TLAS leaf permutation, object records, sRGB LUT, mesh records, scene lights, instance classes
+        constexpr uint32_t TEXTURE_DATA = 3;    // packed RGBA8 texels, one u32 each, sampled in the shader
+        constexpr uint32_t BVH_NODES = 4;       // per-object BLAS slices, the scene TLAS, then the per-region overlay TLASes
+        constexpr uint32_t TRIANGLES = 5;       // leaf-ordered packed triangles: 3 x vec4 {vertex.xyz, w: bitcast global id / 0 / 0}
+        constexpr uint32_t INSTANCE_DATA = 6;
+        constexpr uint32_t FRAME_INPUTS = 7;    // cameras, overlay attachments/meta/primitives, flow deltas, probe directions
+        constexpr uint32_t OUTPUTS = 8;         // frame buffer, depth, segmentation, normals, flow, observation, accumulators, collision results
+        constexpr uint32_t COUNT = 9;
+        constexpr uint32_t STORAGE_COUNT = 8;
     }
     // must match the @workgroup_size of every entry point in device.wgsl
     constexpr uint32_t WORKGROUP_SIZE_X = 8;
@@ -61,6 +55,9 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
 
     using BVHNode = generic::BVHNode<float, uint32_t>;
     static_assert(sizeof(BVHNode) == 32, "BVHNode layout must match the WGSL declaration in device.wgsl");
+    static_assert(sizeof(rendering::raytracing::SceneLight) == 60, "SceneLight layout must match load_scene_light in device.wgsl");
+    static_assert(sizeof(rendering::raytracing::Camera<float>) == 48, "Camera layout must match load_camera in device.wgsl");
+    static_assert(sizeof(rendering::raytracing::CollisionResult) == 8, "CollisionResult must span two OUTPUTS words");
 
     struct LaunchParams{
         uint32_t fb_width;
@@ -84,8 +81,27 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         uint32_t tlas_node_count;
         uint32_t tlas_primitive_offset;  // u32 elements into SCENE_GEOMETRY
         uint32_t srgb_lut_offset;        // 256 f32 elements into SCENE_GEOMETRY: sRGB texel -> linear
+        uint32_t mesh_records_offset;    // 30 words per record, into SCENE_GEOMETRY
+        uint32_t scene_lights_offset;    // 15 words per light, into SCENE_GEOMETRY
+        uint32_t instance_classes_offset;
+        uint32_t overlay_node_offset;    // BVHNode elements into BVH_NODES
+        uint32_t attachments_offset;     // u32 elements into FRAME_INPUTS
+        uint32_t overlay_meta_offset;    // per region x overlay: {num_active, num_tlas_nodes}
+        uint32_t overlay_primitives_offset;
+        uint32_t flow_deltas_offset;
+        uint32_t probe_directions_offset;
+        uint32_t cameras_offset;         // shutter-close cameras, then the shutter-open set for camera-pair specs
+        uint32_t out_frame_buffer;       // u32 elements into OUTPUTS
+        uint32_t out_depth;
+        uint32_t out_segmentation;
+        uint32_t out_normals;
+        uint32_t out_flow;
+        uint32_t out_observation;
+        uint32_t out_rgb_accumulator;
+        uint32_t out_depth_accumulator;
+        uint32_t out_collision;
     };
-    static_assert(sizeof(LaunchParams) == 108, "LaunchParams layout must match the WGSL declaration in device.wgsl");
+    static_assert(sizeof(LaunchParams) == 184, "LaunchParams layout must match the WGSL declaration in device.wgsl");
 
     struct TextureRef{
         uint32_t offset; // texel index into TEXTURE_DATA, ABSENT = no texture
@@ -112,7 +128,7 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         float alpha_cutoff;
         int32_t alpha_mode;
     };
-    static_assert(sizeof(MeshRecord) == 120, "MeshRecord layout must match the WGSL declaration in device.wgsl");
+    static_assert(sizeof(MeshRecord) == 120, "MeshRecord layout must match load_mesh_record in device.wgsl");
 
     struct InstanceData{
         float object_to_world[12]; // 3x4 row-major [R|t]
@@ -129,6 +145,53 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         uint32_t padding[2];
     };
     static_assert(sizeof(DispatchParams) == 16, "DispatchParams layout must match the WGSL declaration in device.wgsl");
+
+    // section offsets (u32 elements) of the SPEC-sized FRAME_INPUTS and OUTPUTS arenas: the
+    // single source for buffer sizing, the LaunchParams offset fields, and the host's
+    // queueWriteBuffer/clear/copy offsets
+    template <typename SPEC>
+    struct BufferLayout{
+        static constexpr uint32_t OVERLAY_REGIONS = SPEC::ENABLE_OVERLAYS ? (SPEC::ENABLE_DYNAMIC_MOTION_BLUR ? 1 + (uint32_t)SPEC::MOTION_BLUR_SAMPLES : 1) : 0;
+        static constexpr uint32_t ATTACHMENTS_WORDS = SPEC::ENABLE_OVERLAYS ? (uint32_t)SPEC::NUM_CAMERAS * (uint32_t)SPEC::MAX_OVERLAYS_PER_CAMERA : 0;
+        static constexpr uint32_t OVERLAY_META_WORDS = OVERLAY_REGIONS * (uint32_t)SPEC::NUM_OVERLAYS * 2;
+        static constexpr uint32_t OVERLAY_PRIMITIVES_WORDS = OVERLAY_REGIONS * (uint32_t)SPEC::NUM_OVERLAYS * (uint32_t)SPEC::MAX_OVERLAY_INSTANCES;
+        static constexpr uint32_t FLOW_DELTAS_WORDS = (SPEC::HAS_FLOW && SPEC::ENABLE_OVERLAYS) ? (uint32_t)SPEC::NUM_OVERLAYS * (uint32_t)SPEC::MAX_OVERLAY_INSTANCES * 12 : 0;
+#if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
+        static constexpr uint32_t PROBE_DIRECTIONS_WORDS = (uint32_t)SPEC::NUM_PROBES * 3;
+        static constexpr uint32_t COLLISION_WORDS = (uint32_t)SPEC::NUM_CAMERAS * (uint32_t)SPEC::NUM_PROBES * 2;
+#else
+        static constexpr uint32_t PROBE_DIRECTIONS_WORDS = 0;
+        static constexpr uint32_t COLLISION_WORDS = 0;
+#endif
+        static constexpr uint32_t CAMERAS_WORDS = (SPEC::HAS_CAMERA_PAIR ? 2 : 1) * (uint32_t)SPEC::NUM_CAMERAS * 12;
+        static constexpr uint32_t CAMERAS_OFFSET = 0;
+        static constexpr uint32_t ATTACHMENTS_OFFSET = CAMERAS_OFFSET + CAMERAS_WORDS;
+        static constexpr uint32_t OVERLAY_META_OFFSET = ATTACHMENTS_OFFSET + ATTACHMENTS_WORDS;
+        static constexpr uint32_t OVERLAY_PRIMITIVES_OFFSET = OVERLAY_META_OFFSET + OVERLAY_META_WORDS;
+        static constexpr uint32_t FLOW_DELTAS_OFFSET = OVERLAY_PRIMITIVES_OFFSET + OVERLAY_PRIMITIVES_WORDS;
+        static constexpr uint32_t PROBE_DIRECTIONS_OFFSET = FLOW_DELTAS_OFFSET + FLOW_DELTAS_WORDS;
+        static constexpr uint32_t FRAME_INPUTS_WORDS = PROBE_DIRECTIONS_OFFSET + PROBE_DIRECTIONS_WORDS;
+
+        static constexpr uint32_t CAM_PIXEL_WORDS = (uint32_t)SPEC::NUM_CAMERAS * (uint32_t)SPEC::CAM_PIXELS;
+        static constexpr uint32_t FRAME_BUFFER_WORDS = SPEC::HAS_RGB ? CAM_PIXEL_WORDS : 0;
+        static constexpr uint32_t DEPTH_WORDS = SPEC::HAS_DEPTH ? CAM_PIXEL_WORDS : 0;
+        static constexpr uint32_t SEGMENTATION_WORDS = SPEC::HAS_SEGMENTATION ? CAM_PIXEL_WORDS : 0;
+        static constexpr uint32_t NORMALS_WORDS = SPEC::HAS_NORMALS ? CAM_PIXEL_WORDS * 3 : 0;
+        static constexpr uint32_t FLOW_WORDS = SPEC::HAS_FLOW ? CAM_PIXEL_WORDS * 2 : 0;
+        static constexpr uint32_t OBSERVATION_WORDS = SPEC::HAS_OBSERVATION ? CAM_PIXEL_WORDS * (uint32_t)SPEC::OBSERVATION_CHANNELS : 0;
+        static constexpr uint32_t RGB_ACCUMULATOR_WORDS = (SPEC::ENABLE_DYNAMIC_MOTION_BLUR && SPEC::HAS_RGB) ? CAM_PIXEL_WORDS * 3 : 0;
+        static constexpr uint32_t DEPTH_ACCUMULATOR_WORDS = (SPEC::ENABLE_DYNAMIC_MOTION_BLUR && SPEC::HAS_DEPTH) ? CAM_PIXEL_WORDS : 0;
+        static constexpr uint32_t FRAME_BUFFER_OFFSET = 0;
+        static constexpr uint32_t DEPTH_OFFSET = FRAME_BUFFER_OFFSET + FRAME_BUFFER_WORDS;
+        static constexpr uint32_t SEGMENTATION_OFFSET = DEPTH_OFFSET + DEPTH_WORDS;
+        static constexpr uint32_t NORMALS_OFFSET = SEGMENTATION_OFFSET + SEGMENTATION_WORDS;
+        static constexpr uint32_t FLOW_OFFSET = NORMALS_OFFSET + NORMALS_WORDS;
+        static constexpr uint32_t OBSERVATION_OFFSET = FLOW_OFFSET + FLOW_WORDS;
+        static constexpr uint32_t RGB_ACCUMULATOR_OFFSET = OBSERVATION_OFFSET + OBSERVATION_WORDS;
+        static constexpr uint32_t DEPTH_ACCUMULATOR_OFFSET = RGB_ACCUMULATOR_OFFSET + RGB_ACCUMULATOR_WORDS;
+        static constexpr uint32_t COLLISION_OFFSET = DEPTH_ACCUMULATOR_OFFSET + DEPTH_ACCUMULATOR_WORDS;
+        static constexpr uint32_t OUTPUTS_WORDS = COLLISION_OFFSET + COLLISION_WORDS;
+    };
 
     struct BufferResource{
         WGPUBuffer buffer = nullptr;
@@ -149,6 +212,7 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         WGPUDevice device = nullptr;
         WGPUQueue queue = nullptr;
         uint32_t max_storage_buffers_per_shader_stage = 0;
+        uint64_t max_storage_buffer_binding_size = 0;
 
         WGPUShaderModule module = nullptr;
         WGPUBindGroupLayout bind_group_layout = nullptr;
@@ -163,31 +227,13 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         WGPUBindGroup bind_group = nullptr; // recreated per init (scene buffers change)
 
         BufferResource launch_params;
-        BufferResource cameras;
-        BufferResource cameras_open;
-        BufferResource frame_buffer;
-        BufferResource depth_buffer;
-        BufferResource collision_results;
-        BufferResource probe_directions;
-        BufferResource mesh_records;
-        BufferResource scene_lights;
         BufferResource scene_geometry;
         BufferResource texture_data;
         BufferResource bvh_nodes;
         BufferResource triangles;
-        BufferResource segmentation_buffer;
-        BufferResource normals_buffer;
-        BufferResource flow_buffer;
-        BufferResource flow_deltas;
-        BufferResource observation;
         BufferResource instance_data;
-        BufferResource instance_classes;
-        BufferResource overlay_attachments;
-        BufferResource overlay_meta;
-        BufferResource overlay_nodes;
-        BufferResource overlay_primitives;
-        BufferResource rgb_accumulator;
-        BufferResource depth_accumulator;
+        BufferResource frame_inputs;
+        BufferResource outputs;
         BufferResource dispatch_params;
 
         BufferResource staging_frame_buffer;
@@ -199,6 +245,10 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         BufferResource staging_collision;
         std::vector<ReadbackTarget> render_readbacks;
         std::vector<ReadbackTarget> probe_readbacks;
+
+        // scene-dependent arena offsets mirrored from LaunchParams for the per-update writes
+        uint32_t instance_classes_offset = 0;
+        uint32_t overlay_node_offset = 0;
 
         // host mirrors consumed by the per-update overlay rebuilds (queueWriteBuffer sources)
         std::vector<InstanceData> instance_data_host;
