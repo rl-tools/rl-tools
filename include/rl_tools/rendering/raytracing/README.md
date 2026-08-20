@@ -25,7 +25,7 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   `Tensor` members exposed by accessors — `cameras()`, `cameras_open()`/`cameras_close()`
   (motion blur), `transforms()` (overlays), `transforms_motion()` (dynamic motion blur:
   per-sample overlay transforms, sample-major so slab `s` shares the `transforms()` layout),
-  `transforms_pair()` (dynamic motion blur producer input: shutter-open/close entries),
+  `transforms_pair()` (dynamic-motion-blur / flow producer input: shutter-open/close entries),
   `frame_buffer()`, `depth_buffer()`, `segmentation_buffer()`, `normals_buffer()`,
   `flow_buffer()`, `flow_deltas()`, `collision_results()`, `observation()`. Residency is a
   backend property: CUDA device memory on OptiX, host on generic and WebGPU (WebGPU settles
@@ -62,8 +62,12 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   (whose storage flow enables independently of motion blur) and the `set_transform_pair`
   shutter poses, composed per overlay slot into `flow_deltas()` (world_open ∘ world_close⁻¹;
   single-pose verbs replicate, so held objects contribute pure camera flow). A producer drives
-  frame-to-frame flow by writing last frame's state into the open slots. On the device-resident
-  pair path the deltas are expanded on-device alongside `expand_motion_transforms`.
+  frame-to-frame flow by writing last frame's state into the open slots: either through
+  `transforms_pair()` + `expand_motion_transforms` (available to flow specifications without
+  motion blur; on OptiX the expansion stays on-device) followed by `update` to republish the
+  overlay geometry, or by writing `flow_deltas()` directly under the same ownership contract as
+  `transforms()` — clean (non-dirty) overlays are producer-owned and `update()` never clobbers
+  their rows from the host mirrors.
 - **Determinism is a contract.** Fixed seed ⇒ identical results, no atomics. The global
   instance-id layout (scene instances `[0,S)`, overlay `o` slot `s` at `S + o*MAX + s`) is
   cross-backend API surface consumed by segmentation.

@@ -1059,31 +1059,6 @@ namespace rl_tools {
         }
     }
 
-    // CPU expansion of the transforms_pair tensor for backends whose tensors are host-resident
-    // (generic/Vulkan); OptiX runs the same math on-device (overlay_accel_expand_motion).
-    // Producer-style: writes the tensors directly with no dirty flags, so the host-verb flush
-    // never clobbers it — per overlay, use either the set_transform* verbs or the pair path.
-    template <typename SPEC, typename BACKEND>
-    void expand_motion_transforms_host(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        using TI = typename SPEC::TI;
-        constexpr size_t SLOTS = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
-        const float* pairs = data(renderer.transforms_pair);
-        float* transforms_motion = data(renderer.transforms_motion);
-        float* transforms = data(renderer.transforms);
-        for(size_t slot = 0; slot < SLOTS; slot++){
-            const float* open = pairs + slot * 12;
-            const float* close = pairs + (SLOTS + slot) * 12;
-            for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
-                const float shutter_t = ((float)sample + 0.5f) / (float)SPEC::MOTION_BLUR_SAMPLES;
-                slerp_transform(open, close, shutter_t, transforms_motion + ((size_t)sample * SLOTS + slot) * 12);
-            }
-            std::memcpy(transforms + slot * 12, close, 12 * sizeof(float));
-        }
-        if constexpr (SPEC::HAS_FLOW){
-            compose_flow_deltas_from_slabs(renderer, pairs, pairs + SLOTS * 12, data(renderer.flow_deltas), false);
-        }
-    }
-
     // composes the flow shutter-delta table (world_open ∘ world_close⁻¹ per slot; identity for
     // inactive slots) from open/close entry slabs sharing the transforms-tensor layout.
     // only_dirty mirrors the flush_overlay_transforms ownership contract: a clean overlay row
@@ -1105,6 +1080,35 @@ namespace rl_tools {
                 invert_transform(world_close, world_close_inverse);
                 compose_transforms(world_open, world_close_inverse, delta);
             }
+        }
+    }
+
+    // CPU expansion of the transforms_pair tensor for backends whose tensors are host-resident
+    // (generic/Vulkan); OptiX runs the same math on-device (overlay_accel_expand_motion). The
+    // slerp into transforms_motion only applies under dynamic motion blur; flow-only
+    // specifications expand the pair into transforms (close) and flow_deltas.
+    // Producer-style: writes the tensors directly with no dirty flags, so the host-verb flush
+    // never clobbers it — per overlay, use either the set_transform* verbs or the pair path.
+    template <typename SPEC, typename BACKEND>
+    void expand_motion_transforms_host(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
+        using TI = typename SPEC::TI;
+        constexpr size_t SLOTS = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
+        const float* pairs = data(renderer.transforms_pair);
+        float* transforms = data(renderer.transforms);
+        for(size_t slot = 0; slot < SLOTS; slot++){
+            const float* close = pairs + (SLOTS + slot) * 12;
+            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+                const float* open = pairs + slot * 12;
+                float* transforms_motion = data(renderer.transforms_motion);
+                for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
+                    const float shutter_t = ((float)sample + 0.5f) / (float)SPEC::MOTION_BLUR_SAMPLES;
+                    slerp_transform(open, close, shutter_t, transforms_motion + ((size_t)sample * SLOTS + slot) * 12);
+                }
+            }
+            std::memcpy(transforms + slot * 12, close, 12 * sizeof(float));
+        }
+        if constexpr (SPEC::HAS_FLOW){
+            compose_flow_deltas_from_slabs(renderer, pairs, pairs + SLOTS * 12, data(renderer.flow_deltas), false);
         }
     }
 
@@ -1585,7 +1589,7 @@ namespace rl_tools {
     // steady-state transform (segmentation, probes, and the next frame render at shutter close)
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void set_transform_pair(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, typename SPEC::TI part, const float open[12], const float close[12]){
-        static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR || (SPEC::HAS_FLOW && SPEC::ENABLE_OVERLAYS), "set_transform_pair requires a dynamic-motion-blur or flow renderer specification");
+        static_assert(SPEC::HAS_TRANSFORM_PAIR, "set_transform_pair requires a dynamic-motion-blur or flow renderer specification");
         using TI = typename SPEC::TI;
         auto& state = renderer.overlays[overlay.index];
         std::memcpy(state.slots[placement.first_slot + part].transform_entry, close, 12 * sizeof(float));
@@ -1606,7 +1610,7 @@ namespace rl_tools {
     // rigid move with shutter-open/close poses: resets articulation in every sample
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void set_transform_pair(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const float open[12], const float close[12]){
-        static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR || (SPEC::HAS_FLOW && SPEC::ENABLE_OVERLAYS), "set_transform_pair requires a dynamic-motion-blur or flow renderer specification");
+        static_assert(SPEC::HAS_TRANSFORM_PAIR, "set_transform_pair requires a dynamic-motion-blur or flow renderer specification");
         using TI = typename SPEC::TI;
         set_transform_pair(device, renderer, overlay, placement, (TI)0, open, close);
         auto& state = renderer.overlays[overlay.index];
@@ -1632,7 +1636,7 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
     auto& transforms_pair(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "transforms_pair requires a dynamic-motion-blur renderer specification");
+        static_assert(SPEC::HAS_TRANSFORM_PAIR, "transforms_pair requires a dynamic-motion-blur or flow renderer specification");
         return renderer.transforms_pair;
     }
 
@@ -1690,6 +1694,14 @@ namespace rl_tools {
     auto& flow_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         static_assert(SPEC::HAS_FLOW, "flow_buffer requires a flow-capable renderer specification");
         return renderer.flow_buffer;
+    }
+
+    // producer input like transforms: a clean (non-dirty) overlay's rows are producer-owned and
+    // never clobbered by the host-verb composition in update(); the pair expansion writes it too
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    auto& flow_deltas(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
+        static_assert(SPEC::HAS_FLOW && SPEC::ENABLE_OVERLAYS, "flow_deltas requires a flow renderer specification with overlays");
+        return renderer.flow_deltas;
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>

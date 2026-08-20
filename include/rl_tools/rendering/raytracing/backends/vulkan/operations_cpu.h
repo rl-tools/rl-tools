@@ -348,11 +348,13 @@ namespace rl_tools {
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             malloc(device, renderer.transforms);
         }
+        if constexpr (SPEC::HAS_TRANSFORM_PAIR) {
+            malloc(device, renderer.transforms_pair);
+            std::memset(data(renderer.transforms_pair), 0, decltype(renderer.transforms_pair)::SPEC::SIZE_BYTES);
+        }
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
             malloc(device, renderer.transforms_motion);
             std::memset(data(renderer.transforms_motion), 0, decltype(renderer.transforms_motion)::SPEC::SIZE_BYTES);
-            malloc(device, renderer.transforms_pair);
-            std::memset(data(renderer.transforms_pair), 0, decltype(renderer.transforms_pair)::SPEC::SIZE_BYTES);
             renderer.transforms_motion_staging.assign((size_t)SPEC::MOTION_BLUR_SAMPLES * SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12, 0.0f);
         }
 
@@ -1570,7 +1572,7 @@ namespace rl_tools {
     // device-resident path is the OptiX backend)
     template <typename DEVICE, typename SPEC>
     void expand_motion_transforms_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
-        static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "expand_motion_transforms requires a dynamic-motion-blur renderer specification");
+        static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur or flow renderer specification");
         namespace vk = rendering::raytracing::backends::vulkan;
         vk::wait_in_flight(device, vk::context(renderer));
         rendering::raytracing::detail::expand_motion_transforms_host(renderer);
@@ -1578,7 +1580,7 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void expand_motion_transforms_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
-        static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "expand_motion_transforms requires a dynamic-motion-blur renderer specification");
+        static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur or flow renderer specification");
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1973,9 +1975,11 @@ namespace rl_tools {
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             free(device, renderer.transforms);
         }
+        if constexpr (SPEC::HAS_TRANSFORM_PAIR) {
+            free(device, renderer.transforms_pair);
+        }
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
             free(device, renderer.transforms_motion);
-            free(device, renderer.transforms_pair);
             if constexpr (SPEC::HAS_RGB) {
                 renderer.rgb_accumulator._data = nullptr;
             }

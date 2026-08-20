@@ -254,8 +254,10 @@ namespace rl_tools::rendering::raytracing::backends::optix{
             const unsigned int sample = index % num_samples;
             const float* open = pairs + (size_t)slot * 12;
             const float* close = pairs + ((size_t)num_slots + slot) * 12;
-            const float shutter_t = ((float)sample + 0.5f) / (float)num_samples;
-            rl_tools::rendering::raytracing::detail::slerp_transform(open, close, shutter_t, transforms_motion + ((size_t)sample * num_slots + slot) * 12);
+            if(transforms_motion != nullptr){ // flow-only expansion: no motion slabs, close state only
+                const float shutter_t = ((float)sample + 0.5f) / (float)num_samples;
+                rl_tools::rendering::raytracing::detail::slerp_transform(open, close, shutter_t, transforms_motion + ((size_t)sample * num_slots + slot) * 12);
+            }
             if(sample == 0){
                 for(int element = 0; element < 12; element++){
                     transforms[(size_t)slot * 12 + element] = close[element];

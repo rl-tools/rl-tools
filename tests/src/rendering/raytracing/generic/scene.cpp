@@ -716,6 +716,77 @@ TEST(RL_TOOLS_SCENE_SUITE, FLOW_OVERLAY_ANALYTIC){
     rlt::free(device, renderer);
 }
 
+// producer path for a flow-only specification (no dynamic motion blur): the same shutter pair
+// written into the transforms_pair tensor and expanded by the backend must reproduce the
+// set_transform_pair flow of FLOW_OVERLAY_ANALYTIC
+TEST(RL_TOOLS_SCENE_SUITE, FLOW_OVERLAY_PAIR_PRODUCER){
+    DEVICE device;
+    rlt::init(device);
+
+    rlt::rendering::raytracing::Scene scene;
+    rlt::add(device, scene, make_cube(0, 1)); // background: front face at x = -1
+    rlt::rendering::raytracing::AssetPool pool;
+    const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
+
+    rlt::rendering::raytracing::Renderer<FLOW_OVERLAY_SPEC, BACKEND> renderer;
+    rlt::malloc(device, renderer);
+    rlt::generate_probe_directions(device, renderer);
+    rlt::init(device, renderer, scene, pool);
+    rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
+
+    const float orientation_wxyz[4] = {1, 0, 0, 0};
+    const float position_close[3] = {-2.5f, 0, 0};
+    float close_transform[12];
+    rlt::make_transform(position_close, orientation_wxyz, close_transform);
+    const auto placement = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, close_transform);
+    rlt::update(device, renderer); // publish the slot structure and clear the dirty flags
+
+    const float object_delta_y = 0.3f;
+    const float position_open[3] = {-2.5f, object_delta_y, 0};
+    float open_transform[12];
+    rlt::make_transform(position_open, orientation_wxyz, open_transform);
+    rlt::Tensor<rlt::tensor::Specification<float, TI, rlt::tensor::Shape<TI, 12>, true, rlt::tensor::RowMajorStride<rlt::tensor::Shape<TI, 12>>, true>> pair_host;
+    auto pair_open = rlt::view(device, rlt::transforms_pair(device, renderer), 0);
+    auto pair_open_overlay = rlt::view(device, pair_open, 0);
+    auto pair_open_entry = rlt::view(device, pair_open_overlay, placement.first_slot);
+    pair_host._data = open_transform;
+    rlt::copy(device, renderer.device, pair_host, pair_open_entry);
+    auto pair_close = rlt::view(device, rlt::transforms_pair(device, renderer), 1);
+    auto pair_close_overlay = rlt::view(device, pair_close, 0);
+    auto pair_close_entry = rlt::view(device, pair_close_overlay, placement.first_slot);
+    pair_host._data = close_transform;
+    rlt::copy(device, renderer.device, pair_host, pair_close_entry);
+    rlt::expand_motion_transforms(device, renderer);
+    rlt::update(device, renderer); // republish the overlay geometry from the expanded transforms
+
+    const T camera_position[3] = {-5, 0, 0};
+    const T look_at[3] = {0, 0, 0};
+    set_flow_cameras(device, renderer, camera_position, look_at, camera_position, look_at);
+    rlt::render(device, renderer);
+    rlt::synchronize(device, renderer);
+    std::vector<float> flow((size_t)FLOW_OVERLAY_SPEC::CAM_PIXELS * 2);
+    read_output(device, renderer, rlt::flow_buffer(device, renderer), flow.data());
+
+    const T image_plane_scale = (T)2 * std::tan((T)FLOW_OVERLAY_SPEC::COS_FOVY / (T)2);
+    const T viewing_distance = (T)1.5; // overlay front face x = -3.5, camera x = -5
+    const float expected_u = (float)((T)object_delta_y * (T)FLOW_OVERLAY_SPEC::CAM_WIDTH / (viewing_distance * image_plane_scale));
+    size_t overlay_count = 0;
+    for(size_t pixel_i = 0; pixel_i < (size_t)FLOW_OVERLAY_SPEC::CAM_PIXELS; pixel_i++){
+        const float u = flow[pixel_i * 2 + 0], v = flow[pixel_i * 2 + 1];
+        if(std::fabs(u) < 1.f && std::fabs(v) < 1.f){
+            EXPECT_NEAR(u, 0.f, 1e-2f); // background (or miss): static under the static pair
+            EXPECT_NEAR(v, 0.f, 1e-2f);
+            continue;
+        }
+        EXPECT_NEAR(u, expected_u, 1e-2f);
+        EXPECT_NEAR(v, 0.f, 1e-2f);
+        overlay_count++;
+    }
+    EXPECT_GT(overlay_count, (size_t)16);
+
+    rlt::free(device, renderer);
+}
+
 TEST(RL_TOOLS_SCENE_SUITE, ASSEMBLY_COMPOSE){
     DEVICE device;
     rlt::init(device);
