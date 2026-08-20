@@ -141,7 +141,7 @@ rlt::probe_launch(device, renderer);
 | Vulkan | `backends/vulkan` (GLSL → SPIR-V) | `VK_KHR_ray_query` compute; headless; runs on lavapipe for CI; genuinely-async `update` |
 | generic | `backends/generic` | freestanding CPU reference and determinism oracle |
 | Metal | `backends/metal` (MSL) | macOS; **not buildable on the Linux dev machine — changes are pattern-exact and must be validated on macOS before release** |
-| WebGPU | `backends/webgpu` (WGSL) | standard webgpu.h only (browser/WASM-ready): host-built generic BVH traversed in WGSL compute, content-deduplicated texture pool sampled in-shader; wgpu-native runtime (hash-pinned prebuilt), headless, runs on lavapipe |
+| WebGPU | `backends/webgpu` (WGSL) | standard webgpu.h only (browser/WASM-ready): host-built BVH traversed in WGSL compute (binned SAH, ordered near-first; `RL_TOOLS_WEBGPU_BVH=median` = generic baseline builder), leaf-packed triangle stream, content-deduplicated texture pool sampled in-shader; wgpu-native runtime (hash-pinned prebuilt), headless, runs on lavapipe |
 
 Backend selection: `-DRL_TOOLS_RENDERING_RAYTRACING_BACKEND=AUTO|OPTIX|METAL|VULKAN|WEBGPU|GENERIC`
 (mux in `operations_cpu_mux.h`). Code that needs a non-default backend passes an explicit

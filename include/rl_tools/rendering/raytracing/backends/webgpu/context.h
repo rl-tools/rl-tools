@@ -25,22 +25,29 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
     // Exactly 8 storage buffers: browsers tier maxStorageBuffersPerShaderStage down to the spec
     // default of 8 regardless of hardware, so the small per-frame inputs live as sections of the
     // FRAME_INPUTS arena and every output is a section of the OUTPUTS arena, both addressed by
-    // element offsets carried in LaunchParams (the SCENE_GEOMETRY pattern). LaunchParams itself
-    // is read-only storage, not uniform — see the binding comment in device.wgsl.
+    // element offsets carried in LaunchParams (the SCENE_GEOMETRY pattern). Mesh records live in
+    // SCENE_GEOMETRY (shading-only after the packed-triangle intersection path) so the
+    // leaf-ordered TRIANGLES stream keeps its own vec4-typed binding. LaunchParams itself is
+    // read-only storage, not uniform — see the binding comment in device.wgsl.
     namespace bindings{
         constexpr uint32_t LAUNCH_PARAMS = 0;
         constexpr uint32_t DISPATCH_PARAMS = 1; // dynamic-offset uniform: {shutter_t, overlay_region}
-        constexpr uint32_t SCENE_GEOMETRY = 2;  // u32-addressed: mesh data, triangle tables, BLAS/TLAS leaf permutations, object records, scene lights, instance classes
+        constexpr uint32_t SCENE_GEOMETRY = 2;  // u32-addressed: mesh data, triangle tables, TLAS leaf permutation, object records, sRGB LUT, mesh records, scene lights, instance classes
         constexpr uint32_t TEXTURE_DATA = 3;    // packed RGBA8 texels, one u32 each, sampled in the shader
         constexpr uint32_t BVH_NODES = 4;       // per-object BLAS slices, the scene TLAS, then the per-region overlay TLASes
-        constexpr uint32_t MESH_RECORDS = 5;
+        constexpr uint32_t TRIANGLES = 5;       // leaf-ordered packed triangles: 3 x vec4 {vertex.xyz, w: bitcast global id / 0 / 0}
         constexpr uint32_t INSTANCE_DATA = 6;
         constexpr uint32_t FRAME_INPUTS = 7;    // cameras, overlay attachments/meta/primitives, flow deltas, probe directions
         constexpr uint32_t OUTPUTS = 8;         // frame buffer, depth, segmentation, normals, flow, observation, accumulators, collision results
         constexpr uint32_t COUNT = 9;
         constexpr uint32_t STORAGE_COUNT = 8;
     }
-    constexpr uint32_t WORKGROUP_SIZE = 8;
+    // must match the @workgroup_size of every entry point in device.wgsl
+    constexpr uint32_t WORKGROUP_SIZE_X = 8;
+    constexpr uint32_t WORKGROUP_SIZE_Y = 4;
+    // must match TRAVERSAL_STACK_SIZE in device.wgsl; the ordered traversal pushes at most one
+    // entry per tree level, so the host asserts every built tree's depth against this bound
+    constexpr uint32_t TRAVERSAL_STACK_SIZE = 48;
     // one 256-byte slot per dynamic-motion-blur sample (+ slot 0 for the shutter-close state);
     // 256 is a multiple of every legal minUniformBufferOffsetAlignment
     constexpr uint32_t DISPATCH_PARAMS_STRIDE = 256;
@@ -49,7 +56,7 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
     using BVHNode = generic::BVHNode<float, uint32_t>;
     static_assert(sizeof(BVHNode) == 32, "BVHNode layout must match the WGSL declaration in device.wgsl");
     static_assert(sizeof(rendering::raytracing::SceneLight) == 60, "SceneLight layout must match load_scene_light in device.wgsl");
-    static_assert(sizeof(rendering::raytracing::Camera<float>) == 48, "Camera layout must match the WGSL declaration in device.wgsl");
+    static_assert(sizeof(rendering::raytracing::Camera<float>) == 48, "Camera layout must match load_camera in device.wgsl");
     static_assert(sizeof(rendering::raytracing::CollisionResult) == 8, "CollisionResult must span two OUTPUTS words");
 
     struct LaunchParams{
@@ -69,11 +76,13 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         uint32_t first_overlay_instance; // global instance ids >= this index the flow-delta table
         uint32_t triangle_mesh_offset;   // u32 elements into SCENE_GEOMETRY
         uint32_t triangle_local_offset;
-        uint32_t object_records_offset;  // stride 4 per object: {node_offset, node_count, primitive_offset, 0}
+        uint32_t object_records_offset;  // stride 4 per object: {node_offset, node_count, first_triangle, 0}
         uint32_t tlas_node_offset;       // BVHNode elements into BVH_NODES
         uint32_t tlas_node_count;
         uint32_t tlas_primitive_offset;  // u32 elements into SCENE_GEOMETRY
-        uint32_t scene_lights_offset;    // u32 elements into SCENE_GEOMETRY, 15 words per light
+        uint32_t srgb_lut_offset;        // 256 f32 elements into SCENE_GEOMETRY: sRGB texel -> linear
+        uint32_t mesh_records_offset;    // 30 words per record, into SCENE_GEOMETRY
+        uint32_t scene_lights_offset;    // 15 words per light, into SCENE_GEOMETRY
         uint32_t instance_classes_offset;
         uint32_t overlay_node_offset;    // BVHNode elements into BVH_NODES
         uint32_t attachments_offset;     // u32 elements into FRAME_INPUTS
@@ -92,7 +101,7 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         uint32_t out_depth_accumulator;
         uint32_t out_collision;
     };
-    static_assert(sizeof(LaunchParams) == 176, "LaunchParams layout must match the WGSL declaration in device.wgsl");
+    static_assert(sizeof(LaunchParams) == 184, "LaunchParams layout must match the WGSL declaration in device.wgsl");
 
     struct TextureRef{
         uint32_t offset; // texel index into TEXTURE_DATA, ABSENT = no texture
@@ -119,7 +128,7 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         float alpha_cutoff;
         int32_t alpha_mode;
     };
-    static_assert(sizeof(MeshRecord) == 120, "MeshRecord layout must match the WGSL declaration in device.wgsl");
+    static_assert(sizeof(MeshRecord) == 120, "MeshRecord layout must match load_mesh_record in device.wgsl");
 
     struct InstanceData{
         float object_to_world[12]; // 3x4 row-major [R|t]
@@ -218,10 +227,10 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         WGPUBindGroup bind_group = nullptr; // recreated per init (scene buffers change)
 
         BufferResource launch_params;
-        BufferResource mesh_records;
         BufferResource scene_geometry;
         BufferResource texture_data;
         BufferResource bvh_nodes;
+        BufferResource triangles;
         BufferResource instance_data;
         BufferResource frame_inputs;
         BufferResource outputs;

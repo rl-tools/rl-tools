@@ -3,7 +3,7 @@ import sys
 
 from .. import jit
 
-BACKENDS = ("OPTIX", "METAL", "VULKAN", "GENERIC")
+BACKENDS = ("OPTIX", "METAL", "VULKAN", "WEBGPU", "GENERIC")
 
 
 def backend():
@@ -12,7 +12,7 @@ def backend():
         value = "METAL" if sys.platform == "darwin" else "OPTIX"
     if value not in BACKENDS:
         raise jit.BuildError(
-            f"hyperdrone: invalid HYPERDRONE_RENDER_BACKEND {value} (OPTIX|METAL|VULKAN|GENERIC)"
+            f"hyperdrone: invalid HYPERDRONE_RENDER_BACKEND {value} (OPTIX|METAL|VULKAN|WEBGPU|GENERIC)"
         )
     return value
 
