@@ -5,54 +5,15 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL_OPERATIONS_CUDA_H
 
 #include "multirotor_visual.h"
-#include <rl_tools/rl/environments/l2f/quaternion_helper.h>
+#include <rl_tools/rl/environments/hyperdrone/pose.h>
 #include <rl_tools/rendering/raytracing/backends/optix/operations_cuda.h>
 #include <cuda_runtime.h>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f_visual::cuda{
-    template <typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT void rotate_scene_yaw(const T in[3], T out[3], T scene_yaw_cos, T scene_yaw_sin){
-        out[0] = scene_yaw_cos * in[0] - scene_yaw_sin * in[1];
-        out[1] = scene_yaw_sin * in[0] + scene_yaw_cos * in[1];
-        out[2] = in[2];
-    }
-    template <typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT void cross_vector(const T a[3], const T b[3], T out[3]){
-        out[0] = a[1] * b[2] - a[2] * b[1];
-        out[1] = a[2] * b[0] - a[0] * b[2];
-        out[2] = a[0] * b[1] - a[1] * b[0];
-    }
-    template <typename DEVICE, typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT void normalize_or(DEVICE& device, T v[3], T fallback_0, T fallback_1, T fallback_2){
-        T norm_sq = v[0] * v[0] + v[1] * v[1] + v[2] * v[2];
-        if(norm_sq > static_cast<T>(1e-12)){
-            T inv_norm = static_cast<T>(1) / math::sqrt(device.math, norm_sq);
-            v[0] *= inv_norm;
-            v[1] *= inv_norm;
-            v[2] *= inv_norm;
-        } else {
-            v[0] = fallback_0;
-            v[1] = fallback_1;
-            v[2] = fallback_2;
-        }
-    }
-    template <typename DEVICE, typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT void rotate_around_axis(DEVICE& device, const T in[3], const T axis[3], T angle, T out[3]){
-        T c = math::cos(device.math, angle);
-        T s = math::sin(device.math, angle);
-        T axis_cross_in[3];
-        cross_vector(axis, in, axis_cross_in);
-        T axis_dot_in = axis[0] * in[0] + axis[1] * in[1] + axis[2] * in[2];
-        T one_minus_c = static_cast<T>(1) - c;
-        out[0] = in[0] * c + axis_cross_in[0] * s + axis[0] * axis_dot_in * one_minus_c;
-        out[1] = in[1] * c + axis_cross_in[1] * s + axis[1] * axis_dot_in * one_minus_c;
-        out[2] = in[2] * c + axis_cross_in[2] * s + axis[2] * axis_dot_in * one_minus_c;
-    }
-
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::Camera<typename SPEC::T> make_camera_for_state(
-        DEVICE&,
+        DEVICE& device,
         const typename MultirrotorVisual<SPEC>::Parameters& parameters,
         const typename MultirrotorVisual<SPEC>::State& state,
         typename SPEC::T aspect,
@@ -61,34 +22,7 @@ namespace rl_tools::rl::environments::l2f_visual::cuda{
         typename SPEC::T scene_yaw_sin
     ){
         using T = typename SPEC::T;
-        T cam_pos_local[3];
-        rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, parameters.camera_mount.offset_body, cam_pos_local);
-        T cam_forward_local[3];
-        rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, parameters.camera_mount.forward_body, cam_forward_local);
-        T cam_up_local[3];
-        rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, parameters.camera_mount.up_body, cam_up_local);
-
-        T state_position_world[3];
-        rotate_scene_yaw(state.position, state_position_world, scene_yaw_cos, scene_yaw_sin);
-        T cam_pos_world[3];
-        rotate_scene_yaw(cam_pos_local, cam_pos_world, scene_yaw_cos, scene_yaw_sin);
-        T cam_forward_world[3];
-        rotate_scene_yaw(cam_forward_local, cam_forward_world, scene_yaw_cos, scene_yaw_sin);
-        T cam_up_world[3];
-        rotate_scene_yaw(cam_up_local, cam_up_world, scene_yaw_cos, scene_yaw_sin);
-
-        T position[3] = {
-            state_position_world[0] + cam_pos_world[0] + scene_translation[0],
-            state_position_world[1] + cam_pos_world[1] + scene_translation[1],
-            state_position_world[2] + cam_pos_world[2] + scene_translation[2]
-        };
-        T look_at[3] = {
-            position[0] + cam_forward_world[0],
-            position[1] + cam_forward_world[1],
-            position[2] + cam_forward_world[2]
-        };
-        T up[3] = {cam_up_world[0], cam_up_world[1], cam_up_world[2]};
-        return make_camera_data(position, look_at, up, parameters.fov, aspect);
+        return hyperdrone::make_camera<DEVICE, T>(device, parameters.camera_mount, parameters.fov, state.orientation, state.position, aspect, scene_translation, scene_yaw_cos, scene_yaw_sin);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -103,50 +37,12 @@ namespace rl_tools::rl::environments::l2f_visual::cuda{
         typename SPEC::T target_frame_pitch
     ){
         using T = typename SPEC::T;
-        T offset_world[3];
-        rotate_scene_yaw(parameters.camera_mount.offset_body, offset_world, scene_yaw_cos, scene_yaw_sin);
-        T forward_body[3] = {
-            parameters.camera_mount.forward_body[0],
-            parameters.camera_mount.forward_body[1],
-            parameters.camera_mount.forward_body[2]
-        };
-        T up_body[3] = {
-            parameters.camera_mount.up_body[0],
-            parameters.camera_mount.up_body[1],
-            parameters.camera_mount.up_body[2]
-        };
-        T pitch_axis[3];
-        cross_vector(forward_body, up_body, pitch_axis);
-        normalize_or(device, pitch_axis, static_cast<T>(0), static_cast<T>(-1), static_cast<T>(0));
-        T pitched_forward_body[3];
-        T pitched_up_body[3];
-        rotate_around_axis(device, forward_body, pitch_axis, target_frame_pitch, pitched_forward_body);
-        rotate_around_axis(device, up_body, pitch_axis, target_frame_pitch, pitched_up_body);
-        T roll_axis[3] = {pitched_forward_body[0], pitched_forward_body[1], pitched_forward_body[2]};
-        normalize_or(device, roll_axis, static_cast<T>(1), static_cast<T>(0), static_cast<T>(0));
-        T rolled_up_body[3];
-        rotate_around_axis(device, pitched_up_body, roll_axis, target_frame_roll, rolled_up_body);
-        T forward_world[3];
-        rotate_scene_yaw(pitched_forward_body, forward_world, scene_yaw_cos, scene_yaw_sin);
-        T up_world[3];
-        rotate_scene_yaw(rolled_up_body, up_world, scene_yaw_cos, scene_yaw_sin);
-
-        T position[3] = {
-            scene_translation[0] + offset_world[0],
-            scene_translation[1] + offset_world[1],
-            scene_translation[2] + offset_world[2]
-        };
-        T look_at[3] = {
-            position[0] + forward_world[0],
-            position[1] + forward_world[1],
-            position[2] + forward_world[2]
-        };
-        T up[3] = {up_world[0], up_world[1], up_world[2]};
-        return make_camera_data(position, look_at, up, parameters.fov, aspect);
+        return hyperdrone::make_target_camera<DEVICE, T>(device, parameters.camera_mount, parameters.fov, aspect, scene_translation, scene_yaw_cos, scene_yaw_sin, target_frame_roll, target_frame_pitch);
     }
+
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::Camera<typename SPEC::T> make_target_camera(
-        DEVICE&,
+        DEVICE& device,
         const typename MultirrotorVisual<SPEC>::Parameters& parameters,
         typename SPEC::T aspect,
         const typename SPEC::T scene_translation[3],
@@ -154,27 +50,8 @@ namespace rl_tools::rl::environments::l2f_visual::cuda{
         typename SPEC::T scene_yaw_sin
     ){
         using T = typename SPEC::T;
-        T offset_world[3];
-        rotate_scene_yaw(parameters.camera_mount.offset_body, offset_world, scene_yaw_cos, scene_yaw_sin);
-        T forward_world[3];
-        rotate_scene_yaw(parameters.camera_mount.forward_body, forward_world, scene_yaw_cos, scene_yaw_sin);
-        T up_world[3];
-        rotate_scene_yaw(parameters.camera_mount.up_body, up_world, scene_yaw_cos, scene_yaw_sin);
-
-        T position[3] = {
-            scene_translation[0] + offset_world[0],
-            scene_translation[1] + offset_world[1],
-            scene_translation[2] + offset_world[2]
-        };
-        T look_at[3] = {
-            position[0] + forward_world[0],
-            position[1] + forward_world[1],
-            position[2] + forward_world[2]
-        };
-        T up[3] = {up_world[0], up_world[1], up_world[2]};
-        return make_camera_data(position, look_at, up, parameters.fov, aspect);
+        return hyperdrone::make_target_camera<DEVICE, T>(device, parameters.camera_mount, parameters.fov, aspect, scene_translation, scene_yaw_cos, scene_yaw_sin);
     }
-
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

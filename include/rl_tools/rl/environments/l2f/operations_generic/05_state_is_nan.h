@@ -119,6 +119,17 @@ namespace rl_tools{
             }
             return nan;
         }
+        template<typename DEVICE, typename STATE_SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT static bool _is_nan(DEVICE& device, rl::environments::l2f::StateRenderRotorPhase<STATE_SPEC>& state){
+            using STATE = rl::environments::l2f::StateRenderRotorPhase<STATE_SPEC>;
+            using TI = typename DEVICE::index_t;
+            is_nan(device, static_cast<typename STATE::NEXT_COMPONENT&>(state));
+            bool nan = false;
+            for(TI rotor_i = 0; rotor_i < STATE::ACTION_DIM; rotor_i++){
+                nan = nan || math::is_nan(device.math, state.rotor_phase[rotor_i]);
+            }
+            return nan;
+        }
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

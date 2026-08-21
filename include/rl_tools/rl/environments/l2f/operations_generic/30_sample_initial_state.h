@@ -270,6 +270,17 @@ namespace rl_tools{
             sample_initial_state(device, env, parameters, static_cast<typename STATE::NEXT_COMPONENT&>(state), rng);
             state.trajectory_step = 0;
         }
+        // deterministic (no RNG use): stripping StateRender* components must leave the RNG stream
+        // and hence training bit-exact
+        template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
+        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateRenderRotorPhase<STATE_SPEC>& state, RNG& rng){
+            using TI = typename DEVICE::index_t;
+            using STATE = StateRenderRotorPhase<STATE_SPEC>;
+            sample_initial_state(device, env, parameters, static_cast<typename STATE::NEXT_COMPONENT&>(state), rng);
+            for(TI rotor_i = 0; rotor_i < STATE::ACTION_DIM; rotor_i++){
+                state.rotor_phase[rotor_i] = 0;
+            }
+        }
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

@@ -398,17 +398,6 @@ std::string trajectory_episodes_to_json(DEVICE& device, ENVIRONMENT& env, const 
 // =========================================================================
 namespace imitation_kernels{
 
-    __device__ CAMERA_DATA interpolate_camera(const CAMERA_DATA& from, const CAMERA_DATA& to, T alpha){
-        CAMERA_DATA out;
-        for(TI i = 0; i < 3; i++){
-            out.pos[i] = from.pos[i] + (to.pos[i] - from.pos[i]) * alpha;
-            out.dir_00[i] = from.dir_00[i] + (to.dir_00[i] - from.dir_00[i]) * alpha;
-            out.dir_du[i] = from.dir_du[i] + (to.dir_du[i] - from.dir_du[i]) * alpha;
-            out.dir_dv[i] = from.dir_dv[i] + (to.dir_dv[i] - from.dir_dv[i]) * alpha;
-        }
-        return out;
-    }
-
     __device__ void yaw_target_from_state(const typename ENVIRONMENT::State& state, T& yaw_cos, T& yaw_sin){
         const T qw = state.orientation[0];
         const T qx = state.orientation[1];
@@ -593,7 +582,7 @@ namespace imitation_kernels{
             CAMERA_DATA open_camera = close_camera;
             if(step_i > 0 && !needs_reset_flags[env_i]){
                 T shutter_fraction = shutter_fraction_arr[env_i];
-                open_camera = interpolate_camera(close_camera, gpu_prev_cameras[env_i], shutter_fraction);
+                open_camera = rlt::rl::environments::hyperdrone::interpolate_camera(close_camera, gpu_prev_cameras[env_i], shutter_fraction);
             }
             gpu_cameras_open[env_i] = open_camera;
             gpu_prev_cameras[env_i] = close_camera;

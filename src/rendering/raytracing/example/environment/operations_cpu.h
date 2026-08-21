@@ -220,44 +220,4 @@ namespace rl_tools {
         return make_camera_data(position, look_at, up, SPEC::RAYTRACING_SPEC::COS_FOVY, aspect);
     }
 
-    template <typename DEVICE, typename SPEC, typename PARAMETERS_SPEC, typename STATE_SPEC, typename ACTIONS_SPEC, typename NEXT_STATE_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void step_batch(DEVICE& device, const rl::environments::raytracing_example::Environment<SPEC>& env, Tensor<PARAMETERS_SPEC>& parameters, const Tensor<STATE_SPEC>& states, const Matrix<ACTIONS_SPEC>& actions, Tensor<NEXT_STATE_SPEC>& next_states, RNG& rng, typename SPEC::TI num_envs) {
-        static_assert(utils::typing::is_same_v<typename PARAMETERS_SPEC::T, rl::environments::raytracing_example::Parameters<SPEC>>);
-        static_assert(utils::typing::is_same_v<typename STATE_SPEC::T, rl::environments::raytracing_example::State<SPEC>>);
-        static_assert(utils::typing::is_same_v<typename NEXT_STATE_SPEC::T, rl::environments::raytracing_example::State<SPEC>>);
-        static_assert(ACTIONS_SPEC::ROWS == SPEC::NUM_ENVS);
-        static_assert(ACTIONS_SPEC::COLS == 3);
-
-        for (typename SPEC::TI env_i = 0; env_i < num_envs; env_i++) {
-            auto& parameters_env = get_ref(device, parameters, env_i);
-            auto& state_env = get_ref(device, states, env_i);
-            auto action_env = row(device, actions, env_i);
-            auto& next_state_env = get_ref(device, next_states, env_i);
-            step(device, env, parameters_env, state_env, action_env, next_state_env, rng);
-        }
-    }
-
-    template <typename DEVICE, typename SPEC, typename PARAMETERS_SPEC, typename STATE_SPEC, typename OUT_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void observe_batch(DEVICE& device, rl::environments::raytracing_example::Environment<SPEC>& env, const Tensor<PARAMETERS_SPEC>& parameters, const Tensor<STATE_SPEC>& states, typename SPEC::TI num_envs, Tensor<OUT_SPEC>& out_pixels) {
-        static_assert(utils::typing::is_same_v<typename PARAMETERS_SPEC::T, rl::environments::raytracing_example::Parameters<SPEC>>);
-        static_assert(utils::typing::is_same_v<typename STATE_SPEC::T, rl::environments::raytracing_example::State<SPEC>>);
-        static_assert(utils::typing::is_same_v<typename OUT_SPEC::T, uint32_t>);
-        static_assert(get<0>(typename OUT_SPEC::SHAPE{}) == SPEC::NUM_ENVS);
-        static_assert(get<1>(typename OUT_SPEC::SHAPE{}) == SPEC::CAM_HEIGHT);
-        static_assert(get<2>(typename OUT_SPEC::SHAPE{}) == SPEC::CAM_WIDTH);
-
-        if (env.renderer == nullptr || num_envs != SPEC::NUM_ENVS) {
-            return;
-        }
-
-        std::vector<rendering::raytracing::Camera<typename SPEC::T>> camera_staging(SPEC::NUM_ENVS);
-        for (typename SPEC::TI env_i = 0; env_i < num_envs; env_i++) {
-            camera_staging[env_i] = make_camera_for_state(env, get_ref(device, parameters, env_i), get_ref(device, states, env_i));
-        }
-        Tensor<tensor::Specification<rendering::raytracing::Camera<typename SPEC::T>, typename SPEC::TI, typename decltype(env.renderer->cameras)::SPEC::SHAPE>> camera_alias;
-        camera_alias._data = camera_staging.data();
-        copy(device, env.renderer->device, camera_alias, cameras(device, *env.renderer));
-        render(device, *env.renderer);
-        copy(env.renderer->device, device, frame_buffer(device, *env.renderer), out_pixels);
-    }
 }

@@ -182,6 +182,15 @@ namespace rl_tools{
             initial_state(device, env, parameters, static_cast<typename STATE::NEXT_COMPONENT&>(state));
             state.trajectory_step = 0;
         }
+        template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateRenderRotorPhase<STATE_SPEC>& state){
+            using TI = typename DEVICE::index_t;
+            using STATE = rl::environments::l2f::StateRenderRotorPhase<STATE_SPEC>;
+            initial_state(device, env, parameters, static_cast<typename STATE::NEXT_COMPONENT&>(state));
+            for(TI rotor_i = 0; rotor_i < STATE::ACTION_DIM; rotor_i++){
+                state.rotor_phase[rotor_i] = 0;
+            }
+        }
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
