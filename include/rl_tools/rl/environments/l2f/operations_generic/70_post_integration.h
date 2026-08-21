@@ -323,6 +323,19 @@ namespace rl_tools::rl::environments::l2f{
         post_integration(device, env, parameters, static_cast<const typename STATE::NEXT_COMPONENT&>(state), action, static_cast<typename STATE::NEXT_COMPONENT&>(next_state), rng);
         next_state.trajectory_step = state.trajectory_step + 1;
     }
+    template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateRenderRotorPhase<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateRenderRotorPhase<STATE_SPEC>& next_state, RNG& rng) {
+        using TI = typename DEVICE::index_t;
+        using T = typename STATE_SPEC::T;
+        using STATE = StateRenderRotorPhase<STATE_SPEC>;
+        post_integration(device, env, parameters, static_cast<const typename STATE::NEXT_COMPONENT&>(state), action, static_cast<typename STATE::NEXT_COMPONENT&>(next_state), rng);
+        constexpr T TWO_PI = (T)2 * math::PI<T>;
+        for(TI rotor_i = 0; rotor_i < STATE::ACTION_DIM; rotor_i++){
+            T phase = state.rotor_phase[rotor_i] + next_state.rpm[rotor_i] * (TWO_PI / (T)60) * parameters.integration.dt;
+            phase = phase - math::floor(device.math, phase / TWO_PI) * TWO_PI;
+            next_state.rotor_phase[rotor_i] = phase;
+        }
+    }
 
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

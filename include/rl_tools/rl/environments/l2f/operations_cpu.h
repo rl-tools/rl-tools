@@ -776,6 +776,23 @@ namespace rl_tools{
         json_string += top_level ? "}" : "";
         return json_string;
     }
+    template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, const rl::environments::l2f::StateRenderRotorPhase<STATE_SPEC>& state, bool top_level=true){
+        using TI = typename DEVICE::index_t;
+        using STATE = rl::environments::l2f::StateRenderRotorPhase<STATE_SPEC>;
+        std::string json_string = top_level ? "{" : "";
+        json_string += json(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), false) + ", ";
+        json_string += "\"rotor_phase\": [";
+        for (TI rotor_i = 0; rotor_i < STATE::ACTION_DIM; rotor_i++){
+            json_string += std::to_string(state.rotor_phase[rotor_i]);
+            if (rotor_i < STATE::ACTION_DIM - 1) {
+                json_string += ", ";
+            }
+        }
+        json_string += "]";
+        json_string += top_level ? "}" : "";
+        return json_string;
+    }
 #ifdef RL_TOOLS_ENABLE_JSON
     template <typename DEVICE, typename SPEC, typename T_T, typename T_TI, T_TI N>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::Dynamics<T_T, T_TI, N>& parameters){
@@ -1242,6 +1259,15 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
         from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
         state.trajectory_step = json_object["trajectory"]["trajectory_step"];
+    }
+    template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, nlohmann::json json_object, rl::environments::l2f::StateRenderRotorPhase<STATE_SPEC>& state){
+        using TI = typename DEVICE::index_t;
+        using STATE = rl::environments::l2f::StateRenderRotorPhase<STATE_SPEC>;
+        from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
+        for (TI rotor_i = 0; rotor_i < STATE::ACTION_DIM; rotor_i++){
+            state.rotor_phase[rotor_i] = json_object["rotor_phase"][rotor_i];
+        }
     }
     template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, std::string json_string, STATE& state){

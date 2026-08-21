@@ -1008,6 +1008,20 @@ namespace rl_tools::rl::environments::l2f{
         static constexpr TI DIM = NEXT_COMPONENT::DIM;
         TI trajectory_step;
     };
+    // StateRender* contract: read only by the rendering layer — dynamics, reward, termination,
+    // and observations never depend on it, so stripping it from a config leaves training bit-exact.
+    // Requires StateRotors below it (the prop angle is integrated from rpm in post_integration).
+    template <typename T_SPEC>
+    struct StateRenderRotorPhase: T_SPEC::NEXT_COMPONENT{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+        static constexpr bool REQUIRES_INTEGRATION = false;
+        static constexpr TI ACTION_DIM = 4;
+        static constexpr TI DIM = ACTION_DIM + NEXT_COMPONENT::DIM;
+        T rotor_phase[ACTION_DIM];
+    };
 
 
     template <typename T, typename TI, TI LINEAR_VELOCITY_HISTORY = 0, TI ANGULAR_VELOCITY_HISTORY = 0>

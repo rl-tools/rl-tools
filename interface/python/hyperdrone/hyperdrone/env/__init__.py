@@ -6,10 +6,13 @@ spawn positions (probe-based, works on every render backend), and the World conv
 wiring sim.step -> camera_bases -> set_cameras -> render (device-resident on
 OptiX + CUDA).
 """
+from ._multi_environment import EnvConfig, MultiEnvironment
 from ._sampling import FreeSpaceSampler
 from ._world import World
 
 __all__ = [
+    "EnvConfig",
     "FreeSpaceSampler",
+    "MultiEnvironment",
     "World",
 ]

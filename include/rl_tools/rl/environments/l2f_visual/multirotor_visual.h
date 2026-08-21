@@ -7,9 +7,12 @@
 #include "../environments.h"
 #include "../observation.h"
 #include "../l2f/multirotor.h"
+#include "../hyperdrone/pose.h"
 #include "../../../rendering/raytracing/renderer.h"
 #include "../../../rendering/raytracing/scene/procthor/scene.h"
 
+// DEPRECATED: superseded by rl::environments::hyperdrone (World + tasks::target_frame); kept
+// only until the remaining imitation/yaw/stitch/inference targets migrate off it
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f_visual {
 
@@ -71,18 +74,10 @@ namespace rl_tools::rl::environments::l2f_visual {
     };
 
     template <typename T>
-    struct CameraMount {
-        T offset_body[3] = {0, 0, 0};
-        T forward_body[3] = {1, 0, 0};
-        T up_body[3] = {0, 0, 1};
-    };
+    using CameraMount = hyperdrone::CameraMount<T>;
 
     template <typename T>
-    struct CameraRandomization {
-        T fov_range = 0;
-        T offset_body_range[3] = {0, 0, 0};
-        T rotation_body_range[3] = {0, 0, 0};
-    };
+    using CameraRandomization = hyperdrone::CameraRandomization<T>;
 
     template <typename T_SPEC>
     struct Parameters {

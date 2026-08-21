@@ -8,5 +8,7 @@ add_subdirectory(pendulum)
 add_subdirectory(reacher)
 add_subdirectory(l2f)
 add_subdirectory(l2f_visual)
+add_subdirectory(hyperdrone)
+add_subdirectory(multi_environment)
 add_subdirectory(memory)
 
