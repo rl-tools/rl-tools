@@ -154,7 +154,7 @@ env.observation_layout             # named blocks: which channels/values mean wh
 ```
 
 All environment semantics — reset, reward, termination, scene scheduling, observation
-composition — live on the C++ side (`rl_tools::rl::environments::MultiEnvironment<hyperdrone::World>`);
+composition — live on the C++ side (`rl_tools::rl::environments::hyperdrone::MultiEnvironment<World>`);
 the binding marshals tensors and nothing else, and a seeded rollout is pinned bit-exact
 against the C++ verbs by a golden test. The scene argument is a directory of `.glb`
 scenes, partitioned across environments. Configuration follows the C++ extension ladder:

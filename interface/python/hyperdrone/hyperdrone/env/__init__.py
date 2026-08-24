@@ -1,4 +1,4 @@
-"""hyperdrone.env — the RL environment: the C++ rl_tools MultiEnvironment<hyperdrone::World>
+"""hyperdrone.env — the RL environment: the C++ rl_tools hyperdrone::MultiEnvironment<World>
 driven through the exact batch verbs the C++ training targets use.
 
 All environment semantics (reset, reward, termination, scene rotation, observation
