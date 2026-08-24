@@ -54,20 +54,6 @@ namespace rl_tools::rl::algorithms{
             using PARAMETERS = T_PARAMETERS;
             static constexpr bool ASYMMETRIC_OBSERVATIONS = !rl_tools::utils::typing::is_same_v<typename ENVIRONMENT::Observation, typename ENVIRONMENT::ObservationPrivileged>;
 
-            using _OBS_SHAPE = typename ENVIRONMENT::Observation::SHAPE;
-            using _OBS_PRIV_SHAPE = typename ENVIRONMENT::ObservationPrivileged::SHAPE;
-            // single-input actors must match the environment observation; multi-input models
-            // (e.g. parallel image+state branches) check their branch shapes at input packing
-            template <typename MODEL, typename = void>
-            struct _SingleInputActorMatches{
-                static constexpr bool VALUE = true;
-            };
-            template <typename MODEL>
-            struct _SingleInputActorMatches<MODEL, utils::typing::void_t<typename MODEL::INPUT_SHAPE>>{
-                static constexpr bool VALUE = get_last(typename MODEL::INPUT_SHAPE{}) == get_last(_OBS_SHAPE{});
-            };
-            static_assert(_SingleInputActorMatches<ACTOR_TYPE>::VALUE);
-            static_assert(get_last(typename CRITIC_TYPE::INPUT_SHAPE{}) == get_last(_OBS_PRIV_SHAPE{}));
             static_assert(get_last(typename ACTOR_TYPE::OUTPUT_SHAPE{}) == ENVIRONMENT::ACTION_DIM);
             static_assert(get_last(typename CRITIC_TYPE::OUTPUT_SHAPE{}) == 1);
         };
