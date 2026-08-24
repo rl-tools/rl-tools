@@ -78,7 +78,7 @@ namespace benchmark_hyperdrone {
     };
     using WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
     constexpr TI NUMBER_OF_ENVIRONMENTS = 2;
-    using ENVIRONMENT = rlt::rl::environments::MultiEnvironment<WORLD, NUMBER_OF_ENVIRONMENTS>;
+    using ENVIRONMENT = rlt::rl::environments::hyperdrone::MultiEnvironment<WORLD, NUMBER_OF_ENVIRONMENTS>;
     constexpr TI INSTANCES = ENVIRONMENT::INSTANCES;
     constexpr TI WARMUP_STEPS = 5;
     constexpr TI MEASURE_STEPS = 50;
