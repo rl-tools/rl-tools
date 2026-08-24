@@ -335,18 +335,6 @@ namespace rl_tools {
         rl::environments::hyperdrone::_observe_dynamics<DEVICE, SPEC>(device, world.dynamics, parameters, state, observation, rng);
     }
 
-}
-RL_TOOLS_NAMESPACE_WRAPPER_END
-
-// the batch layer's generic mapped defaults do unqualified per-instance calls at their point of
-// definition, so they are included after the World's per-instance verbs (include order is
-// architectural)
-#include <rl_tools/rl/environments/operations_generic_batch.h>
-#include <rl_tools/rl/environments/multi_environment/operations_generic.h>
-
-RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools {
-
     template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename RESET_SPEC, typename RNG, typename utils::typing::enable_if<DEVICE::DEVICE_ID != devices::DeviceId::CUDA, bool>::type = true>
     void sample_initial_parameters(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {
         using TI = typename SPEC::TI;
@@ -575,16 +563,23 @@ namespace rl_tools {
 
     // MultiEnvironment over Worlds: owns the shared AssetLibrary and SceneSet; scenes are
     // partitioned in contiguous blocks across the members
-    template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS, typename utils::typing::enable_if<MEMBER::HYPERDRONE_WORLD, bool>::type = true>
-    void malloc(DEVICE& device, rl::environments::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env) {
+    namespace rl::environments::hyperdrone {
+        template <typename MULTI_ENVIRONMENT, typename SPEC>
+        constexpr typename MULTI_ENVIRONMENT::TI instances_per_environment(){
+            static_assert(get<0>(typename SPEC::SHAPE{}) == MULTI_ENVIRONMENT::INSTANCES, "instance tensors must cover all members' instances contiguously");
+            return MULTI_ENVIRONMENT::INSTANCES_PER_ENVIRONMENT;
+        }
+    }
+    template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS>
+    void malloc(DEVICE& device, rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env) {
         using TI = typename MEMBER::TI;
         malloc(device, env.shared.library);
         for (TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++) {
             malloc(device, env.environments[environment_i]);
         }
     }
-    template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS, typename utils::typing::enable_if<MEMBER::HYPERDRONE_WORLD, bool>::type = true>
-    void init(DEVICE& device, rl::environments::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env, const rl::environments::hyperdrone::datasets::Plain& dataset) {
+    template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS>
+    void init(DEVICE& device, rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env, const rl::environments::hyperdrone::datasets::Plain& dataset) {
         using TI = typename MEMBER::TI;
         enumerate(device, dataset, env.shared.scene_set);
         const TI total_scenes = (TI)env.shared.scene_set.paths.size();
@@ -595,19 +590,93 @@ namespace rl_tools {
             init(device, env.environments[environment_i], env.shared, first, last - first, environment_i);
         }
     }
-    template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS, typename utils::typing::enable_if<MEMBER::HYPERDRONE_WORLD, bool>::type = true>
-    void free(DEVICE& device, rl::environments::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env) {
+    template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS>
+    void free(DEVICE& device, rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env) {
         using TI = typename MEMBER::TI;
         for (TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++) {
             free(device, env.environments[environment_i]);
         }
         free(device, env.shared.library);
     }
-    template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC, typename utils::typing::enable_if<MEMBER::HYPERDRONE_WORLD, bool>::type = true>
-    void render(DEVICE& device, rl::environments::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask) {
-        using MULTI_ENVIRONMENT = rl::environments::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>;
+    template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS, typename PARAMETER_SPEC, typename RESET_SPEC, typename RNG>
+    void sample_initial_parameters(DEVICE& device, rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {
+        using MULTI_ENVIRONMENT = rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>;
         using TI = typename MEMBER::TI;
-        constexpr TI M = rl::environments::multi_environment::instances_per_environment<MULTI_ENVIRONMENT, STATE_SPEC>();
+        constexpr TI M = rl::environments::hyperdrone::instances_per_environment<MULTI_ENVIRONMENT, PARAMETER_SPEC>();
+        for (TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++) {
+            auto parameters_block = view_range(device, parameters, environment_i * M, tensor::ViewSpec<0, M>{});
+            auto reset_block = view_range(device, reset_mask, environment_i * M, tensor::ViewSpec<0, M>{});
+            sample_initial_parameters(device, env.environments[environment_i], parameters_block, reset_block, rng);
+        }
+    }
+    template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC, typename RNG>
+    void sample_initial_state(DEVICE& device, rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {
+        using MULTI_ENVIRONMENT = rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>;
+        using TI = typename MEMBER::TI;
+        constexpr TI M = rl::environments::hyperdrone::instances_per_environment<MULTI_ENVIRONMENT, STATE_SPEC>();
+        for (TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++) {
+            auto parameters_block = view_range(device, parameters, environment_i * M, tensor::ViewSpec<0, M>{});
+            auto states_block = view_range(device, states, environment_i * M, tensor::ViewSpec<0, M>{});
+            auto reset_block = view_range(device, reset_mask, environment_i * M, tensor::ViewSpec<0, M>{});
+            sample_initial_state(device, env.environments[environment_i], parameters_block, states_block, reset_block, rng);
+        }
+    }
+    template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS, typename PARAMETER_SPEC, typename STATE_SPEC, typename OBSERVATION_TYPE, typename OBSERVATION_SPEC, typename RNG>
+    void observe(DEVICE& device, rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, OBSERVATION_TYPE observation_type, Tensor<OBSERVATION_SPEC>& observations, RNG& rng) {
+        using MULTI_ENVIRONMENT = rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>;
+        using TI = typename MEMBER::TI;
+        constexpr TI M = rl::environments::hyperdrone::instances_per_environment<MULTI_ENVIRONMENT, STATE_SPEC>();
+        for (TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++) {
+            auto parameters_block = view_range(device, parameters, environment_i * M, tensor::ViewSpec<0, M>{});
+            auto states_block = view_range(device, states, environment_i * M, tensor::ViewSpec<0, M>{});
+            auto observations_block = view_range(device, observations, environment_i * M, tensor::ViewSpec<0, M>{});
+            observe(device, env.environments[environment_i], parameters_block, states_block, observation_type, observations_block, rng);
+        }
+    }
+    template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS, typename PARAMETER_SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename NEXT_STATE_SPEC, typename RNG>
+    void step(DEVICE& device, rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<ACTION_SPEC>& actions, Tensor<NEXT_STATE_SPEC>& next_states, RNG& rng) {
+        using MULTI_ENVIRONMENT = rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>;
+        using TI = typename MEMBER::TI;
+        constexpr TI M = rl::environments::hyperdrone::instances_per_environment<MULTI_ENVIRONMENT, STATE_SPEC>();
+        for (TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++) {
+            auto parameters_block = view_range(device, parameters, environment_i * M, tensor::ViewSpec<0, M>{});
+            auto states_block = view_range(device, states, environment_i * M, tensor::ViewSpec<0, M>{});
+            auto actions_block = view_range(device, actions, environment_i * M, tensor::ViewSpec<0, M>{});
+            auto next_states_block = view_range(device, next_states, environment_i * M, tensor::ViewSpec<0, M>{});
+            step(device, env.environments[environment_i], parameters_block, states_block, actions_block, next_states_block, rng);
+        }
+    }
+    template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS, typename PARAMETER_SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename NEXT_STATE_SPEC, typename REWARD_SPEC, typename RNG>
+    void reward(DEVICE& device, rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<ACTION_SPEC>& actions, Tensor<NEXT_STATE_SPEC>& next_states, Tensor<REWARD_SPEC>& rewards, RNG& rng) {
+        using MULTI_ENVIRONMENT = rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>;
+        using TI = typename MEMBER::TI;
+        constexpr TI M = rl::environments::hyperdrone::instances_per_environment<MULTI_ENVIRONMENT, STATE_SPEC>();
+        for (TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++) {
+            auto parameters_block = view_range(device, parameters, environment_i * M, tensor::ViewSpec<0, M>{});
+            auto states_block = view_range(device, states, environment_i * M, tensor::ViewSpec<0, M>{});
+            auto actions_block = view_range(device, actions, environment_i * M, tensor::ViewSpec<0, M>{});
+            auto next_states_block = view_range(device, next_states, environment_i * M, tensor::ViewSpec<0, M>{});
+            auto rewards_block = view_range(device, rewards, environment_i * M, tensor::ViewSpec<0, M>{});
+            reward(device, env.environments[environment_i], parameters_block, states_block, actions_block, next_states_block, rewards_block, rng);
+        }
+    }
+    template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS, typename PARAMETER_SPEC, typename STATE_SPEC, typename TERMINATED_SPEC, typename RNG>
+    void terminated(DEVICE& device, rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, Tensor<TERMINATED_SPEC>& terminated_flags, RNG& rng) {
+        using MULTI_ENVIRONMENT = rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>;
+        using TI = typename MEMBER::TI;
+        constexpr TI M = rl::environments::hyperdrone::instances_per_environment<MULTI_ENVIRONMENT, STATE_SPEC>();
+        for (TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++) {
+            auto parameters_block = view_range(device, parameters, environment_i * M, tensor::ViewSpec<0, M>{});
+            auto states_block = view_range(device, states, environment_i * M, tensor::ViewSpec<0, M>{});
+            auto terminated_block = view_range(device, terminated_flags, environment_i * M, tensor::ViewSpec<0, M>{});
+            terminated(device, env.environments[environment_i], parameters_block, states_block, terminated_block, rng);
+        }
+    }
+    template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
+    void render(DEVICE& device, rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask) {
+        using MULTI_ENVIRONMENT = rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>;
+        using TI = typename MEMBER::TI;
+        constexpr TI M = rl::environments::hyperdrone::instances_per_environment<MULTI_ENVIRONMENT, STATE_SPEC>();
         for (TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++) {
             auto parameters_block = view_range(device, parameters, environment_i * M, tensor::ViewSpec<0, M>{});
             auto states_block = view_range(device, states, environment_i * M, tensor::ViewSpec<0, M>{});
@@ -615,8 +684,8 @@ namespace rl_tools {
             render(device, env.environments[environment_i], parameters_block, states_block, reset_block);
         }
     }
-    template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS, typename utils::typing::enable_if<MEMBER::HYPERDRONE_WORLD, bool>::type = true>
-    void rotate_scene(DEVICE& device, rl::environments::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env) {
+    template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS>
+    void rotate_scene(DEVICE& device, rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env) {
         using TI = typename MEMBER::TI;
         for (TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++) {
             rotate_scene(device, env.environments[environment_i]);

@@ -289,7 +289,7 @@ struct TASK_SPEC: rlt::rl::environments::hyperdrone::tasks::target_frame::Specif
 };
 using TASK_WORLD = rlt::rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
 static constexpr TI NUMBER_OF_ENVIRONMENTS = N_ACTIVE_SCENES;
-using MULTI_ENVIRONMENT = rlt::rl::environments::MultiEnvironment<TASK_WORLD, NUMBER_OF_ENVIRONMENTS>;
+using MULTI_ENVIRONMENT = rlt::rl::environments::hyperdrone::MultiEnvironment<TASK_WORLD, NUMBER_OF_ENVIRONMENTS>;
 using ENVIRONMENT = TASK_WORLD;
 static constexpr bool RENDER_MOTION_BLUR_ACTIVE = BASE_WORLD::RENDERER_SPEC::ENABLE_MOTION_BLUR;
 static constexpr bool RENDER_ANTI_ALIASING_ACTIVE = BASE_WORLD::RENDERER_SPEC::ENABLE_ANTI_ALIASING;

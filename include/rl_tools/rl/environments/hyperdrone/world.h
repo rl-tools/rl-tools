@@ -135,8 +135,6 @@ namespace rl_tools::rl::environments::hyperdrone {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        static constexpr bool HYPERDRONE_WORLD = true;  // marker for member-generic composite overloads
-        static constexpr bool BATCH_NATIVE = true;      // opts out of the generic mapped batch defaults
         static_assert(!SPEC::SELF_VISIBLE || SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE > 0, "SELF_VISIBLE needs entity slots: set MAX_ENTITY_SLOTS_PER_INSTANCE");
         static_assert(SPEC::N_AGENTS == 1 || SPEC::SELF_VISIBLE, "multi-agent Worlds require SELF_VISIBLE: agents seeing each other needs geometry to see");
 
@@ -230,6 +228,33 @@ namespace rl_tools::rl::environments::hyperdrone {
 
         // defaults for sampled parameters (fov/mount/brightness ranges are spec constants)
         Parameters parameters;
+    };
+
+    // the composite is itself an environment: it satisfies the batch-verb contract by fanning
+    // out to its members over contiguous instance blocks (flat, member-major). Members are
+    // identical Worlds (or task wrappers over Worlds); the shared AssetLibrary and SceneSet
+    // live in the member-defined SharedContext
+    template <typename T_ENVIRONMENT, typename T_ENVIRONMENT::TI T_NUMBER_OF_ENVIRONMENTS>
+    struct MultiEnvironment{
+        using ENVIRONMENT = T_ENVIRONMENT;
+        using T = typename ENVIRONMENT::T;
+        using TI = typename ENVIRONMENT::TI;
+        static constexpr TI NUMBER_OF_ENVIRONMENTS = T_NUMBER_OF_ENVIRONMENTS;
+        static_assert(NUMBER_OF_ENVIRONMENTS > 0);
+
+        using State = typename ENVIRONMENT::State;
+        using Parameters = typename ENVIRONMENT::Parameters;
+        using Observation = typename ENVIRONMENT::Observation;
+        using ObservationPrivileged = typename ENVIRONMENT::ObservationPrivileged;
+        static constexpr TI N_AGENTS = ENVIRONMENT::N_AGENTS;
+        static constexpr TI ACTION_DIM = ENVIRONMENT::ACTION_DIM;
+        static constexpr TI EPISODE_STEP_LIMIT = ENVIRONMENT::EPISODE_STEP_LIMIT;
+        static constexpr TI INSTANCES_PER_ENVIRONMENT = ENVIRONMENT::INSTANCES;
+        static constexpr TI INSTANCES = NUMBER_OF_ENVIRONMENTS * INSTANCES_PER_ENVIRONMENT;
+
+        using SharedContext = typename ENVIRONMENT::SharedContext;
+        SharedContext shared;
+        ENVIRONMENT environments[NUMBER_OF_ENVIRONMENTS];
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
