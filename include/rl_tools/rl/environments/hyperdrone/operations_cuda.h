@@ -5,8 +5,6 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_OPERATIONS_CUDA_H
 
 #include "operations_cpu.h"
-#include <rl_tools/rl/environments/operations_cuda_batch.h>
-#include <rl_tools/rl/environments/multi_environment/operations_cuda.h>
 
 #include <cuda_runtime.h>
 

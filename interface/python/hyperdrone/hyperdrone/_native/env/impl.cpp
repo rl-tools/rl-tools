@@ -81,7 +81,7 @@ namespace hyperdrone_env_impl {
     };
     using WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
     constexpr TI NUM_ENVIRONMENTS = HYPERDRONE_ENV_NUM_ENVIRONMENTS;
-    using ENV = rlt::rl::environments::MultiEnvironment<WORLD, NUM_ENVIRONMENTS>;
+    using ENV = rlt::rl::environments::hyperdrone::MultiEnvironment<WORLD, NUM_ENVIRONMENTS>;
     constexpr TI TOTAL = NUM_ENVIRONMENTS * WORLD::INSTANCES;
 
     struct EnvImpl {

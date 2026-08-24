@@ -4,7 +4,7 @@
 // ABI boundary between hyperdrone.env and the JIT-compiled MultiEnvironment libraries.
 // The library is a thin C shim over the rl_tools batch verbs (sample_initial_parameters /
 // sample_initial_state / render / observe / step / reward / terminated / rotate_scene) on
-// rl_tools::rl::environments::MultiEnvironment<hyperdrone::World>. Buffers are host
+// rl_tools::rl::environments::hyperdrone::MultiEnvironment<hyperdrone::World>. Buffers are host
 // float32/uint8 arrays sized by hyperdrone_env_config(). Bump
 // HYPERDRONE_ENV_IFACE_VERSION on any change to this file.
 #define HYPERDRONE_ENV_IFACE_VERSION 1
