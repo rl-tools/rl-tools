@@ -1,4 +1,4 @@
-"""ctypes surface over the C++ rl_tools MultiEnvironment<hyperdrone::World>.
+"""ctypes surface over the C++ rl_tools hyperdrone::MultiEnvironment<World>.
 
 The JIT artifact is a thin C shim over the rl_tools batch verbs; this class mirrors that
 verb surface one-to-one (reset / render / observe / observe_privileged / step / rewards /
