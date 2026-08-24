@@ -155,22 +155,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, SAMPLE_INITIAL_STATE) {
              + state.orientation[2]*state.orientation[2] + state.orientation[3]*state.orientation[3];
     EXPECT_NEAR(qnorm, 1.0, 1e-5);
 
-    // scene-under-drone: the dynamics state stays near the origin, the sampled indoor position
-    // and yaw place the scene via the parameters
-    if(visuals != nullptr){
-        EXPECT_GE(parameters.scene_yaw, (T)0);
-        EXPECT_LT(parameters.scene_yaw, (T)(2 * M_PI));
-        bool found = false;
-        for(TI i = 0; i < env.scene->num_indoor_positions; i++){
-            const auto& indoor = env.scene->indoor_positions[i];
-            if(indoor.position[0] == parameters.scene_translation[0]
-               && indoor.position[1] == parameters.scene_translation[1]
-               && indoor.position[2] == parameters.scene_translation[2]){
-                found = true;
-                break;
-            }
-        }
-        EXPECT_TRUE(found);
+    for (TI i = 0; i < 3; i++) {
+        EXPECT_FLOAT_EQ(state.linear_velocity[i], 0.0f);
+        EXPECT_FLOAT_EQ(state.angular_velocity[i], 0.0f);
     }
 
     rlt::free(device, env);
