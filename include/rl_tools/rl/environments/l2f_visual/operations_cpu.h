@@ -39,22 +39,38 @@ namespace rl_tools {
         init(device, env.dynamics);
     }
 
-    // scene-under-drone (matching the CUDA training targets): the dynamics state stays near the
-    // origin; the sampled indoor position and yaw place the scene via parameters
     template <typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters& parameters, typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::State& state, RNG& rng) {
         using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
 
-        sample_initial_state(device, env.dynamics, parameters.dynamics, state, rng);
         if (env.use_target_mode) {
+            sample_initial_state(device, env.dynamics, parameters.dynamics, state, rng);
             return;
         }
 
         auto indoor_pos = rendering::raytracing::scene::procthor::sample_indoor_position(device, *env.scene, rng);
-        parameters.scene_translation[0] = indoor_pos.position[0];
-        parameters.scene_translation[1] = indoor_pos.position[1];
-        parameters.scene_translation[2] = indoor_pos.position[2];
-        parameters.scene_yaw = random::uniform_real_distribution(device.random, static_cast<T>(0), static_cast<T>(2) * math::PI<T>, rng);
+        sample_initial_state(device, env.dynamics, parameters.dynamics, state, rng);
+
+        state.position[0] = indoor_pos.position[0];
+        state.position[1] = indoor_pos.position[1];
+        state.position[2] = indoor_pos.position[2];
+
+        state.orientation[0] = static_cast<T>(1);
+        state.orientation[1] = static_cast<T>(0);
+        state.orientation[2] = static_cast<T>(0);
+        state.orientation[3] = static_cast<T>(0);
+
+        T half_yaw = indoor_pos.yaw / static_cast<T>(2);
+        state.orientation[0] = std::cos(half_yaw);
+        state.orientation[1] = static_cast<T>(0);
+        state.orientation[2] = static_cast<T>(0);
+        state.orientation[3] = std::sin(half_yaw);
+
+        for (TI i = 0; i < 3; i++) {
+            state.linear_velocity[i] = static_cast<T>(0);
+            state.angular_velocity[i] = static_cast<T>(0);
+        }
     }
 
     template <typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
@@ -74,12 +90,52 @@ namespace rl_tools {
 
     namespace rl::environments::l2f_visual {
         template <typename DEVICE, typename SPEC>
-        RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::Camera<typename SPEC::T> make_camera_for_state(DEVICE& device, const MultirrotorVisual<SPEC>&, const typename MultirrotorVisual<SPEC>::Parameters& parameters, const typename MultirrotorVisual<SPEC>::State& state) {
+        RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::Camera<typename SPEC::T> make_camera_for_state(DEVICE&, const MultirrotorVisual<SPEC>&, const typename MultirrotorVisual<SPEC>::Parameters& parameters, const typename MultirrotorVisual<SPEC>::State& state) {
             using T = typename SPEC::T;
+            auto rotate_scene_yaw = [&](const T in[3], T out[3]){
+                T c = std::cos(parameters.scene_yaw);
+                T s = std::sin(parameters.scene_yaw);
+                out[0] = c * in[0] - s * in[1];
+                out[1] = s * in[0] + c * in[1];
+                out[2] = in[2];
+            };
+
+            T cam_pos_local[3];
+            rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, parameters.camera_mount.offset_body, cam_pos_local);
+            T cam_pos_world[3];
+            rotate_scene_yaw(cam_pos_local, cam_pos_world);
+
+            T cam_forward_local[3];
+            rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, parameters.camera_mount.forward_body, cam_forward_local);
+            T cam_forward_world[3];
+            rotate_scene_yaw(cam_forward_local, cam_forward_world);
+
+            T cam_up_local[3];
+            rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(state.orientation, parameters.camera_mount.up_body, cam_up_local);
+            T cam_up_world[3];
+            rotate_scene_yaw(cam_up_local, cam_up_world);
+
+            T state_position_world[3];
+            rotate_scene_yaw(state.position, state_position_world);
+
+            const T position[3] = {
+                state_position_world[0] + cam_pos_world[0] + parameters.scene_translation[0],
+                state_position_world[1] + cam_pos_world[1] + parameters.scene_translation[1],
+                state_position_world[2] + cam_pos_world[2] + parameters.scene_translation[2]
+            };
+            const T look_at[3] = {
+                position[0] + cam_forward_world[0],
+                position[1] + cam_forward_world[1],
+                position[2] + cam_forward_world[2]
+            };
+            const T up[3] = {
+                cam_up_world[0],
+                cam_up_world[1],
+                cam_up_world[2]
+            };
+
             const T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
-            const T scene_yaw_cos = math::cos(device.math, parameters.scene_yaw);
-            const T scene_yaw_sin = math::sin(device.math, parameters.scene_yaw);
-            return hyperdrone::make_camera<DEVICE, T>(device, parameters.camera_mount, parameters.fov, state.orientation, state.position, aspect, parameters.scene_translation, scene_yaw_cos, scene_yaw_sin);
+            return make_camera_data(position, look_at, up, parameters.fov, aspect);
         }
     }
 
@@ -135,6 +191,35 @@ namespace rl_tools {
         observe(device, env.dynamics, parameters.dynamics, state, observation_type, observation, rng);
     }
 
+    template <typename DEVICE, typename SPEC, typename PARAMETERS_SPEC, typename STATE_SPEC, typename OUT_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void observe_batch(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, const Tensor<PARAMETERS_SPEC>& parameters, const Tensor<STATE_SPEC>& states, typename SPEC::TI num_envs, Tensor<OUT_SPEC>& out_pixels) {
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        static_assert(SPEC::HAS_RGB, "observe_batch with uint32_t pixels requires an RGB-capable l2f_visual specification");
+        static_assert(utils::typing::is_same_v<typename PARAMETERS_SPEC::T, typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters>);
+        static_assert(utils::typing::is_same_v<typename STATE_SPEC::T, typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::State>);
+        static_assert(utils::typing::is_same_v<typename OUT_SPEC::T, uint32_t>);
+        static_assert(get<0>(typename OUT_SPEC::SHAPE{}) == SPEC::NUM_ENVS);
+        static_assert(get<1>(typename OUT_SPEC::SHAPE{}) == SPEC::CAM_HEIGHT);
+        static_assert(get<2>(typename OUT_SPEC::SHAPE{}) == SPEC::CAM_WIDTH);
+
+        if (env.renderer == nullptr || num_envs != SPEC::NUM_ENVS) {
+            return;
+        }
+
+        std::array<rendering::raytracing::Camera<typename SPEC::T>, SPEC::NUM_ENVS> camera_staging;
+        for (TI env_i = 0; env_i < num_envs; env_i++) {
+            camera_staging[env_i] = rl::environments::l2f_visual::make_camera_for_state(device, env, get_ref(device, parameters, env_i), get_ref(device, states, env_i));
+        }
+        Tensor<tensor::Specification<rendering::raytracing::Camera<typename SPEC::T>, TI, typename decltype(env.renderer->cameras)::SPEC::SHAPE>> camera_alias;
+        camera_alias._data = camera_staging.data();
+        copy(device, env.renderer->device, camera_alias, cameras(device, *env.renderer));
+        if constexpr (SPEC::RENDERER_SPEC::ENABLE_MOTION_BLUR) {
+            copy(device, env.renderer->device, camera_alias, cameras_open(device, *env.renderer));
+        }
+        render(device, *env.renderer);
+        copy(env.renderer->device, device, env.renderer->frame_buffer, out_pixels);
+    }
     template <typename DEVICE, typename SPEC>
     std::string json(DEVICE& device, const rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env, const typename rl::environments::l2f_visual::MultirrotorVisual<SPEC>::Parameters& parameters){
         std::string json_string = "{";
