@@ -74,6 +74,14 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
             rendering_raytracing_stb
     )
     gtest_discover_tests(test_rl_environments_hyperdrone_presets)
+    # golden-rollout generator for the Python binding (run deliberately from the repo root)
+    add_executable(test_rl_environments_hyperdrone_python_golden python_golden.cpp)
+    target_link_libraries(test_rl_environments_hyperdrone_python_golden
+        PRIVATE
+            RLtools::RLtools
+            rendering_raytracing_backend
+            rendering_raytracing_stb
+    )
     if(RL_TOOLS_BACKEND_ENABLE_CUDA AND TARGET owl::owl)
         add_executable(test_rl_environments_hyperdrone_rig_cuda rig_cuda.cu)
         target_link_libraries(test_rl_environments_hyperdrone_rig_cuda

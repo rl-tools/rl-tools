@@ -46,3 +46,9 @@ def test_infrastructure_imports_no_domain_packages():
 def test_root_import_is_lazy():
     modules = imported_modules("hyperdrone")
     assert modules == ["hyperdrone"]
+
+
+def test_env_never_imports_render_or_dynamics():
+    modules = imported_modules("hyperdrone.env")
+    assert not any(name.startswith("hyperdrone.render") for name in modules)
+    assert not any(name.startswith("hyperdrone.dynamics") for name in modules)

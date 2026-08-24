@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from hyperdrone import dynamics, env, render
+from hyperdrone import dynamics, render
 
 
 def make_room(half=4.0, height=3.0, pillar=None):
@@ -37,7 +37,7 @@ CLEARANCE = 0.5
 
 @pytest.fixture(scope="module")
 def sampler():
-    return env.FreeSpaceSampler(make_room(), clearance=CLEARANCE, batch=64, probes=32)
+    return render.FreeSpaceSampler(make_room(), clearance=CLEARANCE, batch=64, probes=32)
 
 
 def test_sampling_determinism(sampler):
@@ -65,7 +65,7 @@ def test_sampling_respects_clearance(sampler):
 
 def test_sampling_avoids_obstacles():
     pillar = (1.0, 1.0, 0.5)
-    sampler = env.FreeSpaceSampler(make_room(pillar=pillar), clearance=CLEARANCE, batch=64, probes=64)
+    sampler = render.FreeSpaceSampler(make_room(pillar=pillar), clearance=CLEARANCE, batch=64, probes=64)
     positions = sampler.sample(64, seed=0)
     x, y, r = pillar
     # no sample inside the pillar footprint (plus most of the clearance; probe sets are
@@ -74,18 +74,39 @@ def test_sampling_avoids_obstacles():
     assert not inside.any()
 
 
-def test_world_end_to_end():
+def compose(scene, sim, renderer):
+    """The manual render + dynamics wiring (host camera path): spawn and step closures."""
+    renderer.init(scene)
+
+    def update_cameras():
+        renderer.set_cameras(sim.camera_bases_numpy(aspect=renderer.aspect))
+
+    def spawn(positions):
+        sim.reset(seed=0, sample_states=False)
+        sim.state["position"] = np.ascontiguousarray(positions, dtype=np.float32)
+        update_cameras()
+
+    def step(actions):
+        sim.step(actions)
+        update_cameras()
+        renderer.render()
+        return renderer
+
+    return spawn, step
+
+
+def test_manual_composition_end_to_end():
     num_drones = 4
     scene = make_room()
     sim = dynamics.Sim(num_drones=num_drones, model="crazyflie", device="cpu")
     renderer = render.Renderer(width=32, height=32, num_cameras=num_drones, output="rgbd", fidelity="low")
-    world = env.World(scene, sim, renderer)
-    sampler = env.FreeSpaceSampler(scene, clearance=CLEARANCE, batch=64, probes=32)
+    spawn, step = compose(scene, sim, renderer)
+    sampler = render.FreeSpaceSampler(scene, clearance=CLEARANCE, batch=64, probes=32)
     positions = sampler.sample(num_drones, seed=0)
-    world.spawn(positions)
+    spawn(positions)
 
     actions = np.zeros((num_drones, sim.action_dim), dtype=np.float32)
-    out = world.step(actions)
+    out = step(actions)
     depth = out.depth()
     assert depth.shape == (num_drones, 32, 32)
     # every camera sits inside a closed room with >= clearance to any surface: all depths
@@ -98,16 +119,16 @@ def test_world_end_to_end():
     assert frame[..., :3].max() > 0
 
 
-def test_world_camera_tracks_drone():
+def test_manual_composition_camera_tracks_drone():
     num_drones = 2
     scene = make_room()
     sim = dynamics.Sim(num_drones=num_drones, model="crazyflie", device="cpu")
     renderer = render.Renderer(width=16, height=16, num_cameras=num_drones, output="depth", fidelity="low")
-    world = env.World(scene, sim, renderer)
-    world.spawn(np.array([[0.0, 0.0, 1.5], [1.0, 0.0, 1.5]], dtype=np.float32))
+    spawn, step = compose(scene, sim, renderer)
+    spawn(np.array([[0.0, 0.0, 1.5], [1.0, 0.0, 1.5]], dtype=np.float32))
     actions = np.zeros((num_drones, sim.action_dim), dtype=np.float32)
-    first = world.step(actions).depth().copy()
+    first = step(actions).depth().copy()
     # drones drift under mid-throttle gravity mismatch; the camera must move with them
     for _ in range(30):
-        out = world.step(actions)
+        out = step(actions)
     assert not np.array_equal(first, out.depth())

@@ -10,6 +10,7 @@ from .. import cuda as _cuda
 from ._component import backend, component, load_core
 from ._config import FIDELITY, OUTPUT_MODE, RendererConfig
 from ._renderer import Renderer
+from ._sampling import FreeSpaceSampler
 from ._scene import (
     compose_transforms,
     load_assembly,
@@ -22,6 +23,7 @@ from ._scene import (
 __all__ = [
     "AssetPool",
     "FIDELITY",
+    "FreeSpaceSampler",
     "Mesh",
     "Object",
     "ObjectAssembly",

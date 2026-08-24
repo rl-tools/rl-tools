@@ -7,7 +7,7 @@
 // rl_tools::rl::environments::MultiEnvironment<hyperdrone::World>. Buffers are host
 // float32/uint8 arrays sized by hyperdrone_env_config(). Bump
 // HYPERDRONE_ENV_IFACE_VERSION on any change to this file.
-#define HYPERDRONE_ENV_IFACE_VERSION 1
+#define HYPERDRONE_ENV_IFACE_VERSION 2
 
 namespace hyperdrone::env {
     struct Config {
@@ -28,12 +28,18 @@ namespace hyperdrone::env {
 extern "C" {
     int hyperdrone_env_iface_version();
     const char* hyperdrone_env_config_string();
+    // named blocks of the observation vectors, line-oriented: "shape <d0> [<d1> <d2>]",
+    // "axis channel|flat", then "block <name> <offset> <size>" entries in memory order —
+    // offsets/sizes index the last (channel) axis for images and the flat vector otherwise
+    const char* hyperdrone_env_observation_layout(int privileged);
     void* hyperdrone_env_create();
     void hyperdrone_env_destroy(void* handle);
     void hyperdrone_env_config(void* handle, hyperdrone::env::Config* config);
     // scene_directory: a directory of .glb scenes (rl_tools::...::datasets::Plain), at
-    // least one scene per environment; partitions the sorted corpus across environments
-    void hyperdrone_env_init(void* handle, const char* scene_directory, unsigned long long seed);
+    // least one scene per environment; partitions the sorted corpus across environments.
+    // drone_asset_path: body/prop_* GLB for SELF_VISIBLE specifications (empty to omit);
+    // gate_asset_path: gate GLB for the moving_gate task (empty to omit)
+    void hyperdrone_env_init(void* handle, const char* scene_directory, const char* drone_asset_path, const char* gate_asset_path, unsigned long long seed);
     // mask: total_instances uint8 flags; resamples parameters and states where set
     void hyperdrone_env_reset(void* handle, const uint8_t* mask);
     void hyperdrone_env_render(void* handle, const uint8_t* reset_mask);
