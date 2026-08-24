@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>RLtools Raytracing (WebGPU)</title>
+    <style>
+        body { margin: 0; background: #111; color: #ddd; font-family: monospace; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px; }
+        h1 { font-size: 1.1em; font-weight: normal; margin: 0; }
+        a { color: #7fb2ff; }
+        .views { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; }
+        .view { display: flex; flex-direction: column; gap: 4px; }
+        .view span { font-size: 0.85em; color: #999; }
+        canvas { width: 720px; max-width: 90vw; image-rendering: auto; background: #000; }
+        #controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; justify-content: center; }
+        #status { color: #9c9; min-height: 1.2em; }
+        #error { color: #e77; white-space: pre-wrap; max-width: 90vw; }
+        select { background: #222; color: #ddd; border: 1px solid #444; padding: 2px 6px; font-family: monospace; }
+        #fps { color: #999; }
+    </style>
+</head>
+<body>
+    <h1>RLtools raytracing — drone with motion blur, raytraced live in your browser (WebGPU)</h1>
+    <div id="controls">
+        <label>drone: <select id="drone"></select></label>
+        <span id="adapter"></span>
+        <span id="fps"></span>
+    </div>
+    <div class="views">
+        <div class="view"><span>onboard camera</span><canvas id="camera0" width="480" height="270"></canvas></div>
+        <div class="view"><span>third person</span><canvas id="camera1" width="480" height="270"></canvas></div>
+    </div>
+    <div id="status">Loading ...</div>
+    <div id="error"></div>
+    <script type="module" src="main.js"></script>
+</body>
+</html>

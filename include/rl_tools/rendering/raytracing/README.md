@@ -25,7 +25,7 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   `Tensor` members exposed by accessors — `cameras()`, `cameras_open()`/`cameras_close()`
   (motion blur), `transforms()` (overlays), `transforms_motion()` (dynamic motion blur:
   per-sample overlay transforms, sample-major so slab `s` shares the `transforms()` layout),
-  `transforms_pair()` (dynamic motion blur producer input: shutter-open/close entries),
+  `transforms_pair()` (dynamic-motion-blur / flow producer input: shutter-open/close entries),
   `frame_buffer()`, `depth_buffer()`, `segmentation_buffer()`, `normals_buffer()`,
   `flow_buffer()`, `flow_deltas()`, `collision_results()`, `observation()`. Residency is a
   backend property: CUDA device memory on OptiX, host on generic and WebGPU (WebGPU settles
@@ -62,8 +62,12 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   (whose storage flow enables independently of motion blur) and the `set_transform_pair`
   shutter poses, composed per overlay slot into `flow_deltas()` (world_open ∘ world_close⁻¹;
   single-pose verbs replicate, so held objects contribute pure camera flow). A producer drives
-  frame-to-frame flow by writing last frame's state into the open slots. On the device-resident
-  pair path the deltas are expanded on-device alongside `expand_motion_transforms`.
+  frame-to-frame flow by writing last frame's state into the open slots: either through
+  `transforms_pair()` + `expand_motion_transforms` (available to flow specifications without
+  motion blur; on OptiX the expansion stays on-device) followed by `update` to republish the
+  overlay geometry, or by writing `flow_deltas()` directly under the same ownership contract as
+  `transforms()` — clean (non-dirty) overlays are producer-owned and `update()` never clobbers
+  their rows from the host mirrors.
 - **Determinism is a contract.** Fixed seed ⇒ identical results, no atomics. The global
   instance-id layout (scene instances `[0,S)`, overlay `o` slot `s` at `S + o*MAX + s`) is
   cross-backend API surface consumed by segmentation.
@@ -165,3 +169,13 @@ CTest.
 Python (hypert) consumers JIT against these headers out of tree: `data()` on the accessor
 tensors yields stable device pointers suitable for dlpack/`__cuda_array_interface__` wrapping,
 and the `_launch`/`_sync` verb split maps onto phase-based scheduling.
+
+Browser demo: `src/rendering/raytracing/example/web/build.sh` compiles the WebGPU backend to
+WASM with an activated emsdk (`--use-port=emdawnwebgpu`, ASYNCIFY, `-fexceptions` — assimp
+relies on internal try/catch) and the page in `static/raytracing/` runs the drone
+motion-blur demo (`drone.cpp` semantics) live on canvases; assets are fetched by sha1 from the
+conta-data store (`?assets=local` serves `static/raytracing/assets/`, populated by
+`link_local_assets.sh`). The blocking-wait seams and adapter acquisition switch on
+`__EMSCRIPTEN__` in `backends/webgpu/operations_cpu.h`; browsers cap
+`maxStorageBuffersPerShaderStage` at the spec default of 8, which is why the bind layout packs
+per-frame inputs and outputs into the `FRAME_INPUTS`/`OUTPUTS` arenas.
