@@ -73,7 +73,7 @@ namespace test_hyperdrone_world {
     };
     using WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
     constexpr TI NUMBER_OF_ENVIRONMENTS = 2;
-    using ENVIRONMENT = rlt::rl::environments::MultiEnvironment<WORLD, NUMBER_OF_ENVIRONMENTS>;
+    using ENVIRONMENT = rlt::rl::environments::hyperdrone::MultiEnvironment<WORLD, NUMBER_OF_ENVIRONMENTS>;
     constexpr TI INSTANCES = ENVIRONMENT::INSTANCES;
     static_assert(INSTANCES == NUMBER_OF_ENVIRONMENTS * WORLD_SPEC::INSTANCES_PER_ENVIRONMENT);
 }
