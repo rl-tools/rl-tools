@@ -7,7 +7,8 @@ environment setup under one Python package.
 |---|---|
 | `hyperdrone.render` | Raytracing renderer (OptiX / Metal / Vulkan / generic CPU). Self-contained — no dependency on drone dynamics. |
 | `hyperdrone.dynamics` | Vectorized, stateful L2F multirotor simulator (`Sim`); cpu and cuda variants. |
-| `hyperdrone.env` | Environment setup: free-space sampling, spawning, and the `World` wiring of sim + renderer. |
+| `hyperdrone.env` | The RL environment: the C++ `MultiEnvironment<hyperdrone::World>` driven through the exact rl_tools batch verbs. |
+| `hyperdrone.gym` | Optional Gymnasium `VectorEnv` adapter over `hyperdrone.env` (`pip install "hyperdrone[gym]"`). |
 | `hyperdrone.jit` | Shared compile-and-cache infrastructure both domain packages build on. |
 | `hyperdrone.cuda` | CUDA staging helpers (`upload` → DLPack tensor sets). |
 
@@ -128,29 +129,57 @@ renderer.set_cameras(cameras, stream=sim.stream)   # device-resident hand-off
 
 `num_drones` and domain randomization are compile-time (the JIT key); the model preset
 (`crazyflie`, `x500_real`, `x500_sim`, `mrs`, ...), integration `dt`, and all physical
-parameters are runtime. `set_compute_mdp(True)` adds reward/termination computation to
-each step (`sim.rewards()`, `sim.terminated()`). One process can use one dynamics
+parameters are runtime. Reward and termination live in the
+environment (`hyperdrone.env`), not the simulator. One process can use one dynamics
 variant (cpu or cuda).
 
-## Environment setup
+## RL environment
 
 ```python
-from hyperdrone import dynamics, env, render
+import numpy as np
+from hyperdrone.env import EnvConfig, MultiEnvironment
 
-scene = render.load_scene("warehouse.glb", fidelity="medium")
-positions = env.FreeSpaceSampler(scene, clearance=0.5).sample(4096, seed=0)
+config = EnvConfig(num_environments=1, instances=1024, cam_width=32, cam_height=32, task="target_frame")
+env = MultiEnvironment("scenes/", config=config, seed=0)
 
-sim = dynamics.Sim(num_drones=4096, model="crazyflie")
-renderer = render.Renderer(width=64, height=64, num_cameras=4096, output="rgb", fidelity="medium")
-world = env.World(scene, sim, renderer)
-world.spawn(positions)
-frames = world.step(actions).frame()
+mask = np.ones(env.total_instances, dtype=np.uint8)
+env.reset(mask)                    # resample parameters + states where mask is set
+env.render(mask)                   # render the FPV cameras (mask marks fresh episodes)
+observations = env.observe()       # (total, observation_dim) float32
+env.step(actions)                  # (total, action_dim) float32 in [-1, 1]
+rewards, terminated = env.rewards(), env.terminated()
+critic_input = env.observe_privileged()
+env.rotate_scene()                 # deterministic scene rotation; reset all instances after
+env.observation_layout             # named blocks: which channels/values mean what
 ```
 
-`FreeSpaceSampler` rides the renderer's collision probes (works on every backend,
-including GENERIC on CPU-only machines) and is deterministic given a seed. `World` is
-sugar, not load-bearing: it wires `sim.step → camera_bases → set_cameras → render` with
-the right streams and nothing else.
+All environment semantics — reset, reward, termination, scene scheduling, observation
+composition — live on the C++ side (`rl_tools::rl::environments::MultiEnvironment<hyperdrone::World>`);
+the binding marshals tensors and nothing else, and a seeded rollout is pinned bit-exact
+against the C++ verbs by a golden test. The scene argument is a directory of `.glb`
+scenes, partitioned across environments. Configuration follows the C++ extension ladder:
+`preset=` names the platform (`"crazyflie"`, `"x500_fpv"` — SELF_VISIBLE, pass a
+body/prop_* GLB via `drone_asset=`), `task=` names the wrapper (`"target_frame"`,
+`"moving_gate"`), `n_agents=` enables multi-agent, and `EnvConfig(spec_header=...)` pins
+an arbitrary C++ specification (a header defining `hyperdrone_env_user::WORLD`, hashed
+into the JIT key). The render backend for the environment follows
+`HYPERDRONE_ENV_BACKEND` (default: the render backend selection).
+
+Manual composition of `Sim` and `Renderer` (no MDP — rendering research, data
+generation) remains first-class: see `python -m hyperdrone.examples.drone_flythrough`
+for the wiring. `FreeSpaceSampler` lives in `hyperdrone.render` — it rides the
+renderer's collision probes and is deterministic given a seed.
+
+### Gymnasium
+
+```python
+from hyperdrone.gym import VectorEnv   # pip install "hyperdrone[gym]"
+env = VectorEnv("scenes/", config=EnvConfig(instances=1024), seed=0)
+observations, infos = env.reset()
+observations, rewards, terminations, truncations, infos = env.step(actions)
+```
+
+Same-step autoreset over the env verbs; the core packages never import gymnasium.
 
 End-to-end example: `python -m hyperdrone.examples.drone_flythrough`; renderer benchmark:
 `python -m hyperdrone.examples.benchmark` (flag-compatible with the C++ benchmark

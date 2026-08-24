@@ -178,7 +178,7 @@ namespace hyperdrone_dynamics_impl {
 
     __global__ void kernel_step(DEVICE_CUDA device, const ENVIRONMENT* envs, PARAMETERS* parameters,
                                 const STATE* states, STATE* next_states, const float* actions,
-                                curandState* rng_states, bool compute_mdp, float* rewards, uint8_t* terminated,
+                                curandState* rng_states,
                                 float* position, float* orientation, float* linear_velocity, float* angular_velocity, float* rpm){
         const TI drone = blockIdx.x * blockDim.x + threadIdx.x;
         if(drone >= NUM_DRONES){
@@ -191,10 +191,6 @@ namespace hyperdrone_dynamics_impl {
         STATE state = states[drone];
         STATE next_state;
         rlt::step(device, envs[drone], parameters[drone], state, action, next_state, rng_states[drone]);
-        if(compute_mdp){
-            rewards[drone] = rlt::reward(device, envs[drone], parameters[drone], state, action, next_state, rng_states[drone]);
-            terminated[drone] = rlt::terminated(device, envs[drone], parameters[drone], next_state, rng_states[drone]) ? 1 : 0;
-        }
         next_states[drone] = next_state;
         publish_one(next_state, &position[drone * 3], &orientation[drone * 4],
                     &linear_velocity[drone * 3], &angular_velocity[drone * 3], &rpm[drone * ACTION_DIM]);
@@ -245,15 +241,12 @@ namespace hyperdrone_dynamics_impl {
         DYNAMICS model_dynamics;
         std::string model_name = "crazyflie";
         float integration_dt;
-        bool compute_mdp = false;
 
         // SoA buffers (device-resident on the CUDA variant)
         float *buffer_position, *buffer_orientation, *buffer_linear_velocity, *buffer_angular_velocity, *buffer_rpm;
-        float *buffer_observations, *buffer_camera_bases, *buffer_rewards;
-        uint8_t* buffer_terminated;
+        float *buffer_observations, *buffer_camera_bases;
         std::vector<float> host_position, host_orientation, host_linear_velocity, host_angular_velocity, host_rpm;
-        std::vector<float> host_observations, host_camera_bases, host_rewards;
-        std::vector<uint8_t> host_terminated;
+        std::vector<float> host_observations, host_camera_bases;
 
 #if defined(HYPERDRONE_DYNAMICS_CUDA)
         DEVICE_CUDA device_cuda;
@@ -294,8 +287,6 @@ namespace hyperdrone_dynamics_impl {
             buffer_rpm = device_alloc<float>(NUM_DRONES * ACTION_DIM);
             buffer_observations = device_alloc<float>(NUM_DRONES * OBSERVATION_DIM);
             buffer_camera_bases = device_alloc<float>(NUM_DRONES * 12);
-            buffer_rewards = device_alloc<float>(NUM_DRONES);
-            buffer_terminated = device_alloc<uint8_t>(NUM_DRONES);
             cudaStreamCreate(&cuda_stream);
             cudaMemcpy(device_envs, envs.data(), NUM_DRONES * sizeof(ENVIRONMENT), cudaMemcpyHostToDevice);
 #else
@@ -306,8 +297,6 @@ namespace hyperdrone_dynamics_impl {
             host_rpm.resize(NUM_DRONES * ACTION_DIM);
             host_observations.resize(NUM_DRONES * OBSERVATION_DIM);
             host_camera_bases.resize(NUM_DRONES * 12);
-            host_rewards.resize(NUM_DRONES);
-            host_terminated.resize(NUM_DRONES);
             buffer_position = host_position.data();
             buffer_orientation = host_orientation.data();
             buffer_linear_velocity = host_linear_velocity.data();
@@ -315,8 +304,6 @@ namespace hyperdrone_dynamics_impl {
             buffer_rpm = host_rpm.data();
             buffer_observations = host_observations.data();
             buffer_camera_bases = host_camera_bases.data();
-            buffer_rewards = host_rewards.data();
-            buffer_terminated = host_terminated.data();
 #endif
             reset(0, false, false);
         }
@@ -330,7 +317,6 @@ namespace hyperdrone_dynamics_impl {
             cudaFree(buffer_position); cudaFree(buffer_orientation);
             cudaFree(buffer_linear_velocity); cudaFree(buffer_angular_velocity); cudaFree(buffer_rpm);
             cudaFree(buffer_observations); cudaFree(buffer_camera_bases);
-            cudaFree(buffer_rewards); cudaFree(buffer_terminated);
 #endif
         }
 
@@ -476,7 +462,7 @@ namespace hyperdrone_dynamics_impl {
             }
             kernel_step<<<GRID_DIM, BLOCK_DIM, 0, cuda_stream>>>(device_cuda, device_envs, device_parameters,
                                                                  device_states, device_next_states, device_actions,
-                                                                 device_rng, compute_mdp, buffer_rewards, buffer_terminated,
+                                                                 device_rng,
                                                                  buffer_position, buffer_orientation,
                                                                  buffer_linear_velocity, buffer_angular_velocity, buffer_rpm);
             STATE* swap = device_states;
@@ -496,10 +482,6 @@ namespace hyperdrone_dynamics_impl {
                     rlt::set(action, 0, action_i, actions[drone * ACTION_DIM + action_i]);
                 }
                 rlt::step(device_cpu, envs[drone], parameters[drone], states[drone], action, next_states[drone], engines[drone]);
-                if(compute_mdp){
-                    buffer_rewards[drone] = rlt::reward(device_cpu, envs[drone], parameters[drone], states[drone], action, next_states[drone], engines[drone]);
-                    buffer_terminated[drone] = rlt::terminated(device_cpu, envs[drone], parameters[drone], next_states[drone], engines[drone]) ? 1 : 0;
-                }
                 states[drone] = next_states[drone];
                 publish_one(states[drone], &buffer_position[drone * 3], &buffer_orientation[drone * 4],
                             &buffer_linear_velocity[drone * 3], &buffer_angular_velocity[drone * 3], &buffer_rpm[drone * ACTION_DIM]);
@@ -588,10 +570,6 @@ namespace hyperdrone_dynamics_impl {
             return buffer_camera_bases;
         }
 
-        void set_compute_mdp(bool enabled) override {
-            compute_mdp = enabled;
-        }
-
         template <typename ACCESSOR>
         bool parameter_access(const char* name, ACCESSOR&& accessor){
             const std::string key(name);
@@ -617,23 +595,6 @@ namespace hyperdrone_dynamics_impl {
             return known;
         }
 
-        void read_rewards(float* dst) override {
-#if defined(HYPERDRONE_DYNAMICS_CUDA)
-            cudaStreamSynchronize(cuda_stream);
-            cudaMemcpy(dst, buffer_rewards, NUM_DRONES * sizeof(float), cudaMemcpyDeviceToHost);
-#else
-            std::memcpy(dst, buffer_rewards, NUM_DRONES * sizeof(float));
-#endif
-        }
-
-        void read_terminated(uint8_t* dst) override {
-#if defined(HYPERDRONE_DYNAMICS_CUDA)
-            cudaStreamSynchronize(cuda_stream);
-            cudaMemcpy(dst, buffer_terminated, NUM_DRONES * sizeof(uint8_t), cudaMemcpyDeviceToHost);
-#else
-            std::memcpy(dst, buffer_terminated, NUM_DRONES * sizeof(uint8_t));
-#endif
-        }
     };
 
     static char config_string_buffer[64];

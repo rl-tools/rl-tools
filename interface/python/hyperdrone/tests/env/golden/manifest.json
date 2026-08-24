@@ -1,0 +1,13 @@
+{
+    "action_dim": 4,
+    "action_formula": "-1 + 2*(((step*131 + instance*31 + dim*7) % 101) / 100)",
+    "config_string": "num_environments=1 instances=2 cam=16x16 shading=0 history=1 preset=0 task=0 n_agents=1",
+    "observation_dim": 768,
+    "observation_dim_privileged": 18,
+    "observation_layout": "shape 16 16 3\naxis channel\nblock image 0 3\n",
+    "observation_layout_privileged": "shape 18\naxis flat\nblock position 0 3\nblock orientation_rotation_matrix 3 9\nblock linear_velocity 12 3\nblock angular_velocity 15 3\n",
+    "scene": "ProcTHOR-Train-1.glb",
+    "seed": 1337,
+    "steps": 3,
+    "total_instances": 2
+}

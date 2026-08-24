@@ -26,23 +26,31 @@ HANDOFF_CHECK = """
 import sys
 sys.path.insert(0, sys.argv[1])
 import numpy as np
-from hyperdrone import dynamics, env, render
+from hyperdrone import dynamics, render
 from test_env import make_room
 
 num_drones = 4
 scene = make_room()
 sim = dynamics.Sim(num_drones=num_drones, model="crazyflie", device="cuda")
 renderer = render.Renderer(width=32, height=32, num_cameras=num_drones, output="rgb", fidelity="low")
-world = env.World(scene, sim, renderer)
-assert world._device_handoff
+renderer.init(scene)
+assert renderer.backend == "optix" and sim.device == "cuda"
+
+def spawn(positions):
+    sim.reset(seed=0, sample_states=False)
+    sim.state["position"] = positions
+    renderer.set_cameras(sim.camera_bases(aspect=renderer.aspect), stream=sim.stream)
 
 positions = np.array([[0.0, 0.0, 1.5], [1.0, 1.0, 1.5], [-1.0, 1.0, 1.0], [1.0, -1.0, 2.0]], dtype=np.float32)
-world.spawn(positions)
+spawn(positions)
 actions = np.full((num_drones, sim.action_dim), 0.1, dtype=np.float32)
-device_frame = world.step(actions).frame_raw().copy()
+sim.step(actions)
+renderer.set_cameras(sim.camera_bases(aspect=renderer.aspect), stream=sim.stream)
+renderer.render()
+device_frame = renderer.frame_raw().copy()
 
 # replay the same step with the cameras routed through the host
-world.spawn(positions)
+spawn(positions)
 sim.step(actions)
 sim.synchronize()
 renderer.set_cameras(sim.camera_bases_numpy(aspect=renderer.aspect))

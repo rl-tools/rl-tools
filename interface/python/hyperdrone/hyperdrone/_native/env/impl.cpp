@@ -1,5 +1,14 @@
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/operations_cpu.h>
+#if defined(HYPERDRONE_ENV_TASK) && HYPERDRONE_ENV_TASK == 1
+#include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cpu.h>
+#endif
+#if defined(HYPERDRONE_ENV_TASK) && HYPERDRONE_ENV_TASK == 2
+#include <rl_tools/rl/environments/hyperdrone/tasks/moving_gate/operations_cpu.h>
+#endif
+#if defined(HYPERDRONE_ENV_PRESET) && HYPERDRONE_ENV_PRESET == 1
+#include <rl_tools/rl/environments/hyperdrone/presets.h>
+#endif
 
 #include "iface.h"
 
@@ -24,6 +33,24 @@
 #ifndef HYPERDRONE_ENV_HISTORY_LENGTH
 #define HYPERDRONE_ENV_HISTORY_LENGTH 1
 #endif
+#ifndef HYPERDRONE_ENV_PRESET
+#define HYPERDRONE_ENV_PRESET 0
+#endif
+#ifndef HYPERDRONE_ENV_TASK
+#define HYPERDRONE_ENV_TASK 0
+#endif
+#ifndef HYPERDRONE_ENV_N_AGENTS
+#define HYPERDRONE_ENV_N_AGENTS 1
+#endif
+
+#define HYPERDRONE_ENV_STRINGIFY_INNER(x) #x
+#define HYPERDRONE_ENV_STRINGIFY(x) HYPERDRONE_ENV_STRINGIFY_INNER(x)
+
+// the escape hatch: a user header defining hyperdrone_env_user::WORLD (a fully built
+// World or task chain); preset/task/instance defines are superseded by the user type
+#ifdef HYPERDRONE_ENV_SPEC_HEADER
+#include HYPERDRONE_ENV_STRINGIFY(HYPERDRONE_ENV_SPEC_HEADER)
+#endif
 
 namespace rlt = rl_tools;
 
@@ -34,6 +61,10 @@ namespace hyperdrone_env_impl {
     using TI = DEVICE::index_t;
 
     namespace l2f = rlt::rl::environments::l2f;
+#ifdef HYPERDRONE_ENV_SPEC_HEADER
+    using WORLD = ::hyperdrone_env_user::WORLD;
+#else
+#if HYPERDRONE_ENV_PRESET == 0
     using REWARD_FUNCTION = l2f::parameters::reward_functions::Squared<T>;
     static constexpr TI EPISODE_STEP_LIMIT = 500;
     using PARAMETERS_SPEC = l2f::ParametersBaseSpecification<T, TI, 4, EPISODE_STEP_LIMIT, REWARD_FUNCTION>;
@@ -69,9 +100,17 @@ namespace hyperdrone_env_impl {
         static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Y = 100000;
         static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Z = 100000;
     };
-
-    struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS> {
+    using PRESET_SPEC = rlt::rl::environments::hyperdrone::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS>;
+#elif HYPERDRONE_ENV_PRESET == 1
+    using PRESET_SPEC = rlt::rl::environments::hyperdrone::presets::X500FPV<T, TI>;
+#else
+#error "unknown HYPERDRONE_ENV_PRESET"
+#endif
+    struct WORLD_SPEC: PRESET_SPEC {
         static constexpr TI INSTANCES_PER_ENVIRONMENT = HYPERDRONE_ENV_INSTANCES;
+        static constexpr TI N_AGENTS = HYPERDRONE_ENV_N_AGENTS;
+        static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE =
+            HYPERDRONE_ENV_TASK == 2 && PRESET_SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE == 0 ? 8 : PRESET_SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE;
         static constexpr TI CAM_WIDTH = HYPERDRONE_ENV_CAM_WIDTH;
         static constexpr TI CAM_HEIGHT = HYPERDRONE_ENV_CAM_HEIGHT;
         static constexpr TI HISTORY_LENGTH = HYPERDRONE_ENV_HISTORY_LENGTH;
@@ -79,7 +118,20 @@ namespace hyperdrone_env_impl {
                         rlt::utils::typing::conditional_t<HYPERDRONE_ENV_SHADING == 1, rlt::rendering::raytracing::Medium,
                                                                                       rlt::rendering::raytracing::High>>;
     };
-    using WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
+    using BASE_WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
+#if HYPERDRONE_ENV_TASK == 0
+    using WORLD = BASE_WORLD;
+#elif HYPERDRONE_ENV_TASK == 1
+    struct TASK_SPEC: rlt::rl::environments::hyperdrone::tasks::target_frame::Specification<BASE_WORLD> {};
+    using WORLD = rlt::rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
+#elif HYPERDRONE_ENV_TASK == 2
+    struct TASK_SPEC: rlt::rl::environments::hyperdrone::tasks::moving_gate::Specification<BASE_WORLD> {};
+    using WORLD = rlt::rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>;
+#else
+#error "unknown HYPERDRONE_ENV_TASK"
+#endif
+#endif
+
     constexpr TI NUM_ENVIRONMENTS = HYPERDRONE_ENV_NUM_ENVIRONMENTS;
     using ENV = rlt::rl::environments::MultiEnvironment<WORLD, NUM_ENVIRONMENTS>;
     constexpr TI TOTAL = NUM_ENVIRONMENTS * WORLD::INSTANCES;
@@ -92,11 +144,82 @@ namespace hyperdrone_env_impl {
         rlt::Tensor<rlt::tensor::Specification<typename WORLD::State, TI, rlt::tensor::Shape<TI, TOTAL>>> states, next_states;
         rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, TOTAL>>> reset_mask, terminated_flags;
         rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TOTAL>>> rewards;
-        bool initialized = false;
     };
 
     EnvImpl* cast(void* handle){
         return reinterpret_cast<EnvImpl*>(handle);
+    }
+
+    template <typename WORLD_TYPE, typename = void>
+    struct HasGateAssetPath { static constexpr bool VALUE = false; };
+    template <typename WORLD_TYPE>
+    struct HasGateAssetPath<WORLD_TYPE, rlt::utils::typing::void_t<decltype(WORLD_TYPE::gate_asset_path)>> { static constexpr bool VALUE = true; };
+
+    template <typename WORLD_TYPE>
+    void set_gate_asset_path(WORLD_TYPE& world, const char* path){
+        if constexpr (HasGateAssetPath<WORLD_TYPE>::VALUE){
+            world.gate_asset_path = path;
+        }else{
+            (void)world;
+            (void)path;
+        }
+    }
+
+    std::string flat_blocks_privileged(){
+        std::string out;
+#ifdef HYPERDRONE_ENV_SPEC_HEADER
+        out += "block observation 0 " + std::to_string((unsigned long long)WORLD::OBSERVATION_DIM_PRIVILEGED) + "\n";
+#else
+        // the shim's dynamics observation chain: Position(3), OrientationRotationMatrix(9),
+        // LinearVelocity(3), AngularVelocity(3) — per agent, agents contiguous
+        constexpr TI PER_AGENT = 18;
+        constexpr TI N_AGENTS = WORLD::N_AGENTS;
+        for(TI agent_i = 0; agent_i < N_AGENTS; agent_i++){
+            std::string prefix = N_AGENTS > 1 ? ("agent" + std::to_string((unsigned long long)agent_i) + "/") : "";
+            TI base = agent_i * PER_AGENT;
+            out += "block " + prefix + "position " + std::to_string((unsigned long long)(base + 0)) + " 3\n";
+            out += "block " + prefix + "orientation_rotation_matrix " + std::to_string((unsigned long long)(base + 3)) + " 9\n";
+            out += "block " + prefix + "linear_velocity " + std::to_string((unsigned long long)(base + 12)) + " 3\n";
+            out += "block " + prefix + "angular_velocity " + std::to_string((unsigned long long)(base + 15)) + " 3\n";
+        }
+#if HYPERDRONE_ENV_TASK == 2
+        out += "block gate_state " + std::to_string((unsigned long long)(N_AGENTS * PER_AGENT)) + " 8\n";
+#endif
+#endif
+        return out;
+    }
+
+    std::string observation_layout_value(bool privileged){
+        std::string out;
+        if(privileged){
+            out += "shape " + std::to_string((unsigned long long)WORLD::OBSERVATION_DIM_PRIVILEGED) + "\n";
+            out += "axis flat\n";
+            out += flat_blocks_privileged();
+        }else{
+#ifdef HYPERDRONE_ENV_SPEC_HEADER
+            out += "shape " + std::to_string((unsigned long long)WORLD::OBSERVATION_DIM) + "\n";
+            out += "axis flat\n";
+            out += "block observation 0 " + std::to_string((unsigned long long)WORLD::OBSERVATION_DIM) + "\n";
+#else
+            constexpr TI HEIGHT = WORLD::Observation::HEIGHT;
+            constexpr TI WIDTH = WORLD::Observation::WIDTH;
+            constexpr TI CHANNELS = WORLD::Observation::CHANNELS;
+            out += "shape " + std::to_string((unsigned long long)HEIGHT) + " " + std::to_string((unsigned long long)WIDTH) + " " + std::to_string((unsigned long long)CHANNELS) + "\n";
+            out += "axis channel\n";
+#if HYPERDRONE_ENV_TASK == 1
+            constexpr TI STACK_CHANNELS = TASK_SPEC::IMAGE_STACK_N * BASE_WORLD::IMAGE_CHANNELS;
+            out += "block image_stack 0 " + std::to_string((unsigned long long)STACK_CHANNELS) + "\n";
+            out += "block target_image " + std::to_string((unsigned long long)STACK_CHANNELS) + " " + std::to_string((unsigned long long)BASE_WORLD::IMAGE_CHANNELS) + "\n";
+            if constexpr (CHANNELS > STACK_CHANNELS + BASE_WORLD::IMAGE_CHANNELS){
+                constexpr TI USED = STACK_CHANNELS + BASE_WORLD::IMAGE_CHANNELS;
+                out += "block pad " + std::to_string((unsigned long long)USED) + " " + std::to_string((unsigned long long)(CHANNELS - USED)) + "\n";
+            }
+#else
+            out += "block image 0 " + std::to_string((unsigned long long)CHANNELS) + "\n";
+#endif
+#endif
+        }
+        return out;
     }
 }
 
@@ -110,10 +233,22 @@ extern "C" {
         static const std::string value =
             std::string("num_environments=") + std::to_string(NUM_ENVIRONMENTS)
             + " instances=" + std::to_string((unsigned long long)WORLD::INSTANCES)
-            + " cam=" + std::to_string((unsigned long long)WORLD_SPEC::CAM_WIDTH) + "x" + std::to_string((unsigned long long)WORLD_SPEC::CAM_HEIGHT)
+            + " cam=" + std::to_string((unsigned long long)WORLD::SPEC::CAM_WIDTH) + "x" + std::to_string((unsigned long long)WORLD::SPEC::CAM_HEIGHT)
             + " shading=" + std::to_string(HYPERDRONE_ENV_SHADING)
-            + " history=" + std::to_string((unsigned long long)WORLD_SPEC::HISTORY_LENGTH);
+            + " history=" + std::to_string((unsigned long long)WORLD::SPEC::HISTORY_LENGTH)
+            + " preset=" + std::to_string(HYPERDRONE_ENV_PRESET)
+            + " task=" + std::to_string(HYPERDRONE_ENV_TASK)
+            + " n_agents=" + std::to_string((unsigned long long)WORLD::N_AGENTS)
+#ifdef HYPERDRONE_ENV_SPEC_HEADER
+            + " spec_header=1"
+#endif
+            ;
         return value.c_str();
+    }
+    const char* hyperdrone_env_observation_layout(int privileged){
+        static const std::string observation = observation_layout_value(false);
+        static const std::string observation_privileged = observation_layout_value(true);
+        return privileged ? observation_privileged.c_str() : observation.c_str();
     }
     void* hyperdrone_env_create(){
         EnvImpl* impl = new EnvImpl();
@@ -147,20 +282,29 @@ extern "C" {
         config->instances_per_environment = (uint32_t)WORLD::INSTANCES;
         config->total_instances = (uint32_t)TOTAL;
         config->n_agents = (uint32_t)WORLD::N_AGENTS;
-        config->cam_width = (uint32_t)WORLD_SPEC::CAM_WIDTH;
-        config->cam_height = (uint32_t)WORLD_SPEC::CAM_HEIGHT;
+        config->cam_width = (uint32_t)WORLD::SPEC::CAM_WIDTH;
+        config->cam_height = (uint32_t)WORLD::SPEC::CAM_HEIGHT;
         config->image_channels = (uint32_t)WORLD::IMAGE_CHANNELS;
         config->observation_dim = (uint32_t)WORLD::OBSERVATION_DIM;
         config->observation_dim_privileged = (uint32_t)WORLD::OBSERVATION_DIM_PRIVILEGED;
         config->action_dim = (uint32_t)WORLD::ACTION_DIM;
         config->episode_step_limit = (uint32_t)WORLD::EPISODE_STEP_LIMIT;
     }
-    void hyperdrone_env_init(void* handle, const char* scene_directory, unsigned long long seed){
+    void hyperdrone_env_init(void* handle, const char* scene_directory, const char* drone_asset_path, const char* gate_asset_path, unsigned long long seed){
         EnvImpl* impl = cast(handle);
         rlt::init(impl->device, impl->rng, seed);
+        if(drone_asset_path != nullptr && drone_asset_path[0] != '\0'){
+            for(TI environment_i = 0; environment_i < NUM_ENVIRONMENTS; environment_i++){
+                impl->env.environments[environment_i].drone_asset_path = drone_asset_path;
+            }
+        }
+        if(gate_asset_path != nullptr && gate_asset_path[0] != '\0'){
+            for(TI environment_i = 0; environment_i < NUM_ENVIRONMENTS; environment_i++){
+                set_gate_asset_path(impl->env.environments[environment_i], gate_asset_path);
+            }
+        }
         rlt::rl::environments::hyperdrone::datasets::Plain dataset{scene_directory};
         rlt::init(impl->device, impl->env, dataset);
-        impl->initialized = true;
     }
     void hyperdrone_env_reset(void* handle, const uint8_t* mask){
         EnvImpl* impl = cast(handle);

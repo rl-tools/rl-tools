@@ -1,18 +1,15 @@
-"""hyperdrone.env — environment setup: everything between "I have a GLB and a drone
-model" and "N drones are flying through it".
+"""hyperdrone.env — the RL environment: the C++ rl_tools MultiEnvironment<hyperdrone::World>
+driven through the exact batch verbs the C++ training targets use.
 
-The only layer that knows about both rendering and dynamics: free-space sampling for
-spawn positions (probe-based, works on every render backend), and the World convenience
-wiring sim.step -> camera_bases -> set_cameras -> render (device-resident on
-OptiX + CUDA).
+All environment semantics (reset, reward, termination, scene rotation, observation
+composition) live on the C++ side; this package marshals tensors and nothing else. For
+manual composition of the render and dynamics packages (no MDP), see
+examples/drone_flythrough.py.
 """
-from ._multi_environment import EnvConfig, MultiEnvironment
-from ._sampling import FreeSpaceSampler
-from ._world import World
+from ._multi_environment import EnvConfig, MultiEnvironment, ObservationLayout
 
 __all__ = [
     "EnvConfig",
-    "FreeSpaceSampler",
     "MultiEnvironment",
-    "World",
+    "ObservationLayout",
 ]

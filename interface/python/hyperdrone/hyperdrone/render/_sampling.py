@@ -1,6 +1,6 @@
 import numpy as np
 
-from .. import render
+from ._renderer import Renderer
 
 
 class FreeSpaceSampler:
@@ -16,7 +16,7 @@ class FreeSpaceSampler:
         self._clearance = float(clearance)
         self._batch = int(batch)
         self._margin = float(margin)
-        self._renderer = render.Renderer(
+        self._renderer = Renderer(
             width=1, height=1, num_cameras=self._batch, num_probes=int(probes),
             output="depth", fidelity="low",
         )

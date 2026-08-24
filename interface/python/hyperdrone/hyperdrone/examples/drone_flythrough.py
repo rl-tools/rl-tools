@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
-from hyperdrone import dynamics, env, render
+from hyperdrone import dynamics, render
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-m", "--model", default=None, help="GLB scene (default: procedural room)")
@@ -67,14 +67,34 @@ else:
 sim = dynamics.Sim(num_drones=arguments.drones, model=arguments.drone_model, device=arguments.device)
 renderer = render.Renderer(width=arguments.width, height=arguments.height,
                            num_cameras=arguments.drones, output="rgb", fidelity="medium")
-world = env.World(scene, sim, renderer)
+renderer.init(scene)
+
+# manual composition of the two peers: sim.step -> camera_bases -> set_cameras -> render,
+# device-resident on OptiX + CUDA (the RL environment path is hyperdrone.env.MultiEnvironment)
+device_handoff = renderer.backend == "optix" and sim.device == "cuda"
+
+
+def update_cameras():
+    if device_handoff:
+        renderer.set_cameras(sim.camera_bases(aspect=renderer.aspect), stream=sim.stream)
+    else:
+        renderer.set_cameras(sim.camera_bases_numpy(aspect=renderer.aspect))
+
+
+def world_step(actions):
+    sim.step(actions)
+    update_cameras()
+    renderer.render()
+
 
 print(f"backend={renderer.backend} dynamics={sim.device} drones={arguments.drones} "
-      f"device_handoff={'yes' if world._device_handoff else 'no (host cameras)'}")
+      f"device_handoff={'yes' if device_handoff else 'no (host cameras)'}")
 
-sampler = env.FreeSpaceSampler(scene, clearance=0.5)
+sampler = render.FreeSpaceSampler(scene, clearance=0.5)
 positions = sampler.sample(arguments.drones, seed=0)
-world.spawn(positions)
+sim.reset(seed=0, sample_states=False)
+sim.state["position"] = positions
+update_cameras()
 
 # flythrough flight pattern: hover throttle + a small yaw differential (rotor pattern
 # +,-,+,- spins the body around +Z while staying level) + an initial horizontal glide
@@ -123,7 +143,7 @@ if arguments.video:
 
 start = time.perf_counter()
 for step in range(arguments.steps):
-    world.step(flythrough_actions())
+    world_step(flythrough_actions())
     if video_writer is not None and step % video_stride == 0:
         record_frame()
 renderer.synchronize()

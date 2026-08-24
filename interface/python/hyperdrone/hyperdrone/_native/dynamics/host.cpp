@@ -153,24 +153,7 @@ NB_MODULE(hyperdrone_dynamics_core, m){
             if(!jit->write_parameter(name.c_str(), values.data())){
                 throw std::invalid_argument("hyperdrone: unknown parameter " + name);
             }
-        }, nb::arg("name"), nb::arg("values"))
-        .def("set_compute_mdp", [](JitSim& jit, bool enabled){ jit->set_compute_mdp(enabled); }, nb::arg("enabled"))
-        .def("read_rewards", [](JitSim& jit, nb::ndarray<float, nb::c_contig, nb::device::cpu> out){
-            const hdd::Config config = jit->config();
-            if(out.size() != config.num_drones){
-                throw std::invalid_argument("hyperdrone: rewards output must have num_drones elements");
-            }
-            nb::gil_scoped_release release;
-            jit->read_rewards(out.data());
-        }, nb::arg("out"))
-        .def("read_terminated", [](JitSim& jit, nb::ndarray<uint8_t, nb::c_contig, nb::device::cpu> out){
-            const hdd::Config config = jit->config();
-            if(out.size() != config.num_drones){
-                throw std::invalid_argument("hyperdrone: terminated output must have num_drones elements");
-            }
-            nb::gil_scoped_release release;
-            jit->read_terminated(out.data());
-        }, nb::arg("out"));
+        }, nb::arg("name"), nb::arg("values"));
 
 #if defined(HYPERDRONE_DYNAMICS_CUDA)
     m.attr("HAS_CUDA") = true;

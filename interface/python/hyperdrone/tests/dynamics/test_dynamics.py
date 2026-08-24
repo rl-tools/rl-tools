@@ -81,17 +81,6 @@ def test_observation_shape(sim):
     assert np.isfinite(observations).all()
 
 
-def test_rewards_and_termination(sim):
-    sim.reset(seed=0)
-    sim.set_compute_mdp(True)
-    sim.step(np.zeros((N, sim.action_dim), dtype=np.float32))
-    rewards = sim.rewards()
-    terminated = sim.terminated()
-    sim.set_compute_mdp(False)
-    assert rewards.shape == (N,) and np.isfinite(rewards).all()
-    assert terminated.shape == (N,) and terminated.dtype == bool
-
-
 def test_camera_bases_identity_pose(sim):
     sim.reset(seed=0, sample_states=False)
     position = np.tile(np.array([1.0, 2.0, 3.0], dtype=np.float32), (N, 1))

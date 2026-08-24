@@ -186,16 +186,3 @@ class Sim:
         self._sim.read_camera_bases(out)
         return out
 
-    def set_compute_mdp(self, enabled=True):
-        """Enable reward/termination computation during step() (off by default)."""
-        self._sim.set_compute_mdp(bool(enabled))
-
-    def rewards(self):
-        out = np.empty(self.num_drones, dtype=np.float32)
-        self._sim.read_rewards(out)
-        return out
-
-    def terminated(self):
-        out = np.empty(self.num_drones, dtype=np.uint8)
-        self._sim.read_terminated(out)
-        return out.astype(bool)
