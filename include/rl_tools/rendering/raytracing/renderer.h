@@ -148,6 +148,10 @@ namespace rl_tools {
             static_assert(ENABLE_OVERLAYS || (NUM_OVERLAYS == 0 && MAX_OVERLAY_INSTANCES == 0 && MAX_OVERLAYS_PER_CAMERA == 0), "overlay constants must be all zero (disabled) or all nonzero");
             static constexpr bool ENABLE_DYNAMIC_MOTION_BLUR = CONFIG::ENABLE_DYNAMIC_MOTION_BLUR && ENABLE_MOTION_BLUR && ENABLE_OVERLAYS;
             static_assert(!CONFIG::ENABLE_DYNAMIC_MOTION_BLUR || (ENABLE_MOTION_BLUR && ENABLE_OVERLAYS), "ENABLE_DYNAMIC_MOTION_BLUR requires ENABLE_MOTION_BLUR (MOTION_BLUR_SAMPLES > 1) and overlays");
+            // the transforms_pair producer input serves dynamic motion blur (slerped into
+            // transforms_motion) and flow (composed into flow_deltas), so its storage is gated
+            // on either consumer
+            static constexpr bool HAS_TRANSFORM_PAIR = ENABLE_DYNAMIC_MOTION_BLUR || (HAS_FLOW && ENABLE_OVERLAYS);
             static constexpr bool HAS_OBSERVATION = CONFIG::OUTPUT_OBSERVATION;
             using OBSERVATION_T = typename CONFIG::OBSERVATION_T;
             static constexpr TI OBSERVATION_CHANNELS = 3;
@@ -390,6 +394,22 @@ namespace rl_tools {
             std::vector<float> asset_part_transforms; // 12 per part, assembly-local
         };
 
+        template <typename T_SPEC, bool T_HAS_TRANSFORM_PAIR>
+        struct TransformPairRendererStorage {};
+
+        template <typename T_SPEC>
+        struct TransformPairRendererStorage<T_SPEC, true> {
+            using SPEC = T_SPEC;
+            using TI = typename SPEC::TI;
+            // device-producer input: shutter-open (index 0) and shutter-close (index 1) entries
+            // per slot, expanded by expand_motion_transforms into transforms_motion (dynamic
+            // motion blur), flow_deltas (flow), and the close state into transforms — on OptiX
+            // both the producer write and the expansion stay on the device, so a sim kernel can
+            // drive dynamic blur or flow with no host data path
+            using TRANSFORMS_PAIR_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, 2, SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES, 12>, true>;
+            Tensor<TRANSFORMS_PAIR_TENSOR_SPEC> transforms_pair;
+        };
+
         template <typename T_SPEC, bool T_ENABLE_DYNAMIC_MOTION_BLUR>
         struct DynamicMotionBlurRendererStorage {};
 
@@ -403,12 +423,6 @@ namespace rl_tools {
             // semantics match transforms (root: pose, non-root: part-frame articulation).
             using TRANSFORMS_MOTION_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::MOTION_BLUR_SAMPLES, SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES, 12>, true>;
             Tensor<TRANSFORMS_MOTION_TENSOR_SPEC> transforms_motion;
-            // device-producer input: shutter-open (index 0) and shutter-close (index 1) entries
-            // per slot, expanded into transforms_motion (and the close state into transforms) by
-            // expand_motion_transforms — on OptiX both the producer write and the expansion stay
-            // on the device, so a sim kernel can drive dynamic blur with no host data path
-            using TRANSFORMS_PAIR_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, 2, SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES, 12>, true>;
-            Tensor<TRANSFORMS_PAIR_TENSOR_SPEC> transforms_pair;
             // host mirror of transforms_motion for the verb path (the tensor is device-resident
             // on OptiX); staged per dirty overlay, same ownership contract as transform_entry
             std::vector<float> transforms_motion_staging;
@@ -422,7 +436,7 @@ namespace rl_tools {
         };
 
         template <typename T_SPEC, typename T_BACKEND = backends::Default>
-        struct Renderer: CameraPairRendererStorage<T_SPEC, T_SPEC::HAS_CAMERA_PAIR>, RGBRendererStorage<T_SPEC, T_SPEC::HAS_RGB>, DepthRendererStorage<T_SPEC, T_SPEC::HAS_DEPTH>, SegmentationRendererStorage<T_SPEC, T_SPEC::HAS_SEGMENTATION>, NormalsRendererStorage<T_SPEC, T_SPEC::HAS_NORMALS>, FlowRendererStorage<T_SPEC, T_SPEC::HAS_FLOW>, FlowOverlayRendererStorage<T_SPEC, T_SPEC::HAS_FLOW && T_SPEC::ENABLE_OVERLAYS>, ObservationRendererStorage<T_SPEC, T_SPEC::HAS_OBSERVATION>, OverlayRendererStorage<T_SPEC, T_SPEC::ENABLE_OVERLAYS>, DynamicMotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_DYNAMIC_MOTION_BLUR>{
+        struct Renderer: CameraPairRendererStorage<T_SPEC, T_SPEC::HAS_CAMERA_PAIR>, RGBRendererStorage<T_SPEC, T_SPEC::HAS_RGB>, DepthRendererStorage<T_SPEC, T_SPEC::HAS_DEPTH>, SegmentationRendererStorage<T_SPEC, T_SPEC::HAS_SEGMENTATION>, NormalsRendererStorage<T_SPEC, T_SPEC::HAS_NORMALS>, FlowRendererStorage<T_SPEC, T_SPEC::HAS_FLOW>, FlowOverlayRendererStorage<T_SPEC, T_SPEC::HAS_FLOW && T_SPEC::ENABLE_OVERLAYS>, ObservationRendererStorage<T_SPEC, T_SPEC::HAS_OBSERVATION>, OverlayRendererStorage<T_SPEC, T_SPEC::ENABLE_OVERLAYS>, TransformPairRendererStorage<T_SPEC, T_SPEC::HAS_TRANSFORM_PAIR>, DynamicMotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_DYNAMIC_MOTION_BLUR>{
             using SPEC = T_SPEC;
             using BACKEND = T_BACKEND;
             using BACKEND_STATE = backends::RendererState<BACKEND, SPEC>;

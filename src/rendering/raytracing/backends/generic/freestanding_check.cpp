@@ -43,6 +43,13 @@ namespace {
     struct SpecBasic: Spec{
         using SHADING = ShadingBasic;
     };
+    // pins the T = double instantiation of the freestanding kernels with overlays: the flow-delta
+    // table stays float regardless of T, so the flow path must compile with mixed element types
+    struct SpecDouble: Spec{
+        using T = double;
+        static constexpr bool ENABLE_OVERLAYS = true;
+        static constexpr TI MAX_OVERLAYS_PER_CAMERA = 1;
+    };
 }
 
 extern "C" void rl_tools_rendering_raytracing_generic_freestanding_check(){
@@ -113,4 +120,7 @@ extern "C" void rl_tools_rendering_raytracing_generic_freestanding_check(){
     generic::render_normals_frame<DEVICE, Spec>(device, scene);
     generic::render_flow_frame<DEVICE, Spec>(device, scene);
     generic::render_collision<DEVICE, Spec>(device, scene);
+
+    static generic::SceneView<double, TI> scene_double;
+    generic::render_flow_frame<DEVICE, SpecDouble>(device, scene_double);
 }
