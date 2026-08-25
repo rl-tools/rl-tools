@@ -16,6 +16,12 @@ gtest_discover_tests(test_rendering_raytracing_overlay_scenarios_generic
     PROPERTIES TIMEOUT 20 LABELS overlay
 )
 
+add_executable(test_rendering_raytracing_probes_overlay_generic probes_overlay.cpp)
+target_link_libraries(test_rendering_raytracing_probes_overlay_generic PRIVATE RLtools::RLtools assimp::assimp rendering_raytracing_stb GTest::gtest_main)
+gtest_discover_tests(test_rendering_raytracing_probes_overlay_generic
+    PROPERTIES TIMEOUT 20 LABELS overlay
+)
+
 # the same backend-agnostic assertions against the build's active backend (cross-backend parity)
 if(NOT RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED STREQUAL "GENERIC")
     string(TOLOWER ${RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED} RL_TOOLS_SCENE_BACKEND_LOWER)
@@ -60,5 +66,24 @@ if(NOT RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED STREQUAL "GENERIC")
     endif()
     gtest_discover_tests(${RL_TOOLS_OVERLAY_BACKEND_TARGET}
         PROPERTIES TIMEOUT ${RL_TOOLS_OVERLAY_BACKEND_TIMEOUT} LABELS overlay
+    )
+endif()
+
+if(NOT RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED STREQUAL "GENERIC")
+    set(RL_TOOLS_PROBES_OVERLAY_BACKEND_TARGET test_rendering_raytracing_probes_overlay_${RL_TOOLS_SCENE_BACKEND_LOWER})
+    add_executable(${RL_TOOLS_PROBES_OVERLAY_BACKEND_TARGET} probes_overlay.cpp)
+    target_link_libraries(${RL_TOOLS_PROBES_OVERLAY_BACKEND_TARGET}
+        PRIVATE
+            RLtools::RLtools
+            rendering_raytracing_backend
+            rendering_raytracing_stb
+            GTest::gtest_main
+    )
+    target_compile_definitions(${RL_TOOLS_PROBES_OVERLAY_BACKEND_TARGET} PRIVATE
+        RL_TOOLS_RENDERING_RAYTRACING_PROBES_OVERLAY_TEST_ACTIVE_BACKEND
+        RL_TOOLS_PROBES_OVERLAY_SUITE=RENDERING_RAYTRACING_PROBES_OVERLAY_${RL_TOOLS_SCENE_BACKEND_UPPER}
+    )
+    gtest_discover_tests(${RL_TOOLS_PROBES_OVERLAY_BACKEND_TARGET}
+        PROPERTIES TIMEOUT 60 LABELS overlay
     )
 endif()
