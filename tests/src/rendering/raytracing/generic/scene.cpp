@@ -34,7 +34,7 @@ using BACKEND = rlt::rendering::raytracing::backends::Generic;
 #endif
 using DEVICE = rlt::devices::DefaultCPU;
 using T = float;
-static constexpr T FOV = 1.3962634015954636;
+static constexpr T FOV = 80;
 using TI = typename DEVICE::index_t;
 using rlt::rendering::raytracing::OverlayIndex;
 
@@ -638,7 +638,7 @@ TEST(RL_TOOLS_SCENE_SUITE, FLOW_ANALYTIC){
     rlt::synchronize(device, renderer);
     read_output(device, renderer, rlt::flow_buffer(device, renderer), flow.data());
 
-    const T image_plane_scale = (T)2 * std::tan(FOV / (T)2);
+    const T image_plane_scale = (T)2 * std::tan(rlt::rendering::raytracing::degrees_to_radians(FOV) / (T)2);
     const T viewing_distance = 4; // front face x = -1, camera x = -5
     const float expected_u = (float)(-delta * (T)FLOW_SPEC::CAM_WIDTH / (viewing_distance * image_plane_scale));
     size_t hit_count = 0;
@@ -697,7 +697,7 @@ TEST(RL_TOOLS_SCENE_SUITE, FLOW_OVERLAY_ANALYTIC){
     std::vector<float> flow((size_t)FLOW_OVERLAY_SPEC::CAM_PIXELS * 2);
     read_output(device, renderer, rlt::flow_buffer(device, renderer), flow.data());
 
-    const T image_plane_scale = (T)2 * std::tan(FOV / (T)2);
+    const T image_plane_scale = (T)2 * std::tan(rlt::rendering::raytracing::degrees_to_radians(FOV) / (T)2);
     const T viewing_distance = (T)1.5; // overlay front face x = -3.5, camera x = -5
     const float expected_u = (float)((T)object_delta_y * (T)FLOW_OVERLAY_SPEC::CAM_WIDTH / (viewing_distance * image_plane_scale));
     size_t overlay_count = 0;
@@ -768,7 +768,7 @@ TEST(RL_TOOLS_SCENE_SUITE, FLOW_OVERLAY_PAIR_PRODUCER){
     std::vector<float> flow((size_t)FLOW_OVERLAY_SPEC::CAM_PIXELS * 2);
     read_output(device, renderer, rlt::flow_buffer(device, renderer), flow.data());
 
-    const T image_plane_scale = (T)2 * std::tan(FOV / (T)2);
+    const T image_plane_scale = (T)2 * std::tan(rlt::rendering::raytracing::degrees_to_radians(FOV) / (T)2);
     const T viewing_distance = (T)1.5; // overlay front face x = -3.5, camera x = -5
     const float expected_u = (float)((T)object_delta_y * (T)FLOW_OVERLAY_SPEC::CAM_WIDTH / (viewing_distance * image_plane_scale));
     size_t overlay_count = 0;

@@ -229,7 +229,7 @@ namespace overlay_scenarios {
         static constexpr T_TI CAM_HEIGHT = 64;
         static constexpr T_TI NUM_CAMERAS = static_cast<T_TI>(overlay_scenarios::NUM_CAMERAS);
         static constexpr T_TI NUM_PROBES = 1;
-        static constexpr T_T FOV = 1.3962634015954636;
+        static constexpr T_T FOV = 80;
         using SHADING = rl_tools::rendering::raytracing::Low;
         static constexpr bool OUTPUT_RGB = true;
         static constexpr bool OUTPUT_DEPTH = true;

@@ -84,8 +84,8 @@ static constexpr TI CAM_HEIGHT = yp::SCENE_CAM_HEIGHT;
 struct DistillConfig {
     static constexpr float LEARNING_RATE = 1e-3f;
     static constexpr float MAX_ANGLE = 3.14159265358979323846f / 6.0f;
-    static constexpr float COS_FOV_MIN = 0.3f;
-    static constexpr float COS_FOV_MAX = 1.2f;
+    static constexpr float FOV_MIN = 17.188733853924695f;
+    static constexpr float FOV_MAX = 68.75493541569878f;
     static constexpr float HUBER_DELTA = 0.1f;
     static constexpr float TEACHER_ERROR_THRESHOLD = 0.3f;
     static constexpr float LOSS_WEIGHT_COSINE = 1.0f;
@@ -622,8 +622,8 @@ int main(int argc, char** argv) {
                 cpu_targets.data() + batch_offset * OUTPUT_DIM,
                 samples_per_scene,
                 DistillConfig::MAX_ANGLE,
-                DistillConfig::COS_FOV_MIN,
-                DistillConfig::COS_FOV_MAX
+                DistillConfig::FOV_MIN,
+                DistillConfig::FOV_MAX
             );
             yp::render_batch<true>(loaded_scenes[scene_idx].handle, cameras.data());
         }
@@ -858,8 +858,8 @@ int main(int argc, char** argv) {
                     cpu_targets.data(),
                     BATCH_SIZE,
                     DistillConfig::MAX_ANGLE,
-                    DistillConfig::COS_FOV_MIN,
-                    DistillConfig::COS_FOV_MAX
+                    DistillConfig::FOV_MIN,
+                    DistillConfig::FOV_MAX
                 );
                 yp::render_batch<false>(val_scenes[vs].handle, cameras.data());
                 uint32_t* device_fb = yp::get_framebuffer_device_ptr(val_scenes[vs].handle);
