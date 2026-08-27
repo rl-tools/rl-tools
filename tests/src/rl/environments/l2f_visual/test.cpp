@@ -253,8 +253,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, SAMPLE_INITIAL_PARAMETERS_INITIALIZES_
     env.parameters.camera_mount.forward_body[0] = (T)0;
     env.parameters.camera_mount.forward_body[1] = (T)1;
     env.parameters.camera_mount.forward_body[2] = (T)0;
-    env.parameters.fov = (T)1.2;
-    env.parameters.camera_randomization.fov_range = (T)0.1;
+    env.parameters.fov = (T)68;
+    env.parameters.camera_randomization.fov_range = (T)4;
     env.parameters.collision_distance_threshold = (T)0.33;
 
     ENV::Parameters parameters;
@@ -278,14 +278,14 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, SAMPLE_INITIAL_PARAMETERS_INITIALIZES_
     EXPECT_FLOAT_EQ(parameters.camera_mount.forward_body[0], (T)0);
     EXPECT_FLOAT_EQ(parameters.camera_mount.forward_body[1], (T)1);
     EXPECT_FLOAT_EQ(parameters.camera_mount.forward_body[2], (T)0);
-    EXPECT_FLOAT_EQ(parameters.camera_randomization.fov_range, (T)0.1);
+    EXPECT_FLOAT_EQ(parameters.camera_randomization.fov_range, (T)4);
     for(TI axis_i = 0; axis_i < 3; axis_i++){
         EXPECT_FLOAT_EQ(parameters.camera_randomization.offset_body_range[axis_i], (T)0);
         EXPECT_FLOAT_EQ(parameters.camera_randomization.rotation_body_range[axis_i], (T)0);
     }
     EXPECT_FLOAT_EQ(parameters.collision_distance_threshold, (T)0.33);
-    EXPECT_GE(parameters.fov, (T)1.1);
-    EXPECT_LE(parameters.fov, (T)1.3);
+    EXPECT_GE(parameters.fov, (T)64);
+    EXPECT_LE(parameters.fov, (T)72);
 
     rlt::free(device, rng);
 }
