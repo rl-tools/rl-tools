@@ -195,7 +195,7 @@ RL_TOOLS_FUNCTION_PLACEMENT CAMERA_DATA make_camera_data_device(DEVICE& device, 
     sub3_device(look_at, position, raw_dir);
     normalize3_device(device, raw_dir, dir);
 
-    const T image_plane_scale = static_cast<T>(2) * tanf(fov / static_cast<T>(2));
+    const T image_plane_scale = static_cast<T>(2) * tanf(rlt::rendering::raytracing::degrees_to_radians(fov) / static_cast<T>(2));
 
     T du_cross[3];
     T du_dir[3];
