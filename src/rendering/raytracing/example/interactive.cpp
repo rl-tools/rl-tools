@@ -713,7 +713,7 @@ int main(int argc, char** argv) {
         };
         T up[3] = {0, 0, 1};
         T aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
-        const auto camera = rlt::make_camera_data(eye, look_at, up, SPEC::RAYTRACING_SPEC::COS_FOVY, aspect);
+        const auto camera = rlt::make_camera_data(eye, look_at, up, SPEC::FOV, aspect);
 
         if (g_capture_pose_requested) {
             g_capture_pose_requested = false;

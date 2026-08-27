@@ -22,6 +22,7 @@
 namespace rlt = rl_tools;
 
 using T = float;
+static constexpr T FOV = 1.3962634015954636;
 using TI = typename rlt::devices::DEVICE_FACTORY<>::index_t;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 
@@ -189,7 +190,7 @@ int main(int argc, char** argv) {
     };
     const T aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
 
-    auto camera = rlt::make_camera_data(options.position, look_at, up, SPEC::COS_FOVY, aspect);
+    auto camera = rlt::make_camera_data(options.position, look_at, up, FOV, aspect);
     rlt::Tensor<typename decltype(renderer.cameras)::SPEC> camera_alias;
     camera_alias._data = &camera;
     rlt::copy(device, renderer.device, camera_alias, rlt::cameras(device, renderer));
