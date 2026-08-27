@@ -21,7 +21,7 @@ cameras = []
 for yaw_degrees in YAWS_DEGREES:
     yaw = math.radians(yaw_degrees)
     look_at = POSITION + np.array([math.cos(yaw), math.sin(yaw), 0.0])
-    cameras.append(renderer.camera(position=POSITION, look_at=look_at, fov=math.radians(80)))
+    cameras.append(renderer.camera(position=POSITION, look_at=look_at, fov=80.0))
 renderer.set_cameras(np.stack(cameras))
 renderer.render()
 

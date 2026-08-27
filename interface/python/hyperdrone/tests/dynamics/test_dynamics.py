@@ -87,9 +87,9 @@ def test_camera_bases_identity_pose(sim):
     orientation = np.tile(np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32), (N, 1))
     sim.state["position"] = position
     sim.state["orientation"] = orientation
-    fov, aspect = math.radians(90.0), 2.0
-    bases = sim.camera_bases_numpy(fov=fov, aspect=aspect)
-    scale = 2.0 * math.tan(fov / 2.0)
+    fov_degrees, aspect = 90.0, 2.0
+    bases = sim.camera_bases_numpy(fov=fov_degrees, aspect=aspect)
+    scale = 2.0 * math.tan(math.radians(fov_degrees) / 2.0)
     # identity attitude + identity mount: forward +X, right -Y, up +Z (FLU)
     expected_du = np.array([0.0, -scale, 0.0])
     expected_dv = np.array([0.0, 0.0, scale / aspect])

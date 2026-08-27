@@ -1,5 +1,3 @@
-import math
-
 from ._component import load_core
 from ._config import FIDELITY
 
@@ -22,7 +20,7 @@ def load_assembly(path, fidelity="high", rgb=True):
     return load_core().load_assembly(str(path), _fidelity_id(fidelity), bool(rgb))
 
 
-def make_camera(position, look_at, up=(0.0, 0.0, 1.0), fov=math.radians(60.0), aspect=1.0):
+def make_camera(position, look_at, up=(0.0, 0.0, 1.0), fov=60.0, aspect=1.0):
     return load_core().make_camera(tuple(position), tuple(look_at), tuple(up), float(fov), float(aspect))
 
 

@@ -1,4 +1,3 @@
-import math
 import os
 import subprocess
 import sys
@@ -70,7 +69,7 @@ def make_scene(distance=2.0):
 
 
 def look_forward(renderer):
-    camera = renderer.camera(position=(0.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0), fov=math.radians(60.0))
+    camera = renderer.camera(position=(0.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0), fov=60.0)
     renderer.set_cameras(np.repeat(camera[None, :, :], renderer.num_cameras, axis=0))
 
 
@@ -187,7 +186,7 @@ def test_dynamic_motion_blur_object():
         dynamic_motion_blur=True,
     )
     renderer.init(scene, asset_pool)
-    camera = renderer.camera(position=(0.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0), fov=math.radians(60.0))
+    camera = renderer.camera(position=(0.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0), fov=60.0)
     renderer.set_motion_blur_cameras(camera[None], camera[None])
     renderer.attach(0, 0)
     placement = renderer.spawn(0, asset, render.make_transform(position=(4.0, 0.0, 0.0)))
@@ -385,7 +384,7 @@ def test_zero_copy_host_view():
     assert abs(first_view[0, 8, 8] - 2.0) < 1e-2
     # stepping the camera back must update the earlier view in place (it aliases the
     # renderer's staging buffer)
-    camera = renderer.camera(position=(-1.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0), fov=math.radians(60.0))
+    camera = renderer.camera(position=(-1.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0), fov=60.0)
     renderer.set_cameras(camera[None])
     renderer.render("depth")
     second_view = renderer.depth(copy=False)
@@ -424,7 +423,7 @@ def test_dlpack_camera_input():
     # any DLPack producer works as camera input; numpy's own arrays go through the same path
     renderer = render.Renderer(width=16, height=16, num_cameras=1, output="depth", fidelity="low")
     renderer.init(make_scene(2.0))
-    camera = renderer.camera(position=(0.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0), fov=math.radians(60.0))
+    camera = renderer.camera(position=(0.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0), fov=60.0)
 
     class DLPackOnly:
         def __init__(self, array):
@@ -446,8 +445,8 @@ def test_device_camera_input():
     renderer = render.Renderer(width=32, height=32, num_cameras=2, output="depth", fidelity="low")
     renderer.init(make_scene(2.0))
     cameras = np.stack([
-        np.asarray(renderer.camera(position=(0.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0), fov=math.radians(60.0))).reshape(12),
-        np.asarray(renderer.camera(position=(-1.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0), fov=math.radians(60.0))).reshape(12),
+        np.asarray(renderer.camera(position=(0.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0), fov=60.0)).reshape(12),
+        np.asarray(renderer.camera(position=(-1.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0), fov=60.0)).reshape(12),
     ])
     renderer.set_cameras(cameras)
     renderer.render("depth")

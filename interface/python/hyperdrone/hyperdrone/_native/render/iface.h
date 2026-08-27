@@ -7,7 +7,7 @@
 // same build tree, so passing rl_tools scene types by pointer is safe. Everything
 // renderer-spec dependent is hidden behind the vtable; buffer exchange uses raw pointers
 // sized by config(). Bump HYPERDRONE_RENDER_IFACE_VERSION on any change to this file.
-#define HYPERDRONE_RENDER_IFACE_VERSION 4
+#define HYPERDRONE_RENDER_IFACE_VERSION 5
 
 namespace rl_tools { namespace rendering { namespace raytracing {
     struct Scene;
@@ -66,7 +66,7 @@ namespace hyperdrone::render {
         // no host synchronization. OptiX backend only.
         virtual void set_cameras_device(const float* cameras, unsigned long long producer_stream) = 0;
         virtual void set_motion_blur_cameras(const float* cameras_open, const float* cameras_close) = 0;
-        virtual void generate_cameras(const float center[3], float radius, const float up[3], float fov) = 0;
+        virtual void generate_cameras(const float center[3], float radius, const float up[3], float fov_degrees) = 0;
         virtual void generate_probe_directions() = 0;
 
         virtual void render(RenderTarget target, RenderPhase phase) = 0;
