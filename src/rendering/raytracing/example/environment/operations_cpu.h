@@ -17,7 +17,7 @@ namespace rl_tools {
         using TI = typename SPEC::TI;
         using SCENE_SPEC = rendering::raytracing::scene::SceneSpecification<T, TI>;
         rendering::raytracing::scene::procthor::Scene<SCENE_SPEC> scene;
-        T fov = SPEC::RAYTRACING_SPEC::COS_FOVY;
+        T fov = SPEC::FOV;
         T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
         rendering::raytracing::scene::procthor::precompute_indoor_positions(device, scene, *env.renderer, fov, aspect);
         TI take_n = std::min(scene.num_indoor_positions, rl::environments::raytracing_example::Environment<SPEC>::NUM_INITIAL_STATES);
@@ -86,7 +86,7 @@ namespace rl_tools {
         {
             using T = typename SPEC::T;
             const T up[3] = {0, 0, 1};
-            generate_cameras(device, *env.renderer, env.renderer->scene_center, env.renderer->camera_radius, up, SPEC::RAYTRACING_SPEC::COS_FOVY);
+            generate_cameras(device, *env.renderer, env.renderer->scene_center, env.renderer->camera_radius, up, SPEC::FOV);
         }
         generate_probe_directions(device, *env.renderer);
         precompute_indoor_initial_states(device, env);
@@ -177,7 +177,7 @@ namespace rl_tools {
         };
         const T up[3] = {0, 0, 1};
         const auto camera = make_camera_data(position, look_at, up,
-            SPEC::RAYTRACING_SPEC::COS_FOVY,
+            SPEC::FOV,
             static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT));
         auto camera_staging = camera;
         Tensor<tensor::Specification<rendering::raytracing::Camera<typename SPEC::T>, typename SPEC::TI, tensor::Shape<typename SPEC::TI, 1>>> camera_alias;
@@ -217,7 +217,7 @@ namespace rl_tools {
         const T up[3] = {0, 0, 1};
         const T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
 
-        return make_camera_data(position, look_at, up, SPEC::RAYTRACING_SPEC::COS_FOVY, aspect);
+        return make_camera_data(position, look_at, up, SPEC::FOV, aspect);
     }
 
     template <typename DEVICE, typename SPEC, typename PARAMETERS_SPEC, typename STATE_SPEC, typename ACTIONS_SPEC, typename NEXT_STATE_SPEC, typename RNG>

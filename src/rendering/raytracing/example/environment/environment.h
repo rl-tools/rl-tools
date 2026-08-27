@@ -12,6 +12,7 @@ namespace rl_tools::rl::environments::raytracing_example {
         static constexpr TI NUM_ENVS = T_NUM_ENVS;
         static constexpr TI CAM_WIDTH = T_CAM_WIDTH;
         static constexpr TI CAM_HEIGHT = T_CAM_HEIGHT;
+        static constexpr T FOV = 1.3962634015954636;
         static constexpr TI NUM_PROBES = T_NUM_PROBES;
         static constexpr bool ENABLE_MOTION_BLUR = T_ENABLE_MOTION_BLUR;
         static constexpr TI MOTION_BLUR_SAMPLES = T_MOTION_BLUR_SAMPLES;

@@ -25,6 +25,7 @@ namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DefaultCPU;
 using T = float;
+static constexpr T FOV = 1.3962634015954636;
 using TI = typename DEVICE::index_t;
 
 namespace {
@@ -85,7 +86,7 @@ TEST(RL_TOOLS_PROBES_OVERLAY_SUITE, PROBES_SEE_ATTACHED_OVERLAYS_ONLY){
     const T look_at[3] = {1, 0, 0};
     const T up[3] = {0, 0, 1};
     constexpr T aspect = (T)SPEC::CAM_WIDTH / (T)SPEC::CAM_HEIGHT;
-    const auto camera = rlt::make_camera_data(position, look_at, up, SPEC::COS_FOVY, aspect);
+    const auto camera = rlt::make_camera_data(position, look_at, up, FOV, aspect);
     rlt::rendering::raytracing::Camera<T> cameras[SPEC::NUM_CAMERAS] = {camera, camera};
     golden::copy_in(device, renderer.device, cameras, rlt::cameras(device, renderer));
 

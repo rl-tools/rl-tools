@@ -34,6 +34,7 @@ using BACKEND = rlt::rendering::raytracing::backends::Generic;
 #endif
 using DEVICE = rlt::devices::DefaultCPU;
 using T = float;
+static constexpr T FOV = 1.3962634015954636;
 using TI = typename DEVICE::index_t;
 using rlt::rendering::raytracing::OverlayIndex;
 
@@ -80,7 +81,7 @@ namespace {
     void set_test_camera(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, BACKEND>& renderer, const T position[3], const T look_at[3]){
         const T up[3] = {0, 0, 1};
         constexpr T aspect = (T)RENDERER_SPEC::CAM_WIDTH / (T)RENDERER_SPEC::CAM_HEIGHT;
-        const auto camera = rlt::make_camera_data(position, look_at, up, RENDERER_SPEC::COS_FOVY, aspect);
+        const auto camera = rlt::make_camera_data(position, look_at, up, FOV, aspect);
         write_cameras(device, renderer, &camera);
     }
 
@@ -593,8 +594,8 @@ namespace {
     void set_flow_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, BACKEND>& renderer, const T position_open[3], const T look_at_open[3], const T position_close[3], const T look_at_close[3]){
         const T up[3] = {0, 0, 1};
         constexpr T aspect = (T)RENDERER_SPEC::CAM_WIDTH / (T)RENDERER_SPEC::CAM_HEIGHT;
-        const auto camera_open = rlt::make_camera_data(position_open, look_at_open, up, (T)RENDERER_SPEC::COS_FOVY, aspect);
-        const auto camera_close = rlt::make_camera_data(position_close, look_at_close, up, (T)RENDERER_SPEC::COS_FOVY, aspect);
+        const auto camera_open = rlt::make_camera_data(position_open, look_at_open, up, FOV, aspect);
+        const auto camera_close = rlt::make_camera_data(position_close, look_at_close, up, FOV, aspect);
         golden::copy_in(device, renderer.device, &camera_close, rlt::cameras_close(device, renderer));
         golden::copy_in(device, renderer.device, &camera_open, rlt::cameras_open(device, renderer));
     }
@@ -637,7 +638,7 @@ TEST(RL_TOOLS_SCENE_SUITE, FLOW_ANALYTIC){
     rlt::synchronize(device, renderer);
     read_output(device, renderer, rlt::flow_buffer(device, renderer), flow.data());
 
-    const T image_plane_scale = (T)2 * std::tan((T)FLOW_SPEC::COS_FOVY / (T)2);
+    const T image_plane_scale = (T)2 * std::tan(FOV / (T)2);
     const T viewing_distance = 4; // front face x = -1, camera x = -5
     const float expected_u = (float)(-delta * (T)FLOW_SPEC::CAM_WIDTH / (viewing_distance * image_plane_scale));
     size_t hit_count = 0;
@@ -696,7 +697,7 @@ TEST(RL_TOOLS_SCENE_SUITE, FLOW_OVERLAY_ANALYTIC){
     std::vector<float> flow((size_t)FLOW_OVERLAY_SPEC::CAM_PIXELS * 2);
     read_output(device, renderer, rlt::flow_buffer(device, renderer), flow.data());
 
-    const T image_plane_scale = (T)2 * std::tan((T)FLOW_OVERLAY_SPEC::COS_FOVY / (T)2);
+    const T image_plane_scale = (T)2 * std::tan(FOV / (T)2);
     const T viewing_distance = (T)1.5; // overlay front face x = -3.5, camera x = -5
     const float expected_u = (float)((T)object_delta_y * (T)FLOW_OVERLAY_SPEC::CAM_WIDTH / (viewing_distance * image_plane_scale));
     size_t overlay_count = 0;
@@ -767,7 +768,7 @@ TEST(RL_TOOLS_SCENE_SUITE, FLOW_OVERLAY_PAIR_PRODUCER){
     std::vector<float> flow((size_t)FLOW_OVERLAY_SPEC::CAM_PIXELS * 2);
     read_output(device, renderer, rlt::flow_buffer(device, renderer), flow.data());
 
-    const T image_plane_scale = (T)2 * std::tan((T)FLOW_OVERLAY_SPEC::COS_FOVY / (T)2);
+    const T image_plane_scale = (T)2 * std::tan(FOV / (T)2);
     const T viewing_distance = (T)1.5; // overlay front face x = -3.5, camera x = -5
     const float expected_u = (float)((T)object_delta_y * (T)FLOW_OVERLAY_SPEC::CAM_WIDTH / (viewing_distance * image_plane_scale));
     size_t overlay_count = 0;
@@ -897,7 +898,7 @@ namespace {
         constexpr T aspect = (T)RENDERER_SPEC::CAM_WIDTH / (T)RENDERER_SPEC::CAM_HEIGHT;
         std::vector<rlt::rendering::raytracing::Camera<T>> staging(RENDERER_SPEC::NUM_CAMERAS);
         for(TI camera_i = 0; camera_i < RENDERER_SPEC::NUM_CAMERAS; camera_i++){
-            staging[camera_i] = rlt::make_camera_data(position, look_at, up, RENDERER_SPEC::COS_FOVY, aspect);
+            staging[camera_i] = rlt::make_camera_data(position, look_at, up, FOV, aspect);
         }
         write_cameras(device, renderer, staging.data());
     }
