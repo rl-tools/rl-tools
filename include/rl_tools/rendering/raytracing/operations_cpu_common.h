@@ -1764,12 +1764,13 @@ namespace rl_tools {
     }
 
     template <typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::Camera<T> make_camera_data(const T position[3], const T look_at[3], const T up[3], T fov, T aspect){
+    RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::Camera<T> make_camera_data(const T position[3], const T look_at[3], const T up[3], T fov_degrees, T aspect){
         namespace v3 = rendering::raytracing::vec3;
         T raw_dir[3], dir[3];
         v3::sub(look_at, position, raw_dir);
         v3::normalize(raw_dir, dir);
 
+        T fov = rendering::raytracing::degrees_to_radians(fov_degrees);
         T image_plane_scale = T{2} * tanf(fov / T{2});
 
         T du_dir[3], du[3];

@@ -21,7 +21,7 @@
 namespace rlt = rl_tools;
 
 using T = float;
-static constexpr T FOV = 1.3962634015954636;
+static constexpr T FOV = 80;
 using TI = typename rlt::devices::DEVICE_FACTORY<>::index_t;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 

@@ -66,7 +66,7 @@ static constexpr TI CAM_HEIGHT = yp::SCENE_CAM_HEIGHT;
 
 static constexpr float PI = 3.14159265358979323846f;
 static constexpr float MAX_ANGLE = PI / 6.0f; // 30 degrees
-static constexpr float VIEWER_COS_FOV = 0.66f; // Fixed FOV for viewer
+static constexpr float VIEWER_FOV = 37.81521447863434f; // Fixed FOV for viewer (degrees)
 static constexpr float VIEWER_ASPECT = static_cast<float>(CAM_WIDTH) / static_cast<float>(CAM_HEIGHT);
 static constexpr TI NUM_GRID_CAMERAS = 64;
 static constexpr TI GRID_DIM = 8; // 8x8 grid
@@ -252,7 +252,7 @@ int main(int argc, char** argv) {
             yp::sample_camera_batch(loaded_scenes[s].handle, setup_cameras.data(),
                                     setup_targets.data(),
                                     BATCH_SIZE, 0.0f,
-                                    VIEWER_COS_FOV, VIEWER_COS_FOV);
+                                    VIEWER_FOV, VIEWER_FOV);
 
             for (TI t = 0; t < tiles.size(); t++) {
                 base_cameras[tiles[t]] = setup_cameras[t % BATCH_SIZE];
@@ -374,7 +374,7 @@ int main(int argc, char** argv) {
 
         cudaMemcpy(pred_buf.data(), gpu_output._data, BATCH_SIZE * OUTPUT_DIM * sizeof(float), cudaMemcpyDeviceToHost);
 
-        const float half_hfov = std::atan(0.5f * VIEWER_COS_FOV * VIEWER_ASPECT);
+        const float half_hfov = std::atan(0.5f * rlt::rendering::raytracing::degrees_to_radians(VIEWER_FOV) * VIEWER_ASPECT);
         const float tan_half_hfov = std::tan(half_hfov);
 
         // ---- Composite 8x8 grid ----

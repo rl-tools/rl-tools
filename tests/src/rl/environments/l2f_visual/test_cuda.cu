@@ -117,7 +117,7 @@ void expect_camera_equal(const CAMERA& a, const CAMERA& b){
 }
 
 void expect_fov_effect(const CAMERA cameras[NUM_ENVS], const CAMERA target_cameras[NUM_ENVS], T fov_small, T fov_large){
-    const T expected_ratio = std::tan(fov_large / (T)2) / std::tan(fov_small / (T)2);
+    const T expected_ratio = std::tan(rlt::rendering::raytracing::degrees_to_radians(fov_large) / (T)2) / std::tan(rlt::rendering::raytracing::degrees_to_radians(fov_small) / (T)2);
     EXPECT_NEAR(norm3(cameras[1].dir_du) / norm3(cameras[0].dir_du), expected_ratio, (T)1e-5);
     EXPECT_NEAR(norm3(cameras[1].dir_dv) / norm3(cameras[0].dir_dv), expected_ratio, (T)1e-5);
     EXPECT_NEAR(norm3(target_cameras[1].dir_du) / norm3(target_cameras[0].dir_du), expected_ratio, (T)1e-5);
@@ -136,8 +136,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL_CUDA, CAMERA_HELPERS_USE_PER_ENV_FOV_HO
     typename ENV::State states[NUM_ENVS]{};
     CAMERA cameras[NUM_ENVS];
     CAMERA target_cameras[NUM_ENVS];
-    const T fov_small = (T)1.0;
-    const T fov_large = (T)1.2;
+    const T fov_small = (T)60;
+    const T fov_large = (T)72;
     fill_inputs(params, states, fov_small, fov_large);
 
     DEVICE device;
@@ -168,8 +168,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL_CUDA, CAMERA_HELPERS_USE_PER_ENV_FOV_DE
 
     typename ENV::Parameters params_host[NUM_ENVS]{};
     typename ENV::State states_host[NUM_ENVS]{};
-    const T fov_small = (T)1.0;
-    const T fov_large = (T)1.2;
+    const T fov_small = (T)60;
+    const T fov_large = (T)72;
     fill_inputs(params_host, states_host, fov_small, fov_large);
 
     typename ENV::Parameters* params_device = nullptr;
