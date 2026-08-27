@@ -1564,7 +1564,7 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
                 depth_alias._data = depth_staging.data();
                 rlt::copy(env.renderer->device, device, rlt::depth_buffer(device, *env.renderer), depth_alias);
             }
-            const float miss_depth = env.renderer->camera_radius > 0 ? env.renderer->camera_radius * 2.0f : 1e30f;
+            const float miss_depth = env.renderer->max_ray_length > 0 ? env.renderer->max_ray_length : 1e30f;
             float min_depth = std::numeric_limits<float>::max();
             float max_depth_value = std::numeric_limits<float>::lowest();
             depth_range(depth_staging.data(), frame.size(), miss_depth, min_depth, max_depth_value);

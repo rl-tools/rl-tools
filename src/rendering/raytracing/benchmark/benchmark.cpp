@@ -20,6 +20,7 @@
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/raytracing/save_cpu.h>
 
 #include <string>
@@ -74,19 +75,19 @@ int main(int ac, char** av){
         return 1;
     }
     RL_TOOLS_RENDERING_RAYTRACING_LOG("Loading model: " << model_file);
-    rlt::rendering::raytracing::Scene scene;
-    if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, model_file)){
+    rlt::rendering::Bundle<T> bundle;
+    if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, model_file)){
         RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Failed to load model: " << model_file);
         return 1;
     }
 
-    rlt::init(device, renderer, scene);
+    rlt::init(device, renderer, bundle);
 
     // Generate cameras
-    const T scene_center[3] = {renderer.scene_center[0], renderer.scene_center[1], renderer.scene_center[2]};
+    const T scene_center[3] = {bundle.metadata.center[0], bundle.metadata.center[1], bundle.metadata.center[2]};
     const T look_up[3] = {0.f, 0.f, 1.f};
 
-    rlt::generate_cameras(device, renderer, scene_center, renderer.camera_radius, look_up, FOV);
+    rlt::generate_cameras(device, renderer, scene_center, (bundle.metadata.max_ray_length / 2), look_up, FOV);
     rlt::generate_probe_directions(device, renderer);
 
     // Warmup

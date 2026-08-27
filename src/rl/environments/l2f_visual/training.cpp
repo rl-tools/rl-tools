@@ -10,6 +10,8 @@
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
 #include <rl_tools/rl/environments/l2f_visual/operations_cpu.h>
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
+#include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
 
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
 #include <rl_tools/rl/loop/steps/timing/config.h>
@@ -255,20 +257,24 @@ int main(int argc, char** argv){
 
     // 1. Allocate the environment state and the shared renderer all envs reference
     rlt::malloc(device, ts);
-    using LIBRARY_TYPE = rlt::rendering::raytracing::AssetLibrary<typename ENVIRONMENT::SPEC::RENDERER_SPEC>;
-    using SCENE_TYPE = rlt::rendering::raytracing::scene::procthor::Scene<typename ENVIRONMENT::SPEC::SCENE_SPEC>;
+    using RENDERER_SPEC = typename ENVIRONMENT::SPEC::RENDERER_SPEC;
+    using LIBRARY_TYPE = rlt::rendering::raytracing::AssetLibrary<RENDERER_SPEC>;
+    using ANNOTATIONS_TYPE = rlt::rendering::datasets::procthor::Annotations<typename ENVIRONMENT::SPEC::ANNOTATIONS_SPEC>;
     auto* library = new LIBRARY_TYPE{};
-    auto* renderer = new rlt::rendering::raytracing::Renderer<typename ENVIRONMENT::SPEC::RENDERER_SPEC>{};
-    auto* procthor_scene = new SCENE_TYPE{};
+    auto* renderer = new rlt::rendering::raytracing::Renderer<RENDERER_SPEC>{};
+    auto* annotations = new ANNOTATIONS_TYPE{};
     rlt::malloc(device, *library);
     rlt::malloc(device, *renderer, *library);
-    rlt::init(device, *renderer, *library, scene_path);
+    rlt::rendering::Bundle<T> bundle;
+    rlt::load<typename RENDERER_SPEC::SHADING, RENDERER_SPEC::HAS_RGB>(device, bundle, scene_path);
+    auto scene_id = rlt::insert(device, *library, bundle);
+    rlt::init(device, *renderer, *library, scene_id);
     {
         const T scene_fov = typename ENVIRONMENT::Parameters{}.fov;
         const T scene_up[3] = {0, 0, 1};
-        rlt::generate_cameras(device, *renderer, renderer->scene_center, renderer->camera_radius, scene_up, scene_fov);
+        rlt::generate_cameras(device, *renderer, bundle.metadata.center, bundle.metadata.max_ray_length / 2, scene_up, scene_fov);
         rlt::generate_probe_directions(device, *renderer);
-        rlt::rendering::raytracing::scene::procthor::precompute_indoor_positions(device, *procthor_scene, *renderer, scene_fov, (T)ENVIRONMENT::SPEC::CAM_WIDTH / (T)ENVIRONMENT::SPEC::CAM_HEIGHT);
+        rlt::rendering::datasets::procthor::annotate(device, *annotations, bundle.metadata, *renderer, scene_fov, (T)ENVIRONMENT::SPEC::CAM_WIDTH / (T)ENVIRONMENT::SPEC::CAM_HEIGHT);
     }
 
     // 2. Wire every env to the shared renderer (non-owning references)
@@ -276,7 +282,7 @@ int main(int argc, char** argv){
     for (TI env_i = 0; env_i < NUM_ENVS; env_i++) {
         auto& env = rlt::get_ref(device, ts.envs, env_i);
         env.renderer = renderer;
-        env.scene = procthor_scene;
+        env.annotations = annotations;
         env.use_target_mode = true;
     }
 
@@ -284,8 +290,8 @@ int main(int argc, char** argv){
     rlt::init(device, ts, seed);
 
     // 5. Pick target position from precomputed indoor positions
-    if (env0.scene->num_indoor_positions > 0) {
-        auto& target = env0.scene->indoor_positions[0];
+    if (env0.annotations->num_indoor_positions > 0) {
+        auto& target = env0.annotations->indoor_positions[0];
         typename ENVIRONMENT::Parameters default_params;
         rlt::initial_parameters(device, env0, default_params);
         T target_translation[3] = {
@@ -316,11 +322,11 @@ int main(int argc, char** argv){
 
     rlt::log(device, device.logger, "Training finished at step ", ts.step);
 
-    // 7. Cleanup: detach shared renderer+scene from env[1..N-1] before free
+    // 7. Cleanup: detach shared renderer+annotations from env[1..N-1] before free
     for (TI env_i = 1; env_i < NUM_ENVS; env_i++) {
         auto& env = rlt::get_ref(device, ts.envs, env_i);
         env.renderer = nullptr;
-        env.scene = nullptr;
+        env.annotations = nullptr;
     }
     rlt::free(device, ts);
 

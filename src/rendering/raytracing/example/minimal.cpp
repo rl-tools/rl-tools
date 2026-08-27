@@ -1,5 +1,6 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/raytracing/save_cpu.h>
 
 #include <cmath>
@@ -30,13 +31,13 @@ int main(int argc, char** argv){
     Renderer renderer;
     rlt::malloc(device, renderer);
 
-    rlt::rendering::raytracing::Scene scene;
-    if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, scene_path)){
+    rlt::rendering::Bundle<T> bundle;
+    if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, scene_path)){
         std::cerr << "Failed to load scene: " << scene_path << std::endl;
         rlt::free(device, renderer);
         return 1;
     }
-    rlt::init(device, renderer, scene);
+    rlt::init(device, renderer, bundle);
 
     // panorama: one camera per yaw from an interior point of the default scene (FLU frame)
     constexpr T PI = static_cast<T>(3.14159265358979323846);

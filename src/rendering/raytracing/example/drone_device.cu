@@ -8,6 +8,7 @@
 #include <rl_tools/operations/cuda.h>
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/raytracing/save_cpu.h>
 #include <rl_tools/rl/environments/l2f/multirotor.h>
 
@@ -258,8 +259,8 @@ int main(int argc, char** argv) {
     rlt::init(device);
     DEVICE_GPU device_gpu;
 
-    rlt::rendering::raytracing::Scene scene;
-    if (!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, options.scene_path)) {
+    rlt::rendering::Bundle<T> bundle;
+    if (!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, options.scene_path)) {
         std::cerr << "Failed to load scene: " << options.scene_path << std::endl;
         return 1;
     }
@@ -279,7 +280,7 @@ int main(int argc, char** argv) {
 
     Renderer renderer;
     rlt::malloc(device, renderer);
-    rlt::init(device, renderer, scene, pool);
+    rlt::init(device, renderer, bundle, pool);
     rlt::attach(device, renderer, ONBOARD_CAMERA, rlt::rendering::raytracing::OverlayIndex{0});
     rlt::attach(device, renderer, THIRD_PERSON_CAMERA, rlt::rendering::raytracing::OverlayIndex{0});
 

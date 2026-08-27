@@ -754,7 +754,7 @@ int main(int argc, char** argv) {
                 depth_alias._data = depth_staging.data();
                 rlt::copy(env.renderer->device, device, rlt::depth_buffer(device, *env.renderer), depth_alias);
             }
-            const float max_depth = env.renderer->camera_radius > 0 ? env.renderer->camera_radius * 2.0f : 1e30f;
+            const float max_depth = env.renderer->max_ray_length > 0 ? env.renderer->max_ray_length : 1e30f;
             depth_to_rgba(depth_staging.data(), pixels.data(), static_cast<int>(pixels.size()), max_depth);
         }
 #elif RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
@@ -766,7 +766,7 @@ int main(int argc, char** argv) {
                 depth_alias._data = depth_staging.data();
                 rlt::copy(env.renderer->device, device, rlt::depth_buffer(device, *env.renderer), depth_alias);
             }
-            const float max_depth = env.renderer->camera_radius > 0 ? env.renderer->camera_radius * 2.0f : 1e30f;
+            const float max_depth = env.renderer->max_ray_length > 0 ? env.renderer->max_ray_length : 1e30f;
             depth_to_rgba(depth_staging.data(), pixels.data(), static_cast<int>(pixels.size()), max_depth);
         }
         else {

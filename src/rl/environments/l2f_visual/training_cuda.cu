@@ -28,6 +28,8 @@
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
 #include <rl_tools/rl/environments/l2f_visual/operations_cpu.h>
 #include <rl_tools/rl/environments/l2f_visual/operations_cuda.h>
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
+#include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
 
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
@@ -977,11 +979,12 @@ int main(int argc, char** argv){
     rlt::malloc(device, critic_optimizer);
 
     // ---------------------------------------------------------------------
-    // Load scenes (per-scene renderer + procthor scene)
+    // Load scenes (per-scene renderer + procthor annotations)
     // ---------------------------------------------------------------------
-    using RENDERER_TYPE = rlt::rendering::raytracing::Renderer<typename ENVIRONMENT::SPEC::RENDERER_SPEC>;
-    using SCENE_TYPE = rlt::rendering::raytracing::scene::procthor::Scene<typename ENVIRONMENT::SPEC::SCENE_SPEC>;
-    using LIBRARY_TYPE = rlt::rendering::raytracing::AssetLibrary<typename ENVIRONMENT::SPEC::RENDERER_SPEC>;
+    using RENDERER_SPEC = typename ENVIRONMENT::SPEC::RENDERER_SPEC;
+    using RENDERER_TYPE = rlt::rendering::raytracing::Renderer<RENDERER_SPEC>;
+    using ANNOTATIONS_TYPE = rlt::rendering::datasets::procthor::Annotations<typename ENVIRONMENT::SPEC::ANNOTATIONS_SPEC>;
+    using LIBRARY_TYPE = rlt::rendering::raytracing::AssetLibrary<RENDERER_SPEC>;
 
     std::vector<ENVIRONMENT> envs(N_ENVIRONMENTS);
     std::vector<typename ENVIRONMENT::Parameters> env_parameters(N_ENVIRONMENTS);
@@ -990,29 +993,32 @@ int main(int argc, char** argv){
     rlt::malloc(device, *library);
     auto* renderer_storage = new std::array<RENDERER_TYPE, N_TOTAL_SCENES>{};
     std::array<RENDERER_TYPE*, N_TOTAL_SCENES> renderers{};
-    std::deque<SCENE_TYPE> procthor_scenes;
-    std::array<SCENE_TYPE*, N_TOTAL_SCENES> scenes{};
+    std::deque<ANNOTATIONS_TYPE> procthor_annotations;
+    std::array<ANNOTATIONS_TYPE*, N_TOTAL_SCENES> annotations{};
     {
         for(TI s = 0; s < N_TOTAL_SCENES; s++){
             std::cout << "Loading scene [" << s << "]: " << std::filesystem::path(scene_paths[s]).filename().string() << std::flush;
             renderers[s] = &(*renderer_storage)[s];
             rlt::malloc(device, *renderers[s], *library);
-            TI scene_id = rlt::init(device, *renderers[s], *library, scene_paths[s].c_str());
+            rlt::rendering::Bundle<T> bundle;
+            rlt::load<typename RENDERER_SPEC::SHADING, RENDERER_SPEC::HAS_RGB>(device, bundle, scene_paths[s]);
+            TI scene_id = rlt::insert(device, *library, bundle);
+            rlt::init(device, *renderers[s], *library, scene_id);
             const T scene_fov = typename ENVIRONMENT::Parameters{}.fov;
             const T scene_up[3] = {0, 0, 1};
-            rlt::generate_cameras(device, *renderers[s], renderers[s]->scene_center, renderers[s]->camera_radius, scene_up, scene_fov);
+            rlt::generate_cameras(device, *renderers[s], bundle.metadata.center, bundle.metadata.max_ray_length / 2, scene_up, scene_fov);
             rlt::generate_probe_directions(device, *renderers[s]);
-            if(scene_id == (TI)procthor_scenes.size()){
-                procthor_scenes.emplace_back();
-                rlt::rendering::raytracing::scene::procthor::precompute_indoor_positions(device, procthor_scenes[scene_id], *renderers[s], scene_fov, (T)CAM_WIDTH / (T)CAM_HEIGHT);
+            if(scene_id == (TI)procthor_annotations.size()){
+                procthor_annotations.emplace_back();
+                rlt::rendering::datasets::procthor::annotate(device, procthor_annotations[scene_id], bundle.metadata, *renderers[s], scene_fov, (T)CAM_WIDTH / (T)CAM_HEIGHT);
             }
-            TI num_pos = procthor_scenes[scene_id].num_indoor_positions;
+            TI num_pos = procthor_annotations[scene_id].num_indoor_positions;
             std::cout << " — " << num_pos << " indoor positions" << std::endl;
             if(num_pos == 0){
                 std::cerr << "Scene has no valid positions with 1m clearance: " << scene_paths[s] << std::endl;
                 return 1;
             }
-            scenes[s] = &procthor_scenes[scene_id];
+            annotations[s] = &procthor_annotations[scene_id];
         }
         std::cout << "Loaded " << N_TOTAL_SCENES << " scenes" << std::endl;
     }
@@ -1029,12 +1035,12 @@ int main(int argc, char** argv){
         std::vector<T> all_positions(N_TOTAL_SCENES * MAX_INDOOR_POS * INDOOR_POSITION_DIM, 0);
         std::vector<TI> all_counts(N_TOTAL_SCENES);
         for(TI s = 0; s < N_TOTAL_SCENES; s++){
-            all_counts[s] = scenes[s]->num_indoor_positions;
+            all_counts[s] = annotations[s]->num_indoor_positions;
             for(TI i = 0; i < all_counts[s]; i++){
                 TI base = (s * MAX_INDOOR_POS + i) * INDOOR_POSITION_DIM;
-                all_positions[base + 0] = scenes[s]->indoor_positions[i].position[0];
-                all_positions[base + 1] = scenes[s]->indoor_positions[i].position[1];
-                all_positions[base + 2] = scenes[s]->indoor_positions[i].position[2];
+                all_positions[base + 0] = annotations[s]->indoor_positions[i].position[0];
+                all_positions[base + 1] = annotations[s]->indoor_positions[i].position[1];
+                all_positions[base + 2] = annotations[s]->indoor_positions[i].position[2];
             }
         }
         cudaMemcpy(gpu_indoor_positions, all_positions.data(), all_positions.size() * sizeof(T), cudaMemcpyHostToDevice);
@@ -1064,7 +1070,7 @@ int main(int argc, char** argv){
         TI scene_i = env_i / N_ENVIRONMENTS_PER_SCENE;
         rlt::malloc(device, envs[env_i].dynamics);
         envs[env_i].renderer = renderers[scene_i];
-        envs[env_i].scene = scenes[scene_i];
+        envs[env_i].annotations = annotations[scene_i];
         envs[env_i].use_target_mode = true;
         envs[env_i].parameters.fov = CAMERA_FOV;
         envs[env_i].parameters.camera_randomization.fov_range = CAMERA_FOV_RANDOMIZATION_RANGE;

@@ -38,10 +38,10 @@ namespace rl_tools {
         }
     }
 
-    template <typename DEVICE, typename TASK_SPEC>
-    void init(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, typename TASK_SPEC::NEXT_WORLD::SharedContext& shared, typename TASK_SPEC::TI first_scene, typename TASK_SPEC::TI num_scenes, typename TASK_SPEC::TI member_index) {
+    template <typename DEVICE, typename TASK_SPEC, typename DATASET>
+    void init(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, typename TASK_SPEC::NEXT_WORLD::SharedContext& shared, const DATASET& dataset, const typename DATASET::Corpus& corpus, typename TASK_SPEC::TI first_scene, typename TASK_SPEC::TI num_scenes, typename TASK_SPEC::TI member_index) {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
-        init(device, static_cast<NEXT_WORLD&>(world), shared, first_scene, num_scenes, member_index);
+        init(device, static_cast<NEXT_WORLD&>(world), shared, dataset, corpus, first_scene, num_scenes, member_index);
         malloc(world.renderer.device, world.target_frames);
     }
     template <typename DEVICE, typename TASK_SPEC>
@@ -198,9 +198,9 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 // reachable through the member type's namespace
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame {
-    template <typename DEVICE, typename TASK_SPEC>
-    void init(DEVICE& device, World<TASK_SPEC>& world, typename TASK_SPEC::NEXT_WORLD::SharedContext& shared, typename TASK_SPEC::TI first_scene, typename TASK_SPEC::TI num_scenes, typename TASK_SPEC::TI member_index){
-        ::rl_tools::init(device, world, shared, first_scene, num_scenes, member_index);
+    template <typename DEVICE, typename TASK_SPEC, typename DATASET>
+    void init(DEVICE& device, World<TASK_SPEC>& world, typename TASK_SPEC::NEXT_WORLD::SharedContext& shared, const DATASET& dataset, const typename DATASET::Corpus& corpus, typename TASK_SPEC::TI first_scene, typename TASK_SPEC::TI num_scenes, typename TASK_SPEC::TI member_index){
+        ::rl_tools::init(device, world, shared, dataset, corpus, first_scene, num_scenes, member_index);
     }
     template <typename DEVICE, typename TASK_SPEC>
     void free(DEVICE& device, World<TASK_SPEC>& world){

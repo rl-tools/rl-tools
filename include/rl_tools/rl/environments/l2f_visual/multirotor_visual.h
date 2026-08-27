@@ -8,7 +8,7 @@
 #include "../observation.h"
 #include "../l2f/multirotor.h"
 #include "../../../rendering/raytracing/renderer.h"
-#include "../../../rendering/raytracing/scene/procthor/scene.h"
+#include "../../../rendering/datasets/procthor/procthor.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::l2f_visual {
@@ -62,7 +62,7 @@ namespace rl_tools::rl::environments::l2f_visual {
             static constexpr bool OUTPUT_OBSERVATION = T_OUTPUT_RGB;
         };
         using RENDERER_SPEC = rendering::raytracing::Specification<RENDERER_CONFIG>;
-        using SCENE_SPEC = rendering::raytracing::scene::SceneSpecification<T, TI>;
+        using ANNOTATIONS_SPEC = rendering::datasets::procthor::AnnotationsSpecification<T, TI>;
     };
 
     struct SceneHash {
@@ -122,7 +122,7 @@ namespace rl_tools::rl::environments::l2f_visual {
         // shared rendering::raytracing::AssetLibrary) and the scene metadata
         using RENDERER_SPEC = typename SPEC::RENDERER_SPEC;
         rendering::raytracing::Renderer<RENDERER_SPEC>* renderer = nullptr;
-        rendering::raytracing::scene::procthor::Scene<typename SPEC::SCENE_SPEC>* scene = nullptr;
+        rendering::datasets::procthor::Annotations<typename SPEC::ANNOTATIONS_SPEC>* annotations = nullptr;
 
         // host-resident camera staging for the observe paths (pre-allocated: observe runs per step)
         using CAMERA_STAGING_SPEC = tensor::Specification<rendering::raytracing::Camera<T>, TI, tensor::Shape<TI, SPEC::NUM_ENVS>>;
