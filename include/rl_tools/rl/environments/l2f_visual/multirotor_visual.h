@@ -93,7 +93,7 @@ namespace rl_tools::rl::environments::l2f_visual {
         T scene_yaw = 0;
         SceneHash scene_hash;
         CameraMount<T> camera_mount;
-        T fov = 1.1132;
+        T fov = 63.78166175396324;
         CameraRandomization<T> camera_randomization;
         T collision_distance_threshold = 0.15;
     };
