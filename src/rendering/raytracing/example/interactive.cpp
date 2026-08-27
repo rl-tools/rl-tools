@@ -667,6 +667,8 @@ int main(int argc, char** argv) {
 
     std::vector<uint32_t> pixels(CAM_WIDTH * CAM_HEIGHT);
     std::vector<RecordedCameraPose> camera_trace;
+    rlt::Tensor<typename decltype(env.renderer->cameras)::SPEC> camera_staging;
+    rlt::malloc(device, camera_staging);
 
     constexpr float LINEAR_VELOCITY_RAMP_S = 0.5f;
     float linear_velocity_ramp_elapsed_s = 0.0f;
@@ -744,10 +746,8 @@ int main(int argc, char** argv) {
         }
         frame_index++;
 
-        auto camera_staging = camera;
-        rlt::Tensor<typename decltype(env.renderer->cameras)::SPEC> camera_alias;
-        camera_alias._data = &camera_staging;
-        rlt::copy(device, env.renderer->device, camera_alias, rlt::cameras(device, *env.renderer));
+        rlt::set(device, camera_staging, camera, 0);
+        rlt::copy(device, env.renderer->device, camera_staging, rlt::cameras(device, *env.renderer));
 #if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
         rlt::render(device, *env.renderer);
         {
@@ -850,6 +850,7 @@ int main(int argc, char** argv) {
     glfwDestroyWindow(window);
     glfwTerminate();
 
+    rlt::free(device, camera_staging);
     rlt::free(device, env);
     return pose_recorded ? 0 : 1;
 }

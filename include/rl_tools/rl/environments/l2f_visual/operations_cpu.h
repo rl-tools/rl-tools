@@ -20,16 +20,18 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
 
-    // the env owns only its dynamics — the renderer and scene metadata are non-owning
-    // references wired in by the target (see rendering::raytracing::AssetLibrary)
+    // the env owns only its dynamics and host-side staging — the renderer and scene metadata
+    // are non-owning references wired in by the target (see rendering::raytracing::AssetLibrary)
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env) {
         malloc(device, env.dynamics);
+        malloc(device, env.camera_staging);
     }
 
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::environments::l2f_visual::MultirrotorVisual<SPEC>& env) {
         free(device, env.dynamics);
+        free(device, env.camera_staging);
         env.renderer = nullptr;
         env.scene = nullptr;
     }
@@ -147,13 +149,12 @@ namespace rl_tools {
         static_assert(OBS_SPEC::COLS == SPEC::CAM_HEIGHT * SPEC::CAM_WIDTH * SPEC::IMAGE_CHANNELS);
 
         auto camera = rl::environments::l2f_visual::make_camera_for_state(device, env, parameters, state);
-        std::array<rendering::raytracing::Camera<typename SPEC::T>, SPEC::NUM_ENVS> camera_staging;
-        camera_staging.fill(camera);
-        Tensor<tensor::Specification<rendering::raytracing::Camera<typename SPEC::T>, TI, typename decltype(env.renderer->cameras)::SPEC::SHAPE>> camera_alias;
-        camera_alias._data = camera_staging.data();
-        copy(device, env.renderer->device, camera_alias, cameras(device, *env.renderer));
+        for (TI env_i = 0; env_i < SPEC::NUM_ENVS; env_i++) {
+            set(device, env.camera_staging, camera, env_i);
+        }
+        copy(device, env.renderer->device, env.camera_staging, cameras(device, *env.renderer));
         if constexpr (SPEC::RENDERER_SPEC::ENABLE_MOTION_BLUR) {
-            copy(device, env.renderer->device, camera_alias, cameras_open(device, *env.renderer));
+            copy(device, env.renderer->device, env.camera_staging, cameras_open(device, *env.renderer));
         }
         render(device, *env.renderer);
 
@@ -207,15 +208,12 @@ namespace rl_tools {
             return;
         }
 
-        std::array<rendering::raytracing::Camera<typename SPEC::T>, SPEC::NUM_ENVS> camera_staging;
         for (TI env_i = 0; env_i < num_envs; env_i++) {
-            camera_staging[env_i] = rl::environments::l2f_visual::make_camera_for_state(device, env, get_ref(device, parameters, env_i), get_ref(device, states, env_i));
+            set(device, env.camera_staging, rl::environments::l2f_visual::make_camera_for_state(device, env, get_ref(device, parameters, env_i), get_ref(device, states, env_i)), env_i);
         }
-        Tensor<tensor::Specification<rendering::raytracing::Camera<typename SPEC::T>, TI, typename decltype(env.renderer->cameras)::SPEC::SHAPE>> camera_alias;
-        camera_alias._data = camera_staging.data();
-        copy(device, env.renderer->device, camera_alias, cameras(device, *env.renderer));
+        copy(device, env.renderer->device, env.camera_staging, cameras(device, *env.renderer));
         if constexpr (SPEC::RENDERER_SPEC::ENABLE_MOTION_BLUR) {
-            copy(device, env.renderer->device, camera_alias, cameras_open(device, *env.renderer));
+            copy(device, env.renderer->device, env.camera_staging, cameras_open(device, *env.renderer));
         }
         render(device, *env.renderer);
         copy(env.renderer->device, device, env.renderer->frame_buffer, out_pixels);

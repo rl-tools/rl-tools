@@ -130,6 +130,9 @@ namespace rl_tools {
         malloc(world.renderer.device, world.prev_cameras);
         malloc(world.renderer.device, world.episode_start);
         malloc(world.renderer.device, world.active_scene);
+        malloc(device, world.camera_staging_close);
+        malloc(device, world.camera_staging_previous);
+        malloc(device, world.camera_staging_open);
         set_all(world.renderer.device, world.episode_start, (TI)0);
         if constexpr (SPEC::SELF_VISIBLE) {
             malloc(world.renderer.device, world.drone_pose_staging);
@@ -151,6 +154,9 @@ namespace rl_tools {
             free(world.renderer.device, world.prev_cameras);
             free(world.renderer.device, world.episode_start);
             free(world.renderer.device, world.active_scene);
+            free(device, world.camera_staging_close);
+            free(device, world.camera_staging_previous);
+            free(device, world.camera_staging_open);
         }
         for (auto& slot : world.slots) {
             free(device, slot.renderer);
@@ -425,32 +431,25 @@ namespace rl_tools {
         constexpr TI NUM_CAMERAS = INSTANCES * WORLD::N_VIEWS;
         const T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
 
-        std::vector<rendering::raytracing::Camera<T>> cameras_close(NUM_CAMERAS);
         for (TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++) {
             const TI instance_i = camera_i / WORLD::N_VIEWS;
             const TI agent_i = camera_i % WORLD::N_VIEWS;
             const auto& instance_parameters = get_ref(device, parameters, instance_i);
             const auto& agent_state = rl::environments::hyperdrone::_agent_state<SPEC>(get_ref(device, states, instance_i), agent_i);
-            cameras_close[camera_i] = rl::environments::hyperdrone::make_camera<DEVICE, T>(device, instance_parameters.camera_mount, instance_parameters.fov, agent_state.orientation, agent_state.position, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin);
+            set(device, world.camera_staging_close, rl::environments::hyperdrone::make_camera<DEVICE, T>(device, instance_parameters.camera_mount, instance_parameters.fov, agent_state.orientation, agent_state.position, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin), camera_i);
         }
-        Tensor<typename WORLD::PREV_CAMERAS_SPEC> cameras_alias;
-        cameras_alias._data = cameras_close.data();
-        copy(device, world.renderer.device, cameras_alias, cameras(device, world.renderer));
+        copy(device, world.renderer.device, world.camera_staging_close, cameras(device, world.renderer));
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            std::vector<rendering::raytracing::Camera<T>> previous(NUM_CAMERAS), cameras_open_staging(NUM_CAMERAS);
-            Tensor<typename WORLD::PREV_CAMERAS_SPEC> previous_alias;
-            previous_alias._data = previous.data();
-            copy(world.renderer.device, device, world.prev_cameras, previous_alias);
+            copy(world.renderer.device, device, world.prev_cameras, world.camera_staging_previous);
             for (TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++) {
                 const TI instance_i = camera_i / WORLD::N_VIEWS;
                 const auto& instance_parameters = get_ref(device, parameters, instance_i);
                 bool reset = world.history_step == 0 || get(device, reset_mask, instance_i);
-                cameras_open_staging[camera_i] = reset ? cameras_close[camera_i] : rl::environments::hyperdrone::interpolate_camera(cameras_close[camera_i], previous[camera_i], instance_parameters.shutter_fraction);
+                const auto camera_close = get(device, world.camera_staging_close, camera_i);
+                set(device, world.camera_staging_open, reset ? camera_close : rl::environments::hyperdrone::interpolate_camera(camera_close, get(device, world.camera_staging_previous, camera_i), instance_parameters.shutter_fraction), camera_i);
             }
-            Tensor<typename WORLD::PREV_CAMERAS_SPEC> open_alias;
-            open_alias._data = cameras_open_staging.data();
-            copy(device, world.renderer.device, open_alias, cameras_open(device, world.renderer));
-            copy(device, world.renderer.device, cameras_alias, world.prev_cameras);
+            copy(device, world.renderer.device, world.camera_staging_open, cameras_open(device, world.renderer));
+            copy(device, world.renderer.device, world.camera_staging_close, world.prev_cameras);
         }
         if constexpr (SPEC::SELF_VISIBLE) {
             auto& slot = world.slots[world.active_slot];

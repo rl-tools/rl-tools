@@ -1549,13 +1549,12 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
     bool ok = true;
     std::vector<uint8_t> rgb_frame;
     const T fov = static_cast<T>(degrees_to_radians(options.fov_deg));
+    rlt::Tensor<typename decltype(env.renderer->cameras)::SPEC> camera_staging;
+    rlt::malloc(device, camera_staging);
     for(size_t frame_i = 0; frame_i < poses.size(); frame_i++) {
         const TracePose& pose = poses[frame_i];
-        const auto camera = rlt::make_camera_data(pose.eye, pose.look_at, pose.up, fov, static_cast<T>(WIDTH) / static_cast<T>(HEIGHT));
-        auto camera_staging = camera;
-        rlt::Tensor<typename decltype(env.renderer->cameras)::SPEC> camera_alias;
-        camera_alias._data = &camera_staging;
-        rlt::copy(device, env.renderer->device, camera_alias, rlt::cameras(device, *env.renderer));
+        rlt::set(device, camera_staging, rlt::make_camera_data(pose.eye, pose.look_at, pose.up, fov, static_cast<T>(WIDTH) / static_cast<T>(HEIGHT)), 0);
+        rlt::copy(device, env.renderer->device, camera_staging, rlt::cameras(device, *env.renderer));
         if constexpr (SPEC::HAS_DEPTH) {
             rlt::render(device, *env.renderer);
             std::vector<float> depth_staging(frame.size());
@@ -1587,6 +1586,7 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
             break;
         }
     }
+    rlt::free(device, camera_staging);
 
     record.ffmpeg_status = pclose(pipe);
     record.ok = ok && record.ffmpeg_status == 0;

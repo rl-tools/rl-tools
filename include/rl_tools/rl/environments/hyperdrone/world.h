@@ -214,6 +214,10 @@ namespace rl_tools::rl::environments::hyperdrone {
         Tensor<PREV_CAMERAS_SPEC> prev_cameras;  // shutter-open interpolation source (motion blur)
         Tensor<EPISODE_START_SPEC> episode_start;  // history slot at which each instance's episode began
         Tensor<ACTIVE_SCENE_SPEC> active_scene;  // device-visible copy of the active slot's scene tables
+        // host-resident camera staging for the CPU render verb (pre-allocated: render runs per step)
+        Tensor<PREV_CAMERAS_SPEC> camera_staging_close;
+        Tensor<PREV_CAMERAS_SPEC> camera_staging_previous;
+        Tensor<PREV_CAMERAS_SPEC> camera_staging_open;
         TI history_step = 0;
         void* cuda_sync_event = nullptr;  // lazily created by the CUDA verbs (caller/render stream joins)
 

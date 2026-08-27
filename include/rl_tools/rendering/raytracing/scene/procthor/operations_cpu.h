@@ -79,7 +79,8 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
         candidates.reserve(static_cast<size_t>(MAX_BATCHES) * static_cast<size_t>(NUM_CAMERAS));
 
         std::array<IndoorPosition<T>, NUM_CAMERAS> batch_positions{};
-        std::vector<rendering::raytracing::Camera<T>> camera_staging(NUM_CAMERAS);
+        Tensor<typename decltype(renderer.cameras)::SPEC> camera_staging;
+        malloc(device, camera_staging);
         TI total_tested = 0, no_hits = 0, failed_hit_ratio = 0, failed_avg_dist = 0, failed_min_dist = 0;
         T best_min_hit_dist = 0;
 
@@ -107,12 +108,10 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
                     pos.position[2]
                 };
                 const T cam_up[3] = {0, 0, 1};
-                camera_staging[camera_i] = make_camera_data(cam_position, cam_look_at, cam_up, fov, aspect);
+                set(device, camera_staging, make_camera_data(cam_position, cam_look_at, cam_up, fov, aspect), camera_i);
             }
 
-            Tensor<tensor::Specification<rendering::raytracing::Camera<T>, TI, typename decltype(renderer.cameras)::SPEC::SHAPE>> camera_alias;
-            camera_alias._data = camera_staging.data();
-            copy(device, renderer.device, camera_alias, cameras(device, renderer));
+            copy(device, renderer.device, camera_staging, cameras(device, renderer));
             probe(device, renderer);
 
             std::vector<rendering::raytracing::CollisionResult> probe_staging((size_t)NUM_CAMERAS * NUM_PROBES);
@@ -178,6 +177,7 @@ namespace rl_tools::rendering::raytracing::scene::procthor {
                 }
             }
         }
+        free(device, camera_staging);
 
         std::sort(candidates.begin(), candidates.end(), [](const Candidate& a, const Candidate& b) {
             return a.score > b.score;
