@@ -84,7 +84,6 @@
 /**/*.mp4
 .cache
 /regression-study
-conta
 .claude
 /**/*.tflite
 /**/*.csv
