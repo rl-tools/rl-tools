@@ -1,5 +1,3 @@
-import math
-
 import numpy as np
 
 from . import _io
@@ -139,7 +137,8 @@ class Renderer:
         self._renderer.init(scene, asset_pool)
         return self
 
-    def camera(self, position, look_at, up=(0.0, 0.0, 1.0), fov=math.radians(60.0)):
+    def camera(self, position, look_at, up=(0.0, 0.0, 1.0), fov=60.0):
+        """Camera ray-gen base for set_cameras; fov is in degrees."""
         core = load_core()
         return core.make_camera(tuple(position), tuple(look_at), tuple(up), float(fov), self.aspect)
 
@@ -161,7 +160,7 @@ class Renderer:
             _as_cameras(cameras_close, self.num_cameras),
         )
 
-    def generate_cameras(self, center=None, radius=None, up=(0.0, 0.0, 1.0), fov=math.radians(60.0)):
+    def generate_cameras(self, center=None, radius=None, up=(0.0, 0.0, 1.0), fov=60.0):
         bounds = self.scene_bounds
         if center is None:
             center = bounds["center"]
