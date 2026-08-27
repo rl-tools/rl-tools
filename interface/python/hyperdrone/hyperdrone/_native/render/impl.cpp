@@ -416,29 +416,6 @@ namespace hyperdrone_render_impl {
             }
         }
 
-        void save(hyperdrone::render::SaveTarget target, const char* path) override {
-            require_init();
-            using ST = hyperdrone::render::SaveTarget;
-            switch(target){
-                case ST::IMAGE:
-                    if constexpr (SPEC::HAS_RGB){ rlt::save_image(device, renderer, path); return; }
-                    break;
-                case ST::DEPTH_IMAGE:
-                    if constexpr (SPEC::HAS_DEPTH){ rlt::save_depth_image(device, renderer, path); return; }
-                    break;
-                case ST::DEPTH_RAW:
-                    if constexpr (SPEC::HAS_DEPTH){ rlt::save_depth(device, renderer, path); return; }
-                    break;
-                case ST::SEGMENTATION_IMAGE:
-                    if constexpr (SPEC::HAS_SEGMENTATION){ rlt::save_segmentation_image(device, renderer, path); return; }
-                    break;
-                case ST::PROBES:
-                    rlt::save_probes(device, renderer, path);
-                    return;
-            }
-            throw std::runtime_error("hyperdrone: save target not available in this renderer's output mode");
-        }
-
         void scene_bounds(float center[3], float half_extent[3], float& camera_radius) const override {
             for(int i = 0; i < 3; i++){
                 center[i] = renderer.scene_center[i];

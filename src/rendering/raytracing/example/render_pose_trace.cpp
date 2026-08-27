@@ -4,6 +4,7 @@
 
 #include "environment/environment.h"
 #include "environment/operations_cpu.h"
+#include <rl_tools/rendering/raytracing/save_cpu.h>
 
 #include <nlohmann/json.hpp>
 

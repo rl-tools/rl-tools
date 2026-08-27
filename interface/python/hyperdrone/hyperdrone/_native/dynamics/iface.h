@@ -6,7 +6,7 @@
 // after every mutation as SoA component buffers (device-resident on the CUDA variant) so
 // consumers get stable zero-copy views. Bump HYPERDRONE_DYNAMICS_IFACE_VERSION on any
 // change to this file.
-#define HYPERDRONE_DYNAMICS_IFACE_VERSION 3
+#define HYPERDRONE_DYNAMICS_IFACE_VERSION 4
 
 namespace hyperdrone::dynamics {
     struct Config {
@@ -57,7 +57,8 @@ namespace hyperdrone::dynamics {
         // packed camera ray-gen bases (num_drones, 12): pos, dir_00, dir_du, dir_dv in the
         // renderer's layout. mount is a (3, 4) body-frame transform: rotation columns map
         // camera axes (FLU: +X forward) into the body frame, translation is the offset.
-        virtual void update_camera_bases(const float mount[12], float fov, float aspect) = 0;
+        // fov is in degrees, like every user-facing FOV.
+        virtual void update_camera_bases(const float mount[12], float fov_degrees, float aspect) = 0;
         virtual const float* camera_bases_buffer() const = 0;
 
         // per-drone runtime physical parameters (host pointers, num_drones scalars each;

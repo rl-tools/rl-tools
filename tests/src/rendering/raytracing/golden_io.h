@@ -6,14 +6,18 @@
 // endian multi-camera format below (fixed header, then camera-major row-major payload; the wire
 // field order is num_cameras, height, width).
 
-// RL_TOOLS_STB_PROVIDED arbitrates between this header and the renderer's
-// operations_cpu_common.h so that whichever is included first provides the static stb
-// implementation exactly once per TU (stb's implementation section has no include guard).
-#ifndef RL_TOOLS_STB_PROVIDED
-#define RL_TOOLS_STB_PROVIDED
+// RL_TOOLS_STB_IMAGE_PROVIDED / RL_TOOLS_STB_IMAGE_WRITE_PROVIDED arbitrate between this header
+// and the renderer's operations_cpu_common.h / save_cpu.h so that whichever is included first
+// provides each static stb implementation exactly once per TU (stb's implementation sections
+// have no include guards).
+#ifndef RL_TOOLS_STB_IMAGE_WRITE_PROVIDED
+#define RL_TOOLS_STB_IMAGE_WRITE_PROVIDED
 #define STB_IMAGE_WRITE_STATIC
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
+#endif
+#ifndef RL_TOOLS_STB_IMAGE_PROVIDED
+#define RL_TOOLS_STB_IMAGE_PROVIDED
 #define STB_IMAGE_STATIC
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
