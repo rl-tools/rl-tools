@@ -10,6 +10,7 @@ namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using T = float;
+static constexpr T FOV = 1.3962634015954636;
 using TI = typename DEVICE::index_t;
 
 struct CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
@@ -116,8 +117,8 @@ int main(int argc, char** argv){
     const T camera_1_position[3] = {drone_b_position[0] + static_cast<T>(1.0), drone_b_position[1], drone_b_position[2] + static_cast<T>(0.8)};
     rlt::Tensor<typename Renderer::CAMERA_TENSOR_SPEC> camera_staging;
     rlt::malloc(device, camera_staging);
-    rlt::set(device, camera_staging, rlt::make_camera_data(camera_0_position, drone_b_position, up, SPEC::COS_FOVY, aspect), 0);
-    rlt::set(device, camera_staging, rlt::make_camera_data(camera_1_position, drone_a_position, up, SPEC::COS_FOVY, aspect), 1);
+    rlt::set(device, camera_staging, rlt::make_camera_data(camera_0_position, drone_b_position, up, FOV, aspect), 0);
+    rlt::set(device, camera_staging, rlt::make_camera_data(camera_1_position, drone_a_position, up, FOV, aspect), 1);
     rlt::copy(device, renderer.device, camera_staging, rlt::cameras(device, renderer));
     rlt::free(device, camera_staging);
 

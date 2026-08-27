@@ -105,7 +105,7 @@ using SCENE_SPEC = rlt::rendering::raytracing::scene::SceneSpecification<T, TI, 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using Camera = rlt::rendering::raytracing::Camera<T>;
 
-static constexpr T FOV = SPEC::COS_FOVY;
+static constexpr T FOV = 1.3962634015954636;
 static constexpr T ASPECT = (T)SPEC::CAM_WIDTH / (T)SPEC::CAM_HEIGHT;
 static constexpr TI NUM_WAYPOINTS = 4;
 static constexpr TI TRAJECTORY_PERIOD = 600;

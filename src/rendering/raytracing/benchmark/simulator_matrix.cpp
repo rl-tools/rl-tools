@@ -81,6 +81,7 @@ namespace rlt = rl_tools;
 namespace rt_benchmark = rl_tools::rendering::raytracing::benchmark;
 
 using T = float;
+static constexpr T FOV = 1.3962634015954636;
 using TI = int;
 
 static constexpr const char* OBJECTS20_LAYOUT_NAME = "canonical_staggered_v1";
@@ -1057,7 +1058,7 @@ static void write_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<S
             eye[1] + pose.direction[1],
             eye[2] + pose.direction[2]
         };
-        camera_staging[i] = rlt::make_camera_data(eye, look_at, pose.up, SPEC::COS_FOVY, aspect);
+        camera_staging[i] = rlt::make_camera_data(eye, look_at, pose.up, FOV, aspect);
     }
     cudaMemcpy(rlt::data(rlt::cameras(device, renderer)), camera_staging.data(), SPEC::NUM_CAMERAS * sizeof(rlt::rendering::raytracing::Camera<T>), cudaMemcpyHostToDevice);
 }
@@ -1071,7 +1072,7 @@ static void write_single_camera(DEVICE& device, rlt::rendering::raytracing::Rend
         eye[1] + pose.direction[1],
         eye[2] + pose.direction[2]
     };
-    const auto camera = rlt::make_camera_data(eye, look_at, pose.up, SPEC::COS_FOVY, aspect);
+    const auto camera = rlt::make_camera_data(eye, look_at, pose.up, FOV, aspect);
     cudaMemcpy(rlt::data(rlt::cameras(device, renderer)), &camera, sizeof(camera), cudaMemcpyHostToDevice);
 }
 
@@ -1347,7 +1348,7 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
                static_cast<int>(SPEC::NUM_CAMERAS),
                initial_position,
                physics_poses.data(),
-               static_cast<float>(SPEC::COS_FOVY),
+               FOV,
                aspect,
                options.seed)) {
             RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Failed to initialize physics simulation: " << rt_benchmark::physics_last_error());
@@ -1382,7 +1383,7 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
         << ", aa_grid_size=" << (SPEC::ENABLE_ANTI_ALIASING ? SPEC::ANTI_ALIASING_GRID_SIZE : 1)
         << ", envs=" << SPEC::NUM_CAMERAS
         << ", resolution=" << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT
-        << ", fov_deg=" << static_cast<double>(SPEC::COS_FOVY) * RAD_TO_DEG
+        << ", fov_deg=" << static_cast<double>(FOV) * RAD_TO_DEG
         << ", camera_offset_flu=[" << offset.x << "," << offset.y << "," << offset.z << "]"
         << ", camera_orientation_sampling=" << orientation_mode_name(orientation)
         << ", seed=" << options.seed);

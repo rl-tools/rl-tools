@@ -136,8 +136,6 @@ namespace rl_tools {
             static constexpr TI FB_WIDTH = GRID_COLS * CAM_WIDTH;
             static constexpr TI FB_HEIGHT = GRID_ROWS * CAM_HEIGHT;
             static constexpr TI CAM_PIXELS = CAM_WIDTH * CAM_HEIGHT;
-            static constexpr T BENCHMARK_SECONDS = 10.0;
-            static constexpr T COS_FOVY = 1.3962634015954636;
             // dynamic overlays: per-camera dynamic content composed onto the static shared world
             static constexpr TI NUM_OVERLAYS = CONFIG::NUM_OVERLAYS;
             static constexpr TI MAX_OVERLAY_INSTANCES = CONFIG::MAX_OVERLAY_INSTANCES;
