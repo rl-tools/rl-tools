@@ -70,7 +70,7 @@
 /.venv*
 /**/.ipynb_checkpoints
 /**/*.ipynb
-!/interface/python/hyperdrone/hyperdrone/examples/simulation.ipynb
+!/interface/python/hyperdrone/hyperdrone/examples/*.ipynb
 /**/*.pth
 /foundation-model-experiments
 /1k-experiments
