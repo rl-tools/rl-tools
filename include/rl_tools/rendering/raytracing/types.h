@@ -4,6 +4,10 @@
 #pragma once
 #define RL_TOOLS_RENDERING_RAYTRACING_TYPES_H
 
+#ifndef RL_TOOLS_FUNCTION_PLACEMENT
+#define RL_TOOLS_FUNCTION_PLACEMENT
+#endif
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     namespace rendering::raytracing{
@@ -31,6 +35,14 @@ namespace rl_tools {
             T_T dir_du[3];
             T_T dir_dv[3];
         };
+
+        // user-facing FOV values are degrees everywhere; trig consumers convert through this —
+        // the double-precision product keeps float FOVs bit-identical to the legacy radian
+        // constants (e.g. 80 degrees reproduces the golden-pinned 1.3962634015954636 exactly)
+        template <typename T>
+        RL_TOOLS_FUNCTION_PLACEMENT constexpr T degrees_to_radians(T degrees){
+            return (T)((double)degrees * 0.017453292519943295);
+        }
 
     }
 }

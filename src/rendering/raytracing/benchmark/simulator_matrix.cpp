@@ -81,7 +81,7 @@ namespace rlt = rl_tools;
 namespace rt_benchmark = rl_tools::rendering::raytracing::benchmark;
 
 using T = float;
-static constexpr T FOV = 1.3962634015954636;
+static constexpr T FOV = 80;
 using TI = int;
 
 static constexpr const char* OBJECTS20_LAYOUT_NAME = "canonical_staggered_v1";
@@ -195,7 +195,6 @@ struct BenchmarkResult {
     double mrays_per_s;
 };
 
-static constexpr double RAD_TO_DEG = 57.29577951308232;
 
 static bool has_prefix(const std::string& value, const char* prefix) {
     return value.compare(0, std::strlen(prefix), prefix) == 0;
@@ -1383,7 +1382,7 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
         << ", aa_grid_size=" << (SPEC::ENABLE_ANTI_ALIASING ? SPEC::ANTI_ALIASING_GRID_SIZE : 1)
         << ", envs=" << SPEC::NUM_CAMERAS
         << ", resolution=" << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT
-        << ", fov_deg=" << static_cast<double>(FOV) * RAD_TO_DEG
+        << ", fov_deg=" << static_cast<double>(FOV)
         << ", camera_offset_flu=[" << offset.x << "," << offset.y << "," << offset.z << "]"
         << ", camera_orientation_sampling=" << orientation_mode_name(orientation)
         << ", seed=" << options.seed);

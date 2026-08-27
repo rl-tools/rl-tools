@@ -52,8 +52,8 @@ using SPEC = rlt::rendering::raytracing::Specification<CONFIG>;
 using Renderer = rlt::rendering::raytracing::Renderer<SPEC>;
 
 static constexpr T GRAVITY = 9.81;
-static constexpr T ONBOARD_FOV = 1.3962634015954636;
-static constexpr T THIRD_PERSON_FOV = 0.65;
+static constexpr T ONBOARD_FOV = 80;
+static constexpr T THIRD_PERSON_FOV = 37.24225668350351;
 static constexpr T CAMERA_MOUNT_X = 0.10, CAMERA_MOUNT_Y = 0, CAMERA_MOUNT_Z = 0.32; // scalars: constexpr arrays are not usable in device code
 static constexpr T CAMERA_PITCH_DOWN = 0.3;
 static constexpr T TRIPOD_X = -7.6, TRIPOD_Y = -7.0, TRIPOD_Z = 2.0;
