@@ -219,14 +219,15 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer);
 
-    template <typename DEVICE, typename SPEC>
-    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool){
+    template <typename DEVICE, typename SPEC, typename METADATA_T>
+    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool, const rendering::SceneMetadata<METADATA_T>& metadata){
+        renderer.max_ray_length = (typename SPEC::T)metadata.max_ray_length;
+        rendering::raytracing::detail::announce_configuration<SPEC>();
         namespace generic = rendering::raytracing::backends::generic;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         auto& backend_state = generic::state(renderer);
 
-        rendering::raytracing::detail::compute_scene_bounds(renderer, scene);
         RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << scene.objects.size() << " object(s), " << scene.instances.size() << " instance(s), " << pool.assemblies.size() << " pool asset(s) ...");
 
         // one combined object list: scene objects first, then pool objects (same global arrays,
@@ -412,19 +413,14 @@ namespace rl_tools {
             backend_state.scene.miss_color_0[0] = .8f; backend_state.scene.miss_color_0[1] = 0.f; backend_state.scene.miss_color_0[2] = 0.f;
             backend_state.scene.miss_color_1[0] = .8f; backend_state.scene.miss_color_1[1] = .8f; backend_state.scene.miss_color_1[2] = .8f;
         }
-        backend_state.scene.max_depth = renderer.camera_radius > 0 ? renderer.camera_radius * 2.0f : 1e30f;
-        backend_state.scene.max_dist = renderer.camera_radius * 2.0f;
+        backend_state.scene.max_depth = renderer.max_ray_length > 0 ? renderer.max_ray_length : 1e30f;
+        backend_state.scene.max_dist = renderer.max_ray_length;
 
         if constexpr (SPEC::ENABLE_OVERLAYS){
             update(device, renderer); // publish the (empty) overlays and the attachment table
         }
     }
 
-    template <typename DEVICE, typename SPEC>
-    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const rendering::raytracing::Scene& scene){
-        static const rendering::raytracing::AssetPool empty_pool{};
-        init(device, renderer, scene, empty_pool);
-    }
 
     namespace rendering::raytracing::backends::generic{
         // instance/BVH rebuild for the overlays from an arbitrary transforms slab — the regular
@@ -731,7 +727,7 @@ namespace rl_tools {
         }
         library.assets.clear();
         library.scenes.clear();
-        library.hashes.clear();
+        library.metadata.clear();
         delete library.backend;
         library.backend = nullptr;
     }
@@ -741,14 +737,10 @@ namespace rl_tools {
         malloc(device, renderer);
     }
 
-    template <typename DEVICE, typename SPEC>
-    typename SPEC::TI init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Generic>& library, const char* scene_path){
-        bool is_new = false;
-        const auto scene_id = rendering::raytracing::detail::library_lookup_or_load(device, library, scene_path, is_new);
-        init(device, renderer, library.scenes[scene_id], library.pool);
-        return scene_id;
-    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
+
+
+#include "../../operations_cpu_post.h"
 
 #endif

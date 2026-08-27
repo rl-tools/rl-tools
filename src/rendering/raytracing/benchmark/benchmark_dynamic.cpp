@@ -35,7 +35,8 @@
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
-#include <rl_tools/rendering/raytracing/scene/procthor/operations_cpu.h>
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
+#include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
 #include <rl_tools/rendering/raytracing/save_cpu.h>
 
 #include <algorithm>
@@ -101,7 +102,7 @@ struct CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI ANTI_ALIASING_GRID_SIZE = AA_GRID;
 };
 using SPEC = rlt::rendering::raytracing::Specification<CONFIG>;
-using SCENE_SPEC = rlt::rendering::raytracing::scene::SceneSpecification<T, TI, 512>;
+using ANNOTATIONS_SPEC = rlt::rendering::datasets::procthor::AnnotationsSpecification<T, TI, 512>;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using Camera = rlt::rendering::raytracing::Camera<T>;
 
@@ -245,12 +246,13 @@ int main(int ac, char** av){
     rlt::rendering::raytracing::Renderer<SPEC> renderer;
     rlt::malloc(device, renderer);
 
-    rlt::rendering::raytracing::Scene scene;
-    if(!rlt::load<SHADING, SPEC::HAS_RGB>(device, scene, model_file)){
+    rlt::rendering::Bundle<T> bundle;
+    if(!rlt::load<SHADING, SPEC::HAS_RGB>(device, bundle, model_file)){
         RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Failed to load model: " << model_file);
         return 1;
     }
     if constexpr(TILE > 1){
+        auto& scene = bundle.scene;
         float bbox_min[3] = {1e30f, 1e30f, 1e30f}, bbox_max[3] = {-1e30f, -1e30f, -1e30f};
         for(const auto& object : scene.objects){
             for(const auto& mesh : object.meshes){
@@ -278,18 +280,19 @@ int main(int ac, char** av){
                 }
             }
         }
+        rlt::rendering::datasets::compute_bounds(device, bundle);
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Tiled scene " << TILE << "x" << TILE << ": " << scene.instances.size() << " instances");
     }
-    rlt::init(device, renderer, scene);
+    rlt::init(device, renderer, bundle);
     rlt::generate_probe_directions(device, renderer);
 
-    rlt::rendering::raytracing::scene::procthor::Scene<SCENE_SPEC> scene_procthor;
-    rlt::rendering::raytracing::scene::procthor::precompute_indoor_positions(device, scene_procthor, renderer, FOV, ASPECT);
-    const TI num_positions = scene_procthor.num_indoor_positions;
+    rlt::rendering::datasets::procthor::Annotations<ANNOTATIONS_SPEC> annotations;
+    rlt::rendering::datasets::procthor::annotate(device, annotations, bundle.metadata, renderer, FOV, ASPECT);
+    const TI num_positions = annotations.num_indoor_positions;
     rlt::utils::assert_exit(device, num_positions >= 8, "benchmark_dynamic: too few indoor positions");
 
     auto position_of = [&](TI pool_index) -> Vec3 {
-        const auto& indoor_position = scene_procthor.indoor_positions[pool_index];
+        const auto& indoor_position = annotations.indoor_positions[pool_index];
         return {indoor_position.position[0], indoor_position.position[1], indoor_position.position[2]};
     };
     auto segment_clear = [&](const std::vector<Vec3>& from, const std::vector<Vec3>& to, std::vector<bool>& clear){

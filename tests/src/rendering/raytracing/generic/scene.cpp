@@ -5,6 +5,7 @@
 #ifdef RL_TOOLS_RENDERING_RAYTRACING_SCENE_TEST_ACTIVE_BACKEND
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
 #endif
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 
 #ifndef RL_TOOLS_SCENE_SUITE
 #define RL_TOOLS_SCENE_SUITE RENDERING_RAYTRACING_GENERIC_SCENE
@@ -131,15 +132,16 @@ TEST(RL_TOOLS_SCENE_SUITE, INJECTION){
     DEVICE device;
     rlt::init(device);
 
-    rlt::rendering::raytracing::Scene scene;
-    rlt::add(device, scene, make_cube(0, 1));
-    ASSERT_EQ(scene.objects.size(), (size_t)1);
-    ASSERT_EQ(scene.instances.size(), (size_t)1);
+    rlt::rendering::Bundle<T> bundle;
+    rlt::add(device, bundle.scene, make_cube(0, 1));
+    ASSERT_EQ(bundle.scene.objects.size(), (size_t)1);
+    ASSERT_EQ(bundle.scene.instances.size(), (size_t)1);
+    rlt::rendering::datasets::compute_bounds(device, bundle);
 
     Renderer renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
-    rlt::init(device, renderer, scene);
+    rlt::init(device, renderer, bundle);
 
     std::vector<uint32_t> pixels;
     render_frame(device, renderer, pixels);
@@ -154,19 +156,20 @@ TEST(RL_TOOLS_SCENE_SUITE, REINIT_IDENTICAL){
     DEVICE device;
     rlt::init(device);
 
-    rlt::rendering::raytracing::Scene scene;
-    rlt::add(device, scene, make_cube(0, 1));
-    rlt::add(device, scene, make_cube(2.5f, 0.5f));
+    rlt::rendering::Bundle<T> bundle;
+    rlt::add(device, bundle.scene, make_cube(0, 1));
+    rlt::add(device, bundle.scene, make_cube(2.5f, 0.5f));
+    rlt::rendering::datasets::compute_bounds(device, bundle);
 
     Renderer renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
 
-    rlt::init(device, renderer, scene);
+    rlt::init(device, renderer, bundle);
     std::vector<uint32_t> first;
     render_frame(device, renderer, first);
 
-    rlt::init(device, renderer, scene);
+    rlt::init(device, renderer, bundle);
     std::vector<uint32_t> second;
     render_frame(device, renderer, second);
 
@@ -178,25 +181,27 @@ TEST(RL_TOOLS_SCENE_SUITE, REINIT_SCENE_SWAP){
     DEVICE device;
     rlt::init(device);
 
-    rlt::rendering::raytracing::Scene scene_a;
-    rlt::add(device, scene_a, make_cube(0, 1));
-    rlt::rendering::raytracing::Scene scene_b;
-    rlt::add(device, scene_b, make_cube(100, 1)); // out of view: renders as all-miss
+    rlt::rendering::Bundle<T> bundle_a;
+    rlt::add(device, bundle_a.scene, make_cube(0, 1));
+    rlt::rendering::datasets::compute_bounds(device, bundle_a);
+    rlt::rendering::Bundle<T> bundle_b;
+    rlt::add(device, bundle_b.scene, make_cube(100, 1)); // out of view: renders as all-miss
+    rlt::rendering::datasets::compute_bounds(device, bundle_b);
 
     Renderer renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
 
-    rlt::init(device, renderer, scene_a);
+    rlt::init(device, renderer, bundle_a);
     std::vector<uint32_t> first_a;
     render_frame(device, renderer, first_a);
 
-    rlt::init(device, renderer, scene_b);
+    rlt::init(device, renderer, bundle_b);
     std::vector<uint32_t> swapped;
     render_frame(device, renderer, swapped);
     EXPECT_NE(first_a, swapped);
 
-    rlt::init(device, renderer, scene_a);
+    rlt::init(device, renderer, bundle_a);
     std::vector<uint32_t> second_a;
     render_frame(device, renderer, second_a);
     ASSERT_EQ(first_a, second_a);
@@ -217,33 +222,36 @@ TEST(RL_TOOLS_SCENE_SUITE, INSTANCE_DEPTH_ANALYTIC){
 
     {
         // translated +1 in x: front face moves from x=-1 to x=0, camera at x=-5
-        rlt::rendering::raytracing::Scene scene;
+        rlt::rendering::Bundle<T> bundle;
         float transform[12];
         const float position[3] = {1, 0, 0};
         const float orientation_wxyz[4] = {1, 0, 0, 0};
         rlt::make_transform(position, orientation_wxyz, transform);
-        rlt::add(device, scene, cube, transform);
-        rlt::init(device, renderer, scene);
+        rlt::add(device, bundle.scene, cube, transform);
+        rlt::rendering::datasets::compute_bounds(device, bundle);
+        rlt::init(device, renderer, bundle);
         EXPECT_NEAR(render_center_depth(device, renderer), 5.0f, 1e-4f);
     }
     {
         // rotated 30 degrees about z: the front edge crosses y=0 at x=-2/sqrt(3)
-        rlt::rendering::raytracing::Scene scene;
+        rlt::rendering::Bundle<T> bundle;
         float transform[12];
         const float position[3] = {0, 0, 0};
         const float half_angle = 30.0f * 3.14159265f / 180.0f / 2.0f;
         const float orientation_wxyz[4] = {std::cos(half_angle), 0, 0, std::sin(half_angle)};
         rlt::make_transform(position, orientation_wxyz, transform);
-        rlt::add(device, scene, cube, transform);
-        rlt::init(device, renderer, scene);
+        rlt::add(device, bundle.scene, cube, transform);
+        rlt::rendering::datasets::compute_bounds(device, bundle);
+        rlt::init(device, renderer, bundle);
         EXPECT_NEAR(render_center_depth(device, renderer), 5.0f - 2.0f / std::sqrt(3.0f), 1e-3f);
     }
     {
         // uniformly scaled by 0.5: front face at x=-0.5
-        rlt::rendering::raytracing::Scene scene;
+        rlt::rendering::Bundle<T> bundle;
         const float transform[12] = {0.5f,0,0,0, 0,0.5f,0,0, 0,0,0.5f,0};
-        rlt::add(device, scene, cube, transform);
-        rlt::init(device, renderer, scene);
+        rlt::add(device, bundle.scene, cube, transform);
+        rlt::rendering::datasets::compute_bounds(device, bundle);
+        rlt::init(device, renderer, bundle);
         EXPECT_NEAR(render_center_depth(device, renderer), 4.5f, 1e-4f);
     }
 
@@ -261,20 +269,22 @@ TEST(RL_TOOLS_SCENE_SUITE, TWO_INSTANCES_OF_ONE_OBJECT){
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
 
-    rlt::rendering::raytracing::Scene single;
-    rlt::add(device, single, cube);
+    rlt::rendering::Bundle<T> single;
+    rlt::add(device, single.scene, cube);
+    rlt::rendering::datasets::compute_bounds(device, single);
     rlt::init(device, renderer, single);
     std::vector<uint32_t> frame_single;
     render_frame(device, renderer, frame_single);
 
-    rlt::rendering::raytracing::Scene pair = single;
+    rlt::rendering::Bundle<T> pair = single;
     float transform[12];
     const float position[3] = {0, 3, 0};
     const float orientation_wxyz[4] = {1, 0, 0, 0};
     rlt::make_transform(position, orientation_wxyz, transform);
-    rlt::add(device, pair, cube, transform);
-    ASSERT_EQ(pair.objects.size(), (size_t)2);
-    ASSERT_EQ(pair.instances.size(), (size_t)2);
+    rlt::add(device, pair.scene, cube, transform);
+    ASSERT_EQ(pair.scene.objects.size(), (size_t)2);
+    ASSERT_EQ(pair.scene.instances.size(), (size_t)2);
+    rlt::rendering::datasets::compute_bounds(device, pair);
     rlt::init(device, renderer, pair);
     std::vector<uint32_t> frame_pair;
     render_frame(device, renderer, frame_pair);
@@ -311,18 +321,20 @@ TEST(RL_TOOLS_SCENE_SUITE, BAKED_VS_INSTANCED_ORACLE){
     cube.meshes.push_back(cube_mesh);
 
     auto compare_scenes = [&](auto& renderer){
-        rlt::rendering::raytracing::Scene baked;
-        rlt::add(device, baked, baked_mesh);
-        baked.lights.push_back({0, {0,0,0}, {-0.57735f, -0.57735f, 0.57735f}, {0.8f, 0.8f, 0.8f}, 0,0,0, 0,0});
+        rlt::rendering::Bundle<T> baked;
+        rlt::add(device, baked.scene, baked_mesh);
+        baked.scene.lights.push_back({0, {0,0,0}, {-0.57735f, -0.57735f, 0.57735f}, {0.8f, 0.8f, 0.8f}, 0,0,0, 0,0});
+        rlt::rendering::datasets::compute_bounds(device, baked);
         rlt::init(device, renderer, baked);
         std::vector<uint32_t> frame_baked;
         const T camera_position[3] = {-5, 0, 0};
         const T look_at[3] = {0, 0, 0};
         render_pixels(device, renderer, camera_position, look_at, frame_baked);
 
-        rlt::rendering::raytracing::Scene instanced;
-        rlt::add(device, instanced, cube, transform);
-        instanced.lights = baked.lights;
+        rlt::rendering::Bundle<T> instanced;
+        rlt::add(device, instanced.scene, cube, transform);
+        instanced.scene.lights = baked.scene.lights;
+        rlt::rendering::datasets::compute_bounds(device, instanced);
         rlt::init(device, renderer, instanced);
         std::vector<uint32_t> frame_instanced;
         render_pixels(device, renderer, camera_position, look_at, frame_instanced);
@@ -376,14 +388,15 @@ TEST(RL_TOOLS_SCENE_SUITE, OBJECT_LIGHT_FOLLOWS_INSTANCE){
     rlt::generate_probe_directions(device, renderer);
 
     auto side_difference = [&](float lamp_y){
-        rlt::rendering::raytracing::Scene scene;
-        rlt::add(device, scene, floor);
+        rlt::rendering::Bundle<T> bundle;
+        rlt::add(device, bundle.scene, floor);
         float transform[12];
         const float position[3] = {0, lamp_y, 0.2f};
         const float orientation_wxyz[4] = {1, 0, 0, 0};
         rlt::make_transform(position, orientation_wxyz, transform);
-        rlt::add(device, scene, lamp, transform);
-        rlt::init(device, renderer, scene);
+        rlt::add(device, bundle.scene, lamp, transform);
+        rlt::rendering::datasets::compute_bounds(device, bundle);
+        rlt::init(device, renderer, bundle);
 
         const T camera_position[3] = {-6, 0, 4};
         const T look_at[3] = {0, 0, 0};
@@ -441,7 +454,7 @@ TEST(RL_TOOLS_SCENE_SUITE, SPLIT_VS_WELDED){
     const T camera_position[3] = {-2.849f, -8.234f, 1.548f};
     const T look_at[3] = {-2.0f, -8.0f, 1.3f};
 
-    rlt::rendering::raytracing::Scene welded;
+    rlt::rendering::Bundle<T> welded;
     ASSERT_TRUE((rlt::load<typename SPLIT_SPEC::SHADING, SPLIT_SPEC::HAS_RGB>(device, welded, scene_path)));
     rlt::init(device, renderer, welded);
     std::vector<uint32_t> frame_welded;
@@ -450,10 +463,11 @@ TEST(RL_TOOLS_SCENE_SUITE, SPLIT_VS_WELDED){
     rlt::rendering::raytracing::ObjectAssembly assembly;
     ASSERT_TRUE((rlt::load<typename SPLIT_SPEC::SHADING, SPLIT_SPEC::HAS_RGB>(device, assembly, scene_path)));
     EXPECT_EQ(assembly.parts.size(), (size_t)192);
-    rlt::rendering::raytracing::Scene split;
-    const auto placement = rlt::add(device, split, assembly);
+    rlt::rendering::Bundle<T> split;
+    const auto placement = rlt::add(device, split.scene, assembly);
     EXPECT_EQ(placement.first_instance, (size_t)0);
     EXPECT_EQ(placement.num_instances, (size_t)192);
+    rlt::rendering::datasets::compute_bounds(device, split);
     rlt::init(device, renderer, split);
     std::vector<uint32_t> frame_split;
     render_pixels(device, renderer, camera_position, look_at, frame_split);
@@ -498,18 +512,19 @@ TEST(RL_TOOLS_SCENE_SUITE, SEGMENTATION_ANALYTIC){
     rlt::rendering::raytracing::Object cube;
     cube.meshes.push_back(make_cube(0, 1));
 
-    rlt::rendering::raytracing::Scene scene;
-    rlt::add(device, scene, cube); // instance 0 at the origin
+    rlt::rendering::Bundle<T> bundle;
+    rlt::add(device, bundle.scene, cube); // instance 0 at the origin
     float transform[12];
     const float position_offset[3] = {0, 3, 0};
     const float orientation_wxyz[4] = {1, 0, 0, 0};
     rlt::make_transform(position_offset, orientation_wxyz, transform);
-    rlt::add(device, scene, cube, transform); // instance 1 to the left
+    rlt::add(device, bundle.scene, cube, transform); // instance 1 to the left
+    rlt::rendering::datasets::compute_bounds(device, bundle);
 
     rlt::rendering::raytracing::Renderer<SEGMENTATION_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
-    rlt::init(device, renderer, scene);
+    rlt::init(device, renderer, bundle);
 
     const T camera_position[3] = {-5, 0, 0};
     const T look_at[3] = {0, 0, 0};
@@ -544,13 +559,14 @@ TEST(RL_TOOLS_SCENE_SUITE, NORMALS_ANALYTIC){
     DEVICE device;
     rlt::init(device);
 
-    rlt::rendering::raytracing::Scene scene;
-    rlt::add(device, scene, make_cube(0, 1));
+    rlt::rendering::Bundle<T> bundle;
+    rlt::add(device, bundle.scene, make_cube(0, 1));
+    rlt::rendering::datasets::compute_bounds(device, bundle);
 
     rlt::rendering::raytracing::Renderer<NORMALS_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
-    rlt::init(device, renderer, scene);
+    rlt::init(device, renderer, bundle);
 
     const T camera_position[3] = {-5, 0, 0};
     const T look_at[3] = {0, 0, 0};
@@ -608,13 +624,14 @@ TEST(RL_TOOLS_SCENE_SUITE, FLOW_ANALYTIC){
     DEVICE device;
     rlt::init(device);
 
-    rlt::rendering::raytracing::Scene scene;
-    rlt::add(device, scene, make_cube(0, 1));
+    rlt::rendering::Bundle<T> bundle;
+    rlt::add(device, bundle.scene, make_cube(0, 1));
+    rlt::rendering::datasets::compute_bounds(device, bundle);
 
     rlt::rendering::raytracing::Renderer<FLOW_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
-    rlt::init(device, renderer, scene);
+    rlt::init(device, renderer, bundle);
 
     const T position[3] = {-5, 0, 0};
     const T look_at[3] = {0, 0, 0};
@@ -666,15 +683,16 @@ TEST(RL_TOOLS_SCENE_SUITE, FLOW_OVERLAY_ANALYTIC){
     DEVICE device;
     rlt::init(device);
 
-    rlt::rendering::raytracing::Scene scene;
-    rlt::add(device, scene, make_cube(0, 1)); // background: front face at x = -1
+    rlt::rendering::Bundle<T> bundle;
+    rlt::add(device, bundle.scene, make_cube(0, 1)); // background: front face at x = -1
+    rlt::rendering::datasets::compute_bounds(device, bundle);
     rlt::rendering::raytracing::AssetPool pool;
     const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
 
     rlt::rendering::raytracing::Renderer<FLOW_OVERLAY_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
-    rlt::init(device, renderer, scene, pool);
+    rlt::init(device, renderer, bundle, pool);
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
 
     const float orientation_wxyz[4] = {1, 0, 0, 0};
@@ -724,15 +742,16 @@ TEST(RL_TOOLS_SCENE_SUITE, FLOW_OVERLAY_PAIR_PRODUCER){
     DEVICE device;
     rlt::init(device);
 
-    rlt::rendering::raytracing::Scene scene;
-    rlt::add(device, scene, make_cube(0, 1)); // background: front face at x = -1
+    rlt::rendering::Bundle<T> bundle;
+    rlt::add(device, bundle.scene, make_cube(0, 1)); // background: front face at x = -1
+    rlt::rendering::datasets::compute_bounds(device, bundle);
     rlt::rendering::raytracing::AssetPool pool;
     const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
 
     rlt::rendering::raytracing::Renderer<FLOW_OVERLAY_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
-    rlt::init(device, renderer, scene, pool);
+    rlt::init(device, renderer, bundle, pool);
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
 
     const float orientation_wxyz[4] = {1, 0, 0, 0};
@@ -811,13 +830,14 @@ TEST(RL_TOOLS_SCENE_SUITE, ASSEMBLY_COMPOSE){
         assembly.parts.push_back(part);
     }
 
-    rlt::rendering::raytracing::Scene scene;
-    const auto placement_a = rlt::add(device, scene, assembly);
+    rlt::rendering::Bundle<T> bundle;
+    const auto placement_a = rlt::add(device, bundle.scene, assembly);
     float pose[12];
     const float position_b[3] = {2, -4, 0};
     const float orientation_wxyz[4] = {1, 0, 0, 0};
     rlt::make_transform(position_b, orientation_wxyz, pose);
-    const auto placement_b = rlt::add(device, scene, assembly, pose);
+    const auto placement_b = rlt::add(device, bundle.scene, assembly, pose);
+    rlt::rendering::datasets::compute_bounds(device, bundle);
 
     EXPECT_EQ(placement_a.first_instance, (size_t)0);
     EXPECT_EQ(placement_a.num_instances, (size_t)2);
@@ -827,7 +847,7 @@ TEST(RL_TOOLS_SCENE_SUITE, ASSEMBLY_COMPOSE){
     rlt::rendering::raytracing::Renderer<SEGMENTATION_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
-    rlt::init(device, renderer, scene);
+    rlt::init(device, renderer, bundle);
 
     const T camera_position[3] = {-8, 0, 0};
     const T look_at[3] = {0, 0, 0};
@@ -877,9 +897,10 @@ TEST(RL_TOOLS_SCENE_SUITE, ASSEMBLY_STATIC_ARTICULATION){
         rlt::rendering::raytracing::detail::compose_transforms(articulated.parts[0].transform, spin, composed);
         std::memcpy(articulated.parts[0].transform, composed, sizeof(composed));
 
-        rlt::rendering::raytracing::Scene scene;
-        rlt::add(device, scene, articulated);
-        rlt::init(device, renderer, scene);
+        rlt::rendering::Bundle<T> bundle;
+        rlt::add(device, bundle.scene, articulated);
+        rlt::rendering::datasets::compute_bounds(device, bundle);
+        rlt::init(device, renderer, bundle);
         return render_center_depth(device, renderer);
     };
 
@@ -903,11 +924,12 @@ namespace {
         write_cameras(device, renderer, staging.data());
     }
 
-    rlt::rendering::raytracing::Scene make_far_anchor_scene(DEVICE& device){
-        // out-of-view geometry: establishes bounds (camera_radius, max_dist) without appearing
-        rlt::rendering::raytracing::Scene scene;
-        rlt::add(device, scene, make_cube(100, 30));
-        return scene;
+    rlt::rendering::Bundle<T> make_far_anchor_bundle(DEVICE& device){
+        // out-of-view geometry: establishes bounds (max_ray_length, max_dist) without appearing
+        rlt::rendering::Bundle<T> bundle;
+        rlt::add(device, bundle.scene, make_cube(100, 30));
+        rlt::rendering::datasets::compute_bounds(device, bundle);
+        return bundle;
     }
 }
 
@@ -924,8 +946,10 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_ATTACHMENT_SCOPES){
     DEVICE device;
     rlt::init(device);
 
-    rlt::rendering::raytracing::Scene scene;
+    rlt::rendering::Bundle<T> bundle;
+    auto& scene = bundle.scene;
     rlt::add(device, scene, make_cube(0, 1)); // shared world: global instance id 0
+    rlt::rendering::datasets::compute_bounds(device, bundle);
     rlt::rendering::raytracing::AssetPool pool;
     const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
     pool.assemblies[cube_asset.index].objects[0].name = "overlay-cube";
@@ -933,7 +957,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_ATTACHMENT_SCOPES){
     rlt::rendering::raytracing::Renderer<OVERLAY_SEG_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
-    rlt::init(device, renderer, scene, pool);
+    rlt::init(device, renderer, bundle, pool);
 
     EXPECT_TRUE(rlt::can_attach(device, renderer, (TI)0, OverlayIndex{0}));
     EXPECT_FALSE(rlt::can_attach(device, renderer, (TI)0, OverlayIndex{5})); // out of range
@@ -1013,9 +1037,11 @@ TEST(RL_TOOLS_SCENE_SUITE, SEMANTIC_SEGMENTATION){
     DEVICE device;
     rlt::init(device);
 
-    rlt::rendering::raytracing::Scene scene;
+    rlt::rendering::Bundle<T> bundle;
+    auto& scene = bundle.scene;
     rlt::add(device, scene, make_cube(0, 1)); // instance id 0
     scene.objects[0].segmentation_class = 7;
+    rlt::rendering::datasets::compute_bounds(device, bundle);
     rlt::rendering::raytracing::AssetPool pool;
     const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
     pool.assemblies[cube_asset.index].objects[0].segmentation_class = 3;
@@ -1023,7 +1049,7 @@ TEST(RL_TOOLS_SCENE_SUITE, SEMANTIC_SEGMENTATION){
     rlt::rendering::raytracing::Renderer<SEMANTIC_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
-    rlt::init(device, renderer, scene, pool);
+    rlt::init(device, renderer, bundle, pool);
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
 
     float transform[12];
@@ -1080,14 +1106,14 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SPIN_DYNAMIC){
         blade_assembly.parts.push_back({0, {1,0,0,0, 0,1,0,0, 0,0,1,0}});
     }
 
-    auto scene = make_far_anchor_scene(device);
+    auto bundle = make_far_anchor_bundle(device);
     rlt::rendering::raytracing::AssetPool pool;
     const auto blade_asset = rlt::add(device, pool, blade_assembly);
 
     rlt::rendering::raytracing::Renderer<OVERLAY_DEPTH_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
-    rlt::init(device, renderer, scene, pool);
+    rlt::init(device, renderer, bundle, pool);
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
 
     const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
@@ -1130,14 +1156,14 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_TRANSFORMS_TENSOR){
     DEVICE device;
     rlt::init(device);
 
-    auto scene = make_far_anchor_scene(device);
+    auto bundle = make_far_anchor_bundle(device);
     rlt::rendering::raytracing::AssetPool pool;
     const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
 
     rlt::rendering::raytracing::Renderer<OVERLAY_DEPTH_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
-    rlt::init(device, renderer, scene, pool);
+    rlt::init(device, renderer, bundle, pool);
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
 
     const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
@@ -1217,14 +1243,14 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_DEPTH){
         blade_assembly.parts.push_back({0, {1,0,0,0, 0,1,0,0, 0,0,1,0}});
     }
 
-    auto scene = make_far_anchor_scene(device);
+    auto bundle = make_far_anchor_bundle(device);
     rlt::rendering::raytracing::AssetPool pool;
     const auto blade_asset = rlt::add(device, pool, blade_assembly);
 
     rlt::rendering::raytracing::Renderer<DYNAMIC_MB_DEPTH_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
-    rlt::init(device, renderer, scene, pool);
+    rlt::init(device, renderer, bundle, pool);
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
 
     const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
@@ -1290,14 +1316,14 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_TRANSFORMS_TENSOR){
     DEVICE device;
     rlt::init(device);
 
-    auto scene = make_far_anchor_scene(device);
+    auto bundle = make_far_anchor_bundle(device);
     rlt::rendering::raytracing::AssetPool pool;
     const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
 
     rlt::rendering::raytracing::Renderer<DYNAMIC_MB_DEPTH_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
-    rlt::init(device, renderer, scene, pool);
+    rlt::init(device, renderer, bundle, pool);
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
 
     const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
@@ -1333,7 +1359,7 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_STATIC_EQUIVALENCE){
     DEVICE device;
     rlt::init(device);
 
-    auto scene = make_far_anchor_scene(device);
+    auto bundle = make_far_anchor_bundle(device);
     rlt::rendering::raytracing::AssetPool pool;
     const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
 
@@ -1343,8 +1369,8 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_STATIC_EQUIVALENCE){
     rlt::malloc(device, renderer_plain);
     rlt::generate_probe_directions(device, renderer_dynamic);
     rlt::generate_probe_directions(device, renderer_plain);
-    rlt::init(device, renderer_dynamic, scene, pool);
-    rlt::init(device, renderer_plain, scene, pool);
+    rlt::init(device, renderer_dynamic, bundle, pool);
+    rlt::init(device, renderer_plain, bundle, pool);
 
     float spun[12];
     spin_transform(0.7f, spun);
@@ -1374,14 +1400,14 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_PAIR_EXPANSION){
     DEVICE device;
     rlt::init(device);
 
-    auto scene = make_far_anchor_scene(device);
+    auto bundle = make_far_anchor_bundle(device);
     rlt::rendering::raytracing::AssetPool pool;
     const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
 
     rlt::rendering::raytracing::Renderer<DYNAMIC_MB_DEPTH_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
-    rlt::init(device, renderer, scene, pool);
+    rlt::init(device, renderer, bundle, pool);
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
 
     const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
@@ -1454,15 +1480,15 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_SEGMENTATION_CLOSE){
     DEVICE device;
     rlt::init(device);
 
-    auto scene = make_far_anchor_scene(device);
-    const uint32_t num_scene_instances = (uint32_t)scene.instances.size();
+    auto bundle = make_far_anchor_bundle(device);
+    const uint32_t num_scene_instances = (uint32_t)bundle.scene.instances.size();
     rlt::rendering::raytracing::AssetPool pool;
     const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
 
     rlt::rendering::raytracing::Renderer<DYNAMIC_MB_SEG_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
-    rlt::init(device, renderer, scene, pool);
+    rlt::init(device, renderer, bundle, pool);
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
 
     const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
@@ -1509,25 +1535,26 @@ TEST(RL_TOOLS_SCENE_SUITE, LOAD_ASSERTS_EMPTY){
     if(!std::filesystem::exists(scene_file)){
         GTEST_SKIP() << "scene file not available";
     }
-    rlt::rendering::raytracing::Scene scene;
-    ASSERT_TRUE(rlt::load(device, scene, scene_file));
-    EXPECT_EQ(scene.objects.size(), (size_t)1);
-    EXPECT_DEATH((void)rlt::load(device, scene, scene_file), "");
-    ASSERT_TRUE(rlt::add(device, scene, scene_file)); // composition is explicit
-    EXPECT_EQ(scene.objects.size(), (size_t)2);
+    rlt::rendering::Bundle<T> bundle;
+    ASSERT_TRUE(rlt::load(device, bundle, scene_file));
+    EXPECT_EQ(bundle.scene.objects.size(), (size_t)1);
+    EXPECT_DEATH((void)rlt::load(device, bundle, scene_file), "");
+    ASSERT_TRUE(rlt::add(device, bundle, scene_file)); // composition is explicit
+    EXPECT_EQ(bundle.scene.objects.size(), (size_t)2);
 }
 
 TEST(RL_TOOLS_SCENE_SUITE, CAMERAS_TENSOR){
     DEVICE device;
     rlt::init(device);
 
-    rlt::rendering::raytracing::Scene scene;
-    rlt::add(device, scene, make_cube(0, 1));
+    rlt::rendering::Bundle<T> bundle;
+    rlt::add(device, bundle.scene, make_cube(0, 1));
+    rlt::rendering::datasets::compute_bounds(device, bundle);
 
     rlt::rendering::raytracing::Renderer<DEPTH_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
-    rlt::init(device, renderer, scene);
+    rlt::init(device, renderer, bundle);
 
     // two successive writes through the cameras() accessor: each launch must consume the
     // latest tensor contents (no camera state cached at init or across renders)
@@ -1557,7 +1584,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SPAWN_DESPAWN){
     DEVICE device;
     rlt::init(device);
 
-    auto scene = make_far_anchor_scene(device);
+    auto bundle = make_far_anchor_bundle(device);
     rlt::rendering::raytracing::AssetPool pool;
     rlt::rendering::raytracing::Mesh overlay_cube = make_cube(0, 0.4f);
     overlay_cube.color[0] = 1.0f; overlay_cube.color[1] = 0.2f; overlay_cube.color[2] = 0.1f; // distinct from the anchor
@@ -1566,7 +1593,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SPAWN_DESPAWN){
     rlt::rendering::raytracing::Renderer<OVERLAY_RGB_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
-    rlt::init(device, renderer, scene, pool);
+    rlt::init(device, renderer, bundle, pool);
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
 
     rlt::rendering::raytracing::OverlayPlacement placements[8];
@@ -1617,7 +1644,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SECONDARY_RAYS){
     DEVICE device;
     rlt::init(device);
 
-    rlt::rendering::raytracing::Scene scene;
+    rlt::rendering::Bundle<T> bundle;
     {
         rlt::rendering::raytracing::Mesh floor;
         floor.color[0] = 1; floor.color[1] = 1; floor.color[2] = 1;
@@ -1625,8 +1652,9 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SECONDARY_RAYS){
         const int floor_indices[2 * 3] = {0, 1, 2,  0, 2, 3};
         floor.vertices.assign(floor_vertices, floor_vertices + 12);
         floor.indices.assign(floor_indices, floor_indices + 6);
-        rlt::add(device, scene, floor);
-        scene.lights.push_back({1, {0, 0, 6}, {0, 0, -1}, {30, 30, 30}, 1, 0, 1, 0, 0}); // point light above
+        rlt::add(device, bundle.scene, floor);
+        bundle.scene.lights.push_back({1, {0, 0, 6}, {0, 0, -1}, {30, 30, 30}, 1, 0, 1, 0, 0}); // point light above
+        rlt::rendering::datasets::compute_bounds(device, bundle);
     }
     rlt::rendering::raytracing::AssetPool pool;
     const auto cube_asset = rlt::add(device, pool, make_cube(0, 0.8f));
@@ -1634,7 +1662,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SECONDARY_RAYS){
     rlt::rendering::raytracing::Renderer<OVERLAY_PBR_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
-    rlt::init(device, renderer, scene, pool);
+    rlt::init(device, renderer, bundle, pool);
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0}); // camera 0 sees the overlay cube, camera 1 does not
 
     float transform[12];
@@ -1675,14 +1703,14 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_PROBES){
     DEVICE device;
     rlt::init(device);
 
-    auto scene = make_far_anchor_scene(device);
+    auto bundle = make_far_anchor_bundle(device);
     rlt::rendering::raytracing::AssetPool pool;
     const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
 
     rlt::rendering::raytracing::Renderer<OVERLAY_PROBE_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
-    rlt::init(device, renderer, scene, pool);
+    rlt::init(device, renderer, bundle, pool);
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0}); // only camera 0 senses the overlay
 
     float transform[12];
@@ -1720,14 +1748,14 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_UPDATE_COST_SMOKE){
     DEVICE device;
     rlt::init(device);
 
-    auto scene = make_far_anchor_scene(device);
+    auto bundle = make_far_anchor_bundle(device);
     rlt::rendering::raytracing::AssetPool pool;
     const auto cube_asset = rlt::add(device, pool, make_cube(0, 0.3f));
 
     rlt::rendering::raytracing::Renderer<OVERLAY_MANY_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
-    rlt::init(device, renderer, scene, pool);
+    rlt::init(device, renderer, bundle, pool);
 
     rlt::rendering::raytracing::OverlayPlacement placements[64][8];
     for(TI overlay = 0; overlay < 64; overlay++){

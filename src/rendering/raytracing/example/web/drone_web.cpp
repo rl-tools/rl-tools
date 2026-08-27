@@ -2,6 +2,7 @@
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rl/environments/l2f/multirotor.h>
 
 #include <emscripten.h>
@@ -123,8 +124,8 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
     rlt::init(device);
 
     status("Parsing scene ...");
-    rlt::rendering::raytracing::Scene scene;
-    if (!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, scene_path)) {
+    rlt::rendering::Bundle<T> bundle;
+    if (!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, scene_path)) {
         status("Failed to load the scene GLB");
         return 1;
     }
@@ -177,7 +178,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
     status("Building BVH and uploading to the GPU ...");
     Renderer renderer;
     rlt::malloc(device, renderer);
-    rlt::init(device, renderer, scene, pool);
+    rlt::init(device, renderer, bundle, pool);
     rlt::attach(device, renderer, ONBOARD_CAMERA, rlt::rendering::raytracing::OverlayIndex{0});
     rlt::attach(device, renderer, THIRD_PERSON_CAMERA, rlt::rendering::raytracing::OverlayIndex{0});
 

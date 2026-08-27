@@ -1,5 +1,6 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/raytracing/save_cpu.h>
 
 #include <cmath>
@@ -60,14 +61,14 @@ int main(int argc, char** argv){
     Renderer renderer;
     rlt::malloc(device, renderer);
 
-    rlt::rendering::raytracing::Scene scene;
-    if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, scene_path)){
+    rlt::rendering::Bundle<T> bundle;
+    if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, scene_path)){
         std::cerr << "Failed to load scene: " << scene_path << std::endl;
         rlt::free(device, renderer);
         return 1;
     }
     constexpr T LIGHT_INTENSITY_SCALE = 6;
-    for(auto& light : scene.lights){
+    for(auto& light : bundle.scene.lights){
         for(TI channel_i = 0; channel_i < 3; channel_i++){
             light.color[channel_i] *= LIGHT_INTENSITY_SCALE;
         }
@@ -86,7 +87,7 @@ int main(int argc, char** argv){
         drone_assets[drone_i] = rlt::add(device, pool, assembly);
     }
 
-    rlt::init(device, renderer, scene, pool);
+    rlt::init(device, renderer, bundle, pool);
 
     // drones A and B face each other across the living room (FLU frame) with a clear sight
     // line; the shared drone hovers off to the side of that line. Each camera aims straight at

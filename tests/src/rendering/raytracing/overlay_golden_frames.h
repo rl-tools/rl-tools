@@ -81,7 +81,7 @@ namespace overlay_goldens {
         frame.normals.resize(count);
         golden::colorize_normals(normals_raw.data(), count, frame.normals.data());
         golden::copy_out(renderer.device, device, rl_tools::flow_buffer(device, renderer), frame.flow);
-        frame.max_depth = renderer.camera_radius > 0 ? renderer.camera_radius * 2.0f : 1e30f;
+        frame.max_depth = renderer.max_ray_length > 0 ? renderer.max_ray_length : 1e30f;
         return frame;
     }
 

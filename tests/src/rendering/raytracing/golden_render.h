@@ -4,6 +4,8 @@
 #include "golden_cases.h"
 #include "render_copy.h"
 
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
+
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -21,7 +23,6 @@ namespace golden {
         std::vector<rl_tools::rendering::raytracing::CollisionResult> probes;
         size_t num_instances = 0;
         T max_depth = 0;
-        T camera_radius = 0;
     };
 
     // T_CAMERA_MOTION distinguishes the combined case (moving camera + moving overlay) from the
@@ -35,7 +36,7 @@ namespace golden {
         out = {};
         Renderer renderer;
         rl_tools::malloc(device, renderer);
-        rl_tools::rendering::raytracing::Scene scene;
+        rl_tools::rendering::Bundle<T> bundle;
         // segmentation is per-instance, so segmentation-capable cases load the scene as one
         // instance per GLB root node (ids pinned by node order) instead of the welded single
         // object the RGB cases use — welded, everything reports instance 0
@@ -45,13 +46,14 @@ namespace golden {
                 rl_tools::free(device, renderer);
                 return false;
             }
-            rl_tools::add(device, scene, assembly);
+            rl_tools::add(device, bundle.scene, assembly);
+            rl_tools::rendering::datasets::compute_bounds(device, bundle);
         }
-        else if(!rl_tools::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, scene_path)) {
+        else if(!rl_tools::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, scene_path)) {
             rl_tools::free(device, renderer);
             return false;
         }
-        out.num_instances = scene.instances.size();
+        out.num_instances = bundle.scene.instances.size();
         rl_tools::rendering::raytracing::AssetPool pool;
         if constexpr(SPEC::ENABLE_OVERLAYS) {
             rl_tools::rendering::raytracing::Mesh mesh;
@@ -69,10 +71,10 @@ namespace golden {
                 }
             }
             rl_tools::add(device, pool, mesh);
-            rl_tools::init(device, renderer, scene, pool);
+            rl_tools::init(device, renderer, bundle, pool);
         }
         else {
-            rl_tools::init(device, renderer, scene);
+            rl_tools::init(device, renderer, bundle);
         }
 
         constexpr T aspect = (T)SPEC::CAM_WIDTH / (T)SPEC::CAM_HEIGHT;
@@ -139,8 +141,7 @@ namespace golden {
         if(rl_tools::data(renderer.collision_results) != nullptr) {
             copy_out(renderer.device, device, rl_tools::collision_results(device, renderer), out.probes);
         }
-        out.max_depth = renderer.camera_radius > 0 ? renderer.camera_radius * T{2} : static_cast<T>(1e30);
-        out.camera_radius = renderer.camera_radius;
+        out.max_depth = renderer.max_ray_length > 0 ? renderer.max_ray_length : static_cast<T>(1e30);
 
         rl_tools::free(device, renderer);
         return true;

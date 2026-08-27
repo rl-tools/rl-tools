@@ -4,8 +4,9 @@
 #include "environment.h"
 
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
-#include <rl_tools/rendering/raytracing/scene/procthor/scene.h>
-#include <rl_tools/rendering/raytracing/scene/procthor/operations_cpu.h>
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
+#include <rl_tools/rendering/datasets/procthor/procthor.h>
+#include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
 
 #include <cmath>
 #include <string>
@@ -15,21 +16,21 @@ namespace rl_tools {
     RL_TOOLS_FUNCTION_PLACEMENT void precompute_indoor_initial_states(DEVICE& device, rl::environments::raytracing_example::Environment<SPEC>& env) {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        using SCENE_SPEC = rendering::raytracing::scene::SceneSpecification<T, TI>;
-        rendering::raytracing::scene::procthor::Scene<SCENE_SPEC> scene;
+        using ANNOTATIONS_SPEC = rendering::datasets::procthor::AnnotationsSpecification<T, TI>;
+        rendering::datasets::procthor::Annotations<ANNOTATIONS_SPEC> annotations;
         T fov = SPEC::FOV;
         T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
-        rendering::raytracing::scene::procthor::precompute_indoor_positions(device, scene, *env.renderer, fov, aspect);
-        TI take_n = std::min(scene.num_indoor_positions, rl::environments::raytracing_example::Environment<SPEC>::NUM_INITIAL_STATES);
+        rendering::datasets::procthor::annotate(device, annotations, env.bundle->metadata, *env.renderer, fov, aspect);
+        TI take_n = std::min(annotations.num_indoor_positions, rl::environments::raytracing_example::Environment<SPEC>::NUM_INITIAL_STATES);
         for(TI i = 0; i < take_n; i++){
             auto& s = env.indoor_initial_states[i];
-            s.position[0] = scene.indoor_positions[i].position[0];
-            s.position[1] = scene.indoor_positions[i].position[1];
-            s.position[2] = scene.indoor_positions[i].position[2];
+            s.position[0] = annotations.indoor_positions[i].position[0];
+            s.position[1] = annotations.indoor_positions[i].position[1];
+            s.position[2] = annotations.indoor_positions[i].position[2];
             s.velocity[0] = static_cast<T>(0);
             s.velocity[1] = static_cast<T>(0);
             s.velocity[2] = static_cast<T>(0);
-            s.yaw = scene.indoor_positions[i].yaw;
+            s.yaw = annotations.indoor_positions[i].yaw;
         }
         env.num_indoor_initial_states = take_n;
     }
@@ -42,9 +43,9 @@ namespace rl_tools {
             malloc(device, *env.renderer);
             malloc(device, env.camera_staging);
         }
-        if (env.scene == nullptr) {
-            env.scene = new rendering::raytracing::Scene{};
-            env.owns_scene = true;
+        if (env.bundle == nullptr) {
+            env.bundle = new rendering::Bundle<typename SPEC::T>{};
+            env.owns_bundle = true;
         }
     }
 
@@ -59,12 +60,12 @@ namespace rl_tools {
             env.renderer = nullptr;
             env.owns_renderer = false;
         }
-        if (env.scene != nullptr) {
-            if (env.owns_scene) {
-                delete env.scene;
+        if (env.bundle != nullptr) {
+            if (env.owns_bundle) {
+                delete env.bundle;
             }
-            env.scene = nullptr;
-            env.owns_scene = false;
+            env.bundle = nullptr;
+            env.owns_bundle = false;
         }
     }
 
@@ -76,19 +77,20 @@ namespace rl_tools {
             rendering::raytracing::ObjectAssembly assembly;
             loaded = load<typename SPEC::RAYTRACING_SPEC::SHADING, SPEC::RAYTRACING_SPEC::HAS_RGB>(device, assembly, std::string(env.scene_path));
             if(loaded){
-                add(device, *env.scene, assembly);
+                add(device, env.bundle->scene, assembly);
+                rendering::datasets::compute_bounds(device, *env.bundle);
             }
         }
         else {
-            loaded = load<typename SPEC::RAYTRACING_SPEC::SHADING, SPEC::RAYTRACING_SPEC::HAS_RGB>(device, *env.scene, std::string(env.scene_path));
+            loaded = load<typename SPEC::RAYTRACING_SPEC::SHADING, SPEC::RAYTRACING_SPEC::HAS_RGB>(device, *env.bundle, std::string(env.scene_path));
         }
         utils::assert_exit(device, loaded, "raytracing_example::init: failed to load scene");
 
-        init(device, *env.renderer, *env.scene);
+        init(device, *env.renderer, *env.bundle);
         {
             using T = typename SPEC::T;
             const T up[3] = {0, 0, 1};
-            generate_cameras(device, *env.renderer, env.renderer->scene_center, env.renderer->camera_radius, up, SPEC::FOV);
+            generate_cameras(device, *env.renderer, env.bundle->metadata.center, (env.bundle->metadata.max_ray_length / 2), up, SPEC::FOV);
         }
         generate_probe_directions(device, *env.renderer);
         precompute_indoor_initial_states(device, env);

@@ -9,7 +9,7 @@
 
 #include <rl_tools/rl/environments/l2f/operations_generic.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
-#include <rl_tools/rendering/raytracing/scene/procthor/operations_cpu.h>
+#include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
 
 #include <array>
 #include <cmath>
@@ -33,7 +33,7 @@ namespace rl_tools {
         free(device, env.dynamics);
         free(device, env.camera_staging);
         env.renderer = nullptr;
-        env.scene = nullptr;
+        env.annotations = nullptr;
     }
 
     template <typename DEVICE, typename SPEC>
@@ -51,7 +51,7 @@ namespace rl_tools {
             return;
         }
 
-        auto indoor_pos = rendering::raytracing::scene::procthor::sample_indoor_position(device, *env.scene, rng);
+        auto indoor_pos = rendering::datasets::procthor::sample_free_position(device, *env.annotations, rng);
         sample_initial_state(device, env.dynamics, parameters.dynamics, state, rng);
 
         state.position[0] = indoor_pos.position[0];

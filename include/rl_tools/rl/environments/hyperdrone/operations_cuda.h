@@ -41,14 +41,14 @@ namespace rl_tools{
             }
         }
         template <typename DEVICE, typename SPEC, typename SCENE_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC, typename RNG>
-        __global__ void sample_initial_state_kernel(DEVICE device, typename World<SPEC>::DYNAMICS_ENV dynamics, Tensor<SCENE_SPEC> active_scene, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, const Tensor<RESET_SPEC> reset_mask, RNG rng){
+        __global__ void sample_initial_state_kernel(DEVICE device, typename World<SPEC>::DYNAMICS_ENV dynamics, Tensor<SCENE_SPEC> active_annotations, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, const Tensor<RESET_SPEC> reset_mask, RNG rng){
             using TI = typename DEVICE::index_t;
             constexpr TI INSTANCES = World<SPEC>::INSTANCES;
             static_assert(RNG::NUM_RNGS >= INSTANCES, "Please increase the number of CUDA RNGs");
             TI instance_i = threadIdx.x + blockIdx.x * blockDim.x;
             if(instance_i < INSTANCES && get(device, reset_mask, instance_i)){
                 auto& rng_state = get(rng.states, 0, instance_i);
-                _sample_initial_state<DEVICE, SPEC>(device, dynamics, get_ref(device, active_scene, 0), get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), rng_state);
+                _sample_initial_state<DEVICE, SPEC>(device, dynamics, get_ref(device, active_annotations, 0), get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), rng_state);
             }
         }
         template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
@@ -221,7 +221,7 @@ namespace rl_tools{
         constexpr TI BLOCKSIZE = 32;
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES, BLOCKSIZE);
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        rl::environments::hyperdrone::cuda::sample_initial_state_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, world.active_scene, parameters, states, reset_mask, rng);
+        rl::environments::hyperdrone::cuda::sample_initial_state_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, world.active_annotations, parameters, states, reset_mask, rng);
         check_status(device);
     }
     template <typename DEV_SPEC, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
