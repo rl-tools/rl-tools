@@ -159,7 +159,7 @@ const server = http.createServer((req, res) => {
         }
         
         // Download and verify
-        const url = `https://rl-tools.github.io/conta-data/data/${sha1Hash}`;
+        const url = `https://huggingface.co/datasets/rl-tools/conta/resolve/main/data/${sha1Hash}`;
         console.log(`Downloading ${url}`);
         
         downloadFile(url, cacheFile).then(result => {
