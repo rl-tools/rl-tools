@@ -1,5 +1,6 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/backends/optix/operations_cuda.h>
+#include <rl_tools/rendering/raytracing/save_cpu.h>
 
 #include "overlay_golden_frames.h"
 #include "overlay_golden_manifest.h"

@@ -5,6 +5,7 @@
 #else
 #include <rl_tools/rendering/raytracing/backends/generic/operations_cpu.h>
 #endif
+#include <rl_tools/rendering/raytracing/save_cpu.h>
 
 #include "overlay_golden_frames.h"
 #include "../../utils/utils.h"

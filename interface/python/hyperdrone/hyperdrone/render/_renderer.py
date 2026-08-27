@@ -1,13 +1,11 @@
-import math
-
 import numpy as np
 
+from . import _io
 from ._component import ensure_renderer_library, load_core
 from ._config import (
     OUTPUT_MODE,
     RENDER_PHASE,
     RENDER_TARGET,
-    SAVE_TARGET,
     FIDELITY,
     RendererConfig,
 )
@@ -139,7 +137,8 @@ class Renderer:
         self._renderer.init(scene, asset_pool)
         return self
 
-    def camera(self, position, look_at, up=(0.0, 0.0, 1.0), fov=math.radians(60.0)):
+    def camera(self, position, look_at, up=(0.0, 0.0, 1.0), fov=60.0):
+        """Camera ray-gen base for set_cameras; fov is in degrees."""
         core = load_core()
         return core.make_camera(tuple(position), tuple(look_at), tuple(up), float(fov), self.aspect)
 
@@ -161,7 +160,7 @@ class Renderer:
             _as_cameras(cameras_close, self.num_cameras),
         )
 
-    def generate_cameras(self, center=None, radius=None, up=(0.0, 0.0, 1.0), fov=math.radians(60.0)):
+    def generate_cameras(self, center=None, radius=None, up=(0.0, 0.0, 1.0), fov=60.0):
         bounds = self.scene_bounds
         if center is None:
             center = bounds["center"]
@@ -252,19 +251,19 @@ class Renderer:
         return self._renderer.depthbuffer_device_ptr()
 
     def save_image(self, path):
-        self._renderer.save(SAVE_TARGET["image"], str(path))
+        _io.save_image(self, path)
 
     def save_depth_image(self, path):
-        self._renderer.save(SAVE_TARGET["depth_image"], str(path))
+        _io.save_depth_image(self, path)
 
     def save_depth_raw(self, path):
-        self._renderer.save(SAVE_TARGET["depth_raw"], str(path))
+        _io.save_depth_raw(self, path)
 
     def save_segmentation_image(self, path):
-        self._renderer.save(SAVE_TARGET["segmentation_image"], str(path))
+        _io.save_segmentation_image(self, path)
 
     def save_probes(self, path):
-        self._renderer.save(SAVE_TARGET["probes"], str(path))
+        _io.save_probes(self, path)
 
     def can_attach(self, camera, overlay):
         return self._renderer.can_attach(camera, overlay)

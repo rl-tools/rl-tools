@@ -549,7 +549,9 @@ namespace hyperdrone_dynamics_impl {
             return buffer_observations;
         }
 
-        void update_camera_bases(const float mount[12], float fov, float aspect) override {
+        void update_camera_bases(const float mount[12], float fov_degrees, float aspect) override {
+            // same double-precision conversion as rendering::raytracing::degrees_to_radians
+            const float fov = (float)((double)fov_degrees * 0.017453292519943295);
             const float scale = 2.0f * std::tan(fov / 2.0f);
 #if defined(HYPERDRONE_DYNAMICS_CUDA)
             cudaMemcpyAsync(device_mount, mount, 12 * sizeof(float), cudaMemcpyHostToDevice, cuda_stream);
