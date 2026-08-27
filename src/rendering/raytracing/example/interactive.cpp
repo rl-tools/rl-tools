@@ -16,6 +16,8 @@
 
 #include <GLFW/glfw3.h>
 
+#include <conta/conta.h>
+
 #include <iostream>
 #include <fstream>
 #include <algorithm>
@@ -263,7 +265,7 @@ struct RecordedCameraPose {
 
 static void print_usage(const char* argv0) {
     std::cerr << "Usage: " << argv0 << " [conta:HASH | scene.glb] [--record-camera-pose trace.json] [--linear-velocity m/s]" << std::endl;
-    std::cerr << "  Or set CONTA_ROOT to use the default scene" << std::endl;
+    std::cerr << "  Without arguments the default scene is fetched via conta (downloaded into the cache if required)" << std::endl;
 }
 
 static bool parse_float_arg(const std::string& value, float& out) {
@@ -590,26 +592,21 @@ int main(int argc, char** argv) {
 
     static constexpr char DEFAULT_CONTA_HASH[] = "7f1c9129532798e0b63bc41edb6b4c09251cf8a0";
     std::string resolved_scene_path;
+    std::string conta_error;
     if (!options.scene_arg.empty()) {
         const char* scene_arg = options.scene_arg.c_str();
         if (std::strncmp(scene_arg, "conta:", 6) == 0) {
-            const char* hash_str = scene_arg + 6;
-            const char* conta_root = std::getenv("CONTA_ROOT");
-            if (!conta_root) {
-                std::cerr << "CONTA_ROOT environment variable is not set" << std::endl;
+            if (!conta::resolve(options.scene_arg.substr(6), resolved_scene_path, conta_error)) {
+                std::cerr << conta_error << std::endl;
                 return 1;
             }
-            resolved_scene_path = std::string(conta_root) + "/data/" + hash_str;
         } else {
             resolved_scene_path = scene_arg;
         }
     } else {
-        const char* conta_root = std::getenv("CONTA_ROOT");
-        if (conta_root) {
-            resolved_scene_path = std::string(conta_root) + "/data/" + DEFAULT_CONTA_HASH;
-            std::cout << "No scene argument given, using default: conta:" << DEFAULT_CONTA_HASH << std::endl;
-        } else {
-            print_usage(argv[0]);
+        std::cout << "No scene argument given, using default: conta:" << DEFAULT_CONTA_HASH << std::endl;
+        if (!conta::resolve(DEFAULT_CONTA_HASH, resolved_scene_path, conta_error)) {
+            std::cerr << conta_error << std::endl;
             return 1;
         }
     }

@@ -64,8 +64,8 @@ static constexpr TI TOTAL_OUTPUT_ELEMENTS = BATCH_SIZE * OUTPUT_DIM;
 
 struct EvalConfig {
     static constexpr float MAX_ANGLE = 3.14159265358979323846f / 6.0f;
-    static constexpr float COS_FOV_MIN = 0.3f;
-    static constexpr float COS_FOV_MAX = 1.2f;
+    static constexpr float FOV_MIN = 17.188733853924695f;
+    static constexpr float FOV_MAX = 68.75493541569878f;
 };
 
 using GPU_CAPABILITY = rlt::nn::capability::Forward<>;
@@ -174,8 +174,8 @@ static Metrics evaluate_scene(
         targets.data(),
         BATCH_SIZE,
         EvalConfig::MAX_ANGLE,
-        EvalConfig::COS_FOV_MIN,
-        EvalConfig::COS_FOV_MAX
+        EvalConfig::FOV_MIN,
+        EvalConfig::FOV_MAX
     );
     yp::render_batch<false>(scene, cameras.data());
 

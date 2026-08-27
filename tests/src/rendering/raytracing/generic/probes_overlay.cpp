@@ -25,7 +25,7 @@ namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DefaultCPU;
 using T = float;
-static constexpr T FOV = 1.3962634015954636;
+static constexpr T FOV = 80;
 using TI = typename DEVICE::index_t;
 
 namespace {
