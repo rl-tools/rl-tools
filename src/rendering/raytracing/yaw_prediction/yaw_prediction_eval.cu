@@ -27,6 +27,7 @@
 #include "model_persist.h"
 #include "model_forward_cuda.h"
 #include "scene.h"
+#include <rl_tools/rendering/raytracing/save_cpu.h>
 
 #include <algorithm>
 #include <cmath>

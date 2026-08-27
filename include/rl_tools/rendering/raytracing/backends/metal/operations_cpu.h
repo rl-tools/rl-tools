@@ -1016,68 +1016,6 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void save_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, const char* filename){
-        rendering::raytracing::backends::metal::wait_in_flight(rendering::raytracing::backends::metal::context(renderer));
-        static_assert(SPEC::HAS_RGB, "save_image requires an RGB-capable renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        rendering::raytracing::detail::write_grid_png<SPEC>(data(renderer.frame_buffer), filename);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void save_segmentation_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, const char* filename){
-        rendering::raytracing::backends::metal::wait_in_flight(rendering::raytracing::backends::metal::context(renderer));
-        static_assert(SPEC::HAS_SEGMENTATION, "save_segmentation_image requires a segmentation-capable renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        auto& ctx = metal::context(renderer);
-        rendering::raytracing::detail::write_segmentation_grid_png<SPEC>(data(renderer.segmentation_buffer), filename);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void save_normals_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, const char* filename){
-        rendering::raytracing::backends::metal::wait_in_flight(rendering::raytracing::backends::metal::context(renderer));
-        static_assert(SPEC::HAS_NORMALS, "save_normals_image requires a normals-capable renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        rendering::raytracing::detail::write_normals_grid_png<SPEC>(data(renderer.normals_buffer), filename);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void save_flow_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, const char* filename){
-        rendering::raytracing::backends::metal::wait_in_flight(rendering::raytracing::backends::metal::context(renderer));
-        static_assert(SPEC::HAS_FLOW, "save_flow_image requires a flow-capable renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        rendering::raytracing::detail::write_flow_grid_png<SPEC>(data(renderer.flow_buffer), filename);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void save_depth_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, const char* filename){
-        rendering::raytracing::backends::metal::wait_in_flight(rendering::raytracing::backends::metal::context(renderer));
-        static_assert(SPEC::HAS_DEPTH, "save_depth_image requires a depth-capable renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        rendering::raytracing::detail::write_depth_grid_png<SPEC>(data(renderer.depth_buffer), renderer.camera_radius, filename);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void save_depth(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, const char* filename){
-        rendering::raytracing::backends::metal::wait_in_flight(rendering::raytracing::backends::metal::context(renderer));
-        static_assert(SPEC::HAS_DEPTH, "save_depth requires a depth-capable renderer specification");
-        namespace metal = rendering::raytracing::backends::metal;
-        rendering::raytracing::detail::write_depth_bin<SPEC>(data(renderer.depth_buffer), filename);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void save_probes(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, const char* filename){
-        rendering::raytracing::backends::metal::wait_in_flight(rendering::raytracing::backends::metal::context(renderer));
-#if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("save_probes skipped: probe rays are disabled.");
-        (void)filename;
-        return;
-#else
-        namespace metal = rendering::raytracing::backends::metal;
-        rendering::raytracing::detail::write_probes_bin_and_log<SPEC>(data(renderer.collision_results), filename);
-#endif
-    }
-
-    template <typename DEVICE, typename SPEC>
     void synchronize(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
         namespace metal = rendering::raytracing::backends::metal;
         metal::wait_in_flight(metal::context(renderer));

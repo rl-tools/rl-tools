@@ -4,6 +4,7 @@
 #else
 #include <rl_tools/rendering/raytracing/backends/generic/operations_cpu.h>
 #endif
+#include <rl_tools/rendering/raytracing/save_cpu.h>
 
 #include "golden_io.h"
 #include "golden_render.h"

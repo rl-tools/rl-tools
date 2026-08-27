@@ -20,6 +20,7 @@
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#include <rl_tools/rendering/raytracing/save_cpu.h>
 
 #include <string>
 #include <iostream>
