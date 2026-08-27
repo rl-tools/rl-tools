@@ -79,6 +79,10 @@ namespace rl_tools::rl::environments::raytracing_example {
         bool owns_renderer = false;
         bool owns_scene = false;
 
+        // host-resident camera staging for the observe paths, owned like the renderer
+        using CAMERA_STAGING_SPEC = tensor::Specification<rendering::raytracing::Camera<T>, TI, tensor::Shape<TI, SPEC::NUM_ENVS>>;
+        Tensor<CAMERA_STAGING_SPEC> camera_staging;
+
         static constexpr TI NUM_INITIAL_STATES = SPEC::NUM_ENVS;
         std::array<State<SPEC>, NUM_INITIAL_STATES> indoor_initial_states{};
         TI num_indoor_initial_states = 0;

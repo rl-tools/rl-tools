@@ -1445,13 +1445,15 @@ namespace rl_tools {
     void generate_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer,
                           const typename SPEC::T center[3], typename SPEC::T radius,
                           const typename SPEC::T up[3], typename SPEC::T fov){
-        std::vector<rendering::raytracing::Camera<typename SPEC::T>> staging(SPEC::NUM_CAMERAS);
-        rendering::raytracing::detail::generate_camera_poses<SPEC>(device, staging.data(), center, radius, up, fov);
+        Tensor<typename decltype(renderer.cameras)::SPEC> staging;
+        malloc(device, staging);
+        rendering::raytracing::detail::generate_camera_poses<SPEC>(device, data(staging), center, radius, up, fov);
 
-        owlBufferUpload((OWLBuffer)renderer.backend->cameras_buffer, staging.data(), 0, SPEC::NUM_CAMERAS);
+        owlBufferUpload((OWLBuffer)renderer.backend->cameras_buffer, data(staging), 0, SPEC::NUM_CAMERAS);
         if constexpr (SPEC::HAS_CAMERA_PAIR) {
-            owlBufferUpload((OWLBuffer)renderer.backend->cameras_open_buffer, staging.data(), 0, SPEC::NUM_CAMERAS);
+            owlBufferUpload((OWLBuffer)renderer.backend->cameras_open_buffer, data(staging), 0, SPEC::NUM_CAMERAS);
         }
+        free(device, staging);
     }
 
     namespace rendering::raytracing::backends::optix {

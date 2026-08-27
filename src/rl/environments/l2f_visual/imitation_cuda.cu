@@ -845,11 +845,16 @@ void render_target_observation(
     target_state.orientation[3] = (T)0;
     auto camera = rlt::rl::environments::l2f_visual::make_camera_for_state(device, env, parameters, target_state);
 
-    std::vector<CAMERA_DATA> camera_staging(N_ENVIRONMENTS_PER_SCENE, camera);
-    cudaMemcpy(rlt::data(rlt::cameras(device, *env.renderer)), camera_staging.data(), camera_staging.size() * sizeof(CAMERA_DATA), cudaMemcpyHostToDevice);
-    if constexpr(RENDER_MOTION_BLUR_ACTIVE){
-        cudaMemcpy(rlt::data(rlt::cameras_open(device, *env.renderer)), camera_staging.data(), camera_staging.size() * sizeof(CAMERA_DATA), cudaMemcpyHostToDevice);
+    rlt::Tensor<typename decltype(env.renderer->cameras)::SPEC> camera_staging;
+    rlt::malloc(device, camera_staging);
+    for(TI env_i = 0; env_i < N_ENVIRONMENTS_PER_SCENE; env_i++){
+        rlt::set(device, camera_staging, camera, env_i);
     }
+    rlt::copy(device, env.renderer->device, camera_staging, rlt::cameras(device, *env.renderer));
+    if constexpr(RENDER_MOTION_BLUR_ACTIVE){
+        rlt::copy(device, env.renderer->device, camera_staging, rlt::cameras_open(device, *env.renderer));
+    }
+    rlt::free(device, camera_staging);
     rlt::render(device, *env.renderer);
 
     constexpr TI CAM_PIXELS = CAM_WIDTH * CAM_HEIGHT;

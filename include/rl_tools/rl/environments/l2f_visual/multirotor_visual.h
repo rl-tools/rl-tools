@@ -124,6 +124,10 @@ namespace rl_tools::rl::environments::l2f_visual {
         rendering::raytracing::Renderer<RENDERER_SPEC>* renderer = nullptr;
         rendering::raytracing::scene::procthor::Scene<typename SPEC::SCENE_SPEC>* scene = nullptr;
 
+        // host-resident camera staging for the observe paths (pre-allocated: observe runs per step)
+        using CAMERA_STAGING_SPEC = tensor::Specification<rendering::raytracing::Camera<T>, TI, tensor::Shape<TI, SPEC::NUM_ENVS>>;
+        Tensor<CAMERA_STAGING_SPEC> camera_staging;
+
         bool use_target_mode = false;
 
         DYNAMICS_ENV dynamics;

@@ -136,7 +136,8 @@ int main(int argc, char** argv) {
 
     // camera staging fills while the GPU renders; upload_cameras pushes it into the
     // backend-native cameras tensor once the previous launch has synced
-    std::vector<rlt::rendering::raytracing::Camera<T>> camera_staging(NUM_ENVS);
+    rlt::Tensor<typename decltype(env.renderer->cameras)::SPEC> camera_staging;
+    rlt::malloc(device, camera_staging);
     auto compute_states_and_cameras = [&](TI step_i) {
         for (TI env_i = 0; env_i < NUM_ENVS; env_i++) {
             const T yaw_phase = static_cast<T>(0.02 * env_i + 0.08 * step_i);
@@ -146,13 +147,11 @@ int main(int argc, char** argv) {
             s.velocity[2] = 0;
             s.yaw = static_cast<T>(0.5) * PI * (static_cast<T>(1) + std::sin(yaw_phase));
             rlt::set(device, states, s, env_i);
-            camera_staging[env_i] = rlt::make_camera_for_state(env, rlt::get_ref(device, parameters, env_i), s);
+            rlt::set(device, camera_staging, rlt::make_camera_for_state(env, rlt::get_ref(device, parameters, env_i), s), env_i);
         }
     };
     auto upload_cameras = [&]() {
-        rlt::Tensor<typename decltype(env.renderer->cameras)::SPEC> camera_alias;
-        camera_alias._data = camera_staging.data();
-        rlt::copy(device, env.renderer->device, camera_alias, rlt::cameras(device, *env.renderer));
+        rlt::copy(device, env.renderer->device, camera_staging, rlt::cameras(device, *env.renderer));
     };
 
     auto do_video_output = [&](TI step_i) -> int {
@@ -264,6 +263,7 @@ int main(int argc, char** argv) {
     rlt::save_depth(device, *env.renderer, "raytracing_example_depth.bin");
 #endif
 
+    rlt::free(device, camera_staging);
     rlt::free(device, env);
     rlt::free(device, pixels);
     rlt::free(device, states);

@@ -40,6 +40,7 @@ namespace rl_tools {
             env.renderer = new typename rl::environments::raytracing_example::Environment<SPEC>::Renderer{};
             env.owns_renderer = true;
             malloc(device, *env.renderer);
+            malloc(device, env.camera_staging);
         }
         if (env.scene == nullptr) {
             env.scene = new rendering::raytracing::Scene{};
@@ -53,6 +54,7 @@ namespace rl_tools {
             free(device, *env.renderer);
             if (env.owns_renderer) {
                 delete env.renderer;
+                free(device, env.camera_staging);
             }
             env.renderer = nullptr;
             env.owns_renderer = false;
@@ -179,11 +181,10 @@ namespace rl_tools {
         const auto camera = make_camera_data(position, look_at, up,
             SPEC::FOV,
             static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT));
-        auto camera_staging = camera;
-        Tensor<tensor::Specification<rendering::raytracing::Camera<typename SPEC::T>, typename SPEC::TI, tensor::Shape<typename SPEC::TI, 1>>> camera_alias;
-        camera_alias._data = &camera_staging;
+        set(device, env.camera_staging, camera, 0);
+        auto camera_staging_slot = view_range(device, env.camera_staging, 0, tensor::ViewSpec<0, 1>{});
         auto camera_slot = view_range(device, cameras(device, *env.renderer), 0, tensor::ViewSpec<0, 1>{});
-        copy(device, env.renderer->device, camera_alias, camera_slot);
+        copy(device, env.renderer->device, camera_staging_slot, camera_slot);
         render(device, *env.renderer);
 
         std::vector<uint32_t> frame_staging((size_t)SPEC::CAM_WIDTH * SPEC::CAM_HEIGHT);
@@ -250,13 +251,10 @@ namespace rl_tools {
             return;
         }
 
-        std::vector<rendering::raytracing::Camera<typename SPEC::T>> camera_staging(SPEC::NUM_ENVS);
         for (typename SPEC::TI env_i = 0; env_i < num_envs; env_i++) {
-            camera_staging[env_i] = make_camera_for_state(env, get_ref(device, parameters, env_i), get_ref(device, states, env_i));
+            set(device, env.camera_staging, make_camera_for_state(env, get_ref(device, parameters, env_i), get_ref(device, states, env_i)), env_i);
         }
-        Tensor<tensor::Specification<rendering::raytracing::Camera<typename SPEC::T>, typename SPEC::TI, typename decltype(env.renderer->cameras)::SPEC::SHAPE>> camera_alias;
-        camera_alias._data = camera_staging.data();
-        copy(device, env.renderer->device, camera_alias, cameras(device, *env.renderer));
+        copy(device, env.renderer->device, env.camera_staging, cameras(device, *env.renderer));
         render(device, *env.renderer);
         copy(env.renderer->device, device, frame_buffer(device, *env.renderer), out_pixels);
     }
