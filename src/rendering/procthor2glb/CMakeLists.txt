@@ -30,7 +30,7 @@ add_executable(procthor2glb
 )
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
     set_source_files_properties(${procthor2glb_basisu_SOURCE_DIR}/transcoder/basisu_transcoder.cpp
-        PROPERTIES COMPILE_OPTIONS "-Wno-stringop-overflow")
+        PROPERTIES COMPILE_OPTIONS "-Wno-stringop-overflow;-Wno-type-limits")
 endif()
 target_link_libraries(procthor2glb PRIVATE RLtools::RLtools)
 target_include_directories(procthor2glb SYSTEM PRIVATE
