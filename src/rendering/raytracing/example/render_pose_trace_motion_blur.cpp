@@ -20,6 +20,7 @@ namespace rlt = rl_tools;
 using json = nlohmann::json;
 
 using T = float;
+static constexpr T FOV = 1.3962634015954636;
 using TI = typename rlt::devices::DEVICE_FACTORY<>::index_t;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 
@@ -459,7 +460,7 @@ static bool setup_renderer(DEVICE& device, Renderer<SPEC>& renderer, rlt::render
     }
     rlt::init(device, renderer, scene);
     const T up[3] = {0, 0, 1};
-    rlt::generate_cameras(device, renderer, renderer.scene_center, renderer.camera_radius, up, SPEC::COS_FOVY);
+    rlt::generate_cameras(device, renderer, renderer.scene_center, renderer.camera_radius, up, FOV);
     return true;
 }
 
@@ -552,8 +553,8 @@ static bool render_trace(DEVICE& device, const Options& options, const std::stri
         const TracePose open_pose = pose_at(poses, times, open_t);
         const TracePose close_pose = pose_at(poses, times, close_t);
 
-        const auto camera_open = rlt::make_camera_data(open_pose.eye, open_pose.look_at, open_pose.up, SPEC::COS_FOVY, aspect);
-        const auto camera_close = rlt::make_camera_data(close_pose.eye, close_pose.look_at, close_pose.up, SPEC::COS_FOVY, aspect);
+        const auto camera_open = rlt::make_camera_data(open_pose.eye, open_pose.look_at, open_pose.up, FOV, aspect);
+        const auto camera_close = rlt::make_camera_data(close_pose.eye, close_pose.look_at, close_pose.up, FOV, aspect);
         auto camera_open_staging = camera_open;
         auto camera_close_staging = camera_close;
         rlt::Tensor<typename decltype(renderer.cameras)::SPEC> camera_alias;

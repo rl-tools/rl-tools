@@ -62,7 +62,7 @@ namespace {
         const T look_at[3] = {1, 0, 0};
         const T up[3] = {0, 0, 1};
         constexpr T aspect = (T)SPEC::CAM_WIDTH / (T)SPEC::CAM_HEIGHT;
-        const auto camera = rlt::make_camera_data(position, look_at, up, SPEC::COS_FOVY, aspect);
+        const auto camera = rlt::make_camera_data(position, look_at, up, SPEC::CONFIG::FOV, aspect);
         std::array<rlt::rendering::raytracing::Camera<T>, SPEC::NUM_CAMERAS> cameras;
         cameras.fill(camera);
         golden::copy_in(device, renderer.device, cameras.data(), rlt::cameras(device, renderer));

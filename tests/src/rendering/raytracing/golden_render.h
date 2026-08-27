@@ -79,7 +79,7 @@ namespace golden {
         std::vector<rl_tools::rendering::raytracing::Camera<T>> camera_staging(SPEC::NUM_CAMERAS);
         for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
             const Pose<T>& pose = CASES::POSES[camera_i];
-            camera_staging[camera_i] = rl_tools::make_camera_data(pose.position, pose.look_at, pose.up, SPEC::COS_FOVY, aspect);
+            camera_staging[camera_i] = rl_tools::make_camera_data(pose.position, pose.look_at, pose.up, CASES::FOV, aspect);
         }
         copy_in(device, renderer.device, camera_staging.data(), rl_tools::cameras(device, renderer));
         if constexpr(SPEC::HAS_CAMERA_PAIR) {
@@ -91,7 +91,7 @@ namespace golden {
                         position[dim_i] = pose.position[dim_i] - CASES::MOTION_BLUR_DELTA[dim_i];
                         look_at[dim_i] = pose.look_at[dim_i] - CASES::MOTION_BLUR_DELTA[dim_i];
                     }
-                    camera_staging[camera_i] = rl_tools::make_camera_data(position, look_at, pose.up, SPEC::COS_FOVY, aspect);
+                    camera_staging[camera_i] = rl_tools::make_camera_data(position, look_at, pose.up, CASES::FOV, aspect);
                 }
             }
             copy_in(device, renderer.device, camera_staging.data(), rl_tools::cameras_open(device, renderer));

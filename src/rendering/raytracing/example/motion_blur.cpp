@@ -17,6 +17,7 @@
 namespace rlt = rl_tools;
 
 using T = float;
+static constexpr T FOV = 1.3962634015954636;
 using TI = typename rlt::devices::DEVICE_FACTORY<>::index_t;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 
@@ -78,7 +79,7 @@ void setup_renderer(DEVICE& device, Renderer<SPEC>& renderer, const rlt::renderi
     rlt::init(device, renderer, scene);
 
     const T up[3] = {0, 0, 1};
-    rlt::generate_cameras(device, renderer, renderer.scene_center, renderer.camera_radius, up, SPEC::COS_FOVY);
+    rlt::generate_cameras(device, renderer, renderer.scene_center, renderer.camera_radius, up, FOV);
 }
 
 rlt::rendering::raytracing::Camera<T> make_orbit_camera(const Renderer<RendererSpec<1>>& renderer, T angle) {
@@ -100,7 +101,7 @@ rlt::rendering::raytracing::Camera<T> make_orbit_camera(const Renderer<RendererS
     };
     const T up[3] = {0, 0, 1};
     const T aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
-    return rlt::make_camera_data(position, look_at, up, RendererSpec<1>::COS_FOVY, aspect);
+    return rlt::make_camera_data(position, look_at, up, FOV, aspect);
 }
 
 template <typename SPEC>

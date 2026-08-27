@@ -9,6 +9,7 @@ namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using T = float;
+static constexpr T FOV = 1.3962634015954636;
 using TI = typename DEVICE::index_t;
 
 struct CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
@@ -50,7 +51,7 @@ int main(int argc, char** argv){
             position[1] + std::sin(angle),
             position[2]
         };
-        rlt::set(device, camera_staging, rlt::make_camera_data(position, look_at, up, SPEC::COS_FOVY, aspect), camera_i);
+        rlt::set(device, camera_staging, rlt::make_camera_data(position, look_at, up, FOV, aspect), camera_i);
     }
     rlt::copy(device, renderer.device, camera_staging, rlt::cameras(device, renderer));
 
