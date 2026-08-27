@@ -28,7 +28,7 @@
 namespace rlt = rl_tools;
 
 using T = float;
-static constexpr T FOV = 1.3962634015954636;
+static constexpr T FOV = 80;
 using TI = int;
 struct CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI CAM_WIDTH = RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_WIDTH;

@@ -17,6 +17,8 @@
 
 #include <rl_tools/utils/extrack/operations_cpu.h>
 
+#include <conta/conta.h>
+
 #include <array>
 #include <cmath>
 #include <chrono>
@@ -222,12 +224,11 @@ int main(int argc, char** argv){
             std::cerr << "Invalid conta hash: contains non-hex characters" << std::endl;
             return 1;
         }
-        const char* conta_root = std::getenv("CONTA_ROOT");
-        if(!conta_root){
-            std::cerr << "CONTA_ROOT environment variable is not set" << std::endl;
+        std::string conta_error;
+        if(!conta::resolve(hash_str, resolved_scene_path, conta_error)){
+            std::cerr << conta_error << std::endl;
             return 1;
         }
-        resolved_scene_path = std::string(conta_root) + "/data/" + hash_str;
     } else {
         resolved_scene_path = scene_arg;
         std::memset(scene_hash.hash, 0, rlt::rl::environments::l2f_visual::SceneHash::HASH_SIZE);
