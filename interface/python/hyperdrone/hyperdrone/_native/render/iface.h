@@ -7,7 +7,7 @@
 // same build tree, so passing rl_tools scene types by pointer is safe. Everything
 // renderer-spec dependent is hidden behind the vtable; buffer exchange uses raw pointers
 // sized by config(). Bump HYPERDRONE_RENDER_IFACE_VERSION on any change to this file.
-#define HYPERDRONE_RENDER_IFACE_VERSION 3
+#define HYPERDRONE_RENDER_IFACE_VERSION 4
 
 namespace rl_tools { namespace rendering { namespace raytracing {
     struct Scene;
@@ -44,14 +44,6 @@ namespace hyperdrone::render {
         SYNC = 1,
         FULL = 2
     };
-    enum class SaveTarget : int {
-        IMAGE = 0,
-        DEPTH_IMAGE = 1,
-        DEPTH_RAW = 2,
-        SEGMENTATION_IMAGE = 3,
-        PROBES = 4
-    };
-
     struct OverlayPlacementData {
         size_t first_slot;
         size_t num_parts;
@@ -96,8 +88,6 @@ namespace hyperdrone::render {
         virtual uint32_t* frame_buffer_host(bool refresh) = 0;
         virtual float* depth_buffer_host(bool refresh) = 0;
         virtual uint32_t* segmentation_buffer_host(bool refresh) = 0;
-
-        virtual void save(SaveTarget target, const char* path) = 0;
 
         virtual void scene_bounds(float center[3], float half_extent[3], float& camera_radius) const = 0;
 

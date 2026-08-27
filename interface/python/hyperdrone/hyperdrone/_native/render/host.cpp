@@ -183,10 +183,6 @@ NB_MODULE(hyperdrone_render_core, m){
                                  nb::dtype<float>(), jit->buffer_device_type(), 0);
         })
         .def("buffer_device_type", [](JitRenderer& jit){ return jit->buffer_device_type(); })
-        .def("save", [](JitRenderer& jit, int target, const std::string& path){
-            nb::gil_scoped_release release;
-            jit->save((hdr::SaveTarget)target, path.c_str());
-        }, nb::arg("target"), nb::arg("path"))
         .def("scene_bounds", [](JitRenderer& jit){
             float center[3], half_extent[3], camera_radius;
             jit->scene_bounds(center, half_extent, camera_radius);

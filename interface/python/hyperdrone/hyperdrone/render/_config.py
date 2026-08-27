@@ -7,7 +7,6 @@ OUTPUT_MODE = {"rgb": 0, "rgbd": 1, "depth": 2, "segmentation": 3, "rgbd_segment
 
 RENDER_TARGET = {"all": 0, "rgb": 1, "depth": 2, "segmentation": 3, "rgb_depth": 4, "collision": 5}
 RENDER_PHASE = {"launch": 0, "sync": 1, "full": 2}
-SAVE_TARGET = {"image": 0, "depth_image": 1, "depth_raw": 2, "segmentation_image": 3, "probes": 4}
 
 VALID_MOTION_BLUR_SAMPLES = (1, 2, 4, 8, 16, 32)
 VALID_ANTI_ALIASING_GRIDS = (1, 2, 3, 4)

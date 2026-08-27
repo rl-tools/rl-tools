@@ -9,6 +9,7 @@ import pytest
 
 import hyperdrone
 from hyperdrone import jit, render
+from hyperdrone.render import _io
 
 
 def test_backend_announcement_reaches_python_for_each_renderer():
@@ -297,17 +298,39 @@ def test_overlay_pipeline_and_output_saves(tmp_path):
     assert not np.any(segmentation[0] == instance_id)
     assert not np.any(segmentation[0] == instance_id + 1)
 
-    outputs = {
-        "frame.png": renderer.save_image,
-        "depth.png": renderer.save_depth_image,
-        "depth.bin": renderer.save_depth_raw,
-        "segmentation.png": renderer.save_segmentation_image,
-        "probes.bin": renderer.save_probes,
-    }
-    for name, save in outputs.items():
-        path = tmp_path / name
-        save(path)
-        assert path.stat().st_size > 0
+    frame_path = tmp_path / "frame.png"
+    renderer.save_image(frame_path)
+    assert np.array_equal(_io.read_png(frame_path), _io.camera_grid(renderer.frame()))
+
+    segmentation_path = tmp_path / "segmentation.png"
+    renderer.save_segmentation_image(segmentation_path)
+    assert np.array_equal(
+        _io.read_png(segmentation_path),
+        _io.camera_grid(_io.segmentation_to_rgba(renderer.segmentation())),
+    )
+
+    depth_image_path = tmp_path / "depth.png"
+    renderer.save_depth_image(depth_image_path)
+    depth_gray = _io.depth_to_gray(renderer.depth(), renderer.scene_bounds["camera_radius"])
+    assert np.array_equal(_io.read_png(depth_image_path), _io.camera_grid(_io.gray_to_rgba(depth_gray)))
+
+    depth_path = tmp_path / "depth.bin"
+    renderer.save_depth_raw(depth_path)
+    blob = depth_path.read_bytes()
+    num_cameras, height, width = np.frombuffer(blob[:12], dtype=np.int32)
+    assert (num_cameras, height, width) == (renderer.num_cameras, renderer.height, renderer.width)
+    depth_payload = np.frombuffer(blob[12:], dtype=np.float32).reshape(num_cameras, height, width)
+    assert np.array_equal(depth_payload, renderer.depth())
+
+    probes_path = tmp_path / "probes.bin"
+    renderer.save_probes(probes_path)
+    blob = probes_path.read_bytes()
+    num_cameras, num_probes = np.frombuffer(blob[:8], dtype=np.int32)
+    assert (num_cameras, num_probes) == (renderer.num_cameras, renderer.num_probes)
+    records = np.frombuffer(blob[8:], dtype=[("distance", "<f4"), ("hit", "<i4")]).reshape(num_cameras, num_probes)
+    distances, hits = renderer.collisions()
+    assert np.array_equal(records["distance"], distances)
+    assert np.array_equal(records["hit"], hits)
 
 
 def test_semantic_segmentation_with_overlay():
