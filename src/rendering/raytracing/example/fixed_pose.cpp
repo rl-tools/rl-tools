@@ -10,6 +10,8 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
 
+#include <conta/conta.h>
+
 
 #include <cmath>
 #include <cstring>
@@ -74,11 +76,12 @@ static std::string resolve_scene_arg(const std::string& scene_arg) {
         return DEFAULT_SCENE_PATH;
     }
     if(scene_arg.compare(0, 6, "conta:") == 0) {
-        const char* conta_root = std::getenv("CONTA_ROOT");
-        if(!conta_root) {
+        std::string path, error;
+        if(!conta::resolve(scene_arg.substr(6), path, error)) {
+            std::cerr << error << std::endl;
             return "";
         }
-        return std::string(conta_root) + "/data/" + scene_arg.substr(6);
+        return path;
     }
     return scene_arg;
 }
@@ -131,7 +134,6 @@ static bool parse_options(int argc, char** argv, Options& options) {
     }
     options.scene_path = resolve_scene_arg(scene_arg);
     if(options.scene_path.empty()) {
-        std::cerr << "CONTA_ROOT is required for conta: scene paths" << std::endl;
         return false;
     }
     return true;
