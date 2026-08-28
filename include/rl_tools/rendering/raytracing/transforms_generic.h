@@ -4,6 +4,7 @@
 #define RL_TOOLS_RENDERING_RAYTRACING_TRANSFORMS_GENERIC_H
 
 #include "../../rl_tools.h"
+#include "../transforms.h"
 
 #include <math.h>
 
@@ -16,14 +17,10 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace rendering::raytracing::detail{
-        RL_TOOLS_FUNCTION_PLACEMENT inline void compose_transforms(const float a[12], const float b[12], float out[12]){
-            for(int row = 0; row < 3; row++){
-                for(int column = 0; column < 3; column++){
-                    out[row * 4 + column] = a[row * 4] * b[column] + a[row * 4 + 1] * b[4 + column] + a[row * 4 + 2] * b[8 + column];
-                }
-                out[row * 4 + 3] = a[row * 4] * b[3] + a[row * 4 + 1] * b[7] + a[row * 4 + 2] * b[11] + a[row * 4 + 3];
-            }
-        }
+        using rendering::compose_transforms;
+        using rendering::transform_is_identity;
+        using rendering::transform_point;
+        using rendering::transform_vector;
 
         RL_TOOLS_FUNCTION_PLACEMENT inline void invert_transform(const float transform[12], float out[12]){
             const float a = transform[0], b = transform[1], c = transform[2];

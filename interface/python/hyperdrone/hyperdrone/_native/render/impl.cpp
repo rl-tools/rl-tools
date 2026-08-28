@@ -1,5 +1,6 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#include <rl_tools/rendering/datasets/operations_cpu.h>
 
 #include "iface.h"
 
@@ -105,6 +106,7 @@ namespace hyperdrone_render_impl {
         using BACKEND = typename RENDERER::BACKEND;
         DEVICE device;
         RENDERER renderer;
+        rlt::rendering::SceneMetadata<T> scene_metadata;
         bool initialized = false;
 
         // alias tensors shaped like the renderer tensor let the raw pointers of the C interface
@@ -161,20 +163,24 @@ namespace hyperdrone_render_impl {
             return rrt::backends::name<BACKEND>();
         }
 
-        void init(const rrt::Scene* scene, const rrt::AssetPool* pool) override {
+        void init(rlt::rendering::Bundle<T>* bundle, const rrt::AssetPool* pool) override {
             if(initialized){
                 throw std::runtime_error("hyperdrone: renderer is already initialized; create a new Renderer for a different scene");
             }
+            // the bundle may have been composed via add() (no loader-filled metadata) or
+            // extended after load; recomputing is deterministic and idempotent for pure loads
+            rlt::rendering::datasets::compute_bounds(device, *bundle);
+            scene_metadata = bundle->metadata;
             if(pool != nullptr){
                 if constexpr (SPEC::ENABLE_OVERLAYS){
-                    rlt::init(device, renderer, *scene, *pool);
+                    rlt::init(device, renderer, *bundle, *pool);
                 }
                 else {
                     throw std::runtime_error("hyperdrone: an asset pool requires overlays (num_overlays/max_overlay_instances/max_overlays_per_camera > 0)");
                 }
             }
             else {
-                rlt::init(device, renderer, *scene);
+                rlt::init(device, renderer, *bundle);
             }
             initialized = true;
         }
@@ -418,10 +424,10 @@ namespace hyperdrone_render_impl {
 
         void scene_bounds(float center[3], float half_extent[3], float& camera_radius) const override {
             for(int i = 0; i < 3; i++){
-                center[i] = renderer.scene_center[i];
-                half_extent[i] = renderer.scene_half_extent[i];
+                center[i] = scene_metadata.center[i];
+                half_extent[i] = scene_metadata.half_extent[i];
             }
-            camera_radius = renderer.camera_radius;
+            camera_radius = scene_metadata.max_ray_length / 2;
         }
 
         bool can_attach(size_t camera, size_t overlay) override {

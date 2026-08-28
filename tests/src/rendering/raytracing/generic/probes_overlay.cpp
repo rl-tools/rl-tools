@@ -9,6 +9,7 @@
 #else
 #include <rl_tools/rendering/raytracing/backends/generic/operations_cpu.h>
 #endif
+#include <rl_tools/rendering/datasets/operations_cpu.h>
 
 #include <gtest/gtest.h>
 
@@ -65,11 +66,12 @@ TEST(RL_TOOLS_PROBES_OVERLAY_SUITE, PROBES_SEE_ATTACHED_OVERLAYS_ONLY){
     DEVICE device;
     rlt::init(device);
 
-    rlt::rendering::raytracing::Scene scene;
+    rlt::rendering::Bundle<T> bundle;
     rlt::rendering::raytracing::Object wall;
     wall.name = "wall";
     wall.meshes.push_back(overlay_scenarios::detail::make_quad(10.0f, {{0.5f, 0.5f, 0.5f}}));
-    rlt::add(device, scene, wall, overlay_scenarios::pose(WALL_X, 0.0f, 0.0f).data());
+    rlt::add(device, bundle.scene, wall, overlay_scenarios::pose(WALL_X, 0.0f, 0.0f).data());
+    rlt::rendering::datasets::compute_bounds(device, bundle);
 
     rlt::rendering::raytracing::AssetPool pool;
     rlt::rendering::raytracing::Object box;
@@ -80,7 +82,7 @@ TEST(RL_TOOLS_PROBES_OVERLAY_SUITE, PROBES_SEE_ATTACHED_OVERLAYS_ONLY){
     rlt::rendering::raytracing::Renderer<SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
-    rlt::init(device, renderer, scene, pool);
+    rlt::init(device, renderer, bundle, pool);
 
     const T position[3] = {0, 0, 0};
     const T look_at[3] = {1, 0, 0};

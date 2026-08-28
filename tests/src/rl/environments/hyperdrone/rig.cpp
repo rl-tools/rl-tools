@@ -1,5 +1,6 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/rig/operations_cpu.h>
 
 #include "../../../utils/utils.h"

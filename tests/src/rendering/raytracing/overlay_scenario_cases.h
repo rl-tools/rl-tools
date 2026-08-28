@@ -3,6 +3,7 @@
 
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_common.h>
+#include <rl_tools/rendering/datasets/operations_cpu.h>
 
 #include <array>
 #include <cstddef>
@@ -255,7 +256,7 @@ namespace overlay_scenarios {
         explicit State(Scenario scenario): scenario(scenario) {}
 
         Scenario scenario;
-        rl_tools::rendering::raytracing::Scene scene;
+        rl_tools::rendering::Bundle<float> bundle;
         rl_tools::rendering::raytracing::AssetPool pool;
         std::vector<rl_tools::rendering::raytracing::AssetHandle> assets;
         std::vector<rl_tools::rendering::raytracing::OverlayPlacement> placements;
@@ -288,7 +289,7 @@ namespace overlay_scenarios {
             background.meshes.push_back(make_quad(0.42f, {{0.15f, 0.65f, 0.2f}}, -0.5f, 1.7f, -1.1f));
             background.meshes.push_back(make_quad(0.30f, {{0.15f, 0.25f, 0.8f}}, -1.0f, 0.4f, 2.3f));
             const auto transform = pose(8.0f, 0.0f, 0.0f);
-            rl_tools::add(device, state.scene, background, transform.data());
+            rl_tools::add(device, state.bundle.scene, background, transform.data());
         }
 
         template <typename DEVICE>
@@ -304,6 +305,7 @@ namespace overlay_scenarios {
     State prepare(DEVICE& device, Scenario scenario){
         State state(scenario);
         detail::add_shared_scene(device, state);
+        rl_tools::rendering::datasets::compute_bounds(device, state.bundle);
         const auto& scenario_definition = definition(scenario);
         state.assets.reserve(scenario_definition.assets.size());
         for(const auto& asset : scenario_definition.assets){
@@ -336,7 +338,7 @@ namespace overlay_scenarios {
                 attached[placement_definition.overlay] = true;
             }
             const auto placement = rl_tools::spawn(device, renderer, rl_tools::rendering::raytracing::OverlayIndex{placement_definition.overlay}, state.assets[placement_definition.asset], placement_definition.transform.data());
-            const auto id = static_cast<std::uint32_t>(state.scene.instances.size() + placement_definition.overlay * SPEC::MAX_OVERLAY_INSTANCES + placement.first_slot);
+            const auto id = static_cast<std::uint32_t>(state.bundle.scene.instances.size() + placement_definition.overlay * SPEC::MAX_OVERLAY_INSTANCES + placement.first_slot);
             if(id != placement_definition.expected_id){
                 throw std::logic_error("Overlay scenario instance ID changed");
             }

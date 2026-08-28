@@ -111,14 +111,14 @@ namespace rl_tools{
         }
 
         template <typename SPEC>
-        void write_depth_grid_png(const float* depth_host, float camera_radius, const char* filename){
+        void write_depth_grid_png(const float* depth_host, float max_ray_length, const char* filename){
             using TI = typename SPEC::TI;
             constexpr TI cam_pixels = SPEC::CAM_PIXELS;
             constexpr int grid_width = SPEC::GRID_COLS * SPEC::CAM_WIDTH;
             constexpr int grid_height = SPEC::GRID_ROWS * SPEC::CAM_HEIGHT;
             std::vector<uint32_t> grid_image(grid_width * grid_height, 0);
             constexpr size_t depth_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-            const float max_depth = camera_radius > 0 ? camera_radius * 2.0f : 1e30f;
+            const float max_depth = max_ray_length > 0 ? max_ray_length : 1e30f;
             const float valid_max_depth = max_depth * 0.999f;
             float min_valid_depth = std::numeric_limits<float>::max();
             float max_valid_depth = std::numeric_limits<float>::lowest();
@@ -267,7 +267,7 @@ namespace rl_tools{
         static_assert(SPEC::HAS_DEPTH, "save_depth_image requires a depth-capable renderer specification");
         std::vector<float> depth_host;
         rendering::raytracing::detail::save_staging(device, renderer, renderer.depth_buffer, depth_host);
-        rendering::raytracing::detail::write_depth_grid_png<SPEC>(depth_host.data(), renderer.camera_radius, filename);
+        rendering::raytracing::detail::write_depth_grid_png<SPEC>(depth_host.data(), renderer.max_ray_length, filename);
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>

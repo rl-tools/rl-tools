@@ -1550,13 +1550,12 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
     bool ok = true;
     std::vector<uint8_t> rgb_frame;
     const T fov = static_cast<T>(degrees_to_radians(options.fov_deg));
+    rlt::Tensor<typename decltype(env.renderer->cameras)::SPEC> camera_staging;
+    rlt::malloc(device, camera_staging);
     for(size_t frame_i = 0; frame_i < poses.size(); frame_i++) {
         const TracePose& pose = poses[frame_i];
-        const auto camera = rlt::make_camera_data(pose.eye, pose.look_at, pose.up, fov, static_cast<T>(WIDTH) / static_cast<T>(HEIGHT));
-        auto camera_staging = camera;
-        rlt::Tensor<typename decltype(env.renderer->cameras)::SPEC> camera_alias;
-        camera_alias._data = &camera_staging;
-        rlt::copy(device, env.renderer->device, camera_alias, rlt::cameras(device, *env.renderer));
+        rlt::set(device, camera_staging, rlt::make_camera_data(pose.eye, pose.look_at, pose.up, fov, static_cast<T>(WIDTH) / static_cast<T>(HEIGHT)), 0);
+        rlt::copy(device, env.renderer->device, camera_staging, rlt::cameras(device, *env.renderer));
         if constexpr (SPEC::HAS_DEPTH) {
             rlt::render(device, *env.renderer);
             std::vector<float> depth_staging(frame.size());
@@ -1565,7 +1564,7 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
                 depth_alias._data = depth_staging.data();
                 rlt::copy(env.renderer->device, device, rlt::depth_buffer(device, *env.renderer), depth_alias);
             }
-            const float miss_depth = env.renderer->camera_radius > 0 ? env.renderer->camera_radius * 2.0f : 1e30f;
+            const float miss_depth = env.renderer->max_ray_length > 0 ? env.renderer->max_ray_length : 1e30f;
             float min_depth = std::numeric_limits<float>::max();
             float max_depth_value = std::numeric_limits<float>::lowest();
             depth_range(depth_staging.data(), frame.size(), miss_depth, min_depth, max_depth_value);
@@ -1588,6 +1587,7 @@ static bool render_trace_for_setting(rlt::devices::DEVICE_FACTORY<>& device, con
             break;
         }
     }
+    rlt::free(device, camera_staging);
 
     record.ffmpeg_status = pclose(pipe);
     record.ok = ok && record.ffmpeg_status == 0;

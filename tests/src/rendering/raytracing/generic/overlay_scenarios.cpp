@@ -257,13 +257,13 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, SHARED_SCENE_NO_DYNAMIC_OBJECTS){
     DEVICE device;
     rlt::init(device);
     auto state = overlay_scenarios::prepare(device, overlay_scenarios::Scenario::SHARED_SCENE_NO_DYNAMIC);
-    auto& scene = state.scene;
+    auto& scene = state.bundle.scene;
     auto& pool = state.pool;
     RendererOwner<StaticSpec> baseline_owner(device);
-    rlt::init(device, baseline_owner.renderer, scene);
+    rlt::init(device, baseline_owner.renderer, state.bundle);
     set_identical_cameras(device, baseline_owner.renderer);
     RendererOwner<OverlaySpec> overlay_owner(device);
-    rlt::init(device, overlay_owner.renderer, scene, pool);
+    rlt::init(device, overlay_owner.renderer, state.bundle, pool);
     set_identical_cameras(device, overlay_owner.renderer);
     overlay_scenarios::build_initial(device, overlay_owner.renderer, state);
     rlt::update(device, overlay_owner.renderer);
@@ -287,12 +287,12 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, ALL_DYNAMIC_OBJECTS_SHARE_MESHES_AND_TRAN
     DEVICE device;
     rlt::init(device);
     auto state = overlay_scenarios::prepare(device, overlay_scenarios::Scenario::ALL_SHARED_MESH_TRANSFORM);
-    auto& scene = state.scene;
+    auto& scene = state.bundle.scene;
     auto& pool = state.pool;
     const auto red = state.assets[0];
     const auto green = state.assets[1];
     RendererOwner<OverlaySpec> owner(device);
-    rlt::init(device, owner.renderer, scene, pool);
+    rlt::init(device, owner.renderer, state.bundle, pool);
     set_identical_cameras(device, owner.renderer);
     overlay_scenarios::build_initial(device, owner.renderer, state);
 
@@ -334,7 +334,7 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, SOME_DYNAMIC_OBJECTS_SHARE_MESHES_AND_TRA
     DEVICE device;
     rlt::init(device);
     auto state = overlay_scenarios::prepare(device, overlay_scenarios::Scenario::PARTIALLY_SHARED_MESH_TRANSFORM);
-    auto& scene = state.scene;
+    auto& scene = state.bundle.scene;
     auto& pool = state.pool;
     const auto shared = state.assets[0];
     std::array<AssetHandle, NUM_CAMERAS> private_assets;
@@ -342,7 +342,7 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, SOME_DYNAMIC_OBJECTS_SHARE_MESHES_AND_TRA
         private_assets[camera] = state.assets[1 + camera];
     }
     RendererOwner<OverlaySpec> owner(device);
-    rlt::init(device, owner.renderer, scene, pool);
+    rlt::init(device, owner.renderer, state.bundle, pool);
     set_identical_cameras(device, owner.renderer);
     overlay_scenarios::build_initial(device, owner.renderer, state);
     const uint32_t shared_id = state.ids[0];
@@ -404,11 +404,11 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, ALL_DYNAMIC_OBJECTS_SHARE_ONLY_MESHES){
     DEVICE device;
     rlt::init(device);
     auto state = overlay_scenarios::prepare(device, overlay_scenarios::Scenario::SHARED_MESH_INDIVIDUAL_TRANSFORM);
-    auto& scene = state.scene;
+    auto& scene = state.bundle.scene;
     auto& pool = state.pool;
     const auto shared_mesh = state.assets[0];
     RendererOwner<OverlaySpec> owner(device);
-    rlt::init(device, owner.renderer, scene, pool);
+    rlt::init(device, owner.renderer, state.bundle, pool);
     set_identical_cameras(device, owner.renderer);
     overlay_scenarios::build_initial(device, owner.renderer, state);
     std::array<uint32_t, NUM_CAMERAS> ids;
@@ -461,7 +461,7 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, DYNAMIC_OBJECT_SETS_ARE_DISJOINT){
     DEVICE device;
     rlt::init(device);
     auto state = overlay_scenarios::prepare(device, overlay_scenarios::Scenario::DISJOINT);
-    auto& scene = state.scene;
+    auto& scene = state.bundle.scene;
     auto& pool = state.pool;
     const auto& scenario_definition = overlay_scenarios::definition(state.scenario);
     std::array<AssetHandle, NUM_CAMERAS> assets;
@@ -469,7 +469,7 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, DYNAMIC_OBJECT_SETS_ARE_DISJOINT){
         assets[camera] = state.assets[camera];
     }
     RendererOwner<OverlaySpec> owner(device);
-    rlt::init(device, owner.renderer, scene, pool);
+    rlt::init(device, owner.renderer, state.bundle, pool);
     set_identical_cameras(device, owner.renderer);
     overlay_scenarios::build_initial(device, owner.renderer, state);
     std::array<uint32_t, NUM_CAMERAS> ids;
@@ -524,7 +524,7 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, MIXED_DYNAMIC_SHARING_SCOPES){
     DEVICE device;
     rlt::init(device);
     auto state = overlay_scenarios::prepare(device, overlay_scenarios::Scenario::MIXED);
-    auto& scene = state.scene;
+    auto& scene = state.bundle.scene;
     auto& pool = state.pool;
     const auto shared_all = state.assets[0];
     const auto shared_subset = state.assets[1];
@@ -534,7 +534,7 @@ TEST(RL_TOOLS_OVERLAY_SCENARIOS_SUITE, MIXED_DYNAMIC_SHARING_SCOPES){
         private_assets[camera] = state.assets[3 + camera];
     }
     RendererOwner<OverlaySpec> owner(device);
-    rlt::init(device, owner.renderer, scene, pool);
+    rlt::init(device, owner.renderer, state.bundle, pool);
     set_identical_cameras(device, owner.renderer);
     overlay_scenarios::build_initial(device, owner.renderer, state);
 

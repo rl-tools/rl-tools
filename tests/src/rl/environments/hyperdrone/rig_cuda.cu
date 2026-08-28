@@ -5,6 +5,7 @@
 #include <rl_tools/operations/cuda.h>
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rl/environments/l2f/operations_generic.h>
 #include <rl_tools/rl/environments/hyperdrone/pose.h>
 #include <rl_tools/rl/environments/hyperdrone/rig/operations_cpu.h>
@@ -131,8 +132,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
     rlt::init(device);
     DEVICE_GPU device_gpu;
 
-    rlt::rendering::raytracing::Scene scene;
-    ASSERT_TRUE((rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, SCENE_PATH)));
+    rlt::rendering::Bundle<T> bundle;
+    ASSERT_TRUE((rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, SCENE_PATH)));
     rlt::rendering::raytracing::ObjectAssembly drone_assembly;
     ASSERT_TRUE((rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, drone_assembly, DRONE_PATH)));
 
@@ -145,7 +146,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
 
     Renderer renderer;
     rlt::malloc(device, renderer);
-    rlt::init(device, renderer, scene, pool);
+    rlt::init(device, renderer, bundle, pool);
     rlt::attach(device, renderer, ONBOARD_CAMERA, rlt::rendering::raytracing::OverlayIndex{0});
     rlt::attach(device, renderer, THIRD_PERSON_CAMERA, rlt::rendering::raytracing::OverlayIndex{0});
     const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};

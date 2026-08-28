@@ -16,30 +16,6 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     namespace rendering::raytracing{
 
-        template <
-            bool T_LOAD_TEXTURES,
-            bool T_NORMAL_SHADING,
-            bool T_METALLIC_REFLECTIONS,
-            bool T_SRGB_OUTPUT,
-            bool T_CHECKER_BACKGROUND,
-            bool T_PBR_SHADING,
-            bool T_PUNCTUAL_LIGHT_SHADOWS = false
-        >
-        struct ShadingOptions{
-            static constexpr bool LOAD_TEXTURES = T_LOAD_TEXTURES;
-            static constexpr bool NORMAL_SHADING = T_NORMAL_SHADING;
-            static constexpr bool METALLIC_REFLECTIONS = T_METALLIC_REFLECTIONS;
-            static constexpr bool SRGB_OUTPUT = T_SRGB_OUTPUT;
-            static constexpr bool CHECKER_BACKGROUND = T_CHECKER_BACKGROUND;
-            static constexpr bool PBR_SHADING = T_PBR_SHADING;
-            static constexpr bool PUNCTUAL_LIGHT_SHADOWS = T_PUNCTUAL_LIGHT_SHADOWS;
-        };
-
-        using Medium = ShadingOptions<true, true, true, true, true, false>;
-        using High = ShadingOptions<true, true, true, true, false, true>;
-        using VeryHigh = ShadingOptions<true, true, true, true, false, true, true>;
-        using Low = ShadingOptions<false, false, false, false, false, false>;
-
         using BasicShading = Medium;
         using HighFidelityShading = High;
         using VeryHighFidelityShading = VeryHigh;
@@ -252,7 +228,7 @@ namespace rl_tools {
             BACKEND_STATE* backend = nullptr;
             std::deque<Scene> scenes;
             std::deque<SCENE_STATE*> assets;
-            std::vector<uint64_t> hashes;
+            std::vector<SceneMetadata<typename SPEC::T>> metadata;
             AssetPool pool;
         };
 
@@ -451,9 +427,8 @@ namespace rl_tools {
             using COLLISION_TENSOR_SPEC = tensor::Specification<CollisionResult, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::NUM_PROBES>, true>;
             Tensor<COLLISION_TENSOR_SPEC> collision_results;
 
-            T scene_center[3] = {0, 0, 0};
-            T scene_half_extent[3] = {0, 0, 0};
-            T camera_radius = 0;
+            // loader-authoritative (SceneMetadata): probe ray budget and depth miss sentinel
+            T max_ray_length = 0;
 
             backends::Device<BACKEND> device;
             BACKEND_STATE* backend = nullptr;

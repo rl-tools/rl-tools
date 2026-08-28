@@ -690,13 +690,14 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer);
 
-    template <typename DEVICE, typename SPEC>
-    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool){
+    template <typename DEVICE, typename SPEC, typename METADATA_T>
+    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool, const rendering::SceneMetadata<METADATA_T>& metadata){
+        renderer.max_ray_length = (typename SPEC::T)metadata.max_ray_length;
+        rendering::raytracing::detail::announce_configuration<SPEC>();
         namespace vk = rendering::raytracing::backends::vulkan;
         using TI = typename SPEC::TI;
         auto& ctx = vk::context(renderer);
 
-        rendering::raytracing::detail::compute_scene_bounds(renderer, scene);
 
         std::vector<const rendering::raytracing::Object*> all_objects;
         for(const auto& object : scene.objects){
@@ -860,8 +861,8 @@ namespace rl_tools {
         params->num_cameras = SPEC::NUM_CAMERAS;
         params->num_probes = SPEC::NUM_PROBES;
         params->num_scene_lights = (uint32_t)scene_lights.size();
-        params->max_depth = renderer.camera_radius > 0 ? renderer.camera_radius * 2.0f : 1e30f;
-        params->max_dist = renderer.camera_radius * 2.0f;
+        params->max_depth = renderer.max_ray_length > 0 ? renderer.max_ray_length : 1e30f;
+        params->max_dist = renderer.max_ray_length;
         params->ambient_color[0] = 0.10f;
         params->ambient_color[1] = 0.10f;
         params->ambient_color[2] = 0.10f;
@@ -1388,11 +1389,6 @@ namespace rl_tools {
         }
     }
 
-    template <typename DEVICE, typename SPEC>
-    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const rendering::raytracing::Scene& scene){
-        static const rendering::raytracing::AssetPool empty_pool{};
-        init(device, renderer, scene, empty_pool);
-    }
 
     template <typename DEVICE, typename SPEC>
     void update_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
@@ -1942,7 +1938,7 @@ namespace rl_tools {
         }
         library.assets.clear();
         library.scenes.clear();
-        library.hashes.clear();
+        library.metadata.clear();
         delete library.backend;
         library.backend = nullptr;
     }
@@ -1952,14 +1948,10 @@ namespace rl_tools {
         malloc(device, renderer);
     }
 
-    template <typename DEVICE, typename SPEC>
-    typename SPEC::TI init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Vulkan>& library, const char* scene_path){
-        bool is_new = false;
-        const auto scene_id = rendering::raytracing::detail::library_lookup_or_load(device, library, scene_path, is_new);
-        init(device, renderer, library.scenes[scene_id], library.pool);
-        return scene_id;
-    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
+
+
+#include "../../operations_cpu_post.h"
 
 #endif

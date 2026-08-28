@@ -340,7 +340,7 @@ namespace {
         RENDERER renderer;
         rlt::malloc(device, renderer);
         rlt::generate_probe_directions(device, renderer);
-        rlt::init(device, renderer, scenario_state.scene, scenario_state.pool);
+        rlt::init(device, renderer, scenario_state.bundle, scenario_state.pool);
         overlay_scenarios::build_initial(device, renderer, scenario_state);
         rlt::update(device, renderer);
 
