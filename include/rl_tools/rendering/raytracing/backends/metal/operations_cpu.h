@@ -566,7 +566,7 @@ namespace rl_tools {
             bool metallic_reflections = SPEC::SHADING::METALLIC_REFLECTIONS;
             bool pbr_shading = SPEC::SHADING::PBR_SHADING;
             bool punctual_light_shadows = SPEC::SHADING::PUNCTUAL_LIGHT_SHADOWS;
-            int overlay_count = (int)SPEC::MAX_OVERLAYS_PER_CAMERA;
+            int overlay_count = SPEC::ENABLE_OVERLAYS ? (int)SPEC::MAX_OVERLAYS_PER_CAMERA : 0;
             bool semantic_segmentation = SPEC::SEMANTIC_SEGMENTATION;
             bool has_observation = SPEC::HAS_OBSERVATION;
             bool dynamic_motion_blur = SPEC::ENABLE_DYNAMIC_MOTION_BLUR;
