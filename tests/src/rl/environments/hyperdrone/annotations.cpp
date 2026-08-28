@@ -1,17 +1,14 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rl/environments/hyperdrone/operations_cpu.h>
-#include <rl_tools/rendering/datasets/wrappers/operations_cpu.h>
 
 #include "../../../utils/utils.h"
 
 #include <gtest/gtest.h>
 
-#include <algorithm>
 #include <cstring>
 #include <filesystem>
 #include <memory>
 #include <string>
-#include <vector>
 
 namespace rlt = rl_tools;
 namespace l2f = rlt::rl::environments::l2f;
@@ -73,7 +70,6 @@ namespace test_hyperdrone_annotations {
     using ENVIRONMENT = rlt::rl::environments::hyperdrone::MultiEnvironment<WORLD, 1>;
     using ANNOTATIONS = typename WORLD::ANNOTATIONS;
     using GLB = rlt::rendering::datasets::procthor::GLB;
-    using BOX = rlt::rendering::datasets::wrappers::FreeSpaceBox<GLB, T>;
 }
 
 using namespace test_hyperdrone_annotations;
@@ -139,41 +135,32 @@ TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, CACHE_IDENTITY) {
     EXPECT_TRUE(annotations_equal(cold, warm));
 }
 
-TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, EXTENSION_AND_REPLAY) {
+TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, PARAMETER_KEYING) {
     DEVICE device;
     rlt::init(device);
     const GLB dataset{scene_directory(), {}};
-    const std::string cache_directory = fresh_cache_directory("rl_tools_annotations_cache_extension");
+    const std::string cache_directory = fresh_cache_directory("rl_tools_annotations_cache_keying");
     const rlt::rendering::datasets::annotations::Cache cache{cache_directory};
 
     auto env = std::make_unique<ENVIRONMENT>();
     rlt::malloc(device, *env);
-    env->shared.annotation_cache.directory = cache_directory;
     rlt::init(device, *env, dataset);
     auto& slot = env->environments[0].slots[0];
 
+    // different parameters are different cache entries; each warm read is bit-identical to the
+    // uncached scan with the same parameters
     rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> parameters{};
-    parameters.fov = WORLD::Parameters{}.fov;
-    parameters.aspect = static_cast<T>(WORLD_SPEC::CAM_WIDTH) / static_cast<T>(WORLD_SPEC::CAM_HEIGHT);
-
-    // growing the request resumes the stored scan; the result must be bit-identical to a
-    // from-scratch scan with the larger stopping parameters
-    parameters.min_required_positions = 100;
-    ANNOTATIONS extended, fresh;
-    rlt::rendering::datasets::annotations::annotate(device, extended, slot.metadata, slot.renderer, parameters, cache);
-    rlt::rendering::datasets::annotations::annotate(device, fresh, slot.metadata, slot.renderer, parameters);
-    EXPECT_GE(extended.num_positions, (TI)50);
-    EXPECT_TRUE(annotations_equal(extended, fresh));
-
-    // shrinking the request replays the stored scan without any probe launches
-    parameters.min_required_positions = 20;
-    ANNOTATIONS replayed, fresh_small;
-    rlt::rendering::datasets::annotations::annotate(device, replayed, slot.metadata, slot.renderer, parameters, cache);
-    rlt::rendering::datasets::annotations::annotate(device, fresh_small, slot.metadata, slot.renderer, parameters);
-    EXPECT_EQ(replayed.num_positions, (TI)20);
-    EXPECT_TRUE(annotations_equal(replayed, fresh_small));
-
-    EXPECT_EQ(cache_entry_count(cache_directory), (size_t)1);
+    for (const TI min_required : {(TI)20, (TI)100}) {
+        parameters.min_required_positions = min_required;
+        ANNOTATIONS cold, warm, uncached;
+        rlt::rendering::datasets::annotations::annotate(device, cold, slot.metadata, slot.renderer, parameters, cache);
+        rlt::rendering::datasets::annotations::annotate(device, warm, slot.metadata, slot.renderer, parameters, cache);
+        rlt::rendering::datasets::annotations::annotate(device, uncached, slot.metadata, slot.renderer, parameters);
+        EXPECT_EQ(cold.num_positions, (TI)min_required);
+        EXPECT_TRUE(annotations_equal(cold, warm));
+        EXPECT_TRUE(annotations_equal(cold, uncached));
+    }
+    EXPECT_EQ(cache_entry_count(cache_directory), (size_t)2);
     rlt::free(device, *env);
 }
 
@@ -200,8 +187,6 @@ namespace test_probe_batch_independence {
         rlt::init(device, *renderer, bundle);
         rlt::generate_probe_directions(device, *renderer);
         rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> parameters{};
-        parameters.fov = WORLD::Parameters{}.fov;
-        parameters.aspect = 1;
         rlt::rendering::datasets::annotations::annotate(device, annotations, bundle.metadata, *renderer, parameters);
         rlt::free(device, *renderer);
     }
@@ -217,37 +202,4 @@ TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, PROBE_BATCH_INDEPENDENCE) {
     annotate_standalone<7>(device, wide);
     EXPECT_GT(narrow.num_positions, (TI)0);
     EXPECT_TRUE(annotations_equal(narrow, wide));
-}
-
-TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, BOX_WRAPPER) {
-    DEVICE device;
-    rlt::init(device);
-    ANNOTATIONS unwrapped;
-    init_and_capture(device, GLB{scene_directory(), {}}, "", unwrapped);
-    ASSERT_GT(unwrapped.num_positions, (TI)1);
-
-    std::vector<T> xs;
-    for (TI i = 0; i < unwrapped.num_positions; i++) {
-        xs.push_back(unwrapped.positions[i].position[0]);
-    }
-    std::sort(xs.begin(), xs.end());
-    const T split = xs[xs.size() / 2];
-
-    BOX wrapped_dataset{};
-    wrapped_dataset.inner = GLB{scene_directory(), {}};
-    wrapped_dataset.min[0] = split;
-    ANNOTATIONS wrapped;
-    init_and_capture(device, wrapped_dataset, "", wrapped);
-
-    ANNOTATIONS expected;
-    expected.num_positions = 0;
-    for (TI i = 0; i < unwrapped.num_positions; i++) {
-        if (unwrapped.positions[i].position[0] >= split) {
-            expected.positions[expected.num_positions] = unwrapped.positions[i];
-            expected.num_positions++;
-        }
-    }
-    EXPECT_GT(wrapped.num_positions, (TI)0);
-    EXPECT_LT(wrapped.num_positions, unwrapped.num_positions);
-    EXPECT_TRUE(annotations_equal(wrapped, expected));
 }

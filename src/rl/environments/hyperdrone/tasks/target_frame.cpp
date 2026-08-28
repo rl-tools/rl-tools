@@ -4,6 +4,7 @@
 #include "../demo_common.h"
 
 #include <cstdio>
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -90,7 +91,7 @@ int main(int argc, char** argv){
         seed = std::stoul(argv[3]);
     }
     if(scene_path.empty()){
-        std::fprintf(stderr, "usage: %s <scene.glb> [output.mp4] [seed]\n", argv[0]);
+        std::fprintf(stderr, "usage: %s <scene.glb|scene-directory> [output.mp4] [seed]\n", argv[0]);
         return 1;
     }
 
@@ -100,9 +101,17 @@ int main(int argc, char** argv){
     typename BASE_WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);
     rlt::malloc(device, world);
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {scene_path}};
+    // dataset configuration: a single .glb reference or a directory corpus (the demo plays the
+    // first scene); the annotation cache persists the free-space scan across runs
+    rlt::rendering::datasets::procthor::GLB dataset{{}, {}};
+    if(std::filesystem::is_directory(scene_path)){
+        dataset.directory = scene_path;
+    } else {
+        dataset.references = {scene_path};
+    }
     typename decltype(dataset)::Corpus corpus;
     rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    shared.annotation_cache.directory = rlt::rendering::datasets::annotations::default_cache_directory();
     rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
 
     RNG rng;

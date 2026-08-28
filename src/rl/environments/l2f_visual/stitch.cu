@@ -202,11 +202,8 @@ static int validate_scene_has_initial_states(const std::string& scene_path) {
     rlt::load<typename RENDERER_SPEC::SHADING, RENDERER_SPEC::HAS_RGB>(device, bundle, scene_path);
     auto scene_id = rlt::insert(device, *library, bundle);
     rlt::init(device, *renderer, *library, scene_id);
-    const T scene_fov = typename ENVIRONMENT::Parameters{}.fov;
     rlt::generate_probe_directions(device, *renderer);
     rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
-    free_space_parameters.fov = scene_fov;
-    free_space_parameters.aspect = (T)CAM_WIDTH / (T)CAM_HEIGHT;
     rlt::rendering::datasets::annotations::annotate(device, *annotations, bundle.metadata, *renderer, free_space_parameters);
     const bool valid = annotations->num_positions > 0;
     rlt::free(device, *renderer);
@@ -705,13 +702,10 @@ int main(int argc, char** argv) {
             rlt::load<typename RENDERER_SPEC::SHADING, RENDERER_SPEC::HAS_RGB>(device, bundle, scene_path);
             TI scene_id = rlt::insert(device, *library, bundle);
             rlt::init(device, *renderers[scene_i], *library, scene_id);
-            const T scene_fov = typename ENVIRONMENT::Parameters{}.fov;
             rlt::generate_probe_directions(device, *renderers[scene_i]);
             if(scene_id == (TI)procthor_annotations.size()){
                 procthor_annotations.emplace_back();
                 rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
-                free_space_parameters.fov = scene_fov;
-                free_space_parameters.aspect = (T)CAM_WIDTH / (T)CAM_HEIGHT;
                 rlt::rendering::datasets::annotations::annotate(device, procthor_annotations[scene_id], bundle.metadata, *renderers[scene_i], free_space_parameters);
             }
             if(procthor_annotations[scene_id].num_positions == 0) {
