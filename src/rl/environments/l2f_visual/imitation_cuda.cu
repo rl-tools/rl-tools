@@ -1099,8 +1099,6 @@ int main(int argc, char** argv){
             TI scene_id = rlt::insert(device, *library, bundle);
             rlt::init(device, *renderers[s], *library, scene_id);
             const T scene_fov = typename ENVIRONMENT::Parameters{}.fov;
-            const T scene_up[3] = {0, 0, 1};
-            rlt::generate_cameras(device, *renderers[s], bundle.metadata.center, bundle.metadata.max_ray_length / 2, scene_up, scene_fov);
             rlt::generate_probe_directions(device, *renderers[s]);
             if(scene_id == (TI)procthor_annotations.size()){
                 procthor_annotations.emplace_back();

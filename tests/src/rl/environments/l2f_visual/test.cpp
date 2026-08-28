@@ -106,8 +106,6 @@ static TestVisuals* setup_visuals(DEVICE& device, ENV& env){
     auto scene_id = rlt::insert(device, visuals->library, visuals->bundle);
     rlt::init(device, visuals->renderer, visuals->library, scene_id);
     const T fov = typename ENV::Parameters{}.fov;
-    const T up[3] = {0, 0, 1};
-    rlt::generate_cameras(device, visuals->renderer, visuals->bundle.metadata.center, visuals->bundle.metadata.max_ray_length / 2, up, fov);
     rlt::generate_probe_directions(device, visuals->renderer);
     rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
     free_space_parameters.fov = fov;

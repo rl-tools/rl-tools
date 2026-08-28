@@ -101,6 +101,7 @@ namespace rl_tools {
         v3::scale(dv, T{-1}, cam.dir_dv);
         return cam;
     }
+
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

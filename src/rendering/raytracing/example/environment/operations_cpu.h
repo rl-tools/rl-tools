@@ -91,11 +91,6 @@ namespace rl_tools {
         utils::assert_exit(device, loaded, "raytracing_example::init: failed to load scene");
 
         init(device, *env.renderer, *env.bundle);
-        {
-            using T = typename SPEC::T;
-            const T up[3] = {0, 0, 1};
-            generate_cameras(device, *env.renderer, env.bundle->metadata.center, (env.bundle->metadata.max_ray_length / 2), up, SPEC::FOV);
-        }
         generate_probe_directions(device, *env.renderer);
         precompute_indoor_initial_states(device, env);
     }

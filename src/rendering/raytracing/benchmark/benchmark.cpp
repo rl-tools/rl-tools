@@ -20,6 +20,7 @@
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#include "../camera_orbit.h"
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/raytracing/save_cpu.h>
 
@@ -87,7 +88,7 @@ int main(int ac, char** av){
     const T scene_center[3] = {bundle.metadata.center[0], bundle.metadata.center[1], bundle.metadata.center[2]};
     const T look_up[3] = {0.f, 0.f, 1.f};
 
-    rlt::generate_cameras(device, renderer, scene_center, (bundle.metadata.max_ray_length / 2), look_up, FOV);
+    camera_orbit::write(device, renderer, scene_center, (bundle.metadata.max_ray_length / 2), look_up, FOV);
     rlt::generate_probe_directions(device, renderer);
 
     // Warmup
