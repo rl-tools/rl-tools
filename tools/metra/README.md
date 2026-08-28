@@ -16,6 +16,16 @@ tools/metra/install_service.sh
 
 The DB then lives in `~/.local/share/metra/metra.sqlite` and the server runs from the checkout (edit `server.py`, `systemctl --user restart metra`). User services stop at logout unless `loginctl enable-linger $USER` is set. Logs: `journalctl --user -u metra`.
 
+### NAS / Docker (e.g. TrueNAS SCALE)
+
+The server is stdlib-only, so no image build is needed — `docker-compose.yml` runs a stock `python` image with the code and DB bind-mounted from datasets:
+
+```bash
+rsync -r tools/metra/metra/ nas:/mnt/tank/apps/metra/app/metra/   # server.py + __init__.py is all it needs
+```
+
+Then on TrueNAS SCALE: *Apps → Discover Apps → ⋮ → Install via YAML*, paste `docker-compose.yml` with the two `/mnt/tank/apps/metra/...` host paths and the `user:` id adjusted (the data dataset must be writable by that uid; the DB lands on ZFS, so snapshot tasks cover backups). On any plain Docker host: `docker compose up -d` in a directory containing the file. Updating the server = re-rsync + restart the app; the DB migrates itself on startup. Clients then use `METRA_URL=http://<nas>:13340`. On FreeBSD-based TrueNAS CORE there is no Docker: run it in a jail with `python3` and an rc.d script or `daemon -r`, `METRA_DB` pointing at a mounted dataset.
+
 ## Logging metrics
 
 C++ (`include/metra/metra.h`, header-only, no rl_tools dependency):
