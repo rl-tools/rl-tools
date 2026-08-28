@@ -289,8 +289,6 @@ int main(int ac, char** av){
 
     rlt::rendering::datasets::annotations::FreeSpace<ANNOTATIONS_SPEC> annotations;
     rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
-    free_space_parameters.fov = FOV;
-    free_space_parameters.aspect = ASPECT;
     rlt::rendering::datasets::annotations::annotate(device, annotations, bundle.metadata, renderer, free_space_parameters);
     const TI num_positions = annotations.num_positions;
     rlt::utils::assert_exit(device, num_positions >= 8, "benchmark_dynamic: too few indoor positions");

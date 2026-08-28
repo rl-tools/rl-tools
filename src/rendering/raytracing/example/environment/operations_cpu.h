@@ -19,11 +19,7 @@ namespace rl_tools {
         using TI = typename SPEC::TI;
         using ANNOTATIONS_SPEC = rendering::datasets::annotations::FreeSpaceSpecification<T, TI>;
         rendering::datasets::annotations::FreeSpace<ANNOTATIONS_SPEC> annotations;
-        T fov = SPEC::FOV;
-        T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
         rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
-        free_space_parameters.fov = fov;
-        free_space_parameters.aspect = aspect;
         rendering::datasets::annotations::annotate(device, annotations, env.bundle->metadata, *env.renderer, free_space_parameters);
         TI take_n = std::min(annotations.num_positions, rl::environments::raytracing_example::Environment<SPEC>::NUM_INITIAL_STATES);
         for(TI i = 0; i < take_n; i++){
@@ -201,6 +197,7 @@ namespace rl_tools {
     template <typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::Camera<typename SPEC::T> make_camera_for_state(const rl::environments::raytracing_example::Environment<SPEC>& env, const rl::environments::raytracing_example::Parameters<SPEC>& parameters, const rl::environments::raytracing_example::State<SPEC>& state) {
         using T = typename SPEC::T;
+        const T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
         const T cy = std::cos(state.yaw);
         const T sy = std::sin(state.yaw);
 
@@ -217,7 +214,6 @@ namespace rl_tools {
         };
 
         const T up[3] = {0, 0, 1};
-        const T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
 
         return make_camera_data(position, look_at, up, SPEC::FOV, aspect);
     }

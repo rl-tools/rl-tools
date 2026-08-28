@@ -17,6 +17,15 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
             rendering_raytracing_stb
     )
     gtest_discover_tests(test_rl_environments_hyperdrone_world)
+    add_executable(test_rl_environments_hyperdrone_annotations annotations.cpp)
+    target_link_libraries(test_rl_environments_hyperdrone_annotations
+        PRIVATE
+            RLtools::RLtools
+            RLtools::Test
+            rendering_raytracing_backend
+            rendering_raytracing_stb
+    )
+    gtest_discover_tests(test_rl_environments_hyperdrone_annotations)
     add_executable(test_rl_environments_hyperdrone_target_frame target_frame.cpp)
     target_link_libraries(test_rl_environments_hyperdrone_target_frame
         PRIVATE
