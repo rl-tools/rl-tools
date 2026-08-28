@@ -7,8 +7,8 @@ services:
     environment:
       METRA_DB: /data/metra.sqlite
     volumes:
-      - /mnt/tank/apps/metra/rl_tools:/rl_tools:ro
-      - /mnt/tank/apps/metra/data:/data
+      - /mnt/fast/apps/metra/rl_tools:/rl_tools:ro
+      - /mnt/fast/apps/metra/data:/data
     ports:
       - "13340:13340"
     user: "568:568" # TrueNAS apps convention; use an owner of the data dataset

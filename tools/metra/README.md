@@ -21,10 +21,10 @@ The DB then lives in `~/.local/share/metra/metra.sqlite` and the server runs fro
 The server is stdlib-only, so no image build is needed — `docker-compose.yml` runs a stock `python` image with an RLtools checkout and the DB bind-mounted from datasets:
 
 ```bash
-git clone https://github.com/rl-tools/rl-tools rl_tools   # in the dataset, e.g. /mnt/tank/apps/metra/
+git clone https://github.com/rl-tools/rl-tools rl_tools   # in the dataset, e.g. /mnt/fast/apps/metra/
 ```
 
-Then on TrueNAS SCALE: *Apps → Discover Apps → ⋮ → Install via YAML*, paste `docker-compose.yml` with the two `/mnt/tank/apps/metra/...` host paths and the `user:` id adjusted (the data dataset must be writable by that uid; the DB lands on ZFS, so snapshot tasks cover backups). On any plain Docker host: `docker compose up -d` in a directory containing the file. Updating the server = `git pull` in the checkout + restart the app; the DB migrates itself on startup. Clients then use `METRA_URL=http://<nas>:13340`. On FreeBSD-based TrueNAS CORE there is no Docker: run it in a jail with `python3` and an rc.d script or `daemon -r`, `METRA_DB` pointing at a mounted dataset.
+Then on TrueNAS SCALE: *Apps → Discover Apps → ⋮ → Install via YAML*, paste `docker-compose.yml` with the two `/mnt/fast/apps/metra/...` host paths and the `user:` id adjusted (the data dataset must be writable by that uid; the DB lands on ZFS, so snapshot tasks cover backups). On any plain Docker host: `docker compose up -d` in a directory containing the file. Updating the server = `git pull` in the checkout + restart the app; the DB migrates itself on startup. Clients then use `METRA_URL=http://<nas>:13340`. On FreeBSD-based TrueNAS CORE there is no Docker: run it in a jail with `python3` and an rc.d script or `daemon -r`, `METRA_DB` pointing at a mounted dataset.
 
 ## Logging metrics
 
