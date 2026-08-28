@@ -11,5 +11,5 @@ services:
       - /mnt/fast/apps/metra/data:/data
     ports:
       - "13340:13340"
-    user: "568:568" # TrueNAS apps convention; use an owner of the data dataset
+    user: "1000:1000" # must own the data dataset (568 is the TrueNAS apps convention)
     restart: unless-stopped
