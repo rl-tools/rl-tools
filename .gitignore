@@ -65,6 +65,8 @@
 /experiments*
 /**/*.nsys-rep
 /**/*.sqlite
+/**/*.sqlite-wal
+/**/*.sqlite-shm
 /**/*.qdstrm
 /perf.data
 /.venv*
