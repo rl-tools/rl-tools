@@ -4,7 +4,6 @@
 #include "../demo_common.h"
 
 #include <cstdio>
-#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -29,8 +28,10 @@ struct TASK_SPEC: rlt::rl::environments::hyperdrone::tasks::target_frame::Specif
     static constexpr T TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE = 0.25;
 };
 using WORLD = rlt::rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
+constexpr TI NUMBER_OF_ENVIRONMENTS = 2;
+using ENVIRONMENT = rlt::rl::environments::hyperdrone::MultiEnvironment<WORLD, NUMBER_OF_ENVIRONMENTS>;
 
-constexpr TI INSTANCES = WORLD::INSTANCES;
+constexpr TI INSTANCES = ENVIRONMENT::INSTANCES;
 constexpr TI CAM_WIDTH = WORLD_SPEC::CAM_WIDTH;
 constexpr TI CAM_HEIGHT = WORLD_SPEC::CAM_HEIGHT;
 constexpr TI CAM_PIXELS = CAM_WIDTH * CAM_HEIGHT;
@@ -73,50 +74,28 @@ struct Tensors {
     }
 };
 
-int main(int argc, char** argv){
-#ifdef RL_TOOLS_TEST_DATA_PATH
-    std::string scene_path = std::string(HYPERDRONE_DEMO_STRINGIFY(RL_TOOLS_TEST_DATA_PATH)) + "/ProcTHOR-Train-1.glb";
-#else
-    std::string scene_path = "";
-#endif
-    std::string output_path = "target_frame.mp4";
-    TI seed = 0;
-    if(argc > 1){
-        scene_path = argv[1];
-    }
-    if(argc > 2){
-        output_path = argv[2];
-    }
-    if(argc > 3){
-        seed = std::stoul(argv[3]);
-    }
-    if(scene_path.empty()){
-        std::fprintf(stderr, "usage: %s <scene.glb|scene-directory> [output.mp4] [seed]\n", argv[0]);
-        return 1;
-    }
+int main(){
+    const std::string output_path = "target_frame.mp4";
+    constexpr TI SEED = 0;
 
     DEVICE device;
     rlt::init(device);
-    WORLD world;
-    typename BASE_WORLD::SharedContext shared;
-    rlt::malloc(device, shared.library);
-    rlt::malloc(device, world);
-    // dataset configuration: a single .glb reference or a directory corpus (the demo plays the
-    // first scene); the annotation cache persists the free-space scan across runs
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {}};
-    if(std::filesystem::is_directory(scene_path)){
-        dataset.directory = scene_path;
-    } else {
-        dataset.references = {scene_path};
-    }
-    typename decltype(dataset)::Corpus corpus;
-    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
-    shared.annotation_cache.directory = rlt::rendering::datasets::annotations::default_cache_directory();
-    rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
+    // dataset configuration: one scene per World, from the conta-published ProcTHOR pair
+    // (resolved from the content-addressed store, downloaded on first use)
+    rlt::rendering::datasets::procthor::GLB dataset{{}, {
+        "conta:a8fda3e9872e29994a425bd35c425159598623ce", // ai2thor-hab/glb/ProcTHOR-Train-0.glb
+        "conta:7f1c9129532798e0b63bc41edb6b4c09251cf8a0", // ai2thor-hab/glb/ProcTHOR-Train-1.glb
+    }};
+
+    ENVIRONMENT env;
+    rlt::malloc(device, env);
+    // the annotation cache persists the free-space scans across runs
+    env.shared.annotation_cache.directory = rlt::rendering::datasets::annotations::default_cache_directory();
+    rlt::init(device, env, dataset);
 
     RNG rng;
     rlt::malloc(device, rng);
-    rlt::init(device, rng, seed);
+    rlt::init(device, rng, SEED);
 
     Tensors tensors;
     tensors.allocate(device);
@@ -130,10 +109,10 @@ int main(int argc, char** argv){
     std::vector<std::uint8_t> frame(INSTANCES * CAM_HEIGHT * FRAME_WIDTH * 3);
 
     for(TI step_i = 0; step_i < STEPS; step_i++){
-        rlt::sample_initial_parameters(device, world, tensors.parameters, tensors.reset_mask, rng);
-        rlt::sample_initial_state(device, world, tensors.parameters, tensors.states, tensors.reset_mask, rng);
-        rlt::render(device, world, tensors.parameters, tensors.states, tensors.reset_mask);
-        rlt::observe(device, world, tensors.parameters, tensors.states, typename WORLD::Observation{}, tensors.observations, rng);
+        rlt::sample_initial_parameters(device, env, tensors.parameters, tensors.reset_mask, rng);
+        rlt::sample_initial_state(device, env, tensors.parameters, tensors.states, tensors.reset_mask, rng);
+        rlt::render(device, env, tensors.parameters, tensors.states, tensors.reset_mask);
+        rlt::observe(device, env, tensors.parameters, tensors.states, typename ENVIRONMENT::Observation{}, tensors.observations, rng);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
             for(TI y = 0; y < CAM_HEIGHT; y++){
                 for(TI x = 0; x < CAM_WIDTH; x++){
@@ -156,9 +135,9 @@ int main(int argc, char** argv){
                 rlt::set(device, tensors.actions, action, instance_i, action_i);
             }
         }
-        rlt::step(device, world, tensors.parameters, tensors.states, tensors.actions, tensors.next_states, rng);
+        rlt::step(device, env, tensors.parameters, tensors.states, tensors.actions, tensors.next_states, rng);
         rlt::copy(device, device, tensors.next_states, tensors.states);
-        rlt::terminated(device, world, tensors.parameters, tensors.states, tensors.terminated_flags, rng);
+        rlt::terminated(device, env, tensors.parameters, tensors.states, tensors.terminated_flags, rng);
         rlt::copy(device, device, tensors.terminated_flags, tensors.reset_mask);
         if((step_i + 1) % EPISODE_TRUNCATION_INTERVAL == 0){
             rlt::set_all(device, tensors.reset_mask, true);
@@ -174,8 +153,7 @@ int main(int argc, char** argv){
     }
 
     tensors.deallocate(device);
-    rlt::free(device, world);
-    rlt::free(device, shared.library);
+    rlt::free(device, env);
     rlt::free(device, rng);
     return video_ok ? 0 : 1;
 }

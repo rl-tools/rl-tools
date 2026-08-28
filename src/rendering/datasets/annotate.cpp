@@ -10,7 +10,6 @@
 
 #include <cstdlib>
 #include <iostream>
-#include <memory>
 #include <string>
 
 namespace rlt = rl_tools;
@@ -63,20 +62,20 @@ int run(DEVICE& device, const DATASET& dataset, const Options& options) {
     parameters.min_required_positions = options.min_required;
     parameters.max_candidates_tested = options.max_candidates;
 
-    auto annotations = std::make_unique<rlt::rendering::datasets::annotations::FreeSpace<ANNOTATIONS_SPEC>>();
+    rlt::rendering::datasets::annotations::FreeSpace<ANNOTATIONS_SPEC> annotations;
     for (size_t scene_i = first; scene_i < first + count; scene_i++) {
         rlt::rendering::Bundle<T> bundle;
         if (!load<rlt::rendering::Low, true>(device, dataset, corpus, scene_i, bundle)) {
             std::cerr << "failed to load scene " << scene_i << ": " << corpus.references[scene_i] << "\n";
             return 1;
         }
-        auto renderer = std::make_unique<RENDERER>();
-        rlt::malloc(device, *renderer);
-        rlt::init(device, *renderer, bundle);
-        rlt::generate_probe_directions(device, *renderer);
-        rlt::rendering::datasets::annotations::annotate(device, *annotations, bundle.metadata, *renderer, parameters, cache);
-        std::cout << "scene[" << scene_i << "] " << bundle.metadata.content_hash << ": positions=" << annotations->num_positions << "\n";
-        rlt::free(device, *renderer);
+        RENDERER renderer;
+        rlt::malloc(device, renderer);
+        rlt::init(device, renderer, bundle);
+        rlt::generate_probe_directions(device, renderer);
+        rlt::rendering::datasets::annotations::annotate(device, annotations, bundle.metadata, renderer, parameters, cache);
+        std::cout << "scene[" << scene_i << "] " << bundle.metadata.content_hash << ": positions=" << annotations.num_positions << "\n";
+        rlt::free(device, renderer);
     }
     return 0;
 }
