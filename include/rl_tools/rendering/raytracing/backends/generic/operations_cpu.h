@@ -216,9 +216,6 @@ namespace rl_tools {
         rendering::raytracing::detail::announce_backend(renderer);
     }
 
-    template <typename DEVICE, typename SPEC>
-    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer);
-
     template <typename DEVICE, typename SPEC, typename METADATA_T>
     void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool, const rendering::SceneMetadata<METADATA_T>& metadata){
         renderer.max_ray_length = (typename SPEC::T)metadata.max_ray_length;
@@ -484,7 +481,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
+    void update_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
         static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
         namespace generic = rendering::raytracing::backends::generic;
         using TI = typename SPEC::TI;
@@ -507,11 +504,6 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void update_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
-        update(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
     void expand_motion_transforms_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
         static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur or flow renderer specification");
         rendering::raytracing::detail::expand_motion_transforms_host(renderer);
@@ -520,12 +512,6 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void expand_motion_transforms_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
         static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur or flow renderer specification");
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void expand_motion_transforms(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
-        expand_motion_transforms_launch(device, renderer);
-        expand_motion_transforms_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -625,12 +611,6 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void render(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
-        render_launch(device, renderer);
-        render_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
     void probe_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
         namespace generic = rendering::raytracing::backends::generic;
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
@@ -640,12 +620,6 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void probe_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void probe(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
-        probe_launch(device, renderer);
-        probe_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -702,30 +676,6 @@ namespace rl_tools {
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         free(device, renderer.collision_results);
 #endif
-    }
-
-    // shared-asset-library fallbacks: this backend has no cross-renderer sharing, so the
-    // library is empty and every renderer builds its own copy — the API stays uniform
-    template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Generic>& library){
-        library.backend = new rendering::raytracing::backends::LibraryState<rendering::raytracing::backends::Generic, SPEC>{};
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Generic>& library){
-        for(auto* assets : library.assets){
-            delete assets;
-        }
-        library.assets.clear();
-        library.scenes.clear();
-        library.metadata.clear();
-        delete library.backend;
-        library.backend = nullptr;
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Generic>& library){
-        malloc(device, renderer);
     }
 
 }

@@ -6,6 +6,7 @@
 
 #include "../../renderer.h"
 #include "../../operations_cpu_common.h"
+#include "../specialization.h"
 #include "context.h"
 #include "device_source.h"
 
@@ -687,9 +688,6 @@ namespace rl_tools {
         rendering::raytracing::detail::announce_backend(renderer);
     }
 
-    template <typename DEVICE, typename SPEC>
-    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer);
-
     template <typename DEVICE, typename SPEC, typename METADATA_T>
     void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool, const rendering::SceneMetadata<METADATA_T>& metadata){
         renderer.max_ray_length = (typename SPEC::T)metadata.max_ray_length;
@@ -1165,23 +1163,24 @@ namespace rl_tools {
                 VkBool32 resolve_depth;
             };
             static_assert(sizeof(SpecializationData) == vk::specialization_constants::COUNT * 4);
+            using CONSTANTS = rendering::raytracing::backends::SpecializationConstants<SPEC>;
             SpecializationData specialization_data{};
-            specialization_data.srgb_output = SPEC::SHADING::SRGB_OUTPUT ? VK_TRUE : VK_FALSE;
-            specialization_data.motion_blur = SPEC::ENABLE_MOTION_BLUR ? VK_TRUE : VK_FALSE;
-            specialization_data.motion_samples = SPEC::ENABLE_MOTION_BLUR ? (int32_t)SPEC::MOTION_BLUR_SAMPLES : 1;
-            specialization_data.aa_grid = SPEC::ENABLE_ANTI_ALIASING ? (int32_t)SPEC::ANTI_ALIASING_GRID_SIZE : 1;
-            specialization_data.checker_background = SPEC::SHADING::CHECKER_BACKGROUND ? VK_TRUE : VK_FALSE;
-            specialization_data.load_textures = SPEC::SHADING::LOAD_TEXTURES ? VK_TRUE : VK_FALSE;
-            specialization_data.normal_shading = SPEC::SHADING::NORMAL_SHADING ? VK_TRUE : VK_FALSE;
-            specialization_data.metallic_reflections = SPEC::SHADING::METALLIC_REFLECTIONS ? VK_TRUE : VK_FALSE;
-            specialization_data.pbr_shading = SPEC::SHADING::PBR_SHADING ? VK_TRUE : VK_FALSE;
-            specialization_data.punctual_light_shadows = SPEC::SHADING::PUNCTUAL_LIGHT_SHADOWS ? VK_TRUE : VK_FALSE;
-            specialization_data.overlay_count = SPEC::ENABLE_OVERLAYS ? (int32_t)SPEC::MAX_OVERLAYS_PER_CAMERA : 0;
-            specialization_data.semantic_segmentation = SPEC::SEMANTIC_SEGMENTATION ? VK_TRUE : VK_FALSE;
-            specialization_data.has_observation = SPEC::HAS_OBSERVATION ? VK_TRUE : VK_FALSE;
-            specialization_data.dynamic_motion_blur = SPEC::ENABLE_DYNAMIC_MOTION_BLUR ? VK_TRUE : VK_FALSE;
-            specialization_data.resolve_rgb = (SPEC::ENABLE_DYNAMIC_MOTION_BLUR && SPEC::HAS_RGB) ? VK_TRUE : VK_FALSE;
-            specialization_data.resolve_depth = (SPEC::ENABLE_DYNAMIC_MOTION_BLUR && SPEC::HAS_DEPTH) ? VK_TRUE : VK_FALSE;
+            specialization_data.srgb_output = CONSTANTS::SRGB_OUTPUT ? VK_TRUE : VK_FALSE;
+            specialization_data.motion_blur = CONSTANTS::MOTION_BLUR ? VK_TRUE : VK_FALSE;
+            specialization_data.motion_samples = (int32_t)CONSTANTS::MOTION_SAMPLES;
+            specialization_data.aa_grid = (int32_t)CONSTANTS::AA_GRID;
+            specialization_data.checker_background = CONSTANTS::CHECKER_BACKGROUND ? VK_TRUE : VK_FALSE;
+            specialization_data.load_textures = CONSTANTS::LOAD_TEXTURES ? VK_TRUE : VK_FALSE;
+            specialization_data.normal_shading = CONSTANTS::NORMAL_SHADING ? VK_TRUE : VK_FALSE;
+            specialization_data.metallic_reflections = CONSTANTS::METALLIC_REFLECTIONS ? VK_TRUE : VK_FALSE;
+            specialization_data.pbr_shading = CONSTANTS::PBR_SHADING ? VK_TRUE : VK_FALSE;
+            specialization_data.punctual_light_shadows = CONSTANTS::PUNCTUAL_LIGHT_SHADOWS ? VK_TRUE : VK_FALSE;
+            specialization_data.overlay_count = (int32_t)CONSTANTS::OVERLAY_COUNT;
+            specialization_data.semantic_segmentation = CONSTANTS::SEMANTIC_SEGMENTATION ? VK_TRUE : VK_FALSE;
+            specialization_data.has_observation = CONSTANTS::HAS_OBSERVATION ? VK_TRUE : VK_FALSE;
+            specialization_data.dynamic_motion_blur = CONSTANTS::DYNAMIC_MOTION_BLUR ? VK_TRUE : VK_FALSE;
+            specialization_data.resolve_rgb = CONSTANTS::RESOLVE_RGB ? VK_TRUE : VK_FALSE;
+            specialization_data.resolve_depth = CONSTANTS::RESOLVE_DEPTH ? VK_TRUE : VK_FALSE;
             VkSpecializationMapEntry map_entries[vk::specialization_constants::COUNT];
             for(uint32_t constant_i = 0; constant_i < vk::specialization_constants::COUNT; constant_i++){
                 map_entries[constant_i] = {constant_i, constant_i * 4, 4};
@@ -1776,12 +1775,6 @@ namespace rl_tools {
         vk::wait_in_flight(device, ctx);
     }
 
-    template <typename DEVICE, typename SPEC>
-    void render(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
-        render_launch(device, renderer);
-        render_sync(device, renderer);
-    }
-
     // render produces the image outputs the spec declares; the collision-probe pass is the
     // separate probe verb so it can be scheduled independently (e.g. alongside update)
     template <typename DEVICE, typename SPEC>
@@ -1804,12 +1797,6 @@ namespace rl_tools {
         namespace vk = rendering::raytracing::backends::vulkan;
         auto& ctx = vk::context(renderer);
         vk::wait_collision_in_flight(device, ctx);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void probe(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
-        probe_launch(device, renderer);
-        probe_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1910,30 +1897,6 @@ namespace rl_tools {
                 renderer.depth_accumulator._data = nullptr;
             }
         }
-    }
-
-    // shared-asset-library fallbacks: this backend has no cross-renderer sharing, so the
-    // library is empty and every renderer builds its own copy — the API stays uniform
-    template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Vulkan>& library){
-        library.backend = new rendering::raytracing::backends::LibraryState<rendering::raytracing::backends::Vulkan, SPEC>{};
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Vulkan>& library){
-        for(auto* assets : library.assets){
-            delete assets;
-        }
-        library.assets.clear();
-        library.scenes.clear();
-        library.metadata.clear();
-        delete library.backend;
-        library.backend = nullptr;
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Vulkan>& library){
-        malloc(device, renderer);
     }
 
 }
