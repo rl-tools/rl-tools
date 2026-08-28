@@ -1350,6 +1350,10 @@ namespace rl_tools {
         }
         for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
             auto& overlay_host = renderer.overlays[overlay];
+            // dirty gates only this host-mirror staging (the flush_overlay_transforms ownership
+            // contract): a clean row may be producer-written on device and must not be clobbered.
+            // Producer writes still take effect — the accel build below consumes the transforms
+            // tensor unconditionally. Pinned by the overlay-producer contract tests.
             if(!overlay_host.dirty) continue;
             const size_t base = (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES;
             for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){

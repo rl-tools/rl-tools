@@ -171,3 +171,54 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
         )
     endif()
 endif()
+
+# overlay pose ownership contract: producer-style tensor writes must render identically to the
+# set_transform* verbs on every backend; self-contained (no golden data)
+if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
+    function(rl_tools_configure_overlay_producer_contract TARGET_NAME BACKEND_NAME)
+        string(TOUPPER ${BACKEND_NAME} RL_TOOLS_OVERLAY_PRODUCER_BACKEND_UPPER)
+        target_compile_definitions(${TARGET_NAME}
+            PRIVATE
+                RL_TOOLS_OVERLAY_PRODUCER_SUITE=RENDERING_RAYTRACING_OVERLAY_PRODUCER_${RL_TOOLS_OVERLAY_PRODUCER_BACKEND_UPPER}
+        )
+        gtest_discover_tests(${TARGET_NAME}
+            PROPERTIES TIMEOUT 60 LABELS "overlay-producer;overlay-producer-${BACKEND_NAME}"
+        )
+    endfunction()
+
+    add_executable(test_rendering_raytracing_overlay_producer_contract_generic overlay_producer_contract.cpp)
+    target_link_libraries(test_rendering_raytracing_overlay_producer_contract_generic
+        PRIVATE
+            RLtools::RLtools
+            assimp::assimp
+            rendering_raytracing_stb
+            GTest::gtest_main
+    )
+    rl_tools_configure_overlay_producer_contract(
+        test_rendering_raytracing_overlay_producer_contract_generic
+        generic
+    )
+
+    if(NOT RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED STREQUAL "GENERIC")
+        string(TOLOWER ${RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED} RL_TOOLS_OVERLAY_PRODUCER_BACKEND_SUFFIX)
+        set(RL_TOOLS_OVERLAY_PRODUCER_BACKEND_TARGET test_rendering_raytracing_overlay_producer_contract_${RL_TOOLS_OVERLAY_PRODUCER_BACKEND_SUFFIX})
+        add_executable(${RL_TOOLS_OVERLAY_PRODUCER_BACKEND_TARGET} overlay_producer_contract.cpp)
+        target_link_libraries(${RL_TOOLS_OVERLAY_PRODUCER_BACKEND_TARGET}
+            PRIVATE
+                RLtools::RLtools
+                rendering_raytracing_backend
+                rendering_raytracing_backend_depth
+                rendering_raytracing_backend_segmentation
+                rendering_raytracing_backend_normals
+                rendering_raytracing_stb
+                GTest::gtest_main
+        )
+        target_compile_definitions(${RL_TOOLS_OVERLAY_PRODUCER_BACKEND_TARGET}
+            PRIVATE RL_TOOLS_RENDERING_RAYTRACING_OVERLAY_PRODUCER_ACTIVE_BACKEND
+        )
+        rl_tools_configure_overlay_producer_contract(
+            ${RL_TOOLS_OVERLAY_PRODUCER_BACKEND_TARGET}
+            ${RL_TOOLS_OVERLAY_PRODUCER_BACKEND_SUFFIX}
+        )
+    endif()
+endif()
