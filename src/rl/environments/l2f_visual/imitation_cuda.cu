@@ -1098,13 +1098,10 @@ int main(int argc, char** argv){
             rlt::load<typename RENDERER_SPEC::SHADING, RENDERER_SPEC::HAS_RGB>(device, bundle, scene_paths[s]);
             TI scene_id = rlt::insert(device, *library, bundle);
             rlt::init(device, *renderers[s], *library, scene_id);
-            const T scene_fov = typename ENVIRONMENT::Parameters{}.fov;
             rlt::generate_probe_directions(device, *renderers[s]);
             if(scene_id == (TI)procthor_annotations.size()){
                 procthor_annotations.emplace_back();
                 rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
-                free_space_parameters.fov = scene_fov;
-                free_space_parameters.aspect = (T)CAM_WIDTH / (T)CAM_HEIGHT;
                 rlt::rendering::datasets::annotations::annotate(device, procthor_annotations[scene_id], bundle.metadata, *renderers[s], free_space_parameters);
             }
             TI num_pos = procthor_annotations[scene_id].num_positions;

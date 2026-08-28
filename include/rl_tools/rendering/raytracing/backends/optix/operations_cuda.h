@@ -55,6 +55,7 @@ namespace rl_tools {
         struct State {
             OWLContext context = nullptr;
             OWLModule module = nullptr;
+            OWLMissProg miss_prog = nullptr;
             OWLBuffer cameras_buffer = nullptr;
             OWLBuffer cameras_open_buffer = nullptr;
             OWLGroup world = nullptr;
@@ -92,6 +93,7 @@ namespace rl_tools {
         struct LibraryState<rendering::raytracing::backends::Optix, SPEC> {
             OWLContext context = nullptr;
             OWLModule module = nullptr;
+            OWLMissProg miss_prog = nullptr;
             OWLGeomType geom_type = nullptr;
         };
 
@@ -268,7 +270,7 @@ namespace rl_tools {
         // context-scoped resources (context, module, miss programs): created once per renderer
         // in standalone mode, once per AssetLibrary in shared mode
         template <typename SPEC>
-        void create_context_resources(OWLContext& context_out, OWLModule& module_out){
+        void create_context_resources(OWLContext& context_out, OWLModule& module_out, OWLMissProg& miss_prog_out){
             OWLContext context = owlContextCreate(nullptr, 1);
             // ray type 2 (normals) only exists in the normals-enabled PTX variants; the count
             // must match the NUM_RAY_TYPES the selected PTX was compiled with (SBT stride)
@@ -315,13 +317,11 @@ namespace rl_tools {
             }
             OWLMissProg miss_prog = owlMissProgCreate(context, module, miss_program_name,
                                                         sizeof(MissProgData), miss_prog_vars, -1);
-            if constexpr (SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING) {
-                owlMissProgSet3f(miss_prog, "color_0", owl3f{0.f, 0.f, 0.f});
-                owlMissProgSet3f(miss_prog, "color_1", owl3f{0.f, 0.f, 0.f});
-            } else {
-                owlMissProgSet3f(miss_prog, "color_0", owl3f{.8f, 0.f, 0.f});
-                owlMissProgSet3f(miss_prog, "color_1", owl3f{.8f, .8f, .8f});
-            }
+            // colors are scene content (Scene::Environment), resolved and set at init before the
+            // SBT build; the creation-time values are placeholders
+            owlMissProgSet3f(miss_prog, "color_0", owl3f{0.f, 0.f, 0.f});
+            owlMissProgSet3f(miss_prog, "color_1", owl3f{0.f, 0.f, 0.f});
+            miss_prog_out = miss_prog;
 
             // Collision miss program (ray type 1) — always registered to keep SBT consistent
             OWLVarDecl collision_miss_vars[] = {
@@ -752,7 +752,9 @@ namespace rl_tools {
         renderer.device.state = renderer.backend;
         OWLContext context = nullptr;
         OWLModule module = nullptr;
-        optix::create_context_resources<SPEC>(context, module);
+        OWLMissProg miss_prog = nullptr;
+        optix::create_context_resources<SPEC>(context, module, miss_prog);
+        renderer.backend->miss_prog = miss_prog;
         optix::detail::malloc_renderer(device, renderer, context, module);
     }
 
@@ -764,13 +766,14 @@ namespace rl_tools {
         renderer.backend = new rendering::raytracing::backends::RendererState<rendering::raytracing::backends::Optix, SPEC>{};
         renderer.device.state = renderer.backend;
         optix::detail::malloc_renderer(device, renderer, library.backend->context, library.backend->module);
+        renderer.backend->miss_prog = library.backend->miss_prog;
         renderer.backend->library = &library;
     }
 
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Optix>& library){
         library.backend = new rendering::raytracing::backends::LibraryState<rendering::raytracing::backends::Optix, SPEC>{};
-        rendering::raytracing::backends::optix::create_context_resources<SPEC>(library.backend->context, library.backend->module);
+        rendering::raytracing::backends::optix::create_context_resources<SPEC>(library.backend->context, library.backend->module, library.backend->miss_prog);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -904,6 +907,11 @@ namespace rl_tools {
         void build_scene_assets(DEVICE& device, OWLContext context, OWLGeomType triangles_geom_type, const rendering::raytracing::Scene& scene, const std::vector<const rendering::raytracing::Object*>& all_objects, rendering::raytracing::backends::SceneState<rendering::raytracing::backends::Optix, SPEC>& assets){
             namespace optix = rendering::raytracing::backends::optix;
             RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << scene.objects.size() << " object(s), " << scene.instances.size() << " instance(s), " << (all_objects.size() - scene.objects.size()) << " pool object(s) ...");
+            // ambient is baked per geometry, so it resolves at build time from the scene the
+            // build belongs to (per unique scene in library mode)
+            typename SPEC::T environment_ambient[3], environment_miss_0[3], environment_miss_1[3];
+            rendering::raytracing::detail::resolve_environment<SPEC>(scene.environment, environment_ambient, environment_miss_0, environment_miss_1);
+            (void)environment_miss_0; (void)environment_miss_1;
 
             std::vector<OWLGeom> geoms;
             std::vector<OWLGroup> object_groups;
@@ -1031,7 +1039,7 @@ namespace rl_tools {
                     owlGeomSet1f(geom, "opacity", md.opacity);
                     owlGeomSet1i(geom, "alpha_mode", md.alpha_mode);
                     owlGeomSet1f(geom, "alpha_cutoff", md.alpha_cutoff);
-                    owlGeomSet3f(geom, "ambient_color", owl3f{0.10f, 0.10f, 0.10f});
+                    owlGeomSet3f(geom, "ambient_color", owl3f{(float)environment_ambient[0], (float)environment_ambient[1], (float)environment_ambient[2]});
                     }
                 }
 
@@ -1236,6 +1244,9 @@ namespace rl_tools {
         namespace optix = rendering::raytracing::backends::optix;
         renderer.max_ray_length = (typename SPEC::T)metadata.max_ray_length;
         rendering::raytracing::detail::announce_configuration<SPEC>();
+        rendering::raytracing::detail::resolve_environment<SPEC>(scene.environment, renderer.ambient_color, renderer.miss_color_0, renderer.miss_color_1);
+        owlMissProgSet3f((OWLMissProg)renderer.backend->miss_prog, "color_0", owl3f{(float)renderer.miss_color_0[0], (float)renderer.miss_color_0[1], (float)renderer.miss_color_0[2]});
+        owlMissProgSet3f((OWLMissProg)renderer.backend->miss_prog, "color_1", owl3f{(float)renderer.miss_color_1[0], (float)renderer.miss_color_1[1], (float)renderer.miss_color_1[2]});
         OWLContext context = (OWLContext)renderer.backend->context;
         OWLModule module = (OWLModule)renderer.backend->module;
         OWLGeomType triangles_geom_type = optix::detail::create_geom_type<SPEC>(context, module);
@@ -1284,6 +1295,10 @@ namespace rl_tools {
         renderer.max_ray_length = library.metadata[scene_id].max_ray_length;
         rendering::raytracing::detail::announce_configuration<SPEC>();
         const rendering::raytracing::Scene& scene = library.scenes[scene_id];
+        rendering::raytracing::detail::resolve_environment<SPEC>(scene.environment, renderer.ambient_color, renderer.miss_color_0, renderer.miss_color_1);
+        owlMissProgSet3f((OWLMissProg)renderer.backend->miss_prog, "color_0", owl3f{(float)renderer.miss_color_0[0], (float)renderer.miss_color_0[1], (float)renderer.miss_color_0[2]});
+        owlMissProgSet3f((OWLMissProg)renderer.backend->miss_prog, "color_1", owl3f{(float)renderer.miss_color_1[0], (float)renderer.miss_color_1[1], (float)renderer.miss_color_1[2]});
+
         std::vector<const rendering::raytracing::Object*> all_objects;
         for(const auto& object : scene.objects){
             all_objects.push_back(&object);
