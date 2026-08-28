@@ -25,7 +25,13 @@ CREATE INDEX IF NOT EXISTS metrics_name_time ON metrics(name, time);
 
 
 def init_db(path: str | None = None) -> None:
-    conn = sqlite3.connect(path or DB_FILE)
+    path = os.path.abspath(path or DB_FILE)
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        conn = sqlite3.connect(path)
+    except (OSError, sqlite3.OperationalError) as error:
+        uid = os.getuid() if hasattr(os, "getuid") else "?"
+        raise SystemExit(f"metra: cannot open database {path} ({error}); check that {os.path.dirname(path)} exists and is writable by uid {uid}") from error
     conn.execute("PRAGMA journal_mode=WAL")
     conn.executescript(SCHEMA)
     columns = [row[1] for row in conn.execute("PRAGMA table_info(metrics)")]
