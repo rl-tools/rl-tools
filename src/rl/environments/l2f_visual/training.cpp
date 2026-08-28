@@ -271,11 +271,8 @@ int main(int argc, char** argv){
     auto scene_id = rlt::insert(device, *library, bundle);
     rlt::init(device, *renderer, *library, scene_id);
     {
-        const T scene_fov = typename ENVIRONMENT::Parameters{}.fov;
         rlt::generate_probe_directions(device, *renderer);
         rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
-        free_space_parameters.fov = scene_fov;
-        free_space_parameters.aspect = (T)ENVIRONMENT::SPEC::CAM_WIDTH / (T)ENVIRONMENT::SPEC::CAM_HEIGHT;
         rlt::rendering::datasets::annotations::annotate(device, *annotations, bundle.metadata, *renderer, free_space_parameters);
     }
 

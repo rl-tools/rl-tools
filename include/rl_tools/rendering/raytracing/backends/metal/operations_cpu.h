@@ -253,6 +253,7 @@ namespace rl_tools {
     void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool, const rendering::SceneMetadata<METADATA_T>& metadata){
         renderer.max_ray_length = (typename SPEC::T)metadata.max_ray_length;
         rendering::raytracing::detail::announce_configuration<SPEC>();
+        rendering::raytracing::detail::resolve_environment<SPEC>(scene.environment, renderer.ambient_color, renderer.miss_color_0, renderer.miss_color_1);
         namespace metal = rendering::raytracing::backends::metal;
         auto& ctx = metal::context(renderer);
         NS::AutoreleasePool* autorelease_pool = NS::AutoreleasePool::alloc()->init();
@@ -541,15 +542,10 @@ namespace rl_tools {
         params->num_scene_lights = (uint32_t)scene_lights.size();
         params->max_depth = renderer.max_ray_length > 0 ? renderer.max_ray_length : 1e30f;
         params->max_dist = renderer.max_ray_length;
-        params->ambient_color[0] = 0.10f;
-        params->ambient_color[1] = 0.10f;
-        params->ambient_color[2] = 0.10f;
-        if constexpr (SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING) {
-            params->miss_color_0[0] = 0.f; params->miss_color_0[1] = 0.f; params->miss_color_0[2] = 0.f;
-            params->miss_color_1[0] = 0.f; params->miss_color_1[1] = 0.f; params->miss_color_1[2] = 0.f;
-        } else {
-            params->miss_color_0[0] = .8f; params->miss_color_0[1] = 0.f; params->miss_color_0[2] = 0.f;
-            params->miss_color_1[0] = .8f; params->miss_color_1[1] = .8f; params->miss_color_1[2] = .8f;
+        for(int component = 0; component < 3; component++){
+            params->ambient_color[component] = (float)renderer.ambient_color[component];
+            params->miss_color_0[component] = (float)renderer.miss_color_0[component];
+            params->miss_color_1[component] = (float)renderer.miss_color_1[component];
         }
         params->first_overlay_instance = (uint32_t)scene.instances.size();
 

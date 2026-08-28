@@ -220,6 +220,7 @@ namespace rl_tools {
     void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool, const rendering::SceneMetadata<METADATA_T>& metadata){
         renderer.max_ray_length = (typename SPEC::T)metadata.max_ray_length;
         rendering::raytracing::detail::announce_configuration<SPEC>();
+        rendering::raytracing::detail::resolve_environment<SPEC>(scene.environment, renderer.ambient_color, renderer.miss_color_0, renderer.miss_color_1);
         namespace generic = rendering::raytracing::backends::generic;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
@@ -398,17 +399,10 @@ namespace rl_tools {
         backend_state.scene.lights = backend_state.lights.data();
         backend_state.scene.num_lights = (TI)backend_state.lights.size();
 
-        backend_state.scene.ambient_color[0] = 0.10f;
-        backend_state.scene.ambient_color[1] = 0.10f;
-        backend_state.scene.ambient_color[2] = 0.10f;
-        if constexpr (SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING) {
-            for(int component = 0; component < 3; component++){
-                backend_state.scene.miss_color_0[component] = 0.f;
-                backend_state.scene.miss_color_1[component] = 0.f;
-            }
-        } else {
-            backend_state.scene.miss_color_0[0] = .8f; backend_state.scene.miss_color_0[1] = 0.f; backend_state.scene.miss_color_0[2] = 0.f;
-            backend_state.scene.miss_color_1[0] = .8f; backend_state.scene.miss_color_1[1] = .8f; backend_state.scene.miss_color_1[2] = .8f;
+        for(int component = 0; component < 3; component++){
+            backend_state.scene.ambient_color[component] = renderer.ambient_color[component];
+            backend_state.scene.miss_color_0[component] = renderer.miss_color_0[component];
+            backend_state.scene.miss_color_1[component] = renderer.miss_color_1[component];
         }
         backend_state.scene.max_depth = renderer.max_ray_length > 0 ? renderer.max_ray_length : 1e30f;
         backend_state.scene.max_dist = renderer.max_ray_length;

@@ -13,20 +13,20 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace rl::environments::hyperdrone::tasks::moving_gate::cuda{
         template <typename DEVICE, typename TASK_SPEC, typename SCENE_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC, typename RNG>
-        __global__ void sample_initial_state_kernel(DEVICE device, typename World<TASK_SPEC>::NEXT_WORLD::DYNAMICS_ENV dynamics, Tensor<SCENE_SPEC> active_scene, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, const Tensor<RESET_SPEC> reset_mask, RNG rng){
+        __global__ void sample_initial_state_kernel(DEVICE device, typename World<TASK_SPEC>::NEXT_WORLD::DYNAMICS_ENV dynamics, Tensor<SCENE_SPEC> active_annotations, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, const Tensor<RESET_SPEC> reset_mask, RNG rng){
             using TI = typename DEVICE::index_t;
             constexpr TI INSTANCES = World<TASK_SPEC>::INSTANCES;
             static_assert(RNG::NUM_RNGS >= INSTANCES, "Please increase the number of CUDA RNGs");
             TI instance_i = threadIdx.x + blockIdx.x * blockDim.x;
             if(instance_i < INSTANCES && get(device, reset_mask, instance_i)){
                 auto& rng_state = get(rng.states, 0, instance_i);
-                const auto& scene = get_ref(device, active_scene, 0);
+                const auto& annotations = get_ref(device, active_annotations, 0);
                 auto& instance_parameters = get_ref(device, parameters, instance_i);
                 auto& state = get_ref(device, states, instance_i);
                 // qualified: ADL through the base-typed arguments would otherwise also consider
                 // the base helper and hard-instantiate the base World with TASK_SPEC
-                rl::environments::hyperdrone::_sample_initial_state<DEVICE, typename TASK_SPEC::NEXT_WORLD::SPEC>(device, dynamics, scene, instance_parameters, state, rng_state);
-                tasks::moving_gate::_sample_gate<DEVICE, TASK_SPEC>(device, scene, instance_parameters, state, rng_state);
+                rl::environments::hyperdrone::_sample_initial_state<DEVICE, typename TASK_SPEC::NEXT_WORLD::SPEC>(device, dynamics, annotations, instance_parameters, state, rng_state);
+                tasks::moving_gate::_sample_gate<DEVICE, TASK_SPEC>(device, annotations, instance_parameters, state, rng_state);
             }
         }
         template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC>
@@ -119,7 +119,7 @@ namespace rl_tools{
         constexpr TI BLOCKSIZE = 32;
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES, BLOCKSIZE);
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        rl::environments::hyperdrone::tasks::moving_gate::cuda::sample_initial_state_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, world.active_scene, parameters, states, reset_mask, rng);
+        rl::environments::hyperdrone::tasks::moving_gate::cuda::sample_initial_state_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, world.active_annotations, parameters, states, reset_mask, rng);
         check_status(device);
     }
 

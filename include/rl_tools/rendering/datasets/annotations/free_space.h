@@ -34,18 +34,16 @@ namespace rl_tools::rendering::datasets::annotations {
         TI num_positions = 0;
     };
 
-    // defaults pin the historical constants — annotation output with a default-constructed
-    // parameters struct (plus fov/aspect) is bit-identical to the pre-parameterization pass
+    // pure task semantics — the probe camera construction is internal to the producer, so a
+    // default-constructed struct is a complete configuration (defaults pin the historical
+    // constants)
     template <typename T_T, typename T_TI>
     struct FreeSpaceParameters {
         using T = T_T;
         using TI = T_TI;
-        T fov = 0;                                    // degrees; required — no meaningful default
-        T aspect = 0;                                 // required
         T min_clearance = 1.0;                        // candidate acceptance + search-volume margin
         TI max_candidates_tested = 4096;
         TI min_required_positions = 50;               // early-out once this many candidates accepted
-        T look_ahead = 1.0;                           // yaw-facing look-at distance of the candidate camera
         T hit_ratio_threshold = 0.72;                 // acceptance: fraction of probes that must hit
         T average_distance_threshold = 0.45;          // acceptance: normalized mean hit distance upper bound
         T near_hit_distance = 0.25;                   // hits closer than this count as "near"

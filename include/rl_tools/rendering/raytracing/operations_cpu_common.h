@@ -294,6 +294,35 @@ namespace rl_tools {
             << " overlays=" << SPEC::NUM_OVERLAYS << "x" << SPEC::MAX_OVERLAY_INSTANCES << " overlays_per_camera=" << SPEC::MAX_OVERLAYS_PER_CAMERA);
     }
 
+    // resolves a Scene::Environment into the concrete ambient + miss color pair the shaders
+    // consume. DEFAULT reproduces the historical constants exactly (golden-pinned); GRADIENT and
+    // EQUIRECT fall back to a solid horizon background until the shaders consume them.
+    template <typename SPEC>
+    void resolve_environment(const rendering::Scene::Environment& environment, typename SPEC::T ambient_color[3], typename SPEC::T miss_color_0[3], typename SPEC::T miss_color_1[3]){
+        using T = typename SPEC::T;
+        using Environment = rendering::Scene::Environment;
+        if(environment.mode == Environment::Mode::DEFAULT){
+            ambient_color[0] = 0.10f; ambient_color[1] = 0.10f; ambient_color[2] = 0.10f;
+            if constexpr (SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING){
+                for(int component = 0; component < 3; component++){
+                    miss_color_0[component] = 0.f;
+                    miss_color_1[component] = 0.f;
+                }
+            }
+            else{
+                miss_color_0[0] = .8f; miss_color_0[1] = 0.f; miss_color_0[2] = 0.f;
+                miss_color_1[0] = .8f; miss_color_1[1] = .8f; miss_color_1[2] = .8f;
+            }
+        }
+        else{
+            for(int component = 0; component < 3; component++){
+                ambient_color[component] = (T)environment.ambient[component];
+                miss_color_0[component] = (T)environment.horizon[component];
+                miss_color_1[component] = (T)environment.horizon[component];
+            }
+        }
+    }
+
     // Lights as uploaded to the device: only the PBR tiers consume punctual lights. Object lights
     // are authored in the object's local frame and follow the instance placing it.
     template <bool APPLY>

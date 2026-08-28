@@ -80,9 +80,22 @@ namespace rl_tools {
         // renderer. The scene must stay alive while the renderer uses it: the generic backend
         // renders directly from the mesh memory owned here.
         struct Scene{
+            // background + ambient as content: filled by dataset loaders (or authored), resolved
+            // by the renderer at init. DEFAULT keeps the backend's historical behavior; GRADIENT
+            // and EQUIRECT are declared for datasets to carry — backends that cannot render them
+            // yet fall back to a solid horizon background.
+            struct Environment{
+                enum class Mode { DEFAULT, SOLID, GRADIENT, EQUIRECT };
+                Mode mode = Mode::DEFAULT;
+                float horizon[3] = {0, 0, 0};  // SOLID: the background; GRADIENT: horizon endpoint
+                float zenith[3] = {0, 0, 0};   // GRADIENT: zenith endpoint
+                float ambient[3] = {0.10f, 0.10f, 0.10f};
+                Texture equirect;              // EQUIRECT panorama; not yet consumed by the backends
+            };
             std::vector<Object> objects;
             std::vector<Instance> instances;
             std::vector<SceneLight> lights;
+            Environment environment;
         };
 
         // loader-authoritative scene facts: the renderer consumes max_ray_length (probe budget,
