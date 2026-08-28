@@ -174,7 +174,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, SEEDED_ROLLOUT_DETERMINISM){
     for(TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++){
         EXPECT_EQ(env.environments[environment_i].slots.size(), 1);
         EXPECT_EQ(env.environments[environment_i].slots[0].corpus_index, environment_i);
-        EXPECT_GT(env.environments[environment_i].slots[0].annotations.num_indoor_positions, 0);
+        EXPECT_GT(env.environments[environment_i].slots[0].annotations.num_positions, 0);
     }
     auto* record_a = new Rollout;
     auto* record_b = new Rollout;

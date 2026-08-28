@@ -11,6 +11,7 @@
 #include "rig/rig.h"
 #include "../../../rendering/raytracing/renderer.h"
 #include "../../../rendering/datasets/procthor/procthor.h"
+#include "../../../rendering/datasets/annotations/free_space.h"
 
 #include <string>
 #include <vector>
@@ -151,8 +152,8 @@ namespace rl_tools::rl::environments::hyperdrone {
         using RENDERER_CONFIG = world::RendererConfig<SPEC>;
         using RENDERER_SPEC = rendering::raytracing::Specification<RENDERER_CONFIG>;
         using RENDERER = rendering::raytracing::Renderer<RENDERER_SPEC>;
-        using ANNOTATIONS_SPEC = rendering::datasets::procthor::AnnotationsSpecification<T, TI>;
-        using ANNOTATIONS = rendering::datasets::procthor::Annotations<ANNOTATIONS_SPEC>;
+        using ANNOTATIONS_SPEC = rendering::datasets::annotations::FreeSpaceSpecification<T, TI>;
+        using ANNOTATIONS = rendering::datasets::annotations::FreeSpace<ANNOTATIONS_SPEC>;
         using LIBRARY = rendering::raytracing::AssetLibrary<RENDERER_SPEC>;
 
         struct SharedContext {

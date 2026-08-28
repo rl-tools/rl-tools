@@ -63,7 +63,7 @@ namespace rl_tools {
         RL_TOOLS_FUNCTION_PLACEMENT void _sample_gate(DEVICE& device, const typename World<TASK_SPEC>::NEXT_WORLD::ANNOTATIONS& annotations, typename World<TASK_SPEC>::Parameters& parameters, typename World<TASK_SPEC>::State& state, RNG& rng){
             using T = typename TASK_SPEC::T;
             constexpr T TWO_PI = (T)2 * math::PI<T>;
-            auto gate_position = rendering::datasets::procthor::sample_free_position(device, annotations, rng);
+            auto gate_position = rendering::datasets::annotations::sample_free_position(device, annotations, rng);
             parameters.gate_center[0] = gate_position.position[0];
             parameters.gate_center[1] = gate_position.position[1];
             parameters.gate_center[2] = gate_position.position[2];

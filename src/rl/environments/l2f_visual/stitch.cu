@@ -11,6 +11,7 @@
 #include <rl_tools/rl/environments/l2f_visual/operations_cuda.h>
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
+#include <rl_tools/rendering/datasets/annotations/operations_cpu.h>
 
 #include "../../../../src/nn_models/port_checkpoint/raptor/policy.h"
 
@@ -191,7 +192,7 @@ static int validate_scene_has_initial_states(const std::string& scene_path) {
 
     using RENDERER_SPEC = typename ENVIRONMENT::SPEC::RENDERER_SPEC;
     using LIBRARY_TYPE = rlt::rendering::raytracing::AssetLibrary<RENDERER_SPEC>;
-    using ANNOTATIONS_TYPE = rlt::rendering::datasets::procthor::Annotations<typename ENVIRONMENT::SPEC::ANNOTATIONS_SPEC>;
+    using ANNOTATIONS_TYPE = rlt::rendering::datasets::annotations::FreeSpace<typename ENVIRONMENT::SPEC::ANNOTATIONS_SPEC>;
     auto* library = new LIBRARY_TYPE{};
     auto* renderer = new rlt::rendering::raytracing::Renderer<RENDERER_SPEC>{};
     auto* annotations = new ANNOTATIONS_TYPE{};
@@ -205,8 +206,11 @@ static int validate_scene_has_initial_states(const std::string& scene_path) {
     const T scene_up[3] = {0, 0, 1};
     rlt::generate_cameras(device, *renderer, bundle.metadata.center, bundle.metadata.max_ray_length / 2, scene_up, scene_fov);
     rlt::generate_probe_directions(device, *renderer);
-    rlt::rendering::datasets::procthor::annotate(device, *annotations, bundle.metadata, *renderer, scene_fov, (T)CAM_WIDTH / (T)CAM_HEIGHT);
-    const bool valid = annotations->num_indoor_positions > 0;
+    rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
+    free_space_parameters.fov = scene_fov;
+    free_space_parameters.aspect = (T)CAM_WIDTH / (T)CAM_HEIGHT;
+    rlt::rendering::datasets::annotations::annotate(device, *annotations, bundle.metadata, *renderer, free_space_parameters);
+    const bool valid = annotations->num_positions > 0;
     rlt::free(device, *renderer);
     rlt::free(device, *library);
     delete annotations;
@@ -410,7 +414,7 @@ static T squared_distance(const T* a, const T* b) {
 
 template <typename SCENE>
 static void build_route_for_env(const SCENE& scene, TI env_i, std::mt19937_64& route_rng, std::vector<T>& route_positions) {
-    const TI count = scene.num_indoor_positions;
+    const TI count = scene.num_positions;
     const TI base = env_i * WAYPOINTS_PER_ENV * 3;
     if(count == 0) {
         for(TI waypoint_i = 0; waypoint_i < WAYPOINTS_PER_ENV; waypoint_i++) {
@@ -424,7 +428,7 @@ static void build_route_for_env(const SCENE& scene, TI env_i, std::mt19937_64& r
     std::uniform_int_distribution<unsigned long long> initial_position_distribution(0, count - 1);
     TI current = static_cast<TI>(initial_position_distribution(route_rng));
     for(TI waypoint_i = 0; waypoint_i < WAYPOINTS_PER_ENV; waypoint_i++) {
-        const auto& p = scene.indoor_positions[current].position;
+        const auto& p = scene.positions[current].position;
         route_positions[base + waypoint_i * 3 + 0] = p[0];
         route_positions[base + waypoint_i * 3 + 1] = p[1];
         route_positions[base + waypoint_i * 3 + 2] = p[2];
@@ -438,7 +442,7 @@ static void build_route_for_env(const SCENE& scene, TI env_i, std::mt19937_64& r
             if(used[candidate_i]) {
                 continue;
             }
-            const auto& c = scene.indoor_positions[candidate_i].position;
+            const auto& c = scene.positions[candidate_i].position;
             T candidate_pos[3] = {c[0], c[1], c[2]};
             T dist_sq = squared_distance(current_pos, candidate_pos);
             if(dist_sq >= min_dist_sq && dist_sq < best) {
@@ -451,7 +455,7 @@ static void build_route_for_env(const SCENE& scene, TI env_i, std::mt19937_64& r
                 if(candidate_i == current || used[candidate_i]) {
                     continue;
                 }
-                const auto& c = scene.indoor_positions[candidate_i].position;
+                const auto& c = scene.positions[candidate_i].position;
                 T candidate_pos[3] = {c[0], c[1], c[2]};
                 T dist_sq = squared_distance(current_pos, candidate_pos);
                 if(dist_sq < best) {
@@ -682,7 +686,7 @@ int main(int argc, char** argv) {
 
     using RENDERER_SPEC = typename ENVIRONMENT::SPEC::RENDERER_SPEC;
     using RENDERER_TYPE = rlt::rendering::raytracing::Renderer<RENDERER_SPEC>;
-    using ANNOTATIONS_TYPE = rlt::rendering::datasets::procthor::Annotations<typename ENVIRONMENT::SPEC::ANNOTATIONS_SPEC>;
+    using ANNOTATIONS_TYPE = rlt::rendering::datasets::annotations::FreeSpace<typename ENVIRONMENT::SPEC::ANNOTATIONS_SPEC>;
     using LIBRARY_TYPE = rlt::rendering::raytracing::AssetLibrary<RENDERER_SPEC>;
     auto* library = new LIBRARY_TYPE{};
     rlt::malloc(device, *library);
@@ -709,13 +713,16 @@ int main(int argc, char** argv) {
             rlt::generate_probe_directions(device, *renderers[scene_i]);
             if(scene_id == (TI)procthor_annotations.size()){
                 procthor_annotations.emplace_back();
-                rlt::rendering::datasets::procthor::annotate(device, procthor_annotations[scene_id], bundle.metadata, *renderers[scene_i], scene_fov, (T)CAM_WIDTH / (T)CAM_HEIGHT);
+                rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
+                free_space_parameters.fov = scene_fov;
+                free_space_parameters.aspect = (T)CAM_WIDTH / (T)CAM_HEIGHT;
+                rlt::rendering::datasets::annotations::annotate(device, procthor_annotations[scene_id], bundle.metadata, *renderers[scene_i], free_space_parameters);
             }
-            if(procthor_annotations[scene_id].num_indoor_positions == 0) {
+            if(procthor_annotations[scene_id].num_positions == 0) {
                 std::cerr << "\nScene passed preflight but has no valid free-space positions: " << scene_path << std::endl;
                 return 1;
             }
-            std::cout << " (" << procthor_annotations[scene_id].num_indoor_positions << " free-space points)" << std::endl;
+            std::cout << " (" << procthor_annotations[scene_id].num_positions << " free-space points)" << std::endl;
             annotations[scene_i] = &procthor_annotations[scene_id];
         }
     }

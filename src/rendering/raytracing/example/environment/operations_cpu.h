@@ -7,6 +7,7 @@
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/datasets/procthor/procthor.h>
 #include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
+#include <rl_tools/rendering/datasets/annotations/operations_cpu.h>
 
 #include <cmath>
 #include <string>
@@ -16,21 +17,24 @@ namespace rl_tools {
     RL_TOOLS_FUNCTION_PLACEMENT void precompute_indoor_initial_states(DEVICE& device, rl::environments::raytracing_example::Environment<SPEC>& env) {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        using ANNOTATIONS_SPEC = rendering::datasets::procthor::AnnotationsSpecification<T, TI>;
-        rendering::datasets::procthor::Annotations<ANNOTATIONS_SPEC> annotations;
+        using ANNOTATIONS_SPEC = rendering::datasets::annotations::FreeSpaceSpecification<T, TI>;
+        rendering::datasets::annotations::FreeSpace<ANNOTATIONS_SPEC> annotations;
         T fov = SPEC::FOV;
         T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
-        rendering::datasets::procthor::annotate(device, annotations, env.bundle->metadata, *env.renderer, fov, aspect);
-        TI take_n = std::min(annotations.num_indoor_positions, rl::environments::raytracing_example::Environment<SPEC>::NUM_INITIAL_STATES);
+        rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
+        free_space_parameters.fov = fov;
+        free_space_parameters.aspect = aspect;
+        rendering::datasets::annotations::annotate(device, annotations, env.bundle->metadata, *env.renderer, free_space_parameters);
+        TI take_n = std::min(annotations.num_positions, rl::environments::raytracing_example::Environment<SPEC>::NUM_INITIAL_STATES);
         for(TI i = 0; i < take_n; i++){
             auto& s = env.indoor_initial_states[i];
-            s.position[0] = annotations.indoor_positions[i].position[0];
-            s.position[1] = annotations.indoor_positions[i].position[1];
-            s.position[2] = annotations.indoor_positions[i].position[2];
+            s.position[0] = annotations.positions[i].position[0];
+            s.position[1] = annotations.positions[i].position[1];
+            s.position[2] = annotations.positions[i].position[2];
             s.velocity[0] = static_cast<T>(0);
             s.velocity[1] = static_cast<T>(0);
             s.velocity[2] = static_cast<T>(0);
-            s.yaw = annotations.indoor_positions[i].yaw;
+            s.yaw = annotations.positions[i].yaw;
         }
         env.num_indoor_initial_states = take_n;
     }

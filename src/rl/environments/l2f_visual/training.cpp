@@ -12,6 +12,7 @@
 #include <rl_tools/rl/environments/l2f_visual/operations_cpu.h>
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
+#include <rl_tools/rendering/datasets/annotations/operations_cpu.h>
 
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
 #include <rl_tools/rl/loop/steps/timing/config.h>
@@ -259,7 +260,7 @@ int main(int argc, char** argv){
     rlt::malloc(device, ts);
     using RENDERER_SPEC = typename ENVIRONMENT::SPEC::RENDERER_SPEC;
     using LIBRARY_TYPE = rlt::rendering::raytracing::AssetLibrary<RENDERER_SPEC>;
-    using ANNOTATIONS_TYPE = rlt::rendering::datasets::procthor::Annotations<typename ENVIRONMENT::SPEC::ANNOTATIONS_SPEC>;
+    using ANNOTATIONS_TYPE = rlt::rendering::datasets::annotations::FreeSpace<typename ENVIRONMENT::SPEC::ANNOTATIONS_SPEC>;
     auto* library = new LIBRARY_TYPE{};
     auto* renderer = new rlt::rendering::raytracing::Renderer<RENDERER_SPEC>{};
     auto* annotations = new ANNOTATIONS_TYPE{};
@@ -274,7 +275,10 @@ int main(int argc, char** argv){
         const T scene_up[3] = {0, 0, 1};
         rlt::generate_cameras(device, *renderer, bundle.metadata.center, bundle.metadata.max_ray_length / 2, scene_up, scene_fov);
         rlt::generate_probe_directions(device, *renderer);
-        rlt::rendering::datasets::procthor::annotate(device, *annotations, bundle.metadata, *renderer, scene_fov, (T)ENVIRONMENT::SPEC::CAM_WIDTH / (T)ENVIRONMENT::SPEC::CAM_HEIGHT);
+        rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
+        free_space_parameters.fov = scene_fov;
+        free_space_parameters.aspect = (T)ENVIRONMENT::SPEC::CAM_WIDTH / (T)ENVIRONMENT::SPEC::CAM_HEIGHT;
+        rlt::rendering::datasets::annotations::annotate(device, *annotations, bundle.metadata, *renderer, free_space_parameters);
     }
 
     // 2. Wire every env to the shared renderer (non-owning references)
@@ -290,8 +294,8 @@ int main(int argc, char** argv){
     rlt::init(device, ts, seed);
 
     // 5. Pick target position from precomputed indoor positions
-    if (env0.annotations->num_indoor_positions > 0) {
-        auto& target = env0.annotations->indoor_positions[0];
+    if (env0.annotations->num_positions > 0) {
+        auto& target = env0.annotations->positions[0];
         typename ENVIRONMENT::Parameters default_params;
         rlt::initial_parameters(device, env0, default_params);
         T target_translation[3] = {

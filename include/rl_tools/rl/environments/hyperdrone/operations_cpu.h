@@ -12,6 +12,7 @@
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
+#include <rl_tools/rendering/datasets/annotations/operations_cpu.h>
 
 #include <algorithm>
 #include <filesystem>
@@ -101,8 +102,11 @@ namespace rl_tools {
             const T up[3] = {0, 0, 1};
             generate_cameras(device, slot.renderer, slot.metadata.center, slot.metadata.max_ray_length / 2, up, fov);
             generate_probe_directions(device, slot.renderer);
-            rendering::datasets::procthor::annotate(device, slot.annotations, slot.metadata, slot.renderer, fov, aspect);
-            utils::assert_exit(device, slot.annotations.num_indoor_positions > 0, "hyperdrone::World: scene has no valid indoor positions");
+            rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
+            free_space_parameters.fov = fov;
+            free_space_parameters.aspect = aspect;
+            rendering::datasets::annotations::annotate(device, slot.annotations, slot.metadata, slot.renderer, free_space_parameters);
+            utils::assert_exit(device, slot.annotations.num_positions > 0, "hyperdrone::World: scene has no valid indoor positions");
             if constexpr (WORLD::RENDERER_CONFIG::NUM_OVERLAYS > 0) {
                 // pinned deterministic spawn order (instance-major, then registration order) so
                 // segmentation ids are stable across runs and backends
@@ -222,7 +226,7 @@ namespace rl_tools {
             for (TI agent_i = 0; agent_i < SPEC::N_AGENTS; agent_i++) {
                 sample_initial_state(device, dynamics, parameters.dynamics, _agent_state<SPEC>(state, agent_i), rng);
             }
-            auto indoor_pos = rendering::datasets::procthor::sample_free_position(device, annotations, rng);
+            auto indoor_pos = rendering::datasets::annotations::sample_free_position(device, annotations, rng);
             parameters.scene_translation[0] = indoor_pos.position[0];
             parameters.scene_translation[1] = indoor_pos.position[1];
             parameters.scene_translation[2] = indoor_pos.position[2];
