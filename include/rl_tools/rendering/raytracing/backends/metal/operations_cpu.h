@@ -812,17 +812,11 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void generate_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer,
-                          const typename SPEC::T center[3], typename SPEC::T radius,
-                          const typename SPEC::T up[3], typename SPEC::T fov){
-        namespace metal = rendering::raytracing::backends::metal;
-        auto& ctx = metal::context(renderer);
-        metal::wait_in_flight(ctx);
-        rendering::raytracing::detail::generate_camera_poses<SPEC>(device, data(renderer.cameras), center, radius, up, fov);
-        if constexpr (SPEC::HAS_CAMERA_PAIR) {
-            std::memcpy(data(renderer.cameras_open), data(renderer.cameras), (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>));
-        }
+    void expand_motion_transforms(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
+        expand_motion_transforms_launch(device, renderer);
+        expand_motion_transforms_sync(device, renderer);
     }
+
 
     // renderer memory-domain copies: shared-storage buffers are host-addressable after the
     // in-flight wait, so the transfer delegates to the host-device tensor copy

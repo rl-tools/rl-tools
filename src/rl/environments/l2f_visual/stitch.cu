@@ -203,8 +203,6 @@ static int validate_scene_has_initial_states(const std::string& scene_path) {
     auto scene_id = rlt::insert(device, *library, bundle);
     rlt::init(device, *renderer, *library, scene_id);
     const T scene_fov = typename ENVIRONMENT::Parameters{}.fov;
-    const T scene_up[3] = {0, 0, 1};
-    rlt::generate_cameras(device, *renderer, bundle.metadata.center, bundle.metadata.max_ray_length / 2, scene_up, scene_fov);
     rlt::generate_probe_directions(device, *renderer);
     rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
     free_space_parameters.fov = scene_fov;
@@ -708,8 +706,6 @@ int main(int argc, char** argv) {
             TI scene_id = rlt::insert(device, *library, bundle);
             rlt::init(device, *renderers[scene_i], *library, scene_id);
             const T scene_fov = typename ENVIRONMENT::Parameters{}.fov;
-            const T scene_up[3] = {0, 0, 1};
-            rlt::generate_cameras(device, *renderers[scene_i], bundle.metadata.center, bundle.metadata.max_ray_length / 2, scene_up, scene_fov);
             rlt::generate_probe_directions(device, *renderers[scene_i]);
             if(scene_id == (TI)procthor_annotations.size()){
                 procthor_annotations.emplace_back();
