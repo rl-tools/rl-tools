@@ -25,8 +25,6 @@ struct Options {
     std::string ai2thorhab_root;
     std::string split = "Train";
     std::string cache_directory = rlt::rendering::datasets::annotations::default_cache_directory();
-    double fov = 0;
-    double aspect = 1;
     TI probes = 1;
     TI min_required = 50;
     TI max_candidates = 4096;
@@ -62,8 +60,6 @@ int run(DEVICE& device, const DATASET& dataset, const Options& options) {
 
     const rlt::rendering::datasets::annotations::Cache cache{options.cache_directory};
     rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> parameters{};
-    parameters.fov = (T)options.fov;
-    parameters.aspect = (T)options.aspect;
     parameters.min_required_positions = options.min_required;
     parameters.max_candidates_tested = options.max_candidates;
 
@@ -78,7 +74,7 @@ int run(DEVICE& device, const DATASET& dataset, const Options& options) {
         rlt::malloc(device, *renderer);
         rlt::init(device, *renderer, bundle);
         rlt::generate_probe_directions(device, *renderer);
-        annotate(device, dataset, corpus, scene_i, *annotations, bundle.metadata, *renderer, parameters, cache);
+        rlt::rendering::datasets::annotations::annotate(device, *annotations, bundle.metadata, *renderer, parameters, cache);
         std::cout << "scene[" << scene_i << "] " << bundle.metadata.content_hash << ": positions=" << annotations->num_positions << "\n";
         rlt::free(device, *renderer);
     }
@@ -112,20 +108,18 @@ int main(int argc, char** argv) {
         else if (argument == "--ai2thorhab") { options.ai2thorhab_root = value(); }
         else if (argument == "--split") { options.split = value(); }
         else if (argument == "--cache") { options.cache_directory = value(); }
-        else if (argument == "--fov") { options.fov = std::atof(value().c_str()); }
-        else if (argument == "--aspect") { options.aspect = std::atof(value().c_str()); }
         else if (argument == "--probes") { options.probes = (TI)std::atoll(value().c_str()); }
         else if (argument == "--min-required") { options.min_required = (TI)std::atoll(value().c_str()); }
         else if (argument == "--max-candidates") { options.max_candidates = (TI)std::atoll(value().c_str()); }
         else if (argument == "--first") { options.first = (size_t)std::atoll(value().c_str()); }
         else if (argument == "--count") { options.count = (size_t)std::atoll(value().c_str()); }
         else {
-            std::cerr << "usage: rendering_datasets_annotate (--glb DIR | --ai2thorhab ROOT [--split S]) --fov DEGREES [--aspect A] [--probes 1|8|64] [--min-required N] [--max-candidates N] [--cache DIR] [--first I] [--count N]\n";
+            std::cerr << "usage: rendering_datasets_annotate (--glb DIR | --ai2thorhab ROOT [--split S]) [--probes 1|8|64] [--min-required N] [--max-candidates N] [--cache DIR] [--first I] [--count N]\n";
             return argument == "--help" ? 0 : 1;
         }
     }
-    if (options.fov <= 0 || (options.glb_directory.empty() == options.ai2thorhab_root.empty())) {
-        std::cerr << "exactly one of --glb/--ai2thorhab and a positive --fov are required (fov/aspect are part of the cache key and must match the consumer)\n";
+    if (options.glb_directory.empty() == options.ai2thorhab_root.empty()) {
+        std::cerr << "exactly one of --glb/--ai2thorhab is required\n";
         return 1;
     }
     if (options.min_required > 4096) {
