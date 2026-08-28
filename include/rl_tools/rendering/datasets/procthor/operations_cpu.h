@@ -12,6 +12,9 @@
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
+#if !defined(_WIN32)
+#include <unistd.h>
+#endif
 #include <filesystem>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -107,7 +110,7 @@ namespace rl_tools::rendering::datasets::procthor {
             RL_TOOLS_RENDERING_DATASETS_LOG("procthor::AI2ThorHab: converting " << scene_name << " -> " << cache_path);
             conversion::Options options;
             options.scene_instance_path = source;
-            options.output_glb_path = cache_path + ".part";
+            options.output_glb_path = cache_path + ".part." + std::to_string(::getpid()); // pid-unique: concurrent loaders converting the same scene must not share a temp file
             options.normalize = dataset.normalize;
             std::string error;
             const bool converted = conversion::scene_instance_to_glb(options, error);
