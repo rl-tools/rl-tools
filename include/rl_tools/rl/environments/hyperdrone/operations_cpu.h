@@ -94,7 +94,9 @@ namespace rl_tools {
             slot.corpus_index = first_scene + slot_i;
             malloc(device, slot.renderer, shared.library);
             rendering::Bundle<T> bundle;
-            const bool scene_loaded = rendering::datasets::procthor::load<typename SPEC::SHADING, SPEC::OUTPUT_RGB>(device, dataset, corpus, slot.corpus_index, bundle);
+            // load and annotate are dispatched unqualified (ADL on the dataset type) so dataset
+            // wrappers can interpose on both
+            const bool scene_loaded = load<typename SPEC::SHADING, SPEC::OUTPUT_RGB>(device, dataset, corpus, slot.corpus_index, bundle);
             utils::assert_exit(device, scene_loaded, "hyperdrone::World: failed to load scene");
             slot.metadata = bundle.metadata;
             const TI scene_id = insert(device, shared.library, bundle);
@@ -103,7 +105,7 @@ namespace rl_tools {
             rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
             free_space_parameters.fov = fov;
             free_space_parameters.aspect = aspect;
-            rendering::datasets::annotations::annotate(device, slot.annotations, slot.metadata, slot.renderer, free_space_parameters);
+            annotate(device, dataset, corpus, slot.corpus_index, slot.annotations, slot.metadata, slot.renderer, free_space_parameters, shared.annotation_cache);
             utils::assert_exit(device, slot.annotations.num_positions > 0, "hyperdrone::World: scene has no valid indoor positions");
             if constexpr (WORLD::RENDERER_CONFIG::NUM_OVERLAYS > 0) {
                 // pinned deterministic spawn order (instance-major, then registration order) so
