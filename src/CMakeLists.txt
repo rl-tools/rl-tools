@@ -4,6 +4,7 @@ if(WIN32)
 endif()
 
 add_subdirectory(conta)
+add_subdirectory(metra)
 add_subdirectory(nn)
 add_subdirectory(rendering)
 add_subdirectory(rl)
