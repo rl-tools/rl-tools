@@ -750,27 +750,6 @@ namespace rl_tools {
     }
 
 
-    // orbit-initializes the camera tensor (and the shutter-open mirror under a camera-pair spec)
-    // through the accessor copy path; the placement policy is generate_camera_orbit (rendering/camera.h)
-    template <typename DEVICE, typename SPEC, typename BACKEND>
-    void generate_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer,
-                          const typename SPEC::T center[3], typename SPEC::T radius,
-                          const typename SPEC::T up[3], typename SPEC::T fov,
-                          const rendering::camera_orbit::Parameters<typename SPEC::T>& parameters = {}){
-        using T = typename SPEC::T;
-        const T aspect = (T)SPEC::CAM_WIDTH / (T)SPEC::CAM_HEIGHT;
-        Tensor<typename decltype(renderer.cameras)::SPEC> staging;
-        malloc(device, staging);
-        generate_camera_orbit(data(staging), SPEC::NUM_CAMERAS, center, radius, up, fov, aspect, parameters);
-        copy(device, renderer.device, staging, cameras(device, renderer));
-        if constexpr (SPEC::HAS_CAMERA_PAIR){
-            copy(device, renderer.device, staging, cameras_open(device, renderer));
-        }
-        free(device, staging);
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("Generated " << SPEC::NUM_CAMERAS << " camera positions");
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("Per-camera resolution: " << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT);
-    }
-
     namespace rendering::raytracing::detail{
         template <typename SPEC>
         std::vector<float> generate_probe_direction_vectors(){
