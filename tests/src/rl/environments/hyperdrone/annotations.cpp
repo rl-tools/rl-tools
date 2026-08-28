@@ -7,7 +7,6 @@
 
 #include <cstring>
 #include <filesystem>
-#include <memory>
 #include <string>
 
 namespace rlt = rl_tools;
@@ -97,12 +96,12 @@ static bool annotations_equal(const ANNOTATIONS& a, const ANNOTATIONS& b){
 
 template <typename DATASET>
 static void init_and_capture(DEVICE& device, const DATASET& dataset, const std::string& cache_directory, ANNOTATIONS& annotations_out){
-    auto env = std::make_unique<ENVIRONMENT>();
-    rlt::malloc(device, *env);
-    env->shared.annotation_cache.directory = cache_directory;
-    rlt::init(device, *env, dataset);
-    annotations_out = env->environments[0].slots[0].annotations;
-    rlt::free(device, *env);
+    ENVIRONMENT env;
+    rlt::malloc(device, env);
+    env.shared.annotation_cache.directory = cache_directory;
+    rlt::init(device, env, dataset);
+    annotations_out = env.environments[0].slots[0].annotations;
+    rlt::free(device, env);
 }
 
 static size_t cache_entry_count(const std::string& cache_directory){
@@ -142,10 +141,10 @@ TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, PARAMETER_KEYING) {
     const std::string cache_directory = fresh_cache_directory("rl_tools_annotations_cache_keying");
     const rlt::rendering::datasets::annotations::Cache cache{cache_directory};
 
-    auto env = std::make_unique<ENVIRONMENT>();
-    rlt::malloc(device, *env);
-    rlt::init(device, *env, dataset);
-    auto& slot = env->environments[0].slots[0];
+    ENVIRONMENT env;
+    rlt::malloc(device, env);
+    rlt::init(device, env, dataset);
+    auto& slot = env.environments[0].slots[0];
 
     // different parameters are different cache entries; each warm read is bit-identical to the
     // uncached scan with the same parameters
@@ -161,7 +160,7 @@ TEST(RL_ENVIRONMENTS_HYPERDRONE_ANNOTATIONS, PARAMETER_KEYING) {
         EXPECT_TRUE(annotations_equal(cold, uncached));
     }
     EXPECT_EQ(cache_entry_count(cache_directory), (size_t)2);
-    rlt::free(device, *env);
+    rlt::free(device, env);
 }
 
 namespace test_probe_batch_independence {
@@ -180,15 +179,15 @@ namespace test_probe_batch_independence {
     template <TI NUM_CAMERAS, typename SPEC>
     void annotate_standalone(DEVICE& device, rlt::rendering::datasets::annotations::FreeSpace<SPEC>& annotations){
         using RENDERER = rlt::rendering::raytracing::Renderer<rlt::rendering::raytracing::Specification<PROBE_CONFIG<NUM_CAMERAS>>>;
-        auto renderer = std::make_unique<RENDERER>();
+        RENDERER renderer;
         rlt::rendering::Bundle<T> bundle;
         ASSERT_TRUE((rlt::load<rlt::rendering::raytracing::Low, true>(device, bundle, SCENE_PATH)));
-        rlt::malloc(device, *renderer);
-        rlt::init(device, *renderer, bundle);
-        rlt::generate_probe_directions(device, *renderer);
+        rlt::malloc(device, renderer);
+        rlt::init(device, renderer, bundle);
+        rlt::generate_probe_directions(device, renderer);
         rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> parameters{};
-        rlt::rendering::datasets::annotations::annotate(device, annotations, bundle.metadata, *renderer, parameters);
-        rlt::free(device, *renderer);
+        rlt::rendering::datasets::annotations::annotate(device, annotations, bundle.metadata, renderer, parameters);
+        rlt::free(device, renderer);
     }
 }
 
