@@ -6,6 +6,7 @@
 
 #include "../../renderer.h"
 #include "../../operations_cpu_common.h"
+#include "../specialization.h"
 #include "context.h"
 #include "device_source.h"
 
@@ -247,9 +248,6 @@ namespace rl_tools {
         }
         rendering::raytracing::detail::announce_backend(renderer);
     }
-
-    template <typename DEVICE, typename SPEC>
-    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer);
 
     template <typename DEVICE, typename SPEC, typename METADATA_T>
     void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool, const rendering::SceneMetadata<METADATA_T>& metadata){
@@ -557,22 +555,23 @@ namespace rl_tools {
 
         if(!ctx.pipelines_built){
             auto constants = NS::TransferPtr(MTL::FunctionConstantValues::alloc()->init());
-            bool srgb_output = SPEC::SHADING::SRGB_OUTPUT;
-            bool motion_blur = SPEC::ENABLE_MOTION_BLUR;
-            int motion_samples = SPEC::ENABLE_MOTION_BLUR ? (int)SPEC::MOTION_BLUR_SAMPLES : 1;
-            int aa_grid = SPEC::ENABLE_ANTI_ALIASING ? (int)SPEC::ANTI_ALIASING_GRID_SIZE : 1;
-            bool checker_background = SPEC::SHADING::CHECKER_BACKGROUND;
-            bool load_textures = SPEC::SHADING::LOAD_TEXTURES;
-            bool normal_shading = SPEC::SHADING::NORMAL_SHADING;
-            bool metallic_reflections = SPEC::SHADING::METALLIC_REFLECTIONS;
-            bool pbr_shading = SPEC::SHADING::PBR_SHADING;
-            bool punctual_light_shadows = SPEC::SHADING::PUNCTUAL_LIGHT_SHADOWS;
-            int overlay_count = SPEC::ENABLE_OVERLAYS ? (int)SPEC::MAX_OVERLAYS_PER_CAMERA : 0;
-            bool semantic_segmentation = SPEC::SEMANTIC_SEGMENTATION;
-            bool has_observation = SPEC::HAS_OBSERVATION;
-            bool dynamic_motion_blur = SPEC::ENABLE_DYNAMIC_MOTION_BLUR;
-            bool resolve_rgb = SPEC::ENABLE_DYNAMIC_MOTION_BLUR && SPEC::HAS_RGB;
-            bool resolve_depth = SPEC::ENABLE_DYNAMIC_MOTION_BLUR && SPEC::HAS_DEPTH;
+            using CONSTANTS = rendering::raytracing::backends::SpecializationConstants<SPEC>;
+            bool srgb_output = CONSTANTS::SRGB_OUTPUT;
+            bool motion_blur = CONSTANTS::MOTION_BLUR;
+            int motion_samples = CONSTANTS::MOTION_SAMPLES;
+            int aa_grid = CONSTANTS::AA_GRID;
+            bool checker_background = CONSTANTS::CHECKER_BACKGROUND;
+            bool load_textures = CONSTANTS::LOAD_TEXTURES;
+            bool normal_shading = CONSTANTS::NORMAL_SHADING;
+            bool metallic_reflections = CONSTANTS::METALLIC_REFLECTIONS;
+            bool pbr_shading = CONSTANTS::PBR_SHADING;
+            bool punctual_light_shadows = CONSTANTS::PUNCTUAL_LIGHT_SHADOWS;
+            int overlay_count = CONSTANTS::OVERLAY_COUNT;
+            bool semantic_segmentation = CONSTANTS::SEMANTIC_SEGMENTATION;
+            bool has_observation = CONSTANTS::HAS_OBSERVATION;
+            bool dynamic_motion_blur = CONSTANTS::DYNAMIC_MOTION_BLUR;
+            bool resolve_rgb = CONSTANTS::RESOLVE_RGB;
+            bool resolve_depth = CONSTANTS::RESOLVE_DEPTH;
             constants->setConstantValue(&srgb_output, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::SRGB_OUTPUT);
             constants->setConstantValue(&motion_blur, MTL::DataTypeBool, (NS::UInteger)metal::function_constants::MOTION_BLUR);
             constants->setConstantValue(&motion_samples, MTL::DataTypeInt, (NS::UInteger)metal::function_constants::MOTION_SAMPLES);
@@ -797,12 +796,6 @@ namespace rl_tools {
         }
     }
 
-    template <typename DEVICE, typename SPEC>
-    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
-        update_launch(device, renderer);
-        update_sync(device, renderer);
-    }
-
     // CPU expansion into the host-resident tensors (residency is a backend property; the
     // device-resident path is the OptiX backend)
     template <typename DEVICE, typename SPEC>
@@ -816,12 +809,6 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void expand_motion_transforms_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
         static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur or flow renderer specification");
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void expand_motion_transforms(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
-        expand_motion_transforms_launch(device, renderer);
-        expand_motion_transforms_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -976,12 +963,6 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void render(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
-        render_launch(device, renderer);
-        render_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
     void probe_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
         namespace metal = rendering::raytracing::backends::metal;
         auto& ctx = metal::context(renderer);
@@ -1003,12 +984,6 @@ namespace rl_tools {
             ctx.in_flight_collision->waitUntilCompleted();
             ctx.in_flight_collision.reset();
         }
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void probe(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
-        probe_launch(device, renderer);
-        probe_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1068,30 +1043,6 @@ namespace rl_tools {
                 renderer.depth_accumulator._data = nullptr;
             }
         }
-    }
-
-    // shared-asset-library fallbacks: this backend has no cross-renderer sharing, so the
-    // library is empty and every renderer builds its own copy — the API stays uniform
-    template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Metal>& library){
-        library.backend = new rendering::raytracing::backends::LibraryState<rendering::raytracing::backends::Metal, SPEC>{};
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Metal>& library){
-        for(auto* assets : library.assets){
-            delete assets;
-        }
-        library.assets.clear();
-        library.scenes.clear();
-        library.metadata.clear();
-        delete library.backend;
-        library.backend = nullptr;
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Metal>& library){
-        malloc(device, renderer);
     }
 
 }

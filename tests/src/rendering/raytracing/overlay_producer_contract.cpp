@@ -5,6 +5,7 @@
 #else
 #include <rl_tools/rendering/raytracing/backends/generic/operations_cpu.h>
 #endif
+#include <rl_tools/rendering/datasets/operations_cpu.h>
 
 #include "render_copy.h"
 
@@ -112,7 +113,7 @@ namespace producer_contract {
     template <typename SPEC, typename RENDERER>
     struct Harness {
         DEVICE device;
-        rlt::rendering::raytracing::Scene scene;
+        rlt::rendering::Bundle<float> bundle;
         rlt::rendering::raytracing::AssetPool pool;
         rlt::rendering::raytracing::AssetHandle asset;
         RENDERER renderer;
@@ -124,7 +125,8 @@ namespace producer_contract {
             background.name = "background";
             background.meshes.push_back(make_quad(10.0f, 0.2f, 0.2f, 0.2f));
             const auto background_pose = pose(8.0f, 0.0f, 0.0f);
-            rlt::add(device, scene, background, background_pose.data());
+            rlt::add(device, bundle.scene, background, background_pose.data());
+            rlt::rendering::datasets::compute_bounds(device, bundle);
             rlt::rendering::raytracing::Object dynamic;
             dynamic.name = "dynamic";
             dynamic.meshes.push_back(make_quad(0.6f, 0.8f, 0.1f, 0.1f));
@@ -132,7 +134,7 @@ namespace producer_contract {
 
             rlt::malloc(device, renderer);
             rlt::generate_probe_directions(device, renderer);
-            rlt::init(device, renderer, scene, pool);
+            rlt::init(device, renderer, bundle, pool);
             set_camera();
             rlt::attach(device, renderer, (TI)0, rlt::rendering::raytracing::OverlayIndex{0});
             placement = rlt::spawn(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, asset, POSE_A.data());
