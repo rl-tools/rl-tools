@@ -429,6 +429,11 @@ namespace rl_tools {
 
             // loader-authoritative (SceneMetadata): probe ray budget and depth miss sentinel
             T max_ray_length = 0;
+            // resolved Scene::Environment (background pair + ambient), staged into the backend
+            // launch params; set by init
+            T ambient_color[3] = {0, 0, 0};
+            T miss_color_0[3] = {0, 0, 0};
+            T miss_color_1[3] = {0, 0, 0};
 
             backends::Device<BACKEND> device;
             BACKEND_STATE* backend = nullptr;

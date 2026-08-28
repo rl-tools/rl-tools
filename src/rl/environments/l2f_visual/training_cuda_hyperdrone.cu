@@ -721,37 +721,16 @@ int main(int argc, char** argv){
     }
 
     // ---------------------------------------------------------------------
-    // Resolve scenes
+    // Resolve scenes: a directory of .glb scenes (this run trains on the first N_TOTAL_SCENES
+    // of the corpus, natural order) or a single .glb replicated across all Worlds
     // ---------------------------------------------------------------------
-    std::vector<std::string> scene_paths;
-    std::mt19937 scene_rng(seed);
     const char* scene_arg = argv[1];
+    rlt::rendering::datasets::procthor::GLB scene_dataset{{}, {}};
     if(std::filesystem::is_directory(scene_arg)){
-        std::vector<std::string> all_glbs;
-        for(auto& entry : std::filesystem::directory_iterator(scene_arg)){
-            if(entry.path().extension() == ".glb"){
-                all_glbs.push_back(entry.path().string());
-            }
-        }
-        std::sort(all_glbs.begin(), all_glbs.end(), [](const std::string& a, const std::string& b){
-            auto extract_number = [](const std::string& path) -> int {
-                auto filename = std::filesystem::path(path).stem().string();
-                auto pos = filename.rfind('-');
-                if(pos != std::string::npos){
-                    try { return std::stoi(filename.substr(pos + 1)); } catch(...) {}
-                }
-                return 0;
-            };
-            return extract_number(a) < extract_number(b);
-        });
-        if(static_cast<TI>(all_glbs.size()) < N_TOTAL_SCENES){
-            std::cerr << "Need at least " << N_TOTAL_SCENES << " GLB scenes, found " << all_glbs.size() << std::endl;
-            return 1;
-        }
-        for(TI i = 0; i < N_TOTAL_SCENES; i++) scene_paths.push_back(all_glbs[i]);
-        std::cout << "Selected " << scene_paths.size() << " scenes from " << scene_arg << std::endl;
+        scene_dataset.directory = scene_arg;
+        std::cout << "Scene corpus from directory " << scene_arg << std::endl;
     } else {
-        scene_paths.resize(N_TOTAL_SCENES, scene_arg);
+        scene_dataset.references.assign(N_TOTAL_SCENES, scene_arg);
         std::cout << "Replicating single scene across " << N_TOTAL_SCENES << " renderers: " << scene_arg << std::endl;
     }
 
@@ -794,9 +773,13 @@ int main(int argc, char** argv){
     auto* env_storage = new MULTI_ENVIRONMENT{};
     MULTI_ENVIRONMENT& env = *env_storage;
     rlt::malloc(device, env);
-    rlt::rendering::datasets::procthor::GLB scene_dataset{{}, scene_paths};
     typename decltype(scene_dataset)::Corpus scene_corpus;
     rlt::rendering::datasets::procthor::enumerate(device, scene_dataset, scene_corpus);
+    if(static_cast<TI>(scene_corpus.references.size()) < N_TOTAL_SCENES){
+        std::cerr << "Need at least " << N_TOTAL_SCENES << " GLB scenes, found " << scene_corpus.references.size() << std::endl;
+        return 1;
+    }
+    scene_corpus.references.resize(N_TOTAL_SCENES);
     for(TI member_i = 0; member_i < NUMBER_OF_ENVIRONMENTS; member_i++){
         const TI first = member_i * N_TOTAL_SCENES / NUMBER_OF_ENVIRONMENTS;
         const TI last = (member_i + 1) * N_TOTAL_SCENES / NUMBER_OF_ENVIRONMENTS;
