@@ -1,5 +1,7 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rl/environments/l2f_visual/operations_cpu.h>
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
+#include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
 
 #include <gtest/gtest.h>
 
@@ -83,28 +85,32 @@ T norm3(const T v[3]){
 }
 
 
-// user-side composition: a shared library + one renderer + the env-side scene metadata
+// user-side composition: a shared library + one renderer + the env-side scene annotations
 struct TestVisuals {
     rlt::rendering::raytracing::AssetLibrary<typename ENV::SPEC::RENDERER_SPEC> library;
     rlt::rendering::raytracing::Renderer<typename ENV::SPEC::RENDERER_SPEC> renderer;
-    rlt::rendering::raytracing::scene::procthor::Scene<typename ENV::SPEC::SCENE_SPEC> scene;
+    rlt::rendering::Bundle<T> bundle;
+    rlt::rendering::datasets::procthor::Annotations<typename ENV::SPEC::ANNOTATIONS_SPEC> annotations;
 };
 
 static TestVisuals* setup_visuals(DEVICE& device, ENV& env){
     if(DEFAULT_SCENE_PATH == nullptr){
         return nullptr;
     }
+    using RENDERER_SPEC = typename ENV::SPEC::RENDERER_SPEC;
     auto* visuals = new TestVisuals{};
     rlt::malloc(device, visuals->library);
     rlt::malloc(device, visuals->renderer, visuals->library);
-    rlt::init(device, visuals->renderer, visuals->library, DEFAULT_SCENE_PATH);
+    rlt::load<typename RENDERER_SPEC::SHADING, RENDERER_SPEC::HAS_RGB>(device, visuals->bundle, DEFAULT_SCENE_PATH);
+    auto scene_id = rlt::insert(device, visuals->library, visuals->bundle);
+    rlt::init(device, visuals->renderer, visuals->library, scene_id);
     const T fov = typename ENV::Parameters{}.fov;
     const T up[3] = {0, 0, 1};
-    rlt::generate_cameras(device, visuals->renderer, visuals->renderer.scene_center, visuals->renderer.camera_radius, up, fov);
+    rlt::generate_cameras(device, visuals->renderer, visuals->bundle.metadata.center, visuals->bundle.metadata.max_ray_length / 2, up, fov);
     rlt::generate_probe_directions(device, visuals->renderer);
-    rlt::rendering::raytracing::scene::procthor::precompute_indoor_positions(device, visuals->scene, visuals->renderer, fov, (T)ENV::SPEC::CAM_WIDTH / (T)ENV::SPEC::CAM_HEIGHT);
+    rlt::rendering::datasets::procthor::annotate(device, visuals->annotations, visuals->bundle.metadata, visuals->renderer, fov, (T)ENV::SPEC::CAM_WIDTH / (T)ENV::SPEC::CAM_HEIGHT);
     env.renderer = &visuals->renderer;
-    env.scene = &visuals->scene;
+    env.annotations = &visuals->annotations;
     return visuals;
 }
 
@@ -124,15 +130,15 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, LIFECYCLE) {
     auto* visuals = setup_visuals(device, env);
     if(visuals != nullptr){
         EXPECT_NE(env.renderer, nullptr);
-        EXPECT_NE(env.scene, nullptr);
-        EXPECT_GT(env.scene->num_indoor_positions, 0);
+        EXPECT_NE(env.annotations, nullptr);
+        EXPECT_GT(env.annotations->num_indoor_positions, 0);
     }
 
     rlt::init(device, env);
 
     rlt::free(device, env);
     EXPECT_EQ(env.renderer, nullptr);
-    EXPECT_EQ(env.scene, nullptr);
+    EXPECT_EQ(env.annotations, nullptr);
     teardown_visuals(device, visuals);
 }
 

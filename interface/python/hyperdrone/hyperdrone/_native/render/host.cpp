@@ -79,9 +79,9 @@ NB_MODULE(hyperdrone_render_core, m){
     jit_renderer_class
         .def(nb::init<const std::string&, const std::string&>(), nb::arg("library_path"), nb::arg("expected_config"))
         .def_prop_ro("backend", [](const JitRenderer& jit){ return std::string(jit->backend()); })
-        .def("init", [](JitRenderer& jit, const rrt::Scene& scene, const rrt::AssetPool* pool){
+        .def("init", [](JitRenderer& jit, rrt::Bundle<float>& bundle, const rrt::AssetPool* pool){
             nb::gil_scoped_release release;
-            jit->init(&scene, pool);
+            jit->init(&bundle, pool);
         }, nb::arg("scene"), nb::arg("asset_pool").none() = nb::none(), nb::keep_alive<1, 2>(), nb::keep_alive<1, 3>())
         .def("update", [](JitRenderer& jit){
             nb::gil_scoped_release release;

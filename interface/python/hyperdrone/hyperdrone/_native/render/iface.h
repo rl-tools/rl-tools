@@ -7,12 +7,13 @@
 // same build tree, so passing rl_tools scene types by pointer is safe. Everything
 // renderer-spec dependent is hidden behind the vtable; buffer exchange uses raw pointers
 // sized by config(). Bump HYPERDRONE_RENDER_IFACE_VERSION on any change to this file.
-#define HYPERDRONE_RENDER_IFACE_VERSION 5
+#define HYPERDRONE_RENDER_IFACE_VERSION 6
 
-namespace rl_tools { namespace rendering { namespace raytracing {
-    struct Scene;
+namespace rl_tools { namespace rendering {
     struct AssetPool;
-}}}
+    template <typename T>
+    struct Bundle;
+}}
 
 namespace hyperdrone::render {
     struct Config {
@@ -56,7 +57,9 @@ namespace hyperdrone::render {
         virtual Config config() const = 0;
         virtual const char* backend() const = 0;
 
-        virtual void init(const rl_tools::rendering::raytracing::Scene* scene, const rl_tools::rendering::raytracing::AssetPool* pool) = 0;
+        // the bundle's scene (and the asset pool) must outlive the renderer; the bundle
+        // metadata is (re)computed from the composed scene at init and kept in the impl
+        virtual void init(rl_tools::rendering::Bundle<float>* bundle, const rl_tools::rendering::AssetPool* pool) = 0;
         virtual void update() = 0;
         virtual void synchronize() = 0;
 

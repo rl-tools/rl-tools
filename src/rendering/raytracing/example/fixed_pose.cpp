@@ -9,6 +9,7 @@
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/raytracing/save_cpu.h>
 
 #include <conta/conta.h>
@@ -169,14 +170,14 @@ int main(int argc, char** argv) {
     Renderer renderer;
     rlt::malloc(device, renderer);
 
-    rlt::rendering::raytracing::Scene scene;
-    if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, options.scene_path)) {
+    rlt::rendering::Bundle<T> bundle;
+    if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, options.scene_path)) {
         std::cerr << "Failed to load scene: " << options.scene_path << std::endl;
         rlt::free(device, renderer);
         return 1;
     }
 
-    rlt::init(device, renderer, scene);
+    rlt::init(device, renderer, bundle);
 
     constexpr T forward_body[3] = {static_cast<T>(1), static_cast<T>(0), static_cast<T>(0)};
     constexpr T up_body[3] = {static_cast<T>(0), static_cast<T>(0), static_cast<T>(1)};

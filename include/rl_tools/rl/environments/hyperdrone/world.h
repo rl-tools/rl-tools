@@ -10,26 +10,13 @@
 #include "pose.h"
 #include "rig/rig.h"
 #include "../../../rendering/raytracing/renderer.h"
-#include "../../../rendering/raytracing/scene/procthor/scene.h"
+#include "../../../rendering/datasets/procthor/procthor.h"
 
 #include <string>
 #include <vector>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::hyperdrone {
-
-    namespace datasets {
-        // bare GLBs, no transforms: enumerated as a lexicographically sorted directory walk so
-        // the SceneSet is filesystem-order independent
-        struct Plain {
-            std::string directory;
-        };
-    }
-
-    // a scene dataset's output: the enumerated corpus the MultiEnvironment schedules over
-    struct SceneSet {
-        std::vector<std::string> paths;
-    };
 
     template <typename T_T, typename T_TI, typename T_DYNAMICS_STATIC_PARAMETERS>
     struct Specification {
@@ -164,13 +151,12 @@ namespace rl_tools::rl::environments::hyperdrone {
         using RENDERER_CONFIG = world::RendererConfig<SPEC>;
         using RENDERER_SPEC = rendering::raytracing::Specification<RENDERER_CONFIG>;
         using RENDERER = rendering::raytracing::Renderer<RENDERER_SPEC>;
-        using SCENE_SPEC = rendering::raytracing::scene::SceneSpecification<T, TI>;
-        using SCENE = rendering::raytracing::scene::procthor::Scene<SCENE_SPEC>;
+        using ANNOTATIONS_SPEC = rendering::datasets::procthor::AnnotationsSpecification<T, TI>;
+        using ANNOTATIONS = rendering::datasets::procthor::Annotations<ANNOTATIONS_SPEC>;
         using LIBRARY = rendering::raytracing::AssetLibrary<RENDERER_SPEC>;
 
         struct SharedContext {
             LIBRARY library;
-            SceneSet scene_set;
             // pool-asset registry (entities): deduplicated by path, registered into the shared
             // library's pool before any hot slot builds
             std::vector<std::string> pool_asset_paths;
@@ -191,13 +177,14 @@ namespace rl_tools::rl::environments::hyperdrone {
         // slot init, in pinned instance-major/kind order)
         struct HotSlot {
             RENDERER renderer;
-            SCENE scene;
-            TI scene_set_index;
+            ANNOTATIONS annotations;
+            rendering::SceneMetadata<T> metadata;
+            TI corpus_index;
             std::vector<rendering::raytracing::OverlayPlacement> entity_placements;  // [instance * kinds + kind]
         };
 
         RENDERER renderer;                 // view of the active slot's renderer
-        std::vector<HotSlot> slots;        // this World's partition of the SceneSet
+        std::vector<HotSlot> slots;        // this World's partition of the dataset corpus
         std::vector<EntityKind> entity_kinds;  // frozen at init; empty when no wrapper registers any
         TI active_slot = 0;
         TI member_index = 0;
@@ -209,11 +196,15 @@ namespace rl_tools::rl::environments::hyperdrone {
         using HISTORY_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::HISTORY_LENGTH, INSTANCES * N_VIEWS, FRAME_DIM>>;
         using PREV_CAMERAS_SPEC = tensor::Specification<rendering::raytracing::Camera<T>, TI, tensor::Shape<TI, INSTANCES * N_VIEWS>>;
         using EPISODE_START_SPEC = tensor::Specification<TI, TI, tensor::Shape<TI, INSTANCES>>;
-        using ACTIVE_SCENE_SPEC = tensor::Specification<SCENE, TI, tensor::Shape<TI, 1>>;
+        using ACTIVE_ANNOTATIONS_SPEC = tensor::Specification<ANNOTATIONS, TI, tensor::Shape<TI, 1>>;
         Tensor<HISTORY_SPEC> history;
         Tensor<PREV_CAMERAS_SPEC> prev_cameras;  // shutter-open interpolation source (motion blur)
         Tensor<EPISODE_START_SPEC> episode_start;  // history slot at which each instance's episode began
-        Tensor<ACTIVE_SCENE_SPEC> active_scene;  // device-visible copy of the active slot's scene tables
+        Tensor<ACTIVE_ANNOTATIONS_SPEC> active_annotations;  // device-visible copy of the active slot's annotation tables
+        // host-resident camera staging for the CPU render verb (pre-allocated: render runs per step)
+        Tensor<PREV_CAMERAS_SPEC> camera_staging_close;
+        Tensor<PREV_CAMERAS_SPEC> camera_staging_previous;
+        Tensor<PREV_CAMERAS_SPEC> camera_staging_open;
         TI history_step = 0;
         void* cuda_sync_event = nullptr;  // lazily created by the CUDA verbs (caller/render stream joins)
 
@@ -232,8 +223,8 @@ namespace rl_tools::rl::environments::hyperdrone {
 
     // the composite is itself an environment: it satisfies the batch-verb contract by fanning
     // out to its members over contiguous instance blocks (flat, member-major). Members are
-    // identical Worlds (or task wrappers over Worlds); the shared AssetLibrary and SceneSet
-    // live in the member-defined SharedContext
+    // identical Worlds (or task wrappers over Worlds); the shared AssetLibrary lives in the
+    // member-defined SharedContext, the dataset corpus is enumerated at init
     template <typename T_ENVIRONMENT, typename T_ENVIRONMENT::TI T_NUMBER_OF_ENVIRONMENTS>
     struct MultiEnvironment{
         using ENVIRONMENT = T_ENVIRONMENT;

@@ -6,6 +6,7 @@
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_common.h>
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 
 #include "bindings.h"
 
@@ -26,6 +27,10 @@ using hyperdrone::make_owned_array;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 static DEVICE g_device;
+
+// the Python-facing "Scene" is a Bundle: the composed scene plus its loader/computed
+// metadata (bounds, max ray length), which the renderer consumes at init
+using SceneBundle = rlt::rendering::Bundle<float>;
 
 template <typename TARGET>
 static bool load_dispatch(TARGET& target, const std::string& path, int fidelity, bool rgb){
@@ -180,56 +185,56 @@ void register_scene_bindings(nb::module_& m){
         .def("add_mesh", [](rrt::AssetPool& pool, const rrt::Mesh& mesh){ return rlt::add(g_device, pool, mesh).index; })
         .def_prop_ro("num_assets", [](const rrt::AssetPool& pool){ return pool.assemblies.size(); });
 
-    nb::class_<rrt::Scene>(m, "Scene")
+    nb::class_<SceneBundle>(m, "Scene")
         .def(nb::init<>())
-        .def("load", [](rrt::Scene& scene, const std::string& path, int fidelity, bool rgb){
+        .def("load", [](SceneBundle& bundle, const std::string& path, int fidelity, bool rgb){
             bool success;
             {
                 nb::gil_scoped_release release;
-                success = load_dispatch(scene, path, fidelity, rgb);
+                success = load_dispatch(bundle, path, fidelity, rgb);
             }
             if(!success){
                 throw std::runtime_error("hyperdrone: failed to load scene from " + path);
             }
         }, nb::arg("path"), nb::arg("fidelity") = 2, nb::arg("rgb") = true)
-        .def("add_object", [](rrt::Scene& scene, const rrt::Object& object, nb::object transform){
+        .def("add_object", [](SceneBundle& bundle, const rrt::Object& object, nb::object transform){
             if(transform.is_none()){
-                return rlt::add(g_device, scene, object);
+                return rlt::add(g_device, bundle.scene, object);
             }
             float values[12];
             extract_transform(nb::cast<Transform>(transform), values);
-            return rlt::add(g_device, scene, object, values);
+            return rlt::add(g_device, bundle.scene, object, values);
         }, nb::arg("object"), nb::arg("transform") = nb::none())
-        .def("add_mesh", [](rrt::Scene& scene, const rrt::Mesh& mesh){ return rlt::add(g_device, scene, mesh); })
-        .def("add_assembly", [](rrt::Scene& scene, const rrt::ObjectAssembly& assembly, nb::object transform){
+        .def("add_mesh", [](SceneBundle& bundle, const rrt::Mesh& mesh){ return rlt::add(g_device, bundle.scene, mesh); })
+        .def("add_assembly", [](SceneBundle& bundle, const rrt::ObjectAssembly& assembly, nb::object transform){
             rrt::Placement placement;
             if(transform.is_none()){
-                placement = rlt::add(g_device, scene, assembly);
+                placement = rlt::add(g_device, bundle.scene, assembly);
             }
             else {
                 float values[12];
                 extract_transform(nb::cast<Transform>(transform), values);
-                placement = rlt::add(g_device, scene, assembly, values);
+                placement = rlt::add(g_device, bundle.scene, assembly, values);
             }
             return nb::make_tuple(placement.first_instance, placement.num_instances);
         }, nb::arg("assembly"), nb::arg("transform") = nb::none())
-        .def("add_light", [](rrt::Scene& scene, const rrt::SceneLight& light){ scene.lights.push_back(light); })
-        .def_prop_ro("num_objects", [](const rrt::Scene& scene){ return scene.objects.size(); })
-        .def_prop_ro("num_instances", [](const rrt::Scene& scene){ return scene.instances.size(); })
-        .def_prop_ro("num_lights", [](const rrt::Scene& scene){ return scene.lights.size(); })
-        .def("object_name", [](const rrt::Scene& scene, size_t index){ return scene.objects.at(index).name; })
-        .def("object_segmentation_class", [](const rrt::Scene& scene, size_t index){ return scene.objects.at(index).segmentation_class; })
-        .def("set_object_segmentation_class", [](rrt::Scene& scene, size_t index, uint32_t segmentation_class){
-            scene.objects.at(index).segmentation_class = segmentation_class;
+        .def("add_light", [](SceneBundle& bundle, const rrt::SceneLight& light){ bundle.scene.lights.push_back(light); })
+        .def_prop_ro("num_objects", [](const SceneBundle& bundle){ return bundle.scene.objects.size(); })
+        .def_prop_ro("num_instances", [](const SceneBundle& bundle){ return bundle.scene.instances.size(); })
+        .def_prop_ro("num_lights", [](const SceneBundle& bundle){ return bundle.scene.lights.size(); })
+        .def("object_name", [](const SceneBundle& bundle, size_t index){ return bundle.scene.objects.at(index).name; })
+        .def("object_segmentation_class", [](const SceneBundle& bundle, size_t index){ return bundle.scene.objects.at(index).segmentation_class; })
+        .def("set_object_segmentation_class", [](SceneBundle& bundle, size_t index, uint32_t segmentation_class){
+            bundle.scene.objects.at(index).segmentation_class = segmentation_class;
         })
-        .def("instance_object", [](const rrt::Scene& scene, size_t index){ return scene.instances.at(index).object; })
-        .def("instance_objects", [](const rrt::Scene& scene){
+        .def("instance_object", [](const SceneBundle& bundle, size_t index){ return bundle.scene.instances.at(index).object; })
+        .def("instance_objects", [](const SceneBundle& bundle){
             std::vector<size_t> objects;
-            for(const auto& instance : scene.instances){ objects.push_back(instance.object); }
+            for(const auto& instance : bundle.scene.instances){ objects.push_back(instance.object); }
             return objects;
         })
-        .def("instance_transform", [](const rrt::Scene& scene, size_t index){
-            return make_owned_array(scene.instances.at(index).transform, {3, 4});
+        .def("instance_transform", [](const SceneBundle& bundle, size_t index){
+            return make_owned_array(bundle.scene.instances.at(index).transform, {3, 4});
         });
 
     m.def("load_object", [](const std::string& path, int fidelity, bool rgb){
