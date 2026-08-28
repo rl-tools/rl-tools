@@ -11,6 +11,7 @@
 #else
 #include <rl_tools/rendering/raytracing/backends/generic/operations_cpu.h>
 #endif
+#include <rl_tools/rendering/raytracing/save_cpu.h>
 
 #if !defined(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND)
 #define RL_TOOLS_GOLDEN_SUITE RENDERING_RAYTRACING_GOLDEN_CPU

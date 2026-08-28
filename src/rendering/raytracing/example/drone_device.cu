@@ -8,6 +8,8 @@
 #include <rl_tools/operations/cuda.h>
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
+#include <rl_tools/rendering/raytracing/save_cpu.h>
 #include <rl_tools/rl/environments/l2f/multirotor.h>
 
 #include <cmath>
@@ -51,8 +53,8 @@ using SPEC = rlt::rendering::raytracing::Specification<CONFIG>;
 using Renderer = rlt::rendering::raytracing::Renderer<SPEC>;
 
 static constexpr T GRAVITY = 9.81;
-static constexpr T ONBOARD_FOV = SPEC::COS_FOVY;
-static constexpr T THIRD_PERSON_FOV = 0.65;
+static constexpr T ONBOARD_FOV = 80;
+static constexpr T THIRD_PERSON_FOV = 37.24225668350351;
 static constexpr T CAMERA_MOUNT_X = 0.10, CAMERA_MOUNT_Y = 0, CAMERA_MOUNT_Z = 0.32; // scalars: constexpr arrays are not usable in device code
 static constexpr T CAMERA_PITCH_DOWN = 0.3;
 static constexpr T TRIPOD_X = -7.6, TRIPOD_Y = -7.0, TRIPOD_Z = 2.0;
@@ -257,8 +259,8 @@ int main(int argc, char** argv) {
     rlt::init(device);
     DEVICE_GPU device_gpu;
 
-    rlt::rendering::raytracing::Scene scene;
-    if (!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, options.scene_path)) {
+    rlt::rendering::Bundle<T> bundle;
+    if (!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, options.scene_path)) {
         std::cerr << "Failed to load scene: " << options.scene_path << std::endl;
         return 1;
     }
@@ -278,7 +280,7 @@ int main(int argc, char** argv) {
 
     Renderer renderer;
     rlt::malloc(device, renderer);
-    rlt::init(device, renderer, scene, pool);
+    rlt::init(device, renderer, bundle, pool);
     rlt::attach(device, renderer, ONBOARD_CAMERA, rlt::rendering::raytracing::OverlayIndex{0});
     rlt::attach(device, renderer, THIRD_PERSON_CAMERA, rlt::rendering::raytracing::OverlayIndex{0});
 

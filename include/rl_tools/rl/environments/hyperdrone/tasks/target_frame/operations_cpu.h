@@ -38,10 +38,10 @@ namespace rl_tools {
         }
     }
 
-    template <typename DEVICE, typename TASK_SPEC>
-    void init(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, typename TASK_SPEC::NEXT_WORLD::SharedContext& shared, typename TASK_SPEC::TI first_scene, typename TASK_SPEC::TI num_scenes, typename TASK_SPEC::TI member_index) {
+    template <typename DEVICE, typename TASK_SPEC, typename DATASET>
+    void init(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, typename TASK_SPEC::NEXT_WORLD::SharedContext& shared, const DATASET& dataset, const typename DATASET::Corpus& corpus, typename TASK_SPEC::TI first_scene, typename TASK_SPEC::TI num_scenes, typename TASK_SPEC::TI member_index) {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
-        init(device, static_cast<NEXT_WORLD&>(world), shared, first_scene, num_scenes, member_index);
+        init(device, static_cast<NEXT_WORLD&>(world), shared, dataset, corpus, first_scene, num_scenes, member_index);
         malloc(world.renderer.device, world.target_frames);
     }
     template <typename DEVICE, typename TASK_SPEC>
@@ -86,16 +86,13 @@ namespace rl_tools {
         }
         if (any_reset) {
             const T aspect = static_cast<T>(BASE_SPEC::CAM_WIDTH) / static_cast<T>(BASE_SPEC::CAM_HEIGHT);
-            std::vector<rendering::raytracing::Camera<T>> target_cameras(INSTANCES);
             for (TI instance_i = 0; instance_i < INSTANCES; instance_i++) {
                 const auto& instance_parameters = get_ref(device, parameters, instance_i);
-                target_cameras[instance_i] = rl::environments::hyperdrone::make_target_camera<DEVICE, T>(device, instance_parameters.camera_mount, instance_parameters.fov, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin, instance_parameters.target_roll, instance_parameters.target_pitch);
+                set(device, world.camera_staging_close, rl::environments::hyperdrone::make_target_camera<DEVICE, T>(device, instance_parameters.camera_mount, instance_parameters.fov, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin, instance_parameters.target_roll, instance_parameters.target_pitch), instance_i);
             }
-            Tensor<typename NEXT_WORLD::PREV_CAMERAS_SPEC> camera_alias;
-            camera_alias._data = target_cameras.data();
-            copy(device, world.renderer.device, camera_alias, cameras(device, world.renderer));
+            copy(device, world.renderer.device, world.camera_staging_close, cameras(device, world.renderer));
             if constexpr (BASE_SPEC::ENABLE_MOTION_BLUR) {
-                copy(device, world.renderer.device, camera_alias, cameras_open(device, world.renderer));
+                copy(device, world.renderer.device, world.camera_staging_close, cameras_open(device, world.renderer));
             }
             render(device, world.renderer);
             constexpr TI CAM_PIXELS = BASE_SPEC::CAM_WIDTH * BASE_SPEC::CAM_HEIGHT;
@@ -201,9 +198,9 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 // reachable through the member type's namespace
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame {
-    template <typename DEVICE, typename TASK_SPEC>
-    void init(DEVICE& device, World<TASK_SPEC>& world, typename TASK_SPEC::NEXT_WORLD::SharedContext& shared, typename TASK_SPEC::TI first_scene, typename TASK_SPEC::TI num_scenes, typename TASK_SPEC::TI member_index){
-        ::rl_tools::init(device, world, shared, first_scene, num_scenes, member_index);
+    template <typename DEVICE, typename TASK_SPEC, typename DATASET>
+    void init(DEVICE& device, World<TASK_SPEC>& world, typename TASK_SPEC::NEXT_WORLD::SharedContext& shared, const DATASET& dataset, const typename DATASET::Corpus& corpus, typename TASK_SPEC::TI first_scene, typename TASK_SPEC::TI num_scenes, typename TASK_SPEC::TI member_index){
+        ::rl_tools::init(device, world, shared, dataset, corpus, first_scene, num_scenes, member_index);
     }
     template <typename DEVICE, typename TASK_SPEC>
     void free(DEVICE& device, World<TASK_SPEC>& world){

@@ -1,5 +1,8 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rl/environments/l2f_visual/operations_cpu.h>
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
+#include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
+#include <rl_tools/rendering/datasets/annotations/operations_cpu.h>
 
 #include <gtest/gtest.h>
 
@@ -83,28 +86,33 @@ T norm3(const T v[3]){
 }
 
 
-// user-side composition: a shared library + one renderer + the env-side scene metadata
+// user-side composition: a shared library + one renderer + the env-side scene annotations
 struct TestVisuals {
     rlt::rendering::raytracing::AssetLibrary<typename ENV::SPEC::RENDERER_SPEC> library;
     rlt::rendering::raytracing::Renderer<typename ENV::SPEC::RENDERER_SPEC> renderer;
-    rlt::rendering::raytracing::scene::procthor::Scene<typename ENV::SPEC::SCENE_SPEC> scene;
+    rlt::rendering::Bundle<T> bundle;
+    rlt::rendering::datasets::annotations::FreeSpace<typename ENV::SPEC::ANNOTATIONS_SPEC> annotations;
 };
 
 static TestVisuals* setup_visuals(DEVICE& device, ENV& env){
     if(DEFAULT_SCENE_PATH == nullptr){
         return nullptr;
     }
+    using RENDERER_SPEC = typename ENV::SPEC::RENDERER_SPEC;
     auto* visuals = new TestVisuals{};
     rlt::malloc(device, visuals->library);
     rlt::malloc(device, visuals->renderer, visuals->library);
-    rlt::init(device, visuals->renderer, visuals->library, DEFAULT_SCENE_PATH);
+    rlt::load<typename RENDERER_SPEC::SHADING, RENDERER_SPEC::HAS_RGB>(device, visuals->bundle, DEFAULT_SCENE_PATH);
+    auto scene_id = rlt::insert(device, visuals->library, visuals->bundle);
+    rlt::init(device, visuals->renderer, visuals->library, scene_id);
     const T fov = typename ENV::Parameters{}.fov;
-    const T up[3] = {0, 0, 1};
-    rlt::generate_cameras(device, visuals->renderer, visuals->renderer.scene_center, visuals->renderer.camera_radius, up, fov);
     rlt::generate_probe_directions(device, visuals->renderer);
-    rlt::rendering::raytracing::scene::procthor::precompute_indoor_positions(device, visuals->scene, visuals->renderer, fov, (T)ENV::SPEC::CAM_WIDTH / (T)ENV::SPEC::CAM_HEIGHT);
+    rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
+    free_space_parameters.fov = fov;
+    free_space_parameters.aspect = (T)ENV::SPEC::CAM_WIDTH / (T)ENV::SPEC::CAM_HEIGHT;
+    rlt::rendering::datasets::annotations::annotate(device, visuals->annotations, visuals->bundle.metadata, visuals->renderer, free_space_parameters);
     env.renderer = &visuals->renderer;
-    env.scene = &visuals->scene;
+    env.annotations = &visuals->annotations;
     return visuals;
 }
 
@@ -124,15 +132,15 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, LIFECYCLE) {
     auto* visuals = setup_visuals(device, env);
     if(visuals != nullptr){
         EXPECT_NE(env.renderer, nullptr);
-        EXPECT_NE(env.scene, nullptr);
-        EXPECT_GT(env.scene->num_indoor_positions, 0);
+        EXPECT_NE(env.annotations, nullptr);
+        EXPECT_GT(env.annotations->num_positions, 0);
     }
 
     rlt::init(device, env);
 
     rlt::free(device, env);
     EXPECT_EQ(env.renderer, nullptr);
-    EXPECT_EQ(env.scene, nullptr);
+    EXPECT_EQ(env.annotations, nullptr);
     teardown_visuals(device, visuals);
 }
 
@@ -253,8 +261,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, SAMPLE_INITIAL_PARAMETERS_INITIALIZES_
     env.parameters.camera_mount.forward_body[0] = (T)0;
     env.parameters.camera_mount.forward_body[1] = (T)1;
     env.parameters.camera_mount.forward_body[2] = (T)0;
-    env.parameters.fov = (T)1.2;
-    env.parameters.camera_randomization.fov_range = (T)0.1;
+    env.parameters.fov = (T)68;
+    env.parameters.camera_randomization.fov_range = (T)4;
     env.parameters.collision_distance_threshold = (T)0.33;
 
     ENV::Parameters parameters;
@@ -278,14 +286,14 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, SAMPLE_INITIAL_PARAMETERS_INITIALIZES_
     EXPECT_FLOAT_EQ(parameters.camera_mount.forward_body[0], (T)0);
     EXPECT_FLOAT_EQ(parameters.camera_mount.forward_body[1], (T)1);
     EXPECT_FLOAT_EQ(parameters.camera_mount.forward_body[2], (T)0);
-    EXPECT_FLOAT_EQ(parameters.camera_randomization.fov_range, (T)0.1);
+    EXPECT_FLOAT_EQ(parameters.camera_randomization.fov_range, (T)4);
     for(TI axis_i = 0; axis_i < 3; axis_i++){
         EXPECT_FLOAT_EQ(parameters.camera_randomization.offset_body_range[axis_i], (T)0);
         EXPECT_FLOAT_EQ(parameters.camera_randomization.rotation_body_range[axis_i], (T)0);
     }
     EXPECT_FLOAT_EQ(parameters.collision_distance_threshold, (T)0.33);
-    EXPECT_GE(parameters.fov, (T)1.1);
-    EXPECT_LE(parameters.fov, (T)1.3);
+    EXPECT_GE(parameters.fov, (T)64);
+    EXPECT_LE(parameters.fov, (T)72);
 
     rlt::free(device, rng);
 }

@@ -12,6 +12,7 @@ namespace rl_tools::rl::environments::raytracing_example {
         static constexpr TI NUM_ENVS = T_NUM_ENVS;
         static constexpr TI CAM_WIDTH = T_CAM_WIDTH;
         static constexpr TI CAM_HEIGHT = T_CAM_HEIGHT;
+        static constexpr T FOV = 80;
         static constexpr TI NUM_PROBES = T_NUM_PROBES;
         static constexpr bool ENABLE_MOTION_BLUR = T_ENABLE_MOTION_BLUR;
         static constexpr TI MOTION_BLUR_SAMPLES = T_MOTION_BLUR_SAMPLES;
@@ -68,7 +69,7 @@ namespace rl_tools::rl::environments::raytracing_example {
         using Renderer = rendering::raytracing::Renderer<RAYTRACING_SPEC>;
 
         Renderer* renderer = nullptr;
-        rendering::raytracing::Scene* scene = nullptr;
+        rendering::Bundle<T>* bundle = nullptr;
         const char* scene_path = nullptr;
         T dt = 1.0f / 60.0f;
         T max_velocity = 1.5f;
@@ -76,7 +77,11 @@ namespace rl_tools::rl::environments::raytracing_example {
         T look_ahead = 1.0f;
         T eye_height = 1.6f;
         bool owns_renderer = false;
-        bool owns_scene = false;
+        bool owns_bundle = false;
+
+        // host-resident camera staging for the observe paths, owned like the renderer
+        using CAMERA_STAGING_SPEC = tensor::Specification<rendering::raytracing::Camera<T>, TI, tensor::Shape<TI, SPEC::NUM_ENVS>>;
+        Tensor<CAMERA_STAGING_SPEC> camera_staging;
 
         static constexpr TI NUM_INITIAL_STATES = SPEC::NUM_ENVS;
         std::array<State<SPEC>, NUM_INITIAL_STATES> indoor_initial_states{};

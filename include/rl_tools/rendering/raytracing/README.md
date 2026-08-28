@@ -98,14 +98,16 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
 
 ## Lifecycle
 
-Standalone renderer (examples, tests, single scene):
+Standalone renderer (examples, tests, single scene). Scenes come from the datasets layer
+(`rendering/datasets/`, e.g. the glb loader) as a `rendering::Bundle` — Scene plus loader-filled
+`SceneMetadata` (bounds, max ray length, SHA-1 content hash); the renderer never touches files:
 
 ```cpp
 Renderer<SPEC> renderer;
 rlt::malloc(device, renderer);
-Scene scene;                       // load() asserts the scene is empty; add() composes
-rlt::load(device, scene, "scene.glb");
-rlt::init(device, renderer, scene);
+rendering::Bundle<T> bundle;       // load() asserts the bundle is empty; add() composes
+rlt::load(device, bundle, "scene.glb");   // or a "conta:HASH" reference
+rlt::init(device, renderer, bundle);
 ```
 
 Many renderers over (possibly repeated) scenes — the multi-scene training case:
@@ -115,9 +117,12 @@ AssetLibrary<SPEC> library;        // one backend context, one build per unique 
 rlt::malloc(device, library);
 for(TI s = 0; s < N; s++){
     rlt::malloc(device, renderers[s], library);
-    TI scene_id = rlt::init(device, renderers[s], library, scene_paths[s]);  // content-hash dedup
-    // scene_id keys caller-side per-scene data; identical files share one host scene,
-    // one device build (BLAS/textures/vertex data), and return the same id
+    rendering::Bundle<T> bundle;
+    rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, references[s]);
+    TI scene_id = rlt::insert(device, library, bundle);   // content-hash dedup; library takes the scene
+    rlt::init(device, renderers[s], library, scene_id);
+    // scene_id keys caller-side per-scene data; identical content shares one host scene,
+    // one device build (BLAS/textures/vertex data), and returns the same id
 }
 ```
 

@@ -1,5 +1,7 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
+#include <rl_tools/rendering/raytracing/save_cpu.h>
 
 #include <cmath>
 #include <iostream>
@@ -9,6 +11,7 @@ namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using T = float;
+static constexpr T FOV = 80;
 using TI = typename DEVICE::index_t;
 
 struct CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
@@ -28,13 +31,13 @@ int main(int argc, char** argv){
     Renderer renderer;
     rlt::malloc(device, renderer);
 
-    rlt::rendering::raytracing::Scene scene;
-    if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, scene_path)){
+    rlt::rendering::Bundle<T> bundle;
+    if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, scene_path)){
         std::cerr << "Failed to load scene: " << scene_path << std::endl;
         rlt::free(device, renderer);
         return 1;
     }
-    rlt::init(device, renderer, scene);
+    rlt::init(device, renderer, bundle);
 
     // panorama: one camera per yaw from an interior point of the default scene (FLU frame)
     constexpr T PI = static_cast<T>(3.14159265358979323846);
@@ -50,7 +53,7 @@ int main(int argc, char** argv){
             position[1] + std::sin(angle),
             position[2]
         };
-        rlt::set(device, camera_staging, rlt::make_camera_data(position, look_at, up, SPEC::COS_FOVY, aspect), camera_i);
+        rlt::set(device, camera_staging, rlt::make_camera_data(position, look_at, up, FOV, aspect), camera_i);
     }
     rlt::copy(device, renderer.device, camera_staging, rlt::cameras(device, renderer));
 

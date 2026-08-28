@@ -9,6 +9,9 @@
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
 #include <rl_tools/rl/environments/l2f_visual/operations_cpu.h>
 #include <rl_tools/rl/environments/l2f_visual/operations_cuda.h>
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
+#include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
+#include <rl_tools/rendering/datasets/annotations/operations_cpu.h>
 
 #include "../../../../src/nn_models/port_checkpoint/raptor/policy.h"
 
@@ -63,7 +66,7 @@ static constexpr TI CAM_WIDTH = 64;
 static constexpr TI CAM_HEIGHT = 64;
 static constexpr TI CAM_PIXELS = CAM_WIDTH * CAM_HEIGHT;
 static constexpr TI NUM_PROBES = 64;
-static constexpr T CAMERA_FOV = static_cast<T>(79.6) / static_cast<T>(180) * rlt::math::PI<T>;
+static constexpr T CAMERA_FOV = 79.6;
 static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = static_cast<T>(0);
 static constexpr T CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_X = static_cast<T>(0);
 static constexpr T CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_Y = static_cast<T>(0);
@@ -187,23 +190,28 @@ static int validate_scene_has_initial_states(const std::string& scene_path) {
     DEVICE device;
     rlt::init(device);
 
-    using LIBRARY_TYPE = rlt::rendering::raytracing::AssetLibrary<typename ENVIRONMENT::SPEC::RENDERER_SPEC>;
-    using SCENE_TYPE = rlt::rendering::raytracing::scene::procthor::Scene<typename ENVIRONMENT::SPEC::SCENE_SPEC>;
+    using RENDERER_SPEC = typename ENVIRONMENT::SPEC::RENDERER_SPEC;
+    using LIBRARY_TYPE = rlt::rendering::raytracing::AssetLibrary<RENDERER_SPEC>;
+    using ANNOTATIONS_TYPE = rlt::rendering::datasets::annotations::FreeSpace<typename ENVIRONMENT::SPEC::ANNOTATIONS_SPEC>;
     auto* library = new LIBRARY_TYPE{};
-    auto* renderer = new rlt::rendering::raytracing::Renderer<typename ENVIRONMENT::SPEC::RENDERER_SPEC>{};
-    auto* scene = new SCENE_TYPE{};
+    auto* renderer = new rlt::rendering::raytracing::Renderer<RENDERER_SPEC>{};
+    auto* annotations = new ANNOTATIONS_TYPE{};
     rlt::malloc(device, *library);
     rlt::malloc(device, *renderer, *library);
-    rlt::init(device, *renderer, *library, scene_path.c_str());
+    rlt::rendering::Bundle<T> bundle;
+    rlt::load<typename RENDERER_SPEC::SHADING, RENDERER_SPEC::HAS_RGB>(device, bundle, scene_path);
+    auto scene_id = rlt::insert(device, *library, bundle);
+    rlt::init(device, *renderer, *library, scene_id);
     const T scene_fov = typename ENVIRONMENT::Parameters{}.fov;
-    const T scene_up[3] = {0, 0, 1};
-    rlt::generate_cameras(device, *renderer, renderer->scene_center, renderer->camera_radius, scene_up, scene_fov);
     rlt::generate_probe_directions(device, *renderer);
-    rlt::rendering::raytracing::scene::procthor::precompute_indoor_positions(device, *scene, *renderer, scene_fov, (T)CAM_WIDTH / (T)CAM_HEIGHT);
-    const bool valid = scene->num_indoor_positions > 0;
+    rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
+    free_space_parameters.fov = scene_fov;
+    free_space_parameters.aspect = (T)CAM_WIDTH / (T)CAM_HEIGHT;
+    rlt::rendering::datasets::annotations::annotate(device, *annotations, bundle.metadata, *renderer, free_space_parameters);
+    const bool valid = annotations->num_positions > 0;
     rlt::free(device, *renderer);
     rlt::free(device, *library);
-    delete scene;
+    delete annotations;
     delete renderer;
     delete library;
     return valid ? 0 : 1;
@@ -404,7 +412,7 @@ static T squared_distance(const T* a, const T* b) {
 
 template <typename SCENE>
 static void build_route_for_env(const SCENE& scene, TI env_i, std::mt19937_64& route_rng, std::vector<T>& route_positions) {
-    const TI count = scene.num_indoor_positions;
+    const TI count = scene.num_positions;
     const TI base = env_i * WAYPOINTS_PER_ENV * 3;
     if(count == 0) {
         for(TI waypoint_i = 0; waypoint_i < WAYPOINTS_PER_ENV; waypoint_i++) {
@@ -418,7 +426,7 @@ static void build_route_for_env(const SCENE& scene, TI env_i, std::mt19937_64& r
     std::uniform_int_distribution<unsigned long long> initial_position_distribution(0, count - 1);
     TI current = static_cast<TI>(initial_position_distribution(route_rng));
     for(TI waypoint_i = 0; waypoint_i < WAYPOINTS_PER_ENV; waypoint_i++) {
-        const auto& p = scene.indoor_positions[current].position;
+        const auto& p = scene.positions[current].position;
         route_positions[base + waypoint_i * 3 + 0] = p[0];
         route_positions[base + waypoint_i * 3 + 1] = p[1];
         route_positions[base + waypoint_i * 3 + 2] = p[2];
@@ -432,7 +440,7 @@ static void build_route_for_env(const SCENE& scene, TI env_i, std::mt19937_64& r
             if(used[candidate_i]) {
                 continue;
             }
-            const auto& c = scene.indoor_positions[candidate_i].position;
+            const auto& c = scene.positions[candidate_i].position;
             T candidate_pos[3] = {c[0], c[1], c[2]};
             T dist_sq = squared_distance(current_pos, candidate_pos);
             if(dist_sq >= min_dist_sq && dist_sq < best) {
@@ -445,7 +453,7 @@ static void build_route_for_env(const SCENE& scene, TI env_i, std::mt19937_64& r
                 if(candidate_i == current || used[candidate_i]) {
                     continue;
                 }
-                const auto& c = scene.indoor_positions[candidate_i].position;
+                const auto& c = scene.positions[candidate_i].position;
                 T candidate_pos[3] = {c[0], c[1], c[2]};
                 T dist_sq = squared_distance(current_pos, candidate_pos);
                 if(dist_sq < best) {
@@ -674,15 +682,16 @@ int main(int argc, char** argv) {
     rlt::init(device, rng, options.seed);
     rlt::init(device_gpu, rng_gpu, options.seed);
 
-    using RENDERER_TYPE = rlt::rendering::raytracing::Renderer<typename ENVIRONMENT::SPEC::RENDERER_SPEC>;
-    using SCENE_TYPE = rlt::rendering::raytracing::scene::procthor::Scene<typename ENVIRONMENT::SPEC::SCENE_SPEC>;
-    using LIBRARY_TYPE = rlt::rendering::raytracing::AssetLibrary<typename ENVIRONMENT::SPEC::RENDERER_SPEC>;
+    using RENDERER_SPEC = typename ENVIRONMENT::SPEC::RENDERER_SPEC;
+    using RENDERER_TYPE = rlt::rendering::raytracing::Renderer<RENDERER_SPEC>;
+    using ANNOTATIONS_TYPE = rlt::rendering::datasets::annotations::FreeSpace<typename ENVIRONMENT::SPEC::ANNOTATIONS_SPEC>;
+    using LIBRARY_TYPE = rlt::rendering::raytracing::AssetLibrary<RENDERER_SPEC>;
     auto* library = new LIBRARY_TYPE{};
     rlt::malloc(device, *library);
     auto* renderer_storage = new std::array<RENDERER_TYPE, MAX_SCENES>{};
     std::array<RENDERER_TYPE*, MAX_SCENES> renderers{};
-    std::deque<SCENE_TYPE> procthor_scenes;
-    std::array<SCENE_TYPE*, MAX_SCENES> scenes{};
+    std::deque<ANNOTATIONS_TYPE> procthor_annotations;
+    std::array<ANNOTATIONS_TYPE*, MAX_SCENES> annotations{};
 
     {
         TI scene_i = 0;
@@ -692,21 +701,25 @@ int main(int argc, char** argv) {
                       << std::filesystem::path(scene_path).filename().string() << std::flush;
             renderers[scene_i] = &(*renderer_storage)[scene_i];
             rlt::malloc(device, *renderers[scene_i], *library);
-            TI scene_id = rlt::init(device, *renderers[scene_i], *library, scene_path.c_str());
+            rlt::rendering::Bundle<T> bundle;
+            rlt::load<typename RENDERER_SPEC::SHADING, RENDERER_SPEC::HAS_RGB>(device, bundle, scene_path);
+            TI scene_id = rlt::insert(device, *library, bundle);
+            rlt::init(device, *renderers[scene_i], *library, scene_id);
             const T scene_fov = typename ENVIRONMENT::Parameters{}.fov;
-            const T scene_up[3] = {0, 0, 1};
-            rlt::generate_cameras(device, *renderers[scene_i], renderers[scene_i]->scene_center, renderers[scene_i]->camera_radius, scene_up, scene_fov);
             rlt::generate_probe_directions(device, *renderers[scene_i]);
-            if(scene_id == (TI)procthor_scenes.size()){
-                procthor_scenes.emplace_back();
-                rlt::rendering::raytracing::scene::procthor::precompute_indoor_positions(device, procthor_scenes[scene_id], *renderers[scene_i], scene_fov, (T)CAM_WIDTH / (T)CAM_HEIGHT);
+            if(scene_id == (TI)procthor_annotations.size()){
+                procthor_annotations.emplace_back();
+                rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
+                free_space_parameters.fov = scene_fov;
+                free_space_parameters.aspect = (T)CAM_WIDTH / (T)CAM_HEIGHT;
+                rlt::rendering::datasets::annotations::annotate(device, procthor_annotations[scene_id], bundle.metadata, *renderers[scene_i], free_space_parameters);
             }
-            if(procthor_scenes[scene_id].num_indoor_positions == 0) {
+            if(procthor_annotations[scene_id].num_positions == 0) {
                 std::cerr << "\nScene passed preflight but has no valid free-space positions: " << scene_path << std::endl;
                 return 1;
             }
-            std::cout << " (" << procthor_scenes[scene_id].num_indoor_positions << " free-space points)" << std::endl;
-            scenes[scene_i] = &procthor_scenes[scene_id];
+            std::cout << " (" << procthor_annotations[scene_id].num_positions << " free-space points)" << std::endl;
+            annotations[scene_i] = &procthor_annotations[scene_id];
         }
     }
 
@@ -731,7 +744,7 @@ int main(int argc, char** argv) {
     std::vector<T> route_positions(N_ENVIRONMENTS * WAYPOINTS_PER_ENV * 3);
     std::mt19937_64 route_rng(options.seed);
     for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++) {
-        build_route_for_env(*scenes[env_scene[env_i]], env_i, route_rng, route_positions);
+        build_route_for_env(*annotations[env_scene[env_i]], env_i, route_rng, route_positions);
     }
 
     std::vector<ENVIRONMENT> envs(N_ENVIRONMENTS);
@@ -740,7 +753,7 @@ int main(int argc, char** argv) {
         TI scene_i = env_scene[env_i];
         rlt::malloc(device, envs[env_i].dynamics);
         envs[env_i].renderer = renderers[scene_i];
-        envs[env_i].scene = scenes[scene_i];
+        envs[env_i].annotations = annotations[scene_i];
         envs[env_i].use_target_mode = true;
         envs[env_i].parameters.fov = CAMERA_FOV;
         envs[env_i].parameters.camera_randomization.fov_range = CAMERA_FOV_RANDOMIZATION_RANGE;
@@ -1002,18 +1015,15 @@ int main(int argc, char** argv) {
 
     for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++) {
         envs[env_i].renderer = nullptr;
-        envs[env_i].scene = nullptr;
+        envs[env_i].annotations = nullptr;
         rlt::free(device, envs[env_i].dynamics);
     }
     for(TI scene_i = 0; scene_i < options.scenes; scene_i++) {
         if(renderers[scene_i] != nullptr) {
             rlt::free(device, *renderers[scene_i]);
-            delete renderers[scene_i];
-        }
-        if(scenes[scene_i] != nullptr) {
-            delete scenes[scene_i];
         }
     }
+    delete renderer_storage;
 
     std::cout << "Video written: " << options.output_path << std::endl;
     return 0;

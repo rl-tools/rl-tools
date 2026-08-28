@@ -35,8 +35,8 @@ extern "C" {
     void* hyperdrone_env_create();
     void hyperdrone_env_destroy(void* handle);
     void hyperdrone_env_config(void* handle, hyperdrone::env::Config* config);
-    // scene_directory: a directory of .glb scenes (rl_tools::...::datasets::Plain), at
-    // least one scene per environment; partitions the sorted corpus across environments.
+    // scene_directory: a directory of .glb scenes (rl_tools::rendering::datasets::procthor::GLB),
+    // at least one scene per environment; partitions the sorted corpus across environments.
     // drone_asset_path: body/prop_* GLB for SELF_VISIBLE specifications (empty to omit);
     // gate_asset_path: gate GLB for the moving_gate task (empty to omit)
     void hyperdrone_env_init(void* handle, const char* scene_directory, const char* drone_asset_path, const char* gate_asset_path, unsigned long long seed);

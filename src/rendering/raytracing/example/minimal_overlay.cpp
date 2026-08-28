@@ -1,5 +1,7 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
+#include <rl_tools/rendering/raytracing/save_cpu.h>
 
 #include <cmath>
 #include <iostream>
@@ -9,6 +11,7 @@ namespace rlt = rl_tools;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using T = float;
+static constexpr T FOV = 80;
 using TI = typename DEVICE::index_t;
 
 struct CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
@@ -58,14 +61,14 @@ int main(int argc, char** argv){
     Renderer renderer;
     rlt::malloc(device, renderer);
 
-    rlt::rendering::raytracing::Scene scene;
-    if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, scene_path)){
+    rlt::rendering::Bundle<T> bundle;
+    if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, scene_path)){
         std::cerr << "Failed to load scene: " << scene_path << std::endl;
         rlt::free(device, renderer);
         return 1;
     }
     constexpr T LIGHT_INTENSITY_SCALE = 6;
-    for(auto& light : scene.lights){
+    for(auto& light : bundle.scene.lights){
         for(TI channel_i = 0; channel_i < 3; channel_i++){
             light.color[channel_i] *= LIGHT_INTENSITY_SCALE;
         }
@@ -84,7 +87,7 @@ int main(int argc, char** argv){
         drone_assets[drone_i] = rlt::add(device, pool, assembly);
     }
 
-    rlt::init(device, renderer, scene, pool);
+    rlt::init(device, renderer, bundle, pool);
 
     // drones A and B face each other across the living room (FLU frame) with a clear sight
     // line; the shared drone hovers off to the side of that line. Each camera aims straight at
@@ -115,8 +118,8 @@ int main(int argc, char** argv){
     const T camera_1_position[3] = {drone_b_position[0] + static_cast<T>(1.0), drone_b_position[1], drone_b_position[2] + static_cast<T>(0.8)};
     rlt::Tensor<typename Renderer::CAMERA_TENSOR_SPEC> camera_staging;
     rlt::malloc(device, camera_staging);
-    rlt::set(device, camera_staging, rlt::make_camera_data(camera_0_position, drone_b_position, up, SPEC::COS_FOVY, aspect), 0);
-    rlt::set(device, camera_staging, rlt::make_camera_data(camera_1_position, drone_a_position, up, SPEC::COS_FOVY, aspect), 1);
+    rlt::set(device, camera_staging, rlt::make_camera_data(camera_0_position, drone_b_position, up, FOV, aspect), 0);
+    rlt::set(device, camera_staging, rlt::make_camera_data(camera_1_position, drone_a_position, up, FOV, aspect), 1);
     rlt::copy(device, renderer.device, camera_staging, rlt::cameras(device, renderer));
     rlt::free(device, camera_staging);
 

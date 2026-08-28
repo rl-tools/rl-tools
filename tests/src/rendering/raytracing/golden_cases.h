@@ -20,6 +20,7 @@ namespace golden {
         static constexpr TI CAM_HEIGHT = 256;
         static constexpr TI NUM_CAMERAS = 12;
         static constexpr TI NUM_PROBES = 64;
+        static constexpr T FOV = 80;
 
         // FLU frame. Scene: ProcTHOR-Train-1.glb, bbox x [-15.9, 0], y [-17.6, 0.1], z [0, 2.65].
         // Pose 00: exterior overview; pose 01: interior (interactive viewer pos [-6.28, -4.18, 1.99] quat wxyz [0.954, 0.035, 0.124, -0.270]); pose 02: pose 01 yawed +90 deg; pose 03: floor close-up.

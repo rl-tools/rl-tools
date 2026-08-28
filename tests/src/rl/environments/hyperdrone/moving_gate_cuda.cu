@@ -173,8 +173,10 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MOVING_GATE_CUDA, DEVICE_ENTITY_MECHANI
     rlt::malloc(device, shared.library);
     rlt::malloc(device, world);
     world.gate_asset_path = GATE_PATH;
-    shared.scene_set.paths = {SCENE_PATH};
-    rlt::init(device, world, shared, 0, 1, 0);
+    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    typename decltype(dataset)::Corpus corpus;
+    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
 
     RNG_GPU rng;
     rlt::malloc(device_gpu, rng);

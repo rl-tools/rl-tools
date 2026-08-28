@@ -79,9 +79,9 @@ NB_MODULE(hyperdrone_render_core, m){
     jit_renderer_class
         .def(nb::init<const std::string&, const std::string&>(), nb::arg("library_path"), nb::arg("expected_config"))
         .def_prop_ro("backend", [](const JitRenderer& jit){ return std::string(jit->backend()); })
-        .def("init", [](JitRenderer& jit, const rrt::Scene& scene, const rrt::AssetPool* pool){
+        .def("init", [](JitRenderer& jit, rrt::Bundle<float>& bundle, const rrt::AssetPool* pool){
             nb::gil_scoped_release release;
-            jit->init(&scene, pool);
+            jit->init(&bundle, pool);
         }, nb::arg("scene"), nb::arg("asset_pool").none() = nb::none(), nb::keep_alive<1, 2>(), nb::keep_alive<1, 3>())
         .def("update", [](JitRenderer& jit){
             nb::gil_scoped_release release;
@@ -183,10 +183,6 @@ NB_MODULE(hyperdrone_render_core, m){
                                  nb::dtype<float>(), jit->buffer_device_type(), 0);
         })
         .def("buffer_device_type", [](JitRenderer& jit){ return jit->buffer_device_type(); })
-        .def("save", [](JitRenderer& jit, int target, const std::string& path){
-            nb::gil_scoped_release release;
-            jit->save((hdr::SaveTarget)target, path.c_str());
-        }, nb::arg("target"), nb::arg("path"))
         .def("scene_bounds", [](JitRenderer& jit){
             float center[3], half_extent[3], camera_radius;
             jit->scene_bounds(center, half_extent, camera_radius);

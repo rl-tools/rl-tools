@@ -9,6 +9,10 @@
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
+#include <rl_tools/rendering/raytracing/save_cpu.h>
+
+#include <conta/conta.h>
 
 
 #include <cmath>
@@ -21,6 +25,7 @@
 namespace rlt = rl_tools;
 
 using T = float;
+static constexpr T FOV = 80;
 using TI = typename rlt::devices::DEVICE_FACTORY<>::index_t;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 
@@ -73,11 +78,12 @@ static std::string resolve_scene_arg(const std::string& scene_arg) {
         return DEFAULT_SCENE_PATH;
     }
     if(scene_arg.compare(0, 6, "conta:") == 0) {
-        const char* conta_root = std::getenv("CONTA_ROOT");
-        if(!conta_root) {
+        std::string path, error;
+        if(!conta::resolve(scene_arg.substr(6), path, error)) {
+            std::cerr << error << std::endl;
             return "";
         }
-        return std::string(conta_root) + "/data/" + scene_arg.substr(6);
+        return path;
     }
     return scene_arg;
 }
@@ -130,7 +136,6 @@ static bool parse_options(int argc, char** argv, Options& options) {
     }
     options.scene_path = resolve_scene_arg(scene_arg);
     if(options.scene_path.empty()) {
-        std::cerr << "CONTA_ROOT is required for conta: scene paths" << std::endl;
         return false;
     }
     return true;
@@ -165,14 +170,14 @@ int main(int argc, char** argv) {
     Renderer renderer;
     rlt::malloc(device, renderer);
 
-    rlt::rendering::raytracing::Scene scene;
-    if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, options.scene_path)) {
+    rlt::rendering::Bundle<T> bundle;
+    if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, options.scene_path)) {
         std::cerr << "Failed to load scene: " << options.scene_path << std::endl;
         rlt::free(device, renderer);
         return 1;
     }
 
-    rlt::init(device, renderer, scene);
+    rlt::init(device, renderer, bundle);
 
     constexpr T forward_body[3] = {static_cast<T>(1), static_cast<T>(0), static_cast<T>(0)};
     constexpr T up_body[3] = {static_cast<T>(0), static_cast<T>(0), static_cast<T>(1)};
@@ -188,7 +193,7 @@ int main(int argc, char** argv) {
     };
     const T aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
 
-    auto camera = rlt::make_camera_data(options.position, look_at, up, SPEC::COS_FOVY, aspect);
+    auto camera = rlt::make_camera_data(options.position, look_at, up, FOV, aspect);
     rlt::Tensor<typename decltype(renderer.cameras)::SPEC> camera_alias;
     camera_alias._data = &camera;
     rlt::copy(device, renderer.device, camera_alias, rlt::cameras(device, renderer));

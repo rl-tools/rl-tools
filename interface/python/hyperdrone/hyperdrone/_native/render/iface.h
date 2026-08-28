@@ -7,12 +7,13 @@
 // same build tree, so passing rl_tools scene types by pointer is safe. Everything
 // renderer-spec dependent is hidden behind the vtable; buffer exchange uses raw pointers
 // sized by config(). Bump HYPERDRONE_RENDER_IFACE_VERSION on any change to this file.
-#define HYPERDRONE_RENDER_IFACE_VERSION 3
+#define HYPERDRONE_RENDER_IFACE_VERSION 6
 
-namespace rl_tools { namespace rendering { namespace raytracing {
-    struct Scene;
+namespace rl_tools { namespace rendering {
     struct AssetPool;
-}}}
+    template <typename T>
+    struct Bundle;
+}}
 
 namespace hyperdrone::render {
     struct Config {
@@ -44,14 +45,6 @@ namespace hyperdrone::render {
         SYNC = 1,
         FULL = 2
     };
-    enum class SaveTarget : int {
-        IMAGE = 0,
-        DEPTH_IMAGE = 1,
-        DEPTH_RAW = 2,
-        SEGMENTATION_IMAGE = 3,
-        PROBES = 4
-    };
-
     struct OverlayPlacementData {
         size_t first_slot;
         size_t num_parts;
@@ -64,7 +57,9 @@ namespace hyperdrone::render {
         virtual Config config() const = 0;
         virtual const char* backend() const = 0;
 
-        virtual void init(const rl_tools::rendering::raytracing::Scene* scene, const rl_tools::rendering::raytracing::AssetPool* pool) = 0;
+        // the bundle's scene (and the asset pool) must outlive the renderer; the bundle
+        // metadata is (re)computed from the composed scene at init and kept in the impl
+        virtual void init(rl_tools::rendering::Bundle<float>* bundle, const rl_tools::rendering::AssetPool* pool) = 0;
         virtual void update() = 0;
         virtual void synchronize() = 0;
 
@@ -74,7 +69,7 @@ namespace hyperdrone::render {
         // no host synchronization. OptiX backend only.
         virtual void set_cameras_device(const float* cameras, unsigned long long producer_stream) = 0;
         virtual void set_motion_blur_cameras(const float* cameras_open, const float* cameras_close) = 0;
-        virtual void generate_cameras(const float center[3], float radius, const float up[3], float fov) = 0;
+        virtual void generate_cameras(const float center[3], float radius, const float up[3], float fov_degrees) = 0;
         virtual void generate_probe_directions() = 0;
 
         virtual void render(RenderTarget target, RenderPhase phase) = 0;
@@ -96,8 +91,6 @@ namespace hyperdrone::render {
         virtual uint32_t* frame_buffer_host(bool refresh) = 0;
         virtual float* depth_buffer_host(bool refresh) = 0;
         virtual uint32_t* segmentation_buffer_host(bool refresh) = 0;
-
-        virtual void save(SaveTarget target, const char* path) = 0;
 
         virtual void scene_bounds(float center[3], float half_extent[3], float& camera_radius) const = 0;
 

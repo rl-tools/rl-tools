@@ -216,17 +216,15 @@ namespace rl_tools {
         rendering::raytracing::detail::announce_backend(renderer);
     }
 
-    template <typename DEVICE, typename SPEC>
-    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer);
-
-    template <typename DEVICE, typename SPEC>
-    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool){
+    template <typename DEVICE, typename SPEC, typename METADATA_T>
+    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool, const rendering::SceneMetadata<METADATA_T>& metadata){
+        renderer.max_ray_length = (typename SPEC::T)metadata.max_ray_length;
+        rendering::raytracing::detail::announce_configuration<SPEC>();
         namespace generic = rendering::raytracing::backends::generic;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         auto& backend_state = generic::state(renderer);
 
-        rendering::raytracing::detail::compute_scene_bounds(renderer, scene);
         RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << scene.objects.size() << " object(s), " << scene.instances.size() << " instance(s), " << pool.assemblies.size() << " pool asset(s) ...");
 
         // one combined object list: scene objects first, then pool objects (same global arrays,
@@ -412,19 +410,14 @@ namespace rl_tools {
             backend_state.scene.miss_color_0[0] = .8f; backend_state.scene.miss_color_0[1] = 0.f; backend_state.scene.miss_color_0[2] = 0.f;
             backend_state.scene.miss_color_1[0] = .8f; backend_state.scene.miss_color_1[1] = .8f; backend_state.scene.miss_color_1[2] = .8f;
         }
-        backend_state.scene.max_depth = renderer.camera_radius > 0 ? renderer.camera_radius * 2.0f : 1e30f;
-        backend_state.scene.max_dist = renderer.camera_radius * 2.0f;
+        backend_state.scene.max_depth = renderer.max_ray_length > 0 ? renderer.max_ray_length : 1e30f;
+        backend_state.scene.max_dist = renderer.max_ray_length;
 
         if constexpr (SPEC::ENABLE_OVERLAYS){
             update(device, renderer); // publish the (empty) overlays and the attachment table
         }
     }
 
-    template <typename DEVICE, typename SPEC>
-    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const rendering::raytracing::Scene& scene){
-        static const rendering::raytracing::AssetPool empty_pool{};
-        init(device, renderer, scene, empty_pool);
-    }
 
     namespace rendering::raytracing::backends::generic{
         // instance/BVH rebuild for the overlays from an arbitrary transforms slab — the regular
@@ -488,7 +481,7 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
+    void update_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
         static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
         namespace generic = rendering::raytracing::backends::generic;
         using TI = typename SPEC::TI;
@@ -511,11 +504,6 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void update_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
-        update(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
     void expand_motion_transforms_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
         static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur or flow renderer specification");
         rendering::raytracing::detail::expand_motion_transforms_host(renderer);
@@ -527,25 +515,10 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void expand_motion_transforms(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
-        expand_motion_transforms_launch(device, renderer);
-        expand_motion_transforms_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
     void update_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
         static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
     }
 
-    template <typename DEVICE, typename SPEC>
-    void generate_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer,
-                          const typename SPEC::T center[3], typename SPEC::T radius,
-                          const typename SPEC::T up[3], typename SPEC::T fov){
-        rendering::raytracing::detail::generate_camera_poses<SPEC>(device, data(renderer.cameras), center, radius, up, fov);
-        if constexpr (SPEC::HAS_CAMERA_PAIR) {
-            std::memcpy(data(renderer.cameras_open), data(renderer.cameras), SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>));
-        }
-    }
 
     template <typename TO_DEVICE, typename FROM_SPEC, typename TO_SPEC>
     void copy(rendering::raytracing::backends::Device<rendering::raytracing::backends::Generic>& from_device, TO_DEVICE& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to){
@@ -638,12 +611,6 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void render(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
-        render_launch(device, renderer);
-        render_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
     void probe_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
         namespace generic = rendering::raytracing::backends::generic;
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
@@ -653,59 +620,6 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void probe_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void probe(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
-        probe_launch(device, renderer);
-        probe_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void save_segmentation_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const char* filename){
-        static_assert(SPEC::HAS_SEGMENTATION, "save_segmentation_image requires a segmentation-capable renderer specification");
-        rendering::raytracing::detail::write_segmentation_grid_png<SPEC>(data(renderer.segmentation_buffer), filename);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void save_normals_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const char* filename){
-        static_assert(SPEC::HAS_NORMALS, "save_normals_image requires a normals-capable renderer specification");
-        rendering::raytracing::detail::write_normals_grid_png<SPEC>(data(renderer.normals_buffer), filename);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void save_flow_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const char* filename){
-        static_assert(SPEC::HAS_FLOW, "save_flow_image requires a flow-capable renderer specification");
-        rendering::raytracing::detail::write_flow_grid_png<SPEC>(data(renderer.flow_buffer), filename);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void save_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const char* filename){
-        static_assert(SPEC::HAS_RGB, "save_image requires an RGB-capable renderer specification");
-        rendering::raytracing::detail::write_grid_png<SPEC>(data(renderer.frame_buffer), filename);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void save_depth_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const char* filename){
-        static_assert(SPEC::HAS_DEPTH, "save_depth_image requires a depth-capable renderer specification");
-        rendering::raytracing::detail::write_depth_grid_png<SPEC>(data(renderer.depth_buffer), renderer.camera_radius, filename);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void save_depth(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const char* filename){
-        static_assert(SPEC::HAS_DEPTH, "save_depth requires a depth-capable renderer specification");
-        rendering::raytracing::detail::write_depth_bin<SPEC>(data(renderer.depth_buffer), filename);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void save_probes(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const char* filename){
-#if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("save_probes skipped: probe rays are disabled.");
-        (void)filename;
-        return;
-#else
-        rendering::raytracing::detail::write_probes_bin_and_log<SPEC>(data(renderer.collision_results), filename);
-#endif
     }
 
     template <typename DEVICE, typename SPEC>
@@ -764,38 +678,10 @@ namespace rl_tools {
 #endif
     }
 
-    // shared-asset-library fallbacks: this backend has no cross-renderer sharing, so the
-    // library is empty and every renderer builds its own copy — the API stays uniform
-    template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Generic>& library){
-        library.backend = new rendering::raytracing::backends::LibraryState<rendering::raytracing::backends::Generic, SPEC>{};
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Generic>& library){
-        for(auto* assets : library.assets){
-            delete assets;
-        }
-        library.assets.clear();
-        library.scenes.clear();
-        library.hashes.clear();
-        delete library.backend;
-        library.backend = nullptr;
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Generic>& library){
-        malloc(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    typename SPEC::TI init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Generic>& library, const char* scene_path){
-        bool is_new = false;
-        const auto scene_id = rendering::raytracing::detail::library_lookup_or_load(device, library, scene_path, is_new);
-        init(device, renderer, library.scenes[scene_id], library.pool);
-        return scene_id;
-    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
+
+
+#include "../../operations_cpu_post.h"
 
 #endif

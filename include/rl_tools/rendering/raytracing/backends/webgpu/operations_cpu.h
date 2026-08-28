@@ -16,6 +16,7 @@
 // ASYNCIFY event-loop yields.
 #include "../../renderer.h"
 #include "../../operations_cpu_common.h"
+#include "../specialization.h"
 #include "../generic/operations_generic.h"
 #include "context.h"
 #include "bvh_sah.h"
@@ -327,9 +328,6 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void probe_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer);
     template <typename DEVICE, typename SPEC>
-    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer);
-
-    template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
         namespace wg = rendering::raytracing::backends::webgpu;
         using TI = typename SPEC::TI;
@@ -566,25 +564,26 @@ namespace rl_tools {
                 entry.value = value;
                 return entry;
             };
+            using CONSTANTS = rendering::raytracing::backends::SpecializationConstants<SPEC>;
             const WGPUConstantEntry constants[] = {
-                constant("fc_srgb_output", SPEC::SHADING::SRGB_OUTPUT ? 1.0 : 0.0),
-                constant("fc_motion_blur", SPEC::ENABLE_MOTION_BLUR ? 1.0 : 0.0),
-                constant("fc_motion_samples", SPEC::ENABLE_MOTION_BLUR ? (double)SPEC::MOTION_BLUR_SAMPLES : 1.0),
-                constant("fc_aa_grid", SPEC::ENABLE_ANTI_ALIASING ? (double)SPEC::ANTI_ALIASING_GRID_SIZE : 1.0),
-                constant("fc_checker_background", SPEC::SHADING::CHECKER_BACKGROUND ? 1.0 : 0.0),
-                constant("fc_load_textures", SPEC::SHADING::LOAD_TEXTURES ? 1.0 : 0.0),
-                constant("fc_normal_shading", SPEC::SHADING::NORMAL_SHADING ? 1.0 : 0.0),
-                constant("fc_metallic_reflections", SPEC::SHADING::METALLIC_REFLECTIONS ? 1.0 : 0.0),
-                constant("fc_pbr_shading", SPEC::SHADING::PBR_SHADING ? 1.0 : 0.0),
-                constant("fc_punctual_light_shadows", SPEC::SHADING::PUNCTUAL_LIGHT_SHADOWS ? 1.0 : 0.0),
-                constant("fc_overlay_count", SPEC::ENABLE_OVERLAYS ? (double)SPEC::MAX_OVERLAYS_PER_CAMERA : 0.0),
-                constant("fc_semantic_segmentation", SPEC::SEMANTIC_SEGMENTATION ? 1.0 : 0.0),
-                constant("fc_has_observation", SPEC::HAS_OBSERVATION ? 1.0 : 0.0),
-                constant("fc_dynamic_motion_blur", SPEC::ENABLE_DYNAMIC_MOTION_BLUR ? 1.0 : 0.0),
-                constant("fc_resolve_rgb", (SPEC::ENABLE_DYNAMIC_MOTION_BLUR && SPEC::HAS_RGB) ? 1.0 : 0.0),
-                constant("fc_resolve_depth", (SPEC::ENABLE_DYNAMIC_MOTION_BLUR && SPEC::HAS_DEPTH) ? 1.0 : 0.0),
-                constant("fc_num_overlays", (double)SPEC::NUM_OVERLAYS),
-                constant("fc_overlay_capacity", (double)SPEC::MAX_OVERLAY_INSTANCES),
+                constant("fc_srgb_output", CONSTANTS::SRGB_OUTPUT ? 1.0 : 0.0),
+                constant("fc_motion_blur", CONSTANTS::MOTION_BLUR ? 1.0 : 0.0),
+                constant("fc_motion_samples", (double)CONSTANTS::MOTION_SAMPLES),
+                constant("fc_aa_grid", (double)CONSTANTS::AA_GRID),
+                constant("fc_checker_background", CONSTANTS::CHECKER_BACKGROUND ? 1.0 : 0.0),
+                constant("fc_load_textures", CONSTANTS::LOAD_TEXTURES ? 1.0 : 0.0),
+                constant("fc_normal_shading", CONSTANTS::NORMAL_SHADING ? 1.0 : 0.0),
+                constant("fc_metallic_reflections", CONSTANTS::METALLIC_REFLECTIONS ? 1.0 : 0.0),
+                constant("fc_pbr_shading", CONSTANTS::PBR_SHADING ? 1.0 : 0.0),
+                constant("fc_punctual_light_shadows", CONSTANTS::PUNCTUAL_LIGHT_SHADOWS ? 1.0 : 0.0),
+                constant("fc_overlay_count", (double)CONSTANTS::OVERLAY_COUNT),
+                constant("fc_semantic_segmentation", CONSTANTS::SEMANTIC_SEGMENTATION ? 1.0 : 0.0),
+                constant("fc_has_observation", CONSTANTS::HAS_OBSERVATION ? 1.0 : 0.0),
+                constant("fc_dynamic_motion_blur", CONSTANTS::DYNAMIC_MOTION_BLUR ? 1.0 : 0.0),
+                constant("fc_resolve_rgb", CONSTANTS::RESOLVE_RGB ? 1.0 : 0.0),
+                constant("fc_resolve_depth", CONSTANTS::RESOLVE_DEPTH ? 1.0 : 0.0),
+                constant("fc_num_overlays", (double)CONSTANTS::NUM_OVERLAYS),
+                constant("fc_overlay_capacity", (double)CONSTANTS::OVERLAY_CAPACITY),
             };
             auto make_pipeline = [&](const char* entry_point) -> WGPUComputePipeline {
                 WGPUComputePipelineDescriptor descriptor{};
@@ -686,14 +685,15 @@ namespace rl_tools {
         rendering::raytracing::detail::announce_backend(renderer);
     }
 
-    template <typename DEVICE, typename SPEC>
-    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool){
+    template <typename DEVICE, typename SPEC, typename METADATA_T>
+    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool, const rendering::SceneMetadata<METADATA_T>& metadata){
+        renderer.max_ray_length = (typename SPEC::T)metadata.max_ray_length;
+        rendering::raytracing::detail::announce_configuration<SPEC>();
         namespace wg = rendering::raytracing::backends::webgpu;
         namespace generic = rendering::raytracing::backends::generic;
         using TI = typename SPEC::TI;
         auto& ctx = wg::context(renderer);
 
-        rendering::raytracing::detail::compute_scene_bounds(renderer, scene);
 
         std::vector<const rendering::raytracing::Object*> all_objects;
         for(const auto& object : scene.objects){
@@ -990,8 +990,8 @@ namespace rl_tools {
             params.num_cameras = SPEC::NUM_CAMERAS;
             params.num_probes = SPEC::NUM_PROBES;
             params.num_scene_lights = (uint32_t)scene_lights.size();
-            params.max_depth = renderer.camera_radius > 0 ? renderer.camera_radius * 2.0f : 1e30f;
-            params.max_dist = renderer.camera_radius * 2.0f;
+            params.max_depth = renderer.max_ray_length > 0 ? renderer.max_ray_length : 1e30f;
+            params.max_dist = renderer.max_ray_length;
             params.ambient_color[0] = 0.10f;
             params.ambient_color[1] = 0.10f;
             params.ambient_color[2] = 0.10f;
@@ -1073,11 +1073,6 @@ namespace rl_tools {
         }
     }
 
-    template <typename DEVICE, typename SPEC>
-    void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, const rendering::raytracing::Scene& scene){
-        static const rendering::raytracing::AssetPool empty_pool{};
-        init(device, renderer, scene, empty_pool);
-    }
 
     template <typename DEVICE, typename SPEC>
     void update_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
@@ -1152,15 +1147,6 @@ namespace rl_tools {
         update_sync(device, renderer);
     }
 
-    template <typename DEVICE, typename SPEC>
-    void generate_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer,
-                          const typename SPEC::T center[3], typename SPEC::T radius,
-                          const typename SPEC::T up[3], typename SPEC::T fov){
-        rendering::raytracing::detail::generate_camera_poses<SPEC>(device, data(renderer.cameras), center, radius, up, fov);
-        if constexpr (SPEC::HAS_CAMERA_PAIR) {
-            std::memcpy(data(renderer.cameras_open), data(renderer.cameras), (size_t)SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>));
-        }
-    }
 
     // renderer memory-domain copies: the in-flight wait settles the staging readbacks into the
     // host-resident tensors, so the transfer delegates to the host-device tensor copy
@@ -1295,12 +1281,6 @@ namespace rl_tools {
         wg::settle_render(device, wg::context(renderer));
     }
 
-    template <typename DEVICE, typename SPEC>
-    void render(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
-        render_launch(device, renderer);
-        render_sync(device, renderer);
-    }
-
     // render produces the image outputs the spec declares; the collision-probe pass is the
     // separate probe verb so it can be scheduled independently (e.g. alongside update)
     template <typename DEVICE, typename SPEC>
@@ -1335,66 +1315,6 @@ namespace rl_tools {
     void probe_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
         namespace wg = rendering::raytracing::backends::webgpu;
         wg::settle_probe(device, wg::context(renderer));
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void probe(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
-        probe_launch(device, renderer);
-        probe_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void save_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, const char* filename){
-        rendering::raytracing::backends::webgpu::wait_in_flight(device, rendering::raytracing::backends::webgpu::context(renderer));
-        static_assert(SPEC::HAS_RGB, "save_image requires an RGB-capable renderer specification");
-        rendering::raytracing::detail::write_grid_png<SPEC>(data(renderer.frame_buffer), filename);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void save_segmentation_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, const char* filename){
-        rendering::raytracing::backends::webgpu::wait_in_flight(device, rendering::raytracing::backends::webgpu::context(renderer));
-        static_assert(SPEC::HAS_SEGMENTATION, "save_segmentation_image requires a segmentation-capable renderer specification");
-        rendering::raytracing::detail::write_segmentation_grid_png<SPEC>(data(renderer.segmentation_buffer), filename);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void save_normals_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, const char* filename){
-        rendering::raytracing::backends::webgpu::wait_in_flight(device, rendering::raytracing::backends::webgpu::context(renderer));
-        static_assert(SPEC::HAS_NORMALS, "save_normals_image requires a normals-capable renderer specification");
-        rendering::raytracing::detail::write_normals_grid_png<SPEC>(data(renderer.normals_buffer), filename);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void save_flow_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, const char* filename){
-        rendering::raytracing::backends::webgpu::wait_in_flight(device, rendering::raytracing::backends::webgpu::context(renderer));
-        static_assert(SPEC::HAS_FLOW, "save_flow_image requires a flow-capable renderer specification");
-        rendering::raytracing::detail::write_flow_grid_png<SPEC>(data(renderer.flow_buffer), filename);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void save_depth_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, const char* filename){
-        rendering::raytracing::backends::webgpu::wait_in_flight(device, rendering::raytracing::backends::webgpu::context(renderer));
-        static_assert(SPEC::HAS_DEPTH, "save_depth_image requires a depth-capable renderer specification");
-        rendering::raytracing::detail::write_depth_grid_png<SPEC>(data(renderer.depth_buffer), renderer.camera_radius, filename);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void save_depth(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, const char* filename){
-        rendering::raytracing::backends::webgpu::wait_in_flight(device, rendering::raytracing::backends::webgpu::context(renderer));
-        static_assert(SPEC::HAS_DEPTH, "save_depth requires a depth-capable renderer specification");
-        rendering::raytracing::detail::write_depth_bin<SPEC>(data(renderer.depth_buffer), filename);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void save_probes(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, const char* filename){
-        rendering::raytracing::backends::webgpu::wait_in_flight(device, rendering::raytracing::backends::webgpu::context(renderer));
-#if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("save_probes skipped: probe rays are disabled.");
-        (void)filename;
-        return;
-#else
-        rendering::raytracing::detail::write_probes_bin_and_log<SPEC>(data(renderer.collision_results), filename);
-#endif
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1483,38 +1403,10 @@ namespace rl_tools {
 #endif
     }
 
-    // shared-asset-library fallbacks: this backend has no cross-renderer sharing, so the
-    // library is empty and every renderer builds its own copy — the API stays uniform
-    template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Webgpu>& library){
-        library.backend = new rendering::raytracing::backends::LibraryState<rendering::raytracing::backends::Webgpu, SPEC>{};
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void free(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Webgpu>& library){
-        for(auto* assets : library.assets){
-            delete assets;
-        }
-        library.assets.clear();
-        library.scenes.clear();
-        library.hashes.clear();
-        delete library.backend;
-        library.backend = nullptr;
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Webgpu>& library){
-        malloc(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    typename SPEC::TI init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, rendering::raytracing::AssetLibrary<SPEC, rendering::raytracing::backends::Webgpu>& library, const char* scene_path){
-        bool is_new = false;
-        const auto scene_id = rendering::raytracing::detail::library_lookup_or_load(device, library, scene_path, is_new);
-        init(device, renderer, library.scenes[scene_id], library.pool);
-        return scene_id;
-    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
+
+
+#include "../../operations_cpu_post.h"
 
 #endif
