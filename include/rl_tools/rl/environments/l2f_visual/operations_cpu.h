@@ -10,6 +10,7 @@
 #include <rl_tools/rl/environments/l2f/operations_generic.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
 #include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
+#include <rl_tools/rendering/datasets/annotations/operations_cpu.h>
 
 #include <array>
 #include <cmath>
@@ -51,7 +52,7 @@ namespace rl_tools {
             return;
         }
 
-        auto indoor_pos = rendering::datasets::procthor::sample_free_position(device, *env.annotations, rng);
+        auto indoor_pos = rendering::datasets::annotations::sample_free_position(device, *env.annotations, rng);
         sample_initial_state(device, env.dynamics, parameters.dynamics, state, rng);
 
         state.position[0] = indoor_pos.position[0];

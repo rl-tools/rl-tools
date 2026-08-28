@@ -2,6 +2,7 @@
 #include <rl_tools/rl/environments/l2f_visual/operations_cpu.h>
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
+#include <rl_tools/rendering/datasets/annotations/operations_cpu.h>
 
 #include <gtest/gtest.h>
 
@@ -90,7 +91,7 @@ struct TestVisuals {
     rlt::rendering::raytracing::AssetLibrary<typename ENV::SPEC::RENDERER_SPEC> library;
     rlt::rendering::raytracing::Renderer<typename ENV::SPEC::RENDERER_SPEC> renderer;
     rlt::rendering::Bundle<T> bundle;
-    rlt::rendering::datasets::procthor::Annotations<typename ENV::SPEC::ANNOTATIONS_SPEC> annotations;
+    rlt::rendering::datasets::annotations::FreeSpace<typename ENV::SPEC::ANNOTATIONS_SPEC> annotations;
 };
 
 static TestVisuals* setup_visuals(DEVICE& device, ENV& env){
@@ -108,7 +109,10 @@ static TestVisuals* setup_visuals(DEVICE& device, ENV& env){
     const T up[3] = {0, 0, 1};
     rlt::generate_cameras(device, visuals->renderer, visuals->bundle.metadata.center, visuals->bundle.metadata.max_ray_length / 2, up, fov);
     rlt::generate_probe_directions(device, visuals->renderer);
-    rlt::rendering::datasets::procthor::annotate(device, visuals->annotations, visuals->bundle.metadata, visuals->renderer, fov, (T)ENV::SPEC::CAM_WIDTH / (T)ENV::SPEC::CAM_HEIGHT);
+    rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
+    free_space_parameters.fov = fov;
+    free_space_parameters.aspect = (T)ENV::SPEC::CAM_WIDTH / (T)ENV::SPEC::CAM_HEIGHT;
+    rlt::rendering::datasets::annotations::annotate(device, visuals->annotations, visuals->bundle.metadata, visuals->renderer, free_space_parameters);
     env.renderer = &visuals->renderer;
     env.annotations = &visuals->annotations;
     return visuals;
@@ -131,7 +135,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, LIFECYCLE) {
     if(visuals != nullptr){
         EXPECT_NE(env.renderer, nullptr);
         EXPECT_NE(env.annotations, nullptr);
-        EXPECT_GT(env.annotations->num_indoor_positions, 0);
+        EXPECT_GT(env.annotations->num_positions, 0);
     }
 
     rlt::init(device, env);

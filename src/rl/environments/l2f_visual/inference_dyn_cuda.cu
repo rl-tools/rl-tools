@@ -6,6 +6,7 @@
 #include <rl_tools/rl/environments/l2f_visual/operations_cuda.h>
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
+#include <rl_tools/rendering/datasets/annotations/operations_cpu.h>
 
 #include <rl_tools/persist/backends/tar/operations_cpu.h>
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
@@ -386,7 +387,7 @@ int main(int argc, char** argv){
     rlt::malloc(device, env);
     using RENDERER_SPEC = typename ENVIRONMENT::SPEC::RENDERER_SPEC;
     using LIBRARY_TYPE = rlt::rendering::raytracing::AssetLibrary<RENDERER_SPEC>;
-    using ANNOTATIONS_TYPE = rlt::rendering::datasets::procthor::Annotations<typename ENVIRONMENT::SPEC::ANNOTATIONS_SPEC>;
+    using ANNOTATIONS_TYPE = rlt::rendering::datasets::annotations::FreeSpace<typename ENVIRONMENT::SPEC::ANNOTATIONS_SPEC>;
     auto* library = new LIBRARY_TYPE{};
     auto* renderer = new rlt::rendering::raytracing::Renderer<RENDERER_SPEC>{};
     auto* annotations = new ANNOTATIONS_TYPE{};
@@ -401,7 +402,10 @@ int main(int argc, char** argv){
         const T scene_up[3] = {0, 0, 1};
         rlt::generate_cameras(device, *renderer, bundle.metadata.center, bundle.metadata.max_ray_length / 2, scene_up, scene_fov);
         rlt::generate_probe_directions(device, *renderer);
-        rlt::rendering::datasets::procthor::annotate(device, *annotations, bundle.metadata, *renderer, scene_fov, (T)CAM_WIDTH / (T)CAM_HEIGHT);
+        rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
+        free_space_parameters.fov = scene_fov;
+        free_space_parameters.aspect = (T)CAM_WIDTH / (T)CAM_HEIGHT;
+        rlt::rendering::datasets::annotations::annotate(device, *annotations, bundle.metadata, *renderer, free_space_parameters);
     }
     env.renderer = renderer;
     env.annotations = annotations;
@@ -483,7 +487,7 @@ int main(int argc, char** argv){
 
         rlt::sample_initial_parameters(device, env, env_parameters, sweep_rng);
         {
-            auto indoor_pos = rlt::rendering::datasets::procthor::sample_free_position(device, *env.annotations, sweep_rng);
+            auto indoor_pos = rlt::rendering::datasets::annotations::sample_free_position(device, *env.annotations, sweep_rng);
             env_parameters.scene_translation[0] = indoor_pos.position[0];
             env_parameters.scene_translation[1] = indoor_pos.position[1];
             env_parameters.scene_translation[2] = indoor_pos.position[2];

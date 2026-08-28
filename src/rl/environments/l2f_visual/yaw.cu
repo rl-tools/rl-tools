@@ -26,6 +26,7 @@
 #include <rl_tools/rl/environments/l2f_visual/operations_cuda.h>
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
+#include <rl_tools/rendering/datasets/annotations/operations_cpu.h>
 
 #include <rl_tools/nn/loss_functions/mse/operations_generic.h>
 #include <rl_tools/nn/loss_functions/mse/operations_cuda.h>
@@ -464,7 +465,7 @@ namespace imitation_kernels{
         T* scene_yaw_arr,
         T* scene_yaw_cos_arr,
         T* scene_yaw_sin_arr,
-        T* indoor_positions_ptr, TI* num_indoor_positions_ptr, TI* env_scene_ptr, TI max_indoor_pos,
+        T* positions_ptr, TI* num_positions_ptr, TI* env_scene_ptr, TI max_indoor_pos,
         RNG rng, TI step_i, TI episode_step_limit, T init_orientation_max_rad
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -489,9 +490,9 @@ namespace imitation_kernels{
             params.dynamics.mdp.init.max_angle = init_orientation_max_rad;
             rl_tools::sample_initial_state(device, env, params, state, rng_state);
             TI scene_idx = env_scene_ptr[env_i];
-            TI num_pos = num_indoor_positions_ptr[scene_idx];
+            TI num_pos = num_positions_ptr[scene_idx];
             TI pos_idx = rl_tools::random::uniform_int_distribution(device.random, (TI)0, num_pos - 1, rng_state);
-            T* pos = indoor_positions_ptr + (scene_idx * max_indoor_pos + pos_idx) * INDOOR_POSITION_DIM;
+            T* pos = positions_ptr + (scene_idx * max_indoor_pos + pos_idx) * INDOOR_POSITION_DIM;
             scene_translation_arr[env_i * 3 + 0] = pos[0];
             scene_translation_arr[env_i * 3 + 1] = pos[1];
             scene_translation_arr[env_i * 3 + 2] = pos[2];
@@ -1091,7 +1092,7 @@ int main(int argc, char** argv){
     // =========================================================================
     using RENDERER_SPEC = typename ENVIRONMENT::SPEC::RENDERER_SPEC;
     using RENDERER_TYPE = rlt::rendering::raytracing::Renderer<RENDERER_SPEC>;
-    using ANNOTATIONS_TYPE = rlt::rendering::datasets::procthor::Annotations<typename ENVIRONMENT::SPEC::ANNOTATIONS_SPEC>;
+    using ANNOTATIONS_TYPE = rlt::rendering::datasets::annotations::FreeSpace<typename ENVIRONMENT::SPEC::ANNOTATIONS_SPEC>;
     using LIBRARY_TYPE = rlt::rendering::raytracing::AssetLibrary<RENDERER_SPEC>;
 
     ENVIRONMENT envs[N_ENVIRONMENTS];
@@ -1120,9 +1121,12 @@ int main(int argc, char** argv){
             rlt::generate_probe_directions(device, *renderers[s]);
             if(scene_id == (TI)procthor_annotations.size()){
                 procthor_annotations.emplace_back();
-                rlt::rendering::datasets::procthor::annotate(device, procthor_annotations[scene_id], bundle.metadata, *renderers[s], scene_fov, (T)CAM_WIDTH / (T)CAM_HEIGHT);
+                rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
+                free_space_parameters.fov = scene_fov;
+                free_space_parameters.aspect = (T)CAM_WIDTH / (T)CAM_HEIGHT;
+                rlt::rendering::datasets::annotations::annotate(device, procthor_annotations[scene_id], bundle.metadata, *renderers[s], free_space_parameters);
             }
-            TI num_pos = procthor_annotations[scene_id].num_indoor_positions;
+            TI num_pos = procthor_annotations[scene_id].num_positions;
             std::cout << " — " << num_pos << " indoor positions" << std::endl;
             if(num_pos == 0){
                 std::cerr << "Scene has no valid positions with 1m clearance: " << scene_paths[s] << std::endl;
@@ -1135,26 +1139,26 @@ int main(int argc, char** argv){
 
     // GPU buffers for per-scene indoor positions
     static constexpr TI MAX_INDOOR_POS = 256;
-    T* gpu_indoor_positions = nullptr;
-    TI* gpu_num_indoor_positions = nullptr;
+    T* gpu_positions = nullptr;
+    TI* gpu_num_positions = nullptr;
     TI* gpu_env_scene = nullptr;
-    cudaMalloc(&gpu_indoor_positions, N_TOTAL_SCENES * MAX_INDOOR_POS * INDOOR_POSITION_DIM * sizeof(T));
-    cudaMalloc(&gpu_num_indoor_positions, N_TOTAL_SCENES * sizeof(TI));
+    cudaMalloc(&gpu_positions, N_TOTAL_SCENES * MAX_INDOOR_POS * INDOOR_POSITION_DIM * sizeof(T));
+    cudaMalloc(&gpu_num_positions, N_TOTAL_SCENES * sizeof(TI));
     cudaMalloc(&gpu_env_scene, N_ENVIRONMENTS * sizeof(TI));
     {
         std::vector<T> all_positions(N_TOTAL_SCENES * MAX_INDOOR_POS * INDOOR_POSITION_DIM, 0);
         std::vector<TI> all_counts(N_TOTAL_SCENES);
         for(TI s = 0; s < N_TOTAL_SCENES; s++){
-            all_counts[s] = annotations[s]->num_indoor_positions;
+            all_counts[s] = annotations[s]->num_positions;
             for(TI i = 0; i < all_counts[s]; i++){
                 TI base = (s * MAX_INDOOR_POS + i) * INDOOR_POSITION_DIM;
-                all_positions[base + 0] = annotations[s]->indoor_positions[i].position[0];
-                all_positions[base + 1] = annotations[s]->indoor_positions[i].position[1];
-                all_positions[base + 2] = annotations[s]->indoor_positions[i].position[2];
+                all_positions[base + 0] = annotations[s]->positions[i].position[0];
+                all_positions[base + 1] = annotations[s]->positions[i].position[1];
+                all_positions[base + 2] = annotations[s]->positions[i].position[2];
             }
         }
-        cudaMemcpy(gpu_indoor_positions, all_positions.data(), all_positions.size() * sizeof(T), cudaMemcpyHostToDevice);
-        cudaMemcpy(gpu_num_indoor_positions, all_counts.data(), N_TOTAL_SCENES * sizeof(TI), cudaMemcpyHostToDevice);
+        cudaMemcpy(gpu_positions, all_positions.data(), all_positions.size() * sizeof(T), cudaMemcpyHostToDevice);
+        cudaMemcpy(gpu_num_positions, all_counts.data(), N_TOTAL_SCENES * sizeof(TI), cudaMemcpyHostToDevice);
     }
 
     std::array<TI, N_ACTIVE_SCENES> active_scene_indices{};
@@ -1617,8 +1621,8 @@ int main(int argc, char** argv){
                     cpu_validation_states[sample_i].orientation[1] = static_cast<T>(0);
                     cpu_validation_states[sample_i].orientation[2] = static_cast<T>(0);
                     cpu_validation_states[sample_i].orientation[3] = std::sin(yaw_half);
-                    const TI pos_i = sample_i % scene_annotations->num_indoor_positions;
-                    const auto& indoor_position = scene_annotations->indoor_positions[pos_i];
+                    const TI pos_i = sample_i % scene_annotations->num_positions;
+                    const auto& indoor_position = scene_annotations->positions[pos_i];
                     cpu_validation_scene_translation[sample_i * 3 + 0] = indoor_position.position[0];
                     cpu_validation_scene_translation[sample_i * 3 + 1] = indoor_position.position[1];
                     cpu_validation_scene_translation[sample_i * 3 + 2] = indoor_position.position[2];
@@ -1655,8 +1659,8 @@ int main(int argc, char** argv){
                     cpu_validation_states[sample_i].orientation[1] = static_cast<T>(0);
                     cpu_validation_states[sample_i].orientation[2] = static_cast<T>(0);
                     cpu_validation_states[sample_i].orientation[3] = std::sin(yaw_half);
-                    const TI pos_i = sample_i % scene_annotations->num_indoor_positions;
-                    const auto& indoor_position = scene_annotations->indoor_positions[pos_i];
+                    const TI pos_i = sample_i % scene_annotations->num_positions;
+                    const auto& indoor_position = scene_annotations->positions[pos_i];
                     cpu_validation_scene_translation[sample_i * 3 + 0] = indoor_position.position[0];
                     cpu_validation_scene_translation[sample_i * 3 + 1] = indoor_position.position[1];
                     cpu_validation_scene_translation[sample_i * 3 + 2] = indoor_position.position[2];
@@ -1884,7 +1888,7 @@ int main(int argc, char** argv){
                     gpu_scene_yaw_arr,
                     gpu_scene_yaw_cos_arr,
                     gpu_scene_yaw_sin_arr,
-                    gpu_indoor_positions, gpu_num_indoor_positions, gpu_env_scene, MAX_INDOOR_POS,
+                    gpu_positions, gpu_num_positions, gpu_env_scene, MAX_INDOOR_POS,
                     rng_gpu, step_i, current_episode_step_limit, epoch_init_orientation_max_rad);
                 CUDA_CHECK("prologue_kernel");
                 if(record_trajectories){
@@ -2738,8 +2742,8 @@ int main(int argc, char** argv){
     cudaFree(gpu_validation_scene_yaw_sin_arr);
     cudaFree(gpu_validation_target_frame_roll_arr);
     cudaFree(gpu_validation_target_frame_pitch_arr);
-    cudaFree(gpu_indoor_positions);
-    cudaFree(gpu_num_indoor_positions);
+    cudaFree(gpu_positions);
+    cudaFree(gpu_num_positions);
     cudaFree(gpu_env_scene);
     rlt::free(device_gpu, gpu_frame_stack_history);
     rlt::free(device_gpu, gpu_all_combined_observations);

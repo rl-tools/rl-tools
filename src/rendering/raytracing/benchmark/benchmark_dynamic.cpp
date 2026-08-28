@@ -37,6 +37,7 @@
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
+#include <rl_tools/rendering/datasets/annotations/operations_cpu.h>
 #include <rl_tools/rendering/raytracing/save_cpu.h>
 
 #include <algorithm>
@@ -102,7 +103,7 @@ struct CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI ANTI_ALIASING_GRID_SIZE = AA_GRID;
 };
 using SPEC = rlt::rendering::raytracing::Specification<CONFIG>;
-using ANNOTATIONS_SPEC = rlt::rendering::datasets::procthor::AnnotationsSpecification<T, TI, 512>;
+using ANNOTATIONS_SPEC = rlt::rendering::datasets::annotations::FreeSpaceSpecification<T, TI, 512>;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using Camera = rlt::rendering::raytracing::Camera<T>;
 
@@ -286,13 +287,16 @@ int main(int ac, char** av){
     rlt::init(device, renderer, bundle);
     rlt::generate_probe_directions(device, renderer);
 
-    rlt::rendering::datasets::procthor::Annotations<ANNOTATIONS_SPEC> annotations;
-    rlt::rendering::datasets::procthor::annotate(device, annotations, bundle.metadata, renderer, FOV, ASPECT);
-    const TI num_positions = annotations.num_indoor_positions;
+    rlt::rendering::datasets::annotations::FreeSpace<ANNOTATIONS_SPEC> annotations;
+    rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
+    free_space_parameters.fov = FOV;
+    free_space_parameters.aspect = ASPECT;
+    rlt::rendering::datasets::annotations::annotate(device, annotations, bundle.metadata, renderer, free_space_parameters);
+    const TI num_positions = annotations.num_positions;
     rlt::utils::assert_exit(device, num_positions >= 8, "benchmark_dynamic: too few indoor positions");
 
     auto position_of = [&](TI pool_index) -> Vec3 {
-        const auto& indoor_position = annotations.indoor_positions[pool_index];
+        const auto& indoor_position = annotations.positions[pool_index];
         return {indoor_position.position[0], indoor_position.position[1], indoor_position.position[2]};
     };
     auto segment_clear = [&](const std::vector<Vec3>& from, const std::vector<Vec3>& to, std::vector<bool>& clear){

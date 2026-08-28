@@ -22,31 +22,6 @@ namespace rl_tools::rendering::datasets::procthor {
         std::vector<std::string> references;
     };
 
-    template <typename T>
-    struct IndoorPosition {
-        T position[3];
-        T yaw;
-        T score;
-    };
-
-    template <typename T_T, typename T_TI, T_TI T_MAX_INDOOR_POSITIONS = 256>
-    struct AnnotationsSpecification {
-        using T = T_T;
-        using TI = T_TI;
-        static constexpr TI MAX_INDOOR_POSITIONS = T_MAX_INDOOR_POSITIONS;
-    };
-
-    // task-facing, graphics-agnostic scene annotations: free-space poses for spawning. Plain
-    // trivially-copyable data — consumers mirror it into device memory for on-device sampling.
-    template <typename T_SPEC>
-    struct Annotations {
-        using SPEC = T_SPEC;
-        using T = typename SPEC::T;
-        using TI = typename SPEC::TI;
-
-        IndoorPosition<T> indoor_positions[SPEC::MAX_INDOOR_POSITIONS];
-        TI num_indoor_positions = 0;
-    };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
