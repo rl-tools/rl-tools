@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS metrics(
     id INTEGER PRIMARY KEY,
     time REAL NOT NULL,
     commit_hash TEXT NOT NULL,
+    commit_time REAL,
     run_id TEXT NOT NULL,
     name TEXT NOT NULL,
     value TEXT NOT NULL,
@@ -27,6 +28,9 @@ def init_db(path: str | None = None) -> None:
     conn = sqlite3.connect(path or DB_FILE)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.executescript(SCHEMA)
+    columns = [row[1] for row in conn.execute("PRAGMA table_info(metrics)")]
+    if "commit_time" not in columns:
+        conn.execute("ALTER TABLE metrics ADD COLUMN commit_time REAL")
     conn.commit()
     conn.close()
 
@@ -98,13 +102,14 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
             value_scalar = float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
             try:
                 entry_time = float(entry.get("time", time.time()))
+                commit_time = float(entry["commit_time"]) if "commit_time" in entry and entry["commit_time"] is not None else None
             except (TypeError, ValueError):
-                return self._send(400, {"error": '"time" must be a unix timestamp'})
-            rows.append((entry_time, str(entry.get("commit", "no-hash")), str(entry.get("run", "unknown")), entry["name"], json.dumps(value), value_scalar))
+                return self._send(400, {"error": '"time" and "commit_time" must be unix timestamps'})
+            rows.append((entry_time, str(entry.get("commit", "no-hash")), commit_time, str(entry.get("run", "unknown")), entry["name"], json.dumps(value), value_scalar))
         cur = conn.cursor()
         ids = []
         for row in rows:
-            cur.execute("INSERT INTO metrics(time,commit_hash,run_id,name,value,value_scalar) VALUES (?,?,?,?,?,?)", row)
+            cur.execute("INSERT INTO metrics(time,commit_hash,commit_time,run_id,name,value,value_scalar) VALUES (?,?,?,?,?,?,?)", row)
             ids.append(cur.lastrowid)
         conn.commit()
         return self._send(201, {"ids": ids})
@@ -129,13 +134,13 @@ class RequestHandler(http.server.BaseHTTPRequestHandler):
             parameters.append(float(query["until"]))
         if query.get("include_unreliable", "0") not in ("1", "true"):
             where.append("unreliable=0")
-        sql = "SELECT id,time,commit_hash,run_id,name,value,value_scalar,unreliable,comment FROM metrics"
+        sql = "SELECT id,time,commit_hash,commit_time,run_id,name,value,value_scalar,unreliable,comment FROM metrics"
         if where:
             sql += " WHERE " + " AND ".join(where)
         sql += " ORDER BY time DESC, id DESC LIMIT ?"
         parameters.append(int(query.get("limit", "1000")))
         rows = conn.execute(sql, parameters).fetchall()
-        columns = ["id", "time", "commit_hash", "run_id", "name", "value", "value_scalar", "unreliable", "comment"]
+        columns = ["id", "time", "commit_hash", "commit_time", "run_id", "name", "value", "value_scalar", "unreliable", "comment"]
         result = [dict(zip(columns, row)) for row in rows]
         for row in result:
             row["value"] = json.loads(row["value"])
@@ -186,7 +191,7 @@ input.comment{width:16em;font:inherit;border:none;background:transparent}
 <select id="name"><option value="">all metrics</option></select>
 <input id="limit" value="200" size="5">
 <button onclick="refresh()">refresh</button>
-<table><thead><tr><th title="unreliable">&#9888;</th><th>id</th><th>time</th><th>commit</th><th>run</th><th>name</th><th>value</th><th>comment</th></tr></thead>
+<table><thead><tr><th title="unreliable">&#9888;</th><th>id</th><th>time</th><th>commit</th><th>commit time</th><th>run</th><th>name</th><th>value</th><th>comment</th></tr></thead>
 <tbody id="rows"></tbody></table>
 <script>
 async function api(path, body){
@@ -220,6 +225,7 @@ async function refresh(){
         cell(element, row.id);
         cell(element, new Date(row.time * 1000).toISOString().replace("T", " ").slice(0, 19));
         cell(element, row.commit_hash.slice(0, 7));
+        cell(element, row.commit_time === null ? "" : new Date(row.commit_time * 1000).toISOString().replace("T", " ").slice(0, 19));
         cell(element, row.run_id);
         cell(element, row.name);
         cell(element, JSON.stringify(row.value)).className = "value";

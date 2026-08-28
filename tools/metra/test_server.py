@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import http.server, json, os, sys, tempfile, threading, time, unittest, urllib.error, urllib.request
+import http.server, json, os, sqlite3, sys, tempfile, threading, time, unittest, urllib.error, urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import metra
@@ -49,6 +49,32 @@ class MetraServerTest(unittest.TestCase):
         self.assertEqual(struct_rows[0]["value"], {"lr": 0.001})
         self.assertEqual(struct_rows[0]["time"], 123.0)
 
+    def test_commit_time(self):
+        metra.log("commit_time/explicit", 1.0, commit="e" * 40, commit_time=1700000000.0, run="run-e", url=self.url)
+        rows = metra.fetch(name="commit_time/explicit", url=self.url)
+        self.assertEqual(rows[0]["commit_time"], 1700000000.0)
+        metra.log("commit_time/overridden_commit", 1.0, commit="e" * 40, run="run-e", url=self.url)
+        rows = metra.fetch(name="commit_time/overridden_commit", url=self.url)
+        self.assertIsNone(rows[0]["commit_time"])
+        metra.log("commit_time/default", 1.0, run="run-e", url=self.url)
+        rows = metra.fetch(name="commit_time/default", url=self.url)
+        if metra.default_commit_time() is not None:  # running inside a git checkout
+            self.assertEqual(rows[0]["commit_time"], metra.default_commit_time())
+
+    def test_migration(self):
+        old_db = os.path.join(self.tmp.name, "old.sqlite")
+        conn = sqlite3.connect(old_db)
+        conn.execute("CREATE TABLE metrics(id INTEGER PRIMARY KEY, time REAL NOT NULL, commit_hash TEXT NOT NULL, run_id TEXT NOT NULL, name TEXT NOT NULL, value TEXT NOT NULL, value_scalar REAL, unreliable INTEGER NOT NULL DEFAULT 0, comment TEXT NOT NULL DEFAULT '')")
+        conn.execute("INSERT INTO metrics(time,commit_hash,run_id,name,value,value_scalar) VALUES (1.0,'x','r','m','1',1.0)")
+        conn.commit()
+        conn.close()
+        server.init_db(old_db)
+        conn = sqlite3.connect(old_db)
+        columns = [row[1] for row in conn.execute("PRAGMA table_info(metrics)")]
+        self.assertIn("commit_time", columns)
+        self.assertIsNone(conn.execute("SELECT commit_time FROM metrics").fetchone()[0])
+        conn.close()
+
     def test_batch_and_filters(self):
         body = [
             {"name": "batch/a", "value": 1, "commit": "b" * 40, "run": "run-b", "time": 100.0},
@@ -83,6 +109,7 @@ class MetraServerTest(unittest.TestCase):
         self._assert_http_error(400, self._post, "/api/log", b"not json")
         self._assert_http_error(400, self._post, "/api/log", json.dumps({"value": 1}).encode())
         self._assert_http_error(400, self._post, "/api/log", json.dumps({"name": "bad/time", "value": 1, "time": "yesterday"}).encode())
+        self._assert_http_error(400, self._post, "/api/log", json.dumps({"name": "bad/commit_time", "value": 1, "commit_time": "yesterday"}).encode())
         self._assert_http_error(404, urllib.request.urlopen, self.url + "/api/unknown")
 
     def test_html(self):

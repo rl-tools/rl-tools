@@ -1,6 +1,6 @@
 """metra: client for the minimal metrics tracking server (metra/server.py).
 
-Environment: METRA_URL (server base URL, default http://127.0.0.1:13340), METRA_COMMIT (override commit detection), METRA_RUN (override the generated run id).
+Environment: METRA_URL (server base URL, default http://127.0.0.1:13340), METRA_COMMIT (override commit detection), METRA_COMMIT_TIME (override commit time detection, unix seconds), METRA_RUN (override the generated run id).
 """
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import datetime, json, os, socket, subprocess, sys, urllib.parse, urllib.request
 
 DEFAULT_URL = "http://127.0.0.1:13340"
 _commit = None
+_commit_time = False
 _run = None
 
 
@@ -33,6 +34,19 @@ def default_commit() -> str:
     return _commit
 
 
+def default_commit_time():
+    global _commit_time
+    if _commit_time is False:
+        try:
+            _commit_time = float(os.environ["METRA_COMMIT_TIME"])
+        except (KeyError, ValueError):
+            try:
+                _commit_time = float(subprocess.run(["git", "show", "-s", "--format=%ct", "HEAD"], capture_output=True, text=True, check=True).stdout.strip())
+            except (OSError, subprocess.CalledProcessError, ValueError):
+                _commit_time = None
+    return _commit_time
+
+
 def default_run() -> str:
     global _run
     if _run is None:
@@ -40,8 +54,12 @@ def default_run() -> str:
     return _run
 
 
-def log(name, value, commit=None, run=None, time=None, url=None) -> int:
+def log(name, value, commit=None, commit_time=None, run=None, time=None, url=None) -> int:
     entry = {"name": name, "value": value, "commit": commit or default_commit(), "run": run or default_run()}
+    if commit_time is None and commit is None:  # an explicitly overridden commit must not be paired with the auto-detected HEAD time
+        commit_time = default_commit_time()
+    if commit_time is not None:
+        entry["commit_time"] = commit_time
     if time is not None:
         entry["time"] = time
     return _request(url, "/api/log", body=entry)["ids"][0]
