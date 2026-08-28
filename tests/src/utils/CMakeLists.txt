@@ -9,3 +9,15 @@ target_link_libraries(
         GTest::gtest_main
 )
 gtest_discover_tests(test_utils_typing)
+
+add_executable(
+        test_utils_conta
+        conta.cpp
+)
+target_link_libraries(
+        test_utils_conta
+        PRIVATE
+        RLtools::Core
+        GTest::gtest_main
+)
+gtest_discover_tests(test_utils_conta)

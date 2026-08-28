@@ -23,6 +23,7 @@
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cuda.h>
+#include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
 
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
@@ -232,7 +233,7 @@ static constexpr TI N_ENVIRONMENTS = N_ACTIVE_SCENES * N_ENVIRONMENTS_PER_SCENE;
 static constexpr TI CAM_WIDTH = 80;
 static constexpr TI CAM_HEIGHT = 50;
 static constexpr TI NUM_PROBES = 64;
-static constexpr T CAMERA_FOV = static_cast<T>(79.6) / static_cast<T>(180) * rlt::math::PI<T>;
+static constexpr T CAMERA_FOV = 79.6;
 static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = static_cast<T>(5.0) / static_cast<T>(180) * rlt::math::PI<T>;
 static constexpr T CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_X = static_cast<T>(0.01);
 static constexpr T CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_Y = static_cast<T>(0.01);
@@ -793,12 +794,14 @@ int main(int argc, char** argv){
     auto* env_storage = new MULTI_ENVIRONMENT{};
     MULTI_ENVIRONMENT& env = *env_storage;
     rlt::malloc(device, env);
-    env.shared.scene_set.paths = scene_paths;
+    rlt::rendering::datasets::procthor::GLB scene_dataset{{}, scene_paths};
+    typename decltype(scene_dataset)::Corpus scene_corpus;
+    rlt::rendering::datasets::procthor::enumerate(device, scene_dataset, scene_corpus);
     for(TI member_i = 0; member_i < NUMBER_OF_ENVIRONMENTS; member_i++){
         const TI first = member_i * N_TOTAL_SCENES / NUMBER_OF_ENVIRONMENTS;
         const TI last = (member_i + 1) * N_TOTAL_SCENES / NUMBER_OF_ENVIRONMENTS;
         std::cout << "Initializing World " << member_i << " with scenes [" << first << ", " << last << ")" << std::endl;
-        rlt::init(device, env.environments[member_i], env.shared, first, last - first, member_i);
+        rlt::init(device, env.environments[member_i], env.shared, scene_dataset, scene_corpus, first, last - first, member_i);
     }
     std::cout << "Loaded " << N_TOTAL_SCENES << " scenes" << std::endl;
 

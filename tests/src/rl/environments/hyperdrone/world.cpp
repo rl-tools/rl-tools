@@ -170,11 +170,11 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, SEEDED_ROLLOUT_DETERMINISM){
     rlt::init(device);
     ENVIRONMENT env;
     rlt::malloc(device, env);
-    rlt::init(device, env, {scene_directory()});
+    rlt::init(device, env, rlt::rendering::datasets::procthor::GLB{scene_directory(), {}});
     for(TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++){
         EXPECT_EQ(env.environments[environment_i].slots.size(), 1);
-        EXPECT_EQ(env.environments[environment_i].slots[0].scene_set_index, environment_i);
-        EXPECT_GT(env.environments[environment_i].slots[0].scene.num_indoor_positions, 0);
+        EXPECT_EQ(env.environments[environment_i].slots[0].corpus_index, environment_i);
+        EXPECT_GT(env.environments[environment_i].slots[0].annotations.num_positions, 0);
     }
     auto* record_a = new Rollout;
     auto* record_b = new Rollout;
@@ -213,8 +213,10 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, RENDER_PATH_EQUIVALENCE){
     typename SINGLE_WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);
     rlt::malloc(device, world);
-    shared.scene_set.paths = {SCENE_PATH};
-    rlt::init(device, world, shared, 0, 1, 0);
+    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    typename decltype(dataset)::Corpus corpus;
+    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
 
     RNG rng;
     rlt::malloc(device, rng);
@@ -276,12 +278,14 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, SCENE_ROTATION){
     typename WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);
     rlt::malloc(device, world);
-    shared.scene_set.paths = {SCENE_PATH, SCENE_PATH};
-    rlt::init(device, world, shared, 0, 2, 0);
+    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH}};
+    typename decltype(dataset)::Corpus corpus;
+    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::init(device, world, shared, dataset, corpus, 0, 2, 0);
     EXPECT_EQ(world.active_slot, 0);
     rlt::rotate_scene(device, world);
     EXPECT_EQ(world.active_slot, 1);
-    EXPECT_EQ(world.slots[world.active_slot].scene_set_index, 1);
+    EXPECT_EQ(world.slots[world.active_slot].corpus_index, 1);
 
     RNG rng;
     rlt::malloc(device, rng);

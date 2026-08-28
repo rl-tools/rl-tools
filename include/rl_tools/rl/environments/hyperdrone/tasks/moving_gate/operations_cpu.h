@@ -60,10 +60,10 @@ namespace rl_tools {
             }
         }
         template <typename DEVICE, typename TASK_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT void _sample_gate(DEVICE& device, const typename World<TASK_SPEC>::NEXT_WORLD::SCENE& scene, typename World<TASK_SPEC>::Parameters& parameters, typename World<TASK_SPEC>::State& state, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT void _sample_gate(DEVICE& device, const typename World<TASK_SPEC>::NEXT_WORLD::ANNOTATIONS& annotations, typename World<TASK_SPEC>::Parameters& parameters, typename World<TASK_SPEC>::State& state, RNG& rng){
             using T = typename TASK_SPEC::T;
             constexpr T TWO_PI = (T)2 * math::PI<T>;
-            auto gate_position = rendering::raytracing::scene::procthor::sample_indoor_position(device, scene, rng);
+            auto gate_position = rendering::datasets::annotations::sample_free_position(device, annotations, rng);
             parameters.gate_center[0] = gate_position.position[0];
             parameters.gate_center[1] = gate_position.position[1];
             parameters.gate_center[2] = gate_position.position[2];
@@ -84,15 +84,15 @@ namespace rl_tools {
         }
     }
 
-    template <typename DEVICE, typename TASK_SPEC>
-    void init(DEVICE& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, typename TASK_SPEC::NEXT_WORLD::SharedContext& shared, typename TASK_SPEC::TI first_scene, typename TASK_SPEC::TI num_scenes, typename TASK_SPEC::TI member_index) {
+    template <typename DEVICE, typename TASK_SPEC, typename DATASET>
+    void init(DEVICE& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, typename TASK_SPEC::NEXT_WORLD::SharedContext& shared, const DATASET& dataset, const typename DATASET::Corpus& corpus, typename TASK_SPEC::TI first_scene, typename TASK_SPEC::TI num_scenes, typename TASK_SPEC::TI member_index) {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         using BASE_SPEC = typename NEXT_WORLD::SPEC;
         utils::assert_exit(device, !world.gate_asset_path.empty(), "hyperdrone::tasks::moving_gate: gate_asset_path must be set before init");
         auto asset = register_pool_asset<DEVICE, typename NEXT_WORLD::SharedContext, typename BASE_SPEC::SHADING, BASE_SPEC::OUTPUT_RGB>(device, shared, world.gate_asset_path);
         world.entity_kind_index = (typename TASK_SPEC::TI)world.entity_kinds.size();
         world.entity_kinds.push_back({asset, 1, 0});
-        init(device, static_cast<NEXT_WORLD&>(world), shared, first_scene, num_scenes, member_index);
+        init(device, static_cast<NEXT_WORLD&>(world), shared, dataset, corpus, first_scene, num_scenes, member_index);
         malloc(world.renderer.device, world.gate_pose_staging);
     }
     template <typename DEVICE, typename TASK_SPEC>
@@ -115,7 +115,7 @@ namespace rl_tools {
     void sample_initial_state(DEVICE& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, typename rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>::Parameters& parameters, typename rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>::State& state, RNG& rng) {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         sample_initial_state(device, static_cast<NEXT_WORLD&>(world), static_cast<typename NEXT_WORLD::Parameters&>(parameters), static_cast<typename NEXT_WORLD::State&>(state), rng);
-        rl::environments::hyperdrone::tasks::moving_gate::_sample_gate<DEVICE, TASK_SPEC>(device, world.slots[world.active_slot].scene, parameters, state, rng);
+        rl::environments::hyperdrone::tasks::moving_gate::_sample_gate<DEVICE, TASK_SPEC>(device, world.slots[world.active_slot].annotations, parameters, state, rng);
     }
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC, typename RNG>
     void sample_initial_state(DEVICE& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {
@@ -237,9 +237,9 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 // arguments, so the task's overloads must be reachable through the member type's namespace
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::hyperdrone::tasks::moving_gate {
-    template <typename DEVICE, typename TASK_SPEC>
-    void init(DEVICE& device, World<TASK_SPEC>& world, typename TASK_SPEC::NEXT_WORLD::SharedContext& shared, typename TASK_SPEC::TI first_scene, typename TASK_SPEC::TI num_scenes, typename TASK_SPEC::TI member_index){
-        ::rl_tools::init(device, world, shared, first_scene, num_scenes, member_index);
+    template <typename DEVICE, typename TASK_SPEC, typename DATASET>
+    void init(DEVICE& device, World<TASK_SPEC>& world, typename TASK_SPEC::NEXT_WORLD::SharedContext& shared, const DATASET& dataset, const typename DATASET::Corpus& corpus, typename TASK_SPEC::TI first_scene, typename TASK_SPEC::TI num_scenes, typename TASK_SPEC::TI member_index){
+        ::rl_tools::init(device, world, shared, dataset, corpus, first_scene, num_scenes, member_index);
     }
     template <typename DEVICE, typename TASK_SPEC>
     void free(DEVICE& device, World<TASK_SPEC>& world){

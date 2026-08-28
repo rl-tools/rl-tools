@@ -123,8 +123,10 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE, OWN_DRONE_AND_ARTICULATIO
     rlt::malloc(device, shared.library);
     rlt::malloc(device, world);
     world.drone_asset_path = DRONE_PATH;
-    shared.scene_set.paths = {SCENE_PATH};
-    rlt::init(device, world, shared, 0, 1, 0);
+    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    typename decltype(dataset)::Corpus corpus;
+    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
 
     ASSERT_EQ(world.entity_kinds.size(), 1);
     EXPECT_GT(world.drone_rig.num_props, 0);

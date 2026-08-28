@@ -2,6 +2,8 @@
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#include "../camera_orbit.h"
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 
 #include <nlohmann/json.hpp>
 
@@ -20,6 +22,7 @@ namespace rlt = rl_tools;
 using json = nlohmann::json;
 
 using T = float;
+static constexpr T FOV = 80;
 using TI = typename rlt::devices::DEVICE_FACTORY<>::index_t;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 
@@ -452,14 +455,14 @@ static size_t output_frame_count(const std::vector<TracePose>& poses, const std:
 }
 
 template <typename SPEC>
-static bool setup_renderer(DEVICE& device, Renderer<SPEC>& renderer, rlt::rendering::raytracing::Scene& scene, const std::string& scene_path) {
+static bool setup_renderer(DEVICE& device, Renderer<SPEC>& renderer, rlt::rendering::Bundle<T>& bundle, const std::string& scene_path) {
     rlt::malloc(device, renderer);
-    if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, scene_path)) {
+    if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, scene_path)) {
         return false;
     }
-    rlt::init(device, renderer, scene);
+    rlt::init(device, renderer, bundle);
     const T up[3] = {0, 0, 1};
-    rlt::generate_cameras(device, renderer, renderer.scene_center, renderer.camera_radius, up, SPEC::COS_FOVY);
+    camera_orbit::write(device, renderer, bundle.metadata.center, (bundle.metadata.max_ray_length / 2), up, FOV);
     return true;
 }
 
@@ -520,8 +523,8 @@ static bool render_trace(DEVICE& device, const Options& options, const std::stri
     using SPEC = RendererSpec<SAMPLES, WIDTH, HEIGHT>;
 
     Renderer<SPEC> renderer;
-    rlt::rendering::raytracing::Scene scene;
-    if(!setup_renderer(device, renderer, scene, scene_path)) {
+    rlt::rendering::Bundle<T> bundle;
+    if(!setup_renderer(device, renderer, bundle, scene_path)) {
         std::cerr << "Failed to initialize renderer for scene: " << scene_path << std::endl;
         return false;
     }
@@ -552,8 +555,8 @@ static bool render_trace(DEVICE& device, const Options& options, const std::stri
         const TracePose open_pose = pose_at(poses, times, open_t);
         const TracePose close_pose = pose_at(poses, times, close_t);
 
-        const auto camera_open = rlt::make_camera_data(open_pose.eye, open_pose.look_at, open_pose.up, SPEC::COS_FOVY, aspect);
-        const auto camera_close = rlt::make_camera_data(close_pose.eye, close_pose.look_at, close_pose.up, SPEC::COS_FOVY, aspect);
+        const auto camera_open = rlt::make_camera_data(open_pose.eye, open_pose.look_at, open_pose.up, FOV, aspect);
+        const auto camera_close = rlt::make_camera_data(close_pose.eye, close_pose.look_at, close_pose.up, FOV, aspect);
         auto camera_open_staging = camera_open;
         auto camera_close_staging = camera_close;
         rlt::Tensor<typename decltype(renderer.cameras)::SPEC> camera_alias;

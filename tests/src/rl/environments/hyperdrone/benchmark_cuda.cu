@@ -105,9 +105,11 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
 
     ENVIRONMENT env;
     rlt::malloc(device, env);
-    env.shared.scene_set.paths = {SCENE_PATH, SCENE_PATH};
+    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH}};
+    typename decltype(dataset)::Corpus corpus;
+    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
     for(TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++){
-        rlt::init(device, env.environments[environment_i], env.shared, environment_i, 1, environment_i);
+        rlt::init(device, env.environments[environment_i], env.shared, dataset, corpus, environment_i, 1, environment_i);
     }
 
     RNG_GPU rng;

@@ -4,6 +4,9 @@
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
 #include <rl_tools/rl/environments/l2f_visual/operations_cpu.h>
 #include <rl_tools/rl/environments/l2f_visual/operations_cuda.h>
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
+#include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
+#include <rl_tools/rendering/datasets/annotations/operations_cpu.h>
 
 #include <rl_tools/persist/backends/tar/operations_cpu.h>
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
@@ -16,6 +19,8 @@
 #include <rl_tools/dyn/persist.h>
 
 #include <rl_tools/utils/extrack/operations_cpu.h>
+
+#include <conta/conta.h>
 
 #include <array>
 #include <cmath>
@@ -222,12 +227,11 @@ int main(int argc, char** argv){
             std::cerr << "Invalid conta hash: contains non-hex characters" << std::endl;
             return 1;
         }
-        const char* conta_root = std::getenv("CONTA_ROOT");
-        if(!conta_root){
-            std::cerr << "CONTA_ROOT environment variable is not set" << std::endl;
+        std::string conta_error;
+        if(!conta::resolve(hash_str, resolved_scene_path, conta_error)){
+            std::cerr << conta_error << std::endl;
             return 1;
         }
-        resolved_scene_path = std::string(conta_root) + "/data/" + hash_str;
     } else {
         resolved_scene_path = scene_arg;
         std::memset(scene_hash.hash, 0, rlt::rl::environments::l2f_visual::SceneHash::HASH_SIZE);
@@ -381,23 +385,28 @@ int main(int argc, char** argv){
     ENVIRONMENT env;
     typename ENVIRONMENT::Parameters env_parameters;
     rlt::malloc(device, env);
-    using LIBRARY_TYPE = rlt::rendering::raytracing::AssetLibrary<typename ENVIRONMENT::SPEC::RENDERER_SPEC>;
-    using SCENE_TYPE = rlt::rendering::raytracing::scene::procthor::Scene<typename ENVIRONMENT::SPEC::SCENE_SPEC>;
+    using RENDERER_SPEC = typename ENVIRONMENT::SPEC::RENDERER_SPEC;
+    using LIBRARY_TYPE = rlt::rendering::raytracing::AssetLibrary<RENDERER_SPEC>;
+    using ANNOTATIONS_TYPE = rlt::rendering::datasets::annotations::FreeSpace<typename ENVIRONMENT::SPEC::ANNOTATIONS_SPEC>;
     auto* library = new LIBRARY_TYPE{};
-    auto* renderer = new rlt::rendering::raytracing::Renderer<typename ENVIRONMENT::SPEC::RENDERER_SPEC>{};
-    auto* procthor_scene = new SCENE_TYPE{};
+    auto* renderer = new rlt::rendering::raytracing::Renderer<RENDERER_SPEC>{};
+    auto* annotations = new ANNOTATIONS_TYPE{};
     rlt::malloc(device, *library);
     rlt::malloc(device, *renderer, *library);
-    rlt::init(device, *renderer, *library, scene_path);
+    rlt::rendering::Bundle<T> bundle;
+    rlt::load<typename RENDERER_SPEC::SHADING, RENDERER_SPEC::HAS_RGB>(device, bundle, scene_path);
+    auto scene_id = rlt::insert(device, *library, bundle);
+    rlt::init(device, *renderer, *library, scene_id);
     {
         const T scene_fov = typename ENVIRONMENT::Parameters{}.fov;
-        const T scene_up[3] = {0, 0, 1};
-        rlt::generate_cameras(device, *renderer, renderer->scene_center, renderer->camera_radius, scene_up, scene_fov);
         rlt::generate_probe_directions(device, *renderer);
-        rlt::rendering::raytracing::scene::procthor::precompute_indoor_positions(device, *procthor_scene, *renderer, scene_fov, (T)CAM_WIDTH / (T)CAM_HEIGHT);
+        rlt::rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
+        free_space_parameters.fov = scene_fov;
+        free_space_parameters.aspect = (T)CAM_WIDTH / (T)CAM_HEIGHT;
+        rlt::rendering::datasets::annotations::annotate(device, *annotations, bundle.metadata, *renderer, free_space_parameters);
     }
     env.renderer = renderer;
-    env.scene = procthor_scene;
+    env.annotations = annotations;
     env.use_target_mode = true;
     rlt::init(device, env);
 
@@ -476,7 +485,7 @@ int main(int argc, char** argv){
 
         rlt::sample_initial_parameters(device, env, env_parameters, sweep_rng);
         {
-            auto indoor_pos = rlt::rendering::raytracing::scene::procthor::sample_indoor_position(device, *env.scene, sweep_rng);
+            auto indoor_pos = rlt::rendering::datasets::annotations::sample_free_position(device, *env.annotations, sweep_rng);
             env_parameters.scene_translation[0] = indoor_pos.position[0];
             env_parameters.scene_translation[1] = indoor_pos.position[1];
             env_parameters.scene_translation[2] = indoor_pos.position[2];

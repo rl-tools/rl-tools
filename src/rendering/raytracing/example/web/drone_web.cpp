@@ -2,6 +2,7 @@
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rl/environments/l2f/multirotor.h>
 
 #include <emscripten.h>
@@ -44,8 +45,8 @@ using SPEC = rlt::rendering::raytracing::Specification<CONFIG>;
 using Renderer = rlt::rendering::raytracing::Renderer<SPEC>;
 
 static constexpr T GRAVITY = 9.81;
-static constexpr T ONBOARD_FOV = SPEC::COS_FOVY;
-static constexpr T THIRD_PERSON_FOV = 0.65;
+static constexpr T ONBOARD_FOV = 80;
+static constexpr T THIRD_PERSON_FOV = 37.24225668350351;
 static constexpr T CAMERA_MOUNT_BODY[3] = {0.10, 0, 0.32};
 static constexpr T CAMERA_PITCH_DOWN = 0.3;
 static constexpr T TRIPOD_POSITION[3] = {-7.6, -7.0, 2.0};
@@ -123,8 +124,8 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
     rlt::init(device);
 
     status("Parsing scene ...");
-    rlt::rendering::raytracing::Scene scene;
-    if (!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, scene_path)) {
+    rlt::rendering::Bundle<T> bundle;
+    if (!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, scene_path)) {
         status("Failed to load the scene GLB");
         return 1;
     }
@@ -177,7 +178,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
     status("Building BVH and uploading to the GPU ...");
     Renderer renderer;
     rlt::malloc(device, renderer);
-    rlt::init(device, renderer, scene, pool);
+    rlt::init(device, renderer, bundle, pool);
     rlt::attach(device, renderer, ONBOARD_CAMERA, rlt::rendering::raytracing::OverlayIndex{0});
     rlt::attach(device, renderer, THIRD_PERSON_CAMERA, rlt::rendering::raytracing::OverlayIndex{0});
 

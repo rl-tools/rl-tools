@@ -56,6 +56,8 @@
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/backends/optix/operations_cuda.h>
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
+#include <rl_tools/rendering/raytracing/save_cpu.h>
 
 #include "simulator_matrix_physics.h"
 
@@ -80,6 +82,7 @@ namespace rlt = rl_tools;
 namespace rt_benchmark = rl_tools::rendering::raytracing::benchmark;
 
 using T = float;
+static constexpr T FOV = 80;
 using TI = int;
 
 static constexpr const char* OBJECTS20_LAYOUT_NAME = "canonical_staggered_v1";
@@ -193,7 +196,6 @@ struct BenchmarkResult {
     double mrays_per_s;
 };
 
-static constexpr double RAD_TO_DEG = 57.29577951308232;
 
 static bool has_prefix(const std::string& value, const char* prefix) {
     return value.compare(0, std::strlen(prefix), prefix) == 0;
@@ -906,20 +908,17 @@ static void make_20_object_scene(rlt::rendering::raytracing::Scene& render_scene
 }
 
 // the 20-object benchmark scene uses hand-picked bounds (closer orbit than the AABB-derived
-// camera radius); they are re-applied after init, including the max_depth the depth ray gen
-// consumed from the auto-computed radius, so outputs stay comparable across revisions
-template <typename SPEC>
-static void apply_20_object_bounds(rlt::rendering::raytracing::Renderer<SPEC>& renderer) {
-    renderer.scene_center[0] = static_cast<T>(0.25);
-    renderer.scene_center[1] = 0;
-    renderer.scene_center[2] = static_cast<T>(0.60);
-    renderer.scene_half_extent[0] = static_cast<T>(3.65);
-    renderer.scene_half_extent[1] = static_cast<T>(2.75);
-    renderer.scene_half_extent[2] = static_cast<T>(0.95);
-    renderer.camera_radius = static_cast<T>(6.0);
-    if constexpr (SPEC::HAS_DEPTH) {
-        owlRayGenSet1f(renderer.backend->depth_ray_gen, "max_depth", static_cast<float>(renderer.camera_radius * 2.0f));
-    }
+// camera radius); they are baked into the bundle metadata before init so the renderer
+// consumes them uniformly (probe budget, depth max), keeping outputs comparable across
+// revisions (max_ray_length = 12 matches the previous camera_radius = 6 depth max)
+static void apply_20_object_bounds(rlt::rendering::SceneMetadata<T>& metadata) {
+    metadata.center[0] = static_cast<T>(0.25);
+    metadata.center[1] = 0;
+    metadata.center[2] = static_cast<T>(0.60);
+    metadata.half_extent[0] = static_cast<T>(3.65);
+    metadata.half_extent[1] = static_cast<T>(2.75);
+    metadata.half_extent[2] = static_cast<T>(0.95);
+    metadata.max_ray_length = static_cast<T>(12.0);
 }
 
 static void normalize(T v[3]) {
@@ -971,7 +970,7 @@ static void rotate_by_quaternion(T w, T x, T y, T z, const T v[3], T out[3]) {
 }
 
 template <typename SPEC>
-static std::vector<CameraPose> make_camera_poses(const rlt::rendering::raytracing::Renderer<SPEC>& renderer, SceneAxis scene, const Options& options) {
+static std::vector<CameraPose> make_camera_poses(const rlt::rendering::SceneMetadata<T>& metadata, SceneAxis scene, const Options& options) {
     static constexpr T PI = static_cast<T>(3.14159265358979323846);
     const OrientationMode mode = orientation_mode(options);
     std::vector<CameraPose> poses(SPEC::NUM_CAMERAS);
@@ -984,7 +983,7 @@ static std::vector<CameraPose> make_camera_poses(const rlt::rendering::raytracin
 
     const CameraOffset offset = camera_offset(scene);
     const T eye[3] = {offset.x, offset.y, offset.z};
-    const T target[3] = {renderer.scene_center[0], renderer.scene_center[1], renderer.scene_center[2]};
+    const T target[3] = {metadata.center[0], metadata.center[1], metadata.center[2]};
     const T world_up[3] = {static_cast<T>(0), static_cast<T>(0), static_cast<T>(1)};
 
     T look_at_forward[3] = {
@@ -1056,7 +1055,7 @@ static void write_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<S
             eye[1] + pose.direction[1],
             eye[2] + pose.direction[2]
         };
-        camera_staging[i] = rlt::make_camera_data(eye, look_at, pose.up, SPEC::COS_FOVY, aspect);
+        camera_staging[i] = rlt::make_camera_data(eye, look_at, pose.up, FOV, aspect);
     }
     cudaMemcpy(rlt::data(rlt::cameras(device, renderer)), camera_staging.data(), SPEC::NUM_CAMERAS * sizeof(rlt::rendering::raytracing::Camera<T>), cudaMemcpyHostToDevice);
 }
@@ -1070,12 +1069,11 @@ static void write_single_camera(DEVICE& device, rlt::rendering::raytracing::Rend
         eye[1] + pose.direction[1],
         eye[2] + pose.direction[2]
     };
-    const auto camera = rlt::make_camera_data(eye, look_at, pose.up, SPEC::COS_FOVY, aspect);
+    const auto camera = rlt::make_camera_data(eye, look_at, pose.up, FOV, aspect);
     cudaMemcpy(rlt::data(rlt::cameras(device, renderer)), &camera, sizeof(camera), cudaMemcpyHostToDevice);
 }
 
-template <typename SPEC>
-static CameraPose make_single_frame_pose(const rlt::rendering::raytracing::Renderer<SPEC>& renderer, const Options& options) {
+static CameraPose make_single_frame_pose(const rlt::rendering::SceneMetadata<T>& metadata, const Options& options) {
     CameraPose pose{};
     const T eye[3] = {options.position[0], options.position[1], options.position[2]};
     if(options.has_orientation) {
@@ -1097,7 +1095,7 @@ static CameraPose make_single_frame_pose(const rlt::rendering::raytracing::Rende
         pose.direction[2] = options.forward[2];
     }
     else {
-        const T* target = options.has_look_at ? options.look_at : renderer.scene_center;
+        const T* target = options.has_look_at ? options.look_at : metadata.center;
         pose.direction[0] = target[0] - eye[0];
         pose.direction[1] = target[1] - eye[1];
         pose.direction[2] = target[2] - eye[2];
@@ -1238,13 +1236,14 @@ static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing:
 }
 
 template <typename SPEC, typename DEVICE>
-static bool setup_scene(DEVICE& device, rlt::rendering::raytracing::Scene& render_scene, SceneAxis scene, const Options& options) {
+static bool setup_scene(DEVICE& device, rlt::rendering::Bundle<T>& bundle, SceneAxis scene, const Options& options) {
     if(scene == SceneAxis::OBJECTS_20) {
-        make_20_object_scene(render_scene);
+        make_20_object_scene(bundle.scene);
+        apply_20_object_bounds(bundle.metadata);
         return true;
     }
     RL_TOOLS_RENDERING_RAYTRACING_LOG("Loading ProcTHOR scene: " << options.procthor_path);
-    return rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, render_scene, options.procthor_path);
+    return rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, options.procthor_path);
 }
 
 template <typename DEVICE, typename SPEC>
@@ -1263,15 +1262,15 @@ static bool run_procthor_frame(DEVICE& device, const Options& options, const std
     rlt::rendering::raytracing::Renderer<SPEC> renderer;
     rlt::malloc(device, renderer);
 
-    rlt::rendering::raytracing::Scene render_scene;
-    if(!setup_scene<SPEC>(device, render_scene, SceneAxis::PROCTHOR, options)) {
+    rlt::rendering::Bundle<T> bundle;
+    if(!setup_scene<SPEC>(device, bundle, SceneAxis::PROCTHOR, options)) {
         RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Failed to set up ProcTHOR scene.");
         rlt::free(device, renderer);
         return false;
     }
 
-    rlt::init(device, renderer, render_scene);
-    const CameraPose pose = make_single_frame_pose(renderer, options);
+    rlt::init(device, renderer, bundle);
+    const CameraPose pose = make_single_frame_pose(bundle.metadata, options);
     write_single_camera(device, renderer, options.position, pose);
     render_output(device, renderer);
     cudaDeviceSynchronize();
@@ -1314,19 +1313,16 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
     rlt::rendering::raytracing::Renderer<SPEC> renderer;
     rlt::malloc(device, renderer);
 
-    rlt::rendering::raytracing::Scene render_scene;
-    if(!setup_scene<SPEC>(device, render_scene, scene, options)) {
+    rlt::rendering::Bundle<T> bundle;
+    if(!setup_scene<SPEC>(device, bundle, scene, options)) {
         RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Failed to set up scene: " << scene_name(scene));
         rlt::free(device, renderer);
         return false;
     }
 
-    rlt::init(device, renderer, render_scene);
-    if(scene == SceneAxis::OBJECTS_20) {
-        apply_20_object_bounds(renderer);
-    }
+    rlt::init(device, renderer, bundle);
     const OrientationMode orientation = orientation_mode(options);
-    std::vector<CameraPose> camera_poses = make_camera_poses(renderer, scene, options);
+    std::vector<CameraPose> camera_poses = make_camera_poses<SPEC>(bundle.metadata, scene, options);
     write_cameras(device, renderer, scene, camera_poses);
 
     rt_benchmark::PhysicsSimulation physics;
@@ -1346,7 +1342,7 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
                static_cast<int>(SPEC::NUM_CAMERAS),
                initial_position,
                physics_poses.data(),
-               static_cast<float>(SPEC::COS_FOVY),
+               FOV,
                aspect,
                options.seed)) {
             RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Failed to initialize physics simulation: " << rt_benchmark::physics_last_error());
@@ -1381,7 +1377,7 @@ static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, cons
         << ", aa_grid_size=" << (SPEC::ENABLE_ANTI_ALIASING ? SPEC::ANTI_ALIASING_GRID_SIZE : 1)
         << ", envs=" << SPEC::NUM_CAMERAS
         << ", resolution=" << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT
-        << ", fov_deg=" << static_cast<double>(SPEC::COS_FOVY) * RAD_TO_DEG
+        << ", fov_deg=" << static_cast<double>(FOV)
         << ", camera_offset_flu=[" << offset.x << "," << offset.y << "," << offset.z << "]"
         << ", camera_orientation_sampling=" << orientation_mode_name(orientation)
         << ", seed=" << options.seed);

@@ -50,7 +50,7 @@ namespace overlay_goldens {
         using SPEC = typename RENDERER::SPEC;
         using T = typename SPEC::T;
         constexpr T aspect = (T)SPEC::CAM_WIDTH / (T)SPEC::CAM_HEIGHT;
-        const auto camera = rl_tools::make_camera_data(view.position, view.look_at, view.up, SPEC::COS_FOVY, aspect);
+        const auto camera = rl_tools::make_camera_data(view.position, view.look_at, view.up, SPEC::CONFIG::FOV, aspect);
         std::array<rl_tools::rendering::raytracing::Camera<T>, SPEC::NUM_CAMERAS> cameras;
         cameras.fill(camera);
         golden::copy_in(device, renderer.device, cameras.data(), rl_tools::cameras(device, renderer));
@@ -60,7 +60,7 @@ namespace overlay_goldens {
                 position_open[dim_i] = view.position[dim_i] + (T)FLOW_PAIR_OFFSET[dim_i];
                 look_at_open[dim_i] = view.look_at[dim_i] + (T)FLOW_PAIR_OFFSET[dim_i];
             }
-            const auto camera_open = rl_tools::make_camera_data(position_open, look_at_open, view.up, SPEC::COS_FOVY, aspect);
+            const auto camera_open = rl_tools::make_camera_data(position_open, look_at_open, view.up, SPEC::CONFIG::FOV, aspect);
             cameras.fill(camera_open);
             golden::copy_in(device, renderer.device, cameras.data(), rl_tools::cameras_open(device, renderer));
         }
@@ -81,7 +81,7 @@ namespace overlay_goldens {
         frame.normals.resize(count);
         golden::colorize_normals(normals_raw.data(), count, frame.normals.data());
         golden::copy_out(renderer.device, device, rl_tools::flow_buffer(device, renderer), frame.flow);
-        frame.max_depth = renderer.camera_radius > 0 ? renderer.camera_radius * 2.0f : 1e30f;
+        frame.max_depth = renderer.max_ray_length > 0 ? renderer.max_ray_length : 1e30f;
         return frame;
     }
 

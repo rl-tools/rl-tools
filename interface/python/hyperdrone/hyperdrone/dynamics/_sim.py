@@ -1,5 +1,3 @@
-import math
-
 import numpy as np
 
 from ._component import ensure_sim_library, load_core, resolve_device
@@ -168,11 +166,11 @@ class Sim:
         self._sim.read_observations(out)
         return out
 
-    def camera_bases(self, mount=None, fov=math.radians(80.0), aspect=1.0):
+    def camera_bases(self, mount=None, fov=80.0, aspect=1.0):
         """Packed camera ray-gen bases (num_drones, 12) derived from the drone poses:
         zero-copy DLPack producer, CUDA-resident on the cuda variant — feed directly to
         renderer.set_cameras(bases, stream=sim.stream). mount is a body-frame (3, 4)
-        transform (camera looks along body +X by default)."""
+        transform (camera looks along body +X by default); fov is in degrees."""
         if mount is None:
             mount_array = IDENTITY_MOUNT
         else:
@@ -180,7 +178,7 @@ class Sim:
         self._sim.update_camera_bases(mount_array, float(fov), float(aspect))
         return _DLPackBuffer(self, self._sim.camera_bases_dlpack, self._sim.buffer_device_type)
 
-    def camera_bases_numpy(self, mount=None, fov=math.radians(80.0), aspect=1.0):
+    def camera_bases_numpy(self, mount=None, fov=80.0, aspect=1.0):
         self.camera_bases(mount=mount, fov=fov, aspect=aspect)
         out = np.empty((self.num_drones, 12), dtype=np.float32)
         self._sim.read_camera_bases(out)

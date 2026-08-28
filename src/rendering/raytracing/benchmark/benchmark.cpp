@@ -20,6 +20,9 @@
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#include "../camera_orbit.h"
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
+#include <rl_tools/rendering/raytracing/save_cpu.h>
 
 #include <string>
 #include <iostream>
@@ -28,6 +31,7 @@
 namespace rlt = rl_tools;
 
 using T = float;
+static constexpr T FOV = 80;
 using TI = int;
 struct CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI CAM_WIDTH = RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_WIDTH;
@@ -39,6 +43,7 @@ struct CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
 };
 using SPEC = rlt::rendering::raytracing::Specification<CONFIG>;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
+static constexpr double BENCHMARK_SECONDS = 10.0;
 
 int main(int ac, char** av){
     RL_TOOLS_RENDERING_RAYTRACING_LOG("rl_tools::rendering::raytracing benchmark '" << av[0] << "' starting up");
@@ -71,19 +76,19 @@ int main(int ac, char** av){
         return 1;
     }
     RL_TOOLS_RENDERING_RAYTRACING_LOG("Loading model: " << model_file);
-    rlt::rendering::raytracing::Scene scene;
-    if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, scene, model_file)){
+    rlt::rendering::Bundle<T> bundle;
+    if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, model_file)){
         RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Failed to load model: " << model_file);
         return 1;
     }
 
-    rlt::init(device, renderer, scene);
+    rlt::init(device, renderer, bundle);
 
     // Generate cameras
-    const T scene_center[3] = {renderer.scene_center[0], renderer.scene_center[1], renderer.scene_center[2]};
+    const T scene_center[3] = {bundle.metadata.center[0], bundle.metadata.center[1], bundle.metadata.center[2]};
     const T look_up[3] = {0.f, 0.f, 1.f};
 
-    rlt::generate_cameras(device, renderer, scene_center, renderer.camera_radius, look_up, SPEC::COS_FOVY);
+    camera_orbit::write(device, renderer, scene_center, (bundle.metadata.max_ray_length / 2), look_up, FOV);
     rlt::generate_probe_directions(device, renderer);
 
     // Warmup
@@ -95,7 +100,7 @@ int main(int ac, char** av){
     int num_iterations = 0;
     RL_TOOLS_RENDERING_RAYTRACING_LOG("Starting benchmark (async): " << SPEC::NUM_CAMERAS << " cameras at "
           << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT << " + " << SPEC::NUM_PROBES
-          << " probes/cam for ~" << SPEC::BENCHMARK_SECONDS << "s ...");
+          << " probes/cam for ~" << BENCHMARK_SECONDS << "s ...");
 
     rlt::render_sync(device, renderer);
     rlt::probe_sync(device, renderer);
@@ -112,7 +117,7 @@ int main(int ac, char** av){
             rlt::probe_sync(device, renderer);
             auto now = std::chrono::high_resolution_clock::now();
             double elapsed = std::chrono::duration<double>(now - wall_start).count();
-            if(elapsed >= SPEC::BENCHMARK_SECONDS) break;
+            if(elapsed >= BENCHMARK_SECONDS) break;
         }
     }
 

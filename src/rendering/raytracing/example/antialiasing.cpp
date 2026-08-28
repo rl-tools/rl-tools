@@ -2,6 +2,8 @@
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#include "../camera_orbit.h"
+#include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 
 #include <array>
 #include <cmath>
@@ -16,6 +18,7 @@
 namespace rlt = rl_tools;
 
 using T = float;
+static constexpr T FOV = 80;
 using TI = typename rlt::devices::DEVICE_FACTORY<>::index_t;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 
@@ -72,34 +75,35 @@ Options parse_options(int argc, char** argv) {
 }
 
 template <typename SPEC>
-void setup_renderer(DEVICE& device, Renderer<SPEC>& renderer, const rlt::rendering::raytracing::Scene& scene) {
+void setup_renderer(DEVICE& device, Renderer<SPEC>& renderer, const rlt::rendering::Bundle<T>& bundle) {
     rlt::malloc(device, renderer);
-    rlt::init(device, renderer, scene);
+    rlt::init(device, renderer, bundle);
 
     const T up[3] = {0, 0, 1};
-    rlt::generate_cameras(device, renderer, renderer.scene_center, renderer.camera_radius, up, SPEC::COS_FOVY);
+    camera_orbit::write(device, renderer, bundle.metadata.center, (bundle.metadata.max_ray_length / 2), up, FOV);
 }
 
-rlt::rendering::raytracing::Camera<T> make_orbit_camera(const Renderer<RendererSpec<1>>& renderer, T angle) {
+rlt::rendering::raytracing::Camera<T> make_orbit_camera(const rlt::rendering::SceneMetadata<T>& metadata, T angle) {
     const T center[3] = {
-        renderer.scene_center[0],
-        renderer.scene_center[1],
-        renderer.scene_center[2]
+        metadata.center[0],
+        metadata.center[1],
+        metadata.center[2]
     };
-    const T radius = renderer.camera_radius > T{0} ? renderer.camera_radius * T{0.62} : T{3};
+    const T camera_radius = (metadata.max_ray_length / 2);
+    const T radius = camera_radius > T{0} ? camera_radius * T{0.62} : T{3};
     const T position[3] = {
         center[0] + radius * std::cos(angle),
         center[1] + radius * std::sin(angle),
-        center[2] + renderer.scene_half_extent[2] * T{0.18} + radius * T{0.12}
+        center[2] + metadata.half_extent[2] * T{0.18} + radius * T{0.12}
     };
     const T look_at[3] = {
         center[0],
         center[1],
-        center[2] + renderer.scene_half_extent[2] * T{0.06}
+        center[2] + metadata.half_extent[2] * T{0.06}
     };
     const T up[3] = {0, 0, 1};
     const T aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
-    return rlt::make_camera_data(position, look_at, up, RendererSpec<1>::COS_FOVY, aspect);
+    return rlt::make_camera_data(position, look_at, up, FOV, aspect);
 }
 
 template <typename SPEC>
@@ -137,15 +141,15 @@ int main(int argc, char** argv) {
     Renderer<RendererSpec<3>> renderer_3;
     Renderer<RendererSpec<4>> renderer_4;
 
-    rlt::rendering::raytracing::Scene scene;
-    if (!rlt::load<rlt::rendering::raytracing::Medium, true>(device, scene, options.scene_path)) {
+    rlt::rendering::Bundle<T> bundle;
+    if (!rlt::load<rlt::rendering::raytracing::Medium, true>(device, bundle, options.scene_path)) {
         std::cerr << "Failed to load scene: " << options.scene_path << std::endl;
         return 1;
     }
-    setup_renderer(device, renderer_1, scene);
-    setup_renderer(device, renderer_2, scene);
-    setup_renderer(device, renderer_3, scene);
-    setup_renderer(device, renderer_4, scene);
+    setup_renderer(device, renderer_1, bundle);
+    setup_renderer(device, renderer_2, bundle);
+    setup_renderer(device, renderer_3, bundle);
+    setup_renderer(device, renderer_4, bundle);
 
     constexpr TI OUT_WIDTH = CAM_WIDTH * NUM_PANELS;
     constexpr TI OUT_HEIGHT = CAM_HEIGHT;
@@ -174,7 +178,7 @@ int main(int argc, char** argv) {
 
     for (int frame_i = 0; frame_i < options.frames; frame_i++) {
         const T angle = static_cast<T>(frame_i) * angle_per_frame;
-        const auto camera = make_orbit_camera(renderer_1, angle);
+        const auto camera = make_orbit_camera(bundle.metadata, angle);
 
         render_panel(device, renderer_1, camera, panel);
         copy_panel(panel, frame, 0);
