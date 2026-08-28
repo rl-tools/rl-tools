@@ -1451,20 +1451,6 @@ namespace rl_tools {
         update_sync(device, renderer);
     }
 
-    template <typename DEVICE, typename SPEC>
-    void generate_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer,
-                          const typename SPEC::T center[3], typename SPEC::T radius,
-                          const typename SPEC::T up[3], typename SPEC::T fov){
-        Tensor<typename decltype(renderer.cameras)::SPEC> staging;
-        malloc(device, staging);
-        rendering::raytracing::detail::generate_camera_poses<SPEC>(device, data(staging), center, radius, up, fov);
-
-        owlBufferUpload((OWLBuffer)renderer.backend->cameras_buffer, data(staging), 0, SPEC::NUM_CAMERAS);
-        if constexpr (SPEC::HAS_CAMERA_PAIR) {
-            owlBufferUpload((OWLBuffer)renderer.backend->cameras_open_buffer, data(staging), 0, SPEC::NUM_CAMERAS);
-        }
-        free(device, staging);
-    }
 
     namespace rendering::raytracing::backends::optix {
         inline void synchronize(rendering::raytracing::backends::Device<rendering::raytracing::backends::Optix>& device){

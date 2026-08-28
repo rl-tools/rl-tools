@@ -533,15 +533,6 @@ namespace rl_tools {
         static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
     }
 
-    template <typename DEVICE, typename SPEC>
-    void generate_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer,
-                          const typename SPEC::T center[3], typename SPEC::T radius,
-                          const typename SPEC::T up[3], typename SPEC::T fov){
-        rendering::raytracing::detail::generate_camera_poses<SPEC>(device, data(renderer.cameras), center, radius, up, fov);
-        if constexpr (SPEC::HAS_CAMERA_PAIR) {
-            std::memcpy(data(renderer.cameras_open), data(renderer.cameras), SPEC::NUM_CAMERAS * sizeof(rendering::raytracing::Camera<typename SPEC::T>));
-        }
-    }
 
     template <typename TO_DEVICE, typename FROM_SPEC, typename TO_SPEC>
     void copy(rendering::raytracing::backends::Device<rendering::raytracing::backends::Generic>& from_device, TO_DEVICE& to_device, const Tensor<FROM_SPEC>& from, Tensor<TO_SPEC>& to){
