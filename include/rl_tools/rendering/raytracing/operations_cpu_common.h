@@ -30,6 +30,11 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
+    // backend-generic launch+sync composite, defined in operations_cpu_post.h; declared here so
+    // backend-internal callers (init) resolve it before the definition is included
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer);
+
     namespace rendering::raytracing::detail{
         template <typename BACKEND>
         void announce_backend(){
