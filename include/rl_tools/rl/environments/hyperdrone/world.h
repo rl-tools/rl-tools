@@ -12,6 +12,7 @@
 #include "../../../rendering/raytracing/renderer.h"
 #include "../../../rendering/datasets/procthor/procthor.h"
 #include "../../../rendering/datasets/annotations/free_space.h"
+#include "../../../rendering/datasets/annotations/cache.h"
 
 #include <string>
 #include <vector>
@@ -162,6 +163,8 @@ namespace rl_tools::rl::environments::hyperdrone {
             // library's pool before any hot slot builds
             std::vector<std::string> pool_asset_paths;
             std::vector<rendering::raytracing::AssetHandle> pool_asset_handles;
+            // opt-in: set the directory before init to persist and reuse free-space scans
+            rendering::datasets::annotations::Cache annotation_cache;
         };
 
         // a registered entity kind: (asset, parts, per-instance slot offset); registrations are
