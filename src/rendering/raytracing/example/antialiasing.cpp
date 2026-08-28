@@ -2,6 +2,7 @@
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#include "../camera_orbit.h"
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 
 #include <array>
@@ -79,7 +80,7 @@ void setup_renderer(DEVICE& device, Renderer<SPEC>& renderer, const rlt::renderi
     rlt::init(device, renderer, bundle);
 
     const T up[3] = {0, 0, 1};
-    rlt::generate_cameras(device, renderer, bundle.metadata.center, (bundle.metadata.max_ray_length / 2), up, FOV);
+    camera_orbit::write(device, renderer, bundle.metadata.center, (bundle.metadata.max_ray_length / 2), up, FOV);
 }
 
 rlt::rendering::raytracing::Camera<T> make_orbit_camera(const rlt::rendering::SceneMetadata<T>& metadata, T angle) {

@@ -271,8 +271,6 @@ int main(int argc, char** argv){
     rlt::init(device, *renderer, *library, scene_id);
     {
         const T scene_fov = typename ENVIRONMENT::Parameters{}.fov;
-        const T scene_up[3] = {0, 0, 1};
-        rlt::generate_cameras(device, *renderer, bundle.metadata.center, bundle.metadata.max_ray_length / 2, scene_up, scene_fov);
         rlt::generate_probe_directions(device, *renderer);
         rlt::rendering::datasets::procthor::annotate(device, *annotations, bundle.metadata, *renderer, scene_fov, (T)ENVIRONMENT::SPEC::CAM_WIDTH / (T)ENVIRONMENT::SPEC::CAM_HEIGHT);
     }

@@ -98,8 +98,6 @@ namespace rl_tools {
             slot.metadata = bundle.metadata;
             const TI scene_id = insert(device, shared.library, bundle);
             init(device, slot.renderer, shared.library, scene_id);
-            const T up[3] = {0, 0, 1};
-            generate_cameras(device, slot.renderer, slot.metadata.center, slot.metadata.max_ray_length / 2, up, fov);
             generate_probe_directions(device, slot.renderer);
             rendering::datasets::procthor::annotate(device, slot.annotations, slot.metadata, slot.renderer, fov, aspect);
             utils::assert_exit(device, slot.annotations.num_indoor_positions > 0, "hyperdrone::World: scene has no valid indoor positions");
