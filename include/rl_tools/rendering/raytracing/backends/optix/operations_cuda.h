@@ -791,9 +791,6 @@ namespace rl_tools {
     // =========================================================================
     // init: upload meshes, build single shared BVH, build programs/pipeline/SBT
     // =========================================================================
-    template <typename DEVICE, typename SPEC>
-    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer);
-
     namespace rendering::raytracing::backends::optix::detail{
         template <typename SPEC>
         OWLGeomType create_geom_type(OWLContext context, OWLModule module){
@@ -1440,18 +1437,6 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
-    void expand_motion_transforms(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
-        expand_motion_transforms_launch(device, renderer);
-        expand_motion_transforms_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
-        update_launch(device, renderer);
-        update_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
     void generate_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer,
                           const typename SPEC::T center[3], typename SPEC::T radius,
                           const typename SPEC::T up[3], typename SPEC::T fov){
@@ -1612,12 +1597,6 @@ namespace rl_tools {
         owlLaunchSync((OWLParams)renderer.backend->launch_params);
     }
 
-    template <typename DEVICE, typename SPEC>
-    void render(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
-        render_launch(device, renderer);
-        render_sync(device, renderer);
-    }
-
     // render produces the image outputs the spec declares; the collision-probe pass is the
     // separate probe verb so it can be scheduled independently (e.g. alongside update)
     template <typename DEVICE, typename SPEC>
@@ -1635,12 +1614,6 @@ namespace rl_tools {
     void probe_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
         if(renderer.backend->coll_launch_params)
             owlLaunchSync((OWLParams)renderer.backend->coll_launch_params);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void probe(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
-        probe_launch(device, renderer);
-        probe_sync(device, renderer);
     }
 
     // render stream shared by render/probe/update launches; producers writing renderer inputs
