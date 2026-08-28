@@ -27,6 +27,55 @@ namespace rl_tools {
         static const rendering::raytracing::AssetPool empty_pool{};
         init(device, renderer, bundle.scene, empty_pool, bundle.metadata);
     }
+
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void render(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
+        render_launch(device, renderer);
+        render_sync(device, renderer);
+    }
+
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void probe(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
+        probe_launch(device, renderer);
+        probe_sync(device, renderer);
+    }
+
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
+        update_launch(device, renderer);
+        update_sync(device, renderer);
+    }
+
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void expand_motion_transforms(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
+        expand_motion_transforms_launch(device, renderer);
+        expand_motion_transforms_sync(device, renderer);
+    }
+
+    // shared-asset-library fallbacks for backends without cross-renderer sharing: the library is
+    // empty and every renderer builds its own copy — the API stays uniform. A backend with real
+    // sharing (OptiX) declares its own overloads, which win by partial ordering.
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void malloc(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, BACKEND>& library){
+        library.backend = new rendering::raytracing::backends::LibraryState<BACKEND, SPEC>{};
+    }
+
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void free(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, BACKEND>& library){
+        for(auto* assets : library.assets){
+            delete assets;
+        }
+        library.assets.clear();
+        library.scenes.clear();
+        library.metadata.clear();
+        delete library.backend;
+        library.backend = nullptr;
+    }
+
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void malloc(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::AssetLibrary<SPEC, BACKEND>& library){
+        malloc(device, renderer);
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
