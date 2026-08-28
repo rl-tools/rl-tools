@@ -303,7 +303,7 @@ extern "C" {
                 set_gate_asset_path(impl->env.environments[environment_i], gate_asset_path);
             }
         }
-        rlt::rendering::datasets::procthor::GLB dataset{scene_directory};
+        rlt::rendering::datasets::procthor::GLB dataset{scene_directory, {}};
         rlt::init(impl->device, impl->env, dataset);
     }
     void hyperdrone_env_reset(void* handle, const uint8_t* mask){
