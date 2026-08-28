@@ -162,7 +162,10 @@ scenes, partitioned across environments. Configuration follows the C++ extension
 body/prop_* GLB via `drone_asset=`), `task=` names the wrapper (`"target_frame"`,
 `"moving_gate"`), `n_agents=` enables multi-agent, and `EnvConfig(spec_header=...)` pins
 an arbitrary C++ specification (a header defining `hyperdrone_env_user::WORLD`, hashed
-into the JIT key). The render backend for the environment follows
+into the JIT key). A spec header can go beyond constants to a full user-authored task
+wrapper — verb overloads registering and moving entities, compiled reward, termination:
+`hyperdrone/examples/Orbiter.ipynb` walks through one, and its contract is pinned by
+`tests/env/user_task_header.h`. The render backend for the environment follows
 `HYPERDRONE_ENV_BACKEND` (default: the render backend selection).
 
 Manual composition of `Sim` and `Renderer` (no MDP — rendering research, data
