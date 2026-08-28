@@ -745,41 +745,28 @@ namespace rl_tools {
     }
 
 
-    namespace rendering::raytracing::detail{
-        // fills a host staging buffer; the backend-specific generate_cameras writes it into the
-        // backend-native camera tensors
-        template <typename SPEC, typename DEVICE>
-        void generate_camera_poses(DEVICE& device, rendering::raytracing::Camera<typename SPEC::T>* cameras_out,
-                                   const typename SPEC::T center[3], typename SPEC::T radius,
-                                   const typename SPEC::T up[3], typename SPEC::T fov){
+    // orbit-initializes the camera tensor (and the shutter-open mirror under a camera-pair spec)
+    // through the accessor copy path; the placement policy is generate_camera_orbit (rendering/camera.h)
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void generate_cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer,
+                          const typename SPEC::T center[3], typename SPEC::T radius,
+                          const typename SPEC::T up[3], typename SPEC::T fov,
+                          const rendering::camera_orbit::Parameters<typename SPEC::T>& parameters = {}){
         using T = typename SPEC::T;
-        using TI = typename SPEC::TI;
-
-        const T golden_ratio = (T{1} + sqrtf(T{5})) / T{2};
         const T aspect = (T)SPEC::CAM_WIDTH / (T)SPEC::CAM_HEIGHT;
-
-        for(TI i = 0; i < SPEC::NUM_CAMERAS; i++){
-            T theta = T{2} * (T)M_PI * i / golden_ratio;
-            T cos_inc = T{1} - T{2} * (i + T{0.5}) / SPEC::NUM_CAMERAS;
-            cos_inc = cos_inc * T{0.85};
-            T sin_inc = sqrtf(T{1} - cos_inc * cos_inc);
-
-            T cam_pos[3] = {
-                center[0] + radius * sin_inc * cosf(theta),
-                center[1] + radius * sin_inc * sinf(theta),
-                center[2] + radius * cos_inc
-            };
-
-            if(cam_pos[2] < center[2] - radius * T{0.1})
-                cam_pos[2] = center[2] + radius * T{0.3};
-
-            cameras_out[i] = make_camera_data(cam_pos, center, up, fov, aspect);
+        Tensor<typename decltype(renderer.cameras)::SPEC> staging;
+        malloc(device, staging);
+        generate_camera_orbit(data(staging), SPEC::NUM_CAMERAS, center, radius, up, fov, aspect, parameters);
+        copy(device, renderer.device, staging, cameras(device, renderer));
+        if constexpr (SPEC::HAS_CAMERA_PAIR){
+            copy(device, renderer.device, staging, cameras_open(device, renderer));
         }
-
+        free(device, staging);
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Generated " << SPEC::NUM_CAMERAS << " camera positions");
         RL_TOOLS_RENDERING_RAYTRACING_LOG("Per-camera resolution: " << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT);
-        }
+    }
 
+    namespace rendering::raytracing::detail{
         template <typename SPEC>
         std::vector<float> generate_probe_direction_vectors(){
             std::vector<float> dirs;
