@@ -2,7 +2,8 @@
 #define METRA_METRA_H
 // metra: one-liner metric logging (commit/run/name/value) to a metra server (tools/metra), e.g. metra::log("pendulum/return", 1.23);
 // Freestanding, C++17, STL-only; POSTs via the curl CLI. Holds a static per-process run id (a deliberate exception to the rl_tools no-global-state convention).
-// METRA_URL: server base URL, unset disables logging. METRA_COMMIT: overrides commit detection (git rev-parse HEAD). METRA_RUN: overrides the generated run id.
+// METRA_URL: server base URL, unset disables logging. METRA_COMMIT: overrides commit detection (git rev-parse HEAD). METRA_COMMIT_TIME: overrides commit time detection (git show -s --format=%ct HEAD, unix seconds). METRA_RUN: overrides the generated run id.
+// The METRA_COMMIT/METRA_COMMIT_TIME compile definitions (set by cmake/autodetect/git-hash.cmake at configure time) are fallbacks for binaries that run outside a git checkout.
 
 #include <cmath>
 #include <cstdio>
@@ -21,10 +22,14 @@
 #include <unistd.h>
 #endif
 
+#define METRA_STRINGIFY_INNER(x) #x
+#define METRA_STRINGIFY(x) METRA_STRINGIFY_INNER(x)
+
 namespace metra{
     struct Config{
         std::string url;
         std::string commit;
+        std::string commit_time;
         std::string run;
     };
     namespace detail{
@@ -124,18 +129,14 @@ namespace metra{
             std::strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", &time_components);
             return std::string(timestamp) + "_" + hostname() + "_" + std::to_string(process_id()) + "_" + random_hex(8);
         }
-        inline std::string detect_commit(){
-            const char* environment_commit = std::getenv("METRA_COMMIT");
-            if(environment_commit != nullptr && environment_commit[0] != '\0'){
-                return environment_commit;
-            }
+        inline std::string command_output(const char* command){
 #if defined(_WIN32)
-            FILE* pipe = _popen("git rev-parse HEAD 2>NUL", "r");
+            FILE* pipe = _popen(command, "r");
 #else
-            FILE* pipe = popen("git rev-parse HEAD 2>/dev/null", "r");
+            FILE* pipe = popen(command, "r");
 #endif
             if(pipe == nullptr){
-                return "no-hash";
+                return "";
             }
             char buffer[128];
             std::string output;
@@ -150,19 +151,78 @@ namespace metra{
             while(!output.empty() && (output.back() == '\n' || output.back() == '\r')){
                 output.pop_back();
             }
-            if(output.size() != 40){
-                return "no-hash";
-            }
-            for(char character: output){
-                bool valid = (character >= '0' && character <= '9') || (character >= 'a' && character <= 'f');
-                if(!valid){
-                    return "no-hash";
-                }
-            }
             return output;
         }
+        inline bool is_commit_hash(const std::string& value){
+            if(value.size() != 40){
+                return false;
+            }
+            for(char character: value){
+                bool valid = (character >= '0' && character <= '9') || (character >= 'a' && character <= 'f');
+                if(!valid){
+                    return false;
+                }
+            }
+            return true;
+        }
+        inline bool is_unix_seconds(const std::string& value){
+            if(value.empty()){
+                return false;
+            }
+            for(char character: value){
+                if(character < '0' || character > '9'){
+                    return false;
+                }
+            }
+            return true;
+        }
+        inline std::string detect_commit(){
+            const char* environment_commit = std::getenv("METRA_COMMIT");
+            if(environment_commit != nullptr && environment_commit[0] != '\0'){
+                return environment_commit;
+            }
+#if defined(_WIN32)
+            std::string output = command_output("git rev-parse HEAD 2>NUL");
+#else
+            std::string output = command_output("git rev-parse HEAD 2>/dev/null");
+#endif
+            if(is_commit_hash(output)){
+                return output;
+            }
+#if defined(METRA_COMMIT)
+            if(is_commit_hash(METRA_STRINGIFY(METRA_COMMIT))){
+                return METRA_STRINGIFY(METRA_COMMIT);
+            }
+#endif
+            return "no-hash";
+        }
+        inline std::string detect_commit_time(){
+            const char* environment_commit_time = std::getenv("METRA_COMMIT_TIME");
+            if(environment_commit_time != nullptr && is_unix_seconds(environment_commit_time)){
+                return environment_commit_time;
+            }
+#if defined(_WIN32)
+            std::string output = command_output("git show -s --format=%ct HEAD 2>NUL");
+#else
+            std::string output = command_output("git show -s --format=%ct HEAD 2>/dev/null");
+#endif
+            if(is_unix_seconds(output)){
+                return output;
+            }
+#if defined(METRA_COMMIT_TIME)
+            if(is_unix_seconds(METRA_STRINGIFY(METRA_COMMIT_TIME))){
+                return METRA_STRINGIFY(METRA_COMMIT_TIME);
+            }
+#endif
+            return "";
+        }
         inline std::string build_payload(const Config& config, const std::string& name, const std::string& value_json){
-            return "{\"commit\":\"" + json_escape(config.commit) + "\",\"run\":\"" + json_escape(config.run) + "\",\"name\":\"" + json_escape(name) + "\",\"value\":" + value_json + "}";
+            std::string payload = "{\"commit\":\"" + json_escape(config.commit) + "\",";
+            if(is_unix_seconds(config.commit_time)){
+                payload += "\"commit_time\":" + config.commit_time + ",";
+            }
+            payload += "\"run\":\"" + json_escape(config.run) + "\",\"name\":\"" + json_escape(name) + "\",\"value\":" + value_json + "}";
+            return payload;
         }
         inline bool post_json(const Config& config, const std::string& payload, std::string& error_output){
             std::error_code error_code;
@@ -227,6 +287,11 @@ namespace metra{
             }
         }
         config.commit = detail::detect_commit();
+        const char* environment_commit = std::getenv("METRA_COMMIT");
+        const char* environment_commit_time = std::getenv("METRA_COMMIT_TIME");
+        if(environment_commit == nullptr || environment_commit[0] == '\0' || environment_commit_time != nullptr){ // an overridden commit must not be paired with the auto-detected HEAD time
+            config.commit_time = detail::detect_commit_time();
+        }
         const char* run = std::getenv("METRA_RUN");
         config.run = (run != nullptr && run[0] != '\0') ? run : detail::default_run_id();
         return config;

@@ -27,7 +27,7 @@ metra::log("resnet/forward_us", std::vector<double>{...}); // list
 metra::log_raw("run/config", "{\"lr\": 0.001}");           // arbitrary JSON
 ```
 
-All calls of a process share one static run id. `METRA_URL` unset disables logging (a single stderr notice), so calls can stay in the code; the commit is auto-detected via `git rev-parse HEAD`. After 3 consecutive transport failures logging disables itself so a dead server cannot stall a training loop.
+All calls of a process share one static run id. `METRA_URL` unset disables logging (a single stderr notice), so calls can stay in the code; the commit and its time are auto-detected via `git rev-parse HEAD` / `git show -s --format=%ct HEAD`, with the `METRA_COMMIT`/`METRA_COMMIT_TIME` compile definitions (set at configure time by `cmake/autodetect/git-hash.cmake` on `rl_tools_full` and the `metra` CLI) as fallbacks for binaries that run outside a git checkout. After 3 consecutive transport failures logging disables itself so a dead server cannot stall a training loop.
 
 Shell (CLI target `metra`, values are JSON):
 
@@ -52,7 +52,7 @@ plt.plot([r["time"] for r in rows], [r["value_scalar"] for r in rows]); plt.show
 Raw HTTP:
 
 ```bash
-curl -X POST -H 'Content-Type: application/json' --data '{"name":"pendulum/return","value":1.23,"commit":"abc123","run":"my-run"}' http://localhost:13340/api/log
+curl -X POST -H 'Content-Type: application/json' --data '{"name":"pendulum/return","value":1.23,"commit":"abc123","commit_time":1700000000,"run":"my-run"}' http://localhost:13340/api/log
 curl 'http://localhost:13340/api/metrics?name=pendulum/return&limit=10'          # filters: name, commit (prefix), run, since, until, include_unreliable
 curl http://localhost:13340/api/names
 curl -X POST --data '{"id":1,"unreliable":true}'  http://localhost:13340/api/flag
@@ -69,6 +69,7 @@ curl -X POST --data '{"id":1,"comment":"flaky machine"}' http://localhost:13340/
 |---|---|
 | `METRA_URL` | server base URL; unset disables the C++ client, Python defaults to `http://127.0.0.1:13340` |
 | `METRA_COMMIT` | overrides commit detection (`git rev-parse HEAD`, fallback `no-hash`) |
+| `METRA_COMMIT_TIME` | overrides commit time detection (`git show -s --format=%ct HEAD`), unix seconds; setting `METRA_COMMIT` alone omits the auto-detected time |
 | `METRA_RUN` | overrides the generated run id (`<timestamp>_<hostname>_<pid>[_<hex>]`) |
 | `METRA_DB` | server: SQLite path (default `./metra.sqlite`) |
 
@@ -79,6 +80,7 @@ CREATE TABLE metrics(
     id INTEGER PRIMARY KEY,
     time REAL NOT NULL,            -- unix seconds, server-assigned unless the client supplies "time"
     commit_hash TEXT NOT NULL,
+    commit_time REAL,              -- committer timestamp in unix seconds (git %ct), NULL if unknown
     run_id TEXT NOT NULL,
     name TEXT NOT NULL,
     value TEXT NOT NULL,           -- JSON-encoded

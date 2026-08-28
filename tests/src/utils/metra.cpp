@@ -37,6 +37,20 @@ TEST(UTILS_METRA, BUILD_PAYLOAD){
     config.run = "run";
     ASSERT_EQ(metra::detail::build_payload(config, "metric", "1.5"), "{\"commit\":\"abc\",\"run\":\"run\",\"name\":\"metric\",\"value\":1.5}");
     ASSERT_EQ(metra::detail::build_payload(config, "quo\"te", "[1]"), "{\"commit\":\"abc\",\"run\":\"run\",\"name\":\"quo\\\"te\",\"value\":[1]}");
+    config.commit_time = "1700000000";
+    ASSERT_EQ(metra::detail::build_payload(config, "metric", "1.5"), "{\"commit\":\"abc\",\"commit_time\":1700000000,\"run\":\"run\",\"name\":\"metric\",\"value\":1.5}");
+    config.commit_time = "not-a-timestamp";
+    ASSERT_EQ(metra::detail::build_payload(config, "metric", "1.5"), "{\"commit\":\"abc\",\"run\":\"run\",\"name\":\"metric\",\"value\":1.5}");
+}
+
+TEST(UTILS_METRA, VALIDATION){
+    ASSERT_TRUE(metra::detail::is_commit_hash("0123456789abcdef0123456789abcdef01234567"));
+    ASSERT_FALSE(metra::detail::is_commit_hash("0123456789abcdef0123456789abcdef0123456"));
+    ASSERT_FALSE(metra::detail::is_commit_hash("0123456789ABCDEF0123456789abcdef01234567"));
+    ASSERT_TRUE(metra::detail::is_unix_seconds("1700000000"));
+    ASSERT_FALSE(metra::detail::is_unix_seconds(""));
+    ASSERT_FALSE(metra::detail::is_unix_seconds("17000.5"));
+    ASSERT_FALSE(metra::detail::is_unix_seconds("yesterday"));
 }
 
 TEST(UTILS_METRA, SHELL_QUOTE){
@@ -65,11 +79,16 @@ TEST(UTILS_METRA, RUN_ID){
 TEST(UTILS_METRA, CONFIG_FROM_ENVIRONMENT){
     setenv("METRA_URL", "http://localhost:13340/", 1);
     setenv("METRA_COMMIT", "0123456789abcdef0123456789abcdef01234567", 1);
+    setenv("METRA_COMMIT_TIME", "1700000000", 1);
     setenv("METRA_RUN", "custom-run", 1);
     metra::Config config = metra::config_from_environment();
     ASSERT_EQ(config.url, "http://localhost:13340");
     ASSERT_EQ(config.commit, "0123456789abcdef0123456789abcdef01234567");
+    ASSERT_EQ(config.commit_time, "1700000000");
     ASSERT_EQ(config.run, "custom-run");
+    unsetenv("METRA_COMMIT_TIME");
+    config = metra::config_from_environment();
+    ASSERT_TRUE(config.commit_time.empty()); // overridden commit without METRA_COMMIT_TIME must not pick up the auto-detected HEAD time
     unsetenv("METRA_URL");
     unsetenv("METRA_COMMIT");
     unsetenv("METRA_RUN");
@@ -77,6 +96,9 @@ TEST(UTILS_METRA, CONFIG_FROM_ENVIRONMENT){
     ASSERT_TRUE(config.url.empty());
     ASSERT_FALSE(config.commit.empty());
     ASSERT_FALSE(config.run.empty());
+    if(!config.commit_time.empty()){
+        ASSERT_TRUE(metra::detail::is_unix_seconds(config.commit_time));
+    }
 }
 #endif
 
