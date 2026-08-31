@@ -83,6 +83,30 @@ namespace rl_tools::rl::environments::l2f{
         }
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateIMU<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateIMU<STATE_SPEC>& next_state, RNG& rng) {
+        typename DEVICE::SPEC::RANDOM random_dev;
+        using T = typename STATE_SPEC::T;
+        using TI = typename DEVICE::index_t;
+        post_integration(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(next_state), rng);
+        T conjugate_orientation[4];
+        conjugate_orientation[0] =  next_state.orientation[0];
+        conjugate_orientation[1] = -next_state.orientation[1];
+        conjugate_orientation[2] = -next_state.orientation[2];
+        conjugate_orientation[3] = -next_state.orientation[3];
+        T acceleration_global[3];
+        for(TI dim_i = 0; dim_i < 3; dim_i++){
+            acceleration_global[dim_i] = (next_state.linear_velocity[dim_i] - state.linear_velocity[dim_i]) / parameters.integration.dt - parameters.dynamics.gravity[dim_i];
+        }
+        T acceleration_body[3];
+        rotate_vector_by_quaternion<DEVICE, T>(conjugate_orientation, acceleration_global, acceleration_body);
+        for(TI i = 0; i < 3; i++){
+            T accelerometer_noise = random::normal_distribution::sample(random_dev, (T)0, parameters.mdp.observation_noise.imu_acceleration, rng);
+            next_state.imu_accelerometer[i] = acceleration_body[i] + accelerometer_noise;
+            T gyroscope_noise = random::normal_distribution::sample(random_dev, (T)0, parameters.mdp.observation_noise.angular_velocity, rng);
+            next_state.imu_gyroscope[i] = next_state.angular_velocity[i] + gyro_bias_axis(next_state, i) + gyroscope_noise;
+        }
+    }
+    template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateMahony<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateMahony<STATE_SPEC>& next_state, RNG& rng) {
         typename DEVICE::SPEC::RANDOM random_dev;
         using T = typename STATE_SPEC::T;

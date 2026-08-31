@@ -43,10 +43,10 @@ namespace rl_tools{
                 state.last_action[action_i] = 0;
             }
         }
-        template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename NEXT_COMPONENT>
+        template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateLinearAcceleration<STATE_SPEC>& state){
             using TI = typename DEVICE::index_t;
-            initial_state(device, env, parameters, static_cast<NEXT_COMPONENT&>(state));
+            initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
             for(TI i = 0; i < 3; i++){
                 state.linear_acceleration[i] = 0;
             }
@@ -57,6 +57,15 @@ namespace rl_tools{
             initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
             for(TI i = 0; i < 3; i++){
                 state.gyro_bias[i] = 0;
+            }
+        }
+        template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateIMU<STATE_SPEC>& state){
+            using TI = typename DEVICE::index_t;
+            initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
+            for(TI i = 0; i < 3; i++){
+                state.imu_accelerometer[i] = 0;
+                state.imu_gyroscope[i] = 0;
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>

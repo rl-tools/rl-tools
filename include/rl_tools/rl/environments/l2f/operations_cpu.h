@@ -591,6 +591,30 @@ namespace rl_tools{
         return json_string;
     }
     template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, const rl::environments::l2f::StateIMU<STATE_SPEC>& state, bool top_level=true){
+        using TI = typename DEVICE::index_t;
+        std::string json_string = top_level ? "{" : "";
+        json_string += json(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), false) + ", ";
+        json_string += "\"imu_accelerometer\": [";
+        for (TI i = 0; i < 3; i++){
+            json_string += std::to_string(state.imu_accelerometer[i]);
+            if (i < 2) {
+                json_string += ", ";
+            }
+        }
+        json_string += "], ";
+        json_string += "\"imu_gyroscope\": [";
+        for (TI i = 0; i < 3; i++){
+            json_string += std::to_string(state.imu_gyroscope[i]);
+            if (i < 2) {
+                json_string += ", ";
+            }
+        }
+        json_string += "]";
+        json_string += top_level ? "}" : "";
+        return json_string;
+    }
+    template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
     std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, const rl::environments::l2f::StateMahony<STATE_SPEC>& state, bool top_level=true){
         using TI = typename DEVICE::index_t;
         std::string json_string = top_level ? "{" : "";
@@ -1090,6 +1114,15 @@ namespace rl_tools{
         from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
         for (TI i = 0; i < 3; i++){
             state.gyro_bias[i] = json_object["gyro_bias"][i];
+        }
+    }
+    template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, nlohmann::json json_object, rl::environments::l2f::StateIMU<STATE_SPEC>& state){
+        using TI = typename DEVICE::index_t;
+        from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
+        for (TI i = 0; i < 3; i++){
+            state.imu_accelerometer[i] = json_object["imu_accelerometer"][i];
+            state.imu_gyroscope[i] = json_object["imu_gyroscope"][i];
         }
     }
     template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>

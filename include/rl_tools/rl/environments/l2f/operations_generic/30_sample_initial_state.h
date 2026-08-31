@@ -112,6 +112,15 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
+        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateIMU<STATE_SPEC>& state, RNG& rng){
+            using TI = typename DEVICE::index_t;
+            sample_initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state), rng);
+            for(TI i = 0; i < 3; i++){
+                state.imu_accelerometer[i] = 0;
+                state.imu_gyroscope[i] = 0;
+            }
+        }
+        template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateMahony<STATE_SPEC>& state, RNG& rng){
             using TI = typename DEVICE::index_t;
             using T = typename STATE_SPEC::T;
