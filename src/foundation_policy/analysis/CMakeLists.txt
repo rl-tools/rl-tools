@@ -1,0 +1,6 @@
+add_executable(foundation_policy_analysis main.cpp)
+target_link_libraries(foundation_policy_analysis PRIVATE RLtools::RLtools)
+
+add_executable(foundation_policy_analysis_linear_velocity_delay linear_velocity_delay.cpp)
+target_link_libraries(foundation_policy_analysis_linear_velocity_delay PRIVATE RLtools::RLtools)
+target_compile_options(foundation_policy_analysis_linear_velocity_delay PRIVATE -pedantic)
