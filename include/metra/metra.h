@@ -82,6 +82,11 @@ namespace metra{
             }
             char buffer[32];
             std::snprintf(buffer, sizeof(buffer), "%.17g", value);
+            for(const char* character = buffer; *character != '\0'; character++){
+                if(*character == 'n' || *character == 'N' || *character == 'i' || *character == 'I'){ // under -ffast-math isfinite can fold to true, but printf still renders nan/inf bit patterns
+                    return "null";
+                }
+            }
             return buffer;
         }
         inline std::string json_array(const std::vector<double>& values){
