@@ -86,6 +86,16 @@ namespace rl_tools{
             return nan;
         }
         template<typename DEVICE, typename STATE_SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT static bool _is_nan(DEVICE& device, rl::environments::l2f::StateIMU<STATE_SPEC>& state){
+            is_nan(device, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
+            bool nan = false;
+            for(typename DEVICE::index_t i = 0; i < 3; i++){
+                nan = nan || math::is_nan(device.math, state.imu_accelerometer[i]);
+                nan = nan || math::is_nan(device.math, state.imu_gyroscope[i]);
+            }
+            return nan;
+        }
+        template<typename DEVICE, typename STATE_SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT static bool _is_nan(DEVICE& device, rl::environments::l2f::StateMahony<STATE_SPEC>& state){
             is_nan(device, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
             bool nan = false;

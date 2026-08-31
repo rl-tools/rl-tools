@@ -823,6 +823,25 @@ namespace rl_tools::rl::environments::l2f{
     };
 
     template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
+    struct StateIMUSpecification{
+        using T = T_T;
+        using TI = T_TI;
+        using NEXT_COMPONENT = T_NEXT_COMPONENT;
+    };
+    template <typename T_SPEC>
+    struct StateIMU: T_SPEC::NEXT_COMPONENT{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+        static constexpr bool REQUIRES_INTEGRATION = false;
+        static constexpr TI DIM = 6 + NEXT_COMPONENT::DIM;
+        // sampled sensor values: noise (and gyro bias if StateGyroBias is in the chain) is applied once in post_integration so observations read the measurement verbatim
+        T imu_accelerometer[3];
+        T imu_gyroscope[3];
+    };
+
+    template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
     struct StateMahonySpecification{
         using T = T_T;
         using TI = T_TI;
