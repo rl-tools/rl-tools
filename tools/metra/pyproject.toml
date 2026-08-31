@@ -1,0 +1,19 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "metra"
+version = "0.0.1"
+description = "Minimal metrics tracking server for regression monitoring."
+readme = "README.md"
+authors = [{name = "Jonas Eschmann", email = "jonas.eschmann@gmail.com"}]
+license = {text = "MIT"}
+dependencies = []
+
+[tool.hatch.build.targets.wheel]
+packages = ["metra"]
+
+[project.scripts]
+metra = "metra:main"
+metra-server = "metra.server:main"
