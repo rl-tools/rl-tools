@@ -4,6 +4,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from hyperdrone import conta
 from hyperdrone.env import EnvConfig, MultiEnvironment
 from hyperdrone.jit import source_root
 
@@ -161,6 +162,77 @@ def test_spec_header_escape_hatch(scene_directory):
         assert env.instances_per_environment == 2
         assert env.cam_width == 16 and env.cam_height == 16
         assert env.observation_layout.blocks == {"observation": (0, env.observation_dim)}
+        smoke_rollout(env)
+    finally:
+        env.close()
+
+
+def scene_source():
+    source = Path(os.environ.get("HYPERDRONE_TEST_SCENE_DIR", source_root() / "tests" / "data")) / "ProcTHOR-Train-1.glb"
+    if not source.exists():
+        pytest.skip(f"no ProcTHOR test scene at {source}")
+    return source
+
+
+def conta_store(monkeypatch, tmp_path, *blobs):
+    # a local conta store served over file://, so resolution runs the full download
+    # protocol without network; the cache is the shared layout both languages use
+    store = tmp_path / "conta_store"
+    store.mkdir()
+    hashes = []
+    for blob in blobs:
+        digest = conta.sha1_file(blob)
+        (store / digest).symlink_to(blob)
+        hashes.append(digest)
+    monkeypatch.delenv("CONTA_ROOT", raising=False)
+    monkeypatch.setenv("CONTA_CACHE", str(tmp_path / "conta_cache"))
+    monkeypatch.setenv("CONTA_URL", store.as_uri() + "/")
+    return hashes
+
+
+def test_scenes_reference_list(tmp_path):
+    source = scene_source()
+    directory = tmp_path / "scenes"
+    directory.mkdir()
+    (directory / "a.glb").symlink_to(source)
+    (directory / "b.glb").symlink_to(source)
+    from_directory = rollout(directory, 21)
+    from_references = rollout([directory / "a.glb", directory / "b.glb"], 21)
+    assert len(from_directory) == len(from_references)
+    for a, b in zip(from_directory, from_references):
+        np.testing.assert_array_equal(a, b)
+
+
+def test_scenes_conta_reference(monkeypatch, tmp_path):
+    source = scene_source()
+    (scene_hash,) = conta_store(monkeypatch, tmp_path, source)
+    from_path = rollout([source], 22)
+    from_conta = rollout([{"description": source.name, "hash": scene_hash}], 22)
+    for a, b in zip(from_path, from_conta):
+        np.testing.assert_array_equal(a, b)
+    cached = Path(tmp_path / "conta_cache" / scene_hash)
+    assert cached.is_file()
+    for a, b in zip(from_conta, rollout([f"conta:{scene_hash}"], 22)):
+        np.testing.assert_array_equal(a, b)
+
+
+def test_scenes_preflight_errors(tmp_path):
+    source = scene_source()
+    with pytest.raises(ValueError, match="scene reference"):
+        MultiEnvironment([source], config=EnvConfig(num_environments=2), seed=0)
+    with pytest.raises(ValueError, match="not found"):
+        MultiEnvironment(["/nonexistent.glb"], config=EnvConfig(), seed=0)
+    with pytest.raises(ValueError, match=r"\.glb scene"):
+        MultiEnvironment(tmp_path, config=EnvConfig(), seed=0)
+
+
+def test_drone_asset_conta_reference(monkeypatch, tmp_path):
+    scene = scene_source()
+    asset = drone_asset_path()
+    scene_hash, asset_hash = conta_store(monkeypatch, tmp_path, scene, asset)
+    config = EnvConfig(instances=2, cam_width=16, cam_height=16, preset="x500_fpv", task="target_frame")
+    env = MultiEnvironment([f"conta:{scene_hash}"], config=config, seed=3, drone_asset=f"conta:{asset_hash}")
+    try:
         smoke_rollout(env)
     finally:
         env.close()

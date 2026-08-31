@@ -27,8 +27,8 @@ class VectorEnv(gymnasium.vector.VectorEnv):
 
     render_mode = None
 
-    def __init__(self, scene_directory, config=None, seed=0, drone_asset=None):
-        self._env = MultiEnvironment(scene_directory, config=config, seed=seed, drone_asset=drone_asset)
+    def __init__(self, scenes, config=None, seed=0, drone_asset=None):
+        self._env = MultiEnvironment(scenes, config=config, seed=seed, drone_asset=drone_asset)
         self.num_envs = self._env.total_instances
         self.single_observation_space = gymnasium.spaces.Box(
             0.0, 1.0, shape=(self._env.observation_dim,), dtype=np.float32
