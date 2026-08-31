@@ -1,0 +1,15 @@
+# metra on a NAS (e.g. TrueNAS SCALE: Apps -> Discover Apps -> Custom App -> Install via YAML)
+# Expects an RLtools checkout at <dataset>/rl_tools; adjust the two host paths below.
+services:
+  metra:
+    image: python:3.12-alpine
+    command: python3 /rl_tools/tools/metra/metra/server.py --ip 0.0.0.0 --port 13340
+    environment:
+      METRA_DB: /data/metra.sqlite
+    volumes:
+      - /mnt/fast/apps/metra/rl_tools:/rl_tools:ro
+      - /mnt/fast/apps/metra/data:/data
+    ports:
+      - "13340:13340"
+    user: "1000:1000" # must own the data dataset (568 is the TrueNAS apps convention)
+    restart: unless-stopped
