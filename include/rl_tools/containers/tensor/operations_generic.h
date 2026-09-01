@@ -1240,7 +1240,23 @@ namespace rl_tools{
             using PREFIX = ReshapeStride<typename BLOCK::REMAINDER_SHAPE, typename BLOCK::REMAINDER_STRIDE, typename CONSUME::REMAINDER_SHAPE>;
             using TYPE = tensor::shape_math::Concat<typename PREFIX::TYPE, typename CONSUME::STRIDE_SUFFIX>;
         };
-        template <typename OLD_SHAPE, typename OLD_STRIDE, typename NEW_SHAPE, bool DENSE = tensor::_dense_row_major_layout_shape<OLD_SHAPE, OLD_STRIDE, true>()>
+        template <typename SHAPE, typename STRIDE>
+        RL_TOOLS_FUNCTION_PLACEMENT bool constexpr uniform_row_major_layout(){
+            // stricter than _dense_row_major_layout_shape<..., true>: trailing size-1 dimensions can disguise a larger row pitch (e.g. shape [N, 1], stride [10, 1]), which the relaxed check accepts but RowMajorStride<NEW_SHAPE, LAST_STRIDE> cannot represent
+            if(length(STRIDE{}) != length(SHAPE{})){
+                return false;
+            }
+            constexpr auto rank = tensor::shape_math::rank<SHAPE>();
+            constexpr auto shape = tensor::shape_math::element_to_array<SHAPE>();
+            constexpr auto stride = tensor::shape_math::element_to_array<STRIDE>();
+            for(typename tensor::shape_math::SizeType i = 0; i + 1 < rank; ++i){
+                if(stride.data[i] != stride.data[i + 1] * shape.data[i + 1]){
+                    return false;
+                }
+            }
+            return true;
+        }
+        template <typename OLD_SHAPE, typename OLD_STRIDE, typename NEW_SHAPE, bool DENSE = uniform_row_major_layout<OLD_SHAPE, OLD_STRIDE>()>
         struct ReshapeStrideShortcut;
         template <typename OLD_SHAPE, typename OLD_STRIDE, typename NEW_SHAPE>
         struct ReshapeStrideShortcut<OLD_SHAPE, OLD_STRIDE, NEW_SHAPE, true>{
