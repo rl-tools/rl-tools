@@ -6,7 +6,10 @@
 #if defined(HYPERDRONE_ENV_TASK) && HYPERDRONE_ENV_TASK == 2
 #include <rl_tools/rl/environments/hyperdrone/tasks/moving_gate/operations_cpu.h>
 #endif
-#if defined(HYPERDRONE_ENV_PRESET) && HYPERDRONE_ENV_PRESET == 1
+#if defined(HYPERDRONE_ENV_TASK) && HYPERDRONE_ENV_TASK == 3
+#include <rl_tools/rl/environments/hyperdrone/tasks/visual_inertial_localization/operations_cpu.h>
+#endif
+#if defined(HYPERDRONE_ENV_PRESET) && HYPERDRONE_ENV_PRESET >= 1
 #include <rl_tools/rl/environments/hyperdrone/presets.h>
 #endif
 
@@ -105,6 +108,8 @@ namespace hyperdrone_env_impl {
     using PRESET_SPEC = rlt::rl::environments::hyperdrone::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS>;
 #elif HYPERDRONE_ENV_PRESET == 1
     using PRESET_SPEC = rlt::rl::environments::hyperdrone::presets::X500FPV<T, TI>;
+#elif HYPERDRONE_ENV_PRESET == 2
+    using PRESET_SPEC = rlt::rl::environments::hyperdrone::presets::X500FPVIMU<T, TI>;
 #else
 #error "unknown HYPERDRONE_ENV_PRESET"
 #endif
@@ -113,6 +118,9 @@ namespace hyperdrone_env_impl {
         static constexpr TI N_AGENTS = HYPERDRONE_ENV_N_AGENTS;
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE =
             HYPERDRONE_ENV_TASK == 2 && PRESET_SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE == 0 ? 8 : PRESET_SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE;
+        // the visual-inertial localization benchmark flies without self-occlusion, like its
+        // C++ harness (src/rl/environments/hyperdrone/tasks/visual_inertial_localization_harness.h)
+        static constexpr bool SELF_VISIBLE = HYPERDRONE_ENV_TASK != 3 && PRESET_SPEC::SELF_VISIBLE;
         static constexpr TI CAM_WIDTH = HYPERDRONE_ENV_CAM_WIDTH;
         static constexpr TI CAM_HEIGHT = HYPERDRONE_ENV_CAM_HEIGHT;
         static constexpr TI HISTORY_LENGTH = HYPERDRONE_ENV_HISTORY_LENGTH;
@@ -129,6 +137,9 @@ namespace hyperdrone_env_impl {
 #elif HYPERDRONE_ENV_TASK == 2
     struct TASK_SPEC: rlt::rl::environments::hyperdrone::tasks::moving_gate::Specification<BASE_WORLD> {};
     using WORLD = rlt::rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>;
+#elif HYPERDRONE_ENV_TASK == 3
+    struct TASK_SPEC: rlt::rl::environments::hyperdrone::tasks::visual_inertial_localization::Specification<BASE_WORLD> {};
+    using WORLD = rlt::rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>;
 #else
 #error "unknown HYPERDRONE_ENV_TASK"
 #endif
@@ -167,6 +178,30 @@ namespace hyperdrone_env_impl {
         }
     }
 
+    // optional World surface beyond the base verbs, detected by type: an IMU observation
+    // stream and a camera frame stride (the visual_inertial_localization task defines both)
+    template <typename WORLD_TYPE, typename = void>
+    struct ObservationIMUDim { static constexpr TI VALUE = 0; };
+    template <typename WORLD_TYPE>
+    struct ObservationIMUDim<WORLD_TYPE, rlt::utils::typing::void_t<typename WORLD_TYPE::ObservationIMU>> { static constexpr TI VALUE = WORLD_TYPE::ObservationIMU::DIM; };
+    template <typename WORLD_TYPE, typename = void>
+    struct FrameStride { static constexpr TI VALUE = 1; };
+    template <typename WORLD_TYPE>
+    struct FrameStride<WORLD_TYPE, rlt::utils::typing::void_t<decltype(WORLD_TYPE::FRAME_STRIDE)>> { static constexpr TI VALUE = WORLD_TYPE::FRAME_STRIDE; };
+    constexpr TI OBSERVATION_DIM_IMU = ObservationIMUDim<WORLD>::VALUE;
+
+    template <typename WORLD_TYPE>
+    void observe_imu(EnvImpl* impl, float* observations){
+        if constexpr (ObservationIMUDim<WORLD_TYPE>::VALUE > 0){
+            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TOTAL, ObservationIMUDim<WORLD_TYPE>::VALUE>>> alias;
+            alias._data = observations;
+            rlt::observe(impl->device, impl->env, impl->parameters, impl->states, typename WORLD_TYPE::ObservationIMU{}, alias, impl->rng);
+        }else{
+            (void)impl;
+            (void)observations;
+        }
+    }
+
     std::string flat_blocks_privileged(){
         std::string out;
 #ifdef HYPERDRONE_ENV_SPEC_HEADER
@@ -187,6 +222,22 @@ namespace hyperdrone_env_impl {
 #if HYPERDRONE_ENV_TASK == 2
         out += "block gate_state " + std::to_string((unsigned long long)(N_AGENTS * PER_AGENT)) + " 8\n";
 #endif
+#if HYPERDRONE_ENV_TASK == 3
+        out += "block waypoint " + std::to_string((unsigned long long)(N_AGENTS * PER_AGENT)) + " 3\n";
+#endif
+#endif
+        return out;
+    }
+
+    std::string observation_layout_imu(){
+        if(OBSERVATION_DIM_IMU == 0){
+            return "";
+        }
+        std::string out = "shape " + std::to_string((unsigned long long)OBSERVATION_DIM_IMU) + "\naxis flat\n";
+#if HYPERDRONE_ENV_TASK == 3
+        out += "block accelerometer 0 3\nblock gyroscope 3 3\nblock frame_age 6 1\nblock new_frame 7 1\n";
+#else
+        out += "block imu 0 " + std::to_string((unsigned long long)OBSERVATION_DIM_IMU) + "\n";
 #endif
         return out;
     }
@@ -247,10 +298,11 @@ extern "C" {
             ;
         return value.c_str();
     }
-    const char* hyperdrone_env_observation_layout(int privileged){
+    const char* hyperdrone_env_observation_layout(int which){
         static const std::string observation = observation_layout_value(false);
         static const std::string observation_privileged = observation_layout_value(true);
-        return privileged ? observation_privileged.c_str() : observation.c_str();
+        static const std::string observation_imu = observation_layout_imu();
+        return which == 2 ? observation_imu.c_str() : (which == 1 ? observation_privileged.c_str() : observation.c_str());
     }
     void* hyperdrone_env_create(){
         EnvImpl* impl = new EnvImpl();
@@ -291,6 +343,9 @@ extern "C" {
         config->observation_dim_privileged = (uint32_t)WORLD::OBSERVATION_DIM_PRIVILEGED;
         config->action_dim = (uint32_t)WORLD::ACTION_DIM;
         config->episode_step_limit = (uint32_t)WORLD::EPISODE_STEP_LIMIT;
+        config->observation_dim_imu = (uint32_t)OBSERVATION_DIM_IMU;
+        config->frame_stride = (uint32_t)FrameStride<WORLD>::VALUE;
+        config->dt = (float)WORLD::SPEC::DYNAMICS_STATIC_PARAMETERS::PARAMETER_VALUES.integration.dt;
     }
     void hyperdrone_env_init(void* handle, const char* scenes, const char* drone_asset_path, const char* gate_asset_path, unsigned long long seed){
         EnvImpl* impl = cast(handle);
@@ -350,6 +405,9 @@ extern "C" {
         rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TOTAL, WORLD::OBSERVATION_DIM_PRIVILEGED>>> alias;
         alias._data = observations;
         rlt::observe(impl->device, impl->env, impl->parameters, impl->states, typename WORLD::ObservationPrivileged{}, alias, impl->rng);
+    }
+    void hyperdrone_env_observe_imu(void* handle, float* observations){
+        observe_imu<WORLD>(cast(handle), observations);
     }
     void hyperdrone_env_step(void* handle, const float* actions){
         EnvImpl* impl = cast(handle);

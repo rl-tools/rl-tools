@@ -154,6 +154,53 @@ def test_moving_gate(scene_directory):
         env.close()
 
 
+def test_visual_inertial_localization(scene_directory):
+    with pytest.raises(ValueError, match="x500_fpv_imu"):
+        EnvConfig(task="visual_inertial_localization")
+    with pytest.raises(ValueError, match="needs drone_asset"):
+        MultiEnvironment(scene_directory, config=EnvConfig(preset="x500_fpv_imu"), seed=6)
+    config = EnvConfig(instances=2, cam_width=16, cam_height=16, preset="x500_fpv_imu", task="visual_inertial_localization")
+    env = MultiEnvironment(scene_directory, config=config, seed=6)
+    try:
+        assert env.frame_stride == 4
+        assert env.dt == pytest.approx(0.005)
+        assert env.observation_dim_imu == 8
+        assert env.observation_layout_imu.blocks == {
+            "accelerometer": (0, 3), "gyroscope": (3, 3), "frame_age": (6, 1), "new_frame": (7, 1),
+        }
+        assert env.observation_layout_privileged.blocks["waypoint"] == (18, 3)
+        assert env.observation_dim_privileged == 21
+        mask = np.ones(env.total_instances, dtype=np.uint8)
+        env.reset(mask)
+        with pytest.raises(ValueError, match="all-or-none"):
+            env.render(np.array([1, 0], dtype=np.uint8))
+        hold = np.zeros((env.total_instances, env.action_dim), dtype=np.float32)
+        frames = []
+        for step in range(2 * env.frame_stride + 1):
+            env.render(mask if step == 0 else np.zeros(env.total_instances, dtype=np.uint8))
+            frames.append(env.frames())
+            env.step(hold)
+            imu = env.observe_imu()
+            assert imu.shape == (2, 8)
+            assert np.isfinite(imu).all()
+            frame_age = step % env.frame_stride
+            np.testing.assert_allclose(imu[:, 6], frame_age / env.frame_stride, atol=1e-6)
+            assert (imu[:, 7] == (1.0 if frame_age == 0 else 0.0)).all()
+        # the camera only advances on frame boundaries: identical within a stride, and fresh
+        # once the drone has moved (motors off: 0.3 s of free fall)
+        for frame in frames[1:env.frame_stride]:
+            np.testing.assert_array_equal(frame, frames[0])
+        off = -np.ones((env.total_instances, env.action_dim), dtype=np.float32)
+        for _ in range(60):
+            env.render(np.zeros(env.total_instances, dtype=np.uint8))
+            env.step(off)
+        assert not np.array_equal(env.frames(), frames[0])
+        waypoint = env.observe_privileged()[:, 18:21]
+        assert np.isfinite(waypoint).all()
+    finally:
+        env.close()
+
+
 def test_spec_header_escape_hatch(scene_directory):
     header = Path(__file__).parent / "user_spec_header.h"
     config = EnvConfig(spec_header=str(header))

@@ -7,7 +7,7 @@
 // rl_tools::rl::environments::hyperdrone::MultiEnvironment<hyperdrone::World>. Buffers are host
 // float32/uint8 arrays sized by hyperdrone_env_config(). Bump
 // HYPERDRONE_ENV_IFACE_VERSION on any change to this file.
-#define HYPERDRONE_ENV_IFACE_VERSION 3
+#define HYPERDRONE_ENV_IFACE_VERSION 4
 
 namespace hyperdrone::env {
     struct Config {
@@ -22,6 +22,9 @@ namespace hyperdrone::env {
         uint32_t observation_dim_privileged;
         uint32_t action_dim;
         uint32_t episode_step_limit;
+        uint32_t observation_dim_imu;  // 0 when the World defines no IMU observation stream
+        uint32_t frame_stride;         // env steps per rendered camera frame (1: every step)
+        float dt;                      // step period [s] (the dynamics integration dt)
     };
 }
 
@@ -30,8 +33,9 @@ extern "C" {
     const char* hyperdrone_env_config_string();
     // named blocks of the observation vectors, line-oriented: "shape <d0> [<d1> <d2>]",
     // "axis channel|flat", then "block <name> <offset> <size>" entries in memory order —
-    // offsets/sizes index the last (channel) axis for images and the flat vector otherwise
-    const char* hyperdrone_env_observation_layout(int privileged);
+    // offsets/sizes index the last (channel) axis for images and the flat vector otherwise.
+    // which: 0 observation, 1 privileged, 2 IMU (empty string when observation_dim_imu == 0)
+    const char* hyperdrone_env_observation_layout(int which);
     void* hyperdrone_env_create();
     void hyperdrone_env_destroy(void* handle);
     void hyperdrone_env_config(void* handle, hyperdrone::env::Config* config);
@@ -49,6 +53,9 @@ extern "C" {
     void hyperdrone_env_render(void* handle, const uint8_t* reset_mask);
     void hyperdrone_env_observe(void* handle, float* observations);                       // (total, observation_dim)
     void hyperdrone_env_observe_privileged(void* handle, float* observations);            // (total, observation_dim_privileged)
+    // the IMU sample produced by the last step (Worlds with an ObservationIMU type, e.g. the
+    // visual_inertial_localization task); a no-op when observation_dim_imu == 0
+    void hyperdrone_env_observe_imu(void* handle, float* observations);                   // (total, observation_dim_imu)
     // one verb sequence: step -> reward -> commit next state -> terminated; results are
     // read back via hyperdrone_env_rewards / hyperdrone_env_terminated
     void hyperdrone_env_step(void* handle, const float* actions);                         // (total, action_dim)

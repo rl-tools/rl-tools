@@ -263,6 +263,25 @@ namespace rl_tools {
             }
         }
     }
+
+    template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename OBSERVATION_SPEC, typename RNG>
+    void observe(DEVICE& device, rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, typename rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>::ObservationPrivileged, Tensor<OBSERVATION_SPEC>& observations, RNG& rng) {
+        using T = typename TASK_SPEC::T;
+        using TI = typename TASK_SPEC::TI;
+        using WORLD = rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>;
+        using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
+        static_assert(get<1>(typename OBSERVATION_SPEC::SHAPE{}) == WORLD::OBSERVATION_DIM_PRIVILEGED);
+        constexpr TI BASE_DIM = NEXT_WORLD::OBSERVATION_DIM_PRIVILEGED;
+        auto base_observations = view_range(device, observations, 0, tensor::ViewSpec<1, BASE_DIM>{});
+        observe(device, static_cast<NEXT_WORLD&>(world), parameters, states, typename NEXT_WORLD::ObservationPrivileged{}, base_observations, rng);
+        for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
+            const auto& instance_parameters = get_ref(device, parameters, instance_i);
+            const auto& state = get_ref(device, states, instance_i);
+            for (TI dim_i = 0; dim_i < WORLD::WAYPOINT_DIM; dim_i++) {
+                set(device, observations, (T)instance_parameters.waypoints[state.current_waypoint][dim_i], instance_i, BASE_DIM + dim_i);
+            }
+        }
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
