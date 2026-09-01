@@ -170,6 +170,8 @@
 #include <rl_tools/rl/utils/evaluation/operations_cpu.h>
 #include <rl_tools/random/operations_generic_array.h>
 
+#include <metra/metra.h>
+
 #if defined(__unix__) || defined(__APPLE__)
 #include <signal.h>
 #include <unistd.h>
@@ -461,6 +463,18 @@ void signal_handler(int signal_number){
 bool signal_flag = false;
 #endif
 
+template <typename RESULT>
+void metra_log_final(const std::string& prefix, const RESULT& result, double wall_clock_time, double environment_steps){
+    metra::log(prefix + "/final/returns_mean", (double)result.returns_mean);
+    metra::log(prefix + "/final/returns_std", (double)result.returns_std);
+    metra::log(prefix + "/final/episode_length_mean", (double)result.episode_length_mean);
+    metra::log(prefix + "/final/episode_length_std", (double)result.episode_length_std);
+    metra::log(prefix + "/final/share_terminated", (double)result.share_terminated);
+    metra::log(prefix + "/final/share_successful", 1.0 - (double)result.share_terminated);
+    metra::log(prefix + "/training/wall_clock_time", wall_clock_time);
+    metra::log(prefix + "/training/environment_steps", environment_steps);
+}
+
 int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::string extrack_experiment, std::string extrack_experiment_path, std::string config_path, std::string loop_state_path){
 #if defined(__unix__) || defined(__APPLE__)
     std::cerr << "PID: " << getpid() << " (use kill -SIGUSR1 " << getpid() << " to create evaluate, create a checkpoint and save trajectories on demand)" << std::endl;
@@ -502,6 +516,7 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
         std::cout << "Save trajectories interval: " << LOOP_CONFIG::SAVE_TRAJECTORIES_PARAMETERS::INTERVAL << std::endl;
         std::cout << "NN analytics interval: " << LOOP_CONFIG::NN_ANALYTICS_PARAMETERS::INTERVAL << std::endl;
         using T = typename TYPE_POLICY::DEFAULT;
+        std::vector<double> evaluation_wall_clock_times(LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS, std::nan(""));
 #if defined(RL_TOOLS_RL_ZOO_ENVIRONMENT_L2F) && defined(RL_TOOLS_RL_ZOO_ALGORITHM_SAC)
         T difficulty = 0; // [0, 1]
         const auto initial_parameters = rlt::get(ts.off_policy_runner.envs, 0, 0).parameters;
@@ -592,6 +607,13 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
 //             }
 // #endif
 #ifndef RL_TOOLS_RL_ZOO_BENCHMARK
+            {
+                TI previous_step = ts.step - 1;
+                TI evaluation_index = previous_step / LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL;
+                if(previous_step % LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL == 0 && evaluation_index < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS){
+                    evaluation_wall_clock_times[evaluation_index] = std::chrono::duration<double>(std::chrono::steady_clock::now() - ts.start_time).count();
+                }
+            }
             if(signal_flag){
                 ts.evaluate_this_step = true;
                 ts.checkpoint_this_step = true;
@@ -611,6 +633,8 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
             // }
 
         }
+        double training_wall_clock_time = std::chrono::duration<double>(std::chrono::steady_clock::now() - ts.start_time).count();
+        double training_environment_steps = (double)(ts.step * LOOP_CONFIG::ENVIRONMENT_STEPS_PER_LOOP_STEP);
 #ifndef RL_TOOLS_RL_ZOO_BENCHMARK
         std::filesystem::create_directories(ts.extrack_paths.seed);
         std::ofstream return_file(ts.extrack_paths.seed / "return.json");
@@ -627,6 +651,30 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
         return_file << "}";
         std::ofstream return_file_confirmation(ts.extrack_paths.seed / "return.json.set");
         return_file_confirmation.close();
+        {
+            const std::string metra_prefix = "zoo/" + environment + "/" + algorithm;
+            auto& final_result = rlt::get(ts.evaluation_results, 0, LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS - 1);
+            metra_log_final(metra_prefix, final_result, training_wall_clock_time, training_environment_steps);
+            std::string learning_curve = "[";
+            for(TI evaluation_i = 0; evaluation_i < LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS; evaluation_i++){
+                auto& result = rlt::get(ts.evaluation_results, 0, evaluation_i);
+                if(evaluation_i > 0){
+                    learning_curve += ",";
+                }
+                learning_curve += "{";
+                learning_curve += "\"environment_steps\":" + std::to_string(LOOP_CONFIG::EVALUATION_PARAMETERS::EVALUATION_INTERVAL * LOOP_CONFIG::ENVIRONMENT_STEPS_PER_LOOP_STEP * evaluation_i) + ",";
+                learning_curve += "\"wall_clock_time\":" + metra::detail::json_number(evaluation_wall_clock_times[evaluation_i]) + ",";
+                learning_curve += "\"returns_mean\":" + metra::detail::json_number(result.returns_mean) + ",";
+                learning_curve += "\"returns_std\":" + metra::detail::json_number(result.returns_std) + ",";
+                learning_curve += "\"episode_length_mean\":" + metra::detail::json_number(result.episode_length_mean) + ",";
+                learning_curve += "\"episode_length_std\":" + metra::detail::json_number(result.episode_length_std) + ",";
+                learning_curve += "\"share_terminated\":" + metra::detail::json_number(result.share_terminated) + ",";
+                learning_curve += "\"share_successful\":" + metra::detail::json_number(1.0 - (double)result.share_terminated);
+                learning_curve += "}";
+            }
+            learning_curve += "]";
+            metra::log_raw(metra_prefix + "/learning_curve", learning_curve);
+        }
 #else
         {
             constexpr TI NUM_EPISODES = 100;
@@ -653,6 +701,7 @@ int zoo(int initial_seed, int num_seeds, std::string extrack_base_path, std::str
             rlt::free(device, rng);
             rlt::free(device, evaluation_actor);
             rlt::log(device, device.logger, "Seed: ", seed, " Step: ", ts.step, "/", LOOP_CONFIG::CORE_PARAMETERS::STEP_LIMIT, " Mean return: ", result.returns_mean, " Mean episode length: ", result.episode_length_mean);
+            metra_log_final("zoo/" + environment + "/" + algorithm + "/benchmark", result, training_wall_clock_time, training_environment_steps);
         }
         {
             auto& actor = rlt::get_actor(ts);

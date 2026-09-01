@@ -63,6 +63,11 @@ execute_process(
 )
 find_package(nanobind CONFIG REQUIRED)
 
+# camera_orbit.h and friends: demo/benchmark tooling deliberately outside the library,
+# consumed by the shim to keep Renderer.generate_cameras on the Python surface
+add_library(hyperdrone_render_tooling INTERFACE)
+target_include_directories(hyperdrone_render_tooling INTERFACE ${RLTOOLS_ROOT}/src)
+
 nanobind_add_module(hyperdrone_render_core host.cpp scene_bindings.cpp)
 target_include_directories(hyperdrone_render_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../common)
 target_link_libraries(hyperdrone_render_core PRIVATE RLtools::RLtools hyperdrone_render_stb ${CMAKE_DL_LIBS})
@@ -92,5 +97,5 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/hyperdrone_jit.cmake)
 hyperdrone_jit_add_configs(
     COMPONENT render
     SOURCES impl.cpp
-    LINK RLtools::RLtools hyperdrone_render_stb
+    LINK RLtools::RLtools hyperdrone_render_stb hyperdrone_render_tooling
 )

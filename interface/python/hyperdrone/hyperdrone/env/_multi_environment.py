@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from .. import jit
+from .. import conta, jit
 
 BACKENDS = ("OPTIX", "METAL", "VULKAN", "WEBGPU", "GENERIC")
 PRESETS = {"crazyflie": 0, "x500_fpv": 1}
@@ -167,7 +167,7 @@ class _Config(ctypes.Structure):
     ]
 
 
-_IFACE_VERSION = 2
+_IFACE_VERSION = 3
 
 
 def _load(config):
@@ -205,6 +205,54 @@ def _uint8_ptr(array):
     return array.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8))
 
 
+def _is_conta_reference(value):
+    return isinstance(value, dict) or (isinstance(value, str) and value.startswith("conta:"))
+
+
+def _resolve_asset(asset):
+    if asset is None:
+        return None
+    if _is_conta_reference(asset):
+        return str(conta.resolve(asset))
+    return str(asset)
+
+
+def _normalize_scenes(scenes, num_environments):
+    """Turn the scenes argument into the newline-joined reference list the shim expects.
+
+    Accepts a directory (the corpus is its sorted .glb files), a single reference, or a
+    sequence of references — each a .glb path, a "conta:HASH" string, or a store manifest
+    entry {"description": ..., "hash": ...}. Conta references are resolved (downloading
+    into the shared conta cache) here, so failures raise instead of aborting the process
+    through the C ABI; list order is the corpus order.
+    """
+    if isinstance(scenes, (str, os.PathLike, dict)):
+        scenes = [scenes]
+    references = [
+        str(conta.resolve(entry)) if _is_conta_reference(entry) else str(entry)
+        for entry in scenes
+    ]
+    if not references:
+        raise ValueError("hyperdrone: scenes is empty")
+    if len(references) == 1 and os.path.isdir(references[0]):
+        count = sum(1 for name in os.listdir(references[0]) if name.endswith(".glb"))
+        if count < num_environments:
+            raise ValueError(
+                f"hyperdrone: {count} .glb scene(s) in {references[0]}, but "
+                f"num_environments={num_environments} needs at least one scene per environment"
+            )
+        return references
+    missing = [reference for reference in references if not os.path.isfile(reference)]
+    if missing:
+        raise ValueError(f"hyperdrone: scene reference(s) not found: {missing}")
+    if len(references) < num_environments:
+        raise ValueError(
+            f"hyperdrone: {len(references)} scene reference(s), but "
+            f"num_environments={num_environments} needs at least one scene per environment"
+        )
+    return references
+
+
 def _validate(config, native):
     if config.spec_header is not None:
         return
@@ -226,14 +274,18 @@ def _validate(config, native):
 
 
 class MultiEnvironment:
-    """The C++ environment behind the same verb surface: construct with a scene directory,
-    then reset(mask) -> render(mask) -> observe() -> step(actions) -> rewards()/terminated().
+    """The C++ environment behind the same verb surface: construct with scenes, then
+    reset(mask) -> render(mask) -> observe() -> step(actions) -> rewards()/terminated().
 
+    scenes: a directory of .glb scenes (sorted corpus), or a reference / sequence of
+    references — .glb paths, "conta:HASH" strings, or conta store manifest entries
+    {"description": ..., "hash": ...}; a reference list is the corpus in list order.
     drone_asset: body/prop_* GLB for SELF_VISIBLE presets (required for preset='x500_fpv').
     gate_asset: gate GLB for the moving_gate task (required for task='moving_gate').
+    Both assets accept conta references too.
     """
 
-    def __init__(self, scene_directory, config=None, seed=0, drone_asset=None, gate_asset=None):
+    def __init__(self, scenes, config=None, seed=0, drone_asset=None, gate_asset=None):
         self.config = config if config is not None else EnvConfig()
         if self.config.preset == "x500_fpv" and drone_asset is None:
             raise ValueError(
@@ -242,6 +294,9 @@ class MultiEnvironment:
             )
         if self.config.task == "moving_gate" and gate_asset is None:
             raise ValueError("hyperdrone: task 'moving_gate' needs gate_asset= (the gate GLB)")
+        scene_references = _normalize_scenes(scenes, self.config.num_environments)
+        drone_asset = _resolve_asset(drone_asset)
+        gate_asset = _resolve_asset(gate_asset)
         self._library = _load(self.config)
         self._handle = ctypes.c_void_p(self._library.hyperdrone_env_create())
         native = _Config()
@@ -256,9 +311,9 @@ class MultiEnvironment:
         self.observation_layout_privileged = ObservationLayout.parse(
             self._library.hyperdrone_env_observation_layout(1).decode()
         )
-        drone_asset_encoded = str(drone_asset).encode() if drone_asset is not None else b""
-        gate_asset_encoded = str(gate_asset).encode() if gate_asset is not None else b""
-        self._library.hyperdrone_env_init(self._handle, str(scene_directory).encode(), drone_asset_encoded, gate_asset_encoded, seed)
+        drone_asset_encoded = drone_asset.encode() if drone_asset is not None else b""
+        gate_asset_encoded = gate_asset.encode() if gate_asset is not None else b""
+        self._library.hyperdrone_env_init(self._handle, "\n".join(scene_references).encode(), drone_asset_encoded, gate_asset_encoded, seed)
 
     def close(self):
         if self._handle:
