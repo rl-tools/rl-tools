@@ -134,12 +134,20 @@ endif()
 if(RL_TOOLS_OFFLINE_BUILD)
     set(FETCHCONTENT_FULLY_DISCONNECTED ON)
 endif()
+message(STATUS "RLtools dependencies: ${FETCHCONTENT_BASE_DIR}")
 include(FetchContent)
 
 # Suppress STATUS messages from FetchContent subprojects (arch details, feature
 # summaries, proto generation lists, …) while still forwarding WARNING/ERROR.
 # Requires CMake >= 3.25; silently ignored on older versions.
 macro(rl_tools_fetchcontent_makeavailable_quiet)
+    foreach(_rl_tools_fetch_name ${ARGN})
+        string(TOLOWER "${_rl_tools_fetch_name}" _rl_tools_fetch_name_lower)
+        string(TOUPPER "${_rl_tools_fetch_name}" _rl_tools_fetch_name_upper)
+        if(NOT EXISTS "${FETCHCONTENT_BASE_DIR}/${_rl_tools_fetch_name_lower}-src" AND NOT DEFINED FETCHCONTENT_SOURCE_DIR_${_rl_tools_fetch_name_upper})
+            message(STATUS "Fetching ${_rl_tools_fetch_name} (this can take a while)")
+        endif()
+    endforeach()
     set(_rl_tools_prev_log_level ${CMAKE_MESSAGE_LOG_LEVEL})
     set(CMAKE_MESSAGE_LOG_LEVEL ERROR)
     # the cmake_minimum_required compatibility deprecation only respects the CACHE variable
