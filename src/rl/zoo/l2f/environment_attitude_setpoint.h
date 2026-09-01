@@ -96,8 +96,15 @@ namespace rl_tools::rl::zoo::l2f{
             0.05,  // accelerometer specific force, m/s^2
         };
         static constexpr typename PARAMETERS_TYPE::IMU imu = {
-            // {0.02, 60.0, 0.005} // gyro bias: init half-range, OU tau, OU steady-state sigma
-            {0, 0, 0}
+            {{ // accelerometer error (the Mahony filter consumes these measurements)
+                {0, 0.05}, // noise: mean, std [m/s^2]
+                {0, 0, 0} // bias: init_max, tau, sigma
+            }},
+            {{ // gyro error
+                {0, 0.005}, // noise: mean, std [rad/s]
+                // {0.02, 60.0, 0.000913} // bias: init half-range, OU tau, increment density
+                {0, 0, 0}
+            }}
         };
         static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
             0, // min thrust-to-weight after randomized thrust-curve scaling
@@ -187,7 +194,7 @@ namespace rl_tools::rl::zoo::l2f{
             using STATE_BASE_LA = StateLastAction<StateSpecification<T, TI, STATE_BASE_INNER>>;
             using STATE_BASE_LAA = StateLinearAcceleration<StateSpecification<T, TI, STATE_BASE_LA>>;
             using STATE_BASE_LAH = StateLinearAccelerationHistory<StateLinearAccelerationHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, STATE_BASE_LAA>>;
-            using STATE_BASE_GB = StateGyroBias<StateGyroBiasSpecification<T, TI, STATE_BASE_LAH>>;
+            using STATE_BASE_GB = StateIMU<T, TI, STATE_BASE_LAH>;
             using STATE_BASE = StateMahony<StateMahonySpecification<T, TI, STATE_BASE_GB>>;
             using STATE_WITH_RANDOM_FORCE = StateRandomForce<StateSpecification<T, TI, STATE_BASE>>;
             using STATE_WITH_ROTORS = StateRotorsHistory<StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, STATE_WITH_RANDOM_FORCE>>;

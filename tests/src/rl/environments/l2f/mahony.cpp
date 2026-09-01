@@ -24,8 +24,8 @@ struct STATIC_PARAMETERS {
 
     using STATE_BASE      = l2f::StateBase<l2f::StateSpecification<T, TI>>;
     using STATE_LAA       = l2f::StateLinearAcceleration<l2f::StateSpecification<T, TI, STATE_BASE>>;
-    using STATE_GYRO_BIAS = l2f::StateGyroBias<l2f::StateGyroBiasSpecification<T, TI, STATE_LAA>>;
-    using STATE_MAHONY    = l2f::StateMahony<l2f::StateMahonySpecification<T, TI, STATE_GYRO_BIAS>>;
+    using STATE_IMU       = l2f::StateIMU<T, TI, STATE_LAA>;
+    using STATE_MAHONY    = l2f::StateMahony<l2f::StateMahonySpecification<T, TI, STATE_IMU>>;
     using STATE_TYPE      = l2f::StateRotorsHistory<l2f::StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, l2f::StateRandomForce<l2f::StateSpecification<T, TI, STATE_MAHONY>>>>;
 
     using OBSERVATION_TYPE =
@@ -84,8 +84,8 @@ static void world_z_from_q(const ENV::State& state, T world_z[3]){
 TEST(L2F_MAHONY, STATE_DIM){
     using STATE = STATIC_PARAMETERS::STATE_MAHONY;
     static_assert(STATE::REQUIRES_INTEGRATION == false);
-    static_assert(STATE::DIM == 7 + STATIC_PARAMETERS::STATE_GYRO_BIAS::DIM);
-    static_assert(STATIC_PARAMETERS::STATE_GYRO_BIAS::DIM == 3 + STATIC_PARAMETERS::STATE_LAA::DIM);
+    static_assert(STATE::DIM == 7 + STATIC_PARAMETERS::STATE_IMU::DIM);
+    static_assert(STATIC_PARAMETERS::STATE_IMU::DIM == 12 + STATIC_PARAMETERS::STATE_LAA::DIM); // accelerometer(3)+bias(3) + gyro(3)+bias(3)
     SUCCEED();
 }
 
@@ -105,21 +105,21 @@ TEST(L2F_MAHONY, INITIAL_STATE_IDENTITY){
     for (TI i = 0; i < 3; i++) EXPECT_DOUBLE_EQ(state.gyro_bias[i], 0.0);
 }
 
-TEST(L2F_MAHONY, GYRO_BIAS_SAMPLES_UNIFORM_AND_HOLDS_WITH_ZERO_TAU){
+TEST(L2F_MAHONY, GYRO_BIAS_SAMPLES_UNIFORM_AND_HOLDS_WITH_ZERO_SIGMA){
     DEVICE device; RNG rng;
     rlt::init(device); rlt::malloc(device, rng); rlt::init(device, rng, (TI)7);
     ENV env; ENV::Parameters params; ENV::State state, next_state;
     rlt::malloc(device, env); rlt::init(device, env);
     rlt::sample_initial_parameters(device, env, params, rng);
-    params.imu.gyro_bias.init_max = 0.02;
-    params.imu.gyro_bias.tau = 0;
-    params.imu.gyro_bias.sigma = 10.0;
+    params.imu.gyro.error.bias.init_max = 0.02;
+    params.imu.gyro.error.bias.tau = 0; // tau <= 0: random walk, but sigma == 0 holds the turn-on bias
+    params.imu.gyro.error.bias.sigma = 0;
     rlt::sample_initial_state(device, env, params, state, rng);
 
     T sampled_bias[3];
     for(TI i = 0; i < 3; i++){
         sampled_bias[i] = state.gyro_bias[i];
-        EXPECT_LE(std::abs(sampled_bias[i]), params.imu.gyro_bias.init_max);
+        EXPECT_LE(std::abs(sampled_bias[i]), params.imu.gyro.error.bias.init_max);
     }
 
     rlt::Matrix<rlt::matrix::Specification<T, TI, 1, ENV::ACTION_DIM>> action;
@@ -252,9 +252,9 @@ TEST(L2F_MAHONY, NO_BIAS_HOVER_CONVERGENCE){
     ENV env; ENV::Parameters params; ENV::State state, next_state;
     rlt::malloc(device, env); rlt::init(device, env);
     rlt::sample_initial_parameters(device, env, params, rng);
-    params.imu.gyro_bias.init_max = 0;
-    params.imu.gyro_bias.tau = 0;
-    params.imu.gyro_bias.sigma = 0;
+    params.imu.gyro.error.bias.init_max = 0;
+    params.imu.gyro.error.bias.tau = 0;
+    params.imu.gyro.error.bias.sigma = 0;
     rlt::initial_state(device, env, params, state);
     state.orientation[0] = 1; state.orientation[1] = 0; state.orientation[2] = 0; state.orientation[3] = 0;
     for (TI i = 0; i < 3; i++) { state.linear_velocity[i] = 0; state.angular_velocity[i] = 0; state.position[i] = 0; }
@@ -287,9 +287,9 @@ TEST(L2F_MAHONY, BIAS_REJECTION){
     ENV env; ENV::Parameters params; ENV::State state, next_state;
     rlt::malloc(device, env); rlt::init(device, env);
     rlt::sample_initial_parameters(device, env, params, rng);
-    params.imu.gyro_bias.init_max = 0;
-    params.imu.gyro_bias.tau = 0;     // hold (constant bias)
-    params.imu.gyro_bias.sigma = 0;
+    params.imu.gyro.error.bias.init_max = 0;
+    params.imu.gyro.error.bias.tau = 0;     // hold (constant bias)
+    params.imu.gyro.error.bias.sigma = 0;
     params.mdp.observation_noise.angular_velocity = 0;
     params.mdp.observation_noise.imu_acceleration = 0;
     rlt::initial_state(device, env, params, state);
@@ -329,9 +329,9 @@ TEST(L2F_MAHONY, PURE_YAW_BIAS_DOES_NOT_MOVE_WORLD_Z){
     ENV env; ENV::Parameters params; ENV::State state, next_state;
     rlt::malloc(device, env); rlt::init(device, env);
     rlt::sample_initial_parameters(device, env, params, rng);
-    params.imu.gyro_bias.init_max = 0;
-    params.imu.gyro_bias.tau = 0;
-    params.imu.gyro_bias.sigma = 0;
+    params.imu.gyro.error.bias.init_max = 0;
+    params.imu.gyro.error.bias.tau = 0;
+    params.imu.gyro.error.bias.sigma = 0;
     params.mdp.observation_noise.angular_velocity = 0;
     params.mdp.observation_noise.imu_acceleration = 0;
     rlt::initial_state(device, env, params, state);

@@ -82,8 +82,7 @@ namespace rl_tools::rl::environments::hyperdrone::presets {
             static constexpr TI ACTION_HISTORY_LENGTH = 1;
             static constexpr TI CLOSED_FORM = false;
             using STATE_BASE = l2f::StateBase<l2f::StateSpecification<T, TI>>;
-            using STATE_GYRO_BIAS = l2f::StateGyroBias<l2f::StateGyroBiasSpecification<T, TI, STATE_BASE>>;
-            using STATE_IMU = l2f::StateIMU<l2f::StateIMUSpecification<T, TI, STATE_GYRO_BIAS>>;
+            using STATE_IMU = l2f::StateIMU<T, TI, STATE_BASE>;
             using STATE_PLAIN = l2f::StateRotorsHistory<l2f::StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, l2f::StateRandomForce<l2f::StateSpecification<T, TI, l2f::StateLastAction<l2f::StateSpecification<T, TI, STATE_IMU>>>>>>;
             using STATE_TYPE = l2f::StateRenderRotorPhase<l2f::StateSpecification<T, TI, STATE_PLAIN>>;
             using OBSERVATION_TYPE = l2f::observation::Position<l2f::observation::PositionSpecification<T, TI,
@@ -111,8 +110,17 @@ namespace rl_tools::rl::environments::hyperdrone::presets {
             // MEMS-class per-sample white noise at IMU_RATE (noise density * sqrt(rate))
             static constexpr T GYRO_NOISE_STD = 0.07;           // rad/s
             static constexpr T ACCELEROMETER_NOISE_STD = 0.28;  // m/s^2
-            static constexpr typename PARAMETERS_TYPE::MDP mdp = {init, REWARD_FUNCTION{}, {0, 0, 0, GYRO_NOISE_STD, ACCELEROMETER_NOISE_STD}, {}, {}};
-            static constexpr typename PARAMETERS_TYPE::IMU imu = {{(T)0.02, (T)500, (T)0.01}}; // gyro_bias: init_max [rad/s], tau [s], sigma [rad/s]
+            static constexpr typename PARAMETERS_TYPE::MDP mdp = {init, REWARD_FUNCTION{}, {}, {}, {}};
+            static constexpr typename PARAMETERS_TYPE::IMU imu = {
+                    {{ // accelerometer error
+                            {0, ACCELEROMETER_NOISE_STD},     // noise: mean, std [m/s^2]
+                            {(T)0.2, (T)0, (T)0.001}          // bias: turn-on [m/s^2], tau <= 0: random walk, increment density [m/s^2/sqrt(s)]
+                    }},
+                    {{ // gyro error
+                            {0, GYRO_NOISE_STD},              // noise: mean, std [rad/s]
+                            {(T)0.02, (T)0, (T)0.0006}        // bias: turn-on [rad/s], tau <= 0: random walk, increment density [rad/s/sqrt(s)]
+                    }}
+            };
             static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = {{0, 0}, {0, 0}};
             static constexpr PARAMETERS_TYPE PARAMETER_VALUES = {{{dynamics, integration, mdp}, imu}, disturbances};
             static constexpr T STATE_LIMIT_POSITION_X = 100000;

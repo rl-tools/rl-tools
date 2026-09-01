@@ -263,12 +263,23 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC, typename T>
     std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const rl::environments::l2f::parameters::IMU<T>& parameters) {
+        auto error_model_json = [](const auto& error_model){
+            std::string json_string = "{";
+            json_string += "\"noise\": {";
+            json_string += "\"mean\": " + std::to_string(error_model.noise.mean) + ", ";
+            json_string += "\"std\": " + std::to_string(error_model.noise.std);
+            json_string += "}, ";
+            json_string += "\"bias\": {";
+            json_string += "\"init_max\": " + std::to_string(error_model.bias.init_max) + ", ";
+            json_string += "\"tau\": " + std::to_string(error_model.bias.tau) + ", ";
+            json_string += "\"sigma\": " + std::to_string(error_model.bias.sigma);
+            json_string += "}";
+            json_string += "}";
+            return json_string;
+        };
         std::string json_string = "{";
-        json_string += "\"gyro_bias\": {";
-        json_string += "\"init_max\": " + std::to_string(parameters.gyro_bias.init_max) + ", ";
-        json_string += "\"tau\": " + std::to_string(parameters.gyro_bias.tau) + ", ";
-        json_string += "\"sigma\": " + std::to_string(parameters.gyro_bias.sigma);
-        json_string += "}";
+        json_string += "\"accelerometer\": {\"error\": " + error_model_json(parameters.accelerometer.error) + "}, ";
+        json_string += "\"gyro\": {\"error\": " + error_model_json(parameters.gyro.error) + "}";
         json_string += "}";
         return json_string;
     }
@@ -575,10 +586,19 @@ namespace rl_tools{
         return json_string;
     }
     template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
-    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, const rl::environments::l2f::StateGyroBias<STATE_SPEC>& state, bool top_level=true){
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, const rl::environments::l2f::StateGyro<STATE_SPEC>& state, bool top_level=true){
         using TI = typename DEVICE::index_t;
         std::string json_string = top_level ? "{" : "";
         json_string += json(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), false) + ", ";
+        json_string += "\"gyro\": [";
+        for (TI i = 0; i < 3; i++){
+            json_string += std::to_string(state.gyro[i]);
+            if (i < 2) {
+                json_string += ", ";
+            }
+        }
+        json_string += "]";
+        json_string += ", ";
         json_string += "\"gyro_bias\": [";
         for (TI i = 0; i < 3; i++){
             json_string += std::to_string(state.gyro_bias[i]);
@@ -591,21 +611,22 @@ namespace rl_tools{
         return json_string;
     }
     template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
-    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, const rl::environments::l2f::StateIMU<STATE_SPEC>& state, bool top_level=true){
+    std::string json(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, const rl::environments::l2f::StateAccelerometer<STATE_SPEC>& state, bool top_level=true){
         using TI = typename DEVICE::index_t;
         std::string json_string = top_level ? "{" : "";
         json_string += json(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), false) + ", ";
-        json_string += "\"imu_accelerometer\": [";
+        json_string += "\"accelerometer\": [";
         for (TI i = 0; i < 3; i++){
-            json_string += std::to_string(state.imu_accelerometer[i]);
+            json_string += std::to_string(state.accelerometer[i]);
             if (i < 2) {
                 json_string += ", ";
             }
         }
-        json_string += "], ";
-        json_string += "\"imu_gyroscope\": [";
+        json_string += "]";
+        json_string += ", ";
+        json_string += "\"accelerometer_bias\": [";
         for (TI i = 0; i < 3; i++){
-            json_string += std::to_string(state.imu_gyroscope[i]);
+            json_string += std::to_string(state.accelerometer_bias[i]);
             if (i < 2) {
                 json_string += ", ";
             }
@@ -857,10 +878,17 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC, typename T>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::IMU<T>& parameters) {
-        const auto& gb_json = json_object["gyro_bias"];
-        parameters.gyro_bias.init_max = gb_json.value("init_max", (T)0);
-        parameters.gyro_bias.tau = gb_json.value("tau", (T)0);
-        parameters.gyro_bias.sigma = gb_json.value("sigma", (T)0);
+        auto error_model_from_json = [](const nlohmann::json& error_model_json, auto& error_model){
+            const auto noise_json = error_model_json.value("noise", nlohmann::json::object());
+            error_model.noise.mean = noise_json.value("mean", (T)0);
+            error_model.noise.std = noise_json.value("std", (T)0);
+            const auto bias_json = error_model_json.value("bias", nlohmann::json::object());
+            error_model.bias.init_max = bias_json.value("init_max", (T)0);
+            error_model.bias.tau = bias_json.value("tau", (T)0);
+            error_model.bias.sigma = bias_json.value("sigma", (T)0);
+        };
+        error_model_from_json(json_object.value("accelerometer", nlohmann::json::object()).value("error", nlohmann::json::object()), parameters.accelerometer.error);
+        error_model_from_json(json_object.value("gyro", nlohmann::json::object()).value("error", nlohmann::json::object()), parameters.gyro.error);
     }
     template <typename DEVICE, typename SPEC, typename T>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::CTBRController<T>& parameters) {
@@ -980,9 +1008,7 @@ namespace rl_tools{
             from_json(device, env, json_object["imu"], parameters.imu);
         }
         else {
-            parameters.imu.gyro_bias.init_max = 0;
-            parameters.imu.gyro_bias.tau = 0;
-            parameters.imu.gyro_bias.sigma = 0;
+            parameters.imu = {};
         }
     }
     template <typename DEVICE, typename SPEC, typename PARAM_SPEC>
@@ -1109,20 +1135,21 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, nlohmann::json json_object, rl::environments::l2f::StateGyroBias<STATE_SPEC>& state){
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, nlohmann::json json_object, rl::environments::l2f::StateGyro<STATE_SPEC>& state){
         using TI = typename DEVICE::index_t;
         from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
         for (TI i = 0; i < 3; i++){
+            state.gyro[i] = json_object["gyro"][i];
             state.gyro_bias[i] = json_object["gyro_bias"][i];
         }
     }
     template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
-    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, nlohmann::json json_object, rl::environments::l2f::StateIMU<STATE_SPEC>& state){
+    void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, nlohmann::json json_object, rl::environments::l2f::StateAccelerometer<STATE_SPEC>& state){
         using TI = typename DEVICE::index_t;
         from_json(device, env, parameters, json_object, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state));
         for (TI i = 0; i < 3; i++){
-            state.imu_accelerometer[i] = json_object["imu_accelerometer"][i];
-            state.imu_gyroscope[i] = json_object["imu_gyroscope"][i];
+            state.accelerometer[i] = json_object["accelerometer"][i];
+            state.accelerometer_bias[i] = json_object["accelerometer_bias"][i];
         }
     }
     template <typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>

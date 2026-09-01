@@ -48,7 +48,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::visual_inertial_localiz
         static constexpr bool VALUE = false;
     };
     template <typename STATE>
-    struct HasIMUMeasurement<STATE, utils::typing::void_t<decltype(STATE{}.imu_accelerometer)>> {
+    struct HasIMUMeasurement<STATE, utils::typing::void_t<decltype(STATE{}.accelerometer), decltype(STATE{}.gyro)>> {
         static constexpr bool VALUE = true;
     };
 

@@ -200,8 +200,8 @@ namespace rl_tools {
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
             const auto& state = get_ref(device, states, instance_i);
             for (TI dim_i = 0; dim_i < 3; dim_i++) {
-                set(device, observations, (T)state.imu_accelerometer[dim_i], instance_i, dim_i);
-                set(device, observations, (T)state.imu_gyroscope[dim_i], instance_i, 3 + dim_i);
+                set(device, observations, (T)state.accelerometer[dim_i], instance_i, dim_i);
+                set(device, observations, (T)state.gyro[dim_i], instance_i, 3 + dim_i);
             }
             set(device, observations, (T)frame_age / (T)WORLD::FRAME_STRIDE, instance_i, 6);
             set(device, observations, frame_age == 0 ? (T)1 : (T)0, instance_i, 7);
