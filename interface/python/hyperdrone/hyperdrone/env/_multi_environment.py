@@ -24,8 +24,9 @@ import numpy as np
 from .. import conta, jit
 
 BACKENDS = ("OPTIX", "METAL", "VULKAN", "WEBGPU", "GENERIC")
-PRESETS = {"crazyflie": 0, "x500_fpv": 1}
-TASKS = {None: 0, "target_frame": 1, "moving_gate": 2}
+PRESETS = {"crazyflie": 0, "x500_fpv": 1, "x500_fpv_imu": 2}
+SELF_VISIBLE_PRESETS = ("x500_fpv", "x500_fpv_imu")
+TASKS = {None: 0, "target_frame": 1, "moving_gate": 2, "visual_inertial_localization": 3}
 
 
 def backend():
@@ -73,11 +74,19 @@ class EnvConfig:
             raise ValueError(f"hyperdrone: unknown shading {self.shading!r} (one of {sorted(_SHADING)})")
         if self.n_agents < 1:
             raise ValueError("hyperdrone: n_agents must be >= 1")
-        if self.n_agents > 1 and self.preset != "x500_fpv":
+        if self.n_agents > 1 and self.preset not in SELF_VISIBLE_PRESETS:
             raise ValueError(
                 "hyperdrone: multi-agent needs a SELF_VISIBLE preset (agents seeing each "
                 "other needs geometry to see) — use preset='x500_fpv'"
             )
+        if self.task == "visual_inertial_localization":
+            if self.preset != "x500_fpv_imu":
+                raise ValueError(
+                    "hyperdrone: task 'visual_inertial_localization' needs an IMU in the "
+                    "dynamics state chain — use preset='x500_fpv_imu'"
+                )
+            if self.n_agents > 1:
+                raise ValueError("hyperdrone: task 'visual_inertial_localization' is single-agent")
         if self.spec_header is not None:
             defaults = EnvConfig()
             if (self.preset, self.task, self.n_agents) != (defaults.preset, defaults.task, defaults.n_agents):
@@ -87,6 +96,12 @@ class EnvConfig:
                 )
             if not os.path.isfile(self.spec_header):
                 raise ValueError(f"hyperdrone: spec_header not found: {self.spec_header}")
+
+    @property
+    def self_visible(self):
+        """Whether the drone's own body is rendered into its cameras (needs drone_asset=);
+        the visual_inertial_localization benchmark flies without self-occlusion."""
+        return self.preset in SELF_VISIBLE_PRESETS and self.task != "visual_inertial_localization"
 
     def defines(self):
         values = {
@@ -164,10 +179,13 @@ class _Config(ctypes.Structure):
         ("observation_dim_privileged", ctypes.c_uint32),
         ("action_dim", ctypes.c_uint32),
         ("episode_step_limit", ctypes.c_uint32),
+        ("observation_dim_imu", ctypes.c_uint32),
+        ("frame_stride", ctypes.c_uint32),
+        ("dt", ctypes.c_float),
     ]
 
 
-_IFACE_VERSION = 3
+_IFACE_VERSION = 4
 
 
 def _load(config):
@@ -190,6 +208,7 @@ def _load(config):
     library.hyperdrone_env_render.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint8)]
     library.hyperdrone_env_observe.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_float)]
     library.hyperdrone_env_observe_privileged.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_float)]
+    library.hyperdrone_env_observe_imu.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_float)]
     library.hyperdrone_env_step.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_float)]
     library.hyperdrone_env_rewards.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_float)]
     library.hyperdrone_env_terminated.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint8)]
@@ -280,16 +299,21 @@ class MultiEnvironment:
     scenes: a directory of .glb scenes (sorted corpus), or a reference / sequence of
     references — .glb paths, "conta:HASH" strings, or conta store manifest entries
     {"description": ..., "hash": ...}; a reference list is the corpus in list order.
-    drone_asset: body/prop_* GLB for SELF_VISIBLE presets (required for preset='x500_fpv').
+    drone_asset: body/prop_* GLB for SELF_VISIBLE presets (required when config.self_visible).
     gate_asset: gate GLB for the moving_gate task (required for task='moving_gate').
     Both assets accept conta references too.
+
+    Tasks with an IMU stream (task='visual_inertial_localization') add observe_imu() — the
+    IMU sample of the last step, named by observation_layout_imu — and render a camera frame
+    only every frame_stride steps; their episodes are fixed-length and synchronized, so the
+    reset mask must be all-or-none per environment.
     """
 
     def __init__(self, scenes, config=None, seed=0, drone_asset=None, gate_asset=None):
         self.config = config if config is not None else EnvConfig()
-        if self.config.preset == "x500_fpv" and drone_asset is None:
+        if self.config.self_visible and drone_asset is None:
             raise ValueError(
-                "hyperdrone: preset 'x500_fpv' is SELF_VISIBLE and needs drone_asset= "
+                f"hyperdrone: preset {self.config.preset!r} is SELF_VISIBLE and needs drone_asset= "
                 "(a body/prop_* GLB, e.g. an x500 assembly)"
             )
         if self.config.task == "moving_gate" and gate_asset is None:
@@ -302,8 +326,8 @@ class MultiEnvironment:
         native = _Config()
         self._library.hyperdrone_env_config(self._handle, ctypes.byref(native))
         _validate(self.config, native)
-        for name, _ in _Config._fields_:
-            setattr(self, name, int(getattr(native, name)))
+        for name, ctype in _Config._fields_:
+            setattr(self, name, (float if ctype is ctypes.c_float else int)(getattr(native, name)))
         self.config_string = self._library.hyperdrone_env_config_string().decode()
         self.observation_layout = ObservationLayout.parse(
             self._library.hyperdrone_env_observation_layout(0).decode()
@@ -311,6 +335,11 @@ class MultiEnvironment:
         self.observation_layout_privileged = ObservationLayout.parse(
             self._library.hyperdrone_env_observation_layout(1).decode()
         )
+        self.observation_layout_imu = None
+        if self.observation_dim_imu > 0:
+            self.observation_layout_imu = ObservationLayout.parse(
+                self._library.hyperdrone_env_observation_layout(2).decode()
+            )
         drone_asset_encoded = drone_asset.encode() if drone_asset is not None else b""
         gate_asset_encoded = gate_asset.encode() if gate_asset is not None else b""
         self._library.hyperdrone_env_init(self._handle, "\n".join(scene_references).encode(), drone_asset_encoded, gate_asset_encoded, seed)
@@ -334,10 +363,22 @@ class MultiEnvironment:
     def reset(self, mask=None):
         self._library.hyperdrone_env_reset(self._handle, _uint8_ptr(self._mask(mask)))
 
+    def _check_synchronized(self, reset_mask):
+        if self.config.task != "visual_inertial_localization":
+            return
+        per_environment = reset_mask.reshape(self.num_environments, self.instances_per_environment).astype(bool)
+        if np.any(per_environment.any(axis=1) & ~per_environment.all(axis=1)):
+            raise ValueError(
+                "hyperdrone: task 'visual_inertial_localization' runs fixed-length synchronized "
+                "episodes — the reset mask must be all-or-none per environment"
+            )
+
     def render(self, reset_mask=None):
         if reset_mask is None:
             reset_mask = np.zeros(self.total_instances, dtype=np.uint8)
-        self._library.hyperdrone_env_render(self._handle, _uint8_ptr(self._mask(reset_mask)))
+        reset_mask = self._mask(reset_mask)
+        self._check_synchronized(reset_mask)
+        self._library.hyperdrone_env_render(self._handle, _uint8_ptr(reset_mask))
 
     def observe(self):
         observations = np.empty((self.total_instances, self.observation_dim), dtype=np.float32)
@@ -347,6 +388,14 @@ class MultiEnvironment:
     def observe_privileged(self):
         observations = np.empty((self.total_instances, self.observation_dim_privileged), dtype=np.float32)
         self._library.hyperdrone_env_observe_privileged(self._handle, _float_ptr(observations))
+        return observations
+
+    def observe_imu(self):
+        """The IMU sample of the last step: (total, observation_dim_imu), named by observation_layout_imu."""
+        if self.observation_dim_imu == 0:
+            raise ValueError(f"hyperdrone: this configuration has no IMU observation (task={self.config.task!r})")
+        observations = np.empty((self.total_instances, self.observation_dim_imu), dtype=np.float32)
+        self._library.hyperdrone_env_observe_imu(self._handle, _float_ptr(observations))
         return observations
 
     def step(self, actions):

@@ -95,6 +95,14 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::visual_inertial_localiz
             static constexpr TI DIM = 7;
             using SHAPE = tensor::Shape<TI, DIM>;
         };
+        // privileged contribution: the current waypoint in the dynamics frame, so an external
+        // autopilot can be fed the same target as the in-tree one
+        static constexpr TI WAYPOINT_DIM = 3;
+        struct ObservationPrivileged {
+            static constexpr TI DIM = NEXT_WORLD::OBSERVATION_DIM_PRIVILEGED + WAYPOINT_DIM;
+            using SHAPE = tensor::Shape<TI, DIM>;
+        };
+        static constexpr TI OBSERVATION_DIM_PRIVILEGED = ObservationPrivileged::DIM;
 
         TI task_step = 0; // env-step counter driving the camera stride phase (history_step only counts rendered frames)
     };

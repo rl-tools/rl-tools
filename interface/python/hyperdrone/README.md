@@ -165,8 +165,9 @@ list order and partitioned across environments; conta references (scenes, `drone
 cache, so a config pins the exact corpus on any machine. Configuration follows the C++
 extension ladder:
 `preset=` names the platform (`"crazyflie"`, `"x500_fpv"` — SELF_VISIBLE, pass a
-body/prop_* GLB via `drone_asset=`), `task=` names the wrapper (`"target_frame"`,
-`"moving_gate"`), `n_agents=` enables multi-agent, and `EnvConfig(spec_header=...)` pins
+body/prop_* GLB via `drone_asset=` — and `"x500_fpv_imu"`, the same platform stepping at
+IMU rate), `task=` names the wrapper (`"target_frame"`, `"moving_gate"`,
+`"visual_inertial_localization"`), `n_agents=` enables multi-agent, and `EnvConfig(spec_header=...)` pins
 an arbitrary C++ specification (a header defining `hyperdrone_env_user::WORLD`, hashed
 into the JIT key). A spec header can go beyond constants to a full user-authored task
 wrapper — verb overloads registering and moving entities, compiled reward, termination:
@@ -178,6 +179,33 @@ Manual composition of `Sim` and `Renderer` (no MDP — rendering research, data
 generation) remains first-class: see `python -m hyperdrone.examples.drone_flythrough`
 for the wiring. `FreeSpaceSampler` lives in `hyperdrone.render` — it rides the
 renderer's collision probes and is deterministic given a seed.
+
+### Visual-inertial localization
+
+`task="visual_inertial_localization"` on `preset="x500_fpv_imu"` is the localization
+benchmark: fixed-length synchronized episodes stepping at IMU rate (`env.dt`), a camera
+frame every `env.frame_stride` steps, and the IMU sample of each step from
+`env.observe_imu()` (named by `env.observation_layout_imu`: accelerometer, gyroscope,
+frame age, new-frame flag). The privileged observation carries the current `waypoint` so
+an external autopilot can fly the route; the drone's own body is not rendered, matching the
+C++ benchmark harness. Resets must be all-or-none per environment.
+
+```python
+config = EnvConfig(instances=2, cam_width=160, cam_height=120, preset="x500_fpv_imu", task="visual_inertial_localization")
+env = MultiEnvironment(scenes, config=config, seed=0)
+env.reset(); env.render(np.ones(env.total_instances, dtype=np.uint8))
+for step in range(env.episode_step_limit):
+    if step > 0: env.render()
+    if step % env.frame_stride == 0:
+        frames = env.frames()          # the estimator's camera frame
+    env.step(actions)
+    imu = env.observe_imu()            # the estimator's IMU sample for this step
+    truth = env.observe_privileged()   # position / rotation matrix / velocities / waypoint
+```
+
+`python -m hyperdrone.examples.visual_inertial_localization` flies the route with the
+RAPTOR policy (`pip install foundation-policy`, part of `hyperdrone[examples]`) and scores
+IMU dead reckoning against the ground truth, the same protocol as the C++ demo.
 
 ### Gymnasium
 
