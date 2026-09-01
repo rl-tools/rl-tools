@@ -81,7 +81,9 @@ jobs:
           -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
           -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
           -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-          -DRL_TOOLS_ENABLE_TESTS=ON
+          -DRL_TOOLS_RL_ENVIRONMENTS_DISABLE_MUJOCO=ON
+          -DRL_TOOLS_DISABLE_EXPERIMENTAL=ON
+          -DRL_TOOLS_DISABLE_TAR=ON
           -S ${{ github.workspace }}
 
       - name: Build
@@ -137,10 +139,8 @@ jobs:
         run: >
           cmake -S . -B build-raytracing-${{ matrix.backend }}
           -DCMAKE_BUILD_TYPE=Release
-          -DRL_TOOLS_ENABLE_TARGETS=ON
-          -DRL_TOOLS_ENABLE_TESTS=ON
           -DRL_TOOLS_BACKEND_DISABLE_CUDA=ON
-          -DRL_TOOLS_RENDERING_ENABLE_RAYTRACING=ON
+          -DRL_TOOLS_RL_ENVIRONMENTS_DISABLE_MUJOCO=ON
           -DRL_TOOLS_RENDERING_RAYTRACING_BACKEND=${{ matrix.cmake_backend }}
           -DRL_TOOLS_REQUIRE_RAYTRACING_GOLDENS=OFF
 

@@ -37,8 +37,12 @@ add_library(RLtools::Test ALIAS rl_tools_test)
 
 
 
-if(RL_TOOLS_TESTS_ENABLE_EIGEN)
-find_package(Eigen3 REQUIRED)
+if(NOT RL_TOOLS_TESTS_DISABLE_EIGEN)
+    find_package(Eigen3 QUIET)
+    if(Eigen3_FOUND)
+        message(STATUS "Found Eigen3 ${Eigen3_VERSION} at ${Eigen3_DIR}")
+        set(RL_TOOLS_TESTS_ENABLE_EIGEN ON)
+    endif()
 endif()
 if(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
 #find_package(Boost REQUIRED)
