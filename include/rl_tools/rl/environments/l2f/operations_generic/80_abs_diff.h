@@ -50,9 +50,16 @@ namespace rl_tools{
     template<typename DEVICE, typename T_A, typename T_B>
     RL_TOOLS_FUNCTION_PLACEMENT T_A abs_diff(DEVICE& device, const rl::environments::l2f::parameters::IMU<T_A>& a, const rl::environments::l2f::parameters::IMU<T_B>& b) {
         T_A acc = 0;
-        acc += math::abs(device.math, a.gyro_bias.init_max - b.gyro_bias.init_max);
-        acc += math::abs(device.math, a.gyro_bias.tau - b.gyro_bias.tau);
-        acc += math::abs(device.math, a.gyro_bias.sigma - b.gyro_bias.sigma);
+        acc += math::abs(device.math, a.accelerometer.error.noise.mean - b.accelerometer.error.noise.mean);
+        acc += math::abs(device.math, a.accelerometer.error.noise.std - b.accelerometer.error.noise.std);
+        acc += math::abs(device.math, a.accelerometer.error.bias.init_max - b.accelerometer.error.bias.init_max);
+        acc += math::abs(device.math, a.accelerometer.error.bias.tau - b.accelerometer.error.bias.tau);
+        acc += math::abs(device.math, a.accelerometer.error.bias.sigma - b.accelerometer.error.bias.sigma);
+        acc += math::abs(device.math, a.gyro.error.noise.mean - b.gyro.error.noise.mean);
+        acc += math::abs(device.math, a.gyro.error.noise.std - b.gyro.error.noise.std);
+        acc += math::abs(device.math, a.gyro.error.bias.init_max - b.gyro.error.bias.init_max);
+        acc += math::abs(device.math, a.gyro.error.bias.tau - b.gyro.error.bias.tau);
+        acc += math::abs(device.math, a.gyro.error.bias.sigma - b.gyro.error.bias.sigma);
         return acc;
     }
     template<typename DEVICE, typename T_A, typename T_B>

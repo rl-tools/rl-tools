@@ -44,6 +44,15 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
             rendering_raytracing_stb
     )
     gtest_discover_tests(test_rl_environments_hyperdrone_moving_gate)
+    add_executable(test_rl_environments_hyperdrone_visual_inertial_localization visual_inertial_localization.cpp)
+    target_link_libraries(test_rl_environments_hyperdrone_visual_inertial_localization
+        PRIVATE
+            RLtools::RLtools
+            RLtools::Test
+            rendering_raytracing_backend
+            rendering_raytracing_stb
+    )
+    gtest_discover_tests(test_rl_environments_hyperdrone_visual_inertial_localization)
     add_executable(test_rl_environments_hyperdrone_segmentation_determinism segmentation_determinism.cpp)
     target_link_libraries(test_rl_environments_hyperdrone_segmentation_determinism
         PRIVATE

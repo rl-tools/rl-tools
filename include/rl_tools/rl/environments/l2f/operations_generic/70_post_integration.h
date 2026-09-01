@@ -59,56 +59,82 @@ namespace rl_tools::rl::environments::l2f{
             next_state.linear_acceleration[state_i] = (next_state.linear_velocity[state_i] - state.linear_velocity[state_i])/parameters.integration.dt;
         }
     }
-    template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateGyroBias<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateGyroBias<STATE_SPEC>& next_state, RNG& rng) {
+    // exact discretization of db = -b/tau dt + sigma dW: OU for finite tau, pure random walk
+    // for tau <= 0 (infinite correlation time), constant bias for sigma == 0
+    template<typename DEVICE, typename T, typename PROCESS, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void bias_process_step(DEVICE& device, const PROCESS& process, T dt, const T bias[3], T next_bias[3], RNG& rng) {
         typename DEVICE::SPEC::RANDOM random_dev;
-        using T = typename STATE_SPEC::T;
         using TI = typename DEVICE::index_t;
-        post_integration(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(next_state), rng);
-        T tau = parameters.imu.gyro_bias.tau;
-        T sigma = parameters.imu.gyro_bias.sigma;
-        T dt = parameters.integration.dt;
-        if(tau > 0){
-            T alpha = math::exp(device.math, -dt / tau);
-            T sigma_d = sigma * math::sqrt(device.math, (T)1 - alpha * alpha);
+        if(process.sigma != 0){
+            T alpha, sigma_discrete;
+            if(process.tau > 0){
+                alpha = math::exp(device.math, -dt / process.tau);
+                sigma_discrete = process.sigma * math::sqrt(device.math, process.tau * ((T)1 - alpha * alpha) / (T)2);
+            }
+            else{
+                alpha = 1;
+                sigma_discrete = process.sigma * math::sqrt(device.math, dt);
+            }
             for(TI i = 0; i < 3; i++){
                 T noise = random::normal_distribution::sample(random_dev, (T)0, (T)1, rng);
-                next_state.gyro_bias[i] = alpha * state.gyro_bias[i] + sigma_d * noise;
+                next_bias[i] = alpha * bias[i] + sigma_discrete * noise;
             }
         }
         else{
             for(TI i = 0; i < 3; i++){
-                next_state.gyro_bias[i] = state.gyro_bias[i];
+                next_bias[i] = bias[i];
             }
         }
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateMahony<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateMahony<STATE_SPEC>& next_state, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateGyro<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateGyro<STATE_SPEC>& next_state, RNG& rng) {
         typename DEVICE::SPEC::RANDOM random_dev;
         using T = typename STATE_SPEC::T;
         using TI = typename DEVICE::index_t;
-        using STATE = StateMahony<STATE_SPEC>;
         post_integration(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(next_state), rng);
-        T dt = parameters.integration.dt;
-        T gyro_meas[3];
+        bias_process_step(device, parameters.imu.gyro.error.bias, parameters.integration.dt, state.gyro_bias, next_state.gyro_bias, rng);
         for(TI i = 0; i < 3; i++){
-            T noise = random::normal_distribution::sample(random_dev, (T)0, parameters.mdp.observation_noise.angular_velocity, rng);
-            gyro_meas[i] = next_state.angular_velocity[i] + next_state.gyro_bias[i] + noise;
+            T noise = random::normal_distribution::sample(random_dev, parameters.imu.gyro.error.noise.mean, parameters.imu.gyro.error.noise.std, rng);
+            next_state.gyro[i] = next_state.angular_velocity[i] + next_state.gyro_bias[i] + noise;
         }
+    }
+    template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateAccelerometer<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateAccelerometer<STATE_SPEC>& next_state, RNG& rng) {
+        typename DEVICE::SPEC::RANDOM random_dev;
+        using T = typename STATE_SPEC::T;
+        using TI = typename DEVICE::index_t;
+        post_integration(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(next_state), rng);
+        bias_process_step(device, parameters.imu.accelerometer.error.bias, parameters.integration.dt, state.accelerometer_bias, next_state.accelerometer_bias, rng);
         T conjugate_orientation[4];
         conjugate_orientation[0] =  next_state.orientation[0];
         conjugate_orientation[1] = -next_state.orientation[1];
         conjugate_orientation[2] = -next_state.orientation[2];
         conjugate_orientation[3] = -next_state.orientation[3];
-        T accel_global[3];
-        accel_global[0] = next_state.linear_acceleration[0] - parameters.dynamics.gravity[0];
-        accel_global[1] = next_state.linear_acceleration[1] - parameters.dynamics.gravity[1];
-        accel_global[2] = next_state.linear_acceleration[2] - parameters.dynamics.gravity[2];
-        T accel_body[3];
-        rotate_vector_by_quaternion<DEVICE, T>(conjugate_orientation, accel_global, accel_body);
+        T acceleration_global[3];
+        for(TI dim_i = 0; dim_i < 3; dim_i++){
+            acceleration_global[dim_i] = (next_state.linear_velocity[dim_i] - state.linear_velocity[dim_i]) / parameters.integration.dt - parameters.dynamics.gravity[dim_i];
+        }
+        T acceleration_body[3];
+        rotate_vector_by_quaternion<DEVICE, T>(conjugate_orientation, acceleration_global, acceleration_body);
         for(TI i = 0; i < 3; i++){
-            T noise = random::normal_distribution::sample(random_dev, (T)0, parameters.mdp.observation_noise.imu_acceleration, rng);
-            accel_body[i] += noise;
+            T noise = random::normal_distribution::sample(random_dev, parameters.imu.accelerometer.error.noise.mean, parameters.imu.accelerometer.error.noise.std, rng);
+            next_state.accelerometer[i] = acceleration_body[i] + next_state.accelerometer_bias[i] + noise;
+        }
+    }
+    template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
+    RL_TOOLS_FUNCTION_PLACEMENT void post_integration(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateMahony<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, StateMahony<STATE_SPEC>& next_state, RNG& rng) {
+        using T = typename STATE_SPEC::T;
+        using TI = typename DEVICE::index_t;
+        using STATE = StateMahony<STATE_SPEC>;
+        post_integration(device, env, parameters, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), action, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(next_state), rng);
+        T dt = parameters.integration.dt;
+        // the filter consumes the sensor measurements (StateGyro/StateAccelerometer below in
+        // the chain, already updated by the recursion) — every consumer sees the same sample
+        T gyro_meas[3];
+        T accel_body[3];
+        for(TI i = 0; i < 3; i++){
+            gyro_meas[i] = next_state.gyro[i];
+            accel_body[i] = next_state.accelerometer[i];
         }
         T q0 = state.q_estimate[0];
         T q1 = state.q_estimate[1];

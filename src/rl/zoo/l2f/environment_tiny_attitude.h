@@ -114,7 +114,14 @@ namespace rl_tools::rl::zoo::l2f{
             0.05,   // imu_acceleration (m/s^2) — ~0.5% g accel white noise
         };
         static constexpr typename PARAMETERS_TYPE::IMU imu = {
-            {0.02, 60.0, 0.005} // gyro_bias: turn-on up to ~1 deg/s, OU tau 60s, steady-state sigma 0.3 deg/s
+            {{ // accelerometer error (the Mahony filter consumes these measurements)
+                {0, 0.05}, // noise: mean, std [m/s^2] — ~0.5% g accel white noise
+                {0, 0, 0} // bias: init_max, tau, sigma
+            }},
+            {{ // gyro error
+                {0, 0.005}, // noise: mean, std [rad/s] — ~0.3 deg/s gyro white noise
+                {0.02, 60.0, 0.000913} // bias: turn-on up to ~1 deg/s, OU tau 60s, increment density 0.005*sqrt(2/60) (steady-state sigma 0.3 deg/s)
+            }}
         };
         static constexpr typename PARAMETERS_TYPE::MDP mdp = {
             init,
@@ -172,7 +179,7 @@ namespace rl_tools::rl::zoo::l2f{
             using STATE_BASE_INNER = StateBase<StateSpecification<T, TI>>;
             using STATE_BASE_LA = StateLastAction<StateSpecification<T, TI, STATE_BASE_INNER>>;
             using STATE_BASE_LAA = StateLinearAcceleration<StateSpecification<T, TI, STATE_BASE_LA>>;
-            using STATE_BASE_GB = StateGyroBias<StateGyroBiasSpecification<T, TI, STATE_BASE_LAA>>;
+            using STATE_BASE_GB = StateIMU<T, TI, STATE_BASE_LAA>;
             // Active Mahony filter (default KP=0.4, KI=0.001). Sim-to-real: train with the same
             // filter that runs on the real drone so the policy is robust to its lag/error.
             using STATE_BASE = StateMahony<StateMahonySpecification<T, TI, STATE_BASE_GB>>;
