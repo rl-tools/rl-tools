@@ -2,6 +2,7 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <vector>
 
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/containers/tensor/tensor.h>
@@ -1177,4 +1178,63 @@ TEST(RL_TOOLS_TENSOR_TEST, SQUARED_SUM){
     T squared_sum_matrix = rlt::squared_sum(device, matrix_view);
     std::cout << "Squared sum matrix: " << squared_sum_matrix << std::endl;
     ASSERT_EQ(squared_sum_matrix, squared_sum);
+}
+
+namespace reshape_row_major_test{
+    template <typename SHAPE, typename TI, typename FUNCTION, typename... INDICES>
+    void for_each_row_major(FUNCTION&& function, INDICES... indices){
+        if constexpr(sizeof...(INDICES) == rlt::length(SHAPE{})){
+            function(indices...);
+        }
+        else{
+            for(TI index = 0; index < rlt::get<sizeof...(INDICES)>(SHAPE{}); index++){
+                for_each_row_major<SHAPE, TI>(function, indices..., index);
+            }
+        }
+    }
+    // ground truth: reshape_row_major preserves the row-major linear index of every element over the same memory
+    template <typename OLD_SHAPE, typename OLD_STRIDE, typename NEW_SHAPE>
+    auto mismatches(){
+        using DEVICE = rlt::devices::DefaultCPU;
+        using TI = typename DEVICE::index_t;
+        using T = double;
+        DEVICE device;
+        using SPEC = rlt::tensor::Specification<T, TI, OLD_SHAPE, true, OLD_STRIDE>;
+        std::vector<T> memory(SPEC::SIZE, -1);
+        rlt::Tensor<SPEC> tensor{memory.data()};
+        TI write_index = 0;
+        for_each_row_major<OLD_SHAPE, TI>([&](auto... indices){
+            rlt::set(device, tensor, (T)write_index, indices...);
+            write_index++;
+        });
+        auto reshaped = rlt::reshape_row_major(device, tensor, NEW_SHAPE{});
+        TI read_index = 0;
+        TI result = 0;
+        for_each_row_major<NEW_SHAPE, TI>([&](auto... indices){
+            if(rlt::get(device, reshaped, indices...) != (T)read_index){
+                result++;
+            }
+            read_index++;
+        });
+        return result;
+    }
+}
+
+TEST(RL_TOOLS_TENSOR_TEST, RESHAPE_ROW_MAJOR_LAYOUTS){
+    using TI = rlt::devices::DefaultCPU::index_t;
+    using rlt::tensor::Shape;
+    using rlt::tensor::Stride;
+    namespace test = reshape_row_major_test;
+    EXPECT_EQ((test::mismatches<Shape<TI, 6, 4>, Stride<TI, 4, 1>, Shape<TI, 2, 3, 4>>()), (TI)0) << "dense rank up";
+    EXPECT_EQ((test::mismatches<Shape<TI, 6, 4>, Stride<TI, 4, 1>, Shape<TI, 24>>()), (TI)0) << "dense flatten";
+    EXPECT_EQ((test::mismatches<Shape<TI, 6, 4>, Stride<TI, 4, 1>, Shape<TI, 4, 6>>()), (TI)0) << "dense regroup";
+    EXPECT_EQ((test::mismatches<Shape<TI, 6, 4>, Stride<TI, 12, 3>, Shape<TI, 2, 3, 4>>()), (TI)0) << "element stride 3 rank up";
+    EXPECT_EQ((test::mismatches<Shape<TI, 6, 4>, Stride<TI, 12, 3>, Shape<TI, 24>>()), (TI)0) << "element stride 3 flatten";
+    EXPECT_EQ((test::mismatches<Shape<TI, 8, 1>, Stride<TI, 10, 1>, Shape<TI, 1, 8, 1>>()), (TI)0) << "pitched column slice rank up";
+    EXPECT_EQ((test::mismatches<Shape<TI, 8, 1>, Stride<TI, 10, 1>, Shape<TI, 8>>()), (TI)0) << "pitched column slice flatten";
+    EXPECT_EQ((test::mismatches<Shape<TI, 8, 1>, Stride<TI, 10, 1>, Shape<TI, 2, 4>>()), (TI)0) << "pitched column slice regroup";
+    EXPECT_EQ((test::mismatches<Shape<TI, 4, 6>, Stride<TI, 10, 1>, Shape<TI, 4, 3, 2>>()), (TI)0) << "pitched rows split within row";
+    EXPECT_EQ((test::mismatches<Shape<TI, 4, 6>, Stride<TI, 10, 1>, Shape<TI, 2, 2, 6>>()), (TI)0) << "pitched rows rank up";
+    EXPECT_EQ((test::mismatches<Shape<TI, 12>, Stride<TI, 2>, Shape<TI, 3, 4>>()), (TI)0) << "strided rank one rank up";
+    EXPECT_EQ((test::mismatches<Shape<TI, 2, 3, 4>, Stride<TI, 12, 4, 1>, Shape<TI, 6, 4>>()), (TI)0) << "dense rank down";
 }
