@@ -49,12 +49,28 @@ namespace rl_tools::rl::environments::l2f{
         };
         template <typename T>
         struct IMU{
-            struct GyroBias{
-                T init_max; // turn-on bias uniform half-range per axis
-                T tau;      // OU correlation time, tau <= 0 holds the turn-on bias constant
-                T sigma;    // OU steady-state standard deviation
+            // per-sensor error model following the standard Allan-variance decomposition: a
+            // stateless white-noise term plus a stateful bias process. Both are members of the
+            // same AR(1) family: the GaussianNoise is the memoryless (alpha = 0) corner, the
+            // BiasProcess covers OU (finite tau) through pure random walk (tau <= 0 = infinite)
+            struct GaussianNoise{
+                T mean; // constant additive offset per axis
+                T std;  // per-sample white noise
             };
-            GyroBias gyro_bias;
+            struct BiasProcess{
+                T init_max; // turn-on bias uniform half-range per axis
+                T tau;      // correlation time [s]; <= 0 means infinite: pure random walk
+                T sigma;    // increment density [unit/sqrt(s)]; steady-state std = sigma*sqrt(tau/2) for finite tau; 0 holds the turn-on bias constant
+            };
+            struct ErrorModel{
+                GaussianNoise noise;
+                BiasProcess bias;
+            };
+            struct Sensor{
+                ErrorModel error;
+            };
+            Sensor accelerometer;
+            Sensor gyro;
         };
         template <typename T>
         struct Initialization{
@@ -806,40 +822,46 @@ namespace rl_tools::rl::environments::l2f{
     };
 
     template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
-    struct StateGyroBiasSpecification{
+    struct StateGyroSpecification{
         using T = T_T;
         using TI = T_TI;
         using NEXT_COMPONENT = T_NEXT_COMPONENT;
     };
+    // self-contained rate gyro: sampled measurement plus the bias-process realization, both
+    // written once in post_integration (bias first, then the measurement reading it) so
+    // observations read the values verbatim
     template <typename T_SPEC>
-    struct StateGyroBias: T_SPEC::NEXT_COMPONENT{
-        using SPEC = T_SPEC;
-        using T = typename SPEC::T;
-        using TI = typename SPEC::TI;
-        using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
-        static constexpr bool REQUIRES_INTEGRATION = false;
-        static constexpr TI DIM = 3 + NEXT_COMPONENT::DIM;
-        T gyro_bias[3];
-    };
-
-    template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
-    struct StateIMUSpecification{
-        using T = T_T;
-        using TI = T_TI;
-        using NEXT_COMPONENT = T_NEXT_COMPONENT;
-    };
-    template <typename T_SPEC>
-    struct StateIMU: T_SPEC::NEXT_COMPONENT{
+    struct StateGyro: T_SPEC::NEXT_COMPONENT{
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
         static constexpr bool REQUIRES_INTEGRATION = false;
         static constexpr TI DIM = 6 + NEXT_COMPONENT::DIM;
-        // sampled sensor values: noise (and gyro bias if StateGyroBias is in the chain) is applied once in post_integration so observations read the measurement verbatim
-        T imu_accelerometer[3];
-        T imu_gyroscope[3];
+        T gyro[3];
+        T gyro_bias[3];
     };
+    template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
+    struct StateAccelerometerSpecification{
+        using T = T_T;
+        using TI = T_TI;
+        using NEXT_COMPONENT = T_NEXT_COMPONENT;
+    };
+    template <typename T_SPEC>
+    struct StateAccelerometer: T_SPEC::NEXT_COMPONENT{
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
+        static constexpr bool REQUIRES_INTEGRATION = false;
+        static constexpr TI DIM = 6 + NEXT_COMPONENT::DIM;
+        T accelerometer[3]; // specific force, body frame
+        T accelerometer_bias[3];
+    };
+    // gyro and accelerometer are independent sensors that real hardware bundles into one chip
+    // for economic reasons only — here the "IMU" is just this packaging alias
+    template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
+    using StateIMU = StateAccelerometer<StateAccelerometerSpecification<T_T, T_TI, StateGyro<StateGyroSpecification<T_T, T_TI, T_NEXT_COMPONENT>>>>;
 
     template <typename T_T, typename T_TI, typename T_NEXT_COMPONENT>
     struct StateMahonySpecification{

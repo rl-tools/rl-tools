@@ -120,7 +120,7 @@ namespace rl_tools::rl::zoo::l2f{
             using STATE_BASE_INNER = StateBase<StateSpecification<T, TI>>;
             using STATE_BASE_LA = StateLastAction<StateSpecification<T, TI, STATE_BASE_INNER>>;
             using STATE_BASE_LAA = StateLinearAcceleration<StateSpecification<T, TI, STATE_BASE_LA>>;
-            using STATE_BASE_GB = StateGyroBias<StateGyroBiasSpecification<T, TI, STATE_BASE_LAA>>;
+            using STATE_BASE_GB = StateIMU<T, TI, STATE_BASE_LAA>;
             using STATE_BASE_MAHONY = StateMahony<StateMahonySpecification<T, TI, STATE_BASE_GB>>;
             using STATE_BASE = StateCTBRController<StateSpecification<T, TI, STATE_BASE_MAHONY>>;
             using STATE_WITH_RANDOM_FORCE = StateRandomForce<StateSpecification<T, TI, STATE_BASE>>;

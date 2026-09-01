@@ -37,8 +37,7 @@ namespace test_visual_inertial_localization {
         static constexpr TI ACTION_HISTORY_LENGTH = 1;
         static constexpr TI CLOSED_FORM = false;
         using STATE_BASE = l2f::StateBase<l2f::StateSpecification<T, TI>>;
-        using STATE_GYRO_BIAS = l2f::StateGyroBias<l2f::StateGyroBiasSpecification<T, TI, STATE_BASE>>;
-        using STATE_IMU = l2f::StateIMU<l2f::StateIMUSpecification<T, TI, STATE_GYRO_BIAS>>;
+        using STATE_IMU = l2f::StateIMU<T, TI, STATE_BASE>;
         using STATE_TYPE = l2f::StateRotorsHistory<l2f::StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, l2f::StateRandomForce<l2f::StateSpecification<T, TI, l2f::StateLastAction<l2f::StateSpecification<T, TI, STATE_IMU>>>>>>;
         using OBSERVATION_TYPE = l2f::observation::Position<l2f::observation::PositionSpecification<T, TI,
                 l2f::observation::OrientationRotationMatrix<l2f::observation::OrientationRotationMatrixSpecification<T, TI,
@@ -51,7 +50,7 @@ namespace test_visual_inertial_localization {
         static constexpr typename PARAMETERS_TYPE::Integration integration = {(T)0.005}; // 200 Hz IMU rate
         static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = l2f::parameters::init::init_90_deg<PARAMETERS_SPEC>;
         static constexpr typename PARAMETERS_TYPE::MDP mdp = {init, REWARD_FUNCTION{}, {}, {}, {}};
-        static constexpr typename PARAMETERS_TYPE::IMU imu = {{0, 0, 0}};
+        static constexpr typename PARAMETERS_TYPE::IMU imu = {{{{0, 0}, {0, 0, 0}}}, {{{0, 0}, {0, 0, 0}}}};
         static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = {{0, 0}, {0, 0}};
         static constexpr PARAMETERS_TYPE PARAMETER_VALUES = {{{dynamics, integration, mdp}, imu}, disturbances};
         static constexpr T STATE_LIMIT_POSITION_X = 100000;
@@ -321,8 +320,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, DEAD_RECK
     RNG& rng = fixture.rng;
     // the preset-independent test config has zero IMU noise/bias by default; verify
     typename WORLD::Parameters instance_parameters = rlt::get(device, tensors.parameters, (TI)0);
-    ASSERT_EQ(instance_parameters.dynamics.mdp.observation_noise.imu_acceleration, (T)0);
-    ASSERT_EQ(instance_parameters.dynamics.mdp.observation_noise.angular_velocity, (T)0);
+    ASSERT_EQ(instance_parameters.dynamics.imu.accelerometer.error.noise.std, (T)0);
+    ASSERT_EQ(instance_parameters.dynamics.imu.gyro.error.noise.std, (T)0);
     const T dt = instance_parameters.dynamics.integration.dt;
     const T* gravity = instance_parameters.dynamics.dynamics.gravity;
     typename WORLD::State state = rlt::get(device, tensors.states, (TI)0);
