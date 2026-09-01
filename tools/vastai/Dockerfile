@@ -10,13 +10,7 @@ RUN bash -c "(cd src/nn_models/port_checkpoint/example && ./setup.sh)"
 RUN bash -c "(cd src/nn_models/port_checkpoint/raptor && ./setup.sh)"
 RUN apt-get update
 RUN apt-get install -y libhdf5-dev
-RUN cmake -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DRL_TOOLS_ENABLE_TARGETS=ON \
-  -DRL_TOOLS_ENABLE_TESTS=ON \
-  -DRL_TOOLS_EXPERIMENTAL=ON \
-  -DRL_TOOLS_ENABLE_TAR=ON \
-  -DRL_TOOLS_RENDERING_ENABLE_RAYTRACING=ON
+RUN cmake -B build -DCMAKE_BUILD_TYPE=Release
 RUN cmake --build build/ -j10 --target nn_models_port_checkpoint_raptor
 RUN ./build/src/nn_models/port_checkpoint/raptor/nn_models_port_checkpoint_raptor
 RUN cmake --build build/ -j10 --target rl_environments_l2f_visual_yaw_cuda
