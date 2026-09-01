@@ -190,7 +190,8 @@ body{font:14px sans-serif;margin:1em}
 table{border-collapse:collapse;font:13px monospace;margin-top:1em}
 td,th{border:1px solid #ccc;padding:2px 6px;text-align:left}
 tr.unreliable td{opacity:.4;text-decoration:line-through}
-td.value{max-width:30em;overflow-wrap:anywhere}
+td.value{max-width:30em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:copy}
+td.value.copied{background:#cfc}
 input.comment{width:16em;font:inherit;border:none;background:transparent}
 </style></head><body>
 <h1>metra</h1>
@@ -203,6 +204,18 @@ input.comment{width:16em;font:inherit;border:none;background:transparent}
 async function api(path, body){
     const response = await fetch(path, body === undefined ? {} : {method: "POST", body: JSON.stringify(body)});
     return response.json();
+}
+function copyToClipboard(text){
+    if(navigator.clipboard && window.isSecureContext){ return navigator.clipboard.writeText(text); }
+    const area = document.createElement("textarea"); // clipboard API is unavailable on plain-http origins like the NAS deployment
+    area.value = text;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    document.execCommand("copy");
+    area.remove();
+    return Promise.resolve();
 }
 function cell(row, content){
     const element = document.createElement("td");
@@ -234,7 +247,14 @@ async function refresh(){
         cell(element, row.commit_time === null ? "" : new Date(row.commit_time * 1000).toISOString().replace("T", " ").slice(0, 19));
         cell(element, row.run_id);
         cell(element, row.name);
-        cell(element, JSON.stringify(row.value)).className = "value";
+        const value = JSON.stringify(row.value);
+        const valueCell = cell(element, value);
+        valueCell.className = "value";
+        valueCell.title = value;
+        valueCell.onclick = () => copyToClipboard(value).then(() => {
+            valueCell.classList.add("copied");
+            setTimeout(() => valueCell.classList.remove("copied"), 500);
+        });
         const comment = document.createElement("input");
         comment.className = "comment";
         comment.placeholder = "comment";
