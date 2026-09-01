@@ -1,4 +1,4 @@
-if(RL_TOOLS_ENABLE_TAR AND RL_TOOLS_TEST_DATA_PATH)
+if(NOT RL_TOOLS_DISABLE_TAR AND RL_TOOLS_TEST_DATA_PATH)
     add_executable(test_persist_backends_tar tar.cpp)
     target_link_libraries(test_persist_backends_tar RLtools::RLtools GTest::gtest_main)
     gtest_discover_tests(test_persist_backends_tar)

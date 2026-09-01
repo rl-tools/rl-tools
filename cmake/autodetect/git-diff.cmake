@@ -2,13 +2,10 @@
 # Git snapshot tracking for ExTrack
 # ==============================================================================
 
-option(RL_TOOLS_ENABLE_GIT_DIFF "Enable embedding git state into ExTrack runs" ON)
-
-if(NOT RL_TOOLS_ENABLE_GIT_DIFF)
+if(RL_TOOLS_DISABLE_GIT_DIFF)
     return()
 endif()
 
-find_package(Git QUIET)
 if(NOT GIT_FOUND)
     message(STATUS "Git not found - git snapshot tracking disabled")
     return()

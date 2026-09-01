@@ -8,7 +8,7 @@ CHECKPOINT_DEFAULT="${TEST_DATA_DIR}/test_dyn_wasm_checkpoint.h5"
 CHECKPOINT_L2F="${TEST_DATA_DIR}/test_dyn_wasm_checkpoint_l2f_visual_imitation.h5"
 
 echo "=== Generating test data ==="
-cmake -B "${REPO_ROOT}/build" -S "${REPO_ROOT}" -DRL_TOOLS_ENABLE_HDF5=ON -DRL_TOOLS_ENABLE_TESTS=ON -DRL_TOOLS_ENABLE_TAR=ON
+cmake -B "${REPO_ROOT}/build" -S "${REPO_ROOT}"
 cmake --build "${REPO_ROOT}/build" --target test_dyn_wasm_generate -j$(nproc)
 "${REPO_ROOT}/build/tests/src/dyn/test_dyn_wasm_generate"
 
