@@ -12,6 +12,9 @@
 
 #include "../demo_common.h"
 
+#include <metra/metra.h>
+
+#include <chrono>
 #include <cstdio>
 #include <string>
 #include <vector>
@@ -169,6 +172,7 @@ int main(int argc, char** argv){
     std::vector<std::uint8_t> frame(INSTANCES * CAM_PIXELS * 3);
 
     TI frames_written = 0;
+    const auto episode_start_time = std::chrono::steady_clock::now();
     for(TI step_i = 0; step_i < STEPS; step_i++){
         rlt::render(device, world, tensors.parameters, tensors.states, tensors.reset_mask);
         rlt::set_all(device, tensors.reset_mask, false);
@@ -202,6 +206,7 @@ int main(int argc, char** argv){
         }
         rlt::copy(device, device, tensors.next_states, tensors.states);
     }
+    const double episode_wall_clock_time = std::chrono::duration<double>(std::chrono::steady_clock::now() - episode_start_time).count();
     rlt::terminated(device, world, tensors.parameters, tensors.states, tensors.terminated_flags, rng);
 
     bool video_ok = hyperdrone_demo::close_video_pipe(video_pipe);
@@ -211,6 +216,7 @@ int main(int argc, char** argv){
     else{
         std::printf("wrote %s (%lu frames at %lu fps, %lu IMU samples at %lu Hz)\n", output_path.c_str(), (unsigned long)frames_written, (unsigned long)FRAMERATE, (unsigned long)STEPS, (unsigned long)IMU_RATE);
     }
+    std::vector<double> ate_position_rmse_values, rotation_error_mean_values, rotation_error_max_values, drift_per_distance_values, distance_traveled_values, oracle_ate_values;
     for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
         std::printf("instance %lu (terminated: %s):\n", (unsigned long)instance_i, rlt::get(device, tensors.terminated_flags, instance_i) ? "yes" : "no");
         std::printf("  oracle          ATE %.6f m (must be 0)\n", (double)task::ate_position_rmse(device, oracle_metrics[instance_i]));
@@ -220,7 +226,22 @@ int main(int argc, char** argv){
             (double)task::max_rotation_error(device, metrics[instance_i]),
             (double)task::drift_per_distance(device, metrics[instance_i]),
             (double)metrics[instance_i].distance_traveled);
+        ate_position_rmse_values.push_back((double)task::ate_position_rmse(device, metrics[instance_i]));
+        rotation_error_mean_values.push_back((double)task::mean_rotation_error(device, metrics[instance_i]));
+        rotation_error_max_values.push_back((double)task::max_rotation_error(device, metrics[instance_i]));
+        drift_per_distance_values.push_back((double)task::drift_per_distance(device, metrics[instance_i]));
+        distance_traveled_values.push_back((double)metrics[instance_i].distance_traveled);
+        oracle_ate_values.push_back((double)task::ate_position_rmse(device, oracle_metrics[instance_i]));
     }
+    const std::string metra_prefix = "hyperdrone/visual_inertial_localization";
+    metra::log(metra_prefix + "/dead_reckoning/ate_position_rmse", ate_position_rmse_values);
+    metra::log(metra_prefix + "/dead_reckoning/rotation_error_mean", rotation_error_mean_values);
+    metra::log(metra_prefix + "/dead_reckoning/rotation_error_max", rotation_error_max_values);
+    metra::log(metra_prefix + "/dead_reckoning/drift_per_distance", drift_per_distance_values);
+    metra::log(metra_prefix + "/distance_traveled", distance_traveled_values);
+    metra::log(metra_prefix + "/oracle/ate_position_rmse", oracle_ate_values);
+    metra::log(metra_prefix + "/episode/wall_clock_time", episode_wall_clock_time);
+    metra::log(metra_prefix + "/episode/steps_per_second", (double)(STEPS * INSTANCES) / episode_wall_clock_time);
 
     tensors.deallocate(device);
     task::free(device, autopilot);
