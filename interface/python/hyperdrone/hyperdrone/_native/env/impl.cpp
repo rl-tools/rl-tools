@@ -13,7 +13,9 @@
 #include "iface.h"
 
 #include <cstring>
+#include <filesystem>
 #include <string>
+#include <vector>
 
 #ifndef HYPERDRONE_ENV_NUM_ENVIRONMENTS
 #define HYPERDRONE_ENV_NUM_ENVIRONMENTS 1
@@ -290,7 +292,7 @@ extern "C" {
         config->action_dim = (uint32_t)WORLD::ACTION_DIM;
         config->episode_step_limit = (uint32_t)WORLD::EPISODE_STEP_LIMIT;
     }
-    void hyperdrone_env_init(void* handle, const char* scene_directory, const char* drone_asset_path, const char* gate_asset_path, unsigned long long seed){
+    void hyperdrone_env_init(void* handle, const char* scenes, const char* drone_asset_path, const char* gate_asset_path, unsigned long long seed){
         EnvImpl* impl = cast(handle);
         rlt::init(impl->device, impl->rng, seed);
         if(drone_asset_path != nullptr && drone_asset_path[0] != '\0'){
@@ -303,7 +305,26 @@ extern "C" {
                 set_gate_asset_path(impl->env.environments[environment_i], gate_asset_path);
             }
         }
-        rlt::rendering::datasets::procthor::GLB dataset{scene_directory, {}};
+        std::string scenes_string = scenes;
+        std::vector<std::string> references;
+        std::size_t start = 0;
+        while(start <= scenes_string.size()){
+            std::size_t end = scenes_string.find('\n', start);
+            if(end == std::string::npos){
+                end = scenes_string.size();
+            }
+            if(end > start){
+                references.push_back(scenes_string.substr(start, end - start));
+            }
+            start = end + 1;
+        }
+        rlt::rendering::datasets::procthor::GLB dataset{};
+        if(references.size() == 1 && std::filesystem::is_directory(references[0])){
+            dataset.directory = references[0];
+        }
+        else{
+            dataset.references = references;
+        }
         rlt::init(impl->device, impl->env, dataset);
     }
     void hyperdrone_env_reset(void* handle, const uint8_t* mask){

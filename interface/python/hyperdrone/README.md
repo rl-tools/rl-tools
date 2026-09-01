@@ -11,6 +11,7 @@ environment setup under one Python package.
 | `hyperdrone.gym` | Optional Gymnasium `VectorEnv` adapter over `hyperdrone.env` (`pip install "hyperdrone[gym]"`). |
 | `hyperdrone.jit` | Shared compile-and-cache infrastructure both domain packages build on. |
 | `hyperdrone.cuda` | CUDA staging helpers (`upload` → DLPack tensor sets). |
+| `hyperdrone.conta` | Client for the sha1 content-addressed asset store — protocol twin of the C++ `include/conta/conta.h`, sharing one cache across both languages. |
 
 Native components are JIT-compiled per set of compile-time constants (resolution, camera
 count, drone count, ...) into a persistent cache; later uses load the cached library
@@ -156,13 +157,21 @@ env.observation_layout             # named blocks: which channels/values mean wh
 All environment semantics — reset, reward, termination, scene scheduling, observation
 composition — live on the C++ side (`rl_tools::rl::environments::hyperdrone::MultiEnvironment<World>`);
 the binding marshals tensors and nothing else, and a seeded rollout is pinned bit-exact
-against the C++ verbs by a golden test. The scene argument is a directory of `.glb`
-scenes, partitioned across environments. Configuration follows the C++ extension ladder:
+against the C++ verbs by a golden test. The scenes argument is a directory of `.glb`
+scenes (sorted corpus) or a list of references — `.glb` paths, `conta:HASH` strings, or
+conta store manifest entries `{"description": ..., "hash": ...}` — used as the corpus in
+list order and partitioned across environments; conta references (scenes, `drone_asset=`,
+`gate_asset=`) resolve through `hyperdrone.conta` into the shared content-addressed
+cache, so a config pins the exact corpus on any machine. Configuration follows the C++
+extension ladder:
 `preset=` names the platform (`"crazyflie"`, `"x500_fpv"` — SELF_VISIBLE, pass a
 body/prop_* GLB via `drone_asset=`), `task=` names the wrapper (`"target_frame"`,
 `"moving_gate"`), `n_agents=` enables multi-agent, and `EnvConfig(spec_header=...)` pins
 an arbitrary C++ specification (a header defining `hyperdrone_env_user::WORLD`, hashed
-into the JIT key). The render backend for the environment follows
+into the JIT key). A spec header can go beyond constants to a full user-authored task
+wrapper — verb overloads registering and moving entities, compiled reward, termination:
+`hyperdrone/examples/Orbiter.ipynb` walks through one, and its contract is pinned by
+`tests/env/user_task_header.h`. The render backend for the environment follows
 `HYPERDRONE_ENV_BACKEND` (default: the render backend selection).
 
 Manual composition of `Sim` and `Renderer` (no MDP — rendering research, data

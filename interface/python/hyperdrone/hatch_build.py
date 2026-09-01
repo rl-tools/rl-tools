@@ -9,6 +9,7 @@ from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
 VENDOR_MANIFEST = (
     "include/rl_tools",
+    "include/conta",
     "src/rendering/raytracing",
     "CMakeLists.txt",
     "cmake",

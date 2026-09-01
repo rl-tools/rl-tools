@@ -1,6 +1,7 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
 #include <rl_tools/rendering/datasets/operations_cpu.h>
+#include <rendering/raytracing/camera_orbit.h>
 
 #include "iface.h"
 
@@ -253,7 +254,7 @@ namespace hyperdrone_render_impl {
 
         void generate_cameras(const float center[3], float radius, const float up[3], float fov) override {
             require_init();
-            rlt::generate_cameras(device, renderer, center, radius, up, fov);
+            camera_orbit::write(device, renderer, center, radius, up, fov);
         }
 
         void generate_probe_directions() override {

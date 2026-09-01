@@ -71,7 +71,7 @@ curl -X POST --data '{"id":1,"comment":"flaky machine"}' http://localhost:13340/
 
 ## Web UI
 
-`http://localhost:13340/` — a plain table of the most recent entries. The checkbox marks a row unreliable (excluded from API queries unless `include_unreliable=1`; struck through in the UI), the comment column is editable inline.
+`http://localhost:13340/` — a plain table of the most recent entries. The checkbox marks a row unreliable (excluded from API queries unless `include_unreliable=1`; struck through in the UI), the comment column is editable inline. The page only references the API through relative URLs (`api/...`, never `/api/...`), so it also works under a path prefix behind a reverse proxy that strips the prefix (e.g. nginx `location /metra/ { proxy_pass http://<nas>:13340/; }` → `http://<nas>/metra/`); clients then use `METRA_URL=http://<nas>/metra`. Keep it that way when editing `PAGE` (`test_html` checks it).
 
 ## Environment
 

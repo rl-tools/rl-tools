@@ -116,7 +116,9 @@ class MetraServerTest(unittest.TestCase):
         with urllib.request.urlopen(self.url + "/") as response:
             self.assertEqual(response.status, 200)
             self.assertIn("text/html", response.headers.get("Content-Type"))
-            self.assertIn(b"<table", response.read())
+            body = response.read()
+        self.assertIn(b"<table", body)
+        self.assertNotIn(b"/api/", body)  # relative URLs only: the UI is also served under a path prefix behind a reverse proxy
 
 
 if __name__ == "__main__":

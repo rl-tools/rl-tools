@@ -12,7 +12,7 @@ requires-python = ">=3.9"
 dependencies = ["numpy", "nanobind>=2.0"]
 
 [project.optional-dependencies]
-examples = ["huggingface_hub", "scipy", "matplotlib", "imageio", "imageio-ffmpeg"]
+examples = ["scipy", "matplotlib", "imageio", "imageio-ffmpeg"]
 gym = ["gymnasium>=1.0"]
 
 [tool.hatch.build.targets.wheel]

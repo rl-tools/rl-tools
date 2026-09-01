@@ -213,7 +213,7 @@ function cell(row, content){
 async function refresh(){
     const name = document.getElementById("name").value;
     const limit = document.getElementById("limit").value;
-    let query = `/api/metrics?include_unreliable=1&limit=${encodeURIComponent(limit)}`;
+    let query = `api/metrics?include_unreliable=1&limit=${encodeURIComponent(limit)}`;
     if(name !== ""){ query += `&name=${encodeURIComponent(name)}`; }
     const rows = await api(query);
     const container = document.getElementById("rows");
@@ -226,7 +226,7 @@ async function refresh(){
         checkbox.type = "checkbox";
         checkbox.title = "unreliable";
         checkbox.checked = row.unreliable !== 0;
-        checkbox.onchange = () => api("/api/flag", {id: row.id, unreliable: checkbox.checked}).then(refresh);
+        checkbox.onchange = () => api("api/flag", {id: row.id, unreliable: checkbox.checked}).then(refresh);
         cell(element, checkbox);
         cell(element, row.id);
         cell(element, new Date(row.time * 1000).toISOString().replace("T", " ").slice(0, 19));
@@ -239,14 +239,14 @@ async function refresh(){
         comment.className = "comment";
         comment.placeholder = "comment";
         comment.value = row.comment;
-        comment.onchange = () => api("/api/comment", {id: row.id, comment: comment.value});
+        comment.onchange = () => api("api/comment", {id: row.id, comment: comment.value});
         cell(element, comment);
         container.appendChild(element);
     }
 }
 async function init(){
     const select = document.getElementById("name");
-    for(const name of await api("/api/names")){
+    for(const name of await api("api/names")){
         const option = document.createElement("option");
         option.value = name;
         option.textContent = name;

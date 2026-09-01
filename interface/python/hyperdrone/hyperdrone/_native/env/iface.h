@@ -7,7 +7,7 @@
 // rl_tools::rl::environments::hyperdrone::MultiEnvironment<hyperdrone::World>. Buffers are host
 // float32/uint8 arrays sized by hyperdrone_env_config(). Bump
 // HYPERDRONE_ENV_IFACE_VERSION on any change to this file.
-#define HYPERDRONE_ENV_IFACE_VERSION 2
+#define HYPERDRONE_ENV_IFACE_VERSION 3
 
 namespace hyperdrone::env {
     struct Config {
@@ -35,11 +35,15 @@ extern "C" {
     void* hyperdrone_env_create();
     void hyperdrone_env_destroy(void* handle);
     void hyperdrone_env_config(void* handle, hyperdrone::env::Config* config);
-    // scene_directory: a directory of .glb scenes (rl_tools::rendering::datasets::procthor::GLB),
-    // at least one scene per environment; partitions the sorted corpus across environments.
+    // scenes: newline-separated dataset references (rl_tools::rendering::datasets::procthor::GLB).
+    // A single entry naming an existing directory enumerates its .glb files as a sorted corpus
+    // (the pre-v3 behavior); any other entries — .glb paths or "conta:HASH" references — form
+    // the corpus verbatim, order preserved. At least one scene per environment; the corpus is
+    // partitioned in contiguous blocks across environments.
     // drone_asset_path: body/prop_* GLB for SELF_VISIBLE specifications (empty to omit);
-    // gate_asset_path: gate GLB for the moving_gate task (empty to omit)
-    void hyperdrone_env_init(void* handle, const char* scene_directory, const char* drone_asset_path, const char* gate_asset_path, unsigned long long seed);
+    // gate_asset_path: gate GLB for the moving_gate task (empty to omit); both also accept
+    // "conta:HASH" references
+    void hyperdrone_env_init(void* handle, const char* scenes, const char* drone_asset_path, const char* gate_asset_path, unsigned long long seed);
     // mask: total_instances uint8 flags; resamples parameters and states where set
     void hyperdrone_env_reset(void* handle, const uint8_t* mask);
     void hyperdrone_env_render(void* handle, const uint8_t* reset_mask);
