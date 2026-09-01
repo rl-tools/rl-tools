@@ -15,13 +15,14 @@ endif()
 # rl_tools_full carries the backend compile definitions and dependencies (OWL/assimp/
 # nlohmann_json); targets are disabled so the dead-pinned procthor2glb subtree is never
 # configured. The backend device-program libraries are pulled in separately below.
-set(RL_TOOLS_ENABLE_TARGETS OFF CACHE BOOL "" FORCE)
-set(RL_TOOLS_ENABLE_TESTS OFF CACHE BOOL "" FORCE)
+set(RL_TOOLS_DISABLE_TARGETS ON CACHE BOOL "" FORCE)
+set(RL_TOOLS_DISABLE_TESTS ON CACHE BOOL "" FORCE)
 # the ExTrack git snapshot re-runs on every build (~10s of pure overhead per Renderer
 # construction) and is useless for the JIT cache
-set(RL_TOOLS_ENABLE_GIT_DIFF OFF CACHE BOOL "" FORCE)
+set(RL_TOOLS_DISABLE_GIT_DIFF ON CACHE BOOL "" FORCE)
+set(RL_TOOLS_RL_ENVIRONMENTS_DISABLE_MUJOCO ON CACHE BOOL "" FORCE)
 set(RL_TOOLS_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
-set(RL_TOOLS_RENDERING_ENABLE_RAYTRACING ON CACHE BOOL "" FORCE)
+# an explicit backend selection hard-requires raytracing inside the rl_tools subtree
 set(RL_TOOLS_RENDERING_RAYTRACING_BACKEND ${HYPERDRONE_VARIANT} CACHE STRING "" FORCE)
 # language enablement is directory-scoped too: the backends subtree calls embed_ptx and
 # needs CUDA enabled from here, not just inside the rl_tools subtree

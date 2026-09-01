@@ -1,4 +1,4 @@
-if(RL_TOOLS_ENABLE_ZLIB AND RL_TOOLS_EXPERIMENTAL)
+if(RL_TOOLS_ENABLE_ZLIB AND NOT RL_TOOLS_DISABLE_EXPERIMENTAL)
 add_executable(rl_environments_memory_td3 memory.cpp)
 target_link_libraries(rl_environments_memory_td3 PRIVATE RLtools::RLtools)
 if(NOT WIN32)

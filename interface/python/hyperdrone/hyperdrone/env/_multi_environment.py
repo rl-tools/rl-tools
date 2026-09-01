@@ -30,9 +30,11 @@ TASKS = {None: 0, "target_frame": 1, "moving_gate": 2, "visual_inertial_localiza
 
 
 def backend():
+    from ..render._component import resolve_auto_backend
+
     value = os.environ.get("HYPERDRONE_ENV_BACKEND", os.environ.get("HYPERDRONE_RENDER_BACKEND", "AUTO")).upper()
     if value == "AUTO":
-        value = "METAL" if sys.platform == "darwin" else "OPTIX"
+        value = resolve_auto_backend()
     if value not in BACKENDS:
         raise jit.BuildError(
             f"hyperdrone: invalid HYPERDRONE_ENV_BACKEND {value} (OPTIX|METAL|VULKAN|WEBGPU|GENERIC)"
