@@ -104,7 +104,7 @@ static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = {
 static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
 static constexpr typename PARAMETERS_TYPE::Integration integration = {SIMULATION_DT};
 static constexpr typename PARAMETERS_TYPE::MDP mdp = {init, reward_function, {}, {}, termination};
-static constexpr typename PARAMETERS_TYPE::IMU imu = {{static_cast<T>(0.02), static_cast<T>(0), static_cast<T>(0)}};
+static constexpr typename PARAMETERS_TYPE::IMU imu = {{{{static_cast<T>(0), static_cast<T>(0)}, {static_cast<T>(0), static_cast<T>(0), static_cast<T>(0)}}}, {{{static_cast<T>(0), static_cast<T>(0)}, {static_cast<T>(0.02), static_cast<T>(0), static_cast<T>(0)}}}};
 static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = {{0, 0}, {0, 0}};
 static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
@@ -121,7 +121,7 @@ struct STATIC_PARAMETERS {
     using STATE_BASE = l2f::StateBase<l2f::StateSpecification<T, TI>>;
     using STATE_BASE_LA = l2f::StateLinearAcceleration<l2f::StateSpecification<T, TI, STATE_BASE>>;
     using STATE_BASE_LAH = l2f::StateLinearAccelerationHistory<l2f::StateLinearAccelerationHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, STATE_BASE_LA>>;
-    using STATE_BASE_GB = l2f::StateGyroBias<l2f::StateGyroBiasSpecification<T, TI, STATE_BASE_LAH>>;
+    using STATE_BASE_GB = l2f::StateIMU<T, TI, STATE_BASE_LAH>;
     using STATE_BASE_MAHONY = l2f::StateMahony<l2f::StateMahonySpecification<T, TI, STATE_BASE_GB>>;
     using STATE_TYPE = l2f::StateRotorsHistory<l2f::StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, l2f::StateRandomForce<l2f::StateSpecification<T, TI, l2f::StateLastAction<l2f::StateSpecification<T, TI, STATE_BASE_MAHONY>>>>>>;
     using OBSERVATION_TYPE = obs::Position<obs::PositionSpecification<T, TI,

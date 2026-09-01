@@ -101,14 +101,27 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateGyroBias<STATE_SPEC>& state, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateGyro<STATE_SPEC>& state, RNG& rng){
             typename DEVICE::SPEC::RANDOM random_dev;
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             sample_initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state), rng);
-            T limit = parameters.imu.gyro_bias.init_max;
+            T limit = parameters.imu.gyro.error.bias.init_max;
             for(TI i = 0; i < 3; i++){
+                state.gyro[i] = 0;
                 state.gyro_bias[i] = random::uniform_real_distribution(random_dev, -limit, limit, rng);
+            }
+        }
+        template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
+        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateAccelerometer<STATE_SPEC>& state, RNG& rng){
+            typename DEVICE::SPEC::RANDOM random_dev;
+            using T = typename SPEC::T;
+            using TI = typename DEVICE::index_t;
+            sample_initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state), rng);
+            T limit = parameters.imu.accelerometer.error.bias.init_max;
+            for(TI i = 0; i < 3; i++){
+                state.accelerometer[i] = 0;
+                state.accelerometer_bias[i] = random::uniform_real_distribution(random_dev, -limit, limit, rng);
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
