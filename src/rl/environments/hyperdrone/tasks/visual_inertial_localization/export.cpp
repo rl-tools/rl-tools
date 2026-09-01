@@ -1,6 +1,6 @@
-#include "visual_inertial_localization_harness.h"
+#include "harness.h"
 
-#include "../demo_common.h"
+#include "../../demo_common.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include <stb_image_write.h>
