@@ -12,7 +12,7 @@ using TI = DEVICE::index_t;
 using T = double;
 constexpr bool DYNAMIC_ALLOCATION = true;
 
-using PARAMETER_FACTORY = rlt::rl::environments::l2f::parameters::DEFAULT_PARAMETERS_FACTORY<T, TI, rlt::rl::environments::l2f::parameters::DEFAULT_DOMAIN_RANDOMIZATION_OPTIONS<true>>;
+using PARAMETER_FACTORY = rlt::rl::environments::l2f::parameters::DEFAULT_PARAMETERS_FACTORY<T, TI, 5, rlt::rl::environments::l2f::parameters::DEFAULT_DOMAIN_RANDOMIZATION_OPTIONS<true>>;
 using ENVIRONMENT = rlt::rl::environments::Multirotor<rlt::rl::environments::l2f::Specification<T, TI,  PARAMETER_FACTORY::STATIC_PARAMETERS>>;
 
 int main(int argc, char** argv){
@@ -39,8 +39,8 @@ int main(int argc, char** argv){
             00.00, // angular_velocity
             00.00, // linear_acceleration
             00.00, // angular_acceleration
-            00.00, // action
-            01.00, // d_action
+            {00.00, 00.00, 00.00, 00.00}, // action
+            {01.00, 01.00, 01.00, 01.00}, // d_action
             00.00, // position_error_integral
         };
         // parameters.mdp.init.max_position = 0.5;
@@ -68,7 +68,7 @@ int main(int argc, char** argv){
     overwrite(params);
     std::cout << rlt::json(device, env, params) << std::endl;
 
-    std::filesystem::path output_path = "./src/foundation_policy/dynamics_parameters/";
+    std::filesystem::path output_path = "./src/raptor/dynamics_parameters/";
     for (TI set_i=0; set_i<N; ++set_i){
         overwrite(params);
         rlt::sample_initial_parameters(device, env, params, rng);
@@ -81,7 +81,7 @@ int main(int argc, char** argv){
         output.close();
     }
 
-    std::filesystem::path output_path_registry = "./src/foundation_policy/registry/";
+    std::filesystem::path output_path_registry = "./src/raptor/registry/";
     if (!std::filesystem::exists(output_path_registry)){
         std::cerr << "Output path does not exist: " << output_path_registry << std::endl;
         std::cerr << "CWD: " << std::filesystem::current_path() << std::endl;

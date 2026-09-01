@@ -3,7 +3,7 @@ import numpy as np
 from tqdm import tqdm
 
 experiment = "2025-04-16_20-10-58"
-dynamics_parameters_path = f"src/foundation_policy/dynamics_parameters_{experiment}"
+dynamics_parameters_path = f"src/raptor/dynamics_parameters_{experiment}"
 dependents = ["t2w"] #, "return"]
 name = {
     "t2w": "Thrust-to-Weight Ratio",
@@ -22,7 +22,7 @@ def get_parameters(dynamics_id):
         parameters_cache[dynamics_id] = parameters
         return parameters
 
-with open(f"src/foundation_policy/hidden_states_{experiment}.json", "r") as f:
+with open(f"src/raptor/hidden_states_{experiment}.json", "r") as f:
     hidden_states = json.load(f)
     for hidden_state in tqdm(hidden_states):
         x = np.array(hidden_state["hidden_state"])
@@ -57,7 +57,7 @@ plt.plot(cum)
 plt.xlabel("Principal Component")
 plt.ylabel("Cumulative Explained Variance")
 plt.title("Cumulative Explained Variance")
-plt.savefig(f"src/foundation_policy/analysis/figures/cumulative_explained_variance_non_standardized.png", dpi=600)
+plt.savefig(f"src/raptor/analysis/figures/cumulative_explained_variance_non_standardized.png", dpi=600)
 plt.close()
 
 p = S / S.sum()
@@ -119,7 +119,7 @@ for dependent in dependents:
     # plt.ylabel("Predicted")
     # plt.title(f"True vs Predicted {name[dependent]} (std) ratio")
     # ax.set_aspect('equal')
-    # plt.savefig(f"src/foundation_policy/analysis/figures/analyze_{dependent}.png", dpi=600)
+    # plt.savefig(f"src/raptor/analysis/figures/analyze_{dependent}.png", dpi=600)
     # plt.show()
     true = y
     pred = X @ model.coef_ + model.intercept_
@@ -202,7 +202,7 @@ for dependent in dependents:
         # fontsize=10,
         frameon=False,
     )
-    plt.savefig(f"src/foundation_policy/analysis/figures/analyze_{dependent}.pdf", bbox_inches="tight")
+    plt.savefig(f"src/raptor/analysis/figures/analyze_{dependent}.pdf", bbox_inches="tight")
     # plt.show()
 
     # import matplotlib.pyplot as plt
@@ -212,8 +212,8 @@ for dependent in dependents:
     # plt.xlabel("True")
     # plt.ylabel("Predicted")
     # plt.title(f"True vs Predicted {name[dependent]} ratio")
-    # plt.savefig(f"src/foundation_policy/analysis/figures/analyze_{dependent}.png", dpi=600)
+    # plt.savefig(f"src/raptor/analysis/figures/analyze_{dependent}.png", dpi=600)
     # plt.show()
 
-with open(f"src/foundation_policy/analysis/models.json", "w") as f:
+with open(f"src/raptor/analysis/models.json", "w") as f:
     f.write(json.dumps(models))

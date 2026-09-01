@@ -112,7 +112,7 @@ TI add_to_dataset(DEVICE& device, DATA& data, TEACHER_ORIG& teacher, TeacherMeta
 template <typename ENVIRONMENT, typename TEACHER_OBSERVATION, typename STUDENT_OBSERVATION, auto NUM_EPISODES, bool TEACHER_DETERMINISTIC, typename DEVICE, typename STUDENT, typename TEACHER, typename TEACHER_META_SPEC, typename PARAMETERS, typename DS_EPISODE_START_INDICES_SPEC, typename DS_INPUT_SPEC, typename DS_OUTPUT_SPEC, typename DS_TRUNCATED_SPEC, typename DS_RESET_SPEC, typename RNG, typename TI=typename DEVICE::index_t>
 auto gather_epoch(DEVICE& device, TEACHER& teacher, TeacherMeta<TEACHER_META_SPEC>& teacher_meta, PARAMETERS& parameters, STUDENT& student, rlt::Tensor<DS_EPISODE_START_INDICES_SPEC>& dataset_episode_start_indices, rlt::Tensor<DS_INPUT_SPEC>& dataset_input, rlt::Tensor<DS_OUTPUT_SPEC>& dataset_output_target, rlt::Tensor<DS_TRUNCATED_SPEC>& dataset_truncated, rlt::Tensor<DS_RESET_SPEC>& dataset_reset, TI& current_episode, TI& current_index, RNG& rng){
     using T = typename DS_INPUT_SPEC::T;
-    using RESULT = rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, NUM_EPISODES, ENVIRONMENT::EPISODE_STEP_LIMIT>>;
+    using RESULT = rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<rlt::numeric_types::Policy<T>, TI, ENVIRONMENT, NUM_EPISODES, ENVIRONMENT::EPISODE_STEP_LIMIT>>;
     RESULT result;
     rlt::rl::utils::evaluation::Data<rlt::rl::utils::evaluation::DataSpecification<typename RESULT::SPEC>> data;
     rlt::malloc(device, data);

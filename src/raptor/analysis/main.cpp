@@ -10,7 +10,14 @@
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn_models/multi_agent_wrapper/operations_generic.h>
 
-#include <rl_tools/containers/tensor/persist.h>
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
+#endif
+#include <rl_tools/persist/backends/tar/operations_cpu.h>
+#include <rl_tools/persist/backends/tar/operations_generic.h>
+
+#include <rl_tools/nn/optimizers/adam/instance/persist.h>
+#include <rl_tools/nn/parameters/persist.h>
 #include <rl_tools/nn/layers/sample_and_squash/persist.h>
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn/layers/standardize/persist.h>
@@ -39,7 +46,7 @@
 namespace rlt = rl_tools;
 
 #include "../post_training/helper.h"
-#include "../../../../external/raptor-blob/checkpoint.h"
+#include "../../nn_models/port_checkpoint/raptor/policy.h"
 
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
@@ -86,8 +93,8 @@ int main(int argc, char** argv){
     // auto file = HighFive::File(checkpoint_path, HighFive::File::ReadOnly);
     // rlt::load(device, actor, file.getGroup("actor"));
 
-    std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters_" + experiment + "/";
-    std::filesystem::path dynamics_parameter_index = "./src/foundation_policy/checkpoints_" + experiment + ".txt";
+    std::filesystem::path dynamics_parameters_path = "./src/raptor/dynamics_parameters_" + experiment + "/";
+    std::filesystem::path dynamics_parameter_index = "./src/raptor/checkpoints_" + experiment + ".txt";
 
     std::ifstream dynamics_parameter_index_file(dynamics_parameter_index);
     if (!dynamics_parameter_index_file){
@@ -120,7 +127,7 @@ int main(int argc, char** argv){
         env.parameters.mdp.init = init_old;
         rlt::sample_initial_parameters(device, env, env.parameters, rng);
 
-        using EVAL_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, NUM_EPISODES_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>;
+        using EVAL_SPEC = rlt::rl::utils::evaluation::Specification<TYPE_POLICY, TI, ENVIRONMENT, NUM_EPISODES_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>;
         rlt::rl::utils::evaluation::Result<EVAL_SPEC> result;
         rlt::rl::utils::evaluation::Data<rlt::rl::utils::evaluation::DataSpecification<EVAL_SPEC>> data;
         RNG rng_copy = rng;
@@ -139,7 +146,7 @@ int main(int argc, char** argv){
             rlt::evaluate(device, env, ui, actor, policy_state, policy_evaluation_buffers, evaluation_buffers, result, data, rng, mode);
             for (TI episode_i = 0; episode_i < EVAL_SPEC::N_EPISODES; ++episode_i) {
                 if (result.episode_length[episode_i] == EVAL_SPEC::STEP_LIMIT) {
-                    auto hidden_state_view = rlt::view(device, policy_state.content_state.next_content_state.state.state, episode_i);
+                    auto hidden_state_view = rlt::view(device, rlt::get<1>(policy_state.content_state.states).state, episode_i);
                     std::array<T, HIDDEN_DIM> hidden_state;
                     for (TI dim_i = 0; dim_i < HIDDEN_DIM; ++dim_i){
                         hidden_state[dim_i] = rlt::get(device, hidden_state_view, dim_i);
@@ -158,7 +165,7 @@ int main(int argc, char** argv){
         rlt::free(device, data);
         std::cout << "Teacher policy mean return: " << result.returns_mean << " episode length: " << result.episode_length_mean << " share terminated: " << result.share_terminated << std::endl;
     }
-    std::ofstream o("./src/foundation_policy/hidden_states_" + experiment + ".json");
+    std::ofstream o("./src/raptor/hidden_states_" + experiment + ".json");
     o << hidden_states.dump();
     o.close();
 

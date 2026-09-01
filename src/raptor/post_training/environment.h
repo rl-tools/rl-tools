@@ -11,6 +11,7 @@ namespace builder{
         using PARAMETERS_TYPE = typename BASE_ENV::PARAMETERS_TYPE;
 
         struct ENVIRONMENT_STATIC_PARAMETERS{
+            static constexpr auto ACTION_INTERFACE = parameters::ActionInterface::DIRECT_MOTOR;
             static constexpr TI N_SUBSTEPS = 1;
             static constexpr TI EPISODE_STEP_LIMIT = 5 * BASE_ENV::SIMULATION_FREQUENCY;
             static constexpr TI CLOSED_FORM = false;
@@ -35,9 +36,15 @@ namespace builder{
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = typename BASE_ENV::PARAMETERS_TYPE;
             static constexpr auto PARAMETER_VALUES = BASE_ENV::nominal_parameters;
-            static constexpr T STATE_LIMIT_POSITION = 100000;
-            static constexpr T STATE_LIMIT_VELOCITY = 100000;
-            static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
+            static constexpr T STATE_LIMIT_POSITION_X = 100000;
+            static constexpr T STATE_LIMIT_POSITION_Y = 100000;
+            static constexpr T STATE_LIMIT_POSITION_Z = 100000;
+            static constexpr T STATE_LIMIT_VELOCITY_X = 100000;
+            static constexpr T STATE_LIMIT_VELOCITY_Y = 100000;
+            static constexpr T STATE_LIMIT_VELOCITY_Z = 100000;
+            static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_X = 100000;
+            static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Y = 100000;
+            static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Z = 100000;
         };
 
         using ENVIRONMENT_SPEC = Specification<T, TI, ENVIRONMENT_STATIC_PARAMETERS>;

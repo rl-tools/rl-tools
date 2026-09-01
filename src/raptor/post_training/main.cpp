@@ -15,16 +15,26 @@
 #include <rl_tools/nn_models/multi_agent_wrapper/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
-#include <rl_tools/containers/tensor/persist.h>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
+#include <rl_tools/persist/backends/tar/operations_cpu.h>
+#include <rl_tools/persist/backends/tar/operations_generic.h>
+
+#include <rl_tools/numeric_types/persist_code.h>
+
+#include <rl_tools/nn/optimizers/adam/instance/persist.h>
+#include <rl_tools/nn/parameters/persist.h>
 #include <rl_tools/nn/layers/sample_and_squash/persist.h>
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn/layers/standardize/persist.h>
 #include <rl_tools/nn/layers/gru/persist.h>
 #include <rl_tools/nn/layers/td3_sampling/persist.h>
 #include <rl_tools/nn_models/mlp/persist.h>
+#include <rl_tools/nn_models/mlp_unconditional_stddev/persist.h>
 #include <rl_tools/nn_models/sequential/persist.h>
 #include <rl_tools/nn_models/multi_agent_wrapper/persist.h>
 #include <rl_tools/rl/components/replay_buffer/persist.h>
+
+#include <rl_tools/nn/loss_functions/mse/operations_generic.h>
 
 #include <rl_tools/containers/tensor/persist_code.h>
 #include <rl_tools/nn/optimizers/adam/instance/persist_code.h>
@@ -49,6 +59,8 @@
 #include <rl_tools/rl/loop/steps/nn_analytics/operations_cpu.h>
 
 #include <rl_tools/rl/utils/evaluation/operations_cpu.h>
+
+#include <metra/metra.h>
 
 #include "../pre_training/config.h"
 #include "../pre_training/options.h"
@@ -186,7 +198,7 @@ int main(int argc, char** argv){
     rlt::init_weights(device, actor, rng);
 
     //work
-    std::filesystem::path registry_path = "./src/foundation_policy/registry";
+    std::filesystem::path registry_path = "./src/raptor/registry";
     rlt::utils::extrack::Path checkpoint_path;
     // checkpoint_path.experiment = "2025-03-31_21-06-47"; // fails
     // checkpoint_path.experiment = "2025-04-01_13-43-13"; // good
@@ -199,9 +211,9 @@ int main(int argc, char** argv){
 
 
 
-    std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters_" + checkpoint_path.experiment + "/";
-    std::filesystem::path dynamics_parameter_index = "./src/foundation_policy/checkpoints_" + checkpoint_path.experiment + ".txt";
-    // std::filesystem::path dynamics_parameter_index = "./src/foundation_policy/checkpoints_debug.txt";
+    std::filesystem::path dynamics_parameters_path = "./src/raptor/dynamics_parameters_" + checkpoint_path.experiment + "/";
+    std::filesystem::path dynamics_parameter_index = "./src/raptor/checkpoints_" + checkpoint_path.experiment + ".txt";
+    // std::filesystem::path dynamics_parameter_index = "./src/raptor/checkpoints_debug.txt";
 
     std::ifstream dynamics_parameter_index_file(dynamics_parameter_index);
     if (!dynamics_parameter_index_file){
@@ -247,8 +259,9 @@ int main(int argc, char** argv){
         cpp_copy.attributes["dynamics-id"] = checkpoint_info_split[0]; // take from the end because we order by performance and the best are at the end
         cpp_copy.step = checkpoint_info_split[1];
         rlt::find_latest_run(device, "1k-experiments", cpp_copy);
-        auto actor_file = HighFive::File(cpp_copy.checkpoint_path.string(), HighFive::File::ReadOnly);
-        rlt::load(device, actor_teacher[teacher_i], actor_file.getGroup("actor"));
+        rlt::persist::backends::hdf5::File actor_file(cpp_copy.checkpoint_path.string(), rlt::persist::backends::hdf5::Mode::READ);
+        auto actor_group = rlt::get_group(device, actor_file, "actor");
+        rlt::load(device, actor_teacher[teacher_i], actor_group);
 
         std::ifstream dynamics_parameter_file = std::ifstream(dynamics_parameters_path / (cpp_copy.attributes["dynamics-id"] + ".json"));
         std::string dynamics_parameter_json((std::istreambuf_iterator<char>(dynamics_parameter_file)), std::istreambuf_iterator<char>());
@@ -256,7 +269,7 @@ int main(int argc, char** argv){
         ENVIRONMENT_TEACHER env;
         rlt::from_json(device, env, dynamics_parameter_json, teacher_parameters[teacher_i]);
 
-        rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT_TEACHER, NUM_EPISODES_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>> result;
+        rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<TYPE_POLICY, TI, ENVIRONMENT_TEACHER, NUM_EPISODES_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>> result;
         rlt::rl::utils::evaluation::Data<rlt::rl::utils::evaluation::DataSpecification<decltype(result)::SPEC>> data;
         RNG rng_copy = rng;
         rlt::malloc(device, data);
@@ -265,11 +278,14 @@ int main(int argc, char** argv){
         T mean_position[3] = {0, 0, 0};
         TI num_positions = 0;
         for (TI episode_i=0; episode_i < NUM_EPISODES_EVAL; episode_i++){
+            const auto episode_parameters = rlt::get(device, data.parameters, episode_i);
             for (TI step_i=STEADY_STATE_POSITION_OFFSET_ESTIMATION_START; step_i < STEADY_STATE_POSITION_OFFSET_ESTIMATION_END; step_i++){
                 const auto& state = rlt::get(device, data.states, episode_i, step_i);
-                if (STEADY_STATE_POSITION_CORRECTION && state.trajectory.type == rlt::rl::environments::l2f::POSITION){
+                if (STEADY_STATE_POSITION_CORRECTION){
+                    // trajectories are pre-computed now (no POSITION/LANGEVIN distinction anymore), so the steady-state offset is estimated as the mean tracking error against the trajectory target
+                    const auto& target = episode_parameters.trajectory.steps[state.trajectory_step];
                     for (TI dim_i=0; dim_i < 3; dim_i++){
-                        mean_position[dim_i] += state.position[dim_i];
+                        mean_position[dim_i] += state.position[dim_i] - target.position[dim_i];
                     }
                     num_positions++;
                 }
@@ -326,7 +342,7 @@ int main(int argc, char** argv){
             }
         }
         if (epoch_i >= EPOCH_TEACHER_FORCING){
-            using RESULT = rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, NUM_EPISODES, ENVIRONMENT::EPISODE_STEP_LIMIT>>;
+            using RESULT = rlt::rl::utils::evaluation::Result<rlt::rl::utils::evaluation::Specification<TYPE_POLICY, TI, ENVIRONMENT, NUM_EPISODES, ENVIRONMENT::EPISODE_STEP_LIMIT>>;
             RESULT results[NUM_TEACHERS];
             std::vector<std::tuple<TI, T>> active_teachers;
             rlt::rl::utils::evaluation::Data<rlt::rl::utils::evaluation::DataSpecification<RESULT::SPEC>> datas[NUM_TEACHERS];
@@ -522,6 +538,7 @@ int main(int argc, char** argv){
     }
 
     rlt::rl::loop::steps::checkpoint::save<DYNAMIC_ALLOCATION, ENVIRONMENT, CHECKPOINT_PARAMETERS>(device, run_path.string(), best_actor, rng);
+    metra::log("foundation_policy_post_training/best_return", (double)best_return);
     // malloc
     rlt::free(device, rng);
     rlt::free(device, actor_optimizer);

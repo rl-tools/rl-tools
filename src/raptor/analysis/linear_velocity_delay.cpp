@@ -29,7 +29,7 @@
 
 namespace rlt = rl_tools;
 
-#include "../../../../external/raptor-blob/checkpoint.h"
+#include "../../nn_models/port_checkpoint/raptor/policy.h"
 #include "../post_training/environment.h"
 
 
@@ -39,6 +39,7 @@ using RNG_PARAMS_DEVICE = rlt::devices::random::Generic<DEVICE::SPEC::MATH>;
 using RNG_PARAMS = RNG_PARAMS_DEVICE::ENGINE<>;
 using TI = DEVICE::index_t;
 using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 
 struct OPTIONS {
     static constexpr bool RANDOMIZE_MOTOR_MAPPING = false;
@@ -62,9 +63,11 @@ namespace builder{
     using SUPER = typename builder::ENVIRONMENT_FACTORY_POST_TRAINING<DEVICE, T, TI, OPTIONS>;
     using BASE_ENV = typename SUPER::ENVIRONMENT;
 
-    using PARAMETERS_TYPE = ParametersObservationDelay<ParametersObservationDelaySpecification<T, TI, BASE_ENV::Parameters>>;
+    // the base parameters are already wrapped in ParametersObservationDelay nowadays
+    using PARAMETERS_TYPE = typename BASE_ENV::Parameters;
 
     struct ENVIRONMENT_STATIC_PARAMETERS{
+        static constexpr auto ACTION_INTERFACE = parameters::ActionInterface::DIRECT_MOTOR;
         static constexpr TI N_SUBSTEPS = 1;
         static constexpr TI EPISODE_STEP_LIMIT = 5 * SUPER::BASE_ENV::SIMULATION_FREQUENCY;
         static constexpr TI CLOSED_FORM = false;
@@ -89,16 +92,16 @@ namespace builder{
         using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE;
         static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
         using PARAMETERS = PARAMETERS_TYPE;
-        static constexpr PARAMETERS_TYPE PARAMETER_VALUES = {
-            SUPER::BASE_ENV::nominal_parameters,
-            {
-                (TI)0, // linear_velocity
-                (TI)0 // angular_velocity
-            }
-        };
-        static constexpr T STATE_LIMIT_POSITION = 100000;
-        static constexpr T STATE_LIMIT_VELOCITY = 100000;
-        static constexpr T STATE_LIMIT_ANGULAR_VELOCITY = 100000;
+        static constexpr PARAMETERS_TYPE PARAMETER_VALUES = SUPER::BASE_ENV::nominal_parameters;
+        static constexpr T STATE_LIMIT_POSITION_X = 100000;
+        static constexpr T STATE_LIMIT_POSITION_Y = 100000;
+        static constexpr T STATE_LIMIT_POSITION_Z = 100000;
+        static constexpr T STATE_LIMIT_VELOCITY_X = 100000;
+        static constexpr T STATE_LIMIT_VELOCITY_Y = 100000;
+        static constexpr T STATE_LIMIT_VELOCITY_Z = 100000;
+        static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_X = 100000;
+        static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Y = 100000;
+        static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Z = 100000;
     };
 
     using ENVIRONMENT_SPEC = Specification<T, TI, ENVIRONMENT_STATIC_PARAMETERS>;
@@ -126,7 +129,7 @@ int main(int argc, char** argv){
     // env.parameters.mdp.init.max_angle = 0;
     env.parameters.mdp.init.max_linear_velocity = 0.2;
 
-    using EVAL_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, NUM_EPISODES_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>;
+    using EVAL_SPEC = rlt::rl::utils::evaluation::Specification<TYPE_POLICY, TI, ENVIRONMENT, NUM_EPISODES_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>;
     rlt::rl::utils::evaluation::Result<EVAL_SPEC> result;
     rlt::rl::utils::evaluation::Data<rlt::rl::utils::evaluation::DataSpecification<EVAL_SPEC>> data;
     RNG rng_copy = rng;

@@ -11,13 +11,23 @@
 #include <rl_tools/nn_models/multi_agent_wrapper/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 
-#include <rl_tools/containers/tensor/persist.h>
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
+#endif
+#include <rl_tools/persist/backends/tar/operations_cpu.h>
+#include <rl_tools/persist/backends/tar/operations_generic.h>
+
+#include <rl_tools/numeric_types/persist_code.h>
+
+#include <rl_tools/nn/optimizers/adam/instance/persist.h>
+#include <rl_tools/nn/parameters/persist.h>
 #include <rl_tools/nn/layers/sample_and_squash/persist.h>
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn/layers/standardize/persist.h>
 #include <rl_tools/nn/layers/gru/persist.h>
 #include <rl_tools/nn/layers/td3_sampling/persist.h>
 #include <rl_tools/nn_models/mlp/persist.h>
+#include <rl_tools/nn_models/mlp_unconditional_stddev/persist.h>
 #include <rl_tools/nn_models/sequential/persist.h>
 #include <rl_tools/nn_models/multi_agent_wrapper/persist.h>
 #include <rl_tools/rl/components/replay_buffer/persist.h>
@@ -45,6 +55,8 @@
 #include <rl_tools/rl/loop/steps/nn_analytics/operations_cpu.h>
 
 #include <rl_tools/rl/utils/evaluation/operations_cpu.h>
+
+#include <metra/metra.h>
 
 #include "config.h"
 #include "options.h"
@@ -79,7 +91,7 @@ int main(int argc, char** argv){
     }
     else{
         // iterate dynamics_parameters directory
-        std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters/";
+        std::filesystem::path dynamics_parameters_path = "./src/raptor/dynamics_parameters/";
         if (!std::filesystem::exists(dynamics_parameters_path)){
             std::cerr << "Dynamics parameters path does not exist: " << dynamics_parameters_path << std::endl;
             return 1;
@@ -155,6 +167,7 @@ int main(int argc, char** argv){
         return_file << "]";
         std::ofstream return_file_confirmation(ts.extrack_paths.seed / "return.json.set");
         return_file_confirmation.close();
+        metra::log("foundation_policy_pre_training/return_mean", (double)get(ts.evaluation_results, 0, LOOP_CONFIG::EVALUATION_PARAMETERS::N_EVALUATIONS - 1).returns_mean);
         rlt::free(device, ts);
     }
     rlt::free(device, rng);
