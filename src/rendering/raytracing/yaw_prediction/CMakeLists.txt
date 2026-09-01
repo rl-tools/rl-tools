@@ -7,7 +7,7 @@ if(NOT TARGET rendering_raytracing_stb)
         GIT_TAG        f1c79c02822848a9bed4315b12c8c8f3761e1296
         EXCLUDE_FROM_ALL
     )
-    FetchContent_MakeAvailable(yaw_prediction_stb)
+    rl_tools_fetchcontent_makeavailable_quiet(yaw_prediction_stb)
     add_library(rendering_raytracing_stb INTERFACE)
     target_include_directories(rendering_raytracing_stb SYSTEM INTERFACE ${yaw_prediction_stb_SOURCE_DIR})
 endif()
@@ -26,7 +26,7 @@ target_link_libraries(rendering_raytracing_yaw_prediction_real_world_eval
 )
 
 
-find_package(OpenCV COMPONENTS core imgcodecs imgproc videoio)
+find_package(OpenCV QUIET COMPONENTS core imgcodecs imgproc videoio)
 if(OpenCV_FOUND)
 add_executable(rendering_raytracing_yaw_prediction_dataset_overlay yaw_prediction_dataset_overlay.cpp)
 set_target_properties(rendering_raytracing_yaw_prediction_dataset_overlay PROPERTIES CXX_STANDARD 17)

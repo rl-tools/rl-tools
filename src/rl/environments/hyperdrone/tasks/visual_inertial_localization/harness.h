@@ -10,7 +10,7 @@
 #include <rl_tools/rl/environments/hyperdrone/tasks/visual_inertial_localization/metrics.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/visual_inertial_localization/calibration.h>
 
-#include "../../../../nn_models/port_checkpoint/raptor/policy.h"
+#include "../../../../../nn_models/port_checkpoint/raptor/policy.h"
 
 #include <chrono>
 #include <string>

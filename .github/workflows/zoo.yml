@@ -19,7 +19,7 @@ jobs:
     env:
       NUM_SEEDS: 10
       MUJOCO: false
-      MUJOCO_OPTION: "-DRL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO=OFF"
+      MUJOCO_OPTION: "-DRL_TOOLS_RL_ENVIRONMENTS_DISABLE_MUJOCO=ON"
       MKL_NUM_THREADS: 1
     steps:
       - name: Set number of seeds from input
@@ -29,12 +29,12 @@ jobs:
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.mujoco == 'true'
         run: |
           echo "MUJOCO=true" >> $GITHUB_ENV
-          echo "MUJOCO_OPTION=-DRL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO=ON" >> $GITHUB_ENV
+          echo "MUJOCO_OPTION=-DRL_TOOLS_RL_ENVIRONMENTS_DISABLE_MUJOCO=OFF" >> $GITHUB_ENV
       - name: Set MuJoCo from input
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.mujoco == 'false'
         run: |
           echo "MUJOCO=false" >> $GITHUB_ENV
-          echo "MUJOCO_OPTION=-DRL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO=OFF" >> $GITHUB_ENV
+          echo "MUJOCO_OPTION=-DRL_TOOLS_RL_ENVIRONMENTS_DISABLE_MUJOCO=ON" >> $GITHUB_ENV
       - name: List Environment Variables
         run: env
       - uses: actions/checkout@v3
@@ -69,6 +69,9 @@ jobs:
         run: >
           cmake -B build
           -DCMAKE_BUILD_TYPE=Release
+          -DRL_TOOLS_DISABLE_TESTS=ON
+          -DRL_TOOLS_DISABLE_EXPERIMENTAL=ON
+          -DRL_TOOLS_DISABLE_TAR=ON
           -S .
           $MUJOCO_OPTION
 

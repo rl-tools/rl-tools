@@ -1,7 +1,7 @@
-#include "visual_inertial_localization_harness.h"
+#include "harness.h"
 #include <rl_tools/rl/environments/hyperdrone/tasks/visual_inertial_localization/baseline.h>
 
-#include "../demo_common.h"
+#include "../../demo_common.h"
 
 #include <metra/metra.h>
 

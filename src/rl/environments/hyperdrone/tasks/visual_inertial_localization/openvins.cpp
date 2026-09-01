@@ -1,11 +1,11 @@
-#include "visual_inertial_localization_harness.h"
+#include "harness.h"
 #include <rl_tools/rl/environments/hyperdrone/tasks/visual_inertial_localization/baseline.h>
 
-#include "../demo_common.h"
+#include "../../demo_common.h"
 
 #include <metra/metra.h>
 
-// OpenVINS (GPL-3.0, built out-of-tree by external/openvins/setup.sh — this binary is GPL,
+// OpenVINS (GPL-3.0, built out-of-tree by src/vio/openvins/setup.sh — this binary is GPL,
 // for internal benchmarking only)
 #include <core/VioManager.h>
 #include <core/VioManagerOptions.h>

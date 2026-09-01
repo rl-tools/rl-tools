@@ -37,9 +37,6 @@ add_library(RLtools::Test ALIAS rl_tools_test)
 
 
 
-if(RL_TOOLS_TESTS_ENABLE_EIGEN)
-find_package(Eigen3 REQUIRED)
-endif()
 if(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ENABLE_UI)
 #find_package(Boost REQUIRED)
 endif()

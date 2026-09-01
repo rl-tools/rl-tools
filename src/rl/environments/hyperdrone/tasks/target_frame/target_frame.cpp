@@ -1,7 +1,7 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cpu.h>
 
-#include "../demo_common.h"
+#include "../../demo_common.h"
 
 #include <cstdio>
 #include <string>
