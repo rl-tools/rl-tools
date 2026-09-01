@@ -63,6 +63,10 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::visual_inertial_localiz
         static constexpr T WAYPOINT_MIN_DISTANCE = 1.0;
         static constexpr T WAYPOINT_ACCEPTANCE_RADIUS = 0.35;
         static constexpr T TARGET_POSITION_ERROR_CLIP = 1.0; // autopilot position-error observation clamp
+        // hover at waypoint 0 (the origin) for this many env steps before the route starts:
+        // gives estimators a stationary window, and the launch toward waypoint 1 provides the
+        // acceleration jerk that static visual-inertial initializers wait for
+        static constexpr TI INITIALIZATION_HOLD_STEPS = 0;
     };
 
     // benchmark protocol: fixed-length synchronized episodes only — the camera stride phase is
@@ -79,6 +83,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::visual_inertial_localiz
         using Parameters = ParametersVisualInertialLocalization<ParametersSpecification<T, TI, TASK_SPEC::NUM_WAYPOINTS, typename NEXT_WORLD::Parameters>>;
         using State = StateVisualInertialLocalization<ComponentSpecification<T, TI, typename NEXT_WORLD::State>>;
         static constexpr TI FRAME_STRIDE = TASK_SPEC::FRAME_STRIDE;
+        static constexpr TI INITIALIZATION_HOLD_STEPS = TASK_SPEC::INITIALIZATION_HOLD_STEPS;
 
         // estimator inputs beyond the frames: [accelerometer(3) | gyroscope(3) | frame_age/FRAME_STRIDE | new_frame]
         struct ObservationIMU {
