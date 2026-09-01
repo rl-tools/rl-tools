@@ -1,4 +1,4 @@
-find_package(Git)
+find_package(Git QUIET)
 if(GIT_FOUND)
     execute_process(
             COMMAND ${GIT_EXECUTABLE} rev-parse HEAD

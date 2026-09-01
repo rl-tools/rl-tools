@@ -11,7 +11,7 @@ FetchContent_Declare(wgpu_native
     URL_HASH SHA256=95a4d90c071005a98d03eab348beaa6b07e16eb00d1dcdb9f8348f75eb97ec5a
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
-FetchContent_MakeAvailable(wgpu_native)
+rl_tools_fetchcontent_makeavailable_quiet(wgpu_native)
 
 add_library(rl_tools_wgpu_native STATIC IMPORTED GLOBAL)
 set_target_properties(rl_tools_wgpu_native PROPERTIES

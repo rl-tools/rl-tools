@@ -7,7 +7,7 @@ if(NOT TARGET rendering_raytracing_stb)
         GIT_TAG        f1c79c02822848a9bed4315b12c8c8f3761e1296
         EXCLUDE_FROM_ALL
     )
-    FetchContent_MakeAvailable(yaw_prediction_stb)
+    rl_tools_fetchcontent_makeavailable_quiet(yaw_prediction_stb)
     add_library(rendering_raytracing_stb INTERFACE)
     target_include_directories(rendering_raytracing_stb SYSTEM INTERFACE ${yaw_prediction_stb_SOURCE_DIR})
 endif()
