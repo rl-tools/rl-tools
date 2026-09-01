@@ -34,6 +34,34 @@ namespace rl_tools {
             out[1] = -parameters.scene_yaw_sin * dx + parameters.scene_yaw_cos * dy;
             out[2] = in[2] - parameters.scene_translation[2];
         }
+        // the base world samples a uniformly random scene yaw, which can leave the camera
+        // staring at a blank wall; visual estimators need features from the first frame, so the
+        // task re-orients the spawn along the anchor annotation's free-space facing direction
+        template <typename DEVICE, typename TASK_SPEC>
+        void _face_free_space(DEVICE& device, const typename World<TASK_SPEC>::NEXT_WORLD::ANNOTATIONS& annotations, typename World<TASK_SPEC>::Parameters& parameters){
+            using T = typename TASK_SPEC::T;
+            using TI = typename TASK_SPEC::TI;
+            const TI count = annotations.num_positions;
+            if (count == 0) {
+                return;
+            }
+            TI anchor_index = 0;
+            T anchor_distance_squared = 0;
+            for (TI candidate_i = 0; candidate_i < count; candidate_i++) {
+                T distance_squared = 0;
+                for (TI dim_i = 0; dim_i < 3; dim_i++) {
+                    T delta = (T)annotations.positions[candidate_i].position[dim_i] - parameters.scene_translation[dim_i];
+                    distance_squared += delta * delta;
+                }
+                if (candidate_i == 0 || distance_squared < anchor_distance_squared) {
+                    anchor_distance_squared = distance_squared;
+                    anchor_index = candidate_i;
+                }
+            }
+            T yaw = (T)annotations.positions[anchor_index].yaw;
+            parameters.scene_yaw_cos = math::cos(device.math, yaw);
+            parameters.scene_yaw_sin = math::sin(device.math, yaw);
+        }
         // greedy nearest-unused-neighbor route over the scene's free-space positions, anchored
         // at the initial placement; stored in the dynamics frame
         template <typename DEVICE, typename TASK_SPEC, typename RNG>
@@ -94,7 +122,7 @@ namespace rl_tools {
                 }
                 scene_to_dynamics_position<DEVICE, TASK_SPEC>(device, parameters, scene_position, parameters.waypoints[waypoint_i]);
             }
-            state.current_waypoint = NUM_WAYPOINTS > 1 ? 1 : 0;
+            state.current_waypoint = (TASK_SPEC::INITIALIZATION_HOLD_STEPS > 0 || NUM_WAYPOINTS == 1) ? 0 : 1;
         }
         template <typename DEVICE, typename TASK_SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT void _waypoint_step(DEVICE& device, const typename World<TASK_SPEC>::Parameters& parameters, const typename World<TASK_SPEC>::State& state, typename World<TASK_SPEC>::State& next_state){
@@ -136,6 +164,7 @@ namespace rl_tools {
     void sample_initial_state(DEVICE& device, rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>& world, typename rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>::Parameters& parameters, typename rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>::State& state, RNG& rng) {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         sample_initial_state(device, static_cast<NEXT_WORLD&>(world), static_cast<typename NEXT_WORLD::Parameters&>(parameters), static_cast<typename NEXT_WORLD::State&>(state), rng);
+        rl::environments::hyperdrone::tasks::visual_inertial_localization::_face_free_space<DEVICE, TASK_SPEC>(device, world.slots[world.active_slot].annotations, parameters);
         rl::environments::hyperdrone::tasks::visual_inertial_localization::_sample_route<DEVICE, TASK_SPEC>(device, world.slots[world.active_slot].annotations, parameters, state, rng);
     }
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC, typename RNG>
@@ -183,8 +212,13 @@ namespace rl_tools {
         using WORLD = rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>;
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         step(device, static_cast<NEXT_WORLD&>(world), parameters, states, actions, next_states, rng);
+        const bool hold = WORLD::INITIALIZATION_HOLD_STEPS > 0 && world.task_step <= WORLD::INITIALIZATION_HOLD_STEPS;
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
-            rl::environments::hyperdrone::tasks::visual_inertial_localization::_waypoint_step<DEVICE, TASK_SPEC>(device, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), get_ref(device, next_states, instance_i));
+            if (hold) {
+                get_ref(device, next_states, instance_i).current_waypoint = get_ref(device, states, instance_i).current_waypoint;
+            } else {
+                rl::environments::hyperdrone::tasks::visual_inertial_localization::_waypoint_step<DEVICE, TASK_SPEC>(device, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), get_ref(device, next_states, instance_i));
+            }
         }
     }
 

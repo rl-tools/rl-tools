@@ -2,6 +2,7 @@
 #include <rl_tools/rl/environments/hyperdrone/tasks/visual_inertial_localization/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/visual_inertial_localization/metrics.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/visual_inertial_localization/baseline.h>
+#include <rl_tools/rl/environments/hyperdrone/tasks/visual_inertial_localization/calibration.h>
 
 #include "../../../utils/utils.h"
 
@@ -72,6 +73,10 @@ namespace test_visual_inertial_localization {
     using BASE_WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
     using TASK_SPEC = task::Specification<BASE_WORLD>;
     using WORLD = task::World<TASK_SPEC>;
+    struct HOLD_TASK_SPEC: task::Specification<BASE_WORLD> {
+        static constexpr TI INITIALIZATION_HOLD_STEPS = 6;
+    };
+    using WORLD_HOLD = task::World<HOLD_TASK_SPEC>;
     constexpr TI INSTANCES = WORLD::INSTANCES;
     constexpr TI OBS_DIM = BASE_WORLD::OBSERVATION_DIM;
     constexpr TI FRAME_STRIDE = WORLD::FRAME_STRIDE;
@@ -420,6 +425,125 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, METRICS){
     EXPECT_NEAR(relative_position[1], (T)0, 1e-5);
     EXPECT_NEAR(relative_position[2], (T)0, 1e-5);
     EXPECT_NEAR(task::quaternion_geodesic_distance(device, relative_orientation, rotated_90_z), (T)0, 1e-3);
+}
+
+// with an initialization hold, the route anchors at waypoint 0 (the origin) and only starts
+// advancing once the hold expires — the stationary window static VIO initializers need
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, INITIALIZATION_HOLD){
+    if(SCENE_PATH.empty()){
+        GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
+    }
+    DEVICE device;
+    rlt::init(device);
+    WORLD_HOLD world;
+    typename BASE_WORLD::SharedContext shared;
+    rlt::malloc(device, shared.library);
+    rlt::malloc(device, world);
+    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    typename rlt::rendering::datasets::procthor::GLB::Corpus corpus;
+    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
+    RNG rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 1343);
+    rlt::Tensor<rlt::tensor::Specification<typename WORLD_HOLD::Parameters, TI, rlt::tensor::Shape<TI, INSTANCES>>> parameters;
+    rlt::Tensor<rlt::tensor::Specification<typename WORLD_HOLD::State, TI, rlt::tensor::Shape<TI, INSTANCES>>> states, next_states;
+    rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, INSTANCES>>> reset_mask;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, INSTANCES, WORLD_HOLD::ACTION_DIM>>> actions;
+    rlt::malloc(device, parameters);
+    rlt::malloc(device, states);
+    rlt::malloc(device, next_states);
+    rlt::malloc(device, reset_mask);
+    rlt::malloc(device, actions);
+    rlt::set_all(device, reset_mask, true);
+    rlt::sample_initial_parameters(device, world, parameters, reset_mask, rng);
+    rlt::sample_initial_state(device, world, parameters, states, reset_mask, rng);
+    {
+        typename WORLD_HOLD::Parameters instance_parameters = rlt::get(device, parameters, (TI)0);
+        T hover = instance_parameters.dynamics.dynamics.hovering_throttle_relative * 2 - 1;
+        rlt::set_all(device, actions, hover);
+        // rest at the origin (waypoint 0): the test config samples init_90_deg states
+        typename WORLD_HOLD::State state = rlt::get(device, states, (TI)0);
+        state.orientation[0] = 1;
+        for(TI dim_i = 0; dim_i < 3; dim_i++){
+            state.position[dim_i] = 0;
+            state.linear_velocity[dim_i] = 0;
+            state.angular_velocity[dim_i] = 0;
+            state.orientation[dim_i + 1] = 0;
+        }
+        rlt::set(device, states, state, (TI)0);
+    }
+    EXPECT_EQ(rlt::get(device, states, (TI)0).current_waypoint, 0) << "hold anchors the route at waypoint 0";
+    for(TI step_i = 0; step_i < HOLD_TASK_SPEC::INITIALIZATION_HOLD_STEPS + 2; step_i++){
+        rlt::render(device, world, parameters, states, reset_mask);
+        rlt::set_all(device, reset_mask, false);
+        rlt::step(device, world, parameters, states, actions, next_states, rng);
+        rlt::copy(device, device, next_states, states);
+        TI waypoint = rlt::get(device, states, (TI)0).current_waypoint;
+        if(step_i < HOLD_TASK_SPEC::INITIALIZATION_HOLD_STEPS){
+            EXPECT_EQ(waypoint, 0) << "step " << step_i << ": the waypoint must not advance during the hold";
+        } else {
+            EXPECT_EQ(waypoint, 1) << "step " << step_i << ": the hover at the origin must advance to waypoint 1 once the hold expires";
+        }
+    }
+    rlt::free(device, parameters);
+    rlt::free(device, states);
+    rlt::free(device, next_states);
+    rlt::free(device, reset_mask);
+    rlt::free(device, actions);
+    rlt::free(device, world);
+    rlt::free(device, shared.library);
+    rlt::free(device, rng);
+}
+
+// the published calibration must reproduce the renderer's ray generation exactly: for every
+// pixel center, the pinhole back-projection through the camera-to-body transform has to match
+// the make_camera_data basis the ray tracer actually samples
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, CAMERA_CALIBRATION_GEOMETRY){
+    DEVICE device;
+    rlt::init(device);
+    struct Case { T forward[3]; T up[3]; T fov; TI width; TI height; };
+    const Case cases[] = {
+        {{1, 0, 0}, {0, 0, 1}, (T)63.78166175396324, 64, 64},          // default mount, default fov
+        {{1, 0, 0}, {0, 0, 1}, (T)80, 320, 240},                       // baseline resolution
+        {{(T)0.9, 0, (T)-0.4359}, {(T)0.4359, 0, (T)0.9}, (T)70, 128, 96}, // pitched-down mount
+        {{(T)0.7, (T)0.7, 0}, {0, 0, 1}, (T)50, 200, 150},             // yawed mount, non-orthogonal handling
+    };
+    for(const Case& c : cases){
+        rlt::rl::environments::hyperdrone::CameraMount<T> mount;
+        for(TI dim_i = 0; dim_i < 3; dim_i++){
+            mount.offset_body[dim_i] = 0;
+            mount.forward_body[dim_i] = c.forward[dim_i];
+            mount.up_body[dim_i] = c.up[dim_i];
+        }
+        const T position[3] = {0, 0, 0};
+        const T aspect = (T)c.width / (T)c.height;
+        auto camera = rlt::make_camera_data(position, c.forward, c.up, c.fov, aspect);
+        auto intrinsics = task::pinhole_intrinsics(device, c.width, c.height, c.fov);
+        T rotation[3][3], translation[3];
+        task::camera_to_body_transform(device, mount, rotation, translation);
+        for(TI v = 0; v < c.height; v += c.height / 4){
+            for(TI u = 0; u < c.width; u += c.width / 4){
+                T ray_render[3], ray_model[3];
+                T screen_x = ((T)u + (T)0.5) / (T)c.width;
+                T screen_y = ((T)v + (T)0.5) / (T)c.height;
+                T direction_cv[3] = {((T)u - intrinsics.cx) / intrinsics.fx, ((T)v - intrinsics.cy) / intrinsics.fy, 1};
+                T norm_render = 0, norm_model = 0;
+                for(TI dim_i = 0; dim_i < 3; dim_i++){
+                    ray_render[dim_i] = camera.dir_00[dim_i] + screen_x * camera.dir_du[dim_i] + screen_y * camera.dir_dv[dim_i];
+                    ray_model[dim_i] = rotation[dim_i][0] * direction_cv[0] + rotation[dim_i][1] * direction_cv[1] + rotation[dim_i][2] * direction_cv[2];
+                    norm_render += ray_render[dim_i] * ray_render[dim_i];
+                    norm_model += ray_model[dim_i] * ray_model[dim_i];
+                }
+                norm_render = std::sqrt(norm_render);
+                norm_model = std::sqrt(norm_model);
+                for(TI dim_i = 0; dim_i < 3; dim_i++){
+                    EXPECT_NEAR(ray_render[dim_i] / norm_render, ray_model[dim_i] / norm_model, 2e-5)
+                        << "pixel (" << u << "," << v << ") dim " << dim_i << " fov " << c.fov << " " << c.width << "x" << c.height;
+                }
+            }
+        }
+    }
 }
 
 int main(int argc, char** argv) {
