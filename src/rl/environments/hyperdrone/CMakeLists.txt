@@ -36,9 +36,9 @@ endif()
 add_executable(rl_environments_hyperdrone_tasks_visual_inertial_localization_score tasks/visual_inertial_localization_score.cpp)
 target_link_libraries(rl_environments_hyperdrone_tasks_visual_inertial_localization_score PRIVATE RLtools::RLtools)
 
-# OpenVINS baseline: gated on the out-of-tree OpenVINS build (external/openvins/setup.sh);
+# OpenVINS baseline: gated on the out-of-tree OpenVINS build (src/vio/openvins/setup.sh);
 # the resulting binary is GPL-3.0 — internal benchmarking only, never distribute
-set(RL_TOOLS_OPENVINS_ROOT "${CMAKE_SOURCE_DIR}/external/openvins")
+set(RL_TOOLS_OPENVINS_ROOT "${CMAKE_SOURCE_DIR}/src/vio/openvins")
 if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING
         AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../../nn_models/port_checkpoint/raptor/policy.h"
         AND EXISTS "${RL_TOOLS_OPENVINS_ROOT}/prefix/lib/libov_msckf_lib.so")
