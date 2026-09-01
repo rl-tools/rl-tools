@@ -24,13 +24,19 @@
 #include <rl_tools/rl/loop/steps/save_trajectories/operations_cpu.h>
 #include <rl_tools/rl/loop/steps/nn_analytics/operations_cpu.h>
 
-#include <rl_tools/containers/tensor/persist.h>
+#include <rl_tools/persist/backends/hdf5/operations_cpu.h>
+#include <rl_tools/persist/backends/tar/operations_cpu.h>
+#include <rl_tools/persist/backends/tar/operations_generic.h>
+
+#include <rl_tools/nn/optimizers/adam/instance/persist.h>
+#include <rl_tools/nn/parameters/persist.h>
 #include <rl_tools/nn/layers/sample_and_squash/persist.h>
 #include <rl_tools/nn/layers/dense/persist.h>
 #include <rl_tools/nn/layers/standardize/persist.h>
 #include <rl_tools/nn/layers/gru/persist.h>
 #include <rl_tools/nn/layers/td3_sampling/persist.h>
 #include <rl_tools/nn_models/mlp/persist.h>
+#include <rl_tools/nn_models/mlp_unconditional_stddev/persist.h>
 #include <rl_tools/nn_models/sequential/persist.h>
 #include <rl_tools/nn_models/multi_agent_wrapper/persist.h>
 #include <rl_tools/rl/components/replay_buffer/persist.h>
@@ -44,6 +50,7 @@ using DEVICE = rlt::devices::DefaultCPU;
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using T = float;
 using TI = typename DEVICE::index_t;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 
 #include "environment.h"
 #include "../pre_training/config.h"
@@ -85,8 +92,8 @@ int main(){
 
     // cf like: 203; 139; 334; 31;
 
-    std::filesystem::path dynamics_parameters_path = "./src/foundation_policy/dynamics_parameters_" + checkpoint_path.experiment + "/";
-    std::filesystem::path dynamics_parameter_index = "./src/foundation_policy/checkpoints_" + checkpoint_path.experiment + ".txt";
+    std::filesystem::path dynamics_parameters_path = "./src/raptor/dynamics_parameters_" + checkpoint_path.experiment + "/";
+    std::filesystem::path dynamics_parameter_index = "./src/raptor/checkpoints_" + checkpoint_path.experiment + ".txt";
 
 
     std::vector<std::tuple<std::string, ENVIRONMENT::Parameters::Dynamics>> query_dynamics;
@@ -141,15 +148,16 @@ int main(){
         if (!found){
             std::cerr << "Could not find checkpoint: " << cpp_copy.checkpoint_path.string() << std::endl;
         }
-        auto actor_file = HighFive::File(cpp_copy.checkpoint_path.string(), HighFive::File::ReadOnly);
-        rlt::load(device, evaluation_actor, actor_file.getGroup("actor"));
+        rlt::persist::backends::hdf5::File actor_file(cpp_copy.checkpoint_path.string(), rlt::persist::backends::hdf5::Mode::READ);
+        auto actor_group = rlt::get_group(device, actor_file, "actor");
+        rlt::load(device, evaluation_actor, actor_group);
 
         std::ifstream dynamics_parameter_file = std::ifstream(dynamics_parameters_path / (cpp_copy.attributes["dynamics-id"] + ".json"));
         std::string dynamics_parameter_json((std::istreambuf_iterator<char>(dynamics_parameter_file)), std::istreambuf_iterator<char>());
         dynamics_parameter_file.close();
         rlt::from_json(device, env, dynamics_parameter_json, env.parameters);
 
-        using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, ENVIRONMENT, NUM_EPISODES_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>;
+        using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<TYPE_POLICY, TI, ENVIRONMENT, NUM_EPISODES_EVAL, ENVIRONMENT::EPISODE_STEP_LIMIT>;
         using RESULT = rlt::rl::utils::evaluation::Result<RESULT_SPEC>;
         RESULT base_result, query_result;
         rlt::rl::utils::evaluation::NoData<rlt::rl::utils::evaluation::DataSpecification<RESULT_SPEC>> no_data;
