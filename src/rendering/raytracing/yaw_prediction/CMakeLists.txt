@@ -26,7 +26,7 @@ target_link_libraries(rendering_raytracing_yaw_prediction_real_world_eval
 )
 
 
-find_package(OpenCV COMPONENTS core imgcodecs imgproc videoio)
+find_package(OpenCV QUIET COMPONENTS core imgcodecs imgproc videoio)
 if(OpenCV_FOUND)
 add_executable(rendering_raytracing_yaw_prediction_dataset_overlay yaw_prediction_dataset_overlay.cpp)
 set_target_properties(rendering_raytracing_yaw_prediction_dataset_overlay PROPERTIES CXX_STANDARD 17)
