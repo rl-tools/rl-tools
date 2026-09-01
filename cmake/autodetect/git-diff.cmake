@@ -2,13 +2,10 @@
 # Git snapshot tracking for ExTrack
 # ==============================================================================
 
-option(RL_TOOLS_ENABLE_GIT_DIFF "Enable embedding git state into ExTrack runs" ON)
-
-if(NOT RL_TOOLS_ENABLE_GIT_DIFF)
+if(RL_TOOLS_DISABLE_GIT_DIFF)
     return()
 endif()
 
-find_package(Git QUIET)
 if(NOT GIT_FOUND)
     message(STATUS "Git not found - git snapshot tracking disabled")
     return()
@@ -64,10 +61,10 @@ if(NOT RL_TOOLS_IS_GIT_REPO AND NOT RL_TOOLS_PARENT_IS_GIT_REPO)
     return()
 endif()
 
-message(STATUS "Git snapshot tracking enabled:")
-message(STATUS "  Library: ${RL_TOOLS_ROOT_DIR} [git: ${RL_TOOLS_IS_GIT_REPO}]")
+message(VERBOSE "Git snapshot tracking enabled:")
+message(VERBOSE "  Library: ${RL_TOOLS_ROOT_DIR} [git: ${RL_TOOLS_IS_GIT_REPO}]")
 if(RL_TOOLS_HAS_PARENT)
-    message(STATUS "  Project: ${RL_TOOLS_PARENT_DIR} [git: ${RL_TOOLS_PARENT_IS_GIT_REPO}]")
+    message(VERBOSE "  Project: ${RL_TOOLS_PARENT_DIR} [git: ${RL_TOOLS_PARENT_IS_GIT_REPO}]")
 endif()
 
 set(GIT_SNAPSHOT_OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/rl_tools/extrack/git_snapshot.cpp")

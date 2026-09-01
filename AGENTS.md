@@ -9,28 +9,24 @@ Always use the `.venv` virtual environment. If it does not exist, create it with
 
 ### CMake Configuration
 
+The build fully auto-configures: every feature is enabled by default when its prerequisites are available, and a configure summary ("RLtools configure summary:") reports each feature as ON/OFF with the reason.
 
 Ubuntu (x86)
 ```bash
-CUDACXX=/usr/local/cuda-13.1/bin/nvcc cmake -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DRL_TOOLS_ENABLE_TESTS=ON \
-  -DRL_TOOLS_EXPERIMENTAL=ON \
-  -DRL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO=ON \
-  -DRL_TOOLS_NUMERIC_TYPES_ENABLE_BF16=ON \
-  -DRL_TOOLS_ENABLE_TAR=ON \
-  -DRL_TOOLS_RENDERING_ENABLE_RAYTRACING=ON
+CUDACXX=/usr/local/cuda-13.1/bin/nvcc cmake -B build -DCMAKE_BUILD_TYPE=Release
 ```
 
 macOS
 ```
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DRL_TOOLS_EXPERIMENTAL=ON -DRL_TOOLS_ENABLE_TAR=ON -DRL_TOOLS_ENABLE_TESTS=ON -DRL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO=ON
+cmake -B build -DCMAKE_BUILD_TYPE=Release
 ```
+
+Opt-outs follow the `RL_TOOLS_XXX_DISABLE_YYY=ON` pattern: `RL_TOOLS_DISABLE_{TARGETS,TESTS,EXPERIMENTAL,TAR,GIT_DIFF,FAST_MATH,JSON,HDF5,ZLIB,TENSORBOARD,CLI11}`, `RL_TOOLS_BACKEND_DISABLE_{BLAS,MKL,DNNL,CUDA,CUDNN}`, `RL_TOOLS_NUMERIC_TYPES_DISABLE_BF16`, `RL_TOOLS_RL_ENVIRONMENTS_DISABLE_MUJOCO`, `RL_TOOLS_TESTS_DISABLE_EIGEN`, `RL_TOOLS_RENDERING_DISABLE_RAYTRACING`, `RL_TOOLS_RENDERING_RAYTRACING_DISABLE_{OPTIX,METAL,VULKAN,WEBGPU}`. The pre-auto-configure `*_ENABLE_*` flags are gone: a legacy cache entry that agrees with the new defaults is scrubbed with a STATUS note, one that would change behavior fails with the replacement flag (`cmake/legacy_flags.cmake`). The `RL_TOOLS_ENABLE_*` / `RL_TOOLS_BACKEND_ENABLE_*` spellings are detection *outputs* (plain variables + compile definitions), not inputs — passing them as `-D` flags warns and is ignored.
 
 **Environment variables:**
 - `CUDACXX=/usr/local/cuda-13.1/bin/nvcc` — required for CUDA test targets
 
-**Raytracing backend selection:** `-DRL_TOOLS_RENDERING_RAYTRACING_BACKEND=AUTO|OPTIX|METAL|VULKAN|WEBGPU|GENERIC` (`AUTO` resolves to `METAL` on macOS, `OPTIX` elsewhere). The `VULKAN` backend uses compute shaders with `VK_KHR_ray_query` (structural mirror of the Metal backend, GLSL compiled to SPIR-V at build time via `glslangValidator`); it needs the Vulkan dev headers and `glslang-tools` installed, runs headless, and works on Mesa's lavapipe CPU driver (`VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json`) for GPU-less machines/CI. `RL_TOOLS_VULKAN_DEVICE_INDEX` overrides device selection. The `WEBGPU` backend codes strictly against the standard `webgpu.h`/WGSL (browser/WASM is the eventual target): ray tracing is not in the WebGPU standard, so it reuses the generic backend's deterministic CPU BVH build and traverses it in WGSL compute; the runtime is a hash-pinned wgpu-native prebuilt fetched via FetchContent (no Rust toolchain, Linux-x86_64 wired up so far), which sits on Vulkan and therefore also runs headless and on lavapipe. `RL_TOOLS_WEBGPU_DEVICE_INDEX` overrides adapter selection. `RL_TOOLS_WEBGPU_BVH=median` switches the BLAS/TLAS build back to the shared generic median-split baseline (default: deterministic binned SAH, traversed near-first).
+**Raytracing backend selection:** `-DRL_TOOLS_RENDERING_RAYTRACING_BACKEND=AUTO|OPTIX|METAL|VULKAN|WEBGPU|GENERIC`. `AUTO` (the default) probes availability in preference order `OPTIX > METAL > VULKAN > WEBGPU > GENERIC` (OptiX needs a working CUDA toolchain and git for the OWL fetch, Metal needs macOS, Vulkan needs headers + `glslangValidator`, WebGPU needs linux-x86_64 and network access; all backends need assimp — without it raytracing auto-disables). An explicitly selected backend is hard-required and fails the configure if its prerequisites are missing. The `VULKAN` backend uses compute shaders with `VK_KHR_ray_query` (structural mirror of the Metal backend, GLSL compiled to SPIR-V at build time via `glslangValidator`); it needs the Vulkan dev headers and `glslang-tools` installed, runs headless, and works on Mesa's lavapipe CPU driver (`VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json`) for GPU-less machines/CI. `RL_TOOLS_VULKAN_DEVICE_INDEX` overrides device selection. The `WEBGPU` backend codes strictly against the standard `webgpu.h`/WGSL (browser/WASM is the eventual target): ray tracing is not in the WebGPU standard, so it reuses the generic backend's deterministic CPU BVH build and traverses it in WGSL compute; the runtime is a hash-pinned wgpu-native prebuilt fetched via FetchContent (no Rust toolchain, Linux-x86_64 wired up so far), which sits on Vulkan and therefore also runs headless and on lavapipe. `RL_TOOLS_WEBGPU_DEVICE_INDEX` overrides adapter selection. `RL_TOOLS_WEBGPU_BVH=median` switches the BLAS/TLAS build back to the shared generic median-split baseline (default: deterministic binned SAH, traversed near-first).
 
 ### Running Tests
 

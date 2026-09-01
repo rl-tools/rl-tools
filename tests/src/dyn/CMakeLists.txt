@@ -1,4 +1,4 @@
-if(RL_TOOLS_ENABLE_TAR AND RL_TOOLS_TEST_DATA_PATH)
+if(NOT RL_TOOLS_DISABLE_TAR AND RL_TOOLS_TEST_DATA_PATH)
     add_executable(test_dyn dyn.cpp)
     target_link_libraries(test_dyn RLtools::RLtools GTest::gtest_main)
     target_compile_definitions(test_dyn PRIVATE RL_TOOLS_TEST_DATA_PATH=${RL_TOOLS_TEST_DATA_PATH})
