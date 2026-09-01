@@ -30,6 +30,18 @@ namespace rl_tools{
         RL_TOOLS_FUNCTION_PLACEMENT static typename STATE::T gyro_bias_axis(const STATE& state, typename STATE::TI axis){
             return gyro_bias_axis_impl(state, axis, 0);
         }
+        template<typename STATE>
+        RL_TOOLS_FUNCTION_PLACEMENT static auto accelerometer_bias_axis_impl(const STATE& state, typename STATE::TI axis, int) -> decltype(state.accelerometer_bias[axis]){
+            return state.accelerometer_bias[axis];
+        }
+        template<typename STATE>
+        RL_TOOLS_FUNCTION_PLACEMENT static typename STATE::T accelerometer_bias_axis_impl(const STATE&, typename STATE::TI, long){
+            return 0;
+        }
+        template<typename STATE>
+        RL_TOOLS_FUNCTION_PLACEMENT static typename STATE::T accelerometer_bias_axis(const STATE& state, typename STATE::TI axis){
+            return accelerometer_bias_axis_impl(state, axis, 0);
+        }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_TI, typename OBS_SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::LastComponent<OBSERVATION_TI>, Matrix<OBS_SPEC>& observation, RNG& rng){
             static_assert(OBS_SPEC::COLS == 0);
