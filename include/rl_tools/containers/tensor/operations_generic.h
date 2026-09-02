@@ -28,7 +28,7 @@ namespace rl_tools{
 #if !defined(RL_TOOLS_DISABLE_DYNAMIC_MEMORY_ALLOCATIONS)
     template<typename DEVICE, typename T, typename T_TI, T_TI SIZE, bool CONST>
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, tensor::TensorDynamic<T, T_TI, SIZE, CONST>& tensor){
-        T* temp = (T*) new T[SIZE];
+        T* temp = (T*) new T[SIZE > 0 ? SIZE : 1]; // zero-extent shapes (e.g. an autonomous task's empty action tensor) still get a valid pointer
         *data_pointer(tensor) = temp;
 #if RL_TOOLS_DEBUG_CONTAINER_MALLOC_INIT_NAN
         for(typename DEVICE::index_t i=0; i < SIZE; i++){

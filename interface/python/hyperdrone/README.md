@@ -186,9 +186,12 @@ renderer's collision probes and is deterministic given a seed.
 benchmark: fixed-length synchronized episodes stepping at IMU rate (`env.dt`), a camera
 frame every `env.frame_stride` steps, and the IMU sample of each step from
 `env.observe_imu()` (named by `env.observation_layout_imu`: accelerometer, gyroscope,
-frame age, new-frame flag). The privileged observation carries the current `waypoint` so
-an external autopilot can fly the route; the drone's own body is not rendered, matching the
-C++ benchmark harness. Resets must be all-or-none per environment.
+frame age, new-frame flag). The task is autonomous: the RAPTOR autopilot built into it
+flies a waypoint route (its checkpoint is pinned by content hash and fetched through
+conta on first use), so `action_dim` is 0 and `step()` takes no actions. The privileged
+observation carries the current `waypoint` next to the dynamics state; the drone's own
+body is not rendered, matching the C++ benchmark harness. Resets must be all-or-none per
+environment.
 
 ```python
 config = EnvConfig(instances=2, cam_width=160, cam_height=120, preset="x500_fpv_imu", task="visual_inertial_localization")
@@ -198,13 +201,12 @@ for step in range(env.episode_step_limit):
     if step > 0: env.render()
     if step % env.frame_stride == 0:
         frames = env.frames()          # the estimator's camera frame
-    env.step(actions)
+    env.step()
     imu = env.observe_imu()            # the estimator's IMU sample for this step
     truth = env.observe_privileged()   # position / rotation matrix / velocities / waypoint
 ```
 
-`python -m hyperdrone.examples.visual_inertial_localization` flies the route with the
-RAPTOR policy (`pip install foundation-policy`, part of `hyperdrone[examples]`) and scores
+`python -m hyperdrone.examples.visual_inertial_localization` runs an episode and scores
 IMU dead reckoning against the ground truth, the same protocol as the C++ demo.
 
 ### Gymnasium

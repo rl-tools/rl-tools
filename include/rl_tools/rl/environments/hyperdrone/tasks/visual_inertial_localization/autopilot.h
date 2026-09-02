@@ -4,74 +4,57 @@
 #pragma once
 #define RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TASKS_VISUAL_INERTIAL_LOCALIZATION_AUTOPILOT_H
 
-#include "visual_inertial_localization.h"
+#include "../../world.h"
+#include "../../../../../numeric_types/policy.h"
+#include "../../../../../nn/layers/dense/layer.h"
+#include "../../../../../nn/layers/gru/layer.h"
+#include "../../../../../nn_models/sequential/model.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::hyperdrone::tasks::visual_inertial_localization {
-    // waypoint-tracking autopilot around a recurrent state-feedback policy (e.g. RAPTOR): the
-    // policy sees [clamped position error to the current waypoint | R | v | omega | last
-    // action] through the privileged observation chain, so the benchmark's IMU noise does not
-    // leak into the motion generation
-    template <typename T_WORLD, typename T_MODEL>
+    // the task's autopilot: RAPTOR, a recurrent state-feedback policy, flies the waypoint route
+    // from [clamped position error to the current waypoint | R | v | omega | last action] read
+    // through the privileged observation chain, so the benchmark's IMU noise never leaks into
+    // the motion generation. The architecture is pinned here; the weights are loaded at init
+    // from the checkpoint the task specification references
+    namespace raptor {
+        template <typename T_T, typename T_TI>
+        struct Architecture {
+            using T = T_T;
+            using TI = T_TI;
+            using TYPE_POLICY = numeric_types::Policy<T>;
+            static constexpr TI INPUT_DIM = 22;
+            static constexpr TI HIDDEN_DIM = 16;
+            static constexpr TI OUTPUT_DIM = 4;
+            using INPUT_LAYER = nn::layers::dense::BindConfiguration<nn::layers::dense::Configuration<TYPE_POLICY, TI, HIDDEN_DIM, nn::activation_functions::ActivationFunction::RELU, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Input>>;
+            using RECURRENT_LAYER = nn::layers::gru::BindConfiguration<nn::layers::gru::Configuration<TYPE_POLICY, TI, HIDDEN_DIM, nn::parameters::groups::Normal, false>>;
+            using OUTPUT_LAYER = nn::layers::dense::BindConfiguration<nn::layers::dense::Configuration<TYPE_POLICY, TI, OUTPUT_DIM, nn::activation_functions::ActivationFunction::IDENTITY, nn::layers::dense::DefaultInitializer<TYPE_POLICY, TI>, nn::parameters::groups::Output>>;
+            using MODULE_CHAIN = nn_models::sequential::Module<INPUT_LAYER, RECURRENT_LAYER, OUTPUT_LAYER>;
+        };
+    }
+    template <typename T_BASE_WORLD>
     struct Autopilot {
-        using WORLD = T_WORLD;
-        using MODEL = T_MODEL;
-        using T = typename WORLD::T;
-        using TI = typename WORLD::TI;
+        using BASE_WORLD = T_BASE_WORLD;
+        using T = typename BASE_WORLD::T;
+        using TI = typename BASE_WORLD::TI;
+        static constexpr TI INSTANCES = BASE_WORLD::INSTANCES;
+        using ARCHITECTURE = raptor::Architecture<T, TI>;
         using OBSERVATION_TYPE = l2f::observation::Position<l2f::observation::PositionSpecificationPrivileged<T, TI,
                 l2f::observation::OrientationRotationMatrix<l2f::observation::OrientationRotationMatrixSpecificationPrivileged<T, TI,
                 l2f::observation::LinearVelocity<l2f::observation::LinearVelocitySpecificationPrivileged<T, TI,
                 l2f::observation::AngularVelocity<l2f::observation::AngularVelocitySpecificationPrivileged<T, TI,
                 l2f::observation::ActionHistory<l2f::observation::ActionHistorySpecification<T, TI, 1>>>>>>>>>>;
         static constexpr TI OBSERVATION_DIM = OBSERVATION_TYPE::DIM;
+        static constexpr TI ACTION_DIM = ARCHITECTURE::OUTPUT_DIM;
+        static_assert(OBSERVATION_DIM == ARCHITECTURE::INPUT_DIM, "the autopilot observation chain must match the policy input");
+        static_assert(ACTION_DIM == BASE_WORLD::ACTION_DIM, "the autopilot drives the base world's motors");
+        using MODEL = nn_models::sequential::Build<nn::capability::Forward<true, false>, typename ARCHITECTURE::MODULE_CHAIN, tensor::Shape<TI, 1, INSTANCES, OBSERVATION_DIM>>;
         MODEL model;
         typename MODEL::template State<true> state;
         typename MODEL::template Buffer<true> buffer;
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, WORLD::INSTANCES, OBSERVATION_DIM>>> observations;
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, INSTANCES, OBSERVATION_DIM>>> observations;
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, INSTANCES, ACTION_DIM>>> actions;
     };
-    template <typename DEVICE, typename WORLD, typename MODEL, typename SOURCE_MODULE, typename RNG>
-    void init(DEVICE& device, Autopilot<WORLD, MODEL>& autopilot, const SOURCE_MODULE& source_module, RNG& rng){
-        ::rl_tools::malloc(device, autopilot.model);
-        ::rl_tools::malloc(device, autopilot.state);
-        ::rl_tools::malloc(device, autopilot.buffer);
-        ::rl_tools::malloc(device, autopilot.observations);
-        ::rl_tools::copy(device, device, source_module, autopilot.model);
-        ::rl_tools::reset(device, autopilot.model, autopilot.state, rng);
-    }
-    template <typename DEVICE, typename WORLD, typename MODEL>
-    void free(DEVICE& device, Autopilot<WORLD, MODEL>& autopilot){
-        ::rl_tools::free(device, autopilot.model);
-        ::rl_tools::free(device, autopilot.state);
-        ::rl_tools::free(device, autopilot.buffer);
-        ::rl_tools::free(device, autopilot.observations);
-    }
-    // synchronized episodes: the recurrent state resets for all instances together
-    template <typename DEVICE, typename WORLD, typename MODEL, typename RNG>
-    void reset(DEVICE& device, Autopilot<WORLD, MODEL>& autopilot, RNG& rng){
-        ::rl_tools::reset(device, autopilot.model, autopilot.state, rng);
-    }
-    template <typename DEVICE, typename TASK_SPEC, typename MODEL, typename PARAMETER_SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename RNG>
-    void control(DEVICE& device, World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, Autopilot<World<TASK_SPEC>, MODEL>& autopilot, Tensor<ACTION_SPEC>& actions, RNG& rng){
-        using WORLD = World<TASK_SPEC>;
-        using T = typename WORLD::T;
-        using TI = typename WORLD::TI;
-        using AUTOPILOT = Autopilot<WORLD, MODEL>;
-        static_assert(get<0>(typename ACTION_SPEC::SHAPE{}) == WORLD::INSTANCES);
-        for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++){
-            auto& instance_parameters = get_ref(device, parameters, instance_i);
-            const auto& state = get_ref(device, states, instance_i);
-            Matrix<matrix::Specification<T, TI, 1, AUTOPILOT::OBSERVATION_DIM, true, matrix::layouts::RowMajorAlignment<TI, 1>>> observation_row;
-            observation_row._data = data(autopilot.observations) + instance_i * AUTOPILOT::OBSERVATION_DIM;
-            observe(device, world.dynamics, instance_parameters.dynamics, state, typename AUTOPILOT::OBSERVATION_TYPE{}, observation_row, rng);
-            for (TI dim_i = 0; dim_i < 3; dim_i++){
-                T error = state.position[dim_i] - instance_parameters.waypoints[state.current_waypoint][dim_i];
-                error = math::clamp(device.math, error, -TASK_SPEC::TARGET_POSITION_ERROR_CLIP, TASK_SPEC::TARGET_POSITION_ERROR_CLIP);
-                set(observation_row, 0, dim_i, error);
-            }
-        }
-        Mode<nn::layers::gru::NoAutoResetMode<mode::Default<>>> no_auto_reset_mode;
-        evaluate_step(device, autopilot.model, autopilot.observations, autopilot.state, actions, autopilot.buffer, rng, no_auto_reset_mode);
-    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

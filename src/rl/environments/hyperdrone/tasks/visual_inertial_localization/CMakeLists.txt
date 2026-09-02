@@ -1,6 +1,5 @@
-# the RAPTOR autopilot policy is gitignored (fetched by src/nn_models/port_checkpoint/raptor/setup.sh)
-set(RL_TOOLS_RAPTOR_POLICY "${CMAKE_SOURCE_DIR}/src/nn_models/port_checkpoint/raptor/policy.h")
-if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND EXISTS "${RL_TOOLS_RAPTOR_POLICY}")
+# the task carries its own autopilot (RAPTOR, weights resolved through conta at init)
+if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
     add_executable(rl_environments_hyperdrone_tasks_visual_inertial_localization visual_inertial_localization.cpp)
     target_link_libraries(rl_environments_hyperdrone_tasks_visual_inertial_localization
         PRIVATE
@@ -25,9 +24,7 @@ target_link_libraries(rl_environments_hyperdrone_tasks_visual_inertial_localizat
 # OpenVINS baseline: gated on the out-of-tree OpenVINS build (src/vio/openvins/setup.sh);
 # the resulting binary is GPL-3.0 — internal benchmarking only, never distribute
 set(RL_TOOLS_OPENVINS_ROOT "${CMAKE_SOURCE_DIR}/src/vio/openvins")
-if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING
-        AND EXISTS "${RL_TOOLS_RAPTOR_POLICY}"
-        AND EXISTS "${RL_TOOLS_OPENVINS_ROOT}/prefix/lib/libov_msckf_lib.so")
+if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND EXISTS "${RL_TOOLS_OPENVINS_ROOT}/prefix/lib/libov_msckf_lib.so")
     find_package(OpenCV REQUIRED COMPONENTS core imgproc calib3d features2d video)
     find_package(Eigen3 REQUIRED)
     add_executable(rl_environments_hyperdrone_tasks_visual_inertial_localization_openvins openvins.cpp)

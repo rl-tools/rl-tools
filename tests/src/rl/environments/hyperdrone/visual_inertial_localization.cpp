@@ -144,12 +144,6 @@ struct Fixture {
     }
 };
 
-static void set_hover_actions(DEVICE& device, Tensors& tensors){
-    typename WORLD::Parameters instance_parameters = rlt::get(device, tensors.parameters, (TI)0);
-    T hover = instance_parameters.dynamics.dynamics.hovering_throttle_relative * 2 - 1;
-    rlt::set_all(device, tensors.actions, hover);
-}
-
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, FRAME_STRIDE_SEMANTICS){
     if(SCENE_PATH.empty()){
         GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
@@ -160,7 +154,6 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, FRAME_STR
     WORLD& world = fixture.world;
     Tensors& tensors = fixture.tensors;
     RNG& rng = fixture.rng;
-    set_hover_actions(device, tensors);
     {
         // give the drone motion so consecutive frames differ
         typename WORLD::State state = rlt::get(device, tensors.states, (TI)0);
@@ -206,7 +199,6 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, RESET_REA
     WORLD& world = fixture.world;
     Tensors& tensors = fixture.tensors;
     RNG& rng = fixture.rng;
-    set_hover_actions(device, tensors);
     // advance to a mid-stride phase
     for(TI step_i = 0; step_i < FRAME_STRIDE / 2 + 1; step_i++){
         rlt::render(device, world, tensors.parameters, tensors.states, tensors.reset_mask);
@@ -260,7 +252,6 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, ROUTE_AND
         state.angular_velocity[dim_i] = 0;
     }
     rlt::set(device, tensors.states, state, (TI)0);
-    set_hover_actions(device, tensors);
     rlt::step(device, world, tensors.parameters, tensors.states, tensors.actions, tensors.next_states, rng);
     typename WORLD::State next_state = rlt::get(device, tensors.next_states, (TI)0);
     EXPECT_EQ(next_state.current_waypoint, 2);
@@ -339,18 +330,10 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, DEAD_RECK
         estimator.orientation[dim_i] = state.orientation[dim_i];
     }
     task::DeadReckoningState<T> oracle_estimator = estimator; // fed ground-truth orientation each step
-    set_hover_actions(device, tensors);
     constexpr TI N_STEPS = 100; // 0.5 s at 200 Hz
     for(TI step_i = 0; step_i < N_STEPS; step_i++){
         rlt::render(device, world, tensors.parameters, tensors.states, tensors.reset_mask);
         rlt::set_all(device, tensors.reset_mask, false);
-        // small excitation around hover
-        for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            for(TI action_i = 0; action_i < WORLD::ACTION_DIM; action_i++){
-                T excitation = rlt::random::uniform_real_distribution(device.random, (T)-0.05, (T)0.05, rng);
-                rlt::set(device, tensors.actions, rlt::get(device, tensors.actions, instance_i, action_i) + excitation, instance_i, action_i);
-            }
-        }
         rlt::step(device, world, tensors.parameters, tensors.states, tensors.actions, tensors.next_states, rng);
         rlt::observe(device, world, tensors.parameters, tensors.next_states, typename WORLD::ObservationIMU{}, tensors.observations_imu, rng);
         T accelerometer[3], gyroscope[3];
@@ -372,8 +355,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, DEAD_RECK
             oracle_estimator.linear_velocity[dim_i] = velocity_next;
         }
         rlt::copy(device, device, tensors.next_states, tensors.states);
-        set_hover_actions(device, tensors);
-    }
+        }
     typename WORLD::State final_state = rlt::get(device, tensors.states, (TI)0);
     // the oracle (true attitude) recovers the velocity to float round-off
     for(TI dim_i = 0; dim_i < 3; dim_i++){
@@ -459,9 +441,6 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, INITIALIZ
     rlt::sample_initial_parameters(device, world, parameters, reset_mask, rng);
     rlt::sample_initial_state(device, world, parameters, states, reset_mask, rng);
     {
-        typename WORLD_HOLD::Parameters instance_parameters = rlt::get(device, parameters, (TI)0);
-        T hover = instance_parameters.dynamics.dynamics.hovering_throttle_relative * 2 - 1;
-        rlt::set_all(device, actions, hover);
         // rest at the origin (waypoint 0): the test config samples init_90_deg states
         typename WORLD_HOLD::State state = rlt::get(device, states, (TI)0);
         state.orientation[0] = 1;

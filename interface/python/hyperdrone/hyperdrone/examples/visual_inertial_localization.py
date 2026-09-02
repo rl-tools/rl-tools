@@ -1,9 +1,8 @@
 """The visual-inertial localization benchmark from Python. The task flies a waypoint route
-through a scene at IMU rate and streams what an estimator gets — a camera frame every
-`frame_stride` steps, an IMU sample after every step — next to the ground truth to score
-it. The RAPTOR policy (pip install foundation-policy) is the autopilot, exactly as in the
-C++ harness; the estimator slot holds IMU dead reckoning (the C++ demo's blind baseline):
-swap in your own and compare the absolute trajectory error.
+through a scene at IMU rate with its built-in autopilot and streams what an estimator
+gets — a camera frame every `frame_stride` steps, an IMU sample after every step — next to
+the ground truth to score it. The estimator slot below holds IMU dead reckoning (the C++
+demo's blind baseline): swap in your own and compare the absolute trajectory error.
 
   python -m hyperdrone.examples.visual_inertial_localization
   python -m hyperdrone.examples.visual_inertial_localization --instances 4 --width 320 --height 240 --video vio.mp4
@@ -12,7 +11,6 @@ import argparse
 import time
 
 import numpy as np
-from foundation_policy import Raptor
 
 from hyperdrone.env import EnvConfig, MultiEnvironment
 from hyperdrone.examples.data import procthor_scene_path
@@ -28,7 +26,6 @@ parser.add_argument("--video", default=None, help="record the onboard frames to 
 arguments = parser.parse_args()
 
 GRAVITY = np.array([0.0, 0.0, -9.81])
-TARGET_POSITION_ERROR_CLIP = 1.0  # tasks::visual_inertial_localization::Specification::TARGET_POSITION_ERROR_CLIP
 
 env = MultiEnvironment(
     [arguments.model or procthor_scene_path()],
@@ -110,25 +107,8 @@ class TrajectoryMetrics:
         return np.sqrt(self.position_squared_error / self.count)
 
 
-# the autopilot sees [clamped position error to the current waypoint | R | v | omega | last
-# action] — the privileged observation re-targeted on the task's waypoint block
-policy = Raptor()
-policy.reset()
 layout = env.observation_layout_privileged
 layout_imu = env.observation_layout_imu
-
-
-def autopilot(state, previous_action):
-    error = np.clip(block(state, layout, "position") - block(state, layout, "waypoint"), -TARGET_POSITION_ERROR_CLIP, TARGET_POSITION_ERROR_CLIP)
-    observation = np.concatenate([
-        error,
-        block(state, layout, "orientation_rotation_matrix"),
-        block(state, layout, "linear_velocity"),
-        block(state, layout, "angular_velocity"),
-        previous_action,
-    ], axis=1)
-    return policy.evaluate_step(observation).astype(np.float32)
-
 
 video_writer = None
 if arguments.video:
@@ -144,7 +124,6 @@ origin_position = block(state, layout, "position").copy()
 origin_rotation = block(state, layout, "orientation_rotation_matrix").reshape(-1, 3, 3).copy()
 estimator = DeadReckoning(env.total_instances, env.dt)
 metrics = TrajectoryMetrics(env.total_instances)
-previous_action = np.zeros((env.total_instances, env.action_dim), dtype=np.float32)
 frames_rendered = 0
 
 start = time.perf_counter()
@@ -156,9 +135,7 @@ for step in range(steps):
         frames_rendered += 1
         if video_writer is not None:
             video_writer.append_data((np.clip(np.concatenate(list(frames), axis=0), 0, 1) * 255).astype(np.uint8))
-    action = autopilot(state, previous_action)
-    env.step(action)
-    previous_action = action
+    env.step()  # the autopilot flies the route
     imu = env.observe_imu()  # the estimator's IMU sample for this step
     estimator.step(block(imu, layout_imu, "accelerometer"), block(imu, layout_imu, "gyroscope"))
     state = env.observe_privileged()  # ground truth after the step, relative to the episode start below
