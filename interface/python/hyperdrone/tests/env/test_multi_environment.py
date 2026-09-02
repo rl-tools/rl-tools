@@ -162,6 +162,7 @@ def test_visual_inertial_localization(scene_directory):
     config = EnvConfig(instances=2, cam_width=16, cam_height=16, preset="x500_fpv_imu", task="visual_inertial_localization")
     env = MultiEnvironment(scene_directory, config=config, seed=6)
     try:
+        assert env.action_dim == 0, "the task flies itself"
         assert env.frame_stride == 4
         assert env.dt == pytest.approx(0.005)
         assert env.observation_dim_imu == 8
@@ -174,12 +175,11 @@ def test_visual_inertial_localization(scene_directory):
         env.reset(mask)
         with pytest.raises(ValueError, match="all-or-none"):
             env.render(np.array([1, 0], dtype=np.uint8))
-        hold = np.zeros((env.total_instances, env.action_dim), dtype=np.float32)
         frames = []
         for step in range(2 * env.frame_stride + 1):
             env.render(mask if step == 0 else np.zeros(env.total_instances, dtype=np.uint8))
             frames.append(env.frames())
-            env.step(hold)
+            env.step()
             imu = env.observe_imu()
             assert imu.shape == (2, 8)
             assert np.isfinite(imu).all()
@@ -187,16 +187,16 @@ def test_visual_inertial_localization(scene_directory):
             np.testing.assert_allclose(imu[:, 6], frame_age / env.frame_stride, atol=1e-6)
             assert (imu[:, 7] == (1.0 if frame_age == 0 else 0.0)).all()
         # the camera only advances on frame boundaries: identical within a stride, and fresh
-        # once the drone has moved (motors off: 0.3 s of free fall)
+        # once the autopilot has moved the drone toward its first waypoint
         for frame in frames[1:env.frame_stride]:
             np.testing.assert_array_equal(frame, frames[0])
-        off = -np.ones((env.total_instances, env.action_dim), dtype=np.float32)
         for _ in range(60):
             env.render(np.zeros(env.total_instances, dtype=np.uint8))
-            env.step(off)
+            env.step()
         assert not np.array_equal(env.frames(), frames[0])
-        waypoint = env.observe_privileged()[:, 18:21]
-        assert np.isfinite(waypoint).all()
+        state = env.observe_privileged()
+        assert np.isfinite(state).all()
+        assert np.linalg.norm(state[:, 0:3] - state[:, 18:21], axis=1).max() < 100, "the route stays in the scene"
     finally:
         env.close()
 

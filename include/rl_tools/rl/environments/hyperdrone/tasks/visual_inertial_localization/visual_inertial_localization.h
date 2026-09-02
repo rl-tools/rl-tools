@@ -5,6 +5,9 @@
 #define RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TASKS_VISUAL_INERTIAL_LOCALIZATION_VISUAL_INERTIAL_LOCALIZATION_H
 
 #include "../../world.h"
+#include "autopilot.h"
+
+#include <string>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::hyperdrone::tasks::visual_inertial_localization {
@@ -67,10 +70,14 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::visual_inertial_localiz
         // gives estimators a stationary window, and the launch toward waypoint 1 provides the
         // acceleration jerk that static visual-inertial initializers wait for
         static constexpr TI INITIALIZATION_HOLD_STEPS = 0;
+        // the autopilot checkpoint (RAPTOR/policy.tar in the conta store): a path or a conta:HASH reference
+        static constexpr const char* AUTOPILOT_POLICY = "conta:b6bd082c60fcb27f42a2b5f2f635587d2b60d170";
     };
 
-    // benchmark protocol: fixed-length synchronized episodes only — the camera stride phase is
-    // global, so the reset mask must be all-or-none (asserted in render)
+    // benchmark protocol: fixed-length synchronized episodes only — the camera stride phase and
+    // the autopilot's recurrent state are global, so the reset mask must be all-or-none
+    // (asserted in render and sample_initial_state). The task is autonomous: the autopilot
+    // flies the route inside step, the caller's action tensor is empty
     template <typename T_TASK_SPEC>
     struct World: T_TASK_SPEC::NEXT_WORLD {
         using TASK_SPEC = T_TASK_SPEC;
@@ -84,6 +91,8 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::visual_inertial_localiz
         using State = StateVisualInertialLocalization<ComponentSpecification<T, TI, typename NEXT_WORLD::State>>;
         static constexpr TI FRAME_STRIDE = TASK_SPEC::FRAME_STRIDE;
         static constexpr TI INITIALIZATION_HOLD_STEPS = TASK_SPEC::INITIALIZATION_HOLD_STEPS;
+        static constexpr TI ACTION_DIM = 0;
+        using AUTOPILOT = Autopilot<NEXT_WORLD>;
 
         // estimator inputs beyond the frames: [accelerometer(3) | gyroscope(3) | frame_age/FRAME_STRIDE | new_frame]
         struct ObservationIMU {
@@ -104,6 +113,8 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::visual_inertial_localiz
         };
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = ObservationPrivileged::DIM;
 
+        AUTOPILOT autopilot;
+        std::string autopilot_policy_path = TASK_SPEC::AUTOPILOT_POLICY; // override before init
         TI task_step = 0; // env-step counter driving the camera stride phase (history_step only counts rendered frames)
     };
 }

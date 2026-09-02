@@ -1,24 +1,18 @@
 #pragma once
 
 #include <rl_tools/operations/cpu_mux.h>
-#include <rl_tools/nn/layers/dense/operations_generic.h>
-#include <rl_tools/nn/layers/gru/operations_generic.h>
-#include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/rl/environments/hyperdrone/presets.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/visual_inertial_localization/operations_cpu.h>
-#include <rl_tools/rl/environments/hyperdrone/tasks/visual_inertial_localization/autopilot.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/visual_inertial_localization/metrics.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/visual_inertial_localization/calibration.h>
-
-#include "../../../../../nn_models/port_checkpoint/raptor/policy.h"
 
 #include <chrono>
 #include <string>
 
-// shared RAPTOR-flown episode runner for the visual-inertial localization benchmark binaries
-// (demo, EuRoC exporter, estimator baselines). The sink observes the causal sensor streams:
-// sink.frame(...) on every fresh camera frame (before the step), sink.step(...) after every
-// dynamics step with the IMU sample and the relative-to-start ground truth
+// shared episode runner for the visual-inertial localization benchmark binaries (demo, EuRoC
+// exporter, estimator baselines); the task flies itself. The sink observes the causal sensor
+// streams: sink.frame(...) on every fresh camera frame (before the step), sink.step(...) after
+// every dynamics step with the IMU sample and the relative-to-start ground truth
 namespace hyperdrone_vio {
     namespace rlt = rl_tools;
     namespace task = rlt::rl::environments::hyperdrone::tasks::visual_inertial_localization;
@@ -49,10 +43,6 @@ namespace hyperdrone_vio {
         static constexpr TI INITIALIZATION_HOLD_STEPS = 500; // 2.5 s at 200 Hz
     };
     using BaselineWorld = task::World<BaselineTaskSpec>;
-
-    constexpr TI RAPTOR_INPUT_DIM = rl_tools::checkpoint::actor::layer_0::INPUT_SHAPE::LAST;
-    template <typename WORLD>
-    using RaptorModel = rlt::nn_models::sequential::Build<rlt::nn::capability::Forward<true, false>, rl_tools::checkpoint::actor::TEMPLATE, rlt::tensor::Shape<TI, 1, WORLD::INSTANCES, RAPTOR_INPUT_DIM>>;
 
     template <typename WORLD>
     struct Tensors {
@@ -135,9 +125,6 @@ namespace hyperdrone_vio {
         rlt::malloc(device, rng);
         rlt::init(device, rng, seed);
 
-        task::Autopilot<WORLD, RaptorModel<WORLD>> autopilot;
-        task::init(device, autopilot, rl_tools::checkpoint::actor::module, rng);
-
         Tensors<WORLD> tensors;
         tensors.allocate(device);
         rlt::set_all(device, tensors.reset_mask, true);
@@ -188,7 +175,6 @@ namespace hyperdrone_vio {
                 sink.frame((double)step_i * step_seconds, frame_index, tensors.observations);
                 frame_index++;
             }
-            task::control(device, world, tensors.parameters, tensors.states, autopilot, tensors.actions, rng);
             rlt::step(device, world, tensors.parameters, tensors.states, tensors.actions, tensors.next_states, rng);
             rlt::observe(device, world, tensors.parameters, tensors.next_states, typename WORLD::ObservationIMU{}, tensors.observations_imu, rng);
             T relative_positions[INSTANCES][3];
@@ -210,7 +196,6 @@ namespace hyperdrone_vio {
             result.any_terminated = result.any_terminated || rlt::get(device, tensors.terminated_flags, instance_i);
         }
         tensors.deallocate(device);
-        task::free(device, autopilot);
         rlt::free(device, world);
         rlt::free(device, shared.library);
         rlt::free(device, rng);

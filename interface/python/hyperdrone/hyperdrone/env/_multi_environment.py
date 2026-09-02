@@ -308,7 +308,8 @@ class MultiEnvironment:
     Tasks with an IMU stream (task='visual_inertial_localization') add observe_imu() — the
     IMU sample of the last step, named by observation_layout_imu — and render a camera frame
     only every frame_stride steps; their episodes are fixed-length and synchronized, so the
-    reset mask must be all-or-none per environment.
+    reset mask must be all-or-none per environment. Autonomous tasks fly themselves:
+    action_dim is 0 and step() takes no actions.
     """
 
     def __init__(self, scenes, config=None, seed=0, drone_asset=None, gate_asset=None):
@@ -400,7 +401,14 @@ class MultiEnvironment:
         self._library.hyperdrone_env_observe_imu(self._handle, _float_ptr(observations))
         return observations
 
-    def step(self, actions):
+    def step(self, actions=None):
+        if actions is None:
+            if self.action_dim != 0:
+                raise ValueError(
+                    "hyperdrone: step() needs actions of shape (total_instances, action_dim); "
+                    "only autonomous tasks (action_dim == 0) step without them"
+                )
+            actions = np.empty((self.total_instances, 0), dtype=np.float32)
         actions = np.ascontiguousarray(np.asarray(actions, dtype=np.float32).reshape(self.total_instances, self.action_dim))
         self._library.hyperdrone_env_step(self._handle, _float_ptr(actions))
 
