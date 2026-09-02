@@ -64,6 +64,8 @@
 #include <rl_tools/nn_models/sequential/persist_code.h>
 #include <rl_tools/nn_models/parallel/persist_code.h>
 
+#include <metra/metra.h>
+
 #include <cuda_bf16.h>
 
 #include <array>
@@ -2065,6 +2067,32 @@ int main(int argc, char** argv){
             std::cout << " shutter: " << std::setw(4) << std::setprecision(2) << render_shutter_fraction;
         }
         std::cout << std::endl;
+
+        // same keys as imitation_hyperdrone.cpp so the two targets' curves overlay directly
+        {
+            const std::string metra_prefix = "l2f_visual_imitation";
+            if(epoch_i == 0){
+                metra::log_raw(metra_prefix + "/target", std::string("\"") + extrack_config.name + "\"");
+                metra::log_raw(metra_prefix + "/compute_device", "\"cuda\"");
+                metra::log(metra_prefix + "/n_environments", static_cast<double>(N_ENVIRONMENTS));
+                metra::log(metra_prefix + "/steps_per_env", static_cast<double>(STEPS_PER_ENV));
+                metra::log(metra_prefix + "/seed", static_cast<double>(seed));
+            }
+            metra::log(metra_prefix + "/mse_loss", static_cast<double>(epoch_loss));
+            metra::log(metra_prefix + "/episode_length", static_cast<double>(mean_episode_length));
+            metra::log(metra_prefix + "/episodes", static_cast<double>(episode_count));
+            metra::log(metra_prefix + "/terminated_share", static_cast<double>(episode_terminated_share));
+            metra::log(metra_prefix + "/complete_episode_length", static_cast<double>(complete_episode_length));
+            metra::log(metra_prefix + "/complete_terminated_share", static_cast<double>(complete_terminated_share));
+            metra::log(metra_prefix + "/fps", static_cast<double>(fps));
+            metra::log(metra_prefix + "/epoch_time_s", static_cast<double>(epoch_elapsed.count()));
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+            metra::log(metra_prefix + "/state_estimation/position_mse", static_cast<double>(epoch_position_mse));
+            metra::log(metra_prefix + "/state_estimation/linear_velocity_mse", static_cast<double>(epoch_linear_velocity_mse));
+            metra::log(metra_prefix + "/state_estimation/orientation_mse", static_cast<double>(epoch_orientation_mse));
+            metra::log(metra_prefix + "/state_estimation/orientation_angle_error_deg", static_cast<double>(epoch_orientation_angle_error_rad * static_cast<T>(180) / rlt::math::PI<T>));
+#endif
+        }
 
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
         rlt::set_step(device, device.logger, epoch_i);
