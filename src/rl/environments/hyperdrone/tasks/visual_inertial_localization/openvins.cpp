@@ -15,6 +15,8 @@
 #include <utils/quat_ops.h>
 #include <utils/print.h>
 
+#include "openvins_video.h"
+
 #include <Eigen/Dense>
 #include <opencv2/core.hpp>
 
@@ -41,6 +43,7 @@ constexpr TI CAM_HEIGHT = WORLD::SPEC::CAM_HEIGHT;
 constexpr TI CAM_PIXELS = CAM_WIDTH * CAM_HEIGHT;
 constexpr TI DEFAULT_STEPS = 4000; // 20 s at 200 Hz (2.5 s initialization hold + flight)
 constexpr double INIT_IMU_THRESHOLD = 0.9; // accel std [m/s^2] separating hover (~0.5, dominated by the 0.28 white noise) from the launch jerk (~1.4)
+using VIDEO = vio::OpenVinsVideo<CAM_WIDTH, CAM_HEIGHT>;
 
 struct OpenVinsSink {
     DEVICE device;
@@ -56,17 +59,17 @@ struct OpenVinsSink {
     bool anchored = false;
     bool diverged = false;
     double anchor_time = 0;
-    T estimate_anchor_position[3];
-    T estimate_anchor_orientation[4];
-    T ground_truth_anchor_position[3];
-    T ground_truth_anchor_orientation[4];
+    vio::FrameAlignment alignment;
     T last_estimate_position[3];
     T last_estimate_orientation[4];
+    T last_position_error = 0;
     bool has_estimate = false;
     task::TrajectoryMetricsAccumulator<T, TI> openvins_metrics;
     task::DeadReckoningState<T> dead_reckoning;
     task::TrajectoryMetricsAccumulator<T, TI> dead_reckoning_metrics;
     std::ofstream trajectory_tum;
+    std::string video_path;
+    VIDEO video;
 
     void begin(const vio::EpisodeInfo<WORLD>& info){
         rlt::init(device);
@@ -150,6 +153,9 @@ struct OpenVinsSink {
             ov_core::Printer::setPrintLevel(ov_core::Printer::PrintLevel::DEBUG);
         }
         manager = std::make_shared<ov_msckf::VioManager>(params);
+        if(!video_path.empty() && !video.open(video_path, info.frame_rate)){
+            std::fprintf(stderr, "failed to open ffmpeg pipe for %s\n", video_path.c_str());
+        }
     }
     template <typename OBSERVATIONS>
     void frame(double time, TI, const OBSERVATIONS& observations){
@@ -165,6 +171,69 @@ struct OpenVinsSink {
         pending_frame_time = time;
         has_pending_frame = true;
     }
+    void process_estimate(const T ground_truth_position[3], const T ground_truth_orientation[4]){
+        auto state = manager->get_state();
+        Eigen::Matrix<double, 4, 1> quat_jpl = state->_imu->quat(); // JPL q_GtoI (x,y,z,w) == Hamilton q_ItoG
+        Eigen::Vector3d position = state->_imu->pos();
+        T estimate_position[3], estimate_orientation[4];
+        for(TI dim_i = 0; dim_i < 3; dim_i++){
+            estimate_position[dim_i] = (T)position(dim_i);
+        }
+        estimate_orientation[0] = (T)quat_jpl(3);
+        estimate_orientation[1] = (T)quat_jpl(0);
+        estimate_orientation[2] = (T)quat_jpl(1);
+        estimate_orientation[3] = (T)quat_jpl(2);
+        bool finite = true;
+        for(TI dim_i = 0; dim_i < 3; dim_i++){
+            finite = finite && std::isfinite(estimate_position[dim_i]);
+        }
+        for(TI dim_i = 0; dim_i < 4; dim_i++){
+            finite = finite && std::isfinite(estimate_orientation[dim_i]);
+        }
+        if(!finite){
+            diverged = true;
+            return;
+        }
+        if(!anchored){
+            anchored = true;
+            anchor_time = pending_frame_time;
+            for(TI dim_i = 0; dim_i < 3; dim_i++){
+                alignment.estimate_anchor_position[dim_i] = estimate_position[dim_i];
+                alignment.ground_truth_anchor_position[dim_i] = ground_truth_position[dim_i];
+            }
+            for(TI dim_i = 0; dim_i < 4; dim_i++){
+                alignment.estimate_anchor_orientation[dim_i] = estimate_orientation[dim_i];
+                alignment.ground_truth_anchor_orientation[dim_i] = ground_truth_orientation[dim_i];
+            }
+        }
+        T estimate_relative_position[3], estimate_relative_orientation[4];
+        T ground_truth_relative_position[3], ground_truth_relative_orientation[4];
+        task::relative_pose(device, alignment.estimate_anchor_position, alignment.estimate_anchor_orientation, estimate_position, estimate_orientation, estimate_relative_position, estimate_relative_orientation);
+        task::relative_pose(device, alignment.ground_truth_anchor_position, alignment.ground_truth_anchor_orientation, ground_truth_position, ground_truth_orientation, ground_truth_relative_position, ground_truth_relative_orientation);
+        task::accumulate(device, openvins_metrics, ground_truth_relative_position, ground_truth_relative_orientation, estimate_relative_position, estimate_relative_orientation);
+        T squared_error = 0;
+        for(TI dim_i = 0; dim_i < 3; dim_i++){
+            last_estimate_position[dim_i] = estimate_relative_position[dim_i];
+            T error = estimate_relative_position[dim_i] - ground_truth_relative_position[dim_i];
+            squared_error += error * error;
+        }
+        last_position_error = rlt::math::sqrt(device.math, squared_error);
+        for(TI dim_i = 0; dim_i < 4; dim_i++){
+            last_estimate_orientation[dim_i] = estimate_relative_orientation[dim_i];
+        }
+        has_estimate = true;
+        if(trajectory_tum.is_open()){
+            trajectory_tum << pending_frame_time << " "
+                << estimate_relative_position[0] << " " << estimate_relative_position[1] << " " << estimate_relative_position[2] << " "
+                << estimate_relative_orientation[1] << " " << estimate_relative_orientation[2] << " " << estimate_relative_orientation[3] << " " << estimate_relative_orientation[0] << "\n";
+        }
+        const Eigen::Matrix3d R_GtoI = state->_imu->Rot();
+        T forward_global[3] = {(T)R_GtoI(0, 0), (T)R_GtoI(0, 1), (T)R_GtoI(0, 2)}; // R_ItoG * e_x
+        T position_start[3], forward_start[3];
+        alignment.apply(estimate_position, position_start);
+        alignment.rotate(forward_global, forward_start);
+        video.record_estimate(position_start, forward_start);
+    }
     template <typename OBSERVATIONS_IMU>
     void step(double time, const OBSERVATIONS_IMU& observations_imu, const T relative_positions[][3], const T relative_orientations[][4], const T[][3], vio::Tensors<WORLD>&){
         T accelerometer[3], gyroscope[3];
@@ -174,78 +243,46 @@ struct OpenVinsSink {
         }
         task::dead_reckoning_step(device, dead_reckoning, accelerometer, gyroscope, gravity, dt);
         task::accumulate(device, dead_reckoning_metrics, relative_positions[0], relative_orientations[0], dead_reckoning.position, dead_reckoning.orientation);
-        if(diverged){
-            return;
+        video.record_ground_truth(relative_positions[0]);
+        if(!diverged){
+            ov_core::ImuData imu;
+            imu.timestamp = time;
+            for(TI dim_i = 0; dim_i < 3; dim_i++){
+                imu.wm(dim_i) = gyroscope[dim_i];
+                imu.am(dim_i) = accelerometer[dim_i];
+            }
+            manager->feed_measurement_imu(imu);
         }
-        ov_core::ImuData imu;
-        imu.timestamp = time;
-        for(TI dim_i = 0; dim_i < 3; dim_i++){
-            imu.wm(dim_i) = gyroscope[dim_i];
-            imu.am(dim_i) = accelerometer[dim_i];
-        }
-        manager->feed_measurement_imu(imu);
         // camera frames wait until an IMU sample newer than them exists (serial feeding pattern)
         if(has_pending_frame && pending_frame_time <= time){
-            ov_core::CameraData camera;
-            camera.timestamp = pending_frame_time;
-            camera.sensor_ids.push_back(0);
-            camera.images.push_back(pending_frame);
-            camera.masks.push_back(mask);
-            manager->feed_measurement_camera(camera);
             has_pending_frame = false;
-            if(manager->initialized()){
-                auto state = manager->get_state();
-                Eigen::Matrix<double, 4, 1> quat_jpl = state->_imu->quat(); // JPL q_GtoI (x,y,z,w) == Hamilton q_ItoG
-                Eigen::Vector3d position = state->_imu->pos();
-                T estimate_position[3], estimate_orientation[4];
-                for(TI dim_i = 0; dim_i < 3; dim_i++){
-                    estimate_position[dim_i] = (T)position(dim_i);
-                }
-                estimate_orientation[0] = (T)quat_jpl(3);
-                estimate_orientation[1] = (T)quat_jpl(0);
-                estimate_orientation[2] = (T)quat_jpl(1);
-                estimate_orientation[3] = (T)quat_jpl(2);
-                bool finite = true;
-                for(TI dim_i = 0; dim_i < 3; dim_i++){
-                    finite = finite && std::isfinite(estimate_position[dim_i]);
-                }
-                for(TI dim_i = 0; dim_i < 4; dim_i++){
-                    finite = finite && std::isfinite(estimate_orientation[dim_i]);
-                }
-                if(!finite){
-                    diverged = true;
-                    return;
-                }
-                if(!anchored){
-                    anchored = true;
-                    anchor_time = pending_frame_time;
-                    for(TI dim_i = 0; dim_i < 3; dim_i++){
-                        estimate_anchor_position[dim_i] = estimate_position[dim_i];
-                        ground_truth_anchor_position[dim_i] = relative_positions[0][dim_i];
-                    }
-                    for(TI dim_i = 0; dim_i < 4; dim_i++){
-                        estimate_anchor_orientation[dim_i] = estimate_orientation[dim_i];
-                        ground_truth_anchor_orientation[dim_i] = relative_orientations[0][dim_i];
-                    }
-                }
-                T estimate_relative_position[3], estimate_relative_orientation[4];
-                T ground_truth_relative_position[3], ground_truth_relative_orientation[4];
-                task::relative_pose(device, estimate_anchor_position, estimate_anchor_orientation, estimate_position, estimate_orientation, estimate_relative_position, estimate_relative_orientation);
-                task::relative_pose(device, ground_truth_anchor_position, ground_truth_anchor_orientation, relative_positions[0], relative_orientations[0], ground_truth_relative_position, ground_truth_relative_orientation);
-                task::accumulate(device, openvins_metrics, ground_truth_relative_position, ground_truth_relative_orientation, estimate_relative_position, estimate_relative_orientation);
-                for(TI dim_i = 0; dim_i < 3; dim_i++){
-                    last_estimate_position[dim_i] = estimate_relative_position[dim_i];
-                }
-                for(TI dim_i = 0; dim_i < 4; dim_i++){
-                    last_estimate_orientation[dim_i] = estimate_relative_orientation[dim_i];
-                }
-                has_estimate = true;
-                if(trajectory_tum.is_open()){
-                    trajectory_tum << pending_frame_time << " "
-                        << estimate_relative_position[0] << " " << estimate_relative_position[1] << " " << estimate_relative_position[2] << " "
-                        << estimate_relative_orientation[1] << " " << estimate_relative_orientation[2] << " " << estimate_relative_orientation[3] << " " << estimate_relative_orientation[0] << "\n";
+            if(!diverged){
+                ov_core::CameraData camera;
+                camera.timestamp = pending_frame_time;
+                camera.sensor_ids.push_back(0);
+                camera.images.push_back(pending_frame);
+                camera.masks.push_back(mask);
+                manager->feed_measurement_camera(camera);
+                if(manager->initialized()){
+                    process_estimate(relative_positions[0], relative_orientations[0]);
                 }
             }
+            T dead_reckoning_squared_error = 0;
+            for(TI dim_i = 0; dim_i < 3; dim_i++){
+                T error = dead_reckoning.position[dim_i] - relative_positions[0][dim_i];
+                dead_reckoning_squared_error += error * error;
+            }
+            VIDEO::Frame video_frame;
+            video_frame.time = pending_frame_time;
+            video_frame.image = &pending_frame;
+            video_frame.manager = manager.get();
+            video_frame.diverged = diverged;
+            video_frame.alignment = anchored ? &alignment : nullptr;
+            video_frame.ground_truth_position = relative_positions[0];
+            video_frame.ground_truth_orientation = relative_orientations[0];
+            video_frame.position_error = last_position_error;
+            video_frame.dead_reckoning_error = rlt::math::sqrt(device.math, dead_reckoning_squared_error);
+            video.write(video_frame);
         }
     }
 };
@@ -257,6 +294,7 @@ int main(int argc, char** argv){
     std::string scene_path = "";
 #endif
     std::string trajectory_path = "visual_inertial_localization_openvins.tum";
+    std::string video_path = "visual_inertial_localization_openvins.mp4";
     TI seed = 0;
     TI steps = DEFAULT_STEPS;
     if(argc > 1){
@@ -271,13 +309,24 @@ int main(int argc, char** argv){
     if(argc > 4){
         steps = std::stoul(argv[4]);
     }
+    if(argc > 5){
+        video_path = std::string(argv[5]) == "none" ? "" : argv[5];
+    }
     if(scene_path.empty()){
-        std::fprintf(stderr, "usage: %s <scene.glb> [trajectory.tum] [seed] [steps]\n", argv[0]);
+        std::fprintf(stderr, "usage: %s <scene.glb> [trajectory.tum] [seed] [steps] [video.mp4|none]\n", argv[0]);
         return 1;
     }
     OpenVinsSink sink;
     sink.trajectory_tum.open(trajectory_path);
+    sink.video_path = video_path;
     auto result = vio::run_episode<WORLD, BASE_WORLD>(scene_path, seed, steps, sink);
+    if(!video_path.empty()){
+        if(sink.video.close()){
+            std::printf("wrote %s (%lu frames)\n", video_path.c_str(), (unsigned long)sink.video.frames_written);
+        } else {
+            std::fprintf(stderr, "ffmpeg exited with an error for %s\n", video_path.c_str());
+        }
+    }
 
     if(sink.diverged){
         std::printf("openvins: DIVERGED (non-finite state)\n");
