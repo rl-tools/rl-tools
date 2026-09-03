@@ -142,7 +142,7 @@ namespace rl_tools {
         constexpr TI STACK_STRIDE = TASK_SPEC::IMAGE_STACK_STRIDE;
         constexpr TI TOTAL_CHANNELS = WORLD::OBSERVATION_CHANNELS;
         if(world.render_pending){
-            render(device, world, parameters, states, rl::environments::hyperdrone::render_reset(device, world));
+            render(device, world, parameters, states, render_reset(device, world));
         }
         static_assert(get<0>(typename OBSERVATION_SPEC::SHAPE{}) == INSTANCES);
         static_assert(get<1>(typename OBSERVATION_SPEC::SHAPE{}) == WORLD::OBSERVATION_DIM);
