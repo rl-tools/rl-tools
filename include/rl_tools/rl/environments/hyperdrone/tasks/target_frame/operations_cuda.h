@@ -172,7 +172,10 @@ namespace rl_tools{
         using WORLD = rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
         static_assert(get<0>(typename OBSERVATION_SPEC::SHAPE{}) == WORLD::INSTANCES);
         static_assert(get<1>(typename OBSERVATION_SPEC::SHAPE{}) == WORLD::OBSERVATION_DIM);
-        utils::assert_exit(device, world.history_step > 0, "hyperdrone::tasks::target_frame::observe: render must be called before observe");
+        if(world.render_pending){
+            render(device, world, parameters, states, rl::environments::hyperdrone::render_reset(device, world));
+        }
+        utils::assert_exit(device, world.history_step > 0, "hyperdrone::tasks::target_frame::observe: no frame available");
         cudaStream_t render_stream = stream(device, world.renderer);
         devices::cuda::TAG<DEVICE, true> tag_device{};
         constexpr TI BLOCKSIZE = 256;

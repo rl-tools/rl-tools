@@ -220,7 +220,7 @@ namespace rl_tools{
 
             using BATCH_ENVIRONMENT_SPEC = rl::environments::batch::Specification<ENVIRONMENT, CORE_PARAMETERS::N_ENVIRONMENTS, DYNAMIC_ALLOCATION>;
             using BATCH_ENVIRONMENT = rl::environments::batch::Independent<BATCH_ENVIRONMENT_SPEC>;
-            using ON_POLICY_RUNNER_SPEC = rl::components::on_policy_runner::Specification<TYPE_POLICY, BATCH_ENVIRONMENT, typename NN::ACTOR_TYPE::template State<DYNAMIC_ALLOCATION>, typename ENVIRONMENT::Observation, typename ENVIRONMENT::ObservationPrivileged, T, T, CORE_PARAMETERS::EPISODE_STEP_LIMIT, false, CORE_PARAMETERS::PPO_PARAMETERS::TRUNCATE_ON_EACH_ITERATION, DYNAMIC_ALLOCATION>;
+            using ON_POLICY_RUNNER_SPEC = rl::components::on_policy_runner::Specification<TYPE_POLICY, BATCH_ENVIRONMENT, typename NN::ACTOR_TYPE::template State<DYNAMIC_ALLOCATION>, typename ENVIRONMENT::Observation, typename ENVIRONMENT::ObservationPrivileged, T, T, CORE_PARAMETERS::EPISODE_STEP_LIMIT, CORE_PARAMETERS::PPO_PARAMETERS::TRUNCATE_ON_EACH_ITERATION, DYNAMIC_ALLOCATION>;
             using ON_POLICY_RUNNER_TYPE = rl::components::OnPolicyRunner<ON_POLICY_RUNNER_SPEC>;
             using ON_POLICY_RUNNER_BUFFER_TYPE = rl::components::on_policy_runner::Buffer<ON_POLICY_RUNNER_SPEC>;
             using ON_POLICY_RUNNER_DATASET_SPEC = rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, CORE_PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV, DYNAMIC_ALLOCATION>;

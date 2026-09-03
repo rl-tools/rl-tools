@@ -241,6 +241,7 @@ namespace rl_tools {
         if (all_reset) {
             reset(device, world.autopilot.model, world.autopilot.state, rng);
         }
+        rl::environments::hyperdrone::request_render(device, world, reset_mask);
     }
 
     // camera stride: the base render (and with it history/episode_start/shutter bookkeeping)
@@ -266,6 +267,7 @@ namespace rl_tools {
             render(device, static_cast<NEXT_WORLD&>(world), parameters, states, reset_mask);
         }
         world.task_step++;
+        world.render_pending = false;
     }
 
     // the autopilot produces the motor commands, the base step integrates them on the l2f
@@ -292,6 +294,15 @@ namespace rl_tools {
     void reward(DEVICE& device, rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<ACTION_SPEC>&, Tensor<NEXT_STATE_SPEC>& next_states, Tensor<REWARD_SPEC>& rewards, RNG& rng) {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         reward(device, static_cast<NEXT_WORLD&>(world), parameters, states, world.autopilot.actions, next_states, rewards, rng);
+    }
+
+    template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename OBSERVATION_SPEC, typename RNG>
+    void observe(DEVICE& device, rl::environments::hyperdrone::tasks::visual_inertial_localization::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, typename TASK_SPEC::NEXT_WORLD::Observation observation_type, Tensor<OBSERVATION_SPEC>& observations, RNG& rng) {
+        using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
+        if(world.render_pending){
+            render(device, world, parameters, states, rl::environments::hyperdrone::render_reset(device, world));
+        }
+        observe(device, static_cast<NEXT_WORLD&>(world), parameters, states, observation_type, observations, rng);
     }
 
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename OBSERVATION_SPEC, typename RNG>

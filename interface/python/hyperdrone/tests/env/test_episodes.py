@@ -21,13 +21,13 @@ def scene_directory(tmp_path_factory):
 def _rollout_step(env, actions):
     env.begin_step()
     flags_begin = env.episode_flags()
-    env.render(flags_begin["reset"])
+    env.observe()
     env.step(actions)
     env.end_step()
     return flags_begin, env.episode_flags()
 
 
-def test_episode_bookkeeping(scene_directory):
+def test_episode_accounting(scene_directory):
     config = EnvConfig(num_environments=1, instances=2, cam_width=16, cam_height=16)
     env = MultiEnvironment(scene_directory, config=config, seed=3)
     try:
@@ -41,10 +41,10 @@ def test_episode_bookkeeping(scene_directory):
             # the applied reset mask is the previous step's truncation
             assert np.array_equal(flags_begin["reset"], previous_truncated)
             assert np.all(flags_begin["episode_step"][flags_begin["reset"]] == 0)
-            # terminated implies truncated; a time limit truncates exactly at the limit
+            # terminated implies truncated; completed counters reset in end_step
             assert np.all(flags_end["truncated"] | ~flags_end["terminated"])
             time_limit = flags_end["truncated"] & ~flags_end["terminated"]
-            assert np.array_equal(time_limit, flags_end["episode_step"] == step_limit)
+            assert np.all(flags_end["episode_step"][time_limit] == 0)
             assert np.all(flags_end["end_reason"][time_limit] == MultiEnvironment.END_REASON_TIME_LIMIT)
             previous_truncated = flags_end["truncated"]
             truncations += int(flags_end["truncated"].sum())

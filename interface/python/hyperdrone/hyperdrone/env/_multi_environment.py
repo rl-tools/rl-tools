@@ -437,10 +437,9 @@ class MultiEnvironment:
     def rotate_scene(self):
         self._library.hyperdrone_env_rotate_scene(self._handle)
 
-    # episode bookkeeping (same-step autoreset over the mask verbs): begin_step applies the
-    # pending resets (terminated, time limit, forced) by resampling the due instances and
-    # publishes the applied mask as episode_flags()["reset"], which render() takes; end_step
-    # after step() runs the terminal check, the counters and the truncation. No final
+    # episode accounting (same-step autoreset over the mask verbs): end_step runs the terminal
+    # check and accounting, resetting completed counters immediately; begin_step resamples the
+    # reset instances. The reset mask remains available to stateful consumers and render(). No final
     # observation exists: the observation after a reset is the first of the new episode
     END_REASON_NONE = 0
     END_REASON_TERMINATED = 1
@@ -462,8 +461,8 @@ class MultiEnvironment:
         self._library.hyperdrone_env_set_step_limit(self._handle, ctypes.c_uint32(int(step_limit)))
 
     def episode_flags(self):
-        """terminated / truncated (terminated implies truncated) / reset (the mask begin_step
-        applied) as bool arrays, end_reason (END_REASON_*) as uint8 and episode_step as uint32."""
+        """terminated / truncated (terminated implies truncated) / current reset mask as bool
+        arrays, end_reason (END_REASON_*) as uint8 and in-progress episode_step as uint32."""
         terminated = np.empty(self.total_instances, dtype=np.uint8)
         truncated = np.empty(self.total_instances, dtype=np.uint8)
         reset = np.empty(self.total_instances, dtype=np.uint8)

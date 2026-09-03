@@ -101,7 +101,6 @@ namespace test_hyperdrone_on_policy_runner_batched {
     using RUNNER_BUFFER = on_policy_runner::Buffer<RUNNER_SPEC>;
     using DATASET_SPEC = on_policy_runner::DatasetSpecification<RUNNER_SPEC, STEPS>;
     using DATASET = on_policy_runner::Dataset<DATASET_SPEC>;
-    using LOG = on_policy_runner::EpisodeLog<RUNNER_SPEC, STEPS>;
 }
 
 using namespace test_hyperdrone_on_policy_runner_batched;
@@ -146,7 +145,6 @@ struct Rollout {
     RUNNER runner;
     RUNNER_BUFFER runner_buffer;
     DATASET dataset;
-    LOG log;
     Rollout(DEVICE& device, ENVIRONMENT& env, TI seed): device(device){
         rlt::malloc(device, rng);
         rlt::init(device, rng, seed);
@@ -156,8 +154,6 @@ struct Rollout {
         rlt::malloc(device, runner);
         rlt::malloc(device, runner_buffer);
         rlt::malloc(device, dataset);
-        rlt::malloc(device, log);
-        rlt::init(device, log);
         for(TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++){
             env.environments[environment_i].history_step = 0;
         }
@@ -170,12 +166,11 @@ struct Rollout {
         rlt::free(device, runner);
         rlt::free(device, runner_buffer);
         rlt::free(device, dataset);
-        rlt::free(device, log);
         rlt::free(device, rng);
     }
 };
 
-// the phases driven by hand (the way custom loops use them), with the episode log recorded per step
+// the phases driven by hand (the way custom loops use them)
 TEST_F(Fixture, PHASES){
     Rollout rollout(device, *env, 1337);
     auto& runner = rollout.runner;
@@ -193,7 +188,6 @@ TEST_F(Fixture, PHASES){
             }
         }
         on_policy_runner::epilogue(device, dataset, runner, rollout.runner_buffer, *env, rollout.rng, step_i);
-        rlt::record(device, rollout.log, runner, step_i);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
             const TI pos = step_i * INSTANCES + instance_i;
             const T truncated = rlt::get(dataset.truncated, pos, 0);
@@ -239,7 +233,7 @@ TEST_F(Fixture, PHASES){
     rlt::free(device, observations_privileged);
 
     on_policy_runner::EpisodeStatistics<T, TI> statistics;
-    rlt::summarize(device, rollout.log, runner, statistics);
+    rlt::summarize(device, dataset, runner, statistics);
     EXPECT_GE(statistics.finished, 2 * INSTANCES) << "with a limit of 3 every instance finishes at least twice in 7 steps";
     EXPECT_EQ(statistics.time_limit + statistics.terminated, statistics.finished);
     EXPECT_LE(statistics.mean_length, (T)STEP_LIMIT);

@@ -64,10 +64,8 @@ extern "C" {
     // deterministic round-robin over each environment's scene partition; the caller must
     // reset all instances afterwards
     void hyperdrone_env_rotate_scene(void* handle);
-    // episode bookkeeping (hyperdrone::episodes, same-step autoreset): begin_step applies the
-    // pending resets (terminated, time limit, forced) by resampling the due instances and
-    // publishes the applied mask as the reset flag — render with it afterwards; end_step (after
-    // hyperdrone_env_step) runs the terminal check, counters and truncation; force_reset marks
+    // episode accounting (same-step autoreset): end_step (after hyperdrone_env_step) runs the
+    // terminal check and accounting; begin_step resamples the reset instances; force_reset marks
     // instances for the next begin_step; set_step_limit overrides the time limit (0: none)
     void hyperdrone_env_begin_step(void* handle);
     void hyperdrone_env_end_step(void* handle);

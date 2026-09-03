@@ -311,16 +311,11 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_CPU_GPU_COMPARISON){
             rlt::reset_optimizer_state(device_cpu, critic_optimizer_cpu, ppo_cpu.critic);
             // Sync runner state via matrix copy (not element-wise set on GPU memory)
             rlt::copy(device_cpu, device_gpu, runner_cpu.episode_step, runner_gpu.episode_step);
-            rlt::copy(device_cpu, device_gpu, runner_cpu.terminated, runner_gpu.terminated);
-            rlt::copy(device_cpu, device_gpu, runner_cpu.truncated, runner_gpu.truncated);
             rlt::copy(device_cpu, device_gpu, runner_cpu.reset, runner_gpu.reset);
-            rlt::copy(device_cpu, device_gpu, runner_cpu.forced, runner_gpu.forced);
             rlt::copy(device_cpu, device_gpu, runner_cpu.episode_return, runner_gpu.episode_return);
-            rlt::copy(device_cpu, device_gpu, runner_cpu.end_reason, runner_gpu.end_reason);
-            rlt::copy(device_cpu, device_gpu, runner_cpu.finished, runner_gpu.finished);
-            rlt::copy(device_cpu, device_gpu, runner_cpu.finished_length, runner_gpu.finished_length);
-            rlt::copy(device_cpu, device_gpu, runner_cpu.finished_return, runner_gpu.finished_return);
-            rlt::copy(device_cpu, device_gpu, runner_cpu.finished_reason, runner_gpu.finished_reason);
+            rlt::copy(device_cpu, device_gpu, runner_cpu.completed_episode_length, runner_gpu.completed_episode_length);
+            rlt::copy(device_cpu, device_gpu, runner_cpu.completed_episode_return, runner_gpu.completed_episode_return);
+            rlt::copy(device_cpu, device_gpu, runner_cpu.completed_episode_reason, runner_gpu.completed_episode_reason);
             rlt::copy(device_cpu, device_gpu, runner_cpu.states, runner_gpu.states);
             rlt::copy(device_cpu, device_gpu, environment_cpu.environments, environment_gpu.environments);
             rlt::copy(device_cpu, device_gpu, runner_cpu.env_parameters, runner_gpu.env_parameters);
@@ -337,6 +332,9 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_CPU_GPU_COMPARISON){
 
         rlt::copy(device_gpu, device_cpu, dataset_gpu.all_observations, dataset_gpu_copy.all_observations);
         rlt::copy(device_gpu, device_cpu, dataset_gpu.all_observations_privileged, dataset_gpu_copy.all_observations_privileged);
+        rlt::copy(device_gpu, device_cpu, dataset_gpu.episode_end_reason, dataset_gpu_copy.episode_end_reason);
+        rlt::copy(device_gpu, device_cpu, dataset_gpu.episode_length, dataset_gpu_copy.episode_length);
+        rlt::copy(device_gpu, device_cpu, dataset_gpu.episode_return, dataset_gpu_copy.episode_return);
         rlt::copy(device_gpu, device_cpu, dataset_gpu.scalar_data, dataset_gpu_copy.scalar_data);
         T collect_diff = rlt::abs_diff(device_cpu, dataset_cpu, dataset_gpu_copy);
         if(collect_diff > max_collect_diff) max_collect_diff = collect_diff;

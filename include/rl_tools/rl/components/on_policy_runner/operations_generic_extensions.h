@@ -36,7 +36,6 @@ namespace rl_tools{
 #endif
         using TI = typename SPEC::TI;
         if constexpr(SPEC::TRUNCATE_ON_EACH_ITERATION){
-            force_reset(device, runner);
             rl::components::on_policy_runner::reset(device, runner, environment, rng);
         }
         rl::components::on_policy_runner::prologue(device, dataset, runner, environment, rng);

@@ -223,6 +223,7 @@ namespace rl_tools{
         devices::cuda::TAG<DEVICE, true> tag_device{};
         rl::environments::hyperdrone::cuda::sample_initial_state_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, world.active_annotations, parameters, states, reset_mask, rng);
         check_status(device);
+        rl::environments::hyperdrone::request_render(device, world, reset_mask);
     }
     template <typename DEV_SPEC, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
     void render(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask){
@@ -299,6 +300,7 @@ namespace rl_tools{
         }
         check_status(device);
         world.history_step++;
+        world.render_pending = false;
     }
     template <typename DEV_SPEC, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename OBSERVATION_SPEC, typename RNG>
     void observe(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, typename rl::environments::hyperdrone::World<SPEC>::Observation, Tensor<OBSERVATION_SPEC>& observations, RNG& rng){
@@ -307,7 +309,10 @@ namespace rl_tools{
         using WORLD = rl::environments::hyperdrone::World<SPEC>;
         static_assert(get<0>(typename OBSERVATION_SPEC::SHAPE{}) == WORLD::INSTANCES);
         static_assert(get<1>(typename OBSERVATION_SPEC::SHAPE{}) == WORLD::OBSERVATION_DIM);
-        utils::assert_exit(device, world.history_step > 0, "hyperdrone::World::observe: render must be called before observe");
+        if(world.render_pending){
+            render(device, world, parameters, states, rl::environments::hyperdrone::render_reset(device, world));
+        }
+        utils::assert_exit(device, world.history_step > 0, "hyperdrone::World::observe: no frame available");
         cudaStream_t render_stream = stream(device, world.renderer);
         const TI history_slot = (world.history_step - 1) % SPEC::HISTORY_LENGTH;
         const float* history_row = data(world.history) + history_slot * WORLD::INSTANCES * WORLD::N_VIEWS * WORLD::FRAME_DIM;
@@ -341,6 +346,7 @@ namespace rl_tools{
         devices::cuda::TAG<DEVICE, true> tag_device{};
         rl::environments::hyperdrone::cuda::step_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, parameters, states, actions, next_states, rng);
         check_status(device);
+        rl::environments::hyperdrone::request_render(device, world);
     }
     template <typename DEV_SPEC, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename NEXT_STATE_SPEC, typename REWARD_SPEC, typename RNG>
     void reward(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<ACTION_SPEC>& actions, Tensor<NEXT_STATE_SPEC>& next_states, Tensor<REWARD_SPEC>& rewards, RNG& rng){
