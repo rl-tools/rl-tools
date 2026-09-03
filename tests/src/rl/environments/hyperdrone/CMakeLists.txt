@@ -101,6 +101,15 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
             rendering_raytracing_stb
     )
     gtest_discover_tests(test_rl_environments_hyperdrone_episodes)
+    add_executable(test_rl_environments_hyperdrone_on_policy_runner_batched on_policy_runner_batched.cpp)
+    target_link_libraries(test_rl_environments_hyperdrone_on_policy_runner_batched
+        PRIVATE
+            RLtools::RLtools
+            RLtools::Test
+            rendering_raytracing_backend
+            rendering_raytracing_stb
+    )
+    gtest_discover_tests(test_rl_environments_hyperdrone_on_policy_runner_batched)
     # golden-rollout generator for the Python binding (run deliberately from the repo root)
     add_executable(test_rl_environments_hyperdrone_python_golden python_golden.cpp)
     target_link_libraries(test_rl_environments_hyperdrone_python_golden

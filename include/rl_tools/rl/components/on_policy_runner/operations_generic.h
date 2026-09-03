@@ -192,6 +192,193 @@ namespace rl_tools{
         }
         return acc;
     }
+
+    // batched ingest of a step's flags from tensor producers (e.g. hyperdrone::episodes): the row
+    // of step_i and the reset column of step_i + 1 (reset = truncation delayed by one step)
+    namespace rl::components::on_policy_runner{
+        template <typename DEVICE, typename DATASET_SPEC, typename REWARD_SPEC, typename TERMINATED_SPEC, typename TRUNCATED_SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT void record_step_env(DEVICE& device, Dataset<DATASET_SPEC>& dataset, typename DATASET_SPEC::TI step_i, const Tensor<REWARD_SPEC>& rewards, const Tensor<TERMINATED_SPEC>& terminated, const Tensor<TRUNCATED_SPEC>& truncated, typename DATASET_SPEC::TI env_i){
+            using T = typename Dataset<DATASET_SPEC>::T;
+            using TI = typename DATASET_SPEC::TI;
+            constexpr TI N_ENVIRONMENTS = DATASET_SPEC::SPEC::N_ENVIRONMENTS;
+            const TI pos = step_i * N_ENVIRONMENTS + env_i;
+            const bool truncated_flag = get(device, truncated, env_i);
+            set(dataset.rewards, pos, 0, (T)get(device, rewards, env_i));
+            set(dataset.terminated, pos, 0, get(device, terminated, env_i) ? (T)1 : (T)0);
+            set(dataset.truncated, pos, 0, truncated_flag ? (T)1 : (T)0);
+            set(dataset.all_reset, pos + N_ENVIRONMENTS, 0, truncated_flag ? (T)1 : (T)0);
+        }
+        template <typename DEVICE, typename DATASET_SPEC, typename RESET_SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT void record_reset_env(DEVICE& device, Dataset<DATASET_SPEC>& dataset, const Tensor<RESET_SPEC>& reset, typename DATASET_SPEC::TI env_i){
+            using T = typename Dataset<DATASET_SPEC>::T;
+            set(dataset.reset, env_i, 0, get(device, reset, env_i) ? (T)1 : (T)0);
+        }
+        template <typename DATASET_SPEC, typename FLAG_SPEC>
+        constexpr bool check_batched_flags(){
+            static_assert(get<0>(typename FLAG_SPEC::SHAPE{}) == DATASET_SPEC::SPEC::N_ENVIRONMENTS, "the flag tensors must cover all environments");
+            return true;
+        }
+    }
+    template <typename DEVICE, typename DATASET_SPEC, typename REWARD_SPEC, typename TERMINATED_SPEC, typename TRUNCATED_SPEC>
+    void record_step(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, typename DATASET_SPEC::TI step_i, const Tensor<REWARD_SPEC>& rewards, const Tensor<TERMINATED_SPEC>& terminated, const Tensor<TRUNCATED_SPEC>& truncated){
+        using TI = typename DATASET_SPEC::TI;
+        static_assert(rl::components::on_policy_runner::check_batched_flags<DATASET_SPEC, REWARD_SPEC>());
+        static_assert(rl::components::on_policy_runner::check_batched_flags<DATASET_SPEC, TERMINATED_SPEC>());
+        static_assert(rl::components::on_policy_runner::check_batched_flags<DATASET_SPEC, TRUNCATED_SPEC>());
+        utils::assert_exit(device, step_i < DATASET_SPEC::STEPS_PER_ENV, "on_policy_runner::record_step: step index outside the dataset");
+        for(TI env_i = 0; env_i < DATASET_SPEC::SPEC::N_ENVIRONMENTS; env_i++){
+            rl::components::on_policy_runner::record_step_env(device, dataset, step_i, rewards, terminated, truncated, env_i);
+        }
+    }
+    // the reset column of step 0: the mask applied at the start of the rollout
+    template <typename DEVICE, typename DATASET_SPEC, typename RESET_SPEC>
+    void record_reset(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, const Tensor<RESET_SPEC>& reset){
+        using TI = typename DATASET_SPEC::TI;
+        static_assert(rl::components::on_policy_runner::check_batched_flags<DATASET_SPEC, RESET_SPEC>());
+        for(TI env_i = 0; env_i < DATASET_SPEC::SPEC::N_ENVIRONMENTS; env_i++){
+            rl::components::on_policy_runner::record_reset_env(device, dataset, reset, env_i);
+        }
+    }
+    // batched environments (OnPolicyRunnerBatched): the environment verbs are tensor-batched, the
+    // autoreset happens in the epilogue (the dataset stays linear: the observation after a reset is
+    // the first of the new episode) and the phases can be driven individually by custom loops
+    template <typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::components::OnPolicyRunnerBatched<SPEC>& runner){
+        malloc(device, runner.policy_state);
+        malloc(device, runner.env_parameters);
+        malloc(device, runner.states);
+        malloc(device, runner.next_states);
+        malloc(device, runner.actions);
+        malloc(device, runner.rewards);
+        malloc(device, runner.episodes);
+    }
+    template <typename DEVICE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::components::OnPolicyRunnerBatched<SPEC>& runner){
+        free(device, runner.policy_state);
+        free(device, runner.env_parameters);
+        free(device, runner.states);
+        free(device, runner.next_states);
+        free(device, runner.actions);
+        free(device, runner.rewards);
+        free(device, runner.episodes);
+    }
+    namespace rl::components::on_policy_runner{
+        template <typename DEVICE, typename ENVIRONMENT, typename PARAMETERS, typename STATES, typename MASK, typename = void>
+        struct HasRender: rl_tools::utils::typing::false_type{};
+        template <typename DEVICE, typename ENVIRONMENT, typename PARAMETERS, typename STATES, typename MASK>
+        struct HasRender<DEVICE, ENVIRONMENT, PARAMETERS, STATES, MASK, rl_tools::utils::typing::void_t<decltype(render(rl_tools::utils::typing::declared_lvalue<DEVICE>(), rl_tools::utils::typing::declared_lvalue<ENVIRONMENT>(), rl_tools::utils::typing::declared_lvalue<PARAMETERS>(), rl_tools::utils::typing::declared_lvalue<STATES>(), rl_tools::utils::typing::declared_lvalue<const MASK>()))>>: rl_tools::utils::typing::true_type{};
+
+        // environments with a framebuffer expose render(device, environment, parameters, states, reset_mask)
+        template <typename DEVICE, typename SPEC, typename ENVIRONMENT>
+        void render_if_available(DEVICE& device, rl::components::OnPolicyRunnerBatched<SPEC>& runner, ENVIRONMENT& environment){
+            using PARAMETERS = decltype(runner.env_parameters);
+            using STATES = decltype(runner.states);
+            using MASK = decltype(runner.episodes.reset);
+            if constexpr(HasRender<DEVICE, ENVIRONMENT, PARAMETERS, STATES, MASK>::value){
+                render(device, environment, runner.env_parameters, runner.states, runner.episodes.reset);
+            }
+        }
+        template <typename DEVICE, typename DATASET_SPEC, typename SPEC, typename ENVIRONMENT, typename RNG>
+        void observe_row(DEVICE& device, Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunnerBatched<SPEC>& runner, ENVIRONMENT& environment, typename SPEC::TI row_i, RNG& rng){
+            constexpr typename SPEC::TI N_ENVIRONMENTS = SPEC::N_ENVIRONMENTS;
+            auto observations = view_range(device, dataset.all_observations, row_i * N_ENVIRONMENTS, tensor::ViewSpec<0, N_ENVIRONMENTS>{});
+            observe(device, environment, runner.env_parameters, runner.states, typename SPEC::OBSERVATION{}, observations, rng);
+            if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS){
+                auto observations_privileged = view_range(device, dataset.all_observations_privileged, row_i * N_ENVIRONMENTS, tensor::ViewSpec<0, N_ENVIRONMENTS>{});
+                observe(device, environment, runner.env_parameters, runner.states, typename SPEC::OBSERVATION_PRIVILEGED{}, observations_privileged, rng);
+            }
+        }
+        template <typename DEVICE, typename DATASET_SPEC, typename LOG_STD_SPEC, typename STEP_ACTIONS_SPEC, typename RNG>
+        RL_TOOLS_FUNCTION_PLACEMENT void sample_actions_env(DEVICE& device, Dataset<DATASET_SPEC>& dataset, const Matrix<LOG_STD_SPEC>& log_std, Tensor<STEP_ACTIONS_SPEC>& step_actions, typename DATASET_SPEC::TI step_i, typename DATASET_SPEC::TI env_i, RNG& rng){
+            using SPEC = typename DATASET_SPEC::SPEC;
+            using T = typename SPEC::TYPE_POLICY::DEFAULT;
+            using TI = typename SPEC::TI;
+            constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
+            const TI pos = step_i * SPEC::N_ENVIRONMENTS + env_i;
+            T action_log_prob = 0;
+            for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
+                const T action_mean = get(dataset.actions_mean, pos, action_i);
+                const T action_log_std = get(log_std, 0, action_i);
+                const T action_std = math::exp(device.math, action_log_std);
+                const T action = random::normal_distribution::sample(device.random, action_mean, action_std, rng);
+                action_log_prob += random::normal_distribution::log_prob(device.random, action_mean, action_log_std, action);
+                set(dataset.actions, pos, action_i, action);
+                set(device, step_actions, action, env_i, action_i);
+            }
+            set(dataset.action_log_probs, pos, 0, action_log_prob);
+        }
+        template <typename DEVICE, typename DATASET_SPEC, typename LOG_STD_SPEC, typename STEP_ACTIONS_SPEC, typename RNG>
+        void sample_actions(DEVICE& device, Dataset<DATASET_SPEC>& dataset, const Matrix<LOG_STD_SPEC>& log_std, Tensor<STEP_ACTIONS_SPEC>& step_actions, typename DATASET_SPEC::TI step_i, RNG& rng){
+            using TI = typename DATASET_SPEC::TI;
+            for(TI env_i = 0; env_i < DATASET_SPEC::SPEC::N_ENVIRONMENTS; env_i++){
+                sample_actions_env(device, dataset, log_std, step_actions, step_i, env_i, rng);
+            }
+        }
+        template <typename DEVICE, typename DATASET_SPEC, typename SPEC, typename ENVIRONMENT, typename RNG>
+        void prologue(DEVICE& device, Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunnerBatched<SPEC>& runner, ENVIRONMENT& environment, RNG& rng){
+            record_reset(device, dataset, runner.episodes.reset);
+            observe_row(device, dataset, runner, environment, 0, rng);
+        }
+        template <typename DEVICE, typename DATASET_SPEC, typename SPEC, typename ACTOR, typename ACTOR_BUFFERS, typename RNG>
+        void interlude(DEVICE& device, Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunnerBatched<SPEC>& runner, ACTOR& actor, ACTOR_BUFFERS& actor_buffers, RNG& rng, typename SPEC::TI step_i){
+            using TI = typename SPEC::TI;
+            constexpr TI N_ENVIRONMENTS = SPEC::N_ENVIRONMENTS;
+            constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
+            Mode<mode::sequential::ResetMask<mode::Default<>, mode::sequential::ResetMaskSpecification<decltype(runner.episodes.reset)>>> mode_reset_mask;
+            mode_reset_mask.mask = runner.episodes.reset;
+            reset(device, actor, runner.policy_state, rng, mode_reset_mask);
+            auto observations = view_range(device, dataset.all_observations, step_i * N_ENVIRONMENTS, tensor::ViewSpec<0, N_ENVIRONMENTS>{});
+            using EVAL_INPUT_SHAPE = tensor::Prepend<typename SPEC::OBSERVATION::SHAPE, N_ENVIRONMENTS>;
+            auto observations_reshaped = reshape_row_major(device, observations, EVAL_INPUT_SHAPE{});
+            auto actions_mean = view(device, dataset.actions_mean, matrix::ViewSpec<N_ENVIRONMENTS, ACTION_DIM>(), step_i * N_ENVIRONMENTS, 0);
+            auto actions_mean_tensor = to_tensor(device, actions_mean);
+            Mode<mode::Rollout<>> mode;
+            evaluate_step(device, actor, observations_reshaped, runner.policy_state, actions_mean_tensor, actor_buffers, rng, mode);
+            auto& last_layer = get_last_layer(actor);
+            auto log_std = matrix_view(device, last_layer.log_std.parameters);
+            sample_actions(device, dataset, log_std, runner.actions, step_i, rng);
+        }
+        template <typename DEVICE, typename DATASET_SPEC, typename SPEC, typename ENVIRONMENT, typename RNG>
+        void epilogue(DEVICE& device, Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunnerBatched<SPEC>& runner, ENVIRONMENT& environment, RNG& rng, typename SPEC::TI step_i){
+            step(device, environment, runner.env_parameters, runner.states, runner.actions, runner.next_states, rng);
+            reward(device, environment, runner.env_parameters, runner.states, runner.actions, runner.next_states, runner.rewards, rng);
+            copy(device, device, runner.next_states, runner.states);
+            end_step(device, environment, runner.episodes, runner.env_parameters, runner.states, runner.rewards, rng);
+            record_step(device, dataset, step_i, runner.rewards, runner.episodes.terminated, runner.episodes.truncated);
+            begin_step(device, environment, runner.episodes, runner.env_parameters, runner.states, rng);
+            render_if_available(device, runner, environment);
+            observe_row(device, dataset, runner, environment, step_i + 1, rng);
+        }
+    }
+    namespace rl::components::on_policy_runner{
+        // applies the pending resets outside of a rollout (after force_reset / scene changes): the
+        // due instances are re-sampled and the framebuffer state is brought up to date
+        template <typename DEVICE, typename SPEC, typename ENVIRONMENT, typename RNG>
+        void reset_due(DEVICE& device, rl::components::OnPolicyRunnerBatched<SPEC>& runner, ENVIRONMENT& environment, RNG& rng){
+            begin_step(device, environment, runner.episodes, runner.env_parameters, runner.states, rng);
+            render_if_available(device, runner, environment);
+        }
+    }
+    template <typename DEVICE, typename SPEC, typename ENVIRONMENT, typename RNG>
+    void init(DEVICE& device, rl::components::OnPolicyRunnerBatched<SPEC>& runner, ENVIRONMENT& environment, RNG& rng){
+        using T = typename SPEC::TYPE_POLICY::DEFAULT;
+        runner.step = 0;
+        set_all(device, runner.actions, (T)0);
+        set_all(device, runner.rewards, (T)0);
+        init(device, runner.episodes);
+        rl::components::on_policy_runner::reset_due(device, runner, environment, rng);
+    }
+    template <typename DEVICE, typename DATASET_SPEC, typename SPEC, typename ENVIRONMENT, typename ACTOR, typename ACTOR_BUFFERS, typename RNG>
+    void collect(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunnerBatched<SPEC>& runner, ENVIRONMENT& environment, ACTOR& actor, ACTOR_BUFFERS& actor_buffers, RNG& rng){
+        static_assert(rl_tools::utils::typing::is_same_v<typename DATASET_SPEC::SPEC, SPEC>, "the dataset must be specified over the runner's specification");
+        using TI = typename SPEC::TI;
+        rl::components::on_policy_runner::prologue(device, dataset, runner, environment, rng);
+        for(TI step_i = 0; step_i < DATASET_SPEC::STEPS_PER_ENV; step_i++){
+            rl::components::on_policy_runner::interlude(device, dataset, runner, actor, actor_buffers, rng, step_i);
+            rl::components::on_policy_runner::epilogue(device, dataset, runner, environment, rng, step_i);
+        }
+        runner.step += SPEC::N_ENVIRONMENTS * DATASET_SPEC::STEPS_PER_ENV;
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 #endif

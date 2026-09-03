@@ -1,5 +1,6 @@
 #include "on_policy_runner.h"
 #include "operations_generic_per_env.h"
+#include "../episodes/operations_cpu.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::components::on_policy_runner{
     constexpr auto get_num_threads(devices::ExecutionHints hints) {

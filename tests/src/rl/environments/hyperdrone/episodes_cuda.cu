@@ -2,12 +2,10 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rl/environments/hyperdrone/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/operations_cuda.h>
-#include <rl_tools/rl/environments/hyperdrone/episodes/operations_cpu.h>
-#include <rl_tools/rl/environments/hyperdrone/episodes/operations_cuda.h>
+#include <rl_tools/rl/components/episodes/operations_cpu.h>
+#include <rl_tools/rl/components/episodes/operations_cuda.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_cuda.h>
-#include <rl_tools/rl/environments/hyperdrone/episodes/on_policy_runner/operations_cpu.h>
-#include <rl_tools/rl/environments/hyperdrone/episodes/on_policy_runner/operations_cuda.h>
 
 #include "../../../utils/utils.h"
 
@@ -17,7 +15,7 @@
 
 namespace rlt = rl_tools;
 namespace l2f = rlt::rl::environments::l2f;
-namespace episodes = rlt::rl::environments::hyperdrone::episodes;
+namespace episodes = rlt::rl::components::episodes;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<rlt::devices::DefaultCUDASpecification>;
@@ -79,12 +77,9 @@ namespace test_hyperdrone_episodes_cuda {
     using WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
     constexpr TI INSTANCES = WORLD::INSTANCES;
     struct EPISODES_SPEC: episodes::Specification<WORLD> {};
-    struct SYNCHRONIZED_EPISODES_SPEC: episodes::Specification<WORLD> {
-        static constexpr bool SYNCHRONIZED = true;
-    };
     constexpr TI STEPS = 7;
     constexpr TI STEP_LIMIT = 3;
-    using END_REASON = episodes::EndReason<TI>;
+    using END_REASON = episodes::EndReason;
 }
 
 using namespace test_hyperdrone_episodes_cuda;
@@ -100,10 +95,11 @@ struct Trace {
     TI episode_step[STEPS][INSTANCES];
     bool terminated[STEPS][INSTANCES];
     bool truncated[STEPS][INSTANCES];
-    TI end_reason[STEPS][INSTANCES];
-    T finished_length[STEPS][INSTANCES];
+    END_REASON end_reason[STEPS][INSTANCES];
+    bool finished[STEPS][INSTANCES];
+    TI finished_length[STEPS][INSTANCES];
     T finished_return[STEPS][INSTANCES];
-    TI finished_reason[STEPS][INSTANCES];
+    END_REASON finished_reason[STEPS][INSTANCES];
     T dataset_terminated[STEPS][INSTANCES];
     T dataset_truncated[STEPS][INSTANCES];
     T dataset_reset[STEPS][INSTANCES];
@@ -113,11 +109,11 @@ using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specificati
 using DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, STEPS>;
 using DATASET = rlt::rl::components::on_policy_runner::Dataset<DATASET_SPEC>;
 
-// the same verb sequence on either device; forced reset (instance 0) after step 1
-template <typename EPISODES_SPEC_TYPE, typename COMPUTE_DEVICE, typename COMPUTE_RNG>
+// the same verb sequence on either device; forced reset (instance 0) before step 2
+template <typename COMPUTE_DEVICE, typename COMPUTE_RNG>
 static void trace_rollout(DEVICE& device, COMPUTE_DEVICE& device_compute, WORLD& world, Trace& trace, TI seed){
-    using EPISODES = episodes::Episodes<EPISODES_SPEC_TYPE>;
-    using LOG = episodes::Log<EPISODES_SPEC_TYPE, STEPS>;
+    using EPISODES = episodes::Episodes<EPISODES_SPEC>;
+    using LOG = episodes::Log<EPISODES_SPEC, STEPS>;
     COMPUTE_RNG rng;
     rlt::malloc(device_compute, rng);
     rlt::init(device_compute, rng, seed);
@@ -147,7 +143,6 @@ static void trace_rollout(DEVICE& device, COMPUTE_DEVICE& device_compute, WORLD&
     rlt::init(device_compute, log_compute);
     episodes_compute.step_limit = STEP_LIMIT;
     world.history_step = 0;
-    rlt::record_rollout_start(device_compute, episodes_compute, dataset_compute);
     for(TI step_i = 0; step_i < STEPS; step_i++){
         if(step_i == 2){
             rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, INSTANCES>>> mask_host;
@@ -158,7 +153,11 @@ static void trace_rollout(DEVICE& device, COMPUTE_DEVICE& device_compute, WORLD&
             rlt::free(device, mask_host);
             rlt::force_reset(device_compute, episodes_compute, mask);
         }
-        rlt::begin_step(device_compute, world, episodes_compute, parameters, states, log_compute, step_i, rng);
+        rlt::begin_step(device_compute, world, episodes_compute, parameters, states, rng);
+        rlt::record(device_compute, log_compute, episodes_compute, step_i);
+        if(step_i == 0){
+            rlt::record_reset(device_compute, dataset_compute, episodes_compute.reset);
+        }
         rlt::render(device_compute, world, parameters, states, episodes_compute.reset);
         rlt::copy(device_compute, device, episodes_compute, episodes_host);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
@@ -168,7 +167,7 @@ static void trace_rollout(DEVICE& device, COMPUTE_DEVICE& device_compute, WORLD&
         rlt::reward(device_compute, world, parameters, states, actions, next_states, rewards, rng);
         rlt::copy(device_compute, device_compute, next_states, states);
         rlt::end_step(device_compute, world, episodes_compute, parameters, states, rewards, rng);
-        rlt::record(device_compute, episodes_compute, rewards, dataset_compute, step_i);
+        rlt::record_step(device_compute, dataset_compute, step_i, rewards, episodes_compute.terminated, episodes_compute.truncated);
         rlt::copy(device_compute, device, episodes_compute, episodes_host);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
             trace.episode_step[step_i][instance_i] = rlt::get(device, episodes_host.episode_step, instance_i);
@@ -182,6 +181,7 @@ static void trace_rollout(DEVICE& device, COMPUTE_DEVICE& device_compute, WORLD&
     for(TI step_i = 0; step_i < STEPS; step_i++){
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
             const TI pos = step_i * INSTANCES + instance_i;
+            trace.finished[step_i][instance_i] = rlt::get(device, log_host.finished, step_i, instance_i);
             trace.finished_length[step_i][instance_i] = rlt::get(device, log_host.finished_length, step_i, instance_i);
             trace.finished_return[step_i][instance_i] = rlt::get(device, log_host.finished_return, step_i, instance_i);
             trace.finished_reason[step_i][instance_i] = rlt::get(device, log_host.finished_reason, step_i, instance_i);
@@ -205,8 +205,13 @@ static void trace_rollout(DEVICE& device, COMPUTE_DEVICE& device_compute, WORLD&
     rlt::free(device_compute, rng);
 }
 
-template <typename EPISODES_SPEC_TYPE>
-static void compare_cpu_cuda(){
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_EPISODES_CUDA, CPU_CUDA_PARITY){
+    if(SCENE_PATH.empty()){
+        GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
+    }
+    if(!cuda_available()){
+        GTEST_SKIP() << "CUDA device unavailable";
+    }
     DEVICE device;
     rlt::init(device);
     DEVICE_GPU device_gpu;
@@ -222,8 +227,8 @@ static void compare_cpu_cuda(){
 
     auto* trace_cpu = new Trace;
     auto* trace_cuda = new Trace;
-    trace_rollout<EPISODES_SPEC_TYPE, DEVICE, RNG>(device, device, world, *trace_cpu, 1337);
-    trace_rollout<EPISODES_SPEC_TYPE, DEVICE_GPU, RNG_GPU>(device, device_gpu, world, *trace_cuda, 1337);
+    trace_rollout<DEVICE, RNG>(device, device, world, *trace_cpu, 1337);
+    trace_rollout<DEVICE_GPU, RNG_GPU>(device, device_gpu, world, *trace_cuda, 1337);
     TI truncations = 0;
     for(TI step_i = 0; step_i < STEPS; step_i++){
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
@@ -232,6 +237,7 @@ static void compare_cpu_cuda(){
             ASSERT_EQ(trace_cpu->terminated[step_i][instance_i], trace_cuda->terminated[step_i][instance_i]) << "step " << step_i << " instance " << instance_i;
             ASSERT_EQ(trace_cpu->truncated[step_i][instance_i], trace_cuda->truncated[step_i][instance_i]) << "step " << step_i << " instance " << instance_i;
             ASSERT_EQ(trace_cpu->end_reason[step_i][instance_i], trace_cuda->end_reason[step_i][instance_i]) << "step " << step_i << " instance " << instance_i;
+            ASSERT_EQ(trace_cpu->finished[step_i][instance_i], trace_cuda->finished[step_i][instance_i]) << "step " << step_i << " instance " << instance_i;
             ASSERT_EQ(trace_cpu->finished_length[step_i][instance_i], trace_cuda->finished_length[step_i][instance_i]) << "step " << step_i << " instance " << instance_i;
             ASSERT_EQ(trace_cpu->finished_reason[step_i][instance_i], trace_cuda->finished_reason[step_i][instance_i]) << "step " << step_i << " instance " << instance_i;
             ASSERT_NEAR(trace_cpu->finished_return[step_i][instance_i], trace_cuda->finished_return[step_i][instance_i], 1e-4) << "step " << step_i << " instance " << instance_i;
@@ -247,24 +253,4 @@ static void compare_cpu_cuda(){
     delete trace_cuda;
     rlt::free(device, world);
     rlt::free(device, shared.library);
-}
-
-TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_EPISODES_CUDA, CPU_CUDA_PARITY){
-    if(SCENE_PATH.empty()){
-        GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
-    }
-    if(!cuda_available()){
-        GTEST_SKIP() << "CUDA device unavailable";
-    }
-    compare_cpu_cuda<EPISODES_SPEC>();
-}
-
-TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_EPISODES_CUDA, CPU_CUDA_PARITY_SYNCHRONIZED){
-    if(SCENE_PATH.empty()){
-        GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
-    }
-    if(!cuda_available()){
-        GTEST_SKIP() << "CUDA device unavailable";
-    }
-    compare_cpu_cuda<SYNCHRONIZED_EPISODES_SPEC>();
 }

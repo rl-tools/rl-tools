@@ -1,8 +1,7 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rl/environments/hyperdrone/operations_cpu.h>
-#include <rl_tools/rl/environments/hyperdrone/episodes/operations_cpu.h>
+#include <rl_tools/rl/components/episodes/operations_cpu.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
-#include <rl_tools/rl/environments/hyperdrone/episodes/on_policy_runner/operations_cpu.h>
 
 #include "../../../utils/utils.h"
 
@@ -14,7 +13,7 @@
 
 namespace rlt = rl_tools;
 namespace l2f = rlt::rl::environments::l2f;
-namespace episodes = rlt::rl::environments::hyperdrone::episodes;
+namespace episodes = rlt::rl::components::episodes;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
@@ -79,7 +78,7 @@ namespace test_hyperdrone_episodes {
     struct SYNCHRONIZED_EPISODES_SPEC: episodes::Specification<ENVIRONMENT> {
         static constexpr bool SYNCHRONIZED = true;
     };
-    using END_REASON = episodes::EndReason<TI>;
+    using END_REASON = episodes::EndReason;
 }
 
 using namespace test_hyperdrone_episodes;
@@ -101,12 +100,13 @@ struct Reference {
     TI episode_step[INSTANCES] = {};
     bool truncated[INSTANCES] = {};
     bool forced[INSTANCES] = {};
-    TI reason[INSTANCES] = {};
+    END_REASON reason[INSTANCES] = {};
     T episode_return[INSTANCES] = {};
     bool reset[INSTANCES] = {};
-    T finished_length[INSTANCES] = {};
+    bool finished[INSTANCES] = {};
+    TI finished_length[INSTANCES] = {};
     T finished_return[INSTANCES] = {};
-    TI finished_reason[INSTANCES] = {};
+    END_REASON finished_reason[INSTANCES] = {};
     Reference(){
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
             truncated[instance_i] = true;
@@ -119,11 +119,11 @@ struct Reference {
         }
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
             const bool due = synchronized ? any_due : (truncated[instance_i] || forced[instance_i]);
-            const bool finished = due && episode_step[instance_i] > 0;
+            finished[instance_i] = due && episode_step[instance_i] > 0;
             reset[instance_i] = due;
-            finished_length[instance_i] = finished ? (T)episode_step[instance_i] : (T)-1;
-            finished_return[instance_i] = finished ? episode_return[instance_i] : (T)0;
-            finished_reason[instance_i] = finished ? reason[instance_i] : END_REASON::NONE;
+            finished_length[instance_i] = finished[instance_i] ? episode_step[instance_i] : 0;
+            finished_return[instance_i] = finished[instance_i] ? episode_return[instance_i] : (T)0;
+            finished_reason[instance_i] = finished[instance_i] ? reason[instance_i] : END_REASON::NONE;
             if(due){
                 episode_step[instance_i] = 0;
                 episode_return[instance_i] = 0;
@@ -202,7 +202,8 @@ struct Harness {
     }
     void begin(TI step_i){
         reference.begin(EPISODES_SPEC_TYPE::SYNCHRONIZED);
-        rlt::begin_step(device, env, episodes, parameters, states, log, step_i, rng);
+        rlt::begin_step(device, env, episodes, parameters, states, rng);
+        rlt::record(device, log, episodes, step_i);
         rlt::render(device, env, parameters, states, episodes.reset);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
             ASSERT_EQ(rlt::get(device, episodes.reset, instance_i), reference.reset[instance_i]) << "step " << step_i << " instance " << instance_i;
@@ -210,6 +211,8 @@ struct Harness {
             ASSERT_EQ(rlt::get(device, episodes.truncated, instance_i), reference.truncated[instance_i]);
             ASSERT_EQ(rlt::get(device, episodes.forced, instance_i), reference.forced[instance_i]);
             ASSERT_EQ(rlt::get(device, episodes.end_reason, instance_i), reference.reason[instance_i]);
+            ASSERT_EQ(rlt::get(device, episodes.finished, instance_i), reference.finished[instance_i]) << "step " << step_i << " instance " << instance_i;
+            ASSERT_EQ(rlt::get(device, log.finished, step_i, instance_i), reference.finished[instance_i]);
             ASSERT_EQ(rlt::get(device, log.finished_length, step_i, instance_i), reference.finished_length[instance_i]) << "step " << step_i << " instance " << instance_i;
             ASSERT_EQ(rlt::get(device, log.finished_return, step_i, instance_i), reference.finished_return[instance_i]);
             ASSERT_EQ(rlt::get(device, log.finished_reason, step_i, instance_i), reference.finished_reason[instance_i]);
@@ -328,8 +331,10 @@ TEST_F(Fixture, FORCED){
     harness.begin(2);
     for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
         ASSERT_TRUE(rlt::get(device, harness.episodes.reset, instance_i));
-        ASSERT_EQ(rlt::get(device, harness.log.finished_length, 2, instance_i), (T)2);
-        ASSERT_TRUE(rlt::get(device, harness.log.finished_reason, 2, instance_i) == END_REASON::FORCED || rlt::get(device, harness.log.finished_reason, 2, instance_i) == END_REASON::TERMINATED);
+        ASSERT_TRUE(rlt::get(device, harness.log.finished, 2, instance_i));
+        ASSERT_EQ(rlt::get(device, harness.log.finished_length, 2, instance_i), (TI)2);
+        const END_REASON reason = rlt::get(device, harness.log.finished_reason, 2, instance_i);
+        ASSERT_TRUE(reason == END_REASON::FORCED || reason == END_REASON::TERMINATED);
     }
     harness.end(2);
     harness.begin(3);
@@ -375,10 +380,9 @@ TEST_F(Fixture, SUMMARY){
     for(TI step_i = 0; step_i < STEPS; step_i++){
         harness.begin(step_i);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            const T length = harness.reference.finished_length[instance_i];
-            if(length >= (T)0){
+            if(harness.reference.finished[instance_i]){
                 expected_finished++;
-                expected_length_sum += length;
+                expected_length_sum += (T)harness.reference.finished_length[instance_i];
                 expected_return_sum += harness.reference.finished_return[instance_i];
                 expected_time_limit += harness.reference.finished_reason[instance_i] == END_REASON::TIME_LIMIT ? 1 : 0;
                 expected_terminated += harness.reference.finished_reason[instance_i] == END_REASON::TERMINATED ? 1 : 0;
@@ -411,8 +415,8 @@ TEST_F(Fixture, DETERMINISM){
     constexpr TI STEPS = 6;
     typename WORLD::State states_a[STEPS][INSTANCES];
     typename WORLD::State states_b[STEPS][INSTANCES];
-    T lengths_a[STEPS][INSTANCES];
-    T lengths_b[STEPS][INSTANCES];
+    TI lengths_a[STEPS][INSTANCES];
+    TI lengths_b[STEPS][INSTANCES];
     for(TI run_i = 0; run_i < 2; run_i++){
         Harness<EPISODES_SPEC, STEPS> harness(device, *env, 99);
         harness.episodes.step_limit = 2;
@@ -433,6 +437,7 @@ TEST_F(Fixture, DETERMINISM){
     }
 }
 
+// the on-policy dataset ingests the flags through the runner's batched record verbs
 TEST_F(Fixture, DATASET_RECORD){
     constexpr TI STEPS = 4;
     using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<rlt::numeric_types::Policy<T>, TI, ENVIRONMENT, bool, INSTANCES>;
@@ -442,14 +447,16 @@ TEST_F(Fixture, DATASET_RECORD){
     rlt::malloc(device, dataset);
     Harness<EPISODES_SPEC, STEPS> harness(device, *env, 5);
     harness.episodes.step_limit = 2;
-    rlt::record_rollout_start(device, harness.episodes, dataset);
-    for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-        ASSERT_EQ(rlt::get(dataset.reset, instance_i, 0), (T)1) << "all instances are due at the start";
-    }
     for(TI step_i = 0; step_i < STEPS; step_i++){
         harness.begin(step_i);
+        if(step_i == 0){
+            rlt::record_reset(device, dataset, harness.episodes.reset);
+            for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
+                ASSERT_EQ(rlt::get(dataset.reset, instance_i, 0), (T)1) << "all instances reset at the start";
+            }
+        }
         harness.end(step_i);
-        rlt::record(device, harness.episodes, harness.rewards, dataset, step_i);
+        rlt::record_step(device, dataset, step_i, harness.rewards, harness.episodes.terminated, harness.episodes.truncated);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
             const TI pos = step_i * INSTANCES + instance_i;
             const bool truncated = rlt::get(device, harness.episodes.truncated, instance_i);

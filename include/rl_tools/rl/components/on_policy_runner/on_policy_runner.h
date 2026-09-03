@@ -6,6 +6,8 @@
 #include "../../../utils/generic/typing.h"
 #include "../../../rl/environments/observation.h"
 
+#include "../episodes/episodes.h"
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::components{
     namespace on_policy_runner{
@@ -15,9 +17,13 @@ namespace rl_tools::rl::components{
             using TI = T_TI;
             using ENVIRONMENT = T_ENVIRONMENT;
             using POLICY_STATE = T_POLICY_STATE;
+            using OBSERVATION = typename ENVIRONMENT::Observation;
+            using OBSERVATION_PRIVILEGED = typename ENVIRONMENT::ObservationPrivileged;
+            using OBSERVATION_T = typename TYPE_POLICY::DEFAULT;
+            using OBSERVATION_PRIVILEGED_T = typename TYPE_POLICY::DEFAULT;
             static constexpr TI N_ENVIRONMENTS = T_N_ENVIRONMENTS;
             static constexpr TI STEP_LIMIT = T_STEP_LIMIT;
-            static constexpr bool ASYMMETRIC_OBSERVATIONS = !rl_tools::utils::typing::is_same_v<typename ENVIRONMENT::Observation, typename ENVIRONMENT::ObservationPrivileged>;
+            static constexpr bool ASYMMETRIC_OBSERVATIONS = !rl_tools::utils::typing::is_same_v<OBSERVATION, OBSERVATION_PRIVILEGED>;
             static constexpr TI N_AGENTS_PER_ENV = T_N_AGENTS_PER_ENV; // 1 for single agent, >1 for multi-agent
             static constexpr bool DYANMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
             static constexpr TI EPISODE_STATS_N_ENVIRONMENTS = 1;
@@ -46,14 +52,16 @@ namespace rl_tools::rl::components{
             static constexpr TI STEPS_PER_ENV = DATASET_SPEC::STEPS_PER_ENV;
             static constexpr TI STEPS_TOTAL = DATASET_SPEC::STEPS_TOTAL;
 
-            using OBS_SHAPE = typename SPEC::ENVIRONMENT::Observation::SHAPE;
-            using OBS_PRIV_SHAPE = typename SPEC::ENVIRONMENT::ObservationPrivileged::SHAPE;
+            using OBS_SHAPE = typename SPEC::OBSERVATION::SHAPE;
+            using OBS_PRIV_SHAPE = typename SPEC::OBSERVATION_PRIVILEGED::SHAPE;
 
             // Observation tensor storage (always flat to ensure matrix_view gives (N, DIM) rows)
-            using ALL_OBS_STORAGE_SHAPE = tensor::Shape<TI, DATASET_SPEC::STEPS_TOTAL_ALL, SPEC::ENVIRONMENT::Observation::DIM>;
-            using ALL_OBS_PRIV_STORAGE_SHAPE = tensor::Shape<TI, DATASET_SPEC::STEPS_TOTAL_ALL, SPEC::ENVIRONMENT::ObservationPrivileged::DIM>;
-            Tensor<tensor::Specification<T, TI, ALL_OBS_STORAGE_SHAPE, DATASET_SPEC::DYNAMIC_ALLOCATION>> all_observations;
-            Tensor<tensor::Specification<T, TI, ALL_OBS_PRIV_STORAGE_SHAPE, DATASET_SPEC::DYNAMIC_ALLOCATION>> all_observations_privileged;
+            using ALL_OBS_STORAGE_SHAPE = tensor::Shape<TI, DATASET_SPEC::STEPS_TOTAL_ALL, SPEC::OBSERVATION::DIM>;
+            using ALL_OBS_PRIV_STORAGE_SHAPE = tensor::Shape<TI, DATASET_SPEC::STEPS_TOTAL_ALL, SPEC::OBSERVATION_PRIVILEGED::DIM>;
+            // the observation storage types follow the specification (e.g. bf16 frames), the scalar data is T
+            static_assert(DATASET_SPEC::ASYMMETRIC_OBSERVATIONS || rl_tools::utils::typing::is_same_v<typename SPEC::OBSERVATION_T, typename SPEC::OBSERVATION_PRIVILEGED_T>, "symmetric observations share one storage");
+            Tensor<tensor::Specification<typename SPEC::OBSERVATION_T, TI, ALL_OBS_STORAGE_SHAPE, DATASET_SPEC::DYNAMIC_ALLOCATION>> all_observations;
+            Tensor<tensor::Specification<typename SPEC::OBSERVATION_PRIVILEGED_T, TI, ALL_OBS_PRIV_STORAGE_SHAPE, DATASET_SPEC::DYNAMIC_ALLOCATION>> all_observations_privileged;
 
             // Scalar data (actions, rewards, flags, values, advantages)
             static constexpr TI SCALAR_DATA_DIM = SPEC::ENVIRONMENT::ACTION_DIM * 2 + 8;
@@ -100,6 +108,49 @@ namespace rl_tools::rl::components{
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT
         bool initialized = false;
 #endif
+    };
+
+    namespace on_policy_runner{
+        // batched environments: every environment verb is tensor-batched over ENVIRONMENT::INSTANCES
+        // and the episode bookkeeping is rl::components::episodes; the observation types default to
+        // the environment's and can be overridden (e.g. raw frames instead of a task's composed view)
+        template <typename T_TYPE_POLICY, typename T_TI, typename T_ENVIRONMENT, typename T_POLICY_STATE, typename T_EPISODES_SPEC = episodes::Specification<T_ENVIRONMENT>, typename T_OBSERVATION = typename T_ENVIRONMENT::Observation, typename T_OBSERVATION_PRIVILEGED = typename T_ENVIRONMENT::ObservationPrivileged, typename T_OBSERVATION_T = typename T_TYPE_POLICY::DEFAULT, typename T_OBSERVATION_PRIVILEGED_T = typename T_TYPE_POLICY::DEFAULT, bool T_DYNAMIC_ALLOCATION = true>
+        struct BatchedSpecification{
+            using TYPE_POLICY = T_TYPE_POLICY;
+            using TI = T_TI;
+            using ENVIRONMENT = T_ENVIRONMENT;
+            using POLICY_STATE = T_POLICY_STATE;
+            using EPISODES_SPEC = T_EPISODES_SPEC;
+            using OBSERVATION = T_OBSERVATION;
+            using OBSERVATION_PRIVILEGED = T_OBSERVATION_PRIVILEGED;
+            using OBSERVATION_T = T_OBSERVATION_T;
+            using OBSERVATION_PRIVILEGED_T = T_OBSERVATION_PRIVILEGED_T;
+            static constexpr TI N_ENVIRONMENTS = ENVIRONMENT::INSTANCES;
+            static constexpr TI STEP_LIMIT = EPISODES_SPEC::STEP_LIMIT;
+            static constexpr bool ASYMMETRIC_OBSERVATIONS = !rl_tools::utils::typing::is_same_v<OBSERVATION, OBSERVATION_PRIVILEGED>;
+            static constexpr TI N_AGENTS_PER_ENV = 1;
+            static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
+            static_assert(EPISODES_SPEC::INSTANCES == N_ENVIRONMENTS, "the episode bookkeeping must cover all instances");
+        };
+    }
+    template <typename T_SPEC>
+    struct OnPolicyRunnerBatched{
+        using SPEC = T_SPEC;
+        using TYPE_POLICY = typename SPEC::TYPE_POLICY;
+        using T = typename TYPE_POLICY::DEFAULT;
+        using TI = typename SPEC::TI;
+        using ENVIRONMENT = typename SPEC::ENVIRONMENT;
+        using EPISODES = episodes::Episodes<typename SPEC::EPISODES_SPEC>;
+
+        TI step = 0;
+
+        typename SPEC::POLICY_STATE policy_state;
+
+        Tensor<tensor::Specification<typename ENVIRONMENT::Parameters, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>, SPEC::DYNAMIC_ALLOCATION>> env_parameters;
+        Tensor<tensor::Specification<typename ENVIRONMENT::State     , TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>, SPEC::DYNAMIC_ALLOCATION>> states, next_states;
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS, ENVIRONMENT::ACTION_DIM>, SPEC::DYNAMIC_ALLOCATION>> actions;
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>, SPEC::DYNAMIC_ALLOCATION>> rewards;
+        EPISODES episodes;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
