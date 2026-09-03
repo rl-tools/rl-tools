@@ -277,9 +277,9 @@ int main(int argc, char** argv){
     }
 
     // 2. Wire every env to the shared renderer (non-owning references)
-    auto& env0 = rlt::get_ref(device, ts.envs, static_cast<TI>(0));
+    auto& env0 = rlt::get_ref(device, ts.environment.environments, static_cast<TI>(0));
     for (TI env_i = 0; env_i < NUM_ENVS; env_i++) {
-        auto& env = rlt::get_ref(device, ts.envs, env_i);
+        auto& env = rlt::get_ref(device, ts.environment.environments, env_i);
         env.renderer = renderer;
         env.annotations = annotations;
         env.use_target_mode = true;
@@ -301,12 +301,12 @@ int main(int argc, char** argv){
         rlt::log(device, device.logger, "Target scene position: [",
             target_translation[0], ", ", target_translation[1], ", ", target_translation[2], "]");
         for (TI env_i = 0; env_i < NUM_ENVS; env_i++) {
-            auto& params = rlt::get_ref(device, ts.env_parameters, env_i);
+            auto& params = rlt::get_ref(device, ts.on_policy_runner.env_parameters, env_i);
             for (TI j = 0; j < 3; j++) {
                 params.scene_translation[j] = target_translation[j];
             }
         }
-        rlt::init(device, ts.on_policy_runner, ts.envs, ts.env_parameters, ts.ppo.actor, ts.rng);
+        rlt::init(device, ts.on_policy_runner, ts.environment, ts.rng);
     }
 
     // 6. Training loop
@@ -323,7 +323,7 @@ int main(int argc, char** argv){
 
     // 7. Cleanup: detach shared renderer+annotations from env[1..N-1] before free
     for (TI env_i = 1; env_i < NUM_ENVS; env_i++) {
-        auto& env = rlt::get_ref(device, ts.envs, env_i);
+        auto& env = rlt::get_ref(device, ts.environment.environments, env_i);
         env.renderer = nullptr;
         env.annotations = nullptr;
     }

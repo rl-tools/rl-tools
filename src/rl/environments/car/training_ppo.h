@@ -138,13 +138,13 @@ float step(State* state, const char* message_string) {
         for (TI row_i = 0; row_i < ENVIRONMENT::SPEC::HEIGHT; row_i++) {
             for (TI col_i = 0; col_i < ENVIRONMENT::SPEC::WIDTH; col_i++) {
                 for (TI env_i = 0; env_i < LOOP_CORE_PARAMETERS::N_ENVIRONMENTS; env_i++) {
-                    auto& env = get(state->ts.on_policy_runner.environments, 0, env_i);
+                    auto& env = rlt::get_ref(state->device, state->ts.environment.environments, env_i);
                     env.track[row_i][col_i] = message["data"][row_i][col_i];
                 }
                 state->ts.env_eval.track[row_i][col_i] = message["data"][row_i][col_i];
             }
         }
-        rlt::init(state->device, state->ts.on_policy_runner, state->ts.envs, state->ts.env_parameters, state->ts.rng);
+        rlt::init(state->device, state->ts.on_policy_runner, state->ts.environment, state->ts.rng);
     } else {
         if (message["channel"] == "setAction") {
             if(!state->mode_interactive){

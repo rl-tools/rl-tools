@@ -21,12 +21,13 @@ namespace rl_tools::rl::components::episodes {
         FORCED = 3
     };
 
-    template <typename T_ENVIRONMENT>
+    template <typename T_ENVIRONMENT, bool T_DYNAMIC_ALLOCATION = true>
     struct Specification {
         using ENVIRONMENT = T_ENVIRONMENT;  // World, task World, or MultiEnvironment
         using T = typename ENVIRONMENT::T;
         using TI = typename ENVIRONMENT::TI;
         static constexpr TI INSTANCES = ENVIRONMENT::INSTANCES;
+        static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
         // derive-and-shadow
         static constexpr TI STEP_LIMIT = ENVIRONMENT::EPISODE_STEP_LIMIT;  // 0: no time limit
         static constexpr bool SYNCHRONIZED = false;                         // all-or-none resets (fixed-length tasks)
@@ -39,10 +40,10 @@ namespace rl_tools::rl::components::episodes {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static constexpr TI INSTANCES = SPEC::INSTANCES;
-        using FLAG_SPEC = tensor::Specification<bool, TI, tensor::Shape<TI, INSTANCES>>;
-        using COUNTER_SPEC = tensor::Specification<TI, TI, tensor::Shape<TI, INSTANCES>>;
-        using VALUE_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, INSTANCES>>;
-        using REASON_SPEC = tensor::Specification<EndReason, TI, tensor::Shape<TI, INSTANCES>>;
+        using FLAG_SPEC = tensor::Specification<bool, TI, tensor::Shape<TI, INSTANCES>, SPEC::DYNAMIC_ALLOCATION>;
+        using COUNTER_SPEC = tensor::Specification<TI, TI, tensor::Shape<TI, INSTANCES>, SPEC::DYNAMIC_ALLOCATION>;
+        using VALUE_SPEC = tensor::Specification<T, TI, tensor::Shape<TI, INSTANCES>, SPEC::DYNAMIC_ALLOCATION>;
+        using REASON_SPEC = tensor::Specification<EndReason, TI, tensor::Shape<TI, INSTANCES>, SPEC::DYNAMIC_ALLOCATION>;
         Tensor<COUNTER_SPEC> episode_step;
         Tensor<FLAG_SPEC> terminated;   // terminal state after the last step
         Tensor<FLAG_SPEC> truncated;    // episode ended after the last step: terminated, time limit or forced
@@ -66,10 +67,10 @@ namespace rl_tools::rl::components::episodes {
         using TI = typename SPEC::TI;
         static constexpr TI STEPS = T_STEPS;
         static constexpr TI INSTANCES = SPEC::INSTANCES;
-        Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, STEPS, INSTANCES>>> finished;
-        Tensor<tensor::Specification<TI, TI, tensor::Shape<TI, STEPS, INSTANCES>>> finished_length;
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, STEPS, INSTANCES>>> finished_return;
-        Tensor<tensor::Specification<EndReason, TI, tensor::Shape<TI, STEPS, INSTANCES>>> finished_reason;
+        Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, STEPS, INSTANCES>, SPEC::DYNAMIC_ALLOCATION>> finished;
+        Tensor<tensor::Specification<TI, TI, tensor::Shape<TI, STEPS, INSTANCES>, SPEC::DYNAMIC_ALLOCATION>> finished_length;
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, STEPS, INSTANCES>, SPEC::DYNAMIC_ALLOCATION>> finished_return;
+        Tensor<tensor::Specification<EndReason, TI, tensor::Shape<TI, STEPS, INSTANCES>, SPEC::DYNAMIC_ALLOCATION>> finished_reason;
     };
 
     template <typename T_T, typename T_TI>

@@ -176,12 +176,10 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, PERSIST_CHECKPOINT_RIGOROUS) {
         std::cout << "step_i: " << step_i << std::endl;
 
 
-        auto& env_orig = rlt::get(ts.on_policy_runner.environments, 0, 0);
-        auto& params_orig = rlt::get(ts.on_policy_runner.env_parameters, 0, 0);
-        auto& state_orig = rlt::get(ts.on_policy_runner.states, 0, 0);
-        auto& env_loaded = rlt::get(ts_loaded.on_policy_runner.environments, 0, 0);
-        auto& params_loaded = rlt::get(ts_loaded.on_policy_runner.env_parameters, 0, 0);
-        auto& state_loaded = rlt::get(ts_loaded.on_policy_runner.states, 0, 0);
+        auto& params_orig = rlt::get_ref(device, ts.on_policy_runner.env_parameters, 0);
+        auto& state_orig = rlt::get_ref(device, ts.on_policy_runner.states, 0);
+        auto& params_loaded = rlt::get_ref(device, ts_loaded.on_policy_runner.env_parameters, 0);
+        auto& state_loaded = rlt::get_ref(device, ts_loaded.on_policy_runner.states, 0);
         ASSERT_FLOAT_EQ(state_orig.theta, state_loaded.theta);
         ASSERT_FLOAT_EQ(state_orig.theta_dot, state_loaded.theta_dot);
         ASSERT_EQ(params_orig.g, params_loaded.g);

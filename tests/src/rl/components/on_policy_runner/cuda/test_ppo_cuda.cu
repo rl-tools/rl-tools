@@ -14,6 +14,7 @@
 
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>
+#include <rl_tools/rl/environments/batch/operations_cuda.h>
 
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_cuda.h>
@@ -39,6 +40,8 @@ using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
 constexpr TI N_ENVIRONMENTS = 4;
 constexpr TI STEPS_PER_ENV = 64;
 constexpr TI BATCH_SIZE = N_ENVIRONMENTS * STEPS_PER_ENV;
+using BATCH_SPEC = rlt::rl::environments::batch::Specification<ENVIRONMENT, N_ENVIRONMENTS>;
+using BATCH = rlt::rl::environments::batch::Independent<BATCH_SPEC>;
 
 template <typename CAPABILITY>
 struct ActorConfig{
@@ -52,7 +55,7 @@ struct ActorConfig{
 using ACTOR_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 using ACTOR_TYPE = typename ActorConfig<ACTOR_CAPABILITY>::MODEL;
 
-using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, TI, ENVIRONMENT, ACTOR_TYPE::State<>, N_ENVIRONMENTS, ENVIRONMENT::EPISODE_STEP_LIMIT>;
+using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, BATCH, ACTOR_TYPE::State<>>;
 using DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, STEPS_PER_ENV>;
 using DATASET = rlt::rl::components::on_policy_runner::Dataset<DATASET_SPEC>;
 
@@ -94,9 +97,13 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, GAE){
     ACTOR_TYPE actor_gpu;
     typename ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, N_ENVIRONMENTS>::template Buffer<> actor_buffers_gpu;
     rlt::rl::components::OnPolicyRunner<ON_POLICY_RUNNER_SPEC> runner_gpu;
+    rlt::rl::components::on_policy_runner::Buffer<ON_POLICY_RUNNER_SPEC> runner_buffer_gpu;
+    BATCH environment_gpu;
     rlt::malloc(device_gpu, actor_gpu);
     rlt::malloc(device_gpu, actor_buffers_gpu);
     rlt::malloc(device_gpu, runner_gpu);
+    rlt::malloc(device_gpu, runner_buffer_gpu);
+    rlt::malloc(device_gpu, environment_gpu);
 
     typename DEVICE_CPU::SPEC::RANDOM::ENGINE<> rng_cpu_init;
     rlt::malloc(device_cpu, rng_cpu_init);
@@ -106,11 +113,10 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, GAE){
     rlt::init_weights(device_cpu, actor_cpu_init, rng_cpu_init);
     rlt::copy(device_cpu, device_gpu, actor_cpu_init, actor_gpu);
 
-    rlt::Tensor<rlt::tensor::Specification<ENVIRONMENT, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS>>> envs;
-    rlt::Tensor<rlt::tensor::Specification<ENVIRONMENT::Parameters, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS>>> params;
-    rlt::init(device_gpu, runner_gpu, envs, params, actor_gpu, rng_gpu);
+    rlt::init(device_gpu, environment_gpu);
+    rlt::init(device_gpu, runner_gpu, environment_gpu, rng_gpu);
     rlt::set_all(device_gpu, dataset_gpu.scalar_data, 0);
-    rlt::collect(device_gpu, dataset_gpu, runner_gpu, actor_gpu, actor_buffers_gpu, rng_gpu);
+    rlt::collect(device_gpu, dataset_gpu, runner_gpu, runner_buffer_gpu, environment_gpu, actor_gpu, actor_buffers_gpu, rng_gpu);
 
     // Set fake values for GAE computation
     rlt::set_all(device_gpu, dataset_gpu.all_values, (T)1.0);
@@ -155,6 +161,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, GAE){
     rlt::free(device_gpu, actor_gpu);
     rlt::free(device_gpu, actor_buffers_gpu);
     rlt::free(device_gpu, runner_gpu);
+    rlt::free(device_gpu, runner_buffer_gpu);
+    rlt::free(device_gpu, environment_gpu);
     rlt::free(device_cpu, actor_cpu_init);
     rlt::free(device_cpu, adv_cpu);
     rlt::free(device_cpu, adv_gpu_copy);

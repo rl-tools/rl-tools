@@ -463,7 +463,6 @@ using PPO_SPEC = typename LOOP_CORE_CONFIG::PPO_SPEC;
 using PPO_TYPE = typename LOOP_CORE_CONFIG::PPO_TYPE;
 using PPO_BUFFERS_TYPE = typename LOOP_CORE_CONFIG::PPO_BUFFERS_TYPE;
 using ON_POLICY_RUNNER_SPEC = typename LOOP_CORE_CONFIG::ON_POLICY_RUNNER_SPEC;
-using ON_POLICY_RUNNER_TYPE = typename LOOP_CORE_CONFIG::ON_POLICY_RUNNER_TYPE;
 using ON_POLICY_RUNNER_DATASET_SPEC = typename LOOP_CORE_CONFIG::ON_POLICY_RUNNER_DATASET_SPEC;
 using ON_POLICY_RUNNER_DATASET_TYPE = typename LOOP_CORE_CONFIG::ON_POLICY_RUNNER_DATASET_TYPE;
 using ACTOR_OPTIMIZER = typename LOOP_CORE_CONFIG::NN::ACTOR_OPTIMIZER;
@@ -975,13 +974,11 @@ int main(int argc, char** argv){
     // ---------------------------------------------------------------------
     PPO_TYPE ppo;
     PPO_BUFFERS_TYPE ppo_buffers;
-    ON_POLICY_RUNNER_TYPE on_policy_runner;
     ON_POLICY_RUNNER_DATASET_TYPE dataset;
     ACTOR_OPTIMIZER actor_optimizer;
     CRITIC_OPTIMIZER critic_optimizer;
     rlt::malloc(device, ppo);
     rlt::malloc(device, ppo_buffers);
-    rlt::malloc(device, on_policy_runner);
     rlt::malloc(device, dataset);
     rlt::malloc(device, actor_optimizer);
     rlt::malloc(device, critic_optimizer);
@@ -1106,13 +1103,7 @@ int main(int argc, char** argv){
     // PPO init (CPU)
     // ---------------------------------------------------------------------
     rlt::init(device, ppo, actor_optimizer, critic_optimizer, rng);
-    rlt::set_all(device, on_policy_runner.episode_step, 0);
-    rlt::set_all(device, on_policy_runner.episode_return, (T)0);
-    rlt::set_all(device, on_policy_runner.truncated, true);
-    for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
-        rlt::set(on_policy_runner.environments, 0, env_i, envs[env_i]);
-        rlt::set(on_policy_runner.env_parameters, 0, env_i, env_parameters[env_i]);
-    }
+    TI environment_step = 0;
 
     // ---------------------------------------------------------------------
     // GPU init
@@ -1126,13 +1117,11 @@ int main(int argc, char** argv){
     ACTOR_BUFFERS actor_buffers;
     CRITIC_BUFFERS critic_buffers;
     CRITIC_BUFFERS_GAE critic_buffers_gae;
-    ON_POLICY_RUNNER_TYPE on_policy_runner_gpu;
     ON_POLICY_RUNNER_DATASET_TYPE dataset_gpu;
     rlt::malloc(device_gpu, ppo_gpu);
     rlt::malloc(device_gpu, actor_buffers);
     rlt::malloc(device_gpu, critic_buffers);
     rlt::malloc(device_gpu, critic_buffers_gae);
-    rlt::malloc(device_gpu, on_policy_runner_gpu);
     rlt::malloc(device_gpu, dataset_gpu);
 
     // Rollout actor (forward only, batch = N_ENVIRONMENTS)
@@ -1152,18 +1141,6 @@ int main(int argc, char** argv){
     rlt::copy(device, device_gpu, ppo.actor, rollout_actor_gpu);
     rlt::reset_optimizer_state(device_gpu, actor_optimizer_gpu, ppo_gpu.actor);
     rlt::reset_optimizer_state(device_gpu, critic_optimizer_gpu, ppo_gpu.critic);
-
-    // Initialize GPU on_policy_runner state
-    rlt::set_all(device_gpu, on_policy_runner_gpu.truncated, true);
-    rlt::set_all(device_gpu, on_policy_runner_gpu.episode_step, (TI)0);
-    rlt::set_all(device_gpu, on_policy_runner_gpu.episode_return, (T)0);
-    cudaMemcpy(on_policy_runner_gpu.environments._data, on_policy_runner.environments._data,
-               N_ENVIRONMENTS * sizeof(ENVIRONMENT), cudaMemcpyHostToDevice);
-    cudaMemcpy(on_policy_runner_gpu.env_parameters._data, on_policy_runner.env_parameters._data,
-               N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::Parameters), cudaMemcpyHostToDevice);
-    cudaMemcpy(on_policy_runner_gpu.states._data, on_policy_runner.states._data,
-               N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::State), cudaMemcpyHostToDevice);
-    on_policy_runner_gpu.step = on_policy_runner.step;
 
     // ---------------------------------------------------------------------
     // GPU-resident environment state (separate from on_policy_runner so kernels can mutate freely)
@@ -1371,7 +1348,7 @@ int main(int argc, char** argv){
 
     for(TI ppo_step_i = 0; ppo_step_i < N_PPO_STEPS; ppo_step_i++){
         auto step_start = std::chrono::high_resolution_clock::now();
-        rlt::set_step(device, device.logger, on_policy_runner_gpu.step);
+        rlt::set_step(device, device.logger, environment_step);
         T rollout_episode_length_mean = 0;
         T rollout_episode_length_std = 0;
         T rollout_return_mean = 0;
@@ -1435,7 +1412,7 @@ int main(int argc, char** argv){
             record_video_scene_set = scene_set_i % VIDEO_SAVE_INTERVAL_SCENE_SETS == 0;
         }
         if(record_video_scene_set && ffmpeg_pipe == nullptr){
-            TI video_step = on_policy_runner_gpu.step + N_ENVIRONMENTS * STEPS_PER_ENV * ROLLOUTS_PER_SCENE_SET;
+            TI video_step = environment_step + N_ENVIRONMENTS * STEPS_PER_ENV * ROLLOUTS_PER_SCENE_SET;
             auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, video_step);
             std::filesystem::create_directories(step_folder);
             auto video_path = step_folder / "video.mp4";
@@ -1695,8 +1672,8 @@ int main(int argc, char** argv){
                 tag_device, gpu_envs_arr, gpu_params_arr, gpu_states_arr, final_obs_priv, rng_gpu);
             rlt::check_status(device_gpu);
         }
-        on_policy_runner_gpu.step += N_ENVIRONMENTS * STEPS_PER_ENV;
-        rlt::set_step(device, device.logger, on_policy_runner_gpu.step);
+        environment_step += N_ENVIRONMENTS * STEPS_PER_ENV;
+        rlt::set_step(device, device.logger, environment_step);
 
         // =================================================================
         // GPU→CPU: copy dataset for GAE + training
@@ -1867,8 +1844,8 @@ int main(int argc, char** argv){
                 }
             }
             if(!completed_episodes.empty()){
-                auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, on_policy_runner_gpu.step);
-                auto& parameters_ref = rlt::get(on_policy_runner.env_parameters, 0, (TI)0);
+                auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, environment_step);
+                auto& parameters_ref = env_parameters[0];
                 std::string trajectories_json = trajectory_episodes_to_json(device, envs[0], parameters_ref, completed_episodes, simulation_dt);
                 std::vector<uint8_t> compressed;
                 if(rlt::compress_zlib(trajectories_json, compressed)){
@@ -1877,13 +1854,12 @@ int main(int argc, char** argv){
                     f.write(reinterpret_cast<const char*>(compressed.data()), compressed.size());
                     f.close();
                     auto latest_folder = rlt::get_latest_folder(device, extrack_paths);
-                    rlt::link_latest_artifact(device, latest_folder, trajectories_path, step_folder, on_policy_runner_gpu.step);
+                    rlt::link_latest_artifact(device, latest_folder, trajectories_path, step_folder, environment_step);
                 }
                 std::cout << "  Saved " << completed_episodes.size() << " trajectory episodes to " << step_folder << std::endl;
                 completed_episodes.clear();
             }
         }
-        on_policy_runner.step = on_policy_runner_gpu.step;
 
         // =================================================================
         // GAE
@@ -2095,10 +2071,10 @@ int main(int argc, char** argv){
         auto now = std::chrono::high_resolution_clock::now();
         std::chrono::duration<T> training_elapsed = now - training_start;
         std::chrono::duration<T> step_elapsed = now - step_start;
-        T sps_lifetime = on_policy_runner_gpu.step / training_elapsed.count();
+        T sps_lifetime = environment_step / training_elapsed.count();
         T sps_current = N_ENVIRONMENTS * STEPS_PER_ENV / step_elapsed.count();
         std::cout << "PPO step " << std::setw(5) << ppo_step_i
-                  << "  env_step " << std::setw(10) << on_policy_runner_gpu.step
+                  << "  env_step " << std::setw(10) << environment_step
                   << "  elapsed " << std::setw(7) << std::setprecision(3) << training_elapsed.count() << "s"
                   << "  (sps lifetime " << std::setw(6) << std::setprecision(0) << std::fixed << sps_lifetime
                   << ", current " << std::setw(6) << std::setprecision(0) << sps_current << ")" << std::defaultfloat << std::endl;
@@ -2146,7 +2122,7 @@ int main(int argc, char** argv){
 
         if(save_extrack_step){
             {
-                auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, on_policy_runner_gpu.step);
+                auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, environment_step);
                 auto latest_folder = rlt::get_latest_folder(device, extrack_paths);
                 std::filesystem::create_directories(step_folder);
 
@@ -2260,7 +2236,7 @@ int main(int argc, char** argv){
                     std::ofstream f(checkpoint_path, std::ios::binary);
                     f.write(writer.buffer.data(), writer.buffer.size());
                     f.close();
-                    rlt::link_latest_artifact(device, latest_folder, checkpoint_path, step_folder, on_policy_runner_gpu.step);
+                    rlt::link_latest_artifact(device, latest_folder, checkpoint_path, step_folder, environment_step);
                 }
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
                 auto save_hdf5 = [&](auto batch_size_tag){
@@ -2290,9 +2266,9 @@ int main(int argc, char** argv){
                     return checkpoint_path;
                 };
                 auto reduced_checkpoint_path = save_hdf5(rlt::utils::typing::integral_constant<TI, REDUCED_BATCH_SIZE>{});
-                rlt::link_latest_artifact(device, latest_folder, reduced_checkpoint_path, step_folder, on_policy_runner_gpu.step);
+                rlt::link_latest_artifact(device, latest_folder, reduced_checkpoint_path, step_folder, environment_step);
                 auto full_checkpoint_path = save_hdf5(rlt::utils::typing::integral_constant<TI, N_EXAMPLES>{});
-                rlt::link_latest_artifact(device, latest_folder, full_checkpoint_path, step_folder, on_policy_runner_gpu.step);
+                rlt::link_latest_artifact(device, latest_folder, full_checkpoint_path, step_folder, environment_step);
 #endif
                 if constexpr(EXPORT_CHECKPOINT_CODE){
                     auto actor_weights = rlt::save_code(device, eval_actor, std::string("rl_tools::checkpoint::actor"), true);
@@ -2322,7 +2298,7 @@ int main(int argc, char** argv){
                         std::ofstream f(checkpoint_code_path, std::ios::binary);
                         f.write(reinterpret_cast<const char*>(compressed.data()), compressed.size());
                         f.close();
-                        rlt::link_latest_artifact(device, latest_folder, checkpoint_code_path, step_folder, on_policy_runner_gpu.step);
+                        rlt::link_latest_artifact(device, latest_folder, checkpoint_code_path, step_folder, environment_step);
                     }
 #endif
                     {
@@ -2330,7 +2306,7 @@ int main(int argc, char** argv){
                         std::ofstream f(checkpoint_code_path);
                         f << output_string;
                         f.close();
-                        rlt::link_latest_artifact(device, latest_folder, checkpoint_code_path, step_folder, on_policy_runner_gpu.step);
+                        rlt::link_latest_artifact(device, latest_folder, checkpoint_code_path, step_folder, environment_step);
                     }
                 }
                 rlt::free(device, example_input_0_image);
@@ -2353,14 +2329,13 @@ int main(int argc, char** argv){
 
     close_video_pipe();
 
-    std::cout << "Training finished at env step " << on_policy_runner_gpu.step << std::endl;
+    std::cout << "Training finished at env step " << environment_step << std::endl;
 
     // ---------------------------------------------------------------------
     // Cleanup (minimal — process exit will reclaim)
     // ---------------------------------------------------------------------
     rlt::free(device, ppo);
     rlt::free(device, ppo_buffers);
-    rlt::free(device, on_policy_runner);
     rlt::free(device, dataset);
     rlt::free(device, actor_optimizer);
     rlt::free(device, critic_optimizer);
@@ -2374,7 +2349,6 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, actor_buffers);
     rlt::free(device_gpu, critic_buffers);
     rlt::free(device_gpu, critic_buffers_gae);
-    rlt::free(device_gpu, on_policy_runner_gpu);
     rlt::free(device_gpu, dataset_gpu);
     rlt::free(device_gpu, rollout_actor_gpu);
     rlt::free(device_gpu, rollout_actor_buffers);

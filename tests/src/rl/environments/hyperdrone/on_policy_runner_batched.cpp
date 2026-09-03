@@ -99,8 +99,9 @@ namespace test_hyperdrone_on_policy_runner_batched {
     using ACTOR_BUFFERS = typename ACTOR::template Buffer<>;
     using POLICY_STATE = typename ACTOR::template State<>;
 
-    using RUNNER_SPEC = on_policy_runner::BatchedSpecification<TYPE_POLICY, TI, ENVIRONMENT, POLICY_STATE, EPISODES_SPEC>;
-    using RUNNER = rlt::rl::components::OnPolicyRunnerBatched<RUNNER_SPEC>;
+    using RUNNER_SPEC = on_policy_runner::Specification<TYPE_POLICY, ENVIRONMENT, POLICY_STATE, EPISODES_SPEC>;
+    using RUNNER = rlt::rl::components::OnPolicyRunner<RUNNER_SPEC>;
+    using RUNNER_BUFFER = on_policy_runner::Buffer<RUNNER_SPEC>;
     using DATASET_SPEC = on_policy_runner::DatasetSpecification<RUNNER_SPEC, STEPS>;
     using DATASET = on_policy_runner::Dataset<DATASET_SPEC>;
     using LOG = episodes::Log<EPISODES_SPEC, STEPS>;
@@ -146,6 +147,7 @@ struct Rollout {
     ACTOR actor;
     ACTOR_BUFFERS actor_buffers;
     RUNNER runner;
+    RUNNER_BUFFER runner_buffer;
     DATASET dataset;
     LOG log;
     Rollout(DEVICE& device, ENVIRONMENT& env, TI seed): device(device){
@@ -155,6 +157,7 @@ struct Rollout {
         rlt::malloc(device, actor_buffers);
         rlt::init_weights(device, actor, rng);
         rlt::malloc(device, runner);
+        rlt::malloc(device, runner_buffer);
         rlt::malloc(device, dataset);
         rlt::malloc(device, log);
         rlt::init(device, log);
@@ -168,6 +171,7 @@ struct Rollout {
         rlt::free(device, actor);
         rlt::free(device, actor_buffers);
         rlt::free(device, runner);
+        rlt::free(device, runner_buffer);
         rlt::free(device, dataset);
         rlt::free(device, log);
         rlt::free(device, rng);
@@ -184,14 +188,14 @@ TEST_F(Fixture, PHASES){
         ASSERT_EQ(rlt::get(dataset.reset, instance_i, 0), (T)1) << "the first rollout starts with a reset of every instance";
     }
     for(TI step_i = 0; step_i < STEPS; step_i++){
-        on_policy_runner::interlude(device, dataset, runner, rollout.actor, rollout.actor_buffers, rollout.rng, step_i);
+        on_policy_runner::interlude(device, dataset, runner, rollout.runner_buffer, rollout.actor, rollout.actor_buffers, rollout.rng, step_i);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
             const TI pos = step_i * INSTANCES + instance_i;
             for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
-                ASSERT_FLOAT_EQ(rlt::get(device, runner.actions, instance_i, action_i), rlt::get(dataset.actions, pos, action_i)) << "the step actions are the sampled dataset actions";
+                ASSERT_FLOAT_EQ(rlt::get(device, rollout.runner_buffer.actions, instance_i, action_i), rlt::get(dataset.actions, pos, action_i)) << "the step actions are the sampled dataset actions";
             }
         }
-        on_policy_runner::epilogue(device, dataset, runner, *env, rollout.rng, step_i);
+        on_policy_runner::epilogue(device, dataset, runner, rollout.runner_buffer, *env, rollout.rng, step_i);
         rlt::record(device, rollout.log, runner.episodes, step_i);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
             const TI pos = step_i * INSTANCES + instance_i;
@@ -247,11 +251,11 @@ TEST_F(Fixture, PHASES){
 
 TEST_F(Fixture, COLLECT_DETERMINISM){
     Rollout rollout_a(device, *env, 7);
-    rlt::collect(device, rollout_a.dataset, rollout_a.runner, *env, rollout_a.actor, rollout_a.actor_buffers, rollout_a.rng);
-    rlt::collect(device, rollout_a.dataset, rollout_a.runner, *env, rollout_a.actor, rollout_a.actor_buffers, rollout_a.rng);
+    rlt::collect(device, rollout_a.dataset, rollout_a.runner, rollout_a.runner_buffer, *env, rollout_a.actor, rollout_a.actor_buffers, rollout_a.rng);
+    rlt::collect(device, rollout_a.dataset, rollout_a.runner, rollout_a.runner_buffer, *env, rollout_a.actor, rollout_a.actor_buffers, rollout_a.rng);
     Rollout rollout_b(device, *env, 7);
-    rlt::collect(device, rollout_b.dataset, rollout_b.runner, *env, rollout_b.actor, rollout_b.actor_buffers, rollout_b.rng);
-    rlt::collect(device, rollout_b.dataset, rollout_b.runner, *env, rollout_b.actor, rollout_b.actor_buffers, rollout_b.rng);
+    rlt::collect(device, rollout_b.dataset, rollout_b.runner, rollout_b.runner_buffer, *env, rollout_b.actor, rollout_b.actor_buffers, rollout_b.rng);
+    rlt::collect(device, rollout_b.dataset, rollout_b.runner, rollout_b.runner_buffer, *env, rollout_b.actor, rollout_b.actor_buffers, rollout_b.rng);
     EXPECT_EQ(rollout_a.runner.step, 2 * INSTANCES * STEPS);
     // only the fields a rollout writes (values/advantages are the trainer's)
     EXPECT_EQ(rlt::abs_diff(device, rollout_a.dataset.all_observations, rollout_b.dataset.all_observations), (T)0);

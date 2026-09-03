@@ -19,6 +19,17 @@ namespace rl_tools {
                 _begin_step(device, episodes, instance_i, _due(device, episodes, instance_i));
             }
         }
+        template <typename DEVICE, typename SPEC>
+        __global__ void begin_step_synchronized_kernel(DEVICE device, Episodes<SPEC> episodes){
+            using TI = typename DEVICE::index_t;
+            bool any_due = false;
+            for(TI instance_i = 0; instance_i < SPEC::INSTANCES; instance_i++){
+                any_due = any_due || _due(device, episodes, instance_i);
+            }
+            for(TI instance_i = 0; instance_i < SPEC::INSTANCES; instance_i++){
+                _begin_step(device, episodes, instance_i, any_due);
+            }
+        }
         template <typename DEVICE, typename SPEC, bool WITH_REWARDS, typename REWARD_SPEC>
         __global__ void end_step_kernel(DEVICE device, Episodes<SPEC> episodes, const Tensor<REWARD_SPEC> rewards){
             using T = typename SPEC::T;
@@ -55,11 +66,15 @@ namespace rl_tools {
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using TI = typename DEVICE::index_t;
         static_assert(rl::components::episodes::check_environment<ENVIRONMENT, SPEC>());
-        static_assert(!SPEC::SYNCHRONIZED, "hyperdrone::episodes: synchronized resets are CPU-only (no CUDA consumer yet)");
         constexpr TI BLOCKSIZE = 32;
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::INSTANCES, BLOCKSIZE);
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        rl::components::episodes::cuda::begin_step_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, episodes);
+        if constexpr(SPEC::SYNCHRONIZED){
+            rl::components::episodes::cuda::begin_step_synchronized_kernel<decltype(tag_device), SPEC><<<1, 1, 0, device.stream>>>(tag_device, episodes);
+        }
+        else{
+            rl::components::episodes::cuda::begin_step_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, episodes);
+        }
         check_status(device);
         sample_initial_parameters(device, environment, parameters, episodes.reset, rng);
         sample_initial_state(device, environment, parameters, states, episodes.reset, rng);

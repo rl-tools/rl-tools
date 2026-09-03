@@ -105,7 +105,7 @@ struct Trace {
     T dataset_reset[STEPS][INSTANCES];
 };
 
-using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<rlt::numeric_types::Policy<T>, TI, WORLD, bool, INSTANCES>;
+using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<rlt::numeric_types::Policy<T>, WORLD, bool>;
 using DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, STEPS>;
 using DATASET = rlt::rl::components::on_policy_runner::Dataset<DATASET_SPEC>;
 

@@ -13,6 +13,7 @@
 #endif
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include "../parameters.h"
+#include <rl_tools/rl/environments/batch/operations_generic.h>
 #if defined(RL_TOOLS_BACKEND_ENABLE_MKL) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
 #else
@@ -51,7 +52,7 @@ using LOGGER = rlt::devices::logging::CPU;
 using DEV_SPEC_SUPER = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::devices::random::CPU, LOGGER>;
 using TI = typename rlt::devices::DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
 namespace execution_hints{
-    struct HINTS: rlt::rl::components::on_policy_runner::ExecutionHints<TI, 1>{};
+    struct HINTS: rlt::devices::ExecutionHints{};
 }
 struct DEV_SPEC: DEV_SPEC_SUPER{
     using EXECUTION_HINTS = execution_hints::HINTS;
@@ -138,15 +139,15 @@ void run(TI BASE_SEED){
         RNG rng, evaluation_rng;
         prl::PPO_TYPE ppo;
         prl::PPO_BUFFERS_TYPE ppo_buffers;
+        prl::BATCH_ENVIRONMENT environment;
         prl::ON_POLICY_RUNNER_TYPE on_policy_runner;
+        prl::ON_POLICY_RUNNER_BUFFER_TYPE on_policy_runner_buffer;
         prl::ON_POLICY_RUNNER_DATASET_TYPE on_policy_runner_dataset;
         prl::ACTOR_EVAL_BUFFERS actor_eval_buffers;
         prl::PPO_TYPE::SPEC::ACTOR_TYPE::Buffer<1> actor_deterministic_eval_buffers;
         prl::ACTOR_BUFFERS actor_buffers;
         prl::CRITIC_BUFFERS critic_buffers;
         prl::CRITIC_BUFFERS_GAE critic_buffers_gae;
-        rlt::Tensor<rlt::tensor::Specification<penv::ENVIRONMENT, TI, rlt::tensor::Shape<TI, prl::N_ENVIRONMENTS>>> envs;
-        rlt::Tensor<rlt::tensor::Specification<penv::ENVIRONMENT::Parameters, TI, rlt::tensor::Shape<TI, prl::N_ENVIRONMENTS>>> env_parameters;
         penv::ENVIRONMENT evaluation_env;
         penv::ENVIRONMENT::Parameters evaluation_env_parameters;
         rlt::rl::environments::DummyUI ui;
@@ -157,8 +158,10 @@ void run(TI BASE_SEED){
         rlt::malloc(device, evaluation_rng);
         rlt::malloc(device, ppo);
         rlt::malloc(device, ppo_buffers);
+        rlt::malloc(device, environment);
         rlt::malloc(device, on_policy_runner_dataset);
         rlt::malloc(device, on_policy_runner);
+        rlt::malloc(device, on_policy_runner_buffer);
         rlt::malloc(device, actor_eval_buffers);
         rlt::malloc(device, actor_deterministic_eval_buffers);
         rlt::malloc(device, actor_buffers);
@@ -166,18 +169,13 @@ void run(TI BASE_SEED){
         rlt::malloc(device, critic_buffers_gae);
         rlt::malloc(device, actor_optimizer);
         rlt::malloc(device, critic_optimizer);
-        rlt::malloc(device, envs);
-        rlt::malloc(device, env_parameters);
-        for(TI env_i = 0; env_i < prl::N_ENVIRONMENTS; env_i++){
-            auto& env = rlt::get_ref(device, envs, env_i);
-            rlt::malloc(device, env);
-        }
         rlt::malloc(device, evaluation_env);
 
         rlt::init(device);
         rlt::init(device, rng, seed);
         rlt::init(device, evaluation_rng, seed);
-        rlt::init(device, on_policy_runner, envs, env_parameters, ppo.actor, rng);
+        rlt::init(device, environment);
+        rlt::init(device, on_policy_runner, environment, rng);
         rlt::init(device, ppo, actor_optimizer, critic_optimizer, rng);
         rlt::get_ref(device, actor_optimizer.parameters, 0).alpha = 3e-4;
         rlt::get_ref(device, critic_optimizer.parameters, 0).alpha = 3e-4 * 2;
@@ -185,7 +183,7 @@ void run(TI BASE_SEED){
         auto training_start = std::chrono::high_resolution_clock::now();
         if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
             for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < prl::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
-                rlt::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
+                rlt::collect(device, on_policy_runner_dataset, on_policy_runner, on_policy_runner_buffer, environment, ppo.actor, actor_eval_buffers, rng);
                 auto obs = rlt::view_range(device, on_policy_runner_dataset.all_observations, 0, rlt::tensor::ViewSpec<0, prl::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL>{});
                 auto obs_matrix = rlt::matrix_view(device, obs);
                 rlt::nn::layers::standardize::_accumulate(device, rlt::get_first_layer(ppo.actor), obs_matrix);
@@ -193,7 +191,7 @@ void run(TI BASE_SEED){
                 auto obs_priv_matrix = rlt::matrix_view(device, obs_priv);
                 rlt::nn::layers::standardize::_accumulate(device, rlt::get_first_layer(ppo.critic), obs_priv_matrix);
             }
-            rlt::init(device, on_policy_runner, envs, env_parameters, ppo.actor, rng);
+            rlt::init(device, on_policy_runner, environment, rng);
         }
         for(TI ppo_step_i = 0; ppo_step_i < NUM_STEPS; ppo_step_i++) {
             if(ACTOR_ENABLE_CHECKPOINTS && (on_policy_runner.step / ACTOR_CHECKPOINT_INTERVAL == next_checkpoint_id)){
@@ -255,7 +253,7 @@ void run(TI BASE_SEED){
                 rlt::add_scalar(device, device.logger, topic.str(), rlt::math::exp(DEVICE::SPEC::MATH(), action_log_std));
             }
             auto start = std::chrono::high_resolution_clock::now();
-            rlt::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
+            rlt::collect(device, on_policy_runner_dataset, on_policy_runner, on_policy_runner_buffer, environment, ppo.actor, actor_eval_buffers, rng);
             auto obs = rlt::view_range(device, on_policy_runner_dataset.all_observations, 0, rlt::tensor::ViewSpec<0, prl::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL>{});
             auto obs_matrix = rlt::matrix_view(device, obs);
             if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
@@ -294,18 +292,14 @@ void run(TI BASE_SEED){
 
         rlt::free(device, ppo);
         rlt::free(device, ppo_buffers);
+        rlt::free(device, environment);
         rlt::free(device, on_policy_runner_dataset);
         rlt::free(device, on_policy_runner);
+        rlt::free(device, on_policy_runner_buffer);
         rlt::free(device, actor_eval_buffers);
         rlt::free(device, actor_buffers);
         rlt::free(device, critic_buffers);
         rlt::free(device, critic_buffers_gae);
-        for(TI env_i = 0; env_i < prl::N_ENVIRONMENTS; env_i++){
-            auto& env = rlt::get_ref(device, envs, env_i);
-            rlt::free(device, env);
-        }
-        rlt::free(device, envs);
-        rlt::free(device, env_parameters);
         rlt::free(device, evaluation_env);
         rlt::free(device, rng);
         rlt::free(device, evaluation_rng);

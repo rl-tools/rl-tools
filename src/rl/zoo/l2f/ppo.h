@@ -79,7 +79,7 @@ namespace rl_tools{
         T current_max_angle = MIN_START_ANGLE + ts.curriculum_level * (FULL_MAX_ANGLE - MIN_START_ANGLE);
         T current_max_position = MIN_START_POSITION + ts.curriculum_level * (FULL_MAX_POSITION - MIN_START_POSITION);
         for(TI env_i = 0; env_i < CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS; env_i++){
-            auto& env = get(ts.on_policy_runner.environments, 0, env_i);
+            auto& env = get_ref(device, ts.environment.environments, env_i);
             env.parameters.mdp.init.max_angle = current_max_angle;
             env.parameters.mdp.init.max_position = current_max_position;
         }

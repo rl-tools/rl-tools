@@ -11,6 +11,7 @@
 
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>
+#include <rl_tools/rl/environments/batch/operations_cuda.h>
 
 #include <rl_tools/rl/components/on_policy_runner/on_policy_runner.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
@@ -31,6 +32,8 @@ using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
 
 constexpr TI N_ENVIRONMENTS = 4;
 constexpr TI STEPS_PER_ENV = 64;
+using BATCH_SPEC = rlt::rl::environments::batch::Specification<ENVIRONMENT, N_ENVIRONMENTS>;
+using BATCH = rlt::rl::environments::batch::Independent<BATCH_SPEC>;
 
 template <typename CAPABILITY>
 struct ActorConfig{
@@ -44,10 +47,11 @@ struct ActorConfig{
 using ACTOR_CAPABILITY = rlt::nn::capability::Gradient<rlt::nn::parameters::Adam>;
 using ACTOR_TYPE = typename ActorConfig<ACTOR_CAPABILITY>::MODEL;
 
-using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, TI, ENVIRONMENT, ACTOR_TYPE::State<>, N_ENVIRONMENTS, ENVIRONMENT::EPISODE_STEP_LIMIT>;
+using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, BATCH, ACTOR_TYPE::State<>>;
 using DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, STEPS_PER_ENV>;
 
 using ON_POLICY_RUNNER = rlt::rl::components::OnPolicyRunner<ON_POLICY_RUNNER_SPEC>;
+using ON_POLICY_RUNNER_BUFFER = rlt::rl::components::on_policy_runner::Buffer<ON_POLICY_RUNNER_SPEC>;
 using DATASET = rlt::rl::components::on_policy_runner::Dataset<DATASET_SPEC>;
 
 using ACTOR_BUFFERS = typename ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, N_ENVIRONMENTS>::template Buffer<>;
@@ -72,25 +76,28 @@ TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER_CUDA, COLLECT){
 
     // GPU runner and dataset
     ON_POLICY_RUNNER runner_gpu;
+    ON_POLICY_RUNNER_BUFFER runner_buffer_gpu;
+    BATCH environment_gpu;
     DATASET dataset_gpu;
     ACTOR_BUFFERS actor_buffers_gpu;
     RNG_GPU rng_gpu;
 
     rlt::malloc(device_gpu, runner_gpu);
+    rlt::malloc(device_gpu, runner_buffer_gpu);
+    rlt::malloc(device_gpu, environment_gpu);
     rlt::malloc(device_gpu, dataset_gpu);
     rlt::malloc(device_gpu, actor_buffers_gpu);
     rlt::malloc(device_gpu, rng_gpu);
     rlt::init(device_gpu, rng_gpu, 42);
 
     // Initialize runner on GPU
-    rlt::Tensor<rlt::tensor::Specification<ENVIRONMENT, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS>>> envs;
-    rlt::Tensor<rlt::tensor::Specification<ENVIRONMENT::Parameters, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS>>> params;
-    rlt::init(device_gpu, runner_gpu, envs, params, actor_gpu, rng_gpu);
+    rlt::init(device_gpu, environment_gpu);
+    rlt::init(device_gpu, runner_gpu, environment_gpu, rng_gpu);
 
     rlt::set_all(device_gpu, dataset_gpu.scalar_data, 0);
 
     // Run collect on GPU
-    rlt::collect(device_gpu, dataset_gpu, runner_gpu, actor_gpu, actor_buffers_gpu, rng_gpu);
+    rlt::collect(device_gpu, dataset_gpu, runner_gpu, runner_buffer_gpu, environment_gpu, actor_gpu, actor_buffers_gpu, rng_gpu);
 
     // Verify by copying individual tensors back to CPU
     rlt::Tensor<typename decltype(dataset_gpu.all_observations)::SPEC> obs_copy;
@@ -132,7 +139,7 @@ TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER_CUDA, COLLECT){
     EXPECT_GT(rewards_l1, 0) << "Rewards should be non-zero";
 
     // Run a second collect to verify state persistence
-    rlt::collect(device_gpu, dataset_gpu, runner_gpu, actor_gpu, actor_buffers_gpu, rng_gpu);
+    rlt::collect(device_gpu, dataset_gpu, runner_gpu, runner_buffer_gpu, environment_gpu, actor_gpu, actor_buffers_gpu, rng_gpu);
 
     // Copy again and verify
     rlt::copy(device_gpu, device_cpu, dataset_gpu.all_observations, obs_copy);
@@ -149,6 +156,8 @@ TEST(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER_CUDA, COLLECT){
     rlt::free(device_cpu, actor_cpu);
     rlt::free(device_gpu, actor_gpu);
     rlt::free(device_gpu, runner_gpu);
+    rlt::free(device_gpu, runner_buffer_gpu);
+    rlt::free(device_gpu, environment_gpu);
     rlt::free(device_gpu, dataset_gpu);
     rlt::free(device_gpu, actor_buffers_gpu);
     rlt::free(device_cpu, obs_copy);
