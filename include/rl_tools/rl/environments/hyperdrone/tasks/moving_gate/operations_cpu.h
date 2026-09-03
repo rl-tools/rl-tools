@@ -88,18 +88,19 @@ namespace rl_tools {
     void init(DEVICE& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, typename TASK_SPEC::NEXT_WORLD::SharedContext& shared, const DATASET& dataset, const typename DATASET::Corpus& corpus, typename TASK_SPEC::TI first_scene, typename TASK_SPEC::TI num_scenes, typename TASK_SPEC::TI member_index) {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         using BASE_SPEC = typename NEXT_WORLD::SPEC;
+        auto& render_device = get_rendering_device(device);
         utils::assert_exit(device, !world.gate_asset_path.empty(), "hyperdrone::tasks::moving_gate: gate_asset_path must be set before init");
-        auto asset = register_pool_asset<DEVICE, typename NEXT_WORLD::SharedContext, typename BASE_SPEC::SHADING, BASE_SPEC::OUTPUT_RGB>(device, shared, world.gate_asset_path);
+        auto asset = register_pool_asset<decltype(render_device), typename NEXT_WORLD::SharedContext, typename BASE_SPEC::SHADING, BASE_SPEC::OUTPUT_RGB>(render_device, shared, world.gate_asset_path);
         world.entity_kind_index = (typename TASK_SPEC::TI)world.entity_kinds.size();
         world.entity_kinds.push_back({asset, 1, 0});
         init(device, static_cast<NEXT_WORLD&>(world), shared, dataset, corpus, first_scene, num_scenes, member_index);
-        malloc(world.renderer.device, world.gate_pose_staging);
+        malloc(device, world.gate_pose_staging);
     }
     template <typename DEVICE, typename TASK_SPEC>
     void free(DEVICE& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world) {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         if (!world.slots.empty()) {
-            free(world.renderer.device, world.gate_pose_staging);
+            free(device, world.gate_pose_staging);
         }
         free(device, static_cast<NEXT_WORLD&>(world));
     }
@@ -208,7 +209,7 @@ namespace rl_tools {
     void observe(DEVICE& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, typename TASK_SPEC::NEXT_WORLD::Observation observation_type, Tensor<OBSERVATION_SPEC>& observations, RNG& rng) {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         if(world.render_pending){
-            render(device, world, parameters, states, render_reset(device, world));
+            render(device, world, parameters, states, world.render_reset);
         }
         observe(device, static_cast<NEXT_WORLD&>(world), parameters, states, observation_type, observations, rng);
     }

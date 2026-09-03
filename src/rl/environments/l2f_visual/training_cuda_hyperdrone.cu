@@ -92,7 +92,8 @@ using LOGGER = rlt::devices::logging::CPU;
 #endif
 using DEV_SPEC = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::devices::random::CPU, LOGGER>;
 using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
-using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<rlt::devices::DefaultCUDASpecification>;
+using DEVICE_GPU_SPEC = rlt::rendering::raytracing::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
+using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<DEVICE_GPU_SPEC>;
 
 using T = float;
 using TYPE_POLICY = rlt::numeric_types::Policy<float>;
@@ -639,6 +640,7 @@ int main(int argc, char** argv){
     DEVICE device;
     DEVICE_GPU device_gpu;
     rlt::init(device);
+    rlt::init(device_gpu);
 
     rlt::utils::extrack::Config<TI> extrack_config;
     rlt::utils::extrack::Paths extrack_paths;
@@ -671,7 +673,7 @@ int main(int argc, char** argv){
     // ---------------------------------------------------------------------
     auto* env_storage = new MULTI_ENVIRONMENT{};
     MULTI_ENVIRONMENT& env = *env_storage;
-    rlt::malloc(device, env);
+    rlt::malloc(device_gpu, env);
     typename decltype(scene_dataset)::Corpus scene_corpus;
     rlt::rendering::datasets::procthor::enumerate(device, scene_dataset, scene_corpus);
     if(static_cast<TI>(scene_corpus.references.size()) < N_TOTAL_SCENES){
@@ -683,7 +685,7 @@ int main(int argc, char** argv){
         const TI first = member_i * N_TOTAL_SCENES / NUMBER_OF_ENVIRONMENTS;
         const TI last = (member_i + 1) * N_TOTAL_SCENES / NUMBER_OF_ENVIRONMENTS;
         std::cout << "Initializing World " << member_i << " with scenes [" << first << ", " << last << ")" << std::endl;
-        rlt::init(device, env.environments[member_i], env.shared, scene_dataset, scene_corpus, first, last - first, member_i);
+        rlt::init(device_gpu, env.environments[member_i], env.shared, scene_dataset, scene_corpus, first, last - first, member_i);
     }
     std::cout << "Loaded " << N_TOTAL_SCENES << " scenes" << std::endl;
 
@@ -705,7 +707,6 @@ int main(int argc, char** argv){
     // ---------------------------------------------------------------------
     // GPU init
     // ---------------------------------------------------------------------
-    rlt::init(device_gpu);
     RNG_GPU rng_gpu;
     rlt::malloc(device_gpu, rng_gpu);
     rlt::init(device_gpu, rng_gpu, seed);
@@ -873,7 +874,7 @@ int main(int argc, char** argv){
         bool log_reward_components_this_step = ppo_step_i % REWARD_COMPONENT_LOG_INTERVAL_PPO_STEPS == 0;
         if(scene_set_boundary){
             close_video_pipe();
-            rlt::rotate_scene(device, env);
+            rlt::rotate_scene(device_gpu, env);
             if(ppo_step_i == 0){
                 rlt::init(device_gpu, gpu_runner, env, rng_gpu);
             } else {
@@ -1734,7 +1735,7 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, gpu_runner_buffer);
     cudaFree(gpu_episode_start_step);
     cudaFree(gpu_episode_start_step_per_row);
-    rlt::free(device, env);
+    rlt::free(device_gpu, env);
     delete env_storage;
 
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)

@@ -16,7 +16,8 @@ namespace l2f = rlt::rl::environments::l2f;
 namespace on_policy_runner = rlt::rl::components::on_policy_runner;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
-using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<rlt::devices::DefaultCUDASpecification>;
+using DEVICE_GPU_SPEC = rlt::rendering::raytracing::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
+using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<DEVICE_GPU_SPEC>;
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using RNG_GPU = typename DEVICE_GPU::SPEC::RANDOM::ENGINE<>;
 using T = float;
@@ -190,18 +191,20 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_EPISODES_CUDA, CPU_CUDA_PARITY){
     DEVICE_GPU device_gpu;
     rlt::init(device);
     rlt::init(device_gpu);
-    WORLD world;
+    WORLD world_cpu, world_gpu;
     typename WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);
-    rlt::malloc(device, world);
+    rlt::malloc(device, world_cpu);
+    rlt::malloc(device_gpu, world_gpu);
     rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
     rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
-    rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
+    rlt::init(device, world_cpu, shared, dataset, corpus, 0, 1, 0);
+    rlt::init(device_gpu, world_gpu, shared, dataset, corpus, 0, 1, 0);
 
     Trace trace_cpu{}, trace_cuda{};
-    trace_rollout<DEVICE, RNG>(device, device, world, trace_cpu, 1337);
-    trace_rollout<DEVICE_GPU, RNG_GPU>(device, device_gpu, world, trace_cuda, 1337);
+    trace_rollout<DEVICE, RNG>(device, device, world_cpu, trace_cpu, 1337);
+    trace_rollout<DEVICE_GPU, RNG_GPU>(device, device_gpu, world_gpu, trace_cuda, 1337);
     TI truncations = 0;
     for(TI step_i = 0; step_i < STEPS; step_i++){
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
@@ -223,6 +226,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_EPISODES_CUDA, CPU_CUDA_PARITY){
     EXPECT_GE(truncations, INSTANCES);
     EXPECT_TRUE(trace_cuda.reset[2][0]);
 
-    rlt::free(device, world);
+    rlt::free(device, world_cpu);
+    rlt::free(device_gpu, world_gpu);
     rlt::free(device, shared.library);
 }

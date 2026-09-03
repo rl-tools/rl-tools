@@ -19,7 +19,8 @@ namespace rlt = rl_tools;
 namespace l2f = rlt::rl::environments::l2f;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
-using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<rlt::devices::DefaultCUDASpecification>;
+using DEVICE_GPU_SPEC = rlt::rendering::raytracing::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
+using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<DEVICE_GPU_SPEC>;
 using RNG_GPU = typename DEVICE_GPU::SPEC::RANDOM::ENGINE<>;
 using T = float;
 using TI = typename DEVICE::index_t;
@@ -104,12 +105,12 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
     rlt::init(device_gpu);
 
     ENVIRONMENT env;
-    rlt::malloc(device, env);
+    rlt::malloc(device_gpu, env);
     rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
     rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
     for(TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++){
-        rlt::init(device, env.environments[environment_i], env.shared, dataset, corpus, environment_i, 1, environment_i);
+        rlt::init(device_gpu, env.environments[environment_i], env.shared, dataset, corpus, environment_i, 1, environment_i);
     }
 
     RNG_GPU rng;
@@ -246,7 +247,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
     rlt::free(device_gpu, states);
     rlt::free(device_gpu, reset_mask);
     rlt::free(device_gpu, observations);
-    rlt::free(device, env);
+    rlt::free(device_gpu, env);
 }
 
 int main(int argc, char** argv) {

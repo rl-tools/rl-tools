@@ -17,7 +17,8 @@ namespace rlt = rl_tools;
 namespace l2f = rlt::rl::environments::l2f;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
-using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<rlt::devices::DefaultCUDASpecification>;
+using DEVICE_GPU_SPEC = rlt::rendering::raytracing::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
+using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<DEVICE_GPU_SPEC>;
 using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using RNG_GPU = typename DEVICE_GPU::SPEC::RANDOM::ENGINE<>;
 using T = float;
@@ -175,11 +176,11 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD_CUDA, SEEDED_ROLLOUT_DETERMINISM)
     WORLD world;
     typename WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);
-    rlt::malloc(device, world);
+    rlt::malloc(device_gpu, world);
     rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
     rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
-    rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
+    rlt::init(device_gpu, world, shared, dataset, corpus, 0, 1, 0);
 
     auto* record_a = new Rollout;
     auto* record_b = new Rollout;
@@ -199,7 +200,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD_CUDA, SEEDED_ROLLOUT_DETERMINISM)
     EXPECT_TRUE(nonzero_observation);
     delete record_a;
     delete record_b;
-    rlt::free(device, world);
+    rlt::free(device_gpu, world);
     rlt::free(device, shared.library);
 }
 
@@ -216,14 +217,16 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD_CUDA, CPU_CUDA_RENDER_CONSISTENCY
     rlt::init(device);
     DEVICE_GPU device_gpu;
     rlt::init(device_gpu);
-    WORLD world;
+    WORLD world_cpu, world_gpu;
     typename WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);
-    rlt::malloc(device, world);
+    rlt::malloc(device, world_cpu);
+    rlt::malloc(device_gpu, world_gpu);
     rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
     rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
-    rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
+    rlt::init(device, world_cpu, shared, dataset, corpus, 0, 1, 0);
+    rlt::init(device_gpu, world_gpu, shared, dataset, corpus, 0, 1, 0);
 
     RNG rng;
     rlt::malloc(device, rng);
@@ -231,14 +234,14 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD_CUDA, CPU_CUDA_RENDER_CONSISTENCY
     Tensors<DEVICE> host;
     host.allocate(device);
     rlt::set_all(device, host.reset_mask, true);
-    rlt::sample_initial_parameters(device, world, host.parameters, host.reset_mask, rng);
-    rlt::sample_initial_state(device, world, host.parameters, host.states, host.reset_mask, rng);
+    rlt::sample_initial_parameters(device, world_cpu, host.parameters, host.reset_mask, rng);
+    rlt::sample_initial_state(device, world_cpu, host.parameters, host.states, host.reset_mask, rng);
 
-    rlt::render(device, world, host.parameters, host.states, host.reset_mask);
+    rlt::render(device, world_cpu, host.parameters, host.states, host.reset_mask);
     RNG rng_observe;
     rlt::malloc(device, rng_observe);
     rlt::init(device, rng_observe, 0);
-    rlt::observe(device, world, host.parameters, host.states, typename WORLD::Observation{}, host.observations, rng_observe);
+    rlt::observe(device, world_cpu, host.parameters, host.states, typename WORLD::Observation{}, host.observations, rng_observe);
 
     Tensors<DEVICE_GPU> gpu;
     gpu.allocate(device_gpu);
@@ -248,9 +251,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD_CUDA, CPU_CUDA_RENDER_CONSISTENCY
     RNG_GPU rng_gpu;
     rlt::malloc(device_gpu, rng_gpu);
     rlt::init(device_gpu, rng_gpu, 0);
-    world.history_step = 0;
-    rlt::render(device_gpu, world, gpu.parameters, gpu.states, gpu.reset_mask);
-    rlt::observe(device_gpu, world, gpu.parameters, gpu.states, typename WORLD::Observation{}, gpu.observations, rng_gpu);
+    rlt::render(device_gpu, world_gpu, gpu.parameters, gpu.states, gpu.reset_mask);
+    rlt::observe(device_gpu, world_gpu, gpu.parameters, gpu.states, typename WORLD::Observation{}, gpu.observations, rng_gpu);
     cudaDeviceSynchronize();
     Tensors<DEVICE> downloaded;
     downloaded.allocate(device);
@@ -274,7 +276,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD_CUDA, CPU_CUDA_RENDER_CONSISTENCY
     host.deallocate(device);
     gpu.deallocate(device_gpu);
     downloaded.deallocate(device);
-    rlt::free(device, world);
+    rlt::free(device, world_cpu);
+    rlt::free(device_gpu, world_gpu);
     rlt::free(device, shared.library);
 }
 

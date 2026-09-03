@@ -37,34 +37,14 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC, typename RESET_SPEC>
     void request_render(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, const Tensor<RESET_SPEC>& reset_mask){
-        if constexpr(DEVICE::DEVICE_ID == devices::DeviceId::CUDA){
-            copy(device, world.renderer.device, reset_mask, world.render_reset);
-        }
-        else{
-            copy(device, device, reset_mask, world.render_reset_host);
-        }
+        copy(device, device, reset_mask, world.render_reset);
         world.render_pending = true;
     }
 
     template <typename DEVICE, typename SPEC>
     void request_render(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world){
-        if constexpr(DEVICE::DEVICE_ID == devices::DeviceId::CUDA){
-            set_all(device, world.render_reset, false);
-        }
-        else{
-            set_all(device, world.render_reset_host, false);
-        }
+        set_all(device, world.render_reset, false);
         world.render_pending = true;
-    }
-
-    template <typename DEVICE, typename SPEC>
-    auto& render_reset(DEVICE&, rl::environments::hyperdrone::World<SPEC>& world){
-        if constexpr(DEVICE::DEVICE_ID == devices::DeviceId::CUDA){
-            return world.render_reset;
-        }
-        else{
-            return world.render_reset_host;
-        }
     }
 
     template <typename DEVICE, typename SPEC>
@@ -99,6 +79,12 @@ namespace rl_tools {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using WORLD = rl::environments::hyperdrone::World<SPEC>;
+        auto& render_device = get_rendering_device(device);
+        if constexpr(rendering::raytracing::device::HasRendering<DEVICE>::value){
+            if(!render_device.initialized){
+                init(render_device);
+            }
+        }
         init(device, world.dynamics);
         world.member_index = member_index;
         world.episode_counter = 0;
@@ -107,11 +93,11 @@ namespace rl_tools {
         utils::assert_exit(device, first_scene + num_scenes <= (TI)corpus.references.size(), "hyperdrone::World: scene partition out of range");
         if constexpr (SPEC::SELF_VISIBLE) {
             utils::assert_exit(device, !world.drone_asset_path.empty(), "hyperdrone::World: drone_asset_path must be set before init when SELF_VISIBLE");
-            auto drone_asset = register_pool_asset<DEVICE, typename WORLD::SharedContext, typename SPEC::SHADING, SPEC::OUTPUT_RGB>(device, shared, world.drone_asset_path);
+            auto drone_asset = register_pool_asset<decltype(render_device), typename WORLD::SharedContext, typename SPEC::SHADING, SPEC::OUTPUT_RGB>(render_device, shared, world.drone_asset_path);
             rendering::raytracing::ObjectAssembly assembly;
-            bool loaded = load<typename SPEC::SHADING, SPEC::OUTPUT_RGB>(device, assembly, world.drone_asset_path);
+            bool loaded = load<typename SPEC::SHADING, SPEC::OUTPUT_RGB>(render_device, assembly, world.drone_asset_path);
             utils::assert_exit(device, loaded, "hyperdrone::World: failed to load the drone assembly");
-            bool rig_ok = init(device, world.drone_rig, assembly);
+            bool rig_ok = init(render_device, world.drone_rig, assembly);
             utils::assert_exit(device, rig_ok, "hyperdrone::World: drone asset does not follow the body/prop_* convention");
             world.drone_entity_kind_index = (TI)world.entity_kinds.size();
             for (TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++) {
@@ -122,16 +108,16 @@ namespace rl_tools {
         for (TI slot_i = 0; slot_i < num_scenes; slot_i++) {
             auto& slot = world.slots[slot_i];
             slot.corpus_index = first_scene + slot_i;
-            malloc(device, slot.renderer, shared.library);
+            malloc(render_device, slot.renderer, shared.library);
             rendering::Bundle<T> bundle;
-            const bool scene_loaded = load<typename SPEC::SHADING, SPEC::OUTPUT_RGB>(device, dataset, corpus, slot.corpus_index, bundle);
+            const bool scene_loaded = load<typename SPEC::SHADING, SPEC::OUTPUT_RGB>(render_device, dataset, corpus, slot.corpus_index, bundle);
             utils::assert_exit(device, scene_loaded, "hyperdrone::World: failed to load scene");
             slot.metadata = bundle.metadata;
-            const TI scene_id = insert(device, shared.library, bundle);
-            init(device, slot.renderer, shared.library, scene_id);
-            generate_probe_directions(device, slot.renderer);
+            const TI scene_id = insert(render_device, shared.library, bundle);
+            init(render_device, slot.renderer, shared.library, scene_id);
+            generate_probe_directions(render_device, slot.renderer);
             rendering::datasets::annotations::FreeSpaceParameters<T, TI> free_space_parameters{};
-            rendering::datasets::annotations::annotate(device, slot.annotations, slot.metadata, slot.renderer, free_space_parameters, shared.annotation_cache);
+            rendering::datasets::annotations::annotate(render_device, slot.annotations, slot.metadata, slot.renderer, free_space_parameters, shared.annotation_cache);
             utils::assert_exit(device, slot.annotations.num_positions > 0, "hyperdrone::World: scene has no valid indoor positions");
             if constexpr (WORLD::RENDERER_CONFIG::NUM_OVERLAYS > 0) {
                 // pinned deterministic spawn order (instance-major, then registration order) so
@@ -140,57 +126,55 @@ namespace rl_tools {
                 slot.entity_placements.clear();
                 for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
                     for (TI view_i = 0; view_i < WORLD::N_VIEWS; view_i++) {
-                        attach(device, slot.renderer, instance_i * WORLD::N_VIEWS + view_i, rendering::raytracing::OverlayIndex{instance_i});
+                        attach(render_device, slot.renderer, instance_i * WORLD::N_VIEWS + view_i, rendering::raytracing::OverlayIndex{instance_i});
                     }
                     for (auto& kind : world.entity_kinds) {
-                        slot.entity_placements.push_back(spawn(device, slot.renderer, rendering::raytracing::OverlayIndex{instance_i}, kind.asset, identity));
+                        slot.entity_placements.push_back(spawn(render_device, slot.renderer, rendering::raytracing::OverlayIndex{instance_i}, kind.asset, identity));
                     }
                 }
             }
         }
         world.active_slot = 0;
         world.renderer = world.slots[0].renderer;
-        malloc(world.renderer.device, world.history);
-        malloc(world.renderer.device, world.prev_cameras);
-        malloc(world.renderer.device, world.episode_start);
-        malloc(world.renderer.device, world.render_reset);
-        malloc(device, world.render_reset_host);
-        malloc(world.renderer.device, world.active_annotations);
-        malloc(device, world.camera_staging_close);
-        malloc(device, world.camera_staging_previous);
-        malloc(device, world.camera_staging_open);
-        set_all(world.renderer.device, world.episode_start, (TI)0);
-        set_all(world.renderer.device, world.render_reset, false);
-        set_all(device, world.render_reset_host, false);
+        malloc(device, world.history);
+        malloc(device, world.prev_cameras);
+        malloc(device, world.episode_start);
+        malloc(device, world.render_reset);
+        malloc(device, world.active_annotations);
+        malloc(render_device, world.camera_staging_close);
+        malloc(render_device, world.camera_staging_previous);
+        malloc(render_device, world.camera_staging_open);
+        set_all(device, world.episode_start, (TI)0);
+        set_all(device, world.render_reset, false);
         world.render_pending = false;
         if constexpr (SPEC::SELF_VISIBLE) {
-            malloc(world.renderer.device, world.drone_pose_staging);
+            malloc(device, world.drone_pose_staging);
         }
         {
             Tensor<typename WORLD::ACTIVE_ANNOTATIONS_SPEC> annotations_alias;
             annotations_alias._data = &world.slots[0].annotations;
-            copy(device, world.renderer.device, annotations_alias, world.active_annotations);
+            copy(render_device, device, annotations_alias, world.active_annotations);
         }
     }
 
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world) {
+        auto& render_device = get_rendering_device(device);
         if (!world.slots.empty()) {
             if constexpr (SPEC::SELF_VISIBLE) {
-                free(world.renderer.device, world.drone_pose_staging);
+                free(device, world.drone_pose_staging);
             }
-            free(world.renderer.device, world.history);
-            free(world.renderer.device, world.prev_cameras);
-            free(world.renderer.device, world.episode_start);
-            free(world.renderer.device, world.render_reset);
-            free(device, world.render_reset_host);
-            free(world.renderer.device, world.active_annotations);
-            free(device, world.camera_staging_close);
-            free(device, world.camera_staging_previous);
-            free(device, world.camera_staging_open);
+            free(device, world.history);
+            free(device, world.prev_cameras);
+            free(device, world.episode_start);
+            free(device, world.render_reset);
+            free(device, world.active_annotations);
+            free(render_device, world.camera_staging_close);
+            free(render_device, world.camera_staging_previous);
+            free(render_device, world.camera_staging_open);
         }
         for (auto& slot : world.slots) {
-            free(device, slot.renderer);
+            free(render_device, slot.renderer);
         }
         world.slots.clear();
         free(device, world.dynamics);
@@ -201,11 +185,12 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void rotate_scene(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world) {
         using WORLD = rl::environments::hyperdrone::World<SPEC>;
+        auto& render_device = get_rendering_device(device);
         world.active_slot = (world.active_slot + 1) % world.slots.size();
         world.renderer = world.slots[world.active_slot].renderer;
         Tensor<typename WORLD::ACTIVE_ANNOTATIONS_SPEC> annotations_alias;
         annotations_alias._data = &world.slots[world.active_slot].annotations;
-        copy(device, world.renderer.device, annotations_alias, world.active_annotations);
+        copy(render_device, device, annotations_alias, world.active_annotations);
         request_render(device, world);
     }
 
@@ -474,7 +459,7 @@ namespace rl_tools {
         }
         copy(device, world.renderer.device, world.camera_staging_close, cameras(device, world.renderer));
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
-            copy(world.renderer.device, device, world.prev_cameras, world.camera_staging_previous);
+            copy(device, device, world.prev_cameras, world.camera_staging_previous);
             for (TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++) {
                 const TI instance_i = camera_i / WORLD::N_VIEWS;
                 const auto& instance_parameters = get_ref(device, parameters, instance_i);
@@ -483,7 +468,7 @@ namespace rl_tools {
                 set(device, world.camera_staging_open, reset ? camera_close : rl::environments::hyperdrone::interpolate_camera(camera_close, get(device, world.camera_staging_previous, camera_i), instance_parameters.shutter_fraction), camera_i);
             }
             copy(device, world.renderer.device, world.camera_staging_open, cameras_open(device, world.renderer));
-            copy(device, world.renderer.device, world.camera_staging_close, world.prev_cameras);
+            copy(device, device, world.camera_staging_close, world.prev_cameras);
         }
         if constexpr (SPEC::SELF_VISIBLE) {
             auto& slot = world.slots[world.active_slot];
@@ -551,22 +536,22 @@ namespace rl_tools {
                     }
                 }
             }
-            auto history_row = view(world.renderer.device, world.history, history_slot);
+            auto history_row = view(device, world.history, history_slot);
             Tensor<tensor::Specification<float, TI, tensor::Shape<TI, NUM_CAMERAS, WORLD::FRAME_DIM>>> frame_alias;
             frame_alias._data = frame_staging.data();
-            copy(device, world.renderer.device, frame_alias, history_row);
+            copy(device, device, frame_alias, history_row);
         }
         {
             std::vector<TI> episode_start_staging(INSTANCES);
             Tensor<typename WORLD::EPISODE_START_SPEC> episode_start_alias;
             episode_start_alias._data = episode_start_staging.data();
-            copy(world.renderer.device, device, world.episode_start, episode_start_alias);
+            copy(device, device, world.episode_start, episode_start_alias);
             for (TI instance_i = 0; instance_i < INSTANCES; instance_i++) {
                 if (get(device, reset_mask, instance_i)) {
                     episode_start_staging[instance_i] = world.history_step;
                 }
             }
-            copy(device, world.renderer.device, episode_start_alias, world.episode_start);
+            copy(device, device, episode_start_alias, world.episode_start);
         }
         world.history_step++;
         world.render_pending = false;
@@ -582,15 +567,15 @@ namespace rl_tools {
         static_assert(get<0>(typename OBSERVATION_SPEC::SHAPE{}) == WORLD::INSTANCES);
         static_assert(get<1>(typename OBSERVATION_SPEC::SHAPE{}) == WORLD::OBSERVATION_DIM);
         if(world.render_pending){
-            render(device, world, parameters, states, render_reset(device, world));
+            render(device, world, parameters, states, world.render_reset);
         }
         utils::assert_exit(device, world.history_step > 0, "hyperdrone::World::observe: no frame available");
         const TI history_slot = (world.history_step - 1) % SPEC::HISTORY_LENGTH;
         std::vector<float> frame_staging(WORLD::INSTANCES * WORLD::N_VIEWS * WORLD::FRAME_DIM);
-        auto history_row = view(world.renderer.device, world.history, history_slot);
+        auto history_row = view(device, world.history, history_slot);
         Tensor<tensor::Specification<float, TI, tensor::Shape<TI, WORLD::INSTANCES * WORLD::N_VIEWS, WORLD::FRAME_DIM>>> frame_alias;
         frame_alias._data = frame_staging.data();
-        copy(world.renderer.device, device, history_row, frame_alias);
+        copy(device, device, history_row, frame_alias);
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
             for (TI dim_i = 0; dim_i < WORLD::OBSERVATION_DIM; dim_i++) {
                 set(device, observations, (T)frame_staging[instance_i * WORLD::OBSERVATION_DIM + dim_i], instance_i, dim_i);
@@ -610,7 +595,8 @@ namespace rl_tools {
     template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS>
     void malloc(DEVICE& device, rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env) {
         using TI = typename MEMBER::TI;
-        malloc(device, env.shared.library);
+        auto& render_device = get_rendering_device(device);
+        malloc(render_device, env.shared.library);
         for (TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++) {
             malloc(device, env.environments[environment_i]);
         }
@@ -618,8 +604,9 @@ namespace rl_tools {
     template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS, typename DATASET>
     void init(DEVICE& device, rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env, const DATASET& dataset) {
         using TI = typename MEMBER::TI;
+        auto& render_device = get_rendering_device(device);
         typename DATASET::Corpus corpus;
-        enumerate(device, dataset, corpus);
+        enumerate(render_device, dataset, corpus);
         const TI total_scenes = (TI)corpus.references.size();
         utils::assert_exit(device, total_scenes >= NUMBER_OF_ENVIRONMENTS, "hyperdrone: fewer scenes than environments");
         for (TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++) {
@@ -631,10 +618,11 @@ namespace rl_tools {
     template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS>
     void free(DEVICE& device, rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env) {
         using TI = typename MEMBER::TI;
+        auto& render_device = get_rendering_device(device);
         for (TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++) {
             free(device, env.environments[environment_i]);
         }
-        free(device, env.shared.library);
+        free(render_device, env.shared.library);
     }
     template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS, typename PARAMETER_SPEC, typename RESET_SPEC, typename RNG>
     void sample_initial_parameters(DEVICE& device, rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {
