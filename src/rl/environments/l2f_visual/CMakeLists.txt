@@ -102,3 +102,45 @@ if(TARGET owl::owl AND TARGET rendering_raytracing_device_ptx AND TARGET assimp:
         )
     endif()
 endif()
+
+# hyperdrone port of the imitation target: one device-generic source, compiled as CUDA (compute
+# on the GPU, bf16) when the OptiX backend is active and CUDA is available, as plain C++ (CPU
+# compute, fp32) against every other raytracing backend. On CUDA machines the additional
+# `_cpu` variant builds the CPU-compute path against the OptiX backend for A/B comparisons
+if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
+    set(RL_TOOLS_L2F_VISUAL_IMITATION_HYPERDRONE_CUDA_COMPUTE OFF)
+    if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED STREQUAL "OPTIX")
+        set(RL_TOOLS_L2F_VISUAL_IMITATION_HYPERDRONE_CUDA_COMPUTE ON)
+    endif()
+    function(rl_tools_add_l2f_visual_imitation_hyperdrone_target TARGET_NAME CUDA_COMPUTE)
+        if(CUDA_COMPUTE)
+            set(SOURCE_FILE ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}.cu)
+            file(CONFIGURE OUTPUT ${SOURCE_FILE} CONTENT "#include \"${CMAKE_CURRENT_SOURCE_DIR}/imitation_hyperdrone.cpp\"\n")
+        else()
+            set(SOURCE_FILE imitation_hyperdrone.cpp)
+        endif()
+        add_executable(${TARGET_NAME} ${SOURCE_FILE})
+        target_link_libraries(${TARGET_NAME} PRIVATE
+            RLtools::RLtools
+            rendering_raytracing_backend
+            rendering_raytracing_stb
+        )
+        if(CUDA_COMPUTE)
+            set_target_properties(${TARGET_NAME} PROPERTIES
+                CUDA_STANDARD 17
+                CUDA_STANDARD_REQUIRED ON
+                CUDA_SEPARABLE_COMPILATION ON
+            )
+        endif()
+        foreach(EXTRA_DEFINITION ${ARGN})
+            target_compile_definitions(${TARGET_NAME} PRIVATE ${EXTRA_DEFINITION})
+        endforeach()
+    endfunction()
+    rl_tools_add_l2f_visual_imitation_hyperdrone_target(rl_environments_l2f_visual_imitation_hyperdrone ${RL_TOOLS_L2F_VISUAL_IMITATION_HYPERDRONE_CUDA_COMPUTE})
+    rl_tools_add_l2f_visual_imitation_hyperdrone_target(rl_environments_l2f_visual_imitation_state_estimation_hyperdrone ${RL_TOOLS_L2F_VISUAL_IMITATION_HYPERDRONE_CUDA_COMPUTE} RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION)
+    rl_tools_add_l2f_visual_imitation_hyperdrone_target(rl_environments_l2f_visual_imitation_hyperdrone_small ${RL_TOOLS_L2F_VISUAL_IMITATION_HYPERDRONE_CUDA_COMPUTE} RL_TOOLS_L2F_VISUAL_IMITATION_HYPERDRONE_SMALL)
+    rl_tools_add_l2f_visual_imitation_hyperdrone_target(rl_environments_l2f_visual_imitation_state_estimation_hyperdrone_small ${RL_TOOLS_L2F_VISUAL_IMITATION_HYPERDRONE_CUDA_COMPUTE} RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION RL_TOOLS_L2F_VISUAL_IMITATION_HYPERDRONE_SMALL)
+    if(RL_TOOLS_L2F_VISUAL_IMITATION_HYPERDRONE_CUDA_COMPUTE)
+        rl_tools_add_l2f_visual_imitation_hyperdrone_target(rl_environments_l2f_visual_imitation_hyperdrone_cpu OFF)
+    endif()
+endif()
