@@ -173,7 +173,7 @@ namespace rl_tools{
         static_assert(get<0>(typename OBSERVATION_SPEC::SHAPE{}) == WORLD::INSTANCES);
         static_assert(get<1>(typename OBSERVATION_SPEC::SHAPE{}) == WORLD::OBSERVATION_DIM);
         if(world.render_pending){
-            render(device, world, parameters, states, render_reset(device, world));
+            render(device, world, parameters, states, world.render_reset);
         }
         utils::assert_exit(device, world.history_step > 0, "hyperdrone::tasks::target_frame::observe: no frame available");
         cudaStream_t render_stream = stream(device, world.renderer);

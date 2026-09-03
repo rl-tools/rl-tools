@@ -134,7 +134,8 @@ using DEV_SPEC = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::
 using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
 using T = float;
 #ifdef RL_TOOLS_L2F_VISUAL_IMITATION_HYPERDRONE_COMPUTE_CUDA
-using DEVICE_COMPUTE = rlt::devices::DEVICE_FACTORY_CUDA<rlt::devices::DefaultCUDASpecification>;
+using DEVICE_COMPUTE_SPEC = rlt::rendering::raytracing::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
+using DEVICE_COMPUTE = rlt::devices::DEVICE_FACTORY_CUDA<DEVICE_COMPUTE_SPEC>;
 using TYPE_POLICY = rlt::numeric_types::Policy<float,
     rlt::numeric_types::UseCase<rlt::numeric_types::categories::Parameter, __nv_bfloat16>,
     rlt::numeric_types::UseCase<rlt::numeric_types::categories::Activation, __nv_bfloat16>,
@@ -575,20 +576,20 @@ void state_estimation_batch_metrics(DEVICE& device, const OUTPUT& output, const 
 }
 
 // latest rendered student frame and cached target frame of every instance of one World, pulled
-// from the renderer's memory domain into host staging
-void fetch_world_frames(DEVICE& device, TASK_WORLD& world, float* frames, float* target_frames){
+// from the compute device into host staging
+void fetch_world_frames(DEVICE& device, DEVICE_COMPUTE& device_compute, TASK_WORLD& world, float* frames, float* target_frames){
     constexpr TI M = TASK_WORLD::INSTANCES;
     const TI history_slot = (world.history_step - 1) % FRAME_STACK_HISTORY_LENGTH;
     {
-        auto history_row = rlt::view(world.renderer.device, world.history, history_slot);
+        auto history_row = rlt::view(device_compute, world.history, history_slot);
         rlt::Tensor<rlt::tensor::Specification<float, TI, rlt::tensor::Shape<TI, M * BASE_WORLD::N_VIEWS, BASE_WORLD::FRAME_DIM>>> frame_alias;
         frame_alias._data = frames;
-        rlt::copy(world.renderer.device, device, history_row, frame_alias);
+        rlt::copy(device_compute, device, history_row, frame_alias);
     }
     {
         rlt::Tensor<typename TASK_WORLD::TARGET_FRAMES_SPEC> target_alias;
         target_alias._data = target_frames;
-        rlt::copy(world.renderer.device, device, world.target_frames, target_alias);
+        rlt::copy(device_compute, device, world.target_frames, target_alias);
     }
 }
 
@@ -708,7 +709,7 @@ int main(int argc, char** argv){
     // ---------------------------------------------------------------------
     auto* env_storage = new MULTI_ENVIRONMENT{};
     MULTI_ENVIRONMENT& env = *env_storage;
-    rlt::malloc(device, env);
+    rlt::malloc(device_compute, env);
     typename decltype(scene_dataset)::Corpus scene_corpus;
     rlt::rendering::datasets::procthor::enumerate(device, scene_dataset, scene_corpus);
     if(static_cast<TI>(scene_corpus.references.size()) != N_TOTAL_SCENES){
@@ -719,7 +720,7 @@ int main(int argc, char** argv){
         const TI first = member_i * N_TOTAL_SCENES / NUMBER_OF_ENVIRONMENTS;
         const TI last = (member_i + 1) * N_TOTAL_SCENES / NUMBER_OF_ENVIRONMENTS;
         std::cout << "Initializing World " << member_i << " with scenes [" << first << ", " << last << ")" << std::endl;
-        rlt::init(device, env.environments[member_i], env.shared, scene_dataset, scene_corpus, first, last - first, member_i);
+        rlt::init(device_compute, env.environments[member_i], env.shared, scene_dataset, scene_corpus, first, last - first, member_i);
         for(TI slot_i = 0; slot_i < last - first; slot_i++){
             std::cout << "  [" << first + slot_i << "] " << std::filesystem::path(scene_corpus.references[first + slot_i]).filename().string() << " — " << env.environments[member_i].slots[slot_i].annotations.num_positions << " indoor positions" << std::endl;
         }
@@ -843,7 +844,7 @@ int main(int argc, char** argv){
         // scene set for this epoch: deterministic round-robin over each World's partition (the
         // original draws a random pair); every instance restarts on the new scene
         if(epoch_i > 0){
-            rlt::rotate_scene(device, env);
+            rlt::rotate_scene(device_compute, env);
         }
         // epoch boundary: every instance restarts and the episodes cut by the boundary are
         // discarded (they were counted in the previous epoch's in-progress statistics)
@@ -907,7 +908,7 @@ int main(int argc, char** argv){
             if(record_video && ffmpeg_pipe){
                 synchronize_compute(device_compute);
                 for(TI member_i = 0; member_i < NUMBER_OF_ENVIRONMENTS; member_i++){
-                    fetch_world_frames(device, env.environments[member_i], video_frames.data() + member_i * TASK_WORLD::INSTANCES * OBSERVATION_DIM, video_target_frames.data() + member_i * TASK_WORLD::INSTANCES * OBSERVATION_DIM);
+                    fetch_world_frames(device, device_compute, env.environments[member_i], video_frames.data() + member_i * TASK_WORLD::INSTANCES * OBSERVATION_DIM, video_target_frames.data() + member_i * TASK_WORLD::INSTANCES * OBSERVATION_DIM);
                 }
                 for(TI scene_row = 0; scene_row < SCENE_GRID_ROWS; scene_row++){
                     for(TI scene_col = 0; scene_col < SCENE_GRID_COLS; scene_col++){
@@ -1394,7 +1395,7 @@ int main(int argc, char** argv){
     // =========================================================================
     // Cleanup
     // =========================================================================
-    rlt::free(device, env);
+    rlt::free(device_compute, env);
     delete env_storage;
     rlt::free(device, raptor);
     rlt::free(device, student_cpu);

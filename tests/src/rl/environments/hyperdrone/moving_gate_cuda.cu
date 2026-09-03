@@ -15,7 +15,8 @@ namespace rlt = rl_tools;
 namespace l2f = rlt::rl::environments::l2f;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
-using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<rlt::devices::DefaultCUDASpecification>;
+using DEVICE_GPU_SPEC = rlt::rendering::raytracing::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
+using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<DEVICE_GPU_SPEC>;
 using RNG_GPU = typename DEVICE_GPU::SPEC::RANDOM::ENGINE<>;
 using T = float;
 using TI = typename DEVICE::index_t;
@@ -171,12 +172,12 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MOVING_GATE_CUDA, DEVICE_ENTITY_MECHANI
     WORLD world;
     typename BASE_WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);
-    rlt::malloc(device, world);
+    rlt::malloc(device_gpu, world);
     world.gate_asset_path = GATE_PATH;
     rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
     rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
-    rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
+    rlt::init(device_gpu, world, shared, dataset, corpus, 0, 1, 0);
 
     RNG_GPU rng;
     rlt::malloc(device_gpu, rng);
@@ -312,7 +313,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MOVING_GATE_CUDA, DEVICE_ENTITY_MECHANI
 
     tensors.deallocate(device_gpu);
     host.deallocate(device);
-    rlt::free(device, world);
+    rlt::free(device_gpu, world);
     rlt::free(device, shared.library);
     rlt::free(device_gpu, rng);
 }

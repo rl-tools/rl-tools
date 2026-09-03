@@ -195,7 +195,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         TI episode_counter = 0;
         DYNAMICS_ENV dynamics;
 
-        // per-frame staging and history, resident on the renderer's device
+        // per-frame runtime state, resident on the environment's compute device
         static constexpr TI FRAME_DIM = SPEC::CAM_HEIGHT * SPEC::CAM_WIDTH * IMAGE_CHANNELS;
         using HISTORY_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::HISTORY_LENGTH, INSTANCES * N_VIEWS, FRAME_DIM>>;
         using PREV_CAMERAS_SPEC = tensor::Specification<rendering::raytracing::Camera<T>, TI, tensor::Shape<TI, INSTANCES * N_VIEWS>>;
@@ -206,7 +206,6 @@ namespace rl_tools::rl::environments::hyperdrone {
         Tensor<PREV_CAMERAS_SPEC> prev_cameras;  // shutter-open interpolation source (motion blur)
         Tensor<EPISODE_START_SPEC> episode_start;  // history slot at which each instance's episode began
         Tensor<RENDER_RESET_SPEC> render_reset;
-        Tensor<RENDER_RESET_SPEC> render_reset_host;
         Tensor<ACTIVE_ANNOTATIONS_SPEC> active_annotations;  // device-visible copy of the active slot's annotation tables
         // host-resident camera staging for the CPU render verb (pre-allocated: render runs per step)
         Tensor<PREV_CAMERAS_SPEC> camera_staging_close;
