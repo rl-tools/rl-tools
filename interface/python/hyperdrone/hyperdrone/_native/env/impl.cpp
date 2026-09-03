@@ -1,6 +1,6 @@
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/operations_cpu.h>
-#include <rl_tools/rl/components/episodes/operations_cpu.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
 #if defined(HYPERDRONE_ENV_TASK) && HYPERDRONE_ENV_TASK == 1
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cpu.h>
 #endif
@@ -155,20 +155,18 @@ namespace hyperdrone_env_impl {
     struct HasAutopilot { static constexpr bool VALUE = false; };
     template <typename WORLD_TYPE>
     struct HasAutopilot<WORLD_TYPE, rlt::utils::typing::void_t<typename WORLD_TYPE::AUTOPILOT>> { static constexpr bool VALUE = true; };
-    struct EPISODES_SPEC: rlt::rl::components::episodes::Specification<ENV> {
-        static constexpr bool SYNCHRONIZED = HasAutopilot<WORLD>::VALUE;
-    };
-    using EPISODES = rlt::rl::components::episodes::Episodes<EPISODES_SPEC>;
+    using POLICY_STATE = rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1>>>;
+    using RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<rlt::numeric_types::Policy<T>, ENV, POLICY_STATE, typename ENV::Observation, typename ENV::ObservationPrivileged, T, T, ENV::EPISODE_STEP_LIMIT, HasAutopilot<WORLD>::VALUE>;
+    using RUNNER = rlt::rl::components::OnPolicyRunner<RUNNER_SPEC>;
 
     struct EnvImpl {
         DEVICE device;
         ENV env;
         RNG rng;
-        rlt::Tensor<rlt::tensor::Specification<typename WORLD::Parameters, TI, rlt::tensor::Shape<TI, TOTAL>>> parameters;
-        rlt::Tensor<rlt::tensor::Specification<typename WORLD::State, TI, rlt::tensor::Shape<TI, TOTAL>>> states, next_states;
-        rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, TOTAL>>> reset_mask, terminated_flags;
+        rlt::Tensor<rlt::tensor::Specification<typename WORLD::State, TI, rlt::tensor::Shape<TI, TOTAL>>> next_states;
+        rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, TOTAL>>> reset_mask;
         rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TOTAL>>> rewards;
-        EPISODES episodes;
+        RUNNER runner;
     };
 
     EnvImpl* cast(void* handle){
@@ -207,7 +205,7 @@ namespace hyperdrone_env_impl {
         if constexpr (ObservationIMUDim<WORLD_TYPE>::VALUE > 0){
             rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TOTAL, ObservationIMUDim<WORLD_TYPE>::VALUE>>> alias;
             alias._data = observations;
-            rlt::observe(impl->device, impl->env, impl->parameters, impl->states, typename WORLD_TYPE::ObservationIMU{}, alias, impl->rng);
+            rlt::observe(impl->device, impl->env, impl->runner.env_parameters, impl->runner.states, typename WORLD_TYPE::ObservationIMU{}, alias, impl->rng);
         }else{
             (void)impl;
             (void)observations;
@@ -322,25 +320,19 @@ extern "C" {
         rlt::malloc(impl->device, impl->env);
         rlt::malloc(impl->device, impl->rng);
         rlt::init(impl->device, impl->rng, 0);
-        rlt::malloc(impl->device, impl->parameters);
-        rlt::malloc(impl->device, impl->states);
+        rlt::malloc(impl->device, impl->runner);
         rlt::malloc(impl->device, impl->next_states);
         rlt::malloc(impl->device, impl->reset_mask);
-        rlt::malloc(impl->device, impl->terminated_flags);
         rlt::malloc(impl->device, impl->rewards);
-        rlt::malloc(impl->device, impl->episodes);
-        rlt::init(impl->device, impl->episodes);
+        rlt::init(impl->device, impl->runner);
         return impl;
     }
     void hyperdrone_env_destroy(void* handle){
         EnvImpl* impl = cast(handle);
-        rlt::free(impl->device, impl->parameters);
-        rlt::free(impl->device, impl->states);
+        rlt::free(impl->device, impl->runner);
         rlt::free(impl->device, impl->next_states);
         rlt::free(impl->device, impl->reset_mask);
-        rlt::free(impl->device, impl->terminated_flags);
         rlt::free(impl->device, impl->rewards);
-        rlt::free(impl->device, impl->episodes);
         rlt::free(impl->device, impl->rng);
         rlt::free(impl->device, impl->env);
         delete impl;
@@ -401,25 +393,25 @@ extern "C" {
         EnvImpl* impl = cast(handle);
         static_assert(sizeof(bool) == sizeof(uint8_t));
         std::memcpy(rlt::data(impl->reset_mask), mask, TOTAL * sizeof(bool));
-        rlt::sample_initial_parameters(impl->device, impl->env, impl->parameters, impl->reset_mask, impl->rng);
-        rlt::sample_initial_state(impl->device, impl->env, impl->parameters, impl->states, impl->reset_mask, impl->rng);
+        rlt::sample_initial_parameters(impl->device, impl->env, impl->runner.env_parameters, impl->reset_mask, impl->rng);
+        rlt::sample_initial_state(impl->device, impl->env, impl->runner.env_parameters, impl->runner.states, impl->reset_mask, impl->rng);
     }
     void hyperdrone_env_render(void* handle, const uint8_t* reset_mask){
         EnvImpl* impl = cast(handle);
         std::memcpy(rlt::data(impl->reset_mask), reset_mask, TOTAL * sizeof(bool));
-        rlt::render(impl->device, impl->env, impl->parameters, impl->states, impl->reset_mask);
+        rlt::render(impl->device, impl->env, impl->runner.env_parameters, impl->runner.states, impl->reset_mask);
     }
     void hyperdrone_env_observe(void* handle, float* observations){
         EnvImpl* impl = cast(handle);
         rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TOTAL, WORLD::OBSERVATION_DIM>>> alias;
         alias._data = observations;
-        rlt::observe(impl->device, impl->env, impl->parameters, impl->states, typename WORLD::Observation{}, alias, impl->rng);
+        rlt::observe(impl->device, impl->env, impl->runner.env_parameters, impl->runner.states, typename WORLD::Observation{}, alias, impl->rng);
     }
     void hyperdrone_env_observe_privileged(void* handle, float* observations){
         EnvImpl* impl = cast(handle);
         rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TOTAL, WORLD::OBSERVATION_DIM_PRIVILEGED>>> alias;
         alias._data = observations;
-        rlt::observe(impl->device, impl->env, impl->parameters, impl->states, typename WORLD::ObservationPrivileged{}, alias, impl->rng);
+        rlt::observe(impl->device, impl->env, impl->runner.env_parameters, impl->runner.states, typename WORLD::ObservationPrivileged{}, alias, impl->rng);
     }
     void hyperdrone_env_observe_imu(void* handle, float* observations){
         observe_imu<WORLD>(cast(handle), observations);
@@ -428,10 +420,10 @@ extern "C" {
         EnvImpl* impl = cast(handle);
         rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TOTAL, WORLD::ACTION_DIM>>> action_alias;
         action_alias._data = const_cast<float*>(actions);
-        rlt::step(impl->device, impl->env, impl->parameters, impl->states, action_alias, impl->next_states, impl->rng);
-        rlt::reward(impl->device, impl->env, impl->parameters, impl->states, action_alias, impl->next_states, impl->rewards, impl->rng);
-        rlt::copy(impl->device, impl->device, impl->next_states, impl->states);
-        rlt::terminated(impl->device, impl->env, impl->parameters, impl->states, impl->terminated_flags, impl->rng);
+        rlt::step(impl->device, impl->env, impl->runner.env_parameters, impl->runner.states, action_alias, impl->next_states, impl->rng);
+        rlt::reward(impl->device, impl->env, impl->runner.env_parameters, impl->runner.states, action_alias, impl->next_states, impl->rewards, impl->rng);
+        rlt::copy(impl->device, impl->device, impl->next_states, impl->runner.states);
+        rlt::terminated(impl->device, impl->env, impl->runner.env_parameters, impl->runner.states, impl->runner.terminated, impl->rng);
     }
     void hyperdrone_env_rewards(void* handle, float* rewards){
         EnvImpl* impl = cast(handle);
@@ -439,7 +431,7 @@ extern "C" {
     }
     void hyperdrone_env_terminated(void* handle, uint8_t* terminated_flags){
         EnvImpl* impl = cast(handle);
-        std::memcpy(terminated_flags, rlt::data(impl->terminated_flags), TOTAL * sizeof(bool));
+        std::memcpy(terminated_flags, rlt::data(impl->runner.terminated), TOTAL * sizeof(bool));
     }
     void hyperdrone_env_rotate_scene(void* handle){
         EnvImpl* impl = cast(handle);
@@ -447,29 +439,29 @@ extern "C" {
     }
     void hyperdrone_env_begin_step(void* handle){
         EnvImpl* impl = cast(handle);
-        rlt::begin_step(impl->device, impl->env, impl->episodes, impl->parameters, impl->states, impl->rng);
+        rlt::begin_step(impl->device, impl->runner, impl->env, impl->rng);
     }
     void hyperdrone_env_end_step(void* handle){
         EnvImpl* impl = cast(handle);
-        rlt::end_step(impl->device, impl->env, impl->episodes, impl->parameters, impl->states, impl->rewards, impl->rng);
+        rlt::end_step(impl->device, impl->runner, impl->env, impl->rewards, impl->rng);
     }
     void hyperdrone_env_force_reset(void* handle, const uint8_t* mask){
         EnvImpl* impl = cast(handle);
         std::memcpy(rlt::data(impl->reset_mask), mask, TOTAL * sizeof(bool));
-        rlt::force_reset(impl->device, impl->episodes, impl->reset_mask);
+        rlt::force_reset(impl->device, impl->runner, impl->reset_mask);
     }
     void hyperdrone_env_set_step_limit(void* handle, uint32_t step_limit){
         EnvImpl* impl = cast(handle);
-        impl->episodes.step_limit = (TI)step_limit;
+        impl->runner.episode_step_limit = (TI)step_limit;
     }
     void hyperdrone_env_episode_flags(void* handle, uint8_t* terminated, uint8_t* truncated, uint8_t* reset, uint8_t* end_reason, uint32_t* episode_step){
         EnvImpl* impl = cast(handle);
-        std::memcpy(terminated, rlt::data(impl->episodes.terminated), TOTAL * sizeof(bool));
-        std::memcpy(truncated, rlt::data(impl->episodes.truncated), TOTAL * sizeof(bool));
-        std::memcpy(reset, rlt::data(impl->episodes.reset), TOTAL * sizeof(bool));
+        std::memcpy(terminated, rlt::data(impl->runner.terminated), TOTAL * sizeof(bool));
+        std::memcpy(truncated, rlt::data(impl->runner.truncated), TOTAL * sizeof(bool));
+        std::memcpy(reset, rlt::data(impl->runner.reset), TOTAL * sizeof(bool));
         for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
-            end_reason[instance_i] = (uint8_t)rlt::get(impl->device, impl->episodes.end_reason, instance_i);
-            episode_step[instance_i] = (uint32_t)rlt::get(impl->device, impl->episodes.episode_step, instance_i);
+            end_reason[instance_i] = (uint8_t)rlt::get(impl->device, impl->runner.end_reason, instance_i);
+            episode_step[instance_i] = (uint32_t)rlt::get(impl->device, impl->runner.episode_step, instance_i);
         }
     }
 }

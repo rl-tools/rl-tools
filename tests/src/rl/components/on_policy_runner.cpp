@@ -2,7 +2,6 @@
 #include <rl_tools/rl/environments/pendulum/pendulum.h>
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>
 #include <rl_tools/rl/environments/batch/operations_generic.h>
-#include <rl_tools/rl/components/episodes/operations_cpu.h>
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>

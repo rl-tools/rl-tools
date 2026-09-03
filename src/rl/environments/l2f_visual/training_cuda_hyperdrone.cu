@@ -23,8 +23,6 @@
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cuda.h>
-#include <rl_tools/rl/components/episodes/operations_cpu.h>
-#include <rl_tools/rl/components/episodes/operations_cuda.h>
 #include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
 
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
@@ -504,9 +502,7 @@ using ROLLOUT_ACTOR_TYPE = typename ACTOR_TYPE::template CHANGE_CAPABILITY<CAPAB
 using ROLLOUT_ACTOR_BUFFERS = typename ROLLOUT_ACTOR_TYPE::template Buffer<true>;
 using CHECKPOINT_ACTOR_TYPE = typename ACTOR_TYPE::template CHANGE_CAPABILITY<CAPABILITY_ROLLOUT>::template CHANGE_BATCH_SIZE<TI, N_EXAMPLES>;
 using ROLLOUT_POLICY_STATE = typename ROLLOUT_ACTOR_TYPE::template State<true>;
-struct EPISODES_SPEC: rlt::rl::components::episodes::Specification<MULTI_ENVIRONMENT>{};
-using EPISODES = rlt::rl::components::episodes::Episodes<EPISODES_SPEC>;
-using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, MULTI_ENVIRONMENT, ROLLOUT_POLICY_STATE, EPISODES_SPEC, typename BASE_WORLD::Observation, typename BASE_WORLD::ObservationPrivileged, T, T, LOOP_CORE_PARAMETERS::PPO_PARAMETERS::TRUNCATE_ON_EACH_ITERATION, true>;
+using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, MULTI_ENVIRONMENT, ROLLOUT_POLICY_STATE, typename BASE_WORLD::Observation, typename BASE_WORLD::ObservationPrivileged, T, T, EPISODE_STEP_LIMIT, false, LOOP_CORE_PARAMETERS::PPO_PARAMETERS::TRUNCATE_ON_EACH_ITERATION, true>;
 using ON_POLICY_RUNNER = rlt::rl::components::OnPolicyRunner<ON_POLICY_RUNNER_SPEC>;
 using ON_POLICY_RUNNER_BUFFER = rlt::rl::components::on_policy_runner::Buffer<ON_POLICY_RUNNER_SPEC>;
 using ON_POLICY_RUNNER_DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, LOOP_CORE_PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV, true>;
@@ -531,9 +527,9 @@ static_assert(N_EXAMPLES <= BATCH_SIZE, "N_EXAMPLES must fit the reusable combin
 static_assert(N_EXAMPLES <= STEPS_TOTAL, "N_EXAMPLES must fit one PPO rollout dataset");
 
 // row 0: resets applied before the rollout (scene rotation); row t + 1: resets applied after step t
-using EPISODE_LOG = rlt::rl::components::episodes::Log<EPISODES_SPEC, STEPS_PER_ENV + 1>;
-using EPISODE_END_REASON = rlt::rl::components::episodes::EndReason;
-static_assert(EPISODES_SPEC::STEP_LIMIT == EPISODE_STEP_LIMIT);
+using EPISODE_LOG = rlt::rl::components::on_policy_runner::EpisodeLog<ON_POLICY_RUNNER_SPEC, STEPS_PER_ENV + 1>;
+using EPISODE_END_REASON = rlt::rl::components::on_policy_runner::EpisodeEndReason;
+static_assert(ON_POLICY_RUNNER_SPEC::STEP_LIMIT == EPISODE_STEP_LIMIT);
 
 // =========================================================================
 // Custom CUDA kernels
@@ -758,7 +754,6 @@ int main(int argc, char** argv){
     auto& gpu_env_states = gpu_runner.states;
     auto& gpu_step_rewards = gpu_runner_buffer.rewards;
     auto& gpu_step_actions = gpu_runner_buffer.actions;
-    auto& gpu_episodes = gpu_runner.episodes;
     EPISODE_LOG gpu_episode_log, cpu_episode_log;
     rlt::malloc(device_gpu, gpu_episode_log);
     rlt::malloc(device, cpu_episode_log);
@@ -892,7 +887,7 @@ int main(int argc, char** argv){
             // rotation forces a truncation-reset of all instances; everything downstream flows
             // through the reset path (deterministic round-robin over each World's partition)
             if(ppo_step_i > 0){
-                rlt::force_reset(device_gpu, gpu_episodes);
+                rlt::force_reset(device_gpu, gpu_runner);
                 cudaStreamSynchronize(device_gpu.stream);
                 rlt::check_status(device_gpu);
             }
@@ -902,7 +897,7 @@ int main(int argc, char** argv){
             } else {
                 rlt::rl::components::on_policy_runner::reset(device_gpu, gpu_runner, env, rng_gpu);
             }
-            rlt::record(device_gpu, gpu_episode_log, gpu_episodes, 0);
+            rlt::record(device_gpu, gpu_episode_log, gpu_runner, 0);
         }
 
         // =================================================================
@@ -944,7 +939,7 @@ int main(int argc, char** argv){
             TI frame_step_i = frame_step_start + step_i;
             // 1. Driver-side per-row data: the episode start (frame-stack guard), the actor's state
             // branch observation and the cached target frame
-            record_episode_start_kernel<<<grid, block, 0, device_gpu.stream>>>(rlt::data(gpu_episodes.reset), gpu_episode_start_step, gpu_episode_start_step_per_row, step_i, frame_step_i);
+            record_episode_start_kernel<<<grid, block, 0, device_gpu.stream>>>(rlt::data(gpu_runner.reset), gpu_episode_start_step, gpu_episode_start_step_per_row, step_i, frame_step_i);
             rlt::check_status(device_gpu);
             {
                 auto state_observations = rlt::view_range(device_gpu, gpu_all_state_observations, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
@@ -1034,7 +1029,7 @@ int main(int argc, char** argv){
                 rlt::rl::components::on_policy_runner::sample_actions(device_gpu, dataset_gpu, log_std_gpu, gpu_step_actions, step_i, rng_gpu);
             }
             rlt::rl::components::on_policy_runner::epilogue(device_gpu, dataset_gpu, gpu_runner, gpu_runner_buffer, env, rng_gpu, step_i);
-            rlt::record(device_gpu, gpu_episode_log, gpu_episodes, step_i + 1);
+            rlt::record(device_gpu, gpu_episode_log, gpu_runner, step_i + 1);
             if(log_reward_components_this_step && step_i == STEPS_PER_ENV - 1){
                 cudaStreamSynchronize(device_gpu.stream);
                 cudaMemcpy(&reward_log_next_state, rlt::data(gpu_runner_buffer.next_states), sizeof(typename TASK_WORLD::State), cudaMemcpyDeviceToHost);

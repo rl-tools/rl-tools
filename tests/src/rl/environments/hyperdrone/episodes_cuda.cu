@@ -2,8 +2,6 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rl/environments/hyperdrone/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/operations_cuda.h>
-#include <rl_tools/rl/components/episodes/operations_cpu.h>
-#include <rl_tools/rl/components/episodes/operations_cuda.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_cuda.h>
 
@@ -15,7 +13,7 @@
 
 namespace rlt = rl_tools;
 namespace l2f = rlt::rl::environments::l2f;
-namespace episodes = rlt::rl::components::episodes;
+namespace on_policy_runner = rlt::rl::components::on_policy_runner;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<rlt::devices::DefaultCUDASpecification>;
@@ -76,10 +74,9 @@ namespace test_hyperdrone_episodes_cuda {
     };
     using WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
     constexpr TI INSTANCES = WORLD::INSTANCES;
-    struct EPISODES_SPEC: episodes::Specification<WORLD> {};
     constexpr TI STEPS = 7;
     constexpr TI STEP_LIMIT = 3;
-    using END_REASON = episodes::EndReason;
+    using END_REASON = on_policy_runner::EpisodeEndReason;
 }
 
 using namespace test_hyperdrone_episodes_cuda;
@@ -105,44 +102,46 @@ struct Trace {
     T dataset_reset[STEPS][INSTANCES];
 };
 
-using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<rlt::numeric_types::Policy<T>, WORLD, bool>;
+using POLICY_STATE = rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1>>>;
+using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<rlt::numeric_types::Policy<T>, WORLD, POLICY_STATE>;
+using ON_POLICY_RUNNER = rlt::rl::components::OnPolicyRunner<ON_POLICY_RUNNER_SPEC>;
 using DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, STEPS>;
 using DATASET = rlt::rl::components::on_policy_runner::Dataset<DATASET_SPEC>;
 
 // the same verb sequence on either device; forced reset (instance 0) before step 2
 template <typename COMPUTE_DEVICE, typename COMPUTE_RNG>
 static void trace_rollout(DEVICE& device, COMPUTE_DEVICE& device_compute, WORLD& world, Trace& trace, TI seed){
-    using EPISODES = episodes::Episodes<EPISODES_SPEC>;
-    using LOG = episodes::Log<EPISODES_SPEC, STEPS>;
+    using LOG = on_policy_runner::EpisodeLog<ON_POLICY_RUNNER_SPEC, STEPS>;
     COMPUTE_RNG rng;
     rlt::malloc(device_compute, rng);
     rlt::init(device_compute, rng, seed);
-    rlt::Tensor<rlt::tensor::Specification<typename WORLD::Parameters, TI, rlt::tensor::Shape<TI, INSTANCES>>> parameters;
-    rlt::Tensor<rlt::tensor::Specification<typename WORLD::State, TI, rlt::tensor::Shape<TI, INSTANCES>>> states, next_states;
+    rlt::Tensor<rlt::tensor::Specification<typename WORLD::State, TI, rlt::tensor::Shape<TI, INSTANCES>>> next_states;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, INSTANCES, WORLD::ACTION_DIM>>> actions;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, INSTANCES>>> rewards;
     rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, INSTANCES>>> mask;
-    EPISODES episodes_compute, episodes_host;
+    ON_POLICY_RUNNER runner_compute, runner_host;
     LOG log_compute, log_host;
     DATASET dataset_compute, dataset_host;
-    rlt::malloc(device_compute, parameters);
-    rlt::malloc(device_compute, states);
     rlt::malloc(device_compute, next_states);
     rlt::malloc(device_compute, actions);
     rlt::malloc(device_compute, rewards);
     rlt::malloc(device_compute, mask);
-    rlt::malloc(device_compute, episodes_compute);
+    rlt::malloc(device_compute, runner_compute);
     rlt::malloc(device_compute, log_compute);
     rlt::malloc(device_compute, dataset_compute);
-    rlt::malloc(device, episodes_host);
+    rlt::malloc(device, runner_host.reset);
+    rlt::malloc(device, runner_host.episode_step);
+    rlt::malloc(device, runner_host.terminated);
+    rlt::malloc(device, runner_host.truncated);
+    rlt::malloc(device, runner_host.end_reason);
     rlt::malloc(device, log_host);
     rlt::malloc(device, dataset_host);
     rlt::set_all(device_compute, actions, (T)0);
     rlt::set_all(device_compute, mask, false);
-    rlt::init(device_compute, episodes_compute);
     rlt::init(device_compute, log_compute);
-    episodes_compute.step_limit = STEP_LIMIT;
     world.history_step = 0;
+    rlt::init(device_compute, runner_compute, world, rng);
+    runner_compute.episode_step_limit = STEP_LIMIT;
     for(TI step_i = 0; step_i < STEPS; step_i++){
         if(step_i == 2){
             rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, INSTANCES>>> mask_host;
@@ -151,29 +150,34 @@ static void trace_rollout(DEVICE& device, COMPUTE_DEVICE& device_compute, WORLD&
             rlt::set(device, mask_host, true, 0);
             rlt::copy(device, device_compute, mask_host, mask);
             rlt::free(device, mask_host);
-            rlt::force_reset(device_compute, episodes_compute, mask);
+            rlt::force_reset(device_compute, runner_compute, mask);
         }
-        rlt::begin_step(device_compute, world, episodes_compute, parameters, states, rng);
-        rlt::record(device_compute, log_compute, episodes_compute, step_i);
+        if(step_i > 0){
+            rlt::begin_step(device_compute, runner_compute, world, rng);
+        }
+        rlt::record(device_compute, log_compute, runner_compute, step_i);
         if(step_i == 0){
-            rlt::record_reset(device_compute, dataset_compute, episodes_compute.reset);
+            rlt::record_reset(device_compute, dataset_compute, runner_compute.reset);
         }
-        rlt::render(device_compute, world, parameters, states, episodes_compute.reset);
-        rlt::copy(device_compute, device, episodes_compute, episodes_host);
+        rlt::rl::components::on_policy_runner::render(device_compute, runner_compute, world);
+        rlt::copy(device_compute, device, runner_compute.reset, runner_host.reset);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            trace.reset[step_i][instance_i] = rlt::get(device, episodes_host.reset, instance_i);
+            trace.reset[step_i][instance_i] = rlt::get(device, runner_host.reset, instance_i);
         }
-        rlt::step(device_compute, world, parameters, states, actions, next_states, rng);
-        rlt::reward(device_compute, world, parameters, states, actions, next_states, rewards, rng);
-        rlt::copy(device_compute, device_compute, next_states, states);
-        rlt::end_step(device_compute, world, episodes_compute, parameters, states, rewards, rng);
-        rlt::record_step(device_compute, dataset_compute, step_i, rewards, episodes_compute.terminated, episodes_compute.truncated);
-        rlt::copy(device_compute, device, episodes_compute, episodes_host);
+        rlt::step(device_compute, world, runner_compute.env_parameters, runner_compute.states, actions, next_states, rng);
+        rlt::reward(device_compute, world, runner_compute.env_parameters, runner_compute.states, actions, next_states, rewards, rng);
+        rlt::copy(device_compute, device_compute, next_states, runner_compute.states);
+        rlt::end_step(device_compute, runner_compute, world, rewards, rng);
+        rlt::record_step(device_compute, dataset_compute, step_i, rewards, runner_compute.terminated, runner_compute.truncated);
+        rlt::copy(device_compute, device, runner_compute.episode_step, runner_host.episode_step);
+        rlt::copy(device_compute, device, runner_compute.terminated, runner_host.terminated);
+        rlt::copy(device_compute, device, runner_compute.truncated, runner_host.truncated);
+        rlt::copy(device_compute, device, runner_compute.end_reason, runner_host.end_reason);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            trace.episode_step[step_i][instance_i] = rlt::get(device, episodes_host.episode_step, instance_i);
-            trace.terminated[step_i][instance_i] = rlt::get(device, episodes_host.terminated, instance_i);
-            trace.truncated[step_i][instance_i] = rlt::get(device, episodes_host.truncated, instance_i);
-            trace.end_reason[step_i][instance_i] = rlt::get(device, episodes_host.end_reason, instance_i);
+            trace.episode_step[step_i][instance_i] = rlt::get(device, runner_host.episode_step, instance_i);
+            trace.terminated[step_i][instance_i] = rlt::get(device, runner_host.terminated, instance_i);
+            trace.truncated[step_i][instance_i] = rlt::get(device, runner_host.truncated, instance_i);
+            trace.end_reason[step_i][instance_i] = rlt::get(device, runner_host.end_reason, instance_i);
         }
     }
     rlt::copy(device_compute, device, log_compute, log_host);
@@ -190,16 +194,18 @@ static void trace_rollout(DEVICE& device, COMPUTE_DEVICE& device_compute, WORLD&
             trace.dataset_reset[step_i][instance_i] = rlt::get(dataset_host.reset, pos, 0);
         }
     }
-    rlt::free(device_compute, parameters);
-    rlt::free(device_compute, states);
     rlt::free(device_compute, next_states);
     rlt::free(device_compute, actions);
     rlt::free(device_compute, rewards);
     rlt::free(device_compute, mask);
-    rlt::free(device_compute, episodes_compute);
+    rlt::free(device_compute, runner_compute);
     rlt::free(device_compute, log_compute);
     rlt::free(device_compute, dataset_compute);
-    rlt::free(device, episodes_host);
+    rlt::free(device, runner_host.reset);
+    rlt::free(device, runner_host.episode_step);
+    rlt::free(device, runner_host.terminated);
+    rlt::free(device, runner_host.truncated);
+    rlt::free(device, runner_host.end_reason);
     rlt::free(device, log_host);
     rlt::free(device, dataset_host);
     rlt::free(device_compute, rng);
