@@ -92,6 +92,15 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
             rendering_raytracing_stb
     )
     gtest_discover_tests(test_rl_environments_hyperdrone_presets)
+    add_executable(test_rl_environments_hyperdrone_episodes episodes.cpp)
+    target_link_libraries(test_rl_environments_hyperdrone_episodes
+        PRIVATE
+            RLtools::RLtools
+            RLtools::Test
+            rendering_raytracing_backend
+            rendering_raytracing_stb
+    )
+    gtest_discover_tests(test_rl_environments_hyperdrone_episodes)
     # golden-rollout generator for the Python binding (run deliberately from the repo root)
     add_executable(test_rl_environments_hyperdrone_python_golden python_golden.cpp)
     target_link_libraries(test_rl_environments_hyperdrone_python_golden
@@ -195,6 +204,21 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
             CUDA_STANDARD_REQUIRED ON
         )
         gtest_discover_tests(test_rl_environments_hyperdrone_moving_gate_cuda)
+        add_executable(test_rl_environments_hyperdrone_episodes_cuda episodes_cuda.cu)
+        target_link_libraries(test_rl_environments_hyperdrone_episodes_cuda
+            PRIVATE
+                RLtools::RLtools
+                RLtools::Test
+                owl::owl
+                rendering_raytracing_device_ptx
+                assimp::assimp
+                rendering_raytracing_stb
+        )
+        set_target_properties(test_rl_environments_hyperdrone_episodes_cuda PROPERTIES
+            CUDA_STANDARD 17
+            CUDA_STANDARD_REQUIRED ON
+        )
+        gtest_discover_tests(test_rl_environments_hyperdrone_episodes_cuda)
         add_executable(test_rl_environments_hyperdrone_benchmark_cuda benchmark_cuda.cu)
         target_link_libraries(test_rl_environments_hyperdrone_benchmark_cuda
             PRIVATE

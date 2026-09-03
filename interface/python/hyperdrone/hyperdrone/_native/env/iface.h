@@ -7,7 +7,7 @@
 // rl_tools::rl::environments::hyperdrone::MultiEnvironment<hyperdrone::World>. Buffers are host
 // float32/uint8 arrays sized by hyperdrone_env_config(). Bump
 // HYPERDRONE_ENV_IFACE_VERSION on any change to this file.
-#define HYPERDRONE_ENV_IFACE_VERSION 4
+#define HYPERDRONE_ENV_IFACE_VERSION 5
 
 namespace hyperdrone::env {
     struct Config {
@@ -64,4 +64,15 @@ extern "C" {
     // deterministic round-robin over each environment's scene partition; the caller must
     // reset all instances afterwards
     void hyperdrone_env_rotate_scene(void* handle);
+    // episode bookkeeping (hyperdrone::episodes, same-step autoreset): begin_step applies the
+    // pending resets (terminated, time limit, forced) by resampling the due instances and
+    // publishes the applied mask as the reset flag — render with it afterwards; end_step (after
+    // hyperdrone_env_step) runs the terminal check, counters and truncation; force_reset marks
+    // instances for the next begin_step; set_step_limit overrides the time limit (0: none)
+    void hyperdrone_env_begin_step(void* handle);
+    void hyperdrone_env_end_step(void* handle);
+    void hyperdrone_env_force_reset(void* handle, const uint8_t* mask);                  // (total,)
+    void hyperdrone_env_set_step_limit(void* handle, uint32_t step_limit);
+    // (total,) each; end_reason: 0 none, 1 terminated, 2 time limit, 3 forced
+    void hyperdrone_env_episode_flags(void* handle, uint8_t* terminated, uint8_t* truncated, uint8_t* reset, uint8_t* end_reason, uint32_t* episode_step);
 }

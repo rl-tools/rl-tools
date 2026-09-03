@@ -89,14 +89,36 @@ namespace rl_tools{
             }
         }
     }
+    namespace nn::layers::gru::mode{
+        // the sequential reset mask is a 1xBATCH matrix (view) or a rank-1 bool tensor
+        template <typename MASK>
+        struct ResetMaskSize;
+        template <typename SPEC>
+        struct ResetMaskSize<Matrix<SPEC>>{
+            static_assert(SPEC::ROWS == 1, "The reset mask for GRU layers must have a single row.");
+            static constexpr auto VALUE = SPEC::COLS;
+        };
+        template <typename SPEC>
+        struct ResetMaskSize<Tensor<SPEC>>{
+            static_assert(length(typename SPEC::SHAPE{}) == 1, "The reset mask for GRU layers must be a rank-1 tensor.");
+            static constexpr auto VALUE = get<0>(typename SPEC::SHAPE{});
+        };
+        template <typename DEVICE, typename SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT bool reset_mask_value(DEVICE&, const Matrix<SPEC>& mask, typename DEVICE::index_t batch_i){
+            return get(mask, 0, batch_i);
+        }
+        template <typename DEVICE, typename SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT bool reset_mask_value(DEVICE& device, const Tensor<SPEC>& mask, typename DEVICE::index_t batch_i){
+            return get(device, mask, batch_i);
+        }
+    }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename BASE_MODE, typename MODE_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void _reset_sequential(DEVICE& device, const nn::layers::gru::LayerForward<SPEC>& layer, nn::layers::gru::State<STATE_SPEC>& state, mode::sequential::ResetMask<BASE_MODE, MODE_SPEC>& mode){
         using TI = typename DEVICE::index_t;
         static constexpr TI BATCH_SIZE = get<0>(typename decltype(state.state)::SPEC::SHAPE{});
-        static_assert(decltype(mode.mask)::ROWS == 1, "The reset mask for GRU layers must have a single row.");
-        static_assert(decltype(mode.mask)::COLS == BATCH_SIZE, "The reset mask for GRU layers must have a column for each batch element.");
+        static_assert(nn::layers::gru::mode::ResetMaskSize<decltype(mode.mask)>::VALUE == BATCH_SIZE, "The reset mask for GRU layers must have an entry for each batch element.");
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
-            if (get(mode.mask, 0, batch_i)) {
+            if (nn::layers::gru::mode::reset_mask_value(device, mode.mask, batch_i)) {
                 set(device, state.step, 0, batch_i);
                 auto row = view(device, state.state, batch_i);
                 copy(device, device, layer.initial_hidden_state.parameters, row);
