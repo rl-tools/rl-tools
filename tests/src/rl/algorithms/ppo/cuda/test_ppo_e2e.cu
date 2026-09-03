@@ -310,22 +310,22 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_CPU_GPU_COMPARISON){
             rlt::reset_optimizer_state(device_gpu, critic_optimizer_gpu, ppo_gpu.critic);
             rlt::reset_optimizer_state(device_cpu, critic_optimizer_cpu, ppo_cpu.critic);
             // Sync runner state via matrix copy (not element-wise set on GPU memory)
-            rlt::copy(device_cpu, device_gpu, runner_cpu.episodes.episode_step, runner_gpu.episodes.episode_step);
-            rlt::copy(device_cpu, device_gpu, runner_cpu.episodes.terminated, runner_gpu.episodes.terminated);
-            rlt::copy(device_cpu, device_gpu, runner_cpu.episodes.truncated, runner_gpu.episodes.truncated);
-            rlt::copy(device_cpu, device_gpu, runner_cpu.episodes.reset, runner_gpu.episodes.reset);
-            rlt::copy(device_cpu, device_gpu, runner_cpu.episodes.forced, runner_gpu.episodes.forced);
-            rlt::copy(device_cpu, device_gpu, runner_cpu.episodes.episode_return, runner_gpu.episodes.episode_return);
-            rlt::copy(device_cpu, device_gpu, runner_cpu.episodes.end_reason, runner_gpu.episodes.end_reason);
-            rlt::copy(device_cpu, device_gpu, runner_cpu.episodes.finished, runner_gpu.episodes.finished);
-            rlt::copy(device_cpu, device_gpu, runner_cpu.episodes.finished_length, runner_gpu.episodes.finished_length);
-            rlt::copy(device_cpu, device_gpu, runner_cpu.episodes.finished_return, runner_gpu.episodes.finished_return);
-            rlt::copy(device_cpu, device_gpu, runner_cpu.episodes.finished_reason, runner_gpu.episodes.finished_reason);
+            rlt::copy(device_cpu, device_gpu, runner_cpu.episode_step, runner_gpu.episode_step);
+            rlt::copy(device_cpu, device_gpu, runner_cpu.terminated, runner_gpu.terminated);
+            rlt::copy(device_cpu, device_gpu, runner_cpu.truncated, runner_gpu.truncated);
+            rlt::copy(device_cpu, device_gpu, runner_cpu.reset, runner_gpu.reset);
+            rlt::copy(device_cpu, device_gpu, runner_cpu.forced, runner_gpu.forced);
+            rlt::copy(device_cpu, device_gpu, runner_cpu.episode_return, runner_gpu.episode_return);
+            rlt::copy(device_cpu, device_gpu, runner_cpu.end_reason, runner_gpu.end_reason);
+            rlt::copy(device_cpu, device_gpu, runner_cpu.finished, runner_gpu.finished);
+            rlt::copy(device_cpu, device_gpu, runner_cpu.finished_length, runner_gpu.finished_length);
+            rlt::copy(device_cpu, device_gpu, runner_cpu.finished_return, runner_gpu.finished_return);
+            rlt::copy(device_cpu, device_gpu, runner_cpu.finished_reason, runner_gpu.finished_reason);
             rlt::copy(device_cpu, device_gpu, runner_cpu.states, runner_gpu.states);
             rlt::copy(device_cpu, device_gpu, environment_cpu.environments, environment_gpu.environments);
             rlt::copy(device_cpu, device_gpu, runner_cpu.env_parameters, runner_gpu.env_parameters);
             rlt::copy(device_cpu, device_gpu, runner_cpu.policy_state, runner_gpu.policy_state);
-            runner_gpu.episodes.step_limit = runner_cpu.episodes.step_limit;
+            runner_gpu.episode_step_limit = runner_cpu.episode_step_limit;
             runner_gpu.step = runner_cpu.step;
             cudaDeviceSynchronize();
         }

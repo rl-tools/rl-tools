@@ -36,13 +36,13 @@ namespace rl_tools{
 #endif
         using TI = typename SPEC::TI;
         if constexpr(SPEC::TRUNCATE_ON_EACH_ITERATION){
-            force_reset(device, runner.episodes);
+            force_reset(device, runner);
             rl::components::on_policy_runner::reset(device, runner, environment, rng);
         }
         rl::components::on_policy_runner::prologue(device, dataset, runner, environment, rng);
         for(TI step_i = 0; step_i < DATASET_SPEC::STEPS_PER_ENV; step_i++){
-            Mode<mode::sequential::ResetMask<mode::Default<>, mode::sequential::ResetMaskSpecification<decltype(runner.episodes.reset)>>> mode_reset_mask;
-            mode_reset_mask.mask = runner.episodes.reset;
+            Mode<mode::sequential::ResetMask<mode::Default<>, mode::sequential::ResetMaskSpecification<decltype(runner.reset)>>> mode_reset_mask;
+            mode_reset_mask.mask = runner.reset;
             reset(device, actor, runner.policy_state, rng, mode_reset_mask);
 
             auto observations = view_range(device, dataset.all_observations, step_i * SPEC::N_ENVIRONMENTS, tensor::ViewSpec<0, SPEC::N_ENVIRONMENTS>{});

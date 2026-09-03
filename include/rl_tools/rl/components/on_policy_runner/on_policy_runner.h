@@ -5,12 +5,18 @@
 
 #include "../../../utils/generic/typing.h"
 #include "../../../rl/environments/observation.h"
-
-#include "../episodes/episodes.h"
+#include "../../../containers/tensor/tensor.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::components{
     namespace on_policy_runner{
+        enum class EpisodeEndReason: unsigned char {
+            NONE = 0,
+            TERMINATED = 1,
+            TIME_LIMIT = 2,
+            FORCED = 3
+        };
+
         template <typename T_BATCH_ENVIRONMENT, typename = void>
         struct LogicalEnvironment{
             using TYPE = T_BATCH_ENVIRONMENT;
@@ -20,7 +26,7 @@ namespace rl_tools::rl::components{
             using TYPE = typename T_BATCH_ENVIRONMENT::ENVIRONMENT;
         };
 
-        template <typename T_TYPE_POLICY, typename T_BATCH_ENVIRONMENT, typename T_POLICY_STATE, typename T_EPISODES_SPEC = void, typename T_OBSERVATION = typename T_BATCH_ENVIRONMENT::Observation, typename T_OBSERVATION_PRIVILEGED = typename T_BATCH_ENVIRONMENT::ObservationPrivileged, typename T_OBSERVATION_T = typename T_TYPE_POLICY::DEFAULT, typename T_OBSERVATION_PRIVILEGED_T = typename T_TYPE_POLICY::DEFAULT, bool T_TRUNCATE_ON_EACH_ITERATION = false, bool T_DYNAMIC_ALLOCATION = true>
+        template <typename T_TYPE_POLICY, typename T_BATCH_ENVIRONMENT, typename T_POLICY_STATE, typename T_OBSERVATION = typename T_BATCH_ENVIRONMENT::Observation, typename T_OBSERVATION_PRIVILEGED = typename T_BATCH_ENVIRONMENT::ObservationPrivileged, typename T_OBSERVATION_T = typename T_TYPE_POLICY::DEFAULT, typename T_OBSERVATION_PRIVILEGED_T = typename T_TYPE_POLICY::DEFAULT, typename T_BATCH_ENVIRONMENT::TI T_STEP_LIMIT = T_BATCH_ENVIRONMENT::EPISODE_STEP_LIMIT, bool T_SYNCHRONIZED = false, bool T_TRUNCATE_ON_EACH_ITERATION = false, bool T_DYNAMIC_ALLOCATION = true>
         struct Specification{
             using TYPE_POLICY = T_TYPE_POLICY;
             using T = typename TYPE_POLICY::DEFAULT;
@@ -28,22 +34,49 @@ namespace rl_tools::rl::components{
             using ENVIRONMENT = typename LogicalEnvironment<BATCH_ENVIRONMENT>::TYPE;
             using TI = typename BATCH_ENVIRONMENT::TI;
             using POLICY_STATE = T_POLICY_STATE;
-            using EPISODES_SPEC = utils::typing::conditional_t<utils::typing::is_same_v<T_EPISODES_SPEC, void>, episodes::Specification<BATCH_ENVIRONMENT, T_DYNAMIC_ALLOCATION>, T_EPISODES_SPEC>;
             using OBSERVATION = T_OBSERVATION;
             using OBSERVATION_PRIVILEGED = T_OBSERVATION_PRIVILEGED;
             using OBSERVATION_T = T_OBSERVATION_T;
             using OBSERVATION_PRIVILEGED_T = T_OBSERVATION_PRIVILEGED_T;
             static constexpr TI N_ENVIRONMENTS = BATCH_ENVIRONMENT::INSTANCES;
-            static constexpr TI STEP_LIMIT = EPISODES_SPEC::STEP_LIMIT;
+            static constexpr TI STEP_LIMIT = T_STEP_LIMIT;
+            static constexpr bool SYNCHRONIZED = T_SYNCHRONIZED;
             static constexpr bool ASYMMETRIC_OBSERVATIONS = !rl_tools::utils::typing::is_same_v<OBSERVATION, OBSERVATION_PRIVILEGED>;
             static constexpr TI N_AGENTS_PER_ENV = BATCH_ENVIRONMENT::N_AGENTS;
             static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
             static constexpr bool TRUNCATE_ON_EACH_ITERATION = T_TRUNCATE_ON_EACH_ITERATION;
             static_assert(BATCH_ENVIRONMENT::ACTION_DIM == ENVIRONMENT::ACTION_DIM, "the batch and logical environments must have the same action dimension");
             static_assert(BATCH_ENVIRONMENT::N_AGENTS == ENVIRONMENT::N_AGENTS, "the batch and logical environments must have the same number of agents");
-            static_assert(EPISODES_SPEC::INSTANCES == N_ENVIRONMENTS, "the episode bookkeeping must cover all environment instances");
-            static_assert(utils::typing::is_same_v<typename EPISODES_SPEC::ENVIRONMENT, BATCH_ENVIRONMENT>, "the episode bookkeeping and runner must use the same batch environment");
-            static_assert(EPISODES_SPEC::DYNAMIC_ALLOCATION == DYNAMIC_ALLOCATION, "the episode bookkeeping and runner must use the same allocation mode");
+        };
+
+        template <typename T_SPEC, typename T_SPEC::TI T_STEPS>
+        struct EpisodeLog {
+            using SPEC = T_SPEC;
+            using T = typename SPEC::BATCH_ENVIRONMENT::T;
+            using TI = typename SPEC::TI;
+            static constexpr TI STEPS = T_STEPS;
+            Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, STEPS, SPEC::N_ENVIRONMENTS>, SPEC::DYNAMIC_ALLOCATION>> finished;
+            Tensor<tensor::Specification<TI, TI, tensor::Shape<TI, STEPS, SPEC::N_ENVIRONMENTS>, SPEC::DYNAMIC_ALLOCATION>> finished_length;
+            Tensor<tensor::Specification<T, TI, tensor::Shape<TI, STEPS, SPEC::N_ENVIRONMENTS>, SPEC::DYNAMIC_ALLOCATION>> finished_return;
+            Tensor<tensor::Specification<EpisodeEndReason, TI, tensor::Shape<TI, STEPS, SPEC::N_ENVIRONMENTS>, SPEC::DYNAMIC_ALLOCATION>> finished_reason;
+        };
+
+        template <typename T_T, typename T_TI>
+        struct EpisodeStatistics {
+            using T = T_T;
+            using TI = T_TI;
+            TI finished = 0;
+            TI terminated = 0;
+            TI time_limit = 0;
+            TI forced = 0;
+            TI in_progress = 0;
+            T length_sum = 0;
+            T return_sum = 0;
+            T in_progress_length_sum = 0;
+            T mean_length = 0;
+            T mean_return = 0;
+            T terminated_share = 0;
+            T mean_in_progress_length = 0;
         };
 
         template <typename T_SPEC, typename T_SPEC::TI T_STEPS_PER_ENV, bool T_DYNAMIC_ALLOCATION = true>
@@ -117,14 +150,29 @@ namespace rl_tools::rl::components{
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using BATCH_ENVIRONMENT = typename SPEC::BATCH_ENVIRONMENT;
-        using EPISODES = episodes::Episodes<typename SPEC::EPISODES_SPEC>;
+        using EPISODE_T = typename BATCH_ENVIRONMENT::T;
+        using FLAG_SPEC = tensor::Specification<bool, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>, SPEC::DYNAMIC_ALLOCATION>;
+        using COUNTER_SPEC = tensor::Specification<TI, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>, SPEC::DYNAMIC_ALLOCATION>;
+        using VALUE_SPEC = tensor::Specification<EPISODE_T, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>, SPEC::DYNAMIC_ALLOCATION>;
+        using REASON_SPEC = tensor::Specification<on_policy_runner::EpisodeEndReason, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>, SPEC::DYNAMIC_ALLOCATION>;
 
         TI step = 0;
 
         typename SPEC::POLICY_STATE policy_state;
         Tensor<tensor::Specification<typename BATCH_ENVIRONMENT::Parameters, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>, SPEC::DYNAMIC_ALLOCATION>> env_parameters;
         Tensor<tensor::Specification<typename BATCH_ENVIRONMENT::State, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>, SPEC::DYNAMIC_ALLOCATION>> states;
-        EPISODES episodes;
+        Tensor<COUNTER_SPEC> episode_step;
+        Tensor<FLAG_SPEC> terminated;
+        Tensor<FLAG_SPEC> truncated;
+        Tensor<FLAG_SPEC> reset;
+        Tensor<FLAG_SPEC> forced;
+        Tensor<VALUE_SPEC> episode_return;
+        Tensor<REASON_SPEC> end_reason;
+        Tensor<FLAG_SPEC> finished;
+        Tensor<COUNTER_SPEC> finished_length;
+        Tensor<VALUE_SPEC> finished_return;
+        Tensor<REASON_SPEC> finished_reason;
+        TI episode_step_limit = SPEC::STEP_LIMIT;
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT
         bool initialized = false;
 #endif

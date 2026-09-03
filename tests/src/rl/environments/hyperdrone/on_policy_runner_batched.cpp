@@ -4,7 +4,6 @@
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/rl/environments/hyperdrone/operations_cpu.h>
-#include <rl_tools/rl/components/episodes/operations_cpu.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
 
 #include "../../../utils/utils.h"
@@ -17,7 +16,6 @@
 
 namespace rlt = rl_tools;
 namespace l2f = rlt::rl::environments::l2f;
-namespace episodes = rlt::rl::components::episodes;
 namespace on_policy_runner = rlt::rl::components::on_policy_runner;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
@@ -84,7 +82,6 @@ namespace test_hyperdrone_on_policy_runner_batched {
     constexpr TI OBSERVATION_DIM = ENVIRONMENT::Observation::DIM;
     constexpr TI OBSERVATION_PRIVILEGED_DIM = ENVIRONMENT::ObservationPrivileged::DIM;
     static_assert(OBSERVATION_DIM != OBSERVATION_PRIVILEGED_DIM, "the fixture exercises asymmetric observations (frames for the actor, dynamics for the critic)");
-    struct EPISODES_SPEC: episodes::Specification<ENVIRONMENT> {};
 
     constexpr TI STEPS = 7;
     constexpr TI STEP_LIMIT = 3;
@@ -99,12 +96,12 @@ namespace test_hyperdrone_on_policy_runner_batched {
     using ACTOR_BUFFERS = typename ACTOR::template Buffer<>;
     using POLICY_STATE = typename ACTOR::template State<>;
 
-    using RUNNER_SPEC = on_policy_runner::Specification<TYPE_POLICY, ENVIRONMENT, POLICY_STATE, EPISODES_SPEC>;
+    using RUNNER_SPEC = on_policy_runner::Specification<TYPE_POLICY, ENVIRONMENT, POLICY_STATE>;
     using RUNNER = rlt::rl::components::OnPolicyRunner<RUNNER_SPEC>;
     using RUNNER_BUFFER = on_policy_runner::Buffer<RUNNER_SPEC>;
     using DATASET_SPEC = on_policy_runner::DatasetSpecification<RUNNER_SPEC, STEPS>;
     using DATASET = on_policy_runner::Dataset<DATASET_SPEC>;
-    using LOG = episodes::Log<EPISODES_SPEC, STEPS>;
+    using LOG = on_policy_runner::EpisodeLog<RUNNER_SPEC, STEPS>;
 }
 
 using namespace test_hyperdrone_on_policy_runner_batched;
@@ -165,7 +162,7 @@ struct Rollout {
             env.environments[environment_i].history_step = 0;
         }
         rlt::init(device, runner, env, rng);
-        runner.episodes.step_limit = STEP_LIMIT;
+        runner.episode_step_limit = STEP_LIMIT;
     }
     ~Rollout(){
         rlt::free(device, actor);
@@ -196,7 +193,7 @@ TEST_F(Fixture, PHASES){
             }
         }
         on_policy_runner::epilogue(device, dataset, runner, rollout.runner_buffer, *env, rollout.rng, step_i);
-        rlt::record(device, rollout.log, runner.episodes, step_i);
+        rlt::record(device, rollout.log, runner, step_i);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
             const TI pos = step_i * INSTANCES + instance_i;
             const T truncated = rlt::get(dataset.truncated, pos, 0);
@@ -204,9 +201,9 @@ TEST_F(Fixture, PHASES){
             ASSERT_TRUE(truncated == (T)0 || truncated == (T)1);
             ASSERT_LE(terminated, truncated) << "terminated implies truncated";
             ASSERT_EQ(rlt::get(dataset.all_reset, pos + INSTANCES, 0), truncated) << "the reset of the next row is the truncation of this one";
-            ASSERT_EQ(rlt::get(device, runner.episodes.reset, instance_i) ? (T)1 : (T)0, truncated) << "the epilogue applies the reset immediately";
-            ASSERT_EQ(rlt::get(device, runner.episodes.episode_step, instance_i) == 0, truncated == (T)1) << "a reset instance starts a fresh episode";
-            ASSERT_LT(rlt::get(device, runner.episodes.episode_step, instance_i), STEP_LIMIT) << "the time limit truncates in time";
+            ASSERT_EQ(rlt::get(device, runner.reset, instance_i) ? (T)1 : (T)0, truncated) << "the epilogue applies the reset immediately";
+            ASSERT_EQ(rlt::get(device, runner.episode_step, instance_i) == 0, truncated == (T)1) << "a reset instance starts a fresh episode";
+            ASSERT_LT(rlt::get(device, runner.episode_step, instance_i), STEP_LIMIT) << "the time limit truncates in time";
         }
     }
     T action_deviation = 0;
@@ -241,8 +238,8 @@ TEST_F(Fixture, PHASES){
     rlt::free(device, observations);
     rlt::free(device, observations_privileged);
 
-    episodes::Statistics<T, TI> statistics;
-    rlt::summarize(device, rollout.log, runner.episodes, statistics);
+    on_policy_runner::EpisodeStatistics<T, TI> statistics;
+    rlt::summarize(device, rollout.log, runner, statistics);
     EXPECT_GE(statistics.finished, 2 * INSTANCES) << "with a limit of 3 every instance finishes at least twice in 7 steps";
     EXPECT_EQ(statistics.time_limit + statistics.terminated, statistics.finished);
     EXPECT_LE(statistics.mean_length, (T)STEP_LIMIT);
@@ -268,6 +265,6 @@ TEST_F(Fixture, COLLECT_DETERMINISM){
     EXPECT_EQ(rlt::abs_diff(device, rollout_a.dataset.truncated, rollout_b.dataset.truncated), (T)0);
     EXPECT_EQ(rlt::abs_diff(device, rollout_a.dataset.all_reset, rollout_b.dataset.all_reset), (T)0);
     for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-        EXPECT_EQ(rlt::get(rollout_a.dataset.reset, instance_i, 0), rlt::get(device, rollout_a.runner.episodes.reset, instance_i) ? (T)1 : (T)0) << "consecutive rollouts chain: the second rollout's first reset column is the state the first one left";
+        EXPECT_EQ(rlt::get(rollout_a.dataset.reset, instance_i, 0), rlt::get(device, rollout_a.runner.reset, instance_i) ? (T)1 : (T)0) << "consecutive rollouts chain: the second rollout's first reset column is the state the first one left";
     }
 }
