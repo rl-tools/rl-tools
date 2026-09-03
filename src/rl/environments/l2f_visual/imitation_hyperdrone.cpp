@@ -44,9 +44,11 @@
 #ifdef RL_TOOLS_L2F_VISUAL_IMITATION_HYPERDRONE_COMPUTE_CUDA
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cuda.h>
 #endif
-#include <rl_tools/rl/environments/hyperdrone/episodes/operations_cpu.h>
+#include <rl_tools/rl/components/episodes/operations_cpu.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
 #ifdef RL_TOOLS_L2F_VISUAL_IMITATION_HYPERDRONE_COMPUTE_CUDA
-#include <rl_tools/rl/environments/hyperdrone/episodes/operations_cuda.h>
+#include <rl_tools/rl/components/episodes/operations_cuda.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_cuda.h>
 #endif
 #include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
 
@@ -325,10 +327,11 @@ static constexpr bool RENDER_MOTION_BLUR_ACTIVE = BASE_WORLD::RENDERER_SPEC::ENA
 static constexpr bool RENDER_ANTI_ALIASING_ACTIVE = BASE_WORLD::RENDERER_SPEC::ENABLE_ANTI_ALIASING;
 static_assert(TASK_WORLD::INSTANCES == N_ENVIRONMENTS_PER_SCENE);
 static_assert(MULTI_ENVIRONMENT::INSTANCES == N_ENVIRONMENTS);
-struct EPISODES_SPEC: rlt::rl::environments::hyperdrone::episodes::Specification<MULTI_ENVIRONMENT>{};
-using EPISODES = rlt::rl::environments::hyperdrone::episodes::Episodes<EPISODES_SPEC>;
-using EPISODE_LOG = rlt::rl::environments::hyperdrone::episodes::Log<EPISODES_SPEC, STEPS_PER_ENV>;
-using EPISODE_STATISTICS = rlt::rl::environments::hyperdrone::episodes::Statistics<T, TI>;
+struct EPISODES_SPEC: rlt::rl::components::episodes::Specification<MULTI_ENVIRONMENT>{};
+using EPISODES = rlt::rl::components::episodes::Episodes<EPISODES_SPEC>;
+// row 0: the epoch's initial reset, row t + 1: the resets applied after step t
+using EPISODE_LOG = rlt::rl::components::episodes::Log<EPISODES_SPEC, STEPS_PER_ENV + 1>;
+using EPISODE_STATISTICS = rlt::rl::components::episodes::Statistics<T, TI>;
 static_assert(EPISODES_SPEC::STEP_LIMIT == EPISODE_STEP_LIMIT);
 
 static constexpr TI OBSERVATION_DIM = BASE_WORLD::OBSERVATION_DIM;
@@ -447,6 +450,13 @@ using CPU_STUDENT_INIT_TYPE = typename StudentActor<CAPABILITY_ADAM, TEACHER_TYP
 using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI, ADAM_PARAMETERS, true>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 using ROLLOUT_STUDENT_TYPE = typename STUDENT_TYPE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<true>>::template CHANGE_BATCH_SIZE<TI, N_ENVIRONMENTS>;
+// the batched on-policy runner collects the composed observations (student input, activation
+// precision) and the teacher's privileged observations per row; the teacher's recurrent state is
+// the rollout policy state (reset from the runner's episode bookkeeping)
+using RUNNER_SPEC = rlt::rl::components::on_policy_runner::BatchedSpecification<TYPE_POLICY, TI, MULTI_ENVIRONMENT, typename RAPTOR_MODEL::State<true>, EPISODES_SPEC, typename TASK_WORLD::Observation, RAPTOR_OBSERVATION_TYPE, T_ACTIVATION, T>;
+using RUNNER = rlt::rl::components::OnPolicyRunnerBatched<RUNNER_SPEC>;
+using DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<RUNNER_SPEC, STEPS_PER_ENV>;
+using DATASET = rlt::rl::components::on_policy_runner::Dataset<DATASET_SPEC>;
 
 // =========================================================================
 // Trajectory recording for the extrack UI
@@ -667,10 +677,11 @@ int main(int argc, char** argv){
 
     RAPTOR_MODEL raptor_compute;
     typename RAPTOR_MODEL::Buffer<true> raptor_buffer_compute;
-    typename RAPTOR_MODEL::State<true> raptor_state_compute;
+    RUNNER runner;
+    rlt::malloc(device_compute, runner);
+    auto& raptor_state_compute = runner.policy_state;
     rlt::malloc(device_compute, raptor_compute);
     rlt::malloc(device_compute, raptor_buffer_compute);
-    rlt::malloc(device_compute, raptor_state_compute);
     rlt::copy(device, device_compute, raptor, raptor_compute);
     rlt::reset(device_compute, raptor_compute, raptor_state_compute, rng_compute);
 
@@ -731,24 +742,21 @@ int main(int argc, char** argv){
     // ---------------------------------------------------------------------
     // Per-instance data on the compute device
     // ---------------------------------------------------------------------
-    rlt::Tensor<rlt::tensor::Specification<typename ENVIRONMENT::Parameters, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS>>> parameters;
-    rlt::Tensor<rlt::tensor::Specification<typename ENVIRONMENT::State, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS>>> states, next_states;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, RAPTOR_OBS_DIM>>> teacher_observations;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, ACTION_DIM>>> teacher_actions, actions_step;
+    DATASET dataset;
+    auto& parameters = runner.env_parameters;
+    auto& states = runner.states;
+    auto& next_states = runner.next_states;
+    auto& actions_step = runner.actions;
+    auto& all_combined_observations = dataset.all_observations;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, ACTION_DIM>>> teacher_actions;
     rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, TARGET_DIM>>> student_output_step;
-    rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, STEPS_TOTAL, COMBINED_OBS_DIM>>> all_combined_observations;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, STEPS_TOTAL, STATE_OBS_DIM>>> all_state_observations;
     rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, STEPS_TOTAL, TARGET_DIM>>> all_targets;
     rlt::Matrix<rlt::matrix::Specification<T_GRADIENT, TI, BATCH_SIZE, TARGET_DIM>> d_action_train;
     rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, 1, BATCH_SIZE, TARGET_DIM>>> student_output_train;
-    rlt::malloc(device_compute, parameters);
-    rlt::malloc(device_compute, states);
-    rlt::malloc(device_compute, next_states);
-    rlt::malloc(device_compute, teacher_observations);
     rlt::malloc(device_compute, teacher_actions);
-    rlt::malloc(device_compute, actions_step);
     rlt::malloc(device_compute, student_output_step);
-    rlt::malloc(device_compute, all_combined_observations);
+    rlt::malloc(device_compute, dataset);
     rlt::malloc(device_compute, all_state_observations);
     rlt::malloc(device_compute, all_targets);
     rlt::malloc(device_compute, d_action_train);
@@ -774,13 +782,12 @@ int main(int argc, char** argv){
     rlt::malloc(device, targets_batch_host);
     // episode bookkeeping on the compute device (host mirrors for the per-epoch summary); the
     // teacher's recurrent state resets from the same mask
-    EPISODES episodes, episodes_host;
+    EPISODES episodes_host;
+    auto& episodes = runner.episodes;
     EPISODE_LOG episode_log, episode_log_host;
-    rlt::malloc(device_compute, episodes);
     rlt::malloc(device_compute, episode_log);
     rlt::malloc(device, episodes_host);
     rlt::malloc(device, episode_log_host);
-    rlt::init(device_compute, episodes);
     rlt::init(device_compute, episode_log);
     rlt::Mode<rlt::mode::sequential::ResetMask<rlt::mode::Default<>, rlt::mode::sequential::ResetMaskSpecification<decltype(episodes.reset)>>> mode_reset_mask;
     mode_reset_mask.mask = episodes.reset;
@@ -845,7 +852,7 @@ int main(int argc, char** argv){
         }
         // epoch boundary: every instance restarts and the episodes cut by the boundary are
         // discarded (they were counted in the previous epoch's in-progress statistics)
-        rlt::init(device_compute, episodes);
+        rlt::init(device_compute, runner, env, rng_compute);
         bool record_video = (epoch_i % CHECKPOINT_CADENCE == 0);
         bool record_trajectories = (epoch_i % CHECKPOINT_CADENCE == 0);
         if(record_trajectories){
@@ -876,9 +883,12 @@ int main(int argc, char** argv){
         // =================================================================
         // Data collection
         // =================================================================
+        // row 0 (composed observation + teacher input) is observed by the runner's prologue, the
+        // rows t + 1 by its epilogue; the log's row 0 mirrors the epoch's initial reset
+        rlt::rl::components::on_policy_runner::prologue(device_compute, dataset, runner, env, rng_compute);
+        rlt::record(device_compute, episode_log, episodes, 0);
         for(TI step_i = 0; step_i < STEPS_PER_ENV; step_i++){
-            // 1. episode bookkeeping: reset decisions, sampling for the due instances, teacher state
-            rlt::begin_step(device_compute, env, episodes, parameters, states, episode_log, step_i, rng_compute);
+            // 1. the reset applied for this row (epoch start or the previous epilogue): teacher state
             rlt::reset(device_compute, raptor_compute, raptor_state_compute, rng_compute, mode_reset_mask);
             if(record_trajectories){
                 rlt::copy(device_compute, device, episodes.reset, reset_mask_host);
@@ -887,23 +897,19 @@ int main(int argc, char** argv){
                 rlt::copy(device_compute, device, parameters_trajectory_view, parameters_trajectory_host);
             }
 
-            // 2. dynamics-side observations: teacher input and the student's state branch
+            // 2. the student's state branch and this row's runner observations
             auto state_observations_step = rlt::view_range(device_compute, all_state_observations, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
-            rlt::observe(device_compute, env, parameters, states, RAPTOR_OBSERVATION_TYPE{}, teacher_observations, rng_compute);
             rlt::observe(device_compute, env, parameters, states, ACTOR_STATE_OBS{}, state_observations_step, rng_compute);
-
-            // 3. render (reset-conditional target pass + student frame) and the composed observation
             auto combined_observations_step = rlt::view_range(device_compute, all_combined_observations, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
-            rlt::render(device_compute, env, parameters, states, episodes.reset);
-            rlt::observe(device_compute, env, parameters, states, typename TASK_WORLD::Observation{}, combined_observations_step, rng_compute);
+            auto teacher_observations = rlt::view_range(device_compute, dataset.all_observations_privileged, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
             if constexpr(BLIND_TRAINING){
                 rlt::set_all(device_compute, combined_observations_step, (T_ACTIVATION)0);
             }
 
-            // 4. teacher
+            // 3. teacher
             rlt::evaluate_step(device_compute, raptor_compute, teacher_observations, raptor_state_compute, teacher_actions, raptor_buffer_compute, rng_compute, no_auto_reset_mode);
 
-            // 5. video mosaic: (target | actual) per instance
+            // 4. video mosaic: (target | actual) per instance
             if(record_video && ffmpeg_pipe){
                 synchronize_compute(device_compute);
                 for(TI member_i = 0; member_i < NUMBER_OF_ENVIRONMENTS; member_i++){
@@ -942,7 +948,7 @@ int main(int argc, char** argv){
                 fwrite(mosaic_frame.data(), 1, mosaic_frame.size(), ffmpeg_pipe);
             }
 
-            // 6. student
+            // 5. student
             {
                 auto state_observations_reshaped = rlt::reshape_row_major(device_compute, state_observations_step, rlt::tensor::Shape<TI, 1, N_ENVIRONMENTS, STATE_OBS_DIM>{});
                 using ROLLOUT_IMG_SHAPE = rlt::tensor::Shape<TI, 1, N_ENVIRONMENTS, IMG_H, IMG_W, COMBINED_IMG_C>;
@@ -951,7 +957,7 @@ int main(int argc, char** argv){
                 rlt::evaluate(device_compute, rollout_student, inputs, student_output_step, rollout_student_buffers, rng_compute);
             }
 
-            // 7. labels and the action applied to the simulation
+            // 6. labels and the action applied to the simulation
             auto targets_step = rlt::view_range(device_compute, all_targets, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
             if constexpr(STATE_ESTIMATION_MODE){
                 if(!record_trajectories){
@@ -971,10 +977,9 @@ int main(int argc, char** argv){
                 rlt::copy(device_compute, device_compute, student_output_step, actions_step);
             }
 
-            // 8. environment step and episode bookkeeping
-            rlt::step(device_compute, env, parameters, states, actions_step, next_states, rng_compute);
-            rlt::copy(device_compute, device_compute, next_states, states);
-            rlt::end_step(device_compute, env, episodes, parameters, states, rng_compute);
+            // 7. environment step and episode bookkeeping (the runner: step, reward, autoreset, render, next row)
+            rlt::rl::components::on_policy_runner::epilogue(device_compute, dataset, runner, env, rng_compute, step_i);
+            rlt::record(device_compute, episode_log, episodes, step_i + 1);
             if(record_trajectories){
                 rlt::copy(device_compute, device, episodes.terminated, terminated_host);
                 auto actions_trajectory_view = rlt::view_range(device_compute, actions_step, (TI)0, rlt::tensor::ViewSpec<0, TRAJECTORY_NUM_ENVS>{});
@@ -1402,8 +1407,9 @@ int main(int argc, char** argv){
     rlt::free(device, terminated_host);
     rlt::free(device, episodes_host);
     rlt::free(device, episode_log_host);
-    rlt::free(device_compute, episodes);
     rlt::free(device_compute, episode_log);
+    rlt::free(device_compute, runner);
+    rlt::free(device_compute, dataset);
     rlt::free(device, states_host);
     rlt::free(device, parameters_trajectory_host);
     rlt::free(device, actions_trajectory_host);
@@ -1414,20 +1420,13 @@ int main(int argc, char** argv){
     rlt::free(device_compute, rng_compute);
     rlt::free(device_compute, raptor_compute);
     rlt::free(device_compute, raptor_buffer_compute);
-    rlt::free(device_compute, raptor_state_compute);
     rlt::free(device_compute, student);
     rlt::free(device_compute, student_buffers);
     rlt::free(device_compute, optimizer);
     rlt::free(device_compute, rollout_student);
     rlt::free(device_compute, rollout_student_buffers);
-    rlt::free(device_compute, parameters);
-    rlt::free(device_compute, states);
-    rlt::free(device_compute, next_states);
-    rlt::free(device_compute, teacher_observations);
     rlt::free(device_compute, teacher_actions);
-    rlt::free(device_compute, actions_step);
     rlt::free(device_compute, student_output_step);
-    rlt::free(device_compute, all_combined_observations);
     rlt::free(device_compute, all_state_observations);
     rlt::free(device_compute, all_targets);
     rlt::free(device_compute, d_action_train);

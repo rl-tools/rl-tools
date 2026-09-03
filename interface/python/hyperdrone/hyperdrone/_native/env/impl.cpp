@@ -1,6 +1,6 @@
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/operations_cpu.h>
-#include <rl_tools/rl/environments/hyperdrone/episodes/operations_cpu.h>
+#include <rl_tools/rl/components/episodes/operations_cpu.h>
 #if defined(HYPERDRONE_ENV_TASK) && HYPERDRONE_ENV_TASK == 1
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cpu.h>
 #endif
@@ -155,10 +155,10 @@ namespace hyperdrone_env_impl {
     struct HasAutopilot { static constexpr bool VALUE = false; };
     template <typename WORLD_TYPE>
     struct HasAutopilot<WORLD_TYPE, rlt::utils::typing::void_t<typename WORLD_TYPE::AUTOPILOT>> { static constexpr bool VALUE = true; };
-    struct EPISODES_SPEC: rlt::rl::environments::hyperdrone::episodes::Specification<ENV> {
+    struct EPISODES_SPEC: rlt::rl::components::episodes::Specification<ENV> {
         static constexpr bool SYNCHRONIZED = HasAutopilot<WORLD>::VALUE;
     };
-    using EPISODES = rlt::rl::environments::hyperdrone::episodes::Episodes<EPISODES_SPEC>;
+    using EPISODES = rlt::rl::components::episodes::Episodes<EPISODES_SPEC>;
 
     struct EnvImpl {
         DEVICE device;
