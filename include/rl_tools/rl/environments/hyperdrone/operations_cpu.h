@@ -33,6 +33,37 @@ namespace rl_tools {
             static_assert(get<0>(typename STATE_SPEC::SHAPE{}) == WORLD::INSTANCES);
             return true;
         }
+        template <typename DEVICE, typename WORLD, typename RESET_SPEC>
+        void request_render(DEVICE& device, WORLD& world, const Tensor<RESET_SPEC>& reset_mask){
+            if constexpr(DEVICE::DEVICE_ID == devices::DeviceId::CUDA){
+                copy(device, world.renderer.device, reset_mask, world.render_reset);
+            }
+            else{
+                copy(device, device, reset_mask, world.render_reset_host);
+            }
+            world.render_pending = true;
+        }
+
+        template <typename DEVICE, typename WORLD>
+        void request_render(DEVICE& device, WORLD& world){
+            if constexpr(DEVICE::DEVICE_ID == devices::DeviceId::CUDA){
+                set_all(device, world.render_reset, false);
+            }
+            else{
+                set_all(device, world.render_reset_host, false);
+            }
+            world.render_pending = true;
+        }
+
+        template <typename DEVICE, typename WORLD>
+        auto& render_reset(DEVICE&, WORLD& world){
+            if constexpr(DEVICE::DEVICE_ID == devices::DeviceId::CUDA){
+                return world.render_reset;
+            }
+            else{
+                return world.render_reset_host;
+            }
+        }
     }
 
     template <typename DEVICE, typename SPEC>
@@ -121,11 +152,16 @@ namespace rl_tools {
         malloc(world.renderer.device, world.history);
         malloc(world.renderer.device, world.prev_cameras);
         malloc(world.renderer.device, world.episode_start);
+        malloc(world.renderer.device, world.render_reset);
+        malloc(device, world.render_reset_host);
         malloc(world.renderer.device, world.active_annotations);
         malloc(device, world.camera_staging_close);
         malloc(device, world.camera_staging_previous);
         malloc(device, world.camera_staging_open);
         set_all(world.renderer.device, world.episode_start, (TI)0);
+        set_all(world.renderer.device, world.render_reset, false);
+        set_all(device, world.render_reset_host, false);
+        world.render_pending = false;
         if constexpr (SPEC::SELF_VISIBLE) {
             malloc(world.renderer.device, world.drone_pose_staging);
         }
@@ -145,6 +181,8 @@ namespace rl_tools {
             free(world.renderer.device, world.history);
             free(world.renderer.device, world.prev_cameras);
             free(world.renderer.device, world.episode_start);
+            free(world.renderer.device, world.render_reset);
+            free(device, world.render_reset_host);
             free(world.renderer.device, world.active_annotations);
             free(device, world.camera_staging_close);
             free(device, world.camera_staging_previous);
@@ -167,6 +205,7 @@ namespace rl_tools {
         Tensor<typename WORLD::ACTIVE_ANNOTATIONS_SPEC> annotations_alias;
         annotations_alias._data = &world.slots[world.active_slot].annotations;
         copy(device, world.renderer.device, annotations_alias, world.active_annotations);
+        rl::environments::hyperdrone::request_render(device, world);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -353,6 +392,7 @@ namespace rl_tools {
                 sample_initial_state(device, world, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), rng);
             }
         }
+        rl::environments::hyperdrone::request_render(device, world, reset_mask);
     }
     template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename NEXT_STATE_SPEC, typename RNG, typename utils::typing::enable_if<DEVICE::DEVICE_ID != devices::DeviceId::CUDA, bool>::type = true>
     void step(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<ACTION_SPEC>& actions, Tensor<NEXT_STATE_SPEC>& next_states, RNG& rng) {
@@ -367,6 +407,7 @@ namespace rl_tools {
             }
             step(device, world, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), action_matrix, get_ref(device, next_states, instance_i), rng);
         }
+        rl::environments::hyperdrone::request_render(device, world);
     }
     template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename NEXT_STATE_SPEC, typename REWARD_SPEC, typename RNG, typename utils::typing::enable_if<DEVICE::DEVICE_ID != devices::DeviceId::CUDA, bool>::type = true>
     void reward(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<ACTION_SPEC>& actions, Tensor<NEXT_STATE_SPEC>& next_states, Tensor<REWARD_SPEC>& rewards, RNG& rng) {
@@ -527,6 +568,7 @@ namespace rl_tools {
             copy(device, world.renderer.device, episode_start_alias, world.episode_start);
         }
         world.history_step++;
+        world.render_pending = false;
     }
 
     // the per-step visual observation is the latest rendered frame
@@ -538,7 +580,10 @@ namespace rl_tools {
         static_assert(rl::environments::hyperdrone::check_world_instance_tensors<WORLD, PARAMETER_SPEC, STATE_SPEC>());
         static_assert(get<0>(typename OBSERVATION_SPEC::SHAPE{}) == WORLD::INSTANCES);
         static_assert(get<1>(typename OBSERVATION_SPEC::SHAPE{}) == WORLD::OBSERVATION_DIM);
-        utils::assert_exit(device, world.history_step > 0, "hyperdrone::World::observe: render must be called before observe");
+        if(world.render_pending){
+            render(device, world, parameters, states, rl::environments::hyperdrone::render_reset(device, world));
+        }
+        utils::assert_exit(device, world.history_step > 0, "hyperdrone::World::observe: no frame available");
         const TI history_slot = (world.history_step - 1) % SPEC::HISTORY_LENGTH;
         std::vector<float> frame_staging(WORLD::INSTANCES * WORLD::N_VIEWS * WORLD::FRAME_DIM);
         auto history_row = view(world.renderer.device, world.history, history_slot);

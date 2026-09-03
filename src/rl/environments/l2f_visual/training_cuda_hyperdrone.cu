@@ -502,7 +502,7 @@ using ROLLOUT_ACTOR_TYPE = typename ACTOR_TYPE::template CHANGE_CAPABILITY<CAPAB
 using ROLLOUT_ACTOR_BUFFERS = typename ROLLOUT_ACTOR_TYPE::template Buffer<true>;
 using CHECKPOINT_ACTOR_TYPE = typename ACTOR_TYPE::template CHANGE_CAPABILITY<CAPABILITY_ROLLOUT>::template CHANGE_BATCH_SIZE<TI, N_EXAMPLES>;
 using ROLLOUT_POLICY_STATE = typename ROLLOUT_ACTOR_TYPE::template State<true>;
-using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, MULTI_ENVIRONMENT, ROLLOUT_POLICY_STATE, typename BASE_WORLD::Observation, typename BASE_WORLD::ObservationPrivileged, T, T, EPISODE_STEP_LIMIT, false, LOOP_CORE_PARAMETERS::PPO_PARAMETERS::TRUNCATE_ON_EACH_ITERATION, true>;
+using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, MULTI_ENVIRONMENT, ROLLOUT_POLICY_STATE, typename BASE_WORLD::Observation, typename BASE_WORLD::ObservationPrivileged, T, T, EPISODE_STEP_LIMIT, LOOP_CORE_PARAMETERS::PPO_PARAMETERS::TRUNCATE_ON_EACH_ITERATION, true>;
 using ON_POLICY_RUNNER = rlt::rl::components::OnPolicyRunner<ON_POLICY_RUNNER_SPEC>;
 using ON_POLICY_RUNNER_BUFFER = rlt::rl::components::on_policy_runner::Buffer<ON_POLICY_RUNNER_SPEC>;
 using ON_POLICY_RUNNER_DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, LOOP_CORE_PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV, true>;
@@ -526,8 +526,6 @@ static_assert(N_BATCHES > 0, "STEPS_TOTAL must be >= BATCH_SIZE");
 static_assert(N_EXAMPLES <= BATCH_SIZE, "N_EXAMPLES must fit the reusable combined-observation batch buffer");
 static_assert(N_EXAMPLES <= STEPS_TOTAL, "N_EXAMPLES must fit one PPO rollout dataset");
 
-// row 0: resets applied before the rollout (scene rotation); row t + 1: resets applied after step t
-using EPISODE_LOG = rlt::rl::components::on_policy_runner::EpisodeLog<ON_POLICY_RUNNER_SPEC, STEPS_PER_ENV + 1>;
 using EPISODE_END_REASON = rlt::rl::components::on_policy_runner::EpisodeEndReason;
 static_assert(ON_POLICY_RUNNER_SPEC::STEP_LIMIT == EPISODE_STEP_LIMIT);
 
@@ -744,8 +742,8 @@ int main(int argc, char** argv){
     // ---------------------------------------------------------------------
     // GPU-resident instance data (the environment's vectorized axis)
     // ---------------------------------------------------------------------
-    // the runner owns persistent rollout state and episode bookkeeping; its buffer owns transient
-    // next-state/action/reward storage, and the per-rollout log is mirrored to the host for statistics
+    // the runner owns persistent rollout state and episode accounting; its buffer owns transient
+    // next-state/action/reward storage, and the dataset owns per-rollout episode completions
     ON_POLICY_RUNNER gpu_runner;
     ON_POLICY_RUNNER_BUFFER gpu_runner_buffer;
     rlt::malloc(device_gpu, gpu_runner);
@@ -754,11 +752,6 @@ int main(int argc, char** argv){
     auto& gpu_env_states = gpu_runner.states;
     auto& gpu_step_rewards = gpu_runner_buffer.rewards;
     auto& gpu_step_actions = gpu_runner_buffer.actions;
-    EPISODE_LOG gpu_episode_log, cpu_episode_log;
-    rlt::malloc(device_gpu, gpu_episode_log);
-    rlt::malloc(device, cpu_episode_log);
-    rlt::init(device_gpu, gpu_episode_log);
-
     // ---------------------------------------------------------------------
     // Auxiliary GPU buffers for visual pipeline
     // ---------------------------------------------------------------------
@@ -878,26 +871,14 @@ int main(int argc, char** argv){
         bool scene_set_end = rollout_in_scene_set + 1 == ROLLOUTS_PER_SCENE_SET;
         bool save_extrack_step = scene_set_end && scene_set_i % CHECKPOINT_CADENCE_SCENE_SETS == 0;
         bool log_reward_components_this_step = ppo_step_i % REWARD_COMPONENT_LOG_INTERVAL_PPO_STEPS == 0;
-        // log row 0 holds the resets applied before the rollout (scene rotation), row t + 1 the
-        // resets the runner applies after step t; the dataset's step-0 reset column comes from the
-        // same mask through the runner's prologue
-        rlt::init(device_gpu, gpu_episode_log);
         if(scene_set_boundary){
             close_video_pipe();
-            // rotation forces a truncation-reset of all instances; everything downstream flows
-            // through the reset path (deterministic round-robin over each World's partition)
-            if(ppo_step_i > 0){
-                rlt::force_reset(device_gpu, gpu_runner);
-                cudaStreamSynchronize(device_gpu.stream);
-                rlt::check_status(device_gpu);
-            }
             rlt::rotate_scene(device, env);
             if(ppo_step_i == 0){
                 rlt::init(device_gpu, gpu_runner, env, rng_gpu);
             } else {
                 rlt::rl::components::on_policy_runner::reset(device_gpu, gpu_runner, env, rng_gpu);
             }
-            rlt::record(device_gpu, gpu_episode_log, gpu_runner, 0);
         }
 
         // =================================================================
@@ -932,8 +913,7 @@ int main(int argc, char** argv){
         // =================================================================
         T cam_aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
         TI frame_step_start = ppo_step_i * STEPS_PER_ENV;
-        // row 0: the current raw frames (rendered by the previous epilogue or the scene rotation)
-        // and privileged observations, plus the dataset's reset column
+        // row 0: the current raw frames and privileged observations, plus the dataset's reset column
         rlt::rl::components::on_policy_runner::prologue(device_gpu, dataset_gpu, gpu_runner, env, rng_gpu);
         for(TI step_i = 0; step_i < STEPS_PER_ENV; step_i++){
             TI frame_step_i = frame_step_start + step_i;
@@ -1017,7 +997,7 @@ int main(int argc, char** argv){
             }
 
             // 7. Gaussian action sampling into the dataset and the runner's step actions, then the
-            // runner's epilogue: step, reward, episode bookkeeping, autoreset, render, next row
+            // runner's epilogue: step, reward, episode accounting, autoreset, next row
             if(log_reward_components_this_step && step_i == STEPS_PER_ENV - 1){
                 cudaStreamSynchronize(device_gpu.stream);
                 cudaMemcpy(&reward_log_state, rlt::data(gpu_env_states), sizeof(typename TASK_WORLD::State), cudaMemcpyDeviceToHost);
@@ -1029,7 +1009,6 @@ int main(int argc, char** argv){
                 rlt::rl::components::on_policy_runner::sample_actions(device_gpu, dataset_gpu, log_std_gpu, gpu_step_actions, step_i, rng_gpu);
             }
             rlt::rl::components::on_policy_runner::epilogue(device_gpu, dataset_gpu, gpu_runner, gpu_runner_buffer, env, rng_gpu, step_i);
-            rlt::record(device_gpu, gpu_episode_log, gpu_runner, step_i + 1);
             if(log_reward_components_this_step && step_i == STEPS_PER_ENV - 1){
                 cudaStreamSynchronize(device_gpu.stream);
                 cudaMemcpy(&reward_log_next_state, rlt::data(gpu_runner_buffer.next_states), sizeof(typename TASK_WORLD::State), cudaMemcpyDeviceToHost);
@@ -1067,6 +1046,9 @@ int main(int argc, char** argv){
             auto cpu_obs_priv = rlt::matrix_view(device, dataset.all_observations_privileged);
             rlt::copy(device_gpu, device, gpu_obs_priv, cpu_obs_priv);
         }
+        rlt::copy(device_gpu, device, dataset_gpu.episode_end_reason, dataset.episode_end_reason);
+        rlt::copy(device_gpu, device, dataset_gpu.episode_length, dataset.episode_length);
+        rlt::copy(device_gpu, device, dataset_gpu.episode_return, dataset.episode_return);
         if(log_reward_components_this_step){
             static constexpr TI REWARD_LOG_POS = (STEPS_PER_ENV - 1) * N_ENVIRONMENTS;
             for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
@@ -1077,7 +1059,6 @@ int main(int argc, char** argv){
 
         // Episode statistics + log
         {
-            rlt::copy(device_gpu, device, gpu_episode_log, cpu_episode_log);
             T length_sum = 0;
             T length_sq_sum = 0;
             T length_sum_terminated = 0;
@@ -1111,16 +1092,16 @@ int main(int argc, char** argv){
                 }
                 const TI log_step_i = pos / N_ENVIRONMENTS;
                 const TI log_env_i = pos % N_ENVIRONMENTS;
-                T ep_len = (T)rlt::get(device, cpu_episode_log.finished_length, log_step_i, log_env_i);
-                if(rlt::get(device, cpu_episode_log.finished, log_step_i, log_env_i)){
+                EPISODE_END_REASON ep_reason = rlt::get(device, dataset.episode_end_reason, log_step_i, log_env_i);
+                if(ep_reason != EPISODE_END_REASON::NONE){
+                    T ep_len = (T)rlt::get(device, dataset.episode_length, log_step_i, log_env_i);
                     rlt::add_scalar(device, device.logger, "episode/length", ep_len, 100);
-                    T ep_return = rlt::get(device, cpu_episode_log.finished_return, log_step_i, log_env_i);
+                    T ep_return = rlt::get(device, dataset.episode_return, log_step_i, log_env_i);
                     rlt::add_scalar(device, device.logger, "episode/return", ep_return, 100);
                     length_sum += ep_len;
                     length_sq_sum += ep_len * ep_len;
                     return_sum += ep_return;
                     return_sq_sum += ep_return * ep_return;
-                    EPISODE_END_REASON ep_reason = rlt::get(device, cpu_episode_log.finished_reason, log_step_i, log_env_i);
                     if(ep_reason == EPISODE_END_REASON::TERMINATED){
                         episode_end_terminated_count++;
                         length_sum_terminated += ep_len;
@@ -1726,7 +1707,6 @@ int main(int argc, char** argv){
     rlt::free(device, dataset);
     rlt::free(device, actor_optimizer);
     rlt::free(device, critic_optimizer);
-    rlt::free(device, cpu_episode_log);
     rlt::free(device, reward_log_action);
     rlt::free(device, reward_log_rng);
 
@@ -1750,7 +1730,6 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, gpu_d_critic_output);
     rlt::free(device_gpu, gpu_gae_obs);
     rlt::free(device_gpu, gpu_gae_values);
-    rlt::free(device_gpu, gpu_episode_log);
     rlt::free(device_gpu, gpu_runner);
     rlt::free(device_gpu, gpu_runner_buffer);
     cudaFree(gpu_episode_start_step);

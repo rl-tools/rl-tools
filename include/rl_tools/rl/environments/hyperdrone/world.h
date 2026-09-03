@@ -200,16 +200,20 @@ namespace rl_tools::rl::environments::hyperdrone {
         using HISTORY_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::HISTORY_LENGTH, INSTANCES * N_VIEWS, FRAME_DIM>>;
         using PREV_CAMERAS_SPEC = tensor::Specification<rendering::raytracing::Camera<T>, TI, tensor::Shape<TI, INSTANCES * N_VIEWS>>;
         using EPISODE_START_SPEC = tensor::Specification<TI, TI, tensor::Shape<TI, INSTANCES>>;
+        using RENDER_RESET_SPEC = tensor::Specification<bool, TI, tensor::Shape<TI, INSTANCES>>;
         using ACTIVE_ANNOTATIONS_SPEC = tensor::Specification<ANNOTATIONS, TI, tensor::Shape<TI, 1>>;
         Tensor<HISTORY_SPEC> history;
         Tensor<PREV_CAMERAS_SPEC> prev_cameras;  // shutter-open interpolation source (motion blur)
         Tensor<EPISODE_START_SPEC> episode_start;  // history slot at which each instance's episode began
+        Tensor<RENDER_RESET_SPEC> render_reset;
+        Tensor<RENDER_RESET_SPEC> render_reset_host;
         Tensor<ACTIVE_ANNOTATIONS_SPEC> active_annotations;  // device-visible copy of the active slot's annotation tables
         // host-resident camera staging for the CPU render verb (pre-allocated: render runs per step)
         Tensor<PREV_CAMERAS_SPEC> camera_staging_close;
         Tensor<PREV_CAMERAS_SPEC> camera_staging_previous;
         Tensor<PREV_CAMERAS_SPEC> camera_staging_open;
         TI history_step = 0;
+        bool render_pending = false;
         void* cuda_sync_event = nullptr;  // lazily created by the CUDA verbs (caller/render stream joins)
 
         // the World's own drone entity (SELF_VISIBLE): asset path set before init, rig derived

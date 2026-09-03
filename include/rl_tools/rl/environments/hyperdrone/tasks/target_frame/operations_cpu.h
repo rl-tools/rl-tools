@@ -141,9 +141,12 @@ namespace rl_tools {
         constexpr TI STACK_N = TASK_SPEC::IMAGE_STACK_N;
         constexpr TI STACK_STRIDE = TASK_SPEC::IMAGE_STACK_STRIDE;
         constexpr TI TOTAL_CHANNELS = WORLD::OBSERVATION_CHANNELS;
+        if(world.render_pending){
+            render(device, world, parameters, states, rl::environments::hyperdrone::render_reset(device, world));
+        }
         static_assert(get<0>(typename OBSERVATION_SPEC::SHAPE{}) == INSTANCES);
         static_assert(get<1>(typename OBSERVATION_SPEC::SHAPE{}) == WORLD::OBSERVATION_DIM);
-        utils::assert_exit(device, world.history_step > 0, "hyperdrone::tasks::target_frame::observe: render must be called before observe");
+        utils::assert_exit(device, world.history_step > 0, "hyperdrone::tasks::target_frame::observe: no frame available");
         const TI latest = world.history_step - 1;
 
         std::vector<TI> episode_start_staging(INSTANCES);

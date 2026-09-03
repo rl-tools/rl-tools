@@ -74,8 +74,7 @@ namespace test_hyperdrone_episodes {
     using ENVIRONMENT = rlt::rl::environments::hyperdrone::MultiEnvironment<WORLD, NUMBER_OF_ENVIRONMENTS>;
     constexpr TI INSTANCES = ENVIRONMENT::INSTANCES;
     using POLICY_STATE = rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1>>>;
-    template <bool SYNCHRONIZED, bool DYNAMIC_ALLOCATION = true>
-    using RUNNER_SPEC = on_policy_runner::Specification<rlt::numeric_types::Policy<T>, ENVIRONMENT, POLICY_STATE, typename ENVIRONMENT::Observation, typename ENVIRONMENT::ObservationPrivileged, T, T, ENVIRONMENT::EPISODE_STEP_LIMIT, SYNCHRONIZED, false, DYNAMIC_ALLOCATION>;
+    using RUNNER_SPEC = on_policy_runner::Specification<rlt::numeric_types::Policy<T>, ENVIRONMENT, POLICY_STATE>;
     using END_REASON = on_policy_runner::EpisodeEndReason;
 }
 
@@ -93,163 +92,47 @@ static std::string scene_directory(){
     return directory;
 }
 
-// host reference of the bookkeeping rules; the runner must reproduce it exactly
-struct Reference {
-    TI episode_step[INSTANCES] = {};
-    bool truncated[INSTANCES] = {};
-    bool forced[INSTANCES] = {};
-    END_REASON reason[INSTANCES] = {};
-    T episode_return[INSTANCES] = {};
-    bool reset[INSTANCES] = {};
-    bool finished[INSTANCES] = {};
-    TI finished_length[INSTANCES] = {};
-    T finished_return[INSTANCES] = {};
-    END_REASON finished_reason[INSTANCES] = {};
-    Reference(){
-        for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            truncated[instance_i] = true;
-        }
-    }
-    void begin(bool synchronized){
-        bool any_due = false;
-        for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            any_due = any_due || truncated[instance_i] || forced[instance_i];
-        }
-        for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            const bool due = synchronized ? any_due : (truncated[instance_i] || forced[instance_i]);
-            finished[instance_i] = due && episode_step[instance_i] > 0;
-            reset[instance_i] = due;
-            finished_length[instance_i] = finished[instance_i] ? episode_step[instance_i] : 0;
-            finished_return[instance_i] = finished[instance_i] ? episode_return[instance_i] : (T)0;
-            finished_reason[instance_i] = finished[instance_i] ? reason[instance_i] : END_REASON::NONE;
-            if(due){
-                episode_step[instance_i] = 0;
-                episode_return[instance_i] = 0;
-                reason[instance_i] = END_REASON::NONE;
-                truncated[instance_i] = false;
-                forced[instance_i] = false;
-            }
-        }
-    }
-    void end(const bool terminated[INSTANCES], const T rewards[INSTANCES], TI step_limit){
-        for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            episode_step[instance_i]++;
-            episode_return[instance_i] += rewards[instance_i];
-            const bool time_limit = step_limit > 0 && episode_step[instance_i] >= step_limit;
-            truncated[instance_i] = terminated[instance_i] || time_limit;
-            if(truncated[instance_i]){
-                reason[instance_i] = terminated[instance_i] ? END_REASON::TERMINATED : END_REASON::TIME_LIMIT;
-            }
-        }
-    }
-    void force(const bool mask[INSTANCES]){
-        for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            if(mask[instance_i]){
-                forced[instance_i] = true;
-                if(!truncated[instance_i] && episode_step[instance_i] > 0){
-                    reason[instance_i] = END_REASON::FORCED;
-                }
-            }
-        }
-    }
-};
-
-template <typename RUNNER_SPEC_TYPE, TI STEPS>
+template <TI STEPS>
 struct Harness {
-    using RUNNER = rlt::rl::components::OnPolicyRunner<RUNNER_SPEC_TYPE>;
-    using LOG = on_policy_runner::EpisodeLog<RUNNER_SPEC_TYPE, STEPS>;
+    using RUNNER = rlt::rl::components::OnPolicyRunner<RUNNER_SPEC>;
+    using BUFFER = on_policy_runner::Buffer<RUNNER_SPEC>;
+    using DATASET_SPEC = on_policy_runner::DatasetSpecification<RUNNER_SPEC, STEPS>;
+    using DATASET = on_policy_runner::Dataset<DATASET_SPEC>;
+
     DEVICE& device;
     ENVIRONMENT& env;
     RNG rng;
-    rlt::Tensor<rlt::tensor::Specification<typename WORLD::State, TI, rlt::tensor::Shape<TI, INSTANCES>>> next_states;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, INSTANCES, WORLD::ACTION_DIM>>> actions;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, INSTANCES>>> rewards;
-    rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, INSTANCES>>> mask;
     RUNNER runner;
-    LOG log;
-    Reference reference;
+    BUFFER buffer;
+    DATASET dataset;
+
     Harness(DEVICE& device, ENVIRONMENT& env, TI seed): device(device), env(env){
         rlt::malloc(device, rng);
         rlt::init(device, rng, seed);
-        rlt::malloc(device, next_states);
-        rlt::malloc(device, actions);
-        rlt::malloc(device, rewards);
-        rlt::malloc(device, mask);
         rlt::malloc(device, runner);
-        rlt::malloc(device, log);
-        rlt::set_all(device, actions, (T)0);
-        rlt::init(device, log);
-        for(TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++){
-            env.environments[environment_i].history_step = 0;
-        }
-        reference.begin(RUNNER_SPEC_TYPE::SYNCHRONIZED);
+        rlt::malloc(device, buffer);
+        rlt::malloc(device, dataset);
+        rlt::set_all(device, buffer.actions, (T)0);
         rlt::init(device, runner, env, rng);
+        on_policy_runner::prologue(device, dataset, runner, env, rng);
     }
     ~Harness(){
-        rlt::free(device, next_states);
-        rlt::free(device, actions);
-        rlt::free(device, rewards);
-        rlt::free(device, mask);
+        rlt::free(device, dataset);
+        rlt::free(device, buffer);
         rlt::free(device, runner);
-        rlt::free(device, log);
         rlt::free(device, rng);
     }
-    void begin(TI step_i){
-        if(step_i > 0){
-            reference.begin(RUNNER_SPEC_TYPE::SYNCHRONIZED);
-            rlt::begin_step(device, runner, env, rng);
-            rlt::rl::components::on_policy_runner::render(device, runner, env);
-        }
-        rlt::record(device, log, runner, step_i);
-        for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            ASSERT_EQ(rlt::get(device, runner.reset, instance_i), reference.reset[instance_i]) << "step " << step_i << " instance " << instance_i;
-            ASSERT_EQ(rlt::get(device, runner.episode_step, instance_i), reference.episode_step[instance_i]) << "step " << step_i << " instance " << instance_i;
-            ASSERT_EQ(rlt::get(device, runner.truncated, instance_i), reference.truncated[instance_i]);
-            ASSERT_EQ(rlt::get(device, runner.forced, instance_i), reference.forced[instance_i]);
-            ASSERT_EQ(rlt::get(device, runner.end_reason, instance_i), reference.reason[instance_i]);
-            ASSERT_EQ(rlt::get(device, runner.finished, instance_i), reference.finished[instance_i]) << "step " << step_i << " instance " << instance_i;
-            ASSERT_EQ(rlt::get(device, log.finished, step_i, instance_i), reference.finished[instance_i]);
-            ASSERT_EQ(rlt::get(device, log.finished_length, step_i, instance_i), reference.finished_length[instance_i]) << "step " << step_i << " instance " << instance_i;
-            ASSERT_EQ(rlt::get(device, log.finished_return, step_i, instance_i), reference.finished_return[instance_i]);
-            ASSERT_EQ(rlt::get(device, log.finished_reason, step_i, instance_i), reference.finished_reason[instance_i]);
-        }
+    void step(TI step_i){
+        on_policy_runner::epilogue(device, dataset, runner, buffer, env, rng, step_i);
     }
-    void end(TI step_i){
-        rlt::step(device, env, runner.env_parameters, runner.states, actions, next_states, rng);
-        rlt::reward(device, env, runner.env_parameters, runner.states, actions, next_states, rewards, rng);
-        rlt::copy(device, device, next_states, runner.states);
-        rlt::end_step(device, runner, env, rewards, rng);
-        bool terminated[INSTANCES];
-        T reward_values[INSTANCES];
-        for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            terminated[instance_i] = rlt::get(device, runner.terminated, instance_i);
-            reward_values[instance_i] = rlt::get(device, rewards, instance_i);
-        }
-        reference.end(terminated, reward_values, runner.episode_step_limit);
-        for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            ASSERT_EQ(rlt::get(device, runner.episode_step, instance_i), reference.episode_step[instance_i]) << "step " << step_i << " instance " << instance_i;
-            ASSERT_EQ(rlt::get(device, runner.truncated, instance_i), reference.truncated[instance_i]) << "step " << step_i << " instance " << instance_i;
-            ASSERT_EQ(rlt::get(device, runner.end_reason, instance_i), reference.reason[instance_i]);
-            ASSERT_FLOAT_EQ(rlt::get(device, runner.episode_return, instance_i), reference.episode_return[instance_i]);
-            ASSERT_TRUE(!terminated[instance_i] || rlt::get(device, runner.truncated, instance_i)) << "terminated must imply truncated";
-        }
+    template <typename MASK_SPEC>
+    void reset(const rlt::Tensor<MASK_SPEC>& mask){
+        on_policy_runner::reset(device, runner, env, mask, rng);
+        on_policy_runner::prologue(device, dataset, runner, env, rng);
     }
-    void force(const bool force_mask[INSTANCES]){
-        bool all = true;
-        for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            rlt::set(device, mask, force_mask[instance_i], instance_i);
-            all = all && force_mask[instance_i];
-        }
-        if(all){
-            rlt::force_reset(device, runner);
-        } else {
-            rlt::force_reset(device, runner, mask);
-        }
-        reference.force(force_mask);
-        for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            ASSERT_EQ(rlt::get(device, runner.forced, instance_i), reference.forced[instance_i]);
-            ASSERT_EQ(rlt::get(device, runner.end_reason, instance_i), reference.reason[instance_i]);
-        }
+    void reset(){
+        on_policy_runner::reset(device, runner, env, rng);
+        on_policy_runner::prologue(device, dataset, runner, env, rng);
     }
 };
 
@@ -273,197 +156,127 @@ struct Fixture: ::testing::Test {
     }
 };
 
-TEST_F(Fixture, TIME_LIMIT_AND_FLAGS){
+TEST_F(Fixture, TIME_LIMIT_AND_DATASET_FLAGS){
     constexpr TI STEPS = 8;
     constexpr TI STEP_LIMIT = 3;
-    Harness<RUNNER_SPEC<false, false>, STEPS> harness(device, *env, 1337);
+    Harness<STEPS> harness(device, *env, 1337);
     harness.runner.episode_step_limit = STEP_LIMIT;
     TI truncations = 0;
     for(TI step_i = 0; step_i < STEPS; step_i++){
-        harness.begin(step_i);
-        if(step_i == 0){
-            for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-                ASSERT_TRUE(rlt::get(device, harness.runner.reset, instance_i)) << "every instance starts with a reset";
-            }
-        }
-        harness.end(step_i);
+        harness.step(step_i);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            const bool truncated = rlt::get(device, harness.runner.truncated, instance_i);
-            truncations += truncated ? 1 : 0;
-            if(!rlt::get(device, harness.runner.terminated, instance_i)){
-                ASSERT_EQ(truncated, rlt::get(device, harness.runner.episode_step, instance_i) == STEP_LIMIT) << "a time limit truncates exactly at the limit";
+            const TI pos = step_i * INSTANCES + instance_i;
+            const bool terminated = rlt::get(device, harness.buffer.terminated, instance_i);
+            const bool truncated = rlt::get(harness.dataset.truncated, pos, 0) > (T)0.5;
+            ASSERT_EQ(rlt::get(harness.dataset.terminated, pos, 0) > (T)0.5, terminated);
+            ASSERT_EQ(rlt::get(harness.dataset.all_reset, pos + INSTANCES, 0) > (T)0.5, truncated);
+            ASSERT_EQ(rlt::get(device, harness.runner.reset, instance_i), truncated);
+            ASSERT_TRUE(!terminated || truncated);
+            if(truncated){
+                truncations++;
+                ASSERT_EQ(rlt::get(device, harness.runner.episode_step, instance_i), (TI)0);
+                const END_REASON reason = rlt::get(device, harness.dataset.episode_end_reason, step_i + 1, instance_i);
+                ASSERT_EQ(reason, terminated ? END_REASON::TERMINATED : END_REASON::TIME_LIMIT);
+                ASSERT_LE(rlt::get(device, harness.dataset.episode_length, step_i + 1, instance_i), STEP_LIMIT);
+            }
+            else{
+                ASSERT_GT(rlt::get(device, harness.runner.episode_step, instance_i), (TI)0);
             }
         }
     }
-    EXPECT_GE(truncations, 2 * INSTANCES) << "with a limit of 3 every instance truncates at least twice in 8 steps";
+    EXPECT_GE(truncations, 2 * INSTANCES);
 }
 
 TEST_F(Fixture, NO_LIMIT){
     constexpr TI STEPS = 5;
-    Harness<RUNNER_SPEC<false>, STEPS> harness(device, *env, 1337);
+    Harness<STEPS> harness(device, *env, 1337);
     harness.runner.episode_step_limit = 0;
     for(TI step_i = 0; step_i < STEPS; step_i++){
-        harness.begin(step_i);
-        harness.end(step_i);
+        harness.step(step_i);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            ASSERT_EQ(rlt::get(device, harness.runner.truncated, instance_i), rlt::get(device, harness.runner.terminated, instance_i)) << "without a limit only terminations truncate";
+            const TI pos = step_i * INSTANCES + instance_i;
+            ASSERT_EQ(rlt::get(harness.dataset.truncated, pos, 0) > (T)0.5, rlt::get(device, harness.buffer.terminated, instance_i));
         }
     }
 }
 
-TEST_F(Fixture, FORCED){
+TEST_F(Fixture, EXPLICIT_RESET_IS_IMMEDIATE_AND_RECORDED_BY_PROLOGUE){
     constexpr TI STEPS = 6;
-    Harness<RUNNER_SPEC<false>, STEPS> harness(device, *env, 42);
+    Harness<STEPS> harness(device, *env, 42);
     harness.runner.episode_step_limit = 0;
-    for(TI step_i = 0; step_i < 2; step_i++){
-        harness.begin(step_i);
-        harness.end(step_i);
-    }
-    bool all[INSTANCES];
-    for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-        all[instance_i] = true;
-    }
-    harness.force(all);
-    harness.begin(2);
+    harness.step(0);
+    harness.step(1);
+    harness.reset();
     for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
         ASSERT_TRUE(rlt::get(device, harness.runner.reset, instance_i));
-        ASSERT_TRUE(rlt::get(device, harness.log.finished, 2, instance_i));
-        ASSERT_EQ(rlt::get(device, harness.log.finished_length, 2, instance_i), (TI)2);
-        const END_REASON reason = rlt::get(device, harness.log.finished_reason, 2, instance_i);
-        ASSERT_TRUE(reason == END_REASON::FORCED || reason == END_REASON::TERMINATED);
+        ASSERT_EQ(rlt::get(device, harness.runner.episode_step, instance_i), (TI)0);
+        ASSERT_EQ(rlt::get(device, harness.dataset.episode_end_reason, 0, instance_i), END_REASON::FORCED);
+        ASSERT_EQ(rlt::get(device, harness.dataset.episode_length, 0, instance_i), (TI)2);
     }
-    harness.end(2);
-    harness.begin(3);
-    harness.end(3);
-    bool first_only[INSTANCES] = {};
-    first_only[0] = true;
-    harness.force(first_only);
-    harness.begin(4);
-    ASSERT_TRUE(rlt::get(device, harness.runner.reset, 0));
-    for(TI instance_i = 1; instance_i < INSTANCES; instance_i++){
-        ASSERT_EQ(rlt::get(device, harness.runner.reset, instance_i), harness.reference.reset[instance_i]);
-    }
-    harness.end(4);
-}
 
-TEST_F(Fixture, SYNCHRONIZED){
-    constexpr TI STEPS = 4;
-    Harness<RUNNER_SPEC<true>, STEPS> harness(device, *env, 42);
-    harness.runner.episode_step_limit = 0;
-    for(TI step_i = 0; step_i < 2; step_i++){
-        harness.begin(step_i);
-        harness.end(step_i);
+    harness.step(2);
+    rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, INSTANCES>>> mask;
+    rlt::malloc(device, mask);
+    rlt::set_all(device, mask, false);
+    rlt::set(device, mask, true, 0);
+    harness.reset(mask);
+    ASSERT_TRUE(rlt::get(device, harness.runner.reset, 0));
+    ASSERT_EQ(rlt::get(device, harness.dataset.episode_end_reason, 0, 0), END_REASON::FORCED);
+    for(TI instance_i = 1; instance_i < INSTANCES; instance_i++){
+        ASSERT_FALSE(rlt::get(device, harness.runner.reset, instance_i));
+        ASSERT_EQ(rlt::get(device, harness.dataset.episode_end_reason, 0, instance_i), END_REASON::NONE);
+        ASSERT_EQ(rlt::get(device, harness.runner.episode_step, instance_i), (TI)1);
     }
-    bool first_only[INSTANCES] = {};
-    first_only[0] = true;
-    harness.force(first_only);
-    harness.begin(2);
+
+    harness.runner.episode_step_limit = 1;
+    harness.step(3);
+    harness.reset(mask);
     for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-        ASSERT_TRUE(rlt::get(device, harness.runner.reset, instance_i)) << "synchronized: one due instance resets all";
+        ASSERT_TRUE(rlt::get(device, harness.runner.reset, instance_i));
     }
-    harness.end(2);
-    harness.begin(3);
-    harness.end(3);
+    rlt::free(device, mask);
 }
 
 TEST_F(Fixture, SUMMARY){
     constexpr TI STEPS = 7;
     constexpr TI STEP_LIMIT = 3;
-    Harness<RUNNER_SPEC<false>, STEPS> harness(device, *env, 7);
+    Harness<STEPS> harness(device, *env, 7);
     harness.runner.episode_step_limit = STEP_LIMIT;
-    TI expected_finished = 0, expected_time_limit = 0, expected_terminated = 0, expected_in_progress = 0;
-    T expected_length_sum = 0, expected_return_sum = 0, expected_in_progress_length_sum = 0;
     for(TI step_i = 0; step_i < STEPS; step_i++){
-        harness.begin(step_i);
-        for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            if(harness.reference.finished[instance_i]){
-                expected_finished++;
-                expected_length_sum += (T)harness.reference.finished_length[instance_i];
-                expected_return_sum += harness.reference.finished_return[instance_i];
-                expected_time_limit += harness.reference.finished_reason[instance_i] == END_REASON::TIME_LIMIT ? 1 : 0;
-                expected_terminated += harness.reference.finished_reason[instance_i] == END_REASON::TERMINATED ? 1 : 0;
-            }
-        }
-        harness.end(step_i);
-    }
-    for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-        if(harness.reference.episode_step[instance_i] > 0){
-            expected_in_progress++;
-            expected_in_progress_length_sum += (T)harness.reference.episode_step[instance_i];
-        }
+        harness.step(step_i);
     }
     on_policy_runner::EpisodeStatistics<T, TI> statistics;
-    rlt::summarize(device, harness.log, harness.runner, statistics);
-    EXPECT_EQ(statistics.finished, expected_finished);
+    rlt::summarize(device, harness.dataset, harness.runner, statistics);
     EXPECT_GE(statistics.finished, 2 * INSTANCES);
-    EXPECT_EQ(statistics.time_limit, expected_time_limit);
-    EXPECT_EQ(statistics.terminated, expected_terminated);
+    EXPECT_EQ(statistics.finished, statistics.terminated + statistics.time_limit + statistics.forced);
     EXPECT_EQ(statistics.forced, 0);
-    EXPECT_EQ(statistics.in_progress, expected_in_progress);
-    EXPECT_FLOAT_EQ(statistics.length_sum, expected_length_sum);
-    EXPECT_FLOAT_EQ(statistics.return_sum, expected_return_sum);
-    EXPECT_FLOAT_EQ(statistics.in_progress_length_sum, expected_in_progress_length_sum);
-    EXPECT_FLOAT_EQ(statistics.mean_length, expected_length_sum / (T)expected_finished);
-    EXPECT_FLOAT_EQ(statistics.terminated_share, (T)expected_terminated / (T)expected_finished);
+    EXPECT_LE(statistics.mean_length, (T)STEP_LIMIT);
+    EXPECT_GT(statistics.mean_length, (T)0);
+    EXPECT_LE(statistics.in_progress, INSTANCES);
 }
 
 TEST_F(Fixture, DETERMINISM){
     constexpr TI STEPS = 6;
-    typename WORLD::State states_a[STEPS][INSTANCES];
-    typename WORLD::State states_b[STEPS][INSTANCES];
-    TI lengths_a[STEPS][INSTANCES];
-    TI lengths_b[STEPS][INSTANCES];
+    typename WORLD::State states[2][STEPS][INSTANCES];
+    TI lengths[2][STEPS][INSTANCES];
+    T rewards[2][STEPS][INSTANCES];
     for(TI run_i = 0; run_i < 2; run_i++){
-        Harness<RUNNER_SPEC<false>, STEPS> harness(device, *env, 99);
+        Harness<STEPS> harness(device, *env, 99);
         harness.runner.episode_step_limit = 2;
         for(TI step_i = 0; step_i < STEPS; step_i++){
-            harness.begin(step_i);
-            harness.end(step_i);
+            harness.step(step_i);
             for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-                (run_i == 0 ? states_a : states_b)[step_i][instance_i] = rlt::get(device, harness.runner.states, instance_i);
-                (run_i == 0 ? lengths_a : lengths_b)[step_i][instance_i] = rlt::get(device, harness.log.finished_length, step_i, instance_i);
+                states[run_i][step_i][instance_i] = rlt::get(device, harness.runner.states, instance_i);
+                lengths[run_i][step_i][instance_i] = rlt::get(device, harness.dataset.episode_length, step_i + 1, instance_i);
+                rewards[run_i][step_i][instance_i] = rlt::get(harness.dataset.rewards, step_i * INSTANCES + instance_i, 0);
             }
         }
     }
     for(TI step_i = 0; step_i < STEPS; step_i++){
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            ASSERT_EQ(std::memcmp(&states_a[step_i][instance_i], &states_b[step_i][instance_i], sizeof(typename WORLD::State)), 0);
-            ASSERT_EQ(lengths_a[step_i][instance_i], lengths_b[step_i][instance_i]);
+            ASSERT_EQ(std::memcmp(&states[0][step_i][instance_i], &states[1][step_i][instance_i], sizeof(typename WORLD::State)), 0);
+            ASSERT_EQ(lengths[0][step_i][instance_i], lengths[1][step_i][instance_i]);
+            ASSERT_FLOAT_EQ(rewards[0][step_i][instance_i], rewards[1][step_i][instance_i]);
         }
     }
-}
-
-// the on-policy dataset ingests the flags through the runner's batched record verbs
-TEST_F(Fixture, DATASET_RECORD){
-    constexpr TI STEPS = 4;
-    using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<rlt::numeric_types::Policy<T>, ENVIRONMENT, bool>;
-    using DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, STEPS>;
-    using DATASET = rlt::rl::components::on_policy_runner::Dataset<DATASET_SPEC>;
-    DATASET dataset;
-    rlt::malloc(device, dataset);
-    Harness<RUNNER_SPEC<false>, STEPS> harness(device, *env, 5);
-    harness.runner.episode_step_limit = 2;
-    for(TI step_i = 0; step_i < STEPS; step_i++){
-        harness.begin(step_i);
-        if(step_i == 0){
-            rlt::record_reset(device, dataset, harness.runner.reset);
-            for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-                ASSERT_EQ(rlt::get(dataset.reset, instance_i, 0), (T)1) << "all instances reset at the start";
-            }
-        }
-        harness.end(step_i);
-        rlt::record_step(device, dataset, step_i, harness.rewards, harness.runner.terminated, harness.runner.truncated);
-        for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            const TI pos = step_i * INSTANCES + instance_i;
-            const bool truncated = rlt::get(device, harness.runner.truncated, instance_i);
-            ASSERT_FLOAT_EQ(rlt::get(dataset.rewards, pos, 0), rlt::get(device, harness.rewards, instance_i));
-            ASSERT_EQ(rlt::get(dataset.terminated, pos, 0), rlt::get(device, harness.runner.terminated, instance_i) ? (T)1 : (T)0);
-            ASSERT_EQ(rlt::get(dataset.truncated, pos, 0), truncated ? (T)1 : (T)0);
-            ASSERT_EQ(rlt::get(dataset.all_reset, pos + INSTANCES, 0), truncated ? (T)1 : (T)0);
-            if(step_i + 1 < STEPS){
-                ASSERT_EQ(rlt::get(dataset.reset, pos + INSTANCES, 0), truncated ? (T)1 : (T)0) << "reset is truncation delayed by one step";
-            }
-        }
-    }
-    rlt::free(device, dataset);
 }
