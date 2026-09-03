@@ -121,7 +121,7 @@ namespace rl_tools{
         devices::cuda::TAG<DEVICE, true> tag_device{};
         rl::environments::hyperdrone::tasks::moving_gate::cuda::sample_initial_state_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, world.active_annotations, parameters, states, reset_mask, rng);
         check_status(device);
-        rl::environments::hyperdrone::request_render(device, world, reset_mask);
+        request_render(device, world, reset_mask);
     }
 
     // gate poses are produced device-side, mirrored through a pinned staging pair, and published
@@ -206,7 +206,7 @@ namespace rl_tools{
     void observe(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, typename TASK_SPEC::NEXT_WORLD::Observation observation_type, Tensor<OBSERVATION_SPEC>& observations, RNG& rng){
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         if(world.render_pending){
-            render(device, world, parameters, states, rl::environments::hyperdrone::render_reset(device, world));
+            render(device, world, parameters, states, render_reset(device, world));
         }
         observe(device, static_cast<NEXT_WORLD&>(world), parameters, states, observation_type, observations, rng);
     }

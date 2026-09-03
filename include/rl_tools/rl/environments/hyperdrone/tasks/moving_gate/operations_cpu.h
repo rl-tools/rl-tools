@@ -127,7 +127,7 @@ namespace rl_tools {
                 sample_initial_state(device, world, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), rng);
             }
         }
-        rl::environments::hyperdrone::request_render(device, world, reset_mask);
+        request_render(device, world, reset_mask);
     }
 
     // pose delivery: write this task's gate pose for every instance into the active slot, then
@@ -208,7 +208,7 @@ namespace rl_tools {
     void observe(DEVICE& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, typename TASK_SPEC::NEXT_WORLD::Observation observation_type, Tensor<OBSERVATION_SPEC>& observations, RNG& rng) {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         if(world.render_pending){
-            render(device, world, parameters, states, rl::environments::hyperdrone::render_reset(device, world));
+            render(device, world, parameters, states, render_reset(device, world));
         }
         observe(device, static_cast<NEXT_WORLD&>(world), parameters, states, observation_type, observations, rng);
     }
