@@ -25,15 +25,25 @@ namespace rl_tools{
         malloc(device, step_tensor);
         set(device, step_tensor, runner.step, 0);
         save(device, step_tensor, group, "step");
-        free(device, step_tensor);
         auto policy_state_group = create_group(device, group, "policy_state");
         save(device, runner.policy_state, policy_state_group);
-        save_binary(device, &get(runner.states, 0, 0), SPEC::N_ENVIRONMENTS, group, "states");
-        save_binary(device, &get(runner.env_parameters, 0, 0), SPEC::N_ENVIRONMENTS, group, "env_parameters");
-        save_binary(device, &get(runner.environments, 0, 0), SPEC::N_ENVIRONMENTS, group, "environments");
-        save(device, runner.truncated, group, "truncated");
-        save(device, runner.episode_step, group, "episode_step");
-        save(device, runner.episode_return, group, "episode_return");
+        save_binary(device, &get_ref(device, runner.states, 0), SPEC::N_ENVIRONMENTS, group, "states");
+        save_binary(device, &get_ref(device, runner.env_parameters, 0), SPEC::N_ENVIRONMENTS, group, "env_parameters");
+        auto episodes_group = create_group(device, group, "episodes");
+        save(device, runner.episodes.episode_step, episodes_group, "episode_step");
+        save(device, runner.episodes.terminated, episodes_group, "terminated");
+        save(device, runner.episodes.truncated, episodes_group, "truncated");
+        save(device, runner.episodes.reset, episodes_group, "reset");
+        save(device, runner.episodes.forced, episodes_group, "forced");
+        save(device, runner.episodes.episode_return, episodes_group, "episode_return");
+        save_binary(device, &get_ref(device, runner.episodes.end_reason, 0), SPEC::N_ENVIRONMENTS, episodes_group, "end_reason");
+        save(device, runner.episodes.finished, episodes_group, "finished");
+        save(device, runner.episodes.finished_length, episodes_group, "finished_length");
+        save(device, runner.episodes.finished_return, episodes_group, "finished_return");
+        save_binary(device, &get_ref(device, runner.episodes.finished_reason, 0), SPEC::N_ENVIRONMENTS, episodes_group, "finished_reason");
+        set(device, step_tensor, runner.episodes.step_limit, 0);
+        save(device, step_tensor, episodes_group, "step_limit");
+        free(device, step_tensor);
     }
     template <typename DEVICE, typename SPEC, typename GROUP>
     bool load(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner, GROUP& group){
@@ -42,15 +52,25 @@ namespace rl_tools{
         malloc(device, step_tensor);
         bool success = load(device, step_tensor, group, "step");
         runner.step = get(device, step_tensor, 0);
-        free(device, step_tensor);
         auto policy_state_group = get_group(device, group, "policy_state");
         success &= load(device, runner.policy_state, policy_state_group);
-        success &= load_binary(device, &get(runner.states, 0, 0), SPEC::N_ENVIRONMENTS, group, "states");
-        success &= load_binary(device, &get(runner.env_parameters, 0, 0), SPEC::N_ENVIRONMENTS, group, "env_parameters");
-        success &= load_binary(device, &get(runner.environments, 0, 0), SPEC::N_ENVIRONMENTS, group, "environments");
-        success &= load(device, runner.truncated, group, "truncated");
-        success &= load(device, runner.episode_step, group, "episode_step");
-        success &= load(device, runner.episode_return, group, "episode_return");
+        success &= load_binary(device, &get_ref(device, runner.states, 0), SPEC::N_ENVIRONMENTS, group, "states");
+        success &= load_binary(device, &get_ref(device, runner.env_parameters, 0), SPEC::N_ENVIRONMENTS, group, "env_parameters");
+        auto episodes_group = get_group(device, group, "episodes");
+        success &= load(device, runner.episodes.episode_step, episodes_group, "episode_step");
+        success &= load(device, runner.episodes.terminated, episodes_group, "terminated");
+        success &= load(device, runner.episodes.truncated, episodes_group, "truncated");
+        success &= load(device, runner.episodes.reset, episodes_group, "reset");
+        success &= load(device, runner.episodes.forced, episodes_group, "forced");
+        success &= load(device, runner.episodes.episode_return, episodes_group, "episode_return");
+        success &= load_binary(device, &get_ref(device, runner.episodes.end_reason, 0), SPEC::N_ENVIRONMENTS, episodes_group, "end_reason");
+        success &= load(device, runner.episodes.finished, episodes_group, "finished");
+        success &= load(device, runner.episodes.finished_length, episodes_group, "finished_length");
+        success &= load(device, runner.episodes.finished_return, episodes_group, "finished_return");
+        success &= load_binary(device, &get_ref(device, runner.episodes.finished_reason, 0), SPEC::N_ENVIRONMENTS, episodes_group, "finished_reason");
+        success &= load(device, step_tensor, episodes_group, "step_limit");
+        runner.episodes.step_limit = get(device, step_tensor, 0);
+        free(device, step_tensor);
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT
         runner.initialized = true;
 #endif

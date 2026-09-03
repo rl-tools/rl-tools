@@ -20,6 +20,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 // --------------- changed for cuda training -----------------
 #include "../parameters.h"
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
+#include <rl_tools/rl/environments/batch/operations_generic.h>
 // -------------------------------------------------------
 #if defined(RL_TOOLS_BACKEND_ENABLE_MKL) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
@@ -67,7 +68,7 @@ using DEV_SPEC_SUPER = rlt::devices::cpu::Specification<rlt::devices::math::CPU,
 using TI = typename rlt::devices::DEVICE_FACTORY<DEV_SPEC_SUPER>::index_t;
 constexpr TI NUM_RUNS = 1;
 namespace execution_hints{
-    struct HINTS: rlt::rl::components::on_policy_runner::ExecutionHints<TI, 16>{};
+    struct HINTS: rlt::devices::ExecutionHints{};
 }
 struct DEV_SPEC: DEV_SPEC_SUPER{
     using EXECUTION_HINTS = execution_hints::HINTS;
@@ -179,13 +180,15 @@ int main(int argc, char** argv){
         prl::PPO_TYPE ppo_gpu;
         // -------------------------------------------------------
         prl::PPO_BUFFERS_TYPE ppo_buffers;
+        prl::BATCH_ENVIRONMENT environment;
         prl::ON_POLICY_RUNNER_TYPE on_policy_runner;
+        prl::ON_POLICY_RUNNER_BUFFER_TYPE on_policy_runner_buffer;
         prl::ON_POLICY_RUNNER_DATASET_TYPE on_policy_runner_dataset;
         // -------------- added for cuda training ----------------
         ON_POLICY_RUNNER_COLLECTION_EVALUATION_BUFFER_TYPE on_policy_runner_collection_eval_buffer_gpu, on_policy_runner_collection_eval_buffer_cpu;
         PPO_TRAINING_HYBRID_BUFFER_TYPE ppo_training_hybrid_buffer_cpu, ppo_training_hybrid_buffer_gpu;
-        rlt::Matrix<rlt::matrix::Specification<T, TI, decltype(on_policy_runner_dataset.data)::ROWS, prl::PPO_SPEC::ENVIRONMENT::Observation::DIM>> gae_all_observations;
-        rlt::Matrix<rlt::matrix::Specification<T, TI, decltype(on_policy_runner_dataset.data)::ROWS, 1>> gae_all_values;
+        rlt::Matrix<rlt::matrix::Specification<T, TI, prl::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL, prl::PPO_SPEC::ENVIRONMENT::Observation::DIM>> gae_all_observations;
+        rlt::Matrix<rlt::matrix::Specification<T, TI, prl::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL, 1>> gae_all_values;
         // -------------------------------------------------------
         // -------------- replaced for cuda training ----------------
         prl::ACTOR_EVAL_BUFFERS actor_eval_buffers, actor_eval_buffers_gpu;
@@ -195,8 +198,6 @@ int main(int argc, char** argv){
         prl::CRITIC_BUFFERS critic_buffers;
         prl::CRITIC_BUFFERS_GAE critic_buffers_gae;
         rlt::rl::components::RunningNormalizer<rlt::rl::components::running_normalizer::Specification<T, TI, penv::ENVIRONMENT::Observation::DIM>> observation_normalizer;
-        penv::ENVIRONMENT envs[prl::N_ENVIRONMENTS];
-        penv::ENVIRONMENT::Parameters env_parameters[prl::N_ENVIRONMENTS];
         penv::ENVIRONMENT evaluation_env;
         rlt::rl::environments::DummyUI ui;
         TI next_checkpoint_id = 0;
@@ -214,12 +215,14 @@ int main(int argc, char** argv){
         rlt::malloc(device, critic_optimizer);
         rlt::malloc(device, ppo);
         rlt::malloc(device, ppo_buffers);
+        rlt::malloc(device, environment);
         rlt::malloc(device, on_policy_runner_dataset);
         // -------------- added for cuda training ----------------
         rlt::malloc(device, on_policy_runner_collection_eval_buffer_cpu);
         rlt::malloc(device, ppo_training_hybrid_buffer_cpu);
         // -------------------------------------------------------
         rlt::malloc(device, on_policy_runner);
+        rlt::malloc(device, on_policy_runner_buffer);
         rlt::malloc(device, actor_eval_buffers);
         rlt::malloc(device, actor_deterministic_eval_buffers);
         // ------------- removed for cuda training ---------------
@@ -228,9 +231,6 @@ int main(int argc, char** argv){
 //        rlt::malloc(device, critic_buffers_gae);
         // -------------------------------------------------------
         rlt::malloc(device, observation_normalizer);
-        for(TI env_i = 0; env_i < prl::N_ENVIRONMENTS; env_i++){
-            rlt::malloc(device, envs[env_i]);
-        }
         rlt::malloc(device, evaluation_env);
         // -------------- added for cuda training ----------------
         rlt::malloc(device_gpu, rng_gpu);
@@ -249,7 +249,8 @@ int main(int argc, char** argv){
 //        auto on_policy_runner_dataset_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.observations_normalized : on_policy_runner_dataset.observations;
 
         rlt::init(device);
-        rlt::init(device, on_policy_runner, envs, env_parameters, rng);
+        rlt::init(device, environment);
+        rlt::init(device, on_policy_runner, environment, rng);
         rlt::init(device, observation_normalizer);
         rlt::init(device, ppo, actor_optimizer, critic_optimizer, rng);
         // -------------- added for cuda training ----------------
@@ -260,14 +261,16 @@ int main(int argc, char** argv){
         auto training_start = std::chrono::high_resolution_clock::now();
         if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
             for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < prl::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
-                rlt::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
-                rlt::update(device, observation_normalizer, on_policy_runner_dataset.observations);
+                rlt::collect(device, on_policy_runner_dataset, on_policy_runner, on_policy_runner_buffer, environment, ppo.actor, actor_eval_buffers, rng);
+                auto observations = rlt::view_range(device, on_policy_runner_dataset.all_observations, 0, rlt::tensor::ViewSpec<0, prl::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL>{});
+                auto observations_matrix = rlt::matrix_view(device, observations);
+                rlt::update(device, observation_normalizer, observations_matrix);
             }
             std::cout << "Observation means: " << std::endl;
             rlt::print(device, observation_normalizer.mean);
             std::cout << "Observation std: " << std::endl;
             rlt::print(device, observation_normalizer.std);
-            rlt::init(device, on_policy_runner, envs, env_parameters, rng); // reinitializing the on_policy_runner to reset the episode counters
+            rlt::init(device, on_policy_runner, environment, rng); // reinitializing the on_policy_runner to reset the episode counters
             rlt::set_statistics(device, ppo.actor.content, observation_normalizer.mean, observation_normalizer.std);
             rlt::set_statistics(device, ppo.critic.content, observation_normalizer.mean, observation_normalizer.std);
             rlt::copy(device, device_gpu, ppo, ppo_gpu);
@@ -325,10 +328,12 @@ int main(int argc, char** argv){
             {
 //                auto start = std::chrono::high_resolution_clock::now();
                 // -------------- replaced for cuda training ----------------
-                rlt::collect_hybrid(device, device_gpu, on_policy_runner_dataset, on_policy_runner, ppo.actor, ppo_gpu.actor, actor_eval_buffers_gpu, on_policy_runner_collection_eval_buffer_cpu, on_policy_runner_collection_eval_buffer_gpu, rng, rng_gpu);
+                rlt::collect_hybrid(device, device_gpu, on_policy_runner_dataset, on_policy_runner, on_policy_runner_buffer, environment, ppo.actor, ppo_gpu.actor, actor_eval_buffers_gpu, on_policy_runner_collection_eval_buffer_cpu, on_policy_runner_collection_eval_buffer_gpu, rng, rng_gpu);
                 // ----------------------------------------------------------
                 if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
-                    rlt::update(device, observation_normalizer, on_policy_runner_dataset.observations);
+                    auto observations = rlt::view_range(device, on_policy_runner_dataset.all_observations, 0, rlt::tensor::ViewSpec<0, prl::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL>{});
+                    auto observations_matrix = rlt::matrix_view(device, observations);
+                    rlt::update(device, observation_normalizer, observations_matrix);
                     rlt::set_statistics(device, ppo.actor.content, observation_normalizer.mean, observation_normalizer.std);
                     rlt::set_statistics(device, ppo.critic.content, observation_normalizer.mean, observation_normalizer.std);
                     rlt::copy(device, device_gpu, ppo, ppo_gpu);
@@ -386,12 +391,14 @@ int main(int argc, char** argv){
 
         rlt::free(device, ppo);
         rlt::free(device, ppo_buffers);
+        rlt::free(device, environment);
         rlt::free(device, on_policy_runner_dataset);
         // -------------- added for cuda training ----------------
         rlt::free(device, on_policy_runner_collection_eval_buffer_cpu);
         rlt::free(device, ppo_training_hybrid_buffer_cpu);
         // -------------------------------------------------------
         rlt::free(device, on_policy_runner);
+        rlt::free(device, on_policy_runner_buffer);
         rlt::free(device, actor_eval_buffers);
         // ------------- removed for cuda training ---------------
 //        rlt::free(device, actor_buffers);
@@ -399,9 +406,6 @@ int main(int argc, char** argv){
 //        rlt::free(device, critic_buffers_gae);
         // -------------------------------------------------------
         rlt::free(device, observation_normalizer);
-        for(auto& env : envs){
-            rlt::free(device, env);
-        }
         rlt::free(device, evaluation_env);
         // -------------- added for cuda training ----------------
         rlt::free(device_gpu, actor_buffers);

@@ -491,12 +491,6 @@ using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<TYPE_POLIC
 using PPO_SPEC = typename LOOP_CORE_CONFIG::PPO_SPEC;
 using PPO_TYPE = typename LOOP_CORE_CONFIG::PPO_TYPE;
 using PPO_BUFFERS_TYPE = typename LOOP_CORE_CONFIG::PPO_BUFFERS_TYPE;
-// the dataset stores the raw per-step student frames (base World observation) and the training
-// batches are re-assembled from the World's frame history, so the dataset is specified over the
-// base World while the PPO/actor shapes fold over the task World's composed observation
-using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, TI, BASE_WORLD, typename LOOP_CORE_CONFIG::NN::ACTOR_TYPE::template State<true>, LOOP_CORE_PARAMETERS::N_ENVIRONMENTS, LOOP_CORE_PARAMETERS::EPISODE_STEP_LIMIT, BASE_WORLD::N_AGENTS, LOOP_CORE_PARAMETERS::PPO_PARAMETERS::TRUNCATE_ON_EACH_ITERATION, true>;
-using ON_POLICY_RUNNER_DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, LOOP_CORE_PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV, true>;
-using ON_POLICY_RUNNER_DATASET_TYPE = rlt::rl::components::on_policy_runner::Dataset<ON_POLICY_RUNNER_DATASET_SPEC>;
 using ACTOR_OPTIMIZER = typename LOOP_CORE_CONFIG::NN::ACTOR_OPTIMIZER;
 using CRITIC_OPTIMIZER = typename LOOP_CORE_CONFIG::NN::CRITIC_OPTIMIZER;
 using ACTOR_BUFFERS = typename LOOP_CORE_CONFIG::ACTOR_BUFFERS;
@@ -509,6 +503,14 @@ using CAPABILITY_ROLLOUT = rlt::nn::capability::Forward<true>;
 using ROLLOUT_ACTOR_TYPE = typename ACTOR_TYPE::template CHANGE_CAPABILITY<CAPABILITY_ROLLOUT>::template CHANGE_BATCH_SIZE<TI, N_ENVIRONMENTS>;
 using ROLLOUT_ACTOR_BUFFERS = typename ROLLOUT_ACTOR_TYPE::template Buffer<true>;
 using CHECKPOINT_ACTOR_TYPE = typename ACTOR_TYPE::template CHANGE_CAPABILITY<CAPABILITY_ROLLOUT>::template CHANGE_BATCH_SIZE<TI, N_EXAMPLES>;
+using ROLLOUT_POLICY_STATE = typename ROLLOUT_ACTOR_TYPE::template State<true>;
+struct EPISODES_SPEC: rlt::rl::components::episodes::Specification<MULTI_ENVIRONMENT>{};
+using EPISODES = rlt::rl::components::episodes::Episodes<EPISODES_SPEC>;
+using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, MULTI_ENVIRONMENT, ROLLOUT_POLICY_STATE, EPISODES_SPEC, typename BASE_WORLD::Observation, typename BASE_WORLD::ObservationPrivileged, T, T, LOOP_CORE_PARAMETERS::PPO_PARAMETERS::TRUNCATE_ON_EACH_ITERATION, true>;
+using ON_POLICY_RUNNER = rlt::rl::components::OnPolicyRunner<ON_POLICY_RUNNER_SPEC>;
+using ON_POLICY_RUNNER_BUFFER = rlt::rl::components::on_policy_runner::Buffer<ON_POLICY_RUNNER_SPEC>;
+using ON_POLICY_RUNNER_DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, LOOP_CORE_PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV, true>;
+using ON_POLICY_RUNNER_DATASET_TYPE = rlt::rl::components::on_policy_runner::Dataset<ON_POLICY_RUNNER_DATASET_SPEC>;
 
 // Constants
 static constexpr TI STEPS_PER_ENV = LOOP_CORE_PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV;
@@ -528,8 +530,6 @@ static_assert(N_BATCHES > 0, "STEPS_TOTAL must be >= BATCH_SIZE");
 static_assert(N_EXAMPLES <= BATCH_SIZE, "N_EXAMPLES must fit the reusable combined-observation batch buffer");
 static_assert(N_EXAMPLES <= STEPS_TOTAL, "N_EXAMPLES must fit one PPO rollout dataset");
 
-struct EPISODES_SPEC: rlt::rl::components::episodes::Specification<MULTI_ENVIRONMENT>{};
-using EPISODES = rlt::rl::components::episodes::Episodes<EPISODES_SPEC>;
 // row 0: resets applied before the rollout (scene rotation); row t + 1: resets applied after step t
 using EPISODE_LOG = rlt::rl::components::episodes::Log<EPISODES_SPEC, STEPS_PER_ENV + 1>;
 using EPISODE_END_REASON = rlt::rl::components::episodes::EndReason;
@@ -748,20 +748,16 @@ int main(int argc, char** argv){
     // ---------------------------------------------------------------------
     // GPU-resident instance data (the environment's vectorized axis)
     // ---------------------------------------------------------------------
-    // the batched on-policy runner owns the instance data (parameters, states, step actions and
-    // rewards) and the episode bookkeeping; the per-rollout log is mirrored to the host for the statistics
-    using ROLLOUT_POLICY_STATE = typename ROLLOUT_ACTOR_TYPE::template State<true>;
-    using BATCHED_RUNNER_SPEC = rlt::rl::components::on_policy_runner::BatchedSpecification<TYPE_POLICY, TI, MULTI_ENVIRONMENT, ROLLOUT_POLICY_STATE, EPISODES_SPEC, typename BASE_WORLD::Observation, typename BASE_WORLD::ObservationPrivileged>;
-    using BATCHED_RUNNER = rlt::rl::components::OnPolicyRunnerBatched<BATCHED_RUNNER_SPEC>;
-    static_assert(BATCHED_RUNNER_SPEC::N_ENVIRONMENTS == ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS);
-    static_assert(rlt::utils::typing::is_same_v<typename BATCHED_RUNNER_SPEC::OBSERVATION, typename ON_POLICY_RUNNER_SPEC::OBSERVATION>);
-    static_assert(rlt::utils::typing::is_same_v<typename BATCHED_RUNNER_SPEC::OBSERVATION_PRIVILEGED, typename ON_POLICY_RUNNER_SPEC::OBSERVATION_PRIVILEGED>);
-    BATCHED_RUNNER gpu_runner;
+    // the runner owns persistent rollout state and episode bookkeeping; its buffer owns transient
+    // next-state/action/reward storage, and the per-rollout log is mirrored to the host for statistics
+    ON_POLICY_RUNNER gpu_runner;
+    ON_POLICY_RUNNER_BUFFER gpu_runner_buffer;
     rlt::malloc(device_gpu, gpu_runner);
+    rlt::malloc(device_gpu, gpu_runner_buffer);
     auto& gpu_env_parameters = gpu_runner.env_parameters;
     auto& gpu_env_states = gpu_runner.states;
-    auto& gpu_step_rewards = gpu_runner.rewards;
-    auto& gpu_step_actions = gpu_runner.actions;
+    auto& gpu_step_rewards = gpu_runner_buffer.rewards;
+    auto& gpu_step_actions = gpu_runner_buffer.actions;
     auto& gpu_episodes = gpu_runner.episodes;
     EPISODE_LOG gpu_episode_log, cpu_episode_log;
     rlt::malloc(device_gpu, gpu_episode_log);
@@ -904,7 +900,7 @@ int main(int argc, char** argv){
             if(ppo_step_i == 0){
                 rlt::init(device_gpu, gpu_runner, env, rng_gpu);
             } else {
-                rlt::rl::components::on_policy_runner::reset_due(device_gpu, gpu_runner, env, rng_gpu);
+                rlt::rl::components::on_policy_runner::reset(device_gpu, gpu_runner, env, rng_gpu);
             }
             rlt::record(device_gpu, gpu_episode_log, gpu_episodes, 0);
         }
@@ -1037,18 +1033,18 @@ int main(int argc, char** argv){
                 auto log_std_gpu = rlt::matrix_view(device_gpu, last_layer_gpu.log_std.parameters);
                 rlt::rl::components::on_policy_runner::sample_actions(device_gpu, dataset_gpu, log_std_gpu, gpu_step_actions, step_i, rng_gpu);
             }
-            rlt::rl::components::on_policy_runner::epilogue(device_gpu, dataset_gpu, gpu_runner, env, rng_gpu, step_i);
+            rlt::rl::components::on_policy_runner::epilogue(device_gpu, dataset_gpu, gpu_runner, gpu_runner_buffer, env, rng_gpu, step_i);
             rlt::record(device_gpu, gpu_episode_log, gpu_episodes, step_i + 1);
             if(log_reward_components_this_step && step_i == STEPS_PER_ENV - 1){
                 cudaStreamSynchronize(device_gpu.stream);
-                cudaMemcpy(&reward_log_next_state, rlt::data(gpu_runner.next_states), sizeof(typename TASK_WORLD::State), cudaMemcpyDeviceToHost);
+                cudaMemcpy(&reward_log_next_state, rlt::data(gpu_runner_buffer.next_states), sizeof(typename TASK_WORLD::State), cudaMemcpyDeviceToHost);
             }
 
             // 8. Pull state for trajectory recording
             if(save_extrack_step){
                 cudaStreamSynchronize(device_gpu.stream);
                 std::vector<typename TASK_WORLD::State> tmp_states(TRAJECTORY_NUM_ENVS);
-                cudaMemcpy(tmp_states.data(), rlt::data(gpu_runner.next_states), TRAJECTORY_NUM_ENVS * sizeof(typename TASK_WORLD::State), cudaMemcpyDeviceToHost);
+                cudaMemcpy(tmp_states.data(), rlt::data(gpu_runner_buffer.next_states), TRAJECTORY_NUM_ENVS * sizeof(typename TASK_WORLD::State), cudaMemcpyDeviceToHost);
                 for(TI env_i = 0; env_i < TRAJECTORY_NUM_ENVS; env_i++){
                     trajectory_states[step_i * TRAJECTORY_NUM_ENVS + env_i] = tmp_states[env_i];
                 }
@@ -1761,6 +1757,7 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, gpu_gae_values);
     rlt::free(device_gpu, gpu_episode_log);
     rlt::free(device_gpu, gpu_runner);
+    rlt::free(device_gpu, gpu_runner_buffer);
     cudaFree(gpu_episode_start_step);
     cudaFree(gpu_episode_start_step_per_row);
     rlt::free(device, env);

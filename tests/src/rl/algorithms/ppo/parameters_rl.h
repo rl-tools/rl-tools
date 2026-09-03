@@ -2,6 +2,7 @@
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/rl/algorithms/ppo/ppo.h>
+#include <rl_tools/rl/environments/batch/environment.h>
 #include <rl_tools/rl/components/on_policy_runner/on_policy_runner.h>
 namespace parameters_0{
     using namespace rlt;
@@ -53,8 +54,14 @@ namespace parameters_0{
 
         static constexpr TI ON_POLICY_RUNNER_STEP_LIMIT = 200;
         static constexpr TI N_ENVIRONMENTS = 10;
-        using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, TI, ENVIRONMENT, typename ACTOR_TYPE::template State<>, N_ENVIRONMENTS, ON_POLICY_RUNNER_STEP_LIMIT>;
+        using BATCH_ENVIRONMENT_SPEC = rlt::rl::environments::batch::Specification<ENVIRONMENT, N_ENVIRONMENTS>;
+        using BATCH_ENVIRONMENT = rlt::rl::environments::batch::Independent<BATCH_ENVIRONMENT_SPEC>;
+        struct EPISODES_SPEC: rlt::rl::components::episodes::Specification<BATCH_ENVIRONMENT>{
+            static constexpr TI STEP_LIMIT = ON_POLICY_RUNNER_STEP_LIMIT;
+        };
+        using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, BATCH_ENVIRONMENT, typename ACTOR_TYPE::template State<>, EPISODES_SPEC>;
         using ON_POLICY_RUNNER_TYPE = rlt::rl::components::OnPolicyRunner<ON_POLICY_RUNNER_SPEC>;
+        using ON_POLICY_RUNNER_BUFFER_TYPE = rlt::rl::components::on_policy_runner::Buffer<ON_POLICY_RUNNER_SPEC>;
         static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 200;
         using ON_POLICY_RUNNER_DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, ON_POLICY_RUNNER_STEPS_PER_ENV>;
         using ON_POLICY_RUNNER_DATASET_TYPE = rlt::rl::components::on_policy_runner::Dataset<ON_POLICY_RUNNER_DATASET_SPEC>;

@@ -440,7 +440,7 @@ TEST_F(Fixture, DETERMINISM){
 // the on-policy dataset ingests the flags through the runner's batched record verbs
 TEST_F(Fixture, DATASET_RECORD){
     constexpr TI STEPS = 4;
-    using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<rlt::numeric_types::Policy<T>, TI, ENVIRONMENT, bool, INSTANCES>;
+    using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<rlt::numeric_types::Policy<T>, ENVIRONMENT, bool>;
     using DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, STEPS>;
     using DATASET = rlt::rl::components::on_policy_runner::Dataset<DATASET_SPEC>;
     DATASET dataset;

@@ -1,3 +1,10 @@
+#include "../../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER_OPERATIONS_GENERIC_EXTENSIONS_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER_OPERATIONS_GENERIC_EXTENSIONS_H
+
+#include "operations_generic.h"
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace rl::components::on_policy_runner{
@@ -6,8 +13,8 @@ namespace rl_tools{
             using SPEC = T_SPEC;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
-            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::Observation::DIM>> observations;
-            typename SPEC::CONTAINER_TYPE_TAG::template type<matrix::Specification<T, TI, SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>> actions;
+            Matrix<matrix::Specification<T, TI, SPEC::N_ENVIRONMENTS, SPEC::OBSERVATION::DIM, SPEC::DYNAMIC_ALLOCATION>> observations;
+            Matrix<matrix::Specification<T, TI, SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::DYNAMIC_ALLOCATION>> actions;
         };
     }
     template <typename DEVICE, typename SPEC>
@@ -20,79 +27,40 @@ namespace rl_tools{
         free(device, buffer.observations);
         free(device, buffer.actions);
     }
-    template <typename DEVICE, typename DEVICE_EVALUATION, typename DATASET_SPEC, typename ACTOR, typename ACTOR_EVALUATION, typename RNG, typename RNG_EVAL> // todo: make this not PPO but general policy with output distribution
-    void collect_hybrid(DEVICE& device, DEVICE_EVALUATION& device_evaluation, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, ACTOR& actor, ACTOR_EVALUATION& actor_evaluation, typename ACTOR_EVALUATION::template Buffer<DATASET_SPEC::SPEC::N_ENVIRONMENTS>& policy_eval_buffers, rl::components::on_policy_runner::CollectionEvaluationBuffer<typename DATASET_SPEC::SPEC> evaluation_buffer, rl::components::on_policy_runner::CollectionEvaluationBuffer<typename DATASET_SPEC::SPEC>& evaluation_buffer_evaluation, RNG& rng, RNG_EVAL& rng_evaluation){
+    template <typename DEVICE, typename DEVICE_EVALUATION, typename DATASET_SPEC, typename SPEC, typename ENVIRONMENT, typename ACTOR, typename ACTOR_EVALUATION, typename POLICY_EVAL_BUFFERS, typename RNG, typename RNG_EVALUATION>
+    void collect_hybrid(DEVICE& device, DEVICE_EVALUATION& device_evaluation, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<SPEC>& runner, rl::components::on_policy_runner::Buffer<SPEC>& runner_buffer, ENVIRONMENT& environment, ACTOR& actor, ACTOR_EVALUATION& actor_evaluation, POLICY_EVAL_BUFFERS& policy_eval_buffers, rl::components::on_policy_runner::CollectionEvaluationBuffer<SPEC>& evaluation_buffer, rl::components::on_policy_runner::CollectionEvaluationBuffer<SPEC>& evaluation_buffer_evaluation, RNG& rng, RNG_EVALUATION& rng_evaluation){
+        static_assert(utils::typing::is_same_v<typename DATASET_SPEC::SPEC, SPEC>, "the dataset must be specified over the runner's specification");
+        static_assert(utils::typing::is_same_v<typename SPEC::BATCH_ENVIRONMENT, ENVIRONMENT>, "the runner and environment types must match");
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT
-        utils::assert_exit(device, runner.initialized, "rl::components::on_policy_runner::collect: runner not initialized");
+        utils::assert_exit(device, runner.initialized, "rl::components::on_policy_runner::collect_hybrid: runner not initialized");
 #endif
-        using SPEC = typename DATASET_SPEC::SPEC;
-        using BUFFER = rl::components::on_policy_runner::Dataset<SPEC>;
-        using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-//        TI prologue_time = 0;
-//        TI copy_observations_time = 0;
-//        TI evaluate_time = 0;
-//        TI copy_back_time = 0;
-//        TI epilogue_time = 0;
-        for(TI step_i = 0; step_i < DATASET_SPEC::STEPS_PER_ENV; step_i++){
-            auto actions_mean            = view(device, dataset.actions_mean               , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()                , step_i*SPEC::N_ENVIRONMENTS, 0);
-            auto actions                 = view(device, dataset.actions                    , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()                , step_i*SPEC::N_ENVIRONMENTS, 0);
-            auto observations            = view(device, dataset.observations               , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::Observation::DIM>()          , step_i*SPEC::N_ENVIRONMENTS, 0);
-            auto observations_privileged = view(device, dataset.all_observations_privileged, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ObservationPrivileged::DIM>(), step_i*SPEC::N_ENVIRONMENTS, 0);
-
-            {
-//                auto start = std::chrono::high_resolution_clock::now();
-                rl::components::on_policy_runner::prologue(device, observations_privileged, observations, runner, rng, step_i);
-//                auto end = std::chrono::high_resolution_clock::now();
-//                prologue_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-            }
-            {
-//                auto start = std::chrono::high_resolution_clock::now();
-                copy(device, device_evaluation, observations, evaluation_buffer_evaluation.observations);
-//                auto end = std::chrono::high_resolution_clock::now();
-//                copy_observations_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-            }
-            {
-//                auto start = std::chrono::high_resolution_clock::now();
-                evaluate(device_evaluation, actor_evaluation, evaluation_buffer_evaluation.observations, evaluation_buffer_evaluation.actions, policy_eval_buffers, rng, rng_evaluation);
-                cudaDeviceSynchronize();
-//                auto end = std::chrono::high_resolution_clock::now();
-//                evaluate_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-            }
-            {
-
-//                auto start = std::chrono::high_resolution_clock::now();
-                copy(device_evaluation, device, evaluation_buffer_evaluation.actions, evaluation_buffer.actions);
-                copy(device, device, evaluation_buffer.actions, actions_mean);
-//                auto end = std::chrono::high_resolution_clock::now();
-//                copy_back_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-            }
-            {
-//                auto start = std::chrono::high_resolution_clock::now();
-                auto& last_layer = get_last_layer(actor);
-                rl::components::on_policy_runner::epilogue(device, dataset, runner, actions_mean, actions, last_layer.log_std.parameters, rng, step_i);
-//                auto end = std::chrono::high_resolution_clock::now();
-//                epilogue_time += std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-            }
+        if constexpr(SPEC::TRUNCATE_ON_EACH_ITERATION){
+            force_reset(device, runner.episodes);
+            rl::components::on_policy_runner::reset(device, runner, environment, rng);
         }
-//        std::cout << "prologue_time: " << prologue_time << std::endl;
-//        std::cout << "copy_observations_time: " << copy_observations_time << std::endl;
-//        std::cout << "evaluate_time: " << evaluate_time << std::endl;
-//        std::cout << "copy_back_time: " << copy_back_time << std::endl;
-//        std::cout << "epilogue_time: " << epilogue_time << std::endl;
+        rl::components::on_policy_runner::prologue(device, dataset, runner, environment, rng);
+        for(TI step_i = 0; step_i < DATASET_SPEC::STEPS_PER_ENV; step_i++){
+            Mode<mode::sequential::ResetMask<mode::Default<>, mode::sequential::ResetMaskSpecification<decltype(runner.episodes.reset)>>> mode_reset_mask;
+            mode_reset_mask.mask = runner.episodes.reset;
+            reset(device, actor, runner.policy_state, rng, mode_reset_mask);
 
-        // final observation
-        for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
-            auto& env = get(runner.environments, 0, env_i);
-            auto& env_parameters = get(runner.env_parameters, 0, env_i);
-            auto& state = get(runner.states, 0, env_i);
-            TI row_i = DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i;
-            auto observation = row(device, dataset.all_observations_privileged, row_i);
-            observe(device, env, env_parameters, state, typename SPEC::ENVIRONMENT::ObservationPrivileged{}, observation, rng);
-//            auto observation = row(device, dataset.all_observations_normalized, row_i);
-//            normalize(device, observations_mean, observations_std, observation, observation_normalized);
+            auto observations = view_range(device, dataset.all_observations, step_i * SPEC::N_ENVIRONMENTS, tensor::ViewSpec<0, SPEC::N_ENVIRONMENTS>{});
+            auto observations_matrix = matrix_view(device, observations);
+            copy(device, device_evaluation, observations_matrix, evaluation_buffer_evaluation.observations);
+            evaluate(device_evaluation, actor_evaluation, evaluation_buffer_evaluation.observations, evaluation_buffer_evaluation.actions, policy_eval_buffers, rng_evaluation);
+            copy(device_evaluation, device, evaluation_buffer_evaluation.actions, evaluation_buffer.actions);
+
+            auto actions_mean = view(device, dataset.actions_mean, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>(), step_i * SPEC::N_ENVIRONMENTS, 0);
+            copy(device, device, evaluation_buffer.actions, actions_mean);
+            auto& last_layer = get_last_layer(actor);
+            auto log_std = matrix_view(device, last_layer.log_std.parameters);
+            rl::components::on_policy_runner::sample_actions(device, dataset, log_std, runner_buffer.actions, step_i, rng);
+            rl::components::on_policy_runner::epilogue(device, dataset, runner, runner_buffer, environment, rng, step_i);
         }
         runner.step += SPEC::N_ENVIRONMENTS * DATASET_SPEC::STEPS_PER_ENV;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
+
+#endif

@@ -453,8 +453,9 @@ using ROLLOUT_STUDENT_TYPE = typename STUDENT_TYPE::template CHANGE_CAPABILITY<r
 // the batched on-policy runner collects the composed observations (student input, activation
 // precision) and the teacher's privileged observations per row; the teacher's recurrent state is
 // the rollout policy state (reset from the runner's episode bookkeeping)
-using RUNNER_SPEC = rlt::rl::components::on_policy_runner::BatchedSpecification<TYPE_POLICY, TI, MULTI_ENVIRONMENT, typename RAPTOR_MODEL::State<true>, EPISODES_SPEC, typename TASK_WORLD::Observation, RAPTOR_OBSERVATION_TYPE, T_ACTIVATION, T>;
-using RUNNER = rlt::rl::components::OnPolicyRunnerBatched<RUNNER_SPEC>;
+using RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, MULTI_ENVIRONMENT, typename RAPTOR_MODEL::State<true>, EPISODES_SPEC, typename TASK_WORLD::Observation, RAPTOR_OBSERVATION_TYPE, T_ACTIVATION, T>;
+using RUNNER = rlt::rl::components::OnPolicyRunner<RUNNER_SPEC>;
+using RUNNER_BUFFER = rlt::rl::components::on_policy_runner::Buffer<RUNNER_SPEC>;
 using DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<RUNNER_SPEC, STEPS_PER_ENV>;
 using DATASET = rlt::rl::components::on_policy_runner::Dataset<DATASET_SPEC>;
 
@@ -678,7 +679,9 @@ int main(int argc, char** argv){
     RAPTOR_MODEL raptor_compute;
     typename RAPTOR_MODEL::Buffer<true> raptor_buffer_compute;
     RUNNER runner;
+    RUNNER_BUFFER runner_buffer;
     rlt::malloc(device_compute, runner);
+    rlt::malloc(device_compute, runner_buffer);
     auto& raptor_state_compute = runner.policy_state;
     rlt::malloc(device_compute, raptor_compute);
     rlt::malloc(device_compute, raptor_buffer_compute);
@@ -745,8 +748,8 @@ int main(int argc, char** argv){
     DATASET dataset;
     auto& parameters = runner.env_parameters;
     auto& states = runner.states;
-    auto& next_states = runner.next_states;
-    auto& actions_step = runner.actions;
+    auto& next_states = runner_buffer.next_states;
+    auto& actions_step = runner_buffer.actions;
     auto& all_combined_observations = dataset.all_observations;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, ACTION_DIM>>> teacher_actions;
     rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, TARGET_DIM>>> student_output_step;
@@ -978,7 +981,7 @@ int main(int argc, char** argv){
             }
 
             // 7. environment step and episode bookkeeping (the runner: step, reward, autoreset, render, next row)
-            rlt::rl::components::on_policy_runner::epilogue(device_compute, dataset, runner, env, rng_compute, step_i);
+            rlt::rl::components::on_policy_runner::epilogue(device_compute, dataset, runner, runner_buffer, env, rng_compute, step_i);
             rlt::record(device_compute, episode_log, episodes, step_i + 1);
             if(record_trajectories){
                 rlt::copy(device_compute, device, episodes.terminated, terminated_host);
@@ -1409,6 +1412,7 @@ int main(int argc, char** argv){
     rlt::free(device, episode_log_host);
     rlt::free(device_compute, episode_log);
     rlt::free(device_compute, runner);
+    rlt::free(device_compute, runner_buffer);
     rlt::free(device_compute, dataset);
     rlt::free(device, states_host);
     rlt::free(device, parameters_trajectory_host);

@@ -9,6 +9,8 @@
 #include "../../../../../nn_models/sequential/operations_generic.h"
 #include "../../../../../nn/optimizers/adam/operations_generic.h"
 #include "../../../../../rl/algorithms/ppo/operations_generic.h"
+#include "../../../../../rl/environments/batch/operations_generic.h"
+#include "../../../../../rl/components/episodes/operations_cpu.h"
 #include "../../../../../rl/components/on_policy_runner/operations_generic.h"
 #include "../../../../../random/operations_generic_array.h"
 
@@ -16,68 +18,37 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    // Device-dependent helpers (overridden by operations_cuda.h for CUDA)
-    template <typename DEVICE, typename ENV_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void malloc_environments(DEVICE& device, Tensor<ENV_SPEC>& envs){
-        using TI = typename DEVICE::index_t;
-        constexpr TI N = ENV_SPEC::SHAPE::template GET<0>;
-        for(TI env_i = 0; env_i < N; env_i++){
-            auto& env = get_ref(device, envs, env_i);
-            malloc(device, env);
-        }
-    }
-    template <typename DEVICE, typename ENV_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void free_environments(DEVICE& device, Tensor<ENV_SPEC>& envs){
-        using TI = typename DEVICE::index_t;
-        constexpr TI N = ENV_SPEC::SHAPE::template GET<0>;
-        for(TI env_i = 0; env_i < N; env_i++){
-            auto& env = get_ref(device, envs, env_i);
-            free(device, env);
-        }
-    }
-    template <typename DEVICE, typename ENV_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT void init_environments(DEVICE& device, Tensor<ENV_SPEC>& envs){
-        using TI = typename DEVICE::index_t;
-        constexpr TI N = ENV_SPEC::SHAPE::template GET<0>;
-        for(TI env_i = 0; env_i < N; env_i++){
-            auto& env = get_ref(device, envs, env_i);
-            init(device, env);
-        }
-    }
-    // Shared malloc/free/init
     template <typename DEVICE, typename T_CONFIG>
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
         malloc(device, ts.rng);
         malloc(device, ts.ppo);
         malloc(device, ts.ppo_buffers);
+        malloc(device, ts.environment);
         malloc(device, ts.on_policy_runner_dataset);
         malloc(device, ts.on_policy_runner);
+        malloc(device, ts.on_policy_runner_buffer);
         malloc(device, ts.actor_eval_buffers);
         malloc(device, ts.actor_buffers);
         malloc(device, ts.critic_buffers);
         malloc(device, ts.critic_buffers_gae);
         malloc(device, ts.actor_optimizer);
         malloc(device, ts.critic_optimizer);
-        malloc(device, ts.envs);
-        malloc(device, ts.env_parameters);
-        malloc_environments(device, ts.envs);
     }
     template <typename DEVICE, typename T_CONFIG>
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
         free(device, ts.rng);
         free(device, ts.ppo);
         free(device, ts.ppo_buffers);
+        free(device, ts.environment);
         free(device, ts.on_policy_runner_dataset);
         free(device, ts.on_policy_runner);
+        free(device, ts.on_policy_runner_buffer);
         free(device, ts.actor_eval_buffers);
         free(device, ts.actor_buffers);
         free(device, ts.critic_buffers);
         free(device, ts.critic_buffers_gae);
         free(device, ts.actor_optimizer);
         free(device, ts.critic_optimizer);
-        free(device, ts.envs);
-        free(device, ts.env_parameters);
-        free_environments(device, ts.envs);
     }
     template <typename DEVICE, typename T_CONFIG>
     RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts, typename T_CONFIG::TI seed = 0){
@@ -85,9 +56,9 @@ namespace rl_tools{
         using TI = typename DEVICE::index_t;
 
         init(device, ts.rng, seed);
-        init_environments(device, ts.envs);
+        init(device, ts.environment);
         init(device, ts.ppo, ts.actor_optimizer, ts.critic_optimizer, ts.rng);
-        init(device, ts.on_policy_runner, ts.envs, ts.env_parameters, ts.ppo.actor, ts.rng);
+        init(device, ts.on_policy_runner, ts.environment, ts.rng);
 
         ts.step = 0;
     }
@@ -115,7 +86,7 @@ namespace rl_tools{
             Mode<nn::layers::standardize::AccumulateMode<>> accumulate_mode;
             if(ts.step == 0){
                 for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < T_CONFIG::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
-                    collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
+                    collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.on_policy_runner_buffer, ts.environment, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
                     for(TI batch_i = 0; batch_i < N_BATCHES; batch_i++){
                         auto batch_observations = view_range(device, ts.on_policy_runner_dataset.all_observations, batch_i * BATCH_SIZE, tensor::ViewSpec<0, BATCH_SIZE>{});
                         auto batch_observations_reshaped = reshape_row_major(device, batch_observations, ACTOR_INPUT_SHAPE{});
@@ -125,10 +96,10 @@ namespace rl_tools{
                         forward(device, ts.ppo.critic, batch_observations_privileged_reshaped, ts.critic_buffers, ts.rng, accumulate_mode);
                     }
                 }
-                init(device, ts.on_policy_runner, ts.envs, ts.env_parameters, ts.ppo.actor, ts.rng);
+                init(device, ts.on_policy_runner, ts.environment, ts.rng);
             }
         }
-        collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
+        collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.on_policy_runner_buffer, ts.environment, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
         if constexpr(T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS && T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS_CONTINUOUSLY){
             constexpr TI BATCH_SIZE = CONFIG::CORE_PARAMETERS::BATCH_SIZE;
             constexpr TI N_BATCHES = STEPS_TOTAL / BATCH_SIZE;
