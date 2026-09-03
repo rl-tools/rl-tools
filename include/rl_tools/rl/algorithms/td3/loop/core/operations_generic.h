@@ -18,6 +18,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename T_CONFIG>
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts){
+        malloc(device, ts.rng);
         malloc(device, ts.actor_critic);
         malloc(device, ts.off_policy_runner);
         malloc(device, ts.critic_batch);
@@ -39,6 +40,7 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename T_CONFIG>
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::algorithms::td3::loop::core::State<T_CONFIG>& ts){
+        free(device, ts.rng);
         free(device, ts.actor_critic);
         free(device, ts.off_policy_runner);
         free(device, ts.critic_batch);
