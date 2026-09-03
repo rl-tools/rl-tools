@@ -154,6 +154,24 @@ env.rotate_scene()                 # deterministic scene rotation; reset all ins
 env.observation_layout             # named blocks: which channels/values mean what
 ```
 
+Episode bookkeeping (same-step autoreset) is part of the environment, so a training loop does
+not need its own step counters or reset masks:
+
+```python
+env.force_reset()                                   # mark all instances (or a mask) for a reset
+for step in range(steps):
+    env.begin_step()                                # resets the due instances: terminated, time limit, forced
+    flags = env.episode_flags()                     # terminated / truncated / reset (bool), end_reason, episode_step
+    env.render(flags["reset"])                      # the reset mask begin_step applied
+    observations = env.observe()                    # first observation of the new episode for reset rows
+    env.step(actions)
+    env.end_step()                                  # terminal check, counters, truncation (time limit: env.set_step_limit)
+    rewards, flags = env.rewards(), env.episode_flags()
+```
+
+`terminated` implies `truncated`; `reset` is the truncation delayed by one step; no final
+observation of an ended episode is surfaced (learners mask truncated transitions instead).
+
 All environment semantics — reset, reward, termination, scene scheduling, observation
 composition — live on the C++ side (`rl_tools::rl::environments::hyperdrone::MultiEnvironment<World>`);
 the binding marshals tensors and nothing else, and a seeded rollout is pinned bit-exact
@@ -218,7 +236,9 @@ observations, infos = env.reset()
 observations, rewards, terminations, truncations, infos = env.step(actions)
 ```
 
-Same-step autoreset over the env verbs; the core packages never import gymnasium.
+Same-step autoreset through the environment's episode bookkeeping (`begin_step` /
+`end_step`); `truncations` flags time limits that are not terminations; the core packages
+never import gymnasium.
 
 End-to-end example: `python -m hyperdrone.examples.drone_flythrough`; renderer benchmark:
 `python -m hyperdrone.examples.benchmark` (flag-compatible with the C++ benchmark
