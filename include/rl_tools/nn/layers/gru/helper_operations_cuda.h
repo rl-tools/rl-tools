@@ -4,6 +4,7 @@
 #define RL_TOOLS_NN_LAYERS_GRU_HELPER_OPERATIONS_CUDA_H
 
 #include "layer.h"
+#include "reset_mask.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::layers::gru::helper{
@@ -374,6 +375,30 @@ namespace rl_tools{
     // per-batch-element reset of CUDA-resident GRU state from a device mask (the generic
     // _reset_sequential is a host loop over the mask)
     namespace nn::layers::gru::kernels{
+        template<typename DEVICE, typename INITIAL_SPEC, typename STATE_SPEC, typename STEP_SPEC, typename TI>
+        __global__ void reset_truncate_kernel(DEVICE device, const Tensor<INITIAL_SPEC> initial, Tensor<STATE_SPEC> state, Tensor<STEP_SPEC> step, TI sequence_length){
+            const TI batch_i = threadIdx.x + blockIdx.x * blockDim.x;
+            if(batch_i < get<0>(typename STATE_SPEC::SHAPE{}) && get(device, step, batch_i) >= sequence_length){
+                for(TI hidden_i = 0; hidden_i < get<1>(typename STATE_SPEC::SHAPE{}); hidden_i++){
+                    set(device, state, get(device, initial, hidden_i), batch_i, hidden_i);
+                }
+                set(device, step, 0, batch_i);
+            }
+        }
+        template<auto BATCH_SIZE, typename DEVICE, typename INITIAL_SPEC, typename STATE_SPEC, typename STEP_SPEC, typename TI>
+        __global__ void advance_gru_step_kernel(DEVICE device, const Tensor<INITIAL_SPEC> initial, Tensor<STATE_SPEC> state, Tensor<STEP_SPEC> step, TI sequence_length){
+            const TI batch_i = threadIdx.x + blockIdx.x * blockDim.x;
+            if(batch_i < BATCH_SIZE){
+                TI new_step = get(device, step, batch_i) + 1;
+                if(new_step >= sequence_length){
+                    new_step = 0;
+                    for(TI hidden_i = 0; hidden_i < get<1>(typename STATE_SPEC::SHAPE{}); hidden_i++){
+                        set(device, state, get(device, initial, hidden_i), batch_i, hidden_i);
+                    }
+                }
+                set(device, step, new_step, batch_i);
+            }
+        }
         template<typename DEV_SPEC, typename INITIAL_SPEC, typename STATE_SPEC, typename STEP_SPEC, typename MASK>
         __global__
         void reset_sequential_kernel(devices::CUDA<DEV_SPEC> device, const Tensor<INITIAL_SPEC> initial_hidden_state, Tensor<STATE_SPEC> state, Tensor<STEP_SPEC> step, const MASK mask){
@@ -389,6 +414,27 @@ namespace rl_tools{
                     set(device, state, (T)get(device, initial_hidden_state, hidden_i), batch_i, hidden_i);
                 }
             }
+        }
+    }
+    template<typename DEV_SPEC, typename SPEC, typename STATE_SPEC, typename MODE, typename utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
+    void reset_truncate(devices::CUDA<DEV_SPEC>& device, const nn::layers::gru::LayerForward<SPEC>& layer, nn::layers::gru::State<STATE_SPEC>& state, Mode<MODE> = Mode<mode::Default<>>{}){
+        if constexpr(!mode::is<MODE, nn::layers::gru::NoAutoResetMode>){
+            constexpr auto BATCH_SIZE = get<0>(typename decltype(state.state)::SPEC::SHAPE{});
+            devices::cuda::TAG<devices::CUDA<DEV_SPEC>, true> tag_device{};
+            nn::layers::gru::kernels::reset_truncate_kernel<<<RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, 32), 32, 0, device.stream>>>(tag_device, layer.initial_hidden_state.parameters, state.state, state.step, SPEC::SEQUENCE_LENGTH);
+            check_status(device);
+        }
+    }
+    template<auto BATCH_SIZE, typename DEV_SPEC, typename SPEC, typename STATE_SPEC, typename MODE, typename utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
+    void advance_gru_step(devices::CUDA<DEV_SPEC>& device, const nn::layers::gru::LayerForward<SPEC>& layer, nn::layers::gru::State<STATE_SPEC>& state, const Mode<MODE>&){
+        static_assert(BATCH_SIZE <= get<0>(typename decltype(state.state)::SPEC::SHAPE{}));
+        if constexpr(mode::is<MODE, nn::layers::gru::NoAutoResetMode>){
+            increment(device, state.step);
+        }
+        else{
+            devices::cuda::TAG<devices::CUDA<DEV_SPEC>, true> tag_device{};
+            nn::layers::gru::kernels::advance_gru_step_kernel<BATCH_SIZE><<<RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, 32), 32, 0, device.stream>>>(tag_device, layer.initial_hidden_state.parameters, state.state, state.step, SPEC::SEQUENCE_LENGTH);
+            check_status(device);
         }
     }
     template<typename DEV_SPEC, typename SPEC, typename STATE_SPEC, typename BASE_MODE, typename MODE_SPEC, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>

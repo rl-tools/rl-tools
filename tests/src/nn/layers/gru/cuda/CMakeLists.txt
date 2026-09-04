@@ -8,3 +8,12 @@ set(CMAKE_CXX_STANDARD  17)
 add_executable(test_nn_layers_gru_cuda gru_cuda.cu)
 target_link_libraries(test_nn_layers_gru_cuda PRIVATE rl_tools_full GTest::gtest_main)
 gtest_discover_tests(test_nn_layers_gru_cuda)
+
+add_executable(test_nn_layers_gru_reset_cuda gru_reset.cu)
+target_link_libraries(test_nn_layers_gru_reset_cuda PRIVATE rl_tools_full GTest::gtest_main)
+gtest_discover_tests(test_nn_layers_gru_reset_cuda)
+
+add_executable(test_nn_layers_gru_reset_cuda_helper_first gru_reset.cu)
+target_compile_definitions(test_nn_layers_gru_reset_cuda_helper_first PRIVATE RL_TOOLS_TEST_GRU_CUDA_HELPER_FIRST)
+target_link_libraries(test_nn_layers_gru_reset_cuda_helper_first PRIVATE rl_tools_full GTest::gtest_main)
+gtest_discover_tests(test_nn_layers_gru_reset_cuda_helper_first TEST_PREFIX "HELPER_FIRST.")

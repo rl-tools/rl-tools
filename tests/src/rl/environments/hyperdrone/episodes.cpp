@@ -6,11 +6,13 @@
 
 #include <gtest/gtest.h>
 
-#include <cstring>
 #include <filesystem>
 #include <string>
 
 namespace rlt = rl_tools;
+using rlt::prologue;
+using rlt::epilogue;
+using rlt::reset;
 namespace l2f = rlt::rl::environments::l2f;
 namespace on_policy_runner = rlt::rl::components::on_policy_runner;
 
@@ -114,7 +116,7 @@ struct Harness {
         rlt::malloc(device, dataset);
         rlt::set_all(device, buffer.actions, (T)0);
         rlt::init(device, runner, env, rng);
-        on_policy_runner::prologue(device, dataset, runner, env, rng);
+        prologue(device, dataset, runner, env, rng);
     }
     ~Harness(){
         rlt::free(device, dataset);
@@ -123,16 +125,16 @@ struct Harness {
         rlt::free(device, rng);
     }
     void step(TI step_i){
-        on_policy_runner::epilogue(device, dataset, runner, buffer, env, rng, step_i);
+        epilogue(device, dataset, runner, buffer, env, rng, step_i);
     }
     template <typename MASK_SPEC>
     void reset(const rlt::Tensor<MASK_SPEC>& mask){
-        on_policy_runner::reset(device, runner, env, mask, rng);
-        on_policy_runner::prologue(device, dataset, runner, env, rng);
+        rlt::reset(device, runner, env, mask, rng);
+        prologue(device, dataset, runner, env, rng);
     }
     void reset(){
-        on_policy_runner::reset(device, runner, env, rng);
-        on_policy_runner::prologue(device, dataset, runner, env, rng);
+        rlt::reset(device, runner, env, rng);
+        prologue(device, dataset, runner, env, rng);
     }
 };
 
@@ -274,7 +276,24 @@ TEST_F(Fixture, DETERMINISM){
     }
     for(TI step_i = 0; step_i < STEPS; step_i++){
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            ASSERT_EQ(std::memcmp(&states[0][step_i][instance_i], &states[1][step_i][instance_i], sizeof(typename WORLD::State)), 0);
+            const auto& a = states[0][step_i][instance_i];
+            const auto& b = states[1][step_i][instance_i];
+            for(TI dim = 0; dim < 3; dim++){
+                ASSERT_EQ(a.position[dim], b.position[dim]);
+                ASSERT_EQ(a.linear_velocity[dim], b.linear_velocity[dim]);
+                ASSERT_EQ(a.angular_velocity[dim], b.angular_velocity[dim]);
+                ASSERT_EQ(a.force[dim], b.force[dim]);
+                ASSERT_EQ(a.torque[dim], b.torque[dim]);
+            }
+            for(TI dim = 0; dim < 4; dim++){
+                ASSERT_EQ(a.orientation[dim], b.orientation[dim]);
+                ASSERT_EQ(a.last_action[dim], b.last_action[dim]);
+                ASSERT_EQ(a.rpm[dim], b.rpm[dim]);
+                for(TI history = 0; history < WORLD::State::HISTORY_LENGTH; history++){
+                    ASSERT_EQ(a.action_history[history][dim], b.action_history[history][dim]);
+                }
+            }
+            ASSERT_EQ(a.rotor_history_step, b.rotor_history_step);
             ASSERT_EQ(lengths[0][step_i][instance_i], lengths[1][step_i][instance_i]);
             ASSERT_FLOAT_EQ(rewards[0][step_i][instance_i], rewards[1][step_i][instance_i]);
         }

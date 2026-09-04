@@ -12,6 +12,9 @@
 #include <string>
 
 namespace rlt = rl_tools;
+using rlt::prologue;
+using rlt::reset;
+using rlt::epilogue;
 namespace l2f = rlt::rl::environments::l2f;
 namespace on_policy_runner = rlt::rl::components::on_policy_runner;
 
@@ -127,21 +130,21 @@ static void trace_rollout(DEVICE& device, COMPUTE_DEVICE& device_compute, WORLD&
     rlt::set_all(device_compute, buffer.actions, (T)0);
     rlt::init(device_compute, runner, world, rng);
     runner.episode_step_limit = STEP_LIMIT;
-    on_policy_runner::prologue(device_compute, dataset_compute, runner, world, rng);
+    prologue(device_compute, dataset_compute, runner, world, rng);
 
     for(TI step_i = 0; step_i < STEPS; step_i++){
         if(step_i == 2){
             rlt::set_all(device, mask_host, false);
             rlt::set(device, mask_host, true, 0);
             rlt::copy(device, device_compute, mask_host, mask);
-            on_policy_runner::reset(device_compute, runner, world, mask, rng);
-            on_policy_runner::prologue(device_compute, dataset_compute, runner, world, rng);
+            reset(device_compute, runner, world, mask, rng);
+            prologue(device_compute, dataset_compute, runner, world, rng);
         }
         rlt::copy(device_compute, device, runner.reset, reset_host);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
             trace.reset[step_i][instance_i] = rlt::get(device, reset_host, instance_i);
         }
-        on_policy_runner::epilogue(device_compute, dataset_compute, runner, buffer, world, rng, step_i);
+        epilogue(device_compute, dataset_compute, runner, buffer, world, rng, step_i);
         rlt::copy(device_compute, device, runner.episode_step, episode_step_host);
         rlt::copy(device_compute, device, buffer.terminated, terminated_host);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){

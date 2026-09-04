@@ -10,3 +10,22 @@ add_executable(test_rl_algorithms_ppo_cuda test_ppo_cuda.cu)
 target_link_libraries(test_rl_algorithms_ppo_cuda PRIVATE RLtools::RLtools GTest::gtest_main)
 target_compile_options(test_rl_algorithms_ppo_cuda PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:-Xcudafe --diag_suppress=186>)
 gtest_discover_tests(test_rl_algorithms_ppo_cuda)
+
+add_executable(test_rl_components_on_policy_runner_fused_cuda fused.cu)
+target_link_libraries(test_rl_components_on_policy_runner_fused_cuda PRIVATE RLtools::RLtools GTest::gtest_main)
+gtest_discover_tests(test_rl_components_on_policy_runner_fused_cuda)
+
+add_executable(test_rl_components_on_policy_runner_fused_cuda_direct fused.cu)
+target_compile_definitions(test_rl_components_on_policy_runner_fused_cuda_direct PRIVATE RL_TOOLS_TEST_RUNNER_CUDA_DIRECT)
+target_link_libraries(test_rl_components_on_policy_runner_fused_cuda_direct PRIVATE RLtools::RLtools GTest::gtest_main)
+gtest_discover_tests(test_rl_components_on_policy_runner_fused_cuda_direct TEST_PREFIX "DIRECT.")
+
+add_executable(test_rl_components_on_policy_runner_fused_recurrent_cuda fused_recurrent.cu)
+target_link_libraries(test_rl_components_on_policy_runner_fused_recurrent_cuda PRIVATE RLtools::RLtools GTest::gtest_main)
+gtest_discover_tests(test_rl_components_on_policy_runner_fused_recurrent_cuda)
+
+foreach(instances 64 1024)
+    add_executable(benchmark_rl_components_on_policy_runner_cuda_${instances} EXCLUDE_FROM_ALL benchmark.cu)
+    target_compile_definitions(benchmark_rl_components_on_policy_runner_cuda_${instances} PRIVATE RL_TOOLS_BENCHMARK_ENVIRONMENTS=${instances})
+    target_link_libraries(benchmark_rl_components_on_policy_runner_cuda_${instances} PRIVATE RLtools::RLtools)
+endforeach()

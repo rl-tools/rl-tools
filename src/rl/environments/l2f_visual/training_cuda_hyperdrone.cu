@@ -81,6 +81,10 @@
 #include <sstream>
 
 namespace rlt = rl_tools;
+using rlt::reset;
+using rlt::prologue;
+using rlt::sample_actions;
+using rlt::epilogue;
 
 // =========================================================================
 // Device types
@@ -878,7 +882,7 @@ int main(int argc, char** argv){
             if(ppo_step_i == 0){
                 rlt::init(device_gpu, gpu_runner, env, rng_gpu);
             } else {
-                rlt::rl::components::on_policy_runner::reset(device_gpu, gpu_runner, env, rng_gpu);
+                reset(device_gpu, gpu_runner, env, rng_gpu);
             }
         }
 
@@ -915,7 +919,7 @@ int main(int argc, char** argv){
         T cam_aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
         TI frame_step_start = ppo_step_i * STEPS_PER_ENV;
         // row 0: the current raw frames and privileged observations, plus the dataset's reset column
-        rlt::rl::components::on_policy_runner::prologue(device_gpu, dataset_gpu, gpu_runner, env, rng_gpu);
+        prologue(device_gpu, dataset_gpu, gpu_runner, env, rng_gpu);
         for(TI step_i = 0; step_i < STEPS_PER_ENV; step_i++){
             TI frame_step_i = frame_step_start + step_i;
             // 1. Driver-side per-row data: the episode start (frame-stack guard), the actor's state
@@ -1007,9 +1011,9 @@ int main(int argc, char** argv){
             {
                 auto& last_layer_gpu = ppo_gpu.actor.head;
                 auto log_std_gpu = rlt::matrix_view(device_gpu, last_layer_gpu.log_std.parameters);
-                rlt::rl::components::on_policy_runner::sample_actions(device_gpu, dataset_gpu, log_std_gpu, gpu_step_actions, step_i, rng_gpu);
+                sample_actions(device_gpu, dataset_gpu, log_std_gpu, gpu_step_actions, step_i, rng_gpu);
             }
-            rlt::rl::components::on_policy_runner::epilogue(device_gpu, dataset_gpu, gpu_runner, gpu_runner_buffer, env, rng_gpu, step_i);
+            epilogue(device_gpu, dataset_gpu, gpu_runner, gpu_runner_buffer, env, rng_gpu, step_i);
             if(log_reward_components_this_step && step_i == STEPS_PER_ENV - 1){
                 cudaStreamSynchronize(device_gpu.stream);
                 cudaMemcpy(&reward_log_next_state, rlt::data(gpu_runner_buffer.next_states), sizeof(typename TASK_WORLD::State), cudaMemcpyDeviceToHost);

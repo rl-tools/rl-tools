@@ -110,6 +110,8 @@
 #include <fstream>
 
 namespace rlt = rl_tools;
+using rlt::prologue;
+using rlt::epilogue;
 
 #ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
 static constexpr bool STATE_ESTIMATION_MODE = true;
@@ -881,7 +883,7 @@ int main(int argc, char** argv){
         // =================================================================
         // row 0 (composed observation + teacher input) is observed by the runner's prologue and
         // rows t + 1 by its epilogue
-        rlt::rl::components::on_policy_runner::prologue(device_compute, dataset, runner, env, rng_compute);
+        prologue(device_compute, dataset, runner, env, rng_compute);
         for(TI step_i = 0; step_i < STEPS_PER_ENV; step_i++){
             // 1. the reset applied for this row (epoch start or the previous epilogue): teacher state
             rlt::reset(device_compute, raptor_compute, raptor_state_compute, rng_compute, mode_reset_mask);
@@ -973,7 +975,7 @@ int main(int argc, char** argv){
             }
 
             // 7. environment step and episode accounting (the runner: step, reward, autoreset, next row)
-            rlt::rl::components::on_policy_runner::epilogue(device_compute, dataset, runner, runner_buffer, env, rng_compute, step_i);
+            epilogue(device_compute, dataset, runner, runner_buffer, env, rng_compute, step_i);
             if(record_trajectories){
                 rlt::copy(device_compute, device, runner_buffer.terminated, terminated_host);
                 auto actions_trajectory_view = rlt::view_range(device_compute, actions_step, (TI)0, rlt::tensor::ViewSpec<0, TRAJECTORY_NUM_ENVS>{});
