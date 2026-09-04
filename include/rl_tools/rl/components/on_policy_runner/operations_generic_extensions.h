@@ -36,9 +36,9 @@ namespace rl_tools{
 #endif
         using TI = typename SPEC::TI;
         if constexpr(SPEC::TRUNCATE_ON_EACH_ITERATION){
-            rl::components::on_policy_runner::reset(device, runner, environment, rng);
+            reset(device, runner, environment, rng);
         }
-        rl::components::on_policy_runner::prologue(device, dataset, runner, environment, rng);
+        prologue(device, dataset, runner, environment, rng);
         for(TI step_i = 0; step_i < DATASET_SPEC::STEPS_PER_ENV; step_i++){
             Mode<mode::sequential::ResetMask<mode::Default<>, mode::sequential::ResetMaskSpecification<decltype(runner.reset)>>> mode_reset_mask;
             mode_reset_mask.mask = runner.reset;
@@ -54,8 +54,8 @@ namespace rl_tools{
             copy(device, device, evaluation_buffer.actions, actions_mean);
             auto& last_layer = get_last_layer(actor);
             auto log_std = matrix_view(device, last_layer.log_std.parameters);
-            rl::components::on_policy_runner::sample_actions(device, dataset, log_std, runner_buffer.actions, step_i, rng);
-            rl::components::on_policy_runner::epilogue(device, dataset, runner, runner_buffer, environment, rng, step_i);
+            sample_actions(device, dataset, log_std, runner_buffer.actions, step_i, rng);
+            epilogue(device, dataset, runner, runner_buffer, environment, rng, step_i);
         }
         runner.step += SPEC::N_ENVIRONMENTS * DATASET_SPEC::STEPS_PER_ENV;
     }

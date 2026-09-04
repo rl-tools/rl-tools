@@ -15,6 +15,9 @@
 #include <string>
 
 namespace rlt = rl_tools;
+using rlt::prologue;
+using rlt::interlude;
+using rlt::epilogue;
 namespace l2f = rlt::rl::environments::l2f;
 namespace on_policy_runner = rlt::rl::components::on_policy_runner;
 
@@ -175,19 +178,19 @@ TEST_F(Fixture, PHASES){
     Rollout rollout(device, *env, 1337);
     auto& runner = rollout.runner;
     auto& dataset = rollout.dataset;
-    on_policy_runner::prologue(device, dataset, runner, *env, rollout.rng);
+    prologue(device, dataset, runner, *env, rollout.rng);
     for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
         ASSERT_EQ(rlt::get(dataset.reset, instance_i, 0), (T)1) << "the first rollout starts with a reset of every instance";
     }
     for(TI step_i = 0; step_i < STEPS; step_i++){
-        on_policy_runner::interlude(device, dataset, runner, rollout.runner_buffer, rollout.actor, rollout.actor_buffers, rollout.rng, step_i);
+        interlude(device, dataset, runner, rollout.runner_buffer, rollout.actor, rollout.actor_buffers, rollout.rng, step_i);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
             const TI pos = step_i * INSTANCES + instance_i;
             for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
                 ASSERT_FLOAT_EQ(rlt::get(device, rollout.runner_buffer.actions, instance_i, action_i), rlt::get(dataset.actions, pos, action_i)) << "the step actions are the sampled dataset actions";
             }
         }
-        on_policy_runner::epilogue(device, dataset, runner, rollout.runner_buffer, *env, rollout.rng, step_i);
+        epilogue(device, dataset, runner, rollout.runner_buffer, *env, rollout.rng, step_i);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
             const TI pos = step_i * INSTANCES + instance_i;
             const T truncated = rlt::get(dataset.truncated, pos, 0);

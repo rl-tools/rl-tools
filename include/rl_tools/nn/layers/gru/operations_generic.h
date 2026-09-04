@@ -4,6 +4,7 @@
 #define RL_TOOLS_NN_LAYERS_GRU_OPERATIONS_GENERIC_H
 
 #include "layer.h"
+#include "reset_mask.h"
 #include "helper_operations_generic.h"
 #ifdef RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
 #include "helper_operations_cuda.h"
@@ -87,29 +88,6 @@ namespace rl_tools{
                     set(device, state.step, 0, batch_i);
                 }
             }
-        }
-    }
-    namespace nn::layers::gru::mode{
-        // the sequential reset mask is a 1xBATCH matrix (view) or a rank-1 bool tensor
-        template <typename MASK>
-        struct ResetMaskSize;
-        template <typename SPEC>
-        struct ResetMaskSize<Matrix<SPEC>>{
-            static_assert(SPEC::ROWS == 1, "The reset mask for GRU layers must have a single row.");
-            static constexpr auto VALUE = SPEC::COLS;
-        };
-        template <typename SPEC>
-        struct ResetMaskSize<Tensor<SPEC>>{
-            static_assert(length(typename SPEC::SHAPE{}) == 1, "The reset mask for GRU layers must be a rank-1 tensor.");
-            static constexpr auto VALUE = get<0>(typename SPEC::SHAPE{});
-        };
-        template <typename DEVICE, typename SPEC>
-        RL_TOOLS_FUNCTION_PLACEMENT bool reset_mask_value(DEVICE&, const Matrix<SPEC>& mask, typename DEVICE::index_t batch_i){
-            return get(mask, 0, batch_i);
-        }
-        template <typename DEVICE, typename SPEC>
-        RL_TOOLS_FUNCTION_PLACEMENT bool reset_mask_value(DEVICE& device, const Tensor<SPEC>& mask, typename DEVICE::index_t batch_i){
-            return get(device, mask, batch_i);
         }
     }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename BASE_MODE, typename MODE_SPEC>
@@ -369,6 +347,24 @@ namespace rl_tools{
         constexpr TI BATCH_SIZE = get<1>(typename INPUT_SPEC::SHAPE{});
         evaluate(device, layer, input, buffers.post_activation, buffers.n_pre_pre_activation, output, buffers.previous_output_scratch, buffers, rng, mode);
     }
+    template<auto BATCH_SIZE, typename DEVICE, typename LAYER_SPEC, typename STATE_SPEC, typename MODE>
+    RL_TOOLS_FUNCTION_PLACEMENT void advance_gru_step(DEVICE& device, const nn::layers::gru::LayerForward<LAYER_SPEC>& layer, nn::layers::gru::State<STATE_SPEC>& state, const Mode<MODE>&){
+        using TI = typename DEVICE::index_t;
+        if constexpr(mode::is<MODE, nn::layers::gru::NoAutoResetMode>){
+            increment(device, state.step);
+        }
+        else{
+            for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
+                TI new_step = get(device, state.step, batch_i) + 1;
+                if(new_step >= LAYER_SPEC::SEQUENCE_LENGTH){
+                    new_step = 0;
+                    auto row = view(device, state.state, batch_i);
+                    copy(device, device, layer.initial_hidden_state.parameters, row);
+                }
+                set(device, state.step, new_step, batch_i);
+            }
+        }
+    }
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename STATE_SPEC, typename OUTPUT_SPEC, typename BUFFER_SPEC, typename RNG, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT void evaluate_step(DEVICE& device, const nn::layers::gru::LayerForward<LAYER_SPEC>& layer, const Tensor<INPUT_SPEC>& input, typename nn::layers::gru::State<STATE_SPEC>& state, Tensor<OUTPUT_SPEC>& output, nn::layers::gru::buffers::Evaluation<BUFFER_SPEC>& buffers, RNG& rng, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using TI = typename DEVICE::index_t;
@@ -427,20 +423,7 @@ namespace rl_tools{
         multiply(device, n_post_activation, output_step);
         multiply_accumulate(device, z_post_activation, previous_output_scratch, output_step);
         copy(device, device, output_step, relevant_state);
-        if constexpr(mode::is<MODE, nn::layers::gru::NoAutoResetMode>){
-            increment(device, state.step);
-        }
-        else{
-            for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
-                TI new_step = get(device, state.step, batch_i) + 1;
-                if(new_step >= LAYER_SPEC::SEQUENCE_LENGTH){
-                    new_step = 0;
-                    auto row = view(device, relevant_state, batch_i);
-                    copy(device, device, layer.initial_hidden_state.parameters, row);
-                }
-                set(device, state.step, new_step, batch_i);
-            }
-        }
+        advance_gru_step<BATCH_SIZE>(device, layer, state, mode);
     }
 
     template<typename DEVICE, typename LAYER_SPEC, typename INPUT_SPEC, typename RNG, typename BUFFER_SPEC, typename MODE = mode::Default<>>
