@@ -1,0 +1,7 @@
+find_program(RL_TOOLS_NODE_EXECUTABLE node)
+if(RL_TOOLS_NODE_EXECUTABLE AND EXISTS "${CMAKE_SOURCE_DIR}/static/ide/build/toolchain/llvm.wasm" AND EXISTS "${CMAKE_SOURCE_DIR}/static/ide/build/rl_tools_include.tar")
+    add_test(NAME test_ide_pipeline COMMAND ${RL_TOOLS_NODE_EXECUTABLE} --no-warnings ${CMAKE_CURRENT_SOURCE_DIR}/pipeline.mjs)
+    set_tests_properties(test_ide_pipeline PROPERTIES LABELS "ide" TIMEOUT 600)
+else()
+    message(STATUS "RLtools IDE pipeline test disabled (needs node and static/ide/build from the tools/ide/toolchain build + tools/ide/bundle.sh)")
+endif()
