@@ -76,8 +76,6 @@ namespace test_hyperdrone_episodes {
     using ENVIRONMENT = rlt::rl::environments::hyperdrone::MultiEnvironment<WORLD, NUMBER_OF_ENVIRONMENTS>;
     constexpr TI INSTANCES = ENVIRONMENT::INSTANCES;
     using POLICY_STATE = rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1>>>;
-    using RUNNER_SPEC = on_policy_runner::Specification<rlt::numeric_types::Policy<T>, ENVIRONMENT, POLICY_STATE>;
-    using END_REASON = on_policy_runner::EpisodeEndReason;
 }
 
 using namespace test_hyperdrone_episodes;
@@ -94,8 +92,9 @@ static std::string scene_directory(){
     return directory;
 }
 
-template <TI STEPS>
+template <TI STEPS, TI STEP_LIMIT = 3>
 struct Harness {
+    using RUNNER_SPEC = on_policy_runner::Specification<rlt::numeric_types::Policy<T>, ENVIRONMENT, POLICY_STATE, ENVIRONMENT::Observation, ENVIRONMENT::ObservationPrivileged, T, T, STEP_LIMIT>;
     using RUNNER = rlt::rl::components::OnPolicyRunner<RUNNER_SPEC>;
     using BUFFER = on_policy_runner::Buffer<RUNNER_SPEC>;
     using DATASET_SPEC = on_policy_runner::DatasetSpecification<RUNNER_SPEC, STEPS>;
@@ -162,7 +161,6 @@ TEST_F(Fixture, TIME_LIMIT_AND_DATASET_FLAGS){
     constexpr TI STEPS = 8;
     constexpr TI STEP_LIMIT = 3;
     Harness<STEPS> harness(device, *env, 1337);
-    harness.runner.episode_step_limit = STEP_LIMIT;
     TI truncations = 0;
     for(TI step_i = 0; step_i < STEPS; step_i++){
         harness.step(step_i);
@@ -177,9 +175,6 @@ TEST_F(Fixture, TIME_LIMIT_AND_DATASET_FLAGS){
             if(truncated){
                 truncations++;
                 ASSERT_EQ(rlt::get(device, harness.runner.episode_step, instance_i), (TI)0);
-                const END_REASON reason = rlt::get(device, harness.dataset.episode_end_reason, step_i + 1, instance_i);
-                ASSERT_EQ(reason, terminated ? END_REASON::TERMINATED : END_REASON::TIME_LIMIT);
-                ASSERT_LE(rlt::get(device, harness.dataset.episode_length, step_i + 1, instance_i), STEP_LIMIT);
             }
             else{
                 ASSERT_GT(rlt::get(device, harness.runner.episode_step, instance_i), (TI)0);
@@ -191,8 +186,7 @@ TEST_F(Fixture, TIME_LIMIT_AND_DATASET_FLAGS){
 
 TEST_F(Fixture, NO_LIMIT){
     constexpr TI STEPS = 5;
-    Harness<STEPS> harness(device, *env, 1337);
-    harness.runner.episode_step_limit = 0;
+    Harness<STEPS, 0> harness(device, *env, 1337);
     for(TI step_i = 0; step_i < STEPS; step_i++){
         harness.step(step_i);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
@@ -204,16 +198,14 @@ TEST_F(Fixture, NO_LIMIT){
 
 TEST_F(Fixture, EXPLICIT_RESET_IS_IMMEDIATE_AND_RECORDED_BY_PROLOGUE){
     constexpr TI STEPS = 6;
-    Harness<STEPS> harness(device, *env, 42);
-    harness.runner.episode_step_limit = 0;
+    Harness<STEPS, 0> harness(device, *env, 42);
     harness.step(0);
     harness.step(1);
     harness.reset();
     for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
         ASSERT_TRUE(rlt::get(device, harness.runner.reset, instance_i));
         ASSERT_EQ(rlt::get(device, harness.runner.episode_step, instance_i), (TI)0);
-        ASSERT_EQ(rlt::get(device, harness.dataset.episode_end_reason, 0, instance_i), END_REASON::FORCED);
-        ASSERT_EQ(rlt::get(device, harness.dataset.episode_length, 0, instance_i), (TI)2);
+        ASSERT_EQ(rlt::get(harness.dataset.reset, instance_i, 0), (T)1);
     }
 
     harness.step(2);
@@ -223,38 +215,21 @@ TEST_F(Fixture, EXPLICIT_RESET_IS_IMMEDIATE_AND_RECORDED_BY_PROLOGUE){
     rlt::set(device, mask, true, 0);
     harness.reset(mask);
     ASSERT_TRUE(rlt::get(device, harness.runner.reset, 0));
-    ASSERT_EQ(rlt::get(device, harness.dataset.episode_end_reason, 0, 0), END_REASON::FORCED);
+    ASSERT_EQ(rlt::get(harness.dataset.reset, 0, 0), (T)1);
     for(TI instance_i = 1; instance_i < INSTANCES; instance_i++){
         ASSERT_FALSE(rlt::get(device, harness.runner.reset, instance_i));
-        ASSERT_EQ(rlt::get(device, harness.dataset.episode_end_reason, 0, instance_i), END_REASON::NONE);
         ASSERT_EQ(rlt::get(device, harness.runner.episode_step, instance_i), (TI)1);
+        ASSERT_EQ(rlt::get(harness.dataset.reset, instance_i, 0), (T)0);
     }
 
-    harness.runner.episode_step_limit = 1;
-    harness.step(3);
-    harness.reset(mask);
+    Harness<2, 1> pending(device, *env, 7);
+    pending.step(0);
+    pending.reset(mask);
     for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-        ASSERT_TRUE(rlt::get(device, harness.runner.reset, instance_i));
+        ASSERT_TRUE(rlt::get(device, pending.runner.reset, instance_i));
+        ASSERT_EQ(rlt::get(pending.dataset.reset, instance_i, 0), (T)1);
     }
     rlt::free(device, mask);
-}
-
-TEST_F(Fixture, SUMMARY){
-    constexpr TI STEPS = 7;
-    constexpr TI STEP_LIMIT = 3;
-    Harness<STEPS> harness(device, *env, 7);
-    harness.runner.episode_step_limit = STEP_LIMIT;
-    for(TI step_i = 0; step_i < STEPS; step_i++){
-        harness.step(step_i);
-    }
-    on_policy_runner::EpisodeStatistics<T, TI> statistics;
-    rlt::summarize(device, harness.dataset, harness.runner, statistics);
-    EXPECT_GE(statistics.finished, 2 * INSTANCES);
-    EXPECT_EQ(statistics.finished, statistics.terminated + statistics.time_limit + statistics.forced);
-    EXPECT_EQ(statistics.forced, 0);
-    EXPECT_LE(statistics.mean_length, (T)STEP_LIMIT);
-    EXPECT_GT(statistics.mean_length, (T)0);
-    EXPECT_LE(statistics.in_progress, INSTANCES);
 }
 
 TEST_F(Fixture, DETERMINISM){
@@ -263,13 +238,12 @@ TEST_F(Fixture, DETERMINISM){
     TI lengths[2][STEPS][INSTANCES];
     T rewards[2][STEPS][INSTANCES];
     for(TI run_i = 0; run_i < 2; run_i++){
-        Harness<STEPS> harness(device, *env, 99);
-        harness.runner.episode_step_limit = 2;
+        Harness<STEPS, 2> harness(device, *env, 99);
         for(TI step_i = 0; step_i < STEPS; step_i++){
             harness.step(step_i);
             for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
                 states[run_i][step_i][instance_i] = rlt::get(device, harness.runner.states, instance_i);
-                lengths[run_i][step_i][instance_i] = rlt::get(device, harness.dataset.episode_length, step_i + 1, instance_i);
+                lengths[run_i][step_i][instance_i] = rlt::get(device, harness.runner.episode_step, instance_i);
                 rewards[run_i][step_i][instance_i] = rlt::get(harness.dataset.rewards, step_i * INSTANCES + instance_i, 0);
             }
         }

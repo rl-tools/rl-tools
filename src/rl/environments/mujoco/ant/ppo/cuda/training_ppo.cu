@@ -275,12 +275,13 @@ int main(int argc, char** argv){
             rlt::set_statistics(device, ppo.critic.content, observation_normalizer.mean, observation_normalizer.std);
             rlt::copy(device, device_gpu, ppo, ppo_gpu);
         }
+        TI environment_step = 0;
         for(TI ppo_step_i = 0; ppo_step_i < 2500; ppo_step_i++) {
             // -------------- added for cuda training ----------------
             rlt::copy(device_gpu, device, ppo_gpu, ppo);
             // -------------------------------------------------------
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
-            if(ACTOR_ENABLE_CHECKPOINTS && (on_policy_runner.step / ACTOR_CHECKPOINT_INTERVAL == next_checkpoint_id)){
+            if(ACTOR_ENABLE_CHECKPOINTS && (environment_step / ACTOR_CHECKPOINT_INTERVAL == next_checkpoint_id)){
                 std::filesystem::path actor_output_dir = std::filesystem::path(actor_checkpoints_dir) / run_name;
                 try {
                     std::filesystem::create_directories(actor_output_dir);
@@ -290,7 +291,7 @@ int main(int argc, char** argv){
                 std::string checkpoint_name = "latest.h5";
                 if(!ACTOR_OVERWRITE_CHECKPOINTS){
                     std::stringstream checkpoint_name_ss;
-                    checkpoint_name_ss << "actor_" << std::setw(15) << std::setfill('0') << next_checkpoint_id << "_" << std::setw(15) << std::setfill('0') << on_policy_runner.step << ".h5";
+                    checkpoint_name_ss << "actor_" << std::setw(15) << std::setfill('0') << next_checkpoint_id << "_" << std::setw(15) << std::setfill('0') << environment_step << ".h5";
                     checkpoint_name = checkpoint_name_ss.str();
                 }
                 std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name;
@@ -305,7 +306,7 @@ int main(int argc, char** argv){
                 next_checkpoint_id++;
             }
 #endif
-            if(ENABLE_EVALUATION && (on_policy_runner.step / EVALUATION_INTERVAL == next_evaluation_id)){
+            if(ENABLE_EVALUATION && (environment_step / EVALUATION_INTERVAL == next_evaluation_id)){
                 using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<T, TI, penv::ENVIRONMENT, NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>;
                 rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
                 rlt::evaluate(device, evaluation_env, ui, ppo.actor, result, evaluation_rng);
@@ -315,7 +316,7 @@ int main(int argc, char** argv){
                 std::cout << "Evaluation return mean: " << result.returns_mean << " (std: " << result.returns_std << ")" << std::endl;
                 next_evaluation_id++;
             }
-            rlt::set_step(device, device.logger, on_policy_runner.step);
+            rlt::set_step(device, device.logger, environment_step);
 
 //            for (TI action_i = 0; action_i < penv::ENVIRONMENT::ACTION_DIM; action_i++) {
 //                T action_log_std = rlt::get(ppo.actor.log_std.parameters, 0, action_i);
@@ -329,6 +330,7 @@ int main(int argc, char** argv){
 //                auto start = std::chrono::high_resolution_clock::now();
                 // -------------- replaced for cuda training ----------------
                 rlt::collect_hybrid(device, device_gpu, on_policy_runner_dataset, on_policy_runner, on_policy_runner_buffer, environment, ppo.actor, ppo_gpu.actor, actor_eval_buffers_gpu, on_policy_runner_collection_eval_buffer_cpu, on_policy_runner_collection_eval_buffer_gpu, rng, rng_gpu);
+                environment_step += prl::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL;
                 // ----------------------------------------------------------
                 if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
                     auto observations = rlt::view_range(device, on_policy_runner_dataset.all_observations, 0, rlt::tensor::ViewSpec<0, prl::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL>{});
@@ -380,9 +382,9 @@ int main(int argc, char** argv){
                 auto now = std::chrono::high_resolution_clock::now();
                 std::chrono::duration<T> training_elapsed = now - training_start;
                 std::chrono::duration<T> step_elapsed = now - training_step_start;
-                T steps_per_second_lifetime = on_policy_runner.step / training_elapsed.count();
+                T steps_per_second_lifetime = environment_step / training_elapsed.count();
                 T steps_per_second_current = prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS * prl::ON_POLICY_RUNNER_STEPS_PER_ENV / step_elapsed.count();
-                std::cout << "PPO step: " << std::setw(10) << ppo_step_i << " environment step: " << std::setw(10) << on_policy_runner.step << " elapsed: " << std::setw(10) << std::setprecision(2) << training_elapsed.count() << "s (lifetime: " << std::setw(10) << std::setprecision(2) << steps_per_second_lifetime << " steps/s, current: " << std::setw(10) << std::setprecision(2) << steps_per_second_current << " steps/s)" << std::endl;
+                std::cout << "PPO step: " << std::setw(10) << ppo_step_i << " environment step: " << std::setw(10) << environment_step << " elapsed: " << std::setw(10) << std::setprecision(2) << training_elapsed.count() << "s (lifetime: " << std::setw(10) << std::setprecision(2) << steps_per_second_lifetime << " steps/s, current: " << std::setw(10) << std::setprecision(2) << steps_per_second_current << " steps/s)" << std::endl;
 //                rlt::add_scalar(device, device.logger, "ppo/step", ppo_step_i);
 //                rlt::add_scalar(device, device.logger, "ppo/actor_learning_rate", actor_optimizer.alpha);
 //                rlt::add_scalar(device, device.logger, "ppo/critic_learning_rate", critic_optimizer.alpha);

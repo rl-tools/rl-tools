@@ -80,7 +80,6 @@ namespace {
     using CPU = devices::DefaultCPU;
     using GPU = devices::DefaultCUDA;
     using TI = unsigned int;
-    using END = rl::components::on_policy_runner::EpisodeEndReason;
 
     template <typename T> void equal_value(const T& a, const T& b) { EXPECT_EQ(a, b); }
     void equal_value(const rl::environments::test_fused::State& a, const rl::environments::test_fused::State& b) {
@@ -108,13 +107,13 @@ namespace {
         free(cpu, host_a); free(cpu, host_b);
     }
 
-    template <TI N, bool ASYMMETRIC, bool CURAND, bool MIXED_STORAGE = ASYMMETRIC>
+    template <TI N, bool ASYMMETRIC, bool CURAND, bool MIXED_STORAGE = ASYMMETRIC, TI STEP_LIMIT = 3>
     void compare_phases() {
         using ENV = rl::environments::test_fused::Environment<ASYMMETRIC>;
         using BATCH = rl::environments::batch::Independent<rl::environments::batch::Specification<ENV, N>>;
         using POLICY_STATE = Tensor<tensor::Specification<float, TI, tensor::Shape<TI, 1>>>;
         using PRIV_T = std::conditional_t<MIXED_STORAGE, double, float>;
-        using RS = rl::components::on_policy_runner::Specification<numeric_types::Policy<float>, BATCH, POLICY_STATE, typename ENV::Observation, typename ENV::ObservationPrivileged, float, PRIV_T>;
+        using RS = rl::components::on_policy_runner::Specification<numeric_types::Policy<float>, BATCH, POLICY_STATE, typename ENV::Observation, typename ENV::ObservationPrivileged, float, PRIV_T, STEP_LIMIT>;
         using DS = rl::components::on_policy_runner::DatasetSpecification<RS, 8>;
         using RNG = std::conditional_t<CURAND, devices::random::CUDA::ENGINE<devices::random::CUDA::Specification<TI, N>>, devices::generic::random::ArrayENGINE<devices::generic::random::ArraySpecification<TI, N>>>;
         using MASK_SPEC = tensor::Specification<bool, TI, tensor::Shape<TI, N>, true, tensor::Stride<TI, 2>>;
@@ -140,9 +139,6 @@ namespace {
             set_all(gpu, datasets[i].scalar_data, 0.0f);
             set_all(gpu, datasets[i].all_observations, 0.0f);
             set_all(gpu, datasets[i].all_observations_privileged, PRIV_T(0));
-            set_all(gpu, datasets[i].episode_end_reason, END::NONE);
-            set_all(gpu, datasets[i].episode_length, TI(0));
-            set_all(gpu, datasets[i].episode_return, 0.0);
         }
         auto compare = [&]() {
             equal_container(cpu, gpu, environments[0].environments, environments[1].environments);
@@ -150,20 +146,12 @@ namespace {
             equal_container(cpu, gpu, runners[0].env_parameters, runners[1].env_parameters);
             equal_container(cpu, gpu, runners[0].reset, runners[1].reset);
             equal_container(cpu, gpu, runners[0].episode_step, runners[1].episode_step);
-            equal_container(cpu, gpu, runners[0].episode_return, runners[1].episode_return);
-            equal_container(cpu, gpu, runners[0].completed_episode_reason, runners[1].completed_episode_reason);
-            equal_container(cpu, gpu, runners[0].completed_episode_length, runners[1].completed_episode_length);
-            equal_container(cpu, gpu, runners[0].completed_episode_return, runners[1].completed_episode_return);
             equal_container(cpu, gpu, datasets[0].scalar_data, datasets[1].scalar_data);
             equal_container(cpu, gpu, datasets[0].all_observations, datasets[1].all_observations);
             equal_container(cpu, gpu, datasets[0].all_observations_privileged, datasets[1].all_observations_privileged);
-            equal_container(cpu, gpu, datasets[0].episode_end_reason, datasets[1].episode_end_reason);
-            equal_container(cpu, gpu, datasets[0].episode_length, datasets[1].episode_length);
-            equal_container(cpu, gpu, datasets[0].episode_return, datasets[1].episode_return);
             equal_container(cpu, gpu, rngs[0].states, rngs[1].states);
         };
         for(TI rollout = 0; rollout < 3; rollout++) {
-            runners[0].episode_step_limit = runners[1].episode_step_limit = rollout == 0 ? 0 : rollout == 1 ? 1 : 3;
             prologue(gpu, datasets[0], runners[0], environments[0], rngs[0]);
             prologue<GPU, DS, RS, BATCH, RNG>(gpu, datasets[1], runners[1], environments[1], rngs[1]);
             compare();
@@ -209,7 +197,11 @@ namespace {
 }
 
 TEST(RL_TOOLS_ON_POLICY_RUNNER_FUSED, SINGLE) { compare_phases<1, false, false>(); }
-TEST(RL_TOOLS_ON_POLICY_RUNNER_FUSED, SYMMETRIC) { compare_phases<37, false, false>(); }
+TEST(RL_TOOLS_ON_POLICY_RUNNER_FUSED, SYMMETRIC) {
+    compare_phases<37, false, false, false, 0>();
+    compare_phases<37, false, false, false, 1>();
+    compare_phases<37, false, false, false, 3>();
+}
 TEST(RL_TOOLS_ON_POLICY_RUNNER_FUSED, SYMMETRIC_MIXED_STORAGE) { compare_phases<37, false, false, true>(); }
 TEST(RL_TOOLS_ON_POLICY_RUNNER_FUSED, ASYMMETRIC_MIXED_STORAGE) { compare_phases<37, true, false>(); }
 TEST(RL_TOOLS_ON_POLICY_RUNNER_FUSED, CURAND) { compare_phases<37, true, true>(); }

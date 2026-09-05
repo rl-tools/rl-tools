@@ -9,61 +9,22 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename DATASET, typename RUNNER>
-    RL_TOOLS_FUNCTION_PLACEMENT void record_episode_start(DEVICE& device, DATASET& dataset, RUNNER& runner, typename RUNNER::TI env_i){
-        using T = typename DATASET::T;
-        const rl::components::on_policy_runner::EpisodeEndReason reason = get(device, runner.completed_episode_reason, env_i);
-        set(dataset.reset, env_i, 0, get(device, runner.reset, env_i) ? (T)1 : (T)0);
-        set(device, dataset.episode_end_reason, reason == rl::components::on_policy_runner::EpisodeEndReason::FORCED ? reason : rl::components::on_policy_runner::EpisodeEndReason::NONE, 0, env_i);
-        set(device, dataset.episode_length, reason == rl::components::on_policy_runner::EpisodeEndReason::FORCED ? get(device, runner.completed_episode_length, env_i) : 0, 0, env_i);
-        set(device, dataset.episode_return, reason == rl::components::on_policy_runner::EpisodeEndReason::FORCED ? get(device, runner.completed_episode_return, env_i) : 0, 0, env_i);
-        set(device, runner.completed_episode_reason, rl::components::on_policy_runner::EpisodeEndReason::NONE, env_i);
-        set(device, runner.completed_episode_length, 0, env_i);
-        set(device, runner.completed_episode_return, 0, env_i);
-    }
-    template <typename DEVICE, typename DATASET, typename RUNNER>
-    RL_TOOLS_FUNCTION_PLACEMENT void record_transition(DEVICE& device, DATASET& dataset, RUNNER& runner, typename DATASET::T transition_reward, bool terminated, typename RUNNER::TI step_i, typename RUNNER::TI env_i){
-        using T = typename DATASET::T;
+    RL_TOOLS_FUNCTION_PLACEMENT void record_transition(DEVICE& device, DATASET& dataset, RUNNER& runner, typename DATASET::T reward, bool terminated, typename RUNNER::TI step_i, typename RUNNER::TI env_i){
         using TI = typename RUNNER::TI;
         const TI pos = step_i * RUNNER::SPEC::N_ENVIRONMENTS + env_i;
         const TI episode_step = get(device, runner.episode_step, env_i) + 1;
-        const typename RUNNER::EPISODE_T reward = transition_reward;
-        const typename RUNNER::EPISODE_T episode_return = get(device, runner.episode_return, env_i) + reward;
-        const bool time_limit = runner.episode_step_limit > 0 && episode_step >= runner.episode_step_limit;
-        const bool reset = terminated || time_limit;
-        const rl::components::on_policy_runner::EpisodeEndReason reason = terminated ? rl::components::on_policy_runner::EpisodeEndReason::TERMINATED : time_limit ? rl::components::on_policy_runner::EpisodeEndReason::TIME_LIMIT : rl::components::on_policy_runner::EpisodeEndReason::NONE;
-        set(dataset.rewards, pos, 0, (T)reward);
-        set(dataset.terminated, pos, 0, terminated ? (T)1 : (T)0);
-        set(dataset.truncated, pos, 0, reset ? (T)1 : (T)0);
-        set(dataset.all_reset, pos + RUNNER::SPEC::N_ENVIRONMENTS, 0, reset ? (T)1 : (T)0);
-        set(device, dataset.episode_end_reason, reason, step_i + 1, env_i);
-        set(device, dataset.episode_length, reset ? episode_step : (TI)0, step_i + 1, env_i);
-        set(device, dataset.episode_return, reset ? episode_return : (typename RUNNER::EPISODE_T)0, step_i + 1, env_i);
+        const bool reset = terminated || (RUNNER::SPEC::STEP_LIMIT > 0 && episode_step >= RUNNER::SPEC::STEP_LIMIT);
+        set(dataset.rewards, pos, 0, reward);
+        set(dataset.terminated, pos, 0, terminated);
+        set(dataset.truncated, pos, 0, reset);
+        set(dataset.all_reset, pos + RUNNER::SPEC::N_ENVIRONMENTS, 0, reset);
         set(device, runner.reset, reset, env_i);
-        set(device, runner.completed_episode_reason, reason, env_i);
-        set(device, runner.completed_episode_length, reset ? episode_step : (TI)0, env_i);
-        set(device, runner.completed_episode_return, reset ? episode_return : (typename RUNNER::EPISODE_T)0, env_i);
         set(device, runner.episode_step, reset ? (TI)0 : episode_step, env_i);
-        set(device, runner.episode_return, reset ? (typename RUNNER::EPISODE_T)0 : episode_return, env_i);
-    }
-    template <typename DEVICE, typename RUNNER>
-    RL_TOOLS_FUNCTION_PLACEMENT void reset_episode(DEVICE& device, RUNNER& runner, typename RUNNER::TI env_i){
-        using TI = typename RUNNER::TI;
-        using T = typename RUNNER::EPISODE_T;
-        const TI episode_step = get(device, runner.episode_step, env_i);
-        set(device, runner.reset, true, env_i);
-        set(device, runner.completed_episode_reason, episode_step > 0 ? rl::components::on_policy_runner::EpisodeEndReason::FORCED : rl::components::on_policy_runner::EpisodeEndReason::NONE, env_i);
-        set(device, runner.completed_episode_length, episode_step, env_i);
-        set(device, runner.completed_episode_return, get(device, runner.episode_return, env_i), env_i);
-        set(device, runner.episode_step, (TI)0, env_i);
-        set(device, runner.episode_return, (T)0, env_i);
     }
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset){
         malloc(device, dataset.all_observations);
         malloc(device, dataset.all_observations_privileged);
-        malloc(device, dataset.episode_end_reason);
-        malloc(device, dataset.episode_length);
-        malloc(device, dataset.episode_return);
         malloc(device, dataset.scalar_data);
         using SCALAR_DATA_SPEC = typename decltype(dataset.scalar_data)::SPEC;
         using TI = typename SPEC::SPEC::TI;
@@ -85,9 +46,6 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset){
         free(device, dataset.all_observations);
         free(device, dataset.all_observations_privileged);
-        free(device, dataset.episode_end_reason);
-        free(device, dataset.episode_length);
-        free(device, dataset.episode_return);
         free(device, dataset.scalar_data);
         dataset.actions_mean               ._data = nullptr;
         dataset.actions                    ._data = nullptr;
@@ -109,10 +67,6 @@ namespace rl_tools{
         malloc(device, runner.states);
         malloc(device, runner.episode_step);
         malloc(device, runner.reset);
-        malloc(device, runner.episode_return);
-        malloc(device, runner.completed_episode_length);
-        malloc(device, runner.completed_episode_return);
-        malloc(device, runner.completed_episode_reason);
     }
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner){
@@ -121,24 +75,12 @@ namespace rl_tools{
         free(device, runner.states);
         free(device, runner.episode_step);
         free(device, runner.reset);
-        free(device, runner.episode_return);
-        free(device, runner.completed_episode_length);
-        free(device, runner.completed_episode_return);
-        free(device, runner.completed_episode_reason);
     }
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner){
-        using T = typename rl::components::OnPolicyRunner<SPEC>::EPISODE_T;
         using TI = typename SPEC::TI;
-        using END_REASON = rl::components::on_policy_runner::EpisodeEndReason;
-        runner.step = 0;
         set_all(device, runner.episode_step, (TI)0);
         set_all(device, runner.reset, true);
-        set_all(device, runner.episode_return, (T)0);
-        set_all(device, runner.completed_episode_length, (TI)0);
-        set_all(device, runner.completed_episode_return, (T)0);
-        set_all(device, runner.completed_episode_reason, END_REASON::NONE);
-        runner.episode_step_limit = SPEC::STEP_LIMIT;
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT
         runner.initialized = false;
 #endif
@@ -163,13 +105,6 @@ namespace rl_tools{
         T acc = 0;
         acc += abs_diff(device, d1.all_observations, d2.all_observations);
         acc += abs_diff(device, d1.all_observations_privileged, d2.all_observations_privileged);
-        acc += abs_diff(device, d1.episode_length, d2.episode_length);
-        acc += abs_diff(device, d1.episode_return, d2.episode_return);
-        for(typename SPEC_1::TI step_i = 0; step_i <= SPEC_1::STEPS_PER_ENV; step_i++){
-            for(typename SPEC_1::TI env_i = 0; env_i < SPEC_1::SPEC::N_ENVIRONMENTS; env_i++){
-                acc += math::abs(device.math, (T)get(device, d1.episode_end_reason, step_i, env_i) - (T)get(device, d2.episode_end_reason, step_i, env_i));
-            }
-        }
         acc += abs_diff(device, d1.actions_mean, d2.actions_mean);
         acc += abs_diff(device, d1.actions, d2.actions);
         acc += abs_diff(device, d1.action_log_probs, d2.action_log_probs);
@@ -187,21 +122,13 @@ namespace rl_tools{
         using T = typename SPEC_1::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
         T acc = 0;
-        acc += math::abs(device.math, (T)r1.step - (T)r2.step);
         acc += abs_diff(device, r1.policy_state, r2.policy_state);
         for(TI env_i = 0; env_i < SPEC_1::N_ENVIRONMENTS; env_i++){
             TI episode_step_r1 = get(device, r1.episode_step, env_i);
             TI episode_step_r2 = get(device, r2.episode_step, env_i);
             acc += math::abs(device.math, (T)episode_step_r1 - (T)episode_step_r2);
-            TI completed_length_r1 = get(device, r1.completed_episode_length, env_i);
-            TI completed_length_r2 = get(device, r2.completed_episode_length, env_i);
-            acc += math::abs(device.math, (T)completed_length_r1 - (T)completed_length_r2);
-            acc += math::abs(device.math, (T)get(device, r1.completed_episode_reason, env_i) - (T)get(device, r2.completed_episode_reason, env_i));
         }
-        acc += abs_diff(device, r1.episode_return, r2.episode_return);
         acc += abs_diff(device, r1.reset, r2.reset);
-        acc += abs_diff(device, r1.completed_episode_return, r2.completed_episode_return);
-        acc += math::abs(device.math, (T)r1.episode_step_limit - (T)r2.episode_step_limit);
         for(TI env_i = 0; env_i < SPEC_1::N_ENVIRONMENTS; env_i++){
             acc += abs_diff(device, get_ref(device, r1.states, env_i), get_ref(device, r2.states, env_i));
             acc += abs_diff(device, get_ref(device, r1.env_parameters, env_i), get_ref(device, r2.env_parameters, env_i));
@@ -210,13 +137,6 @@ namespace rl_tools{
     }
 
     template <typename DEVICE, typename DATASET_SPEC, typename SPEC, typename rl_tools::utils::typing::enable_if<DEVICE::DEVICE_ID != devices::DeviceId::CUDA, bool>::type = true>
-    void record_episode_start(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<SPEC>& runner){
-        using TI = typename SPEC::TI;
-        for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
-            record_episode_start(device, dataset, runner, env_i);
-        }
-    }
-    template <typename DEVICE, typename DATASET_SPEC, typename SPEC, typename rl_tools::utils::typing::enable_if<DEVICE::DEVICE_ID != devices::DeviceId::CUDA, bool>::type = true>
     void record_transition(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<SPEC>& runner, const rl::components::on_policy_runner::Buffer<SPEC>& buffer, typename SPEC::TI step_i){
         using TI = typename SPEC::TI;
         rl_tools::utils::assert_exit(device, step_i < DATASET_SPEC::STEPS_PER_ENV, "on_policy_runner::epilogue: step index outside the dataset");
@@ -224,54 +144,16 @@ namespace rl_tools{
             record_transition(device, dataset, runner, get(device, buffer.rewards, env_i), get(device, buffer.terminated, env_i), step_i, env_i);
         }
     }
-    template <typename DEVICE, typename SPEC, typename rl_tools::utils::typing::enable_if<DEVICE::DEVICE_ID != devices::DeviceId::CUDA, bool>::type = true>
-    void reset_episode(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner){
+    template <typename DEVICE, typename SPEC, typename MASK_SPEC, typename utils::typing::enable_if<DEVICE::DEVICE_ID != devices::DeviceId::CUDA, bool>::type = true>
+    void reset_mask(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner, const Tensor<MASK_SPEC>& mask){
         using TI = typename SPEC::TI;
-        for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
-            reset_episode(device, runner, env_i);
-        }
-    }
-    template <typename DEVICE, typename SPEC, typename MASK_SPEC, typename rl_tools::utils::typing::enable_if<DEVICE::DEVICE_ID != devices::DeviceId::CUDA, bool>::type = true>
-    void reset_episode(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner, const Tensor<MASK_SPEC>& mask){
-        using TI = typename SPEC::TI;
-        static_assert(get<0>(typename MASK_SPEC::SHAPE{}) == SPEC::N_ENVIRONMENTS);
+        static_assert(length(typename MASK_SPEC::SHAPE{}) == 1 && get<0>(typename MASK_SPEC::SHAPE{}) == SPEC::N_ENVIRONMENTS);
         for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
             if(get(device, mask, env_i)){
-                reset_episode(device, runner, env_i);
+                set(device, runner.reset, true, env_i);
+                set(device, runner.episode_step, (TI)0, env_i);
             }
         }
-    }
-    template <typename DEVICE, typename DATASET_SPEC, typename SPEC, typename utils::typing::enable_if<DEVICE::DEVICE_ID != devices::DeviceId::CUDA, bool>::type = true>
-    void summarize(DEVICE& device, const rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, const rl::components::OnPolicyRunner<SPEC>& runner, rl::components::on_policy_runner::EpisodeStatistics<typename rl::components::OnPolicyRunner<SPEC>::EPISODE_T, typename SPEC::TI>& statistics){
-        using T = typename rl::components::OnPolicyRunner<SPEC>::EPISODE_T;
-        using TI = typename SPEC::TI;
-        using END_REASON = rl::components::on_policy_runner::EpisodeEndReason;
-        statistics = {};
-        for(TI step_i = 0; step_i <= DATASET_SPEC::STEPS_PER_ENV; step_i++){
-            for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
-                const END_REASON reason = get(device, dataset.episode_end_reason, step_i, env_i);
-                if(reason == END_REASON::NONE){
-                    continue;
-                }
-                statistics.finished++;
-                statistics.length_sum += (T)get(device, dataset.episode_length, step_i, env_i);
-                statistics.return_sum += get(device, dataset.episode_return, step_i, env_i);
-                statistics.terminated += reason == END_REASON::TERMINATED ? 1 : 0;
-                statistics.time_limit += reason == END_REASON::TIME_LIMIT ? 1 : 0;
-                statistics.forced += reason == END_REASON::FORCED ? 1 : 0;
-            }
-        }
-        for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
-            const TI episode_step = get(device, runner.episode_step, env_i);
-            if(episode_step > 0){
-                statistics.in_progress++;
-                statistics.in_progress_length_sum += (T)episode_step;
-            }
-        }
-        statistics.mean_length = statistics.finished > 0 ? statistics.length_sum / (T)statistics.finished : (T)0;
-        statistics.mean_return = statistics.finished > 0 ? statistics.return_sum / (T)statistics.finished : (T)0;
-        statistics.terminated_share = statistics.finished > 0 ? (T)statistics.terminated / (T)statistics.finished : (T)0;
-        statistics.mean_in_progress_length = statistics.in_progress > 0 ? statistics.in_progress_length_sum / (T)statistics.in_progress : (T)0;
     }
     template <typename DEVICE, typename DATASET_SPEC, typename SPEC, typename ENVIRONMENT, typename RNG>
     void observe_row(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<SPEC>& runner, ENVIRONMENT& environment, typename SPEC::TI row_i, RNG& rng){
@@ -320,7 +202,10 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename DATASET_SPEC, typename SPEC, typename ENVIRONMENT, typename RNG>
     void prologue(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<SPEC>& runner, ENVIRONMENT& environment, RNG& rng){
-        record_episode_start(device, dataset, runner);
+        auto reset_column = view(device, dataset.reset, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, 1>{});
+        auto reset_tensor = to_tensor(device, reset_column);
+        auto reset_flat = reshape_row_major(device, reset_tensor, tensor::Shape<typename SPEC::TI, SPEC::N_ENVIRONMENTS>{});
+        copy(device, device, runner.reset, reset_flat);
         observe_row(device, dataset, runner, environment, 0, rng);
     }
     template <typename DEVICE, typename DATASET_SPEC, typename SPEC, typename ACTOR, typename ACTOR_BUFFERS, typename RNG>
@@ -356,13 +241,14 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename SPEC, typename ENVIRONMENT, typename RNG>
     void reset(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner, ENVIRONMENT& environment, RNG& rng){
-        reset_episode(device, runner);
+        set_all(device, runner.reset, true);
+        set_all(device, runner.episode_step, (typename SPEC::TI)0);
         sample_initial_parameters(device, environment, runner.env_parameters, runner.reset, rng);
         sample_initial_state(device, environment, runner.env_parameters, runner.states, runner.reset, rng);
     }
     template <typename DEVICE, typename SPEC, typename ENVIRONMENT, typename MASK_SPEC, typename RNG>
     void reset(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner, ENVIRONMENT& environment, const Tensor<MASK_SPEC>& mask, RNG& rng){
-        reset_episode(device, runner, mask);
+        reset_mask(device, runner, mask);
         sample_initial_parameters(device, environment, runner.env_parameters, mask, rng);
         sample_initial_state(device, environment, runner.env_parameters, runner.states, mask, rng);
     }
@@ -391,7 +277,6 @@ namespace rl_tools{
             interlude(device, dataset, runner, buffer, actor, actor_buffers, rng, step_i);
             epilogue(device, dataset, runner, buffer, environment, rng, step_i);
         }
-        runner.step += SPEC::N_ENVIRONMENTS * DATASET_SPEC::STEPS_PER_ENV;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

@@ -80,9 +80,8 @@ namespace test_hyperdrone_episodes_cuda {
     constexpr TI INSTANCES = WORLD::INSTANCES;
     constexpr TI STEPS = 7;
     constexpr TI STEP_LIMIT = 3;
-    using END_REASON = on_policy_runner::EpisodeEndReason;
     using POLICY_STATE = rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1>>>;
-    using RUNNER_SPEC = on_policy_runner::Specification<rlt::numeric_types::Policy<T>, WORLD, POLICY_STATE>;
+    using RUNNER_SPEC = on_policy_runner::Specification<rlt::numeric_types::Policy<T>, WORLD, POLICY_STATE, WORLD::Observation, WORLD::ObservationPrivileged, T, T, STEP_LIMIT>;
     using RUNNER = rlt::rl::components::OnPolicyRunner<RUNNER_SPEC>;
     using BUFFER = on_policy_runner::Buffer<RUNNER_SPEC>;
     using DATASET_SPEC = on_policy_runner::DatasetSpecification<RUNNER_SPEC, STEPS>;
@@ -101,11 +100,8 @@ struct Trace {
     TI episode_step[STEPS][INSTANCES];
     bool terminated[STEPS][INSTANCES];
     T truncated[STEPS][INSTANCES];
-    END_REASON reason[STEPS][INSTANCES];
-    TI length[STEPS][INSTANCES];
-    T episode_return[STEPS][INSTANCES];
+    T rewards[STEPS][INSTANCES];
     T dataset_reset[STEPS][INSTANCES];
-    END_REASON forced_reason[INSTANCES];
 };
 
 template <typename COMPUTE_DEVICE, typename COMPUTE_RNG>
@@ -129,7 +125,6 @@ static void trace_rollout(DEVICE& device, COMPUTE_DEVICE& device_compute, WORLD&
     rlt::init(device_compute, rng, seed);
     rlt::set_all(device_compute, buffer.actions, (T)0);
     rlt::init(device_compute, runner, world, rng);
-    runner.episode_step_limit = STEP_LIMIT;
     prologue(device_compute, dataset_compute, runner, world, rng);
 
     for(TI step_i = 0; step_i < STEPS; step_i++){
@@ -154,21 +149,13 @@ static void trace_rollout(DEVICE& device, COMPUTE_DEVICE& device_compute, WORLD&
     }
 
     rlt::copy(device_compute, device, dataset_compute.scalar_data, dataset_host.scalar_data);
-    rlt::copy(device_compute, device, dataset_compute.episode_end_reason, dataset_host.episode_end_reason);
-    rlt::copy(device_compute, device, dataset_compute.episode_length, dataset_host.episode_length);
-    rlt::copy(device_compute, device, dataset_compute.episode_return, dataset_host.episode_return);
     for(TI step_i = 0; step_i < STEPS; step_i++){
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
             const TI pos = step_i * INSTANCES + instance_i;
             trace.truncated[step_i][instance_i] = rlt::get(dataset_host.truncated, pos, 0);
-            trace.reason[step_i][instance_i] = rlt::get(device, dataset_host.episode_end_reason, step_i + 1, instance_i);
-            trace.length[step_i][instance_i] = rlt::get(device, dataset_host.episode_length, step_i + 1, instance_i);
-            trace.episode_return[step_i][instance_i] = rlt::get(device, dataset_host.episode_return, step_i + 1, instance_i);
+            trace.rewards[step_i][instance_i] = rlt::get(dataset_host.rewards, pos, 0);
             trace.dataset_reset[step_i][instance_i] = rlt::get(dataset_host.reset, pos, 0);
         }
-    }
-    for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-        trace.forced_reason[instance_i] = rlt::get(device, dataset_host.episode_end_reason, 0, instance_i);
     }
 
     rlt::free(device_compute, rng);
@@ -215,17 +202,11 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_EPISODES_CUDA, CPU_CUDA_PARITY){
             ASSERT_EQ(trace_cpu.episode_step[step_i][instance_i], trace_cuda.episode_step[step_i][instance_i]);
             ASSERT_EQ(trace_cpu.terminated[step_i][instance_i], trace_cuda.terminated[step_i][instance_i]);
             ASSERT_EQ(trace_cpu.truncated[step_i][instance_i], trace_cuda.truncated[step_i][instance_i]);
-            ASSERT_EQ(trace_cpu.reason[step_i][instance_i], trace_cuda.reason[step_i][instance_i]);
-            ASSERT_EQ(trace_cpu.length[step_i][instance_i], trace_cuda.length[step_i][instance_i]);
-            ASSERT_NEAR(trace_cpu.episode_return[step_i][instance_i], trace_cuda.episode_return[step_i][instance_i], 1e-4);
+            ASSERT_NEAR(trace_cpu.rewards[step_i][instance_i], trace_cuda.rewards[step_i][instance_i], 1e-4);
             ASSERT_EQ(trace_cpu.dataset_reset[step_i][instance_i], trace_cuda.dataset_reset[step_i][instance_i]);
             truncations += trace_cuda.truncated[step_i][instance_i] > (T)0.5 ? 1 : 0;
         }
     }
-    for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-        ASSERT_EQ(trace_cpu.forced_reason[instance_i], trace_cuda.forced_reason[instance_i]);
-    }
-    EXPECT_EQ(trace_cuda.forced_reason[0], END_REASON::FORCED);
     EXPECT_GE(truncations, INSTANCES);
     EXPECT_TRUE(trace_cuda.reset[2][0]);
 

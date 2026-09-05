@@ -81,6 +81,7 @@
 #include <sstream>
 
 namespace rlt = rl_tools;
+using rlt::add_scalar;
 using rlt::reset;
 using rlt::prologue;
 using rlt::sample_actions;
@@ -531,7 +532,6 @@ static_assert(N_BATCHES > 0, "STEPS_TOTAL must be >= BATCH_SIZE");
 static_assert(N_EXAMPLES <= BATCH_SIZE, "N_EXAMPLES must fit the reusable combined-observation batch buffer");
 static_assert(N_EXAMPLES <= STEPS_TOTAL, "N_EXAMPLES must fit one PPO rollout dataset");
 
-using EPISODE_END_REASON = rlt::rl::components::on_policy_runner::EpisodeEndReason;
 static_assert(ON_POLICY_RUNNER_SPEC::STEP_LIMIT == EPISODE_STEP_LIMIT);
 
 // =========================================================================
@@ -858,17 +858,6 @@ int main(int argc, char** argv){
     for(TI ppo_step_i = 0; ppo_step_i < N_PPO_STEPS; ppo_step_i++){
         auto step_start = std::chrono::high_resolution_clock::now();
         rlt::set_step(device, device.logger, global_env_step);
-        T rollout_episode_length_mean = 0;
-        T rollout_episode_length_std = 0;
-        T rollout_return_mean = 0;
-        T rollout_return_std = 0;
-        T rollout_reward_mean = 0;
-        T rollout_reward_std = 0;
-        T rollout_terminated_share = 0;
-        TI rollout_episode_count = 0;
-        TI rollout_terminated_count = 0;
-        TI rollout_truncated_count = 0;
-        TI rollout_done_count = 0;
 
         TI rollout_in_scene_set = ppo_step_i % ROLLOUTS_PER_SCENE_SET;
         TI scene_set_i = ppo_step_i / ROLLOUTS_PER_SCENE_SET;
@@ -1051,9 +1040,6 @@ int main(int argc, char** argv){
             auto cpu_obs_priv = rlt::matrix_view(device, dataset.all_observations_privileged);
             rlt::copy(device_gpu, device, gpu_obs_priv, cpu_obs_priv);
         }
-        rlt::copy(device_gpu, device, dataset_gpu.episode_end_reason, dataset.episode_end_reason);
-        rlt::copy(device_gpu, device, dataset_gpu.episode_length, dataset.episode_length);
-        rlt::copy(device_gpu, device, dataset_gpu.episode_return, dataset.episode_return);
         if(log_reward_components_this_step){
             static constexpr TI REWARD_LOG_POS = (STEPS_PER_ENV - 1) * N_ENVIRONMENTS;
             for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
@@ -1062,127 +1048,24 @@ int main(int argc, char** argv){
             rlt::log_reward(device, env.environments[0].dynamics, reward_log_parameters.dynamics, reward_log_state, reward_log_action, reward_log_next_state, reward_log_rng);
         }
 
-        // Episode statistics + log
         {
-            T length_sum = 0;
-            T length_sq_sum = 0;
-            T length_sum_terminated = 0;
-            T length_sum_time_limit = 0;
-            T length_sum_scene_boundary = 0;
-            T length_sum_task = 0;
-            T return_sum = 0;
-            T return_sq_sum = 0;
             T reward_sum = 0;
             T reward_sq_sum = 0;
-            TI count = 0;
-            TI episode_end_terminated_count = 0;
-            TI episode_end_time_limit_count = 0;
-            TI episode_end_scene_boundary_count = 0;
-            for(TI pos = 0; pos < (STEPS_PER_ENV + 1) * N_ENVIRONMENTS; pos++){
-                if(pos < STEPS_TOTAL){
-                    T reward_value = rlt::get(dataset.rewards, pos, 0);
-                    reward_sum += reward_value;
-                    reward_sq_sum += reward_value * reward_value;
-                    bool terminated_event = rlt::get(dataset.terminated, pos, 0) > (T)0.5;
-                    bool done_event = rlt::get(dataset.truncated, pos, 0) > (T)0.5;
-                    if(terminated_event){
-                        rollout_terminated_count++;
-                    }
-                    if(done_event){
-                        rollout_done_count++;
-                        if(!terminated_event){
-                            rollout_truncated_count++;
-                        }
-                    }
-                }
-                const TI log_step_i = pos / N_ENVIRONMENTS;
-                const TI log_env_i = pos % N_ENVIRONMENTS;
-                EPISODE_END_REASON ep_reason = rlt::get(device, dataset.episode_end_reason, log_step_i, log_env_i);
-                if(ep_reason != EPISODE_END_REASON::NONE){
-                    T ep_len = (T)rlt::get(device, dataset.episode_length, log_step_i, log_env_i);
-                    rlt::add_scalar(device, device.logger, "episode/length", ep_len, 100);
-                    T ep_return = rlt::get(device, dataset.episode_return, log_step_i, log_env_i);
-                    rlt::add_scalar(device, device.logger, "episode/return", ep_return, 100);
-                    length_sum += ep_len;
-                    length_sq_sum += ep_len * ep_len;
-                    return_sum += ep_return;
-                    return_sq_sum += ep_return * ep_return;
-                    if(ep_reason == EPISODE_END_REASON::TERMINATED){
-                        episode_end_terminated_count++;
-                        length_sum_terminated += ep_len;
-                        length_sum_task += ep_len;
-                        rlt::add_scalar(device, device.logger, "episode/length/terminated", ep_len, 100);
-                    } else if(ep_reason == EPISODE_END_REASON::TIME_LIMIT){
-                        episode_end_time_limit_count++;
-                        length_sum_time_limit += ep_len;
-                        length_sum_task += ep_len;
-                        rlt::add_scalar(device, device.logger, "episode/length/time_limit", ep_len, 100);
-                    } else if(ep_reason == EPISODE_END_REASON::FORCED){
-                        episode_end_scene_boundary_count++;
-                        length_sum_scene_boundary += ep_len;
-                        rlt::add_scalar(device, device.logger, "episode/length/scene_boundary", ep_len, 100);
-                    }
-                    count++;
-                }
+            TI terminated_count = 0;
+            TI truncated_count = 0;
+            for(TI pos = 0; pos < STEPS_TOTAL; pos++){
+                const T reward_value = get(dataset.rewards, pos, 0);
+                reward_sum += reward_value;
+                reward_sq_sum += reward_value * reward_value;
+                terminated_count += get(dataset.terminated, pos, 0) > (T)0.5;
+                truncated_count += get(dataset.truncated, pos, 0) > (T)0.5;
             }
-            rollout_reward_mean = reward_sum / static_cast<T>(STEPS_TOTAL);
-            rollout_reward_std = rlt::math::sqrt(device.math, rlt::math::max(device.math, (T)0, reward_sq_sum / static_cast<T>(STEPS_TOTAL) - rollout_reward_mean * rollout_reward_mean));
-            rollout_terminated_share = rollout_done_count > 0 ? static_cast<T>(rollout_terminated_count) / static_cast<T>(rollout_done_count) : (T)0;
-            if(count > 0){
-                rollout_episode_count = count;
-                rollout_episode_length_mean = length_sum / static_cast<T>(count);
-                rollout_episode_length_std = rlt::math::sqrt(device.math, rlt::math::max(device.math, (T)0, length_sq_sum / static_cast<T>(count) - rollout_episode_length_mean * rollout_episode_length_mean));
-                rollout_return_mean = return_sum / static_cast<T>(count);
-                rollout_return_std = rlt::math::sqrt(device.math, rlt::math::max(device.math, (T)0, return_sq_sum / static_cast<T>(count) - rollout_return_mean * rollout_return_mean));
-                std::cout << std::defaultfloat << std::setprecision(6)
-                          << "  episodes finished: " << count
-                          << "  mean length: " << rollout_episode_length_mean
-                          << "  mean return: " << rollout_return_mean << std::endl;
-                rlt::add_scalar(device, device.logger, "training/episode_length", rollout_episode_length_mean);
-                rlt::add_scalar(device, device.logger, "training/episode_length/mean", rollout_episode_length_mean);
-                rlt::add_scalar(device, device.logger, "training/episode_length/std", rollout_episode_length_std);
-                rlt::add_scalar(device, device.logger, "training/return/mean", rollout_return_mean);
-                rlt::add_scalar(device, device.logger, "training/return/std", rollout_return_std);
-                rlt::add_scalar(device, device.logger, "training/episodes", static_cast<T>(rollout_episode_count));
-            }
-            TI episode_end_task_count = episode_end_terminated_count + episode_end_time_limit_count;
-            TI episode_end_count = episode_end_task_count + episode_end_scene_boundary_count;
-            rlt::add_scalar(device, device.logger, "training/episode_end/terminated", static_cast<T>(episode_end_terminated_count));
-            rlt::add_scalar(device, device.logger, "training/episode_end/time_limit", static_cast<T>(episode_end_time_limit_count));
-            rlt::add_scalar(device, device.logger, "training/episode_end/scene_boundary", static_cast<T>(episode_end_scene_boundary_count));
-            rlt::add_scalar(device, device.logger, "training/episode_end/task", static_cast<T>(episode_end_task_count));
-            rlt::add_scalar(device, device.logger, "training/time_limit_episodes", static_cast<T>(episode_end_time_limit_count));
-            rlt::add_scalar(device, device.logger, "training/scene_boundary_resets", static_cast<T>(episode_end_scene_boundary_count));
-            rlt::add_scalar(device, device.logger, "training/task_episodes", static_cast<T>(episode_end_task_count));
-            if(episode_end_terminated_count > 0){
-                rlt::add_scalar(device, device.logger, "training/episode_length/terminated", length_sum_terminated / static_cast<T>(episode_end_terminated_count));
-            }
-            if(episode_end_time_limit_count > 0){
-                rlt::add_scalar(device, device.logger, "training/episode_length/time_limit", length_sum_time_limit / static_cast<T>(episode_end_time_limit_count));
-            }
-            if(episode_end_scene_boundary_count > 0){
-                rlt::add_scalar(device, device.logger, "training/episode_length/scene_boundary", length_sum_scene_boundary / static_cast<T>(episode_end_scene_boundary_count));
-            }
-            if(episode_end_task_count > 0){
-                T task_episode_count = static_cast<T>(episode_end_task_count);
-                T termination_rate_task = static_cast<T>(episode_end_terminated_count) / task_episode_count;
-                rlt::add_scalar(device, device.logger, "training/episode_length/task", length_sum_task / task_episode_count);
-                rlt::add_scalar(device, device.logger, "training/episode_length/excluding_scene_boundary", length_sum_task / task_episode_count);
-                rlt::add_scalar(device, device.logger, "training/termination_rate/task_episodes", termination_rate_task);
-                rlt::add_scalar(device, device.logger, "training/termination_rate/excluding_scene_boundary", termination_rate_task);
-                rlt::add_scalar(device, device.logger, "training/time_limit_rate/task_episodes", static_cast<T>(episode_end_time_limit_count) / task_episode_count);
-            }
-            if(episode_end_count > 0){
-                T all_episode_end_count = static_cast<T>(episode_end_count);
-                rlt::add_scalar(device, device.logger, "training/termination_rate/all_episode_ends", static_cast<T>(episode_end_terminated_count) / all_episode_end_count);
-                rlt::add_scalar(device, device.logger, "training/scene_boundary_rate/all_episode_ends", static_cast<T>(episode_end_scene_boundary_count) / all_episode_end_count);
-            }
-            rlt::add_scalar(device, device.logger, "training/reward/mean", rollout_reward_mean);
-            rlt::add_scalar(device, device.logger, "training/reward/std", rollout_reward_std);
-            rlt::add_scalar(device, device.logger, "training/terminated_share", rollout_terminated_share);
-            rlt::add_scalar(device, device.logger, "training/terminated_episodes", static_cast<T>(rollout_terminated_count));
-            rlt::add_scalar(device, device.logger, "training/truncated_episodes", static_cast<T>(rollout_truncated_count));
-            rlt::add_scalar(device, device.logger, "training/complete_episodes", static_cast<T>(rollout_done_count));
+            const T reward_mean = reward_sum / static_cast<T>(STEPS_TOTAL);
+            const T reward_std = rlt::math::sqrt(device.math, rlt::math::max(device.math, (T)0, reward_sq_sum / static_cast<T>(STEPS_TOTAL) - reward_mean * reward_mean));
+            add_scalar(device, device.logger, "training/reward/mean", reward_mean);
+            add_scalar(device, device.logger, "training/reward/std", reward_std);
+            add_scalar(device, device.logger, "training/terminated_episodes", static_cast<T>(terminated_count));
+            add_scalar(device, device.logger, "training/complete_episodes", static_cast<T>(truncated_count));
         }
 
         // Save trajectories to extrack
