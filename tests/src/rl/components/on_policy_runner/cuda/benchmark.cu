@@ -79,13 +79,11 @@ int main(int argc, char** argv) {
     cudaGraph_t graph = nullptr;
     cudaGraphExec_t executable = nullptr;
     if(graph_mode) {
-        const auto step_before_capture = runner.step;
         gpu.graph_capture_active = true;
         check(cudaStreamBeginCapture(gpu.stream, cudaStreamCaptureModeGlobal));
         collect_rollout();
         check(cudaStreamEndCapture(gpu.stream, &graph));
         gpu.graph_capture_active = false;
-        runner.step = step_before_capture;
         check(cudaGraphInstantiate(&executable, graph, 0));
     }
     check(cudaProfilerStart());
@@ -95,7 +93,6 @@ int main(int argc, char** argv) {
         for(TI i = 0; i < ROLLOUTS; i++) {
             if(graph_mode) {
                 check(cudaGraphLaunch(executable, gpu.stream));
-                runner.step += N * STEPS;
             }
             else collect_rollout();
         }

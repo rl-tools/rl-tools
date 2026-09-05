@@ -15,13 +15,13 @@ The specialization boundary is a complete runner phase, not a batch verb:
 | CPU and hybrid CPU-environment/CUDA-policy collection | Original composed operation ordering, including shared-RNG consumption order. |
 | Recurrent actors | Reset masks apply before policy evaluation; CUDA-resident hidden state and step counters stay device-resident. |
 | Manual collection and imitation | The same public phases accept externally produced actions without a second collector implementation. |
-| PPO, episode reporting, persistence, reward diagnostics | Dataset layout, runner storage/ownership, episode semantics, and buffer outputs are unchanged. `Buffer::next_states` remains the transition state before autoreset. |
+| PPO, persistence, reward diagnostics | The dataset stores training transitions. The runner keeps policy state, environment parameters/states, a reset mask, and the compile-time time-limit counter. `Buffer::next_states` remains the transition state before autoreset. |
 
-Both execution paths share the scalar episode-accounting operations. The fused
-transition performs `step`, reward conversion, termination, accounting,
-conditional reset, and next-row observation in that order. Reward is narrowed
-to the buffer's scalar type before episode accumulation, just as in the
-composed path. Each independent instance uses its own RNG stream.
+Both execution paths share transition recording. The fused transition performs
+`step`, reward conversion, termination, time-limit checking, conditional reset,
+and next-row observation in that order. Each independent instance uses its own
+RNG stream. Episode reports and training progress belong to consumers; the
+runner and dataset do not accumulate returns or store completion events.
 
 This does not add a runtime fast-path flag, a second `collect`, hidden state
 buffer aliasing, or production CUDA Graph ownership. Callers of the former
@@ -46,10 +46,10 @@ ctest --test-dir build \
 
 `fused.cu` compares the selected CUDA phases against explicitly selected generic
 phases using the same CUDA batch verbs. It checks every step's observations,
-actions, rewards, termination flags, episode accounting, parameters, current and
+actions, rewards, termination/reset flags, time-limit counters, parameters, current and
 pre-reset states, mutable environment data, and RNG state. Coverage includes
 1/37 instances, asymmetric and mixed-precision observation storage, multi-agent
-actions, portable/cuRAND RNGs, runtime limits, strided no/some/all reset masks,
+actions, portable/cuRAND RNGs, compile-time limits of 0/1/3, strided no/some/all reset masks,
 and full external resets. Both supported header entry paths are compiled.
 
 `fused_recurrent.cu` compares complete collection against composed phases with

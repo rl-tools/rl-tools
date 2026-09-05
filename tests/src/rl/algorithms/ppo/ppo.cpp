@@ -68,7 +68,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
     rlt::construct(device, device.logger);
     auto training_start = std::chrono::high_resolution_clock::now();
     for(TI ppo_step_i = 0; ppo_step_i < 1000; ppo_step_i++) {
-        rlt::set_step(device, device.logger, on_policy_runner.step);
+        rlt::set_step(device, device.logger, ppo_step_i * prl::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL);
 
         if(ppo_step_i % 100 == 0){
             std::chrono::duration<T> training_elapsed = std::chrono::high_resolution_clock::now() - training_start;

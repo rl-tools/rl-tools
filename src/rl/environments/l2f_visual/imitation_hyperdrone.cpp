@@ -1,6 +1,6 @@
 // Visual imitation learning on the hyperdrone target-frame task: the device-generic port of
-// imitation_cuda.cu. The host DEVICE owns dataset enumeration, extrack, artifacts and the
-// episode accounting; DEVICE_COMPUTE runs the environment verbs, the RAPTOR teacher, the
+// imitation_cuda.cu. The host DEVICE owns dataset enumeration, extrack and artifacts;
+// DEVICE_COMPUTE runs rollout collection, the environment verbs, the RAPTOR teacher, the
 // student and its training. When this file is compiled as CUDA (OptiX backend) DEVICE_COMPUTE
 // is the CUDA device and the type policy keeps the original bf16 storage; otherwise (Metal,
 // Vulkan, WebGPU, generic, or a CPU-compute build on a CUDA machine) it is the host device with
@@ -374,8 +374,6 @@ static constexpr TI N_BATCHES = STEPS_TOTAL / BATCH_SIZE;
 static constexpr TI NUM_EPOCHS = 1000000;
 static constexpr T TEACHER_FORCING_FRACTION = 0.0;
 static constexpr T EFFECTIVE_TEACHER_FORCING_FRACTION = STATE_ESTIMATION_MODE ? static_cast<T>(1) : TEACHER_FORCING_FRACTION;
-// the episode statistics split teacher-forced and student episodes per mode, not per instance
-static_assert(EFFECTIVE_TEACHER_FORCING_FRACTION == static_cast<T>(0) || EFFECTIVE_TEACHER_FORCING_FRACTION == static_cast<T>(1), "fractional teacher forcing needs a per-instance tag joined against the episode log");
 static constexpr TI CHECKPOINT_CADENCE = 1000;
 static constexpr bool EXPORT_CHECKPOINT_TAR = false;
 static constexpr bool EXPORT_CHECKPOINT_CODE = false;
@@ -446,13 +444,12 @@ using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 using ROLLOUT_STUDENT_TYPE = typename STUDENT_TYPE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<true>>::template CHANGE_BATCH_SIZE<TI, N_ENVIRONMENTS>;
 // the batched on-policy runner collects the composed observations (student input, activation
 // precision) and the teacher's privileged observations per row; the teacher's recurrent state is
-// the rollout policy state (reset from the runner's episode accounting)
+// the rollout policy state
 using RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, MULTI_ENVIRONMENT, typename RAPTOR_MODEL::State<true>, typename TASK_WORLD::Observation, RAPTOR_OBSERVATION_TYPE, T_ACTIVATION, T, EPISODE_STEP_LIMIT>;
 using RUNNER = rlt::rl::components::OnPolicyRunner<RUNNER_SPEC>;
 using RUNNER_BUFFER = rlt::rl::components::on_policy_runner::Buffer<RUNNER_SPEC>;
 using DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<RUNNER_SPEC, STEPS_PER_ENV>;
 using DATASET = rlt::rl::components::on_policy_runner::Dataset<DATASET_SPEC>;
-using EPISODE_STATISTICS = rlt::rl::components::on_policy_runner::EpisodeStatistics<T, TI>;
 static_assert(RUNNER_SPEC::STEP_LIMIT == EPISODE_STEP_LIMIT);
 
 // =========================================================================
@@ -779,14 +776,6 @@ int main(int argc, char** argv){
     rlt::malloc(device, targets_host);
     rlt::malloc(device, student_output_train_host);
     rlt::malloc(device, targets_batch_host);
-    // Only the compact episode fields are mirrored for the host-side per-epoch summary; the
-    // teacher's recurrent state resets from the runner's reset mask.
-    RUNNER runner_host;
-    DATASET dataset_host;
-    rlt::malloc(device, runner_host.episode_step);
-    rlt::malloc(device, dataset_host.episode_end_reason);
-    rlt::malloc(device, dataset_host.episode_length);
-    rlt::malloc(device, dataset_host.episode_return);
     auto reset_mask = rlt::matrix_view(device_compute, runner.reset);
     rlt::Mode<rlt::mode::sequential::ResetMask<rlt::mode::Default<>, rlt::mode::sequential::ResetMaskSpecification<decltype(reset_mask)>>> mode_reset_mask;
     mode_reset_mask.mask = reset_mask;
@@ -849,8 +838,6 @@ int main(int argc, char** argv){
         if(epoch_i > 0){
             rlt::rotate_scene(device_compute, env);
         }
-        // epoch boundary: every instance restarts and the episodes cut by the boundary are
-        // discarded (they were counted in the previous epoch's in-progress statistics)
         rlt::init(device_compute, runner, env, rng_compute);
         bool record_video = (epoch_i % CHECKPOINT_CADENCE == 0);
         bool record_trajectories = (epoch_i % CHECKPOINT_CADENCE == 0);
@@ -975,7 +962,7 @@ int main(int argc, char** argv){
                 rlt::copy(device_compute, device_compute, student_output_step, actions_step);
             }
 
-            // 7. environment step and episode accounting (the runner: step, reward, autoreset, next row)
+            // 7. environment step and next observation
             epilogue(device_compute, dataset, runner, runner_buffer, env, rng_compute, step_i);
             if(record_trajectories){
                 rlt::copy(device_compute, device, runner_buffer.terminated, terminated_host);
@@ -1088,26 +1075,6 @@ int main(int argc, char** argv){
         // =================================================================
         // Statistics and logging
         // =================================================================
-        // finished episodes from the dataset; the episodes still in progress at the epoch end count once
-        // with their current length (as in imitation_cuda.cu)
-        EPISODE_STATISTICS statistics;
-        rlt::copy(device_compute, device, dataset.episode_end_reason, dataset_host.episode_end_reason);
-        rlt::copy(device_compute, device, dataset.episode_length, dataset_host.episode_length);
-        rlt::copy(device_compute, device, dataset.episode_return, dataset_host.episode_return);
-        rlt::copy(device_compute, device, runner.episode_step, runner_host.episode_step);
-        rlt::summarize(device, dataset_host, runner_host, statistics);
-        TI complete_episode_count = statistics.finished;
-        TI episode_count_terminated = statistics.terminated;
-        TI episode_count = statistics.finished + statistics.in_progress;
-        TI episode_count_tf = full_teacher_forcing ? episode_count : 0;
-        TI episode_count_student = full_teacher_forcing ? 0 : episode_count;
-        T episode_terminated_share = episode_count > 0 ? static_cast<T>(episode_count_terminated) / static_cast<T>(episode_count) : (T)0;
-        T complete_terminated_share = statistics.terminated_share;
-        T complete_episode_length = statistics.mean_length;
-        T mean_episode_length = episode_count > 0 ? (statistics.length_sum + statistics.in_progress_length_sum) / static_cast<T>(episode_count) : (T)0;
-        T mean_episode_length_tf = full_teacher_forcing ? mean_episode_length : (T)0;
-        T mean_episode_length_student = full_teacher_forcing ? (T)0 : mean_episode_length;
-
         auto now = std::chrono::high_resolution_clock::now();
         std::chrono::duration<T> training_elapsed = now - training_start;
         std::chrono::duration<T> epoch_elapsed = now - epoch_start;
@@ -1122,10 +1089,6 @@ int main(int argc, char** argv){
         std::cout << (full_teacher_forcing ? "[TF] " : "[TF=" + std::to_string((int)(EFFECTIVE_TEACHER_FORCING_FRACTION * 100)) + "%] ")
                   << "Epoch: " << std::setw(5) << epoch_i
                   << " MSE: " << std::setw(10) << std::setprecision(6) << std::fixed << epoch_loss
-                  << " mean_ep_len: " << std::setw(6) << std::setprecision(1) << mean_episode_length
-                  << " ep_limit: " << std::setw(3) << runner.episode_step_limit
-                  << " episodes: " << std::setw(5) << episode_count
-                  << " term_share: " << std::setw(5) << std::setprecision(2) << std::fixed << episode_terminated_share
                   << " fps: " << std::setw(7) << std::setprecision(0) << fps
                   << " collect: " << std::setw(6) << std::setprecision(1) << collection_elapsed.count() << "s"
                   << " (" << std::setw(4) << std::setprecision(1) << collection_pct << "%"
@@ -1143,11 +1106,6 @@ int main(int argc, char** argv){
         std::cout << std::endl;
 
         metra::log(metra_prefix + "/mse_loss", static_cast<double>(epoch_loss));
-        metra::log(metra_prefix + "/episode_length", static_cast<double>(mean_episode_length));
-        metra::log(metra_prefix + "/episodes", static_cast<double>(episode_count));
-        metra::log(metra_prefix + "/terminated_share", static_cast<double>(episode_terminated_share));
-        metra::log(metra_prefix + "/complete_episode_length", static_cast<double>(complete_episode_length));
-        metra::log(metra_prefix + "/complete_terminated_share", static_cast<double>(complete_terminated_share));
         metra::log(metra_prefix + "/fps", static_cast<double>(fps));
         metra::log(metra_prefix + "/epoch_time_s", static_cast<double>(epoch_elapsed.count()));
         if constexpr(STATE_ESTIMATION_MODE){
@@ -1167,16 +1125,6 @@ int main(int argc, char** argv){
             rlt::add_scalar(device, device.logger, "training/state_estimation/orientation_angle_error_rad", epoch_state_estimation_metrics[3]);
             rlt::add_scalar(device, device.logger, "training/state_estimation/orientation_angle_error_deg", epoch_orientation_angle_error_deg);
         }
-        rlt::add_scalar(device, device.logger, "training/episode_length", mean_episode_length);
-        rlt::add_scalar(device, device.logger, "training/episodes", static_cast<T>(episode_count));
-        if(episode_count_tf > 0){
-            rlt::add_scalar(device, device.logger, "training/teacher/episode_length", mean_episode_length_tf);
-            rlt::add_scalar(device, device.logger, "training/teacher/episodes", static_cast<T>(episode_count_tf));
-        }
-        if(episode_count_student > 0){
-            rlt::add_scalar(device, device.logger, "training/student/episode_length", mean_episode_length_student);
-            rlt::add_scalar(device, device.logger, "training/student/episodes", static_cast<T>(episode_count_student));
-        }
         rlt::add_scalar(device, device.logger, "timing/fps", fps);
         rlt::add_scalar(device, device.logger, "timing/throughput_fps", fps);
         rlt::add_scalar(device, device.logger, "timing/collection_time_s", collection_elapsed.count());
@@ -1187,12 +1135,6 @@ int main(int argc, char** argv){
         rlt::add_scalar(device, device.logger, "timing/epoch_time_s", epoch_elapsed.count());
         rlt::add_scalar(device, device.logger, "timing/total_time_s", training_elapsed.count());
         rlt::add_scalar(device, device.logger, "training/teacher_forcing", full_teacher_forcing ? (T)1 : EFFECTIVE_TEACHER_FORCING_FRACTION);
-        rlt::add_scalar(device, device.logger, "training/terminated_share", episode_terminated_share);
-        rlt::add_scalar(device, device.logger, "training/terminated_episodes", static_cast<T>(episode_count_terminated));
-        rlt::add_scalar(device, device.logger, "training/complete_terminated_share", complete_terminated_share);
-        rlt::add_scalar(device, device.logger, "training/complete_episode_length", complete_episode_length);
-        rlt::add_scalar(device, device.logger, "training/complete_episodes", static_cast<T>(complete_episode_count));
-        rlt::add_scalar(device, device.logger, "curriculum/episode_step_limit", static_cast<T>(runner.episode_step_limit));
         rlt::add_scalar(device, device.logger, "rendering/anti_aliasing_grid_size", RENDER_ANTI_ALIASING_ACTIVE ? static_cast<T>(RENDER_ANTI_ALIASING_GRID_SIZE) : static_cast<T>(1));
         rlt::add_scalar(device, device.logger, "rendering/motion_blur_samples", RENDER_MOTION_BLUR_ACTIVE ? static_cast<T>(RENDER_MOTION_BLUR_SAMPLES) : static_cast<T>(1));
         rlt::add_scalar(device, device.logger, "rendering/target_frame_roll_pitch_randomization_range", TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE);
@@ -1404,10 +1346,6 @@ int main(int argc, char** argv){
     rlt::free(device, student_cpu);
     rlt::free(device, reset_mask_host);
     rlt::free(device, terminated_host);
-    rlt::free(device, runner_host.episode_step);
-    rlt::free(device, dataset_host.episode_end_reason);
-    rlt::free(device, dataset_host.episode_length);
-    rlt::free(device, dataset_host.episode_return);
     rlt::free(device_compute, runner);
     rlt::free(device_compute, runner_buffer);
     rlt::free(device_compute, dataset);

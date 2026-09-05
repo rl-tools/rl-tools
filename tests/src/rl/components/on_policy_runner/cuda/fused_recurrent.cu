@@ -56,7 +56,8 @@ namespace {
         for(TI rollout = 0; rollout < 3; rollout++) {
             collect(gpu, datasets[0], runners[0], buffers[0], environments[0], actors[0], actor_buffers[0], rngs[0]);
             if constexpr(TRUNCATE) {
-                reset_episode(gpu, runners[1]);
+                set_all(gpu, runners[1].reset, true);
+                set_all(gpu, runners[1].episode_step, TI(0));
                 sample_initial_parameters(gpu, environments[1], runners[1].env_parameters, runners[1].reset, rngs[1]);
                 sample_initial_state(gpu, environments[1], runners[1].env_parameters, runners[1].states, runners[1].reset, rngs[1]);
             }
@@ -65,18 +66,13 @@ namespace {
                 interlude(gpu, datasets[1], runners[1], buffers[1], actors[1], actor_buffers[1], rngs[1], t);
                 epilogue<GPU, DS, RS, BATCH, RNG>(gpu, datasets[1], runners[1], buffers[1], environments[1], rngs[1], t);
             }
-            runners[1].step += N * STEPS;
             for(TI i = 0; i < 2; i++) {
                 copy(gpu, cpu, datasets[i].scalar_data, host_datasets[i].scalar_data);
                 copy(gpu, cpu, datasets[i].all_observations, host_datasets[i].all_observations);
                 copy(gpu, cpu, datasets[i].all_observations_privileged, host_datasets[i].all_observations_privileged);
-                copy(gpu, cpu, datasets[i].episode_length, host_datasets[i].episode_length);
-                copy(gpu, cpu, datasets[i].episode_return, host_datasets[i].episode_return);
-                copy(gpu, cpu, datasets[i].episode_end_reason, host_datasets[i].episode_end_reason);
                 copy(gpu, cpu, runners[i].policy_state, host_states[i]);
                 copy(gpu, cpu, rngs[i], host_rngs[i]);
             }
-            EXPECT_EQ(runners[0].step, runners[1].step);
             EXPECT_EQ(abs_diff(cpu, host_datasets[0], host_datasets[1]), 0);
             EXPECT_EQ(abs_diff(cpu, host_states[0], host_states[1]), 0);
             EXPECT_EQ(abs_diff(cpu, host_rngs[0], host_rngs[1]), 0);

@@ -193,8 +193,9 @@ void run(TI BASE_SEED){
             }
             rlt::init(device, on_policy_runner, environment, rng);
         }
+        TI environment_step = 0;
         for(TI ppo_step_i = 0; ppo_step_i < NUM_STEPS; ppo_step_i++) {
-            if(ACTOR_ENABLE_CHECKPOINTS && (on_policy_runner.step / ACTOR_CHECKPOINT_INTERVAL == next_checkpoint_id)){
+            if(ACTOR_ENABLE_CHECKPOINTS && (environment_step / ACTOR_CHECKPOINT_INTERVAL == next_checkpoint_id)){
                 std::filesystem::path actor_output_dir = std::filesystem::path(ACTOR_CHECKPOINT_DIRECTORY) / run_name;
                 try {
                     std::filesystem::create_directories(actor_output_dir);
@@ -204,7 +205,7 @@ void run(TI BASE_SEED){
                 std::string checkpoint_name = "latest.h5";
                 if(!ACTOR_OVERWRITE_CHECKPOINTS){
                     std::stringstream checkpoint_name_ss;
-                    checkpoint_name_ss << "actor_" << std::setw(15) << std::setfill('0') << next_checkpoint_id << "_" << std::setw(15) << std::setfill('0') << on_policy_runner.step << ".h5";
+                    checkpoint_name_ss << "actor_" << std::setw(15) << std::setfill('0') << next_checkpoint_id << "_" << std::setw(15) << std::setfill('0') << environment_step << ".h5";
                     checkpoint_name = checkpoint_name_ss.str();
                 }
                 std::filesystem::path actor_output_path = actor_output_dir / checkpoint_name;
@@ -220,7 +221,7 @@ void run(TI BASE_SEED){
 #endif
                 next_checkpoint_id++;
             }
-            if(ENABLE_EVALUATION && (on_policy_runner.step / EVALUATION_INTERVAL == next_evaluation_id)){
+            if(ENABLE_EVALUATION && (environment_step / EVALUATION_INTERVAL == next_evaluation_id)){
                 using RESULT_SPEC = rlt::rl::utils::evaluation::Specification<TYPE_POLICY, TI, decltype(evaluation_env), NUM_EVALUATION_EPISODES, prl::ON_POLICY_RUNNER_STEP_LIMIT>;
                 rlt::rl::utils::evaluation::Result<RESULT_SPEC> result;
                 rlt::evaluate(device, evaluation_env, ui, ppo.actor, result, evaluation_rng, rlt::Mode<rlt::mode::Evaluation<>>{});
@@ -229,18 +230,18 @@ void run(TI BASE_SEED){
                 rlt::add_histogram(device, device.logger, "evaluation/return", result.returns, decltype(result)::N_EPISODES);
                 std::cout << "Evaluation return mean: " << result.returns_mean << " (std: " << result.returns_std << ")" << std::endl;
 #ifdef RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT_TRAINING_TEST
-                if(on_policy_runner.step > 2000000){
+                if(environment_step > 2000000){
                     ASSERT_GT(result.returns_mean + result.returns_std, 4000);
                 }
 #endif
 
                 next_evaluation_id++;
             }
-            rlt::set_step(device, device.logger, on_policy_runner.step);
+            rlt::set_step(device, device.logger, environment_step);
 
             if(ppo_step_i % 1 == 0){
                 std::chrono::duration<T> training_elapsed = std::chrono::high_resolution_clock::now() - training_start;
-                std::cout << "PPO step: " << ppo_step_i << " environment step: " << on_policy_runner.step << " elapsed: " << training_elapsed.count() << "s" << std::endl;
+                std::cout << "PPO step: " << ppo_step_i << " environment step: " << environment_step << " elapsed: " << training_elapsed.count() << "s" << std::endl;
                 rlt::add_scalar(device, device.logger, "ppo/step", ppo_step_i);
                 rlt::add_scalar(device, device.logger, "ppo/actor_learning_rate", rlt::get(device, actor_optimizer.parameters, 0).alpha);
                 rlt::add_scalar(device, device.logger, "ppo/critic_learning_rate", rlt::get(device, critic_optimizer.parameters, 0).alpha);
@@ -254,6 +255,7 @@ void run(TI BASE_SEED){
             }
             auto start = std::chrono::high_resolution_clock::now();
             rlt::collect(device, on_policy_runner_dataset, on_policy_runner, on_policy_runner_buffer, environment, ppo.actor, actor_eval_buffers, rng);
+            environment_step += prl::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL;
             auto obs = rlt::view_range(device, on_policy_runner_dataset.all_observations, 0, rlt::tensor::ViewSpec<0, prl::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL>{});
             auto obs_matrix = rlt::matrix_view(device, obs);
             if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){

@@ -53,7 +53,6 @@ namespace rl_tools{
             sample_actions(device, dataset, log_std, runner_buffer.actions, step_i, rng);
             epilogue(device, dataset, runner, runner_buffer, environment, rng, step_i);
         }
-        runner.step += SPEC::N_ENVIRONMENTS * DATASET_SPEC::STEPS_PER_ENV;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
