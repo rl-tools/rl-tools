@@ -1,4 +1,5 @@
 @AGENTS.md
+@/infra/AGENTS.md
 
 # RLtools Development Guide
 
