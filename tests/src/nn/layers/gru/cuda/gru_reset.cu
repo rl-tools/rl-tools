@@ -16,29 +16,28 @@ using TI = GPU::index_t;
 using T = float;
 using TYPE_POLICY = rlt::numeric_types::Policy<T>;
 
-template <typename SPEC>
-void set_mask(CPU&, rlt::Matrix<SPEC>& mask, TI batch_i, bool value){
-    rlt::set(mask, 0, batch_i, value);
+template <typename DEVICE, typename SPEC>
+auto reset_mask_view(DEVICE&, rlt::Matrix<SPEC>& mask){
+    return mask;
 }
-template <typename SPEC>
-void set_mask(CPU& device, rlt::Tensor<SPEC>& mask, TI batch_i, bool value){
-    rlt::set(device, mask, value, batch_i);
+template <typename DEVICE, typename SPEC>
+auto reset_mask_view(DEVICE& device, rlt::Tensor<SPEC>& mask){
+    return rlt::matrix_view(device, mask);
 }
 
 template <typename MASK>
 void test_masked_reset(){
-    constexpr TI BATCH_SIZE = rlt::nn::layers::gru::mode::ResetMaskSize<MASK>::VALUE;
+    CPU cpu;
+    GPU gpu;
+    MASK mask_cpu, mask_gpu;
+    using MASK_VIEW = decltype(reset_mask_view(cpu, mask_cpu));
+    constexpr TI BATCH_SIZE = MASK_VIEW::COLS;
     constexpr TI HIDDEN_DIM = 5;
     using CONFIG = rlt::nn::layers::gru::Configuration<TYPE_POLICY, TI, HIDDEN_DIM>;
     using LAYER = rlt::nn::layers::gru::Layer<CONFIG, rlt::nn::capability::Forward<>, rlt::tensor::Shape<TI, 16, BATCH_SIZE, 2>>;
-    using MASK_SPEC = rlt::mode::sequential::ResetMaskSpecification<MASK>;
-    using MODE = rlt::Mode<rlt::mode::sequential::ResetMask<rlt::mode::Default<>, MASK_SPEC>>;
-    CPU cpu;
-    GPU gpu;
     rlt::init(gpu);
     LAYER layer_cpu, layer_gpu;
     typename LAYER::template State<> state_cpu, state_gpu, actual;
-    MASK mask_cpu, mask_gpu;
     typename CPU::SPEC::RANDOM::template ENGINE<> rng_cpu;
     typename GPU::SPEC::RANDOM::template ENGINE<> rng_gpu;
     rlt::malloc(cpu, rng_cpu);
@@ -56,14 +55,16 @@ void test_masked_reset(){
         rlt::set(cpu, layer_cpu.initial_hidden_state.parameters, (T)hidden_i / 4 + 2, hidden_i);
     }
     rlt::copy(cpu, gpu, layer_cpu.initial_hidden_state.parameters, layer_gpu.initial_hidden_state.parameters);
+    using MASK_SPEC = rlt::mode::sequential::ResetMaskSpecification<MASK_VIEW>;
+    using MODE = rlt::Mode<rlt::mode::sequential::ResetMask<rlt::mode::Default<>, MASK_SPEC>>;
     MODE mode_cpu, mode_gpu;
-    mode_cpu.mask = mask_cpu;
-    mode_gpu.mask = mask_gpu;
+    mode_cpu.mask = reset_mask_view(cpu, mask_cpu);
+    mode_gpu.mask = reset_mask_view(gpu, mask_gpu);
     T max_error = 0;
     for(TI pattern = 0; pattern < 3; pattern++){
         for(TI batch_i = 0; batch_i < BATCH_SIZE; batch_i++){
             const bool selected = pattern == 1 || (pattern == 2 && batch_i % 2 == 0);
-            set_mask(cpu, mask_cpu, batch_i, selected);
+            rlt::set(mode_cpu.mask, 0, batch_i, selected);
             rlt::set(cpu, state_cpu.step, batch_i + 4, batch_i);
             for(TI hidden_i = 0; hidden_i < HIDDEN_DIM; hidden_i++){
                 rlt::set(cpu, state_cpu.state, (T)(64 + batch_i * HIDDEN_DIM + hidden_i), batch_i, hidden_i);
@@ -121,10 +122,10 @@ TEST(RL_TOOLS_NN_LAYERS_GRU_RESET_CUDA, MATRIX_STRIDED){
 TEST(RL_TOOLS_NN_LAYERS_GRU_RESET_CUDA, MATRIX_FLOAT){
     test_masked_reset<rlt::Matrix<rlt::matrix::Specification<T, TI, 1, 37>>>();
 }
-TEST(RL_TOOLS_NN_LAYERS_GRU_RESET_CUDA, TENSOR_SINGLE){
+TEST(RL_TOOLS_NN_LAYERS_GRU_RESET_CUDA, TENSOR_VIEW_SINGLE){
     test_masked_reset<rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, 1>>>>();
 }
-TEST(RL_TOOLS_NN_LAYERS_GRU_RESET_CUDA, TENSOR_MULTIBLOCK){
+TEST(RL_TOOLS_NN_LAYERS_GRU_RESET_CUDA, TENSOR_VIEW_MULTIBLOCK){
     test_masked_reset<rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, 37>>>>();
 }
 

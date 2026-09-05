@@ -54,7 +54,7 @@ and full external resets. Both supported header entry paths are compiled.
 
 `fused_recurrent.cu` compares complete collection against composed phases with
 GRU policies on Pendulum and L2F, with continuing and forced-rollout boundaries.
-The separate GRU tests verify matrix/tensor reset masks, partial blocks, strided
+The separate GRU tests verify matrix masks and views of tensor masks, partial blocks, strided
 masks, and default/no-auto-reset counter boundaries against CPU and explicit
 expected values. Run these executables with Compute Sanitizer's `memcheck` and
 `--leak-check full` when changing the kernels.

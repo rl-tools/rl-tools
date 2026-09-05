@@ -209,15 +209,6 @@ namespace rl_tools{
         return acc;
     }
 
-    template <auto INSTANCES, typename RNG, typename TI>
-    RL_TOOLS_FUNCTION_PLACEMENT RNG& instance_rng(RNG& rng, TI){
-        return rng;
-    }
-    template <auto INSTANCES, typename RNG_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT auto& instance_rng(devices::generic::random::ArrayENGINE<RNG_SPEC>& rng, typename RNG_SPEC::TI instance_i){
-        static_assert(RNG_SPEC::NUM_RNGS >= INSTANCES, "the runner needs one RNG state per environment instance");
-        return get(rng.states, 0, instance_i);
-    }
     template <typename DEVICE, typename DATASET_SPEC, typename SPEC, typename rl_tools::utils::typing::enable_if<DEVICE::DEVICE_ID != devices::DeviceId::CUDA, bool>::type = true>
     void record_episode_start(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<SPEC>& runner){
         using TI = typename SPEC::TI;
@@ -300,7 +291,7 @@ namespace rl_tools{
         using SPEC = typename DATASET_SPEC::SPEC;
         using T = typename SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename SPEC::TI;
-        constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
+        constexpr TI ACTION_DIM = SPEC::BATCH_ENVIRONMENT::ACTION_DIM;
         constexpr TI N_AGENTS = SPEC::N_AGENTS_PER_ENV;
         static_assert(ACTION_DIM % N_AGENTS == 0);
         constexpr TI PER_AGENT_ACTION_DIM = ACTION_DIM / N_AGENTS;
@@ -336,9 +327,10 @@ namespace rl_tools{
     void interlude(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<SPEC>& runner, rl::components::on_policy_runner::Buffer<SPEC>& buffer, ACTOR& actor, ACTOR_BUFFERS& actor_buffers, RNG& rng, typename SPEC::TI step_i){
         using TI = typename SPEC::TI;
         constexpr TI N_ENVIRONMENTS = SPEC::N_ENVIRONMENTS;
-        constexpr TI ACTION_DIM = SPEC::ENVIRONMENT::ACTION_DIM;
-        Mode<mode::sequential::ResetMask<mode::Default<>, mode::sequential::ResetMaskSpecification<decltype(runner.reset)>>> mode_reset_mask;
-        mode_reset_mask.mask = runner.reset;
+        constexpr TI ACTION_DIM = SPEC::BATCH_ENVIRONMENT::ACTION_DIM;
+        auto reset_mask = matrix_view(device, runner.reset);
+        Mode<mode::sequential::ResetMask<mode::Default<>, mode::sequential::ResetMaskSpecification<decltype(reset_mask)>>> mode_reset_mask;
+        mode_reset_mask.mask = reset_mask;
         reset(device, actor, runner.policy_state, rng, mode_reset_mask);
         auto observations = view_range(device, dataset.all_observations, step_i * N_ENVIRONMENTS, tensor::ViewSpec<0, N_ENVIRONMENTS>{});
         using EVAL_INPUT_SHAPE = tensor::Prepend<typename SPEC::OBSERVATION::SHAPE, N_ENVIRONMENTS>;

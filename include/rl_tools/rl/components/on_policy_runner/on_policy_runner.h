@@ -17,21 +17,11 @@ namespace rl_tools::rl::components{
             FORCED = 3
         };
 
-        template <typename T_BATCH_ENVIRONMENT, typename = void>
-        struct LogicalEnvironment{
-            using TYPE = T_BATCH_ENVIRONMENT;
-        };
-        template <typename T_BATCH_ENVIRONMENT>
-        struct LogicalEnvironment<T_BATCH_ENVIRONMENT, utils::typing::void_t<typename T_BATCH_ENVIRONMENT::ENVIRONMENT>>{
-            using TYPE = typename T_BATCH_ENVIRONMENT::ENVIRONMENT;
-        };
-
         template <typename T_TYPE_POLICY, typename T_BATCH_ENVIRONMENT, typename T_POLICY_STATE, typename T_OBSERVATION = typename T_BATCH_ENVIRONMENT::Observation, typename T_OBSERVATION_PRIVILEGED = typename T_BATCH_ENVIRONMENT::ObservationPrivileged, typename T_OBSERVATION_T = typename T_TYPE_POLICY::DEFAULT, typename T_OBSERVATION_PRIVILEGED_T = typename T_TYPE_POLICY::DEFAULT, typename T_BATCH_ENVIRONMENT::TI T_STEP_LIMIT = T_BATCH_ENVIRONMENT::EPISODE_STEP_LIMIT, bool T_TRUNCATE_ON_EACH_ITERATION = false, bool T_DYNAMIC_ALLOCATION = true>
         struct Specification{
             using TYPE_POLICY = T_TYPE_POLICY;
             using T = typename TYPE_POLICY::DEFAULT;
             using BATCH_ENVIRONMENT = T_BATCH_ENVIRONMENT;
-            using ENVIRONMENT = typename LogicalEnvironment<BATCH_ENVIRONMENT>::TYPE;
             using TI = typename BATCH_ENVIRONMENT::TI;
             using POLICY_STATE = T_POLICY_STATE;
             using OBSERVATION = T_OBSERVATION;
@@ -44,8 +34,6 @@ namespace rl_tools::rl::components{
             static constexpr TI N_AGENTS_PER_ENV = BATCH_ENVIRONMENT::N_AGENTS;
             static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
             static constexpr bool TRUNCATE_ON_EACH_ITERATION = T_TRUNCATE_ON_EACH_ITERATION;
-            static_assert(BATCH_ENVIRONMENT::ACTION_DIM == ENVIRONMENT::ACTION_DIM, "the batch and logical environments must have the same action dimension");
-            static_assert(BATCH_ENVIRONMENT::N_AGENTS == ENVIRONMENT::N_AGENTS, "the batch and logical environments must have the same number of agents");
         };
 
         template <typename T_T, typename T_TI>
@@ -94,7 +82,6 @@ namespace rl_tools::rl::components{
             using ALL_OBS_STORAGE_SHAPE = tensor::Shape<TI, DATASET_SPEC::STEPS_TOTAL_ALL, SPEC::OBSERVATION::DIM>;
             using ALL_OBS_PRIV_STORAGE_SHAPE = tensor::Shape<TI, DATASET_SPEC::STEPS_TOTAL_ALL, SPEC::OBSERVATION_PRIVILEGED::DIM>;
             // the observation storage types follow the specification (e.g. bf16 frames), the scalar data is T
-            static_assert(DATASET_SPEC::ASYMMETRIC_OBSERVATIONS || rl_tools::utils::typing::is_same_v<typename SPEC::OBSERVATION_T, typename SPEC::OBSERVATION_PRIVILEGED_T>, "symmetric observations share one storage");
             Tensor<tensor::Specification<typename SPEC::OBSERVATION_T, TI, ALL_OBS_STORAGE_SHAPE, DATASET_SPEC::DYNAMIC_ALLOCATION>> all_observations;
             Tensor<tensor::Specification<typename SPEC::OBSERVATION_PRIVILEGED_T, TI, ALL_OBS_PRIV_STORAGE_SHAPE, DATASET_SPEC::DYNAMIC_ALLOCATION>> all_observations_privileged;
             Tensor<tensor::Specification<EpisodeEndReason, TI, tensor::Shape<TI, DATASET_SPEC::STEPS_PER_ENV + 1, SPEC::N_ENVIRONMENTS>, DATASET_SPEC::DYNAMIC_ALLOCATION>> episode_end_reason;
@@ -102,14 +89,14 @@ namespace rl_tools::rl::components{
             Tensor<tensor::Specification<typename SPEC::BATCH_ENVIRONMENT::T, TI, tensor::Shape<TI, DATASET_SPEC::STEPS_PER_ENV + 1, SPEC::N_ENVIRONMENTS>, DATASET_SPEC::DYNAMIC_ALLOCATION>> episode_return;
 
             // Scalar data (actions, rewards, flags, values, advantages)
-            static constexpr TI SCALAR_DATA_DIM = SPEC::ENVIRONMENT::ACTION_DIM * 2 + 8;
+            static constexpr TI SCALAR_DATA_DIM = SPEC::BATCH_ENVIRONMENT::ACTION_DIM * 2 + 8;
             Matrix<matrix::Specification<T, TI, STEPS_TOTAL + SPEC::N_ENVIRONMENTS, SCALAR_DATA_DIM, DATASET_SPEC::DYNAMIC_ALLOCATION>> scalar_data;
 
             template<TI VIEW_DIM, bool ALL = false>
             using SCALAR_VIEW = typename decltype(scalar_data)::template VIEW<STEPS_TOTAL + (ALL ? SPEC::N_ENVIRONMENTS : 0), VIEW_DIM>;
 
-            SCALAR_VIEW<SPEC::ENVIRONMENT::ACTION_DIM> actions_mean;
-            SCALAR_VIEW<SPEC::ENVIRONMENT::ACTION_DIM> actions;
+            SCALAR_VIEW<SPEC::BATCH_ENVIRONMENT::ACTION_DIM> actions_mean;
+            SCALAR_VIEW<SPEC::BATCH_ENVIRONMENT::ACTION_DIM> actions;
             SCALAR_VIEW<1> action_log_probs;
             SCALAR_VIEW<1> rewards;
             SCALAR_VIEW<1> terminated;

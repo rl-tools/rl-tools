@@ -187,7 +187,8 @@ namespace rl_tools{
 #endif
         using T = typename PPO_SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename PPO_SPEC::TI;
-        static_assert(utils::typing::is_same_v<typename PPO_SPEC::ENVIRONMENT, typename DATASET_SPEC::SPEC::ENVIRONMENT>, "environment mismatch");
+        static_assert(PPO_SPEC::ENVIRONMENT::ACTION_DIM == DATASET_SPEC::SPEC::BATCH_ENVIRONMENT::ACTION_DIM, "environment action dimension mismatch");
+        static_assert(PPO_SPEC::ENVIRONMENT::N_AGENTS == DATASET_SPEC::SPEC::BATCH_ENVIRONMENT::N_AGENTS, "environment agent count mismatch");
         using ENVIRONMENT = typename PPO_SPEC::ENVIRONMENT;
         using DATASET = rl::components::on_policy_runner::Dataset<DATASET_SPEC>;
         static_assert(DATASET::STEPS_TOTAL > 1);

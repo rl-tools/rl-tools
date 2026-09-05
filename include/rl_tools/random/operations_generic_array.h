@@ -26,6 +26,15 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+    template <auto INSTANCES, typename RNG, typename TI>
+    RL_TOOLS_FUNCTION_PLACEMENT RNG& instance_rng(RNG& rng, TI){
+        return rng;
+    }
+    template <auto INSTANCES, typename RNG_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT auto& instance_rng(devices::generic::random::ArrayENGINE<RNG_SPEC>& rng, typename RNG_SPEC::TI instance_i){
+        static_assert(RNG_SPEC::NUM_RNGS >= INSTANCES, "the batch needs one RNG state per environment instance");
+        return get(rng.states, 0, instance_i);
+    }
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, devices::generic::random::ArrayENGINE<SPEC>& rng){
         malloc(device, rng.states);

@@ -1,63 +1,98 @@
-import os
-from pathlib import Path
-
 import numpy as np
 import pytest
 
-from hyperdrone.env import EnvConfig, MultiEnvironment
-from hyperdrone.jit import source_root
+pytest.importorskip("gymnasium")
+from hyperdrone import gym
 
 
-@pytest.fixture(scope="module")
-def scene_directory(tmp_path_factory):
-    source = Path(os.environ.get("HYPERDRONE_TEST_SCENE_DIR", source_root() / "tests" / "data")) / "ProcTHOR-Train-1.glb"
-    if not source.exists():
-        pytest.skip(f"no ProcTHOR test scene at {source}")
-    directory = tmp_path_factory.mktemp("scenes")
-    (directory / source.name).symlink_to(source)
-    return directory
+class BatchEnvironment:
+    total_instances = 2
+    observation_dim = 2
+    action_dim = 1
+    episode_step_limit = 3
+
+    def __init__(self, *args, **kwargs):
+        self.age = np.zeros(2, dtype=np.int64)
+        self.episodes = np.zeros(2, dtype=np.int64)
+        self.terminations = np.zeros(2, dtype=bool)
+
+    def reset(self, mask=None):
+        mask = np.ones(2, dtype=bool) if mask is None else mask
+        self.age[mask] = 0
+        self.episodes[mask] += 1
+
+    def step(self, actions):
+        self.age += 1
+        self.terminations = actions[:, 0] > 0
+
+    def observe(self):
+        return np.column_stack((self.age, self.episodes)).astype(np.float32)
+
+    def rewards(self):
+        return np.array([1, 2], dtype=np.float32)
+
+    def terminated(self):
+        return self.terminations.copy()
+
+    def close(self):
+        pass
 
 
-def _rollout_step(env, actions):
-    env.begin_step()
-    flags_begin = env.episode_flags()
-    env.observe()
-    env.step(actions)
-    env.end_step()
-    return flags_begin, env.episode_flags()
+@pytest.fixture
+def env(monkeypatch):
+    monkeypatch.setattr(gym, "MultiEnvironment", BatchEnvironment)
+    environment = gym.VectorEnv("unused")
+    environment.reset()
+    yield environment
+    environment.close()
 
 
-def test_episode_accounting(scene_directory):
-    config = EnvConfig(num_environments=1, instances=2, cam_width=16, cam_height=16)
-    env = MultiEnvironment(scene_directory, config=config, seed=3)
-    try:
-        step_limit = 3
-        env.set_step_limit(step_limit)
-        actions = np.zeros((env.total_instances, env.action_dim), dtype=np.float32)
-        previous_truncated = np.ones(env.total_instances, dtype=bool)  # every instance starts due
-        truncations = 0
-        for step_i in range(8):
-            flags_begin, flags_end = _rollout_step(env, actions)
-            # the applied reset mask is the previous step's truncation
-            assert np.array_equal(flags_begin["reset"], previous_truncated)
-            assert np.all(flags_begin["episode_step"][flags_begin["reset"]] == 0)
-            # terminated implies truncated; completed counters reset in end_step
-            assert np.all(flags_end["truncated"] | ~flags_end["terminated"])
-            time_limit = flags_end["truncated"] & ~flags_end["terminated"]
-            assert np.all(flags_end["episode_step"][time_limit] == 0)
-            assert np.all(flags_end["end_reason"][time_limit] == MultiEnvironment.END_REASON_TIME_LIMIT)
-            previous_truncated = flags_end["truncated"]
-            truncations += int(flags_end["truncated"].sum())
-        assert truncations >= 2 * env.total_instances
+def test_same_step_autoreset_and_independent_time_limits(env):
+    observations, rewards, terminated, truncated, _ = env.step([[1], [0]])
+    np.testing.assert_array_equal(terminated, [True, False])
+    np.testing.assert_array_equal(truncated, [False, False])
+    np.testing.assert_array_equal(observations, [[0, 2], [1, 1]])
+    np.testing.assert_array_equal(rewards, [1, 2])
 
-        # forced reset of a single instance applies at the next begin_step
-        env.set_step_limit(0)
-        _rollout_step(env, actions)
-        _rollout_step(env, actions)
-        mask = np.zeros(env.total_instances, dtype=np.uint8)
-        mask[0] = 1
-        env.force_reset(mask)
-        flags_begin, _ = _rollout_step(env, actions)
-        assert flags_begin["reset"][0]
-    finally:
-        env.close()
+    env.step([[0], [0]])
+    observations, _, terminated, truncated, _ = env.step([[0], [0]])
+    np.testing.assert_array_equal(terminated, [False, False])
+    np.testing.assert_array_equal(truncated, [False, True])
+    np.testing.assert_array_equal(observations, [[2, 2], [0, 2]])
+
+    observations, _, _, truncated, _ = env.step([[0], [0]])
+    np.testing.assert_array_equal(truncated, [True, False])
+    np.testing.assert_array_equal(observations, [[0, 3], [1, 2]])
+
+
+def test_termination_at_time_limit(env):
+    env.step([[0], [0]])
+    env.step([[0], [0]])
+    observations, _, terminated, truncated, _ = env.step([[1], [0]])
+    np.testing.assert_array_equal(terminated, [True, False])
+    np.testing.assert_array_equal(truncated, [False, True])
+    np.testing.assert_array_equal(observations, [[0, 2], [0, 2]])
+
+
+def test_explicit_reset_restarts_time_limits(env):
+    env.step([[0], [0]])
+    env.step([[0], [0]])
+    observations, _ = env.reset()
+    np.testing.assert_array_equal(observations, [[0, 2], [0, 2]])
+    for _ in range(2):
+        _, _, _, truncated, _ = env.step([[0], [0]])
+        assert not truncated.any()
+    _, _, _, truncated, _ = env.step([[0], [0]])
+    assert truncated.all()
+
+
+def test_zero_disables_time_limit(env):
+    env._env.episode_step_limit = 0
+    for _ in range(5):
+        _, _, _, truncated, _ = env.step([[0], [0]])
+        assert not truncated.any()
+
+
+def test_reset_rejects_reseeding(env):
+    with pytest.raises(ValueError, match="seed is fixed"):
+        env.reset(seed=1)

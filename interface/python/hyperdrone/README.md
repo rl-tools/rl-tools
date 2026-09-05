@@ -154,23 +154,9 @@ env.rotate_scene()                 # deterministic scene rotation; reset all ins
 env.observation_layout             # named blocks: which channels/values mean what
 ```
 
-Episode accounting (same-step autoreset) is part of the environment, so a training loop does
-not need its own step counters or reset masks:
-
-```python
-env.force_reset()                                   # mark all instances (or a mask) for a reset
-for step in range(steps):
-    env.begin_step()                                # samples the reset instances: terminated, time limit, forced
-    flags = env.episode_flags()                     # terminated / truncated / reset (bool), end_reason, episode_step
-    observations = env.observe()                    # renders as needed; reset rows start the new episode
-    env.step(actions)
-    env.end_step()                                  # terminal check, accounting, autoreset (time limit: env.set_step_limit)
-    rewards, flags = env.rewards(), env.episode_flags()
-```
-
-`terminated` implies `truncated`; `reset` marks the state sampled before the next observation;
-completed counters reset immediately. No final observation of an ended episode is surfaced
-(learners mask truncated transitions instead).
+`reset(mask)` samples parameters and states immediately. `observe()` renders as needed,
+so explicit `render(mask)` calls are optional. The training loop owns episode counters and
+chooses when to reset; the Gymnasium adapter below supplies same-step autoreset and time limits.
 
 All environment semantics — reset, reward, termination, scene scheduling, observation
 composition — live on the C++ side (`rl_tools::rl::environments::hyperdrone::MultiEnvironment<World>`);
@@ -236,8 +222,9 @@ observations, infos = env.reset()
 observations, rewards, terminations, truncations, infos = env.step(actions)
 ```
 
-Same-step autoreset through the environment's episode accounting (`begin_step` /
-`end_step`); `truncations` flags time limits that are not terminations; the core packages
+The adapter resets instances that terminate or reach `episode_step_limit` within the same
+step. Returned observations start the new episode for those instances; no final observation
+is exposed. `truncations` flags time limits that are not terminations. The core packages
 never import gymnasium.
 
 End-to-end example: `python -m hyperdrone.examples.drone_flythrough`; renderer benchmark:

@@ -115,8 +115,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, COLLECTION_CPU_GPU) {
             auto observations_cpu = rlt::matrix_view(device, observations_cpu_tensor);
             auto observations_gpu = rlt::matrix_view(device, observations_gpu_tensor);
             auto diff_observations = rlt::abs_diff(device, observations_cpu, observations_gpu);
-            auto actions_cpu = rlt::view(device, on_policy_runner_dataset_cpu.actions, rlt::matrix::ViewSpec<prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, prl::ON_POLICY_RUNNER_SPEC::ENVIRONMENT::ACTION_DIM>{}, rollout_step_i * prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, 0);
-            auto actions_gpu = rlt::view(device, on_policy_runner_dataset_gpu.actions, rlt::matrix::ViewSpec<prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, prl::ON_POLICY_RUNNER_SPEC::ENVIRONMENT::ACTION_DIM>{}, rollout_step_i * prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, 0);
+            auto actions_cpu = rlt::view(device, on_policy_runner_dataset_cpu.actions, rlt::matrix::ViewSpec<prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, prl::ON_POLICY_RUNNER_SPEC::BATCH_ENVIRONMENT::ACTION_DIM>{}, rollout_step_i * prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, 0);
+            auto actions_gpu = rlt::view(device, on_policy_runner_dataset_gpu.actions, rlt::matrix::ViewSpec<prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, prl::ON_POLICY_RUNNER_SPEC::BATCH_ENVIRONMENT::ACTION_DIM>{}, rollout_step_i * prl::ON_POLICY_RUNNER_SPEC::N_ENVIRONMENTS, 0);
             auto diff_actions = rlt::abs_diff(device, actions_cpu, actions_gpu);
             std::cout << "step " << step_i << " rollout_step " << rollout_step_i << " diff_observations " << diff_observations << " diff_actions " << diff_actions << std::endl;
             ASSERT_LT(diff_observations/decltype(observations_cpu)::SPEC::SIZE, 1e-5);

@@ -187,7 +187,7 @@ class _Config(ctypes.Structure):
     ]
 
 
-_IFACE_VERSION = 5
+_IFACE_VERSION = 6
 
 
 def _load(config):
@@ -215,18 +215,6 @@ def _load(config):
     library.hyperdrone_env_rewards.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_float)]
     library.hyperdrone_env_terminated.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint8)]
     library.hyperdrone_env_rotate_scene.argtypes = [ctypes.c_void_p]
-    library.hyperdrone_env_begin_step.argtypes = [ctypes.c_void_p]
-    library.hyperdrone_env_end_step.argtypes = [ctypes.c_void_p]
-    library.hyperdrone_env_force_reset.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint8)]
-    library.hyperdrone_env_set_step_limit.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
-    library.hyperdrone_env_episode_flags.argtypes = [
-        ctypes.c_void_p,
-        ctypes.POINTER(ctypes.c_uint8),
-        ctypes.POINTER(ctypes.c_uint8),
-        ctypes.POINTER(ctypes.c_uint8),
-        ctypes.POINTER(ctypes.c_uint8),
-        ctypes.POINTER(ctypes.c_uint32),
-    ]
     return library
 
 
@@ -436,53 +424,6 @@ class MultiEnvironment:
 
     def rotate_scene(self):
         self._library.hyperdrone_env_rotate_scene(self._handle)
-
-    # episode accounting (same-step autoreset over the mask verbs): end_step runs the terminal
-    # check and accounting, resetting completed counters immediately; begin_step resamples the
-    # reset instances. The reset mask remains available to stateful consumers and render(). No final
-    # observation exists: the observation after a reset is the first of the new episode
-    END_REASON_NONE = 0
-    END_REASON_TERMINATED = 1
-    END_REASON_TIME_LIMIT = 2
-    END_REASON_FORCED = 3
-
-    def begin_step(self):
-        self._library.hyperdrone_env_begin_step(self._handle)
-
-    def end_step(self):
-        self._library.hyperdrone_env_end_step(self._handle)
-
-    def force_reset(self, mask=None):
-        """Mark instances (all by default) for a reset at the next begin_step."""
-        self._library.hyperdrone_env_force_reset(self._handle, _uint8_ptr(self._mask(mask)))
-
-    def set_step_limit(self, step_limit):
-        """Override the time limit in steps (0: none); defaults to episode_step_limit."""
-        self._library.hyperdrone_env_set_step_limit(self._handle, ctypes.c_uint32(int(step_limit)))
-
-    def episode_flags(self):
-        """terminated / truncated (terminated implies truncated) / current reset mask as bool
-        arrays, end_reason (END_REASON_*) as uint8 and in-progress episode_step as uint32."""
-        terminated = np.empty(self.total_instances, dtype=np.uint8)
-        truncated = np.empty(self.total_instances, dtype=np.uint8)
-        reset = np.empty(self.total_instances, dtype=np.uint8)
-        end_reason = np.empty(self.total_instances, dtype=np.uint8)
-        episode_step = np.empty(self.total_instances, dtype=np.uint32)
-        self._library.hyperdrone_env_episode_flags(
-            self._handle,
-            _uint8_ptr(terminated),
-            _uint8_ptr(truncated),
-            _uint8_ptr(reset),
-            _uint8_ptr(end_reason),
-            episode_step.ctypes.data_as(ctypes.POINTER(ctypes.c_uint32)),
-        )
-        return {
-            "terminated": terminated.astype(bool),
-            "truncated": truncated.astype(bool),
-            "reset": reset.astype(bool),
-            "end_reason": end_reason,
-            "episode_step": episode_step,
-        }
 
     def frames(self):
         """The latest visual observation as (total, *observation_layout.shape) images."""

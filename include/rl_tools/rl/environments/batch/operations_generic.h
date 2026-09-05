@@ -7,19 +7,6 @@
 #include "../../../random/operations_generic_array.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::environments::batch::detail {
-    template <auto INSTANCES, typename RNG, typename TI>
-    RL_TOOLS_FUNCTION_PLACEMENT RNG& instance_rng(RNG& rng, TI){
-        return rng;
-    }
-
-    template <auto INSTANCES, typename RNG_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT auto& instance_rng(devices::generic::random::ArrayENGINE<RNG_SPEC>& rng, typename RNG_SPEC::TI instance_i){
-        static_assert(RNG_SPEC::NUM_RNGS >= INSTANCES, "the batch needs one RNG state per environment instance");
-        return get(rng.states, 0, instance_i);
-    }
-}
-
 namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::environments::batch::Independent<SPEC>& batch){
@@ -50,7 +37,7 @@ namespace rl_tools {
             if(get(device, reset, instance_i)){
                 auto& environment = get_ref(device, batch.environments, instance_i);
                 auto& parameter = get_ref(device, parameters, instance_i);
-                auto& rng_state = rl::environments::batch::detail::instance_rng<SPEC::INSTANCES>(rng, instance_i);
+                auto& rng_state = instance_rng<SPEC::INSTANCES>(rng, instance_i);
                 sample_initial_parameters(device, environment, parameter, rng_state);
             }
         }
@@ -63,7 +50,7 @@ namespace rl_tools {
                 auto& environment = get_ref(device, batch.environments, instance_i);
                 auto& parameter = get_ref(device, parameters, instance_i);
                 auto& state = get_ref(device, states, instance_i);
-                auto& rng_state = rl::environments::batch::detail::instance_rng<SPEC::INSTANCES>(rng, instance_i);
+                auto& rng_state = instance_rng<SPEC::INSTANCES>(rng, instance_i);
                 sample_initial_state(device, environment, parameter, state, rng_state);
             }
         }
@@ -77,7 +64,7 @@ namespace rl_tools {
             auto& state = get_ref(device, states, instance_i);
             auto& next_state = get_ref(device, next_states, instance_i);
             auto action = matrix_view(device, view(device, actions, instance_i));
-            auto& rng_state = rl::environments::batch::detail::instance_rng<SPEC::INSTANCES>(rng, instance_i);
+            auto& rng_state = instance_rng<SPEC::INSTANCES>(rng, instance_i);
             step(device, environment, parameter, state, action, next_state, rng_state);
         }
     }
@@ -90,7 +77,7 @@ namespace rl_tools {
             auto& state = get_ref(device, states, instance_i);
             auto& next_state = get_ref(device, next_states, instance_i);
             auto action = matrix_view(device, view(device, actions, instance_i));
-            auto& rng_state = rl::environments::batch::detail::instance_rng<SPEC::INSTANCES>(rng, instance_i);
+            auto& rng_state = instance_rng<SPEC::INSTANCES>(rng, instance_i);
             set(device, rewards, reward(device, environment, parameter, state, action, next_state, rng_state), instance_i);
         }
     }
@@ -101,7 +88,7 @@ namespace rl_tools {
             auto& environment = get_ref(device, batch.environments, instance_i);
             auto& parameter = get_ref(device, parameters, instance_i);
             auto& state = get_ref(device, states, instance_i);
-            auto& rng_state = rl::environments::batch::detail::instance_rng<SPEC::INSTANCES>(rng, instance_i);
+            auto& rng_state = instance_rng<SPEC::INSTANCES>(rng, instance_i);
             set(device, terminated_flags, terminated(device, environment, parameter, state, rng_state), instance_i);
         }
     }
@@ -114,7 +101,7 @@ namespace rl_tools {
             auto& state = get_ref(device, states, instance_i);
             auto observation_slice = view(device, observations, instance_i);
             auto observation = matrix_view(device, observation_slice);
-            auto& rng_state = rl::environments::batch::detail::instance_rng<SPEC::INSTANCES>(rng, instance_i);
+            auto& rng_state = instance_rng<SPEC::INSTANCES>(rng, instance_i);
             observe(device, environment, parameter, state, observation_type, observation, rng_state);
         }
     }
