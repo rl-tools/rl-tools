@@ -1,15 +1,28 @@
-# metra on a NAS (e.g. TrueNAS SCALE: Apps -> Discover Apps -> Custom App -> Install via YAML)
-# Expects an RLtools checkout at <dataset>/rl_tools; adjust the two host paths below.
+# metra on the NAS (TrueNAS SCALE: Apps -> Discover Apps -> three-dot menu -> "Install via YAML", name: metra).
+#
+# The server is plain PHP (www/index.php + www/index.html), run straight from this RLtools checkout on the
+# /mnt/fast/infra dataset (= /infra/metra/rl_tools on the VMs, see /infra/metra/README.md). PHP re-reads
+# the scripts on every request, so edits in the checkout are live on the next request - no restart, no
+# reload step. Updating the server = git pull in the checkout. This YAML itself should never need re-pasting.
+#
+# One-time on the NAS (TrueNAS shell), before installing:
+#   mkdir -p /mnt/fast/apps/metra/data && chown -R 1000:1000 /mnt/fast/apps/metra/data
+# (SQLite needs write access to the directory, not just the DB file, for its WAL/journal side files - hence
+# the chown and the writable mount below. The uid must also be able to read the checkout.) A DB left by the
+# previous Python server is picked up as is; the schema migrates itself on first request.
+
 services:
   metra:
-    image: python:3.12-alpine
-    command: python3 /rl_tools/tools/metra/metra/server.py --ip 0.0.0.0 --port 13340
+    image: php:8.4-cli
+    container_name: metra
+    restart: unless-stopped
+    user: "1000:1000"
+    command: ["php", "-S", "0.0.0.0:13340", "-t", "/rl_tools/tools/metra/www", "/rl_tools/tools/metra/www/index.php"]
     environment:
+      PHP_CLI_SERVER_WORKERS: "4"
       METRA_DB: /data/metra.sqlite
-    volumes:
-      - /mnt/fast/apps/metra/rl_tools:/rl_tools:ro
-      - /mnt/fast/apps/metra/data:/data
     ports:
       - "13340:13340"
-    user: "1000:1000" # must own the data dataset (568 is the TrueNAS apps convention)
-    restart: unless-stopped
+    volumes:
+      - /mnt/fast/infra/metra/rl_tools:/rl_tools:ro
+      - /mnt/fast/apps/metra/data:/data

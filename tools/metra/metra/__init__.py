@@ -1,4 +1,4 @@
-"""metra: client for the minimal metrics tracking server (metra/server.py).
+"""metra: client for the minimal metrics tracking server (tools/metra/www/index.php).
 
 Environment: METRA_URL (server base URL, default http://127.0.0.1:13340), METRA_COMMIT (override commit detection), METRA_COMMIT_TIME (override commit time detection, unix seconds), METRA_RUN (override the generated run id).
 """
