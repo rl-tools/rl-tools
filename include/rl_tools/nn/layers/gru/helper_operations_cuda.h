@@ -4,7 +4,7 @@
 #define RL_TOOLS_NN_LAYERS_GRU_HELPER_OPERATIONS_CUDA_H
 
 #include "layer.h"
-#include "reset_mask.h"
+#include "../../../containers/matrix/matrix.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::layers::gru::helper{
@@ -399,16 +399,16 @@ namespace rl_tools{
                 set(device, step, new_step, batch_i);
             }
         }
-        template<typename DEV_SPEC, typename INITIAL_SPEC, typename STATE_SPEC, typename STEP_SPEC, typename MASK>
+        template<typename DEV_SPEC, typename INITIAL_SPEC, typename STATE_SPEC, typename STEP_SPEC, typename MASK_SPEC>
         __global__
-        void reset_sequential_kernel(devices::CUDA<DEV_SPEC> device, const Tensor<INITIAL_SPEC> initial_hidden_state, Tensor<STATE_SPEC> state, Tensor<STEP_SPEC> step, const MASK mask){
+        void reset_sequential_kernel(devices::CUDA<DEV_SPEC> device, const Tensor<INITIAL_SPEC> initial_hidden_state, Tensor<STATE_SPEC> state, Tensor<STEP_SPEC> step, const Matrix<MASK_SPEC> mask){
             using DEVICE = devices::CUDA<DEV_SPEC>;
             using TI = typename DEVICE::index_t;
             using T = typename STATE_SPEC::T;
             constexpr TI BATCH_SIZE = STATE_SPEC::SHAPE::template GET<0>;
             constexpr TI HIDDEN_DIM = STATE_SPEC::SHAPE::template GET<1>;
             TI batch_i = threadIdx.x + blockIdx.x * blockDim.x;
-            if(batch_i < BATCH_SIZE && nn::layers::gru::mode::reset_mask_value(device, mask, batch_i)){
+            if(batch_i < BATCH_SIZE && get(mask, 0, batch_i)){
                 set(device, step, (typename STEP_SPEC::T)0, batch_i);
                 for(TI hidden_i = 0; hidden_i < HIDDEN_DIM; hidden_i++){
                     set(device, state, (T)get(device, initial_hidden_state, hidden_i), batch_i, hidden_i);
@@ -442,7 +442,7 @@ namespace rl_tools{
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using TI = typename DEVICE::index_t;
         constexpr TI BATCH_SIZE = get<0>(typename decltype(state.state)::SPEC::SHAPE{});
-        static_assert(nn::layers::gru::mode::ResetMaskSize<decltype(mode.mask)>::VALUE == BATCH_SIZE, "The reset mask for GRU layers must have an entry for each batch element.");
+        static_assert(decltype(mode.mask)::ROWS == 1 && decltype(mode.mask)::COLS == BATCH_SIZE, "The reset mask for GRU layers must have one row and one column per batch element.");
         constexpr TI BLOCKSIZE = 32;
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE);
         devices::cuda::TAG<DEVICE, true> tag_device{};

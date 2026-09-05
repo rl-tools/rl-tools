@@ -59,15 +59,16 @@ namespace rl_tools{
 #endif
         using T = typename PPO_SPEC::T;
         using TI = typename PPO_SPEC::TI;
-        static_assert(utils::typing::is_same_v<typename PPO_SPEC::ENVIRONMENT, typename OPR_SPEC::ENVIRONMENT>, "environment mismatch");
+        static_assert(PPO_SPEC::ENVIRONMENT::ACTION_DIM == OPR_SPEC::BATCH_ENVIRONMENT::ACTION_DIM, "environment action dimension mismatch");
+        static_assert(PPO_SPEC::ENVIRONMENT::N_AGENTS == OPR_SPEC::BATCH_ENVIRONMENT::N_AGENTS, "environment agent count mismatch");
         using BUFFER = rl::components::on_policy_runner::Dataset<rl::components::on_policy_runner::DatasetSpecification<OPR_SPEC, STEPS_PER_ENV>>;
         static_assert(BUFFER::STEPS_TOTAL > 0);
         constexpr TI N_EPOCHS = PPO_SPEC::PARAMETERS::N_EPOCHS;
         constexpr TI BATCH_SIZE = PPO_SPEC::BATCH_SIZE;
         constexpr TI N_BATCHES = BUFFER::STEPS_TOTAL/BATCH_SIZE;
         static_assert(N_BATCHES > 0);
-        constexpr TI ACTION_DIM = OPR_SPEC::ENVIRONMENT::ACTION_DIM;
-        constexpr TI OBSERVATION_DIM = OPR_SPEC::ENVIRONMENT::Observation::DIM;
+        constexpr TI ACTION_DIM = OPR_SPEC::BATCH_ENVIRONMENT::ACTION_DIM;
+        constexpr TI OBSERVATION_DIM = OPR_SPEC::OBSERVATION::DIM;
         constexpr bool NORMALIZE_OBSERVATIONS = PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS;
 //        auto all_observations = NORMALIZE_OBSERVATIONS ? dataset.all_observations_normalized : dataset.all_observations;
 //        auto observations = NORMALIZE_OBSERVATIONS ? dataset.observations_normalized : dataset.observations;

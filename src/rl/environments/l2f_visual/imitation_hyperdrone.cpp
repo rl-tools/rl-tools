@@ -787,8 +787,9 @@ int main(int argc, char** argv){
     rlt::malloc(device, dataset_host.episode_end_reason);
     rlt::malloc(device, dataset_host.episode_length);
     rlt::malloc(device, dataset_host.episode_return);
-    rlt::Mode<rlt::mode::sequential::ResetMask<rlt::mode::Default<>, rlt::mode::sequential::ResetMaskSpecification<decltype(runner.reset)>>> mode_reset_mask;
-    mode_reset_mask.mask = runner.reset;
+    auto reset_mask = rlt::matrix_view(device_compute, runner.reset);
+    rlt::Mode<rlt::mode::sequential::ResetMask<rlt::mode::Default<>, rlt::mode::sequential::ResetMaskSpecification<decltype(reset_mask)>>> mode_reset_mask;
+    mode_reset_mask.mask = reset_mask;
     using NO_AUTO_RESET_MODE = rlt::Mode<rlt::nn::layers::gru::NoAutoResetMode<rlt::mode::Default<>>>;
     NO_AUTO_RESET_MODE no_auto_reset_mode;
 

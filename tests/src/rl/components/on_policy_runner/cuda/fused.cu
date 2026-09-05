@@ -108,12 +108,12 @@ namespace {
         free(cpu, host_a); free(cpu, host_b);
     }
 
-    template <TI N, bool ASYMMETRIC, bool CURAND>
+    template <TI N, bool ASYMMETRIC, bool CURAND, bool MIXED_STORAGE = ASYMMETRIC>
     void compare_phases() {
         using ENV = rl::environments::test_fused::Environment<ASYMMETRIC>;
         using BATCH = rl::environments::batch::Independent<rl::environments::batch::Specification<ENV, N>>;
         using POLICY_STATE = Tensor<tensor::Specification<float, TI, tensor::Shape<TI, 1>>>;
-        using PRIV_T = std::conditional_t<ASYMMETRIC, double, float>;
+        using PRIV_T = std::conditional_t<MIXED_STORAGE, double, float>;
         using RS = rl::components::on_policy_runner::Specification<numeric_types::Policy<float>, BATCH, POLICY_STATE, typename ENV::Observation, typename ENV::ObservationPrivileged, float, PRIV_T>;
         using DS = rl::components::on_policy_runner::DatasetSpecification<RS, 8>;
         using RNG = std::conditional_t<CURAND, devices::random::CUDA::ENGINE<devices::random::CUDA::Specification<TI, N>>, devices::generic::random::ArrayENGINE<devices::generic::random::ArraySpecification<TI, N>>>;
@@ -210,5 +210,6 @@ namespace {
 
 TEST(RL_TOOLS_ON_POLICY_RUNNER_FUSED, SINGLE) { compare_phases<1, false, false>(); }
 TEST(RL_TOOLS_ON_POLICY_RUNNER_FUSED, SYMMETRIC) { compare_phases<37, false, false>(); }
+TEST(RL_TOOLS_ON_POLICY_RUNNER_FUSED, SYMMETRIC_MIXED_STORAGE) { compare_phases<37, false, false, true>(); }
 TEST(RL_TOOLS_ON_POLICY_RUNNER_FUSED, ASYMMETRIC_MIXED_STORAGE) { compare_phases<37, true, false>(); }
 TEST(RL_TOOLS_ON_POLICY_RUNNER_FUSED, CURAND) { compare_phases<37, true, true>(); }

@@ -4,7 +4,6 @@
 #define RL_TOOLS_NN_LAYERS_GRU_OPERATIONS_GENERIC_H
 
 #include "layer.h"
-#include "reset_mask.h"
 #include "helper_operations_generic.h"
 #ifdef RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
 #include "helper_operations_cuda.h"
@@ -94,9 +93,9 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void _reset_sequential(DEVICE& device, const nn::layers::gru::LayerForward<SPEC>& layer, nn::layers::gru::State<STATE_SPEC>& state, mode::sequential::ResetMask<BASE_MODE, MODE_SPEC>& mode){
         using TI = typename DEVICE::index_t;
         static constexpr TI BATCH_SIZE = get<0>(typename decltype(state.state)::SPEC::SHAPE{});
-        static_assert(nn::layers::gru::mode::ResetMaskSize<decltype(mode.mask)>::VALUE == BATCH_SIZE, "The reset mask for GRU layers must have an entry for each batch element.");
+        static_assert(decltype(mode.mask)::ROWS == 1 && decltype(mode.mask)::COLS == BATCH_SIZE, "The reset mask for GRU layers must have one row and one column per batch element.");
         for(TI batch_i=0; batch_i < BATCH_SIZE; batch_i++){
-            if (nn::layers::gru::mode::reset_mask_value(device, mode.mask, batch_i)) {
+            if (get(mode.mask, 0, batch_i)) {
                 set(device, state.step, 0, batch_i);
                 auto row = view(device, state.state, batch_i);
                 copy(device, device, layer.initial_hidden_state.parameters, row);

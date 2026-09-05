@@ -14,7 +14,7 @@ namespace rl_tools{
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             Matrix<matrix::Specification<T, TI, SPEC::N_ENVIRONMENTS, SPEC::OBSERVATION::DIM, SPEC::DYNAMIC_ALLOCATION>> observations;
-            Matrix<matrix::Specification<T, TI, SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM, SPEC::DYNAMIC_ALLOCATION>> actions;
+            Matrix<matrix::Specification<T, TI, SPEC::N_ENVIRONMENTS, SPEC::BATCH_ENVIRONMENT::ACTION_DIM, SPEC::DYNAMIC_ALLOCATION>> actions;
         };
     }
     template <typename DEVICE, typename SPEC>
@@ -40,17 +40,13 @@ namespace rl_tools{
         }
         prologue(device, dataset, runner, environment, rng);
         for(TI step_i = 0; step_i < DATASET_SPEC::STEPS_PER_ENV; step_i++){
-            Mode<mode::sequential::ResetMask<mode::Default<>, mode::sequential::ResetMaskSpecification<decltype(runner.reset)>>> mode_reset_mask;
-            mode_reset_mask.mask = runner.reset;
-            reset(device, actor, runner.policy_state, rng, mode_reset_mask);
-
             auto observations = view_range(device, dataset.all_observations, step_i * SPEC::N_ENVIRONMENTS, tensor::ViewSpec<0, SPEC::N_ENVIRONMENTS>{});
             auto observations_matrix = matrix_view(device, observations);
             copy(device, device_evaluation, observations_matrix, evaluation_buffer_evaluation.observations);
             evaluate(device_evaluation, actor_evaluation, evaluation_buffer_evaluation.observations, evaluation_buffer_evaluation.actions, policy_eval_buffers, rng_evaluation);
             copy(device_evaluation, device, evaluation_buffer_evaluation.actions, evaluation_buffer.actions);
 
-            auto actions_mean = view(device, dataset.actions_mean, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>(), step_i * SPEC::N_ENVIRONMENTS, 0);
+            auto actions_mean = view(device, dataset.actions_mean, matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::BATCH_ENVIRONMENT::ACTION_DIM>(), step_i * SPEC::N_ENVIRONMENTS, 0);
             copy(device, device, evaluation_buffer.actions, actions_mean);
             auto& last_layer = get_last_layer(actor);
             auto log_std = matrix_view(device, last_layer.log_std.parameters);
