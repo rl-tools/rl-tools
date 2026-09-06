@@ -12,3 +12,7 @@ endif()
 if(RL_TOOLS_BACKEND_ENABLE_CUDA)
     add_subdirectory(cuda)
 endif()
+
+add_executable(test_rl_algorithms_ppo_terminal_observations terminal_observations.cpp)
+target_link_libraries(test_rl_algorithms_ppo_terminal_observations PRIVATE RLtools::RLtools GTest::gtest_main)
+gtest_discover_tests(test_rl_algorithms_ppo_terminal_observations)

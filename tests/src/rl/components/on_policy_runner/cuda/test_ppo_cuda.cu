@@ -120,6 +120,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, GAE){
 
     // Set fake values for GAE computation
     rlt::set_all(device_gpu, dataset_gpu.all_values, (T)1.0);
+    rlt::set_all(device_gpu, dataset_gpu.bootstrap_values, (T)1.0);
 
     // Copy dataset to CPU
     DATASET dataset_cpu;
@@ -129,10 +130,10 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, GAE){
     rlt::copy(device_gpu, device_cpu, dataset_gpu.scalar_data, dataset_cpu.scalar_data);
 
     // Run GAE on CPU
-    rlt::estimate_generalized_advantages(device_cpu, dataset_cpu, PPO_PARAMETERS{});
+    rlt::estimate_generalized_advantages(device_cpu, dataset_cpu, dataset_cpu.bootstrap_values, PPO_PARAMETERS{});
 
     // Run GAE on GPU
-    rlt::estimate_generalized_advantages(device_gpu, dataset_gpu, PPO_PARAMETERS{});
+    rlt::estimate_generalized_advantages(device_gpu, dataset_gpu, dataset_gpu.bootstrap_values, PPO_PARAMETERS{});
 
     // Copy GPU advantages back
     rlt::Matrix<rlt::matrix::Specification<T, TI, DATASET_SPEC::STEPS_TOTAL, 1>> adv_cpu, adv_gpu_copy;
@@ -166,4 +167,44 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, GAE){
     rlt::free(device_cpu, actor_cpu_init);
     rlt::free(device_cpu, adv_cpu);
     rlt::free(device_cpu, adv_gpu_copy);
+}
+
+struct PPO_IGNORE_TERMINATION: PPO_PARAMETERS{
+    static constexpr bool IGNORE_TERMINATION = true;
+};
+template <bool IGNORE> struct PPO_NO_TRUNCATION_BOOTSTRAP: PPO_PARAMETERS{
+    static constexpr bool BOOTSTRAP_TRUNCATIONS = false, IGNORE_TERMINATION = IGNORE;
+};
+TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, GAE_BOUNDARIES){
+    DEVICE_CPU cpu;
+    DEVICE_GPU gpu;
+    rlt::init(gpu);
+    DATASET host, device;
+    rlt::malloc(cpu, host); rlt::malloc(gpu, device);
+    rlt::set_all(cpu, host.scalar_data, (T)0);
+    rlt::set_all(cpu, host.values, (T)2);
+    rlt::set_all(cpu, host.bootstrap_values, (T)5);
+    rlt::set_all(cpu, host.rewards, (T)1);
+    constexpr TI TIME_LIMIT = N_ENVIRONMENTS;
+    constexpr TI TERMINAL = N_ENVIRONMENTS + 1;
+    rlt::set(host.truncated, TIME_LIMIT, 0, (T)1);
+    rlt::set(host.truncated, TERMINAL, 0, (T)1);
+    rlt::set(host.terminated, TERMINAL, 0, (T)1);
+    auto check = [&](auto parameters){
+        rlt::copy(cpu, gpu, host.scalar_data, device.scalar_data);
+        rlt::estimate_generalized_advantages(gpu, device, device.bootstrap_values, parameters);
+        rlt::copy(gpu, cpu, device.target_values, host.target_values);
+        EXPECT_NEAR(rlt::get(host.target_values, TIME_LIMIT, 0), parameters.BOOTSTRAP_TRUNCATIONS ? 1 + PPO_PARAMETERS::GAMMA * 5 : 1, 1e-5);
+        EXPECT_NEAR(rlt::get(host.target_values, TERMINAL, 0), parameters.IGNORE_TERMINATION ? 1 + PPO_PARAMETERS::GAMMA * 5 : 1, 1e-5);
+    };
+    check(PPO_PARAMETERS{});
+    check(PPO_IGNORE_TERMINATION{});
+    check(PPO_NO_TRUNCATION_BOOTSTRAP<false>{});
+    check(PPO_NO_TRUNCATION_BOOTSTRAP<true>{});
+    rlt::free(cpu, host); rlt::free(gpu, device);
+#ifdef RL_TOOLS_BACKEND_ENABLE_CUDNN
+    EXPECT_EQ(cudnnDestroy(gpu.cudnn_handle), CUDNN_STATUS_SUCCESS);
+#endif
+    EXPECT_EQ(cublasDestroy(gpu.handle), CUBLAS_STATUS_SUCCESS);
+    EXPECT_EQ(cudaStreamDestroy(gpu.stream), cudaSuccess);
 }

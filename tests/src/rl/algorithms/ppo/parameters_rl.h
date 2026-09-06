@@ -56,7 +56,7 @@ namespace parameters_0{
         static constexpr TI N_ENVIRONMENTS = 10;
         using BATCH_ENVIRONMENT_SPEC = rlt::rl::environments::batch::Specification<ENVIRONMENT, N_ENVIRONMENTS>;
         using BATCH_ENVIRONMENT = rlt::rl::environments::batch::Independent<BATCH_ENVIRONMENT_SPEC>;
-        using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, BATCH_ENVIRONMENT, typename ACTOR_TYPE::template State<>, typename BATCH_ENVIRONMENT::Observation, typename BATCH_ENVIRONMENT::ObservationPrivileged, typename TYPE_POLICY::DEFAULT, typename TYPE_POLICY::DEFAULT, ON_POLICY_RUNNER_STEP_LIMIT>;
+        using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, BATCH_ENVIRONMENT, typename ACTOR_TYPE::template State<>, typename BATCH_ENVIRONMENT::Observation, typename BATCH_ENVIRONMENT::ObservationPrivileged, typename TYPE_POLICY::DEFAULT, typename TYPE_POLICY::DEFAULT, ON_POLICY_RUNNER_STEP_LIMIT, PPO_PARAMETERS::TRUNCATE_ON_EACH_ITERATION, true, PPO_PARAMETERS::BOOTSTRAP_TRUNCATIONS || PPO_PARAMETERS::IGNORE_TERMINATION>;
         using ON_POLICY_RUNNER_TYPE = rlt::rl::components::OnPolicyRunner<ON_POLICY_RUNNER_SPEC>;
         using ON_POLICY_RUNNER_BUFFER_TYPE = rlt::rl::components::on_policy_runner::Buffer<ON_POLICY_RUNNER_SPEC>;
         static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = 200;

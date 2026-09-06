@@ -180,6 +180,7 @@ namespace {
                 equal_container(cpu, gpu, buffers[0].actions, buffers[1].actions);
                 equal_container(cpu, gpu, buffers[0].rewards, buffers[1].rewards);
                 equal_container(cpu, gpu, buffers[0].terminated, buffers[1].terminated);
+                equal_container(cpu, gpu, buffers[0].next_observations_privileged, buffers[1].next_observations_privileged);
             }
         }
         EXPECT_EQ(cudaDeviceSynchronize(), cudaSuccess);

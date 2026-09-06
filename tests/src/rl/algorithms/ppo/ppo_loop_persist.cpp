@@ -1,6 +1,7 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
+#include <rl_tools/nn/layers/gru/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
@@ -247,7 +248,14 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, PERSIST_CHECKPOINT_RIGOROUS) {
     rlt::free(device, ts_loaded);
 }
 
-TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, PERSIST_SAVE_LOAD) {
+template <bool BOOTSTRAP> struct PersistenceParameters: LOOP_CORE_PARAMETERS{
+    struct PPO_PARAMETERS: LOOP_CORE_PARAMETERS::PPO_PARAMETERS{
+        static constexpr bool BOOTSTRAP_TRUNCATIONS = BOOTSTRAP;
+    };
+};
+template <bool BOOTSTRAP> void check_persist_save_load(){
+    using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, PersistenceParameters<BOOTSTRAP>, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsSequential, true>;
+    using LOOP_STATE = typename LOOP_CORE_CONFIG::template State<LOOP_CORE_CONFIG>;
     DEVICE device;
     rlt::init(device);
     LOOP_STATE ts, ts_loaded_hdf5, ts_loaded_tar;
@@ -330,3 +338,35 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, PERSIST_SAVE_LOAD) {
     rlt::free(device, ts_loaded_hdf5);
     rlt::free(device, ts_loaded_tar);
 }
+
+TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, PERSIST_SAVE_LOAD){ check_persist_save_load<true>(); }
+TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, PERSIST_SAVE_LOAD_NO_BOOTSTRAP){ check_persist_save_load<false>(); }
+
+template <bool BOOTSTRAP = true> struct RecurrentTerminalParameters: LOOP_CORE_PARAMETERS{
+    static constexpr TI N_ENVIRONMENTS = 2, ON_POLICY_RUNNER_STEPS_PER_ENV = 4, BATCH_SIZE = 8, EPISODE_STEP_LIMIT = 2;
+    static constexpr TI ACTOR_HIDDEN_DIM = 4, CRITIC_HIDDEN_DIM = 4;
+    struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<TYPE_POLICY, TI, BATCH_SIZE>{
+        static constexpr bool STATEFUL_ACTOR_AND_CRITIC = true, TRUNCATE_ON_EACH_ITERATION = true, SHUFFLE_EPOCH = false, BOOTSTRAP_TRUNCATIONS = BOOTSTRAP;
+        static constexpr TI N_EPOCHS = 1;
+    };
+};
+template <bool BOOTSTRAP> void check_recurrent_terminal_loop(){
+    using CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, RecurrentTerminalParameters<BOOTSTRAP>, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsGRU<true>::Approximators, true>;
+    DEVICE device;
+    typename CONFIG::template State<CONFIG> state;
+    rlt::malloc(device, state);
+    rlt::init(device, state, 19);
+    for(TI i = 0; i < 2; i++){
+        rlt::step(device, state);
+        EXPECT_FALSE(rlt::is_nan(device, state.on_policy_runner_dataset.bootstrap_values));
+        EXPECT_FALSE(rlt::is_nan(device, state.on_policy_runner_dataset.target_values));
+        for(TI t = 1; t < 4; t += 2) for(TI env_i = 0; env_i < 2; env_i++){
+            TI pos = t * 2 + env_i;
+            EXPECT_NEAR(rlt::get(state.on_policy_runner_dataset.target_values, pos, 0), rlt::get(state.on_policy_runner_dataset.rewards, pos, 0) + (BOOTSTRAP ? RecurrentTerminalParameters<BOOTSTRAP>::PPO_PARAMETERS::GAMMA * rlt::get(state.on_policy_runner_dataset.bootstrap_values, pos, 0) : 0), 1e-5);
+        }
+    }
+    rlt::free(device, state);
+}
+
+TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, RECURRENT_TERMINAL_BOOTSTRAP){ check_recurrent_terminal_loop<true>(); }
+TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, RECURRENT_NO_TRUNCATION_BOOTSTRAP){ check_recurrent_terminal_loop<false>(); }

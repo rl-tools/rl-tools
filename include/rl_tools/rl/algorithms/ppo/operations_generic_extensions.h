@@ -4,10 +4,39 @@
 #define RL_TOOLS_RL_ALGORITHMS_PPO_OPERATIONS_GENERIC_EXTENSIONS_H
 
 #include "ppo.h"
+#include "operations_collection.h"
+#include "../../components/on_policy_runner/operations_generic_extensions.h"
 #include "../../../rl/components/on_policy_runner/on_policy_runner.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+    template <typename DEVICE, typename DEVICE_EVALUATION, typename DS, typename RS, typename ENVIRONMENT, typename PS, typename ACTOR_EVAL, typename ACTOR_BUFFER, typename RNG, typename RNG_EVAL>
+    void collect_hybrid(DEVICE& device, DEVICE_EVALUATION& evaluation_device, rl::components::on_policy_runner::Dataset<DS>& dataset, rl::components::OnPolicyRunner<RS>& runner, rl::components::on_policy_runner::Buffer<RS>& runner_buffer, ENVIRONMENT& environment, rl::algorithms::PPO<PS>& ppo, ACTOR_EVAL& evaluation_actor, ACTOR_BUFFER& actor_buffer, rl::components::on_policy_runner::CollectionEvaluationBuffer<RS>& transfer, rl::components::on_policy_runner::CollectionEvaluationBuffer<RS>& evaluation_transfer, rl::algorithms::ppo::CollectionBuffer<typename PS::CRITIC_TYPE, DS>& critic_buffer, RNG& rng, RNG_EVAL& evaluation_rng){
+        using TI = typename RS::TI;
+        static_assert(!PS::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC, "Hybrid PPO collection requires a feedforward actor");
+        if constexpr(RS::TRUNCATE_ON_EACH_ITERATION) reset(device, runner, environment, rng);
+        prologue(device, dataset, runner, environment, rng);
+        for(TI t = 0; t < DS::STEPS_PER_ENV; t++){
+            evaluate_values(device, dataset, ppo.critic, critic_buffer, rng, t);
+            auto observations = view_range(device, dataset.all_observations, t * RS::N_ENVIRONMENTS, tensor::ViewSpec<0, RS::N_ENVIRONMENTS>{});
+            auto observations_matrix = matrix_view(device, observations);
+            copy(device, evaluation_device, observations_matrix, evaluation_transfer.observations);
+            auto input_tensor = to_tensor(evaluation_device, evaluation_transfer.observations);
+            auto input = reshape_row_major(evaluation_device, input_tensor, tensor::Prepend<tensor::Prepend<typename RS::OBSERVATION::SHAPE, RS::N_ENVIRONMENTS>, 1>{});
+            auto output_tensor = to_tensor(evaluation_device, evaluation_transfer.actions);
+            auto output = unsqueeze(evaluation_device, output_tensor);
+            evaluate(evaluation_device, evaluation_actor, input, output, actor_buffer, evaluation_rng, Mode<mode::Rollout<>>{});
+            copy(evaluation_device, device, evaluation_transfer.actions, transfer.actions);
+            auto actions_mean = view(device, dataset.actions_mean, matrix::ViewSpec<RS::N_ENVIRONMENTS, RS::BATCH_ENVIRONMENT::ACTION_DIM>{}, t * RS::N_ENVIRONMENTS, 0);
+            copy(device, device, transfer.actions, actions_mean);
+            auto& last_layer = get_last_layer(ppo.actor);
+            auto log_std = matrix_view(device, last_layer.log_std.parameters);
+            sample_actions(device, dataset, log_std, runner_buffer.actions, t, rng);
+            epilogue(device, dataset, runner, runner_buffer, environment, rng, t);
+            evaluate_bootstrap_values(device, dataset, runner_buffer.next_observations_privileged, ppo.critic, critic_buffer, rng, t);
+        }
+        evaluate_rollout_values(device, dataset, ppo.critic, critic_buffer, rng, typename PS::PARAMETERS{});
+    }
     namespace rl::algorithms::ppo{
 
         template <typename PPO_SPEC>

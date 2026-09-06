@@ -36,6 +36,7 @@
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_cuda.h>
+#include <rl_tools/rl/algorithms/ppo/operations_collection.h>
 #include <rl_tools/nn/loss_functions/mse/operations_generic.h>
 #include <rl_tools/nn/loss_functions/mse/operations_cuda.h>
 
@@ -469,7 +470,6 @@ using ACTOR_OPTIMIZER = typename LOOP_CORE_CONFIG::NN::ACTOR_OPTIMIZER;
 using CRITIC_OPTIMIZER = typename LOOP_CORE_CONFIG::NN::CRITIC_OPTIMIZER;
 using ACTOR_BUFFERS = typename LOOP_CORE_CONFIG::ACTOR_BUFFERS;
 using CRITIC_BUFFERS = typename LOOP_CORE_CONFIG::CRITIC_BUFFERS;
-using CRITIC_BUFFERS_GAE = typename LOOP_CORE_CONFIG::CRITIC_BUFFERS_GAE;
 using ACTOR_TYPE = typename LOOP_CORE_CONFIG::NN::ACTOR_TYPE;
 
 // Rollout actor: forward-only with batch size N_ENVIRONMENTS
@@ -1116,12 +1116,14 @@ int main(int argc, char** argv){
     PPO_TYPE ppo_gpu;
     ACTOR_BUFFERS actor_buffers;
     CRITIC_BUFFERS critic_buffers;
-    CRITIC_BUFFERS_GAE critic_buffers_gae;
+    rlt::rl::algorithms::ppo::CollectionBuffer<typename PPO_SPEC::CRITIC_TYPE, ON_POLICY_RUNNER_DATASET_SPEC> critic_buffers_gae;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, OBS_PRIV_DIM>>> next_privileged_observations;
     ON_POLICY_RUNNER_DATASET_TYPE dataset_gpu;
     rlt::malloc(device_gpu, ppo_gpu);
     rlt::malloc(device_gpu, actor_buffers);
     rlt::malloc(device_gpu, critic_buffers);
     rlt::malloc(device_gpu, critic_buffers_gae);
+    if constexpr(ON_POLICY_RUNNER_SPEC::COLLECT_NEXT_OBSERVATIONS) rlt::malloc(device_gpu, next_privileged_observations);
     rlt::malloc(device_gpu, dataset_gpu);
 
     // Rollout actor (forward only, batch = N_ENVIRONMENTS)
@@ -1233,8 +1235,6 @@ int main(int argc, char** argv){
     rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> gpu_d_action_train;
     rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, OBS_PRIV_DIM>> gpu_critic_obs;
     rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, 1>> gpu_d_critic_output;
-    rlt::Matrix<rlt::matrix::Specification<T, TI, STEPS_TOTAL_ALL, OBS_PRIV_DIM>> gpu_gae_obs;
-    rlt::Matrix<rlt::matrix::Specification<T, TI, STEPS_TOTAL_ALL, 1>> gpu_gae_values;
     rlt::Matrix<rlt::matrix::Specification<T, TI, STEPS_TOTAL, 1>> gpu_episode_lengths_log;
     rlt::Matrix<rlt::matrix::Specification<T, TI, STEPS_TOTAL, 1>> gpu_episode_returns_log;
     rlt::Matrix<rlt::matrix::Specification<T, TI, STEPS_TOTAL, 1>> gpu_episode_end_reasons_log;
@@ -1246,8 +1246,6 @@ int main(int argc, char** argv){
     rlt::malloc(device_gpu, gpu_d_action_train);
     rlt::malloc(device_gpu, gpu_critic_obs);
     rlt::malloc(device_gpu, gpu_d_critic_output);
-    rlt::malloc(device_gpu, gpu_gae_obs);
-    rlt::malloc(device_gpu, gpu_gae_values);
     rlt::malloc(device_gpu, gpu_episode_lengths_log);
     rlt::malloc(device_gpu, gpu_episode_returns_log);
     rlt::malloc(device_gpu, gpu_episode_end_reasons_log);
@@ -1462,6 +1460,7 @@ int main(int argc, char** argv){
                 gpu_episode_start_step,
                 rng_gpu, step_i, frame_step_i);
             rlt::check_status(device_gpu);
+            rlt::evaluate_values(device_gpu, dataset_gpu, ppo_gpu.critic, critic_buffers_gae, rng_gpu, step_i);
             record_episode_start_kernel<<<grid, block, 0, device_gpu.stream>>>(gpu_episode_start_step, gpu_episode_start_step_per_row, step_i);
             rlt::check_status(device_gpu);
 
@@ -1644,6 +1643,11 @@ int main(int argc, char** argv){
                     dataset_gpu, rng_gpu, step_i, EPISODE_STEP_LIMIT);
                 rlt::check_status(device_gpu);
             }
+            if constexpr(ON_POLICY_RUNNER_SPEC::COLLECT_NEXT_OBSERVATIONS){
+                ppo_visual::final_priv_obs_kernel<<<grid, block, 0, device_gpu.stream>>>(tag_device, gpu_envs_arr, gpu_params_arr, gpu_states_arr, next_privileged_observations, rng_gpu);
+                rlt::check_status(device_gpu);
+                rlt::evaluate_bootstrap_values(device_gpu, dataset_gpu, next_privileged_observations, ppo_gpu.critic, critic_buffers_gae, rng_gpu, step_i);
+            }
             if(log_reward_components_this_step && step_i == STEPS_PER_ENV - 1){
                 cudaStreamSynchronize(device_gpu.stream);
                 cudaMemcpy(&reward_log_next_state, gpu_states_arr, sizeof(typename ENVIRONMENT::State), cudaMemcpyDeviceToHost);
@@ -1674,6 +1678,8 @@ int main(int argc, char** argv){
         }
         environment_step += N_ENVIRONMENTS * STEPS_PER_ENV;
         rlt::set_step(device, device.logger, environment_step);
+
+        rlt::evaluate_rollout_values(device_gpu, dataset_gpu, ppo_gpu.critic, critic_buffers_gae, rng_gpu, PPO_SPEC::PARAMETERS{});
 
         // =================================================================
         // GPU→CPU: copy dataset for GAE + training
@@ -1864,18 +1870,7 @@ int main(int argc, char** argv){
         // =================================================================
         // GAE
         // =================================================================
-        {
-            auto all_obs_priv_matrix = rlt::matrix_view(device, dataset.all_observations_privileged);
-            rlt::copy(device, device_gpu, all_obs_priv_matrix, gpu_gae_obs);
-            auto gpu_gae_obs_tensor = rlt::to_tensor(device_gpu, gpu_gae_obs);
-            auto gpu_gae_obs_reshaped = rlt::reshape_row_major(device_gpu, gpu_gae_obs_tensor, rlt::tensor::Shape<TI, 1, STEPS_TOTAL_ALL, OBS_PRIV_DIM>{});
-            auto gpu_gae_values_tensor = rlt::to_tensor(device_gpu, gpu_gae_values);
-            auto gpu_gae_values_reshaped = rlt::reshape_row_major(device_gpu, gpu_gae_values_tensor, rlt::tensor::Shape<TI, 1, STEPS_TOTAL_ALL, 1>{});
-            rlt::evaluate(device_gpu, ppo_gpu.critic, gpu_gae_obs_reshaped, gpu_gae_values_reshaped, critic_buffers_gae, rng_gpu);
-            cudaDeviceSynchronize();
-            rlt::copy(device_gpu, device, gpu_gae_values, dataset.all_values);
-        }
-        rlt::estimate_generalized_advantages(device, dataset, typename PPO_TYPE::SPEC::PARAMETERS{});
+        rlt::estimate_generalized_advantages(device, dataset, dataset.bootstrap_values, typename PPO_TYPE::SPEC::PARAMETERS{});
 
         // =================================================================
         // Train (per minibatch: gather combined obs → forward+PPO loss+backward+step)
@@ -2349,6 +2344,7 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, actor_buffers);
     rlt::free(device_gpu, critic_buffers);
     rlt::free(device_gpu, critic_buffers_gae);
+    if constexpr(ON_POLICY_RUNNER_SPEC::COLLECT_NEXT_OBSERVATIONS) rlt::free(device_gpu, next_privileged_observations);
     rlt::free(device_gpu, dataset_gpu);
     rlt::free(device_gpu, rollout_actor_gpu);
     rlt::free(device_gpu, rollout_actor_buffers);
@@ -2364,8 +2360,6 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, gpu_d_action_train);
     rlt::free(device_gpu, gpu_critic_obs);
     rlt::free(device_gpu, gpu_d_critic_output);
-    rlt::free(device_gpu, gpu_gae_obs);
-    rlt::free(device_gpu, gpu_gae_values);
     rlt::free(device_gpu, gpu_episode_lengths_log);
     rlt::free(device_gpu, gpu_episode_returns_log);
     rlt::free(device_gpu, gpu_episode_end_reasons_log);
