@@ -1,4 +1,4 @@
-import { Directory } from "./dependencies/browser_wasi_shim/index.js";
+import { Directory } from "./wasi.js";
 import { runProcess } from "./process.js";
 import { treeFromEntries, mergeTrees, readFile } from "./filesystem.js";
 import { untar } from "./tar.js";
@@ -37,10 +37,10 @@ export class Toolchain{
         return new Toolchain(module, treeFromEntries(untar(sysrootTarBytes), { readonly: true }));
     }
     root(workTree){
-        return mergeTrees(workTree, new Map([["usr", new Directory(this.sysrootTree)], ["tmp", new Directory(new Map())]]));
+        return mergeTrees(workTree, new Map([["usr", new Directory(this.sysrootTree, { readonly: true })], ["tmp", new Directory()]]));
     }
-    async run(argv, root, { onStdout, onStderr } = {}){
-        return runProcess(this.module, ["llvm", ...argv], { root, onStdout, onStderr });
+    async run(argv, root, { onStdout, onStderr, trace } = {}){
+        return runProcess(this.module, ["llvm", ...argv], { root, onStdout, onStderr, trace });
     }
     // files: path -> string | Uint8Array placed at the filesystem root; args: clang++ arguments, e.g. ["-O2", "-Iinclude", "training.cpp", "-o", "training.wasm"]
     async compile(files, args, { onStderr = () => {}, onStdout = () => {}, onJob = () => {} } = {}){

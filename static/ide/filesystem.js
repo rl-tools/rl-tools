@@ -1,4 +1,4 @@
-import { File, Directory } from "./dependencies/browser_wasi_shim/index.js";
+import { File, Directory } from "./wasi.js";
 
 const encoder = new TextEncoder();
 
@@ -23,12 +23,12 @@ function insert(root, path, data){
 function materialize(node, readonly){
     const contents = new Map();
     for(const [name, child] of node){
-        contents.set(name, child instanceof Map ? new Directory(materialize(child, readonly)) : new File(toBytes(child), { readonly }));
+        contents.set(name, child instanceof Map ? new Directory(materialize(child, readonly), { readonly }) : new File(toBytes(child), { readonly }));
     }
     return contents;
 }
 
-// Builds the contents map of a WASI directory (name -> File | Directory) from path -> data entries
+// Builds the contents map of a directory (name -> File | Directory) from path -> data entries
 export function treeFromEntries(entries, { readonly = false } = {}){
     const root = new Map();
     for(const [path, data] of entries){
