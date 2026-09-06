@@ -1,0 +1,17 @@
+# Runs a sub-build with SOURCE_DATE_EPOCH set to the commit time of its source tree and records that value for packaging.
+# Arguments: -DGIT= -DSOURCE_DIR= -DBUILD_DIR= -DJOBS= -DTARGETS=<comma separated>
+foreach(required GIT SOURCE_DIR BUILD_DIR JOBS TARGETS)
+    if(NOT DEFINED ${required})
+        message(FATAL_ERROR "build_with_source_date.cmake: -D${required} is required")
+    endif()
+endforeach()
+execute_process(COMMAND ${GIT} -C ${SOURCE_DIR} show -s --format=%ct HEAD RESULT_VARIABLE result OUTPUT_VARIABLE epoch OUTPUT_STRIP_TRAILING_WHITESPACE)
+if(NOT result EQUAL 0 OR NOT epoch MATCHES "^[0-9]+$")
+    message(FATAL_ERROR "Could not read the commit time of ${SOURCE_DIR}")
+endif()
+file(WRITE ${BUILD_DIR}/SOURCE_DATE_EPOCH "${epoch}\n")
+string(REPLACE "," ";" targets "${TARGETS}")
+execute_process(COMMAND ${CMAKE_COMMAND} -E env SOURCE_DATE_EPOCH=${epoch} ${CMAKE_COMMAND} --build ${BUILD_DIR} -j ${JOBS} --target ${targets} RESULT_VARIABLE result)
+if(NOT result EQUAL 0)
+    message(FATAL_ERROR "Building ${targets} in ${BUILD_DIR} failed")
+endif()

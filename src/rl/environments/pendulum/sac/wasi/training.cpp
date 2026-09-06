@@ -1,0 +1,58 @@
+#include <rl_tools/operations/cpu_mux.h>
+#include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
+#include <rl_tools/nn/operations_cpu_mux.h>
+#include <rl_tools/nn/layers/sample_and_squash/operations_generic.h>
+#include <rl_tools/rl/environments/pendulum/operations_cpu.h>
+#include <rl_tools/nn_models/mlp/operations_generic.h>
+#include <rl_tools/nn_models/sequential/operations_generic.h>
+#include <rl_tools/nn_models/random_uniform/operations_generic.h>
+#include <rl_tools/nn/optimizers/adam/operations_generic.h>
+
+#include <rl_tools/rl/algorithms/sac/loop/core/config.h>
+#include <rl_tools/rl/loop/steps/evaluation/config.h>
+#include <rl_tools/rl/loop/steps/timing/config.h>
+#include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>
+#include <rl_tools/rl/loop/steps/evaluation/operations_generic.h>
+#include <rl_tools/rl/loop/steps/timing/operations_cpu.h>
+
+#include <cstdlib>
+
+namespace rlt = rl_tools;
+
+using DEVICE = rlt::devices::DEVICE_FACTORY<>;
+using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
+using T = float;
+using TYPE_POLICY = rlt::numeric_types::Policy<T>;
+using TI = DEVICE::index_t;
+
+using PENDULUM_SPEC = rlt::rl::environments::pendulum::Specification<T, TI, rlt::rl::environments::pendulum::DefaultParameters<T>>;
+using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
+
+struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::sac::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
+    struct SAC_PARAMETERS: rlt::rl::algorithms::sac::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT::ACTION_DIM>{
+        static constexpr TI ACTOR_BATCH_SIZE = 100;
+        static constexpr TI CRITIC_BATCH_SIZE = 100;
+    };
+    static constexpr TI STEP_LIMIT = 10000;
+    static constexpr TI REPLAY_BUFFER_CAP = STEP_LIMIT;
+    static constexpr TI ACTOR_NUM_LAYERS = 3;
+    static constexpr TI ACTOR_HIDDEN_DIM = 64;
+    static constexpr TI CRITIC_NUM_LAYERS = 3;
+    static constexpr TI CRITIC_HIDDEN_DIM = 64;
+};
+using LOOP_CORE_CONFIG = rlt::rl::algorithms::sac::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, rlt::rl::algorithms::sac::loop::core::ConfigApproximatorsMLP>;
+using LOOP_EVALUATION_CONFIG = rlt::rl::loop::steps::evaluation::Config<LOOP_CORE_CONFIG>;
+using LOOP_TIMING_CONFIG = rlt::rl::loop::steps::timing::Config<LOOP_EVALUATION_CONFIG>;
+using LOOP_CONFIG = LOOP_TIMING_CONFIG;
+using LOOP_STATE = LOOP_CONFIG::State<LOOP_CONFIG>;
+
+int main(int argc, char** argv){
+    TI seed = argc > 1 ? std::atoi(argv[1]) : 0;
+    DEVICE device;
+    LOOP_STATE ts;
+    rlt::malloc(device, ts);
+    rlt::init(device, ts, seed);
+    while(!rlt::step(device, ts)){}
+    rlt::free(device, ts);
+    return 0;
+}

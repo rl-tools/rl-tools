@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>RLtools IDE end-to-end test</title>
+    <style>body{font: 13px ui-monospace, monospace; margin: 16px; white-space: pre-wrap;}</style>
+</head>
+<body>
+<div id="log">starting…</div>
+<script type="module">
+// Drives the same workers as the page (worker.js) through compile and run, then posts the collected result to the server
+// that serves this page (tests/src/ide/browser_test.py). Parameters mirror main.js.
+import { parseLine } from "./protocol.js";
+
+const ARGUMENTS = ["-std=c++17", "-O2", "-fno-exceptions", "-Iinclude", "training.cpp", "-o", "training.wasm"];
+const log = document.getElementById("log");
+const lines = [];
+function say(text){
+    lines.push(text);
+    log.textContent += "\n" + text;
+}
+async function fetchBytes(url){
+    const response = await fetch(url);
+    if(!response.ok){
+        throw new Error(`${url}: HTTP ${response.status}`);
+    }
+    return new Uint8Array(await response.arrayBuffer());
+}
+function createWorker(){
+    return new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
+}
+function request(worker, message, transfer, isFinal){
+    return new Promise(resolve => {
+        worker.onmessage = ({ data }) => {
+            if(data.type === "stdout" || data.type === "stderr"){
+                say(`${data.type}: ${data.line}`);
+            }
+            else if(isFinal(data)){
+                resolve(data);
+            }
+        };
+        worker.postMessage(message, transfer);
+    });
+}
+
+const result = { userAgent: navigator.userAgent, compileExitCode: null, compileSeconds: 0, programBytes: 0, runExitCode: null, runSeconds: 0, evaluations: [], lines };
+try{
+    const [sysrootTar, includeTar, toolchainBytes, example] = await Promise.all([fetchBytes("./build/toolchain/sysroot.tar"), fetchBytes("./build/rl_tools_include.tar"), fetchBytes("./build/toolchain/llvm.wasm"), fetch("./build/examples/pendulum_sac.cpp").then(response => response.text())]);
+    say(`fetched: compiler ${toolchainBytes.length} bytes, sysroot ${sysrootTar.length} bytes, headers ${includeTar.length} bytes`);
+    const module = await WebAssembly.compile(toolchainBytes);
+    const compileWorker = createWorker();
+    const ready = await request(compileWorker, { type: "toolchain", module, sysrootTar: sysrootTar.buffer, includeTar: includeTar.buffer }, [sysrootTar.buffer, includeTar.buffer], data => data.type === "ready");
+    say(`compile worker ready, ${ready.headers} headers`);
+    const compiled = await request(compileWorker, { type: "compile", sources: { "training.cpp": example }, args: ARGUMENTS }, [], data => data.type === "compiled");
+    compileWorker.terminate();
+    result.compileExitCode = compiled.exitCode;
+    result.compileSeconds = compiled.seconds;
+    result.programBytes = compiled.output ? compiled.output.length : 0;
+    say(`compiled: exit ${compiled.exitCode} in ${compiled.seconds.toFixed(1)} s, ${result.programBytes} bytes`);
+    if(compiled.exitCode === 0 && compiled.output){
+        const runWorker = createWorker();
+        const program = compiled.output.slice().buffer;
+        const exited = await request(runWorker, { type: "run", program, args: ["0"] }, [program], data => data.type === "exited");
+        runWorker.terminate();
+        result.runExitCode = exited.exitCode;
+        result.runSeconds = exited.seconds;
+        result.evaluations = lines.filter(line => line.startsWith("stdout: ")).map(line => parseLine(line.slice(8))).filter(event => event && event.type === "evaluation");
+        say(`ran: exit ${exited.exitCode} in ${exited.seconds.toFixed(1)} s, ${result.evaluations.length} evaluations`);
+    }
+}
+catch(error){
+    say(`error: ${error.message ?? error}`);
+}
+await fetch("./result", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(result) });
+say("result posted");
+</script>
+</body>
+</html>

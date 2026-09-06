@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RLtools IDE</title>
+    <link rel="stylesheet" href="index.css">
+    <script type="module" src="main.js"></script>
+</head>
+<body>
+<header>
+    <h1>RLtools IDE</h1>
+    <span class="subtitle">C++ training programs, compiled and run in this tab</span>
+    <span id="commit" class="commit"></span>
+</header>
+<main>
+    <section class="editor-pane">
+        <div class="toolbar">
+            <label>clang++ <input id="arguments" type="text" spellcheck="false"></label>
+            <button id="compile" disabled>Compile</button>
+        </div>
+        <textarea id="editor" spellcheck="false" wrap="off">loading…</textarea>
+    </section>
+    <section class="output-pane">
+        <div class="toolbar">
+            <label>seed <input id="seed" type="number" value="0" min="0"></label>
+            <button id="run" disabled>Run</button>
+            <button id="stop" disabled>Stop</button>
+            <span id="status" class="status">loading…</span>
+        </div>
+        <canvas id="chart"></canvas>
+        <div id="terminal" class="terminal" aria-live="polite"></div>
+    </section>
+</main>
+</body>
+</html>
