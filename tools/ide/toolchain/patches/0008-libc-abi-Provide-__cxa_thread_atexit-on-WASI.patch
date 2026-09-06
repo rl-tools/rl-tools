@@ -1,0 +1,36 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: RLtools <rl-tools@localhost>
+Date: Sun, 6 Sep 2026 00:00:00 +0000
+Subject: [PATCH 8/8] [libc++abi] Provide __cxa_thread_atexit on WASI
+
+thread_local objects with destructors register them through
+__cxa_thread_atexit, which libc++abi defined only for Linux and Fuchsia.
+The fallback implementation needs nothing more than the pthread key
+functions and __cxa_atexit, both of which wasi-libc provides (its keys
+are plain globals in a single-threaded build), so WASI joins the list.
+Without it a link that keeps such an object, for example lld's ELF port
+under ThinLTO, fails with an undefined symbol.
+---
+ libcxxabi/src/cxa_thread_atexit.cpp | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/libcxxabi/src/cxa_thread_atexit.cpp b/libcxxabi/src/cxa_thread_atexit.cpp
+index 402a52c74..ea89488d1 100644
+--- a/libcxxabi/src/cxa_thread_atexit.cpp
++++ b/libcxxabi/src/cxa_thread_atexit.cpp
+@@ -106,7 +106,7 @@ namespace {
+ 
+ #endif // HAVE___CXA_THREAD_ATEXIT_IMPL
+ 
+-#if defined(__linux__) || defined(__Fuchsia__)
++#if defined(__linux__) || defined(__Fuchsia__) || defined(__wasi__)
+ extern "C" {
+ 
+   _LIBCXXABI_FUNC_VIS int __cxa_thread_atexit(Dtor dtor, void* obj, void* dso_symbol) throw() {
+@@ -142,5 +142,5 @@ extern "C" {
+ #endif // HAVE___CXA_THREAD_ATEXIT_IMPL
+   }
+ } // extern "C"
+-#endif // defined(__linux__) || defined(__Fuchsia__)
++#endif // defined(__linux__) || defined(__Fuchsia__) || defined(__wasi__)
+ } // namespace __cxxabiv1

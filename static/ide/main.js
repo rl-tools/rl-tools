@@ -5,6 +5,7 @@ const SYSROOT_URL = "./build/toolchain/sysroot.tar";
 const INCLUDE_URL = "./build/rl_tools_include.tar";
 const EXAMPLE_URL = "./build/examples/pendulum_sac.cpp";
 const MANIFEST_URL = "./build/manifest.json";
+const TOOLCHAIN_MANIFEST_URL = "./build/toolchain/toolchain.json";
 const DEFAULT_ARGUMENTS = "-std=c++17 -O2 -fno-exceptions -Iinclude training.cpp -o training.wasm";
 const COMPILE_TIMEOUT_MILLISECONDS = 300000;
 
@@ -261,7 +262,7 @@ async function load(){
     elements.arguments.value = DEFAULT_ARGUMENTS;
     drawChart([]);
     try{
-        const [manifest, example] = await Promise.all([fetch(MANIFEST_URL).then(response => response.ok ? response.json() : null), fetch(EXAMPLE_URL).then(response => response.text())]);
+        const [manifest, toolchainManifest, example] = await Promise.all([fetch(MANIFEST_URL).then(response => response.ok ? response.json() : null), fetch(TOOLCHAIN_MANIFEST_URL).then(response => response.ok ? response.json() : null), fetch(EXAMPLE_URL).then(response => response.text())]);
         elements.editor.value = example;
         if(manifest){
             elements.commit.textContent = `rl_tools @ ${String(manifest.rl_tools_commit).slice(0, 9)}`;
@@ -274,7 +275,7 @@ async function load(){
         setStatus("preparing compiler…");
         state.module = await WebAssembly.compile(toolchainBytes);
         await compileWorker();
-        setStatus("ready: clang 21.1.4 (wasm32-wasip1)");
+        setStatus(`ready: clang ${toolchainManifest?.llvm_version ?? "(unknown version)"} (${toolchainManifest?.target ?? "wasm32-wasip1"})`);
         elements.compile.disabled = false;
     }
     catch(error){
