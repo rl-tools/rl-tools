@@ -73,4 +73,4 @@ The result: `llvm.wasm` 75.0 MB (clang, lld, llvm-ar; 30 WASI imports), `sysroot
 
 ## Reproducibility
 
-Same pins, same host clang version, same flags give the same bytes: absolute paths are mapped away with `-ffile-prefix-map`, the module is stripped, the archive carries fixed ownership and the commit time as mtime. `toolchain.json` records the host compiler and linker versions so a byte difference between two hosts has a visible cause. Check a second build with `sha256sum -c static/ide/build/toolchain/SHA256SUMS`.
+Same pins, same host clang version, same flags give the same bytes: absolute paths are mapped away with `-ffile-prefix-map`, the module is stripped, the archive carries fixed ownership and the commit time as mtime. Checked on the reference VM: two stage 3 builds from empty trees (Ubuntu clang 22.1.2, ThinLTO, 3 jobs) produced the identical `llvm.wasm`. `toolchain.json` records the host compiler and linker versions so a byte difference between two hosts has a visible cause. Check a second build with `sha256sum -c static/ide/build/toolchain/SHA256SUMS`.
