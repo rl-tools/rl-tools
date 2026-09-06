@@ -11,6 +11,7 @@
 #include "../../../../../rl/algorithms/ppo/operations_generic.h"
 #include "../../../../../rl/environments/batch/operations_generic.h"
 #include "../../../../../rl/components/on_policy_runner/operations_generic.h"
+#include "../../../../../rl/algorithms/ppo/operations_collection.h"
 #include "../../../../../random/operations_generic_array.h"
 
 #include "config.h"
@@ -29,7 +30,7 @@ namespace rl_tools{
         malloc(device, ts.actor_eval_buffers);
         malloc(device, ts.actor_buffers);
         malloc(device, ts.critic_buffers);
-        malloc(device, ts.critic_buffers_gae);
+        malloc(device, ts.critic_collection_buffer);
         malloc(device, ts.actor_optimizer);
         malloc(device, ts.critic_optimizer);
     }
@@ -45,7 +46,7 @@ namespace rl_tools{
         free(device, ts.actor_eval_buffers);
         free(device, ts.actor_buffers);
         free(device, ts.critic_buffers);
-        free(device, ts.critic_buffers_gae);
+        free(device, ts.critic_collection_buffer);
         free(device, ts.actor_optimizer);
         free(device, ts.critic_optimizer);
     }
@@ -98,7 +99,9 @@ namespace rl_tools{
                 init(device, ts.on_policy_runner, ts.environment, ts.rng);
             }
         }
-        collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.on_policy_runner_buffer, ts.environment, ts.ppo.actor, ts.actor_eval_buffers, ts.rng);
+        collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.on_policy_runner_buffer, ts.environment, ts.ppo, ts.actor_eval_buffers, ts.critic_collection_buffer, ts.rng);
+        estimate_generalized_advantages(device, ts.on_policy_runner_dataset, ts.on_policy_runner_dataset.bootstrap_values, typename CONFIG::PPO_TYPE::SPEC::PARAMETERS{});
+        train(device, ts.ppo, ts.on_policy_runner_dataset, ts.actor_optimizer, ts.critic_optimizer, ts.ppo_buffers, ts.actor_buffers, ts.critic_buffers, ts.rng);
         if constexpr(T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS && T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS_CONTINUOUSLY){
             constexpr TI BATCH_SIZE = CONFIG::CORE_PARAMETERS::BATCH_SIZE;
             constexpr TI N_BATCHES = STEPS_TOTAL / BATCH_SIZE;
@@ -118,20 +121,6 @@ namespace rl_tools{
                 forward(device, ts.ppo.critic, batch_observations_privileged_reshaped, ts.critic_buffers, ts.rng, accumulate_mode);
             }
         }
-        static constexpr TI STEPS = CONFIG::PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC ? CONFIG::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_PER_ENV+1 : 1;
-        static constexpr TI FORWARD_BATCH_SIZE = CONFIG::PPO_SPEC::PARAMETERS::STATEFUL_ACTOR_AND_CRITIC ? CONFIG::ON_POLICY_RUNNER_DATASET_SPEC::SPEC::N_ENVIRONMENTS : CONFIG::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL;
-        using OBS_PRIV_SHAPE = typename CONFIG::ON_POLICY_RUNNER_DATASET_TYPE::OBS_PRIV_SHAPE;
-        using CRITIC_GAE_INPUT_SHAPE = tensor::Prepend<tensor::Prepend<OBS_PRIV_SHAPE, FORWARD_BATCH_SIZE>, STEPS>;
-        auto all_observations_privileged_reshaped = reshape_row_major(device, ts.on_policy_runner_dataset.all_observations_privileged, CRITIC_GAE_INPUT_SHAPE{});
-        auto all_values_tensor = to_tensor(device, ts.on_policy_runner_dataset.all_values);
-        auto all_values_tensor_reshaped = reshape_row_major(device, all_values_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, 1>{});
-        auto all_reset_tensor = to_tensor(device, ts.on_policy_runner_dataset.all_reset);
-        auto all_reset_tensor_reshaped = reshape_row_major(device, all_reset_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, 1>{});
-        Mode<nn::layers::gru::ResetMode<mode::Rollout<>, nn::layers::gru::ResetModeSpecification<TI, decltype(all_reset_tensor_reshaped)>>> critic_reset_mode;
-        critic_reset_mode.reset_container = all_reset_tensor_reshaped;
-        evaluate(device, ts.ppo.critic, all_observations_privileged_reshaped, all_values_tensor_reshaped, ts.critic_buffers_gae, ts.rng, critic_reset_mode);
-        estimate_generalized_advantages(device, ts.on_policy_runner_dataset, typename CONFIG::PPO_TYPE::SPEC::PARAMETERS{});
-        train(device, ts.ppo, ts.on_policy_runner_dataset, ts.actor_optimizer, ts.critic_optimizer, ts.ppo_buffers, ts.actor_buffers, ts.critic_buffers, ts.rng);
 
 #ifndef RL_TOOLS_DISABLE_TENSORBOARD
         {

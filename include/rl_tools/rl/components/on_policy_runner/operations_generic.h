@@ -40,7 +40,13 @@ namespace rl_tools{
         dataset.all_values       = view<DEVICE, SCALAR_DATA_SPEC, decltype(dataset.all_values      )::ROWS, decltype(dataset.all_values      )::COLS>(device, dataset.scalar_data, 0, pos);
         dataset.values           = view<DEVICE, SCALAR_DATA_SPEC, decltype(dataset.values          )::ROWS, decltype(dataset.values          )::COLS>(device, dataset.scalar_data, 0, pos); pos += decltype(dataset.values          )::COLS;
         dataset.advantages       = view<DEVICE, SCALAR_DATA_SPEC, decltype(dataset.advantages      )::ROWS, decltype(dataset.advantages      )::COLS>(device, dataset.scalar_data, 0, pos); pos += decltype(dataset.advantages      )::COLS;
-        dataset.target_values    = view<DEVICE, SCALAR_DATA_SPEC, decltype(dataset.target_values   )::ROWS, decltype(dataset.target_values   )::COLS>(device, dataset.scalar_data, 0, pos);
+        dataset.target_values    = view<DEVICE, SCALAR_DATA_SPEC, decltype(dataset.target_values   )::ROWS, decltype(dataset.target_values   )::COLS>(device, dataset.scalar_data, 0, pos); pos += decltype(dataset.target_values)::COLS;
+        if constexpr(SPEC::SPEC::COLLECT_NEXT_OBSERVATIONS){
+            dataset.bootstrap_values = view<DEVICE, SCALAR_DATA_SPEC, decltype(dataset.bootstrap_values)::ROWS, decltype(dataset.bootstrap_values)::COLS>(device, dataset.scalar_data, 0, pos);
+        }
+        else{
+            dataset.bootstrap_values = view(device, dataset.all_values, matrix::ViewSpec<SPEC::STEPS_TOTAL, 1>{}, SPEC::SPEC::N_ENVIRONMENTS, 0);
+        }
     }
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset){
@@ -59,6 +65,7 @@ namespace rl_tools{
         dataset.values                     ._data = nullptr;
         dataset.advantages                 ._data = nullptr;
         dataset.target_values              ._data = nullptr;
+        dataset.bootstrap_values           ._data = nullptr;
     }
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner){
@@ -91,6 +98,7 @@ namespace rl_tools{
         malloc(device, buffer.actions);
         malloc(device, buffer.rewards);
         malloc(device, buffer.terminated);
+        if constexpr(SPEC::COLLECT_NEXT_OBSERVATIONS) malloc(device, buffer.next_observations_privileged);
     }
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::components::on_policy_runner::Buffer<SPEC>& buffer){
@@ -98,6 +106,7 @@ namespace rl_tools{
         free(device, buffer.actions);
         free(device, buffer.rewards);
         free(device, buffer.terminated);
+        if constexpr(SPEC::COLLECT_NEXT_OBSERVATIONS) free(device, buffer.next_observations_privileged);
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::SPEC::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC_1>& d1, rl::components::on_policy_runner::Dataset<SPEC_2>& d2){
@@ -115,6 +124,7 @@ namespace rl_tools{
         acc += abs_diff(device, d1.all_values, d2.all_values);
         acc += abs_diff(device, d1.advantages, d2.advantages);
         acc += abs_diff(device, d1.target_values, d2.target_values);
+        acc += abs_diff(device, d1.bootstrap_values, d2.bootstrap_values);
         return acc;
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
@@ -235,6 +245,9 @@ namespace rl_tools{
         terminated(device, environment, runner.env_parameters, buffer.next_states, buffer.terminated, rng);
         copy(device, device, buffer.next_states, runner.states);
         record_transition(device, dataset, runner, buffer, step_i);
+        if constexpr(SPEC::COLLECT_NEXT_OBSERVATIONS){
+            observe(device, environment, runner.env_parameters, runner.states, typename SPEC::OBSERVATION_PRIVILEGED{}, buffer.next_observations_privileged, rng);
+        }
         sample_initial_parameters(device, environment, runner.env_parameters, runner.reset, rng);
         sample_initial_state(device, environment, runner.env_parameters, runner.states, runner.reset, rng);
         observe_row(device, dataset, runner, environment, step_i + 1, rng);

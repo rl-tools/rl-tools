@@ -158,6 +158,11 @@ namespace rl_tools{
             set(device, buffer.terminated, transition_terminated, env_i);
             state = next_state;
             record_transition(device, dataset, runner, transition_reward, transition_terminated, step_i, env_i);
+            if constexpr(SPEC::COLLECT_NEXT_OBSERVATIONS){
+                auto next_observation_slice = view(device, buffer.next_observations_privileged, env_i);
+                auto next_observation = matrix_view(device, next_observation_slice);
+                observe(device, environment, parameters, state, typename SPEC::OBSERVATION_PRIVILEGED{}, next_observation, rng_state);
+            }
             if(get(device, runner.reset, env_i)){
                 reset_instance(device, runner, environments, env_i, rng_state);
             }

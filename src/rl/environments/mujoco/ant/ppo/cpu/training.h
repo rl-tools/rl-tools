@@ -24,6 +24,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #endif
 #endif
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
+#include <rl_tools/rl/algorithms/ppo/operations_collection.h>
 #include <rl_tools/rl/utils/evaluation/operations_generic.h>
 #include <rl_tools/random/operations_generic_array.h>
 
@@ -147,7 +148,7 @@ void run(TI BASE_SEED){
         prl::PPO_TYPE::SPEC::ACTOR_TYPE::Buffer<1> actor_deterministic_eval_buffers;
         prl::ACTOR_BUFFERS actor_buffers;
         prl::CRITIC_BUFFERS critic_buffers;
-        prl::CRITIC_BUFFERS_GAE critic_buffers_gae;
+        rlt::rl::algorithms::ppo::CollectionBuffer<typename prl::PPO_SPEC::CRITIC_TYPE, typename prl::ON_POLICY_RUNNER_DATASET_SPEC> critic_buffers_gae;
         penv::ENVIRONMENT evaluation_env;
         penv::ENVIRONMENT::Parameters evaluation_env_parameters;
         rlt::rl::environments::DummyUI ui;
@@ -183,7 +184,7 @@ void run(TI BASE_SEED){
         auto training_start = std::chrono::high_resolution_clock::now();
         if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
             for(TI observation_normalization_warmup_step_i = 0; observation_normalization_warmup_step_i < prl::OBSERVATION_NORMALIZATION_WARMUP_STEPS; observation_normalization_warmup_step_i++) {
-                rlt::collect(device, on_policy_runner_dataset, on_policy_runner, on_policy_runner_buffer, environment, ppo.actor, actor_eval_buffers, rng);
+                rlt::collect(device, on_policy_runner_dataset, on_policy_runner, on_policy_runner_buffer, environment, ppo, actor_eval_buffers, critic_buffers_gae, rng);
                 auto obs = rlt::view_range(device, on_policy_runner_dataset.all_observations, 0, rlt::tensor::ViewSpec<0, prl::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL>{});
                 auto obs_matrix = rlt::matrix_view(device, obs);
                 rlt::nn::layers::standardize::_accumulate(device, rlt::get_first_layer(ppo.actor), obs_matrix);
@@ -254,7 +255,7 @@ void run(TI BASE_SEED){
                 rlt::add_scalar(device, device.logger, topic.str(), rlt::math::exp(DEVICE::SPEC::MATH(), action_log_std));
             }
             auto start = std::chrono::high_resolution_clock::now();
-            rlt::collect(device, on_policy_runner_dataset, on_policy_runner, on_policy_runner_buffer, environment, ppo.actor, actor_eval_buffers, rng);
+            rlt::collect(device, on_policy_runner_dataset, on_policy_runner, on_policy_runner_buffer, environment, ppo, actor_eval_buffers, critic_buffers_gae, rng);
             environment_step += prl::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL;
             auto obs = rlt::view_range(device, on_policy_runner_dataset.all_observations, 0, rlt::tensor::ViewSpec<0, prl::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL>{});
             auto obs_matrix = rlt::matrix_view(device, obs);
@@ -274,11 +275,7 @@ void run(TI BASE_SEED){
             rlt::add_scalar(device, device.logger, "opr/action/std", rlt::std(device, on_policy_runner_dataset.actions));
             rlt::add_scalar(device, device.logger, "opr/rewards/mean", rlt::mean(device, on_policy_runner_dataset.rewards));
             rlt::add_scalar(device, device.logger, "opr/rewards/std", rlt::std(device, on_policy_runner_dataset.rewards));
-            auto all_observations_privileged_tensor_unsqueezed = unsqueeze(device, on_policy_runner_dataset.all_observations_privileged);
-            auto all_values_tensor = to_tensor(device, on_policy_runner_dataset.all_values);
-            auto all_values_tensor_unsqueezed = unsqueeze(device, all_values_tensor);
-            evaluate(device, ppo.critic, all_observations_privileged_tensor_unsqueezed, all_values_tensor_unsqueezed, critic_buffers_gae, rng);
-            rlt::estimate_generalized_advantages(device, on_policy_runner_dataset, prl::PPO_TYPE::SPEC::PARAMETERS{});
+            rlt::estimate_generalized_advantages(device, on_policy_runner_dataset, on_policy_runner_dataset.bootstrap_values, prl::PPO_TYPE::SPEC::PARAMETERS{});
             rlt::train(device, ppo, on_policy_runner_dataset, actor_optimizer, critic_optimizer, ppo_buffers, actor_buffers, critic_buffers, rng);
 
             auto end = std::chrono::high_resolution_clock::now();

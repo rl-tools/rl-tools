@@ -8,16 +8,15 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace rl::algorithms::ppo::cuda{
-        template <typename DEVICE, typename DATASET_SPEC, typename PPO_PARAMETERS>
+        template <typename DEVICE, typename DATASET_SPEC, typename BOOTSTRAP_SPEC, typename PPO_PARAMETERS>
         __global__
-        void estimate_generalized_advantages_kernel(DEVICE device, rl::components::on_policy_runner::Dataset<DATASET_SPEC> dataset, PPO_PARAMETERS){
+        void estimate_generalized_advantages_kernel(DEVICE device, rl::components::on_policy_runner::Dataset<DATASET_SPEC> dataset, const Matrix<BOOTSTRAP_SPEC> bootstrap_values, PPO_PARAMETERS){
             using OPR_SPEC = typename DATASET_SPEC::SPEC;
             using T = typename OPR_SPEC::TYPE_POLICY::DEFAULT;
             using TI = typename DEVICE::index_t;
             constexpr TI STEPS_PER_ENV = DATASET_SPEC::STEPS_PER_ENV;
             TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
             if(env_i < OPR_SPEC::N_ENVIRONMENTS){
-                T previous_value = get(dataset.all_values, STEPS_PER_ENV * OPR_SPEC::N_ENVIRONMENTS + env_i, 0);
                 T previous_advantage = 0;
                 for(TI step_forward_i = 0; step_forward_i < STEPS_PER_ENV; step_forward_i++){
                     TI step_backward_i = (STEPS_PER_ENV - 1 - step_forward_i);
@@ -25,20 +24,16 @@ namespace rl_tools{
                     bool terminated_flag = get(dataset.terminated, pos, 0);
                     bool truncated_flag = get(dataset.truncated, pos, 0);
                     T current_step_value = get(dataset.values, pos, 0);
-                    bool terminated_actual = terminated_flag && !PPO_PARAMETERS::IGNORE_TERMINATION;
-                    T next_step_value = terminated_actual ? 0 : previous_value;
+                    bool stop_bootstrap = terminated_flag ? !PPO_PARAMETERS::IGNORE_TERMINATION : (truncated_flag && !PPO_PARAMETERS::BOOTSTRAP_TRUNCATIONS);
+                    T next_step_value = stop_bootstrap ? 0 : get(bootstrap_values, pos, 0);
                     T td_error = get(dataset.rewards, pos, 0) + PPO_PARAMETERS::GAMMA * next_step_value - current_step_value;
                     if(truncated_flag){
-                        if(!terminated_flag){
-                            td_error = 0;
-                        }
                         previous_advantage = 0;
                     }
                     T advantage = PPO_PARAMETERS::LAMBDA * PPO_PARAMETERS::GAMMA * previous_advantage + td_error;
                     set(dataset.advantages, pos, 0, advantage);
                     set(dataset.target_values, pos, 0, advantage + current_step_value);
                     previous_advantage = advantage;
-                    previous_value = current_step_value;
                 }
             }
         }
@@ -146,8 +141,10 @@ namespace rl_tools{
         }
     }
     // CUDA overload: GAE
-    template <typename DEV_SPEC, typename DATASET_SPEC, typename PPO_PARAMETERS>
-    void estimate_generalized_advantages(devices::CUDA<DEV_SPEC>& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, PPO_PARAMETERS ppo_parameters_tag){
+    template <typename DEV_SPEC, typename DATASET_SPEC, typename BOOTSTRAP_SPEC, typename PPO_PARAMETERS>
+    void estimate_generalized_advantages(devices::CUDA<DEV_SPEC>& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, const Matrix<BOOTSTRAP_SPEC>& bootstrap_values, PPO_PARAMETERS ppo_parameters_tag){
+        static_assert(DATASET_SPEC::SPEC::COLLECT_NEXT_OBSERVATIONS || !(PPO_PARAMETERS::BOOTSTRAP_TRUNCATIONS || PPO_PARAMETERS::IGNORE_TERMINATION), "PPO bootstrapping requires pre-reset observation capture");
+        static_assert(BOOTSTRAP_SPEC::ROWS == DATASET_SPEC::STEPS_TOTAL && BOOTSTRAP_SPEC::COLS == 1, "GAE requires one bootstrap value per transition");
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using TI = typename DEVICE::index_t;
         using OPR_SPEC = typename DATASET_SPEC::SPEC;
@@ -156,7 +153,7 @@ namespace rl_tools{
         dim3 grid(N_BLOCKS);
         dim3 block(BLOCKSIZE);
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        rl::algorithms::ppo::cuda::estimate_generalized_advantages_kernel<<<grid, block, 0, device.stream>>>(tag_device, dataset, ppo_parameters_tag);
+        rl::algorithms::ppo::cuda::estimate_generalized_advantages_kernel<<<grid, block, 0, device.stream>>>(tag_device, dataset, bootstrap_values, ppo_parameters_tag);
         check_status(device);
     }
     // CUDA overload: per-sample PPO loss gradient (with fused advantage normalization)

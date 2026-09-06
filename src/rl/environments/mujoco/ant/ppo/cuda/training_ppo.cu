@@ -187,8 +187,6 @@ int main(int argc, char** argv){
         // -------------- added for cuda training ----------------
         ON_POLICY_RUNNER_COLLECTION_EVALUATION_BUFFER_TYPE on_policy_runner_collection_eval_buffer_gpu, on_policy_runner_collection_eval_buffer_cpu;
         PPO_TRAINING_HYBRID_BUFFER_TYPE ppo_training_hybrid_buffer_cpu, ppo_training_hybrid_buffer_gpu;
-        rlt::Matrix<rlt::matrix::Specification<T, TI, prl::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL, prl::PPO_SPEC::ENVIRONMENT::Observation::DIM>> gae_all_observations;
-        rlt::Matrix<rlt::matrix::Specification<T, TI, prl::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL, 1>> gae_all_values;
         // -------------------------------------------------------
         // -------------- replaced for cuda training ----------------
         prl::ACTOR_EVAL_BUFFERS actor_eval_buffers, actor_eval_buffers_gpu;
@@ -196,7 +194,7 @@ int main(int argc, char** argv){
         // ----------------------------------------------------------
         prl::ACTOR_BUFFERS actor_buffers;
         prl::CRITIC_BUFFERS critic_buffers;
-        prl::CRITIC_BUFFERS_GAE critic_buffers_gae;
+        rlt::rl::algorithms::ppo::CollectionBuffer<typename prl::PPO_SPEC::CRITIC_TYPE, typename prl::ON_POLICY_RUNNER_DATASET_SPEC> critic_buffers_gae;
         rlt::rl::components::RunningNormalizer<rlt::rl::components::running_normalizer::Specification<T, TI, penv::ENVIRONMENT::Observation::DIM>> observation_normalizer;
         penv::ENVIRONMENT evaluation_env;
         rlt::rl::environments::DummyUI ui;
@@ -228,7 +226,6 @@ int main(int argc, char** argv){
         // ------------- removed for cuda training ---------------
 //        rlt::malloc(device, actor_buffers);
 //        rlt::malloc(device, critic_buffers);
-//        rlt::malloc(device, critic_buffers_gae);
         // -------------------------------------------------------
         rlt::malloc(device, observation_normalizer);
         rlt::malloc(device, evaluation_env);
@@ -236,13 +233,11 @@ int main(int argc, char** argv){
         rlt::malloc(device_gpu, rng_gpu);
         rlt::malloc(device_gpu, actor_buffers);
         rlt::malloc(device_gpu, critic_buffers);
-        rlt::malloc(device_gpu, critic_buffers_gae);
+        rlt::malloc(device, critic_buffers_gae);
         rlt::malloc(device_gpu, ppo_gpu);
         rlt::malloc(device_gpu, on_policy_runner_collection_eval_buffer_gpu);
         rlt::malloc(device_gpu, ppo_training_hybrid_buffer_gpu);
         rlt::malloc(device_gpu, actor_eval_buffers_gpu);
-        rlt::malloc(device_gpu, gae_all_observations);
-        rlt::malloc(device_gpu, gae_all_values);
         // -------------------------------------------------------
 
 //        auto on_policy_runner_dataset_all_observations = prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS ? on_policy_runner_dataset.all_observations_normalized : on_policy_runner_dataset.all_observations;
@@ -329,7 +324,7 @@ int main(int argc, char** argv){
             {
 //                auto start = std::chrono::high_resolution_clock::now();
                 // -------------- replaced for cuda training ----------------
-                rlt::collect_hybrid(device, device_gpu, on_policy_runner_dataset, on_policy_runner, on_policy_runner_buffer, environment, ppo.actor, ppo_gpu.actor, actor_eval_buffers_gpu, on_policy_runner_collection_eval_buffer_cpu, on_policy_runner_collection_eval_buffer_gpu, rng, rng_gpu);
+                rlt::collect_hybrid(device, device_gpu, on_policy_runner_dataset, on_policy_runner, on_policy_runner_buffer, environment, ppo, ppo_gpu.actor, actor_eval_buffers_gpu, on_policy_runner_collection_eval_buffer_cpu, on_policy_runner_collection_eval_buffer_gpu, critic_buffers_gae, rng, rng_gpu);
                 environment_step += prl::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL;
                 // ----------------------------------------------------------
                 if(prl::PPO_SPEC::PARAMETERS::NORMALIZE_OBSERVATIONS){
@@ -357,11 +352,8 @@ int main(int argc, char** argv){
             {
 //                auto start = std::chrono::high_resolution_clock::now();
                 // -------------- replaced for cuda training ----------------
-                copy(device, device_gpu, on_policy_runner_dataset.all_observations_privileged, gae_all_observations);
-                evaluate(device_gpu, ppo_gpu.critic, gae_all_observations, gae_all_values, critic_buffers_gae, rng);
-                copy(device_gpu, device, gae_all_values, on_policy_runner_dataset.all_values);
                 // ----------------------------------------------------------
-                rlt::estimate_generalized_advantages(device, on_policy_runner_dataset, prl::PPO_TYPE::SPEC::PARAMETERS{});
+                rlt::estimate_generalized_advantages(device, on_policy_runner_dataset, on_policy_runner_dataset.bootstrap_values, prl::PPO_TYPE::SPEC::PARAMETERS{});
 //                auto end = std::chrono::high_resolution_clock::now();
 //                std::chrono::duration<T> elapsed = end - start;
 //                std::cout << "GAE: " << elapsed.count() << " s" << std::endl;
@@ -405,20 +397,17 @@ int main(int argc, char** argv){
         // ------------- removed for cuda training ---------------
 //        rlt::free(device, actor_buffers);
 //        rlt::free(device, critic_buffers);
-//        rlt::free(device, critic_buffers_gae);
         // -------------------------------------------------------
         rlt::free(device, observation_normalizer);
         rlt::free(device, evaluation_env);
         // -------------- added for cuda training ----------------
         rlt::free(device_gpu, actor_buffers);
         rlt::free(device_gpu, critic_buffers);
-        rlt::free(device_gpu, critic_buffers_gae);
+        rlt::free(device, critic_buffers_gae);
         rlt::free(device_gpu, ppo_gpu);
         rlt::free(device_gpu, on_policy_runner_collection_eval_buffer_gpu);
         rlt::free(device_gpu, ppo_training_hybrid_buffer_gpu);
         rlt::free(device_gpu, actor_eval_buffers_gpu);
-        rlt::free(device_gpu, gae_all_observations);
-        rlt::free(device_gpu, gae_all_values);
         // -------------------------------------------------------
     }
 

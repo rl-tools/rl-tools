@@ -10,7 +10,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::components{
     namespace on_policy_runner{
-        template <typename T_TYPE_POLICY, typename T_BATCH_ENVIRONMENT, typename T_POLICY_STATE, typename T_OBSERVATION = typename T_BATCH_ENVIRONMENT::Observation, typename T_OBSERVATION_PRIVILEGED = typename T_BATCH_ENVIRONMENT::ObservationPrivileged, typename T_OBSERVATION_T = typename T_TYPE_POLICY::DEFAULT, typename T_OBSERVATION_PRIVILEGED_T = typename T_TYPE_POLICY::DEFAULT, typename T_BATCH_ENVIRONMENT::TI T_STEP_LIMIT = T_BATCH_ENVIRONMENT::EPISODE_STEP_LIMIT, bool T_TRUNCATE_ON_EACH_ITERATION = false, bool T_DYNAMIC_ALLOCATION = true>
+        template <typename T_TYPE_POLICY, typename T_BATCH_ENVIRONMENT, typename T_POLICY_STATE, typename T_OBSERVATION = typename T_BATCH_ENVIRONMENT::Observation, typename T_OBSERVATION_PRIVILEGED = typename T_BATCH_ENVIRONMENT::ObservationPrivileged, typename T_OBSERVATION_T = typename T_TYPE_POLICY::DEFAULT, typename T_OBSERVATION_PRIVILEGED_T = typename T_TYPE_POLICY::DEFAULT, typename T_BATCH_ENVIRONMENT::TI T_STEP_LIMIT = T_BATCH_ENVIRONMENT::EPISODE_STEP_LIMIT, bool T_TRUNCATE_ON_EACH_ITERATION = false, bool T_DYNAMIC_ALLOCATION = true, bool T_COLLECT_NEXT_OBSERVATIONS = true>
         struct Specification{
             using TYPE_POLICY = T_TYPE_POLICY;
             using T = typename TYPE_POLICY::DEFAULT;
@@ -27,6 +27,7 @@ namespace rl_tools::rl::components{
             static constexpr TI N_AGENTS_PER_ENV = BATCH_ENVIRONMENT::N_AGENTS;
             static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
             static constexpr bool TRUNCATE_ON_EACH_ITERATION = T_TRUNCATE_ON_EACH_ITERATION;
+            static constexpr bool COLLECT_NEXT_OBSERVATIONS = T_COLLECT_NEXT_OBSERVATIONS;
         };
 
         template <typename T_SPEC, typename T_SPEC::TI T_STEPS_PER_ENV, bool T_DYNAMIC_ALLOCATION = true>
@@ -61,7 +62,7 @@ namespace rl_tools::rl::components{
             Tensor<tensor::Specification<typename SPEC::OBSERVATION_PRIVILEGED_T, TI, ALL_OBS_PRIV_STORAGE_SHAPE, DATASET_SPEC::DYNAMIC_ALLOCATION>> all_observations_privileged;
 
             // Scalar data (actions, rewards, flags, values, advantages)
-            static constexpr TI SCALAR_DATA_DIM = SPEC::BATCH_ENVIRONMENT::ACTION_DIM * 2 + 8;
+            static constexpr TI SCALAR_DATA_DIM = SPEC::BATCH_ENVIRONMENT::ACTION_DIM * 2 + 8 + SPEC::COLLECT_NEXT_OBSERVATIONS;
             Matrix<matrix::Specification<T, TI, STEPS_TOTAL + SPEC::N_ENVIRONMENTS, SCALAR_DATA_DIM, DATASET_SPEC::DYNAMIC_ALLOCATION>> scalar_data;
 
             template<TI VIEW_DIM, bool ALL = false>
@@ -79,7 +80,9 @@ namespace rl_tools::rl::components{
             SCALAR_VIEW<1> values;
             SCALAR_VIEW<1> advantages;
             SCALAR_VIEW<1> target_values;
+            SCALAR_VIEW<1> bootstrap_values;
         };
+        struct NoNextObservations{};
         template <typename T_SPEC>
         struct Buffer{
             using SPEC = T_SPEC;
@@ -90,6 +93,7 @@ namespace rl_tools::rl::components{
             Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS, BATCH_ENVIRONMENT::ACTION_DIM>, SPEC::DYNAMIC_ALLOCATION>> actions;
             Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>, SPEC::DYNAMIC_ALLOCATION>> rewards;
             Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>, SPEC::DYNAMIC_ALLOCATION>> terminated;
+            utils::typing::conditional_t<SPEC::COLLECT_NEXT_OBSERVATIONS, Tensor<tensor::Specification<typename SPEC::OBSERVATION_PRIVILEGED_T, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS, SPEC::OBSERVATION_PRIVILEGED::DIM>, SPEC::DYNAMIC_ALLOCATION>>, NoNextObservations> next_observations_privileged;
         };
     }
 

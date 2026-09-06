@@ -8,6 +8,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <rl_tools/rl/environments/batch/operations_generic.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_generic.h>
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
+#include <rl_tools/rl/algorithms/ppo/operations_collection.h>
 #include <rl_tools/random/operations_generic_array.h>
 
 #include <gtest/gtest.h>
@@ -48,7 +49,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
     prl::ACTOR_EVAL_BUFFERS actor_eval_buffers;
     prl::ACTOR_BUFFERS actor_buffers;
     prl::CRITIC_BUFFERS critic_buffers;
-    prl::CRITIC_BUFFERS_ALL critic_buffers_all;
+    rlt::rl::algorithms::ppo::CollectionBuffer<typename prl::PPO_SPEC::CRITIC_TYPE, typename prl::ON_POLICY_RUNNER_DATASET_SPEC> critic_buffers_all;
 
     rlt::malloc(device, actor_optimizer);
     rlt::malloc(device, critic_optimizer);
@@ -85,15 +86,14 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
         auto start = std::chrono::high_resolution_clock::now();
         {
             auto start = std::chrono::high_resolution_clock::now();
-            rlt::collect(device, on_policy_runner_dataset, on_policy_runner, on_policy_runner_buffer, environment, ppo.actor, actor_eval_buffers, rng);
+            rlt::collect(device, on_policy_runner_dataset, on_policy_runner, on_policy_runner_buffer, environment, ppo, actor_eval_buffers, critic_buffers_all, rng);
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;
 //            std::cout << "Rollout: " << elapsed.count() << " s" << std::endl;
         }
         {
             auto start = std::chrono::high_resolution_clock::now();
-            evaluate(device, ppo.critic, on_policy_runner_dataset.all_observations_privileged, on_policy_runner_dataset.all_values, critic_buffers_all, rng);
-            rlt::estimate_generalized_advantages(device, on_policy_runner_dataset, prl::PPO_SPEC::PARAMETERS{});
+            rlt::estimate_generalized_advantages(device, on_policy_runner_dataset, on_policy_runner_dataset.bootstrap_values, prl::PPO_SPEC::PARAMETERS{});
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;
 //            std::cout << "GAE: " << elapsed.count() << " s" << std::endl;
