@@ -2,18 +2,13 @@ cmake_minimum_required(VERSION 3.24)
 
 # Superbuild for the browser IDE's compiler: clang and lld for wasm32-wasip1 as one WASI module (llvm.wasm) plus the sysroot
 # that both the module and the programs it compiles link against (sysroot.tar). It is a standalone project, not part of the
-# RLtools configure; every stage is an ExternalProject and all sources, build trees and outputs live under
-# RL_TOOLS_IDE_TOOLCHAIN_DIR, outside the repository; the sources are FetchContent checkouts in the repository's
-# .dependencies tree, shared with the main RLtools configure. See README.md next to this file.
+# RLtools configure; every stage is an ExternalProject and all build trees and outputs live under RL_TOOLS_IDE_TOOLCHAIN_DIR,
+# outside the repository. The sources are the pinned checkouts that tools/ide/download_dependencies.sh places under
+# tools/ide/external (RLtools' fork of llvm-project with the WASI commits, and wasi-libc). See README.md next to this file.
 
-set(RL_TOOLS_IDE_LLVM_TAG llvmorg-22.1.8)
-set(RL_TOOLS_IDE_LLVM_REPOSITORY https://github.com/llvm/llvm-project.git)
-set(RL_TOOLS_IDE_WASI_LIBC_TAG wasi-sdk-34)
-set(RL_TOOLS_IDE_WASI_LIBC_REPOSITORY https://github.com/WebAssembly/wasi-libc.git)
 set(RL_TOOLS_IDE_HOST_LLVM 22)
 set(RL_TOOLS_IDE_TARGET wasm32-wasip1)
 set(RL_TOOLS_IDE_WASI_CPU lime1)
-set(RL_TOOLS_IDE_PATCH_DIR ${CMAKE_CURRENT_SOURCE_DIR}/patches)
 set(RL_TOOLS_IDE_LLVM_VERSION_SUFFIX -rltools)
 
 project(rl_tools_ide_toolchain NONE)
@@ -25,7 +20,7 @@ if(DEFINED ENV{RL_TOOLS_IDE_TOOLCHAIN_DIR})
 else()
     set(rl_tools_ide_default_toolchain_dir /vm/data/rl-tools/ide-toolchain)
 endif()
-set(RL_TOOLS_IDE_TOOLCHAIN_DIR "${rl_tools_ide_default_toolchain_dir}" CACHE PATH "Build trees and outputs of the superbuild (outside the repository); sources go to .dependencies")
+set(RL_TOOLS_IDE_TOOLCHAIN_DIR "${rl_tools_ide_default_toolchain_dir}" CACHE PATH "Build trees and outputs of the superbuild (outside the repository)")
 set(RL_TOOLS_IDE_JOBS 5 CACHE STRING "Parallel jobs per sub-build, also the ThinLTO backend threads of the module link")
 set(RL_TOOLS_IDE_LTO thin CACHE STRING "Link-time optimization of the wasm module: thin, full or off (a full LTO link of the module peaks above 16 GB)")
 option(RL_TOOLS_IDE_ASSERTIONS "LLVM assertions in the wasm module" ON)
@@ -65,7 +60,7 @@ find_program(RL_TOOLS_IDE_NODE node)
 
 if(RL_TOOLS_IDE_BUILD_HOST_CLANG)
     set(RL_TOOLS_IDE_HOST_LLVM_BIN_DIR ${RL_TOOLS_IDE_HOST_DIR}/bin)
-    set(rl_tools_ide_host_compiler "from source (${RL_TOOLS_IDE_LLVM_TAG}), built with the system compiler")
+    set(rl_tools_ide_host_compiler "from source (${RL_TOOLS_IDE_LLVM_COMMIT}), built with the system compiler")
 else()
     if(RL_TOOLS_IDE_HOST_LLVM_BIN)
         set(RL_TOOLS_IDE_HOST_LLVM_BIN_DIR ${RL_TOOLS_IDE_HOST_LLVM_BIN})
@@ -89,77 +84,46 @@ else()
 endif()
 
 # ------------------------------------------------------------------------------------------------------------------------ stage 0
-# The pins above are the only place the sources are named. FetchContent checks them out at configure time into the
-# repository's per-build-directory .dependencies tree, exactly as the main RLtools configure does, so checkouts are shared
-# with it and survive a deleted build directory; the stages below read from those directories. SOURCE_SUBDIR names a
-# directory that does not exist so neither tree is added as a subproject (wasi-libc has a top-level CMakeLists.txt).
-option(RL_TOOLS_OFFLINE_BUILD "Use the sources in .dependencies without checking for updates" OFF)
-get_filename_component(CMAKE_BINARY_DIR_BASENAME ${CMAKE_BINARY_DIR} NAME)
-if(NOT DEFINED FETCHCONTENT_BASE_DIR)
-    set(rl_tools_ide_write_test "${RL_TOOLS_REPOSITORY_DIR}/.cmake_write_test")
-    execute_process(COMMAND ${CMAKE_COMMAND} -E touch "${rl_tools_ide_write_test}" RESULT_VARIABLE rl_tools_ide_write_test_result ERROR_QUIET OUTPUT_QUIET)
-    if(rl_tools_ide_write_test_result EQUAL 0)
-        file(REMOVE "${rl_tools_ide_write_test}")
-        set(rl_tools_ide_fetchcontent_root "${RL_TOOLS_REPOSITORY_DIR}")
-    else()
-        set(rl_tools_ide_fetchcontent_root "${CMAKE_BINARY_DIR}")
+# The sources are soft submodules: tools/ide/download_dependencies.sh holds the pins and checks them out at depth 1 under
+# tools/ide/external. The configure reads the same pins and refuses a checkout that is missing or at another commit.
+set(RL_TOOLS_IDE_DOWNLOAD_SCRIPT ${RL_TOOLS_REPOSITORY_DIR}/tools/ide/download_dependencies.sh)
+function(rl_tools_ide_pin name output)
+    file(STRINGS ${RL_TOOLS_IDE_DOWNLOAD_SCRIPT} line REGEX "^${name}=")
+    if(NOT line MATCHES "^${name}=([^ #]+)")
+        message(FATAL_ERROR "${name} is not pinned in ${RL_TOOLS_IDE_DOWNLOAD_SCRIPT}")
     endif()
-    set(FETCHCONTENT_BASE_DIR "${rl_tools_ide_fetchcontent_root}/.dependencies/${CMAKE_BINARY_DIR_BASENAME}" CACHE PATH "Base dir for FetchContent downloads" FORCE)
-else()
-    set(FETCHCONTENT_BASE_DIR "${FETCHCONTENT_BASE_DIR}/${CMAKE_BINARY_DIR_BASENAME}" CACHE PATH "Base dir for FetchContent downloads")
-endif()
-if(RL_TOOLS_OFFLINE_BUILD)
-    set(FETCHCONTENT_FULLY_DISCONNECTED ON)
-endif()
-message(STATUS "RLtools IDE toolchain sources: ${FETCHCONTENT_BASE_DIR}")
-include(FetchContent)
-# CMake's GIT_SHALLOW clones every branch tip (--no-single-branch) and finds a tag only at a tip; the download command
-# below fetches exactly one ref at depth 1 and no other tags, which is the smallest transfer possible
-function(rl_tools_ide_declare_source name repository tag)
-    FetchContent_Declare(${name}
-        DOWNLOAD_COMMAND ${CMAKE_COMMAND}
-            -DGIT=${RL_TOOLS_IDE_GIT}
-            -DREPOSITORY=${repository}
-            -DTAG=${tag}
-            -DDIRECTORY=<SOURCE_DIR>
-            -P ${RL_TOOLS_IDE_CMAKE_DIR}/fetch_source.cmake
-        SOURCE_SUBDIR rl-tools-not-a-subproject
-    )
+    set(${output} ${CMAKE_MATCH_1} PARENT_SCOPE)
 endfunction()
-rl_tools_ide_declare_source(llvm_project ${RL_TOOLS_IDE_LLVM_REPOSITORY} ${RL_TOOLS_IDE_LLVM_TAG})
-rl_tools_ide_declare_source(wasi_libc ${RL_TOOLS_IDE_WASI_LIBC_REPOSITORY} ${RL_TOOLS_IDE_WASI_LIBC_TAG})
-foreach(name llvm_project wasi_libc)
-    string(TOUPPER ${name} name_upper)
-    if(NOT EXISTS "${FETCHCONTENT_BASE_DIR}/${name}-src" AND NOT DEFINED FETCHCONTENT_SOURCE_DIR_${name_upper})
-        message(STATUS "Fetching ${name} (this can take a while)")
-    endif()
-endforeach()
-FetchContent_MakeAvailable(llvm_project wasi_libc)
-set(RL_TOOLS_IDE_LLVM_SOURCE_DIR ${llvm_project_SOURCE_DIR})
-set(RL_TOOLS_IDE_WASI_LIBC_SOURCE_DIR ${wasi_libc_SOURCE_DIR})
-set(RL_TOOLS_IDE_LLVM_WASI_SOURCE_DIR ${FETCHCONTENT_BASE_DIR}/llvm_project-wasi-src)
-foreach(required RL_TOOLS_IDE_LLVM_SOURCE_DIR RL_TOOLS_IDE_WASI_LIBC_SOURCE_DIR)
-    if(NOT IS_DIRECTORY "${${required}}")
-        message(FATAL_ERROR "${required} (${${required}}) is not a directory")
-    endif()
-endforeach()
-execute_process(COMMAND ${RL_TOOLS_IDE_GIT} -C ${RL_TOOLS_IDE_LLVM_SOURCE_DIR} rev-parse HEAD RESULT_VARIABLE rl_tools_ide_llvm_commit_result OUTPUT_VARIABLE RL_TOOLS_IDE_LLVM_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE)
-if(NOT rl_tools_ide_llvm_commit_result EQUAL 0)
-    message(FATAL_ERROR "${RL_TOOLS_IDE_LLVM_SOURCE_DIR} is not a git checkout")
+rl_tools_ide_pin(LLVM_PROJECT_REPOSITORY RL_TOOLS_IDE_LLVM_REPOSITORY)
+rl_tools_ide_pin(LLVM_PROJECT_COMMIT RL_TOOLS_IDE_LLVM_COMMIT)
+rl_tools_ide_pin(LLVM_PROJECT_UPSTREAM RL_TOOLS_IDE_LLVM_UPSTREAM)
+rl_tools_ide_pin(WASI_LIBC_REPOSITORY RL_TOOLS_IDE_WASI_LIBC_REPOSITORY)
+rl_tools_ide_pin(WASI_LIBC_COMMIT RL_TOOLS_IDE_WASI_LIBC_COMMIT)
+rl_tools_ide_pin(WASI_LIBC_UPSTREAM RL_TOOLS_IDE_WASI_LIBC_UPSTREAM)
+if(DEFINED ENV{RL_TOOLS_IDE_EXTERNAL_DIR})
+    set(rl_tools_ide_default_external_dir "$ENV{RL_TOOLS_IDE_EXTERNAL_DIR}")
+else()
+    set(rl_tools_ide_default_external_dir ${RL_TOOLS_REPOSITORY_DIR}/tools/ide/external)
 endif()
-
-# The patched tree is a detached worktree of the checkout; the script is idempotent and cheap, so it runs on every build
-add_custom_target(llvm-wasi-source
-    COMMAND ${CMAKE_COMMAND}
-        -DGIT=${RL_TOOLS_IDE_GIT}
-        -DSOURCE=${RL_TOOLS_IDE_LLVM_SOURCE_DIR}
-        -DWORKTREE=${RL_TOOLS_IDE_LLVM_WASI_SOURCE_DIR}
-        -DTAG=${RL_TOOLS_IDE_LLVM_TAG}
-        -DPATCH_DIR=${RL_TOOLS_IDE_PATCH_DIR}
-        -P ${RL_TOOLS_IDE_CMAKE_DIR}/prepare_wasi_source.cmake
-    COMMENT "Preparing the patched LLVM worktree"
-    VERBATIM
-)
+set(RL_TOOLS_IDE_EXTERNAL_DIR "${rl_tools_ide_default_external_dir}" CACHE PATH "Where tools/ide/download_dependencies.sh placed the checkouts")
+set(RL_TOOLS_IDE_LLVM_SOURCE_DIR ${RL_TOOLS_IDE_EXTERNAL_DIR}/llvm-project)
+set(RL_TOOLS_IDE_WASI_LIBC_SOURCE_DIR ${RL_TOOLS_IDE_EXTERNAL_DIR}/wasi-libc)
+foreach(pair "RL_TOOLS_IDE_LLVM_SOURCE_DIR;RL_TOOLS_IDE_LLVM_COMMIT" "RL_TOOLS_IDE_WASI_LIBC_SOURCE_DIR;RL_TOOLS_IDE_WASI_LIBC_COMMIT")
+    list(GET pair 0 directory_variable)
+    list(GET pair 1 commit_variable)
+    set(directory ${${directory_variable}})
+    if(NOT EXISTS ${directory}/.git)
+        message(FATAL_ERROR "${directory} is not a checkout; run ${RL_TOOLS_IDE_DOWNLOAD_SCRIPT} first (RL_TOOLS_IDE_EXTERNAL_DIR moves the checkouts)")
+    endif()
+    execute_process(COMMAND ${RL_TOOLS_IDE_GIT} -C ${directory} rev-parse --verify --quiet HEAD RESULT_VARIABLE result OUTPUT_VARIABLE head OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    if(NOT result EQUAL 0)
+        set(head "no commit")
+    endif()
+    if(NOT head STREQUAL ${${commit_variable}})
+        message(FATAL_ERROR "${directory} is at ${head}, the pin is ${${commit_variable}}; run ${RL_TOOLS_IDE_DOWNLOAD_SCRIPT}")
+    endif()
+endforeach()
+string(REGEX REPLACE "\\.git$" "" RL_TOOLS_IDE_LLVM_REPOSITORY_URL "${RL_TOOLS_IDE_LLVM_REPOSITORY}")
 
 # ------------------------------------------------------------------------------------------------------------------------ stage 1
 # Native tablegen binaries of the pinned version; the cross build cannot run the ones it builds itself. With
@@ -210,9 +174,9 @@ ExternalProject_Add(host
 )
 
 # ------------------------------------------------------------------------------------------------------------------------ stage 2
-# The sysroot, in the order wasi-sdk uses: compiler-rt builtins and wasi-libc from the pristine checkout, then libc++abi and
-# libc++ from the patched worktree (one libc++abi patch). One cross toolchain file serves every sub-build; the superbuild
-# hands it its inputs as cache entries.
+# The sysroot, in the order wasi-sdk uses: compiler-rt builtins, wasi-libc, then libc++abi and libc++ (the fork carries the
+# one libc++abi commit the module needs). One cross toolchain file serves every sub-build; the superbuild hands it its inputs
+# as cache entries.
 set(rl_tools_ide_toolchain_args
     -DCMAKE_TOOLCHAIN_FILE=${RL_TOOLS_IDE_CMAKE_DIR}/Toolchain-WASI.cmake
     -DRL_TOOLS_IDE_HOST_LLVM_BIN=${RL_TOOLS_IDE_HOST_LLVM_BIN_DIR}
@@ -330,13 +294,13 @@ set(rl_tools_ide_libcxx_args
 ExternalProject_Add(libcxx
     PREFIX ${CMAKE_BINARY_DIR}/libcxx
     DOWNLOAD_COMMAND ""
-    SOURCE_DIR ${RL_TOOLS_IDE_LLVM_WASI_SOURCE_DIR}/runtimes
+    SOURCE_DIR ${RL_TOOLS_IDE_LLVM_SOURCE_DIR}/runtimes
     BINARY_DIR ${RL_TOOLS_IDE_SYSROOT_BUILD_DIR}/libcxx
     CMAKE_GENERATOR ${RL_TOOLS_IDE_GENERATOR}
     CMAKE_ARGS ${rl_tools_ide_toolchain_args} ${rl_tools_ide_resource_args} ${rl_tools_ide_libcxx_args}
     CMAKE_CACHE_ARGS -DLLVM_ENABLE_RUNTIMES:STRING=${rl_tools_ide_libcxx_runtimes}
     BUILD_COMMAND ${CMAKE_COMMAND} --build <BINARY_DIR> -j ${RL_TOOLS_IDE_JOBS}
-    DEPENDS wasi-libc llvm-wasi-source
+    DEPENDS wasi-libc
     USES_TERMINAL_CONFIGURE ON
     USES_TERMINAL_BUILD ON
     USES_TERMINAL_INSTALL ON
@@ -344,7 +308,7 @@ ExternalProject_Add(libcxx
 add_custom_target(sysroot DEPENDS libcxx)
 
 # ------------------------------------------------------------------------------------------------------------------------ stage 3
-# clang, lld and llvm-ar as one llvm-driver module. Every LLVM tool that could join the driver is switched off explicitly:
+# clang, lld and llvm-ar as one llvm-driver module from the fork. Every LLVM tool that could join the driver is switched off explicitly:
 # the driver absorbs every configured GENERATE_DRIVER tool and LLVM_BUILD_TOOLS=OFF alone does not stop that.
 set(rl_tools_ide_llvm_tools_off
     bugpoint bugpoint-passes dsymutil dxil-dis gold llc lli llvm-as llvm-as-fuzzer llvm-bcanalyzer llvm-c-test llvm-cat
@@ -407,7 +371,7 @@ set(rl_tools_ide_llvm_wasm_args
     -DCLANG_RESOURCE_DIR=/usr
     -DLLVM_APPEND_VC_REV=ON
     -DLLVM_VERSION_SUFFIX=${RL_TOOLS_IDE_LLVM_VERSION_SUFFIX}
-    -DLLVM_FORCE_VC_REPOSITORY=https://github.com/llvm/llvm-project
+    -DLLVM_FORCE_VC_REPOSITORY=${RL_TOOLS_IDE_LLVM_REPOSITORY_URL}
     -DLLVM_FORCE_VC_REVISION=${RL_TOOLS_IDE_LLVM_COMMIT}
 )
 foreach(tool IN LISTS rl_tools_ide_llvm_tools_off)
@@ -418,7 +382,7 @@ endforeach()
 ExternalProject_Add(llvm-wasm
     PREFIX ${CMAKE_BINARY_DIR}/llvm-wasm
     DOWNLOAD_COMMAND ""
-    SOURCE_DIR ${RL_TOOLS_IDE_LLVM_WASI_SOURCE_DIR}/llvm
+    SOURCE_DIR ${RL_TOOLS_IDE_LLVM_SOURCE_DIR}/llvm
     BINARY_DIR ${RL_TOOLS_IDE_WASM_DIR}
     CMAKE_GENERATOR ${RL_TOOLS_IDE_GENERATOR}
     CMAKE_ARGS ${rl_tools_ide_toolchain_args} ${rl_tools_ide_resource_args} ${rl_tools_ide_llvm_wasm_args}
@@ -427,13 +391,13 @@ ExternalProject_Add(llvm-wasm
         -DCLANG_LINKS_TO_CREATE:STRING=${rl_tools_ide_llvm_wasm_links}
     BUILD_COMMAND ${CMAKE_COMMAND}
         -DGIT=${RL_TOOLS_IDE_GIT}
-        -DSOURCE_DIR=${RL_TOOLS_IDE_LLVM_WASI_SOURCE_DIR}
+        -DSOURCE_DIR=${RL_TOOLS_IDE_LLVM_SOURCE_DIR}
         -DBUILD_DIR=<BINARY_DIR>
         -DJOBS=${RL_TOOLS_IDE_JOBS}
         -DTARGETS=llvm-driver,clang-resource-headers
         -P ${RL_TOOLS_IDE_CMAKE_DIR}/build_with_source_date.cmake
     INSTALL_COMMAND ""
-    DEPENDS host libcxx llvm-wasi-source
+    DEPENDS host libcxx
     USES_TERMINAL_CONFIGURE ON
     USES_TERMINAL_BUILD ON
 )
@@ -472,19 +436,16 @@ if(rl_tools_ide_assertions_json STREQUAL "on")
 else()
     set(rl_tools_ide_assertions_json false)
 endif()
-file(GLOB rl_tools_ide_patches ${RL_TOOLS_IDE_PATCH_DIR}/*.patch)
-list(SORT rl_tools_ide_patches)
 set(rl_tools_ide_static_manifest ${CMAKE_BINARY_DIR}/manifest_static.json)
 file(WRITE ${rl_tools_ide_static_manifest}
 "  \"format\": 1,
   \"target\": \"${RL_TOOLS_IDE_TARGET}\",
   \"cpu\": \"${RL_TOOLS_IDE_WASI_CPU}\",
-  \"llvm_tag\": \"${RL_TOOLS_IDE_LLVM_TAG}\",
   \"llvm_repository\": \"${RL_TOOLS_IDE_LLVM_REPOSITORY}\",
+  \"llvm_upstream\": \"${RL_TOOLS_IDE_LLVM_UPSTREAM}\",
   \"llvm_version_suffix\": \"${RL_TOOLS_IDE_LLVM_VERSION_SUFFIX}\",
-  \"wasi_libc_tag\": \"${RL_TOOLS_IDE_WASI_LIBC_TAG}\",
   \"wasi_libc_repository\": \"${RL_TOOLS_IDE_WASI_LIBC_REPOSITORY}\",
-  \"patch_dir\": \"tools/ide/toolchain/patches\",
+  \"wasi_libc_upstream\": \"${RL_TOOLS_IDE_WASI_LIBC_UPSTREAM}\",
   \"host_os\": \"${rl_tools_ide_host_os_json}\",
   \"host_cmake\": \"${CMAKE_VERSION}\",
   \"host_generator\": \"${RL_TOOLS_IDE_GENERATOR}\",
@@ -517,9 +478,8 @@ add_custom_command(OUTPUT ${rl_tools_ide_package_outputs}
         -DGIT=${RL_TOOLS_IDE_GIT}
         -DTAR=${RL_TOOLS_IDE_TAR}
         -DHOST_LLVM_BIN=${RL_TOOLS_IDE_HOST_LLVM_BIN_DIR}
-        -DLLVM_SOURCE_DIR=${RL_TOOLS_IDE_LLVM_WASI_SOURCE_DIR}
+        -DLLVM_SOURCE_DIR=${RL_TOOLS_IDE_LLVM_SOURCE_DIR}
         -DWASI_LIBC_SOURCE_DIR=${RL_TOOLS_IDE_WASI_LIBC_SOURCE_DIR}
-        -DPATCH_DIR=${RL_TOOLS_IDE_PATCH_DIR}
         -DSYSROOT_DIR=${RL_TOOLS_IDE_SYSROOT_DIR}
         -DRESOURCE_HEADERS=${RL_TOOLS_IDE_WASM_DIR}/usr/include
         -DMODULE=${RL_TOOLS_IDE_WASM_DIR}/bin/llvm
@@ -528,7 +488,7 @@ add_custom_command(OUTPUT ${rl_tools_ide_package_outputs}
         -DPACKAGE_DIR=${RL_TOOLS_IDE_PACKAGE_DIR}
         -DOUTPUT_DIR=${RL_TOOLS_IDE_OUTPUT_DIR}
         -P ${RL_TOOLS_IDE_CMAKE_DIR}/package.cmake
-    DEPENDS llvm-wasm ${rl_tools_ide_llvm_wasm_stamp} ${RL_TOOLS_IDE_CMAKE_DIR}/package.cmake ${rl_tools_ide_patches} ${rl_tools_ide_static_manifest}
+    DEPENDS llvm-wasm ${rl_tools_ide_llvm_wasm_stamp} ${RL_TOOLS_IDE_CMAKE_DIR}/package.cmake ${rl_tools_ide_static_manifest}
     COMMENT "Packaging llvm.wasm, sysroot.tar, toolchain.json into ${RL_TOOLS_IDE_OUTPUT_DIR}"
     VERBATIM
 )
@@ -571,11 +531,10 @@ add_custom_command(OUTPUT ${rl_tools_ide_verify_stamp}
 add_custom_target(verify ALL DEPENDS ${rl_tools_ide_verify_stamp})
 
 message(STATUS "RLtools IDE toolchain configure summary:")
-message(STATUS "  llvm-project      ${RL_TOOLS_IDE_LLVM_TAG} = ${RL_TOOLS_IDE_LLVM_COMMIT} (${RL_TOOLS_IDE_LLVM_REPOSITORY})")
-message(STATUS "  wasi-libc         ${RL_TOOLS_IDE_WASI_LIBC_TAG} (${RL_TOOLS_IDE_WASI_LIBC_REPOSITORY})")
-message(STATUS "  patches           ${RL_TOOLS_IDE_PATCH_DIR}")
+message(STATUS "  llvm-project      ${RL_TOOLS_IDE_LLVM_COMMIT} = ${RL_TOOLS_IDE_LLVM_UPSTREAM} + WASI commits (${RL_TOOLS_IDE_LLVM_REPOSITORY})")
+message(STATUS "  wasi-libc         ${RL_TOOLS_IDE_WASI_LIBC_COMMIT} = ${RL_TOOLS_IDE_WASI_LIBC_UPSTREAM} (${RL_TOOLS_IDE_WASI_LIBC_REPOSITORY})")
 message(STATUS "  cross compiler    ${RL_TOOLS_IDE_HOST_LLVM_BIN_DIR} (${rl_tools_ide_host_compiler})")
-message(STATUS "  sources           ${RL_TOOLS_IDE_LLVM_SOURCE_DIR}, ${RL_TOOLS_IDE_WASI_LIBC_SOURCE_DIR}")
+message(STATUS "  sources           ${RL_TOOLS_IDE_EXTERNAL_DIR}")
 message(STATUS "  toolchain dir     ${RL_TOOLS_IDE_TOOLCHAIN_DIR}")
 message(STATUS "  output            ${RL_TOOLS_IDE_OUTPUT_DIR}")
 message(STATUS "  generator         ${RL_TOOLS_IDE_GENERATOR}, ${RL_TOOLS_IDE_JOBS} jobs")

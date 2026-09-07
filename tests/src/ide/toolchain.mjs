@@ -87,7 +87,7 @@ check(version.exitCode === 0 && versionMatch !== null, `--version is parseable: 
 if(versionMatch){
     check(versionMatch[1] === manifest.llvm_version, `version ${versionMatch[1]} matches the manifest (${manifest.llvm_version})`);
     check(versionMatch[3] === manifest.llvm_commit, `commit ${versionMatch[3]} matches the manifest`);
-    check(versionMatch[2].includes("llvm/llvm-project"), `repository is upstream (${versionMatch[2]})`);
+    check(versionMatch[2] === manifest.llvm_repository.replace(/\.git$/, ""), `repository is the pinned one (${versionMatch[2]})`);
 }
 check(version.lines.some(line => line === `Target: ${manifest.target.replace("wasm32-", "wasm32-unknown-")}`), `default target is ${manifest.target}`);
 const targets = await query("-print-targets");

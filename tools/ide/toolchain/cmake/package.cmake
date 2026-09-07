@@ -1,8 +1,8 @@
 # Stage 4 of the superbuild: assembles the served package from the stage 2 sysroot and the stage 3 module, hashes it, and
 # writes the manifest (configure-time facts from STATIC_MANIFEST plus what is only known after the build).
-# Arguments: -DGIT= -DTAR= -DHOST_LLVM_BIN= -DLLVM_SOURCE_DIR= -DWASI_LIBC_SOURCE_DIR= -DPATCH_DIR= -DSYSROOT_DIR=
+# Arguments: -DGIT= -DTAR= -DHOST_LLVM_BIN= -DLLVM_SOURCE_DIR= -DWASI_LIBC_SOURCE_DIR= -DSYSROOT_DIR=
 #            -DRESOURCE_HEADERS= -DMODULE= -DEPOCH_FILE= -DSTATIC_MANIFEST= -DPACKAGE_DIR= -DOUTPUT_DIR=
-foreach(required GIT TAR HOST_LLVM_BIN LLVM_SOURCE_DIR WASI_LIBC_SOURCE_DIR PATCH_DIR SYSROOT_DIR RESOURCE_HEADERS MODULE EPOCH_FILE STATIC_MANIFEST PACKAGE_DIR OUTPUT_DIR)
+foreach(required GIT TAR HOST_LLVM_BIN LLVM_SOURCE_DIR WASI_LIBC_SOURCE_DIR SYSROOT_DIR RESOURCE_HEADERS MODULE EPOCH_FILE STATIC_MANIFEST PACKAGE_DIR OUTPUT_DIR)
     if(NOT DEFINED ${required})
         message(FATAL_ERROR "package.cmake: -D${required} is required")
     endif()
@@ -12,7 +12,7 @@ foreach(input MODULE EPOCH_FILE STATIC_MANIFEST)
         message(FATAL_ERROR "package.cmake: ${input} ${${input}} does not exist")
     endif()
 endforeach()
-foreach(input SYSROOT_DIR RESOURCE_HEADERS PATCH_DIR)
+foreach(input SYSROOT_DIR RESOURCE_HEADERS)
     if(NOT IS_DIRECTORY ${${input}})
         message(FATAL_ERROR "package.cmake: ${input} ${${input}} is not a directory")
     endif()
@@ -59,15 +59,6 @@ file(SHA256 ${PACKAGE_DIR}/llvm.wasm module_sha256)
 file(SIZE ${PACKAGE_DIR}/llvm.wasm module_bytes)
 file(SHA256 ${PACKAGE_DIR}/sysroot.tar sysroot_sha256)
 file(SIZE ${PACKAGE_DIR}/sysroot.tar sysroot_bytes)
-file(GLOB patches ${PATCH_DIR}/*.patch)
-list(SORT patches)
-set(patch_entries)
-foreach(patch IN LISTS patches)
-    file(SHA256 ${patch} patch_sha256)
-    get_filename_component(patch_name ${patch} NAME)
-    list(APPEND patch_entries "{\"file\": \"${patch_name}\", \"sha256\": \"${patch_sha256}\"}")
-endforeach()
-list(JOIN patch_entries ", " patches_json)
 rl_tools_ide_run(llvm_commit ${GIT} -C ${LLVM_SOURCE_DIR} rev-parse HEAD)
 rl_tools_ide_run(wasi_libc_commit ${GIT} -C ${WASI_LIBC_SOURCE_DIR} rev-parse HEAD)
 rl_tools_ide_run(host_compiler ${HOST_LLVM_BIN}/clang --version)
@@ -92,7 +83,6 @@ file(WRITE ${PACKAGE_DIR}/toolchain.json "{
 ${static_part}  \"llvm_commit\": \"${llvm_commit}\",
   \"llvm_version\": \"${llvm_version}\",
   \"wasi_libc_commit\": \"${wasi_libc_commit}\",
-  \"patches\": [${patches_json}],
   \"host_compiler\": \"${host_compiler}\",
   \"host_compiler_path\": \"${HOST_LLVM_BIN}/clang\",
   \"host_linker\": \"${host_linker}\",
