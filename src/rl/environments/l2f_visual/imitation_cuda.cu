@@ -83,6 +83,9 @@
 #include <string>
 #include <filesystem>
 #include <fstream>
+#include <thread>
+#include <condition_variable>
+#include <cstdlib>
 
 namespace rlt = rl_tools;
 
@@ -227,10 +230,41 @@ static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM; // 12
 // =========================================================================
 // Visual environment specification
 // =========================================================================
+// The run is defined by the *_TOTAL constants and does not depend on the number of GPUs: N_RANKS
+// (compile-time, RL_TOOLS_L2F_VISUAL_IMITATION_N_RANKS) only splits it into equal static shards.
+// Every rank hosts N_ENVIRONMENTS of the N_ENVIRONMENTS_TOTAL environments (a contiguous block of
+// global indices, so its RNG streams, scene slots and dataset rows are the global ones) and
+// contributes BATCH_SIZE rows to every BATCH_SIZE_TOTAL-row gradient step
+#ifndef RL_TOOLS_L2F_VISUAL_IMITATION_N_RANKS
+#define RL_TOOLS_L2F_VISUAL_IMITATION_N_RANKS 1
+#endif
+static constexpr TI N_RANKS = RL_TOOLS_L2F_VISUAL_IMITATION_N_RANKS;
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_SMALL
+// functional smoke profile: 2 scenes, 2 active scenes, 100 steps, 3 epochs (5.3 GB of epoch dataset, halved per rank on two GPUs)
+static constexpr TI N_TOTAL_SCENES = 2;
+static constexpr TI N_ACTIVE_SCENES_TOTAL = 2;
+#else
 static constexpr TI N_TOTAL_SCENES = 25;
-static constexpr TI N_ACTIVE_SCENES = 2;
+static constexpr TI N_ACTIVE_SCENES_TOTAL = 2;
+#endif
+static_assert(N_RANKS >= 1 && N_ACTIVE_SCENES_TOTAL % N_RANKS == 0, "The active scenes must split evenly over the ranks");
+static_assert(N_TOTAL_SCENES >= N_ACTIVE_SCENES_TOTAL, "Not enough scenes in the corpus for the active scene slots");
+// The sorted corpus is split into N_SCENE_BUCKETS contiguous buckets; active slot a draws its scene
+// from bucket a / SLOTS_PER_BUCKET every epoch (distinct within a bucket). Rank r hosts buckets
+// r*BUCKETS_PER_RANK..(r+1)*BUCKETS_PER_RANK and loads only their scenes, so the scene sampling
+// distribution is the same for every N_RANKS while the renderer memory per GPU shrinks with it
+static constexpr TI N_SCENE_BUCKETS = N_ACTIVE_SCENES_TOTAL;
+static_assert(N_SCENE_BUCKETS % N_RANKS == 0, "The scene buckets must split evenly over the ranks");
+static_assert(N_ACTIVE_SCENES_TOTAL % N_SCENE_BUCKETS == 0, "The active scene slots must split evenly over the buckets");
+static constexpr TI SLOTS_PER_BUCKET = N_ACTIVE_SCENES_TOTAL / N_SCENE_BUCKETS;
+static constexpr TI BUCKETS_PER_RANK = N_SCENE_BUCKETS / N_RANKS;
+static_assert(N_TOTAL_SCENES / N_SCENE_BUCKETS >= SLOTS_PER_BUCKET, "Every scene bucket needs at least SLOTS_PER_BUCKET scenes");
+constexpr TI scene_bucket_begin(TI bucket){ return bucket * N_TOTAL_SCENES / N_SCENE_BUCKETS; }
+constexpr TI scene_bucket_end(TI bucket){ return (bucket + 1) * N_TOTAL_SCENES / N_SCENE_BUCKETS; }
+static constexpr TI N_ACTIVE_SCENES = N_ACTIVE_SCENES_TOTAL / N_RANKS; // per rank
 static constexpr TI N_ENVIRONMENTS_PER_SCENE = 64;
-static constexpr TI N_ENVIRONMENTS = N_ACTIVE_SCENES * N_ENVIRONMENTS_PER_SCENE;
+static constexpr TI N_ENVIRONMENTS = N_ACTIVE_SCENES * N_ENVIRONMENTS_PER_SCENE; // per rank
+static constexpr TI N_ENVIRONMENTS_TOTAL = N_ACTIVE_SCENES_TOTAL * N_ENVIRONMENTS_PER_SCENE;
 static constexpr TI CAM_WIDTH = 80;
 static constexpr TI CAM_HEIGHT = 50;
 static constexpr TI NUM_PROBES = 64;
@@ -289,17 +323,37 @@ static constexpr TI STATE_ESTIMATION_NUM_METRICS = 4;
 static constexpr TI TARGET_DIM = STATE_ESTIMATION_MODE ? STATE_ESTIMATION_TARGET_DIM : ACTION_DIM;
 static constexpr TI INDOOR_POSITION_DIM = 3;
 static constexpr TI OBSERVATION_DIM = ENVIRONMENT::OBSERVATION_DIM;
-static constexpr TI BATCH_SIZE = 512;
+static constexpr TI BATCH_SIZE_TOTAL = 512;
+static_assert(BATCH_SIZE_TOTAL % N_RANKS == 0, "The gradient batch must split evenly over the ranks");
+// a gradient batch is a whole number of steps over all environments: dataset rows are step-major
+// and environment-minor and each rank owns a contiguous block of global environments, so rank-local
+// batch k (BATCH_SIZE rows) is exactly this rank's slice of global batch k for any N_RANKS
+static_assert(BATCH_SIZE_TOTAL % N_ENVIRONMENTS_TOTAL == 0, "BATCH_SIZE_TOTAL must be a multiple of N_ENVIRONMENTS_TOTAL");
+static constexpr TI BATCH_SIZE = BATCH_SIZE_TOTAL / N_RANKS; // per rank
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_SMALL
+static constexpr TI STEPS_PER_ENV = 100;
+#else
 static constexpr TI STEPS_PER_ENV = 500;
-static constexpr TI STEPS_TOTAL = STEPS_PER_ENV * N_ENVIRONMENTS;
+#endif
+static constexpr TI STEPS_TOTAL = STEPS_PER_ENV * N_ENVIRONMENTS; // per rank and epoch
+static constexpr TI STEPS_TOTAL_ALL_RANKS = STEPS_PER_ENV * N_ENVIRONMENTS_TOTAL;
 static constexpr TI N_BATCHES = STEPS_TOTAL / BATCH_SIZE;
+static_assert(N_BATCHES == STEPS_TOTAL_ALL_RANKS / BATCH_SIZE_TOTAL);
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_SMALL
+static constexpr TI NUM_EPOCHS = 3;
+#else
 static constexpr TI NUM_EPOCHS = 1000000;
+#endif
 static constexpr TI TEACHER_FORCING_EPOCHS = 0;
 static constexpr T TEACHER_FORCING_FRACTION = 0.0;
 static constexpr T EFFECTIVE_TEACHER_FORCING_FRACTION = STATE_ESTIMATION_MODE ? static_cast<T>(1) : TEACHER_FORCING_FRACTION;
 static constexpr TI N_TRAIN_PASSES = 4;
 static constexpr TI VIDEO_CADENCE = 10;
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_SMALL
+static constexpr TI CHECKPOINT_CADENCE = 2;
+#else
 static constexpr TI CHECKPOINT_CADENCE = 1000;
+#endif
 static constexpr bool EXPORT_CHECKPOINT_TAR = false;
 static constexpr bool EXPORT_CHECKPOINT_CODE = false;
 static constexpr TI N_EXAMPLES = 512;
@@ -455,11 +509,11 @@ namespace imitation_kernels{
         T* scene_yaw_cos_arr,
         T* scene_yaw_sin_arr,
         T* positions_ptr, TI* num_positions_ptr, TI* env_scene_ptr, TI max_indoor_pos,
-        RNG rng, TI step_i, TI episode_step_limit
+        TI environment_offset, RNG rng, TI step_i, TI episode_step_limit
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i >= N_ENVIRONMENTS) return;
-        auto& rng_state = rl_tools::get(rng.states, 0, env_i);
+        auto& rng_state = rl_tools::get(rng.states, 0, environment_offset + env_i);
         auto& env = envs[env_i];
         auto& params = env_params[env_i];
         auto& state = states[env_i];
@@ -535,11 +589,11 @@ namespace imitation_kernels{
         ENVIRONMENT* envs, typename ENVIRONMENT::Parameters* env_params, typename ENVIRONMENT::State* states,
         bool* terminated_flags, TI* episode_step_arr, T* episode_return_arr,
         T* teacher_actions_ptr, T_ACTIVATION* student_actions_ptr, T_ACTIVATION* all_targets_ptr,
-        RNG rng, TI step_i
+        TI environment_offset, RNG rng, TI step_i
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i >= N_ENVIRONMENTS) return;
-        auto& rng_state = rl_tools::get(rng.states, 0, env_i);
+        auto& rng_state = rl_tools::get(rng.states, 0, environment_offset + env_i);
         auto& env = envs[env_i];
         auto& params = env_params[env_i];
         auto& state = states[env_i];
@@ -912,11 +966,11 @@ __global__ void brightness_apply_kernel(float* __restrict__ obs, const float* __
     obs[global_idx] = fminf(fmaxf(obs[global_idx] * scale, 0.0f), 1.0f);
 }
 
-__global__ void observation_noise_kernel(float* __restrict__ obs, int n, float std, unsigned long long seed){
+__global__ void observation_noise_kernel(float* __restrict__ obs, int n, float std, unsigned long long seed, unsigned long long subsequence_offset){
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if(idx >= n) return;
     curandState rng_state;
-    curand_init(seed, idx, 0, &rng_state);
+    curand_init(seed, subsequence_offset + idx, 0, &rng_state);
     float val = obs[idx] + curand_normal(&rng_state) * std;
     obs[idx] = fminf(fmaxf(val, 0.0f), 1.0f);
 }
@@ -961,66 +1015,108 @@ __global__ void build_frame_stacked_with_target_from_history_kernel(
 #endif
 }
 
-int main(int argc, char** argv){
 #ifdef RL_TOOLS_DEBUG_CUDA_CHECK
 #define CUDA_CHECK(msg) { cudaError_t e = cudaGetLastError(); if(e != cudaSuccess){ std::cerr << "CUDA ERROR [" << msg << "]: " << cudaGetErrorString(e) << std::endl; return 1; } e = cudaDeviceSynchronize(); if(e != cudaSuccess){ std::cerr << "CUDA SYNC ERROR [" << msg << "]: " << cudaGetErrorString(e) << std::endl; return 1; } }
 #else
 #define CUDA_CHECK(msg) ((void)0)
 #endif
-    TI seed = 0;
-    if(argc < 2){
-        std::cerr << "Usage: " << argv[0] << " <scene_directory or scene.glb> [seed]" << std::endl;
-        return 1;
-    }
-    if(argc > 2){
-        seed = std::atoi(argv[2]);
-    }
 
-    static constexpr TI EPOCHS_PER_SCENE = 50;
-    static constexpr TI RENDER_TIMING_SAMPLE_PERIOD = 16;
-
+// =========================================================================
+// Multi-GPU sharding: one rank (thread, devices::CUDA, renderers, epoch dataset, student replica)
+// per GPU. Ranks are synchronous data-parallel replicas; their only coupling is the gradient
+// all-reduce after every backward pass, so per-rank constants above describe one GPU and the
+// effective batch/environment count scales with the number of ranks
+// =========================================================================
+struct Barrier{
+    std::mutex mutex;
+    std::condition_variable condition;
+    TI count;
+    TI waiting = 0;
+    TI generation = 0;
+    explicit Barrier(TI count): count(count){}
+    void wait(){
+        std::unique_lock<std::mutex> lock(mutex);
+        TI current_generation = generation;
+        if(++waiting == count){
+            waiting = 0;
+            generation++;
+            condition.notify_all();
+        } else {
+            condition.wait(lock, [&]{ return current_generation != generation; });
+        }
+    }
+};
+struct RankEpochStatistics{
+    T loss_sum = 0;
+    TI loss_count = 0;
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+    T position_mse_sum = 0;
+    T linear_velocity_mse_sum = 0;
+    T orientation_mse_sum = 0;
+    T orientation_angle_error_sum = 0;
+#endif
+    std::array<T, 7> episode_statistics{};
+};
+struct SharedState{
+    Barrier barrier;
+    std::mutex io_mutex;
+    std::vector<DEVICE_GPU*> devices;
+    std::vector<std::vector<STUDENT_TYPE*>> peer_gradient; // [target rank][source rank]: shadow on the target's GPU receiving the source's gradient
+    std::vector<RankEpochStatistics> epoch_statistics;
+    std::vector<CPU_STUDENT_TYPE*> consistency_students;
+    SharedState(): barrier(N_RANKS), devices(N_RANKS, nullptr), peer_gradient(N_RANKS, std::vector<STUDENT_TYPE*>(N_RANKS, nullptr)), epoch_statistics(N_RANKS), consistency_students(N_RANKS, nullptr){}
+};
+struct RankArguments{
+    TI rank;
+    TI seed;
     std::vector<std::string> scene_paths;
-    std::mt19937 scene_rng(seed);
-    const char* scene_arg = argv[1];
-    if(std::filesystem::is_directory(scene_arg)){
-        std::vector<std::string> all_glbs;
-        for(auto& entry : std::filesystem::directory_iterator(scene_arg)){
-            if(entry.path().extension() == ".glb"){
-                all_glbs.push_back(entry.path().string());
-            }
+};
+[[noreturn]] void fatal_exit(){
+    std::cout.flush();
+    std::cerr.flush();
+    std::_Exit(1);
+}
+// Every rank pushes its gradient into the peers' shadows (enqueued on its own stream, right behind
+// its backward pass), then reduces the rank-indexed buffers with a fixed pairwise tree. All ranks
+// evaluate the same sums with the same operand order, so the reduced gradient is bit-identical on
+// every rank and the Adam replicas stay in lockstep without any parameter broadcast. The two host
+// barriers bracket the transfers: the first guarantees the previous reduction finished reading the
+// shadows before they are overwritten, the second that all pushes landed before they are read
+void all_reduce_gradient(SharedState& shared, TI rank, DEVICE_GPU& device_gpu, STUDENT_TYPE& student, std::vector<STUDENT_TYPE>& peer_gradients){
+    cudaStreamSynchronize(device_gpu.stream);
+    shared.barrier.wait();
+    for(TI peer = 0; peer < N_RANKS; peer++){
+        if(peer != rank){
+            rlt::copy_gradient(device_gpu, *shared.devices[peer], student, *shared.peer_gradient[peer][rank]);
         }
-        std::sort(all_glbs.begin(), all_glbs.end(), [](const std::string& a, const std::string& b){
-            auto extract_number = [](const std::string& path) -> int {
-                auto filename = std::filesystem::path(path).stem().string();
-                auto pos = filename.rfind('-');
-                if(pos != std::string::npos){
-                    try { return std::stoi(filename.substr(pos + 1)); } catch(...) {}
-                }
-                return 0;
-            };
-            return extract_number(a) < extract_number(b);
-        });
-
-        if(static_cast<TI>(all_glbs.size()) < N_TOTAL_SCENES){
-            std::cerr << "Need at least " << N_TOTAL_SCENES << " GLB scenes, found " << all_glbs.size() << std::endl;
-            return 1;
-        }
-        for(TI i = 0; i < N_TOTAL_SCENES; i++){
-            scene_paths.push_back(all_glbs[i]);
-        }
-        std::cout << "Selected " << scene_paths.size() << " scenes from " << scene_arg << std::endl;
-        for(TI i = 0; i < scene_paths.size(); i++){
-            std::cout << "  [" << i << "] " << std::filesystem::path(scene_paths[i]).filename().string() << std::endl;
-        }
-    } else {
-        scene_paths.resize(N_TOTAL_SCENES, scene_arg);
-        std::cout << "Replicating single scene across " << N_TOTAL_SCENES << " renderers: " << scene_arg << std::endl;
     }
-    if(scene_paths.size() != N_TOTAL_SCENES){
-        std::cerr << "Expected exactly " << N_TOTAL_SCENES << " scenes, got " << scene_paths.size() << std::endl;
-        return 1;
+    cudaStreamSynchronize(device_gpu.stream);
+    shared.barrier.wait();
+    std::vector<STUDENT_TYPE*> buffers(N_RANKS);
+    for(TI peer = 0; peer < N_RANKS; peer++){
+        buffers[peer] = peer == rank ? &student : &peer_gradients[peer];
     }
+    for(TI stride = 1; stride < N_RANKS; stride *= 2){
+        for(TI i = 0; i + stride < N_RANKS; i += 2 * stride){
+            rlt::add_gradient(device_gpu, *buffers[i + stride], *buffers[i]);
+        }
+    }
+    if(rank != 0){
+        rlt::copy_gradient(device_gpu, device_gpu, *buffers[0], student);
+    }
+}
 
+int run_rank(SharedState& shared, const RankArguments& arguments){
+    const TI rank = arguments.rank;
+    const TI seed = arguments.seed;
+    const TI rank_environment_offset = rank * N_ENVIRONMENTS;
+    static_assert(N_ENVIRONMENTS_TOTAL <= RNG_GPU::NUM_RNGS, "Every global environment needs its own CUDA RNG stream");
+    const std::vector<std::string>& scene_paths = arguments.scene_paths;
+    const TI rank_scene_begin = scene_bucket_begin(rank * BUCKETS_PER_RANK);
+    const TI rank_scene_end = scene_bucket_end((rank + 1) * BUCKETS_PER_RANK - 1);
+    static constexpr TI RENDER_TIMING_SAMPLE_PERIOD = 16;
+    cudaSetDevice(static_cast<int>(rank));
+    std::mt19937 scene_rng(seed); // identical on every rank: the per-bucket draws of all buckets are reproduced without communication
     DEVICE device;
     DEVICE_GPU device_gpu;
     rlt::init(device);
@@ -1032,7 +1128,9 @@ int main(int argc, char** argv){
 #else
     extrack_config.name = "l2f_visual_imitation_cuda";
 #endif
-    rlt::init(device, extrack_config, extrack_paths, seed);
+    if(rank == 0){
+        rlt::init(device, extrack_config, extrack_paths, seed);
+    }
 
     RNG rng;
     rlt::malloc(device, rng);
@@ -1070,7 +1168,7 @@ int main(int argc, char** argv){
     using CPU_STUDENT_INIT_TYPE = typename StudentActor<CAPABILITY_ADAM, TEACHER_TYPE_POLICY>::MODEL;
     CPU_STUDENT_INIT_TYPE student_cpu;
     rlt::malloc(device, student_cpu);
-    rlt::init_weights(device, student_cpu, rng);
+    rlt::init_weights(device, student_cpu, rng); // rng continues identically on every rank (batch order must agree across ranks)
 
     // =========================================================================
     // Environment setup (N renderers for N scenes)
@@ -1090,10 +1188,11 @@ int main(int argc, char** argv){
     std::deque<ANNOTATIONS_TYPE> procthor_annotations;
     std::array<ANNOTATIONS_TYPE*, N_TOTAL_SCENES> annotations{};
 
-    // Load all scenes
+    // Load all scenes (serialized across ranks: OWL context creation is not known to be thread-safe)
     {
-        for(TI s = 0; s < N_TOTAL_SCENES; s++){
-            std::cout << "Loading scene [" << s << "]: " << std::filesystem::path(scene_paths[s]).filename().string() << std::flush;
+        std::lock_guard<std::mutex> loading_lock(shared.io_mutex);
+        for(TI s = rank_scene_begin; s < rank_scene_end; s++){
+            std::cout << "[rank " << rank << "] Loading scene [" << s << "]: " << std::filesystem::path(scene_paths[s]).filename().string() << std::flush;
             renderers[s] = &(*renderer_storage)[s];
             rlt::malloc(device, *renderers[s], *library);
             rlt::rendering::Bundle<T> bundle;
@@ -1110,11 +1209,11 @@ int main(int argc, char** argv){
             std::cout << " — " << num_pos << " indoor positions" << std::endl;
             if(num_pos == 0){
                 std::cerr << "Scene has no valid positions with 1m clearance: " << scene_paths[s] << std::endl;
-                return 1;
+                fatal_exit();
             }
             annotations[s] = &procthor_annotations[scene_id];
         }
-        std::cout << "Loaded " << N_TOTAL_SCENES << " scenes" << std::endl;
+        std::cout << "[rank " << rank << "] Loaded " << (rank_scene_end - rank_scene_begin) << " scenes (buckets " << rank * BUCKETS_PER_RANK << ".." << (rank + 1) * BUCKETS_PER_RANK - 1 << ")" << std::endl;
     }
 
     // GPU buffers for per-scene indoor positions
@@ -1128,7 +1227,7 @@ int main(int argc, char** argv){
     {
         std::vector<T> all_positions(N_TOTAL_SCENES * MAX_INDOOR_POS * INDOOR_POSITION_DIM, 0);
         std::vector<TI> all_counts(N_TOTAL_SCENES);
-        for(TI s = 0; s < N_TOTAL_SCENES; s++){
+        for(TI s = rank_scene_begin; s < rank_scene_end; s++){
             all_counts[s] = annotations[s]->num_positions;
             for(TI i = 0; i < all_counts[s]; i++){
                 TI base = (s * MAX_INDOOR_POS + i) * INDOOR_POSITION_DIM;
@@ -1142,13 +1241,27 @@ int main(int argc, char** argv){
     }
 
     std::array<TI, N_ACTIVE_SCENES> active_scene_indices{};
-    std::vector<TI> scene_permutation(N_TOTAL_SCENES);
-    std::iota(scene_permutation.begin(), scene_permutation.end(), 0);
+    std::array<TI, N_ACTIVE_SCENES_TOTAL> global_slot_scenes{};
+    std::vector<TI> bucket_scenes;
+    auto draw_active_scenes = [&](){
+        for(TI bucket = 0; bucket < N_SCENE_BUCKETS; bucket++){
+            bucket_scenes.resize(scene_bucket_end(bucket) - scene_bucket_begin(bucket));
+            std::iota(bucket_scenes.begin(), bucket_scenes.end(), scene_bucket_begin(bucket));
+            std::shuffle(bucket_scenes.begin(), bucket_scenes.end(), scene_rng);
+            for(TI slot = 0; slot < SLOTS_PER_BUCKET; slot++){
+                global_slot_scenes[bucket * SLOTS_PER_BUCKET + slot] = bucket_scenes[slot];
+            }
+        }
+        for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
+            active_scene_indices[active_scene_i] = global_slot_scenes[rank * N_ACTIVE_SCENES + active_scene_i];
+        }
+    };
     auto upload_active_scenes = [&](){
+        std::lock_guard<std::mutex> io_lock(shared.io_mutex); // std::cout is unbuffered per operator<<, so rank prints interleave without it
         std::array<TI, N_ENVIRONMENTS> env_scene{};
         for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
             TI actual_scene_i = active_scene_indices[active_scene_i];
-            std::cout << "  Active scene slot " << active_scene_i << " -> scene " << actual_scene_i << std::endl;
+            std::cout << "[rank " << rank << "]   Active scene slot " << active_scene_i << " -> scene " << actual_scene_i << std::endl;
             for(TI local_env_i = 0; local_env_i < N_ENVIRONMENTS_PER_SCENE; local_env_i++){
                 env_scene[active_scene_i * N_ENVIRONMENTS_PER_SCENE + local_env_i] = actual_scene_i;
             }
@@ -1156,7 +1269,7 @@ int main(int argc, char** argv){
         cudaMemcpy(gpu_env_scene, env_scene.data(), N_ENVIRONMENTS * sizeof(TI), cudaMemcpyHostToDevice);
     };
     for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
-        active_scene_indices[active_scene_i] = active_scene_i;
+        active_scene_indices[active_scene_i] = scene_bucket_begin(rank * BUCKETS_PER_RANK + active_scene_i / SLOTS_PER_BUCKET) + active_scene_i % SLOTS_PER_BUCKET;
     }
     upload_active_scenes();
 
@@ -1176,7 +1289,7 @@ int main(int argc, char** argv){
     }
     auto& env0 = envs[0];
 
-    {
+    if(rank == 0){
         std::string ui = rlt::get_ui(device, envs[0].dynamics);
         if(!ui.empty()){
             std::filesystem::create_directories(extrack_paths.seed);
@@ -1205,7 +1318,7 @@ int main(int argc, char** argv){
     rlt::init(device_gpu);
     RNG_GPU rng_gpu;
     rlt::malloc(device_gpu, rng_gpu);
-    rlt::init(device_gpu, rng_gpu, seed);
+    rlt::init(device_gpu, rng_gpu, seed); // stream i belongs to global environment i (indexed with rank_environment_offset in the kernels)
 
     STUDENT_TYPE student_gpu;
     STUDENT_BUFFERS student_buffers;
@@ -1216,6 +1329,22 @@ int main(int argc, char** argv){
     rlt::copy(device, device_gpu, student_cpu, student_gpu);
     rlt::init(device_gpu, optimizer_gpu);
     rlt::reset_optimizer_state(device_gpu, optimizer_gpu, student_gpu);
+    std::vector<STUDENT_TYPE> peer_gradients(N_RANKS);
+    for(TI peer = 0; peer < N_RANKS; peer++){
+        if(peer != rank){
+            rlt::malloc(device_gpu, peer_gradients[peer]);
+        }
+    }
+    CPU_STUDENT_TYPE consistency_student;
+    rlt::malloc(device, consistency_student);
+    shared.devices[rank] = &device_gpu;
+    for(TI peer = 0; peer < N_RANKS; peer++){
+        if(peer != rank){
+            shared.peer_gradient[rank][peer] = &peer_gradients[peer];
+        }
+    }
+    shared.consistency_students[rank] = &consistency_student;
+    shared.barrier.wait();
     using ROLLOUT_STUDENT_TYPE = typename STUDENT_TYPE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<true>>::template CHANGE_BATCH_SIZE<TI, N_ENVIRONMENTS>;
     ROLLOUT_STUDENT_TYPE rollout_student_gpu;
     typename ROLLOUT_STUDENT_TYPE::template Buffer<true> rollout_student_buffers;
@@ -1329,7 +1458,7 @@ int main(int argc, char** argv){
         cudaError_t allocation_status = cudaMalloc((void**)rlt::data_pointer(gpu_all_combined_observations), combined_observations_bytes);
         if(allocation_status != cudaSuccess){
             std::cerr << "Failed to allocate gpu_all_combined_observations: " << cudaGetErrorString(allocation_status) << std::endl;
-            return 1;
+            fatal_exit();
         }
     }
     TI* gpu_episode_start_step = nullptr;
@@ -1418,34 +1547,37 @@ int main(int argc, char** argv){
     // =========================================================================
     // Training loop
     // =========================================================================
-    std::cout << "Starting imitation learning (visual L2F hover, CUDA)" << std::endl;
+    if(rank == 0){
+        std::cout << "  N_RANKS: " << N_RANKS << " (N_ENVIRONMENTS_TOTAL: " << N_ENVIRONMENTS_TOTAL << ", BATCH_SIZE_TOTAL: " << BATCH_SIZE_TOTAL << ", N_SCENE_BUCKETS: " << N_SCENE_BUCKETS << ")" << std::endl;
+        std::cout << "Starting imitation learning (visual L2F hover, CUDA)" << std::endl;
 #ifdef RL_TOOLS_L2F_VISUAL_IMITATION_BLIND_TRAINING
-    std::cout << "  [BLIND_TRAINING] enabled - visual observations zeroed at kernel level" << std::endl;
+        std::cout << "  [BLIND_TRAINING] enabled - visual observations zeroed at kernel level" << std::endl;
 #endif
-    std::cout << "  N_ENVIRONMENTS: " << N_ENVIRONMENTS << std::endl;
-    std::cout << "  STEPS_PER_ENV: " << STEPS_PER_ENV << std::endl;
-    std::cout << "  BATCH_SIZE: " << BATCH_SIZE << std::endl;
-    std::cout << "  N_BATCHES: " << N_BATCHES << std::endl;
-    std::cout << "  N_TRAIN_PASSES: " << N_TRAIN_PASSES << std::endl;
-    std::cout << "  OBSERVATION_DIM (image): " << OBSERVATION_DIM << std::endl;
-    std::cout << "  STATE_OBS_DIM: " << STATE_OBS_DIM << std::endl;
-    std::cout << "  RAPTOR_OBS_DIM: " << RAPTOR_OBS_DIM << std::endl;
-    std::cout << "  TARGET_DIM: " << TARGET_DIM << std::endl;
+        std::cout << "  N_ENVIRONMENTS: " << N_ENVIRONMENTS << std::endl;
+        std::cout << "  STEPS_PER_ENV: " << STEPS_PER_ENV << std::endl;
+        std::cout << "  BATCH_SIZE: " << BATCH_SIZE << std::endl;
+        std::cout << "  N_BATCHES: " << N_BATCHES << std::endl;
+        std::cout << "  N_TRAIN_PASSES: " << N_TRAIN_PASSES << std::endl;
+        std::cout << "  OBSERVATION_DIM (image): " << OBSERVATION_DIM << std::endl;
+        std::cout << "  STATE_OBS_DIM: " << STATE_OBS_DIM << std::endl;
+        std::cout << "  RAPTOR_OBS_DIM: " << RAPTOR_OBS_DIM << std::endl;
+        std::cout << "  TARGET_DIM: " << TARGET_DIM << std::endl;
 #ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
-    std::cout << "  [STATE_ESTIMATION] enabled - targets are relative position, linear velocity, and relative orientation in body frame" << std::endl;
+        std::cout << "  [STATE_ESTIMATION] enabled - targets are relative position, linear velocity, and relative orientation in body frame" << std::endl;
 #endif
-    std::cout << "  TEACHER_FORCING_EPOCHS: " << TEACHER_FORCING_EPOCHS << std::endl;
-    std::cout << "  TEACHER_FORCING_FRACTION: " << EFFECTIVE_TEACHER_FORCING_FRACTION << std::endl;
-    std::cout << "  FRAME_STACK_N: " << FRAME_STACK_N << std::endl;
-    std::cout << "  FRAME_STACK_STRIDE: " << FRAME_STACK_STRIDE << " (" << (FRAME_STACK_STRIDE > 0 ? SIMULATION_FREQUENCY / FRAME_STACK_STRIDE : SIMULATION_FREQUENCY) << " Hz)" << std::endl;
-    std::cout << "  STACKED_IMG_C: " << STACKED_IMG_C << std::endl;
-    std::cout << "  COMBINED_IMG_C: " << COMBINED_IMG_C << std::endl;
-    std::cout << "  RENDER_AA: " << (RENDER_ANTI_ALIASING_ACTIVE ? "on" : "off") << " grid=" << (RENDER_ANTI_ALIASING_ACTIVE ? RENDER_ANTI_ALIASING_GRID_SIZE : (TI)1) << std::endl;
-    std::cout << "  RENDER_MOTION_BLUR: " << (RENDER_MOTION_BLUR_ACTIVE ? "on" : "off") << " samples=" << (RENDER_MOTION_BLUR_ACTIVE ? RENDER_MOTION_BLUR_SAMPLES : (TI)1) << " shutter=[" << RENDER_SHUTTER_FRACTION_MIN << ", " << RENDER_SHUTTER_FRACTION_MAX << "]" << std::endl;
-    std::cout << "  TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE: "
-              << TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE << " rad ("
-              << TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE * static_cast<T>(180) / rlt::math::PI<T> << " deg)" << std::endl;
-    std::cout << "  TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE: " << TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE << std::endl;
+        std::cout << "  TEACHER_FORCING_EPOCHS: " << TEACHER_FORCING_EPOCHS << std::endl;
+        std::cout << "  TEACHER_FORCING_FRACTION: " << EFFECTIVE_TEACHER_FORCING_FRACTION << std::endl;
+        std::cout << "  FRAME_STACK_N: " << FRAME_STACK_N << std::endl;
+        std::cout << "  FRAME_STACK_STRIDE: " << FRAME_STACK_STRIDE << " (" << (FRAME_STACK_STRIDE > 0 ? SIMULATION_FREQUENCY / FRAME_STACK_STRIDE : SIMULATION_FREQUENCY) << " Hz)" << std::endl;
+        std::cout << "  STACKED_IMG_C: " << STACKED_IMG_C << std::endl;
+        std::cout << "  COMBINED_IMG_C: " << COMBINED_IMG_C << std::endl;
+        std::cout << "  RENDER_AA: " << (RENDER_ANTI_ALIASING_ACTIVE ? "on" : "off") << " grid=" << (RENDER_ANTI_ALIASING_ACTIVE ? RENDER_ANTI_ALIASING_GRID_SIZE : (TI)1) << std::endl;
+        std::cout << "  RENDER_MOTION_BLUR: " << (RENDER_MOTION_BLUR_ACTIVE ? "on" : "off") << " samples=" << (RENDER_MOTION_BLUR_ACTIVE ? RENDER_MOTION_BLUR_SAMPLES : (TI)1) << " shutter=[" << RENDER_SHUTTER_FRACTION_MIN << ", " << RENDER_SHUTTER_FRACTION_MAX << "]" << std::endl;
+        std::cout << "  TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE: "
+                  << TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE << " rad ("
+                  << TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE * static_cast<T>(180) / rlt::math::PI<T> << " deg)" << std::endl;
+        std::cout << "  TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE: " << TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE << std::endl;
+    }
 
     using NO_AUTO_RESET_MODE = rlt::Mode<rlt::nn::layers::gru::NoAutoResetMode<rlt::mode::Default<>>>;
     NO_AUTO_RESET_MODE no_auto_reset_mode;
@@ -1474,10 +1606,7 @@ int main(int argc, char** argv){
         std::array<void*, N_ACTIVE_SCENES> active_scene_camera_buffers{};
         std::array<void*, N_ACTIVE_SCENES> active_scene_camera_open_buffers{};
         std::array<const float*, N_ACTIVE_SCENES> active_scene_observation_ptrs{};
-        std::shuffle(scene_permutation.begin(), scene_permutation.end(), scene_rng);
-        for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
-            active_scene_indices[active_scene_i] = scene_permutation[active_scene_i];
-        }
+        draw_active_scenes();
         upload_active_scenes();
         for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
             TI active_scene_i = env_i / N_ENVIRONMENTS_PER_SCENE;
@@ -1509,8 +1638,8 @@ int main(int argc, char** argv){
             render_shutter_fraction = rlt::random::uniform_real_distribution(device.random, RENDER_SHUTTER_FRACTION_MIN, RENDER_SHUTTER_FRACTION_MAX, rng);
         }
         bool full_teacher_forcing = STATE_ESTIMATION_MODE;
-        bool record_video = (epoch_i % CHECKPOINT_CADENCE == 0);
-        bool record_trajectories = (epoch_i % CHECKPOINT_CADENCE == 0);
+        bool record_video = (rank == 0 && epoch_i % CHECKPOINT_CADENCE == 0);
+        bool record_trajectories = (rank == 0 && epoch_i % CHECKPOINT_CADENCE == 0);
         if(record_trajectories){
             for(TI env_i = 0; env_i < TRAJECTORY_NUM_ENVS; env_i++){
                 episode_recorders[env_i].current_episode.clear();
@@ -1518,7 +1647,7 @@ int main(int argc, char** argv){
             }
             completed_episodes.clear();
         }
-        TI epoch_end_step = global_step + STEPS_PER_ENV * N_ENVIRONMENTS;
+        TI epoch_end_step = global_step + STEPS_TOTAL_ALL_RANKS;
         FILE* ffmpeg_pipe = nullptr;
         if(record_video){
             auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, epoch_end_step);
@@ -1543,6 +1672,7 @@ int main(int argc, char** argv){
         float epoch_train_forward_time_ms = 0;
         float epoch_train_backward_time_ms = 0;
         float epoch_train_update_time_ms = 0;
+        float epoch_all_reduce_time_ms = 0;
         TI epoch_train_forward_calls = 0;
         TI epoch_train_backward_calls = 0;
         TI epoch_train_update_calls = 0;
@@ -1579,7 +1709,7 @@ int main(int argc, char** argv){
                     gpu_scene_yaw_cos_arr,
                     gpu_scene_yaw_sin_arr,
                     gpu_positions, gpu_num_positions, gpu_env_scene, MAX_INDOOR_POS,
-                    rng_gpu, step_i, current_episode_step_limit);
+                    rank_environment_offset, rng_gpu, step_i, current_episode_step_limit);
                 CUDA_CHECK("prologue_kernel");
                 if(record_trajectories){
                     cudaMemcpyAsync(cpu_prestep_state_buf.data(), gpu_states_arr, TRAJECTORY_NUM_ENVS * sizeof(typename ENVIRONMENT::State), cudaMemcpyDeviceToHost, device_gpu.stream);
@@ -1648,7 +1778,7 @@ int main(int argc, char** argv){
                     int noise_block = 256;
                     int noise_grid = (NOISE_N + noise_block - 1) / noise_block;
                     unsigned long long noise_seed = seed + (unsigned long long)epoch_i * STEPS_PER_ENV + step_i;
-                    observation_noise_kernel<<<noise_grid, noise_block, 0, device_gpu.stream>>>(obs_ptr, NOISE_N, OBSERVATION_NOISE_STD, noise_seed);
+                    observation_noise_kernel<<<noise_grid, noise_block, 0, device_gpu.stream>>>(obs_ptr, NOISE_N, OBSERVATION_NOISE_STD, noise_seed, static_cast<unsigned long long>(rank_environment_offset) * OBSERVATION_DIM);
                     CUDA_CHECK("observation_noise_kernel");
                 }
                 if constexpr(OBSERVATION_NOISE_STD > 0 && BRIGHTNESS_RANDOMIZATION_RANGE > 0){
@@ -1785,7 +1915,7 @@ int main(int argc, char** argv){
                         rlt::data(gpu_teacher_actions_step),
                         rlt::data(gpu_student_output_step),
                         rlt::data(gpu_all_targets),
-                        rng_gpu, step_i);
+                        rank_environment_offset, rng_gpu, step_i);
                 }
                 CUDA_CHECK("epilogue_kernel");
                 if(record_trajectories){
@@ -1821,7 +1951,7 @@ int main(int argc, char** argv){
                         rec.current_episode.push_back(ts);
                     }
                 }
-                global_step += N_ENVIRONMENTS;
+                global_step += N_ENVIRONMENTS_TOTAL;
             }
         }
         if(record_trajectories){
@@ -1882,7 +2012,7 @@ int main(int argc, char** argv){
                 auto student_output_matrix = rlt::matrix_view(device_gpu, gpu_student_output_train);
                 auto target_batch_tensor = rlt::view_range(device_gpu, gpu_all_targets, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
                 auto target_batch = rlt::matrix_view(device_gpu, target_batch_tensor);
-                rlt::nn::loss_functions::mse::gradient(device_gpu, student_output_matrix, target_batch, gpu_d_action_train, (T)0.5);
+                rlt::nn::loss_functions::mse::gradient(device_gpu, student_output_matrix, target_batch, gpu_d_action_train, (T)0.5 / static_cast<T>(N_RANKS)); // the reduction sums the per-rank gradients, so the loss weight carries the 1/N_RANKS of the mean
 
                 // Compute loss for logging
                 if(pass == 0){
@@ -1909,6 +2039,11 @@ int main(int argc, char** argv){
                 { auto inputs = rlt::nn_models::parallel::pack_inputs(gpu_combined_batch_reshaped, gpu_state_obs_batch_reshaped); rlt::backward(device_gpu, student_gpu, inputs, gpu_d_action_reshaped, student_buffers); }
                 cudaEventRecord(train_backward_stop_events[train_backward_call_i], device_gpu.stream);
                 epoch_train_backward_calls++;
+                if(N_RANKS > 1){
+                    auto all_reduce_start = std::chrono::high_resolution_clock::now();
+                    all_reduce_gradient(shared, rank, device_gpu, student_gpu, peer_gradients);
+                    epoch_all_reduce_time_ms += std::chrono::duration<float, std::milli>(std::chrono::high_resolution_clock::now() - all_reduce_start).count();
+                }
                 TI train_update_call_i = epoch_train_update_calls;
                 cudaEventRecord(train_update_start_events[train_update_call_i], device_gpu.stream);
                 rlt::step(device_gpu, optimizer_gpu, student_gpu);
@@ -1953,15 +2088,6 @@ int main(int argc, char** argv){
 #endif
             }
         }
-        epoch_loss = epoch_loss_count > 0 ? epoch_loss_sum / epoch_loss_count : (T)0;
-#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
-        if(epoch_loss_count > 0){
-            epoch_position_mse /= static_cast<T>(epoch_loss_count);
-            epoch_linear_velocity_mse /= static_cast<T>(epoch_loss_count);
-            epoch_orientation_mse /= static_cast<T>(epoch_loss_count);
-            epoch_orientation_angle_error_rad /= static_cast<T>(epoch_loss_count);
-        }
-#endif
         rlt::copy(device_gpu, device_gpu, student_gpu, rollout_student_gpu);
         if(epoch_train_forward_calls == 0 && epoch_train_backward_calls == 0 && epoch_train_update_calls == 0){
             cudaStreamSynchronize(device_gpu.stream);
@@ -1994,6 +2120,44 @@ int main(int argc, char** argv){
             gpu_epoch_episode_stats
         );
         cudaMemcpy(cpu_epoch_episode_stats.data(), gpu_epoch_episode_stats, cpu_epoch_episode_stats.size() * sizeof(T), cudaMemcpyDeviceToHost);
+        if(N_RANKS > 1){
+            RankEpochStatistics& rank_statistics = shared.epoch_statistics[rank];
+            rank_statistics.loss_sum = epoch_loss_sum;
+            rank_statistics.loss_count = epoch_loss_count;
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+            rank_statistics.position_mse_sum = epoch_position_mse;
+            rank_statistics.linear_velocity_mse_sum = epoch_linear_velocity_mse;
+            rank_statistics.orientation_mse_sum = epoch_orientation_mse;
+            rank_statistics.orientation_angle_error_sum = epoch_orientation_angle_error_rad;
+#endif
+            rank_statistics.episode_statistics = cpu_epoch_episode_stats;
+            shared.barrier.wait();
+            if(rank == 0){
+                for(TI peer = 1; peer < N_RANKS; peer++){
+                    const RankEpochStatistics& peer_statistics = shared.epoch_statistics[peer];
+                    epoch_loss_sum += peer_statistics.loss_sum;
+                    epoch_loss_count += peer_statistics.loss_count;
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+                    epoch_position_mse += peer_statistics.position_mse_sum;
+                    epoch_linear_velocity_mse += peer_statistics.linear_velocity_mse_sum;
+                    epoch_orientation_mse += peer_statistics.orientation_mse_sum;
+                    epoch_orientation_angle_error_rad += peer_statistics.orientation_angle_error_sum;
+#endif
+                    for(TI statistic_i = 0; statistic_i < cpu_epoch_episode_stats.size(); statistic_i++){
+                        cpu_epoch_episode_stats[statistic_i] += peer_statistics.episode_statistics[statistic_i];
+                    }
+                }
+            }
+        }
+        epoch_loss = epoch_loss_count > 0 ? epoch_loss_sum / epoch_loss_count : (T)0;
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+        if(epoch_loss_count > 0){
+            epoch_position_mse /= static_cast<T>(epoch_loss_count);
+            epoch_linear_velocity_mse /= static_cast<T>(epoch_loss_count);
+            epoch_orientation_mse /= static_cast<T>(epoch_loss_count);
+            epoch_orientation_angle_error_rad /= static_cast<T>(epoch_loss_count);
+        }
+#endif
         episode_length_sum_tf = cpu_epoch_episode_stats[0];
         episode_count_tf = static_cast<TI>(cpu_epoch_episode_stats[1]);
         episode_length_sum_student = cpu_epoch_episode_stats[2];
@@ -2006,339 +2170,367 @@ int main(int argc, char** argv){
         T complete_terminated_share = complete_episode_count > 0 ? static_cast<T>(episode_count_terminated) / static_cast<T>(complete_episode_count) : (T)0;
         T complete_episode_length = complete_episode_count > 0 ? complete_episode_length_sum / static_cast<T>(complete_episode_count) : (T)0;
 
-        // Logging
-        auto now = std::chrono::high_resolution_clock::now();
-        std::chrono::duration<T> training_elapsed = now - training_start;
-        std::chrono::duration<T> epoch_elapsed = now - epoch_start;
-        T mean_episode_length_tf = episode_count_tf > 0 ? episode_length_sum_tf / episode_count_tf : 0;
-        T mean_episode_length_student = episode_count_student > 0 ? episode_length_sum_student / episode_count_student : 0;
-        TI episode_count = episode_count_tf + episode_count_student;
-        T mean_episode_length = episode_count > 0 ? (episode_length_sum_tf + episode_length_sum_student) / episode_count : 0;
-        T fps = epoch_elapsed.count() > 0 ? static_cast<T>(STEPS_TOTAL) / epoch_elapsed.count() : 0;
-        T render_time_s = static_cast<T>(epoch_render_time_ms) / static_cast<T>(1000);
-        T render_gpu_time_s = static_cast<T>(epoch_render_gpu_time_ms) / static_cast<T>(1000);
-        T render_fps = render_time_s > 0 ? static_cast<T>(STEPS_PER_ENV * N_ENVIRONMENTS) / render_time_s : 0;
-        T render_pct = epoch_elapsed.count() > 0 ? static_cast<T>(100) * render_time_s / epoch_elapsed.count() : 0;
-        T render_gpu_fps = render_gpu_time_s > 0 ? static_cast<T>(STEPS_PER_ENV * N_ENVIRONMENTS) / render_gpu_time_s : 0;
-        T render_gpu_pct = epoch_elapsed.count() > 0 ? static_cast<T>(100) * render_gpu_time_s / epoch_elapsed.count() : 0;
-        T train_forward_time_s = static_cast<T>(epoch_train_forward_time_ms) / static_cast<T>(1000);
-        T train_backward_time_s = static_cast<T>(epoch_train_backward_time_ms) / static_cast<T>(1000);
-        T train_update_time_s = static_cast<T>(epoch_train_update_time_ms) / static_cast<T>(1000);
-        T train_forward_pct = epoch_elapsed.count() > 0 ? static_cast<T>(100) * train_forward_time_s / epoch_elapsed.count() : 0;
-        T train_backward_pct = epoch_elapsed.count() > 0 ? static_cast<T>(100) * train_backward_time_s / epoch_elapsed.count() : 0;
-        T train_update_pct = epoch_elapsed.count() > 0 ? static_cast<T>(100) * train_update_time_s / epoch_elapsed.count() : 0;
-        T train_forward_avg_ms = epoch_train_forward_calls > 0 ? static_cast<T>(epoch_train_forward_time_ms) / static_cast<T>(epoch_train_forward_calls) : 0;
-        T train_backward_avg_ms = epoch_train_backward_calls > 0 ? static_cast<T>(epoch_train_backward_time_ms) / static_cast<T>(epoch_train_backward_calls) : 0;
-        T train_update_avg_ms = epoch_train_update_calls > 0 ? static_cast<T>(epoch_train_update_time_ms) / static_cast<T>(epoch_train_update_calls) : 0;
-
-        std::cout << (full_teacher_forcing ? "[TF] " : "[TF=" + std::to_string((int)(EFFECTIVE_TEACHER_FORCING_FRACTION * 100)) + "%] ")
-                  << "Epoch: " << std::setw(5) << epoch_i
-                  << " MSE: " << std::setw(10) << std::setprecision(6) << std::fixed << epoch_loss
-                  << " mean_ep_len: " << std::setw(6) << std::setprecision(1) << mean_episode_length
-                  << " ep_limit: " << std::setw(3) << current_episode_step_limit
-                  << " episodes: " << std::setw(5) << episode_count
-                  << " term_share: " << std::setw(5) << std::setprecision(2) << std::fixed << episode_terminated_share
-                  << " fps: " << std::setw(7) << std::setprecision(0) << fps
-                  << " render: " << std::setw(5) << std::setprecision(1) << render_time_s << "s"
-                  << " (" << std::setw(4) << std::setprecision(1) << render_pct << "%"
-                  << " " << std::setw(7) << std::setprecision(0) << render_fps << " fps)"
-                  << " render_gpu: " << std::setw(5) << std::setprecision(1) << render_gpu_time_s << "s"
-                  << " (" << std::setw(4) << std::setprecision(1) << render_gpu_pct << "%"
-                  << " " << std::setw(7) << std::setprecision(0) << render_gpu_fps << " fps)"
-                  << " fwd: " << std::setw(5) << std::setprecision(1) << train_forward_time_s << "s"
-                  << " (" << std::setw(4) << std::setprecision(1) << train_forward_pct << "% "
-                  << std::setw(6) << std::setprecision(3) << train_forward_avg_ms << "ms)"
-                  << " bwd: " << std::setw(5) << std::setprecision(1) << train_backward_time_s << "s"
-                  << " (" << std::setw(4) << std::setprecision(1) << train_backward_pct << "% "
-                  << std::setw(6) << std::setprecision(3) << train_backward_avg_ms << "ms)"
-                  << " upd: " << std::setw(5) << std::setprecision(1) << train_update_time_s << "s"
-                  << " (" << std::setw(4) << std::setprecision(1) << train_update_pct << "% "
-                  << std::setw(6) << std::setprecision(3) << train_update_avg_ms << "ms)"
-                  << " epoch_time: " << std::setw(6) << std::setprecision(1) << epoch_elapsed.count() << "s"
-                  << " total: " << std::setw(8) << std::setprecision(1) << training_elapsed.count() << "s";
-#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
-        std::cout << " pos_mse: " << std::setw(10) << std::setprecision(6) << std::fixed << epoch_position_mse
-                  << " vel_mse: " << std::setw(10) << std::setprecision(6) << std::fixed << epoch_linear_velocity_mse
-                  << " ori_mse: " << std::setw(10) << std::setprecision(6) << std::fixed << epoch_orientation_mse
-                  << " ori_deg: " << std::setw(7) << std::setprecision(2) << std::fixed
-                  << epoch_orientation_angle_error_rad * static_cast<T>(180) / rlt::math::PI<T>;
-#endif
-        if constexpr(RENDER_MOTION_BLUR_ACTIVE){
-            std::cout << " shutter: " << std::setw(4) << std::setprecision(2) << render_shutter_fraction;
-        }
-        std::cout << std::endl;
-
-        // same keys as imitation_hyperdrone.cpp so the two targets' curves overlay directly
-        {
-            const std::string metra_prefix = "l2f_visual_imitation";
-            if(epoch_i == 0){
-                metra::log_raw(metra_prefix + "/target", std::string("\"") + extrack_config.name + "\"");
-                metra::log_raw(metra_prefix + "/compute_device", "\"cuda\"");
-                metra::log(metra_prefix + "/n_environments", static_cast<double>(N_ENVIRONMENTS));
-                metra::log(metra_prefix + "/steps_per_env", static_cast<double>(STEPS_PER_ENV));
-                metra::log(metra_prefix + "/seed", static_cast<double>(seed));
+        if(N_RANKS > 1 && epoch_i % CHECKPOINT_CADENCE == 0){
+            // replica oracle: the all-reduce keeps every rank's parameters bit-identical, so the CPU copies must agree exactly
+            rlt::copy(device_gpu, device, student_gpu, consistency_student);
+            shared.barrier.wait();
+            if(rank == 0){
+                std::lock_guard<std::mutex> io_lock(shared.io_mutex);
+                for(TI peer = 1; peer < N_RANKS; peer++){
+                    T parameter_difference = rlt::abs_diff(device, consistency_student, *shared.consistency_students[peer]);
+                    std::cout << "[consistency] epoch " << epoch_i << " parameter abs_diff rank " << peer << " vs rank 0: " << parameter_difference << (parameter_difference == (T)0 ? "" : "  <-- replicas diverged") << std::endl;
+                    metra::log("l2f_visual_imitation/replica_parameter_abs_diff", static_cast<double>(parameter_difference));
+                }
             }
-            metra::log(metra_prefix + "/mse_loss", static_cast<double>(epoch_loss));
-            metra::log(metra_prefix + "/episode_length", static_cast<double>(mean_episode_length));
-            metra::log(metra_prefix + "/episodes", static_cast<double>(episode_count));
-            metra::log(metra_prefix + "/terminated_share", static_cast<double>(episode_terminated_share));
-            metra::log(metra_prefix + "/complete_episode_length", static_cast<double>(complete_episode_length));
-            metra::log(metra_prefix + "/complete_terminated_share", static_cast<double>(complete_terminated_share));
-            metra::log(metra_prefix + "/fps", static_cast<double>(fps));
-            metra::log(metra_prefix + "/epoch_time_s", static_cast<double>(epoch_elapsed.count()));
-#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
-            metra::log(metra_prefix + "/state_estimation/position_mse", static_cast<double>(epoch_position_mse));
-            metra::log(metra_prefix + "/state_estimation/linear_velocity_mse", static_cast<double>(epoch_linear_velocity_mse));
-            metra::log(metra_prefix + "/state_estimation/orientation_mse", static_cast<double>(epoch_orientation_mse));
-            metra::log(metra_prefix + "/state_estimation/orientation_angle_error_deg", static_cast<double>(epoch_orientation_angle_error_rad * static_cast<T>(180) / rlt::math::PI<T>));
-#endif
         }
+        if(rank == 0){
+            // Logging
+            auto now = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<T> training_elapsed = now - training_start;
+            std::chrono::duration<T> epoch_elapsed = now - epoch_start;
+            T mean_episode_length_tf = episode_count_tf > 0 ? episode_length_sum_tf / episode_count_tf : 0;
+            T mean_episode_length_student = episode_count_student > 0 ? episode_length_sum_student / episode_count_student : 0;
+            TI episode_count = episode_count_tf + episode_count_student;
+            T mean_episode_length = episode_count > 0 ? (episode_length_sum_tf + episode_length_sum_student) / episode_count : 0;
+            T fps = epoch_elapsed.count() > 0 ? static_cast<T>(STEPS_TOTAL_ALL_RANKS) / epoch_elapsed.count() : 0;
+            T render_time_s = static_cast<T>(epoch_render_time_ms) / static_cast<T>(1000);
+            T render_gpu_time_s = static_cast<T>(epoch_render_gpu_time_ms) / static_cast<T>(1000);
+            T render_fps = render_time_s > 0 ? static_cast<T>(STEPS_PER_ENV * N_ENVIRONMENTS) / render_time_s : 0;
+            T render_pct = epoch_elapsed.count() > 0 ? static_cast<T>(100) * render_time_s / epoch_elapsed.count() : 0;
+            T render_gpu_fps = render_gpu_time_s > 0 ? static_cast<T>(STEPS_PER_ENV * N_ENVIRONMENTS) / render_gpu_time_s : 0;
+            T render_gpu_pct = epoch_elapsed.count() > 0 ? static_cast<T>(100) * render_gpu_time_s / epoch_elapsed.count() : 0;
+            T train_forward_time_s = static_cast<T>(epoch_train_forward_time_ms) / static_cast<T>(1000);
+            T train_backward_time_s = static_cast<T>(epoch_train_backward_time_ms) / static_cast<T>(1000);
+            T train_update_time_s = static_cast<T>(epoch_train_update_time_ms) / static_cast<T>(1000);
+            T train_forward_pct = epoch_elapsed.count() > 0 ? static_cast<T>(100) * train_forward_time_s / epoch_elapsed.count() : 0;
+            T train_backward_pct = epoch_elapsed.count() > 0 ? static_cast<T>(100) * train_backward_time_s / epoch_elapsed.count() : 0;
+            T train_update_pct = epoch_elapsed.count() > 0 ? static_cast<T>(100) * train_update_time_s / epoch_elapsed.count() : 0;
+            T train_forward_avg_ms = epoch_train_forward_calls > 0 ? static_cast<T>(epoch_train_forward_time_ms) / static_cast<T>(epoch_train_forward_calls) : 0;
+            T train_backward_avg_ms = epoch_train_backward_calls > 0 ? static_cast<T>(epoch_train_backward_time_ms) / static_cast<T>(epoch_train_backward_calls) : 0;
+            T train_update_avg_ms = epoch_train_update_calls > 0 ? static_cast<T>(epoch_train_update_time_ms) / static_cast<T>(epoch_train_update_calls) : 0;
+
+            std::unique_lock<std::mutex> io_lock(shared.io_mutex);
+            std::cout << (full_teacher_forcing ? "[TF] " : "[TF=" + std::to_string((int)(EFFECTIVE_TEACHER_FORCING_FRACTION * 100)) + "%] ")
+                      << "Epoch: " << std::setw(5) << epoch_i
+                      << " MSE: " << std::setw(10) << std::setprecision(6) << std::fixed << epoch_loss
+                      << " mean_ep_len: " << std::setw(6) << std::setprecision(1) << mean_episode_length
+                      << " ep_limit: " << std::setw(3) << current_episode_step_limit
+                      << " episodes: " << std::setw(5) << episode_count
+                      << " term_share: " << std::setw(5) << std::setprecision(2) << std::fixed << episode_terminated_share
+                      << " fps: " << std::setw(7) << std::setprecision(0) << fps
+                      << " render: " << std::setw(5) << std::setprecision(1) << render_time_s << "s"
+                      << " (" << std::setw(4) << std::setprecision(1) << render_pct << "%"
+                      << " " << std::setw(7) << std::setprecision(0) << render_fps << " fps)"
+                      << " render_gpu: " << std::setw(5) << std::setprecision(1) << render_gpu_time_s << "s"
+                      << " (" << std::setw(4) << std::setprecision(1) << render_gpu_pct << "%"
+                      << " " << std::setw(7) << std::setprecision(0) << render_gpu_fps << " fps)"
+                      << " fwd: " << std::setw(5) << std::setprecision(1) << train_forward_time_s << "s"
+                      << " (" << std::setw(4) << std::setprecision(1) << train_forward_pct << "% "
+                      << std::setw(6) << std::setprecision(3) << train_forward_avg_ms << "ms)"
+                      << " bwd: " << std::setw(5) << std::setprecision(1) << train_backward_time_s << "s"
+                      << " (" << std::setw(4) << std::setprecision(1) << train_backward_pct << "% "
+                      << std::setw(6) << std::setprecision(3) << train_backward_avg_ms << "ms)"
+                      << " upd: " << std::setw(5) << std::setprecision(1) << train_update_time_s << "s"
+                      << " (" << std::setw(4) << std::setprecision(1) << train_update_pct << "% "
+                      << std::setw(6) << std::setprecision(3) << train_update_avg_ms << "ms)"
+                      << " epoch_time: " << std::setw(6) << std::setprecision(1) << epoch_elapsed.count() << "s"
+                      << " total: " << std::setw(8) << std::setprecision(1) << training_elapsed.count() << "s";
+            if(N_RANKS > 1){
+                std::cout << " allreduce: " << std::setw(5) << std::setprecision(1) << static_cast<T>(epoch_all_reduce_time_ms) / static_cast<T>(1000) << "s";
+            }
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+            std::cout << " pos_mse: " << std::setw(10) << std::setprecision(6) << std::fixed << epoch_position_mse
+                      << " vel_mse: " << std::setw(10) << std::setprecision(6) << std::fixed << epoch_linear_velocity_mse
+                      << " ori_mse: " << std::setw(10) << std::setprecision(6) << std::fixed << epoch_orientation_mse
+                      << " ori_deg: " << std::setw(7) << std::setprecision(2) << std::fixed
+                      << epoch_orientation_angle_error_rad * static_cast<T>(180) / rlt::math::PI<T>;
+#endif
+            if constexpr(RENDER_MOTION_BLUR_ACTIVE){
+                std::cout << " shutter: " << std::setw(4) << std::setprecision(2) << render_shutter_fraction;
+            }
+            std::cout << std::endl;
+            io_lock.unlock();
+
+            // same keys as imitation_hyperdrone.cpp so the two targets' curves overlay directly
+            {
+                const std::string metra_prefix = "l2f_visual_imitation";
+                if(epoch_i == 0){
+                    metra::log_raw(metra_prefix + "/target", std::string("\"") + extrack_config.name + "\"");
+                    metra::log_raw(metra_prefix + "/compute_device", "\"cuda\"");
+                    metra::log(metra_prefix + "/n_environments", static_cast<double>(N_ENVIRONMENTS_TOTAL));
+                    metra::log(metra_prefix + "/n_gpus", static_cast<double>(N_RANKS));
+                    metra::log(metra_prefix + "/steps_per_env", static_cast<double>(STEPS_PER_ENV));
+                    metra::log(metra_prefix + "/seed", static_cast<double>(seed));
+                }
+                metra::log(metra_prefix + "/mse_loss", static_cast<double>(epoch_loss));
+                metra::log(metra_prefix + "/episode_length", static_cast<double>(mean_episode_length));
+                metra::log(metra_prefix + "/episodes", static_cast<double>(episode_count));
+                metra::log(metra_prefix + "/terminated_share", static_cast<double>(episode_terminated_share));
+                metra::log(metra_prefix + "/complete_episode_length", static_cast<double>(complete_episode_length));
+                metra::log(metra_prefix + "/complete_terminated_share", static_cast<double>(complete_terminated_share));
+                metra::log(metra_prefix + "/fps", static_cast<double>(fps));
+                metra::log(metra_prefix + "/epoch_time_s", static_cast<double>(epoch_elapsed.count()));
+                if(N_RANKS > 1){
+                    metra::log(metra_prefix + "/all_reduce_time_s", static_cast<double>(epoch_all_reduce_time_ms) / 1000.0);
+                }
+#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
+                metra::log(metra_prefix + "/state_estimation/position_mse", static_cast<double>(epoch_position_mse));
+                metra::log(metra_prefix + "/state_estimation/linear_velocity_mse", static_cast<double>(epoch_linear_velocity_mse));
+                metra::log(metra_prefix + "/state_estimation/orientation_mse", static_cast<double>(epoch_orientation_mse));
+                metra::log(metra_prefix + "/state_estimation/orientation_angle_error_deg", static_cast<double>(epoch_orientation_angle_error_rad * static_cast<T>(180) / rlt::math::PI<T>));
+#endif
+            }
 
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
-        rlt::set_step(device, device.logger, epoch_i);
-        rlt::add_scalar(device, device.logger, "training/mse_loss", epoch_loss);
+            rlt::set_step(device, device.logger, epoch_i);
+            rlt::add_scalar(device, device.logger, "training/mse_loss", epoch_loss);
 #ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
-        rlt::add_scalar(device, device.logger, "training/state_estimation/position_mse", epoch_position_mse);
-        rlt::add_scalar(device, device.logger, "training/state_estimation/linear_velocity_mse", epoch_linear_velocity_mse);
-        rlt::add_scalar(device, device.logger, "training/state_estimation/orientation_mse", epoch_orientation_mse);
-        rlt::add_scalar(device, device.logger, "training/state_estimation/orientation_angle_error_rad", epoch_orientation_angle_error_rad);
-        rlt::add_scalar(device, device.logger, "training/state_estimation/orientation_angle_error_deg", epoch_orientation_angle_error_rad * static_cast<T>(180) / rlt::math::PI<T>);
+            rlt::add_scalar(device, device.logger, "training/state_estimation/position_mse", epoch_position_mse);
+            rlt::add_scalar(device, device.logger, "training/state_estimation/linear_velocity_mse", epoch_linear_velocity_mse);
+            rlt::add_scalar(device, device.logger, "training/state_estimation/orientation_mse", epoch_orientation_mse);
+            rlt::add_scalar(device, device.logger, "training/state_estimation/orientation_angle_error_rad", epoch_orientation_angle_error_rad);
+            rlt::add_scalar(device, device.logger, "training/state_estimation/orientation_angle_error_deg", epoch_orientation_angle_error_rad * static_cast<T>(180) / rlt::math::PI<T>);
 #endif
-        rlt::add_scalar(device, device.logger, "training/episode_length", mean_episode_length);
-        rlt::add_scalar(device, device.logger, "training/episodes", static_cast<T>(episode_count));
-        if(episode_count_tf > 0){
-            rlt::add_scalar(device, device.logger, "training/teacher/episode_length", mean_episode_length_tf);
-            rlt::add_scalar(device, device.logger, "training/teacher/episodes", static_cast<T>(episode_count_tf));
-        }
-        if(episode_count_student > 0){
-            rlt::add_scalar(device, device.logger, "training/student/episode_length", mean_episode_length_student);
-            rlt::add_scalar(device, device.logger, "training/student/episodes", static_cast<T>(episode_count_student));
-        }
-        rlt::add_scalar(device, device.logger, "timing/fps", fps);
-        rlt::add_scalar(device, device.logger, "timing/throughput_fps", fps);
-        rlt::add_scalar(device, device.logger, "timing/render_time_s", render_time_s);
-        rlt::add_scalar(device, device.logger, "timing/render_fps", render_fps);
-        rlt::add_scalar(device, device.logger, "timing/render_pct", render_pct);
-        rlt::add_scalar(device, device.logger, "timing/render_gpu_time_s", render_gpu_time_s);
-        rlt::add_scalar(device, device.logger, "timing/render_gpu_fps", render_gpu_fps);
-        rlt::add_scalar(device, device.logger, "timing/render_gpu_pct", render_gpu_pct);
-        rlt::add_scalar(device, device.logger, "timing/model_forward_time_s", train_forward_time_s);
-        rlt::add_scalar(device, device.logger, "timing/model_backward_time_s", train_backward_time_s);
-        rlt::add_scalar(device, device.logger, "timing/model_update_time_s", train_update_time_s);
-        rlt::add_scalar(device, device.logger, "timing/model_forward_pct", train_forward_pct);
-        rlt::add_scalar(device, device.logger, "timing/model_backward_pct", train_backward_pct);
-        rlt::add_scalar(device, device.logger, "timing/model_update_pct", train_update_pct);
-        rlt::add_scalar(device, device.logger, "timing/model_forward_avg_ms", train_forward_avg_ms);
-        rlt::add_scalar(device, device.logger, "timing/model_backward_avg_ms", train_backward_avg_ms);
-        rlt::add_scalar(device, device.logger, "timing/model_update_avg_ms", train_update_avg_ms);
-        rlt::add_scalar(device, device.logger, "timing/epoch_time_s", epoch_elapsed.count());
-        rlt::add_scalar(device, device.logger, "timing/total_time_s", training_elapsed.count());
-        rlt::add_scalar(device, device.logger, "training/teacher_forcing", full_teacher_forcing ? (T)1 : EFFECTIVE_TEACHER_FORCING_FRACTION);
-        rlt::add_scalar(device, device.logger, "training/terminated_share", episode_terminated_share);
-        rlt::add_scalar(device, device.logger, "training/terminated_episodes", static_cast<T>(episode_count_terminated));
-        rlt::add_scalar(device, device.logger, "training/complete_terminated_share", complete_terminated_share);
-        rlt::add_scalar(device, device.logger, "training/complete_episode_length", complete_episode_length);
-        rlt::add_scalar(device, device.logger, "training/complete_episodes", static_cast<T>(complete_episode_count));
-        rlt::add_scalar(device, device.logger, "curriculum/episode_step_limit", static_cast<T>(current_episode_step_limit));
-        rlt::add_scalar(device, device.logger, "rendering/anti_aliasing_grid_size", RENDER_ANTI_ALIASING_ACTIVE ? static_cast<T>(RENDER_ANTI_ALIASING_GRID_SIZE) : static_cast<T>(1));
-        rlt::add_scalar(device, device.logger, "rendering/motion_blur_samples", RENDER_MOTION_BLUR_ACTIVE ? static_cast<T>(RENDER_MOTION_BLUR_SAMPLES) : static_cast<T>(1));
-        rlt::add_scalar(device, device.logger, "rendering/target_frame_roll_pitch_randomization_range", TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE);
-        rlt::add_scalar(device, device.logger, "rendering/target_frame_brightness_mismatch_range", TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE);
-        if constexpr(RENDER_MOTION_BLUR_ACTIVE){
-            rlt::add_scalar(device, device.logger, "rendering/shutter_fraction", render_shutter_fraction);
-        }
+            rlt::add_scalar(device, device.logger, "training/episode_length", mean_episode_length);
+            rlt::add_scalar(device, device.logger, "training/episodes", static_cast<T>(episode_count));
+            if(episode_count_tf > 0){
+                rlt::add_scalar(device, device.logger, "training/teacher/episode_length", mean_episode_length_tf);
+                rlt::add_scalar(device, device.logger, "training/teacher/episodes", static_cast<T>(episode_count_tf));
+            }
+            if(episode_count_student > 0){
+                rlt::add_scalar(device, device.logger, "training/student/episode_length", mean_episode_length_student);
+                rlt::add_scalar(device, device.logger, "training/student/episodes", static_cast<T>(episode_count_student));
+            }
+            rlt::add_scalar(device, device.logger, "timing/fps", fps);
+            rlt::add_scalar(device, device.logger, "timing/throughput_fps", fps);
+            rlt::add_scalar(device, device.logger, "timing/render_time_s", render_time_s);
+            rlt::add_scalar(device, device.logger, "timing/render_fps", render_fps);
+            rlt::add_scalar(device, device.logger, "timing/render_pct", render_pct);
+            rlt::add_scalar(device, device.logger, "timing/render_gpu_time_s", render_gpu_time_s);
+            rlt::add_scalar(device, device.logger, "timing/render_gpu_fps", render_gpu_fps);
+            rlt::add_scalar(device, device.logger, "timing/render_gpu_pct", render_gpu_pct);
+            rlt::add_scalar(device, device.logger, "timing/model_forward_time_s", train_forward_time_s);
+            rlt::add_scalar(device, device.logger, "timing/model_backward_time_s", train_backward_time_s);
+            rlt::add_scalar(device, device.logger, "timing/model_update_time_s", train_update_time_s);
+            rlt::add_scalar(device, device.logger, "timing/model_forward_pct", train_forward_pct);
+            rlt::add_scalar(device, device.logger, "timing/model_backward_pct", train_backward_pct);
+            rlt::add_scalar(device, device.logger, "timing/model_update_pct", train_update_pct);
+            rlt::add_scalar(device, device.logger, "timing/model_forward_avg_ms", train_forward_avg_ms);
+            rlt::add_scalar(device, device.logger, "timing/model_backward_avg_ms", train_backward_avg_ms);
+            rlt::add_scalar(device, device.logger, "timing/model_update_avg_ms", train_update_avg_ms);
+            rlt::add_scalar(device, device.logger, "timing/epoch_time_s", epoch_elapsed.count());
+            rlt::add_scalar(device, device.logger, "timing/total_time_s", training_elapsed.count());
+            rlt::add_scalar(device, device.logger, "training/teacher_forcing", full_teacher_forcing ? (T)1 : EFFECTIVE_TEACHER_FORCING_FRACTION);
+            rlt::add_scalar(device, device.logger, "training/terminated_share", episode_terminated_share);
+            rlt::add_scalar(device, device.logger, "training/terminated_episodes", static_cast<T>(episode_count_terminated));
+            rlt::add_scalar(device, device.logger, "training/complete_terminated_share", complete_terminated_share);
+            rlt::add_scalar(device, device.logger, "training/complete_episode_length", complete_episode_length);
+            rlt::add_scalar(device, device.logger, "training/complete_episodes", static_cast<T>(complete_episode_count));
+            rlt::add_scalar(device, device.logger, "curriculum/episode_step_limit", static_cast<T>(current_episode_step_limit));
+            rlt::add_scalar(device, device.logger, "rendering/anti_aliasing_grid_size", RENDER_ANTI_ALIASING_ACTIVE ? static_cast<T>(RENDER_ANTI_ALIASING_GRID_SIZE) : static_cast<T>(1));
+            rlt::add_scalar(device, device.logger, "rendering/motion_blur_samples", RENDER_MOTION_BLUR_ACTIVE ? static_cast<T>(RENDER_MOTION_BLUR_SAMPLES) : static_cast<T>(1));
+            rlt::add_scalar(device, device.logger, "rendering/target_frame_roll_pitch_randomization_range", TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE);
+            rlt::add_scalar(device, device.logger, "rendering/target_frame_brightness_mismatch_range", TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE);
+            if constexpr(RENDER_MOTION_BLUR_ACTIVE){
+                rlt::add_scalar(device, device.logger, "rendering/shutter_fraction", render_shutter_fraction);
+            }
 #endif
 
-        if(epoch_i % CHECKPOINT_CADENCE == 0){
-            auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, epoch_end_step);
-            using EVAL_TYPE = typename CPU_STUDENT_TYPE::template CHANGE_BATCH_SIZE<TI, N_EXAMPLES>;
-            EVAL_TYPE eval_student;
-            rlt::malloc(device, eval_student);
-            rlt::copy(device_gpu, device, student_gpu, eval_student);
-            char fov_buf[32];
-            std::snprintf(fov_buf, sizeof(fov_buf), "%.6g", (double)envs[0].parameters.fov);
-            std::string state_obs_string = rlt::string(device, envs[0].dynamics, ACTOR_STATE_OBS{});
-            std::string image_obs_string = std::string("CameraRGBStackedWithTarget(") + fov_buf + ", "
-                + std::to_string(CAM_HEIGHT) + ", " + std::to_string(CAM_WIDTH) + ", "
-                + std::to_string(FRAME_STACK_STRIDE) + ", " + std::to_string(FRAME_STACK_N) + ")";
-            std::string obs_string = image_obs_string + ", " + state_obs_string;
-            std::string rendering_string = std::string("{\"anti_aliasing\": ") + (RENDER_ANTI_ALIASING_ACTIVE ? "true" : "false")
-                + ", \"anti_aliasing_grid_size\": " + std::to_string(RENDER_ANTI_ALIASING_ACTIVE ? RENDER_ANTI_ALIASING_GRID_SIZE : (TI)1)
-                + ", \"motion_blur\": " + (RENDER_MOTION_BLUR_ACTIVE ? "true" : "false")
-                + ", \"motion_blur_samples\": " + std::to_string(RENDER_MOTION_BLUR_ACTIVE ? RENDER_MOTION_BLUR_SAMPLES : (TI)1)
-                + ", \"shutter_fraction_min\": " + std::to_string(RENDER_SHUTTER_FRACTION_MIN)
-                + ", \"shutter_fraction_max\": " + std::to_string(RENDER_SHUTTER_FRACTION_MAX)
-                + ", \"target_frame_roll_pitch_randomization_range\": " + std::to_string(TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE)
-                + ", \"target_frame_brightness_mismatch_range\": " + std::to_string(TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE) + "}";
-            std::string output_string = STATE_ESTIMATION_MODE
-                ? "StateEstimation(RelativeTargetPositionBody,LinearVelocityBody,RelativeTargetOrientationBodyRotationMatrix)"
-                : "Action";
-            std::string meta = "{\"environment\": {\"name\": \"l2f_visual\", \"observation\": \"" + obs_string + "\", \"output\": \"" + output_string + "\", \"rendering\": " + rendering_string + "}}";
-            // Per-branch CPU example tensors in canonical `[1, N_EXAMPLES, ...features]` shape.
-            // Used directly by the REAL eval (via dense rank-reduced view_memory) and by the
-            // checkpoint save — no composite-and-slice roundtrip, the per-branch GPU buffers
-            // are already Struct-of-Arrays so we copy each one directly into its destination.
-            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, N_EXAMPLES, IMG_H, IMG_W, COMBINED_IMG_C>, true>> example_input_0_image;
-            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, N_EXAMPLES, STATE_OBS_DIM>, true>> example_input_1_state;
-            rlt::malloc(device, example_input_0_image);
-            rlt::malloc(device, example_input_1_state);
-            rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, TARGET_DIM>, true>> example_output;
-            rlt::malloc(device, example_output);
-            {
+            if(epoch_i % CHECKPOINT_CADENCE == 0){
+                auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, epoch_end_step);
+                using EVAL_TYPE = typename CPU_STUDENT_TYPE::template CHANGE_BATCH_SIZE<TI, N_EXAMPLES>;
+                EVAL_TYPE eval_student;
+                rlt::malloc(device, eval_student);
+                rlt::copy(device_gpu, device, student_gpu, eval_student);
+                char fov_buf[32];
+                std::snprintf(fov_buf, sizeof(fov_buf), "%.6g", (double)envs[0].parameters.fov);
+                std::string state_obs_string = rlt::string(device, envs[0].dynamics, ACTOR_STATE_OBS{});
+                std::string image_obs_string = std::string("CameraRGBStackedWithTarget(") + fov_buf + ", "
+                    + std::to_string(CAM_HEIGHT) + ", " + std::to_string(CAM_WIDTH) + ", "
+                    + std::to_string(FRAME_STACK_STRIDE) + ", " + std::to_string(FRAME_STACK_N) + ")";
+                std::string obs_string = image_obs_string + ", " + state_obs_string;
+                std::string rendering_string = std::string("{\"anti_aliasing\": ") + (RENDER_ANTI_ALIASING_ACTIVE ? "true" : "false")
+                    + ", \"anti_aliasing_grid_size\": " + std::to_string(RENDER_ANTI_ALIASING_ACTIVE ? RENDER_ANTI_ALIASING_GRID_SIZE : (TI)1)
+                    + ", \"motion_blur\": " + (RENDER_MOTION_BLUR_ACTIVE ? "true" : "false")
+                    + ", \"motion_blur_samples\": " + std::to_string(RENDER_MOTION_BLUR_ACTIVE ? RENDER_MOTION_BLUR_SAMPLES : (TI)1)
+                    + ", \"shutter_fraction_min\": " + std::to_string(RENDER_SHUTTER_FRACTION_MIN)
+                    + ", \"shutter_fraction_max\": " + std::to_string(RENDER_SHUTTER_FRACTION_MAX)
+                    + ", \"target_frame_roll_pitch_randomization_range\": " + std::to_string(TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE)
+                    + ", \"target_frame_brightness_mismatch_range\": " + std::to_string(TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE) + "}";
+                std::string output_string = STATE_ESTIMATION_MODE
+                    ? "StateEstimation(RelativeTargetPositionBody,LinearVelocityBody,RelativeTargetOrientationBodyRotationMatrix)"
+                    : "Action";
+                std::string meta = "{\"environment\": {\"name\": \"l2f_visual\", \"observation\": \"" + obs_string + "\", \"output\": \"" + output_string + "\", \"rendering\": " + rendering_string + "}}";
+                // Per-branch CPU example tensors in canonical `[1, N_EXAMPLES, ...features]` shape.
+                // Used directly by the REAL eval (via dense rank-reduced view_memory) and by the
+                // checkpoint save — no composite-and-slice roundtrip, the per-branch GPU buffers
+                // are already Struct-of-Arrays so we copy each one directly into its destination.
+                rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, N_EXAMPLES, IMG_H, IMG_W, COMBINED_IMG_C>, true>> example_input_0_image;
+                rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, N_EXAMPLES, STATE_OBS_DIM>, true>> example_input_1_state;
+                rlt::malloc(device, example_input_0_image);
+                rlt::malloc(device, example_input_1_state);
+                rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, TARGET_DIM>, true>> example_output;
+                rlt::malloc(device, example_output);
                 {
-                    // Sample the tail of the rollout so every frame-stack slot is populated (step 0 clamps past frames to episode_start).
-                    static constexpr TI EXAMPLE_ROW_OFFSET = STEPS_TOTAL - N_EXAMPLES;
-                    static_assert(EXAMPLE_ROW_OFFSET >= (FRAME_STACK_N - 1) * FRAME_STACK_STRIDE * N_ENVIRONMENTS,
-                        "N_EXAMPLES too large: sampled window would include steps with clamped frame-stack history");
-                    auto src_combined = rlt::view_range(device_gpu, gpu_all_combined_observations, EXAMPLE_ROW_OFFSET, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
-                    auto src_state = rlt::view_range(device_gpu, gpu_all_state_observations, EXAMPLE_ROW_OFFSET, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
-                    auto dst_image_2d = rlt::reshape_row_major(device, example_input_0_image, rlt::tensor::Shape<TI, N_EXAMPLES, COMBINED_OBS_DIM>{});
-                    auto dst_state_2d = rlt::reshape_row_major(device, example_input_1_state, rlt::tensor::Shape<TI, N_EXAMPLES, STATE_OBS_DIM>{});
-                    rlt::copy(device_gpu, device, src_combined, dst_image_2d);
-                    rlt::copy(device_gpu, device, src_state, dst_state_2d);
+                    {
+                        // Sample the tail of the rollout so every frame-stack slot is populated (step 0 clamps past frames to episode_start).
+                        static constexpr TI EXAMPLE_ROW_OFFSET = STEPS_TOTAL - N_EXAMPLES;
+                        static_assert(EXAMPLE_ROW_OFFSET >= (FRAME_STACK_N - 1) * FRAME_STACK_STRIDE * N_ENVIRONMENTS,
+                            "N_EXAMPLES too large: sampled window would include steps with clamped frame-stack history");
+                        auto src_combined = rlt::view_range(device_gpu, gpu_all_combined_observations, EXAMPLE_ROW_OFFSET, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
+                        auto src_state = rlt::view_range(device_gpu, gpu_all_state_observations, EXAMPLE_ROW_OFFSET, rlt::tensor::ViewSpec<0, N_EXAMPLES>{});
+                        auto dst_image_2d = rlt::reshape_row_major(device, example_input_0_image, rlt::tensor::Shape<TI, N_EXAMPLES, COMBINED_OBS_DIM>{});
+                        auto dst_state_2d = rlt::reshape_row_major(device, example_input_1_state, rlt::tensor::Shape<TI, N_EXAMPLES, STATE_OBS_DIM>{});
+                        rlt::copy(device_gpu, device, src_combined, dst_image_2d);
+                        rlt::copy(device_gpu, device, src_state, dst_state_2d);
+                    }
+                    using BRANCH_0 = typename rlt::utils::tuple_element<0, typename EVAL_TYPE::SPEC::BRANCH_TUPLE>::type;
+                    using BRANCH_1 = typename rlt::utils::tuple_element<1, typename EVAL_TYPE::SPEC::BRANCH_TUPLE>::type;
+                    using BRANCH_0_OUTPUT_SHAPE = rlt::nn_models::parallel::detail::output_shape<typename EVAL_TYPE::SPEC::CAPABILITY, BRANCH_0>;
+                    using BRANCH_1_OUTPUT_SHAPE = rlt::nn_models::parallel::detail::output_shape<typename EVAL_TYPE::SPEC::CAPABILITY, BRANCH_1>;
+                    static constexpr TI BRANCH_0_DIM = rlt::get_last(BRANCH_0_OUTPUT_SHAPE{});
+                    static constexpr TI BRANCH_1_DIM = rlt::get_last(BRANCH_1_OUTPUT_SHAPE{});
+                    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, BRANCH_0_DIM>, true>> branch_0_out;
+                    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, BRANCH_1_DIM>, true>> branch_1_out;
+                    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, BRANCH_0_DIM + BRANCH_1_DIM>, true>> concat_out;
+                    typename rlt::utils::typing::remove_reference_t<decltype(rlt::get<0>(eval_student.pipelines))>::template Buffer<true> buffer_0;
+                    typename rlt::utils::typing::remove_reference_t<decltype(rlt::get<1>(eval_student.pipelines))>::template Buffer<true> buffer_1;
+                    rlt::malloc(device, branch_0_out);
+                    rlt::malloc(device, branch_1_out);
+                    rlt::malloc(device, concat_out);
+                    rlt::malloc(device, buffer_0);
+                    rlt::malloc(device, buffer_1);
+                    rlt::Mode<rlt::mode::Evaluation<>> eval_mode;
+                RNG checkpoint_rng;
+                rlt::malloc(device, checkpoint_rng);
+                rlt::init(device, checkpoint_rng, seed);
+                    // The canonical `[1, N, ...]` tensors are dense row-major by construction;
+                    // view_memory yields dense rank-reduced views that match the pipeline's input layout.
+                    auto image_eval_view = rlt::view_memory<rlt::tensor::Shape<TI, N_EXAMPLES, IMG_H, IMG_W, COMBINED_IMG_C>>(device, example_input_0_image);
+                    auto state_eval_view = rlt::view_memory<rlt::tensor::Shape<TI, N_EXAMPLES, STATE_OBS_DIM>>(device, example_input_1_state);
+                    rlt::evaluate(device, rlt::get<0>(eval_student.pipelines), image_eval_view, branch_0_out, buffer_0, checkpoint_rng, eval_mode);
+                    rlt::evaluate(device, rlt::get<1>(eval_student.pipelines), state_eval_view, branch_1_out, buffer_1, checkpoint_rng, eval_mode);
+                    auto concat_0 = rlt::view_range(device, concat_out, (TI)0, rlt::tensor::ViewSpec<1, BRANCH_0_DIM>{});
+                    auto concat_1 = rlt::view_range(device, concat_out, (TI)BRANCH_0_DIM, rlt::tensor::ViewSpec<1, BRANCH_1_DIM>{});
+                    rlt::copy(device, device, branch_0_out, concat_0);
+                    rlt::copy(device, device, branch_1_out, concat_1);
+                    typename decltype(eval_student.head)::template Buffer<true> head_buffer;
+                    rlt::malloc(device, head_buffer);
+                    rlt::evaluate(device, eval_student.head, concat_out, example_output, head_buffer, checkpoint_rng, eval_mode);
+                    rlt::free(device, head_buffer);
+                    rlt::free(device, branch_0_out);
+                    rlt::free(device, branch_1_out);
+                    rlt::free(device, concat_out);
+                    rlt::free(device, buffer_0);
+                    rlt::free(device, buffer_1);
+                rlt::free(device, checkpoint_rng);
                 }
-                using BRANCH_0 = typename rlt::utils::tuple_element<0, typename EVAL_TYPE::SPEC::BRANCH_TUPLE>::type;
-                using BRANCH_1 = typename rlt::utils::tuple_element<1, typename EVAL_TYPE::SPEC::BRANCH_TUPLE>::type;
-                using BRANCH_0_OUTPUT_SHAPE = rlt::nn_models::parallel::detail::output_shape<typename EVAL_TYPE::SPEC::CAPABILITY, BRANCH_0>;
-                using BRANCH_1_OUTPUT_SHAPE = rlt::nn_models::parallel::detail::output_shape<typename EVAL_TYPE::SPEC::CAPABILITY, BRANCH_1>;
-                static constexpr TI BRANCH_0_DIM = rlt::get_last(BRANCH_0_OUTPUT_SHAPE{});
-                static constexpr TI BRANCH_1_DIM = rlt::get_last(BRANCH_1_OUTPUT_SHAPE{});
-                rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, BRANCH_0_DIM>, true>> branch_0_out;
-                rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, BRANCH_1_DIM>, true>> branch_1_out;
-                rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_EXAMPLES, BRANCH_0_DIM + BRANCH_1_DIM>, true>> concat_out;
-                typename rlt::utils::typing::remove_reference_t<decltype(rlt::get<0>(eval_student.pipelines))>::template Buffer<true> buffer_0;
-                typename rlt::utils::typing::remove_reference_t<decltype(rlt::get<1>(eval_student.pipelines))>::template Buffer<true> buffer_1;
-                rlt::malloc(device, branch_0_out);
-                rlt::malloc(device, branch_1_out);
-                rlt::malloc(device, concat_out);
-                rlt::malloc(device, buffer_0);
-                rlt::malloc(device, buffer_1);
-                rlt::Mode<rlt::mode::Evaluation<>> eval_mode;
-                // The canonical `[1, N, ...]` tensors are dense row-major by construction;
-                // view_memory yields dense rank-reduced views that match the pipeline's input layout.
-                auto image_eval_view = rlt::view_memory<rlt::tensor::Shape<TI, N_EXAMPLES, IMG_H, IMG_W, COMBINED_IMG_C>>(device, example_input_0_image);
-                auto state_eval_view = rlt::view_memory<rlt::tensor::Shape<TI, N_EXAMPLES, STATE_OBS_DIM>>(device, example_input_1_state);
-                rlt::evaluate(device, rlt::get<0>(eval_student.pipelines), image_eval_view, branch_0_out, buffer_0, rng, eval_mode);
-                rlt::evaluate(device, rlt::get<1>(eval_student.pipelines), state_eval_view, branch_1_out, buffer_1, rng, eval_mode);
-                auto concat_0 = rlt::view_range(device, concat_out, (TI)0, rlt::tensor::ViewSpec<1, BRANCH_0_DIM>{});
-                auto concat_1 = rlt::view_range(device, concat_out, (TI)BRANCH_0_DIM, rlt::tensor::ViewSpec<1, BRANCH_1_DIM>{});
-                rlt::copy(device, device, branch_0_out, concat_0);
-                rlt::copy(device, device, branch_1_out, concat_1);
-                typename decltype(eval_student.head)::template Buffer<true> head_buffer;
-                rlt::malloc(device, head_buffer);
-                rlt::evaluate(device, eval_student.head, concat_out, example_output, head_buffer, rng, eval_mode);
-                rlt::free(device, head_buffer);
-                rlt::free(device, branch_0_out);
-                rlt::free(device, branch_1_out);
-                rlt::free(device, concat_out);
-                rlt::free(device, buffer_0);
-                rlt::free(device, buffer_1);
-            }
-            if constexpr(EXPORT_CHECKPOINT_TAR){
-                std::filesystem::path checkpoint_path = step_folder / "checkpoint.tar";
-                rlt::persist::backends::tar::Writer writer;
-                rlt::persist::backends::tar::WriterGroup<rlt::persist::backends::tar::WriterGroupSpecification<TI, decltype(writer)>> root_group{"", &writer};
-                auto actor_group = rlt::create_group(device, root_group, "actor");
-                rlt::set_attribute(device, actor_group, "checkpoint_name", step_folder.string().c_str());
-                rlt::set_attribute(device, actor_group, "meta", meta.c_str());
-                rlt::save(device, eval_student, actor_group);
-                auto example_group = rlt::create_group(device, root_group, "example");
-                auto inputs_group = rlt::create_group(device, example_group, "inputs");
-                rlt::save(device, example_input_0_image, inputs_group, "0");
-                rlt::save(device, example_input_1_state, inputs_group, "1");
-                auto outputs_group = rlt::create_group(device, example_group, "outputs");
-                auto example_output_canonical = rlt::reshape_row_major(device, example_output, rlt::tensor::Shape<TI, 1, N_EXAMPLES, TARGET_DIM>{});
-                rlt::save(device, example_output_canonical, outputs_group, "0");
-                rlt::persist::backends::tar::finalize(device, writer);
-                std::ofstream f(checkpoint_path, std::ios::binary);
-                f.write(writer.buffer.data(), writer.buffer.size());
-            }
-#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
-            auto save_hdf5 = [&](auto batch_size_tag){ // binary (hdf5)
-                static constexpr TI BATCH_SIZE = decltype(batch_size_tag)::value;
-                using SIZED_EVAL_TYPE = typename CPU_STUDENT_TYPE::template CHANGE_BATCH_SIZE<TI, BATCH_SIZE>;
-                SIZED_EVAL_TYPE sized_eval_student;
-                rlt::malloc(device, sized_eval_student);
-                rlt::copy(device_gpu, device, student_gpu, sized_eval_student);
-                std::lock_guard<std::mutex> lock(rlt::persist::backends::hdf5::global_mutex());
-                std::filesystem::path checkpoint_path = step_folder / (std::string("checkpoint_") + std::to_string(BATCH_SIZE) + "examples.h5");
-                rlt::persist::backends::hdf5::File root_file(checkpoint_path.string(), rlt::persist::backends::hdf5::Mode::WRITE);
-                auto actor_group = rlt::create_group(device, root_file, "actor");
-                rlt::set_attribute(device, actor_group, "checkpoint_name", step_folder.string().c_str());
-                rlt::set_attribute(device, actor_group, "meta", meta.c_str());
-                rlt::save(device, sized_eval_student, actor_group);
-                auto example_group = rlt::create_group(device, root_file, "example");
-                auto inputs_group = rlt::create_group(device, example_group, "inputs");
-                auto example_input_0_image_view = rlt::view_range(device, example_input_0_image, (TI)0, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
-                auto example_input_1_state_view = rlt::view_range(device, example_input_1_state, (TI)0, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
-                rlt::save(device, example_input_0_image_view, inputs_group, "0");
-                rlt::save(device, example_input_1_state_view, inputs_group, "1");
-                auto outputs_group = rlt::create_group(device, example_group, "outputs");
-                auto example_output_canonical = rlt::reshape_row_major(device, example_output, rlt::tensor::Shape<TI, 1, N_EXAMPLES, TARGET_DIM>{});
-                auto example_output_view = rlt::view_range(device, example_output_canonical, (TI)0, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
-                rlt::save(device, example_output_view, outputs_group, "0");
-                rlt::free(device, sized_eval_student);
-            };
-            save_hdf5(rlt::utils::typing::integral_constant<TI, REDUCED_BATCH_SIZE>{});
-            save_hdf5(rlt::utils::typing::integral_constant<TI, N_EXAMPLES>{});
-#endif
-            if constexpr(EXPORT_CHECKPOINT_CODE){
-                auto actor_weights = rlt::save_code(device, eval_student, std::string("rl_tools::checkpoint::actor"), true);
-                std::stringstream output_ss;
-                output_ss << actor_weights;
-                output_ss << "\n" << "namespace rl_tools::checkpoint::example::inputs{";
-                output_ss << "\n" << rlt::save_code(device, example_input_0_image, std::string("_0"), true);
-                output_ss << "\n" << rlt::save_code(device, example_input_1_state, std::string("_1"), true);
-                output_ss << "\n" << "}";
-                output_ss << "\n" << "namespace rl_tools::checkpoint::example::outputs{";
-                {
+                if constexpr(EXPORT_CHECKPOINT_TAR){
+                    std::filesystem::path checkpoint_path = step_folder / "checkpoint.tar";
+                    rlt::persist::backends::tar::Writer writer;
+                    rlt::persist::backends::tar::WriterGroup<rlt::persist::backends::tar::WriterGroupSpecification<TI, decltype(writer)>> root_group{"", &writer};
+                    auto actor_group = rlt::create_group(device, root_group, "actor");
+                    rlt::set_attribute(device, actor_group, "checkpoint_name", step_folder.string().c_str());
+                    rlt::set_attribute(device, actor_group, "meta", meta.c_str());
+                    rlt::save(device, eval_student, actor_group);
+                    auto example_group = rlt::create_group(device, root_group, "example");
+                    auto inputs_group = rlt::create_group(device, example_group, "inputs");
+                    rlt::save(device, example_input_0_image, inputs_group, "0");
+                    rlt::save(device, example_input_1_state, inputs_group, "1");
+                    auto outputs_group = rlt::create_group(device, example_group, "outputs");
                     auto example_output_canonical = rlt::reshape_row_major(device, example_output, rlt::tensor::Shape<TI, 1, N_EXAMPLES, TARGET_DIM>{});
-                    output_ss << "\n" << rlt::save_code(device, example_output_canonical, std::string("_0"), true);
+                    rlt::save(device, example_output_canonical, outputs_group, "0");
+                    rlt::persist::backends::tar::finalize(device, writer);
+                    std::ofstream f(checkpoint_path, std::ios::binary);
+                    f.write(writer.buffer.data(), writer.buffer.size());
                 }
-                output_ss << "\n" << "}";
-                output_ss << "\n" << "namespace rl_tools::checkpoint::meta{";
-                output_ss << "\n" << "   " << "char name[] = \"" << step_folder.string() << "\";";
-                output_ss << "\n" << "   " << "char commit_hash[] = \"" << RL_TOOLS_STRINGIFY(RL_TOOLS_COMMIT_HASH) << "\";";
-                output_ss << "\n" << "   " << "char observation[] = \"" << obs_string << "\";";
-                output_ss << "\n" << "}";
-                std::string output_string = output_ss.str();
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
+                auto save_hdf5 = [&](auto batch_size_tag){ // binary (hdf5)
+                    static constexpr TI BATCH_SIZE = decltype(batch_size_tag)::value;
+                    using SIZED_EVAL_TYPE = typename CPU_STUDENT_TYPE::template CHANGE_BATCH_SIZE<TI, BATCH_SIZE>;
+                    SIZED_EVAL_TYPE sized_eval_student;
+                    rlt::malloc(device, sized_eval_student);
+                    rlt::copy(device_gpu, device, student_gpu, sized_eval_student);
+                    std::lock_guard<std::mutex> lock(rlt::persist::backends::hdf5::global_mutex());
+                    std::filesystem::path checkpoint_path = step_folder / (std::string("checkpoint_") + std::to_string(BATCH_SIZE) + "examples.h5");
+                    rlt::persist::backends::hdf5::File root_file(checkpoint_path.string(), rlt::persist::backends::hdf5::Mode::WRITE);
+                    auto actor_group = rlt::create_group(device, root_file, "actor");
+                    rlt::set_attribute(device, actor_group, "checkpoint_name", step_folder.string().c_str());
+                    rlt::set_attribute(device, actor_group, "meta", meta.c_str());
+                    rlt::save(device, sized_eval_student, actor_group);
+                    auto example_group = rlt::create_group(device, root_file, "example");
+                    auto inputs_group = rlt::create_group(device, example_group, "inputs");
+                    auto example_input_0_image_view = rlt::view_range(device, example_input_0_image, (TI)0, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
+                    auto example_input_1_state_view = rlt::view_range(device, example_input_1_state, (TI)0, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
+                    rlt::save(device, example_input_0_image_view, inputs_group, "0");
+                    rlt::save(device, example_input_1_state_view, inputs_group, "1");
+                    auto outputs_group = rlt::create_group(device, example_group, "outputs");
+                    auto example_output_canonical = rlt::reshape_row_major(device, example_output, rlt::tensor::Shape<TI, 1, N_EXAMPLES, TARGET_DIM>{});
+                    auto example_output_view = rlt::view_range(device, example_output_canonical, (TI)0, rlt::tensor::ViewSpec<1, BATCH_SIZE>{});
+                    rlt::save(device, example_output_view, outputs_group, "0");
+                    rlt::free(device, sized_eval_student);
+                };
+                save_hdf5(rlt::utils::typing::integral_constant<TI, REDUCED_BATCH_SIZE>{});
+                save_hdf5(rlt::utils::typing::integral_constant<TI, N_EXAMPLES>{});
+#endif
+                if constexpr(EXPORT_CHECKPOINT_CODE){
+                    auto actor_weights = rlt::save_code(device, eval_student, std::string("rl_tools::checkpoint::actor"), true);
+                    std::stringstream output_ss;
+                    output_ss << actor_weights;
+                    output_ss << "\n" << "namespace rl_tools::checkpoint::example::inputs{";
+                    output_ss << "\n" << rlt::save_code(device, example_input_0_image, std::string("_0"), true);
+                    output_ss << "\n" << rlt::save_code(device, example_input_1_state, std::string("_1"), true);
+                    output_ss << "\n" << "}";
+                    output_ss << "\n" << "namespace rl_tools::checkpoint::example::outputs{";
+                    {
+                        auto example_output_canonical = rlt::reshape_row_major(device, example_output, rlt::tensor::Shape<TI, 1, N_EXAMPLES, TARGET_DIM>{});
+                        output_ss << "\n" << rlt::save_code(device, example_output_canonical, std::string("_0"), true);
+                    }
+                    output_ss << "\n" << "}";
+                    output_ss << "\n" << "namespace rl_tools::checkpoint::meta{";
+                    output_ss << "\n" << "   " << "char name[] = \"" << step_folder.string() << "\";";
+                    output_ss << "\n" << "   " << "char commit_hash[] = \"" << RL_TOOLS_STRINGIFY(RL_TOOLS_COMMIT_HASH) << "\";";
+                    output_ss << "\n" << "   " << "char observation[] = \"" << obs_string << "\";";
+                    output_ss << "\n" << "}";
+                    std::string output_string = output_ss.str();
 #ifdef RL_TOOLS_ENABLE_ZLIB
+                    {
+                        std::filesystem::path checkpoint_code_path = step_folder / "checkpoint.h.gz";
+                        std::vector<uint8_t> compressed;
+                        rlt::compress_zlib(output_string, compressed);
+                        std::ofstream f(checkpoint_code_path, std::ios::binary);
+                        f.write(reinterpret_cast<const char*>(compressed.data()), compressed.size());
+                    }
+#endif
+                    {
+                        std::filesystem::path checkpoint_code_path = step_folder / "checkpoint.h";
+                        std::ofstream f(checkpoint_code_path);
+                        f << output_string;
+                    }
+                }
+                rlt::free(device, example_input_0_image);
+                rlt::free(device, example_input_1_state);
+                rlt::free(device, example_output);
+                rlt::free(device, eval_student);
                 {
-                    std::filesystem::path checkpoint_code_path = step_folder / "checkpoint.h.gz";
+                    std::string trajectories_json = trajectory_episodes_to_json(device, envs[0], completed_episodes, simulation_dt);
+#ifdef RL_TOOLS_ENABLE_ZLIB
                     std::vector<uint8_t> compressed;
-                    rlt::compress_zlib(output_string, compressed);
-                    std::ofstream f(checkpoint_code_path, std::ios::binary);
-                    f.write(reinterpret_cast<const char*>(compressed.data()), compressed.size());
-                }
-#endif
-                {
-                    std::filesystem::path checkpoint_code_path = step_folder / "checkpoint.h";
-                    std::ofstream f(checkpoint_code_path);
-                    f << output_string;
-                }
-            }
-            rlt::free(device, example_input_0_image);
-            rlt::free(device, example_input_1_state);
-            rlt::free(device, example_output);
-            rlt::free(device, eval_student);
-            {
-                std::string trajectories_json = trajectory_episodes_to_json(device, envs[0], completed_episodes, simulation_dt);
-#ifdef RL_TOOLS_ENABLE_ZLIB
-                std::vector<uint8_t> compressed;
-                if(rlt::compress_zlib(trajectories_json, compressed)){
-                    std::filesystem::path trajectories_path = step_folder / "trajectories.json.gz";
-                    std::ofstream f(trajectories_path, std::ios::binary);
-                    f.write(reinterpret_cast<const char*>(compressed.data()), compressed.size());
-                } else {
-                    std::cerr << "Failed to compress trajectories" << std::endl;
-                }
+                    if(rlt::compress_zlib(trajectories_json, compressed)){
+                        std::filesystem::path trajectories_path = step_folder / "trajectories.json.gz";
+                        std::ofstream f(trajectories_path, std::ios::binary);
+                        f.write(reinterpret_cast<const char*>(compressed.data()), compressed.size());
+                    } else {
+                        std::cerr << "Failed to compress trajectories" << std::endl;
+                    }
 #else
-                std::filesystem::path trajectories_path = step_folder / "trajectories.json";
-                std::ofstream f(trajectories_path);
-                f << trajectories_json;
+                    std::filesystem::path trajectories_path = step_folder / "trajectories.json";
+                    std::ofstream f(trajectories_path);
+                    f << trajectories_json;
 #endif
+                }
+                std::cerr << "Checkpoint saved: " << std::filesystem::absolute(step_folder) << std::endl;
             }
-            std::cerr << "Checkpoint saved: " << std::filesystem::absolute(step_folder) << std::endl;
         }
 
         episode_length_sum_tf = 0;
@@ -2347,10 +2539,15 @@ int main(int argc, char** argv){
         episode_count_student = 0;
     }
 
-    std::cout << "Training finished." << std::endl;
+    shared.barrier.wait(); // peers read this rank's consistency copy and shadows until the last epoch completes on every rank
+    if(rank == 0){
+        std::cout << "Training finished." << std::endl;
+    }
 
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
-    rlt::free(device, device.logger);
+    if(rank == 0){
+        rlt::free(device, device.logger);
+    }
 #endif
 
     // =========================================================================
@@ -2459,6 +2656,86 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, gpu_frame_stack_history);
     rlt::free(device_gpu, gpu_all_combined_observations);
     cudaFree(gpu_episode_start_step);
+    for(TI peer = 0; peer < N_RANKS; peer++){
+        if(peer != rank){
+            rlt::free(device_gpu, peer_gradients[peer]);
+        }
+    }
+    rlt::free(device, consistency_student);
+    return 0;
+}
 
+int main(int argc, char** argv){
+    TI seed = 0;
+    if(argc < 2){
+        std::cerr << "Usage: " << argv[0] << " <scene_directory or scene.glb> [seed]" << std::endl;
+        return 1;
+    }
+    if(argc > 2){
+        seed = std::atoi(argv[2]);
+    }
+    int cuda_device_count = 0;
+    cudaGetDeviceCount(&cuda_device_count);
+    if(static_cast<int>(N_RANKS) > cuda_device_count){
+        std::cerr << "Compiled for " << N_RANKS << " GPUs (RL_TOOLS_L2F_VISUAL_IMITATION_N_RANKS) but " << cuda_device_count << " are available" << std::endl;
+        return 1;
+    }
+
+    std::vector<std::string> scene_paths;
+    const char* scene_arg = argv[1];
+    if(std::filesystem::is_directory(scene_arg)){
+        std::vector<std::string> all_glbs;
+        for(auto& entry : std::filesystem::directory_iterator(scene_arg)){
+            if(entry.path().extension() == ".glb"){
+                all_glbs.push_back(entry.path().string());
+            }
+        }
+        std::sort(all_glbs.begin(), all_glbs.end(), [](const std::string& a, const std::string& b){
+            auto extract_number = [](const std::string& path) -> int {
+                auto filename = std::filesystem::path(path).stem().string();
+                auto pos = filename.rfind('-');
+                if(pos != std::string::npos){
+                    try { return std::stoi(filename.substr(pos + 1)); } catch(...) {}
+                }
+                return 0;
+            };
+            return extract_number(a) < extract_number(b);
+        });
+
+        if(static_cast<TI>(all_glbs.size()) < N_TOTAL_SCENES){
+            std::cerr << "Need at least " << N_TOTAL_SCENES << " GLB scenes, found " << all_glbs.size() << std::endl;
+            return 1;
+        }
+        for(TI i = 0; i < N_TOTAL_SCENES; i++){
+            scene_paths.push_back(all_glbs[i]);
+        }
+        std::cout << "Selected " << scene_paths.size() << " scenes from " << scene_arg << std::endl;
+        for(TI i = 0; i < scene_paths.size(); i++){
+            std::cout << "  [" << i << "] " << std::filesystem::path(scene_paths[i]).filename().string() << std::endl;
+        }
+    } else {
+        scene_paths.resize(N_TOTAL_SCENES, scene_arg);
+        std::cout << "Replicating single scene across " << N_TOTAL_SCENES << " renderers: " << scene_arg << std::endl;
+    }
+    if(scene_paths.size() != N_TOTAL_SCENES){
+        std::cerr << "Expected exactly " << N_TOTAL_SCENES << " scenes, got " << scene_paths.size() << std::endl;
+        return 1;
+    }
+    // every rank receives the full corpus list and loads the scenes of its buckets
+    SharedState shared;
+    std::vector<RankArguments> rank_arguments(N_RANKS);
+    for(TI rank = 0; rank < N_RANKS; rank++){
+        rank_arguments[rank] = {rank, seed, scene_paths};
+    }
+    if(N_RANKS == 1){
+        return run_rank(shared, rank_arguments[0]);
+    }
+    std::vector<std::thread> rank_threads;
+    for(TI rank = 0; rank < N_RANKS; rank++){
+        rank_threads.emplace_back([&shared, &rank_arguments, rank](){ run_rank(shared, rank_arguments[rank]); });
+    }
+    for(auto& rank_thread: rank_threads){
+        rank_thread.join();
+    }
     return 0;
 }

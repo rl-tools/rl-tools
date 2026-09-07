@@ -35,6 +35,16 @@ namespace rl_tools{
         zero_gradient(device, static_cast<nn_models::mlp::NeuralNetworkGradient<SPEC>&>(network));
         zero_gradient(device, network.log_std);
     }
+    template<typename DEVICE, typename SOURCE_SPEC, template <typename> typename SOURCE_BASE, typename TARGET_SPEC, template <typename> typename TARGET_BASE>
+    RL_TOOLS_FUNCTION_PLACEMENT void add_gradient(DEVICE& device, nn_models::mlp_unconditional_stddev::NeuralNetworkGradient<SOURCE_SPEC, SOURCE_BASE>& source, nn_models::mlp_unconditional_stddev::NeuralNetworkGradient<TARGET_SPEC, TARGET_BASE>& target) {
+        add_gradient(device, static_cast<nn_models::mlp::NeuralNetworkGradient<SOURCE_SPEC>&>(source), static_cast<nn_models::mlp::NeuralNetworkGradient<TARGET_SPEC>&>(target));
+        add_gradient(device, source.log_std, target.log_std);
+    }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, template <typename> typename SOURCE_BASE, typename TARGET_SPEC, template <typename> typename TARGET_BASE>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_gradient(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn_models::mlp_unconditional_stddev::NeuralNetworkGradient<SOURCE_SPEC, SOURCE_BASE>& source, nn_models::mlp_unconditional_stddev::NeuralNetworkGradient<TARGET_SPEC, TARGET_BASE>& target) {
+        copy_gradient(source_device, target_device, static_cast<const nn_models::mlp::NeuralNetworkGradient<SOURCE_SPEC>&>(source), static_cast<nn_models::mlp::NeuralNetworkGradient<TARGET_SPEC>&>(target));
+        copy_gradient(source_device, target_device, source.log_std, target.log_std);
+    }
 
     template<typename DEVICE, typename SPEC, template <typename> typename BASE, typename OPTIMIZER>
     RL_TOOLS_FUNCTION_PLACEMENT void _reset_optimizer_state(DEVICE& device, nn_models::mlp_unconditional_stddev::NeuralNetworkGradient<SPEC, BASE>& network, OPTIMIZER& optimizer) {
