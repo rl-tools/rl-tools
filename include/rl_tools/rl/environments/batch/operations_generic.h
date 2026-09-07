@@ -3,8 +3,7 @@
 #pragma once
 #define RL_TOOLS_RL_ENVIRONMENTS_BATCH_OPERATIONS_GENERIC_H
 
-#include "environment.h"
-#include "../../../random/operations_generic_array.h"
+#include "operations_generic_common.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
@@ -35,10 +34,8 @@ namespace rl_tools {
     void sample_initial_parameters(DEVICE& device, rl::environments::batch::Independent<SPEC>& batch, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset, RNG& rng){
         for(typename SPEC::TI instance_i = 0; instance_i < SPEC::INSTANCES; instance_i++){
             if(get(device, reset, instance_i)){
-                auto& environment = get_ref(device, batch.environments, instance_i);
-                auto& parameter = get_ref(device, parameters, instance_i);
                 auto& rng_state = instance_rng<SPEC::INSTANCES>(rng, instance_i);
-                sample_initial_parameters(device, environment, parameter, rng_state);
+                sample_initial_parameters_instance(device, batch.environments, parameters, instance_i, rng_state);
             }
         }
     }
@@ -47,11 +44,8 @@ namespace rl_tools {
     void sample_initial_state(DEVICE& device, rl::environments::batch::Independent<SPEC>& batch, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset, RNG& rng){
         for(typename SPEC::TI instance_i = 0; instance_i < SPEC::INSTANCES; instance_i++){
             if(get(device, reset, instance_i)){
-                auto& environment = get_ref(device, batch.environments, instance_i);
-                auto& parameter = get_ref(device, parameters, instance_i);
-                auto& state = get_ref(device, states, instance_i);
                 auto& rng_state = instance_rng<SPEC::INSTANCES>(rng, instance_i);
-                sample_initial_state(device, environment, parameter, state, rng_state);
+                sample_initial_state_instance(device, batch.environments, parameters, states, instance_i, rng_state);
             }
         }
     }
@@ -99,10 +93,8 @@ namespace rl_tools {
             auto& environment = get_ref(device, batch.environments, instance_i);
             auto& parameter = get_ref(device, parameters, instance_i);
             auto& state = get_ref(device, states, instance_i);
-            auto observation_slice = view(device, observations, instance_i);
-            auto observation = matrix_view(device, observation_slice);
             auto& rng_state = instance_rng<SPEC::INSTANCES>(rng, instance_i);
-            observe(device, environment, parameter, state, observation_type, observation, rng_state);
+            observe_instance(device, environment, parameter, state, observation_type, observations, instance_i, rng_state);
         }
     }
 

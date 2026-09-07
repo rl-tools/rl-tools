@@ -5,6 +5,7 @@
 
 #include "../../../rl/components/running_normalizer/running_normalizer.h"
 #include "../../../utils/generic/typing.h"
+#include "../../../numeric_types/categories.h"
 
 
 RL_TOOLS_NAMESPACE_WRAPPER_START

@@ -226,7 +226,9 @@ namespace rl_tools{
         request_render(device, world, reset_mask);
     }
     template <typename DEV_SPEC, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
-    void render(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask){
+    void render(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input){
+        request_render(device, world, reset_mask_input);
+        auto& reset_mask = world.render_reset;
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -300,6 +302,8 @@ namespace rl_tools{
         }
         check_status(device);
         world.history_step++;
+        rl::environments::hyperdrone::cuda::stream_barrier(world, render_stream, device.stream);
+        set_all(device, world.render_reset, false);
         world.render_pending = false;
     }
     template <typename DEV_SPEC, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename OBSERVATION_SPEC, typename RNG>

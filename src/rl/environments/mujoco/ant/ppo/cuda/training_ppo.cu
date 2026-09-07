@@ -22,15 +22,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
 #include <rl_tools/rl/environments/batch/operations_generic.h>
 // -------------------------------------------------------
-#if defined(RL_TOOLS_BACKEND_ENABLE_MKL) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
-#else
-#if defined(RL_TOOLS_BACKEND_ENABLE_ACCELERATE) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu_accelerate.h>
-#else
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
-#endif
-#endif
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
 // -------------- added for cuda training ----------------
 #include <rl_tools/rl/components/on_policy_runner/operations_generic_extensions.h>
 // -------------------------------------------------------

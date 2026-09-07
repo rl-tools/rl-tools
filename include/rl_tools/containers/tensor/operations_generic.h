@@ -453,6 +453,12 @@ namespace rl_tools{
             };
         }
         namespace operations::binary{
+            struct LogicalOr: Operation{
+                template <typename DEVICE, typename T1, typename T2>
+                RL_TOOLS_FUNCTION_PLACEMENT static bool operation(DEVICE&, const LogicalOr&, T1 a, T2 b){
+                    return a || b;
+                }
+            };
             struct Add: Operation{
                 template <typename DEVICE, typename T1, typename T2>
                 RL_TOOLS_FUNCTION_PLACEMENT static auto operation(DEVICE& device, const Add& parameter, T1 a, T2 b){

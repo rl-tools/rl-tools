@@ -6,7 +6,7 @@
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
 #include <rl_tools/rl/algorithms/ppo/operations_collection.h>
 #include <gtest/gtest.h>
 #include <metra/metra.h>

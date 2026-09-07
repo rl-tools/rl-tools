@@ -14,15 +14,7 @@
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include "../parameters.h"
 #include <rl_tools/rl/environments/batch/operations_generic.h>
-#if defined(RL_TOOLS_BACKEND_ENABLE_MKL) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
-#else
-#if defined(RL_TOOLS_BACKEND_ENABLE_ACCELERATE) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu_accelerate.h>
-#else
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
-#endif
-#endif
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
 #include <rl_tools/rl/algorithms/ppo/operations_collection.h>
 #include <rl_tools/rl/utils/evaluation/operations_generic.h>

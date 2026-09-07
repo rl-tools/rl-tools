@@ -2,8 +2,7 @@
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rl/environments/hyperdrone/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/operations_cuda.h>
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
-#include <rl_tools/rl/components/on_policy_runner/operations_cuda.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
 
 #include "../../../utils/utils.h"
 
@@ -13,6 +12,7 @@
 
 namespace rlt = rl_tools;
 using rlt::prologue;
+using rlt::request_render;
 using rlt::reset;
 using rlt::epilogue;
 namespace l2f = rlt::rl::environments::l2f;
@@ -133,7 +133,25 @@ static void trace_rollout(DEVICE& device, COMPUTE_DEVICE& device_compute, WORLD&
             rlt::set(device, mask_host, true, 0);
             rlt::copy(device, device_compute, mask_host, mask);
             reset(device_compute, runner, world, mask, rng);
+            rlt::set_all(device, mask_host, false);
+            rlt::set(device, mask_host, true, 1);
+            rlt::copy(device, device_compute, mask_host, mask);
+            reset(device_compute, runner, world, mask, rng);
+            request_render(device_compute, world);
+            rlt::copy(device_compute, device, world.render_reset, reset_host);
+            EXPECT_TRUE(rlt::get(device, reset_host, 0));
+            EXPECT_TRUE(rlt::get(device, reset_host, 1));
+            const TI history_step = world.history_step;
             prologue(device_compute, dataset_compute, runner, world, rng);
+            EXPECT_EQ(world.history_step, history_step + 1);
+            EXPECT_FALSE(world.render_pending);
+            rlt::copy(device_compute, device, world.episode_start, episode_step_host);
+            EXPECT_EQ(rlt::get(device, episode_step_host, 0), history_step);
+            EXPECT_EQ(rlt::get(device, episode_step_host, 1), history_step);
+            rlt::copy(device_compute, device, world.render_reset, reset_host);
+            for(TI i = 0; i < INSTANCES; i++) EXPECT_FALSE(rlt::get(device, reset_host, i));
+            prologue(device_compute, dataset_compute, runner, world, rng);
+            EXPECT_EQ(world.history_step, history_step + 1);
         }
         rlt::copy(device_compute, device, runner.reset, reset_host);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
@@ -181,6 +199,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_EPISODES_CUDA, CPU_CUDA_PARITY){
     DEVICE_GPU device_gpu;
     rlt::init(device);
     rlt::init(device_gpu);
+    device_gpu.rendering = &device;
     WORLD world_cpu, world_gpu;
     typename WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);

@@ -39,6 +39,8 @@ namespace rl_tools{
             env.init_q_dot[state_i] = env.data->qvel[state_i];
         }
         env.torso_id = mj_name2id(env.model, mjOBJ_XBODY, "torso");
+        env.last_reward = 0;
+        env.last_terminated = false;
 
     }
     template <typename DEVICE, typename SPEC>

@@ -6,7 +6,7 @@
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
 #include <metra/metra.h>
 #include <cuda_profiler_api.h>
 #include <algorithm>
@@ -116,10 +116,17 @@ int main(int argc, char** argv) {
         hash_float(reward); hash_float(get(host_dataset.actions, i, 0));
     }
     for(TI i = 0; i < N * (STEPS + 1); i++) for(TI j = 0; j < 3; j++) hash_float(get(cpu, host_dataset.all_observations, i, j));
+    copy(gpu, cpu, rng, initial_rng);
+    std::uint64_t rng_hash = 14695981039346656037ULL;
+    for(TI i = 0; i < RNG::NUM_RNGS; i++){
+        const auto state = get(initial_rng.states, 0, i);
+        const auto* bytes = reinterpret_cast<const unsigned char*>(&state);
+        for(TI j = 0; j < sizeof(state); j++){ rng_hash ^= bytes[j]; rng_hash *= 1099511628211ULL; }
+    }
     const double throughput = N * STEPS * ROLLOUTS / samples[2];
     std::cout << std::setprecision(12) << "environments=" << N << " graph=" << graph_mode << " median_seconds=" << samples[2]
               << " transitions_per_second=" << throughput << " min=" << samples[0] << " max=" << samples[4]
-              << " reward_sum=" << reward_sum << " trajectory_hash=" << hash << '\n';
+              << " reward_sum=" << reward_sum << " trajectory_hash=" << hash << " rng_hash=" << rng_hash << '\n';
     const std::string metric = "on_policy_runner/collect/" + std::to_string(N) + (graph_mode ? "/graph" : "/eager");
     metra::log(metric + "/transitions_per_second", throughput);
     metra::log(metric + "/seconds", samples[2]);

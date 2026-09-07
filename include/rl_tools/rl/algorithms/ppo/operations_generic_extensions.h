@@ -4,7 +4,7 @@
 #define RL_TOOLS_RL_ALGORITHMS_PPO_OPERATIONS_GENERIC_EXTENSIONS_H
 
 #include "ppo.h"
-#include "operations_collection.h"
+#include "operations_generic_collection.h"
 #include "../../components/on_policy_runner/operations_generic_extensions.h"
 #include "../../../rl/components/on_policy_runner/on_policy_runner.h"
 
@@ -18,20 +18,7 @@ namespace rl_tools{
         prologue(device, dataset, runner, environment, rng);
         for(TI t = 0; t < DS::STEPS_PER_ENV; t++){
             evaluate_values(device, dataset, ppo.critic, critic_buffer, rng, t);
-            auto observations = view_range(device, dataset.all_observations, t * RS::N_ENVIRONMENTS, tensor::ViewSpec<0, RS::N_ENVIRONMENTS>{});
-            auto observations_matrix = matrix_view(device, observations);
-            copy(device, evaluation_device, observations_matrix, evaluation_transfer.observations);
-            auto input_tensor = to_tensor(evaluation_device, evaluation_transfer.observations);
-            auto input = reshape_row_major(evaluation_device, input_tensor, tensor::Prepend<tensor::Prepend<typename RS::OBSERVATION::SHAPE, RS::N_ENVIRONMENTS>, 1>{});
-            auto output_tensor = to_tensor(evaluation_device, evaluation_transfer.actions);
-            auto output = unsqueeze(evaluation_device, output_tensor);
-            evaluate(evaluation_device, evaluation_actor, input, output, actor_buffer, evaluation_rng, Mode<mode::Rollout<>>{});
-            copy(evaluation_device, device, evaluation_transfer.actions, transfer.actions);
-            auto actions_mean = view(device, dataset.actions_mean, matrix::ViewSpec<RS::N_ENVIRONMENTS, RS::BATCH_ENVIRONMENT::ACTION_DIM>{}, t * RS::N_ENVIRONMENTS, 0);
-            copy(device, device, transfer.actions, actions_mean);
-            auto& last_layer = get_last_layer(ppo.actor);
-            auto log_std = matrix_view(device, last_layer.log_std.parameters);
-            sample_actions(device, dataset, log_std, runner_buffer.actions, t, rng);
+            interlude(device, evaluation_device, dataset, runner_buffer, ppo.actor, evaluation_actor, actor_buffer, transfer, evaluation_transfer, rng, evaluation_rng, t);
             epilogue(device, dataset, runner, runner_buffer, environment, rng, t);
             evaluate_bootstrap_values(device, dataset, runner_buffer.next_observations_privileged, ppo.critic, critic_buffer, rng, t);
         }

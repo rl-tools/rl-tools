@@ -3,6 +3,9 @@
 #pragma once
 #define RL_TOOLS_MODE_MODE_H
 
+#include "../rl_tools.h"
+#include "../utils/generic/typing.h"
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     // note: please always check for the mode by using utils::typing::is_base_of_v, e.g. `utils::typing::is_base_of_v<mode::Evaluation, MODE>`. This ensures that when some layers of e.g. an nn_models::Sequential model are using specific modes that there are no side-effects
@@ -56,6 +59,26 @@ namespace rl_tools{
         constexpr bool is = _is<INPUT, MODE>();
 
         namespace sequential{
+            template <typename T_TI, typename T_RESET_CONTAINER_TYPE>
+            struct ResetModeSpecification{
+                using TI = T_TI;
+                using RESET_CONTAINER_TYPE = T_RESET_CONTAINER_TYPE;
+            };
+            template <typename T_BASE, typename T_SPEC>
+            struct ResetMode: T_BASE{
+                using SPEC = T_SPEC;
+                using BASE = T_BASE;
+                using PRE = typename SPEC::RESET_CONTAINER_TYPE;
+                using RESET_CONTAINER_TYPE = utils::typing::conditional_t<utils::typing::is_reference_v<PRE>, utils::typing::remove_reference_t<PRE>, PRE>;
+                RESET_CONTAINER_TYPE reset_container;
+            };
+
+            template <typename T_BASE, typename T_SPEC = bool>
+            struct NoAutoResetMode: T_BASE{
+                using SPEC = T_SPEC;
+                using BASE = T_BASE;
+            };
+
             template <typename T_RESET_CONTAINER_TYPE>
             struct ResetMaskSpecification{
                 using RESET_CONTAINER_TYPE = T_RESET_CONTAINER_TYPE;

@@ -173,6 +173,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD_CUDA, SEEDED_ROLLOUT_DETERMINISM)
     rlt::init(device);
     DEVICE_GPU device_gpu;
     rlt::init(device_gpu);
+    device_gpu.rendering = &device;
     WORLD world;
     typename WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);
@@ -217,6 +218,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD_CUDA, CPU_CUDA_RENDER_CONSISTENCY
     rlt::init(device);
     DEVICE_GPU device_gpu;
     rlt::init(device_gpu);
+    device_gpu.rendering = &device;
     WORLD world_cpu, world_gpu;
     typename WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);

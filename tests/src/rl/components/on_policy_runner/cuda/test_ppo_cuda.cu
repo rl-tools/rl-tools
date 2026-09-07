@@ -6,6 +6,7 @@
 #include <rl_tools/nn/operations_cuda.h>
 #include <rl_tools/nn/layers/standardize/operations_generic.h>
 #include <rl_tools/nn/layers/standardize/operations_cuda.h>
+#include <rl_tools/nn/layers/flatten/operations_generic.h>
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
@@ -16,14 +17,16 @@
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>
 #include <rl_tools/rl/environments/batch/operations_cuda.h>
 
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
-#include <rl_tools/rl/components/on_policy_runner/operations_cuda.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
 
 #include <rl_tools/rl/algorithms/ppo/operations_cuda.h>
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
 #include <rl_tools/rl/algorithms/ppo/loop/core/operations_generic.h>
 #include <rl_tools/rl/algorithms/ppo/loop/core/operations_cuda.h>
 
+#include <rl_tools/rl/algorithms/ppo/operations_generic_extensions.h>
+#include <rl_tools/random/operations_generic_array.h>
+#include <metra/metra.h>
 #include <gtest/gtest.h>
 
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
@@ -207,4 +210,65 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, GAE_BOUNDARIES){
 #endif
     EXPECT_EQ(cublasDestroy(gpu.handle), CUBLAS_STATUS_SUCCESS);
     EXPECT_EQ(cudaStreamDestroy(gpu.stream), cudaSuccess);
+}
+
+TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, HYBRID_SHAPED_OBSERVATIONS){
+    using namespace rl_tools;
+    struct HybridEnvironment: ENVIRONMENT{
+        struct Observation: ENVIRONMENT::Observation{ using SHAPE = tensor::Shape<TI, 1, 1, 3>; };
+    };
+    using HybridBatch = rl::environments::batch::Independent<rl::environments::batch::Specification<HybridEnvironment, N_ENVIRONMENTS>>;
+    using MLP = nn_models::mlp_unconditional_stddev::BindConfiguration<typename ActorConfig<ACTOR_CAPABILITY>::MLP_CONFIG>;
+    using Chain = nn_models::sequential::Module<nn::layers::flatten::BindConfiguration<nn::layers::flatten::Configuration<TYPE_POLICY, TI>>, nn_models::sequential::Module<MLP>>;
+    using Actor = nn_models::sequential::Build<ACTOR_CAPABILITY, Chain, tensor::Shape<TI, 1, N_ENVIRONMENTS, 1, 1, 3>>;
+    using RS = rl::components::on_policy_runner::Specification<TYPE_POLICY, HybridBatch, typename Actor::template State<>, HybridEnvironment::Observation, HybridEnvironment::ObservationPrivileged, float, double, 3>;
+    using DS = rl::components::on_policy_runner::DatasetSpecification<RS, 8>;
+    using PS = rl::algorithms::ppo::Specification<TYPE_POLICY, TI, HybridEnvironment, Actor, CRITIC_TYPE, PPO_PARAMETERS>;
+    using RNG = devices::generic::random::ArrayENGINE<devices::generic::random::ArraySpecification<TI, 1024>>;
+    DEVICE_CPU cpu;
+    DEVICE_GPU gpu;
+    init(gpu);
+    RNG rng_actor, rng_runner, rng_ppo, rng_evaluation;
+    malloc(cpu, rng_actor); malloc(cpu, rng_runner); malloc(cpu, rng_ppo); malloc(gpu, rng_evaluation);
+    init(cpu, rng_actor, 99); copy(cpu, gpu, rng_actor, rng_evaluation);
+    init(cpu, rng_actor, 42); init(cpu, rng_runner, 7); init(cpu, rng_ppo, 7);
+    rl::algorithms::PPO<PS> ppo;
+    Actor evaluation_actor;
+    typename Actor::template Buffer<> actor_buffer;
+    malloc(cpu, ppo); malloc(gpu, evaluation_actor); malloc(gpu, actor_buffer);
+    init_weights(cpu, ppo.actor, rng_actor); init_weights(cpu, ppo.critic, rng_actor);
+    copy(cpu, gpu, ppo.actor, evaluation_actor);
+    HybridBatch environment_runner, environment_ppo;
+    rl::components::OnPolicyRunner<RS> runner, ppo_runner;
+    rl::components::on_policy_runner::Buffer<RS> buffer, ppo_buffer;
+    rl::components::on_policy_runner::Dataset<DS> dataset, ppo_dataset;
+    rl::components::on_policy_runner::CollectionEvaluationBuffer<RS> transfer, ppo_transfer, evaluation_transfer;
+    rl::algorithms::ppo::CollectionBuffer<CRITIC_TYPE, DS> critic_buffer;
+    malloc(cpu, environment_runner); malloc(cpu, environment_ppo);
+    malloc(cpu, runner); malloc(cpu, ppo_runner); malloc(cpu, buffer); malloc(cpu, ppo_buffer);
+    malloc(cpu, dataset); malloc(cpu, ppo_dataset); malloc(cpu, transfer); malloc(cpu, ppo_transfer);
+    malloc(gpu, evaluation_transfer); malloc(cpu, critic_buffer);
+    init(cpu, environment_runner); init(cpu, environment_ppo);
+    init(cpu, runner, environment_runner, rng_runner); init(cpu, ppo_runner, environment_ppo, rng_ppo);
+    collect_hybrid(cpu, gpu, dataset, runner, buffer, environment_runner, ppo.actor, evaluation_actor, actor_buffer, transfer, evaluation_transfer, rng_runner, rng_evaluation);
+    collect_hybrid(cpu, gpu, ppo_dataset, ppo_runner, ppo_buffer, environment_ppo, ppo, evaluation_actor, actor_buffer, ppo_transfer, evaluation_transfer, critic_buffer, rng_ppo, rng_evaluation);
+    EXPECT_EQ(abs_diff(cpu, dataset.all_observations, ppo_dataset.all_observations), 0);
+    EXPECT_EQ(abs_diff(cpu, dataset.all_observations_privileged, ppo_dataset.all_observations_privileged), 0);
+    EXPECT_EQ(abs_diff(cpu, dataset.actions, ppo_dataset.actions), 0);
+    EXPECT_EQ(abs_diff(cpu, dataset.action_log_probs, ppo_dataset.action_log_probs), 0);
+    EXPECT_EQ(abs_diff(cpu, dataset.rewards, ppo_dataset.rewards), 0);
+    EXPECT_EQ(abs_diff(cpu, dataset.truncated, ppo_dataset.truncated), 0);
+    EXPECT_EQ(abs_diff(cpu, rng_runner, rng_ppo), 0);
+    EXPECT_FALSE(is_nan(cpu, ppo_dataset.bootstrap_values));
+    free(cpu, critic_buffer); free(gpu, evaluation_transfer); free(cpu, ppo_transfer); free(cpu, transfer);
+    free(cpu, ppo_dataset); free(cpu, dataset); free(cpu, ppo_buffer); free(cpu, buffer);
+    free(cpu, ppo_runner); free(cpu, runner); free(cpu, environment_ppo); free(cpu, environment_runner);
+    free(gpu, actor_buffer); free(gpu, evaluation_actor); free(cpu, ppo);
+    free(gpu, rng_evaluation); free(cpu, rng_ppo); free(cpu, rng_runner); free(cpu, rng_actor);
+#ifdef RL_TOOLS_BACKEND_ENABLE_CUDNN
+    EXPECT_EQ(cudnnDestroy(gpu.cudnn_handle), CUDNN_STATUS_SUCCESS);
+#endif
+    EXPECT_EQ(cublasDestroy(gpu.handle), CUBLAS_STATUS_SUCCESS);
+    EXPECT_EQ(cudaStreamDestroy(gpu.stream), cudaSuccess);
+    metra::log("ppo/hybrid/failures", ::testing::Test::HasFailure() ? 1.0 : 0.0);
 }

@@ -16,8 +16,7 @@
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>
 #include <rl_tools/rl/environments/batch/operations_cuda.h>
 
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
-#include <rl_tools/rl/components/on_policy_runner/operations_cuda.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
 
 #include <rl_tools/rl/algorithms/ppo/operations_cuda.h>
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>

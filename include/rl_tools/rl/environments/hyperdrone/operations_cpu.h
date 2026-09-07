@@ -37,13 +37,16 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC, typename RESET_SPEC>
     void request_render(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, const Tensor<RESET_SPEC>& reset_mask){
-        copy(device, device, reset_mask, world.render_reset);
+        static_assert(length(typename RESET_SPEC::SHAPE{}) == 1 && get<0>(typename RESET_SPEC::SHAPE{}) == rl::environments::hyperdrone::World<SPEC>::INSTANCES);
+        if(static_cast<const void*>(data(reset_mask)) != static_cast<const void*>(data(world.render_reset))){
+            auto reset = reset_mask;
+            binary_operation(device, tensor::operations::binary::LogicalOr{}, reset, world.render_reset);
+        }
         world.render_pending = true;
     }
 
     template <typename DEVICE, typename SPEC>
     void request_render(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world){
-        set_all(device, world.render_reset, false);
         world.render_pending = true;
     }
 
@@ -80,11 +83,6 @@ namespace rl_tools {
         using TI = typename SPEC::TI;
         using WORLD = rl::environments::hyperdrone::World<SPEC>;
         auto& render_device = get_rendering_device(device);
-        if constexpr(rendering::raytracing::device::HasRendering<DEVICE>::value){
-            if(!render_device.initialized){
-                init(render_device);
-            }
-        }
         init(device, world.dynamics);
         world.member_index = member_index;
         world.episode_counter = 0;
@@ -440,7 +438,9 @@ namespace rl_tools {
     // Reset semantics ride the mask: reset instances restart their shutter pair and their
     // episode's history window
     template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
-    void render(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask) {
+    void render(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input) {
+        request_render(device, world, reset_mask_input);
+        auto& reset_mask = world.render_reset;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using WORLD = rl::environments::hyperdrone::World<SPEC>;
@@ -554,6 +554,7 @@ namespace rl_tools {
             copy(device, device, episode_start_alias, world.episode_start);
         }
         world.history_step++;
+        set_all(device, world.render_reset, false);
         world.render_pending = false;
     }
 

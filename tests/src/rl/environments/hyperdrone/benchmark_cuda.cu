@@ -103,6 +103,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
     rlt::init(device);
     DEVICE_GPU device_gpu;
     rlt::init(device_gpu);
+    device_gpu.rendering = &device;
 
     ENVIRONMENT env;
     rlt::malloc(device_gpu, env);
