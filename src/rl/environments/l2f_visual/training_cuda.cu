@@ -35,7 +35,6 @@
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
-#include <rl_tools/rl/algorithms/ppo/operations_collection.h>
 #include <rl_tools/nn/loss_functions/mse/operations_generic.h>
 #include <rl_tools/nn/loss_functions/mse/operations_cuda.h>
 
@@ -1115,13 +1114,14 @@ int main(int argc, char** argv){
     PPO_TYPE ppo_gpu;
     ACTOR_BUFFERS actor_buffers;
     CRITIC_BUFFERS critic_buffers;
-    rlt::rl::algorithms::ppo::CollectionBuffer<typename PPO_SPEC::CRITIC_TYPE, ON_POLICY_RUNNER_DATASET_SPEC> critic_buffers_gae;
+    rlt::rl::components::on_policy_runner::ValueState<typename PPO_SPEC::CRITIC_TYPE, ON_POLICY_RUNNER_DATASET_SPEC> critic_states_gae;
+    rlt::rl::components::on_policy_runner::ValueBuffer<typename PPO_SPEC::CRITIC_TYPE, ON_POLICY_RUNNER_DATASET_SPEC> critic_buffers_gae;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, OBS_PRIV_DIM>>> next_privileged_observations;
     ON_POLICY_RUNNER_DATASET_TYPE dataset_gpu;
     rlt::malloc(device_gpu, ppo_gpu);
     rlt::malloc(device_gpu, actor_buffers);
     rlt::malloc(device_gpu, critic_buffers);
-    rlt::malloc(device_gpu, critic_buffers_gae);
+    rlt::malloc(device_gpu, critic_states_gae); rlt::malloc(device_gpu, critic_buffers_gae);
     if constexpr(ON_POLICY_RUNNER_SPEC::COLLECT_NEXT_OBSERVATIONS) rlt::malloc(device_gpu, next_privileged_observations);
     rlt::malloc(device_gpu, dataset_gpu);
 
@@ -1459,7 +1459,7 @@ int main(int argc, char** argv){
                 gpu_episode_start_step,
                 rng_gpu, step_i, frame_step_i);
             rlt::check_status(device_gpu);
-            rlt::evaluate_values(device_gpu, dataset_gpu, ppo_gpu.critic, critic_buffers_gae, rng_gpu, step_i);
+            rlt::evaluate_values(device_gpu, dataset_gpu, ppo_gpu.critic, critic_states_gae, critic_buffers_gae, rng_gpu, step_i);
             record_episode_start_kernel<<<grid, block, 0, device_gpu.stream>>>(gpu_episode_start_step, gpu_episode_start_step_per_row, step_i);
             rlt::check_status(device_gpu);
 
@@ -1645,7 +1645,7 @@ int main(int argc, char** argv){
             if constexpr(ON_POLICY_RUNNER_SPEC::COLLECT_NEXT_OBSERVATIONS){
                 ppo_visual::final_priv_obs_kernel<<<grid, block, 0, device_gpu.stream>>>(tag_device, gpu_envs_arr, gpu_params_arr, gpu_states_arr, next_privileged_observations, rng_gpu);
                 rlt::check_status(device_gpu);
-                rlt::evaluate_bootstrap_values(device_gpu, dataset_gpu, next_privileged_observations, ppo_gpu.critic, critic_buffers_gae, rng_gpu, step_i);
+                rlt::evaluate_bootstrap_values(device_gpu, dataset_gpu, next_privileged_observations, ppo_gpu.critic, critic_states_gae, critic_buffers_gae, rng_gpu, step_i);
             }
             if(log_reward_components_this_step && step_i == STEPS_PER_ENV - 1){
                 cudaStreamSynchronize(device_gpu.stream);
@@ -1678,7 +1678,7 @@ int main(int argc, char** argv){
         environment_step += N_ENVIRONMENTS * STEPS_PER_ENV;
         rlt::set_step(device, device.logger, environment_step);
 
-        rlt::evaluate_rollout_values(device_gpu, dataset_gpu, ppo_gpu.critic, critic_buffers_gae, rng_gpu, PPO_SPEC::PARAMETERS{});
+        rlt::evaluate_rollout_values(device_gpu, dataset_gpu, ppo_gpu.critic, critic_buffers_gae, rng_gpu, PPO_SPEC::COLLECTION_MODE{});
 
         // =================================================================
         // GPU→CPU: copy dataset for GAE + training
@@ -2342,7 +2342,7 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, ppo_gpu);
     rlt::free(device_gpu, actor_buffers);
     rlt::free(device_gpu, critic_buffers);
-    rlt::free(device_gpu, critic_buffers_gae);
+    rlt::free(device_gpu, critic_states_gae); rlt::free(device_gpu, critic_buffers_gae);
     if constexpr(ON_POLICY_RUNNER_SPEC::COLLECT_NEXT_OBSERVATIONS) rlt::free(device_gpu, next_privileged_observations);
     rlt::free(device_gpu, dataset_gpu);
     rlt::free(device_gpu, rollout_actor_gpu);

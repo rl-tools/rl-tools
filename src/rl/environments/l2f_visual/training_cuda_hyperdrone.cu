@@ -29,7 +29,6 @@
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
-#include <rl_tools/rl/algorithms/ppo/operations_collection.h>
 #include <rl_tools/nn/loss_functions/mse/operations_generic.h>
 #include <rl_tools/nn/loss_functions/mse/operations_cuda.h>
 
@@ -721,12 +720,13 @@ int main(int argc, char** argv){
     PPO_TYPE ppo_gpu;
     ACTOR_BUFFERS actor_buffers;
     CRITIC_BUFFERS critic_buffers;
-    rlt::rl::algorithms::ppo::CollectionBuffer<typename PPO_SPEC::CRITIC_TYPE, ON_POLICY_RUNNER_DATASET_SPEC> critic_buffers_gae;
+    rlt::rl::components::on_policy_runner::ValueState<typename PPO_SPEC::CRITIC_TYPE, ON_POLICY_RUNNER_DATASET_SPEC> critic_states_gae;
+    rlt::rl::components::on_policy_runner::ValueBuffer<typename PPO_SPEC::CRITIC_TYPE, ON_POLICY_RUNNER_DATASET_SPEC> critic_buffers_gae;
     ON_POLICY_RUNNER_DATASET_TYPE dataset_gpu;
     rlt::malloc(device_gpu, ppo_gpu);
     rlt::malloc(device_gpu, actor_buffers);
     rlt::malloc(device_gpu, critic_buffers);
-    rlt::malloc(device_gpu, critic_buffers_gae);
+    rlt::malloc(device_gpu, critic_states_gae); rlt::malloc(device_gpu, critic_buffers_gae);
     rlt::malloc(device_gpu, dataset_gpu);
 
     // Rollout actor (forward only, batch = N_ENVIRONMENTS)
@@ -911,7 +911,7 @@ int main(int argc, char** argv){
         // row 0: the current raw frames and privileged observations, plus the dataset's reset column
         prologue(device_gpu, dataset_gpu, gpu_runner, env, rng_gpu);
         for(TI step_i = 0; step_i < STEPS_PER_ENV; step_i++){
-            evaluate_values(device_gpu, dataset_gpu, ppo_gpu.critic, critic_buffers_gae, rng_gpu, step_i);
+            evaluate_values(device_gpu, dataset_gpu, ppo_gpu.critic, critic_states_gae, critic_buffers_gae, rng_gpu, step_i);
             TI frame_step_i = frame_step_start + step_i;
             // 1. Driver-side per-row data: the episode start (frame-stack guard), the actor's state
             // branch observation and the cached target frame
@@ -1005,7 +1005,7 @@ int main(int argc, char** argv){
                 sample_actions(device_gpu, dataset_gpu, log_std_gpu, gpu_step_actions, step_i, rng_gpu);
             }
             epilogue(device_gpu, dataset_gpu, gpu_runner, gpu_runner_buffer, env, rng_gpu, step_i);
-            evaluate_bootstrap_values(device_gpu, dataset_gpu, gpu_runner_buffer.next_observations_privileged, ppo_gpu.critic, critic_buffers_gae, rng_gpu, step_i);
+            evaluate_bootstrap_values(device_gpu, dataset_gpu, gpu_runner_buffer.next_observations_privileged, ppo_gpu.critic, critic_states_gae, critic_buffers_gae, rng_gpu, step_i);
             if(log_reward_components_this_step && step_i == STEPS_PER_ENV - 1){
                 cudaStreamSynchronize(device_gpu.stream);
                 cudaMemcpy(&reward_log_next_state, rlt::data(gpu_runner_buffer.next_states), sizeof(typename TASK_WORLD::State), cudaMemcpyDeviceToHost);
@@ -1029,7 +1029,7 @@ int main(int argc, char** argv){
         global_env_step += N_ENVIRONMENTS * STEPS_PER_ENV;
         rlt::set_step(device, device.logger, global_env_step);
 
-        evaluate_rollout_values(device_gpu, dataset_gpu, ppo_gpu.critic, critic_buffers_gae, rng_gpu, PPO_SPEC::PARAMETERS{});
+        evaluate_rollout_values(device_gpu, dataset_gpu, ppo_gpu.critic, critic_buffers_gae, rng_gpu, PPO_SPEC::COLLECTION_MODE{});
 
         // =================================================================
         // GPU→CPU: copy dataset for GAE + training
@@ -1623,7 +1623,7 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, ppo_gpu);
     rlt::free(device_gpu, actor_buffers);
     rlt::free(device_gpu, critic_buffers);
-    rlt::free(device_gpu, critic_buffers_gae);
+    rlt::free(device_gpu, critic_states_gae); rlt::free(device_gpu, critic_buffers_gae);
     rlt::free(device_gpu, dataset_gpu);
     rlt::free(device_gpu, rollout_actor_gpu);
     rlt::free(device_gpu, rollout_actor_buffers);

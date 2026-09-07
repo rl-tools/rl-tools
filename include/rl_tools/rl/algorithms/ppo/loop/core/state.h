@@ -29,6 +29,7 @@ namespace rl_tools{
             typename CONFIG::ACTOR_EVAL_BUFFERS actor_eval_buffers;
             typename CONFIG::ACTOR_BUFFERS actor_buffers;
             typename CONFIG::CRITIC_BUFFERS critic_buffers;
+            typename CONFIG::CRITIC_COLLECTION_STATE critic_collection_state;
             typename CONFIG::CRITIC_COLLECTION_BUFFER critic_collection_buffer;
             environments::DummyUI ui;
             TI next_checkpoint_id = 0;

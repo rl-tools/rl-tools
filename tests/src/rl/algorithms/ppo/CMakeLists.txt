@@ -19,3 +19,7 @@ endif()
 add_executable(test_rl_algorithms_ppo_terminal_observations terminal_observations.cpp)
 target_link_libraries(test_rl_algorithms_ppo_terminal_observations PRIVATE RLtools::RLtools GTest::gtest_main)
 gtest_discover_tests(test_rl_algorithms_ppo_terminal_observations)
+
+add_executable(test_rl_algorithms_ppo_collection collection.cpp)
+target_link_libraries(test_rl_algorithms_ppo_collection PRIVATE RLtools::RLtools GTest::gtest_main)
+gtest_discover_tests(test_rl_algorithms_ppo_collection)

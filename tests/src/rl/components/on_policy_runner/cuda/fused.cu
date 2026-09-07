@@ -69,8 +69,10 @@ namespace rl_tools {
     }
 }
 
-#if defined(RL_TOOLS_TEST_PPO_COLLECTION_ENTRY)
-#include <rl_tools/rl/algorithms/ppo/operations_collection.h>
+#if defined(RL_TOOLS_TEST_PPO_LOOP_ENTRY)
+#include <rl_tools/nn/operations_cpu_mux.h>
+#include <rl_tools/nn/operations_cuda.h>
+#include <rl_tools/rl/algorithms/ppo/loop/core/operations_cuda.h>
 #elif defined(RL_TOOLS_TEST_RUNNER_CUDA_DIRECT)
 #include <rl_tools/rl/components/on_policy_runner/operations_cuda.h>
 #else
@@ -163,12 +165,17 @@ namespace {
                     for(TI i = 0; i < N; i++) set(cpu, host_mask, t == 1 ? false : t == 3 ? i % 2 == 0 : true, i);
                     ASSERT_EQ(cudaMemcpyAsync(mask._data, host_mask._data, MASK_SPEC::SIZE_BYTES, cudaMemcpyHostToDevice, gpu.stream), cudaSuccess);
                     reset(gpu, runners[0], environments[0], mask, rngs[0]);
-                    reset<GPU, RS, BATCH, MASK_SPEC, RNG>(gpu, runners[1], environments[1], mask, rngs[1]);
+                    reset_mask(gpu, runners[1], mask);
+                    sample_initial_parameters(gpu, environments[1], runners[1].env_parameters, mask, rngs[1]);
+                    sample_initial_state(gpu, environments[1], runners[1].env_parameters, runners[1].states, mask, rngs[1]);
                     compare();
                 }
                 if(t == 6) {
                     reset(gpu, runners[0], environments[0], rngs[0]);
-                    reset<GPU, RS, BATCH, RNG>(gpu, runners[1], environments[1], rngs[1]);
+                    set_all(gpu, runners[1].reset, true);
+                    set_all(gpu, runners[1].episode_step, TI(0));
+                    sample_initial_parameters(gpu, environments[1], runners[1].env_parameters, runners[1].reset, rngs[1]);
+                    sample_initial_state(gpu, environments[1], runners[1].env_parameters, runners[1].states, runners[1].reset, rngs[1]);
                     compare();
                 }
                 for(TI i = 0; i < 2; i++) {

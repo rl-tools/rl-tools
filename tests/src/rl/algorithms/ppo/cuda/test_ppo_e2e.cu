@@ -25,7 +25,6 @@
 
 #include <rl_tools/random/operations_generic_array.h>
 
-#include <rl_tools/rl/algorithms/ppo/operations_generic_extensions.h>
 #include <gtest/gtest.h>
 #include <iostream>
 
@@ -198,7 +197,8 @@ template <bool BOOTSTRAP> void check_e2e(){
     ACTOR_EVAL_BUFFERS actor_eval_buffers_cpu, actor_eval_buffers_gpu;
     ACTOR_TRAIN_BUFFERS actor_train_buffers_cpu, actor_train_buffers_gpu;
     CRITIC_TRAIN_BUFFERS critic_train_buffers_cpu, critic_train_buffers_gpu;
-    rlt::rl::algorithms::ppo::CollectionBuffer<CRITIC_TYPE, DATASET_SPEC> critic_gae_buffers_cpu, critic_gae_buffers_gpu;
+    rlt::rl::components::on_policy_runner::ValueState<CRITIC_TYPE, DATASET_SPEC> critic_gae_states_cpu, critic_gae_states_gpu;
+    rlt::rl::components::on_policy_runner::ValueBuffer<CRITIC_TYPE, DATASET_SPEC> critic_gae_buffers_cpu, critic_gae_buffers_gpu;
     DATASET dataset_cpu, dataset_gpu;
     rlt::rl::components::OnPolicyRunner<ON_POLICY_RUNNER_SPEC> runner_cpu, runner_gpu;
     rlt::rl::components::on_policy_runner::Buffer<ON_POLICY_RUNNER_SPEC> runner_buffer_cpu, runner_buffer_gpu;
@@ -214,7 +214,7 @@ template <bool BOOTSTRAP> void check_e2e(){
     rlt::malloc(device_cpu, actor_eval_buffers_cpu);
     rlt::malloc(device_cpu, actor_train_buffers_cpu);
     rlt::malloc(device_cpu, critic_train_buffers_cpu);
-    rlt::malloc(device_cpu, critic_gae_buffers_cpu);
+    rlt::malloc(device_cpu, critic_gae_states_cpu); rlt::malloc(device_cpu, critic_gae_buffers_cpu);
     rlt::malloc(device_cpu, dataset_cpu);
     rlt::malloc(device_cpu, runner_cpu);
     rlt::malloc(device_cpu, runner_buffer_cpu);
@@ -230,7 +230,7 @@ template <bool BOOTSTRAP> void check_e2e(){
     rlt::malloc(device_gpu, actor_eval_buffers_gpu);
     rlt::malloc(device_gpu, actor_train_buffers_gpu);
     rlt::malloc(device_gpu, critic_train_buffers_gpu);
-    rlt::malloc(device_gpu, critic_gae_buffers_gpu);
+    rlt::malloc(device_gpu, critic_gae_states_gpu); rlt::malloc(device_gpu, critic_gae_buffers_gpu);
     rlt::malloc(device_gpu, dataset_gpu);
     rlt::malloc(device_gpu, runner_gpu);
     rlt::malloc(device_gpu, runner_buffer_gpu);
@@ -314,8 +314,8 @@ template <bool BOOTSTRAP> void check_e2e(){
         }
 
         // 1. Collect
-        rlt::collect(device_cpu, dataset_cpu, runner_cpu, runner_buffer_cpu, environment_cpu, ppo_cpu, actor_eval_buffers_cpu, critic_gae_buffers_cpu, rng_cpu);
-        rlt::collect(device_gpu, dataset_gpu, runner_gpu, runner_buffer_gpu, environment_gpu, ppo_gpu, actor_eval_buffers_gpu, critic_gae_buffers_gpu, rng_gpu);
+        rlt::collect(device_cpu, dataset_cpu, runner_cpu, runner_buffer_cpu, environment_cpu, ppo_cpu.actor, actor_eval_buffers_cpu, ppo_cpu.critic, critic_gae_states_cpu, critic_gae_buffers_cpu, rng_cpu, typename decltype(ppo_cpu)::SPEC::COLLECTION_MODE{});
+        rlt::collect(device_gpu, dataset_gpu, runner_gpu, runner_buffer_gpu, environment_gpu, ppo_gpu.actor, actor_eval_buffers_gpu, ppo_gpu.critic, critic_gae_states_gpu, critic_gae_buffers_gpu, rng_gpu, typename decltype(ppo_gpu)::SPEC::COLLECTION_MODE{});
         cudaDeviceSynchronize();
 
         rlt::copy(device_gpu, device_cpu, dataset_gpu.all_observations, dataset_gpu_copy.all_observations);
@@ -386,7 +386,7 @@ template <bool BOOTSTRAP> void check_e2e(){
     rlt::free(device_cpu, actor_eval_buffers_cpu);
     rlt::free(device_cpu, actor_train_buffers_cpu);
     rlt::free(device_cpu, critic_train_buffers_cpu);
-    rlt::free(device_cpu, critic_gae_buffers_cpu);
+    rlt::free(device_cpu, critic_gae_states_cpu); rlt::free(device_cpu, critic_gae_buffers_cpu);
     rlt::free(device_cpu, dataset_cpu);
     rlt::free(device_cpu, runner_cpu);
     rlt::free(device_cpu, runner_buffer_cpu);
@@ -401,7 +401,7 @@ template <bool BOOTSTRAP> void check_e2e(){
     rlt::free(device_gpu, actor_eval_buffers_gpu);
     rlt::free(device_gpu, actor_train_buffers_gpu);
     rlt::free(device_gpu, critic_train_buffers_gpu);
-    rlt::free(device_gpu, critic_gae_buffers_gpu);
+    rlt::free(device_gpu, critic_gae_states_gpu); rlt::free(device_gpu, critic_gae_buffers_gpu);
     rlt::free(device_gpu, dataset_gpu);
     rlt::free(device_gpu, runner_gpu);
     rlt::free(device_gpu, runner_buffer_gpu);
@@ -411,56 +411,3 @@ template <bool BOOTSTRAP> void check_e2e(){
 
 TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_CPU_GPU_COMPARISON){ check_e2e<true>(); }
 TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_NO_TRUNCATION_BOOTSTRAP){ check_e2e<false>(); }
-
-template <bool BOOTSTRAP> void check_hybrid(){
-    using PPO_SPEC = rlt::rl::algorithms::ppo::Specification<TYPE_POLICY, TI, ENVIRONMENT, ACTOR_TYPE, CRITIC_TYPE, OptionalBootstrapParameters<BOOTSTRAP>>;
-    using PPO_TYPE = rlt::rl::algorithms::PPO<PPO_SPEC>;
-    using namespace rl_tools;
-    using RS = rl::components::on_policy_runner::Specification<TYPE_POLICY, BATCH, ACTOR_TYPE::State<>, ENVIRONMENT::Observation, ENVIRONMENT::ObservationPrivileged, T, T, 5, false, true, BOOTSTRAP>;
-    using DS = rl::components::on_policy_runner::DatasetSpecification<RS, 16>;
-    DEVICE_CPU cpu;
-    DEVICE_GPU gpu;
-    init(gpu);
-    PPO_TYPE ppo;
-    ACTOR_OPTIMIZER actor_optimizer;
-    CRITIC_OPTIMIZER critic_optimizer;
-    ARRAY_RNG rngs[2], evaluation_rng;
-    ACTOR_TYPE evaluation_actor;
-    ACTOR_EVAL_BUFFERS actor_buffers, evaluation_actor_buffers;
-    rl::components::on_policy_runner::CollectionEvaluationBuffer<RS> transfer, evaluation_transfer;
-    rl::algorithms::ppo::CollectionBuffer<CRITIC_TYPE, DS> critic_buffers[2];
-    rl::components::on_policy_runner::Dataset<DS> datasets[2];
-    rl::components::OnPolicyRunner<RS> runners[2];
-    rl::components::on_policy_runner::Buffer<RS> runner_buffers[2];
-    BATCH environments[2];
-    malloc(cpu, ppo); malloc(cpu, actor_optimizer); malloc(cpu, critic_optimizer);
-    malloc(cpu, rngs[0]); malloc(cpu, rngs[1]); malloc(gpu, evaluation_rng);
-    init(cpu, rngs[0], 23); init(cpu, rngs[1], 31); copy(cpu, gpu, rngs[1], evaluation_rng);
-    init(cpu, ppo, actor_optimizer, critic_optimizer, rngs[0]);
-    copy(cpu, cpu, rngs[1], rngs[0]);
-    malloc(gpu, evaluation_actor); copy(cpu, gpu, ppo.actor, evaluation_actor);
-    malloc(cpu, actor_buffers); malloc(gpu, evaluation_actor_buffers);
-    malloc(cpu, transfer); malloc(gpu, evaluation_transfer);
-    for(TI i = 0; i < 2; i++){
-        malloc(cpu, critic_buffers[i]); malloc(cpu, datasets[i]); malloc(cpu, runners[i]); malloc(cpu, runner_buffers[i]);
-        malloc(cpu, environments[i]); init(cpu, environments[i]); init(cpu, runners[i], environments[i], rngs[i]);
-        set_all(cpu, datasets[i].scalar_data, (T)0);
-    }
-    collect(cpu, datasets[0], runners[0], runner_buffers[0], environments[0], ppo, actor_buffers, critic_buffers[0], rngs[0]);
-    collect_hybrid(cpu, gpu, datasets[1], runners[1], runner_buffers[1], environments[1], ppo, evaluation_actor, evaluation_actor_buffers, transfer, evaluation_transfer, critic_buffers[1], rngs[1], evaluation_rng);
-    EXPECT_LT(abs_diff(cpu, datasets[0], datasets[1]), (T)0.01);
-    for(TI t = 4; t < 16; t += 5) EXPECT_EQ(get(datasets[1].truncated, t * N_ENVIRONMENTS, 0), 1);
-    for(TI i = 0; i < 2; i++){
-        free(cpu, critic_buffers[i]); free(cpu, datasets[i]); free(cpu, runners[i]); free(cpu, runner_buffers[i]); free(cpu, environments[i]); free(cpu, rngs[i]);
-    }
-    free(gpu, evaluation_rng); free(gpu, evaluation_actor); free(gpu, evaluation_actor_buffers); free(gpu, evaluation_transfer);
-    free(cpu, transfer); free(cpu, actor_buffers); free(cpu, actor_optimizer); free(cpu, critic_optimizer); free(cpu, ppo);
-#ifdef RL_TOOLS_BACKEND_ENABLE_CUDNN
-    EXPECT_EQ(cudnnDestroy(gpu.cudnn_handle), CUDNN_STATUS_SUCCESS);
-#endif
-    EXPECT_EQ(cublasDestroy(gpu.handle), CUBLAS_STATUS_SUCCESS);
-    EXPECT_EQ(cudaStreamDestroy(gpu.stream), cudaSuccess);
-}
-
-TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, HYBRID_BOOTSTRAP){ check_hybrid<true>(); }
-TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, HYBRID_NO_TRUNCATION_BOOTSTRAP){ check_hybrid<false>(); }

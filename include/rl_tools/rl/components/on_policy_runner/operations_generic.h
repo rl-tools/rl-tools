@@ -236,22 +236,8 @@ namespace rl_tools{
         runner.initialized = true;
 #endif
     }
-    template <typename DEVICE, typename DATASET_SPEC, typename SPEC, typename ENVIRONMENT, typename ACTOR, typename ACTOR_BUFFERS, typename RNG>
-    void collect(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<SPEC>& runner, rl::components::on_policy_runner::Buffer<SPEC>& buffer, ENVIRONMENT& environment, ACTOR& actor, ACTOR_BUFFERS& actor_buffers, RNG& rng){
-        static_assert(rl_tools::utils::typing::is_same_v<typename DATASET_SPEC::SPEC, SPEC>, "the dataset must be specified over the runner's specification");
-#ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT
-        utils::assert_exit(device, runner.initialized, "rl::components::on_policy_runner::collect: runner not initialized");
-#endif
-        using TI = typename SPEC::TI;
-        if constexpr(SPEC::TRUNCATE_ON_EACH_ITERATION){
-            reset(device, runner, environment, rng);
-        }
-        prologue(device, dataset, runner, environment, rng);
-        for(TI step_i = 0; step_i < DATASET_SPEC::STEPS_PER_ENV; step_i++){
-            interlude(device, dataset, runner, buffer, actor, actor_buffers, rng, step_i);
-            epilogue(device, dataset, runner, buffer, environment, rng, step_i);
-        }
-    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
+
+#include "operations_generic_collection.h"
 #endif

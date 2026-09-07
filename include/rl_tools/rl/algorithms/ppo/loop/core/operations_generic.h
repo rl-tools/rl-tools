@@ -11,7 +11,6 @@
 #include "../../../../../rl/algorithms/ppo/operations_generic.h"
 #include "../../../../../rl/environments/batch/operations_generic.h"
 #include "../../../../../rl/components/on_policy_runner/operations_generic.h"
-#include "../../../../../rl/algorithms/ppo/operations_generic_collection.h"
 #include "../../../../../random/operations_generic_array.h"
 
 #include "config.h"
@@ -30,6 +29,7 @@ namespace rl_tools{
         malloc(device, ts.actor_eval_buffers);
         malloc(device, ts.actor_buffers);
         malloc(device, ts.critic_buffers);
+        malloc(device, ts.critic_collection_state);
         malloc(device, ts.critic_collection_buffer);
         malloc(device, ts.actor_optimizer);
         malloc(device, ts.critic_optimizer);
@@ -46,6 +46,7 @@ namespace rl_tools{
         free(device, ts.actor_eval_buffers);
         free(device, ts.actor_buffers);
         free(device, ts.critic_buffers);
+        free(device, ts.critic_collection_state);
         free(device, ts.critic_collection_buffer);
         free(device, ts.actor_optimizer);
         free(device, ts.critic_optimizer);
@@ -99,7 +100,7 @@ namespace rl_tools{
                 init(device, ts.on_policy_runner, ts.environment, ts.rng);
             }
         }
-        collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.on_policy_runner_buffer, ts.environment, ts.ppo, ts.actor_eval_buffers, ts.critic_collection_buffer, ts.rng);
+        collect(device, ts.on_policy_runner_dataset, ts.on_policy_runner, ts.on_policy_runner_buffer, ts.environment, ts.ppo.actor, ts.actor_eval_buffers, ts.ppo.critic, ts.critic_collection_state, ts.critic_collection_buffer, ts.rng, typename decltype(ts.ppo)::SPEC::COLLECTION_MODE{});
         estimate_generalized_advantages(device, ts.on_policy_runner_dataset, ts.on_policy_runner_dataset.bootstrap_values, typename CONFIG::PPO_TYPE::SPEC::PARAMETERS{});
         train(device, ts.ppo, ts.on_policy_runner_dataset, ts.actor_optimizer, ts.critic_optimizer, ts.ppo_buffers, ts.actor_buffers, ts.critic_buffers, ts.rng);
         if constexpr(T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS && T_CONFIG::CORE_PARAMETERS::NORMALIZE_OBSERVATIONS_CONTINUOUSLY){
