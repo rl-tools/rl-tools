@@ -638,13 +638,14 @@ int main(int argc, char** argv){
         std::cout << "Replicating single scene across " << N_TOTAL_SCENES << " renderers: " << scene_arg << std::endl;
     }
 
-    DEVICE device;
-    rlt::init(device);
 #ifdef RL_TOOLS_L2F_VISUAL_IMITATION_HYPERDRONE_COMPUTE_CUDA
     DEVICE_COMPUTE device_compute;
+    auto& device = device_compute.rendering;
+    rlt::init(device);
     rlt::init(device_compute);
-    device_compute.rendering = &device;
 #else
+    DEVICE device;
+    rlt::init(device);
     DEVICE_COMPUTE& device_compute = device;
 #endif
 

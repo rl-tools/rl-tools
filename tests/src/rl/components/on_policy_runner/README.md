@@ -34,7 +34,9 @@ likewise precede batch/loop persistence templates.
 | CUDA independent Pendulum/L2F, scalar and recurrent policies, portable and cuRAND engines | Preserve fused phases, one RNG stream per instance, deterministic reset order, and memory residence. Share scalar transition/reset/observation logic without changing phase ordering. |
 | CPU batches using a shared scalar RNG | Preserve all-parameters, all-states, and observation-channel ordering across instances. Do not replace composition with a per-instance fused loop. |
 | Native HyperDrone World/MultiEnvironment, target-frame, moving-gate, localization, self-visible and multi-agent tasks | Preserve composed batch verbs, renderer caches, scene sharing, and stream ownership within environments. Accumulate pending reset masks until rendering consumes them. |
-| Generic, Metal, OptiX, Vulkan, WebGPU rendering | Compute devices can reference a separately owned rendering device. Backend lifecycle remains with the caller and renderer library. |
+| Generic, Metal, OptiX, Vulkan, WebGPU rendering | Compute devices own their rendering device through the extension. Callers initialize the owned member explicitly; renderer libraries retain their backend lifecycle. |
+| CUDA Adam/SGD, TD3, and renderer producer/physics kernels | Runtime devices may contain noncopyable extensions. Host launchers retain stream ownership; kernels receive CUDA tags by value and their data separately. |
+| Legacy Pendulum training inside a CUDA kernel | The complete training loop needs a device-side logging context. Construct it inside the kernel and pass only the training-state pointer across the launch boundary. |
 | Hybrid MuJoCo and shaped visual observations | Share transfer, canonical input reshaping, rollout-mode evaluation, and action sampling. Transfer observations in `SPEC::OBSERVATION_T`; retain separate PPO critic orchestration. Hybrid collection remains feedforward. |
 | Feedforward/recurrent PPO, all bootstrap/ignore-termination combinations | Model-level sequence reset modes preserve the old episode's critic state for terminal observations. Legacy GRU mode names are aliases to the same types. |
 | Manual phases, external actions, visual PPO and RAPTOR imitation | Keep public prologue/interlude/epilogue operations independently callable; no callback framework or extra collector. |
@@ -59,10 +61,15 @@ These changes are separate from overload dispatch:
   environment payload to the new schema; policy checkpoints are unaffected.
 - Visual L2F training configures environment default scene translations before
   loop initialization, so initial sampling and later resets use those defaults.
-- A CUDA rendering extension holds a non-owning host-device pointer. Initialize
-  the host device and attach it with `compute.rendering = &host` before world or
-  multi-environment lifecycle calls. Keep it alive until environments and their
-  shared renderer library are freed. Worlds no longer initialize hidden devices.
+- A CUDA rendering extension owns its host device by value. Use
+  `auto& host = compute.rendering` and initialize both devices before world or
+  multi-environment lifecycle calls. Free environments and their shared renderer
+  library before releasing host resources. Worlds do not initialize devices.
+  Host operations take devices by reference; CUDA kernels receive
+  `devices::cuda::TAG<DEVICE, true>` by value, without copying runtime extensions.
+  `tests/src/nn/cuda/device_extension.cu` checks owned noncopyable host storage
+  and CPU/CUDA Adam/SGD parity through updates and resets, with and without
+  master parameters.
 - Pending render masks accumulate across partial resets and ordinary step
   invalidations. Explicit renders merge their reset mask with pending resets.
   After consumption, masks clear; repeated observations reuse the cached frame.

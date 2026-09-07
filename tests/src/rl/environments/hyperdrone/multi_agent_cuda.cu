@@ -171,11 +171,10 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MULTI_AGENT_CUDA, AGENTS_STEP_SEE_AND_C
     if(!cuda_available()){
         GTEST_SKIP() << "no CUDA device available";
     }
-    DEVICE device;
     DEVICE_GPU device_gpu;
+    auto& device = device_gpu.rendering;
     rlt::init(device);
     rlt::init(device_gpu);
-    device_gpu.rendering = &device;
     WORLD world;
     typename WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);

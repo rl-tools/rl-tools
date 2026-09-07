@@ -99,11 +99,10 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
     if(!cuda_available()){
         GTEST_SKIP() << "CUDA device unavailable";
     }
-    DEVICE device;
-    rlt::init(device);
     DEVICE_GPU device_gpu;
+    auto& device = device_gpu.rendering;
+    rlt::init(device);
     rlt::init(device_gpu);
-    device_gpu.rendering = &device;
 
     ENVIRONMENT env;
     rlt::malloc(device_gpu, env);
