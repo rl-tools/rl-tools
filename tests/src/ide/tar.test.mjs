@@ -51,18 +51,17 @@ test("ustar archive from the packaging recipe", { skip: !hasGnuTar() && "GNU tar
     });
 });
 
-test("gnu archive with long-name entries", { skip: !hasGnuTar() && "GNU tar not found" }, () => {
+test("unsupported GNU long-name entries are rejected", { skip: !hasGnuTar() && "GNU tar not found" }, () => {
     withTree(directory => {
         const longName = "n".repeat(150) + ".h";
         writeFileSync(join(directory, "tree", longName), "long\n");
         execFileSync("tar", ["--format=gnu", "-C", join(directory, "tree"), "-cf", join(directory, "tree.tar"), longName, "include"]);
-        const entries = untar(new Uint8Array(readFileSync(join(directory, "tree.tar"))));
-        assert.equal(decoder.decode(entries.get(longName)), "long\n");
-        assert.equal(decoder.decode(entries.get("include/a.h")), "#pragma once\n");
+        assert.throws(() => untar(new Uint8Array(readFileSync(join(directory, "tree.tar")))), /ustar/);
     });
 });
 
 test("truncated and empty input", () => {
     assert.equal(untar(new Uint8Array(0)).size, 0);
     assert.equal(untar(new Uint8Array(1024)).size, 0);
+    assert.throws(() => untar(new Uint8Array(513)), /truncated/);
 });

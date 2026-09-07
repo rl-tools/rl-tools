@@ -1,36 +1,17 @@
-# RLtools IDE (browser)
+# RLtools IDE
 
-Compiles an RLtools training program with clang running inside the browser (LLVM built for `wasm32-wasip1` from source by `tools/ide/toolchain`), runs the resulting WASI module in a Web Worker, and plots the evaluation lines the loop steps print. Nothing runs on a server; there are no bindings between the page and the program. The program is a plain `main()` that reads its seed from `argv`, writes to stdout, and also builds natively via the CMake target `rl_environments_pendulum_sac_wasi` (`src/rl/environments/pendulum/sac/wasi/`).
+The IDE compiles C++ with a WASI build of clang and lld inside a Web Worker, then runs the resulting WASI command module in a separate worker. The default example is a plain pendulum SAC training program; its stdout supplies the evaluation plot. Compilation and training happen in the browser.
 
-## Build
+Build the compiler and candidate bundle using the [toolchain instructions](../../tools/ide/toolchain/README.md). The default build verifies the candidate and stages it in `static/ide/build/`. Serve the repository root with the virtual environment's Python:
+
+```bash
+.venv/bin/python -m http.server -d . 8000
 ```
-sudo apt install clang-22 lld-22 ninja-build nodejs           # the wasm cross compiler (Ubuntu 26.04); ninja and node are optional
-tools/ide/download_dependencies.sh                            # pinned checkouts of the llvm-project fork and wasi-libc into tools/ide/external
-cmake -S tools/ide/toolchain -B /vm/data/rl-tools/ide-toolchain/build -G Ninja
-cmake --build /vm/data/rl-tools/ide-toolchain/build           # about 40 min: builds and verifies build/toolchain/{llvm.wasm,sysroot.tar,toolchain.json}
-tools/ide/bundle.sh                                           # include/rl_tools -> build/rl_tools_include.tar, example program, manifest (the superbuild's verify stage runs it too)
-python3 -m http.server -d . 8000                              # from the repository root, then open http://localhost:8000/static/ide/
-```
-The toolchain superbuild (`tools/ide/toolchain/`, see its README) is a standalone CMake project, not built by the main RLtools configure. Its sources are soft submodules: `tools/ide/download_dependencies.sh` holds the pins (RLtools' fork of llvm-project with the WASI commits, and wasi-libc) and checks them out at depth 1 under `tools/ide/external/`; build trees live outside the repository in `$RL_TOOLS_IDE_TOOLCHAIN_DIR` (default `/vm/data/rl-tools/ide-toolchain`). Everything served lands in `static/ide/build/` (ignored by git). Plain HTTP is enough: no cross-origin isolation headers are required because nothing uses threads.
 
-## Tests
-```
-node --test tests/src/ide/*.test.mjs                          # unit tests of wasi.js, tar.js, protocol.js (ctest test_ide_unit)
-node tests/src/ide/toolchain.mjs                              # module shape, compiler identity vs toolchain.json, stack probe (ctest test_ide_toolchain)
-node tests/src/ide/pipeline.mjs [--reference training.wasm]   # compile + run the example through the page's modules, optional parity with the host-compiled program (ctest test_ide_pipeline)
-python3 tests/src/ide/browser_test.py                         # the same through the real workers in headless Chrome or Firefox, via static/ide/test.html (ctest test_ide_browser)
-tests/src/ide/provenance.sh                                   # the served package matches the pins and its hashes (ctest test_ide_toolchain_provenance)
-```
-Node is the distro package (Ubuntu: `sudo apt install nodejs`); the browser test needs only the standard library and an installed browser.
+Open `http://localhost:8000/static/ide/`. Plain HTTP is sufficient; cross-origin isolation is unnecessary. Compile and Run execute one operation at a time. Stop cancels either operation. Worker failures and timeouts discard the compiler worker; a subsequent compile reloads its assets.
 
-## Layout
-- `wasi.js` implements WASI preview1 for one in-memory directory tree preopened at `/`, stdio as byte sinks, no threads and no sockets; the compiler imports 29 of its 46 functions. An optional trace hook logs every syscall.
-- `tar.js` reads the header and sysroot archives
-- `filesystem.js` converts path maps to directory trees and back
-- `process.js` runs one WASI command module: argv in, stdout/stderr lines out, one directory tree at `/`
-- `toolchain.js` asks the clang driver for its job plan (`-###`) and runs each job (`clang++ -cc1`, `wasm-ld`) as its own process, since WASI cannot spawn
-- `runtime.js` runs a compiled program
-- `protocol.js` parses the evaluation and timing lines
-- `worker.js` hosts compile and run off the main thread; `main.js` wires the page; `test.html` drives the same workers for the browser test
+The argument field supports single/double quotes and backslash escapes. It performs no shell expansion. Arguments stay as an array after parsing, and output discovery uses the final clang driver job. The default arguments come from [examples.json](examples.json); `-fno-exceptions` is required by the sysroot.
 
-The sysroot is mounted read-only at `/usr`, the compiler's temporary files go to `/tmp`, and the project (editor contents plus `include/rl_tools`) sits at `/`, so the arguments read like a shell invocation: `-std=c++17 -O2 -fno-exceptions -Iinclude training.cpp -o training.wasm`. `-fno-exceptions` is required: the WASI libc++ has no exception support.
+The compiler worker owns the compiled module and the read-only `/usr` and `/include` mounts. Each compilation gets fresh source files and `/tmp`. Archives use ustar. Both the browser and Node tests use `toolchain.js`, `runtime.js`, and the same WASI implementation. The page and browser test also share `worker_client.js`, which handles request IDs, errors, timeouts, and cancellation.
+
+Tests, custom bundle paths, optional host compiler bootstrapping, and the full training/parity check are described in the [toolchain README](../../tools/ide/toolchain/README.md).
