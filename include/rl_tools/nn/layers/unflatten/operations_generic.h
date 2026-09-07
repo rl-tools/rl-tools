@@ -102,6 +102,10 @@ namespace rl_tools{
     // ======================== zero_gradient / update / _reset_optimizer_state (no-ops) ========================
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, nn::layers::unflatten::LayerGradient<SPEC>& layer) {}
+    template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void add_gradient(DEVICE& device, nn::layers::unflatten::LayerGradient<SOURCE_SPEC>& source, nn::layers::unflatten::LayerGradient<TARGET_SPEC>& target) {}
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_gradient(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::unflatten::LayerGradient<SOURCE_SPEC>& source, nn::layers::unflatten::LayerGradient<TARGET_SPEC>& target) {}
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
     RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn::layers::unflatten::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer) {}
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>

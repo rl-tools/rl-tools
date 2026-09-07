@@ -268,10 +268,14 @@ namespace rl_tools {
     // =========================================================================
     namespace rendering::raytracing::backends::optix{
         // context-scoped resources (context, module, miss programs): created once per renderer
-        // in standalone mode, once per AssetLibrary in shared mode
+        // in standalone mode, once per AssetLibrary in shared mode. The context is bound to the
+        // CUDA device that is current at creation (multi-GPU targets cudaSetDevice before malloc);
+        // owlContextCreate(nullptr, 1) would always pick ordinal 0
         template <typename SPEC>
         void create_context_resources(OWLContext& context_out, OWLModule& module_out, OWLMissProg& miss_prog_out){
-            OWLContext context = owlContextCreate(nullptr, 1);
+            int32_t cuda_device_id = 0;
+            cudaGetDevice(&cuda_device_id);
+            OWLContext context = owlContextCreate(&cuda_device_id, 1);
             // ray type 2 (normals) only exists in the normals-enabled PTX variants; the count
             // must match the NUM_RAY_TYPES the selected PTX was compiled with (SBT stride)
             owlContextSetRayTypeCount(context, SPEC::HAS_NORMALS ? 3 : 2);

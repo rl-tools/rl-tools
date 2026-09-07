@@ -93,6 +93,14 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer) {
         zero_gradient(device, layer.log_alpha);
     }
+    template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void add_gradient(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SOURCE_SPEC>& source, nn::layers::sample_and_squash::LayerGradient<TARGET_SPEC>& target) {
+        add_gradient(device, source.log_alpha, target.log_alpha);
+    }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_gradient(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::sample_and_squash::LayerGradient<SOURCE_SPEC>& source, nn::layers::sample_and_squash::LayerGradient<TARGET_SPEC>& target) {
+        copy_gradient(source_device, target_device, source.log_alpha, target.log_alpha);
+    }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
     RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn::layers::sample_and_squash::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer){
         if constexpr(SPEC::PARAMETERS::ADAPTIVE_ALPHA && SPEC::PARAMETERS::UPDATE_ALPHA_WITH_ACTOR){

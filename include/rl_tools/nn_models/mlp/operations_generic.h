@@ -127,6 +127,24 @@ namespace rl_tools {
         }
         zero_gradient(device, network.output_layer);
     }
+    template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void add_gradient(DEVICE& device, nn_models::mlp::NeuralNetworkGradient<SOURCE_SPEC>& source, nn_models::mlp::NeuralNetworkGradient<TARGET_SPEC>& target) {
+        static_assert(SOURCE_SPEC::NUM_HIDDEN_LAYERS == TARGET_SPEC::NUM_HIDDEN_LAYERS);
+        add_gradient(device, source.input_layer, target.input_layer);
+        for(typename DEVICE::index_t i = 0; i < SOURCE_SPEC::NUM_HIDDEN_LAYERS; i++){
+            add_gradient(device, source.hidden_layers[i], target.hidden_layers[i]);
+        }
+        add_gradient(device, source.output_layer, target.output_layer);
+    }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_gradient(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn_models::mlp::NeuralNetworkGradient<SOURCE_SPEC>& source, nn_models::mlp::NeuralNetworkGradient<TARGET_SPEC>& target) {
+        static_assert(SOURCE_SPEC::NUM_HIDDEN_LAYERS == TARGET_SPEC::NUM_HIDDEN_LAYERS);
+        copy_gradient(source_device, target_device, source.input_layer, target.input_layer);
+        for(typename SOURCE_DEVICE::index_t i = 0; i < SOURCE_SPEC::NUM_HIDDEN_LAYERS; i++){
+            copy_gradient(source_device, target_device, source.hidden_layers[i], target.hidden_layers[i]);
+        }
+        copy_gradient(source_device, target_device, source.output_layer, target.output_layer);
+    }
     template<typename DEVICE, typename MODEL_SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename BUFFER_MODEL_SPEC, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT void backward_input(DEVICE& device, nn_models::mlp::NeuralNetworkBackward<MODEL_SPEC>& network, Matrix<D_OUTPUT_SPEC>& d_output, Matrix<D_INPUT_SPEC>& d_input, nn_models::mlp::NeuralNetworkBuffers<BUFFER_MODEL_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         // ATTENTION: this modifies d_output (uses it as a buffer for the d_pre_activations

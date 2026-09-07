@@ -23,6 +23,10 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void copy(SD&, TD&, const nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::NONE, SPEC1>&, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::NONE, SPEC2>&) {}
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE&, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::NONE, SPEC>&) {}
+    template<typename DEVICE, typename SPEC1, typename SPEC2>
+    RL_TOOLS_FUNCTION_PLACEMENT void add_gradient(DEVICE&, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::NONE, SPEC1>&, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::NONE, SPEC2>&) {}
+    template<typename SD, typename TD, typename SPEC1, typename SPEC2>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_gradient(SD&, TD&, const nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::NONE, SPEC1>&, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::NONE, SPEC2>&) {}
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
     RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE&, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::NONE, SPEC>&, OPTIMIZER&) {}
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
@@ -58,6 +62,16 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC>& norm) {
         zero_gradient(device, norm.gamma);
         zero_gradient(device, norm.beta);
+    }
+    template<typename DEVICE, typename SPEC1, typename SPEC2>
+    RL_TOOLS_FUNCTION_PLACEMENT void add_gradient(DEVICE& device, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC1>& source, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC2>& target) {
+        add_gradient(device, source.gamma, target.gamma);
+        add_gradient(device, source.beta, target.beta);
+    }
+    template<typename SD, typename TD, typename SPEC1, typename SPEC2>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_gradient(SD& sd, TD& td, const nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC1>& source, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC2>& target) {
+        copy_gradient(sd, td, source.gamma, target.gamma);
+        copy_gradient(sd, td, source.beta, target.beta);
     }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
     RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::BATCH_NORM, SPEC>& norm, OPTIMIZER& optimizer) {
@@ -104,6 +118,16 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC>& norm) {
         zero_gradient(device, norm.gamma);
         zero_gradient(device, norm.beta);
+    }
+    template<typename DEVICE, typename SPEC1, typename SPEC2>
+    RL_TOOLS_FUNCTION_PLACEMENT void add_gradient(DEVICE& device, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC1>& source, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC2>& target) {
+        add_gradient(device, source.gamma, target.gamma);
+        add_gradient(device, source.beta, target.beta);
+    }
+    template<typename SD, typename TD, typename SPEC1, typename SPEC2>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_gradient(SD& sd, TD& td, const nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC1>& source, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC2>& target) {
+        copy_gradient(sd, td, source.gamma, target.gamma);
+        copy_gradient(sd, td, source.beta, target.beta);
     }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
     RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn::layers::conv2d::NormForward<nn::layers::conv2d::Normalization::LAYER_NORM, SPEC>& norm, OPTIMIZER& optimizer) {
@@ -1059,6 +1083,18 @@ namespace rl_tools{
         zero_gradient(device, layer.weights);
         zero_gradient(device, layer.biases);
         zero_gradient(device, layer.norm);
+    }
+    template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void add_gradient(DEVICE& device, nn::layers::conv2d::LayerGradient<SOURCE_SPEC>& source, nn::layers::conv2d::LayerGradient<TARGET_SPEC>& target) {
+        add_gradient(device, source.weights, target.weights);
+        add_gradient(device, source.biases, target.biases);
+        add_gradient(device, source.norm, target.norm);
+    }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_gradient(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::conv2d::LayerGradient<SOURCE_SPEC>& source, nn::layers::conv2d::LayerGradient<TARGET_SPEC>& target) {
+        copy_gradient(source_device, target_device, source.weights, target.weights);
+        copy_gradient(source_device, target_device, source.biases, target.biases);
+        copy_gradient(source_device, target_device, source.norm, target.norm);
     }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
     RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn::layers::conv2d::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer){
