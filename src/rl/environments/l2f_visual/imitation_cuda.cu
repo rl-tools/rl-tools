@@ -249,6 +249,18 @@ static constexpr TI N_ACTIVE_SCENES_TOTAL = 2;
 #endif
 static_assert(N_RANKS >= 1 && N_ACTIVE_SCENES_TOTAL % N_RANKS == 0, "The active scenes must split evenly over the ranks");
 static_assert(N_TOTAL_SCENES >= N_ACTIVE_SCENES_TOTAL, "Not enough scenes in the corpus for the active scene slots");
+// The sorted corpus is split into N_SCENE_BUCKETS contiguous buckets; active slot a draws its scene
+// from bucket a / SLOTS_PER_BUCKET every epoch (distinct within a bucket). Rank r hosts buckets
+// r*BUCKETS_PER_RANK..(r+1)*BUCKETS_PER_RANK and loads only their scenes, so the scene sampling
+// distribution is the same for every N_RANKS while the renderer memory per GPU shrinks with it
+static constexpr TI N_SCENE_BUCKETS = N_ACTIVE_SCENES_TOTAL;
+static_assert(N_SCENE_BUCKETS % N_RANKS == 0, "The scene buckets must split evenly over the ranks");
+static_assert(N_ACTIVE_SCENES_TOTAL % N_SCENE_BUCKETS == 0, "The active scene slots must split evenly over the buckets");
+static constexpr TI SLOTS_PER_BUCKET = N_ACTIVE_SCENES_TOTAL / N_SCENE_BUCKETS;
+static constexpr TI BUCKETS_PER_RANK = N_SCENE_BUCKETS / N_RANKS;
+static_assert(N_TOTAL_SCENES / N_SCENE_BUCKETS >= SLOTS_PER_BUCKET, "Every scene bucket needs at least SLOTS_PER_BUCKET scenes");
+constexpr TI scene_bucket_begin(TI bucket){ return bucket * N_TOTAL_SCENES / N_SCENE_BUCKETS; }
+constexpr TI scene_bucket_end(TI bucket){ return (bucket + 1) * N_TOTAL_SCENES / N_SCENE_BUCKETS; }
 static constexpr TI N_ACTIVE_SCENES = N_ACTIVE_SCENES_TOTAL / N_RANKS; // per rank
 static constexpr TI N_ENVIRONMENTS_PER_SCENE = 64;
 static constexpr TI N_ENVIRONMENTS = N_ACTIVE_SCENES * N_ENVIRONMENTS_PER_SCENE; // per rank
@@ -1100,10 +1112,11 @@ int run_rank(SharedState& shared, const RankArguments& arguments){
     const TI rank_environment_offset = rank * N_ENVIRONMENTS;
     static_assert(N_ENVIRONMENTS_TOTAL <= RNG_GPU::NUM_RNGS, "Every global environment needs its own CUDA RNG stream");
     const std::vector<std::string>& scene_paths = arguments.scene_paths;
-    const TI n_scenes = static_cast<TI>(scene_paths.size());
+    const TI rank_scene_begin = scene_bucket_begin(rank * BUCKETS_PER_RANK);
+    const TI rank_scene_end = scene_bucket_end((rank + 1) * BUCKETS_PER_RANK - 1);
     static constexpr TI RENDER_TIMING_SAMPLE_PERIOD = 16;
     cudaSetDevice(static_cast<int>(rank));
-    std::mt19937 scene_rng(seed); // identical on every rank: the global scene permutation is drawn without communication
+    std::mt19937 scene_rng(seed); // identical on every rank: the per-bucket draws of all buckets are reproduced without communication
     DEVICE device;
     DEVICE_GPU device_gpu;
     rlt::init(device);
@@ -1178,7 +1191,7 @@ int run_rank(SharedState& shared, const RankArguments& arguments){
     // Load all scenes (serialized across ranks: OWL context creation is not known to be thread-safe)
     {
         std::lock_guard<std::mutex> loading_lock(shared.io_mutex);
-        for(TI s = 0; s < n_scenes; s++){
+        for(TI s = rank_scene_begin; s < rank_scene_end; s++){
             std::cout << "[rank " << rank << "] Loading scene [" << s << "]: " << std::filesystem::path(scene_paths[s]).filename().string() << std::flush;
             renderers[s] = &(*renderer_storage)[s];
             rlt::malloc(device, *renderers[s], *library);
@@ -1200,7 +1213,7 @@ int run_rank(SharedState& shared, const RankArguments& arguments){
             }
             annotations[s] = &procthor_annotations[scene_id];
         }
-        std::cout << "[rank " << rank << "] Loaded " << n_scenes << " scenes" << std::endl;
+        std::cout << "[rank " << rank << "] Loaded " << (rank_scene_end - rank_scene_begin) << " scenes (buckets " << rank * BUCKETS_PER_RANK << ".." << (rank + 1) * BUCKETS_PER_RANK - 1 << ")" << std::endl;
     }
 
     // GPU buffers for per-scene indoor positions
@@ -1214,7 +1227,7 @@ int run_rank(SharedState& shared, const RankArguments& arguments){
     {
         std::vector<T> all_positions(N_TOTAL_SCENES * MAX_INDOOR_POS * INDOOR_POSITION_DIM, 0);
         std::vector<TI> all_counts(N_TOTAL_SCENES);
-        for(TI s = 0; s < n_scenes; s++){
+        for(TI s = rank_scene_begin; s < rank_scene_end; s++){
             all_counts[s] = annotations[s]->num_positions;
             for(TI i = 0; i < all_counts[s]; i++){
                 TI base = (s * MAX_INDOOR_POS + i) * INDOOR_POSITION_DIM;
@@ -1228,8 +1241,21 @@ int run_rank(SharedState& shared, const RankArguments& arguments){
     }
 
     std::array<TI, N_ACTIVE_SCENES> active_scene_indices{};
-    std::vector<TI> scene_permutation(n_scenes);
-    std::iota(scene_permutation.begin(), scene_permutation.end(), 0);
+    std::array<TI, N_ACTIVE_SCENES_TOTAL> global_slot_scenes{};
+    std::vector<TI> bucket_scenes;
+    auto draw_active_scenes = [&](){
+        for(TI bucket = 0; bucket < N_SCENE_BUCKETS; bucket++){
+            bucket_scenes.resize(scene_bucket_end(bucket) - scene_bucket_begin(bucket));
+            std::iota(bucket_scenes.begin(), bucket_scenes.end(), scene_bucket_begin(bucket));
+            std::shuffle(bucket_scenes.begin(), bucket_scenes.end(), scene_rng);
+            for(TI slot = 0; slot < SLOTS_PER_BUCKET; slot++){
+                global_slot_scenes[bucket * SLOTS_PER_BUCKET + slot] = bucket_scenes[slot];
+            }
+        }
+        for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
+            active_scene_indices[active_scene_i] = global_slot_scenes[rank * N_ACTIVE_SCENES + active_scene_i];
+        }
+    };
     auto upload_active_scenes = [&](){
         std::lock_guard<std::mutex> io_lock(shared.io_mutex); // std::cout is unbuffered per operator<<, so rank prints interleave without it
         std::array<TI, N_ENVIRONMENTS> env_scene{};
@@ -1243,7 +1269,7 @@ int run_rank(SharedState& shared, const RankArguments& arguments){
         cudaMemcpy(gpu_env_scene, env_scene.data(), N_ENVIRONMENTS * sizeof(TI), cudaMemcpyHostToDevice);
     };
     for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
-        active_scene_indices[active_scene_i] = rank * N_ACTIVE_SCENES + active_scene_i;
+        active_scene_indices[active_scene_i] = scene_bucket_begin(rank * BUCKETS_PER_RANK + active_scene_i / SLOTS_PER_BUCKET) + active_scene_i % SLOTS_PER_BUCKET;
     }
     upload_active_scenes();
 
@@ -1522,7 +1548,7 @@ int run_rank(SharedState& shared, const RankArguments& arguments){
     // Training loop
     // =========================================================================
     if(rank == 0){
-        std::cout << "  N_RANKS: " << N_RANKS << " (N_ENVIRONMENTS_TOTAL: " << N_ENVIRONMENTS_TOTAL << ", BATCH_SIZE_TOTAL: " << BATCH_SIZE_TOTAL << ")" << std::endl;
+        std::cout << "  N_RANKS: " << N_RANKS << " (N_ENVIRONMENTS_TOTAL: " << N_ENVIRONMENTS_TOTAL << ", BATCH_SIZE_TOTAL: " << BATCH_SIZE_TOTAL << ", N_SCENE_BUCKETS: " << N_SCENE_BUCKETS << ")" << std::endl;
         std::cout << "Starting imitation learning (visual L2F hover, CUDA)" << std::endl;
 #ifdef RL_TOOLS_L2F_VISUAL_IMITATION_BLIND_TRAINING
         std::cout << "  [BLIND_TRAINING] enabled - visual observations zeroed at kernel level" << std::endl;
@@ -1580,10 +1606,7 @@ int run_rank(SharedState& shared, const RankArguments& arguments){
         std::array<void*, N_ACTIVE_SCENES> active_scene_camera_buffers{};
         std::array<void*, N_ACTIVE_SCENES> active_scene_camera_open_buffers{};
         std::array<const float*, N_ACTIVE_SCENES> active_scene_observation_ptrs{};
-        std::shuffle(scene_permutation.begin(), scene_permutation.end(), scene_rng);
-        for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
-            active_scene_indices[active_scene_i] = scene_permutation[rank * N_ACTIVE_SCENES + active_scene_i];
-        }
+        draw_active_scenes();
         upload_active_scenes();
         for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
             TI active_scene_i = env_i / N_ENVIRONMENTS_PER_SCENE;
@@ -2698,7 +2721,7 @@ int main(int argc, char** argv){
         std::cerr << "Expected exactly " << N_TOTAL_SCENES << " scenes, got " << scene_paths.size() << std::endl;
         return 1;
     }
-    // every rank loads the whole corpus: the active scene slots are drawn globally each epoch and rank r renders slots r*N_ACTIVE_SCENES..(r+1)*N_ACTIVE_SCENES
+    // every rank receives the full corpus list and loads the scenes of its buckets
     SharedState shared;
     std::vector<RankArguments> rank_arguments(N_RANKS);
     for(TI rank = 0; rank < N_RANKS; rank++){
