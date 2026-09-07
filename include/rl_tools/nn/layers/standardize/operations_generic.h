@@ -145,6 +145,10 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, nn::layers::standardize::LayerGradient<SPEC>& layer) {
     }
+    template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void add_gradient(DEVICE& device, nn::layers::standardize::LayerGradient<SOURCE_SPEC>& source, nn::layers::standardize::LayerGradient<TARGET_SPEC>& target) {}
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_gradient(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::standardize::LayerGradient<SOURCE_SPEC>& source, nn::layers::standardize::LayerGradient<TARGET_SPEC>& target) {}
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
     RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn::layers::standardize::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer){
     }

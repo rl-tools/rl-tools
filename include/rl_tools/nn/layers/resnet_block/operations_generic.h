@@ -20,6 +20,10 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE&, TARGET_DEVICE&, const nn::layers::resnet_block::DownsampleStorage<false, SOURCE_LAYER>&, nn::layers::resnet_block::DownsampleStorage<false, TARGET_LAYER>&) {}
     template<typename DEVICE, typename LAYER>
     RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE&, nn::layers::resnet_block::DownsampleStorage<false, LAYER>&) {}
+    template<typename DEVICE, typename SOURCE_LAYER, typename TARGET_LAYER>
+    RL_TOOLS_FUNCTION_PLACEMENT void add_gradient(DEVICE&, nn::layers::resnet_block::DownsampleStorage<false, SOURCE_LAYER>&, nn::layers::resnet_block::DownsampleStorage<false, TARGET_LAYER>&) {}
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_LAYER, typename TARGET_LAYER>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_gradient(SOURCE_DEVICE&, TARGET_DEVICE&, const nn::layers::resnet_block::DownsampleStorage<false, SOURCE_LAYER>&, nn::layers::resnet_block::DownsampleStorage<false, TARGET_LAYER>&) {}
     template<typename DEVICE, typename LAYER, typename OPTIMIZER>
     RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE&, nn::layers::resnet_block::DownsampleStorage<false, LAYER>&, OPTIMIZER&) {}
     template<typename DEVICE, typename LAYER, typename OPTIMIZER>
@@ -41,6 +45,10 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::resnet_block::DownsampleStorage<true, SOURCE_LAYER>& source, nn::layers::resnet_block::DownsampleStorage<true, TARGET_LAYER>& target) { copy(source_device, target_device, source.conv, target.conv); }
     template<typename DEVICE, typename LAYER>
     RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<true, LAYER>& ds) { zero_gradient(device, ds.conv); }
+    template<typename DEVICE, typename SOURCE_LAYER, typename TARGET_LAYER>
+    RL_TOOLS_FUNCTION_PLACEMENT void add_gradient(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<true, SOURCE_LAYER>& source, nn::layers::resnet_block::DownsampleStorage<true, TARGET_LAYER>& target) { add_gradient(device, source.conv, target.conv); }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_LAYER, typename TARGET_LAYER>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_gradient(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::resnet_block::DownsampleStorage<true, SOURCE_LAYER>& source, nn::layers::resnet_block::DownsampleStorage<true, TARGET_LAYER>& target) { copy_gradient(source_device, target_device, source.conv, target.conv); }
     template<typename DEVICE, typename LAYER, typename OPTIMIZER>
     RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn::layers::resnet_block::DownsampleStorage<true, LAYER>& ds, OPTIMIZER& opt) { update(device, ds.conv, opt); }
     template<typename DEVICE, typename LAYER, typename OPTIMIZER>
@@ -332,6 +340,18 @@ namespace rl_tools{
         zero_gradient(device, layer.conv1);
         zero_gradient(device, layer.conv2);
         zero_gradient(device, layer.downsample);
+    }
+    template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void add_gradient(DEVICE& device, nn::layers::resnet_block::LayerGradient<SOURCE_SPEC>& source, nn::layers::resnet_block::LayerGradient<TARGET_SPEC>& target) {
+        add_gradient(device, source.conv1, target.conv1);
+        add_gradient(device, source.conv2, target.conv2);
+        add_gradient(device, source.downsample, target.downsample);
+    }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_gradient(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::resnet_block::LayerGradient<SOURCE_SPEC>& source, nn::layers::resnet_block::LayerGradient<TARGET_SPEC>& target) {
+        copy_gradient(source_device, target_device, source.conv1, target.conv1);
+        copy_gradient(source_device, target_device, source.conv2, target.conv2);
+        copy_gradient(source_device, target_device, source.downsample, target.downsample);
     }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
     RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn::layers::resnet_block::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer) {

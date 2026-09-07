@@ -6,6 +6,10 @@ add_executable(test_nn_models_parallel_persist_code_store persist_code_store.cpp
 target_link_libraries(test_nn_models_parallel_persist_code_store PRIVATE RLtools::Core GTest::gtest_main)
 gtest_discover_tests(test_nn_models_parallel_persist_code_store)
 
+add_executable(test_nn_models_parallel_gradient_ops gradient_ops.cpp)
+target_link_libraries(test_nn_models_parallel_gradient_ops PRIVATE RLtools::Core GTest::gtest_main)
+gtest_discover_tests(test_nn_models_parallel_gradient_ops)
+
 if(RL_TOOLS_TEST_DATA_PATH)
     add_executable(test_nn_models_parallel_persist_code_compile persist_code_compile.cpp)
     target_link_libraries(test_nn_models_parallel_persist_code_compile PRIVATE RLtools::Core GTest::gtest_main)
