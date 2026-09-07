@@ -20,12 +20,12 @@ freestanding helpers are defined first in `operations_generic_common.h` and
 `collect`, generic `epilogue`, and generic `reset` are defined. Including generic
 orchestration first and adding a backend later is not a supported entry order.
 
-The runner's `operations_generic.h` includes `operations_generic_collection.h`
-after its phases. That header owns the single collection loop and value
-evaluation. Both headers remain freestanding. Callers select
-the runner mux or the PPO loop's CUDA entry header first; model and environment
-operations must precede collection templates. Environment persistence overloads
-must likewise precede batch/loop persistence templates.
+The runner's `operations_generic.h` defines value evaluation and the single
+collection loop after its phases. It remains freestanding. CPU, CUDA mux/direct,
+PPO loop, and manual-phase consumers use the same definitions; CUDA overloads
+must precede generic orchestration, which the CUDA entry header ensures.
+Model and environment operations must precede collection templates. Environment
+persistence overloads must likewise precede batch/loop persistence templates.
 
 ## Collection ownership
 
