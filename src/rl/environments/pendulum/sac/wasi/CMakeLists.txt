@@ -1,0 +1,3 @@
+add_executable(rl_environments_pendulum_sac_wasi training.cpp)
+target_link_libraries(rl_environments_pendulum_sac_wasi PRIVATE RLtools::Core)
+target_compile_definitions(rl_environments_pendulum_sac_wasi PRIVATE RL_TOOLS_BACKEND_DISABLE_BLAS RL_TOOLS_DISABLE_HDF5 RL_TOOLS_DISABLE_TENSORBOARD)

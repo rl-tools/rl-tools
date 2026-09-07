@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.24)
+file(STRINGS "${FILES}" files)
+foreach(file IN LISTS files)
+    get_filename_component(directory "${DESTINATION}/${file}" DIRECTORY)
+    file(MAKE_DIRECTORY "${directory}")
+    file(COPY_FILE "${SOURCE}/${file}" "${DESTINATION}/${file}")
+endforeach()

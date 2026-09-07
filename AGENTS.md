@@ -1,5 +1,7 @@
 # RL-Tools Development Guide
 
+Before starting any work, read `/infra/AGENTS.md` and follow its instructions. The following project-specific instructions below take precedence if they conflict.
+
 
 ## Building & Testing
 

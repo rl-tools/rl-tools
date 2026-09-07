@@ -1,30 +1,26 @@
 # metra
 
-Minimal metrics tracking for regression monitoring. One SQLite table (`commit`, `run`, `name`, `time`, `value` as arbitrary JSON, plus an `unreliable` flag and a `comment`), a stdlib-only Python server, a plain HTML table UI, and one-liner clients for C++, Python, and the shell.
+Minimal metrics tracking for regression monitoring. One SQLite table (`commit`, `run`, `name`, `time`, `value` as arbitrary JSON, plus an `unreliable` flag and a `comment`), a dependency-free PHP server (`www/index.php`), a plain HTML table UI (`www/index.html`), and one-liner clients for C++, Python, and the shell.
 
 ## Server
 
-```bash
-python3 tools/metra/metra/server.py --ip 0.0.0.0 --port 13340   # db: METRA_DB env or ./metra.sqlite (or --db)
-```
-
-Install as a systemd service (user-level by default, no sudo required; `--system` for a system unit):
+PHP's built-in web server with `www/index.php` as the router script (needs `php` >= 8.1 with the bundled `pdo_sqlite`; Debian/Ubuntu: `apt install php-cli php-sqlite3`):
 
 ```bash
-tools/metra/install_service.sh
+METRA_DB=metra.sqlite php -S 0.0.0.0:13340 -t tools/metra/www tools/metra/www/index.php   # db: METRA_DB env, default ./metra.sqlite
 ```
 
-The DB then lives in `~/.local/share/metra/metra.sqlite` and the server runs from the checkout (edit `server.py`, `systemctl --user restart metra`). User services stop at logout unless `loginctl enable-linger $USER` is set. Logs: `journalctl --user -u metra`.
+PHP re-reads the scripts on every request, so edits to `www/` are live on the next request - no restart. The deployed instance runs it via `docker-compose.yml`, see below.
 
-### NAS / Docker (e.g. TrueNAS SCALE)
+### NAS / Docker (TrueNAS SCALE)
 
-The server is stdlib-only, so no image build is needed — `docker-compose.yml` runs a stock `python` image with an RLtools checkout and the DB bind-mounted from datasets:
+No image build: `docker-compose.yml` runs the stock `php:8.4-cli` image with an RLtools checkout and the DB bind-mounted from datasets. The infra setup keeps the checkout at `/mnt/fast/infra/metra/rl_tools` on the NAS, which is `/infra/metra/rl_tools` on the VMs (see `/infra/metra/README.md`), so the server can be edited from any VM and the edit is live on the next request:
 
 ```bash
-git clone https://github.com/rl-tools/rl-tools rl_tools   # in the dataset, e.g. /mnt/fast/apps/metra/
+git clone https://github.com/rl-tools/rl-tools rl_tools   # in /mnt/fast/infra/metra/
 ```
 
-Then on TrueNAS SCALE: *Apps → Discover Apps → ⋮ → Install via YAML*, paste `docker-compose.yml` with the two `/mnt/fast/apps/metra/...` host paths and the `user:` id adjusted (the data dataset must be writable by that uid — create and `chown` the `data/` directory before the first start, otherwise Docker auto-creates it root-owned and the server exits with "unable to open database"; the DB lands on ZFS, so snapshot tasks cover backups). On any plain Docker host: `docker compose up -d` in a directory containing the file. Updating the server = `git pull` in the checkout + restart the app; the DB migrates itself on startup. Clients then use `METRA_URL=http://<nas>:13340`. On FreeBSD-based TrueNAS CORE there is no Docker: run it in a jail with `python3` and an rc.d script or `daemon -r`, `METRA_DB` pointing at a mounted dataset.
+Then on TrueNAS SCALE: *Apps → Discover Apps → ⋮ → Install via YAML*, name `metra`, paste `docker-compose.yml` (host paths and the `user:` uid at the top of the file; the data directory must exist and be writable by that uid before the first start - see the header comment). On any plain Docker host: `docker compose up -d` in a directory containing the file. Updating the server = `git pull` in the checkout, nothing to restart; the DB migrates itself on the next request. Clients then use `METRA_URL=http://<nas>:13340` (or `http://<nas>/metra` behind the `proxy` app).
 
 ## Logging metrics
 
@@ -71,7 +67,7 @@ curl -X POST --data '{"id":1,"comment":"flaky machine"}' http://localhost:13340/
 
 ## Web UI
 
-`http://localhost:13340/` — a plain table of the most recent entries. The checkbox marks a row unreliable (excluded from API queries unless `include_unreliable=1`; struck through in the UI), the comment column is editable inline. The page only references the API through relative URLs (`api/...`, never `/api/...`), so it also works under a path prefix behind a reverse proxy that strips the prefix (e.g. nginx `location /metra/ { proxy_pass http://<nas>:13340/; }` → `http://<nas>/metra/`); clients then use `METRA_URL=http://<nas>/metra`. Keep it that way when editing `PAGE` (`test_html` checks it).
+`http://localhost:13340/` — a plain table of the most recent entries. The checkbox marks a row unreliable (excluded from API queries unless `include_unreliable=1`; struck through in the UI), the comment column is editable inline. The page only references the API through relative URLs (`api/...`, never `/api/...`), so it also works under a path prefix behind a reverse proxy that strips the prefix (e.g. nginx `location /metra/ { proxy_pass http://<nas>:13340/; }` → `http://<nas>/metra/`); clients then use `METRA_URL=http://<nas>/metra`. Keep it that way when editing `www/index.html` (`test_html` checks it).
 
 ## Environment
 
@@ -81,7 +77,7 @@ curl -X POST --data '{"id":1,"comment":"flaky machine"}' http://localhost:13340/
 | `METRA_COMMIT` | overrides commit detection (`git rev-parse HEAD`, fallback `no-hash`) |
 | `METRA_COMMIT_TIME` | overrides commit time detection (`git show -s --format=%ct HEAD`), unix seconds; setting `METRA_COMMIT` alone omits the auto-detected time |
 | `METRA_RUN` | overrides the generated run id (`<timestamp>_<hostname>_<pid>[_<hex>]`) |
-| `METRA_DB` | server: SQLite path (default `./metra.sqlite`) |
+| `METRA_DB` | server: SQLite path (default `./metra.sqlite`, relative to the working directory) |
 
 ## Schema
 
@@ -100,8 +96,8 @@ CREATE TABLE metrics(
 );
 ```
 
-Direct SQL always works: `sqlite3 ~/.local/share/metra/metra.sqlite "SELECT name, AVG(value_scalar) FROM metrics WHERE unreliable=0 GROUP BY name"`.
+Direct SQL always works: `sqlite3 metra.sqlite "SELECT name, AVG(value_scalar) FROM metrics WHERE unreliable=0 GROUP BY name"` (on the NAS: `/mnt/fast/apps/metra/data/metra.sqlite`; do not open it over NFS from a VM while the app runs, SQLite locking over NFS is unreliable).
 
 ## Hacking
 
-The whole server is one file (`metra/server.py`): the UI is the `PAGE` string, endpoints are the `_handle_*` methods — add an endpoint by adding a branch in `do_GET`/`do_POST`. There is no auth (run it on a trusted network); for cross-origin browser access add `self.send_header("Access-Control-Allow-Origin", "*")` in `_send`. Tests: `python3 tools/metra/test_server.py` (server+Python client round trip) and the `test_utils_metra` ctest target (C++ client).
+The server is `www/index.php` (endpoints are the `handle_*` functions; add one by adding a branch in the dispatch at the bottom of the file) plus `www/index.html` (the UI). Edits are live on the next request. There is no auth (run it on a trusted network); for cross-origin browser access add `header('Access-Control-Allow-Origin: *')` in `respond`. Tests: `python3 tools/metra/test_server.py` starts the PHP server on a free port with a scratch DB and drives it through the Python client (`php` on the PATH); `METRA_TEST_URL=http://host:port python3 tools/metra/test_server.py` runs the same suite against a running server (it writes test rows, so not against the production DB). The `test_utils_metra` ctest target covers the C++ client.

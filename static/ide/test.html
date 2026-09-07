@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>RLtools IDE test</title></head>
+<body><pre id="log"></pre>
+<script type="module">
+import { WorkerClient } from "./worker_client.js";
+import { fetchChecked } from "./assets.js";
+import { exampleArguments, checkExample } from "./example.js";
+
+const parameters = new URLSearchParams(location.search);
+const bundleUrl = new URL(parameters.get("bundle") ?? "./build/", location.href);
+const name = parameters.get("example") ?? "smoke";
+const log = document.getElementById("log");
+const lines = [];
+const result = { ok: false, userAgent: navigator.userAgent, lines };
+const clients = [];
+function say(line){
+    lines.push(line);
+    log.textContent += line + "\n";
+}
+try{
+    const specification = await (await fetchChecked(new URL("examples.json", bundleUrl))).json();
+    const example = specification.examples[name];
+    const source = await (await fetchChecked(new URL("examples/" + name + ".cpp", bundleUrl))).text();
+    const compiler = new WorkerClient();
+    clients.push(compiler);
+    await compiler.request("load", { bundleUrl: bundleUrl.href });
+    const compiled = await compiler.request("compile", { sources: { [example.file]: source }, args: exampleArguments(specification, name) }, {
+        onEvent: event => { if(event.line !== undefined) say(event.line); },
+    });
+    result.compileExitCode = compiled.exitCode;
+    result.compileSeconds = compiled.seconds;
+    if(compiled.exitCode !== 0 || !compiled.output){
+        throw new Error("compile failed");
+    }
+    result.programBytes = compiled.output.length;
+    compiler.terminate();
+    const runner = new WorkerClient();
+    clients.push(runner);
+    const stdout = [];
+    const program = compiled.output.buffer;
+    const run = await runner.request("run", { program, args: example.args }, {
+        transfer: [program], timeout: 900000,
+        onEvent: event => {
+            if(event.type === "stdout") stdout.push(event.line);
+            if(event.line !== undefined) say(event.line);
+        },
+    });
+    result.runExitCode = run.exitCode;
+    result.runSeconds = run.seconds;
+    result.evaluations = checkExample(example, { ...run, lines: stdout });
+    result.ok = true;
+}
+catch(error){
+    result.error = error.message ?? String(error);
+    say(result.error);
+}
+finally{
+    for(const client of clients) client.terminate();
+}
+await fetch("./result", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(result) });
+</script>
+</body></html>
