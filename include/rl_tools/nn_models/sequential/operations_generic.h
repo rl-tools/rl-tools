@@ -395,6 +395,22 @@ namespace rl_tools{
             zero_gradient<LAYER_I + 1>(device, module);
         }
     }
+    template <auto LAYER_I = 0, typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void add_gradient(DEVICE& device, nn_models::sequential::ModuleGradient<SOURCE_SPEC>& source, nn_models::sequential::ModuleGradient<TARGET_SPEC>& target){
+        static_assert(SOURCE_SPEC::NUM_LAYERS == TARGET_SPEC::NUM_LAYERS);
+        if constexpr(LAYER_I < SOURCE_SPEC::NUM_LAYERS){
+            add_gradient(device, nn_models::sequential::layer<LAYER_I>(source), nn_models::sequential::layer<LAYER_I>(target));
+            add_gradient<LAYER_I + 1>(device, source, target);
+        }
+    }
+    template <auto LAYER_I = 0, typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_gradient(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn_models::sequential::ModuleGradient<SOURCE_SPEC>& source, nn_models::sequential::ModuleGradient<TARGET_SPEC>& target){
+        static_assert(SOURCE_SPEC::NUM_LAYERS == TARGET_SPEC::NUM_LAYERS);
+        if constexpr(LAYER_I < SOURCE_SPEC::NUM_LAYERS){
+            copy_gradient(source_device, target_device, nn_models::sequential::layer<LAYER_I>(source), nn_models::sequential::layer<LAYER_I>(target));
+            copy_gradient<LAYER_I + 1>(source_device, target_device, source, target);
+        }
+    }
 
     template<auto LAYER_I = 0, typename DEVICE, typename SPEC, typename OPTIMIZER>
     RL_TOOLS_FUNCTION_PLACEMENT void _reset_optimizer_state(DEVICE& device, nn_models::sequential::ModuleGradient<SPEC>& module, OPTIMIZER& optimizer) {

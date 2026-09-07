@@ -8,6 +8,7 @@ if(TARGET owl::owl AND TARGET rendering_raytracing_device_ptx AND TARGET assimp:
 #        rendering_raytracing_stb
 #    )
     if(RL_TOOLS_BACKEND_ENABLE_CUDA)
+        set(RL_TOOLS_L2F_VISUAL_IMITATION_N_RANKS 1 CACHE STRING "Number of GPUs (data-parallel ranks) the l2f_visual imitation targets are compiled for")
         add_executable(rl_environments_l2f_visual_training_cuda training_cuda.cu)
         target_link_libraries(rl_environments_l2f_visual_training_cuda PRIVATE
             RLtools::RLtools
@@ -33,6 +34,7 @@ if(TARGET owl::owl AND TARGET rendering_raytracing_device_ptx AND TARGET assimp:
             CUDA_STANDARD_REQUIRED ON
         )
         add_executable(rl_environments_l2f_visual_imitation_cuda imitation_cuda.cu)
+        target_compile_definitions(rl_environments_l2f_visual_imitation_cuda PRIVATE RL_TOOLS_L2F_VISUAL_IMITATION_N_RANKS=${RL_TOOLS_L2F_VISUAL_IMITATION_N_RANKS})
         target_link_libraries(rl_environments_l2f_visual_imitation_cuda PRIVATE
             RLtools::RLtools
             owl::owl
@@ -45,7 +47,25 @@ if(TARGET owl::owl AND TARGET rendering_raytracing_device_ptx AND TARGET assimp:
             CUDA_STANDARD_REQUIRED ON
             CUDA_SEPARABLE_COMPILATION ON
         )
+        add_executable(rl_environments_l2f_visual_imitation_cuda_small imitation_cuda.cu)
+        target_compile_definitions(rl_environments_l2f_visual_imitation_cuda_small PRIVATE RL_TOOLS_L2F_VISUAL_IMITATION_N_RANKS=${RL_TOOLS_L2F_VISUAL_IMITATION_N_RANKS})
+        target_link_libraries(rl_environments_l2f_visual_imitation_cuda_small PRIVATE
+            RLtools::RLtools
+            owl::owl
+            rendering_raytracing_device_ptx
+            assimp::assimp
+            rendering_raytracing_stb
+        )
+        target_compile_definitions(rl_environments_l2f_visual_imitation_cuda_small PRIVATE
+            RL_TOOLS_L2F_VISUAL_IMITATION_SMALL
+        )
+        set_target_properties(rl_environments_l2f_visual_imitation_cuda_small PROPERTIES
+            CUDA_STANDARD 17
+            CUDA_STANDARD_REQUIRED ON
+            CUDA_SEPARABLE_COMPILATION ON
+        )
         add_executable(rl_environments_l2f_visual_imitation_state_estimation_cuda imitation_cuda.cu)
+        target_compile_definitions(rl_environments_l2f_visual_imitation_state_estimation_cuda PRIVATE RL_TOOLS_L2F_VISUAL_IMITATION_N_RANKS=${RL_TOOLS_L2F_VISUAL_IMITATION_N_RANKS})
         target_link_libraries(rl_environments_l2f_visual_imitation_state_estimation_cuda PRIVATE
             RLtools::RLtools
             owl::owl
