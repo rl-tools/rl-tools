@@ -32,9 +32,8 @@ class BuildGraph(unittest.TestCase):
             external, metadata, binary = root / "sources", root / "metadata", root / "bin"
             host_resource, build = root / "host-resource", root / "build"
             candidate, served = root / "candidate with spaces", root / "served"
-            lock_path = repo / "tools/ide/dependencies.json"
-            lock = json.loads(lock_path.read_text())
-            for name, entry in lock["sources"].items():
+            cmake_file = repo / "tools/ide/toolchain/CMakeLists.txt"
+            for name in ["llvm-project", "wasi-libc"]:
                 write(metadata / name / "HEAD", "a" * 40 if name == "llvm-project" else "c" * 40)
             write(metadata / "repository/HEAD", "a" * 40)
             write(host_resource / "include/stddef.h", "host headers\n")
@@ -131,6 +130,14 @@ install(FILES "${{CMAKE_BINARY_DIR}}/{filename}" DESTINATION "{destination}")
             self.assertIn("-DLLVM_TOOL_LLVM_AR_BUILD=OFF", manifest["cmake_args_llvm_wasm"])
             provenance = ["ctest", "--test-dir", str(build), "-R", "^test_ide_toolchain_provenance$", "--output-on-failure", "--timeout", "20"]
             self.run_command(provenance)
+            manifest_file = candidate / "toolchain/toolchain.json"
+            original_manifest = manifest_file.read_text()
+            manifest["llvm_commit"] = "d" * 40
+            manifest_file.write_text(json.dumps(manifest))
+            result = self.run_command(provenance, success=False)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("llvm_commit: expected", result.stdout)
+            manifest_file.write_text(original_manifest)
             module = candidate / "toolchain/llvm.wasm"
             original_module = module.read_bytes()
             module.write_bytes(original_module + b"corrupt")
@@ -147,6 +154,9 @@ install(FILES "${{CMAKE_BINARY_DIR}}/{filename}" DESTINATION "{destination}")
             result = build_targets("package", "bundle")
             self.assertNotIn("Generating resource/", result.stdout)
             self.assertEqual(configured, [path.read_text() for path in configurations])
+            self.assertEqual(timestamps, [path.stat().st_mtime_ns for path in outputs])
+            write(cmake_file, cmake_file.read_text() + "\n")
+            build_targets("package", "bundle")
             self.assertEqual(timestamps, [path.stat().st_mtime_ns for path in outputs])
             (host_resource / "include/removed.h").unlink()
             build_targets("resource-dir")
@@ -176,9 +186,8 @@ install(FILES "${{CMAKE_BINARY_DIR}}/{filename}" DESTINATION "{destination}")
             before = libc_log.read_text()
             stale_header = build / "prefix/usr/include/removed.h"
             write(stale_header, "removed by the next dependency revision")
-            lock["sources"]["wasi-libc"]["ref"] = "next-ref"
             write(metadata / "wasi-libc/HEAD", "b" * 40)
-            write(lock_path, json.dumps(lock))
+            write(cmake_file, cmake_file.read_text().replace("set(wasi_libc_ref wasi-sdk-34)", "set(wasi_libc_ref next-ref)"))
             build_targets("package")
             self.assertFalse(stale_header.exists())
             with tarfile.open(candidate / "toolchain/sysroot.tar") as archive:
@@ -187,7 +196,7 @@ install(FILES "${{CMAKE_BINARY_DIR}}/{filename}" DESTINATION "{destination}")
             self.assertEqual(json.loads((candidate / "toolchain/toolchain.json").read_text())["wasi_libc_commit"], "b" * 40)
             result = self.run_command(["cmake", "--build", str(build), "--target", "stage", "--parallel", "5"], success=False)
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("Verification requires Node.js", result.stdout)
+            self.assertIn("missing-node", result.stdout)
             self.assertFalse((build / "VERIFIED").exists())
             self.assertFalse(served.exists())
 
@@ -202,7 +211,7 @@ install(FILES "${{CMAKE_BINARY_DIR}}/{filename}" DESTINATION "{destination}")
             runtime.unlink()
             result = self.run_command(["cmake", "--build", str(build), "--target", "stage", "--parallel", "5"], success=False)
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("Verification requires Node.js", result.stdout)
+            self.assertIn("missing-node", result.stdout)
             self.assertFalse((build / "VERIFIED").exists())
             self.assertEqual(staged_manifest, (served / "manifest.json").read_bytes())
             other = root / "other-build"
@@ -229,7 +238,7 @@ install(FILES "${{CMAKE_BINARY_DIR}}/{filename}" DESTINATION "{destination}")
 cmake_minimum_required(VERSION 3.24)
 project(verification NONE)
 enable_testing()
-include("{REPOSITORY}/tests/src/ide/tests.cmake")
+include("{REPOSITORY}/tests/src/ide/CMakeLists.txt")
 ide_register_test(required PROGRAM "{sys.executable}" ARGS "{root}/skip.py" REQUIRED TRUE TIMEOUT 20)
 ide_register_test(optional PROGRAM "{sys.executable}" ARGS "{root}/skip.py" REQUIRED FALSE TIMEOUT 20)
 ''')
