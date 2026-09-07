@@ -1,0 +1,19 @@
+{
+  "format": 1,
+  "host_llvm_major": 22,
+  "target": "wasm32-wasip1",
+  "cpu": "lime1",
+  "llvm_version_suffix": "-rltools",
+  "sources": {
+    "llvm-project": {
+      "repository": "https://github.com/rl-tools/llvm-project.git",
+      "upstream": "llvmorg-22.1.8",
+      "ref": "rltools-wasi-22.1.8"
+    },
+    "wasi-libc": {
+      "repository": "https://github.com/WebAssembly/wasi-libc.git",
+      "upstream": "wasi-sdk-34",
+      "ref": "wasi-sdk-34"
+    }
+  }
+}

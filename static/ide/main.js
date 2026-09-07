@@ -1,25 +1,27 @@
 import { parseLine } from "./protocol.js";
+import { parseArguments, formatArguments } from "./arguments.js";
+import { exampleArguments } from "./example.js";
+import { fetchChecked } from "./assets.js";
+import { WorkerClient } from "./worker_client.js";
 
-const TOOLCHAIN_URL = "./build/toolchain/llvm.wasm";
-const SYSROOT_URL = "./build/toolchain/sysroot.tar";
-const INCLUDE_URL = "./build/rl_tools_include.tar";
-const EXAMPLE_URL = "./build/examples/pendulum_sac.cpp";
-const MANIFEST_URL = "./build/manifest.json";
-const TOOLCHAIN_MANIFEST_URL = "./build/toolchain/toolchain.json";
-const DEFAULT_ARGUMENTS = "-std=c++17 -O2 -fno-exceptions -Iinclude training.cpp -o training.wasm";
-const COMPILE_TIMEOUT_MILLISECONDS = 300000;
-
+const BUNDLE_URL = new URL("./build/", import.meta.url);
 const elements = Object.fromEntries(["editor", "arguments", "seed", "compile", "run", "stop", "status", "terminal", "chart", "commit"].map(id => [id, document.getElementById(id)]));
-
-const state = { module: null, sysrootTar: null, includeTar: null, program: null, compileWorker: null, runWorker: null, points: [] };
+const state = { phase: "loading", operation: 0, program: null, compiler: null, runner: null, points: [] };
 
 function setStatus(text){
     elements.status.textContent = text;
 }
 
+function setPhase(phase){
+    state.phase = phase;
+    elements.compile.disabled = phase !== "idle";
+    elements.run.disabled = phase !== "idle" || state.program === null;
+    elements.stop.disabled = phase !== "compile" && phase !== "run";
+}
+
 function appendLine(line, kind = "stdout"){
     const node = document.createElement("div");
-    node.className = `line ${kind}`;
+    node.className = "line " + kind;
     node.textContent = line;
     elements.terminal.appendChild(node);
     elements.terminal.scrollTop = elements.terminal.scrollHeight;
@@ -27,39 +29,6 @@ function appendLine(line, kind = "stdout"){
 
 function clearTerminal(){
     elements.terminal.replaceChildren();
-}
-
-async function fetchBytes(url, onProgress){
-    const response = await fetch(url);
-    if(!response.ok){
-        throw new Error(`${url}: HTTP ${response.status}`);
-    }
-    const total = Number(response.headers.get("content-length")) || 0;
-    const reader = response.body.getReader();
-    const chunks = [];
-    let received = 0;
-    for(;;){
-        const { value, done } = await reader.read();
-        if(done){
-            break;
-        }
-        chunks.push(value);
-        received += value.length;
-        if(onProgress){
-            onProgress(received, total);
-        }
-    }
-    const bytes = new Uint8Array(received);
-    let offset = 0;
-    for(const chunk of chunks){
-        bytes.set(chunk, offset);
-        offset += chunk.length;
-    }
-    return bytes;
-}
-
-function megabytes(bytes){
-    return (bytes / 1e6).toFixed(0);
 }
 
 function drawChart(points){
@@ -140,146 +109,144 @@ function drawChart(points){
     context.fillText(last.meanReturn.toFixed(1), width - margin.right, y(last.meanReturn) - 6);
 }
 
-function createWorker(){
-    return new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
-}
-
-function terminateRun(){
-    if(state.runWorker){
-        state.runWorker.terminate();
-        state.runWorker = null;
+function showEvent(event, operation){
+    if(operation !== state.operation){
+        return;
+    }
+    if(event.type === "stdout" || event.type === "stderr"){
+        appendLine(event.line, event.type);
+        const parsed = event.type === "stdout" ? parseLine(event.line) : null;
+        if(state.phase === "run" && parsed?.type === "evaluation"){
+            state.points.push(parsed);
+            drawChart(state.points);
+            setStatus("running… step " + parsed.step + "/" + parsed.stepLimit + ", mean return " + parsed.meanReturn.toFixed(1));
+        }
+    }
+    else if(event.type === "status"){
+        setStatus(event.text);
+    }
+    else if(event.type === "job"){
+        setStatus("compiling… " + event.tool);
     }
 }
 
-function terminateCompile(){
-    if(state.compileWorker){
-        state.compileWorker.terminate();
-        state.compileWorker = null;
+async function compiler(operation){
+    if(!state.compiler || state.compiler.closed){
+        state.compiler = new WorkerClient();
+        await state.compiler.request("load", { bundleUrl: BUNDLE_URL.href }, { onEvent: event => showEvent(event, operation) });
     }
-}
-
-// The compile worker keeps the compiler module, sysroot and headers resident; the archives are copied so a replacement worker can be seeded after a hang
-function compileWorker(){
-    if(state.compileWorker){
-        return Promise.resolve(state.compileWorker);
-    }
-    const worker = createWorker();
-    return new Promise(resolve => {
-        worker.addEventListener("message", ({ data }) => {
-            if(data.type === "ready"){
-                state.compileWorker = worker;
-                resolve(worker);
-            }
-        }, { once: true });
-        const sysrootTar = state.sysrootTar.slice().buffer;
-        const includeTar = state.includeTar.slice().buffer;
-        worker.postMessage({ type: "toolchain", module: state.module, sysrootTar, includeTar }, [sysrootTar, includeTar]);
-    });
+    return state.compiler;
 }
 
 async function compile(){
-    elements.compile.disabled = true;
-    elements.run.disabled = true;
+    if(state.phase !== "idle"){
+        return;
+    }
+    const operation = ++state.operation;
     state.program = null;
+    setPhase("compile");
     clearTerminal();
     setStatus("compiling…");
-    const worker = await compileWorker();
-    const args = elements.arguments.value.trim().split(/\s+/).filter(token => token.length > 0);
-    const started = performance.now();
-    const timeout = setTimeout(() => {
-        appendLine(`compiler did not finish within ${COMPILE_TIMEOUT_MILLISECONDS / 1000} s, terminated`, "stderr");
-        terminateCompile();
-        setStatus("compile timed out");
-        elements.compile.disabled = false;
-    }, COMPILE_TIMEOUT_MILLISECONDS);
-    worker.onmessage = ({ data }) => {
-        if(data.type === "stdout" || data.type === "stderr"){
-            appendLine(data.line, data.type);
+    try{
+        const args = parseArguments(elements.arguments.value);
+        const client = await compiler(operation);
+        if(operation !== state.operation){
+            return;
         }
-        else if(data.type === "job"){
-            setStatus(`compiling… ${data.tool} (${((performance.now() - started) / 1000).toFixed(1)} s)`);
+        const result = await client.request("compile", { sources: { [state.sourceName]: elements.editor.value }, args }, { onEvent: event => showEvent(event, operation) });
+        if(operation !== state.operation){
+            return;
         }
-        else if(data.type === "compiled"){
-            clearTimeout(timeout);
-            elements.compile.disabled = false;
-            if(data.exitCode === 0 && data.output){
-                state.program = data.output;
-                elements.run.disabled = false;
-                setStatus(`compiled in ${data.seconds.toFixed(1)} s (${(data.output.length / 1024).toFixed(0)} KB)`);
-                appendLine(`compiled in ${data.seconds.toFixed(1)} s, ${(data.output.length / 1024).toFixed(0)} KB`, "meta");
-            }
-            else{
-                setStatus(`compile failed (exit code ${data.exitCode})`);
-            }
+        if(result.exitCode === 0 && result.output){
+            state.program = result.output;
+            setStatus("compiled in " + result.seconds.toFixed(1) + " s (" + (result.output.length / 1024).toFixed(0) + " KB)");
         }
-    };
-    worker.postMessage({ type: "compile", sources: { "training.cpp": elements.editor.value }, args });
+        else{
+            setStatus(result.exitCode === 0 ? "command completed without an output file" : "compile failed (exit code " + result.exitCode + ")");
+        }
+    }
+    catch(error){
+        if(operation === state.operation){
+            setStatus(error.message);
+            appendLine(error.message, "stderr");
+        }
+    }
+    finally{
+        if(operation === state.operation){
+            setPhase("idle");
+        }
+    }
 }
 
-function run(){
-    terminateRun();
+async function run(){
+    if(state.phase !== "idle" || state.program === null){
+        return;
+    }
+    const operation = ++state.operation;
     state.points = [];
     drawChart(state.points);
     clearTerminal();
-    elements.run.disabled = true;
-    elements.stop.disabled = false;
+    setPhase("run");
     setStatus("running…");
-    const worker = createWorker();
-    state.runWorker = worker;
-    const started = performance.now();
-    worker.onmessage = ({ data }) => {
-        if(data.type === "stdout" || data.type === "stderr"){
-            appendLine(data.line, data.type);
-            const event = parseLine(data.line);
-            if(event && event.type === "evaluation"){
-                state.points.push(event);
-                drawChart(state.points);
-                setStatus(`running… step ${event.step}/${event.stepLimit}, mean return ${event.meanReturn.toFixed(1)} (${((performance.now() - started) / 1000).toFixed(0)} s)`);
-            }
+    const client = new WorkerClient();
+    state.runner = client;
+    try{
+        const program = state.program.slice().buffer;
+        const seed = elements.seed.value.trim();
+        const result = await client.request("run", { program, args: seed.length > 0 ? [seed] : [] }, {
+            timeout: 900000, transfer: [program], onEvent: event => showEvent(event, operation),
+        });
+        if(operation === state.operation){
+            setStatus("finished with exit code " + result.exitCode + " after " + result.seconds.toFixed(1) + " s");
         }
-        else if(data.type === "exited"){
-            setStatus(`finished with exit code ${data.exitCode} after ${data.seconds.toFixed(1)} s`);
-            appendLine(`exit code ${data.exitCode} after ${data.seconds.toFixed(1)} s`, "meta");
-            terminateRun();
-            elements.run.disabled = false;
-            elements.stop.disabled = true;
+    }
+    catch(error){
+        if(operation === state.operation){
+            setStatus(error.message);
+            appendLine(error.message, "stderr");
         }
-    };
-    const seed = elements.seed.value.trim();
-    const program = state.program.slice().buffer;
-    worker.postMessage({ type: "run", program, args: seed.length > 0 ? [seed] : [] }, [program]);
+    }
+    finally{
+        client.terminate();
+        if(operation === state.operation){
+            state.runner = null;
+            setPhase("idle");
+        }
+    }
 }
 
 function stop(){
-    terminateRun();
+    ++state.operation;
+    if(state.phase === "compile"){
+        state.compiler?.terminate();
+    }
+    state.runner?.terminate();
+    state.runner = null;
+    setPhase("idle");
     setStatus("stopped");
     appendLine("stopped", "meta");
-    elements.run.disabled = state.program === null;
-    elements.stop.disabled = true;
 }
 
 async function load(){
-    elements.arguments.value = DEFAULT_ARGUMENTS;
     drawChart([]);
     try{
-        const [manifest, toolchainManifest, example] = await Promise.all([fetch(MANIFEST_URL).then(response => response.ok ? response.json() : null), fetch(TOOLCHAIN_MANIFEST_URL).then(response => response.ok ? response.json() : null), fetch(EXAMPLE_URL).then(response => response.text())]);
-        elements.editor.value = example;
-        if(manifest){
-            elements.commit.textContent = `rl_tools @ ${String(manifest.rl_tools_commit).slice(0, 9)}`;
-        }
-        setStatus("loading RLtools headers…");
-        state.includeTar = await fetchBytes(INCLUDE_URL);
-        setStatus("loading sysroot…");
-        state.sysrootTar = await fetchBytes(SYSROOT_URL);
-        const toolchainBytes = await fetchBytes(TOOLCHAIN_URL, (received, total) => setStatus(`loading compiler… ${megabytes(received)}${total ? " / " + megabytes(total) : ""} MB`));
-        setStatus("preparing compiler…");
-        state.module = await WebAssembly.compile(toolchainBytes);
-        await compileWorker();
-        setStatus(`ready: clang ${toolchainManifest?.llvm_version ?? "(unknown version)"} (${toolchainManifest?.target ?? "wasm32-wasip1"})`);
-        elements.compile.disabled = false;
+        const [specification, manifest] = await Promise.all([
+            fetchChecked(new URL("examples.json", BUNDLE_URL)).then(response => response.json()),
+            fetchChecked(new URL("manifest.json", BUNDLE_URL)).then(response => response.json()),
+        ]);
+        const name = specification.default;
+        const example = specification.examples[name];
+        state.sourceName = example.file;
+        elements.arguments.value = formatArguments(exampleArguments(specification, name));
+        elements.seed.value = example.args[0] ?? "";
+        elements.editor.value = await (await fetchChecked(new URL("examples/" + name + ".cpp", BUNDLE_URL))).text();
+        elements.commit.textContent = "rl_tools @ " + manifest.rl_tools_commit.slice(0, 9);
+        await compiler(state.operation);
+        setStatus("ready");
+        setPhase("idle");
     }
     catch(error){
-        setStatus(`failed to load: ${error.message}. Build the toolchain (tools/ide/toolchain) and run tools/ide/bundle.sh, then serve the repository root.`);
+        setStatus("failed to load: " + error.message);
     }
 }
 
