@@ -8,7 +8,7 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include <rl_tools/rl/environments/batch/operations_generic.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_generic.h>
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
-#include <rl_tools/rl/algorithms/ppo/operations_collection.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
 #include <rl_tools/random/operations_generic_array.h>
 
 #include <gtest/gtest.h>
@@ -49,7 +49,8 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
     prl::ACTOR_EVAL_BUFFERS actor_eval_buffers;
     prl::ACTOR_BUFFERS actor_buffers;
     prl::CRITIC_BUFFERS critic_buffers;
-    rlt::rl::algorithms::ppo::CollectionBuffer<typename prl::PPO_SPEC::CRITIC_TYPE, typename prl::ON_POLICY_RUNNER_DATASET_SPEC> critic_buffers_all;
+    rlt::rl::components::on_policy_runner::ValueState<typename prl::PPO_SPEC::CRITIC_TYPE, typename prl::ON_POLICY_RUNNER_DATASET_SPEC> critic_states_all;
+    rlt::rl::components::on_policy_runner::ValueBuffer<typename prl::PPO_SPEC::CRITIC_TYPE, typename prl::ON_POLICY_RUNNER_DATASET_SPEC> critic_buffers_all;
 
     rlt::malloc(device, actor_optimizer);
     rlt::malloc(device, critic_optimizer);
@@ -62,7 +63,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
     rlt::malloc(device, actor_eval_buffers);
     rlt::malloc(device, actor_buffers);
     rlt::malloc(device, critic_buffers);
-    rlt::malloc(device, critic_buffers_all);
+    rlt::malloc(device, critic_states_all); rlt::malloc(device, critic_buffers_all);
     rlt::init(device, environment);
     rlt::init(device, on_policy_runner, environment, rng);
     rlt::init(device, ppo, actor_optimizer, critic_optimizer, rng);
@@ -86,7 +87,7 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
         auto start = std::chrono::high_resolution_clock::now();
         {
             auto start = std::chrono::high_resolution_clock::now();
-            rlt::collect(device, on_policy_runner_dataset, on_policy_runner, on_policy_runner_buffer, environment, ppo, actor_eval_buffers, critic_buffers_all, rng);
+            rlt::collect(device, on_policy_runner_dataset, on_policy_runner, on_policy_runner_buffer, environment, ppo.actor, actor_eval_buffers, ppo.critic, critic_states_all, critic_buffers_all, rng, typename decltype(ppo)::SPEC::COLLECTION_MODE{});
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;
 //            std::cout << "Rollout: " << elapsed.count() << " s" << std::endl;
@@ -125,6 +126,6 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
     rlt::free(device, actor_eval_buffers);
     rlt::free(device, actor_buffers);
     rlt::free(device, critic_buffers);
-    rlt::free(device, critic_buffers_all);
+    rlt::free(device, critic_states_all); rlt::free(device, critic_buffers_all);
 
 }

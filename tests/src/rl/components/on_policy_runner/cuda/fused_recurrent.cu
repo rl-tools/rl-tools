@@ -7,7 +7,6 @@
 #include <rl_tools/nn_models/mlp_unconditional_stddev/operations_generic.h>
 #include <rl_tools/nn_models/sequential/operations_generic.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
-#include <rl_tools/rl/algorithms/ppo/operations_collection.h>
 #include <gtest/gtest.h>
 #include <metra/metra.h>
 
@@ -110,7 +109,8 @@ TEST(RL_TOOLS_ON_POLICY_RUNNER_FUSED, GRU_CRITIC_BOOTSTRAP){
     GPU gpu;
     init(gpu);
     CRITIC critic_cpu, critic_gpu;
-    rl::algorithms::ppo::CollectionBuffer<CRITIC, DS> buffer_cpu, buffer_gpu;
+    rl::components::on_policy_runner::ValueState<CRITIC, DS> state_cpu, state_gpu;
+    rl::components::on_policy_runner::ValueBuffer<CRITIC, DS> buffer_cpu, buffer_gpu;
     rl::components::on_policy_runner::Dataset<DS> dataset_cpu, dataset_gpu, result;
     rl::components::on_policy_runner::Buffer<RS> next_cpu, next_gpu;
     RNG rng;
@@ -124,7 +124,7 @@ TEST(RL_TOOLS_ON_POLICY_RUNNER_FUSED, GRU_CRITIC_BOOTSTRAP){
     set_all(cpu, layer.initial_hidden_state.parameters, 0.0f);
     set(cpu, layer.weights_input.parameters, 1.0f, 2, 0);
     copy(cpu, gpu, critic_cpu, critic_gpu);
-    malloc(cpu, buffer_cpu); malloc(gpu, buffer_gpu);
+    malloc(cpu, state_cpu); malloc(cpu, buffer_cpu); malloc(gpu, state_gpu); malloc(gpu, buffer_gpu);
     malloc(cpu, dataset_cpu); malloc(gpu, dataset_gpu); malloc(cpu, result);
     malloc(cpu, next_cpu); malloc(gpu, next_gpu);
     set_all(cpu, dataset_cpu.scalar_data, 0.0f);
@@ -140,10 +140,10 @@ TEST(RL_TOOLS_ON_POLICY_RUNNER_FUSED, GRU_CRITIC_BOOTSTRAP){
         set_all(cpu, next_cpu.next_observations_privileged, 0.0f);
         for(TI i = 0; i < N; i++) set(cpu, next_cpu.next_observations_privileged, 0.1f * (t + 1) + 0.05f * (i + 1), i, 0);
         copy(cpu, gpu, next_cpu.next_observations_privileged, next_gpu.next_observations_privileged);
-        evaluate_values(cpu, dataset_cpu, critic_cpu, buffer_cpu, rng, t);
-        evaluate_values(gpu, dataset_gpu, critic_gpu, buffer_gpu, rng, t);
-        evaluate_bootstrap_values(cpu, dataset_cpu, next_cpu.next_observations_privileged, critic_cpu, buffer_cpu, rng, t);
-        evaluate_bootstrap_values(gpu, dataset_gpu, next_gpu.next_observations_privileged, critic_gpu, buffer_gpu, rng, t);
+        evaluate_values(cpu, dataset_cpu, critic_cpu, state_cpu, buffer_cpu, rng, t);
+        evaluate_values(gpu, dataset_gpu, critic_gpu, state_gpu, buffer_gpu, rng, t);
+        evaluate_bootstrap_values(cpu, dataset_cpu, next_cpu.next_observations_privileged, critic_cpu, state_cpu, buffer_cpu, rng, t);
+        evaluate_bootstrap_values(gpu, dataset_gpu, next_gpu.next_observations_privileged, critic_gpu, state_gpu, buffer_gpu, rng, t);
         copy(gpu, cpu, dataset_gpu.scalar_data, result.scalar_data);
         for(TI i = 0; i < N; i++){
             if(t == 0 || (t + i) % 3 == 0) hidden[i] = 0;
@@ -156,7 +156,7 @@ TEST(RL_TOOLS_ON_POLICY_RUNNER_FUSED, GRU_CRITIC_BOOTSTRAP){
     }
     free(cpu, next_cpu); free(gpu, next_gpu); free(cpu, result);
     free(cpu, dataset_cpu); free(gpu, dataset_gpu);
-    free(cpu, buffer_cpu); free(gpu, buffer_gpu);
+    free(cpu, state_cpu); free(cpu, buffer_cpu); free(gpu, state_gpu); free(gpu, buffer_gpu);
     free(cpu, critic_cpu); free(gpu, critic_gpu); free(cpu, rng);
 #ifdef RL_TOOLS_BACKEND_ENABLE_CUDNN
     EXPECT_EQ(cudnnDestroy(gpu.cudnn_handle), CUDNN_STATUS_SUCCESS);

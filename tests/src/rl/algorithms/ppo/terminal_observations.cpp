@@ -81,7 +81,7 @@ namespace rl_tools{
 }
 #include <rl_tools/rl/environments/batch/operations_generic.h>
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
-#include <rl_tools/rl/algorithms/ppo/operations_collection.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
 
 namespace rl_tools::test_terminal{
     template <bool IGNORE, bool BOOTSTRAP = true, bool RECURRENT = false> struct Parameters: rl::algorithms::ppo::DefaultParameters<TYPE_POLICY, TI, 14>{
@@ -116,8 +116,9 @@ namespace rl_tools::test_terminal{
             set_all(device, gru.initial_hidden_state.parameters, 0.0);
             set(device, gru.weights_input.parameters, 1.0, 2, 0);
         }
-        rl::algorithms::ppo::CollectionBuffer<decltype(critic), DS> critic_buffer;
-        malloc(device, environment); malloc(device, runner); malloc(device, buffer); malloc(device, dataset); malloc(device, critic_buffer);
+        rl::components::on_policy_runner::ValueState<decltype(critic), DS> critic_state;
+        rl::components::on_policy_runner::ValueBuffer<decltype(critic), DS> critic_buffer;
+        malloc(device, environment); malloc(device, runner); malloc(device, buffer); malloc(device, dataset); malloc(device, critic_state); malloc(device, critic_buffer);
         get_ref(device, environment.environments, 1).terminate = true;
         init(device, runner, environment, rng);
         for(TI i = 0; i < N; i++) get_ref(device, environment.environments, i).reset_observation = 1e6;
@@ -127,7 +128,7 @@ namespace rl_tools::test_terminal{
         T hidden[N]{};
         TI age[N]{}, episode[N]{1, 1};
         for(TI t = 0; t < STEPS; t++){
-            evaluate_values(device, dataset, critic, critic_buffer, rng, t);
+            evaluate_values(device, dataset, critic, critic_state, critic_buffer, rng, t);
             if constexpr(CAPTURE) for(TI i = 0; i < N; i++){
                 TI pos = t * N + i;
                 if(get(dataset.reset, pos, 0)) hidden[i] = 0;
@@ -136,18 +137,18 @@ namespace rl_tools::test_terminal{
                 EXPECT_NEAR(get(dataset.values, pos, 0), hidden[i], 1e-12);
             }
             epilogue(device, dataset, runner, buffer, environment, rng, t);
-            evaluate_bootstrap_values(device, dataset, buffer.next_observations_privileged, critic, critic_buffer, rng, t);
+            evaluate_bootstrap_values(device, dataset, buffer.next_observations_privileged, critic, critic_state, critic_buffer, rng, t);
             if constexpr(CAPTURE) for(TI i = 0; i < N; i++){
                 if(t > 0 && get(dataset.reset, t * N + i, 0)){ age[i] = 0; episode[i]++; }
                 T final_observation = 10 * episode[i] + ++age[i];
                 EXPECT_DOUBLE_EQ(get(device, buffer.next_observations_privileged, i, 0), final_observation);
                 T expected_bootstrap = REAL_GRU ? 0.5 * math::tanh(device.math, final_observation) + 0.5 * hidden[i] : final_observation + (RECURRENT ? hidden[i] : 0);
                 EXPECT_NEAR(get(dataset.bootstrap_values, t * N + i, 0), expected_bootstrap, 1e-12);
-                if constexpr(!REAL_GRU){ EXPECT_DOUBLE_EQ(get(critic_buffer.state.hidden, i, 0), hidden[i]); }
+                if constexpr(!REAL_GRU){ EXPECT_DOUBLE_EQ(get(critic_state.state.hidden, i, 0), hidden[i]); }
                 if(get(dataset.truncated, t * N + i, 0)){ EXPECT_DOUBLE_EQ(get(device, dataset.all_observations_privileged, (t + 1) * N + i, 0), 1e6); }
             }
         }
-        evaluate_rollout_values(device, dataset, critic, critic_buffer, rng, Parameters<IGNORE, BOOTSTRAP, RECURRENT>{});
+        evaluate_rollout_values(device, dataset, critic, critic_buffer, rng, Mode<utils::typing::conditional_t<RECURRENT, mode::on_policy_runner::Sequential<mode::on_policy_runner::ActorCritic<>>, mode::on_policy_runner::ActorCritic<>>>{});
         if constexpr(!CAPTURE){
             static_assert(decltype(dataset)::SCALAR_DATA_DIM == 2 * Environment::ACTION_DIM + 8);
             static_assert(utils::typing::is_same_v<decltype(buffer.next_observations_privileged), rl::components::on_policy_runner::NoNextObservations>);
@@ -189,7 +190,7 @@ namespace rl_tools::test_terminal{
         }
         if constexpr(REAL_GRU) free(device, critic);
         metra::log("ppo/terminal_observations/failures", ::testing::Test::HasFailure() ? 1.0 : 0.0);
-        free(device, rng); free(device, critic_buffer); free(device, dataset); free(device, buffer); free(device, runner); free(device, environment);
+        free(device, rng); free(device, critic_state); free(device, critic_buffer); free(device, dataset); free(device, buffer); free(device, runner); free(device, environment);
     }
 }
 TEST(PPO_TERMINAL_OBSERVATIONS, REPEATED_BOUNDARIES){ rl_tools::test_terminal::check<false, false>(); }

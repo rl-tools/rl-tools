@@ -10,7 +10,7 @@
 #include "../../../../../nn_models/mlp_unconditional_stddev/network.h"
 #include "../../../../../nn_models/multi_agent_wrapper/model.h"
 #include "../../../../../rl/algorithms/ppo/ppo.h"
-#include "../../../../../rl/algorithms/ppo/collection.h"
+#include "../../../../../rl/components/on_policy_runner/collection.h"
 #include "../../../../../rl/environments/batch/environment.h"
 #include "../../../../../rl/components/on_policy_runner/on_policy_runner.h"
 #include "../../../../../nn/optimizers/adam/adam.h"
@@ -231,7 +231,8 @@ namespace rl_tools{
             using ACTOR_EVAL_BUFFERS = typename NN::ACTOR_TYPE::template Buffer<DYNAMIC_ALLOCATION>;
             using ACTOR_BUFFERS = typename NN::ACTOR_TYPE::template Buffer<DYNAMIC_ALLOCATION>;
             using CRITIC_BUFFERS = typename NN::CRITIC_TYPE::template Buffer<DYNAMIC_ALLOCATION>;
-            using CRITIC_COLLECTION_BUFFER = rl::algorithms::ppo::CollectionBuffer<typename NN::CRITIC_TYPE, ON_POLICY_RUNNER_DATASET_SPEC>;
+            using CRITIC_COLLECTION_STATE = rl::components::on_policy_runner::ValueState<typename NN::CRITIC_TYPE, ON_POLICY_RUNNER_DATASET_SPEC>;
+            using CRITIC_COLLECTION_BUFFER = rl::components::on_policy_runner::ValueBuffer<typename NN::CRITIC_TYPE, ON_POLICY_RUNNER_DATASET_SPEC>;
             template <typename CONFIG>
             using State = State<CONFIG>;
         };

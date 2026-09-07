@@ -4,8 +4,8 @@
 `epilogue` calls select device/environment overloads in `namespace rl_tools`.
 Include the runner's `operations_cpu_mux.h` with the CUDA CPU-mux option, or
 include `operations_cuda.h` directly. The CUDA header defines its overloads
-before including generic orchestration. PPO's `operations_collection.h` also
-loads the runner mux first. See [dispatch and ownership](../README.md).
+before including generic orchestration. PPO's loop CUDA entry header also
+loads the runner CUDA operations first. See [dispatch and ownership](../README.md).
 
 The specialization boundary is a complete runner phase, not a batch verb:
 
@@ -13,7 +13,7 @@ The specialization boundary is a complete runner phase, not a batch verb:
 | --- | --- |
 | CUDA `batch::Independent` | One initial-observation kernel per rollout; one action-sampling and one complete transition kernel per step, excluding policy evaluation/reset. Full and masked external resets each use one kernel. |
 | Native batches, including HyperDrone | Composed batch operations; scene sharing, rendering, stream coordination, and scene diversity remain environment responsibilities. |
-| CPU and hybrid CPU-environment/CUDA-policy collection | Original composed operation ordering, including shared-RNG consumption order. |
+| CPU collection | Original composed operation ordering, including shared-RNG consumption order. |
 | Recurrent actors | Reset masks apply before policy evaluation; CUDA-resident hidden state and step counters stay device-resident. |
 | Manual collection and imitation | The same public phases accept externally produced actions without a second collector implementation. |
 | PPO, persistence, reward diagnostics | The dataset stores training transitions. The runner keeps policy state, environment parameters/states, a reset mask, and the compile-time time-limit counter. `Buffer::next_states` remains the transition state before autoreset. |
@@ -37,7 +37,7 @@ Build the following targets, then run the focused CTest selection:
 cmake --build build --target \
   test_rl_components_on_policy_runner_fused_cuda \
   test_rl_components_on_policy_runner_fused_cuda_direct \
-  test_rl_components_on_policy_runner_fused_cuda_ppo_entry \
+  test_rl_components_on_policy_runner_fused_cuda_ppo_loop_entry \
   test_rl_components_on_policy_runner_fused_recurrent_cuda \
   test_nn_layers_gru_reset_cuda \
   test_nn_layers_gru_reset_cuda_helper_first -j5
@@ -52,7 +52,7 @@ actions, rewards, termination/reset flags, time-limit counters, parameters, curr
 pre-reset states, mutable environment data, and RNG state. Coverage includes
 1/37 instances, asymmetric and mixed-precision observation storage, multi-agent
 actions, portable/cuRAND RNGs, compile-time limits of 0/1/3, strided no/some/all reset masks,
-and full external resets. Direct CUDA, runner mux, and PPO collection entry paths are compiled.
+and full external resets. Direct CUDA, runner mux, and PPO loop entry paths are compiled.
 
 `fused_recurrent.cu` compares complete collection against composed phases with
 GRU policies on Pendulum and L2F, with continuing and forced-rollout boundaries.
@@ -146,7 +146,8 @@ optimization flags and fixed-seed workload match the width-32 measurements
 above. RNG hashes cover all portable engine states after collection.
 
 The project build uses Release/C++17, CUDA/cuDNN and OptiX with fast math
-disabled. All 106 distinct focused tests pass: 68 runner/PPO/GRU contract
+disabled. Before hybrid collection was removed, 106 distinct focused tests
+passed: 68 runner/PPO/GRU contract
 cases, 22 native rendering cases, four native episode cases, eleven visual
 L2F/Ant cases and the rigorous PPO checkpoint test. Short tests use a
 20-second timeout; the rigorous checkpoint test and four rendering cases
@@ -159,14 +160,11 @@ trainer, L2F/Ant CPU zoo trainers and the L2F CUDA zoo trainer also build.
 This supersedes the earlier generic-renderer harness limitation. Other
 rendering backends and complete training runs are outside this validation.
 Compute Sanitizer reports zero errors and leaked bytes for fused phase
-equivalence, recurrent Pendulum/L2F collection, GRU reset/counter cases
-and shaped hybrid collection.
+equivalence, recurrent Pendulum/L2F collection, and GRU reset/counter cases.
 
 The disabled visual CPU trainer also compiles after specifying its existing
-direct-motor action interface. The disabled legacy MuJoCo CUDA trainer still
-fails on obsolete model/numeric-type wiring; compiling its original source
-against the captured baseline reproduces the same failures. Its runner
-include is migrated, but this refactor does not claim to restore that target.
+direct-motor action interface. The legacy hybrid MuJoCo CUDA trainer and its
+benchmarks have been removed; CPU MuJoCo training remains supported.
 
 Nsight Systems confirms identical launch counts in baseline/refactor, eager/
 graph and 64/1,024-instance runs: 41,650 kernels, comprising 35,200 actor

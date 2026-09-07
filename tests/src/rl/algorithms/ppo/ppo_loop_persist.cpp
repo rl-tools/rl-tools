@@ -24,6 +24,7 @@
 #include <iostream>
 #include <sstream>
 #include <fstream>
+#include <cstdint>
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 using T = float;
 using TYPE_POLICY = rlt::numeric_types::Policy<T>;
@@ -351,12 +352,13 @@ template <bool BOOTSTRAP = true> struct RecurrentTerminalParameters: LOOP_CORE_P
         static constexpr TI N_EPOCHS = 1;
     };
 };
-template <bool BOOTSTRAP> void check_recurrent_terminal_loop(){
-    using CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, RecurrentTerminalParameters<BOOTSTRAP>, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsGRU<true>::Approximators, true>;
+template <bool BOOTSTRAP, bool GRU_CRITIC = true> void check_recurrent_terminal_loop(){
+    using CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, RecurrentTerminalParameters<BOOTSTRAP>, rlt::rl::algorithms::ppo::loop::core::ConfigApproximatorsGRU<GRU_CRITIC>::template Approximators, true>;
     DEVICE device;
     typename CONFIG::template State<CONFIG> state;
     rlt::malloc(device, state);
     rlt::init(device, state, 19);
+    rlt::set_all(device, state.on_policy_runner_dataset.scalar_data, 0.0f);
     for(TI i = 0; i < 2; i++){
         rlt::step(device, state);
         EXPECT_FALSE(rlt::is_nan(device, state.on_policy_runner_dataset.bootstrap_values));
@@ -365,9 +367,18 @@ template <bool BOOTSTRAP> void check_recurrent_terminal_loop(){
             TI pos = t * 2 + env_i;
             EXPECT_NEAR(rlt::get(state.on_policy_runner_dataset.target_values, pos, 0), rlt::get(state.on_policy_runner_dataset.rewards, pos, 0) + (BOOTSTRAP ? RecurrentTerminalParameters<BOOTSTRAP>::PPO_PARAMETERS::GAMMA * rlt::get(state.on_policy_runner_dataset.bootstrap_values, pos, 0) : 0), 1e-5);
         }
+        rlt::persist::backends::tar::Writer writer;
+        rlt::persist::backends::tar::WriterGroup<rlt::persist::backends::tar::WriterGroupSpecification<TI, decltype(writer)>> group{"", &writer};
+        using rlt::save;
+        save(device, state, group);
+        std::uint64_t digest = 14695981039346656037ull;
+        for(unsigned char byte: writer.buffer) digest = (digest ^ byte) * 1099511628211ull;
+        ::testing::Test::RecordProperty("training_state_" + std::to_string(i), std::to_string(digest));
     }
     rlt::free(device, state);
 }
 
 TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, RECURRENT_TERMINAL_BOOTSTRAP){ check_recurrent_terminal_loop<true>(); }
 TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, RECURRENT_NO_TRUNCATION_BOOTSTRAP){ check_recurrent_terminal_loop<false>(); }
+TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, RECURRENT_ACTOR_FEEDFORWARD_CRITIC){ check_recurrent_terminal_loop<true, false>(); }
+TEST(RL_TOOLS_RL_ALGORITHMS_PPO_LOOP, RECURRENT_ACTOR_FEEDFORWARD_CRITIC_NO_BOOTSTRAP){ check_recurrent_terminal_loop<false, false>(); }

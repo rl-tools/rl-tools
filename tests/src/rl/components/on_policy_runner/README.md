@@ -20,11 +20,46 @@ freestanding helpers are defined first in `operations_generic_common.h` and
 `collect`, generic `epilogue`, and generic `reset` are defined. Including generic
 orchestration first and adding a backend later is not a supported entry order.
 
-PPO's `operations_collection.h` is a convenience entry point which loads the
-runner mux before collection. `operations_generic_collection.h` and generic loop
-headers remain freestanding; callers selecting a backend include the runner mux
-or the loop's CUDA entry header first. Environment persistence overloads must
-likewise precede batch/loop persistence templates.
+The runner's `operations_generic.h` includes `operations_generic_collection.h`
+after its phases. That header owns the single collection loop and value
+evaluation. Both headers remain freestanding. Callers select
+the runner mux or the PPO loop's CUDA entry header first; model and environment
+operations must precede collection templates. Environment persistence overloads
+must likewise precede batch/loop persistence templates.
+
+## Collection ownership
+
+The PPO loop owns the models, environment, runner, dataset, and allocation of
+collection state and scratch. The runner module owns collection scheduling and
+generic actor/critic evaluation; it has no dependency on PPO. PPO supplies
+`PPO_SPEC::COLLECTION_MODE` and retains GAE, bootstrap eligibility, and training.
+
+```cpp
+collect(device, dataset, runner, runner_buffer, environment,
+        ppo.actor, actor_buffer, ppo.critic, value_state, value_buffer,
+        rng, typename PPO_SPEC::COLLECTION_MODE{});
+```
+
+`on_policy_runner::ValueState<CRITIC, DATASET_SPEC>` contains the live critic
+state. `ValueBuffer<CRITIC, DATASET_SPEC>` contains its bootstrap copy and model
+scratch. Allocate/free both explicitly. Critic state is reset at the beginning
+of every rollout, matching sequence replay during PPO training; it is not a
+new checkpoint payload. Actor/environment state and their persistence are
+unchanged. The old PPO `CollectionBuffer` and collection headers are removed.
+
+Actor-only and actor-critic `collect` overloads delegate to the same loop
+through `Mode<ActorOnly>` or `Mode<ActorCritic>`. `Sequential` preserves
+time/environment axes in bulk value evaluation. Evaluation argument structures
+hold references to caller-owned models, state, and buffers; they own no
+storage. The individual phases and value operations remain independently callable.
+
+With next-observation capture, each iteration evaluates the current observation
+into the live critic state, evaluates the actor, steps and autoresets the
+environment, then evaluates the captured pre-reset observation into a copy of
+the critic state. The copy includes hidden states and step counters; it never
+advances the live state. Critic evaluations retain `NoAutoResetMode`, including
+the bootstrap at a sequence-length boundary. Without capture, value evaluation
+retains the bulk path and `bootstrap_values` aliases the next value row.
 
 ## Consumers and decisions
 
@@ -37,9 +72,11 @@ likewise precede batch/loop persistence templates.
 | Generic, Metal, OptiX, Vulkan, WebGPU rendering | Compute devices own their rendering device through the extension. Callers initialize the owned member explicitly; renderer libraries retain their backend lifecycle. |
 | CUDA Adam/SGD, TD3, and renderer producer/physics kernels | Runtime devices may contain noncopyable extensions. Host launchers retain stream ownership; kernels receive CUDA tags by value and their data separately. |
 | Legacy Pendulum training inside a CUDA kernel | The complete training loop needs a device-side logging context. Construct it inside the kernel and pass only the training-state pointer across the launch boundary. |
-| Hybrid MuJoCo and shaped visual observations | Share transfer, canonical input reshaping, rollout-mode evaluation, and action sampling. Transfer observations in `SPEC::OBSERVATION_T`; retain separate PPO critic orchestration. Hybrid collection remains feedforward. |
-| Feedforward/recurrent PPO, all bootstrap/ignore-termination combinations | Model-level sequence reset modes preserve the old episode's critic state for terminal observations. Legacy GRU mode names are aliases to the same types. |
-| Manual phases, external actions, visual PPO and RAPTOR imitation | Keep public prologue/interlude/epilogue operations independently callable; no callback framework or extra collector. |
+| MuJoCo Ant CPU training | Uses ordinary CPU collection. The former CPU-environment/CUDA-policy training, collection/throughput benchmarks, transfer buffers, and hybrid operations are removed. Their dedicated tests are removed with the API. |
+| Shaped visual observations | Native collection retains the observation shape and precision through actor and critic evaluation. |
+| Feedforward PPO, recurrent actors with feedforward/recurrent critics, asymmetric observations, all bootstrap/ignore-termination combinations | PPO selects collection capabilities. Preserve current/next observation ordering, separate actor/critic states, whole-state bootstrap copies, and the existing streaming/bulk evaluation paths. |
+| Normalization warmup, actor-only collection benchmarks and parity tests | Use actor-only mode in the same collection loop, preserving observation capture and RNG order. |
+| Manual phases, external actions, visual PPO and RAPTOR imitation | Keep public prologue/interlude/epilogue and value operations independently callable. |
 | Loop checkpoints, curriculum updates, evaluation, Python/Gym consumers | Environments live outside runners. Independent-batch persistence delegates mutable instances to their environment serializers; empty instances have no payload. No implicit serialization of arbitrary environment objects. |
 | Training diagnostics, timing and benchmarks | Reporting stays in training consumers; runner storage is limited to collection. Compare eager and graph execution separately with matching trajectory and RNG hashes before interpreting timings. |
 
@@ -79,15 +116,24 @@ These changes are separate from overload dispatch:
   resets clear partial accumulations and are logged separately from completed
   episodes. Reporting adds no storage or work to the runner.
 
-Two behavioral changes in `c2d04a51..HEAD` are retained independently of this
-refactor: hybrid PPO evaluates its critic on the environment device, enabling
-terminal-value capture with the current critic state; continuous observation
-normalization updates occur after training on each rollout, keeping the
-rollout's policy/value normalization fixed through that update. These affect
-execution placement and training semantics, so collection throughput results
-must not be read as end-to-end training comparisons.
+Continuous observation normalization updates occur after training on each
+rollout, keeping the rollout's policy/value normalization fixed through that
+update. This training behavior predates collection consolidation; collection
+throughput results must not be read as end-to-end training comparisons.
 
 See [CUDA validation and benchmark details](cuda/README.md). Regression tests
-cover devices without identifiers, direct/mux/PPO collection entry headers,
-mixed observation precision, shaped hybrid evaluation, checkpoint restoration,
+cover devices without identifiers, direct/mux/PPO loop entry headers,
+shaped observations, checkpoint restoration,
 partial reset accumulation, and native rendering.
+
+`tests/src/rl/algorithms/ppo/collection.{h,cpp}` and `cuda/collection.cu` exercise
+the complete collector with real GRU actors, recurrent/feedforward critics, and analytical values. They
+cover staggered termination/time limits, repeated rollouts, all bootstrap flag
+combinations, final-step boundaries, one-step rollouts, actor/critic sequence
+replay, and preservation of live hidden states and counters. GTest XML records
+rollout/RNG digests; the recurrent loop tests also record serialized training
+state digests after updates. CPU/CUDA rollout digests and CPU training-state
+digests were compared with the implementation before consolidation. Training
+comparisons compile identical test source with the same compiler flags against
+both header versions; all eight serialized snapshots (two updates for each
+critic/bootstrap combination) matched byte for byte.
