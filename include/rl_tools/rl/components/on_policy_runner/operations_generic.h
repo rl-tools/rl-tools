@@ -85,7 +85,9 @@ namespace rl_tools{
         malloc(device, buffer.actions);
         malloc(device, buffer.rewards);
         malloc(device, buffer.terminated);
-        if constexpr(SPEC::COLLECT_NEXT_OBSERVATIONS) malloc(device, buffer.next_observations_privileged);
+        if constexpr(SPEC::COLLECT_NEXT_OBSERVATIONS){
+            malloc(device, buffer.next_observations_privileged);
+        }
     }
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, rl::components::on_policy_runner::Buffer<SPEC>& buffer){
@@ -93,7 +95,9 @@ namespace rl_tools{
         free(device, buffer.actions);
         free(device, buffer.rewards);
         free(device, buffer.terminated);
-        if constexpr(SPEC::COLLECT_NEXT_OBSERVATIONS) free(device, buffer.next_observations_privileged);
+        if constexpr(SPEC::COLLECT_NEXT_OBSERVATIONS){
+            free(device, buffer.next_observations_privileged);
+        }
     }
     template <typename DEVICE, typename SPEC_1, typename SPEC_2>
     RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_1::SPEC::TYPE_POLICY::DEFAULT abs_diff(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC_1>& d1, rl::components::on_policy_runner::Dataset<SPEC_2>& d2){
@@ -239,20 +243,28 @@ namespace rl_tools{
     }
     template <typename DEVICE, typename CRITIC, typename SPEC>
     void malloc(DEVICE& device, rl::components::on_policy_runner::ValueState<CRITIC, SPEC>& state){
-        if constexpr(SPEC::SPEC::COLLECT_NEXT_OBSERVATIONS) malloc(device, state.state);
+        if constexpr(SPEC::SPEC::COLLECT_NEXT_OBSERVATIONS){
+            malloc(device, state.state);
+        }
     }
     template <typename DEVICE, typename CRITIC, typename SPEC>
     void free(DEVICE& device, rl::components::on_policy_runner::ValueState<CRITIC, SPEC>& state){
-        if constexpr(SPEC::SPEC::COLLECT_NEXT_OBSERVATIONS) free(device, state.state);
+        if constexpr(SPEC::SPEC::COLLECT_NEXT_OBSERVATIONS){
+            free(device, state.state);
+        }
     }
     template <typename DEVICE, typename CRITIC, typename SPEC>
     void malloc(DEVICE& device, rl::components::on_policy_runner::ValueBuffer<CRITIC, SPEC>& buffer){
-        if constexpr(SPEC::SPEC::COLLECT_NEXT_OBSERVATIONS) malloc(device, buffer.bootstrap_state);
+        if constexpr(SPEC::SPEC::COLLECT_NEXT_OBSERVATIONS){
+            malloc(device, buffer.bootstrap_state);
+        }
         malloc(device, buffer.buffer);
     }
     template <typename DEVICE, typename CRITIC, typename SPEC>
     void free(DEVICE& device, rl::components::on_policy_runner::ValueBuffer<CRITIC, SPEC>& buffer){
-        if constexpr(SPEC::SPEC::COLLECT_NEXT_OBSERVATIONS) free(device, buffer.bootstrap_state);
+        if constexpr(SPEC::SPEC::COLLECT_NEXT_OBSERVATIONS){
+            free(device, buffer.bootstrap_state);
+        }
         free(device, buffer.buffer);
     }
     template <typename DEVICE, typename DATASET_SPEC, typename CRITIC, typename RNG>
@@ -318,15 +330,23 @@ namespace rl_tools{
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT
         utils::assert_exit(device, runner.initialized, "rl::components::on_policy_runner::collect: runner not initialized");
 #endif
-        if constexpr(SPEC::TRUNCATE_ON_EACH_ITERATION) reset(device, runner, environment, rng);
+        if constexpr(SPEC::TRUNCATE_ON_EACH_ITERATION){
+            reset(device, runner, environment, rng);
+        }
         prologue(device, dataset, runner, environment, rng);
         for(typename SPEC::TI step_i = 0; step_i < DS::STEPS_PER_ENV; step_i++){
-            if constexpr(mode::is<MODE, mode::on_policy_runner::ActorCritic>) evaluate_values(device, dataset, values.critic, values.state, values.buffer, rng, step_i);
+            if constexpr(mode::is<MODE, mode::on_policy_runner::ActorCritic>){
+                evaluate_values(device, dataset, values.critic, values.state, values.buffer, rng, step_i);
+            }
             interlude(device, dataset, runner, buffer, actor, rng, step_i);
             epilogue(device, dataset, runner, buffer, environment, rng, step_i);
-            if constexpr(mode::is<MODE, mode::on_policy_runner::ActorCritic>) evaluate_bootstrap_values(device, dataset, buffer.next_observations_privileged, values.critic, values.state, values.buffer, rng, step_i);
+            if constexpr(mode::is<MODE, mode::on_policy_runner::ActorCritic>){
+                evaluate_bootstrap_values(device, dataset, buffer.next_observations_privileged, values.critic, values.state, values.buffer, rng, step_i);
+            }
         }
-        if constexpr(mode::is<MODE, mode::on_policy_runner::ActorCritic>) evaluate_rollout_values(device, dataset, values.critic, values.buffer, rng, mode);
+        if constexpr(mode::is<MODE, mode::on_policy_runner::ActorCritic>){
+            evaluate_rollout_values(device, dataset, values.critic, values.buffer, rng, mode);
+        }
     }
     template <typename DEVICE, typename DS, typename SPEC, typename ENVIRONMENT, typename ACTOR, typename ACTOR_BUFFER, typename RNG>
     void collect(DEVICE& device, rl::components::on_policy_runner::Dataset<DS>& dataset, rl::components::OnPolicyRunner<SPEC>& runner, rl::components::on_policy_runner::Buffer<SPEC>& buffer, ENVIRONMENT& environment, ACTOR& actor, ACTOR_BUFFER& actor_buffer, RNG& rng){
