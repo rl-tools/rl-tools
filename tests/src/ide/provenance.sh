@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Checks that the served toolchain package was built from the pins in tools/ide/download_dependencies.sh and that its
+# Checks that the served toolchain package was built from the pins in tools/ide/toolchain/CMakeLists.txt and that its
 # artifacts are the ones the manifest hashes: a stale or foreign package in static/ide/build fails here. Needs only sha256sum.
 # usage: tests/src/ide/provenance.sh [<toolchain dir>]      default: static/ide/build/toolchain
 set -euo pipefail
@@ -7,14 +7,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 TOOLCHAIN_DIR="${1:-$REPO_ROOT/static/ide/build/toolchain}"
 SUPERBUILD="$REPO_ROOT/tools/ide/toolchain/CMakeLists.txt"
-DOWNLOAD_SCRIPT="$REPO_ROOT/tools/ide/download_dependencies.sh"
 MANIFEST="$TOOLCHAIN_DIR/toolchain.json"
 failures=0
 
 pin(){
-    sed -n "s/^$1=\([^ #]*\).*/\1/p" "$DOWNLOAD_SCRIPT" | head -n 1
-}
-cmake_setting(){
     sed -n "s/^set($1 \([^ )]*\).*/\1/p" "$SUPERBUILD" | head -n 1
 }
 field(){
@@ -38,12 +34,12 @@ for artifact in llvm.wasm sysroot.tar toolchain.json SHA256SUMS; do
 done
 
 expect "manifest format" "1" "$(field format)"
-expect "llvm repository" "$(pin LLVM_PROJECT_REPOSITORY)" "$(field llvm_repository)"
-expect "llvm commit" "$(pin LLVM_PROJECT_COMMIT)" "$(field llvm_commit)"
-expect "llvm upstream" "$(pin LLVM_PROJECT_UPSTREAM)" "$(field llvm_upstream)"
-expect "wasi-libc repository" "$(pin WASI_LIBC_REPOSITORY)" "$(field wasi_libc_repository)"
-expect "wasi-libc commit" "$(pin WASI_LIBC_COMMIT)" "$(field wasi_libc_commit)"
-expect "target" "$(cmake_setting RL_TOOLS_IDE_TARGET)" "$(field target)"
+expect "llvm repository" "$(pin RL_TOOLS_IDE_LLVM_REPOSITORY)" "$(field llvm_repository)"
+expect "llvm branch" "$(pin RL_TOOLS_IDE_LLVM_BRANCH)" "$(field llvm_branch)"
+expect "llvm upstream" "$(pin RL_TOOLS_IDE_LLVM_UPSTREAM)" "$(field llvm_upstream)"
+expect "wasi-libc repository" "$(pin RL_TOOLS_IDE_WASI_LIBC_REPOSITORY)" "$(field wasi_libc_repository)"
+expect "wasi-libc tag" "$(pin RL_TOOLS_IDE_WASI_LIBC_TAG)" "$(field wasi_libc_tag)"
+expect "target" "$(pin RL_TOOLS_IDE_TARGET)" "$(field target)"
 expect "llvm.wasm sha256" "$(sha256sum "$TOOLCHAIN_DIR/llvm.wasm" | cut -d' ' -f1)" "$(field llvm_wasm_sha256)"
 expect "sysroot.tar sha256" "$(sha256sum "$TOOLCHAIN_DIR/sysroot.tar" | cut -d' ' -f1)" "$(field sysroot_tar_sha256)"
 expect "llvm.wasm bytes" "$(stat -c %s "$TOOLCHAIN_DIR/llvm.wasm")" "$(field llvm_wasm_bytes)"

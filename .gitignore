@@ -97,6 +97,5 @@ camera_poses.txt
 # the hyperdrone python golden corpus is checked in (the cross-language stability anchor)
 !interface/python/hyperdrone/tests/env/golden/*
 
-# browser IDE artifacts (tools/ide/toolchain superbuild, tools/ide/bundle.sh) and its soft submodules (tools/ide/download_dependencies.sh)
+# browser IDE artifacts (tools/ide/toolchain superbuild, tools/ide/bundle.sh)
 static/ide/build
-tools/ide/external
