@@ -27,6 +27,7 @@ set(RL_TOOLS_OPENVINS_ROOT "${CMAKE_SOURCE_DIR}/src/vio/openvins")
 if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND EXISTS "${RL_TOOLS_OPENVINS_ROOT}/prefix/lib/libov_msckf_lib.so")
     find_package(OpenCV REQUIRED COMPONENTS core imgproc calib3d features2d video)
     find_package(Eigen3 REQUIRED)
+    find_package(Boost REQUIRED) # the OpenVINS headers include boost/filesystem and boost/date_time
     add_executable(rl_environments_hyperdrone_tasks_visual_inertial_localization_openvins openvins.cpp)
     target_include_directories(rl_environments_hyperdrone_tasks_visual_inertial_localization_openvins SYSTEM PRIVATE
         "${RL_TOOLS_OPENVINS_ROOT}/src/ov_msckf/src"
@@ -41,6 +42,7 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND EXISTS "${RL_TOOLS_OPENVINS_ROOT}/pr
         "${RL_TOOLS_OPENVINS_ROOT}/prefix/lib/libov_msckf_lib.so"
         ${OpenCV_LIBS}
         Eigen3::Eigen
+        Boost::headers
     )
     set_target_properties(rl_environments_hyperdrone_tasks_visual_inertial_localization_openvins PROPERTIES
         BUILD_RPATH "${RL_TOOLS_OPENVINS_ROOT}/prefix/lib"

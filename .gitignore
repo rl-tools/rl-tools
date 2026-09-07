@@ -55,6 +55,9 @@
 /checkpoints_old
 /**/.DS_Store
 /**/*.json
+!/static/ide/package.json
+!/static/ide/examples.json
+!/tools/ide/dependencies.json
 /tmp
 /lldb_type_dump.txt
 /wandb
@@ -96,3 +99,6 @@ camera_poses.txt
 
 # the hyperdrone python golden corpus is checked in (the cross-language stability anchor)
 !interface/python/hyperdrone/tests/env/golden/*
+
+# browser IDE artifacts (tools/ide/toolchain superbuild, tools/ide/bundle.sh)
+static/ide/build

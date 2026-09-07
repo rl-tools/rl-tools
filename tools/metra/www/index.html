@@ -1,0 +1,94 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>metra</title>
+<style>
+body{font:14px sans-serif;margin:1em}
+table{border-collapse:collapse;font:13px monospace;margin-top:1em}
+td,th{border:1px solid #ccc;padding:2px 6px;text-align:left}
+tr.unreliable td{opacity:.4;text-decoration:line-through}
+td.value{max-width:30em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:copy}
+td.value.copied{background:#cfc}
+input.comment{width:16em;font:inherit;border:none;background:transparent}
+</style></head><body>
+<h1>metra</h1>
+<select id="name"><option value="">all metrics</option></select>
+<input id="limit" value="200" size="5">
+<button onclick="refresh()">refresh</button>
+<table><thead><tr><th title="unreliable">&#9888;</th><th>id</th><th>time</th><th>commit</th><th>commit time</th><th>run</th><th>name</th><th>value</th><th>comment</th></tr></thead>
+<tbody id="rows"></tbody></table>
+<script>
+async function api(path, body){
+    const response = await fetch(path, body === undefined ? {} : {method: "POST", body: JSON.stringify(body)});
+    return response.json();
+}
+function copyToClipboard(text){
+    if(navigator.clipboard && window.isSecureContext){ return navigator.clipboard.writeText(text); }
+    const area = document.createElement("textarea"); // clipboard API is unavailable on plain-http origins like the NAS deployment
+    area.value = text;
+    area.style.position = "fixed";
+    area.style.opacity = "0";
+    document.body.appendChild(area);
+    area.select();
+    document.execCommand("copy");
+    area.remove();
+    return Promise.resolve();
+}
+function cell(row, content){
+    const element = document.createElement("td");
+    if(content instanceof Node){ element.appendChild(content); } else { element.textContent = content; }
+    row.appendChild(element);
+    return element;
+}
+async function refresh(){
+    const name = document.getElementById("name").value;
+    const limit = document.getElementById("limit").value;
+    let query = `api/metrics?include_unreliable=1&limit=${encodeURIComponent(limit)}`;
+    if(name !== ""){ query += `&name=${encodeURIComponent(name)}`; }
+    const rows = await api(query);
+    const container = document.getElementById("rows");
+    container.textContent = "";
+    for(const row of rows){
+        const element = document.createElement("tr");
+        element.classList.toggle("unreliable", row.unreliable !== 0);
+        element.title = `run: ${row.run_id}\ncommit: ${row.commit_hash}`;
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.title = "unreliable";
+        checkbox.checked = row.unreliable !== 0;
+        checkbox.onchange = () => api("api/flag", {id: row.id, unreliable: checkbox.checked}).then(refresh);
+        cell(element, checkbox);
+        cell(element, row.id);
+        cell(element, new Date(row.time * 1000).toISOString().replace("T", " ").slice(0, 19));
+        cell(element, row.commit_hash.slice(0, 7));
+        cell(element, row.commit_time === null ? "" : new Date(row.commit_time * 1000).toISOString().replace("T", " ").slice(0, 19));
+        cell(element, row.run_id);
+        cell(element, row.name);
+        const value = JSON.stringify(row.value);
+        const valueCell = cell(element, value);
+        valueCell.className = "value";
+        valueCell.title = value;
+        valueCell.onclick = () => copyToClipboard(value).then(() => {
+            valueCell.classList.add("copied");
+            setTimeout(() => valueCell.classList.remove("copied"), 500);
+        });
+        const comment = document.createElement("input");
+        comment.className = "comment";
+        comment.placeholder = "comment";
+        comment.value = row.comment;
+        comment.onchange = () => api("api/comment", {id: row.id, comment: comment.value});
+        cell(element, comment);
+        container.appendChild(element);
+    }
+}
+async function init(){
+    const select = document.getElementById("name");
+    for(const name of await api("api/names")){
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        select.appendChild(option);
+    }
+    select.onchange = refresh;
+    refresh();
+}
+init();
+</script></body></html>

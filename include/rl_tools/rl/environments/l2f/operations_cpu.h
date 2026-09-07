@@ -1858,10 +1858,16 @@ function get_desired_onboard_dims(parameters){
     throw new Error("get_desired_onboard_dims: parameters.visual is missing cam_width/cam_height")
 }
 
-function ensure_onboard_render_state(ui_state, cam_w, cam_h, fov){
+// parameters.visual.fov is the horizontal FOV in degrees, matching rendering::make_camera_data
+function onboard_vertical_fov_degrees(horizontal_fov_degrees, aspect){
+    const horizontal_fov = horizontal_fov_degrees * Math.PI / 180
+    return 2 * Math.atan(Math.tan(horizontal_fov / 2) / aspect) * 180 / Math.PI
+}
+
+function ensure_onboard_render_state(ui_state, cam_w, cam_h, fov_degrees){
     if(!ui_state.onboard_scene) return
     const aspect = cam_w / cam_h
-    const vfov_deg = 2 * Math.atan(Math.tan(fov / 2) / aspect) * 180 / Math.PI
+    const vfov_deg = onboard_vertical_fov_degrees(fov_degrees, aspect)
     let rt_changed = false
     if(!ui_state.onboard_render_target){
         ui_state.onboard_render_target = new THREE.WebGLRenderTarget(cam_w, cam_h)
@@ -1895,7 +1901,7 @@ async function setup_onboard_camera(ui_state, parameters){
     if(!visual || !visual.scene_hash || visual.scene_hash === '0000000000000000000000000000000000000000') return
     const dims = get_desired_onboard_dims(parameters)
     const aspect = dims.cam_w / dims.cam_h
-    const vfov_deg = 2 * Math.atan(Math.tan(dims.fov / 2) / aspect) * 180 / Math.PI
+    const vfov_deg = onboard_vertical_fov_degrees(dims.fov, aspect)
     ui_state.onboard_camera = new THREE.PerspectiveCamera(vfov_deg, aspect, 0.05, 100)
     ui_state.onboard_scene = new THREE.Scene()
     ui_state.onboard_scene.background = new THREE.Color(0x87CEEB)
@@ -1970,9 +1976,9 @@ function render_onboard_overlay(ui_state){
     ui_state.renderer.autoClear = prev_autoClear
 }
 
-export async function setup_onboard_scene(ui_state, scene_hash, cam_w, cam_h, fov){
+export async function setup_onboard_scene(ui_state, scene_hash, cam_w, cam_h, fov_degrees){
     const aspect = cam_w / cam_h
-    const vfov_deg = 2 * Math.atan(Math.tan(fov / 2) / aspect) * 180 / Math.PI
+    const vfov_deg = onboard_vertical_fov_degrees(fov_degrees, aspect)
     ui_state.onboard_camera = new THREE.PerspectiveCamera(vfov_deg, aspect, 0.05, 100)
     ui_state.onboard_scene = new THREE.Scene()
     ui_state.onboard_scene.background = new THREE.Color(0x87CEEB)
@@ -1993,7 +1999,7 @@ export async function setup_onboard_scene(ui_state, scene_hash, cam_w, cam_h, fo
         }
     }
     ui_state.onboard_scene_translation = [0, 0, 0]
-    ensure_onboard_render_state(ui_state, cam_w, cam_h, fov)
+    ensure_onboard_render_state(ui_state, cam_w, cam_h, fov_degrees)
 }
 
 export function render_onboard_pixels(ui_state, state, parameters){
