@@ -42,10 +42,8 @@ namespace rl_tools {
             using TI = typename SPEC::TI;
             const TI instance_i = threadIdx.x + blockIdx.x * blockDim.x;
             if(instance_i < SPEC::INSTANCES && get(device, reset, instance_i)){
-                auto& environment = get_ref(device, batch.environments, instance_i);
-                auto& parameter = get_ref(device, parameters, instance_i);
-                auto& rng_state = get(rng.states, 0, instance_i);
-                sample_initial_parameters(device, environment, parameter, rng_state);
+                auto& rng_state = instance_rng<SPEC::INSTANCES>(rng, instance_i);
+                sample_initial_parameters_instance(device, batch.environments, parameters, instance_i, rng_state);
             }
         }
 
@@ -54,11 +52,8 @@ namespace rl_tools {
             using TI = typename SPEC::TI;
             const TI instance_i = threadIdx.x + blockIdx.x * blockDim.x;
             if(instance_i < SPEC::INSTANCES && get(device, reset, instance_i)){
-                auto& environment = get_ref(device, batch.environments, instance_i);
-                auto& parameter = get_ref(device, parameters, instance_i);
-                auto& state = get_ref(device, states, instance_i);
-                auto& rng_state = get(rng.states, 0, instance_i);
-                sample_initial_state(device, environment, parameter, state, rng_state);
+                auto& rng_state = instance_rng<SPEC::INSTANCES>(rng, instance_i);
+                sample_initial_state_instance(device, batch.environments, parameters, states, instance_i, rng_state);
             }
         }
 
@@ -72,7 +67,7 @@ namespace rl_tools {
                 auto& state = get_ref(device, states, instance_i);
                 auto& next_state = get_ref(device, next_states, instance_i);
                 auto action = matrix_view(device, view(device, actions, instance_i));
-                auto& rng_state = get(rng.states, 0, instance_i);
+                auto& rng_state = instance_rng<SPEC::INSTANCES>(rng, instance_i);
                 step(device, environment, parameter, state, action, next_state, rng_state);
             }
         }
@@ -87,7 +82,7 @@ namespace rl_tools {
                 auto& state = get_ref(device, states, instance_i);
                 auto& next_state = get_ref(device, next_states, instance_i);
                 auto action = matrix_view(device, view(device, actions, instance_i));
-                auto& rng_state = get(rng.states, 0, instance_i);
+                auto& rng_state = instance_rng<SPEC::INSTANCES>(rng, instance_i);
                 set(device, rewards, reward(device, environment, parameter, state, action, next_state, rng_state), instance_i);
             }
         }
@@ -100,7 +95,7 @@ namespace rl_tools {
                 auto& environment = get_ref(device, batch.environments, instance_i);
                 auto& parameter = get_ref(device, parameters, instance_i);
                 auto& state = get_ref(device, states, instance_i);
-                auto& rng_state = get(rng.states, 0, instance_i);
+                auto& rng_state = instance_rng<SPEC::INSTANCES>(rng, instance_i);
                 set(device, terminated_flags, terminated(device, environment, parameter, state, rng_state), instance_i);
             }
         }
@@ -113,10 +108,8 @@ namespace rl_tools {
                 auto& environment = get_ref(device, batch.environments, instance_i);
                 auto& parameter = get_ref(device, parameters, instance_i);
                 auto& state = get_ref(device, states, instance_i);
-                auto observation_slice = view(device, observations, instance_i);
-                auto observation = matrix_view(device, observation_slice);
-                auto& rng_state = get(rng.states, 0, instance_i);
-                observe(device, environment, parameter, state, observation_type, observation, rng_state);
+                auto& rng_state = instance_rng<SPEC::INSTANCES>(rng, instance_i);
+                observe_instance(device, environment, parameter, state, observation_type, observations, instance_i, rng_state);
             }
         }
     }

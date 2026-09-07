@@ -3,6 +3,7 @@
 #pragma once
 #define RL_TOOLS_RL_ALGORITHMS_PPO_LOOP_CORE_PERSIST_H
 #include "state.h"
+#include "../../../../../rl/environments/batch/persist.h"
 #include "../../../../../nn/optimizers/adam/persist.h"
 #include "../../../../../nn/optimizers/adam/instance/persist.h"
 #include "../../../../../nn_models/mlp_unconditional_stddev/persist.h"  // Must be before sequential for correct overload resolution
@@ -22,6 +23,8 @@ namespace rl_tools{
         save(device, ts.critic_optimizer, critic_optimizer_group);
         auto ppo_group = create_group(device, group, "ppo");
         save(device, ts.ppo, ppo_group);
+        auto environment_group = create_group(device, group, "environment");
+        save(device, ts.environment, environment_group);
         auto on_policy_runner_group = create_group(device, group, "on_policy_runner");
         save(device, ts.on_policy_runner, on_policy_runner_group);
         auto on_policy_runner_dataset_group = create_group(device, group, "on_policy_runner_dataset");
@@ -61,6 +64,10 @@ namespace rl_tools{
         auto ppo_group = get_group(device, group, "ppo");
         step_result = load(device, ts.ppo, ppo_group);
         if(!step_result){ log(device, device.logger, "PPO loop load failed: ppo"); }
+        success &= step_result;
+        auto environment_group = get_group(device, group, "environment");
+        step_result = load(device, ts.environment, environment_group);
+        if(!step_result){ log(device, device.logger, "PPO loop load failed: environment"); }
         success &= step_result;
         auto on_policy_runner_group = get_group(device, group, "on_policy_runner");
         step_result = load(device, ts.on_policy_runner, on_policy_runner_group);

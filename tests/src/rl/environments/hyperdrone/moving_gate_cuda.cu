@@ -169,6 +169,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MOVING_GATE_CUDA, DEVICE_ENTITY_MECHANI
     DEVICE_GPU device_gpu;
     rlt::init(device);
     rlt::init(device_gpu);
+    device_gpu.rendering = &device;
     WORLD world;
     typename BASE_WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);

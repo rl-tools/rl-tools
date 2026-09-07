@@ -125,6 +125,11 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
+    template <auto INSTANCES, typename SPEC, typename TI>
+    RL_TOOLS_FUNCTION_PLACEMENT auto& instance_rng(devices::random::CUDA::ENGINE<SPEC>& rng, TI instance_i){
+        static_assert(SPEC::NUM_RNGS >= INSTANCES, "the batch needs one RNG state per environment instance");
+        return get(rng.states, 0, instance_i);
+    }
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, devices::random::CUDA::ENGINE<SPEC>& rng){
         malloc(device, rng.states);

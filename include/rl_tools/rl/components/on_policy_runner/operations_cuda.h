@@ -4,29 +4,8 @@
 #define RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER_OPERATIONS_CUDA_H
 
 #include "../../../devices/dummy.h"
-#include "on_policy_runner.h"
+#include "operations_generic_common.h"
 #include "../../environments/batch/operations_cuda.h"
-
-RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools{
-    template <typename DEV_SPEC, typename DATASET_SPEC, typename SPEC>
-    void record_transition(devices::CUDA<DEV_SPEC>& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<SPEC>& runner, const rl::components::on_policy_runner::Buffer<SPEC>& buffer, typename SPEC::TI step_i);
-    template <typename DEV_SPEC, typename SPEC, typename MASK_SPEC>
-    void reset_mask(devices::CUDA<DEV_SPEC>& device, rl::components::OnPolicyRunner<SPEC>& runner, const Tensor<MASK_SPEC>& mask);
-    template <typename DEV_SPEC, typename DATASET_SPEC, typename LOG_STD_SPEC, typename STEP_ACTIONS_SPEC, typename RNG>
-    void sample_actions(devices::CUDA<DEV_SPEC>& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, const Matrix<LOG_STD_SPEC>& log_std, Tensor<STEP_ACTIONS_SPEC>& step_actions, typename DATASET_SPEC::TI step_i, RNG& rng);
-    template <typename DEV_SPEC, typename DATASET_SPEC, typename SPEC, typename BATCH_SPEC, typename RNG>
-    void prologue(devices::CUDA<DEV_SPEC>& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<SPEC>& runner, rl::environments::batch::Independent<BATCH_SPEC>& environment, RNG& rng);
-    template <typename DEV_SPEC, typename DATASET_SPEC, typename SPEC, typename BATCH_SPEC, typename RNG>
-    void epilogue(devices::CUDA<DEV_SPEC>& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<SPEC>& runner, rl::components::on_policy_runner::Buffer<SPEC>& buffer, rl::environments::batch::Independent<BATCH_SPEC>& environment, RNG& rng, typename SPEC::TI step_i);
-    template <typename DEV_SPEC, typename SPEC, typename BATCH_SPEC, typename RNG>
-    void reset(devices::CUDA<DEV_SPEC>& device, rl::components::OnPolicyRunner<SPEC>& runner, rl::environments::batch::Independent<BATCH_SPEC>& environment, RNG& rng);
-    template <typename DEV_SPEC, typename SPEC, typename BATCH_SPEC, typename MASK_SPEC, typename RNG>
-    void reset(devices::CUDA<DEV_SPEC>& device, rl::components::OnPolicyRunner<SPEC>& runner, rl::environments::batch::Independent<BATCH_SPEC>& environment, const Tensor<MASK_SPEC>& mask, RNG& rng);
-}
-RL_TOOLS_NAMESPACE_WRAPPER_END
-
-#include "operations_generic.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
@@ -59,8 +38,7 @@ namespace rl_tools{
         using TI = typename SPEC::TI;
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i < SPEC::N_ENVIRONMENTS && get(device, mask, env_i)){
-            set(device, runner.reset, true, env_i);
-            set(device, runner.episode_step, (typename SPEC::TI)0, env_i);
+            reset_episode(device, runner, env_i);
         }
     }
     template <typename DEV_SPEC, typename DATASET_SPEC, typename SPEC>
@@ -91,7 +69,7 @@ namespace rl_tools{
         using TI = typename DATASET_SPEC::TI;
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i < DATASET_SPEC::SPEC::N_ENVIRONMENTS){
-            auto& rng_state = get(rng.states, 0, env_i);
+            auto& rng_state = instance_rng<DATASET_SPEC::SPEC::N_ENVIRONMENTS>(rng, env_i);
             sample_actions_env(device, dataset, log_std, step_actions, step_i, env_i, rng_state);
         }
     }
@@ -107,36 +85,12 @@ namespace rl_tools{
         check_status(device);
     }
 
-    template <typename DEVICE, typename DATASET_SPEC, typename ENVIRONMENT, typename PARAMETERS, typename STATE, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void observe_instance(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, ENVIRONMENT& environment, PARAMETERS& parameters, STATE& state, typename DATASET_SPEC::TI row_i, typename DATASET_SPEC::TI env_i, RNG& rng){
-        using SPEC = typename DATASET_SPEC::SPEC;
-        const auto pos = row_i * SPEC::N_ENVIRONMENTS + env_i;
-        auto observation = view(device, dataset.all_observations, pos);
-        auto observation_matrix = matrix_view(device, observation);
-        observe(device, environment, parameters, state, typename SPEC::OBSERVATION{}, observation_matrix, rng);
-        auto observation_privileged = view(device, dataset.all_observations_privileged, pos);
-        if constexpr(SPEC::ASYMMETRIC_OBSERVATIONS){
-            auto observation_privileged_matrix = matrix_view(device, observation_privileged);
-            observe(device, environment, parameters, state, typename SPEC::OBSERVATION_PRIVILEGED{}, observation_privileged_matrix, rng);
-        }
-        else{
-            copy(device, device, observation, observation_privileged);
-        }
-    }
-    template <typename DEVICE, typename SPEC, typename ENV_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void reset_instance(DEVICE& device, rl::components::on_policy_runner::RunnerStateView<SPEC>& runner, Tensor<ENV_SPEC>& environments, typename SPEC::TI env_i, RNG& rng){
-        auto& environment = get_ref(device, environments, env_i);
-        auto& parameters = get_ref(device, runner.env_parameters, env_i);
-        auto& state = get_ref(device, runner.states, env_i);
-        sample_initial_parameters(device, environment, parameters, rng);
-        sample_initial_state(device, environment, parameters, state, rng);
-    }
     template <typename DEVICE, typename DATASET_SPEC, typename SPEC, typename ENV_SPEC, typename RNG>
     __global__ void prologue_independent_kernel(DEVICE device, rl::components::on_policy_runner::Dataset<DATASET_SPEC> dataset, rl::components::on_policy_runner::RunnerStateView<SPEC> runner, Tensor<ENV_SPEC> environments, RNG rng){
         const typename SPEC::TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i < SPEC::N_ENVIRONMENTS){
             set(dataset.reset, env_i, 0, get(device, runner.reset, env_i));
-            auto& rng_state = get(rng.states, 0, env_i);
+            auto& rng_state = instance_rng<SPEC::N_ENVIRONMENTS>(rng, env_i);
             observe_instance(device, dataset, get_ref(device, environments, env_i), get_ref(device, runner.env_parameters, env_i), get_ref(device, runner.states, env_i), 0, env_i, rng_state);
         }
     }
@@ -147,7 +101,7 @@ namespace rl_tools{
             auto& environment = get_ref(device, environments, env_i);
             auto& parameters = get_ref(device, runner.env_parameters, env_i);
             auto& state = get_ref(device, runner.states, env_i);
-            auto& rng_state = get(rng.states, 0, env_i);
+            auto& rng_state = instance_rng<SPEC::N_ENVIRONMENTS>(rng, env_i);
             auto action = matrix_view(device, view(device, buffer.actions, env_i));
             typename SPEC::BATCH_ENVIRONMENT::State next_state;
             step(device, environment, parameters, state, action, next_state, rng_state);
@@ -159,9 +113,7 @@ namespace rl_tools{
             state = next_state;
             record_transition(device, dataset, runner, transition_reward, transition_terminated, step_i, env_i);
             if constexpr(SPEC::COLLECT_NEXT_OBSERVATIONS){
-                auto next_observation_slice = view(device, buffer.next_observations_privileged, env_i);
-                auto next_observation = matrix_view(device, next_observation_slice);
-                observe(device, environment, parameters, state, typename SPEC::OBSERVATION_PRIVILEGED{}, next_observation, rng_state);
+                observe_instance(device, environment, parameters, state, typename SPEC::OBSERVATION_PRIVILEGED{}, buffer.next_observations_privileged, env_i, rng_state);
             }
             if(get(device, runner.reset, env_i)){
                 reset_instance(device, runner, environments, env_i, rng_state);
@@ -173,9 +125,8 @@ namespace rl_tools{
     __global__ void reset_independent_kernel(DEVICE device, rl::components::on_policy_runner::RunnerStateView<SPEC> runner, Tensor<ENV_SPEC> environments, RNG rng){
         const typename SPEC::TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i < SPEC::N_ENVIRONMENTS){
-            set(device, runner.reset, true, env_i);
-            set(device, runner.episode_step, (typename SPEC::TI)0, env_i);
-            auto& rng_state = get(rng.states, 0, env_i);
+            reset_episode(device, runner, env_i);
+            auto& rng_state = instance_rng<SPEC::N_ENVIRONMENTS>(rng, env_i);
             reset_instance(device, runner, environments, env_i, rng_state);
         }
     }
@@ -183,9 +134,8 @@ namespace rl_tools{
     __global__ void reset_independent_kernel(DEVICE device, rl::components::on_policy_runner::RunnerStateView<SPEC> runner, Tensor<ENV_SPEC> environments, const Tensor<MASK_SPEC> mask, RNG rng){
         const typename SPEC::TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i < SPEC::N_ENVIRONMENTS && get(device, mask, env_i)){
-            set(device, runner.reset, true, env_i);
-            set(device, runner.episode_step, (typename SPEC::TI)0, env_i);
-            auto& rng_state = get(rng.states, 0, env_i);
+            reset_episode(device, runner, env_i);
+            auto& rng_state = instance_rng<SPEC::N_ENVIRONMENTS>(rng, env_i);
             reset_instance(device, runner, environments, env_i, rng_state);
         }
     }
@@ -227,5 +177,7 @@ namespace rl_tools{
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
+
+#include "operations_generic.h"
 
 #endif

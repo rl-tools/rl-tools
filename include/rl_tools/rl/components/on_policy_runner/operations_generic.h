@@ -3,24 +3,10 @@
 #pragma once
 #define RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER_OPERATIONS_GENERIC_H
 
-#include "on_policy_runner.h"
-#include "../../../random/operations_generic_array.h"
+#include "operations_generic_common.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template <typename DEVICE, typename DATASET, typename RUNNER>
-    RL_TOOLS_FUNCTION_PLACEMENT void record_transition(DEVICE& device, DATASET& dataset, RUNNER& runner, typename DATASET::T reward, bool terminated, typename RUNNER::TI step_i, typename RUNNER::TI env_i){
-        using TI = typename RUNNER::TI;
-        const TI pos = step_i * RUNNER::SPEC::N_ENVIRONMENTS + env_i;
-        const TI episode_step = get(device, runner.episode_step, env_i) + 1;
-        const bool reset = terminated || (RUNNER::SPEC::STEP_LIMIT > 0 && episode_step >= RUNNER::SPEC::STEP_LIMIT);
-        set(dataset.rewards, pos, 0, reward);
-        set(dataset.terminated, pos, 0, terminated);
-        set(dataset.truncated, pos, 0, reset);
-        set(dataset.all_reset, pos + RUNNER::SPEC::N_ENVIRONMENTS, 0, reset);
-        set(device, runner.reset, reset, env_i);
-        set(device, runner.episode_step, reset ? (TI)0 : episode_step, env_i);
-    }
     template <typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void malloc(DEVICE& device, rl::components::on_policy_runner::Dataset<SPEC>& dataset){
         malloc(device, dataset.all_observations);
@@ -146,7 +132,7 @@ namespace rl_tools{
         return acc;
     }
 
-    template <typename DEVICE, typename DATASET_SPEC, typename SPEC, typename rl_tools::utils::typing::enable_if<DEVICE::DEVICE_ID != devices::DeviceId::CUDA, bool>::type = true>
+    template <typename DEVICE, typename DATASET_SPEC, typename SPEC>
     void record_transition(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<SPEC>& runner, const rl::components::on_policy_runner::Buffer<SPEC>& buffer, typename SPEC::TI step_i){
         using TI = typename SPEC::TI;
         rl_tools::utils::assert_exit(device, step_i < DATASET_SPEC::STEPS_PER_ENV, "on_policy_runner::epilogue: step index outside the dataset");
@@ -154,14 +140,13 @@ namespace rl_tools{
             record_transition(device, dataset, runner, get(device, buffer.rewards, env_i), get(device, buffer.terminated, env_i), step_i, env_i);
         }
     }
-    template <typename DEVICE, typename SPEC, typename MASK_SPEC, typename utils::typing::enable_if<DEVICE::DEVICE_ID != devices::DeviceId::CUDA, bool>::type = true>
+    template <typename DEVICE, typename SPEC, typename MASK_SPEC>
     void reset_mask(DEVICE& device, rl::components::OnPolicyRunner<SPEC>& runner, const Tensor<MASK_SPEC>& mask){
         using TI = typename SPEC::TI;
         static_assert(length(typename MASK_SPEC::SHAPE{}) == 1 && get<0>(typename MASK_SPEC::SHAPE{}) == SPEC::N_ENVIRONMENTS);
         for(TI env_i = 0; env_i < SPEC::N_ENVIRONMENTS; env_i++){
             if(get(device, mask, env_i)){
-                set(device, runner.reset, true, env_i);
-                set(device, runner.episode_step, (TI)0, env_i);
+                reset_episode(device, runner, env_i);
             }
         }
     }
@@ -177,30 +162,6 @@ namespace rl_tools{
         else{
             copy(device, device, observations, observations_privileged);
         }
-    }
-    template <typename DEVICE, typename DATASET_SPEC, typename LOG_STD_SPEC, typename STEP_ACTIONS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void sample_actions_env(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, const Matrix<LOG_STD_SPEC>& log_std, Tensor<STEP_ACTIONS_SPEC>& step_actions, typename DATASET_SPEC::TI step_i, typename DATASET_SPEC::TI env_i, RNG& rng){
-        using SPEC = typename DATASET_SPEC::SPEC;
-        using T = typename SPEC::TYPE_POLICY::DEFAULT;
-        using TI = typename SPEC::TI;
-        constexpr TI ACTION_DIM = SPEC::BATCH_ENVIRONMENT::ACTION_DIM;
-        constexpr TI N_AGENTS = SPEC::N_AGENTS_PER_ENV;
-        static_assert(ACTION_DIM % N_AGENTS == 0);
-        constexpr TI PER_AGENT_ACTION_DIM = ACTION_DIM / N_AGENTS;
-        static_assert(LOG_STD_SPEC::ROWS == 1);
-        static_assert(LOG_STD_SPEC::COLS * N_AGENTS == ACTION_DIM);
-        const TI pos = step_i * SPEC::N_ENVIRONMENTS + env_i;
-        T action_log_prob = 0;
-        for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
-            const T action_mean = get(dataset.actions_mean, pos, action_i);
-            const T action_log_std = get(log_std, 0, action_i % PER_AGENT_ACTION_DIM);
-            const T action_std = math::exp(device.math, action_log_std);
-            const T action = random::normal_distribution::sample(device.random, action_mean, action_std, rng);
-            action_log_prob += random::normal_distribution::log_prob(device.random, action_mean, action_log_std, action);
-            set(dataset.actions, pos, action_i, action);
-            set(device, step_actions, action, env_i, action_i);
-        }
-        set(dataset.action_log_probs, pos, 0, action_log_prob);
     }
     template <typename DEVICE, typename DATASET_SPEC, typename LOG_STD_SPEC, typename STEP_ACTIONS_SPEC, typename RNG>
     void sample_actions(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, const Matrix<LOG_STD_SPEC>& log_std, Tensor<STEP_ACTIONS_SPEC>& step_actions, typename DATASET_SPEC::TI step_i, RNG& rng){

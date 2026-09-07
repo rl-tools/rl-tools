@@ -268,8 +268,9 @@ template <bool BOOTSTRAP> void check_persist_save_load(){
     for(TI step_i = 0; step_i < 5; step_i++){
         rlt::step(device, ts);
     }
-    std::string hdf5_path = "test_ppo_loop_persist_save_load.h5";
-    std::string tar_path = "test_ppo_loop_persist_save_load.tar";
+    const std::string checkpoint_stem = BOOTSTRAP ? "test_ppo_loop_persist_bootstrap" : "test_ppo_loop_persist_no_bootstrap";
+    const std::string hdf5_path = checkpoint_stem + ".h5";
+    const std::string tar_path = checkpoint_stem + ".tar";
     // Save HDF5
     {
         std::lock_guard<std::mutex> lock(rlt::persist::backends::hdf5::global_mutex());

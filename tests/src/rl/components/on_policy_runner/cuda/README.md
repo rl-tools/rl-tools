@@ -2,9 +2,10 @@
 
 `collect` has one implementation. Its unqualified `prologue`, `interlude`, and
 `epilogue` calls select device/environment overloads in `namespace rl_tools`.
-Include the runner's `operations_cpu.h` with the CUDA CPU-mux option, or include
-`operations_cuda.h` before its generic definitions. CUDA overload declarations
-must be visible when those definitions are parsed.
+Include the runner's `operations_cpu_mux.h` with the CUDA CPU-mux option, or
+include `operations_cuda.h` directly. The CUDA header defines its overloads
+before including generic orchestration. PPO's `operations_collection.h` also
+loads the runner mux first. See [dispatch and ownership](../README.md).
 
 The specialization boundary is a complete runner phase, not a batch verb:
 
@@ -36,6 +37,7 @@ Build the following targets, then run the focused CTest selection:
 cmake --build build --target \
   test_rl_components_on_policy_runner_fused_cuda \
   test_rl_components_on_policy_runner_fused_cuda_direct \
+  test_rl_components_on_policy_runner_fused_cuda_ppo_entry \
   test_rl_components_on_policy_runner_fused_recurrent_cuda \
   test_nn_layers_gru_reset_cuda \
   test_nn_layers_gru_reset_cuda_helper_first -j5
@@ -50,7 +52,7 @@ actions, rewards, termination/reset flags, time-limit counters, parameters, curr
 pre-reset states, mutable environment data, and RNG state. Coverage includes
 1/37 instances, asymmetric and mixed-precision observation storage, multi-agent
 actions, portable/cuRAND RNGs, compile-time limits of 0/1/3, strided no/some/all reset masks,
-and full external resets. Both supported header entry paths are compiled.
+and full external resets. Direct CUDA, runner mux, and PPO collection entry paths are compiled.
 
 `fused_recurrent.cu` compares complete collection against composed phases with
 GRU policies on Pendulum and L2F, with continuing and forced-rollout boundaries.
@@ -72,7 +74,7 @@ cmake --build build --target \
 The benchmark uses Pendulum, a float MLP with two width-32 hidden layers,
 64 steps per rollout, fixed weight/RNG seeds, one warmup rollout, and five
 synchronized samples of ten rollouts. It reports the median, range, reward sum,
-trajectory hash, and metra metrics. Compilation, initialization, and result
+trajectory and RNG hashes, and metra metrics. Compilation, initialization, and result
 copies are outside the timed region. Benchmarks are excluded from the default
 build and CTest; run them serially after builds/tests finish.
 
@@ -133,3 +135,64 @@ targets encountered the existing OpenVINS/OpenCV prerequisite. The focused
 project build disabled executable targets and raytracing; the CPU HyperDrone
 tests used a separate generic-renderer harness. This work does not claim a
 successful complete build or complete test suite.
+
+## Dispatch and ownership refactor validation (2026-09-06)
+
+The comparison baseline is the unmodified HEAD
+`d4b2e5e7a79a3ba279050981a002aa58d1c8bf51`, captured before this refactor.
+Both versions use the current benchmark instrumentation, with only the runner
+entry-header spelling adjusted for the baseline. The hardware, compiler,
+optimization flags and fixed-seed workload match the width-32 measurements
+above. RNG hashes cover all portable engine states after collection.
+
+The project build uses Release/C++17, CUDA/cuDNN and OptiX with fast math
+disabled. All 106 distinct focused tests pass: 68 runner/PPO/GRU contract
+cases, 22 native rendering cases, four native episode cases, eleven visual
+L2F/Ant cases and the rigorous PPO checkpoint test. Short tests use a
+20-second timeout; the rigorous checkpoint test and four rendering cases
+that exceeded it pass with a 300-second timeout. Builds/tests use at most
+five jobs.
+
+Native HyperDrone CPU/CUDA rendering tests now pass with the real OptiX
+integration. Visual training and imitation executables, the CPU MuJoCo
+trainer, L2F/Ant CPU zoo trainers and the L2F CUDA zoo trainer also build.
+This supersedes the earlier generic-renderer harness limitation. Other
+rendering backends and complete training runs are outside this validation.
+Compute Sanitizer reports zero errors and leaked bytes for fused phase
+equivalence, recurrent Pendulum/L2F collection, GRU reset/counter cases
+and shaped hybrid collection.
+
+The disabled visual CPU trainer also compiles after specifying its existing
+direct-motor action interface. The disabled legacy MuJoCo CUDA trainer still
+fails on obsolete model/numeric-type wiring; compiling its original source
+against the captured baseline reproduces the same failures. Its runner
+include is migrated, but this refactor does not claim to restore that target.
+
+Nsight Systems confirms identical launch counts in baseline/refactor, eager/
+graph and 64/1,024-instance runs: 41,650 kernels, comprising 35,200 actor
+kernels, 3,200 action-sampling kernels, 3,200 fused transitions and 50
+prologues. There are zero memory copies in each captured region. Trajectory
+and RNG hashes match across all compared runs:
+
+| Instances | Trajectory hash | RNG hash |
+| ---: | ---: | ---: |
+| 64 | `3389130740161743012` | `14745946738102302388` |
+| 1,024 | `1863133734530264491` | `17521866265472512068` |
+
+After checking these contracts, unprofiled measurements used five serial,
+interleaved process runs per version/workload, alternating which version ran
+first. Each process reports its five-sample median; the table takes the
+median of those five process results. No builds or tests ran concurrently.
+Rates are millions of transitions per second; the driver is 595.84.
+
+| Workload, width 32 | Original HEAD | Refactor | Refactor / HEAD |
+| --- | ---: | ---: | ---: |
+| Eager, 64 instances | 2.054 | 1.989 | 96.8% |
+| Eager, 1,024 instances | 33.618 | 33.366 | 99.3% |
+| Graph, 64 instances | 4.036 | 4.035 | 99.98% |
+| Graph, 1,024 instances | 44.165 | 44.167 | 100.00% |
+
+Graph throughput is unchanged at this precision. Eager throughput measures
+0.8–3.2% lower in this run set; fusion and kernel counts are preserved.
+These remain collection measurements, not end-to-end training/rendering
+performance claims.

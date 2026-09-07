@@ -118,7 +118,9 @@ namespace rl_tools{
         check_status(device);
     }
     template <typename DEV_SPEC, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
-    void render(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask){
+    void render(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input){
+        request_render(device, world, reset_mask_input);
+        auto& reset_mask = world.render_reset;
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename TASK_SPEC::T;
         using TI = typename DEVICE::index_t;

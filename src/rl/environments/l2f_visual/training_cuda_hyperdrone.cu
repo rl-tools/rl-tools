@@ -1,5 +1,6 @@
 #define RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
 #include <rl_tools/operations/cpu_mux.h>
+#include <metra/metra.h>
 #include <rl_tools/random/operations_generic_array.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_generic.h>
 #include <rl_tools/nn/optimizers/adam/instance/operations_cuda.h>
@@ -27,8 +28,7 @@
 
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
-#include <rl_tools/rl/components/on_policy_runner/operations_cuda.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
 #include <rl_tools/rl/algorithms/ppo/operations_collection.h>
 #include <rl_tools/nn/loss_functions/mse/operations_generic.h>
 #include <rl_tools/nn/loss_functions/mse/operations_cuda.h>
@@ -648,6 +648,7 @@ int main(int argc, char** argv){
     DEVICE_GPU device_gpu;
     rlt::init(device);
     rlt::init(device_gpu);
+    device_gpu.rendering = &device;
 
     rlt::utils::extrack::Config<TI> extrack_config;
     rlt::utils::extrack::Paths extrack_paths;
@@ -854,6 +855,8 @@ int main(int argc, char** argv){
         }
     };
 
+    std::vector<T> episode_returns(N_ENVIRONMENTS, 0);
+    std::vector<TI> episode_lengths(N_ENVIRONMENTS, 0);
     for(TI ppo_step_i = 0; ppo_step_i < N_PPO_STEPS; ppo_step_i++){
         auto step_start = std::chrono::high_resolution_clock::now();
         rlt::set_step(device, device.logger, global_env_step);
@@ -1056,12 +1059,28 @@ int main(int argc, char** argv){
             T reward_sq_sum = 0;
             TI terminated_count = 0;
             TI truncated_count = 0;
+            T return_sum = 0, return_sq_sum = 0, length_sum = 0, length_sq_sum = 0;
             for(TI pos = 0; pos < STEPS_TOTAL; pos++){
                 const T reward_value = get(dataset.rewards, pos, 0);
                 reward_sum += reward_value;
                 reward_sq_sum += reward_value * reward_value;
                 terminated_count += get(dataset.terminated, pos, 0) > (T)0.5;
-                truncated_count += get(dataset.truncated, pos, 0) > (T)0.5;
+                const TI env_i = pos % N_ENVIRONMENTS;
+                if(get(dataset.reset, pos, 0) > (T)0.5){
+                    episode_returns[env_i] = 0;
+                    episode_lengths[env_i] = 0;
+                }
+                episode_returns[env_i] += reward_value;
+                episode_lengths[env_i]++;
+                if(get(dataset.truncated, pos, 0) > (T)0.5){
+                    truncated_count++;
+                    const T episode_return = episode_returns[env_i];
+                    const T episode_length = static_cast<T>(episode_lengths[env_i]);
+                    return_sum += episode_return;
+                    return_sq_sum += episode_return * episode_return;
+                    length_sum += episode_length;
+                    length_sq_sum += episode_length * episode_length;
+                }
             }
             const T reward_mean = reward_sum / static_cast<T>(STEPS_TOTAL);
             const T reward_std = rlt::math::sqrt(device.math, rlt::math::max(device.math, (T)0, reward_sq_sum / static_cast<T>(STEPS_TOTAL) - reward_mean * reward_mean));
@@ -1069,6 +1088,18 @@ int main(int argc, char** argv){
             add_scalar(device, device.logger, "training/reward/std", reward_std);
             add_scalar(device, device.logger, "training/terminated_episodes", static_cast<T>(terminated_count));
             add_scalar(device, device.logger, "training/complete_episodes", static_cast<T>(truncated_count));
+            add_scalar(device, device.logger, "training/time_limit_episodes", static_cast<T>(truncated_count - terminated_count));
+            add_scalar(device, device.logger, "training/scene_boundary_resets", scene_set_boundary && ppo_step_i > 0 ? static_cast<T>(N_ENVIRONMENTS) : (T)0);
+            if(truncated_count > 0){
+                const T return_mean = return_sum / static_cast<T>(truncated_count);
+                const T length_mean = length_sum / static_cast<T>(truncated_count);
+                add_scalar(device, device.logger, "training/return/mean", return_mean);
+                add_scalar(device, device.logger, "training/return/std", rlt::math::sqrt(device.math, rlt::math::max(device.math, (T)0, return_sq_sum / static_cast<T>(truncated_count) - return_mean * return_mean)));
+                add_scalar(device, device.logger, "training/episode_length/mean", length_mean);
+                add_scalar(device, device.logger, "training/episode_length/std", rlt::math::sqrt(device.math, rlt::math::max(device.math, (T)0, length_sq_sum / static_cast<T>(truncated_count) - length_mean * length_mean)));
+                metra::log("l2f_visual/hyperdrone/episode_return", static_cast<double>(return_mean));
+                metra::log("l2f_visual/hyperdrone/episode_length", static_cast<double>(length_mean));
+            }
         }
 
         // Save trajectories to extrack

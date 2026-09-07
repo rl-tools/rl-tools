@@ -73,7 +73,9 @@ namespace rl_tools {
     // to per-step re-rendering since pose and brightness are fixed per episode), then the student
     // frame render forwards to the base
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
-    void render(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask) {
+    void render(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input) {
+        request_render(device, world, reset_mask_input);
+        auto& reset_mask = world.render_reset;
         using T = typename TASK_SPEC::T;
         using TI = typename TASK_SPEC::TI;
         using WORLD = rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;

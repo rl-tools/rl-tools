@@ -266,7 +266,7 @@ namespace rl_tools{
                 auto current_batch_actions_tensor_reshaped = reshape_row_major(device, current_batch_actions_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, ACTION_DIM>{});
                 auto batch_reset_tensor_flat = to_tensor(device, batch_reset);
                 auto batch_reset_tensor = reshape_row_major(device, batch_reset_tensor_flat, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, 1>{});
-                Mode<nn::layers::gru::ResetMode<mode::Rollout<>, nn::layers::gru::ResetModeSpecification<TI, decltype(batch_reset_tensor)>>> mode;
+                Mode<mode::sequential::ResetMode<mode::Rollout<>, mode::sequential::ResetModeSpecification<TI, decltype(batch_reset_tensor)>>> mode;
                 mode.reset_container = batch_reset_tensor;
                 forward(device, ppo.actor, batch_observations_reshaped, current_batch_actions_tensor_reshaped, actor_buffers, rng, mode);
 

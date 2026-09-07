@@ -44,10 +44,7 @@
 #ifdef RL_TOOLS_L2F_VISUAL_IMITATION_HYPERDRONE_COMPUTE_CUDA
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cuda.h>
 #endif
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
-#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_HYPERDRONE_COMPUTE_CUDA
-#include <rl_tools/rl/components/on_policy_runner/operations_cuda.h>
-#endif
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
 #include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
 
 #include <rl_tools/nn/loss_functions/mse/operations_generic.h>
@@ -646,6 +643,7 @@ int main(int argc, char** argv){
 #ifdef RL_TOOLS_L2F_VISUAL_IMITATION_HYPERDRONE_COMPUTE_CUDA
     DEVICE_COMPUTE device_compute;
     rlt::init(device_compute);
+    device_compute.rendering = &device;
 #else
     DEVICE_COMPUTE& device_compute = device;
 #endif

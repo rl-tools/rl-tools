@@ -69,10 +69,12 @@ namespace rl_tools {
     }
 }
 
-#ifdef RL_TOOLS_TEST_RUNNER_CUDA_DIRECT
+#if defined(RL_TOOLS_TEST_PPO_COLLECTION_ENTRY)
+#include <rl_tools/rl/algorithms/ppo/operations_collection.h>
+#elif defined(RL_TOOLS_TEST_RUNNER_CUDA_DIRECT)
 #include <rl_tools/rl/components/on_policy_runner/operations_cuda.h>
 #else
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
 #endif
 
 namespace {

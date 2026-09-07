@@ -11,7 +11,7 @@
 #include "../../../../../rl/algorithms/ppo/operations_generic.h"
 #include "../../../../../rl/environments/batch/operations_generic.h"
 #include "../../../../../rl/components/on_policy_runner/operations_generic.h"
-#include "../../../../../rl/algorithms/ppo/operations_collection.h"
+#include "../../../../../rl/algorithms/ppo/operations_generic_collection.h"
 #include "../../../../../random/operations_generic_array.h"
 
 #include "config.h"

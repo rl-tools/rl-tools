@@ -132,6 +132,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE_CUDA, OWN_DRONE_AND_ARTICU
     DEVICE_GPU device_gpu;
     rlt::init(device);
     rlt::init(device_gpu);
+    device_gpu.rendering = &device;
     WORLD world;
     typename WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);

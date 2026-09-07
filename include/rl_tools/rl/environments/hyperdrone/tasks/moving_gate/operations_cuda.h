@@ -127,7 +127,9 @@ namespace rl_tools{
     // gate poses are produced device-side, mirrored through a pinned staging pair, and published
     // through the overlay verbs before the base render's overlay update
     template <typename DEV_SPEC, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
-    void render(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask){
+    void render(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input){
+        request_render(device, world, reset_mask_input);
+        auto& reset_mask = world.render_reset;
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using TI = typename DEVICE::index_t;
         using WORLD = rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>;
