@@ -98,11 +98,10 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, CACHE_AND_STACK_SEMA
     if(!cuda_available()){
         GTEST_SKIP() << "CUDA device unavailable";
     }
-    DEVICE device;
-    rlt::init(device);
     DEVICE_GPU device_gpu;
+    auto& device = device_gpu.rendering;
+    rlt::init(device);
     rlt::init(device_gpu);
-    device_gpu.rendering = &device;
     WORLD world;
     typename BASE_WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);

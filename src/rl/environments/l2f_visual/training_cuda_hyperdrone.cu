@@ -644,11 +644,10 @@ int main(int argc, char** argv){
     // ---------------------------------------------------------------------
     // Devices + extrack
     // ---------------------------------------------------------------------
-    DEVICE device;
     DEVICE_GPU device_gpu;
+    auto& device = device_gpu.rendering;
     rlt::init(device);
     rlt::init(device_gpu);
-    device_gpu.rendering = &device;
 
     rlt::utils::extrack::Config<TI> extrack_config;
     rlt::utils::extrack::Paths extrack_paths;

@@ -215,7 +215,7 @@ namespace rl_tools {
             template <typename T_RENDERING_DEVICE>
             struct Extension {
                 using RENDERING_DEVICE = T_RENDERING_DEVICE;
-                RENDERING_DEVICE* rendering = nullptr;
+                RENDERING_DEVICE rendering;
             };
 
             template <typename T_BASE_SPEC, typename T_RENDERING_DEVICE>
@@ -460,7 +460,7 @@ namespace rl_tools {
     template <typename DEVICE>
     auto& get_rendering_device(DEVICE& device){
         if constexpr(rendering::raytracing::device::HasRendering<DEVICE>::value){
-            return *device.rendering;
+            return device.rendering;
         }
         else{
             return device;

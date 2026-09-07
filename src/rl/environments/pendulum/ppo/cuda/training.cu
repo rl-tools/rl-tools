@@ -42,9 +42,9 @@ using LOOP_CONFIG = CONFIG::LOOP_CORE_CONFIG;
 using LOOP_STATE = typename LOOP_CONFIG::template State<LOOP_CONFIG>;
 
 
-template <typename DEVICE>
-__global__ void init(DEVICE& device, LOOP_STATE* ts){
+__global__ void init(LOOP_STATE* ts){
     if (threadIdx.x == 0){
+        KERNEL_DEVICE device;
         printf("init using thread %d\n", threadIdx.x);
         rlt::malloc(device, *ts);
         constexpr TI SEED = 1;
@@ -52,16 +52,15 @@ __global__ void init(DEVICE& device, LOOP_STATE* ts){
     }
 }
 
-template <typename DEVICE>
-__global__ void step(DEVICE& device, LOOP_STATE* ts){
+__global__ void step(LOOP_STATE* ts){
     if (threadIdx.x == 0){
+        KERNEL_DEVICE device;
         rlt::step(device, *ts);
     }
 }
 
 
 int main(int argc, char** argv) {
-    KERNEL_DEVICE device;
     LOOP_STATE* ts_cpu = (LOOP_STATE*)malloc(sizeof(LOOP_STATE));
     LOOP_STATE* ts = nullptr;
     std::cout << "Allocating " << sizeof(LOOP_STATE) << " bytes" << std::endl;
@@ -71,7 +70,7 @@ int main(int argc, char** argv) {
         return 1;
     }
     std::cout << "Launching kernel..." << std::endl;
-    init<<<1, 1>>>(device, ts);
+    init<<<1, 1>>>(ts);
     error = cudaGetLastError();
     if (error != cudaSuccess){
         std::cerr << "Kernel launch failed: " << cudaGetErrorString(error) << std::endl;
@@ -88,7 +87,7 @@ int main(int argc, char** argv) {
     std::cout << "Kernel completed successfully" << std::endl;
     cudaMemcpy(ts_cpu, ts, sizeof(LOOP_STATE), cudaMemcpyDeviceToHost);
     for (TI step_i=0; step_i < 700; step_i++){
-        step<<<1, 1>>>(device, ts);
+        step<<<1, 1>>>(ts);
         error = cudaGetLastError();
         if (error != cudaSuccess){
             std::cerr << "Kernel launch failed: " << cudaGetErrorString(error) << std::endl;

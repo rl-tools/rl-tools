@@ -10,7 +10,8 @@ namespace rl_tools {
     namespace nn::optimizers::sgd::cuda {
         template<typename DEV_SPEC, typename PARAMETER_SPEC, typename SPEC>
         __global__
-        void update_kernel(devices::CUDA<DEV_SPEC>& device, nn::parameters::SGD::Instance<PARAMETER_SPEC> parameter, nn::optimizers::SGD<SPEC> optimizer) {
+        void update_kernel(devices::CUDA<DEV_SPEC> device, nn::parameters::SGD::Instance<PARAMETER_SPEC> parameter, nn::optimizers::SGD<SPEC> optimizer) {
+            static_assert(DEV_SPEC::TAG && DEV_SPEC::KERNEL);
             using DEVICE = devices::CUDA<DEV_SPEC>;
             using TI = typename DEVICE::index_t;
 
@@ -68,7 +69,8 @@ namespace rl_tools {
         constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(MATRIX_SPEC::COLS, BLOCKSIZE_COLS);
         dim3 grid(N_BLOCKS_COLS, N_BLOCKS_ROWS);
         dim3 block(BLOCKSIZE_COLS, BLOCKSIZE_ROWS);
-        nn::optimizers::sgd::cuda::update_kernel<<<grid, block, 0, device.stream>>>(device, p, optimizer);
+        devices::cuda::TAG<devices::CUDA<DEV_SPEC>, true> tag_device{};
+        nn::optimizers::sgd::cuda::update_kernel<<<grid, block, 0, device.stream>>>(tag_device, p, optimizer);
         check_status(device);
     }
 }

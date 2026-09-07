@@ -195,11 +195,10 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_EPISODES_CUDA, CPU_CUDA_PARITY){
     if(!cuda_available()){
         GTEST_SKIP() << "CUDA device unavailable";
     }
-    DEVICE device;
     DEVICE_GPU device_gpu;
+    auto& device = device_gpu.rendering;
     rlt::init(device);
     rlt::init(device_gpu);
-    device_gpu.rendering = &device;
     WORLD world_cpu, world_gpu;
     typename WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);

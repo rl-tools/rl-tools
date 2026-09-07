@@ -6,7 +6,8 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEV_SPEC, typename SPEC, typename OUTPUT_SPEC, typename RNG>
     __global__
-    void target_action_noise_kernel(devices::CUDA<DEV_SPEC>& device, const rl::algorithms::td3::ActorCritic<SPEC> actor_critic, Matrix<OUTPUT_SPEC> target_action_noise, RNG rng ) {
+    void target_action_noise_kernel(devices::CUDA<DEV_SPEC> device, const rl::algorithms::td3::ActorCritic<SPEC> actor_critic, Matrix<OUTPUT_SPEC> target_action_noise, RNG rng ) {
+        static_assert(DEV_SPEC::TAG && DEV_SPEC::KERNEL);
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
@@ -38,13 +39,15 @@ namespace rl_tools{
         constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
-        target_action_noise_kernel<DEV_SPEC, SPEC, OUTPUT_SPEC, RNG><<<bias_grid, bias_block, 0, device.stream>>>(device, actor_critic, target_action_noise, rng);
+        devices::cuda::TAG<DEVICE, true> tag_device{};
+        target_action_noise_kernel<<<bias_grid, bias_block, 0, device.stream>>>(tag_device, actor_critic, target_action_noise, rng);
         check_status(device);
     }
 
     template <typename DEV_SPEC, typename SPEC>
     __global__
-    void noisy_next_actions_kernel(devices::CUDA<DEV_SPEC>& device, rl::algorithms::td3::CriticTrainingBuffers<SPEC> training_buffers) {
+    void noisy_next_actions_kernel(devices::CUDA<DEV_SPEC> device, rl::algorithms::td3::CriticTrainingBuffers<SPEC> training_buffers) {
+        static_assert(DEV_SPEC::TAG && DEV_SPEC::KERNEL);
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -69,13 +72,15 @@ namespace rl_tools{
         constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
-        noisy_next_actions_kernel<DEV_SPEC, SPEC><<<bias_grid, bias_block, 0, device.stream>>>(device, training_buffers);
+        devices::cuda::TAG<DEVICE, true> tag_device{};
+        noisy_next_actions_kernel<<<bias_grid, bias_block, 0, device.stream>>>(tag_device, training_buffers);
         check_status(device);
     }
 
     template <typename DEV_SPEC, typename OFF_POLICY_RUNNER_SPEC, auto BATCH_SIZE, typename SPEC>
     __global__
-    void target_actions_kernel(devices::CUDA<DEV_SPEC>& device, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>> batch, rl::algorithms::td3::CriticTrainingBuffers<SPEC> training_buffers, typename SPEC::T gamma) {
+    void target_actions_kernel(devices::CUDA<DEV_SPEC> device, rl::components::off_policy_runner::Batch<rl::components::off_policy_runner::BatchSpecification<OFF_POLICY_RUNNER_SPEC, BATCH_SIZE>> batch, rl::algorithms::td3::CriticTrainingBuffers<SPEC> training_buffers, typename SPEC::T gamma) {
+        static_assert(DEV_SPEC::TAG && DEV_SPEC::KERNEL);
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -103,7 +108,8 @@ namespace rl_tools{
         constexpr TI N_BLOCKS_COLS = RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE_COLS);
         dim3 bias_grid(N_BLOCKS_COLS);
         dim3 bias_block(BLOCKSIZE_COLS);
-        target_actions_kernel<<<bias_grid, bias_block, 0, device.stream>>>(device, batch, training_buffers, actor_critic.gamma);
+        devices::cuda::TAG<DEVICE, true> tag_device{};
+        target_actions_kernel<<<bias_grid, bias_block, 0, device.stream>>>(tag_device, batch, training_buffers, actor_critic.gamma);
         check_status(device);
     }
 }

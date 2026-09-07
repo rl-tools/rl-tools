@@ -16,6 +16,7 @@ namespace rl_tools{
         template<typename DEVICE, typename SPEC>
         __global__
         void init(DEVICE device, nn::optimizers::Adam<SPEC> optimizer) {
+            static_assert(DEVICE::TAG && DEVICE::KERNEL);
             typename nn::optimizers::Adam<SPEC>::PARAMETERS parameters = {
                 SPEC::DEFAULT_PARAMETERS::ALPHA,
                 SPEC::DEFAULT_PARAMETERS::BETA_1,
@@ -32,6 +33,7 @@ namespace rl_tools{
         template<typename DEVICE, typename SPEC>
         __global__
         void reset_optimizer_state(DEVICE device, nn::optimizers::Adam<SPEC> optimizer) {
+            static_assert(DEVICE::TAG && DEVICE::KERNEL);
             set(device, optimizer.age, 1, 0);
         }
     }
@@ -39,14 +41,16 @@ namespace rl_tools{
     void init(devices::CUDA<DEV_SPEC>& device, nn::optimizers::Adam<SPEC>& optimizer) {
         dim3 activation_grid(1);
         dim3 activation_block(1);
-        nn::optimizers::adam::kernels::init<<<activation_grid, activation_block, 0, device.stream>>>(device, optimizer);
+        devices::cuda::TAG<devices::CUDA<DEV_SPEC>, true> tag_device{};
+        nn::optimizers::adam::kernels::init<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, optimizer);
         check_status(device);
     }
     template<typename DEV_SPEC, typename SPEC, typename MODEL>
     void reset_optimizer_state(devices::CUDA<DEV_SPEC>& device, nn::optimizers::Adam<SPEC>& optimizer, MODEL& model) {
         dim3 activation_grid(1);
         dim3 activation_block(1);
-        nn::optimizers::adam::kernels::reset_optimizer_state<<<activation_grid, activation_block, 0, device.stream>>>(device, optimizer);
+        devices::cuda::TAG<devices::CUDA<DEV_SPEC>, true> tag_device{};
+        nn::optimizers::adam::kernels::reset_optimizer_state<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, optimizer);
         check_status(device);
         _reset_optimizer_state(device, model, optimizer);
     }
@@ -54,6 +58,7 @@ namespace rl_tools{
         template<typename DEVICE, typename SPEC>
         __global__
         void step(DEVICE device, nn::optimizers::Adam<SPEC> optimizer) {
+            static_assert(DEVICE::TAG && DEVICE::KERNEL);
             _step(device, optimizer);
         }
     }
@@ -62,7 +67,8 @@ namespace rl_tools{
         using DEVICE = devices::CUDA<DEV_SPEC>;
         dim3 activation_grid(1);
         dim3 activation_block(1);
-        nn::optimizers::adam::kernels::step<<<activation_grid, activation_block, 0, device.stream>>>(device, optimizer);
+        devices::cuda::TAG<devices::CUDA<DEV_SPEC>, true> tag_device{};
+        nn::optimizers::adam::kernels::step<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, optimizer);
         check_status(device);
         update(device, model, optimizer);
     }

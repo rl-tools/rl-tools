@@ -257,7 +257,7 @@ int main(int argc, char** argv) {
 
     DEVICE device;
     rlt::init(device);
-    DEVICE_GPU device_gpu;
+    rlt::devices::cuda::TAG<DEVICE_GPU, true> tag_device{};
 
     rlt::rendering::Bundle<T> bundle;
     if (!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, options.scene_path)) {
@@ -345,7 +345,7 @@ int main(int argc, char** argv) {
         const T time_close = static_cast<T>((frame_i + SHUTTER_FRACTION) / options.fps);
 
         // enqueue-only frame: producer kernel on the render stream, then the renderer verbs
-        drone_frame_kernel<<<1, 1, 0, render_stream>>>(device_gpu, kernel_params, time_open, time_close, transforms_pair, cameras_open, cameras_close);
+        drone_frame_kernel<<<1, 1, 0, render_stream>>>(tag_device, kernel_params, time_open, time_close, transforms_pair, cameras_open, cameras_close);
         rlt::expand_motion_transforms_launch(device, renderer);
         rlt::update_launch(device, renderer);
         rlt::render_launch(device, renderer);
