@@ -5,12 +5,13 @@ Compiles an RLtools training program with clang running inside the browser (LLVM
 ## Build
 ```
 sudo apt install clang-22 lld-22 ninja-build nodejs           # the wasm cross compiler (Ubuntu 26.04); ninja and node are optional
-cmake -S tools/ide/toolchain -B /vm/data/rl-tools/ide-toolchain/build -G Ninja   # fetches pinned llvm-project + wasi-libc into .dependencies
+tools/ide/download_dependencies.sh                            # pinned checkouts of the llvm-project fork and wasi-libc into tools/ide/external
+cmake -S tools/ide/toolchain -B /vm/data/rl-tools/ide-toolchain/build -G Ninja
 cmake --build /vm/data/rl-tools/ide-toolchain/build           # about 40 min: builds and verifies build/toolchain/{llvm.wasm,sysroot.tar,toolchain.json}
 tools/ide/bundle.sh                                           # include/rl_tools -> build/rl_tools_include.tar, example program, manifest (the superbuild's verify stage runs it too)
 python3 -m http.server -d . 8000                              # from the repository root, then open http://localhost:8000/static/ide/
 ```
-The toolchain superbuild (`tools/ide/toolchain/`, see its README) is a standalone CMake project with the source pins inline at the top; it is not built by the main RLtools configure. The sources are FetchContent checkouts in the repository's `.dependencies/<build directory name>/` like every other RLtools dependency; build trees live outside the repository in `$RL_TOOLS_IDE_TOOLCHAIN_DIR` (default `/vm/data/rl-tools/ide-toolchain`). Everything served lands in `static/ide/build/` (ignored by git). Plain HTTP is enough: no cross-origin isolation headers are required because nothing uses threads.
+The toolchain superbuild (`tools/ide/toolchain/`, see its README) is a standalone CMake project, not built by the main RLtools configure. Its sources are soft submodules: `tools/ide/download_dependencies.sh` holds the pins (RLtools' fork of llvm-project with the WASI commits, and wasi-libc) and checks them out at depth 1 under `tools/ide/external/`; build trees live outside the repository in `$RL_TOOLS_IDE_TOOLCHAIN_DIR` (default `/vm/data/rl-tools/ide-toolchain`). Everything served lands in `static/ide/build/` (ignored by git). Plain HTTP is enough: no cross-origin isolation headers are required because nothing uses threads.
 
 ## Tests
 ```
