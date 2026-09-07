@@ -55,6 +55,9 @@
 /checkpoints_old
 /**/.DS_Store
 /**/*.json
+!/static/ide/package.json
+!/static/ide/examples.json
+!/tools/ide/dependencies.json
 /tmp
 /lldb_type_dump.txt
 /wandb

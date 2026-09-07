@@ -1,6 +1,8 @@
 // WASI preview1 host for the browser IDE: one in-memory directory tree preopened at "/", stdio as byte sinks, no threads,
 // no sockets. Struct layouts and errno values follow the wasi_snapshot_preview1 specification.
 
+import { pathParts } from "./path.js";
+
 const encoder = new TextEncoder();
 const decoder = new TextDecoder("utf-8");
 
@@ -132,19 +134,12 @@ function sleepUntil(deadline, clock){
 // Resolves a path relative to a directory: empty and "." components are skipped, ".." pops, and a path that would leave
 // the starting directory is refused since the tree is the sandbox
 function resolve(directory, path){
-    const parts = [];
-    for(const component of path.split("/")){
-        if(component === "" || component === "."){
-            continue;
-        }
-        if(component === ".."){
-            if(parts.length === 0){
-                return { error: ERRNO.NOTCAPABLE };
-            }
-            parts.pop();
-            continue;
-        }
-        parts.push(component);
+    let parts;
+    try{
+        parts = pathParts(path);
+    }
+    catch{
+        return { error: ERRNO.NOTCAPABLE };
     }
     let node = directory;
     for(const part of parts.slice(0, -1)){

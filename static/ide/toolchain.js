@@ -1,43 +1,52 @@
 import { Directory } from "./wasi.js";
 import { runProcess } from "./process.js";
-import { treeFromEntries, mergeTrees, readFile } from "./filesystem.js";
+import { treeFromEntries, readFile } from "./filesystem.js";
+import { parseArguments } from "./arguments.js";
 import { untar } from "./tar.js";
 
 const DRIVER_HEADER_PREFIXES = ["clang version", "Target:", "Thread model:", "InstalledDir:", "Build config:"];
 
-// Splits one `clang -###` job line into argv, undoing the driver's quoting
-function parseJobLine(line){
-    const tokens = Array.from(line.matchAll(/ (?:([^ "]+)|"((?:[^"\\$]|\\["\\$])*)")/g), match => match[1] !== undefined ? match[1] : match[2].replaceAll(/\\(["$\\])/g, (_, character) => character));
-    return tokens.filter((token, index) => !(index === 0 && token.length === 0));
-}
-
-function parseDriverPlan(text){
+export function parseDriverPlan(text){
     const jobs = [];
     for(const line of text.split("\n")){
         if(line.startsWith(' "')){
-            jobs.push(parseJobLine(line));
+            const job = parseArguments(line);
+            jobs.push(job[0] === "" ? job.slice(1) : job);
         }
     }
     return jobs;
 }
 
-function outputName(args){
-    const index = args.indexOf("-o");
-    return index >= 0 && index + 1 < args.length ? args[index + 1] : "a.out";
+function outputName(job){
+    const index = job.lastIndexOf("-o");
+    return index >= 0 ? job[index + 1] : null;
 }
 
 // clang and lld compiled to WASI cannot spawn processes, so the driver is asked for its plan (-###) and each job is run as its own WASI process
 export class Toolchain{
-    constructor(module, sysrootTree){
+    constructor(module, sysrootTree, includeTree = null){
         this.module = module;
         this.sysrootTree = sysrootTree;
+        this.includeTree = includeTree;
     }
-    static async fromBytes(llvmBytes, sysrootTarBytes){
-        const module = await WebAssembly.compile(llvmBytes);
-        return new Toolchain(module, treeFromEntries(untar(sysrootTarBytes), { readonly: true }));
+    static async fromBytes(llvmBytes, sysrootTarBytes, includeTarBytes = null){
+        const module = llvmBytes instanceof WebAssembly.Module ? llvmBytes : await WebAssembly.compile(llvmBytes);
+        return new Toolchain(module, treeFromEntries(untar(sysrootTarBytes), { readonly: true }),
+            includeTarBytes === null ? null : treeFromEntries(untar(includeTarBytes), { readonly: true }));
     }
     root(workTree){
-        return mergeTrees(workTree, new Map([["usr", new Directory(this.sysrootTree, { readonly: true })], ["tmp", new Directory()]]));
+        const root = new Map(workTree);
+        const mounts = new Map([["usr", new Directory(this.sysrootTree, { readonly: true })], ["tmp", new Directory()]]);
+        if(this.includeTree !== null){
+            mounts.set("include", new Directory(this.includeTree, { readonly: true }));
+        }
+        for(const [path, directory] of mounts){
+            if(root.has(path)){
+                throw new Error(`${path} is a reserved mount`);
+            }
+            root.set(path, directory);
+        }
+        return root;
     }
     async run(argv, root, { onStdout, onStderr, trace } = {}){
         return runProcess(this.module, ["llvm", ...argv], { root, onStdout, onStderr, trace });
@@ -69,7 +78,8 @@ export class Toolchain{
                 break;
             }
         }
-        const output = exitCode === 0 ? readFile(root, outputName(args)) : null;
+        const outputPath = jobs.length > 0 ? outputName(jobs[jobs.length - 1]) : null;
+        const output = exitCode === 0 && outputPath ? readFile(root, outputPath) : null;
         return { exitCode, output, jobs, root };
     }
 }

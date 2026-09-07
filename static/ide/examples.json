@@ -1,0 +1,34 @@
+{
+  "default": "pendulum_sac",
+  "flags": [
+    "-std=c++17",
+    "-O2",
+    "-fno-exceptions",
+    "-Iinclude"
+  ],
+  "examples": {
+    "pendulum_sac": {
+      "source": "src/rl/environments/pendulum/sac/wasi/training.cpp",
+      "file": "training.cpp",
+      "output": "training.wasm",
+      "args": [
+        "0"
+      ],
+      "minimumFinalMeanReturn": -400
+    },
+    "smoke": {
+      "source": "tests/src/ide/smoke.cpp",
+      "file": "smoke.cpp",
+      "output": "smoke.wasm",
+      "args": [
+        "7"
+      ],
+      "stdout": [
+        "seed 7, sum 28"
+      ],
+      "files": {
+        "result.txt": "28\n"
+      }
+    }
+  }
+}

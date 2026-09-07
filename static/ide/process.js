@@ -1,8 +1,7 @@
 import { WASI } from "./wasi.js";
 
-const decoder = new TextDecoder("utf-8", { fatal: false });
-
-function lineSink(write){
+export function lineSink(write){
+    const decoder = new TextDecoder("utf-8", { fatal: false });
     let pending = "";
     const sink = bytes => {
         pending += decoder.decode(bytes, { stream: true });
@@ -13,6 +12,7 @@ function lineSink(write){
         }
     };
     const flush = () => {
+        pending += decoder.decode();
         if(pending.length > 0){
             write(pending);
             pending = "";
