@@ -1,9 +1,9 @@
 // Checks a built toolchain package against its manifest: module shape (imports, exports, memory ceiling), compiler identity
 // (pinned commit, version suffix, targets, resource dir) and the template-recursion depth the compiler survives on the host
-// engine's stack, found by bisection: a build that changed frame sizes shows up as a drop of that number.
-// usage: node tests/src/ide/toolchain.mjs [--toolchain <dir>]      default: static/ide/build/toolchain
+// engine's stack. Pass --bisect-stack to measure the maximum depth separately.
+// usage: node tests/src/ide/toolchain.mjs [--bundle <dir>] [--bisect-stack]
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { options } from "./options.mjs";
 import { Toolchain } from "../../../static/ide/toolchain.js";
 import { runProgram } from "../../../static/ide/runtime.js";
 import { SYSCALLS } from "../../../static/ide/wasi.js";
@@ -12,8 +12,8 @@ const MEMORY_PAGES_MAXIMUM = 65536;
 const STACK_PROBE_MINIMUM_DEPTH = 256;
 const STACK_PROBE_MAXIMUM_DEPTH = 4096;
 
-const argumentIndex = process.argv.indexOf("--toolchain");
-const toolchainDirectory = argumentIndex >= 0 ? process.argv[argumentIndex + 1] : fileURLToPath(new URL("../../../static/ide/build/toolchain/", import.meta.url));
+const args = options({ "bisect-stack": { type: "boolean", default: false } });
+const toolchainDirectory = args.bundle + "/toolchain";
 const read = name => readFileSync(toolchainDirectory + "/" + name);
 const seconds = started => ((performance.now() - started) / 1000).toFixed(1);
 let failures = 0;
@@ -75,7 +75,7 @@ const limits = memoryLimits(new Uint8Array(moduleBytes));
 check(limits !== null && limits.count === 1 && !limits.shared, `one unshared memory (${JSON.stringify(limits)})`);
 check(limits !== null && limits.maximum === MEMORY_PAGES_MAXIMUM, `memory maximum is ${MEMORY_PAGES_MAXIMUM} pages (${limits?.maximum})`);
 
-const toolchain = new Toolchain(module, (await Toolchain.fromBytes(moduleBytes, read("sysroot.tar"))).sysrootTree);
+const toolchain = await Toolchain.fromBytes(module, read("sysroot.tar"));
 async function query(...args){
     const lines = [];
     const exitCode = await toolchain.run(["clang++", ...args], toolchain.root(new Map()), { onStdout: line => lines.push(line), onStderr: line => lines.push(line) });
@@ -115,19 +115,21 @@ if(minimumProgram !== null){
     const lines = [];
     const run = await runProgram(minimumProgram, { onStdout: line => lines.push(line), onStderr: line => lines.push(line) });
     check(run.exitCode === 0 && lines[0] === `depth ${STACK_PROBE_MINIMUM_DEPTH}`, `probe runs (exit ${run.exitCode}, "${lines[0]}", ${seconds(started)} s)`);
-    started = performance.now();
-    let low = STACK_PROBE_MINIMUM_DEPTH;
-    let high = STACK_PROBE_MAXIMUM_DEPTH;
-    while(high - low > 16){
-        const middle = Math.floor((low + high) / 2);
-        if(await compiles(middle)){
-            low = middle;
+    if(args["bisect-stack"]){
+        started = performance.now();
+        let low = STACK_PROBE_MINIMUM_DEPTH;
+        let high = STACK_PROBE_MAXIMUM_DEPTH;
+        while(high - low > 16){
+            const middle = Math.floor((low + high) / 2);
+            if(await compiles(middle)){
+                low = middle;
+            }
+            else{
+                high = middle;
+            }
         }
-        else{
-            high = middle;
-        }
+        console.log(`info deepest template recursion that compiles here: ${low} (bisected in ${seconds(started)} s)`);
     }
-    console.log(`info deepest template recursion that compiles here: ${low} (bisected in ${seconds(started)} s)`);
 }
 
 console.log(failures === 0 ? "PASS" : `FAIL: ${failures} check(s) failed`);

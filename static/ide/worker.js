@@ -1,41 +1,57 @@
-import { Toolchain } from "./toolchain.js";
+import { loadToolchain } from "./assets.js";
 import { runProgram } from "./runtime.js";
-import { treeFromEntries } from "./filesystem.js";
-import { untar } from "./tar.js";
 
 let toolchain = null;
-let includeEntries = new Map();
+let busy = false;
 
-// The archives arrive as single transferred buffers and are unpacked here: posting a map of archive slices would clone the archive once per entry
 self.onmessage = async ({ data }) => {
-    if(data.type === "toolchain"){
-        toolchain = new Toolchain(data.module, treeFromEntries(untar(new Uint8Array(data.sysrootTar)), { readonly: true }));
-        includeEntries = new Map();
-        for(const [path, bytes] of untar(new Uint8Array(data.includeTar))){
-            includeEntries.set("include/" + path, bytes);
-        }
-        self.postMessage({ type: "ready", headers: includeEntries.size });
+    const { id, type } = data;
+    const emit = event => self.postMessage({ id, type: "event", event });
+    if(busy){
+        self.postMessage({ id, type: "error", message: "worker is busy" });
+        return;
     }
-    else if(data.type === "compile"){
+    busy = true;
+    try{
         const started = performance.now();
-        const files = new Map(includeEntries);
-        for(const [name, text] of Object.entries(data.sources)){
-            files.set(name, text);
+        let result;
+        let transfer = [];
+        const streams = {
+            onStdout: line => emit({ type: "stdout", line }),
+            onStderr: line => emit({ type: "stderr", line }),
+        };
+        if(type === "load"){
+            emit({ type: "status", text: "loading compiler and headers…" });
+            const loaded = await loadToolchain(data.bundleUrl);
+            toolchain = loaded.toolchain;
+            result = { manifest: loaded.manifest };
         }
-        const result = await toolchain.compile(files, data.args, {
-            onStdout: line => self.postMessage({ type: "stdout", line }),
-            onStderr: line => self.postMessage({ type: "stderr", line }),
-            onJob: job => self.postMessage({ type: "job", tool: job[0] }),
-        });
-        self.postMessage({ type: "compiled", exitCode: result.exitCode, output: result.output, seconds: (performance.now() - started) / 1000 });
+        else if(type === "compile"){
+            if(toolchain === null){
+                throw new Error("load the toolchain before compiling");
+            }
+            const compiled = await toolchain.compile(new Map(Object.entries(data.sources)), data.args, {
+                ...streams,
+                onJob: job => emit({ type: "job", tool: job[0] }),
+            });
+            const output = compiled.output?.slice() ?? null;
+            result = { exitCode: compiled.exitCode, output };
+            transfer = output ? [output.buffer] : [];
+        }
+        else if(type === "run"){
+            result = await runProgram(new Uint8Array(data.program), { args: data.args, ...streams });
+            transfer = [...new Set([...result.files.values()].map(bytes => bytes.buffer))];
+        }
+        else{
+            throw new Error("unknown worker command: " + type);
+        }
+        result.seconds = (performance.now() - started) / 1000;
+        self.postMessage({ id, type: "result", result }, transfer);
     }
-    else if(data.type === "run"){
-        const started = performance.now();
-        const result = await runProgram(new Uint8Array(data.program), {
-            args: data.args,
-            onStdout: line => self.postMessage({ type: "stdout", line }),
-            onStderr: line => self.postMessage({ type: "stderr", line }),
-        });
-        self.postMessage({ type: "exited", exitCode: result.exitCode, files: result.files, seconds: (performance.now() - started) / 1000 });
+    catch(error){
+        self.postMessage({ id, type: "error", message: error.message ?? String(error) });
+    }
+    finally{
+        busy = false;
     }
 };
