@@ -3,7 +3,11 @@
 # checkout is moved to the ref's current tip with one depth-1 fetch and left alone when it is there already; when the
 # repository cannot be reached, an existing checkout is kept with a warning so a build works offline.
 # Arguments: -DGIT= -DREPOSITORY= -DREF=<branch or tag> -DDIRECTORY=
-foreach(required GIT REPOSITORY REF DIRECTORY)
+set(required_arguments GIT DIRECTORY)
+if(NOT DEFINED EXPECTED_COMMIT)
+    list(APPEND required_arguments REPOSITORY REF)
+endif()
+foreach(required IN LISTS required_arguments)
     if(NOT DEFINED ${required})
         message(FATAL_ERROR "fetch_source.cmake: -D${required} is required")
     endif()
@@ -16,6 +20,18 @@ function(rl_tools_ide_git output)
     endif()
     set(${output} "${stdout}" PARENT_SCOPE)
 endfunction()
+
+if(DEFINED EXPECTED_COMMIT)
+    rl_tools_ide_git(head -C "${DIRECTORY}" rev-parse HEAD)
+    if(NOT head STREQUAL EXPECTED_COMMIT)
+        message(FATAL_ERROR "${DIRECTORY} moved from ${EXPECTED_COMMIT} to ${head}. Reconfigure before building.")
+    endif()
+    rl_tools_ide_git(changes -C "${DIRECTORY}" status --porcelain --untracked-files=normal)
+    if(NOT changes STREQUAL "")
+        message(FATAL_ERROR "${DIRECTORY} has local changes; source packages must be built from clean checkouts.")
+    endif()
+    return()
+endif()
 
 if(EXISTS ${DIRECTORY}/.git)
     rl_tools_ide_git(changes -C "${DIRECTORY}" status --porcelain --untracked-files=normal)
