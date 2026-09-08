@@ -322,8 +322,8 @@ namespace rl_tools{
         static cudnnActivationDescriptor_t fused_ad = nullptr, relu_ad = nullptr;
         static cudnnConvolutionFwdAlgo_t cached_algo;
         static size_t cached_ws = 0;
-        static bool initialized = false;
-        if(!initialized){
+        // magic static: the one-time descriptor/algorithm setup is guarded by the compiler so concurrent first calls from several host threads (one per GPU) are safe
+        static const bool initialized = [&](){
             check_cudnn_call(device, cudnnCreateTensorDescriptor(&xd), "cudnnCreateTensorDescriptor conv2d_eval.xd");
             check_cudnn_call(device, cudnnSetTensor4dDescriptor(xd, CUDNN_TENSOR_NHWC, dt, N, IC, IH, IW), "cudnnSetTensor4dDescriptor conv2d_eval.xd");
             check_cudnn_call(device, cudnnCreateTensorDescriptor(&yd), "cudnnCreateTensorDescriptor conv2d_eval.yd");
@@ -350,8 +350,9 @@ namespace rl_tools{
                 check_cudnn_call(device, cudnnCreateActivationDescriptor(&relu_ad), "cudnnCreateActivationDescriptor conv2d_eval.relu_ad");
                 check_cudnn_call(device, cudnnSetActivationDescriptor(relu_ad, CUDNN_ACTIVATION_RELU, CUDNN_NOT_PROPAGATE_NAN, 0.0), "cudnnSetActivationDescriptor conv2d_eval.relu_ad");
             }
-            initialized = true;
-        }
+            return true;
+        }();
+        (void)initialized;
         if(cached_ws > 0){
             utils::assert_exit(device, device.dynamic_memory_allocation_allowed || cached_ws <= device.cudnn_workspace_size, "Dynamic CUDA memory allocations are disabled");
             ensure_cudnn_workspace(device, cached_ws);
@@ -422,8 +423,8 @@ namespace rl_tools{
         static cudnnActivationDescriptor_t fused_ad = nullptr, relu_ad = nullptr;
         static cudnnConvolutionFwdAlgo_t cached_algo;
         static size_t cached_ws = 0;
-        static bool initialized = false;
-        if(!initialized){
+        // magic static: the one-time descriptor/algorithm setup is guarded by the compiler so concurrent first calls from several host threads (one per GPU) are safe
+        static const bool initialized = [&](){
             check_cudnn_call(device, cudnnCreateTensorDescriptor(&xd), "cudnnCreateTensorDescriptor conv2d_fwd.xd");
             check_cudnn_call(device, cudnnSetTensor4dDescriptor(xd, CUDNN_TENSOR_NHWC, dt, N, IC, IH, IW), "cudnnSetTensor4dDescriptor conv2d_fwd.xd");
             check_cudnn_call(device, cudnnCreateTensorDescriptor(&yd), "cudnnCreateTensorDescriptor conv2d_fwd.yd");
@@ -450,8 +451,9 @@ namespace rl_tools{
                 check_cudnn_call(device, cudnnCreateActivationDescriptor(&relu_ad), "cudnnCreateActivationDescriptor conv2d_fwd.relu_ad");
                 check_cudnn_call(device, cudnnSetActivationDescriptor(relu_ad, CUDNN_ACTIVATION_RELU, CUDNN_NOT_PROPAGATE_NAN, 0.0), "cudnnSetActivationDescriptor conv2d_fwd.relu_ad");
             }
-            initialized = true;
-        }
+            return true;
+        }();
+        (void)initialized;
         if(cached_ws > 0){
             utils::assert_exit(device, device.dynamic_memory_allocation_allowed || cached_ws <= device.cudnn_workspace_size, "Dynamic CUDA memory allocations are disabled");
             ensure_cudnn_workspace(device, cached_ws);
@@ -557,8 +559,8 @@ namespace rl_tools{
         static cudnnConvolutionBwdDataAlgo_t cached_bd_algo;
         static size_t cached_bf_ws = 0, cached_bd_ws = 0;
         static bool bf_ok = false, bd_ok = false;
-        static bool initialized = false;
-        if(!initialized){
+        // magic static: the one-time descriptor/algorithm setup is guarded by the compiler so concurrent first calls from several host threads (one per GPU) are safe
+        static const bool initialized = [&](){
             check_cudnn_call(device, cudnnCreateTensorDescriptor(&xd), "cudnnCreateTensorDescriptor conv2d_bwd.xd");
             check_cudnn_call(device, cudnnSetTensor4dDescriptor(xd, CUDNN_TENSOR_NHWC, dt, N, IC, IH, IW), "cudnnSetTensor4dDescriptor conv2d_bwd.xd");
             check_cudnn_call(device, cudnnCreateTensorDescriptor(&yd), "cudnnCreateTensorDescriptor conv2d_bwd.yd");
@@ -582,8 +584,9 @@ namespace rl_tools{
                 for(int i = 0; i < ac; i++){ if(ap[i].status == CUDNN_STATUS_SUCCESS){ cached_bd_algo = ap[i].algo; bd_ok = true; break; } }
                 if(bd_ok) check_cudnn_call(device, cudnnGetConvolutionBackwardDataWorkspaceSize(device.cudnn_handle, wd, yd, cd, xd, cached_bd_algo, &cached_bd_ws), "cudnnGetConvolutionBackwardDataWorkspaceSize conv2d_bwd");
             }
-            initialized = true;
-        }
+            return true;
+        }();
+        (void)initialized;
 
         // Using layer.output as scratch for the pre-activation gradient preserves d_output for
         // callers that still need the upstream gradient (e.g. resnet_block's shortcut path reuses
@@ -695,8 +698,8 @@ namespace rl_tools{
         static cudnnConvolutionBwdDataAlgo_t cached_algo;
         static size_t cached_ws = 0;
         static bool algo_ok = false;
-        static bool initialized = false;
-        if(!initialized){
+        // magic static: the one-time descriptor/algorithm setup is guarded by the compiler so concurrent first calls from several host threads (one per GPU) are safe
+        static const bool initialized = [&](){
             check_cudnn_call(device, cudnnCreateTensorDescriptor(&xd), "cudnnCreateTensorDescriptor conv2d_bwd_input.xd");
             check_cudnn_call(device, cudnnSetTensor4dDescriptor(xd, CUDNN_TENSOR_NHWC, dt, N, IC, IH, IW), "cudnnSetTensor4dDescriptor conv2d_bwd_input.xd");
             check_cudnn_call(device, cudnnCreateTensorDescriptor(&yd), "cudnnCreateTensorDescriptor conv2d_bwd_input.yd");
@@ -710,8 +713,9 @@ namespace rl_tools{
             check_cudnn_call(device, cudnnGetConvolutionBackwardDataAlgorithm_v7(device.cudnn_handle, wd, yd, cd, xd, MA, &ac, ap), "cudnnGetConvolutionBackwardDataAlgorithm_v7 conv2d_bwd_input");
             for(int i = 0; i < ac; i++){ if(ap[i].status == CUDNN_STATUS_SUCCESS){ cached_algo = ap[i].algo; algo_ok = true; break; } }
             if(algo_ok) check_cudnn_call(device, cudnnGetConvolutionBackwardDataWorkspaceSize(device.cudnn_handle, wd, yd, cd, xd, cached_algo, &cached_ws), "cudnnGetConvolutionBackwardDataWorkspaceSize conv2d_bwd_input");
-            initialized = true;
-        }
+            return true;
+        }();
+        (void)initialized;
         if(algo_ok){
             if(cached_ws > 0){
                 utils::assert_exit(device, device.dynamic_memory_allocation_allowed || cached_ws <= device.cudnn_workspace_size, "Dynamic CUDA memory allocations are disabled");

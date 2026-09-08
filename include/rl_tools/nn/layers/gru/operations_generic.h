@@ -546,6 +546,22 @@ namespace rl_tools{
         zero_gradient(device, layer.biases_hidden);
         zero_gradient(device, layer.initial_hidden_state);
     }
+    template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void add_gradient(DEVICE& device, nn::layers::gru::LayerGradient<SOURCE_SPEC>& source, nn::layers::gru::LayerGradient<TARGET_SPEC>& target) {
+        add_gradient(device, source.weights_input, target.weights_input);
+        add_gradient(device, source.biases_input, target.biases_input);
+        add_gradient(device, source.weights_hidden, target.weights_hidden);
+        add_gradient(device, source.biases_hidden, target.biases_hidden);
+        add_gradient(device, source.initial_hidden_state, target.initial_hidden_state);
+    }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_gradient(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::gru::LayerGradient<SOURCE_SPEC>& source, nn::layers::gru::LayerGradient<TARGET_SPEC>& target) {
+        copy_gradient(source_device, target_device, source.weights_input, target.weights_input);
+        copy_gradient(source_device, target_device, source.biases_input, target.biases_input);
+        copy_gradient(source_device, target_device, source.weights_hidden, target.weights_hidden);
+        copy_gradient(source_device, target_device, source.biases_hidden, target.biases_hidden);
+        copy_gradient(source_device, target_device, source.initial_hidden_state, target.initial_hidden_state);
+    }
 
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
     RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn::layers::gru::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer){

@@ -29,7 +29,7 @@ The default target is `stage`. A failed or unavailable verification prerequisite
 
 ## Sources
 
-[dependencies.json](../dependencies.json) owns the repository URLs, branch/tag references, upstream versions, target and CPU. CMake FetchContent checks out the LLVM fork's `rltools-wasi-22.1.8` branch and wasi-libc's `wasi-sdk-34` tag at configure time. The fetched commits are recorded in `source-revisions.json` and the package manifest.
+The settings at the top of [CMakeLists.txt](CMakeLists.txt) define the repository URLs, branch/tag references, upstream versions, target and CPU. CMake FetchContent checks out the LLVM fork's `rltools-wasi-22.1.8` branch and wasi-libc's `wasi-sdk-34` tag at configure time. The fetched commits are recorded in the CMake cache and the package manifest.
 
 The shared `cmake/fetch_source.cmake` fetches one ref at depth 1 with no tags. Reconfiguration follows the branch tip; an existing checkout is retained with a warning if the network is unavailable. `-DRL_TOOLS_OFFLINE_BUILD=ON` uses existing sources without a network request. Local changes are preserved and cause a clear failure.
 
@@ -67,6 +67,7 @@ build/
 |---|---|---|
 | `FETCHCONTENT_BASE_DIR` | `<build>/_deps` | Dependency source cache |
 | `RL_TOOLS_OFFLINE_BUILD` | OFF | Use existing sources without network access |
+| `RL_TOOLS_IDE_BOOTSTRAP_HOST` | OFF | Build only the native compiler, for use by a subsequent toolchain build |
 | `RL_TOOLS_IDE_HOST_LLVM_BIN` | `/usr/lib/llvm-22/bin` | Native compiler tools |
 | `RL_TOOLS_IDE_JOBS` | 5 | Jobs per stage, limited to 1–5 |
 | `RL_TOOLS_IDE_LTO` | `thin` | `thin`, `full`, or `off` |
@@ -76,10 +77,10 @@ build/
 
 Reconfiguring LTO updates the actual compiler and linker cache flags. Flags map both build and dependency source paths to stable prefixes. Builds use the configured LLVM commit time as `SOURCE_DATE_EPOCH`; archives fix ordering, ownership, and timestamps. Manifests record the selected flags, source identities, host compiler/linker versions, sizes, and hashes. Identical configuration does not rewrite configure metadata.
 
-`RL_TOOLS_IDE_TOOLCHAIN_DIR` is replaced by `-B`. The old `RL_TOOLS_IDE_BUILD_HOST_CLANG` mode has a separate bootstrap entry point:
+To build the native compiler from the same LLVM source, configure this project in a separate build directory with `RL_TOOLS_IDE_BOOTSTRAP_HOST=ON`:
 
 ```bash
-cmake -S tools/ide/bootstrap -B /vm/data/rl-tools/ide-host
+cmake -S tools/ide/toolchain -B /vm/data/rl-tools/ide-host -DRL_TOOLS_IDE_BOOTSTRAP_HOST=ON
 cmake --build /vm/data/rl-tools/ide-host --parallel 5
 cmake -S tools/ide/toolchain -B /vm/data/rl-tools/ide-toolchain/build \
     -DRL_TOOLS_IDE_HOST_LLVM_BIN=/vm/data/rl-tools/ide-host/host/bin
@@ -105,10 +106,10 @@ node tests/src/ide/pipeline.mjs --bundle /vm/data/rl-tools/ide-toolchain/build/b
 node tests/src/ide/pipeline.mjs --bundle /vm/data/rl-tools/ide-toolchain/build/bundle \
     --example pendulum_sac --reference /vm/data/rl-tools/ide-toolchain/build/parity/training.wasm
 .venv/bin/python tests/src/ide/browser_test.py --bundle /vm/data/rl-tools/ide-toolchain/build/bundle
-tests/src/ide/provenance.sh /vm/data/rl-tools/ide-toolchain/build/bundle
+cmake -DBUNDLE_DIR=/vm/data/rl-tools/ide-toolchain/build/bundle -P tests/src/ide/provenance.cmake
 ```
 
-The main RLtools configure and this superbuild use the same CTest registration. Main-project tests check for artifacts at execution time and report missing prerequisites as skips; newly generated bundles require no reconfigure. Superbuild verification requires its selected checks to pass. CTest enforces timeouts; training tests have a longer timeout and the `ide-training` label. Quick checks have the `ide-verify` label.
+The main RLtools configure and this superbuild both add `tests/src/ide` as a CMake subdirectory. The provenance test checks artifact hashes and source identities; in the superbuild it also compares the manifest against the configured build settings. Main-project tests check for artifacts at execution time and report missing prerequisites as skips; newly generated bundles require no reconfigure. Superbuild verification requires its selected checks to pass. CTest enforces timeouts; training tests have a longer timeout and the `ide-training` label. Quick checks have the `ide-verify` label.
 
 The browser harness serves the selected candidate through its local HTTP server, even when the bundle is outside the repository. `--example pendulum_sac` requests full training in the browser; the default is the short `smoke` example. `RL_TOOLS_BROWSER_ARGS` adds browser flags when required by the host environment.
 

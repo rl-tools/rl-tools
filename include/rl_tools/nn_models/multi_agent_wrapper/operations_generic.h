@@ -160,6 +160,14 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, nn_models::multi_agent_wrapper::ModuleGradient<MODULE_SPEC>& module){
         zero_gradient(device, module.content);
     }
+    template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void add_gradient(DEVICE& device, nn_models::multi_agent_wrapper::ModuleGradient<SOURCE_SPEC>& source, nn_models::multi_agent_wrapper::ModuleGradient<TARGET_SPEC>& target) {
+        add_gradient(device, source.content, target.content);
+    }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_gradient(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn_models::multi_agent_wrapper::ModuleGradient<SOURCE_SPEC>& source, nn_models::multi_agent_wrapper::ModuleGradient<TARGET_SPEC>& target) {
+        copy_gradient(source_device, target_device, source.content, target.content);
+    }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
     RL_TOOLS_FUNCTION_PLACEMENT void _reset_optimizer_state(DEVICE& device, nn_models::multi_agent_wrapper::ModuleGradient<SPEC>& module, OPTIMIZER& optimizer) {
         _reset_optimizer_state(device, module.content, optimizer);

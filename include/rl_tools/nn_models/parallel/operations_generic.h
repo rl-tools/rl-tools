@@ -241,6 +241,20 @@ namespace rl_tools{
                 _zero_gradient_branches<I + 1>(device, model);
             }
         }
+        template <auto I = 0, typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT void _add_gradient_branches(DEVICE& device, ModuleGradient<SOURCE_SPEC>& source, ModuleGradient<TARGET_SPEC>& target){
+            if constexpr(I < SOURCE_SPEC::NUM_BRANCHES){
+                add_gradient(device, get<I>(source.pipelines), get<I>(target.pipelines));
+                _add_gradient_branches<I + 1>(device, source, target);
+            }
+        }
+        template <auto I = 0, typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT void _copy_gradient_branches(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const ModuleGradient<SOURCE_SPEC>& source, ModuleGradient<TARGET_SPEC>& target){
+            if constexpr(I < SOURCE_SPEC::NUM_BRANCHES){
+                copy_gradient(source_device, target_device, get<I>(source.pipelines), get<I>(target.pipelines));
+                _copy_gradient_branches<I + 1>(source_device, target_device, source, target);
+            }
+        }
 
         template <auto I = 0, typename DEVICE, typename SPEC, typename OPTIMIZER>
         RL_TOOLS_FUNCTION_PLACEMENT void _update_branches(DEVICE& device, ModuleGradient<SPEC>& model, OPTIMIZER& optimizer){
@@ -483,6 +497,22 @@ namespace rl_tools{
         nn_models::parallel::_zero_gradient_branches(device, module);
         if constexpr(SPEC::HAS_HEAD){
             zero_gradient(device, module.head);
+        }
+    }
+    template <typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void add_gradient(DEVICE& device, nn_models::parallel::ModuleGradient<SOURCE_SPEC>& source, nn_models::parallel::ModuleGradient<TARGET_SPEC>& target){
+        static_assert(SOURCE_SPEC::NUM_BRANCHES == TARGET_SPEC::NUM_BRANCHES && SOURCE_SPEC::HAS_HEAD == TARGET_SPEC::HAS_HEAD);
+        nn_models::parallel::_add_gradient_branches(device, source, target);
+        if constexpr(SOURCE_SPEC::HAS_HEAD){
+            add_gradient(device, source.head, target.head);
+        }
+    }
+    template <typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_gradient(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn_models::parallel::ModuleGradient<SOURCE_SPEC>& source, nn_models::parallel::ModuleGradient<TARGET_SPEC>& target){
+        static_assert(SOURCE_SPEC::NUM_BRANCHES == TARGET_SPEC::NUM_BRANCHES && SOURCE_SPEC::HAS_HEAD == TARGET_SPEC::HAS_HEAD);
+        nn_models::parallel::_copy_gradient_branches(source_device, target_device, source, target);
+        if constexpr(SOURCE_SPEC::HAS_HEAD){
+            copy_gradient(source_device, target_device, source.head, target.head);
         }
     }
 

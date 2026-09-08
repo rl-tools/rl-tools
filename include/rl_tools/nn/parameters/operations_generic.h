@@ -29,6 +29,14 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, nn::parameters::Gradient::Instance<CONTAINER>& container) {
         set_all(device, container.gradient, 0);
     }
+    template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void add_gradient(DEVICE& device, nn::parameters::Gradient::Instance<SOURCE_SPEC>& source, nn::parameters::Gradient::Instance<TARGET_SPEC>& target) {
+        add(device, source.gradient, target.gradient);
+    }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_gradient(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::parameters::Gradient::Instance<SOURCE_SPEC>& source, nn::parameters::Gradient::Instance<TARGET_SPEC>& target) {
+        copy(source_device, target_device, source.gradient, target.gradient);
+    }
 
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::parameters::Plain::Instance<SOURCE_SPEC>& source, nn::parameters::Plain::Instance<TARGET_SPEC>& target){

@@ -5,6 +5,7 @@
 #endif
 #include <rl_tools/nn/operations_cpu_mux.h>
 #include <rl_tools/nn/operations_cuda.h>
+#include <rl_tools/nn/layers/gru/operations_generic.h>
 
 #include <gtest/gtest.h>
 #include <metra/metra.h>

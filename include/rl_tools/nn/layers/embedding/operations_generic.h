@@ -133,6 +133,14 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, nn::layers::embedding::LayerGradient<SPEC>& layer) {
         zero_gradient(device, layer.weights);
     }
+    template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void add_gradient(DEVICE& device, nn::layers::embedding::LayerGradient<SOURCE_SPEC>& source, nn::layers::embedding::LayerGradient<TARGET_SPEC>& target) {
+        add_gradient(device, source.weights, target.weights);
+    }
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_gradient(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::embedding::LayerGradient<SOURCE_SPEC>& source, nn::layers::embedding::LayerGradient<TARGET_SPEC>& target) {
+        copy_gradient(source_device, target_device, source.weights, target.weights);
+    }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
     RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn::layers::embedding::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer){
         update(device, layer.weights, optimizer);
