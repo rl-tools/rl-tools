@@ -187,7 +187,7 @@ class _Config(ctypes.Structure):
     ]
 
 
-_IFACE_VERSION = 4
+_IFACE_VERSION = 6
 
 
 def _load(config):

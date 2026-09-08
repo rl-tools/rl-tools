@@ -119,7 +119,9 @@ namespace rl_tools{
         check_status(device);
     }
     template <typename DEV_SPEC, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
-    void render(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask){
+    void render(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input){
+        request_render(device, world, reset_mask_input);
+        auto& reset_mask = world.render_reset;
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using T = typename TASK_SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -173,7 +175,10 @@ namespace rl_tools{
         using WORLD = rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
         static_assert(get<0>(typename OBSERVATION_SPEC::SHAPE{}) == WORLD::INSTANCES);
         static_assert(get<1>(typename OBSERVATION_SPEC::SHAPE{}) == WORLD::OBSERVATION_DIM);
-        utils::assert_exit(device, world.history_step > 0, "hyperdrone::tasks::target_frame::observe: render must be called before observe");
+        if(world.render_pending){
+            render(device, world, parameters, states, world.render_reset);
+        }
+        utils::assert_exit(device, world.history_step > 0, "hyperdrone::tasks::target_frame::observe: no frame available");
         cudaStream_t render_stream = stream(device, world.renderer);
         devices::cuda::TAG<DEVICE, true> tag_device{};
         constexpr TI BLOCKSIZE = 256;

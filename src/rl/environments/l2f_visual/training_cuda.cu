@@ -34,8 +34,7 @@
 
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
-#include <rl_tools/rl/components/on_policy_runner/operations_cuda.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
 #include <rl_tools/nn/loss_functions/mse/operations_generic.h>
 #include <rl_tools/nn/loss_functions/mse/operations_cuda.h>
 
@@ -466,14 +465,12 @@ using PPO_SPEC = typename LOOP_CORE_CONFIG::PPO_SPEC;
 using PPO_TYPE = typename LOOP_CORE_CONFIG::PPO_TYPE;
 using PPO_BUFFERS_TYPE = typename LOOP_CORE_CONFIG::PPO_BUFFERS_TYPE;
 using ON_POLICY_RUNNER_SPEC = typename LOOP_CORE_CONFIG::ON_POLICY_RUNNER_SPEC;
-using ON_POLICY_RUNNER_TYPE = typename LOOP_CORE_CONFIG::ON_POLICY_RUNNER_TYPE;
 using ON_POLICY_RUNNER_DATASET_SPEC = typename LOOP_CORE_CONFIG::ON_POLICY_RUNNER_DATASET_SPEC;
 using ON_POLICY_RUNNER_DATASET_TYPE = typename LOOP_CORE_CONFIG::ON_POLICY_RUNNER_DATASET_TYPE;
 using ACTOR_OPTIMIZER = typename LOOP_CORE_CONFIG::NN::ACTOR_OPTIMIZER;
 using CRITIC_OPTIMIZER = typename LOOP_CORE_CONFIG::NN::CRITIC_OPTIMIZER;
 using ACTOR_BUFFERS = typename LOOP_CORE_CONFIG::ACTOR_BUFFERS;
 using CRITIC_BUFFERS = typename LOOP_CORE_CONFIG::CRITIC_BUFFERS;
-using CRITIC_BUFFERS_GAE = typename LOOP_CORE_CONFIG::CRITIC_BUFFERS_GAE;
 using ACTOR_TYPE = typename LOOP_CORE_CONFIG::NN::ACTOR_TYPE;
 
 // Rollout actor: forward-only with batch size N_ENVIRONMENTS
@@ -989,13 +986,11 @@ int main(int argc, char** argv){
     // ---------------------------------------------------------------------
     PPO_TYPE ppo;
     PPO_BUFFERS_TYPE ppo_buffers;
-    ON_POLICY_RUNNER_TYPE on_policy_runner;
     ON_POLICY_RUNNER_DATASET_TYPE dataset;
     ACTOR_OPTIMIZER actor_optimizer;
     CRITIC_OPTIMIZER critic_optimizer;
     rlt::malloc(device, ppo);
     rlt::malloc(device, ppo_buffers);
-    rlt::malloc(device, on_policy_runner);
     rlt::malloc(device, dataset);
     rlt::malloc(device, actor_optimizer);
     rlt::malloc(device, critic_optimizer);
@@ -1120,13 +1115,7 @@ int main(int argc, char** argv){
     // PPO init (CPU)
     // ---------------------------------------------------------------------
     rlt::init(device, ppo, actor_optimizer, critic_optimizer, rng);
-    rlt::set_all(device, on_policy_runner.episode_step, 0);
-    rlt::set_all(device, on_policy_runner.episode_return, (T)0);
-    rlt::set_all(device, on_policy_runner.truncated, true);
-    for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
-        rlt::set(on_policy_runner.environments, 0, env_i, envs[env_i]);
-        rlt::set(on_policy_runner.env_parameters, 0, env_i, env_parameters[env_i]);
-    }
+    TI environment_step = 0;
 
     // ---------------------------------------------------------------------
     // GPU init
@@ -1139,14 +1128,15 @@ int main(int argc, char** argv){
     PPO_TYPE ppo_gpu;
     ACTOR_BUFFERS actor_buffers;
     CRITIC_BUFFERS critic_buffers;
-    CRITIC_BUFFERS_GAE critic_buffers_gae;
-    ON_POLICY_RUNNER_TYPE on_policy_runner_gpu;
+    rlt::rl::components::on_policy_runner::ValueState<typename PPO_SPEC::CRITIC_TYPE, ON_POLICY_RUNNER_DATASET_SPEC> critic_states_gae;
+    rlt::rl::components::on_policy_runner::ValueBuffer<typename PPO_SPEC::CRITIC_TYPE, ON_POLICY_RUNNER_DATASET_SPEC> critic_buffers_gae;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, OBS_PRIV_DIM>>> next_privileged_observations;
     ON_POLICY_RUNNER_DATASET_TYPE dataset_gpu;
     rlt::malloc(device_gpu, ppo_gpu);
     rlt::malloc(device_gpu, actor_buffers);
     rlt::malloc(device_gpu, critic_buffers);
-    rlt::malloc(device_gpu, critic_buffers_gae);
-    rlt::malloc(device_gpu, on_policy_runner_gpu);
+    rlt::malloc(device_gpu, critic_states_gae); rlt::malloc(device_gpu, critic_buffers_gae);
+    if constexpr(ON_POLICY_RUNNER_SPEC::COLLECT_NEXT_OBSERVATIONS) rlt::malloc(device_gpu, next_privileged_observations);
     rlt::malloc(device_gpu, dataset_gpu);
 
     // Rollout actor (forward only, batch = N_ENVIRONMENTS)
@@ -1166,18 +1156,6 @@ int main(int argc, char** argv){
     rlt::copy(device, device_gpu, ppo.actor, rollout_actor_gpu);
     rlt::reset_optimizer_state(device_gpu, actor_optimizer_gpu, ppo_gpu.actor);
     rlt::reset_optimizer_state(device_gpu, critic_optimizer_gpu, ppo_gpu.critic);
-
-    // Initialize GPU on_policy_runner state
-    rlt::set_all(device_gpu, on_policy_runner_gpu.truncated, true);
-    rlt::set_all(device_gpu, on_policy_runner_gpu.episode_step, (TI)0);
-    rlt::set_all(device_gpu, on_policy_runner_gpu.episode_return, (T)0);
-    cudaMemcpy(on_policy_runner_gpu.environments._data, on_policy_runner.environments._data,
-               N_ENVIRONMENTS * sizeof(ENVIRONMENT), cudaMemcpyHostToDevice);
-    cudaMemcpy(on_policy_runner_gpu.env_parameters._data, on_policy_runner.env_parameters._data,
-               N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::Parameters), cudaMemcpyHostToDevice);
-    cudaMemcpy(on_policy_runner_gpu.states._data, on_policy_runner.states._data,
-               N_ENVIRONMENTS * sizeof(typename ENVIRONMENT::State), cudaMemcpyHostToDevice);
-    on_policy_runner_gpu.step = on_policy_runner.step;
 
     // ---------------------------------------------------------------------
     // GPU-resident environment state (separate from on_policy_runner so kernels can mutate freely)
@@ -1270,8 +1248,6 @@ int main(int argc, char** argv){
     rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, ACTION_DIM>> gpu_d_action_train;
     rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, OBS_PRIV_DIM>> gpu_critic_obs;
     rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, 1>> gpu_d_critic_output;
-    rlt::Matrix<rlt::matrix::Specification<T, TI, STEPS_TOTAL_ALL, OBS_PRIV_DIM>> gpu_gae_obs;
-    rlt::Matrix<rlt::matrix::Specification<T, TI, STEPS_TOTAL_ALL, 1>> gpu_gae_values;
     rlt::Matrix<rlt::matrix::Specification<T, TI, STEPS_TOTAL, 1>> gpu_episode_lengths_log;
     rlt::Matrix<rlt::matrix::Specification<T, TI, STEPS_TOTAL, 1>> gpu_episode_returns_log;
     rlt::Matrix<rlt::matrix::Specification<T, TI, STEPS_TOTAL, 1>> gpu_episode_end_reasons_log;
@@ -1283,8 +1259,6 @@ int main(int argc, char** argv){
     rlt::malloc(device_gpu, gpu_d_action_train);
     rlt::malloc(device_gpu, gpu_critic_obs);
     rlt::malloc(device_gpu, gpu_d_critic_output);
-    rlt::malloc(device_gpu, gpu_gae_obs);
-    rlt::malloc(device_gpu, gpu_gae_values);
     rlt::malloc(device_gpu, gpu_episode_lengths_log);
     rlt::malloc(device_gpu, gpu_episode_returns_log);
     rlt::malloc(device_gpu, gpu_episode_end_reasons_log);
@@ -1402,7 +1376,7 @@ int main(int argc, char** argv){
         cudaMemcpy(gpu_episode_step_arr, group_episode_steps[accumulation_i].data(), N_ENVIRONMENTS * sizeof(TI), cudaMemcpyHostToDevice);
         cudaMemcpy(gpu_episode_return_arr, group_episode_returns[accumulation_i].data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
         cudaMemcpy(gpu_episode_end_reason_arr, group_episode_end_reasons[accumulation_i].data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
-        rlt::set_step(device, device.logger, on_policy_runner_gpu.step);
+        rlt::set_step(device, device.logger, environment_step);
         T rollout_episode_length_mean = 0;
         T rollout_episode_length_std = 0;
         T rollout_return_mean = 0;
@@ -1468,7 +1442,7 @@ int main(int argc, char** argv){
             record_video_scene_set = scene_set_i % VIDEO_SAVE_INTERVAL_SCENE_SETS == 0;
         }
         if(record_video_scene_set && ffmpeg_pipe == nullptr){
-            TI video_step = on_policy_runner_gpu.step + N_ENVIRONMENTS * STEPS_PER_ENV * ROLLOUTS_PER_SCENE_SET;
+            TI video_step = environment_step + N_ENVIRONMENTS * STEPS_PER_ENV * ROLLOUTS_PER_SCENE_SET;
             auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, video_step);
             std::filesystem::create_directories(step_folder);
             auto video_path = step_folder / "video.mp4";
@@ -1518,6 +1492,7 @@ int main(int argc, char** argv){
                 gpu_episode_start_step,
                 rng_gpu, step_i, frame_step_i, rng_offset);
             rlt::check_status(device_gpu);
+            rlt::evaluate_values(device_gpu, dataset_gpu, ppo_gpu.critic, critic_states_gae, critic_buffers_gae, rng_gpu, step_i);
             record_episode_start_kernel<<<grid, block, 0, device_gpu.stream>>>(gpu_episode_start_step, gpu_episode_start_step_per_row, step_i);
             rlt::check_status(device_gpu);
 
@@ -1700,6 +1675,11 @@ int main(int argc, char** argv){
                     dataset_gpu, rng_gpu, step_i, EPISODE_STEP_LIMIT, rng_offset);
                 rlt::check_status(device_gpu);
             }
+            if constexpr(ON_POLICY_RUNNER_SPEC::COLLECT_NEXT_OBSERVATIONS){
+                ppo_visual::final_priv_obs_kernel<<<grid, block, 0, device_gpu.stream>>>(tag_device, gpu_envs_arr, gpu_params_arr, gpu_states_arr, next_privileged_observations, rng_gpu, rng_offset);
+                rlt::check_status(device_gpu);
+                rlt::evaluate_bootstrap_values(device_gpu, dataset_gpu, next_privileged_observations, ppo_gpu.critic, critic_states_gae, critic_buffers_gae, rng_gpu, step_i);
+            }
             if(log_reward_components_this_step && step_i == STEPS_PER_ENV - 1){
                 cudaStreamSynchronize(device_gpu.stream);
                 cudaMemcpy(&reward_log_next_state, gpu_states_arr, sizeof(typename ENVIRONMENT::State), cudaMemcpyDeviceToHost);
@@ -1728,8 +1708,10 @@ int main(int argc, char** argv){
                 tag_device, gpu_envs_arr, gpu_params_arr, gpu_states_arr, final_obs_priv, rng_gpu, rng_offset);
             rlt::check_status(device_gpu);
         }
-        on_policy_runner_gpu.step += N_ENVIRONMENTS * STEPS_PER_ENV;
-        rlt::set_step(device, device.logger, on_policy_runner_gpu.step);
+        environment_step += N_ENVIRONMENTS * STEPS_PER_ENV;
+        rlt::set_step(device, device.logger, environment_step);
+
+        rlt::evaluate_rollout_values(device_gpu, dataset_gpu, ppo_gpu.critic, critic_buffers_gae, rng_gpu, PPO_SPEC::COLLECTION_MODE{});
 
         // =================================================================
         // GPU→CPU: copy dataset for GAE + training
@@ -1904,8 +1886,8 @@ int main(int argc, char** argv){
                 }
             }
             if(!completed_episodes.empty()){
-                auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, on_policy_runner_gpu.step);
-                auto& parameters_ref = rlt::get(on_policy_runner.env_parameters, 0, (TI)0);
+                auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, environment_step);
+                auto& parameters_ref = env_parameters[0];
                 std::string trajectories_json = trajectory_episodes_to_json(device, envs[0], parameters_ref, completed_episodes, simulation_dt);
                 std::vector<uint8_t> compressed;
                 if(rlt::compress_zlib(trajectories_json, compressed)){
@@ -1914,29 +1896,17 @@ int main(int argc, char** argv){
                     f.write(reinterpret_cast<const char*>(compressed.data()), compressed.size());
                     f.close();
                     auto latest_folder = rlt::get_latest_folder(device, extrack_paths);
-                    rlt::link_latest_artifact(device, latest_folder, trajectories_path, step_folder, on_policy_runner_gpu.step);
+                    rlt::link_latest_artifact(device, latest_folder, trajectories_path, step_folder, environment_step);
                 }
                 std::cout << "  Saved " << completed_episodes.size() << " trajectory episodes to " << step_folder << std::endl;
                 completed_episodes.clear();
             }
         }
-        on_policy_runner.step = on_policy_runner_gpu.step;
 
         // =================================================================
         // GAE
         // =================================================================
-        {
-            auto all_obs_priv_matrix = rlt::matrix_view(device, dataset.all_observations_privileged);
-            rlt::copy(device, device_gpu, all_obs_priv_matrix, gpu_gae_obs);
-            auto gpu_gae_obs_tensor = rlt::to_tensor(device_gpu, gpu_gae_obs);
-            auto gpu_gae_obs_reshaped = rlt::reshape_row_major(device_gpu, gpu_gae_obs_tensor, rlt::tensor::Shape<TI, 1, STEPS_TOTAL_ALL, OBS_PRIV_DIM>{});
-            auto gpu_gae_values_tensor = rlt::to_tensor(device_gpu, gpu_gae_values);
-            auto gpu_gae_values_reshaped = rlt::reshape_row_major(device_gpu, gpu_gae_values_tensor, rlt::tensor::Shape<TI, 1, STEPS_TOTAL_ALL, 1>{});
-            rlt::evaluate(device_gpu, ppo_gpu.critic, gpu_gae_obs_reshaped, gpu_gae_values_reshaped, critic_buffers_gae, rng_gpu);
-            cudaDeviceSynchronize();
-            rlt::copy(device_gpu, device, gpu_gae_values, dataset.all_values);
-        }
-        rlt::estimate_generalized_advantages(device, dataset, typename PPO_TYPE::SPEC::PARAMETERS{});
+        rlt::estimate_generalized_advantages(device, dataset, dataset.bootstrap_values, typename PPO_TYPE::SPEC::PARAMETERS{});
 
         // =================================================================
         // Keep weights fixed until all four rollouts have contributed; images can be
@@ -2131,10 +2101,10 @@ int main(int argc, char** argv){
         auto now = std::chrono::high_resolution_clock::now();
         std::chrono::duration<T> training_elapsed = now - training_start;
         std::chrono::duration<T> step_elapsed = now - step_start;
-        T sps_lifetime = on_policy_runner_gpu.step / training_elapsed.count();
+        T sps_lifetime = environment_step / training_elapsed.count();
         T sps_current = N_ENVIRONMENTS * STEPS_PER_ENV / step_elapsed.count();
         std::cout << "PPO step " << std::setw(5) << ppo_step_i
-                  << "  env_step " << std::setw(10) << on_policy_runner_gpu.step
+                  << "  env_step " << std::setw(10) << environment_step
                   << "  elapsed " << std::setw(7) << std::setprecision(3) << training_elapsed.count() << "s"
                   << "  (sps lifetime " << std::setw(6) << std::setprecision(0) << std::fixed << sps_lifetime
                   << ", current " << std::setw(6) << std::setprecision(0) << sps_current << ")" << std::defaultfloat << std::endl;
@@ -2190,7 +2160,7 @@ int main(int argc, char** argv){
 
         if(save_extrack_step){
             {
-                auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, on_policy_runner_gpu.step);
+                auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, environment_step);
                 auto latest_folder = rlt::get_latest_folder(device, extrack_paths);
                 std::filesystem::create_directories(step_folder);
 
@@ -2304,7 +2274,7 @@ int main(int argc, char** argv){
                     std::ofstream f(checkpoint_path, std::ios::binary);
                     f.write(writer.buffer.data(), writer.buffer.size());
                     f.close();
-                    rlt::link_latest_artifact(device, latest_folder, checkpoint_path, step_folder, on_policy_runner_gpu.step);
+                    rlt::link_latest_artifact(device, latest_folder, checkpoint_path, step_folder, environment_step);
                 }
 #if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
                 auto save_hdf5 = [&](auto batch_size_tag){
@@ -2334,9 +2304,9 @@ int main(int argc, char** argv){
                     return checkpoint_path;
                 };
                 auto reduced_checkpoint_path = save_hdf5(rlt::utils::typing::integral_constant<TI, REDUCED_BATCH_SIZE>{});
-                rlt::link_latest_artifact(device, latest_folder, reduced_checkpoint_path, step_folder, on_policy_runner_gpu.step);
+                rlt::link_latest_artifact(device, latest_folder, reduced_checkpoint_path, step_folder, environment_step);
                 auto full_checkpoint_path = save_hdf5(rlt::utils::typing::integral_constant<TI, N_EXAMPLES>{});
-                rlt::link_latest_artifact(device, latest_folder, full_checkpoint_path, step_folder, on_policy_runner_gpu.step);
+                rlt::link_latest_artifact(device, latest_folder, full_checkpoint_path, step_folder, environment_step);
 #endif
                 if constexpr(EXPORT_CHECKPOINT_CODE){
                     auto actor_weights = rlt::save_code(device, eval_actor, std::string("rl_tools::checkpoint::actor"), true);
@@ -2366,7 +2336,7 @@ int main(int argc, char** argv){
                         std::ofstream f(checkpoint_code_path, std::ios::binary);
                         f.write(reinterpret_cast<const char*>(compressed.data()), compressed.size());
                         f.close();
-                        rlt::link_latest_artifact(device, latest_folder, checkpoint_code_path, step_folder, on_policy_runner_gpu.step);
+                        rlt::link_latest_artifact(device, latest_folder, checkpoint_code_path, step_folder, environment_step);
                     }
 #endif
                     {
@@ -2374,7 +2344,7 @@ int main(int argc, char** argv){
                         std::ofstream f(checkpoint_code_path);
                         f << output_string;
                         f.close();
-                        rlt::link_latest_artifact(device, latest_folder, checkpoint_code_path, step_folder, on_policy_runner_gpu.step);
+                        rlt::link_latest_artifact(device, latest_folder, checkpoint_code_path, step_folder, environment_step);
                     }
                 }
                 rlt::free(device, example_input_0_image);
@@ -2397,14 +2367,13 @@ int main(int argc, char** argv){
 
     close_video_pipe();
 
-    std::cout << "Training finished at env step " << on_policy_runner_gpu.step << std::endl;
+    std::cout << "Training finished at env step " << environment_step << std::endl;
 
     // ---------------------------------------------------------------------
     // Cleanup (minimal — process exit will reclaim)
     // ---------------------------------------------------------------------
     rlt::free(device, ppo);
     rlt::free(device, ppo_buffers);
-    rlt::free(device, on_policy_runner);
     rlt::free(device, dataset);
     rlt::free(device, actor_optimizer);
     rlt::free(device, critic_optimizer);
@@ -2417,8 +2386,8 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, ppo_gpu);
     rlt::free(device_gpu, actor_buffers);
     rlt::free(device_gpu, critic_buffers);
-    rlt::free(device_gpu, critic_buffers_gae);
-    rlt::free(device_gpu, on_policy_runner_gpu);
+    rlt::free(device_gpu, critic_states_gae); rlt::free(device_gpu, critic_buffers_gae);
+    if constexpr(ON_POLICY_RUNNER_SPEC::COLLECT_NEXT_OBSERVATIONS) rlt::free(device_gpu, next_privileged_observations);
     rlt::free(device_gpu, dataset_gpu);
     rlt::free(device_gpu, rollout_actor_gpu);
     rlt::free(device_gpu, rollout_actor_buffers);
@@ -2434,8 +2403,6 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, gpu_d_action_train);
     rlt::free(device_gpu, gpu_critic_obs);
     rlt::free(device_gpu, gpu_d_critic_output);
-    rlt::free(device_gpu, gpu_gae_obs);
-    rlt::free(device_gpu, gpu_gae_values);
     rlt::free(device_gpu, gpu_episode_lengths_log);
     rlt::free(device_gpu, gpu_episode_returns_log);
     rlt::free(device_gpu, gpu_episode_end_reasons_log);

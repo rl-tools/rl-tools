@@ -316,6 +316,8 @@ extern "C" {
         rlt::malloc(impl->device, impl->reset_mask);
         rlt::malloc(impl->device, impl->terminated_flags);
         rlt::malloc(impl->device, impl->rewards);
+        rlt::set_all(impl->device, impl->terminated_flags, false);
+        rlt::set_all(impl->device, impl->rewards, (T)0);
         return impl;
     }
     void hyperdrone_env_destroy(void* handle){

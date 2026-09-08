@@ -11,6 +11,9 @@ namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 
 #include <gtest/gtest.h>
 #include <rl_tools/persist/backends/hdf5/operations_cpu.h>
+#include <rl_tools/persist/backends/tar/operations_cpu.h>
+#include <rl_tools/rl/environments/mujoco/ant/persist.h>
+#include <metra/metra.h>
 
 namespace TEST_DEFINITIONS{
     using DEVICE = rlt::devices::DefaultCPU;
@@ -226,4 +229,61 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, CHECK_INTERFACE){
             state_age++;
         }
     }
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_MUJOCO_ANT, SEMANTIC_CHECKPOINT_RESUME){
+    using namespace rl_tools;
+    using namespace TEST_DEFINITIONS;
+    DEVICE device;
+    ENVIRONMENT original, hdf5, tar;
+    RNG rng;
+    malloc(device, original); malloc(device, hdf5); malloc(device, tar);
+    malloc(device, rng); init(device, rng, 42);
+    ENVIRONMENT::Parameters parameters;
+    ENVIRONMENT::State state, next;
+    Matrix<matrix::Specification<T, TI, 1, ENVIRONMENT::ACTION_DIM>> actions;
+    malloc(device, actions); set_all(device, actions, (T)0.3);
+    original.model->opt.gravity[2] = -5;
+    sample_initial_parameters(device, original, parameters, rng);
+    sample_initial_state(device, original, parameters, state, rng);
+    for(TI i = 0; i < 5; i++){ step(device, original, parameters, state, actions, next, rng); state = next; }
+    const char* path = "test_ant_environment_checkpoint.h5";
+    {
+        persist::backends::hdf5::File file(path, persist::backends::hdf5::Mode::WRITE);
+        auto group = create_group(device, file, "environment");
+        save(device, original, group);
+    }
+    {
+        persist::backends::hdf5::File file(path, persist::backends::hdf5::Mode::READ);
+        auto group = get_group(device, file, "environment");
+        ASSERT_TRUE(load(device, hdf5, group));
+    }
+    persist::backends::tar::Writer writer;
+    persist::backends::tar::WriterGroup<persist::backends::tar::WriterGroupSpecification<TI, decltype(writer)>> output{"", &writer};
+    save(device, original, output);
+    persist::backends::tar::finalize(device, writer);
+    persist::backends::tar::ReaderGroup<persist::backends::tar::ReaderGroupSpecification<TI>> input;
+    input.data = {writer.buffer.data(), static_cast<TI>(writer.buffer.size())};
+    ASSERT_TRUE(load(device, tar, input));
+    EXPECT_NE(hdf5.model, original.model); EXPECT_NE(tar.model, original.model);
+    EXPECT_NE(hdf5.data, original.data); EXPECT_NE(tar.data, original.data);
+    EXPECT_EQ(hdf5.model->opt.gravity[2], -5); EXPECT_EQ(tar.model->opt.gravity[2], -5);
+    for(TI i = 0; i < 10; i++){
+        ENVIRONMENT::State hdf5_next, tar_next;
+        step(device, original, parameters, state, actions, next, rng);
+        step(device, hdf5, parameters, state, actions, hdf5_next, rng);
+        step(device, tar, parameters, state, actions, tar_next, rng);
+        for(TI j = 0; j < ENVIRONMENT_SPEC::STATE_DIM_Q; j++){
+            EXPECT_EQ(next.q[j], hdf5_next.q[j]); EXPECT_EQ(next.q[j], tar_next.q[j]);
+        }
+        for(TI j = 0; j < ENVIRONMENT_SPEC::STATE_DIM_Q_DOT; j++){
+            EXPECT_EQ(next.q_dot[j], hdf5_next.q_dot[j]); EXPECT_EQ(next.q_dot[j], tar_next.q_dot[j]);
+        }
+        EXPECT_EQ(original.last_reward, hdf5.last_reward); EXPECT_EQ(original.last_reward, tar.last_reward);
+        EXPECT_EQ(original.last_terminated, hdf5.last_terminated); EXPECT_EQ(original.last_terminated, tar.last_terminated);
+        state = next;
+    }
+    free(device, actions); free(device, rng); free(device, tar); free(device, hdf5); free(device, original);
+    std::remove(path);
+    metra::log("mujoco/ant/checkpoint_failures", ::testing::Test::HasFailure() ? 1.0 : 0.0);
 }

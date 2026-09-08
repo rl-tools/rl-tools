@@ -5,24 +5,29 @@
 
 #include "../../../utils/generic/typing.h"
 #include "../../../rl/environments/observation.h"
+#include "../../../containers/tensor/tensor.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::components{
     namespace on_policy_runner{
-        template <typename T_TYPE_POLICY, typename T_TI, typename T_ENVIRONMENT, typename T_POLICY_STATE, T_TI T_N_ENVIRONMENTS = 1, T_TI T_STEP_LIMIT = 0, T_TI T_N_AGENTS_PER_ENV = 1, bool T_TRUNCATE_ON_EACH_ITERATION = false, bool T_DYNAMIC_ALLOCATION=true>
+        template <typename T_TYPE_POLICY, typename T_BATCH_ENVIRONMENT, typename T_POLICY_STATE, typename T_OBSERVATION = typename T_BATCH_ENVIRONMENT::Observation, typename T_OBSERVATION_PRIVILEGED = typename T_BATCH_ENVIRONMENT::ObservationPrivileged, typename T_OBSERVATION_T = typename T_TYPE_POLICY::DEFAULT, typename T_OBSERVATION_PRIVILEGED_T = typename T_TYPE_POLICY::DEFAULT, typename T_BATCH_ENVIRONMENT::TI T_STEP_LIMIT = T_BATCH_ENVIRONMENT::EPISODE_STEP_LIMIT, bool T_TRUNCATE_ON_EACH_ITERATION = false, bool T_DYNAMIC_ALLOCATION = true, bool T_COLLECT_NEXT_OBSERVATIONS = true>
         struct Specification{
             using TYPE_POLICY = T_TYPE_POLICY;
-            using TI = T_TI;
-            using ENVIRONMENT = T_ENVIRONMENT;
+            using T = typename TYPE_POLICY::DEFAULT;
+            using BATCH_ENVIRONMENT = T_BATCH_ENVIRONMENT;
+            using TI = typename BATCH_ENVIRONMENT::TI;
             using POLICY_STATE = T_POLICY_STATE;
-            static constexpr TI N_ENVIRONMENTS = T_N_ENVIRONMENTS;
+            using OBSERVATION = T_OBSERVATION;
+            using OBSERVATION_PRIVILEGED = T_OBSERVATION_PRIVILEGED;
+            using OBSERVATION_T = T_OBSERVATION_T;
+            using OBSERVATION_PRIVILEGED_T = T_OBSERVATION_PRIVILEGED_T;
+            static constexpr TI N_ENVIRONMENTS = BATCH_ENVIRONMENT::INSTANCES;
             static constexpr TI STEP_LIMIT = T_STEP_LIMIT;
-            static constexpr bool ASYMMETRIC_OBSERVATIONS = !rl_tools::utils::typing::is_same_v<typename ENVIRONMENT::Observation, typename ENVIRONMENT::ObservationPrivileged>;
-            static constexpr TI N_AGENTS_PER_ENV = T_N_AGENTS_PER_ENV; // 1 for single agent, >1 for multi-agent
-            static constexpr bool DYANMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
-            static constexpr TI EPISODE_STATS_N_ENVIRONMENTS = 1;
-            static constexpr TI EPISODE_STATS_CADENCE = 100;
+            static constexpr bool ASYMMETRIC_OBSERVATIONS = !rl_tools::utils::typing::is_same_v<OBSERVATION, OBSERVATION_PRIVILEGED>;
+            static constexpr TI N_AGENTS_PER_ENV = BATCH_ENVIRONMENT::N_AGENTS;
+            static constexpr bool DYNAMIC_ALLOCATION = T_DYNAMIC_ALLOCATION;
             static constexpr bool TRUNCATE_ON_EACH_ITERATION = T_TRUNCATE_ON_EACH_ITERATION;
+            static constexpr bool COLLECT_NEXT_OBSERVATIONS = T_COLLECT_NEXT_OBSERVATIONS;
         };
 
         template <typename T_SPEC, typename T_SPEC::TI T_STEPS_PER_ENV, bool T_DYNAMIC_ALLOCATION = true>
@@ -46,24 +51,25 @@ namespace rl_tools::rl::components{
             static constexpr TI STEPS_PER_ENV = DATASET_SPEC::STEPS_PER_ENV;
             static constexpr TI STEPS_TOTAL = DATASET_SPEC::STEPS_TOTAL;
 
-            using OBS_SHAPE = typename SPEC::ENVIRONMENT::Observation::SHAPE;
-            using OBS_PRIV_SHAPE = typename SPEC::ENVIRONMENT::ObservationPrivileged::SHAPE;
+            using OBS_SHAPE = typename SPEC::OBSERVATION::SHAPE;
+            using OBS_PRIV_SHAPE = typename SPEC::OBSERVATION_PRIVILEGED::SHAPE;
 
             // Observation tensor storage (always flat to ensure matrix_view gives (N, DIM) rows)
-            using ALL_OBS_STORAGE_SHAPE = tensor::Shape<TI, DATASET_SPEC::STEPS_TOTAL_ALL, SPEC::ENVIRONMENT::Observation::DIM>;
-            using ALL_OBS_PRIV_STORAGE_SHAPE = tensor::Shape<TI, DATASET_SPEC::STEPS_TOTAL_ALL, SPEC::ENVIRONMENT::ObservationPrivileged::DIM>;
-            Tensor<tensor::Specification<T, TI, ALL_OBS_STORAGE_SHAPE, DATASET_SPEC::DYNAMIC_ALLOCATION>> all_observations;
-            Tensor<tensor::Specification<T, TI, ALL_OBS_PRIV_STORAGE_SHAPE, DATASET_SPEC::DYNAMIC_ALLOCATION>> all_observations_privileged;
+            using ALL_OBS_STORAGE_SHAPE = tensor::Shape<TI, DATASET_SPEC::STEPS_TOTAL_ALL, SPEC::OBSERVATION::DIM>;
+            using ALL_OBS_PRIV_STORAGE_SHAPE = tensor::Shape<TI, DATASET_SPEC::STEPS_TOTAL_ALL, SPEC::OBSERVATION_PRIVILEGED::DIM>;
+            // the observation storage types follow the specification (e.g. bf16 frames), the scalar data is T
+            Tensor<tensor::Specification<typename SPEC::OBSERVATION_T, TI, ALL_OBS_STORAGE_SHAPE, DATASET_SPEC::DYNAMIC_ALLOCATION>> all_observations;
+            Tensor<tensor::Specification<typename SPEC::OBSERVATION_PRIVILEGED_T, TI, ALL_OBS_PRIV_STORAGE_SHAPE, DATASET_SPEC::DYNAMIC_ALLOCATION>> all_observations_privileged;
 
             // Scalar data (actions, rewards, flags, values, advantages)
-            static constexpr TI SCALAR_DATA_DIM = SPEC::ENVIRONMENT::ACTION_DIM * 2 + 8;
+            static constexpr TI SCALAR_DATA_DIM = SPEC::BATCH_ENVIRONMENT::ACTION_DIM * 2 + 8 + SPEC::COLLECT_NEXT_OBSERVATIONS;
             Matrix<matrix::Specification<T, TI, STEPS_TOTAL + SPEC::N_ENVIRONMENTS, SCALAR_DATA_DIM, DATASET_SPEC::DYNAMIC_ALLOCATION>> scalar_data;
 
             template<TI VIEW_DIM, bool ALL = false>
             using SCALAR_VIEW = typename decltype(scalar_data)::template VIEW<STEPS_TOTAL + (ALL ? SPEC::N_ENVIRONMENTS : 0), VIEW_DIM>;
 
-            SCALAR_VIEW<SPEC::ENVIRONMENT::ACTION_DIM> actions_mean;
-            SCALAR_VIEW<SPEC::ENVIRONMENT::ACTION_DIM> actions;
+            SCALAR_VIEW<SPEC::BATCH_ENVIRONMENT::ACTION_DIM> actions_mean;
+            SCALAR_VIEW<SPEC::BATCH_ENVIRONMENT::ACTION_DIM> actions;
             SCALAR_VIEW<1> action_log_probs;
             SCALAR_VIEW<1> rewards;
             SCALAR_VIEW<1> terminated;
@@ -74,29 +80,39 @@ namespace rl_tools::rl::components{
             SCALAR_VIEW<1> values;
             SCALAR_VIEW<1> advantages;
             SCALAR_VIEW<1> target_values;
+            SCALAR_VIEW<1> bootstrap_values;
         };
-        template <typename TI, TI T_NUM_THREADS>
-        struct ExecutionHints{
-            static constexpr TI NUM_THREADS = T_NUM_THREADS;
+        struct NoNextObservations{};
+        template <typename T_SPEC>
+        struct Buffer{
+            using SPEC = T_SPEC;
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            using BATCH_ENVIRONMENT = typename SPEC::BATCH_ENVIRONMENT;
+            Tensor<tensor::Specification<typename BATCH_ENVIRONMENT::State, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>, SPEC::DYNAMIC_ALLOCATION>> next_states;
+            Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS, BATCH_ENVIRONMENT::ACTION_DIM>, SPEC::DYNAMIC_ALLOCATION>> actions;
+            Tensor<tensor::Specification<T, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>, SPEC::DYNAMIC_ALLOCATION>> rewards;
+            Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>, SPEC::DYNAMIC_ALLOCATION>> terminated;
+            utils::typing::conditional_t<SPEC::COLLECT_NEXT_OBSERVATIONS, Tensor<tensor::Specification<typename SPEC::OBSERVATION_PRIVILEGED_T, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS, SPEC::OBSERVATION_PRIVILEGED::DIM>, SPEC::DYNAMIC_ALLOCATION>>, NoNextObservations> next_observations_privileged;
         };
     }
 
     template <typename T_SPEC>
-    struct OnPolicyRunner{
+    struct OnPolicyRunner {
         using SPEC = T_SPEC;
         using TYPE_POLICY = typename SPEC::TYPE_POLICY;
+        using T = typename SPEC::T;
         using TI = typename SPEC::TI;
+        using BATCH_ENVIRONMENT = typename SPEC::BATCH_ENVIRONMENT;
+        using FLAG_SPEC = tensor::Specification<bool, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>, SPEC::DYNAMIC_ALLOCATION>;
+        using COUNTER_SPEC = tensor::Specification<TI, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>, SPEC::DYNAMIC_ALLOCATION>;
 
-        TI step = 0;
 
         typename SPEC::POLICY_STATE policy_state;
-
-        Matrix<matrix::Specification<typename SPEC::ENVIRONMENT            , TI, 1, SPEC::N_ENVIRONMENTS, SPEC::DYANMIC_ALLOCATION>> environments;
-        Matrix<matrix::Specification<typename SPEC::ENVIRONMENT::Parameters, TI, 1, SPEC::N_ENVIRONMENTS, SPEC::DYANMIC_ALLOCATION>> env_parameters;
-        Matrix<matrix::Specification<typename SPEC::ENVIRONMENT::State     , TI, 1, SPEC::N_ENVIRONMENTS, SPEC::DYANMIC_ALLOCATION>> states;
-        Matrix<matrix::Specification<bool                                  , TI, 1, SPEC::N_ENVIRONMENTS, SPEC::DYANMIC_ALLOCATION>> truncated;
-        Matrix<matrix::Specification<TI                                    , TI, 1, SPEC::N_ENVIRONMENTS, SPEC::DYANMIC_ALLOCATION>> episode_step;
-        Matrix<matrix::Specification<typename TYPE_POLICY::DEFAULT         , TI, 1, SPEC::N_ENVIRONMENTS, SPEC::DYANMIC_ALLOCATION>> episode_return;
+        Tensor<tensor::Specification<typename BATCH_ENVIRONMENT::Parameters, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>, SPEC::DYNAMIC_ALLOCATION>> env_parameters;
+        Tensor<tensor::Specification<typename BATCH_ENVIRONMENT::State, TI, tensor::Shape<TI, SPEC::N_ENVIRONMENTS>, SPEC::DYNAMIC_ALLOCATION>> states;
+        Tensor<COUNTER_SPEC> episode_step;
+        Tensor<FLAG_SPEC> reset;
 #ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT
         bool initialized = false;
 #endif

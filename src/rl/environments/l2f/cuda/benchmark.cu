@@ -104,7 +104,7 @@ void simulate_sequential(DEVICE& device, const ENVIRONMENT* envs, ENVIRONMENT::P
 template <typename DEVICE, typename SPEC_SIMULATE>
 __global__ void
 __launch_bounds__(SPEC_SIMULATE::BLOCK_DIM)//, minBlocksPerMultiprocessor, maxBlocksPerCluster)
-simulate_parallel(DEVICE& device, const ENVIRONMENT* envs, ENVIRONMENT::Parameters* parameters, const typename ENVIRONMENT::State* states_input, typename ENVIRONMENT::State* next_states_output, const SPEC_SIMULATE) {
+simulate_parallel(DEVICE device, const ENVIRONMENT* envs, ENVIRONMENT::Parameters* parameters, const typename ENVIRONMENT::State* states_input, typename ENVIRONMENT::State* next_states_output, const SPEC_SIMULATE) {
     using STATE = typename ENVIRONMENT::State;
     using TI = typename DEVICE::index_t;
     const TI full_id = blockIdx.x * blockDim.x + threadIdx.x;
@@ -191,7 +191,7 @@ int main(void) {
         std::cout << "Simulation time (CPU):  " << elapsedTime << " ms (" << N_BLOCKS_CPU * N_THREADS_CPU * N_ITERATIONS / (elapsedTime / 1000.0) / 1e6 << " Msteps/s)" << std::endl;
     }
 
-    DEVICE_GPU device_gpu;
+    rlt::devices::cuda::TAG<DEVICE_GPU, true> tag_device{};
     {
         ENVIRONMENT* envs_gpu;
         ENVIRONMENT::Parameters* parameters_gpu;
@@ -214,7 +214,7 @@ int main(void) {
         cudaEventRecord(start, 0);
         dim3 grid(N_BLOCKS);
         dim3 threadsPerBlock(N_THREADS);
-        simulate_parallel<<<grid, threadsPerBlock>>>(device_gpu, envs_gpu, parameters_gpu, initial_states_gpu, final_states_gpu, SimulateParallelSpec<N_BLOCKS, N_THREADS, N_ITERATIONS>{});
+        simulate_parallel<<<grid, threadsPerBlock>>>(tag_device, envs_gpu, parameters_gpu, initial_states_gpu, final_states_gpu, SimulateParallelSpec<N_BLOCKS, N_THREADS, N_ITERATIONS>{});
         cudaEventRecord(stop, 0);
         cudaEventSynchronize(stop);
         auto err = cudaGetLastError();

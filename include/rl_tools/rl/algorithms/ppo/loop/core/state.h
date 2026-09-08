@@ -4,7 +4,6 @@
 #define RL_TOOLS_RL_ALGORITHMS_PPO_LOOP_CORE_STATE_H
 
 #include "../../../../../rl/algorithms/ppo/ppo.h"
-#include "../../../../../rl/components/off_policy_runner/off_policy_runner.h"
 #include "../../../../../rl/environments/environments.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -23,15 +22,15 @@ namespace rl_tools{
             typename CONFIG::RNG rng;
             typename CONFIG::PPO_TYPE ppo;
             typename CONFIG::PPO_BUFFERS_TYPE ppo_buffers;
+            typename CONFIG::BATCH_ENVIRONMENT environment;
             typename CONFIG::ON_POLICY_RUNNER_TYPE on_policy_runner;
+            typename CONFIG::ON_POLICY_RUNNER_BUFFER_TYPE on_policy_runner_buffer;
             typename CONFIG::ON_POLICY_RUNNER_DATASET_TYPE on_policy_runner_dataset;
             typename CONFIG::ACTOR_EVAL_BUFFERS actor_eval_buffers;
             typename CONFIG::ACTOR_BUFFERS actor_buffers;
             typename CONFIG::CRITIC_BUFFERS critic_buffers;
-            typename CONFIG::CRITIC_BUFFERS_GAE critic_buffers_gae;
-            Tensor<tensor::Specification<typename CONFIG::ENVIRONMENT, TI, tensor::Shape<TI, CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS>, DYNAMIC_ALLOCATION>> envs;
-            Tensor<tensor::Specification<typename CONFIG::ENVIRONMENT::Parameters, TI, tensor::Shape<TI, CONFIG::CORE_PARAMETERS::N_ENVIRONMENTS>, DYNAMIC_ALLOCATION>> env_parameters;
-//            MatrixDynamic<matrix::Specification<typename CONFIG::T, TI, 1, CONFIG::ENVIRONMENT::Observation::DIM>> observations_mean, observations_std;
+            typename CONFIG::CRITIC_COLLECTION_STATE critic_collection_state;
+            typename CONFIG::CRITIC_COLLECTION_BUFFER critic_collection_buffer;
             environments::DummyUI ui;
             TI next_checkpoint_id = 0;
             TI next_evaluation_id = 0;

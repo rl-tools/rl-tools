@@ -110,6 +110,10 @@ namespace rl_tools::utils::typing {
 
     template <typename...>
     using void_t = void;
+
+    // unevaluated-context lvalue for expression detection (std::declval is not freestanding)
+    template <typename T>
+    T& declared_lvalue();
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

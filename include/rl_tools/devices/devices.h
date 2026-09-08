@@ -11,9 +11,14 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     namespace devices {
         struct ExecutionHints{};
+        namespace detail {
+            template <typename SPEC, typename = void>
+            struct Extension {};
+            template <typename SPEC>
+            struct Extension<SPEC, utils::typing::void_t<typename SPEC::DEVICE_EXTENSION>>: SPEC::DEVICE_EXTENSION {};
+        }
         template <typename DEV_SPEC>
-        struct Device{
-        };
+        struct Device: detail::Extension<DEV_SPEC> {};
         // todo: deprecate the global device id and move it to the cpu devices which sometimes need compatibility checks
         enum class DeviceId{
             Generic,

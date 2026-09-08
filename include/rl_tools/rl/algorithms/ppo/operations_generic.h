@@ -53,15 +53,16 @@ namespace rl_tools{
         zero_gradient(device, ppo.actor);
         reset_optimizer_state(device, critic_optimizer, ppo.critic);
     }
-    template <typename DEVICE, typename DATASET_SPEC, typename PPO_PARAMETERS>
-    RL_TOOLS_FUNCTION_PLACEMENT void estimate_generalized_advantages(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, PPO_PARAMETERS ppo_parameters_tag){
+    template <typename DEVICE, typename DATASET_SPEC, typename BOOTSTRAP_SPEC, typename PPO_PARAMETERS>
+    RL_TOOLS_FUNCTION_PLACEMENT void estimate_generalized_advantages(DEVICE& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, const Matrix<BOOTSTRAP_SPEC>& bootstrap_values, PPO_PARAMETERS ppo_parameters_tag){
+        static_assert(DATASET_SPEC::SPEC::COLLECT_NEXT_OBSERVATIONS || !(PPO_PARAMETERS::BOOTSTRAP_TRUNCATIONS || PPO_PARAMETERS::IGNORE_TERMINATION), "PPO bootstrapping requires pre-reset observation capture");
+        static_assert(BOOTSTRAP_SPEC::ROWS == DATASET_SPEC::STEPS_TOTAL && BOOTSTRAP_SPEC::COLS == 1, "GAE requires one bootstrap value per transition");
         using OPR_SPEC = typename DATASET_SPEC::SPEC;
         using BUFFER = decltype(dataset);
         using T = typename DATASET_SPEC::SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename DEVICE::index_t;
         constexpr TI STEPS_PER_ENV = DATASET_SPEC::STEPS_PER_ENV;
         for(TI env_i = 0; env_i < OPR_SPEC::N_ENVIRONMENTS; env_i++){
-            T previous_value = get(dataset.all_values, STEPS_PER_ENV * OPR_SPEC::N_ENVIRONMENTS + env_i, 0);
             T previous_advantage = 0;
             for(TI step_forward_i = 0; step_forward_i < STEPS_PER_ENV; step_forward_i++){
                 TI step_backward_i = (STEPS_PER_ENV - 1 - step_forward_i);
@@ -72,21 +73,17 @@ namespace rl_tools{
                 utils::assert_exit(device, !terminated || (terminated && truncated), "terminationn should imply truncation");
 #endif
                 T current_step_value = get(dataset.values, pos, 0);
-                bool terminated_actual = terminated && !PPO_PARAMETERS::IGNORE_TERMINATION;
-                T next_step_value = terminated_actual ? 0 : previous_value;
+                bool stop_bootstrap = terminated ? !PPO_PARAMETERS::IGNORE_TERMINATION : (truncated && !PPO_PARAMETERS::BOOTSTRAP_TRUNCATIONS);
+                T next_step_value = stop_bootstrap ? 0 : get(bootstrap_values, pos, 0);
 
                 T td_error = get(dataset.rewards, pos, 0) + PPO_PARAMETERS::GAMMA * next_step_value - current_step_value;
                 if(truncated){
-                    if(!terminated){ // e.g. time limited or random truncation
-                        td_error = 0;
-                    }
                     previous_advantage = 0;
                 }
                 T advantage = PPO_PARAMETERS::LAMBDA * PPO_PARAMETERS::GAMMA * previous_advantage + td_error;
                 set(dataset.advantages, pos, 0, advantage);
                 set(dataset.target_values, pos, 0, advantage + current_step_value);
                 previous_advantage = advantage;
-                previous_value = current_step_value;
             }
         }
     }
@@ -187,7 +184,8 @@ namespace rl_tools{
 #endif
         using T = typename PPO_SPEC::TYPE_POLICY::DEFAULT;
         using TI = typename PPO_SPEC::TI;
-        static_assert(utils::typing::is_same_v<typename PPO_SPEC::ENVIRONMENT, typename DATASET_SPEC::SPEC::ENVIRONMENT>, "environment mismatch");
+        static_assert(PPO_SPEC::ENVIRONMENT::ACTION_DIM == DATASET_SPEC::SPEC::BATCH_ENVIRONMENT::ACTION_DIM, "environment action dimension mismatch");
+        static_assert(PPO_SPEC::ENVIRONMENT::N_AGENTS == DATASET_SPEC::SPEC::BATCH_ENVIRONMENT::N_AGENTS, "environment agent count mismatch");
         using ENVIRONMENT = typename PPO_SPEC::ENVIRONMENT;
         using DATASET = rl::components::on_policy_runner::Dataset<DATASET_SPEC>;
         static_assert(DATASET::STEPS_TOTAL > 1);
@@ -268,7 +266,7 @@ namespace rl_tools{
                 auto current_batch_actions_tensor_reshaped = reshape_row_major(device, current_batch_actions_tensor, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, ACTION_DIM>{});
                 auto batch_reset_tensor_flat = to_tensor(device, batch_reset);
                 auto batch_reset_tensor = reshape_row_major(device, batch_reset_tensor_flat, tensor::Shape<TI, STEPS, FORWARD_BATCH_SIZE, 1>{});
-                Mode<nn::layers::gru::ResetMode<mode::Rollout<>, nn::layers::gru::ResetModeSpecification<TI, decltype(batch_reset_tensor)>>> mode;
+                Mode<mode::sequential::ResetMode<mode::Rollout<>, mode::sequential::ResetModeSpecification<TI, decltype(batch_reset_tensor)>>> mode;
                 mode.reset_container = batch_reset_tensor;
                 forward(device, ppo.actor, batch_observations_reshaped, current_batch_actions_tensor_reshaped, actor_buffers, rng, mode);
 

@@ -5,6 +5,8 @@
 
 #include "../../../rl/components/running_normalizer/running_normalizer.h"
 #include "../../../utils/generic/typing.h"
+#include "../../../numeric_types/categories.h"
+#include "../../components/on_policy_runner/collection.h"
 
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -32,6 +34,7 @@ namespace rl_tools::rl::algorithms{
             static constexpr TI N_EPOCHS = 10;
             static constexpr TI BATCH_SIZE = T_BATCH_SIZE;
             static constexpr bool IGNORE_TERMINATION = false; // ignoring the termination flag is useful for training on environments with negative rewards, where the agent would try to terminate the episode as soon as possible otherwise
+            static constexpr bool BOOTSTRAP_TRUNCATIONS = true;
             static constexpr bool SHUFFLE_EPOCH = true;
             static constexpr bool STATEFUL_ACTOR_AND_CRITIC = false;
             static constexpr bool TRUNCATE_ON_EACH_ITERATION = false;
@@ -52,6 +55,9 @@ namespace rl_tools::rl::algorithms{
             using ACTOR_TYPE = T_ACTOR_TYPE;
             using CRITIC_TYPE = T_CRITIC_TYPE;
             using PARAMETERS = T_PARAMETERS;
+            using COLLECTION_MODE = Mode<utils::typing::conditional_t<PARAMETERS::STATEFUL_ACTOR_AND_CRITIC,
+                mode::on_policy_runner::Sequential<mode::on_policy_runner::ActorCritic<>>,
+                mode::on_policy_runner::ActorCritic<>>>;
             static constexpr bool ASYMMETRIC_OBSERVATIONS = !rl_tools::utils::typing::is_same_v<typename ENVIRONMENT::Observation, typename ENVIRONMENT::ObservationPrivileged>;
 
             static_assert(get_last(typename ACTOR_TYPE::OUTPUT_SHAPE{}) == ENVIRONMENT::ACTION_DIM);

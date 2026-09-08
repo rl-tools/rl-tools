@@ -53,7 +53,7 @@ namespace rl_tools::devices{
     }
     namespace cuda{
         template <typename T_SPEC>
-        struct CUDA_FAT: cuda::Base{
+        struct CUDA_FAT: Device<T_SPEC>, cuda::Base{
             template <typename OTHER_DEVICE>
             static constexpr bool compatible = OTHER_DEVICE::DEVICE_ID == DeviceId::CUDA;
             using SPEC = T_SPEC;

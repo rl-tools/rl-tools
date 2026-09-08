@@ -42,13 +42,13 @@ namespace rl_tools {
     void init(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, typename TASK_SPEC::NEXT_WORLD::SharedContext& shared, const DATASET& dataset, const typename DATASET::Corpus& corpus, typename TASK_SPEC::TI first_scene, typename TASK_SPEC::TI num_scenes, typename TASK_SPEC::TI member_index) {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         init(device, static_cast<NEXT_WORLD&>(world), shared, dataset, corpus, first_scene, num_scenes, member_index);
-        malloc(world.renderer.device, world.target_frames);
+        malloc(device, world.target_frames);
     }
     template <typename DEVICE, typename TASK_SPEC>
     void free(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world) {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         if (!world.slots.empty()) {
-            free(world.renderer.device, world.target_frames);
+            free(device, world.target_frames);
         }
         free(device, static_cast<NEXT_WORLD&>(world));
     }
@@ -73,7 +73,9 @@ namespace rl_tools {
     // to per-step re-rendering since pose and brightness are fixed per episode), then the student
     // frame render forwards to the base
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
-    void render(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask) {
+    void render(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input) {
+        request_render(device, world, reset_mask_input);
+        auto& reset_mask = world.render_reset;
         using T = typename TASK_SPEC::T;
         using TI = typename TASK_SPEC::TI;
         using WORLD = rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
@@ -106,7 +108,7 @@ namespace rl_tools {
             {
                 Tensor<typename WORLD::TARGET_FRAMES_SPEC> target_alias;
                 target_alias._data = target_staging.data();
-                copy(world.renderer.device, device, world.target_frames, target_alias);
+                copy(device, device, world.target_frames, target_alias);
                 for (TI instance_i = 0; instance_i < INSTANCES; instance_i++) {
                     if (!get(device, reset_mask, instance_i)) {
                         continue;
@@ -121,7 +123,7 @@ namespace rl_tools {
                         }
                     }
                 }
-                copy(device, world.renderer.device, target_alias, world.target_frames);
+                copy(device, device, target_alias, world.target_frames);
             }
         }
         render(device, static_cast<NEXT_WORLD&>(world), parameters, states, reset_mask);
@@ -141,22 +143,25 @@ namespace rl_tools {
         constexpr TI STACK_N = TASK_SPEC::IMAGE_STACK_N;
         constexpr TI STACK_STRIDE = TASK_SPEC::IMAGE_STACK_STRIDE;
         constexpr TI TOTAL_CHANNELS = WORLD::OBSERVATION_CHANNELS;
+        if(world.render_pending){
+            render(device, world, parameters, states, world.render_reset);
+        }
         static_assert(get<0>(typename OBSERVATION_SPEC::SHAPE{}) == INSTANCES);
         static_assert(get<1>(typename OBSERVATION_SPEC::SHAPE{}) == WORLD::OBSERVATION_DIM);
-        utils::assert_exit(device, world.history_step > 0, "hyperdrone::tasks::target_frame::observe: render must be called before observe");
+        utils::assert_exit(device, world.history_step > 0, "hyperdrone::tasks::target_frame::observe: no frame available");
         const TI latest = world.history_step - 1;
 
         std::vector<TI> episode_start_staging(INSTANCES);
         {
             Tensor<typename NEXT_WORLD::EPISODE_START_SPEC> episode_start_alias;
             episode_start_alias._data = episode_start_staging.data();
-            copy(world.renderer.device, device, world.episode_start, episode_start_alias);
+            copy(device, device, world.episode_start, episode_start_alias);
         }
         std::vector<float> target_staging(INSTANCES * NEXT_WORLD::FRAME_DIM);
         {
             Tensor<typename WORLD::TARGET_FRAMES_SPEC> target_alias;
             target_alias._data = target_staging.data();
-            copy(world.renderer.device, device, world.target_frames, target_alias);
+            copy(device, device, world.target_frames, target_alias);
         }
         std::vector<float> frame_staging(NEXT_WORLD::FRAME_DIM);
         for (TI instance_i = 0; instance_i < INSTANCES; instance_i++) {
@@ -168,11 +173,11 @@ namespace rl_tools {
                 }
                 const TI history_slot = desired % BASE_SPEC::HISTORY_LENGTH;
                 {
-                    auto history_row = view(world.renderer.device, world.history, history_slot);
-                    auto history_instance = view(world.renderer.device, history_row, instance_i);
+                    auto history_row = view(device, world.history, history_slot);
+                    auto history_instance = view(device, history_row, instance_i);
                     Tensor<tensor::Specification<float, TI, tensor::Shape<TI, NEXT_WORLD::FRAME_DIM>>> frame_alias;
                     frame_alias._data = frame_staging.data();
-                    copy(world.renderer.device, device, history_instance, frame_alias);
+                    copy(device, device, history_instance, frame_alias);
                 }
                 for (TI pixel_i = 0; pixel_i < CAM_PIXELS; pixel_i++) {
                     for (TI channel_i = 0; channel_i < IMAGE_CHANNELS; channel_i++) {

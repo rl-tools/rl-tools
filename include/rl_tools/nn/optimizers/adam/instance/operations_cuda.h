@@ -10,7 +10,8 @@ namespace rl_tools {
     namespace nn::optimizers::adam::cuda {
         template<typename DEV_SPEC, typename PARAMETER_SPEC, typename SPEC>
         __global__
-        void update_kernel(devices::CUDA<DEV_SPEC>& device, nn::parameters::Adam::Instance<PARAMETER_SPEC> parameter, nn::optimizers::Adam<SPEC> optimizer) {
+        void update_kernel(devices::CUDA<DEV_SPEC> device, nn::parameters::Adam::Instance<PARAMETER_SPEC> parameter, nn::optimizers::Adam<SPEC> optimizer) {
+            static_assert(DEV_SPEC::TAG && DEV_SPEC::KERNEL);
             // fully fused adam update
             // note some of this is fused into the Layer update: include/rl_tools/nn/layers/dense/operations_cuda.h
             using DEVICE = devices::CUDA<DEV_SPEC>;
@@ -81,7 +82,8 @@ namespace rl_tools {
         constexpr typename devices::CUDA<DEV_SPEC>::index_t N_BLOCKS_ACTIVATION_INPUT = RL_TOOLS_DEVICES_CUDA_CEIL(MATRIX_SPEC::COLS, BLOCKSIZE_ACTIVATION_INPUT);
         dim3 activation_grid(N_BLOCKS_ACTIVATION_INPUT, N_BLOCKS_ACTIVATION_OUTPUT);
         dim3 activation_block(BLOCKSIZE_ACTIVATION_INPUT, BLOCKSIZE_ACTIVATION_OUTPUT);
-        nn::optimizers::adam::cuda::update_kernel<<<activation_grid, activation_block, 0, device.stream>>>(device, p, optimizer);
+        devices::cuda::TAG<devices::CUDA<DEV_SPEC>, true> tag_device{};
+        nn::optimizers::adam::cuda::update_kernel<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, p, optimizer);
         check_status(device);
     }
 }

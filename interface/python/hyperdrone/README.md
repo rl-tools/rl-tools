@@ -154,6 +154,10 @@ env.rotate_scene()                 # deterministic scene rotation; reset all ins
 env.observation_layout             # named blocks: which channels/values mean what
 ```
 
+`reset(mask)` samples parameters and states immediately. `observe()` renders as needed,
+so explicit `render(mask)` calls are optional. The training loop owns episode counters and
+chooses when to reset; the Gymnasium adapter below supplies same-step autoreset and time limits.
+
 All environment semantics — reset, reward, termination, scene scheduling, observation
 composition — live on the C++ side (`rl_tools::rl::environments::hyperdrone::MultiEnvironment<World>`);
 the binding marshals tensors and nothing else, and a seeded rollout is pinned bit-exact
@@ -218,7 +222,10 @@ observations, infos = env.reset()
 observations, rewards, terminations, truncations, infos = env.step(actions)
 ```
 
-Same-step autoreset over the env verbs; the core packages never import gymnasium.
+The adapter resets instances that terminate or reach `episode_step_limit` within the same
+step. Returned observations start the new episode for those instances; no final observation
+is exposed. `truncations` flags time limits that are not terminations. The core packages
+never import gymnasium.
 
 End-to-end example: `python -m hyperdrone.examples.drone_flythrough`; renderer benchmark:
 `python -m hyperdrone.examples.benchmark` (flag-compatible with the C++ benchmark
