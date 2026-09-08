@@ -114,7 +114,8 @@ namespace rl_tools{
         constexpr TI BLOCKSIZE = 32;
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES, BLOCKSIZE);
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        rl::environments::hyperdrone::tasks::target_frame::cuda::sample_initial_parameters_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, world.parameters, parameters, reset_mask, rng);
+        auto world_rng = rl::environments::hyperdrone::cuda::instance_rng(device, world, rng);
+        rl::environments::hyperdrone::tasks::target_frame::cuda::sample_initial_parameters_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, world.parameters, parameters, reset_mask, world_rng);
         check_status(device);
     }
     template <typename DEV_SPEC, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
