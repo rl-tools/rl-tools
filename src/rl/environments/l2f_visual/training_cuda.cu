@@ -15,6 +15,8 @@
 #include <rl_tools/nn/layers/conv2d/operations_cuda.h>
 #include <rl_tools/nn/layers/dense/operations_generic.h>
 #include <rl_tools/nn/layers/dense/operations_cuda.h>
+#include <rl_tools/nn/layers/gru/operations_generic.h>
+#include <rl_tools/nn/layers/gru/helper_operations_cuda.h>
 #include <rl_tools/nn/layers/flatten/operations_generic.h>
 #include <rl_tools/nn/layers/unflatten/operations_generic.h>
 #include <rl_tools/nn/layers/unflatten/operations_cuda.h>
@@ -34,9 +36,14 @@
 
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
+#include <rl_tools/rl/algorithms/ppo/operations_generic_mixed_imitation.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
 #include <rl_tools/nn/loss_functions/mse/operations_generic.h>
 #include <rl_tools/nn/loss_functions/mse/operations_cuda.h>
+
+#ifdef RL_TOOLS_L2F_VISUAL_TRAINING_MIXED
+#include "../../../nn_models/port_checkpoint/raptor/policy.h"
+#endif
 
 #include <rl_tools/utils/extrack/operations_cpu.h>
 #include <rl_tools/utils/zlib/operations_cpu.h>
@@ -88,6 +95,9 @@
 #include <metra/metra.h>
 
 namespace rlt = rl_tools;
+using rlt::is_imitation_sample;
+using rlt::use_teacher_action;
+using rlt::mix_policy_output_gradients;
 
 // =========================================================================
 // Device types
@@ -240,10 +250,32 @@ static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM;
 // =========================================================================
 // Visual environment specification (multi-scene)
 // =========================================================================
+#ifdef RL_TOOLS_L2F_VISUAL_TRAINING_SMALL
+static constexpr TI N_TOTAL_SCENES = 2;
+#else
 static constexpr TI N_TOTAL_SCENES = 25;
+#endif
 static constexpr TI N_ACTIVE_SCENES = 2;
 static constexpr TI N_ENVIRONMENTS_PER_SCENE = 16;
 static constexpr TI N_ENVIRONMENTS = N_ACTIVE_SCENES * N_ENVIRONMENTS_PER_SCENE;
+#ifdef RL_TOOLS_L2F_VISUAL_TRAINING_MIXED
+static constexpr bool MIXED_TRAINING = true;
+#else
+static constexpr bool MIXED_TRAINING = false;
+#endif
+namespace mixed_imitation = rlt::rl::algorithms::ppo::mixed_imitation;
+struct MIXED_PARAMETERS: mixed_imitation::DefaultParameters<TYPE_POLICY, TI>{
+    static constexpr TI IMITATION_ENVIRONMENTS_PER_SCENE = 8;
+#ifdef RL_TOOLS_L2F_VISUAL_TRAINING_SMALL
+    static constexpr TI TEACHER_FORCING_UPDATES = 1;
+#else
+    static constexpr TI TEACHER_FORCING_UPDATES = 10;
+#endif
+    static constexpr T IMITATION_WEIGHT = 1;
+    static constexpr T OUTPUT_GRADIENT_NORM_RATIO = 1;
+    using BALANCING_MODE = rlt::Mode<mixed_imitation::FixedWeight<>>;
+};
+static_assert(!MIXED_TRAINING || (MIXED_PARAMETERS::IMITATION_ENVIRONMENTS_PER_SCENE > 0 && MIXED_PARAMETERS::IMITATION_ENVIRONMENTS_PER_SCENE < N_ENVIRONMENTS_PER_SCENE));
 static constexpr TI GRADIENT_ACCUMULATION_ROLLOUTS = 1;
 static constexpr TI CAM_WIDTH = 80;
 static constexpr TI CAM_HEIGHT = 50;
@@ -284,7 +316,11 @@ static_assert(ENV_GRID_SIDE * ENV_GRID_SIDE == N_ENVIRONMENTS_PER_SCENE, "ENV_GR
 // =========================================================================
 static constexpr TI FRAME_STACK_N = 10;
 static constexpr TI FRAME_STACK_STRIDE = 10;
+#ifdef RL_TOOLS_L2F_VISUAL_TRAINING_SMALL
+static constexpr TI ROLLOUT_STEPS_PER_ENV = 64;
+#else
 static constexpr TI ROLLOUT_STEPS_PER_ENV = 320;
+#endif
 static constexpr TI SCENE_SET_MIN_STEPS = 2048;
 static constexpr TI ROLLOUTS_PER_SCENE_SET = (SCENE_SET_MIN_STEPS + ROLLOUT_STEPS_PER_ENV - 1) / ROLLOUT_STEPS_PER_ENV;
 static constexpr TI FRAME_STACK_HISTORY_LENGTH = FRAME_STACK_STRIDE * (FRAME_STACK_N - 1) + ROLLOUT_STEPS_PER_ENV;
@@ -376,7 +412,11 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParame
     static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = ROLLOUT_STEPS_PER_ENV;
     static constexpr TI N_ENVIRONMENTS = ::N_ENVIRONMENTS;
     static constexpr TI TOTAL_STEP_LIMIT = 1000000000;
+#ifdef RL_TOOLS_L2F_VISUAL_TRAINING_SMALL
+    static constexpr TI STEP_LIMIT = 3;
+#else
     static constexpr TI STEP_LIMIT = TOTAL_STEP_LIMIT / (N_ENVIRONMENTS * ON_POLICY_RUNNER_STEPS_PER_ENV) + 1;
+#endif
     static constexpr TI EPISODE_STEP_LIMIT = ::EPISODE_STEP_LIMIT;
     using ACTOR_OPTIMIZER_PARAMETERS = ADAM_PARAMETERS;
     using CRITIC_OPTIMIZER_PARAMETERS = ADAM_PARAMETERS;
@@ -489,6 +529,10 @@ static constexpr TI STEPS_TOTAL = ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL;
 static constexpr TI STEPS_TOTAL_ALL = ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL;
 static constexpr TI N_EPOCHS = LOOP_CORE_PARAMETERS::PPO_PARAMETERS::N_EPOCHS;
 static constexpr TI N_BATCHES = STEPS_TOTAL / BATCH_SIZE;
+using MIXED_SPEC = mixed_imitation::Specification<TYPE_POLICY, TI, BATCH_SIZE, N_ENVIRONMENTS_PER_SCENE, MIXED_TRAINING ? MIXED_PARAMETERS::IMITATION_ENVIRONMENTS_PER_SCENE : 0, MIXED_PARAMETERS>;
+static constexpr TI RL_BATCH_SIZE = MIXED_SPEC::RL_BATCH_SIZE;
+static constexpr TI RL_STEPS_TOTAL = N_BATCHES * RL_BATCH_SIZE;
+static constexpr TI RL_UPDATE_SAMPLES = RL_STEPS_TOTAL * GRADIENT_ACCUMULATION_ROLLOUTS;
 static constexpr TI UPDATE_SAMPLES = STEPS_TOTAL * GRADIENT_ACCUMULATION_ROLLOUTS;
 static constexpr T GRADIENT_SCALE = static_cast<T>(BATCH_SIZE) / static_cast<T>(UPDATE_SAMPLES);
 static constexpr TI IMG_H = ENVIRONMENT::Observation::HEIGHT;
@@ -502,6 +546,18 @@ static_assert(GRADIENT_ACCUMULATION_ROLLOUTS == 1 || ROLLOUTS_PER_SCENE_SET == 1
 static_assert(N_ENVIRONMENTS * GRADIENT_ACCUMULATION_ROLLOUTS <= RNG_GPU::NUM_RNGS, "Each logical environment needs an independent RNG stream");
 static_assert(N_EXAMPLES <= BATCH_SIZE, "N_EXAMPLES must fit the reusable combined-observation batch buffer");
 static_assert(N_EXAMPLES <= STEPS_TOTAL, "N_EXAMPLES must fit one PPO rollout dataset");
+static_assert(!MIXED_TRAINING || BATCH_SIZE % N_ENVIRONMENTS == 0, "Every mixed minibatch must cover all scenes with the same IL/RL split");
+
+using TEACHER_OBSERVATION = obs::Position<obs::PositionSpecification<T, TI,
+        obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI,
+        obs::LinearVelocity<obs::LinearVelocitySpecification<T, TI,
+        obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI,
+        obs::ActionHistory<obs::ActionHistorySpecification<T, TI, 1>>>>>>>>>>;
+using TEACHER_DENSE = rlt::nn::layers::dense::BindConfiguration<rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, 16, rlt::nn::activation_functions::ActivationFunction::RELU>>;
+using TEACHER_GRU = rlt::nn::layers::gru::BindConfiguration<rlt::nn::layers::gru::Configuration<TYPE_POLICY, TI, 16>>;
+using TEACHER_OUTPUT = rlt::nn::layers::dense::BindConfiguration<rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, ACTION_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>>;
+using TEACHER_MODULE = rlt::nn_models::sequential::Module<TEACHER_DENSE, TEACHER_GRU, TEACHER_OUTPUT>;
+using TEACHER_MODEL = rlt::nn_models::sequential::Build<rlt::nn::capability::Forward<true, false>, TEACHER_MODULE, rlt::tensor::Shape<TI, 1, N_ENVIRONMENTS, TEACHER_OBSERVATION::DIM>>;
 
 static constexpr T EPISODE_END_REASON_NONE = 0;
 static constexpr T EPISODE_END_REASON_TERMINATED = 1;
@@ -545,6 +601,7 @@ namespace ppo_visual {
         T* shutter_fraction_arr,
         Tensor<OBS_PRIV_SPEC> observations_privileged,
         Tensor<STATE_OBS_SPEC> state_observations,
+        T* teacher_observations,
         Matrix<EPISODE_STAT_SPEC> episode_lengths_log,
         Matrix<EPISODE_STAT_SPEC> episode_returns_log,
         Matrix<EPISODE_STAT_SPEC> episode_end_reasons_log,
@@ -633,6 +690,11 @@ namespace ppo_visual {
             auto state_obs_matrix = matrix_view(device, state_obs_slice);
             observe(device, env.dynamics, params.dynamics, state, ACTOR_STATE_OBS{}, state_obs_matrix, rng_state);
         }
+        if constexpr(MIXED_TRAINING){
+            Matrix<matrix::Specification<T, TI, 1, TEACHER_OBSERVATION::DIM>> teacher_observation;
+            teacher_observation._data = teacher_observations + env_i * TEACHER_OBSERVATION::DIM;
+            observe(device, env.dynamics, params.dynamics, state, TEACHER_OBSERVATION{}, teacher_observation, rng_state);
+        }
     }
 
     // Per-step epilogue: sample noisy action from N(action_mean, exp(log_std)), store action_log_prob,
@@ -648,6 +710,7 @@ namespace ppo_visual {
         Matrix<ACTIONS_SPEC> actions,
         Matrix<ACTION_LOG_STD_SPEC> action_log_std,
         rl::components::on_policy_runner::Dataset<RUNNER_SPEC> dataset,
+        const T* teacher_actions, TI optimizer_updates,
         RNG rng, TI step_i, TI episode_step_limit, TI rng_offset
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
@@ -665,6 +728,11 @@ namespace ppo_visual {
             T current_action_log_std = get(action_log_std, 0, action_i);
             T action_std = math::exp(device.math, current_action_log_std);
             T action_noisy = random::normal_distribution::sample(device.random, action_mean, action_std, rng_state);
+            if constexpr(MIXED_TRAINING){
+                if(is_imitation_sample(device, MIXED_SPEC{}, env_i)){
+                    action_noisy = use_teacher_action(device, MIXED_SPEC{}, env_i, optimizer_updates) ? teacher_actions[pos * ACTION_DIM + action_i] : action_mean;
+                }
+            }
             action_log_prob += random::normal_distribution::log_prob(device.random, action_mean, current_action_log_std, action_noisy);
             set(actions, env_i, action_i, action_noisy);
         }
@@ -969,9 +1037,9 @@ int main(int argc, char** argv){
 
     rlt::utils::extrack::Config<TI> extrack_config;
     rlt::utils::extrack::Paths extrack_paths;
-    extrack_config.name = "l2f_visual_training_cuda";
+    extrack_config.name = MIXED_TRAINING ? "l2f_visual_training_mixed_cuda" : "l2f_visual_training_cuda";
     extrack_config.population_variates = "algorithm_environments_accumulation";
-    extrack_config.population_values = "on-policy_" + std::to_string(N_ENVIRONMENTS) + "_" + std::to_string(GRADIENT_ACCUMULATION_ROLLOUTS);
+    extrack_config.population_values = std::string(MIXED_TRAINING ? "mixed_" : "on-policy_") + std::to_string(N_ENVIRONMENTS) + "_" + std::to_string(GRADIENT_ACCUMULATION_ROLLOUTS);
     rlt::init(device, extrack_config, extrack_paths, seed);
 
     RNG rng;
@@ -1124,6 +1192,24 @@ int main(int argc, char** argv){
     RNG_GPU rng_gpu;
     rlt::malloc(device_gpu, rng_gpu);
     rlt::init(device_gpu, rng_gpu, seed);
+
+    TEACHER_MODEL teacher_gpu;
+    typename TEACHER_MODEL::State<true> teacher_state_gpu;
+    typename TEACHER_MODEL::Buffer<true> teacher_buffer_gpu;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, TEACHER_OBSERVATION::DIM>>> teacher_observations_gpu;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, STEPS_TOTAL, ACTION_DIM>>> teacher_actions_gpu, teacher_actions;
+    if constexpr(MIXED_TRAINING){
+        rlt::malloc(device_gpu, teacher_gpu);
+        rlt::malloc(device_gpu, teacher_state_gpu);
+        rlt::malloc(device_gpu, teacher_buffer_gpu);
+        rlt::malloc(device_gpu, teacher_observations_gpu);
+        rlt::malloc(device_gpu, teacher_actions_gpu);
+        rlt::malloc(device, teacher_actions);
+#ifdef RL_TOOLS_L2F_VISUAL_TRAINING_MIXED
+        rlt::copy(device, device_gpu, rlt::checkpoint::actor::module, teacher_gpu);
+#endif
+        rlt::reset(device_gpu, teacher_gpu, teacher_state_gpu, rng_gpu);
+    }
 
     PPO_TYPE ppo_gpu;
     ACTOR_BUFFERS actor_buffers;
@@ -1323,6 +1409,23 @@ int main(int argc, char** argv){
     std::cout << "  SCENE_SET_STEPS:  " << STEPS_PER_ENV * ROLLOUTS_PER_SCENE_SET << std::endl;
     std::cout << "  STEPS_TOTAL:      " << STEPS_TOTAL << std::endl;
     std::cout << "  BATCH_SIZE:       " << BATCH_SIZE << std::endl;
+    if constexpr(MIXED_TRAINING){
+        std::cout << "  MIXED BATCH:      " << MIXED_SPEC::IMITATION_BATCH_SIZE << " IL + " << RL_BATCH_SIZE << " RL" << std::endl;
+        std::cout << "  TEACHER WARMUP:   " << MIXED_PARAMETERS::TEACHER_FORCING_UPDATES << " optimizer updates (IL environments only)" << std::endl;
+        using BALANCING_MODE = typename MIXED_PARAMETERS::BALANCING_MODE::MODE;
+        std::cout << "  IL BALANCING:     " << (rlt::mode::is<BALANCING_MODE, mixed_imitation::FixedNormRatio> ? "output-gradient norm ratio" : "fixed weight") << std::endl;
+        auto log_config = [&](const char* key, T value){
+            rlt::add_scalar(device, device.logger, (std::string("mixed/config/") + key).c_str(), value);
+            metra::log(std::string("l2f_visual_training_mixed/config/") + key, static_cast<double>(value));
+        };
+        log_config("imitation_share", static_cast<T>(MIXED_SPEC::IMITATION_BATCH_SIZE) / BATCH_SIZE);
+        log_config("teacher_forcing_updates", MIXED_PARAMETERS::TEACHER_FORCING_UPDATES);
+        log_config("imitation_weight", MIXED_PARAMETERS::IMITATION_WEIGHT);
+        log_config("target_norm_ratio", MIXED_PARAMETERS::OUTPUT_GRADIENT_NORM_RATIO);
+        log_config("fixed_norm_ratio", rlt::mode::is<BALANCING_MODE, mixed_imitation::FixedNormRatio> ? 1 : 0);
+        log_config("max_imitation_weight", MIXED_PARAMETERS::MAX_IMITATION_WEIGHT);
+        log_config("norm_epsilon", MIXED_PARAMETERS::NORM_EPSILON);
+    }
     std::cout << "  N_BATCHES:        " << N_BATCHES << std::endl;
     std::cout << "  ACCUMULATION:     " << GRADIENT_ACCUMULATION_ROLLOUTS << " rollouts, " << UPDATE_SAMPLES << " samples/update" << std::endl;
     std::cout << "  COMBINED_IMG_C:   " << COMBINED_IMG_C << " (logical " << COMBINED_IMG_C_LOGICAL << ")" << std::endl;
@@ -1479,6 +1582,7 @@ int main(int argc, char** argv){
                 gpu_render_reset_arr,
                 gpu_shutter_fraction_arr,
                 observations_privileged, state_observations,
+                MIXED_TRAINING ? rlt::data(teacher_observations_gpu) : nullptr,
                 gpu_episode_lengths_log, gpu_episode_returns_log, gpu_episode_end_reasons_log,
                 gpu_brightness_scale_arr,
                 gpu_target_brightness_scale_arr,
@@ -1492,6 +1596,17 @@ int main(int argc, char** argv){
                 gpu_episode_start_step,
                 rng_gpu, step_i, frame_step_i, rng_offset);
             rlt::check_status(device_gpu);
+            if constexpr(MIXED_TRAINING){
+                rlt::Matrix<rlt::matrix::Specification<bool, TI, 1, N_ENVIRONMENTS>> teacher_reset_mask;
+                teacher_reset_mask._data = gpu_render_reset_arr;
+                using RESET_SPEC = rlt::mode::sequential::ResetMaskSpecification<decltype(teacher_reset_mask)>;
+                rlt::Mode<rlt::mode::sequential::ResetMask<rlt::mode::Default<>, RESET_SPEC>> teacher_reset_mode;
+                teacher_reset_mode.mask = teacher_reset_mask;
+                rlt::reset(device_gpu, teacher_gpu, teacher_state_gpu, rng_gpu, teacher_reset_mode);
+                auto step_teacher_actions = rlt::view_range(device_gpu, teacher_actions_gpu, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
+                rlt::Mode<rlt::nn::layers::gru::NoAutoResetMode<rlt::mode::Default<>>> teacher_mode;
+                rlt::evaluate_step(device_gpu, teacher_gpu, teacher_observations_gpu, teacher_state_gpu, step_teacher_actions, teacher_buffer_gpu, rng_gpu, teacher_mode);
+            }
             rlt::evaluate_values(device_gpu, dataset_gpu, ppo_gpu.critic, critic_states_gae, critic_buffers_gae, rng_gpu, step_i);
             record_episode_start_kernel<<<grid, block, 0, device_gpu.stream>>>(gpu_episode_start_step, gpu_episode_start_step_per_row, step_i);
             rlt::check_status(device_gpu);
@@ -1672,7 +1787,8 @@ int main(int argc, char** argv){
                     gpu_truncated_arr, gpu_episode_step_arr, gpu_episode_return_arr,
                     gpu_episode_end_reason_arr,
                     actions_mean_view, actions_view, log_std_gpu,
-                    dataset_gpu, rng_gpu, step_i, EPISODE_STEP_LIMIT, rng_offset);
+                    dataset_gpu, MIXED_TRAINING ? rlt::data(teacher_actions_gpu) : nullptr, optimizer_updates,
+                    rng_gpu, step_i, EPISODE_STEP_LIMIT, rng_offset);
                 rlt::check_status(device_gpu);
             }
             if constexpr(ON_POLICY_RUNNER_SPEC::COLLECT_NEXT_OBSERVATIONS){
@@ -1909,7 +2025,7 @@ int main(int argc, char** argv){
         rlt::estimate_generalized_advantages(device, dataset, dataset.bootstrap_values, typename PPO_TYPE::SPEC::PARAMETERS{});
 
         // =================================================================
-        // Keep weights fixed until all four rollouts have contributed; images can be
+        // Keep weights fixed until all accumulation rollouts have contributed; images can be
         // overwritten after this pass because no sample participates in a second update.
         // =================================================================
         {
@@ -1931,6 +2047,21 @@ int main(int argc, char** argv){
         TI ppo_clipped_samples = 0;
         TI ppo_update_batches = 0;
         TI ppo_critic_batches = 0;
+        TI imitation_update_samples = 0;
+        T imitation_mse_sum = 0;
+        if constexpr(MIXED_TRAINING){
+            rlt::copy(device_gpu, device, teacher_actions_gpu, teacher_actions);
+#ifdef RL_TOOLS_L2F_VISUAL_TRAINING_SMALL
+            for(TI row_i = 0; row_i < STEPS_TOTAL; row_i++){
+                if(is_imitation_sample(device, MIXED_SPEC{}, row_i)){
+                    for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
+                        T expected = use_teacher_action(device, MIXED_SPEC{}, row_i, optimizer_updates) ? rlt::get(device, teacher_actions, row_i, action_i) : rlt::get(dataset.actions_mean, row_i, action_i);
+                        rlt::utils::assert_exit(device, rlt::get(dataset.actions, row_i, action_i) == expected, "IL action selection does not match the warmup phase");
+                    }
+                }
+            }
+#endif
+        }
 
         for(TI epoch_i = 0; epoch_i < N_EPOCHS; epoch_i++){
             // Random batch order (no within-batch shuffle so frame stack indices stay coherent)
@@ -1985,17 +2116,25 @@ int main(int argc, char** argv){
 
                 T advantage_mean = 0, advantage_std = 0;
                 for(TI i = 0; i < BATCH_SIZE; i++){
+                    if(is_imitation_sample(device, MIXED_SPEC{}, i)){
+                        continue;
+                    }
                     T adv = rlt::get(batch_advantages, i, 0);
                     advantage_mean += adv;
                     advantage_std += adv * adv;
                 }
-                advantage_mean /= BATCH_SIZE;
-                advantage_std /= BATCH_SIZE;
+                advantage_mean /= RL_BATCH_SIZE;
+                advantage_std /= RL_BATCH_SIZE;
                 advantage_std = rlt::math::sqrt(device.math, rlt::math::max(device.math, (T)0, advantage_std - advantage_mean * advantage_mean));
                 ppo_advantage_mean_sum += advantage_mean;
                 ppo_advantage_std_sum += advantage_std;
 
+                T batch_log_std_gradient[ACTION_DIM] = {};
                 for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
+                    if(is_imitation_sample(device, MIXED_SPEC{}, batch_step_i)){
+                        imitation_update_samples++;
+                        continue;
+                    }
                     T action_log_prob = 0;
                     T action_entropy = 0;
                     for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
@@ -2006,8 +2145,9 @@ int main(int argc, char** argv){
                         action_entropy += current_action_log_std + rlt::math::log(device.math, static_cast<T>(2) * rlt::math::PI<T>) / static_cast<T>(2) + static_cast<T>(0.5);
                         rlt::set(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, rlt::random::normal_distribution::d_log_prob_d_mean(device.random, current_action, current_action_log_std, rollout_action));
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
-                            T d_entropy_loss_d_current_action_log_std = -(T)1/UPDATE_SAMPLES * PPO_SPEC::PARAMETERS::ACTION_ENTROPY_COEFFICIENT;
+                            T d_entropy_loss_d_current_action_log_std = -(T)1/RL_UPDATE_SAMPLES * PPO_SPEC::PARAMETERS::ACTION_ENTROPY_COEFFICIENT;
                             rlt::increment(device, last_layer_cpu.log_std.gradient, d_entropy_loss_d_current_action_log_std, action_i);
+                            batch_log_std_gradient[action_i] += d_entropy_loss_d_current_action_log_std;
                             rlt::set(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i, rlt::random::normal_distribution::d_log_prob_d_log_std(device.random, current_action, current_action_log_std, rollout_action));
                         }
                     }
@@ -2026,14 +2166,49 @@ int main(int argc, char** argv){
                     ppo_ratio_sum += ratio;
                     ppo_clipped_samples += clipped ? 1 : 0;
                     ppo_update_samples++;
-                    T d_loss_d_action_log_prob = -advantage / static_cast<T>(UPDATE_SAMPLES);
+                    T d_loss_d_action_log_prob = -advantage / static_cast<T>(RL_UPDATE_SAMPLES);
                     for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
                         rlt::multiply(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, d_loss_d_action_log_prob);
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
                             T current_d = rlt::get(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i);
                             rlt::increment(device, last_layer_cpu.log_std.gradient, d_loss_d_action_log_prob * current_d, action_i);
+                            batch_log_std_gradient[action_i] += d_loss_d_action_log_prob * current_d;
                         }
                     }
+                }
+                if constexpr(MIXED_TRAINING){
+                    auto batch_teacher_actions = rlt::view_range(device, teacher_actions, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
+                    auto batch_teacher_matrix = rlt::matrix_view(device, batch_teacher_actions);
+                    mixed_imitation::Metrics<MIXED_SPEC> metrics;
+                    mix_policy_output_gradients(device, MIXED_SPEC{}, ppo_buffers.current_batch_actions, batch_teacher_matrix, ppo_buffers.d_action_log_prob_d_action, metrics, GRADIENT_SCALE, MIXED_PARAMETERS::BALANCING_MODE{});
+                    imitation_mse_sum += metrics.imitation_mse;
+                    T log_std_squared_norm = 0;
+                    for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
+                        log_std_squared_norm += batch_log_std_gradient[action_i] * batch_log_std_gradient[action_i];
+                    }
+                    TI gradient_batch = ppo_step_i * N_BATCHES + batch_idx;
+                    rlt::set_step(device, device.logger, gradient_batch);
+                    auto log_mixed = [&](const char* key, T value){
+                        rlt::utils::assert_exit(device, rlt::math::is_finite(device.math, value), "Non-finite mixed-learning metric");
+                        rlt::add_scalar(device, device.logger, std::string("mixed/") + key, value);
+                        metra::log(std::string("l2f_visual_training_mixed/") + key, static_cast<double>(value));
+                    };
+                    log_mixed("gradient_batch", gradient_batch);
+                    log_mixed("environment_step", environment_step);
+                    log_mixed("teacher_forcing", optimizer_updates < MIXED_PARAMETERS::TEACHER_FORCING_UPDATES ? 1 : 0);
+                    log_mixed("imitation_mse", metrics.imitation_mse);
+                    log_mixed("rl_output_gradient_norm", metrics.rl_output_gradient_norm);
+                    log_mixed("imitation_output_gradient_norm", metrics.imitation_output_gradient_norm);
+                    log_mixed("weighted_imitation_output_gradient_norm", metrics.weighted_imitation_output_gradient_norm);
+                    log_mixed("rl_output_gradient_rms", metrics.rl_output_gradient_norm / rlt::math::sqrt(device.math, static_cast<T>(RL_BATCH_SIZE * ACTION_DIM)));
+                    log_mixed("imitation_output_gradient_rms", metrics.imitation_output_gradient_norm / rlt::math::sqrt(device.math, static_cast<T>(MIXED_SPEC::IMITATION_BATCH_SIZE * ACTION_DIM)));
+                    log_mixed("rl_log_std_gradient_norm", rlt::math::sqrt(device.math, log_std_squared_norm));
+                    log_mixed("imitation_weight", metrics.imitation_weight);
+                    log_mixed("output_gradient_norm_ratio", metrics.output_gradient_norm_ratio);
+                    log_mixed("ratio_valid", metrics.ratio_valid ? 1 : 0);
+                    log_mixed("balancing_fallback", metrics.balancing_fallback ? 1 : 0);
+                    log_mixed("weight_clamped", metrics.weight_clamped ? 1 : 0);
+                    rlt::set_step(device, device.logger, environment_step);
                 }
                 // Sync accumulated log_std gradients and this minibatch's action derivatives.
                 rlt::copy(device, device_gpu, last_layer_cpu.log_std.parameters, last_layer_gpu.log_std.parameters);
@@ -2062,10 +2237,26 @@ int main(int argc, char** argv){
                         auto critic_output_tensor = rlt::output(device_gpu, ppo_gpu.critic);
                         auto critic_output_matrix = rlt::matrix_view(device_gpu, critic_output_tensor);
                         rlt::copy(device_gpu, device, critic_output_matrix, cpu_critic_output);
-                        T critic_loss = rlt::nn::loss_functions::mse::evaluate(device, cpu_critic_output, batch_target_values);
+                        T critic_loss;
+                        if constexpr(MIXED_TRAINING){
+                            critic_loss = 0;
+                            for(TI row_i = 0; row_i < BATCH_SIZE; row_i++){
+                                if(is_imitation_sample(device, MIXED_SPEC{}, row_i)){
+                                    rlt::set(cpu_d_critic, row_i, 0, (T)0);
+                                }
+                                else{
+                                    T error = rlt::get(cpu_critic_output, row_i, 0) - rlt::get(batch_target_values, row_i, 0);
+                                    critic_loss += error * error / static_cast<T>(RL_BATCH_SIZE);
+                                    rlt::set(cpu_d_critic, row_i, 0, error / static_cast<T>(RL_UPDATE_SAMPLES));
+                                }
+                            }
+                        }
+                        else{
+                            critic_loss = rlt::nn::loss_functions::mse::evaluate(device, cpu_critic_output, batch_target_values);
+                            rlt::nn::loss_functions::mse::gradient(device, cpu_critic_output, batch_target_values, cpu_d_critic, (T)0.5 * GRADIENT_SCALE);
+                        }
                         ppo_critic_loss_sum += critic_loss;
                         ppo_critic_batches++;
-                        rlt::nn::loss_functions::mse::gradient(device, cpu_critic_output, batch_target_values, cpu_d_critic, (T)0.5 * GRADIENT_SCALE);
                         rlt::copy(device, device_gpu, cpu_d_critic, gpu_d_critic_output);
                         rlt::free(device, cpu_critic_output);
                         rlt::free(device, cpu_d_critic);
@@ -2079,8 +2270,9 @@ int main(int argc, char** argv){
             }
         }
 
-        rlt::utils::assert_exit(device, ppo_update_samples == STEPS_TOTAL, "Every rollout sample must be used exactly once");
-        accumulated_samples += ppo_update_samples;
+        rlt::utils::assert_exit(device, ppo_update_samples == RL_STEPS_TOTAL, "Every RL rollout sample must be used exactly once");
+        rlt::utils::assert_exit(device, imitation_update_samples == STEPS_TOTAL - RL_STEPS_TOTAL, "Every IL rollout sample must be used exactly once");
+        accumulated_samples += ppo_update_samples + imitation_update_samples;
         if(update_ready){
             rlt::utils::assert_exit(device, accumulated_samples == UPDATE_SAMPLES, "Incorrect accumulated update size");
             rlt::step(device_gpu, actor_optimizer_gpu, ppo_gpu.actor);
@@ -2109,15 +2301,19 @@ int main(int argc, char** argv){
                   << "  (sps lifetime " << std::setw(6) << std::setprecision(0) << std::fixed << sps_lifetime
                   << ", current " << std::setw(6) << std::setprecision(0) << sps_current << ")" << std::defaultfloat << std::endl;
         std::cout << "  optimizer updates: " << optimizer_updates << "  accumulated samples: " << accumulated_samples << "/" << UPDATE_SAMPLES << std::endl;
+        if constexpr(MIXED_TRAINING){
+            std::cout << "  mixed samples: " << imitation_update_samples << " IL + " << ppo_update_samples << " RL; imitation MSE: " << imitation_mse_sum / N_BATCHES << std::endl;
+        }
 
         rlt::add_scalar(device, device.logger, "ppo/step", ppo_step_i);
         rlt::add_scalar(device, device.logger, "training/optimizer_updates", optimizer_updates);
         rlt::add_scalar(device, device.logger, "training/accumulated_samples", accumulated_samples);
         rlt::add_scalar(device, device.logger, "training/update_samples", UPDATE_SAMPLES);
         rlt::add_scalar(device, device.logger, "training/sample_uses", N_EPOCHS);
-        metra::log("l2f_visual_training_on_policy/episode_length", static_cast<double>(rollout_episode_length_mean));
-        metra::log("l2f_visual_training_on_policy/optimizer_updates", static_cast<double>(optimizer_updates));
-        metra::log("l2f_visual_training_on_policy/steps_per_second", static_cast<double>(sps_current));
+        const std::string metra_prefix = MIXED_TRAINING ? "l2f_visual_training_mixed/" : "l2f_visual_training_on_policy/";
+        metra::log(metra_prefix + "episode_length", static_cast<double>(rollout_episode_length_mean));
+        metra::log(metra_prefix + "optimizer_updates", static_cast<double>(optimizer_updates));
+        metra::log(metra_prefix + "steps_per_second", static_cast<double>(sps_current));
         rlt::add_scalar(device, device.logger, "ppo/actor_learning_rate", rlt::get(device, actor_optimizer.parameters, 0).alpha);
         rlt::add_scalar(device, device.logger, "ppo/critic_learning_rate", rlt::get(device, critic_optimizer.parameters, 0).alpha);
         if(ppo_update_samples > 0){
@@ -2377,6 +2573,14 @@ int main(int argc, char** argv){
     rlt::free(device, dataset);
     rlt::free(device, actor_optimizer);
     rlt::free(device, critic_optimizer);
+    if constexpr(MIXED_TRAINING){
+        rlt::free(device_gpu, teacher_gpu);
+        rlt::free(device_gpu, teacher_state_gpu);
+        rlt::free(device_gpu, teacher_buffer_gpu);
+        rlt::free(device_gpu, teacher_observations_gpu);
+        rlt::free(device_gpu, teacher_actions_gpu);
+        rlt::free(device, teacher_actions);
+    }
     rlt::free(device, cpu_episode_lengths_log);
     rlt::free(device, cpu_episode_returns_log);
     rlt::free(device, cpu_episode_end_reasons_log);

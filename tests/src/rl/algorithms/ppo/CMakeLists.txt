@@ -1,4 +1,7 @@
 # PPO tests
+add_executable(test_rl_algorithms_ppo_mixed_imitation mixed_imitation.cpp)
+target_link_libraries(test_rl_algorithms_ppo_mixed_imitation PRIVATE RLtools::RLtools GTest::gtest_main)
+gtest_discover_tests(test_rl_algorithms_ppo_mixed_imitation)
 if(RL_TOOLS_ENABLE_TENSORBOARD)
     add_executable(test_rl_algorithms_ppo ppo.cpp)
     target_link_libraries(test_rl_algorithms_ppo PRIVATE RLtools::RLtools GTest::gtest_main)
