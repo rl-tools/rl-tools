@@ -86,6 +86,7 @@
 #include <random>
 #include <mutex>
 #include <sstream>
+#include <metra/metra.h>
 
 namespace rlt = rl_tools;
 
@@ -242,8 +243,9 @@ static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM;
 // =========================================================================
 static constexpr TI N_TOTAL_SCENES = 25;
 static constexpr TI N_ACTIVE_SCENES = 2;
-static constexpr TI N_ENVIRONMENTS_PER_SCENE = 64;
+static constexpr TI N_ENVIRONMENTS_PER_SCENE = 16;
 static constexpr TI N_ENVIRONMENTS = N_ACTIVE_SCENES * N_ENVIRONMENTS_PER_SCENE;
+static constexpr TI GRADIENT_ACCUMULATION_ROLLOUTS = 1;
 static constexpr TI CAM_WIDTH = 80;
 static constexpr TI CAM_HEIGHT = 50;
 static constexpr TI NUM_PROBES = 64;
@@ -273,7 +275,7 @@ static constexpr bool RENDER_MOTION_BLUR_ACTIVE = ENVIRONMENT::SPEC::RENDERER_SP
 static constexpr bool RENDER_ANTI_ALIASING_ACTIVE = ENVIRONMENT::SPEC::RENDERER_SPEC::ENABLE_ANTI_ALIASING;
 
 // Mosaic layout: each env cell shows (target | actual) pair, arranged in an ENV_GRID_SIDE×ENV_GRID_SIDE grid per active scene.
-static constexpr TI ENV_GRID_SIDE = 8;
+static constexpr TI ENV_GRID_SIDE = 4;
 static constexpr TI SCENE_GRID_COLS = N_ACTIVE_SCENES;
 static constexpr TI SCENE_GRID_ROWS = (N_ACTIVE_SCENES + SCENE_GRID_COLS - 1) / SCENE_GRID_COLS;
 static_assert(ENV_GRID_SIDE * ENV_GRID_SIDE == N_ENVIRONMENTS_PER_SCENE, "ENV_GRID_SIDE^2 must equal N_ENVIRONMENTS_PER_SCENE for the mosaic layout");
@@ -283,8 +285,9 @@ static_assert(ENV_GRID_SIDE * ENV_GRID_SIDE == N_ENVIRONMENTS_PER_SCENE, "ENV_GR
 // =========================================================================
 static constexpr TI FRAME_STACK_N = 10;
 static constexpr TI FRAME_STACK_STRIDE = 10;
-static constexpr TI ROLLOUT_STEPS_PER_ENV = 2048;
-static constexpr TI ROLLOUTS_PER_SCENE_SET = 1;
+static constexpr TI ROLLOUT_STEPS_PER_ENV = 320;
+static constexpr TI SCENE_SET_MIN_STEPS = 2048;
+static constexpr TI ROLLOUTS_PER_SCENE_SET = (SCENE_SET_MIN_STEPS + ROLLOUT_STEPS_PER_ENV - 1) / ROLLOUT_STEPS_PER_ENV;
 static constexpr TI FRAME_STACK_HISTORY_LENGTH = FRAME_STACK_STRIDE * (FRAME_STACK_N - 1) + ROLLOUT_STEPS_PER_ENV;
 static constexpr TI STACKED_IMG_C = ENVIRONMENT::Observation::CHANNELS * FRAME_STACK_N;
 static constexpr TI COMBINED_IMG_C_LOGICAL = STACKED_IMG_C + ENVIRONMENT::Observation::CHANNELS;
@@ -299,7 +302,7 @@ static constexpr T OBSERVATION_NOISE_STD = 0.0;
 // =========================================================================
 // Trajectory recording for extrack UI
 // =========================================================================
-static constexpr TI EXTRACK_SAVE_INTERVAL_PPO_STEPS = 100;
+static constexpr TI EXTRACK_SAVE_INTERVAL_PPO_STEPS = 640;
 static constexpr TI EXTRACK_SAVE_INTERVAL_SCENE_SETS_BASE = (EXTRACK_SAVE_INTERVAL_PPO_STEPS + ROLLOUTS_PER_SCENE_SET - 1) / ROLLOUTS_PER_SCENE_SET;
 static constexpr TI EXTRACK_SAVE_INTERVAL_SCENE_SETS = 2 * EXTRACK_SAVE_INTERVAL_SCENE_SETS_BASE;
 static constexpr TI VIDEO_SAVE_INTERVAL_SCENE_SETS = EXTRACK_SAVE_INTERVAL_SCENE_SETS;
@@ -381,7 +384,7 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParame
     static constexpr bool NORMALIZE_OBSERVATIONS = false; // standardize layers handle their own warmup
     struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<TYPE_POLICY, TI, BATCH_SIZE>{
         static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.005;
-        static constexpr TI N_EPOCHS = 2;
+        static constexpr TI N_EPOCHS = 1;
         static constexpr T GAMMA = 0.99;
         static constexpr T LAMBDA = 0.95;
         static constexpr T EPSILON_CLIP = 0.2;
@@ -489,11 +492,17 @@ static constexpr TI STEPS_TOTAL = ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL;
 static constexpr TI STEPS_TOTAL_ALL = ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL;
 static constexpr TI N_EPOCHS = LOOP_CORE_PARAMETERS::PPO_PARAMETERS::N_EPOCHS;
 static constexpr TI N_BATCHES = STEPS_TOTAL / BATCH_SIZE;
+static constexpr TI UPDATE_SAMPLES = STEPS_TOTAL * GRADIENT_ACCUMULATION_ROLLOUTS;
+static constexpr T GRADIENT_SCALE = static_cast<T>(BATCH_SIZE) / static_cast<T>(UPDATE_SAMPLES);
 static constexpr TI IMG_H = ENVIRONMENT::Observation::HEIGHT;
 static constexpr TI IMG_W = ENVIRONMENT::Observation::WIDTH;
 static constexpr TI IMG_C = ENVIRONMENT::Observation::CHANNELS;
 
 static_assert(N_BATCHES > 0, "STEPS_TOTAL must be >= BATCH_SIZE");
+static_assert(STEPS_TOTAL % BATCH_SIZE == 0, "Every rollout sample must be consumed exactly once");
+static_assert(N_EPOCHS == 1, "On-policy accumulation does not reuse rollout samples");
+static_assert(GRADIENT_ACCUMULATION_ROLLOUTS == 1 || ROLLOUTS_PER_SCENE_SET == 1, "Multiple accumulation groups require resets at each rollout boundary");
+static_assert(N_ENVIRONMENTS * GRADIENT_ACCUMULATION_ROLLOUTS <= RNG_GPU::NUM_RNGS, "Each logical environment needs an independent RNG stream");
 static_assert(N_EXAMPLES <= BATCH_SIZE, "N_EXAMPLES must fit the reusable combined-observation batch buffer");
 static_assert(N_EXAMPLES <= STEPS_TOTAL, "N_EXAMPLES must fit one PPO rollout dataset");
 
@@ -552,11 +561,12 @@ namespace ppo_visual {
         T* scene_yaw_sin_arr,
         T* positions_ptr, TI* num_positions_ptr, TI* env_scene_ptr, TI max_indoor_pos,
         TI* episode_start_step,
-        RNG rng, TI step_i, TI frame_step_i
+        RNG rng, TI step_i, TI frame_step_i, TI rng_offset
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i >= N_ENVIRONMENTS) return;
-        auto& rng_state = get(rng.states, 0, env_i);
+        TI rng_i = (env_i / N_ENVIRONMENTS_PER_SCENE) * N_ENVIRONMENTS_PER_SCENE * GRADIENT_ACCUMULATION_ROLLOUTS + rng_offset + env_i % N_ENVIRONMENTS_PER_SCENE;
+        auto& rng_state = get(rng.states, 0, rng_i);
         auto& env = envs[env_i];
         auto& params = env_params[env_i];
         auto& state = states[env_i];
@@ -641,11 +651,12 @@ namespace ppo_visual {
         Matrix<ACTIONS_SPEC> actions,
         Matrix<ACTION_LOG_STD_SPEC> action_log_std,
         rl::components::on_policy_runner::Dataset<RUNNER_SPEC> dataset,
-        RNG rng, TI step_i, TI episode_step_limit
+        RNG rng, TI step_i, TI episode_step_limit, TI rng_offset
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i >= N_ENVIRONMENTS) return;
-        auto& rng_state = get(rng.states, 0, env_i);
+        TI rng_i = (env_i / N_ENVIRONMENTS_PER_SCENE) * N_ENVIRONMENTS_PER_SCENE * GRADIENT_ACCUMULATION_ROLLOUTS + rng_offset + env_i % N_ENVIRONMENTS_PER_SCENE;
+        auto& rng_state = get(rng.states, 0, rng_i);
         auto& env = envs[env_i];
         auto& params = env_params[env_i];
         auto& state = states[env_i];
@@ -686,7 +697,7 @@ namespace ppo_visual {
     __global__ void force_scene_boundary_reset_kernel(bool* truncated_arr, TI* episode_step_arr, T* episode_end_reason_arr){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i >= N_ENVIRONMENTS) return;
-        if(!truncated_arr[env_i] && episode_step_arr[env_i] > 0){
+        if(episode_end_reason_arr[env_i] == EPISODE_END_REASON_NONE && episode_step_arr[env_i] > 0){
             episode_end_reason_arr[env_i] = EPISODE_END_REASON_SCENE_BOUNDARY;
         }
         truncated_arr[env_i] = true;
@@ -698,11 +709,12 @@ namespace ppo_visual {
         DEVICE device,
         ENVIRONMENT* envs, typename ENVIRONMENT::Parameters* env_params, typename ENVIRONMENT::State* states,
         Tensor<OBS_PRIV_SPEC> observations_privileged,
-        RNG rng
+        RNG rng, TI rng_offset
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i >= N_ENVIRONMENTS) return;
-        auto& rng_state = get(rng.states, 0, env_i);
+        TI rng_i = (env_i / N_ENVIRONMENTS_PER_SCENE) * N_ENVIRONMENTS_PER_SCENE * GRADIENT_ACCUMULATION_ROLLOUTS + rng_offset + env_i % N_ENVIRONMENTS_PER_SCENE;
+        auto& rng_state = get(rng.states, 0, rng_i);
         auto& env = envs[env_i];
         auto& params = env_params[env_i];
         auto& state = states[env_i];
@@ -961,6 +973,8 @@ int main(int argc, char** argv){
     rlt::utils::extrack::Config<TI> extrack_config;
     rlt::utils::extrack::Paths extrack_paths;
     extrack_config.name = "l2f_visual_training_cuda";
+    extrack_config.population_variates = "algorithm_environments_accumulation";
+    extrack_config.population_values = "on-policy_" + std::to_string(N_ENVIRONMENTS) + "_" + std::to_string(GRADIENT_ACCUMULATION_ROLLOUTS);
     rlt::init(device, extrack_config, extrack_paths, seed);
 
     RNG rng;
@@ -1329,13 +1343,14 @@ int main(int argc, char** argv){
     // ---------------------------------------------------------------------
     // Training loop
     // ---------------------------------------------------------------------
-    std::cout << "Starting PPO training (visual L2F target navigation, CUDA)" << std::endl;
+    std::cout << "Starting single-use on-policy training (visual L2F target navigation, CUDA)" << std::endl;
     std::cout << "  N_ENVIRONMENTS:   " << N_ENVIRONMENTS << std::endl;
     std::cout << "  STEPS_PER_ENV:    " << STEPS_PER_ENV << std::endl;
     std::cout << "  SCENE_SET_STEPS:  " << STEPS_PER_ENV * ROLLOUTS_PER_SCENE_SET << std::endl;
     std::cout << "  STEPS_TOTAL:      " << STEPS_TOTAL << std::endl;
     std::cout << "  BATCH_SIZE:       " << BATCH_SIZE << std::endl;
     std::cout << "  N_BATCHES:        " << N_BATCHES << std::endl;
+    std::cout << "  ACCUMULATION:     " << GRADIENT_ACCUMULATION_ROLLOUTS << " rollouts, " << UPDATE_SAMPLES << " samples/update" << std::endl;
     std::cout << "  COMBINED_IMG_C:   " << COMBINED_IMG_C << " (logical " << COMBINED_IMG_C_LOGICAL << ")" << std::endl;
     std::cout << "  STATE_OBS_DIM:    " << STATE_OBS_DIM << std::endl;
     std::cout << "  OBS_PRIV_DIM:     " << OBS_PRIV_DIM << std::endl;
@@ -1344,7 +1359,12 @@ int main(int argc, char** argv){
     std::cout << "  RENDER_MOTION_BLUR: " << (RENDER_MOTION_BLUR_ACTIVE ? "on" : "off") << " samples=" << (RENDER_MOTION_BLUR_ACTIVE ? RENDER_MOTION_BLUR_SAMPLES : (TI)1) << " shutter=[" << RENDER_SHUTTER_FRACTION_MIN << ", " << RENDER_SHUTTER_FRACTION_MAX << "]" << std::endl;
 
     auto training_start = std::chrono::high_resolution_clock::now();
-    static constexpr TI N_PPO_STEPS = LOOP_CORE_PARAMETERS::STEP_LIMIT;
+    static constexpr TI N_PPO_STEPS = ((LOOP_CORE_PARAMETERS::STEP_LIMIT + GRADIENT_ACCUMULATION_ROLLOUTS - 1) / GRADIENT_ACCUMULATION_ROLLOUTS) * GRADIENT_ACCUMULATION_ROLLOUTS;
+    TI accumulated_samples = 0;
+    TI optimizer_updates = 0;
+    std::array<std::array<TI, N_ENVIRONMENTS>, GRADIENT_ACCUMULATION_ROLLOUTS> group_episode_steps{};
+    std::array<std::array<T, N_ENVIRONMENTS>, GRADIENT_ACCUMULATION_ROLLOUTS> group_episode_returns{};
+    std::array<std::array<T, N_ENVIRONMENTS>, GRADIENT_ACCUMULATION_ROLLOUTS> group_episode_end_reasons{};
 
     constexpr TI BLOCKSIZE = 32;
     constexpr TI N_BLOCKS = (N_ENVIRONMENTS + BLOCKSIZE - 1) / BLOCKSIZE;
@@ -1371,6 +1391,17 @@ int main(int argc, char** argv){
 
     for(TI ppo_step_i = 0; ppo_step_i < N_PPO_STEPS; ppo_step_i++){
         auto step_start = std::chrono::high_resolution_clock::now();
+        TI accumulation_i = ppo_step_i % GRADIENT_ACCUMULATION_ROLLOUTS;
+        TI rng_offset = accumulation_i * N_ENVIRONMENTS_PER_SCENE;
+        bool update_ready = accumulation_i + 1 == GRADIENT_ACCUMULATION_ROLLOUTS;
+        if(accumulation_i == 0){
+            rlt::zero_gradient(device_gpu, ppo_gpu.actor);
+            rlt::zero_gradient(device_gpu, ppo_gpu.critic);
+            accumulated_samples = 0;
+        }
+        cudaMemcpy(gpu_episode_step_arr, group_episode_steps[accumulation_i].data(), N_ENVIRONMENTS * sizeof(TI), cudaMemcpyHostToDevice);
+        cudaMemcpy(gpu_episode_return_arr, group_episode_returns[accumulation_i].data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
+        cudaMemcpy(gpu_episode_end_reason_arr, group_episode_end_reasons[accumulation_i].data(), N_ENVIRONMENTS * sizeof(T), cudaMemcpyHostToDevice);
         rlt::set_step(device, device.logger, on_policy_runner_gpu.step);
         T rollout_episode_length_mean = 0;
         T rollout_episode_length_std = 0;
@@ -1396,11 +1427,13 @@ int main(int argc, char** argv){
             rlt::check_status(device_gpu);
             cudaStreamSynchronize(device_gpu.stream);
             rlt::check_status(device_gpu);
-            std::shuffle(scene_permutation.begin(), scene_permutation.end(), scene_rng);
-            for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
-                active_scene_indices[active_scene_i] = scene_permutation[active_scene_i];
+            if(accumulation_i == 0){
+                std::shuffle(scene_permutation.begin(), scene_permutation.end(), scene_rng);
+                for(TI active_scene_i = 0; active_scene_i < N_ACTIVE_SCENES; active_scene_i++){
+                    active_scene_indices[active_scene_i] = scene_permutation[active_scene_i];
+                }
+                upload_active_scenes();
             }
-            upload_active_scenes();
         }
 
         std::array<RENDERER_TYPE*, N_ACTIVE_SCENES> active_renderers{};
@@ -1483,7 +1516,7 @@ int main(int argc, char** argv){
                 gpu_scene_yaw_sin_arr,
                 gpu_positions, gpu_num_positions, gpu_env_scene, MAX_INDOOR_POS,
                 gpu_episode_start_step,
-                rng_gpu, step_i, frame_step_i);
+                rng_gpu, step_i, frame_step_i, rng_offset);
             rlt::check_status(device_gpu);
             record_episode_start_kernel<<<grid, block, 0, device_gpu.stream>>>(gpu_episode_start_step, gpu_episode_start_step_per_row, step_i);
             rlt::check_status(device_gpu);
@@ -1664,7 +1697,7 @@ int main(int argc, char** argv){
                     gpu_truncated_arr, gpu_episode_step_arr, gpu_episode_return_arr,
                     gpu_episode_end_reason_arr,
                     actions_mean_view, actions_view, log_std_gpu,
-                    dataset_gpu, rng_gpu, step_i, EPISODE_STEP_LIMIT);
+                    dataset_gpu, rng_gpu, step_i, EPISODE_STEP_LIMIT, rng_offset);
                 rlt::check_status(device_gpu);
             }
             if(log_reward_components_this_step && step_i == STEPS_PER_ENV - 1){
@@ -1692,7 +1725,7 @@ int main(int argc, char** argv){
         {
             auto final_obs_priv = rlt::view_range(device_gpu, dataset_gpu.all_observations_privileged, STEPS_PER_ENV * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
             ppo_visual::final_priv_obs_kernel<<<grid, block, 0, device_gpu.stream>>>(
-                tag_device, gpu_envs_arr, gpu_params_arr, gpu_states_arr, final_obs_priv, rng_gpu);
+                tag_device, gpu_envs_arr, gpu_params_arr, gpu_states_arr, final_obs_priv, rng_gpu, rng_offset);
             rlt::check_status(device_gpu);
         }
         on_policy_runner_gpu.step += N_ENVIRONMENTS * STEPS_PER_ENV;
@@ -1702,6 +1735,9 @@ int main(int argc, char** argv){
         // GPU→CPU: copy dataset for GAE + training
         // =================================================================
         cudaDeviceSynchronize();
+        cudaMemcpy(group_episode_steps[accumulation_i].data(), gpu_episode_step_arr, N_ENVIRONMENTS * sizeof(TI), cudaMemcpyDeviceToHost);
+        cudaMemcpy(group_episode_returns[accumulation_i].data(), gpu_episode_return_arr, N_ENVIRONMENTS * sizeof(T), cudaMemcpyDeviceToHost);
+        cudaMemcpy(group_episode_end_reasons[accumulation_i].data(), gpu_episode_end_reason_arr, N_ENVIRONMENTS * sizeof(T), cudaMemcpyDeviceToHost);
         {
             auto gpu_scalar = rlt::matrix_view(device_gpu, dataset_gpu.scalar_data);
             auto cpu_scalar = rlt::matrix_view(device, dataset.scalar_data);
@@ -1804,6 +1840,7 @@ int main(int argc, char** argv){
             }
             TI episode_end_task_count = episode_end_terminated_count + episode_end_time_limit_count;
             TI episode_end_count = episode_end_task_count + episode_end_scene_boundary_count;
+            rlt::utils::assert_exit(device, episode_end_count == count, "Every completed episode must have an end reason");
             rlt::add_scalar(device, device.logger, "training/episode_end/terminated", static_cast<T>(episode_end_terminated_count));
             rlt::add_scalar(device, device.logger, "training/episode_end/time_limit", static_cast<T>(episode_end_time_limit_count));
             rlt::add_scalar(device, device.logger, "training/episode_end/scene_boundary", static_cast<T>(episode_end_scene_boundary_count));
@@ -1902,7 +1939,8 @@ int main(int argc, char** argv){
         rlt::estimate_generalized_advantages(device, dataset, typename PPO_TYPE::SPEC::PARAMETERS{});
 
         // =================================================================
-        // Train (per minibatch: gather combined obs → forward+PPO loss+backward+step)
+        // Keep weights fixed until all four rollouts have contributed; images can be
+        // overwritten after this pass because no sample participates in a second update.
         // =================================================================
         {
             // Sync log_std GPU→CPU once per PPO step
@@ -1936,9 +1974,6 @@ int main(int argc, char** argv){
             for(TI batch_idx = 0; batch_idx < N_BATCHES; batch_idx++){
                 TI batch_i = batch_order[batch_idx];
                 TI batch_offset = batch_i * BATCH_SIZE;
-
-                rlt::zero_gradient(device_gpu, ppo_gpu.actor);
-                rlt::zero_gradient(device_gpu, ppo_gpu.critic);
 
                 // Build combined batch observation via gather kernel
                 {
@@ -2001,7 +2036,7 @@ int main(int argc, char** argv){
                         action_entropy += current_action_log_std + rlt::math::log(device.math, static_cast<T>(2) * rlt::math::PI<T>) / static_cast<T>(2) + static_cast<T>(0.5);
                         rlt::set(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, rlt::random::normal_distribution::d_log_prob_d_mean(device.random, current_action, current_action_log_std, rollout_action));
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
-                            T d_entropy_loss_d_current_action_log_std = -(T)1/BATCH_SIZE * PPO_SPEC::PARAMETERS::ACTION_ENTROPY_COEFFICIENT;
+                            T d_entropy_loss_d_current_action_log_std = -(T)1/UPDATE_SAMPLES * PPO_SPEC::PARAMETERS::ACTION_ENTROPY_COEFFICIENT;
                             rlt::increment(device, last_layer_cpu.log_std.gradient, d_entropy_loss_d_current_action_log_std, action_i);
                             rlt::set(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i, rlt::random::normal_distribution::d_log_prob_d_log_std(device.random, current_action, current_action_log_std, rollout_action));
                         }
@@ -2015,19 +2050,13 @@ int main(int argc, char** argv){
                     T ratio = rlt::math::exp(device.math, log_ratio);
                     T clipped_ratio = rlt::math::clamp(device.math, ratio, 1 - PPO_SPEC::PARAMETERS::EPSILON_CLIP, 1 + PPO_SPEC::PARAMETERS::EPSILON_CLIP);
                     bool clipped = ratio != clipped_ratio;
-                    T normal_advantage = ratio * advantage;
-                    T clipped_advantage = clipped_ratio * advantage;
-                    bool ratio_min_switch = normal_advantage - clipped_advantage <= (T)0;
-                    T pessimistic_surrogate = ratio_min_switch ? normal_advantage : clipped_advantage;
-                    ppo_actor_loss_sum += -pessimistic_surrogate;
+                    ppo_actor_loss_sum += -action_log_prob * advantage;
                     ppo_entropy_sum += action_entropy;
                     ppo_approx_kl_sum += (ratio - (T)1) - log_ratio;
                     ppo_ratio_sum += ratio;
                     ppo_clipped_samples += clipped ? 1 : 0;
                     ppo_update_samples++;
-                    T d_loss_d_pessimistic_surrogate = -(T)1/BATCH_SIZE;
-                    T d_pessimistic_surrogate_d_ratio = ratio_min_switch ? advantage : (clipped ? 0 : advantage);
-                    T d_loss_d_action_log_prob = d_loss_d_pessimistic_surrogate * d_pessimistic_surrogate_d_ratio * ratio;
+                    T d_loss_d_action_log_prob = -advantage / static_cast<T>(UPDATE_SAMPLES);
                     for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
                         rlt::multiply(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, d_loss_d_action_log_prob);
                         if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
@@ -2036,7 +2065,7 @@ int main(int argc, char** argv){
                         }
                     }
                 }
-                // Sync log_std + d_action gradients CPU→GPU, actor backward + optimizer step on GPU
+                // Sync accumulated log_std gradients and this minibatch's action derivatives.
                 rlt::copy(device, device_gpu, last_layer_cpu.log_std.parameters, last_layer_gpu.log_std.parameters);
                 rlt::copy(device, device_gpu, last_layer_cpu.log_std.gradient, last_layer_gpu.log_std.gradient);
                 rlt::copy(device, device_gpu, ppo_buffers.d_action_log_prob_d_action, gpu_d_action_train);
@@ -2045,10 +2074,7 @@ int main(int argc, char** argv){
                 auto bwd_inputs = rlt::nn_models::parallel::pack_inputs(batch_combined_reshaped, batch_state_reshaped);
                 rlt::backward(device_gpu, ppo_gpu.actor, bwd_inputs, gpu_d_action_reshaped, actor_buffers);
                 cudaDeviceSynchronize();
-                rlt::step(device_gpu, actor_optimizer_gpu, ppo_gpu.actor);
-                cudaDeviceSynchronize();
-
-                // Critic forward + MSE loss + backward + step on GPU
+                // Critic forward + MSE loss + backward on GPU
                 {
                     auto batch_obs_priv = rlt::view_range(device, dataset.all_observations_privileged, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
                     auto batch_obs_priv_matrix = rlt::matrix_view(device, batch_obs_priv);
@@ -2069,7 +2095,7 @@ int main(int argc, char** argv){
                         T critic_loss = rlt::nn::loss_functions::mse::evaluate(device, cpu_critic_output, batch_target_values);
                         ppo_critic_loss_sum += critic_loss;
                         ppo_critic_batches++;
-                        rlt::nn::loss_functions::mse::gradient(device, cpu_critic_output, batch_target_values, cpu_d_critic, (T)0.5);
+                        rlt::nn::loss_functions::mse::gradient(device, cpu_critic_output, batch_target_values, cpu_d_critic, (T)0.5 * GRADIENT_SCALE);
                         rlt::copy(device, device_gpu, cpu_d_critic, gpu_d_critic_output);
                         rlt::free(device, cpu_critic_output);
                         rlt::free(device, cpu_d_critic);
@@ -2078,11 +2104,19 @@ int main(int argc, char** argv){
                     auto gpu_d_critic_reshaped = rlt::reshape_row_major(device_gpu, gpu_d_critic_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, 1>{});
                     rlt::backward(device_gpu, ppo_gpu.critic, gpu_critic_obs_reshaped, gpu_d_critic_reshaped, critic_buffers);
                     cudaDeviceSynchronize();
-                    rlt::step(device_gpu, critic_optimizer_gpu, ppo_gpu.critic);
-                    cudaDeviceSynchronize();
                 }
                 ppo_update_batches++;
             }
+        }
+
+        rlt::utils::assert_exit(device, ppo_update_samples == STEPS_TOTAL, "Every rollout sample must be used exactly once");
+        accumulated_samples += ppo_update_samples;
+        if(update_ready){
+            rlt::utils::assert_exit(device, accumulated_samples == UPDATE_SAMPLES, "Incorrect accumulated update size");
+            rlt::step(device_gpu, actor_optimizer_gpu, ppo_gpu.actor);
+            rlt::step(device_gpu, critic_optimizer_gpu, ppo_gpu.critic);
+            cudaDeviceSynchronize();
+            optimizer_updates++;
         }
 
         // Sync trained actor weights → rollout actor for next data collection
@@ -2090,6 +2124,8 @@ int main(int argc, char** argv){
         rlt::copy(device_gpu, device, ppo_gpu.actor.head.log_std.parameters, ppo.actor.head.log_std.parameters);
         rlt::copy(device_gpu, device, actor_optimizer_gpu, actor_optimizer);
         rlt::copy(device_gpu, device, critic_optimizer_gpu, critic_optimizer);
+        rlt::utils::assert_exit(device, rlt::get(device, actor_optimizer.age, 0) == optimizer_updates + 1, "Actor updated before accumulation completed");
+        rlt::utils::assert_exit(device, rlt::get(device, critic_optimizer.age, 0) == optimizer_updates + 1, "Critic updated before accumulation completed");
 
         // Logging
         auto now = std::chrono::high_resolution_clock::now();
@@ -2102,8 +2138,16 @@ int main(int argc, char** argv){
                   << "  elapsed " << std::setw(7) << std::setprecision(3) << training_elapsed.count() << "s"
                   << "  (sps lifetime " << std::setw(6) << std::setprecision(0) << std::fixed << sps_lifetime
                   << ", current " << std::setw(6) << std::setprecision(0) << sps_current << ")" << std::defaultfloat << std::endl;
+        std::cout << "  optimizer updates: " << optimizer_updates << "  accumulated samples: " << accumulated_samples << "/" << UPDATE_SAMPLES << std::endl;
 
         rlt::add_scalar(device, device.logger, "ppo/step", ppo_step_i);
+        rlt::add_scalar(device, device.logger, "training/optimizer_updates", optimizer_updates);
+        rlt::add_scalar(device, device.logger, "training/accumulated_samples", accumulated_samples);
+        rlt::add_scalar(device, device.logger, "training/update_samples", UPDATE_SAMPLES);
+        rlt::add_scalar(device, device.logger, "training/sample_uses", N_EPOCHS);
+        metra::log("l2f_visual_training_on_policy/episode_length", static_cast<double>(rollout_episode_length_mean));
+        metra::log("l2f_visual_training_on_policy/optimizer_updates", static_cast<double>(optimizer_updates));
+        metra::log("l2f_visual_training_on_policy/steps_per_second", static_cast<double>(sps_current));
         rlt::add_scalar(device, device.logger, "ppo/actor_learning_rate", rlt::get(device, actor_optimizer.parameters, 0).alpha);
         rlt::add_scalar(device, device.logger, "ppo/critic_learning_rate", rlt::get(device, critic_optimizer.parameters, 0).alpha);
         if(ppo_update_samples > 0){
