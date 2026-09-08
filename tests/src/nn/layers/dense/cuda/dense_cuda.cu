@@ -163,6 +163,14 @@ TEST(NN_LAYERS_DENSE_CUDA, BACKWARD) {
     std::cout << "Dense BACKWARD d_weights: " << dw << std::endl; EXPECT_LT(dw, BWD_EPSILON);
     T db = rlt::abs_diff(device_cpu, lc.biases.gradient, lch.biases.gradient) / decltype(lc.biases.gradient)::SPEC::SIZE;
     std::cout << "Dense BACKWARD d_biases: " << db << std::endl; EXPECT_LT(db, BWD_EPSILON);
+    rlt::set_all(device_cuda, docu, (T)1);
+    rlt::forward(device_cuda, lcu, icu, bcu, rng_cuda, eval_mode);
+    rlt::backward_full(device_cuda, lcu, icu, docu, dicu, bcu, eval_mode);
+    rlt::copy(device_cuda, device_cpu, lcu, lch);
+    rlt::scale(device_cpu, lch.weights.gradient, (T)0.5);
+    rlt::scale(device_cpu, lch.biases.gradient, (T)0.5);
+    EXPECT_LT(rlt::abs_diff(device_cpu, lc.weights.gradient, lch.weights.gradient) / decltype(lc.weights.gradient)::SPEC::SIZE, BWD_EPSILON);
+    EXPECT_LT(rlt::abs_diff(device_cpu, lc.biases.gradient, lch.biases.gradient) / decltype(lc.biases.gradient)::SPEC::SIZE, BWD_EPSILON);
     rlt::free(device_cpu, lc); rlt::free(device_cpu, bc);
     rlt::free(device_cuda, lcu); rlt::free(device_cuda, bcu);
     rlt::free(device_cpu, ic); rlt::free(device_cuda, icu);
