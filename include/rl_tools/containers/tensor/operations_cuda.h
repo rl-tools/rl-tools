@@ -420,7 +420,7 @@ namespace rl_tools
         }
     }
 
-    // Unary operation when on Host device
+    // Binary operation when on Host device
     template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename OPERATION, typename SPEC_OUTPUT,
         typename std::enable_if<!devices::CUDA<DEV_SPEC>::TAG, int>::type = 0>
     void binary_operation(devices::CUDA<DEV_SPEC>& device, const OPERATION& op, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& output){
@@ -430,11 +430,21 @@ namespace rl_tools
         using T = typename SPEC_1::T;
         using TI = typename DEVICE::index_t;
         if constexpr(SPEC_1::SHAPE::LENGTH > 2){
-            for(TI i=0; i < SPEC_1::SHAPE::template GET<0>; ++i){
-                auto next_t1 = view(device, t1, i);
-                auto next_t2 = view(device, t2, i);
-                auto next_output = view(device, output, i);
-                unary_operation(device, op, next_t1, next_t2, next_output);
+            if constexpr(tensor::dense_row_major_layout<SPEC_1>() && tensor::dense_row_major_layout<SPEC_2>() && tensor::dense_row_major_layout<SPEC_OUTPUT>()){
+                // elementwise on dense storage: one launch over the flattened tensors instead of one per leading-dimension slice
+                constexpr TI N_ELEMENTS = product(typename SPEC_1::SHAPE{});
+                auto flat_t1 = reshape_row_major(device, t1, tensor::Shape<TI, N_ELEMENTS>{});
+                auto flat_t2 = reshape_row_major(device, t2, tensor::Shape<TI, N_ELEMENTS>{});
+                auto flat_output = reshape_row_major(device, output, tensor::Shape<TI, N_ELEMENTS>{});
+                binary_operation(device, op, flat_t1, flat_t2, flat_output);
+            }
+            else{
+                for(TI i=0; i < SPEC_1::SHAPE::template GET<0>; ++i){
+                    auto next_t1 = view(device, t1, i);
+                    auto next_t2 = view(device, t2, i);
+                    auto next_output = view(device, output, i);
+                    binary_operation(device, op, next_t1, next_t2, next_output);
+                }
             }
         }
         else

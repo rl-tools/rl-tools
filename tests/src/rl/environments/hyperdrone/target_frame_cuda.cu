@@ -91,6 +91,77 @@ static bool cuda_available(){
     return cudaGetDeviceCount(&device_count) == cudaSuccess && device_count > 0;
 }
 
+template <typename MEMBER>
+void check_rng_partitioning(){
+    DEVICE host;
+    DEVICE_GPU device;
+    rlt::init(host);
+    rlt::init(device);
+    using MULTI = rlt::rl::environments::hyperdrone::MultiEnvironment<MEMBER, 2>;
+    MULTI multi{};
+    MEMBER isolated{};
+    multi.environments[1].rng_offset = MEMBER::INSTANCES;
+    isolated.rng_offset = MEMBER::INSTANCES;
+    using PARAMETERS_SPEC = rlt::tensor::Specification<typename MEMBER::Parameters, TI, rlt::tensor::Shape<TI, MULTI::INSTANCES>>;
+    using LOCAL_SPEC = rlt::tensor::Specification<typename MEMBER::Parameters, TI, rlt::tensor::Shape<TI, MEMBER::INSTANCES>>;
+    rlt::Tensor<PARAMETERS_SPEC> parameters, parameters_host;
+    rlt::Tensor<LOCAL_SPEC> local, local_host;
+    rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, MULTI::INSTANCES>>> reset_mask, mask_host;
+    rlt::malloc(device, parameters);
+    rlt::malloc(host, parameters_host);
+    rlt::malloc(device, local);
+    rlt::malloc(host, local_host);
+    rlt::malloc(device, reset_mask);
+    rlt::malloc(host, mask_host);
+    RNG_GPU shared_rng, isolated_rng;
+    rlt::malloc(device, shared_rng);
+    rlt::malloc(device, isolated_rng);
+    rlt::init(device, shared_rng, 1337);
+    rlt::init(device, isolated_rng, 1337);
+    auto local_mask = rlt::view_range(device, reset_mask, MEMBER::INSTANCES, rlt::tensor::ViewSpec<0, MEMBER::INSTANCES>{});
+    for(TI round = 0; round < 4; round++){
+        for(TI i = 0; i < MULTI::INSTANCES; i++){
+            rlt::set(host, mask_host, round == 0 || (i + round) % 3 == 0, i);
+        }
+        rlt::copy(host, device, mask_host, reset_mask);
+        rlt::sample_initial_parameters(device, multi, parameters, reset_mask, shared_rng);
+        rlt::sample_initial_parameters(device, isolated, local, local_mask, isolated_rng);
+        rlt::copy(device, host, parameters, parameters_host);
+        rlt::copy(device, host, local, local_host);
+        for(TI i = 0; i < MEMBER::INSTANCES; i++){
+            const auto& a = rlt::get_ref(host, parameters_host, MEMBER::INSTANCES + i);
+            const auto& b = rlt::get_ref(host, local_host, i);
+            EXPECT_EQ(a.fov, b.fov) << "round " << round << " instance " << i;
+            EXPECT_EQ(a.brightness_scale, b.brightness_scale);
+            if constexpr(rlt::utils::typing::is_same_v<MEMBER, WORLD>){
+                EXPECT_EQ(a.target_roll, b.target_roll);
+                EXPECT_EQ(a.target_pitch, b.target_pitch);
+                EXPECT_EQ(a.brightness_mismatch, b.brightness_mismatch);
+            }
+        }
+    }
+    EXPECT_NE(rlt::get_ref(host, parameters_host, 0).brightness_scale,
+              rlt::get_ref(host, parameters_host, MEMBER::INSTANCES).brightness_scale);
+    isolated.rng_offset = RNG_GPU::NUM_RNGS - MEMBER::INSTANCES + 1;
+    EXPECT_THROW(rlt::sample_initial_parameters(device, isolated, local, local_mask, isolated_rng), std::out_of_range);
+    rlt::free(device, shared_rng);
+    rlt::free(device, isolated_rng);
+    rlt::free(device, parameters);
+    rlt::free(host, parameters_host);
+    rlt::free(device, local);
+    rlt::free(host, local_host);
+    rlt::free(device, reset_mask);
+    rlt::free(host, mask_host);
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, GLOBAL_RNG_PARTITIONS){
+    if(!cuda_available()){
+        GTEST_SKIP() << "CUDA device unavailable";
+    }
+    check_rng_partitioning<BASE_WORLD>();
+    check_rng_partitioning<WORLD>();
+}
+
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, CACHE_AND_STACK_SEMANTICS){
     if(SCENE_PATH.empty()){
         GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";

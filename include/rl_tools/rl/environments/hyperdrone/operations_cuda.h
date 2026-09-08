@@ -7,6 +7,7 @@
 #include "operations_cpu.h"
 
 #include <cuda_runtime.h>
+#include <stdexcept>
 
 // device-resident per-step path: pose/sample/step kernels are enqueued on the caller's stream or
 // the renderer's stream, joined by events — no host synchronization inside the verbs
@@ -14,6 +15,17 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace rl::environments::hyperdrone::cuda{
+        template <typename DEVICE, typename WORLD, typename RNG>
+        RNG instance_rng(DEVICE&, const WORLD& world, const RNG& rng){
+            static_assert(RNG::NUM_RNGS >= WORLD::INSTANCES, "Please increase the number of CUDA RNGs");
+            if(world.rng_offset > RNG::NUM_RNGS - WORLD::INSTANCES){
+                throw std::out_of_range("hyperdrone: World RNG range exceeds the CUDA RNG allocation");
+            }
+            auto result = rng;
+            result.states._data += world.rng_offset;
+            return result;
+        }
+
         template <typename SPEC>
         void stream_barrier(World<SPEC>& world, cudaStream_t from, cudaStream_t to){
             if(from == to){
@@ -210,7 +222,8 @@ namespace rl_tools{
         constexpr TI BLOCKSIZE = 32;
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES, BLOCKSIZE);
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        rl::environments::hyperdrone::cuda::sample_initial_parameters_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, world.parameters, parameters, reset_mask, rng);
+        auto world_rng = rl::environments::hyperdrone::cuda::instance_rng(device, world, rng);
+        rl::environments::hyperdrone::cuda::sample_initial_parameters_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, world.parameters, parameters, reset_mask, world_rng);
         check_status(device);
     }
     template <typename DEV_SPEC, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC, typename RNG>
@@ -221,7 +234,8 @@ namespace rl_tools{
         constexpr TI BLOCKSIZE = 32;
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES, BLOCKSIZE);
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        rl::environments::hyperdrone::cuda::sample_initial_state_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, world.active_annotations, parameters, states, reset_mask, rng);
+        auto world_rng = rl::environments::hyperdrone::cuda::instance_rng(device, world, rng);
+        rl::environments::hyperdrone::cuda::sample_initial_state_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, world.active_annotations, parameters, states, reset_mask, world_rng);
         check_status(device);
         request_render(device, world, reset_mask);
     }
@@ -337,7 +351,8 @@ namespace rl_tools{
         constexpr TI BLOCKSIZE = 32;
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES, BLOCKSIZE);
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        rl::environments::hyperdrone::cuda::observe_dynamics_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, parameters, states, observation_type, observations, rng);
+        auto world_rng = rl::environments::hyperdrone::cuda::instance_rng(device, world, rng);
+        rl::environments::hyperdrone::cuda::observe_dynamics_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, parameters, states, observation_type, observations, world_rng);
         check_status(device);
     }
     template <typename DEV_SPEC, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename ACTION_SPEC, typename NEXT_STATE_SPEC, typename RNG>
@@ -348,7 +363,8 @@ namespace rl_tools{
         constexpr TI BLOCKSIZE = 32;
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES, BLOCKSIZE);
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        rl::environments::hyperdrone::cuda::step_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, parameters, states, actions, next_states, rng);
+        auto world_rng = rl::environments::hyperdrone::cuda::instance_rng(device, world, rng);
+        rl::environments::hyperdrone::cuda::step_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, parameters, states, actions, next_states, world_rng);
         check_status(device);
         request_render(device, world);
     }
@@ -360,7 +376,8 @@ namespace rl_tools{
         constexpr TI BLOCKSIZE = 32;
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES, BLOCKSIZE);
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        rl::environments::hyperdrone::cuda::reward_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, parameters, states, actions, next_states, rewards, rng);
+        auto world_rng = rl::environments::hyperdrone::cuda::instance_rng(device, world, rng);
+        rl::environments::hyperdrone::cuda::reward_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, parameters, states, actions, next_states, rewards, world_rng);
         check_status(device);
     }
     template <typename DEV_SPEC, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename TERMINATED_SPEC, typename RNG>
@@ -371,7 +388,8 @@ namespace rl_tools{
         constexpr TI BLOCKSIZE = 32;
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES, BLOCKSIZE);
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        rl::environments::hyperdrone::cuda::terminated_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, parameters, states, terminated_flags, rng);
+        auto world_rng = rl::environments::hyperdrone::cuda::instance_rng(device, world, rng);
+        rl::environments::hyperdrone::cuda::terminated_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, parameters, states, terminated_flags, world_rng);
         check_status(device);
     }
 }

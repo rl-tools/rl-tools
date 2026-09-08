@@ -192,6 +192,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         std::vector<EntityKind> entity_kinds;  // frozen at init; empty when no wrapper registers any
         TI active_slot = 0;
         TI member_index = 0;
+        TI rng_offset = 0;
         TI episode_counter = 0;
         DYNAMICS_ENV dynamics;
 

@@ -61,6 +61,10 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void reset_forward_state(DEVICE& device, rl_tools::nn::layers::td3_sampling::LayerBackward<SPEC>& l) { }
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void zero_gradient(DEVICE& device, nn::layers::td3_sampling::LayerGradient<SPEC>& layer) { }
+    template<typename DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void add_gradient(DEVICE& device, nn::layers::td3_sampling::LayerGradient<SOURCE_SPEC>& source, nn::layers::td3_sampling::LayerGradient<TARGET_SPEC>& target) {}
+    template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void copy_gradient(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::layers::td3_sampling::LayerGradient<SOURCE_SPEC>& source, nn::layers::td3_sampling::LayerGradient<TARGET_SPEC>& target) {}
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
     RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn::layers::td3_sampling::LayerGradient<SPEC>& layer, OPTIMIZER& optimizer){ }
     template<typename DEVICE, typename SPEC, typename OPTIMIZER>
