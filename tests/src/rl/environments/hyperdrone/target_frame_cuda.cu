@@ -162,7 +162,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, GLOBAL_RNG_PARTITION
     check_rng_partitioning<WORLD>();
 }
 
-TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, CACHE_AND_STACK_SEMANTICS){
+template<bool RAW_FIRST>
+void cache_and_stack_semantics(){
     if(SCENE_PATH.empty()){
         GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
     }
@@ -194,6 +195,21 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, CACHE_AND_STACK_SEMA
     rlt::malloc(device_gpu, states);
     rlt::malloc(device_gpu, reset_mask);
     rlt::malloc(device_gpu, observations);
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, INSTANCES, BASE_WORLD::OBSERVATION_DIM>>> raw_observations;
+    rlt::malloc(device_gpu, raw_observations);
+    rlt::set_all(device_gpu, world.target_frames, (T)-123);
+    auto render_observation = [&](){
+        rlt::request_render(device_gpu, world, reset_mask);
+        if constexpr(RAW_FIRST){
+            rlt::observe(device_gpu, world, parameters, states, typename BASE_WORLD::Observation{}, raw_observations, rng);
+        }
+        else{
+            rlt::render(device_gpu, world, parameters, states, reset_mask);
+        }
+        const TI history_step = world.history_step;
+        rlt::observe(device_gpu, world, parameters, states, typename WORLD::Observation{}, observations, rng);
+        EXPECT_EQ(world.history_step, history_step);
+    };
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, INSTANCES, WORLD::OBSERVATION_DIM>>> observations_host;
     rlt::Tensor<rlt::tensor::Specification<typename WORLD::State, TI, rlt::tensor::Shape<TI, INSTANCES>>> states_host;
@@ -204,8 +220,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, CACHE_AND_STACK_SEMA
     rlt::set_all(device_gpu, reset_mask, true);
     rlt::sample_initial_parameters(device_gpu, world, parameters, reset_mask, rng);
     rlt::sample_initial_state(device_gpu, world, parameters, states, reset_mask, rng);
-    rlt::render(device_gpu, world, parameters, states, reset_mask);
-    rlt::observe(device_gpu, world, parameters, states, typename WORLD::Observation{}, observations, rng);
+    render_observation();
     cudaDeviceSynchronize();
     rlt::copy(device_gpu, host_device, observations, observations_host);
 
@@ -221,6 +236,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, CACHE_AND_STACK_SEMA
                 T target_value = channel_value(instance_i, pixel_i, TASK_SPEC::IMAGE_STACK_N * IMAGE_CHANNELS + channel_i);
                 target_step0[(instance_i * CAM_PIXELS + pixel_i) * IMAGE_CHANNELS + channel_i] = target_value;
                 frame0_step0[(instance_i * CAM_PIXELS + pixel_i) * IMAGE_CHANNELS + channel_i] = channel_value(instance_i, pixel_i, channel_i);
+                ASSERT_GE(target_value, (T)0);
                 target_nonzero = target_nonzero || target_value != (T)0;
                 ASSERT_EQ(channel_value(instance_i, pixel_i, channel_i), channel_value(instance_i, pixel_i, IMAGE_CHANNELS + channel_i)) << "stack should clamp to the episode start";
             }
@@ -240,8 +256,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, CACHE_AND_STACK_SEMA
         rlt::set(host_device, states_host, state, instance_i);
     }
     rlt::copy(host_device, device_gpu, states_host, states);
-    rlt::render(device_gpu, world, parameters, states, reset_mask);
-    rlt::observe(device_gpu, world, parameters, states, typename WORLD::Observation{}, observations, rng);
+    render_observation();
     cudaDeviceSynchronize();
     rlt::copy(device_gpu, host_device, observations, observations_host);
     bool student_changed = false;
@@ -256,6 +271,29 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, CACHE_AND_STACK_SEMA
     }
     EXPECT_TRUE(student_changed);
 
+    rlt::set_all(device_gpu, reset_mask, false);
+    rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, INSTANCES>>> reset_host;
+    rlt::malloc(host_device, reset_host);
+    rlt::set_all(host_device, reset_host, false);
+    rlt::set(host_device, reset_host, true, (TI)0);
+    rlt::copy(host_device, device_gpu, reset_host, reset_mask);
+    rlt::sample_initial_parameters(device_gpu, world, parameters, reset_mask, rng);
+    rlt::sample_initial_state(device_gpu, world, parameters, states, reset_mask, rng);
+    render_observation();
+    rlt::copy(device_gpu, host_device, observations, observations_host);
+    bool changed = false;
+    for(TI pixel_i = 0; pixel_i < CAM_PIXELS; pixel_i++){
+        for(TI channel_i = 0; channel_i < IMAGE_CHANNELS; channel_i++){
+            const TI target_channel = TASK_SPEC::IMAGE_STACK_N * IMAGE_CHANNELS + channel_i;
+            changed = changed || channel_value(0, pixel_i, target_channel) != target_step0[pixel_i * IMAGE_CHANNELS + channel_i];
+            ASSERT_EQ(channel_value(1, pixel_i, target_channel), target_step0[(CAM_PIXELS + pixel_i) * IMAGE_CHANNELS + channel_i]);
+            ASSERT_EQ(channel_value(0, pixel_i, channel_i), channel_value(0, pixel_i, IMAGE_CHANNELS + channel_i));
+        }
+    }
+    EXPECT_TRUE(changed);
+    rlt::free(host_device, reset_host);
+    rlt::free(device_gpu, raw_observations);
+    rlt::free(device_gpu, rng);
     rlt::free(device_gpu, parameters);
     rlt::free(device_gpu, states);
     rlt::free(device_gpu, reset_mask);
@@ -264,6 +302,13 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, CACHE_AND_STACK_SEMA
     rlt::free(host_device, states_host);
     rlt::free(device_gpu, world);
     rlt::free(device, shared.library);
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, CACHE_AND_STACK_SEMANTICS){
+    cache_and_stack_semantics<false>();
+}
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, RAW_OBSERVATION_REFRESHES_TARGET){
+    cache_and_stack_semantics<true>();
 }
 
 int main(int argc, char** argv) {

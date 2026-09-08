@@ -18,6 +18,28 @@ rl_environments_l2f_visual_training_cuda <scene_directory | scene.glb> [seed]
 
 The actor uses the on-policy log-probability objective with entropy regularization. There is one actor/critic update per 10,240 fresh samples, with no sample reuse. This is 25.6 times as many optimizer updates per sample as the previous 262,144-sample accumulated configuration. The `training/optimizer_updates`, `training/accumulated_samples`, and `training/sample_uses` TensorBoard metrics expose the schedule; the existing `ppo/*` diagnostics retain their names. Extrack runs carry `algorithm=on-policy`, and metra metrics use `l2f_visual_training_on_policy/*`.
 
+### Hyperdrone on-policy training
+
+```
+rl_environments_l2f_visual_training_cuda_hyperdrone <scene_directory | scene.glb> [seed]
+```
+
+Hyperdrone follows the existing `training_cuda.cu` defaults: float32, 32 environments, 320 steps per rollout, ten 1,024-sample minibatches accumulated into one actor and critic Adam update, and one use of every transition. Its target-local `training_hyperdrone_config.h` pins the reference parameters. The actor/critic wiring stays in `training_cuda_hyperdrone.cu`; `training_hyperdrone_loss.h` implements the reference advantage-weighted log-probability objective, entropy regularization and minibatch advantage normalization. `training_cuda.cu`, PPO operations and the shared neural-network backends are unchanged.
+
+Both targets shuffle the numerically ordered 25-scene corpus with a dedicated seeded scene RNG and select two scenes every seven rollouts (2,240 steps per environment). `training_hyperdrone_scenes.h` mirrors the reference enumeration. Both Hyperdrone Worlds can select any scene through the existing shared scene library and explicit `select_scene`, using 50 renderer slots with shared geometry builds. Their RNG offsets are 0 and 16. The existing `rotate_scene` behavior is preserved for other callers.
+
+Hyperdrone retains same-step autoreset and pre-reset critic observations for truncation bootstrapping. A raw observation refreshes the task target cache before composed observations are requested. The target is cached for each episode; history has 411 frames to accommodate the final observation. Episode completion reports follow the CUDA target's next-reset convention, including scene boundaries without double-counting task endings. RNG draw order and reset timing differ between targets, so historical seeded trajectories are not interchangeable.
+
+Extrack uses `algorithm_environments_accumulation=on-policy_32_1` and the distinct Hyperdrone target name. The first checkpoint/video endpoint is 71,680 environment steps; subsequent saved groups are 184 scene sets apart. Checkpoint examples preserve `[TIME, BATCH, ...]` axes, and trajectories include scene yaw/hash and per-episode parameters captured before autoreset.
+
+The Hyperdrone smoke target retains the full corpus and production rollout/batch sizes, completes two scene sets (143,360 transitions and 14 updates), and enables HDF5/tar exports. It checks all stacked/target/padding channels at five image positions for every transition against the actual rollout inputs, including history wraparound and resets, and compares training action means with collection means before the update.
+
+```bash
+cmake --build build --target rl_environments_l2f_visual_training_cuda_hyperdrone_smoke test_rl_environments_l2f_visual_hyperdrone_gradient -j5
+timeout 300 ./build/src/rl/environments/l2f_visual/rl_environments_l2f_visual_training_cuda_hyperdrone_smoke /data/procthor-train-200-glb 0
+ctest --test-dir build -R '^L2F_VISUAL_HYPERDRONE_ON_POLICY_GRADIENT\.' --output-on-failure --timeout 20 -j5
+```
+
 ### Imitation
 
 ```

@@ -178,18 +178,24 @@ namespace rl_tools {
         free(device, world.dynamics);
     }
 
-    // deterministic round-robin over this World's partition; the caller must force a reset of
-    // all instances afterwards (everything downstream flows through the reset path)
+    // Scene changes require the caller to reset all instances before observing again.
     template <typename DEVICE, typename SPEC>
-    void rotate_scene(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world) {
+    void select_scene(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, typename SPEC::TI slot_i) {
         using WORLD = rl::environments::hyperdrone::World<SPEC>;
         auto& render_device = get_rendering_device(device);
-        world.active_slot = (world.active_slot + 1) % world.slots.size();
+        utils::assert_exit(device, slot_i < world.slots.size(), "hyperdrone::select_scene: slot out of range");
+        world.active_slot = slot_i;
         world.renderer = world.slots[world.active_slot].renderer;
         Tensor<typename WORLD::ACTIVE_ANNOTATIONS_SPEC> annotations_alias;
         annotations_alias._data = &world.slots[world.active_slot].annotations;
         copy(render_device, device, annotations_alias, world.active_annotations);
         request_render(device, world);
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void rotate_scene(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world) {
+        utils::assert_exit(device, !world.slots.empty(), "hyperdrone::rotate_scene: empty scene partition");
+        select_scene(device, world, (world.active_slot + 1) % world.slots.size());
     }
 
     template <typename DEVICE, typename SPEC>

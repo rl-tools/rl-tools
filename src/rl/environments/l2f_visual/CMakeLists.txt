@@ -36,6 +36,16 @@ if(TARGET owl::owl AND TARGET rendering_raytracing_device_ptx AND TARGET assimp:
             CUDA_STANDARD 17
             CUDA_STANDARD_REQUIRED ON
         )
+        add_executable(rl_environments_l2f_visual_training_cuda_hyperdrone_smoke EXCLUDE_FROM_ALL training_cuda_hyperdrone.cu)
+        target_compile_definitions(rl_environments_l2f_visual_training_cuda_hyperdrone_smoke PRIVATE RL_TOOLS_L2F_VISUAL_TRAINING_SMOKE)
+        target_link_libraries(rl_environments_l2f_visual_training_cuda_hyperdrone_smoke PRIVATE
+            RLtools::RLtools
+            owl::owl
+            rendering_raytracing_device_ptx
+            assimp::assimp
+            rendering_raytracing_stb
+        )
+        set_target_properties(rl_environments_l2f_visual_training_cuda_hyperdrone_smoke PROPERTIES CUDA_STANDARD 17 CUDA_STANDARD_REQUIRED ON)
         add_executable(rl_environments_l2f_visual_imitation_cuda imitation_cuda.cu)
         target_compile_definitions(rl_environments_l2f_visual_imitation_cuda PRIVATE RL_TOOLS_L2F_VISUAL_IMITATION_N_RANKS=${RL_TOOLS_L2F_VISUAL_IMITATION_N_RANKS})
         target_link_libraries(rl_environments_l2f_visual_imitation_cuda PRIVATE

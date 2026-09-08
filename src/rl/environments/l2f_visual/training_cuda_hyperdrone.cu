@@ -103,177 +103,17 @@ using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
 using DEVICE_GPU_SPEC = rlt::rendering::raytracing::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
 using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<DEVICE_GPU_SPEC>;
 
-using T = float;
-using TYPE_POLICY = rlt::numeric_types::Policy<float>;
-using TI = typename DEVICE::index_t;
-using RNG = rlt::devices::generic::random::ArrayENGINE<rlt::devices::generic::random::ArraySpecification<TI, 1024>>;
-using RNG_GPU = typename DEVICE_GPU::SPEC::RANDOM::ENGINE<>;
+#include "training_hyperdrone_config.h"
+#include "training_hyperdrone_scenes.h"
+#include "training_hyperdrone_loss.h"
+using rlt::resolve_training_scenes;
+using rlt::select_scene;
+using rlt::zero_gradient;
+using rlt::step;
+using rlt::training_hyperdrone_actor_loss_gradient;
+using namespace rlt::rl::environments::l2f_visual::training;
 
-// =========================================================================
-// L2F dynamics configuration
-// =========================================================================
-namespace l2f = rlt::rl::environments::l2f;
-namespace obs = l2f::observation;
-
-using REWARD_FUNCTION = l2f::parameters::reward_functions::Squared<T>;
-static constexpr TI SIMULATION_FREQUENCY = 100;
-static constexpr TI EPISODE_STEP_LIMIT = 10000;
-using PARAMETERS_SPEC = l2f::ParametersBaseSpecification<T, TI, 4, EPISODE_STEP_LIMIT, REWARD_FUNCTION>;
-struct DOMAIN_RANDOMIZATION_OPTIONS {
-    static constexpr bool THRUST_TO_WEIGHT = true;
-    static constexpr bool MASS = false;
-    static constexpr bool TORQUE_TO_INERTIA = false;
-    static constexpr bool MASS_SIZE_DEVIATION = false;
-    static constexpr bool ROTOR_TORQUE_CONSTANT = false;
-    static constexpr bool DISTURBANCE_FORCE = false;
-    static constexpr bool ROTOR_TIME_CONSTANT = false;
-};
-using PARAMETERS_BASE = l2f::ParametersBase<PARAMETERS_SPEC>;
-using PARAMETERS_IMU = l2f::ParametersIMU<l2f::ParametersSpecification<T, TI, PARAMETERS_BASE>>;
-using PARAMETERS_DISTURBANCES = l2f::ParametersDisturbances<l2f::ParametersSpecification<T, TI, PARAMETERS_IMU>>;
-using PARAMETERS_TYPE = l2f::ParametersDomainRandomization<l2f::ParametersDomainRandomizationSpecification<T, TI, DOMAIN_RANDOMIZATION_OPTIONS, PARAMETERS_DISTURBANCES>>;
-
-static constexpr auto MODEL = l2f::parameters::dynamics::REGISTRY::crazyflie_openmv;
-
-static constexpr REWARD_FUNCTION reward_function = {
-    false, // bool non_negative;
-    0.10,  // scale;
-    1.00,  // constant;
-    -100.00, // termination_penalty;
-    10.00, // position;
-    0.00,  // position_clip;
-    1.00,  // orientation;
-    0.05,  // linear_velocity;
-    1.50,  // angular_velocity;
-    0.00,  // linear_acceleration;
-    0.00,  // angular_acceleration;
-    {0.00, 0.00, 0.00, 0.00}, // action[ACTION_DIM]
-    {1.50, 1.50, 1.50, 1.50}, // d_action[ACTION_DIM]
-    0.00   // position_error_integral
-};
-static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = {
-    1.0, 0.0, 0.3, 1.0, 1.0, true, -1, +1,
-};
-static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = {
-    true, 1.0, 0, 10, 35, 10000, 50000,
-};
-static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
-static constexpr typename PARAMETERS_TYPE::Integration integration = {
-    static_cast<T>(1) / static_cast<T>(SIMULATION_FREQUENCY)
-};
-static constexpr typename PARAMETERS_TYPE::MDP mdp = { init, reward_function, {}, {}, termination };
-// Random force/torque disturbances scaled relative to the platform's maximum thrust.
-// `state.force` / `state.torque` are sampled once per episode in `30_sample_initial_state.h`
-// from `N(mean, std)` and continuously injected through `60_dynamics.h`.
-// MAX_THRUST_PER_ROTOR = c0 + c1*1 + c2*1^2 evaluated at the action upper bound (rpm=1).
-static constexpr T MAX_THRUST_PER_ROTOR = dynamics.rotor_thrust_coefficients[0][0]
-                                        + dynamics.rotor_thrust_coefficients[0][1]
-                                        + dynamics.rotor_thrust_coefficients[0][2];
-static constexpr T MAX_THRUST = static_cast<T>(PARAMETERS_SPEC::N) * MAX_THRUST_PER_ROTOR;
-// Rotor moment arm in the x/y plane (single rotor offset; works as a characteristic length
-// to convert a force-scale disturbance into an equivalent moment-scale disturbance).
-static constexpr T ROTOR_ARM = dynamics.rotor_positions[0][0] < 0 ? -dynamics.rotor_positions[0][0] : dynamics.rotor_positions[0][0];
-// Midpoint of the 5-10% range. Per-axis std; total magnitude is ~sqrt(8/pi) * std.
-static constexpr T DISTURBANCE_FRACTION = static_cast<T>(0.0);
-static constexpr T DISTURBANCE_FORCE_STD = DISTURBANCE_FRACTION * MAX_THRUST;
-static constexpr T DISTURBANCE_TORQUE_STD = DISTURBANCE_FRACTION * MAX_THRUST * ROTOR_ARM;
-static constexpr typename PARAMETERS_TYPE::Disturbances disturbances = {
-    {0, DISTURBANCE_FORCE_STD},  // random_force
-    {0, DISTURBANCE_TORQUE_STD}  // random_torque (z axis is internally scaled by 1/100 in sample_initial_state)
-};
-static constexpr typename PARAMETERS_TYPE::IMU imu = {
-    {{ // accelerometer error
-        {static_cast<T>(0), static_cast<T>(0)}, // noise: mean, std
-        {static_cast<T>(0), static_cast<T>(0), static_cast<T>(0)} // bias: init_max, tau, sigma
-    }},
-    {{ // gyro error
-        {static_cast<T>(0), static_cast<T>(0)}, // noise: mean, std
-        {static_cast<T>(0.02), static_cast<T>(0), static_cast<T>(0)} // bias: init_max, tau (<=0: random walk), increment density
-    }}
-};
-static constexpr typename PARAMETERS_TYPE::DomainRandomization domain_randomization = {
-    1.7, 2.0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-};
-static constexpr PARAMETERS_TYPE nominal_parameters = { {{{dynamics, integration, mdp}, imu}, disturbances}, domain_randomization };
-
-// =========================================================================
-// Environment static parameters
-// =========================================================================
-static constexpr TI ACTION_HISTORY_LENGTH = 8;
-
-struct STATIC_PARAMETERS {
-    static constexpr auto ACTION_INTERFACE = l2f::parameters::ActionInterface::DIRECT_MOTOR;
-    static constexpr TI N_SUBSTEPS = 1;
-    static constexpr TI CLOSED_FORM = false;
-    static constexpr TI EPISODE_STEP_LIMIT = ::EPISODE_STEP_LIMIT;
-    using STATE_BASE = l2f::StateBase<l2f::StateSpecification<T, TI>>;
-    using STATE_BASE_LA = l2f::StateLinearAcceleration<l2f::StateSpecification<T, TI, STATE_BASE>>;
-    using STATE_BASE_LAH = l2f::StateLinearAccelerationHistory<l2f::StateLinearAccelerationHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, STATE_BASE_LA>>;
-    using STATE_BASE_GB = l2f::StateIMU<T, TI, STATE_BASE_LAH>;
-    using STATE_BASE_MAHONY = l2f::StateMahony<l2f::StateMahonySpecification<T, TI, STATE_BASE_GB>>;
-    using STATE_TYPE = l2f::StateRotorsHistory<l2f::StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, l2f::StateRandomForce<l2f::StateSpecification<T, TI, l2f::StateLastAction<l2f::StateSpecification<T, TI, STATE_BASE_MAHONY>>>>>>;
-    using OBSERVATION_TYPE = obs::Position<obs::PositionSpecification<T, TI,
-            obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecification<T, TI,
-            obs::LinearVelocity<obs::LinearVelocitySpecification<T, TI,
-            obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI,
-            obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>>>;
-    using OBSERVATION_TYPE_PRIVILEGED = obs::Position<obs::PositionSpecificationPrivileged<T, TI,
-            obs::OrientationRotationMatrix<obs::OrientationRotationMatrixSpecificationPrivileged<T, TI,
-            obs::LinearVelocity<obs::LinearVelocitySpecificationPrivileged<T, TI,
-            obs::AngularVelocity<obs::AngularVelocitySpecificationPrivileged<T, TI,
-            obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>>>>>;
-    static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
-    using PARAMETERS = PARAMETERS_TYPE;
-    static constexpr auto PARAMETER_VALUES = nominal_parameters;
-    static constexpr T STATE_LIMIT_POSITION_X = 100000;
-    static constexpr T STATE_LIMIT_POSITION_Y = 100000;
-    static constexpr T STATE_LIMIT_POSITION_Z = 100000;
-    static constexpr T STATE_LIMIT_VELOCITY_X = 100000;
-    static constexpr T STATE_LIMIT_VELOCITY_Y = 100000;
-    static constexpr T STATE_LIMIT_VELOCITY_Z = 100000;
-    static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_X = 100000;
-    static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Y = 100000;
-    static constexpr T STATE_LIMIT_ANGULAR_VELOCITY_Z = 100000;
-};
-
-using ACTOR_STATE_OBS = obs::OrientationWorldZ<obs::OrientationWorldZSpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>>>>>;
-static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM;
-
-// =========================================================================
-// Visual environment specification (multi-scene)
-// =========================================================================
-static constexpr TI N_TOTAL_SCENES = 25;
-static constexpr TI N_ACTIVE_SCENES = 2;
-static constexpr TI N_ENVIRONMENTS_PER_SCENE = 64;
-static constexpr TI N_ENVIRONMENTS = N_ACTIVE_SCENES * N_ENVIRONMENTS_PER_SCENE;
-static constexpr TI CAM_WIDTH = 80;
-static constexpr TI CAM_HEIGHT = 50;
-static constexpr TI NUM_PROBES = 64;
-static constexpr T CAMERA_FOV = 79.6;
-static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = static_cast<T>(5.0);
-static constexpr T CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_X = static_cast<T>(0.01);
-static constexpr T CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_Y = static_cast<T>(0.01);
-static constexpr T CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_Z = static_cast<T>(0.01);
-static constexpr T CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_X = static_cast<T>(5.0) / static_cast<T>(180) * rlt::math::PI<T>;
-static constexpr T CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_Y = static_cast<T>(5.0) / static_cast<T>(180) * rlt::math::PI<T>;
-static constexpr T CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_Z = static_cast<T>(5.0) / static_cast<T>(180) * rlt::math::PI<T>;
-static constexpr T TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE = static_cast<T>(10.0) / static_cast<T>(180) * rlt::math::PI<T>;
-using RENDER_SHADING = rlt::rendering::raytracing::High;
-static constexpr bool RENDER_ENABLE_MOTION_BLUR = false;
-static constexpr TI RENDER_MOTION_BLUR_SAMPLES = 1;
-static constexpr bool RENDER_ENABLE_ANTI_ALIASING = true;
-static constexpr TI RENDER_ANTI_ALIASING_GRID_SIZE = 2;
-static constexpr T RENDER_SHUTTER_FRACTION_MIN = static_cast<T>(0.25);
-static constexpr T RENDER_SHUTTER_FRACTION_MAX = static_cast<T>(1);
-static_assert(RENDER_SHUTTER_FRACTION_MIN >= static_cast<T>(0) && RENDER_SHUTTER_FRACTION_MIN <= RENDER_SHUTTER_FRACTION_MAX && RENDER_SHUTTER_FRACTION_MAX <= static_cast<T>(1), "Invalid l2f_visual training shutter fraction range");
-
-static constexpr TI FRAME_STACK_N = 10;
-static constexpr TI FRAME_STACK_STRIDE = 10;
-static constexpr TI ROLLOUT_STEPS_PER_ENV = 2048;
-static constexpr TI ROLLOUTS_PER_SCENE_SET = 1;
-static constexpr TI FRAME_STACK_HISTORY_LENGTH = FRAME_STACK_STRIDE * (FRAME_STACK_N - 1) + ROLLOUT_STEPS_PER_ENV + 1; // + the rollout's final observation, rendered by the runner's last epilogue
-static constexpr T BRIGHTNESS_RANDOMIZATION_RANGE = 0.5;
-static constexpr T TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE = 0.25;
+static constexpr TI FRAME_STACK_HISTORY_LENGTH = FRAME_STACK_STRIDE * (FRAME_STACK_N - 1) + ROLLOUT_STEPS_PER_ENV + 1;
 
 struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, STATIC_PARAMETERS>{
     static constexpr TI INSTANCES_PER_ENVIRONMENT = N_ENVIRONMENTS_PER_SCENE;
@@ -312,7 +152,7 @@ static constexpr bool RENDER_MOTION_BLUR_ACTIVE = BASE_WORLD::RENDERER_SPEC::ENA
 static constexpr bool RENDER_ANTI_ALIASING_ACTIVE = BASE_WORLD::RENDERER_SPEC::ENABLE_ANTI_ALIASING;
 
 // Mosaic layout: each env cell shows (target | actual) pair, arranged in an ENV_GRID_SIDE×ENV_GRID_SIDE grid per active scene.
-static constexpr TI ENV_GRID_SIDE = 8;
+static constexpr TI ENV_GRID_SIDE = 4;
 static constexpr TI SCENE_GRID_COLS = N_ACTIVE_SCENES;
 static constexpr TI SCENE_GRID_ROWS = (N_ACTIVE_SCENES + SCENE_GRID_COLS - 1) / SCENE_GRID_COLS;
 static_assert(ENV_GRID_SIDE * ENV_GRID_SIDE == N_ENVIRONMENTS_PER_SCENE, "ENV_GRID_SIDE^2 must equal N_ENVIRONMENTS_PER_SCENE for the mosaic layout");
@@ -320,51 +160,41 @@ static_assert(ENV_GRID_SIDE * ENV_GRID_SIDE == N_ENVIRONMENTS_PER_SCENE, "ENV_GR
 // =========================================================================
 // Frame stacking + target-channel concatenation
 // =========================================================================
-static constexpr TI COMBINED_IMG_C = TASK_WORLD::OBSERVATION_CHANNELS;
-static constexpr TI COMBINED_OBS_DIM = TASK_WORLD::OBSERVATION_DIM;
-static_assert(COMBINED_IMG_C == ((BASE_WORLD::IMAGE_CHANNELS * (FRAME_STACK_N + 1) + 7) & ~((TI)7)));
-
-// =========================================================================
-// Trajectory recording for extrack UI
-// =========================================================================
-static constexpr TI EXTRACK_SAVE_INTERVAL_PPO_STEPS = 100;
-static constexpr TI EXTRACK_SAVE_INTERVAL_SCENE_SETS_BASE = (EXTRACK_SAVE_INTERVAL_PPO_STEPS + ROLLOUTS_PER_SCENE_SET - 1) / ROLLOUTS_PER_SCENE_SET;
-static constexpr TI EXTRACK_SAVE_INTERVAL_SCENE_SETS = 2 * EXTRACK_SAVE_INTERVAL_SCENE_SETS_BASE;
-static constexpr TI VIDEO_SAVE_INTERVAL_SCENE_SETS = EXTRACK_SAVE_INTERVAL_SCENE_SETS;
-static constexpr TI CHECKPOINT_CADENCE_SCENE_SETS = EXTRACK_SAVE_INTERVAL_SCENE_SETS;
-static constexpr TI REWARD_COMPONENT_LOG_INTERVAL_PPO_STEPS = 20;
-static constexpr bool EXPORT_CHECKPOINT_TAR = false;
-static constexpr bool EXPORT_CHECKPOINT_CODE = false;
-static constexpr TI N_EXAMPLES = 512;
-static constexpr TI REDUCED_BATCH_SIZE = 2;
-static_assert(REDUCED_BATCH_SIZE <= N_EXAMPLES);
-static constexpr TI TRAJECTORY_NUM_ENVS = 10;
-static constexpr TI TRAJECTORY_MAX_EPISODES = 10;
+static_assert(COMBINED_IMG_C == TASK_WORLD::OBSERVATION_CHANNELS);
+static_assert(COMBINED_OBS_DIM == TASK_WORLD::OBSERVATION_DIM);
 
 struct TrajectoryStep {
     typename ENVIRONMENT::State state;
+    typename ENVIRONMENT::Parameters parameters;
+    std::string scene_hash;
     T actions[ENVIRONMENT::ACTION_DIM];
     T reward;
     bool terminated;
 };
 struct EpisodeRecorder {
     std::vector<TrajectoryStep> current_episode;
-    bool episode_started = false;
 };
 
-std::string trajectory_episodes_to_json(DEVICE& device, TASK_WORLD& env, typename TASK_WORLD::Parameters& parameters,
+std::string trajectory_episodes_to_json(DEVICE& device, TASK_WORLD& env,
     const std::vector<std::vector<TrajectoryStep>>& episodes, T dt){
-    if(episodes.empty()) return "[]";
+    if(episodes.empty()){
+        return "[]";
+    }
     TI max_len = 0;
-    for(auto& ep : episodes) if(ep.size() > max_len) max_len = ep.size();
+    for(auto& ep : episodes){
+        if(ep.size() > max_len){
+            max_len = ep.size();
+        }
+    }
     std::string json = "[";
     for(TI ep_i = 0; ep_i < episodes.size(); ep_i++){
         auto& episode = episodes[ep_i];
+        const auto& parameters = episode.front().parameters;
         std::string parameters_json = rlt::json(device, env.dynamics, parameters.dynamics);
         parameters_json = parameters_json.substr(0, parameters_json.size() - 1);
         parameters_json += ", \"visual\": {\"scene_translation\": [" + std::to_string(parameters.scene_translation[0]) + ", " + std::to_string(parameters.scene_translation[1]) + ", " + std::to_string(parameters.scene_translation[2]) + "]"
-            + ", \"scene_yaw_cos\": " + std::to_string(parameters.scene_yaw_cos)
-            + ", \"scene_yaw_sin\": " + std::to_string(parameters.scene_yaw_sin)
+            + ", \"scene_yaw\": " + std::to_string(rlt::math::atan2(device.math, parameters.scene_yaw_sin, parameters.scene_yaw_cos))
+            + ", \"scene_hash\": \"" + episode.front().scene_hash + "\""
             + ", \"cam_width\": " + std::to_string(WORLD_SPEC::CAM_WIDTH)
             + ", \"cam_height\": " + std::to_string(WORLD_SPEC::CAM_HEIGHT)
             + ", \"fov\": " + std::to_string(parameters.fov) + "}}";
@@ -376,7 +206,9 @@ std::string trajectory_episodes_to_json(DEVICE& device, TASK_WORLD& env, typenam
             json += "\"action\":[";
             for(TI a = 0; a < ENVIRONMENT::ACTION_DIM; a++){
                 json += std::to_string(s.actions[a]);
-                if(a < ENVIRONMENT::ACTION_DIM - 1) json += ",";
+                if(a < ENVIRONMENT::ACTION_DIM - 1){
+                    json += ",";
+                }
             }
             json += "],";
             json += "\"dt\":" + std::to_string(dt) + ",";
@@ -384,10 +216,14 @@ std::string trajectory_episodes_to_json(DEVICE& device, TASK_WORLD& env, typenam
             bool term = (step_i < episode.size()) ? s.terminated : true;
             json += "\"terminated\":" + (term ? std::string("true") : std::string("false"));
             json += "}";
-            if(step_i < max_len - 1) json += ",";
+            if(step_i < max_len - 1){
+                json += ",";
+            }
         }
         json += "]}";
-        if(ep_i < episodes.size() - 1) json += ",";
+        if(ep_i < episodes.size() - 1){
+            json += ",";
+        }
     }
     json += "]";
     return json;
@@ -396,37 +232,7 @@ std::string trajectory_episodes_to_json(DEVICE& device, TASK_WORLD& env, typenam
 // =========================================================================
 // PPO configuration
 // =========================================================================
-struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>{
-    static constexpr T ALPHA = 1e-4;
-};
-
-struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
-    static constexpr TI BATCH_SIZE = 1024;
-    static constexpr TI ACTOR_HIDDEN_DIM = 64;
-    static constexpr TI ACTOR_CNN_CHANNEL_MULTIPLIER = 2;
-    static constexpr TI CRITIC_HIDDEN_DIM = 64;
-    static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::RELU;
-    static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
-    static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = ROLLOUT_STEPS_PER_ENV;
-    static constexpr TI N_ENVIRONMENTS = ::N_ENVIRONMENTS;
-    static constexpr TI TOTAL_STEP_LIMIT = 1000000000;
-    static constexpr TI STEP_LIMIT = TOTAL_STEP_LIMIT / (N_ENVIRONMENTS * ON_POLICY_RUNNER_STEPS_PER_ENV) + 1;
-    static constexpr TI EPISODE_STEP_LIMIT = ::EPISODE_STEP_LIMIT;
-    using ACTOR_OPTIMIZER_PARAMETERS = ADAM_PARAMETERS;
-    using CRITIC_OPTIMIZER_PARAMETERS = ADAM_PARAMETERS;
-    static constexpr bool NORMALIZE_OBSERVATIONS = false; // standardize layers handle their own warmup
-    struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<TYPE_POLICY, TI, BATCH_SIZE>{
-        static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.005;
-        static constexpr TI N_EPOCHS = 2;
-        static constexpr T GAMMA = 0.99;
-        static constexpr T LAMBDA = 0.95;
-        static constexpr T EPSILON_CLIP = 0.2;
-        static constexpr T INITIAL_ACTION_STD = 0.5;
-    };
-};
-
-// CNN actor (image branch + state branch + mlp head with unconditional log_std)
-// dense critic on full privileged observation (asymmetric)
+using LOOP_CORE_PARAMETERS = rlt::rl::environments::l2f_visual::training::LoopParameters<ENVIRONMENT>;
 template<typename T_TYPE_POLICY, typename T_TI, typename T_ENVIRONMENT, typename PARAMETERS, bool T_DYNAMIC_ALLOCATION = true>
 struct ConfigApproximators{
     static constexpr T_TI STEPS = 1;
@@ -490,6 +296,7 @@ struct ConfigApproximators{
     using CRITIC_TYPE = typename Critic<CAPABILITY_ADAM>::MODEL;
 };
 
+
 using LOOP_CORE_CONFIG = rlt::rl::algorithms::ppo::loop::core::Config<TYPE_POLICY, TI, RNG, ENVIRONMENT, LOOP_CORE_PARAMETERS, ConfigApproximators>;
 
 // =========================================================================
@@ -526,6 +333,12 @@ static constexpr TI STEPS_TOTAL = ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL;
 static constexpr TI STEPS_TOTAL_ALL = ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL;
 static constexpr TI N_EPOCHS = LOOP_CORE_PARAMETERS::PPO_PARAMETERS::N_EPOCHS;
 static constexpr TI N_BATCHES = STEPS_TOTAL / BATCH_SIZE;
+static constexpr TI UPDATE_SAMPLES = STEPS_TOTAL * GRADIENT_ACCUMULATION_ROLLOUTS;
+static constexpr T GRADIENT_SCALE = static_cast<T>(BATCH_SIZE) / static_cast<T>(UPDATE_SAMPLES);
+static_assert(GRADIENT_ACCUMULATION_ROLLOUTS == 1);
+static_assert(STEPS_TOTAL % BATCH_SIZE == 0);
+static_assert(N_EPOCHS == 1);
+static_assert(N_ENVIRONMENTS <= RNG_GPU::NUM_RNGS);
 static constexpr TI IMG_H = BASE_WORLD::Observation::HEIGHT;
 static constexpr TI IMG_W = BASE_WORLD::Observation::WIDTH;
 static constexpr TI IMG_C = BASE_WORLD::Observation::CHANNELS;
@@ -555,14 +368,18 @@ __global__ void build_frame_stacked_with_target_from_dataset_kernel(
     int base_env, int envs_per_world
 ){
     int global_idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if(global_idx >= batch_size * combined_obs_dim) return;
+    if(global_idx >= batch_size * combined_obs_dim){
+        return;
+    }
     int sample = global_idx / combined_obs_dim;
     int offset = global_idx % combined_obs_dim;
     int pixel = offset / combined_img_c;
     int frame_channel = offset % combined_img_c;
     int row = batch_offset + sample;
     int env_i = row % n_envs;
-    if(env_i < base_env || env_i >= base_env + envs_per_world) return;
+    if(env_i < base_env || env_i >= base_env + envs_per_world){
+        return;
+    }
     int local_env = env_i - base_env;
     int step_i_local = row / n_envs;
     int logical_channels = n_frames * img_c + img_c;
@@ -573,7 +390,9 @@ __global__ void build_frame_stacked_with_target_from_dataset_kernel(
         TI back = static_cast<TI>(frame) * static_cast<TI>(frame_stride);
         TI frame_step_i = frame_step_start + static_cast<TI>(step_i_local);
         TI desired_step = frame_step_i >= back ? frame_step_i - back : episode_start;
-        if(desired_step < episode_start) desired_step = episode_start;
+        if(desired_step < episode_start){
+            desired_step = episode_start;
+        }
         TI renders_back = frame_step_end - desired_step;
         TI history_slot = (history_step_end - 1 - renders_back) % FRAME_STACK_HISTORY_LENGTH;
         TI src_row = history_slot * envs_per_world + local_env;
@@ -587,11 +406,37 @@ __global__ void build_frame_stacked_with_target_from_dataset_kernel(
     }
 }
 
+#ifdef RL_TOOLS_L2F_VISUAL_TRAINING_SMOKE
+static constexpr TI SMOKE_PIXELS = 5;
+static constexpr TI SMOKE_FEATURES = SMOKE_PIXELS * COMBINED_IMG_C;
+__global__ void capture_observation_probes_kernel(const T* observations, T* probes){
+    const TI env_i = blockIdx.x;
+    const TI feature = threadIdx.x;
+    if(feature < SMOKE_FEATURES){
+        const TI pixel = (feature / COMBINED_IMG_C) * (CAM_WIDTH * CAM_HEIGHT - 1) / (SMOKE_PIXELS - 1);
+        probes[env_i * SMOKE_FEATURES + feature] = observations[env_i * COMBINED_OBS_DIM + pixel * COMBINED_IMG_C + feature % COMBINED_IMG_C];
+    }
+}
+__global__ void compare_observation_probes_kernel(const T* observations, const T* probes, bool* matches){
+    const TI row = blockIdx.x * blockDim.x + threadIdx.x;
+    if(row < BATCH_SIZE){
+        bool match = true;
+        for(TI feature = 0; feature < SMOKE_FEATURES; feature++){
+            const TI pixel = (feature / COMBINED_IMG_C) * (CAM_WIDTH * CAM_HEIGHT - 1) / (SMOKE_PIXELS - 1);
+            match = match && observations[row * COMBINED_OBS_DIM + pixel * COMBINED_IMG_C + feature % COMBINED_IMG_C] == probes[row * SMOKE_FEATURES + feature];
+        }
+        matches[row] = match;
+    }
+}
+#endif
+
 // per-row episode start (in frame steps) for the dataset re-assembly: a reset instance starts at
 // the current frame step
 __global__ void record_episode_start_kernel(const bool* reset_mask, TI* episode_start_step, TI* episode_start_step_per_row, TI step_i, TI frame_step_i){
     TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
-    if(env_i >= N_ENVIRONMENTS) return;
+    if(env_i >= N_ENVIRONMENTS){
+        return;
+    }
     if(reset_mask[env_i]){
         episode_start_step[env_i] = frame_step_i;
     }
@@ -601,21 +446,6 @@ __global__ void record_episode_start_kernel(const bool* reset_mask, TI* episode_
 // =========================================================================
 // Main
 // =========================================================================
-static bool parse_hex_hash(const char* hex, unsigned char* out, unsigned len){
-    for(unsigned i = 0; i < len; i++){
-        unsigned byte = 0;
-        for(int nibble = 0; nibble < 2; nibble++){
-            char c = hex[i * 2 + nibble];
-            if(c >= '0' && c <= '9') byte = (byte << 4) | (c - '0');
-            else if(c >= 'a' && c <= 'f') byte = (byte << 4) | (c - 'a' + 10);
-            else if(c >= 'A' && c <= 'F') byte = (byte << 4) | (c - 'A' + 10);
-            else return false;
-        }
-        out[i] = static_cast<unsigned char>(byte);
-    }
-    return true;
-}
-
 int main(int argc, char** argv){
     TI seed = 0;
     if(argc < 2){
@@ -628,30 +458,25 @@ int main(int argc, char** argv){
 
     // ---------------------------------------------------------------------
     // Resolve scenes: a directory of .glb scenes (this run trains on the first N_TOTAL_SCENES
-    // of the corpus, natural order) or a single .glb replicated across all Worlds
-    // ---------------------------------------------------------------------
-    const char* scene_arg = argv[1];
-    rlt::rendering::datasets::procthor::GLB scene_dataset{{}, {}};
-    if(std::filesystem::is_directory(scene_arg)){
-        scene_dataset.directory = scene_arg;
-        std::cout << "Scene corpus from directory " << scene_arg << std::endl;
-    } else {
-        scene_dataset.references.assign(N_TOTAL_SCENES, scene_arg);
-        std::cout << "Replicating single scene across " << N_TOTAL_SCENES << " renderers: " << scene_arg << std::endl;
-    }
-
-    // ---------------------------------------------------------------------
-    // Devices + extrack
+    // of the corpus, ordered by numeric suffix) or a single .glb replicated across all Worlds
     // ---------------------------------------------------------------------
     DEVICE_GPU device_gpu;
     auto& device = device_gpu.rendering;
     rlt::init(device);
     rlt::init(device_gpu);
+    rlt::rendering::datasets::procthor::GLB scene_dataset{{}, resolve_training_scenes(device, argv[1])};
+    std::mt19937 scene_rng(seed);
+    std::vector<TI> scene_permutation(N_TOTAL_SCENES);
+    std::iota(scene_permutation.begin(), scene_permutation.end(), 0);
 
     rlt::utils::extrack::Config<TI> extrack_config;
     rlt::utils::extrack::Paths extrack_paths;
-    extrack_config.name = "l2f_visual_training_cuda";
+    extrack_config.name = "l2f_visual_training_hyperdrone";
+    extrack_config.population_variates = "algorithm_environments_accumulation";
+    extrack_config.population_values = "on-policy_" + std::to_string(N_ENVIRONMENTS) + "_" + std::to_string(GRADIENT_ACCUMULATION_ROLLOUTS);
     rlt::init(device, extrack_config, extrack_paths, seed);
+    metra::log_raw("l2f_visual_training_on_policy/target", "\"hyperdrone\"");
+    metra::log("l2f_visual_training_on_policy/seed", static_cast<double>(seed));
 
     RNG rng;
     rlt::malloc(device, rng);
@@ -688,10 +513,9 @@ int main(int argc, char** argv){
     }
     scene_corpus.references.resize(N_TOTAL_SCENES);
     for(TI member_i = 0; member_i < NUMBER_OF_ENVIRONMENTS; member_i++){
-        const TI first = member_i * N_TOTAL_SCENES / NUMBER_OF_ENVIRONMENTS;
-        const TI last = (member_i + 1) * N_TOTAL_SCENES / NUMBER_OF_ENVIRONMENTS;
-        std::cout << "Initializing World " << member_i << " with scenes [" << first << ", " << last << ")" << std::endl;
-        rlt::init(device_gpu, env.environments[member_i], env.shared, scene_dataset, scene_corpus, first, last - first, member_i);
+        auto& world = env.environments[member_i];
+        world.rng_offset = member_i * N_ENVIRONMENTS_PER_SCENE;
+        rlt::init(device_gpu, world, env.shared, scene_dataset, scene_corpus, (TI)0, N_TOTAL_SCENES, member_i);
     }
     std::cout << "Loaded " << N_TOTAL_SCENES << " scenes" << std::endl;
 
@@ -709,6 +533,7 @@ int main(int argc, char** argv){
     // ---------------------------------------------------------------------
     rlt::init(device, ppo, actor_optimizer, critic_optimizer, rng);
     TI global_env_step = 0;
+    TI optimizer_updates = 0;
 
     // ---------------------------------------------------------------------
     // GPU init
@@ -771,6 +596,13 @@ int main(int argc, char** argv){
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, BATCH_SIZE, COMBINED_OBS_DIM>>> gpu_combined_batch;
     rlt::malloc(device_gpu, gpu_combined_batch);
+#ifdef RL_TOOLS_L2F_VISUAL_TRAINING_SMOKE
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, STEPS_TOTAL, SMOKE_FEATURES>>> observation_probes;
+    rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, BATCH_SIZE>>> observation_matches_gpu, observation_matches;
+    rlt::malloc(device_gpu, observation_probes);
+    rlt::malloc(device_gpu, observation_matches_gpu);
+    rlt::malloc(device, observation_matches);
+#endif
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, STEPS_TOTAL, STATE_OBS_DIM>>> gpu_all_state_observations;
     rlt::malloc(device_gpu, gpu_all_state_observations);
@@ -803,6 +635,7 @@ int main(int argc, char** argv){
 
     // Trajectory state buffer for post-collect reconstruction
     std::vector<typename TASK_WORLD::State> trajectory_states(STEPS_PER_ENV * TRAJECTORY_NUM_ENVS);
+    std::vector<typename TASK_WORLD::Parameters> trajectory_parameters(STEPS_PER_ENV * TRAJECTORY_NUM_ENVS);
 
     // Video mosaic: each env cell shows (target | actual), ENV_GRID_SIDE^2 per active scene.
     static constexpr TI CAM_PIXELS = CAM_WIDTH * CAM_HEIGHT;
@@ -815,7 +648,7 @@ int main(int argc, char** argv){
     // ---------------------------------------------------------------------
     // Training loop
     // ---------------------------------------------------------------------
-    std::cout << "Starting PPO training (visual L2F target navigation, CUDA)" << std::endl;
+    std::cout << "Starting single-use on-policy training (visual L2F target navigation, Hyperdrone CUDA)" << std::endl;
     std::cout << "  N_ENVIRONMENTS:   " << N_ENVIRONMENTS << std::endl;
     std::cout << "  STEPS_PER_ENV:    " << STEPS_PER_ENV << std::endl;
     std::cout << "  SCENE_SET_STEPS:  " << STEPS_PER_ENV * ROLLOUTS_PER_SCENE_SET << std::endl;
@@ -856,9 +689,24 @@ int main(int argc, char** argv){
 
     std::vector<T> episode_returns(N_ENVIRONMENTS, 0);
     std::vector<TI> episode_lengths(N_ENVIRONMENTS, 0);
+    std::vector<TI> episode_end_reasons(N_ENVIRONMENTS, 0);
     for(TI ppo_step_i = 0; ppo_step_i < N_PPO_STEPS; ppo_step_i++){
         auto step_start = std::chrono::high_resolution_clock::now();
+        zero_gradient(device_gpu, ppo_gpu.actor);
+        zero_gradient(device_gpu, ppo_gpu.critic);
         rlt::set_step(device, device.logger, global_env_step);
+
+        T rollout_episode_length_mean = 0;
+        T rollout_episode_length_std = 0;
+        T rollout_return_mean = 0;
+        T rollout_return_std = 0;
+        T rollout_reward_mean = 0;
+        T rollout_reward_std = 0;
+        T rollout_terminated_share = 0;
+        TI rollout_episode_count = 0;
+        TI rollout_terminated_count = 0;
+        TI rollout_truncated_count = 0;
+        TI rollout_done_count = 0;
 
         TI rollout_in_scene_set = ppo_step_i % ROLLOUTS_PER_SCENE_SET;
         TI scene_set_i = ppo_step_i / ROLLOUTS_PER_SCENE_SET;
@@ -868,7 +716,10 @@ int main(int argc, char** argv){
         bool log_reward_components_this_step = ppo_step_i % REWARD_COMPONENT_LOG_INTERVAL_PPO_STEPS == 0;
         if(scene_set_boundary){
             close_video_pipe();
-            rlt::rotate_scene(device_gpu, env);
+            std::shuffle(scene_permutation.begin(), scene_permutation.end(), scene_rng);
+            for(TI member_i = 0; member_i < NUMBER_OF_ENVIRONMENTS; member_i++){
+                select_scene(device_gpu, env.environments[member_i], scene_permutation[member_i]);
+            }
             if(ppo_step_i == 0){
                 rlt::init(device_gpu, gpu_runner, env, rng_gpu);
             } else {
@@ -932,6 +783,9 @@ int main(int argc, char** argv){
 
             // 2. The composed [stack | target | pad] rollout observation for the actor
             rlt::observe(device_gpu, env, gpu_env_parameters, gpu_env_states, typename TASK_WORLD::Observation{}, gpu_rollout_combined, rng_gpu);
+#ifdef RL_TOOLS_L2F_VISUAL_TRAINING_SMOKE
+            capture_observation_probes_kernel<<<N_ENVIRONMENTS, 256, 0, device_gpu.stream>>>(rlt::data(gpu_rollout_combined), rlt::data(observation_probes) + step_i * N_ENVIRONMENTS * SMOKE_FEATURES);
+#endif
 
             // Video mosaic write: pull both frames to CPU and place each env cell as (target | actual).
             if(record_video && ffmpeg_pipe){
@@ -1004,6 +858,10 @@ int main(int argc, char** argv){
                 auto log_std_gpu = rlt::matrix_view(device_gpu, last_layer_gpu.log_std.parameters);
                 sample_actions(device_gpu, dataset_gpu, log_std_gpu, gpu_step_actions, step_i, rng_gpu);
             }
+            if(save_extrack_step){
+                cudaStreamSynchronize(device_gpu.stream);
+                cudaMemcpy(trajectory_parameters.data() + step_i * TRAJECTORY_NUM_ENVS, rlt::data(gpu_env_parameters), TRAJECTORY_NUM_ENVS * sizeof(typename TASK_WORLD::Parameters), cudaMemcpyDeviceToHost);
+            }
             epilogue(device_gpu, dataset_gpu, gpu_runner, gpu_runner_buffer, env, rng_gpu, step_i);
             evaluate_bootstrap_values(device_gpu, dataset_gpu, gpu_runner_buffer.next_observations_privileged, ppo_gpu.critic, critic_states_gae, critic_buffers_gae, rng_gpu, step_i);
             if(log_reward_components_this_step && step_i == STEPS_PER_ENV - 1){
@@ -1053,52 +911,133 @@ int main(int argc, char** argv){
             rlt::log_reward(device, env.environments[0].dynamics, reward_log_parameters.dynamics, reward_log_state, reward_log_action, reward_log_next_state, reward_log_rng);
         }
 
+        // Episode statistics + log
         {
+            T length_sum = 0;
+            T length_sq_sum = 0;
+            T length_sum_terminated = 0;
+            T length_sum_time_limit = 0;
+            T length_sum_scene_boundary = 0;
+            T length_sum_task = 0;
+            T return_sum = 0;
+            T return_sq_sum = 0;
             T reward_sum = 0;
             T reward_sq_sum = 0;
-            TI terminated_count = 0;
-            TI truncated_count = 0;
-            T return_sum = 0, return_sq_sum = 0, length_sum = 0, length_sq_sum = 0;
+            TI count = 0;
+            TI episode_end_terminated_count = 0;
+            TI episode_end_time_limit_count = 0;
+            TI episode_end_scene_boundary_count = 0;
             for(TI pos = 0; pos < STEPS_TOTAL; pos++){
-                const T reward_value = get(dataset.rewards, pos, 0);
+                T reward_value = rlt::get(dataset.rewards, pos, 0);
                 reward_sum += reward_value;
                 reward_sq_sum += reward_value * reward_value;
-                terminated_count += get(dataset.terminated, pos, 0) > (T)0.5;
+                bool terminated_event = rlt::get(dataset.terminated, pos, 0) > (T)0.5;
+                bool done_event = rlt::get(dataset.truncated, pos, 0) > (T)0.5;
+                if(terminated_event){
+                    rollout_terminated_count++;
+                }
+                if(done_event){
+                    rollout_done_count++;
+                    if(!terminated_event){
+                        rollout_truncated_count++;
+                    }
+                }
                 const TI env_i = pos % N_ENVIRONMENTS;
-                if(get(dataset.reset, pos, 0) > (T)0.5){
+                T ep_len = rlt::get(dataset.reset, pos, 0) > (T)0.5 && episode_lengths[env_i] > 0 ? static_cast<T>(episode_lengths[env_i]) : (T)-1;
+                if(ep_len >= (T)0){
+                    rlt::add_scalar(device, device.logger, "episode/length", ep_len, 100);
+                    T ep_return = episode_returns[env_i];
+                    rlt::add_scalar(device, device.logger, "episode/return", ep_return, 100);
+                    length_sum += ep_len;
+                    length_sq_sum += ep_len * ep_len;
+                    return_sum += ep_return;
+                    return_sq_sum += ep_return * ep_return;
+                    TI ep_reason = episode_end_reasons[env_i] != 0 ? episode_end_reasons[env_i] : static_cast<TI>(EPISODE_END_REASON_SCENE_BOUNDARY);
+                    if(ep_reason == static_cast<TI>(EPISODE_END_REASON_TERMINATED)){
+                        episode_end_terminated_count++;
+                        length_sum_terminated += ep_len;
+                        length_sum_task += ep_len;
+                        rlt::add_scalar(device, device.logger, "episode/length/terminated", ep_len, 100);
+                    } else if(ep_reason == static_cast<TI>(EPISODE_END_REASON_TIME_LIMIT)){
+                        episode_end_time_limit_count++;
+                        length_sum_time_limit += ep_len;
+                        length_sum_task += ep_len;
+                        rlt::add_scalar(device, device.logger, "episode/length/time_limit", ep_len, 100);
+                    } else if(ep_reason == static_cast<TI>(EPISODE_END_REASON_SCENE_BOUNDARY)){
+                        episode_end_scene_boundary_count++;
+                        length_sum_scene_boundary += ep_len;
+                        rlt::add_scalar(device, device.logger, "episode/length/scene_boundary", ep_len, 100);
+                    }
+                    count++;
                     episode_returns[env_i] = 0;
                     episode_lengths[env_i] = 0;
+                    episode_end_reasons[env_i] = 0;
                 }
                 episode_returns[env_i] += reward_value;
                 episode_lengths[env_i]++;
-                if(get(dataset.truncated, pos, 0) > (T)0.5){
-                    truncated_count++;
-                    const T episode_return = episode_returns[env_i];
-                    const T episode_length = static_cast<T>(episode_lengths[env_i]);
-                    return_sum += episode_return;
-                    return_sq_sum += episode_return * episode_return;
-                    length_sum += episode_length;
-                    length_sq_sum += episode_length * episode_length;
+                if(done_event){
+                    episode_end_reasons[env_i] = static_cast<TI>(terminated_event ? EPISODE_END_REASON_TERMINATED : EPISODE_END_REASON_TIME_LIMIT);
                 }
             }
-            const T reward_mean = reward_sum / static_cast<T>(STEPS_TOTAL);
-            const T reward_std = rlt::math::sqrt(device.math, rlt::math::max(device.math, (T)0, reward_sq_sum / static_cast<T>(STEPS_TOTAL) - reward_mean * reward_mean));
-            add_scalar(device, device.logger, "training/reward/mean", reward_mean);
-            add_scalar(device, device.logger, "training/reward/std", reward_std);
-            add_scalar(device, device.logger, "training/terminated_episodes", static_cast<T>(terminated_count));
-            add_scalar(device, device.logger, "training/complete_episodes", static_cast<T>(truncated_count));
-            add_scalar(device, device.logger, "training/time_limit_episodes", static_cast<T>(truncated_count - terminated_count));
-            add_scalar(device, device.logger, "training/scene_boundary_resets", scene_set_boundary && ppo_step_i > 0 ? static_cast<T>(N_ENVIRONMENTS) : (T)0);
-            if(truncated_count > 0){
-                const T return_mean = return_sum / static_cast<T>(truncated_count);
-                const T length_mean = length_sum / static_cast<T>(truncated_count);
-                add_scalar(device, device.logger, "training/return/mean", return_mean);
-                add_scalar(device, device.logger, "training/return/std", rlt::math::sqrt(device.math, rlt::math::max(device.math, (T)0, return_sq_sum / static_cast<T>(truncated_count) - return_mean * return_mean)));
-                add_scalar(device, device.logger, "training/episode_length/mean", length_mean);
-                add_scalar(device, device.logger, "training/episode_length/std", rlt::math::sqrt(device.math, rlt::math::max(device.math, (T)0, length_sq_sum / static_cast<T>(truncated_count) - length_mean * length_mean)));
-                metra::log("l2f_visual/hyperdrone/episode_return", static_cast<double>(return_mean));
-                metra::log("l2f_visual/hyperdrone/episode_length", static_cast<double>(length_mean));
+            rollout_reward_mean = reward_sum / static_cast<T>(STEPS_TOTAL);
+            rollout_reward_std = rlt::math::sqrt(device.math, rlt::math::max(device.math, (T)0, reward_sq_sum / static_cast<T>(STEPS_TOTAL) - rollout_reward_mean * rollout_reward_mean));
+            rollout_terminated_share = rollout_done_count > 0 ? static_cast<T>(rollout_terminated_count) / static_cast<T>(rollout_done_count) : (T)0;
+            if(count > 0){
+                rollout_episode_count = count;
+                rollout_episode_length_mean = length_sum / static_cast<T>(count);
+                rollout_episode_length_std = rlt::math::sqrt(device.math, rlt::math::max(device.math, (T)0, length_sq_sum / static_cast<T>(count) - rollout_episode_length_mean * rollout_episode_length_mean));
+                rollout_return_mean = return_sum / static_cast<T>(count);
+                rollout_return_std = rlt::math::sqrt(device.math, rlt::math::max(device.math, (T)0, return_sq_sum / static_cast<T>(count) - rollout_return_mean * rollout_return_mean));
+                std::cout << std::defaultfloat << std::setprecision(6)
+                          << "  episodes finished: " << count
+                          << "  mean length: " << rollout_episode_length_mean
+                          << "  mean return: " << rollout_return_mean << std::endl;
+                rlt::add_scalar(device, device.logger, "training/episode_length", rollout_episode_length_mean);
+                rlt::add_scalar(device, device.logger, "training/episode_length/mean", rollout_episode_length_mean);
+                rlt::add_scalar(device, device.logger, "training/episode_length/std", rollout_episode_length_std);
+                rlt::add_scalar(device, device.logger, "training/return/mean", rollout_return_mean);
+                rlt::add_scalar(device, device.logger, "training/return/std", rollout_return_std);
+                rlt::add_scalar(device, device.logger, "training/episodes", static_cast<T>(rollout_episode_count));
             }
+            TI episode_end_task_count = episode_end_terminated_count + episode_end_time_limit_count;
+            TI episode_end_count = episode_end_task_count + episode_end_scene_boundary_count;
+            rlt::utils::assert_exit(device, episode_end_count == count, "Every completed episode must have an end reason");
+            rlt::add_scalar(device, device.logger, "training/episode_end/terminated", static_cast<T>(episode_end_terminated_count));
+            rlt::add_scalar(device, device.logger, "training/episode_end/time_limit", static_cast<T>(episode_end_time_limit_count));
+            rlt::add_scalar(device, device.logger, "training/episode_end/scene_boundary", static_cast<T>(episode_end_scene_boundary_count));
+            rlt::add_scalar(device, device.logger, "training/episode_end/task", static_cast<T>(episode_end_task_count));
+            rlt::add_scalar(device, device.logger, "training/time_limit_episodes", static_cast<T>(episode_end_time_limit_count));
+            rlt::add_scalar(device, device.logger, "training/scene_boundary_resets", static_cast<T>(episode_end_scene_boundary_count));
+            rlt::add_scalar(device, device.logger, "training/task_episodes", static_cast<T>(episode_end_task_count));
+            if(episode_end_terminated_count > 0){
+                rlt::add_scalar(device, device.logger, "training/episode_length/terminated", length_sum_terminated / static_cast<T>(episode_end_terminated_count));
+            }
+            if(episode_end_time_limit_count > 0){
+                rlt::add_scalar(device, device.logger, "training/episode_length/time_limit", length_sum_time_limit / static_cast<T>(episode_end_time_limit_count));
+            }
+            if(episode_end_scene_boundary_count > 0){
+                rlt::add_scalar(device, device.logger, "training/episode_length/scene_boundary", length_sum_scene_boundary / static_cast<T>(episode_end_scene_boundary_count));
+            }
+            if(episode_end_task_count > 0){
+                T task_episode_count = static_cast<T>(episode_end_task_count);
+                T termination_rate_task = static_cast<T>(episode_end_terminated_count) / task_episode_count;
+                rlt::add_scalar(device, device.logger, "training/episode_length/task", length_sum_task / task_episode_count);
+                rlt::add_scalar(device, device.logger, "training/episode_length/excluding_scene_boundary", length_sum_task / task_episode_count);
+                rlt::add_scalar(device, device.logger, "training/termination_rate/task_episodes", termination_rate_task);
+                rlt::add_scalar(device, device.logger, "training/termination_rate/excluding_scene_boundary", termination_rate_task);
+                rlt::add_scalar(device, device.logger, "training/time_limit_rate/task_episodes", static_cast<T>(episode_end_time_limit_count) / task_episode_count);
+            }
+            if(episode_end_count > 0){
+                T all_episode_end_count = static_cast<T>(episode_end_count);
+                rlt::add_scalar(device, device.logger, "training/termination_rate/all_episode_ends", static_cast<T>(episode_end_terminated_count) / all_episode_end_count);
+                rlt::add_scalar(device, device.logger, "training/scene_boundary_rate/all_episode_ends", static_cast<T>(episode_end_scene_boundary_count) / all_episode_end_count);
+            }
+            rlt::add_scalar(device, device.logger, "training/reward/mean", rollout_reward_mean);
+            rlt::add_scalar(device, device.logger, "training/reward/std", rollout_reward_std);
+            rlt::add_scalar(device, device.logger, "training/terminated_share", rollout_terminated_share);
+            rlt::add_scalar(device, device.logger, "training/terminated_episodes", static_cast<T>(rollout_terminated_count));
+            rlt::add_scalar(device, device.logger, "training/truncated_episodes", static_cast<T>(rollout_truncated_count));
+            rlt::add_scalar(device, device.logger, "training/complete_episodes", static_cast<T>(rollout_done_count));
         }
 
         // Save trajectories to extrack
@@ -1110,6 +1049,9 @@ int main(int argc, char** argv){
                     TI pos = step_i * N_ENVIRONMENTS + env_i;
                     TrajectoryStep ts;
                     ts.state = trajectory_states[step_i * TRAJECTORY_NUM_ENVS + env_i];
+                    ts.parameters = trajectory_parameters[step_i * TRAJECTORY_NUM_ENVS + env_i];
+                    const auto& world = env.environments[env_i / N_ENVIRONMENTS_PER_SCENE];
+                    ts.scene_hash = world.slots[world.active_slot].metadata.content_hash;
                     for(TI a = 0; a < ACTION_DIM; a++){
                         ts.actions[a] = rlt::get(dataset.actions, pos, a);
                     }
@@ -1127,9 +1069,7 @@ int main(int argc, char** argv){
             }
             if(!completed_episodes.empty()){
                 auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, global_env_step);
-                typename TASK_WORLD::Parameters parameters_host;
-                cudaMemcpy(&parameters_host, rlt::data(gpu_env_parameters), sizeof(typename TASK_WORLD::Parameters), cudaMemcpyDeviceToHost);
-                std::string trajectories_json = trajectory_episodes_to_json(device, env.environments[0], parameters_host, completed_episodes, simulation_dt);
+                std::string trajectories_json = trajectory_episodes_to_json(device, env.environments[0], completed_episodes, simulation_dt);
                 std::vector<uint8_t> compressed;
                 if(rlt::compress_zlib(trajectories_json, compressed)){
                     std::filesystem::path trajectories_path = step_folder / "trajectories.json.gz";
@@ -1150,7 +1090,7 @@ int main(int argc, char** argv){
         rlt::estimate_generalized_advantages(device, dataset, dataset.bootstrap_values, typename PPO_TYPE::SPEC::PARAMETERS{});
 
         // =================================================================
-        // Train (per minibatch: gather combined obs → forward+PPO loss+backward+step)
+        // Accumulate gradients over the fresh rollout before one optimizer update
         // =================================================================
         {
             // Sync log_std GPU→CPU once per PPO step
@@ -1175,7 +1115,9 @@ int main(int argc, char** argv){
         for(TI epoch_i = 0; epoch_i < N_EPOCHS; epoch_i++){
             // Random batch order (no within-batch shuffle so frame stack indices stay coherent)
             TI batch_order[N_BATCHES];
-            for(TI i = 0; i < N_BATCHES; i++) batch_order[i] = i;
+            for(TI i = 0; i < N_BATCHES; i++){
+                batch_order[i] = i;
+            }
             for(TI i = N_BATCHES - 1; i > 0; i--){
                 TI j = rlt::random::uniform_int_distribution(device.random, (TI)0, i, rng);
                 std::swap(batch_order[i], batch_order[j]);
@@ -1185,8 +1127,6 @@ int main(int argc, char** argv){
                 TI batch_i = batch_order[batch_idx];
                 TI batch_offset = batch_i * BATCH_SIZE;
 
-                rlt::zero_gradient(device_gpu, ppo_gpu.actor);
-                rlt::zero_gradient(device_gpu, ppo_gpu.critic);
 
                 // Build combined batch observation by gathering from each World's frame history
                 {
@@ -1204,6 +1144,13 @@ int main(int argc, char** argv){
                     rlt::check_status(device_gpu);
                 }
 
+#ifdef RL_TOOLS_L2F_VISUAL_TRAINING_SMOKE
+                compare_observation_probes_kernel<<<(BATCH_SIZE + 255) / 256, 256, 0, device_gpu.stream>>>(rlt::data(gpu_combined_batch), rlt::data(observation_probes) + batch_offset * SMOKE_FEATURES, rlt::data(observation_matches_gpu));
+                rlt::copy(device_gpu, device, observation_matches_gpu, observation_matches);
+                for(TI row = 0; row < BATCH_SIZE; row++){
+                    rlt::utils::assert_exit(device, rlt::get(device, observation_matches, row), "Training frame stack differs from rollout observation");
+                }
+#endif
                 // Slice state observations for this batch
                 auto batch_state_obs = rlt::view_range(device_gpu, gpu_all_state_observations, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
                 using TRAIN_IMG_SHAPE = rlt::tensor::Shape<TI, 1, BATCH_SIZE, IMG_H, IMG_W, COMBINED_IMG_C>;
@@ -1217,77 +1164,36 @@ int main(int argc, char** argv){
                 rlt::forward(device_gpu, ppo_gpu.actor, fwd_inputs, gpu_actions_train_reshaped, actor_buffers, rng_gpu);
                 cudaDeviceSynchronize();
 
-                // PPO loss on CPU using freshly-forwarded action means + log_std
+                // On-policy loss using freshly-forwarded action means and the fixed log_std
                 rlt::copy(device_gpu, device, gpu_actions_train, ppo_buffers.current_batch_actions);
                 auto& last_layer_gpu = ppo_gpu.actor.head;
                 auto& last_layer_cpu = ppo.actor.head;
                 rlt::copy(device_gpu, device, last_layer_gpu.log_std.parameters, last_layer_cpu.log_std.parameters);
                 rlt::copy(device_gpu, device, last_layer_gpu.log_std.gradient, last_layer_cpu.log_std.gradient);
 
+#ifdef RL_TOOLS_L2F_VISUAL_TRAINING_SMOKE
+                for(TI row = 0; row < BATCH_SIZE; row++){
+                    for(TI action = 0; action < ACTION_DIM; action++){
+                        const T difference = rlt::math::abs(device.math, rlt::get(ppo_buffers.current_batch_actions, row, action) - rlt::get(dataset.actions_mean, batch_offset + row, action));
+                        rlt::utils::assert_exit(device, difference < (T)1e-3, "Actor changed before accumulation completed");
+                    }
+                }
+#endif
                 auto batch_actions = rlt::view(device, dataset.actions, rlt::matrix::ViewSpec<BATCH_SIZE, ACTION_DIM>(), batch_offset, 0);
                 auto batch_action_log_probs = rlt::view(device, dataset.action_log_probs, rlt::matrix::ViewSpec<BATCH_SIZE, 1>(), batch_offset, 0);
                 auto batch_advantages = rlt::view(device, dataset.advantages, rlt::matrix::ViewSpec<BATCH_SIZE, 1>(), batch_offset, 0);
                 auto batch_target_values = rlt::view(device, dataset.target_values, rlt::matrix::ViewSpec<BATCH_SIZE, 1>(), batch_offset, 0);
 
-                T advantage_mean = 0, advantage_std = 0;
-                for(TI i = 0; i < BATCH_SIZE; i++){
-                    T adv = rlt::get(batch_advantages, i, 0);
-                    advantage_mean += adv;
-                    advantage_std += adv * adv;
-                }
-                advantage_mean /= BATCH_SIZE;
-                advantage_std /= BATCH_SIZE;
-                advantage_std = rlt::math::sqrt(device.math, rlt::math::max(device.math, (T)0, advantage_std - advantage_mean * advantage_mean));
-                ppo_advantage_mean_sum += advantage_mean;
-                ppo_advantage_std_sum += advantage_std;
-
-                for(TI batch_step_i = 0; batch_step_i < BATCH_SIZE; batch_step_i++){
-                    T action_log_prob = 0;
-                    T action_entropy = 0;
-                    for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
-                        T current_action = rlt::get(ppo_buffers.current_batch_actions, batch_step_i, action_i);
-                        T rollout_action = rlt::get(batch_actions, batch_step_i, action_i);
-                        T current_action_log_std = rlt::get(device, last_layer_cpu.log_std.parameters, action_i);
-                        action_log_prob += rlt::random::normal_distribution::log_prob(device.random, current_action, current_action_log_std, rollout_action);
-                        action_entropy += current_action_log_std + rlt::math::log(device.math, static_cast<T>(2) * rlt::math::PI<T>) / static_cast<T>(2) + static_cast<T>(0.5);
-                        rlt::set(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, rlt::random::normal_distribution::d_log_prob_d_mean(device.random, current_action, current_action_log_std, rollout_action));
-                        if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
-                            T d_entropy_loss_d_current_action_log_std = -(T)1/BATCH_SIZE * PPO_SPEC::PARAMETERS::ACTION_ENTROPY_COEFFICIENT;
-                            rlt::increment(device, last_layer_cpu.log_std.gradient, d_entropy_loss_d_current_action_log_std, action_i);
-                            rlt::set(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i, rlt::random::normal_distribution::d_log_prob_d_log_std(device.random, current_action, current_action_log_std, rollout_action));
-                        }
-                    }
-                    T rollout_action_log_prob = rlt::get(batch_action_log_probs, batch_step_i, 0);
-                    T advantage = rlt::get(batch_advantages, batch_step_i, 0);
-                    if(PPO_SPEC::PARAMETERS::NORMALIZE_ADVANTAGE){
-                        advantage = (advantage - advantage_mean) / (advantage_std + PPO_SPEC::PARAMETERS::ADVANTAGE_EPSILON);
-                    }
-                    T log_ratio = action_log_prob - rollout_action_log_prob;
-                    T ratio = rlt::math::exp(device.math, log_ratio);
-                    T clipped_ratio = rlt::math::clamp(device.math, ratio, 1 - PPO_SPEC::PARAMETERS::EPSILON_CLIP, 1 + PPO_SPEC::PARAMETERS::EPSILON_CLIP);
-                    bool clipped = ratio != clipped_ratio;
-                    T normal_advantage = ratio * advantage;
-                    T clipped_advantage = clipped_ratio * advantage;
-                    bool ratio_min_switch = normal_advantage - clipped_advantage <= (T)0;
-                    T pessimistic_surrogate = ratio_min_switch ? normal_advantage : clipped_advantage;
-                    ppo_actor_loss_sum += -pessimistic_surrogate;
-                    ppo_entropy_sum += action_entropy;
-                    ppo_approx_kl_sum += (ratio - (T)1) - log_ratio;
-                    ppo_ratio_sum += ratio;
-                    ppo_clipped_samples += clipped ? 1 : 0;
-                    ppo_update_samples++;
-                    T d_loss_d_pessimistic_surrogate = -(T)1/BATCH_SIZE;
-                    T d_pessimistic_surrogate_d_ratio = ratio_min_switch ? advantage : (clipped ? 0 : advantage);
-                    T d_loss_d_action_log_prob = d_loss_d_pessimistic_surrogate * d_pessimistic_surrogate_d_ratio * ratio;
-                    for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
-                        rlt::multiply(ppo_buffers.d_action_log_prob_d_action, batch_step_i, action_i, d_loss_d_action_log_prob);
-                        if(PPO_SPEC::PARAMETERS::LEARN_ACTION_STD){
-                            T current_d = rlt::get(ppo_buffers.d_action_log_prob_d_action_log_std, batch_step_i, action_i);
-                            rlt::increment(device, last_layer_cpu.log_std.gradient, d_loss_d_action_log_prob * current_d, action_i);
-                        }
-                    }
-                }
-                // Sync log_std + d_action gradients CPU→GPU, actor backward + optimizer step on GPU
+                auto statistics = training_hyperdrone_actor_loss_gradient(device, ppo, ppo_buffers, batch_actions, batch_action_log_probs, batch_advantages, rlt::utils::typing::integral_constant<TI, UPDATE_SAMPLES>{});
+                ppo_actor_loss_sum += statistics.actor_loss;
+                ppo_entropy_sum += statistics.entropy;
+                ppo_approx_kl_sum += statistics.approx_kl;
+                ppo_ratio_sum += statistics.ratio;
+                ppo_advantage_mean_sum += statistics.advantage_mean;
+                ppo_advantage_std_sum += statistics.advantage_std;
+                ppo_update_samples += statistics.samples;
+                ppo_clipped_samples += statistics.clipped_samples;
+                // Sync accumulated log_std gradients and this minibatch's action derivatives.
                 rlt::copy(device, device_gpu, last_layer_cpu.log_std.parameters, last_layer_gpu.log_std.parameters);
                 rlt::copy(device, device_gpu, last_layer_cpu.log_std.gradient, last_layer_gpu.log_std.gradient);
                 rlt::copy(device, device_gpu, ppo_buffers.d_action_log_prob_d_action, gpu_d_action_train);
@@ -1296,10 +1202,8 @@ int main(int argc, char** argv){
                 auto bwd_inputs = rlt::nn_models::parallel::pack_inputs(batch_combined_reshaped, batch_state_reshaped);
                 rlt::backward(device_gpu, ppo_gpu.actor, bwd_inputs, gpu_d_action_reshaped, actor_buffers);
                 cudaDeviceSynchronize();
-                rlt::step(device_gpu, actor_optimizer_gpu, ppo_gpu.actor);
-                cudaDeviceSynchronize();
 
-                // Critic forward + MSE loss + backward + step on GPU
+                // Critic forward + MSE loss + backward on GPU
                 {
                     auto batch_obs_priv = rlt::view_range(device, dataset.all_observations_privileged, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
                     auto batch_obs_priv_matrix = rlt::matrix_view(device, batch_obs_priv);
@@ -1320,7 +1224,7 @@ int main(int argc, char** argv){
                         T critic_loss = rlt::nn::loss_functions::mse::evaluate(device, cpu_critic_output, batch_target_values);
                         ppo_critic_loss_sum += critic_loss;
                         ppo_critic_batches++;
-                        rlt::nn::loss_functions::mse::gradient(device, cpu_critic_output, batch_target_values, cpu_d_critic, (T)0.5);
+                        rlt::nn::loss_functions::mse::gradient(device, cpu_critic_output, batch_target_values, cpu_d_critic, (T)0.5 * GRADIENT_SCALE);
                         rlt::copy(device, device_gpu, cpu_d_critic, gpu_d_critic_output);
                         rlt::free(device, cpu_critic_output);
                         rlt::free(device, cpu_d_critic);
@@ -1329,18 +1233,24 @@ int main(int argc, char** argv){
                     auto gpu_d_critic_reshaped = rlt::reshape_row_major(device_gpu, gpu_d_critic_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, 1>{});
                     rlt::backward(device_gpu, ppo_gpu.critic, gpu_critic_obs_reshaped, gpu_d_critic_reshaped, critic_buffers);
                     cudaDeviceSynchronize();
-                    rlt::step(device_gpu, critic_optimizer_gpu, ppo_gpu.critic);
-                    cudaDeviceSynchronize();
                 }
                 ppo_update_batches++;
             }
         }
+
+        rlt::utils::assert_exit(device, ppo_update_samples == UPDATE_SAMPLES, "Every rollout sample must be used exactly once");
+        step(device_gpu, actor_optimizer_gpu, ppo_gpu.actor);
+        step(device_gpu, critic_optimizer_gpu, ppo_gpu.critic);
+        cudaDeviceSynchronize();
+        optimizer_updates++;
 
         // Sync trained actor weights → rollout actor for next data collection
         rlt::copy(device_gpu, device_gpu, ppo_gpu.actor, rollout_actor_gpu);
         rlt::copy(device_gpu, device, ppo_gpu.actor.head.log_std.parameters, ppo.actor.head.log_std.parameters);
         rlt::copy(device_gpu, device, actor_optimizer_gpu, actor_optimizer);
         rlt::copy(device_gpu, device, critic_optimizer_gpu, critic_optimizer);
+        rlt::utils::assert_exit(device, rlt::get(device, actor_optimizer.age, 0) == optimizer_updates + 1, "Unexpected actor optimizer age");
+        rlt::utils::assert_exit(device, rlt::get(device, critic_optimizer.age, 0) == optimizer_updates + 1, "Unexpected critic optimizer age");
 
         // Logging
         auto now = std::chrono::high_resolution_clock::now();
@@ -1354,7 +1264,16 @@ int main(int argc, char** argv){
                   << "  (sps lifetime " << std::setw(6) << std::setprecision(0) << std::fixed << sps_lifetime
                   << ", current " << std::setw(6) << std::setprecision(0) << sps_current << ")" << std::defaultfloat << std::endl;
 
+        std::cout << "  optimizer updates: " << optimizer_updates << "  accumulated samples: " << ppo_update_samples << "/" << UPDATE_SAMPLES << std::endl;
         rlt::add_scalar(device, device.logger, "ppo/step", ppo_step_i);
+        rlt::add_scalar(device, device.logger, "training/optimizer_updates", optimizer_updates);
+        rlt::add_scalar(device, device.logger, "training/accumulated_samples", ppo_update_samples);
+        rlt::add_scalar(device, device.logger, "training/update_samples", UPDATE_SAMPLES);
+        rlt::add_scalar(device, device.logger, "training/sample_uses", N_EPOCHS);
+        metra::log("l2f_visual_training_on_policy/episode_length", static_cast<double>(rollout_episode_length_mean));
+        metra::log("l2f_visual_training_on_policy/episode_return", static_cast<double>(rollout_return_mean));
+        metra::log("l2f_visual_training_on_policy/optimizer_updates", static_cast<double>(optimizer_updates));
+        metra::log("l2f_visual_training_on_policy/steps_per_second", static_cast<double>(sps_current));
         rlt::add_scalar(device, device.logger, "ppo/actor_learning_rate", rlt::get(device, actor_optimizer.parameters, 0).alpha);
         rlt::add_scalar(device, device.logger, "ppo/critic_learning_rate", rlt::get(device, critic_optimizer.parameters, 0).alpha);
         if(ppo_update_samples > 0){
@@ -1610,7 +1529,7 @@ int main(int argc, char** argv){
     std::cout << "Training finished at env step " << global_env_step << std::endl;
 
     // ---------------------------------------------------------------------
-    // Cleanup (minimal — process exit will reclaim)
+    // Cleanup
     // ---------------------------------------------------------------------
     rlt::free(device, ppo);
     rlt::free(device, ppo_buffers);
@@ -1619,6 +1538,8 @@ int main(int argc, char** argv){
     rlt::free(device, critic_optimizer);
     rlt::free(device, reward_log_action);
     rlt::free(device, reward_log_rng);
+    rlt::free(device, rng);
+    rlt::free(device_gpu, rng_gpu);
 
     rlt::free(device_gpu, ppo_gpu);
     rlt::free(device_gpu, actor_buffers);
@@ -1632,6 +1553,11 @@ int main(int argc, char** argv){
     rlt::free(device_gpu, gpu_all_target_observations);
     rlt::free(device_gpu, gpu_rollout_combined);
     rlt::free(device_gpu, gpu_combined_batch);
+#ifdef RL_TOOLS_L2F_VISUAL_TRAINING_SMOKE
+    rlt::free(device_gpu, observation_probes);
+    rlt::free(device_gpu, observation_matches_gpu);
+    rlt::free(device, observation_matches);
+#endif
     rlt::free(device_gpu, gpu_all_state_observations);
     rlt::free(device_gpu, gpu_actions_eval);
     rlt::free(device_gpu, gpu_actions_train);

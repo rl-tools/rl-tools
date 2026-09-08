@@ -121,7 +121,8 @@ static T target_channel(DEVICE& device, Tensors& tensors, TI instance_i, TI pixe
     return rlt::get(device, tensors.observations, instance_i, pixel_i * WORLD::OBSERVATION_CHANNELS + TASK_SPEC::IMAGE_STACK_N * IMAGE_CHANNELS + channel_i);
 }
 
-TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME, CACHE_AND_STACK_SEMANTICS){
+template<bool RAW_FIRST>
+void cache_and_stack_semantics(){
     if(SCENE_PATH.empty()){
         GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
     }
@@ -141,6 +142,21 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME, CACHE_AND_STACK_SEMANTICS
     rlt::init(device, rng, 1337);
     Tensors tensors;
     tensors.allocate(device);
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, INSTANCES, BASE_WORLD::OBSERVATION_DIM>>> raw_observations;
+    rlt::malloc(device, raw_observations);
+    rlt::set_all(device, world.target_frames, (T)-123);
+    auto render_observation = [&](){
+        rlt::request_render(device, world, tensors.reset_mask);
+        if constexpr(RAW_FIRST){
+            rlt::observe(device, world, tensors.parameters, tensors.states, typename BASE_WORLD::Observation{}, raw_observations, rng);
+        }
+        else{
+            rlt::render(device, world, tensors.parameters, tensors.states, tensors.reset_mask);
+        }
+        const TI history_step = world.history_step;
+        rlt::observe(device, world, tensors.parameters, tensors.states, typename WORLD::Observation{}, tensors.observations, rng);
+        EXPECT_EQ(world.history_step, history_step);
+    };
     rlt::set_all(device, tensors.reset_mask, true);
     rlt::set_all(device, tensors.actions, (T)0);
     rlt::sample_initial_parameters(device, world, tensors.parameters, tensors.reset_mask, rng);
@@ -153,8 +169,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME, CACHE_AND_STACK_SEMANTICS
     }
 
     // step 0: everything reset — target rendered and cached, stack clamps to the episode start
-    rlt::render(device, world, tensors.parameters, tensors.states, tensors.reset_mask);
-    rlt::observe(device, world, tensors.parameters, tensors.states, typename WORLD::Observation{}, tensors.observations, rng);
+    render_observation();
     std::vector<T> target_block_step0(INSTANCES * CAM_PIXELS * IMAGE_CHANNELS);
     std::vector<T> frame0_step0(INSTANCES * CAM_PIXELS * IMAGE_CHANNELS);
     bool target_nonzero = false;
@@ -164,6 +179,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME, CACHE_AND_STACK_SEMANTICS
                 T target_value = target_channel(device, tensors, instance_i, pixel_i, channel_i);
                 target_block_step0[(instance_i * CAM_PIXELS + pixel_i) * IMAGE_CHANNELS + channel_i] = target_value;
                 frame0_step0[(instance_i * CAM_PIXELS + pixel_i) * IMAGE_CHANNELS + channel_i] = stack_channel(device, tensors, instance_i, pixel_i, 0, channel_i);
+                ASSERT_GE(target_value, (T)0);
                 target_nonzero = target_nonzero || target_value != (T)0;
                 // stack frame 1 clamps to the episode start = frame 0
                 EXPECT_EQ(stack_channel(device, tensors, instance_i, pixel_i, 0, channel_i), stack_channel(device, tensors, instance_i, pixel_i, 1, channel_i));
@@ -185,8 +201,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME, CACHE_AND_STACK_SEMANTICS
         state.position[2] += (T)0.1;
         rlt::set(device, tensors.states, state, instance_i);
     }
-    rlt::render(device, world, tensors.parameters, tensors.states, tensors.reset_mask);
-    rlt::observe(device, world, tensors.parameters, tensors.states, typename WORLD::Observation{}, tensors.observations, rng);
+    render_observation();
     bool student_changed = false;
     for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
         for(TI pixel_i = 0; pixel_i < CAM_PIXELS; pixel_i++){
@@ -205,8 +220,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME, CACHE_AND_STACK_SEMANTICS
     rlt::set(device, tensors.reset_mask, true, (TI)0);
     rlt::sample_initial_parameters(device, world, tensors.parameters, tensors.reset_mask, rng);
     rlt::sample_initial_state(device, world, tensors.parameters, tensors.states, tensors.reset_mask, rng);
-    rlt::render(device, world, tensors.parameters, tensors.states, tensors.reset_mask);
-    rlt::observe(device, world, tensors.parameters, tensors.states, typename WORLD::Observation{}, tensors.observations, rng);
+    render_observation();
     bool instance0_target_changed = false;
     for(TI pixel_i = 0; pixel_i < CAM_PIXELS; pixel_i++){
         for(TI channel_i = 0; channel_i < IMAGE_CHANNELS; channel_i++){
@@ -221,10 +235,18 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME, CACHE_AND_STACK_SEMANTICS
     rlt::reward(device, world, tensors.parameters, tensors.states, tensors.actions, tensors.next_states, tensors.rewards, rng);
     rlt::terminated(device, world, tensors.parameters, tensors.states, tensors.terminated_flags, rng);
 
+    rlt::free(device, raw_observations);
     tensors.deallocate(device);
     rlt::free(device, world);
     rlt::free(device, shared.library);
     rlt::free(device, rng);
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME, CACHE_AND_STACK_SEMANTICS){
+    cache_and_stack_semantics<false>();
+}
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME, RAW_OBSERVATION_REFRESHES_TARGET){
+    cache_and_stack_semantics<true>();
 }
 
 int main(int argc, char** argv) {
