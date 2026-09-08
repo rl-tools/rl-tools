@@ -167,3 +167,78 @@ TEST(RL_TOOLS_NN_MODELS_PARALLEL, COPY_GRADIENT){
     rlt::free(device, target_snapshot);
     rlt::free(device, rng);
 }
+
+TEST(RL_TOOLS_NN_MODELS_PARALLEL, ADDITIONAL_FEATURE_GRADIENT_FINITE_DIFFERENCE){
+    using namespace rlt;
+    DEVICE device;
+    DEVICE::SPEC::RANDOM::ENGINE<> rng;
+    MODEL model;
+    MODEL::Buffer<> buffer;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_A>> input_a;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, INPUT_SHAPE_B>> input_b;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, MODEL::OUTPUT_SHAPE>> d_output, output_weights;
+    decltype(buffer.concatenated) additional_gradient;
+    malloc(device, rng);
+    init(device, rng, 17);
+    malloc(device, model);
+    malloc(device, buffer);
+    malloc(device, input_a);
+    malloc(device, input_b);
+    malloc(device, d_output);
+    malloc(device, output_weights);
+    malloc(device, additional_gradient);
+    init_weights(device, model, rng);
+    randn(device, input_a, rng);
+    randn(device, input_b, rng);
+    randn(device, output_weights, rng);
+    randn(device, additional_gradient, rng);
+    copy(device, device, output_weights, d_output);
+    auto inputs = rlt::nn_models::parallel::pack_inputs(input_a, input_b);
+    auto dot = [&](auto& a, auto& b){
+        T result = 0;
+        for(TI i = 0; i < rlt::utils::typing::remove_reference_t<decltype(a)>::SPEC::SIZE; i++){
+            result += data(a)[i] * data(b)[i];
+        }
+        return result;
+    };
+    auto objective = [&](){
+        forward(device, model, inputs, buffer, rng);
+        auto predictions = output(device, model);
+        return dot(predictions, output_weights) + dot(buffer.concatenated, additional_gradient);
+    };
+    objective();
+    zero_gradient(device, model);
+    backward(device, model, inputs, d_output, additional_gradient, buffer);
+    auto check_parameter = [&](auto& parameter){
+        auto& values = parameter.parameters;
+        auto& gradient = parameter.gradient;
+        constexpr T epsilon = 1e-6;
+        for(TI i = 0; i < rlt::utils::typing::remove_reference_t<decltype(values)>::SPEC::SIZE; i++){
+            T original = data(values)[i];
+            T analytic = data(gradient)[i];
+            data(values)[i] = original + epsilon;
+            T plus = objective();
+            data(values)[i] = original - epsilon;
+            T minus = objective();
+            data(values)[i] = original;
+            EXPECT_NEAR(analytic, (plus - minus) / (2 * epsilon), 1e-7);
+        }
+    };
+    auto& branch_a = rlt::nn_models::sequential::layer<0>(rlt::get<0>(model.pipelines));
+    auto& branch_b = rlt::nn_models::sequential::layer<0>(rlt::get<1>(model.pipelines));
+    auto& head = rlt::nn_models::sequential::layer<1>(model.head);
+    check_parameter(branch_a.weights);
+    check_parameter(branch_a.biases);
+    check_parameter(branch_b.weights);
+    check_parameter(branch_b.biases);
+    check_parameter(head.weights);
+    check_parameter(head.biases);
+    free(device, model);
+    free(device, buffer);
+    free(device, input_a);
+    free(device, input_b);
+    free(device, d_output);
+    free(device, output_weights);
+    free(device, additional_gradient);
+    free(device, rng);
+}

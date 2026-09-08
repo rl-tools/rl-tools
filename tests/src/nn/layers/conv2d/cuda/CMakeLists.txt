@@ -14,3 +14,10 @@ if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_BACKEND_ENABLE_CUDNN AND RL_TOOLS_E
     gtest_discover_tests(test_nn_layers_conv2d_cuda_bf16)
     target_compile_options(test_nn_layers_conv2d_cuda_bf16 PRIVATE --diag-suppress=186)
 endif()
+
+if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_BACKEND_ENABLE_CUDNN)
+    add_executable(test_nn_layers_conv2d_cuda_activation activation_cuda.cu)
+    target_link_libraries(test_nn_layers_conv2d_cuda_activation PRIVATE rl_tools_full RLtools::Test GTest::gtest_main)
+    set_target_properties(test_nn_layers_conv2d_cuda_activation PROPERTIES CUDA_STANDARD 17)
+    gtest_discover_tests(test_nn_layers_conv2d_cuda_activation)
+endif()

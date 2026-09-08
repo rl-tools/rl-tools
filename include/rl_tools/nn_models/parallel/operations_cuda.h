@@ -147,6 +147,15 @@ namespace rl_tools{
         nn_models::parallel::_backward_branches(device, model, inputs, buffer, mode);
     }
 
+    template <typename DEV_SPEC, typename SPEC, typename INPUT_TUPLE, typename D_OUTPUT, typename D_FEATURE_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    void backward(devices::CUDA<DEV_SPEC>& device, nn_models::parallel::ModuleGradient<SPEC>& model, const INPUT_TUPLE& inputs, D_OUTPUT& d_output, Tensor<D_FEATURE_SPEC>& additional_feature_gradient, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        static_assert(SPEC::HAS_HEAD, "Additional feature gradients require a parallel model with a head");
+        backward_full(device, model.head, buffer.concatenated, d_output, buffer.d_concatenated, buffer.head_buffer, mode);
+        add(device, additional_feature_gradient, buffer.d_concatenated);
+        _split_n_cuda<SPEC::NUM_BRANCHES>(device, buffer.d_concatenated, buffer.d_outputs);
+        nn_models::parallel::_backward_branches(device, model, inputs, buffer, mode);
+    }
+
     // ======================== CUDA backward_input ========================
     template <typename DEV_SPEC, typename SPEC, typename D_OUTPUT, typename D_INPUT_TUPLE, typename BUFFER_SPEC, typename MODE = mode::Default<>>
     void backward_input(devices::CUDA<DEV_SPEC>& device, nn_models::parallel::ModuleBackward<SPEC>& model, D_OUTPUT& d_output, D_INPUT_TUPLE& d_inputs, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){

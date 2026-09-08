@@ -478,6 +478,15 @@ namespace rl_tools{
         nn_models::parallel::_backward_branches(device, model, inputs, buffer, mode);
     }
 
+    template <typename DEVICE, typename SPEC, typename INPUT_TUPLE, typename D_OUTPUT, typename D_FEATURE_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void backward(DEVICE& device, nn_models::parallel::ModuleGradient<SPEC>& model, const INPUT_TUPLE& inputs, D_OUTPUT& d_output, Tensor<D_FEATURE_SPEC>& additional_feature_gradient, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        static_assert(SPEC::HAS_HEAD, "Additional feature gradients require a parallel model with a head");
+        backward_full(device, model.head, buffer.concatenated, d_output, buffer.d_concatenated, buffer.head_buffer, mode);
+        add(device, additional_feature_gradient, buffer.d_concatenated);
+        nn_models::parallel::_split_n<SPEC::NUM_BRANCHES>(device, buffer.d_concatenated, buffer.d_outputs);
+        nn_models::parallel::_backward_branches(device, model, inputs, buffer, mode);
+    }
+
     // ======================== backward_input ========================
     template <typename DEVICE, typename SPEC, typename D_OUTPUT, typename D_INPUT_TUPLE, typename BUFFER_SPEC, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT void backward_input(DEVICE& device, nn_models::parallel::ModuleBackward<SPEC>& model, D_OUTPUT& d_output, D_INPUT_TUPLE& d_inputs, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){

@@ -1,6 +1,6 @@
 project(test_rl_tools_nn_models_parallel_cuda CUDA)
 
-if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_BACKEND_ENABLE_MKL)
+if(RL_TOOLS_BACKEND_ENABLE_CUDA)
     set(CMAKE_CUDA_STANDARD 17)
     set(CMAKE_CXX_STANDARD  17)
 

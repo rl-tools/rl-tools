@@ -57,30 +57,50 @@ Edit `MIXED_PARAMETERS` near the top of `training_cuda.cu` to configure the run:
 | Constant | Default | Meaning |
 | --- | --- | --- |
 | `IMITATION_ENVIRONMENTS_PER_SCENE` | 8 of 16 | IL share in each scene and every minibatch; must leave at least one IL and one RL environment per scene |
-| `TEACHER_FORCING_UPDATES` | 10 | First this many optimizer updates use teacher actions in IL environments |
+| `TEACHER_FORCING_UPDATES` | 5000 | First this many optimizer updates use teacher actions in IL environments |
 | `IMITATION_WEIGHT` | 1 | Weight of the half-MSE teacher loss relative to the RL objective |
-| `BALANCING_MODE` | `rlt::Mode<mixed_imitation::FixedWeight<>>` | Change to `rlt::Mode<mixed_imitation::FixedNormRatio<>>` to balance each minibatch |
-| `OUTPUT_GRADIENT_NORM_RATIO` | 1 | Desired weighted IL / RL action-mean gradient L2 norm ratio in `FixedNormRatio` mode |
-| `MAX_IMITATION_WEIGHT` | 1000 | Upper bound on the adaptive IL multiplier |
+| `BALANCING_MODE` | `rlt::Mode<mixed_imitation::FixedNormRatio<>>` | Balance action-mean derivatives in each minibatch |
+| `OUTPUT_GRADIENT_NORM_RATIO` | 50 | Desired weighted IL / RL action-mean gradient L2 norm ratio in `FixedNormRatio` mode |
+| `MAX_IMITATION_WEIGHT` | 100000 | Upper bound on the adaptive IL multiplier |
 | `NORM_EPSILON` | 1e-12 | Threshold for treating an output-gradient norm as zero |
+| `TEACHER_EPISODE_STEPS` | 200 | Warmup episode limit, generating repeated teacher recovery demonstrations |
+| `STATE_AUXILIARY_WEIGHT` | 1 | Auxiliary state loss coefficient relative to the adaptive imitation multiplier |
 
-The first IL slots of each scene remain IL slots throughout training. Each 1,024-row minibatch contains complete environment steps, giving exactly 512 IL and 512 RL samples with the defaults, even after batch-order shuffling. Both subsets feed **one actor forward/backward pass**, and every accumulated Adam update includes both. Each loss is averaged over its own subset, then scaled by the reciprocal of the number of accumulated minibatches. Thus the share controls sampling allocation independently of the loss weight. The RL policy objective and entropy term retain their existing form; IL uses `0.5 * mean((action_mean - teacher_action)^2)`, matching the imitation target's action loss.
+The first IL slots of each scene remain IL slots throughout training. Each 512-row minibatch contains complete environment steps, giving exactly 256 IL and 256 RL samples with the defaults, even after batch-order shuffling. Both subsets feed **one actor forward/backward pass**, and every accumulated Adam update includes both. Each loss is averaged over its own subset, then scaled by the reciprocal of the number of accumulated minibatches. Thus the share controls sampling allocation independently of the loss weight. The RL policy objective and entropy term retain their existing form; IL uses `0.5 * mean((action_mean - teacher_action)^2)`, matching the imitation target's action loss.
+
+The mixed target collects 16 steps per environment and updates once per 512 fresh transitions, using Adam at `3e-4` and an initial motor-action standard deviation of `0.15`. Its convolutions use the non-legacy ReLU Kaiming initializer. Training stops after 600 seconds measured after scene/model initialization and saves a final checkpoint; final persistence adds wall time. Mixed checkpoints contain two canonical input/output examples. Initial-state guidance is `0.2`, with a position extent of `0.2 m` and the existing attitude/velocity randomization. The pure-RL target retains its separate rollout, optimizer, initialization, and checkpoint defaults.
 
 RL environments always execute sampled student actions. IL environments execute only teacher actions during warmup, then execute student mean actions, as in the imitation target. RAPTOR labels the current, pre-action state in both phases; its recurrent state resets with each environment and persists across rollout boundaries. The warmup switch happens at an optimizer-update boundary, including for ongoing episodes. IL rows never contribute to RL advantage normalization, policy/entropy loss, or critic loss. No IL sample is treated as an on-policy RL transition.
 
-TensorBoard `mixed/*` metrics use **gradient-minibatch index** as their step; `mixed/environment_step` records the corresponding collected-step count. Each minibatch also logs to metra under `l2f_visual_training_mixed/*`. Diagnostics include raw `rl_output_gradient_norm` and `imitation_output_gradient_norm`, `weighted_imitation_output_gradient_norm`, each subset's raw output-gradient RMS, `imitation_weight`, achieved `output_gradient_norm_ratio`, `imitation_mse`, and `teacher_forcing`. These norms include subset averaging and accumulation scaling and are measured before the model backward pass. The RL-only `rl_log_std_gradient_norm` includes the entropy term and is logged separately.
+TensorBoard `mixed/*` metrics use **gradient-minibatch index** as their step; `mixed/environment_step` records the corresponding collected-step count. The first minibatch of every twentieth update also logs to metra under `l2f_visual_training_mixed/*`. Diagnostics include raw `rl_output_gradient_norm` and `imitation_output_gradient_norm`, `weighted_imitation_output_gradient_norm`, each subset's raw output-gradient RMS, `imitation_weight`, achieved `output_gradient_norm_ratio`, `imitation_mse`, and `teacher_forcing`. These norms include subset averaging and accumulation scaling and are measured before the model backward pass. The RL-only `rl_log_std_gradient_norm` includes the entropy term and is logged separately.
+
+A separate linear auxiliary head predicts body-frame relative position, linear velocity, and the transposed rotation matrix from the actor’s concatenated image/state features. Its labels come from privileged observations during training. The auxiliary and motor-action feature derivatives are combined before a single encoder backward pass; the auxiliary head has its own Adam state and is omitted from the deployed policy. `auxiliary/{position,velocity,orientation}_mse` report its component errors. The IL/RL output-gradient ratio excludes this auxiliary contribution.
 
 For fixed-ratio balancing, the IL multiplier is `target_ratio * ||g_RL|| / ||g_IL||`, capped by `MAX_IMITATION_WEIGHT` and held constant during backward. A target of 1 equalizes action-mean output-gradient L2 norms. If either norm is at most `NORM_EPSILON`, the fixed `IMITATION_WEIGHT` is used and `balancing_fallback=1`; `weight_clamped` reports capping. `ratio_valid=0` marks a zero RL denominator, for which the logged ratio is a placeholder 0. The achieved ratio should always be inspected alongside these flags. Equal output-gradient norms do not imply equal parameter gradients or Adam updates: the subsets have different network Jacobians, and the policy's separate log-standard-deviation gradient is outside this balancing rule.
 
 Architecture consumers considered: the existing pure-RL visual target constrains the non-mixed path and optimizer schedule; side-by-side RL and mixed runs require distinct executable names and target-local compile definitions; the RAPTOR imitation target constrains teacher observations, recurrence, action selection and MSE; per-scene rendering and frame-stack collection constrain the deterministic grouping; the actor and asymmetric critic require separate loss masks; the runner remains collection-only; TensorBoard/metra consumers require diagnostics before backward; CPU loss tests require a freestanding, device-first helper in `include/rl_tools/rl/algorithms/ppo/`. Other PPO targets and the hyperdrone and multi-GPU imitation targets retain their existing APIs and behavior.
 
-`rl_environments_l2f_visual_training_mixed_cuda_small` is excluded from the default build. It runs three updates over two scenes, with two mixed minibatches per update and one teacher-forced update, to exercise both phases:
+`rl_environments_l2f_visual_training_mixed_cuda_small` is excluded from the default build. It runs three updates over two scenes, with four mixed minibatches per update and one teacher-forced update, to exercise both phases:
 
 ```bash
 cmake --build build --target test_rl_algorithms_ppo_mixed_imitation rl_environments_l2f_visual_training_mixed_cuda_small -j5
 ctest --test-dir build -R '^PPO_MIXED_IMITATION\.' --output-on-failure --timeout 20 -j5
 ./build/src/rl/environments/l2f_visual/rl_environments_l2f_visual_training_mixed_cuda_small /data/procthor-train-200-glb 0
 ```
+
+### Deterministic hold evaluation
+
+Pass a two-example checkpoint after the seed to evaluate motor-action means without training:
+
+```bash
+./build/src/rl/environments/l2f_visual/rl_environments_l2f_visual_training_mixed_cuda /data/procthor-train-200-glb 42 /path/to/checkpoint_2examples.h5 600
+```
+
+The final argument is simulated seconds (default 600). CPU and CUDA predictions must match the checkpoint’s saved examples before flight (maximum absolute motor-output differences below `1e-4` and `1e-3`, respectively; the CUDA tolerance allows TF32 rounding). Evaluation starts at the target, disables scene/time-limit resets, and permanently marks a trial failed at its first termination or non-finite state. It ends early only if all trials fail. `evaluation.json` reports survival and per-trial position/speed RMS, maximum position error, positional bias/variation, and drift after a five-second settling window. `evaluation.csv` records state and action samples at 10 Hz for the first ten seconds. Reports and checkpoints live under the Extrack experiment directory; set `RL_TOOLS_EXTRACK_PATH=/vm` to use `/vm/experiments`.
+
+Append `recovery` after the duration for initial per-axis position and velocity offsets in `[-0.2,0.2]`, or `blind` to zero the image inputs. Use `teacher` in place of the checkpoint for the privileged RAPTOR reference. Survival and accuracy must be measured on the visual checkpoint; the reference only verifies the control setup.
+
+The deployed policy still consumes images and inertial/action-history observations and outputs four motor commands. These checkpoint and deployment consumers constrain keeping the auxiliary head training-only. CUDA convolution caches constrain combining feature derivatives before branch backward. Existing parallel callers retain the original backward overload; CPU finite-difference and CPU/CUDA comparisons cover the additional-gradient overload.
 
 ### Imitation
 

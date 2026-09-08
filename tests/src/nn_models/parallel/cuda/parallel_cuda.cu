@@ -302,7 +302,9 @@ TEST(NN_MODELS_PARALLEL_CUDA, FORWARD_WITH_HEAD){
 // =========================================================================
 // Test: backward (with head, gradient-only — no d_input)
 // =========================================================================
-TEST(NN_MODELS_PARALLEL_CUDA, BACKWARD_WITH_HEAD){
+template<bool ADDITIONAL_FEATURE_GRADIENT>
+void test_backward_with_head(){
+    using namespace rlt;
     DEVICE_CPU device_cpu;
     DEVICE_CUDA device_cuda;
     rlt::init(device_cuda);
@@ -354,9 +356,23 @@ TEST(NN_MODELS_PARALLEL_CUDA, BACKWARD_WITH_HEAD){
     rlt::zero_gradient(device_cuda, model_cuda);
     cudaDeviceSynchronize();
 
-    // Backward (gradient-only, no d_input)
-    { auto inputs = rlt::nn_models::parallel::pack_inputs(input_a_cpu, input_b_cpu); rlt::backward(device_cpu, model_cpu, inputs, d_output_cpu, buffer_cpu); }
-    { auto inputs = rlt::nn_models::parallel::pack_inputs(input_a_cuda, input_b_cuda); rlt::backward(device_cuda, model_cuda, inputs, d_output_cuda, buffer_cuda); }
+    auto inputs_cpu = rlt::nn_models::parallel::pack_inputs(input_a_cpu, input_b_cpu);
+    auto inputs_cuda = rlt::nn_models::parallel::pack_inputs(input_a_cuda, input_b_cuda);
+    if constexpr(ADDITIONAL_FEATURE_GRADIENT){
+        decltype(buffer_cpu.concatenated) additional_cpu, additional_cuda;
+        malloc(device_cpu, additional_cpu);
+        malloc(device_cuda, additional_cuda);
+        fill_random(device_cpu, additional_cpu, rng_cpu);
+        copy(device_cpu, device_cuda, additional_cpu, additional_cuda);
+        backward(device_cpu, model_cpu, inputs_cpu, d_output_cpu, additional_cpu, buffer_cpu);
+        backward(device_cuda, model_cuda, inputs_cuda, d_output_cuda, additional_cuda, buffer_cuda);
+        free(device_cpu, additional_cpu);
+        free(device_cuda, additional_cuda);
+    }
+    else{
+        backward(device_cpu, model_cpu, inputs_cpu, d_output_cpu, buffer_cpu);
+        backward(device_cuda, model_cuda, inputs_cuda, d_output_cuda, buffer_cuda);
+    }
     cudaDeviceSynchronize();
 
     // Compare model gradients by copying CUDA model back to CPU and computing abs_diff
@@ -380,6 +396,14 @@ TEST(NN_MODELS_PARALLEL_CUDA, BACKWARD_WITH_HEAD){
     rlt::free(device_cuda, d_output_cuda);
     rlt::free(device_cpu, rng_cpu);
     rlt::free(device_cuda, rng_cuda);
+}
+
+TEST(NN_MODELS_PARALLEL_CUDA, BACKWARD_WITH_HEAD){
+    test_backward_with_head<false>();
+}
+
+TEST(NN_MODELS_PARALLEL_CUDA, BACKWARD_WITH_ADDITIONAL_FEATURE_GRADIENT){
+    test_backward_with_head<true>();
 }
 
 // =========================================================================
