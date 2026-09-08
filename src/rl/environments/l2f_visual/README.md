@@ -24,7 +24,7 @@ The actor uses the on-policy log-probability objective with entropy regularizati
 rl_environments_l2f_visual_training_cuda_hyperdrone <scene_directory | scene.glb> [seed]
 ```
 
-Hyperdrone follows the existing `training_cuda.cu` defaults: float32, 32 environments, 320 steps per rollout, ten 1,024-sample minibatches accumulated into one actor and critic Adam update, and one use of every transition. Its target-local `training_hyperdrone_config.h` pins the reference parameters. The actor/critic wiring stays in `training_cuda_hyperdrone.cu`; `training_hyperdrone_loss.h` implements the reference advantage-weighted log-probability objective, entropy regularization and minibatch advantage normalization. `training_cuda.cu`, PPO operations and the shared neural-network backends are unchanged.
+Hyperdrone follows the pure-RL `rl_environments_l2f_visual_training_cuda` defaults: float32, 32 environments, 320 steps per rollout, ten 1,024-sample minibatches accumulated into one actor and critic Adam update, and one use of every transition. Its target-local `training_hyperdrone_config.h` pins the reference parameters. The actor/critic wiring stays in `training_cuda_hyperdrone.cu`; `training_hyperdrone_loss.h` implements the reference advantage-weighted log-probability objective, entropy regularization and minibatch advantage normalization. The Hyperdrone port does not modify `training_cuda.cu`, shared PPO operations or neural-network backends. Mixed imitation/RL is a separate CUDA target described below; Hyperdrone remains pure RL.
 
 Both targets shuffle the numerically ordered 25-scene corpus with a dedicated seeded scene RNG and select two scenes every seven rollouts (2,240 steps per environment). `training_hyperdrone_scenes.h` mirrors the reference enumeration. Both Hyperdrone Worlds can select any scene through the existing shared scene library and explicit `select_scene`, using 50 renderer slots with shared geometry builds. Their RNG offsets are 0 and 16. The existing `rotate_scene` behavior is preserved for other callers.
 
@@ -38,6 +38,48 @@ The Hyperdrone smoke target retains the full corpus and production rollout/batch
 cmake --build build --target rl_environments_l2f_visual_training_cuda_hyperdrone_smoke test_rl_environments_l2f_visual_hyperdrone_gradient -j5
 timeout 300 ./build/src/rl/environments/l2f_visual/rl_environments_l2f_visual_training_cuda_hyperdrone_smoke /data/procthor-train-200-glb 0
 ctest --test-dir build -R '^L2F_VISUAL_HYPERDRONE_ON_POLICY_GRADIENT\.' --output-on-failure --timeout 20 -j5
+```
+
+### Mixed imitation and reinforcement learning
+
+`rl_environments_l2f_visual_training_mixed_cuda` is the full-size mixed target. It compiles `training_cuda.cu` with `RL_TOOLS_L2F_VISUAL_TRAINING_MIXED`; the ordinary `rl_environments_l2f_visual_training_cuda` target always uses pure RL. Both targets coexist in the same build without a CMake mode toggle:
+
+```bash
+cmake -B build
+cmake --build build --target rl_environments_l2f_visual_training_mixed_cuda -j5
+./build/src/rl/environments/l2f_visual/rl_environments_l2f_visual_training_mixed_cuda /data/procthor-train-200-glb 0
+```
+
+The RAPTOR teacher uses the same converted `src/nn_models/port_checkpoint/raptor/policy.h` as `imitation_cuda.cu`. With the original RAPTOR assets already present, generate that header by building and running `nn_models_port_checkpoint_raptor`.
+
+Edit `MIXED_PARAMETERS` near the top of `training_cuda.cu` to configure the run:
+
+| Constant | Default | Meaning |
+| --- | --- | --- |
+| `IMITATION_ENVIRONMENTS_PER_SCENE` | 8 of 16 | IL share in each scene and every minibatch; must leave at least one IL and one RL environment per scene |
+| `TEACHER_FORCING_UPDATES` | 10 | First this many optimizer updates use teacher actions in IL environments |
+| `IMITATION_WEIGHT` | 1 | Weight of the half-MSE teacher loss relative to the RL objective |
+| `BALANCING_MODE` | `rlt::Mode<mixed_imitation::FixedWeight<>>` | Change to `rlt::Mode<mixed_imitation::FixedNormRatio<>>` to balance each minibatch |
+| `OUTPUT_GRADIENT_NORM_RATIO` | 1 | Desired weighted IL / RL action-mean gradient L2 norm ratio in `FixedNormRatio` mode |
+| `MAX_IMITATION_WEIGHT` | 1000 | Upper bound on the adaptive IL multiplier |
+| `NORM_EPSILON` | 1e-12 | Threshold for treating an output-gradient norm as zero |
+
+The first IL slots of each scene remain IL slots throughout training. Each 1,024-row minibatch contains complete environment steps, giving exactly 512 IL and 512 RL samples with the defaults, even after batch-order shuffling. Both subsets feed **one actor forward/backward pass**, and every accumulated Adam update includes both. Each loss is averaged over its own subset, then scaled by the reciprocal of the number of accumulated minibatches. Thus the share controls sampling allocation independently of the loss weight. The RL policy objective and entropy term retain their existing form; IL uses `0.5 * mean((action_mean - teacher_action)^2)`, matching the imitation target's action loss.
+
+RL environments always execute sampled student actions. IL environments execute only teacher actions during warmup, then execute student mean actions, as in the imitation target. RAPTOR labels the current, pre-action state in both phases; its recurrent state resets with each environment and persists across rollout boundaries. The warmup switch happens at an optimizer-update boundary, including for ongoing episodes. IL rows never contribute to RL advantage normalization, policy/entropy loss, or critic loss. No IL sample is treated as an on-policy RL transition.
+
+TensorBoard `mixed/*` metrics use **gradient-minibatch index** as their step; `mixed/environment_step` records the corresponding collected-step count. Each minibatch also logs to metra under `l2f_visual_training_mixed/*`. Diagnostics include raw `rl_output_gradient_norm` and `imitation_output_gradient_norm`, `weighted_imitation_output_gradient_norm`, each subset's raw output-gradient RMS, `imitation_weight`, achieved `output_gradient_norm_ratio`, `imitation_mse`, and `teacher_forcing`. These norms include subset averaging and accumulation scaling and are measured before the model backward pass. The RL-only `rl_log_std_gradient_norm` includes the entropy term and is logged separately.
+
+For fixed-ratio balancing, the IL multiplier is `target_ratio * ||g_RL|| / ||g_IL||`, capped by `MAX_IMITATION_WEIGHT` and held constant during backward. A target of 1 equalizes action-mean output-gradient L2 norms. If either norm is at most `NORM_EPSILON`, the fixed `IMITATION_WEIGHT` is used and `balancing_fallback=1`; `weight_clamped` reports capping. `ratio_valid=0` marks a zero RL denominator, for which the logged ratio is a placeholder 0. The achieved ratio should always be inspected alongside these flags. Equal output-gradient norms do not imply equal parameter gradients or Adam updates: the subsets have different network Jacobians, and the policy's separate log-standard-deviation gradient is outside this balancing rule.
+
+Architecture consumers considered: the existing pure-RL visual target constrains the non-mixed path and optimizer schedule; side-by-side RL and mixed runs require distinct executable names and target-local compile definitions; the RAPTOR imitation target constrains teacher observations, recurrence, action selection and MSE; per-scene rendering and frame-stack collection constrain the deterministic grouping; the actor and asymmetric critic require separate loss masks; the runner remains collection-only; TensorBoard/metra consumers require diagnostics before backward; CPU loss tests require a freestanding, device-first helper in `include/rl_tools/rl/algorithms/ppo/`. Other PPO targets and the hyperdrone and multi-GPU imitation targets retain their existing APIs and behavior.
+
+`rl_environments_l2f_visual_training_mixed_cuda_small` is excluded from the default build. It runs three updates over two scenes, with two mixed minibatches per update and one teacher-forced update, to exercise both phases:
+
+```bash
+cmake --build build --target test_rl_algorithms_ppo_mixed_imitation rl_environments_l2f_visual_training_mixed_cuda_small -j5
+ctest --test-dir build -R '^PPO_MIXED_IMITATION\.' --output-on-failure --timeout 20 -j5
+./build/src/rl/environments/l2f_visual/rl_environments_l2f_visual_training_mixed_cuda_small /data/procthor-train-200-glb 0
 ```
 
 ### Imitation
