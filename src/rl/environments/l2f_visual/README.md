@@ -40,67 +40,72 @@ timeout 300 ./build/src/rl/environments/l2f_visual/rl_environments_l2f_visual_tr
 ctest --test-dir build -R '^L2F_VISUAL_HYPERDRONE_ON_POLICY_GRADIENT\.' --output-on-failure --timeout 20 -j5
 ```
 
-### Mixed imitation and reinforcement learning
+### Patch64 mixed visual position hold
 
-`rl_environments_l2f_visual_training_mixed_cuda` is the full-size mixed target. It compiles `training_cuda.cu` with `RL_TOOLS_L2F_VISUAL_TRAINING_MIXED`; the ordinary `rl_environments_l2f_visual_training_cuda` target always uses pure RL. Both targets coexist in the same build without a CMake mode toggle:
+`rl_environments_l2f_visual_training_mixed_cuda` trains the Patch64 setup from `training_mixed_cuda.cu`; its compile-time defaults live in `training_mixed_config.h`. This is the configuration behind the September 8, 2026 `ctbr_patch_context64_real` videos, including the five-second inertial-velocity observer. Building the training target also builds its matching 32-view evaluator. The pure-RL and Hyperdrone targets retain their own sources and defaults.
 
 ```bash
-cmake -B build
-cmake --build build --target rl_environments_l2f_visual_training_mixed_cuda -j5
-./build/src/rl/environments/l2f_visual/rl_environments_l2f_visual_training_mixed_cuda /data/procthor-train-200-glb 0
+CUDACXX=/usr/local/cuda-13.2/bin/nvcc cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target rl_environments_l2f_visual_training_mixed_cuda -j1
+RL_TOOLS_EXTRACK_PATH=/vm/sesions/l2f-visual-hold ./build/src/rl/environments/l2f_visual/rl_environments_l2f_visual_training_mixed_cuda /data/procthor-train-200-glb/ 0
 ```
 
-The RAPTOR teacher uses the same converted `src/nn_models/port_checkpoint/raptor/policy.h` as `imitation_cuda.cu`. With the original RAPTOR assets already present, generate that header by building and running `nn_models_port_checkpoint_raptor`.
+Use the installed CUDA compiler path on your machine. Build serially on memory-constrained VMs and finish compilation before starting GPU training. The 600-second training budget starts after scene/model initialization; initialization and final persistence add wall time. The optional seed defaults to 0. `RL_TOOLS_EXTRACK_PATH` is the parent of `experiments/`; optionally set `RL_TOOLS_EXTRACK_EXPERIMENT` to a sortable timestamp such as `2026-09-08_10-00-00`. The run records its source snapshot and prints the final checkpoint directory.
 
-Edit `MIXED_PARAMETERS` near the top of `training_cuda.cu` to configure the run:
+| Default | Value |
+| --- | --- |
+| Scene corpus / active scenes | 25 / 8 |
+| Environments / fresh samples per update | 128 / 512 (4 steps each) |
+| IL / RL samples per update | 256 / 256, fixed slots in each scene |
+| Adam learning rate / epochs | `3e-4` / 1 |
+| Initial RL action standard deviation | `0.05` |
+| IL action schedule | Teacher for 500 updates; blend toward student through update 2000 |
+| Teacher action noise | `0.01` standard deviation |
+| IL / RL action-gradient norm ratio | 50, adaptive IL weight capped at `1e8` |
+| Scene rotation / physical episode limit | 2,048 / 10,000 control steps |
+| Control / inner dynamics frequency | 100 Hz / 1,000 Hz |
+| Training time | 600 seconds |
 
-| Constant | Default | Meaning |
+Each IL row samples an independent pose: position within ±3 cm per axis, attitude angle at most 0.015 radians, zero initial velocity and angular rate, and independently sampled camera calibration, brightness, scene placement and heading. RL rows follow physical trajectories. Each fresh sample is used once. IL rows are excluded from advantage normalization, the RL objective, entropy and critic loss. A geometric teacher labels CTBR actions using privileged body-frame position and heading together with the same inertial observations available to the actor.
+
+The actor receives an 80×50 RGB view and its target view, plus 65 state features: world-up direction (3), gyroscope (3), CTBR action history (32), body-frame acceleration history (24), and estimated body-frame velocity (3). It does not receive true position, velocity or heading. The simulator supplies the world-up direction from orientation; gyroscope bias is uniform within ±0.02 rad/s and accelerometer noise/bias are zero in this baseline. Velocity starts at zero, integrates gravity-corrected acceleration with gyro-based frame rotation, and decays with a five-second time constant. These assumptions matter when interpreting hold and recovery performance.
+
+Camera preprocessing uses the actual randomized calibration to rectify roll and pitch while preserving yaw. A paired `[current,target] / [target,current]` image layout feeds a fixed grayscale/local matching prefix. A learned 64-channel 1×1 patch convolution and 64-channel spatial convolution use batch normalization and GELU; a four-channel readout and fixed antisymmetric difference produce visual corrections. A fixed sensor-feedback branch stabilizes tilt, estimated velocity and collective thrust. Their summed outputs are collective thrust and three body-rate commands, consumed by the existing CTBR controller. The inner controller uses simulator angular velocity and dynamics calibration. The fixed prefix and feedback layers are frozen; backward propagation stops at the first learned image layer. The initial visual readout is zero. No RAPTOR checkpoint, auxiliary head or synthetic-warp training pass is required.
+
+Rendering uses High shading, 2×2 antialiasing, no motion blur, FOV 79.6° ±5°, mount offsets ±1 cm, mount rotations ±5°, and shared current/target brightness in `[0.5,1.5]`. Target roll and pitch are zero. The fixed-workload `_small` target uses the full training workload for exactly 600 optimizer updates (307,200 environment steps), crossing the first scene rotation and teacher-blending boundary:
+
+```bash
+cmake --build build --target rl_environments_l2f_visual_training_mixed_cuda_small test_rl_environments_l2f_visual_position_hold_helpers -j1
+ctest --test-dir build -R '^(L2F_VISUAL_POSITION_HOLD|PPO_MIXED_IMITATION)\.' --output-on-failure --timeout 20 -j1
+RL_TOOLS_EXTRACK_PATH=/vm/sesions/l2f-visual-hold ./build/src/rl/environments/l2f_visual/rl_environments_l2f_visual_training_mixed_cuda_small /data/procthor-train-200-glb/ 0
+```
+
+TensorBoard `mixed/*` metrics use gradient-minibatch index; `mixed/environment_step` provides collected-step count. Metra records learning, timing and evaluation metrics. The balancing diagnostics report raw RL/IL action-mean gradient norms, adaptive weight, achieved ratio, fallback and capping flags; the separate RL log-standard-deviation gradient is outside this ratio. Two otherwise unused historical random-draw sequences are retained to preserve the recorded seed behavior.
+
+Architecture consumers considered: independent training and evaluation require one actor/configuration with distinct environment counts; the recorded checkpoint constrains initialization, preprocessing, RNG ordering and canonical input shapes; pure-RL, Hyperdrone and RAPTOR imitation consumers constrain keeping this target separate; embedded/device consumers constrain freestanding helpers for velocity, camera projection and fixed model initialization; sequential-model consumers constrain a reusable backward operation that stops at a specified trainable layer; CUDA convolution caches require one backward pass through the learned image branch; Extrack and model viewers constrain canonical `[time,batch,...]` saved examples; video reviewers constrain finalized regular MP4 artifacts. The existing mixed-loss helper remains responsible for subset masks and gradient balancing, while the target owns progress and reporting.
+
+### Patch64 evaluation and recorded checkpoint
+
+```bash
+RL_TOOLS_EXTRACK_PATH=/vm/sesions/l2f-visual-hold ./build/src/rl/environments/l2f_visual/rl_environments_l2f_visual_evaluate_mixed_cuda /data/procthor-train-200-glb/ 42 /path/to/checkpoint_2examples.h5 600
+```
+
+The duration is simulated seconds (default 600). Before flight, CPU and CUDA predictions must match the checkpoint's two saved examples within maximum absolute action differences of `1e-4` and `1e-3`, respectively. Evaluation uses 32 trials across two scenes, starts at the target with zero velocity, and disables scene/time-limit resets. The first termination or non-finite state permanently fails a trial. `evaluation.json` reports survival, position/speed RMS, bias, variation and drift after a five-second settling window; drift compares the mean position at seconds 5–10 with the final five seconds. `evaluation.csv` records states and actions at 10 Hz for the full run, stopping each trial's trace after failure.
+
+Normal evaluation records target/live mosaics at 25 fps while control remains at 100 Hz. The encoder runs with one thread and writes `video.partial.mp4`; only successful finalization promotes it to `steps/<step>/video.mp4`. Use that regular file for copying or review. Extrack's `latest` entries are navigation links. Shared review exports must be real file copies and should be checked with `ffprobe` for duration and frame count (a 600-second normal run has 15,000 frames).
+
+Append `recovery` for initial per-axis position and velocity offsets in `[-0.2,0.2]`, `blind` to zero images, or `blind-recovery` for both. Recovery diagnostics suppress video because the renderer can reset a failed environment after its first failure. Use `teacher` in place of the checkpoint for the geometric privileged reference. Hold success does not establish recovery from arbitrary displacement or velocity, or indefinite stability.
+
+The original reviewed checkpoint is `/vm/experiments/2026-09-08_08-44-02.571427/c75e5f8_l2f_visual_ctbr_patch_context64_real_algorithm_environments_accumulation/mixed_128_1/0000/steps/000000005827072/checkpoint_2examples.h5`. It trained from scratch for 600 seconds and collected 5,827,072 environment steps. Its run directory archives the exact prototype source and build metadata; the source SHA-256 is `391ccae9b5ed0ba02b048b29d2c4568094d6986eb278fa90f81b4d4055962357`. The earlier commit titled `interesting results` contained shared backend fixes but did not yet contain this external prototype. This integration brings the prototype into the main source.
+
+| Recorded 600-second evaluation | Seed 42 | Seed 43 |
 | --- | --- | --- |
-| `IMITATION_ENVIRONMENTS_PER_SCENE` | 8 of 16 | IL share in each scene and every minibatch; must leave at least one IL and one RL environment per scene |
-| `TEACHER_FORCING_UPDATES` | 5000 | First this many optimizer updates use teacher actions in IL environments |
-| `IMITATION_WEIGHT` | 1 | Weight of the half-MSE teacher loss relative to the RL objective |
-| `BALANCING_MODE` | `rlt::Mode<mixed_imitation::FixedNormRatio<>>` | Balance action-mean derivatives in each minibatch |
-| `OUTPUT_GRADIENT_NORM_RATIO` | 50 | Desired weighted IL / RL action-mean gradient L2 norm ratio in `FixedNormRatio` mode |
-| `MAX_IMITATION_WEIGHT` | 100000 | Upper bound on the adaptive IL multiplier |
-| `NORM_EPSILON` | 1e-12 | Threshold for treating an output-gradient norm as zero |
-| `TEACHER_EPISODE_STEPS` | 200 | Warmup episode limit, generating repeated teacher recovery demonstrations |
-| `STATE_AUXILIARY_WEIGHT` | 1 | Auxiliary state loss coefficient relative to the adaptive imitation multiplier |
+| Surviving trials | 32/32 | 32/32 |
+| Mean per-trial position RMS | 1.32 cm | 3.21 cm |
+| Worst per-trial position RMS | 10.99 cm | 22.98 cm |
+| Maximum positional drift | 12.68 cm | 38.90 cm |
 
-The first IL slots of each scene remain IL slots throughout training. Each 512-row minibatch contains complete environment steps, giving exactly 256 IL and 256 RL samples with the defaults, even after batch-order shuffling. Both subsets feed **one actor forward/backward pass**, and every accumulated Adam update includes both. Each loss is averaged over its own subset, then scaled by the reciprocal of the number of accumulated minibatches. Thus the share controls sampling allocation independently of the loss weight. The RL policy objective and entropy term retain their existing form; IL uses `0.5 * mean((action_mean - teacher_action)^2)`, matching the imitation target's action loss.
-
-The mixed target collects 16 steps per environment and updates once per 512 fresh transitions, using Adam at `3e-4` and an initial motor-action standard deviation of `0.15`. Its convolutions use the non-legacy ReLU Kaiming initializer. Training stops after 600 seconds measured after scene/model initialization and saves a final checkpoint; final persistence adds wall time. Mixed checkpoints contain two canonical input/output examples. Initial-state guidance is `0.2`, with a position extent of `0.2 m` and the existing attitude/velocity randomization. The pure-RL target retains its separate rollout, optimizer, initialization, and checkpoint defaults.
-
-RL environments always execute sampled student actions. IL environments execute only teacher actions during warmup, then execute student mean actions, as in the imitation target. RAPTOR labels the current, pre-action state in both phases; its recurrent state resets with each environment and persists across rollout boundaries. The warmup switch happens at an optimizer-update boundary, including for ongoing episodes. IL rows never contribute to RL advantage normalization, policy/entropy loss, or critic loss. No IL sample is treated as an on-policy RL transition.
-
-TensorBoard `mixed/*` metrics use **gradient-minibatch index** as their step; `mixed/environment_step` records the corresponding collected-step count. The first minibatch of every twentieth update also logs to metra under `l2f_visual_training_mixed/*`. Diagnostics include raw `rl_output_gradient_norm` and `imitation_output_gradient_norm`, `weighted_imitation_output_gradient_norm`, each subset's raw output-gradient RMS, `imitation_weight`, achieved `output_gradient_norm_ratio`, `imitation_mse`, and `teacher_forcing`. These norms include subset averaging and accumulation scaling and are measured before the model backward pass. The RL-only `rl_log_std_gradient_norm` includes the entropy term and is logged separately.
-
-A separate linear auxiliary head predicts body-frame relative position, linear velocity, and the transposed rotation matrix from the actor’s concatenated image/state features. Its labels come from privileged observations during training. The auxiliary and motor-action feature derivatives are combined before a single encoder backward pass; the auxiliary head has its own Adam state and is omitted from the deployed policy. `auxiliary/{position,velocity,orientation}_mse` report its component errors. The IL/RL output-gradient ratio excludes this auxiliary contribution.
-
-For fixed-ratio balancing, the IL multiplier is `target_ratio * ||g_RL|| / ||g_IL||`, capped by `MAX_IMITATION_WEIGHT` and held constant during backward. A target of 1 equalizes action-mean output-gradient L2 norms. If either norm is at most `NORM_EPSILON`, the fixed `IMITATION_WEIGHT` is used and `balancing_fallback=1`; `weight_clamped` reports capping. `ratio_valid=0` marks a zero RL denominator, for which the logged ratio is a placeholder 0. The achieved ratio should always be inspected alongside these flags. Equal output-gradient norms do not imply equal parameter gradients or Adam updates: the subsets have different network Jacobians, and the policy's separate log-standard-deviation gradient is outside this balancing rule.
-
-Architecture consumers considered: the existing pure-RL visual target constrains the non-mixed path and optimizer schedule; side-by-side RL and mixed runs require distinct executable names and target-local compile definitions; the RAPTOR imitation target constrains teacher observations, recurrence, action selection and MSE; per-scene rendering and frame-stack collection constrain the deterministic grouping; the actor and asymmetric critic require separate loss masks; the runner remains collection-only; TensorBoard/metra consumers require diagnostics before backward; CPU loss tests require a freestanding, device-first helper in `include/rl_tools/rl/algorithms/ppo/`. Other PPO targets and the hyperdrone and multi-GPU imitation targets retain their existing APIs and behavior.
-
-`rl_environments_l2f_visual_training_mixed_cuda_small` is excluded from the default build. It runs three updates over two scenes, with four mixed minibatches per update and one teacher-forced update, to exercise both phases:
-
-```bash
-cmake --build build --target test_rl_algorithms_ppo_mixed_imitation rl_environments_l2f_visual_training_mixed_cuda_small -j5
-ctest --test-dir build -R '^PPO_MIXED_IMITATION\.' --output-on-failure --timeout 20 -j5
-./build/src/rl/environments/l2f_visual/rl_environments_l2f_visual_training_mixed_cuda_small /data/procthor-train-200-glb 0
-```
-
-### Deterministic hold evaluation
-
-Pass a two-example checkpoint after the seed to evaluate motor-action means without training:
-
-```bash
-./build/src/rl/environments/l2f_visual/rl_environments_l2f_visual_training_mixed_cuda /data/procthor-train-200-glb 42 /path/to/checkpoint_2examples.h5 600
-```
-
-The final argument is simulated seconds (default 600). CPU and CUDA predictions must match the checkpoint’s saved examples before flight (maximum absolute motor-output differences below `1e-4` and `1e-3`, respectively; the CUDA tolerance allows TF32 rounding). Evaluation starts at the target, disables scene/time-limit resets, and permanently marks a trial failed at its first termination or non-finite state. It ends early only if all trials fail. `evaluation.json` reports survival and per-trial position/speed RMS, maximum position error, positional bias/variation, and drift after a five-second settling window. `evaluation.csv` records state and action samples at 10 Hz for the first ten seconds. Reports and checkpoints live under the Extrack experiment directory; set `RL_TOOLS_EXTRACK_PATH=/vm` to use `/vm/experiments`.
-
-Append `recovery` after the duration for initial per-axis position and velocity offsets in `[-0.2,0.2]`, or `blind` to zero the image inputs. Use `teacher` in place of the checkpoint for the privileged RAPTOR reference. Survival and accuracy must be measured on the visual checkpoint; the reference only verifies the control setup.
-
-The deployed policy still consumes images and inertial/action-history observations and outputs four motor commands. These checkpoint and deployment consumers constrain keeping the auxiliary head training-only. CUDA convolution caches constrain combining feature derivatives before branch backward. Existing parallel callers retain the original backward overload; CPU finite-difference and CPU/CUDA comparisons cover the additional-gradient overload.
+These are results of the designated archived checkpoint, not a claim that all ten-minute runs produce identical final checkpoints: a wall-time limit yields hardware-dependent update counts. The integrated evaluator exactly reproduces both original evaluation reports and raw MP4 files. Training across the source refactor has small numerical differences: first-update advantages differ by at most `4.77e-7` and readout weights by `5.82e-11`, which accumulate over subsequent updates; it is not byte-identical to the archived prototype. Fixed-seed, fixed-update repeats should be compared separately from wall-time runs. Original review videos and full evaluation files are in `/vm/data/rl-tools/visual-hold/patch64-video-review/`; the hardest-view montage exposes the residual drift hidden by averages. The HDF5 actor includes canonical preprocessed image/state examples for model inspection; running it from raw sensor/image input also requires the camera rectification, paired layout, velocity observer and CTBR interface described above.
 
 ### Imitation
 
