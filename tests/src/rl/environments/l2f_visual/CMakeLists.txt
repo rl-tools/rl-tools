@@ -28,3 +28,8 @@ if(TARGET owl::owl AND TARGET rendering_raytracing_device_ptx AND TARGET assimp:
         gtest_discover_tests(test_rl_environments_l2f_visual_cuda)
     endif()
 endif()
+
+add_executable(test_rl_environments_l2f_visual_hyperdrone_gradient on_policy_gradient.cpp)
+target_include_directories(test_rl_environments_l2f_visual_hyperdrone_gradient PRIVATE ${CMAKE_SOURCE_DIR}/src/rl/environments/l2f_visual)
+target_link_libraries(test_rl_environments_l2f_visual_hyperdrone_gradient PRIVATE RLtools::RLtools GTest::gtest_main)
+gtest_discover_tests(test_rl_environments_l2f_visual_hyperdrone_gradient)

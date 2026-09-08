@@ -129,6 +129,15 @@ namespace rl_tools {
         render(device, static_cast<NEXT_WORLD&>(world), parameters, states, reset_mask);
     }
 
+    template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename OBSERVATION_SPEC, typename RNG>
+    void observe(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, typename TASK_SPEC::NEXT_WORLD::Observation observation_type, Tensor<OBSERVATION_SPEC>& observations, RNG& rng){
+        using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
+        if(world.render_pending){
+            render(device, world, parameters, states, world.render_reset);
+        }
+        observe(device, static_cast<NEXT_WORLD&>(world), parameters, states, observation_type, observations, rng);
+    }
+
     // the composed observation: [stacked frames | target frame | padding]
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename OBSERVATION_SPEC, typename RNG>
     void observe(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, typename rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>::Observation, Tensor<OBSERVATION_SPEC>& observations, RNG& rng) {

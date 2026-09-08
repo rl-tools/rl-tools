@@ -286,6 +286,11 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, SCENE_ROTATION){
     rlt::rotate_scene(device, world);
     EXPECT_EQ(world.active_slot, 1);
     EXPECT_EQ(world.slots[world.active_slot].corpus_index, 1);
+    rlt::select_scene(device, world, (TI)0);
+    EXPECT_EQ(world.active_slot, 0);
+    rlt::select_scene(device, world, (TI)1);
+    EXPECT_EQ(world.active_slot, 1);
+    EXPECT_TRUE(world.render_pending);
 
     RNG rng;
     rlt::malloc(device, rng);
