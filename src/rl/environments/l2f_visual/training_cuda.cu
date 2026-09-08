@@ -83,6 +83,7 @@
 #include <iostream>
 #include <iomanip>
 #include <cstring>
+#include <cstdint>
 #include <string>
 #include <algorithm>
 #include <fstream>
@@ -98,6 +99,27 @@ namespace rlt = rl_tools;
 using rlt::is_imitation_sample;
 using rlt::use_teacher_action;
 using rlt::mix_policy_output_gradients;
+using rlt::load;
+using rlt::copy;
+
+namespace rl_tools::rl::environments::l2f_visual::evaluation{
+    template<typename T_BASE = mode::Evaluation<>, typename T_SPEC = bool>
+    struct Teacher: T_BASE{
+        using BASE = T_BASE;
+        using SPEC = T_SPEC;
+    };
+    template<typename T_BASE = mode::Evaluation<>, typename T_SPEC = bool>
+    struct Blind: T_BASE{
+        using BASE = T_BASE;
+        using SPEC = T_SPEC;
+    };
+    template<typename T_BASE = mode::Evaluation<>, typename T_SPEC = bool>
+    struct Recovery: T_BASE{
+        using BASE = T_BASE;
+        using SPEC = T_SPEC;
+    };
+}
+namespace hold_evaluation = rlt::rl::environments::l2f_visual::evaluation;
 
 // =========================================================================
 // Device types
@@ -116,6 +138,11 @@ using TYPE_POLICY = rlt::numeric_types::Policy<float>;
 using TI = typename DEVICE::index_t;
 using RNG = rlt::devices::generic::random::ArrayENGINE<rlt::devices::generic::random::ArraySpecification<TI, 1024>>;
 using RNG_GPU = typename DEVICE_GPU::SPEC::RANDOM::ENGINE<>;
+#ifdef RL_TOOLS_L2F_VISUAL_TRAINING_MIXED
+static constexpr bool MIXED_TRAINING = true;
+#else
+static constexpr bool MIXED_TRAINING = false;
+#endif
 
 // =========================================================================
 // L2F dynamics configuration
@@ -159,8 +186,8 @@ static constexpr REWARD_FUNCTION reward_function = {
     {1.50, 1.50, 1.50, 1.50}, // d_action[ACTION_DIM]
     0.00   // position_error_integral
 };
-static constexpr typename PARAMETERS_TYPE::MDP::Initialization init = {
-    1.0, 0.0, 0.3, 1.0, 1.0, true, -1, +1,
+static constexpr typename PARAMETERS_TYPE::MDP::Initialization initialization = {
+    MIXED_TRAINING ? 0.2f : 1.0f, MIXED_TRAINING ? 0.2f : 0.0f, 0.3, 1.0, 1.0, true, -1, +1,
 };
 static constexpr typename PARAMETERS_TYPE::MDP::Termination termination = {
     true, 1.0, 0, 10, 35, 10000, 50000,
@@ -169,7 +196,7 @@ static constexpr typename PARAMETERS_TYPE::Dynamics dynamics = l2f::parameters::
 static constexpr typename PARAMETERS_TYPE::Integration integration = {
     static_cast<T>(1) / static_cast<T>(SIMULATION_FREQUENCY)
 };
-static constexpr typename PARAMETERS_TYPE::MDP mdp = { init, reward_function, {}, {}, termination };
+static constexpr typename PARAMETERS_TYPE::MDP mdp = { initialization, reward_function, {}, {}, termination };
 // Random force/torque disturbances scaled relative to the platform's maximum thrust.
 // `state.force` / `state.torque` are sampled once per episode in `30_sample_initial_state.h`
 // from `N(mean, std)` and continuously injected through `60_dynamics.h`.
@@ -258,22 +285,20 @@ static constexpr TI N_TOTAL_SCENES = 25;
 static constexpr TI N_ACTIVE_SCENES = 2;
 static constexpr TI N_ENVIRONMENTS_PER_SCENE = 16;
 static constexpr TI N_ENVIRONMENTS = N_ACTIVE_SCENES * N_ENVIRONMENTS_PER_SCENE;
-#ifdef RL_TOOLS_L2F_VISUAL_TRAINING_MIXED
-static constexpr bool MIXED_TRAINING = true;
-#else
-static constexpr bool MIXED_TRAINING = false;
-#endif
 namespace mixed_imitation = rlt::rl::algorithms::ppo::mixed_imitation;
 struct MIXED_PARAMETERS: mixed_imitation::DefaultParameters<TYPE_POLICY, TI>{
     static constexpr TI IMITATION_ENVIRONMENTS_PER_SCENE = 8;
 #ifdef RL_TOOLS_L2F_VISUAL_TRAINING_SMALL
     static constexpr TI TEACHER_FORCING_UPDATES = 1;
 #else
-    static constexpr TI TEACHER_FORCING_UPDATES = 10;
+    static constexpr TI TEACHER_FORCING_UPDATES = 5000;
 #endif
     static constexpr T IMITATION_WEIGHT = 1;
-    static constexpr T OUTPUT_GRADIENT_NORM_RATIO = 1;
-    using BALANCING_MODE = rlt::Mode<mixed_imitation::FixedWeight<>>;
+    static constexpr T OUTPUT_GRADIENT_NORM_RATIO = 50;
+    static constexpr T MAX_IMITATION_WEIGHT = 100000;
+    static constexpr TI TEACHER_EPISODE_STEPS = 200;
+    static constexpr T STATE_AUXILIARY_WEIGHT = 1;
+    using BALANCING_MODE = rlt::Mode<mixed_imitation::FixedNormRatio<>>;
 };
 static_assert(!MIXED_TRAINING || (MIXED_PARAMETERS::IMITATION_ENVIRONMENTS_PER_SCENE > 0 && MIXED_PARAMETERS::IMITATION_ENVIRONMENTS_PER_SCENE < N_ENVIRONMENTS_PER_SCENE));
 static constexpr TI GRADIENT_ACCUMULATION_ROLLOUTS = 1;
@@ -319,7 +344,7 @@ static constexpr TI FRAME_STACK_STRIDE = 10;
 #ifdef RL_TOOLS_L2F_VISUAL_TRAINING_SMALL
 static constexpr TI ROLLOUT_STEPS_PER_ENV = 64;
 #else
-static constexpr TI ROLLOUT_STEPS_PER_ENV = 320;
+static constexpr TI ROLLOUT_STEPS_PER_ENV = MIXED_TRAINING ? 16 : 320;
 #endif
 static constexpr TI SCENE_SET_MIN_STEPS = 2048;
 static constexpr TI ROLLOUTS_PER_SCENE_SET = (SCENE_SET_MIN_STEPS + ROLLOUT_STEPS_PER_ENV - 1) / ROLLOUT_STEPS_PER_ENV;
@@ -341,12 +366,13 @@ static constexpr TI EXTRACK_SAVE_INTERVAL_PPO_STEPS = 640;
 static constexpr TI EXTRACK_SAVE_INTERVAL_SCENE_SETS_BASE = (EXTRACK_SAVE_INTERVAL_PPO_STEPS + ROLLOUTS_PER_SCENE_SET - 1) / ROLLOUTS_PER_SCENE_SET;
 static constexpr TI EXTRACK_SAVE_INTERVAL_SCENE_SETS = 2 * EXTRACK_SAVE_INTERVAL_SCENE_SETS_BASE;
 static constexpr TI VIDEO_SAVE_INTERVAL_SCENE_SETS = EXTRACK_SAVE_INTERVAL_SCENE_SETS;
-static constexpr TI CHECKPOINT_CADENCE_SCENE_SETS = EXTRACK_SAVE_INTERVAL_SCENE_SETS;
+static constexpr TI CHECKPOINT_CADENCE_SCENE_SETS = MIXED_TRAINING ? 20 : EXTRACK_SAVE_INTERVAL_SCENE_SETS;
 static constexpr TI REWARD_COMPONENT_LOG_INTERVAL_PPO_STEPS = 20;
 static constexpr bool EXPORT_CHECKPOINT_TAR = false;
 static constexpr bool EXPORT_CHECKPOINT_CODE = false;
-static constexpr TI N_EXAMPLES = 512;
+static constexpr TI N_EXAMPLES = MIXED_TRAINING ? 2 : 512;
 static constexpr TI REDUCED_BATCH_SIZE = 2;
+static constexpr T TRAINING_TIME_LIMIT_SECONDS = MIXED_TRAINING ? 600 : 0;
 static_assert(REDUCED_BATCH_SIZE <= N_EXAMPLES);
 static constexpr TI TRAJECTORY_NUM_ENVS = 10;
 static constexpr TI TRAJECTORY_MAX_EPISODES = 10;
@@ -399,13 +425,14 @@ std::string trajectory_episodes_to_json(DEVICE& device, ENVIRONMENT& env, typena
 // PPO configuration
 // =========================================================================
 struct ADAM_PARAMETERS: rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>{
-    static constexpr T ALPHA = 1e-4;
+    static constexpr T ALPHA = MIXED_TRAINING ? 3e-4 : 1e-4;
 };
 
 struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParameters<TYPE_POLICY, TI, ENVIRONMENT>{
-    static constexpr TI BATCH_SIZE = 1024;
+    static constexpr TI BATCH_SIZE = MIXED_TRAINING ? 512 : 1024;
     static constexpr TI ACTOR_HIDDEN_DIM = 64;
     static constexpr TI ACTOR_CNN_CHANNEL_MULTIPLIER = 2;
+    static constexpr bool ACTOR_CNN_KAIMING_INIT = MIXED_TRAINING;
     static constexpr TI CRITIC_HIDDEN_DIM = 64;
     static constexpr auto ACTOR_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::RELU;
     static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
@@ -420,14 +447,14 @@ struct LOOP_CORE_PARAMETERS: rlt::rl::algorithms::ppo::loop::core::DefaultParame
     static constexpr TI EPISODE_STEP_LIMIT = ::EPISODE_STEP_LIMIT;
     using ACTOR_OPTIMIZER_PARAMETERS = ADAM_PARAMETERS;
     using CRITIC_OPTIMIZER_PARAMETERS = ADAM_PARAMETERS;
-    static constexpr bool NORMALIZE_OBSERVATIONS = false; // standardize layers handle their own warmup
+    static constexpr bool NORMALIZE_OBSERVATIONS = false;
     struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<TYPE_POLICY, TI, BATCH_SIZE>{
         static constexpr T ACTION_ENTROPY_COEFFICIENT = 0.005;
         static constexpr TI N_EPOCHS = 1;
         static constexpr T GAMMA = 0.99;
         static constexpr T LAMBDA = 0.95;
         static constexpr T EPSILON_CLIP = 0.2;
-        static constexpr T INITIAL_ACTION_STD = 0.5;
+        static constexpr T INITIAL_ACTION_STD = MIXED_TRAINING ? 0.15 : 0.5;
     };
 };
 
@@ -443,17 +470,21 @@ struct ConfigApproximators{
 
     template <typename CAPABILITY>
     struct Actor{
+        struct CNN_INITIALIZER_PARAMETERS: rlt::nn::layers::conv2d::KaimingUniformSpecification<T_TYPE_POLICY, T_TI>{
+            static constexpr bool INIT_LEGACY = !PARAMETERS::ACTOR_CNN_KAIMING_INIT;
+        };
+        using CNN_INITIALIZER = rlt::nn::layers::conv2d::KaimingUniform<CNN_INITIALIZER_PARAMETERS>;
         using IMAGE_INPUT_SHAPE = rlt::tensor::Shape<T_TI, STEPS, FORWARD_BATCH_SIZE, IMG_H, IMG_W, COMBINED_IMG_C>;
         using STATE_INPUT_SHAPE = rlt::tensor::Shape<T_TI, STEPS, FORWARD_BATCH_SIZE, STATE_OBS_DIM>;
 
         // Image branch: Conv(32) -> Conv(64) -> Conv(128) -> Conv(256) stride-2 + Flatten + Dense(64)
-        using CONV1_CONFIG = rlt::nn::layers::conv2d::Configuration<T_TYPE_POLICY, T_TI, 16 * PARAMETERS::ACTOR_CNN_CHANNEL_MULTIPLIER, 3, 3, 2, 2, 1, 1, rlt::nn::activation_functions::ActivationFunction::RELU>;
+        using CONV1_CONFIG = rlt::nn::layers::conv2d::Configuration<T_TYPE_POLICY, T_TI, 16 * PARAMETERS::ACTOR_CNN_CHANNEL_MULTIPLIER, 3, 3, 2, 2, 1, 1, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::layers::conv2d::Normalization::NONE, CNN_INITIALIZER>;
         using CONV1 = rlt::nn::layers::conv2d::BindConfiguration<CONV1_CONFIG>;
-        using CONV2_CONFIG = rlt::nn::layers::conv2d::Configuration<T_TYPE_POLICY, T_TI, 32 * PARAMETERS::ACTOR_CNN_CHANNEL_MULTIPLIER, 3, 3, 2, 2, 1, 1, rlt::nn::activation_functions::ActivationFunction::RELU>;
+        using CONV2_CONFIG = rlt::nn::layers::conv2d::Configuration<T_TYPE_POLICY, T_TI, 32 * PARAMETERS::ACTOR_CNN_CHANNEL_MULTIPLIER, 3, 3, 2, 2, 1, 1, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::layers::conv2d::Normalization::NONE, CNN_INITIALIZER>;
         using CONV2 = rlt::nn::layers::conv2d::BindConfiguration<CONV2_CONFIG>;
-        using CONV3_CONFIG = rlt::nn::layers::conv2d::Configuration<T_TYPE_POLICY, T_TI, 64 * PARAMETERS::ACTOR_CNN_CHANNEL_MULTIPLIER, 3, 3, 2, 2, 1, 1, rlt::nn::activation_functions::ActivationFunction::RELU>;
+        using CONV3_CONFIG = rlt::nn::layers::conv2d::Configuration<T_TYPE_POLICY, T_TI, 64 * PARAMETERS::ACTOR_CNN_CHANNEL_MULTIPLIER, 3, 3, 2, 2, 1, 1, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::layers::conv2d::Normalization::NONE, CNN_INITIALIZER>;
         using CONV3 = rlt::nn::layers::conv2d::BindConfiguration<CONV3_CONFIG>;
-        using CONV4_CONFIG = rlt::nn::layers::conv2d::Configuration<T_TYPE_POLICY, T_TI, 128 * PARAMETERS::ACTOR_CNN_CHANNEL_MULTIPLIER, 3, 3, 2, 2, 1, 1, rlt::nn::activation_functions::ActivationFunction::RELU>;
+        using CONV4_CONFIG = rlt::nn::layers::conv2d::Configuration<T_TYPE_POLICY, T_TI, 128 * PARAMETERS::ACTOR_CNN_CHANNEL_MULTIPLIER, 3, 3, 2, 2, 1, 1, rlt::nn::activation_functions::ActivationFunction::RELU, rlt::nn::layers::conv2d::Normalization::NONE, CNN_INITIALIZER>;
         using CONV4 = rlt::nn::layers::conv2d::BindConfiguration<CONV4_CONFIG>;
         using OUTPUT_FLATTEN_CONFIG = rlt::nn::layers::flatten::Configuration<T_TYPE_POLICY, T_TI>;
         using OUTPUT_FLATTEN = rlt::nn::layers::flatten::BindConfiguration<OUTPUT_FLATTEN_CONFIG>;
@@ -518,6 +549,11 @@ using CAPABILITY_ROLLOUT = rlt::nn::capability::Forward<true>;
 using ROLLOUT_ACTOR_TYPE = typename ACTOR_TYPE::template CHANGE_CAPABILITY<CAPABILITY_ROLLOUT>::template CHANGE_BATCH_SIZE<TI, N_ENVIRONMENTS>;
 using ROLLOUT_ACTOR_BUFFERS = typename ROLLOUT_ACTOR_TYPE::template Buffer<true>;
 using CHECKPOINT_ACTOR_TYPE = typename ACTOR_TYPE::template CHANGE_CAPABILITY<CAPABILITY_ROLLOUT>::template CHANGE_BATCH_SIZE<TI, N_EXAMPLES>;
+static constexpr TI AUXILIARY_DIM = 15;
+using AUXILIARY_INPUT_SHAPE = rlt::tensor::Shape<TI, 1, LOOP_CORE_PARAMETERS::BATCH_SIZE, 2 * LOOP_CORE_PARAMETERS::ACTOR_HIDDEN_DIM>;
+using AUXILIARY_LAYER = rlt::nn::layers::dense::BindConfiguration<rlt::nn::layers::dense::Configuration<TYPE_POLICY, TI, AUXILIARY_DIM, rlt::nn::activation_functions::ActivationFunction::IDENTITY>>;
+using AUXILIARY_MODULE = rlt::nn_models::sequential::Module<AUXILIARY_LAYER>;
+using AUXILIARY_MODEL = rlt::nn_models::sequential::Build<rlt::nn::capability::Gradient<rlt::nn::parameters::Adam, true>, AUXILIARY_MODULE, AUXILIARY_INPUT_SHAPE>;
 
 // Constants
 static constexpr TI STEPS_PER_ENV = LOOP_CORE_PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV;
@@ -590,7 +626,7 @@ namespace ppo_visual {
 
     // Per-step prologue: handle episode reset (sample initial state, sample indoor position + scene yaw,
     // randomize brightness), observe state branch and privileged observations, record episode_start_step.
-    template<typename DEVICE, typename OBS_PRIV_SPEC, typename STATE_OBS_SPEC, typename EPISODE_STAT_SPEC, typename RNG>
+    template<typename DEVICE, typename OBS_PRIV_SPEC, typename STATE_OBS_SPEC, typename EPISODE_STAT_SPEC, typename RNG, typename MODE>
     __global__
     void prologue_kernel(
         DEVICE device,
@@ -615,7 +651,7 @@ namespace ppo_visual {
         T* scene_yaw_sin_arr,
         T* positions_ptr, TI* num_positions_ptr, TI* env_scene_ptr, TI max_indoor_pos,
         TI* episode_start_step,
-        RNG rng, TI step_i, TI frame_step_i, TI rng_offset
+        RNG rng, TI step_i, TI frame_step_i, TI rng_offset, Mode<MODE>
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i >= N_ENVIRONMENTS) return;
@@ -638,7 +674,16 @@ namespace ppo_visual {
                 set(episode_end_reasons_log, pos, 0, EPISODE_END_REASON_NONE);
             }
             sample_initial_parameters(device, env, params, rng_state);
+            if constexpr(mode::is<MODE, mode::Evaluation>){
+                params.dynamics.mdp.init.guidance = 1;
+            }
             sample_initial_state(device, env, params, state, rng_state);
+            if constexpr(mode::is<MODE, hold_evaluation::Recovery>){
+                for(TI axis = 0; axis < 3; axis++){
+                    state.position[axis] = random::uniform_real_distribution(device.random, static_cast<T>(-0.2), static_cast<T>(0.2), rng_state);
+                    state.linear_velocity[axis] = random::uniform_real_distribution(device.random, static_cast<T>(-0.2), static_cast<T>(0.2), rng_state);
+                }
+            }
             TI scene_idx = env_scene_ptr[env_i];
             TI num_pos = num_positions_ptr[scene_idx];
             TI pos_idx = random::uniform_int_distribution(device.random, (TI)0, num_pos - 1, rng_state);
@@ -699,7 +744,7 @@ namespace ppo_visual {
 
     // Per-step epilogue: sample noisy action from N(action_mean, exp(log_std)), store action_log_prob,
     // step env, compute reward, terminated/truncated.
-    template<typename DEVICE, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RUNNER_SPEC, typename RNG>
+    template<typename DEVICE, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RUNNER_SPEC, typename RNG, typename MODE>
     __global__
     void epilogue_kernel(
         DEVICE device,
@@ -711,7 +756,7 @@ namespace ppo_visual {
         Matrix<ACTION_LOG_STD_SPEC> action_log_std,
         rl::components::on_policy_runner::Dataset<RUNNER_SPEC> dataset,
         const T* teacher_actions, TI optimizer_updates,
-        RNG rng, TI step_i, TI episode_step_limit, TI rng_offset
+        RNG rng, TI step_i, TI episode_step_limit, TI rng_offset, Mode<MODE>
     ){
         TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
         if(env_i >= N_ENVIRONMENTS) return;
@@ -733,6 +778,13 @@ namespace ppo_visual {
                     action_noisy = use_teacher_action(device, MIXED_SPEC{}, env_i, optimizer_updates) ? teacher_actions[pos * ACTION_DIM + action_i] : action_mean;
                 }
             }
+            if constexpr(mode::is<MODE, mode::Evaluation>){
+                action_noisy = action_mean;
+            }
+            if constexpr(mode::is<MODE, hold_evaluation::Teacher>){
+                static_assert(MIXED_TRAINING, "Teacher evaluation requires the mixed target");
+                action_noisy = teacher_actions[pos * ACTION_DIM + action_i];
+            }
             action_log_prob += random::normal_distribution::log_prob(device.random, action_mean, current_action_log_std, action_noisy);
             set(actions, env_i, action_i, action_noisy);
         }
@@ -745,6 +797,11 @@ namespace ppo_visual {
         T reward_value = reward(device, env.dynamics, params.dynamics, state, action_row, next_state, rng_state);
         episode_return_arr[env_i] += reward_value;
         episode_step_arr[env_i]++;
+        if constexpr(MIXED_TRAINING && !mode::is<MODE, mode::Evaluation>){
+            if(use_teacher_action(device, MIXED_SPEC{}, env_i, optimizer_updates)){
+                episode_step_limit = MIXED_PARAMETERS::TEACHER_EPISODE_STEPS;
+            }
+        }
         bool time_limit_flag = episode_step_limit > 0 && episode_step_arr[env_i] >= episode_step_limit;
         bool trunc = terminated_flag || time_limit_flag;
         if(trunc){
@@ -983,14 +1040,28 @@ static bool parse_hex_hash(const char* hex, unsigned char* out, unsigned len){
     return true;
 }
 
-int main(int argc, char** argv){
+template<typename MODE>
+int run(int argc, char** argv, rlt::Mode<MODE> mode){
+    using namespace rlt;
+    constexpr bool EVALUATION = rlt::mode::is<MODE, rlt::mode::Evaluation>;
     TI seed = 0;
     if(argc < 2){
-        std::cerr << "Usage: " << argv[0] << " <scene_directory or scene.glb> [seed]" << std::endl;
+        std::cerr << "Usage: " << argv[0] << " <scene_directory or scene.glb> [seed] [evaluation_checkpoint.h5|teacher [seconds [blind|recovery]]]" << std::endl;
         return 1;
     }
     if(argc > 2){
         seed = std::atoi(argv[2]);
+    }
+    TI evaluation_steps = 600 * SIMULATION_FREQUENCY;
+    if constexpr(EVALUATION){
+        if(argc > 4){
+            const double seconds = std::atof(argv[4]);
+            if(!std::isfinite(seconds) || seconds <= 0 || seconds > 86400){
+                std::cerr << "Evaluation duration must be in (0, 86400] seconds" << std::endl;
+                return 1;
+            }
+            evaluation_steps = static_cast<TI>(seconds * SIMULATION_FREQUENCY);
+        }
     }
 
     // ---------------------------------------------------------------------
@@ -1038,6 +1109,9 @@ int main(int argc, char** argv){
     rlt::utils::extrack::Config<TI> extrack_config;
     rlt::utils::extrack::Paths extrack_paths;
     extrack_config.name = MIXED_TRAINING ? "l2f_visual_training_mixed_cuda" : "l2f_visual_training_cuda";
+    if constexpr(EVALUATION){
+        extrack_config.name += "_evaluation";
+    }
     extrack_config.population_variates = "algorithm_environments_accumulation";
     extrack_config.population_values = std::string(MIXED_TRAINING ? "mixed_" : "on-policy_") + std::to_string(N_ENVIRONMENTS) + "_" + std::to_string(GRADIENT_ACCUMULATION_ROLLOUTS);
     rlt::init(device, extrack_config, extrack_paths, seed);
@@ -1182,17 +1256,111 @@ int main(int argc, char** argv){
     // ---------------------------------------------------------------------
     // PPO init (CPU)
     // ---------------------------------------------------------------------
+    init(device_gpu);
+    RNG_GPU rng_gpu;
+    malloc(device_gpu, rng_gpu);
+    init(device_gpu, rng_gpu, seed);
     rlt::init(device, ppo, actor_optimizer, critic_optimizer, rng);
+    if constexpr(EVALUATION && !rlt::mode::is<MODE, hold_evaluation::Teacher>){
+#if defined(RL_TOOLS_ENABLE_HDF5) && !defined(RL_TOOLS_DISABLE_HDF5)
+        using VALIDATION_ACTOR = typename CHECKPOINT_ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, REDUCED_BATCH_SIZE>;
+        VALIDATION_ACTOR checkpoint_actor;
+        malloc(device, checkpoint_actor);
+        rlt::persist::backends::hdf5::File file(argv[3], rlt::persist::backends::hdf5::Mode::READ);
+        auto actor_group = get_group(device, file, "actor");
+        rlt::utils::assert_exit(device, load(device, checkpoint_actor, actor_group), "Could not load evaluation actor");
+        rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, REDUCED_BATCH_SIZE, IMG_H, IMG_W, COMBINED_IMG_C>>> example_image;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, REDUCED_BATCH_SIZE, STATE_OBS_DIM>>> example_state;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, REDUCED_BATCH_SIZE, ACTION_DIM>>> expected_actions, actual_actions;
+        typename VALIDATION_ACTOR::template Buffer<true> validation_buffer;
+        malloc(device, example_image);
+        malloc(device, example_state);
+        malloc(device, expected_actions);
+        malloc(device, actual_actions);
+        malloc(device, validation_buffer);
+        auto inputs_group = get_group(device, file, "example/inputs");
+        auto outputs_group = get_group(device, file, "example/outputs");
+        rlt::utils::assert_exit(device, load(device, example_image, inputs_group, "0") && load(device, example_state, inputs_group, "1") && load(device, expected_actions, outputs_group, "0"), "Evaluation requires the checkpoint with two canonical examples");
+        auto example_inputs = rlt::nn_models::parallel::pack_inputs(example_image, example_state);
+        evaluate(device, checkpoint_actor, example_inputs, actual_actions, validation_buffer, rng, rlt::Mode<rlt::mode::Evaluation<>>{});
+        auto check_examples = [&](const char* backend, T tolerance){
+            T example_error = 0;
+            for(TI index = 0; index < REDUCED_BATCH_SIZE * ACTION_DIM; index++){
+                const T actual = data(actual_actions)[index];
+                const T expected = data(expected_actions)[index];
+                std::uint32_t actual_bits, expected_bits;
+                std::memcpy(&actual_bits, &actual, sizeof(actual_bits));
+                std::memcpy(&expected_bits, &expected, sizeof(expected_bits));
+                rlt::utils::assert_exit(device, (actual_bits & 0x7f800000u) != 0x7f800000u && (expected_bits & 0x7f800000u) != 0x7f800000u, "Non-finite checkpoint example");
+                example_error = std::max(example_error, std::abs(actual - expected));
+            }
+            std::cout << "Checkpoint " << backend << " example maximum error: " << example_error << std::endl;
+            rlt::utils::assert_exit(device, example_error < tolerance, "Checkpoint examples disagree with this evaluator's model configuration");
+            return example_error;
+        };
+        check_examples("CPU", 1e-4f);
+        VALIDATION_ACTOR gpu_validation_actor;
+        typename VALIDATION_ACTOR::template Buffer<true> gpu_validation_buffer;
+        decltype(example_image) gpu_example_image;
+        decltype(example_state) gpu_example_state;
+        decltype(actual_actions) gpu_example_actions;
+        malloc(device_gpu, gpu_validation_actor);
+        malloc(device_gpu, gpu_validation_buffer);
+        malloc(device_gpu, gpu_example_image);
+        malloc(device_gpu, gpu_example_state);
+        malloc(device_gpu, gpu_example_actions);
+        copy(device, device_gpu, checkpoint_actor, gpu_validation_actor);
+        copy(device, device_gpu, example_image, gpu_example_image);
+        copy(device, device_gpu, example_state, gpu_example_state);
+        auto gpu_example_inputs = rlt::nn_models::parallel::pack_inputs(gpu_example_image, gpu_example_state);
+        evaluate(device_gpu, gpu_validation_actor, gpu_example_inputs, gpu_example_actions, gpu_validation_buffer, rng_gpu, rlt::Mode<rlt::mode::Evaluation<>>{});
+        copy(device_gpu, device, gpu_example_actions, actual_actions);
+        const T gpu_example_error = check_examples("GPU", 1e-3f);
+        metra::log("l2f_visual_hold/checkpoint_gpu_max_abs_error", gpu_example_error);
+        free(device_gpu, gpu_example_actions);
+        free(device_gpu, gpu_example_state);
+        free(device_gpu, gpu_example_image);
+        free(device_gpu, gpu_validation_buffer);
+        free(device_gpu, gpu_validation_actor);
+        free(device, validation_buffer);
+        free(device, actual_actions);
+        free(device, expected_actions);
+        free(device, example_state);
+        free(device, example_image);
+        copy(device, device, checkpoint_actor, ppo.actor);
+        free(device, checkpoint_actor);
+#else
+        std::cerr << "Checkpoint evaluation requires HDF5" << std::endl;
+        return 1;
+#endif
+    }
     TI environment_step = 0;
+    AUXILIARY_MODEL auxiliary, auxiliary_gpu;
+    typename AUXILIARY_MODEL::template Buffer<true> auxiliary_buffer_gpu;
+    ACTOR_OPTIMIZER auxiliary_optimizer, auxiliary_optimizer_gpu;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, AUXILIARY_INPUT_SHAPE>> auxiliary_feature_gradient_gpu;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, 1, BATCH_SIZE, AUXILIARY_DIM>>> auxiliary_output_gradient_gpu;
+    rlt::Matrix<rlt::matrix::Specification<T, TI, BATCH_SIZE, AUXILIARY_DIM>> auxiliary_predictions, auxiliary_output_gradient;
+    if constexpr(MIXED_TRAINING && !EVALUATION){
+        malloc(device, auxiliary);
+        malloc(device, auxiliary_optimizer);
+        malloc(device, auxiliary_predictions);
+        malloc(device, auxiliary_output_gradient);
+        malloc(device_gpu, auxiliary_gpu);
+        malloc(device_gpu, auxiliary_optimizer_gpu);
+        malloc(device_gpu, auxiliary_buffer_gpu);
+        malloc(device_gpu, auxiliary_feature_gradient_gpu);
+        malloc(device_gpu, auxiliary_output_gradient_gpu);
+        init_weights(device, auxiliary, rng);
+        init(device, auxiliary_optimizer);
+        reset_optimizer_state(device, auxiliary_optimizer, auxiliary);
+        copy(device, device_gpu, auxiliary, auxiliary_gpu);
+        copy(device, device_gpu, auxiliary_optimizer, auxiliary_optimizer_gpu);
+    }
 
     // ---------------------------------------------------------------------
     // GPU init
     // ---------------------------------------------------------------------
-    rlt::init(device_gpu);
-    RNG_GPU rng_gpu;
-    rlt::malloc(device_gpu, rng_gpu);
-    rlt::init(device_gpu, rng_gpu, seed);
-
     TEACHER_MODEL teacher_gpu;
     typename TEACHER_MODEL::State<true> teacher_state_gpu;
     typename TEACHER_MODEL::Buffer<true> teacher_buffer_gpu;
@@ -1466,7 +1634,19 @@ int main(int argc, char** argv){
         }
     };
 
-    for(TI ppo_step_i = 0; ppo_step_i < N_PPO_STEPS; ppo_step_i++){
+    std::array<TI, N_ENVIRONMENTS> first_failure_step;
+    first_failure_step.fill(evaluation_steps + 1);
+    std::array<double, N_ENVIRONMENTS> position_squared_sum{}, speed_squared_sum{}, position_max{};
+    std::array<std::array<double, 3>, N_ENVIRONMENTS> position_sum{}, initial_position_sum{}, final_position_sum{};
+    std::array<TI, N_ENVIRONMENTS> initial_window_samples{}, final_window_samples{};
+    std::array<TI, N_ENVIRONMENTS> evaluation_samples{};
+    std::ofstream evaluation_trace;
+    if constexpr(EVALUATION){
+        evaluation_trace.open(extrack_paths.seed / "evaluation.csv");
+        evaluation_trace << "time,environment,x,y,z,r00,r01,r02,r10,r11,r12,r20,r21,r22,vx,vy,vz,wx,wy,wz,action0,action1,action2,action3,terminated\n";
+    }
+    const TI run_steps = EVALUATION ? (evaluation_steps + STEPS_PER_ENV - 1) / STEPS_PER_ENV : N_PPO_STEPS;
+    for(TI ppo_step_i = 0; ppo_step_i < run_steps; ppo_step_i++){
         auto step_start = std::chrono::high_resolution_clock::now();
         TI accumulation_i = ppo_step_i % GRADIENT_ACCUMULATION_ROLLOUTS;
         TI rng_offset = accumulation_i * N_ENVIRONMENTS_PER_SCENE;
@@ -1474,6 +1654,9 @@ int main(int argc, char** argv){
         if(accumulation_i == 0){
             rlt::zero_gradient(device_gpu, ppo_gpu.actor);
             rlt::zero_gradient(device_gpu, ppo_gpu.critic);
+            if constexpr(MIXED_TRAINING && !EVALUATION){
+                zero_gradient(device_gpu, auxiliary_gpu);
+            }
             accumulated_samples = 0;
         }
         cudaMemcpy(gpu_episode_step_arr, group_episode_steps[accumulation_i].data(), N_ENVIRONMENTS * sizeof(TI), cudaMemcpyHostToDevice);
@@ -1494,9 +1677,9 @@ int main(int argc, char** argv){
 
         TI rollout_in_scene_set = ppo_step_i % ROLLOUTS_PER_SCENE_SET;
         TI scene_set_i = ppo_step_i / ROLLOUTS_PER_SCENE_SET;
-        bool scene_set_boundary = ppo_step_i % ROLLOUTS_PER_SCENE_SET == 0;
+        bool scene_set_boundary = EVALUATION ? ppo_step_i == 0 : ppo_step_i % ROLLOUTS_PER_SCENE_SET == 0;
         bool scene_set_end = rollout_in_scene_set + 1 == ROLLOUTS_PER_SCENE_SET;
-        bool save_extrack_step = scene_set_end && scene_set_i % CHECKPOINT_CADENCE_SCENE_SETS == 0;
+        bool save_extrack_step = !EVALUATION && scene_set_end && scene_set_i % CHECKPOINT_CADENCE_SCENE_SETS == 0;
         bool log_reward_components_this_step = ppo_step_i % REWARD_COMPONENT_LOG_INTERVAL_PPO_STEPS == 0;
         if(scene_set_boundary){
             close_video_pipe();
@@ -1542,7 +1725,7 @@ int main(int argc, char** argv){
         // Optional video recording (mosaic of target | actual frames)
         // =================================================================
         if(scene_set_boundary){
-            record_video_scene_set = scene_set_i % VIDEO_SAVE_INTERVAL_SCENE_SETS == 0;
+            record_video_scene_set = !EVALUATION && scene_set_i % VIDEO_SAVE_INTERVAL_SCENE_SETS == 0;
         }
         if(record_video_scene_set && ffmpeg_pipe == nullptr){
             TI video_step = environment_step + N_ENVIRONMENTS * STEPS_PER_ENV * ROLLOUTS_PER_SCENE_SET;
@@ -1594,7 +1777,7 @@ int main(int argc, char** argv){
                 gpu_scene_yaw_sin_arr,
                 gpu_positions, gpu_num_positions, gpu_env_scene, MAX_INDOOR_POS,
                 gpu_episode_start_step,
-                rng_gpu, step_i, frame_step_i, rng_offset);
+                rng_gpu, step_i, frame_step_i, rng_offset, mode);
             rlt::check_status(device_gpu);
             if constexpr(MIXED_TRAINING){
                 rlt::Matrix<rlt::matrix::Specification<bool, TI, 1, N_ENVIRONMENTS>> teacher_reset_mask;
@@ -1753,6 +1936,9 @@ int main(int argc, char** argv){
             }
             rlt::check_status(device_gpu);
 
+            if constexpr(rlt::mode::is<MODE, hold_evaluation::Blind>){
+                set_all(device_gpu, gpu_rollout_combined, 0);
+            }
             // 5. Actor evaluate (rollout) → action means
             {
                 using ROLLOUT_IMG_SHAPE = rlt::tensor::Shape<TI, 1, N_ENVIRONMENTS, IMG_H, IMG_W, COMBINED_IMG_C>;
@@ -1788,7 +1974,7 @@ int main(int argc, char** argv){
                     gpu_episode_end_reason_arr,
                     actions_mean_view, actions_view, log_std_gpu,
                     dataset_gpu, MIXED_TRAINING ? rlt::data(teacher_actions_gpu) : nullptr, optimizer_updates,
-                    rng_gpu, step_i, EPISODE_STEP_LIMIT, rng_offset);
+                    rng_gpu, step_i, EVALUATION ? 0 : EPISODE_STEP_LIMIT, rng_offset, mode);
                 rlt::check_status(device_gpu);
             }
             if constexpr(ON_POLICY_RUNNER_SPEC::COLLECT_NEXT_OBSERVATIONS){
@@ -1846,6 +2032,129 @@ int main(int argc, char** argv){
             auto cpu_obs_priv = rlt::matrix_view(device, dataset.all_observations_privileged);
             rlt::copy(device_gpu, device, gpu_obs_priv, cpu_obs_priv);
         }
+        if constexpr(EVALUATION){
+            auto observations = matrix_view(device, dataset.all_observations_privileged);
+            for(TI step_i = 0; step_i < STEPS_PER_ENV; step_i++){
+                const TI time_step = ppo_step_i * STEPS_PER_ENV + step_i;
+                if(time_step >= evaluation_steps){
+                    break;
+                }
+                for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
+                    const TI row_i = step_i * N_ENVIRONMENTS + env_i;
+                    if(first_failure_step[env_i] <= evaluation_steps){
+                        continue;
+                    }
+                    if(time_step < 10 * SIMULATION_FREQUENCY && time_step % 10 == 0){
+                        evaluation_trace << static_cast<double>(time_step) / SIMULATION_FREQUENCY << ',' << env_i;
+                        for(TI column = 0; column < 18; column++){
+                            evaluation_trace << ',' << get(observations, row_i, column);
+                        }
+                        for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
+                            evaluation_trace << ',' << get(dataset.actions, row_i, action_i);
+                        }
+                        evaluation_trace << ',' << get(dataset.terminated, row_i, 0) << '\n';
+                    }
+                    bool finite = true;
+                    for(TI column = 0; column < 18; column++){
+                        const T value = get(observations, row_i, column);
+                        std::uint32_t bits;
+                        static_assert(sizeof(value) == sizeof(bits));
+                        std::memcpy(&bits, &value, sizeof(bits));
+                        finite = finite && (bits & 0x7f800000u) != 0x7f800000u;
+                    }
+                    if(!finite || get(dataset.terminated, row_i, 0)){
+                        first_failure_step[env_i] = time_step + 1;
+                        continue;
+                    }
+                    if(time_step >= 5 * SIMULATION_FREQUENCY){
+                        double position_squared = 0;
+                        double speed_squared = 0;
+                        for(TI axis = 0; axis < 3; axis++){
+                            const double position = get(observations, row_i, axis);
+                            const double velocity = get(observations, row_i, 12 + axis);
+                            position_squared += position * position;
+                            speed_squared += velocity * velocity;
+                            position_sum[env_i][axis] += position;
+                            if(time_step < 10 * SIMULATION_FREQUENCY){
+                                initial_position_sum[env_i][axis] += position;
+                            }
+                            if(time_step + 5 * SIMULATION_FREQUENCY >= evaluation_steps){
+                                final_position_sum[env_i][axis] += position;
+                            }
+                        }
+                        initial_window_samples[env_i] += time_step < 10 * SIMULATION_FREQUENCY;
+                        final_window_samples[env_i] += time_step + 5 * SIMULATION_FREQUENCY >= evaluation_steps;
+                        position_squared_sum[env_i] += position_squared;
+                        speed_squared_sum[env_i] += speed_squared;
+                        position_max[env_i] = std::max(position_max[env_i], std::sqrt(position_squared));
+                        evaluation_samples[env_i]++;
+                    }
+                }
+            }
+            TI survivors = 0;
+            double total_position_squared = 0, speed_sum = 0;
+            TI samples = 0;
+            for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
+                survivors += first_failure_step[env_i] > evaluation_steps;
+                total_position_squared += position_squared_sum[env_i];
+                speed_sum += speed_squared_sum[env_i];
+                samples += evaluation_samples[env_i];
+            }
+            const TI elapsed_steps = std::min((ppo_step_i + 1) * STEPS_PER_ENV, evaluation_steps);
+            std::cout << "Evaluation " << static_cast<double>(elapsed_steps) / SIMULATION_FREQUENCY
+                      << "s: survivors " << survivors << "/" << N_ENVIRONMENTS
+                      << " position RMS " << (samples ? std::to_string(std::sqrt(total_position_squared / samples)) : "n/a")
+                      << " m speed RMS " << (samples ? std::to_string(std::sqrt(speed_sum / samples)) : "n/a") << " m/s" << std::endl;
+            if(elapsed_steps == evaluation_steps || survivors == 0){
+                std::ofstream report(extrack_paths.seed / "evaluation.json");
+                report << "{\"checkpoint\":" << nlohmann::json(argv[3])
+                       << ",\"seed\":" << seed << ",\"requested_seconds\":" << static_cast<double>(evaluation_steps) / SIMULATION_FREQUENCY
+                       << ",\"elapsed_seconds\":" << static_cast<double>(elapsed_steps) / SIMULATION_FREQUENCY
+                       << ",\"blind\":" << (rlt::mode::is<MODE, hold_evaluation::Blind> ? "true" : "false")
+                       << ",\"recovery\":" << (rlt::mode::is<MODE, hold_evaluation::Recovery> ? "true" : "false")
+                       << ",\"survivors\":" << survivors << ",\"environments\":[";
+                for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
+                    if(env_i > 0){
+                        report << ',';
+                    }
+                    const TI samples_i = evaluation_samples[env_i];
+                    double mean_squared = 0, drift_squared = 0;
+                    for(TI axis = 0; axis < 3; axis++){
+                        if(samples_i > 0){
+                            const double mean = position_sum[env_i][axis] / samples_i;
+                            mean_squared += mean * mean;
+                        }
+                        if(initial_window_samples[env_i] > 0 && final_window_samples[env_i] > 0){
+                            const double drift = final_position_sum[env_i][axis] / final_window_samples[env_i] - initial_position_sum[env_i][axis] / initial_window_samples[env_i];
+                            drift_squared += drift * drift;
+                        }
+                    }
+                    report << "{\"scene\":" << nlohmann::json(scene_paths[active_scene_indices[env_i / N_ENVIRONMENTS_PER_SCENE]])
+                           << ",\"first_failure_seconds\":";
+                    if(first_failure_step[env_i] > evaluation_steps){
+                        report << "null";
+                    }
+                    else{
+                        report << static_cast<double>(first_failure_step[env_i]) / SIMULATION_FREQUENCY;
+                    }
+                    report << ",\"samples_after_settling\":" << samples_i
+                           << ",\"position_rms_m\":" << (samples_i ? std::to_string(std::sqrt(position_squared_sum[env_i] / samples_i)) : "null")
+                           << ",\"position_max_m\":" << (samples_i ? std::to_string(position_max[env_i]) : "null")
+                           << ",\"speed_rms_m_s\":" << (samples_i ? std::to_string(std::sqrt(speed_squared_sum[env_i] / samples_i)) : "null")
+                           << ",\"position_bias_m\":" << (samples_i ? std::to_string(std::sqrt(mean_squared)) : "null")
+                           << ",\"position_variation_rms_m\":" << (samples_i ? std::to_string(std::sqrt(std::max(0.0, position_squared_sum[env_i] / samples_i - mean_squared))) : "null")
+                           << ",\"position_drift_m\":" << (initial_window_samples[env_i] && final_window_samples[env_i] ? std::to_string(std::sqrt(drift_squared)) : "null") << '}';
+                }
+                report << "]}\n";
+                metra::log("l2f_visual_hold/survival_fraction", static_cast<double>(survivors) / N_ENVIRONMENTS);
+                if(samples > 0){
+                    metra::log("l2f_visual_hold/position_rms_m", std::sqrt(total_position_squared / samples));
+                    metra::log("l2f_visual_hold/speed_rms_m_s", std::sqrt(speed_sum / samples));
+                }
+                break;
+            }
+            continue;
+        }
         if(log_reward_components_this_step){
             static constexpr TI REWARD_LOG_POS = (STEPS_PER_ENV - 1) * N_ENVIRONMENTS;
             for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
@@ -1873,6 +2182,8 @@ int main(int argc, char** argv){
             TI episode_end_terminated_count = 0;
             TI episode_end_time_limit_count = 0;
             TI episode_end_scene_boundary_count = 0;
+            std::array<T, 2> subset_length_sum{};
+            std::array<TI, 2> subset_episode_count{};
             for(TI pos = 0; pos < STEPS_TOTAL; pos++){
                 T reward_value = rlt::get(dataset.rewards, pos, 0);
                 reward_sum += reward_value;
@@ -1890,6 +2201,9 @@ int main(int argc, char** argv){
                 }
                 T ep_len = rlt::get(cpu_episode_lengths_log, pos, 0);
                 if(ep_len >= (T)0){
+                    const TI subset = is_imitation_sample(device, MIXED_SPEC{}, pos) ? 0 : 1;
+                    subset_length_sum[subset] += ep_len;
+                    subset_episode_count[subset]++;
                     rlt::add_scalar(device, device.logger, "episode/length", ep_len, 100);
                     T ep_return = rlt::get(cpu_episode_returns_log, pos, 0);
                     rlt::add_scalar(device, device.logger, "episode/return", ep_return, 100);
@@ -1919,6 +2233,16 @@ int main(int argc, char** argv){
             rollout_reward_mean = reward_sum / static_cast<T>(STEPS_TOTAL);
             rollout_reward_std = rlt::math::sqrt(device.math, rlt::math::max(device.math, (T)0, reward_sq_sum / static_cast<T>(STEPS_TOTAL) - rollout_reward_mean * rollout_reward_mean));
             rollout_terminated_share = rollout_done_count > 0 ? static_cast<T>(rollout_terminated_count) / static_cast<T>(rollout_done_count) : (T)0;
+            if constexpr(MIXED_TRAINING){
+                for(TI subset = 0; subset < 2; subset++){
+                    if(subset_episode_count[subset] > 0){
+                        const T mean = subset_length_sum[subset] / subset_episode_count[subset];
+                        const char* key = subset == 0 ? "mixed/il_episode_length" : "mixed/rl_episode_length";
+                        add_scalar(device, device.logger, key, mean);
+                        std::cout << "  " << key << ": " << mean << std::endl;
+                    }
+                }
+            }
             if(count > 0){
                 rollout_episode_count = count;
                 rollout_episode_length_mean = length_sum / static_cast<T>(count);
@@ -2176,11 +2500,13 @@ int main(int argc, char** argv){
                         }
                     }
                 }
+                T auxiliary_loss_weight = 0;
                 if constexpr(MIXED_TRAINING){
                     auto batch_teacher_actions = rlt::view_range(device, teacher_actions, batch_offset, rlt::tensor::ViewSpec<0, BATCH_SIZE>{});
                     auto batch_teacher_matrix = rlt::matrix_view(device, batch_teacher_actions);
                     mixed_imitation::Metrics<MIXED_SPEC> metrics;
                     mix_policy_output_gradients(device, MIXED_SPEC{}, ppo_buffers.current_batch_actions, batch_teacher_matrix, ppo_buffers.d_action_log_prob_d_action, metrics, GRADIENT_SCALE, MIXED_PARAMETERS::BALANCING_MODE{});
+                    auxiliary_loss_weight = metrics.imitation_weight * MIXED_PARAMETERS::STATE_AUXILIARY_WEIGHT;
                     imitation_mse_sum += metrics.imitation_mse;
                     T log_std_squared_norm = 0;
                     for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
@@ -2191,7 +2517,9 @@ int main(int argc, char** argv){
                     auto log_mixed = [&](const char* key, T value){
                         rlt::utils::assert_exit(device, rlt::math::is_finite(device.math, value), "Non-finite mixed-learning metric");
                         rlt::add_scalar(device, device.logger, std::string("mixed/") + key, value);
-                        metra::log(std::string("l2f_visual_training_mixed/") + key, static_cast<double>(value));
+                        if(gradient_batch % (20 * N_BATCHES) == 0){
+                            metra::log(std::string("l2f_visual_training_mixed/") + key, static_cast<double>(value));
+                        }
                     };
                     log_mixed("gradient_batch", gradient_batch);
                     log_mixed("environment_step", environment_step);
@@ -2217,7 +2545,45 @@ int main(int argc, char** argv){
                 auto gpu_d_action_tensor = rlt::to_tensor(device_gpu, gpu_d_action_train);
                 auto gpu_d_action_reshaped = rlt::reshape_row_major(device_gpu, gpu_d_action_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
                 auto bwd_inputs = rlt::nn_models::parallel::pack_inputs(batch_combined_reshaped, batch_state_reshaped);
-                rlt::backward(device_gpu, ppo_gpu.actor, bwd_inputs, gpu_d_action_reshaped, actor_buffers);
+                if constexpr(MIXED_TRAINING){
+                    forward(device_gpu, auxiliary_gpu, actor_buffers.concatenated, auxiliary_buffer_gpu, rng_gpu);
+                    auto auxiliary_output = output(device_gpu, auxiliary_gpu);
+                    auto auxiliary_output_matrix = matrix_view(device_gpu, auxiliary_output);
+                    copy(device_gpu, device, auxiliary_output_matrix, auxiliary_predictions);
+                    auto privileged = matrix_view(device, dataset.all_observations_privileged);
+                    std::array<T, 3> losses{};
+                    for(TI row_i = 0; row_i < BATCH_SIZE; row_i++){
+                        const TI pos = batch_offset + row_i;
+                        T target[AUXILIARY_DIM]{};
+                        for(TI axis = 0; axis < 3; axis++){
+                            for(TI world_axis = 0; world_axis < 3; world_axis++){
+                                const T rotation = get(privileged, pos, 3 + world_axis * 3 + axis);
+                                target[axis] -= rotation * get(privileged, pos, world_axis);
+                                target[3 + axis] += rotation * get(privileged, pos, 12 + world_axis);
+                                target[6 + axis * 3 + world_axis] = rotation;
+                            }
+                        }
+                        for(TI component = 0; component < AUXILIARY_DIM; component++){
+                            const T error = get(auxiliary_predictions, row_i, component) - target[component];
+                            losses[component < 3 ? 0 : component < 6 ? 1 : 2] += error * error;
+                            set(auxiliary_output_gradient, row_i, component, error * auxiliary_loss_weight * GRADIENT_SCALE / static_cast<T>(BATCH_SIZE * AUXILIARY_DIM));
+                        }
+                    }
+                    add_scalar(device, device.logger, "auxiliary/position_mse", losses[0] / (3 * BATCH_SIZE));
+                    add_scalar(device, device.logger, "auxiliary/velocity_mse", losses[1] / (3 * BATCH_SIZE));
+                    add_scalar(device, device.logger, "auxiliary/orientation_mse", losses[2] / (9 * BATCH_SIZE));
+                    if(optimizer_updates % 100 == 0 && batch_idx == 0){
+                        metra::log("l2f_visual_training_mixed/auxiliary_position_mse", losses[0] / (3 * BATCH_SIZE));
+                        metra::log("l2f_visual_training_mixed/auxiliary_velocity_mse", losses[1] / (3 * BATCH_SIZE));
+                    }
+                    auto auxiliary_gradient_matrix = matrix_view(device_gpu, auxiliary_output_gradient_gpu);
+                    copy(device, device_gpu, auxiliary_output_gradient, auxiliary_gradient_matrix);
+                    backward_full(device_gpu, auxiliary_gpu, actor_buffers.concatenated, auxiliary_output_gradient_gpu, auxiliary_feature_gradient_gpu, auxiliary_buffer_gpu);
+                    backward(device_gpu, ppo_gpu.actor, bwd_inputs, gpu_d_action_reshaped, auxiliary_feature_gradient_gpu, actor_buffers);
+                }
+                else{
+                    backward(device_gpu, ppo_gpu.actor, bwd_inputs, gpu_d_action_reshaped, actor_buffers);
+                }
                 cudaDeviceSynchronize();
                 // Critic forward + MSE loss + backward on GPU
                 {
@@ -2277,6 +2643,9 @@ int main(int argc, char** argv){
             rlt::utils::assert_exit(device, accumulated_samples == UPDATE_SAMPLES, "Incorrect accumulated update size");
             rlt::step(device_gpu, actor_optimizer_gpu, ppo_gpu.actor);
             rlt::step(device_gpu, critic_optimizer_gpu, ppo_gpu.critic);
+            if constexpr(MIXED_TRAINING){
+                step(device_gpu, auxiliary_optimizer_gpu, auxiliary_gpu);
+            }
             cudaDeviceSynchronize();
             optimizer_updates++;
         }
@@ -2302,7 +2671,7 @@ int main(int argc, char** argv){
                   << ", current " << std::setw(6) << std::setprecision(0) << sps_current << ")" << std::defaultfloat << std::endl;
         std::cout << "  optimizer updates: " << optimizer_updates << "  accumulated samples: " << accumulated_samples << "/" << UPDATE_SAMPLES << std::endl;
         if constexpr(MIXED_TRAINING){
-            std::cout << "  mixed samples: " << imitation_update_samples << " IL + " << ppo_update_samples << " RL; imitation MSE: " << imitation_mse_sum / N_BATCHES << std::endl;
+            std::cout << "  mixed samples: " << imitation_update_samples << " IL + " << ppo_update_samples << " RL; imitation MSE: " << std::setprecision(6) << imitation_mse_sum / N_BATCHES << std::endl;
         }
 
         rlt::add_scalar(device, device.logger, "ppo/step", ppo_step_i);
@@ -2311,9 +2680,11 @@ int main(int argc, char** argv){
         rlt::add_scalar(device, device.logger, "training/update_samples", UPDATE_SAMPLES);
         rlt::add_scalar(device, device.logger, "training/sample_uses", N_EPOCHS);
         const std::string metra_prefix = MIXED_TRAINING ? "l2f_visual_training_mixed/" : "l2f_visual_training_on_policy/";
-        metra::log(metra_prefix + "episode_length", static_cast<double>(rollout_episode_length_mean));
-        metra::log(metra_prefix + "optimizer_updates", static_cast<double>(optimizer_updates));
-        metra::log(metra_prefix + "steps_per_second", static_cast<double>(sps_current));
+        if(!MIXED_TRAINING || optimizer_updates % 20 == 0){
+            metra::log(metra_prefix + "episode_length", static_cast<double>(rollout_episode_length_mean));
+            metra::log(metra_prefix + "optimizer_updates", static_cast<double>(optimizer_updates));
+            metra::log(metra_prefix + "steps_per_second", static_cast<double>(sps_current));
+        }
         rlt::add_scalar(device, device.logger, "ppo/actor_learning_rate", rlt::get(device, actor_optimizer.parameters, 0).alpha);
         rlt::add_scalar(device, device.logger, "ppo/critic_learning_rate", rlt::get(device, critic_optimizer.parameters, 0).alpha);
         if(ppo_update_samples > 0){
@@ -2354,6 +2725,8 @@ int main(int argc, char** argv){
         rlt::add_scalar(device, device.logger, "rendering/camera_mount_rotation_randomization_range_y", CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_Y);
         rlt::add_scalar(device, device.logger, "rendering/camera_mount_rotation_randomization_range_z", CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_Z);
 
+        const bool training_complete = TRAINING_TIME_LIMIT_SECONDS > 0 && training_elapsed.count() >= TRAINING_TIME_LIMIT_SECONDS;
+        save_extrack_step = save_extrack_step || training_complete;
         if(save_extrack_step){
             {
                 auto step_folder = rlt::get_step_folder(device, extrack_config, extrack_paths, environment_step);
@@ -2501,8 +2874,10 @@ int main(int argc, char** argv){
                 };
                 auto reduced_checkpoint_path = save_hdf5(rlt::utils::typing::integral_constant<TI, REDUCED_BATCH_SIZE>{});
                 rlt::link_latest_artifact(device, latest_folder, reduced_checkpoint_path, step_folder, environment_step);
-                auto full_checkpoint_path = save_hdf5(rlt::utils::typing::integral_constant<TI, N_EXAMPLES>{});
-                rlt::link_latest_artifact(device, latest_folder, full_checkpoint_path, step_folder, environment_step);
+                if constexpr(N_EXAMPLES != REDUCED_BATCH_SIZE){
+                    auto full_checkpoint_path = save_hdf5(rlt::utils::typing::integral_constant<TI, N_EXAMPLES>{});
+                    link_latest_artifact(device, latest_folder, full_checkpoint_path, step_folder, environment_step);
+                }
 #endif
                 if constexpr(EXPORT_CHECKPOINT_CODE){
                     auto actor_weights = rlt::save_code(device, eval_actor, std::string("rl_tools::checkpoint::actor"), true);
@@ -2559,6 +2934,9 @@ int main(int argc, char** argv){
                 rlt::add_scalar(device, device.logger, std::string("actor/action_std/") + std::to_string(action_i), rlt::math::exp(device.math, log_std_val));
             }
         }
+        if(training_complete){
+            break;
+        }
     }
 
     close_video_pipe();
@@ -2573,6 +2951,17 @@ int main(int argc, char** argv){
     rlt::free(device, dataset);
     rlt::free(device, actor_optimizer);
     rlt::free(device, critic_optimizer);
+    if constexpr(MIXED_TRAINING && !EVALUATION){
+        free(device_gpu, auxiliary_output_gradient_gpu);
+        free(device_gpu, auxiliary_feature_gradient_gpu);
+        free(device_gpu, auxiliary_buffer_gpu);
+        free(device_gpu, auxiliary_optimizer_gpu);
+        free(device_gpu, auxiliary_gpu);
+        free(device, auxiliary_output_gradient);
+        free(device, auxiliary_predictions);
+        free(device, auxiliary_optimizer);
+        free(device, auxiliary);
+    }
     if constexpr(MIXED_TRAINING){
         rlt::free(device_gpu, teacher_gpu);
         rlt::free(device_gpu, teacher_state_gpu);
@@ -2626,4 +3015,30 @@ int main(int argc, char** argv){
 #endif
 
     return 0;
+}
+
+int main(int argc, char** argv){
+    if(argc > 3){
+        if(std::string(argv[3]) == "teacher"){
+            if constexpr(MIXED_TRAINING){
+                return run(argc, argv, rlt::Mode<hold_evaluation::Teacher<>>{});
+            }
+            else{
+                std::cerr << "Teacher evaluation requires the mixed target" << std::endl;
+                return 1;
+            }
+        }
+        if(argc > 5){
+            if(std::string(argv[5]) == "blind"){
+                return run(argc, argv, rlt::Mode<hold_evaluation::Blind<>>{});
+            }
+            if(std::string(argv[5]) == "recovery"){
+                return run(argc, argv, rlt::Mode<hold_evaluation::Recovery<>>{});
+            }
+            std::cerr << "Unknown evaluation scenario: " << argv[5] << std::endl;
+            return 1;
+        }
+        return run(argc, argv, rlt::Mode<rlt::mode::Evaluation<>>{});
+    }
+    return run(argc, argv, rlt::Mode<rlt::mode::Default<>>{});
 }
