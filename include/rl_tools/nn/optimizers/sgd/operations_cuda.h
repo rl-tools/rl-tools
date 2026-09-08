@@ -11,6 +11,7 @@ namespace rl_tools{
         template<typename DEVICE, typename SPEC>
         __global__
         void init(DEVICE device, nn::optimizers::SGD<SPEC> optimizer) {
+            static_assert(DEVICE::TAG && DEVICE::KERNEL);
             typename nn::optimizers::SGD<SPEC>::PARAMETERS parameters = {
                 SPEC::DEFAULT_PARAMETERS::LEARNING_RATE,
                 SPEC::DEFAULT_PARAMETERS::MOMENTUM,
@@ -24,7 +25,8 @@ namespace rl_tools{
     void init(devices::CUDA<DEV_SPEC>& device, nn::optimizers::SGD<SPEC>& optimizer) {
         dim3 grid(1);
         dim3 block(1);
-        nn::optimizers::sgd::kernels::init<<<grid, block, 0, device.stream>>>(device, optimizer);
+        devices::cuda::TAG<devices::CUDA<DEV_SPEC>, true> tag_device{};
+        nn::optimizers::sgd::kernels::init<<<grid, block, 0, device.stream>>>(tag_device, optimizer);
         check_status(device);
     }
     template<typename DEV_SPEC, typename SPEC, typename MODEL>

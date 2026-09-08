@@ -57,6 +57,10 @@
 #include <rl_tools/nn/optimizers/adam/persist.h>
 #include <rl_tools/rl/components/on_policy_runner/persist.h>
 #include <rl_tools/rl/algorithms/ppo/persist.h>
+#include <rl_tools/rl/environments/l2f/persist.h>
+#ifdef RL_TOOLS_RL_ENVIRONMENTS_ENABLE_MUJOCO
+#include <rl_tools/rl/environments/mujoco/ant/persist.h>
+#endif
 #include <rl_tools/rl/algorithms/ppo/loop/core/persist.h>
 
 #include <rl_tools/rl/loop/steps/timing/persist.h>
@@ -147,15 +151,7 @@
 // Algorithm Loops
 #include <rl_tools/rl/algorithms/td3/loop/core/operations_generic.h>
 #include <rl_tools/rl/algorithms/sac/loop/core/operations_generic.h>
-#if defined(RL_TOOLS_BACKEND_ENABLE_MKL) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mkl.h>
-#else
-#if defined(RL_TOOLS_BACKEND_ENABLE_ACCELERATE) && !defined(RL_TOOLS_BACKEND_DISABLE_BLAS)
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu_accelerate.h>
-#else
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
-#endif
-#endif
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
 #include <rl_tools/rl/algorithms/ppo/loop/core/operations_generic.h>
 
 // Additional Loop steps
@@ -183,11 +179,7 @@ using SUPER_DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using TI = typename SUPER_DEVICE::index_t;
 
 namespace execution_hints{
-    #ifdef RL_TOOLS_RL_ZOO_ENVIRONMENT_ANT_V4
-    struct HINTS: rlt::rl::components::on_policy_runner::ExecutionHints<TI, 16>{};
-    #else
-    struct HINTS: rlt::rl::components::on_policy_runner::ExecutionHints<TI, 1>{};
-    #endif
+    struct HINTS: rlt::devices::ExecutionHints{};
 }
 struct DEV_SPEC: rlt::devices::DEVICE_FACTORY<>::SPEC{
     using EXECUTION_HINTS = execution_hints::HINTS;

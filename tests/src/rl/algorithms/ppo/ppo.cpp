@@ -5,8 +5,10 @@
 namespace rlt = RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools;
 #include "parameters_rl.h"
 #include <rl_tools/nn/optimizers/adam/operations_generic.h>
+#include <rl_tools/rl/environments/batch/operations_generic.h>
 #include <rl_tools/rl/components/on_policy_runner/operations_generic.h>
 #include <rl_tools/rl/algorithms/ppo/operations_generic.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
 #include <rl_tools/random/operations_generic_array.h>
 
 #include <gtest/gtest.h>
@@ -40,35 +42,35 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
 
     prl::PPO_TYPE ppo;
     prl::PPO_BUFFERS_TYPE ppo_buffers;
+    prl::BATCH_ENVIRONMENT environment;
     prl::ON_POLICY_RUNNER_TYPE on_policy_runner;
+    prl::ON_POLICY_RUNNER_BUFFER_TYPE on_policy_runner_buffer;
     prl::ON_POLICY_RUNNER_DATASET_TYPE on_policy_runner_dataset;
     prl::ACTOR_EVAL_BUFFERS actor_eval_buffers;
     prl::ACTOR_BUFFERS actor_buffers;
     prl::CRITIC_BUFFERS critic_buffers;
-    prl::CRITIC_BUFFERS_ALL critic_buffers_all;
-
-    rlt::Tensor<rlt::tensor::Specification<penv::ENVIRONMENT, TI, rlt::tensor::Shape<TI, prl::N_ENVIRONMENTS>>> envs;
-    rlt::Tensor<rlt::tensor::Specification<penv::ENVIRONMENT::Parameters, TI, rlt::tensor::Shape<TI, prl::N_ENVIRONMENTS>>> env_parameters;
+    rlt::rl::components::on_policy_runner::ValueState<typename prl::PPO_SPEC::CRITIC_TYPE, typename prl::ON_POLICY_RUNNER_DATASET_SPEC> critic_states_all;
+    rlt::rl::components::on_policy_runner::ValueBuffer<typename prl::PPO_SPEC::CRITIC_TYPE, typename prl::ON_POLICY_RUNNER_DATASET_SPEC> critic_buffers_all;
 
     rlt::malloc(device, actor_optimizer);
     rlt::malloc(device, critic_optimizer);
     rlt::malloc(device, ppo);
     rlt::malloc(device, ppo_buffers);
+    rlt::malloc(device, environment);
     rlt::malloc(device, on_policy_runner_dataset);
     rlt::malloc(device, on_policy_runner);
+    rlt::malloc(device, on_policy_runner_buffer);
     rlt::malloc(device, actor_eval_buffers);
     rlt::malloc(device, actor_buffers);
     rlt::malloc(device, critic_buffers);
-    rlt::malloc(device, critic_buffers_all);
-    rlt::malloc(device, envs);
-    rlt::malloc(device, env_parameters);
-
-    rlt::init(device, on_policy_runner, envs, env_parameters, ppo.actor, rng);
+    rlt::malloc(device, critic_states_all); rlt::malloc(device, critic_buffers_all);
+    rlt::init(device, environment);
+    rlt::init(device, on_policy_runner, environment, rng);
     rlt::init(device, ppo, actor_optimizer, critic_optimizer, rng);
     rlt::construct(device, device.logger);
     auto training_start = std::chrono::high_resolution_clock::now();
     for(TI ppo_step_i = 0; ppo_step_i < 1000; ppo_step_i++) {
-        rlt::set_step(device, device.logger, on_policy_runner.step);
+        rlt::set_step(device, device.logger, ppo_step_i * prl::ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL);
 
         if(ppo_step_i % 100 == 0){
             std::chrono::duration<T> training_elapsed = std::chrono::high_resolution_clock::now() - training_start;
@@ -85,15 +87,14 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
         auto start = std::chrono::high_resolution_clock::now();
         {
             auto start = std::chrono::high_resolution_clock::now();
-            rlt::collect(device, on_policy_runner_dataset, on_policy_runner, ppo.actor, actor_eval_buffers, rng);
+            rlt::collect(device, on_policy_runner_dataset, on_policy_runner, on_policy_runner_buffer, environment, ppo.actor, actor_eval_buffers, ppo.critic, critic_states_all, critic_buffers_all, rng, typename decltype(ppo)::SPEC::COLLECTION_MODE{});
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;
 //            std::cout << "Rollout: " << elapsed.count() << " s" << std::endl;
         }
         {
             auto start = std::chrono::high_resolution_clock::now();
-            evaluate(device, ppo.critic, on_policy_runner_dataset.all_observations_privileged, on_policy_runner_dataset.all_values, critic_buffers_all, rng);
-            rlt::estimate_generalized_advantages(device, on_policy_runner_dataset, prl::PPO_SPEC::PARAMETERS{});
+            rlt::estimate_generalized_advantages(device, on_policy_runner_dataset, on_policy_runner_dataset.bootstrap_values, prl::PPO_SPEC::PARAMETERS{});
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> elapsed = end - start;
 //            std::cout << "GAE: " << elapsed.count() << " s" << std::endl;
@@ -118,13 +119,13 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO, TEST){
 
     rlt::free(device, ppo);
     rlt::free(device, ppo_buffers);
+    rlt::free(device, environment);
     rlt::free(device, on_policy_runner_dataset);
     rlt::free(device, on_policy_runner);
+    rlt::free(device, on_policy_runner_buffer);
     rlt::free(device, actor_eval_buffers);
     rlt::free(device, actor_buffers);
     rlt::free(device, critic_buffers);
-    rlt::free(device, critic_buffers_all);
-    rlt::free(device, envs);
-    rlt::free(device, env_parameters);
+    rlt::free(device, critic_states_all); rlt::free(device, critic_buffers_all);
 
 }

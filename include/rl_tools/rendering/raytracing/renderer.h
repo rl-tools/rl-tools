@@ -211,6 +211,24 @@ namespace rl_tools {
             };
         }
 
+        namespace device {
+            template <typename T_RENDERING_DEVICE>
+            struct Extension {
+                using RENDERING_DEVICE = T_RENDERING_DEVICE;
+                RENDERING_DEVICE rendering;
+            };
+
+            template <typename T_BASE_SPEC, typename T_RENDERING_DEVICE>
+            struct Specification: T_BASE_SPEC {
+                using DEVICE_EXTENSION = Extension<T_RENDERING_DEVICE>;
+            };
+
+            template <typename DEVICE, typename = void>
+            struct HasRendering: utils::typing::false_type {};
+            template <typename DEVICE>
+            struct HasRendering<DEVICE, utils::typing::void_t<decltype(utils::typing::declared_lvalue<DEVICE>().rendering)>>: utils::typing::true_type {};
+        }
+
         // shared scene store: renderers malloc'd against a library share one backend context and
         // one geometry/texture/BLAS build per unique scene — init(device, renderer, library,
         // path) deduplicates by file content hash and returns the unique-scene index, so callers
@@ -438,6 +456,15 @@ namespace rl_tools {
             backends::Device<BACKEND> device;
             BACKEND_STATE* backend = nullptr;
         };
+    }
+    template <typename DEVICE>
+    auto& get_rendering_device(DEVICE& device){
+        if constexpr(rendering::raytracing::device::HasRendering<DEVICE>::value){
+            return device.rendering;
+        }
+        else{
+            return device;
+        }
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

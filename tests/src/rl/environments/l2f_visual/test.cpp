@@ -4,6 +4,9 @@
 #include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
 #include <rl_tools/rendering/datasets/annotations/operations_cpu.h>
 
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
+#include <rl_tools/persist/backends/tar/operations_cpu.h>
+#include <rl_tools/rl/environments/l2f_visual/persist.h>
 #include <gtest/gtest.h>
 
 #include <cmath>
@@ -35,6 +38,7 @@ namespace test_l2f_visual {
     static constexpr auto MODEL = rlt::rl::environments::l2f::parameters::dynamics::REGISTRY::crazyflie;
 
     struct STATIC_PARAMETERS {
+        static constexpr TI EPISODE_STEP_LIMIT = test_l2f_visual::EPISODE_STEP_LIMIT;
         static constexpr auto ACTION_INTERFACE = l2f::parameters::ActionInterface::DIRECT_MOTOR;
         static constexpr TI N_SUBSTEPS = 1;
         static constexpr TI ACTION_HISTORY_LENGTH = 1;
@@ -343,4 +347,50 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, CAMERA_MOUNT_RANDOMIZATION_IS_BOUNDED_
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F_VISUAL, DEFAULTS_AND_ENVIRONMENT_PERSISTENCE){
+    using namespace rl_tools;
+    using Batch = rl::environments::batch::Independent<rl::environments::batch::Specification<ENV, 2>>;
+    using PolicyState = Tensor<tensor::Specification<T, TI, tensor::Shape<TI, 1>>>;
+    using RS = rl::components::on_policy_runner::Specification<numeric_types::Policy<T>, Batch, PolicyState>;
+    DEVICE device;
+    Batch batch;
+    rl::components::OnPolicyRunner<RS> runner;
+    RNG rng;
+    malloc(device, rng); init(device, rng, 42);
+    malloc(device, batch); malloc(device, runner);
+    for(TI i = 0; i < 2; i++){
+        auto& env = get_ref(device, batch.environments, i);
+        env.use_target_mode = true;
+        env.parameters.scene_translation[0] = 10 + i;
+        env.parameters.scene_translation[1] = -2;
+        env.parameters.scene_translation[2] = 3;
+    }
+    init(device, batch);
+    init(device, runner, batch, rng);
+    for(TI i = 0; i < 2; i++) EXPECT_EQ(get_ref(device, runner.env_parameters, i).scene_translation[0], 10 + i);
+    auto& source = get_ref(device, batch.environments, 0);
+    ENV restored;
+    malloc(device, restored); init(device, restored);
+    rendering::raytracing::Renderer<typename ENV::SPEC::RENDERER_SPEC> renderer;
+    rendering::datasets::annotations::FreeSpace<typename ENV::SPEC::ANNOTATIONS_SPEC> annotations;
+    restored.renderer = &renderer;
+    restored.annotations = &annotations;
+    auto* staging = data(restored.camera_staging);
+    persist::backends::tar::Writer writer;
+    persist::backends::tar::WriterGroup<persist::backends::tar::WriterGroupSpecification<TI, decltype(writer)>> output{"", &writer};
+    save(device, source, output);
+    persist::backends::tar::finalize(device, writer);
+    persist::backends::tar::ReaderGroup<persist::backends::tar::ReaderGroupSpecification<TI>> input;
+    input.data = {writer.buffer.data(), static_cast<TI>(writer.buffer.size())};
+    ASSERT_TRUE(load(device, restored, input));
+    EXPECT_TRUE(restored.use_target_mode);
+    for(TI i = 0; i < 3; i++) EXPECT_EQ(restored.parameters.scene_translation[i], source.parameters.scene_translation[i]);
+    EXPECT_EQ(restored.renderer, &renderer);
+    EXPECT_EQ(restored.annotations, &annotations);
+    EXPECT_EQ(data(restored.camera_staging), staging);
+    reset(device, runner, batch, rng);
+    for(TI i = 0; i < 2; i++) EXPECT_EQ(get_ref(device, runner.env_parameters, i).scene_translation[0], 10 + i);
+    free(device, restored); free(device, runner); free(device, batch); free(device, rng);
 }

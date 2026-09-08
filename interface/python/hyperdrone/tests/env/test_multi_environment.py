@@ -76,6 +76,37 @@ def test_frames_and_rotate_scene(scene_directory):
         env.close()
 
 
+def test_gym_autoreset_observations_match_explicit_render(scene_directory, monkeypatch):
+    pytest.importorskip("gymnasium")
+    from hyperdrone.gym import VectorEnv
+
+    env = VectorEnv(scene_directory, config=CONFIG, seed=7)
+    reference = MultiEnvironment(scene_directory, config=CONFIG, seed=7)
+    try:
+        monkeypatch.setattr(env._env, "episode_step_limit", 1)
+        reset_mask = np.ones(reference.total_instances, dtype=np.uint8)
+        reference.reset()
+        reference.render(reset_mask)
+        observations, _ = env.reset()
+        np.testing.assert_array_equal(observations, reference.observe())
+
+        actions = np.zeros((env.num_envs, reference.action_dim), dtype=np.float32)
+        reference.step(actions)
+        expected_rewards, expected_terminated = reference.rewards(), reference.terminated()
+        reference.reset()
+        reference.render(reset_mask)
+
+        observations, rewards, terminated, truncated, _ = env.step(actions)
+        np.testing.assert_array_equal(rewards, expected_rewards)
+        np.testing.assert_array_equal(terminated, expected_terminated)
+        np.testing.assert_array_equal(truncated, ~expected_terminated)
+        np.testing.assert_array_equal(observations, reference.observe())
+        np.testing.assert_array_equal(observations, env._env.observe())
+    finally:
+        reference.close()
+        env.close()
+
+
 def test_config_validation_errors():
     with pytest.raises(ValueError, match="unknown preset"):
         EnvConfig(preset="nonexistent")

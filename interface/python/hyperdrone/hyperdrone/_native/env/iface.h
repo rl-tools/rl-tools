@@ -7,7 +7,7 @@
 // rl_tools::rl::environments::hyperdrone::MultiEnvironment<hyperdrone::World>. Buffers are host
 // float32/uint8 arrays sized by hyperdrone_env_config(). Bump
 // HYPERDRONE_ENV_IFACE_VERSION on any change to this file.
-#define HYPERDRONE_ENV_IFACE_VERSION 4
+#define HYPERDRONE_ENV_IFACE_VERSION 6
 
 namespace hyperdrone::env {
     struct Config {

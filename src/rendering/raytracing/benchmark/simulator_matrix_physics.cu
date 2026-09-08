@@ -484,7 +484,7 @@ bool physics_step_cameras(
     }
     constexpr int BLOCK = 256;
     const int grid = (impl->num_envs + BLOCK - 1) / BLOCK;
-    DEVICE_GPU device;
+    rlt::devices::cuda::TAG<DEVICE_GPU, true> device{};
     auto* cameras = static_cast<CAMERA_DATA*>(camera_buffer_device_ptr);
     auto stream = reinterpret_cast<cudaStream_t>(cuda_stream);
     step_cameras_kernel<<<grid, BLOCK, 0, stream>>>(

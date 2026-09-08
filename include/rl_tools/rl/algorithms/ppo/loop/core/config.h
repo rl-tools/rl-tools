@@ -10,6 +10,8 @@
 #include "../../../../../nn_models/mlp_unconditional_stddev/network.h"
 #include "../../../../../nn_models/multi_agent_wrapper/model.h"
 #include "../../../../../rl/algorithms/ppo/ppo.h"
+#include "../../../../../rl/components/on_policy_runner/collection.h"
+#include "../../../../../rl/environments/batch/environment.h"
 #include "../../../../../rl/components/on_policy_runner/on_policy_runner.h"
 #include "../../../../../nn/optimizers/adam/adam.h"
 #include "../../../../../rl/loop/loop.h"
@@ -217,9 +219,11 @@ namespace rl_tools{
             using PPO_BUFFERS_TYPE = rl::algorithms::ppo::Buffers<rl::algorithms::ppo::BufferSpecification<PPO_SPEC, DYNAMIC_ALLOCATION>>;
             static constexpr TI NUM_NNS = 2;
 
-            static constexpr TI AGENTS_PER_ENV = 1;
-            using ON_POLICY_RUNNER_SPEC = rl::components::on_policy_runner::Specification<TYPE_POLICY, TI, ENVIRONMENT, typename NN::ACTOR_TYPE::template State<DYNAMIC_ALLOCATION>, CORE_PARAMETERS::N_ENVIRONMENTS, CORE_PARAMETERS::EPISODE_STEP_LIMIT, AGENTS_PER_ENV, CORE_PARAMETERS::PPO_PARAMETERS::TRUNCATE_ON_EACH_ITERATION, DYNAMIC_ALLOCATION>;
+            using BATCH_ENVIRONMENT_SPEC = rl::environments::batch::Specification<ENVIRONMENT, CORE_PARAMETERS::N_ENVIRONMENTS, DYNAMIC_ALLOCATION>;
+            using BATCH_ENVIRONMENT = rl::environments::batch::Independent<BATCH_ENVIRONMENT_SPEC>;
+            using ON_POLICY_RUNNER_SPEC = rl::components::on_policy_runner::Specification<TYPE_POLICY, BATCH_ENVIRONMENT, typename NN::ACTOR_TYPE::template State<DYNAMIC_ALLOCATION>, typename ENVIRONMENT::Observation, typename ENVIRONMENT::ObservationPrivileged, T, T, CORE_PARAMETERS::EPISODE_STEP_LIMIT, CORE_PARAMETERS::PPO_PARAMETERS::TRUNCATE_ON_EACH_ITERATION, DYNAMIC_ALLOCATION, CORE_PARAMETERS::PPO_PARAMETERS::BOOTSTRAP_TRUNCATIONS || CORE_PARAMETERS::PPO_PARAMETERS::IGNORE_TERMINATION>;
             using ON_POLICY_RUNNER_TYPE = rl::components::OnPolicyRunner<ON_POLICY_RUNNER_SPEC>;
+            using ON_POLICY_RUNNER_BUFFER_TYPE = rl::components::on_policy_runner::Buffer<ON_POLICY_RUNNER_SPEC>;
             using ON_POLICY_RUNNER_DATASET_SPEC = rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, CORE_PARAMETERS::ON_POLICY_RUNNER_STEPS_PER_ENV, DYNAMIC_ALLOCATION>;
             using ON_POLICY_RUNNER_DATASET_TYPE = rl::components::on_policy_runner::Dataset<ON_POLICY_RUNNER_DATASET_SPEC>;
 
@@ -227,8 +231,8 @@ namespace rl_tools{
             using ACTOR_EVAL_BUFFERS = typename NN::ACTOR_TYPE::template Buffer<DYNAMIC_ALLOCATION>;
             using ACTOR_BUFFERS = typename NN::ACTOR_TYPE::template Buffer<DYNAMIC_ALLOCATION>;
             using CRITIC_BUFFERS = typename NN::CRITIC_TYPE::template Buffer<DYNAMIC_ALLOCATION>;
-            using CRITIC_GAE = typename NN::CRITIC_TYPE::template CHANGE_BATCH_SIZE<TI, ON_POLICY_RUNNER_DATASET_SPEC::STEPS_TOTAL_ALL>;
-            using CRITIC_BUFFERS_GAE = typename CRITIC_GAE::template Buffer<DYNAMIC_ALLOCATION>;
+            using CRITIC_COLLECTION_STATE = rl::components::on_policy_runner::ValueState<typename NN::CRITIC_TYPE, ON_POLICY_RUNNER_DATASET_SPEC>;
+            using CRITIC_COLLECTION_BUFFER = rl::components::on_policy_runner::ValueBuffer<typename NN::CRITIC_TYPE, ON_POLICY_RUNNER_DATASET_SPEC>;
             template <typename CONFIG>
             using State = State<CONFIG>;
         };
@@ -237,4 +241,3 @@ namespace rl_tools{
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif
-

@@ -21,6 +21,10 @@ RL_TOOLS_TESTS_NN_CUDA_ADD_DEBUG_DEFINITIONS(test_nn_cuda_basics)
 #RL_TOOLS_TAG_IS_CUDA(test_nn_cuda_basics)
 gtest_discover_tests(test_nn_cuda_basics)
 
+add_executable(test_nn_cuda_device_extension device_extension.cu)
+target_link_libraries(test_nn_cuda_device_extension PRIVATE rl_tools_full GTest::gtest_main)
+gtest_discover_tests(test_nn_cuda_device_extension)
+
 #add_executable(
 #        test_nn_cuda_cutlass
 #        cutlass_test.cu

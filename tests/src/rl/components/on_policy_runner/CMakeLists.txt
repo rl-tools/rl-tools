@@ -1,3 +1,6 @@
 if(RL_TOOLS_BACKEND_ENABLE_CUDA)
     add_subdirectory(cuda)
 endif()
+add_executable(test_rl_components_on_policy_runner_dispatch dispatch.cpp)
+target_link_libraries(test_rl_components_on_policy_runner_dispatch PRIVATE RLtools::RLtools GTest::gtest_main)
+gtest_discover_tests(test_rl_components_on_policy_runner_dispatch)

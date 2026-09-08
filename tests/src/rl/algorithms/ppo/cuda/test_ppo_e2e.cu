@@ -14,9 +14,9 @@
 
 #include <rl_tools/rl/environments/pendulum/operations_cpu.h>
 #include <rl_tools/rl/environments/pendulum/operations_generic.h>
+#include <rl_tools/rl/environments/batch/operations_cuda.h>
 
-#include <rl_tools/rl/components/on_policy_runner/operations_cpu.h>
-#include <rl_tools/rl/components/on_policy_runner/operations_cuda.h>
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
 
 #include <rl_tools/rl/algorithms/ppo/operations_cuda.h>
 #include <rl_tools/rl/algorithms/ppo/loop/core/config.h>
@@ -45,6 +45,8 @@ using ENVIRONMENT = rlt::rl::environments::Pendulum<PENDULUM_SPEC>;
 constexpr TI N_ENVIRONMENTS = 4;
 constexpr TI STEPS_PER_ENV = 64;
 constexpr TI BATCH_SIZE = N_ENVIRONMENTS * STEPS_PER_ENV;
+using BATCH_SPEC = rlt::rl::environments::batch::Specification<ENVIRONMENT, N_ENVIRONMENTS>;
+using BATCH = rlt::rl::environments::batch::Independent<BATCH_SPEC>;
 
 struct PPO_PARAMETERS: rlt::rl::algorithms::ppo::DefaultParameters<TYPE_POLICY, TI, BATCH_SIZE>{
     static constexpr TI N_EPOCHS = 2;
@@ -85,7 +87,7 @@ using PPO_BUFFERS_SPEC = rlt::rl::algorithms::ppo::BufferSpecification<PPO_SPEC>
 using PPO_BUFFERS = rlt::rl::algorithms::ppo::Buffers<PPO_BUFFERS_SPEC>;
 
 // --- On-policy runner ---
-using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, TI, ENVIRONMENT, typename ACTOR_TYPE::template State<>, N_ENVIRONMENTS, ENVIRONMENT::EPISODE_STEP_LIMIT>;
+using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, BATCH, typename ACTOR_TYPE::template State<>>;
 using DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, STEPS_PER_ENV>;
 using DATASET = rlt::rl::components::on_policy_runner::Dataset<DATASET_SPEC>;
 
@@ -94,8 +96,6 @@ using ACTOR_EVAL_TYPE = typename ACTOR_TYPE::template CHANGE_BATCH_SIZE<TI, N_EN
 using ACTOR_EVAL_BUFFERS = typename ACTOR_EVAL_TYPE::template Buffer<>;
 using ACTOR_TRAIN_BUFFERS = typename ACTOR_TYPE::template Buffer<>;
 using CRITIC_TRAIN_BUFFERS = typename CRITIC_TYPE::template Buffer<>;
-using CRITIC_GAE_TYPE = typename CRITIC_TYPE::template CHANGE_BATCH_SIZE<TI, DATASET_SPEC::STEPS_TOTAL_ALL>;
-using CRITIC_GAE_BUFFERS = typename CRITIC_GAE_TYPE::template Buffer<>;
 
 // --- Optimizers ---
 using ACTOR_OPTIMIZER_PARAMETERS = rlt::nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>;
@@ -107,20 +107,6 @@ using CRITIC_OPTIMIZER = rlt::nn::optimizers::Adam<CRITIC_OPTIMIZER_SPEC>;
 // --- Array RNG ---
 using ARRAY_RNG_SPEC = rlt::devices::generic::random::ArraySpecification<TI, 1024>;
 using ARRAY_RNG = rlt::devices::generic::random::ArrayENGINE<ARRAY_RNG_SPEC>;
-
-// Run critic evaluate to fill all_values (mirrors PPO loop core step)
-template <typename DEVICE, typename PPO_TYPE_T, typename DATASET_T, typename CRITIC_GAE_BUFFER_T, typename RNG_T>
-void evaluate_critic_for_gae(DEVICE& device, PPO_TYPE_T& ppo, DATASET_T& dataset, CRITIC_GAE_BUFFER_T& critic_buffers_gae, RNG_T& rng){
-    using TI_INNER = typename DATASET_T::TI;
-    constexpr TI_INNER STEPS_TOTAL_ALL = DATASET_T::DATASET_SPEC::STEPS_TOTAL_ALL;
-    using OBS_PRIV_SHAPE = typename DATASET_T::OBS_PRIV_SHAPE;
-    using CRITIC_GAE_INPUT_SHAPE = rlt::tensor::Prepend<rlt::tensor::Prepend<OBS_PRIV_SHAPE, STEPS_TOTAL_ALL>, 1>;
-    auto all_observations_privileged_reshaped = rlt::reshape_row_major(device, dataset.all_observations_privileged, CRITIC_GAE_INPUT_SHAPE{});
-    auto all_values_tensor = rlt::to_tensor(device, dataset.all_values);
-    auto all_values_tensor_reshaped = rlt::reshape_row_major(device, all_values_tensor, rlt::tensor::Shape<TI_INNER, 1, STEPS_TOTAL_ALL, 1>{});
-    rlt::Mode<rlt::mode::Evaluation<>> mode;
-    rlt::evaluate(device, ppo.critic, all_observations_privileged_reshaped, all_values_tensor_reshaped, critic_buffers_gae, rng, mode);
-}
 
 // Debug kernel: sample a random number with PortableState and write it to output
 template <typename DEVICE>
@@ -185,7 +171,17 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, RNG_SANITY_CHECK){
     rlt::free(device_cpu, rng_cpu);
 }
 
-TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_CPU_GPU_COMPARISON){
+template <bool BOOTSTRAP> struct OptionalBootstrapParameters: PPO_PARAMETERS{
+    static constexpr bool BOOTSTRAP_TRUNCATIONS = BOOTSTRAP;
+};
+template <bool BOOTSTRAP> void check_e2e(){
+    using PPO_PARAMETERS = OptionalBootstrapParameters<BOOTSTRAP>;
+    using PPO_SPEC = rlt::rl::algorithms::ppo::Specification<TYPE_POLICY, TI, ENVIRONMENT, ACTOR_TYPE, CRITIC_TYPE, PPO_PARAMETERS>;
+    using PPO_TYPE = rlt::rl::algorithms::PPO<PPO_SPEC>;
+    using PPO_BUFFERS = rlt::rl::algorithms::ppo::Buffers<rlt::rl::algorithms::ppo::BufferSpecification<PPO_SPEC>>;
+    using ON_POLICY_RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, BATCH, ACTOR_TYPE::State<>, ENVIRONMENT::Observation, ENVIRONMENT::ObservationPrivileged, T, T, ENVIRONMENT::EPISODE_STEP_LIMIT, false, true, BOOTSTRAP>;
+    using DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<ON_POLICY_RUNNER_SPEC, STEPS_PER_ENV>;
+    using DATASET = rlt::rl::components::on_policy_runner::Dataset<DATASET_SPEC>;
     DEVICE_CPU device_cpu;
     DEVICE_GPU device_gpu;
     rlt::init(device_gpu);
@@ -201,9 +197,12 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_CPU_GPU_COMPARISON){
     ACTOR_EVAL_BUFFERS actor_eval_buffers_cpu, actor_eval_buffers_gpu;
     ACTOR_TRAIN_BUFFERS actor_train_buffers_cpu, actor_train_buffers_gpu;
     CRITIC_TRAIN_BUFFERS critic_train_buffers_cpu, critic_train_buffers_gpu;
-    CRITIC_GAE_BUFFERS critic_gae_buffers_cpu, critic_gae_buffers_gpu;
+    rlt::rl::components::on_policy_runner::ValueState<CRITIC_TYPE, DATASET_SPEC> critic_gae_states_cpu, critic_gae_states_gpu;
+    rlt::rl::components::on_policy_runner::ValueBuffer<CRITIC_TYPE, DATASET_SPEC> critic_gae_buffers_cpu, critic_gae_buffers_gpu;
     DATASET dataset_cpu, dataset_gpu;
     rlt::rl::components::OnPolicyRunner<ON_POLICY_RUNNER_SPEC> runner_cpu, runner_gpu;
+    rlt::rl::components::on_policy_runner::Buffer<ON_POLICY_RUNNER_SPEC> runner_buffer_cpu, runner_buffer_gpu;
+    BATCH environment_cpu, environment_gpu;
     ARRAY_RNG rng_cpu, rng_gpu;
     DATASET dataset_gpu_copy;
     PPO_TYPE ppo_gpu_copy;
@@ -215,9 +214,11 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_CPU_GPU_COMPARISON){
     rlt::malloc(device_cpu, actor_eval_buffers_cpu);
     rlt::malloc(device_cpu, actor_train_buffers_cpu);
     rlt::malloc(device_cpu, critic_train_buffers_cpu);
-    rlt::malloc(device_cpu, critic_gae_buffers_cpu);
+    rlt::malloc(device_cpu, critic_gae_states_cpu); rlt::malloc(device_cpu, critic_gae_buffers_cpu);
     rlt::malloc(device_cpu, dataset_cpu);
     rlt::malloc(device_cpu, runner_cpu);
+    rlt::malloc(device_cpu, runner_buffer_cpu);
+    rlt::malloc(device_cpu, environment_cpu);
     rlt::malloc(device_cpu, rng_cpu);
     rlt::malloc(device_cpu, dataset_gpu_copy);
     rlt::malloc(device_cpu, ppo_gpu_copy);
@@ -229,9 +230,11 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_CPU_GPU_COMPARISON){
     rlt::malloc(device_gpu, actor_eval_buffers_gpu);
     rlt::malloc(device_gpu, actor_train_buffers_gpu);
     rlt::malloc(device_gpu, critic_train_buffers_gpu);
-    rlt::malloc(device_gpu, critic_gae_buffers_gpu);
+    rlt::malloc(device_gpu, critic_gae_states_gpu); rlt::malloc(device_gpu, critic_gae_buffers_gpu);
     rlt::malloc(device_gpu, dataset_gpu);
     rlt::malloc(device_gpu, runner_gpu);
+    rlt::malloc(device_gpu, runner_buffer_gpu);
+    rlt::malloc(device_gpu, environment_gpu);
     rlt::malloc(device_gpu, rng_gpu);
 
     // --- Init PPO on CPU, copy to GPU ---
@@ -267,10 +270,10 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_CPU_GPU_COMPARISON){
     rlt::free(device_cpu, rng_gpu_check);
 
     // --- Init runners identically ---
-    rlt::Tensor<rlt::tensor::Specification<ENVIRONMENT, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS>>> envs_cpu, envs_gpu;
-    rlt::Tensor<rlt::tensor::Specification<ENVIRONMENT::Parameters, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS>>> params_cpu, params_gpu;
-    rlt::init(device_cpu, runner_cpu, envs_cpu, params_cpu, ppo_cpu.actor, rng_cpu);
-    rlt::init(device_gpu, runner_gpu, envs_gpu, params_gpu, ppo_gpu.actor, rng_gpu);
+    rlt::init(device_cpu, environment_cpu);
+    rlt::init(device_gpu, environment_gpu);
+    rlt::init(device_cpu, runner_cpu, environment_cpu, rng_cpu);
+    rlt::init(device_gpu, runner_gpu, environment_gpu, rng_gpu);
     cudaDeviceSynchronize();
 
     rlt::set_all(device_cpu, dataset_cpu.scalar_data, 0);
@@ -302,19 +305,17 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_CPU_GPU_COMPARISON){
             rlt::reset_optimizer_state(device_cpu, critic_optimizer_cpu, ppo_cpu.critic);
             // Sync runner state via matrix copy (not element-wise set on GPU memory)
             rlt::copy(device_cpu, device_gpu, runner_cpu.episode_step, runner_gpu.episode_step);
-            rlt::copy(device_cpu, device_gpu, runner_cpu.episode_return, runner_gpu.episode_return);
-            rlt::copy(device_cpu, device_gpu, runner_cpu.truncated, runner_gpu.truncated);
+            rlt::copy(device_cpu, device_gpu, runner_cpu.reset, runner_gpu.reset);
             rlt::copy(device_cpu, device_gpu, runner_cpu.states, runner_gpu.states);
-            rlt::copy(device_cpu, device_gpu, runner_cpu.environments, runner_gpu.environments);
+            rlt::copy(device_cpu, device_gpu, environment_cpu.environments, environment_gpu.environments);
             rlt::copy(device_cpu, device_gpu, runner_cpu.env_parameters, runner_gpu.env_parameters);
             rlt::copy(device_cpu, device_gpu, runner_cpu.policy_state, runner_gpu.policy_state);
-            runner_gpu.step = runner_cpu.step;
             cudaDeviceSynchronize();
         }
 
         // 1. Collect
-        rlt::collect(device_cpu, dataset_cpu, runner_cpu, ppo_cpu.actor, actor_eval_buffers_cpu, rng_cpu);
-        rlt::collect(device_gpu, dataset_gpu, runner_gpu, ppo_gpu.actor, actor_eval_buffers_gpu, rng_gpu);
+        rlt::collect(device_cpu, dataset_cpu, runner_cpu, runner_buffer_cpu, environment_cpu, ppo_cpu.actor, actor_eval_buffers_cpu, ppo_cpu.critic, critic_gae_states_cpu, critic_gae_buffers_cpu, rng_cpu, typename decltype(ppo_cpu)::SPEC::COLLECTION_MODE{});
+        rlt::collect(device_gpu, dataset_gpu, runner_gpu, runner_buffer_gpu, environment_gpu, ppo_gpu.actor, actor_eval_buffers_gpu, ppo_gpu.critic, critic_gae_states_gpu, critic_gae_buffers_gpu, rng_gpu, typename decltype(ppo_gpu)::SPEC::COLLECTION_MODE{});
         cudaDeviceSynchronize();
 
         rlt::copy(device_gpu, device_cpu, dataset_gpu.all_observations, dataset_gpu_copy.all_observations);
@@ -335,14 +336,11 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_CPU_GPU_COMPARISON){
             std::cout << std::endl;
         }
 
-        // 2. Evaluate critic (fill all_values)
-        evaluate_critic_for_gae(device_cpu, ppo_cpu, dataset_cpu, critic_gae_buffers_cpu, rng_cpu);
-        evaluate_critic_for_gae(device_gpu, ppo_gpu, dataset_gpu, critic_gae_buffers_gpu, rng_gpu);
         cudaDeviceSynchronize();
 
         // 3. GAE
-        rlt::estimate_generalized_advantages(device_cpu, dataset_cpu, PPO_PARAMETERS{});
-        rlt::estimate_generalized_advantages(device_gpu, dataset_gpu, PPO_PARAMETERS{});
+        rlt::estimate_generalized_advantages(device_cpu, dataset_cpu, dataset_cpu.bootstrap_values, PPO_PARAMETERS{});
+        rlt::estimate_generalized_advantages(device_gpu, dataset_gpu, dataset_gpu.bootstrap_values, PPO_PARAMETERS{});
         cudaDeviceSynchronize();
 
         rlt::copy(device_gpu, device_cpu, dataset_gpu.scalar_data, dataset_gpu_copy.scalar_data);
@@ -388,9 +386,11 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_CPU_GPU_COMPARISON){
     rlt::free(device_cpu, actor_eval_buffers_cpu);
     rlt::free(device_cpu, actor_train_buffers_cpu);
     rlt::free(device_cpu, critic_train_buffers_cpu);
-    rlt::free(device_cpu, critic_gae_buffers_cpu);
+    rlt::free(device_cpu, critic_gae_states_cpu); rlt::free(device_cpu, critic_gae_buffers_cpu);
     rlt::free(device_cpu, dataset_cpu);
     rlt::free(device_cpu, runner_cpu);
+    rlt::free(device_cpu, runner_buffer_cpu);
+    rlt::free(device_cpu, environment_cpu);
     rlt::free(device_cpu, rng_cpu);
     rlt::free(device_cpu, dataset_gpu_copy);
     rlt::free(device_cpu, ppo_gpu_copy);
@@ -401,8 +401,13 @@ TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_CPU_GPU_COMPARISON){
     rlt::free(device_gpu, actor_eval_buffers_gpu);
     rlt::free(device_gpu, actor_train_buffers_gpu);
     rlt::free(device_gpu, critic_train_buffers_gpu);
-    rlt::free(device_gpu, critic_gae_buffers_gpu);
+    rlt::free(device_gpu, critic_gae_states_gpu); rlt::free(device_gpu, critic_gae_buffers_gpu);
     rlt::free(device_gpu, dataset_gpu);
     rlt::free(device_gpu, runner_gpu);
+    rlt::free(device_gpu, runner_buffer_gpu);
+    rlt::free(device_gpu, environment_gpu);
     rlt::free(device_gpu, rng_gpu);
 }
+
+TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_CPU_GPU_COMPARISON){ check_e2e<true>(); }
+TEST(RL_TOOLS_RL_ALGORITHMS_PPO_CUDA, E2E_NO_TRUNCATION_BOOTSTRAP){ check_e2e<false>(); }

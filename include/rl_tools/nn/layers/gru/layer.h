@@ -2,6 +2,7 @@
 #if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_LAYERS_GRU_LAYER_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
 #define RL_TOOLS_NN_LAYERS_GRU_LAYER_H
+#include "../../../mode/mode.h"
 #include "../../../nn/activation_functions.h"
 #include "../../../nn/parameters/parameters.h"
 #include "../../../nn/capability/capability.h"
@@ -62,25 +63,12 @@ namespace rl_tools::nn::layers::gru{
         };
     }
 
-    template <typename T_TI, typename T_RESET_CONTAINER_TYPE>
-    struct ResetModeSpecification{
-        using TI = T_TI;
-        using RESET_CONTAINER_TYPE = T_RESET_CONTAINER_TYPE;
-    };
-    template <typename T_BASE, typename T_SPEC>
-    struct ResetMode: T_BASE{
-        using SPEC = T_SPEC;
-        using BASE = T_BASE;
-        using PRE = typename SPEC::RESET_CONTAINER_TYPE;
-        using RESET_CONTAINER_TYPE = utils::typing::conditional_t<utils::typing::is_reference_v<PRE>, utils::typing::remove_reference_t<PRE>, PRE>;
-        RESET_CONTAINER_TYPE reset_container;
-    };
-
-    template <typename T_BASE, typename T_SPEC = bool>
-    struct NoAutoResetMode: T_BASE{
-        using SPEC = T_SPEC;
-        using BASE = T_BASE;
-    };
+    template <typename TI, typename RESET_CONTAINER>
+    using ResetModeSpecification = mode::sequential::ResetModeSpecification<TI, RESET_CONTAINER>;
+    template <typename BASE, typename SPEC>
+    using ResetMode = mode::sequential::ResetMode<BASE, SPEC>;
+    template <typename BASE, typename SPEC = bool>
+    using NoAutoResetMode = mode::sequential::NoAutoResetMode<BASE, SPEC>;
 
     template <typename T_SPEC, bool T_DYNAMIC_ALLOCATION>
     struct StateSpecification{

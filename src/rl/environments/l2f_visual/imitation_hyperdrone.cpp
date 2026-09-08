@@ -1,6 +1,6 @@
 // Visual imitation learning on the hyperdrone target-frame task: the device-generic port of
-// imitation_cuda.cu. The host DEVICE owns dataset enumeration, extrack, artifacts and the
-// episode bookkeeping; DEVICE_COMPUTE runs the environment verbs, the RAPTOR teacher, the
+// imitation_cuda.cu. The host DEVICE owns dataset enumeration, extrack and artifacts;
+// DEVICE_COMPUTE runs rollout collection, the environment verbs, the RAPTOR teacher, the
 // student and its training. When this file is compiled as CUDA (OptiX backend) DEVICE_COMPUTE
 // is the CUDA device and the type policy keeps the original bf16 storage; otherwise (Metal,
 // Vulkan, WebGPU, generic, or a CPU-compute build on a CUDA machine) it is the host device with
@@ -44,6 +44,7 @@
 #ifdef RL_TOOLS_L2F_VISUAL_IMITATION_HYPERDRONE_COMPUTE_CUDA
 #include <rl_tools/rl/environments/hyperdrone/tasks/target_frame/operations_cuda.h>
 #endif
+#include <rl_tools/rl/components/on_policy_runner/operations_cpu_mux.h>
 #include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
 
 #include <rl_tools/nn/loss_functions/mse/operations_generic.h>
@@ -109,6 +110,8 @@
 #include <fstream>
 
 namespace rlt = rl_tools;
+using rlt::prologue;
+using rlt::epilogue;
 
 #ifdef RL_TOOLS_L2F_VISUAL_IMITATION_STATE_ESTIMATION
 static constexpr bool STATE_ESTIMATION_MODE = true;
@@ -133,7 +136,8 @@ using DEV_SPEC = rlt::devices::cpu::Specification<rlt::devices::math::CPU, rlt::
 using DEVICE = rlt::devices::DEVICE_FACTORY<DEV_SPEC>;
 using T = float;
 #ifdef RL_TOOLS_L2F_VISUAL_IMITATION_HYPERDRONE_COMPUTE_CUDA
-using DEVICE_COMPUTE = rlt::devices::DEVICE_FACTORY_CUDA<rlt::devices::DefaultCUDASpecification>;
+using DEVICE_COMPUTE_SPEC = rlt::rendering::raytracing::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
+using DEVICE_COMPUTE = rlt::devices::DEVICE_FACTORY_CUDA<DEVICE_COMPUTE_SPEC>;
 using TYPE_POLICY = rlt::numeric_types::Policy<float,
     rlt::numeric_types::UseCase<rlt::numeric_types::categories::Parameter, __nv_bfloat16>,
     rlt::numeric_types::UseCase<rlt::numeric_types::categories::Activation, __nv_bfloat16>,
@@ -346,7 +350,6 @@ static constexpr bool RENDER_MOTION_BLUR_ACTIVE = BASE_WORLD::RENDERER_SPEC::ENA
 static constexpr bool RENDER_ANTI_ALIASING_ACTIVE = BASE_WORLD::RENDERER_SPEC::ENABLE_ANTI_ALIASING;
 static_assert(TASK_WORLD::INSTANCES == N_ENVIRONMENTS_PER_SCENE);
 static_assert(MULTI_ENVIRONMENT::INSTANCES == N_ENVIRONMENTS);
-
 static constexpr TI OBSERVATION_DIM = BASE_WORLD::OBSERVATION_DIM;
 static constexpr TI IMG_H = BASE_WORLD::Observation::HEIGHT;
 static constexpr TI IMG_W = BASE_WORLD::Observation::WIDTH;
@@ -464,6 +467,15 @@ using CPU_STUDENT_INIT_TYPE = typename StudentActor<CAPABILITY_ADAM, TEACHER_TYP
 using OPTIMIZER_SPEC = rlt::nn::optimizers::adam::Specification<TYPE_POLICY, TI, ADAM_PARAMETERS, true>;
 using OPTIMIZER = rlt::nn::optimizers::Adam<OPTIMIZER_SPEC>;
 using ROLLOUT_STUDENT_TYPE = typename STUDENT_TYPE::template CHANGE_CAPABILITY<rlt::nn::capability::Forward<true>>::template CHANGE_BATCH_SIZE<TI, N_ENVIRONMENTS>;
+// the batched on-policy runner collects the composed observations (student input, activation
+// precision) and the teacher's privileged observations per row; the teacher's recurrent state is
+// the rollout policy state
+using RUNNER_SPEC = rlt::rl::components::on_policy_runner::Specification<TYPE_POLICY, MULTI_ENVIRONMENT, typename RAPTOR_MODEL::State<true>, typename TASK_WORLD::Observation, RAPTOR_OBSERVATION_TYPE, T_ACTIVATION, T, EPISODE_STEP_LIMIT, false, true, false>;
+using RUNNER = rlt::rl::components::OnPolicyRunner<RUNNER_SPEC>;
+using RUNNER_BUFFER = rlt::rl::components::on_policy_runner::Buffer<RUNNER_SPEC>;
+using DATASET_SPEC = rlt::rl::components::on_policy_runner::DatasetSpecification<RUNNER_SPEC, STEPS_PER_ENV>;
+using DATASET = rlt::rl::components::on_policy_runner::Dataset<DATASET_SPEC>;
+static_assert(RUNNER_SPEC::STEP_LIMIT == EPISODE_STEP_LIMIT);
 
 struct Barrier{
     std::mutex mutex;
@@ -499,8 +511,6 @@ struct RankEpochStatistics{
     T loss_sum = 0;
     TI loss_count = 0;
     std::array<T, STATE_ESTIMATION_NUM_METRICS> state_estimation{};
-    T episode_length_tf = 0, episode_length_student = 0, complete_episode_length = 0;
-    TI episodes_tf = 0, episodes_student = 0, episodes_terminated = 0, complete_episodes = 0;
 };
 
 struct SharedState{
@@ -577,7 +587,9 @@ std::string parameters_to_json(DEVICE& device, TASK_WORLD& world, const typename
 }
 
 std::string trajectory_episodes_to_json(DEVICE& device, TASK_WORLD& world, const std::vector<CompletedEpisode>& episodes, T dt){
-    if(episodes.empty()) return "[]";
+    if(episodes.empty()){
+        return "[]";
+    }
     std::string json = "[";
     for(TI ep_i = 0; ep_i < episodes.size(); ep_i++){
         auto& episode = episodes[ep_i];
@@ -668,20 +680,20 @@ void state_estimation_batch_metrics(DEVICE& device, const OUTPUT& output, const 
 }
 
 // latest rendered student frame and cached target frame of every instance of one World, pulled
-// from the renderer's memory domain into host staging
-void fetch_world_frames(DEVICE& device, TASK_WORLD& world, float* frames, float* target_frames){
+// from the compute device into host staging
+void fetch_world_frames(DEVICE& device, DEVICE_COMPUTE& device_compute, TASK_WORLD& world, float* frames, float* target_frames){
     constexpr TI M = TASK_WORLD::INSTANCES;
     const TI history_slot = (world.history_step - 1) % FRAME_STACK_HISTORY_LENGTH;
     {
-        auto history_row = rlt::view(world.renderer.device, world.history, history_slot);
+        auto history_row = rlt::view(device_compute, world.history, history_slot);
         rlt::Tensor<rlt::tensor::Specification<float, TI, rlt::tensor::Shape<TI, M * BASE_WORLD::N_VIEWS, BASE_WORLD::FRAME_DIM>>> frame_alias;
         frame_alias._data = frames;
-        rlt::copy(world.renderer.device, device, history_row, frame_alias);
+        rlt::copy(device_compute, device, history_row, frame_alias);
     }
     {
         rlt::Tensor<typename TASK_WORLD::TARGET_FRAMES_SPEC> target_alias;
         target_alias._data = target_frames;
-        rlt::copy(world.renderer.device, device, world.target_frames, target_alias);
+        rlt::copy(device_compute, device, world.target_frames, target_alias);
     }
 }
 
@@ -691,13 +703,13 @@ void fetch_world_frames(DEVICE& device, TASK_WORLD& world, float* frames, float*
 int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datasets::procthor::GLB& scene_dataset){
 #ifdef RL_TOOLS_L2F_VISUAL_IMITATION_HYPERDRONE_COMPUTE_CUDA
     check_cuda(cudaSetDevice(static_cast<int>(rank)));
-#endif
-    DEVICE device;
-    rlt::init(device);
-#ifdef RL_TOOLS_L2F_VISUAL_IMITATION_HYPERDRONE_COMPUTE_CUDA
     DEVICE_COMPUTE device_compute;
+    auto& device = device_compute.rendering;
+    rlt::init(device);
     rlt::init(device_compute);
 #else
+    DEVICE device;
+    rlt::init(device);
     DEVICE_COMPUTE& device_compute = device;
 #endif
 
@@ -716,31 +728,26 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
     rlt::malloc(device, checkpoint_rng);
     rlt::init(device, batch_rng, seed);
     rlt::init(device, checkpoint_rng, seed);
-    std::array<RNG, N_ENVIRONMENTS> episode_rngs;
-    for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
-        rlt::malloc(device, episode_rngs[env_i]);
-        rlt::init(device, episode_rngs[env_i], seed + rank * N_ENVIRONMENTS + env_i);
-    }
     RNG_COMPUTE rng_compute;
     rlt::malloc(device_compute, rng_compute);
     rlt::init(device_compute, rng_compute, seed);
 
     // ---------------------------------------------------------------------
-    // RAPTOR teacher: host copy (weights, masked-reset mirror) and compute copy (rollout)
+    // RAPTOR teacher: host copy (weights) and compute copy (rollout)
     // ---------------------------------------------------------------------
     RAPTOR_MODEL raptor;
-    typename RAPTOR_MODEL::State<true> raptor_state_host;
     rlt::malloc(device, raptor);
-    rlt::malloc(device, raptor_state_host);
     rlt::copy(device, device, rl_tools::checkpoint::actor::module, raptor);
-    rlt::reset(device, raptor, raptor_state_host, rng);
 
     RAPTOR_MODEL raptor_compute;
     typename RAPTOR_MODEL::Buffer<true> raptor_buffer_compute;
-    typename RAPTOR_MODEL::State<true> raptor_state_compute;
+    RUNNER runner;
+    RUNNER_BUFFER runner_buffer;
+    rlt::malloc(device_compute, runner);
+    rlt::malloc(device_compute, runner_buffer);
+    auto& raptor_state_compute = runner.policy_state;
     rlt::malloc(device_compute, raptor_compute);
     rlt::malloc(device_compute, raptor_buffer_compute);
-    rlt::malloc(device_compute, raptor_state_compute);
     rlt::copy(device, device_compute, raptor, raptor_compute);
     rlt::reset(device_compute, raptor_compute, raptor_state_compute, rng_compute);
 
@@ -787,7 +794,7 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
     MULTI_ENVIRONMENT& env = *env_storage;
     {
         std::lock_guard<std::mutex> loading_lock(shared.io_mutex);
-        rlt::malloc(device, env);
+        rlt::malloc(device_compute, env);
         rlt::rendering::datasets::procthor::GLB::Corpus scene_corpus;
         rlt::rendering::datasets::procthor::enumerate(device, scene_dataset, scene_corpus);
         if(static_cast<TI>(scene_corpus.references.size()) != N_TOTAL_SCENES){
@@ -799,7 +806,7 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
             const TI last = (global_member + 1) * N_TOTAL_SCENES / N_ACTIVE_SCENES_TOTAL;
             std::cout << "[rank " << rank << "] Initializing World " << global_member << " with scenes [" << first << ", " << last << ")" << std::endl;
             auto& world = env.environments[member_i];
-            rlt::init(device, world, env.shared, scene_dataset, scene_corpus, first, last - first, global_member);
+            rlt::init(device_compute, world, env.shared, scene_dataset, scene_corpus, first, last - first, global_member);
             world.rng_offset = global_member * N_ENVIRONMENTS_PER_SCENE;
             for(TI slot_i = 0; slot_i < last - first; slot_i++){
                 std::cout << "  [" << first + slot_i << "] " << std::filesystem::path(scene_corpus.references[first + slot_i]).filename().string() << " — " << world.slots[slot_i].annotations.num_positions << " indoor positions" << std::endl;
@@ -819,37 +826,30 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
     // ---------------------------------------------------------------------
     // Per-instance data on the compute device
     // ---------------------------------------------------------------------
-    rlt::Tensor<rlt::tensor::Specification<typename ENVIRONMENT::Parameters, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS>>> parameters;
-    rlt::Tensor<rlt::tensor::Specification<typename ENVIRONMENT::State, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS>>> states, next_states;
-    rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS>>> reset_mask, terminated_flags;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, RAPTOR_OBS_DIM>>> teacher_observations;
-    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, ACTION_DIM>>> teacher_actions, actions_step;
+    DATASET dataset;
+    auto& parameters = runner.env_parameters;
+    auto& states = runner.states;
+    auto& next_states = runner_buffer.next_states;
+    auto& actions_step = runner_buffer.actions;
+    auto& all_combined_observations = dataset.all_observations;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, ACTION_DIM>>> teacher_actions;
     rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, TARGET_DIM>>> student_output_step;
-    rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, STEPS_TOTAL, COMBINED_OBS_DIM>>> all_combined_observations;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, STEPS_TOTAL, STATE_OBS_DIM>>> all_state_observations;
     rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, STEPS_TOTAL, TARGET_DIM>>> all_targets;
     rlt::Matrix<rlt::matrix::Specification<T_GRADIENT, TI, BATCH_SIZE, TARGET_DIM>> d_action_train;
     rlt::Tensor<rlt::tensor::Specification<T_ACTIVATION, TI, rlt::tensor::Shape<TI, 1, BATCH_SIZE, TARGET_DIM>>> student_output_train;
-    rlt::malloc(device_compute, parameters);
-    rlt::malloc(device_compute, states);
-    rlt::malloc(device_compute, next_states);
-    rlt::malloc(device_compute, reset_mask);
-    rlt::malloc(device_compute, terminated_flags);
-    rlt::malloc(device_compute, teacher_observations);
     rlt::malloc(device_compute, teacher_actions);
-    rlt::malloc(device_compute, actions_step);
     rlt::malloc(device_compute, student_output_step);
-    rlt::malloc(device_compute, all_combined_observations);
+    rlt::malloc(device_compute, dataset);
     rlt::malloc(device_compute, all_state_observations);
     rlt::malloc(device_compute, all_targets);
     rlt::malloc(device_compute, d_action_train);
     rlt::malloc(device_compute, student_output_train);
 
     // ---------------------------------------------------------------------
-    // Host-side bookkeeping and staging
+    // Host-side staging
     // ---------------------------------------------------------------------
     rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS>>> reset_mask_host, terminated_host;
-    rlt::Matrix<rlt::matrix::Specification<bool, TI, 1, N_ENVIRONMENTS>> reset_mask_matrix;
     rlt::Tensor<rlt::tensor::Specification<typename ENVIRONMENT::State, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS>>> states_host;
     rlt::Tensor<rlt::tensor::Specification<typename ENVIRONMENT::Parameters, TI, rlt::tensor::Shape<TI, TRAJECTORY_NUM_ENVS>>> parameters_trajectory_host;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TRAJECTORY_NUM_ENVS, ACTION_DIM>>> actions_trajectory_host;
@@ -858,22 +858,17 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, BATCH_SIZE, TARGET_DIM>>> targets_batch_host;
     rlt::malloc(device, reset_mask_host);
     rlt::malloc(device, terminated_host);
-    rlt::malloc(device, reset_mask_matrix);
     rlt::malloc(device, states_host);
     rlt::malloc(device, parameters_trajectory_host);
     rlt::malloc(device, actions_trajectory_host);
     rlt::malloc(device, targets_host);
     rlt::malloc(device, student_output_train_host);
     rlt::malloc(device, targets_batch_host);
-    auto reset_mask_matrix_view = rlt::view(device, reset_mask_matrix);
-    rlt::Mode<rlt::mode::sequential::ResetMask<rlt::mode::Default<>, rlt::mode::sequential::ResetMaskSpecification<decltype(reset_mask_matrix_view)>>> mode_reset_mask;
-    mode_reset_mask.mask = reset_mask_matrix_view;
+    auto reset_mask = rlt::matrix_view(device_compute, runner.reset);
+    rlt::Mode<rlt::mode::sequential::ResetMask<rlt::mode::Default<>, rlt::mode::sequential::ResetMaskSpecification<decltype(reset_mask)>>> mode_reset_mask;
+    mode_reset_mask.mask = reset_mask;
     using NO_AUTO_RESET_MODE = rlt::Mode<rlt::nn::layers::gru::NoAutoResetMode<rlt::mode::Default<>>>;
     NO_AUTO_RESET_MODE no_auto_reset_mode;
-
-    std::vector<unsigned char> terminated_bookkeeping(N_ENVIRONMENTS, 1);
-    std::vector<TI> episode_step(N_ENVIRONMENTS, 0);
-    std::vector<unsigned char> teacher_forcing(N_ENVIRONMENTS, 1);
 
     EpisodeRecorder episode_recorders[TRAJECTORY_NUM_ENVS];
     std::vector<CompletedEpisode> completed_episodes;
@@ -930,7 +925,6 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
     shared.barrier.wait();
 
     auto training_start = std::chrono::high_resolution_clock::now();
-    const TI current_episode_step_limit = EPISODE_STEP_LIMIT;
     const bool full_teacher_forcing = STATE_ESTIMATION_MODE;
 
     for(TI epoch_i = 0; epoch_i < NUM_EPOCHS; epoch_i++){
@@ -938,13 +932,9 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
         // scene set for this epoch: deterministic round-robin over each World's partition (the
         // original draws a random pair); every instance restarts on the new scene
         if(epoch_i > 0){
-            rlt::rotate_scene(device, env);
+            rlt::rotate_scene(device_compute, env);
         }
-        for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
-            terminated_bookkeeping[env_i] = 1;
-            episode_step[env_i] = 0;
-            teacher_forcing[env_i] = 1;
-        }
+        rlt::init(device_compute, runner, env, rng_compute);
         bool record_video = (rank == 0 && epoch_i % CHECKPOINT_CADENCE == 0);
         bool record_trajectories = (rank == 0 && epoch_i % CHECKPOINT_CADENCE == 0);
         if(record_trajectories){
@@ -975,73 +965,36 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
         // =================================================================
         // Data collection
         // =================================================================
-        T episode_length_sum_tf = 0, episode_length_sum_student = 0, complete_episode_length_sum = 0;
-        TI episode_count_tf = 0, episode_count_student = 0, episode_count_terminated = 0, complete_episode_count = 0;
+        // row 0 (composed observation + teacher input) is observed by the runner's prologue and
+        // rows t + 1 by its epilogue
+        prologue(device_compute, dataset, runner, env, rng_compute);
         for(TI step_i = 0; step_i < STEPS_PER_ENV; step_i++){
-            // 1. reset bookkeeping (host) -> reset mask on the compute device
-            bool any_reset = false;
-            for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
-                bool need_reset = terminated_bookkeeping[env_i] != 0 || episode_step[env_i] >= current_episode_step_limit;
-                if(need_reset){
-                    if(episode_step[env_i] > 0){
-                        T episode_length = static_cast<T>(episode_step[env_i]);
-                        if(teacher_forcing[env_i] != 0){
-                            episode_length_sum_tf += episode_length;
-                            episode_count_tf++;
-                        } else {
-                            episode_length_sum_student += episode_length;
-                            episode_count_student++;
-                        }
-                        if(terminated_bookkeeping[env_i] != 0){
-                            episode_count_terminated++;
-                        }
-                        complete_episode_length_sum += episode_length;
-                        complete_episode_count++;
-                    }
-                    episode_step[env_i] = 0;
-                    terminated_bookkeeping[env_i] = 0;
-                    teacher_forcing[env_i] = (full_teacher_forcing || rlt::random::uniform_real_distribution(device.random, (T)0, (T)1, episode_rngs[env_i]) < EFFECTIVE_TEACHER_FORCING_FRACTION) ? 1 : 0;
-                    any_reset = true;
-                }
-                rlt::set(device, reset_mask_host, need_reset, env_i);
-                rlt::set(reset_mask_matrix, 0, env_i, need_reset);
-            }
-            rlt::copy(device, device_compute, reset_mask_host, reset_mask);
-            rlt::sample_initial_parameters(device_compute, env, parameters, reset_mask, rng_compute);
-            rlt::sample_initial_state(device_compute, env, parameters, states, reset_mask, rng_compute);
-            if(any_reset){
-                // per-instance teacher GRU reset through the host mirror (device-generic)
-                rlt::copy(device_compute, device, raptor_state_compute, raptor_state_host);
-                rlt::reset(device, raptor, raptor_state_host, rng, mode_reset_mask);
-                rlt::copy(device, device_compute, raptor_state_host, raptor_state_compute);
-            }
+            // 1. the reset applied for this row (epoch start or the previous epilogue): teacher state
+            rlt::reset(device_compute, raptor_compute, raptor_state_compute, rng_compute, mode_reset_mask);
             if(record_trajectories){
+                rlt::copy(device_compute, device, runner.reset, reset_mask_host);
                 rlt::copy(device_compute, device, states, states_host);
                 auto parameters_trajectory_view = rlt::view_range(device_compute, parameters, (TI)0, rlt::tensor::ViewSpec<0, TRAJECTORY_NUM_ENVS>{});
                 rlt::copy(device_compute, device, parameters_trajectory_view, parameters_trajectory_host);
             }
 
-            // 2. dynamics-side observations: teacher input and the student's state branch
+            // 2. the student's state branch and this row's runner observations
             auto state_observations_step = rlt::view_range(device_compute, all_state_observations, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
-            rlt::observe(device_compute, env, parameters, states, RAPTOR_OBSERVATION_TYPE{}, teacher_observations, rng_compute);
             rlt::observe(device_compute, env, parameters, states, ACTOR_STATE_OBS{}, state_observations_step, rng_compute);
-
-            // 3. render (reset-conditional target pass + student frame) and the composed observation
             auto combined_observations_step = rlt::view_range(device_compute, all_combined_observations, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
-            rlt::render(device_compute, env, parameters, states, reset_mask);
-            rlt::observe(device_compute, env, parameters, states, typename TASK_WORLD::Observation{}, combined_observations_step, rng_compute);
+            auto teacher_observations = rlt::view_range(device_compute, dataset.all_observations_privileged, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
             if constexpr(BLIND_TRAINING){
                 rlt::set_all(device_compute, combined_observations_step, (T_ACTIVATION)0);
             }
 
-            // 4. teacher
+            // 3. teacher
             rlt::evaluate_step(device_compute, raptor_compute, teacher_observations, raptor_state_compute, teacher_actions, raptor_buffer_compute, rng_compute, no_auto_reset_mode);
 
-            // 5. video mosaic: (target | actual) per instance
+            // 4. video mosaic: (target | actual) per instance
             if(record_video && ffmpeg_pipe){
                 synchronize_compute(device_compute);
                 for(TI member_i = 0; member_i < NUMBER_OF_ENVIRONMENTS; member_i++){
-                    fetch_world_frames(device, env.environments[member_i], video_frames.data() + member_i * TASK_WORLD::INSTANCES * OBSERVATION_DIM, video_target_frames.data() + member_i * TASK_WORLD::INSTANCES * OBSERVATION_DIM);
+                    fetch_world_frames(device, device_compute, env.environments[member_i], video_frames.data() + member_i * TASK_WORLD::INSTANCES * OBSERVATION_DIM, video_target_frames.data() + member_i * TASK_WORLD::INSTANCES * OBSERVATION_DIM);
                 }
                 for(TI scene_row = 0; scene_row < SCENE_GRID_ROWS; scene_row++){
                     for(TI scene_col = 0; scene_col < SCENE_GRID_COLS; scene_col++){
@@ -1076,7 +1029,7 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
                 fwrite(mosaic_frame.data(), 1, mosaic_frame.size(), ffmpeg_pipe);
             }
 
-            // 6. student
+            // 5. student
             {
                 auto state_observations_reshaped = rlt::reshape_row_major(device_compute, state_observations_step, rlt::tensor::Shape<TI, 1, N_ENVIRONMENTS, STATE_OBS_DIM>{});
                 using ROLLOUT_IMG_SHAPE = rlt::tensor::Shape<TI, 1, N_ENVIRONMENTS, IMG_H, IMG_W, COMBINED_IMG_C>;
@@ -1085,7 +1038,7 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
                 rlt::evaluate(device_compute, rollout_student, inputs, student_output_step, rollout_student_buffers, rng_compute);
             }
 
-            // 7. labels and the action applied to the simulation
+            // 6. labels and the action applied to the simulation
             auto targets_step = rlt::view_range(device_compute, all_targets, step_i * N_ENVIRONMENTS, rlt::tensor::ViewSpec<0, N_ENVIRONMENTS>{});
             if constexpr(STATE_ESTIMATION_MODE){
                 if(!record_trajectories){
@@ -1105,16 +1058,10 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
                 rlt::copy(device_compute, device_compute, student_output_step, actions_step);
             }
 
-            // 8. environment step
-            rlt::step(device_compute, env, parameters, states, actions_step, next_states, rng_compute);
-            rlt::terminated(device_compute, env, parameters, next_states, terminated_flags, rng_compute);
-            rlt::copy(device_compute, device_compute, next_states, states);
-            rlt::copy(device_compute, device, terminated_flags, terminated_host);
-            for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
-                terminated_bookkeeping[env_i] = rlt::get(device, terminated_host, env_i) ? 1 : 0;
-                episode_step[env_i]++;
-            }
+            // 7. environment step and next observation
+            epilogue(device_compute, dataset, runner, runner_buffer, env, rng_compute, step_i);
             if(record_trajectories){
+                rlt::copy(device_compute, device, runner_buffer.terminated, terminated_host);
                 auto actions_trajectory_view = rlt::view_range(device_compute, actions_step, (TI)0, rlt::tensor::ViewSpec<0, TRAJECTORY_NUM_ENVS>{});
                 rlt::copy(device_compute, device, actions_trajectory_view, actions_trajectory_host);
                 for(TI env_i = 0; env_i < TRAJECTORY_NUM_ENVS; env_i++){
@@ -1127,7 +1074,9 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
                         rec.current_episode.clear();
                         rec.episode_started = false;
                     }
-                    if(completed_episodes.size() >= TRAJECTORY_MAX_EPISODES) continue;
+                    if(completed_episodes.size() >= TRAJECTORY_MAX_EPISODES){
+                        continue;
+                    }
                     if(!rec.episode_started){
                         rec.parameters_snapshot = rlt::get(device, parameters_trajectory_host, env_i);
                         rec.episode_started = true;
@@ -1138,7 +1087,7 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
                         ts.actions[a] = rlt::get(device, actions_trajectory_host, env_i, a);
                     }
                     ts.reward = 0;
-                    ts.terminated = terminated_bookkeeping[env_i] != 0;
+                    ts.terminated = rlt::get(device, terminated_host, env_i);
                     rec.current_episode.push_back(ts);
                 }
             }
@@ -1156,7 +1105,10 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
                 }
             }
         }
-        if(ffmpeg_pipe){ pclose(ffmpeg_pipe); ffmpeg_pipe = nullptr; }
+        if(ffmpeg_pipe){
+            pclose(ffmpeg_pipe);
+            ffmpeg_pipe = nullptr;
+        }
         synchronize_compute(device_compute);
         auto collection_end = std::chrono::high_resolution_clock::now();
 
@@ -1169,7 +1121,9 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
         T epoch_state_estimation_metrics[STATE_ESTIMATION_NUM_METRICS] = {0, 0, 0, 0};
         for(TI pass = 0; pass < N_TRAIN_PASSES; pass++){
             std::array<TI, N_BATCHES> batch_order;
-            for(TI i = 0; i < N_BATCHES; i++) batch_order[i] = i;
+            for(TI i = 0; i < N_BATCHES; i++){
+                batch_order[i] = i;
+            }
             for(TI i = N_BATCHES - 1; i > 0; i--){
                 TI j = rlt::random::uniform_int_distribution(device.random, (TI)0, i, batch_rng);
                 std::swap(batch_order[i], batch_order[j]);
@@ -1234,28 +1188,10 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
         // =================================================================
         // Statistics and logging
         // =================================================================
-        for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
-            if(episode_step[env_i] > 0){
-                if(teacher_forcing[env_i] != 0){
-                    episode_length_sum_tf += static_cast<T>(episode_step[env_i]);
-                    episode_count_tf++;
-                } else {
-                    episode_length_sum_student += static_cast<T>(episode_step[env_i]);
-                    episode_count_student++;
-                }
-            }
-        }
         auto& statistics = shared.statistics[rank];
         statistics.loss_sum = epoch_loss_sum;
         statistics.loss_count = epoch_loss_count;
         std::copy_n(epoch_state_estimation_metrics, STATE_ESTIMATION_NUM_METRICS, statistics.state_estimation.begin());
-        statistics.episode_length_tf = episode_length_sum_tf;
-        statistics.episode_length_student = episode_length_sum_student;
-        statistics.complete_episode_length = complete_episode_length_sum;
-        statistics.episodes_tf = episode_count_tf;
-        statistics.episodes_student = episode_count_student;
-        statistics.episodes_terminated = episode_count_terminated;
-        statistics.complete_episodes = complete_episode_count;
         if constexpr(N_RANKS > 1){
             if(epoch_i % CHECKPOINT_CADENCE == 0){
                 rlt::copy(device_compute, device, student, consistency_student);
@@ -1270,13 +1206,6 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
                 for(TI metric_i = 0; metric_i < STATE_ESTIMATION_NUM_METRICS; metric_i++){
                     epoch_state_estimation_metrics[metric_i] += other.state_estimation[metric_i];
                 }
-                episode_length_sum_tf += other.episode_length_tf;
-                episode_length_sum_student += other.episode_length_student;
-                complete_episode_length_sum += other.complete_episode_length;
-                episode_count_tf += other.episodes_tf;
-                episode_count_student += other.episodes_student;
-                episode_count_terminated += other.episodes_terminated;
-                complete_episode_count += other.complete_episodes;
                 if(epoch_i % CHECKPOINT_CADENCE == 0){
                     const T difference = rlt::abs_diff(device, consistency_student, *shared.consistency_students[peer]);
                     std::cout << "[consistency] epoch " << epoch_i << " parameter abs_diff rank " << peer << " vs rank 0: " << difference << std::endl;
@@ -1292,13 +1221,6 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
                     epoch_state_estimation_metrics[metric_i] /= static_cast<T>(epoch_loss_count);
                 }
             }
-            TI episode_count = episode_count_tf + episode_count_student;
-            T episode_terminated_share = episode_count > 0 ? static_cast<T>(episode_count_terminated) / static_cast<T>(episode_count) : (T)0;
-            T complete_terminated_share = complete_episode_count > 0 ? static_cast<T>(episode_count_terminated) / static_cast<T>(complete_episode_count) : (T)0;
-            T complete_episode_length = complete_episode_count > 0 ? complete_episode_length_sum / static_cast<T>(complete_episode_count) : (T)0;
-            T mean_episode_length_tf = episode_count_tf > 0 ? episode_length_sum_tf / static_cast<T>(episode_count_tf) : (T)0;
-            T mean_episode_length_student = episode_count_student > 0 ? episode_length_sum_student / static_cast<T>(episode_count_student) : (T)0;
-            T mean_episode_length = episode_count > 0 ? (episode_length_sum_tf + episode_length_sum_student) / static_cast<T>(episode_count) : (T)0;
 
             auto now = std::chrono::high_resolution_clock::now();
             std::chrono::duration<T> training_elapsed = now - training_start;
@@ -1314,10 +1236,6 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
             std::cout << (full_teacher_forcing ? "[TF] " : "[TF=" + std::to_string((int)(EFFECTIVE_TEACHER_FORCING_FRACTION * 100)) + "%] ")
                       << "Epoch: " << std::setw(5) << epoch_i
                       << " MSE: " << std::setw(10) << std::setprecision(6) << std::fixed << epoch_loss
-                      << " mean_ep_len: " << std::setw(6) << std::setprecision(1) << mean_episode_length
-                      << " ep_limit: " << std::setw(3) << current_episode_step_limit
-                      << " episodes: " << std::setw(5) << episode_count
-                      << " term_share: " << std::setw(5) << std::setprecision(2) << std::fixed << episode_terminated_share
                       << " fps: " << std::setw(7) << std::setprecision(0) << fps
                       << " collect: " << std::setw(6) << std::setprecision(1) << collection_elapsed.count() << "s"
                       << " (" << std::setw(4) << std::setprecision(1) << collection_pct << "%"
@@ -1335,11 +1253,6 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
             std::cout << " allreduce: " << all_reduce_time_s << "s" << std::endl;
 
             metra::log(metra_prefix + "/mse_loss", static_cast<double>(epoch_loss));
-            metra::log(metra_prefix + "/episode_length", static_cast<double>(mean_episode_length));
-            metra::log(metra_prefix + "/episodes", static_cast<double>(episode_count));
-            metra::log(metra_prefix + "/terminated_share", static_cast<double>(episode_terminated_share));
-            metra::log(metra_prefix + "/complete_episode_length", static_cast<double>(complete_episode_length));
-            metra::log(metra_prefix + "/complete_terminated_share", static_cast<double>(complete_terminated_share));
             metra::log(metra_prefix + "/fps", static_cast<double>(fps));
             metra::log(metra_prefix + "/epoch_time_s", static_cast<double>(epoch_elapsed.count()));
             metra::log(metra_prefix + "/all_reduce_time_s", static_cast<double>(all_reduce_time_s));
@@ -1360,16 +1273,6 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
                 rlt::add_scalar(device, device.logger, "training/state_estimation/orientation_angle_error_rad", epoch_state_estimation_metrics[3]);
                 rlt::add_scalar(device, device.logger, "training/state_estimation/orientation_angle_error_deg", epoch_orientation_angle_error_deg);
             }
-            rlt::add_scalar(device, device.logger, "training/episode_length", mean_episode_length);
-            rlt::add_scalar(device, device.logger, "training/episodes", static_cast<T>(episode_count));
-            if(episode_count_tf > 0){
-                rlt::add_scalar(device, device.logger, "training/teacher/episode_length", mean_episode_length_tf);
-                rlt::add_scalar(device, device.logger, "training/teacher/episodes", static_cast<T>(episode_count_tf));
-            }
-            if(episode_count_student > 0){
-                rlt::add_scalar(device, device.logger, "training/student/episode_length", mean_episode_length_student);
-                rlt::add_scalar(device, device.logger, "training/student/episodes", static_cast<T>(episode_count_student));
-            }
             rlt::add_scalar(device, device.logger, "timing/fps", fps);
             rlt::add_scalar(device, device.logger, "timing/throughput_fps", fps);
             rlt::add_scalar(device, device.logger, "timing/collection_time_s", collection_elapsed.count());
@@ -1381,12 +1284,6 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
             rlt::add_scalar(device, device.logger, "timing/all_reduce_time_s", all_reduce_time_s);
             rlt::add_scalar(device, device.logger, "timing/total_time_s", training_elapsed.count());
             rlt::add_scalar(device, device.logger, "training/teacher_forcing", full_teacher_forcing ? (T)1 : EFFECTIVE_TEACHER_FORCING_FRACTION);
-            rlt::add_scalar(device, device.logger, "training/terminated_share", episode_terminated_share);
-            rlt::add_scalar(device, device.logger, "training/terminated_episodes", static_cast<T>(episode_count_terminated));
-            rlt::add_scalar(device, device.logger, "training/complete_terminated_share", complete_terminated_share);
-            rlt::add_scalar(device, device.logger, "training/complete_episode_length", complete_episode_length);
-            rlt::add_scalar(device, device.logger, "training/complete_episodes", static_cast<T>(complete_episode_count));
-            rlt::add_scalar(device, device.logger, "curriculum/episode_step_limit", static_cast<T>(current_episode_step_limit));
             rlt::add_scalar(device, device.logger, "rendering/anti_aliasing_grid_size", RENDER_ANTI_ALIASING_ACTIVE ? static_cast<T>(RENDER_ANTI_ALIASING_GRID_SIZE) : static_cast<T>(1));
             rlt::add_scalar(device, device.logger, "rendering/motion_blur_samples", RENDER_MOTION_BLUR_ACTIVE ? static_cast<T>(RENDER_MOTION_BLUR_SAMPLES) : static_cast<T>(1));
             rlt::add_scalar(device, device.logger, "rendering/target_frame_roll_pitch_randomization_range", TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE);
@@ -1598,15 +1495,16 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
     // =========================================================================
     {
         std::lock_guard<std::mutex> loading_lock(shared.io_mutex);
-        rlt::free(device, env);
+        rlt::free(device_compute, env);
     }
     delete env_storage;
     rlt::free(device, raptor);
-    rlt::free(device, raptor_state_host);
     rlt::free(device, student_cpu);
     rlt::free(device, reset_mask_host);
     rlt::free(device, terminated_host);
-    rlt::free(device, reset_mask_matrix);
+    rlt::free(device_compute, runner);
+    rlt::free(device_compute, runner_buffer);
+    rlt::free(device_compute, dataset);
     rlt::free(device, states_host);
     rlt::free(device, parameters_trajectory_host);
     rlt::free(device, actions_trajectory_host);
@@ -1621,31 +1519,19 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
         }
         rlt::free(device, consistency_student);
     }
-    for(auto& episode_rng : episode_rngs){
-        rlt::free(device, episode_rng);
-    }
     rlt::free(device, batch_rng);
     rlt::free(device, checkpoint_rng);
     rlt::free(device, rng);
     rlt::free(device_compute, rng_compute);
     rlt::free(device_compute, raptor_compute);
     rlt::free(device_compute, raptor_buffer_compute);
-    rlt::free(device_compute, raptor_state_compute);
     rlt::free(device_compute, student);
     rlt::free(device_compute, student_buffers);
     rlt::free(device_compute, optimizer);
     rlt::free(device_compute, rollout_student);
     rlt::free(device_compute, rollout_student_buffers);
-    rlt::free(device_compute, parameters);
-    rlt::free(device_compute, states);
-    rlt::free(device_compute, next_states);
-    rlt::free(device_compute, reset_mask);
-    rlt::free(device_compute, terminated_flags);
-    rlt::free(device_compute, teacher_observations);
     rlt::free(device_compute, teacher_actions);
-    rlt::free(device_compute, actions_step);
     rlt::free(device_compute, student_output_step);
-    rlt::free(device_compute, all_combined_observations);
     rlt::free(device_compute, all_state_observations);
     rlt::free(device_compute, all_targets);
     rlt::free(device_compute, d_action_train);
@@ -1736,10 +1622,14 @@ int main(int argc, char** argv){
         } catch(const std::exception& error){
             shared.barrier.cancel();
             std::cerr << "Failed to launch imitation ranks: " << error.what() << std::endl;
-            for(auto& thread : threads){ thread.join(); }
+            for(auto& thread : threads){
+                thread.join();
+            }
             return 1;
         }
-        for(auto& thread : threads){ thread.join(); }
+        for(auto& thread : threads){
+            thread.join();
+        }
     }
     return std::any_of(results.begin(), results.end(), [](int result){ return result != 0; }) ? 1 : 0;
 }

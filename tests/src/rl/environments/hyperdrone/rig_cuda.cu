@@ -130,7 +130,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
 
     DEVICE device;
     rlt::init(device);
-    DEVICE_GPU device_gpu;
+    rlt::devices::cuda::TAG<DEVICE_GPU, true> tag_device{};
 
     rlt::rendering::Bundle<T> bundle;
     ASSERT_TRUE((rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, SCENE_PATH)));
@@ -225,7 +225,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
     // device path: kernel producer into the transforms_pair slab
     cudaStream_t render_stream = rlt::stream(device, renderer);
     float* transforms_pair = rlt::data(rlt::transforms_pair(device, renderer));
-    produce_transforms_kernel<<<1, 1, 0, render_stream>>>(device_gpu, params, transforms_pair);
+    produce_transforms_kernel<<<1, 1, 0, render_stream>>>(tag_device, params, transforms_pair);
     ASSERT_EQ(cudaGetLastError(), cudaSuccess);
     rlt::expand_motion_transforms_launch(device, renderer);
     rlt::update_launch(device, renderer);
@@ -281,7 +281,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
             frame_alias._data = static_host.data();
             rlt::copy(renderer.device, device, rlt::frame_buffer(device, renderer), frame_alias);
         }
-        produce_transforms_kernel<<<1, 1, 0, render_stream>>>(device_gpu, static_params, transforms_pair);
+        produce_transforms_kernel<<<1, 1, 0, render_stream>>>(tag_device, static_params, transforms_pair);
         ASSERT_EQ(cudaGetLastError(), cudaSuccess);
         rlt::expand_motion_transforms_launch(device, renderer);
         rlt::update_launch(device, renderer);

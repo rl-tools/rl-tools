@@ -4,192 +4,180 @@
 #define RL_TOOLS_RL_COMPONENTS_ON_POLICY_RUNNER_OPERATIONS_CUDA_H
 
 #include "../../../devices/dummy.h"
-#include "operations_generic.h"
-#include "on_policy_runner.h"
+#include "operations_generic_common.h"
+#include "../../environments/batch/operations_cuda.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace rl::components::on_policy_runner{
-        template<typename DEVICE, typename SPEC, typename ENV_SPEC, typename PARAM_SPEC>
-        __global__
-        void init_kernel(DEVICE device, rl::components::OnPolicyRunner<SPEC> runner, Tensor<ENV_SPEC> environments, Tensor<PARAM_SPEC> parameters){
+        template <typename T_SPEC>
+        struct RunnerStateView {
+            using SPEC = T_SPEC;
+            using RUNNER = rl::components::OnPolicyRunner<SPEC>;
             using TI = typename SPEC::TI;
-            TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
-            if(env_i < SPEC::N_ENVIRONMENTS){
-                auto& src_env = get_ref(device, environments, env_i);
-                auto& src_params = get_ref(device, parameters, env_i);
-                set(runner.environments, 0, env_i, src_env);
-                set(runner.env_parameters, 0, env_i, src_params);
-            }
-        }
-        template<typename DEVICE, typename OBS_PRIV_SPEC, typename OBS_SPEC, typename SPEC, typename RNG>
-        __global__
-        void prologue_kernel(DEVICE device, Tensor<OBS_PRIV_SPEC> observations_privileged, Tensor<OBS_SPEC> observations, rl::components::OnPolicyRunner<SPEC> runner, RNG rng){
-            using TI = typename SPEC::TI;
-            TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
-            static_assert(RNG::NUM_RNGS >= SPEC::N_ENVIRONMENTS, "Please increase the number of CUDA RNGs");
-            if(env_i < SPEC::N_ENVIRONMENTS){
-                auto& rng_state = get(rng.states, 0, env_i);
-                per_env::prologue(device, observations_privileged, observations, runner, rng_state, env_i);
-            }
-        }
-        template<typename DEV_SPEC, typename OBS_PRIV_SPEC, typename OBS_SPEC, typename SPEC, typename RNG>
-        void prologue(devices::CUDA<DEV_SPEC>& device, Tensor<OBS_PRIV_SPEC>& observations_privileged, Tensor<OBS_SPEC>& observations, rl::components::OnPolicyRunner<SPEC>& runner, RNG& rng, typename devices::CUDA<DEV_SPEC>::index_t step_i){
-            using DEVICE = devices::CUDA<DEV_SPEC>;
-            using TI = typename DEVICE::index_t;
-            constexpr TI BLOCKSIZE = 32;
-            constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, BLOCKSIZE);
-            dim3 grid(N_BLOCKS);
-            dim3 block(BLOCKSIZE);
-            devices::cuda::TAG<DEVICE, true> tag_device{};
-            prologue_kernel<<<grid, block, 0, device.stream>>>(tag_device, observations_privileged, observations, runner, rng);
-            check_status(device);
-        }
-        // CUDA + ArrayENGINE: resolves ambiguity with generic ArrayENGINE overload
-        template<typename DEV_SPEC, typename OBS_PRIV_SPEC, typename OBS_SPEC, typename SPEC, typename ARRAY_SPEC>
-        void prologue(devices::CUDA<DEV_SPEC>& device, Tensor<OBS_PRIV_SPEC>& observations_privileged, Tensor<OBS_SPEC>& observations, rl::components::OnPolicyRunner<SPEC>& runner, devices::generic::random::ArrayENGINE<ARRAY_SPEC>& rng, typename devices::CUDA<DEV_SPEC>::index_t step_i){
-            using DEVICE = devices::CUDA<DEV_SPEC>;
-            using TI = typename DEVICE::index_t;
-            constexpr TI BLOCKSIZE = 32;
-            constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, BLOCKSIZE);
-            dim3 grid(N_BLOCKS);
-            dim3 block(BLOCKSIZE);
-            devices::cuda::TAG<DEVICE, true> tag_device{};
-            prologue_kernel<<<grid, block, 0, device.stream>>>(tag_device, observations_privileged, observations, runner, rng);
-            check_status(device);
-        }
-        template<typename DEVICE, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG>
-        __global__
-        void epilogue_kernel(DEVICE device, rl::components::on_policy_runner::Dataset<DATASET_SPEC> dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC> runner, Matrix<ACTIONS_MEAN_SPEC> actions_mean, Matrix<ACTIONS_SPEC> actions, Matrix<ACTION_LOG_STD_SPEC> action_log_std, RNG rng, typename DATASET_SPEC::SPEC::TI step_i){
-            using SPEC = typename DATASET_SPEC::SPEC;
-            using TI = typename SPEC::TI;
-            TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
-            static_assert(RNG::NUM_RNGS >= SPEC::N_ENVIRONMENTS, "Please increase the number of CUDA RNGs");
-            if(env_i < SPEC::N_ENVIRONMENTS){
-                auto& rng_state = get(rng.states, 0, env_i);
-                TI pos = step_i * SPEC::N_ENVIRONMENTS + env_i;
-                per_env::epilogue(device, dataset, runner, actions_mean, actions, action_log_std, rng_state, pos, env_i);
-            }
-        }
-        template<typename DEV_SPEC, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename RNG>
-        void epilogue(devices::CUDA<DEV_SPEC>& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, Matrix<ACTIONS_MEAN_SPEC>& actions_mean, Matrix<ACTIONS_SPEC>& actions, Matrix<ACTION_LOG_STD_SPEC>& action_log_std, RNG& rng, typename devices::CUDA<DEV_SPEC>::index_t step_i){
-            using DEVICE = devices::CUDA<DEV_SPEC>;
-            using SPEC = typename DATASET_SPEC::SPEC;
-            using TI = typename DEVICE::index_t;
-            constexpr TI BLOCKSIZE = 32;
-            constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, BLOCKSIZE);
-            dim3 grid(N_BLOCKS);
-            dim3 block(BLOCKSIZE);
-            devices::cuda::TAG<DEVICE, true> tag_device{};
-            epilogue_kernel<<<grid, block, 0, device.stream>>>(tag_device, dataset, runner, actions_mean, actions, action_log_std, rng, step_i);
-            check_status(device);
-        }
-        // CUDA + ArrayENGINE: resolves ambiguity with generic ArrayENGINE overload
-        template<typename DEV_SPEC, typename DATASET_SPEC, typename ACTIONS_MEAN_SPEC, typename ACTIONS_SPEC, typename ACTION_LOG_STD_SPEC, typename ARRAY_SPEC>
-        void epilogue(devices::CUDA<DEV_SPEC>& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, Matrix<ACTIONS_MEAN_SPEC>& actions_mean, Matrix<ACTIONS_SPEC>& actions, Matrix<ACTION_LOG_STD_SPEC>& action_log_std, devices::generic::random::ArrayENGINE<ARRAY_SPEC>& rng, typename devices::CUDA<DEV_SPEC>::index_t step_i){
-            using DEVICE = devices::CUDA<DEV_SPEC>;
-            using SPEC = typename DATASET_SPEC::SPEC;
-            using TI = typename DEVICE::index_t;
-            constexpr TI BLOCKSIZE = 32;
-            constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, BLOCKSIZE);
-            dim3 grid(N_BLOCKS);
-            dim3 block(BLOCKSIZE);
-            devices::cuda::TAG<DEVICE, true> tag_device{};
-            epilogue_kernel<<<grid, block, 0, device.stream>>>(tag_device, dataset, runner, actions_mean, actions, action_log_std, rng, step_i);
-            check_status(device);
-        }
-        template<typename DEVICE, typename DATASET_SPEC, typename SPEC, typename RNG>
-        __global__
-        void final_observation_kernel(DEVICE device, rl::components::on_policy_runner::Dataset<DATASET_SPEC> dataset, rl::components::OnPolicyRunner<SPEC> runner, RNG rng){
-            using TI = typename SPEC::TI;
-            TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
-            if(env_i < SPEC::N_ENVIRONMENTS){
-                auto& rng_state = get(rng.states, 0, env_i);
-                auto& env = get(runner.environments, 0, env_i);
-                auto& state = get(runner.states, 0, env_i);
-                auto& parameters = get(runner.env_parameters, 0, env_i);
-                auto obs_slice = view(device, dataset.all_observations, (TI)(DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i));
-                auto obs_matrix = matrix_view(device, obs_slice);
-                observe(device, env, parameters, state, typename SPEC::ENVIRONMENT::Observation{}, obs_matrix, rng_state);
-                auto obs_priv_slice = view(device, dataset.all_observations_privileged, (TI)(DATASET_SPEC::STEPS_PER_ENV * SPEC::N_ENVIRONMENTS + env_i));
-                auto obs_priv_matrix = matrix_view(device, obs_priv_slice);
-                observe(device, env, parameters, state, typename SPEC::ENVIRONMENT::ObservationPrivileged{}, obs_priv_matrix, rng_state);
-            }
-        }
-        template<typename DEVICE, typename DATASET_SPEC, typename SPEC>
-        __global__
-        void copy_truncated_to_reset_kernel(DEVICE device, rl::components::on_policy_runner::Dataset<DATASET_SPEC> dataset, rl::components::OnPolicyRunner<SPEC> runner){
-            using TI = typename SPEC::TI;
-            TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
-            if(env_i < SPEC::N_ENVIRONMENTS){
-                set(dataset.reset, env_i, 0, get(runner.truncated, 0, env_i));
-            }
+            Tensor<typename RUNNER::COUNTER_SPEC> episode_step;
+            Tensor<typename RUNNER::FLAG_SPEC> reset;
+            decltype(RUNNER::env_parameters) env_parameters;
+            decltype(RUNNER::states) states;
+        };
+    }
+    template <typename SPEC>
+    rl::components::on_policy_runner::RunnerStateView<SPEC> runner_state_view(rl::components::OnPolicyRunner<SPEC>& runner){
+        return {runner.episode_step, runner.reset, runner.env_parameters, runner.states};
+    }
+    template <typename DEVICE, typename DATASET_SPEC, typename SPEC>
+    __global__ void epilogue_kernel(DEVICE device, rl::components::on_policy_runner::Dataset<DATASET_SPEC> dataset, rl::components::on_policy_runner::RunnerStateView<SPEC> runner, const rl::components::on_policy_runner::Buffer<SPEC> buffer, typename SPEC::TI step_i){
+        using TI = typename SPEC::TI;
+        TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
+        if(env_i < SPEC::N_ENVIRONMENTS){
+            record_transition(device, dataset, runner, get(device, buffer.rewards, env_i), get(device, buffer.terminated, env_i), step_i, env_i);
         }
     }
-    template <typename DEV_SPEC, typename SPEC, typename ENV_SPEC, typename PARAM_SPEC, typename ACTOR, typename RNG>
-    void init(devices::CUDA<DEV_SPEC>& device, rl::components::OnPolicyRunner<SPEC>& runner, Tensor<ENV_SPEC> environments, Tensor<PARAM_SPEC> parameters, ACTOR& actor, RNG& rng){
+    template <typename DEVICE, typename SPEC, typename MASK_SPEC>
+    __global__ void reset_kernel(DEVICE device, rl::components::on_policy_runner::RunnerStateView<SPEC> runner, const Tensor<MASK_SPEC> mask){
+        using TI = typename SPEC::TI;
+        TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
+        if(env_i < SPEC::N_ENVIRONMENTS && get(device, mask, env_i)){
+            reset_episode(device, runner, env_i);
+        }
+    }
+    template <typename DEV_SPEC, typename DATASET_SPEC, typename SPEC>
+    void record_transition(devices::CUDA<DEV_SPEC>& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<SPEC>& runner, const rl::components::on_policy_runner::Buffer<SPEC>& buffer, typename SPEC::TI step_i){
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        using TI = typename SPEC::TI;
+        rl_tools::utils::assert_exit(device, step_i < DATASET_SPEC::STEPS_PER_ENV, "on_policy_runner::epilogue: step index outside the dataset");
+        constexpr TI BLOCKSIZE = 32;
+        constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, BLOCKSIZE);
+        devices::cuda::TAG<DEVICE, true> tag_device{};
+        epilogue_kernel<<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, dataset, runner_state_view(runner), buffer, step_i);
+        check_status(device);
+    }
+    template <typename DEV_SPEC, typename SPEC, typename MASK_SPEC>
+    void reset_mask(devices::CUDA<DEV_SPEC>& device, rl::components::OnPolicyRunner<SPEC>& runner, const Tensor<MASK_SPEC>& mask){
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        using TI = typename SPEC::TI;
+        static_assert(get<0>(typename MASK_SPEC::SHAPE{}) == SPEC::N_ENVIRONMENTS);
+        constexpr TI BLOCKSIZE = 32;
+        constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, BLOCKSIZE);
+        devices::cuda::TAG<DEVICE, true> tag_device{};
+        reset_kernel<<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, runner_state_view(runner), mask);
+        check_status(device);
+    }
+    template <typename DEVICE, typename DATASET_SPEC, typename LOG_STD_SPEC, typename STEP_ACTIONS_SPEC, typename RNG>
+    __global__
+    void sample_actions_kernel(DEVICE device, rl::components::on_policy_runner::Dataset<DATASET_SPEC> dataset, const Matrix<LOG_STD_SPEC> log_std, Tensor<STEP_ACTIONS_SPEC> step_actions, typename DATASET_SPEC::TI step_i, RNG rng){
+        using TI = typename DATASET_SPEC::TI;
+        TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
+        if(env_i < DATASET_SPEC::SPEC::N_ENVIRONMENTS){
+            auto& rng_state = instance_rng<DATASET_SPEC::SPEC::N_ENVIRONMENTS>(rng, env_i);
+            sample_actions_env(device, dataset, log_std, step_actions, step_i, env_i, rng_state);
+        }
+    }
+    template <typename DEV_SPEC, typename DATASET_SPEC, typename LOG_STD_SPEC, typename STEP_ACTIONS_SPEC, typename RNG>
+    void sample_actions(devices::CUDA<DEV_SPEC>& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, const Matrix<LOG_STD_SPEC>& log_std, Tensor<STEP_ACTIONS_SPEC>& step_actions, typename DATASET_SPEC::TI step_i, RNG& rng){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         using TI = typename DEVICE::index_t;
-        set_all(device, runner.episode_step, 0);
-        set_all(device, runner.episode_return, 0);
-        set_all(device, runner.truncated, true);
+        static_assert(RNG::NUM_RNGS >= DATASET_SPEC::SPEC::N_ENVIRONMENTS, "the runner needs one RNG state per environment instance");
         constexpr TI BLOCKSIZE = 32;
-        constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, BLOCKSIZE);
-        dim3 grid(N_BLOCKS);
-        dim3 block(BLOCKSIZE);
+        constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(DATASET_SPEC::SPEC::N_ENVIRONMENTS, BLOCKSIZE);
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        rl::components::on_policy_runner::init_kernel<<<grid, block, 0, device.stream>>>(tag_device, runner, environments, parameters);
+        sample_actions_kernel<<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, dataset, log_std, step_actions, step_i, rng);
         check_status(device);
-        reset(device, actor, runner.policy_state, rng);
-#ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT
-        runner.initialized = true;
-#endif
     }
-    template <typename DEV_SPEC, typename DATASET_SPEC, typename ACTOR, typename ACTOR_BUFFER, typename RNG>
-    void collect(devices::CUDA<DEV_SPEC>& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<typename DATASET_SPEC::SPEC>& runner, ACTOR& actor, ACTOR_BUFFER& policy_eval_buffers, RNG& rng){
-#ifdef RL_TOOLS_DEBUG_RL_COMPONENTS_ON_POLICY_RUNNER_CHECK_INIT
-        utils::assert_exit(device, runner.initialized, "rl::components::on_policy_runner::collect: runner not initialized");
-#endif
-        using DEVICE = devices::CUDA<DEV_SPEC>;
-        using SPEC = typename DATASET_SPEC::SPEC;
-        using T = typename SPEC::TYPE_POLICY::DEFAULT;
-        using TI = typename SPEC::TI;
-        constexpr TI BLOCKSIZE = 32;
-        constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, BLOCKSIZE);
-        dim3 grid(N_BLOCKS);
-        dim3 block(BLOCKSIZE);
-        devices::cuda::TAG<DEVICE, true> tag_device{};
-        if constexpr(SPEC::TRUNCATE_ON_EACH_ITERATION){
-            set_all(device, runner.truncated, true);
+
+    template <typename DEVICE, typename DATASET_SPEC, typename SPEC, typename ENV_SPEC, typename RNG>
+    __global__ void prologue_independent_kernel(DEVICE device, rl::components::on_policy_runner::Dataset<DATASET_SPEC> dataset, rl::components::on_policy_runner::RunnerStateView<SPEC> runner, Tensor<ENV_SPEC> environments, RNG rng){
+        const typename SPEC::TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
+        if(env_i < SPEC::N_ENVIRONMENTS){
+            set(dataset.reset, env_i, 0, get(device, runner.reset, env_i));
+            auto& rng_state = instance_rng<SPEC::N_ENVIRONMENTS>(rng, env_i);
+            observe_instance(device, dataset, get_ref(device, environments, env_i), get_ref(device, runner.env_parameters, env_i), get_ref(device, runner.states, env_i), 0, env_i, rng_state);
         }
-        rl::components::on_policy_runner::copy_truncated_to_reset_kernel<<<grid, block, 0, device.stream>>>(tag_device, dataset, runner);
-        check_status(device);
-        for(TI step_i = 0; step_i < DATASET_SPEC::STEPS_PER_ENV; step_i++){
-            auto actions_mean            = view(device, dataset.actions_mean               , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()                , step_i*SPEC::N_ENVIRONMENTS, 0);
-            auto actions                 = view(device, dataset.actions                    , matrix::ViewSpec<SPEC::N_ENVIRONMENTS, SPEC::ENVIRONMENT::ACTION_DIM>()                , step_i*SPEC::N_ENVIRONMENTS, 0);
-            auto observations_privileged = view_range(device, dataset.all_observations_privileged, step_i*SPEC::N_ENVIRONMENTS, tensor::ViewSpec<0, SPEC::N_ENVIRONMENTS>{});
-            auto observations            = view_range(device, dataset.all_observations          , step_i*SPEC::N_ENVIRONMENTS, tensor::ViewSpec<0, SPEC::N_ENVIRONMENTS>{});
-            auto truncated_view = view(device, runner.truncated);
-            Mode<mode::sequential::ResetMask<mode::Default<>, mode::sequential::ResetMaskSpecification<decltype(truncated_view)>>> mode_reset_mask;
-            mode_reset_mask.mask = truncated_view;
-            reset(device, actor, runner.policy_state, rng, mode_reset_mask);
-            rl::components::on_policy_runner::prologue(device, observations_privileged, observations, runner, rng, step_i);
-            using OBS_SHAPE = typename SPEC::ENVIRONMENT::Observation::SHAPE;
-            using EVAL_INPUT_SHAPE = tensor::Prepend<OBS_SHAPE, SPEC::N_ENVIRONMENTS>;
-            auto observations_reshaped = reshape_row_major(device, observations, EVAL_INPUT_SHAPE{});
-            auto actions_mean_tensor = to_tensor(device, actions_mean);
-            Mode<mode::Rollout<>> mode;
-            evaluate_step(device, actor, observations_reshaped, runner.policy_state, actions_mean_tensor, policy_eval_buffers, rng, mode);
-            auto& last_layer = get_last_layer(actor);
-            auto log_std = matrix_view(device, last_layer.log_std.parameters);
-            rl::components::on_policy_runner::epilogue(device, dataset, runner, actions_mean, actions, log_std, rng, step_i);
+    }
+    template <typename DEVICE, typename DATASET_SPEC, typename SPEC, typename ENV_SPEC, typename RNG>
+    __global__ void epilogue_independent_kernel(DEVICE device, rl::components::on_policy_runner::Dataset<DATASET_SPEC> dataset, rl::components::on_policy_runner::RunnerStateView<SPEC> runner, rl::components::on_policy_runner::Buffer<SPEC> buffer, Tensor<ENV_SPEC> environments, RNG rng, typename SPEC::TI step_i){
+        const typename SPEC::TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
+        if(env_i < SPEC::N_ENVIRONMENTS){
+            auto& environment = get_ref(device, environments, env_i);
+            auto& parameters = get_ref(device, runner.env_parameters, env_i);
+            auto& state = get_ref(device, runner.states, env_i);
+            auto& rng_state = instance_rng<SPEC::N_ENVIRONMENTS>(rng, env_i);
+            auto action = matrix_view(device, view(device, buffer.actions, env_i));
+            typename SPEC::BATCH_ENVIRONMENT::State next_state;
+            step(device, environment, parameters, state, action, next_state, rng_state);
+            const typename SPEC::T transition_reward = reward(device, environment, parameters, state, action, next_state, rng_state);
+            const bool transition_terminated = terminated(device, environment, parameters, next_state, rng_state);
+            get_ref(device, buffer.next_states, env_i) = next_state;
+            set(device, buffer.rewards, transition_reward, env_i);
+            set(device, buffer.terminated, transition_terminated, env_i);
+            state = next_state;
+            record_transition(device, dataset, runner, transition_reward, transition_terminated, step_i, env_i);
+            if constexpr(SPEC::COLLECT_NEXT_OBSERVATIONS){
+                observe_instance(device, environment, parameters, state, typename SPEC::OBSERVATION_PRIVILEGED{}, buffer.next_observations_privileged, env_i, rng_state);
+            }
+            if(get(device, runner.reset, env_i)){
+                reset_instance(device, runner, environments, env_i, rng_state);
+            }
+            observe_instance(device, dataset, environment, parameters, state, step_i + 1, env_i, rng_state);
         }
-        rl::components::on_policy_runner::final_observation_kernel<<<grid, block, 0, device.stream>>>(tag_device, dataset, runner, rng);
+    }
+    template <typename DEVICE, typename SPEC, typename ENV_SPEC, typename RNG>
+    __global__ void reset_independent_kernel(DEVICE device, rl::components::on_policy_runner::RunnerStateView<SPEC> runner, Tensor<ENV_SPEC> environments, RNG rng){
+        const typename SPEC::TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
+        if(env_i < SPEC::N_ENVIRONMENTS){
+            reset_episode(device, runner, env_i);
+            auto& rng_state = instance_rng<SPEC::N_ENVIRONMENTS>(rng, env_i);
+            reset_instance(device, runner, environments, env_i, rng_state);
+        }
+    }
+    template <typename DEVICE, typename SPEC, typename ENV_SPEC, typename MASK_SPEC, typename RNG>
+    __global__ void reset_independent_kernel(DEVICE device, rl::components::on_policy_runner::RunnerStateView<SPEC> runner, Tensor<ENV_SPEC> environments, const Tensor<MASK_SPEC> mask, RNG rng){
+        const typename SPEC::TI env_i = threadIdx.x + blockIdx.x * blockDim.x;
+        if(env_i < SPEC::N_ENVIRONMENTS && get(device, mask, env_i)){
+            reset_episode(device, runner, env_i);
+            auto& rng_state = instance_rng<SPEC::N_ENVIRONMENTS>(rng, env_i);
+            reset_instance(device, runner, environments, env_i, rng_state);
+        }
+    }
+    template <typename DEV_SPEC, typename DATASET_SPEC, typename SPEC, typename BATCH_SPEC, typename RNG>
+    void prologue(devices::CUDA<DEV_SPEC>& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<SPEC>& runner, rl::environments::batch::Independent<BATCH_SPEC>& environment, RNG& rng){
+        static_assert(utils::typing::is_same_v<typename SPEC::BATCH_ENVIRONMENT, rl::environments::batch::Independent<BATCH_SPEC>>);
+        static_assert(utils::typing::is_same_v<typename DATASET_SPEC::SPEC, SPEC>);
+        static_assert(RNG::NUM_RNGS >= SPEC::N_ENVIRONMENTS, "the runner needs one RNG state per environment instance");
+        devices::cuda::TAG<devices::CUDA<DEV_SPEC>, true> tag_device{};
+        prologue_independent_kernel<<<RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, 32), 32, 0, device.stream>>>(tag_device, dataset, runner_state_view(runner), environment.environments, rng);
         check_status(device);
-        runner.step += SPEC::N_ENVIRONMENTS * DATASET_SPEC::STEPS_PER_ENV;
+    }
+    template <typename DEV_SPEC, typename DATASET_SPEC, typename SPEC, typename BATCH_SPEC, typename RNG>
+    void epilogue(devices::CUDA<DEV_SPEC>& device, rl::components::on_policy_runner::Dataset<DATASET_SPEC>& dataset, rl::components::OnPolicyRunner<SPEC>& runner, rl::components::on_policy_runner::Buffer<SPEC>& buffer, rl::environments::batch::Independent<BATCH_SPEC>& environment, RNG& rng, typename SPEC::TI step_i){
+        static_assert(utils::typing::is_same_v<typename SPEC::BATCH_ENVIRONMENT, rl::environments::batch::Independent<BATCH_SPEC>>);
+        static_assert(utils::typing::is_same_v<typename DATASET_SPEC::SPEC, SPEC>);
+        static_assert(RNG::NUM_RNGS >= SPEC::N_ENVIRONMENTS, "the runner needs one RNG state per environment instance");
+        utils::assert_exit(device, step_i < DATASET_SPEC::STEPS_PER_ENV, "on_policy_runner::epilogue: step index outside the dataset");
+        devices::cuda::TAG<devices::CUDA<DEV_SPEC>, true> tag_device{};
+        epilogue_independent_kernel<<<RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, 32), 32, 0, device.stream>>>(tag_device, dataset, runner_state_view(runner), buffer, environment.environments, rng, step_i);
+        check_status(device);
+    }
+    template <typename DEV_SPEC, typename SPEC, typename BATCH_SPEC, typename RNG>
+    void reset(devices::CUDA<DEV_SPEC>& device, rl::components::OnPolicyRunner<SPEC>& runner, rl::environments::batch::Independent<BATCH_SPEC>& environment, RNG& rng){
+        static_assert(utils::typing::is_same_v<typename SPEC::BATCH_ENVIRONMENT, rl::environments::batch::Independent<BATCH_SPEC>>);
+        static_assert(RNG::NUM_RNGS >= SPEC::N_ENVIRONMENTS, "the runner needs one RNG state per environment instance");
+        devices::cuda::TAG<devices::CUDA<DEV_SPEC>, true> tag_device{};
+        reset_independent_kernel<<<RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, 32), 32, 0, device.stream>>>(tag_device, runner_state_view(runner), environment.environments, rng);
+        check_status(device);
+    }
+    template <typename DEV_SPEC, typename SPEC, typename BATCH_SPEC, typename MASK_SPEC, typename RNG>
+    void reset(devices::CUDA<DEV_SPEC>& device, rl::components::OnPolicyRunner<SPEC>& runner, rl::environments::batch::Independent<BATCH_SPEC>& environment, const Tensor<MASK_SPEC>& mask, RNG& rng){
+        static_assert(utils::typing::is_same_v<typename SPEC::BATCH_ENVIRONMENT, rl::environments::batch::Independent<BATCH_SPEC>>);
+        static_assert(RNG::NUM_RNGS >= SPEC::N_ENVIRONMENTS, "the runner needs one RNG state per environment instance");
+        static_assert(length(typename MASK_SPEC::SHAPE{}) == 1 && get<0>(typename MASK_SPEC::SHAPE{}) == SPEC::N_ENVIRONMENTS);
+        devices::cuda::TAG<devices::CUDA<DEV_SPEC>, true> tag_device{};
+        reset_independent_kernel<<<RL_TOOLS_DEVICES_CUDA_CEIL(SPEC::N_ENVIRONMENTS, 32), 32, 0, device.stream>>>(tag_device, runner_state_view(runner), environment.environments, mask, rng);
+        check_status(device);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
+
 #include "operations_generic.h"
 
 #endif

@@ -110,6 +110,7 @@ static constexpr PARAMETERS_TYPE nominal_parameters = {
 static constexpr TI ACTION_HISTORY_LENGTH = 1;
 
 struct STATIC_PARAMETERS {
+    static constexpr auto ACTION_INTERFACE = l2f::parameters::ActionInterface::DIRECT_MOTOR;
     static constexpr TI N_SUBSTEPS = 1;
     static constexpr TI CLOSED_FORM = false;
     static constexpr TI EPISODE_STEP_LIMIT = ::EPISODE_STEP_LIMIT;
@@ -277,16 +278,13 @@ int main(int argc, char** argv){
     }
 
     // 2. Wire every env to the shared renderer (non-owning references)
-    auto& env0 = rlt::get_ref(device, ts.envs, static_cast<TI>(0));
+    auto& env0 = rlt::get_ref(device, ts.environment.environments, static_cast<TI>(0));
     for (TI env_i = 0; env_i < NUM_ENVS; env_i++) {
-        auto& env = rlt::get_ref(device, ts.envs, env_i);
+        auto& env = rlt::get_ref(device, ts.environment.environments, env_i);
         env.renderer = renderer;
         env.annotations = annotations;
         env.use_target_mode = true;
     }
-
-    // 3. Init
-    rlt::init(device, ts, seed);
 
     // 5. Pick target position from precomputed indoor positions
     if (env0.annotations->num_positions > 0) {
@@ -301,13 +299,14 @@ int main(int argc, char** argv){
         rlt::log(device, device.logger, "Target scene position: [",
             target_translation[0], ", ", target_translation[1], ", ", target_translation[2], "]");
         for (TI env_i = 0; env_i < NUM_ENVS; env_i++) {
-            auto& params = rlt::get_ref(device, ts.env_parameters, env_i);
+            auto& params = rlt::get_ref(device, ts.environment.environments, env_i).parameters;
             for (TI j = 0; j < 3; j++) {
                 params.scene_translation[j] = target_translation[j];
             }
         }
-        rlt::init(device, ts.on_policy_runner, ts.envs, ts.env_parameters, ts.ppo.actor, ts.rng);
     }
+
+    rlt::init(device, ts, seed);
 
     // 6. Training loop
     rlt::log(device, device.logger, "Starting PPO training (visual L2F hover)");
@@ -323,7 +322,7 @@ int main(int argc, char** argv){
 
     // 7. Cleanup: detach shared renderer+annotations from env[1..N-1] before free
     for (TI env_i = 1; env_i < NUM_ENVS; env_i++) {
-        auto& env = rlt::get_ref(device, ts.envs, env_i);
+        auto& env = rlt::get_ref(device, ts.environment.environments, env_i);
         env.renderer = nullptr;
         env.annotations = nullptr;
     }
