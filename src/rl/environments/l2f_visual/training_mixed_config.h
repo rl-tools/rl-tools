@@ -26,6 +26,9 @@ namespace l2f = rlt::rl::environments::l2f;
 namespace obs = l2f::observation;
 
     using REWARD_FUNCTION = l2f::parameters::reward_functions::Squared<T>;
+    static constexpr T GYRO_CALIBRATION_RESIDUAL_STD = static_cast<T>(0.001);
+    static constexpr T IMITATION_POSITION_LIMIT = static_cast<T>(0.2);
+    static constexpr T IMITATION_ANGLE_LIMIT = static_cast<T>(0.05);
     static constexpr TI SIMULATION_FREQUENCY = 100;
     static constexpr TI EPISODE_STEP_LIMIT = 10000;
     using PARAMETERS_SPEC = l2f::ParametersBaseSpecification<T, TI, 4, EPISODE_STEP_LIMIT, REWARD_FUNCTION>;
@@ -115,7 +118,10 @@ namespace obs = l2f::observation;
         using STATE_BASE_LA = l2f::StateLinearAcceleration<l2f::StateSpecification<T, TI, STATE_BASE>>;
         using STATE_BASE_LAH = l2f::StateLinearAccelerationHistory<l2f::StateLinearAccelerationHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, STATE_BASE_LA>>;
         using STATE_BASE_GB = l2f::StateIMU<T, TI, STATE_BASE_LAH>;
-        using STATE_BASE_MAHONY = l2f::StateMahony<l2f::StateMahonySpecification<T, TI, STATE_BASE_GB>>;
+        struct MAHONY_PARAMETERS: l2f::StateMahonySpecification<T, TI, STATE_BASE_GB>{
+            static constexpr T KI = static_cast<T>(0.01);
+        };
+        using STATE_BASE_MAHONY = l2f::StateMahony<MAHONY_PARAMETERS>;
         using STATE_BASE_CTBR = l2f::StateCTBRController<l2f::StateSpecification<T, TI, STATE_BASE_MAHONY>>;
         using STATE_TYPE = l2f::StateRotorsHistory<l2f::StateRotorsHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, CLOSED_FORM, l2f::StateRandomForce<l2f::StateSpecification<T, TI, l2f::StateLastAction<l2f::StateSpecification<T, TI, STATE_BASE_CTBR>>>>>>;
         using OBSERVATION_TYPE = obs::Position<obs::PositionSpecification<T, TI,
@@ -143,7 +149,7 @@ namespace obs = l2f::observation;
     };
 
     using ACTOR_ACCEL_OBS = obs::LinearAccelerationBodyFrameHistory<obs::LinearAccelerationBodyFrameHistorySpecification<T, TI, ACTION_HISTORY_LENGTH>>;
-    using ACTOR_STATE_OBS = obs::OrientationWorldZ<obs::OrientationWorldZSpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, ACTOR_ACCEL_OBS>>>>>>;
+    using ACTOR_STATE_OBS = obs::OrientationMahonyWorldZ<obs::OrientationMahonyWorldZSpecification<T, TI, obs::AngularVelocity<obs::AngularVelocitySpecification<T, TI, obs::ActionHistory<obs::ActionHistorySpecification<T, TI, ACTION_HISTORY_LENGTH, ACTOR_ACCEL_OBS>>>>>>;
     static constexpr TI STATE_OBS_DIM = ACTOR_STATE_OBS::DIM + 3;
     using INERTIAL_SPEC = rlt::rl::environments::l2f_visual::inertial_velocity::Specification<TYPE_POLICY, TI>;
     using INERTIAL_STATE = rlt::rl::environments::l2f_visual::inertial_velocity::State<INERTIAL_SPEC>;
@@ -169,7 +175,7 @@ namespace mixed_imitation = rlt::rl::algorithms::ppo::mixed_imitation;
     static constexpr TI CAM_WIDTH = 80;
     static constexpr TI CAM_HEIGHT = 50;
     static constexpr TI NUM_PROBES = 64;
-    static constexpr T CAMERA_FOV = 160;
+    static constexpr T CAMERA_FOV = 90;
     static constexpr T CAMERA_PITCH = static_cast<T>(0) * rlt::math::PI<T> / static_cast<T>(180);
     static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = static_cast<T>(5.0);
     static constexpr T CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_X = static_cast<T>(0.01);
@@ -194,8 +200,6 @@ namespace mixed_imitation = rlt::rl::algorithms::ppo::mixed_imitation;
     static_assert(VISUAL_SPEC::RENDERER_SPEC::SHADING::PBR_SHADING, "l2f visual training must use the High renderer profile");
     using ENVIRONMENT = rlt::rl::environments::l2f_visual::MultirrotorVisual<VISUAL_SPEC>;
     using CAMERA_DATA = rlt::rendering::raytracing::Camera<T>;
-    using LEVEL_CAMERA_SPEC = rlt::rl::environments::l2f_visual::level_camera::Specification<TYPE_POLICY, TI, CAM_WIDTH, CAM_HEIGHT>;
-    using LEVEL_CAMERA = rlt::rl::environments::l2f_visual::level_camera::Camera<LEVEL_CAMERA_SPEC>;
     static constexpr bool RENDER_MOTION_BLUR_ACTIVE = ENVIRONMENT::SPEC::RENDERER_SPEC::ENABLE_MOTION_BLUR;
     static constexpr bool RENDER_ANTI_ALIASING_ACTIVE = ENVIRONMENT::SPEC::RENDERER_SPEC::ENABLE_ANTI_ALIASING;
 

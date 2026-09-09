@@ -70,7 +70,6 @@
 #include <rl_tools/nn_models/parallel/persist_code.h>
 
 #include <rl_tools/rl/environments/l2f_visual/operations_generic_inertial_velocity.h>
-#include <rl_tools/rl/environments/l2f_visual/operations_generic_level_camera.h>
 #include <rl_tools/rl/environments/l2f_visual/operations_generic_position_hold.h>
 
 #include <array>
@@ -309,20 +308,13 @@ namespace rl_tools{
             }
             sample_initial_parameters(device, env, params, rng_state);
             if constexpr(mode::is<MODE, mode::Evaluation>){
-                if constexpr(mode::is<MODE, hold_evaluation::Teacher>){
-                    params.dynamics.mdp.init.guidance = 0;
-                    params.dynamics.mdp.init.max_position = 0.2;
-                    params.dynamics.mdp.init.max_linear_velocity = 0.2;
-                }
-                else{
-                    params.dynamics.mdp.init.guidance = 1;
-                }
+                params.dynamics.mdp.init.guidance = 1;
             }
             if constexpr(mode::is<MODE, mode::l2f_visual::IndependentPose>){
                 if(is_imitation_sample(device, MIXED_SPEC{}, env_i)){
                     params.dynamics.mdp.init.guidance = 0;
-                    params.dynamics.mdp.init.max_position = static_cast<T>(0.03);
-                    params.dynamics.mdp.init.max_angle = static_cast<T>(0.015);
+                    params.dynamics.mdp.init.max_position = IMITATION_POSITION_LIMIT;
+                    params.dynamics.mdp.init.max_angle = IMITATION_ANGLE_LIMIT;
                     params.dynamics.mdp.init.max_linear_velocity = 0;
                     params.dynamics.mdp.init.max_angular_velocity = 0;
                 }
@@ -382,20 +374,34 @@ namespace rl_tools{
             auto state_obs_slice = view(device, state_observations, env_i);
             auto state_obs_matrix = matrix_view(device, state_obs_slice);
             auto base_observations = view(device, state_obs_matrix, matrix::ViewSpec<1, ACTOR_STATE_OBS::DIM>{}, 0, 0);
+            for(TI axis = 0; axis < 3; axis++){
+                T calibration_error = random::normal_distribution::sample(typename DEVICE::SPEC::RANDOM{}, static_cast<T>(0), GYRO_CALIBRATION_RESIDUAL_STD, rng_state);
+                if(reset_for_render){
+                    state.bias_estimate[axis] = state.gyro_bias[axis] + calibration_error;
+                }
+            }
             observe(device, env.dynamics, params.dynamics, state, ACTOR_STATE_OBS{}, base_observations, rng_state);
             if(reset_for_render){
                 set(base_observations, 0, 40, static_cast<T>(9.81));
             }
+            T corrected_gyro[3];
+            for(TI axis = 0; axis < 3; axis++){
+                if(reset_for_render){
+                    state.gyro[axis] = get(base_observations, 0, 3 + axis);
+                }
+                corrected_gyro[axis] = state.gyro[axis] - state.bias_estimate[axis];
+                set(base_observations, 0, 3 + axis, corrected_gyro[axis]);
+            }
             auto& inertial_state = inertial_states[env_i];
             if(reset_for_render){
-                init(device, inertial_state, state.gyro);
+                init(device, inertial_state, corrected_gyro);
             }
             else{
                 T world_z_body[3];
                 for(TI axis = 0; axis < 3; axis++){
                     world_z_body[axis] = get(base_observations, 0, axis);
                 }
-                step(device, inertial_state, world_z_body, state.accelerometer, state.gyro, params.dynamics.integration.dt);
+                step(device, inertial_state, world_z_body, state.accelerometer, corrected_gyro, params.dynamics.integration.dt);
             }
             for(TI axis = 0; axis < 3; axis++){
                 set(state_obs_matrix, 0, ACTOR_STATE_OBS::DIM + axis, inertial_state.velocity[axis]);
@@ -622,46 +628,6 @@ __global__ void scatter_pixel_to_float_kernel(
 }
 
 namespace rl_tools{
-    template<typename DEVICE>
-    __global__ void init_level_cameras_kernel(DEVICE device, const ENVIRONMENT::Parameters* parameters, const T* observations, LEVEL_CAMERA* cameras){
-        const TI sample = blockIdx.x * blockDim.x + threadIdx.x;
-        if(sample >= N_ENVIRONMENTS){
-            return;
-        }
-        const auto& calibration = parameters[sample];
-        init(device, cameras[sample], observations + sample * STATE_OBS_DIM, calibration.camera_mount.forward_body, calibration.camera_mount.up_body, calibration.fov);
-    }
-    template<typename DEVICE>
-    __global__ void rectify_images_kernel(DEVICE device, const LEVEL_CAMERA* cameras, const T* input, T* output){
-        const TI index = blockIdx.x * blockDim.x + threadIdx.x;
-        if(index >= N_ENVIRONMENTS * CAM_HEIGHT * CAM_WIDTH){
-            return;
-        }
-        const TI sample = index / (CAM_HEIGHT * CAM_WIDTH);
-        const TI pixel = index % (CAM_HEIGHT * CAM_WIDTH);
-        T source_x, source_y;
-        project(device, cameras[sample], static_cast<T>(pixel % CAM_WIDTH), static_cast<T>(pixel / CAM_WIDTH), source_x, source_y);
-        source_x = math::clamp(device.math, source_x, static_cast<T>(0), static_cast<T>(CAM_WIDTH - 1));
-        source_y = math::clamp(device.math, source_y, static_cast<T>(0), static_cast<T>(CAM_HEIGHT - 1));
-        const TI ix = static_cast<TI>(math::min(device.math, source_x, static_cast<T>(CAM_WIDTH - 2)));
-        const TI iy = static_cast<TI>(math::min(device.math, source_y, static_cast<T>(CAM_HEIGHT - 2)));
-        const T fx = source_x - static_cast<T>(ix);
-        const T fy = source_y - static_cast<T>(iy);
-        for(TI channel = 0; channel < 3; channel++){
-            T color = 0;
-            for(TI dy = 0; dy < 2; dy++){
-                for(TI dx = 0; dx < 2; dx++){
-                    const T weight = (dx == 0 ? 1 - fx : fx) * (dy == 0 ? 1 - fy : fy);
-                    color += weight * input[(sample * CAM_HEIGHT * CAM_WIDTH + (iy + dy) * CAM_WIDTH + ix + dx) * 3 + channel];
-                }
-            }
-            output[index * 3 + channel] = color;
-        }
-    }
-
-}
-
-namespace rl_tools{
 __global__ void build_frame_stacked_with_target_from_history_kernel(
     const float* __restrict__ history_obs,
     const float* __restrict__ target_obs,
@@ -848,7 +814,7 @@ int run(int argc, char** argv, rlt::Mode<MODE> mode){
 
     rlt::utils::extrack::Config<TI> extrack_config;
     rlt::utils::extrack::Paths extrack_paths;
-    extrack_config.name = "l2f_visual_patch64_down0_fov160_aa2train_aa4eval";
+    extrack_config.name = "l2f_visual_patch64_raw_fov90_cal1mrad_ki10_il20_a05_aa2train_aa4eval";
     if constexpr(EVALUATION){
         extrack_config.name += "_evaluation";
     }
@@ -859,6 +825,17 @@ int run(int argc, char** argv, rlt::Mode<MODE> mode){
         nlohmann::json camera_setup;
         camera_setup["nominal_pitch_degrees"] = CAMERA_PITCH * 180 / rlt::math::PI<T>;
         camera_setup["nominal_fov_degrees"] = CAMERA_FOV;
+        camera_setup["image_rectification"] = false;
+        camera_setup["gravity_direction_source"] = "mahony";
+        camera_setup["imitation_position_limit_m"] = IMITATION_POSITION_LIMIT;
+        camera_setup["imitation_angle_limit_rad"] = IMITATION_ANGLE_LIMIT;
+        camera_setup["diagnostic_teacher_initialization"] = "normal_at_target";
+        camera_setup["diagnostic_same_state_teacher_actions"] = true;
+        camera_setup["mahony_kp"] = STATIC_PARAMETERS::STATE_BASE_MAHONY::KP;
+        camera_setup["mahony_ki"] = STATIC_PARAMETERS::STATE_BASE_MAHONY::KI;
+        camera_setup["gyro_bias_correction"] = "mahony_bias_estimate";
+        camera_setup["gyro_startup_calibration"] = "stationary_mean_with_gaussian_residual";
+        camera_setup["gyro_calibration_residual_std_rad_s"] = GYRO_CALIBRATION_RESIDUAL_STD;
         camera_setup["fov_randomization_degrees"] = CAMERA_FOV_RANDOMIZATION_RANGE;
         camera_setup["width"] = CAM_WIDTH;
         camera_setup["height"] = CAM_HEIGHT;
@@ -1195,8 +1172,6 @@ int run(int argc, char** argv, rlt::Mode<MODE> mode){
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, FRAME_STACK_HISTORY_LENGTH * N_ENVIRONMENTS, OBSERVATION_DIM>>> gpu_frame_stack_history;
     malloc(device_gpu, gpu_frame_stack_history);
-    Tensor<tensor::Specification<LEVEL_CAMERA, TI, tensor::Shape<TI, N_ENVIRONMENTS>>> level_cameras_gpu;
-    malloc(device_gpu, level_cameras_gpu);
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, N_ENVIRONMENTS, COMBINED_OBS_DIM>>> gpu_rollout_combined;
     malloc(device_gpu, gpu_rollout_combined);
@@ -1359,10 +1334,14 @@ int run(int argc, char** argv, rlt::Mode<MODE> mode){
     std::array<std::array<double, 3>, N_ENVIRONMENTS> position_sum{}, initial_position_sum{}, final_position_sum{};
     std::array<TI, N_ENVIRONMENTS> initial_window_samples{}, final_window_samples{};
     std::array<TI, N_ENVIRONMENTS> evaluation_samples{};
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, STEPS_TOTAL, STATE_OBS_DIM>>> evaluation_state_observations;
+    if constexpr(EVALUATION){
+        malloc(device, evaluation_state_observations);
+    }
     std::ofstream evaluation_trace;
     if constexpr(EVALUATION){
         evaluation_trace.open(extrack_paths.seed / "evaluation.csv");
-        evaluation_trace << "time,environment,x,y,z,r00,r01,r02,r10,r11,r12,r20,r21,r22,vx,vy,vz,wx,wy,wz,action0,action1,action2,action3,terminated\n";
+        evaluation_trace << "time,environment,x,y,z,r00,r01,r02,r10,r11,r12,r20,r21,r22,vx,vy,vz,wx,wy,wz,action0,action1,action2,action3,terminated,teacher_action0,teacher_action1,teacher_action2,teacher_action3,estimated_up_x,estimated_up_y,estimated_up_z,corrected_gyro_x,corrected_gyro_y,corrected_gyro_z,estimated_vx,estimated_vy,estimated_vz\n";
     }
     const TI run_steps = EVALUATION ? (evaluation_steps + STEPS_PER_ENV - 1) / STEPS_PER_ENV : N_PPO_STEPS;
     for(TI ppo_step_i = 0; ppo_step_i < run_steps; ppo_step_i++){
@@ -1439,7 +1418,7 @@ int run(int argc, char** argv, rlt::Mode<MODE> mode){
         }
 
         if(scene_set_boundary){
-            record_video_scene_set = EVALUATION && !rlt::mode::is<MODE, hold_evaluation::Recovery> && !rlt::mode::is<MODE, hold_evaluation::Teacher>;
+            record_video_scene_set = EVALUATION && !rlt::mode::is<MODE, hold_evaluation::Recovery>;
         }
         if(record_video_scene_set && ffmpeg_pipe == nullptr){
             TI video_step = EVALUATION ? evaluation_steps * N_ENVIRONMENTS : environment_step + N_ENVIRONMENTS * STEPS_PER_ENV * ROLLOUTS_PER_SCENE_SET;
@@ -1485,6 +1464,35 @@ int run(int argc, char** argv, rlt::Mode<MODE> mode){
                 gpu_episode_start_step,
                 rng_gpu, step_i, frame_step_i, rng_offset, mode);
             check_status(device_gpu);
+            if constexpr(EVALUATION){
+                if(frame_step_i == 0){
+                    std::vector<typename ENVIRONMENT::State> startup_states(N_ENVIRONMENTS);
+                    std::vector<INERTIAL_STATE> startup_observers(N_ENVIRONMENTS);
+                    std::vector<T> startup_observations(N_ENVIRONMENTS * STATE_OBS_DIM);
+                    cudaStreamSynchronize(device_gpu.stream);
+                    cudaMemcpy(startup_states.data(), gpu_states_arr, startup_states.size() * sizeof(typename ENVIRONMENT::State), cudaMemcpyDeviceToHost);
+                    cudaMemcpy(startup_observers.data(), data(inertial_states_gpu), startup_observers.size() * sizeof(INERTIAL_STATE), cudaMemcpyDeviceToHost);
+                    cudaMemcpy(startup_observations.data(), data(state_observations), startup_observations.size() * sizeof(T), cudaMemcpyDeviceToHost);
+                    check_status(device_gpu);
+                    nlohmann::json startup = nlohmann::json::array();
+                    for(TI env_i = 0; env_i < N_ENVIRONMENTS; env_i++){
+                        const auto& sensor_state = startup_states[env_i];
+                        nlohmann::json row;
+                        row["environment"] = env_i;
+                        for(TI axis = 0; axis < 3; axis++){
+                            row["physical_bias"].push_back(sensor_state.gyro_bias[axis]);
+                            row["bias_estimate"].push_back(sensor_state.bias_estimate[axis]);
+                            row["true_angular_velocity"].push_back(sensor_state.angular_velocity[axis]);
+                            row["raw_gyro"].push_back(sensor_state.gyro[axis]);
+                            row["policy_gyro"].push_back(startup_observations[env_i * STATE_OBS_DIM + 3 + axis]);
+                            row["observer_previous_gyro"].push_back(startup_observers[env_i].previous_gyro[axis]);
+                        }
+                        startup.push_back(row);
+                    }
+                    std::ofstream startup_output(extrack_paths.seed / "sensor_startup.json");
+                    startup_output << startup.dump(2) << '\n';
+                }
+            }
             if constexpr(MIXED_TRAINING){
                 geometric_teacher_kernel<<<grid, block, 0, device_gpu.stream>>>(tag_device, gpu_params_arr, gpu_states_arr, data(state_observations), data(teacher_actions_gpu) + step_i * N_ENVIRONMENTS * ACTION_DIM);
             }
@@ -1534,9 +1542,9 @@ int run(int argc, char** argv, rlt::Mode<MODE> mode){
             }
             {
                 TI history_slot = frame_step_i % FRAME_STACK_HISTORY_LENGTH;
-                T* history_slot_ptr = data(gpu_frame_stack_history) + (TI)(history_slot * N_ENVIRONMENTS) * OBSERVATION_DIM;
-                init_level_cameras_kernel<<<(N_ENVIRONMENTS + 255) / 256, 256, 0, device_gpu.stream>>>(tag_device, gpu_params_arr, data(state_observations), data(level_cameras_gpu));
-                rectify_images_kernel<<<(N_ENVIRONMENTS * CAM_HEIGHT * CAM_WIDTH + 255) / 256, 256, 0, device_gpu.stream>>>(tag_device, data(level_cameras_gpu), obs_ptr, history_slot_ptr);
+                auto current_images = view_range(device_gpu, dataset_gpu.all_observations, step_i * N_ENVIRONMENTS, tensor::ViewSpec<0, N_ENVIRONMENTS>{});
+                auto history_images = view_range(device_gpu, gpu_frame_stack_history, history_slot * N_ENVIRONMENTS, tensor::ViewSpec<0, N_ENVIRONMENTS>{});
+                copy(device_gpu, device_gpu, current_images, history_images);
             }
 
             l2f_visual_make_target_cameras_kernel<<<grid, block, 0, device_gpu.stream>>>(
@@ -1723,6 +1731,10 @@ int run(int argc, char** argv, rlt::Mode<MODE> mode){
             copy(device_gpu, device, gpu_obs_priv, cpu_obs_priv);
         }
         if constexpr(EVALUATION){
+            copy(device_gpu, device, gpu_all_state_observations, evaluation_state_observations);
+            copy(device_gpu, device, teacher_actions_gpu, teacher_actions);
+            auto diagnostic_observations = matrix_view(device, evaluation_state_observations);
+            auto diagnostic_teacher_actions = matrix_view(device, teacher_actions);
             auto observations = matrix_view(device, dataset.all_observations_privileged);
             for(TI step_i = 0; step_i < STEPS_PER_ENV; step_i++){
                 const TI time_step = ppo_step_i * STEPS_PER_ENV + step_i;
@@ -1742,7 +1754,17 @@ int run(int argc, char** argv, rlt::Mode<MODE> mode){
                         for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
                             evaluation_trace << ',' << get(dataset.actions, row_i, action_i);
                         }
-                        evaluation_trace << ',' << get(dataset.terminated, row_i, 0) << '\n';
+                        evaluation_trace << ',' << get(dataset.terminated, row_i, 0);
+                        for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
+                            evaluation_trace << ',' << get(diagnostic_teacher_actions, row_i, action_i);
+                        }
+                        for(TI column = 0; column < 6; column++){
+                            evaluation_trace << ',' << get(diagnostic_observations, row_i, column);
+                        }
+                        for(TI axis = 0; axis < 3; axis++){
+                            evaluation_trace << ',' << get(diagnostic_observations, row_i, ACTOR_STATE_OBS::DIM + axis);
+                        }
+                        evaluation_trace << '\n';
                     }
                     bool finite = true;
                     for(TI column = 0; column < 18; column++){
@@ -2385,11 +2407,16 @@ int run(int argc, char** argv, rlt::Mode<MODE> mode){
                 char fov_buf[32];
                 std::snprintf(fov_buf, sizeof(fov_buf), "%.6g", (double)envs[0].parameters.fov);
                 std::string state_obs_string = rlt::string(device, envs[0].dynamics, ACTOR_STATE_OBS{});
+                const auto gyro_observation = state_obs_string.find("AngularVelocity");
+                if(gyro_observation == std::string::npos){
+                    throw std::runtime_error("Missing gyro observation metadata");
+                }
+                state_obs_string.replace(gyro_observation, std::string("AngularVelocity").size(), "GyroscopeMahonyBiasCorrected");
                 std::string image_obs_string = std::string("CameraRGBStackedWithTarget(") + fov_buf + ", "
                     + std::to_string(CAM_HEIGHT) + ", " + std::to_string(CAM_WIDTH) + ", "
                     + std::to_string(FRAME_STACK_STRIDE) + ", " + std::to_string(FRAME_STACK_N) + ")";
                 std::string obs_string = image_obs_string + ", " + state_obs_string;
-                std::string rendering_string = std::string("{\"anti_aliasing\": ") + (RENDER_ANTI_ALIASING_ACTIVE ? "true" : "false")
+                std::string rendering_string = std::string("{\"imitation_position_limit_m\": ") + (std::to_string(IMITATION_POSITION_LIMIT) + ", \"imitation_angle_limit_rad\": " + std::to_string(IMITATION_ANGLE_LIMIT)) + std::string(", \"gyro_bias_correction\": \"mahony_bias_estimate\", \"gyro_startup_calibration\": \"stationary_mean_with_gaussian_residual\", \"gyro_calibration_residual_std_rad_s\": ") + std::to_string(GYRO_CALIBRATION_RESIDUAL_STD) + ", \"image_rectification\": false, \"anti_aliasing\": " + (RENDER_ANTI_ALIASING_ACTIVE ? "true" : "false")
                     + ", \"anti_aliasing_grid_size\": " + std::to_string(RENDER_ANTI_ALIASING_ACTIVE ? RENDER_ANTI_ALIASING_GRID_SIZE : (TI)1)
                     + ", \"evaluation_default_anti_aliasing_grid_size\": " + std::to_string(RENDER_ENABLE_ANTI_ALIASING ? RENDER_ANTI_ALIASING_GRID_SIZE_EVALUATION : (TI)1)
                     + ", \"motion_blur\": " + (RENDER_MOTION_BLUR_ACTIVE ? "true" : "false")
@@ -2618,10 +2645,12 @@ int run(int argc, char** argv, rlt::Mode<MODE> mode){
     free(device_gpu, critic_optimizer_gpu);
     free(device_gpu, gpu_all_target_observations);
     free(device_gpu, gpu_frame_stack_history);
-    free(device_gpu, level_cameras_gpu);
     free(device_gpu, gpu_rollout_combined);
     free(device_gpu, gpu_combined_batch);
 
+    if constexpr(EVALUATION){
+        free(device, evaluation_state_observations);
+    }
     free(device_gpu, gpu_all_state_observations);
     free(device_gpu, inertial_states_gpu);
     free(device_gpu, gpu_actions_eval);
