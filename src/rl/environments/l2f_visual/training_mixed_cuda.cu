@@ -848,13 +848,29 @@ int run(int argc, char** argv, rlt::Mode<MODE> mode){
 
     rlt::utils::extrack::Config<TI> extrack_config;
     rlt::utils::extrack::Paths extrack_paths;
-    extrack_config.name = "l2f_visual_training_mixed_patch64";
+    extrack_config.name = "l2f_visual_patch64_down45_fov110_aa2train_aa4eval";
     if constexpr(EVALUATION){
         extrack_config.name += "_evaluation";
     }
     extrack_config.population_variates = "algorithm_environments_accumulation";
     extrack_config.population_values = std::string(MIXED_TRAINING ? "mixed_" : "on-policy_") + std::to_string(N_ENVIRONMENTS) + "_" + std::to_string(GRADIENT_ACCUMULATION_ROLLOUTS);
     init(device, extrack_config, extrack_paths, seed);
+    {
+        nlohmann::json camera_setup;
+        camera_setup["nominal_pitch_degrees"] = CAMERA_PITCH * 180 / rlt::math::PI<T>;
+        camera_setup["nominal_fov_degrees"] = CAMERA_FOV;
+        camera_setup["fov_randomization_degrees"] = CAMERA_FOV_RANDOMIZATION_RANGE;
+        camera_setup["width"] = CAM_WIDTH;
+        camera_setup["height"] = CAM_HEIGHT;
+        camera_setup["observer_time_constant_seconds"] = INERTIAL_SPEC::TIME_CONSTANT;
+        camera_setup["anti_aliasing_grid_size"] = RENDER_ANTI_ALIASING_ACTIVE ? RENDER_ANTI_ALIASING_GRID_SIZE : static_cast<TI>(1);
+        camera_setup["training_default_anti_aliasing_grid_size"] = RENDER_ENABLE_ANTI_ALIASING ? RENDER_ANTI_ALIASING_GRID_SIZE_TRAINING : static_cast<TI>(1);
+        camera_setup["evaluation_default_anti_aliasing_grid_size"] = RENDER_ENABLE_ANTI_ALIASING ? RENDER_ANTI_ALIASING_GRID_SIZE_EVALUATION : static_cast<TI>(1);
+        std::ofstream output(extrack_paths.seed / "camera_setup.json");
+        output << camera_setup.dump(2) << '\n';
+        output.close();
+        rlt::utils::assert_exit(device, output.good(), "Could not save camera setup");
+    }
 
     RNG rng;
     malloc(device, rng);
@@ -962,6 +978,8 @@ int run(int argc, char** argv, rlt::Mode<MODE> mode){
         envs[env_i].annotations = annotations[scene_i];
         envs[env_i].use_target_mode = true;
         envs[env_i].parameters.fov = CAMERA_FOV;
+        const T nominal_camera_pitch_axis[3] = {0, 1, 0};
+        rotate_camera_mount(device, envs[env_i].parameters.camera_mount, nominal_camera_pitch_axis, CAMERA_PITCH);
         envs[env_i].parameters.camera_randomization.fov_range = CAMERA_FOV_RANDOMIZATION_RANGE;
         envs[env_i].parameters.camera_randomization.offset_body_range[0] = CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_X;
         envs[env_i].parameters.camera_randomization.offset_body_range[1] = CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_Y;
@@ -1276,6 +1294,8 @@ int run(int argc, char** argv, rlt::Mode<MODE> mode){
             add_scalar(device, device.logger, (std::string("mixed/config/") + key).c_str(), value);
             metra::log(std::string("l2f_visual_training_mixed/config/") + key, static_cast<double>(value));
         };
+        log_config("nominal_camera_pitch_degrees", CAMERA_PITCH * 180 / rlt::math::PI<T>);
+        log_config("nominal_camera_fov_degrees", CAMERA_FOV);
         log_config("imitation_share", static_cast<T>(MIXED_SPEC::IMITATION_BATCH_SIZE) / BATCH_SIZE);
         log_config("teacher_forcing_updates", MIXED_PARAMETERS::TEACHER_FORCING_UPDATES);
         log_config("imitation_weight", MIXED_PARAMETERS::IMITATION_WEIGHT);
@@ -2371,6 +2391,7 @@ int run(int argc, char** argv, rlt::Mode<MODE> mode){
                 std::string obs_string = image_obs_string + ", " + state_obs_string;
                 std::string rendering_string = std::string("{\"anti_aliasing\": ") + (RENDER_ANTI_ALIASING_ACTIVE ? "true" : "false")
                     + ", \"anti_aliasing_grid_size\": " + std::to_string(RENDER_ANTI_ALIASING_ACTIVE ? RENDER_ANTI_ALIASING_GRID_SIZE : (TI)1)
+                    + ", \"evaluation_default_anti_aliasing_grid_size\": " + std::to_string(RENDER_ENABLE_ANTI_ALIASING ? RENDER_ANTI_ALIASING_GRID_SIZE_EVALUATION : (TI)1)
                     + ", \"motion_blur\": " + (RENDER_MOTION_BLUR_ACTIVE ? "true" : "false")
                     + ", \"motion_blur_samples\": " + std::to_string(RENDER_MOTION_BLUR_ACTIVE ? RENDER_MOTION_BLUR_SAMPLES : (TI)1)
                     + ", \"shutter_fraction_min\": " + std::to_string(RENDER_SHUTTER_FRACTION_MIN)
