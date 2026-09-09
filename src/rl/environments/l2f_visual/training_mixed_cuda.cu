@@ -848,7 +848,7 @@ int run(int argc, char** argv, rlt::Mode<MODE> mode){
 
     rlt::utils::extrack::Config<TI> extrack_config;
     rlt::utils::extrack::Paths extrack_paths;
-    extrack_config.name = "l2f_visual_patch64_down45_fov110_aa2train_aa4eval";
+    extrack_config.name = "l2f_visual_patch64_down0_fov160_aa2train_aa4eval";
     if constexpr(EVALUATION){
         extrack_config.name += "_evaluation";
     }
