@@ -389,6 +389,9 @@ namespace rl_tools{
                 if(reset_for_render){
                     state.gyro[axis] = get(base_observations, 0, 3 + axis);
                 }
+                else{
+                    state.bias_estimate[axis] += (state.gyro[axis] - state.bias_estimate[axis]) * params.dynamics.integration.dt / GYRO_BIAS_TRACKING_TAU;
+                }
                 corrected_gyro[axis] = state.gyro[axis] - state.bias_estimate[axis];
                 set(base_observations, 0, 3 + axis, corrected_gyro[axis]);
             }
@@ -814,7 +817,7 @@ int run(int argc, char** argv, rlt::Mode<MODE> mode){
 
     rlt::utils::extrack::Config<TI> extrack_config;
     rlt::utils::extrack::Paths extrack_paths;
-    extrack_config.name = "l2f_visual_patch64_raw_fov90_cal1mrad_ki10_il20_a05_aa2train_aa4eval";
+    extrack_config.name = "l2f_visual_patch64_raw_fov90_cal1mrad_ki10_bt10_il20_a05_aa2train_aa4eval";
     if constexpr(EVALUATION){
         extrack_config.name += "_evaluation";
     }
@@ -833,7 +836,8 @@ int run(int argc, char** argv, rlt::Mode<MODE> mode){
         camera_setup["diagnostic_same_state_teacher_actions"] = true;
         camera_setup["mahony_kp"] = STATIC_PARAMETERS::STATE_BASE_MAHONY::KP;
         camera_setup["mahony_ki"] = STATIC_PARAMETERS::STATE_BASE_MAHONY::KI;
-        camera_setup["gyro_bias_correction"] = "mahony_bias_estimate";
+        camera_setup["gyro_bias_correction"] = "mahony_bias_estimate_with_in_flight_tracking";
+        camera_setup["gyro_bias_tracking_tau_s"] = GYRO_BIAS_TRACKING_TAU;
         camera_setup["gyro_startup_calibration"] = "stationary_mean_with_gaussian_residual";
         camera_setup["gyro_calibration_residual_std_rad_s"] = GYRO_CALIBRATION_RESIDUAL_STD;
         camera_setup["fov_randomization_degrees"] = CAMERA_FOV_RANDOMIZATION_RANGE;
@@ -1271,6 +1275,7 @@ int run(int argc, char** argv, rlt::Mode<MODE> mode){
         };
         log_config("nominal_camera_pitch_degrees", CAMERA_PITCH * 180 / rlt::math::PI<T>);
         log_config("nominal_camera_fov_degrees", CAMERA_FOV);
+        log_config("gyro_bias_tracking_tau_s", GYRO_BIAS_TRACKING_TAU);
         log_config("imitation_share", static_cast<T>(MIXED_SPEC::IMITATION_BATCH_SIZE) / BATCH_SIZE);
         log_config("teacher_forcing_updates", MIXED_PARAMETERS::TEACHER_FORCING_UPDATES);
         log_config("imitation_weight", MIXED_PARAMETERS::IMITATION_WEIGHT);
@@ -2416,7 +2421,7 @@ int run(int argc, char** argv, rlt::Mode<MODE> mode){
                     + std::to_string(CAM_HEIGHT) + ", " + std::to_string(CAM_WIDTH) + ", "
                     + std::to_string(FRAME_STACK_STRIDE) + ", " + std::to_string(FRAME_STACK_N) + ")";
                 std::string obs_string = image_obs_string + ", " + state_obs_string;
-                std::string rendering_string = std::string("{\"imitation_position_limit_m\": ") + (std::to_string(IMITATION_POSITION_LIMIT) + ", \"imitation_angle_limit_rad\": " + std::to_string(IMITATION_ANGLE_LIMIT)) + std::string(", \"gyro_bias_correction\": \"mahony_bias_estimate\", \"gyro_startup_calibration\": \"stationary_mean_with_gaussian_residual\", \"gyro_calibration_residual_std_rad_s\": ") + std::to_string(GYRO_CALIBRATION_RESIDUAL_STD) + ", \"image_rectification\": false, \"anti_aliasing\": " + (RENDER_ANTI_ALIASING_ACTIVE ? "true" : "false")
+                std::string rendering_string = std::string("{\"imitation_position_limit_m\": ") + (std::to_string(IMITATION_POSITION_LIMIT) + ", \"imitation_angle_limit_rad\": " + std::to_string(IMITATION_ANGLE_LIMIT)) + std::string(", \"gyro_bias_correction\": \"mahony_bias_estimate_with_in_flight_tracking\", \"gyro_startup_calibration\": \"stationary_mean_with_gaussian_residual\", \"gyro_calibration_residual_std_rad_s\": ") + std::to_string(GYRO_CALIBRATION_RESIDUAL_STD) + ", \"gyro_bias_tracking_tau_s\": " + std::to_string(GYRO_BIAS_TRACKING_TAU) + ", \"image_rectification\": false, \"anti_aliasing\": " + (RENDER_ANTI_ALIASING_ACTIVE ? "true" : "false")
                     + ", \"anti_aliasing_grid_size\": " + std::to_string(RENDER_ANTI_ALIASING_ACTIVE ? RENDER_ANTI_ALIASING_GRID_SIZE : (TI)1)
                     + ", \"evaluation_default_anti_aliasing_grid_size\": " + std::to_string(RENDER_ENABLE_ANTI_ALIASING ? RENDER_ANTI_ALIASING_GRID_SIZE_EVALUATION : (TI)1)
                     + ", \"motion_blur\": " + (RENDER_MOTION_BLUR_ACTIVE ? "true" : "false")
