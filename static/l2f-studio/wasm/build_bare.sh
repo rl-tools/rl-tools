@@ -1,14 +1,19 @@
-set -e
+#!/usr/bin/env bash
+set -euo pipefail
 
-clang++ --target=wasm32 -fno-builtin -I ../../include -DWASM -c l2f.cpp -o l2f.o
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+RL_TOOLS_DIR="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+cd "${SCRIPT_DIR}"
+
+clang++ --target=wasm32 -fno-builtin -I "${RL_TOOLS_DIR}/include" -DWASM -c l2f.cpp -o l2f.o
 if which wasm-ld > /dev/null 2>/dev/null; then
   wasm-ld --no-entry\
-  --export=init\
+  --export=initial_parameters\
   --export=init\
   --export=sample_initial_parameters\
   --export=sample_initial_state\
   --export=set_action\
-  --export=get_observation\
+  --export=observe\
   --export=step\
   --export=state_size\
   --export=action_dim\

@@ -1,0 +1,11 @@
+{
+  "dependencies": {
+    "gl-matrix": "^3.4.3",
+    "rand-seed": "^2.1.7",
+    "stats.js": "^0.17.0",
+    "three": "^0.180.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12"
+  }
+}

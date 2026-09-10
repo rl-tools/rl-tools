@@ -4,3 +4,6 @@ ui.js
 lib
 l2f-interface*
 node_modules
+/external/
+!/package.json
+!/package-lock.json

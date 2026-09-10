@@ -95,7 +95,7 @@ export class L2F{
                 this.ui = await import(url)
                 URL.revokeObjectURL(url);
             }
-            this.ui_state = await this.ui.init(this.canvas, {devicePixelRatio: window.devicePixelRatio, conta_url: "./conta/data/", camera_position: [1, 1, 2], camera_distance: 1.75})
+            this.ui_state = await this.ui.init(this.canvas, {devicePixelRatio: window.devicePixelRatio, conta_url: "./external/conta/data/", camera_position: [1, 1, 2], camera_distance: 1.75})
             parent.appendChild(this.canvas);
             await this.ui.episode_init_multi(this.ui_state, this.parameters)
 
