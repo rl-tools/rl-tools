@@ -27,6 +27,7 @@ namespace obs = l2f::observation;
 
     using REWARD_FUNCTION = l2f::parameters::reward_functions::Squared<T>;
     static constexpr T GYRO_CALIBRATION_RESIDUAL_STD = static_cast<T>(0.001);
+    static constexpr T GYRO_BIAS_TRACKING_TAU = static_cast<T>(10);
     static constexpr T IMITATION_POSITION_LIMIT = static_cast<T>(0.2);
     static constexpr T IMITATION_ANGLE_LIMIT = static_cast<T>(0.05);
     static constexpr TI SIMULATION_FREQUENCY = 100;
