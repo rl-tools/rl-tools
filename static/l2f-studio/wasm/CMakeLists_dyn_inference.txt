@@ -1,0 +1,36 @@
+cmake_minimum_required(VERSION 3.18)
+project(dyn_inference)
+
+set(CMAKE_CXX_STANDARD 17)
+
+include(FetchContent)
+FetchContent_Declare(
+    libhdf5-wasm
+    URL https://github.com/usnistgov/libhdf5-wasm/releases/download/v0.6.0_4.0.23/HDF5-2.0.0-Emscripten.tar.gz
+    URL_HASH SHA256=d4dc6719ef164679728d9a50d6a4d97c826f563e22a40c4dec63e485b29781be
+)
+FetchContent_MakeAvailable(libhdf5-wasm)
+set(HDF5_DIR "${libhdf5-wasm_SOURCE_DIR}/cmake" CACHE PATH "HDF5 cmake config" FORCE)
+find_package(HDF5 REQUIRED CONFIG)
+
+add_executable(dyn_inference dyn_inference.cpp)
+target_include_directories(dyn_inference PRIVATE ${RL_TOOLS_INCLUDE_DIR})
+target_link_libraries(dyn_inference hdf5::hdf5-static)
+target_compile_options(dyn_inference PRIVATE -O3 -ffast-math -msimd128)
+
+if(EMSCRIPTEN)
+    target_link_options(dyn_inference PRIVATE
+        "SHELL:-s MODULARIZE=1"
+        "SHELL:-s EXPORT_ES6=1"
+        "SHELL:-s ENVIRONMENT=web"
+        "SHELL:-s ALLOW_MEMORY_GROWTH=1"
+        "SHELL:-s STACK_SIZE=2097152"
+        "SHELL:-s FORCE_FILESYSTEM=1"
+        "SHELL:-s EXPORTED_RUNTIME_METHODS=[\"FS\"]"
+        --bind
+    )
+    set_target_properties(dyn_inference PROPERTIES
+        OUTPUT_NAME "dyn-inference"
+        SUFFIX ".js"
+    )
+endif()

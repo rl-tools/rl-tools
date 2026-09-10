@@ -1,0 +1,39 @@
+
+#scroll-indicator {
+    z-index: 1000;
+    position: fixed;
+    bottom: 18px;
+    left: calc(50%);
+    color: rgba(68, 68, 68, 0.9);
+    font-size: 18px;
+    pointer-events: none;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 50%;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    animation: softPulse 1.5s ease-in-out infinite;
+    
+    opacity: 0.8;
+    transition: opacity 0.3s ease;
+}
+
+#scroll-indicator.hidden {
+    opacity: 0;
+    pointer-events: none;
+    display: none;
+}
+
+@keyframes softPulse {
+    0%, 100% { 
+        opacity: 0.5; 
+        transform: translateX(-50%) translateY(0px); 
+    }
+    50% { 
+        opacity: 1.0; 
+        transform: translateX(-50%) translateY(10px); 
+    }
+}

@@ -1,0 +1,321 @@
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>__PAGE_TITLE__</title>
+    <template id="perturbation-group-template" >
+        <div class="perturbation-group">
+            <div class="perturbation-group-targets"></div>
+            <span class="perturbation-group-list">
+                <ul>
+                </ul>
+            </span>
+            <span class="slider-container">
+                <div>
+                    <span class="control-container-label" class="perturbation-slider-label">-</span>
+                </div>
+                <div>
+                    <input class="perturbation-slider" type="range"  min="0.0" max="1.0" step="0.01" value="0.5" disabled>
+                </div>
+            </span>
+            <span>
+                <button class="perturbation-group-reset-button">Reset</button>
+            </span>
+        </div>
+    </template>
+    <template id="perturbation-group-item-template">
+        <li class="perturbation-group-item">
+          <span class="perturbation-group-item-path"></span>
+          <span class="perturbation-group-item-range"></span>
+          <span class="perturbation-group-item-value"></span>
+        </li>
+    </template>
+    <template id="vehicle-template">
+        <label class="vehicle">
+            <div class="vehicle-header">
+                <input type="checkbox" class="vehicle-checkbox">
+                <span class="vehicle-title"></span>
+                <span class="vehicle-id"></span>
+            </div>
+            <div class="vehicle-body">
+                <div>
+                    <span>Position: </span>
+                    <span class="vehicle-position"></span>
+                </div>
+                <div>
+                    <span>Action: </span>
+                    <span class="vehicle-action"></span>
+                </div>
+                <div>
+                    <span>T2W / T2I: </span>
+                    <span class="vehicle-t2w-t2i"></span>
+                </div>
+                <div>
+                    <span>Avg Error: </span>
+                    <span class="vehicle-avg-error"></span>
+                </div>
+                <div>
+                    <span>Steps: </span>
+                    <span class="vehicle-steps-since-reset"></span>
+                </div>
+            </div>
+        </label>
+    </template>
+    <link rel="stylesheet" href="./index.css">
+    <link rel="stylesheet" href="./scroll-indicator.css">
+    <link rel="stylesheet" href="./raptor.css">
+    <link rel="stylesheet" href="./gamepad.css">
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "./blob/lib/three.js",
+                "three-orbitcontrols": "./blob/lib/three.js",
+                "three-gltfloader": "./blob/lib/three.js",
+                "stats.js": "./blob/lib/stats.js",
+                "l2f-interface": "./blob/l2f-interface.js",
+                "dyn-inference": "./blob/dyn-inference.js",
+                "gl-matrix": "./blob/lib/dependencies.js",
+                "rand-seed": "./blob/lib/dependencies.js"
+            }
+        }
+    </script>
+    <script type="module" src="./raptor.js"></script>
+    <script type="module" async src="./index.js"></script>
+    <script type="module" src="./sidebar.js"></script>
+</head>
+<body>
+    <div id="status"></div>
+    <div id="app-container">
+        <div id="top-container">
+            <div id="vehicle-container">
+                <div id="vehicle-container-header">
+                    <input type="button" id="vehicle-select-all-btn" value="Select All"></input>
+                    <select id="vehicle-load-dynamics-selector">
+                        <option value="file" selected>from file</option>
+                    </select>
+                    <input type="file" id="vehicle-load-dynamics-btn-backend"></input>
+                    <input type="button" id="vehicle-load-dynamics-btn" value="Load Dynamics"></input>
+                </div>
+                <div id="vehicle-list"></div>
+                <div id="scene-container-header">
+                    <select id="scene-selector">
+                        <option value="none">No Scene</option>
+                    </select>
+                    <input type="button" id="scene-load-btn" value="Load Scene">
+                    <label><input type="checkbox" id="scene-preview-checkbox"> Preview</label>
+                    <label><input type="checkbox" id="scene-obs-res-checkbox"> Obs. res.</label>
+                    <div id="scene-transform-inputs">
+                        <span>Pos</span>
+                        <input type="number" id="scene-offset-x" step="0.1" value="0">
+                        <input type="number" id="scene-offset-y" step="0.1" value="0">
+                        <input type="number" id="scene-offset-z" step="0.1" value="0">
+                        <span>Rot&deg;</span>
+                        <input type="number" id="scene-rot-r" step="1" value="0">
+                        <input type="number" id="scene-rot-p" step="1" value="0">
+                        <input type="number" id="scene-rot-y" step="1" value="0">
+                    </div>
+                </div>
+                <div id="frame-stack-preview"></div>
+            </div>
+            <div id="sidebar-resizer">
+                <div id="sidebar-resizer-handle"></div>
+            </div>
+            <div id="sim-container">
+                <div id="sim-container-cover">Loading...</div>
+            </div>
+        </div>
+        <div id="controls-box">
+            <div id="scroll-indicator">▼</div>
+            <div id="controller-options-container" class="controls-container controls-container-every-other">
+                <div id="controller-selector-container">
+                    <form id="controller-selector-form">
+                        <label class="controller-selector-label" >
+                            <input type="radio" name="choice" value="policy" checked>
+                            Policy
+                        </label>
+                        <label class="controller-selector-label">
+                            <input type="radio" name="choice" value="controller">
+                            Controller
+                        </label>
+                        <label class="controller-selector-label">
+                            <input type="radio" name="choice" value="gamepad">
+                            Gamepad
+                        </label>
+                    </form>
+                </div>
+                <div id="policy-container" class="controller-container">
+                    <span class="policy-container-item">Checkpoint:</span>
+                    <div class="policy-container-item">
+                        <span id="checkpoint-name">default</span>
+                        <button id="default-checkpoint-btn">Default</button>
+                        <input type="file" id="load-checkpoint-btn-backend"></input>
+                        <button id="load-checkpoint-btn">Load File</button>
+                    </div>
+                    <span class="policy-container-item">Observations:</span>
+                    <div class="policy-container-item">
+                        <input type="text" id="observations">
+                        </input>
+                    </div>
+                    <div id="attitude-setpoint-gamepad-container" class="policy-container-item gamepad-widget">
+                        <span class="attitude-setpoint-gamepad-label">Attitude Setpoint:</span>
+                        <div class="gamepad-widget-body">
+                            <div class="gamepad-status gamepad-disconnected">No gamepad connected (please press button or move axis to connect)</div>
+                            <div class="gamepad-controls">
+                                <div class="gamepad-state"></div>
+                                <div class="gamepad-button-container-container">
+                                    <div class="gamepad-button-container"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="controller-container" class="controller-container">
+                    <textarea id="controller-code" rows=10 value="(x, u) => x.map((v, i) => v + u[i] * 0.1)"></textarea>
+                </div>
+                <div id="gamepad-container" class="controller-container">
+                    <template id="gamepad-axis-template">
+                        <div class="gamepad-controls-row">
+                            <div class="gamepad-controls-name gamepad-controls-cell"></div>
+                            <div class="gamepad-slider-container gamepad-controls-cell">
+                                <input type="range" class="gamepad-slider gamepad-slider-status" min="-1" max="1" value="0" step="0.01">
+                                <input type="range" class="gamepad-slider gamepad-slider-expo" min="0" max="1" step="0.01" value="0.0">
+                            </div>
+                            <div class="gamepad-expo-display gamepad-controls-cell">
+                                <canvas class="gamepad-expo-canvas" width="70" height="35"></canvas>
+                            </div>
+                            <div class="gamepad-value-display gamepad-controls-cell">0.00</div>
+                        </div>
+                    </template>
+                    <template id="gamepad-button-template">
+                        <div class="gamepad-controls-row">
+                            <div class="gamepad-controls-name gamepad-controls-cell"></div>
+                            <div class="gamepad-controls-cell"><div class="gamepad-button-indicator"></div></div>
+                            <div class="gamepad-controls-cell"></div>
+                            <div class="gamepad-value-display gamepad-controls-cell">Released</div>
+                            <div></div>
+                        </div>
+                    </template>
+                    <div id="gamepad-status" class="gamepad-status gamepad-disconnected">No gamepad connected (please press button or move axis to connect)</div>
+                    <div id="gamepad-controls" class="gamepad-controls">
+                        <div id="gamepad-state" class="gamepad-state"></div>
+                        <div id="gamepad-button-container-container" class="gamepad-button-container-container">
+                            <div id="gamepad-button-container" class="gamepad-button-container"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="controls-container">
+                <span class="slider-container">
+                    <div>
+                        <span class="control-container-label"># of Quadrotors</span>
+                    </div>
+                    <div>
+                        <input id="num-vehicles" type="number" min="1" max="100" step="1" value="10">
+                    </div>
+                </span>
+                <span class="slider-container">
+                    <div>
+                        <span class="control-container-label" id="speed-info">Speed: 1x</span>
+                        <span class="control-container-label" id="speed-info-real">-</span>
+                    </div>
+                    <div>
+                        <input type="range" id="speed-slider" min="0" max="1" step="0.05" value="0.5">
+                    </div>
+                </span>
+                <label>
+                    <input type="checkbox" id="show-axes"></input>
+                    Show Axes
+                </label>
+                <label>
+                    <input type="checkbox" id="pause-on-reset"></input>
+                    Pause on Reset
+                </label>
+                <button id="sample-initial-states">Sample Initial States</button>
+                <button id="initial-states">Initial States</button>
+                <button id="pause">Resume</button>
+                <button id="step">Step</button>
+            </div>
+            <div id="reference-trajectory-container" class="controls-container controls-container-every-other">
+                <div id="reference-trajectory-offset-container">
+                    <span class="slider-container">
+                        <div>
+                            <span class="control-container-label"></span>
+                            <span class="control-container-label">0</span>
+                        </div>
+                        <div>
+                            <input type="range" min="0" max="0.2" step="0.001" value="0">
+                        </div>
+                    </span>
+                </div>
+                <label for="reference-trajectory">Reference Trajectory:</label>
+                <select id="reference-trajectory" name="reference-trajectory">
+                </select>
+                <input type="checkbox" id="force-trajectory-tracking-observations" checked></input>
+                <span title="Force trajectory tracking observations (even though the policy reports global position and velocity observations, force trajectory offsets to be used for these)">Force</span>
+
+                <template id="reference-trajectory-option-template">
+                    <span class="slider-container">
+                        <div>
+                            <span class="control-container-label"></span>
+                            <span class="control-container-label"></span>
+                        </div>
+                        <div>
+                            <input type="range" min="0" max="1" step="0.05" value="0.5">
+                        </div>
+                    </span>
+                </template>
+                <div id="reference-trajectory-options">
+                </div>
+                <input type="button" id="reference-trajectory-reset" value="Reset"></input>
+            </div>
+            <div class="controls-container" style="align-items: end;">
+                <span class="slider-container">
+                    <div>
+                        <span class="control-container-label" id="perturbation-id-suggestion" title="dynamics, mdp">suggestion</span>
+                    </div>
+                    <div>
+                        <input id="perturbation-id-input" type="text"></input>
+                        <span id="perturbation-id-status"></span>
+                        <input id="perturbation-id-min" class="perturbation-id-minmax" type="text" disabed></input>
+                        ⬇️
+                        <input id="perturbation-id-max" class="perturbation-id-minmax" type="text" disabled></input>
+                        ⬆️
+                    </div>
+                </span>
+                <div>
+                    <span style="margin-left: 5px;">Transform:</span>
+                    <input id="perturbation-transform" type="text" value="(id, o, p, x) => o/2 + p*o/20 * id" title="id = id of the quadrotor, o = original value, p = percentage of the slider, x: resulting value {slider x range}"></input>
+                </div>
+            </div>
+            <div id="perturbation-groups" class="controls-container">
+            </div>
+        </div>
+        <div id="drag-and-drop-overlay">Drop RLtools HDF5 checkpoint here!</div>
+
+    </div>
+    <div id="raptor-project-page" class="raptor-right-sidebar">
+        <center>
+            <h1 style="margin: 0; margin-top: 10px; margin-bottom: 5px;"><img src="./blob/logo.svg" style="width: 13rem; vertical-align: middle;"></img>: A Foundation Policy for Quadrotor Control</h1>
+            <h3 style="margin: 0; margin-bottom: 10px;">Jonas Eschmann, Dario Albani, Giuseppe Loianno</h3>
+            <a class="fancy-button fancy-button-small" href="https://arxiv.org/abs/2509.11481">Paper on ArXiV</a>
+            <a class="fancy-button fancy-button-small" href="https://github.com/rl-tools/foundation-policy">Code on Github</a>
+            <div id="video-container" style="margin: 10px; max-width: 900px; margin-left: auto; margin-right: auto;">
+                <div id="video-container-inner" style="position: relative; width: 100%; height: 0; padding-bottom: 56.25%; /* 16:9 aspect ratio */">
+                </div>
+            </div>
+        </center>
+            <div style="margin: 10px; max-width: 900px;">
+                This web app allows you to torture the <img src="./blob/logo.svg" style="width: 7rem; vertical-align: middle;"></img> foundation policy using different quadrotor models, reference trajectories and disturbances. 
+                You can reset the episodes by pressing "Sample Initial States". You can simulate step-by-step using "Pause on Reset" and then "Step" throught the episode.
+                <br>
+                The "X Offset" spreads out the quadrotors (click it to change to Y/Z offset).
+                You can drag the sidebar next to the 3D view to reveal the menu for loading dynamics parameters. 
+                You can select one of the presets in the dropdown as well as load parameters from disk, following the l2f json format. 
+                The last row allows you to perturb dynamics parameters based on a simple formula (hover over the formula input for a description of the variables).
+                <h4 style="margin: 0px; margin-top: 5px;">Reproducing Oscillations Caused by Linear Velocity Feedback Delays</h4>
+                You can actually reproduce the finding of the oscillations on the non-EKF-based quadrotors (Section 2.4.1) by replacing <code>LinearVelocity</code> with <code>LinearVelocityDelayed(2)</code> and loading dynamics parameters of a quadrotor with a thrust-to-weight ratio > 2 (any one except of the Crazyflie). <br> You can just paste <code>Position.OrientationRotationMatrix.LinearVelocityDelayed(2).AngularVelocityDelayed(0).ActionHistory(1)</code> and hit "Sample Initial States".
+            </div>
+    </div>
+</body>
+</html>

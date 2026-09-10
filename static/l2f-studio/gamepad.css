@@ -1,0 +1,109 @@
+#gamepad-controls, .gamepad-controls {
+    display: flex;
+}
+
+#gamepad-status, .gamepad-status {
+    padding: 8px;
+    margin-bottom: 15px;
+    border-radius: 4px;
+    font-weight: bold;
+}
+.gamepad-connected {
+    background-color: #d4edda;
+    color: #155724;
+}
+.gamepad-disconnected {
+    background-color: #f8d7da;
+    color: #721c24;
+}
+#gamepad-state, .gamepad-state {
+    display: table;
+    border-spacing: 1rem;
+    border-collapse: separate;
+}
+.gamepad-controls-row {
+    display: table-row;
+    margin-bottom: 5px;
+}
+.gamepad-controls-cell {
+    display: table-cell;
+    margin: 10px;
+    vertical-align: middle;
+    margin-bottom: 5px;
+}
+.gamepad-slider-container {
+    position: relative;
+    height: 30px;
+}
+.gamepad-slider {
+    height: 10px;
+}
+.gamepad-slider-status {
+    width: 100px;
+    pointer-events: none;
+}
+.gamepad-slider-expo {
+    width: 50px;
+}
+.gamepad-button-indicator {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background-color: #ccc;
+}
+#gamepad-button-container-container, .gamepad-button-container-container {
+    display: flex;
+    flex: 1;
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+#gamepad-button-container, .gamepad-button-container {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+}
+.gamepad-button {
+    padding: 8px 12px;
+    border: none;
+    border-radius: 4px;
+    background-color: #007bff;
+    color: white;
+    cursor: pointer;
+    align-self: flex-start;
+    flex-grow: 0;
+    flex-shrink: 1;
+    flex-basis: auto;
+}
+.gamepad-button:hover {
+    background-color: #0069d9;
+}
+.gamepad-button:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+}
+.gamepad-value-display, .gamepad-raw-value-display {
+    text-align: right;
+    font-family: monospace;
+}
+.gamepad-raw-value-display {
+    color: #555; /* Slightly muted to distinguish from processed value */
+}
+.gamepad-mapping-button {
+}
+.gamepad-main-button {
+    grid-column: span 2;
+}
+.gamepad-reset-button{
+    background-color: #cb2c2c;
+}
+.gamepad-reset-button:hover {
+    background-color: #942121;
+}
+.gamepad-separator {
+    height: 1px;
+    background-color: #ddd;
+    margin: 15px 0;
+}
