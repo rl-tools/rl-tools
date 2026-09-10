@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Quadrotor Gamepad Controller</title>
+    <link rel="stylesheet" href="./gamepad.css">
+</head>
+<body>
+    <template id="gamepad-axis-template">
+        <div class="gamepad-controls-row">
+            <div class="gamepad-controls-name gamepad-controls-cell"></div>
+            <div class="gamepad-slider-container gamepad-controls-cell"><input type="range" class="gamepad-slider" min="-1" max="1" value="0" step="0.01"></div>
+            <div class="gamepad-value-display gamepad-controls-cell">0.00</div>
+        </div>
+    </template>
+    <template id="gamepad-button-template">
+        <div class="gamepad-controls-row">
+            <div class="gamepad-controls-name gamepad-controls-cell"></div>
+            <div class="gamepad-controls-cell"><div class="gamepad-button-indicator"></div></div>
+            <div class="gamepad-value-display gamepad-controls-cell">Released</div>
+            <div></div>
+        </div>
+    </template>
+    <div id="gamepad-container">
+        <div id="gamepad-status" class="gamepad-disconnected">No gamepad connected</div>
+        <div id="gamepad-controls">
+            <div id="gamepad-state"></div>
+            <div id="gamepad-button-container-container">
+                <div id="gamepad-button-container"></div>
+            </div>
+        </div>
+    </div>
+    </div>
+    <h1>Quadrotor Gamepad Controller</h1>
+    <script type="module">
+        import { Gamepad } from "./gamepad.js";
+        function init() {
+            const gamepad = new Gamepad(document.body, {
+                "thrust": {
+                    type: "axis",
+                    positive_direction: "Up"
+                },
+                "roll": {
+                    type: "axis",
+                    positive_direction: "Right"
+                },
+                "pitch": {
+                    type: "axis",
+                    positive_direction: "Forward"
+                },
+                "yaw": {
+                    type: "axis",
+                    positive_direction: "Clockwise"
+                },
+                "reset": {
+                    type: "button"
+                },
+            })
+            const saved = null; //localStorage.getItem('quadrotorGamepadMap');
+            if (saved) {
+                try {
+                    const parsed = JSON.parse(saved);
+                    Object.assign(controlMap, parsed);
+                } catch (e) {}
+            }
+        }
+
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>

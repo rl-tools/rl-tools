@@ -1,0 +1,1 @@
+export { default as Stats } from "stats.js";

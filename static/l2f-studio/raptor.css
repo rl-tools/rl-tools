@@ -1,0 +1,9 @@
+#raptor-project-page {
+    background-color: #f7f7f7;
+    display: none; 
+    padding: 1rem; 
+    overflow:auto;
+}
+.raptor-right-sidebar {
+    max-width: 40svw; 
+}
