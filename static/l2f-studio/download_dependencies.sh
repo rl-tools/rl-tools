@@ -8,7 +8,8 @@ cd "${SCRIPT_DIR}/external"
 checkout_dependency() {
     local source="$1" directory="$2" revision="$3"
     if ! git init --initial-branch=main "${directory}" ||
-       ! git -C "${directory}" fetch --depth=1 "${source}" "${revision}" ||
+       ! git -C "${directory}" config remote.origin.url "${source}" ||
+       ! git -C "${directory}" fetch --depth=1 origin "${revision}" ||
        ! git -C "${directory}" checkout --detach "${revision}"; then
         echo "Failed to check out ${directory} at ${revision}" >&2
         return 1
