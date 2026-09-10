@@ -12,6 +12,16 @@ import { SecondOrderLangevin } from "./trajectories/langevin.js"
 import { PingPong } from "./trajectories/ping_pong.js"
 // import Controller from  "./controller.js"
 
+fetch("./git_hash.txt", { cache: "no-store" })
+    .then(async (response) => {
+        if(!response.ok){
+            return "local"
+        }
+        return (await response.text()).trim() || "local"
+    })
+    .catch(() => "local")
+    .then(commit => console.log(`RLtools commit: ${commit}`))
+
 // check url for "file" parameter
 const urlParams = new URLSearchParams(window.location.search);
 const file = urlParams.get('file');
