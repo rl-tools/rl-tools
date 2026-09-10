@@ -2,7 +2,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>__PAGE_TITLE__</title>
+    <title>L2F Studio</title>
     <template id="perturbation-group-template" >
         <div class="perturbation-group">
             <div class="perturbation-group-targets"></div>
@@ -68,14 +68,14 @@
     <script type="importmap">
         {
             "imports": {
-                "three": "./blob/lib/three.js",
-                "three-orbitcontrols": "./blob/lib/three.js",
-                "three-gltfloader": "./blob/lib/three.js",
-                "stats.js": "./blob/lib/stats.js",
-                "l2f-interface": "./blob/l2f-interface.js",
-                "dyn-inference": "./blob/dyn-inference.js",
-                "gl-matrix": "./blob/lib/dependencies.js",
-                "rand-seed": "./blob/lib/dependencies.js"
+                "three": "./external/blob/lib/three.js",
+                "three-orbitcontrols": "./external/blob/lib/three.js",
+                "three-gltfloader": "./external/blob/lib/three.js",
+                "stats.js": "./external/blob/lib/stats.js",
+                "l2f-interface": "./external/blob/l2f-interface.js",
+                "dyn-inference": "./external/blob/dyn-inference.js",
+                "gl-matrix": "./external/blob/lib/dependencies.js",
+                "rand-seed": "./external/blob/lib/dependencies.js"
             }
         }
     </script>
@@ -296,7 +296,7 @@
     </div>
     <div id="raptor-project-page" class="raptor-right-sidebar">
         <center>
-            <h1 style="margin: 0; margin-top: 10px; margin-bottom: 5px;"><img src="./blob/logo.svg" style="width: 13rem; vertical-align: middle;"></img>: A Foundation Policy for Quadrotor Control</h1>
+            <h1 style="margin: 0; margin-top: 10px; margin-bottom: 5px;"><img src="./external/blob/logo.svg" style="width: 13rem; vertical-align: middle;"></img>: A Foundation Policy for Quadrotor Control</h1>
             <h3 style="margin: 0; margin-bottom: 10px;">Jonas Eschmann, Dario Albani, Giuseppe Loianno</h3>
             <a class="fancy-button fancy-button-small" href="https://arxiv.org/abs/2509.11481">Paper on ArXiV</a>
             <a class="fancy-button fancy-button-small" href="https://github.com/rl-tools/foundation-policy">Code on Github</a>
@@ -306,7 +306,7 @@
             </div>
         </center>
             <div style="margin: 10px; max-width: 900px;">
-                This web app allows you to torture the <img src="./blob/logo.svg" style="width: 7rem; vertical-align: middle;"></img> foundation policy using different quadrotor models, reference trajectories and disturbances. 
+                This web app allows you to torture the <img src="./external/blob/logo.svg" style="width: 7rem; vertical-align: middle;"></img> foundation policy using different quadrotor models, reference trajectories and disturbances.
                 You can reset the episodes by pressing "Sample Initial States". You can simulate step-by-step using "Pause on Reset" and then "Step" throught the episode.
                 <br>
                 The "X Offset" spreads out the quadrotors (click it to change to Y/Z offset).

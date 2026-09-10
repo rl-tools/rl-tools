@@ -28,7 +28,7 @@ int main(int argc, char** argv){
     ENVIRONMENT::Parameters params;
     rlt::init(device, env);
 
-    std::filesystem::path output_path_registry = "/home/jonas/mono/static/l2f-studio/blob/registry";
+    std::filesystem::path output_path_registry = RL_TOOLS_L2F_STUDIO_REGISTRY_PATH;
     if (!std::filesystem::exists(output_path_registry)){
         std::cerr << "Output path does not exist: " << output_path_registry << std::endl;
         std::cerr << "CWD: " << std::filesystem::current_path() << std::endl;

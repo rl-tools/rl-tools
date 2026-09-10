@@ -14,12 +14,15 @@ set(HDF5_DIR "${libhdf5-wasm_SOURCE_DIR}/cmake" CACHE PATH "HDF5 cmake config" F
 find_package(HDF5 REQUIRED CONFIG)
 
 add_executable(dyn_inference dyn_inference.cpp)
-target_include_directories(dyn_inference PRIVATE ${RL_TOOLS_INCLUDE_DIR})
+target_include_directories(dyn_inference PRIVATE "${RL_TOOLS_INCLUDE_DIR}")
 target_link_libraries(dyn_inference hdf5::hdf5-static)
-target_compile_options(dyn_inference PRIVATE -O3 -ffast-math -msimd128)
+target_compile_options(dyn_inference PRIVATE
+    "$<$<NOT:$<CONFIG:Debug>>:-O3;-ffast-math;-msimd128>"
+)
 
 if(EMSCRIPTEN)
     target_link_options(dyn_inference PRIVATE
+        "$<$<CONFIG:Debug>:-gsource-map>"
         "SHELL:-s MODULARIZE=1"
         "SHELL:-s EXPORT_ES6=1"
         "SHELL:-s ENVIRONMENT=web"

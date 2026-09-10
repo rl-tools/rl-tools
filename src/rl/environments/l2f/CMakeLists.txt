@@ -10,6 +10,9 @@ target_link_libraries(rl_environments_l2f_domain_randomization_sample PRIVATE RL
 if(RL_TOOLS_ENABLE_JSON)
 add_executable(rl_environments_l2f_export_dynamics export_dynamics.cpp)
 target_link_libraries(rl_environments_l2f_export_dynamics PRIVATE RLtools::RLtools)
+target_compile_definitions(rl_environments_l2f_export_dynamics PRIVATE
+    RL_TOOLS_L2F_STUDIO_REGISTRY_PATH="${PROJECT_SOURCE_DIR}/static/l2f-studio/external/blob/registry"
+)
 endif()
 
 

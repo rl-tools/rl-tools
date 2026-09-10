@@ -1910,7 +1910,7 @@ async function setup_onboard_camera(ui_state, parameters){
     const dir_light = new THREE.DirectionalLight(0xffffff, 0.8)
     dir_light.position.set(5, 10, 5)
     ui_state.onboard_scene.add(dir_light)
-    const scene_url = `${ui_state.conta_url}data/${visual.scene_hash}`
+    const scene_url = `${ui_state.conta_url}${visual.scene_hash}`
     try {
         const prev_enabled = THREE.ColorManagement.enabled
         THREE.ColorManagement.enabled = false

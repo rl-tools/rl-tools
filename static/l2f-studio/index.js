@@ -15,7 +15,7 @@ import { PingPong } from "./trajectories/ping_pong.js"
 // check url for "file" parameter
 const urlParams = new URLSearchParams(window.location.search);
 const file = urlParams.get('file');
-const file_url = file ? file : "./blob/checkpoint.h5"
+const file_url = file ? file : "./external/blob/checkpoint.h5"
 
 let proxy_controller = null
 let l2f = null
@@ -880,7 +880,7 @@ async function main() {
     proxy_controller = new ProxyController(new Policy(model))
 
 
-    const platforms_text = await (await fetch("./blob/registry/index.json")).text()
+    const platforms_text = await (await fetch("./external/blob/registry/index.json")).text()
     const platforms = platforms_text.split("\n").filter(line => line.trim() !== "").sort()
     const platform_select = document.getElementById("vehicle-load-dynamics-selector")
     
@@ -909,15 +909,15 @@ async function main() {
             default_parameters = structuredClone(historyEntry.parameters)
         } else {
             // Fallback to x500 if custom entry not found
-            default_parameters = await (await fetch(`./blob/registry/x500.json`)).json()
+            default_parameters = await (await fetch(`./external/blob/registry/x500.json`)).json()
             addMeshToParameters(default_parameters, "x500")
         }
     } else if (selectedValue !== "file") {
-        default_parameters = await (await fetch(`./blob/registry/${selectedValue}.json`)).json()
+        default_parameters = await (await fetch(`./external/blob/registry/${selectedValue}.json`)).json()
         addMeshToParameters(default_parameters, selectedValue)
     } else {
         // Fallback for "file" option
-        default_parameters = await (await fetch(`./blob/registry/x500.json`)).json()
+        default_parameters = await (await fetch(`./external/blob/registry/x500.json`)).json()
         addMeshToParameters(default_parameters, "x500")
     }
     
@@ -1098,7 +1098,7 @@ async function main() {
         else {
             // Load preset
             const platform = selectedValue
-            const parameters = await (await fetch(`./blob/registry/${platform}.json`)).json()
+            const parameters = await (await fetch(`./external/blob/registry/${platform}.json`)).json()
             addMeshToParameters(parameters, platform)
             paramStore.setLastSelected(selectedValue)
             set_parameters(parameters)

@@ -22,7 +22,7 @@ export class SimControls{
         num_vehicles_input.addEventListener("input", async () => {
             let platform = document.getElementById("vehicle-load-dynamics-selector").value
             platform = platform === "file" ? "crazyflie" : platform
-            const parameters = await (await fetch(`./blob/registry/${platform}.json`)).json()
+            const parameters = await (await fetch(`./external/blob/registry/${platform}.json`)).json()
             addMeshToParameters(parameters, platform)
             const diff = await l2f.change_num_quadrotors(parseInt(num_vehicles_input.value), parameters)
         })
