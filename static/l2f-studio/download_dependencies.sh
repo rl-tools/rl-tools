@@ -16,7 +16,7 @@ checkout_dependency() {
 }
 
 status=0
-checkout_dependency https://github.com/nlohmann/json.git json bfb07786cd7eb841a6d9030bcd822d3b1c4d3b56 || status=1
-checkout_dependency https://github.com/rl-tools/l2f-studio-blob.git blob bc1cc324ae298549a7f14b97564beac97c5cf439 || status=1
-checkout_dependency https://github.com/rl-tools/conta-data.git conta 9784708a5eebdd0016467476045a2deffdfce3c5 || status=1
+checkout_dependency https://github.com/nlohmann/json.git             json  bfb07786cd7eb841a6d9030bcd822d3b1c4d3b56 || status=1
+checkout_dependency https://github.com/rl-tools/l2f-studio-blob.git  blob  bc1cc324ae298549a7f14b97564beac97c5cf439 || status=1
+checkout_dependency https://huggingface.co/datasets/rl-tools/conta   conta 5f17adff85072949f2ea70eff25ee7d2c1743d3f || status=1
 exit "${status}"
