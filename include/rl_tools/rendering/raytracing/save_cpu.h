@@ -89,23 +89,7 @@ namespace rl_tools{
             }
             std::vector<uint32_t> colored(num_pixels);
             for(size_t pixel_i = 0; pixel_i < (size_t)num_pixels; pixel_i++){
-                const float u = flow_host[pixel_i * 2 + 0];
-                const float v = flow_host[pixel_i * 2 + 1];
-                const float magnitude = std::sqrt(u * u + v * v);
-                const float saturation = max_magnitude > 0 ? magnitude / max_magnitude : 0.f;
-                const float hue = (std::atan2(v, u) / (2.f * (float)M_PI) + 0.5f) * 6.f;
-                const float descending = 1.f - std::fabs(std::fmod(hue, 2.f) - 1.f);
-                float red = 0, green = 0, blue = 0;
-                switch((int)hue % 6){
-                    case 0: red = 1; green = descending; break;
-                    case 1: red = descending; green = 1; break;
-                    case 2: green = 1; blue = descending; break;
-                    case 3: green = descending; blue = 1; break;
-                    case 4: red = descending; blue = 1; break;
-                    default: red = 1; blue = descending; break;
-                }
-                const auto channel = [&](float value){ return (uint32_t)((1.f - saturation * (1.f - value)) * 255.f); };
-                colored[pixel_i] = 0xFF000000u | (channel(blue) << 16) | (channel(green) << 8) | channel(red);
+                colored[pixel_i] = flow_to_rgba(flow_host[pixel_i * 2 + 0], flow_host[pixel_i * 2 + 1], max_magnitude);
             }
             write_grid_png<SPEC>(colored.data(), filename);
         }

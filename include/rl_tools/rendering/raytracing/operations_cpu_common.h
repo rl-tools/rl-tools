@@ -861,6 +861,27 @@ namespace rl_tools {
         // pinned flow-status false colour shared by the save verbs and the golden corpus (ABGR
         // packed like the frame buffer): VALID white, MISS black, BEHIND magenta, OUT_OF_FRAME
         // blue, OCCLUDED orange; unknown codes red
+        // direction -> hue, magnitude -> saturation against magnitude_scale (pixels); the review
+        // writers pass the per-image maximum, live viewers a fixed scale so the image does not flicker
+        inline uint32_t flow_to_rgba(float u, float v, float magnitude_scale){
+            constexpr float TWO_PI = 6.28318530717958647692f;
+            const float magnitude = std::sqrt(u * u + v * v);
+            const float saturation = magnitude_scale > 0 ? std::fmin(magnitude / magnitude_scale, 1.f) : 0.f;
+            const float hue = (std::atan2(v, u) / TWO_PI + 0.5f) * 6.f;
+            const float descending = 1.f - std::fabs(std::fmod(hue, 2.f) - 1.f);
+            float red = 0, green = 0, blue = 0;
+            switch((int)hue % 6){
+                case 0: red = 1; green = descending; break;
+                case 1: red = descending; green = 1; break;
+                case 2: green = 1; blue = descending; break;
+                case 3: green = descending; blue = 1; break;
+                case 4: red = descending; blue = 1; break;
+                default: red = 1; blue = descending; break;
+            }
+            const auto channel = [&](float value){ return (uint32_t)((1.f - saturation * (1.f - value)) * 255.f); };
+            return 0xFF000000u | (channel(blue) << 16) | (channel(green) << 8) | channel(red);
+        }
+
         inline uint32_t flow_status_to_rgba(uint32_t status){
             switch(status){
                 case FlowStatus::VALID: return 0xFFFFFFFFu;
