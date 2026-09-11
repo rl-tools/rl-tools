@@ -132,13 +132,19 @@ namespace rl_tools {
             T max_dist = 0;
             const Camera<T>* cameras_close = nullptr;
             const Camera<T>* cameras_open = nullptr;
+            const Camera<T>* cameras_previous = nullptr; // flow: the previous instant's cameras
+            const OverlayView<T, TI>* overlays_previous = nullptr; // flow: the previous instant's overlay TLASes (leaves index the shifted id range [first_overlay_instance + SLOTS, ...))
             unsigned int* frame_buffer = nullptr;
             float* depth_buffer = nullptr;
             unsigned int* segmentation_buffer = nullptr;
             float* normals_buffer = nullptr; // 3 per pixel, world-frame unit normal or zero on miss
-            float* flow_buffer = nullptr;    // 2 per pixel, backward flow of the shutter-close frame in pixels
-            const float* flow_deltas = nullptr; // 12 per overlay slot: world_open ∘ world_close⁻¹
+            float* flow_buffer = nullptr;    // 2 per pixel on the current grid: p_previous - p_current in pixels
+            unsigned int* flow_status_buffer = nullptr; // FlowStatus per current pixel
+            float* flow_forward_buffer = nullptr;       // 2 per pixel on the previous grid: q_current - q_previous in pixels
+            unsigned int* flow_forward_status_buffer = nullptr;
+            const float* flow_deltas = nullptr; // [2][SLOTS][12]: slab 0 carries a current-instant point to the previous instant, slab 1 the inverse
             TI first_overlay_instance = 0;   // global instance ids >= this index the flow-delta table
+            TI num_overlay_slots = 0;        // NUM_OVERLAYS * MAX_OVERLAY_INSTANCES: delta slab stride and the previous-instant id shift
             const unsigned int* instance_classes = nullptr; // indexed by global instance id
             CollisionResult* collision_results = nullptr;
             float* observation = nullptr; // 3 per pixel, written pre-quantization when set
@@ -470,16 +476,18 @@ namespace rl_tools {
             return (pixel_y / SPEC::CAM_HEIGHT) * SPEC::GRID_COLS + pixel_x / SPEC::CAM_WIDTH;
         }
 
-        // composed tracing: the shared world plus the overlays attached to the ray's camera.
-        // K = 0 compiles down to the raw single-structure trace.
+        // composed tracing: the shared world plus the overlays attached to the ray's camera, taken
+        // from the given overlay set (the current instant's scene.overlays, or the previous
+        // instant's scene.overlays_previous for the flow visibility rays). K = 0 compiles down to
+        // the raw single-structure trace.
         template <typename SPEC, typename T, typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT Hit<T, TI> trace_closest_composed(const SceneView<T, TI>& scene, TI camera, Vec3<T> origin, Vec3<T> direction, T t_min, T t_max){
+        RL_TOOLS_FUNCTION_PLACEMENT Hit<T, TI> trace_closest_composed(const SceneView<T, TI>& scene, const OverlayView<T, TI>* overlays, TI camera, Vec3<T> origin, Vec3<T> direction, T t_min, T t_max){
             Hit<T, TI> best = trace_closest(scene, origin, direction, t_min, t_max);
             if constexpr (SPEC::ENABLE_OVERLAYS){
                 for(TI attachment = 0; attachment < SPEC::MAX_OVERLAYS_PER_CAMERA; attachment++){
                     const TI overlay = scene.attachments[camera * SPEC::MAX_OVERLAYS_PER_CAMERA + attachment];
                     if(overlay == ~(TI)0) continue;
-                    const OverlayView<T, TI>& view = scene.overlays[overlay];
+                    const OverlayView<T, TI>& view = overlays[overlay];
                     traverse_tlas_closest(scene, view.tlas_nodes, view.tlas_primitives, view.num_tlas_nodes, origin, direction, t_min, best);
                 }
             }
@@ -487,17 +495,27 @@ namespace rl_tools {
         }
 
         template <typename SPEC, typename T, typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT bool trace_any_composed(const SceneView<T, TI>& scene, TI camera, Vec3<T> origin, Vec3<T> direction, T t_min, T t_max){
+        RL_TOOLS_FUNCTION_PLACEMENT Hit<T, TI> trace_closest_composed(const SceneView<T, TI>& scene, TI camera, Vec3<T> origin, Vec3<T> direction, T t_min, T t_max){
+            return trace_closest_composed<SPEC>(scene, scene.overlays, camera, origin, direction, t_min, t_max);
+        }
+
+        template <typename SPEC, typename T, typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT bool trace_any_composed(const SceneView<T, TI>& scene, const OverlayView<T, TI>* overlays, TI camera, Vec3<T> origin, Vec3<T> direction, T t_min, T t_max){
             if(trace_any(scene, origin, direction, t_min, t_max)) return true;
             if constexpr (SPEC::ENABLE_OVERLAYS){
                 for(TI attachment = 0; attachment < SPEC::MAX_OVERLAYS_PER_CAMERA; attachment++){
                     const TI overlay = scene.attachments[camera * SPEC::MAX_OVERLAYS_PER_CAMERA + attachment];
                     if(overlay == ~(TI)0) continue;
-                    const OverlayView<T, TI>& view = scene.overlays[overlay];
+                    const OverlayView<T, TI>& view = overlays[overlay];
                     if(traverse_tlas_any(scene, view.tlas_nodes, view.tlas_primitives, view.num_tlas_nodes, origin, direction, t_min, t_max)) return true;
                 }
             }
             return false;
+        }
+
+        template <typename SPEC, typename T, typename TI>
+        RL_TOOLS_FUNCTION_PLACEMENT bool trace_any_composed(const SceneView<T, TI>& scene, TI camera, Vec3<T> origin, Vec3<T> direction, T t_min, T t_max){
+            return trace_any_composed<SPEC>(scene, scene.overlays, camera, origin, direction, t_min, t_max);
         }
 
         template <typename SPEC, typename T, typename TI>
@@ -1122,45 +1140,75 @@ namespace rl_tools {
             return lambda > (T)0;
         }
 
-        // single-sample by design (shutter-close camera, pixel-center ray): backward flow of the
-        // shutter-close frame in pixels — the hit point is carried to shutter open by its
-        // instance's shutter delta (identity for the static world) and projected through the
-        // shutter-open camera; miss (and behind-the-open-camera projections) write (0, 0)
-        template <typename DEVICE, typename SPEC>
+        // two-instant flow, single-sample from pixel centres (like segmentation): the pass is
+        // parameterised on its direction — backward traces the current instant and lands on the
+        // previous one, forward the reverse. The source hit point is carried to the target
+        // instant by its instance's rigid motion (identity for the static world), projected
+        // through the target camera, and tested for visibility against the target instant's
+        // scene by a ray from the target camera to the carried point (distance test, so
+        // self-occlusion counts). Status priority: MISS, BEHIND, OUT_OF_FRAME, OCCLUDED, VALID;
+        // the flow vector is p_target - p_source in pixels, zero for MISS and BEHIND, retained
+        // (the geometric flow) for OUT_OF_FRAME and OCCLUDED.
+        template <typename DEVICE, typename SPEC, bool FORWARD>
         RL_TOOLS_FUNCTION_PLACEMENT void render_flow_frame(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene){
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             const auto& math_device = device.math;
+            const TI SLOTS = scene.num_overlay_slots;
+            const Camera<T>* cameras_source = FORWARD ? scene.cameras_previous : scene.cameras_close;
+            const Camera<T>* cameras_target = FORWARD ? scene.cameras_close : scene.cameras_previous;
+            const OverlayView<T, TI>* overlays_source = FORWARD ? scene.overlays_previous : scene.overlays;
+            const OverlayView<T, TI>* overlays_target = FORWARD ? scene.overlays : scene.overlays_previous;
+            const float* deltas = SPEC::ENABLE_OVERLAYS ? scene.flow_deltas + (FORWARD ? SLOTS * 12 : 0) : nullptr;
+            const TI source_first_overlay_instance = scene.first_overlay_instance + (FORWARD ? SLOTS : 0);
+            float* flow_buffer = FORWARD ? scene.flow_forward_buffer : scene.flow_buffer;
+            unsigned int* status_buffer = FORWARD ? scene.flow_forward_status_buffer : scene.flow_status_buffer;
             for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
-                const Camera<T>& cam = scene.cameras_close[camera_i];
-                const Camera<T>& cam_open = scene.cameras_open[camera_i];
+                const Camera<T>& cam = cameras_source[camera_i];
+                const Camera<T>& cam_target = cameras_target[camera_i];
                 const Vec3<T> pos = to_vec3(cam.pos);
                 const Vec3<T> dir_00 = to_vec3(cam.dir_00);
                 const Vec3<T> dir_du = to_vec3(cam.dir_du);
                 const Vec3<T> dir_dv = to_vec3(cam.dir_dv);
+                const Vec3<T> target_pos = to_vec3(cam_target.pos);
                 for(TI y = 0; y < SPEC::CAM_HEIGHT; y++){
                     for(TI x = 0; x < SPEC::CAM_WIDTH; x++){
                         const TI fb_offset = camera_i * SPEC::CAM_PIXELS + y * SPEC::CAM_WIDTH + x;
                         const T screen_x = ((T)x + (T)0.5) / (T)SPEC::CAM_WIDTH;
                         const T screen_y = ((T)y + (T)0.5) / (T)SPEC::CAM_HEIGHT;
                         const Vec3<T> direction = normalize(math_device, dir_00 + screen_x * dir_du + screen_y * dir_dv);
-                        const Hit<T, TI> hit = trace_closest_composed<SPEC>(scene, camera_i, pos, direction, (T)0, (T)1e30);
+                        const Hit<T, TI> hit = trace_closest_composed<SPEC>(scene, overlays_source, camera_i, pos, direction, (T)0, (T)1e30);
                         T flow_u = 0, flow_v = 0;
+                        unsigned int status = FlowStatus::MISS;
                         if(hit.valid){
                             Vec3<T> point = pos + direction * hit.t;
                             if constexpr (SPEC::ENABLE_OVERLAYS){
-                                if(hit.instance >= scene.first_overlay_instance){
-                                    point = transform_point(&scene.flow_deltas[(TI)(hit.instance - scene.first_overlay_instance) * 12], point);
+                                if(hit.instance >= source_first_overlay_instance){
+                                    point = transform_point(&deltas[(TI)(hit.instance - source_first_overlay_instance) * 12], point);
                                 }
                             }
-                            T open_x, open_y;
-                            if(project_camera(cam_open, point, open_x, open_y)){
-                                flow_u = ((T)x + (T)0.5) - open_x * (T)SPEC::CAM_WIDTH;
-                                flow_v = ((T)y + (T)0.5) - open_y * (T)SPEC::CAM_HEIGHT;
+                            T target_x, target_y;
+                            if(!project_camera(cam_target, point, target_x, target_y)){
+                                status = FlowStatus::BEHIND;
+                            }
+                            else{
+                                flow_u = target_x * (T)SPEC::CAM_WIDTH - ((T)x + (T)0.5);
+                                flow_v = target_y * (T)SPEC::CAM_HEIGHT - ((T)y + (T)0.5);
+                                if(target_x < (T)0 || target_x >= (T)1 || target_y < (T)0 || target_y >= (T)1){
+                                    status = FlowStatus::OUT_OF_FRAME;
+                                }
+                                else{
+                                    const Vec3<T> to_point = point - target_pos;
+                                    const T length = math::sqrt(math_device, dot(to_point, to_point));
+                                    const Vec3<T> visibility_direction = to_point * ((T)1 / length);
+                                    const bool occluded = trace_any_composed<SPEC>(scene, overlays_target, camera_i, target_pos, visibility_direction, (T)0, length * ((T)1 - FLOW_VISIBILITY_EPSILON<T>));
+                                    status = occluded ? FlowStatus::OCCLUDED : FlowStatus::VALID;
+                                }
                             }
                         }
-                        scene.flow_buffer[fb_offset * 2 + 0] = (float)flow_u;
-                        scene.flow_buffer[fb_offset * 2 + 1] = (float)flow_v;
+                        flow_buffer[fb_offset * 2 + 0] = (float)flow_u;
+                        flow_buffer[fb_offset * 2 + 1] = (float)flow_v;
+                        status_buffer[fb_offset] = status;
                     }
                 }
             }

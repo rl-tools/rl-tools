@@ -823,15 +823,31 @@ namespace rl_tools
         m[8]*p.x + m[9]*p.y + m[10]*p.z + m[11]);
   }
 
-  // single-sample by design (shutter-close camera, pixel-center ray): backward flow of the
-  // shutter-close frame in pixels. Traces the collision ray type, whose hit program reports the
-  // distance (payload 0) and global instance id (payload 2) — the hit point is carried to
-  // shutter open by its instance's shutter delta and projected through the shutter-open camera;
-  // miss (and behind-the-open-camera projections) write (0, 0). Compiled into every PTX variant
-  // (like the collision programs): no extra ray type or hit program, so no variant is needed.
-  OPTIX_RAYGEN_PROGRAM(flowRayGen)()
+  // any-hit visibility against the world plus one instant's overlays attached to the camera:
+  // the collision ray type with terminate-on-first-hit, like the punctual-light shadows
+  inline __device__ bool trace_flow_visibility_occluded(OptixTraversableHandle world, const unsigned long long *overlays, int camera, const owl::vec3f &pos, const owl::vec3f &direction, float max_dist)
   {
-    const FlowRayGenData &self = owl::getProgramData<FlowRayGenData>();
+    if (trace_shadow_occluded(world, pos, direction, max_dist)) return true;
+    const int overlay_count = optixLaunchParams.overlay_count;
+    for (int k = 0; k < overlay_count; k++) {
+      const uint32_t overlay = optixLaunchParams.attachments[camera * overlay_count + k];
+      if (overlay == 0xFFFFFFFFu) continue;
+      if (trace_shadow_occluded((OptixTraversableHandle)overlays[overlay], pos, direction, max_dist)) return true;
+    }
+    return false;
+  }
+
+  // two-instant flow, one direction per launch (mirror of the generic render_flow_frame):
+  // single-sample from the source pixel centre, traced with the collision ray type (hit
+  // distance in payload 0, global instance id in payload 2) against the source instant; the hit
+  // point is carried to the target instant by its slot's delta, projected through the target
+  // camera, and tested for visibility from the target camera against the target instant with
+  // the relative margin FLOW_VISIBILITY_EPSILON (types.h). Status priority MISS, BEHIND,
+  // OUT_OF_FRAME, OCCLUDED, VALID; the vector is zero for MISS and BEHIND and the geometric
+  // flow otherwise. Compiled into every PTX variant (like the collision programs).
+  inline __device__ void trace_flow_pixel(const FlowRayGenData &self)
+  {
+    using FlowStatus = rendering::raytracing::FlowStatus;
     const owl::vec2i pixel = owl::getLaunchIndex();
     const int tile_col = pixel.x / self.cam_size.x;
     const int tile_row = pixel.y / self.cam_size.y;
@@ -841,8 +857,10 @@ namespace rl_tools
     const int local_x = pixel.x - tile_col * self.cam_size.x;
     const int local_y = pixel.y - tile_row * self.cam_size.y;
     const int fb_offset = cam_idx * self.cam_size.x * self.cam_size.y + local_y * self.cam_size.x + local_x;
+    const unsigned long long *overlays_source = self.source_previous != 0 ? optixLaunchParams.overlays_previous : optixLaunchParams.overlays;
+    const unsigned long long *overlays_target = self.source_previous != 0 ? optixLaunchParams.overlays : optixLaunchParams.overlays_previous;
 
-    const OptixCameraData &cam = self.cameras_close[cam_idx];
+    const OptixCameraData &cam = self.cameras_source[cam_idx];
     const float screen_x = ((float)local_x + 0.5f) / (float)self.cam_size.x;
     const float screen_y = ((float)local_y + 0.5f) / (float)self.cam_size.y;
     const owl::vec3f direction = normalize(cam.dir_00 + screen_x * cam.dir_du + screen_y * cam.dir_dv);
@@ -866,7 +884,7 @@ namespace rl_tools
       const uint32_t overlay = optixLaunchParams.attachments[cam_idx * overlay_count + k];
       if (overlay == 0xFFFFFFFFu) continue;
       optixTrace(
-          (OptixTraversableHandle)optixLaunchParams.overlays[overlay],
+          (OptixTraversableHandle)overlays_source[overlay],
           (const float3&)cam.pos,
           (const float3&)direction,
           0.f,
@@ -878,21 +896,44 @@ namespace rl_tools
           u0, u1, u2);
     }
     float flow_u = 0.f, flow_v = 0.f;
+    unsigned int status = FlowStatus::MISS;
     if (u1 != 0u) {
       const float t = __uint_as_float(u0);
       owl::vec3f point = owl::vec3f(cam.pos) + direction * t;
-      if (self.flow_deltas != nullptr && u2 >= self.first_overlay_instance) {
-        point = transform_point_rows(self.flow_deltas + (size_t)(u2 - self.first_overlay_instance) * 12, point);
+      if (self.flow_deltas != nullptr && u2 >= self.source_first_overlay_instance) {
+        point = transform_point_rows(self.flow_deltas + (size_t)(u2 - self.source_first_overlay_instance) * 12, point);
       }
-      const OptixCameraData &cam_open = self.cameras_open[cam_idx];
-      float open_x, open_y;
-      if (project_camera(cam_open, point, open_x, open_y)) {
-        flow_u = ((float)local_x + 0.5f) - open_x * (float)self.cam_size.x;
-        flow_v = ((float)local_y + 0.5f) - open_y * (float)self.cam_size.y;
+      const OptixCameraData &cam_target = self.cameras_target[cam_idx];
+      float target_x, target_y;
+      if (!project_camera(cam_target, point, target_x, target_y)) {
+        status = FlowStatus::BEHIND;
+      } else {
+        flow_u = target_x * (float)self.cam_size.x - ((float)local_x + 0.5f);
+        flow_v = target_y * (float)self.cam_size.y - ((float)local_y + 0.5f);
+        if (target_x < 0.f || target_x >= 1.f || target_y < 0.f || target_y >= 1.f) {
+          status = FlowStatus::OUT_OF_FRAME;
+        } else {
+          const owl::vec3f to_point = point - owl::vec3f(cam_target.pos);
+          const float length = sqrtf(dot(to_point, to_point));
+          const owl::vec3f visibility_direction = to_point * (1.f / length);
+          const bool occluded = trace_flow_visibility_occluded(self.world, overlays_target, cam_idx, owl::vec3f(cam_target.pos), visibility_direction, length * (1.f - 1e-4f)); // FLOW_VISIBILITY_EPSILON
+          status = occluded ? FlowStatus::OCCLUDED : FlowStatus::VALID;
+        }
       }
     }
     self.flow_ptr[fb_offset * 2 + 0] = flow_u;
     self.flow_ptr[fb_offset * 2 + 1] = flow_v;
+    self.status_ptr[fb_offset] = status;
+  }
+
+  OPTIX_RAYGEN_PROGRAM(flowRayGen)()
+  {
+    trace_flow_pixel(owl::getProgramData<FlowRayGenData>());
+  }
+
+  OPTIX_RAYGEN_PROGRAM(flowForwardRayGen)()
+  {
+    trace_flow_pixel(owl::getProgramData<FlowRayGenData>());
   }
 
 #if RL_TOOLS_RENDERING_RAYTRACING_ENABLE_NORMALS_PROGRAMS

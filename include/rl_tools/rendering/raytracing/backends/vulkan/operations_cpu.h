@@ -299,6 +299,19 @@ namespace rl_tools {
                 destroy_buffer(ctx, buffer);
             }
             ctx.overlay_sample_instance_buffers.clear();
+            for(auto& overlay : ctx.overlay_tlas_previous){
+                ctx.vkDestroyAccelerationStructureKHR(ctx.device, overlay, nullptr);
+            }
+            ctx.overlay_tlas_previous.clear();
+            for(auto& buffer : ctx.overlay_tlas_previous_buffers){
+                destroy_buffer(ctx, buffer);
+            }
+            ctx.overlay_tlas_previous_buffers.clear();
+            for(auto& buffer : ctx.overlay_instance_buffers_previous){
+                destroy_buffer(ctx, buffer);
+            }
+            ctx.overlay_instance_buffers_previous.clear();
+            destroy_buffer(ctx, ctx.overlay_num_active_previous);
             destroy_buffer(ctx, ctx.overlay_scratch);
             ctx.overlay_scratch_stride = 0;
             destroy_buffer(ctx, ctx.instance_data);
@@ -317,15 +330,15 @@ namespace rl_tools {
             ctx.mesh_textures.clear();
         }
 
+        // one fenced submit of the pre-recorded pass command buffers (null entries are skipped)
         template <typename DEVICE>
-        void submit_render(DEVICE& device, Context& ctx, VkCommandBuffer first, VkCommandBuffer second = VK_NULL_HANDLE, VkCommandBuffer third = VK_NULL_HANDLE, VkCommandBuffer fourth = VK_NULL_HANDLE, VkCommandBuffer fifth = VK_NULL_HANDLE){
+        void submit_render(DEVICE& device, Context& ctx, std::initializer_list<VkCommandBuffer> inputs){
             wait_render_in_flight(device, ctx);
-            const VkCommandBuffer inputs[5] = {first, second, third, fourth, fifth};
-            VkCommandBuffer command_buffers[5];
+            VkCommandBuffer command_buffers[8];
             uint32_t count = 0;
-            for(int input_i = 0; input_i < 5; input_i++){
-                if(inputs[input_i] != VK_NULL_HANDLE){
-                    command_buffers[count++] = inputs[input_i];
+            for(VkCommandBuffer input : inputs){
+                if(input != VK_NULL_HANDLE && count < 8){
+                    command_buffers[count++] = input;
                 }
             }
             if(count == 0){
@@ -348,6 +361,10 @@ namespace rl_tools {
 
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             malloc(device, renderer.transforms);
+        }
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS) {
+            malloc(device, renderer.transforms_previous);
+            std::memset(data(renderer.transforms_previous), 0, decltype(renderer.transforms_previous)::SPEC::SIZE_BYTES);
         }
         if constexpr (SPEC::HAS_TRANSFORM_PAIR) {
             malloc(device, renderer.transforms_pair);
@@ -526,6 +543,7 @@ namespace rl_tools {
         vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_segmentation), "Vulkan: command buffer allocation failed");
         vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_normals), "Vulkan: command buffer allocation failed");
         vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_flow), "Vulkan: command buffer allocation failed");
+        vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_flow_forward), "Vulkan: command buffer allocation failed");
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
             vk::check(device, vkAllocateCommandBuffers(ctx->device, &command_buffer_info, &ctx->cb_dynamic), "Vulkan: command buffer allocation failed");
         }
@@ -558,6 +576,8 @@ namespace rl_tools {
             layout_bindings[vk::bindings::ACCELERATION_STRUCTURE].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
             layout_bindings[vk::bindings::OVERLAY_TLAS].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
             layout_bindings[vk::bindings::OVERLAY_TLAS].descriptorCount = SPEC::ENABLE_OVERLAYS ? (uint32_t)SPEC::NUM_OVERLAYS : 1;
+            layout_bindings[vk::bindings::OVERLAY_TLAS_PREVIOUS].descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+            layout_bindings[vk::bindings::OVERLAY_TLAS_PREVIOUS].descriptorCount = SPEC::ENABLE_OVERLAYS ? (uint32_t)SPEC::NUM_OVERLAYS : 1;
             layout_bindings[vk::bindings::TEXTURES].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
             layout_bindings[vk::bindings::TEXTURES].descriptorCount = vk::MAX_TEXTURE_DESCRIPTORS;
             binding_flags[vk::bindings::TEXTURES] = VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT | VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
@@ -614,6 +634,10 @@ namespace rl_tools {
             spirv = rendering::raytracing::backends::vulkan::device_spirv_flow(spirv_size);
             ctx->module_flow = make_module(spirv, spirv_size);
         }
+        if constexpr (SPEC::HAS_FLOW_FORWARD) {
+            spirv = rendering::raytracing::backends::vulkan::device_spirv_flow_forward(spirv_size);
+            ctx->module_flow_forward = make_module(spirv, spirv_size);
+        }
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
             spirv = rendering::raytracing::backends::vulkan::device_spirv_resolve(spirv_size);
             ctx->module_resolve = make_module(spirv, spirv_size);
@@ -637,6 +661,10 @@ namespace rl_tools {
             ctx->cameras_open = vk::create_buffer(device, *ctx, camera_bytes, STORAGE, HOST_MEMORY, true);
             renderer.cameras_open._data = (rendering::raytracing::Camera<typename SPEC::T>*)ctx->cameras_open.mapped;
         }
+        if constexpr (SPEC::HAS_FLOW) {
+            ctx->cameras_previous = vk::create_buffer(device, *ctx, camera_bytes, STORAGE, HOST_MEMORY, true);
+            renderer.cameras_previous._data = (rendering::raytracing::Camera<typename SPEC::T>*)ctx->cameras_previous.mapped;
+        }
         // the output tensors alias the mapped shader buffers (see frame_buffer/depth_buffer/
         // segmentation_buffer/collision_results/observation accessors) — consumers read in place
         if constexpr (SPEC::HAS_RGB) {
@@ -658,10 +686,17 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_FLOW) {
             ctx->flow_buffer = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * 2 * sizeof(float), STORAGE, HOST_MEMORY, true);
             renderer.flow_buffer._data = (float*)ctx->flow_buffer.mapped;
-            if constexpr (SPEC::ENABLE_OVERLAYS) {
-                ctx->flow_deltas = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float), STORAGE, HOST_MEMORY, true);
-                renderer.flow_deltas._data = (float*)ctx->flow_deltas.mapped;
+            ctx->flow_status_buffer = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(uint32_t), STORAGE, HOST_MEMORY, true);
+            renderer.flow_status_buffer._data = (uint32_t*)ctx->flow_status_buffer.mapped;
+            if constexpr (SPEC::HAS_FLOW_OVERLAYS) {
+                ctx->flow_deltas = vk::create_buffer(device, *ctx, (size_t)2 * SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float), STORAGE, HOST_MEMORY, true);
             }
+        }
+        if constexpr (SPEC::HAS_FLOW_FORWARD) {
+            ctx->flow_forward_buffer = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * 2 * sizeof(float), STORAGE, HOST_MEMORY, true);
+            renderer.flow_forward_buffer._data = (float*)ctx->flow_forward_buffer.mapped;
+            ctx->flow_forward_status_buffer = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(uint32_t), STORAGE, HOST_MEMORY, true);
+            renderer.flow_forward_status_buffer._data = (uint32_t*)ctx->flow_forward_status_buffer.mapped;
         }
         if constexpr (SPEC::HAS_OBSERVATION) {
             static_assert(utils::typing::is_same_v<typename SPEC::OBSERVATION_T, float>, "The Vulkan raytracing backend requires OBSERVATION_T = float");
@@ -868,6 +903,7 @@ namespace rl_tools {
             params->miss_color_1[component] = (float)renderer.miss_color_1[component];
         }
         params->first_overlay_instance = (uint32_t)scene.instances.size();
+        params->num_overlay_slots = SPEC::ENABLE_OVERLAYS ? (uint32_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES : 0u;
 
         const size_t num_objects = all_objects.size();
         const size_t num_scene_instances = scene.instances.size();
@@ -1081,43 +1117,55 @@ namespace rl_tools {
             overlay_sizes.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_SIZES_INFO_KHR;
             ctx.vkGetAccelerationStructureBuildSizesKHR(ctx.device, VK_ACCELERATION_STRUCTURE_BUILD_TYPE_DEVICE_KHR, &overlay_build_info, &overlay_capacity, &overlay_sizes);
             ctx.overlay_scratch_stride = (overlay_sizes.buildScratchSize + scratch_alignment - 1) & ~(VkDeviceSize)(scratch_alignment - 1);
-            ctx.overlay_scratch = vk::create_buffer(device, ctx, (VkDeviceSize)SPEC::NUM_OVERLAYS * ctx.overlay_scratch_stride + scratch_alignment,
+            // one scratch slice per overlay TLAS built in the same command: the current instant's
+            // set, plus the previous instant's set under flow
+            constexpr size_t OVERLAY_INSTANTS = SPEC::HAS_FLOW_OVERLAYS ? 2 : 1;
+            ctx.overlay_scratch = vk::create_buffer(device, ctx, (VkDeviceSize)OVERLAY_INSTANTS * SPEC::NUM_OVERLAYS * ctx.overlay_scratch_stride + scratch_alignment,
                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, false);
-            for(size_t overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
-                ctx.overlay_instance_buffers.push_back(vk::create_buffer(device, ctx, (size_t)SPEC::MAX_OVERLAY_INSTANCES * sizeof(VkAccelerationStructureInstanceKHR),
-                    VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                    HOST_MEMORY, true));
-                ctx.overlay_tlas_buffers.push_back(vk::create_buffer(device, ctx, overlay_sizes.accelerationStructureSize,
-                    VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-                    VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, false));
-                VkAccelerationStructureCreateInfoKHR overlay_info{};
-                overlay_info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
-                overlay_info.buffer = ctx.overlay_tlas_buffers.back().buffer;
-                overlay_info.size = overlay_sizes.accelerationStructureSize;
-                overlay_info.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
-                VkAccelerationStructureKHR overlay_tlas = VK_NULL_HANDLE;
-                vk::check(device, ctx.vkCreateAccelerationStructureKHR(ctx.device, &overlay_info, nullptr, &overlay_tlas), "Vulkan: overlay TLAS creation failed");
-                ctx.overlay_tlas.push_back(overlay_tlas);
+            const auto create_overlay_tlas_set = [&](std::vector<vk::BufferResource>& instance_buffers, std::vector<vk::BufferResource>& tlas_buffers, std::vector<VkAccelerationStructureKHR>& tlas_set){
+                for(size_t overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+                    instance_buffers.push_back(vk::create_buffer(device, ctx, (size_t)SPEC::MAX_OVERLAY_INSTANCES * sizeof(VkAccelerationStructureInstanceKHR),
+                        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                        HOST_MEMORY, true));
+                    tlas_buffers.push_back(vk::create_buffer(device, ctx, overlay_sizes.accelerationStructureSize,
+                        VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, false));
+                    VkAccelerationStructureCreateInfoKHR overlay_info{};
+                    overlay_info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_KHR;
+                    overlay_info.buffer = tlas_buffers.back().buffer;
+                    overlay_info.size = overlay_sizes.accelerationStructureSize;
+                    overlay_info.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+                    VkAccelerationStructureKHR overlay_tlas = VK_NULL_HANDLE;
+                    vk::check(device, ctx.vkCreateAccelerationStructureKHR(ctx.device, &overlay_info, nullptr, &overlay_tlas), "Vulkan: overlay TLAS creation failed");
+                    tlas_set.push_back(overlay_tlas);
+                }
+            };
+            create_overlay_tlas_set(ctx.overlay_instance_buffers, ctx.overlay_tlas_buffers, ctx.overlay_tlas);
+            if constexpr (SPEC::HAS_FLOW_OVERLAYS){
+                create_overlay_tlas_set(ctx.overlay_instance_buffers_previous, ctx.overlay_tlas_previous_buffers, ctx.overlay_tlas_previous);
             }
             {
-                // defensive empty build: the descriptor array must never reference an unbuilt AS
+                // defensive empty build: the descriptor arrays must never reference an unbuilt AS
                 // (the shader's num_active == 0 skip is the primary guard, this is the backstop)
                 VkDeviceAddress scratch_address = vk::buffer_address(ctx, ctx.overlay_scratch);
                 scratch_address = (scratch_address + scratch_alignment - 1) & ~(VkDeviceAddress)(scratch_alignment - 1);
-                std::vector<VkAccelerationStructureGeometryKHR> empty_geometries(SPEC::NUM_OVERLAYS, overlay_geometry);
-                std::vector<VkAccelerationStructureBuildGeometryInfoKHR> empty_build_infos(SPEC::NUM_OVERLAYS, overlay_build_info);
-                std::vector<VkAccelerationStructureBuildRangeInfoKHR> empty_ranges(SPEC::NUM_OVERLAYS, VkAccelerationStructureBuildRangeInfoKHR{});
-                std::vector<const VkAccelerationStructureBuildRangeInfoKHR*> empty_range_pointers(SPEC::NUM_OVERLAYS);
-                for(size_t overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
-                    empty_geometries[overlay].geometry.instances.data.deviceAddress = vk::buffer_address(ctx, ctx.overlay_instance_buffers[overlay]);
-                    empty_build_infos[overlay].pGeometries = &empty_geometries[overlay];
-                    empty_build_infos[overlay].dstAccelerationStructure = ctx.overlay_tlas[overlay];
-                    empty_build_infos[overlay].scratchData.deviceAddress = scratch_address + (VkDeviceAddress)overlay * ctx.overlay_scratch_stride;
-                    empty_range_pointers[overlay] = &empty_ranges[overlay];
+                constexpr size_t EMPTY_BUILDS = OVERLAY_INSTANTS * SPEC::NUM_OVERLAYS;
+                std::vector<VkAccelerationStructureGeometryKHR> empty_geometries(EMPTY_BUILDS, overlay_geometry);
+                std::vector<VkAccelerationStructureBuildGeometryInfoKHR> empty_build_infos(EMPTY_BUILDS, overlay_build_info);
+                std::vector<VkAccelerationStructureBuildRangeInfoKHR> empty_ranges(EMPTY_BUILDS, VkAccelerationStructureBuildRangeInfoKHR{});
+                std::vector<const VkAccelerationStructureBuildRangeInfoKHR*> empty_range_pointers(EMPTY_BUILDS);
+                for(size_t build_i = 0; build_i < EMPTY_BUILDS; build_i++){
+                    const size_t overlay = build_i % SPEC::NUM_OVERLAYS;
+                    const bool previous = build_i >= SPEC::NUM_OVERLAYS;
+                    empty_geometries[build_i].geometry.instances.data.deviceAddress = vk::buffer_address(ctx, previous ? ctx.overlay_instance_buffers_previous[overlay] : ctx.overlay_instance_buffers[overlay]);
+                    empty_build_infos[build_i].pGeometries = &empty_geometries[build_i];
+                    empty_build_infos[build_i].dstAccelerationStructure = previous ? ctx.overlay_tlas_previous[overlay] : ctx.overlay_tlas[overlay];
+                    empty_build_infos[build_i].scratchData.deviceAddress = scratch_address + (VkDeviceAddress)build_i * ctx.overlay_scratch_stride;
+                    empty_range_pointers[build_i] = &empty_ranges[build_i];
                 }
                 VkCommandBuffer command_buffer = vk::one_shot_begin(device, ctx);
-                ctx.vkCmdBuildAccelerationStructuresKHR(command_buffer, (uint32_t)SPEC::NUM_OVERLAYS, empty_build_infos.data(), empty_range_pointers.data());
+                ctx.vkCmdBuildAccelerationStructuresKHR(command_buffer, (uint32_t)EMPTY_BUILDS, empty_build_infos.data(), empty_range_pointers.data());
                 vk::one_shot_end(device, ctx, command_buffer);
             }
             if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
@@ -1129,6 +1177,10 @@ namespace rl_tools {
             }
             ctx.overlay_num_active = vk::create_buffer(device, ctx, (size_t)SPEC::NUM_OVERLAYS * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, HOST_MEMORY, true);
             std::memset(ctx.overlay_num_active.mapped, 0, ctx.overlay_num_active.size);
+            if constexpr (SPEC::HAS_FLOW_OVERLAYS){
+                ctx.overlay_num_active_previous = vk::create_buffer(device, ctx, (size_t)SPEC::NUM_OVERLAYS * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, HOST_MEMORY, true);
+                std::memset(ctx.overlay_num_active_previous.mapped, 0, ctx.overlay_num_active_previous.size);
+            }
             ctx.overlay_attachments = vk::create_buffer(device, ctx, (size_t)SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA * sizeof(uint32_t), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, HOST_MEMORY, true);
             {
                 auto* attachments = (uint32_t*)ctx.overlay_attachments.mapped;
@@ -1216,6 +1268,9 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_FLOW) {
                 ctx.flow_pipeline = make_pipeline(ctx.module_flow);
             }
+            if constexpr (SPEC::HAS_FLOW_FORWARD) {
+                ctx.flow_forward_pipeline = make_pipeline(ctx.module_flow_forward);
+            }
             if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
                 ctx.resolve_pipeline = make_pipeline(ctx.module_resolve);
             }
@@ -1231,7 +1286,7 @@ namespace rl_tools {
             constexpr uint32_t overlay_tlas_count = SPEC::ENABLE_OVERLAYS ? (uint32_t)SPEC::NUM_OVERLAYS : 1;
             VkDescriptorPoolSize pool_sizes[3];
             pool_sizes[0] = {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, vk::bindings::COUNT};
-            pool_sizes[1] = {VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 + overlay_tlas_count};
+            pool_sizes[1] = {VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1 + 2 * overlay_tlas_count};
             pool_sizes[2] = {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, texture_count};
             VkDescriptorPoolCreateInfo pool_info{};
             pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1260,6 +1315,7 @@ namespace rl_tools {
             buffer_infos[vk::bindings::LAUNCH_PARAMS] = buffer_or_dummy(ctx.launch_params);
             buffer_infos[vk::bindings::CAMERAS_CLOSE] = buffer_or_dummy(ctx.cameras);
             buffer_infos[vk::bindings::CAMERAS_OPEN] = ctx.cameras_open.buffer != VK_NULL_HANDLE ? buffer_or_dummy(ctx.cameras_open) : buffer_or_dummy(ctx.cameras);
+            buffer_infos[vk::bindings::CAMERAS_PREVIOUS] = ctx.cameras_previous.buffer != VK_NULL_HANDLE ? buffer_or_dummy(ctx.cameras_previous) : buffer_or_dummy(ctx.cameras);
             buffer_infos[vk::bindings::FRAME_BUFFER] = buffer_or_dummy(ctx.frame_buffer);
             buffer_infos[vk::bindings::MESH_RECORDS] = buffer_or_dummy(ctx.mesh_records);
             buffer_infos[vk::bindings::SCENE_LIGHTS] = buffer_or_dummy(ctx.scene_lights);
@@ -1278,10 +1334,14 @@ namespace rl_tools {
             buffer_infos[vk::bindings::NORMALS_BUFFER] = buffer_or_dummy(ctx.normals_buffer);
             buffer_infos[vk::bindings::FLOW_BUFFER] = buffer_or_dummy(ctx.flow_buffer);
             buffer_infos[vk::bindings::FLOW_DELTAS] = buffer_or_dummy(ctx.flow_deltas);
+            buffer_infos[vk::bindings::FLOW_STATUS_BUFFER] = buffer_or_dummy(ctx.flow_status_buffer);
+            buffer_infos[vk::bindings::FLOW_FORWARD_BUFFER] = buffer_or_dummy(ctx.flow_forward_buffer);
+            buffer_infos[vk::bindings::FLOW_FORWARD_STATUS_BUFFER] = buffer_or_dummy(ctx.flow_forward_status_buffer);
+            buffer_infos[vk::bindings::OVERLAY_NUM_ACTIVE_PREVIOUS] = buffer_or_dummy(ctx.overlay_num_active_previous);
 
             std::vector<VkWriteDescriptorSet> writes;
             for(uint32_t binding_i = 0; binding_i < vk::bindings::COUNT; binding_i++){
-                if(binding_i == vk::bindings::ACCELERATION_STRUCTURE || binding_i == vk::bindings::OVERLAY_TLAS || binding_i == vk::bindings::TEXTURES){
+                if(binding_i == vk::bindings::ACCELERATION_STRUCTURE || binding_i == vk::bindings::OVERLAY_TLAS || binding_i == vk::bindings::OVERLAY_TLAS_PREVIOUS || binding_i == vk::bindings::TEXTURES){
                     continue;
                 }
                 VkWriteDescriptorSet write{};
@@ -1326,6 +1386,26 @@ namespace rl_tools {
             overlay_tlas_write.descriptorCount = overlay_tlas_count;
             overlay_tlas_write.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
             writes.push_back(overlay_tlas_write);
+            // the previous instant's set (flow); the current set stands in when flow is off, so
+            // the binding always holds valid handles
+            std::vector<VkAccelerationStructureKHR> overlay_tlas_previous_handles(overlay_tlas_handles);
+            if constexpr (SPEC::HAS_FLOW_OVERLAYS){
+                for(uint32_t overlay = 0; overlay < overlay_tlas_count; overlay++){
+                    overlay_tlas_previous_handles[overlay] = ctx.overlay_tlas_previous[overlay];
+                }
+            }
+            VkWriteDescriptorSetAccelerationStructureKHR overlay_tlas_previous_write_info{};
+            overlay_tlas_previous_write_info.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR;
+            overlay_tlas_previous_write_info.accelerationStructureCount = overlay_tlas_count;
+            overlay_tlas_previous_write_info.pAccelerationStructures = overlay_tlas_previous_handles.data();
+            VkWriteDescriptorSet overlay_tlas_previous_write{};
+            overlay_tlas_previous_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            overlay_tlas_previous_write.pNext = &overlay_tlas_previous_write_info;
+            overlay_tlas_previous_write.dstSet = ctx.descriptor_set;
+            overlay_tlas_previous_write.dstBinding = vk::bindings::OVERLAY_TLAS_PREVIOUS;
+            overlay_tlas_previous_write.descriptorCount = overlay_tlas_count;
+            overlay_tlas_previous_write.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+            writes.push_back(overlay_tlas_previous_write);
             std::vector<VkDescriptorImageInfo> image_infos(texture_count);
             for(uint32_t texture_i = 0; texture_i < texture_count; texture_i++){
                 image_infos[texture_i] = {ctx.sampler, ctx.mesh_textures[texture_i].view, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL};
@@ -1374,6 +1454,9 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_FLOW) {
                 record(ctx.cb_flow, ctx.flow_pipeline, fb_groups_x, fb_groups_y);
             }
+            if constexpr (SPEC::HAS_FLOW_FORWARD) {
+                record(ctx.cb_flow_forward, ctx.flow_forward_pipeline, fb_groups_x, fb_groups_y);
+            }
             if(ctx.collision_pipeline != VK_NULL_HANDLE){
                 record(ctx.cb_collision, ctx.collision_pipeline, (SPEC::NUM_CAMERAS + vk::WORKGROUP_SIZE - 1) / vk::WORKGROUP_SIZE, (SPEC::NUM_PROBES + vk::WORKGROUP_SIZE - 1) / vk::WORKGROUP_SIZE);
             }
@@ -1397,19 +1480,17 @@ namespace rl_tools {
         auto* instance_record_base = (uint32_t*)ctx.instance_record_base.mapped;
         auto* instance_classes = (uint32_t*)ctx.instance_classes.mapped;
         auto* overlay_num_active = (uint32_t*)ctx.overlay_num_active.mapped;
-        if constexpr (SPEC::HAS_FLOW){
-            rendering::raytracing::detail::compose_flow_deltas(renderer, data(renderer.flow_deltas));
-        }
         rendering::raytracing::detail::flush_overlay_transforms(renderer);
 
         // no allocation, no descriptor writes, no command-buffer re-recording: overlays are
         // rebuilt in place from their mapped descriptor buffers and preallocated scratch slices.
-        // Rebuilt unconditionally: producers may write the transforms tensor directly, which
+        // Rebuilt unconditionally: producers may write the transforms tensors directly, which
         // leaves no host-observable dirty flag
         std::vector<VkAccelerationStructureGeometryKHR> build_geometries;
         std::vector<VkAccelerationStructureBuildGeometryInfoKHR> build_infos;
         std::vector<VkAccelerationStructureBuildRangeInfoKHR> build_ranges;
-        std::vector<size_t> build_overlays;
+        std::vector<size_t> build_overlays; // scratch slice index: the previous instant's set follows the current one
+        std::vector<VkAccelerationStructureKHR> build_targets;
 
         for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
             auto& overlay_state = renderer.overlays[overlay];
@@ -1466,7 +1547,58 @@ namespace rl_tools {
                 range.primitiveCount = num_active;
                 build_ranges.push_back(range);
                 build_overlays.push_back(overlay);
+                build_targets.push_back(ctx.overlay_tlas[overlay]);
             }
+        }
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS){
+            // the previous instant: descriptors from transforms_previous over the shifted id range
+            // after the blur samples (no side tables: the flow passes only need hit distances and
+            // ids), built into the resident second TLAS set; plus the per-slot delta table
+            constexpr size_t num_overlay_slots = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
+            constexpr size_t previous_range = 1 + (SPEC::ENABLE_DYNAMIC_MOTION_BLUR ? (size_t)SPEC::MOTION_BLUR_SAMPLES : 0);
+            auto* overlay_num_active_previous = (uint32_t*)ctx.overlay_num_active_previous.mapped;
+            for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+                auto& overlay_state = renderer.overlays[overlay];
+                const size_t base = (size_t)ctx.num_scene_instances + num_overlay_slots * previous_range + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES;
+                auto* descriptors = (VkAccelerationStructureInstanceKHR*)ctx.overlay_instance_buffers_previous[overlay].mapped;
+                uint32_t num_active = 0;
+                for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
+                    const auto& host_slot = overlay_state.slots[slot];
+                    if(!host_slot.active) continue;
+                    float world[12];
+                    rendering::raytracing::detail::compose_overlay_slot_transform(renderer, data(renderer.transforms_previous), overlay, slot, world);
+                    VkAccelerationStructureInstanceKHR& descriptor = descriptors[num_active];
+                    descriptor = {};
+                    std::memcpy(descriptor.transform.matrix, world, sizeof(descriptor.transform.matrix));
+                    descriptor.instanceCustomIndex = (uint32_t)(base + slot);
+                    descriptor.mask = 0xFF;
+                    descriptor.accelerationStructureReference = ctx.blas_addresses[host_slot.object];
+                    num_active++;
+                }
+                overlay_num_active_previous[overlay] = num_active;
+                if(num_active > 0){
+                    VkAccelerationStructureGeometryKHR geometry{};
+                    geometry.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR;
+                    geometry.geometryType = VK_GEOMETRY_TYPE_INSTANCES_KHR;
+                    geometry.geometry.instances = {};
+                    geometry.geometry.instances.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR;
+                    geometry.geometry.instances.data.deviceAddress = vk::buffer_address(ctx, ctx.overlay_instance_buffers_previous[overlay]);
+                    build_geometries.push_back(geometry);
+                    VkAccelerationStructureBuildGeometryInfoKHR build_info{};
+                    build_info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_BUILD_GEOMETRY_INFO_KHR;
+                    build_info.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_KHR;
+                    build_info.flags = VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR;
+                    build_info.mode = VK_BUILD_ACCELERATION_STRUCTURE_MODE_BUILD_KHR;
+                    build_info.geometryCount = 1;
+                    build_infos.push_back(build_info);
+                    VkAccelerationStructureBuildRangeInfoKHR range{};
+                    range.primitiveCount = num_active;
+                    build_ranges.push_back(range);
+                    build_overlays.push_back((size_t)SPEC::NUM_OVERLAYS + overlay);
+                    build_targets.push_back(ctx.overlay_tlas_previous[overlay]);
+                }
+            }
+            rendering::raytracing::detail::compose_flow_deltas(renderer, data(renderer.transforms), data(renderer.transforms_previous), (float*)ctx.flow_deltas.mapped);
         }
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
             // per-sample overlay instance descriptors + shifted-id side-table slices consumed by
@@ -1527,7 +1659,7 @@ namespace rl_tools {
             std::vector<const VkAccelerationStructureBuildRangeInfoKHR*> range_pointers(build_infos.size());
             for(size_t build_i = 0; build_i < build_infos.size(); build_i++){
                 build_infos[build_i].pGeometries = &build_geometries[build_i];
-                build_infos[build_i].dstAccelerationStructure = ctx.overlay_tlas[build_overlays[build_i]];
+                build_infos[build_i].dstAccelerationStructure = build_targets[build_i];
                 build_infos[build_i].scratchData.deviceAddress = scratch_address + (VkDeviceAddress)build_overlays[build_i] * ctx.overlay_scratch_stride;
                 range_pointers[build_i] = &build_ranges[build_i];
             }
@@ -1563,7 +1695,7 @@ namespace rl_tools {
     // device-resident path is the OptiX backend)
     template <typename DEVICE, typename SPEC>
     void expand_motion_transforms_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
-        static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur or flow renderer specification");
+        static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur renderer specification");
         namespace vk = rendering::raytracing::backends::vulkan;
         vk::wait_in_flight(device, vk::context(renderer));
         rendering::raytracing::detail::expand_motion_transforms_host(renderer);
@@ -1571,7 +1703,40 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void expand_motion_transforms_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
-        static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur or flow renderer specification");
+        static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur renderer specification");
+    }
+
+    // the previous instant becomes the current one: mapped host-coherent buffers and host
+    // tensors, so plain copies after the in-flight wait — clean overlays copy their
+    // producer-owned rows, dirty overlays reach transforms_previous through the mirrors at the
+    // next update
+    template <typename DEVICE, typename SPEC>
+    void advance_flow_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
+        static_assert(SPEC::HAS_FLOW, "advance_flow requires a flow-capable renderer specification");
+        namespace vk = rendering::raytracing::backends::vulkan;
+        using TI = typename SPEC::TI;
+        vk::wait_in_flight(device, vk::context(renderer));
+        std::memcpy(data(renderer.cameras_previous), data(renderer.cameras), decltype(renderer.cameras)::SPEC::SIZE_BYTES);
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS){
+            bool copy_rows[SPEC::NUM_OVERLAYS];
+            rendering::raytracing::detail::advance_flow_mirrors(renderer, copy_rows);
+            for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+                if(!copy_rows[overlay]) continue;
+                const size_t offset = (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES * 12;
+                std::memcpy(data(renderer.transforms_previous) + offset, data(renderer.transforms) + offset, (size_t)SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float));
+            }
+        }
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void advance_flow_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
+        static_assert(SPEC::HAS_FLOW, "advance_flow requires a flow-capable renderer specification");
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void advance_flow(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
+        advance_flow_launch(device, renderer);
+        advance_flow_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1740,6 +1905,10 @@ namespace rl_tools {
                 vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, ctx.flow_pipeline);
                 vkCmdDispatch(command_buffer, fb_groups_x, fb_groups_y, 1);
             }
+            if constexpr (SPEC::HAS_FLOW_FORWARD){
+                vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, ctx.flow_forward_pipeline);
+                vkCmdDispatch(command_buffer, fb_groups_x, fb_groups_y, 1);
+            }
             vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, ctx.resolve_pipeline);
             vkCmdDispatch(command_buffer, fb_groups_x, fb_groups_y, 1);
             VkMemoryBarrier to_host{};
@@ -1756,12 +1925,13 @@ namespace rl_tools {
             ctx.render_in_flight = true;
             return;
         }
-        vk::submit_render(device, ctx,
+        vk::submit_render(device, ctx, {
             SPEC::HAS_RGB ? ctx.cb_rgb : VK_NULL_HANDLE,
             SPEC::HAS_DEPTH ? ctx.cb_depth : VK_NULL_HANDLE,
             SPEC::HAS_SEGMENTATION ? ctx.cb_segmentation : VK_NULL_HANDLE,
             SPEC::HAS_NORMALS ? ctx.cb_normals : VK_NULL_HANDLE,
-            SPEC::HAS_FLOW ? ctx.cb_flow : VK_NULL_HANDLE);
+            SPEC::HAS_FLOW ? ctx.cb_flow : VK_NULL_HANDLE,
+            SPEC::HAS_FLOW_FORWARD ? ctx.cb_flow_forward : VK_NULL_HANDLE});
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1812,11 +1982,15 @@ namespace rl_tools {
             vk::destroy_buffer(ctx, ctx.launch_params);
             vk::destroy_buffer(ctx, ctx.cameras);
             vk::destroy_buffer(ctx, ctx.cameras_open);
+            vk::destroy_buffer(ctx, ctx.cameras_previous);
             vk::destroy_buffer(ctx, ctx.frame_buffer);
             vk::destroy_buffer(ctx, ctx.depth_buffer);
             vk::destroy_buffer(ctx, ctx.segmentation_buffer);
             vk::destroy_buffer(ctx, ctx.normals_buffer);
             vk::destroy_buffer(ctx, ctx.flow_buffer);
+            vk::destroy_buffer(ctx, ctx.flow_status_buffer);
+            vk::destroy_buffer(ctx, ctx.flow_forward_buffer);
+            vk::destroy_buffer(ctx, ctx.flow_forward_status_buffer);
             vk::destroy_buffer(ctx, ctx.flow_deltas);
             vk::destroy_buffer(ctx, ctx.observation);
             vk::destroy_buffer(ctx, ctx.collision_results);
@@ -1830,6 +2004,7 @@ namespace rl_tools {
             if(ctx.segmentation_pipeline != VK_NULL_HANDLE){ vkDestroyPipeline(ctx.device, ctx.segmentation_pipeline, nullptr); }
             if(ctx.normals_pipeline != VK_NULL_HANDLE){ vkDestroyPipeline(ctx.device, ctx.normals_pipeline, nullptr); }
             if(ctx.flow_pipeline != VK_NULL_HANDLE){ vkDestroyPipeline(ctx.device, ctx.flow_pipeline, nullptr); }
+            if(ctx.flow_forward_pipeline != VK_NULL_HANDLE){ vkDestroyPipeline(ctx.device, ctx.flow_forward_pipeline, nullptr); }
             if(ctx.resolve_pipeline != VK_NULL_HANDLE){ vkDestroyPipeline(ctx.device, ctx.resolve_pipeline, nullptr); }
             if(ctx.module_rgb != VK_NULL_HANDLE){ vkDestroyShaderModule(ctx.device, ctx.module_rgb, nullptr); }
             if(ctx.module_depth != VK_NULL_HANDLE){ vkDestroyShaderModule(ctx.device, ctx.module_depth, nullptr); }
@@ -1837,6 +2012,7 @@ namespace rl_tools {
             if(ctx.module_segmentation != VK_NULL_HANDLE){ vkDestroyShaderModule(ctx.device, ctx.module_segmentation, nullptr); }
             if(ctx.module_normals != VK_NULL_HANDLE){ vkDestroyShaderModule(ctx.device, ctx.module_normals, nullptr); }
             if(ctx.module_flow != VK_NULL_HANDLE){ vkDestroyShaderModule(ctx.device, ctx.module_flow, nullptr); }
+            if(ctx.module_flow_forward != VK_NULL_HANDLE){ vkDestroyShaderModule(ctx.device, ctx.module_flow_forward, nullptr); }
             if(ctx.module_resolve != VK_NULL_HANDLE){ vkDestroyShaderModule(ctx.device, ctx.module_resolve, nullptr); }
             vkDestroyPipelineLayout(ctx.device, ctx.pipeline_layout, nullptr);
             vkDestroyDescriptorSetLayout(ctx.device, ctx.descriptor_set_layout, nullptr);
@@ -1869,10 +2045,13 @@ namespace rl_tools {
             renderer.normals_buffer._data = nullptr;
         }
         if constexpr (SPEC::HAS_FLOW) {
+            renderer.cameras_previous._data = nullptr;
             renderer.flow_buffer._data = nullptr;
-            if constexpr (SPEC::ENABLE_OVERLAYS) {
-                renderer.flow_deltas._data = nullptr;
-            }
+            renderer.flow_status_buffer._data = nullptr;
+        }
+        if constexpr (SPEC::HAS_FLOW_FORWARD) {
+            renderer.flow_forward_buffer._data = nullptr;
+            renderer.flow_forward_status_buffer._data = nullptr;
         }
         if constexpr (SPEC::HAS_OBSERVATION) {
             renderer.observation._data = nullptr;
@@ -1880,6 +2059,9 @@ namespace rl_tools {
         renderer.collision_results._data = nullptr;
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             free(device, renderer.transforms);
+        }
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS) {
+            free(device, renderer.transforms_previous);
         }
         if constexpr (SPEC::HAS_TRANSFORM_PAIR) {
             free(device, renderer.transforms_pair);

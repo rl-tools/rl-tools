@@ -68,11 +68,13 @@ static constexpr double ID_AREA_RELATIVE_TOLERANCE = 0.35;
 static constexpr double NORMALS_MAD_THRESHOLD = 2.0;
 static constexpr int NORMALS_OUTLIER_CHANNEL_DELTA = 8;
 static constexpr double NORMALS_OUTLIER_FRACTION = 0.02;
-// endpoint error on segmentation-agreeing pixels: geometry-derived flow matches to float
-// precision across backends except in the silhouette band the segmentation gate excludes
+// endpoint error on pixels VALID in both frames (backward additionally segmentation-gated):
+// geometry-derived flow matches to float precision across backends except in the silhouette
+// band the gates exclude; the status buffers may disagree only in that band
 static constexpr double FLOW_MEAN_EPE_THRESHOLD = 0.05;  // px
 static constexpr double FLOW_OUTLIER_EPE = 0.5;          // px
 static constexpr double FLOW_OUTLIER_FRACTION = 0.005;
+static constexpr double FLOW_STATUS_MISMATCH_FRACTION = 0.005;
 
 static const std::string GOLDEN_ROOT = RL_TOOLS_OVERLAY_GOLDEN_TEST_DATA_PATH "/rendering_raytracing_golden";
 static const std::string ARTIFACT_ROOT = RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ARTIFACT_ROOT;
@@ -243,15 +245,25 @@ namespace {
             review_paths.normals_target_png, review_paths.normals_current_png, review_paths.normals_diff_png,
             target.normals.data(), current.normals.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT
         ));
-        {
-            rlt::rendering::raytracing::detail::write_flow_grid_png<SPEC>(target.flow.data(), review_paths.flow_target_png.c_str());
-            rlt::rendering::raytracing::detail::write_flow_grid_png<SPEC>(current.flow.data(), review_paths.flow_current_png.c_str());
-            std::vector<float> flow_difference(target.flow.size());
+        const auto write_flow_review = [](const std::vector<float>& target_flow, const std::vector<float>& current_flow, const std::string& target_png, const std::string& current_png, const std::string& diff_png){
+            rlt::rendering::raytracing::detail::write_flow_grid_png<SPEC>(target_flow.data(), target_png.c_str());
+            rlt::rendering::raytracing::detail::write_flow_grid_png<SPEC>(current_flow.data(), current_png.c_str());
+            std::vector<float> flow_difference(target_flow.size());
             for(size_t value_i = 0; value_i < flow_difference.size(); value_i++){
-                flow_difference[value_i] = current.flow[value_i] - target.flow[value_i];
+                flow_difference[value_i] = current_flow[value_i] - target_flow[value_i];
             }
-            rlt::rendering::raytracing::detail::write_flow_grid_png<SPEC>(flow_difference.data(), review_paths.flow_diff_png.c_str());
-        }
+            rlt::rendering::raytracing::detail::write_flow_grid_png<SPEC>(flow_difference.data(), diff_png.c_str());
+        };
+        write_flow_review(target.flow, current.flow, review_paths.flow_target_png, review_paths.flow_current_png, review_paths.flow_diff_png);
+        write_flow_review(target.flow_forward, current.flow_forward, review_paths.flow_forward_target_png, review_paths.flow_forward_current_png, review_paths.flow_forward_diff_png);
+        ASSERT_TRUE(golden::write_flow_status_review_grid_pngs(
+            review_paths.flow_status_target_png, review_paths.flow_status_current_png, review_paths.flow_status_diff_png,
+            target.flow_status.data(), current.flow_status.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT
+        ));
+        ASSERT_TRUE(golden::write_flow_status_review_grid_pngs(
+            review_paths.flow_forward_status_target_png, review_paths.flow_forward_status_current_png, review_paths.flow_forward_status_diff_png,
+            target.flow_forward_status.data(), current.flow_forward_status.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT
+        ));
 
         double rgb_total = 0;
         size_t rgb_channels = 0;
@@ -267,6 +279,12 @@ namespace {
         double flow_epe_total = 0;
         size_t flow_pixels = 0;
         size_t flow_outliers = 0;
+        size_t flow_status_mismatches = 0;
+        double flow_forward_epe_total = 0;
+        size_t flow_forward_pixels = 0;
+        size_t flow_forward_outliers = 0;
+        size_t flow_forward_status_mismatches = 0;
+        using FlowStatus = rlt::rendering::raytracing::FlowStatus;
 
         const size_t count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
         for(size_t index = 0; index < count; index++){
@@ -305,12 +323,24 @@ namespace {
                 depth_pixels++;
                 depth_outliers += absolute / magnitude > DEPTH_OUTLIER_REL;
 
-                const double flow_du = (double)current.flow[index * 2 + 0] - target.flow[index * 2 + 0];
-                const double flow_dv = (double)current.flow[index * 2 + 1] - target.flow[index * 2 + 1];
+                if(target.flow_status[index] == FlowStatus::VALID && current.flow_status[index] == FlowStatus::VALID){
+                    const double flow_du = (double)current.flow[index * 2 + 0] - target.flow[index * 2 + 0];
+                    const double flow_dv = (double)current.flow[index * 2 + 1] - target.flow[index * 2 + 1];
+                    const double endpoint_error = std::sqrt(flow_du * flow_du + flow_dv * flow_dv);
+                    flow_epe_total += endpoint_error;
+                    flow_pixels++;
+                    flow_outliers += endpoint_error > FLOW_OUTLIER_EPE;
+                }
+            }
+            flow_status_mismatches += target.flow_status[index] != current.flow_status[index];
+            flow_forward_status_mismatches += target.flow_forward_status[index] != current.flow_forward_status[index];
+            if(target.flow_forward_status[index] == FlowStatus::VALID && current.flow_forward_status[index] == FlowStatus::VALID){
+                const double flow_du = (double)current.flow_forward[index * 2 + 0] - target.flow_forward[index * 2 + 0];
+                const double flow_dv = (double)current.flow_forward[index * 2 + 1] - target.flow_forward[index * 2 + 1];
                 const double endpoint_error = std::sqrt(flow_du * flow_du + flow_dv * flow_dv);
-                flow_epe_total += endpoint_error;
-                flow_pixels++;
-                flow_outliers += endpoint_error > FLOW_OUTLIER_EPE;
+                flow_forward_epe_total += endpoint_error;
+                flow_forward_pixels++;
+                flow_forward_outliers += endpoint_error > FLOW_OUTLIER_EPE;
             }
         }
 
@@ -328,8 +358,14 @@ namespace {
         EXPECT_LE(depth_outlier_fraction, DEPTH_OUTLIER_FRACTION) << view.id;
         EXPECT_LE(normals_total / std::max((double)rgb_channels, 1.0), NORMALS_MAD_THRESHOLD) << view.id << " normals";
         EXPECT_LE((double)normals_outlier_pixels / count, NORMALS_OUTLIER_FRACTION) << view.id << " normals";
+        EXPECT_GT(flow_pixels, (size_t)0) << view.id << " flow";
         EXPECT_LE(flow_epe_total / std::max((double)flow_pixels, 1.0), FLOW_MEAN_EPE_THRESHOLD) << view.id << " flow";
         EXPECT_LE((double)flow_outliers / std::max((double)flow_pixels, 1.0), FLOW_OUTLIER_FRACTION) << view.id << " flow";
+        EXPECT_LE((double)flow_status_mismatches / count, FLOW_STATUS_MISMATCH_FRACTION) << view.id << " flow status";
+        EXPECT_GT(flow_forward_pixels, (size_t)0) << view.id << " flow forward";
+        EXPECT_LE(flow_forward_epe_total / std::max((double)flow_forward_pixels, 1.0), FLOW_MEAN_EPE_THRESHOLD) << view.id << " flow forward";
+        EXPECT_LE((double)flow_forward_outliers / std::max((double)flow_forward_pixels, 1.0), FLOW_OUTLIER_FRACTION) << view.id << " flow forward";
+        EXPECT_LE((double)flow_forward_status_mismatches / count, FLOW_STATUS_MISMATCH_FRACTION) << view.id << " flow forward status";
     }
 
     void run_scenario(overlay_scenarios::Scenario scenario){

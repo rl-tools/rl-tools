@@ -36,6 +36,13 @@ namespace rl_tools {
             std::vector<OverlayView<T, TI>> overlay_views;
             std::vector<BVHNode<T, TI>> overlay_tlas_nodes;    // one 2*CAP slice per overlay
             std::vector<TI> overlay_tlas_primitives;           // one CAP slice per overlay (global instance ids)
+            // flow: the previous instant's overlay TLASes over the shifted id range
+            // [num_scene_instances + SLOTS, num_scene_instances + 2 * SLOTS), rebuilt from
+            // transforms_previous by update(); the delta table is [2][SLOTS][12]
+            std::vector<OverlayView<T, TI>> overlay_views_previous;
+            std::vector<BVHNode<T, TI>> overlay_tlas_nodes_previous;
+            std::vector<TI> overlay_tlas_primitives_previous;
+            std::vector<float> flow_deltas;
             std::vector<TI> overlay_attachments;
             std::vector<T> overlay_bounds_min;                 // scratch indexed by global instance id
             std::vector<T> overlay_bounds_max;
@@ -129,6 +136,13 @@ namespace rl_tools {
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             malloc(device, renderer.transforms);
         }
+        if constexpr (SPEC::HAS_FLOW) {
+            malloc(device, renderer.cameras_previous);
+        }
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS) {
+            malloc(device, renderer.transforms_previous);
+            std::memset(data(renderer.transforms_previous), 0, decltype(renderer.transforms_previous)::SPEC::SIZE_BYTES);
+        }
         if constexpr (SPEC::HAS_TRANSFORM_PAIR) {
             malloc(device, renderer.transforms_pair);
             std::memset(data(renderer.transforms_pair), 0, decltype(renderer.transforms_pair)::SPEC::SIZE_BYTES);
@@ -175,11 +189,16 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_FLOW) {
             malloc(device, renderer.flow_buffer);
+            malloc(device, renderer.flow_status_buffer);
             backend_state->scene.flow_buffer = data(renderer.flow_buffer);
-            if constexpr (SPEC::ENABLE_OVERLAYS) {
-                malloc(device, renderer.flow_deltas);
-                backend_state->scene.flow_deltas = data(renderer.flow_deltas);
-            }
+            backend_state->scene.flow_status_buffer = data(renderer.flow_status_buffer);
+            backend_state->scene.cameras_previous = data(renderer.cameras_previous);
+        }
+        if constexpr (SPEC::HAS_FLOW_FORWARD) {
+            malloc(device, renderer.flow_forward_buffer);
+            malloc(device, renderer.flow_forward_status_buffer);
+            backend_state->scene.flow_forward_buffer = data(renderer.flow_forward_buffer);
+            backend_state->scene.flow_forward_status_buffer = data(renderer.flow_forward_status_buffer);
         }
         if constexpr (SPEC::HAS_OBSERVATION) {
             static_assert(utils::typing::is_same_v<typename SPEC::OBSERVATION_T, float>, "The generic raytracing backend requires OBSERVATION_T = float");
@@ -208,7 +227,22 @@ namespace rl_tools {
             }
             backend_state->scene.overlays = backend_state->overlay_views.data();
             backend_state->scene.num_overlays = SPEC::NUM_OVERLAYS;
+            backend_state->scene.num_overlay_slots = SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
             backend_state->scene.attachments = backend_state->overlay_attachments.data();
+            if constexpr (SPEC::HAS_FLOW_OVERLAYS) {
+                backend_state->overlay_views_previous.resize(SPEC::NUM_OVERLAYS);
+                backend_state->overlay_tlas_nodes_previous.resize((size_t)SPEC::NUM_OVERLAYS * 2 * SPEC::MAX_OVERLAY_INSTANCES);
+                backend_state->overlay_tlas_primitives_previous.resize((size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES);
+                backend_state->flow_deltas.assign((size_t)2 * SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12, 0.0f);
+                for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+                    auto& view = backend_state->overlay_views_previous[overlay];
+                    view.tlas_nodes = backend_state->overlay_tlas_nodes_previous.data() + (size_t)overlay * 2 * SPEC::MAX_OVERLAY_INSTANCES;
+                    view.tlas_primitives = backend_state->overlay_tlas_primitives_previous.data() + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES;
+                    view.num_tlas_nodes = 0;
+                }
+                backend_state->scene.overlays_previous = backend_state->overlay_views_previous.data();
+                backend_state->scene.flow_deltas = backend_state->flow_deltas.data();
+            }
         }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         backend_state->scene.collision_results = data(renderer.collision_results);
@@ -354,8 +388,10 @@ namespace rl_tools {
             }
             inactive_slot.object = 0;
             inactive_slot.identity = true;
-            // flat array position == global instance id (contract: segmentation_object, operations_cpu_common.h)
-            backend_state.instances.resize(backend_state.num_scene_instances + (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES, inactive_slot);
+            // flat array position == global instance id (contract: segmentation_object, operations_cpu_common.h);
+            // under flow a second, shifted slot range follows for the previous instant's poses
+            constexpr size_t OVERLAY_ID_RANGES = SPEC::HAS_FLOW_OVERLAYS ? 2 : 1;
+            backend_state.instances.resize(backend_state.num_scene_instances + OVERLAY_ID_RANGES * (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES, inactive_slot);
             const size_t bounds_size = 3 * backend_state.instances.size();
             backend_state.overlay_bounds_min.resize(bounds_size);
             backend_state.overlay_bounds_max.resize(bounds_size);
@@ -416,17 +452,22 @@ namespace rl_tools {
     namespace rendering::raytracing::backends::generic{
         // instance/BVH rebuild for the overlays from an arbitrary transforms slab — the regular
         // update() path passes the transforms tensor, the dynamic-motion-blur loop passes
-        // per-sample slabs of transforms_motion
+        // per-sample slabs of transforms_motion, and the flow path passes transforms_previous
+        // for the previous instant (its own TLAS set over the shifted id range)
         template <typename DEVICE, typename SPEC>
-        void rebuild_overlay_instances(DEVICE& device, rl_tools::rendering::raytracing::Renderer<SPEC, rl_tools::rendering::raytracing::backends::Generic>& renderer, const float* transforms_base){
+        void rebuild_overlay_instances(DEVICE& device, rl_tools::rendering::raytracing::Renderer<SPEC, rl_tools::rendering::raytracing::backends::Generic>& renderer, const float* transforms_base, bool previous_instant = false){
             namespace generic = rl_tools::rendering::raytracing::backends::generic;
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             auto& backend_state = generic::state(renderer);
+            constexpr TI SLOTS = SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
+            auto& views = previous_instant ? backend_state.overlay_views_previous : backend_state.overlay_views;
+            auto& tlas_nodes = previous_instant ? backend_state.overlay_tlas_nodes_previous : backend_state.overlay_tlas_nodes;
+            auto& tlas_primitives = previous_instant ? backend_state.overlay_tlas_primitives_previous : backend_state.overlay_tlas_primitives;
             for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
                 auto& overlay_state = renderer.overlays[overlay];
-                const TI base = backend_state.num_scene_instances + overlay * SPEC::MAX_OVERLAY_INSTANCES;
-                TI* primitives = backend_state.overlay_tlas_primitives.data() + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES;
+                const TI base = backend_state.num_scene_instances + (previous_instant ? SLOTS : 0) + overlay * SPEC::MAX_OVERLAY_INSTANCES;
+                TI* primitives = tlas_primitives.data() + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES;
                 TI num_active = 0;
                 for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
                     const auto& host_slot = overlay_state.slots[slot];
@@ -462,8 +503,8 @@ namespace rl_tools {
                     backend_state.instance_classes[global] = backend_state.object_classes[host_slot.object];
                     primitives[num_active++] = global;
                 }
-                backend_state.overlay_views[overlay].num_tlas_nodes = generic::build_bvh_nodes(
-                    backend_state.overlay_tlas_nodes.data() + (size_t)overlay * 2 * SPEC::MAX_OVERLAY_INSTANCES,
+                views[overlay].num_tlas_nodes = generic::build_bvh_nodes(
+                    tlas_nodes.data() + (size_t)overlay * 2 * SPEC::MAX_OVERLAY_INSTANCES,
                     primitives,
                     backend_state.overlay_temp_primitives.data(),
                     backend_state.overlay_bounds_min.data(),
@@ -480,17 +521,18 @@ namespace rl_tools {
         namespace generic = rendering::raytracing::backends::generic;
         using TI = typename SPEC::TI;
         auto& backend_state = generic::state(renderer);
-        if constexpr (SPEC::HAS_FLOW){
-            rendering::raytracing::detail::compose_flow_deltas(renderer, data(renderer.flow_deltas));
-        }
         rendering::raytracing::detail::flush_overlay_transforms(renderer);
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
             rendering::raytracing::detail::flush_overlay_motion_transforms(renderer);
         }
 
-        // rebuilt unconditionally: producers may write the transforms tensor directly, which
+        // rebuilt unconditionally: producers may write the transforms tensors directly, which
         // leaves no host-observable dirty flag
         generic::rebuild_overlay_instances(device, renderer, data(renderer.transforms));
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS){
+            generic::rebuild_overlay_instances(device, renderer, data(renderer.transforms_previous), true);
+            rendering::raytracing::detail::compose_flow_deltas(renderer, data(renderer.transforms), data(renderer.transforms_previous), backend_state.flow_deltas.data());
+        }
         if(renderer.attachments_dirty){
             std::memcpy(backend_state.overlay_attachments.data(), renderer.attachments, backend_state.overlay_attachments.size() * sizeof(TI));
             renderer.attachments_dirty = false;
@@ -499,13 +541,37 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void expand_motion_transforms_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
-        static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur or flow renderer specification");
+        static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur renderer specification");
         rendering::raytracing::detail::expand_motion_transforms_host(renderer);
     }
 
     template <typename DEVICE, typename SPEC>
     void expand_motion_transforms_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
-        static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur or flow renderer specification");
+        static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur renderer specification");
+    }
+
+    // the previous instant becomes the current one: host-resident tensors, so plain copies —
+    // clean overlays copy their producer-owned rows, dirty overlays reach transforms_previous
+    // through the mirrors at the next update
+    template <typename DEVICE, typename SPEC>
+    void advance_flow_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
+        static_assert(SPEC::HAS_FLOW, "advance_flow requires a flow-capable renderer specification");
+        using TI = typename SPEC::TI;
+        std::memcpy(data(renderer.cameras_previous), data(renderer.cameras), decltype(renderer.cameras)::SPEC::SIZE_BYTES);
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS){
+            bool copy_rows[SPEC::NUM_OVERLAYS];
+            rendering::raytracing::detail::advance_flow_mirrors(renderer, copy_rows);
+            for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+                if(!copy_rows[overlay]) continue;
+                const size_t offset = (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES * 12;
+                std::memcpy(data(renderer.transforms_previous) + offset, data(renderer.transforms) + offset, (size_t)SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float));
+            }
+        }
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void advance_flow_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
+        static_assert(SPEC::HAS_FLOW, "advance_flow requires a flow-capable renderer specification");
     }
 
     template <typename DEVICE, typename SPEC>
@@ -579,7 +645,10 @@ namespace rl_tools {
                 generic::render_normals_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
             }
             if constexpr (SPEC::HAS_FLOW) {
-                generic::render_flow_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
+                generic::render_flow_frame<DEVICE, SPEC, false>(device, generic::state(renderer).scene);
+            }
+            if constexpr (SPEC::HAS_FLOW_FORWARD) {
+                generic::render_flow_frame<DEVICE, SPEC, true>(device, generic::state(renderer).scene);
             }
             return;
         }
@@ -596,7 +665,10 @@ namespace rl_tools {
             generic::render_normals_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
         }
         if constexpr (SPEC::HAS_FLOW) {
-            generic::render_flow_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
+            generic::render_flow_frame<DEVICE, SPEC, false>(device, generic::state(renderer).scene);
+        }
+        if constexpr (SPEC::HAS_FLOW_FORWARD) {
+            generic::render_flow_frame<DEVICE, SPEC, true>(device, generic::state(renderer).scene);
         }
     }
 
@@ -644,10 +716,16 @@ namespace rl_tools {
             free(device, renderer.normals_buffer);
         }
         if constexpr (SPEC::HAS_FLOW) {
+            free(device, renderer.cameras_previous);
             free(device, renderer.flow_buffer);
-            if constexpr (SPEC::ENABLE_OVERLAYS) {
-                free(device, renderer.flow_deltas);
-            }
+            free(device, renderer.flow_status_buffer);
+        }
+        if constexpr (SPEC::HAS_FLOW_FORWARD) {
+            free(device, renderer.flow_forward_buffer);
+            free(device, renderer.flow_forward_status_buffer);
+        }
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS) {
+            free(device, renderer.transforms_previous);
         }
         if constexpr (SPEC::HAS_OBSERVATION) {
             free(device, renderer.observation);

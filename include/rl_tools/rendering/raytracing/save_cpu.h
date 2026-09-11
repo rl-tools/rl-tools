@@ -111,6 +111,16 @@ namespace rl_tools{
         }
 
         template <typename SPEC>
+        void write_flow_status_grid_png(const uint32_t* status_host, const char* filename){
+            constexpr typename SPEC::TI num_pixels = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+            std::vector<uint32_t> colored(num_pixels);
+            for(size_t pixel_i = 0; pixel_i < (size_t)num_pixels; pixel_i++){
+                colored[pixel_i] = flow_status_to_rgba(status_host[pixel_i]);
+            }
+            write_grid_png<SPEC>(colored.data(), filename);
+        }
+
+        template <typename SPEC>
         void write_depth_grid_png(const float* depth_host, float max_ray_length, const char* filename){
             using TI = typename SPEC::TI;
             constexpr TI cam_pixels = SPEC::CAM_PIXELS;
@@ -260,6 +270,30 @@ namespace rl_tools{
         std::vector<float> flow_host;
         rendering::raytracing::detail::save_staging(device, renderer, renderer.flow_buffer, flow_host);
         rendering::raytracing::detail::write_flow_grid_png<SPEC>(flow_host.data(), filename);
+    }
+
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void save_flow_status_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
+        static_assert(SPEC::HAS_FLOW, "save_flow_status_image requires a flow-capable renderer specification");
+        std::vector<uint32_t> status_host;
+        rendering::raytracing::detail::save_staging(device, renderer, renderer.flow_status_buffer, status_host);
+        rendering::raytracing::detail::write_flow_status_grid_png<SPEC>(status_host.data(), filename);
+    }
+
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void save_flow_forward_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
+        static_assert(SPEC::HAS_FLOW_FORWARD, "save_flow_forward_image requires a forward-flow renderer specification");
+        std::vector<float> flow_host;
+        rendering::raytracing::detail::save_staging(device, renderer, renderer.flow_forward_buffer, flow_host);
+        rendering::raytracing::detail::write_flow_grid_png<SPEC>(flow_host.data(), filename);
+    }
+
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void save_flow_forward_status_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
+        static_assert(SPEC::HAS_FLOW_FORWARD, "save_flow_forward_status_image requires a forward-flow renderer specification");
+        std::vector<uint32_t> status_host;
+        rendering::raytracing::detail::save_staging(device, renderer, renderer.flow_forward_status_buffer, status_host);
+        rendering::raytracing::detail::write_flow_status_grid_png<SPEC>(status_host.data(), filename);
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>

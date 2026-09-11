@@ -21,6 +21,23 @@ namespace rl_tools {
         using rendering::VeryHigh;
         using rendering::degrees_to_radians;
         namespace vec3 = rendering::vec3;
+
+        // per-pixel flow status, one uint32 next to each flow vector. Priority is the listed
+        // order: the first condition that holds decides. MISS and BEHIND carry a zero vector;
+        // OUT_OF_FRAME and OCCLUDED retain the geometric flow, so the status is the mask.
+        // Cross-backend contract mirrored as literals in the CUDA, GLSL, MSL and WGSL sources.
+        struct FlowStatus{
+            static constexpr unsigned int VALID = 0;
+            static constexpr unsigned int MISS = 1;         // primary ray misses the scene
+            static constexpr unsigned int BEHIND = 2;       // carried point at or behind the other camera
+            static constexpr unsigned int OUT_OF_FRAME = 3; // projects outside the other image; visibility ray skipped
+            static constexpr unsigned int OCCLUDED = 4;     // visibility ray from the other camera hits before the carried point
+        };
+        // relative margin of the flow visibility ray: any hit with t < L * (1 - epsilon) along
+        // the segment from the other camera to the carried point (length L) means occluded.
+        // Shared constant, mirrored in the device sources.
+        template <typename T>
+        constexpr T FLOW_VISIBILITY_EPSILON = (T)1e-4;
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

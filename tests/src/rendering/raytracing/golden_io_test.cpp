@@ -407,6 +407,27 @@ TEST_F(GoldenIoTest, SegmentationEncodingIsPinned){
     }
 }
 
+// flow_status.png / flow_forward_status.png are corpus surface: the status codes map to fixed colors
+TEST_F(GoldenIoTest, FlowStatusEncodingIsPinned){
+    using FlowStatus = rl_tools::rendering::raytracing::FlowStatus;
+    EXPECT_EQ(golden::flow_status_false_color(FlowStatus::VALID), golden::rgba(255, 255, 255));
+    EXPECT_EQ(golden::flow_status_false_color(FlowStatus::MISS), golden::rgba(0, 0, 0));
+    EXPECT_EQ(golden::flow_status_false_color(FlowStatus::BEHIND), golden::rgba(255, 0, 255));
+    EXPECT_EQ(golden::flow_status_false_color(FlowStatus::OUT_OF_FRAME), golden::rgba(32, 64, 255));
+    EXPECT_EQ(golden::flow_status_false_color(FlowStatus::OCCLUDED), golden::rgba(255, 144, 0));
+    EXPECT_EQ(golden::flow_status_false_color(5u), golden::rgba(255, 0, 0));
+    EXPECT_EQ(golden::flow_status_false_color(std::numeric_limits<uint32_t>::max()), golden::rgba(255, 0, 0));
+    EXPECT_EQ(golden::flow_status_diff_color(FlowStatus::VALID, FlowStatus::VALID), golden::rgba(0, 0, 0));
+    EXPECT_NE(golden::flow_status_diff_color(FlowStatus::VALID, FlowStatus::OCCLUDED), golden::rgba(0, 0, 0));
+    const uint32_t status[4] = {FlowStatus::VALID, FlowStatus::MISS, FlowStatus::OCCLUDED, 9u};
+    uint32_t image[4];
+    golden::colorize_flow_status(status, 4, image);
+    EXPECT_EQ(image[0], golden::rgba(255, 255, 255));
+    EXPECT_EQ(image[1], golden::rgba(0, 0, 0));
+    EXPECT_EQ(image[2], golden::rgba(255, 144, 0));
+    EXPECT_EQ(image[3], golden::rgba(255, 0, 0));
+}
+
 TEST_F(GoldenIoTest, LayoutPathsAreStable){
     const std::string root = "golden-root";
     EXPECT_EQ(golden::layout::procthor_static_scene_directory(root), "golden-root/procthor_static_scene");
@@ -425,6 +446,12 @@ TEST_F(GoldenIoTest, LayoutPathsAreStable){
     EXPECT_EQ(targets.normals_png, targets.directory + "/normals.png");
     EXPECT_EQ(targets.flow_bin, targets.directory + "/flow.bin");
     EXPECT_EQ(targets.flow_png, targets.directory + "/flow.png");
+    EXPECT_EQ(targets.flow_status_bin, targets.directory + "/flow_status.bin");
+    EXPECT_EQ(targets.flow_status_png, targets.directory + "/flow_status.png");
+    EXPECT_EQ(targets.flow_forward_bin, targets.directory + "/flow_forward.bin");
+    EXPECT_EQ(targets.flow_forward_png, targets.directory + "/flow_forward.png");
+    EXPECT_EQ(targets.flow_forward_status_bin, targets.directory + "/flow_forward_status.bin");
+    EXPECT_EQ(targets.flow_forward_status_png, targets.directory + "/flow_forward_status.png");
 
     const auto reviews = golden::layout::scenario_review_paths(
         "artifact-root", "vulkan", "partial_shared", "updated", "oblique"
@@ -445,4 +472,13 @@ TEST_F(GoldenIoTest, LayoutPathsAreStable){
     EXPECT_EQ(reviews.flow_target_png, reviews.directory + "/flow_target.png");
     EXPECT_EQ(reviews.flow_current_png, reviews.directory + "/flow_current.png");
     EXPECT_EQ(reviews.flow_diff_png, reviews.directory + "/flow_diff.png");
+    EXPECT_EQ(reviews.flow_status_target_png, reviews.directory + "/flow_status_target.png");
+    EXPECT_EQ(reviews.flow_status_current_png, reviews.directory + "/flow_status_current.png");
+    EXPECT_EQ(reviews.flow_status_diff_png, reviews.directory + "/flow_status_diff.png");
+    EXPECT_EQ(reviews.flow_forward_target_png, reviews.directory + "/flow_forward_target.png");
+    EXPECT_EQ(reviews.flow_forward_current_png, reviews.directory + "/flow_forward_current.png");
+    EXPECT_EQ(reviews.flow_forward_diff_png, reviews.directory + "/flow_forward_diff.png");
+    EXPECT_EQ(reviews.flow_forward_status_target_png, reviews.directory + "/flow_forward_status_target.png");
+    EXPECT_EQ(reviews.flow_forward_status_current_png, reviews.directory + "/flow_forward_status_current.png");
+    EXPECT_EQ(reviews.flow_forward_status_diff_png, reviews.directory + "/flow_forward_status_diff.png");
 }

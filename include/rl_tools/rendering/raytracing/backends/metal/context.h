@@ -44,7 +44,10 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         constexpr int DEPTH_ACCUMULATOR = 16;
         constexpr int SHUTTER = 17;
         constexpr int DEPTH_OUTPUT = 18;
-        constexpr int FLOW_DELTAS = 19;
+        constexpr int FLOW_DELTAS = 19;               // internal [2][slots][12] delta table composed by update()
+        constexpr int FLOW_STATUS_OUTPUT = 20;        // FlowStatus per pixel next to the flow OUTPUT
+        constexpr int CAMERAS_PREVIOUS = 21;
+        constexpr int OVERLAY_STRUCTURES_PREVIOUS = 22; // the previous instant's overlay structures (flow visibility / forward primaries)
     }
     namespace function_constants{
         constexpr int SRGB_OUTPUT = 0;
@@ -80,7 +83,8 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         float miss_color_0[3];
         float miss_color_1[3];
         uint32_t first_overlay_instance; // global instance ids >= this index the flow-delta table
-        float padding[2];
+        uint32_t num_overlay_slots;      // NUM_OVERLAYS * MAX_OVERLAY_INSTANCES: flow-delta slab stride and the previous-instant id shift
+        float padding[1];
     };
     static_assert(sizeof(LaunchParams) == 88, "LaunchParams layout must match the MSL declaration in device.metal");
 
@@ -136,6 +140,7 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         NS::SharedPtr<MTL::ComputePipelineState> segmentation_pipeline;
         NS::SharedPtr<MTL::ComputePipelineState> normals_pipeline;
         NS::SharedPtr<MTL::ComputePipelineState> flow_pipeline;
+        NS::SharedPtr<MTL::ComputePipelineState> flow_forward_pipeline;
         NS::SharedPtr<MTL::ComputePipelineState> resolve_pipeline;
         NS::SharedPtr<MTL::AccelerationStructure> acceleration_structure; // instance (top-level) AS
         std::vector<NS::SharedPtr<MTL::AccelerationStructure>> object_acceleration_structures;
@@ -147,6 +152,12 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         std::vector<NS::SharedPtr<MTL::Buffer>> overlay_sample_instance_descriptors; // dynamic motion blur: [sample * NUM_OVERLAYS + overlay], MAX_OVERLAY_INSTANCES descriptors each
         std::vector<NS::SharedPtr<MTL::Buffer>> overlay_scratch_buffers;
         NS::SharedPtr<MTL::Buffer> overlay_structures;
+        // flow: the previous instant's overlay structures, resident next to the current ones and
+        // rebuilt in place from transforms_previous by update() (shifted instance-id range)
+        std::vector<NS::SharedPtr<MTL::AccelerationStructure>> overlay_acceleration_structures_previous;
+        std::vector<NS::SharedPtr<MTL::Buffer>> overlay_instance_descriptors_previous;
+        std::vector<NS::SharedPtr<MTL::Buffer>> overlay_scratch_buffers_previous;
+        NS::SharedPtr<MTL::Buffer> overlay_structures_previous;
         NS::SharedPtr<MTL::Buffer> overlay_attachments;
         NS::SharedPtr<MTL::Buffer> instance_classes;
         std::vector<uint32_t> object_record_base;
@@ -159,6 +170,7 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         NS::SharedPtr<MTL::Buffer> scene_lights;
         NS::SharedPtr<MTL::Buffer> cameras;
         NS::SharedPtr<MTL::Buffer> cameras_open;
+        NS::SharedPtr<MTL::Buffer> cameras_previous;
         NS::SharedPtr<MTL::Buffer> frame_buffer;
         NS::SharedPtr<MTL::Buffer> depth_buffer;
         NS::SharedPtr<MTL::Buffer> rgb_accumulator;
@@ -166,6 +178,9 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         NS::SharedPtr<MTL::Buffer> segmentation_buffer;
         NS::SharedPtr<MTL::Buffer> normals_buffer;
         NS::SharedPtr<MTL::Buffer> flow_buffer;
+        NS::SharedPtr<MTL::Buffer> flow_status_buffer;
+        NS::SharedPtr<MTL::Buffer> flow_forward_buffer;
+        NS::SharedPtr<MTL::Buffer> flow_forward_status_buffer;
         NS::SharedPtr<MTL::Buffer> flow_deltas;
         NS::SharedPtr<MTL::Buffer> observation;
         NS::SharedPtr<MTL::Buffer> collision_results;

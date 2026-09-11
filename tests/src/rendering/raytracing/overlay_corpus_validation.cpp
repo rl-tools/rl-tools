@@ -16,6 +16,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #ifdef RL_TOOLS_TEST_DATA_PATH
@@ -131,6 +132,37 @@ TEST(RENDERING_RAYTRACING_OVERLAY_GOLDEN_CORPUS, SEGMENTATION_REVIEW_PNG_MATCHES
                 golden::colorize_segmentation(segmentation.data(), segmentation.size(), expected.data());
                 EXPECT_EQ(png_pixels, expected)
                     << overlay_scenarios::scenario_id(scenario) << " " << overlay_goldens::capture_state_id(state) << " " << view.id;
+            }
+        }
+    }
+}
+
+// flow_status.png / flow_forward_status.png must be exactly the pinned false color of their .bin
+TEST(RENDERING_RAYTRACING_OVERLAY_GOLDEN_CORPUS, FLOW_STATUS_REVIEW_PNG_MATCHES_BIN){
+    RL_TOOLS_OVERLAY_CORPUS_REQUIRE_DATA();
+    for(const auto scenario : overlay_scenarios::SCENARIOS){
+        for(std::size_t state_i = 0; state_i < overlay_goldens::capture_state_count(scenario); state_i++){
+            const auto state = state_i == 0 ? overlay_goldens::CaptureState::INITIAL : overlay_goldens::CaptureState::UPDATED;
+            for(const auto& view : overlay_goldens::VIEWS){
+                const auto paths = golden::layout::scenario_target_paths(
+                    GOLDEN_ROOT,
+                    overlay_scenarios::scenario_id(scenario),
+                    overlay_goldens::capture_state_id(state),
+                    view.id
+                );
+                const std::pair<std::string, std::string> files[2] = {
+                    {paths.flow_status_bin, paths.flow_status_png},
+                    {paths.flow_forward_status_bin, paths.flow_forward_status_png}
+                };
+                for(const auto& [bin_path, png_path] : files){
+                    std::vector<uint32_t> status;
+                    ASSERT_TRUE(golden::load_multi_camera_uint32_bin(bin_path, SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, status)) << bin_path;
+                    std::vector<uint32_t> png_pixels;
+                    ASSERT_TRUE(golden::load_camera_grid_png(png_path, SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, png_pixels)) << png_path;
+                    std::vector<uint32_t> expected(status.size());
+                    golden::colorize_flow_status(status.data(), status.size(), expected.data());
+                    EXPECT_EQ(png_pixels, expected) << png_path;
+                }
             }
         }
     }
