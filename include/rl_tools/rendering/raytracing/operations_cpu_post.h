@@ -52,6 +52,15 @@ namespace rl_tools {
         expand_motion_transforms_sync(device, renderer);
     }
 
+    // flow: the previous instant becomes the current one (cameras -> cameras_previous,
+    // transforms -> transforms_previous, slot mirrors alike); call after a frame's render and
+    // before the next frame's writes
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void advance_flow(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
+        advance_flow_launch(device, renderer);
+        advance_flow_sync(device, renderer);
+    }
+
     // shared-asset-library fallbacks for backends without cross-renderer sharing: the library is
     // empty and every renderer builds its own copy — the API stays uniform. A backend with real
     // sharing (OptiX) declares its own overloads, which win by partial ordering.

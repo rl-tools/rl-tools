@@ -142,6 +142,7 @@ namespace rl_tools {
     struct OverlayLaunchParams
     {
         unsigned long long *overlays;   // OptixTraversableHandle per overlay
+        unsigned long long *overlays_previous; // flow: the previous instant's TLAS per overlay (null without flow overlays)
         uint32_t *attachments;          // [num_cameras * overlay_count]
         int overlay_count;
         int cam_width;                  // framebuffer tile math so closest-hit programs can
@@ -194,18 +195,23 @@ namespace rl_tools {
         OptixCameraData *cameras;
     };
 
+    // one flow pass between the two instants, direction-neutral: the backward pass traces the
+    // current instant (source) and lands on the previous one (target), the forward pass the
+    // reverse; the overlay TLAS arrays come from the launch params by source_previous
     struct FlowRayGenData
     {
-        float *flow_ptr;
+        float *flow_ptr;                 // 2 per pixel of the source grid: p_target - p_source in pixels
+        uint32_t *status_ptr;            // FlowStatus per source pixel
         owl::vec2i  fb_size;
         owl::vec2i  cam_size;
         int    grid_cols;
         int    num_cameras;
         OptixTraversableHandle world;
-        OptixCameraData *cameras_open;
-        OptixCameraData *cameras_close;
-        const float *flow_deltas;            // 12 per overlay slot (world_open ∘ world_close⁻¹), null without overlays
-        unsigned int first_overlay_instance; // global instance ids >= this index the delta table
+        OptixCameraData *cameras_source;
+        OptixCameraData *cameras_target;
+        const float *flow_deltas;                   // this direction's [slots][12] slab carrying source hits to the target instant, null without overlays
+        unsigned int source_first_overlay_instance; // first global id of the source instant's overlay range
+        int source_previous;                        // 1: source = previous instant (forward pass)
     };
 
     struct CollisionRayGenData

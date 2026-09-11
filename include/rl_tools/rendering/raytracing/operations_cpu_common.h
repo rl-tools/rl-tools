@@ -82,9 +82,10 @@ namespace rl_tools {
 
     inline constexpr float IDENTITY_TRANSFORM[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
 
-    // stages host-verb writes (the per-slot transform_entry mirrors) into the transforms tensor;
-    // backends whose tensor is host-resident call this at the top of update(). Device producers
-    // write the tensor directly and are not staged — a dirty overlay row is owned by the host.
+    // stages host-verb writes (the per-slot transform_entry mirrors, and the previous-instant
+    // mirrors under flow) into the transforms tensors; backends whose tensors are host-resident
+    // call this at the top of update(). Device producers write the tensors directly and are not
+    // staged — a dirty overlay row is owned by the host.
     template <typename SPEC, typename BACKEND>
     void flush_overlay_transforms(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         using TI = typename SPEC::TI;
@@ -94,8 +95,27 @@ namespace rl_tools {
             if(!overlay_state.dirty) continue;
             for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
                 std::memcpy(transforms + ((size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES + slot) * 12, overlay_state.slots[slot].transform_entry, 12 * sizeof(float));
+                if constexpr (SPEC::HAS_FLOW_OVERLAYS){
+                    std::memcpy(data(renderer.transforms_previous) + ((size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES + slot) * 12, overlay_state.slots[slot].transform_entry_previous, 12 * sizeof(float));
+                }
             }
             overlay_state.dirty = false;
+        }
+    }
+
+    // host half of advance_flow: the previous instant becomes the current one. Mirrors are
+    // snapshotted for every slot; the tensor rows of clean (producer-owned) overlays are copied
+    // by the backend in its memory domain, dirty overlays reach the tensors through the next
+    // flush. Returns per overlay whether the backend must copy the tensor rows.
+    template <typename SPEC, typename BACKEND>
+    void advance_flow_mirrors(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, bool copy_rows[SPEC::NUM_OVERLAYS]){
+        using TI = typename SPEC::TI;
+        for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+            auto& overlay_state = renderer.overlays[overlay];
+            for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
+                std::memcpy(overlay_state.slots[slot].transform_entry_previous, overlay_state.slots[slot].transform_entry, 12 * sizeof(float));
+            }
+            copy_rows[overlay] = !overlay_state.dirty;
         }
     }
 
@@ -138,34 +158,39 @@ namespace rl_tools {
         }
     }
 
-    // composes the flow shutter-delta table (world_open ∘ world_close⁻¹ per slot; identity for
-    // inactive slots) from open/close entry slabs sharing the transforms-tensor layout.
-    // only_dirty mirrors the flush_overlay_transforms ownership contract: a clean overlay row
-    // may be producer-written and must not be clobbered from the host mirrors.
+    // per-slot flow delta table [2][SLOTS][12] from two transforms-layout slabs: slab 0 carries a
+    // current-instant point to the previous instant (world_previous ∘ world_current⁻¹, the
+    // backward pass), slab 1 the inverse (forward pass); identity for inactive slots. Backends
+    // with host-resident tensors call it in update() after the flush; OptiX runs the same
+    // composition on-device (overlay_accel_compose_flow_deltas).
     template <typename SPEC, typename BACKEND>
-    void compose_flow_deltas_from_slabs(const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const float* open_slab, const float* close_slab, float* deltas, bool only_dirty){
+    void compose_flow_deltas(const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const float* current_slab, const float* previous_slab, float* deltas){
         using TI = typename SPEC::TI;
+        constexpr size_t SLOTS = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
         for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
-            if(only_dirty && !renderer.overlays[overlay].dirty) continue;
             for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
-                float* delta = deltas + ((size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES + slot) * 12;
+                const size_t index = (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES + slot;
+                float* backward = deltas + index * 12;
+                float* forward = deltas + (SLOTS + index) * 12;
                 if(!renderer.overlays[overlay].slots[slot].active){
-                    std::memcpy(delta, IDENTITY_TRANSFORM, 12 * sizeof(float));
+                    std::memcpy(backward, IDENTITY_TRANSFORM, 12 * sizeof(float));
+                    std::memcpy(forward, IDENTITY_TRANSFORM, 12 * sizeof(float));
                     continue;
                 }
-                float world_open[12], world_close[12], world_close_inverse[12];
-                compose_overlay_slot_transform(renderer, open_slab, overlay, slot, world_open);
-                compose_overlay_slot_transform(renderer, close_slab, overlay, slot, world_close);
-                invert_transform(world_close, world_close_inverse);
-                compose_transforms(world_open, world_close_inverse, delta);
+                float world_current[12], world_previous[12], world_current_inverse[12], world_previous_inverse[12];
+                compose_overlay_slot_transform(renderer, current_slab, overlay, slot, world_current);
+                compose_overlay_slot_transform(renderer, previous_slab, overlay, slot, world_previous);
+                invert_transform(world_current, world_current_inverse);
+                invert_transform(world_previous, world_previous_inverse);
+                compose_transforms(world_previous, world_current_inverse, backward);
+                compose_transforms(world_current, world_previous_inverse, forward);
             }
         }
     }
 
     // CPU expansion of the transforms_pair tensor for backends whose tensors are host-resident
-    // (generic/Vulkan); OptiX runs the same math on-device (overlay_accel_expand_motion). The
-    // slerp into transforms_motion only applies under dynamic motion blur; flow-only
-    // specifications expand the pair into transforms (close) and flow_deltas.
+    // (generic/Vulkan); OptiX runs the same math on-device (overlay_accel_expand_motion): the
+    // pair is slerped into transforms_motion and the close state written into transforms.
     // Producer-style: writes the tensors directly with no dirty flags, so the host-verb flush
     // never clobbers it — per overlay, use either the set_transform* verbs or the pair path.
     template <typename SPEC, typename BACKEND>
@@ -174,38 +199,16 @@ namespace rl_tools {
         constexpr size_t SLOTS = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
         const float* pairs = data(renderer.transforms_pair);
         float* transforms = data(renderer.transforms);
+        float* transforms_motion = data(renderer.transforms_motion);
         for(size_t slot = 0; slot < SLOTS; slot++){
+            const float* open = pairs + slot * 12;
             const float* close = pairs + (SLOTS + slot) * 12;
-            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
-                const float* open = pairs + slot * 12;
-                float* transforms_motion = data(renderer.transforms_motion);
-                for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
-                    const float shutter_t = ((float)sample + 0.5f) / (float)SPEC::MOTION_BLUR_SAMPLES;
-                    slerp_transform(open, close, shutter_t, transforms_motion + ((size_t)sample * SLOTS + slot) * 12);
-                }
+            for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
+                const float shutter_t = ((float)sample + 0.5f) / (float)SPEC::MOTION_BLUR_SAMPLES;
+                slerp_transform(open, close, shutter_t, transforms_motion + ((size_t)sample * SLOTS + slot) * 12);
             }
             std::memcpy(transforms + slot * 12, close, 12 * sizeof(float));
         }
-        if constexpr (SPEC::HAS_FLOW){
-            compose_flow_deltas_from_slabs(renderer, pairs, pairs + SLOTS * 12, data(renderer.flow_deltas), false);
-        }
-    }
-
-    // host-verb path, called before flush_overlay_transforms consumes the dirty flags: the
-    // slabs come from the per-slot mirrors the verbs maintain
-    template <typename SPEC, typename BACKEND>
-    void compose_flow_deltas(const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, float* deltas){
-        using TI = typename SPEC::TI;
-        std::vector<float> open_slab((size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12);
-        std::vector<float> close_slab(open_slab.size());
-        for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
-            for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
-                const size_t offset = ((size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES + slot) * 12;
-                std::memcpy(open_slab.data() + offset, renderer.overlays[overlay].slots[slot].transform_entry_open, 12 * sizeof(float));
-                std::memcpy(close_slab.data() + offset, renderer.overlays[overlay].slots[slot].transform_entry, 12 * sizeof(float));
-            }
-        }
-        compose_flow_deltas_from_slabs(renderer, open_slab.data(), close_slab.data(), deltas, true);
     }
 
     // stages host-verb writes into the transforms_motion tensor, mirroring
@@ -287,7 +290,7 @@ namespace rl_tools {
     template <typename SPEC>
     void announce_configuration(){
         RL_TOOLS_RENDERING_RAYTRACING_LOG("config: " << SPEC::NUM_CAMERAS << " camera(s) " << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT
-            << " outputs[rgb=" << SPEC::HAS_RGB << " depth=" << SPEC::HAS_DEPTH << " segmentation=" << SPEC::HAS_SEGMENTATION << (SPEC::SEMANTIC_SEGMENTATION ? " (semantic)" : "") << " normals=" << SPEC::HAS_NORMALS << " flow=" << SPEC::HAS_FLOW << "]"
+            << " outputs[rgb=" << SPEC::HAS_RGB << " depth=" << SPEC::HAS_DEPTH << " segmentation=" << SPEC::HAS_SEGMENTATION << (SPEC::SEMANTIC_SEGMENTATION ? " (semantic)" : "") << " normals=" << SPEC::HAS_NORMALS << " flow=" << SPEC::HAS_FLOW << " flow_forward=" << SPEC::HAS_FLOW_FORWARD << "]"
             << " probes=" << SPEC::NUM_PROBES
             << " motion_blur_samples=" << (SPEC::ENABLE_MOTION_BLUR ? SPEC::MOTION_BLUR_SAMPLES : 0)
             << " anti_aliasing_grid=" << (SPEC::ENABLE_ANTI_ALIASING ? SPEC::ANTI_ALIASING_GRID_SIZE : 0)
@@ -551,7 +554,7 @@ namespace rl_tools {
             slot.pose_slot = first_slot;
             std::memcpy(slot.part_local, &renderer.asset_part_transforms[(record.first_part + part) * 12], sizeof(slot.part_local));
             std::memcpy(slot.transform_entry, part == 0 ? transform : rendering::raytracing::detail::IDENTITY_TRANSFORM, sizeof(slot.transform_entry));
-            std::memcpy(slot.transform_entry_open, slot.transform_entry, sizeof(slot.transform_entry_open));
+            std::memcpy(slot.transform_entry_previous, slot.transform_entry, sizeof(slot.transform_entry_previous)); // a fresh object has no motion of its own: pure camera flow
             slot.active = true;
             rendering::raytracing::detail::stage_motion_entry(renderer, (TI)overlay.index, first_slot + part, slot.transform_entry);
         }
@@ -570,14 +573,14 @@ namespace rl_tools {
     }
 
     // per-part: part 0 sets the placement pose, other parts articulate in their part frame
-    // (world = pose ∘ part_local ∘ articulation)
+    // (world = pose ∘ part_local ∘ articulation). The previous-instant mirror is untouched: the
+    // flow pair advances only through advance_flow (or spawn)
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void set_transform(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, typename SPEC::TI part, const float transform[12]){
         static_assert(SPEC::ENABLE_OVERLAYS, "set_transform requires an overlay-enabled renderer specification");
         using TI = typename SPEC::TI;
         auto& state = renderer.overlays[overlay.index];
         std::memcpy(state.slots[placement.first_slot + part].transform_entry, transform, 12 * sizeof(float));
-        std::memcpy(state.slots[placement.first_slot + part].transform_entry_open, transform, 12 * sizeof(float));
         state.dirty = true;
         rendering::raytracing::detail::stage_motion_entry(renderer, (TI)overlay.index, (TI)(placement.first_slot + part), transform);
     }
@@ -589,11 +592,9 @@ namespace rl_tools {
         using TI = typename SPEC::TI;
         auto& state = renderer.overlays[overlay.index];
         std::memcpy(state.slots[placement.first_slot].transform_entry, transform, 12 * sizeof(float));
-        std::memcpy(state.slots[placement.first_slot].transform_entry_open, transform, 12 * sizeof(float));
         rendering::raytracing::detail::stage_motion_entry(renderer, (TI)overlay.index, (TI)placement.first_slot, transform);
         for(size_t part = 1; part < placement.num_parts; part++){
             std::memcpy(state.slots[placement.first_slot + part].transform_entry, rendering::raytracing::detail::IDENTITY_TRANSFORM, 12 * sizeof(float));
-            std::memcpy(state.slots[placement.first_slot + part].transform_entry_open, rendering::raytracing::detail::IDENTITY_TRANSFORM, 12 * sizeof(float));
             rendering::raytracing::detail::stage_motion_entry(renderer, (TI)overlay.index, (TI)(placement.first_slot + part), rendering::raytracing::detail::IDENTITY_TRANSFORM);
         }
         state.dirty = true;
@@ -604,34 +605,30 @@ namespace rl_tools {
     // steady-state transform (segmentation, probes, and the next frame render at shutter close)
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void set_transform_pair(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, typename SPEC::TI part, const float open[12], const float close[12]){
-        static_assert(SPEC::HAS_TRANSFORM_PAIR, "set_transform_pair requires a dynamic-motion-blur or flow renderer specification");
+        static_assert(SPEC::HAS_TRANSFORM_PAIR, "set_transform_pair requires a dynamic-motion-blur renderer specification");
         using TI = typename SPEC::TI;
         auto& state = renderer.overlays[overlay.index];
         std::memcpy(state.slots[placement.first_slot + part].transform_entry, close, 12 * sizeof(float));
-        std::memcpy(state.slots[placement.first_slot + part].transform_entry_open, open, 12 * sizeof(float));
         state.dirty = true;
-        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
-            constexpr size_t SLAB = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12;
-            for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
-                const float shutter_t = ((float)sample + 0.5f) / (float)SPEC::MOTION_BLUR_SAMPLES;
-                float entry[12];
-                rendering::raytracing::detail::slerp_transform(open, close, shutter_t, entry);
-                std::memcpy(renderer.transforms_motion_staging.data() + sample * SLAB + ((size_t)overlay.index * SPEC::MAX_OVERLAY_INSTANCES + placement.first_slot + part) * 12, entry, 12 * sizeof(float));
-            }
-            renderer.transforms_motion_dirty[overlay.index] = true;
+        constexpr size_t SLAB = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12;
+        for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
+            const float shutter_t = ((float)sample + 0.5f) / (float)SPEC::MOTION_BLUR_SAMPLES;
+            float entry[12];
+            rendering::raytracing::detail::slerp_transform(open, close, shutter_t, entry);
+            std::memcpy(renderer.transforms_motion_staging.data() + sample * SLAB + ((size_t)overlay.index * SPEC::MAX_OVERLAY_INSTANCES + placement.first_slot + part) * 12, entry, 12 * sizeof(float));
         }
+        renderer.transforms_motion_dirty[overlay.index] = true;
     }
 
     // rigid move with shutter-open/close poses: resets articulation in every sample
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void set_transform_pair(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const float open[12], const float close[12]){
-        static_assert(SPEC::HAS_TRANSFORM_PAIR, "set_transform_pair requires a dynamic-motion-blur or flow renderer specification");
+        static_assert(SPEC::HAS_TRANSFORM_PAIR, "set_transform_pair requires a dynamic-motion-blur renderer specification");
         using TI = typename SPEC::TI;
         set_transform_pair(device, renderer, overlay, placement, (TI)0, open, close);
         auto& state = renderer.overlays[overlay.index];
         for(size_t part = 1; part < placement.num_parts; part++){
             std::memcpy(state.slots[placement.first_slot + part].transform_entry, rendering::raytracing::detail::IDENTITY_TRANSFORM, 12 * sizeof(float));
-            std::memcpy(state.slots[placement.first_slot + part].transform_entry_open, rendering::raytracing::detail::IDENTITY_TRANSFORM, 12 * sizeof(float));
             rendering::raytracing::detail::stage_motion_entry(renderer, (TI)overlay.index, (TI)(placement.first_slot + part), rendering::raytracing::detail::IDENTITY_TRANSFORM);
         }
         state.dirty = true;
@@ -643,6 +640,14 @@ namespace rl_tools {
         return renderer.transforms;
     }
 
+    // the previous instant's overlay poses (flow): producer input under the transforms()
+    // ownership contract, snapshotted from transforms by advance_flow
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    auto& transforms_previous(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
+        static_assert(SPEC::HAS_FLOW_OVERLAYS, "transforms_previous requires a flow renderer specification with overlays");
+        return renderer.transforms_previous;
+    }
+
     template <typename DEVICE, typename SPEC, typename BACKEND>
     auto& transforms_motion(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "transforms_motion requires a dynamic-motion-blur renderer specification");
@@ -651,7 +656,7 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
     auto& transforms_pair(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        static_assert(SPEC::HAS_TRANSFORM_PAIR, "transforms_pair requires a dynamic-motion-blur or flow renderer specification");
+        static_assert(SPEC::HAS_TRANSFORM_PAIR, "transforms_pair requires a dynamic-motion-blur renderer specification");
         return renderer.transforms_pair;
     }
 
@@ -659,7 +664,8 @@ namespace rl_tools {
     // host on generic, shared/mapped on Metal/Vulkan. Producers write them via rlt::copy or
     // kernels; the launch verbs consume them directly. Under motion blur the pair is
     // cameras_open (shutter open) and cameras_close (shutter close, aliasing cameras) — both
-    // must be written each step (identical values for a blur-free frame).
+    // must be written each step (identical values for a blur-free frame). Under flow,
+    // cameras_previous holds the previous instant (snapshotted from cameras by advance_flow).
     template <typename DEVICE, typename SPEC, typename BACKEND>
     auto& cameras(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         return renderer.cameras;
@@ -667,14 +673,20 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
     auto& cameras_open(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        static_assert(SPEC::HAS_CAMERA_PAIR, "cameras_open requires a camera-pair renderer specification (motion blur or flow)");
+        static_assert(SPEC::HAS_CAMERA_PAIR, "cameras_open requires a motion-blur renderer specification");
         return renderer.cameras_open;
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
     auto& cameras_close(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        static_assert(SPEC::HAS_CAMERA_PAIR, "cameras_close requires a camera-pair renderer specification (motion blur or flow)");
+        static_assert(SPEC::HAS_CAMERA_PAIR, "cameras_close requires a motion-blur renderer specification");
         return renderer.cameras;
+    }
+
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    auto& cameras_previous(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
+        static_assert(SPEC::HAS_FLOW, "cameras_previous requires a flow-capable renderer specification");
+        return renderer.cameras_previous;
     }
 
     // output tensors, same backend-native residency as the inputs: consumers on the device read
@@ -705,18 +717,30 @@ namespace rl_tools {
         return renderer.normals_buffer;
     }
 
+    // flow on the current grid: p_previous - p_current in pixels, with a FlowStatus per pixel
     template <typename DEVICE, typename SPEC, typename BACKEND>
     auto& flow_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         static_assert(SPEC::HAS_FLOW, "flow_buffer requires a flow-capable renderer specification");
         return renderer.flow_buffer;
     }
 
-    // producer input like transforms: a clean (non-dirty) overlay's rows are producer-owned and
-    // never clobbered by the host-verb composition in update(); the pair expansion writes it too
     template <typename DEVICE, typename SPEC, typename BACKEND>
-    auto& flow_deltas(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        static_assert(SPEC::HAS_FLOW && SPEC::ENABLE_OVERLAYS, "flow_deltas requires a flow renderer specification with overlays");
-        return renderer.flow_deltas;
+    auto& flow_status_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
+        static_assert(SPEC::HAS_FLOW, "flow_status_buffer requires a flow-capable renderer specification");
+        return renderer.flow_status_buffer;
+    }
+
+    // forward flow on the previous grid: q_current - q_previous in pixels, with a FlowStatus per pixel
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    auto& flow_forward_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
+        static_assert(SPEC::HAS_FLOW_FORWARD, "flow_forward_buffer requires OUTPUT_FLOW_FORWARD in the renderer specification");
+        return renderer.flow_forward_buffer;
+    }
+
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    auto& flow_forward_status_buffer(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
+        static_assert(SPEC::HAS_FLOW_FORWARD, "flow_forward_status_buffer requires OUTPUT_FLOW_FORWARD in the renderer specification");
+        return renderer.flow_forward_status_buffer;
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
@@ -833,6 +857,19 @@ namespace rl_tools {
                 rgba |= value << (8 * component);
             }
             return rgba;
+        }
+        // pinned flow-status false colour shared by the save verbs and the golden corpus (ABGR
+        // packed like the frame buffer): VALID white, MISS black, BEHIND magenta, OUT_OF_FRAME
+        // blue, OCCLUDED orange; unknown codes red
+        inline uint32_t flow_status_to_rgba(uint32_t status){
+            switch(status){
+                case FlowStatus::VALID: return 0xFFFFFFFFu;
+                case FlowStatus::MISS: return 0xFF000000u;
+                case FlowStatus::BEHIND: return 0xFFFF00FFu;
+                case FlowStatus::OUT_OF_FRAME: return 0xFFFF4020u;
+                case FlowStatus::OCCLUDED: return 0xFF0090FFu;
+                default: return 0xFF0000FFu;
+            }
         }
     }
 }

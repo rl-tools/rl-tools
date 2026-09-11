@@ -57,14 +57,19 @@ namespace rl_tools {
             }
         }
 
+        // secondary_output: the flow passes' status buffer next to their flow OUTPUT
         template <typename SPEC>
-        void encode_fullscreen_pass(Context& ctx, MTL::CommandBuffer* command_buffer, MTL::ComputePipelineState* pipeline, MTL::Buffer* output, float shutter_t = 0.f){
+        void encode_fullscreen_pass(Context& ctx, MTL::CommandBuffer* command_buffer, MTL::ComputePipelineState* pipeline, MTL::Buffer* output, float shutter_t = 0.f, MTL::Buffer* secondary_output = nullptr){
             MTL::ComputeCommandEncoder* encoder = command_buffer->computeCommandEncoder();
             encoder->setComputePipelineState(pipeline);
             encoder->setBuffer(ctx.launch_params.get(), 0, bindings::LAUNCH_PARAMS);
             encoder->setBuffer(ctx.cameras.get(), 0, bindings::CAMERAS_CLOSE);
             encoder->setBuffer(ctx.cameras_open.get() != nullptr ? ctx.cameras_open.get() : ctx.cameras.get(), 0, bindings::CAMERAS_OPEN);
+            encoder->setBuffer(ctx.cameras_previous.get() != nullptr ? ctx.cameras_previous.get() : ctx.cameras.get(), 0, bindings::CAMERAS_PREVIOUS);
             encoder->setBuffer(output, 0, bindings::OUTPUT);
+            if(secondary_output != nullptr){
+                encoder->setBuffer(secondary_output, 0, bindings::FLOW_STATUS_OUTPUT);
+            }
             if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
                 if(ctx.rgb_accumulator.get() != nullptr){
                     encoder->setBuffer(ctx.rgb_accumulator.get(), 0, bindings::RGB_ACCUMULATOR);
@@ -82,6 +87,7 @@ namespace rl_tools {
             encoder->setBuffer(ctx.instance_record_base.get(), 0, bindings::INSTANCE_RECORD_BASE);
             encoder->setBuffer(ctx.instance_data.get(), 0, bindings::INSTANCE_DATA);
             encoder->setBuffer(ctx.overlay_structures.get(), 0, bindings::OVERLAY_STRUCTURES);
+            encoder->setBuffer(ctx.overlay_structures_previous.get() != nullptr ? ctx.overlay_structures_previous.get() : ctx.overlay_structures.get(), 0, bindings::OVERLAY_STRUCTURES_PREVIOUS);
             encoder->setBuffer(ctx.overlay_attachments.get(), 0, bindings::OVERLAY_ATTACHMENTS);
             encoder->setBuffer(ctx.instance_classes.get(), 0, bindings::INSTANCE_CLASSES);
             if(ctx.observation.get() != nullptr){
@@ -94,6 +100,9 @@ namespace rl_tools {
                 encoder->useResource(object_acceleration_structure.get(), MTL::ResourceUsageRead);
             }
             for(auto& overlay_acceleration_structure : ctx.overlay_acceleration_structures){
+                encoder->useResource(overlay_acceleration_structure.get(), MTL::ResourceUsageRead);
+            }
+            for(auto& overlay_acceleration_structure : ctx.overlay_acceleration_structures_previous){
                 encoder->useResource(overlay_acceleration_structure.get(), MTL::ResourceUsageRead);
             }
             for(auto& buffer : ctx.mesh_buffers){
@@ -159,6 +168,10 @@ namespace rl_tools {
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             malloc(device, renderer.transforms);
         }
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS) {
+            malloc(device, renderer.transforms_previous);
+            std::memset(data(renderer.transforms_previous), 0, decltype(renderer.transforms_previous)::SPEC::SIZE_BYTES);
+        }
         if constexpr (SPEC::HAS_TRANSFORM_PAIR) {
             malloc(device, renderer.transforms_pair);
             std::memset(data(renderer.transforms_pair), 0, decltype(renderer.transforms_pair)::SPEC::SIZE_BYTES);
@@ -209,10 +222,17 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_FLOW) {
             ctx->flow_buffer = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * 2 * sizeof(float), MTL::ResourceStorageModeShared));
             renderer.flow_buffer._data = (float*)ctx->flow_buffer->contents();
-            if constexpr (SPEC::ENABLE_OVERLAYS) {
-                ctx->flow_deltas = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float), MTL::ResourceStorageModeShared));
-                renderer.flow_deltas._data = (float*)ctx->flow_deltas->contents();
+            ctx->flow_status_buffer = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(uint32_t), MTL::ResourceStorageModeShared));
+            renderer.flow_status_buffer._data = (uint32_t*)ctx->flow_status_buffer->contents();
+            if constexpr (SPEC::HAS_FLOW_OVERLAYS) {
+                ctx->flow_deltas = NS::TransferPtr(ctx->device->newBuffer((size_t)2 * SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float), MTL::ResourceStorageModeShared));
             }
+        }
+        if constexpr (SPEC::HAS_FLOW_FORWARD) {
+            ctx->flow_forward_buffer = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * 2 * sizeof(float), MTL::ResourceStorageModeShared));
+            renderer.flow_forward_buffer._data = (float*)ctx->flow_forward_buffer->contents();
+            ctx->flow_forward_status_buffer = NS::TransferPtr(ctx->device->newBuffer((size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(uint32_t), MTL::ResourceStorageModeShared));
+            renderer.flow_forward_status_buffer._data = (uint32_t*)ctx->flow_forward_status_buffer->contents();
         }
         if constexpr (SPEC::HAS_OBSERVATION) {
             static_assert(utils::typing::is_same_v<typename SPEC::OBSERVATION_T, float>, "The Metal raytracing backend requires OBSERVATION_T = float");
@@ -245,6 +265,10 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_CAMERA_PAIR) {
             ctx->cameras_open = NS::TransferPtr(ctx->device->newBuffer(camera_bytes, MTL::ResourceStorageModeShared));
             renderer.cameras_open._data = (rendering::raytracing::Camera<typename SPEC::T>*)ctx->cameras_open->contents();
+        }
+        if constexpr (SPEC::HAS_FLOW) {
+            ctx->cameras_previous = NS::TransferPtr(ctx->device->newBuffer(camera_bytes, MTL::ResourceStorageModeShared));
+            renderer.cameras_previous._data = (rendering::raytracing::Camera<typename SPEC::T>*)ctx->cameras_previous->contents();
         }
         rendering::raytracing::detail::announce_backend(renderer);
     }
@@ -415,8 +439,10 @@ namespace rl_tools {
                 // (1 + s) + slot) so each pass's hits index a private slice of the instance side
                 // tables with no shader changes; the contract ids [num_scene, num_scene +
                 // num_overlay_slots) stay exclusive to the shutter-close state segmentation reads
+                // flow appends one more range after the blur samples for the previous instant's
+                // structures (visibility rays and forward primaries only: no side tables read)
                 constexpr size_t num_overlay_slots = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
-                constexpr size_t overlay_id_ranges = SPEC::ENABLE_DYNAMIC_MOTION_BLUR ? (size_t)1 + SPEC::MOTION_BLUR_SAMPLES : 1;
+                constexpr size_t overlay_id_ranges = (SPEC::ENABLE_DYNAMIC_MOTION_BLUR ? (size_t)1 + SPEC::MOTION_BLUR_SAMPLES : 1) + (SPEC::HAS_FLOW_OVERLAYS ? 1 : 0);
                 total_instances += num_overlay_slots * overlay_id_ranges;
             }
             std::vector<MTL::AccelerationStructureUserIDInstanceDescriptor> instance_descriptors(scene.instances.size());
@@ -482,28 +508,40 @@ namespace rl_tools {
         ctx.overlay_instance_descriptors.clear();
         ctx.overlay_sample_instance_descriptors.clear();
         ctx.overlay_scratch_buffers.clear();
+        ctx.overlay_acceleration_structures_previous.clear();
+        ctx.overlay_instance_descriptors_previous.clear();
+        ctx.overlay_scratch_buffers_previous.clear();
+        ctx.overlay_structures_previous = NS::SharedPtr<MTL::Buffer>{};
         if constexpr (SPEC::ENABLE_OVERLAYS){
-            std::vector<metal::OverlayStructureEntry> overlay_entries(SPEC::NUM_OVERLAYS, metal::OverlayStructureEntry{});
             std::vector<NS::Object*> object_acceleration_structure_pointers;
             for(auto& object_acceleration_structure : ctx.object_acceleration_structures){
                 object_acceleration_structure_pointers.push_back(object_acceleration_structure.get());
             }
             NS::Array* object_array = NS::Array::array((const NS::Object* const*)object_acceleration_structure_pointers.data(), object_acceleration_structure_pointers.size());
-            for(size_t overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
-                auto descriptor_buffer = NS::TransferPtr(ctx.device->newBuffer((size_t)SPEC::MAX_OVERLAY_INSTANCES * sizeof(MTL::AccelerationStructureUserIDInstanceDescriptor), MTL::ResourceStorageModeShared));
-                MTL::InstanceAccelerationStructureDescriptor* overlay_descriptor = MTL::InstanceAccelerationStructureDescriptor::descriptor();
-                overlay_descriptor->setInstancedAccelerationStructures(object_array);
-                overlay_descriptor->setInstanceCount(SPEC::MAX_OVERLAY_INSTANCES);
-                overlay_descriptor->setInstanceDescriptorBuffer(descriptor_buffer.get());
-                overlay_descriptor->setInstanceDescriptorType(MTL::AccelerationStructureInstanceDescriptorTypeUserID);
-                MTL::AccelerationStructureSizes overlay_sizes = ctx.device->accelerationStructureSizes(overlay_descriptor);
-                auto overlay_acceleration_structure = NS::TransferPtr(ctx.device->newAccelerationStructure(overlay_sizes.accelerationStructureSize));
-                auto overlay_scratch = NS::TransferPtr(ctx.device->newBuffer(overlay_sizes.buildScratchBufferSize, MTL::ResourceStorageModePrivate));
-                ctx.overlay_instance_descriptors.push_back(descriptor_buffer);
-                ctx.overlay_acceleration_structures.push_back(overlay_acceleration_structure);
-                ctx.overlay_scratch_buffers.push_back(overlay_scratch);
-                overlay_entries[overlay].structure = overlay_acceleration_structure->gpuResourceID();
-                overlay_entries[overlay].num_active = 0;
+            // one overlay structure set per instant: the current one, plus the previous one under flow
+            const auto create_overlay_structure_set = [&](std::vector<NS::SharedPtr<MTL::Buffer>>& instance_descriptors, std::vector<NS::SharedPtr<MTL::AccelerationStructure>>& acceleration_structures, std::vector<NS::SharedPtr<MTL::Buffer>>& scratch_buffers) -> NS::SharedPtr<MTL::Buffer> {
+                std::vector<metal::OverlayStructureEntry> overlay_entries(SPEC::NUM_OVERLAYS, metal::OverlayStructureEntry{});
+                for(size_t overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+                    auto descriptor_buffer = NS::TransferPtr(ctx.device->newBuffer((size_t)SPEC::MAX_OVERLAY_INSTANCES * sizeof(MTL::AccelerationStructureUserIDInstanceDescriptor), MTL::ResourceStorageModeShared));
+                    MTL::InstanceAccelerationStructureDescriptor* overlay_descriptor = MTL::InstanceAccelerationStructureDescriptor::descriptor();
+                    overlay_descriptor->setInstancedAccelerationStructures(object_array);
+                    overlay_descriptor->setInstanceCount(SPEC::MAX_OVERLAY_INSTANCES);
+                    overlay_descriptor->setInstanceDescriptorBuffer(descriptor_buffer.get());
+                    overlay_descriptor->setInstanceDescriptorType(MTL::AccelerationStructureInstanceDescriptorTypeUserID);
+                    MTL::AccelerationStructureSizes overlay_sizes = ctx.device->accelerationStructureSizes(overlay_descriptor);
+                    auto overlay_acceleration_structure = NS::TransferPtr(ctx.device->newAccelerationStructure(overlay_sizes.accelerationStructureSize));
+                    auto overlay_scratch = NS::TransferPtr(ctx.device->newBuffer(overlay_sizes.buildScratchBufferSize, MTL::ResourceStorageModePrivate));
+                    instance_descriptors.push_back(descriptor_buffer);
+                    acceleration_structures.push_back(overlay_acceleration_structure);
+                    scratch_buffers.push_back(overlay_scratch);
+                    overlay_entries[overlay].structure = overlay_acceleration_structure->gpuResourceID();
+                    overlay_entries[overlay].num_active = 0;
+                }
+                return NS::TransferPtr(ctx.device->newBuffer(overlay_entries.data(), overlay_entries.size() * sizeof(metal::OverlayStructureEntry), MTL::ResourceStorageModeShared));
+            };
+            ctx.overlay_structures = create_overlay_structure_set(ctx.overlay_instance_descriptors, ctx.overlay_acceleration_structures, ctx.overlay_scratch_buffers);
+            if constexpr (SPEC::HAS_FLOW_OVERLAYS){
+                ctx.overlay_structures_previous = create_overlay_structure_set(ctx.overlay_instance_descriptors_previous, ctx.overlay_acceleration_structures_previous, ctx.overlay_scratch_buffers_previous);
             }
             if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
                 for(size_t sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
@@ -512,7 +550,6 @@ namespace rl_tools {
                     }
                 }
             }
-            ctx.overlay_structures = NS::TransferPtr(ctx.device->newBuffer(overlay_entries.data(), overlay_entries.size() * sizeof(metal::OverlayStructureEntry), MTL::ResourceStorageModeShared));
             std::vector<uint32_t> attachments_init((size_t)SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA, 0xFFFFFFFFu);
             ctx.overlay_attachments = NS::TransferPtr(ctx.device->newBuffer(attachments_init.data(), attachments_init.size() * sizeof(uint32_t), MTL::ResourceStorageModeShared));
             rendering::raytracing::detail::reset_overlay_state(renderer);
@@ -548,6 +585,7 @@ namespace rl_tools {
             params->miss_color_1[component] = (float)renderer.miss_color_1[component];
         }
         params->first_overlay_instance = (uint32_t)scene.instances.size();
+        params->num_overlay_slots = SPEC::ENABLE_OVERLAYS ? (uint32_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES : 0u;
 
         if(!ctx.pipelines_built){
             auto constants = NS::TransferPtr(MTL::FunctionConstantValues::alloc()->init());
@@ -616,6 +654,9 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_FLOW) {
                 ctx.flow_pipeline = make_pipeline("render_flow");
             }
+            if constexpr (SPEC::HAS_FLOW_FORWARD) {
+                ctx.flow_forward_pipeline = make_pipeline("render_flow_forward");
+            }
             if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
                 ctx.resolve_pipeline = make_pipeline("resolve_outputs");
             }
@@ -658,11 +699,8 @@ namespace rl_tools {
         }
         NS::Array* object_array = NS::Array::array((const NS::Object* const*)object_acceleration_structure_pointers.data(), object_acceleration_structure_pointers.size());
 
-        if constexpr (SPEC::HAS_FLOW){
-            rendering::raytracing::detail::compose_flow_deltas(renderer, data(renderer.flow_deltas));
-        }
         rendering::raytracing::detail::flush_overlay_transforms(renderer);
-        // rebuilt unconditionally: producers may write the transforms tensor directly, which
+        // rebuilt unconditionally: producers may write the transforms tensors directly, which
         // leaves no host-observable dirty flag
         for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
             auto& overlay_state = renderer.overlays[overlay];
@@ -716,6 +754,51 @@ namespace rl_tools {
                 overlay_descriptor->setInstanceDescriptorType(MTL::AccelerationStructureInstanceDescriptorTypeUserID);
                 encoder->buildAccelerationStructure(ctx.overlay_acceleration_structures[overlay].get(), overlay_descriptor, ctx.overlay_scratch_buffers[overlay].get(), 0);
             }
+        }
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS){
+            // the previous instant: descriptors from transforms_previous over the shifted id range
+            // after the blur samples (no side tables: the flow passes only need hit distances and
+            // ids), built into the resident second structure set; plus the per-slot delta table
+            constexpr size_t num_overlay_slots = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
+            constexpr size_t previous_range = 1 + (SPEC::ENABLE_DYNAMIC_MOTION_BLUR ? (size_t)SPEC::MOTION_BLUR_SAMPLES : 0);
+            auto* overlay_entries_previous = (metal::OverlayStructureEntry*)ctx.overlay_structures_previous->contents();
+            for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+                auto& overlay_state = renderer.overlays[overlay];
+                const size_t base = (size_t)ctx.num_scene_instances + num_overlay_slots * previous_range + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES;
+                auto* descriptors = (MTL::AccelerationStructureUserIDInstanceDescriptor*)ctx.overlay_instance_descriptors_previous[overlay]->contents();
+                uint32_t num_active = 0;
+                for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
+                    const auto& host_slot = overlay_state.slots[slot];
+                    if(!host_slot.active) continue;
+                    float world[12];
+                    rendering::raytracing::detail::compose_overlay_slot_transform(renderer, data(renderer.transforms_previous), overlay, slot, world);
+                    auto& descriptor = descriptors[num_active];
+                    descriptor = {};
+                    for(int column = 0; column < 4; column++){
+                        descriptor.transformationMatrix.columns[column] = MTL::PackedFloat3{world[0 + column], world[4 + column], world[8 + column]};
+                    }
+                    descriptor.options = MTL::AccelerationStructureInstanceOptionOpaque;
+                    descriptor.mask = 0xFFFFFFFFu;
+                    descriptor.intersectionFunctionTableOffset = 0;
+                    descriptor.accelerationStructureIndex = (uint32_t)host_slot.object;
+                    descriptor.userID = (uint32_t)(base + slot);
+                    num_active++;
+                }
+                overlay_entries_previous[overlay].num_active = num_active;
+                if(num_active > 0){
+                    if(command_buffer == nullptr){
+                        command_buffer = ctx.queue->commandBuffer();
+                        encoder = command_buffer->accelerationStructureCommandEncoder();
+                    }
+                    MTL::InstanceAccelerationStructureDescriptor* overlay_descriptor = MTL::InstanceAccelerationStructureDescriptor::descriptor();
+                    overlay_descriptor->setInstancedAccelerationStructures(object_array);
+                    overlay_descriptor->setInstanceCount(num_active);
+                    overlay_descriptor->setInstanceDescriptorBuffer(ctx.overlay_instance_descriptors_previous[overlay].get());
+                    overlay_descriptor->setInstanceDescriptorType(MTL::AccelerationStructureInstanceDescriptorTypeUserID);
+                    encoder->buildAccelerationStructure(ctx.overlay_acceleration_structures_previous[overlay].get(), overlay_descriptor, ctx.overlay_scratch_buffers_previous[overlay].get(), 0);
+                }
+            }
+            rendering::raytracing::detail::compose_flow_deltas(renderer, data(renderer.transforms), data(renderer.transforms_previous), (float*)ctx.flow_deltas->contents());
         }
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
             // per-sample overlay instance descriptors + shifted-id side-table slices consumed by
@@ -796,7 +879,7 @@ namespace rl_tools {
     // device-resident path is the OptiX backend)
     template <typename DEVICE, typename SPEC>
     void expand_motion_transforms_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
-        static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur or flow renderer specification");
+        static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur renderer specification");
         namespace metal = rendering::raytracing::backends::metal;
         metal::wait_in_flight(metal::context(renderer));
         rendering::raytracing::detail::expand_motion_transforms_host(renderer);
@@ -804,7 +887,39 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void expand_motion_transforms_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
-        static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur or flow renderer specification");
+        static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur renderer specification");
+    }
+
+    // the previous instant becomes the current one: shared-storage buffers and host tensors, so
+    // plain copies after the in-flight wait — clean overlays copy their producer-owned rows,
+    // dirty overlays reach transforms_previous through the mirrors at the next update
+    template <typename DEVICE, typename SPEC>
+    void advance_flow_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
+        static_assert(SPEC::HAS_FLOW, "advance_flow requires a flow-capable renderer specification");
+        namespace metal = rendering::raytracing::backends::metal;
+        using TI = typename SPEC::TI;
+        metal::wait_in_flight(metal::context(renderer));
+        std::memcpy(data(renderer.cameras_previous), data(renderer.cameras), decltype(renderer.cameras)::SPEC::SIZE_BYTES);
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS){
+            bool copy_rows[SPEC::NUM_OVERLAYS];
+            rendering::raytracing::detail::advance_flow_mirrors(renderer, copy_rows);
+            for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+                if(!copy_rows[overlay]) continue;
+                const size_t offset = (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES * 12;
+                std::memcpy(data(renderer.transforms_previous) + offset, data(renderer.transforms) + offset, (size_t)SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float));
+            }
+        }
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void advance_flow_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
+        static_assert(SPEC::HAS_FLOW, "advance_flow requires a flow-capable renderer specification");
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void advance_flow(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
+        advance_flow_launch(device, renderer);
+        advance_flow_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -914,7 +1029,10 @@ namespace rl_tools {
                 metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.normals_pipeline.get(), ctx.normals_buffer.get());
             }
             if constexpr (SPEC::HAS_FLOW) {
-                metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.flow_pipeline.get(), ctx.flow_buffer.get());
+                metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.flow_pipeline.get(), ctx.flow_buffer.get(), 0.f, ctx.flow_status_buffer.get());
+            }
+            if constexpr (SPEC::HAS_FLOW_FORWARD) {
+                metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.flow_forward_pipeline.get(), ctx.flow_forward_buffer.get(), 0.f, ctx.flow_forward_status_buffer.get());
             }
             metal::encode_resolve_pass<SPEC>(ctx, command_buffer);
             command_buffer->commit();
@@ -935,7 +1053,10 @@ namespace rl_tools {
             metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.normals_pipeline.get(), ctx.normals_buffer.get());
         }
         if constexpr (SPEC::HAS_FLOW) {
-            metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.flow_pipeline.get(), ctx.flow_buffer.get());
+            metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.flow_pipeline.get(), ctx.flow_buffer.get(), 0.f, ctx.flow_status_buffer.get());
+        }
+        if constexpr (SPEC::HAS_FLOW_FORWARD) {
+            metal::encode_fullscreen_pass<SPEC>(ctx, command_buffer, ctx.flow_forward_pipeline.get(), ctx.flow_forward_buffer.get(), 0.f, ctx.flow_forward_status_buffer.get());
         }
         command_buffer->commit();
         ctx.in_flight = NS::RetainPtr(command_buffer);
@@ -1009,10 +1130,13 @@ namespace rl_tools {
             renderer.normals_buffer._data = nullptr;
         }
         if constexpr (SPEC::HAS_FLOW) {
+            renderer.cameras_previous._data = nullptr;
             renderer.flow_buffer._data = nullptr;
-            if constexpr (SPEC::ENABLE_OVERLAYS) {
-                renderer.flow_deltas._data = nullptr;
-            }
+            renderer.flow_status_buffer._data = nullptr;
+        }
+        if constexpr (SPEC::HAS_FLOW_FORWARD) {
+            renderer.flow_forward_buffer._data = nullptr;
+            renderer.flow_forward_status_buffer._data = nullptr;
         }
         if constexpr (SPEC::HAS_OBSERVATION) {
             renderer.observation._data = nullptr;
@@ -1020,6 +1144,9 @@ namespace rl_tools {
         renderer.collision_results._data = nullptr;
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             free(device, renderer.transforms);
+        }
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS) {
+            free(device, renderer.transforms_previous);
         }
         if constexpr (SPEC::HAS_TRANSFORM_PAIR) {
             free(device, renderer.transforms_pair);

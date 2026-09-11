@@ -1,5 +1,6 @@
 // Vulkan device programs for the RLtools raytracing renderer, compiled once per entry point
-// (ENTRY_RGB / ENTRY_DEPTH / ENTRY_COLLISION / ENTRY_SEGMENTATION / ENTRY_NORMALS / ENTRY_FLOW). This file is a
+// (ENTRY_RGB / ENTRY_DEPTH / ENTRY_COLLISION / ENTRY_SEGMENTATION / ENTRY_NORMALS / ENTRY_FLOW /
+// ENTRY_FLOW_FORWARD / ENTRY_RESOLVE). This file is a
 // function-for-function mirror of backends/metal/device.metal (which mirrors
 // backends/optix/device_impl.h) — keep the shading logic in sync; the golden-image parity
 // suite is the drift detector. Metal's RGBTracer<DEPTH> template recursion is restructured
@@ -53,7 +54,8 @@ layout(std430, set = 0, binding = 0) readonly buffer LaunchParamsBuffer{
     float miss_color_0[3];
     float miss_color_1[3];
     uint first_overlay_instance;
-    float padding[2];
+    uint num_overlay_slots;
+    float padding[1];
 } params;
 
 struct Camera{
@@ -69,7 +71,7 @@ layout(std430, set = 0, binding = 13) readonly buffer OverlayAttachmentsBuffer{ 
 layout(std430, set = 0, binding = 14) readonly buffer OverlayNumActiveBuffer{ uint overlay_num_active[]; };
 layout(set = 0, binding = 15) uniform accelerationStructureEXT overlay_tlas[];
 
-#if defined(ENTRY_RGB) || defined(ENTRY_DEPTH) || defined(ENTRY_FLOW)
+#if defined(ENTRY_RGB) || defined(ENTRY_DEPTH)
 layout(std430, set = 0, binding = 2) readonly buffer CamerasOpenBuffer{ Camera cameras_open[]; };
 #endif
 
@@ -153,7 +155,7 @@ struct SceneLight{
 layout(std430, set = 0, binding = 3) writeonly buffer FrameBuffer{ uint fb[]; };
 layout(std430, set = 0, binding = 5) readonly buffer SceneLightsBuffer{ SceneLight scene_lights[]; };
 layout(std430, set = 0, binding = 17) writeonly buffer ObservationBuffer{ float observation[]; };
-layout(set = 0, binding = 23) uniform sampler2D scene_textures[];
+layout(set = 0, binding = 29) uniform sampler2D scene_textures[];
 
 // normals transform with the inverse-transpose: multiply by the world_to_object columns
 vec3 transform_normal_to_world(int instance, vec3 n){
@@ -179,7 +181,17 @@ layout(std430, set = 0, binding = 20) writeonly buffer NormalsBuffer{ float norm
 
 #if defined(ENTRY_FLOW)
 layout(std430, set = 0, binding = 21) writeonly buffer FlowBuffer{ float flow_out[]; };
+layout(std430, set = 0, binding = 23) writeonly buffer FlowStatusBuffer{ uint flow_status_out[]; };
+#endif
+#if defined(ENTRY_FLOW_FORWARD)
+layout(std430, set = 0, binding = 24) writeonly buffer FlowBuffer{ float flow_out[]; };
+layout(std430, set = 0, binding = 25) writeonly buffer FlowStatusBuffer{ uint flow_status_out[]; };
+#endif
+#if defined(ENTRY_FLOW) || defined(ENTRY_FLOW_FORWARD)
 layout(std430, set = 0, binding = 22) readonly buffer FlowDeltasBuffer{ float flow_deltas[]; };
+layout(std430, set = 0, binding = 26) readonly buffer CamerasPreviousBuffer{ Camera cameras_previous[]; };
+layout(std430, set = 0, binding = 27) readonly buffer OverlayNumActivePreviousBuffer{ uint overlay_num_active_previous[]; };
+layout(set = 0, binding = 28) uniform accelerationStructureEXT overlay_tlas_previous[];
 #endif
 
 #if defined(ENTRY_COLLISION)
@@ -870,12 +882,53 @@ void main(){
 }
 #endif
 
-#if defined(ENTRY_FLOW)
+#if defined(ENTRY_FLOW) || defined(ENTRY_FLOW_FORWARD)
+// FlowStatus codes (rl_tools/rendering/raytracing/types.h)
+const uint FLOW_STATUS_VALID = 0u;
+const uint FLOW_STATUS_MISS = 1u;
+const uint FLOW_STATUS_BEHIND = 2u;
+const uint FLOW_STATUS_OUT_OF_FRAME = 3u;
+const uint FLOW_STATUS_OCCLUDED = 4u;
+const float FLOW_VISIBILITY_EPSILON = 1e-4;
+#if defined(ENTRY_FLOW_FORWARD)
+const bool SOURCE_PREVIOUS = true;
+#else
+const bool SOURCE_PREVIOUS = false;
+#endif
+
 vec3 apply_flow_delta(uint base, vec3 p){
     return vec3(
         flow_deltas[base + 0]*p.x + flow_deltas[base + 1]*p.y + flow_deltas[base + 2]*p.z + flow_deltas[base + 3],
         flow_deltas[base + 4]*p.x + flow_deltas[base + 5]*p.y + flow_deltas[base + 6]*p.z + flow_deltas[base + 7],
         flow_deltas[base + 8]*p.x + flow_deltas[base + 9]*p.y + flow_deltas[base + 10]*p.z + flow_deltas[base + 11]);
+}
+
+// intersect_composed against one instant's overlay set: the current one (overlay_tlas) or the
+// previous one (overlay_tlas_previous, flow only)
+Hit intersect_composed_instant(bool previous, int camera, vec3 origin, vec3 direction, float tmin, float tmax, bool accept_any){
+    const uint flags = accept_any ? (gl_RayFlagsOpaqueEXT | gl_RayFlagsTerminateOnFirstHitEXT) : gl_RayFlagsOpaqueEXT;
+    Hit best = trace_single(tlas, origin, direction, tmin, tmax, flags);
+    for(int k = 0; k < fc_overlay_count; k++){
+        if(accept_any && best.valid){
+            return best;
+        }
+        const uint overlay = overlay_attachments[camera * fc_overlay_count + k];
+        if(overlay == 0xFFFFFFFFu){ continue; }
+        const uint num_active = previous ? overlay_num_active_previous[overlay] : overlay_num_active[overlay];
+        if(num_active == 0u){ continue; }
+        const float clamped_tmax = best.valid ? best.t : tmax;
+        Hit hit;
+        if(previous){
+            hit = trace_single(overlay_tlas_previous[nonuniformEXT(overlay)], origin, direction, tmin, clamped_tmax, flags);
+        }
+        else{
+            hit = trace_single(overlay_tlas[nonuniformEXT(overlay)], origin, direction, tmin, clamped_tmax, flags);
+        }
+        if(hit.valid){
+            best = hit;
+        }
+    }
+    return best;
 }
 
 // world point → screen fraction through the linear camera model: solves
@@ -899,35 +952,54 @@ bool project_camera(Camera cam, vec3 point, out float screen_x, out float screen
     return lambda > 0.0;
 }
 
-// single-sample by design (shutter-close camera, pixel-center ray): backward flow of the
-// shutter-close frame in pixels — the hit point is carried to shutter open by its instance's
-// shutter delta (identity for the static world) and projected through the shutter-open camera;
-// miss (and behind-the-open-camera projections) write (0, 0)
+// two-instant flow, one direction per entry point (mirror of the generic render_flow_frame):
+// single-sample from the source pixel centre against the source instant; the hit point is
+// carried to the target instant by its slot's delta, projected through the target camera, and
+// tested for visibility from the target camera against the target instant with the relative
+// margin FLOW_VISIBILITY_EPSILON. Status priority MISS, BEHIND, OUT_OF_FRAME, OCCLUDED, VALID;
+// the vector is zero for MISS and BEHIND and the geometric flow otherwise
 void main(){
     const uvec2 pixel_id = gl_GlobalInvocationID.xy;
     const PixelLaunchContext ctx = pixel_launch_context(pixel_id);
     if(!ctx.valid){
         return;
     }
-    Camera cam = cameras_close[ctx.cam_idx];
+    Camera cam = SOURCE_PREVIOUS ? cameras_previous[ctx.cam_idx] : cameras_close[ctx.cam_idx];
+    Camera cam_target = SOURCE_PREVIOUS ? cameras_close[ctx.cam_idx] : cameras_previous[ctx.cam_idx];
+    const uint source_first_overlay_instance = params.first_overlay_instance + (SOURCE_PREVIOUS ? params.num_overlay_slots : 0u);
+    const uint delta_slab = SOURCE_PREVIOUS ? params.num_overlay_slots * 12u : 0u;
     const vec2 screen = (vec2(ctx.local_x, ctx.local_y) + vec2(0.5, 0.5)) / vec2(params.cam_width, params.cam_height);
     const vec3 direction = normalize(camera_dir_00(cam) + screen.x * camera_dir_du(cam) + screen.y * camera_dir_dv(cam));
-    Hit hit = intersect_composed(ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30, false);
+    Hit hit = intersect_composed_instant(SOURCE_PREVIOUS, ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30, false);
     vec2 flow = vec2(0.0);
+    uint status = FLOW_STATUS_MISS;
     if(hit.valid){
         vec3 point = camera_pos(cam) + direction * hit.t;
-        if(fc_overlay_count > 0 && uint(hit.instance_id) >= params.first_overlay_instance){
-            point = apply_flow_delta((uint(hit.instance_id) - params.first_overlay_instance) * 12u, point);
+        if(fc_overlay_count > 0 && uint(hit.instance_id) >= source_first_overlay_instance){
+            point = apply_flow_delta(delta_slab + (uint(hit.instance_id) - source_first_overlay_instance) * 12u, point);
         }
-        Camera cam_open = cameras_open[ctx.cam_idx];
-        float open_x;
-        float open_y;
-        if(project_camera(cam_open, point, open_x, open_y)){
-            flow = vec2((float(ctx.local_x) + 0.5) - open_x * float(params.cam_width),
-                        (float(ctx.local_y) + 0.5) - open_y * float(params.cam_height));
+        float target_x;
+        float target_y;
+        if(!project_camera(cam_target, point, target_x, target_y)){
+            status = FLOW_STATUS_BEHIND;
+        }
+        else{
+            flow = vec2(target_x * float(params.cam_width) - (float(ctx.local_x) + 0.5),
+                        target_y * float(params.cam_height) - (float(ctx.local_y) + 0.5));
+            if(target_x < 0.0 || target_x >= 1.0 || target_y < 0.0 || target_y >= 1.0){
+                status = FLOW_STATUS_OUT_OF_FRAME;
+            }
+            else{
+                const vec3 to_point = point - camera_pos(cam_target);
+                const float len = length(to_point);
+                const vec3 visibility_direction = to_point * (1.0 / len);
+                Hit occluder = intersect_composed_instant(!SOURCE_PREVIOUS, ctx.cam_idx, camera_pos(cam_target), visibility_direction, 0.0, len * (1.0 - FLOW_VISIBILITY_EPSILON), true);
+                status = occluder.valid ? FLOW_STATUS_OCCLUDED : FLOW_STATUS_VALID;
+            }
         }
     }
     flow_out[ctx.fb_offset * 2 + 0] = flow.x;
     flow_out[ctx.fb_offset * 2 + 1] = flow.y;
+    flow_status_out[ctx.fb_offset] = status;
 }
 #endif

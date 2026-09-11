@@ -56,6 +56,14 @@ target_link_libraries(rendering_raytracing_antialiasing
         rendering_raytracing_stb
 )
 
+add_executable(rendering_raytracing_flow flow.cpp)
+target_link_libraries(rendering_raytracing_flow
+    PRIVATE
+        RLtools::RLtools
+        rendering_raytracing_backend
+        rendering_raytracing_stb
+)
+
 add_executable(rendering_raytracing_drone drone.cpp)
 target_link_libraries(rendering_raytracing_drone
     PRIVATE
