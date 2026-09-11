@@ -4,7 +4,7 @@
 #include <array>
 
 namespace rl_tools::rl::environments::raytracing_example {
-    template <typename T_T, typename T_TI, T_TI T_NUM_ENVS, T_TI T_CAM_WIDTH = 64, T_TI T_CAM_HEIGHT = 64, T_TI T_NUM_PROBES = 64, typename T_SHADING = rendering::raytracing::Medium, bool T_ENABLE_MOTION_BLUR = false, T_TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, T_TI T_ANTI_ALIASING_GRID_SIZE = 1, bool T_OUTPUT_RGB = true, bool T_OUTPUT_DEPTH = false, bool T_OUTPUT_SEGMENTATION = false>
+    template <typename T_T, typename T_TI, T_TI T_NUM_ENVS, T_TI T_CAM_WIDTH = 64, T_TI T_CAM_HEIGHT = 64, T_TI T_NUM_PROBES = 64, typename T_SHADING = rendering::raytracing::Medium, bool T_ENABLE_MOTION_BLUR = false, T_TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, T_TI T_ANTI_ALIASING_GRID_SIZE = 1, bool T_OUTPUT_RGB = true, bool T_OUTPUT_DEPTH = false, bool T_OUTPUT_SEGMENTATION = false, bool T_OUTPUT_FLOW = false, bool T_OUTPUT_FLOW_FORWARD = false, T_TI T_NUM_OVERLAYS = 0, T_TI T_MAX_OVERLAY_INSTANCES = 0, T_TI T_MAX_OVERLAYS_PER_CAMERA = 0>
     struct Specification {
         using T = T_T;
         using TI = T_TI;
@@ -27,6 +27,11 @@ namespace rl_tools::rl::environments::raytracing_example {
             static constexpr bool OUTPUT_RGB = T_OUTPUT_RGB;
             static constexpr bool OUTPUT_DEPTH = T_OUTPUT_DEPTH;
             static constexpr bool OUTPUT_SEGMENTATION = T_OUTPUT_SEGMENTATION;
+            static constexpr bool OUTPUT_FLOW = T_OUTPUT_FLOW;
+            static constexpr bool OUTPUT_FLOW_FORWARD = T_OUTPUT_FLOW_FORWARD;
+            static constexpr TI NUM_OVERLAYS = T_NUM_OVERLAYS;
+            static constexpr TI MAX_OVERLAY_INSTANCES = T_MAX_OVERLAY_INSTANCES;
+            static constexpr TI MAX_OVERLAYS_PER_CAMERA = T_MAX_OVERLAYS_PER_CAMERA;
             static constexpr bool ENABLE_MOTION_BLUR = T_ENABLE_MOTION_BLUR;
             static constexpr TI MOTION_BLUR_SAMPLES = T_MOTION_BLUR_SAMPLES;
             static constexpr bool ENABLE_ANTI_ALIASING = T_ENABLE_ANTI_ALIASING;
@@ -70,6 +75,7 @@ namespace rl_tools::rl::environments::raytracing_example {
 
         Renderer* renderer = nullptr;
         rendering::Bundle<T>* bundle = nullptr;
+        rendering::raytracing::AssetPool pool; // overlay assets, filled by the caller before init when NUM_OVERLAYS > 0
         const char* scene_path = nullptr;
         T dt = 1.0f / 60.0f;
         T max_velocity = 1.5f;

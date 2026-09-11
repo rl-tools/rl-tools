@@ -4,6 +4,7 @@
 #define RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD 1
 #define RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH 2
 #define RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_SEGMENTATION 3
+#define RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_FLOW 4
 
 #ifndef RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE
 #define RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB
@@ -34,9 +35,21 @@
 
 namespace rlt = rl_tools;
 
-static constexpr bool OUTPUT_RGB = RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB || RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD;
+static constexpr bool OUTPUT_FLOW = RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_FLOW;
+static constexpr bool OUTPUT_RGB = RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB || RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD || OUTPUT_FLOW;
 static constexpr bool OUTPUT_DEPTH = RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD || RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH;
 static constexpr bool OUTPUT_SEGMENTATION = RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_SEGMENTATION;
+// flow mode renders at half the window width and shows RGB on the left and the selected flow view
+// on the right; one orbiting, spinning cube overlay in front of the start pose adds object flow, a
+// disocclusion band and a forward-direction target next to the camera's ego-motion flow
+static constexpr unsigned int FLOW_NUM_OVERLAYS = OUTPUT_FLOW ? 1 : 0;
+static constexpr unsigned int FLOW_HALVES = OUTPUT_FLOW ? 2 : 1;
+static constexpr float FLOW_CUBE_HALF_EXTENT = 0.25f;
+static constexpr float FLOW_CUBE_DISTANCE = 2.5f;
+static constexpr float FLOW_CUBE_ORBIT_RADIUS = 0.6f;
+static constexpr float FLOW_CUBE_ORBIT_RATE = 0.8f; // rad/s
+static constexpr float FLOW_CUBE_SPIN_RATE = 1.5f;  // rad/s about z
+static constexpr float FLOW_DISPLAY_SCALE_PX = 32.0f; // flow magnitude that saturates the hue display
 
 // Minimal 5x7 bitmap font for overlay text
 struct FontGlyph {
@@ -71,6 +84,16 @@ static const FontGlyph FONT_GLYPHS[] = {
     {'u', {0x00,0x00,0x11,0x11,0x11,0x11,0x0F}},
     {'a', {0x00,0x00,0x0E,0x01,0x0F,0x11,0x0F}},
     {'t', {0x08,0x08,0x1C,0x08,0x08,0x09,0x06}},
+    {'F', {0x1F,0x10,0x10,0x1E,0x10,0x10,0x10}},
+    {'l', {0x0C,0x04,0x04,0x04,0x04,0x04,0x0E}},
+    {'w', {0x00,0x00,0x11,0x11,0x15,0x15,0x0A}},
+    {'b', {0x10,0x10,0x16,0x19,0x11,0x11,0x1E}},
+    {'c', {0x00,0x00,0x0E,0x10,0x10,0x11,0x0E}},
+    {'k', {0x10,0x10,0x12,0x14,0x18,0x14,0x12}},
+    {'r', {0x00,0x00,0x16,0x19,0x10,0x10,0x10}},
+    {'d', {0x01,0x01,0x0D,0x13,0x11,0x11,0x0F}},
+    {'f', {0x06,0x09,0x08,0x1C,0x08,0x08,0x08}},
+    {'g', {0x00,0x00,0x0F,0x11,0x0F,0x01,0x0E}},
 };
 
 static const uint8_t* font_lookup(char ch) {
@@ -242,6 +265,49 @@ static InputState g_input;
 static bool g_capture_pose_requested = false;
 #if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
 static bool g_show_depth = true;
+#endif
+#if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_FLOW
+enum class FlowView : int {
+    BACKWARD = 0,
+    BACKWARD_STATUS,
+    FORWARD,
+    FORWARD_STATUS,
+    COUNT
+};
+static FlowView g_flow_view = FlowView::BACKWARD;
+static const char* flow_view_label(FlowView view) {
+    switch(view) {
+        case FlowView::BACKWARD: return "Flow: backward";
+        case FlowView::BACKWARD_STATUS: return "Flow: backward status";
+        case FlowView::FORWARD: return "Flow: forward";
+        default: return "Flow: forward status";
+    }
+}
+static rlt::rendering::raytracing::Mesh make_flow_cube() {
+    using namespace rlt::rendering::raytracing::constants;
+    rlt::rendering::raytracing::Mesh mesh;
+    mesh.color[0] = 0.85f;
+    mesh.color[1] = 0.3f;
+    mesh.color[2] = 0.1f;
+    for(int vertex_i = 0; vertex_i < NUM_VERTICES; vertex_i++) {
+        for(int dim_i = 0; dim_i < 3; dim_i++) {
+            mesh.vertices.push_back(default_vertices[vertex_i][dim_i] * FLOW_CUBE_HALF_EXTENT);
+        }
+    }
+    for(int triangle_i = 0; triangle_i < NUM_INDICES; triangle_i++) {
+        for(int corner_i = 0; corner_i < 3; corner_i++) {
+            mesh.indices.push_back(default_indices[triangle_i][corner_i]);
+        }
+    }
+    return mesh;
+}
+static void flow_cube_transform(const float centre[3], float time_s, float transform[12]) {
+    const float orbit = FLOW_CUBE_ORBIT_RATE * time_s;
+    const float position[3] = {centre[0] + FLOW_CUBE_ORBIT_RADIUS * std::cos(orbit), centre[1] + FLOW_CUBE_ORBIT_RADIUS * std::sin(orbit), centre[2]};
+    const float half_spin = FLOW_CUBE_SPIN_RATE * time_s / 2.0f;
+    const float quaternion_wxyz[4] = {std::cos(half_spin), 0, 0, std::sin(half_spin)};
+    rlt::make_transform(position, quaternion_wxyz, transform);
+}
 #endif
 
 static constexpr char CAPTURED_POSE_PATH[] = "camera_poses.txt";
@@ -525,6 +591,13 @@ static void key_callback(GLFWwindow* window, int key, int /*scancode*/, int acti
         return;
     }
 #endif
+#if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_FLOW
+    if (key == GLFW_KEY_TAB && action == GLFW_PRESS) {
+        g_flow_view = static_cast<FlowView>((static_cast<int>(g_flow_view) + 1) % static_cast<int>(FlowView::COUNT));
+        std::cout << flow_view_label(g_flow_view) << std::endl;
+        return;
+    }
+#endif
     bool pressed = (action == GLFW_PRESS || action == GLFW_REPEAT);
     if (key == GLFW_KEY_W || key == GLFW_KEY_UP) g_input.forward = pressed;
     if (key == GLFW_KEY_S || key == GLFW_KEY_DOWN) g_input.backward = pressed;
@@ -573,8 +646,13 @@ int main(int argc, char** argv) {
     using TI = unsigned int;
     constexpr TI CAM_WIDTH = 1280;
     constexpr TI CAM_HEIGHT = 960;
+    constexpr TI RENDER_WIDTH = CAM_WIDTH / FLOW_HALVES; // flow mode: each half of the window shows one full render
     constexpr TI NUM_ENVS = 1;
-    using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, CAM_WIDTH, CAM_HEIGHT, 64, rlt::rendering::raytracing::High, false, 1, true, 2, OUTPUT_RGB, OUTPUT_DEPTH, OUTPUT_SEGMENTATION>;
+    using SPEC = rlt::rl::environments::raytracing_example::Specification<T, TI, NUM_ENVS, RENDER_WIDTH, CAM_HEIGHT, 64, rlt::rendering::raytracing::High, false, 1, true, 2, OUTPUT_RGB, OUTPUT_DEPTH, OUTPUT_SEGMENTATION, OUTPUT_FLOW, OUTPUT_FLOW, FLOW_NUM_OVERLAYS, FLOW_NUM_OVERLAYS, FLOW_NUM_OVERLAYS>;
+    // FOV is horizontal: a half-width render keeps the full view's vertical field and pixel density
+    // by halving the tangent of the horizontal half-angle
+    const T fov = OUTPUT_FLOW ? static_cast<T>(2) * std::atan(std::tan(rlt::rendering::degrees_to_radians(SPEC::FOV) / static_cast<T>(2)) / static_cast<T>(FLOW_HALVES)) * static_cast<T>(180.0 / M_PI) : SPEC::FOV;
+    const T aspect = static_cast<T>(RENDER_WIDTH) / static_cast<T>(CAM_HEIGHT);
     using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 
     InteractiveOptions options;
@@ -614,6 +692,9 @@ int main(int argc, char** argv) {
     env.scene_path = resolved_scene_path.c_str();
 
     rlt::malloc(device, env);
+#if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_FLOW
+    const auto flow_cube_asset = rlt::add(device, env.pool, make_flow_cube());
+#endif
     rlt::init(device, env);
 #if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGBD
     std::cout << "RGBD target enabled. Press Tab to toggle RGB/depth display." << std::endl;
@@ -621,6 +702,8 @@ int main(int argc, char** argv) {
     std::cout << "Depth target enabled." << std::endl;
 #elif RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_SEGMENTATION
     std::cout << "Segmentation target enabled." << std::endl;
+#elif RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_FLOW
+    std::cout << "Flow target enabled: RGB on the left, flow on the right. Press Tab to cycle backward flow / backward status / forward flow / forward status (hue = direction, saturation = magnitude up to " << FLOW_DISPLAY_SCALE_PX << " px; status: white VALID, black MISS, magenta BEHIND, blue OUT_OF_FRAME, orange OCCLUDED)." << std::endl;
 #endif
 
     rlt::rl::environments::raytracing_example::State<SPEC> state{};
@@ -654,6 +737,14 @@ int main(int argc, char** argv) {
 
     g_input.yaw = cached_yaw;
     g_input.pitch = cached_pitch;
+#if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_FLOW
+    const float flow_cube_centre[3] = {state.position[0] + FLOW_CUBE_DISTANCE * std::cos(cached_yaw), state.position[1] + FLOW_CUBE_DISTANCE * std::sin(cached_yaw), state.position[2]};
+    rlt::attach(device, *env.renderer, (TI)0, rlt::rendering::raytracing::OverlayIndex{0});
+    float flow_cube_pose[12];
+    flow_cube_transform(flow_cube_centre, 0.0f, flow_cube_pose);
+    const auto flow_cube_placement = rlt::spawn(device, *env.renderer, rlt::rendering::raytracing::OverlayIndex{0}, flow_cube_asset, flow_cube_pose);
+    rlt::update(device, *env.renderer);
+#endif
 
     GLuint texture;
     glGenTextures(1, &texture);
@@ -666,6 +757,16 @@ int main(int argc, char** argv) {
     std::vector<RecordedCameraPose> camera_trace;
     rlt::Tensor<typename decltype(env.renderer->cameras)::SPEC> camera_staging;
     rlt::malloc(device, camera_staging);
+#if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_FLOW
+    {
+        // publish the start pose as the current instant so the first advance_flow has a valid previous camera
+        const T eye[3] = {state.position[0], state.position[1], state.position[2]};
+        const T look_at[3] = {eye[0] + std::cos(g_input.yaw) * std::cos(g_input.pitch), eye[1] + std::sin(g_input.yaw) * std::cos(g_input.pitch), eye[2] + std::sin(g_input.pitch)};
+        const T up[3] = {0, 0, 1};
+        rlt::set(device, camera_staging, rlt::make_camera_data(eye, look_at, up, fov, aspect), 0);
+        rlt::copy(device, env.renderer->device, camera_staging, rlt::cameras(device, *env.renderer));
+    }
+#endif
 
     constexpr float LINEAR_VELOCITY_RAMP_S = 0.5f;
     float linear_velocity_ramp_elapsed_s = 0.0f;
@@ -711,8 +812,7 @@ int main(int argc, char** argv) {
             eye[2] + std::sin(g_input.pitch)
         };
         T up[3] = {0, 0, 1};
-        T aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
-        const auto camera = rlt::make_camera_data(eye, look_at, up, SPEC::FOV, aspect);
+        const auto camera = rlt::make_camera_data(eye, look_at, up, fov, aspect);
 
         if (g_capture_pose_requested) {
             g_capture_pose_requested = false;
@@ -743,9 +843,59 @@ int main(int argc, char** argv) {
         }
         frame_index++;
 
+#if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_FLOW
+        rlt::advance_flow(device, *env.renderer); // last frame's camera and cube pose become the previous instant
+#endif
         rlt::set(device, camera_staging, camera, 0);
         rlt::copy(device, env.renderer->device, camera_staging, rlt::cameras(device, *env.renderer));
-#if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
+#if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_FLOW
+        flow_cube_transform(flow_cube_centre, std::chrono::duration<float>(now - trace_start_time).count(), flow_cube_pose);
+        rlt::set_transform(device, *env.renderer, rlt::rendering::raytracing::OverlayIndex{0}, flow_cube_placement, flow_cube_pose);
+        rlt::update(device, *env.renderer);
+        rlt::render(device, *env.renderer);
+        {
+            constexpr size_t RENDER_PIXELS = (size_t)RENDER_WIDTH * CAM_HEIGHT;
+            std::vector<uint32_t> rgb_staging(RENDER_PIXELS);
+            {
+                rlt::Tensor<typename decltype(env.renderer->frame_buffer)::SPEC> frame_alias;
+                frame_alias._data = rgb_staging.data();
+                rlt::copy(env.renderer->device, device, rlt::frame_buffer(device, *env.renderer), frame_alias);
+            }
+            std::vector<uint32_t> view_staging(RENDER_PIXELS);
+            if (g_flow_view == FlowView::BACKWARD || g_flow_view == FlowView::FORWARD) {
+                std::vector<float> flow_staging(RENDER_PIXELS * 2);
+                rlt::Tensor<typename decltype(env.renderer->flow_buffer)::SPEC> flow_alias;
+                flow_alias._data = flow_staging.data();
+                if (g_flow_view == FlowView::BACKWARD) {
+                    rlt::copy(env.renderer->device, device, rlt::flow_buffer(device, *env.renderer), flow_alias);
+                }
+                else {
+                    rlt::copy(env.renderer->device, device, rlt::flow_forward_buffer(device, *env.renderer), flow_alias);
+                }
+                for (size_t pixel_i = 0; pixel_i < RENDER_PIXELS; pixel_i++) {
+                    view_staging[pixel_i] = rlt::rendering::raytracing::detail::flow_to_rgba(flow_staging[pixel_i * 2 + 0], flow_staging[pixel_i * 2 + 1], FLOW_DISPLAY_SCALE_PX);
+                }
+            }
+            else {
+                std::vector<uint32_t> status_staging(RENDER_PIXELS);
+                rlt::Tensor<typename decltype(env.renderer->flow_status_buffer)::SPEC> status_alias;
+                status_alias._data = status_staging.data();
+                if (g_flow_view == FlowView::BACKWARD_STATUS) {
+                    rlt::copy(env.renderer->device, device, rlt::flow_status_buffer(device, *env.renderer), status_alias);
+                }
+                else {
+                    rlt::copy(env.renderer->device, device, rlt::flow_forward_status_buffer(device, *env.renderer), status_alias);
+                }
+                for (size_t pixel_i = 0; pixel_i < RENDER_PIXELS; pixel_i++) {
+                    view_staging[pixel_i] = rlt::rendering::raytracing::detail::flow_status_to_rgba(status_staging[pixel_i]);
+                }
+            }
+            for (size_t row = 0; row < CAM_HEIGHT; row++) {
+                std::memcpy(pixels.data() + row * CAM_WIDTH, rgb_staging.data() + row * RENDER_WIDTH, RENDER_WIDTH * sizeof(uint32_t));
+                std::memcpy(pixels.data() + row * CAM_WIDTH + RENDER_WIDTH, view_staging.data() + row * RENDER_WIDTH, RENDER_WIDTH * sizeof(uint32_t));
+            }
+        }
+#elif RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
         rlt::render(device, *env.renderer);
         {
             std::vector<float> depth_staging(pixels.size());
@@ -814,9 +964,21 @@ int main(int argc, char** argv) {
             int overlay_y = 4;
             int max_len = std::max(std::strlen(line_flu_pos), std::strlen(line_flu_quat));
             int text_width = static_cast<int>(max_len) * 6 + 4;
-            draw_overlay_background(pixels.data(), CAM_WIDTH, CAM_HEIGHT, overlay_x, overlay_y, text_width, 20);
+            int text_height = 20;
+#if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_FLOW
+            const char* line_flow_view = flow_view_label(g_flow_view);
+            text_width = std::max(text_width, static_cast<int>(std::strlen(line_flow_view)) * 6 + 4);
+            text_height = 29;
+#endif
+            draw_overlay_background(pixels.data(), CAM_WIDTH, CAM_HEIGHT, overlay_x, overlay_y, text_width, text_height);
             draw_string(pixels.data(), CAM_WIDTH, CAM_HEIGHT, overlay_x + 2, overlay_y + 2, line_flu_pos, 0xFF00FF00);
             draw_string(pixels.data(), CAM_WIDTH, CAM_HEIGHT, overlay_x + 2, overlay_y + 11, line_flu_quat, 0xFF00FF00);
+#if RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_FLOW
+            draw_string(pixels.data(), CAM_WIDTH, CAM_HEIGHT, overlay_x + 2, overlay_y + 20, line_flow_view, 0xFF00FF00);
+            // label the right half as well so a screenshot of either half is self-describing
+            draw_overlay_background(pixels.data(), CAM_WIDTH, CAM_HEIGHT, RENDER_WIDTH + overlay_x, overlay_y, static_cast<int>(std::strlen(line_flow_view)) * 6 + 4, 11);
+            draw_string(pixels.data(), CAM_WIDTH, CAM_HEIGHT, RENDER_WIDTH + overlay_x + 2, overlay_y + 2, line_flow_view, 0xFF00FF00);
+#endif
         }
 
         glBindTexture(GL_TEXTURE_2D, texture);
