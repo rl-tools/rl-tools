@@ -154,13 +154,13 @@ namespace rl_tools
         if constexpr(SAME_STRIDE && DENSE_ROW_MAJOR){
             if constexpr(utils::typing::is_same_v<FROM_T, TO_T>){
                 cudaMemcpyAsync(to._data, from._data, FROM_SPEC::SIZE_BYTES, cudaMemcpyDeviceToHost, from_device.stream);
-                cudaStreamSynchronize(from_device.stream);
+                RL_TOOLS_HOST_ONLY(cudaStreamSynchronize(from_device.stream));
             }
             else{
                 Tensor<tensor::Specification<FROM_T, typename TO_SPEC::TI, typename TO_SPEC::SHAPE, true, typename TO_SPEC::STRIDE>> temp;
                 malloc(to_device, temp);
                 cudaMemcpyAsync(temp._data, from._data, FROM_SPEC::SIZE_BYTES, cudaMemcpyDeviceToHost, from_device.stream);
-                cudaStreamSynchronize(from_device.stream);
+                RL_TOOLS_HOST_ONLY(cudaStreamSynchronize(from_device.stream));
                 copy(to_device, to_device, temp, to);
                 free(to_device, temp);
             }
@@ -177,14 +177,14 @@ namespace rl_tools
         if constexpr(SAME_STRIDE && DENSE_ROW_MAJOR){
             if constexpr(utils::typing::is_same_v<FROM_T, TO_T>){
                 cudaMemcpyAsync(to._data, from._data, FROM_SPEC::SIZE_BYTES, cudaMemcpyHostToDevice, to_device.stream);
-                cudaStreamSynchronize(to_device.stream);
+                RL_TOOLS_HOST_ONLY(cudaStreamSynchronize(to_device.stream));
             }
             else{
                 Tensor<tensor::Specification<TO_T, typename FROM_SPEC::TI, typename FROM_SPEC::SHAPE, true, typename FROM_SPEC::STRIDE>> temp;
                 malloc(from_device, temp);
                 copy(from_device, from_device, from, temp);
                 cudaMemcpyAsync(to._data, temp._data, TO_SPEC::SIZE_BYTES, cudaMemcpyHostToDevice, to_device.stream);
-                cudaStreamSynchronize(to_device.stream);
+                RL_TOOLS_HOST_ONLY(cudaStreamSynchronize(to_device.stream));
                 free(from_device, temp);
             }
         }

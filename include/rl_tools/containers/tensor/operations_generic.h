@@ -1053,7 +1053,7 @@ namespace rl_tools{
 //    }
     namespace tensor{
             template <auto A, auto B>
-            constexpr  bool greater_than(){
+            RL_TOOLS_FUNCTION_PLACEMENT constexpr  bool greater_than(){
                 return A > B;
             }
         template <auto A, auto B>

@@ -17,7 +17,7 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     static void initial_parameters(DEVICE& device, const rl::environments::Memory<SPEC>& env, typename rl::environments::Memory<SPEC>::Parameters& parameters){ }
     template<typename DEVICE, typename SPEC>
-    static void initial_state(DEVICE& device, const rl::environments::Memory<SPEC>& env, typename rl::environments::Memory<SPEC>::Parameters& parameters, typename rl::environments::Memory<SPEC>::State& state){
+    RL_TOOLS_FUNCTION_PLACEMENT static void initial_state(DEVICE& device, const rl::environments::Memory<SPEC>& env, typename rl::environments::Memory<SPEC>::Parameters& parameters, typename rl::environments::Memory<SPEC>::State& state){
         using TI = typename DEVICE::index_t;
         for(TI step_i = 0; step_i < SPEC::PARAMETERS::HORIZON; step_i++){
             state.history[step_i] = 0;

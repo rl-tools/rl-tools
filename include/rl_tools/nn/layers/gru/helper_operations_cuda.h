@@ -239,14 +239,18 @@ namespace rl_tools::nn::layers::gru::helper{
 }
 
 namespace rl_tools::nn::layers::gru::mode{
-    template <typename SPEC, typename DEV_SPEC, typename MODE, typename MODE_SPEC, typename TI, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
-    bool reset_sample(devices::CUDA<DEV_SPEC>& device, const Mode<nn::layers::gru::ResetMode<MODE, MODE_SPEC>>& mode, TI step_i, TI sample_i){
+    template <typename SPEC, typename DEV_SPEC, typename MODE, typename MODE_SPEC, typename TI>
+    auto host_reset_sample(devices::CUDA<DEV_SPEC>& device, const Mode<nn::layers::gru::ResetMode<MODE, MODE_SPEC>>& mode, TI step_i, TI sample_i){
         using RTI = typename MODE_SPEC::TI;
         using RESET_SPEC = typename MODE_SPEC::RESET_CONTAINER_TYPE::SPEC;
         auto offset = (RTI)step_i * get<0>(typename RESET_SPEC::STRIDE{}) + (RTI)sample_i * get<1>(typename RESET_SPEC::STRIDE{});
         typename RESET_SPEC::T host_val;
         cudaMemcpy(&host_val, data(mode.reset_container) + offset, sizeof(host_val), cudaMemcpyDeviceToHost);
         return host_val;
+    }
+    template <typename SPEC, typename DEV_SPEC, typename MODE, typename MODE_SPEC, typename TI, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
+    RL_TOOLS_FUNCTION_PLACEMENT bool reset_sample(devices::CUDA<DEV_SPEC>& device, const Mode<nn::layers::gru::ResetMode<MODE, MODE_SPEC>>& mode, TI step_i, TI sample_i){
+        return RL_TOOLS_HOST_ONLY(host_reset_sample<SPEC>(device, mode, step_i, sample_i));
     }
 }
 

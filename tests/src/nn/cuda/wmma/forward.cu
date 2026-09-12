@@ -1,5 +1,4 @@
 
-#define RL_TOOLS_FUNCTION_PLACEMENT __device__ __host__
 #define RL_TOOLS_DEVICES_DISABLE_REDEFINITION_DETECTION
 // #define RL_TOOLS_NN_DISABLE_GENERIC_FORWARD_BACKWARD
 #include <rl_tools/operations/cpu_mux.h>

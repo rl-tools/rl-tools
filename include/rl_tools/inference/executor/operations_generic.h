@@ -48,7 +48,7 @@ namespace rl_tools{
 
     namespace inference::executor{
         template <bool ORIGINAL, typename DEVICE, typename SPEC>
-        JitterStatus<typename SPEC::STATUS_SPEC> timing_jitter_status(DEVICE& device, Executor<SPEC>& executor){
+        RL_TOOLS_FUNCTION_PLACEMENT JitterStatus<typename SPEC::STATUS_SPEC> timing_jitter_status(DEVICE& device, Executor<SPEC>& executor){
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             JitterStatus<typename SPEC::STATUS_SPEC> result;
@@ -72,7 +72,7 @@ namespace rl_tools{
         }
 
         template <bool ORIGINAL, typename DEVICE, typename SPEC>
-        BiasStatus<typename SPEC::STATUS_SPEC> timing_bias_status(DEVICE& device, Executor<SPEC>& executor){
+        RL_TOOLS_FUNCTION_PLACEMENT BiasStatus<typename SPEC::STATUS_SPEC> timing_bias_status(DEVICE& device, Executor<SPEC>& executor){
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             BiasStatus<typename SPEC::STATUS_SPEC> result;
@@ -99,7 +99,7 @@ namespace rl_tools{
     }
 
     template <typename DEVICE, typename SPEC, typename POLICY, typename OBSERVATION, typename ACTION, typename RNG>
-    inference::executor::Status<typename SPEC::STATUS_SPEC> control(DEVICE& device, inference::Executor<SPEC>& executor, typename SPEC::TIMESTAMP nanoseconds, POLICY& policy, OBSERVATION& observation, ACTION& action, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inference::executor::Status<typename SPEC::STATUS_SPEC> control(DEVICE& device, inference::Executor<SPEC>& executor, typename SPEC::TIMESTAMP nanoseconds, POLICY& policy, OBSERVATION& observation, ACTION& action, RNG& rng){
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using TIMESTAMP = typename SPEC::TIMESTAMP;

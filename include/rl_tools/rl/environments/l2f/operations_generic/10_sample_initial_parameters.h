@@ -15,7 +15,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename RNG>
-    static void sample_initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, RNG& rng); // forward declaration for out-of-declaration order dispatch
+    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, RNG& rng); // forward declaration for out-of-declaration order dispatch
     namespace rl::environments::l2f{
         template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename RNG>
         RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_parameters(DEVICE& device, Multirotor<SPEC>& env, ParametersBase<PARAMETER_SPEC>& parameters, RNG& rng){

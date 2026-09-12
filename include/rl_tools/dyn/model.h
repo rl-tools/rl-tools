@@ -86,8 +86,8 @@ namespace rl_tools::dyn{
         TI output_shape[TensorSpecification<TI>::MAX_RANK] = {};
         TI output_rank = 0;
         TI output_size = 0;
-        template <typename T> T& as() { return *reinterpret_cast<T*>(data); }
-        template <typename T> const T& as() const { return *reinterpret_cast<const T*>(data); }
+        template <typename T> RL_TOOLS_FUNCTION_PLACEMENT T& as() { return *reinterpret_cast<T*>(data); }
+        template <typename T> RL_TOOLS_FUNCTION_PLACEMENT const T& as() const { return *reinterpret_cast<const T*>(data); }
     };
 
     template <typename T_TI> struct State;

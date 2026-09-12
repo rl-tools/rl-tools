@@ -12,9 +12,6 @@
 #include "../../types.h"
 #include "../../../../utils/generic/typing.h"
 
-#ifndef RL_TOOLS_FUNCTION_PLACEMENT
-#define RL_TOOLS_FUNCTION_PLACEMENT
-#endif
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {

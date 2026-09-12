@@ -191,14 +191,18 @@ namespace rl_tools{
         }
     }
     template <typename DEV_SPEC, typename TI>
-    void count_malloc(devices::CPU<DEV_SPEC>& device, TI size){
+    auto host_count_malloc(devices::CPU<DEV_SPEC>& device, TI size){
         device.malloc_counter += size;
         if (size > 100000000){
             std::cerr << "Large malloc: " << size / 1000000 << "MB, total: " << device.malloc_counter / 1000000 << " MB" << std::endl;
         }
     }
+    template <typename DEV_SPEC, typename TI>
+    RL_TOOLS_FUNCTION_PLACEMENT void count_malloc(devices::CPU<DEV_SPEC>& device, TI size){
+        RL_TOOLS_HOST_ONLY(host_count_malloc(device, size));
+    }
     template <typename SPEC>
-    void check_status(devices::CPU<SPEC>& device){ }
+    RL_TOOLS_FUNCTION_PLACEMENT void check_status(devices::CPU<SPEC>& device){ }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

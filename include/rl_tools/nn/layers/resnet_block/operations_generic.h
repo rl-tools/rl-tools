@@ -5,9 +5,7 @@
 #include "../../../containers/tensor/tensor.h"
 #include "../conv2d/operations_generic.h"
 #include "layer.h"
-#ifndef RL_TOOLS_FUNCTION_PLACEMENT
-#define RL_TOOLS_FUNCTION_PLACEMENT
-#endif
+#include "../../../rl_tools.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{

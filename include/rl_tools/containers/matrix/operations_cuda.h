@@ -138,7 +138,7 @@ namespace rl_tools{
             copy(source_device, source_device, source, temp);
             auto temp_size = TEMP_SPEC::SIZE_BYTES;
             cudaMemcpyAsync(target._data, temp._data, temp_size, cudaMemcpyHostToDevice, target_device.stream);
-            cudaStreamSynchronize(target_device.stream);
+            RL_TOOLS_HOST_ONLY(cudaStreamSynchronize(target_device.stream));
             check_status(target_device);
             free(source_device, temp);
         }
@@ -156,7 +156,7 @@ namespace rl_tools{
         using SPEC = TARGET_SPEC;
         if constexpr(containers::check_memory_layout<TARGET_SPEC, SOURCE_SPEC>){
             cudaMemcpyAsync(target._data, source._data, SPEC::SIZE_BYTES, cudaMemcpyHostToDevice, target_device.stream);
-            cudaStreamSynchronize(target_device.stream);
+            RL_TOOLS_HOST_ONLY(cudaStreamSynchronize(target_device.stream));
             check_status(target_device);
         }
         else{
@@ -178,7 +178,7 @@ namespace rl_tools{
         copy(source_device, source_device, source, temp_gpu);
         malloc(target_device, temp_cpu);
         cudaMemcpyAsync(temp_cpu._data, temp_gpu._data, TEMP_SPEC::SIZE_BYTES, cudaMemcpyDeviceToHost, source_device.stream);
-        cudaStreamSynchronize(source_device.stream);
+        RL_TOOLS_HOST_ONLY(cudaStreamSynchronize(source_device.stream));
         check_status(source_device);
         free(source_device, temp_gpu);
         copy(target_device, target_device, temp_cpu, target);
@@ -190,7 +190,7 @@ namespace rl_tools{
         using SPEC = TARGET_SPEC;
         if constexpr(containers::check_memory_layout<TARGET_SPEC, SOURCE_SPEC>){
             cudaMemcpyAsync(target._data, source._data, SPEC::SIZE_BYTES, cudaMemcpyDeviceToHost, source_device.stream);
-            cudaStreamSynchronize(source_device.stream);
+            RL_TOOLS_HOST_ONLY(cudaStreamSynchronize(source_device.stream));
             check_status(target_device);
         }
         else{

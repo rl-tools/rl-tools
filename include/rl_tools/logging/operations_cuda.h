@@ -14,7 +14,7 @@ namespace rl_tools{
     RL_TOOLS_FUNCTION_PLACEMENT void init(DEVICE& device, devices::logging::CUDA* logger, PARAM& param){ }
     template <typename DEVICE, typename A>
     RL_TOOLS_FUNCTION_PLACEMENT void log(DEVICE& device, devices::logging::CUDA* logger, const char * a, const char * b){
-        std::cout << a << b << std::endl;
+        RL_TOOLS_HOST_ONLY(std::cout << a << b << std::endl);
     }
     template <typename DEVICE, typename A>
     RL_TOOLS_FUNCTION_PLACEMENT void log(DEVICE& device, devices::logging::CUDA* logger, const A a){ }
