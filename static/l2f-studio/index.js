@@ -5,6 +5,7 @@ import { ParameterManager } from "./parameter_manager.js";
 import * as rlt from "./dyn_inference_wrapper.js"
 import { Gamepad } from "./gamepad.js"
 import { GamepadController } from "./gamepad_controller.js"
+import { visualPolicyProfile, packVisualPair } from "./visual_policy.js"
 import { AttitudeSetpointGamepadInput, ATTITUDE_SETPOINT_GAMEPAD_INTERFACE, ATTITUDE_SETPOINT_GAMEPAD_STORAGE_KEY } from "./attitude_setpoint_gamepad.js"
 import { Position } from "./trajectories/position.js"
 import { Lissajous } from "./trajectories/lissajous.js"
@@ -244,6 +245,7 @@ async function commit_observation(obs_string){
     const obs_input = document.getElementById("observations")
     obs_input.observation = obs_string
     obs_input.value = obs_string
+    document.getElementById("reference-trajectory-container").style.display = model?.visual_profile && selected_controller_mode() === "policy" ? "none" : ""
     update_attitude_setpoint_gamepad()
     const spec = parse_camera_spec(obs_string)
     if(spec && l2f && l2f.parameters){
@@ -283,6 +285,7 @@ async function auto_setup_visual_mode(){
 
     if(l2f.parameters && l2f.parameters.length > 1){
         await l2f.change_num_quadrotors(1, l2f.parameters[0])
+        document.getElementById("num-vehicles").value = 1
     }
 
     if(!l2f.ui_state || !l2f.ui_state.onboard_scene){
@@ -485,6 +488,18 @@ class Policy{
         }
         const raw = ui.render_onboard_pixels(ui_state, render_state, parameters)
         if(!raw) return []
+        if(model?.visual_profile) {
+            const target = this.target_buffers?.[drone_index]
+            if(!target) {
+                return []
+            }
+            const current = Float32Array.from(raw, srgb)
+            const output = packVisualPair(current, target, cfg.w, cfg.h)
+            if(drone_index === 0) {
+                this.last_stacked_frames = {data: output, cfg: {...cfg, w: cfg.w * 2, channels: 8}}
+            }
+            return output
+        }
         if(!cfg || !this.frame_buffers || drone_index === undefined){
             for(let i = 0; i < raw.length; i++) raw[i] = srgb(raw[i])
             return Array.from(raw)
@@ -544,9 +559,21 @@ class Policy{
             })
             const branch_observations = branches.map((branch, branch_index) => {
                 if(branch.startsWith("Visual(") || branch.startsWith("CameraRGB")) return this.get_visual_observation(state, branch, ui_state, ui, parameters?.[i], i, branch_index)
+                if(model.visual_profile) {
+                    return Array.from(state.get_policy_observation())
+                }
                 return branch.split(".").map(x => this.get_observation(state, x, reference)).flat()
             })
-            if(branch_observations.some(b => b === null || b.length === 0)) return new Float32Array(state.action_dim)
+            if(branch_observations.some(b => b === null || b.length === 0)) {
+                return null
+            }
+            for(let branch = 0; branch < branch_observations.length; branch++) {
+                const values = branch_observations[branch]
+                const expected = model.input_dims[branch]
+                if(values.length !== expected || values.some(value => typeof value !== "number" || !Number.isFinite(value))) {
+                    throw new Error(`Policy input ${branch}: expected ${expected} finite values, received ${values.length}`)
+                }
+            }
             let output
             if(model.num_branches > 1 && model.evaluate_tuple){
                 output = model.evaluate_tuple(branch_observations.map(b => new Float32Array(b)))
@@ -556,6 +583,9 @@ class Policy{
             }
             return output
         })
+        if(actions.some(action => action === null)) {
+            return null
+        }
         this.step += 1
         return actions
     }
@@ -576,6 +606,9 @@ class Policy{
         }
     }
     _get_reference(){
+        if(model?.visual_profile) {
+            return [[0, 0, 0, 0, 0, 0]]
+        }
         return trajectory.trajectory
     }
     get_reference(states){
@@ -583,7 +616,9 @@ class Policy{
         return states.map((_, i) => {
             return ref.map((step, j) => {
                 const step_copy = step.slice()
-                step_copy[trajectory_offset_axis] += trajectory_offset * i
+                if(!model?.visual_profile) {
+                    step_copy[trajectory_offset_axis] += trajectory_offset * i
+                }
                 return step_copy
             })
         })
@@ -687,6 +722,7 @@ async function load_model(checkpoint) {
         catch(e){ console.error("Failed to destroy previous model (continuing): ", e) }
     }
     model = await rlt.load(checkpoint)
+    model.visual_profile = visualPolicyProfile(model)
     if(model.verify){
         const check = model.verify()
         if(!check.pass){
@@ -699,7 +735,20 @@ async function load_model(checkpoint) {
     const checkpoint_span = document.getElementById("checkpoint-name")
     checkpoint_span.textContent = model.checkpoint_name
     checkpoint_span.title = model.description()
-    await commit_observation(model.meta.environment.observation)
+    if(l2f) {
+        if(model.visual_profile) {
+            const name = model.visual_profile.dynamics
+            const parameters = await (await fetch(`./external/blob/registry/${name}.json`)).json()
+            addMeshToParameters(parameters, name)
+            await l2f.set_parameters(l2f.states.map((_, i) => i), l2f.states.map(() => structuredClone(parameters)))
+            document.getElementById("vehicle-load-dynamics-selector").value = name
+        }
+        l2f.set_state_type(selected_controller_mode() === "policy" ? model.visual_profile?.state_type : null)
+        if(model.visual_profile && selected_controller_mode() === "policy") {
+            l2f.states.forEach(state => state.initial_state())
+        }
+    }
+    await commit_observation(model.visual_profile?.observation ?? model.meta.environment.observation)
     if(proxy_controller) proxy_controller.reset()
     // Restore prior pause state (if the loop was running before, resume it).
     if(l2f && was_paused === false) l2f.pause = false
@@ -814,6 +863,7 @@ async function main() {
         document.getElementById("controller-selector-container").querySelectorAll('input[name="choice"]').forEach(radio => {
             radio.addEventListener("change", (event) => {
                 if (event.target.value === "policy") {
+                    l2f.set_state_type(model.visual_profile?.state_type)
                     document.getElementById("policy-container").style.display = "block"
                     document.getElementById("controller-container").style.display = "none"
                     document.getElementById("gamepad-container").style.display = "none"
@@ -831,6 +881,7 @@ async function main() {
                     document.getElementById("controller-code").dispatchEvent(event);
                 }
                 else if (event.target.value === "gamepad") {
+                    l2f.set_state_type(null)
                     document.getElementById("policy-container").style.display = "none"
                     document.getElementById("controller-container").style.display = "none"
                     document.getElementById("gamepad-container").style.display = "block"
@@ -839,6 +890,7 @@ async function main() {
                     gamepad.setEnabled(true)
                     proxy_controller.policy = ensure_direct_gamepad_controller()
                 }
+                document.getElementById("reference-trajectory-container").style.display = model?.visual_profile && event.target.value === "policy" ? "none" : ""
             });
         });
         // const gamepadRadio = document.querySelector('input[name="choice"][value="gamepad"]');
@@ -853,6 +905,7 @@ async function main() {
             const url = URL.createObjectURL(blob);
             const Controller = (await import(url)).default
             URL.revokeObjectURL(url);
+            l2f.set_state_type(null)
             proxy_controller.policy = new MultiController(Controller)
             window.controller = proxy_controller.policy
         }
@@ -901,7 +954,7 @@ async function main() {
     // Determine which parameters to load (URL override > last selected > default)
     const param_override = urlParams.get('parameters');
     const lastSelected = paramStore.getLastSelected()
-    let selectedValue = param_override ? param_override : (lastSelected || "x500")
+    let selectedValue = param_override ? param_override : (model.visual_profile?.dynamics || lastSelected || "x500")
     
     // Validate that the selected value exists in the dropdown
     const validOptions = Array.from(platform_select.options).map(o => o.value)
@@ -943,7 +996,7 @@ async function main() {
 
     console.log("Waiting for trajectory to be initialized")
 
-    l2f = new L2F(sim_container, Array(10).fill(default_parameters), proxy_controller, seed)
+    l2f = new L2F(sim_container, Array(10).fill(default_parameters), proxy_controller, seed, model.visual_profile?.state_type)
     window._l2f = l2f
     
     // Wire trajectory updates to invalidate rendered trajectory lines

@@ -41,6 +41,7 @@ export async function load(input) {
         output_dim: inference.get_output_dim(),
         num_branches,
         input_dims,
+        input_shapes: typeof inference.get_input_shapes === "function" ? inference.get_input_shapes() : null,
         create_state() { return inference.create_state() },
         reset_state(id) { inference.reset_state(id) },
         evaluate_step(input_array, state_id) {
