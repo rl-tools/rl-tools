@@ -8,7 +8,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::layers::gru::helper{
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_BIAS, typename SPEC_OUT>
-    void matrix_multiply_transpose_bias(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, const Tensor<SPEC_BIAS>& bias, Tensor<SPEC_OUT>& result){
+    RL_TOOLS_FUNCTION_PLACEMENT void matrix_multiply_transpose_bias(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, const Tensor<SPEC_BIAS>& bias, Tensor<SPEC_OUT>& result){
 #ifdef RL_TOOLS_ENABLE_TRACY
         ZoneScopedN("gru::matrix_multiply_transpose_bias");
 #endif
@@ -45,7 +45,7 @@ namespace rl_tools::nn::layers::gru::helper{
 //        }
     }
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_BIAS, typename SPEC_OUT>
-    void matrix_multiply_transpose_bias_accumulate(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, const Tensor<SPEC_BIAS>& bias, Tensor<SPEC_OUT>& result){
+    RL_TOOLS_FUNCTION_PLACEMENT void matrix_multiply_transpose_bias_accumulate(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, const Tensor<SPEC_BIAS>& bias, Tensor<SPEC_OUT>& result){
 #ifdef RL_TOOLS_ENABLE_TRACY
         ZoneScopedN("gru::matrix_multiply_transpose_bias_accumulate");
 #endif
@@ -71,7 +71,7 @@ namespace rl_tools::nn::layers::gru::helper{
     }
 
     template<typename DEVICE, typename SPEC_1, typename SPEC_2, typename SPEC_BIAS, typename SPEC_OUT>
-    void matrix_multiply_broadcast_transpose_bias(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, const Tensor<SPEC_BIAS>& bias, Tensor<SPEC_OUT>& result){
+    RL_TOOLS_FUNCTION_PLACEMENT void matrix_multiply_broadcast_transpose_bias(DEVICE& device, const Tensor<SPEC_1>& t1, const Tensor<SPEC_2>& t2, const Tensor<SPEC_BIAS>& bias, Tensor<SPEC_OUT>& result){
         // t2_expand = expand_along_cols(t2)
         // result^T = t1 t2_expand + bias
 #ifdef RL_TOOLS_ENABLE_TRACY
@@ -120,33 +120,33 @@ namespace rl_tools::nn::layers::gru::helper{
         }
     }
     template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
-    void d_sigmoid(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
+    RL_TOOLS_FUNCTION_PLACEMENT void d_sigmoid(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
         static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
         using T = typename SPEC::T;
         unary_operation(device, tensor::OperationLegacy<unary_operations::d_sigmoid<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
     }
     template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
-    void d_sigmoid_post_activation(DEVICE& device, Tensor<SPEC>& t){
+    RL_TOOLS_FUNCTION_PLACEMENT void d_sigmoid_post_activation(DEVICE& device, Tensor<SPEC>& t){
         // this function takes sigmoid(x) as an input instead of x (to reuse it in the calculation)
         static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
         using T = typename SPEC::T;
         unary_operation(device, tensor::OperationLegacy<unary_operations::d_sigmoid_post_activation<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t);
     }
     template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
-    void d_sigmoid_post_activation(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
+    RL_TOOLS_FUNCTION_PLACEMENT void d_sigmoid_post_activation(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
         // this function takes sigmoid(x) as an input instead of x (to reuse it in the calculation)
         static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
         using T = typename SPEC::T;
         unary_operation(device, tensor::OperationLegacy<unary_operations::d_sigmoid_post_activation<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
     }
     template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
-    void d_tanh(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
+    RL_TOOLS_FUNCTION_PLACEMENT void d_tanh(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
         static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
         using T = typename SPEC::T;
         unary_operation(device, tensor::OperationLegacy<unary_operations::d_tanh<DEVICE, tensor::OperationEmptyParameter, T>, tensor::OperationEmptyParameter>{}, t, output);
     }
     template<typename DEVICE, typename SPEC, typename SPEC_OUTPUT>
-    void d_tanh_post_activation(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
+    RL_TOOLS_FUNCTION_PLACEMENT void d_tanh_post_activation(DEVICE& device, Tensor<SPEC>& t, Tensor<SPEC_OUTPUT>& output){
         // this function takes tanh(x) as an input instead of x (to reuse it in the calculation)
         static_assert(tensor::same_dimensions<SPEC, SPEC_OUTPUT>());
         using T = typename SPEC::T;

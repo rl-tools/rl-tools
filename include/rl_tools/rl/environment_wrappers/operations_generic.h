@@ -23,7 +23,7 @@ namespace rl_tools{
         sample_initial_parameters(device, env.env, parameters, rng);
     }
     template<typename DEVICE, typename ENVIRONMENT>
-    static void initial_parameters(DEVICE& device, const rl::environment_wrappers::Wrapper<ENVIRONMENT>& env, typename rl::environment_wrappers::Wrapper<ENVIRONMENT>::Parameters& parameters){
+    RL_TOOLS_FUNCTION_PLACEMENT static void initial_parameters(DEVICE& device, const rl::environment_wrappers::Wrapper<ENVIRONMENT>& env, typename rl::environment_wrappers::Wrapper<ENVIRONMENT>::Parameters& parameters){
         initial_parameters(device, env.env, parameters);
     }
     template<typename DEVICE, typename ENVIRONMENT, typename RNG>
@@ -31,7 +31,7 @@ namespace rl_tools{
         sample_initial_state(device, env.env, parameters, state, rng);
     }
     template<typename DEVICE, typename ENVIRONMENT>
-    static void initial_state(DEVICE& device, const rl::environment_wrappers::Wrapper<ENVIRONMENT>& env, typename rl::environment_wrappers::Wrapper<ENVIRONMENT>::Parameters& parameters, typename rl::environment_wrappers::Wrapper<ENVIRONMENT>::State& state){
+    RL_TOOLS_FUNCTION_PLACEMENT static void initial_state(DEVICE& device, const rl::environment_wrappers::Wrapper<ENVIRONMENT>& env, typename rl::environment_wrappers::Wrapper<ENVIRONMENT>::Parameters& parameters, typename rl::environment_wrappers::Wrapper<ENVIRONMENT>::State& state){
         initial_state(device, env.env, parameters, state);
     }
     template<typename DEVICE, typename ENVIRONMENT, typename ACTION_SPEC, typename RNG>

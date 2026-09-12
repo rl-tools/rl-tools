@@ -8,7 +8,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename T_CONFIG>
-    void curriculum(DEVICE& device, rl::loop::steps::curriculum::State<T_CONFIG>& ts, rl::loop::steps::curriculum::DefaultTag){
+    RL_TOOLS_FUNCTION_PLACEMENT void curriculum(DEVICE& device, rl::loop::steps::curriculum::State<T_CONFIG>& ts, rl::loop::steps::curriculum::DefaultTag){
         // default: no-op
     }
     template <typename DEVICE, typename T_CONFIG>
@@ -28,7 +28,7 @@ namespace rl_tools{
         ts.curriculum_level = 0;
     }
     template <typename DEVICE, typename CONFIG>
-    bool step(DEVICE& device, rl::loop::steps::curriculum::State<CONFIG>& ts){
+    RL_TOOLS_FUNCTION_PLACEMENT bool step(DEVICE& device, rl::loop::steps::curriculum::State<CONFIG>& ts){
         using TI = typename CONFIG::TI;
         using STATE = rl::loop::steps::curriculum::State<CONFIG>;
         using PARAMS = typename CONFIG::CURRICULUM_PARAMETERS;

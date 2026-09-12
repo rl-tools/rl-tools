@@ -1,6 +1,4 @@
-#ifndef RL_TOOLS_FUNCTION_PLACEMENT
-#define RL_TOOLS_FUNCTION_PLACEMENT
-#endif
+#include "../rl_tools.h"
 
 #include "mlp/operations_generic.h"
 

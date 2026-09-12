@@ -9,7 +9,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename TI, TI INPUT_DIM, TI OUTPUT_DIM, typename GROUP>
-    RL_TOOLS_FUNCTION_PLACEMENT bool load(DEVICE& device, inference::applications::L2F<SPEC>& l2f, dyn::Policy<TI, INPUT_DIM, OUTPUT_DIM>& policy, GROUP& actor_group){
+    bool load(DEVICE& device, inference::applications::L2F<SPEC>& l2f, dyn::Policy<TI, INPUT_DIM, OUTPUT_DIM>& policy, GROUP& actor_group){
         if(!rl_tools::load(device, policy.layer, actor_group)){
             return false;
         }

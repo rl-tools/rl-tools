@@ -1,5 +1,4 @@
 #include "../../../../../include/rl_tools/rendering/raytracing/backends/optix/overlay_accel.h"
-#define RL_TOOLS_FUNCTION_PLACEMENT __device__ __host__
 #include "../../../../../include/rl_tools/rendering/raytracing/transforms_generic.h"
 
 #include <optix.h>

@@ -4,6 +4,7 @@
 #define RL_TOOLS_OPERATIONS_CPU_GROUP_1_H
 #if defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_OPERATIONS_CPU_GROUP_1)
     #define RL_TOOLS_OPERATIONS_CPU_GROUP_1
+    #include "../../rl_tools.h"
     #include "../../devices/cpu.h"
     #include "../../numeric_types/policy.h"
     #include "../../utils/assert/declarations_cpu.h"

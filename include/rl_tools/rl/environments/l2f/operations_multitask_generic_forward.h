@@ -12,9 +12,7 @@
 
 #include <rl_tools/rl/environments/operations_generic.h>
 
-#ifndef RL_TOOLS_FUNCTION_PLACEMENT
-#define RL_TOOLS_FUNCTION_PLACEMENT
-#endif
+#include "../../../rl_tools.h"
 // forward declarations for the multi-task quadrotor such that the observe funcations can be called by the generic operations of the default quadrotor
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{

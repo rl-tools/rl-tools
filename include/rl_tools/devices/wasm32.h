@@ -16,7 +16,7 @@ namespace rl_tools::devices{
         struct Base{
             static constexpr DeviceId DEVICE_ID = DeviceId::WASM32;
             using index_t = uint32_t;
-            static constexpr index_t MAX_INDEX = -1;
+            static constexpr index_t MAX_INDEX = static_cast<index_t>(-1);
         };
     }
     namespace math{

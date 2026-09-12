@@ -7,9 +7,6 @@
 
 #include <math.h>
 
-#ifndef RL_TOOLS_FUNCTION_PLACEMENT
-#define RL_TOOLS_FUNCTION_PLACEMENT
-#endif
 
 // producer-side camera vocabulary: the pinhole parameterization consumed by the renderer plus the
 // vector math to construct it (CUDA producers define RL_TOOLS_FUNCTION_PLACEMENT before including)

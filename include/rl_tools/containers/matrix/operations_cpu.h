@@ -83,7 +83,7 @@ namespace rl_tools{
         return result;
     }
     template<typename DEVICE_SPEC, typename SPEC_A, typename SPEC_B, typename SPEC_C>
-    void multiply_naive(devices::CPU<DEVICE_SPEC>& device, const Matrix<SPEC_A>& A, const Matrix<SPEC_B>& B, Matrix<SPEC_C>& C){
+    RL_TOOLS_FUNCTION_PLACEMENT void multiply_naive(devices::CPU<DEVICE_SPEC>& device, const Matrix<SPEC_A>& A, const Matrix<SPEC_B>& B, Matrix<SPEC_C>& C){
         static_assert(SPEC_A::ROWS == SPEC_C::ROWS);
         static_assert(SPEC_A::COLS == SPEC_B::ROWS);
         static_assert(SPEC_B::COLS == SPEC_C::COLS);
@@ -116,7 +116,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE_SPEC, typename SPEC_A, typename SPEC_B, typename SPEC_C>
-    void multiply_tiled(devices::CPU<DEVICE_SPEC>& device, const Matrix<SPEC_A>& A, const Matrix<SPEC_B>& B, Matrix<SPEC_C>& C) {
+    RL_TOOLS_FUNCTION_PLACEMENT void multiply_tiled(devices::CPU<DEVICE_SPEC>& device, const Matrix<SPEC_A>& A, const Matrix<SPEC_B>& B, Matrix<SPEC_C>& C) {
         static_assert(SPEC_A::ROWS == SPEC_C::ROWS);
         static_assert(SPEC_A::COLS == SPEC_B::ROWS);
         static_assert(SPEC_B::COLS == SPEC_C::COLS);
@@ -286,7 +286,7 @@ namespace rl_tools{
     // }
 
     template<typename DEVICE_SPEC, typename INPUT_SPEC_A, typename INPUT_SPEC_B, typename OUTPUT_SPEC>
-    void multiply(devices::CPU<DEVICE_SPEC>& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& C){
+    RL_TOOLS_FUNCTION_PLACEMENT void multiply(devices::CPU<DEVICE_SPEC>& device, const Matrix<INPUT_SPEC_A>& A, const Matrix<INPUT_SPEC_B>& B, Matrix<OUTPUT_SPEC>& C){
         using DEVICE = devices::CPU<DEVICE_SPEC>;
         using TI = typename DEVICE::index_t;
         constexpr TI M = INPUT_SPEC_A::ROWS;

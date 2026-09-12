@@ -7,9 +7,6 @@
 #include "../l2f/quaternion_helper.h"
 #include "../../../rendering/raytracing/types.h"
 
-#ifndef RL_TOOLS_FUNCTION_PLACEMENT
-#define RL_TOOLS_FUNCTION_PLACEMENT
-#endif
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {

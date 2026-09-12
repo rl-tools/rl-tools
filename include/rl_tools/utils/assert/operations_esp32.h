@@ -7,7 +7,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::utils{
     template <typename DEV_SPEC, typename T>
-    bool assert_exit(devices::ESP32<DEV_SPEC>& device, bool condition, T message){
+    RL_TOOLS_FUNCTION_PLACEMENT bool assert_exit(devices::ESP32<DEV_SPEC>& device, bool condition, T message){
         if(!condition){
 //            log(device, device.logger, message);
 //            throw std::runtime_error(message);

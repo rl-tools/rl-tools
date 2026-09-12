@@ -21,7 +21,7 @@ namespace rl_tools::devices{
         struct Base{
             static constexpr DeviceId DEVICE_ID = DeviceId::CUDA;
             using index_t = unsigned int;
-            static constexpr index_t MAX_INDEX = -1;
+            static constexpr index_t MAX_INDEX = static_cast<index_t>(-1);
         };
     }
     namespace math{
@@ -290,7 +290,7 @@ namespace rl_tools {
     }
 #endif
     template <typename SPEC>
-    void check_status(devices::CUDA<SPEC>& device){
+    auto host_check_status(devices::CUDA<SPEC>& device){
 #ifdef RL_TOOLS_DEBUG_DEVICE_CUDA_CHECK_INIT
         if(!device.initialized){
             std::cerr << "CUDA device not initialized" << std::endl;
@@ -308,6 +308,10 @@ namespace rl_tools {
             std::exit(100);
         }
 #endif
+    }
+    template <typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void check_status(devices::CUDA<SPEC>& device){
+        RL_TOOLS_HOST_ONLY(host_check_status(device));
     }
     template <typename DEV_SPEC, typename TI>
     RL_TOOLS_FUNCTION_PLACEMENT void count_malloc(devices::CUDA<DEV_SPEC>& device, TI size){

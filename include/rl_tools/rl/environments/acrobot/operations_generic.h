@@ -51,7 +51,7 @@ namespace rl_tools{
         state.theta_2_dot = 0;
     }
     template<typename DEVICE, typename SPEC>
-    static void initial_state(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, typename rl::environments::Acrobot<SPEC>::Parameters& parameters, typename rl::environments::Acrobot<SPEC>::State& state){
+    RL_TOOLS_FUNCTION_PLACEMENT static void initial_state(DEVICE& device, const rl::environments::Acrobot<SPEC>& env, typename rl::environments::Acrobot<SPEC>::Parameters& parameters, typename rl::environments::Acrobot<SPEC>::State& state){
         state.theta_1     = 0;
         state.theta_2     = 0;
         state.theta_1_dot = 0;

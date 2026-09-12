@@ -15,7 +15,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE>
-    static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, STATE& state);
+    RL_TOOLS_FUNCTION_PLACEMENT static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, STATE& state);
     namespace rl::environments::l2f{
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT static void _initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, rl::environments::l2f::StateBase<STATE_SPEC>& state){
