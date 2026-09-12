@@ -15,9 +15,10 @@ function std(x){
 }
 
 export class L2F{
-    constructor(parent, parameters, policy, seed){
+    constructor(parent, parameters, policy, seed, state_type = "State"){
 
         this.seed = seed
+        this.state_type = state_type
         this.request_pause = true
 
 
@@ -80,12 +81,9 @@ export class L2F{
 
         this.initialized = createModule().then(async (l2f_interface) => {
             this.l2f_interface = l2f_interface
-            this.states = [...Array(parameters.length)].map((_, i) =>new this.l2f_interface.State(this.seed + i));
             this.parameters = structuredClone(parameters)
-            this.states.forEach((state, i) => {
-                state.set_parameters(JSON.stringify(this.parameters[i]))
-            })
-            this.perturbed_parameters = structuredClone(parameters)
+            this.states = this.parameters.map((p, i) => this.create_state(i, p))
+            this.perturbed_parameters = structuredClone(this.parameters)
             if(DEBUG){
                 this.ui = ui
             }
@@ -109,6 +107,33 @@ export class L2F{
         this.references = null
         this.tracking_error = { cumulative: [], steps: [], total_steps: [] }
     }
+    create_state(index, parameters) {
+        const state = new this.l2f_interface[this.state_type](this.seed + index)
+        if(this.state_type === "VisualState" && !parameters.ctbr_controller) {
+            const defaults = JSON.parse(state.get_parameters())
+            parameters.ctbr_controller = defaults.ctbr_controller
+            parameters.imu = defaults.imu
+            parameters.integration = defaults.integration
+            parameters.mdp.init = defaults.mdp.init
+        }
+        state.set_parameters(JSON.stringify(parameters))
+        if(this.state_type === "VisualState") {
+            state.initial_state()
+        }
+        return state
+    }
+    set_state_type(state_type = "State") {
+        state_type = state_type || "State"
+        if(this.state_type === state_type) {
+            return
+        }
+        this.state_type = state_type
+        this.states.forEach(state => state.delete())
+        this.states = this.parameters.map((p, i) => this.create_state(i, p))
+        this.policy.reset()
+        this.resetTrackingError()
+        this.update_render_state()
+    }
     resetTrackingError() {
         this.tracking_error = {
             cumulative: this.states.map(() => 0),
@@ -126,15 +151,17 @@ export class L2F{
     async change_num_quadrotors(num, parameters){
         const diff = num - this.states.length
         if(diff > 0){
-            const new_states = [...Array(num - this.states.length)].map((_, i) =>new this.l2f_interface.State(this.seed + this.states.length + i));
-            // new_states.forEach((state, i) => {
-            //     state.set_parameters(JSON.stringify(parameters))
-            // })
+            parameters = structuredClone(parameters)
+            if(this.parameters[0]?.visual) {
+                parameters.visual = structuredClone(this.parameters[0].visual)
+            }
+            const new_states = [...Array(num - this.states.length)].map((_, i) => this.create_state(this.states.length + i, parameters));
             this.states = this.states.concat(new_states)
             this.parameters = this.parameters.concat(new_states.map(_ => structuredClone(parameters)))
             this.perturbed_parameters = this.perturbed_parameters.concat(new_states.map(_ => structuredClone(parameters)))
         }
         else{
+            this.states.slice(num).forEach(state => state.delete())
             this.states = this.states.slice(0, num)
             this.parameters = this.parameters.slice(0, num)
             this.perturbed_parameters = this.perturbed_parameters.slice(0, num)
@@ -144,6 +171,7 @@ export class L2F{
         this.remove_reference_markers()
         this.remove_trajectory_lines()
         this.resetTrackingError()
+        this.policy.reset()
         return diff
     }
     update_render_state(){
@@ -189,6 +217,9 @@ export class L2F{
         if(!this.trajectory_lines_ui?.length || this.trajectory_lines_ui.length !== references.length){
             this.remove_trajectory_lines()
             this.trajectory_lines_ui = references.map((reference, i) => {
+                if(reference.length < 2) {
+                    return new THREE.Group()
+                }
                 const points = reference.map(step => new THREE.Vector3(step[0], step[1], step[2]))
                 const curve = new THREE.CatmullRomCurve3(points)
                 const radius = Math.cbrt(this.parameters[i].dynamics.mass) * 0.0075 // 50% thicker than /200
@@ -219,6 +250,9 @@ export class L2F{
     }
     simulate_step(){
         const actions = this.policy.evaluate_step(this.states, this.ui_state, this.ui, this.parameters)
+        if(actions === null) {
+            return this.parameters[0].integration.dt
+        }
         const references = this.policy.get_reference(this.states)
         if(references !== null){
             this.update_reference_markers(references)

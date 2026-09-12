@@ -75,6 +75,7 @@ export class SimControls{
             })
             this.policy.reset()
             l2f.resetTrackingError()
+            l2f.update_render_state()
         })
         document.getElementById("initial-states").addEventListener("click", () => {
             l2f.states.forEach(state => {
@@ -86,6 +87,7 @@ export class SimControls{
             })
             this.policy.reset()
             l2f.resetTrackingError()
+            l2f.update_render_state()
         })
         const pause_button = document.getElementById("pause")
         pause_button.addEventListener("click", () => {

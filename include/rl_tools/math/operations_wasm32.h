@@ -13,7 +13,12 @@ namespace rl_tools::math {
 
     template<typename T>
     T sqrt(const devices::math::WASM32&, const T x) {
-        return sqrt(devices::math::Generic{}, x);
+        if constexpr(utils::typing::is_same_v<T, float>){
+            return __builtin_sqrtf(x);
+        }
+        else{
+            return __builtin_sqrt(x);
+        }
     }
 	// based on https://git.musl-libc.org/cgit/musl/tree/src/math/cbrt.c?h=v1.2.5
 	/* origin: FreeBSD /usr/src/lib/msun/src/s_cbrt.c */

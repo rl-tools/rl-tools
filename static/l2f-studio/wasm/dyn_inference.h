@@ -11,6 +11,7 @@
 #include <string>
 #include <cmath>
 #include <cstdio>
+#include <stdexcept>
 
 namespace rlt = rl_tools;
 
@@ -40,9 +41,13 @@ struct DynInference {
             if(n > rlt::dyn::TensorTuple<TI>::MAX_TENSORS) n = rlt::dyn::TensorTuple<TI>::MAX_TENSORS;
             tuple.num_tensors = n;
             for(TI i = 0; i < n; i++){
+                auto shape = example_inputs_shape[i];
+                const TI leading = shape.size() >= 3 ? 2 : (shape.size() >= 2 ? 1 : 0);
+                for(TI axis = 0; axis < leading; axis++){
+                    shape[axis] = 1;
+                }
                 rlt::dyn::set_shape(tuple.tensors[i],
-                    (TI)example_inputs_shape[i].size(),
-                    example_inputs_shape[i].data());
+                    (TI)shape.size(), shape.data());
                 tuple.tensors[i].type = rlt::dyn::Type::FLOAT32;
                 tuple.tensors[i].data = example_inputs_data[i].data();
                 tuple.tensors[i].capacity = example_inputs_data[i].size();
@@ -183,6 +188,21 @@ struct DynInference {
         return 1;
     }
 
+    emscripten::val get_input_shapes() const {
+        auto result = emscripten::val::array();
+        if(model.type == rlt::dyn::LayerType::PARALLEL && model.data){
+            const auto& parallel = model.template as<const rlt::dyn::layers::Parallel<TI>>();
+            for(TI i = 0; i < parallel.num_branches; i++){
+                auto shape = emscripten::val::array();
+                for(TI axis = 0; axis < parallel.input_ranks[i]; axis++){
+                    shape.set((unsigned)axis, (unsigned)parallel.input_shapes[i][axis]);
+                }
+                result.set((unsigned)i, shape);
+            }
+        }
+        return result;
+    }
+
     emscripten::val get_input_dims() const {
         emscripten::val arr = emscripten::val::array();
         if(model.type == rlt::dyn::LayerType::PARALLEL && model.data){
@@ -254,6 +274,9 @@ struct DynInference {
         if(model.type == rlt::dyn::LayerType::PARALLEL && model.data){
             parallel = &model.template as<const rlt::dyn::layers::Parallel<TI>>();
         }
+        if(parallel && n != parallel->num_branches){
+            throw std::runtime_error("Incorrect number of model inputs");
+        }
 
         std::vector<std::vector<float>> storage(n);
         rlt::dyn::TensorTuple<TI> tuple;
@@ -280,6 +303,9 @@ struct DynInference {
                 shape[0] = 1; shape[1] = len; rank = 2;
             }
             rlt::dyn::set_shape(tuple.tensors[i], rank, shape);
+            if(tuple.tensors[i].size() != len){
+                throw std::runtime_error("Input length does not match the checkpoint branch shape");
+            }
             tuple.tensors[i].type = rlt::dyn::Type::FLOAT32;
             tuple.tensors[i].data = storage[i].data();
             tuple.tensors[i].capacity = len;
@@ -292,7 +318,9 @@ struct DynInference {
         output_tensor.data = output_cache.data();
         output_tensor.capacity = output_cache.size();
 
-        rlt::evaluate(device, model, tuple, output_tensor, buffer);
+        if(!rlt::evaluate(device, model, tuple, output_tensor, buffer)){
+            throw std::runtime_error("Model evaluation failed");
+        }
         return emscripten::val(emscripten::typed_memory_view(output_dim, output_cache.data()));
     }
 
@@ -394,6 +422,7 @@ EMSCRIPTEN_BINDINGS(dyn_inference_module) {
         .function("get_output_dim", &DynInference::get_output_dim)
         .function("get_num_branches", &DynInference::get_num_branches)
         .function("get_input_dims", &DynInference::get_input_dims)
+        .function("get_input_shapes", &DynInference::get_input_shapes)
         .function("create_state", &DynInference::create_state)
         .function("reset_state", &DynInference::reset_state)
         .function("evaluate_step", &DynInference::evaluate_step)
