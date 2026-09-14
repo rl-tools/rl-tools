@@ -73,6 +73,12 @@ namespace rl_tools {
         nn::optimizers::sgd::cuda::update_kernel<<<grid, block, 0, device.stream>>>(tag_device, p, optimizer);
         check_status(device);
     }
+    template<typename DEV_SPEC, typename SPEC, typename OPTIMIZER_SPEC, typename SELECTOR>
+    void update(devices::CUDA<DEV_SPEC>& device, nn::parameters::SGD::Instance<SPEC>& parameter, nn::optimizers::Selected<nn::optimizers::SGD<OPTIMIZER_SPEC>, SELECTOR>& selection){
+        if constexpr(SELECTOR::template MATCH<nn::optimizers::UpdateTarget<SPEC>>){
+            update(device, parameter, selection.optimizer);
+        }
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

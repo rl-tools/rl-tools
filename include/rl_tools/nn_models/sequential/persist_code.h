@@ -11,6 +11,19 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+    namespace nn_models::sequential{
+        template<typename SPEC, auto I = 0>
+        void save_grouped_templates(std::stringstream& body, std::stringstream& header){
+            using CONTENT = typename layer_spec_t<I, SPEC>::CONTENT;
+            using GROUPS = typename nn::group::RelativeGroups<typename nn::group::MembershipOf<typename CONTENT::SPEC::CAPABILITY>::TYPE, typename nn::group::MembershipOf<typename SPEC::CAPABILITY>::TYPE>::TYPE;
+            body << nn::group::CodeGroups<GROUPS>::wrap("layer_" + std::to_string(I) + "::TEMPLATE");
+            header << nn::group::CodeGroups<GROUPS>::headers();
+            if constexpr(I + 1 < SPEC::NUM_LAYERS){
+                body << ", ";
+                save_grouped_templates<SPEC, I + 1>(body, header);
+            }
+        }
+    }
     template<auto LAYER_I = 0, typename DEVICE, typename SPEC>
     persist::Code save_code_split(DEVICE& device, nn_models::sequential::ModuleForward<SPEC>& model, std::string name, bool const_declaration=true, typename DEVICE::index_t indent = 0) {
         using TI = typename DEVICE::index_t;
@@ -38,12 +51,7 @@ namespace rl_tools{
 //            std::string capability = "Forward";
             ss << ind << "    " << "    " << "using CAPABILITY = " << to_string(typename SPEC::CAPABILITY::template CHANGE_PARAMETERS<true, true>{}) << "; \n";
             ss << ind << "    " << "    " << "using MODULE_CHAIN = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::Module<";
-            for(TI layer_i = 0; layer_i < num_layers(model); layer_i++){
-                ss << "layer_" << layer_i << "::TEMPLATE";
-                if(layer_i < num_layers(model)-1){
-                    ss << ", ";
-                }
-            }
+            nn_models::sequential::save_grouped_templates<SPEC>(ss, ss_header);
             ss << ">;\n";
             ss << ind << "    " << "    " << "using MODEL = typename RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::sequential::Build<CAPABILITY, MODULE_CHAIN, layer_0::INPUT_SHAPE>;\n";
             ss << ind << "    " << "}\n";

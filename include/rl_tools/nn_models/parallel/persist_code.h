@@ -54,7 +54,10 @@ namespace rl_tools{
         template <auto I = 0, typename SPEC>
         void _emit_branch_types(std::stringstream& ss, const std::string& ind){
             if constexpr(I < SPEC::NUM_BRANCHES){
-                ss << ind << "    " << "    " << "using BRANCH_" << I << " = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::parallel::Branch<branch_" << I << "::TEMPLATE, INPUT_SHAPE_" << I << ">;\n";
+                using BRANCH = typename utils::tuple_element<I, typename SPEC::BRANCH_TUPLE>::type;
+                using PIPELINE = typename BRANCH::MODULE::template Layer<typename SPEC::CAPABILITY, typename BRANCH::INPUT_SHAPE>;
+                using GROUPS = typename nn::group::RelativeGroups<typename nn::group::MembershipOf<typename PIPELINE::SPEC::CAPABILITY>::TYPE, typename nn::group::MembershipOf<typename SPEC::CAPABILITY>::TYPE>::TYPE;
+                ss << ind << "    " << "    " << "using BRANCH_" << I << " = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::parallel::Branch<" << nn::group::CodeGroups<GROUPS>::wrap("branch_" + std::to_string(I) + "::TEMPLATE") << ", INPUT_SHAPE_" << I << ">;\n";
                 _emit_branch_types<I + 1, SPEC>(ss, ind);
             }
         }
@@ -137,7 +140,8 @@ namespace rl_tools{
         nn_models::parallel::persist_code::_emit_branch_types<0, SPEC>(ss, ind);
 
         if constexpr(SPEC::HAS_HEAD){
-            ss << ind << "    " << "    " << "using HEAD = head::TEMPLATE;\n";
+            using GROUPS = typename nn::group::RelativeGroups<typename nn::group::MembershipOf<typename SPEC::HEAD_TYPE::SPEC::CAPABILITY>::TYPE, typename nn::group::MembershipOf<typename SPEC::CAPABILITY>::TYPE>::TYPE;
+            ss << ind << "    " << "    " << "using HEAD = " << nn::group::CodeGroups<GROUPS>::wrap("head::TEMPLATE") << ";\n";
             ss << ind << "    " << "    " << "using MODEL = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::parallel::Build<CAPABILITY, HEAD";
         }
         else{

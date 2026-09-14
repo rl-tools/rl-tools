@@ -62,15 +62,22 @@ namespace rl_tools{
             _step(device, optimizer);
         }
     }
-    template<typename DEV_SPEC, typename SPEC, typename MODEL>
-    void step(devices::CUDA<DEV_SPEC>& device, nn::optimizers::Adam<SPEC>& optimizer, MODEL& model){
+    template<typename DEV_SPEC, typename SPEC, typename MODEL, typename MODE = mode::Default<>>
+    void step(devices::CUDA<DEV_SPEC>& device, nn::optimizers::Adam<SPEC>& optimizer, MODEL& model, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         using DEVICE = devices::CUDA<DEV_SPEC>;
         dim3 activation_grid(1);
         dim3 activation_block(1);
         devices::cuda::TAG<devices::CUDA<DEV_SPEC>, true> tag_device{};
         nn::optimizers::adam::kernels::step<<<activation_grid, activation_block, 0, device.stream>>>(tag_device, optimizer);
         check_status(device);
-        update(device, model, optimizer);
+        using SELECTOR = typename nn::optimizers::UpdateSelection<MODE>::TYPE;
+        if constexpr(utils::typing::is_same_v<SELECTOR, nn::group::All>){
+            update(device, model, optimizer);
+        }
+        else{
+            nn::optimizers::Selected<nn::optimizers::Adam<SPEC>, SELECTOR> selection{optimizer};
+            update(device, model, selection);
+        }
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

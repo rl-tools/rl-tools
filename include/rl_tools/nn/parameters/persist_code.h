@@ -4,6 +4,7 @@
 #define RL_TOOLS_NN_PARAMETERS_PERSIST_CODE_H
 #include "../../containers/matrix/persist_code.h"
 #include "parameters.h"
+#include "../../nn_models/group/persist_code.h"
 #include <sstream>
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
@@ -54,6 +55,7 @@ namespace rl_tools {
         }
         std::string ind = indent_ss.str();
         std::stringstream ss, ss_header;
+        ss_header << nn::group::CodeGroups<typename nn::group::MembershipOf<SPEC>::TYPE>::headers();
         ss << ind << "namespace " << name << " {\n";
         auto container = save_code_split(device, parameter.parameters, "parameters_memory", const_declaration, indent+1);
         ss_header << container.header;
@@ -61,7 +63,7 @@ namespace rl_tools {
         ss << container.body;
         if(!output_memory_only){
             ss << ind << "    " << "using TYPE_POLICY = " << to_string(typename SPEC::TYPE_POLICY{}) << ";\n";
-            ss << ind << "    " << "using PARAMETER_SPEC = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Plain::Specification<TYPE_POLICY, typename parameters_memory::SPEC::TI, typename parameters_memory::SPEC::SHAPE, "
+            ss << ind << "    " << "using PARAMETER_SPEC = " << nn::group::CodeGroups<typename nn::group::MembershipOf<SPEC>::TYPE>::parameter_type("RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Plain") << "::Specification<TYPE_POLICY, typename parameters_memory::SPEC::TI, typename parameters_memory::SPEC::SHAPE, "
             << get_type_string_tag(device, typename SPEC::GROUP_TAG{})
             << ", "
             << get_type_string_tag(device, typename SPEC::CATEGORY_TAG{})
@@ -81,6 +83,7 @@ namespace rl_tools {
         }
         std::string ind = indent_ss.str();
         std::stringstream ss, ss_header;
+        ss_header << nn::group::CodeGroups<typename nn::group::MembershipOf<SPEC>::TYPE>::headers();
         ss_header << "#include <rl_tools/utils/generic/typing.h>\n";
         auto plain = save_code_split(device, (nn::parameters::Plain::Instance<SPEC>&) parameter, name, const_declaration, indent, true);
         ss_header << plain.header;
@@ -91,7 +94,7 @@ namespace rl_tools {
         ss << gradient.body;
         if(!output_memory_only){
             ss << ind << "    " << "using TYPE_POLICY = " << to_string(typename SPEC::TYPE_POLICY{}) << ";\n";
-            ss << ind << "    " << "using PARAMETER_SPEC = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Gradient::Specification<TYPE_POLICY, typename parameters_memory::SPEC::TI, typename parameters_memory::SPEC::SHAPE, "
+            ss << ind << "    " << "using PARAMETER_SPEC = " << nn::group::CodeGroups<typename nn::group::MembershipOf<SPEC>::TYPE>::parameter_type("RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Gradient") << "::Specification<TYPE_POLICY, typename parameters_memory::SPEC::TI, typename parameters_memory::SPEC::SHAPE, "
             << get_type_string_tag(device, typename SPEC::GROUP_TAG{})
             << ", "
             << get_type_string_tag(device, typename SPEC::CATEGORY_TAG{})

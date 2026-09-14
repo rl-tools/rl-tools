@@ -32,10 +32,17 @@ namespace rl_tools{
         set(device, optimizer.age, 1, 0);
         _reset_optimizer_state(device, model, optimizer);
     }
-    template<typename DEVICE, typename SPEC, typename MODEL>
-    RL_TOOLS_FUNCTION_PLACEMENT void step(DEVICE& device, nn::optimizers::Lamb<SPEC>& optimizer, MODEL& model){
+    template<typename DEVICE, typename SPEC, typename MODEL, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void step(DEVICE& device, nn::optimizers::Lamb<SPEC>& optimizer, MODEL& model, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         _step(device, static_cast<nn::optimizers::Adam<SPEC>&>(optimizer));
-        update(device, model, optimizer);
+        using SELECTOR = typename nn::optimizers::UpdateSelection<MODE>::TYPE;
+        if constexpr(utils::typing::is_same_v<SELECTOR, nn::group::All>){
+            update(device, model, optimizer);
+        }
+        else{
+            nn::optimizers::Selected<nn::optimizers::Lamb<SPEC>, SELECTOR> selection{optimizer};
+            update(device, model, selection);
+        }
     }
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const nn::optimizers::Lamb<SOURCE_SPEC>& source, nn::optimizers::Lamb<TARGET_SPEC>& target){

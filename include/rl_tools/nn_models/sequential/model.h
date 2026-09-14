@@ -6,6 +6,7 @@
 #include "../../utils/generic/typing.h"
 #include "../../utils/generic/tuple/tuple.h"
 #include "../../nn/nn.h"
+#include "../group/model.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn_models::sequential{
@@ -61,6 +62,14 @@ namespace rl_tools::nn_models::sequential{
     template <typename CAPABILITY, typename... NESTED, typename... TAIL, typename INPUT_SHAPE, typename ACCUMULATOR>
     struct BuildLayerSpecsImpl<CAPABILITY, Module<Module<NESTED...>, TAIL...>, INPUT_SHAPE, ACCUMULATOR>
         : BuildLayerSpecsImpl<CAPABILITY, Module<NESTED..., TAIL...>, INPUT_SHAPE, ACCUMULATOR> {};
+
+    template<typename CAPABILITY, typename TAG, typename INNER, typename... TAIL, typename INPUT_SHAPE, typename ACCUMULATOR>
+    struct BuildLayerSpecsImpl<CAPABILITY, Module<Group<TAG, INNER>, TAIL...>, INPUT_SHAPE, ACCUMULATOR>{
+        using GROUP = BuildLayerSpecsImpl<nn::group::Capability<CAPABILITY, TAG>, Module<INNER>, INPUT_SHAPE, ACCUMULATOR>;
+        using NEXT = BuildLayerSpecsImpl<CAPABILITY, Module<TAIL...>, typename GROUP::FINAL_OUTPUT_SHAPE, typename GROUP::LAYER_SPECS>;
+        using LAYER_SPECS = typename NEXT::LAYER_SPECS;
+        using FINAL_OUTPUT_SHAPE = typename NEXT::FINAL_OUTPUT_SHAPE;
+    };
 
     namespace detail {
         template <typename TI, typename LAYER_SPECS, auto INDEX = 0>

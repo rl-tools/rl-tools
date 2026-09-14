@@ -95,6 +95,12 @@ namespace rl_tools{
         utils::polyak::update_squared(device, parameter.gradient, parameter.gradient_second_order_moment, optimizer_parameters.beta_2, PARAMETERS::ENABLE_GRADIENT_CLIPPING, PARAMETERS::GRADIENT_CLIP_VALUE);
         gradient_descent(device, parameter, optimizer);
     }
+    template<typename DEVICE, typename SPEC, typename OPTIMIZER_SPEC, typename SELECTOR>
+    RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn::parameters::Adam::Instance<SPEC>& parameter, nn::optimizers::Selected<nn::optimizers::Lamb<OPTIMIZER_SPEC>, SELECTOR>& selection){
+        if constexpr(SELECTOR::template MATCH<nn::optimizers::UpdateTarget<SPEC>>){
+            update(device, parameter, selection.optimizer);
+        }
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

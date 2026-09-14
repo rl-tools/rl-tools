@@ -99,8 +99,6 @@ using rlt::mix_policy_output_gradients;
 using rlt::load;
 using rlt::copy;
 
-#include <rl_tools/nn_models/sequential/operations_generic_trainable_tail.h>
-
 namespace rl_tools::rl::environments::l2f_visual::evaluation{
     template<typename T_BASE = mode::Evaluation<>, typename T_SPEC = bool>
     struct Teacher: T_BASE{
@@ -128,6 +126,29 @@ namespace rl_tools::mode::l2f_visual{
 }
 
 #include "training_mixed_config.h"
+
+namespace rl_tools::nn::group{
+    template<>
+    struct CodeName<rl_tools::rl::environments::l2f_visual::training_mixed::groups::Fixed>{
+        static constexpr const char* VALUE = "rl_tools::rl::environments::l2f_visual::training_mixed::groups::Fixed";
+        static constexpr const char* DEFINITION = "namespace rl_tools::rl::environments::l2f_visual::training_mixed::groups{ struct Fixed; }";
+    };
+    template<>
+    struct CodeName<rl_tools::rl::environments::l2f_visual::training_mixed::groups::Visual>{
+        static constexpr const char* VALUE = "rl_tools::rl::environments::l2f_visual::training_mixed::groups::Visual";
+        static constexpr const char* DEFINITION = "namespace rl_tools::rl::environments::l2f_visual::training_mixed::groups{ struct Visual; }";
+    };
+    template<>
+    struct CodeName<rl_tools::rl::environments::l2f_visual::training_mixed::groups::Readout>{
+        static constexpr const char* VALUE = "rl_tools::rl::environments::l2f_visual::training_mixed::groups::Readout";
+        static constexpr const char* DEFINITION = "namespace rl_tools::rl::environments::l2f_visual::training_mixed::groups{ struct Readout; }";
+    };
+    template<>
+    struct CodeName<rl_tools::rl::environments::l2f_visual::training_mixed::groups::Exploration>{
+        static constexpr const char* VALUE = "rl_tools::rl::environments::l2f_visual::training_mixed::groups::Exploration";
+        static constexpr const char* DEFINITION = "namespace rl_tools::rl::environments::l2f_visual::training_mixed::groups{ struct Exploration; }";
+    };
+}
 using namespace rl_tools::rl::environments::l2f_visual::training_mixed;
 
 namespace rl_tools{
@@ -2243,9 +2264,7 @@ int run(int argc, char** argv, rlt::Mode<MODE> mode){
                 auto gpu_d_action_reshaped = reshape_row_major(device_gpu, gpu_d_action_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
                 auto bwd_inputs = rlt::nn_models::parallel::pack_inputs(batch_combined_reshaped, batch_state_reshaped);
 
-                    auto& trainable_image = get<0>(ppo_gpu.actor.pipelines);
-                    auto& trainable_buffer = get<0>(actor_buffers.sub_buffers);
-                    backward_trainable_tail<5>(device_gpu, trainable_image, gpu_d_action_reshaped, trainable_buffer);
+                backward(device_gpu, ppo_gpu.actor, bwd_inputs, gpu_d_action_reshaped, actor_buffers);
 
                 cudaDeviceSynchronize();
 
@@ -2304,20 +2323,7 @@ int run(int argc, char** argv, rlt::Mode<MODE> mode){
         accumulated_samples += ppo_update_samples + imitation_update_samples;
         if(update_ready){
             rlt::utils::assert_exit(device, accumulated_samples == UPDATE_SAMPLES, "Incorrect accumulated update size");
-            {
-                auto& image_branch = get<0>(ppo_gpu.actor.pipelines);
-                zero_gradient(device_gpu, rlt::nn_models::sequential::layer<0>(image_branch));
-                zero_gradient(device_gpu, rlt::nn_models::sequential::layer<1>(image_branch));
-                zero_gradient(device_gpu, rlt::nn_models::sequential::layer<2>(image_branch));
-                zero_gradient(device_gpu, rlt::nn_models::sequential::layer<3>(image_branch));
-                zero_gradient(device_gpu, rlt::nn_models::sequential::layer<4>(image_branch));
-                set_all(device_gpu, rlt::nn_models::sequential::layer<7>(image_branch).biases.gradient, 0);
-                zero_gradient(device_gpu, rlt::nn_models::sequential::layer<9>(image_branch));
-                zero_gradient(device_gpu, get<1>(ppo_gpu.actor.pipelines));
-                zero_gradient(device_gpu, ppo_gpu.actor.head.input_layer);
-                zero_gradient(device_gpu, ppo_gpu.actor.head.output_layer);
-            }
-            step(device_gpu, actor_optimizer_gpu, ppo_gpu.actor);
+            step(device_gpu, actor_optimizer_gpu, ppo_gpu.actor, TRAINING_MODE{});
             step(device_gpu, critic_optimizer_gpu, ppo_gpu.critic);
 
             cudaDeviceSynchronize();

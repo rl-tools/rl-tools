@@ -6,6 +6,8 @@
 #define RL_TOOLS_FUNCTION_PLACEMENT
 #endif
 
+#include "../../nn_models/group/persist_code.h"
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template <bool DYNAMIC_ALLOCATION, bool CONST>
@@ -20,8 +22,12 @@ namespace rl_tools{
     std::string to_string(nn::capability::Gradient<T_PARAMETER_TYPE, DYNAMIC_ALLOCATION, CONST>){
         return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::capability::Gradient<"+ get_type_string(T_PARAMETER_TYPE{}) + std::string(", ") + std::string((DYNAMIC_ALLOCATION ? "true" : "false")) + ", " + (CONST ? "true" : "false") + ">";
     }
+    template<typename CAPABILITY, typename TAG>
+    std::string to_string(nn::group::Capability<CAPABILITY, TAG>){
+        return std::string("RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools::nn::group::Capability<") + to_string(CAPABILITY{}) + ", " + nn::group::CodeName<TAG>::VALUE + ">";
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
-#endif
 
+#endif
