@@ -1,6 +1,16 @@
 #pragma once
 
 namespace rl_tools::rl::environments::l2f_visual::training_mixed{
+    namespace groups{
+        struct Fixed{};
+        struct Visual{};
+        struct Readout{};
+        struct Exploration{};
+    }
+    using FREEZE_FIXED = rlt::nn::group::Every<rlt::nn::group::Only<groups::Fixed>, rlt::nn::group::Not<rlt::nn::group::Only<groups::Exploration>>>;
+    using FREEZE_READOUT_BIASES = rlt::nn::group::Every<rlt::nn::group::Only<groups::Readout>, rlt::nn::group::Category<rlt::nn::parameters::categories::Biases>>;
+    using FREEZE_SELECTOR = rlt::nn::group::Any<FREEZE_FIXED, FREEZE_READOUT_BIASES>;
+    using TRAINING_MODE = rlt::Mode<rlt::nn::optimizers::mode::Freeze<rlt::mode::Default<>, FREEZE_SELECTOR>>;
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
     using LOGGER = rlt::devices::logging::CPU_TENSORBOARD<>;
 #else
@@ -311,7 +321,7 @@ namespace mixed_imitation = rlt::rl::algorithms::ppo::mixed_imitation;
             using PAIR_RESPONSE_TYPE = typename PAIR_RESPONSES::template Layer<CAPABILITY, IMAGE_INPUT_SHAPE>;
             static_assert(rlt::get<2>(typename PAIR_RESPONSE_TYPE::OUTPUT_SHAPE{}) == 1 && rlt::get<3>(typename PAIR_RESPONSE_TYPE::OUTPUT_SHAPE{}) == 2);
             using PAIR_DIFFERENCE = rlt::nn::layers::dense::BindConfiguration<rlt::nn::layers::dense::Configuration<T_TYPE_POLICY, T_TI, 4, rlt::nn::activation_functions::IDENTITY>>;
-            using IMAGE_BRANCH = rlt::nn_models::sequential::Module<GREY, COST, POOL, NORMALIZE, DIFFERENCE, PATCH_CONTEXT, IMAGE_CONTEXT, IMAGE_OUTPUT, OUTPUT_FLATTEN, PAIR_DIFFERENCE>;
+            using IMAGE_BRANCH = rlt::nn_models::sequential::Module<rlt::nn_models::Group<groups::Fixed, rlt::nn_models::sequential::Module<GREY, COST, POOL, NORMALIZE, DIFFERENCE>>, rlt::nn_models::Group<groups::Visual, rlt::nn_models::sequential::Module<PATCH_CONTEXT, IMAGE_CONTEXT>>, rlt::nn_models::Group<groups::Readout, IMAGE_OUTPUT>, OUTPUT_FLATTEN, rlt::nn_models::Group<groups::Fixed, PAIR_DIFFERENCE>>;
 
             using STATE_STANDARDIZE_CONFIG = rlt::nn::layers::standardize::Configuration<T_TYPE_POLICY, T_TI>;
             using STATE_STANDARDIZE = rlt::nn::layers::standardize::BindConfiguration<STATE_STANDARDIZE_CONFIG>;
@@ -319,11 +329,13 @@ namespace mixed_imitation = rlt::rl::algorithms::ppo::mixed_imitation;
             using STATE_DENSE_EMBED = rlt::nn::layers::dense::BindConfiguration<STATE_DENSE_EMBED_CONFIG>;
             using STATE_BRANCH = rlt::nn_models::sequential::Module<STATE_STANDARDIZE, STATE_DENSE_EMBED>;
 
-            using MLP_HEAD_CONFIG = rlt::nn_models::mlp::Configuration<T_TYPE_POLICY, T_TI, T_ENVIRONMENT::ACTION_DIM, 2, PARAMETERS::ACTOR_HIDDEN_DIM, rlt::nn::activation_functions::IDENTITY, rlt::nn::activation_functions::IDENTITY>;
-            using MLP_HEAD = rlt::nn_models::mlp_unconditional_stddev::BindConfiguration<MLP_HEAD_CONFIG>;
+            struct MLP_HEAD_CONFIG: rlt::nn_models::mlp::Configuration<T_TYPE_POLICY, T_TI, T_ENVIRONMENT::ACTION_DIM, 2, PARAMETERS::ACTOR_HIDDEN_DIM, rlt::nn::activation_functions::IDENTITY, rlt::nn::activation_functions::IDENTITY>{
+                using LOG_STD_GROUP = groups::Exploration;
+            };
+            using MLP_HEAD = rlt::nn_models::Group<groups::Fixed, rlt::nn_models::mlp_unconditional_stddev::BindConfiguration<MLP_HEAD_CONFIG>>;
 
             using BRANCH_IMAGE = rlt::nn_models::parallel::Branch<IMAGE_BRANCH, IMAGE_INPUT_SHAPE>;
-            using BRANCH_STATE = rlt::nn_models::parallel::Branch<STATE_BRANCH, STATE_INPUT_SHAPE>;
+            using BRANCH_STATE = rlt::nn_models::parallel::Branch<rlt::nn_models::Group<groups::Fixed, STATE_BRANCH>, STATE_INPUT_SHAPE>;
             using MODEL = rlt::nn_models::parallel::Build<CAPABILITY, MLP_HEAD, BRANCH_IMAGE, BRANCH_STATE>;
         };
         template <typename CAPABILITY>

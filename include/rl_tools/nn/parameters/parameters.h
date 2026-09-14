@@ -4,6 +4,7 @@
 #define RL_TOOLS_NN_PARAMETERS_PARAMETERS_H
 
 #include "../../numeric_types/categories.h"
+#include "../group.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn::parameters{

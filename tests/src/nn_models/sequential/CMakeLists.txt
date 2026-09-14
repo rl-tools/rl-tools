@@ -106,6 +106,19 @@ add_executable(test_nn_models_sequential_compose compose.cpp)
 target_link_libraries(test_nn_models_sequential_compose PRIVATE RLtools::Core GTest::gtest_main)
 gtest_discover_tests(test_nn_models_sequential_compose)
 
+add_executable(test_nn_models_sequential_groups groups.cpp)
+target_link_libraries(test_nn_models_sequential_groups PRIVATE RLtools::Core GTest::gtest_main)
+gtest_discover_tests(test_nn_models_sequential_groups TEST_PREFIX "NN_GROUPS.")
+
+add_custom_command(OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/groups_export.h"
+        COMMAND $<TARGET_FILE:test_nn_models_sequential_groups> --gtest_filter=Fixture.ExportCode
+        WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+        DEPENDS test_nn_models_sequential_groups)
+add_executable(test_nn_models_sequential_groups_persist_code_compile groups_persist_code_compile.cpp "${CMAKE_CURRENT_BINARY_DIR}/groups_export.h")
+target_include_directories(test_nn_models_sequential_groups_persist_code_compile PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+target_link_libraries(test_nn_models_sequential_groups_persist_code_compile PRIVATE RLtools::Core GTest::gtest_main)
+gtest_discover_tests(test_nn_models_sequential_groups_persist_code_compile)
+
 
 
 if(RL_TOOLS_BACKEND_ENABLE_CUDA)

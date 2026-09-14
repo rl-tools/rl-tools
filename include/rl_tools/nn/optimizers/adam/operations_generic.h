@@ -57,10 +57,17 @@ namespace rl_tools{
         set(device, optimizer.second_order_moment_bias_correction, second_order_moment_bias_correction, 0);
         set(device, optimizer.age, age + 1, 0);
     }
-    template<typename DEVICE, typename SPEC, typename MODEL>
-    RL_TOOLS_FUNCTION_PLACEMENT void step(DEVICE& device, nn::optimizers::Adam<SPEC>& optimizer, MODEL& model) {
+    template<typename DEVICE, typename SPEC, typename MODEL, typename MODE = mode::Default<>>
+    RL_TOOLS_FUNCTION_PLACEMENT void step(DEVICE& device, nn::optimizers::Adam<SPEC>& optimizer, MODEL& model, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
         _step(device, optimizer);
-        update(device, model, optimizer);
+        using SELECTOR = typename nn::optimizers::UpdateSelection<MODE>::TYPE;
+        if constexpr(utils::typing::is_same_v<SELECTOR, nn::group::All>){
+            update(device, model, optimizer);
+        }
+        else{
+            nn::optimizers::Selected<nn::optimizers::Adam<SPEC>, SELECTOR> selection{optimizer};
+            update(device, model, selection);
+        }
     }
     template<typename SOURCE_DEVICE, typename TARGET_DEVICE, typename SOURCE_SPEC, typename TARGET_SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void copy(SOURCE_DEVICE& source_device, TARGET_DEVICE& target_device, const  nn::optimizers::Adam<SOURCE_SPEC>& source, nn::optimizers::Adam<TARGET_SPEC>& target){

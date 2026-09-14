@@ -40,7 +40,7 @@ namespace rl_tools{
         // std::string T_string = containers::persist::get_type_string<T>();
         std::string TI_string = containers::persist::get_type_string<TI>();
         ss << ind << "    using TYPE_POLICY = " + to_string(typename SPEC::TYPE_POLICY{}) + ";" << "\n";
-        ss << ind << "    using CONFIG = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp::Configuration<";
+        ss << ind << "    using BASE_CONFIG = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp::Configuration<";
         ss << "TYPE_POLICY, ";
         ss << TI_string << ", ";
         ss << SPEC::OUTPUT_DIM << ", " << SPEC::NUM_LAYERS << ", " << SPEC::HIDDEN_DIM << ", ";
@@ -48,6 +48,13 @@ namespace rl_tools{
         ss << nn::layers::dense::persist::get_activation_function_string<SPEC::OUTPUT_ACTIVATION_FUNCTION>() << ", ";
         ss << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::layers::dense::DefaultInitializer<" << "TYPE_POLICY, " << TI_string << ">";
         ss << ">; \n";
+        using LOG_STD_GROUPS = typename nn::group::RelativeGroups<typename nn::group::MembershipOf<typename nn_models::mlp_unconditional_stddev::LogStdCapability<SPEC, typename SPEC::CAPABILITY>::TYPE>::TYPE, typename nn::group::MembershipOf<typename SPEC::CAPABILITY>::TYPE>::TYPE;
+        if constexpr(utils::typing::is_same_v<LOG_STD_GROUPS, nn::group::Membership<>>){
+            ss << ind << "    using CONFIG = BASE_CONFIG;\n";
+        }
+        else{
+            ss << ind << "    struct CONFIG: BASE_CONFIG{ using LOG_STD_GROUP = " << nn::group::CodeGroups<LOG_STD_GROUPS>::names() << "; };\n";
+        }
         ss << ind << "    " << "using TEMPLATE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn_models::mlp_unconditional_stddev::BindConfiguration<CONFIG>;" << "\n";
         ss << ind << "    " << "using INPUT_SHAPE = RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::tensor::Shape<" << TI_string << ", " << get<0>(typename SPEC::INPUT_SHAPE{}) << ", " << get<1>(typename SPEC::INPUT_SHAPE{}) << ", " << get<2>(typename SPEC::INPUT_SHAPE{}) << ">;\n";
         ss << ind << "    " << "using CAPABILITY = " << to_string(typename SPEC::CAPABILITY::template CHANGE_PARAMETERS<true, true>{}) << ";" << "\n";

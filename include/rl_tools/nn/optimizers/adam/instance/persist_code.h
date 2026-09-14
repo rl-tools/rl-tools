@@ -22,6 +22,7 @@ namespace rl_tools{
         }
         std::string ind = indent_ss.str();
         std::stringstream ss, ss_header;
+        ss_header << nn::group::CodeGroups<typename nn::group::MembershipOf<SPEC>::TYPE>::headers();
         auto plain = save_code_split(device, (nn::parameters::Gradient::Instance<SPEC>&) parameter, name, const_declaration, indent, true);
         ss_header << plain.header;
         ss_header << "#include <rl_tools/nn/optimizers/adam/adam.h>\n";
@@ -44,7 +45,7 @@ namespace rl_tools{
             // ss << ind << "    " << "static_assert(RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::utils::typing::is_same_v<gradient_memory::CONTAINER_TYPE, gradient_second_order_moment_memory::CONTAINER_TYPE>);\n";
             // ss << ind << "    " << "using PARAMETER_SPEC = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Adam::Specification<parameters_memory::CONTAINER_TYPE, "
             ss << ind << "    " << "using TYPE_POLICY = " << to_string(typename SPEC::TYPE_POLICY{}) << ";\n";
-            ss << ind << "    " << "using PARAMETER_SPEC = " << "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Adam::Specification<TYPE_POLICY, typename parameters_memory::SPEC::TI, typename parameters_memory::SPEC::SHAPE, "
+            ss << ind << "    " << "using PARAMETER_SPEC = " << nn::group::CodeGroups<typename nn::group::MembershipOf<SPEC>::TYPE>::parameter_type("RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Adam") << "::Specification<TYPE_POLICY, typename parameters_memory::SPEC::TI, typename parameters_memory::SPEC::SHAPE, "
                << get_type_string_tag(device, typename SPEC::GROUP_TAG{})
                << ", "
                << get_type_string_tag(device, typename SPEC::CATEGORY_TAG{})

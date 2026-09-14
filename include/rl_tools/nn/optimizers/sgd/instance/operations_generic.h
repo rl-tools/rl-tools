@@ -128,6 +128,12 @@ namespace rl_tools{
         }
         return upstream_nan || downstream_nan;
     }
+    template<typename DEVICE, typename SPEC, typename OPTIMIZER_SPEC, typename SELECTOR>
+    RL_TOOLS_FUNCTION_PLACEMENT void update(DEVICE& device, nn::parameters::SGD::Instance<SPEC>& parameter, nn::optimizers::Selected<nn::optimizers::SGD<OPTIMIZER_SPEC>, SELECTOR>& selection){
+        if constexpr(SELECTOR::template MATCH<nn::optimizers::UpdateTarget<SPEC>>){
+            update(device, parameter, selection.optimizer);
+        }
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

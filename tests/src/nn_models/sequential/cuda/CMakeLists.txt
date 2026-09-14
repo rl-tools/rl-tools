@@ -1,5 +1,10 @@
 project(test_rl_tools_nn_models_sequential_cuda CUDA)
 
+add_executable(test_nn_models_sequential_groups_cuda groups_cuda.cu)
+target_link_libraries(test_nn_models_sequential_groups_cuda PRIVATE RLtools::RLtools GTest::gtest_main)
+set_target_properties(test_nn_models_sequential_groups_cuda PROPERTIES CUDA_STANDARD 17 CUDA_STANDARD_REQUIRED ON)
+gtest_discover_tests(test_nn_models_sequential_groups_cuda)
+
 
 if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_BACKEND_ENABLE_MKL)
     set(CMAKE_CUDA_STANDARD 17)

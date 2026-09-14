@@ -33,9 +33,16 @@ namespace rl_tools{
     void reset_optimizer_state(devices::CUDA<DEV_SPEC>& device, nn::optimizers::SGD<SPEC>& optimizer, MODEL& model) {
         _reset_optimizer_state(device, model, optimizer);
     }
-    template<typename DEV_SPEC, typename SPEC, typename MODEL>
-    void step(devices::CUDA<DEV_SPEC>& device, nn::optimizers::SGD<SPEC>& optimizer, MODEL& model){
-        update(device, model, optimizer);
+    template<typename DEV_SPEC, typename SPEC, typename MODEL, typename MODE = mode::Default<>>
+    void step(devices::CUDA<DEV_SPEC>& device, nn::optimizers::SGD<SPEC>& optimizer, MODEL& model, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        using SELECTOR = typename nn::optimizers::UpdateSelection<MODE>::TYPE;
+        if constexpr(utils::typing::is_same_v<SELECTOR, nn::group::All>){
+            update(device, model, optimizer);
+        }
+        else{
+            nn::optimizers::Selected<nn::optimizers::SGD<SPEC>, SELECTOR> selection{optimizer};
+            update(device, model, selection);
+        }
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

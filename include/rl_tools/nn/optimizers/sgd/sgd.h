@@ -4,6 +4,7 @@
 #define RL_TOOLS_NN_OPTIMIZERS_SGD_H
 
 #include "../../../nn/parameters/parameters.h"
+#include "../update.h"
 #include "../../../utils/generic/typing.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
