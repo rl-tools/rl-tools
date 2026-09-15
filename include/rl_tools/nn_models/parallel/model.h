@@ -271,6 +271,20 @@ namespace rl_tools::nn_models::parallel{
         using CHANGE_BATCH_SIZE = typename CHANGE_BATCH_SIZE_IMPL<TI, BATCH_SIZE>::CHANGE_BATCH_SIZE;
     };
 }
+namespace rl_tools::nn_models::backpropagation{
+    template<typename SPEC, typename MODE, bool HAS_HEAD = SPEC::HAS_HEAD>
+    struct HeadParameterGradients{
+        static constexpr bool VALUE = false;
+    };
+    template<typename SPEC, typename MODE>
+    struct HeadParameterGradients<SPEC, MODE, true>: ParameterGradients<typename SPEC::HEAD_TYPE::SPEC, MODE>{};
+
+    template<typename CAPABILITY, typename HEAD, typename... BRANCHES, typename MODE>
+    struct ParameterGradients<parallel::Specification<CAPABILITY, HEAD, BRANCHES...>, MODE>{
+        using SPEC = parallel::Specification<CAPABILITY, HEAD, BRANCHES...>;
+        static constexpr bool VALUE = HeadParameterGradients<SPEC, MODE>::VALUE || ParameterGradientsTuple<typename SPEC::PIPELINES_TYPE, MODE>::VALUE;
+    };
+}
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
 #endif

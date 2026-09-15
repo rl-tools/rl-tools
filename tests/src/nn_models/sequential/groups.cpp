@@ -46,6 +46,7 @@ namespace rl_tools::tests::groups{
     using MODEL = nn_models::sequential::Build<CAPABILITY, CHAIN, SHAPE>;
     using PLAIN = nn_models::sequential::Build<CAPABILITY, nn_models::sequential::Module<DENSE, DENSE, DENSE, DENSE>, SHAPE>;
     using FREEZE_FIXED = Mode<nn::optimizers::mode::Freeze<mode::Default<>, nn::group::Only<Fixed>>>;
+    using SKIP_FIXED = Mode<nn_models::backpropagation::mode::SkipParameterGradients<typename FREEZE_FIXED::MODE, nn::group::Only<Fixed>>>;
     using WEIGHTS = Mode<nn::optimizers::mode::Update<mode::Default<>, nn::group::Every<nn::group::Only<Learned>, nn::group::Category<nn::parameters::categories::Weights>>>>;
     struct OPTIMIZER_PARAMETERS: nn::optimizers::adam::DEFAULT_PARAMETERS_TENSORFLOW<TYPE_POLICY>{
         static constexpr bool ENABLE_WEIGHT_DECAY = true;
@@ -134,6 +135,103 @@ namespace rl_tools::tests::groups{
         check_gradients();
         EXPECT_NEAR(abs_diff(device, d_input, reference_d_input), 0, 1e-12);
         EXPECT_GT(squared_sum(device, d_input), 0);
+    }
+
+    TEST_F(Fixture, PrunedBackwardPreservesTrainableGradients){
+        forward_both();
+        backward(device, model, input, d_output, buffer, SKIP_FIXED{});
+        backward(device, reference, input, reference_d_output, reference_buffer);
+        EXPECT_NEAR(abs_diff(device, get_layer<2>(model).weights.gradient, get_layer<2>(reference).weights.gradient), 0, 1e-12);
+        EXPECT_GT(gradient_norm(device, get_layer<2>(model)), 0);
+        EXPECT_EQ(gradient_norm(device, get_layer<0>(model)), 0);
+        EXPECT_EQ(gradient_norm(device, get_layer<1>(model)), 0);
+        EXPECT_EQ(gradient_norm(device, get_layer<3>(model)), 0);
+        step(device, optimizer, model, SKIP_FIXED{});
+        EXPECT_EQ(abs_diff(device, get_layer<0>(model).weights.parameters, get_layer<0>(reference).weights.parameters), 0);
+        EXPECT_GT(abs_diff(device, get_layer<2>(model).weights.parameters, get_layer<2>(reference).weights.parameters), 0);
+        zero_gradient(device, model);
+        set_all(device, d_output, T(0.7));
+        forward(device, model, input, buffer, rng);
+        backward(device, model, input, d_output, buffer);
+        EXPECT_GT(gradient_norm(device, get_layer<0>(model)), 0);
+        step(device, optimizer, model);
+        EXPECT_GT(abs_diff(device, get_layer<0>(model).weights.parameters, get_layer<0>(reference).weights.parameters), 0);
+    }
+
+    TEST_F(Fixture, PrunedFullBackwardPreservesInputGradients){
+        forward_both();
+        backward_full(device, model, input, d_output, d_input, buffer, SKIP_FIXED{});
+        backward_full(device, reference, input, reference_d_output, reference_d_input, reference_buffer);
+        EXPECT_NEAR(abs_diff(device, d_input, reference_d_input), 0, 1e-12);
+        EXPECT_GT(squared_sum(device, d_input), 0);
+        EXPECT_NEAR(abs_diff(device, get_layer<2>(model).weights.gradient, get_layer<2>(reference).weights.gradient), 0, 1e-12);
+        EXPECT_EQ(gradient_norm(device, get_layer<0>(model)), 0);
+        EXPECT_EQ(gradient_norm(device, get_layer<1>(model)), 0);
+        EXPECT_EQ(gradient_norm(device, get_layer<3>(model)), 0);
+    }
+
+    TEST_F(Fixture, PruningAllPreservesAccumulatedGradientsAndExplicitInputs){
+        using SKIP_ALL = Mode<nn_models::backpropagation::mode::SkipParameterGradients<>>;
+        forward_both();
+        backward(device, model, input, d_output, buffer);
+        copy(device, device, model, reference);
+        set_all(device, d_output, T(0.7));
+        backward(device, model, input, d_output, buffer, SKIP_ALL{});
+        check_gradients();
+        EXPECT_EQ(abs_diff(device, d_output, reference_d_output), 0);
+        backward_full(device, model, input, d_output, d_input, buffer, SKIP_ALL{});
+        backward_input(device, reference, reference_d_output, reference_d_input, reference_buffer);
+        check_gradients();
+        EXPECT_NEAR(abs_diff(device, d_input, reference_d_input), 0, 1e-12);
+    }
+
+    TEST_F(Fixture, UnrelatedAndOverriddenPruningModesPreserveDefaultBackward){
+        using SKIP_ALL = nn_models::backpropagation::mode::SkipParameterGradients<>;
+        using SKIP_NONE = nn_models::backpropagation::mode::SkipParameterGradients<SKIP_ALL, nn::group::Only<Missing>>;
+        using OTHER_EFFECT = Inspect<SKIP_NONE, nn::group::All>;
+        forward_both();
+        backward(device, model, input, d_output, buffer, Mode<OTHER_EFFECT>{});
+        backward(device, reference, input, reference_d_output, reference_buffer, FREEZE_FIXED{});
+        check_gradients();
+    }
+
+    TEST_F(Fixture, FrozenNonlinearConvolutionUsesFullBackwardFallback){
+        using IMAGE_SHAPE = tensor::Shape<TI, 1, 2, 3, 3, 2>;
+        using CONV = nn::layers::conv2d::BindConfiguration<nn::layers::conv2d::Configuration<TYPE_POLICY, TI, 2, 1, 1, 1, 1, 0, 0, nn::activation_functions::GELU, nn::layers::conv2d::Normalization::BATCH_NORM>>;
+        using NETWORK = nn_models::sequential::Build<CAPABILITY, nn_models::sequential::Module<nn_models::Group<Learned, CONV>, nn_models::Group<Fixed, CONV>, nn_models::Group<Learned, CONV>>, IMAGE_SHAPE>;
+        NETWORK actual, expected;
+        NETWORK::Buffer<> actual_buffer, expected_buffer;
+        Tensor<tensor::Specification<T, TI, IMAGE_SHAPE>> image, actual_d_output, expected_d_output;
+        malloc(device, actual);
+        malloc(device, expected);
+        malloc(device, actual_buffer);
+        malloc(device, expected_buffer);
+        malloc(device, image);
+        malloc(device, actual_d_output);
+        malloc(device, expected_d_output);
+        init_weights(device, actual, rng);
+        reset_optimizer_state(device, optimizer, actual);
+        zero_gradient(device, actual);
+        copy(device, device, actual, expected);
+        randn(device, image, rng);
+        randn(device, actual_d_output, rng);
+        copy(device, device, actual_d_output, expected_d_output);
+        forward(device, actual, image, actual_buffer, rng);
+        forward(device, expected, image, expected_buffer, rng);
+        backward(device, actual, image, actual_d_output, actual_buffer, SKIP_FIXED{});
+        backward(device, expected, image, expected_d_output, expected_buffer);
+        EXPECT_NEAR(abs_diff(device, get_layer<0>(actual).weights.gradient, get_layer<0>(expected).weights.gradient), 0, 1e-12);
+        EXPECT_GT(squared_sum(device, get_layer<0>(actual).weights.gradient), 0);
+        EXPECT_NEAR(abs_diff(device, get_layer<1>(actual).weights.gradient, get_layer<1>(expected).weights.gradient), 0, 1e-12);
+        EXPECT_GT(squared_sum(device, get_layer<1>(actual).weights.gradient), 0);
+        EXPECT_NEAR(abs_diff(device, get_layer<2>(actual).weights.gradient, get_layer<2>(expected).weights.gradient), 0, 1e-12);
+        free(device, expected_d_output);
+        free(device, actual_d_output);
+        free(device, image);
+        free(device, expected_buffer);
+        free(device, actual_buffer);
+        free(device, expected);
+        free(device, actual);
     }
 
     TEST_F(Fixture, FreezeAndUnfreezePreserveMomentsAndParameters){
@@ -281,6 +379,118 @@ namespace rl_tools::tests::groups{
     using BRANCH_FIXED = nn_models::parallel::Branch<nn_models::Group<Fixed, nn_models::sequential::Module<DENSE>>, SHAPE>;
     using BRANCH_LEARNED = nn_models::parallel::Branch<nn_models::Group<Learned, nn_models::sequential::Module<DENSE>>, SHAPE>;
     using PARALLEL = nn_models::parallel::Build<CAPABILITY, HEAD, BRANCH_FIXED, BRANCH_LEARNED>;
+
+    struct ParallelFixture: Fixture{
+        template<typename NETWORK, typename SELECTOR, bool INPUT_GRADIENTS, bool EXTRA_GRADIENT = false>
+        void check_pruning(){
+            using TRAINING_MODE = Mode<nn_models::backpropagation::mode::SkipParameterGradients<mode::Default<>, SELECTOR>>;
+            NETWORK actor, expected;
+            typename NETWORK::template Buffer<> actor_buffer, expected_buffer;
+            TENSOR d_second_input, expected_d_second_input;
+            Tensor<tensor::Specification<T, TI, typename NETWORK::OUTPUT_SHAPE>> actor_d_output, expected_d_output;
+            malloc(device, actor);
+            malloc(device, expected);
+            malloc(device, actor_buffer);
+            malloc(device, expected_buffer);
+            malloc(device, d_second_input);
+            malloc(device, expected_d_second_input);
+            malloc(device, actor_d_output);
+            malloc(device, expected_d_output);
+            set_all(device, actor_d_output, T(0.7));
+            copy(device, device, actor_d_output, expected_d_output);
+            init_weights(device, actor, rng);
+            reset_optimizer_state(device, optimizer, actor);
+            zero_gradient(device, actor);
+            copy(device, device, actor, expected);
+            auto inputs = nn_models::parallel::pack_inputs(input, input);
+            forward(device, actor, inputs, actor_buffer, rng);
+            forward(device, expected, inputs, expected_buffer, rng);
+            if constexpr(NETWORK::SPEC::HAS_HEAD){
+                set_all(device, actor.head.log_std.gradient, T(0.25));
+                set_all(device, expected.head.log_std.gradient, T(0.25));
+            }
+            if constexpr(INPUT_GRADIENTS){
+                auto d_inputs = nn_models::parallel::pack_inputs(d_input, d_second_input);
+                auto expected_d_inputs = nn_models::parallel::pack_inputs(reference_d_input, expected_d_second_input);
+                backward_full(device, actor, inputs, actor_d_output, d_inputs, actor_buffer, TRAINING_MODE{});
+                backward_full(device, expected, inputs, expected_d_output, expected_d_inputs, expected_buffer);
+                EXPECT_NEAR(abs_diff(device, d_input, reference_d_input), 0, 1e-12);
+                EXPECT_NEAR(abs_diff(device, d_second_input, expected_d_second_input), 0, 1e-12);
+                EXPECT_GT(squared_sum(device, d_input), 0);
+                EXPECT_GT(squared_sum(device, d_second_input), 0);
+            }
+            else if constexpr(EXTRA_GRADIENT){
+                Tensor<tensor::Specification<T, TI, typename NETWORK::SPEC::CONCAT_OUTPUT_SHAPE>> additional;
+                malloc(device, additional);
+                set_all(device, additional, T(0.13));
+                backward(device, actor, inputs, actor_d_output, additional, actor_buffer, TRAINING_MODE{});
+                backward(device, expected, inputs, expected_d_output, additional, expected_buffer);
+                free(device, additional);
+            }
+            else{
+                backward(device, actor, inputs, actor_d_output, actor_buffer, TRAINING_MODE{});
+                backward(device, expected, inputs, expected_d_output, expected_buffer);
+            }
+            auto check_branch = [&](auto index){
+                auto& branch = get<decltype(index)::value>(actor.pipelines);
+                auto& expected_branch = get<decltype(index)::value>(expected.pipelines);
+                using SPEC = typename utils::typing::remove_reference_t<decltype(branch)>::SPEC;
+                if constexpr(nn_models::backpropagation::ParameterGradients<SPEC, typename TRAINING_MODE::MODE>::VALUE){
+                    EXPECT_NEAR(abs_diff(device, get_layer<0>(branch).weights.gradient, get_layer<0>(expected_branch).weights.gradient), 0, 1e-12);
+                    EXPECT_GT(gradient_norm(device, branch), 0);
+                }
+                else{
+                    EXPECT_EQ(gradient_norm(device, branch), 0);
+                }
+            };
+            check_branch(utils::typing::integral_constant<TI, 0>{});
+            check_branch(utils::typing::integral_constant<TI, 1>{});
+            if constexpr(NETWORK::SPEC::HAS_HEAD){
+                EXPECT_EQ(abs_diff(device, actor.head.log_std.gradient, expected.head.log_std.gradient), 0);
+                using HEAD_SPEC = typename NETWORK::SPEC::HEAD_TYPE::SPEC;
+                if constexpr(nn_models::backpropagation::ParameterGradients<HEAD_SPEC, typename TRAINING_MODE::MODE>::VALUE){
+                    EXPECT_NEAR(abs_diff(device, actor.head.input_layer.weights.gradient, expected.head.input_layer.weights.gradient), 0, 1e-12);
+                    EXPECT_NEAR(abs_diff(device, actor.head.output_layer.weights.gradient, expected.head.output_layer.weights.gradient), 0, 1e-12);
+                }
+                else{
+                    EXPECT_EQ(gradient_norm(device, actor.head.input_layer), 0);
+                    EXPECT_EQ(gradient_norm(device, actor.head.output_layer), 0);
+                }
+            }
+            free(device, expected_d_output);
+            free(device, actor_d_output);
+            free(device, expected_d_second_input);
+            free(device, d_second_input);
+            free(device, expected_buffer);
+            free(device, actor_buffer);
+            free(device, expected);
+            free(device, actor);
+        }
+    };
+
+    TEST_F(ParallelFixture, PruningPropagatesThroughFrozenNonlinearHead){
+        check_pruning<PARALLEL, nn::group::Only<Fixed>, false>();
+    }
+    TEST_F(ParallelFixture, PruningPreservesAllRequestedBranchInputs){
+        check_pruning<PARALLEL, nn::group::Only<Fixed>, true>();
+    }
+    TEST_F(ParallelFixture, PruningWithAdditionalFeatureGradients){
+        check_pruning<PARALLEL, nn::group::Only<Fixed>, false, true>();
+    }
+    TEST_F(ParallelFixture, HeadTrainsWithAllBranchesSkipped){
+        using LEARNED_HEAD = nn_models::Group<Learned, nn_models::mlp_unconditional_stddev::BindConfiguration<HEAD_CONFIG>>;
+        using NETWORK = nn_models::parallel::Build<CAPABILITY, LEARNED_HEAD, BRANCH_FIXED, BRANCH_FIXED>;
+        check_pruning<NETWORK, nn::group::Only<Fixed>, false>();
+    }
+    TEST_F(ParallelFixture, NestedParentGroupPreservesSelectedDescendants){
+        using NETWORK = nn_models::parallel::Build<nn::group::Capability<CAPABILITY, Parent>, HEAD, BRANCH_FIXED, BRANCH_LEARNED>;
+        using SELECTOR = nn::group::Every<nn::group::Only<Parent>, nn::group::Not<nn::group::Only<Learned>>>;
+        check_pruning<NETWORK, SELECTOR, false>();
+    }
+    TEST_F(ParallelFixture, PruningWithoutHead){
+        using NETWORK = nn_models::parallel::Build<CAPABILITY, void, BRANCH_FIXED, BRANCH_LEARNED>;
+        check_pruning<NETWORK, nn::group::Only<Fixed>, false>();
+    }
 
     TEST_F(Fixture, ParallelBranchesAndExploration){
         PARALLEL actor, snapshot;

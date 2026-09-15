@@ -4,9 +4,38 @@
 #define RL_TOOLS_NN_MODELS_SEQUENTIAL_OPERATIONS_GENERIC_H
 
 #include "model.h"
+#include "../../nn/layers/dense/layer.h"
 #include "../../utils/generic/typing.h"
 RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools::nn_models::backpropagation{
+    template<typename DEVICE, typename SPEC>
+    struct InputGradientOnly<DEVICE, nn::layers::dense::LayerGradient<SPEC>>{
+        static constexpr bool VALUE = true;
+    };
+}
 namespace rl_tools{
+    template<typename DEVICE, typename MODULE, typename D_OUTPUT, typename D_INPUT, typename BUFFER, typename MODE>
+    RL_TOOLS_FUNCTION_PLACEMENT void _backward_input_selected(DEVICE& device, MODULE& module, D_OUTPUT& d_output, D_INPUT& d_input, BUFFER& buffer, const Mode<MODE>& mode){
+        backward_input(device, module, d_output, d_input, buffer, mode);
+    }
+
+    template<typename DEVICE, typename SPEC, typename D_OUTPUT_SPEC, typename D_INPUT_SPEC, typename MODE>
+    RL_TOOLS_FUNCTION_PLACEMENT void _backward_input_selected(DEVICE& device, nn::layers::dense::LayerGradient<SPEC>& module, Tensor<D_OUTPUT_SPEC>& d_output, Tensor<D_INPUT_SPEC>& d_input, nn::layers::dense::Buffer& buffer, const Mode<MODE>& mode){
+        auto d_output_matrix = matrix_view(device, d_output);
+        auto d_input_matrix = matrix_view(device, d_input);
+        backward_input(device, module, d_output_matrix, d_input_matrix, buffer, mode);
+    }
+
+    template<typename DEVICE, typename MODULE, typename INPUT, typename D_OUTPUT, typename D_INPUT, typename BUFFER, typename MODE>
+    RL_TOOLS_FUNCTION_PLACEMENT void _backward_full_selected(DEVICE& device, MODULE& module, const INPUT& input, D_OUTPUT& d_output, D_INPUT& d_input, BUFFER& buffer, const Mode<MODE>& mode){
+        if constexpr(nn_models::backpropagation::INPUT_ONLY<DEVICE, MODULE, MODE>){
+            _backward_input_selected(device, module, d_output, d_input, buffer, mode);
+        }
+        else{
+            backward_full(device, module, input, d_output, d_input, buffer, mode);
+        }
+    }
+
     namespace nn_models::sequential {
         template <auto LAYER_I, typename SPEC>
         using layer_spec_t = typename tuple_element<LAYER_I, typename SPEC::LAYER_SPECS>::type;
@@ -104,7 +133,7 @@ namespace rl_tools{
         RL_TOOLS_FUNCTION_PLACEMENT void backward_full_impl(DEVICE& device, ModuleGradient<MODULE_SPEC>& model, const INPUT& input, D_OUTPUT& d_output, D_INPUT& d_input, ModuleBuffer<BUFFER_SPEC>& buffers, ContentBuffer<CONTENT_BUFFER_SPEC>& content_buffers, const Mode<MODE>& mode){
             constexpr auto LAST = MODULE_SPEC::NUM_LAYERS - 1;
             if constexpr(LAYER_I == LAST){
-                backward_full(device, layer<LAYER_I>(model), input, d_output, d_input, content_buffer<LAYER_I>(content_buffers), mode);
+                _backward_full_selected(device, layer<LAYER_I>(model), input, d_output, d_input, content_buffer<LAYER_I>(content_buffers), mode);
             }
             else{
                 auto& current_d_output_buffer = TICK ? buffers.tick : buffers.tock;
@@ -113,7 +142,7 @@ namespace rl_tools{
                 auto current_output = output(device, layer<LAYER_I>(model));
                 auto current_output_tensor = to_tensor(device, current_output);
                 backward_full_impl<!TICK, LAYER_I + 1>(device, model, current_output_tensor, d_output, current_d_output_buffer_view, buffers, content_buffers, mode);
-                backward_full(device, layer<LAYER_I>(model), input, current_d_output_buffer_view, d_input, content_buffer<LAYER_I>(content_buffers), mode);
+                _backward_full_selected(device, layer<LAYER_I>(model), input, current_d_output_buffer_view, d_input, content_buffer<LAYER_I>(content_buffers), mode);
             }
         }
 
@@ -448,18 +477,34 @@ namespace rl_tools{
         _backward_input(device, model, d_output, d_input, buffers, buffers.content_buffer, mode);
     }
 
+    template<auto LAYER_I = 0, typename DEVICE, typename MODULE_SPEC, typename INPUT, typename D_OUTPUT, typename BUFFER_SPEC, typename MODE>
+    RL_TOOLS_FUNCTION_PLACEMENT void _backward_parameters(DEVICE& device, nn_models::sequential::ModuleGradient<MODULE_SPEC>& model, const INPUT& input, D_OUTPUT& d_output, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers, const Mode<MODE>& mode){
+        using nn_models::sequential::backward_full_impl;
+        using nn_models::sequential::content_buffer;
+        using nn_models::sequential::layer;
+        using nn_models::sequential::layer_output;
+        using CONTENT = typename nn_models::sequential::layer_spec_t<LAYER_I, MODULE_SPEC>::CONTENT;
+        if constexpr(nn_models::backpropagation::ParameterGradients<typename CONTENT::SPEC, MODE>::VALUE){
+            if constexpr(LAYER_I + 1 < MODULE_SPEC::NUM_LAYERS){
+                using FIRST_OUTPUT_SHAPE = typename nn_models::sequential::layer_spec_t<LAYER_I, MODULE_SPEC>::OUTPUT_SHAPE;
+                auto current_d_input_buffer_view = view_memory<FIRST_OUTPUT_SHAPE>(device, buffers.tick);
+                auto first_output = layer_output<LAYER_I>(device, model);
+                backward_full_impl<false, LAYER_I + 1>(device, model, first_output, d_output, current_d_input_buffer_view, buffers, buffers.content_buffer, mode);
+                backward(device, layer<LAYER_I>(model), input, current_d_input_buffer_view, content_buffer<LAYER_I>(buffers.content_buffer), mode);
+            }
+            else{
+                backward(device, layer<LAYER_I>(model), input, d_output, content_buffer<LAYER_I>(buffers.content_buffer), mode);
+            }
+        }
+        else if constexpr(LAYER_I + 1 < MODULE_SPEC::NUM_LAYERS){
+            auto current_output = layer_output<LAYER_I>(device, model);
+            _backward_parameters<LAYER_I + 1>(device, model, current_output, d_output, buffers, mode);
+        }
+    }
+
     template<typename DEVICE, typename MODULE_SPEC, typename INPUT, typename D_OUTPUT, typename BUFFER_SPEC, typename MODE = mode::Default<>>
-    RL_TOOLS_FUNCTION_PLACEMENT void backward(DEVICE& device, nn_models::sequential::ModuleGradient<MODULE_SPEC>& model, const INPUT& input, D_OUTPUT& d_output, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers, const Mode<MODE>& mode = Mode<mode::Default<>>{}) {
-        if constexpr(MODULE_SPEC::NUM_LAYERS > 1){
-            using FIRST_OUTPUT_SHAPE = typename nn_models::sequential::layer_spec_t<0, MODULE_SPEC>::OUTPUT_SHAPE;
-            auto current_d_input_buffer_view = view_memory<FIRST_OUTPUT_SHAPE>(device, buffers.tick);
-            auto first_output = nn_models::sequential::layer_output<0>(device, model);
-            nn_models::sequential::backward_full_impl<false, 1>(device, model, first_output, d_output, current_d_input_buffer_view, buffers, buffers.content_buffer, mode);
-            backward(device, nn_models::sequential::layer<0>(model), input, current_d_input_buffer_view, nn_models::sequential::content_buffer<0>(buffers.content_buffer), mode);
-        }
-        else{
-            backward(device, nn_models::sequential::layer<0>(model), input, d_output, nn_models::sequential::content_buffer<0>(buffers.content_buffer), mode);
-        }
+    RL_TOOLS_FUNCTION_PLACEMENT void backward(DEVICE& device, nn_models::sequential::ModuleGradient<MODULE_SPEC>& model, const INPUT& input, D_OUTPUT& d_output, nn_models::sequential::ModuleBuffer<BUFFER_SPEC>& buffers, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
+        _backward_parameters(device, model, input, d_output, buffers, mode);
     }
 
     template<auto LAYER_I = 0, typename DEVICE, typename SPEC, typename OPTIMIZER>

@@ -150,7 +150,7 @@ namespace rl_tools{
         template <auto I = 0, typename DEVICE, typename SPEC, typename INPUT_TUPLE, typename D_INPUT_TUPLE, typename BUFFER_SPEC, typename MODE>
         RL_TOOLS_FUNCTION_PLACEMENT void _backward_full_branches(DEVICE& device, ModuleGradient<SPEC>& model, const INPUT_TUPLE& inputs, D_INPUT_TUPLE& d_inputs, ModuleBuffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode){
             if constexpr(I < SPEC::NUM_BRANCHES){
-                backward_full(device, get<I>(model.pipelines), get<I>(inputs), get<I>(buffer.d_outputs), get<I>(d_inputs), get<I>(buffer.sub_buffers), mode);
+                _backward_full_selected(device, get<I>(model.pipelines), get<I>(inputs), get<I>(buffer.d_outputs), get<I>(d_inputs), get<I>(buffer.sub_buffers), mode);
                 _backward_full_branches<I + 1>(device, model, inputs, d_inputs, buffer, mode);
             }
         }
@@ -158,7 +158,10 @@ namespace rl_tools{
         template <auto I = 0, typename DEVICE, typename SPEC, typename INPUT_TUPLE, typename BUFFER_SPEC, typename MODE>
         RL_TOOLS_FUNCTION_PLACEMENT void _backward_branches(DEVICE& device, ModuleGradient<SPEC>& model, const INPUT_TUPLE& inputs, ModuleBuffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode){
             if constexpr(I < SPEC::NUM_BRANCHES){
-                backward(device, get<I>(model.pipelines), get<I>(inputs), get<I>(buffer.d_outputs), get<I>(buffer.sub_buffers), mode);
+                using PIPELINE = utils::typing::remove_reference_t<decltype(get<I>(model.pipelines))>;
+                if constexpr(nn_models::backpropagation::ParameterGradients<typename PIPELINE::SPEC, MODE>::VALUE){
+                    backward(device, get<I>(model.pipelines), get<I>(inputs), get<I>(buffer.d_outputs), get<I>(buffer.sub_buffers), mode);
+                }
                 _backward_branches<I + 1>(device, model, inputs, buffer, mode);
             }
         }
@@ -456,7 +459,7 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename INPUT_TUPLE, typename D_OUTPUT, typename D_INPUT_TUPLE, typename BUFFER_SPEC, typename MODE = mode::Default<>, typename utils::typing::enable_if_t<nn_models::parallel::detail::is_input_tuple<utils::typing::remove_reference_t<INPUT_TUPLE>>::value>* = nullptr>
     RL_TOOLS_FUNCTION_PLACEMENT void backward_full(DEVICE& device, nn_models::parallel::ModuleGradient<SPEC>& model, const INPUT_TUPLE& inputs, D_OUTPUT& d_output, D_INPUT_TUPLE& d_inputs, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         if constexpr(SPEC::HAS_HEAD){
-            backward_full(device, model.head, buffer.concatenated, d_output, buffer.d_concatenated, buffer.head_buffer, mode);
+            _backward_full_selected(device, model.head, buffer.concatenated, d_output, buffer.d_concatenated, buffer.head_buffer, mode);
             nn_models::parallel::_split_n<SPEC::NUM_BRANCHES>(device, buffer.d_concatenated, buffer.d_outputs);
         }
         else{
@@ -468,23 +471,33 @@ namespace rl_tools{
     // ======================== backward (gradients only) ========================
     template <typename DEVICE, typename SPEC, typename INPUT_TUPLE, typename D_OUTPUT, typename BUFFER_SPEC, typename MODE = mode::Default<>, typename utils::typing::enable_if_t<nn_models::parallel::detail::is_input_tuple<utils::typing::remove_reference_t<INPUT_TUPLE>>::value>* = nullptr>
     RL_TOOLS_FUNCTION_PLACEMENT void backward(DEVICE& device, nn_models::parallel::ModuleGradient<SPEC>& model, const INPUT_TUPLE& inputs, D_OUTPUT& d_output, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
-        if constexpr(SPEC::HAS_HEAD){
-            backward_full(device, model.head, buffer.concatenated, d_output, buffer.d_concatenated, buffer.head_buffer, mode);
-            nn_models::parallel::_split_n<SPEC::NUM_BRANCHES>(device, buffer.d_concatenated, buffer.d_outputs);
+        if constexpr(nn_models::backpropagation::ParameterGradientsTuple<typename SPEC::PIPELINES_TYPE, MODE>::VALUE){
+            if constexpr(SPEC::HAS_HEAD){
+                _backward_full_selected(device, model.head, buffer.concatenated, d_output, buffer.d_concatenated, buffer.head_buffer, mode);
+                nn_models::parallel::_split_n<SPEC::NUM_BRANCHES>(device, buffer.d_concatenated, buffer.d_outputs);
+            }
+            else{
+                nn_models::parallel::_split_n<SPEC::NUM_BRANCHES>(device, d_output, buffer.d_outputs);
+            }
+            nn_models::parallel::_backward_branches(device, model, inputs, buffer, mode);
         }
-        else{
-            nn_models::parallel::_split_n<SPEC::NUM_BRANCHES>(device, d_output, buffer.d_outputs);
+        else if constexpr(nn_models::backpropagation::HeadParameterGradients<SPEC, MODE>::VALUE){
+            backward(device, model.head, buffer.concatenated, d_output, buffer.head_buffer, mode);
         }
-        nn_models::parallel::_backward_branches(device, model, inputs, buffer, mode);
     }
 
     template <typename DEVICE, typename SPEC, typename INPUT_TUPLE, typename D_OUTPUT, typename D_FEATURE_SPEC, typename BUFFER_SPEC, typename MODE = mode::Default<>>
     RL_TOOLS_FUNCTION_PLACEMENT void backward(DEVICE& device, nn_models::parallel::ModuleGradient<SPEC>& model, const INPUT_TUPLE& inputs, D_OUTPUT& d_output, Tensor<D_FEATURE_SPEC>& additional_feature_gradient, nn_models::parallel::ModuleBuffer<BUFFER_SPEC>& buffer, const Mode<MODE>& mode = Mode<mode::Default<>>{}){
         static_assert(SPEC::HAS_HEAD, "Additional feature gradients require a parallel model with a head");
-        backward_full(device, model.head, buffer.concatenated, d_output, buffer.d_concatenated, buffer.head_buffer, mode);
-        add(device, additional_feature_gradient, buffer.d_concatenated);
-        nn_models::parallel::_split_n<SPEC::NUM_BRANCHES>(device, buffer.d_concatenated, buffer.d_outputs);
-        nn_models::parallel::_backward_branches(device, model, inputs, buffer, mode);
+        if constexpr(nn_models::backpropagation::ParameterGradientsTuple<typename SPEC::PIPELINES_TYPE, MODE>::VALUE){
+            _backward_full_selected(device, model.head, buffer.concatenated, d_output, buffer.d_concatenated, buffer.head_buffer, mode);
+            add(device, additional_feature_gradient, buffer.d_concatenated);
+            nn_models::parallel::_split_n<SPEC::NUM_BRANCHES>(device, buffer.d_concatenated, buffer.d_outputs);
+            nn_models::parallel::_backward_branches(device, model, inputs, buffer, mode);
+        }
+        else if constexpr(nn_models::backpropagation::HeadParameterGradients<SPEC, MODE>::VALUE){
+            backward(device, model.head, buffer.concatenated, d_output, buffer.head_buffer, mode);
+        }
     }
 
     // ======================== backward_input ========================
