@@ -93,6 +93,10 @@ body {
 .vehicle-position, .vehicle-avg-error, .vehicle-t2w-t2i, .vehicle-action {
     font-family: monospace;
 }
+.vehicle-action-sparkline{
+    display: block;
+    margin: 2px 0 4px 0;
+}
 #sidebar-resizer {
     width: 15px;
     background-color: #ccc;
