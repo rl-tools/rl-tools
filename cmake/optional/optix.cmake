@@ -2,6 +2,16 @@ enable_language(CUDA)
 set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
+# OWL's embed_ptx resolves bin2c with find_program, which searches PATH before the CMAKE_CUDA_COMPILER directory, so an nvcc from a different toolkit on PATH mixes two toolkits into the OptiX build
+find_program(RL_TOOLS_OPTIX_NVCC_ON_PATH nvcc PATHS ENV PATH NO_DEFAULT_PATH NO_CACHE)
+if(RL_TOOLS_OPTIX_NVCC_ON_PATH)
+    file(REAL_PATH "${RL_TOOLS_OPTIX_NVCC_ON_PATH}" RL_TOOLS_OPTIX_NVCC_ON_PATH_REAL)
+    file(REAL_PATH "${CMAKE_CUDA_COMPILER}" RL_TOOLS_OPTIX_CUDA_COMPILER_REAL)
+    if(NOT RL_TOOLS_OPTIX_NVCC_ON_PATH_REAL STREQUAL RL_TOOLS_OPTIX_CUDA_COMPILER_REAL)
+        message(WARNING "RLtools OptiX backend: the CUDA compiler ${CMAKE_CUDA_COMPILER} (CUDACXX/CMAKE_CUDA_COMPILER) is not the nvcc found on PATH (${RL_TOOLS_OPTIX_NVCC_ON_PATH}). OWL looks up bin2c on PATH before the compiler's directory, so the OptiX build mixes two CUDA toolkits; put the bin directory of ${CMAKE_CUDA_COMPILER} first on PATH or point CUDACXX at the PATH toolkit")
+    endif()
+endif()
+
 include(FetchContent)
 FetchContent_Declare(
     OWL
