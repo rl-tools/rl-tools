@@ -10,9 +10,7 @@
 
 #include <rl_tools/rl/environments/operations_generic.h>
 
-#ifndef RL_TOOLS_FUNCTION_PLACEMENT
-#define RL_TOOLS_FUNCTION_PLACEMENT
-#endif
+#include "../../../rl_tools.h"
 
 #include <rl_tools/utils/generic/integrators.h>
 
@@ -43,7 +41,7 @@ namespace rl_tools
         env.parameters = SPEC::STATIC_PARAMETERS::PARAMETER_VALUES;
     }
     template<typename DEVICE, typename SPEC, typename T, typename TI, TI N, typename... Args>
-    static void permute_rotors(DEVICE& device, const rl::environments::Multirotor<SPEC>&, rl::environments::l2f::parameters::Dynamics<T, TI, N>& dynamics, Args... args){
+    RL_TOOLS_FUNCTION_PLACEMENT static void permute_rotors(DEVICE& device, const rl::environments::Multirotor<SPEC>&, rl::environments::l2f::parameters::Dynamics<T, TI, N>& dynamics, Args... args){
         TI indices[N] = {static_cast<TI>(args)...};
         auto copy = dynamics;
         for (TI rotor_i=0; rotor_i < N; rotor_i++){
@@ -61,7 +59,7 @@ namespace rl_tools
         }
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS>
-    static void initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters){
+    RL_TOOLS_FUNCTION_PLACEMENT static void initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters){
         parameters = env.parameters;
         //        parameters = SPEC::STATIC_PARAMETERS::PARAMETER_VALUES;
     }

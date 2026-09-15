@@ -2,7 +2,6 @@ constexpr bool test_full_network = true;
 //constexpr bool test_full_network = false;
 constexpr bool test_first_layer = true;
 //constexpr bool test_first_layer = false;
-#define RL_TOOLS_FUNCTION_PLACEMENT __device__ __host__
 
 // Group 1
 #include <rl_tools/devices/cpu.h>

@@ -157,7 +157,7 @@ namespace rl_tools{
     }
     // the following operations are for nn_analytics iterating the neural networks
     template <auto INDEX, typename DEVICE, typename T_CONFIG>
-    constexpr auto& get_nn(DEVICE& device, rl::algorithms::sac::loop::core::State<T_CONFIG>& ts){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& get_nn(DEVICE& device, rl::algorithms::sac::loop::core::State<T_CONFIG>& ts){
         static_assert(INDEX < T_CONFIG::NUM_NNS, "Index out of bounds, there are only 3 neural networks in the SAC");
         if constexpr(INDEX == 0){
             return ts.actor_critic.actor;
@@ -172,7 +172,7 @@ namespace rl_tools{
         }
     }
     template <auto INDEX, typename DEVICE, typename T_CONFIG>
-    constexpr auto& get_nn_name(DEVICE& device, rl::algorithms::sac::loop::core::State<T_CONFIG>& ts){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& get_nn_name(DEVICE& device, rl::algorithms::sac::loop::core::State<T_CONFIG>& ts){
         static_assert(INDEX < T_CONFIG::NUM_NNS, "Index out of bounds, there are only 3 neural networks in the SAC");
         if constexpr(INDEX == 0){
             return "actor";

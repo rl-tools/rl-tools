@@ -56,6 +56,14 @@ target_link_libraries(rendering_raytracing_antialiasing
         rendering_raytracing_stb
 )
 
+add_executable(rendering_raytracing_flow flow.cpp)
+target_link_libraries(rendering_raytracing_flow
+    PRIVATE
+        RLtools::RLtools
+        rendering_raytracing_backend
+        rendering_raytracing_stb
+)
+
 add_executable(rendering_raytracing_drone drone.cpp)
 target_link_libraries(rendering_raytracing_drone
     PRIVATE
@@ -177,4 +185,15 @@ if(glfw3_FOUND AND OpenGL_FOUND)
             OpenGL::GL
     )
     target_compile_definitions(rendering_raytracing_interactive_segmentation PRIVATE RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE=3)
+
+    add_executable(rendering_raytracing_interactive_flow EXCLUDE_FROM_ALL interactive.cpp)
+    target_link_libraries(rendering_raytracing_interactive_flow
+        PRIVATE
+            RLtools::RLtools
+            rendering_raytracing_backend
+            rendering_raytracing_stb
+            glfw
+            OpenGL::GL
+    )
+    target_compile_definitions(rendering_raytracing_interactive_flow PRIVATE RL_TOOLS_RENDERING_RAYTRACING_INTERACTIVE_OUTPUT_MODE=4)
 endif()

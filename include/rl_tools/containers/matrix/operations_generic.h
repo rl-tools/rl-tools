@@ -9,9 +9,7 @@
 
 #include "matrix.h"
 #include "../../mode/mode.h"
-#ifndef RL_TOOLS_FUNCTION_PLACEMENT
-    #define RL_TOOLS_FUNCTION_PLACEMENT
-#endif
+#include "../../rl_tools.h"
 
 #if defined(RL_TOOLS_DEBUG_CONTAINER_CHECK_BOUNDS) || defined(RL_TOOLS_DEBUG_CONTAINER_CHECK_MALLOC)
 #include <iostream>
@@ -476,7 +474,7 @@ RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, matrix::MatrixStatic<T, TI
     }
     template<typename DEVICE, typename SPEC>
 //    [[deprecated("Note: math::isfinite might be optimized out by the compiler when using e.g. fast-math")]]
-    bool is_finite(DEVICE& device, const Matrix<SPEC>& m){
+    RL_TOOLS_FUNCTION_PLACEMENT bool is_finite(DEVICE& device, const Matrix<SPEC>& m){
         return reduce_unary<DEVICE, SPEC, bool, containers::vectorization::operators::is_finite<typename DEVICE::SPEC::MATH, typename SPEC::T>>(device, m, true);
     }
     template<typename DEVICE, typename SPEC>
@@ -691,7 +689,7 @@ RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, matrix::MatrixStatic<T, TI
     }
 
     template <typename DEVICE, typename T, typename DEVICE::index_t DIM>
-    Matrix<matrix::Specification<T, typename DEVICE::index_t, 1, DIM, true, matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>> wrap(DEVICE& dev, T* data){
+    RL_TOOLS_FUNCTION_PLACEMENT Matrix<matrix::Specification<T, typename DEVICE::index_t, 1, DIM, true, matrix::layouts::RowMajorAlignment<typename DEVICE::index_t, 1>>> wrap(DEVICE& dev, T* data){
         return {data};
     }
 
@@ -846,7 +844,7 @@ RL_TOOLS_FUNCTION_PLACEMENT void free(DEVICE& device, matrix::MatrixStatic<T, TI
     }
     namespace containers::matrix{
         template <typename T, unsigned M, unsigned N, unsigned K, unsigned LDA, unsigned LDB, unsigned LDC, bool ACCUMULATE>
-        void generic_gemm_kernel(const T* __restrict A, const T* __restrict B, T* __restrict C){
+        RL_TOOLS_FUNCTION_PLACEMENT void generic_gemm_kernel(const T* __restrict A, const T* __restrict B, T* __restrict C){
             if constexpr(!ACCUMULATE){
                 for(unsigned i = 0; i < M; ++i){
                     for(unsigned j = 0; j < N; ++j){

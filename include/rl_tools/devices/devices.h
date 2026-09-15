@@ -88,7 +88,7 @@ namespace rl_tools{
     template <typename DEV_SPEC>
     void init(devices::Device<DEV_SPEC>& device){}
     template <typename DEV_SPEC, typename T>
-    void count_malloc(devices::Device<DEV_SPEC>& device, T){}
+    RL_TOOLS_FUNCTION_PLACEMENT void count_malloc(devices::Device<DEV_SPEC>& device, T){}
     template <typename DEV_SPEC>
     void free(devices::Device<DEV_SPEC>& device){}
 }

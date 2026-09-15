@@ -8,9 +8,6 @@
 
 #include <math.h>
 
-#ifndef RL_TOOLS_FUNCTION_PLACEMENT
-#define RL_TOOLS_FUNCTION_PLACEMENT
-#endif
 
 // freestanding 3x4 row-major [R|t] transform math shared between the host verbs and device
 // producers (CUDA kernels define RL_TOOLS_FUNCTION_PLACEMENT before including this header)

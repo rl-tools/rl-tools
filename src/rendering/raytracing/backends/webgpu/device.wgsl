@@ -1,6 +1,6 @@
 // WebGPU device programs for the RLtools raytracing renderer: one module, one entry point per
 // output (main_rgb / main_depth / main_resolve / main_collision / main_segmentation /
-// main_normals / main_flow). This file is a function-for-function mirror of
+// main_normals / main_flow / main_flow_forward). This file is a function-for-function mirror of
 // backends/vulkan/device.comp (which mirrors backends/metal/device.metal and
 // backends/optix/device_impl.h) — keep the shading logic in sync; the golden-image parity suite
 // is the drift detector. Standard WebGPU has no ray query, so the hardware traversal is replaced
@@ -52,6 +52,7 @@ struct LaunchParams{
     miss_color_0: array<f32, 3>,
     miss_color_1: array<f32, 3>,
     first_overlay_instance: u32,
+    num_overlay_slots: u32,
     triangle_mesh_offset: u32,
     triangle_local_offset: u32,
     object_records_offset: u32,
@@ -69,11 +70,15 @@ struct LaunchParams{
     flow_deltas_offset: u32,
     probe_directions_offset: u32,
     cameras_offset: u32, // shutter-close cameras, then the shutter-open set when the spec has a camera pair
+    cameras_previous_offset: u32, // flow: the previous instant's camera set
     out_frame_buffer: u32,
     out_depth: u32,
     out_segmentation: u32,
     out_normals: u32,
     out_flow: u32,
+    out_flow_status: u32,
+    out_flow_forward: u32,
+    out_flow_forward_status: u32,
     out_observation: u32,
     out_rgb_accumulator: u32,
     out_depth_accumulator: u32,
@@ -198,6 +203,15 @@ fn out_add_f32(index: u32, value: f32){
     outputs[index] = bitcast<u32>(bitcast<f32>(outputs[index]) + value);
 }
 
+fn load_camera_at(base: u32) -> Camera{
+    var camera: Camera;
+    camera.pos = array<f32, 3>(frame_f32(base), frame_f32(base + 1u), frame_f32(base + 2u));
+    camera.dir_00 = array<f32, 3>(frame_f32(base + 3u), frame_f32(base + 4u), frame_f32(base + 5u));
+    camera.dir_du = array<f32, 3>(frame_f32(base + 6u), frame_f32(base + 7u), frame_f32(base + 8u));
+    camera.dir_dv = array<f32, 3>(frame_f32(base + 9u), frame_f32(base + 10u), frame_f32(base + 11u));
+    return camera;
+}
+fn camera_previous(cam_idx: i32) -> Camera{ return load_camera_at(params.cameras_previous_offset + u32(cam_idx) * 12u); }
 fn load_camera(index: u32) -> Camera{
     let base = params.cameras_offset + index * 12u;
     var camera: Camera;
@@ -648,7 +662,9 @@ fn traverse_overlay_tlas_any(region: u32, overlay: u32, origin: vec3<f32>, direc
 
 // min-t composition of the shared world and the overlays attached to this camera; at
 // fc_overlay_count == 0 the loop specializes away and this is a plain intersect
-fn trace_closest_composed(camera: i32, origin: vec3<f32>, direction: vec3<f32>, t_min: f32, t_max: f32) -> Hit{
+// the overlay set is an explicit region: the dispatch's region for the regular passes, the
+// current (0) or flow previous-instant region for the flow passes
+fn trace_closest_composed_region(region: u32, camera: i32, origin: vec3<f32>, direction: vec3<f32>, t_min: f32, t_max: f32) -> Hit{
     var best: Hit;
     best.t = t_max;
     best.u = 0.0;
@@ -660,19 +676,27 @@ fn trace_closest_composed(camera: i32, origin: vec3<f32>, direction: vec3<f32>, 
     for(var k = 0; k < fc_overlay_count; k++){
         let overlay = frame_u32(params.attachments_offset + u32(camera) * u32(fc_overlay_count) + u32(k));
         if(overlay == ABSENT){ continue; }
-        traverse_overlay_tlas_closest(dispatch_params.overlay_region, overlay, origin, direction, t_min, &best);
+        traverse_overlay_tlas_closest(region, overlay, origin, direction, t_min, &best);
     }
     return best;
 }
 
-fn trace_any_composed(camera: i32, origin: vec3<f32>, direction: vec3<f32>, t_min: f32, t_max: f32) -> bool{
+fn trace_closest_composed(camera: i32, origin: vec3<f32>, direction: vec3<f32>, t_min: f32, t_max: f32) -> Hit{
+    return trace_closest_composed_region(dispatch_params.overlay_region, camera, origin, direction, t_min, t_max);
+}
+
+fn trace_any_composed_region(region: u32, camera: i32, origin: vec3<f32>, direction: vec3<f32>, t_min: f32, t_max: f32) -> bool{
     if(traverse_scene_tlas_any(origin, direction, t_min, t_max)){ return true; }
     for(var k = 0; k < fc_overlay_count; k++){
         let overlay = frame_u32(params.attachments_offset + u32(camera) * u32(fc_overlay_count) + u32(k));
         if(overlay == ABSENT){ continue; }
-        if(traverse_overlay_tlas_any(dispatch_params.overlay_region, overlay, origin, direction, t_min, t_max)){ return true; }
+        if(traverse_overlay_tlas_any(region, overlay, origin, direction, t_min, t_max)){ return true; }
     }
     return false;
+}
+
+fn trace_any_composed(camera: i32, origin: vec3<f32>, direction: vec3<f32>, t_min: f32, t_max: f32) -> bool{
+    return trace_any_composed_region(dispatch_params.overlay_region, camera, origin, direction, t_min, t_max);
 }
 
 fn trace_depth_distance(camera: i32, origin: vec3<f32>, direction: vec3<f32>, max_depth: f32) -> f32{
@@ -1331,34 +1355,84 @@ fn project_camera(cam: Camera, point: vec3<f32>) -> vec3<f32>{
     return vec3<f32>(screen_x, screen_y, select(0.0, 1.0, lambda > 0.0));
 }
 
-// single-sample by design (shutter-close camera, pixel-center ray): backward flow of the
-// shutter-close frame in pixels — the hit point is carried to shutter open by its instance's
-// shutter delta (identity for the static world) and projected through the shutter-open camera;
-// miss (and behind-the-open-camera projections) write (0, 0)
+// FlowStatus codes (rl_tools/rendering/raytracing/types.h)
+const FLOW_STATUS_VALID: u32 = 0u;
+const FLOW_STATUS_MISS: u32 = 1u;
+const FLOW_STATUS_BEHIND: u32 = 2u;
+const FLOW_STATUS_OUT_OF_FRAME: u32 = 3u;
+const FLOW_STATUS_OCCLUDED: u32 = 4u;
+const FLOW_VISIBILITY_EPSILON: f32 = 1e-4;
+
+// two-instant flow, one direction per entry point (mirror of the generic render_flow_frame):
+// single-sample from the source pixel centre against the source instant's overlay region; the
+// hit point is carried to the target instant by its slot's delta, projected through the target
+// camera, and tested for visibility from the target camera against the target instant with the
+// relative margin FLOW_VISIBILITY_EPSILON. Status priority MISS, BEHIND, OUT_OF_FRAME, OCCLUDED,
+// VALID; the vector is zero for MISS and BEHIND and the geometric flow otherwise
+fn flow_pixel(source_previous: bool, out_flow: u32, out_status: u32, ctx: PixelLaunchContext){
+    let previous_region = 1u + select(0u, u32(fc_motion_samples), fc_dynamic_motion_blur);
+    let source_region = select(0u, previous_region, source_previous);
+    let target_region = select(previous_region, 0u, source_previous);
+    var cam: Camera;
+    var cam_target: Camera;
+    if(source_previous){
+        cam = camera_previous(ctx.cam_idx);
+        cam_target = camera_close(ctx.cam_idx);
+    }
+    else{
+        cam = camera_close(ctx.cam_idx);
+        cam_target = camera_previous(ctx.cam_idx);
+    }
+    let source_first_overlay_instance = params.first_overlay_instance + params.num_overlay_slots * source_region;
+    let delta_slab = select(0u, params.num_overlay_slots * 12u, source_previous);
+    let screen = (vec2<f32>(f32(ctx.local_x), f32(ctx.local_y)) + vec2<f32>(0.5, 0.5)) / vec2<f32>(f32(params.cam_width), f32(params.cam_height));
+    let direction = normalize(camera_dir_00(cam) + screen.x * camera_dir_du(cam) + screen.y * camera_dir_dv(cam));
+    let hit = trace_closest_composed_region(source_region, ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30);
+    var flow = vec2<f32>(0.0);
+    var status = FLOW_STATUS_MISS;
+    if(hit.valid){
+        var point = camera_pos(cam) + direction * hit.t;
+        if(fc_overlay_count > 0 && hit.instance >= source_first_overlay_instance){
+            point = apply_flow_delta(delta_slab + (hit.instance - source_first_overlay_instance) * 12u, point);
+        }
+        let projected = project_camera(cam_target, point);
+        if(projected.z < 0.5){
+            status = FLOW_STATUS_BEHIND;
+        }
+        else{
+            flow = vec2<f32>(projected.x * f32(params.cam_width) - (f32(ctx.local_x) + 0.5),
+                             projected.y * f32(params.cam_height) - (f32(ctx.local_y) + 0.5));
+            if(projected.x < 0.0 || projected.x >= 1.0 || projected.y < 0.0 || projected.y >= 1.0){
+                status = FLOW_STATUS_OUT_OF_FRAME;
+            }
+            else{
+                let to_point = point - camera_pos(cam_target);
+                let len = length(to_point);
+                let visibility_direction = to_point * (1.0 / len);
+                let occluded = trace_any_composed_region(target_region, ctx.cam_idx, camera_pos(cam_target), visibility_direction, 0.0, len * (1.0 - FLOW_VISIBILITY_EPSILON));
+                status = select(FLOW_STATUS_VALID, FLOW_STATUS_OCCLUDED, occluded);
+            }
+        }
+    }
+    out_set_f32(out_flow + u32(ctx.fb_offset * 2 + 0), flow.x);
+    out_set_f32(out_flow + u32(ctx.fb_offset * 2 + 1), flow.y);
+    outputs[out_status + u32(ctx.fb_offset)] = status;
+}
+
 @compute @workgroup_size(8, 4, 1)
 fn main_flow(@builtin(global_invocation_id) global_id: vec3<u32>){
-    let pixel_id = global_id.xy;
-    let ctx = pixel_launch_context(pixel_id);
+    let ctx = pixel_launch_context(global_id.xy);
     if(!ctx.valid){
         return;
     }
-    let cam = camera_close(ctx.cam_idx);
-    let screen = (vec2<f32>(f32(ctx.local_x), f32(ctx.local_y)) + vec2<f32>(0.5, 0.5)) / vec2<f32>(f32(params.cam_width), f32(params.cam_height));
-    let direction = normalize(camera_dir_00(cam) + screen.x * camera_dir_du(cam) + screen.y * camera_dir_dv(cam));
-    let hit = trace_closest_composed(ctx.cam_idx, camera_pos(cam), direction, 0.0, 1e30);
-    var flow = vec2<f32>(0.0);
-    if(hit.valid){
-        var point = camera_pos(cam) + direction * hit.t;
-        if(fc_overlay_count > 0 && hit.instance >= params.first_overlay_instance){
-            point = apply_flow_delta((hit.instance - params.first_overlay_instance) * 12u, point);
-        }
-        let cam_open = camera_open(ctx.cam_idx);
-        let projected = project_camera(cam_open, point);
-        if(projected.z > 0.5){
-            flow = vec2<f32>((f32(ctx.local_x) + 0.5) - projected.x * f32(params.cam_width),
-                             (f32(ctx.local_y) + 0.5) - projected.y * f32(params.cam_height));
-        }
+    flow_pixel(false, params.out_flow, params.out_flow_status, ctx);
+}
+
+@compute @workgroup_size(8, 4, 1)
+fn main_flow_forward(@builtin(global_invocation_id) global_id: vec3<u32>){
+    let ctx = pixel_launch_context(global_id.xy);
+    if(!ctx.valid){
+        return;
     }
-    out_set_f32(params.out_flow + u32(ctx.fb_offset * 2 + 0), flow.x);
-    out_set_f32(params.out_flow + u32(ctx.fb_offset * 2 + 1), flow.y);
+    flow_pixel(true, params.out_flow_forward, params.out_flow_forward_status, ctx);
 }

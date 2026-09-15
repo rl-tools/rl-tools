@@ -89,23 +89,17 @@ namespace rl_tools{
             }
             std::vector<uint32_t> colored(num_pixels);
             for(size_t pixel_i = 0; pixel_i < (size_t)num_pixels; pixel_i++){
-                const float u = flow_host[pixel_i * 2 + 0];
-                const float v = flow_host[pixel_i * 2 + 1];
-                const float magnitude = std::sqrt(u * u + v * v);
-                const float saturation = max_magnitude > 0 ? magnitude / max_magnitude : 0.f;
-                const float hue = (std::atan2(v, u) / (2.f * (float)M_PI) + 0.5f) * 6.f;
-                const float descending = 1.f - std::fabs(std::fmod(hue, 2.f) - 1.f);
-                float red = 0, green = 0, blue = 0;
-                switch((int)hue % 6){
-                    case 0: red = 1; green = descending; break;
-                    case 1: red = descending; green = 1; break;
-                    case 2: green = 1; blue = descending; break;
-                    case 3: green = descending; blue = 1; break;
-                    case 4: red = descending; blue = 1; break;
-                    default: red = 1; blue = descending; break;
-                }
-                const auto channel = [&](float value){ return (uint32_t)((1.f - saturation * (1.f - value)) * 255.f); };
-                colored[pixel_i] = 0xFF000000u | (channel(blue) << 16) | (channel(green) << 8) | channel(red);
+                colored[pixel_i] = flow_to_rgba(flow_host[pixel_i * 2 + 0], flow_host[pixel_i * 2 + 1], max_magnitude);
+            }
+            write_grid_png<SPEC>(colored.data(), filename);
+        }
+
+        template <typename SPEC>
+        void write_flow_status_grid_png(const uint32_t* status_host, const char* filename){
+            constexpr typename SPEC::TI num_pixels = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+            std::vector<uint32_t> colored(num_pixels);
+            for(size_t pixel_i = 0; pixel_i < (size_t)num_pixels; pixel_i++){
+                colored[pixel_i] = flow_status_to_rgba(status_host[pixel_i]);
             }
             write_grid_png<SPEC>(colored.data(), filename);
         }
@@ -260,6 +254,30 @@ namespace rl_tools{
         std::vector<float> flow_host;
         rendering::raytracing::detail::save_staging(device, renderer, renderer.flow_buffer, flow_host);
         rendering::raytracing::detail::write_flow_grid_png<SPEC>(flow_host.data(), filename);
+    }
+
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void save_flow_status_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
+        static_assert(SPEC::HAS_FLOW, "save_flow_status_image requires a flow-capable renderer specification");
+        std::vector<uint32_t> status_host;
+        rendering::raytracing::detail::save_staging(device, renderer, renderer.flow_status_buffer, status_host);
+        rendering::raytracing::detail::write_flow_status_grid_png<SPEC>(status_host.data(), filename);
+    }
+
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void save_flow_forward_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
+        static_assert(SPEC::HAS_FLOW_FORWARD, "save_flow_forward_image requires a forward-flow renderer specification");
+        std::vector<float> flow_host;
+        rendering::raytracing::detail::save_staging(device, renderer, renderer.flow_forward_buffer, flow_host);
+        rendering::raytracing::detail::write_flow_grid_png<SPEC>(flow_host.data(), filename);
+    }
+
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void save_flow_forward_status_image(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
+        static_assert(SPEC::HAS_FLOW_FORWARD, "save_flow_forward_status_image requires a forward-flow renderer specification");
+        std::vector<uint32_t> status_host;
+        rendering::raytracing::detail::save_staging(device, renderer, renderer.flow_forward_status_buffer, status_host);
+        rendering::raytracing::detail::write_flow_status_grid_png<SPEC>(status_host.data(), filename);
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>

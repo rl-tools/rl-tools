@@ -1,9 +1,12 @@
 #include <rl_tools/operations/cpu.h>
 // compiled twice: pinned to the generic backend, and against the build's active
-// backend via the mux — the same backend-agnostic assertions are the cross-backend parity suite
-#include <rl_tools/rendering/raytracing/backends/generic/operations_cpu.h>
+// backend via the mux — the same backend-agnostic assertions are the cross-backend parity suite.
+// One backend header per translation unit: the composite verbs (operations_cpu_post.h) bind to
+// the backend overloads declared before them
 #ifdef RL_TOOLS_RENDERING_RAYTRACING_SCENE_TEST_ACTIVE_BACKEND
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#else
+#include <rl_tools/rendering/raytracing/backends/generic/operations_cpu.h>
 #endif
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 
@@ -23,6 +26,8 @@
 
 #include <vector>
 #include <chrono>
+#include <cmath>
+#include <cstring>
 #include <filesystem>
 #include <string>
 
@@ -602,25 +607,199 @@ struct FLOW_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     using SHADING = rlt::rendering::raytracing::Low;
     static constexpr bool OUTPUT_RGB = false;
     static constexpr bool OUTPUT_FLOW = true;
+    static constexpr bool OUTPUT_FLOW_FORWARD = true;
 };
 using FLOW_SPEC = rlt::rendering::raytracing::Specification<FLOW_CONFIG>;
+struct FLOW_OVERLAY_CONFIG: FLOW_CONFIG{
+    static constexpr TI NUM_OVERLAYS = 1, MAX_OVERLAY_INSTANCES = 4, MAX_OVERLAYS_PER_CAMERA = 1;
+};
+using FLOW_OVERLAY_SPEC = rlt::rendering::raytracing::Specification<FLOW_OVERLAY_CONFIG>;
 
+// Two-instant flow suite. Scenes are built from axis-aligned cubes seen by a camera on the x
+// axis, so every expectation follows from the pinhole relation on a fronto-parallel face:
+// a world shift d at viewing distance X moves its image by d * W / (X * 2 tan(fov/2)) pixels.
+// Image x increases toward world -y, image y toward world -z (FLU camera, up = +z).
 namespace {
+    using FlowStatus = rlt::rendering::raytracing::FlowStatus;
+
+    T flow_pixels_per_unit(T viewing_distance){
+        const T image_plane_scale = (T)2 * std::tan(rlt::rendering::raytracing::degrees_to_radians(FOV) / (T)2);
+        return (T)FLOW_SPEC::CAM_WIDTH / (viewing_distance * image_plane_scale);
+    }
+
+    // the whole frame at every viewing distance the tests use: a 20 m face at x = 1
+    rlt::rendering::raytracing::Mesh make_wall(){
+        return make_cube(11, 10);
+    }
+    // the generic triangle test is not watertight: a handful of rays slip through the shared
+    // diagonal edge of the wall's two front-face triangles and hit its back face instead (the
+    // same pixels are off in depth), so per-pixel expectations on the wall tolerate a few strays
+    // (measured up to 9 per 64x64 frame; the WebGPU traversal shares the generic intersector)
+    static constexpr size_t WALL_CRACK_PIXEL_TOLERANCE = 16;
+
     template <typename RENDERER_SPEC>
-    void set_flow_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, BACKEND>& renderer, const T position_open[3], const T look_at_open[3], const T position_close[3], const T look_at_close[3]){
+    void set_flow_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, BACKEND>& renderer, const T position_previous[3], const T look_at_previous[3], const T position_current[3], const T look_at_current[3]){
         const T up[3] = {0, 0, 1};
         constexpr T aspect = (T)RENDERER_SPEC::CAM_WIDTH / (T)RENDERER_SPEC::CAM_HEIGHT;
-        const auto camera_open = rlt::make_camera_data(position_open, look_at_open, up, FOV, aspect);
-        const auto camera_close = rlt::make_camera_data(position_close, look_at_close, up, FOV, aspect);
-        golden::copy_in(device, renderer.device, &camera_close, rlt::cameras_close(device, renderer));
-        golden::copy_in(device, renderer.device, &camera_open, rlt::cameras_open(device, renderer));
+        const auto camera_previous = rlt::make_camera_data(position_previous, look_at_previous, up, FOV, aspect);
+        const auto camera_current = rlt::make_camera_data(position_current, look_at_current, up, FOV, aspect);
+        golden::copy_in(device, renderer.device, &camera_current, rlt::cameras(device, renderer));
+        golden::copy_in(device, renderer.device, &camera_previous, rlt::cameras_previous(device, renderer));
+    }
+
+    template <typename RENDERER_SPEC>
+    void set_static_flow_camera(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, BACKEND>& renderer){
+        const T position[3] = {-5, 0, 0};
+        const T look_at[3] = {0, 0, 0};
+        set_flow_cameras(device, renderer, position, look_at, position, look_at);
+    }
+
+    struct FlowFrame{
+        std::vector<float> flow;
+        std::vector<uint32_t> status;
+        std::vector<float> forward;
+        std::vector<uint32_t> forward_status;
+    };
+
+    template <typename RENDERER_SPEC>
+    FlowFrame render_flow(DEVICE& device, rlt::rendering::raytracing::Renderer<RENDERER_SPEC, BACKEND>& renderer){
+        rlt::render(device, renderer);
+        rlt::synchronize(device, renderer);
+        FlowFrame frame;
+        frame.flow.resize((size_t)RENDERER_SPEC::CAM_PIXELS * 2);
+        frame.status.resize(RENDERER_SPEC::CAM_PIXELS);
+        frame.forward.resize((size_t)RENDERER_SPEC::CAM_PIXELS * 2);
+        frame.forward_status.resize(RENDERER_SPEC::CAM_PIXELS);
+        read_output(device, renderer, rlt::flow_buffer(device, renderer), frame.flow.data());
+        read_output(device, renderer, rlt::flow_status_buffer(device, renderer), frame.status.data());
+        read_output(device, renderer, rlt::flow_forward_buffer(device, renderer), frame.forward.data());
+        read_output(device, renderer, rlt::flow_forward_status_buffer(device, renderer), frame.forward_status.data());
+        return frame;
+    }
+
+    size_t count_status(const std::vector<uint32_t>& status, uint32_t code){
+        size_t count = 0;
+        for(const uint32_t value : status){
+            count += value == code;
+        }
+        return count;
+    }
+
+    // the object-translation scenario: a wall plus a 1 m overlay cube whose front face sits at
+    // x = -2 (viewing distance 3), moved from +OBJECT_DELTA_Y (previous) to 0 (current)
+    static constexpr float OBJECT_DELTA_Y = 0.6f;
+    static constexpr float OBJECT_POSITION_X = -1.5f;
+    static constexpr T OBJECT_VIEWING_DISTANCE = 3;
+
+    struct ObjectTranslationScene{
+        rlt::rendering::Bundle<T> bundle;
+        rlt::rendering::raytracing::AssetPool pool;
+        rlt::rendering::raytracing::AssetHandle cube_asset;
+        float transform_previous[12];
+        float transform_current[12];
+
+        explicit ObjectTranslationScene(DEVICE& device){
+            rlt::add(device, bundle.scene, make_wall());
+            rlt::rendering::datasets::compute_bounds(device, bundle);
+            cube_asset = rlt::add(device, pool, make_cube(0, 0.5));
+            const float orientation_wxyz[4] = {1, 0, 0, 0};
+            const float position_previous[3] = {OBJECT_POSITION_X, OBJECT_DELTA_Y, 0};
+            const float position_current[3] = {OBJECT_POSITION_X, 0, 0};
+            rlt::make_transform(position_previous, orientation_wxyz, transform_previous);
+            rlt::make_transform(position_current, orientation_wxyz, transform_current);
+        }
+    };
+
+    // expectations shared by the tensor-path and verb-path renders of the scenario
+    void expect_object_translation(const FlowFrame& frame){
+        const float expected_u = -(float)((T)OBJECT_DELTA_Y * flow_pixels_per_unit(OBJECT_VIEWING_DISTANCE));
+        size_t object_pixels = 0, wall_pixels = 0, forward_object_pixels = 0;
+        for(size_t pixel_i = 0; pixel_i < (size_t)FLOW_OVERLAY_SPEC::CAM_PIXELS; pixel_i++){
+            const float u = frame.flow[pixel_i * 2 + 0], v = frame.flow[pixel_i * 2 + 1];
+            const uint32_t status = frame.status[pixel_i];
+            ASSERT_TRUE(status == FlowStatus::VALID || status == FlowStatus::OCCLUDED) << "pixel " << pixel_i << " status " << status;
+            if(status == FlowStatus::OCCLUDED){
+                EXPECT_NEAR(u, 0.f, 1e-2f) << "wall pixel behind the previous silhouette keeps the wall's (zero) flow";
+                EXPECT_NEAR(v, 0.f, 1e-2f);
+            }
+            else if(std::fabs(u) > 1.f){
+                EXPECT_NEAR(u, expected_u, 1e-2f);
+                EXPECT_NEAR(v, 0.f, 1e-2f);
+                object_pixels++;
+            }
+            else{
+                EXPECT_NEAR(u, 0.f, 1e-2f);
+                EXPECT_NEAR(v, 0.f, 1e-2f);
+                wall_pixels++;
+            }
+            const uint32_t forward_status = frame.forward_status[pixel_i];
+            ASSERT_TRUE(forward_status == FlowStatus::VALID || forward_status == FlowStatus::OCCLUDED) << "forward pixel " << pixel_i << " status " << forward_status;
+            const float forward_u = frame.forward[pixel_i * 2 + 0], forward_v = frame.forward[pixel_i * 2 + 1];
+            if(forward_status == FlowStatus::VALID && std::fabs(forward_u) > 1.f){
+                EXPECT_NEAR(forward_u, -expected_u, 1e-2f);
+                EXPECT_NEAR(forward_v, 0.f, 1e-2f);
+                forward_object_pixels++;
+            }
+        }
+        EXPECT_GT(object_pixels, (size_t)100);
+        EXPECT_GT(wall_pixels, (size_t)3000);
+        EXPECT_GT(forward_object_pixels, (size_t)100);
+        // the previous silhouette (backward) and the current one (forward) hide wall points at
+        // the other instant: a strip about (object width) x (object displacement) wide
+        const size_t occluded = count_status(frame.status, FlowStatus::OCCLUDED);
+        const size_t forward_occluded = count_status(frame.forward_status, FlowStatus::OCCLUDED);
+        EXPECT_GT(occluded, (size_t)40);
+        EXPECT_LT(occluded, (size_t)200);
+        EXPECT_GT(forward_occluded, (size_t)40);
+        EXPECT_LT(forward_occluded, (size_t)200);
+        EXPECT_EQ(count_status(frame.status, FlowStatus::MISS), (size_t)0) << "the wall covers the whole frame";
     }
 }
 
-// the camera translates laterally by delta between shutter open and close; every pixel on the
-// cube's front face (a constant-viewing-distance plane) must report the closed-form uniform
-// flow -delta * W / (X * 2 tan(fov/2)) px, and with open == close the flow must vanish
-TEST(RL_TOOLS_SCENE_SUITE, FLOW_ANALYTIC){
+// previous == current: hits are VALID with (numerically) zero flow, misses are MISS with the
+// exact zero vector
+TEST(RL_TOOLS_SCENE_SUITE, FLOW_STATIC_PAIR){
+    DEVICE device;
+    rlt::init(device);
+
+    rlt::rendering::Bundle<T> bundle;
+    rlt::add(device, bundle.scene, make_cube(0, 1));
+    rlt::rendering::datasets::compute_bounds(device, bundle);
+
+    rlt::rendering::raytracing::Renderer<FLOW_SPEC, BACKEND> renderer;
+    rlt::malloc(device, renderer);
+    rlt::generate_probe_directions(device, renderer);
+    rlt::init(device, renderer, bundle);
+    set_static_flow_camera(device, renderer);
+    const FlowFrame frame = render_flow(device, renderer);
+
+    size_t hits = 0;
+    for(size_t pixel_i = 0; pixel_i < (size_t)FLOW_SPEC::CAM_PIXELS; pixel_i++){
+        for(const bool forward : {false, true}){
+            const std::vector<float>& flow = forward ? frame.forward : frame.flow;
+            const std::vector<uint32_t>& status = forward ? frame.forward_status : frame.status;
+            const float u = flow[pixel_i * 2 + 0], v = flow[pixel_i * 2 + 1];
+            if(status[pixel_i] == FlowStatus::MISS){
+                EXPECT_EQ(u, 0.f);
+                EXPECT_EQ(v, 0.f);
+            }
+            else{
+                EXPECT_EQ(status[pixel_i], FlowStatus::VALID);
+                EXPECT_NEAR(u, 0.f, 1e-3f);
+                EXPECT_NEAR(v, 0.f, 1e-3f);
+                hits += !forward;
+            }
+        }
+    }
+    EXPECT_GT(hits, (size_t)200);
+    EXPECT_GT(count_status(frame.status, FlowStatus::MISS), (size_t)1000);
+
+    rlt::free(device, renderer);
+}
+
+// lateral camera translation: the front face (distance 4) carries the uniform closed-form flow
+// with the warp-convention sign in both directions, forward = -backward
+TEST(RL_TOOLS_SCENE_SUITE, FLOW_CAMERA_TRANSLATION){
     DEVICE device;
     rlt::init(device);
 
@@ -633,120 +812,142 @@ TEST(RL_TOOLS_SCENE_SUITE, FLOW_ANALYTIC){
     rlt::generate_probe_directions(device, renderer);
     rlt::init(device, renderer, bundle);
 
-    const T position[3] = {-5, 0, 0};
-    const T look_at[3] = {0, 0, 0};
-    std::vector<float> flow((size_t)FLOW_SPEC::CAM_PIXELS * 2);
-
-    set_flow_cameras(device, renderer, position, look_at, position, look_at);
-    rlt::render(device, renderer);
-    rlt::synchronize(device, renderer);
-    read_output(device, renderer, rlt::flow_buffer(device, renderer), flow.data());
-    const size_t center = (size_t)((FLOW_SPEC::CAM_HEIGHT / 2) * FLOW_SPEC::CAM_WIDTH + FLOW_SPEC::CAM_WIDTH / 2) * 2;
-    EXPECT_NEAR(flow[center + 0], 0.f, 1e-3f); // static pair: reprojection noise only
-    EXPECT_NEAR(flow[center + 1], 0.f, 1e-3f);
-    EXPECT_EQ(flow[0], 0.f); // background misses write the exact zero
-    EXPECT_EQ(flow[1], 0.f);
-
     const T delta = 0.5;
-    const T position_open[3] = {-5, delta, 0};
-    const T look_at_open[3] = {0, delta, 0};
-    set_flow_cameras(device, renderer, position_open, look_at_open, position, look_at);
-    rlt::render(device, renderer);
-    rlt::synchronize(device, renderer);
-    read_output(device, renderer, rlt::flow_buffer(device, renderer), flow.data());
+    const T position_previous[3] = {-5, delta, 0};
+    const T look_at_previous[3] = {0, delta, 0};
+    const T position_current[3] = {-5, 0, 0};
+    const T look_at_current[3] = {0, 0, 0};
+    set_flow_cameras(device, renderer, position_previous, look_at_previous, position_current, look_at_current);
+    const FlowFrame frame = render_flow(device, renderer);
 
-    const T image_plane_scale = (T)2 * std::tan(rlt::rendering::raytracing::degrees_to_radians(FOV) / (T)2);
-    const T viewing_distance = 4; // front face x = -1, camera x = -5
-    const float expected_u = (float)(-delta * (T)FLOW_SPEC::CAM_WIDTH / (viewing_distance * image_plane_scale));
-    size_t hit_count = 0;
+    // the camera moved from +y (image left) to 0: a point's previous image position lies to the
+    // right of its current one, so the backward flow is positive
+    const float expected_u = (float)(delta * flow_pixels_per_unit(4));
+    size_t hits = 0, forward_hits = 0;
     for(size_t pixel_i = 0; pixel_i < (size_t)FLOW_SPEC::CAM_PIXELS; pixel_i++){
-        const float u = flow[pixel_i * 2 + 0], v = flow[pixel_i * 2 + 1];
-        if(u == 0.f && v == 0.f) continue;
-        EXPECT_NEAR(u, expected_u, 1e-2f);
-        EXPECT_NEAR(v, 0.f, 1e-2f);
-        hit_count++;
+        if(frame.status[pixel_i] != FlowStatus::MISS){
+            EXPECT_EQ(frame.status[pixel_i], FlowStatus::VALID);
+            EXPECT_NEAR(frame.flow[pixel_i * 2 + 0], expected_u, 1e-2f);
+            EXPECT_NEAR(frame.flow[pixel_i * 2 + 1], 0.f, 1e-2f);
+            hits++;
+        }
+        if(frame.forward_status[pixel_i] != FlowStatus::MISS){
+            EXPECT_EQ(frame.forward_status[pixel_i], FlowStatus::VALID);
+            EXPECT_NEAR(frame.forward[pixel_i * 2 + 0], -expected_u, 1e-2f);
+            EXPECT_NEAR(frame.forward[pixel_i * 2 + 1], 0.f, 1e-2f);
+            forward_hits++;
+        }
     }
-    EXPECT_GT(hit_count, (size_t)0);
+    EXPECT_GT(hits, (size_t)200);
+    EXPECT_GT(forward_hits, (size_t)200);
 
     rlt::free(device, renderer);
 }
 
-struct FLOW_OVERLAY_CONFIG: FLOW_CONFIG{
-    static constexpr TI NUM_OVERLAYS = 1, MAX_OVERLAY_INSTANCES = 4, MAX_OVERLAYS_PER_CAMERA = 1;
-};
-using FLOW_OVERLAY_SPEC = rlt::rendering::raytracing::Specification<FLOW_OVERLAY_CONFIG>;
-
-// static camera pair, overlay translated across the shutter via set_transform_pair: overlay
-// pixels must report the projected object displacement (through the shutter-delta table) while
-// the static background stays at (near-)zero flow
-TEST(RL_TOOLS_SCENE_SUITE, FLOW_OVERLAY_ANALYTIC){
+// static camera, overlay moved between the instants through the transforms_previous tensor:
+// object pixels carry the projected displacement, the wall stays at zero, and the wall points
+// hidden by the object at the other instant are OCCLUDED with the wall's flow retained
+TEST(RL_TOOLS_SCENE_SUITE, FLOW_OVERLAY_TRANSLATION){
     DEVICE device;
     rlt::init(device);
-
-    rlt::rendering::Bundle<T> bundle;
-    rlt::add(device, bundle.scene, make_cube(0, 1)); // background: front face at x = -1
-    rlt::rendering::datasets::compute_bounds(device, bundle);
-    rlt::rendering::raytracing::AssetPool pool;
-    const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
+    ObjectTranslationScene scene(device);
 
     rlt::rendering::raytracing::Renderer<FLOW_OVERLAY_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
     rlt::generate_probe_directions(device, renderer);
-    rlt::init(device, renderer, bundle, pool);
+    rlt::init(device, renderer, scene.bundle, scene.pool);
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
+    const auto placement = rlt::spawn(device, renderer, OverlayIndex{0}, scene.cube_asset, scene.transform_current);
+    rlt::update(device, renderer); // publishes the slot structure and clears the dirty flag: the rows are producer-owned from here on
 
-    const float orientation_wxyz[4] = {1, 0, 0, 0};
-    const float position_close[3] = {-2.5f, 0, 0};
-    float close_transform[12];
-    rlt::make_transform(position_close, orientation_wxyz, close_transform);
-    const auto placement = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, close_transform);
-    const float object_delta_y = 0.3f;
-    const float position_open[3] = {-2.5f, object_delta_y, 0};
-    float open_transform[12];
-    rlt::make_transform(position_open, orientation_wxyz, open_transform);
-    rlt::set_transform_pair(device, renderer, OverlayIndex{0}, placement, open_transform, close_transform);
+    std::vector<float> previous_rows;
+    golden::copy_out(renderer.device, device, rlt::transforms_previous(device, renderer), previous_rows);
+    std::memcpy(previous_rows.data() + placement.first_slot * 12, scene.transform_previous, 12 * sizeof(float));
+    golden::copy_in(device, renderer.device, previous_rows.data(), rlt::transforms_previous(device, renderer));
     rlt::update(device, renderer);
 
-    const T camera_position[3] = {-5, 0, 0};
-    const T look_at[3] = {0, 0, 0};
-    set_flow_cameras(device, renderer, camera_position, look_at, camera_position, look_at);
-    rlt::render(device, renderer);
-    rlt::synchronize(device, renderer);
-    std::vector<float> flow((size_t)FLOW_OVERLAY_SPEC::CAM_PIXELS * 2);
-    read_output(device, renderer, rlt::flow_buffer(device, renderer), flow.data());
-
-    const T image_plane_scale = (T)2 * std::tan(rlt::rendering::raytracing::degrees_to_radians(FOV) / (T)2);
-    const T viewing_distance = (T)1.5; // overlay front face x = -3.5, camera x = -5
-    const float expected_u = (float)((T)object_delta_y * (T)FLOW_OVERLAY_SPEC::CAM_WIDTH / (viewing_distance * image_plane_scale));
-    size_t overlay_count = 0;
-    for(size_t pixel_i = 0; pixel_i < (size_t)FLOW_OVERLAY_SPEC::CAM_PIXELS; pixel_i++){
-        const float u = flow[pixel_i * 2 + 0], v = flow[pixel_i * 2 + 1];
-        if(std::fabs(u) < 1.f && std::fabs(v) < 1.f){
-            EXPECT_NEAR(u, 0.f, 1e-2f); // background (or miss): static under the static pair
-            EXPECT_NEAR(v, 0.f, 1e-2f);
-            continue;
-        }
-        EXPECT_NEAR(u, expected_u, 1e-2f);
-        EXPECT_NEAR(v, 0.f, 1e-2f);
-        overlay_count++;
-    }
-    EXPECT_GT(overlay_count, (size_t)16);
+    set_static_flow_camera(device, renderer);
+    const FlowFrame frame = render_flow(device, renderer);
+    expect_object_translation(frame);
 
     rlt::free(device, renderer);
 }
 
-// producer path for a flow-only specification (no dynamic motion blur): the same shutter pair
-// written into the transforms_pair tensor and expanded by the backend must reproduce the
-// set_transform_pair flow of FLOW_OVERLAY_ANALYTIC
-TEST(RL_TOOLS_SCENE_SUITE, FLOW_OVERLAY_PAIR_PRODUCER){
+// two static cubes and a translating camera: wall points that were behind the front cube at
+// the previous instant report OCCLUDED and keep the wall's analytic flow
+TEST(RL_TOOLS_SCENE_SUITE, FLOW_DISOCCLUSION_STATIC){
     DEVICE device;
     rlt::init(device);
 
     rlt::rendering::Bundle<T> bundle;
-    rlt::add(device, bundle.scene, make_cube(0, 1)); // background: front face at x = -1
+    rlt::add(device, bundle.scene, make_wall());
+    rlt::add(device, bundle.scene, make_cube(-2, 0.5)); // front face at x = -2.5, viewing distance 2.5
+    rlt::rendering::datasets::compute_bounds(device, bundle);
+
+    rlt::rendering::raytracing::Renderer<FLOW_SPEC, BACKEND> renderer;
+    rlt::malloc(device, renderer);
+    rlt::generate_probe_directions(device, renderer);
+    rlt::init(device, renderer, bundle);
+
+    const T delta = 0.5;
+    const T position_previous[3] = {-5, delta, 0};
+    const T look_at_previous[3] = {0, delta, 0};
+    const T position_current[3] = {-5, 0, 0};
+    const T look_at_current[3] = {0, 0, 0};
+    set_flow_cameras(device, renderer, position_previous, look_at_previous, position_current, look_at_current);
+    const FlowFrame frame = render_flow(device, renderer);
+
+    const float expected_wall_u = (float)(delta * flow_pixels_per_unit(6));
+    const float expected_cube_u = (float)(delta * flow_pixels_per_unit(2.5));
+    size_t wall_pixels = 0, cube_pixels = 0, out_of_frame_pixels = 0, strays = 0;
+    for(TI y = 0; y < FLOW_SPEC::CAM_HEIGHT; y++){
+        for(TI x = 0; x < FLOW_SPEC::CAM_WIDTH; x++){
+            const size_t pixel_i = (size_t)y * FLOW_SPEC::CAM_WIDTH + x;
+            const float u = frame.flow[pixel_i * 2 + 0], v = frame.flow[pixel_i * 2 + 1];
+            const uint32_t status = frame.status[pixel_i];
+            const bool wall_flow = std::fabs(u - expected_wall_u) < 1e-2f && std::fabs(v) < 1e-2f;
+            const bool cube_flow = std::fabs(u - expected_cube_u) < 1e-2f && std::fabs(v) < 1e-2f;
+            // the rightmost wall columns land beyond the previous image: legitimately out of frame
+            const bool beyond_previous_image = (float)x + 0.5f + expected_wall_u >= (float)FLOW_SPEC::CAM_WIDTH;
+            if(status == FlowStatus::OUT_OF_FRAME && wall_flow && beyond_previous_image){
+                out_of_frame_pixels++;
+            }
+            else if(status == FlowStatus::OCCLUDED && wall_flow){
+                // occluded pixels retain the geometric flow
+            }
+            else if(status == FlowStatus::VALID && cube_flow){
+                cube_pixels++;
+            }
+            else if(status == FlowStatus::VALID && wall_flow && !beyond_previous_image){
+                wall_pixels++;
+            }
+            else{
+                strays++;
+                EXPECT_LE(strays, WALL_CRACK_PIXEL_TOLERANCE) << "pixel (" << x << ", " << y << ") status " << status << " flow (" << u << ", " << v << ")";
+            }
+        }
+    }
+    const size_t occluded = count_status(frame.status, FlowStatus::OCCLUDED);
+    EXPECT_GT(occluded, (size_t)20);
+    EXPECT_LT(occluded, (size_t)200);
+    EXPECT_GT(cube_pixels, (size_t)150);
+    EXPECT_GT(wall_pixels, (size_t)3000);
+    EXPECT_GT(out_of_frame_pixels, (size_t)100);
+
+    rlt::free(device, renderer);
+}
+
+// a cube rotated half a turn about its own axis between the instants: the face visible now was
+// the far face before, hidden by the cube's own near face — only a distance test catches this
+TEST(RL_TOOLS_SCENE_SUITE, FLOW_SELF_OCCLUSION){
+    DEVICE device;
+    rlt::init(device);
+
+    rlt::rendering::Bundle<T> bundle;
+    rlt::add(device, bundle.scene, make_wall());
     rlt::rendering::datasets::compute_bounds(device, bundle);
     rlt::rendering::raytracing::AssetPool pool;
-    const auto cube_asset = rlt::add(device, pool, make_cube(0, 1));
+    const auto cube_asset = rlt::add(device, pool, make_cube(0, 0.5));
 
     rlt::rendering::raytracing::Renderer<FLOW_OVERLAY_SPEC, BACKEND> renderer;
     rlt::malloc(device, renderer);
@@ -754,55 +955,218 @@ TEST(RL_TOOLS_SCENE_SUITE, FLOW_OVERLAY_PAIR_PRODUCER){
     rlt::init(device, renderer, bundle, pool);
     rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
 
-    const float orientation_wxyz[4] = {1, 0, 0, 0};
-    const float position_close[3] = {-2.5f, 0, 0};
-    float close_transform[12];
-    rlt::make_transform(position_close, orientation_wxyz, close_transform);
-    const auto placement = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, close_transform);
-    rlt::update(device, renderer); // publish the slot structure and clear the dirty flags
+    const float position[3] = {OBJECT_POSITION_X, 0, 0};
+    const float identity_wxyz[4] = {1, 0, 0, 0};
+    const float half_turn_z_wxyz[4] = {0, 0, 0, 1};
+    float transform_previous[12], transform_current[12];
+    rlt::make_transform(position, identity_wxyz, transform_previous);
+    rlt::make_transform(position, half_turn_z_wxyz, transform_current);
+    const auto placement = rlt::spawn(device, renderer, OverlayIndex{0}, cube_asset, transform_previous);
+    rlt::update(device, renderer);
+    rlt::advance_flow(device, renderer);
+    rlt::set_transform(device, renderer, OverlayIndex{0}, placement, transform_current);
+    rlt::update(device, renderer);
 
-    const float object_delta_y = 0.3f;
-    const float position_open[3] = {-2.5f, object_delta_y, 0};
-    float open_transform[12];
-    rlt::make_transform(position_open, orientation_wxyz, open_transform);
-    rlt::Tensor<rlt::tensor::Specification<float, TI, rlt::tensor::Shape<TI, 12>, true, rlt::tensor::RowMajorStride<rlt::tensor::Shape<TI, 12>>, true>> pair_host;
-    auto pair_open = rlt::view(device, rlt::transforms_pair(device, renderer), 0);
-    auto pair_open_overlay = rlt::view(device, pair_open, 0);
-    auto pair_open_entry = rlt::view(device, pair_open_overlay, placement.first_slot);
-    pair_host._data = open_transform;
-    rlt::copy(device, renderer.device, pair_host, pair_open_entry);
-    auto pair_close = rlt::view(device, rlt::transforms_pair(device, renderer), 1);
-    auto pair_close_overlay = rlt::view(device, pair_close, 0);
-    auto pair_close_entry = rlt::view(device, pair_close_overlay, placement.first_slot);
-    pair_host._data = close_transform;
-    rlt::copy(device, renderer.device, pair_host, pair_close_entry);
-    rlt::expand_motion_transforms(device, renderer);
-    rlt::update(device, renderer); // republish the overlay geometry from the expanded transforms
+    set_static_flow_camera(device, renderer);
+    const FlowFrame frame = render_flow(device, renderer);
 
-    const T camera_position[3] = {-5, 0, 0};
-    const T look_at[3] = {0, 0, 0};
-    set_flow_cameras(device, renderer, camera_position, look_at, camera_position, look_at);
-    rlt::render(device, renderer);
-    rlt::synchronize(device, renderer);
-    std::vector<float> flow((size_t)FLOW_OVERLAY_SPEC::CAM_PIXELS * 2);
-    read_output(device, renderer, rlt::flow_buffer(device, renderer), flow.data());
-
-    const T image_plane_scale = (T)2 * std::tan(rlt::rendering::raytracing::degrees_to_radians(FOV) / (T)2);
-    const T viewing_distance = (T)1.5; // overlay front face x = -3.5, camera x = -5
-    const float expected_u = (float)((T)object_delta_y * (T)FLOW_OVERLAY_SPEC::CAM_WIDTH / (viewing_distance * image_plane_scale));
-    size_t overlay_count = 0;
     for(size_t pixel_i = 0; pixel_i < (size_t)FLOW_OVERLAY_SPEC::CAM_PIXELS; pixel_i++){
-        const float u = flow[pixel_i * 2 + 0], v = flow[pixel_i * 2 + 1];
-        if(std::fabs(u) < 1.f && std::fabs(v) < 1.f){
-            EXPECT_NEAR(u, 0.f, 1e-2f); // background (or miss): static under the static pair
-            EXPECT_NEAR(v, 0.f, 1e-2f);
-            continue;
+        const uint32_t status = frame.status[pixel_i];
+        ASSERT_TRUE(status == FlowStatus::VALID || status == FlowStatus::OCCLUDED) << "pixel " << pixel_i << " status " << status;
+        if(status == FlowStatus::VALID){
+            EXPECT_NEAR(frame.flow[pixel_i * 2 + 0], 0.f, 1e-2f) << "only the static wall is visible at both instants";
+            EXPECT_NEAR(frame.flow[pixel_i * 2 + 1], 0.f, 1e-2f);
         }
-        EXPECT_NEAR(u, expected_u, 1e-2f);
-        EXPECT_NEAR(v, 0.f, 1e-2f);
-        overlay_count++;
     }
-    EXPECT_GT(overlay_count, (size_t)16);
+    const size_t occluded = count_status(frame.status, FlowStatus::OCCLUDED);
+    EXPECT_GT(occluded, (size_t)100);
+    EXPECT_LT(occluded, (size_t)220);
+    EXPECT_EQ(count_status(frame.forward_status, FlowStatus::OCCLUDED), occluded) << "the half turn is symmetric: the forward pass hides the same pixels";
+
+    rlt::free(device, renderer);
+}
+
+// the previous camera looks along +y: every current pixel projects outside its image — points
+// on the +y half are in front of it (OUT_OF_FRAME, flow retained), the -y half behind it (BEHIND,
+// zero flow)
+TEST(RL_TOOLS_SCENE_SUITE, FLOW_OUT_OF_FRAME_AND_BEHIND){
+    DEVICE device;
+    rlt::init(device);
+
+    rlt::rendering::Bundle<T> bundle;
+    rlt::add(device, bundle.scene, make_wall());
+    rlt::rendering::datasets::compute_bounds(device, bundle);
+
+    rlt::rendering::raytracing::Renderer<FLOW_SPEC, BACKEND> renderer;
+    rlt::malloc(device, renderer);
+    rlt::generate_probe_directions(device, renderer);
+    rlt::init(device, renderer, bundle);
+
+    const T position[3] = {-5, 0, 0};
+    const T look_at_previous[3] = {-5, 6, 0};
+    const T look_at_current[3] = {0, 0, 0};
+    set_flow_cameras(device, renderer, position, look_at_previous, position, look_at_current);
+    const FlowFrame frame = render_flow(device, renderer);
+
+    for(size_t pixel_i = 0; pixel_i < (size_t)FLOW_SPEC::CAM_PIXELS; pixel_i++){
+        const uint32_t status = frame.status[pixel_i];
+        const float u = frame.flow[pixel_i * 2 + 0], v = frame.flow[pixel_i * 2 + 1];
+        ASSERT_TRUE(status == FlowStatus::OUT_OF_FRAME || status == FlowStatus::BEHIND) << "pixel " << pixel_i << " status " << status;
+        if(status == FlowStatus::BEHIND){
+            EXPECT_EQ(u, 0.f);
+            EXPECT_EQ(v, 0.f);
+        }
+        else{
+            EXPECT_GT(std::fabs(u), (float)FLOW_SPEC::CAM_WIDTH) << "an out-of-frame projection lands beyond the image";
+        }
+    }
+    EXPECT_EQ(count_status(frame.status, FlowStatus::OUT_OF_FRAME), (size_t)FLOW_SPEC::CAM_PIXELS / 2);
+    EXPECT_EQ(count_status(frame.status, FlowStatus::BEHIND), (size_t)FLOW_SPEC::CAM_PIXELS / 2);
+
+    rlt::free(device, renderer);
+}
+
+// forward-backward consistency on the two-cube scene: a VALID backward vector followed to the
+// previous grid lands on a forward vector that brings it back (nearest-pixel lookup, so the
+// check holds on the fronto-parallel faces and is only loosened at the silhouettes)
+TEST(RL_TOOLS_SCENE_SUITE, FLOW_FORWARD_BACKWARD_CONSISTENCY){
+    DEVICE device;
+    rlt::init(device);
+
+    rlt::rendering::Bundle<T> bundle;
+    rlt::add(device, bundle.scene, make_wall());
+    rlt::add(device, bundle.scene, make_cube(-2, 0.5));
+    rlt::rendering::datasets::compute_bounds(device, bundle);
+
+    rlt::rendering::raytracing::Renderer<FLOW_SPEC, BACKEND> renderer;
+    rlt::malloc(device, renderer);
+    rlt::generate_probe_directions(device, renderer);
+    rlt::init(device, renderer, bundle);
+
+    const T position_previous[3] = {-5, 0.5, 0.2};
+    const T look_at_previous[3] = {0, 0.5, 0.2};
+    const T position_current[3] = {-5, 0, 0};
+    const T look_at_current[3] = {0, 0, 0};
+    set_flow_cameras(device, renderer, position_previous, look_at_previous, position_current, look_at_current);
+    const FlowFrame frame = render_flow(device, renderer);
+
+    size_t checked = 0, consistent = 0;
+    for(TI y = 0; y < FLOW_SPEC::CAM_HEIGHT; y++){
+        for(TI x = 0; x < FLOW_SPEC::CAM_WIDTH; x++){
+            const size_t pixel_i = (size_t)y * FLOW_SPEC::CAM_WIDTH + x;
+            if(frame.status[pixel_i] != FlowStatus::VALID){
+                continue;
+            }
+            const float u = frame.flow[pixel_i * 2 + 0], v = frame.flow[pixel_i * 2 + 1];
+            const float target_x = (float)x + 0.5f + u, target_y = (float)y + 0.5f + v;
+            if(target_x < 0 || target_y < 0 || target_x >= (float)FLOW_SPEC::CAM_WIDTH || target_y >= (float)FLOW_SPEC::CAM_HEIGHT){
+                continue;
+            }
+            const size_t target_i = (size_t)target_y * FLOW_SPEC::CAM_WIDTH + (size_t)target_x;
+            if(frame.forward_status[target_i] != FlowStatus::VALID){
+                continue;
+            }
+            checked++;
+            const float round_trip_u = frame.forward[target_i * 2 + 0] + u;
+            const float round_trip_v = frame.forward[target_i * 2 + 1] + v;
+            consistent += std::fabs(round_trip_u) < 0.1f && std::fabs(round_trip_v) < 0.1f;
+        }
+    }
+    EXPECT_GT(checked, (size_t)2000);
+    EXPECT_GE((double)consistent, 0.95 * (double)checked);
+
+    rlt::free(device, renderer);
+}
+
+// verb path over two frames: spawn initialises the previous instant to the spawn pose (zero
+// object flow), advance_flow moves it forward, set_transform never touches it
+TEST(RL_TOOLS_SCENE_SUITE, FLOW_ADVANCE){
+    DEVICE device;
+    rlt::init(device);
+    ObjectTranslationScene scene(device);
+
+    rlt::rendering::raytracing::Renderer<FLOW_OVERLAY_SPEC, BACKEND> renderer;
+    rlt::malloc(device, renderer);
+    rlt::generate_probe_directions(device, renderer);
+    rlt::init(device, renderer, scene.bundle, scene.pool);
+    rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
+    set_static_flow_camera(device, renderer);
+
+    const auto placement = rlt::spawn(device, renderer, OverlayIndex{0}, scene.cube_asset, scene.transform_previous);
+    rlt::update(device, renderer);
+    const FlowFrame spawned = render_flow(device, renderer);
+    for(size_t pixel_i = 0; pixel_i < (size_t)FLOW_OVERLAY_SPEC::CAM_PIXELS; pixel_i++){
+        EXPECT_NEAR(spawned.flow[pixel_i * 2 + 0], 0.f, 1e-3f);
+        EXPECT_NEAR(spawned.flow[pixel_i * 2 + 1], 0.f, 1e-3f);
+    }
+    EXPECT_LE(count_status(spawned.status, FlowStatus::OCCLUDED), WALL_CRACK_PIXEL_TOLERANCE);
+    EXPECT_GE(count_status(spawned.status, FlowStatus::VALID), (size_t)FLOW_OVERLAY_SPEC::CAM_PIXELS - WALL_CRACK_PIXEL_TOLERANCE) << "a freshly spawned object has no motion of its own";
+
+    rlt::advance_flow(device, renderer);
+    rlt::set_transform(device, renderer, OverlayIndex{0}, placement, scene.transform_current);
+    rlt::update(device, renderer);
+    const FlowFrame moved = render_flow(device, renderer);
+    expect_object_translation(moved);
+
+    // no advance: the previous instant stays where it was, so a further move measures against
+    // the same previous pose
+    const float orientation_wxyz[4] = {1, 0, 0, 0};
+    const float position_further[3] = {OBJECT_POSITION_X, -OBJECT_DELTA_Y, 0};
+    float transform_further[12];
+    rlt::make_transform(position_further, orientation_wxyz, transform_further);
+    rlt::set_transform(device, renderer, OverlayIndex{0}, placement, transform_further);
+    rlt::update(device, renderer);
+    const FlowFrame further = render_flow(device, renderer);
+    const float expected_u = -(float)((T)2 * OBJECT_DELTA_Y * flow_pixels_per_unit(OBJECT_VIEWING_DISTANCE));
+    size_t object_pixels = 0;
+    for(size_t pixel_i = 0; pixel_i < (size_t)FLOW_OVERLAY_SPEC::CAM_PIXELS; pixel_i++){
+        if(further.status[pixel_i] == FlowStatus::VALID && std::fabs(further.flow[pixel_i * 2 + 0]) > 1.f){
+            EXPECT_NEAR(further.flow[pixel_i * 2 + 0], expected_u, 1e-2f);
+            object_pixels++;
+        }
+    }
+    EXPECT_GT(object_pixels, (size_t)100);
+
+    rlt::free(device, renderer);
+}
+
+// the producer tensor path (direct writes to transforms_previous) and the verb path (spawn,
+// advance_flow, set_transform) publish identical instants and therefore identical flow
+TEST(RL_TOOLS_SCENE_SUITE, FLOW_PRODUCER_TENSOR_EQUALS_VERBS){
+    DEVICE device;
+    rlt::init(device);
+    ObjectTranslationScene scene(device);
+
+    rlt::rendering::raytracing::Renderer<FLOW_OVERLAY_SPEC, BACKEND> renderer;
+    rlt::malloc(device, renderer);
+    rlt::generate_probe_directions(device, renderer);
+    rlt::init(device, renderer, scene.bundle, scene.pool);
+    rlt::attach(device, renderer, (TI)0, OverlayIndex{0});
+    set_static_flow_camera(device, renderer);
+
+    const auto placement = rlt::spawn(device, renderer, OverlayIndex{0}, scene.cube_asset, scene.transform_previous);
+    rlt::update(device, renderer);
+    rlt::advance_flow(device, renderer);
+    rlt::set_transform(device, renderer, OverlayIndex{0}, placement, scene.transform_current);
+    rlt::update(device, renderer);
+    const FlowFrame verbs = render_flow(device, renderer);
+
+    // producer path on the same renderer: the rows are clean after the update above
+    std::vector<float> rows;
+    golden::copy_out(renderer.device, device, rlt::transforms(device, renderer), rows);
+    std::memcpy(rows.data() + placement.first_slot * 12, scene.transform_current, 12 * sizeof(float));
+    golden::copy_in(device, renderer.device, rows.data(), rlt::transforms(device, renderer));
+    golden::copy_out(renderer.device, device, rlt::transforms_previous(device, renderer), rows);
+    std::memcpy(rows.data() + placement.first_slot * 12, scene.transform_previous, 12 * sizeof(float));
+    golden::copy_in(device, renderer.device, rows.data(), rlt::transforms_previous(device, renderer));
+    rlt::update(device, renderer);
+    const FlowFrame producer = render_flow(device, renderer);
+
+    EXPECT_EQ(verbs.flow, producer.flow);
+    EXPECT_EQ(verbs.status, producer.status);
+    EXPECT_EQ(verbs.forward, producer.forward);
+    EXPECT_EQ(verbs.forward_status, producer.forward_status);
+    expect_object_translation(producer);
 
     rlt::free(device, renderer);
 }

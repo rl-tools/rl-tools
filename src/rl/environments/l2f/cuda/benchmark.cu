@@ -1,5 +1,4 @@
 #define RL_TOOLS_DEVICES_DISABLE_REDEFINITION_DETECTION
-#define RL_TOOLS_FUNCTION_PLACEMENT __host__ __device__
 
 #include <rl_tools/operations/cpu.h>
 

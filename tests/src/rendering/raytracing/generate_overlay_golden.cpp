@@ -160,22 +160,56 @@ namespace {
         return true;
     }
 
-    // hit pixels must carry the ego-motion flow of the fixed FLOW_PAIR_OFFSET camera pair
-    // (nonzero, bounded), miss pixels the exact (0, 0) sentinel
+    // backward flow lives on the current camera grid: segmentation background must be MISS with
+    // the exact zero, hits carry the ego-motion flow of the fixed FLOW_PAIR_OFFSET camera pair
+    // (nonzero, bounded) with a status in {VALID, OUT_OF_FRAME, OCCLUDED}; the small offset can
+    // never put a hit behind the previous camera
     bool valid_flow(const Frame& frame){
+        using FlowStatus = rlt::rendering::raytracing::FlowStatus;
         size_t nonzero = 0;
         for(size_t index = 0; index < frame.segmentation.size(); index++){
             const float u = frame.flow[index * 2 + 0];
             const float v = frame.flow[index * 2 + 1];
+            const uint32_t status = frame.flow_status[index];
             if(!std::isfinite(u) || !std::isfinite(v) || std::fabs(u) > (float)SPEC::CAM_WIDTH || std::fabs(v) > (float)SPEC::CAM_HEIGHT){
                 return false;
             }
             if(frame.segmentation[index] == golden::SEGMENTATION_BACKGROUND_ID){
+                if(status != FlowStatus::MISS || u != 0.f || v != 0.f){
+                    return false;
+                }
+            }
+            else{
+                if(status != FlowStatus::VALID && status != FlowStatus::OUT_OF_FRAME && status != FlowStatus::OCCLUDED){
+                    return false;
+                }
+                nonzero += u != 0.f || v != 0.f;
+            }
+        }
+        return nonzero > 0;
+    }
+
+    // forward flow lives on the previous camera grid, so the current segmentation does not gate
+    // it: MISS pixels carry the exact zero, everything else is VALID, OUT_OF_FRAME or OCCLUDED
+    bool valid_flow_forward(const Frame& frame){
+        using FlowStatus = rlt::rendering::raytracing::FlowStatus;
+        size_t nonzero = 0;
+        for(size_t index = 0; index < frame.flow_forward_status.size(); index++){
+            const float u = frame.flow_forward[index * 2 + 0];
+            const float v = frame.flow_forward[index * 2 + 1];
+            const uint32_t status = frame.flow_forward_status[index];
+            if(!std::isfinite(u) || !std::isfinite(v) || std::fabs(u) > (float)SPEC::CAM_WIDTH || std::fabs(v) > (float)SPEC::CAM_HEIGHT){
+                return false;
+            }
+            if(status == FlowStatus::MISS){
                 if(u != 0.f || v != 0.f){
                     return false;
                 }
             }
             else{
+                if(status != FlowStatus::VALID && status != FlowStatus::OUT_OF_FRAME && status != FlowStatus::OCCLUDED){
+                    return false;
+                }
                 nonzero += u != 0.f || v != 0.f;
             }
         }
@@ -190,7 +224,8 @@ namespace {
         ok = report(valid_alpha, context, "RGB output has non-opaque alpha") && ok;
         ok = report(valid_depth, context, "depth output has non-finite or non-positive values") && ok;
         ok = report(valid_normals(frame), context, "normals output does not match the segmentation hit/miss topology") && ok;
-        ok = report(valid_flow(frame), context, "flow output violates the hit/miss contract or is unbounded") && ok;
+        ok = report(valid_flow(frame), context, "backward flow output violates the status contract or is unbounded") && ok;
+        ok = report(valid_flow_forward(frame), context, "forward flow output violates the status contract or is unbounded") && ok;
         ok = report(valid_topology(context.scenario, frame), context, "segmentation topology does not match the scenario table") && ok;
         ok = report(valid_shared_instance_pixels(context.scenario, frame), context, "shared placements are not pixel-identical across cameras") && ok;
         ok = report(valid_placement_materials(context.scenario, frame), context, "placement materials do not match the scenario assets") && ok;
@@ -222,7 +257,8 @@ namespace {
                             && initial.depth[index] == updated.depth[index]
                             && initial.normals[index] == updated.normals[index]
                             && initial.flow[index * 2 + 0] == updated.flow[index * 2 + 0]
-                            && initial.flow[index * 2 + 1] == updated.flow[index * 2 + 1];
+                            && initial.flow[index * 2 + 1] == updated.flow[index * 2 + 1]
+                            && initial.flow_status[index] == updated.flow_status[index];
                     }
                 }
                 ok = report(equal && common > overlay_goldens::MIN_VISIBLE_ID_PIXELS, context,
@@ -258,8 +294,15 @@ namespace {
             && golden::write_multi_camera_uint32_bin(paths.segmentation_bin, frame.segmentation.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
             && golden::write_segmentation_grid_png(paths.segmentation_png, frame.segmentation.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
             && golden::write_camera_grid_png(paths.normals_png, frame.normals.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
-            && golden::write_multi_camera_float_bin(paths.flow_bin, frame.flow.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, 2);
-        rlt::rendering::raytracing::detail::write_flow_grid_png<SPEC>(frame.flow.data(), paths.flow_png.c_str()); // advisory review image
+            && golden::write_multi_camera_float_bin(paths.flow_bin, frame.flow.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, 2)
+            && golden::write_multi_camera_uint32_bin(paths.flow_status_bin, frame.flow_status.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
+            && golden::write_flow_status_grid_png(paths.flow_status_png, frame.flow_status.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
+            && golden::write_multi_camera_float_bin(paths.flow_forward_bin, frame.flow_forward.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, 2)
+            && golden::write_multi_camera_uint32_bin(paths.flow_forward_status_bin, frame.flow_forward_status.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
+            && golden::write_flow_status_grid_png(paths.flow_forward_status_png, frame.flow_forward_status.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+        // advisory review images (per-image normalisation)
+        rlt::rendering::raytracing::detail::write_flow_grid_png<SPEC>(frame.flow.data(), paths.flow_png.c_str());
+        rlt::rendering::raytracing::detail::write_flow_grid_png<SPEC>(frame.flow_forward.data(), paths.flow_forward_png.c_str());
         return report(ok, context, "failed to write golden files to " + paths.directory);
     }
 

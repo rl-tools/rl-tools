@@ -11,10 +11,12 @@
 #include "../../utils/utils.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <vector>
 
 #ifndef RL_TOOLS_TEST_DATA_PATH
 #error "RL_TOOLS_TEST_DATA_PATH is required"
@@ -172,9 +174,83 @@ bool run_geometry_case(DEVICE& device, const std::string& output_dir) {
     return ok;
 }
 
+// one flow direction: the flow values, their status buffer, and the invariants the corpus pins
+// (finite and bounded, legal status codes, MISS and BEHIND carry the exact zero, some VALID flow)
+struct FlowDirection {
+    const char* suffix;          // appended to the case name: "" (backward) or "_forward"
+    const std::vector<T>* flow;
+    const std::vector<uint32_t>* status;
+};
+
+template <typename SPEC>
+bool validate_flow_direction(const char* name, const FlowDirection& direction) {
+    using FlowStatus = rlt::rendering::raytracing::FlowStatus;
+    const std::string label = std::string(name) + direction.suffix;
+    const size_t pixel_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+    if(direction.flow->size() != pixel_count * 2 || direction.status->size() != pixel_count) {
+        std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << label << ": flow or status buffer has the wrong size" << std::endl;
+        return false;
+    }
+    size_t valid = 0;
+    size_t nonzero = 0;
+    size_t invalid = 0;
+    size_t illegal_status = 0;
+    size_t nonzero_sentinel = 0;
+    for(size_t pixel_i = 0; pixel_i < pixel_count; pixel_i++) {
+        const T u = (*direction.flow)[pixel_i * 2 + 0];
+        const T v = (*direction.flow)[pixel_i * 2 + 1];
+        const uint32_t status = (*direction.status)[pixel_i];
+        invalid += !std::isfinite(u) || !std::isfinite(v)
+            || std::fabs(u) > (T)SPEC::CAM_WIDTH || std::fabs(v) > (T)SPEC::CAM_HEIGHT;
+        illegal_status += status > FlowStatus::OCCLUDED;
+        nonzero_sentinel += (status == FlowStatus::MISS || status == FlowStatus::BEHIND) && (u != 0 || v != 0);
+        valid += status == FlowStatus::VALID;
+        nonzero += status == FlowStatus::VALID && (u != 0 || v != 0);
+    }
+    bool ok = true;
+    if(invalid > 0) {
+        std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << label << ": " << invalid << " non-finite or unbounded flow pixel(s)" << std::endl;
+        ok = false;
+    }
+    if(illegal_status > 0) {
+        std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << label << ": " << illegal_status << " pixel(s) with an unknown flow status" << std::endl;
+        ok = false;
+    }
+    if(nonzero_sentinel > 0) {
+        std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << label << ": " << nonzero_sentinel << " MISS/BEHIND pixel(s) carry nonzero flow" << std::endl;
+        ok = false;
+    }
+    if(valid == 0 || nonzero == 0) {
+        std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << label << ": no VALID pixel with nonzero flow (missing camera or object motion?)" << std::endl;
+        ok = false;
+    }
+    return ok;
+}
+
+template <typename SPEC>
+bool write_flow_direction(const std::string& output_dir, const char* name, const FlowDirection& direction) {
+    bool ok = true;
+    const std::string base = std::string(name) + direction.suffix;
+    for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
+        const std::string directory = output_dir + "/" + CASES::POSES[camera_i].id;
+        std::filesystem::create_directories(directory);
+        const float* camera_flow = direction.flow->data() + (size_t)camera_i * SPEC::CAM_PIXELS * 2;
+        const uint32_t* camera_status = direction.status->data() + (size_t)camera_i * SPEC::CAM_PIXELS;
+        ok &= golden::write_multi_camera_float_bin(directory + "/" + base + ".bin", camera_flow, 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, 2);
+        ok &= golden::write_multi_camera_uint32_bin(directory + "/" + base + "_status.bin", camera_status, 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+        // review images: flow.png normalises per image (advisory), the status PNG is the pinned false color
+        rlt::rendering::raytracing::detail::write_flow_grid_png<CASES::SingleCamera>(camera_flow, (directory + "/" + base + ".png").c_str());
+        std::vector<uint32_t> status_encoded(SPEC::CAM_PIXELS);
+        golden::colorize_flow_status(camera_status, SPEC::CAM_PIXELS, status_encoded.data());
+        ok &= golden::write_camera_png(directory + "/" + base + "_status.png", status_encoded.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+    }
+    return ok;
+}
+
 template <typename SPEC, bool T_CAMERA_MOTION = true>
 bool run_flow_case(DEVICE& device, const std::string& output_dir, const char* name) {
     std::cout << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] rendering " << name << std::endl;
+    static_assert(SPEC::HAS_FLOW && SPEC::HAS_FLOW_FORWARD, "the flow goldens cover both directions");
 
     golden::Rendered<T> rendered;
     if(!golden::render_case<SPEC, BACKEND, DEVICE, CASES, T_CAMERA_MOTION>(device, SCENE_PATH, rendered)) {
@@ -182,45 +258,16 @@ bool run_flow_case(DEVICE& device, const std::string& output_dir, const char* na
         return false;
     }
 
-    bool ok = true;
-    const size_t pixel_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
-    if(rendered.flow.size() != pixel_count * 2) {
-        std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << name << ": flow buffer has the wrong size" << std::endl;
-        ok = false;
-    }
-    else {
-        size_t nonzero = 0;
-        size_t invalid = 0;
-        for(size_t pixel_i = 0; pixel_i < pixel_count; pixel_i++) {
-            const T u = rendered.flow[pixel_i * 2 + 0];
-            const T v = rendered.flow[pixel_i * 2 + 1];
-            invalid += !std::isfinite(u) || !std::isfinite(v)
-                || std::fabs(u) > (T)SPEC::CAM_WIDTH || std::fabs(v) > (T)SPEC::CAM_HEIGHT;
-            nonzero += u != 0 || v != 0;
-        }
-        if(invalid > 0) {
-            std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << name << ": " << invalid << " non-finite or unbounded flow pixel(s)" << std::endl;
-            ok = false;
-        }
-        if(nonzero == 0) {
-            std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << name << ": flow is identically zero (missing camera pair or object motion?)" << std::endl;
-            ok = false;
-        }
-    }
-
+    const FlowDirection backward{"", &rendered.flow, &rendered.flow_status};
+    const FlowDirection forward{"_forward", &rendered.flow_forward, &rendered.flow_forward_status};
+    bool ok = validate_flow_direction<SPEC>(name, backward);
+    ok = validate_flow_direction<SPEC>(name, forward) && ok;
     if(ok) {
-        for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
-            const std::string directory = output_dir + "/" + CASES::POSES[camera_i].id;
-            std::filesystem::create_directories(directory);
-            const float* camera_flow = rendered.flow.data() + (size_t)camera_i * SPEC::CAM_PIXELS * 2;
-            ok &= golden::write_multi_camera_float_bin(directory + "/" + std::string(name) + ".bin", camera_flow, 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, 2);
-            rlt::rendering::raytracing::detail::write_flow_grid_png<CASES::SingleCamera>(camera_flow, (directory + "/" + std::string(name) + ".png").c_str());
-        }
+        ok = write_flow_direction<SPEC>(output_dir, name, backward) && write_flow_direction<SPEC>(output_dir, name, forward);
         if(!ok) {
             std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] " << name << ": failed to write outputs" << std::endl;
         }
     }
-
     return ok;
 }
 

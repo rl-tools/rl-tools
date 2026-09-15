@@ -28,21 +28,25 @@ namespace rl_tools::rendering::raytracing::backends::optix{
     };
     struct OverlayAccelState;
 
-    OverlayAccelState* overlay_accel_create(void* optix_device_context, unsigned int num_overlays, unsigned int max_instances, unsigned int num_scene_instances, unsigned long long filler_traversable);
+    // num_instants: 1 for the steady state alone, 2 when flow keeps the previous instant's TLASes
+    // resident next to the current ones — instant i's instances carry the global ids
+    // [num_scene_instances + i * slots, num_scene_instances + (i + 1) * slots)
+    OverlayAccelState* overlay_accel_create(void* optix_device_context, unsigned int num_overlays, unsigned int max_instances, unsigned int num_scene_instances, unsigned long long filler_traversable, unsigned int num_instants);
     void overlay_accel_destroy(OverlayAccelState* state);
     // device pointer to the [num_overlays * max_instances] slot structure table (staging target)
     OverlaySlotStructure* overlay_accel_structure(OverlayAccelState* state);
     // per-object BLAS traversables + SBT offsets + classes; upload once, after owlBuildSBT
     void overlay_accel_upload_objects(OverlayAccelState* state, const OverlayObjectEntry* objects, unsigned int num_objects);
-    // per-overlay TLAS handles; stable across rebuilds (fixed output buffers), valid after create
-    const unsigned long long* overlay_accel_traversables(const OverlayAccelState* state);
-    // enqueues the instance fill kernel and one optixAccelBuild per overlay on stream; no host sync.
-    // transforms: [num_overlays * max_instances * 12] device; instance_classes: per global
-    // instance id, device — the kernel maintains the overlay range [num_scene_instances, ...).
+    // per-overlay TLAS handles of one instant; stable across rebuilds (fixed output buffers), valid after create
+    const unsigned long long* overlay_accel_traversables(const OverlayAccelState* state, unsigned int instant);
+    // enqueues the instance fill kernel and one optixAccelBuild per overlay of the given instant
+    // on stream; no host sync. transforms: [num_overlays * max_instances * 12] device;
+    // instance_classes: per global instance id, device — the kernel maintains the overlay range
+    // of instant 0 (null skips the classes: the previous instant never feeds segmentation).
     // shutter_out (optional device float): the fill kernel stores shutter_t there on-stream, so
     // per-pass shutter times reach the accumulate ray gens without per-launch param uploads
     // (which would race: OWL stages launch params through a single pinned host buffer)
-    void overlay_accel_build(OverlayAccelState* state, const float* transforms, unsigned int* instance_classes, float shutter_t, float* shutter_out, cudaStream_t stream);
+    void overlay_accel_build(OverlayAccelState* state, const float* transforms, unsigned int* instance_classes, float shutter_t, float* shutter_out, cudaStream_t stream, unsigned int instant);
     // divides the linear accumulators by num_samples and writes the packed frame buffer (+
     // observation) / depth buffer with the exact quantization of the single-launch path;
     // null accumulator pointers skip the corresponding output
@@ -52,9 +56,11 @@ namespace rl_tools::rendering::raytracing::backends::optix{
     // entries into the transforms tensor — the on-device counterpart of set_transform_pair
     void overlay_accel_expand_motion(const float* pairs, float* transforms_motion, float* transforms, unsigned int num_slots, unsigned int num_samples, cudaStream_t stream);
 
-    // flow shutter-delta expansion for the device-resident pair path: per active slot
-    // world_open ∘ world_close⁻¹ from the transforms_pair slabs and the slot structure table
-    void overlay_accel_expand_flow_deltas(const float* pairs, const OverlaySlotStructure* structure, float* deltas, unsigned int num_overlays, unsigned int max_instances, cudaStream_t stream);
+    // flow delta table [2][slots][12] from the current and previous transforms slabs and the
+    // slot structure table: slab 0 carries a current-instant point to the previous instant
+    // (world_previous ∘ world_current⁻¹), slab 1 the inverse; identity for inactive slots — the
+    // on-device counterpart of detail::compose_flow_deltas
+    void overlay_accel_compose_flow_deltas(const OverlaySlotStructure* structure, const float* transforms, const float* transforms_previous, float* deltas, unsigned int num_overlays, unsigned int max_instances, cudaStream_t stream);
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

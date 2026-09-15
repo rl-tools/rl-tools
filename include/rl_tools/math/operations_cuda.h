@@ -3,9 +3,7 @@
 #pragma once
 #define RL_TOOLS_MATH_OPERATIONS_CUDA_H
 
-#ifndef RL_TOOLS_FUNCTION_PLACEMENT
-#define RL_TOOLS_FUNCTION_PLACEMENT
-#endif
+#include "../rl_tools.h"
 
 #include "operations_generic.h"
 

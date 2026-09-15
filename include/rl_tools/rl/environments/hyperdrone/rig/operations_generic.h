@@ -7,9 +7,6 @@
 #include "rig.h"
 #include "../../l2f/quaternion_helper.h"
 
-#ifndef RL_TOOLS_FUNCTION_PLACEMENT
-#define RL_TOOLS_FUNCTION_PLACEMENT
-#endif
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::hyperdrone::rig {

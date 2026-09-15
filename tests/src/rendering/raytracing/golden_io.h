@@ -669,6 +669,81 @@ namespace golden {
             && write_segmentation_diff_grid_png(diff_path, target, current, num_cameras, camera_width, camera_height);
     }
 
+    // pinned false color of the flow status corpus images (flow_status.png / flow_forward_status.png),
+    // validated against the .bin by the corpus tests like segmentation.png: VALID white, MISS black,
+    // BEHIND magenta, OUT_OF_FRAME blue, OCCLUDED orange, anything else red
+    inline uint32_t flow_status_false_color(uint32_t status){
+        using FlowStatus = rl_tools::rendering::raytracing::FlowStatus;
+        switch(status){
+            case FlowStatus::VALID: return rgba(255, 255, 255);
+            case FlowStatus::MISS: return rgba(0, 0, 0);
+            case FlowStatus::BEHIND: return rgba(255, 0, 255);
+            case FlowStatus::OUT_OF_FRAME: return rgba(32, 64, 255);
+            case FlowStatus::OCCLUDED: return rgba(255, 144, 0);
+            default: return rgba(255, 0, 0);
+        }
+    }
+
+    inline uint32_t flow_status_diff_color(uint32_t target, uint32_t current){
+        return target == current ? rgba(0, 0, 0) : rgba(245, 65, 55);
+    }
+
+    inline void colorize_flow_status(const uint32_t* status, size_t count, uint32_t* image){
+        for(size_t pixel_i = 0; pixel_i < count; pixel_i++){
+            image[pixel_i] = flow_status_false_color(status[pixel_i]);
+        }
+    }
+
+    inline bool write_flow_status_grid_png(
+        const std::string& path,
+        const uint32_t* status,
+        int num_cameras,
+        int camera_width,
+        int camera_height
+    ){
+        size_t count = 0;
+        if(!detail::checked_element_count(num_cameras, camera_width, camera_height, count)){
+            return false;
+        }
+        std::vector<uint32_t> image(count);
+        colorize_flow_status(status, count, image.data());
+        return write_camera_grid_png(path, image.data(), num_cameras, camera_width, camera_height);
+    }
+
+    inline bool write_flow_status_diff_grid_png(
+        const std::string& path,
+        const uint32_t* target,
+        const uint32_t* current,
+        int num_cameras,
+        int camera_width,
+        int camera_height
+    ){
+        size_t count = 0;
+        if(!detail::checked_element_count(num_cameras, camera_width, camera_height, count)){
+            return false;
+        }
+        std::vector<uint32_t> image(count);
+        for(size_t pixel_i = 0; pixel_i < count; pixel_i++){
+            image[pixel_i] = flow_status_diff_color(target[pixel_i], current[pixel_i]);
+        }
+        return write_camera_grid_png(path, image.data(), num_cameras, camera_width, camera_height);
+    }
+
+    inline bool write_flow_status_review_grid_pngs(
+        const std::string& target_path,
+        const std::string& current_path,
+        const std::string& diff_path,
+        const uint32_t* target,
+        const uint32_t* current,
+        int num_cameras,
+        int camera_width,
+        int camera_height
+    ){
+        return write_flow_status_grid_png(target_path, target, num_cameras, camera_width, camera_height)
+            && write_flow_status_grid_png(current_path, current, num_cameras, camera_width, camera_height)
+            && write_flow_status_diff_grid_png(diff_path, target, current, num_cameras, camera_width, camera_height);
+    }
+
     struct DepthVisualizationRange{
         float minimum = 0;
         float maximum = 1;

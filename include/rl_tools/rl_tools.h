@@ -13,8 +13,51 @@
 #define RL_TOOLS_NAMESPACE_WRAPPER_END }
 #endif
 
+// Execution-space contract: RL_TOOLS_FUNCTION_PLACEMENT promises that every callee of the function is available in every execution space the function is instantiated for.
+// Backend leaves that need host facilities (kernel launches, cuBLAS/cuDNN, memcpy, host RNG, standard I/O) keep the placement but wrap their single statement in RL_TOOLS_HOST_ONLY:
+// the statement in the host pass and a call to the undefined device sentinel in device passes, so a kernel reaching them fails at device link time instead of compiling silently.
+// Tag-device leaves mirror this with RL_TOOLS_DEVICE_ONLY and the host sentinel. This is the only place that tests the compilation pass.
+#ifndef RL_TOOLS_FUNCTION_PLACEMENT
+    #if defined(__CUDACC__)
+        #define RL_TOOLS_FUNCTION_PLACEMENT __host__ __device__
+    #else
+        #define RL_TOOLS_FUNCTION_PLACEMENT
+    #endif
+#endif
+// The sentinel is instantiated with decltype of the guarded expression: naming the expression keeps it unevaluated (no cross-execution-space call), yet forces the
+// host implementation to be instantiated when it has a deduced return type, which is what makes the device pass see the kernel template instantiations inside it.
+#if defined(__CUDA_ARCH__)
+    #define RL_TOOLS_HOST_ONLY(...) RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools::detail::host_only_operation_called_from_device<decltype(__VA_ARGS__)>()
+    #define RL_TOOLS_DEVICE_ONLY(...) (__VA_ARGS__)
+#else
+    #define RL_TOOLS_HOST_ONLY(...) (__VA_ARGS__)
+    #define RL_TOOLS_DEVICE_ONLY(...) RL_TOOLS_NAMESPACE_WRAPPER ::rl_tools::detail::device_only_operation_called_from_host<decltype(__VA_ARGS__)>()
+#endif
+#if defined(__CUDACC_RDC__)
+#include <cstdio>
+#endif
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+    namespace detail{
+#if defined(__CUDACC__)
+    #if defined(__CUDACC_RDC__)
+        // relocatable device code resolves undefined device symbols at module load and fails silently, so trap loudly instead
+        template <typename T>
+        [[noreturn]] __device__ inline T host_only_operation_called_from_device(){
+            printf("RLtools: host-only operation reached from device code\n");
+            while(true){
+                __trap();
+            }
+        }
+    #else
+        template <typename T>
+        [[noreturn]] __device__ T host_only_operation_called_from_device();
+    #endif
+#endif
+        template <typename T>
+        [[noreturn]] T device_only_operation_called_from_host();
+    }
     template <auto T_C>
     struct Constant{
         static constexpr auto C = T_C;

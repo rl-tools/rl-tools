@@ -25,9 +25,11 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   `Tensor` members exposed by accessors — `cameras()`, `cameras_open()`/`cameras_close()`
   (motion blur), `transforms()` (overlays), `transforms_motion()` (dynamic motion blur:
   per-sample overlay transforms, sample-major so slab `s` shares the `transforms()` layout),
-  `transforms_pair()` (dynamic-motion-blur / flow producer input: shutter-open/close entries),
+  `transforms_pair()` (dynamic-motion-blur producer input: shutter-open/close entries),
+  `cameras_previous()`/`transforms_previous()` (flow: the previous instant),
   `frame_buffer()`, `depth_buffer()`, `segmentation_buffer()`, `normals_buffer()`,
-  `flow_buffer()`, `flow_deltas()`, `collision_results()`, `observation()`. Residency is a
+  `flow_buffer()`/`flow_status_buffer()`, `flow_forward_buffer()`/`flow_forward_status_buffer()`,
+  `collision_results()`, `observation()`. Residency is a
   backend property: CUDA device memory on OptiX, host on generic and WebGPU (WebGPU settles
   outputs from staging at the sync boundary), shared/mapped on Metal/Vulkan.
 - **Data moves via tensor copies and kernels.** No raw backend handles or `cudaStream_t` appear in
@@ -55,19 +57,7 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   of the hit surface, oriented against the ray, as float3 per pixel to `normals_buffer()`
   (miss = zero). Unit normals cannot be averaged, so anti-aliasing and motion-blur settings do
   not apply, and the pass stays out of the dynamic-motion-blur accumulate/resolve machinery.
-- **Flow output.** With `OUTPUT_FLOW`, another single-sample pass writes the backward optical
-  flow of the shutter-close frame in pixels to `flow_buffer()` (float2, miss = zero): the hit
-  point is carried to shutter open by its instance's shutter motion and projected through the
-  shutter-open camera. The two instants are the motion-blur pair inputs — `cameras_open()`
-  (whose storage flow enables independently of motion blur) and the `set_transform_pair`
-  shutter poses, composed per overlay slot into `flow_deltas()` (world_open ∘ world_close⁻¹;
-  single-pose verbs replicate, so held objects contribute pure camera flow). A producer drives
-  frame-to-frame flow by writing last frame's state into the open slots: either through
-  `transforms_pair()` + `expand_motion_transforms` (available to flow specifications without
-  motion blur; on OptiX the expansion stays on-device) followed by `update` to republish the
-  overlay geometry, or by writing `flow_deltas()` directly under the same ownership contract as
-  `transforms()` — clean (non-dirty) overlays are producer-owned and `update()` never clobbers
-  their rows from the host mirrors.
+- **Flow output.** With `OUTPUT_FLOW`, a single-sample pass writes the backward optical flow of the current frame to `flow_buffer()` (float2 per pixel, in pixels, sub-pixel exact) and a `FlowStatus` code per pixel to `flow_status_buffer()` (uint32). The renderer holds two instants of the published state: `cameras()`/`transforms()` are the current instant and `cameras_previous()`/`transforms_previous()` the previous one, each with its own resident overlay acceleration structures. Per pixel the pass traces the pixel-centre ray against the current instant, carries the hit point by its instance's rigid motion between the instants (composed per overlay slot at `update`; scene geometry and objects that did not move contribute pure camera flow), projects it through the previous camera and shoots a visibility ray from the previous camera towards the carried point against the previous instant. The status resolves in priority order: `MISS` (no hit; flow zero), `BEHIND` (carried point at or behind the other camera; flow zero), `OUT_OF_FRAME` (projects outside the other image; visibility not tested), `OCCLUDED` (a closer hit along the visibility ray within the relative margin `FLOW_VISIBILITY_EPSILON`), `VALID`. The flow value is the displacement to add to a pixel to reach its correspondence (`p_previous - p_current`) and is retained on `OUT_OF_FRAME` and `OCCLUDED`, so the status is the mask. `OUTPUT_FLOW_FORWARD` adds the mirrored pass on the previous camera grid (`flow_forward_buffer()`/`flow_forward_status_buffer()`, `p_current - p_previous`), which is what a bidirectional-consistency consumer needs. Host verbs: `spawn` initialises previous == current, the `set_transform*` verbs touch only the current instant, and `advance_flow` publishes the current instant as the previous one (cameras and poses; clean overlays copy their tensor rows, dirty ones stage their host mirrors at the next `update`). The frame-to-frame steady state is `advance_flow` → move/write → `update` → `render`; producers that keep last frame's state themselves write `cameras_previous()` and the clean overlays' `transforms_previous()` rows directly, under the same ownership contract as `transforms()`. Not modelled: attachment changes between the instants, non-rigid motion beyond per-part articulation, rolling shutter, and flow through motion-blur sample poses. Examples: `src/rendering/raytracing/example/flow.cpp` (one steady-state step to PNGs) and the `rendering_raytracing_interactive_flow` viewer (walk the scene with an orbiting cube; RGB on the left half, flow on the right half, Tab cycles backward flow, backward status, forward flow and forward status).
 - **Determinism is a contract.** Fixed seed ⇒ identical results, no atomics. The global
   instance-id layout (scene instances `[0,S)`, overlay `o` slot `s` at `S + o*MAX + s`) is
   cross-backend API surface consumed by segmentation.
@@ -134,13 +124,16 @@ indoor-position scoring) are caller-side. Ownership is symmetric: `free` every r
 ## Steady-state step (device-resident)
 
 ```cpp
+rlt::advance_flow_launch(device, renderer);   // flow only: cameras/transforms -> *_previous (device-to-device on OptiX)
 // producers on device.stream write the input tensors in place
 extract_cameras_kernel<<<..., device.stream>>>(..., rlt::data(rlt::cameras(device, renderer)));
-rlt::update_launch(device, renderer);   // overlays: fill kernel + TLAS rebuilds
+rlt::update_launch(device, renderer);   // overlays: fill kernel + TLAS rebuilds (both instants with flow)
 rlt::render_launch(device, renderer);   // waits device.stream internally (CUDA device arg)
 rlt::probe_launch(device, renderer);
-// consumers read rlt::data(rlt::observation(device, renderer)) etc. in place
+// consumers read rlt::data(rlt::observation(device, renderer)), rlt::data(rlt::flow_buffer(device, renderer)) etc. in place
 ```
+
+The host-verb form of the same step (`advance_flow` → `set_transform`/camera upload → `update` → `render`) is `src/rendering/raytracing/example/flow.cpp`.
 
 ## Backends
 

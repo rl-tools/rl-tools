@@ -3,9 +3,7 @@
 #pragma once
 #define RL_TOOLS_UTILS_GENERIC_MATH_H
 
-#ifndef RL_TOOLS_FUNCTION_PLACEMENT
-#define RL_TOOLS_FUNCTION_PLACEMENT
-#endif
+#include "../rl_tools.h"
 
 #ifdef _MSC_VER
 #include <limits>
@@ -24,7 +22,7 @@ namespace rl_tools::math {
 
     // Implementing sqrt using the Babylonian method (also known as Heron's method)
     template<typename T>
-    T sqrt(const devices::math::Generic&, T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT T sqrt(const devices::math::Generic&, T x) {
         if (x < 0) return -1; // Return -1 for negative numbers to indicate an error
         T guess = x / 2.0;
         T epsilon = 0.00001;
@@ -35,7 +33,7 @@ namespace rl_tools::math {
     }
 
     template<typename T>
-    T exp(const devices::math::Generic&, T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT T exp(const devices::math::Generic&, T x) {
         T sum = 1.0;
         T term = 1.0;
         for (int i = 1; i < 20; ++i) {
@@ -46,7 +44,7 @@ namespace rl_tools::math {
     }
 
     template<typename T>
-    T tanh(const devices::math::Generic&, T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT T tanh(const devices::math::Generic&, T x) {
         if (x > 20.0) return 1.0;
         if (x < -20.0) return -1.0;
         T ex = exp(devices::math::Generic(), x);
@@ -56,7 +54,7 @@ namespace rl_tools::math {
 
 
     template<typename T>
-    T sin(const devices::math::Generic&, T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT T sin(const devices::math::Generic&, T x) {
         T term = x;
         T sum = x;
         for (int i = 1; i < 10; ++i) {
@@ -67,7 +65,7 @@ namespace rl_tools::math {
     }
 
     template<typename T>
-    T cos(const devices::math::Generic&, T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT T cos(const devices::math::Generic&, T x) {
         T term = 1.0;
         T sum = 1.0;
         for (int i = 1; i < 10; ++i) {
@@ -101,13 +99,13 @@ namespace rl_tools::math {
         pS1 = -4.2743422091e-02f,
         pS2 = -8.6563630030e-03f,
         qS1 = -7.0662963390e-01f;
-        static inline float R(float z){
+        RL_TOOLS_FUNCTION_PLACEMENT static inline float R(float z){
             float p, q;
             p = z*(pS0+z*(pS1+z*pS2));
             q = 1.0f+z*qS1;
             return p/q;
         }
-        inline uint32_t get_float_bits(float f) {
+        RL_TOOLS_FUNCTION_PLACEMENT inline uint32_t get_float_bits(float f) {
             uint32_t bits = 0;
             unsigned char* f_bytes = reinterpret_cast<unsigned char*>(&f);
             unsigned char* bits_bytes = reinterpret_cast<unsigned char*>(&bits);
@@ -118,7 +116,7 @@ namespace rl_tools::math {
 
             return bits;
         }
-        inline float set_float_bits(uint32_t bits) {
+        RL_TOOLS_FUNCTION_PLACEMENT inline float set_float_bits(uint32_t bits) {
             float f = 0.0f;
             unsigned char* f_bytes = reinterpret_cast<unsigned char*>(&f);
             unsigned char* bits_bytes = reinterpret_cast<unsigned char*>(&bits);
@@ -131,7 +129,7 @@ namespace rl_tools::math {
         }
     }
     template<typename T>
-    T acos(const devices::math::Generic& dev, T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT T acos(const devices::math::Generic& dev, T x) {
         float z,w,s,c,df;
         uint32_t hx,ix;
 
@@ -181,7 +179,7 @@ namespace rl_tools::math {
     }
 
     template<typename T>
-    T log(const devices::math::Generic&, T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT T log(const devices::math::Generic&, T x) {
         if (x <= 0) return -1; // log is only defined for positive numbers
         T sum = 0.0;
         T term = (x - 1) / (x + 1);
@@ -194,7 +192,7 @@ namespace rl_tools::math {
     }
 
     template<typename T>
-    T floor(const devices::math::Generic&, const T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT T floor(const devices::math::Generic&, const T x) {
         return static_cast<int>(x);
     }
 
@@ -220,22 +218,22 @@ namespace rl_tools::math {
     }
 
     template<typename T>
-    T min(const devices::math::Generic&, T x, T y) {
+    RL_TOOLS_FUNCTION_PLACEMENT T min(const devices::math::Generic&, T x, T y) {
         return x < y ? x : y;
     }
 
     template<typename T>
-    T max(const devices::math::Generic&, T x, T y) {
+    RL_TOOLS_FUNCTION_PLACEMENT T max(const devices::math::Generic&, T x, T y) {
         return x > y ? x : y;
     }
 
     template<typename T>
-    T abs(const devices::math::Generic&, T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT T abs(const devices::math::Generic&, T x) {
         return x > 0 ? x : -x;
     }
 
     template<typename T>
-    T nan(const devices::math::Generic&) {
+    RL_TOOLS_FUNCTION_PLACEMENT T nan(const devices::math::Generic&) {
 #ifndef _MSC_VER
         return 0.0 / 0.0; // Produces NaN
 #else
@@ -256,7 +254,7 @@ namespace rl_tools::math {
 
 
     template<typename T>
-    T atan(const devices::math::Generic&, T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT T atan(const devices::math::Generic&, T x) {
         // Constants for polynomial approximation
         T a = 0.9998660;
         T b = -0.3302995;
@@ -278,7 +276,7 @@ namespace rl_tools::math {
     }
 
     template<typename T>
-    T atan2(const devices::math::Generic&, T y, T x) {
+    RL_TOOLS_FUNCTION_PLACEMENT T atan2(const devices::math::Generic&, T y, T x) {
         if (x > 0) {
             return atan(y / x);
         } else if (x < 0 && y >= 0) {

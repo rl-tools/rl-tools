@@ -350,10 +350,13 @@ namespace rl_tools {
             malloc(device, renderer.normals_buffer);
         }
         if constexpr (SPEC::HAS_FLOW) {
+            malloc(device, renderer.cameras_previous);
             malloc(device, renderer.flow_buffer);
-            if constexpr (SPEC::ENABLE_OVERLAYS) {
-                malloc(device, renderer.flow_deltas);
-            }
+            malloc(device, renderer.flow_status_buffer);
+        }
+        if constexpr (SPEC::HAS_FLOW_FORWARD) {
+            malloc(device, renderer.flow_forward_buffer);
+            malloc(device, renderer.flow_forward_status_buffer);
         }
         if constexpr (SPEC::HAS_OBSERVATION) {
             static_assert(utils::typing::is_same_v<typename SPEC::OBSERVATION_T, float>, "The WebGPU raytracing backend requires OBSERVATION_T = float");
@@ -361,6 +364,10 @@ namespace rl_tools {
         }
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             malloc(device, renderer.transforms);
+        }
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS) {
+            malloc(device, renderer.transforms_previous);
+            std::memset(data(renderer.transforms_previous), 0, decltype(renderer.transforms_previous)::SPEC::SIZE_BYTES);
         }
         if constexpr (SPEC::HAS_TRANSFORM_PAIR) {
             malloc(device, renderer.transforms_pair);
@@ -611,6 +618,9 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_FLOW) {
                 ctx->flow_pipeline = make_pipeline("main_flow");
             }
+            if constexpr (SPEC::HAS_FLOW_FORWARD) {
+                ctx->flow_forward_pipeline = make_pipeline("main_flow_forward");
+            }
             if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
                 ctx->resolve_pipeline = make_pipeline("main_resolve");
             }
@@ -641,6 +651,11 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_FLOW) {
             ctx->staging_flow = wg::create_buffer(device, *ctx, (size_t)LAYOUT::FLOW_WORDS * sizeof(uint32_t), STAGING);
+            ctx->staging_flow_status = wg::create_buffer(device, *ctx, (size_t)LAYOUT::FLOW_STATUS_WORDS * sizeof(uint32_t), STAGING);
+        }
+        if constexpr (SPEC::HAS_FLOW_FORWARD) {
+            ctx->staging_flow_forward = wg::create_buffer(device, *ctx, (size_t)LAYOUT::FLOW_FORWARD_WORDS * sizeof(uint32_t), STAGING);
+            ctx->staging_flow_forward_status = wg::create_buffer(device, *ctx, (size_t)LAYOUT::FLOW_FORWARD_STATUS_WORDS * sizeof(uint32_t), STAGING);
         }
         if constexpr (SPEC::HAS_OBSERVATION) {
             ctx->staging_observation = wg::create_buffer(device, *ctx, (size_t)LAYOUT::OBSERVATION_WORDS * sizeof(uint32_t), STAGING);
@@ -662,6 +677,11 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_FLOW) {
             ctx->render_readbacks.push_back({&ctx->staging_flow, data(renderer.flow_buffer), decltype(renderer.flow_buffer)::SPEC::SIZE_BYTES});
+            ctx->render_readbacks.push_back({&ctx->staging_flow_status, data(renderer.flow_status_buffer), decltype(renderer.flow_status_buffer)::SPEC::SIZE_BYTES});
+        }
+        if constexpr (SPEC::HAS_FLOW_FORWARD) {
+            ctx->render_readbacks.push_back({&ctx->staging_flow_forward, data(renderer.flow_forward_buffer), decltype(renderer.flow_forward_buffer)::SPEC::SIZE_BYTES});
+            ctx->render_readbacks.push_back({&ctx->staging_flow_forward_status, data(renderer.flow_forward_status_buffer), decltype(renderer.flow_forward_status_buffer)::SPEC::SIZE_BYTES});
         }
         if constexpr (SPEC::HAS_OBSERVATION) {
             ctx->render_readbacks.push_back({&ctx->staging_observation, data(renderer.observation), decltype(renderer.observation)::SPEC::SIZE_BYTES});
@@ -797,10 +817,11 @@ namespace rl_tools {
         }
 
         // instance side tables: scene instances then the overlay slot pool, one extra overlay id
-        // range per dynamic-motion-blur sample (mirrors the Vulkan backend's shifted ids)
+        // range per dynamic-motion-blur sample (mirrors the Vulkan backend's shifted ids) and one
+        // for the flow previous instant, appended last (BufferLayout::FLOW_PREVIOUS_REGION)
         const size_t num_scene_instances = scene.instances.size();
         constexpr size_t num_overlay_slots = SPEC::ENABLE_OVERLAYS ? (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES : 0;
-        constexpr size_t overlay_id_ranges = SPEC::ENABLE_DYNAMIC_MOTION_BLUR ? (size_t)1 + SPEC::MOTION_BLUR_SAMPLES : 1;
+        constexpr size_t overlay_id_ranges = SPEC::ENABLE_OVERLAYS ? (size_t)wg::BufferLayout<SPEC>::OVERLAY_REGIONS : 1;
         const size_t total_instances = num_scene_instances + num_overlay_slots * overlay_id_ranges;
         ctx.num_scene_instances = (uint32_t)num_scene_instances;
         ctx.total_instances = (uint32_t)total_instances;
@@ -999,6 +1020,7 @@ namespace rl_tools {
                 params.miss_color_1[component] = (float)renderer.miss_color_1[component];
             }
             params.first_overlay_instance = (uint32_t)num_scene_instances;
+            params.num_overlay_slots = (uint32_t)num_overlay_slots;
             params.triangle_mesh_offset = triangle_mesh_offset;
             params.triangle_local_offset = triangle_local_offset;
             params.object_records_offset = object_records_offset;
@@ -1016,11 +1038,15 @@ namespace rl_tools {
             params.flow_deltas_offset = LAYOUT::FLOW_DELTAS_OFFSET;
             params.probe_directions_offset = LAYOUT::PROBE_DIRECTIONS_OFFSET;
             params.cameras_offset = LAYOUT::CAMERAS_OFFSET;
+            params.cameras_previous_offset = LAYOUT::CAMERAS_PREVIOUS_OFFSET;
             params.out_frame_buffer = LAYOUT::FRAME_BUFFER_OFFSET;
             params.out_depth = LAYOUT::DEPTH_OFFSET;
             params.out_segmentation = LAYOUT::SEGMENTATION_OFFSET;
             params.out_normals = LAYOUT::NORMALS_OFFSET;
             params.out_flow = LAYOUT::FLOW_OFFSET;
+            params.out_flow_status = LAYOUT::FLOW_STATUS_OFFSET;
+            params.out_flow_forward = LAYOUT::FLOW_FORWARD_OFFSET;
+            params.out_flow_forward_status = LAYOUT::FLOW_FORWARD_STATUS_OFFSET;
             params.out_observation = LAYOUT::OBSERVATION_OFFSET;
             params.out_rgb_accumulator = LAYOUT::RGB_ACCUMULATOR_OFFSET;
             params.out_depth_accumulator = LAYOUT::DEPTH_ACCUMULATOR_OFFSET;
@@ -1078,13 +1104,9 @@ namespace rl_tools {
         auto& ctx = wg::context(renderer);
 
         using LAYOUT = wg::BufferLayout<SPEC>;
-        if constexpr (SPEC::HAS_FLOW){
-            rendering::raytracing::detail::compose_flow_deltas(renderer, data(renderer.flow_deltas));
-            wgpuQueueWriteBuffer(ctx.queue, ctx.frame_inputs.buffer, (uint64_t)LAYOUT::FLOW_DELTAS_OFFSET * sizeof(uint32_t), data(renderer.flow_deltas), (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float));
-        }
         rendering::raytracing::detail::flush_overlay_transforms(renderer);
 
-        // rebuilt unconditionally: producers may write the transforms tensor directly, which
+        // rebuilt unconditionally: producers may write the transforms tensors directly, which
         // leaves no host-observable dirty flag. queueWriteBuffer is ordered before subsequent
         // submits, so no synchronization with in-flight renders is needed
         wg::rebuild_overlay_region(device, renderer, ctx, 0, (const float*)nullptr);
@@ -1094,6 +1116,14 @@ namespace rl_tools {
             for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
                 wg::rebuild_overlay_region(device, renderer, ctx, 1 + (uint32_t)sample, data(renderer.transforms_motion) + sample * SLAB);
             }
+        }
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS){
+            // the previous instant's BVH region from transforms_previous, plus the per-slot delta
+            // table between the instants
+            wg::rebuild_overlay_region(device, renderer, ctx, LAYOUT::FLOW_PREVIOUS_REGION, data(renderer.transforms_previous));
+            ctx.flow_deltas_host.resize(LAYOUT::FLOW_DELTAS_WORDS);
+            rendering::raytracing::detail::compose_flow_deltas(renderer, data(renderer.transforms), data(renderer.transforms_previous), ctx.flow_deltas_host.data());
+            wgpuQueueWriteBuffer(ctx.queue, ctx.frame_inputs.buffer, (uint64_t)LAYOUT::FLOW_DELTAS_OFFSET * sizeof(uint32_t), ctx.flow_deltas_host.data(), ctx.flow_deltas_host.size() * sizeof(float));
         }
         if(renderer.attachments_dirty){
             std::vector<uint32_t> attachments((size_t)SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA);
@@ -1122,13 +1152,43 @@ namespace rl_tools {
     // device-resident path is the OptiX backend)
     template <typename DEVICE, typename SPEC>
     void expand_motion_transforms_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
-        static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur or flow renderer specification");
+        static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur renderer specification");
         rendering::raytracing::detail::expand_motion_transforms_host(renderer);
     }
 
     template <typename DEVICE, typename SPEC>
     void expand_motion_transforms_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
-        static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur or flow renderer specification");
+        static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur renderer specification");
+    }
+
+    // the previous instant becomes the current one: the inputs are host tensors uploaded at
+    // launch time, so plain copies — clean overlays copy their producer-owned rows, dirty
+    // overlays reach transforms_previous through the mirrors at the next update
+    template <typename DEVICE, typename SPEC>
+    void advance_flow_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
+        static_assert(SPEC::HAS_FLOW, "advance_flow requires a flow-capable renderer specification");
+        using TI = typename SPEC::TI;
+        std::memcpy(data(renderer.cameras_previous), data(renderer.cameras), decltype(renderer.cameras)::SPEC::SIZE_BYTES);
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS){
+            bool copy_rows[SPEC::NUM_OVERLAYS];
+            rendering::raytracing::detail::advance_flow_mirrors(renderer, copy_rows);
+            for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
+                if(!copy_rows[overlay]) continue;
+                const size_t offset = (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES * 12;
+                std::memcpy(data(renderer.transforms_previous) + offset, data(renderer.transforms) + offset, (size_t)SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float));
+            }
+        }
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void advance_flow_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
+        static_assert(SPEC::HAS_FLOW, "advance_flow requires a flow-capable renderer specification");
+    }
+
+    template <typename DEVICE, typename SPEC>
+    void advance_flow(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
+        advance_flow_launch(device, renderer);
+        advance_flow_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1183,6 +1243,9 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_CAMERA_PAIR) {
             wgpuQueueWriteBuffer(ctx.queue, ctx.frame_inputs.buffer, (uint64_t)LAYOUT::CAMERAS_OFFSET * sizeof(uint32_t) + camera_bytes, data(renderer.cameras_open), camera_bytes);
         }
+        if constexpr (SPEC::HAS_FLOW) {
+            wgpuQueueWriteBuffer(ctx.queue, ctx.frame_inputs.buffer, (uint64_t)LAYOUT::CAMERAS_PREVIOUS_OFFSET * sizeof(uint32_t), data(renderer.cameras_previous), camera_bytes);
+        }
 
         constexpr uint32_t fb_groups_x = (SPEC::FB_WIDTH + wg::WORKGROUP_SIZE_X - 1) / wg::WORKGROUP_SIZE_X;
         constexpr uint32_t fb_groups_y = (SPEC::FB_HEIGHT + wg::WORKGROUP_SIZE_Y - 1) / wg::WORKGROUP_SIZE_Y;
@@ -1224,6 +1287,9 @@ namespace rl_tools {
                 if constexpr (SPEC::HAS_FLOW){
                     dispatch(ctx.flow_pipeline, 0, fb_groups_x, fb_groups_y);
                 }
+                if constexpr (SPEC::HAS_FLOW_FORWARD){
+                    dispatch(ctx.flow_forward_pipeline, 0, fb_groups_x, fb_groups_y);
+                }
                 dispatch(ctx.resolve_pipeline, 0, fb_groups_x, fb_groups_y);
             }
             else{
@@ -1241,6 +1307,9 @@ namespace rl_tools {
                 }
                 if constexpr (SPEC::HAS_FLOW){
                     dispatch(ctx.flow_pipeline, 0, fb_groups_x, fb_groups_y);
+                }
+                if constexpr (SPEC::HAS_FLOW_FORWARD){
+                    dispatch(ctx.flow_forward_pipeline, 0, fb_groups_x, fb_groups_y);
                 }
             }
             wgpuComputePassEncoderEnd(pass);
@@ -1260,6 +1329,11 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_FLOW){
             wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::FLOW_OFFSET * sizeof(uint32_t), ctx.staging_flow.buffer, 0, (uint64_t)LAYOUT::FLOW_WORDS * sizeof(uint32_t));
+            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::FLOW_STATUS_OFFSET * sizeof(uint32_t), ctx.staging_flow_status.buffer, 0, (uint64_t)LAYOUT::FLOW_STATUS_WORDS * sizeof(uint32_t));
+        }
+        if constexpr (SPEC::HAS_FLOW_FORWARD){
+            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::FLOW_FORWARD_OFFSET * sizeof(uint32_t), ctx.staging_flow_forward.buffer, 0, (uint64_t)LAYOUT::FLOW_FORWARD_WORDS * sizeof(uint32_t));
+            wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::FLOW_FORWARD_STATUS_OFFSET * sizeof(uint32_t), ctx.staging_flow_forward_status.buffer, 0, (uint64_t)LAYOUT::FLOW_FORWARD_STATUS_WORDS * sizeof(uint32_t));
         }
         if constexpr (SPEC::HAS_OBSERVATION){
             wgpuCommandEncoderCopyBufferToBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::OBSERVATION_OFFSET * sizeof(uint32_t), ctx.staging_observation.buffer, 0, (uint64_t)LAYOUT::OBSERVATION_WORDS * sizeof(uint32_t));
@@ -1334,6 +1408,9 @@ namespace rl_tools {
             wg::destroy_buffer(ctx.staging_segmentation);
             wg::destroy_buffer(ctx.staging_normals);
             wg::destroy_buffer(ctx.staging_flow);
+            wg::destroy_buffer(ctx.staging_flow_status);
+            wg::destroy_buffer(ctx.staging_flow_forward);
+            wg::destroy_buffer(ctx.staging_flow_forward_status);
             wg::destroy_buffer(ctx.staging_observation);
             wg::destroy_buffer(ctx.staging_collision);
             if(ctx.rgb_pipeline != nullptr){ wgpuComputePipelineRelease(ctx.rgb_pipeline); }
@@ -1342,6 +1419,7 @@ namespace rl_tools {
             if(ctx.segmentation_pipeline != nullptr){ wgpuComputePipelineRelease(ctx.segmentation_pipeline); }
             if(ctx.normals_pipeline != nullptr){ wgpuComputePipelineRelease(ctx.normals_pipeline); }
             if(ctx.flow_pipeline != nullptr){ wgpuComputePipelineRelease(ctx.flow_pipeline); }
+            if(ctx.flow_forward_pipeline != nullptr){ wgpuComputePipelineRelease(ctx.flow_forward_pipeline); }
             if(ctx.resolve_pipeline != nullptr){ wgpuComputePipelineRelease(ctx.resolve_pipeline); }
             if(ctx.pipeline_layout != nullptr){ wgpuPipelineLayoutRelease(ctx.pipeline_layout); }
             if(ctx.bind_group_layout != nullptr){ wgpuBindGroupLayoutRelease(ctx.bind_group_layout); }
@@ -1371,16 +1449,22 @@ namespace rl_tools {
             free(device, renderer.normals_buffer);
         }
         if constexpr (SPEC::HAS_FLOW) {
+            free(device, renderer.cameras_previous);
             free(device, renderer.flow_buffer);
-            if constexpr (SPEC::ENABLE_OVERLAYS) {
-                free(device, renderer.flow_deltas);
-            }
+            free(device, renderer.flow_status_buffer);
+        }
+        if constexpr (SPEC::HAS_FLOW_FORWARD) {
+            free(device, renderer.flow_forward_buffer);
+            free(device, renderer.flow_forward_status_buffer);
         }
         if constexpr (SPEC::HAS_OBSERVATION) {
             free(device, renderer.observation);
         }
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             free(device, renderer.transforms);
+        }
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS) {
+            free(device, renderer.transforms_previous);
         }
         if constexpr (SPEC::HAS_TRANSFORM_PAIR) {
             free(device, renderer.transforms_pair);

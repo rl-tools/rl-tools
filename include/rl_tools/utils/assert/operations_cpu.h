@@ -7,13 +7,17 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::utils{
     template <typename DEV_SPEC, typename T>
-    bool assert_exit(devices::CPU<DEV_SPEC>& device, bool condition, T message){
+    auto host_assert_exit(devices::CPU<DEV_SPEC>& device, bool condition, T message){
         if(!condition){
             log(device, device.logger, message);
             std::abort();
 //            throw std::runtime_error(message);
         }
         return condition;
+    }
+    template <typename DEV_SPEC, typename T>
+    RL_TOOLS_FUNCTION_PLACEMENT bool assert_exit(devices::CPU<DEV_SPEC>& device, bool condition, T message){
+        return RL_TOOLS_HOST_ONLY(host_assert_exit(device, condition, message));
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
