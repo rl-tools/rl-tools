@@ -6,6 +6,7 @@ import * as rlt from "./dyn_inference_wrapper.js"
 import { Gamepad } from "./gamepad.js"
 import { GamepadController } from "./gamepad_controller.js"
 import { visualPolicyProfile, packVisualPair } from "./visual_policy.js"
+import { fetchExperimentCheckpoints, filterExperimentCheckpoints } from "./experiments.js"
 import { AttitudeSetpointGamepadInput, ATTITUDE_SETPOINT_GAMEPAD_INTERFACE, ATTITUDE_SETPOINT_GAMEPAD_STORAGE_KEY } from "./attitude_setpoint_gamepad.js"
 import { Position } from "./trajectories/position.js"
 import { Lissajous } from "./trajectories/lissajous.js"
@@ -27,6 +28,9 @@ fetch("./git_hash.txt", { cache: "no-store" })
 const urlParams = new URLSearchParams(window.location.search);
 const file = urlParams.get('file');
 const file_url = file ? file : "./external/blob/checkpoint.h5"
+const experiments_param = urlParams.get('experiments')
+const experiments_base_path = experiments_param ? (experiments_param.endsWith("/") ? experiments_param : experiments_param + "/") : "../../experiments/"
+const EXPERIMENT_CHECKPOINT_DISPLAY_LIMIT = 500
 
 let proxy_controller = null
 let l2f = null
@@ -690,12 +694,19 @@ async function setCheckpoint(arrayBuffer) {
     }
 }
 
+let status_timeout = null
 function showStatus(message, isError = false) {
     const status = document.getElementById('status');
     status.textContent = message;
     status.style.display = 'block';
     status.className = `status ${isError ? 'error' : 'success'}`;
-    setTimeout(() => status.style.display = 'none', 3000);
+    if (status_timeout !== null) {
+        clearTimeout(status_timeout)
+    }
+    status_timeout = setTimeout(() => {
+        status.style.display = 'none'
+        status_timeout = null
+    }, 3000);
 }
 
 async function load_model(checkpoint) {
@@ -847,6 +858,90 @@ async function main() {
             reader.readAsArrayBuffer(file);
         }
         event.target.value = "";
+    })
+
+    const experiment_dialog = document.getElementById("experiment-dialog")
+    const experiment_filter = document.getElementById("experiment-filter")
+    const experiment_list = document.getElementById("experiment-list")
+    const experiment_summary = document.getElementById("experiment-dialog-summary")
+    const experiment_run_template = document.getElementById("experiment-run-template")
+    const experiment_checkpoint_template = document.getElementById("experiment-checkpoint-template")
+    let experiment_checkpoints = []
+    const load_experiment_checkpoint = async (checkpoint) => {
+        experiment_dialog.close()
+        showStatus(`Loading ${checkpoint.path}`)
+        try {
+            const response = await fetch(checkpoint.url)
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`)
+            }
+            await load_model(await response.arrayBuffer())
+            console.log("loaded model: ", model.checkpoint_name)
+            showStatus(`Loaded model: ${model.checkpoint_name}`)
+        } catch (error) {
+            console.error(`Failed to load ${checkpoint.path}: `, error)
+            showStatus(`Failed to load ${checkpoint.path}: ${error.message}`, true)
+        }
+    }
+    const render_experiment_checkpoints = () => {
+        const filtered = filterExperimentCheckpoints(experiment_checkpoints, experiment_filter.value)
+        const shown = filtered.slice(0, EXPERIMENT_CHECKPOINT_DISPLAY_LIMIT)
+        experiment_list.replaceChildren()
+        let run_container = null
+        let current_run = null
+        for (const checkpoint of shown) {
+            if (checkpoint.run !== current_run) {
+                const run_element = experiment_run_template.content.cloneNode(true)
+                run_element.querySelector(".experiment-run-header").textContent = checkpoint.run
+                run_container = run_element.querySelector(".experiment-run-checkpoints")
+                experiment_list.appendChild(run_element)
+                current_run = checkpoint.run
+            }
+            const checkpoint_element = experiment_checkpoint_template.content.cloneNode(true)
+            const button = checkpoint_element.querySelector(".experiment-checkpoint")
+            button.querySelector(".experiment-checkpoint-step").textContent = Number(checkpoint.step)
+            button.querySelector(".experiment-checkpoint-file").textContent = checkpoint.file
+            button.title = checkpoint.path
+            button.addEventListener("click", () => load_experiment_checkpoint(checkpoint))
+            run_container.appendChild(checkpoint_element)
+        }
+        const runs = new Set(filtered.map(checkpoint => checkpoint.run)).size
+        let summary = `${filtered.length} checkpoints in ${runs} runs (${experiments_base_path})`
+        if (filtered.length > shown.length) {
+            summary += `, showing the first ${shown.length}, refine the filter to see more`
+        }
+        experiment_summary.textContent = summary
+    }
+    const open_experiment_dialog = async () => {
+        experiment_dialog.showModal()
+        experiment_summary.textContent = `Loading ${experiments_base_path}index.txt`
+        try {
+            const checkpoints = await fetchExperimentCheckpoints(experiments_base_path)
+            if (checkpoints === null) {
+                throw new Error("index.txt not found")
+            }
+            experiment_checkpoints = checkpoints
+        } catch (error) {
+            console.error(`Failed to load experiments index from ${experiments_base_path}: `, error)
+            showStatus(`Failed to load experiments index from ${experiments_base_path}: ${error.message}`, true)
+        }
+        render_experiment_checkpoints()
+    }
+    document.getElementById("load-experiment-btn").addEventListener("click", open_experiment_dialog)
+    document.getElementById("experiment-dialog-close-btn").addEventListener("click", () => experiment_dialog.close())
+    experiment_dialog.addEventListener("click", (event) => {
+        if (event.target === experiment_dialog) {
+            experiment_dialog.close()
+        }
+    })
+    experiment_filter.addEventListener("input", render_experiment_checkpoints)
+    fetchExperimentCheckpoints(experiments_base_path).then((checkpoints) => {
+        if (checkpoints !== null) {
+            console.log(`Found ${checkpoints.length} experiment checkpoints at ${experiments_base_path}`)
+            document.getElementById("load-experiment-btn").hidden = false
+        }
+    }).catch(() => {
+        console.log(`No experiments index at ${experiments_base_path} (serve the repository root with tools/serve.sh to load checkpoints from local experiments)`)
     })
     document.getElementById("observations").addEventListener("keydown", async (e) => {
         if (e.key === "Enter") {

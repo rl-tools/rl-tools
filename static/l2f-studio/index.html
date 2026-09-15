@@ -61,6 +61,18 @@
             </div>
         </label>
     </template>
+    <template id="experiment-run-template">
+        <div class="experiment-run">
+            <div class="experiment-run-header"></div>
+            <div class="experiment-run-checkpoints"></div>
+        </div>
+    </template>
+    <template id="experiment-checkpoint-template">
+        <button class="experiment-checkpoint">
+            <span class="experiment-checkpoint-step"></span>
+            <span class="experiment-checkpoint-file"></span>
+        </button>
+    </template>
     <link rel="stylesheet" href="./index.css">
     <link rel="stylesheet" href="./scroll-indicator.css">
     <link rel="stylesheet" href="./raptor.css">
@@ -150,6 +162,7 @@
                         <button id="default-checkpoint-btn">Default</button>
                         <input type="file" id="load-checkpoint-btn-backend"></input>
                         <button id="load-checkpoint-btn">Load File</button>
+                        <button id="load-experiment-btn" hidden>Load Experiment</button>
                     </div>
                     <span class="policy-container-item">Observations:</span>
                     <div class="policy-container-item">
@@ -292,6 +305,17 @@
             </div>
         </div>
         <div id="drag-and-drop-overlay">Drop RLtools HDF5 checkpoint here!</div>
+        <dialog id="experiment-dialog">
+            <div id="experiment-dialog-content">
+                <div id="experiment-dialog-header">
+                    <span>Load checkpoint from experiment:</span>
+                    <input type="text" id="experiment-filter" placeholder="Filter (space-separated terms, e.g. l2f_visual 2026-09)" autocomplete="off" autofocus>
+                    <button id="experiment-dialog-close-btn">Close</button>
+                </div>
+                <div id="experiment-dialog-summary"></div>
+                <div id="experiment-list"></div>
+            </div>
+        </dialog>
 
     </div>
     <div id="raptor-project-page" class="raptor-right-sidebar">
