@@ -7,6 +7,7 @@ import { Gamepad } from "./gamepad.js"
 import { GamepadController } from "./gamepad_controller.js"
 import { visualPolicyProfile, packVisualPair } from "./visual_policy.js"
 import { fetchExperimentCheckpoints, filterExperimentCheckpoints } from "./experiments.js"
+import { ActionSparklines, ACTION_COLORS } from "./action_sparklines.js"
 import { AttitudeSetpointGamepadInput, ATTITUDE_SETPOINT_GAMEPAD_INTERFACE, ATTITUDE_SETPOINT_GAMEPAD_STORAGE_KEY } from "./attitude_setpoint_gamepad.js"
 import { Position } from "./trajectories/position.js"
 import { Lissajous } from "./trajectories/lissajous.js"
@@ -1099,17 +1100,27 @@ async function main() {
     wireTrajectoryCallback()
     trajectory_select.addEventListener("change", wireTrajectoryCallback)
 
+    const action_sparklines = new ActionSparklines(document.getElementById("vehicle-container"))
     l2f.state_update_callbacks.push((states) => {
         const vehicle_container = document.getElementById("vehicle-list")
-        if (vehicle_container.children.length != states.length) {
+        const action_dim = states.length > 0 ? states[0].action.length : 0
+        if (vehicle_container.children.length != states.length || vehicle_container.dataset.actionDim != action_dim) {
             const vehicle_template = document.getElementById("vehicle-template")
             vehicle_container.innerHTML = ""
+            vehicle_container.dataset.actionDim = action_dim
             states.forEach((state, i) => {
                 const vehicle_pre = vehicle_template.content.cloneNode(true)
                 const vehicle = vehicle_pre.querySelector(".vehicle")
                 vehicle.dataset.vehicleId = i
                 vehicle.querySelector(".vehicle-title").textContent = `Vehicle ${i}`
                 // vehicle.querySelector(".vehicle-id").textContent = JSON.stringify(state.parameters.dynamics, null, 2)
+                const action_element = vehicle.querySelector(".vehicle-action")
+                state.action.forEach((_, j) => {
+                    const value_element = document.createElement("span")
+                    value_element.style.color = ACTION_COLORS[j % ACTION_COLORS.length]
+                    action_element.appendChild(value_element)
+                })
+                action_sparklines.attach(vehicle.querySelector(".vehicle-action-sparkline"), i, action_dim)
                 vehicle_container.appendChild(vehicle)
                 // on hover
                 vehicle.addEventListener("mouseenter", (event) => {
@@ -1130,7 +1141,10 @@ async function main() {
                 return y >= 0 ? `+${y}` : y;
             }
             vehicle.querySelector(".vehicle-position").textContent = state.state.position.map(x => fixed(x, 3)).join(",")
-            vehicle.querySelector(".vehicle-action").textContent = state.action.map(x => fixed(x, 2)).join(",")
+            const action_values = vehicle.querySelector(".vehicle-action").children
+            state.action.forEach((x, j) => {
+                action_values[j].textContent = fixed(x, 2) + (j + 1 < state.action.length ? "," : "")
+            })
             const thrusts = state.parameters.dynamics.rotor_thrust_coefficients.map(curve => curve.reduce((a, c, i) => a + c * Math.pow(state.parameters.dynamics.action_limit.max, i), 0))
             const t2w = thrusts.reduce((a, c) => a+c, 0)/(9.81 * state.parameters.dynamics.mass)
             const torque = Math.abs(state.parameters.dynamics.rotor_positions[0][0]) * Math.sqrt(2) * thrusts[0]
@@ -1140,6 +1154,7 @@ async function main() {
             vehicle.querySelector(".vehicle-steps-since-reset").textContent = `${state.stepsSinceReset}`
             vehicle.title = JSON.stringify(state.parameters.dynamics, null, 2)
         })
+        action_sparklines.record(states)
 
     })
 
