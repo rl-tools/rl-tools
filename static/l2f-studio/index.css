@@ -279,6 +279,68 @@ canvas{
 #load-checkpoint-btn-backend{
     display: none;
 }
+#load-experiment-btn{
+    margin-left: 6px;
+}
+#experiment-dialog{
+    padding: 0;
+    border: 1px solid #aaa;
+    border-radius: 6px;
+    width: min(90vw, 900px);
+}
+#experiment-dialog::backdrop{
+    background: rgba(0, 0, 0, 0.4);
+}
+#experiment-dialog-content{
+    display: flex;
+    flex-direction: column;
+    max-height: 80svh;
+}
+#experiment-dialog-header{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px;
+    border-bottom: 1px solid #ddd;
+    white-space: nowrap;
+}
+#experiment-filter{
+    flex: 1;
+    min-width: 0;
+    font-family: monospace;
+}
+#experiment-dialog-summary{
+    padding: 4px 8px;
+    font-size: 80%;
+    color: #666;
+}
+#experiment-list{
+    overflow-y: auto;
+    min-height: 0;
+    padding: 0 8px 8px 8px;
+}
+.experiment-run{
+    margin-bottom: 6px;
+}
+.experiment-run-header{
+    font-family: monospace;
+    font-size: 80%;
+    word-break: break-all;
+}
+.experiment-run-checkpoints{
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 2px 0 0 12px;
+}
+.experiment-checkpoint{
+    font-family: monospace;
+    font-size: 80%;
+}
+.experiment-checkpoint-file{
+    color: #666;
+    margin-left: 4px;
+}
 
 #observations{
     font-family: monospace;

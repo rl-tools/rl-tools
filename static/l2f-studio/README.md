@@ -11,6 +11,8 @@ python3 -m http.server 8000 --bind 127.0.0.1
 
 Open <http://localhost:8000/static/l2f-studio/>. You can also serve `static/l2f-studio` directly and open the server's root URL.
 
+To load checkpoints from local ExTrack experiments, host the repository root with `./tools/serve.sh` instead of the plain static server. It keeps `experiments/index.txt` up to date, and when the studio finds that index at `../../experiments/` a "Load Experiment" button appears next to "Load File". The button opens a picker that lists every `steps/<step>/checkpoint*.h5` of every run, newest experiment and highest step first, with a filter that matches space-separated terms against the run path. The index is re-read each time the picker opens, so checkpoints written by a running training show up without a page reload. Pass `?experiments=<path>/` to use a different experiments folder relative to the studio URL; the button stays hidden when no index is reachable, for example on public hosting.
+
 The downloader creates depth-1 detached checkouts in `static/l2f-studio/external/`: `blob` contains the prebuilt JavaScript/WASM modules, policy checkpoint, and dynamics registry; `conta` contains meshes and scenes; `json` supplies nlohmann/json headers for rebuilding. The downloaded assets are sufficient to run the studio.
 
 To rebuild against the current RLtools sources, install Docker and run:
