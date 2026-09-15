@@ -2,9 +2,7 @@
 #if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_NN_CAPABILITY_PERSIST_CODE_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
 #pragma once
 #define RL_TOOLS_NN_CAPABILITY_PERSIST_CODE_H
-#ifndef RL_TOOLS_FUNCTION_PLACEMENT
-#define RL_TOOLS_FUNCTION_PLACEMENT
-#endif
+#include "../../rl_tools.h"
 
 #include "../../nn_models/group/persist_code.h"
 

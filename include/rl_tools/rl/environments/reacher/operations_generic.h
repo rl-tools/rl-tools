@@ -25,7 +25,7 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT static void initial_parameters(DEVICE& device, const rl::environments::Reacher<SPEC>& env, typename rl::environments::Reacher<SPEC>::Parameters& parameters){}
     template<typename DEVICE, typename SPEC, typename STATE_SPEC>
-    static void initial_state(DEVICE& device, const rl::environments::Reacher<SPEC>& env, typename rl::environments::Reacher<SPEC>::Parameters& parameters, typename rl::environments::reacher::State<STATE_SPEC>& state){
+    RL_TOOLS_FUNCTION_PLACEMENT static void initial_state(DEVICE& device, const rl::environments::Reacher<SPEC>& env, typename rl::environments::Reacher<SPEC>::Parameters& parameters, typename rl::environments::reacher::State<STATE_SPEC>& state){
         state.x = 0;
         state.y = 0;
         state.target_x = 0.5;
@@ -136,7 +136,7 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT static void initial_parameters(DEVICE& device, const rl::environments::ReacherVisual<SPEC>& env, typename rl::environments::ReacherVisual<SPEC>::Parameters& parameters){}
     template<typename DEVICE, typename SPEC, typename STATE_SPEC>
-    static void initial_state(DEVICE& device, const rl::environments::ReacherVisual<SPEC>& env, typename rl::environments::ReacherVisual<SPEC>::Parameters& parameters, typename rl::environments::reacher::State<STATE_SPEC>& state){
+    RL_TOOLS_FUNCTION_PLACEMENT static void initial_state(DEVICE& device, const rl::environments::ReacherVisual<SPEC>& env, typename rl::environments::ReacherVisual<SPEC>::Parameters& parameters, typename rl::environments::reacher::State<STATE_SPEC>& state){
         state.x = 0;
         state.y = 0;
         state.target_x = 0.5;
@@ -263,7 +263,7 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT static void initial_parameters(DEVICE& device, const rl::environments::ReacherVisualMemory<SPEC>& env, typename rl::environments::ReacherVisualMemory<SPEC>::Parameters& parameters){}
     template<typename DEVICE, typename SPEC, typename STATE_SPEC>
-    static void initial_state(DEVICE& device, const rl::environments::ReacherVisualMemory<SPEC>& env, typename rl::environments::ReacherVisualMemory<SPEC>::Parameters& parameters, typename rl::environments::reacher::StateSequentialTargets<STATE_SPEC>& state){
+    RL_TOOLS_FUNCTION_PLACEMENT static void initial_state(DEVICE& device, const rl::environments::ReacherVisualMemory<SPEC>& env, typename rl::environments::ReacherVisualMemory<SPEC>::Parameters& parameters, typename rl::environments::reacher::StateSequentialTargets<STATE_SPEC>& state){
         using PARAMS = typename SPEC::PARAMETERS;
         state.x = 0;
         state.y = 0;

@@ -7,6 +7,7 @@
 #include "device_spirv_segmentation.h"
 #include "device_spirv_normals.h"
 #include "device_spirv_flow.h"
+#include "device_spirv_flow_forward.h"
 #include "device_spirv_resolve.h"
 
 extern "C" const uint32_t* rl_tools_rendering_raytracing_vulkan_device_spirv_rgb(size_t* size_bytes){
@@ -32,6 +33,10 @@ extern "C" const uint32_t* rl_tools_rendering_raytracing_vulkan_device_spirv_nor
 extern "C" const uint32_t* rl_tools_rendering_raytracing_vulkan_device_spirv_flow(size_t* size_bytes){
     *size_bytes = sizeof(rl_tools_rendering_raytracing_vulkan_device_spirv_flow_words);
     return rl_tools_rendering_raytracing_vulkan_device_spirv_flow_words;
+}
+extern "C" const uint32_t* rl_tools_rendering_raytracing_vulkan_device_spirv_flow_forward(size_t* size_bytes){
+    *size_bytes = sizeof(rl_tools_rendering_raytracing_vulkan_device_spirv_flow_forward_words);
+    return rl_tools_rendering_raytracing_vulkan_device_spirv_flow_forward_words;
 }
 extern "C" const uint32_t* rl_tools_rendering_raytracing_vulkan_device_spirv_resolve(size_t* size_bytes){
     *size_bytes = sizeof(rl_tools_rendering_raytracing_vulkan_device_spirv_resolve_words);

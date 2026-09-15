@@ -4,6 +4,7 @@
 #define RL_TOOLS_NN_LAYERS_GRU_HELPER_OPERATIONS_CUDA_H
 
 #include "layer.h"
+#include "helper_operations_generic.h"
 #include "../../../containers/matrix/matrix.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -238,15 +239,141 @@ namespace rl_tools::nn::layers::gru::helper{
     }
 }
 
-namespace rl_tools::nn::layers::gru::mode{
-    template <typename SPEC, typename DEV_SPEC, typename MODE, typename MODE_SPEC, typename TI, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
-    bool reset_sample(devices::CUDA<DEV_SPEC>& device, const Mode<nn::layers::gru::ResetMode<MODE, MODE_SPEC>>& mode, TI step_i, TI sample_i){
-        using RTI = typename MODE_SPEC::TI;
-        using RESET_SPEC = typename MODE_SPEC::RESET_CONTAINER_TYPE::SPEC;
-        auto offset = (RTI)step_i * get<0>(typename RESET_SPEC::STRIDE{}) + (RTI)sample_i * get<1>(typename RESET_SPEC::STRIDE{});
-        typename RESET_SPEC::T host_val;
-        cudaMemcpy(&host_val, data(mode.reset_container) + offset, sizeof(host_val), cudaMemcpyDeviceToHost);
-        return host_val;
+namespace rl_tools::nn::layers::gru::helper{
+    namespace kernels{
+        template<typename LAYER_SPEC, typename DEV_SPEC, typename INITIAL_HIDDEN_STATE_SPEC, typename OUTPUT_PREVIOUS_STEP_SPEC, typename PREVIOUS_OUTPUT_SCRATCH_SPEC, typename MODE>
+        __global__
+        void select_previous_output_kernel(devices::CUDA<DEV_SPEC> device, const Tensor<INITIAL_HIDDEN_STATE_SPEC> initial_hidden_state, const Tensor<OUTPUT_PREVIOUS_STEP_SPEC> output_previous_step, Tensor<PREVIOUS_OUTPUT_SCRATCH_SPEC> previous_output_scratch, typename devices::CUDA<DEV_SPEC>::index_t step_i, const Mode<MODE> mode){
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using TI = typename DEVICE::index_t;
+            using T = typename PREVIOUS_OUTPUT_SCRATCH_SPEC::T;
+            constexpr TI BATCH_SIZE = PREVIOUS_OUTPUT_SCRATCH_SPEC::SHAPE::template GET<0>;
+            constexpr TI HIDDEN_DIM = PREVIOUS_OUTPUT_SCRATCH_SPEC::SHAPE::template GET<1>;
+            TI sample_i = blockIdx.x * blockDim.x + threadIdx.x;
+            TI hidden_i = blockIdx.y * blockDim.y + threadIdx.y;
+            if(sample_i < BATCH_SIZE && hidden_i < HIDDEN_DIM){
+                T value;
+                if(gru::mode::reset_sample<LAYER_SPEC>(device, mode, step_i, sample_i)){
+                    value = get(device, initial_hidden_state, hidden_i);
+                }
+                else{
+                    value = get(device, output_previous_step, sample_i, hidden_i);
+                }
+                set(device, previous_output_scratch, value, sample_i, hidden_i);
+            }
+        }
+        template<typename LAYER_SPEC, bool ACCUMULATE_INITIAL_HIDDEN_STATE_GRADIENT, typename DEV_SPEC, typename D_OUTPUT_STEP_SPEC, typename Z_POST_ACTIVATION_SPEC, typename D_OUTPUT_PREVIOUS_STEP_SPEC, typename INITIAL_HIDDEN_STATE_GRADIENT_SPEC, typename MODE>
+        __global__
+        void multiply_accumulate_d_output_previous_step_kernel(devices::CUDA<DEV_SPEC> device, const Tensor<D_OUTPUT_STEP_SPEC> d_output_step, const Tensor<Z_POST_ACTIVATION_SPEC> z_post_activation, Tensor<D_OUTPUT_PREVIOUS_STEP_SPEC> d_output_previous_step, Tensor<INITIAL_HIDDEN_STATE_GRADIENT_SPEC> initial_hidden_state_gradient, typename devices::CUDA<DEV_SPEC>::index_t step_i, const Mode<MODE> mode){
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using TI = typename DEVICE::index_t;
+            using T = typename D_OUTPUT_STEP_SPEC::T;
+            constexpr TI BATCH_SIZE = D_OUTPUT_STEP_SPEC::SHAPE::template GET<0>;
+            constexpr TI HIDDEN_DIM = D_OUTPUT_STEP_SPEC::SHAPE::template GET<1>;
+            TI hidden_i = blockIdx.x * blockDim.x + threadIdx.x;
+            if(hidden_i < HIDDEN_DIM){
+                T initial_hidden_state_gradient_accumulator = (T)0;
+                if constexpr(ACCUMULATE_INITIAL_HIDDEN_STATE_GRADIENT){
+                    initial_hidden_state_gradient_accumulator = get(device, initial_hidden_state_gradient, hidden_i);
+                }
+                for(TI sample_i = 0; sample_i < BATCH_SIZE; sample_i++){
+                    T value = get(device, d_output_step, sample_i, hidden_i) * get(device, z_post_activation, sample_i, hidden_i);
+                    if(gru::mode::reset_sample<LAYER_SPEC>(device, mode, step_i, sample_i)){
+                        if constexpr(ACCUMULATE_INITIAL_HIDDEN_STATE_GRADIENT){
+                            initial_hidden_state_gradient_accumulator += value;
+                        }
+                    }
+                    else{
+                        T previous = get(device, d_output_previous_step, sample_i, hidden_i);
+                        set(device, d_output_previous_step, previous + value, sample_i, hidden_i);
+                    }
+                }
+                if constexpr(ACCUMULATE_INITIAL_HIDDEN_STATE_GRADIENT){
+                    set(device, initial_hidden_state_gradient, initial_hidden_state_gradient_accumulator, hidden_i);
+                }
+            }
+        }
+        template<typename LAYER_SPEC, bool RESET_SAMPLES, typename DEV_SPEC, typename SPEC, typename MODE>
+        __global__
+        void zero_samples_kernel(devices::CUDA<DEV_SPEC> device, Tensor<SPEC> tensor, typename devices::CUDA<DEV_SPEC>::index_t step_i, const Mode<MODE> mode){
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using TI = typename DEVICE::index_t;
+            constexpr TI BATCH_SIZE = SPEC::SHAPE::template GET<0>;
+            constexpr TI COLS = SPEC::SHAPE::template GET<1>;
+            TI sample_i = blockIdx.x * blockDim.x + threadIdx.x;
+            TI col_i = blockIdx.y * blockDim.y + threadIdx.y;
+            if(sample_i < BATCH_SIZE && col_i < COLS){
+                if(gru::mode::reset_sample<LAYER_SPEC>(device, mode, step_i, sample_i) == RESET_SAMPLES){
+                    set(device, tensor, (typename SPEC::T)0, sample_i, col_i);
+                }
+            }
+        }
+    }
+    template<typename LAYER_SPEC, typename DEV_SPEC, typename INITIAL_HIDDEN_STATE_SPEC, typename OUTPUT_PREVIOUS_STEP_SPEC, typename PREVIOUS_OUTPUT_SCRATCH_SPEC, typename MODE>
+    auto host_select_previous_output(devices::CUDA<DEV_SPEC>& device, const Tensor<INITIAL_HIDDEN_STATE_SPEC>& initial_hidden_state, const Tensor<OUTPUT_PREVIOUS_STEP_SPEC>& output_previous_step, Tensor<PREVIOUS_OUTPUT_SCRATCH_SPEC>& previous_output_scratch, typename devices::CUDA<DEV_SPEC>::index_t step_i, const Mode<MODE>& mode){
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        using TI = typename DEVICE::index_t;
+        static_assert(length(typename INITIAL_HIDDEN_STATE_SPEC::SHAPE{}) == 1);
+        static_assert(length(typename OUTPUT_PREVIOUS_STEP_SPEC::SHAPE{}) == 2);
+        static_assert(length(typename PREVIOUS_OUTPUT_SCRATCH_SPEC::SHAPE{}) == 2);
+        constexpr TI BATCH_SIZE = PREVIOUS_OUTPUT_SCRATCH_SPEC::SHAPE::template GET<0>;
+        constexpr TI HIDDEN_DIM = PREVIOUS_OUTPUT_SCRATCH_SPEC::SHAPE::template GET<1>;
+        static_assert(get<0>(typename INITIAL_HIDDEN_STATE_SPEC::SHAPE{}) == HIDDEN_DIM);
+        static_assert(get<0>(typename OUTPUT_PREVIOUS_STEP_SPEC::SHAPE{}) == BATCH_SIZE);
+        static_assert(get<1>(typename OUTPUT_PREVIOUS_STEP_SPEC::SHAPE{}) == HIDDEN_DIM);
+        constexpr TI BLOCKSIZE = 32;
+        dim3 grid(RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE), RL_TOOLS_DEVICES_CUDA_CEIL(HIDDEN_DIM, BLOCKSIZE));
+        dim3 block(BLOCKSIZE, BLOCKSIZE);
+        devices::cuda::TAG<DEVICE, true> tag_device{};
+        kernels::select_previous_output_kernel<LAYER_SPEC><<<grid, block, 0, device.stream>>>(tag_device, initial_hidden_state, output_previous_step, previous_output_scratch, step_i, mode);
+        check_status(device);
+    }
+    template<typename LAYER_SPEC, typename DEV_SPEC, typename INITIAL_HIDDEN_STATE_SPEC, typename OUTPUT_PREVIOUS_STEP_SPEC, typename PREVIOUS_OUTPUT_SCRATCH_SPEC, typename MODE, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
+    RL_TOOLS_FUNCTION_PLACEMENT void select_previous_output(devices::CUDA<DEV_SPEC>& device, const Tensor<INITIAL_HIDDEN_STATE_SPEC>& initial_hidden_state, const Tensor<OUTPUT_PREVIOUS_STEP_SPEC>& output_previous_step, Tensor<PREVIOUS_OUTPUT_SCRATCH_SPEC>& previous_output_scratch, typename devices::CUDA<DEV_SPEC>::index_t step_i, const Mode<MODE>& mode){
+        RL_TOOLS_HOST_ONLY(host_select_previous_output<LAYER_SPEC>(device, initial_hidden_state, output_previous_step, previous_output_scratch, step_i, mode));
+    }
+    template<typename LAYER_SPEC, bool ACCUMULATE_INITIAL_HIDDEN_STATE_GRADIENT, typename DEV_SPEC, typename D_OUTPUT_STEP_SPEC, typename Z_POST_ACTIVATION_SPEC, typename D_OUTPUT_PREVIOUS_STEP_SPEC, typename INITIAL_HIDDEN_STATE_GRADIENT_SPEC, typename MODE>
+    auto host_multiply_accumulate_d_output_previous_step(devices::CUDA<DEV_SPEC>& device, const Tensor<D_OUTPUT_STEP_SPEC>& d_output_step, const Tensor<Z_POST_ACTIVATION_SPEC>& z_post_activation, Tensor<D_OUTPUT_PREVIOUS_STEP_SPEC>& d_output_previous_step, Tensor<INITIAL_HIDDEN_STATE_GRADIENT_SPEC>& initial_hidden_state_gradient, typename devices::CUDA<DEV_SPEC>::index_t step_i, const Mode<MODE>& mode){
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        using TI = typename DEVICE::index_t;
+        static_assert(length(typename D_OUTPUT_STEP_SPEC::SHAPE{}) == 2);
+        static_assert(length(typename INITIAL_HIDDEN_STATE_GRADIENT_SPEC::SHAPE{}) == 1);
+        static_assert(tensor::same_dimensions<D_OUTPUT_STEP_SPEC, Z_POST_ACTIVATION_SPEC>());
+        static_assert(tensor::same_dimensions<D_OUTPUT_STEP_SPEC, D_OUTPUT_PREVIOUS_STEP_SPEC>());
+        constexpr TI HIDDEN_DIM = D_OUTPUT_STEP_SPEC::SHAPE::template GET<1>;
+        static_assert(get<0>(typename INITIAL_HIDDEN_STATE_GRADIENT_SPEC::SHAPE{}) == HIDDEN_DIM);
+        constexpr TI BLOCKSIZE = 32;
+        dim3 grid(RL_TOOLS_DEVICES_CUDA_CEIL(HIDDEN_DIM, BLOCKSIZE));
+        dim3 block(BLOCKSIZE);
+        devices::cuda::TAG<DEVICE, true> tag_device{};
+        kernels::multiply_accumulate_d_output_previous_step_kernel<LAYER_SPEC, ACCUMULATE_INITIAL_HIDDEN_STATE_GRADIENT><<<grid, block, 0, device.stream>>>(tag_device, d_output_step, z_post_activation, d_output_previous_step, initial_hidden_state_gradient, step_i, mode);
+        check_status(device);
+    }
+    template<typename LAYER_SPEC, bool ACCUMULATE_INITIAL_HIDDEN_STATE_GRADIENT, typename DEV_SPEC, typename D_OUTPUT_STEP_SPEC, typename Z_POST_ACTIVATION_SPEC, typename D_OUTPUT_PREVIOUS_STEP_SPEC, typename INITIAL_HIDDEN_STATE_GRADIENT_SPEC, typename MODE, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
+    RL_TOOLS_FUNCTION_PLACEMENT void multiply_accumulate_d_output_previous_step(devices::CUDA<DEV_SPEC>& device, const Tensor<D_OUTPUT_STEP_SPEC>& d_output_step, const Tensor<Z_POST_ACTIVATION_SPEC>& z_post_activation, Tensor<D_OUTPUT_PREVIOUS_STEP_SPEC>& d_output_previous_step, Tensor<INITIAL_HIDDEN_STATE_GRADIENT_SPEC>& initial_hidden_state_gradient, typename devices::CUDA<DEV_SPEC>::index_t step_i, const Mode<MODE>& mode){
+        RL_TOOLS_HOST_ONLY(host_multiply_accumulate_d_output_previous_step<LAYER_SPEC, ACCUMULATE_INITIAL_HIDDEN_STATE_GRADIENT>(device, d_output_step, z_post_activation, d_output_previous_step, initial_hidden_state_gradient, step_i, mode));
+    }
+    template<typename LAYER_SPEC, bool RESET_SAMPLES, typename DEV_SPEC, typename SPEC, typename MODE>
+    auto host_zero_samples(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC>& tensor, typename devices::CUDA<DEV_SPEC>::index_t step_i, const Mode<MODE>& mode){
+        using DEVICE = devices::CUDA<DEV_SPEC>;
+        using TI = typename DEVICE::index_t;
+        static_assert(length(typename SPEC::SHAPE{}) == 2);
+        constexpr TI BATCH_SIZE = SPEC::SHAPE::template GET<0>;
+        constexpr TI COLS = SPEC::SHAPE::template GET<1>;
+        constexpr TI BLOCKSIZE = 32;
+        dim3 grid(RL_TOOLS_DEVICES_CUDA_CEIL(BATCH_SIZE, BLOCKSIZE), RL_TOOLS_DEVICES_CUDA_CEIL(COLS, BLOCKSIZE));
+        dim3 block(BLOCKSIZE, BLOCKSIZE);
+        devices::cuda::TAG<DEVICE, true> tag_device{};
+        kernels::zero_samples_kernel<LAYER_SPEC, RESET_SAMPLES><<<grid, block, 0, device.stream>>>(tag_device, tensor, step_i, mode);
+        check_status(device);
+    }
+    template<typename LAYER_SPEC, typename DEV_SPEC, typename SPEC, typename MODE, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
+    RL_TOOLS_FUNCTION_PLACEMENT void zero_reset_samples(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC>& tensor, typename devices::CUDA<DEV_SPEC>::index_t step_i, const Mode<MODE>& mode){
+        RL_TOOLS_HOST_ONLY(host_zero_samples<LAYER_SPEC, true>(device, tensor, step_i, mode));
+    }
+    template<typename LAYER_SPEC, typename DEV_SPEC, typename SPEC, typename MODE, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
+    RL_TOOLS_FUNCTION_PLACEMENT void zero_continuing_samples(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC>& tensor, typename devices::CUDA<DEV_SPEC>::index_t step_i, const Mode<MODE>& mode){
+        RL_TOOLS_HOST_ONLY(host_zero_samples<LAYER_SPEC, false>(device, tensor, step_i, mode));
     }
 }
 
@@ -284,21 +411,42 @@ namespace rl_tools{
         check_status(device);
     }
 
+    namespace nn::layers::gru::kernels{
+        template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT>
+        __global__
+        void multiply_accumulate_reduce_kernel(devices::CUDA<DEV_SPEC> device, const Tensor<SPEC_1> t1, const Tensor<SPEC_2> t2, Tensor<SPEC_OUTPUT> t_output){
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using TI = typename DEVICE::index_t;
+            using T = typename SPEC_1::T;
+            constexpr TI ROWS = SPEC_1::SHAPE::template GET<0>;
+            constexpr TI COLS = SPEC_1::SHAPE::template GET<1>;
+            TI col_j = threadIdx.x + blockIdx.x * blockDim.x;
+            if(col_j < COLS){
+                T acc = get(device, t_output, col_j);
+                for(TI row_i = 0; row_i < ROWS; ++row_i){
+                    acc += get(device, t1, row_i, col_j) * get(device, t2, row_i, col_j);
+                }
+                set(device, t_output, acc, col_j);
+            }
+        }
+    }
     template<typename DEV_SPEC, typename SPEC_1, typename SPEC_2, typename SPEC_OUTPUT, typename rl_tools::utils::typing::enable_if<!DEV_SPEC::TAG, int>::type = 0>
     void multiply_accumulate_reduce(devices::CUDA<DEV_SPEC>& device, Tensor<SPEC_1>& t1, Tensor<SPEC_2>& t2, Tensor<SPEC_OUTPUT>& t_output){
         static_assert(length(typename SPEC_1::SHAPE{}) == 2);
         static_assert(length(typename SPEC_2::SHAPE{}) == 2);
         static_assert(length(typename SPEC_OUTPUT::SHAPE{}) == 1);
+        static_assert(get<0>(typename SPEC_1::SHAPE{}) == get<0>(typename SPEC_2::SHAPE{}));
+        static_assert(get<1>(typename SPEC_1::SHAPE{}) == get<1>(typename SPEC_2::SHAPE{}));
+        static_assert(get<1>(typename SPEC_2::SHAPE{}) == get<0>(typename SPEC_OUTPUT::SHAPE{}));
         using DEVICE = devices::CUDA<DEV_SPEC>;
-        using T = typename SPEC_1::T;
         using TI = typename DEVICE::index_t;
-        constexpr TI ROWS = SPEC_1::SHAPE::template GET<0>;
         constexpr TI COLS = SPEC_1::SHAPE::template GET<1>;
-        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, ROWS, COLS>>> temp;
-        malloc(device, temp);
-        multiply(device, t1, t2, temp);
-        reduce_sum<true>(device, temp, t_output);
-        free(device, temp);
+        constexpr TI BLOCKSIZE = 32;
+        dim3 grid(RL_TOOLS_DEVICES_CUDA_CEIL(COLS, BLOCKSIZE));
+        dim3 block(BLOCKSIZE);
+        devices::cuda::TAG<DEVICE, true> tag_device{};
+        nn::layers::gru::kernels::multiply_accumulate_reduce_kernel<<<grid, block, 0, device.stream>>>(tag_device, t1, t2, t_output);
+        check_status(device);
     }
 
     namespace nn::layers::gru::kernels{

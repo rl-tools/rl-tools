@@ -74,6 +74,7 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         float miss_color_0[3];
         float miss_color_1[3];
         uint32_t first_overlay_instance; // global instance ids >= this index the flow-delta table
+        uint32_t num_overlay_slots;      // NUM_OVERLAYS * MAX_OVERLAY_INSTANCES: flow-delta slab stride and per-region id shift
         uint32_t triangle_mesh_offset;   // u32 elements into SCENE_GEOMETRY
         uint32_t triangle_local_offset;
         uint32_t object_records_offset;  // stride 4 per object: {node_offset, node_count, first_triangle, 0}
@@ -88,20 +89,24 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         uint32_t attachments_offset;     // u32 elements into FRAME_INPUTS
         uint32_t overlay_meta_offset;    // per region x overlay: {num_active, num_tlas_nodes}
         uint32_t overlay_primitives_offset;
-        uint32_t flow_deltas_offset;
+        uint32_t flow_deltas_offset;     // [2][slots][12] f32 elements into FRAME_INPUTS
         uint32_t probe_directions_offset;
         uint32_t cameras_offset;         // shutter-close cameras, then the shutter-open set for camera-pair specs
+        uint32_t cameras_previous_offset; // flow: the previous instant's camera set
         uint32_t out_frame_buffer;       // u32 elements into OUTPUTS
         uint32_t out_depth;
         uint32_t out_segmentation;
         uint32_t out_normals;
         uint32_t out_flow;
+        uint32_t out_flow_status;
+        uint32_t out_flow_forward;
+        uint32_t out_flow_forward_status;
         uint32_t out_observation;
         uint32_t out_rgb_accumulator;
         uint32_t out_depth_accumulator;
         uint32_t out_collision;
     };
-    static_assert(sizeof(LaunchParams) == 184, "LaunchParams layout must match the WGSL declaration in device.wgsl");
+    static_assert(sizeof(LaunchParams) == 204, "LaunchParams layout must match the WGSL declaration in device.wgsl");
 
     struct TextureRef{
         uint32_t offset; // texel index into TEXTURE_DATA, ABSENT = no texture
@@ -141,7 +146,7 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
 
     struct DispatchParams{
         float shutter_t;
-        uint32_t overlay_region; // 0 = shutter-close state, 1 + s = dynamic-motion-blur sample s
+        uint32_t overlay_region; // 0 = shutter-close state, 1 + s = dynamic-motion-blur sample s (the flow passes address the previous-instant region themselves)
         uint32_t padding[2];
     };
     static_assert(sizeof(DispatchParams) == 16, "DispatchParams layout must match the WGSL declaration in device.wgsl");
@@ -151,11 +156,16 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
     // queueWriteBuffer/clear/copy offsets
     template <typename SPEC>
     struct BufferLayout{
-        static constexpr uint32_t OVERLAY_REGIONS = SPEC::ENABLE_OVERLAYS ? (SPEC::ENABLE_DYNAMIC_MOTION_BLUR ? 1 + (uint32_t)SPEC::MOTION_BLUR_SAMPLES : 1) : 0;
+        // overlay BVH regions: 0 = current state, 1 + s = dynamic-motion-blur sample s, then the
+        // flow previous-instant region (FLOW_PREVIOUS_REGION) appended last so the existing
+        // region and instance-id ranges keep their indices
+        static constexpr uint32_t MOTION_REGIONS = SPEC::ENABLE_DYNAMIC_MOTION_BLUR ? (uint32_t)SPEC::MOTION_BLUR_SAMPLES : 0;
+        static constexpr uint32_t FLOW_PREVIOUS_REGION = 1 + MOTION_REGIONS;
+        static constexpr uint32_t OVERLAY_REGIONS = SPEC::ENABLE_OVERLAYS ? 1 + MOTION_REGIONS + (SPEC::HAS_FLOW_OVERLAYS ? 1 : 0) : 0;
         static constexpr uint32_t ATTACHMENTS_WORDS = SPEC::ENABLE_OVERLAYS ? (uint32_t)SPEC::NUM_CAMERAS * (uint32_t)SPEC::MAX_OVERLAYS_PER_CAMERA : 0;
         static constexpr uint32_t OVERLAY_META_WORDS = OVERLAY_REGIONS * (uint32_t)SPEC::NUM_OVERLAYS * 2;
         static constexpr uint32_t OVERLAY_PRIMITIVES_WORDS = OVERLAY_REGIONS * (uint32_t)SPEC::NUM_OVERLAYS * (uint32_t)SPEC::MAX_OVERLAY_INSTANCES;
-        static constexpr uint32_t FLOW_DELTAS_WORDS = (SPEC::HAS_FLOW && SPEC::ENABLE_OVERLAYS) ? (uint32_t)SPEC::NUM_OVERLAYS * (uint32_t)SPEC::MAX_OVERLAY_INSTANCES * 12 : 0;
+        static constexpr uint32_t FLOW_DELTAS_WORDS = SPEC::HAS_FLOW_OVERLAYS ? 2 * (uint32_t)SPEC::NUM_OVERLAYS * (uint32_t)SPEC::MAX_OVERLAY_INSTANCES * 12 : 0;
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         static constexpr uint32_t PROBE_DIRECTIONS_WORDS = (uint32_t)SPEC::NUM_PROBES * 3;
         static constexpr uint32_t COLLISION_WORDS = (uint32_t)SPEC::NUM_CAMERAS * (uint32_t)SPEC::NUM_PROBES * 2;
@@ -163,8 +173,10 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         static constexpr uint32_t PROBE_DIRECTIONS_WORDS = 0;
         static constexpr uint32_t COLLISION_WORDS = 0;
 #endif
-        static constexpr uint32_t CAMERAS_WORDS = (SPEC::HAS_CAMERA_PAIR ? 2 : 1) * (uint32_t)SPEC::NUM_CAMERAS * 12;
+        static constexpr uint32_t CAMERA_SET_WORDS = (uint32_t)SPEC::NUM_CAMERAS * 12;
+        static constexpr uint32_t CAMERAS_WORDS = (1 + (SPEC::HAS_CAMERA_PAIR ? 1 : 0) + (SPEC::HAS_FLOW ? 1 : 0)) * CAMERA_SET_WORDS;
         static constexpr uint32_t CAMERAS_OFFSET = 0;
+        static constexpr uint32_t CAMERAS_PREVIOUS_OFFSET = CAMERAS_OFFSET + (SPEC::HAS_CAMERA_PAIR ? 2 : 1) * CAMERA_SET_WORDS; // after the close (and open) sets
         static constexpr uint32_t ATTACHMENTS_OFFSET = CAMERAS_OFFSET + CAMERAS_WORDS;
         static constexpr uint32_t OVERLAY_META_OFFSET = ATTACHMENTS_OFFSET + ATTACHMENTS_WORDS;
         static constexpr uint32_t OVERLAY_PRIMITIVES_OFFSET = OVERLAY_META_OFFSET + OVERLAY_META_WORDS;
@@ -178,6 +190,9 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         static constexpr uint32_t SEGMENTATION_WORDS = SPEC::HAS_SEGMENTATION ? CAM_PIXEL_WORDS : 0;
         static constexpr uint32_t NORMALS_WORDS = SPEC::HAS_NORMALS ? CAM_PIXEL_WORDS * 3 : 0;
         static constexpr uint32_t FLOW_WORDS = SPEC::HAS_FLOW ? CAM_PIXEL_WORDS * 2 : 0;
+        static constexpr uint32_t FLOW_STATUS_WORDS = SPEC::HAS_FLOW ? CAM_PIXEL_WORDS : 0;
+        static constexpr uint32_t FLOW_FORWARD_WORDS = SPEC::HAS_FLOW_FORWARD ? CAM_PIXEL_WORDS * 2 : 0;
+        static constexpr uint32_t FLOW_FORWARD_STATUS_WORDS = SPEC::HAS_FLOW_FORWARD ? CAM_PIXEL_WORDS : 0;
         static constexpr uint32_t OBSERVATION_WORDS = SPEC::HAS_OBSERVATION ? CAM_PIXEL_WORDS * (uint32_t)SPEC::OBSERVATION_CHANNELS : 0;
         static constexpr uint32_t RGB_ACCUMULATOR_WORDS = (SPEC::ENABLE_DYNAMIC_MOTION_BLUR && SPEC::HAS_RGB) ? CAM_PIXEL_WORDS * 3 : 0;
         static constexpr uint32_t DEPTH_ACCUMULATOR_WORDS = (SPEC::ENABLE_DYNAMIC_MOTION_BLUR && SPEC::HAS_DEPTH) ? CAM_PIXEL_WORDS : 0;
@@ -186,7 +201,10 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         static constexpr uint32_t SEGMENTATION_OFFSET = DEPTH_OFFSET + DEPTH_WORDS;
         static constexpr uint32_t NORMALS_OFFSET = SEGMENTATION_OFFSET + SEGMENTATION_WORDS;
         static constexpr uint32_t FLOW_OFFSET = NORMALS_OFFSET + NORMALS_WORDS;
-        static constexpr uint32_t OBSERVATION_OFFSET = FLOW_OFFSET + FLOW_WORDS;
+        static constexpr uint32_t FLOW_STATUS_OFFSET = FLOW_OFFSET + FLOW_WORDS;
+        static constexpr uint32_t FLOW_FORWARD_OFFSET = FLOW_STATUS_OFFSET + FLOW_STATUS_WORDS;
+        static constexpr uint32_t FLOW_FORWARD_STATUS_OFFSET = FLOW_FORWARD_OFFSET + FLOW_FORWARD_WORDS;
+        static constexpr uint32_t OBSERVATION_OFFSET = FLOW_FORWARD_STATUS_OFFSET + FLOW_FORWARD_STATUS_WORDS;
         static constexpr uint32_t RGB_ACCUMULATOR_OFFSET = OBSERVATION_OFFSET + OBSERVATION_WORDS;
         static constexpr uint32_t DEPTH_ACCUMULATOR_OFFSET = RGB_ACCUMULATOR_OFFSET + RGB_ACCUMULATOR_WORDS;
         static constexpr uint32_t COLLISION_OFFSET = DEPTH_ACCUMULATOR_OFFSET + DEPTH_ACCUMULATOR_WORDS;
@@ -223,6 +241,7 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         WGPUComputePipeline segmentation_pipeline = nullptr;
         WGPUComputePipeline normals_pipeline = nullptr;
         WGPUComputePipeline flow_pipeline = nullptr;
+        WGPUComputePipeline flow_forward_pipeline = nullptr;
         WGPUComputePipeline resolve_pipeline = nullptr;
         WGPUBindGroup bind_group = nullptr; // recreated per init (scene buffers change)
 
@@ -241,10 +260,14 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         BufferResource staging_segmentation;
         BufferResource staging_normals;
         BufferResource staging_flow;
+        BufferResource staging_flow_status;
+        BufferResource staging_flow_forward;
+        BufferResource staging_flow_forward_status;
         BufferResource staging_observation;
         BufferResource staging_collision;
         std::vector<ReadbackTarget> render_readbacks;
         std::vector<ReadbackTarget> probe_readbacks;
+        std::vector<float> flow_deltas_host; // flow: [2][slots][12], composed by update() and written into FRAME_INPUTS
 
         // scene-dependent arena offsets mirrored from LaunchParams for the per-update writes
         uint32_t instance_classes_offset = 0;

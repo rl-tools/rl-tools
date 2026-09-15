@@ -92,14 +92,16 @@ namespace golden {
         };
         using GEOMETRY = rl_tools::rendering::raytracing::Specification<GeometryConfig>;
 
-        // flow is single-sample like the geometry outputs; the flow case drives the camera pair
-        // with MOTION_BLUR_DELTA (ego-motion flow), flow_dynamic isolates object flow: static
-        // camera pair plus the dynamic-overlay shutter poses through the delta table
+        // flow is single-sample like the geometry outputs; the flow case displaces the previous
+        // camera by MOTION_BLUR_DELTA (ego-motion flow), flow_dynamic isolates object flow: static
+        // camera, the overlay moves from OVERLAY_*_OPEN (previous instant) to OVERLAY_*_CLOSE
+        // (current instant). Both directions and both status buffers are golden files.
         struct FlowConfig: rl_tools::rendering::raytracing::config::Default<T, TI>{
             static constexpr TI CAM_WIDTH = Cases::CAM_WIDTH, CAM_HEIGHT = Cases::CAM_HEIGHT, NUM_CAMERAS = Cases::NUM_CAMERAS, NUM_PROBES = Cases::NUM_PROBES;
             using SHADING = rl_tools::rendering::raytracing::Low;
             static constexpr bool OUTPUT_RGB = false;
             static constexpr bool OUTPUT_FLOW = true;
+            static constexpr bool OUTPUT_FLOW_FORWARD = true;
         };
         using FLOW = rl_tools::rendering::raytracing::Specification<FlowConfig>;
         struct FlowDynamicConfig: FlowConfig{

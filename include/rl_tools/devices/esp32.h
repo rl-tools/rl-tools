@@ -25,7 +25,7 @@ namespace rl_tools::devices{
         struct Base{
             static constexpr DeviceId DEVICE_ID = DeviceId::ESP32;
             using index_t = size_t;
-            static constexpr index_t MAX_INDEX = -1;
+            static constexpr index_t MAX_INDEX = static_cast<index_t>(-1);
         };
     }
     namespace math{
@@ -74,7 +74,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
 #ifdef RL_TOOLS_DEBUG_CONTAINER_COUNT_MALLOC
     template <typename DEV_SPEC, typename TI>
-    void count_malloc(devices::ESP32<DEV_SPEC>& device, TI size){
+    RL_TOOLS_FUNCTION_PLACEMENT void count_malloc(devices::ESP32<DEV_SPEC>& device, TI size){
         device.malloc_counter += size;
     }
 #endif

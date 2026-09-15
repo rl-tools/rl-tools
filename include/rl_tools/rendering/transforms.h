@@ -5,9 +5,6 @@
 
 #include "../rl_tools.h"
 
-#ifndef RL_TOOLS_FUNCTION_PLACEMENT
-#define RL_TOOLS_FUNCTION_PLACEMENT
-#endif
 
 // freestanding 3x4 row-major [R|t] transform math on the content model, shared by the datasets
 // layer (bounds, instance welding) and the renderer (uploads, device producers)

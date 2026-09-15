@@ -6,7 +6,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::utils{
     template <typename DEV_SPEC, typename T>
-    bool assert_exit(devices::WASM32<DEV_SPEC>& dev, bool condition, T message){
+    RL_TOOLS_FUNCTION_PLACEMENT bool assert_exit(devices::WASM32<DEV_SPEC>& dev, bool condition, T message){
         if(!condition){
             log(dev, dev.logger, message);
         }

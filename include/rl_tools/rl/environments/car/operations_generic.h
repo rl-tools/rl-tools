@@ -27,7 +27,7 @@ namespace rl_tools{
     template<typename DEVICE, typename SPEC>
     static void init(DEVICE& device, const rl::environments::Car<SPEC>& env){ }
     template<typename DEVICE, typename SPEC>
-    static void init(DEVICE& device, rl::environments::CarTrack<SPEC>& env){
+    RL_TOOLS_FUNCTION_PLACEMENT static void init(DEVICE& device, rl::environments::CarTrack<SPEC>& env){
         env.initialized = true;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
@@ -40,7 +40,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC>
-    static void initial_parameters(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, typename rl::environments::CarTrack<SPEC>::Parameters& parameters) {
+    RL_TOOLS_FUNCTION_PLACEMENT static void initial_parameters(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, typename rl::environments::CarTrack<SPEC>::Parameters& parameters) {
         using TI = typename SPEC::TI;
         for(TI row_i=0; row_i < SPEC::HEIGHT; row_i++){
             for(TI col_i=0; col_i < SPEC::WIDTH; col_i++){
@@ -49,7 +49,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC>
-    static void initial_parameters(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters) {
+    RL_TOOLS_FUNCTION_PLACEMENT static void initial_parameters(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters) {
     }
     template<typename DEVICE, typename SPEC, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_parameters(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, RNG& rng) {
@@ -60,7 +60,7 @@ namespace rl_tools{
         initial_parameters(device, env, parameters);
     }
     template<typename DEVICE, typename SPEC>
-    static void initial_state(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, typename rl::environments::Car<SPEC>::State& state){
+    RL_TOOLS_FUNCTION_PLACEMENT static void initial_state(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, typename rl::environments::Car<SPEC>::State& state){
         state.x = 0;
         state.y = 0;
         state.mu = 0;

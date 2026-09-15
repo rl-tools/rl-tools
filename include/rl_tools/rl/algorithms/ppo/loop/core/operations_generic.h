@@ -166,7 +166,7 @@ namespace rl_tools{
     }
 
     template <auto INDEX, typename DEVICE, typename T_CONFIG>
-    constexpr auto& get_nn(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& get_nn(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
         static_assert(INDEX < T_CONFIG::NUM_NNS, "Index out of bounds, there are only 2 neural networks in the PPO");
         if constexpr(INDEX == 0){
             return ts.ppo.actor;
@@ -176,7 +176,7 @@ namespace rl_tools{
         }
     }
     template <auto INDEX, typename DEVICE, typename T_CONFIG>
-    constexpr auto& get_nn_name(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
+    RL_TOOLS_FUNCTION_PLACEMENT constexpr auto& get_nn_name(DEVICE& device, rl::algorithms::ppo::loop::core::State<T_CONFIG>& ts){
         static_assert(INDEX < T_CONFIG::NUM_NNS, "Index out of bounds, there are only 2 neural networks in the PPO");
         if constexpr(INDEX == 0){
             return "actor";
@@ -186,7 +186,7 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE, typename CONFIG>
-    typename CONFIG::T abs_diff(DEVICE& device, rl::algorithms::ppo::loop::core::State<CONFIG>& s1, rl::algorithms::ppo::loop::core::State<CONFIG>& s2){
+    RL_TOOLS_FUNCTION_PLACEMENT typename CONFIG::T abs_diff(DEVICE& device, rl::algorithms::ppo::loop::core::State<CONFIG>& s1, rl::algorithms::ppo::loop::core::State<CONFIG>& s2){
         using T = typename CONFIG::T;
         T acc = 0;
         acc += abs_diff(device, s1.actor_optimizer, s2.actor_optimizer);

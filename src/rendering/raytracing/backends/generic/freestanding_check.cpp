@@ -102,14 +102,21 @@ extern "C" void rl_tools_rendering_raytracing_generic_freestanding_check(){
     static float depth_buffer[Spec::NUM_CAMERAS * Spec::CAM_PIXELS];
     static float normals_buffer[Spec::NUM_CAMERAS * Spec::CAM_PIXELS * 3];
     static float flow_buffer[Spec::NUM_CAMERAS * Spec::CAM_PIXELS * 2];
+    static unsigned int flow_status_buffer[Spec::NUM_CAMERAS * Spec::CAM_PIXELS];
+    static float flow_forward_buffer[Spec::NUM_CAMERAS * Spec::CAM_PIXELS * 2];
+    static unsigned int flow_forward_status_buffer[Spec::NUM_CAMERAS * Spec::CAM_PIXELS];
     static rlt::rendering::raytracing::CollisionResult collision_results[Spec::NUM_CAMERAS * Spec::NUM_PROBES];
     scene.cameras_close = &camera;
     scene.cameras_open = &camera;
+    scene.cameras_previous = &camera;
     scene.probe_directions = probe_directions;
     scene.frame_buffer = frame_buffer;
     scene.depth_buffer = depth_buffer;
     scene.normals_buffer = normals_buffer;
     scene.flow_buffer = flow_buffer;
+    scene.flow_status_buffer = flow_status_buffer;
+    scene.flow_forward_buffer = flow_forward_buffer;
+    scene.flow_forward_status_buffer = flow_forward_status_buffer;
     scene.collision_results = collision_results;
     scene.max_depth = 10;
     scene.max_dist = 10;
@@ -118,9 +125,11 @@ extern "C" void rl_tools_rendering_raytracing_generic_freestanding_check(){
     generic::render_frame<DEVICE, SpecBasic, generic::OutputRGB>(device, scene);
     generic::render_frame<DEVICE, Spec, generic::OutputDepth>(device, scene);
     generic::render_normals_frame<DEVICE, Spec>(device, scene);
-    generic::render_flow_frame<DEVICE, Spec>(device, scene);
+    generic::render_flow_frame<DEVICE, Spec, false>(device, scene);
+    generic::render_flow_frame<DEVICE, Spec, true>(device, scene);
     generic::render_collision<DEVICE, Spec>(device, scene);
 
     static generic::SceneView<double, TI> scene_double;
-    generic::render_flow_frame<DEVICE, SpecDouble>(device, scene_double);
+    generic::render_flow_frame<DEVICE, SpecDouble, false>(device, scene_double);
+    generic::render_flow_frame<DEVICE, SpecDouble, true>(device, scene_double);
 }

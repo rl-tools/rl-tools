@@ -37,9 +37,15 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         constexpr uint32_t DEPTH_ACCUMULATOR = 19;
         constexpr uint32_t NORMALS_BUFFER = 20;
         constexpr uint32_t FLOW_BUFFER = 21;
-        constexpr uint32_t FLOW_DELTAS = 22;
-        constexpr uint32_t TEXTURES = 23; // variable-descriptor-count binding must have the largest binding number in the set
-        constexpr uint32_t COUNT = 24;
+        constexpr uint32_t FLOW_DELTAS = 22;              // internal [2][slots][12] delta table composed by update()
+        constexpr uint32_t FLOW_STATUS_BUFFER = 23;
+        constexpr uint32_t FLOW_FORWARD_BUFFER = 24;
+        constexpr uint32_t FLOW_FORWARD_STATUS_BUFFER = 25;
+        constexpr uint32_t CAMERAS_PREVIOUS = 26;
+        constexpr uint32_t OVERLAY_NUM_ACTIVE_PREVIOUS = 27;
+        constexpr uint32_t OVERLAY_TLAS_PREVIOUS = 28;    // the previous instant's overlay TLASes (flow visibility / forward primaries)
+        constexpr uint32_t TEXTURES = 29; // variable-descriptor-count binding must have the largest binding number in the set
+        constexpr uint32_t COUNT = 30;
     }
     namespace specialization_constants{
         constexpr uint32_t SRGB_OUTPUT = 0;
@@ -78,7 +84,8 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         float miss_color_0[3];
         float miss_color_1[3];
         uint32_t first_overlay_instance; // global instance ids >= this index the flow-delta table
-        float padding[2];
+        uint32_t num_overlay_slots;      // NUM_OVERLAYS * MAX_OVERLAY_INSTANCES: flow-delta slab stride and the previous-instant id shift
+        float padding[1];
     };
     static_assert(sizeof(LaunchParams) == 88, "LaunchParams layout must match the GLSL declaration in device.comp");
 
@@ -154,6 +161,7 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         VkShaderModule module_segmentation = VK_NULL_HANDLE;
         VkShaderModule module_normals = VK_NULL_HANDLE;
         VkShaderModule module_flow = VK_NULL_HANDLE;
+        VkShaderModule module_flow_forward = VK_NULL_HANDLE;
         VkShaderModule module_resolve = VK_NULL_HANDLE;
         VkPipeline rgb_pipeline = VK_NULL_HANDLE;
         VkPipeline depth_pipeline = VK_NULL_HANDLE;
@@ -161,6 +169,7 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         VkPipeline segmentation_pipeline = VK_NULL_HANDLE;
         VkPipeline normals_pipeline = VK_NULL_HANDLE;
         VkPipeline flow_pipeline = VK_NULL_HANDLE;
+        VkPipeline flow_forward_pipeline = VK_NULL_HANDLE;
         VkPipeline resolve_pipeline = VK_NULL_HANDLE;
         VkDescriptorPool descriptor_pool = VK_NULL_HANDLE;
         VkDescriptorSet descriptor_set = VK_NULL_HANDLE;
@@ -169,6 +178,7 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         BufferResource launch_params;
         BufferResource cameras;
         BufferResource cameras_open;
+        BufferResource cameras_previous;
         BufferResource frame_buffer;
         BufferResource depth_buffer;
         BufferResource collision_results;
@@ -181,6 +191,9 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         BufferResource segmentation_buffer;
         BufferResource normals_buffer;
         BufferResource flow_buffer;
+        BufferResource flow_status_buffer;
+        BufferResource flow_forward_buffer;
+        BufferResource flow_forward_status_buffer;
         BufferResource flow_deltas;
         BufferResource observation;
         BufferResource instance_data;
@@ -188,6 +201,7 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         BufferResource instance_classes;
         BufferResource overlay_attachments;
         BufferResource overlay_num_active;
+        BufferResource overlay_num_active_previous;
         BufferResource overlay_scratch;
         BufferResource rgb_accumulator;
         BufferResource depth_accumulator;
@@ -205,6 +219,11 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         std::vector<BufferResource> overlay_tlas_buffers;
         std::vector<BufferResource> overlay_instance_buffers;
         std::vector<BufferResource> overlay_sample_instance_buffers; // dynamic motion blur: one per motion sample, NUM_OVERLAYS * MAX_OVERLAY_INSTANCES descriptors each
+        // flow: the previous instant's overlay TLASes, resident next to the current ones and
+        // rebuilt in place from transforms_previous by update() (shifted instance-id range)
+        std::vector<VkAccelerationStructureKHR> overlay_tlas_previous;
+        std::vector<BufferResource> overlay_tlas_previous_buffers;
+        std::vector<BufferResource> overlay_instance_buffers_previous;
         VkDeviceSize overlay_scratch_stride = 0;
 
         VkCommandBuffer cb_rgb = VK_NULL_HANDLE;
@@ -213,6 +232,7 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         VkCommandBuffer cb_segmentation = VK_NULL_HANDLE;
         VkCommandBuffer cb_normals = VK_NULL_HANDLE;
         VkCommandBuffer cb_flow = VK_NULL_HANDLE;
+        VkCommandBuffer cb_flow_forward = VK_NULL_HANDLE;
         VkCommandBuffer cb_dynamic = VK_NULL_HANDLE; // dynamic motion blur frame, re-recorded per render_launch
         VkFence fence_render = VK_NULL_HANDLE;
         VkFence fence_collision = VK_NULL_HANDLE;

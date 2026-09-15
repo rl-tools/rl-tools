@@ -86,7 +86,12 @@ namespace rl_tools {
         }
         utils::assert_exit(device, loaded, "raytracing_example::init: failed to load scene");
 
-        init(device, *env.renderer, *env.bundle);
+        if constexpr (SPEC::RAYTRACING_SPEC::ENABLE_OVERLAYS) {
+            init(device, *env.renderer, *env.bundle, env.pool);
+        }
+        else {
+            init(device, *env.renderer, *env.bundle);
+        }
         generate_probe_directions(device, *env.renderer);
         precompute_indoor_initial_states(device, env);
     }

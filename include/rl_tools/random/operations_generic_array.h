@@ -53,11 +53,11 @@ namespace rl_tools{
         }
     }
     template <typename DEVICE_SRC, typename DEVICE_DST, typename SPEC>
-    void copy(DEVICE_SRC& device_src, DEVICE_DST& device_dst, const devices::generic::random::ArrayENGINE<SPEC>& src, devices::generic::random::ArrayENGINE<SPEC>& dst){
+    RL_TOOLS_FUNCTION_PLACEMENT void copy(DEVICE_SRC& device_src, DEVICE_DST& device_dst, const devices::generic::random::ArrayENGINE<SPEC>& src, devices::generic::random::ArrayENGINE<SPEC>& dst){
         copy(device_src, device_dst, src.states, dst.states);
     }
     template <typename DEVICE, typename SPEC>
-    typename DEVICE::index_t abs_diff(DEVICE& device, devices::generic::random::ArrayENGINE<SPEC>& a, devices::generic::random::ArrayENGINE<SPEC>& b){
+    RL_TOOLS_FUNCTION_PLACEMENT typename DEVICE::index_t abs_diff(DEVICE& device, devices::generic::random::ArrayENGINE<SPEC>& a, devices::generic::random::ArrayENGINE<SPEC>& b){
         using TI = typename DEVICE::index_t;
         TI acc = 0;
         for(TI i = 0; i < SPEC::NUM_RNGS; i++){

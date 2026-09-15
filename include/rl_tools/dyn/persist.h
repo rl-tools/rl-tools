@@ -11,7 +11,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace dyn::persist_helpers{
         template <typename DEVICE, typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT ActivationFunction parse_activation_function(DEVICE& device, const char* name, TI len){
+        ActivationFunction parse_activation_function(DEVICE& device, const char* name, TI len){
             if(utils::string::compare(name, "IDENTITY", 8)) return ActivationFunction::IDENTITY;
             if(utils::string::compare(name, "RELU", 4)) return ActivationFunction::RELU;
             if(utils::string::compare(name, "relu", 4)) return ActivationFunction::RELU;
@@ -26,7 +26,7 @@ namespace rl_tools{
             return ActivationFunction::IDENTITY;
         }
         template <typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT dyn::Type parse_dtype(const char* name, TI len){
+        dyn::Type parse_dtype(const char* name, TI len){
             if(utils::string::compare(name, "float32", 7)) return dyn::Type::FLOAT32;
             if(utils::string::compare(name, "float64", 7)) return dyn::Type::FLOAT64;
             if(utils::string::compare(name, "bf16", 4)) return dyn::Type::BF16;
@@ -38,7 +38,7 @@ namespace rl_tools{
     // --- TAR backend: Load dyn::Tensor ---
 #ifdef RL_TOOLS_PERSIST_BACKENDS_TAR_OPERATIONS_GENERIC
     template <typename DEVICE, typename TI, typename GROUP_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT bool load(DEVICE& device, dyn::Tensor<dyn::TensorSpecification<TI>>& tensor, persist::backends::tar::ReaderGroup<GROUP_SPEC>& group, const char* name){
+    bool load(DEVICE& device, dyn::Tensor<dyn::TensorSpecification<TI>>& tensor, persist::backends::tar::ReaderGroup<GROUP_SPEC>& group, const char* name){
         auto tensor_group = get_group(device, group, name);
         constexpr TI MAX_PATH = GROUP_SPEC::MAX_PATH_LENGTH;
         char current_path[MAX_PATH];
@@ -110,7 +110,7 @@ namespace rl_tools{
 
     // --- Load a dyn::Layer (backend-agnostic) ---
     template <typename DEVICE, typename TI, typename GROUP>
-    RL_TOOLS_FUNCTION_PLACEMENT bool load(DEVICE& device, dyn::Layer<TI>& layer, GROUP& group){
+    bool load(DEVICE& device, dyn::Layer<TI>& layer, GROUP& group){
         using namespace dyn;
         constexpr TI ATTR_SIZE = 64;
         char type_str[ATTR_SIZE];

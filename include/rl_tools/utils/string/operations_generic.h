@@ -6,7 +6,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::utils::string{
     template <typename TI>
-    TI length(const char* str, TI MAX_LEN) {
+    RL_TOOLS_FUNCTION_PLACEMENT TI length(const char* str, TI MAX_LEN) {
         TI len = 0;
         while (str[len] != '\0' && len < MAX_LEN) {
             len++;
@@ -14,7 +14,7 @@ namespace rl_tools::utils::string{
         return len;
     }
     template <typename TI>
-    TI copy(char* dest, const char* src, TI n) {
+    RL_TOOLS_FUNCTION_PLACEMENT TI copy(char* dest, const char* src, TI n) {
         if (n == 0) {
             return 0;
         }
@@ -78,7 +78,7 @@ namespace rl_tools::utils::string{
         }
     }
     template <typename TI>
-    TI parse_octal(const char* str, TI max_len) {
+    RL_TOOLS_FUNCTION_PLACEMENT TI parse_octal(const char* str, TI max_len) {
         // Parse octal string to integer
         // Skips leading spaces, stops at first non-octal digit or null terminator
         TI result = 0;
@@ -104,7 +104,7 @@ namespace rl_tools::utils::string{
         return result;
     }
     template <typename T, typename TI>
-    TI int_to_string(char* dest, TI dest_size, T value) {
+    RL_TOOLS_FUNCTION_PLACEMENT TI int_to_string(char* dest, TI dest_size, T value) {
         // Convert integer to decimal string
         // Returns the number of characters written (excluding null terminator)
         if (dest_size == 0) {
@@ -161,7 +161,7 @@ namespace rl_tools::utils::string{
         return pos;
     }
     template <typename TI>
-    TI string_to_int(const char* str, TI max_len) {
+    RL_TOOLS_FUNCTION_PLACEMENT TI string_to_int(const char* str, TI max_len) {
         // Parse decimal string to integer
         // Skips leading spaces, handles negative numbers
         TI result = 0;

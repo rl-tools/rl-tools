@@ -45,7 +45,8 @@ struct LaunchParams{
     packed_float3 miss_color_0;
     packed_float3 miss_color_1;
     uint first_overlay_instance;
-    float padding[2];
+    uint num_overlay_slots;
+    float padding[1];
 };
 static_assert(sizeof(LaunchParams) == 88, "LaunchParams layout must match context.h");
 
@@ -796,46 +797,111 @@ kernel void render_normals(
     normals_out[ctx.fb_offset * 3 + 2] = normal.z;
 }
 
-// single-sample by design (shutter-close camera, pixel-center ray): backward flow of the
-// shutter-close frame in pixels — the hit point is carried to shutter open by its instance's
-// shutter delta (identity for the static world) and projected through the shutter-open camera;
-// miss (and behind-the-open-camera projections) write (0, 0)
+// FlowStatus codes (rl_tools/rendering/raytracing/types.h)
+constant uint FLOW_STATUS_VALID = 0u;
+constant uint FLOW_STATUS_MISS = 1u;
+constant uint FLOW_STATUS_BEHIND = 2u;
+constant uint FLOW_STATUS_OUT_OF_FRAME = 3u;
+constant uint FLOW_STATUS_OCCLUDED = 4u;
+constant float FLOW_VISIBILITY_EPSILON = 1e-4f;
+
+// two-instant flow, one direction per kernel (mirror of the generic render_flow_frame):
+// single-sample from the source pixel centre against the source instant's overlay structures;
+// the hit point is carried to the target instant by its slot's delta, projected through the
+// target camera, and tested for visibility from the target camera against the target instant
+// with the relative margin FLOW_VISIBILITY_EPSILON. Status priority MISS, BEHIND, OUT_OF_FRAME,
+// OCCLUDED, VALID; the vector is zero for MISS and BEHIND and the geometric flow otherwise
+inline void flow_pixel(
+    bool source_previous,
+    constant LaunchParams& params,
+    device const Camera* cameras_close,
+    device const Camera* cameras_previous,
+    device float* flow_out,
+    device uint* flow_status_out,
+    instance_acceleration_structure accel,
+    device const OverlayStructure* overlays,
+    device const OverlayStructure* overlays_previous,
+    device const uint* overlay_attachments,
+    device const float* flow_deltas,
+    thread const PixelLaunchContext& ctx)
+{
+    device const Camera& cam = source_previous ? cameras_previous[ctx.cam_idx] : cameras_close[ctx.cam_idx];
+    device const Camera& cam_target = source_previous ? cameras_close[ctx.cam_idx] : cameras_previous[ctx.cam_idx];
+    device const OverlayStructure* overlays_source = source_previous ? overlays_previous : overlays;
+    device const OverlayStructure* overlays_target = source_previous ? overlays : overlays_previous;
+    const uint source_first_overlay_instance = params.first_overlay_instance + (source_previous ? params.num_overlay_slots * (1u + (fc_dynamic_motion_blur ? (uint)fc_motion_samples : 0u)) : 0u);
+    const uint delta_slab = source_previous ? params.num_overlay_slots * 12u : 0u;
+    const float2 screen = (float2(ctx.local_x, ctx.local_y) + float2(0.5f, 0.5f)) / float2(params.cam_width, params.cam_height);
+    const float3 direction = normalize(float3(cam.dir_00) + screen.x * float3(cam.dir_du) + screen.y * float3(cam.dir_dv));
+
+    ray r(float3(cam.pos), direction, 0.f, 1e30f);
+    intersection_result<triangle_data, instancing> hit = intersect_composed(accel, overlays_source, overlay_attachments, ctx.cam_idx, r, false);
+    float2 flow = float2(0.f);
+    uint status = FLOW_STATUS_MISS;
+    if (hit.type != intersection_type::none) {
+        float3 point = float3(cam.pos) + direction * hit.distance;
+        if (fc_overlay_count > 0 && (uint)hit.user_instance_id >= source_first_overlay_instance) {
+            point = transform_point(flow_deltas + delta_slab + ((uint)hit.user_instance_id - source_first_overlay_instance) * 12, point);
+        }
+        float target_x, target_y;
+        if (!project_camera(cam_target, point, target_x, target_y)) {
+            status = FLOW_STATUS_BEHIND;
+        } else {
+            flow = float2(target_x * (float)params.cam_width - ((float)ctx.local_x + 0.5f),
+                          target_y * (float)params.cam_height - ((float)ctx.local_y + 0.5f));
+            if (target_x < 0.f || target_x >= 1.f || target_y < 0.f || target_y >= 1.f) {
+                status = FLOW_STATUS_OUT_OF_FRAME;
+            } else {
+                const float3 to_point = point - float3(cam_target.pos);
+                const float len = length(to_point);
+                const float3 visibility_direction = to_point * (1.f / len);
+                ray visibility(float3(cam_target.pos), visibility_direction, 0.f, len * (1.f - FLOW_VISIBILITY_EPSILON));
+                intersection_result<triangle_data, instancing> occluder = intersect_composed(accel, overlays_target, overlay_attachments, ctx.cam_idx, visibility, true);
+                status = occluder.type != intersection_type::none ? FLOW_STATUS_OCCLUDED : FLOW_STATUS_VALID;
+            }
+        }
+    }
+    flow_out[ctx.fb_offset * 2 + 0] = flow.x;
+    flow_out[ctx.fb_offset * 2 + 1] = flow.y;
+    flow_status_out[ctx.fb_offset] = status;
+}
+
 kernel void render_flow(
     constant LaunchParams& params [[buffer(0)]],
     device const Camera* cameras_close [[buffer(1)]],
-    device const Camera* cameras_open [[buffer(2)]],
     device float* flow_out [[buffer(3)]],
     instance_acceleration_structure accel [[buffer(8)]],
     device const OverlayStructure* overlays [[buffer(11)]],
     device const uint* overlay_attachments [[buffer(12)]],
     device const float* flow_deltas [[buffer(19)]],
+    device uint* flow_status_out [[buffer(20)]],
+    device const Camera* cameras_previous [[buffer(21)]],
+    device const OverlayStructure* overlays_previous [[buffer(22)]],
     uint2 pixel_id [[thread_position_in_grid]])
 {
     const PixelLaunchContext ctx = pixel_launch_context(params, pixel_id);
     if (!ctx.valid)
         return;
+    flow_pixel(false, params, cameras_close, cameras_previous, flow_out, flow_status_out, accel, overlays, overlays_previous, overlay_attachments, flow_deltas, ctx);
+}
 
-    device const Camera& cam = cameras_close[ctx.cam_idx];
-    const float2 screen = (float2(ctx.local_x, ctx.local_y) + float2(0.5f, 0.5f)) / float2(params.cam_width, params.cam_height);
-    const float3 direction = normalize(float3(cam.dir_00) + screen.x * float3(cam.dir_du) + screen.y * float3(cam.dir_dv));
-
-    ray r(float3(cam.pos), direction, 0.f, 1e30f);
-    intersection_result<triangle_data, instancing> hit = intersect_composed(accel, overlays, overlay_attachments, ctx.cam_idx, r, false);
-    float2 flow = float2(0.f);
-    if (hit.type != intersection_type::none) {
-        float3 point = float3(cam.pos) + direction * hit.distance;
-        if (fc_overlay_count > 0 && (uint)hit.user_instance_id >= params.first_overlay_instance) {
-            point = transform_point(flow_deltas + ((uint)hit.user_instance_id - params.first_overlay_instance) * 12, point);
-        }
-        device const Camera& cam_open = cameras_open[ctx.cam_idx];
-        float open_x, open_y;
-        if (project_camera(cam_open, point, open_x, open_y)) {
-            flow = float2(((float)ctx.local_x + 0.5f) - open_x * (float)params.cam_width,
-                          ((float)ctx.local_y + 0.5f) - open_y * (float)params.cam_height);
-        }
-    }
-    flow_out[ctx.fb_offset * 2 + 0] = flow.x;
-    flow_out[ctx.fb_offset * 2 + 1] = flow.y;
+kernel void render_flow_forward(
+    constant LaunchParams& params [[buffer(0)]],
+    device const Camera* cameras_close [[buffer(1)]],
+    device float* flow_out [[buffer(3)]],
+    instance_acceleration_structure accel [[buffer(8)]],
+    device const OverlayStructure* overlays [[buffer(11)]],
+    device const uint* overlay_attachments [[buffer(12)]],
+    device const float* flow_deltas [[buffer(19)]],
+    device uint* flow_status_out [[buffer(20)]],
+    device const Camera* cameras_previous [[buffer(21)]],
+    device const OverlayStructure* overlays_previous [[buffer(22)]],
+    uint2 pixel_id [[thread_position_in_grid]])
+{
+    const PixelLaunchContext ctx = pixel_launch_context(params, pixel_id);
+    if (!ctx.valid)
+        return;
+    flow_pixel(true, params, cameras_close, cameras_previous, flow_out, flow_status_out, accel, overlays, overlays_previous, overlay_attachments, flow_deltas, ctx);
 }
 
 kernel void render_collision(

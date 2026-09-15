@@ -18,7 +18,10 @@ namespace golden {
         std::vector<uint32_t> frame_buffer;
         std::vector<T> depth_buffer;
         std::vector<T> normals; // 3 per pixel, raw float output (encoding happens at write/compare)
-        std::vector<T> flow;    // 2 per pixel, raw float backward flow in pixels
+        std::vector<T> flow;    // 2 per pixel, raw float backward flow in pixels (current -> previous)
+        std::vector<uint32_t> flow_status;
+        std::vector<T> flow_forward; // 2 per pixel, previous -> current, indexed in the previous camera
+        std::vector<uint32_t> flow_forward_status;
         std::vector<uint32_t> segmentation;
         std::vector<rl_tools::rendering::raytracing::CollisionResult> probes;
         size_t num_instances = 0;
@@ -26,7 +29,7 @@ namespace golden {
     };
 
     // T_CAMERA_MOTION distinguishes the combined case (moving camera + moving overlay) from the
-    // object-only isolation case (static camera, shutter-open == shutter-close)
+    // object-only isolation case (static camera: shutter-open == shutter-close, previous == current)
     template <typename SPEC, typename BACKEND, typename DEVICE, typename CASES, bool T_CAMERA_MOTION = true>
     bool render_case(DEVICE& device, const std::string& scene_path, Rendered<typename CASES::T>& out) {
         using T = typename CASES::T;
@@ -84,7 +87,8 @@ namespace golden {
             camera_staging[camera_i] = rl_tools::make_camera_data(pose.position, pose.look_at, pose.up, CASES::FOV, aspect);
         }
         copy_in(device, renderer.device, camera_staging.data(), rl_tools::cameras(device, renderer));
-        if constexpr(SPEC::HAS_CAMERA_PAIR) {
+        // the shutter-open (motion blur) and previous (flow) cameras share the same displaced pose
+        if constexpr(SPEC::HAS_CAMERA_PAIR || SPEC::HAS_FLOW) {
             if constexpr(T_CAMERA_MOTION) {
                 for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
                     const Pose<T>& pose = CASES::POSES[camera_i];
@@ -96,7 +100,12 @@ namespace golden {
                     camera_staging[camera_i] = rl_tools::make_camera_data(position, look_at, pose.up, CASES::FOV, aspect);
                 }
             }
-            copy_in(device, renderer.device, camera_staging.data(), rl_tools::cameras_open(device, renderer));
+            if constexpr(SPEC::HAS_CAMERA_PAIR) {
+                copy_in(device, renderer.device, camera_staging.data(), rl_tools::cameras_open(device, renderer));
+            }
+            if constexpr(SPEC::HAS_FLOW) {
+                copy_in(device, renderer.device, camera_staging.data(), rl_tools::cameras_previous(device, renderer));
+            }
         }
         if constexpr(SPEC::ENABLE_OVERLAYS) {
             for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
@@ -108,13 +117,20 @@ namespace golden {
                 const float position_float[3] = {(float)position[0], (float)position[1], (float)position[2]};
                 rl_tools::make_transform(position_float, quaternion_wxyz, out);
             };
-            float close_transform[12];
+            float close_transform[12], open_transform[12];
             spin_pose(CASES::OVERLAY_POSITION_CLOSE, CASES::OVERLAY_SPIN_CLOSE, close_transform);
-            const auto placement = rl_tools::spawn(device, renderer, rl_tools::rendering::raytracing::OverlayIndex{0}, rl_tools::rendering::raytracing::AssetHandle{0}, close_transform);
-            if constexpr(SPEC::HAS_TRANSFORM_PAIR) {
-                float open_transform[12];
-                spin_pose(CASES::OVERLAY_POSITION_OPEN, CASES::OVERLAY_SPIN_OPEN, open_transform);
-                rl_tools::set_transform_pair(device, renderer, rl_tools::rendering::raytracing::OverlayIndex{0}, placement, open_transform, close_transform);
+            spin_pose(CASES::OVERLAY_POSITION_OPEN, CASES::OVERLAY_SPIN_OPEN, open_transform);
+            if constexpr(SPEC::HAS_FLOW_OVERLAYS) {
+                // flow instants through the host verbs: spawn initialises previous == current at the
+                // open pose, the move leaves the previous mirror behind, update stages both rows
+                const auto placement = rl_tools::spawn(device, renderer, rl_tools::rendering::raytracing::OverlayIndex{0}, rl_tools::rendering::raytracing::AssetHandle{0}, open_transform);
+                rl_tools::set_transform(device, renderer, rl_tools::rendering::raytracing::OverlayIndex{0}, placement, close_transform);
+            }
+            else {
+                const auto placement = rl_tools::spawn(device, renderer, rl_tools::rendering::raytracing::OverlayIndex{0}, rl_tools::rendering::raytracing::AssetHandle{0}, close_transform);
+                if constexpr(SPEC::HAS_TRANSFORM_PAIR) {
+                    rl_tools::set_transform_pair(device, renderer, rl_tools::rendering::raytracing::OverlayIndex{0}, placement, open_transform, close_transform);
+                }
             }
             rl_tools::update(device, renderer);
         }
@@ -134,6 +150,11 @@ namespace golden {
         }
         if constexpr(SPEC::HAS_FLOW) {
             copy_out(renderer.device, device, rl_tools::flow_buffer(device, renderer), out.flow);
+            copy_out(renderer.device, device, rl_tools::flow_status_buffer(device, renderer), out.flow_status);
+        }
+        if constexpr(SPEC::HAS_FLOW_FORWARD) {
+            copy_out(renderer.device, device, rl_tools::flow_forward_buffer(device, renderer), out.flow_forward);
+            copy_out(renderer.device, device, rl_tools::flow_forward_status_buffer(device, renderer), out.flow_forward_status);
         }
         if constexpr(SPEC::HAS_SEGMENTATION) {
             copy_out(renderer.device, device, rl_tools::segmentation_buffer(device, renderer), out.segmentation);
