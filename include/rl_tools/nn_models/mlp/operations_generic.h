@@ -4,6 +4,7 @@
 #define RL_TOOLS_NN_MODELS_MLP_OPERATIONS_GENERIC_H
 
 #include "network.h"
+#include "../behaviors/skip_parameter_gradients.h"
 #include "../../nn/operations_generic.h"
 #include "../../nn/parameters/operations_generic.h"
 
@@ -176,23 +177,28 @@ namespace rl_tools {
         static_assert(BUFFER_MODEL_SPEC::INTERNAL_BATCH_SIZE == BATCH_SIZE);
         static_assert(BUFFER_MODEL_SPEC::DIM >= MODEL_SPEC::HIDDEN_DIM);
 
-        {
-            auto& previous_output = MODEL_SPEC::NUM_HIDDEN_LAYERS > 0 ? network.hidden_layers[MODEL_SPEC::NUM_HIDDEN_LAYERS - 1].output : network.input_layer.output;
-            backward_full(device, network.output_layer, previous_output, d_output, buffer.tick, buffer.layer_buffer, mode);
+        if constexpr(!nn_models::backpropagation::ParameterGradients<MODEL_SPEC, MODE>::VALUE){
+            backward_input(device, network, d_output, d_input, buffer, mode);
         }
-        for (typename DEVICE::index_t layer_i_plus_one = MODEL_SPEC::NUM_HIDDEN_LAYERS; layer_i_plus_one > 0; layer_i_plus_one--){
-            typename DEVICE::index_t layer_i = layer_i_plus_one - 1;
-            auto& previous_output_hidden = layer_i > 0 ? network.hidden_layers[layer_i - 1].output : network.input_layer.output;
-            if(layer_i % 2 == (MODEL_SPEC::NUM_HIDDEN_LAYERS - 1) % 2){ // we are starting with the last hidden layer where the result should go to tock
-                backward_full(device, network.hidden_layers[layer_i], previous_output_hidden, buffer.tick, buffer.tock, buffer.layer_buffer, mode);
-            } else {
-                backward_full(device, network.hidden_layers[layer_i], previous_output_hidden, buffer.tock, buffer.tick, buffer.layer_buffer, mode);
+        else{
+            {
+                auto& previous_output = MODEL_SPEC::NUM_HIDDEN_LAYERS > 0 ? network.hidden_layers[MODEL_SPEC::NUM_HIDDEN_LAYERS - 1].output : network.input_layer.output;
+                backward_full(device, network.output_layer, previous_output, d_output, buffer.tick, buffer.layer_buffer, mode);
             }
-        }
-        if constexpr(MODEL_SPEC::NUM_HIDDEN_LAYERS % 2 == 0){
-            backward_full(device, network.input_layer, input, buffer.tick, d_input, buffer.layer_buffer, mode);
-        } else {
-            backward_full(device, network.input_layer, input, buffer.tock, d_input, buffer.layer_buffer, mode);
+            for (typename DEVICE::index_t layer_i_plus_one = MODEL_SPEC::NUM_HIDDEN_LAYERS; layer_i_plus_one > 0; layer_i_plus_one--){
+                typename DEVICE::index_t layer_i = layer_i_plus_one - 1;
+                auto& previous_output_hidden = layer_i > 0 ? network.hidden_layers[layer_i - 1].output : network.input_layer.output;
+                if(layer_i % 2 == (MODEL_SPEC::NUM_HIDDEN_LAYERS - 1) % 2){ // we are starting with the last hidden layer where the result should go to tock
+                    backward_full(device, network.hidden_layers[layer_i], previous_output_hidden, buffer.tick, buffer.tock, buffer.layer_buffer, mode);
+                } else {
+                    backward_full(device, network.hidden_layers[layer_i], previous_output_hidden, buffer.tock, buffer.tick, buffer.layer_buffer, mode);
+                }
+            }
+            if constexpr(MODEL_SPEC::NUM_HIDDEN_LAYERS % 2 == 0){
+                backward_full(device, network.input_layer, input, buffer.tick, d_input, buffer.layer_buffer, mode);
+            } else {
+                backward_full(device, network.input_layer, input, buffer.tock, d_input, buffer.layer_buffer, mode);
+            }
         }
     }
     template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_MODEL_SPEC, typename MODE = mode::Default<>>
@@ -203,21 +209,23 @@ namespace rl_tools {
         static_assert(BUFFER_MODEL_SPEC::INTERNAL_BATCH_SIZE == BATCH_SIZE);
         static_assert(BUFFER_MODEL_SPEC::DIM >= MODEL_SPEC::HIDDEN_DIM);
 
-        auto previous_output = MODEL_SPEC::NUM_HIDDEN_LAYERS > 0 ? network.hidden_layers[MODEL_SPEC::NUM_HIDDEN_LAYERS - 1].output : network.input_layer.output;
-        backward_full(device, network.output_layer, previous_output, d_output, buffer.tick, buffer.layer_buffer, mode);
-        for (typename DEVICE::index_t layer_i_plus_one = MODEL_SPEC::NUM_HIDDEN_LAYERS; layer_i_plus_one > 0; layer_i_plus_one--){
-            typename DEVICE::index_t layer_i = layer_i_plus_one - 1;
-            previous_output = layer_i > 0 ? network.hidden_layers[layer_i - 1].output : network.input_layer.output;
-            if(layer_i % 2 == (MODEL_SPEC::NUM_HIDDEN_LAYERS - 1) % 2){ // we are starting with the last hidden layer where the result should go to tock
-                backward_full(device, network.hidden_layers[layer_i], previous_output, buffer.tick, buffer.tock, buffer.layer_buffer, mode);
-            } else {
-                backward_full(device, network.hidden_layers[layer_i], previous_output, buffer.tock, buffer.tick, buffer.layer_buffer, mode);
+        if constexpr(nn_models::backpropagation::ParameterGradients<MODEL_SPEC, MODE>::VALUE){
+            auto previous_output = MODEL_SPEC::NUM_HIDDEN_LAYERS > 0 ? network.hidden_layers[MODEL_SPEC::NUM_HIDDEN_LAYERS - 1].output : network.input_layer.output;
+            backward_full(device, network.output_layer, previous_output, d_output, buffer.tick, buffer.layer_buffer, mode);
+            for (typename DEVICE::index_t layer_i_plus_one = MODEL_SPEC::NUM_HIDDEN_LAYERS; layer_i_plus_one > 0; layer_i_plus_one--){
+                typename DEVICE::index_t layer_i = layer_i_plus_one - 1;
+                previous_output = layer_i > 0 ? network.hidden_layers[layer_i - 1].output : network.input_layer.output;
+                if(layer_i % 2 == (MODEL_SPEC::NUM_HIDDEN_LAYERS - 1) % 2){ // we are starting with the last hidden layer where the result should go to tock
+                    backward_full(device, network.hidden_layers[layer_i], previous_output, buffer.tick, buffer.tock, buffer.layer_buffer, mode);
+                } else {
+                    backward_full(device, network.hidden_layers[layer_i], previous_output, buffer.tock, buffer.tick, buffer.layer_buffer, mode);
+                }
             }
-        }
-        if constexpr(MODEL_SPEC::NUM_HIDDEN_LAYERS % 2 == 0){
-            backward(device, network.input_layer, input, buffer.tick, buffer.layer_buffer, mode);
-        } else {
-            backward(device, network.input_layer, input, buffer.tock, buffer.layer_buffer, mode);
+            if constexpr(MODEL_SPEC::NUM_HIDDEN_LAYERS % 2 == 0){
+                backward(device, network.input_layer, input, buffer.tick, buffer.layer_buffer, mode);
+            } else {
+                backward(device, network.input_layer, input, buffer.tock, buffer.layer_buffer, mode);
+            }
         }
     }
 //    template<typename DEVICE, typename MODEL_SPEC, typename INPUT_SPEC, typename D_OUTPUT_SPEC, typename BUFFER_MODEL_SPEC>

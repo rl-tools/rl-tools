@@ -2264,7 +2264,7 @@ int run(int argc, char** argv, rlt::Mode<MODE> mode){
                 auto gpu_d_action_reshaped = reshape_row_major(device_gpu, gpu_d_action_tensor, rlt::tensor::Shape<TI, 1, BATCH_SIZE, ACTION_DIM>{});
                 auto bwd_inputs = rlt::nn_models::parallel::pack_inputs(batch_combined_reshaped, batch_state_reshaped);
 
-                backward(device_gpu, ppo_gpu.actor, bwd_inputs, gpu_d_action_reshaped, actor_buffers);
+                backward(device_gpu, ppo_gpu.actor, bwd_inputs, gpu_d_action_reshaped, actor_buffers, TRAINING_MODE{});
 
                 cudaDeviceSynchronize();
 

@@ -10,7 +10,8 @@ namespace rl_tools::rl::environments::l2f_visual::training_mixed{
     using FREEZE_FIXED = rlt::nn::group::Every<rlt::nn::group::Only<groups::Fixed>, rlt::nn::group::Not<rlt::nn::group::Only<groups::Exploration>>>;
     using FREEZE_READOUT_BIASES = rlt::nn::group::Every<rlt::nn::group::Only<groups::Readout>, rlt::nn::group::Category<rlt::nn::parameters::categories::Biases>>;
     using FREEZE_SELECTOR = rlt::nn::group::Any<FREEZE_FIXED, FREEZE_READOUT_BIASES>;
-    using TRAINING_MODE = rlt::Mode<rlt::nn::optimizers::mode::Freeze<rlt::mode::Default<>, FREEZE_SELECTOR>>;
+    using UPDATE_POLICY = rlt::nn::optimizers::mode::Freeze<rlt::mode::Default<>, FREEZE_SELECTOR>;
+    using TRAINING_MODE = rlt::Mode<rlt::nn_models::backpropagation::mode::SkipParameterGradients<UPDATE_POLICY, rlt::nn::group::Only<groups::Fixed>>>;
 #if defined(RL_TOOLS_ENABLE_TENSORBOARD) && !defined(RL_TOOLS_DISABLE_TENSORBOARD)
     using LOGGER = rlt::devices::logging::CPU_TENSORBOARD<>;
 #else

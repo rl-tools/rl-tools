@@ -7,6 +7,7 @@
 #include "../../utils/generic/tuple/tuple.h"
 #include "../../nn/nn.h"
 #include "../group/model.h"
+#include "../behaviors/skip_parameter_gradients.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::nn_models::sequential{
@@ -259,6 +260,10 @@ namespace rl_tools::nn_models::sequential{
         template <typename NEW_CAPABILITY>
         using CHANGE_CAPABILITY = Build<NEW_CAPABILITY, MODULE, INPUT_SHAPE>;
     };
+}
+namespace rl_tools::nn_models::backpropagation{
+    template<typename CAPABILITY, typename MODULE, typename INPUT_SHAPE, typename LAYERS, typename OUTPUT_SHAPE, typename MODE>
+    struct ParameterGradients<sequential::Specification<CAPABILITY, MODULE, INPUT_SHAPE, LAYERS, OUTPUT_SHAPE>, MODE>: ParameterGradientsTuple<utils::MapTuple<LAYERS, sequential::LayerContentMap>, MODE>{};
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 
