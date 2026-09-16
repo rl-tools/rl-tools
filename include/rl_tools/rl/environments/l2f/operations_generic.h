@@ -45,7 +45,7 @@ namespace rl_tools
         env.parameters = SPEC::STATIC_PARAMETERS::PARAMETER_VALUES;
     }
     template<typename DEVICE, typename SPEC, typename T, typename TI, TI N, typename... Args>
-    static void permute_rotors(DEVICE& device, const rl::environments::Multirotor<SPEC>&, rl::environments::l2f::parameters::Dynamics<T, TI, N>& dynamics, Args... args){
+    inline void permute_rotors(DEVICE& device, const rl::environments::Multirotor<SPEC>&, rl::environments::l2f::parameters::Dynamics<T, TI, N>& dynamics, Args... args){
         TI indices[N] = {static_cast<TI>(args)...};
         auto copy = dynamics;
         for (TI rotor_i=0; rotor_i < N; rotor_i++){
@@ -63,32 +63,32 @@ namespace rl_tools
         }
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS>
-    static void initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters){
+    inline void initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters){
         parameters = env.parameters;
         //        parameters = SPEC::STATIC_PARAMETERS::PARAMETER_VALUES;
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename RNG>
-    static void sample_initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, RNG& rng){
+    inline void sample_initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, RNG& rng){
         // to allow out of declaration order dispatch
         rl::environments::l2f::_sample_initial_parameters(device, env, parameters, rng);
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE>
-    static void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, STATE& state){
+    inline void initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, STATE& state){
         rl::environments::l2f::_initial_state(device, env, parameters, state);
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, STATE& state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, STATE& state, RNG& rng){
         rl::environments::l2f::_sample_initial_state(device, env, parameters, state, rng);
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, const OBSERVATION& observation_type, Matrix<OBS_SPEC>& observation, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, const OBSERVATION& observation_type, Matrix<OBS_SPEC>& observation, RNG& rng){
         static_assert(OBS_SPEC::COLS == OBSERVATION::DIM);
         static_assert(OBS_SPEC::ROWS == 1);
         rl::environments::l2f::_observe(device, env, parameters, state, observation_type, observation, rng);
     }
     // todo: make state const again
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T step(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, STATE& next_state, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT inline typename SPEC::T step(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, STATE& next_state, RNG& rng) {
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         constexpr auto STATE_DIM = STATE::DIM;
@@ -136,7 +136,7 @@ namespace rl_tools
     }
 
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, const STATE& state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline bool terminated(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, const PARAMETERS& parameters, const STATE& state, RNG& rng){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         if(parameters.mdp.termination.enabled){
@@ -169,7 +169,7 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, const STATE& next_state, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT inline typename SPEC::T reward(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, const Matrix<ACTION_SPEC>& action, const STATE& next_state, RNG& rng) {
         return rl::environments::l2f::parameters::reward_functions::reward(device, env, parameters, parameters.mdp.reward, state, action, next_state, rng);
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename ACTION_SPEC, typename RNG>

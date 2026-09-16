@@ -162,15 +162,15 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT static void malloc(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env){ }
+    RL_TOOLS_FUNCTION_PLACEMENT inline void malloc(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env){ }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT static void free(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env){ }
+    RL_TOOLS_FUNCTION_PLACEMENT inline void free(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env){ }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT static void init(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env){ }
+    RL_TOOLS_FUNCTION_PLACEMENT inline void init(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env){ }
     template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_parameters(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, RNG& rng){ }
+    RL_TOOLS_FUNCTION_PLACEMENT inline void sample_initial_parameters(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, RNG& rng){ }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT static void initial_parameters(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters){ }
+    RL_TOOLS_FUNCTION_PLACEMENT inline void initial_parameters(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters){ }
     template<typename DEVICE, typename SPEC>
     RL_TOOLS_FUNCTION_PLACEMENT void update_lidar(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state) {
         using ENV = rl::environments::multi_agent::Bottleneck<SPEC>;
@@ -245,7 +245,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void sample_initial_state(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state, RNG& rng){
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
         static_assert(SPEC::PARAMETERS::ARENA_WIDTH/2 - SPEC::PARAMETERS::AGENT_DIAMETER > SPEC::PARAMETERS::AGENT_DIAMETER, "Arena not wide enough for a single agent");
@@ -299,7 +299,7 @@ namespace rl_tools{
         update_lidar(device, env, parameters, state);
     }
     template<typename DEVICE, typename SPEC>
-    static void initial_state(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state){
+    inline void initial_state(DEVICE& device, const rl::environments::multi_agent::Bottleneck<SPEC>& env, const typename rl::environments::multi_agent::Bottleneck<SPEC>::Parameters& parameters, typename rl::environments::multi_agent::Bottleneck<SPEC>::State& state){
         static_assert(SPEC::PARAMETERS::ARENA_WIDTH/2 - SPEC::PARAMETERS::AGENT_DIAMETER > SPEC::PARAMETERS::AGENT_DIAMETER, "Arena not wide enough for a single agent");
         static_assert((SPEC::PARAMETERS::ARENA_HEIGHT - SPEC::PARAMETERS::AGENT_DIAMETER) > SPEC::PARAMETERS::N_AGENTS * SPEC::PARAMETERS::AGENT_DIAMETER, "Arena not tall enough for initializing the agents on a line");
         using T = typename SPEC::T;

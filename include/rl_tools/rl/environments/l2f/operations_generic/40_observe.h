@@ -16,15 +16,15 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, const OBSERVATION& observation_type, Matrix<OBS_SPEC>& observation, RNG& rng);
+    RL_TOOLS_FUNCTION_PLACEMENT inline void observe(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, const OBSERVATION& observation_type, Matrix<OBS_SPEC>& observation, RNG& rng);
     namespace rl::environments::l2f{
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_TI, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::LastComponent<OBSERVATION_TI>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::LastComponent<OBSERVATION_TI>, Matrix<OBS_SPEC>& observation, RNG& rng){
             static_assert(OBS_SPEC::COLS == 0);
             static_assert(OBS_SPEC::ROWS == 1);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::PoseIntegral<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::PoseIntegral<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             using OBSERVATION = observation::PoseIntegral<OBSERVATION_SPEC>;
@@ -39,7 +39,7 @@ namespace rl_tools{
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::Position<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::Position<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using OBSERVATION = observation::Position<OBSERVATION_SPEC>;
             static_assert(OBS_SPEC::COLS >= OBSERVATION::CURRENT_DIM);
             static_assert(OBS_SPEC::ROWS == 1);
@@ -59,7 +59,7 @@ namespace rl_tools{
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::OrientationQuaternion<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::OrientationQuaternion<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             using OBSERVATION = observation::OrientationQuaternion<OBSERVATION_SPEC>;
@@ -78,7 +78,7 @@ namespace rl_tools{
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::OrientationRotationMatrix<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::OrientationRotationMatrix<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             using OBSERVATION = observation::OrientationRotationMatrix<OBSERVATION_SPEC>;
@@ -105,7 +105,7 @@ namespace rl_tools{
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::LinearVelocity<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::LinearVelocity<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             using OBSERVATION = observation::LinearVelocity<OBSERVATION_SPEC>;
@@ -124,7 +124,7 @@ namespace rl_tools{
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::AngularVelocity<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::AngularVelocity<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             using OBSERVATION = observation::AngularVelocity<OBSERVATION_SPEC>;
@@ -143,7 +143,7 @@ namespace rl_tools{
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::IMUAccelerometer<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::IMUAccelerometer<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             using OBSERVATION = observation::IMUAccelerometer<OBSERVATION_SPEC>;
@@ -180,7 +180,7 @@ namespace rl_tools{
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::Magnetometer<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::Magnetometer<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             using OBSERVATION = observation::Magnetometer<OBSERVATION_SPEC>;
@@ -218,7 +218,7 @@ namespace rl_tools{
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe_angular_velocity_delayed(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateAngularVelocityDelay<STATE_SPEC>& state, observation::AngularVelocityDelayed<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe_angular_velocity_delayed(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateAngularVelocityDelay<STATE_SPEC>& state, observation::AngularVelocityDelayed<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             // this function is separate such that we can extract the angular velocity state from the generic state
             // we can not specialize in the generic observe function because otherwise the upcast might prevent calling the correct "observe" for the downstream observations
             using T = typename SPEC::T;
@@ -242,7 +242,7 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::AngularVelocityDelayed<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::AngularVelocityDelayed<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             using OBSERVATION = observation::AngularVelocityDelayed<OBSERVATION_SPEC>;
@@ -262,7 +262,7 @@ namespace rl_tools{
             return parameters.observation_delay.linear_velocity;
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe_linear_velocity_delayed(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateLinearVelocityDelay<STATE_SPEC>& state, observation::LinearVelocityDelayed<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe_linear_velocity_delayed(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const StateLinearVelocityDelay<STATE_SPEC>& state, observation::LinearVelocityDelayed<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             // this function is separate such that we can extract the angular velocity state from the generic state
             // we can not specialize in the generic observe function because otherwise the upcast might prevent calling the correct "observe" for the downstream observations
             using T = typename SPEC::T;
@@ -287,7 +287,7 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::LinearVelocityDelayed<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::LinearVelocityDelayed<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             using OBSERVATION = observation::LinearVelocityDelayed<OBSERVATION_SPEC>;
@@ -298,7 +298,7 @@ namespace rl_tools{
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::RotorSpeeds<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::RotorSpeeds<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             using OBSERVATION = observation::RotorSpeeds<OBSERVATION_SPEC>;
@@ -312,7 +312,7 @@ namespace rl_tools{
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::ActionHistory<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::ActionHistory<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             using OBSERVATION = observation::ActionHistory<OBSERVATION_SPEC>;
@@ -337,7 +337,7 @@ namespace rl_tools{
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::RandomForce<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::RandomForce<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             using OBSERVATION = observation::RandomForce<OBSERVATION_SPEC>;
@@ -351,7 +351,7 @@ namespace rl_tools{
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::ParametersMotorPosition<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::ParametersMotorPosition<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             static_assert(PARAMETERS::N == OBSERVATION_SPEC::N);
@@ -368,7 +368,7 @@ namespace rl_tools{
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::ParametersThrustCurves<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::ParametersThrustCurves<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             static_assert(PARAMETERS::N == OBSERVATION_SPEC::N);
@@ -386,7 +386,7 @@ namespace rl_tools{
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::ParametersMass<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::ParametersMass<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             using OBSERVATION = observation::ParametersMass<OBSERVATION_SPEC>;
@@ -399,7 +399,7 @@ namespace rl_tools{
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::ParametersInertia<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::ParametersInertia<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             using OBSERVATION = observation::ParametersInertia<OBSERVATION_SPEC>;
@@ -421,7 +421,7 @@ namespace rl_tools{
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::Multiplex<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::Multiplex<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using OBSERVATION = observation::Multiplex<OBSERVATION_SPEC>;
             auto current_observation = view(device, observation, matrix::ViewSpec<1, OBSERVATION::CURRENT_DIM>{}, 0, 0);
             auto next_observation = view(device, observation, matrix::ViewSpec<1, OBS_SPEC::COLS - OBSERVATION::CURRENT_DIM>{}, 0, OBSERVATION::CURRENT_DIM);
@@ -431,7 +431,7 @@ namespace rl_tools{
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::TrajectoryTrackingPosition<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::TrajectoryTrackingPosition<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using OBSERVATION = observation::TrajectoryTrackingPosition<OBSERVATION_SPEC>;
             auto current_observation = view(device, observation, matrix::ViewSpec<1, OBSERVATION::CURRENT_DIM>{}, 0, 0);
             static_assert(OBS_SPEC::COLS >= OBSERVATION::CURRENT_DIM);
@@ -453,7 +453,7 @@ namespace rl_tools{
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::TrajectoryTrackingLinearVelocity<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::TrajectoryTrackingLinearVelocity<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using OBSERVATION = observation::TrajectoryTrackingLinearVelocity<OBSERVATION_SPEC>;
             auto current_observation = view(device, observation, matrix::ViewSpec<1, OBSERVATION::CURRENT_DIM>{}, 0, 0);
             static_assert(OBS_SPEC::COLS >= OBSERVATION::CURRENT_DIM);
@@ -475,7 +475,7 @@ namespace rl_tools{
             observe(device, env, parameters, state, typename OBSERVATION::NEXT_COMPONENT{}, next_observation, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename OBSERVATION_SPEC, typename OBS_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::TrajectoryTrackingLookahead<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _observe(DEVICE& device, const Multirotor<SPEC>& env, PARAMETERS& parameters, const STATE& state, observation::TrajectoryTrackingLookahead<OBSERVATION_SPEC>, Matrix<OBS_SPEC>& observation, RNG& rng){
             using OBSERVATION = observation::TrajectoryTrackingLookahead<OBSERVATION_SPEC>;
             auto current_observation = view(device, observation, matrix::ViewSpec<1, OBSERVATION::CURRENT_DIM>{}, 0, 0);
             static_assert(OBS_SPEC::COLS >= OBSERVATION::CURRENT_DIM);

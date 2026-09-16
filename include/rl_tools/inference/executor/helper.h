@@ -1,3 +1,7 @@
+#pragma once
+#ifndef RL_TOOLS_INFERENCE_EXECUTOR_HELPER_H
+#define RL_TOOLS_INFERENCE_EXECUTOR_HELPER_H
+
 #include <stdint.h>
 #include <stddef.h>
 #include <math.h>
@@ -107,3 +111,5 @@ inline int rl_tools_inference_executor_float_to_str(float f, char *dst, size_t d
     dst[out] = '\0';
     return (int)needed;
 }
+
+#endif

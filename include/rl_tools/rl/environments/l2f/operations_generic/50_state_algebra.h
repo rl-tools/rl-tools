@@ -19,7 +19,7 @@ namespace rl_tools::rl::environments::l2f{
     // State arithmetic for RK4 integration
 
     template<typename DEVICE, typename STATE_SPEC, typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT static void scalar_multiply_accumulate(DEVICE& device, const StateBase<STATE_SPEC>& state, T scalar, StateBase<STATE_SPEC>& out){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void scalar_multiply_accumulate(DEVICE& device, const StateBase<STATE_SPEC>& state, T scalar, StateBase<STATE_SPEC>& out){
         for(int i = 0; i < 3; ++i){
             out.position[i]         += scalar * state.position[i]        ;
             out.orientation[i]      += scalar * state.orientation[i]     ;
@@ -29,7 +29,7 @@ namespace rl_tools::rl::environments::l2f{
         out.orientation[3] += scalar * state.orientation[3];
     }
     template<typename DEVICE, typename STATE_SPEC, typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT static void scalar_multiply_accumulate(DEVICE& device, const StatePoseErrorIntegral<STATE_SPEC>& state, T scalar, StatePoseErrorIntegral<STATE_SPEC>& out){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void scalar_multiply_accumulate(DEVICE& device, const StatePoseErrorIntegral<STATE_SPEC>& state, T scalar, StatePoseErrorIntegral<STATE_SPEC>& out){
         using TI = typename DEVICE::index_t;
         scalar_multiply_accumulate(device, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), scalar, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(out));
         for (TI dim_i=0; dim_i<3; dim_i++){
@@ -38,7 +38,7 @@ namespace rl_tools::rl::environments::l2f{
         out.orientation_integral += scalar * state.orientation_integral;
     }
     template<typename DEVICE, typename STATE_SPEC, typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT static void scalar_multiply_accumulate(DEVICE& device, const StateRotors<STATE_SPEC>& state, T scalar, StateRotors<STATE_SPEC>& out){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void scalar_multiply_accumulate(DEVICE& device, const StateRotors<STATE_SPEC>& state, T scalar, StateRotors<STATE_SPEC>& out){
         scalar_multiply_accumulate(device, static_cast<const typename STATE_SPEC::NEXT_COMPONENT&>(state), scalar, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(out));
         if constexpr(!STATE_SPEC::CLOSED_FORM) {
             for(int i = 0; i < 4; ++i){
@@ -47,7 +47,7 @@ namespace rl_tools::rl::environments::l2f{
         }
     }
     template<typename DEVICE, typename STATE, typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT static void scalar_multiply_accumulate(DEVICE& device, const STATE& state, T scalar, STATE& out, rl_tools::utils::typing::enable_if_t<!STATE::REQUIRES_INTEGRATION, bool> disable = false){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void scalar_multiply_accumulate(DEVICE& device, const STATE& state, T scalar, STATE& out, rl_tools::utils::typing::enable_if_t<!STATE::REQUIRES_INTEGRATION, bool> disable = false){
         static_assert(!STATE::REQUIRES_INTEGRATION);
         scalar_multiply_accumulate(device, static_cast<const typename STATE::NEXT_COMPONENT&>(state), scalar, static_cast<typename STATE::NEXT_COMPONENT&>(out));
     }

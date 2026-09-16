@@ -92,7 +92,7 @@ namespace rl_tools::rl::environments::car::ui{
     }
 
     template <typename SPEC>
-    static gboolean draw_callback(GtkWidget *c, cairo_t *cr, gpointer data){
+    inline gboolean draw_callback(GtkWidget *c, cairo_t *cr, gpointer data){
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         UI<SPEC>& ui = *(UI<SPEC>*)data;

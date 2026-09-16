@@ -1,3 +1,8 @@
+#include "../../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_INFERENCE_APPLICATIONS_L2F_C_BACKEND_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define RL_TOOLS_INFERENCE_APPLICATIONS_L2F_C_BACKEND_H
+
 #include "../../executor/operations_generic.h"
 #include "c_interface.h"
 #include "../../executor/c_backend.h"
@@ -35,11 +40,11 @@ namespace rl_tools::inference::applications::l2f{
 
 
 // Main functions (possibly with side effects)
-inline void rl_tools_inference_applications_l2f_reset(){
+extern "C" inline void rl_tools_inference_applications_l2f_reset(){
     using namespace rl_tools::inference::applications::l2f;
     rl_tools::reset(device, executor, CONFIG::policy(), rng);
 }
-inline void rl_tools_inference_applications_l2f_init(){
+extern "C" inline void rl_tools_inference_applications_l2f_init(){
     using namespace rl_tools::inference::applications::l2f;
     TI seed = 0;
     rl_tools::malloc(device, executor);
@@ -47,11 +52,11 @@ inline void rl_tools_inference_applications_l2f_init(){
     rl_tools_inference_applications_l2f_reset();
 }
 
-inline const char* rl_tools_inference_applications_l2f_checkpoint_name(){
+extern "C" inline const char* rl_tools_inference_applications_l2f_checkpoint_name(){
     return rl_tools::checkpoint::meta::name;
 }
 
-inline float rl_tools_inference_applications_l2f_test(RLtoolsInferenceApplicationsL2FAction* p_output){
+extern "C" inline float rl_tools_inference_applications_l2f_test(RLtoolsInferenceApplicationsL2FAction* p_output){
     using namespace rl_tools::inference::applications::l2f;
 #ifndef RL_TOOLS_DISABLE_TEST
     rl_tools::Mode<rl_tools::mode::Evaluation<>> mode;
@@ -82,14 +87,14 @@ inline float rl_tools_inference_applications_l2f_test(RLtoolsInferenceApplicatio
 #endif
 }
 
-inline void rl_tools_inference_applications_l2f_set_force_sync_native(uint32_t force_sync_native){
+extern "C" inline void rl_tools_inference_applications_l2f_set_force_sync_native(uint32_t force_sync_native){
     using namespace rl_tools::inference::applications::l2f;
     executor.executor.force_sync_native = force_sync_native;
     executor.executor.force_sync_native_initialized = true;
 }
 
 
-inline RLtoolsInferenceExecutorStatus rl_tools_inference_applications_l2f_control(RLtoolsInferenceTimestamp nanoseconds, RLtoolsInferenceApplicationsL2FObservation* c_observation, RLtoolsInferenceApplicationsL2FAction* c_action){
+extern "C" inline RLtoolsInferenceExecutorStatus rl_tools_inference_applications_l2f_control(RLtoolsInferenceTimestamp nanoseconds, RLtoolsInferenceApplicationsL2FObservation* c_observation, RLtoolsInferenceApplicationsL2FAction* c_action){
     using namespace rl_tools::inference::applications::l2f;
     static_assert(RL_TOOLS_INTERFACE_APPLICATIONS_L2F_ACTION_DIM == OUTPUT_DIM);
     rl_tools::inference::applications::l2f::Observation<SPEC> observation;
@@ -110,3 +115,5 @@ inline RLtoolsInferenceExecutorStatus rl_tools_inference_applications_l2f_contro
     }
     return rl_tools::convert(status);
 }
+
+#endif

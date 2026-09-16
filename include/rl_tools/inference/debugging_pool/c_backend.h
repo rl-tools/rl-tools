@@ -1,3 +1,9 @@
+#pragma once
+#ifndef RL_TOOLS_INFERENCE_DEBUGGING_POOL_C_BACKEND_H
+#define RL_TOOLS_INFERENCE_DEBUGGING_POOL_C_BACKEND_H
+
+#include <stdint.h>
+
 #ifdef RL_TOOLS_ENABLE_DEBUGGING_POOL
 inline char rl_tools_debugging_pool_names[RL_TOOLS_DEBUGGING_POOL_NUMBER][RL_TOOLS_DEBUGGING_POOL_NAME_LENGTH];
 inline float rl_tools_debugging_pool[RL_TOOLS_DEBUGGING_POOL_NUMBER][RL_TOOLS_DEBUGGING_POOL_SIZE];
@@ -29,3 +35,5 @@ inline void rl_tools_add_to_debuging_pool(const char* name, const float* values,
         rl_tools_debugging_pool_updated = true;
     }
 }
+
+#endif

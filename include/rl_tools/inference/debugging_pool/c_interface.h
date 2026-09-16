@@ -1,3 +1,12 @@
+#pragma once
+#ifndef RL_TOOLS_INFERENCE_DEBUGGING_POOL_C_INTERFACE_H
+#define RL_TOOLS_INFERENCE_DEBUGGING_POOL_C_INTERFACE_H
+
+#include <stdint.h>
+#ifndef __cplusplus
+#include <stdbool.h>
+#endif
+
 #define RL_TOOLS_ENABLE_DEBUGGING_POOL
 #ifdef RL_TOOLS_ENABLE_DEBUGGING_POOL
 #define RL_TOOLS_DEBUGGING_POOL_NUMBER 10
@@ -9,4 +18,6 @@ extern uint64_t rl_tools_debugging_pool_indices[RL_TOOLS_DEBUGGING_POOL_NUMBER];
 extern uint64_t rl_tools_debugging_pool_index;
 extern bool rl_tools_debugging_pool_locked;
 extern bool rl_tools_debugging_pool_updated;
+#endif
+
 #endif

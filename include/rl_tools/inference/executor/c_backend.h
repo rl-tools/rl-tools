@@ -1,3 +1,8 @@
+#include "../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_INFERENCE_EXECUTOR_C_BACKEND_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define RL_TOOLS_INFERENCE_EXECUTOR_C_BACKEND_H
+
 #include <stdio.h>
 #include "executor.h"
 #include "c_interface.h"
@@ -25,7 +30,7 @@ inline void append(char* target, int target_size, const char* message, int &posi
 }
 
 
-inline void rl_tools_inference_executor_status_message(RLtoolsInferenceExecutorStatus status, char* target, int target_size){
+extern "C" inline void rl_tools_inference_executor_status_message(RLtoolsInferenceExecutorStatus status, char* target, int target_size){
     int position = 0;
     if(status.OK){
         append(target, target_size, "OK", position);
@@ -96,3 +101,5 @@ namespace rl_tools{
         return output;
     }
 }
+
+#endif

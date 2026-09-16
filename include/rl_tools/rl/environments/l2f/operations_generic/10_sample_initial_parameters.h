@@ -15,14 +15,14 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename RNG>
-    static void sample_initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, RNG& rng); // forward declaration for out-of-declaration order dispatch
+    inline void sample_initial_parameters(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, RNG& rng); // forward declaration for out-of-declaration order dispatch
     namespace rl::environments::l2f{
         template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename RNG>
-        static void _sample_initial_parameters(DEVICE& device, Multirotor<SPEC>& env, ParametersBase<PARAMETER_SPEC>& parameters, RNG& rng){
+        inline void _sample_initial_parameters(DEVICE& device, Multirotor<SPEC>& env, ParametersBase<PARAMETER_SPEC>& parameters, RNG& rng){
             parameters = env.parameters;
         }
         template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename RNG>
-        static void _sample_initial_parameters(DEVICE& device, Multirotor<SPEC>& env, ParametersDisturbances<PARAMETER_SPEC>& parameters, RNG& rng){
+        inline void _sample_initial_parameters(DEVICE& device, Multirotor<SPEC>& env, ParametersDisturbances<PARAMETER_SPEC>& parameters, RNG& rng){
             sample_initial_parameters(device, env, static_cast<typename PARAMETER_SPEC::NEXT_COMPONENT&>(parameters), rng);
             parameters.disturbances = env.parameters.disturbances;
         }
@@ -33,7 +33,7 @@ namespace rl_tools{
             return factor;
         }
         template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename RNG>
-        static void _sample_initial_parameters(DEVICE& device, rl_tools::rl::environments::Multirotor<SPEC>& env, ParametersDomainRandomization<PARAMETER_SPEC>& parameters, RNG& rng){
+        inline void _sample_initial_parameters(DEVICE& device, rl_tools::rl::environments::Multirotor<SPEC>& env, ParametersDomainRandomization<PARAMETER_SPEC>& parameters, RNG& rng){
             using T = typename SPEC::T;
             using TI = typename DEVICE::index_t;
             using PARAMETERS = ParametersDomainRandomization<PARAMETER_SPEC>;
@@ -200,13 +200,13 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename RNG>
-        static void _sample_initial_parameters(DEVICE& device, Multirotor<SPEC>& env, ParametersTrajectory<PARAMETER_SPEC>& parameters, RNG& rng){
+        inline void _sample_initial_parameters(DEVICE& device, Multirotor<SPEC>& env, ParametersTrajectory<PARAMETER_SPEC>& parameters, RNG& rng){
             sample_initial_parameters(device, env, static_cast<typename PARAMETER_SPEC::NEXT_COMPONENT&>(parameters), rng);
             parameters.trajectory_parameters = env.parameters.trajectory_parameters;
             fill(device, env, parameters.trajectory_parameters, parameters.trajectory, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename RNG>
-        static void _sample_initial_parameters(DEVICE& device, Multirotor<SPEC>& env, ParametersObservationDelay<PARAMETER_SPEC>& parameters, RNG& rng){
+        inline void _sample_initial_parameters(DEVICE& device, Multirotor<SPEC>& env, ParametersObservationDelay<PARAMETER_SPEC>& parameters, RNG& rng){
             sample_initial_parameters(device, env, static_cast<typename PARAMETER_SPEC::NEXT_COMPONENT&>(parameters), rng);
             parameters.observation_delay.linear_velocity = env.parameters.observation_delay.linear_velocity;
             parameters.observation_delay.angular_velocity = env.parameters.observation_delay.angular_velocity;

@@ -15,7 +15,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void get_desired_state(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const rl::environments::l2f::StateBase<STATE_SPEC>& state, rl::environments::l2f::StateBase<STATE_SPEC>& desired_state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void get_desired_state(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const rl::environments::l2f::StateBase<STATE_SPEC>& state, rl::environments::l2f::StateBase<STATE_SPEC>& desired_state, RNG& rng){
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
         desired_state.position[0] = 0;
@@ -44,7 +44,7 @@ namespace rl_tools{
         return {index, forward};
     }
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void get_desired_state(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const rl::environments::l2f::StateTrajectory<STATE_SPEC>& state, rl::environments::l2f::StateTrajectory<STATE_SPEC>& desired_state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void get_desired_state(DEVICE& device, const rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, const rl::environments::l2f::StateTrajectory<STATE_SPEC>& state, rl::environments::l2f::StateTrajectory<STATE_SPEC>& desired_state, RNG& rng){
         using TI = typename DEVICE::index_t;
         using T = typename SPEC::T;
         T traj_dt = (T)decltype(parameters.trajectory)::DT;

@@ -25,52 +25,52 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT static void malloc(DEVICE& device, const rl::environments::Pendulum<SPEC>& env){ }
+    RL_TOOLS_FUNCTION_PLACEMENT inline void malloc(DEVICE& device, const rl::environments::Pendulum<SPEC>& env){ }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT static void free(DEVICE& device, const rl::environments::Pendulum<SPEC>& env){ }
+    RL_TOOLS_FUNCTION_PLACEMENT inline void free(DEVICE& device, const rl::environments::Pendulum<SPEC>& env){ }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT static void init(DEVICE& device, const rl::environments::Pendulum<SPEC>& env){ }
+    RL_TOOLS_FUNCTION_PLACEMENT inline void init(DEVICE& device, const rl::environments::Pendulum<SPEC>& env){ }
     template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_parameters(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, RNG& rng){ }
+    RL_TOOLS_FUNCTION_PLACEMENT inline void sample_initial_parameters(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, RNG& rng){ }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT static void initial_parameters(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters){ }
+    RL_TOOLS_FUNCTION_PLACEMENT inline void initial_parameters(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters){ }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC>
-    static void initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::State<STATE_SPEC>& state){
+    inline void initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::State<STATE_SPEC>& state){
         state.theta = -math::PI<typename SPEC::T>;
         state.theta_dot = 0;
     }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC>
-    static void initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::StateLastAction<STATE_SPEC>& state){
+    inline void initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::StateLastAction<STATE_SPEC>& state){
         initial_state(device, env, parameters, static_cast<typename rl::environments::pendulum::State<STATE_SPEC>&>(state));
         state.last_action = 0;
     }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT static void initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::StateMultiTask<STATE_SPEC>& state){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::StateMultiTask<STATE_SPEC>& state){
         initial_state(device, env, parameters, static_cast<typename rl::environments::pendulum::State<STATE_SPEC>&>(state));
         state.invert_action = false;
     }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::StateMeta<STATE_SPEC>& state){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::StateMeta<STATE_SPEC>& state){
         sample_initial_state(device, env, parameters, static_cast<typename rl::environments::pendulum::StateLastAction<STATE_SPEC>&>(state));
         state.invert_action = false;
     }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::State<STATE_SPEC>& state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void sample_initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::State<STATE_SPEC>& state, RNG& rng){
         state.theta     = random::uniform_real_distribution(device.random, SPEC::PARAMETERS::initial_state_min_angle, SPEC::PARAMETERS::initial_state_max_angle, rng);
         state.theta_dot = random::uniform_real_distribution(device.random, SPEC::PARAMETERS::initial_state_min_speed, SPEC::PARAMETERS::initial_state_max_speed, rng);
     }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::StateLastAction<STATE_SPEC>& state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void sample_initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::StateLastAction<STATE_SPEC>& state, RNG& rng){
         sample_initial_state(device, env, parameters, static_cast<typename rl::environments::pendulum::State<STATE_SPEC>&>(state), rng);
         state.last_action = 0;
     }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::StateMultiTask<STATE_SPEC>& state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void sample_initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::StateMultiTask<STATE_SPEC>& state, RNG& rng){
         sample_initial_state(device, env, parameters, static_cast<typename rl::environments::pendulum::State<STATE_SPEC>&>(state), rng);
         state.invert_action = random::uniform_int_distribution(device.random, 0, 1, rng) == 1;
     }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::StateMeta<STATE_SPEC>& state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void sample_initial_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, typename rl::environments::pendulum::StateMeta<STATE_SPEC>& state, RNG& rng){
         sample_initial_state(device, env, parameters, static_cast<typename rl::environments::pendulum::StateLastAction<STATE_SPEC>&>(state), rng);
         // initial_state(device, env, parameters, static_cast<typename rl::environments::pendulum::StateLastAction<STATE_SPEC>&>(state));
         state.invert_action = random::uniform_int_distribution(device.random, 0, 1, rng) == 1;
@@ -128,7 +128,7 @@ namespace rl_tools{
         return dt;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename STATE_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::State<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::pendulum::State<STATE_SPEC>& next_state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline typename SPEC::T reward(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::State<STATE_SPEC>& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::pendulum::State<STATE_SPEC>& next_state, RNG& rng){
         using namespace rl::environments::pendulum;
         typedef typename SPEC::T T;
         T angle_norm = angle_normalize(device.math, state.theta);
@@ -139,7 +139,7 @@ namespace rl_tools{
     }
 
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::State<STATE_SPEC>& state, const typename rl::environments::pendulum::ObservationFourier<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::State<STATE_SPEC>& state, const typename rl::environments::pendulum::ObservationFourier<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == 3);
         typedef typename SPEC::T T;
@@ -159,7 +159,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::State<STATE_SPEC>& state, const typename rl::environments::pendulum::ObservationRaw<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::State<STATE_SPEC>& state, const typename rl::environments::pendulum::ObservationRaw<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == 2);
         typedef typename SPEC::T T;
@@ -167,7 +167,7 @@ namespace rl_tools{
         set(observation, 0, 1, state.theta_dot);
     }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::State<STATE_SPEC>& state, const typename rl::environments::pendulum::ObservationPosition<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::State<STATE_SPEC>& state, const typename rl::environments::pendulum::ObservationPosition<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == 2);
         typedef typename SPEC::T T;
@@ -182,7 +182,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::State<STATE_SPEC>& state, const typename rl::environments::pendulum::ObservationVelocity<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::State<STATE_SPEC>& state, const typename rl::environments::pendulum::ObservationVelocity<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
         using ENVIRONMENT = rl::environments::Pendulum<SPEC>;
         using PARAMETERS = typename ENVIRONMENT::Parameters;
         static_assert(OBS_SPEC::ROWS == 1);
@@ -195,7 +195,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::StateLastAction<STATE_SPEC>& state, const typename rl::environments::pendulum::ObservationVelocityLastAction<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::StateLastAction<STATE_SPEC>& state, const typename rl::environments::pendulum::ObservationVelocityLastAction<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
         using ENVIRONMENT = rl::environments::Pendulum<SPEC>;
         using PARAMETERS = typename ENVIRONMENT::Parameters;
         static_assert(OBS_SPEC::ROWS == 1);
@@ -209,7 +209,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::StateMultiTask<STATE_SPEC>& state, const typename rl::environments::pendulum::ObservationMultiTask<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::StateMultiTask<STATE_SPEC>& state, const typename rl::environments::pendulum::ObservationMultiTask<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
         using ENVIRONMENT = rl::environments::Pendulum<SPEC>;
         using PARAMETERS = typename ENVIRONMENT::Parameters;
         static_assert(OBS_SPEC::ROWS == 1);
@@ -220,7 +220,7 @@ namespace rl_tools{
         set(observation, 0, 3, state.invert_action ? -1 : 1);
     }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::StateMeta<STATE_SPEC>& state, const typename rl::environments::pendulum::ObservationMeta<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void observe(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::StateMeta<STATE_SPEC>& state, const typename rl::environments::pendulum::ObservationMeta<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
         using ENVIRONMENT = rl::environments::Pendulum<SPEC>;
         using PARAMETERS = typename ENVIRONMENT::Parameters;
         static_assert(OBS_SPEC::ROWS == 1);
@@ -232,7 +232,7 @@ namespace rl_tools{
     }
     // get_serialized_state is not generally required, it is just used in the WASM demonstration of the project page, where serialization is needed to go from the WASM runtime to the JavaScript UI
     template<typename DEVICE, typename SPEC, typename STATE_SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T get_serialized_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::pendulum::State<STATE_SPEC>& state, typename DEVICE::index_t index){
+    RL_TOOLS_FUNCTION_PLACEMENT inline typename SPEC::T get_serialized_state(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, const typename rl::environments::pendulum::State<STATE_SPEC>& state, typename DEVICE::index_t index){
         if(index == 0) {
             return state.theta;
         }
@@ -241,7 +241,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC, typename STATE_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::State<STATE_SPEC> state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline bool terminated(DEVICE& device, const rl::environments::Pendulum<SPEC>& env, typename rl::environments::Pendulum<SPEC>::Parameters& parameters, const typename rl::environments::pendulum::State<STATE_SPEC> state, RNG& rng){
         using T = typename SPEC::T;
         return false; //random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), (T)0, (T)1, rng) > 0.9;
     }
