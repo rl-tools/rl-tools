@@ -2,7 +2,7 @@
 #include <stddef.h>
 #include <math.h>
 
-static size_t rl_tools_inference_executor_u32_to_revstr(uint32_t v, char *buf, size_t cap){
+inline size_t rl_tools_inference_executor_u32_to_revstr(uint32_t v, char *buf, size_t cap){
     size_t idx = 0;
     if (v == 0 && idx < cap) {
         buf[idx++] = '0';

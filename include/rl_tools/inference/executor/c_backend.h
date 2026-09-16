@@ -3,7 +3,7 @@
 #include "c_interface.h"
 #include "helper.h"
 
-static int portable_strlen(const char* str) {
+inline int portable_strlen(const char* str) {
     const char* ptr = str;
     while (*ptr != '\0') {
         ptr++;
@@ -11,13 +11,13 @@ static int portable_strlen(const char* str) {
     return ptr - str;
 }
 
-static char * portable_strcpy(char *dest, const char *src) {
+inline char * portable_strcpy(char *dest, const char *src) {
     char *original_dest = dest;
     while ((*dest++ = *src++) != '\0');
     return original_dest;
 }
 
-static void append(char* target, int target_size, const char* message, int &position){
+inline void append(char* target, int target_size, const char* message, int &position){
     if(position + portable_strlen(message) < target_size){
         portable_strcpy(target + position, message);
         position += portable_strlen(message);

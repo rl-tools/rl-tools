@@ -21,14 +21,14 @@ namespace rl_tools::inference::applications::l2f{
 
     // state
     using SPEC = rl_tools::inference::applications::l2f::Specification<TYPE_POLICY, TI, RLtoolsInferenceTimestamp, CONFIG::ACTION_HISTORY_LENGTH, OUTPUT_DIM, typename CONFIG::POLICY, CONFIG::CONTROL_INTERVAL_INTERMEDIATE_NS, CONFIG::CONTROL_INTERVAL_NATIVE_NS, CONFIG::FORCE_SYNC_INTERMEDIATE, CONFIG::FORCE_SYNC_NATIVE, CONFIG::FORCE_SYNC_NATIVE_RUNTIME, CONFIG::WARNING_LEVELS, CONFIG::DYNAMIC_ALLOCATION>;
-    typename CONFIG::DEVICE device;
-    typename CONFIG::RNG rng;
-    static rl_tools::inference::applications::L2F<SPEC> executor;
+    inline typename CONFIG::DEVICE device;
+    inline typename CONFIG::RNG rng;
+    inline rl_tools::inference::applications::L2F<SPEC> executor;
     // Test Buffers
     #ifndef RL_TOOLS_DISABLE_TEST
-    static CONFIG::POLICY_TEST::template Buffer<false> buffers_test;
-    static CONFIG::POLICY_TEST::State<false> policy_state_test;
-    static rl_tools::Tensor<rl_tools::tensor::Specification<TYPE_POLICY::DEFAULT, TI, rl_tools::tensor::Shape<TI, 1, OUTPUT_DIM>, false>> output;
+    inline CONFIG::POLICY_TEST::template Buffer<false> buffers_test;
+    inline CONFIG::POLICY_TEST::State<false> policy_state_test;
+    inline rl_tools::Tensor<rl_tools::tensor::Specification<TYPE_POLICY::DEFAULT, TI, rl_tools::tensor::Shape<TI, 1, OUTPUT_DIM>, false>> output;
     #endif
 }
 
