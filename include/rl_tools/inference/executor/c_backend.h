@@ -1,9 +1,14 @@
+#include "../../version.h"
+#if (defined(RL_TOOLS_DISABLE_INCLUDE_GUARDS) || !defined(RL_TOOLS_INFERENCE_EXECUTOR_C_BACKEND_H)) && (RL_TOOLS_USE_THIS_VERSION == 1)
+#pragma once
+#define RL_TOOLS_INFERENCE_EXECUTOR_C_BACKEND_H
+
 #include <stdio.h>
 #include "executor.h"
 #include "c_interface.h"
 #include "helper.h"
 
-static int portable_strlen(const char* str) {
+inline int portable_strlen(const char* str) {
     const char* ptr = str;
     while (*ptr != '\0') {
         ptr++;
@@ -11,13 +16,13 @@ static int portable_strlen(const char* str) {
     return ptr - str;
 }
 
-static char * portable_strcpy(char *dest, const char *src) {
+inline char * portable_strcpy(char *dest, const char *src) {
     char *original_dest = dest;
     while ((*dest++ = *src++) != '\0');
     return original_dest;
 }
 
-static void append(char* target, int target_size, const char* message, int &position){
+inline void append(char* target, int target_size, const char* message, int &position){
     if(position + portable_strlen(message) < target_size){
         portable_strcpy(target + position, message);
         position += portable_strlen(message);
@@ -25,7 +30,7 @@ static void append(char* target, int target_size, const char* message, int &posi
 }
 
 
-void rl_tools_inference_executor_status_message(RLtoolsInferenceExecutorStatus status, char* target, int target_size){
+extern "C" inline void rl_tools_inference_executor_status_message(RLtoolsInferenceExecutorStatus status, char* target, int target_size){
     int position = 0;
     if(status.OK){
         append(target, target_size, "OK", position);
@@ -96,3 +101,5 @@ namespace rl_tools{
         return output;
     }
 }
+
+#endif

@@ -7,24 +7,24 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT static void malloc(DEVICE& device, const rl::environments::Memory<SPEC>& env){ }
+    RL_TOOLS_FUNCTION_PLACEMENT inline void malloc(DEVICE& device, const rl::environments::Memory<SPEC>& env){ }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT static void free(DEVICE& device, const rl::environments::Memory<SPEC>& env){ }
+    RL_TOOLS_FUNCTION_PLACEMENT inline void free(DEVICE& device, const rl::environments::Memory<SPEC>& env){ }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT static void init(DEVICE& device, const rl::environments::Memory<SPEC>& env){ }
+    RL_TOOLS_FUNCTION_PLACEMENT inline void init(DEVICE& device, const rl::environments::Memory<SPEC>& env){ }
     template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_parameters(DEVICE& device, const rl::environments::Memory<SPEC>& env, typename rl::environments::Memory<SPEC>::Parameters& parameters, RNG& rng){ }
+    RL_TOOLS_FUNCTION_PLACEMENT inline void sample_initial_parameters(DEVICE& device, const rl::environments::Memory<SPEC>& env, typename rl::environments::Memory<SPEC>::Parameters& parameters, RNG& rng){ }
     template<typename DEVICE, typename SPEC>
-    static void initial_parameters(DEVICE& device, const rl::environments::Memory<SPEC>& env, typename rl::environments::Memory<SPEC>::Parameters& parameters){ }
+    inline void initial_parameters(DEVICE& device, const rl::environments::Memory<SPEC>& env, typename rl::environments::Memory<SPEC>::Parameters& parameters){ }
     template<typename DEVICE, typename SPEC>
-    static void initial_state(DEVICE& device, const rl::environments::Memory<SPEC>& env, typename rl::environments::Memory<SPEC>::Parameters& parameters, typename rl::environments::Memory<SPEC>::State& state){
+    inline void initial_state(DEVICE& device, const rl::environments::Memory<SPEC>& env, typename rl::environments::Memory<SPEC>::Parameters& parameters, typename rl::environments::Memory<SPEC>::State& state){
         using TI = typename DEVICE::index_t;
         for(TI step_i = 0; step_i < SPEC::PARAMETERS::HORIZON; step_i++){
             state.history[step_i] = 0;
         }
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Memory<SPEC>& env, typename rl::environments::Memory<SPEC>::Parameters& parameters, typename rl::environments::Memory<SPEC>::State& state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void sample_initial_state(DEVICE& device, const rl::environments::Memory<SPEC>& env, typename rl::environments::Memory<SPEC>::Parameters& parameters, typename rl::environments::Memory<SPEC>::State& state, RNG& rng){
         using T = typename SPEC::T;
         initial_state(device, env, parameters, state);
         state.history[SPEC::PARAMETERS::HORIZON - 1] = random::uniform_real_distribution(device.random, (T)0, (T)1.0, rng) < SPEC::PARAMETERS::INPUT_PROBABILITY ? 1 : 0;
@@ -45,7 +45,7 @@ namespace rl_tools{
         return 0;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Memory<SPEC>& env, typename rl::environments::Memory<SPEC>::Parameters& parameters, const typename rl::environments::Memory<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Memory<SPEC>::State& next_state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline typename SPEC::T reward(DEVICE& device, const rl::environments::Memory<SPEC>& env, typename rl::environments::Memory<SPEC>::Parameters& parameters, const typename rl::environments::Memory<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Memory<SPEC>::State& next_state, RNG& rng){
         using namespace rl::environments::memory;
         using T = typename SPEC::T;
         using TI = typename DEVICE::index_t;
@@ -62,7 +62,7 @@ namespace rl_tools{
     }
 
     template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Memory<SPEC>& env, const typename rl::environments::Memory<SPEC>::Parameters& parameters, const typename rl::environments::Memory<SPEC>::State& state, const typename rl::environments::memory::Observation<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void observe(DEVICE& device, const rl::environments::Memory<SPEC>& env, const typename rl::environments::Memory<SPEC>::Parameters& parameters, const typename rl::environments::Memory<SPEC>::State& state, const typename rl::environments::memory::Observation<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == 1);
         using T = typename SPEC::T;
@@ -70,7 +70,7 @@ namespace rl_tools{
         set(observation, 0, 0, state.history[SPEC::PARAMETERS::HORIZON - 1]);
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Memory<SPEC>& env, typename rl::environments::Memory<SPEC>::Parameters& parameters, const typename rl::environments::Memory<SPEC>::State state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline bool terminated(DEVICE& device, const rl::environments::Memory<SPEC>& env, typename rl::environments::Memory<SPEC>::Parameters& parameters, const typename rl::environments::Memory<SPEC>::State state, RNG& rng){
         return false;
     }
 }

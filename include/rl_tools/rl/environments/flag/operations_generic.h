@@ -7,13 +7,13 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT static void malloc(DEVICE& device, const rl::environments::Flag<SPEC>& env){ }
+    RL_TOOLS_FUNCTION_PLACEMENT inline void malloc(DEVICE& device, const rl::environments::Flag<SPEC>& env){ }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT static void free(DEVICE& device, const rl::environments::Flag<SPEC>& env){ }
+    RL_TOOLS_FUNCTION_PLACEMENT inline void free(DEVICE& device, const rl::environments::Flag<SPEC>& env){ }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT static void init(DEVICE& device, const rl::environments::Flag<SPEC>& env){ }
+    RL_TOOLS_FUNCTION_PLACEMENT inline void init(DEVICE& device, const rl::environments::Flag<SPEC>& env){ }
     template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_parameters(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void sample_initial_parameters(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, RNG& rng){
         using T = typename SPEC::T;
         parameters.flag_positions[0][0] = random::uniform_real_distribution(device.random, (T)0, SPEC::PARAMETERS::BOARD_SIZE, rng);
         parameters.flag_positions[0][1] = random::uniform_real_distribution(device.random, (T)0, SPEC::PARAMETERS::BOARD_SIZE, rng);
@@ -21,14 +21,14 @@ namespace rl_tools{
         parameters.flag_positions[1][1] = random::uniform_real_distribution(device.random, (T)0, SPEC::PARAMETERS::BOARD_SIZE, rng);
     }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT static void initial_parameters(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void initial_parameters(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters){
         parameters.flag_positions[0][0] = SPEC::PARAMETERS::BOARD_SIZE * 1.0 / 4;
         parameters.flag_positions[0][1] = SPEC::PARAMETERS::BOARD_SIZE * 1.0 / 4;
         parameters.flag_positions[1][0] = SPEC::PARAMETERS::BOARD_SIZE * 3.0 / 4;
         parameters.flag_positions[1][1] = SPEC::PARAMETERS::BOARD_SIZE * 3.0 / 4;
     }
     template<typename DEVICE, typename SPEC>
-    RL_TOOLS_FUNCTION_PLACEMENT static void initial_state(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, typename rl::environments::Flag<SPEC>::State& state){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void initial_state(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, typename rl::environments::Flag<SPEC>::State& state){
         state.position[0] = SPEC::PARAMETERS::BOARD_SIZE / 2;
         state.position[1] = SPEC::PARAMETERS::BOARD_SIZE / 2;
         state.velocity[0] = 0;
@@ -37,7 +37,7 @@ namespace rl_tools{
         state.step = 0;
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, typename rl::environments::Flag<SPEC>::State& state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void sample_initial_state(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, typename rl::environments::Flag<SPEC>::State& state, RNG& rng){
         using T = typename SPEC::T;
         using PARAMETERS = typename rl::environments::Flag<SPEC>::Parameters;
         state.position[0] = random::uniform_real_distribution(device.random, (T)0, SPEC::PARAMETERS::BOARD_SIZE, rng);
@@ -108,7 +108,7 @@ namespace rl_tools{
         return SPEC::PARAMETERS::DT;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Flag<SPEC>::State& next_state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline typename SPEC::T reward(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Flag<SPEC>::State& next_state, RNG& rng){
         using T = typename SPEC::T;
         using ENVIRONMENT = rl::environments::Flag<SPEC>;
         using PARAMETERS = typename ENVIRONMENT::Parameters;
@@ -132,7 +132,7 @@ namespace rl_tools{
     }
 
     template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Flag<SPEC>& env, const typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State& state, const typename rl::environments::flag::Observation<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void observe(DEVICE& device, const rl::environments::Flag<SPEC>& env, const typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State& state, const typename rl::environments::flag::Observation<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == 11);
         using T = typename SPEC::T;
@@ -173,7 +173,7 @@ namespace rl_tools{
     }
 
     template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Flag<SPEC>& env, const typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State& state, const typename rl::environments::flag::ObservationPrivileged<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT inline void observe(DEVICE& device, const rl::environments::Flag<SPEC>& env, const typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State& state, const typename rl::environments::flag::ObservationPrivileged<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng) {
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == 11);
         using T = typename SPEC::T;
@@ -184,14 +184,14 @@ namespace rl_tools{
         set(observation, 0, 10, parameters.flag_positions[1][1]);
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline bool terminated(DEVICE& device, const rl::environments::Flag<SPEC>& env, typename rl::environments::Flag<SPEC>::Parameters& parameters, const typename rl::environments::Flag<SPEC>::State state, RNG& rng){
         using PARAMS = typename SPEC::PARAMETERS;
         bool out_of_boundary = state.position[0] == 0 || state.position[0] == PARAMS::BOARD_SIZE;
         out_of_boundary = out_of_boundary || state.position[1] == 0 || state.position[1] == PARAMS::BOARD_SIZE;
         return state.state_machine == rl::environments::Flag<SPEC>::State::StateMachine::FLAG_2_VISITED || out_of_boundary;
     }
     template<typename DEVICE, typename T, typename TI>
-    RL_TOOLS_FUNCTION_PLACEMENT static T abs_diff(DEVICE& device, const rl::environments::flag::State<T, TI>& s1, const rl::environments::flag::State<T, TI>& s2){
+    RL_TOOLS_FUNCTION_PLACEMENT inline T abs_diff(DEVICE& device, const rl::environments::flag::State<T, TI>& s1, const rl::environments::flag::State<T, TI>& s2){
         T diff = 0;
         diff += math::abs(device.math, s1.position[0] - s2.position[0]);
         diff += math::abs(device.math, s1.position[1] - s2.position[1]);
@@ -202,7 +202,7 @@ namespace rl_tools{
         return diff;
     }
     template<typename DEVICE, typename T, typename TI, TI T_MAX_EPISODE_LENGTH, bool T_ACTOR_PRIVILEGED_OBSERVATION, bool T_CRITIC_PRIVILEGED_OBSERVATION>
-    RL_TOOLS_FUNCTION_PLACEMENT static T abs_diff(DEVICE& device, const rl::environments::flag::DefaultParameters<T, TI, T_MAX_EPISODE_LENGTH, T_ACTOR_PRIVILEGED_OBSERVATION, T_CRITIC_PRIVILEGED_OBSERVATION>& p1, const rl::environments::flag::DefaultParameters<T, TI, T_MAX_EPISODE_LENGTH, T_ACTOR_PRIVILEGED_OBSERVATION, T_CRITIC_PRIVILEGED_OBSERVATION>& p2){
+    RL_TOOLS_FUNCTION_PLACEMENT inline T abs_diff(DEVICE& device, const rl::environments::flag::DefaultParameters<T, TI, T_MAX_EPISODE_LENGTH, T_ACTOR_PRIVILEGED_OBSERVATION, T_CRITIC_PRIVILEGED_OBSERVATION>& p1, const rl::environments::flag::DefaultParameters<T, TI, T_MAX_EPISODE_LENGTH, T_ACTOR_PRIVILEGED_OBSERVATION, T_CRITIC_PRIVILEGED_OBSERVATION>& p2){
         T diff = 0;
         diff += math::abs(device.math, p1.flag_positions[0][0] - p2.flag_positions[0][0]);
         diff += math::abs(device.math, p1.flag_positions[0][1] - p2.flag_positions[0][1]);

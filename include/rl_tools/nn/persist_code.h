@@ -8,7 +8,7 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    std::string to_string(nn::LayerCapability capability){
+    inline std::string to_string(nn::LayerCapability capability){
         switch(capability){
             case nn::LayerCapability::Forward:
                 return "Forward";

@@ -32,7 +32,7 @@ namespace rl_tools{
             ui.wsi = lws_client_connect_via_info(&ui.conn_info);
         }
         template <typename ENVIRONMENT>
-        static int callback(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len) {
+        inline int callback(struct lws *wsi, enum lws_callback_reasons reason, void *user, void *in, size_t len) {
             using UI = ui_server::client::UIWebSocket<ENVIRONMENT>;
             UI *ui = (UI*) user;
             switch (reason) {

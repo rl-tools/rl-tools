@@ -1,8 +1,12 @@
+#pragma once
+#ifndef RL_TOOLS_INFERENCE_EXECUTOR_HELPER_H
+#define RL_TOOLS_INFERENCE_EXECUTOR_HELPER_H
+
 #include <stdint.h>
 #include <stddef.h>
 #include <math.h>
 
-static size_t rl_tools_inference_executor_u32_to_revstr(uint32_t v, char *buf, size_t cap){
+inline size_t rl_tools_inference_executor_u32_to_revstr(uint32_t v, char *buf, size_t cap){
     size_t idx = 0;
     if (v == 0 && idx < cap) {
         buf[idx++] = '0';
@@ -15,7 +19,7 @@ static size_t rl_tools_inference_executor_u32_to_revstr(uint32_t v, char *buf, s
     return idx;
 }
 
-int rl_tools_inference_executor_int_to_str(int32_t v, char *dst, size_t dst_size){
+inline int rl_tools_inference_executor_int_to_str(int32_t v, char *dst, size_t dst_size){
     if (!dst || dst_size == 0)
         return 0;
 
@@ -41,7 +45,7 @@ int rl_tools_inference_executor_int_to_str(int32_t v, char *dst, size_t dst_size
 }
 
 
-int rl_tools_inference_executor_float_to_str(float f, char *dst, size_t dst_size){
+inline int rl_tools_inference_executor_float_to_str(float f, char *dst, size_t dst_size){
     static const double POW10_6 = 1e6;
     if (!dst || dst_size == 0)
         return 0;
@@ -107,3 +111,5 @@ int rl_tools_inference_executor_float_to_str(float f, char *dst, size_t dst_size
     dst[out] = '\0';
     return (int)needed;
 }
+
+#endif

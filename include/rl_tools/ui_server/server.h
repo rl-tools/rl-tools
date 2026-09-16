@@ -388,7 +388,7 @@ namespace rl_tools::ui_server{
         }
     };
 
-    void http_server(tcp::acceptor& acceptor, tcp::socket& socket, State& state, std::string& static_path, bool verbose){
+    inline void http_server(tcp::acceptor& acceptor, tcp::socket& socket, State& state, std::string& static_path, bool verbose){
         acceptor.async_accept(socket, [&, verbose](beast::error_code ec){
             if(!ec)
                 std::make_shared<http_connection>(std::move(socket), state, static_path, verbose)->start();

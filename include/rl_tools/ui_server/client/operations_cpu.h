@@ -11,7 +11,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace ui_server::client{
-        std::string escape_json_string(const std::string& input) {
+        inline std::string escape_json_string(const std::string& input) {
             std::string output;
             output.reserve(input.size());
 

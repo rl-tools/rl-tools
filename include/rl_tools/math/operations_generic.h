@@ -94,14 +94,14 @@ namespace rl_tools::math {
      */
 
     namespace generic::acos{
-        static constexpr float
+        inline constexpr float
         pio2_hi = 1.5707962513e+00f, /* 0x3fc90fda */
         pio2_lo = 7.5497894159e-08f, /* 0x33a22168 */
         pS0 =  1.6666586697e-01f,
         pS1 = -4.2743422091e-02f,
         pS2 = -8.6563630030e-03f,
         qS1 = -7.0662963390e-01f;
-        static inline float R(float z){
+        inline float R(float z){
             float p, q;
             p = z*(pS0+z*(pS1+z*pS2));
             q = 1.0f+z*qS1;

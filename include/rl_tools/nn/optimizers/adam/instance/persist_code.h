@@ -10,7 +10,7 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    std::string get_type_string(nn::parameters::Adam p){
+    inline std::string get_type_string(nn::parameters::Adam p){
         return "RL_TOOLS""_NAMESPACE_WRAPPER ::rl_tools::nn::parameters::Adam";
     }
     template<typename DEVICE, typename SPEC>

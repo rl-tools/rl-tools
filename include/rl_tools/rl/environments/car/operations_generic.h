@@ -21,13 +21,13 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC>
-    static void malloc(DEVICE& device, const rl::environments::Car<SPEC>& env){ }
+    inline void malloc(DEVICE& device, const rl::environments::Car<SPEC>& env){ }
     template<typename DEVICE, typename SPEC>
-    static void free(DEVICE& device, const rl::environments::Car<SPEC>& env){ }
+    inline void free(DEVICE& device, const rl::environments::Car<SPEC>& env){ }
     template<typename DEVICE, typename SPEC>
-    static void init(DEVICE& device, const rl::environments::Car<SPEC>& env){ }
+    inline void init(DEVICE& device, const rl::environments::Car<SPEC>& env){ }
     template<typename DEVICE, typename SPEC>
-    static void init(DEVICE& device, rl::environments::CarTrack<SPEC>& env){
+    inline void init(DEVICE& device, rl::environments::CarTrack<SPEC>& env){
         env.initialized = true;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
@@ -40,7 +40,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC>
-    static void initial_parameters(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, typename rl::environments::CarTrack<SPEC>::Parameters& parameters) {
+    inline void initial_parameters(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, typename rl::environments::CarTrack<SPEC>::Parameters& parameters) {
         using TI = typename SPEC::TI;
         for(TI row_i=0; row_i < SPEC::HEIGHT; row_i++){
             for(TI col_i=0; col_i < SPEC::WIDTH; col_i++){
@@ -49,18 +49,18 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC>
-    static void initial_parameters(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters) {
+    inline void initial_parameters(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters) {
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_parameters(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT inline void sample_initial_parameters(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, RNG& rng) {
         initial_parameters(device, env, parameters);
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_parameters(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, typename rl::environments::CarTrack<SPEC>::Parameters& parameters, RNG& rng) {
+    RL_TOOLS_FUNCTION_PLACEMENT inline void sample_initial_parameters(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, typename rl::environments::CarTrack<SPEC>::Parameters& parameters, RNG& rng) {
         initial_parameters(device, env, parameters);
     }
     template<typename DEVICE, typename SPEC>
-    static void initial_state(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, typename rl::environments::Car<SPEC>::State& state){
+    inline void initial_state(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, typename rl::environments::Car<SPEC>::State& state){
         state.x = 0;
         state.y = 0;
         state.mu = 0;
@@ -69,7 +69,7 @@ namespace rl_tools{
         state.omega = 0;
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, typename rl::environments::Car<SPEC>::State& state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void sample_initial_state(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, typename rl::environments::Car<SPEC>::State& state, RNG& rng){
         using T = typename SPEC::T;
         initial_state(device, env, state);
         constexpr T dist = 0.2;
@@ -78,12 +78,12 @@ namespace rl_tools{
         state.mu = random::uniform_real_distribution(typename DEVICE::SPEC::RANDOM(), -math::PI<T>, math::PI<T>, rng);
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::Car<SPEC>::State state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline bool terminated(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::Car<SPEC>::State state, RNG& rng){
         using T = typename SPEC::T;
         return state.x > 1.0 || state.x < -1.0 || state.y > 1.0 || state.y < -1.0;
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static bool terminated(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::CarTrack<SPEC>::State state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline bool terminated(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::CarTrack<SPEC>::State state, RNG& rng){
 #ifdef RL_TOOLS_DEBUG
         utils::assert_exit(device, env.initialized, "Environment not initialized");
 #endif
@@ -130,7 +130,7 @@ namespace rl_tools{
         return p.dt;
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::Car<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Car<SPEC>::State& next_state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline typename SPEC::T reward(DEVICE& device, const rl::environments::Car<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::Car<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Car<SPEC>::State& next_state, RNG& rng){
         using namespace rl::environments::car;
         typedef typename SPEC::T T;
         T angle_norm = angle_normalize(device.math, state.mu);
@@ -138,14 +138,14 @@ namespace rl_tools{
         return math::exp(device.math, -5*cost);
     }
     template<typename DEVICE, typename SPEC, typename ACTION_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static typename SPEC::T reward(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::Car<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Car<SPEC>::State& next_state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline typename SPEC::T reward(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::Car<SPEC>::State& state, const Matrix<ACTION_SPEC>& action, const typename rl::environments::Car<SPEC>::State& next_state, RNG& rng){
         using namespace rl::environments::car;
         typedef typename SPEC::T T;
         return state.vx;
     }
 
     template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::Car<SPEC>& env, const typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::Car<SPEC>::State& state, const typename rl::environments::car::ObservationCar<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void observe(DEVICE& device, const rl::environments::Car<SPEC>& env, const typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::Car<SPEC>::State& state, const typename rl::environments::car::ObservationCar<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
         using ENVIRONMENT = rl::environments::Car<SPEC>;
         static_assert(OBS_SPEC::ROWS == 1);
         static_assert(OBS_SPEC::COLS == ENVIRONMENT::Observation::DIM);
@@ -158,7 +158,7 @@ namespace rl_tools{
         set(observation, 0, 5, state.omega);
     }
     template<typename DEVICE, typename SPEC, typename OBS_TYPE_SPEC, typename OBS_SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void observe(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, const typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::CarTrack<SPEC>::State& state, const typename rl::environments::car::ObservationCarTrack<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void observe(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, const typename rl::environments::Car<SPEC>::Parameters& parameters, const typename rl::environments::CarTrack<SPEC>::State& state, const typename rl::environments::car::ObservationCarTrack<OBS_TYPE_SPEC>&, Matrix<OBS_SPEC>& observation, RNG& rng){
 #ifdef RL_TOOLS_DEBUG
         utils::assert_exit(device, env.initialized, "Environment not initialized");
 #endif
@@ -192,7 +192,7 @@ namespace rl_tools{
         }
     }
     template<typename DEVICE, typename SPEC, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, typename rl::environments::Car<SPEC>::State& state, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT inline void sample_initial_state(DEVICE& device, const rl::environments::CarTrack<SPEC>& env, typename rl::environments::Car<SPEC>::Parameters& parameters, typename rl::environments::Car<SPEC>::State& state, RNG& rng){
         using T = typename SPEC::T;
         initial_state(device, env, parameters, state);
         do{

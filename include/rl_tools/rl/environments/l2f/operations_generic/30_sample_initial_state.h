@@ -15,7 +15,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT static void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, STATE& state, RNG& rng);
+    RL_TOOLS_FUNCTION_PLACEMENT inline void sample_initial_state(DEVICE& device, rl::environments::Multirotor<SPEC>& env, PARAMETERS& parameters, STATE& state, RNG& rng);
     namespace rl::environments::l2f{
         template <typename DEVICE, typename T, typename RNG>
         void sample_orientation(DEVICE& device, T limit, T output[4], RNG& rng){
@@ -39,7 +39,7 @@ namespace rl_tools{
             output[3] = z * s;
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateBase<STATE_SPEC>& state, RNG& rng, bool inherited_guidance = false){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateBase<STATE_SPEC>& state, RNG& rng, bool inherited_guidance = false){
             typename DEVICE::SPEC::MATH math_dev;
             typename DEVICE::SPEC::RANDOM random_dev;
             using STATE = StateBase<STATE_SPEC>;
@@ -84,7 +84,7 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateLastAction<STATE_SPEC>& state, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateLastAction<STATE_SPEC>& state, RNG& rng){
             using TI = typename DEVICE::index_t;
             using STATE = StateLastAction<STATE_SPEC>;
             sample_initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state), rng);
@@ -93,7 +93,7 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateLinearAcceleration<STATE_SPEC>& state, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateLinearAcceleration<STATE_SPEC>& state, RNG& rng){
             using TI = typename DEVICE::index_t;
             sample_initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state), rng);
             for(TI i = 0; i < 3; i++){
@@ -101,7 +101,7 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateAngularVelocityDelay<STATE_SPEC>& state, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateAngularVelocityDelay<STATE_SPEC>& state, RNG& rng){
             using TI = typename DEVICE::index_t;
             using STATE = StateAngularVelocityDelay<STATE_SPEC>;
             sample_initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state), rng);
@@ -112,7 +112,7 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateLinearVelocityDelay<STATE_SPEC>& state, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateLinearVelocityDelay<STATE_SPEC>& state, RNG& rng){
             using TI = typename DEVICE::index_t;
             using STATE = StateLinearVelocityDelay<STATE_SPEC>;
             sample_initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state), rng);
@@ -123,7 +123,7 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StatePoseErrorIntegral<STATE_SPEC>& state, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StatePoseErrorIntegral<STATE_SPEC>& state, RNG& rng){
             using TI = typename DEVICE::index_t;
             sample_initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state), rng);
             for (TI dim_i=0; dim_i<3; dim_i++){
@@ -132,7 +132,7 @@ namespace rl_tools{
             state.orientation_integral = 0;
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateRandomForce<STATE_SPEC>& state, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateRandomForce<STATE_SPEC>& state, RNG& rng){
             typename DEVICE::SPEC::RANDOM random_dev;
             using T = typename SPEC::T;
     //        bool guidance = random::uniform_real_distribution(random_dev, (T)0, (T)1, rng) < parameters.mdp.init.guidance;
@@ -162,14 +162,14 @@ namespace rl_tools{
 
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateRandomOrientationOffset<STATE_SPEC>& state, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateRandomOrientationOffset<STATE_SPEC>& state, RNG& rng){
             typename DEVICE::SPEC::RANDOM random_dev;
             using T = typename SPEC::T;
             sample_initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state), rng);
             sample_orientation(device, parameters.domain_randomization, state.orientation, rng);
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateRotors<STATE_SPEC>& state, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateRotors<STATE_SPEC>& state, RNG& rng){
             sample_initial_state(device, env, parameters, static_cast<typename STATE_SPEC::NEXT_COMPONENT&>(state), rng);
             using TI = typename DEVICE::index_t;
             using T = typename SPEC::T;
@@ -193,7 +193,7 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateRotorsHistory<STATE_SPEC>& state, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateRotorsHistory<STATE_SPEC>& state, RNG& rng){
             using MULTIROTOR = Multirotor<SPEC>;
             using TI = typename DEVICE::index_t;
             using STATE = StateRotorsHistory<STATE_SPEC>;
@@ -206,7 +206,7 @@ namespace rl_tools{
             }
         }
         template<typename DEVICE, typename SPEC, typename PARAMETERS, typename STATE_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT static void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateTrajectory<STATE_SPEC>& state, RNG& rng){
+        RL_TOOLS_FUNCTION_PLACEMENT inline void _sample_initial_state(DEVICE& device, Multirotor<SPEC>& env, PARAMETERS& parameters, StateTrajectory<STATE_SPEC>& state, RNG& rng){
             using MULTIROTOR = Multirotor<SPEC>;
             using TI = typename DEVICE::index_t;
             using T = typename SPEC::T;
