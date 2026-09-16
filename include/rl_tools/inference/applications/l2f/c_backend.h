@@ -103,6 +103,11 @@ RLtoolsInferenceExecutorStatus rl_tools_inference_applications_l2f_control(RLtoo
     for (TI action_i=0; action_i < OUTPUT_DIM; action_i++){
         observation.previous_action[action_i] = c_observation->previous_action[action_i];
     }
+    observation.position_set = true;
+    observation.orientation_set = true;
+    observation.linear_velocity_set = true;
+    observation.angular_velocity_set = true;
+    observation.previous_action_set = true;
     rl_tools::inference::applications::l2f::Action<SPEC> action;
     auto status = rl_tools::control(device, executor, nanoseconds, CONFIG::policy(), observation, action, rng);
     for (TI action_i=0; action_i < OUTPUT_DIM; action_i++){
