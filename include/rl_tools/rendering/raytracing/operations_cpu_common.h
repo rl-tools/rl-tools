@@ -291,7 +291,7 @@ namespace rl_tools {
     void announce_configuration(){
         RL_TOOLS_RENDERING_RAYTRACING_LOG("config: " << SPEC::NUM_CAMERAS << " camera(s) " << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT
             << " outputs[rgb=" << SPEC::HAS_RGB << " depth=" << SPEC::HAS_DEPTH << " segmentation=" << SPEC::HAS_SEGMENTATION << (SPEC::SEMANTIC_SEGMENTATION ? " (semantic)" : "") << " normals=" << SPEC::HAS_NORMALS << " flow=" << SPEC::HAS_FLOW << " flow_forward=" << SPEC::HAS_FLOW_FORWARD << "]"
-            << " probes=" << SPEC::NUM_PROBES
+            << " probes=" << (RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS ? 0 : SPEC::NUM_PROBES)
             << " motion_blur_samples=" << (SPEC::ENABLE_MOTION_BLUR ? SPEC::MOTION_BLUR_SAMPLES : 0)
             << " anti_aliasing_grid=" << (SPEC::ENABLE_ANTI_ALIASING ? SPEC::ANTI_ALIASING_GRID_SIZE : 0)
             << " overlays=" << SPEC::NUM_OVERLAYS << "x" << SPEC::MAX_OVERLAY_INSTANCES << " overlays_per_camera=" << SPEC::MAX_OVERLAYS_PER_CAMERA);

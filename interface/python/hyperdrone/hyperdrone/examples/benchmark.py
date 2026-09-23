@@ -2,7 +2,8 @@
 (src/rendering/raytracing/benchmark/simulator_matrix.cpp), matching the configuration of
 `rendering_raytracing_sim_benchmark_medium --scene procthor` (render_only cell):
 
-  4096 cameras @ 64x64, medium fidelity, RGB output, 1 probe, AA/MB off, fov 80 degrees,
+  4096 cameras @ 64x64, medium fidelity, RGB output, collision probes compiled out
+  (num_probes=0, the C++ target's probe-ray macro), AA/MB off, fov 80 degrees,
   all cameras at the fixed FLU eye position [-3.92, -5.67, 1.0] inside the ProcTHOR
   house, per-camera orientations sampled once from a seeded distribution
   (uniform_so3 default), 2s untimed warmup, then a timed async render_launch loop with a
@@ -128,7 +129,7 @@ else:
     scene = build_procedural_scene(np.random.default_rng(0))
     eye = None
 
-renderer = render.Renderer(width=WIDTH, height=HEIGHT, num_cameras=NUM_CAMERAS, num_probes=1,
+renderer = render.Renderer(width=WIDTH, height=HEIGHT, num_cameras=NUM_CAMERAS, num_probes=0,
                            output=arguments.output, fidelity=arguments.fidelity)
 renderer.init(scene)
 if eye is None:
@@ -140,7 +141,6 @@ look_at_forward = normalize(np.asarray(renderer.scene_bounds["center"], dtype=np
     if not np.allclose(np.asarray(renderer.scene_bounds["center"], dtype=np.float64), eye) else np.array([1.0, 0.0, 0.0])
 forwards, ups = sample_orientations(rng, NUM_CAMERAS, arguments.orientation_mode, look_at_forward)
 renderer.set_cameras(camera_bases(positions, forwards, ups, FOV, ASPECT))
-renderer.generate_probe_directions()
 
 set_cameras_for_iteration = lambda iteration: None
 if arguments.camera_input != "static":

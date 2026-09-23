@@ -1,3 +1,13 @@
+#ifndef HYPERDRONE_RENDER_NUM_PROBES
+#define HYPERDRONE_RENDER_NUM_PROBES 1
+#endif
+// num_probes=0 compiles the collision-probe pass out the way the C++ benchmark targets do: the
+// backend macro removes the probe resources and launches, and the renderer specification keeps
+// one probe slot because zero-sized tensors are not representable
+#if HYPERDRONE_RENDER_NUM_PROBES == 0
+#define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 1
+#endif
+
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
 #include <rl_tools/rendering/datasets/operations_cpu.h>
@@ -19,9 +29,6 @@
 #endif
 #ifndef HYPERDRONE_RENDER_NUM_CAMERAS
 #error "HYPERDRONE_RENDER_NUM_CAMERAS must be defined"
-#endif
-#ifndef HYPERDRONE_RENDER_NUM_PROBES
-#define HYPERDRONE_RENDER_NUM_PROBES 1
 #endif
 #ifndef HYPERDRONE_RENDER_SHADING
 #define HYPERDRONE_RENDER_SHADING 2
@@ -65,13 +72,15 @@ namespace hyperdrone_render_impl {
     template <> struct ShadingSelector<2> { using type = rrt::High; };
     template <> struct ShadingSelector<3> { using type = rrt::VeryHigh; };
 
+    static constexpr bool PROBES_ENABLED = HYPERDRONE_RENDER_NUM_PROBES > 0;
+
     // the output-mode id (0=rgb 1=rgbd 2=depth 3=segmentation 4=rgbd_segmentation) maps
     // onto the config's independent channel switches
     struct RendererConfiguration: rrt::config::Default<T, TI>{
         static constexpr TI CAM_WIDTH = HYPERDRONE_RENDER_WIDTH;
         static constexpr TI CAM_HEIGHT = HYPERDRONE_RENDER_HEIGHT;
         static constexpr TI NUM_CAMERAS = HYPERDRONE_RENDER_NUM_CAMERAS;
-        static constexpr TI NUM_PROBES = HYPERDRONE_RENDER_NUM_PROBES;
+        static constexpr TI NUM_PROBES = PROBES_ENABLED ? HYPERDRONE_RENDER_NUM_PROBES : 1;
         using SHADING = typename ShadingSelector<HYPERDRONE_RENDER_SHADING>::type;
         static constexpr bool OUTPUT_RGB = HYPERDRONE_RENDER_OUTPUT_MODE == 0 || HYPERDRONE_RENDER_OUTPUT_MODE == 1 || HYPERDRONE_RENDER_OUTPUT_MODE == 4;
         static constexpr bool OUTPUT_DEPTH = HYPERDRONE_RENDER_OUTPUT_MODE == 1 || HYPERDRONE_RENDER_OUTPUT_MODE == 2 || HYPERDRONE_RENDER_OUTPUT_MODE == 4;
@@ -258,7 +267,12 @@ namespace hyperdrone_render_impl {
         }
 
         void generate_probe_directions() override {
-            rlt::generate_probe_directions(device, renderer);
+            if constexpr (PROBES_ENABLED){
+                rlt::generate_probe_directions(device, renderer);
+            }
+            else {
+                throw std::runtime_error("hyperdrone: this renderer was compiled without collision probes (num_probes=0)");
+            }
         }
 
         // the renderer API renders all enabled image channels together (render*) with
@@ -281,11 +295,14 @@ namespace hyperdrone_render_impl {
                 case RT::RGB_DEPTH:
                     if constexpr (!(SPEC::HAS_RGB && SPEC::HAS_DEPTH)){ throw std::runtime_error("hyperdrone: this renderer has no RGB+depth output"); }
                     break;
+                case RT::COLLISION:
+                    if constexpr (!PROBES_ENABLED){ throw std::runtime_error("hyperdrone: this renderer was compiled without collision probes (num_probes=0)"); }
+                    break;
                 default:
                     break;
             }
             const bool wants_image = target != RT::COLLISION;
-            const bool wants_probes = target == RT::ALL || target == RT::COLLISION;
+            const bool wants_probes = PROBES_ENABLED && (target == RT::ALL || target == RT::COLLISION);
             if(wants_image){
                 if(phase == RP::LAUNCH) rlt::render_launch(device, renderer);
                 else if(phase == RP::SYNC) rlt::render_sync(device, renderer);
@@ -329,13 +346,18 @@ namespace hyperdrone_render_impl {
         }
 
         void read_collision_results(float* distances, int32_t* hits) override {
-            require_init();
-            constexpr TI count = SPEC::NUM_CAMERAS * SPEC::NUM_PROBES;
-            host_collisions.resize(count);
-            copy_out(rlt::collision_results(device, renderer), host_collisions.data());
-            for(TI i = 0; i < count; i++){
-                distances[i] = host_collisions[i].distance;
-                hits[i] = host_collisions[i].hit;
+            if constexpr (PROBES_ENABLED){
+                require_init();
+                constexpr TI count = SPEC::NUM_CAMERAS * SPEC::NUM_PROBES;
+                host_collisions.resize(count);
+                copy_out(rlt::collision_results(device, renderer), host_collisions.data());
+                for(TI i = 0; i < count; i++){
+                    distances[i] = host_collisions[i].distance;
+                    hits[i] = host_collisions[i].hit;
+                }
+            }
+            else {
+                throw std::runtime_error("hyperdrone: this renderer was compiled without collision probes (num_probes=0)");
             }
         }
 
