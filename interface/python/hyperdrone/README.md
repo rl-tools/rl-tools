@@ -18,6 +18,15 @@ count, drone count, ...) into a persistent cache; later uses load the cached lib
 directly. `render` and `dynamics` are peers that never import each other — the coupling
 surface is a plain DLPack tensor of packed camera bases, device-resident on OptiX + CUDA.
 
+## Notebooks
+
+| Notebook | Open in Colab |
+|---|---|
+| [HyperDrone](hyperdrone/examples/HyperDrone.ipynb) | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rl-tools/rl-tools-internal/blob/render/interface/python/hyperdrone/hyperdrone/examples/HyperDrone.ipynb#scrollTo=g-cDv8bdN7j9) |
+| [Benchmark](hyperdrone/examples/Benchmark.ipynb) | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rl-tools/rl-tools-internal/blob/render/interface/python/hyperdrone/hyperdrone/examples/Benchmark.ipynb) |
+| [Custom](hyperdrone/examples/Custom.ipynb) | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rl-tools/rl-tools-internal/blob/render/interface/python/hyperdrone/hyperdrone/examples/Custom.ipynb) |
+| [Orbiter](hyperdrone/examples/Orbiter.ipynb) | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rl-tools/rl-tools-internal/blob/render/interface/python/hyperdrone/hyperdrone/examples/Orbiter.ipynb) |
+
 ## Install
 
 From an rl-tools checkout (development):
