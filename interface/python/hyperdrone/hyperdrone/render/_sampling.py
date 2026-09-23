@@ -13,6 +13,8 @@ class FreeSpaceSampler:
     """
 
     def __init__(self, scene, clearance=0.4, batch=256, probes=64, margin=0.05):
+        if int(probes) < 1:
+            raise ValueError("hyperdrone: FreeSpaceSampler needs at least one probe")
         self._clearance = float(clearance)
         self._batch = int(batch)
         self._margin = float(margin)

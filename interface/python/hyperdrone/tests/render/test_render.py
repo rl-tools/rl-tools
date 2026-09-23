@@ -1,6 +1,7 @@
 import os
 import subprocess
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -140,6 +141,33 @@ def test_collision_probes():
     # probe 0 is the camera forward direction and must hit the wall at ~3m
     assert hits[0, 0] == 1
     assert abs(distances[0, 0] - 3.0) < 1e-2
+
+
+def test_no_probes_compiles_the_probe_pass_out(tmp_path):
+    with pytest.raises(ValueError):
+        render.Renderer(width=16, height=16, num_cameras=1, num_probes=-1, output="depth", fidelity="low")
+    renderer = render.Renderer(width=16, height=16, num_cameras=1, num_probes=0, output="depth", fidelity="low")
+    assert renderer.num_probes == 0
+    assert not renderer.has_probes
+    assert renderer.config.key() != replace(renderer.config, num_probes=1).key()
+    renderer.init(make_scene(3.0))
+    look_forward(renderer)
+    # the default target renders the image channels; there is no probe pass to run
+    renderer.render()
+    assert abs(renderer.depth()[0, 8, 8] - 3.0) < 1e-2
+    renderer.render_launch()
+    renderer.render_sync()
+    renderer.synchronize()
+    for call in (
+        renderer.generate_probe_directions,
+        renderer.collisions,
+        lambda: renderer.render("collision"),
+        lambda: renderer.render_launch("collision"),
+        lambda: renderer.render_sync("collision"),
+        lambda: renderer.save_probes(tmp_path / "probes.bin"),
+    ):
+        with pytest.raises(RuntimeError, match="num_probes=0"):
+            call()
 
 
 def test_motion_blur_camera_buffers_and_split_render():

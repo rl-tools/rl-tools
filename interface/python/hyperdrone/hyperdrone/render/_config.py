@@ -29,8 +29,10 @@ class RendererConfig:
     dynamic_motion_blur: bool = False
 
     def __post_init__(self):
-        if self.width < 1 or self.height < 1 or self.num_cameras < 1 or self.num_probes < 1:
-            raise ValueError("width, height, num_cameras, and num_probes must be >= 1")
+        if self.width < 1 or self.height < 1 or self.num_cameras < 1:
+            raise ValueError("width, height, and num_cameras must be >= 1")
+        if self.num_probes < 0:
+            raise ValueError("num_probes must be >= 0 (0 compiles the collision-probe pass out)")
         if self.fidelity not in FIDELITY.values():
             raise ValueError(f"fidelity must be one of {sorted(FIDELITY)}")
         if self.output_mode not in OUTPUT_MODE.values():
@@ -58,6 +60,10 @@ class RendererConfig:
     @property
     def has_segmentation(self):
         return self.output_mode in (3, 4)
+
+    @property
+    def has_probes(self):
+        return self.num_probes > 0
 
     def canonical(self):
         # must match build_config_string() in _native/render/impl.cpp exactly

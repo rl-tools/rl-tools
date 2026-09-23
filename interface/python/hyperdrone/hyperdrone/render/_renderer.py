@@ -69,6 +69,10 @@ class Renderer:
     blur, anti-aliasing, overlay capacities) are passed here; the first use of a new
     combination compiles a renderer library into the hyperdrone cache, subsequent uses
     load the cached library directly.
+
+    num_probes=0 compiles the collision-probe pass out entirely (no probe buffers and no
+    probe launch behind the default render target), matching the C++ benchmark targets;
+    the probe methods then raise.
     """
 
     def __init__(self, width, height, num_cameras=1, num_probes=1, output="rgb", fidelity="high",
@@ -115,6 +119,10 @@ class Renderer:
     @property
     def num_probes(self):
         return self.config.num_probes
+
+    @property
+    def has_probes(self):
+        return self.config.has_probes
 
     @property
     def aspect(self):
@@ -168,20 +176,28 @@ class Renderer:
             radius = bounds["camera_radius"]
         self._renderer.generate_cameras(tuple(center), float(radius), tuple(up), float(fov))
 
+    def _require_probes(self):
+        if not self.config.has_probes:
+            raise RuntimeError("hyperdrone: this renderer was compiled without collision probes (num_probes=0)")
+
     def generate_probe_directions(self):
+        self._require_probes()
         self._renderer.generate_probe_directions()
 
-    def render(self, target="all"):
-        self._renderer.render(RENDER_TARGET[target], RENDER_PHASE["full"])
+    def _render(self, target, phase):
+        if target == "collision":
+            self._require_probes()
+        self._renderer.render(RENDER_TARGET[target], RENDER_PHASE[phase])
         return self
+
+    def render(self, target="all"):
+        return self._render(target, "full")
 
     def render_launch(self, target="all"):
-        self._renderer.render(RENDER_TARGET[target], RENDER_PHASE["launch"])
-        return self
+        return self._render(target, "launch")
 
     def render_sync(self, target="all"):
-        self._renderer.render(RENDER_TARGET[target], RENDER_PHASE["sync"])
-        return self
+        return self._render(target, "sync")
 
     def synchronize(self):
         self._renderer.synchronize()
@@ -239,6 +255,7 @@ class Renderer:
 
     def collisions(self):
         """Probe results as (distances, hits), each shaped (num_cameras, num_probes)."""
+        self._require_probes()
         distances = np.empty((self.num_cameras, self.num_probes), dtype=np.float32)
         hits = np.empty((self.num_cameras, self.num_probes), dtype=np.int32)
         self._renderer.read_collision_results(distances, hits)
@@ -263,6 +280,7 @@ class Renderer:
         _io.save_segmentation_image(self, path)
 
     def save_probes(self, path):
+        self._require_probes()
         _io.save_probes(self, path)
 
     def can_attach(self, camera, overlay):
