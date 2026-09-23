@@ -233,6 +233,26 @@ End-to-end example: `python -m hyperdrone.examples.drone_flythrough`; renderer b
 `python -m hyperdrone.examples.benchmark` (flag-compatible with the C++ benchmark
 counterpart).
 
+## Publishing
+
+From the repository root, build and upload a release with:
+
+```bash
+interface/python/hyperdrone/scripts/publish.sh
+```
+
+Set the release version in `pyproject.toml` and `hyperdrone/__init__.py` first. The
+script uses the repository's `.venv` (creating it if needed), installs the build and
+upload tools, builds a bundled source archive and a `py3-none-any` wheel from that
+archive, checks both with Twine, and uploads both to PyPI. Authenticate through your
+existing Twine configuration (`~/.pypirc`, keyring, or `TWINE_PASSWORD`), or enter a
+PyPI API token when prompted.
+
+Use `interface/python/hyperdrone/scripts/publish.sh --build-only` to build and check
+without uploading. Each run keeps its two artifacts in a fresh
+`interface/python/hyperdrone/dist/release.*` directory, so older builds are never
+included in an upload. Native components remain JIT-compiled on first use.
+
 ## Tests
 
 ```bash
