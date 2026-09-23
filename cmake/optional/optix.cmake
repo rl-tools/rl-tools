@@ -16,7 +16,7 @@ include(FetchContent)
 FetchContent_Declare(
     OWL
     GIT_REPOSITORY https://github.com/NVIDIA/OWL.git
-    GIT_TAG        978a66642ad00759ae24920afe02775f20b979b6
+    GIT_TAG        e5db326767ff759854477f892ba7a2936ad8406d
     EXCLUDE_FROM_ALL
 )
 rl_tools_fetchcontent_makeavailable_quiet(OWL)

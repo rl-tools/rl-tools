@@ -16,7 +16,7 @@ hyperdrone (or any subpackage) is cheap; the first build happens on first use.
 """
 import importlib
 
-__version__ = "1.0.0"
+__version__ = "0.1.4"
 
 _SUBPACKAGES = ("render", "dynamics", "env", "gym", "jit", "cuda")
 
