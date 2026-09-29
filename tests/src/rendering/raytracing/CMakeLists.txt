@@ -101,7 +101,9 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
             GTest::gtest_main
     )
     rl_tools_configure_raytracing_golden_target(test_rendering_raytracing_golden_comparison_cpu)
-    gtest_discover_tests(test_rendering_raytracing_golden_comparison_cpu PROPERTIES TIMEOUT 300)
+    gtest_discover_tests(test_rendering_raytracing_golden_comparison_cpu
+        PROPERTIES TIMEOUT 300 LABELS "procthor-golden;procthor-golden-generic"
+    )
 
     # backend-independent validation of the published overlay corpus itself
     add_executable(test_rendering_raytracing_overlay_corpus_validation overlay_corpus_validation.cpp)
@@ -148,7 +150,9 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
         )
         target_compile_definitions(${RL_TOOLS_GOLDEN_BACKEND_TARGET} PRIVATE RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND)
         rl_tools_configure_raytracing_golden_target(${RL_TOOLS_GOLDEN_BACKEND_TARGET})
-        gtest_discover_tests(${RL_TOOLS_GOLDEN_BACKEND_TARGET} PROPERTIES TIMEOUT 300)
+        gtest_discover_tests(${RL_TOOLS_GOLDEN_BACKEND_TARGET}
+            PROPERTIES TIMEOUT 300 LABELS "procthor-golden;procthor-golden-${RL_TOOLS_GOLDEN_BACKEND_TARGET_SUFFIX}"
+        )
 
         set(RL_TOOLS_OVERLAY_GOLDEN_BACKEND_TARGET test_rendering_raytracing_overlay_golden_comparison_${RL_TOOLS_GOLDEN_BACKEND_TARGET_SUFFIX})
         add_executable(${RL_TOOLS_OVERLAY_GOLDEN_BACKEND_TARGET} overlay_golden_comparison.cpp)
