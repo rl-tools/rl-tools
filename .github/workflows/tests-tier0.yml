@@ -110,7 +110,7 @@ jobs:
           - backend: vulkan
             cmake_backend: VULKAN
             packages: libassimp-dev libvulkan-dev glslang-tools mesa-vulkan-drivers git-lfs cmake
-            backend_targets: test_rendering_raytracing_overlay_scenarios_vulkan test_rendering_raytracing_overlay_golden_comparison_vulkan
+            backend_targets: test_rendering_raytracing_overlay_scenarios_vulkan test_rendering_raytracing_overlay_golden_comparison_vulkan test_rendering_raytracing_golden_comparison_vulkan
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: "5"
       CTEST_PARALLEL_LEVEL: "5"
@@ -124,7 +124,7 @@ jobs:
           sudo apt-get install -y ${{ matrix.packages }}
 
       - name: Download raytracing golden data
-        run: ./tests/download_data.sh --raytracing-goldens
+        run: ./tests/src/rendering/raytracing/download_data.sh
 
       - name: Select Lavapipe driver
         if: matrix.backend == 'vulkan'
@@ -151,6 +151,7 @@ jobs:
           test_rendering_raytracing_golden_io
           test_rendering_raytracing_overlay_corpus_validation
           test_rendering_raytracing_overlay_golden_comparison_generic
+          test_rendering_raytracing_golden_comparison_cpu
           ${{ matrix.backend_targets }}
           --parallel 5
 
@@ -165,6 +166,12 @@ jobs:
       - name: Test overlay goldens
         working-directory: build-raytracing-${{ matrix.backend }}
         run: ctest -L '^overlay-golden$' --no-tests=error --output-on-failure --timeout 300 -j5
+
+      # ProcTHOR corpus (tests/src/rendering/raytracing/GOLDEN_LEDGER.md): cross-backend tier on
+      # generic and lavapipe, the OptiX reference tier only runs on hosts with an OptiX build
+      - name: Test ProcTHOR goldens
+        working-directory: build-raytracing-${{ matrix.backend }}
+        run: ctest -L '^procthor-golden$' --no-tests=error --output-on-failure --timeout 300 -j5
 
       - name: Upload overlay golden artifacts
         if: always()

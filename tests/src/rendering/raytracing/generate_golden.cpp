@@ -7,6 +7,7 @@
 #include <rl_tools/rendering/raytracing/save_cpu.h>
 
 #include "golden_io.h"
+#include "golden_manifest.h"
 #include "golden_render.h"
 #include "../../utils/utils.h"
 
@@ -316,6 +317,10 @@ int main(int argc, char** argv) {
     ok &= run_geometry_case(device, output_dir);
     ok &= run_flow_case<CASES::FLOW>(device, output_dir, "flow");
     ok &= run_flow_case<CASES::FLOW_DYNAMIC, false>(device, output_dir, "flow_dynamic");
+
+    if(ok) {
+        ok = golden::write_manifest(output_dir + "/manifest.json", golden::procthor_manifest(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME));
+    }
 
     if(!ok) {
         std::cerr << "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] FAILED" << std::endl;

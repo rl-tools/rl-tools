@@ -8,6 +8,7 @@
 #include <rl_tools/rendering/raytracing/save_cpu.h>
 
 #include "overlay_golden_frames.h"
+#include "overlay_golden_manifest.h"
 #include "../../utils/utils.h"
 
 #include <gtest/gtest.h>
@@ -18,6 +19,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #ifndef RL_TOOLS_OVERLAY_GOLDEN_SUITE
@@ -52,29 +54,35 @@ using BACKEND = rlt::rendering::raytracing::backends::Generic;
 using RENDERER = rlt::rendering::raytracing::Renderer<SPEC, BACKEND>;
 using overlay_goldens::Frame;
 
-static constexpr double RGB_MAD_THRESHOLD = 1.0;
-static constexpr double RGB_ID_OVERLAP_MAD_THRESHOLD = 1.0;
+// The reference backend (OptiX) rendered the corpus and reproduces it bit-exactly, so every metric
+// is held to zero for it (see golden_comparison.cpp). The other backends get bounds at roughly
+// three times the worst floor measured against overlay corpus v1: Vulkan (NVIDIA and lavapipe)
+// is exact, the generic and WebGPU silhouette strays reach RGB MAD 0.25, normals MAD 0.125 and
+// 0.29% of pixels for outliers, segmentation, background and flow status, id area 0.003.
+static constexpr bool REFERENCE_BACKEND = std::string_view(RL_TOOLS_OVERLAY_GOLDEN_BACKEND_NAME) == golden::REFERENCE_BACKEND;
+static constexpr double RGB_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.75;
+static constexpr double RGB_ID_OVERLAP_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.2;
 static constexpr int RGB_OUTLIER_CHANNEL_DELTA = 8;
-static constexpr double RGB_OUTLIER_FRACTION = 0.02;
-static constexpr double DEPTH_MAD_THRESHOLD = 1e-3;
+static constexpr double RGB_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.01;
+static constexpr double DEPTH_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 1e-5;
 static constexpr double DEPTH_OUTLIER_REL = 1e-3;
-static constexpr double DEPTH_OUTLIER_FRACTION = 0.005;
-static constexpr double SEGMENTATION_MISMATCH_FRACTION = 0.02;
-static constexpr double BACKGROUND_MISMATCH_FRACTION = 0.005;
-static constexpr double ID_AREA_RELATIVE_TOLERANCE = 0.35;
+static constexpr double DEPTH_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.001;
+static constexpr double SEGMENTATION_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.01;
+static constexpr double BACKGROUND_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.01;
+static constexpr double ID_AREA_RELATIVE_TOLERANCE = REFERENCE_BACKEND ? 0 : 0.1;
 // encoded normals compare like RGB, but silhouette/internal-edge bands (a different triangle
 // winning the same pixel across backends) produce large per-pixel deltas, so the mean budget is
 // wider while the outlier band stays bounded like segmentation's
-static constexpr double NORMALS_MAD_THRESHOLD = 2.0;
+static constexpr double NORMALS_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.4;
 static constexpr int NORMALS_OUTLIER_CHANNEL_DELTA = 8;
-static constexpr double NORMALS_OUTLIER_FRACTION = 0.02;
+static constexpr double NORMALS_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.01;
 // endpoint error on pixels VALID in both frames (backward additionally segmentation-gated):
 // geometry-derived flow matches to float precision across backends except in the silhouette
 // band the gates exclude; the status buffers may disagree only in that band
-static constexpr double FLOW_MEAN_EPE_THRESHOLD = 0.05;  // px
-static constexpr double FLOW_OUTLIER_EPE = 0.5;          // px
-static constexpr double FLOW_OUTLIER_FRACTION = 0.005;
-static constexpr double FLOW_STATUS_MISMATCH_FRACTION = 0.005;
+static constexpr double FLOW_MEAN_EPE_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.01;  // px
+static constexpr double FLOW_OUTLIER_EPE = 0.5;                                   // px
+static constexpr double FLOW_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.002;
+static constexpr double FLOW_STATUS_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.01;
 
 static const std::string GOLDEN_ROOT = RL_TOOLS_OVERLAY_GOLDEN_TEST_DATA_PATH "/rendering_raytracing_golden";
 static const std::string ARTIFACT_ROOT = RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ARTIFACT_ROOT;
@@ -84,10 +92,12 @@ namespace {
         return std::filesystem::is_regular_file(golden::layout::overlay_manifest_path(GOLDEN_ROOT));
     }
 
+// a present corpus of another version fails: the fix is a data refresh (GOLDEN_LEDGER.md), not a code change
+#define RL_TOOLS_OVERLAY_GOLDEN_REQUIRE_VERSION() ASSERT_EQ(golden::manifest_version(golden::layout::overlay_manifest_path(GOLDEN_ROOT)), golden::OVERLAY_GOLDEN_VERSION) << "overlay golden corpus version mismatch (see tests/src/rendering/raytracing/GOLDEN_LEDGER.md, run tests/src/rendering/raytracing/download_data.sh)"
 #if defined(RL_TOOLS_REQUIRE_RAYTRACING_GOLDENS)
-#define RL_TOOLS_OVERLAY_GOLDEN_REQUIRE_DATA() ASSERT_TRUE(manifest_available()) << "required overlay goldens are missing at " << golden::layout::overlay_directory(GOLDEN_ROOT)
+#define RL_TOOLS_OVERLAY_GOLDEN_REQUIRE_DATA() ASSERT_TRUE(manifest_available()) << "required overlay goldens are missing at " << golden::layout::overlay_directory(GOLDEN_ROOT); RL_TOOLS_OVERLAY_GOLDEN_REQUIRE_VERSION()
 #else
-#define RL_TOOLS_OVERLAY_GOLDEN_REQUIRE_DATA() if(!manifest_available()){ GTEST_SKIP() << "overlay goldens not found at " << golden::layout::overlay_directory(GOLDEN_ROOT); }
+#define RL_TOOLS_OVERLAY_GOLDEN_REQUIRE_DATA() if(!manifest_available()){ GTEST_SKIP() << "overlay goldens not found at " << golden::layout::overlay_directory(GOLDEN_ROOT) << " (run tests/src/rendering/raytracing/download_data.sh)"; } RL_TOOLS_OVERLAY_GOLDEN_REQUIRE_VERSION()
 #endif
 
     void expect_update_scope(overlay_scenarios::Scenario scenario, const Frame& initial, const Frame& updated, const char* view){

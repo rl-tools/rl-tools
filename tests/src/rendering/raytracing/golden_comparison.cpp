@@ -35,6 +35,7 @@
 
 #include "golden_cases.h"
 #include "golden_io.h"
+#include "golden_manifest.h"
 #include "golden_render.h"
 #include "../../utils/utils.h"
 
@@ -47,6 +48,7 @@
 #include <cstring>
 #include <filesystem>
 #include <string>
+#include <string_view>
 #include <vector>
 
 // falls back to the CWD-relative convention (run from the repo root) like other targets
@@ -69,57 +71,53 @@ using TI = typename DEVICE::index_t;
 using CASES = golden::Cases<T, TI>;
 using Rendered = golden::Rendered<T>;
 
-// Tolerances for CPU-vs-OptiX-golden comparison. The goldens come from a different machine and RT
-// implementation; per AGENTS.md, silhouette pixels may land on different surfaces, so all metrics
-// are tolerance-based (measured generic-vs-Metal baseline: RGB MAD ~0.03/255, probes exact).
-static constexpr double RGB_MAD_THRESHOLD = 1.0;          // mean abs diff in 8-bit levels
-static constexpr double DEPTH_MAD_THRESHOLD = 1e-3;       // mean abs diff normalized by max_depth
-static constexpr double DEPTH_OUTLIER_REL = 1e-3;         // per-pixel relative outlier threshold
-static constexpr double DEPTH_OUTLIER_FRACTION = 0.005;   // max fraction of outlier pixels
-static constexpr int PROBE_HIT_MISMATCH_MAX = 6;        // out of NUM_CAMERAS * NUM_PROBES = 768
-static constexpr double PROBE_DISTANCE_REL = 1e-3;
-// encoded normals compare like RGB, but silhouette/internal-edge bands (a different triangle
-// winning the same pixel across backends) produce large per-pixel deltas, so the mean budget is
-// wider while the outlier band stays bounded (same rationale as the overlay comparator)
-static constexpr double NORMALS_MAD_THRESHOLD = 2.0;
+// The reference backend (OptiX) rendered the corpus and reproduces it bit-exactly, so every metric
+// is held to zero for it: a nonzero deviation is a behavioral change that needs a GOLDEN_LEDGER.md
+// row. The other backends get bounds at roughly three times the worst floor measured against
+// corpus v2 on generic, Vulkan (NVIDIA and lavapipe) and WebGPU: RGB MAD 0.16, RGB outliers 0.31%,
+// normals MAD 0.0013, flow status 0.0015%, probe distances 5.3e-7, everything else zero. Silhouette
+// pixels landing on different surfaces across backends make the outlier fractions necessary next
+// to the means, and the means alone would hide a localized shading change (one re-materialised
+// object covers ~3% of a pose).
+static constexpr bool REFERENCE_BACKEND = std::string_view(RL_TOOLS_GOLDEN_BACKEND_NAME) == golden::REFERENCE_BACKEND;
+static constexpr double RGB_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.4;              // mean abs diff in 8-bit levels
+static constexpr int RGB_OUTLIER_CHANNEL_DELTA = 8;
+static constexpr double RGB_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.01;          // pixels with a channel delta above RGB_OUTLIER_CHANNEL_DELTA
+static constexpr double DEPTH_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 1e-5;           // mean abs diff normalized by max_depth
+static constexpr double DEPTH_OUTLIER_REL = 1e-3;                                      // per-pixel relative outlier threshold
+static constexpr double DEPTH_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.001;       // max fraction of outlier pixels
+static constexpr int PROBE_HIT_MISMATCH_MAX = REFERENCE_BACKEND ? 0 : 2;              // out of NUM_CAMERAS * NUM_PROBES = 768
+static constexpr double PROBE_DISTANCE_REL = REFERENCE_BACKEND ? 0 : 1e-5;
+static constexpr double NORMALS_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.1;          // encoded normals compare like RGB
 static constexpr int NORMALS_OUTLIER_CHANNEL_DELTA = 8;
-static constexpr double NORMALS_OUTLIER_FRACTION = 0.02;
-// endpoint error over the pixels VALID in both target and current (the flow cases have no
-// segmentation gate): silhouette flips land in the outlier fraction, everything else matches to
-// float precision; the status buffers may disagree only in the silhouette/grazing-visibility band
-static constexpr double FLOW_MEAN_EPE_THRESHOLD = 0.1;   // px
-static constexpr double FLOW_OUTLIER_EPE = 0.5;          // px
-static constexpr double FLOW_OUTLIER_FRACTION = 0.005;
-static constexpr double FLOW_STATUS_MISMATCH_FRACTION = 0.005;
-// instance ids are pinned cross-backend (AGENTS.md), so only silhouette pixels (a different
-// surface winning the same pixel) may disagree; same bounds as the overlay comparator
-static constexpr double SEGMENTATION_MISMATCH_FRACTION = 0.02;
-static constexpr double SEGMENTATION_BACKGROUND_MISMATCH_FRACTION = 0.005;
+static constexpr double NORMALS_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.002;
+static constexpr double FLOW_MEAN_EPE_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.01;       // px, over pixels VALID in both target and current
+static constexpr double FLOW_OUTLIER_EPE = 0.5;                                        // px
+static constexpr double FLOW_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.001;
+static constexpr double FLOW_STATUS_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.001;
+static constexpr double SEGMENTATION_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.002;
+static constexpr double SEGMENTATION_BACKGROUND_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.001;
 
 static const std::string SCENE_PATH = RL_TOOLS_GOLDEN_TEST_DATA_PATH "/ProcTHOR-Train-1.glb";
 static const std::string GOLDEN_ROOT = RL_TOOLS_GOLDEN_TEST_DATA_PATH "/rendering_raytracing_golden";
+static const std::string GOLDEN_DIR = golden::layout::procthor_static_scene_directory(GOLDEN_ROOT);
+static const std::string MANIFEST_PATH = GOLDEN_DIR + "/manifest.json";
 
 #ifndef RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ARTIFACT_ROOT
 #define RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ARTIFACT_ROOT "build/raytracing_golden_artifacts"
 #endif
 
-static std::string procthor_golden_dir(){
-    const std::string scenario_dir = golden::layout::procthor_static_scene_directory(GOLDEN_ROOT);
-    return std::filesystem::is_regular_file(golden::layout::join(golden::layout::procthor_pose_directory(GOLDEN_ROOT, CASES::POSES[0].id), "low_rgb.png")) ? scenario_dir : GOLDEN_ROOT;
-}
-
-static const std::string GOLDEN_DIR = procthor_golden_dir();
 static const std::string BACKEND_OUTPUT_DIR = std::string(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ARTIFACT_ROOT)
                                                     + "/" + RL_TOOLS_GOLDEN_BACKEND_NAME + "/procthor_static_scene";
 
 namespace {
     bool goldens_available(){
-        // per-pose layout: <golden_dir>/<pose_id>/<case>.png
-        return std::filesystem::exists(GOLDEN_DIR + "/" + CASES::POSES[0].id + "/low_rgb.png");
+        return std::filesystem::exists(MANIFEST_PATH);
     }
 
     struct RGBStats{
         double mad = 0;
+        double outlier_fraction = 0;
         int channel_max[3] = {0, 0, 0};
     };
 
@@ -128,15 +126,20 @@ namespace {
         const auto* ours_bytes = (const unsigned char*)ours;
         const auto* golden_bytes = (const unsigned char*)golden;
         double total = 0;
+        size_t outliers = 0;
         for(size_t pixel_i = 0; pixel_i < count; pixel_i++){
+            bool outlier = false;
             for(int channel = 0; channel < 3; channel++){
                 const int diff = (int)ours_bytes[pixel_i * 4 + channel] - (int)golden_bytes[pixel_i * 4 + channel];
                 const int abs_diff = diff < 0 ? -diff : diff;
                 if(abs_diff > stats.channel_max[channel]) stats.channel_max[channel] = abs_diff;
                 total += abs_diff;
+                outlier = outlier || abs_diff > RGB_OUTLIER_CHANNEL_DELTA;
             }
+            outliers += outlier;
         }
         stats.mad = total / ((double)count * 3);
+        stats.outlier_fraction = (double)outliers / (double)count;
         return stats;
     }
 
@@ -171,6 +174,7 @@ namespace {
             EXPECT_LE(stats.mad, RGB_MAD_THRESHOLD)
                 << name << " pose " << id << ": RGB mean abs diff " << stats.mad
                 << " (max R=" << stats.channel_max[0] << " G=" << stats.channel_max[1] << " B=" << stats.channel_max[2] << ")";
+            EXPECT_LE(stats.outlier_fraction, RGB_OUTLIER_FRACTION) << name << " pose " << id << ": RGB outlier fraction " << stats.outlier_fraction;
             if(stats.mad > worst_mad){
                 worst_mad = stats.mad;
                 worst_id = id;
@@ -428,10 +432,12 @@ namespace {
     }
 }
 
+// a present corpus of another version fails: the fix is a data refresh (GOLDEN_LEDGER.md), not a code change
+#define RL_TOOLS_GOLDEN_REQUIRE_VERSION() ASSERT_EQ(golden::manifest_version(MANIFEST_PATH), golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION) << "golden corpus version mismatch at " << MANIFEST_PATH << " (see tests/src/rendering/raytracing/GOLDEN_LEDGER.md, run tests/src/rendering/raytracing/download_data.sh)"
 #if defined(RL_TOOLS_REQUIRE_RAYTRACING_GOLDENS)
-#define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() ASSERT_TRUE(goldens_available()) << "required golden renderings not found at " << GOLDEN_DIR
+#define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() ASSERT_TRUE(goldens_available()) << "required golden renderings not found at " << GOLDEN_DIR; RL_TOOLS_GOLDEN_REQUIRE_VERSION()
 #else
-#define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() if(!goldens_available()){ GTEST_SKIP() << "golden renderings not found at " << GOLDEN_DIR << " (per-pose layout; generate with test_rendering_raytracing_generate_golden_<backend> --output-dir " << GOLDEN_DIR << ")"; }
+#define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() if(!goldens_available()){ GTEST_SKIP() << "golden renderings not found at " << GOLDEN_DIR << " (run tests/src/rendering/raytracing/download_data.sh or generate with test_rendering_raytracing_generate_golden_optix --output-dir " << GOLDEN_DIR << ")"; } RL_TOOLS_GOLDEN_REQUIRE_VERSION()
 #endif
 
 TEST(RL_TOOLS_GOLDEN_SUITE, LOW_RGB){
