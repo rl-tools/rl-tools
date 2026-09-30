@@ -58,7 +58,7 @@ GOLDEN_HEIGHT = 2048
 GOLDEN_HORIZONTAL_FOV_DEGREES = 80.0
 
 # Exact FLU-frame cases used to create
-# ~/rl-tools2/tests/data/rendering_raytracing_golden at rl-tools2 commit
+# ~/rl-tools2/tests/data/rendering/raytracing/goldens/procthor-train-1 at rl-tools2 commit
 # 4b4410607. FLU is +X forward, +Y left, +Z up. Each value is
 # (position, look_at, up).
 GOLDEN_POSES_FLU = {

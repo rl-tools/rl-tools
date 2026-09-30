@@ -34,10 +34,6 @@
 #define RL_TOOLS_OVERLAY_GOLDEN_BACKEND_NAME "generic"
 #endif
 
-#ifndef RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ARTIFACT_ROOT
-#define RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ARTIFACT_ROOT "build/raytracing_golden_artifacts"
-#endif
-
 #ifdef RL_TOOLS_TEST_DATA_PATH
 #define RL_TOOLS_OVERLAY_GOLDEN_TEST_DATA_PATH RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)
 #else
@@ -90,12 +86,20 @@ static constexpr double FLOW_OUTLIER_EPE = 0.5;                                 
 static constexpr double FLOW_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.0005;
 static constexpr double FLOW_STATUS_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.006;
 
-static const std::string GOLDEN_ROOT = RL_TOOLS_OVERLAY_GOLDEN_TEST_DATA_PATH "/rendering_raytracing_golden";
-static const std::string ARTIFACT_ROOT = RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ARTIFACT_ROOT;
+static const std::string GOLDEN_ROOT = golden::layout::goldens_root(RL_TOOLS_OVERLAY_GOLDEN_TEST_DATA_PATH);
+static const std::string CORPUS_DIRECTORY = golden::layout::overlay_directory(GOLDEN_ROOT);
+static const std::string MANIFEST_PATH = golden::layout::manifest_path(CORPUS_DIRECTORY);
 
 namespace {
     bool manifest_available(){
-        return std::filesystem::is_regular_file(golden::layout::overlay_manifest_path(GOLDEN_ROOT));
+        return std::filesystem::is_regular_file(MANIFEST_PATH);
+    }
+
+    // Vulkan on lavapipe is named apart from Vulkan on a GPU because its floors differ
+    std::string backend_tag(){
+        const char* driver_files = std::getenv("VK_DRIVER_FILES");
+        const bool lavapipe = driver_files != nullptr && std::string(driver_files).find("lvp") != std::string::npos;
+        return std::string(RL_TOOLS_OVERLAY_GOLDEN_BACKEND_NAME) + (lavapipe ? "-lavapipe" : "");
     }
 
     // worst value per metric over the views and capture states of one scenario, logged to metra as
@@ -114,9 +118,7 @@ namespace {
             worst[name] = std::max(worst[name], value);
         }
         void log(const char* scenario) const {
-            const char* driver_files = std::getenv("VK_DRIVER_FILES");
-            const bool lavapipe = driver_files != nullptr && std::string(driver_files).find("lvp") != std::string::npos;
-            const std::string prefix = std::string("raytracing/golden/overlay/") + RL_TOOLS_OVERLAY_GOLDEN_BACKEND_NAME + (lavapipe ? "-lavapipe" : "") + "/";
+            const std::string prefix = "raytracing/golden/overlay/" + backend_tag() + "/";
             static const bool version_logged = metra::log(prefix + "version", golden::OVERLAY_GOLDEN_VERSION);
             (void)version_logged;
             for(const auto& [name, bound] : BOUNDS){
@@ -127,11 +129,11 @@ namespace {
     };
 
 // a present corpus of another version fails: the fix is a data refresh (GOLDEN_LEDGER.md), not a code change
-#define RL_TOOLS_OVERLAY_GOLDEN_REQUIRE_VERSION() ASSERT_EQ(golden::manifest_version(golden::layout::overlay_manifest_path(GOLDEN_ROOT)), golden::OVERLAY_GOLDEN_VERSION) << "overlay golden corpus version mismatch (see tests/src/rendering/raytracing/GOLDEN_LEDGER.md, run tests/src/rendering/raytracing/download_data.sh)"
+#define RL_TOOLS_OVERLAY_GOLDEN_REQUIRE_VERSION() ASSERT_EQ(golden::manifest_version(MANIFEST_PATH), golden::OVERLAY_GOLDEN_VERSION) << "overlay golden corpus version mismatch (see tests/src/rendering/raytracing/GOLDEN_LEDGER.md, run tests/src/rendering/raytracing/download_data.sh)"
 #if defined(RL_TOOLS_REQUIRE_RAYTRACING_GOLDENS)
-#define RL_TOOLS_OVERLAY_GOLDEN_REQUIRE_DATA() ASSERT_TRUE(manifest_available()) << "required overlay goldens are missing at " << golden::layout::overlay_directory(GOLDEN_ROOT); RL_TOOLS_OVERLAY_GOLDEN_REQUIRE_VERSION()
+#define RL_TOOLS_OVERLAY_GOLDEN_REQUIRE_DATA() ASSERT_TRUE(manifest_available()) << "required overlay goldens are missing at " << CORPUS_DIRECTORY; RL_TOOLS_OVERLAY_GOLDEN_REQUIRE_VERSION()
 #else
-#define RL_TOOLS_OVERLAY_GOLDEN_REQUIRE_DATA() if(!manifest_available()){ GTEST_SKIP() << "overlay goldens not found at " << golden::layout::overlay_directory(GOLDEN_ROOT) << " (run tests/src/rendering/raytracing/download_data.sh)"; } RL_TOOLS_OVERLAY_GOLDEN_REQUIRE_VERSION()
+#define RL_TOOLS_OVERLAY_GOLDEN_REQUIRE_DATA() if(!manifest_available()){ GTEST_SKIP() << "overlay goldens not found at " << CORPUS_DIRECTORY << " (run tests/src/rendering/raytracing/download_data.sh)"; } RL_TOOLS_OVERLAY_GOLDEN_REQUIRE_VERSION()
 #endif
 
     void expect_update_scope(overlay_scenarios::Scenario scenario, const Frame& initial, const Frame& updated, const char* view){
@@ -266,49 +268,47 @@ namespace {
     ){
         expect_camera_topology_and_objects(scenario, target, current, view.id);
 
-        const auto review_paths = golden::layout::scenario_review_paths(
-            ARTIFACT_ROOT,
-            RL_TOOLS_OVERLAY_GOLDEN_BACKEND_NAME,
-            overlay_scenarios::scenario_id(scenario),
-            overlay_goldens::capture_state_id(state),
-            view.id
-        );
-        std::filesystem::create_directories(review_paths.directory);
-        ASSERT_TRUE(golden::write_rgb_review_grid_pngs(
-            review_paths.rgb_target_png, review_paths.rgb_current_png, review_paths.rgb_diff_png,
-            target.rgb.data(), current.rgb.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT
-        ));
-        ASSERT_TRUE(golden::write_depth_review_grid_pngs(
-            review_paths.depth_target_png, review_paths.depth_current_png, review_paths.depth_diff_png,
-            target.depth.data(), current.depth.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, current.max_depth
-        ));
-        ASSERT_TRUE(golden::write_segmentation_review_grid_pngs(
-            review_paths.segmentation_target_png, review_paths.segmentation_current_png, review_paths.segmentation_diff_png,
-            target.segmentation.data(), current.segmentation.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT
-        ));
-        ASSERT_TRUE(golden::write_rgb_review_grid_pngs(
-            review_paths.normals_target_png, review_paths.normals_current_png, review_paths.normals_diff_png,
-            target.normals.data(), current.normals.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT
-        ));
-        const auto write_flow_review = [](const std::vector<float>& target_flow, const std::vector<float>& current_flow, const std::string& target_png, const std::string& current_png, const std::string& diff_png){
-            rlt::rendering::raytracing::detail::write_flow_grid_png<SPEC>(target_flow.data(), target_png.c_str());
-            rlt::rendering::raytracing::detail::write_flow_grid_png<SPEC>(current_flow.data(), current_png.c_str());
-            std::vector<float> flow_difference(target_flow.size());
-            for(size_t value_i = 0; value_i < flow_difference.size(); value_i++){
-                flow_difference[value_i] = current_flow[value_i] - target_flow[value_i];
-            }
-            rlt::rendering::raytracing::detail::write_flow_grid_png<SPEC>(flow_difference.data(), diff_png.c_str());
+        // render-<backend>.png and versus-render-<backend>.png per modality, plus versus-golden-vNN.png
+        // against every archived generation, next to the goldens
+        const std::string review_view = golden::layout::overlay_view_directory(GOLDEN_ROOT, overlay_scenarios::scenario_id(scenario), overlay_goldens::capture_state_id(state), view.id);
+        const auto render = [&](const char* modality){
+            const std::string directory = golden::layout::modality_directory(review_view, modality);
+            std::filesystem::create_directories(directory);
+            return golden::layout::render_png(directory, backend_tag());
         };
-        write_flow_review(target.flow, current.flow, review_paths.flow_target_png, review_paths.flow_current_png, review_paths.flow_diff_png);
-        write_flow_review(target.flow_forward, current.flow_forward, review_paths.flow_forward_target_png, review_paths.flow_forward_current_png, review_paths.flow_forward_diff_png);
-        ASSERT_TRUE(golden::write_flow_status_review_grid_pngs(
-            review_paths.flow_status_target_png, review_paths.flow_status_current_png, review_paths.flow_status_diff_png,
-            target.flow_status.data(), current.flow_status.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT
-        ));
-        ASSERT_TRUE(golden::write_flow_status_review_grid_pngs(
-            review_paths.flow_forward_status_target_png, review_paths.flow_forward_status_current_png, review_paths.flow_forward_status_diff_png,
-            target.flow_forward_status.data(), current.flow_forward_status.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT
-        ));
+        const auto versus = [&](const char* modality, const std::string& name){
+            const std::string directory = golden::layout::modality_directory(review_view, modality);
+            std::filesystem::create_directories(directory);
+            return golden::layout::versus_png(directory, name);
+        };
+        const auto write_flow_review = [](const std::vector<float>& reference, const std::vector<float>& other, const std::string& other_png, const std::string& versus_png){
+            if(!other_png.empty()){
+                rlt::rendering::raytracing::detail::write_flow_grid_png<SPEC>(other.data(), other_png.c_str());
+            }
+            std::vector<float> flow_difference(reference.size());
+            for(size_t value_i = 0; value_i < flow_difference.size(); value_i++){
+                flow_difference[value_i] = other[value_i] - reference[value_i];
+            }
+            rlt::rendering::raytracing::detail::write_flow_grid_png<SPEC>(flow_difference.data(), versus_png.c_str());
+        };
+        const auto write_reviews = [&](const Frame& reference, const Frame& other, const std::string& name, bool with_render){
+            const std::string render_rgb = with_render ? render("rgb") : "";
+            ASSERT_TRUE(golden::write_rgb_review_grid_pngs("", render_rgb, versus("rgb", name), reference.rgb.data(), other.rgb.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT));
+            ASSERT_TRUE(golden::write_depth_review_grid_pngs("", with_render ? render("depth") : "", versus("depth", name), reference.depth.data(), other.depth.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, other.max_depth));
+            ASSERT_TRUE(golden::write_segmentation_review_grid_pngs("", with_render ? render("segmentation") : "", versus("segmentation", name), reference.segmentation.data(), other.segmentation.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT));
+            ASSERT_TRUE(golden::write_rgb_review_grid_pngs("", with_render ? render("normals") : "", versus("normals", name), reference.normals.data(), other.normals.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT));
+            write_flow_review(reference.flow, other.flow, with_render ? render("flow") : "", versus("flow", name));
+            write_flow_review(reference.flow_forward, other.flow_forward, with_render ? render("flow-forward") : "", versus("flow-forward", name));
+            ASSERT_TRUE(golden::write_flow_status_review_grid_pngs("", with_render ? render("flow-status") : "", versus("flow-status", name), reference.flow_status.data(), other.flow_status.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT));
+            ASSERT_TRUE(golden::write_flow_status_review_grid_pngs("", with_render ? render("flow-forward-status") : "", versus("flow-forward-status", name), reference.flow_forward_status.data(), other.flow_forward_status.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT));
+        };
+        write_reviews(target, current, "render-" + backend_tag(), true);
+        for(uint32_t version = 1; version < golden::OVERLAY_GOLDEN_VERSION; version++){
+            Frame historic;
+            if(overlay_goldens::load_target_frame<SPEC>(GOLDEN_ROOT, scenario, state, view, historic, version)){
+                write_reviews(historic, target, golden::layout::historic_name(version), false);
+            }
+        }
 
         double rgb_total = 0;
         size_t rgb_channels = 0;

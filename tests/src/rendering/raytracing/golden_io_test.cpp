@@ -131,7 +131,7 @@ TEST_F(GoldenIoTest, RejectsMalformedHeaderWithoutChangingOutput){
     const std::string valid_path = path("valid.bin");
     ASSERT_TRUE(golden::write_multi_camera_uint32_bin(valid_path, values.data(), NUM_CAMERAS, WIDTH, HEIGHT));
     const std::vector<unsigned char> valid = read_bytes(valid_path);
-    ASSERT_EQ(valid.size(), golden::detail::MULTI_CAMERA_BINARY_HEADER_SIZE + values.size() * sizeof(uint32_t));
+    ASSERT_GT(valid.size(), golden::detail::MULTI_CAMERA_BINARY_HEADER_SIZE);
 
     struct Mutation{
         const char* filename;
@@ -144,7 +144,8 @@ TEST_F(GoldenIoTest, RejectsMalformedHeaderWithoutChangingOutput){
         {"bad_type.bin", 16, 99},
         {"bad_camera_count.bin", 20, 0},
         {"bad_height.bin", 24, 0},
-        {"bad_width.bin", 28, 0}
+        {"bad_width.bin", 28, 0},
+        {"bad_channels.bin", 32, 0}
     };
     for(const auto& mutation: mutations){
         SCOPED_TRACE(mutation.filename);
@@ -162,10 +163,22 @@ TEST_F(GoldenIoTest, RejectsMalformedHeaderWithoutChangingOutput){
     expect_uint32_load_failure(bad_magic_path);
 
     std::vector<unsigned char> bad_count = valid;
-    store_u64_le(bad_count, 32, values.size() + 1);
+    store_u64_le(bad_count, 36, values.size() + 1);
     const std::string bad_count_path = path("bad_count.bin");
     write_bytes(bad_count_path, bad_count);
     expect_uint32_load_failure(bad_count_path);
+
+    std::vector<unsigned char> bad_payload_size = valid;
+    store_u64_le(bad_payload_size, 44, valid.size() - golden::detail::MULTI_CAMERA_BINARY_HEADER_SIZE + 1);
+    const std::string bad_payload_size_path = path("bad_payload_size.bin");
+    write_bytes(bad_payload_size_path, bad_payload_size);
+    expect_uint32_load_failure(bad_payload_size_path);
+
+    std::vector<unsigned char> corrupt_stream = valid;
+    corrupt_stream[golden::detail::MULTI_CAMERA_BINARY_HEADER_SIZE + 2] ^= 0xFFu;
+    const std::string corrupt_stream_path = path("corrupt_stream.bin");
+    write_bytes(corrupt_stream_path, corrupt_stream);
+    expect_uint32_load_failure(corrupt_stream_path);
 
     std::vector<unsigned char> wrong_known_type = valid;
     store_u32_le(wrong_known_type, 16, static_cast<uint32_t>(golden::MultiCameraElementType::FLOAT32));
@@ -240,7 +253,8 @@ TEST_F(GoldenIoTest, FourCameraGridPngRoundTrip){
 
 // pins the published on-disk format: a coordinated writer/reader change (e.g. swapping the
 // height/width fields or transposing the grid) round-trips green but silently changes what the
-// two-repo corpus means, so header bytes, payload order, and quadrant order are asserted literally
+// two-repo corpus means, so the header bytes are asserted literally and the deflated payload must
+// inflate to the camera-major row-major little-endian word order
 TEST_F(GoldenIoTest, MultiCameraHeaderAndPayloadBytesArePinned){
     constexpr int NUM_CAMERAS = 4;
     constexpr int WIDTH = 3;
@@ -256,29 +270,34 @@ TEST_F(GoldenIoTest, MultiCameraHeaderAndPayloadBytesArePinned){
     const std::string binary_path = path("pinned.bin");
     ASSERT_TRUE(golden::write_multi_camera_uint32_bin(binary_path, values.data(), NUM_CAMERAS, WIDTH, HEIGHT));
     const std::vector<unsigned char> bytes = read_bytes(binary_path);
-    ASSERT_EQ(bytes.size(), golden::detail::MULTI_CAMERA_BINARY_HEADER_SIZE + values.size() * sizeof(uint32_t));
+    ASSERT_GT(bytes.size(), golden::detail::MULTI_CAMERA_BINARY_HEADER_SIZE);
+    const size_t payload_bytes = bytes.size() - golden::detail::MULTI_CAMERA_BINARY_HEADER_SIZE;
 
-    const unsigned char expected_header[golden::detail::MULTI_CAMERA_BINARY_HEADER_SIZE] = {
+    unsigned char expected_header[golden::detail::MULTI_CAMERA_BINARY_HEADER_SIZE] = {
         'R', 'L', 'T', 'M', 'C', 'A', 'M', 0,
-        1, 0, 0, 0,     // version
-        40, 0, 0, 0,    // header size
+        3, 0, 0, 0,     // version
+        52, 0, 0, 0,    // header size
         2, 0, 0, 0,     // element type: UINT32
         4, 0, 0, 0,     // num_cameras
         2, 0, 0, 0,     // height
         3, 0, 0, 0,     // width
-        24, 0, 0, 0, 0, 0, 0, 0 // element count
+        1, 0, 0, 0,     // channels
+        24, 0, 0, 0, 0, 0, 0, 0, // element count
+        0, 0, 0, 0, 0, 0, 0, 0   // payload bytes (deflated size, filled below)
     };
+    for(int byte_i = 0; byte_i < 8; byte_i++){
+        expected_header[44 + byte_i] = (unsigned char)((payload_bytes >> (8 * byte_i)) & 0xFFu);
+    }
     EXPECT_EQ(std::memcmp(bytes.data(), expected_header, sizeof(expected_header)), 0);
+    EXPECT_EQ(bytes[golden::detail::MULTI_CAMERA_BINARY_HEADER_SIZE], 0x78); // zlib stream header
 
+    std::vector<char> words(values.size() * sizeof(uint32_t));
+    ASSERT_EQ(stbi_zlib_decode_buffer(words.data(), (int)words.size(), reinterpret_cast<const char*>(bytes.data() + golden::detail::MULTI_CAMERA_BINARY_HEADER_SIZE), (int)payload_bytes), (int)words.size());
     for(int camera_i = 0; camera_i < NUM_CAMERAS; camera_i++){
         for(int row = 0; row < HEIGHT; row++){
             for(int column = 0; column < WIDTH; column++){
-                const size_t offset = golden::detail::MULTI_CAMERA_BINARY_HEADER_SIZE
-                    + ((size_t)(camera_i * HEIGHT + row) * WIDTH + column) * sizeof(uint32_t);
-                const uint32_t value = (uint32_t)bytes[offset]
-                    | ((uint32_t)bytes[offset + 1] << 8)
-                    | ((uint32_t)bytes[offset + 2] << 16)
-                    | ((uint32_t)bytes[offset + 3] << 24);
+                const auto* word = reinterpret_cast<const unsigned char*>(words.data()) + ((size_t)(camera_i * HEIGHT + row) * WIDTH + column) * sizeof(uint32_t);
+                const uint32_t value = (uint32_t)word[0] | ((uint32_t)word[1] << 8) | ((uint32_t)word[2] << 16) | ((uint32_t)word[3] << 24);
                 EXPECT_EQ(value, static_cast<uint32_t>(camera_i * 100 + row * 10 + column))
                     << "camera " << camera_i << " row " << row << " column " << column;
             }
@@ -286,8 +305,7 @@ TEST_F(GoldenIoTest, MultiCameraHeaderAndPayloadBytesArePinned){
     }
 }
 
-// the version-2 (channels) header is corpus surface like the version-1 header above; a
-// single-channel write must keep emitting the byte-identical version-1 header
+// multi-channel payloads interleave the channels per pixel; a channel mismatch is a load failure
 TEST_F(GoldenIoTest, MultiCameraChannelsHeaderBytesArePinned){
     constexpr int NUM_CAMERAS = 4;
     constexpr int WIDTH = 3;
@@ -300,12 +318,12 @@ TEST_F(GoldenIoTest, MultiCameraChannelsHeaderBytesArePinned){
     const std::string binary_path = path("pinned_channels.bin");
     ASSERT_TRUE(golden::write_multi_camera_float_bin(binary_path, values.data(), NUM_CAMERAS, WIDTH, HEIGHT, CHANNELS));
     const std::vector<unsigned char> bytes = read_bytes(binary_path);
-    ASSERT_EQ(bytes.size(), golden::detail::MULTI_CAMERA_BINARY_HEADER_SIZE_CHANNELS + values.size() * sizeof(uint32_t));
+    ASSERT_GT(bytes.size(), golden::detail::MULTI_CAMERA_BINARY_HEADER_SIZE);
 
-    const unsigned char expected_header[golden::detail::MULTI_CAMERA_BINARY_HEADER_SIZE_CHANNELS] = {
+    const unsigned char expected_header[44] = {
         'R', 'L', 'T', 'M', 'C', 'A', 'M', 0,
-        2, 0, 0, 0,     // version
-        44, 0, 0, 0,    // header size
+        3, 0, 0, 0,     // version
+        52, 0, 0, 0,    // header size
         1, 0, 0, 0,     // element type: FLOAT32
         4, 0, 0, 0,     // num_cameras
         2, 0, 0, 0,     // height
@@ -319,13 +337,6 @@ TEST_F(GoldenIoTest, MultiCameraChannelsHeaderBytesArePinned){
     ASSERT_TRUE(golden::load_multi_camera_float_bin(binary_path, NUM_CAMERAS, WIDTH, HEIGHT, loaded, CHANNELS));
     EXPECT_EQ(loaded, values);
     EXPECT_FALSE(golden::load_multi_camera_float_bin(binary_path, NUM_CAMERAS, WIDTH, HEIGHT, loaded)); // channel mismatch must be rejected
-
-    const std::string scalar_path = path("pinned_channels_scalar.bin");
-    std::vector<float> scalar((size_t)NUM_CAMERAS * WIDTH * HEIGHT, 1.f);
-    ASSERT_TRUE(golden::write_multi_camera_float_bin(scalar_path, scalar.data(), NUM_CAMERAS, WIDTH, HEIGHT));
-    const std::vector<unsigned char> scalar_bytes = read_bytes(scalar_path);
-    EXPECT_EQ(scalar_bytes[8], 1); // single-channel writes keep the version-1 header
-    EXPECT_EQ(scalar_bytes[12], 40);
 }
 
 TEST_F(GoldenIoTest, GridQuadrantOrderIsPinned){
@@ -389,7 +400,7 @@ TEST_F(GoldenIoTest, NormalEncodingIsPinned){
 }
 
 // the segmentation false-color encoding is corpus surface in both the overlay and
-// procthor_static_scene suites: segmentation.png is validated to be exactly this encoding of
+// ProcTHOR suites: the segmentation review image is validated to be exactly this encoding of
 // segmentation.bin, so the mapping must never drift
 TEST_F(GoldenIoTest, SegmentationEncodingIsPinned){
     EXPECT_EQ(golden::segmentation_false_color(golden::SEGMENTATION_BACKGROUND_ID), golden::rgba(16, 16, 16));
@@ -429,56 +440,27 @@ TEST_F(GoldenIoTest, FlowStatusEncodingIsPinned){
 }
 
 TEST_F(GoldenIoTest, LayoutPathsAreStable){
-    const std::string root = "golden-root";
-    EXPECT_EQ(golden::layout::procthor_static_scene_directory(root), "golden-root/procthor_static_scene");
-    EXPECT_EQ(golden::layout::procthor_pose_directory(root, "07"), "golden-root/procthor_static_scene/07");
-    EXPECT_EQ(golden::layout::legacy_procthor_pose_directory(root, "07"), "golden-root/07");
-    EXPECT_EQ(golden::layout::overlay_directory(root), "golden-root/overlay");
-    EXPECT_EQ(golden::layout::overlay_manifest_path(root), "golden-root/overlay/manifest.json");
+    const std::string root = golden::layout::goldens_root("test-data");
+    EXPECT_EQ(root, "test-data/rendering/raytracing/goldens");
+    EXPECT_EQ(golden::layout::procthor_directory(root), root + "/procthor-train-1");
+    EXPECT_EQ(golden::layout::procthor_view_directory(root, "07"), root + "/procthor-train-1/07");
+    EXPECT_EQ(golden::layout::overlay_directory(root), root + "/overlay");
+    EXPECT_EQ(golden::layout::overlay_view_directory(root, "partial_shared", "updated", "oblique"), root + "/overlay/partial_shared/updated/oblique");
+    EXPECT_EQ(golden::layout::manifest_path(root + "/overlay"), root + "/overlay/manifest.json");
+    EXPECT_EQ(golden::layout::view_path(root + "/procthor-train-1/07"), root + "/procthor-train-1/07/view.json");
 
-    const auto targets = golden::layout::scenario_target_paths(root, "partial_shared", "updated", "oblique");
-    EXPECT_EQ(targets.directory, "golden-root/overlay/partial_shared/updated/oblique");
-    EXPECT_EQ(targets.rgb_png, targets.directory + "/rgb.png");
-    EXPECT_EQ(targets.depth_bin, targets.directory + "/depth.bin");
-    EXPECT_EQ(targets.depth_png, targets.directory + "/depth.png");
-    EXPECT_EQ(targets.segmentation_bin, targets.directory + "/segmentation.bin");
-    EXPECT_EQ(targets.segmentation_png, targets.directory + "/segmentation.png");
-    EXPECT_EQ(targets.normals_png, targets.directory + "/normals.png");
-    EXPECT_EQ(targets.flow_bin, targets.directory + "/flow.bin");
-    EXPECT_EQ(targets.flow_png, targets.directory + "/flow.png");
-    EXPECT_EQ(targets.flow_status_bin, targets.directory + "/flow_status.bin");
-    EXPECT_EQ(targets.flow_status_png, targets.directory + "/flow_status.png");
-    EXPECT_EQ(targets.flow_forward_bin, targets.directory + "/flow_forward.bin");
-    EXPECT_EQ(targets.flow_forward_png, targets.directory + "/flow_forward.png");
-    EXPECT_EQ(targets.flow_forward_status_bin, targets.directory + "/flow_forward_status.bin");
-    EXPECT_EQ(targets.flow_forward_status_png, targets.directory + "/flow_forward_status.png");
-
-    const auto reviews = golden::layout::scenario_review_paths(
-        "artifact-root", "vulkan", "partial_shared", "updated", "oblique"
-    );
-    EXPECT_EQ(reviews.directory, "artifact-root/vulkan/partial_shared/updated/oblique");
-    EXPECT_EQ(reviews.rgb_target_png, reviews.directory + "/rgb_target.png");
-    EXPECT_EQ(reviews.rgb_current_png, reviews.directory + "/rgb_current.png");
-    EXPECT_EQ(reviews.rgb_diff_png, reviews.directory + "/rgb_diff.png");
-    EXPECT_EQ(reviews.depth_target_png, reviews.directory + "/depth_target.png");
-    EXPECT_EQ(reviews.depth_current_png, reviews.directory + "/depth_current.png");
-    EXPECT_EQ(reviews.depth_diff_png, reviews.directory + "/depth_diff.png");
-    EXPECT_EQ(reviews.segmentation_target_png, reviews.directory + "/segmentation_target.png");
-    EXPECT_EQ(reviews.segmentation_current_png, reviews.directory + "/segmentation_current.png");
-    EXPECT_EQ(reviews.segmentation_diff_png, reviews.directory + "/segmentation_diff.png");
-    EXPECT_EQ(reviews.normals_target_png, reviews.directory + "/normals_target.png");
-    EXPECT_EQ(reviews.normals_current_png, reviews.directory + "/normals_current.png");
-    EXPECT_EQ(reviews.normals_diff_png, reviews.directory + "/normals_diff.png");
-    EXPECT_EQ(reviews.flow_target_png, reviews.directory + "/flow_target.png");
-    EXPECT_EQ(reviews.flow_current_png, reviews.directory + "/flow_current.png");
-    EXPECT_EQ(reviews.flow_diff_png, reviews.directory + "/flow_diff.png");
-    EXPECT_EQ(reviews.flow_status_target_png, reviews.directory + "/flow_status_target.png");
-    EXPECT_EQ(reviews.flow_status_current_png, reviews.directory + "/flow_status_current.png");
-    EXPECT_EQ(reviews.flow_status_diff_png, reviews.directory + "/flow_status_diff.png");
-    EXPECT_EQ(reviews.flow_forward_target_png, reviews.directory + "/flow_forward_target.png");
-    EXPECT_EQ(reviews.flow_forward_current_png, reviews.directory + "/flow_forward_current.png");
-    EXPECT_EQ(reviews.flow_forward_diff_png, reviews.directory + "/flow_forward_diff.png");
-    EXPECT_EQ(reviews.flow_forward_status_target_png, reviews.directory + "/flow_forward_status_target.png");
-    EXPECT_EQ(reviews.flow_forward_status_current_png, reviews.directory + "/flow_forward_status_current.png");
-    EXPECT_EQ(reviews.flow_forward_status_diff_png, reviews.directory + "/flow_forward_status_diff.png");
+    // the names sort into the review order: historic goldens, current golden, renders, heatmaps
+    const std::string modality = golden::layout::modality_directory(root + "/procthor-train-1/07", "high");
+    EXPECT_EQ(modality, root + "/procthor-train-1/07/high");
+    EXPECT_EQ(golden::layout::golden_png(modality, 1), modality + "/golden-v01.png");
+    EXPECT_EQ(golden::layout::golden_png(modality), modality + "/golden.png");
+    EXPECT_EQ(golden::layout::golden_bin(modality, 12), modality + "/data/golden-v12.bin");
+    EXPECT_EQ(golden::layout::golden_bin(modality), modality + "/data/golden.bin");
+    EXPECT_EQ(golden::layout::render_png(modality, "vulkan-lavapipe"), modality + "/render-vulkan-lavapipe.png");
+    EXPECT_EQ(golden::layout::versus_png(modality, golden::layout::historic_name(1)), modality + "/versus-golden-v01.png");
+    EXPECT_EQ(golden::layout::versus_png(modality, "render-optix"), modality + "/versus-render-optix.png");
+    EXPECT_LT(std::string("golden-v01.png"), std::string("golden.png"));
+    EXPECT_LT(std::string("golden.png"), std::string("render-generic.png"));
+    EXPECT_LT(std::string("render-webgpu.png"), std::string("versus-golden-v01.png"));
+    EXPECT_LT(std::string("versus-golden-v01.png"), std::string("versus-render-generic.png"));
 }

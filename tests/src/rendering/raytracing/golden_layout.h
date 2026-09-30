@@ -1,6 +1,15 @@
 #ifndef TESTS_RENDERING_RAYTRACING_GOLDEN_LAYOUT_H
 #define TESTS_RENDERING_RAYTRACING_GOLDEN_LAYOUT_H
 
+// Corpus layout: <goldens root>/<corpus>/.../<view>/<modality>/ holds everything about one rendered
+// quantity of one camera, named so that a directory listing sorts into the order a reviewer flips
+// through: historic goldens oldest first (golden-v01.png), the current golden (golden.png), the
+// last render of every backend (render-<backend>.png), then the heatmaps in the same order
+// (versus-golden-v01.png, versus-render-<backend>.png). Machine-compared binaries live in data/ so
+// that stepping through the images never lands on a file without a preview.
+
+#include <cstdint>
+#include <cstdio>
 #include <filesystem>
 #include <string>
 
@@ -10,133 +19,64 @@ namespace golden {
             return (std::filesystem::path(left) / right).generic_string();
         }
 
-        struct ScenarioTargetPaths{
-            std::string directory;
-            std::string rgb_png;
-            std::string depth_bin;
-            std::string depth_png;
-            std::string segmentation_bin;
-            std::string segmentation_png;
-            std::string normals_png;
-            std::string flow_bin;
-            std::string flow_png;
-            std::string flow_status_bin;
-            std::string flow_status_png;
-            std::string flow_forward_bin;
-            std::string flow_forward_png;
-            std::string flow_forward_status_bin;
-            std::string flow_forward_status_png;
-        };
-
-        struct ScenarioReviewPaths{
-            std::string directory;
-            std::string rgb_target_png;
-            std::string rgb_current_png;
-            std::string rgb_diff_png;
-            std::string depth_target_png;
-            std::string depth_current_png;
-            std::string depth_diff_png;
-            std::string segmentation_target_png;
-            std::string segmentation_current_png;
-            std::string segmentation_diff_png;
-            std::string normals_target_png;
-            std::string normals_current_png;
-            std::string normals_diff_png;
-            std::string flow_target_png;
-            std::string flow_current_png;
-            std::string flow_diff_png;
-            std::string flow_status_target_png;
-            std::string flow_status_current_png;
-            std::string flow_status_diff_png;
-            std::string flow_forward_target_png;
-            std::string flow_forward_current_png;
-            std::string flow_forward_diff_png;
-            std::string flow_forward_status_target_png;
-            std::string flow_forward_status_current_png;
-            std::string flow_forward_status_diff_png;
-        };
-
-        inline std::string procthor_static_scene_directory(const std::string& golden_root){
-            return join(golden_root, "procthor_static_scene");
+        inline std::string goldens_root(const std::string& test_data_path){
+            return join(test_data_path, "rendering/raytracing/goldens");
         }
 
-        inline std::string procthor_pose_directory(const std::string& golden_root, const std::string& pose_id){
-            return join(procthor_static_scene_directory(golden_root), pose_id);
+        inline std::string procthor_directory(const std::string& goldens_root){
+            return join(goldens_root, "procthor-train-1");
         }
 
-        inline std::string legacy_procthor_pose_directory(const std::string& golden_root, const std::string& pose_id){
-            return join(golden_root, pose_id);
+        inline std::string procthor_view_directory(const std::string& goldens_root, const std::string& pose_id){
+            return join(procthor_directory(goldens_root), pose_id);
         }
 
-        inline std::string overlay_directory(const std::string& golden_root){
-            return join(golden_root, "overlay");
+        inline std::string overlay_directory(const std::string& goldens_root){
+            return join(goldens_root, "overlay");
         }
 
-        inline std::string overlay_manifest_path(const std::string& golden_root){
-            return join(overlay_directory(golden_root), "manifest.json");
+        inline std::string overlay_view_directory(const std::string& goldens_root, const std::string& scenario, const std::string& state, const std::string& view){
+            return join(join(join(overlay_directory(goldens_root), scenario), state), view);
         }
 
-        inline ScenarioTargetPaths scenario_target_paths(
-            const std::string& golden_root,
-            const std::string& scenario,
-            const std::string& state,
-            const std::string& view
-        ){
-            const std::string directory = join(join(join(overlay_directory(golden_root), scenario), state), view);
-            return {
-                directory,
-                join(directory, "rgb.png"),
-                join(directory, "depth.bin"),
-                join(directory, "depth.png"),
-                join(directory, "segmentation.bin"),
-                join(directory, "segmentation.png"),
-                join(directory, "normals.png"),
-                join(directory, "flow.bin"),
-                join(directory, "flow.png"),
-                join(directory, "flow_status.bin"),
-                join(directory, "flow_status.png"),
-                join(directory, "flow_forward.bin"),
-                join(directory, "flow_forward.png"),
-                join(directory, "flow_forward_status.bin"),
-                join(directory, "flow_forward_status.png")
-            };
+        inline std::string manifest_path(const std::string& corpus_directory){
+            return join(corpus_directory, "manifest.json");
         }
 
-        inline ScenarioReviewPaths scenario_review_paths(
-            const std::string& artifact_root,
-            const std::string& backend,
-            const std::string& scenario,
-            const std::string& state,
-            const std::string& view
-        ){
-            const std::string directory = join(join(join(join(artifact_root, backend), scenario), state), view);
-            return {
-                directory,
-                join(directory, "rgb_target.png"),
-                join(directory, "rgb_current.png"),
-                join(directory, "rgb_diff.png"),
-                join(directory, "depth_target.png"),
-                join(directory, "depth_current.png"),
-                join(directory, "depth_diff.png"),
-                join(directory, "segmentation_target.png"),
-                join(directory, "segmentation_current.png"),
-                join(directory, "segmentation_diff.png"),
-                join(directory, "normals_target.png"),
-                join(directory, "normals_current.png"),
-                join(directory, "normals_diff.png"),
-                join(directory, "flow_target.png"),
-                join(directory, "flow_current.png"),
-                join(directory, "flow_diff.png"),
-                join(directory, "flow_status_target.png"),
-                join(directory, "flow_status_current.png"),
-                join(directory, "flow_status_diff.png"),
-                join(directory, "flow_forward_target.png"),
-                join(directory, "flow_forward_current.png"),
-                join(directory, "flow_forward_diff.png"),
-                join(directory, "flow_forward_status_target.png"),
-                join(directory, "flow_forward_status_current.png"),
-                join(directory, "flow_forward_status_diff.png")
-            };
+        inline std::string view_path(const std::string& view_directory){
+            return join(view_directory, "view.json");
+        }
+
+        inline std::string modality_directory(const std::string& view_directory, const std::string& modality){
+            return join(view_directory, modality);
+        }
+
+        inline std::string version_tag(uint32_t version){
+            char buffer[16];
+            std::snprintf(buffer, sizeof(buffer), "-v%02u", (unsigned)version);
+            return buffer;
+        }
+
+        // version 0 names the current golden, any other version a historic one
+        inline std::string golden_png(const std::string& modality_directory, uint32_t version = 0){
+            return join(modality_directory, "golden" + (version == 0 ? std::string() : version_tag(version)) + ".png");
+        }
+
+        inline std::string golden_bin(const std::string& modality_directory, uint32_t version = 0){
+            return join(join(modality_directory, "data"), "golden" + (version == 0 ? std::string() : version_tag(version)) + ".bin");
+        }
+
+        inline std::string render_png(const std::string& modality_directory, const std::string& backend){
+            return join(modality_directory, "render-" + backend + ".png");
+        }
+
+        // name is "render-<backend>" or "golden-vNN": the file the heatmap compares against golden.png
+        inline std::string versus_png(const std::string& modality_directory, const std::string& name){
+            return join(modality_directory, "versus-" + name + ".png");
+        }
+
+        inline std::string historic_name(uint32_t version){
+            return "golden" + version_tag(version);
         }
     }
 }

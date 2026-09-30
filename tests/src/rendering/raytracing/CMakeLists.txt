@@ -1,16 +1,5 @@
 option(RL_TOOLS_REQUIRE_RAYTRACING_GOLDENS "Fail raytracing golden tests when reference data is unavailable" OFF)
-set(
-    RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ARTIFACT_ROOT
-    "${CMAKE_BINARY_DIR}/raytracing_golden_artifacts"
-    CACHE PATH
-    "Directory for raytracing golden target, current, and diff artifacts"
-)
-
 function(rl_tools_configure_raytracing_golden_target TARGET_NAME)
-    target_compile_definitions(${TARGET_NAME}
-        PRIVATE
-            RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ARTIFACT_ROOT="${RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ARTIFACT_ROOT}"
-    )
     if(RL_TOOLS_REQUIRE_RAYTRACING_GOLDENS)
         target_compile_definitions(${TARGET_NAME} PRIVATE RL_TOOLS_REQUIRE_RAYTRACING_GOLDENS=1)
     endif()
@@ -41,17 +30,6 @@ gtest_discover_tests(test_rendering_raytracing_golden_io
 )
 
 if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
-    add_executable(test_rendering_raytracing_generate_golden_generic EXCLUDE_FROM_ALL generate_golden.cpp)
-    target_link_libraries(test_rendering_raytracing_generate_golden_generic
-        PRIVATE
-            RLtools::RLtools
-            assimp::assimp
-            rendering_raytracing_stb
-    )
-    target_compile_definitions(test_rendering_raytracing_generate_golden_generic PRIVATE
-        RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME="generic"
-    )
-
     if(NOT RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED STREQUAL "GENERIC")
         string(TOLOWER ${RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED} RL_TOOLS_GOLDEN_GENERATOR_BACKEND_SUFFIX)
         set(RL_TOOLS_GOLDEN_GENERATOR_BACKEND_TARGET test_rendering_raytracing_generate_golden_${RL_TOOLS_GOLDEN_GENERATOR_BACKEND_SUFFIX})
@@ -65,7 +43,6 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
                 rendering_raytracing_stb
         )
         target_compile_definitions(${RL_TOOLS_GOLDEN_GENERATOR_BACKEND_TARGET} PRIVATE
-            RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_GENERATOR_ACTIVE_BACKEND
             RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME="${RL_TOOLS_GOLDEN_GENERATOR_BACKEND_SUFFIX}"
         )
     endif()

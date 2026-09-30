@@ -15,7 +15,7 @@ namespace overlay_goldens {
         nlohmann::json manifest;
         manifest["schema_version"] = 4;
         manifest["golden_version"] = golden::OVERLAY_GOLDEN_VERSION;
-        manifest["binary_format_version"] = golden::MULTI_CAMERA_BINARY_VERSION_CHANNELS;
+        manifest["binary_format_version"] = golden::MULTI_CAMERA_BINARY_VERSION;
         manifest["reference_backend"] = golden::REFERENCE_BACKEND;
         manifest["outputs"] = nlohmann::json::array({"rgb", "depth", "segmentation", "normals", "flow", "flow_status", "flow_forward", "flow_forward_status"});
         manifest["num_cameras"] = (std::size_t)SPEC::NUM_CAMERAS;
