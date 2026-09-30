@@ -140,10 +140,10 @@ namespace {
         return golden::layout::versus_png(review_directory(camera_i, modality), name);
     }
 
-    // the archived generations that exist for this modality (golden-vNN.png or data/golden-vNN.bin)
+    // the earlier generations that exist for this modality (golden-vNN.png or data/golden-vNN.bin)
     std::vector<uint32_t> historic_versions(const std::string& golden_directory, bool binary){
         std::vector<uint32_t> versions;
-        for(uint32_t version = 1; version < golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION; version++){
+        for(uint32_t version = 0; version < golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION; version++){
             if(std::filesystem::exists(binary ? golden::layout::golden_bin(golden_directory, version) : golden::layout::golden_png(golden_directory, version))){
                 versions.push_back(version);
             }
@@ -197,7 +197,7 @@ namespace {
         return stats;
     }
 
-    // golden.png against ours and against every archived generation, as heatmaps next to the golden
+    // the current golden against ours and against every earlier generation, as heatmaps next to it
     template <typename SPEC>
     void write_png_reviews(TI camera_i, const std::string& modality, const uint32_t* ours, const std::vector<uint32_t>& golden_pixels){
         golden::write_camera_png(render_path(camera_i, modality), ours, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
@@ -205,7 +205,7 @@ namespace {
         for(const uint32_t version : historic_versions(golden_directory(camera_i, modality), false)){
             std::vector<uint32_t> historic;
             if(golden::load_camera_png(golden::layout::golden_png(golden_directory(camera_i, modality), version), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, historic)){
-                golden::write_camera_diff_png(versus_path(camera_i, modality, golden::layout::historic_name(version)), golden_pixels.data(), historic.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+                golden::write_camera_diff_png(versus_path(camera_i, modality, golden::layout::golden_name(version)), golden_pixels.data(), historic.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
             }
         }
     }
@@ -221,7 +221,7 @@ namespace {
             const char* id = CASES::POSES[camera_i].id;
             const uint32_t* ours = rendered.frame_buffer.data() + camera_i * SPEC::CAM_PIXELS;
             std::vector<uint32_t> golden_pixels;
-            ASSERT_TRUE(golden::load_camera_png(golden::layout::golden_png(golden_directory(camera_i, modality)), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_pixels)) << "failed to load golden: " << id << "/" << modality;
+            ASSERT_TRUE(golden::load_camera_png(golden::layout::golden_png(golden_directory(camera_i, modality), golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_pixels)) << "failed to load golden: " << id << "/" << modality;
             const RGBStats stats = compare_rgb(ours, golden_pixels.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
             write_png_reviews<SPEC>(camera_i, modality, ours, golden_pixels);
             EXPECT_LE(stats.mad, RGB_MAD_THRESHOLD)
@@ -267,14 +267,14 @@ namespace {
             const char* id = CASES::POSES[camera_i].id;
             const std::string directory = golden_directory(camera_i, "depth");
             std::vector<float> golden_depth;
-            ASSERT_TRUE(golden::load_multi_camera_float_bin(golden::layout::golden_bin(directory), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_depth)) << "failed to load golden depth: " << id;
+            ASSERT_TRUE(golden::load_multi_camera_float_bin(golden::layout::golden_bin(directory, golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_depth)) << "failed to load golden depth: " << id;
             const float* ours = rendered.depth_buffer.data() + camera_i * SPEC::CAM_PIXELS;
             golden::write_camera_depth_png(render_path(camera_i, "depth"), ours, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
             golden::write_camera_depth_diff_png(versus_path(camera_i, "depth"), golden_depth.data(), ours, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
             for(const uint32_t version : historic_versions(directory, true)){
                 std::vector<float> historic;
                 if(golden::load_multi_camera_float_bin(golden::layout::golden_bin(directory, version), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, historic)){
-                    golden::write_camera_depth_diff_png(versus_path(camera_i, "depth", golden::layout::historic_name(version)), historic.data(), golden_depth.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
+                    golden::write_camera_depth_diff_png(versus_path(camera_i, "depth", golden::layout::golden_name(version)), historic.data(), golden_depth.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
                 }
             }
             double total_abs_diff = 0;
@@ -316,7 +316,7 @@ namespace {
         for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
             const char* id = CASES::POSES[camera_i].id;
             std::vector<uint32_t> golden_pixels;
-            ASSERT_TRUE(golden::load_camera_png(golden::layout::golden_png(golden_directory(camera_i, "normals")), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_pixels)) << "failed to load golden: " << id << "/normals";
+            ASSERT_TRUE(golden::load_camera_png(golden::layout::golden_png(golden_directory(camera_i, "normals"), golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_pixels)) << "failed to load golden: " << id << "/normals";
             const uint32_t* ours = encoded.data() + camera_i * SPEC::CAM_PIXELS;
             write_png_reviews<SPEC>(camera_i, "normals", ours, golden_pixels);
             double total = 0;
@@ -366,7 +366,7 @@ namespace {
         for(const uint32_t version : historic_versions(directory, true)){
             std::vector<uint32_t> historic;
             if(golden::load_multi_camera_uint32_bin(golden::layout::golden_bin(directory, version), 1, CASES::CAM_WIDTH, CASES::CAM_HEIGHT, historic)){
-                write_versus(golden::layout::historic_name(version), historic.data(), golden_status.data());
+                write_versus(golden::layout::golden_name(version), historic.data(), golden_status.data());
             }
         }
     }
@@ -385,7 +385,7 @@ namespace {
         for(const uint32_t version : historic_versions(directory, true)){
             std::vector<float> historic;
             if(golden::load_multi_camera_float_bin(golden::layout::golden_bin(directory, version), 1, CASES::CAM_WIDTH, CASES::CAM_HEIGHT, historic, 2)){
-                write_versus(golden::layout::historic_name(version), historic.data(), golden_flow.data());
+                write_versus(golden::layout::golden_name(version), historic.data(), golden_flow.data());
             }
         }
     }
@@ -404,14 +404,14 @@ namespace {
             const char* id = CASES::POSES[camera_i].id;
             std::vector<float> golden_flow;
             std::vector<uint32_t> golden_status;
-            ASSERT_TRUE(golden::load_multi_camera_float_bin(golden::layout::golden_bin(golden_directory(camera_i, modality)), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_flow, 2)) << "failed to load golden: " << id << "/" << modality;
-            ASSERT_TRUE(golden::load_multi_camera_uint32_bin(golden::layout::golden_bin(golden_directory(camera_i, status_modality)), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_status)) << "failed to load golden: " << id << "/" << status_modality;
+            ASSERT_TRUE(golden::load_multi_camera_float_bin(golden::layout::golden_bin(golden_directory(camera_i, modality), golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_flow, 2)) << "failed to load golden: " << id << "/" << modality;
+            ASSERT_TRUE(golden::load_multi_camera_uint32_bin(golden::layout::golden_bin(golden_directory(camera_i, status_modality), golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_status)) << "failed to load golden: " << id << "/" << status_modality;
             const float* ours = direction.flow->data() + (size_t)camera_i * SPEC::CAM_PIXELS * 2;
             const uint32_t* ours_status = direction.status->data() + (size_t)camera_i * SPEC::CAM_PIXELS;
             {
                 // the review PNG is corpus surface too: exactly the pinned false color of the status binary
                 std::vector<uint32_t> golden_png;
-                ASSERT_TRUE(golden::load_camera_png(golden::layout::golden_png(golden_directory(camera_i, status_modality)), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_png)) << "failed to load golden: " << id << "/" << status_modality << " review image";
+                ASSERT_TRUE(golden::load_camera_png(golden::layout::golden_png(golden_directory(camera_i, status_modality), golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_png)) << "failed to load golden: " << id << "/" << status_modality << " review image";
                 std::vector<uint32_t> expected(golden_status.size());
                 golden::colorize_flow_status(golden_status.data(), golden_status.size(), expected.data());
                 EXPECT_EQ(golden_png, expected) << status_modality << " pose " << id << ": review PNG does not match the binary";
@@ -476,13 +476,13 @@ namespace {
             const char* id = CASES::POSES[camera_i].id;
             const std::string directory = golden_directory(camera_i, "segmentation");
             std::vector<uint32_t> golden_segmentation;
-            ASSERT_TRUE(golden::load_multi_camera_uint32_bin(golden::layout::golden_bin(directory), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_segmentation)) << "failed to load golden: " << id << "/segmentation";
+            ASSERT_TRUE(golden::load_multi_camera_uint32_bin(golden::layout::golden_bin(directory, golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_segmentation)) << "failed to load golden: " << id << "/segmentation";
             const uint32_t* ours = rendered.segmentation.data() + camera_i * SPEC::CAM_PIXELS;
             {
                 // the review PNG is corpus surface too: it must be exactly the false-color
                 // encoding of the binary (mirrors the overlay corpus validation)
                 std::vector<uint32_t> golden_png;
-                ASSERT_TRUE(golden::load_camera_png(golden::layout::golden_png(directory), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_png)) << "failed to load golden: " << id << "/segmentation review image";
+                ASSERT_TRUE(golden::load_camera_png(golden::layout::golden_png(directory, golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_png)) << "failed to load golden: " << id << "/segmentation review image";
                 std::vector<uint32_t> expected(golden_segmentation.size());
                 golden::colorize_segmentation(golden_segmentation.data(), golden_segmentation.size(), expected.data());
                 EXPECT_EQ(golden_png, expected) << "segmentation pose " << id << ": review PNG does not match the binary";
@@ -500,7 +500,7 @@ namespace {
             for(const uint32_t version : historic_versions(directory, true)){
                 std::vector<uint32_t> historic;
                 if(golden::load_multi_camera_uint32_bin(golden::layout::golden_bin(directory, version), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, historic)){
-                    write_versus(golden::layout::historic_name(version), historic.data(), golden_segmentation.data());
+                    write_versus(golden::layout::golden_name(version), historic.data(), golden_segmentation.data());
                 }
             }
             size_t mismatches = 0;
@@ -605,7 +605,7 @@ TEST(RL_TOOLS_GOLDEN_SUITE, PROBES){
     for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
         const char* id = CASES::POSES[camera_i].id;
         std::vector<float> golden_probes; // NUM_PROBES x [distance, hit]
-        ASSERT_TRUE(golden::load_multi_camera_float_bin(golden::layout::golden_bin(golden_directory(camera_i, "probes")), 1, SPEC::NUM_PROBES, 1, golden_probes, 2)) << "failed to load golden probes: " << id;
+        ASSERT_TRUE(golden::load_multi_camera_float_bin(golden::layout::golden_bin(golden_directory(camera_i, "probes"), golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION), 1, SPEC::NUM_PROBES, 1, golden_probes, 2)) << "failed to load golden probes: " << id;
         const auto* ours = rendered.probes.data() + camera_i * SPEC::NUM_PROBES;
         for(size_t probe_i = 0; probe_i < (size_t)SPEC::NUM_PROBES; probe_i++){
             const float golden_distance = golden_probes[probe_i * 2 + 0];

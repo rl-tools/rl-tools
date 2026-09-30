@@ -3,10 +3,11 @@
 
 // Corpus layout: <goldens root>/<corpus>/.../<view>/<modality>/ holds everything about one rendered
 // quantity of one camera, named so that a directory listing sorts into the order a reviewer flips
-// through: historic goldens oldest first (golden-v01.png), the current golden (golden.png), the
-// last render of every backend (render-<backend>.png), then the heatmaps in the same order
-// (versus-golden-v01.png, versus-render-<backend>.png). Machine-compared binaries live in data/ so
-// that stepping through the images never lands on a file without a preview.
+// through: the goldens oldest generation first (golden-v00.png ... golden-v02.png, the pinned
+// version being the current one), the last render of every backend (render-<backend>.png), then
+// the heatmaps against the current golden in the same order (versus-golden-v00.png,
+// versus-render-<backend>.png). Machine-compared binaries live in data/ so that stepping through
+// the images never lands on a file without a preview.
 
 #include <cstdint>
 #include <cstdio>
@@ -57,26 +58,26 @@ namespace golden {
             return buffer;
         }
 
-        // version 0 names the current golden, any other version a historic one
-        inline std::string golden_png(const std::string& modality_directory, uint32_t version = 0){
-            return join(modality_directory, "golden" + (version == 0 ? std::string() : version_tag(version)) + ".png");
+        // every generation keeps its number; the version pinned in golden_manifest.h is the current one
+        inline std::string golden_name(uint32_t version){
+            return "golden" + version_tag(version);
         }
 
-        inline std::string golden_bin(const std::string& modality_directory, uint32_t version = 0){
-            return join(join(modality_directory, "data"), "golden" + (version == 0 ? std::string() : version_tag(version)) + ".bin");
+        inline std::string golden_png(const std::string& modality_directory, uint32_t version){
+            return join(modality_directory, golden_name(version) + ".png");
+        }
+
+        inline std::string golden_bin(const std::string& modality_directory, uint32_t version){
+            return join(join(modality_directory, "data"), golden_name(version) + ".bin");
         }
 
         inline std::string render_png(const std::string& modality_directory, const std::string& backend){
             return join(modality_directory, "render-" + backend + ".png");
         }
 
-        // name is "render-<backend>" or "golden-vNN": the file the heatmap compares against golden.png
+        // name is "render-<backend>" or "golden-vNN": the file the heatmap compares against the current golden
         inline std::string versus_png(const std::string& modality_directory, const std::string& name){
             return join(modality_directory, "versus-" + name + ".png");
-        }
-
-        inline std::string historic_name(uint32_t version){
-            return "golden" + version_tag(version);
         }
     }
 }
