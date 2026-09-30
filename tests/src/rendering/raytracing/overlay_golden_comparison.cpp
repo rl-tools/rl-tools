@@ -9,6 +9,7 @@
 
 #include "overlay_golden_frames.h"
 #include "overlay_golden_manifest.h"
+#include "golden_metrics.h"
 #include "../../utils/utils.h"
 
 #include <gtest/gtest.h>
@@ -55,34 +56,36 @@ using RENDERER = rlt::rendering::raytracing::Renderer<SPEC, BACKEND>;
 using overlay_goldens::Frame;
 
 // The reference backend (OptiX) rendered the corpus and reproduces it bit-exactly, so every metric
-// is held to zero for it (see golden_comparison.cpp). The other backends get bounds at roughly
-// three times the worst floor measured against overlay corpus v1: Vulkan (NVIDIA and lavapipe)
-// is exact, the generic and WebGPU silhouette strays reach RGB MAD 0.25, normals MAD 0.125 and
-// 0.29% of pixels for outliers, segmentation, background and flow status, id area 0.003.
+// is held to zero for it (see golden_comparison.cpp). The other backends get bounds at about
+// twice the worst floor measured against overlay corpus v1: Vulkan (NVIDIA and lavapipe) is
+// exact, the generic and WebGPU silhouette strays reach RGB MAD 0.25, normals MAD 0.125 and 0.29%
+// of pixels for outliers, segmentation, background and flow status, id area 0.003, everything
+// else zero; fractions with a zero floor allow 0.05% (8 pixels of a 4x64x64 view).
 static constexpr bool REFERENCE_BACKEND = std::string_view(RL_TOOLS_OVERLAY_GOLDEN_BACKEND_NAME) == golden::REFERENCE_BACKEND;
-static constexpr double RGB_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.75;
-static constexpr double RGB_ID_OVERLAP_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.2;
+static constexpr double RGB_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.5;
+static constexpr double RGB_ID_OVERLAP_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.05;
 static constexpr int RGB_OUTLIER_CHANNEL_DELTA = 8;
-static constexpr double RGB_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.01;
-static constexpr double DEPTH_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 1e-5;
+static constexpr double RGB_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.006;
+static constexpr double RGB_SHADING_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.0002; // outliers not explained by the neighborhood (golden_metrics.h), floor zero
+static constexpr double DEPTH_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 1e-7;
 static constexpr double DEPTH_OUTLIER_REL = 1e-3;
-static constexpr double DEPTH_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.001;
-static constexpr double SEGMENTATION_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.01;
-static constexpr double BACKGROUND_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.01;
-static constexpr double ID_AREA_RELATIVE_TOLERANCE = REFERENCE_BACKEND ? 0 : 0.1;
+static constexpr double DEPTH_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.0005;
+static constexpr double SEGMENTATION_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.006;
+static constexpr double BACKGROUND_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.006;
+static constexpr double ID_AREA_RELATIVE_TOLERANCE = REFERENCE_BACKEND ? 0 : 0.01;
 // encoded normals compare like RGB, but silhouette/internal-edge bands (a different triangle
 // winning the same pixel across backends) produce large per-pixel deltas, so the mean budget is
 // wider while the outlier band stays bounded like segmentation's
-static constexpr double NORMALS_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.4;
+static constexpr double NORMALS_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.25;
 static constexpr int NORMALS_OUTLIER_CHANNEL_DELTA = 8;
-static constexpr double NORMALS_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.01;
+static constexpr double NORMALS_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.006;
 // endpoint error on pixels VALID in both frames (backward additionally segmentation-gated):
 // geometry-derived flow matches to float precision across backends except in the silhouette
 // band the gates exclude; the status buffers may disagree only in that band
-static constexpr double FLOW_MEAN_EPE_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.01;  // px
+static constexpr double FLOW_MEAN_EPE_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.001; // px
 static constexpr double FLOW_OUTLIER_EPE = 0.5;                                   // px
-static constexpr double FLOW_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.002;
-static constexpr double FLOW_STATUS_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.01;
+static constexpr double FLOW_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.0005;
+static constexpr double FLOW_STATUS_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.006;
 
 static const std::string GOLDEN_ROOT = RL_TOOLS_OVERLAY_GOLDEN_TEST_DATA_PATH "/rendering_raytracing_golden";
 static const std::string ARTIFACT_ROOT = RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ARTIFACT_ROOT;
@@ -278,6 +281,7 @@ namespace {
         double rgb_total = 0;
         size_t rgb_channels = 0;
         size_t rgb_outlier_pixels = 0;
+        size_t rgb_shading_outlier_pixels = 0;
         size_t invalid_target_alpha = 0;
         size_t invalid_current_alpha = 0;
         size_t segmentation_mismatches = 0;
@@ -311,6 +315,11 @@ namespace {
                 rgb_outlier = rgb_outlier || absolute > RGB_OUTLIER_CHANNEL_DELTA;
             }
             rgb_outlier_pixels += rgb_outlier;
+            if(rgb_outlier){
+                const size_t camera_offset = index - index % SPEC::CAM_PIXELS;
+                const int local = (int)(index % SPEC::CAM_PIXELS);
+                rgb_shading_outlier_pixels += !golden::neighborhood_explains(target.rgb.data() + camera_offset, current.rgb.data() + camera_offset, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, local % SPEC::CAM_WIDTH, local / SPEC::CAM_WIDTH, RGB_OUTLIER_CHANNEL_DELTA);
+            }
 
             const auto* target_normal_bytes = reinterpret_cast<const uint8_t*>(target.normals.data() + index);
             const auto* current_normal_bytes = reinterpret_cast<const uint8_t*>(current.normals.data() + index);
@@ -361,6 +370,7 @@ namespace {
 
         EXPECT_LE(rgb_mad, RGB_MAD_THRESHOLD) << view.id;
         EXPECT_LE(rgb_outliers, RGB_OUTLIER_FRACTION) << view.id;
+        EXPECT_LE((double)rgb_shading_outlier_pixels / count, RGB_SHADING_OUTLIER_FRACTION) << view.id << " shading";
         EXPECT_EQ(invalid_target_alpha, (size_t)0) << view.id;
         EXPECT_EQ(invalid_current_alpha, (size_t)0) << view.id;
         EXPECT_LE(segmentation_mismatch, SEGMENTATION_MISMATCH_FRACTION) << view.id;
