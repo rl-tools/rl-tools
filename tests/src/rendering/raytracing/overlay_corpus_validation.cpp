@@ -32,11 +32,12 @@ using TI = typename rlt::devices::DefaultCPU::index_t;
 using SPEC = overlay_scenarios::OverlaySpecification<T, TI>;
 using overlay_goldens::Frame;
 
-static const std::string GOLDEN_ROOT = RL_TOOLS_OVERLAY_CORPUS_TEST_DATA_PATH "/rendering_raytracing_golden";
+static const std::string GOLDEN_ROOT = golden::layout::goldens_root(RL_TOOLS_OVERLAY_CORPUS_TEST_DATA_PATH);
+static const std::string MANIFEST_PATH = golden::layout::manifest_path(golden::layout::overlay_directory(GOLDEN_ROOT));
 
 namespace {
     bool manifest_available(){
-        return std::filesystem::is_regular_file(golden::layout::overlay_manifest_path(GOLDEN_ROOT));
+        return std::filesystem::is_regular_file(MANIFEST_PATH);
     }
 
 #if defined(RL_TOOLS_REQUIRE_RAYTRACING_GOLDENS)
@@ -55,7 +56,7 @@ namespace {
 
 TEST(RENDERING_RAYTRACING_OVERLAY_GOLDEN_CORPUS, MANIFEST){
     RL_TOOLS_OVERLAY_CORPUS_REQUIRE_DATA();
-    std::ifstream input(golden::layout::overlay_manifest_path(GOLDEN_ROOT));
+    std::ifstream input(MANIFEST_PATH);
     ASSERT_TRUE(input.is_open());
     nlohmann::json manifest;
     ASSERT_NO_THROW(input >> manifest);
@@ -118,16 +119,11 @@ TEST(RENDERING_RAYTRACING_OVERLAY_GOLDEN_CORPUS, SEGMENTATION_REVIEW_PNG_MATCHES
         for(std::size_t state_i = 0; state_i < overlay_goldens::capture_state_count(scenario); state_i++){
             const auto state = state_i == 0 ? overlay_goldens::CaptureState::INITIAL : overlay_goldens::CaptureState::UPDATED;
             for(const auto& view : overlay_goldens::VIEWS){
-                const auto paths = golden::layout::scenario_target_paths(
-                    GOLDEN_ROOT,
-                    overlay_scenarios::scenario_id(scenario),
-                    overlay_goldens::capture_state_id(state),
-                    view.id
-                );
+                const std::string modality = golden::layout::modality_directory(golden::layout::overlay_view_directory(GOLDEN_ROOT, overlay_scenarios::scenario_id(scenario), overlay_goldens::capture_state_id(state), view.id), "segmentation");
                 std::vector<uint32_t> segmentation;
-                ASSERT_TRUE(golden::load_multi_camera_uint32_bin(paths.segmentation_bin, SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, segmentation)) << paths.segmentation_bin;
+                ASSERT_TRUE(golden::load_multi_camera_uint32_bin(golden::layout::golden_bin(modality), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, segmentation)) << modality;
                 std::vector<uint32_t> png_pixels;
-                ASSERT_TRUE(golden::load_camera_grid_png(paths.segmentation_png, SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, png_pixels)) << paths.segmentation_png;
+                ASSERT_TRUE(golden::load_camera_grid_png(golden::layout::golden_png(modality), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, png_pixels)) << modality;
                 std::vector<uint32_t> expected(segmentation.size());
                 golden::colorize_segmentation(segmentation.data(), segmentation.size(), expected.data());
                 EXPECT_EQ(png_pixels, expected)
@@ -137,24 +133,18 @@ TEST(RENDERING_RAYTRACING_OVERLAY_GOLDEN_CORPUS, SEGMENTATION_REVIEW_PNG_MATCHES
     }
 }
 
-// flow_status.png / flow_forward_status.png must be exactly the pinned false color of their .bin
+// the flow status review images must be exactly the pinned false color of their binaries
 TEST(RENDERING_RAYTRACING_OVERLAY_GOLDEN_CORPUS, FLOW_STATUS_REVIEW_PNG_MATCHES_BIN){
     RL_TOOLS_OVERLAY_CORPUS_REQUIRE_DATA();
     for(const auto scenario : overlay_scenarios::SCENARIOS){
         for(std::size_t state_i = 0; state_i < overlay_goldens::capture_state_count(scenario); state_i++){
             const auto state = state_i == 0 ? overlay_goldens::CaptureState::INITIAL : overlay_goldens::CaptureState::UPDATED;
             for(const auto& view : overlay_goldens::VIEWS){
-                const auto paths = golden::layout::scenario_target_paths(
-                    GOLDEN_ROOT,
-                    overlay_scenarios::scenario_id(scenario),
-                    overlay_goldens::capture_state_id(state),
-                    view.id
-                );
-                const std::pair<std::string, std::string> files[2] = {
-                    {paths.flow_status_bin, paths.flow_status_png},
-                    {paths.flow_forward_status_bin, paths.flow_forward_status_png}
-                };
-                for(const auto& [bin_path, png_path] : files){
+                const std::string view_directory = golden::layout::overlay_view_directory(GOLDEN_ROOT, overlay_scenarios::scenario_id(scenario), overlay_goldens::capture_state_id(state), view.id);
+                for(const char* name : {"flow-status", "flow-forward-status"}){
+                    const std::string modality = golden::layout::modality_directory(view_directory, name);
+                    const std::string bin_path = golden::layout::golden_bin(modality);
+                    const std::string png_path = golden::layout::golden_png(modality);
                     std::vector<uint32_t> status;
                     ASSERT_TRUE(golden::load_multi_camera_uint32_bin(bin_path, SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, status)) << bin_path;
                     std::vector<uint32_t> png_pixels;

@@ -29,7 +29,8 @@ using SPEC = overlay_scenarios::OverlaySpecification<T, TI>;
 using RENDERER = rlt::rendering::raytracing::Renderer<SPEC>;
 using overlay_goldens::Frame;
 
-static const std::string GOLDEN_ROOT = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH) "/rendering_raytracing_golden";
+static const std::string GOLDEN_ROOT = golden::layout::goldens_root(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH));
+static const std::string CORPUS_DIRECTORY = golden::layout::overlay_directory(GOLDEN_ROOT);
 
 namespace {
     struct FrameContext {
@@ -281,29 +282,39 @@ namespace {
     }
 
     bool write_frame(const FrameContext& context, const Frame& frame){
-        const auto paths = golden::layout::scenario_target_paths(
-            GOLDEN_ROOT,
-            overlay_scenarios::scenario_id(context.scenario),
-            overlay_goldens::capture_state_id(context.state),
-            context.view
-        );
-        std::filesystem::create_directories(paths.directory);
-        const bool ok = golden::write_camera_grid_png(paths.rgb_png, frame.rgb.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
-            && golden::write_multi_camera_float_bin(paths.depth_bin, frame.depth.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
-            && golden::write_depth_grid_png(paths.depth_png, frame.depth.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, frame.max_depth)
-            && golden::write_multi_camera_uint32_bin(paths.segmentation_bin, frame.segmentation.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
-            && golden::write_segmentation_grid_png(paths.segmentation_png, frame.segmentation.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
-            && golden::write_camera_grid_png(paths.normals_png, frame.normals.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
-            && golden::write_multi_camera_float_bin(paths.flow_bin, frame.flow.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, 2)
-            && golden::write_multi_camera_uint32_bin(paths.flow_status_bin, frame.flow_status.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
-            && golden::write_flow_status_grid_png(paths.flow_status_png, frame.flow_status.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
-            && golden::write_multi_camera_float_bin(paths.flow_forward_bin, frame.flow_forward.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, 2)
-            && golden::write_multi_camera_uint32_bin(paths.flow_forward_status_bin, frame.flow_forward_status.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
-            && golden::write_flow_status_grid_png(paths.flow_forward_status_png, frame.flow_forward_status.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+        const std::string view_directory = golden::layout::overlay_view_directory(GOLDEN_ROOT, overlay_scenarios::scenario_id(context.scenario), overlay_goldens::capture_state_id(context.state), context.view);
+        const auto png = [&](const char* modality){
+            const std::string path = golden::layout::golden_png(golden::layout::modality_directory(view_directory, modality));
+            std::filesystem::create_directories(std::filesystem::path(path).parent_path());
+            return path;
+        };
+        const auto bin = [&](const char* modality){
+            const std::string path = golden::layout::golden_bin(golden::layout::modality_directory(view_directory, modality));
+            std::filesystem::create_directories(std::filesystem::path(path).parent_path());
+            return path;
+        };
+        const bool ok = golden::write_camera_grid_png(png("rgb"), frame.rgb.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
+            && golden::write_multi_camera_float_bin(bin("depth"), frame.depth.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
+            && golden::write_depth_grid_png(png("depth"), frame.depth.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, frame.max_depth)
+            && golden::write_multi_camera_uint32_bin(bin("segmentation"), frame.segmentation.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
+            && golden::write_segmentation_grid_png(png("segmentation"), frame.segmentation.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
+            && golden::write_camera_grid_png(png("normals"), frame.normals.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
+            && golden::write_multi_camera_float_bin(bin("flow"), frame.flow.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, 2)
+            && golden::write_multi_camera_uint32_bin(bin("flow-status"), frame.flow_status.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
+            && golden::write_flow_status_grid_png(png("flow-status"), frame.flow_status.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
+            && golden::write_multi_camera_float_bin(bin("flow-forward"), frame.flow_forward.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, 2)
+            && golden::write_multi_camera_uint32_bin(bin("flow-forward-status"), frame.flow_forward_status.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT)
+            && golden::write_flow_status_grid_png(png("flow-forward-status"), frame.flow_forward_status.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
         // advisory review images (per-image normalisation)
-        rlt::rendering::raytracing::detail::write_flow_grid_png<SPEC>(frame.flow.data(), paths.flow_png.c_str());
-        rlt::rendering::raytracing::detail::write_flow_grid_png<SPEC>(frame.flow_forward.data(), paths.flow_forward_png.c_str());
-        return report(ok, context, "failed to write golden files to " + paths.directory);
+        rlt::rendering::raytracing::detail::write_flow_grid_png<SPEC>(frame.flow.data(), png("flow").c_str());
+        rlt::rendering::raytracing::detail::write_flow_grid_png<SPEC>(frame.flow_forward.data(), png("flow-forward").c_str());
+        return report(ok, context, "failed to write golden files to " + view_directory);
+    }
+
+    bool write_view(const FrameContext& context, const overlay_goldens::View& view){
+        const std::string view_directory = golden::layout::overlay_view_directory(GOLDEN_ROOT, overlay_scenarios::scenario_id(context.scenario), overlay_goldens::capture_state_id(context.state), context.view);
+        std::filesystem::create_directories(view_directory);
+        return report(golden::write_view(golden::layout::view_path(view_directory), view.position, view.look_at, view.up, (float)SPEC::CONFIG::FOV, (int)SPEC::CAM_WIDTH, (int)SPEC::CAM_HEIGHT), context, "failed to write view.json");
     }
 
     bool run_scenario(DEVICE& device, overlay_scenarios::Scenario scenario, Frame& centered_initial){
@@ -322,7 +333,7 @@ namespace {
             const FrameContext context{scenario, overlay_goldens::CaptureState::INITIAL, overlay_goldens::VIEWS[view_i].id};
             overlay_goldens::set_view(device, renderer, overlay_goldens::VIEWS[view_i]);
             initial_frames[view_i] = overlay_goldens::capture(device, renderer);
-            const bool wrote = write_frame(context, initial_frames[view_i]);
+            const bool wrote = write_view(context, overlay_goldens::VIEWS[view_i]) && write_frame(context, initial_frames[view_i]);
             ok = validate_frame(context, initial_frames[view_i]) && wrote && ok;
         }
         for(size_t first = 0; first < initial_frames.size(); first++){
@@ -344,7 +355,7 @@ namespace {
                 const FrameContext context{scenario, overlay_goldens::CaptureState::UPDATED, overlay_goldens::VIEWS[view_i].id};
                 overlay_goldens::set_view(device, renderer, overlay_goldens::VIEWS[view_i]);
                 const auto updated = overlay_goldens::capture(device, renderer);
-                const bool wrote = write_frame(context, updated);
+                const bool wrote = write_view(context, overlay_goldens::VIEWS[view_i]) && write_frame(context, updated);
                 ok = validate_frame(context, updated)
                   && validate_update_scope(context, initial_frames[view_i], updated)
                   && valid_static_placements(context, initial_frames[view_i], updated)
@@ -358,19 +369,13 @@ namespace {
     }
 
     bool write_manifest(){
-        const std::string path = golden::layout::overlay_manifest_path(GOLDEN_ROOT);
-        std::filesystem::create_directories(std::filesystem::path(path).parent_path());
-        std::ofstream output(path);
-        if(!output){
-            return false;
-        }
-        output << overlay_goldens::expected_manifest<SPEC>().dump(2) << "\n";
-        return output.good();
+        return golden::write_json(golden::layout::manifest_path(CORPUS_DIRECTORY), overlay_goldens::expected_manifest<SPEC>());
     }
 }
 
 int main(){
-    std::filesystem::remove(golden::layout::overlay_manifest_path(GOLDEN_ROOT));
+    golden::archive_previous_version(CORPUS_DIRECTORY, golden::OVERLAY_GOLDEN_VERSION);
+    std::filesystem::remove(golden::layout::manifest_path(CORPUS_DIRECTORY));
     DEVICE device;
     rlt::init(device);
 
@@ -396,6 +401,6 @@ int main(){
         std::cerr << "[overlay-golden] FAILED" << std::endl;
         return 1;
     }
-    std::cout << "[overlay-golden] done: " << golden::layout::overlay_directory(GOLDEN_ROOT) << std::endl;
+    std::cout << "[overlay-golden] done: " << CORPUS_DIRECTORY << std::endl;
     return 0;
 }

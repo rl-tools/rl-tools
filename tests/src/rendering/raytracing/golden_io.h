@@ -1,10 +1,11 @@
 #ifndef TESTS_RENDERING_RAYTRACING_GOLDEN_IO_H
 #define TESTS_RENDERING_RAYTRACING_GOLDEN_IO_H
 
-// Golden file I/O shared by generators and comparison tests. The original per-camera depth and
-// probe functions retain their native legacy format; overlay buffers use the versioned, little-
-// endian multi-camera format below (fixed header, then camera-major row-major payload; the wire
-// field order is num_cameras, height, width).
+// Golden file I/O shared by generators and comparison tests. Every binary golden uses the
+// versioned multi-camera format below: a little-endian header (field order num_cameras, height,
+// width, channels, element count, payload bytes) followed by the camera-major row-major payload of
+// little-endian 32-bit words with interleaved channels, deflated as a zlib stream (lossless; ids,
+// status codes and near-static flow fields shrink by orders of magnitude, floats by ~1.25x).
 
 // RL_TOOLS_STB_IMAGE_PROVIDED / RL_TOOLS_STB_IMAGE_WRITE_PROVIDED arbitrate between this header
 // and the renderer's operations_cpu_common.h / save_cpu.h so that whichever is included first
@@ -50,13 +51,11 @@ namespace golden {
         uint32_t width = 0;
         uint32_t channels = 1;
         uint64_t element_count = 0;
+        uint64_t payload_bytes = 0;
     };
 
-    static constexpr uint32_t MULTI_CAMERA_BINARY_VERSION = 1;
-    // additive channel extension: version-2 headers carry a channels field via the header_size
-    // mechanism; single-channel files keep the byte-identical version-1 header, so the published
-    // scalar corpus stays valid and stable
-    static constexpr uint32_t MULTI_CAMERA_BINARY_VERSION_CHANNELS = 2;
+    // versions 1 (no channels field) and 2 (raw payload) never reached a published corpus
+    static constexpr uint32_t MULTI_CAMERA_BINARY_VERSION = 3;
     static constexpr uint32_t SEGMENTATION_BACKGROUND_ID = 0xFFFFFFFFu;
     static constexpr int GRID_COLUMNS = 2;
     static constexpr int GRID_ROWS = 2;
@@ -64,8 +63,8 @@ namespace golden {
 
     namespace detail {
         static constexpr unsigned char MULTI_CAMERA_BINARY_MAGIC[8] = {'R', 'L', 'T', 'M', 'C', 'A', 'M', 0};
-        static constexpr uint32_t MULTI_CAMERA_BINARY_HEADER_SIZE = 40;
-        static constexpr uint32_t MULTI_CAMERA_BINARY_HEADER_SIZE_CHANNELS = 44;
+        static constexpr uint32_t MULTI_CAMERA_BINARY_HEADER_SIZE = 52;
+        static constexpr int MULTI_CAMERA_BINARY_DEFLATE_QUALITY = 8;
 
         inline bool checked_element_count(int num_cameras, int width, int height, size_t& count){
             if(num_cameras <= 0 || width <= 0 || height <= 0){
@@ -170,20 +169,19 @@ namespace golden {
             int width,
             int height,
             int channels,
-            size_t element_count
+            size_t element_count,
+            size_t payload_bytes
         ){
-            const bool multi_channel = channels != 1;
-            bool ok = std::fwrite(MULTI_CAMERA_BINARY_MAGIC, sizeof(MULTI_CAMERA_BINARY_MAGIC), 1, file) == 1
-                && write_u32_le(file, multi_channel ? MULTI_CAMERA_BINARY_VERSION_CHANNELS : MULTI_CAMERA_BINARY_VERSION)
-                && write_u32_le(file, multi_channel ? MULTI_CAMERA_BINARY_HEADER_SIZE_CHANNELS : MULTI_CAMERA_BINARY_HEADER_SIZE)
+            return std::fwrite(MULTI_CAMERA_BINARY_MAGIC, sizeof(MULTI_CAMERA_BINARY_MAGIC), 1, file) == 1
+                && write_u32_le(file, MULTI_CAMERA_BINARY_VERSION)
+                && write_u32_le(file, MULTI_CAMERA_BINARY_HEADER_SIZE)
                 && write_u32_le(file, (uint32_t)element_type)
                 && write_u32_le(file, (uint32_t)num_cameras)
                 && write_u32_le(file, (uint32_t)height)
-                && write_u32_le(file, (uint32_t)width);
-            if(multi_channel){
-                ok = ok && write_u32_le(file, (uint32_t)channels);
-            }
-            return ok && write_u64_le(file, (uint64_t)element_count);
+                && write_u32_le(file, (uint32_t)width)
+                && write_u32_le(file, (uint32_t)channels)
+                && write_u64_le(file, (uint64_t)element_count)
+                && write_u64_le(file, (uint64_t)payload_bytes);
         }
 
         inline bool read_multi_camera_header(FILE* file, MultiCameraBinaryInfo& info){
@@ -200,18 +198,10 @@ namespace golden {
                 || !read_u32_le(file, info.width)){
                 return false;
             }
-            if(info.version == MULTI_CAMERA_BINARY_VERSION && header_size == MULTI_CAMERA_BINARY_HEADER_SIZE){
-                info.channels = 1;
-            }
-            else if(info.version == MULTI_CAMERA_BINARY_VERSION_CHANNELS && header_size == MULTI_CAMERA_BINARY_HEADER_SIZE_CHANNELS){
-                if(!read_u32_le(file, info.channels) || info.channels == 0){
-                    return false;
-                }
-            }
-            else{
-                return false;
-            }
-            if(!read_u64_le(file, info.element_count)){
+            if(info.version != MULTI_CAMERA_BINARY_VERSION || header_size != MULTI_CAMERA_BINARY_HEADER_SIZE
+                || !read_u32_le(file, info.channels) || info.channels == 0
+                || !read_u64_le(file, info.element_count)
+                || !read_u64_le(file, info.payload_bytes)){
                 return false;
             }
             if(element_type != (uint32_t)MultiCameraElementType::FLOAT32
@@ -259,18 +249,29 @@ namespace golden {
             int channels = 1
         ){
             size_t count = 0;
-            if(bits == nullptr || !checked_element_count_channels(num_cameras, width, height, channels, count)){
+            if(bits == nullptr || !checked_element_count_channels(num_cameras, width, height, channels, count) || count > (size_t)std::numeric_limits<int>::max() / 4){
+                return false;
+            }
+            std::vector<unsigned char> words(count * 4);
+            for(size_t value_i = 0; value_i < count; value_i++){
+                words[value_i * 4 + 0] = (unsigned char)(bits[value_i] & 0xFFu);
+                words[value_i * 4 + 1] = (unsigned char)((bits[value_i] >> 8) & 0xFFu);
+                words[value_i * 4 + 2] = (unsigned char)((bits[value_i] >> 16) & 0xFFu);
+                words[value_i * 4 + 3] = (unsigned char)((bits[value_i] >> 24) & 0xFFu);
+            }
+            int payload_bytes = 0;
+            unsigned char* payload = stbi_zlib_compress(words.data(), (int)words.size(), &payload_bytes, MULTI_CAMERA_BINARY_DEFLATE_QUALITY);
+            if(payload == nullptr){
                 return false;
             }
             FILE* file = std::fopen(path.c_str(), "wb");
-            if(file == nullptr){
-                return false;
+            bool ok = file != nullptr
+                && write_multi_camera_header(file, element_type, num_cameras, width, height, channels, count, (size_t)payload_bytes)
+                && std::fwrite(payload, 1, (size_t)payload_bytes, file) == (size_t)payload_bytes;
+            STBIW_FREE(payload);
+            if(file != nullptr){
+                ok = std::fclose(file) == 0 && ok;
             }
-            bool ok = write_multi_camera_header(file, element_type, num_cameras, width, height, channels, count);
-            for(size_t value_i = 0; ok && value_i < count; value_i++){
-                ok = write_u32_le(file, bits[value_i]);
-            }
-            ok = std::fclose(file) == 0 && ok;
             return ok;
         }
 
@@ -289,14 +290,23 @@ namespace golden {
             }
             MultiCameraBinaryInfo info;
             bool ok = read_multi_camera_header(file, info)
-                && header_matches(info, element_type, expected_num_cameras, expected_width, expected_height, expected_channels);
+                && header_matches(info, element_type, expected_num_cameras, expected_width, expected_height, expected_channels)
+                && info.payload_bytes > 0 && info.payload_bytes <= (uint64_t)std::numeric_limits<int>::max()
+                && info.element_count <= (uint64_t)std::numeric_limits<int>::max() / 4;
             std::vector<uint32_t> loaded;
             if(ok){
-                loaded.resize((size_t)info.element_count);
-                for(size_t value_i = 0; ok && value_i < loaded.size(); value_i++){
-                    ok = read_u32_le(file, loaded[value_i]);
+                std::vector<char> payload((size_t)info.payload_bytes);
+                std::vector<char> words((size_t)info.element_count * 4);
+                ok = std::fread(payload.data(), 1, payload.size(), file) == payload.size()
+                    && has_no_trailing_data(file)
+                    && stbi_zlib_decode_buffer(words.data(), (int)words.size(), payload.data(), (int)payload.size()) == (int)words.size();
+                if(ok){
+                    loaded.resize((size_t)info.element_count);
+                    for(size_t value_i = 0; value_i < loaded.size(); value_i++){
+                        const auto* bytes = reinterpret_cast<const unsigned char*>(words.data()) + value_i * 4;
+                        loaded[value_i] = (uint32_t)bytes[0] | ((uint32_t)bytes[1] << 8) | ((uint32_t)bytes[2] << 16) | ((uint32_t)bytes[3] << 24);
+                    }
                 }
-                ok = ok && has_no_trailing_data(file);
             }
             ok = std::fclose(file) == 0 && ok;
             if(ok){
@@ -548,8 +558,8 @@ namespace golden {
         int camera_width,
         int camera_height
     ){
-        return write_camera_grid_png(target_path, target, num_cameras, camera_width, camera_height)
-            && write_camera_grid_png(current_path, current, num_cameras, camera_width, camera_height)
+        return (target_path.empty() || write_camera_grid_png(target_path, target, num_cameras, camera_width, camera_height))
+            && (current_path.empty() || write_camera_grid_png(current_path, current, num_cameras, camera_width, camera_height))
             && write_camera_grid_diff_png(diff_path, current, target, num_cameras, camera_width, camera_height);
     }
 
@@ -571,7 +581,7 @@ namespace golden {
         }
     }
 
-    // corpus surface for both the overlay and procthor_static_scene suites: segmentation.png
+    // corpus surface for both the overlay and ProcTHOR suites: the segmentation review image
     // stores ids through this encoding and is validated against segmentation.bin, so the mapping
     // must never drift (pinned by GoldenIoTest.SegmentationEncodingIsPinned); every non-background
     // channel is >= 32, so the background gray (16,16,16) is unreachable for real ids
@@ -664,8 +674,8 @@ namespace golden {
         int camera_width,
         int camera_height
     ){
-        return write_segmentation_grid_png(target_path, target, num_cameras, camera_width, camera_height)
-            && write_segmentation_grid_png(current_path, current, num_cameras, camera_width, camera_height)
+        return (target_path.empty() || write_segmentation_grid_png(target_path, target, num_cameras, camera_width, camera_height))
+            && (current_path.empty() || write_segmentation_grid_png(current_path, current, num_cameras, camera_width, camera_height))
             && write_segmentation_diff_grid_png(diff_path, target, current, num_cameras, camera_width, camera_height);
     }
 
@@ -739,8 +749,8 @@ namespace golden {
         int camera_width,
         int camera_height
     ){
-        return write_flow_status_grid_png(target_path, target, num_cameras, camera_width, camera_height)
-            && write_flow_status_grid_png(current_path, current, num_cameras, camera_width, camera_height)
+        return (target_path.empty() || write_flow_status_grid_png(target_path, target, num_cameras, camera_width, camera_height))
+            && (current_path.empty() || write_flow_status_grid_png(current_path, current, num_cameras, camera_width, camera_height))
             && write_flow_status_diff_grid_png(diff_path, target, current, num_cameras, camera_width, camera_height);
     }
 
@@ -959,71 +969,9 @@ namespace golden {
             return false;
         }
         const DepthVisualizationRange range = depth_visualization_range(target, current, count, max_depth);
-        return write_depth_grid_png(target_path, target, num_cameras, camera_width, camera_height, range)
-            && write_depth_grid_png(current_path, current, num_cameras, camera_width, camera_height, range)
+        return (target_path.empty() || write_depth_grid_png(target_path, target, num_cameras, camera_width, camera_height, range))
+            && (current_path.empty() || write_depth_grid_png(current_path, current, num_cameras, camera_width, camera_height, range))
             && write_depth_diff_grid_png(diff_path, target, current, num_cameras, camera_width, camera_height, range, diff_amplification);
-    }
-
-    inline bool write_camera_depth_bin(const std::string& path, const float* depth, int width, int height){
-        FILE* file = std::fopen(path.c_str(), "wb");
-        if(file == nullptr){
-            return false;
-        }
-        const int num_cameras = 1;
-        bool ok = std::fwrite(&num_cameras, sizeof(int), 1, file) == 1
-               && std::fwrite(&height, sizeof(int), 1, file) == 1
-               && std::fwrite(&width, sizeof(int), 1, file) == 1
-               && std::fwrite(depth, sizeof(float), (size_t)width * height, file) == (size_t)width * height;
-        std::fclose(file);
-        return ok;
-    }
-
-    inline bool load_camera_depth_bin(const std::string& path, int expected_width, int expected_height, std::vector<float>& depth){
-        FILE* file = std::fopen(path.c_str(), "rb");
-        if(file == nullptr){
-            return false;
-        }
-        int num_cameras = 0, height = 0, width = 0;
-        bool ok = std::fread(&num_cameras, sizeof(int), 1, file) == 1
-               && std::fread(&height, sizeof(int), 1, file) == 1
-               && std::fread(&width, sizeof(int), 1, file) == 1
-               && num_cameras == 1 && height == expected_height && width == expected_width;
-        if(ok){
-            depth.resize((size_t)width * height);
-            ok = std::fread(depth.data(), sizeof(float), depth.size(), file) == depth.size();
-        }
-        std::fclose(file);
-        return ok;
-    }
-
-    inline bool write_camera_probes(const std::string& path, const rl_tools::rendering::raytracing::CollisionResult* probes, int num_probes){
-        FILE* file = std::fopen(path.c_str(), "wb");
-        if(file == nullptr){
-            return false;
-        }
-        const int num_cameras = 1;
-        bool ok = std::fwrite(&num_cameras, sizeof(int), 1, file) == 1
-               && std::fwrite(&num_probes, sizeof(int), 1, file) == 1
-               && std::fwrite(probes, sizeof(rl_tools::rendering::raytracing::CollisionResult), (size_t)num_probes, file) == (size_t)num_probes;
-        std::fclose(file);
-        return ok;
-    }
-
-    inline bool load_camera_probes(const std::string& path, int expected_probes, std::vector<rl_tools::rendering::raytracing::CollisionResult>& probes){
-        FILE* file = std::fopen(path.c_str(), "rb");
-        if(file == nullptr){
-            return false;
-        }
-        int num_cameras = 0, num_probes = 0;
-        bool ok = std::fread(&num_cameras, sizeof(int), 1, file) == 1
-               && std::fread(&num_probes, sizeof(int), 1, file) == 1
-               && num_cameras == 1 && num_probes == expected_probes;
-        if(ok){
-            probes.resize((size_t)num_probes);
-            ok = std::fread(probes.data(), sizeof(rl_tools::rendering::raytracing::CollisionResult), probes.size(), file) == probes.size();
-        }
-        std::fclose(file);
-        return ok;
     }
 }
 

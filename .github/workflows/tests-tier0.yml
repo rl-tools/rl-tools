@@ -173,10 +173,13 @@ jobs:
         working-directory: build-raytracing-${{ matrix.backend }}
         run: ctest -L '^procthor-golden$' --no-tests=error --output-on-failure --timeout 300 -j5
 
-      - name: Upload overlay golden artifacts
+      # the comparators write render-<backend>.png and versus-*.png next to the goldens
+      - name: Upload golden renders and heatmaps
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: raytracing-golden-artifacts-${{ matrix.backend }}
-          path: build-raytracing-${{ matrix.backend }}/raytracing_golden_artifacts
+          path: |
+            tests/data/rendering/raytracing/goldens/**/render-*.png
+            tests/data/rendering/raytracing/goldens/**/versus-*.png
           if-no-files-found: ignore
