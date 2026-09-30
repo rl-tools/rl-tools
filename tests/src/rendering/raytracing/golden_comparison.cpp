@@ -36,6 +36,7 @@
 #include "golden_cases.h"
 #include "golden_io.h"
 #include "golden_manifest.h"
+#include "golden_metrics.h"
 #include "golden_render.h"
 #include "../../utils/utils.h"
 
@@ -73,30 +74,32 @@ using Rendered = golden::Rendered<T>;
 
 // The reference backend (OptiX) rendered the corpus and reproduces it bit-exactly, so every metric
 // is held to zero for it: a nonzero deviation is a behavioral change that needs a GOLDEN_LEDGER.md
-// row. The other backends get bounds at roughly three times the worst floor measured against
-// corpus v2 on generic, Vulkan (NVIDIA and lavapipe) and WebGPU: RGB MAD 0.16, RGB outliers 0.31%,
-// normals MAD 0.0013, flow status 0.0015%, probe distances 5.3e-7, everything else zero. Silhouette
-// pixels landing on different surfaces across backends make the outlier fractions necessary next
-// to the means, and the means alone would hide a localized shading change (one re-materialised
-// object covers ~3% of a pose).
+// row. The other backends get bounds at about twice the worst floor measured against corpus v2
+// on generic, Vulkan (NVIDIA and lavapipe) and WebGPU: RGB MAD 0.16, RGB outliers 0.31%, normals
+// MAD 0.0013, probe distances 5.3e-7, flow status and normals outliers one pixel, everything else
+// zero; fractions with a zero floor allow 0.05% (33 pixels of a 256x256 pose). The RGB outliers
+// are silhouette pixels landing on different surfaces; the subset not explained by the other
+// image's neighborhood (golden_metrics.h) is a surface shaded differently, floor two pixels per
+// pose, while a re-materialised object covers ~3% of a pose.
 static constexpr bool REFERENCE_BACKEND = std::string_view(RL_TOOLS_GOLDEN_BACKEND_NAME) == golden::REFERENCE_BACKEND;
-static constexpr double RGB_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.4;              // mean abs diff in 8-bit levels
+static constexpr double RGB_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.35;             // mean abs diff in 8-bit levels
 static constexpr int RGB_OUTLIER_CHANNEL_DELTA = 8;
-static constexpr double RGB_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.01;          // pixels with a channel delta above RGB_OUTLIER_CHANNEL_DELTA
-static constexpr double DEPTH_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 1e-5;           // mean abs diff normalized by max_depth
+static constexpr double RGB_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.007;         // pixels with a channel delta above RGB_OUTLIER_CHANNEL_DELTA
+static constexpr double RGB_SHADING_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.0002; // outliers not explained by the neighborhood (13 pixels)
+static constexpr double DEPTH_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 1e-7;           // mean abs diff normalized by max_depth
 static constexpr double DEPTH_OUTLIER_REL = 1e-3;                                      // per-pixel relative outlier threshold
-static constexpr double DEPTH_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.001;       // max fraction of outlier pixels
-static constexpr int PROBE_HIT_MISMATCH_MAX = REFERENCE_BACKEND ? 0 : 2;              // out of NUM_CAMERAS * NUM_PROBES = 768
-static constexpr double PROBE_DISTANCE_REL = REFERENCE_BACKEND ? 0 : 1e-5;
-static constexpr double NORMALS_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.1;          // encoded normals compare like RGB
+static constexpr double DEPTH_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.0005;      // max fraction of outlier pixels
+static constexpr int PROBE_HIT_MISMATCH_MAX = REFERENCE_BACKEND ? 0 : 1;              // out of NUM_CAMERAS * NUM_PROBES = 768
+static constexpr double PROBE_DISTANCE_REL = REFERENCE_BACKEND ? 0 : 2e-6;
+static constexpr double NORMALS_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.005;        // encoded normals compare like RGB
 static constexpr int NORMALS_OUTLIER_CHANNEL_DELTA = 8;
-static constexpr double NORMALS_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.002;
-static constexpr double FLOW_MEAN_EPE_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.01;       // px, over pixels VALID in both target and current
+static constexpr double NORMALS_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.0005;
+static constexpr double FLOW_MEAN_EPE_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.001;      // px, over pixels VALID in both target and current
 static constexpr double FLOW_OUTLIER_EPE = 0.5;                                        // px
-static constexpr double FLOW_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.001;
-static constexpr double FLOW_STATUS_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.001;
-static constexpr double SEGMENTATION_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.002;
-static constexpr double SEGMENTATION_BACKGROUND_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.001;
+static constexpr double FLOW_OUTLIER_FRACTION = REFERENCE_BACKEND ? 0 : 0.0005;
+static constexpr double FLOW_STATUS_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.0005;
+static constexpr double SEGMENTATION_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.0005;
+static constexpr double SEGMENTATION_BACKGROUND_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.0005;
 
 static const std::string SCENE_PATH = RL_TOOLS_GOLDEN_TEST_DATA_PATH "/ProcTHOR-Train-1.glb";
 static const std::string GOLDEN_ROOT = RL_TOOLS_GOLDEN_TEST_DATA_PATH "/rendering_raytracing_golden";
@@ -118,15 +121,18 @@ namespace {
     struct RGBStats{
         double mad = 0;
         double outlier_fraction = 0;
+        double shading_outlier_fraction = 0;
         int channel_max[3] = {0, 0, 0};
     };
 
-    RGBStats compare_rgb(const uint32_t* ours, const uint32_t* golden, size_t count){
+    RGBStats compare_rgb(const uint32_t* ours, const uint32_t* golden, int width, int height){
         RGBStats stats;
         const auto* ours_bytes = (const unsigned char*)ours;
         const auto* golden_bytes = (const unsigned char*)golden;
+        const size_t count = (size_t)width * height;
         double total = 0;
         size_t outliers = 0;
+        size_t shading_outliers = 0;
         for(size_t pixel_i = 0; pixel_i < count; pixel_i++){
             bool outlier = false;
             for(int channel = 0; channel < 3; channel++){
@@ -137,9 +143,11 @@ namespace {
                 outlier = outlier || abs_diff > RGB_OUTLIER_CHANNEL_DELTA;
             }
             outliers += outlier;
+            shading_outliers += outlier && !golden::neighborhood_explains(golden, ours, width, height, (int)(pixel_i % width), (int)(pixel_i / width), RGB_OUTLIER_CHANNEL_DELTA);
         }
         stats.mad = total / ((double)count * 3);
         stats.outlier_fraction = (double)outliers / (double)count;
+        stats.shading_outlier_fraction = (double)shading_outliers / (double)count;
         return stats;
     }
 
@@ -158,13 +166,14 @@ namespace {
     template <typename SPEC>
     void expect_rgb_matches_golden(const char* name, const Rendered& rendered){
         double worst_mad = 0;
+        double worst_shading_outliers = 0;
         const char* worst_id = CASES::POSES[0].id;
         int max_channel[3] = {0, 0, 0};
         for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
             const char* id = CASES::POSES[camera_i].id;
             std::vector<uint32_t> golden_pixels;
             ASSERT_TRUE(golden::load_camera_png(GOLDEN_DIR + "/" + id + "/" + name + ".png", SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_pixels)) << "failed to load golden: " << id << "/" << name;
-            const RGBStats stats = compare_rgb(rendered.frame_buffer.data() + camera_i * SPEC::CAM_PIXELS, golden_pixels.data(), SPEC::CAM_PIXELS);
+            const RGBStats stats = compare_rgb(rendered.frame_buffer.data() + camera_i * SPEC::CAM_PIXELS, golden_pixels.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
             {
                 const std::string directory = BACKEND_OUTPUT_DIR + "/" + id;
                 std::filesystem::create_directories(directory);
@@ -175,6 +184,8 @@ namespace {
                 << name << " pose " << id << ": RGB mean abs diff " << stats.mad
                 << " (max R=" << stats.channel_max[0] << " G=" << stats.channel_max[1] << " B=" << stats.channel_max[2] << ")";
             EXPECT_LE(stats.outlier_fraction, RGB_OUTLIER_FRACTION) << name << " pose " << id << ": RGB outlier fraction " << stats.outlier_fraction;
+            EXPECT_LE(stats.shading_outlier_fraction, RGB_SHADING_OUTLIER_FRACTION) << name << " pose " << id << ": RGB shading outlier fraction " << stats.shading_outlier_fraction;
+            worst_shading_outliers = std::max(worst_shading_outliers, stats.shading_outlier_fraction);
             if(stats.mad > worst_mad){
                 worst_mad = stats.mad;
                 worst_id = id;
@@ -183,7 +194,7 @@ namespace {
                 if(stats.channel_max[channel] > max_channel[channel]) max_channel[channel] = stats.channel_max[channel];
             }
         }
-        std::printf("[golden] %s: worst pose %s rgb mad=%.4f max=(%d,%d,%d) over %d poses\n", name, worst_id, worst_mad, max_channel[0], max_channel[1], max_channel[2], (int)SPEC::NUM_CAMERAS);
+        std::printf("[golden] %s: worst pose %s rgb mad=%.4f max=(%d,%d,%d) shading outliers=%.4f%% over %d poses\n", name, worst_id, worst_mad, max_channel[0], max_channel[1], max_channel[2], worst_shading_outliers * 100, (int)SPEC::NUM_CAMERAS);
     }
 
     template <typename SPEC, bool T_CAMERA_MOTION = true>
