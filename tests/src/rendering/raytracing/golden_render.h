@@ -28,21 +28,130 @@ namespace golden {
         T max_depth = 0;
     };
 
-    // T_CAMERA_MOTION distinguishes the combined case (moving camera + moving overlay) from the
-    // object-only isolation case (static camera: shutter-open == shutter-close, previous == current)
-    template <typename SPEC, typename BACKEND, typename DEVICE, typename CASES, bool T_CAMERA_MOTION = true>
+    namespace detail {
+        template <typename T>
+        void normalize(T vector[3]){
+            const T norm = std::sqrt(vector[0] * vector[0] + vector[1] * vector[1] + vector[2] * vector[2]);
+            for(int dim_i = 0; dim_i < 3; dim_i++){
+                vector[dim_i] /= norm;
+            }
+        }
+
+        template <typename T>
+        void cross(const T a[3], const T b[3], T out[3]){
+            out[0] = a[1] * b[2] - a[2] * b[1];
+            out[1] = a[2] * b[0] - a[0] * b[2];
+            out[2] = a[0] * b[1] - a[1] * b[0];
+        }
+
+        template <typename T>
+        void rotate_about_z(T vector[3], T radians){
+            const T x = vector[0];
+            const T y = vector[1];
+            vector[0] = x * std::cos(radians) - y * std::sin(radians);
+            vector[1] = x * std::sin(radians) + y * std::cos(radians);
+        }
+
+        // the previous (shutter-open) instant of a pose under the camera motion of CASES
+        template <typename CASES>
+        Pose<typename CASES::T> previous_pose(const Pose<typename CASES::T>& pose){
+            using T = typename CASES::T;
+            Pose<T> previous = pose;
+            T forward[3];
+            for(int dim_i = 0; dim_i < 3; dim_i++){
+                previous.position[dim_i] = pose.position[dim_i] - CASES::CAMERA_TRANSLATION[dim_i];
+                forward[dim_i] = pose.look_at[dim_i] - pose.position[dim_i];
+            }
+            rotate_about_z(forward, -CASES::CAMERA_YAW);
+            rotate_about_z(previous.up, -CASES::CAMERA_YAW);
+            for(int dim_i = 0; dim_i < 3; dim_i++){
+                previous.look_at[dim_i] = previous.position[dim_i] + forward[dim_i];
+            }
+            return previous;
+        }
+
+        template <typename T>
+        void spin_transform(const T position[3], T radians, float out[12]){
+            const float half = (float)radians / 2.0f;
+            const float quaternion_wxyz[4] = {std::cos(half), 0, 0, std::sin(half)};
+            const float position_float[3] = {(float)position[0], (float)position[1], (float)position[2]};
+            rl_tools::make_transform(position_float, quaternion_wxyz, out);
+        }
+
+        // the private overlay of a pose: in the frustum at PRIVATE_AHEAD, offset along the image
+        // axes, and dropping along the vertical axis between the instants
+        template <typename CASES>
+        void private_overlay_transforms(const Pose<typename CASES::T>& pose, float open[12], float close[12]){
+            using T = typename CASES::T;
+            T forward[3], horizontal[3], vertical[3];
+            for(int dim_i = 0; dim_i < 3; dim_i++){
+                forward[dim_i] = pose.look_at[dim_i] - pose.position[dim_i];
+            }
+            normalize(forward);
+            cross(forward, pose.up, horizontal);
+            normalize(horizontal);
+            cross(horizontal, forward, vertical);
+            T position_close[3], position_open[3];
+            for(int dim_i = 0; dim_i < 3; dim_i++){
+                position_close[dim_i] = pose.position[dim_i] + CASES::PRIVATE_AHEAD * forward[dim_i] + CASES::PRIVATE_ASIDE * horizontal[dim_i] - CASES::PRIVATE_BELOW * vertical[dim_i];
+                position_open[dim_i] = position_close[dim_i] + CASES::PRIVATE_TRANSLATION * vertical[dim_i];
+            }
+            spin_transform(position_open, CASES::PRIVATE_SPIN_OPEN, open);
+            spin_transform(position_close, CASES::PRIVATE_SPIN_CLOSE, close);
+        }
+
+        template <typename TI>
+        rl_tools::rendering::raytracing::Mesh cube_mesh(float half_extent, float red, float green, float blue){
+            rl_tools::rendering::raytracing::Mesh mesh;
+            mesh.color[0] = red;
+            mesh.color[1] = green;
+            mesh.color[2] = blue;
+            for(TI vertex_i = 0; vertex_i < (TI)rl_tools::rendering::raytracing::constants::NUM_VERTICES; vertex_i++){
+                for(TI dim_i = 0; dim_i < 3; dim_i++){
+                    mesh.vertices.push_back(rl_tools::rendering::raytracing::constants::default_vertices[vertex_i][dim_i] * half_extent);
+                }
+            }
+            for(TI triangle_i = 0; triangle_i < (TI)rl_tools::rendering::raytracing::constants::NUM_INDICES; triangle_i++){
+                for(TI corner_i = 0; corner_i < 3; corner_i++){
+                    mesh.indices.push_back(rl_tools::rendering::raytracing::constants::default_indices[triangle_i][corner_i]);
+                }
+            }
+            return mesh;
+        }
+
+        // fixed overlays sit at the close pose for both instants (spawn initialises previous ==
+        // current and every motion sample); moving ones go through the host verbs: flow keeps the
+        // spawn pose as the previous instant, dynamic motion blur takes the shutter pair
+        template <typename CASE, typename DEVICE, typename RENDERER>
+        void place_overlay(DEVICE& device, RENDERER& renderer, rl_tools::rendering::raytracing::OverlayIndex overlay, rl_tools::rendering::raytracing::AssetHandle asset, const float open[12], const float close[12]){
+            using SPEC = typename CASE::SPEC;
+            if constexpr(CASE::OVERLAYS == Overlays::MOVING && SPEC::HAS_FLOW_OVERLAYS){
+                const auto placement = rl_tools::spawn(device, renderer, overlay, asset, open);
+                rl_tools::set_transform(device, renderer, overlay, placement, close);
+            }
+            else if constexpr(CASE::OVERLAYS == Overlays::MOVING){
+                const auto placement = rl_tools::spawn(device, renderer, overlay, asset, close);
+                rl_tools::set_transform_pair(device, renderer, overlay, placement, open, close);
+            }
+            else{
+                rl_tools::spawn(device, renderer, overlay, asset, close);
+            }
+        }
+    }
+
+    template <typename CASE, typename BACKEND, typename DEVICE, typename CASES>
     bool render_case(DEVICE& device, const std::string& scene_path, Rendered<typename CASES::T>& out) {
+        using SPEC = typename CASE::SPEC;
         using T = typename CASES::T;
         using TI = typename CASES::TI;
         using Renderer = rl_tools::rendering::raytracing::Renderer<SPEC, BACKEND>;
+        using OverlayIndex = rl_tools::rendering::raytracing::OverlayIndex;
+        using AssetHandle = rl_tools::rendering::raytracing::AssetHandle;
 
         out = {};
         Renderer renderer;
         rl_tools::malloc(device, renderer);
         rl_tools::rendering::Bundle<T> bundle;
-        // segmentation is per-instance, so segmentation-capable cases load the scene as one
-        // instance per GLB root node (ids pinned by node order) instead of the welded single
-        // object the RGB cases use — welded, everything reports instance 0
         if constexpr(SPEC::HAS_SEGMENTATION) {
             rl_tools::rendering::raytracing::ObjectAssembly assembly;
             if(!rl_tools::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, assembly, scene_path)) {
@@ -59,21 +168,8 @@ namespace golden {
         out.num_instances = bundle.scene.instances.size();
         rl_tools::rendering::raytracing::AssetPool pool;
         if constexpr(SPEC::ENABLE_OVERLAYS) {
-            rl_tools::rendering::raytracing::Mesh mesh;
-            mesh.color[0] = 0.8f;
-            mesh.color[1] = 0.35f;
-            mesh.color[2] = 0.15f;
-            for(TI vertex_i = 0; vertex_i < (TI)rl_tools::rendering::raytracing::constants::NUM_VERTICES; vertex_i++) {
-                for(TI dim_i = 0; dim_i < 3; dim_i++) {
-                    mesh.vertices.push_back(rl_tools::rendering::raytracing::constants::default_vertices[vertex_i][dim_i] * CASES::OVERLAY_HALF_EXTENT);
-                }
-            }
-            for(TI triangle_i = 0; triangle_i < (TI)rl_tools::rendering::raytracing::constants::NUM_INDICES; triangle_i++) {
-                for(TI corner_i = 0; corner_i < 3; corner_i++) {
-                    mesh.indices.push_back(rl_tools::rendering::raytracing::constants::default_indices[triangle_i][corner_i]);
-                }
-            }
-            rl_tools::add(device, pool, mesh);
+            rl_tools::add(device, pool, detail::cube_mesh<TI>((float)CASES::SHARED_HALF_EXTENT, 0.8f, 0.35f, 0.15f));
+            rl_tools::add(device, pool, detail::cube_mesh<TI>((float)CASES::PRIVATE_HALF_EXTENT, 0.15f, 0.45f, 0.85f));
             rl_tools::init(device, renderer, bundle, pool);
         }
         else {
@@ -87,17 +183,12 @@ namespace golden {
             camera_staging[camera_i] = rl_tools::make_camera_data(pose.position, pose.look_at, pose.up, CASES::FOV, aspect);
         }
         copy_in(device, renderer.device, camera_staging.data(), rl_tools::cameras(device, renderer));
-        // the shutter-open (motion blur) and previous (flow) cameras share the same displaced pose
+        // the shutter-open (motion blur) and previous (flow) cameras share the same pose
         if constexpr(SPEC::HAS_CAMERA_PAIR || SPEC::HAS_FLOW) {
-            if constexpr(T_CAMERA_MOTION) {
+            if constexpr(CASE::CAMERA == Camera::MOVING) {
                 for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
-                    const Pose<T>& pose = CASES::POSES[camera_i];
-                    T position[3], look_at[3];
-                    for(TI dim_i = 0; dim_i < 3; dim_i++) {
-                        position[dim_i] = pose.position[dim_i] - CASES::MOTION_BLUR_DELTA[dim_i];
-                        look_at[dim_i] = pose.look_at[dim_i] - CASES::MOTION_BLUR_DELTA[dim_i];
-                    }
-                    camera_staging[camera_i] = rl_tools::make_camera_data(position, look_at, pose.up, CASES::FOV, aspect);
+                    const Pose<T> previous = detail::previous_pose<CASES>(CASES::POSES[camera_i]);
+                    camera_staging[camera_i] = rl_tools::make_camera_data(previous.position, previous.look_at, previous.up, CASES::FOV, aspect);
                 }
             }
             if constexpr(SPEC::HAS_CAMERA_PAIR) {
@@ -108,29 +199,17 @@ namespace golden {
             }
         }
         if constexpr(SPEC::ENABLE_OVERLAYS) {
+            float open[12], close[12];
+            detail::spin_transform(CASES::SHARED_POSITION_OPEN, CASES::SHARED_SPIN_OPEN, open);
+            detail::spin_transform(CASES::SHARED_POSITION_CLOSE, CASES::SHARED_SPIN_CLOSE, close);
             for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
-                rl_tools::attach(device, renderer, camera_i, rl_tools::rendering::raytracing::OverlayIndex{0});
+                rl_tools::attach(device, renderer, camera_i, OverlayIndex{0});
+                rl_tools::attach(device, renderer, camera_i, OverlayIndex{(size_t)(1 + camera_i)});
             }
-            const auto spin_pose = [](const typename CASES::T position[3], typename CASES::T radians, float out[12]){
-                const float half = (float)radians / 2.0f;
-                const float quaternion_wxyz[4] = {std::cos(half), 0, 0, std::sin(half)};
-                const float position_float[3] = {(float)position[0], (float)position[1], (float)position[2]};
-                rl_tools::make_transform(position_float, quaternion_wxyz, out);
-            };
-            float close_transform[12], open_transform[12];
-            spin_pose(CASES::OVERLAY_POSITION_CLOSE, CASES::OVERLAY_SPIN_CLOSE, close_transform);
-            spin_pose(CASES::OVERLAY_POSITION_OPEN, CASES::OVERLAY_SPIN_OPEN, open_transform);
-            if constexpr(SPEC::HAS_FLOW_OVERLAYS) {
-                // flow instants through the host verbs: spawn initialises previous == current at the
-                // open pose, the move leaves the previous mirror behind, update stages both rows
-                const auto placement = rl_tools::spawn(device, renderer, rl_tools::rendering::raytracing::OverlayIndex{0}, rl_tools::rendering::raytracing::AssetHandle{0}, open_transform);
-                rl_tools::set_transform(device, renderer, rl_tools::rendering::raytracing::OverlayIndex{0}, placement, close_transform);
-            }
-            else {
-                const auto placement = rl_tools::spawn(device, renderer, rl_tools::rendering::raytracing::OverlayIndex{0}, rl_tools::rendering::raytracing::AssetHandle{0}, close_transform);
-                if constexpr(SPEC::HAS_TRANSFORM_PAIR) {
-                    rl_tools::set_transform_pair(device, renderer, rl_tools::rendering::raytracing::OverlayIndex{0}, placement, open_transform, close_transform);
-                }
+            detail::place_overlay<CASE>(device, renderer, OverlayIndex{0}, AssetHandle{0}, open, close);
+            for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++) {
+                detail::private_overlay_transforms<CASES>(CASES::POSES[camera_i], open, close);
+                detail::place_overlay<CASE>(device, renderer, OverlayIndex{(size_t)(1 + camera_i)}, AssetHandle{1}, open, close);
             }
             rl_tools::update(device, renderer);
         }

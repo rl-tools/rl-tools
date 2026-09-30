@@ -1,12 +1,33 @@
 #ifndef TESTS_RENDERING_RAYTRACING_GOLDEN_CASES_H
 #define TESTS_RENDERING_RAYTRACING_GOLDEN_CASES_H
 
+// The corpus is view x state x output. The state is what happens between the previous instant
+// (shutter open, the flow "previous") and the current one (shutter close): whether the camera
+// moves and whether overlays are absent, present or moving. A Case renders one specification
+// under one state; every output the specification produces is filed under <view>/<state>/<output>/.
+
 #include <rl_tools/rendering/raytracing/renderer.h>
 
+#include <string>
+#include <type_traits>
+
 namespace golden {
+    enum class Camera { FIXED, MOVING };
+    enum class Overlays { NONE, FIXED, MOVING };
+
+    constexpr const char* state_name(Camera camera, Overlays overlays){
+        if(overlays == Overlays::NONE){
+            return camera == Camera::FIXED ? "static" : "camera";
+        }
+        if(overlays == Overlays::FIXED){
+            return camera == Camera::FIXED ? "overlays" : "camera-overlays";
+        }
+        return camera == Camera::FIXED ? "objects" : "camera-objects";
+    }
+
     template <typename T>
     struct Pose {
-        const char* id; // subfolder name for golden and backend-frame outputs
+        const char* id;
         T position[3];
         T look_at[3];
         T up[3];
@@ -39,77 +60,138 @@ namespace golden {
             {"10", {-6.529247, -6.471247, 1.378925}, {-7.501519, -6.577228, 1.170464}, {-0.2072329, -0.02258914, 0.9780308}}, // yaw=3.25016761 pitch=-0.210000545 quat_wxyz=(-0.0539619774,-0.104653038,-0.00568693737,0.993027449)
             {"11", {-6.843887, -4.858216, 1.378925}, {-6.422187, -3.968547, 1.203832}, {0.07499529, 0.1582194, 0.9845518}}  // yaw=1.12816787 pitch=-0.176000521 quat_wxyz=(0.841808677,-0.0469879285,0.074271217,0.532573104)
         };
-        static constexpr T MOTION_BLUR_DELTA[3] = {0.2, 0.1, 0};
 
-        // dynamic-motion-blur overlay drive: a cube in the pose-01 living room (free space per
-        // the scene AABBs), translated and spun across the shutter — slerp-exact (< 180 deg)
-        static constexpr T OVERLAY_HALF_EXTENT = 0.45;
-        static constexpr T OVERLAY_POSITION_CLOSE[3] = {-5.0, -5.2, 1.5};
-        static constexpr T OVERLAY_POSITION_OPEN[3] = {-5.35, -5.45, 1.35};
-        static constexpr T OVERLAY_SPIN_CLOSE = 0.6;
-        static constexpr T OVERLAY_SPIN_OPEN = -0.6;
+        // camera motion: the previous instant is the pose translated by -CAMERA_TRANSLATION and yawed by -CAMERA_YAW about world z
+        static constexpr T CAMERA_TRANSLATION[3] = {0.2, 0.1, 0};
+        static constexpr T CAMERA_YAW = 0.03;
 
-        template <typename T_SHADING, bool T_ENABLE_MOTION_BLUR = false, TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, TI T_ANTI_ALIASING_GRID_SIZE = 1, bool T_OUTPUT_DEPTH = false>
-        struct Config: rl_tools::rendering::raytracing::config::Default<T, TI>{
+        // overlays: overlay 0 is a cube in the pose-01 living room (free space per the scene AABBs)
+        // attached to every camera; overlay 1 + i is a smaller cube private to camera i, placed in
+        // its frustum so that every view sees an object. Motion between the instants is a
+        // translation plus a spin about world z (slerp-exact, < 180 deg).
+        static constexpr TI NUM_OVERLAYS = 1 + NUM_CAMERAS;
+        static constexpr TI MAX_OVERLAY_INSTANCES = 2;
+        static constexpr TI MAX_OVERLAYS_PER_CAMERA = 2;
+        static constexpr T SHARED_HALF_EXTENT = 0.45;
+        static constexpr T SHARED_POSITION_CLOSE[3] = {-5.0, -5.2, 1.5};
+        static constexpr T SHARED_POSITION_OPEN[3] = {-5.35, -5.45, 1.35};
+        static constexpr T SHARED_SPIN_CLOSE = 0.6;
+        static constexpr T SHARED_SPIN_OPEN = -0.6;
+        static constexpr T PRIVATE_HALF_EXTENT = 0.12;
+        static constexpr T PRIVATE_AHEAD = 0.9;   // along the view axis (pose 03 looks at the floor 1.1 m ahead)
+        static constexpr T PRIVATE_ASIDE = -0.25; // along the image horizontal axis, negative is left
+        static constexpr T PRIVATE_BELOW = 0.15;  // against the image vertical axis
+        static constexpr T PRIVATE_TRANSLATION = 0.12; // the open instant sits this far above the close one
+        static constexpr T PRIVATE_SPIN_CLOSE = 0.4;
+        static constexpr T PRIVATE_SPIN_OPEN = -0.4;
+
+        template <bool T_OVERLAYS>
+        struct Base: rl_tools::rendering::raytracing::config::Default<T, TI>{
             static constexpr TI CAM_WIDTH = Cases::CAM_WIDTH, CAM_HEIGHT = Cases::CAM_HEIGHT, NUM_CAMERAS = Cases::NUM_CAMERAS, NUM_PROBES = Cases::NUM_PROBES;
+            static constexpr TI NUM_OVERLAYS = T_OVERLAYS ? Cases::NUM_OVERLAYS : 0;
+            static constexpr TI MAX_OVERLAY_INSTANCES = T_OVERLAYS ? Cases::MAX_OVERLAY_INSTANCES : 0;
+            static constexpr TI MAX_OVERLAYS_PER_CAMERA = T_OVERLAYS ? Cases::MAX_OVERLAYS_PER_CAMERA : 0;
+        };
+        template <typename T_SHADING, TI T_MOTION_BLUR_SAMPLES = 1, TI T_ANTI_ALIASING_GRID_SIZE = 1, bool T_OUTPUT_DEPTH = false, bool T_OVERLAYS = false>
+        struct RGBConfig: Base<T_OVERLAYS>{
             using SHADING = T_SHADING;
             static constexpr bool OUTPUT_DEPTH = T_OUTPUT_DEPTH;
-            static constexpr bool ENABLE_MOTION_BLUR = T_ENABLE_MOTION_BLUR;
+            static constexpr bool ENABLE_MOTION_BLUR = T_MOTION_BLUR_SAMPLES > 1;
             static constexpr TI MOTION_BLUR_SAMPLES = T_MOTION_BLUR_SAMPLES;
-            static constexpr bool ENABLE_ANTI_ALIASING = T_ENABLE_ANTI_ALIASING;
+            static constexpr bool ENABLE_DYNAMIC_MOTION_BLUR = T_OVERLAYS && T_MOTION_BLUR_SAMPLES > 1;
+            static constexpr bool ENABLE_ANTI_ALIASING = T_ANTI_ALIASING_GRID_SIZE > 1;
             static constexpr TI ANTI_ALIASING_GRID_SIZE = T_ANTI_ALIASING_GRID_SIZE;
         };
-        template <typename T_SHADING, bool T_ENABLE_MOTION_BLUR = false, TI T_MOTION_BLUR_SAMPLES = 1, bool T_ENABLE_ANTI_ALIASING = false, TI T_ANTI_ALIASING_GRID_SIZE = 1, bool T_OUTPUT_DEPTH = false>
-        using Specification = rl_tools::rendering::raytracing::Specification<Config<T_SHADING, T_ENABLE_MOTION_BLUR, T_MOTION_BLUR_SAMPLES, T_ENABLE_ANTI_ALIASING, T_ANTI_ALIASING_GRID_SIZE, T_OUTPUT_DEPTH>>;
-
-        template <typename T_SHADING, TI T_MOTION_BLUR_SAMPLES>
-        struct DynamicOverlayConfig: Config<T_SHADING, true, T_MOTION_BLUR_SAMPLES>{
-            static constexpr TI NUM_OVERLAYS = 1;
-            static constexpr TI MAX_OVERLAY_INSTANCES = 4;
-            static constexpr TI MAX_OVERLAYS_PER_CAMERA = 1;
-            static constexpr bool ENABLE_DYNAMIC_MOTION_BLUR = true;
-        };
-
-        using LOW_RGB = Specification<rl_tools::rendering::raytracing::Low>;
-        using MEDIUM_RGB = Specification<rl_tools::rendering::raytracing::Medium>;
-        using HIGH_RGB = Specification<rl_tools::rendering::raytracing::High>;
-        using VERY_HIGH_RGB = Specification<rl_tools::rendering::raytracing::VeryHigh>;
-        using HIGH_RGB_AA2 = Specification<rl_tools::rendering::raytracing::High, false, 1, true, 2>;
-        using HIGH_RGB_MB4 = Specification<rl_tools::rendering::raytracing::High, true, 4>;
-        using HIGH_RGB_MB4_DYNAMIC = rl_tools::rendering::raytracing::Specification<DynamicOverlayConfig<rl_tools::rendering::raytracing::High, 4>>;
-        using LOW_RGBD = Specification<rl_tools::rendering::raytracing::Low, false, 1, false, 1, true>;
-        using HIGH_RGBD = Specification<rl_tools::rendering::raytracing::High, false, 1, false, 1, true>;
-
-        // normals and segmentation are single-sample and independent of the shading tier and
-        // AA/MB settings, so one case covers every pose: the goldens are a single per-pose
-        // normals.png plus segmentation.bin/segmentation.png
-        struct GeometryConfig: rl_tools::rendering::raytracing::config::Default<T, TI>{
-            static constexpr TI CAM_WIDTH = Cases::CAM_WIDTH, CAM_HEIGHT = Cases::CAM_HEIGHT, NUM_CAMERAS = Cases::NUM_CAMERAS, NUM_PROBES = Cases::NUM_PROBES;
+        // normals and segmentation are single-sample and independent of shading, AA and MB; the
+        // segmentation-capable cases load the scene as one instance per GLB root node (ids pinned
+        // by node order) instead of the welded single object the other cases use
+        template <bool T_OVERLAYS>
+        struct GeometryConfig: Base<T_OVERLAYS>{
             using SHADING = rl_tools::rendering::raytracing::Low;
             static constexpr bool OUTPUT_RGB = false;
             static constexpr bool OUTPUT_NORMALS = true;
             static constexpr bool OUTPUT_SEGMENTATION = true;
         };
-        using GEOMETRY = rl_tools::rendering::raytracing::Specification<GeometryConfig>;
-
-        // flow is single-sample like the geometry outputs; the flow case displaces the previous
-        // camera by MOTION_BLUR_DELTA (ego-motion flow), flow_dynamic isolates object flow: static
-        // camera, the overlay moves from OVERLAY_*_OPEN (previous instant) to OVERLAY_*_CLOSE
-        // (current instant). Both directions and both status buffers are golden files.
-        struct FlowConfig: rl_tools::rendering::raytracing::config::Default<T, TI>{
-            static constexpr TI CAM_WIDTH = Cases::CAM_WIDTH, CAM_HEIGHT = Cases::CAM_HEIGHT, NUM_CAMERAS = Cases::NUM_CAMERAS, NUM_PROBES = Cases::NUM_PROBES;
+        template <bool T_OVERLAYS>
+        struct FlowConfig: Base<T_OVERLAYS>{
             using SHADING = rl_tools::rendering::raytracing::Low;
             static constexpr bool OUTPUT_RGB = false;
             static constexpr bool OUTPUT_FLOW = true;
             static constexpr bool OUTPUT_FLOW_FORWARD = true;
         };
-        using FLOW = rl_tools::rendering::raytracing::Specification<FlowConfig>;
-        struct FlowDynamicConfig: FlowConfig{
-            static constexpr TI NUM_OVERLAYS = 1;
-            static constexpr TI MAX_OVERLAY_INSTANCES = 4;
-            static constexpr TI MAX_OVERLAYS_PER_CAMERA = 1;
+        template <typename CONFIG>
+        using Spec = rl_tools::rendering::raytracing::Specification<CONFIG>;
+
+        // PROBES: the case that also files the collision probes (single-sample, shading independent)
+        template <typename T_SPEC, Camera T_CAMERA, Overlays T_OVERLAYS, bool T_PROBES = false>
+        struct Case {
+            using SPEC = T_SPEC;
+            static constexpr Camera CAMERA = T_CAMERA;
+            static constexpr Overlays OVERLAYS = T_OVERLAYS;
+            static constexpr bool PROBES = T_PROBES;
+            static constexpr const char* STATE = state_name(CAMERA, OVERLAYS);
+            static_assert((OVERLAYS != Overlays::NONE) == SPEC::ENABLE_OVERLAYS, "overlays are enabled exactly in the overlay states");
+            static_assert(CAMERA == Camera::FIXED || SPEC::HAS_CAMERA_PAIR || SPEC::HAS_FLOW, "camera motion needs a two-instant output");
+            static_assert(OVERLAYS != Overlays::MOVING || SPEC::HAS_TRANSFORM_PAIR || SPEC::HAS_FLOW_OVERLAYS, "moving overlays need a two-instant output");
         };
-        using FLOW_DYNAMIC = rl_tools::rendering::raytracing::Specification<FlowDynamicConfig>;
+
+        template <typename... T_CASES>
+        struct List {};
+
+        using Low = rl_tools::rendering::raytracing::Low;
+        using Medium = rl_tools::rendering::raytracing::Medium;
+        using High = rl_tools::rendering::raytracing::High;
+        using VeryHigh = rl_tools::rendering::raytracing::VeryHigh;
+        using ALL = List<
+            Case<Spec<RGBConfig<Low>>, Camera::FIXED, Overlays::NONE, true>,
+            Case<Spec<RGBConfig<Medium>>, Camera::FIXED, Overlays::NONE>,
+            Case<Spec<RGBConfig<High, 1, 1, true>>, Camera::FIXED, Overlays::NONE>,
+            Case<Spec<RGBConfig<VeryHigh>>, Camera::FIXED, Overlays::NONE>,
+            Case<Spec<RGBConfig<High, 1, 2>>, Camera::FIXED, Overlays::NONE>,
+            Case<Spec<GeometryConfig<false>>, Camera::FIXED, Overlays::NONE>,
+            Case<Spec<RGBConfig<High, 4>>, Camera::MOVING, Overlays::NONE>,
+            Case<Spec<FlowConfig<false>>, Camera::MOVING, Overlays::NONE>,
+            Case<Spec<RGBConfig<High, 1, 1, true, true>>, Camera::FIXED, Overlays::FIXED>,
+            Case<Spec<GeometryConfig<true>>, Camera::FIXED, Overlays::FIXED>,
+            Case<Spec<RGBConfig<High, 4, 1, false, true>>, Camera::MOVING, Overlays::FIXED>,
+            Case<Spec<FlowConfig<true>>, Camera::MOVING, Overlays::FIXED>,
+            Case<Spec<RGBConfig<High, 4, 1, false, true>>, Camera::FIXED, Overlays::MOVING>,
+            Case<Spec<FlowConfig<true>>, Camera::FIXED, Overlays::MOVING>,
+            Case<Spec<RGBConfig<High, 4, 1, false, true>>, Camera::MOVING, Overlays::MOVING>,
+            Case<Spec<FlowConfig<true>>, Camera::MOVING, Overlays::MOVING>
+        >;
+
+        // the RGB output directory: <tier>[-aa<grid>][-mb<samples>]
+        template <typename SPEC>
+        static std::string rgb_output(){
+            using SHADING = typename SPEC::SHADING;
+            static_assert(std::is_same_v<SHADING, Low> || std::is_same_v<SHADING, Medium> || std::is_same_v<SHADING, High> || std::is_same_v<SHADING, VeryHigh>, "unnamed shading tier");
+            std::string name = std::is_same_v<SHADING, Low> ? "low" : std::is_same_v<SHADING, Medium> ? "medium" : std::is_same_v<SHADING, High> ? "high" : "very-high";
+            if constexpr(SPEC::ENABLE_ANTI_ALIASING){
+                name += "-aa" + std::to_string(SPEC::ANTI_ALIASING_GRID_SIZE);
+            }
+            if constexpr(SPEC::ENABLE_MOTION_BLUR){
+                name += "-mb" + std::to_string(SPEC::MOTION_BLUR_SAMPLES);
+            }
+            return name;
+        }
+
+        // <state>/<primary output>, for logs and test names
+        template <typename CASE>
+        static std::string name(){
+            using SPEC = typename CASE::SPEC;
+            std::string primary;
+            if constexpr(SPEC::HAS_RGB){
+                primary = rgb_output<SPEC>();
+            }
+            else if constexpr(SPEC::HAS_FLOW){
+                primary = "flow";
+            }
+            else{
+                primary = "geometry";
+            }
+            return std::string(CASE::STATE) + "/" + primary;
+        }
 
         // single-camera pseudo-spec for the per-pose grid writers (detail::write_*_grid_png)
         struct SingleCamera{

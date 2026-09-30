@@ -1,11 +1,11 @@
 #ifndef TESTS_RENDERING_RAYTRACING_GOLDEN_MANIFEST_H
 #define TESTS_RENDERING_RAYTRACING_GOLDEN_MANIFEST_H
 
-// Golden corpus versions. Each published corpus carries a manifest.json with its golden_version;
-// the comparators refuse any other version, so a stale checkout fails instead of being compared
-// against the wrong target. Bump a version together with a row in GOLDEN_LEDGER.md and the
-// DATA_REVISION in download_data.sh (both in this directory); the generators then write
-// golden-v<new>.* next to the earlier generations, which stay in place.
+// The corpus carries a manifest.json with its golden_version; the comparators refuse any other
+// version, so a stale checkout fails instead of being compared against the wrong target. Bump the
+// version together with a row in GOLDEN_LEDGER.md and the DATA_REVISION in download_data.sh (both
+// in this directory); the generator then writes golden-v<new>.* next to the earlier generations,
+// which stay in place.
 
 #include "golden_layout.h"
 
@@ -17,13 +17,12 @@
 #include <string>
 
 namespace golden {
-    static constexpr uint32_t PROCTHOR_STATIC_SCENE_GOLDEN_VERSION = 2;
-    static constexpr uint32_t OVERLAY_GOLDEN_VERSION = 1;
-    // the backend that renders the canonical corpora and is held to bit-exact reproduction
+    static constexpr uint32_t PROCTHOR_TRAIN_1_GOLDEN_VERSION = 2;
+    // the backend that renders the canonical corpus and is held to bit-exact reproduction
     static constexpr const char* REFERENCE_BACKEND = "optix";
 
     inline nlohmann::json procthor_manifest(const std::string& backend){
-        return {{"golden_version", PROCTHOR_STATIC_SCENE_GOLDEN_VERSION}, {"reference_backend", backend}};
+        return {{"golden_version", PROCTHOR_TRAIN_1_GOLDEN_VERSION}, {"reference_backend", backend}};
     }
 
     inline bool write_json(const std::string& path, const nlohmann::json& content){
