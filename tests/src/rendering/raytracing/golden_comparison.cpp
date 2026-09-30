@@ -41,11 +41,13 @@
 #include "../../utils/utils.h"
 
 #include <gtest/gtest.h>
+#include <metra/metra.h>
 
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <string>
@@ -118,6 +120,21 @@ namespace {
         return std::filesystem::exists(MANIFEST_PATH);
     }
 
+    // metra series raytracing/golden/procthor/<backend>/<case>/<metric> with the bound as <metric>_bound
+    // and the corpus version once per process; Vulkan on lavapipe is tagged because its floors differ
+    std::string metric_prefix(){
+        const char* driver_files = std::getenv("VK_DRIVER_FILES");
+        const bool lavapipe = driver_files != nullptr && std::string(driver_files).find("lvp") != std::string::npos;
+        return std::string("raytracing/golden/procthor/") + RL_TOOLS_GOLDEN_BACKEND_NAME + (lavapipe ? "-lavapipe" : "") + "/";
+    }
+
+    void log_metric(const std::string& name, double value, double bound){
+        static const bool version_logged = metra::log(metric_prefix() + "version", golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION);
+        (void)version_logged;
+        metra::log(metric_prefix() + name, value);
+        metra::log(metric_prefix() + name + "_bound", bound);
+    }
+
     struct RGBStats{
         double mad = 0;
         double outlier_fraction = 0;
@@ -166,6 +183,7 @@ namespace {
     template <typename SPEC>
     void expect_rgb_matches_golden(const char* name, const Rendered& rendered){
         double worst_mad = 0;
+        double worst_outliers = 0;
         double worst_shading_outliers = 0;
         const char* worst_id = CASES::POSES[0].id;
         int max_channel[3] = {0, 0, 0};
@@ -185,6 +203,7 @@ namespace {
                 << " (max R=" << stats.channel_max[0] << " G=" << stats.channel_max[1] << " B=" << stats.channel_max[2] << ")";
             EXPECT_LE(stats.outlier_fraction, RGB_OUTLIER_FRACTION) << name << " pose " << id << ": RGB outlier fraction " << stats.outlier_fraction;
             EXPECT_LE(stats.shading_outlier_fraction, RGB_SHADING_OUTLIER_FRACTION) << name << " pose " << id << ": RGB shading outlier fraction " << stats.shading_outlier_fraction;
+            worst_outliers = std::max(worst_outliers, stats.outlier_fraction);
             worst_shading_outliers = std::max(worst_shading_outliers, stats.shading_outlier_fraction);
             if(stats.mad > worst_mad){
                 worst_mad = stats.mad;
@@ -194,7 +213,10 @@ namespace {
                 if(stats.channel_max[channel] > max_channel[channel]) max_channel[channel] = stats.channel_max[channel];
             }
         }
-        std::printf("[golden] %s: worst pose %s rgb mad=%.4f max=(%d,%d,%d) shading outliers=%.4f%% over %d poses\n", name, worst_id, worst_mad, max_channel[0], max_channel[1], max_channel[2], worst_shading_outliers * 100, (int)SPEC::NUM_CAMERAS);
+        std::printf("[golden] %s: worst_pose=%s rgb_mad=%.4f rgb_outliers=%.4f%% shading_outliers=%.4f%% max=(%d,%d,%d) over %d poses\n", name, worst_id, worst_mad, worst_outliers * 100, worst_shading_outliers * 100, max_channel[0], max_channel[1], max_channel[2], (int)SPEC::NUM_CAMERAS);
+        log_metric(std::string(name) + "/rgb_mad", worst_mad, RGB_MAD_THRESHOLD);
+        log_metric(std::string(name) + "/rgb_outliers", worst_outliers, RGB_OUTLIER_FRACTION);
+        log_metric(std::string(name) + "/shading_outliers", worst_shading_outliers, RGB_SHADING_OUTLIER_FRACTION);
     }
 
     template <typename SPEC, bool T_CAMERA_MOTION = true>
@@ -245,7 +267,9 @@ namespace {
             worst_mad = std::max(worst_mad, depth_mad);
             worst_outliers = std::max(worst_outliers, outlier_fraction);
         }
-        std::printf("[golden] %s: worst depth mad=%.2e worst outliers=%.4f%%\n", name, worst_mad, worst_outliers * 100);
+        std::printf("[golden] %s: depth_mad=%.2e depth_outliers=%.4f%%\n", name, worst_mad, worst_outliers * 100);
+        log_metric(std::string(name) + "/depth_mad", worst_mad, DEPTH_MAD_THRESHOLD);
+        log_metric(std::string(name) + "/depth_outliers", worst_outliers, DEPTH_OUTLIER_FRACTION);
     }
 
     void run_normals_case(){
@@ -294,7 +318,9 @@ namespace {
             worst_mad = std::max(worst_mad, mad);
             worst_outliers = std::max(worst_outliers, outlier_fraction);
         }
-        std::printf("[golden] normals: worst mad=%.4f worst outliers=%.4f%% over %d poses\n", worst_mad, worst_outliers * 100, (int)SPEC::NUM_CAMERAS);
+        std::printf("[golden] normals: normals_mad=%.4f normals_outliers=%.4f%% over %d poses\n", worst_mad, worst_outliers * 100, (int)SPEC::NUM_CAMERAS);
+        log_metric("normals/normals_mad", worst_mad, NORMALS_MAD_THRESHOLD);
+        log_metric("normals/normals_outliers", worst_outliers, NORMALS_OUTLIER_FRACTION);
     }
 
     struct FlowDirectionView{
@@ -375,7 +401,10 @@ namespace {
             worst_outliers = std::max(worst_outliers, outlier_fraction);
             worst_status_mismatch = std::max(worst_status_mismatch, status_mismatch_fraction);
         }
-        std::printf("[golden] %s: worst mean epe=%.4f px worst outliers=%.4f%% worst status mismatches=%.4f%% over %d poses\n", base.c_str(), worst_epe, worst_outliers * 100, worst_status_mismatch * 100, (int)SPEC::NUM_CAMERAS);
+        std::printf("[golden] %s: flow_epe=%.4f flow_outliers=%.4f%% status_mismatch=%.4f%% over %d poses\n", base.c_str(), worst_epe, worst_outliers * 100, worst_status_mismatch * 100, (int)SPEC::NUM_CAMERAS);
+        log_metric(base + "/flow_epe", worst_epe, FLOW_MEAN_EPE_THRESHOLD);
+        log_metric(base + "/flow_outliers", worst_outliers, FLOW_OUTLIER_FRACTION);
+        log_metric(base + "/status_mismatch", worst_status_mismatch, FLOW_STATUS_MISMATCH_FRACTION);
     }
 
     template <typename SPEC, bool T_CAMERA_MOTION = true>
@@ -439,7 +468,9 @@ namespace {
             worst_mismatches = std::max(worst_mismatches, mismatch_fraction);
             worst_background_mismatches = std::max(worst_background_mismatches, background_fraction);
         }
-        std::printf("[golden] segmentation: worst mismatches=%.4f%% worst hit/miss mismatches=%.4f%% over %d poses\n", worst_mismatches * 100, worst_background_mismatches * 100, (int)SPEC::NUM_CAMERAS);
+        std::printf("[golden] segmentation: segmentation_mismatch=%.4f%% background_mismatch=%.4f%% over %d poses\n", worst_mismatches * 100, worst_background_mismatches * 100, (int)SPEC::NUM_CAMERAS);
+        log_metric("segmentation/segmentation_mismatch", worst_mismatches, SEGMENTATION_MISMATCH_FRACTION);
+        log_metric("segmentation/background_mismatch", worst_background_mismatches, SEGMENTATION_BACKGROUND_MISMATCH_FRACTION);
     }
 }
 
@@ -547,5 +578,7 @@ TEST(RL_TOOLS_GOLDEN_SUITE, PROBES){
     }
     EXPECT_LE(hit_mismatches, PROBE_HIT_MISMATCH_MAX) << "probe hit flag mismatches: " << hit_mismatches << "/" << SPEC::NUM_CAMERAS * SPEC::NUM_PROBES;
     EXPECT_LE(max_rel_distance_diff, PROBE_DISTANCE_REL) << "max relative probe distance diff: " << max_rel_distance_diff;
-    std::printf("[golden] probes: hit mismatches=%d/%d max rel dist diff=%.2e\n", hit_mismatches, (int)(SPEC::NUM_CAMERAS * SPEC::NUM_PROBES), max_rel_distance_diff);
+    std::printf("[golden] probes: hit_mismatches=%d/%d distance_rel=%.2e\n", hit_mismatches, (int)(SPEC::NUM_CAMERAS * SPEC::NUM_PROBES), max_rel_distance_diff);
+    log_metric("probes/hit_mismatches", hit_mismatches, PROBE_HIT_MISMATCH_MAX);
+    log_metric("probes/distance_rel", max_rel_distance_diff, PROBE_DISTANCE_REL);
 }

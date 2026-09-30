@@ -13,12 +13,15 @@
 #include "../../utils/utils.h"
 
 #include <gtest/gtest.h>
+#include <metra/metra.h>
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
+#include <map>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -94,6 +97,34 @@ namespace {
     bool manifest_available(){
         return std::filesystem::is_regular_file(golden::layout::overlay_manifest_path(GOLDEN_ROOT));
     }
+
+    // worst value per metric over the views and capture states of one scenario, logged to metra as
+    // raytracing/golden/overlay/<backend>/<scenario>/<metric> with the bound as <metric>_bound and the
+    // corpus version once per process; Vulkan on lavapipe is tagged because its floors differ
+    struct ScenarioMetrics {
+        static constexpr std::pair<const char*, double> BOUNDS[] = {
+            {"rgb_mad", RGB_MAD_THRESHOLD}, {"rgb_outliers", RGB_OUTLIER_FRACTION}, {"shading_outliers", RGB_SHADING_OUTLIER_FRACTION},
+            {"segmentation_mismatch", SEGMENTATION_MISMATCH_FRACTION}, {"background_mismatch", BACKGROUND_MISMATCH_FRACTION}, {"depth_outliers", DEPTH_OUTLIER_FRACTION},
+            {"normals_mad", NORMALS_MAD_THRESHOLD}, {"normals_outliers", NORMALS_OUTLIER_FRACTION},
+            {"flow_epe", FLOW_MEAN_EPE_THRESHOLD}, {"flow_outliers", FLOW_OUTLIER_FRACTION}, {"status_mismatch", FLOW_STATUS_MISMATCH_FRACTION},
+            {"flow_forward_epe", FLOW_MEAN_EPE_THRESHOLD}, {"flow_forward_outliers", FLOW_OUTLIER_FRACTION}, {"flow_forward_status_mismatch", FLOW_STATUS_MISMATCH_FRACTION}
+        };
+        std::map<std::string, double> worst;
+        void record(const char* name, double value){
+            worst[name] = std::max(worst[name], value);
+        }
+        void log(const char* scenario) const {
+            const char* driver_files = std::getenv("VK_DRIVER_FILES");
+            const bool lavapipe = driver_files != nullptr && std::string(driver_files).find("lvp") != std::string::npos;
+            const std::string prefix = std::string("raytracing/golden/overlay/") + RL_TOOLS_OVERLAY_GOLDEN_BACKEND_NAME + (lavapipe ? "-lavapipe" : "") + "/";
+            static const bool version_logged = metra::log(prefix + "version", golden::OVERLAY_GOLDEN_VERSION);
+            (void)version_logged;
+            for(const auto& [name, bound] : BOUNDS){
+                metra::log(prefix + scenario + "/" + name, worst.count(name) ? worst.at(name) : 0.0);
+                metra::log(prefix + scenario + "/" + name + "_bound", bound);
+            }
+        }
+    };
 
 // a present corpus of another version fails: the fix is a data refresh (GOLDEN_LEDGER.md), not a code change
 #define RL_TOOLS_OVERLAY_GOLDEN_REQUIRE_VERSION() ASSERT_EQ(golden::manifest_version(golden::layout::overlay_manifest_path(GOLDEN_ROOT)), golden::OVERLAY_GOLDEN_VERSION) << "overlay golden corpus version mismatch (see tests/src/rendering/raytracing/GOLDEN_LEDGER.md, run tests/src/rendering/raytracing/download_data.sh)"
@@ -230,7 +261,8 @@ namespace {
         overlay_goldens::CaptureState state,
         const overlay_goldens::View& view,
         const Frame& target,
-        const Frame& current
+        const Frame& current,
+        ScenarioMetrics& metrics
     ){
         expect_camera_topology_and_objects(scenario, target, current, view.id);
 
@@ -365,27 +397,52 @@ namespace {
 
         const double rgb_mad = rgb_total / std::max((double)rgb_channels, 1.0);
         const double rgb_outliers = (double)rgb_outlier_pixels / count;
+        const double shading_outliers = (double)rgb_shading_outlier_pixels / count;
         const double segmentation_mismatch = (double)segmentation_mismatches / count;
+        const double background_mismatch = (double)background_mismatches / count;
         const double depth_outlier_fraction = (double)depth_outliers / std::max((double)depth_pixels, 1.0);
+        const double normals_mad = normals_total / std::max((double)rgb_channels, 1.0);
+        const double normals_outliers = (double)normals_outlier_pixels / count;
+        const double flow_epe = flow_epe_total / std::max((double)flow_pixels, 1.0);
+        const double flow_outlier_fraction = (double)flow_outliers / std::max((double)flow_pixels, 1.0);
+        const double status_mismatch = (double)flow_status_mismatches / count;
+        const double flow_forward_epe = flow_forward_epe_total / std::max((double)flow_forward_pixels, 1.0);
+        const double flow_forward_outlier_fraction = (double)flow_forward_outliers / std::max((double)flow_forward_pixels, 1.0);
+        const double flow_forward_status_mismatch = (double)flow_forward_status_mismatches / count;
 
         EXPECT_LE(rgb_mad, RGB_MAD_THRESHOLD) << view.id;
         EXPECT_LE(rgb_outliers, RGB_OUTLIER_FRACTION) << view.id;
-        EXPECT_LE((double)rgb_shading_outlier_pixels / count, RGB_SHADING_OUTLIER_FRACTION) << view.id << " shading";
+        EXPECT_LE(shading_outliers, RGB_SHADING_OUTLIER_FRACTION) << view.id << " shading";
         EXPECT_EQ(invalid_target_alpha, (size_t)0) << view.id;
         EXPECT_EQ(invalid_current_alpha, (size_t)0) << view.id;
         EXPECT_LE(segmentation_mismatch, SEGMENTATION_MISMATCH_FRACTION) << view.id;
-        EXPECT_LE((double)background_mismatches / count, BACKGROUND_MISMATCH_FRACTION) << view.id << " background";
+        EXPECT_LE(background_mismatch, BACKGROUND_MISMATCH_FRACTION) << view.id << " background";
         EXPECT_LE(depth_outlier_fraction, DEPTH_OUTLIER_FRACTION) << view.id;
-        EXPECT_LE(normals_total / std::max((double)rgb_channels, 1.0), NORMALS_MAD_THRESHOLD) << view.id << " normals";
-        EXPECT_LE((double)normals_outlier_pixels / count, NORMALS_OUTLIER_FRACTION) << view.id << " normals";
+        EXPECT_LE(normals_mad, NORMALS_MAD_THRESHOLD) << view.id << " normals";
+        EXPECT_LE(normals_outliers, NORMALS_OUTLIER_FRACTION) << view.id << " normals";
         EXPECT_GT(flow_pixels, (size_t)0) << view.id << " flow";
-        EXPECT_LE(flow_epe_total / std::max((double)flow_pixels, 1.0), FLOW_MEAN_EPE_THRESHOLD) << view.id << " flow";
-        EXPECT_LE((double)flow_outliers / std::max((double)flow_pixels, 1.0), FLOW_OUTLIER_FRACTION) << view.id << " flow";
-        EXPECT_LE((double)flow_status_mismatches / count, FLOW_STATUS_MISMATCH_FRACTION) << view.id << " flow status";
+        EXPECT_LE(flow_epe, FLOW_MEAN_EPE_THRESHOLD) << view.id << " flow";
+        EXPECT_LE(flow_outlier_fraction, FLOW_OUTLIER_FRACTION) << view.id << " flow";
+        EXPECT_LE(status_mismatch, FLOW_STATUS_MISMATCH_FRACTION) << view.id << " flow status";
         EXPECT_GT(flow_forward_pixels, (size_t)0) << view.id << " flow forward";
-        EXPECT_LE(flow_forward_epe_total / std::max((double)flow_forward_pixels, 1.0), FLOW_MEAN_EPE_THRESHOLD) << view.id << " flow forward";
-        EXPECT_LE((double)flow_forward_outliers / std::max((double)flow_forward_pixels, 1.0), FLOW_OUTLIER_FRACTION) << view.id << " flow forward";
-        EXPECT_LE((double)flow_forward_status_mismatches / count, FLOW_STATUS_MISMATCH_FRACTION) << view.id << " flow forward status";
+        EXPECT_LE(flow_forward_epe, FLOW_MEAN_EPE_THRESHOLD) << view.id << " flow forward";
+        EXPECT_LE(flow_forward_outlier_fraction, FLOW_OUTLIER_FRACTION) << view.id << " flow forward";
+        EXPECT_LE(flow_forward_status_mismatch, FLOW_STATUS_MISMATCH_FRACTION) << view.id << " flow forward status";
+
+        metrics.record("rgb_mad", rgb_mad);
+        metrics.record("rgb_outliers", rgb_outliers);
+        metrics.record("shading_outliers", shading_outliers);
+        metrics.record("segmentation_mismatch", segmentation_mismatch);
+        metrics.record("background_mismatch", background_mismatch);
+        metrics.record("depth_outliers", depth_outlier_fraction);
+        metrics.record("normals_mad", normals_mad);
+        metrics.record("normals_outliers", normals_outliers);
+        metrics.record("flow_epe", flow_epe);
+        metrics.record("flow_outliers", flow_outlier_fraction);
+        metrics.record("status_mismatch", status_mismatch);
+        metrics.record("flow_forward_epe", flow_forward_epe);
+        metrics.record("flow_forward_outliers", flow_forward_outlier_fraction);
+        metrics.record("flow_forward_status_mismatch", flow_forward_status_mismatch);
     }
 
     void run_scenario(overlay_scenarios::Scenario scenario){
@@ -400,6 +457,7 @@ namespace {
         overlay_scenarios::build_initial(device, renderer, scenario_state);
         rlt::update(device, renderer);
 
+        ScenarioMetrics metrics;
         std::array<Frame, overlay_goldens::VIEWS.size()> initial_frames;
         for(size_t view_i = 0; view_i < overlay_goldens::VIEWS.size(); view_i++){
             overlay_goldens::set_view(device, renderer, overlay_goldens::VIEWS[view_i]);
@@ -412,7 +470,7 @@ namespace {
                 overlay_goldens::VIEWS[view_i],
                 target
             )) << overlay_scenarios::scenario_id(scenario) << " initial " << overlay_goldens::VIEWS[view_i].id;
-            compare_frame(scenario, overlay_goldens::CaptureState::INITIAL, overlay_goldens::VIEWS[view_i], target, initial_frames[view_i]);
+            compare_frame(scenario, overlay_goldens::CaptureState::INITIAL, overlay_goldens::VIEWS[view_i], target, initial_frames[view_i], metrics);
         }
 
         if(overlay_goldens::capture_state_count(scenario) == 2){
@@ -430,9 +488,10 @@ namespace {
                     target
                 )) << overlay_scenarios::scenario_id(scenario) << " updated " << overlay_goldens::VIEWS[view_i].id;
                 expect_update_scope(scenario, initial_frames[view_i], updated, overlay_goldens::VIEWS[view_i].id);
-                compare_frame(scenario, overlay_goldens::CaptureState::UPDATED, overlay_goldens::VIEWS[view_i], target, updated);
+                compare_frame(scenario, overlay_goldens::CaptureState::UPDATED, overlay_goldens::VIEWS[view_i], target, updated, metrics);
             }
         }
+        metrics.log(overlay_scenarios::scenario_id(scenario));
 
         rlt::free(device, renderer);
     }
