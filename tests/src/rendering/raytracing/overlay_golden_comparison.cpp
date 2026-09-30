@@ -269,7 +269,7 @@ namespace {
         expect_camera_topology_and_objects(scenario, target, current, view.id);
 
         // render-<backend>.png and versus-render-<backend>.png per modality, plus versus-golden-vNN.png
-        // against every archived generation, next to the goldens
+        // against every earlier generation, next to the goldens
         const std::string review_view = golden::layout::overlay_view_directory(GOLDEN_ROOT, overlay_scenarios::scenario_id(scenario), overlay_goldens::capture_state_id(state), view.id);
         const auto render = [&](const char* modality){
             const std::string directory = golden::layout::modality_directory(review_view, modality);
@@ -303,10 +303,10 @@ namespace {
             ASSERT_TRUE(golden::write_flow_status_review_grid_pngs("", with_render ? render("flow-forward-status") : "", versus("flow-forward-status", name), reference.flow_forward_status.data(), other.flow_forward_status.data(), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT));
         };
         write_reviews(target, current, "render-" + backend_tag(), true);
-        for(uint32_t version = 1; version < golden::OVERLAY_GOLDEN_VERSION; version++){
+        for(uint32_t version = 0; version < golden::OVERLAY_GOLDEN_VERSION; version++){
             Frame historic;
-            if(overlay_goldens::load_target_frame<SPEC>(GOLDEN_ROOT, scenario, state, view, historic, version)){
-                write_reviews(historic, target, golden::layout::historic_name(version), false);
+            if(overlay_goldens::load_target_frame<SPEC>(GOLDEN_ROOT, scenario, state, view, version, historic)){
+                write_reviews(historic, target, golden::layout::golden_name(version), false);
             }
         }
 
@@ -468,6 +468,7 @@ namespace {
                 scenario,
                 overlay_goldens::CaptureState::INITIAL,
                 overlay_goldens::VIEWS[view_i],
+                golden::OVERLAY_GOLDEN_VERSION,
                 target
             )) << overlay_scenarios::scenario_id(scenario) << " initial " << overlay_goldens::VIEWS[view_i].id;
             compare_frame(scenario, overlay_goldens::CaptureState::INITIAL, overlay_goldens::VIEWS[view_i], target, initial_frames[view_i], metrics);
@@ -485,6 +486,7 @@ namespace {
                     scenario,
                     overlay_goldens::CaptureState::UPDATED,
                     overlay_goldens::VIEWS[view_i],
+                    golden::OVERLAY_GOLDEN_VERSION,
                     target
                 )) << overlay_scenarios::scenario_id(scenario) << " updated " << overlay_goldens::VIEWS[view_i].id;
                 expect_update_scope(scenario, initial_frames[view_i], updated, overlay_goldens::VIEWS[view_i].id);

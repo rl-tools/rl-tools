@@ -35,15 +35,15 @@ static const std::string SCENE_PATH = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_P
 static const std::string DEFAULT_OUTPUT_DIR = golden::layout::procthor_directory(golden::layout::goldens_root(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)));
 static constexpr const char* LOG_PREFIX = "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] ";
 
-// <output_dir>/<pose>/<modality>/golden.png or data/golden.bin, directories created on demand
+// <output_dir>/<pose>/<modality>/golden-vNN.png or data/golden-vNN.bin of the pinned version, directories created on demand
 std::string golden_png(const std::string& output_dir, TI camera_i, const std::string& modality){
-    const std::string path = golden::layout::golden_png(golden::layout::modality_directory(golden::layout::join(output_dir, CASES::POSES[camera_i].id), modality));
+    const std::string path = golden::layout::golden_png(golden::layout::modality_directory(golden::layout::join(output_dir, CASES::POSES[camera_i].id), modality), golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION);
     std::filesystem::create_directories(std::filesystem::path(path).parent_path());
     return path;
 }
 
 std::string golden_bin(const std::string& output_dir, TI camera_i, const std::string& modality){
-    const std::string path = golden::layout::golden_bin(golden::layout::modality_directory(golden::layout::join(output_dir, CASES::POSES[camera_i].id), modality));
+    const std::string path = golden::layout::golden_bin(golden::layout::modality_directory(golden::layout::join(output_dir, CASES::POSES[camera_i].id), modality), golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION);
     std::filesystem::create_directories(std::filesystem::path(path).parent_path());
     return path;
 }
@@ -333,7 +333,6 @@ int main(int argc, char** argv) {
         return 2;
     }
 
-    golden::archive_previous_version(output_dir, golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION);
     std::filesystem::create_directories(output_dir);
     std::filesystem::remove(golden::layout::manifest_path(output_dir));
 

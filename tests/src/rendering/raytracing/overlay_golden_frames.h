@@ -207,26 +207,19 @@ namespace overlay_goldens {
             && difference.segmentation > MIN_SCENARIO_DISTINCT_PIXELS;
     }
 
-    // version 0 loads the current golden, any other version the archived golden-vNN files
     template <typename SPEC>
-    bool load_target_frame(
-        const std::string& golden_root,
-        overlay_scenarios::Scenario scenario,
-        CaptureState state,
-        const View& view,
-        Frame& target,
-        uint32_t version = 0
-    ){
+    bool load_target_frame(const std::string& golden_root, overlay_scenarios::Scenario scenario, CaptureState state, const View& view, uint32_t version, Frame& target){
         const std::string view_directory = golden::layout::overlay_view_directory(golden_root, overlay_scenarios::scenario_id(scenario), capture_state_id(state), view.id);
-        const auto modality = [&](const char* name){ return golden::layout::modality_directory(view_directory, name); };
-        return golden::load_camera_grid_png(golden::layout::golden_png(modality("rgb"), version), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.rgb)
-            && golden::load_multi_camera_float_bin(golden::layout::golden_bin(modality("depth"), version), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.depth)
-            && golden::load_multi_camera_uint32_bin(golden::layout::golden_bin(modality("segmentation"), version), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.segmentation)
-            && golden::load_camera_grid_png(golden::layout::golden_png(modality("normals"), version), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.normals)
-            && golden::load_multi_camera_float_bin(golden::layout::golden_bin(modality("flow"), version), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.flow, 2)
-            && golden::load_multi_camera_uint32_bin(golden::layout::golden_bin(modality("flow-status"), version), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.flow_status)
-            && golden::load_multi_camera_float_bin(golden::layout::golden_bin(modality("flow-forward"), version), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.flow_forward, 2)
-            && golden::load_multi_camera_uint32_bin(golden::layout::golden_bin(modality("flow-forward-status"), version), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.flow_forward_status);
+        const auto png = [&](const char* modality){ return golden::layout::golden_png(golden::layout::modality_directory(view_directory, modality), version); };
+        const auto bin = [&](const char* modality){ return golden::layout::golden_bin(golden::layout::modality_directory(view_directory, modality), version); };
+        return golden::load_camera_grid_png(png("rgb"), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.rgb)
+            && golden::load_multi_camera_float_bin(bin("depth"), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.depth)
+            && golden::load_multi_camera_uint32_bin(bin("segmentation"), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.segmentation)
+            && golden::load_camera_grid_png(png("normals"), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.normals)
+            && golden::load_multi_camera_float_bin(bin("flow"), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.flow, 2)
+            && golden::load_multi_camera_uint32_bin(bin("flow-status"), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.flow_status)
+            && golden::load_multi_camera_float_bin(bin("flow-forward"), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.flow_forward, 2)
+            && golden::load_multi_camera_uint32_bin(bin("flow-forward-status"), SPEC::NUM_CAMERAS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, target.flow_forward_status);
     }
 }
 

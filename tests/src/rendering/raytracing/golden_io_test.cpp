@@ -449,18 +449,17 @@ TEST_F(GoldenIoTest, LayoutPathsAreStable){
     EXPECT_EQ(golden::layout::manifest_path(root + "/overlay"), root + "/overlay/manifest.json");
     EXPECT_EQ(golden::layout::view_path(root + "/procthor-train-1/07"), root + "/procthor-train-1/07/view.json");
 
-    // the names sort into the review order: historic goldens, current golden, renders, heatmaps
+    // the names sort into the review order: goldens by generation, renders, heatmaps
     const std::string modality = golden::layout::modality_directory(root + "/procthor-train-1/07", "high");
     EXPECT_EQ(modality, root + "/procthor-train-1/07/high");
+    EXPECT_EQ(golden::layout::golden_png(modality, 0), modality + "/golden-v00.png");
     EXPECT_EQ(golden::layout::golden_png(modality, 1), modality + "/golden-v01.png");
-    EXPECT_EQ(golden::layout::golden_png(modality), modality + "/golden.png");
     EXPECT_EQ(golden::layout::golden_bin(modality, 12), modality + "/data/golden-v12.bin");
-    EXPECT_EQ(golden::layout::golden_bin(modality), modality + "/data/golden.bin");
     EXPECT_EQ(golden::layout::render_png(modality, "vulkan-lavapipe"), modality + "/render-vulkan-lavapipe.png");
-    EXPECT_EQ(golden::layout::versus_png(modality, golden::layout::historic_name(1)), modality + "/versus-golden-v01.png");
+    EXPECT_EQ(golden::layout::versus_png(modality, golden::layout::golden_name(1)), modality + "/versus-golden-v01.png");
     EXPECT_EQ(golden::layout::versus_png(modality, "render-optix"), modality + "/versus-render-optix.png");
-    EXPECT_LT(std::string("golden-v01.png"), std::string("golden.png"));
-    EXPECT_LT(std::string("golden.png"), std::string("render-generic.png"));
+    EXPECT_LT(std::string("golden-v00.png"), std::string("golden-v01.png"));
+    EXPECT_LT(std::string("golden-v12.png"), std::string("render-generic.png"));
     EXPECT_LT(std::string("render-webgpu.png"), std::string("versus-golden-v01.png"));
     EXPECT_LT(std::string("versus-golden-v01.png"), std::string("versus-render-generic.png"));
 }

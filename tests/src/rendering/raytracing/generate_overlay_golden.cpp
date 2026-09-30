@@ -284,12 +284,12 @@ namespace {
     bool write_frame(const FrameContext& context, const Frame& frame){
         const std::string view_directory = golden::layout::overlay_view_directory(GOLDEN_ROOT, overlay_scenarios::scenario_id(context.scenario), overlay_goldens::capture_state_id(context.state), context.view);
         const auto png = [&](const char* modality){
-            const std::string path = golden::layout::golden_png(golden::layout::modality_directory(view_directory, modality));
+            const std::string path = golden::layout::golden_png(golden::layout::modality_directory(view_directory, modality), golden::OVERLAY_GOLDEN_VERSION);
             std::filesystem::create_directories(std::filesystem::path(path).parent_path());
             return path;
         };
         const auto bin = [&](const char* modality){
-            const std::string path = golden::layout::golden_bin(golden::layout::modality_directory(view_directory, modality));
+            const std::string path = golden::layout::golden_bin(golden::layout::modality_directory(view_directory, modality), golden::OVERLAY_GOLDEN_VERSION);
             std::filesystem::create_directories(std::filesystem::path(path).parent_path());
             return path;
         };
@@ -374,7 +374,6 @@ namespace {
 }
 
 int main(){
-    golden::archive_previous_version(CORPUS_DIRECTORY, golden::OVERLAY_GOLDEN_VERSION);
     std::filesystem::remove(golden::layout::manifest_path(CORPUS_DIRECTORY));
     DEVICE device;
     rlt::init(device);

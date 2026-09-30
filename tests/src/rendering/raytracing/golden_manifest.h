@@ -4,8 +4,8 @@
 // Golden corpus versions. Each published corpus carries a manifest.json with its golden_version;
 // the comparators refuse any other version, so a stale checkout fails instead of being compared
 // against the wrong target. Bump a version together with a row in GOLDEN_LEDGER.md and the
-// DATA_REVISION in download_data.sh (both in this directory); the generators then archive the
-// previous goldens as golden-vNN.* next to the new ones.
+// DATA_REVISION in download_data.sh (both in this directory); the generators then write
+// golden-v<new>.* next to the earlier generations, which stay in place.
 
 #include "golden_layout.h"
 
@@ -50,20 +50,6 @@ namespace golden {
         std::ifstream input(path);
         const nlohmann::json manifest = nlohmann::json::parse(input, nullptr, false);
         return manifest.is_object() ? manifest.value("golden_version", 0u) : 0u;
-    }
-
-    // a corpus whose manifest is older than the pinned version keeps its goldens as golden-vNN.*
-    // (NN = the version they belong to) so that reviewers can flip through the generations
-    inline void archive_previous_version(const std::string& corpus_directory, uint32_t pinned_version){
-        const uint32_t on_disk = manifest_version(layout::manifest_path(corpus_directory));
-        if(on_disk == 0 || on_disk >= pinned_version){
-            return;
-        }
-        for(const auto& entry : std::filesystem::recursive_directory_iterator(corpus_directory)){
-            if(entry.is_regular_file() && entry.path().stem() == "golden"){
-                std::filesystem::rename(entry.path(), entry.path().parent_path() / (layout::historic_name(on_disk) + entry.path().extension().string()));
-            }
-        }
     }
 }
 
