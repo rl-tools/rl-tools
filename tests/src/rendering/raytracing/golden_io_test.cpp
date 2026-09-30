@@ -216,45 +216,6 @@ TEST_F(GoldenIoTest, RejectsTruncatedAndTrailingPayloadWithoutChangingOutput){
     expect_float_load_failure(trailing_path);
 }
 
-TEST_F(GoldenIoTest, FourCameraGridPngRoundTrip){
-    constexpr int NUM_CAMERAS = 4;
-    constexpr int WIDTH = 3;
-    constexpr int HEIGHT = 2;
-    std::vector<uint32_t> cameras(NUM_CAMERAS * WIDTH * HEIGHT);
-    for(int camera_i = 0; camera_i < NUM_CAMERAS; camera_i++){
-        for(int pixel_i = 0; pixel_i < WIDTH * HEIGHT; pixel_i++){
-            cameras[static_cast<size_t>(camera_i) * WIDTH * HEIGHT + pixel_i] = golden::rgba(
-                static_cast<uint8_t>(20 + camera_i * 40),
-                static_cast<uint8_t>(30 + pixel_i * 15),
-                static_cast<uint8_t>(200 - camera_i * 20 - pixel_i),
-                static_cast<uint8_t>(100 + camera_i * 10 + pixel_i)
-            );
-        }
-    }
-
-    std::vector<uint32_t> grid;
-    ASSERT_TRUE(golden::make_camera_grid(cameras.data(), NUM_CAMERAS, WIDTH, HEIGHT, grid));
-    ASSERT_EQ(grid.size(), static_cast<size_t>(WIDTH * 2 * HEIGHT * 2));
-    std::vector<uint32_t> split;
-    ASSERT_TRUE(golden::split_camera_grid(grid.data(), NUM_CAMERAS, WIDTH, HEIGHT, split));
-    EXPECT_EQ(split, cameras);
-
-    const std::string png_path = path("grid.png");
-    ASSERT_TRUE(golden::write_camera_grid_png(png_path, cameras.data(), NUM_CAMERAS, WIDTH, HEIGHT));
-    std::vector<uint32_t> loaded;
-    ASSERT_TRUE(golden::load_camera_grid_png(png_path, NUM_CAMERAS, WIDTH, HEIGHT, loaded));
-    EXPECT_EQ(loaded, cameras);
-
-    const std::vector<uint32_t> sentinel = {0x12345678u};
-    loaded = sentinel;
-    EXPECT_FALSE(golden::load_camera_grid_png(png_path, NUM_CAMERAS, WIDTH + 1, HEIGHT, loaded));
-    EXPECT_EQ(loaded, sentinel);
-}
-
-// pins the published on-disk format: a coordinated writer/reader change (e.g. swapping the
-// height/width fields or transposing the grid) round-trips green but silently changes what the
-// two-repo corpus means, so the header bytes are asserted literally and the deflated payload must
-// inflate to the camera-major row-major little-endian word order
 TEST_F(GoldenIoTest, MultiCameraHeaderAndPayloadBytesArePinned){
     constexpr int NUM_CAMERAS = 4;
     constexpr int WIDTH = 3;
@@ -339,55 +300,6 @@ TEST_F(GoldenIoTest, MultiCameraChannelsHeaderBytesArePinned){
     EXPECT_FALSE(golden::load_multi_camera_float_bin(binary_path, NUM_CAMERAS, WIDTH, HEIGHT, loaded)); // channel mismatch must be rejected
 }
 
-TEST_F(GoldenIoTest, GridQuadrantOrderIsPinned){
-    const std::vector<uint32_t> cameras = {
-        golden::rgba(10, 0, 0),
-        golden::rgba(0, 20, 0),
-        golden::rgba(0, 0, 30),
-        golden::rgba(40, 40, 40)
-    };
-    std::vector<uint32_t> grid;
-    ASSERT_TRUE(golden::make_camera_grid(cameras.data(), 4, 1, 1, grid));
-    ASSERT_EQ(grid.size(), (size_t)4);
-    // 2x2 grid, row-major: cameras 0,1 on the top row and 2,3 on the bottom row
-    EXPECT_EQ(grid[0], cameras[0]);
-    EXPECT_EQ(grid[1], cameras[1]);
-    EXPECT_EQ(grid[2], cameras[2]);
-    EXPECT_EQ(grid[3], cameras[3]);
-    std::vector<uint32_t> split;
-    ASSERT_TRUE(golden::split_camera_grid(grid.data(), 4, 1, 1, split));
-    EXPECT_EQ(split, cameras);
-}
-
-TEST_F(GoldenIoTest, PartialGridFillsUnusedQuadrantsBlack){
-    constexpr int NUM_CAMERAS = 3;
-    constexpr int WIDTH = 3;
-    constexpr int HEIGHT = 2;
-    std::vector<uint32_t> cameras(NUM_CAMERAS * WIDTH * HEIGHT);
-    for(size_t pixel_i = 0; pixel_i < cameras.size(); pixel_i++){
-        cameras[pixel_i] = golden::rgba(static_cast<uint8_t>(pixel_i * 7), static_cast<uint8_t>(pixel_i * 3), 90);
-    }
-    std::vector<uint32_t> grid;
-    ASSERT_TRUE(golden::make_camera_grid(cameras.data(), NUM_CAMERAS, WIDTH, HEIGHT, grid));
-    ASSERT_EQ(grid.size(), (size_t)(WIDTH * 2 * HEIGHT * 2));
-    for(int row = HEIGHT; row < HEIGHT * 2; row++){
-        for(int column = WIDTH; column < WIDTH * 2; column++){
-            EXPECT_EQ(grid[(size_t)row * WIDTH * 2 + column], 0xFF000000u) << "row " << row << " column " << column;
-        }
-    }
-    std::vector<uint32_t> split;
-    ASSERT_TRUE(golden::split_camera_grid(grid.data(), NUM_CAMERAS, WIDTH, HEIGHT, split));
-    EXPECT_EQ(split, cameras);
-
-    const std::string png_path = path("partial_grid.png");
-    ASSERT_TRUE(golden::write_camera_grid_png(png_path, cameras.data(), NUM_CAMERAS, WIDTH, HEIGHT));
-    std::vector<uint32_t> loaded;
-    ASSERT_TRUE(golden::load_camera_grid_png(png_path, NUM_CAMERAS, WIDTH, HEIGHT, loaded));
-    EXPECT_EQ(loaded, cameras);
-}
-
-// the normals encoding is corpus surface: normals.png is the machine-compared target, so the
-// mapping (and its unreachable miss pixel) must never drift
 TEST_F(GoldenIoTest, NormalEncodingIsPinned){
     const float miss[3] = {0.f, 0.f, 0.f};
     EXPECT_EQ(golden::normal_rgba(miss), golden::rgba(128, 128, 128));
@@ -444,14 +356,12 @@ TEST_F(GoldenIoTest, LayoutPathsAreStable){
     EXPECT_EQ(root, "test-data/rendering/raytracing/goldens");
     EXPECT_EQ(golden::layout::procthor_directory(root), root + "/procthor-train-1");
     EXPECT_EQ(golden::layout::procthor_view_directory(root, "07"), root + "/procthor-train-1/07");
-    EXPECT_EQ(golden::layout::overlay_directory(root), root + "/overlay");
-    EXPECT_EQ(golden::layout::overlay_view_directory(root, "partial_shared", "updated", "oblique"), root + "/overlay/partial_shared/updated/oblique");
-    EXPECT_EQ(golden::layout::manifest_path(root + "/overlay"), root + "/overlay/manifest.json");
+    EXPECT_EQ(golden::layout::manifest_path(root + "/procthor-train-1"), root + "/procthor-train-1/manifest.json");
     EXPECT_EQ(golden::layout::view_path(root + "/procthor-train-1/07"), root + "/procthor-train-1/07/view.json");
 
     // the names sort into the review order: goldens by generation, renders, heatmaps
-    const std::string modality = golden::layout::modality_directory(root + "/procthor-train-1/07", "high");
-    EXPECT_EQ(modality, root + "/procthor-train-1/07/high");
+    const std::string modality = golden::layout::output_directory(root + "/procthor-train-1/07", "camera-objects", "high-mb4");
+    EXPECT_EQ(modality, root + "/procthor-train-1/07/camera-objects/high-mb4");
     EXPECT_EQ(golden::layout::golden_png(modality, 0), modality + "/golden-v00.png");
     EXPECT_EQ(golden::layout::golden_png(modality, 1), modality + "/golden-v01.png");
     EXPECT_EQ(golden::layout::golden_bin(modality, 12), modality + "/data/golden-v12.bin");

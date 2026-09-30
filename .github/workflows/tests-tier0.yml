@@ -110,7 +110,7 @@ jobs:
           - backend: vulkan
             cmake_backend: VULKAN
             packages: libassimp-dev libvulkan-dev glslang-tools mesa-vulkan-drivers git-lfs cmake
-            backend_targets: test_rendering_raytracing_overlay_scenarios_vulkan test_rendering_raytracing_overlay_golden_comparison_vulkan test_rendering_raytracing_golden_comparison_vulkan
+            backend_targets: test_rendering_raytracing_overlay_scenarios_vulkan test_rendering_raytracing_golden_comparison_vulkan
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: "5"
       CTEST_PARALLEL_LEVEL: "5"
@@ -133,8 +133,8 @@ jobs:
           test -n "$lavapipe_manifest"
           echo "VK_DRIVER_FILES=$lavapipe_manifest" >> "$GITHUB_ENV"
 
-      # Publication gate: switch RL_TOOLS_REQUIRE_RAYTRACING_GOLDENS to ON after the overlay corpus
-      # is published and tests/download_data.sh is pinned to the corresponding test-data revision.
+      # Publication gate: switch RL_TOOLS_REQUIRE_RAYTRACING_GOLDENS to ON after the corpus is
+      # published and tests/src/rendering/raytracing/download_data.sh is pinned to its revision.
       - name: Configure CMake
         run: >
           cmake -S . -B build-raytracing-${{ matrix.backend }}
@@ -144,13 +144,11 @@ jobs:
           -DRL_TOOLS_RENDERING_RAYTRACING_BACKEND=${{ matrix.cmake_backend }}
           -DRL_TOOLS_REQUIRE_RAYTRACING_GOLDENS=OFF
 
-      - name: Build overlay tests
+      - name: Build raytracing tests
         run: >
           cmake --build build-raytracing-${{ matrix.backend }}
           --target
           test_rendering_raytracing_golden_io
-          test_rendering_raytracing_overlay_corpus_validation
-          test_rendering_raytracing_overlay_golden_comparison_generic
           test_rendering_raytracing_golden_comparison_cpu
           ${{ matrix.backend_targets }}
           --parallel 5
@@ -162,10 +160,6 @@ jobs:
       - name: Test overlay scenarios
         working-directory: build-raytracing-${{ matrix.backend }}
         run: ctest -L '^overlay$' --no-tests=error --output-on-failure --timeout 20 -j5
-
-      - name: Test overlay goldens
-        working-directory: build-raytracing-${{ matrix.backend }}
-        run: ctest -L '^overlay-golden$' --no-tests=error --output-on-failure --timeout 300 -j5
 
       # ProcTHOR corpus (tests/src/rendering/raytracing/GOLDEN_LEDGER.md): cross-backend tier on
       # generic and lavapipe, the OptiX reference tier only runs on hosts with an OptiX build

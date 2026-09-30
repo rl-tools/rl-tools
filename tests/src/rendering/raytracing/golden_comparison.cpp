@@ -1,5 +1,5 @@
-// Renders the golden cases (tests/src/rendering/raytracing/golden_cases.h) and compares against
-// the OptiX golden renderings in tests/data/rendering/raytracing/goldens/procthor-train-1 (see
+// Renders every case of tests/src/rendering/raytracing/golden_cases.h and compares against the
+// OptiX golden renderings in tests/data/rendering/raytracing/goldens/procthor-train-1 (see
 // AGENTS.md "Raytracing Golden Renderings" and GOLDEN_LEDGER.md). Two targets are compiled from
 // this file:
 // - test_rendering_raytracing_golden_comparison_cpu: pinned to the generic (CPU) backend (included
@@ -79,8 +79,9 @@ using Rendered = golden::Rendered<T>;
 // is held to zero for it: a nonzero deviation is a behavioral change that needs a GOLDEN_LEDGER.md
 // row. The other backends get bounds at about twice the worst floor measured against corpus v2
 // on generic, Vulkan (NVIDIA and lavapipe) and WebGPU: RGB MAD 0.16, RGB outliers 0.31%, normals
-// MAD 0.0013, probe distances 5.3e-7, flow status and normals outliers one pixel, everything else
-// zero; fractions with a zero floor allow 0.05% (33 pixels of a 256x256 pose). The RGB outliers
+// MAD 0.0013, probe distances 5.3e-7, flow status and normals outliers one pixel, forward flow of
+// the moving cubes 0.0005 px mean endpoint error and one outlier pixel, everything else zero;
+// fractions with a zero floor allow 0.05% (33 pixels of a 256x256 pose). The RGB outliers
 // are silhouette pixels landing on different surfaces; the subset not explained by the other
 // image's neighborhood (golden_metrics.h) is a surface shaded differently, floor two pixels per
 // pose, while a re-materialised object covers ~3% of a pose.
@@ -121,29 +122,37 @@ namespace {
         return std::string(RL_TOOLS_GOLDEN_BACKEND_NAME) + (lavapipe ? "-lavapipe" : "");
     }
 
-    std::string golden_directory(TI camera_i, const std::string& modality){
-        return golden::layout::modality_directory(golden::layout::procthor_view_directory(GOLDEN_ROOT, CASES::POSES[camera_i].id), modality);
+    std::string golden_directory(TI camera_i, const char* state, const std::string& output){
+        return golden::layout::output_directory(golden::layout::procthor_view_directory(GOLDEN_ROOT, CASES::POSES[camera_i].id), state, output);
+    }
+
+    std::string golden_png(TI camera_i, const char* state, const std::string& output){
+        return golden::layout::golden_png(golden_directory(camera_i, state, output), golden::PROCTHOR_TRAIN_1_GOLDEN_VERSION);
+    }
+
+    std::string golden_bin(TI camera_i, const char* state, const std::string& output){
+        return golden::layout::golden_bin(golden_directory(camera_i, state, output), golden::PROCTHOR_TRAIN_1_GOLDEN_VERSION);
     }
 
     // render-<backend>.png and versus-*.png live next to the goldens
-    std::string review_directory(TI camera_i, const std::string& modality){
-        const std::string directory = golden_directory(camera_i, modality);
+    std::string review_directory(TI camera_i, const char* state, const std::string& output){
+        const std::string directory = golden_directory(camera_i, state, output);
         std::filesystem::create_directories(directory);
         return directory;
     }
 
-    std::string render_path(TI camera_i, const std::string& modality){
-        return golden::layout::render_png(review_directory(camera_i, modality), backend_tag());
+    std::string render_path(TI camera_i, const char* state, const std::string& output){
+        return golden::layout::render_png(review_directory(camera_i, state, output), backend_tag());
     }
 
-    std::string versus_path(TI camera_i, const std::string& modality, const std::string& name = "render-" + backend_tag()){
-        return golden::layout::versus_png(review_directory(camera_i, modality), name);
+    std::string versus_path(TI camera_i, const char* state, const std::string& output, const std::string& name = "render-" + backend_tag()){
+        return golden::layout::versus_png(review_directory(camera_i, state, output), name);
     }
 
-    // the earlier generations that exist for this modality (golden-vNN.png or data/golden-vNN.bin)
+    // the earlier generations that exist for this output (golden-vNN.png or data/golden-vNN.bin)
     std::vector<uint32_t> historic_versions(const std::string& golden_directory, bool binary){
         std::vector<uint32_t> versions;
-        for(uint32_t version = 0; version < golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION; version++){
+        for(uint32_t version = 0; version < golden::PROCTHOR_TRAIN_1_GOLDEN_VERSION; version++){
             if(std::filesystem::exists(binary ? golden::layout::golden_bin(golden_directory, version) : golden::layout::golden_png(golden_directory, version))){
                 versions.push_back(version);
             }
@@ -151,14 +160,14 @@ namespace {
         return versions;
     }
 
-    // metra series raytracing/golden/procthor/<backend>/<modality>/<metric> with the bound as
-    // <metric>_bound and the corpus version once per process
+    // metra series raytracing/golden/procthor/<backend>/<state>/<output>/<metric> with the bound
+    // as <metric>_bound and the corpus version once per process
     std::string metric_prefix(){
         return "raytracing/golden/procthor/" + backend_tag() + "/";
     }
 
     void log_metric(const std::string& name, double value, double bound){
-        static const bool version_logged = metra::log(metric_prefix() + "version", golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION);
+        static const bool version_logged = metra::log(metric_prefix() + "version", golden::PROCTHOR_TRAIN_1_GOLDEN_VERSION);
         (void)version_logged;
         metra::log(metric_prefix() + name, value);
         metra::log(metric_prefix() + name + "_bound", bound);
@@ -184,7 +193,9 @@ namespace {
             for(int channel = 0; channel < 3; channel++){
                 const int diff = (int)ours_bytes[pixel_i * 4 + channel] - (int)golden_bytes[pixel_i * 4 + channel];
                 const int abs_diff = diff < 0 ? -diff : diff;
-                if(abs_diff > stats.channel_max[channel]) stats.channel_max[channel] = abs_diff;
+                if(abs_diff > stats.channel_max[channel]){
+                    stats.channel_max[channel] = abs_diff;
+                }
                 total += abs_diff;
                 outlier = outlier || abs_diff > RGB_OUTLIER_CHANNEL_DELTA;
             }
@@ -198,20 +209,23 @@ namespace {
     }
 
     // the current golden against ours and against every earlier generation, as heatmaps next to it
-    template <typename SPEC>
-    void write_png_reviews(TI camera_i, const std::string& modality, const uint32_t* ours, const std::vector<uint32_t>& golden_pixels){
-        golden::write_camera_png(render_path(camera_i, modality), ours, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
-        golden::write_camera_diff_png(versus_path(camera_i, modality), ours, golden_pixels.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
-        for(const uint32_t version : historic_versions(golden_directory(camera_i, modality), false)){
+    void write_png_reviews(TI camera_i, const char* state, const std::string& output, const uint32_t* ours, const std::vector<uint32_t>& golden_pixels){
+        golden::write_camera_png(render_path(camera_i, state, output), ours, CASES::CAM_WIDTH, CASES::CAM_HEIGHT);
+        golden::write_camera_diff_png(versus_path(camera_i, state, output), ours, golden_pixels.data(), CASES::CAM_WIDTH, CASES::CAM_HEIGHT);
+        const std::string directory = golden_directory(camera_i, state, output);
+        for(const uint32_t version : historic_versions(directory, false)){
             std::vector<uint32_t> historic;
-            if(golden::load_camera_png(golden::layout::golden_png(golden_directory(camera_i, modality), version), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, historic)){
-                golden::write_camera_diff_png(versus_path(camera_i, modality, golden::layout::golden_name(version)), golden_pixels.data(), historic.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+            if(golden::load_camera_png(golden::layout::golden_png(directory, version), CASES::CAM_WIDTH, CASES::CAM_HEIGHT, historic)){
+                golden::write_camera_diff_png(versus_path(camera_i, state, output, golden::layout::golden_name(version)), golden_pixels.data(), historic.data(), CASES::CAM_WIDTH, CASES::CAM_HEIGHT);
             }
         }
     }
 
-    template <typename SPEC>
-    void expect_rgb_matches_golden(const char* modality, const Rendered& rendered){
+    template <typename CASE>
+    void expect_rgb(const Rendered& rendered){
+        using SPEC = typename CASE::SPEC;
+        const std::string output = CASES::rgb_output<SPEC>();
+        const std::string name = std::string(CASE::STATE) + "/" + output;
         double worst_mad = 0;
         double worst_outliers = 0;
         double worst_shading_outliers = 0;
@@ -221,14 +235,14 @@ namespace {
             const char* id = CASES::POSES[camera_i].id;
             const uint32_t* ours = rendered.frame_buffer.data() + camera_i * SPEC::CAM_PIXELS;
             std::vector<uint32_t> golden_pixels;
-            ASSERT_TRUE(golden::load_camera_png(golden::layout::golden_png(golden_directory(camera_i, modality), golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_pixels)) << "failed to load golden: " << id << "/" << modality;
+            ASSERT_TRUE(golden::load_camera_png(golden_png(camera_i, CASE::STATE, output), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_pixels)) << "failed to load golden: " << id << "/" << name;
             const RGBStats stats = compare_rgb(ours, golden_pixels.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
-            write_png_reviews<SPEC>(camera_i, modality, ours, golden_pixels);
+            write_png_reviews(camera_i, CASE::STATE, output, ours, golden_pixels);
             EXPECT_LE(stats.mad, RGB_MAD_THRESHOLD)
-                << modality << " pose " << id << ": RGB mean abs diff " << stats.mad
+                << name << " pose " << id << ": RGB mean abs diff " << stats.mad
                 << " (max R=" << stats.channel_max[0] << " G=" << stats.channel_max[1] << " B=" << stats.channel_max[2] << ")";
-            EXPECT_LE(stats.outlier_fraction, RGB_OUTLIER_FRACTION) << modality << " pose " << id << ": RGB outlier fraction " << stats.outlier_fraction;
-            EXPECT_LE(stats.shading_outlier_fraction, RGB_SHADING_OUTLIER_FRACTION) << modality << " pose " << id << ": RGB shading outlier fraction " << stats.shading_outlier_fraction;
+            EXPECT_LE(stats.outlier_fraction, RGB_OUTLIER_FRACTION) << name << " pose " << id << ": RGB outlier fraction " << stats.outlier_fraction;
+            EXPECT_LE(stats.shading_outlier_fraction, RGB_SHADING_OUTLIER_FRACTION) << name << " pose " << id << ": RGB shading outlier fraction " << stats.shading_outlier_fraction;
             worst_outliers = std::max(worst_outliers, stats.outlier_fraction);
             worst_shading_outliers = std::max(worst_shading_outliers, stats.shading_outlier_fraction);
             if(stats.mad > worst_mad){
@@ -236,45 +250,33 @@ namespace {
                 worst_id = id;
             }
             for(int channel = 0; channel < 3; channel++){
-                if(stats.channel_max[channel] > max_channel[channel]) max_channel[channel] = stats.channel_max[channel];
+                max_channel[channel] = std::max(max_channel[channel], stats.channel_max[channel]);
             }
         }
-        std::printf("[golden] %s: worst_pose=%s rgb_mad=%.4f rgb_outliers=%.4f%% shading_outliers=%.4f%% max=(%d,%d,%d) over %d poses\n", modality, worst_id, worst_mad, worst_outliers * 100, worst_shading_outliers * 100, max_channel[0], max_channel[1], max_channel[2], (int)SPEC::NUM_CAMERAS);
-        log_metric(std::string(modality) + "/rgb_mad", worst_mad, RGB_MAD_THRESHOLD);
-        log_metric(std::string(modality) + "/rgb_outliers", worst_outliers, RGB_OUTLIER_FRACTION);
-        log_metric(std::string(modality) + "/shading_outliers", worst_shading_outliers, RGB_SHADING_OUTLIER_FRACTION);
+        std::printf("[golden] %s: worst_pose=%s rgb_mad=%.4f rgb_outliers=%.4f%% shading_outliers=%.4f%% max=(%d,%d,%d) over %d poses\n", name.c_str(), worst_id, worst_mad, worst_outliers * 100, worst_shading_outliers * 100, max_channel[0], max_channel[1], max_channel[2], (int)SPEC::NUM_CAMERAS);
+        log_metric(name + "/rgb_mad", worst_mad, RGB_MAD_THRESHOLD);
+        log_metric(name + "/rgb_outliers", worst_outliers, RGB_OUTLIER_FRACTION);
+        log_metric(name + "/shading_outliers", worst_shading_outliers, RGB_SHADING_OUTLIER_FRACTION);
     }
 
-    template <typename SPEC, bool T_CAMERA_MOTION = true>
-    void run_rgb_case(const char* modality){
-        DEVICE device;
-        rlt::init(device);
-        Rendered rendered;
-        ASSERT_TRUE((golden::render_case<SPEC, BACKEND, DEVICE, CASES, T_CAMERA_MOTION>(device, SCENE_PATH, rendered))) << "failed to load scene: " << SCENE_PATH;
-        expect_rgb_matches_golden<SPEC>(modality, rendered);
-    }
-
-    void run_depth_case(){
-        using SPEC = CASES::LOW_RGBD;
-        DEVICE device;
-        rlt::init(device);
-        Rendered rendered;
-        ASSERT_TRUE((golden::render_case<SPEC, BACKEND, DEVICE, CASES>(device, SCENE_PATH, rendered))) << "failed to load scene: " << SCENE_PATH;
-
+    template <typename CASE>
+    void expect_depth(const Rendered& rendered){
+        using SPEC = typename CASE::SPEC;
+        const std::string name = std::string(CASE::STATE) + "/depth";
         double worst_mad = 0;
         double worst_outliers = 0;
         for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
             const char* id = CASES::POSES[camera_i].id;
-            const std::string directory = golden_directory(camera_i, "depth");
+            const std::string directory = golden_directory(camera_i, CASE::STATE, "depth");
             std::vector<float> golden_depth;
-            ASSERT_TRUE(golden::load_multi_camera_float_bin(golden::layout::golden_bin(directory, golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_depth)) << "failed to load golden depth: " << id;
+            ASSERT_TRUE(golden::load_multi_camera_float_bin(golden_bin(camera_i, CASE::STATE, "depth"), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_depth)) << "failed to load golden: " << id << "/" << name;
             const float* ours = rendered.depth_buffer.data() + camera_i * SPEC::CAM_PIXELS;
-            golden::write_camera_depth_png(render_path(camera_i, "depth"), ours, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
-            golden::write_camera_depth_diff_png(versus_path(camera_i, "depth"), golden_depth.data(), ours, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
+            golden::write_camera_depth_png(render_path(camera_i, CASE::STATE, "depth"), ours, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
+            golden::write_camera_depth_diff_png(versus_path(camera_i, CASE::STATE, "depth"), golden_depth.data(), ours, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
             for(const uint32_t version : historic_versions(directory, true)){
                 std::vector<float> historic;
                 if(golden::load_multi_camera_float_bin(golden::layout::golden_bin(directory, version), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, historic)){
-                    golden::write_camera_depth_diff_png(versus_path(camera_i, "depth", golden::layout::golden_name(version)), historic.data(), golden_depth.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
+                    golden::write_camera_depth_diff_png(versus_path(camera_i, CASE::STATE, "depth", golden::layout::golden_name(version)), historic.data(), golden_depth.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
                 }
             }
             double total_abs_diff = 0;
@@ -284,30 +286,26 @@ namespace {
                 const double abs_diff = diff < 0 ? -diff : diff;
                 total_abs_diff += abs_diff;
                 const double magnitude = std::max((double)golden_depth[pixel_i], 1e-6);
-                if(abs_diff / magnitude > DEPTH_OUTLIER_REL){
-                    outliers++;
-                }
+                outliers += abs_diff / magnitude > DEPTH_OUTLIER_REL;
             }
             const double depth_mad = total_abs_diff / (double)golden_depth.size() / (double)rendered.max_depth;
             const double outlier_fraction = (double)outliers / (double)golden_depth.size();
-            EXPECT_LE(depth_mad, DEPTH_MAD_THRESHOLD) << "depth pose " << id << ": normalized depth mean abs diff " << depth_mad;
-            EXPECT_LE(outlier_fraction, DEPTH_OUTLIER_FRACTION) << "depth pose " << id << ": depth outlier fraction " << outlier_fraction;
+            EXPECT_LE(depth_mad, DEPTH_MAD_THRESHOLD) << name << " pose " << id << ": normalized depth mean abs diff " << depth_mad;
+            EXPECT_LE(outlier_fraction, DEPTH_OUTLIER_FRACTION) << name << " pose " << id << ": depth outlier fraction " << outlier_fraction;
             worst_mad = std::max(worst_mad, depth_mad);
             worst_outliers = std::max(worst_outliers, outlier_fraction);
         }
-        std::printf("[golden] depth: depth_mad=%.2e depth_outliers=%.4f%%\n", worst_mad, worst_outliers * 100);
-        log_metric("depth/depth_mad", worst_mad, DEPTH_MAD_THRESHOLD);
-        log_metric("depth/depth_outliers", worst_outliers, DEPTH_OUTLIER_FRACTION);
+        std::printf("[golden] %s: depth_mad=%.2e depth_outliers=%.4f%%\n", name.c_str(), worst_mad, worst_outliers * 100);
+        log_metric(name + "/depth_mad", worst_mad, DEPTH_MAD_THRESHOLD);
+        log_metric(name + "/depth_outliers", worst_outliers, DEPTH_OUTLIER_FRACTION);
     }
 
-    void run_normals_case(){
-        using SPEC = CASES::GEOMETRY;
-        DEVICE device;
-        rlt::init(device);
-        Rendered rendered;
-        ASSERT_TRUE((golden::render_case<SPEC, BACKEND, DEVICE, CASES>(device, SCENE_PATH, rendered))) << "failed to load scene: " << SCENE_PATH;
-
+    template <typename CASE>
+    void expect_normals(const Rendered& rendered){
+        using SPEC = typename CASE::SPEC;
+        const std::string name = std::string(CASE::STATE) + "/normals";
         const size_t pixel_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+        ASSERT_EQ(rendered.normals.size(), pixel_count * 3);
         std::vector<uint32_t> encoded(pixel_count);
         golden::colorize_normals(rendered.normals.data(), pixel_count, encoded.data());
 
@@ -316,9 +314,9 @@ namespace {
         for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
             const char* id = CASES::POSES[camera_i].id;
             std::vector<uint32_t> golden_pixels;
-            ASSERT_TRUE(golden::load_camera_png(golden::layout::golden_png(golden_directory(camera_i, "normals"), golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_pixels)) << "failed to load golden: " << id << "/normals";
+            ASSERT_TRUE(golden::load_camera_png(golden_png(camera_i, CASE::STATE, "normals"), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_pixels)) << "failed to load golden: " << id << "/" << name;
             const uint32_t* ours = encoded.data() + camera_i * SPEC::CAM_PIXELS;
-            write_png_reviews<SPEC>(camera_i, "normals", ours, golden_pixels);
+            write_png_reviews(camera_i, CASE::STATE, "normals", ours, golden_pixels);
             double total = 0;
             size_t outlier_pixels = 0;
             const auto* ours_bytes = reinterpret_cast<const uint8_t*>(ours);
@@ -335,14 +333,70 @@ namespace {
             }
             const double mad = total / ((double)SPEC::CAM_PIXELS * 3);
             const double outlier_fraction = (double)outlier_pixels / (double)SPEC::CAM_PIXELS;
-            EXPECT_LE(mad, NORMALS_MAD_THRESHOLD) << "normals pose " << id << ": encoded mean abs diff " << mad;
-            EXPECT_LE(outlier_fraction, NORMALS_OUTLIER_FRACTION) << "normals pose " << id << ": outlier fraction " << outlier_fraction;
+            EXPECT_LE(mad, NORMALS_MAD_THRESHOLD) << name << " pose " << id << ": encoded mean abs diff " << mad;
+            EXPECT_LE(outlier_fraction, NORMALS_OUTLIER_FRACTION) << name << " pose " << id << ": outlier fraction " << outlier_fraction;
             worst_mad = std::max(worst_mad, mad);
             worst_outliers = std::max(worst_outliers, outlier_fraction);
         }
-        std::printf("[golden] normals: normals_mad=%.4f normals_outliers=%.4f%% over %d poses\n", worst_mad, worst_outliers * 100, (int)SPEC::NUM_CAMERAS);
-        log_metric("normals/normals_mad", worst_mad, NORMALS_MAD_THRESHOLD);
-        log_metric("normals/normals_outliers", worst_outliers, NORMALS_OUTLIER_FRACTION);
+        std::printf("[golden] %s: normals_mad=%.4f normals_outliers=%.4f%% over %d poses\n", name.c_str(), worst_mad, worst_outliers * 100, (int)SPEC::NUM_CAMERAS);
+        log_metric(name + "/normals_mad", worst_mad, NORMALS_MAD_THRESHOLD);
+        log_metric(name + "/normals_outliers", worst_outliers, NORMALS_OUTLIER_FRACTION);
+    }
+
+    template <typename CASE>
+    void expect_segmentation(const Rendered& rendered){
+        using SPEC = typename CASE::SPEC;
+        const std::string name = std::string(CASE::STATE) + "/segmentation";
+        ASSERT_EQ(rendered.segmentation.size(), (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
+
+        double worst_mismatches = 0;
+        double worst_background_mismatches = 0;
+        for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
+            const char* id = CASES::POSES[camera_i].id;
+            const std::string directory = golden_directory(camera_i, CASE::STATE, "segmentation");
+            std::vector<uint32_t> golden_segmentation;
+            ASSERT_TRUE(golden::load_multi_camera_uint32_bin(golden_bin(camera_i, CASE::STATE, "segmentation"), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_segmentation)) << "failed to load golden: " << id << "/" << name;
+            const uint32_t* ours = rendered.segmentation.data() + camera_i * SPEC::CAM_PIXELS;
+            {
+                // the review PNG is corpus surface too: it must be exactly the false-color encoding of the binary
+                std::vector<uint32_t> golden_review;
+                ASSERT_TRUE(golden::load_camera_png(golden_png(camera_i, CASE::STATE, "segmentation"), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_review)) << "failed to load golden: " << id << "/" << name << " review image";
+                std::vector<uint32_t> expected(golden_segmentation.size());
+                golden::colorize_segmentation(golden_segmentation.data(), golden_segmentation.size(), expected.data());
+                EXPECT_EQ(golden_review, expected) << name << " pose " << id << ": review PNG does not match the binary";
+            }
+            std::vector<uint32_t> image(SPEC::CAM_PIXELS);
+            golden::colorize_segmentation(ours, SPEC::CAM_PIXELS, image.data());
+            golden::write_camera_png(render_path(camera_i, CASE::STATE, "segmentation"), image.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+            const auto write_versus = [&](const std::string& versus_name, const uint32_t* reference, const uint32_t* other){
+                for(size_t pixel_i = 0; pixel_i < (size_t)SPEC::CAM_PIXELS; pixel_i++){
+                    image[pixel_i] = golden::segmentation_diff_color(reference[pixel_i], other[pixel_i]);
+                }
+                golden::write_camera_png(versus_path(camera_i, CASE::STATE, "segmentation", versus_name), image.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+            };
+            write_versus("render-" + backend_tag(), golden_segmentation.data(), ours);
+            for(const uint32_t version : historic_versions(directory, true)){
+                std::vector<uint32_t> historic;
+                if(golden::load_multi_camera_uint32_bin(golden::layout::golden_bin(directory, version), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, historic)){
+                    write_versus(golden::layout::golden_name(version), historic.data(), golden_segmentation.data());
+                }
+            }
+            size_t mismatches = 0;
+            size_t background_mismatches = 0;
+            for(size_t pixel_i = 0; pixel_i < (size_t)SPEC::CAM_PIXELS; pixel_i++){
+                mismatches += ours[pixel_i] != golden_segmentation[pixel_i];
+                background_mismatches += (ours[pixel_i] == golden::SEGMENTATION_BACKGROUND_ID) != (golden_segmentation[pixel_i] == golden::SEGMENTATION_BACKGROUND_ID);
+            }
+            const double mismatch_fraction = (double)mismatches / (double)SPEC::CAM_PIXELS;
+            const double background_fraction = (double)background_mismatches / (double)SPEC::CAM_PIXELS;
+            EXPECT_LE(mismatch_fraction, SEGMENTATION_MISMATCH_FRACTION) << name << " pose " << id << ": id mismatch fraction " << mismatch_fraction;
+            EXPECT_LE(background_fraction, SEGMENTATION_BACKGROUND_MISMATCH_FRACTION) << name << " pose " << id << ": hit/miss mismatch fraction " << background_fraction;
+            worst_mismatches = std::max(worst_mismatches, mismatch_fraction);
+            worst_background_mismatches = std::max(worst_background_mismatches, background_fraction);
+        }
+        std::printf("[golden] %s: segmentation_mismatch=%.4f%% background_mismatch=%.4f%% over %d poses\n", name.c_str(), worst_mismatches * 100, worst_background_mismatches * 100, (int)SPEC::NUM_CAMERAS);
+        log_metric(name + "/segmentation_mismatch", worst_mismatches, SEGMENTATION_MISMATCH_FRACTION);
+        log_metric(name + "/background_mismatch", worst_background_mismatches, SEGMENTATION_BACKGROUND_MISMATCH_FRACTION);
     }
 
     struct FlowDirectionView{
@@ -351,18 +405,18 @@ namespace {
         const std::vector<uint32_t>* status;
     };
 
-    void write_flow_status_reviews(TI camera_i, const std::string& modality, const uint32_t* ours_status, const std::vector<uint32_t>& golden_status){
+    void write_flow_status_reviews(TI camera_i, const char* state, const std::string& output, const uint32_t* ours_status, const std::vector<uint32_t>& golden_status){
         std::vector<uint32_t> image(golden_status.size());
         golden::colorize_flow_status(ours_status, image.size(), image.data());
-        golden::write_camera_png(render_path(camera_i, modality), image.data(), CASES::CAM_WIDTH, CASES::CAM_HEIGHT);
+        golden::write_camera_png(render_path(camera_i, state, output), image.data(), CASES::CAM_WIDTH, CASES::CAM_HEIGHT);
         const auto write_versus = [&](const std::string& name, const uint32_t* reference, const uint32_t* other){
             for(size_t pixel_i = 0; pixel_i < image.size(); pixel_i++){
                 image[pixel_i] = golden::flow_status_diff_color(reference[pixel_i], other[pixel_i]);
             }
-            golden::write_camera_png(versus_path(camera_i, modality, name), image.data(), CASES::CAM_WIDTH, CASES::CAM_HEIGHT);
+            golden::write_camera_png(versus_path(camera_i, state, output, name), image.data(), CASES::CAM_WIDTH, CASES::CAM_HEIGHT);
         };
         write_versus("render-" + backend_tag(), golden_status.data(), ours_status);
-        const std::string directory = golden_directory(camera_i, modality);
+        const std::string directory = golden_directory(camera_i, state, output);
         for(const uint32_t version : historic_versions(directory, true)){
             std::vector<uint32_t> historic;
             if(golden::load_multi_camera_uint32_bin(golden::layout::golden_bin(directory, version), 1, CASES::CAM_WIDTH, CASES::CAM_HEIGHT, historic)){
@@ -371,17 +425,17 @@ namespace {
         }
     }
 
-    void write_flow_reviews(TI camera_i, const std::string& modality, const float* ours, const std::vector<float>& golden_flow){
-        rlt::rendering::raytracing::detail::write_flow_grid_png<CASES::SingleCamera>(ours, render_path(camera_i, modality).c_str());
+    void write_flow_reviews(TI camera_i, const char* state, const std::string& output, const float* ours, const std::vector<float>& golden_flow){
+        rlt::rendering::raytracing::detail::write_flow_grid_png<CASES::SingleCamera>(ours, render_path(camera_i, state, output).c_str());
         std::vector<float> difference(golden_flow.size());
         const auto write_versus = [&](const std::string& name, const float* reference, const float* other){
             for(size_t value_i = 0; value_i < difference.size(); value_i++){
                 difference[value_i] = other[value_i] - reference[value_i];
             }
-            rlt::rendering::raytracing::detail::write_flow_grid_png<CASES::SingleCamera>(difference.data(), versus_path(camera_i, modality, name).c_str());
+            rlt::rendering::raytracing::detail::write_flow_grid_png<CASES::SingleCamera>(difference.data(), versus_path(camera_i, state, output, name).c_str());
         };
         write_versus("render-" + backend_tag(), golden_flow.data(), ours);
-        const std::string directory = golden_directory(camera_i, modality);
+        const std::string directory = golden_directory(camera_i, state, output);
         for(const uint32_t version : historic_versions(directory, true)){
             std::vector<float> historic;
             if(golden::load_multi_camera_float_bin(golden::layout::golden_bin(directory, version), 1, CASES::CAM_WIDTH, CASES::CAM_HEIGHT, historic, 2)){
@@ -390,13 +444,15 @@ namespace {
         }
     }
 
-    template <typename SPEC>
-    void expect_flow_direction_matches_golden(const char* name, const FlowDirectionView& direction){
+    template <typename CASE>
+    void expect_flow_direction(const FlowDirectionView& direction){
+        using SPEC = typename CASE::SPEC;
         using FlowStatus = rlt::rendering::raytracing::FlowStatus;
-        const std::string modality = std::string(name) + direction.suffix;
-        const std::string status_modality = modality + "-status";
-        ASSERT_EQ(direction.flow->size(), (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS * 2) << modality;
-        ASSERT_EQ(direction.status->size(), (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS) << modality;
+        const std::string output = std::string("flow") + direction.suffix;
+        const std::string status_output = output + "-status";
+        const std::string name = std::string(CASE::STATE) + "/" + output;
+        ASSERT_EQ(direction.flow->size(), (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS * 2) << name;
+        ASSERT_EQ(direction.status->size(), (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS) << name;
         double worst_epe = 0;
         double worst_outliers = 0;
         double worst_status_mismatch = 0;
@@ -404,20 +460,20 @@ namespace {
             const char* id = CASES::POSES[camera_i].id;
             std::vector<float> golden_flow;
             std::vector<uint32_t> golden_status;
-            ASSERT_TRUE(golden::load_multi_camera_float_bin(golden::layout::golden_bin(golden_directory(camera_i, modality), golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_flow, 2)) << "failed to load golden: " << id << "/" << modality;
-            ASSERT_TRUE(golden::load_multi_camera_uint32_bin(golden::layout::golden_bin(golden_directory(camera_i, status_modality), golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_status)) << "failed to load golden: " << id << "/" << status_modality;
+            ASSERT_TRUE(golden::load_multi_camera_float_bin(golden_bin(camera_i, CASE::STATE, output), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_flow, 2)) << "failed to load golden: " << id << "/" << name;
+            ASSERT_TRUE(golden::load_multi_camera_uint32_bin(golden_bin(camera_i, CASE::STATE, status_output), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_status)) << "failed to load golden: " << id << "/" << name << "-status";
             const float* ours = direction.flow->data() + (size_t)camera_i * SPEC::CAM_PIXELS * 2;
             const uint32_t* ours_status = direction.status->data() + (size_t)camera_i * SPEC::CAM_PIXELS;
             {
                 // the review PNG is corpus surface too: exactly the pinned false color of the status binary
-                std::vector<uint32_t> golden_png;
-                ASSERT_TRUE(golden::load_camera_png(golden::layout::golden_png(golden_directory(camera_i, status_modality), golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_png)) << "failed to load golden: " << id << "/" << status_modality << " review image";
+                std::vector<uint32_t> golden_review;
+                ASSERT_TRUE(golden::load_camera_png(golden_png(camera_i, CASE::STATE, status_output), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_review)) << "failed to load golden: " << id << "/" << name << "-status review image";
                 std::vector<uint32_t> expected(golden_status.size());
                 golden::colorize_flow_status(golden_status.data(), golden_status.size(), expected.data());
-                EXPECT_EQ(golden_png, expected) << status_modality << " pose " << id << ": review PNG does not match the binary";
+                EXPECT_EQ(golden_review, expected) << name << "-status pose " << id << ": review PNG does not match the binary";
             }
-            write_flow_reviews(camera_i, modality, ours, golden_flow);
-            write_flow_status_reviews(camera_i, status_modality, ours_status, golden_status);
+            write_flow_reviews(camera_i, CASE::STATE, output, ours, golden_flow);
+            write_flow_status_reviews(camera_i, CASE::STATE, status_output, ours_status, golden_status);
             double epe_total = 0;
             size_t compared = 0;
             size_t outliers = 0;
@@ -437,194 +493,114 @@ namespace {
             const double mean_epe = epe_total / std::max((double)compared, 1.0);
             const double outlier_fraction = (double)outliers / std::max((double)compared, 1.0);
             const double status_mismatch_fraction = (double)status_mismatches / (double)SPEC::CAM_PIXELS;
-            EXPECT_GT(compared, (size_t)0) << modality << " pose " << id << ": no pixel is VALID in both target and current";
-            EXPECT_LE(mean_epe, FLOW_MEAN_EPE_THRESHOLD) << modality << " pose " << id << ": mean endpoint error " << mean_epe;
-            EXPECT_LE(outlier_fraction, FLOW_OUTLIER_FRACTION) << modality << " pose " << id << ": flow outlier fraction " << outlier_fraction;
-            EXPECT_LE(status_mismatch_fraction, FLOW_STATUS_MISMATCH_FRACTION) << modality << " pose " << id << ": flow status mismatch fraction " << status_mismatch_fraction;
+            EXPECT_GT(compared, (size_t)0) << name << " pose " << id << ": no pixel is VALID in both target and current";
+            EXPECT_LE(mean_epe, FLOW_MEAN_EPE_THRESHOLD) << name << " pose " << id << ": mean endpoint error " << mean_epe;
+            EXPECT_LE(outlier_fraction, FLOW_OUTLIER_FRACTION) << name << " pose " << id << ": flow outlier fraction " << outlier_fraction;
+            EXPECT_LE(status_mismatch_fraction, FLOW_STATUS_MISMATCH_FRACTION) << name << " pose " << id << ": flow status mismatch fraction " << status_mismatch_fraction;
             worst_epe = std::max(worst_epe, mean_epe);
             worst_outliers = std::max(worst_outliers, outlier_fraction);
             worst_status_mismatch = std::max(worst_status_mismatch, status_mismatch_fraction);
         }
-        std::printf("[golden] %s: flow_epe=%.4f flow_outliers=%.4f%% status_mismatch=%.4f%% over %d poses\n", modality.c_str(), worst_epe, worst_outliers * 100, worst_status_mismatch * 100, (int)SPEC::NUM_CAMERAS);
-        log_metric(modality + "/flow_epe", worst_epe, FLOW_MEAN_EPE_THRESHOLD);
-        log_metric(modality + "/flow_outliers", worst_outliers, FLOW_OUTLIER_FRACTION);
-        log_metric(modality + "/status_mismatch", worst_status_mismatch, FLOW_STATUS_MISMATCH_FRACTION);
+        std::printf("[golden] %s: flow_epe=%.4f flow_outliers=%.4f%% status_mismatch=%.4f%% over %d poses\n", name.c_str(), worst_epe, worst_outliers * 100, worst_status_mismatch * 100, (int)SPEC::NUM_CAMERAS);
+        log_metric(name + "/flow_epe", worst_epe, FLOW_MEAN_EPE_THRESHOLD);
+        log_metric(name + "/flow_outliers", worst_outliers, FLOW_OUTLIER_FRACTION);
+        log_metric(name + "/status_mismatch", worst_status_mismatch, FLOW_STATUS_MISMATCH_FRACTION);
     }
 
-    template <typename SPEC, bool T_CAMERA_MOTION = true>
-    void run_flow_case(const char* name){
-        static_assert(SPEC::HAS_FLOW && SPEC::HAS_FLOW_FORWARD, "the flow goldens cover both directions");
-        DEVICE device;
-        rlt::init(device);
-        Rendered rendered;
-        ASSERT_TRUE((golden::render_case<SPEC, BACKEND, DEVICE, CASES, T_CAMERA_MOTION>(device, SCENE_PATH, rendered))) << "failed to load scene: " << SCENE_PATH;
-        expect_flow_direction_matches_golden<SPEC>(name, FlowDirectionView{"", &rendered.flow, &rendered.flow_status});
-        expect_flow_direction_matches_golden<SPEC>(name, FlowDirectionView{"-forward", &rendered.flow_forward, &rendered.flow_forward_status});
-    }
-
-    void run_segmentation_case(){
-        using SPEC = CASES::GEOMETRY;
-        DEVICE device;
-        rlt::init(device);
-        Rendered rendered;
-        ASSERT_TRUE((golden::render_case<SPEC, BACKEND, DEVICE, CASES>(device, SCENE_PATH, rendered))) << "failed to load scene: " << SCENE_PATH;
-        ASSERT_EQ(rendered.segmentation.size(), (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
-
-        double worst_mismatches = 0;
-        double worst_background_mismatches = 0;
+    template <typename CASE>
+    void expect_probes(const Rendered& rendered){
+        using SPEC = typename CASE::SPEC;
+        const std::string name = std::string(CASE::STATE) + "/probes";
+        ASSERT_EQ(rendered.probes.size(), (size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);
+        int hit_mismatches = 0;
+        double max_rel_distance_diff = 0;
         for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
             const char* id = CASES::POSES[camera_i].id;
-            const std::string directory = golden_directory(camera_i, "segmentation");
-            std::vector<uint32_t> golden_segmentation;
-            ASSERT_TRUE(golden::load_multi_camera_uint32_bin(golden::layout::golden_bin(directory, golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_segmentation)) << "failed to load golden: " << id << "/segmentation";
-            const uint32_t* ours = rendered.segmentation.data() + camera_i * SPEC::CAM_PIXELS;
-            {
-                // the review PNG is corpus surface too: it must be exactly the false-color
-                // encoding of the binary (mirrors the overlay corpus validation)
-                std::vector<uint32_t> golden_png;
-                ASSERT_TRUE(golden::load_camera_png(golden::layout::golden_png(directory, golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_png)) << "failed to load golden: " << id << "/segmentation review image";
-                std::vector<uint32_t> expected(golden_segmentation.size());
-                golden::colorize_segmentation(golden_segmentation.data(), golden_segmentation.size(), expected.data());
-                EXPECT_EQ(golden_png, expected) << "segmentation pose " << id << ": review PNG does not match the binary";
-            }
-            std::vector<uint32_t> image(SPEC::CAM_PIXELS);
-            golden::colorize_segmentation(ours, SPEC::CAM_PIXELS, image.data());
-            golden::write_camera_png(render_path(camera_i, "segmentation"), image.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
-            const auto write_versus = [&](const std::string& name, const uint32_t* reference, const uint32_t* other){
-                for(size_t pixel_i = 0; pixel_i < (size_t)SPEC::CAM_PIXELS; pixel_i++){
-                    image[pixel_i] = golden::segmentation_diff_color(reference[pixel_i], other[pixel_i]);
+            std::vector<float> golden_probes; // NUM_PROBES x [distance, hit]
+            ASSERT_TRUE(golden::load_multi_camera_float_bin(golden_bin(camera_i, CASE::STATE, "probes"), 1, SPEC::NUM_PROBES, 1, golden_probes, 2)) << "failed to load golden: " << id << "/" << name;
+            const auto* ours = rendered.probes.data() + camera_i * SPEC::NUM_PROBES;
+            for(size_t probe_i = 0; probe_i < (size_t)SPEC::NUM_PROBES; probe_i++){
+                const float golden_distance = golden_probes[probe_i * 2 + 0];
+                const bool golden_hit = golden_probes[probe_i * 2 + 1] != 0;
+                if((ours[probe_i].hit != 0) != golden_hit){
+                    hit_mismatches++;
+                    continue;
                 }
-                golden::write_camera_png(versus_path(camera_i, "segmentation", name), image.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
-            };
-            write_versus("render-" + backend_tag(), golden_segmentation.data(), ours);
-            for(const uint32_t version : historic_versions(directory, true)){
-                std::vector<uint32_t> historic;
-                if(golden::load_multi_camera_uint32_bin(golden::layout::golden_bin(directory, version), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, historic)){
-                    write_versus(golden::layout::golden_name(version), historic.data(), golden_segmentation.data());
+                if(golden_hit){
+                    const double diff = (double)ours[probe_i].distance - (double)golden_distance;
+                    const double abs_diff = diff < 0 ? -diff : diff;
+                    max_rel_distance_diff = std::max(max_rel_distance_diff, abs_diff / std::max((double)golden_distance, 1e-6));
                 }
             }
-            size_t mismatches = 0;
-            size_t background_mismatches = 0;
-            for(size_t pixel_i = 0; pixel_i < (size_t)SPEC::CAM_PIXELS; pixel_i++){
-                mismatches += ours[pixel_i] != golden_segmentation[pixel_i];
-                background_mismatches += (ours[pixel_i] == golden::SEGMENTATION_BACKGROUND_ID) != (golden_segmentation[pixel_i] == golden::SEGMENTATION_BACKGROUND_ID);
-            }
-            const double mismatch_fraction = (double)mismatches / (double)SPEC::CAM_PIXELS;
-            const double background_fraction = (double)background_mismatches / (double)SPEC::CAM_PIXELS;
-            EXPECT_LE(mismatch_fraction, SEGMENTATION_MISMATCH_FRACTION) << "segmentation pose " << id << ": id mismatch fraction " << mismatch_fraction;
-            EXPECT_LE(background_fraction, SEGMENTATION_BACKGROUND_MISMATCH_FRACTION) << "segmentation pose " << id << ": hit/miss mismatch fraction " << background_fraction;
-            worst_mismatches = std::max(worst_mismatches, mismatch_fraction);
-            worst_background_mismatches = std::max(worst_background_mismatches, background_fraction);
         }
-        std::printf("[golden] segmentation: segmentation_mismatch=%.4f%% background_mismatch=%.4f%% over %d poses\n", worst_mismatches * 100, worst_background_mismatches * 100, (int)SPEC::NUM_CAMERAS);
-        log_metric("segmentation/segmentation_mismatch", worst_mismatches, SEGMENTATION_MISMATCH_FRACTION);
-        log_metric("segmentation/background_mismatch", worst_background_mismatches, SEGMENTATION_BACKGROUND_MISMATCH_FRACTION);
+        EXPECT_LE(hit_mismatches, PROBE_HIT_MISMATCH_MAX) << name << ": probe hit flag mismatches " << hit_mismatches << "/" << SPEC::NUM_CAMERAS * SPEC::NUM_PROBES;
+        EXPECT_LE(max_rel_distance_diff, PROBE_DISTANCE_REL) << name << ": max relative probe distance diff " << max_rel_distance_diff;
+        std::printf("[golden] %s: hit_mismatches=%d/%d distance_rel=%.2e\n", name.c_str(), hit_mismatches, (int)(SPEC::NUM_CAMERAS * SPEC::NUM_PROBES), max_rel_distance_diff);
+        log_metric(name + "/hit_mismatches", hit_mismatches, PROBE_HIT_MISMATCH_MAX);
+        log_metric(name + "/distance_rel", max_rel_distance_diff, PROBE_DISTANCE_REL);
     }
 }
 
 // a present corpus of another version fails: the fix is a data refresh (GOLDEN_LEDGER.md), not a code change
-#define RL_TOOLS_GOLDEN_REQUIRE_VERSION() ASSERT_EQ(golden::manifest_version(MANIFEST_PATH), golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION) << "golden corpus version mismatch at " << MANIFEST_PATH << " (see tests/src/rendering/raytracing/GOLDEN_LEDGER.md, run tests/src/rendering/raytracing/download_data.sh)"
+#define RL_TOOLS_GOLDEN_REQUIRE_VERSION() ASSERT_EQ(golden::manifest_version(MANIFEST_PATH), golden::PROCTHOR_TRAIN_1_GOLDEN_VERSION) << "golden corpus version mismatch at " << MANIFEST_PATH << " (see tests/src/rendering/raytracing/GOLDEN_LEDGER.md, run tests/src/rendering/raytracing/download_data.sh)"
 #if defined(RL_TOOLS_REQUIRE_RAYTRACING_GOLDENS)
 #define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() ASSERT_TRUE(goldens_available()) << "required golden renderings not found at " << CORPUS_DIRECTORY; RL_TOOLS_GOLDEN_REQUIRE_VERSION()
 #else
 #define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() if(!goldens_available()){ GTEST_SKIP() << "golden renderings not found at " << CORPUS_DIRECTORY << " (run tests/src/rendering/raytracing/download_data.sh or generate with test_rendering_raytracing_generate_golden_optix)"; } RL_TOOLS_GOLDEN_REQUIRE_VERSION()
 #endif
 
-TEST(RL_TOOLS_GOLDEN_SUITE, LOW){
+// one test per entry of the case table, registered under a readable name (static/high-mb4 ->
+// static_high_mb4) instead of gtest's typed-test spelling of the whole specification; gtest
+// requires one fixture class per suite, so the case enters through the body pointer
+template <typename CASE>
+void run_case(){
     RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
-    run_rgb_case<CASES::LOW_RGB>("low");
-}
-TEST(RL_TOOLS_GOLDEN_SUITE, MEDIUM){
-    RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
-    run_rgb_case<CASES::MEDIUM_RGB>("medium");
-}
-TEST(RL_TOOLS_GOLDEN_SUITE, HIGH){
-    RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
-    run_rgb_case<CASES::HIGH_RGB>("high");
-}
-TEST(RL_TOOLS_GOLDEN_SUITE, VERY_HIGH){
-    RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
-    run_rgb_case<CASES::VERY_HIGH_RGB>("very-high");
-}
-TEST(RL_TOOLS_GOLDEN_SUITE, HIGH_AA2){
-    RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
-    run_rgb_case<CASES::HIGH_RGB_AA2>("high-aa2");
-}
-TEST(RL_TOOLS_GOLDEN_SUITE, HIGH_MB4){
-    RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
-    run_rgb_case<CASES::HIGH_RGB_MB4>("high-mb4");
-}
-// dynamic-object motion blur: moving camera + spinning/translating overlay
-TEST(RL_TOOLS_GOLDEN_SUITE, HIGH_MB4_DYNAMIC){
-    RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
-    run_rgb_case<CASES::HIGH_RGB_MB4_DYNAMIC>("high-mb4-dynamic");
-}
-// object-only isolation: static camera (shutter open == close), the blur is purely the overlay's
-TEST(RL_TOOLS_GOLDEN_SUITE, HIGH_MB4_OBJECT){
-    RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
-    run_rgb_case<CASES::HIGH_RGB_MB4_DYNAMIC, false>("high-mb4-object");
-}
-TEST(RL_TOOLS_GOLDEN_SUITE, DEPTH){
-    RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
-    run_depth_case();
-}
-
-TEST(RL_TOOLS_GOLDEN_SUITE, NORMALS){
-    RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
-    run_normals_case();
-}
-
-TEST(RL_TOOLS_GOLDEN_SUITE, FLOW){
-    RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
-    run_flow_case<CASES::FLOW>("flow");
-}
-
-// object-only flow: static camera, the overlay moves from its previous (open) to its current
-// (close) pose, so the flow, the disocclusion band and the forward direction are purely the object's
-TEST(RL_TOOLS_GOLDEN_SUITE, FLOW_DYNAMIC){
-    RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
-    run_flow_case<CASES::FLOW_DYNAMIC, false>("flow-dynamic");
-}
-
-TEST(RL_TOOLS_GOLDEN_SUITE, SEGMENTATION){
-    RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
-    run_segmentation_case();
-}
-
-TEST(RL_TOOLS_GOLDEN_SUITE, PROBES){
-    RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE();
-    using SPEC = CASES::LOW_RGB; // the probes are written during the low case
+    using SPEC = typename CASE::SPEC;
     DEVICE device;
     rlt::init(device);
     Rendered rendered;
-    ASSERT_TRUE((golden::render_case<SPEC, BACKEND, DEVICE, CASES>(device, SCENE_PATH, rendered))) << "failed to load scene: " << SCENE_PATH;
-    ASSERT_FALSE(rendered.probes.empty());
-
-    int hit_mismatches = 0;
-    double max_rel_distance_diff = 0;
-    for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
-        const char* id = CASES::POSES[camera_i].id;
-        std::vector<float> golden_probes; // NUM_PROBES x [distance, hit]
-        ASSERT_TRUE(golden::load_multi_camera_float_bin(golden::layout::golden_bin(golden_directory(camera_i, "probes"), golden::PROCTHOR_STATIC_SCENE_GOLDEN_VERSION), 1, SPEC::NUM_PROBES, 1, golden_probes, 2)) << "failed to load golden probes: " << id;
-        const auto* ours = rendered.probes.data() + camera_i * SPEC::NUM_PROBES;
-        for(size_t probe_i = 0; probe_i < (size_t)SPEC::NUM_PROBES; probe_i++){
-            const float golden_distance = golden_probes[probe_i * 2 + 0];
-            const bool golden_hit = golden_probes[probe_i * 2 + 1] != 0;
-            if((ours[probe_i].hit != 0) != golden_hit){
-                hit_mismatches++;
-                continue;
-            }
-            if(golden_hit){
-                const double diff = (double)ours[probe_i].distance - (double)golden_distance;
-                const double abs_diff = diff < 0 ? -diff : diff;
-                const double rel = abs_diff / std::max((double)golden_distance, 1e-6);
-                if(rel > max_rel_distance_diff) max_rel_distance_diff = rel;
-            }
-        }
+    ASSERT_TRUE((golden::render_case<CASE, BACKEND, DEVICE, CASES>(device, SCENE_PATH, rendered))) << "failed to load scene: " << SCENE_PATH;
+    if constexpr(SPEC::HAS_RGB){
+        expect_rgb<CASE>(rendered);
     }
-    EXPECT_LE(hit_mismatches, PROBE_HIT_MISMATCH_MAX) << "probe hit flag mismatches: " << hit_mismatches << "/" << SPEC::NUM_CAMERAS * SPEC::NUM_PROBES;
-    EXPECT_LE(max_rel_distance_diff, PROBE_DISTANCE_REL) << "max relative probe distance diff: " << max_rel_distance_diff;
-    std::printf("[golden] probes: hit_mismatches=%d/%d distance_rel=%.2e\n", hit_mismatches, (int)(SPEC::NUM_CAMERAS * SPEC::NUM_PROBES), max_rel_distance_diff);
-    log_metric("probes/hit_mismatches", hit_mismatches, PROBE_HIT_MISMATCH_MAX);
-    log_metric("probes/distance_rel", max_rel_distance_diff, PROBE_DISTANCE_REL);
+    if constexpr(CASE::PROBES){
+        expect_probes<CASE>(rendered);
+    }
+    if constexpr(SPEC::HAS_DEPTH){
+        expect_depth<CASE>(rendered);
+    }
+    if constexpr(SPEC::HAS_NORMALS){
+        expect_normals<CASE>(rendered);
+    }
+    if constexpr(SPEC::HAS_SEGMENTATION){
+        expect_segmentation<CASE>(rendered);
+    }
+    if constexpr(SPEC::HAS_FLOW){
+        expect_flow_direction<CASE>(FlowDirectionView{"", &rendered.flow, &rendered.flow_status});
+        expect_flow_direction<CASE>(FlowDirectionView{"-forward", &rendered.flow_forward, &rendered.flow_forward_status});
+    }
 }
+
+class GoldenCase: public ::testing::Test{
+public:
+    explicit GoldenCase(void (*body)()): body(body){}
+    void TestBody() override {
+        body();
+    }
+private:
+    void (*body)();
+};
+
+template <typename... CASE>
+bool register_cases(CASES::List<CASE...>){
+    const auto register_case = [](const std::string& name, void (*body)()){
+        std::string test_name = name;
+        std::replace(test_name.begin(), test_name.end(), '/', '_');
+        std::replace(test_name.begin(), test_name.end(), '-', '_');
+        ::testing::RegisterTest(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_GOLDEN_SUITE), test_name.c_str(), nullptr, nullptr, __FILE__, __LINE__, [body](){ return new GoldenCase(body); });
+    };
+    (register_case(CASES::name<CASE>(), &run_case<CASE>), ...);
+    return true;
+}
+
+static const bool CASES_REGISTERED = register_cases(CASES::ALL{});
