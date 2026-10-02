@@ -32,7 +32,7 @@ using TI = typename DEVICE::index_t;
 using CASES = golden::Cases<T, TI>;
 using Rendered = golden::Rendered<T>;
 
-static const std::string SCENE_PATH = RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH) "/ProcTHOR-Train-1.glb";
+static const std::string SCENE_PATH = golden::PROCTHOR_TRAIN_1_SCENE;
 static const std::string DEFAULT_OUTPUT_DIR = golden::layout::procthor_directory(golden::layout::goldens_root(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)));
 static constexpr const char* LOG_PREFIX = "[golden:" RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME "] ";
 static constexpr size_t MIN_OVERLAY_PIXELS = 16; // every view must see its private overlay, the shared one shows in some view
