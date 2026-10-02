@@ -707,6 +707,7 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC, typename METADATA_T>
     void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool, const rendering::SceneMetadata<METADATA_T>& metadata){
+        validate_semantic_segmentation<SPEC>(device, scene, pool);
         renderer.max_ray_length = (typename SPEC::T)metadata.max_ray_length;
         rendering::raytracing::detail::announce_configuration<SPEC>();
         rendering::raytracing::detail::resolve_environment<SPEC>(scene.environment, renderer.ambient_color, renderer.miss_color_0, renderer.miss_color_1);
@@ -722,9 +723,6 @@ namespace rl_tools {
         }
         if constexpr (SPEC::ENABLE_OVERLAYS){
             rendering::raytracing::detail::register_pool_assets(device, renderer, pool, all_objects);
-        }
-        if constexpr(SPEC::SEMANTIC_SEGMENTATION){
-            validate_semantic_segmentation(device, all_objects);
         }
         RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << all_objects.size() << " objects / " << scene.instances.size() << " instances ...");
 

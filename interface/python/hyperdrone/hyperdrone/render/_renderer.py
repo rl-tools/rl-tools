@@ -140,9 +140,9 @@ class Renderer:
     def init(self, scene, asset_pool=None):
         """Build acceleration structures for a scene. The scene (and asset pool) must stay
         alive as long as this renderer; references are held here to guarantee that."""
+        self._renderer.init(scene, asset_pool)
         self._scene = scene
         self._asset_pool = asset_pool
-        self._renderer.init(scene, asset_pool)
         return self
 
     def camera(self, position, look_at, up=(0.0, 0.0, 1.0), fov=60.0):

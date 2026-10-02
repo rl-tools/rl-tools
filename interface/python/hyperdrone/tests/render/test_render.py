@@ -762,3 +762,127 @@ def test_welded_semantics_rejected(labelled_glb):
                                semantic_segmentation=True)
     with pytest.raises(ValueError, match='welded classes'):
         renderer.init(scene)
+
+
+@pytest.mark.parametrize('target', ['object', 'scene', 'assembly', 'pool'])
+def test_explicit_class_assignment_repairs_welded_labels(labelled_glb, target):
+    obj = render.load_object(labelled_glb, rgb=False)
+    assert not obj.segmentation_class_valid
+    scene = render.Scene()
+    pool = None
+    if target == 'object':
+        with pytest.raises(ValueError, match='absent from the taxonomy'):
+            obj.segmentation_class = 7
+        assert not obj.segmentation_class_valid
+        obj.segmentation_class = 21
+        assert obj.segmentation_class_valid
+        assert obj.segmentation_taxonomy == 'test'
+        scene.add_object(obj)
+    elif target == 'scene':
+        scene.add_object(obj)
+        scene.set_object_segmentation_class(0, 21)
+    elif target == 'assembly':
+        assembly = render.load_assembly(labelled_glb, rgb=False)
+        assembly.set_segmentation_class(0, 162)
+        assert assembly.segmentation_class(0) == 162
+        assembly.remap_segmentation_classes({0: 21, 21: 21, 162: 21},
+                                             taxonomy='test', classes=assembly.segmentation_classes)
+        scene.add_assembly(assembly)
+    else:
+        pool = render.AssetPool()
+        asset = pool.add_object(obj)
+        pool.set_object_segmentation_class(asset, 0, 21)
+        assert pool.object_segmentation_class(asset, 0) == 21
+    renderer = render.Renderer(width=24, height=24, fidelity='low', output='segmentation',
+                               semantic_segmentation=True, num_overlays=1,
+                               max_overlay_instances=4, max_overlays_per_camera=1)
+    renderer.init(scene, pool)
+    if pool is not None:
+        renderer.attach(0, 0)
+        renderer.spawn(0, asset, render.make_transform(position=(0, 0, 0)))
+        renderer.update()
+    camera = renderer.camera(position=(0, 1.5, 0), look_at=(2, 1.5, 0))
+    renderer.set_cameras(camera[None])
+    renderer.render('segmentation')
+    assert renderer.segmentation()[0, 12, 12] == 21
+
+
+def test_failed_semantic_init_can_be_retried(labelled_glb):
+    scene = render.load_scene(labelled_glb, rgb=False)
+    renderer = render.Renderer(width=24, height=24, fidelity='low', output='segmentation',
+                               semantic_segmentation=True)
+    with pytest.raises(ValueError, match='welded classes'):
+        renderer.init(scene)
+    assert renderer._scene is None
+    scene.set_object_segmentation_class(0, 21)
+    renderer.init(scene)
+    camera = renderer.camera(position=(0, 1.5, 0), look_at=(2, 1.5, 0))
+    renderer.set_cameras(camera[None])
+    renderer.render('segmentation')
+    assert renderer.segmentation()[0, 12, 12] == 21
+
+
+def test_label_remapping_across_scene_and_pool(labelled_glb):
+    assembly = render.load_assembly(labelled_glb, rgb=False)
+    source_classes = assembly.segmentation_classes
+    scene = render.Scene()
+    scene.add_assembly(assembly)
+    pool = render.AssetPool()
+    asset = pool.add_assembly(assembly)
+    mapping = {0: 0, 21: 2147483648, 162: 4294967294}
+    classes = {0: 'Unknown', 2147483648: 'Furniture', 4294967294: 'Structure'}
+    for target in (scene, assembly, pool):
+        for bad_mapping in ({0: 0, 21: 2147483648}, {0: 0, 21: 2147483648, 162: 999}):
+            with pytest.raises(ValueError):
+                target.remap_segmentation_classes(bad_mapping, taxonomy='custom', classes=classes)
+            assert target.segmentation_taxonomy == 'test'
+            assert target.segmentation_classes == source_classes
+        target.remap_segmentation_classes(mapping, taxonomy='custom', classes=classes)
+        assert target.segmentation_taxonomy == 'custom'
+        assert target.segmentation_classes == classes
+    assert [scene.object_segmentation_class(i) for i in range(4)] == [2147483648, 2147483648, 4294967294, 0]
+    assert [assembly.segmentation_class(i) for i in range(4)] == [2147483648, 2147483648, 4294967294, 0]
+    assert [pool.object_segmentation_class(asset, i) for i in range(4)] == [2147483648, 2147483648, 4294967294, 0]
+    renderer = render.Renderer(width=24, height=24, fidelity='low', output='segmentation',
+                               semantic_segmentation=True, num_overlays=1,
+                               max_overlay_instances=4, max_overlays_per_camera=1)
+    renderer.init(scene, pool)
+    renderer.attach(0, 0)
+    handle = renderer.spawn(0, asset, render.make_transform(position=(-1, 0, 0)))
+    camera = renderer.camera(position=(0, 1.5, 0), look_at=(2, 1.5, 0))
+    renderer.set_cameras(camera[None])
+    renderer.update()
+    renderer.render('segmentation')
+    assert renderer.segmentation()[0, 12, 12] == 2147483648
+    renderer.set_transform(0, handle, render.make_transform(position=(-1, 2, 0)))
+    renderer.update()
+    renderer.render('segmentation')
+    assert renderer.segmentation()[0, 12, 12] == 4294967294
+
+
+def test_object_and_pool_remapping_is_explicit(labelled_glb):
+    obj = render.load_object(labelled_glb, rgb=False)
+    with pytest.raises(ValueError, match='welded classes'):
+        obj.remap_segmentation_classes({0: 7})
+    obj.assign_segmentation_class(7, taxonomy='custom', classes={0: 'Unknown', 7: 'Furniture'})
+    assert obj.segmentation_class_valid
+    assert obj.segmentation_taxonomy == 'custom'
+    with pytest.raises(ValueError):
+        obj.assign_segmentation_class(9, taxonomy='broken', classes={9: 'MissingUnknown'})
+    assert obj.segmentation_class == 7
+    assert obj.segmentation_taxonomy == 'custom'
+    pool = render.AssetPool()
+    asset = pool.add_object(obj)
+    pool.remap_asset_segmentation_classes(asset, {7: 8})
+    assert pool.segmentation_taxonomy == ''
+    assert pool.object_segmentation_class(asset, 0) == 8
+    assert obj.segmentation_class == 7
+    obj.remap_segmentation_classes({7: 4294967294})
+    assert obj.segmentation_taxonomy == ''
+    assert obj.segmentation_classes == {}
+    assert obj.segmentation_class == 4294967294
+    with pytest.raises(ValueError, match='reserved'):
+        obj.segmentation_class = 0xffffffff
+    assert obj.segmentation_class == 4294967294
+    with pytest.raises(ValueError, match='reserved'):
+        render.Object(segmentation_class=0xffffffff)

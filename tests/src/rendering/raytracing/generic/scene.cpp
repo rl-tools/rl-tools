@@ -1397,6 +1397,80 @@ struct SEMANTIC_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
 };
 using SEMANTIC_SPEC = rlt::rendering::raytracing::Specification<SEMANTIC_CONFIG>;
 
+TEST(RL_TOOLS_SCENE_SUITE, SEMANTIC_VALIDATION_PRESERVES_RENDERER_AND_LIBRARY){
+    using rlt::add;
+    using rlt::init;
+    using rlt::malloc;
+    using rlt::free;
+    using rlt::insert;
+    using rlt::render;
+    using rlt::synchronize;
+    using rlt::segmentation_buffer;
+    DEVICE device;
+    init(device);
+    rlt::rendering::Bundle<T> bundle;
+    add(device, bundle.scene, make_cube(0, 1));
+    bundle.scene.objects[0].segmentation_class = 7;
+    bundle.metadata.max_ray_length = 20;
+    rlt::rendering::AssetPool pool;
+    add(device, pool, make_cube(0, 1));
+    pool.assemblies[0].objects[0].segmentation_class = 3;
+    rlt::rendering::raytracing::Renderer<SEMANTIC_SPEC, BACKEND> renderer;
+    malloc(device, renderer);
+    init(device, renderer, bundle, pool);
+    const T position[3] = {-5, 0, 0}, look_at[3] = {0, 0, 0};
+    set_test_camera(device, renderer, position, look_at);
+    render(device, renderer);
+    synchronize(device, renderer);
+    std::vector<uint32_t> before(SEMANTIC_SPEC::CAM_PIXELS), after(before.size());
+    read_output(device, renderer, segmentation_buffer(device, renderer), before.data());
+    const auto part_objects = renderer.asset_part_objects;
+    const auto part_transforms = renderer.asset_part_transforms;
+    const T ambient = renderer.ambient_color[0];
+    for(int failure = 0; failure < 3; failure++){
+        auto invalid = bundle;
+        invalid.metadata.max_ray_length = 99;
+        invalid.metadata.content_hash = "invalid";
+        invalid.scene.environment.mode = rlt::rendering::Scene::Environment::Mode::SOLID;
+        invalid.scene.environment.ambient[0] = 0.9f;
+        auto invalid_pool = pool;
+        add(device, invalid_pool, make_cube(0, 1));
+        if(failure == 0){
+            invalid.scene.objects[0].segmentation_class_valid = false;
+        }
+        else if(failure == 1){
+            invalid_pool.assemblies[0].objects[0].segmentation_class = 0xFFFFFFFFu;
+        }
+        else{
+            auto taxonomy = std::make_shared<rlt::rendering::SegmentationTaxonomy>();
+            taxonomy->name = "scene"; taxonomy->classes = {{0, "Unknown"}, {7, "Class"}};
+            invalid.scene.objects[0].segmentation_taxonomy = taxonomy;
+            auto other = std::make_shared<rlt::rendering::SegmentationTaxonomy>(*taxonomy);
+            other->name = "pool";
+            invalid_pool.assemblies[0].objects[0].segmentation_taxonomy = other;
+        }
+        EXPECT_THROW(init(device, renderer, invalid, invalid_pool), std::invalid_argument);
+        EXPECT_EQ(renderer.max_ray_length, 20);
+        EXPECT_EQ(renderer.ambient_color[0], ambient);
+        EXPECT_EQ(renderer.assets.size(), 1u);
+        EXPECT_EQ(renderer.asset_part_objects, part_objects);
+        EXPECT_EQ(renderer.asset_part_transforms, part_transforms);
+        render(device, renderer);
+        synchronize(device, renderer);
+        read_output(device, renderer, segmentation_buffer(device, renderer), after.data());
+        EXPECT_EQ(after, before);
+
+        rlt::rendering::raytracing::AssetLibrary<SEMANTIC_SPEC, BACKEND> library;
+        library.pool = invalid_pool;
+        EXPECT_THROW(insert(device, library, invalid), std::invalid_argument);
+        EXPECT_TRUE(library.scenes.empty());
+        EXPECT_TRUE(library.assets.empty());
+        EXPECT_TRUE(library.metadata.empty());
+        EXPECT_EQ(invalid.scene.objects.size(), 1u);
+    }
+    free(device, renderer);
+}
+
 TEST(RL_TOOLS_SCENE_SUITE, SEMANTIC_SEGMENTATION){
     DEVICE device;
     rlt::init(device);
