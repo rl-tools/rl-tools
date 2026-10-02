@@ -1,3 +1,7 @@
+add_executable(test_rl_environments_hyperdrone_on_policy_gradient on_policy_gradient.cpp)
+target_link_libraries(test_rl_environments_hyperdrone_on_policy_gradient PRIVATE RLtools::RLtools GTest::gtest_main)
+gtest_discover_tests(test_rl_environments_hyperdrone_on_policy_gradient)
+
 if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
     add_executable(test_rl_environments_hyperdrone_rig rig.cpp)
     target_link_libraries(test_rl_environments_hyperdrone_rig

@@ -1,3 +1,7 @@
+add_executable(test_rl_environments_l2f_inertial_velocity inertial_velocity.cpp)
+target_link_libraries(test_rl_environments_l2f_inertial_velocity PRIVATE RLtools::RLtools GTest::gtest_main)
+gtest_discover_tests(test_rl_environments_l2f_inertial_velocity)
+
 if(RL_TOOLS_ENABLE_JSON)
     if(RL_TOOLS_TEST_DATA_PATH)
         add_executable(test_rl_environments_l2f_validation validation.cpp)
@@ -30,4 +34,3 @@ if(RL_TOOLS_ENABLE_JSON)
     set_source_files_properties(render_rotor_phase.cpp PROPERTIES COMPILE_OPTIONS "-fno-fast-math;-ffp-contract=off")
     gtest_discover_tests(test_rl_environments_l2f_render_rotor_phase)
 endif()
-

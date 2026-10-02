@@ -2,7 +2,7 @@ export function visualPolicyProfile(model) {
     const environment = model.meta?.environment
     const shapes = model.input_shapes
     const sensors = "OrientationMahonyWorldZ.GyroscopeMahonyBiasCorrected.ActionHistory(8).LinearAccelerationBodyFrameHistory(8)"
-    if(environment?.name !== "l2f_visual" || !environment.observation.includes(sensors)) {
+    if(environment?.name !== "hyperdrone" || !environment.observation.includes(sensors)) {
         return null
     }
     if(!shapes) {

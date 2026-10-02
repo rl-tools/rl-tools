@@ -1678,7 +1678,7 @@ def main():
     ap.add_argument("--qat-seed", type=int, default=0,
                     help="RNG seed controlling the shuffle before the --qat-finetune train/test split")
     ap.add_argument("--openmv-visual-split", action="store_true",
-                    help="for l2f_visual OpenMV deployment: additionally export int8 visual-branch "
+                    help="for OpenMV deployment: additionally export int8 visual-branch "
                          "and control-head tflites, with metadata and split-chain companion bins")
     ap.add_argument("--openmv-visual-split-tolerance", type=float, default=0.2,
                     help="max absolute error tolerance for split int8 chain vs fused int8 "

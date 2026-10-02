@@ -6,4 +6,9 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
         rendering_raytracing_backend
         rendering_raytracing_stb
     )
+    add_subdirectory(imitation)
+    if(RL_TOOLS_BACKEND_ENABLE_CUDA AND RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED STREQUAL "OPTIX")
+        add_subdirectory(on_policy)
+        add_subdirectory(mixed)
+    endif()
 endif()

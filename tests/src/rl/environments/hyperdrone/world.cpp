@@ -162,6 +162,46 @@ static void rollout(DEVICE& device, ENVIRONMENT& env, Rollout& record, TI seed){
     rlt::free(device, rng);
 }
 
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, CAMERA_PARAMETER_SAMPLING){
+    using namespace rlt;
+    DEVICE device;
+    WORLD world;
+    init(device, world.dynamics);
+    world.parameters.scene_translation[0] = 3;
+    world.parameters.scene_yaw_cos = 0;
+    world.parameters.scene_yaw_sin = 1;
+    world.parameters.fov = 68;
+    world.parameters.camera_mount.offset_body[0] = 0.1;
+    world.parameters.camera_mount.offset_body[1] = -0.2;
+    world.parameters.camera_mount.offset_body[2] = 0.3;
+    RNG rng;
+    malloc(device, rng);
+    init(device, rng, 2);
+    for(TI sample = 0; sample < 128; sample++){
+        WORLD::Parameters parameters;
+        sample_initial_parameters(device, world, parameters, rng);
+        EXPECT_FLOAT_EQ(parameters.scene_translation[0], 3);
+        EXPECT_FLOAT_EQ(parameters.scene_yaw_cos, 0);
+        EXPECT_FLOAT_EQ(parameters.scene_yaw_sin, 1);
+        EXPECT_GE(parameters.fov, world.parameters.fov - WORLD_SPEC::CAMERA_FOV_RANDOMIZATION_RANGE);
+        EXPECT_LE(parameters.fov, world.parameters.fov + WORLD_SPEC::CAMERA_FOV_RANDOMIZATION_RANGE);
+        EXPECT_GE(parameters.brightness_scale, 1 - WORLD_SPEC::BRIGHTNESS_RANDOMIZATION_RANGE);
+        EXPECT_LE(parameters.brightness_scale, 1 + WORLD_SPEC::BRIGHTNESS_RANDOMIZATION_RANGE);
+        T forward_norm = 0, up_norm = 0, dot = 0;
+        for(TI axis = 0; axis < 3; axis++){
+            const auto& mount = parameters.camera_mount;
+            EXPECT_NEAR(mount.offset_body[axis], world.parameters.camera_mount.offset_body[axis], WORLD_SPEC::CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE + 1e-6);
+            forward_norm += mount.forward_body[axis] * mount.forward_body[axis];
+            up_norm += mount.up_body[axis] * mount.up_body[axis];
+            dot += mount.forward_body[axis] * mount.up_body[axis];
+        }
+        EXPECT_NEAR(forward_norm, 1, 1e-5);
+        EXPECT_NEAR(up_norm, 1, 1e-5);
+        EXPECT_NEAR(dot, 0, 1e-5);
+    }
+    free(device, rng);
+}
+
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, SEEDED_ROLLOUT_DETERMINISM){
     if(SCENE_PATH.empty()){
         GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
