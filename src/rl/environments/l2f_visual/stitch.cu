@@ -66,6 +66,7 @@ static constexpr TI CAM_WIDTH = 64;
 static constexpr TI CAM_HEIGHT = 64;
 static constexpr TI CAM_PIXELS = CAM_WIDTH * CAM_HEIGHT;
 static constexpr TI NUM_PROBES = 64;
+static constexpr float PROCTHOR_AMBIENT = 0.6f;
 static constexpr T CAMERA_FOV = 79.6;
 static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = static_cast<T>(0);
 static constexpr T CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_X = static_cast<T>(0);
@@ -200,6 +201,11 @@ static int validate_scene_has_initial_states(const std::string& scene_path) {
     rlt::malloc(device, *renderer, *library);
     rlt::rendering::Bundle<T> bundle;
     rlt::load<typename RENDERER_SPEC::SHADING, RENDERER_SPEC::HAS_RGB>(device, bundle, scene_path);
+    bundle.scene.environment.mode = rlt::rendering::Scene::Environment::Mode::SOLID;
+    for(TI component = 0; component < 3; component++){
+        bundle.scene.environment.ambient[component] = PROCTHOR_AMBIENT;
+        bundle.scene.environment.horizon[component] = 0.0f;
+    }
     auto scene_id = rlt::insert(device, *library, bundle);
     rlt::init(device, *renderer, *library, scene_id);
     rlt::generate_probe_directions(device, *renderer);
@@ -700,6 +706,11 @@ int main(int argc, char** argv) {
             rlt::malloc(device, *renderers[scene_i], *library);
             rlt::rendering::Bundle<T> bundle;
             rlt::load<typename RENDERER_SPEC::SHADING, RENDERER_SPEC::HAS_RGB>(device, bundle, scene_path);
+            bundle.scene.environment.mode = rlt::rendering::Scene::Environment::Mode::SOLID;
+            for(TI component = 0; component < 3; component++){
+                bundle.scene.environment.ambient[component] = PROCTHOR_AMBIENT;
+                bundle.scene.environment.horizon[component] = 0.0f;
+            }
             TI scene_id = rlt::insert(device, *library, bundle);
             rlt::init(device, *renderers[scene_i], *library, scene_id);
             rlt::generate_probe_directions(device, *renderers[scene_i]);

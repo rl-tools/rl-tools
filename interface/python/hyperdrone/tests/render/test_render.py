@@ -74,6 +74,52 @@ def look_forward(renderer):
     renderer.set_cameras(np.repeat(camera[None, :, :], renderer.num_cameras, axis=0))
 
 
+def linear_to_rgb8(value):
+    value = np.clip(value, 0, 1)
+    return 255 * np.where(value <= 0.0031308, 12.92 * value, 1.055 * value ** (1 / 2.4) - 0.055)
+
+
+@pytest.mark.parametrize("fidelity", ["high", "veryhigh"])
+@pytest.mark.parametrize("ambient", [None, "default", (0, 0, 0), (0.6, 0.3, 0.2), (2, 1.5, 0.5)])
+def test_environment_ambient(fidelity, ambient):
+    color = np.array([0.2, 0.4, 0.6])
+    scene = render.Scene()
+    scene.add_mesh(make_quad(2, half_size=10, color=color))
+    if ambient == "default":
+        scene.set_environment()
+    elif ambient is not None:
+        scene.set_environment(ambient=ambient)
+    renderer = render.Renderer(width=8, height=8, num_probes=0, output="rgb", fidelity=fidelity)
+    renderer.init(scene)
+    look_forward(renderer)
+    renderer.render()
+    expected_ambient = (0.1, 0.1, 0.1) if ambient in (None, "default") else ambient
+    np.testing.assert_allclose(renderer.frame()[0, 4, 4, :3], linear_to_rgb8(color * expected_ambient), atol=1.1)
+
+
+@pytest.mark.parametrize("fidelity", ["low", "medium", "high", "veryhigh"])
+def test_environment_solid_background(fidelity):
+    background = np.array([0.15, 0.4, 0.8])
+    scene = render.Scene()
+    scene.add_mesh(make_quad(-2))
+    scene.set_environment(background=background)
+    renderer = render.Renderer(width=8, height=8, num_probes=0, output="rgb", fidelity=fidelity)
+    renderer.init(scene)
+    look_forward(renderer)
+    renderer.render()
+    expected = 255 * background if fidelity == "low" else linear_to_rgb8(background)
+    frame = renderer.frame()[0, :, :, :3]
+    np.testing.assert_allclose(frame, np.broadcast_to(expected, frame.shape), atol=1.1)
+
+
+@pytest.mark.parametrize("field", ["ambient", "background"])
+@pytest.mark.parametrize("invalid", [-0.1, float("nan"), float("inf"), -float("inf"), 1e100])
+def test_environment_rejects_invalid_colors(field, invalid):
+    scene = render.Scene()
+    with pytest.raises(ValueError, match="finite and nonnegative"):
+        scene.set_environment(**{field: (0, invalid, 1)})
+
+
 def test_depth():
     distance = 2.0
     renderer = render.Renderer(width=64, height=64, num_cameras=1, output="depth", fidelity="low")

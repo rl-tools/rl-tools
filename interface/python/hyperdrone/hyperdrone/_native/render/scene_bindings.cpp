@@ -11,6 +11,8 @@
 #include "bindings.h"
 
 #include <cmath>
+#include <cstdint>
+#include <cstring>
 #include <stdexcept>
 #include <string>
 
@@ -219,6 +221,28 @@ void register_scene_bindings(nb::module_& m){
             return nb::make_tuple(placement.first_instance, placement.num_instances);
         }, nb::arg("assembly"), nb::arg("transform") = nb::none())
         .def("add_light", [](SceneBundle& bundle, const rrt::SceneLight& light){ bundle.scene.lights.push_back(light); })
+        .def("set_environment", [](SceneBundle& bundle, Vec3 ambient, Vec3 background){
+            const auto valid_component = [](float value){
+                // Bit inspection keeps NaN/Inf validation effective under -ffast-math.
+                uint32_t bits;
+                static_assert(sizeof(bits) == sizeof(value));
+                std::memcpy(&bits, &value, sizeof(bits));
+                volatile uint32_t representation = bits;
+                return (representation & 0x7f800000u) != 0x7f800000u && value >= 0.0f;
+            };
+            for(int component = 0; component < 3; component++){
+                if(!valid_component(ambient[component]) || !valid_component(background[component])){
+                    throw std::invalid_argument("hyperdrone: environment colors must be finite and nonnegative");
+                }
+            }
+            auto& environment = bundle.scene.environment;
+            environment.mode = rrt::Scene::Environment::Mode::SOLID;
+            for(int component = 0; component < 3; component++){
+                environment.ambient[component] = ambient[component];
+                environment.horizon[component] = background[component];
+            }
+        }, nb::arg("ambient") = Vec3{0.1f, 0.1f, 0.1f}, nb::arg("background") = Vec3{0.0f, 0.0f, 0.0f},
+           "Set linear RGB ambient illumination (high/veryhigh) and a solid background before Renderer.init().")
         .def_prop_ro("num_objects", [](const SceneBundle& bundle){ return bundle.scene.objects.size(); })
         .def_prop_ro("num_instances", [](const SceneBundle& bundle){ return bundle.scene.instances.size(); })
         .def_prop_ro("num_lights", [](const SceneBundle& bundle){ return bundle.scene.lights.size(); })
