@@ -10,7 +10,8 @@ if(NOT RL_TOOLS_DISABLE_CLI11)
     elseif(GIT_FOUND)
         FetchContent_Declare(CLI11
                 GIT_REPOSITORY https://github.com/CLIUtils/CLI11.git
-                GIT_TAG   291c58789c031208f08f4f261a858b5b7083e8e2
+                GIT_TAG        v2.3.2
+                GIT_SHALLOW    TRUE
         )
         rl_tools_fetchcontent_makeavailable_quiet(CLI11)
         target_link_libraries(rl_tools_full INTERFACE CLI11::CLI11)
