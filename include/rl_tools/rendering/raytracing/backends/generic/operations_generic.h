@@ -67,6 +67,7 @@ namespace rl_tools {
             T opacity = 1;
             T alpha_cutoff = (T)0.5;
             int alpha_mode = 0;
+            bool unlit = false;
         };
 
         template <typename T, typename TI>
@@ -672,6 +673,10 @@ namespace rl_tools {
                 }
             }
 
+            if(self.unlit){
+                return base_color;
+            }
+
             Vec3<T> direct = base_color;
             if constexpr (SPEC::SHADING::NORMAL_SHADING){
                 const T cosine = dot(ray_dir, normal_geometric);
@@ -752,130 +757,135 @@ namespace rl_tools {
                 alpha *= tex_color[3];
             }
 
-            T metallic = self.metallic;
-            T roughness = self.roughness;
-            if(self.metallic_roughness_map.pixels != nullptr && self.tex_coords != nullptr){
-                T mr_sample[4];
-                sample_texture(math_device, self.metallic_roughness_map, tc_x, tc_y, false, mr_sample);
-                roughness = mr_sample[1] * self.roughness;
-                metallic = mr_sample[2] * self.metallic;
-            }
-
-            if(self.normal_map.pixels != nullptr && self.tex_coords != nullptr){
-                const T tc0_x = self.tex_coords[2 * (TI)index[0] + 0], tc0_y = self.tex_coords[2 * (TI)index[0] + 1];
-                const T tc1_x = self.tex_coords[2 * (TI)index[1] + 0], tc1_y = self.tex_coords[2 * (TI)index[1] + 1];
-                const T tc2_x = self.tex_coords[2 * (TI)index[2] + 0], tc2_y = self.tex_coords[2 * (TI)index[2] + 1];
-                const T duv1_x = tc1_x - tc0_x, duv1_y = tc1_y - tc0_y;
-                const T duv2_x = tc2_x - tc0_x, duv2_y = tc2_y - tc0_y;
-                const T det = duv1_x * duv2_y - duv2_x * duv1_y;
-                if((det < 0 ? -det : det) > (T)1e-8){
-                    const T inv_det = (T)1 / det;
-                    Vec3<T> tangent = normalize(math_device, inv_det * (duv2_y * edge1 - duv1_y * edge2));
-                    tangent = normalize(math_device, tangent - dot(tangent, N) * N);
-                    const Vec3<T> bitangent = cross(N, tangent);
-                    T nm_sample[4];
-                    sample_texture(math_device, self.normal_map, w0 * tc0_x + hit.u * tc1_x + hit.v * tc2_x, w0 * tc0_y + hit.u * tc1_y + hit.v * tc2_y, false, nm_sample);
-                    const Vec3<T> n_tangent = {nm_sample[0] * (T)2 - (T)1, -(nm_sample[1] * (T)2 - (T)1), nm_sample[2] * (T)2 - (T)1};
-                    N = normalize(math_device, tangent * n_tangent.x + bitangent * n_tangent.y + N * n_tangent.z);
-                }
-            }
-
-            roughness = maximum(roughness, (T)0.04);
-            const T roughness_alpha = roughness * roughness;
-            const T alpha2 = roughness_alpha * roughness_alpha;
-            const T k = (roughness + (T)1) * (roughness + (T)1) / (T)8;
-
-            const Vec3<T> V = -ray_dir;
-            const T NdotV = maximum(dot(N, V), (T)1e-4);
-            const Vec3<T> F0 = Vec3<T>{(T)0.04, (T)0.04, (T)0.04} * ((T)1 - metallic) + base_color * metallic;
-
             const Vec3<T> hit_point = origin + ray_dir * hit.t;
 
-            Vec3<T> Lo = {0, 0, 0};
-            for(TI light_i = 0; light_i < scene.num_lights; light_i++){
-                const SceneLight& light = scene.lights[light_i];
-                const Vec3<T> Lc = {(T)light.color[0], (T)light.color[1], (T)light.color[2]};
-                Vec3<T> L;
-                T attenuation = 1;
-                T light_distance = (T)1e20;
-
-                if(light.type == 0){
-                    L = {(T)light.direction[0], (T)light.direction[1], (T)light.direction[2]};
+            Vec3<T> color = base_color;
+            if(!self.unlit){
+                T metallic = self.metallic;
+                T roughness = self.roughness;
+                if(self.metallic_roughness_map.pixels != nullptr && self.tex_coords != nullptr){
+                    T mr_sample[4];
+                    sample_texture(math_device, self.metallic_roughness_map, tc_x, tc_y, false, mr_sample);
+                    roughness = mr_sample[1] * self.roughness;
+                    metallic = mr_sample[2] * self.metallic;
                 }
-                else{
-                    const Vec3<T> to_light = Vec3<T>{(T)light.position[0], (T)light.position[1], (T)light.position[2]} - hit_point;
-                    const T dist = length(math_device, to_light);
-                    light_distance = maximum(dist - (T)1e-3, (T)0);
-                    L = to_light * ((T)1 / maximum(dist, (T)1e-6));
-                    attenuation = (T)1 / ((T)light.attenuation_constant + (T)light.attenuation_linear * dist + (T)light.attenuation_quadratic * dist * dist);
-                    if(light.type == 2){
-                        const Vec3<T> spot_dir = {(T)light.direction[0], (T)light.direction[1], (T)light.direction[2]};
-                        const T cos_angle = dot(-L, spot_dir);
-                        const T denom = (T)light.cos_inner_cone - (T)light.cos_outer_cone;
-                        const T denom_abs = denom < 0 ? -denom : denom;
-                        const T spot_t = (cos_angle - (T)light.cos_outer_cone) / (denom_abs > (T)1e-6 ? denom : (T)1e-6);
-                        attenuation *= maximum(minimum(spot_t, (T)1), (T)0);
+
+                if(self.normal_map.pixels != nullptr && self.tex_coords != nullptr){
+                    const T tc0_x = self.tex_coords[2 * (TI)index[0] + 0], tc0_y = self.tex_coords[2 * (TI)index[0] + 1];
+                    const T tc1_x = self.tex_coords[2 * (TI)index[1] + 0], tc1_y = self.tex_coords[2 * (TI)index[1] + 1];
+                    const T tc2_x = self.tex_coords[2 * (TI)index[2] + 0], tc2_y = self.tex_coords[2 * (TI)index[2] + 1];
+                    const T duv1_x = tc1_x - tc0_x, duv1_y = tc1_y - tc0_y;
+                    const T duv2_x = tc2_x - tc0_x, duv2_y = tc2_y - tc0_y;
+                    const T det = duv1_x * duv2_y - duv2_x * duv1_y;
+                    if((det < 0 ? -det : det) > (T)1e-8){
+                        const T inv_det = (T)1 / det;
+                        Vec3<T> tangent = normalize(math_device, inv_det * (duv2_y * edge1 - duv1_y * edge2));
+                        tangent = normalize(math_device, tangent - dot(tangent, N) * N);
+                        const Vec3<T> bitangent = cross(N, tangent);
+                        T nm_sample[4];
+                        sample_texture(math_device, self.normal_map, w0 * tc0_x + hit.u * tc1_x + hit.v * tc2_x, w0 * tc0_y + hit.u * tc1_y + hit.v * tc2_y, false, nm_sample);
+                        const Vec3<T> n_tangent = {nm_sample[0] * (T)2 - (T)1, -(nm_sample[1] * (T)2 - (T)1), nm_sample[2] * (T)2 - (T)1};
+                        N = normalize(math_device, tangent * n_tangent.x + bitangent * n_tangent.y + N * n_tangent.z);
                     }
                 }
 
-                const T NdotL = maximum(dot(N, L), (T)0);
-                if(NdotL <= (T)0) continue;
-                if constexpr (SPEC::SHADING::PUNCTUAL_LIGHT_SHADOWS){
-                    if(light.type != 0 && trace_any_composed<SPEC>(scene, camera_from_pixel<SPEC>(pixel_x, pixel_y), hit_point + N * (T)2e-3, L, (T)1e-3, light_distance)) continue;
+                roughness = maximum(roughness, (T)0.04);
+                const T roughness_alpha = roughness * roughness;
+                const T alpha2 = roughness_alpha * roughness_alpha;
+                const T k = (roughness + (T)1) * (roughness + (T)1) / (T)8;
+
+                const Vec3<T> V = -ray_dir;
+                const T NdotV = maximum(dot(N, V), (T)1e-4);
+                const Vec3<T> F0 = Vec3<T>{(T)0.04, (T)0.04, (T)0.04} * ((T)1 - metallic) + base_color * metallic;
+
+                Vec3<T> Lo = {0, 0, 0};
+                for(TI light_i = 0; light_i < scene.num_lights; light_i++){
+                    const SceneLight& light = scene.lights[light_i];
+                    const Vec3<T> Lc = {(T)light.color[0], (T)light.color[1], (T)light.color[2]};
+                    Vec3<T> L;
+                    T attenuation = 1;
+                    T light_distance = (T)1e20;
+
+                    if(light.type == 0){
+                        L = {(T)light.direction[0], (T)light.direction[1], (T)light.direction[2]};
+                    }
+                    else{
+                        const Vec3<T> to_light = Vec3<T>{(T)light.position[0], (T)light.position[1], (T)light.position[2]} - hit_point;
+                        const T dist = length(math_device, to_light);
+                        light_distance = maximum(dist - (T)1e-3, (T)0);
+                        L = to_light * ((T)1 / maximum(dist, (T)1e-6));
+                        attenuation = (T)1 / ((T)light.attenuation_constant + (T)light.attenuation_linear * dist + (T)light.attenuation_quadratic * dist * dist);
+                        if(light.type == 2){
+                            const Vec3<T> spot_dir = {(T)light.direction[0], (T)light.direction[1], (T)light.direction[2]};
+                            const T cos_angle = dot(-L, spot_dir);
+                            const T denom = (T)light.cos_inner_cone - (T)light.cos_outer_cone;
+                            const T denom_abs = denom < 0 ? -denom : denom;
+                            const T spot_t = (cos_angle - (T)light.cos_outer_cone) / (denom_abs > (T)1e-6 ? denom : (T)1e-6);
+                            attenuation *= maximum(minimum(spot_t, (T)1), (T)0);
+                        }
+                    }
+
+                    const T NdotL = maximum(dot(N, L), (T)0);
+                    if(NdotL <= (T)0) continue;
+                    if constexpr (SPEC::SHADING::PUNCTUAL_LIGHT_SHADOWS){
+                        if(light.type != 0 && trace_any_composed<SPEC>(scene, camera_from_pixel<SPEC>(pixel_x, pixel_y), hit_point + N * (T)2e-3, L, (T)1e-3, light_distance)) continue;
+                    }
+
+                    const Vec3<T> H = normalize(math_device, V + L);
+                    const T NdotH = maximum(dot(N, H), (T)0);
+                    const T VdotH = maximum(dot(V, H), (T)0);
+
+                    const T denom_D = NdotH * NdotH * (alpha2 - (T)1) + (T)1;
+                    const T D = alpha2 / ((T)3.14159265 * denom_D * denom_D);
+
+                    const T G1_V = NdotV / (NdotV * ((T)1 - k) + k);
+                    const T G1_L = NdotL / (NdotL * ((T)1 - k) + k);
+                    const T G = G1_V * G1_L;
+
+                    const T pow5 = math::pow(math_device, (T)1 - VdotH, (T)5);
+                    const Vec3<T> F = F0 + (Vec3<T>{1, 1, 1} - F0) * pow5;
+
+                    const Vec3<T> specular = F * (D * G * ((T)1 / ((T)4 * NdotV * NdotL + (T)1e-4)));
+                    const Vec3<T> kd = (Vec3<T>{1, 1, 1} - F) * ((T)1 - metallic);
+                    const Vec3<T> diffuse = kd * base_color * ((T)1 / (T)3.14159265);
+
+                    Lo = Lo + (diffuse + specular) * Lc * (attenuation * NdotL);
                 }
 
-                const Vec3<T> H = normalize(math_device, V + L);
-                const T NdotH = maximum(dot(N, H), (T)0);
-                const T VdotH = maximum(dot(V, H), (T)0);
+                T occlusion = 1;
+                if(self.occlusion_map.pixels != nullptr && self.tex_coords != nullptr){
+                    T ao_sample[4];
+                    sample_texture(math_device, self.occlusion_map, tc_x, tc_y, false, ao_sample);
+                    occlusion = ao_sample[0];
+                }
 
-                const T denom_D = NdotH * NdotH * (alpha2 - (T)1) + (T)1;
-                const T D = alpha2 / ((T)3.14159265 * denom_D * denom_D);
+                Vec3<T> emissive_color;
+                if(self.emissive_map.pixels != nullptr && self.tex_coords != nullptr){
+                    T em_sample[4];
+                    sample_texture(math_device, self.emissive_map, tc_x, tc_y, true, em_sample);
+                    emissive_color = Vec3<T>{em_sample[0], em_sample[1], em_sample[2]} * to_vec3(self.emissive);
+                }
+                else{
+                    emissive_color = to_vec3(self.emissive);
+                }
 
-                const T G1_V = NdotV / (NdotV * ((T)1 - k) + k);
-                const T G1_L = NdotL / (NdotL * ((T)1 - k) + k);
-                const T G = G1_V * G1_L;
+                const Vec3<T> ambient = to_vec3(scene.ambient_color) * base_color * (((T)1 - metallic) * occlusion);
+                color = ambient + Lo + emissive_color;
 
-                const T pow5 = math::pow(math_device, (T)1 - VdotH, (T)5);
-                const Vec3<T> F = F0 + (Vec3<T>{1, 1, 1} - F0) * pow5;
+                if constexpr (DEPTH < 1){
+                    if(metallic > (T)0.1){
+                        const Vec3<T> reflect_dir = ray_dir - (T)2 * dot(ray_dir, N) * N;
 
-                const Vec3<T> specular = F * (D * G * ((T)1 / ((T)4 * NdotV * NdotL + (T)1e-4)));
-                const Vec3<T> kd = (Vec3<T>{1, 1, 1} - F) * ((T)1 - metallic);
-                const Vec3<T> diffuse = kd * base_color * ((T)1 / (T)3.14159265);
+                        const Vec3<T> reflected_color = trace_rgb<DEVICE, SPEC, DEPTH + 1>(device, scene, pixel_x, pixel_y, hit_point, reflect_dir, (T)1e-3, (T)1e20);
 
-                Lo = Lo + (diffuse + specular) * Lc * (attenuation * NdotL);
+                        const T fresnel_refl = F0.x + ((T)1 - F0.x) * math::pow(math_device, (T)1 - maximum(dot(V, N), (T)0), (T)5);
+                        const T reflection_weight = fresnel_refl * ((T)1 - roughness);
+                        color = color * ((T)1 - reflection_weight) + reflected_color * reflection_weight;
+                    }
+                }
             }
-
-            T occlusion = 1;
-            if(self.occlusion_map.pixels != nullptr && self.tex_coords != nullptr){
-                T ao_sample[4];
-                sample_texture(math_device, self.occlusion_map, tc_x, tc_y, false, ao_sample);
-                occlusion = ao_sample[0];
-            }
-
-            Vec3<T> emissive_color;
-            if(self.emissive_map.pixels != nullptr && self.tex_coords != nullptr){
-                T em_sample[4];
-                sample_texture(math_device, self.emissive_map, tc_x, tc_y, true, em_sample);
-                emissive_color = Vec3<T>{em_sample[0], em_sample[1], em_sample[2]} * to_vec3(self.emissive);
-            }
-            else{
-                emissive_color = to_vec3(self.emissive);
-            }
-
-            const Vec3<T> ambient = to_vec3(scene.ambient_color) * base_color * (((T)1 - metallic) * occlusion);
-            Vec3<T> color = ambient + Lo + emissive_color;
 
             if constexpr (DEPTH < 1){
-                if(metallic > (T)0.1){
-                    const Vec3<T> reflect_dir = ray_dir - (T)2 * dot(ray_dir, N) * N;
-
-                    const Vec3<T> reflected_color = trace_rgb<DEVICE, SPEC, DEPTH + 1>(device, scene, pixel_x, pixel_y, hit_point, reflect_dir, (T)1e-3, (T)1e20);
-
-                    const T fresnel_refl = F0.x + ((T)1 - F0.x) * math::pow(math_device, (T)1 - maximum(dot(V, N), (T)0), (T)5);
-                    const T reflection_weight = fresnel_refl * ((T)1 - roughness);
-                    color = color * ((T)1 - reflection_weight) + reflected_color * reflection_weight;
-                }
-
                 const bool transparent = (self.alpha_mode == 2 && alpha < (T)0.99) || (self.alpha_mode == 1 && alpha < self.alpha_cutoff);
                 if(transparent){
                     const Vec3<T> behind_color = trace_rgb<DEVICE, SPEC, DEPTH + 1>(device, scene, pixel_x, pixel_y, hit_point, ray_dir, (T)1e-5, (T)1e20);

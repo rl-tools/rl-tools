@@ -264,16 +264,14 @@ static MergedNodes mergeModelNodes(tinygltf::Model& dst,
     for (auto node : src.nodes) {
         if (node.mesh >= 0) node.mesh += meshOff;
         if (node.skin >= 0) node.skin = -1;  // drop skins for now
-        if (node.light >= 0) node.light += lightOff;
-        for (auto& c : node.children) c += nodeOff;
-        // Remap KHR_lights_punctual light index
-        auto extIt = node.extensions.find("KHR_lights_punctual");
-        if (extIt != node.extensions.end() && extIt->second.Has("light")) {
-            int lightIdx = extIt->second.Get("light").Get<int>();
-            tinygltf::Value::Object obj;
-            obj["light"] = tinygltf::Value(lightIdx + lightOff);
-            extIt->second = tinygltf::Value(obj);
+        if (node.light >= 0) {
+            node.light += lightOff;
         }
+        for (auto& c : node.children) {
+            c += nodeOff;
+        }
+        // TinyGLTF serializes KHR_lights_punctual from node.light.
+        node.extensions.erase("KHR_lights_punctual");
         dst.nodes.push_back(node);
     }
 
@@ -316,8 +314,7 @@ static MergeResult mergeModel(tinygltf::Model& dst,
 
 static bool nodeHasDirectContent(const tinygltf::Model& src, int idx) {
     const tinygltf::Node& node = src.nodes[idx];
-    return node.mesh >= 0 || node.light >= 0 ||
-           node.extensions.count("KHR_lights_punctual") > 0;
+    return node.mesh >= 0 || node.light >= 0;
 }
 
 static bool subtreeHasContent(const tinygltf::Model& src, int idx) {
@@ -2063,7 +2060,7 @@ bool scene_instance_to_glb(const Options& options, std::string& error) {
     {
         std::map<std::string, int> lightNodeNameCount;
         for (auto& node : outModel.nodes) {
-            if (node.extensions.count("KHR_lights_punctual")) {
+            if (node.light >= 0) {
                 auto& name = node.name;
                 int count = lightNodeNameCount[name]++;
                 if (count > 0) {

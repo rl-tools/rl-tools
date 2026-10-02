@@ -125,6 +125,7 @@ struct MeshRecord{
     emissive: array<f32, 3>,
     alpha_cutoff: f32,
     alpha_mode: i32,
+    unlit: i32,
 }
 
 struct InstanceData{
@@ -239,7 +240,7 @@ fn load_scene_light(light_i: u32) -> SceneLight{
     return light;
 }
 
-fn mesh_record_base(mesh: u32) -> u32{ return params.mesh_records_offset + mesh * 30u; }
+fn mesh_record_base(mesh: u32) -> u32{ return params.mesh_records_offset + mesh * 31u; }
 fn mesh_index_offset(mesh: u32) -> u32{ return geometry_u32(mesh_record_base(mesh)); }
 fn mesh_vertex_offset(mesh: u32) -> u32{ return geometry_u32(mesh_record_base(mesh) + 1u); }
 fn mesh_tex_coord_offset(mesh: u32) -> u32{ return geometry_u32(mesh_record_base(mesh) + 2u); }
@@ -270,6 +271,7 @@ fn load_mesh_record(mesh: u32) -> MeshRecord{
     record.emissive = array<f32, 3>(geometry_f32(base + 25u), geometry_f32(base + 26u), geometry_f32(base + 27u));
     record.alpha_cutoff = geometry_f32(base + 28u);
     record.alpha_mode = bitcast<i32>(geometry_u32(base + 29u));
+    record.unlit = bitcast<i32>(geometry_u32(base + 30u));
     return record;
 }
 
@@ -847,6 +849,10 @@ fn shade_basic_local(hit: Hit, ray_origin: vec3<f32>, ray_dir: vec3<f32>, reques
         }
     }
 
+    if(rec.unlit != 0){
+        return base_color;
+    }
+
     var direct = base_color;
     if(fc_normal_shading){
         direct = (0.2 + 0.8 * abs(dot(ray_dir, normal_geometric))) * base_color;
@@ -920,123 +926,127 @@ fn shade_pbr_local(hit: Hit, ray_origin: vec3<f32>, ray_dir: vec3<f32>, camera: 
         alpha *= tex_color.w;
     }
 
-    var metallic = rec.metallic;
-    var roughness = rec.roughness;
-    if(rec.metallic_roughness_map.offset != ABSENT && has_tex_coord){
-        let mr_sample = sample_texture(rec.metallic_roughness_map, tc.x, tc.y, false);
-        roughness = mr_sample.y * rec.roughness;
-        metallic = mr_sample.z * rec.metallic;
-    }
-
-    if(rec.normal_map.offset != ABSENT && has_tex_coord){
-        let tc0 = fetch_tex_coord(mesh, index.x);
-        let tc1 = fetch_tex_coord(mesh, index.y);
-        let tc2 = fetch_tex_coord(mesh, index.z);
-        let duv1 = tc1 - tc0;
-        let duv2 = tc2 - tc0;
-        let det = duv1.x * duv2.y - duv2.x * duv1.y;
-        if(abs(det) > 1e-8){
-            let inv_det = 1.0 / det;
-            var T = normalize(inv_det * (duv2.y * edge1 - duv1.y * edge2));
-            T = normalize(T - dot(T, N) * N);
-            let B = cross(N, T);
-            let nm_sample = sample_texture(rec.normal_map, w0 * tc0.x + hit.u * tc1.x + hit.v * tc2.x, w0 * tc0.y + hit.u * tc1.y + hit.v * tc2.y, false);
-            let n_tangent = vec3<f32>(nm_sample.x * 2.0 - 1.0, -(nm_sample.y * 2.0 - 1.0), nm_sample.z * 2.0 - 1.0);
-            N = normalize(T * n_tangent.x + B * n_tangent.y + N * n_tangent.z);
-        }
-    }
-
-    roughness = max(roughness, 0.04);
-    let roughness_alpha = roughness * roughness;
-    let alpha2 = roughness_alpha * roughness_alpha;
-    let k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
-
-    let V = -ray_dir;
-    let NdotV = max(dot(N, V), 1e-4);
-    let F0 = vec3<f32>(0.04) * (1.0 - metallic) + base_color * metallic;
-
     let hit_point = ray_origin + ray_dir * hit.t;
 
-    var Lo = vec3<f32>(0.0);
-    for(var li = 0u; li < params.num_scene_lights; li++){
-        let light = load_scene_light(li);
-        let Lc = to_vec3(light.color);
-        var L: vec3<f32>;
-        var attenuation = 1.0;
-        var light_distance = 1e20;
-
-        if(light.light_type == 0){
-            L = to_vec3(light.direction);
+    var color = base_color;
+    if(rec.unlit == 0){
+        var metallic = rec.metallic;
+        var roughness = rec.roughness;
+        if(rec.metallic_roughness_map.offset != ABSENT && has_tex_coord){
+            let mr_sample = sample_texture(rec.metallic_roughness_map, tc.x, tc.y, false);
+            roughness = mr_sample.y * rec.roughness;
+            metallic = mr_sample.z * rec.metallic;
         }
-        else{
-            let to_light = to_vec3(light.position) - hit_point;
-            let dist = length(to_light);
-            light_distance = max(dist - 1e-3, 0.0);
-            L = to_light * (1.0 / max(dist, 1e-6));
-            attenuation = 1.0 / (light.attenuation_constant + light.attenuation_linear * dist + light.attenuation_quadratic * dist * dist);
-            if(light.light_type == 2){
-                let spot_dir = to_vec3(light.direction);
-                let cos_angle = dot(-L, spot_dir);
-                let denom = light.cos_inner_cone - light.cos_outer_cone;
-                let spot_t = (cos_angle - light.cos_outer_cone) / select(1e-6, denom, abs(denom) > 1e-6);
-                attenuation *= max(min(spot_t, 1.0), 0.0);
+
+        if(rec.normal_map.offset != ABSENT && has_tex_coord){
+            let tc0 = fetch_tex_coord(mesh, index.x);
+            let tc1 = fetch_tex_coord(mesh, index.y);
+            let tc2 = fetch_tex_coord(mesh, index.z);
+            let duv1 = tc1 - tc0;
+            let duv2 = tc2 - tc0;
+            let det = duv1.x * duv2.y - duv2.x * duv1.y;
+            if(abs(det) > 1e-8){
+                let inv_det = 1.0 / det;
+                var T = normalize(inv_det * (duv2.y * edge1 - duv1.y * edge2));
+                T = normalize(T - dot(T, N) * N);
+                let B = cross(N, T);
+                let nm_sample = sample_texture(rec.normal_map, w0 * tc0.x + hit.u * tc1.x + hit.v * tc2.x, w0 * tc0.y + hit.u * tc1.y + hit.v * tc2.y, false);
+                let n_tangent = vec3<f32>(nm_sample.x * 2.0 - 1.0, -(nm_sample.y * 2.0 - 1.0), nm_sample.z * 2.0 - 1.0);
+                N = normalize(T * n_tangent.x + B * n_tangent.y + N * n_tangent.z);
             }
         }
 
-        let NdotL = max(dot(N, L), 0.0);
-        if(NdotL <= 0.0){
-            continue;
-        }
-        if(fc_punctual_light_shadows){
-            if(light.light_type != 0 && trace_shadow_occluded(camera, hit_point + N * 2e-3, L, light_distance)){
+        roughness = max(roughness, 0.04);
+        let roughness_alpha = roughness * roughness;
+        let alpha2 = roughness_alpha * roughness_alpha;
+        let k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
+
+        let V = -ray_dir;
+        let NdotV = max(dot(N, V), 1e-4);
+        let F0 = vec3<f32>(0.04) * (1.0 - metallic) + base_color * metallic;
+
+        var Lo = vec3<f32>(0.0);
+        for(var li = 0u; li < params.num_scene_lights; li++){
+            let light = load_scene_light(li);
+            let Lc = to_vec3(light.color);
+            var L: vec3<f32>;
+            var attenuation = 1.0;
+            var light_distance = 1e20;
+
+            if(light.light_type == 0){
+                L = to_vec3(light.direction);
+            }
+            else{
+                let to_light = to_vec3(light.position) - hit_point;
+                let dist = length(to_light);
+                light_distance = max(dist - 1e-3, 0.0);
+                L = to_light * (1.0 / max(dist, 1e-6));
+                attenuation = 1.0 / (light.attenuation_constant + light.attenuation_linear * dist + light.attenuation_quadratic * dist * dist);
+                if(light.light_type == 2){
+                    let spot_dir = to_vec3(light.direction);
+                    let cos_angle = dot(-L, spot_dir);
+                    let denom = light.cos_inner_cone - light.cos_outer_cone;
+                    let spot_t = (cos_angle - light.cos_outer_cone) / select(1e-6, denom, abs(denom) > 1e-6);
+                    attenuation *= max(min(spot_t, 1.0), 0.0);
+                }
+            }
+
+            let NdotL = max(dot(N, L), 0.0);
+            if(NdotL <= 0.0){
                 continue;
             }
+            if(fc_punctual_light_shadows){
+                if(light.light_type != 0 && trace_shadow_occluded(camera, hit_point + N * 2e-3, L, light_distance)){
+                    continue;
+                }
+            }
+
+            let H = normalize(V + L);
+            let NdotH = max(dot(N, H), 0.0);
+            let VdotH = max(dot(V, H), 0.0);
+
+            let denom_D = NdotH * NdotH * (alpha2 - 1.0) + 1.0;
+            let D = alpha2 / (PI * denom_D * denom_D);
+
+            let G1_V = NdotV / (NdotV * (1.0 - k) + k);
+            let G1_L = NdotL / (NdotL * (1.0 - k) + k);
+            let G = G1_V * G1_L;
+
+            let pow5 = pow(1.0 - VdotH, 5.0);
+            let F = F0 + (vec3<f32>(1.0) - F0) * pow5;
+
+            let specular = D * G * F * (1.0 / (4.0 * NdotV * NdotL + 1e-4));
+            let kd = (vec3<f32>(1.0) - F) * (1.0 - metallic);
+            let diffuse = kd * base_color * (1.0 / PI);
+
+            Lo = Lo + (diffuse + specular) * Lc * (attenuation * NdotL);
         }
 
-        let H = normalize(V + L);
-        let NdotH = max(dot(N, H), 0.0);
-        let VdotH = max(dot(V, H), 0.0);
+        var occlusion = 1.0;
+        if(rec.occlusion_map.offset != ABSENT && has_tex_coord){
+            let ao_sample = sample_texture(rec.occlusion_map, tc.x, tc.y, false);
+            occlusion = ao_sample.x;
+        }
 
-        let denom_D = NdotH * NdotH * (alpha2 - 1.0) + 1.0;
-        let D = alpha2 / (PI * denom_D * denom_D);
+        var emissive_color: vec3<f32>;
+        if(rec.emissive_map.offset != ABSENT && has_tex_coord){
+            let em_sample = sample_texture(rec.emissive_map, tc.x, tc.y, true);
+            emissive_color = em_sample.xyz * to_vec3(rec.emissive);
+        }
+        else{
+            emissive_color = to_vec3(rec.emissive);
+        }
 
-        let G1_V = NdotV / (NdotV * (1.0 - k) + k);
-        let G1_L = NdotL / (NdotL * (1.0 - k) + k);
-        let G = G1_V * G1_L;
+        let ambient = to_vec3(params.ambient_color) * base_color * ((1.0 - metallic) * occlusion);
+        color = ambient + Lo + emissive_color;
 
-        let pow5 = pow(1.0 - VdotH, 5.0);
-        let F = F0 + (vec3<f32>(1.0) - F0) * pow5;
+        if(metallic > 0.1){
+            let fresnel_refl = F0.x + (1.0 - F0.x) * pow(1.0 - max(dot(V, N), 0.0), 5.0);
+            (*request).want_reflection = true;
+            (*request).reflect_dir = ray_dir - 2.0 * dot(ray_dir, N) * N;
+            (*request).reflection_weight = fresnel_refl * (1.0 - roughness);
+        }
 
-        let specular = D * G * F * (1.0 / (4.0 * NdotV * NdotL + 1e-4));
-        let kd = (vec3<f32>(1.0) - F) * (1.0 - metallic);
-        let diffuse = kd * base_color * (1.0 / PI);
-
-        Lo = Lo + (diffuse + specular) * Lc * (attenuation * NdotL);
-    }
-
-    var occlusion = 1.0;
-    if(rec.occlusion_map.offset != ABSENT && has_tex_coord){
-        let ao_sample = sample_texture(rec.occlusion_map, tc.x, tc.y, false);
-        occlusion = ao_sample.x;
-    }
-
-    var emissive_color: vec3<f32>;
-    if(rec.emissive_map.offset != ABSENT && has_tex_coord){
-        let em_sample = sample_texture(rec.emissive_map, tc.x, tc.y, true);
-        emissive_color = em_sample.xyz * to_vec3(rec.emissive);
-    }
-    else{
-        emissive_color = to_vec3(rec.emissive);
-    }
-
-    let ambient = to_vec3(params.ambient_color) * base_color * ((1.0 - metallic) * occlusion);
-    let color = ambient + Lo + emissive_color;
-
-    if(metallic > 0.1){
-        let fresnel_refl = F0.x + (1.0 - F0.x) * pow(1.0 - max(dot(V, N), 0.0), 5.0);
-        (*request).want_reflection = true;
-        (*request).reflect_dir = ray_dir - 2.0 * dot(ray_dir, N) * N;
-        (*request).reflection_weight = fresnel_refl * (1.0 - roughness);
     }
 
     let transparent = (rec.alpha_mode == 2 && alpha < 0.99) || (rec.alpha_mode == 1 && alpha < rec.alpha_cutoff);

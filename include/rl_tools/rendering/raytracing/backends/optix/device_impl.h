@@ -468,6 +468,12 @@ namespace rl_tools
       }
     }
 
+    if(self.unlit != 0){
+      prd = base_color;
+      optixSetPayload_3(__float_as_uint(optixGetRayTmax()));
+      return;
+    }
+
     owl::vec3f direct = base_color;
     if constexpr (NORMAL_SHADING) {
       direct = (.2f + .8f * fabs(dot(ray_dir, normal_geometric))) * base_color;
@@ -552,41 +558,6 @@ namespace rl_tools
       alpha *= tex_color.w;
     }
 
-    float metallic = self.metallic;
-    float roughness = self.roughness;
-    if (self.has_metallic_roughness_map && self.tex_coord) {
-      owl::vec4f mr_sample = tex2D<float4>(self.metallic_roughness_map, tc.x, tc.y);
-      roughness = mr_sample.y * self.roughness;
-      metallic = mr_sample.z * self.metallic;
-    }
-
-    if (self.has_normal_map && self.tex_coord) {
-      const owl::vec2f tc0 = self.tex_coord[index.x];
-      const owl::vec2f tc1 = self.tex_coord[index.y];
-      const owl::vec2f tc2 = self.tex_coord[index.z];
-      const owl::vec2f duv1 = tc1 - tc0;
-      const owl::vec2f duv2 = tc2 - tc0;
-      float det = duv1.x * duv2.y - duv2.x * duv1.y;
-      if (fabsf(det) > 1e-8f) {
-        float inv_det = 1.f / det;
-        owl::vec3f T = normalize(inv_det * (duv2.y * edge1 - duv1.y * edge2));
-        T = normalize(T - dot(T, N) * N);
-        owl::vec3f B = cross(N, T);
-        owl::vec4f nm_sample = tex2D<float4>(self.normal_map, w0 * tc0.x + bary.x * tc1.x + bary.y * tc2.x, w0 * tc0.y + bary.x * tc1.y + bary.y * tc2.y);
-        owl::vec3f n_tangent = owl::vec3f(nm_sample.x * 2.f - 1.f, -(nm_sample.y * 2.f - 1.f), nm_sample.z * 2.f - 1.f);
-        N = normalize(T * n_tangent.x + B * n_tangent.y + N * n_tangent.z);
-      }
-    }
-
-    roughness = fmaxf(roughness, 0.04f);
-    float roughness_alpha = roughness * roughness;
-    float alpha2 = roughness_alpha * roughness_alpha;
-    float k = (roughness + 1.f) * (roughness + 1.f) / 8.f;
-
-    owl::vec3f V = -ray_dir;
-    float NdotV = fmaxf(dot(N, V), 1e-4f);
-    owl::vec3f F0 = owl::vec3f(0.04f) * (1.f - metallic) + base_color * metallic;
-
     owl::vec3f hit_point = ray_dir * optixGetRayTmax();
     hit_point.x += optixGetWorldRayOrigin().x;
     hit_point.y += optixGetWorldRayOrigin().y;
@@ -594,84 +565,123 @@ namespace rl_tools
 
     const int camera = camera_from_fb_tile();
 
-    owl::vec3f Lo(0.f);
-    for (int li = 0; li < self.num_scene_lights; li++) {
-      const rendering::raytracing::SceneLight& light = self.scene_lights[li];
-      owl::vec3f Lc(light.color[0], light.color[1], light.color[2]);
-      owl::vec3f L;
-      float attenuation = 1.f;
-      float light_distance = 1e20f;
+    owl::vec3f color = base_color;
+    unsigned int depth = optixGetPayload_2();
+    if(self.unlit == 0){
+      float metallic = self.metallic;
+      float roughness = self.roughness;
+      if (self.has_metallic_roughness_map && self.tex_coord) {
+        owl::vec4f mr_sample = tex2D<float4>(self.metallic_roughness_map, tc.x, tc.y);
+        roughness = mr_sample.y * self.roughness;
+        metallic = mr_sample.z * self.metallic;
+      }
 
-      if (light.type == 0) {
-        L = owl::vec3f(light.direction[0], light.direction[1], light.direction[2]);
-      } else {
-        owl::vec3f to_light = owl::vec3f(light.position[0], light.position[1], light.position[2]) - hit_point;
-        float dist = length(to_light);
-        light_distance = fmaxf(dist - 1e-3f, 0.f);
-        L = to_light * (1.f / fmaxf(dist, 1e-6f));
-        attenuation = 1.f / (light.attenuation_constant + light.attenuation_linear * dist + light.attenuation_quadratic * dist * dist);
-        if (light.type == 2) {
-          owl::vec3f spot_dir(light.direction[0], light.direction[1], light.direction[2]);
-          float cos_angle = dot(-L, spot_dir);
-          float denom = light.cos_inner_cone - light.cos_outer_cone;
-          float spot_t = (cos_angle - light.cos_outer_cone) / (fabsf(denom) > 1e-6f ? denom : 1e-6f);
-          attenuation *= fmaxf(fminf(spot_t, 1.f), 0.f);
+      if (self.has_normal_map && self.tex_coord) {
+        const owl::vec2f tc0 = self.tex_coord[index.x];
+        const owl::vec2f tc1 = self.tex_coord[index.y];
+        const owl::vec2f tc2 = self.tex_coord[index.z];
+        const owl::vec2f duv1 = tc1 - tc0;
+        const owl::vec2f duv2 = tc2 - tc0;
+        float det = duv1.x * duv2.y - duv2.x * duv1.y;
+        if (fabsf(det) > 1e-8f) {
+          float inv_det = 1.f / det;
+          owl::vec3f T = normalize(inv_det * (duv2.y * edge1 - duv1.y * edge2));
+          T = normalize(T - dot(T, N) * N);
+          owl::vec3f B = cross(N, T);
+          owl::vec4f nm_sample = tex2D<float4>(self.normal_map, w0 * tc0.x + bary.x * tc1.x + bary.y * tc2.x, w0 * tc0.y + bary.x * tc1.y + bary.y * tc2.y);
+          owl::vec3f n_tangent = owl::vec3f(nm_sample.x * 2.f - 1.f, -(nm_sample.y * 2.f - 1.f), nm_sample.z * 2.f - 1.f);
+          N = normalize(T * n_tangent.x + B * n_tangent.y + N * n_tangent.z);
         }
       }
 
-      float NdotL = fmaxf(dot(N, L), 0.f);
-      if (NdotL <= 0.f) continue;
-      if constexpr (ENABLE_PUNCTUAL_LIGHT_SHADOWS) {
-        if (light.type != 0 && trace_shadow_occluded_composed(self.world, camera, hit_point + N * 2e-3f, L, light_distance)) continue;
+      roughness = fmaxf(roughness, 0.04f);
+      float roughness_alpha = roughness * roughness;
+      float alpha2 = roughness_alpha * roughness_alpha;
+      float k = (roughness + 1.f) * (roughness + 1.f) / 8.f;
+
+      owl::vec3f V = -ray_dir;
+      float NdotV = fmaxf(dot(N, V), 1e-4f);
+      owl::vec3f F0 = owl::vec3f(0.04f) * (1.f - metallic) + base_color * metallic;
+
+      owl::vec3f Lo(0.f);
+      for (int li = 0; li < self.num_scene_lights; li++) {
+        const rendering::raytracing::SceneLight& light = self.scene_lights[li];
+        owl::vec3f Lc(light.color[0], light.color[1], light.color[2]);
+        owl::vec3f L;
+        float attenuation = 1.f;
+        float light_distance = 1e20f;
+
+        if (light.type == 0) {
+          L = owl::vec3f(light.direction[0], light.direction[1], light.direction[2]);
+        } else {
+          owl::vec3f to_light = owl::vec3f(light.position[0], light.position[1], light.position[2]) - hit_point;
+          float dist = length(to_light);
+          light_distance = fmaxf(dist - 1e-3f, 0.f);
+          L = to_light * (1.f / fmaxf(dist, 1e-6f));
+          attenuation = 1.f / (light.attenuation_constant + light.attenuation_linear * dist + light.attenuation_quadratic * dist * dist);
+          if (light.type == 2) {
+            owl::vec3f spot_dir(light.direction[0], light.direction[1], light.direction[2]);
+            float cos_angle = dot(-L, spot_dir);
+            float denom = light.cos_inner_cone - light.cos_outer_cone;
+            float spot_t = (cos_angle - light.cos_outer_cone) / (fabsf(denom) > 1e-6f ? denom : 1e-6f);
+            attenuation *= fmaxf(fminf(spot_t, 1.f), 0.f);
+          }
+        }
+
+        float NdotL = fmaxf(dot(N, L), 0.f);
+        if (NdotL <= 0.f) continue;
+        if constexpr (ENABLE_PUNCTUAL_LIGHT_SHADOWS) {
+          if (light.type != 0 && trace_shadow_occluded_composed(self.world, camera, hit_point + N * 2e-3f, L, light_distance)) continue;
+        }
+
+        owl::vec3f H = normalize(V + L);
+        float NdotH = fmaxf(dot(N, H), 0.f);
+        float VdotH = fmaxf(dot(V, H), 0.f);
+
+        float denom_D = NdotH * NdotH * (alpha2 - 1.f) + 1.f;
+        float D = alpha2 / (3.14159265f * denom_D * denom_D);
+
+        float G1_V = NdotV / (NdotV * (1.f - k) + k);
+        float G1_L = NdotL / (NdotL * (1.f - k) + k);
+        float G = G1_V * G1_L;
+
+        float pow5 = powf(1.f - VdotH, 5.f);
+        owl::vec3f F = F0 + (owl::vec3f(1.f) - F0) * pow5;
+
+        owl::vec3f specular = D * G * F * (1.f / (4.f * NdotV * NdotL + 1e-4f));
+        owl::vec3f kd = (owl::vec3f(1.f) - F) * (1.f - metallic);
+        owl::vec3f diffuse = kd * base_color * (1.f / 3.14159265f);
+
+        Lo = Lo + (diffuse + specular) * Lc * (attenuation * NdotL);
       }
 
-      owl::vec3f H = normalize(V + L);
-      float NdotH = fmaxf(dot(N, H), 0.f);
-      float VdotH = fmaxf(dot(V, H), 0.f);
+      float occlusion = 1.f;
+      if (self.has_occlusion_map && self.tex_coord) {
+        owl::vec4f ao_sample = tex2D<float4>(self.occlusion_map, tc.x, tc.y);
+        occlusion = ao_sample.x;
+      }
 
-      float denom_D = NdotH * NdotH * (alpha2 - 1.f) + 1.f;
-      float D = alpha2 / (3.14159265f * denom_D * denom_D);
+      owl::vec3f emissive_color(0.f);
+      if (self.has_emissive_map && self.tex_coord) {
+        owl::vec4f em_sample = tex2D<float4>(self.emissive_map, tc.x, tc.y);
+        emissive_color = owl::vec3f(em_sample.x, em_sample.y, em_sample.z) * self.emissive;
+      } else {
+        emissive_color = self.emissive;
+      }
 
-      float G1_V = NdotV / (NdotV * (1.f - k) + k);
-      float G1_L = NdotL / (NdotL * (1.f - k) + k);
-      float G = G1_V * G1_L;
+      owl::vec3f ambient = self.ambient_color * base_color * ((1.f - metallic) * occlusion);
+      color = ambient + Lo + emissive_color;
 
-      float pow5 = powf(1.f - VdotH, 5.f);
-      owl::vec3f F = F0 + (owl::vec3f(1.f) - F0) * pow5;
+      if (depth < 1 && metallic > 0.1f) {
+        owl::vec3f reflect_dir = ray_dir - 2.f * dot(ray_dir, N) * N;
 
-      owl::vec3f specular = D * G * F * (1.f / (4.f * NdotV * NdotL + 1e-4f));
-      owl::vec3f kd = (owl::vec3f(1.f) - F) * (1.f - metallic);
-      owl::vec3f diffuse = kd * base_color * (1.f / 3.14159265f);
+        const owl::vec3f reflected_color = trace_rgb_color_composed(self.world, camera, depth + 1, hit_point, reflect_dir, 1e-3f, 1e20f);
 
-      Lo = Lo + (diffuse + specular) * Lc * (attenuation * NdotL);
-    }
+        float fresnel_refl = F0.x + (1.f - F0.x) * powf(1.f - fmaxf(dot(V, N), 0.f), 5.f);
+        float reflection_weight = fresnel_refl * (1.f - roughness);
+        color = color * (1.f - reflection_weight) + reflected_color * reflection_weight;
+      }
 
-    float occlusion = 1.f;
-    if (self.has_occlusion_map && self.tex_coord) {
-      owl::vec4f ao_sample = tex2D<float4>(self.occlusion_map, tc.x, tc.y);
-      occlusion = ao_sample.x;
-    }
-
-    owl::vec3f emissive_color(0.f);
-    if (self.has_emissive_map && self.tex_coord) {
-      owl::vec4f em_sample = tex2D<float4>(self.emissive_map, tc.x, tc.y);
-      emissive_color = owl::vec3f(em_sample.x, em_sample.y, em_sample.z) * self.emissive;
-    } else {
-      emissive_color = self.emissive;
-    }
-
-    owl::vec3f ambient = self.ambient_color * base_color * ((1.f - metallic) * occlusion);
-    owl::vec3f color = ambient + Lo + emissive_color;
-
-    unsigned int depth = optixGetPayload_2();
-    if (depth < 1 && metallic > 0.1f) {
-      owl::vec3f reflect_dir = ray_dir - 2.f * dot(ray_dir, N) * N;
-
-      const owl::vec3f reflected_color = trace_rgb_color_composed(self.world, camera, depth + 1, hit_point, reflect_dir, 1e-3f, 1e20f);
-
-      float fresnel_refl = F0.x + (1.f - F0.x) * powf(1.f - fmaxf(dot(V, N), 0.f), 5.f);
-      float reflection_weight = fresnel_refl * (1.f - roughness);
-      color = color * (1.f - reflection_weight) + reflected_color * reflection_weight;
     }
 
     bool transparent = (self.alpha_mode == 2 && alpha < 0.99f) || (self.alpha_mode == 1 && alpha < self.alpha_cutoff);

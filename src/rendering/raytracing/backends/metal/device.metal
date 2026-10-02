@@ -72,7 +72,8 @@ struct MeshRecord{
     int has_metallic_roughness_map;
     int has_emissive_map;
     int has_occlusion_map;
-    int padding[2];
+    int unlit;
+    int padding[1];
 };
 static_assert(sizeof(MeshRecord) == 144, "MeshRecord layout must match context.h");
 
@@ -328,6 +329,10 @@ inline float3 shade_basic(thread const TraceContext& ctx, thread const ray& r, t
         }
     }
 
+    if(self.unlit != 0){
+        return base_color;
+    }
+
     float3 direct = base_color;
     if (fc_normal_shading) {
         direct = (.2f + .8f * fabs(dot(ray_dir, normal_geometric))) * base_color;
@@ -399,120 +404,124 @@ inline float3 shade_pbr(thread const TraceContext& ctx, thread const ray& r, thr
         alpha *= tex_color.w;
     }
 
-    float metallic = self.metallic;
-    float roughness = self.roughness;
-    if (self.has_metallic_roughness_map && self.tex_coord != nullptr) {
-        float4 mr_sample = self.metallic_roughness_map.sample(tex_sampler, tc);
-        roughness = mr_sample.y * self.roughness;
-        metallic = mr_sample.z * self.metallic;
-    }
-
-    if (self.has_normal_map && self.tex_coord != nullptr) {
-        const float2 tc0 = float2(self.tex_coord[index.x]);
-        const float2 tc1 = float2(self.tex_coord[index.y]);
-        const float2 tc2 = float2(self.tex_coord[index.z]);
-        const float2 duv1 = tc1 - tc0;
-        const float2 duv2 = tc2 - tc0;
-        float det = duv1.x * duv2.y - duv2.x * duv1.y;
-        if (fabs(det) > 1e-8f) {
-            float inv_det = 1.f / det;
-            float3 T = normalize(inv_det * (duv2.y * edge1 - duv1.y * edge2));
-            T = normalize(T - dot(T, N) * N);
-            float3 B = cross(N, T);
-            float4 nm_sample = self.normal_map.sample(tex_sampler, float2(w0 * tc0.x + bary.x * tc1.x + bary.y * tc2.x, w0 * tc0.y + bary.x * tc1.y + bary.y * tc2.y));
-            float3 n_tangent = float3(nm_sample.x * 2.f - 1.f, -(nm_sample.y * 2.f - 1.f), nm_sample.z * 2.f - 1.f);
-            N = normalize(T * n_tangent.x + B * n_tangent.y + N * n_tangent.z);
-        }
-    }
-
-    roughness = fmax(roughness, 0.04f);
-    float roughness_alpha = roughness * roughness;
-    float alpha2 = roughness_alpha * roughness_alpha;
-    float k = (roughness + 1.f) * (roughness + 1.f) / 8.f;
-
-    float3 V = -ray_dir;
-    float NdotV = fmax(dot(N, V), 1e-4f);
-    float3 F0 = float3(0.04f) * (1.f - metallic) + base_color * metallic;
-
     float3 hit_point = r.origin + ray_dir * hit.distance;
 
-    float3 Lo = float3(0.f);
-    for (int li = 0; li < (int)ctx.params->num_scene_lights; li++) {
-        device const SceneLight& light = ctx.scene_lights[li];
-        float3 Lc = float3(light.color);
-        float3 L;
-        float attenuation = 1.f;
-        float light_distance = 1e20f;
+    float3 color = base_color;
+    if(self.unlit == 0){
+        float metallic = self.metallic;
+        float roughness = self.roughness;
+        if (self.has_metallic_roughness_map && self.tex_coord != nullptr) {
+            float4 mr_sample = self.metallic_roughness_map.sample(tex_sampler, tc);
+            roughness = mr_sample.y * self.roughness;
+            metallic = mr_sample.z * self.metallic;
+        }
 
-        if (light.type == 0) {
-            L = float3(light.direction);
-        } else {
-            float3 to_light = float3(light.position) - hit_point;
-            float dist = length(to_light);
-            light_distance = fmax(dist - 1e-3f, 0.f);
-            L = to_light * (1.f / fmax(dist, 1e-6f));
-            attenuation = 1.f / (light.attenuation_constant + light.attenuation_linear * dist + light.attenuation_quadratic * dist * dist);
-            if (light.type == 2) {
-                float3 spot_dir = float3(light.direction);
-                float cos_angle = dot(-L, spot_dir);
-                float denom = light.cos_inner_cone - light.cos_outer_cone;
-                float spot_t = (cos_angle - light.cos_outer_cone) / (fabs(denom) > 1e-6f ? denom : 1e-6f);
-                attenuation *= fmax(fmin(spot_t, 1.f), 0.f);
+        if (self.has_normal_map && self.tex_coord != nullptr) {
+            const float2 tc0 = float2(self.tex_coord[index.x]);
+            const float2 tc1 = float2(self.tex_coord[index.y]);
+            const float2 tc2 = float2(self.tex_coord[index.z]);
+            const float2 duv1 = tc1 - tc0;
+            const float2 duv2 = tc2 - tc0;
+            float det = duv1.x * duv2.y - duv2.x * duv1.y;
+            if (fabs(det) > 1e-8f) {
+                float inv_det = 1.f / det;
+                float3 T = normalize(inv_det * (duv2.y * edge1 - duv1.y * edge2));
+                T = normalize(T - dot(T, N) * N);
+                float3 B = cross(N, T);
+                float4 nm_sample = self.normal_map.sample(tex_sampler, float2(w0 * tc0.x + bary.x * tc1.x + bary.y * tc2.x, w0 * tc0.y + bary.x * tc1.y + bary.y * tc2.y));
+                float3 n_tangent = float3(nm_sample.x * 2.f - 1.f, -(nm_sample.y * 2.f - 1.f), nm_sample.z * 2.f - 1.f);
+                N = normalize(T * n_tangent.x + B * n_tangent.y + N * n_tangent.z);
             }
         }
 
-        float NdotL = fmax(dot(N, L), 0.f);
-        if (NdotL <= 0.f) continue;
-        if (fc_punctual_light_shadows) {
-            if (light.type != 0 && trace_shadow_occluded(ctx, hit_point + N * 2e-3f, L, light_distance)) continue;
+        roughness = fmax(roughness, 0.04f);
+        float roughness_alpha = roughness * roughness;
+        float alpha2 = roughness_alpha * roughness_alpha;
+        float k = (roughness + 1.f) * (roughness + 1.f) / 8.f;
+
+        float3 V = -ray_dir;
+        float NdotV = fmax(dot(N, V), 1e-4f);
+        float3 F0 = float3(0.04f) * (1.f - metallic) + base_color * metallic;
+
+        float3 Lo = float3(0.f);
+        for (int li = 0; li < (int)ctx.params->num_scene_lights; li++) {
+            device const SceneLight& light = ctx.scene_lights[li];
+            float3 Lc = float3(light.color);
+            float3 L;
+            float attenuation = 1.f;
+            float light_distance = 1e20f;
+
+            if (light.type == 0) {
+                L = float3(light.direction);
+            } else {
+                float3 to_light = float3(light.position) - hit_point;
+                float dist = length(to_light);
+                light_distance = fmax(dist - 1e-3f, 0.f);
+                L = to_light * (1.f / fmax(dist, 1e-6f));
+                attenuation = 1.f / (light.attenuation_constant + light.attenuation_linear * dist + light.attenuation_quadratic * dist * dist);
+                if (light.type == 2) {
+                    float3 spot_dir = float3(light.direction);
+                    float cos_angle = dot(-L, spot_dir);
+                    float denom = light.cos_inner_cone - light.cos_outer_cone;
+                    float spot_t = (cos_angle - light.cos_outer_cone) / (fabs(denom) > 1e-6f ? denom : 1e-6f);
+                    attenuation *= fmax(fmin(spot_t, 1.f), 0.f);
+                }
+            }
+
+            float NdotL = fmax(dot(N, L), 0.f);
+            if (NdotL <= 0.f) continue;
+            if (fc_punctual_light_shadows) {
+                if (light.type != 0 && trace_shadow_occluded(ctx, hit_point + N * 2e-3f, L, light_distance)) continue;
+            }
+
+            float3 H = normalize(V + L);
+            float NdotH = fmax(dot(N, H), 0.f);
+            float VdotH = fmax(dot(V, H), 0.f);
+
+            float denom_D = NdotH * NdotH * (alpha2 - 1.f) + 1.f;
+            float D = alpha2 / (3.14159265f * denom_D * denom_D);
+
+            float G1_V = NdotV / (NdotV * (1.f - k) + k);
+            float G1_L = NdotL / (NdotL * (1.f - k) + k);
+            float G = G1_V * G1_L;
+
+            float pow5 = pow(1.f - VdotH, 5.f);
+            float3 F = F0 + (float3(1.f) - F0) * pow5;
+
+            float3 specular = D * G * F * (1.f / (4.f * NdotV * NdotL + 1e-4f));
+            float3 kd = (float3(1.f) - F) * (1.f - metallic);
+            float3 diffuse = kd * base_color * (1.f / 3.14159265f);
+
+            Lo = Lo + (diffuse + specular) * Lc * (attenuation * NdotL);
         }
 
-        float3 H = normalize(V + L);
-        float NdotH = fmax(dot(N, H), 0.f);
-        float VdotH = fmax(dot(V, H), 0.f);
+        float occlusion = 1.f;
+        if (self.has_occlusion_map && self.tex_coord != nullptr) {
+            float4 ao_sample = self.occlusion_map.sample(tex_sampler, tc);
+            occlusion = ao_sample.x;
+        }
 
-        float denom_D = NdotH * NdotH * (alpha2 - 1.f) + 1.f;
-        float D = alpha2 / (3.14159265f * denom_D * denom_D);
+        float3 emissive_color = float3(0.f);
+        if (self.has_emissive_map && self.tex_coord != nullptr) {
+            float4 em_sample = self.emissive_map.sample(tex_sampler, tc);
+            emissive_color = em_sample.xyz * float3(self.emissive);
+        } else {
+            emissive_color = float3(self.emissive);
+        }
 
-        float G1_V = NdotV / (NdotV * (1.f - k) + k);
-        float G1_L = NdotL / (NdotL * (1.f - k) + k);
-        float G = G1_V * G1_L;
+        float3 ambient = float3(ctx.params->ambient_color) * base_color * ((1.f - metallic) * occlusion);
+        color = ambient + Lo + emissive_color;
 
-        float pow5 = pow(1.f - VdotH, 5.f);
-        float3 F = F0 + (float3(1.f) - F0) * pow5;
+        if (SECONDARY && metallic > 0.1f) {
+            float3 reflect_dir = ray_dir - 2.f * dot(ray_dir, N) * N;
 
-        float3 specular = D * G * F * (1.f / (4.f * NdotV * NdotL + 1e-4f));
-        float3 kd = (float3(1.f) - F) * (1.f - metallic);
-        float3 diffuse = kd * base_color * (1.f / 3.14159265f);
+            float3 reflected_color = SecondaryTrace<DEPTH + 1, SECONDARY>::trace(ctx, hit_point, reflect_dir, 1e-3f);
 
-        Lo = Lo + (diffuse + specular) * Lc * (attenuation * NdotL);
-    }
+            float fresnel_refl = F0.x + (1.f - F0.x) * pow(1.f - fmax(dot(V, N), 0.f), 5.f);
+            float reflection_weight = fresnel_refl * (1.f - roughness);
+            color = color * (1.f - reflection_weight) + reflected_color * reflection_weight;
+        }
 
-    float occlusion = 1.f;
-    if (self.has_occlusion_map && self.tex_coord != nullptr) {
-        float4 ao_sample = self.occlusion_map.sample(tex_sampler, tc);
-        occlusion = ao_sample.x;
-    }
-
-    float3 emissive_color = float3(0.f);
-    if (self.has_emissive_map && self.tex_coord != nullptr) {
-        float4 em_sample = self.emissive_map.sample(tex_sampler, tc);
-        emissive_color = em_sample.xyz * float3(self.emissive);
-    } else {
-        emissive_color = float3(self.emissive);
-    }
-
-    float3 ambient = float3(ctx.params->ambient_color) * base_color * ((1.f - metallic) * occlusion);
-    float3 color = ambient + Lo + emissive_color;
-
-    if (SECONDARY && metallic > 0.1f) {
-        float3 reflect_dir = ray_dir - 2.f * dot(ray_dir, N) * N;
-
-        float3 reflected_color = SecondaryTrace<DEPTH + 1, SECONDARY>::trace(ctx, hit_point, reflect_dir, 1e-3f);
-
-        float fresnel_refl = F0.x + (1.f - F0.x) * pow(1.f - fmax(dot(V, N), 0.f), 5.f);
-        float reflection_weight = fresnel_refl * (1.f - roughness);
-        color = color * (1.f - reflection_weight) + reflected_color * reflection_weight;
     }
 
     bool transparent = (self.alpha_mode == 2 && alpha < 0.99f) || (self.alpha_mode == 1 && alpha < self.alpha_cutoff);
