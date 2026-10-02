@@ -3,6 +3,7 @@
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/array.h>
 #include <nanobind/stl/vector.h>
+#include <nanobind/stl/map.h>
 
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_common.h>
@@ -29,20 +30,34 @@ using hyperdrone::make_owned_array;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 static DEVICE g_device;
+using rlt::segmentation_taxonomy;
 
 // the Python-facing "Scene" is a Bundle: the composed scene plus its loader/computed
 // metadata (bounds, max ray length), which the renderer consumes at init
 using SceneBundle = rlt::rendering::Bundle<float>;
 
-template <typename TARGET>
-static bool load_dispatch(TARGET& target, const std::string& path, int fidelity, bool rgb){
+template <typename TARGET, typename... MODES>
+static bool load_dispatch(TARGET& target, const std::string& path, int fidelity, bool rgb, const MODES&... modes){
+    using rlt::load;
     switch(fidelity){
-        case 0: return rgb ? rlt::load<rrt::Low, true>(g_device, target, path) : rlt::load<rrt::Low, false>(g_device, target, path);
-        case 1: return rgb ? rlt::load<rrt::Medium, true>(g_device, target, path) : rlt::load<rrt::Medium, false>(g_device, target, path);
-        case 2: return rgb ? rlt::load<rrt::High, true>(g_device, target, path) : rlt::load<rrt::High, false>(g_device, target, path);
-        case 3: return rgb ? rlt::load<rrt::VeryHigh, true>(g_device, target, path) : rlt::load<rrt::VeryHigh, false>(g_device, target, path);
+        case 0: return rgb ? load<rrt::Low, true>(g_device, target, path, modes...) : load<rrt::Low, false>(g_device, target, path, modes...);
+        case 1: return rgb ? load<rrt::Medium, true>(g_device, target, path, modes...) : load<rrt::Medium, false>(g_device, target, path, modes...);
+        case 2: return rgb ? load<rrt::High, true>(g_device, target, path, modes...) : load<rrt::High, false>(g_device, target, path, modes...);
+        case 3: return rgb ? load<rrt::VeryHigh, true>(g_device, target, path, modes...) : load<rrt::VeryHigh, false>(g_device, target, path, modes...);
     }
     throw std::invalid_argument("hyperdrone: fidelity must be in [0, 3]");
+}
+
+template <typename TARGET>
+static std::string taxonomy_name(const TARGET& target){
+    const auto taxonomy = segmentation_taxonomy(g_device, target);
+    return taxonomy ? taxonomy->name : std::string{};
+}
+
+template <typename TARGET>
+static std::map<uint32_t, std::string> class_names(const TARGET& target){
+    const auto taxonomy = segmentation_taxonomy(g_device, target);
+    return taxonomy ? taxonomy->classes : std::map<uint32_t, std::string>{};
 }
 
 static rrt::Mesh make_mesh(FloatArray vertices, nb::ndarray<const int32_t, nb::c_contig, nb::device::cpu> indices,
@@ -157,6 +172,9 @@ void register_scene_bindings(nb::module_& m){
         }, nb::arg("name") = "", nb::arg("segmentation_class") = 0)
         .def_rw("name", &rrt::Object::name)
         .def_rw("segmentation_class", &rrt::Object::segmentation_class)
+        .def_prop_ro("segmentation_class_valid", [](const rrt::Object& object){ return object.segmentation_class_valid; })
+        .def_prop_ro("segmentation_taxonomy", [](const rrt::Object& object){ return object.segmentation_taxonomy ? object.segmentation_taxonomy->name : std::string{}; })
+        .def_prop_ro("segmentation_classes", [](const rrt::Object& object){ return object.segmentation_taxonomy ? object.segmentation_taxonomy->classes : std::map<uint32_t, std::string>{}; })
         .def("add_mesh", [](rrt::Object& object, const rrt::Mesh& mesh){ object.meshes.push_back(mesh); })
         .def("add_light", [](rrt::Object& object, const rrt::SceneLight& light){ object.lights.push_back(light); })
         .def_prop_ro("num_meshes", [](const rrt::Object& object){ return object.meshes.size(); });
@@ -164,6 +182,8 @@ void register_scene_bindings(nb::module_& m){
     nb::class_<rrt::ObjectAssembly>(m, "ObjectAssembly")
         .def(nb::init<>())
         .def_prop_ro("num_objects", [](const rrt::ObjectAssembly& assembly){ return assembly.objects.size(); })
+        .def_prop_ro("segmentation_taxonomy", &taxonomy_name<rrt::ObjectAssembly>)
+        .def_prop_ro("segmentation_classes", &class_names<rrt::ObjectAssembly>)
         .def_prop_ro("num_parts", [](const rrt::ObjectAssembly& assembly){ return assembly.parts.size(); })
         .def("object_name", [](const rrt::ObjectAssembly& assembly, size_t index){ return assembly.objects.at(index).name; })
         .def("object_names", [](const rrt::ObjectAssembly& assembly){
@@ -189,16 +209,18 @@ void register_scene_bindings(nb::module_& m){
 
     nb::class_<SceneBundle>(m, "Scene")
         .def(nb::init<>())
-        .def("load", [](SceneBundle& bundle, const std::string& path, int fidelity, bool rgb){
+        .def("load", [](SceneBundle& bundle, const std::string& path, int fidelity, bool rgb, bool preserve_instances){
             bool success;
             {
                 nb::gil_scoped_release release;
-                success = load_dispatch(bundle, path, fidelity, rgb);
+                success = preserve_instances
+                    ? load_dispatch(bundle, path, fidelity, rgb, rlt::Mode<rlt::mode::rendering::SceneRoots<>>{})
+                    : load_dispatch(bundle, path, fidelity, rgb);
             }
             if(!success){
                 throw std::runtime_error("hyperdrone: failed to load scene from " + path);
             }
-        }, nb::arg("path"), nb::arg("fidelity") = 2, nb::arg("rgb") = true)
+        }, nb::arg("path"), nb::arg("fidelity") = 2, nb::arg("rgb") = true, nb::arg("preserve_instances") = false)
         .def("add_object", [](SceneBundle& bundle, const rrt::Object& object, nb::object transform){
             if(transform.is_none()){
                 return rlt::add(g_device, bundle.scene, object);
@@ -246,6 +268,8 @@ void register_scene_bindings(nb::module_& m){
         .def_prop_ro("num_objects", [](const SceneBundle& bundle){ return bundle.scene.objects.size(); })
         .def_prop_ro("num_instances", [](const SceneBundle& bundle){ return bundle.scene.instances.size(); })
         .def_prop_ro("num_lights", [](const SceneBundle& bundle){ return bundle.scene.lights.size(); })
+        .def_prop_ro("segmentation_taxonomy", [](const SceneBundle& bundle){ return taxonomy_name(bundle.scene); })
+        .def_prop_ro("segmentation_classes", [](const SceneBundle& bundle){ return class_names(bundle.scene); })
         .def("object_name", [](const SceneBundle& bundle, size_t index){ return bundle.scene.objects.at(index).name; })
         .def("object_segmentation_class", [](const SceneBundle& bundle, size_t index){ return bundle.scene.objects.at(index).segmentation_class; })
         .def("set_object_segmentation_class", [](SceneBundle& bundle, size_t index, uint32_t segmentation_class){

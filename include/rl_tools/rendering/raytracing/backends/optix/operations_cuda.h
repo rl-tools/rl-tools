@@ -1185,6 +1185,9 @@ namespace rl_tools {
         // params, and the context-level programs/pipeline/SBT rebuild
         template <typename DEVICE, typename SPEC>
         void init_renderer_scene(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, const rendering::raytracing::Scene& scene, const std::vector<const rendering::raytracing::Object*>& all_objects, const rendering::raytracing::backends::SceneState<rendering::raytracing::backends::Optix, SPEC>& assets){
+            if constexpr(SPEC::SEMANTIC_SEGMENTATION){
+                validate_semantic_segmentation(device, all_objects);
+            }
             namespace optix = rendering::raytracing::backends::optix;
             OWLContext context = (OWLContext)renderer.backend->context;
             OWLGroup world = (OWLGroup)assets.world;

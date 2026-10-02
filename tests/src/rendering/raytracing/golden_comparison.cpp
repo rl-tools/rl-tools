@@ -344,33 +344,34 @@ namespace {
     template <typename CASE>
     void expect_segmentation(const Rendered& rendered){
         using SPEC = typename CASE::SPEC;
-        const std::string name = std::string(CASE::STATE) + "/segmentation";
+        const char* output = SPEC::SEMANTIC_SEGMENTATION ? "segmentation-semantic" : "segmentation";
+        const std::string name = std::string(CASE::STATE) + "/" + output;
         ASSERT_EQ(rendered.segmentation.size(), (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
 
         double worst_mismatches = 0;
         double worst_background_mismatches = 0;
         for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
             const char* id = CASES::POSES[camera_i].id;
-            const std::string directory = golden_directory(camera_i, CASE::STATE, "segmentation");
+            const std::string directory = golden_directory(camera_i, CASE::STATE, output);
             std::vector<uint32_t> golden_segmentation;
-            ASSERT_TRUE(golden::load_multi_camera_uint32_bin(golden_bin(camera_i, CASE::STATE, "segmentation"), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_segmentation)) << "failed to load golden: " << id << "/" << name;
+            ASSERT_TRUE(golden::load_multi_camera_uint32_bin(golden_bin(camera_i, CASE::STATE, output), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_segmentation)) << "failed to load golden: " << id << "/" << name;
             const uint32_t* ours = rendered.segmentation.data() + camera_i * SPEC::CAM_PIXELS;
             {
                 // the review PNG is corpus surface too: it must be exactly the false-color encoding of the binary
                 std::vector<uint32_t> golden_review;
-                ASSERT_TRUE(golden::load_camera_png(golden_png(camera_i, CASE::STATE, "segmentation"), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_review)) << "failed to load golden: " << id << "/" << name << " review image";
+                ASSERT_TRUE(golden::load_camera_png(golden_png(camera_i, CASE::STATE, output), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_review)) << "failed to load golden: " << id << "/" << name << " review image";
                 std::vector<uint32_t> expected(golden_segmentation.size());
                 golden::colorize_segmentation(golden_segmentation.data(), golden_segmentation.size(), expected.data());
                 EXPECT_EQ(golden_review, expected) << name << " pose " << id << ": review PNG does not match the binary";
             }
             std::vector<uint32_t> image(SPEC::CAM_PIXELS);
             golden::colorize_segmentation(ours, SPEC::CAM_PIXELS, image.data());
-            golden::write_camera_png(render_path(camera_i, CASE::STATE, "segmentation"), image.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+            golden::write_camera_png(render_path(camera_i, CASE::STATE, output), image.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
             const auto write_diff = [&](const std::string& diff_name, const uint32_t* reference, const uint32_t* other){
                 for(size_t pixel_i = 0; pixel_i < (size_t)SPEC::CAM_PIXELS; pixel_i++){
                     image[pixel_i] = golden::segmentation_diff_color(reference[pixel_i], other[pixel_i]);
                 }
-                golden::write_camera_png(diff_path(camera_i, CASE::STATE, "segmentation", diff_name), image.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+                golden::write_camera_png(diff_path(camera_i, CASE::STATE, output, diff_name), image.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
             };
             write_diff("render-" + backend_tag(), golden_segmentation.data(), ours);
             for(const uint32_t version : historic_versions(directory, true)){

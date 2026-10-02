@@ -24,6 +24,7 @@ namespace golden {
         std::vector<uint32_t> flow_forward_status;
         std::vector<uint32_t> segmentation;
         std::vector<rl_tools::rendering::raytracing::CollisionResult> probes;
+        std::map<uint32_t, std::string> semantic_classes;
         size_t num_instances = 0;
         T max_depth = 0;
     };
@@ -164,6 +165,15 @@ namespace golden {
             return false;
         }
         out.num_instances = bundle.scene.instances.size();
+        if constexpr(SPEC::SEMANTIC_SEGMENTATION){
+            using rl_tools::segmentation_taxonomy;
+            const auto taxonomy = segmentation_taxonomy(device, bundle.scene);
+            if(!taxonomy){
+                rl_tools::free(device, renderer);
+                return false;
+            }
+            out.semantic_classes = taxonomy->classes;
+        }
         rl_tools::rendering::raytracing::AssetPool pool;
         if constexpr(SPEC::ENABLE_OVERLAYS) {
             rl_tools::add(device, pool, detail::cube_mesh<TI>((float)CASES::SHARED_HALF_EXTENT, 0.8f, 0.35f, 0.15f));

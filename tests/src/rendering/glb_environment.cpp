@@ -1,6 +1,8 @@
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <gtest/gtest.h>
+#include <rl_tools/rendering/segmentation_cpu.h>
+#include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
 
 #include <filesystem>
 #include <fstream>
@@ -13,6 +15,8 @@ namespace {
     using Roots = rlt::Mode<rlt::mode::rendering::SceneRoots<>>;
     using rlt::add;
     using rlt::load;
+    using rlt::segmentation_taxonomy;
+    using rlt::validate_semantic_segmentation;
 
     class GlbEnvironment: public ::testing::Test{
     protected:
@@ -30,7 +34,7 @@ namespace {
             std::filesystem::remove_all(directory);
         }
 
-        std::string write_glb(std::optional<Json> environment){
+        std::string write_glb(std::optional<Json> environment, const Json& classes = Json(), bool single_root = false){
             const float positions[9] = {2, -1, -1, 2, 1, -1, 2, 0, 1};
             Json document = {
                 {"asset", {{"version", "2.0"}}}, {"scene", 1},
@@ -43,6 +47,15 @@ namespace {
             };
             if(environment.has_value()){
                 document["scenes"][1]["extras"]["rl_tools"]["environment"] = std::move(*environment);
+            }
+            if(!classes.is_null()){
+                document["scenes"][1]["extras"]["rl_tools"]["segmentation"] = {{"taxonomy", "test"}, {"classes", {{"Unknown", 0}, {"Chair", 21}, {"Wall", 162}}}};
+                for(size_t i = 0; i < classes.size(); i++){
+                    document["nodes"][i]["extras"]["rl_tools"]["segmentation_class"] = classes[i];
+                }
+            }
+            if(single_root){
+                document["scenes"][1]["nodes"] = {0};
             }
             auto encoded = document.dump();
             encoded.append((4 - encoded.size() % 4) % 4, ' ');
@@ -73,6 +86,108 @@ namespace {
             }
         }
     };
+
+    TEST_F(GlbEnvironment, semantic_roots_and_welded_rejection){
+        const auto path = write_glb(authored, Json{21, 162});
+        rlt::rendering::Bundle<float> roots, welded;
+        ASSERT_TRUE(load(device, roots, path, Roots{}));
+        ASSERT_TRUE(load(device, welded, path));
+        ASSERT_EQ(roots.scene.objects.size(), 2u);
+        EXPECT_EQ(roots.scene.objects[0].segmentation_class, 21u);
+        EXPECT_EQ(roots.scene.objects[1].segmentation_class, 162u);
+        auto taxonomy = segmentation_taxonomy(device, roots.scene);
+        ASSERT_TRUE(taxonomy);
+        EXPECT_EQ(taxonomy->name, "test");
+        EXPECT_EQ(taxonomy->classes.at(21), "Chair");
+        EXPECT_TRUE(roots.scene.objects[0].segmentation_class_valid);
+        EXPECT_FALSE(welded.scene.objects[0].segmentation_class_valid);
+        std::vector<const rlt::rendering::Object*> objects = {&welded.scene.objects[0]};
+        EXPECT_THROW(validate_semantic_segmentation(device, objects), std::invalid_argument);
+        rlt::rendering::ObjectAssembly assembly;
+        ASSERT_TRUE(load(device, assembly, path));
+        rlt::rendering::AssetPool pool;
+        pool.assemblies.push_back(assembly);
+        EXPECT_EQ(segmentation_taxonomy(device, pool.assemblies[0])->classes, taxonomy->classes);
+        EXPECT_EQ(pool.assemblies[0].objects[1].segmentation_class, 162u);
+    }
+
+    TEST_F(GlbEnvironment, one_root_repeated_classes_and_unknown){
+        for(const auto& classes : {Json{21, 21}, Json{0, 0}}){
+            const auto path = write_glb(std::nullopt, classes);
+            rlt::rendering::Object object;
+            ASSERT_TRUE(load(device, object, path));
+            EXPECT_TRUE(object.segmentation_class_valid);
+            EXPECT_EQ(object.segmentation_class, classes[0]);
+        }
+        const auto path = write_glb(std::nullopt, Json{21}, true);
+        rlt::rendering::Bundle<float> roots;
+        ASSERT_TRUE(load(device, roots, path, Roots{}));
+        ASSERT_EQ(roots.scene.objects.size(), 1u);
+        EXPECT_EQ(roots.scene.objects[0].name, "first");
+        EXPECT_EQ(roots.scene.objects[0].segmentation_class, 21u);
+        EXPECT_FALSE(roots.scene.objects[0].meshes.empty());
+    }
+
+    TEST_F(GlbEnvironment, rejects_invalid_labels_and_taxonomy_conflicts){
+        for(const auto& invalid : {Json(-1), Json(999), Json(0xFFFFFFFFu), Json("21")}){
+            const auto path = write_glb(std::nullopt, Json{invalid, 21});
+            rlt::rendering::Bundle<float> roots;
+            EXPECT_FALSE(load(device, roots, path, Roots{}));
+        }
+        rlt::rendering::Object first, second;
+        auto a = std::make_shared<rlt::rendering::SegmentationTaxonomy>();
+        a->name = "a"; a->classes = {{0, "Unknown"}};
+        auto b = std::make_shared<rlt::rendering::SegmentationTaxonomy>(*a);
+        b->name = "b";
+        first.segmentation_taxonomy = a; second.segmentation_taxonomy = b;
+        std::vector<const rlt::rendering::Object*> objects = {&first, &second};
+        EXPECT_THROW(validate_semantic_segmentation(device, objects), std::invalid_argument);
+    }
+
+    TEST_F(GlbEnvironment, glb_dataset_forwards_roots_mode){
+        const auto path = write_glb(authored, Json{21, 162});
+        rlt::rendering::datasets::procthor::GLB dataset;
+        rlt::rendering::datasets::procthor::Corpus corpus;
+        corpus.references.push_back(path);
+        rlt::rendering::Bundle<float> roots;
+        ASSERT_TRUE(load(device, dataset, corpus, 0, roots, Roots{}));
+        ASSERT_EQ(roots.scene.instances.size(), 2u);
+        EXPECT_EQ(roots.scene.objects[1].segmentation_class, 162u);
+    }
+
+#ifdef RL_TOOLS_TEST_PROCTHOR_CONVERSION
+    TEST_F(GlbEnvironment, raw_dataset_forwards_mode_and_invalidates_semantic_cache){
+        const auto source = write_glb(std::nullopt);
+        std::filesystem::create_directories(directory / "assets");
+        std::filesystem::create_directories(directory / "configs");
+        std::filesystem::copy_file(source, directory / "assets/stage.glb");
+        std::filesystem::copy_file(source, directory / "assets/object.glb");
+        std::ofstream(directory / "configs/object_semantic_id_mapping.json") << Json{{"Undefined", 0}, {"Chair", 21}, {"Wall", 162}};
+        std::ofstream(directory / "configs/object.object_config.json") << Json{{"semantic_id", 21}};
+        const auto scene = directory / "configs/test.scene_instance.json";
+        std::ofstream(scene) << Json{{"stage_instance", {{"template_name", "stage"}}}, {"object_instances", {{{"template_name", "object"}}}}};
+        rlt::rendering::datasets::procthor::AI2ThorHab dataset;
+        dataset.root = directory.string();
+        dataset.cache_directory = (directory / "cache").string();
+        rlt::rendering::datasets::procthor::Corpus corpus;
+        corpus.references.push_back(scene.string());
+        rlt::rendering::Bundle<float> first, second, third;
+        ASSERT_TRUE(load(device, dataset, corpus, 0, first, Roots{}));
+        ASSERT_EQ(first.scene.instances.size(), 3u);
+        EXPECT_EQ(first.scene.objects.back().segmentation_class, 21u);
+        std::ofstream(directory / "configs/object.object_config.json") << Json{{"semantic_id", 162}};
+        ASSERT_TRUE(load(device, dataset, corpus, 0, second, Roots{}));
+        EXPECT_EQ(second.scene.objects.back().segmentation_class, 162u);
+        EXPECT_NE(first.metadata.content_hash, second.metadata.content_hash);
+        ASSERT_TRUE(load(device, dataset, corpus, 0, third, Roots{}));
+        EXPECT_EQ(second.metadata.content_hash, third.metadata.content_hash);
+        size_t cached = 0;
+        for(const auto& entry : std::filesystem::directory_iterator(dataset.cache_directory)){
+            cached += entry.path().extension() == ".glb";
+        }
+        EXPECT_EQ(cached, 2u);
+    }
+#endif
 
     TEST_F(GlbEnvironment, full_scene_layouts_preserve_environment){
         const auto path = write_glb(authored);

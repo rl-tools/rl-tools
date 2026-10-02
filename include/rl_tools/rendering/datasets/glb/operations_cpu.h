@@ -183,6 +183,10 @@ namespace rl_tools {
         struct ParsedMetadata {
             rendering::Scene::Environment environment;
             bool environment_valid = true;
+            bool segmentation_valid = true;
+            size_t root_count = 0;
+            std::shared_ptr<const rendering::SegmentationTaxonomy> segmentation_taxonomy;
+            std::vector<uint32_t> root_classes;
             std::vector<rendering::SceneLight> lights; // world frame (welded scene loads)
             std::map<int, std::vector<rendering::SceneLight>> root_lights; // by scene-root ordinal, in the root node's frame (assembly loads)
             std::map<std::string, Material> materials; // by material name; glTF spec defaults when absent
@@ -228,6 +232,50 @@ namespace rl_tools {
             }
             environment = std::move(parsed);
             return true;
+        }
+
+        static inline bool parse_segmentation(const nlohmann::json& gltf, ParsedMetadata& result){
+            try{
+                const auto& scene = gltf.at("scenes").at(gltf.value("scene", 0));
+                const auto roots = scene.value("nodes", nlohmann::json::array());
+                result.root_count = roots.size();
+                result.root_classes.assign(roots.size(), 0);
+                const auto path = nlohmann::json::json_pointer("/extras/rl_tools/segmentation");
+                if(scene.contains(path)){
+                    const auto& authored = scene.at(path);
+                    auto taxonomy = std::make_shared<rendering::SegmentationTaxonomy>();
+                    taxonomy->name = authored.at("taxonomy").get<std::string>();
+                    const auto& classes = authored.at("classes");
+                    if(taxonomy->name.empty() || !classes.is_object()){
+                        return false;
+                    }
+                    for(const auto& entry : classes.items()){
+                        const auto& id = entry.value();
+                        if(entry.key().empty() || !id.is_number_integer() || id.get<int64_t>() < 0 || id.get<int64_t>() >= 0xFFFFFFFFLL || !taxonomy->classes.emplace(id.get<uint32_t>(), entry.key()).second){
+                            return false;
+                        }
+                    }
+                    if(!taxonomy->classes.count(0)){
+                        return false;
+                    }
+                    result.segmentation_taxonomy = std::move(taxonomy);
+                }
+                for(size_t ordinal = 0; ordinal < roots.size(); ordinal++){
+                    const auto& node = gltf.at("nodes").at(roots[ordinal].get<size_t>());
+                    const auto class_path = nlohmann::json::json_pointer("/extras/rl_tools/segmentation_class");
+                    if(node.contains(class_path)){
+                        const auto& id = node.at(class_path);
+                        if(!id.is_number_integer() || id.get<int64_t>() < 0 || id.get<int64_t>() >= 0xFFFFFFFFLL || !result.segmentation_taxonomy || !result.segmentation_taxonomy->classes.count(id.get<uint32_t>())){
+                            return false;
+                        }
+                        result.root_classes[ordinal] = id.get<uint32_t>();
+                    }
+                }
+                return true;
+            }
+            catch(const nlohmann::json::exception&){
+                return false;
+            }
         }
 
         // accumulates local transforms from the ancestors down to node_idx; stop_ancestor (when
@@ -311,6 +359,7 @@ namespace rl_tools {
             nlohmann::json gltf = nlohmann::json::parse(json_str, nullptr, false);
             if (gltf.is_discarded()) { fclose(f); return result; }
             result.environment_valid = parse_environment(gltf, result.environment);
+            result.segmentation_valid = parse_segmentation(gltf, result);
 
             // Assimp's defaults for absent glTF pbrMetallicRoughness factors vary across versions;
             // the GLB JSON is authoritative here so scene import is identical on every machine.
@@ -824,7 +873,7 @@ namespace rl_tools {
     }
 
     template <typename SHADING, bool HAS_RGB>
-    bool load_scene_data(std::vector<rendering::Mesh>& out_meshes, std::vector<rendering::SceneLight>& out_lights, const std::string& filename, rendering::Scene::Environment* environment = nullptr){
+    bool load_scene_data(rendering::Object& object, std::vector<rendering::SceneLight>& out_lights, const std::string& filename, rendering::Scene::Environment* environment = nullptr){
         Assimp::Importer importer;
         unsigned int import_flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_ImproveCacheLocality;
         if constexpr (HAS_RGB && SHADING::PBR_SHADING) {
@@ -845,14 +894,28 @@ namespace rl_tools {
 
         size_t total_verts = 0, total_tris = 0;
 
+        auto& out_meshes = object.meshes;
         const size_t first_new_mesh = out_meshes.size();
         const auto glb_metadata = parse(filename, *scene);
+        if(!glb_metadata.segmentation_valid){
+            RL_TOOLS_RENDERING_DATASETS_LOG_ERR("Invalid rl_tools segmentation metadata in " << filename);
+            return false;
+        }
         if(environment != nullptr){
             if(!glb_metadata.environment_valid){
                 RL_TOOLS_RENDERING_DATASETS_LOG_ERR("Invalid scenes[].extras.rl_tools.environment in " << filename);
                 return false;
             }
             *environment = glb_metadata.environment;
+        }
+
+        object.segmentation_taxonomy = glb_metadata.segmentation_taxonomy;
+        if(!glb_metadata.root_classes.empty()){
+            object.segmentation_class = glb_metadata.root_classes.front();
+            object.segmentation_class_valid = std::all_of(glb_metadata.root_classes.begin(), glb_metadata.root_classes.end(), [&](uint32_t id){ return id == object.segmentation_class; });
+            if(!object.segmentation_class_valid){
+                object.segmentation_class = 0;
+            }
         }
 
         // Build mesh-index → global transform map by walking the node tree
@@ -929,6 +992,10 @@ namespace rl_tools {
             return false;
         }
         const auto glb_metadata = parse(filename, *scene);
+        if(!glb_metadata.segmentation_valid){
+            RL_TOOLS_RENDERING_DATASETS_LOG_ERR("Invalid rl_tools segmentation metadata in " << filename);
+            return false;
+        }
         if(environment != nullptr){
             if(!glb_metadata.environment_valid){
                 RL_TOOLS_RENDERING_DATASETS_LOG_ERR("Invalid scenes[].extras.rl_tools.environment in " << filename);
@@ -940,10 +1007,12 @@ namespace rl_tools {
 
         const aiNode* file_root = scene->mRootNode;
         const size_t first_new_part = assembly.parts.size();
-        for(unsigned int root_i = 0; root_i < file_root->mNumChildren; root_i++){
-            const aiNode* root = file_root->mChildren[root_i];
+        for(size_t root_i = 0; root_i < glb_metadata.root_count; root_i++){
+            const aiNode* root = glb_metadata.root_count == 1 ? file_root : file_root->mChildren[root_i];
             rendering::Object object;
             object.name = root->mName.C_Str();
+            object.segmentation_taxonomy = glb_metadata.segmentation_taxonomy;
+            object.segmentation_class = glb_metadata.root_classes[root_i];
 
             // geometry lands in the root node's frame: the recursion starts below the root's own
             // transform, which becomes the part placement instead
@@ -985,7 +1054,7 @@ namespace rl_tools {
         if(!rendering::datasets::resolve_reference(device, reference, path)){
             return false;
         }
-        return rendering::datasets::glb::load_scene_data<SHADING, HAS_RGB>(object.meshes, object.lights, path);
+        return rendering::datasets::glb::load_scene_data<SHADING, HAS_RGB>(object, object.lights, path);
     }
 
     template <typename SHADING = rendering::VeryHigh, bool HAS_RGB = true, typename DEVICE>
@@ -1007,7 +1076,7 @@ namespace rl_tools {
             return false;
         }
         rendering::Object object;
-        if(!rendering::datasets::glb::load_scene_data<SHADING, HAS_RGB>(object.meshes, bundle.scene.lights, path)){
+        if(!rendering::datasets::glb::load_scene_data<SHADING, HAS_RGB>(object, bundle.scene.lights, path)){
             return false;
         }
         bundle.scene.objects.push_back(std::move(object));
@@ -1042,7 +1111,7 @@ namespace rl_tools {
         }
         else{
             rendering::Object object;
-            if(!rendering::datasets::glb::load_scene_data<SHADING, HAS_RGB>(object.meshes, bundle.scene.lights, path, &bundle.scene.environment)){
+            if(!rendering::datasets::glb::load_scene_data<SHADING, HAS_RGB>(object, bundle.scene.lights, path, &bundle.scene.environment)){
                 return false;
             }
             bundle.scene.objects.push_back(std::move(object));

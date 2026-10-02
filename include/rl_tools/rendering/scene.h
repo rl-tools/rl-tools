@@ -8,6 +8,8 @@
 #include <vector>
 #include <string>
 #include <cstdint>
+#include <map>
+#include <memory>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
@@ -41,10 +43,17 @@ namespace rl_tools {
             bool unlit = false;
         };
 
+        struct SegmentationTaxonomy{
+            std::string name;
+            std::map<uint32_t, std::string> classes;
+        };
+
         struct Object{
             std::vector<Mesh> meshes;
             std::vector<SceneLight> lights; // object-local frame; transformed by the instance placing the object
-            uint32_t segmentation_class = 0; // user-assigned (e.g. from Object::name via a user taxonomy); reported by SEMANTIC_SEGMENTATION specs
+            uint32_t segmentation_class = 0;
+            std::shared_ptr<const SegmentationTaxonomy> segmentation_taxonomy;
+            bool segmentation_class_valid = true; // false when welding erased class boundaries
             std::string name; // the glTF root node's name for assembly parts; empty otherwise
         };
 

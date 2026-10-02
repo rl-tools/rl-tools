@@ -35,3 +35,5 @@ If an HSSD scene references a Habitat lighting setup through `default_lighting`,
 mkdir -p /home/jonas/git/hssd-hab/glb
 find /home/jonas/git/hssd-hab/scenes -name '*.scene_instance.json' | sort -V | xargs -I{} -P 5 bash -c './build/src/rendering/procthor2glb/procthor2glb "$1" --hssd --normalize -o "/home/jonas/git/hssd-hab/glb/$(basename "$1" .scene_instance.json).glb"' _ {}
 ```
+
+AI2THOR-Hab conversion exports `scenes[].extras.rl_tools.segmentation` with `taxonomy: "ai2thor-hab"` and a `classes` name-to-ID map from `configs/object_semantic_id_mapping.json`. Each root carries `extras.rl_tools.segmentation_class`: movable objects use their config's `semantic_id`, structural roots resolve their authored `type`; missing categories (including Ceiling) map to Undefined (`0`). IDs are never inferred from asset names. The conversion cache includes the taxonomy, stage content and referenced object labels. Generic GLB loading interprets this annotation without dataset-specific rules; C++ consumers use `Mode<mode::rendering::SceneRoots<>>` and choose `Config::SEMANTIC_SEGMENTATION`.

@@ -668,7 +668,7 @@ int main(int argc, char** argv) {
     DEVICE device;
     rlt::init(device);
 
-    static constexpr char DEFAULT_CONTA_HASH[] = "5c53061c721fa98f93e6886925e41e975c577f3c";
+    static constexpr char DEFAULT_CONTA_HASH[] = "75d1d67a17ecd16bc3a214baa895240da8060df7";
     std::string resolved_scene_path;
     std::string conta_error;
     if (!options.scene_arg.empty()) {

@@ -671,3 +671,94 @@ def test_glb_assembly_segmentation_names():
     first, count = scene.add_assembly(assembly)
     assert count == assembly.num_parts
     assert scene.num_instances == count
+
+@pytest.fixture
+def labelled_glb(tmp_path):
+    import json
+    import struct
+
+    vertices = np.array([[2, -.25, -.25], [2, .25, -.25], [2, .25, .25],
+                         [2, -.25, -.25], [2, .25, .25], [2, -.25, .25]], dtype='<f4')
+    doc = {
+        'asset': {'version': '2.0'}, 'scene': 0,
+        'scenes': [{'nodes': [0, 1, 2, 3], 'extras': {'rl_tools': {'segmentation': {
+            'taxonomy': 'test', 'classes': {'Unknown': 0, 'Chair': 21, 'Wall': 162}}}}}],
+        'nodes': [{'name': f'object-{i}', 'mesh': 0, 'translation': [0, 0, i - 1.5],
+                   'extras': {'rl_tools': {'segmentation_class': c}}}
+                  for i, c in enumerate([21, 21, 162, 0])],
+        'meshes': [{'primitives': [{'attributes': {'POSITION': 0}}]}],
+        'buffers': [{'byteLength': vertices.nbytes}],
+        'bufferViews': [{'buffer': 0, 'byteLength': vertices.nbytes}],
+        'accessors': [{'bufferView': 0, 'componentType': 5126, 'count': 6, 'type': 'VEC3',
+                       'min': [2, -.25, -.25], 'max': [2, .25, .25]}],
+    }
+    encoded = json.dumps(doc).encode()
+    encoded += b' ' * (-len(encoded) % 4)
+    path = tmp_path / 'labels.glb'
+    path.write_bytes(struct.pack('<5I', 0x46546c67, 2, 28 + len(encoded) + vertices.nbytes,
+                                 len(encoded), 0x4e4f534a) + encoded +
+                     struct.pack('<2I', vertices.nbytes, 0x004e4942) + vertices.tobytes())
+    return path
+
+
+@pytest.mark.parametrize('semantic', [False, True])
+def test_loaded_instance_and_semantic_labels(labelled_glb, semantic, tmp_path):
+    scene = render.load_scene(labelled_glb, rgb=False, preserve_instances=True)
+    assert scene.num_instances == 4
+    assert scene.segmentation_taxonomy == 'test'
+    assert scene.segmentation_classes == {0: 'Unknown', 21: 'Chair', 162: 'Wall'}
+    renderer = render.Renderer(width=24, height=24, num_cameras=4, fidelity='low',
+                               output='segmentation', semantic_segmentation=semantic)
+    renderer.init(scene)
+    cameras = [renderer.camera(position=(0, 1.5-i, 0), look_at=(2, 1.5-i, 0)) for i in range(4)]
+    renderer.set_cameras(np.array(cameras, dtype=np.float32))
+    renderer.render('segmentation')
+    labels = renderer.segmentation()
+    assert renderer.segmentation_mode == ('semantic' if semantic else 'instance')
+    assert labels[:, 12, 12].tolist() == ([21, 21, 162, 0] if semantic else [0, 1, 2, 3])
+    assert np.any(labels == 0xffffffff)
+    import json
+    output = tmp_path / 'segmentation.png'
+    _io.save_segmentation_image(renderer, output)
+    assert json.loads(Path(str(output) + '.json').read_text()) == {
+        'segmentation_mode': renderer.segmentation_mode, 'background_id': 0xffffffff}
+
+    if not semantic:
+        assert scene.object_name(scene.instance_object(int(labels[1, 12, 12]))) == 'object-1'
+
+
+def test_loaded_semantics_survive_assembly_and_pool(labelled_glb):
+    assembly = render.load_assembly(labelled_glb, rgb=False)
+    assert assembly.segmentation_classes[21] == 'Chair'
+    scene = render.Scene()
+    scene.add_assembly(assembly)
+    scene.add_assembly(assembly, render.make_transform(position=(0, 0, 3)))
+    assert scene.num_instances == 8
+    assert scene.object_segmentation_class(4) == 21
+    assert scene.segmentation_taxonomy == 'test'
+    pool = render.AssetPool()
+    asset = pool.add_assembly(assembly)
+    renderer = render.Renderer(width=24, height=24, fidelity='low', output='segmentation',
+                               semantic_segmentation=True, num_overlays=1,
+                               max_overlay_instances=4, max_overlays_per_camera=1)
+    renderer.init(scene, pool)
+    renderer.attach(0, 0)
+    handle = renderer.spawn(0, asset, render.make_transform(position=(-1, 0, 0)))
+    camera = renderer.camera(position=(0, 1.5, 0), look_at=(2, 1.5, 0))
+    renderer.set_cameras(camera[None])
+    renderer.update()
+    renderer.render('segmentation')
+    assert renderer.segmentation()[0, 12, 12] == 21
+    renderer.set_transform(0, handle, render.make_transform(position=(-1, 2, 0)))
+    renderer.update()
+    renderer.render('segmentation')
+    assert renderer.segmentation()[0, 12, 12] == 162
+
+
+def test_welded_semantics_rejected(labelled_glb):
+    scene = render.load_scene(labelled_glb, rgb=False)
+    assert scene.num_instances == 1
+    renderer = render.Renderer(width=24, height=24, fidelity='low', output='segmentation',
+                               semantic_segmentation=True)
+    with pytest.raises(ValueError, match='welded classes'):
+        renderer.init(scene)

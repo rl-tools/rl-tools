@@ -110,6 +110,8 @@ namespace {
             for(const auto* subdirectory : {"assets", "configs", "stages", "objects"}){
                 fs::create_directories(directory / subdirectory);
             }
+            std::ofstream(directory / "configs/object_semantic_id_mapping.json") << Json{{"Undefined", 0}, {"Floor", 159}, {"Wall", 162}, {"Chair", 21}};
+            std::ofstream(directory / "configs/object.object_config.json") << Json{{"semantic_id", 21}};
         }
 
         void TearDown() override{
@@ -136,6 +138,52 @@ namespace {
             return read_glb(options.output_glb_path);
         }
     };
+
+    TEST_P(ProcTHORConversion, exports_dataset_semantics_and_tracks_changes){
+        auto model = triangle();
+        model.document["nodes"][0]["extras"] = {{"type", "Floor"}};
+        const auto result = convert(model, true);
+        const auto& scene = result.document["scenes"][0];
+        if(std::get<0>(GetParam())){
+            EXPECT_FALSE(scene.contains(Json::json_pointer("/extras/rl_tools/segmentation")));
+            return;
+        }
+        const auto& semantics = scene["extras"]["rl_tools"]["segmentation"];
+        EXPECT_EQ(semantics["taxonomy"], "ai2thor-hab");
+        EXPECT_EQ(semantics["classes"]["Floor"], 159);
+        EXPECT_TRUE(semantics["classes"]["Floor"].is_number_integer());
+        EXPECT_FALSE(semantics["classes"].contains("Ceiling"));
+        ASSERT_EQ(scene["nodes"].size(), 2u);
+        EXPECT_EQ(result.document["nodes"][scene["nodes"][0].get<size_t>()]["extras"]["rl_tools"]["segmentation_class"], 159);
+        EXPECT_EQ(result.document["nodes"][scene["nodes"][1].get<size_t>()]["extras"]["rl_tools"]["segmentation_class"], 21);
+        conversion::Options options;
+        options.scene_instance_path = (directory / "configs/test.scene_instance.json").string();
+        std::string first, second, third, error;
+        ASSERT_TRUE(conversion::semantic_source(options, first, error)) << error;
+        std::ofstream(directory / "configs/object.object_config.json") << Json{{"semantic_id", 162}};
+        ASSERT_TRUE(conversion::semantic_source(options, second, error)) << error;
+        EXPECT_NE(first, second);
+        model.document["nodes"][0]["extras"]["type"] = "Wall";
+        write_glb(directory / "assets/stage.glb", model.document, model.binary);
+        ASSERT_TRUE(conversion::semantic_source(options, third, error)) << error;
+        EXPECT_NE(second, third);
+        second = third;
+        std::ofstream(directory / "configs/object_semantic_id_mapping.json") << Json{{"Undefined", 0}, {"RenamedWall", 162}};
+        ASSERT_TRUE(conversion::semantic_source(options, third, error)) << error;
+        EXPECT_NE(second, third);
+        std::ofstream(directory / "configs/object.object_config.json") << Json{{"semantic_id", 999}};
+        EXPECT_FALSE(conversion::semantic_source(options, third, error));
+    }
+
+    TEST_P(ProcTHORConversion, unknown_structural_category_is_zero){
+        auto model = triangle();
+        model.document["nodes"][0]["extras"] = {{"type", "Ceiling"}};
+        const auto result = convert(model);
+        if(!std::get<0>(GetParam())){
+            const auto root = result.document["scenes"][0]["nodes"][0].get<size_t>();
+            EXPECT_EQ(result.document["nodes"][root]["extras"]["rl_tools"]["segmentation_class"], 0);
+        }
+    }
 
     TEST_P(ProcTHORConversion, serialized_light_indices){
         const auto [hssd, normalize] = GetParam();

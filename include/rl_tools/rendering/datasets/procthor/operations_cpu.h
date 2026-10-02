@@ -61,10 +61,11 @@ namespace rl_tools::rendering::datasets::procthor {
         utils::assert_exit(device, !corpus.references.empty(), "datasets::procthor::GLB: no .glb scenes found in directory");
     }
 
-    template <typename SHADING = rendering::VeryHigh, bool HAS_RGB = true, typename DEVICE, typename T>
-    bool load(DEVICE& device, const GLB& dataset, const Corpus& corpus, size_t index, rendering::Bundle<T>& bundle) {
+    template <typename SHADING = rendering::VeryHigh, bool HAS_RGB = true, typename DEVICE, typename T, typename MODE = mode::Default<>>
+    bool load(DEVICE& device, const GLB& dataset, const Corpus& corpus, size_t index, rendering::Bundle<T>& bundle, const Mode<MODE>& mode = Mode<MODE>{}) {
         utils::assert_exit(device, index < corpus.references.size(), "datasets::procthor: corpus index out of range");
-        return rl_tools::load<SHADING, HAS_RGB>(device, bundle, corpus.references[index]);
+        using rl_tools::load;
+        return load<SHADING, HAS_RGB>(device, bundle, corpus.references[index], mode);
     }
 
 
@@ -88,12 +89,23 @@ namespace rl_tools::rendering::datasets::procthor {
         utils::assert_exit(device, !corpus.references.empty(), "datasets::procthor::AI2ThorHab: no scene_instance.json files found for split");
     }
 
-    template <typename SHADING = rendering::VeryHigh, bool HAS_RGB = true, typename DEVICE, typename T>
-    bool load(DEVICE& device, const AI2ThorHab& dataset, const Corpus& corpus, size_t index, rendering::Bundle<T>& bundle) {
+    template <typename SHADING = rendering::VeryHigh, bool HAS_RGB = true, typename DEVICE, typename T, typename MODE = mode::Default<>>
+    bool load(DEVICE& device, const AI2ThorHab& dataset, const Corpus& corpus, size_t index, rendering::Bundle<T>& bundle, const Mode<MODE>& mode = Mode<MODE>{}) {
         utils::assert_exit(device, index < corpus.references.size(), "datasets::procthor: corpus index out of range");
         const std::string& source = corpus.references[index];
         std::string source_hash;
         utils::assert_exit(device, rendering::datasets::content_hash(device, source, source_hash), "datasets::procthor::AI2ThorHab: failed to hash scene_instance");
+        conversion::Options semantic_options;
+        semantic_options.scene_instance_path = source;
+        std::string semantic_source, semantic_error;
+        if(!conversion::semantic_source(semantic_options, semantic_source, semantic_error)){
+            RL_TOOLS_RENDERING_DATASETS_LOG_ERR(semantic_error);
+            return false;
+        }
+        conta::detail::Sha1 fingerprint;
+        fingerprint.update(reinterpret_cast<const unsigned char*>(source_hash.data()), source_hash.size());
+        fingerprint.update(reinterpret_cast<const unsigned char*>(semantic_source.data()), semantic_source.size());
+        source_hash = fingerprint.finalize();
         std::string cache_directory = dataset.cache_directory;
         if (cache_directory.empty()) {
             const char* home = std::getenv("HOME");
@@ -120,7 +132,8 @@ namespace rl_tools::rendering::datasets::procthor {
             }
             std::filesystem::rename(options.output_glb_path, cache_path);
         }
-        return rl_tools::load<SHADING, HAS_RGB>(device, bundle, cache_path);
+        using rl_tools::load;
+        return load<SHADING, HAS_RGB>(device, bundle, cache_path, mode);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

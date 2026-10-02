@@ -18,6 +18,7 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <set>
 #include <vector>
 
 #ifndef RL_TOOLS_TEST_DATA_PATH
@@ -210,6 +211,37 @@ bool write_geometry(const std::string& output_dir, const Rendered& rendered) {
     return ok || fail(name, "failed to write outputs");
 }
 
+template <typename CASE>
+bool write_semantic(const std::string& output_dir, const Rendered& rendered){
+    using SPEC = typename CASE::SPEC;
+    const size_t pixels = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
+    const std::string name = CASES::name<CASE>();
+    if(rendered.segmentation.size() != pixels){
+        return fail(name, "wrong segmentation size");
+    }
+    std::set<uint32_t> visible;
+    for(uint32_t id : rendered.segmentation){
+        if(id == golden::SEGMENTATION_BACKGROUND_ID){
+            continue;
+        }
+        if(!rendered.semantic_classes.count(id)){
+            return fail(name, "class ID absent from taxonomy: " + std::to_string(id));
+        }
+        visible.insert(id);
+    }
+    if(visible.size() < 2){
+        return fail(name, "semantic coverage requires multiple visible classes");
+    }
+    std::vector<uint32_t> encoded(pixels);
+    golden::colorize_segmentation(rendered.segmentation.data(), pixels, encoded.data());
+    bool ok = true;
+    for(TI camera = 0; camera < SPEC::NUM_CAMERAS; camera++){
+        ok &= golden::write_multi_camera_uint32_bin(golden_bin(output_dir, camera, CASE::STATE, "segmentation-semantic"), rendered.segmentation.data() + camera * SPEC::CAM_PIXELS, 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+        ok &= golden::write_camera_png(golden_png(output_dir, camera, CASE::STATE, "segmentation-semantic"), encoded.data() + camera * SPEC::CAM_PIXELS, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+    }
+    return ok || fail(name, "failed to write semantic outputs");
+}
+
 // one flow direction: the flow values, their status buffer, and the invariants the corpus pins
 // (finite and bounded, legal status codes, MISS and BEHIND carry the exact zero, every view has
 // VALID nonzero flow, which is how the motion of every state stays visible in every view)
@@ -315,6 +347,9 @@ bool run_case(DEVICE& device, const std::string& output_dir) {
     }
     if constexpr(SPEC::HAS_NORMALS) {
         ok = write_geometry<CASE>(output_dir, rendered) && ok;
+    }
+    if constexpr(SPEC::SEMANTIC_SEGMENTATION){
+        ok = write_semantic<CASE>(output_dir, rendered) && ok;
     }
     if constexpr(SPEC::HAS_FLOW) {
         ok = write_flow<CASE>(output_dir, rendered) && ok;
