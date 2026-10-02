@@ -5,6 +5,7 @@
 #define RL_TOOLS_RENDERING_RAYTRACING_OPERATIONS_CPU_COMMON_H
 
 #include "renderer.h"
+#include "../segmentation_cpu.h"
 #include "transforms_generic.h"
 
 #include <vector>
@@ -763,6 +764,7 @@ namespace rl_tools {
     // consumers depend on that equivalence — treat any change to it as breaking.
     template <typename DEVICE, typename SPEC, typename BACKEND>
     const rendering::raytracing::Object* segmentation_object(DEVICE& device, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool, const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, uint32_t id){
+        static_assert(!SPEC::SEMANTIC_SEGMENTATION, "segmentation_object expects instance IDs, not semantic class IDs");
         if(id == 0xFFFFFFFFu){
             return nullptr;
         }

@@ -6,9 +6,10 @@ def _fidelity_id(fidelity):
     return FIDELITY[fidelity.lower()] if isinstance(fidelity, str) else int(fidelity)
 
 
-def load_scene(path, fidelity="high", rgb=True):
+def load_scene(path, fidelity="high", rgb=True, *, preserve_instances=False):
+    """Load a GLB; preserve root instances for instance or semantic segmentation."""
     scene = load_core().Scene()
-    scene.load(str(path), _fidelity_id(fidelity), bool(rgb))
+    scene.load(str(path), _fidelity_id(fidelity), bool(rgb), bool(preserve_instances))
     return scene
 
 

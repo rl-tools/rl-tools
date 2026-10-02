@@ -238,6 +238,8 @@ namespace rl_tools{
         std::vector<uint32_t> segmentation_host;
         rendering::raytracing::detail::save_staging(device, renderer, renderer.segmentation_buffer, segmentation_host);
         rendering::raytracing::detail::write_segmentation_grid_png<SPEC>(segmentation_host.data(), filename);
+        std::ofstream metadata(std::string(filename) + ".json");
+        metadata << "{\"segmentation_mode\":\"" << (SPEC::SEMANTIC_SEGMENTATION ? "semantic" : "instance") << "\",\"background_id\":4294967295}\n";
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>

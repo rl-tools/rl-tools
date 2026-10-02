@@ -1181,6 +1181,9 @@ static tinygltf::Value jsonToTinyValue(const json& value) {
     if (value.is_boolean()) {
         return tinygltf::Value(value.get<bool>());
     }
+    if(value.is_number_integer() && value.get<double>() >= std::numeric_limits<int>::min() && value.get<double>() <= std::numeric_limits<int>::max()){
+        return tinygltf::Value(value.get<int>());
+    }
     if (value.is_number()) {
         return tinygltf::Value(value.get<double>());
     }
@@ -1392,6 +1395,53 @@ static fs::path findDatasetRoot(const fs::path& sceneJsonPath,
         dir = dir.parent_path();
     }
     return fs::canonical(sceneJsonPath).parent_path().parent_path().parent_path();
+}
+
+struct SemanticInputs {
+    json classes;
+    json objects = json::object();
+};
+
+static SemanticInputs readSemanticInputs(const fs::path& root, const json& scene){
+    const auto read = [](const fs::path& path){
+        std::ifstream stream(path);
+        if(!stream){
+            throw std::runtime_error("cannot read semantic input " + path.string());
+        }
+        return json::parse(stream);
+    };
+    SemanticInputs inputs;
+    inputs.classes = read(root / "configs/object_semantic_id_mapping.json");
+    if(!inputs.classes.is_object() || !inputs.classes.contains("Undefined") || inputs.classes["Undefined"] != 0){
+        throw std::runtime_error("semantic taxonomy must define Undefined as 0");
+    }
+    std::set<uint32_t> ids;
+    for(const auto& value : inputs.classes.items()){
+        if(!value.value().is_number_integer() || value.value().get<int64_t>() < 0 || value.value().get<int64_t>() >= 0xFFFFFFFFLL || !ids.insert(value.value().get<uint32_t>()).second){
+            throw std::runtime_error("invalid or duplicate semantic class ID: " + value.key());
+        }
+    }
+    for(const auto& instance : scene.value("object_instances", json::array())){
+        const std::string name = instance.value("template_name", "");
+        if(name.empty() || inputs.objects.contains(name)){
+            continue;
+        }
+        const auto config = read(resolveObjectConfigPath(DatasetMode::AI2THOR, root, name));
+        const auto id = config.value("semantic_id", json(0));
+        if(!id.is_number_integer() || id.get<int64_t>() < 0 || id.get<int64_t>() >= 0xFFFFFFFFLL || !ids.count(id.get<uint32_t>())){
+            throw std::runtime_error("object semantic_id absent from taxonomy: " + name);
+        }
+        inputs.objects[name] = id;
+    }
+    return inputs;
+}
+
+static void setSemanticClass(tinygltf::Node& node, uint32_t id){
+    auto extras = node.extras.IsObject() ? node.extras.Get<tinygltf::Value::Object>() : tinygltf::Value::Object{};
+    auto rl = extras.count("rl_tools") && extras["rl_tools"].IsObject() ? extras["rl_tools"].Get<tinygltf::Value::Object>() : tinygltf::Value::Object{};
+    rl["segmentation_class"] = tinygltf::Value(static_cast<int>(id));
+    extras["rl_tools"] = tinygltf::Value(rl);
+    node.extras = tinygltf::Value(extras);
 }
 
 static void readScale(const json& instance, double s[3]) {
@@ -1868,9 +1918,30 @@ static HssdLightingImport importHssdLighting(tinygltf::Model& model,
 // main
 // ---------------------------------------------------------------------------
 #include <rl_tools/rendering/datasets/procthor/conversion.h>
+#include <conta/conta.h>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rendering::datasets::procthor::conversion {
+bool semantic_source(const Options& options, std::string& source, std::string& error){
+    try{
+        std::ifstream stream(options.scene_instance_path);
+        const auto scene = json::parse(stream);
+        const auto root = findDatasetRoot(options.scene_instance_path, DatasetMode::AI2THOR);
+        const auto inputs = readSemanticInputs(root, scene);
+        std::string stage_hash;
+        const std::string stage = scene.value("stage_instance", json::object()).value("template_name", "");
+        if(!stage.empty() && !conta::detail::sha1_file(resolveStageAssetPath(DatasetMode::AI2THOR, root, stage), stage_hash)){
+            throw std::runtime_error("cannot hash stage semantic input: " + stage);
+        }
+        source = json{{"classes", inputs.classes}, {"objects", inputs.objects}, {"stage", stage_hash}}.dump();
+        return true;
+    }
+    catch(const std::exception& exception){
+        error = exception.what();
+        return false;
+    }
+}
+
 bool scene_instance_to_glb(const Options& options, std::string& error) {
     const std::string& inputPath = options.scene_instance_path;
     std::string outputPath = options.output_glb_path;
@@ -1894,6 +1965,16 @@ bool scene_instance_to_glb(const Options& options, std::string& error) {
 
     // -- Determine dataset root --
     fs::path datasetRoot = findDatasetRoot(inputPath, datasetMode);
+    SemanticInputs semantics;
+    if(datasetMode == DatasetMode::AI2THOR){
+        try{
+            semantics = readSemanticInputs(datasetRoot, sceneJson);
+        }
+        catch(const std::exception& exception){
+            error = exception.what();
+            return false;
+        }
+    }
     std::cout << "Dataset mode: "
               << (datasetMode == DatasetMode::HSSD ? "hssd" : "ai2thor-hab")
               << "\n";
@@ -1973,8 +2054,17 @@ bool scene_instance_to_glb(const Options& options, std::string& error) {
                 auto stageRoots = mergeModelSplit(outModel, *m,
                                                   hasStageMatrix ? &stageMatrix : nullptr,
                                                   fs::path(tmpl).stem().string());
-                for (int r : stageRoots)
+                for(int r : stageRoots){
+                    if(datasetMode == DatasetMode::AI2THOR){
+                        auto& node = outModel.nodes[r];
+                        std::string type;
+                        if(node.extras.IsObject() && node.extras.Has("type") && node.extras.Get("type").IsString()){
+                            type = node.extras.Get("type").Get<std::string>();
+                        }
+                        setSemanticClass(node, semantics.classes.value(type, 0u));
+                    }
                     outScene.nodes.push_back(r);
+                }
                 mergeExtensions(outModel, *m);
                 std::cout << "  -> parts=" << stageRoots.size()
                           << "  meshes=" << m->meshes.size()
@@ -2044,6 +2134,9 @@ bool scene_instance_to_glb(const Options& options, std::string& error) {
             auto matrix = buildTRS(t, q, s);
             auto r = mergeModel(outModel, *objModel, &matrix);
             outModel.nodes[r.rootNode].name = fs::path(tmpl).stem().string();
+            if(datasetMode == DatasetMode::AI2THOR){
+                setSemanticClass(outModel.nodes[r.rootNode], semantics.objects.at(tmpl).get<uint32_t>());
+            }
             outScene.nodes.push_back(r.rootNode);
             mergeExtensions(outModel, *objModel);
             objCount++;
@@ -2088,7 +2181,7 @@ bool scene_instance_to_glb(const Options& options, std::string& error) {
     if (datasetMode == DatasetMode::AI2THOR) {
         outScene.extras = jsonToTinyValue({{"rl_tools", {{"environment", {
             {"mode", "solid"}, {"ambient", {0.6, 0.6, 0.6}}, {"background", {0.0, 0.0, 0.0}}
-        }}}}});
+        }}, {"segmentation", {{"taxonomy", "ai2thor-hab"}, {"classes", semantics.classes}}}}}});
     }
 
     // -- Finalize scene --

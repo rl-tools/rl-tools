@@ -279,3 +279,17 @@ HYPERDRONE_RENDER_BACKEND=GENERIC .venv/bin/python -m pytest interface/python/hy
 `tests/test_architecture.py` enforces the import DAG (render and dynamics never see each
 other); `scripts/test_sdist.sh` is the self-containment rot guard (build sdist → clean
 venv → vendored-tree render).
+
+For labelled ProcTHOR rendering, preserve GLB root instances and select the output meaning:
+
+```python
+scene = render.load_scene(procthor_scene_path(), rgb=False, preserve_instances=True)
+renderer = render.Renderer(width=512, height=512, output="segmentation",
+                           semantic_segmentation=True)  # False selects instance IDs
+renderer.init(scene)
+# Set cameras and render as usual.
+labels = renderer.segmentation()  # uint32; renderer.segmentation_mode identifies the mode
+classes = scene.segmentation_classes  # {class_id: name}, taxonomy: scene.segmentation_taxonomy
+```
+
+Semantic IDs come from AI2THOR-Hab's taxonomy: unknown is `0` (including Ceiling, which has no dataset category); background is `0xFFFFFFFF` in both modes. Instance IDs identify scene instances: use `scene.instance_object(id)` then `scene.object_name(object_index)` for static hits. Overlay instance IDs use the renderer's global slot layout. Semantic IDs must never be used as object indices. Loading remains welded by default for RGB; semantic rendering rejects a welded object containing multiple classes. Assemblies and asset-pool copies retain labels and the taxonomy. Composing conflicting taxonomies requires an explicit remapping before semantic rendering.

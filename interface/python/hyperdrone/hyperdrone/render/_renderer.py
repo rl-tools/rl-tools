@@ -229,6 +229,10 @@ class Renderer:
         self._renderer.read_depth_buffer(out)
         return out
 
+    @property
+    def segmentation_mode(self):
+        return "semantic" if self.config.semantic_segmentation else "instance"
+
     def segmentation(self, copy=True):
         """Per-pixel instance ids (or segmentation classes when semantic_segmentation=True),
         shape (num_cameras, height, width); misses hold 0xFFFFFFFF."""

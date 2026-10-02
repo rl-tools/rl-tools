@@ -302,6 +302,9 @@ namespace rl_tools {
         if constexpr (SPEC::ENABLE_OVERLAYS){
             rendering::raytracing::detail::register_pool_assets(device, renderer, pool, all_objects);
         }
+        if constexpr(SPEC::SEMANTIC_SEGMENTATION){
+            validate_semantic_segmentation(device, all_objects);
+        }
 
         size_t total_meshes = 0;
         for(const auto* object : all_objects){

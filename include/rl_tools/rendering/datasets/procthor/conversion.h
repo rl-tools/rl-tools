@@ -13,7 +13,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rendering::datasets::procthor::conversion {
     // part of the loader's conversion-cache key: bump on any change to the conversion output
-    inline constexpr int VERSION = 4;
+    inline constexpr int VERSION = 5;
 
     enum class Dataset { AI2THOR_HAB, HSSD };
 
@@ -25,6 +25,7 @@ namespace rl_tools::rendering::datasets::procthor::conversion {
         std::string hssd_lighting_path;       // explicit HSSD lighting JSON instead of scene default_lighting
     };
 
+    bool semantic_source(const Options& options, std::string& source, std::string& error);
     bool scene_instance_to_glb(const Options& options, std::string& error);
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

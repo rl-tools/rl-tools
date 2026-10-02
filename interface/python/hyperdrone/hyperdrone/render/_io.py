@@ -8,6 +8,8 @@ header (int32 num_cameras, num_probes) followed by packed (float32 distance, int
 records — the layouts consumed by tools/render_parity.
 """
 
+import json
+from pathlib import Path
 import struct
 import zlib
 
@@ -138,6 +140,9 @@ def save_depth_raw(renderer, path):
 
 def save_segmentation_image(renderer, path):
     write_png(path, camera_grid(segmentation_to_rgba(renderer.segmentation())))
+    Path(str(path) + ".json").write_text(json.dumps({
+        "segmentation_mode": renderer.segmentation_mode, "background_id": 0xFFFFFFFF,
+    }) + "\n")
 
 
 def save_probes(renderer, path):

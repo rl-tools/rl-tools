@@ -723,6 +723,9 @@ namespace rl_tools {
         if constexpr (SPEC::ENABLE_OVERLAYS){
             rendering::raytracing::detail::register_pool_assets(device, renderer, pool, all_objects);
         }
+        if constexpr(SPEC::SEMANTIC_SEGMENTATION){
+            validate_semantic_segmentation(device, all_objects);
+        }
         RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << all_objects.size() << " objects / " << scene.instances.size() << " instances ...");
 
         wg::wait_in_flight(device, ctx);

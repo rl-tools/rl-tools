@@ -271,6 +271,9 @@ namespace rl_tools {
         if constexpr (SPEC::ENABLE_OVERLAYS){
             rendering::raytracing::detail::register_pool_assets(device, renderer, pool, all_objects);
         }
+        if constexpr(SPEC::SEMANTIC_SEGMENTATION){
+            validate_semantic_segmentation(device, all_objects);
+        }
 
         backend_state.object_classes.clear();
         for(const auto* object_pointer : all_objects){

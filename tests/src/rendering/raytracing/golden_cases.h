@@ -113,6 +113,11 @@ namespace golden {
             static constexpr bool OUTPUT_SEGMENTATION = true;
         };
         template <bool T_OVERLAYS>
+        struct SemanticConfig: GeometryConfig<T_OVERLAYS>{
+            static constexpr bool OUTPUT_NORMALS = false;
+            static constexpr bool SEMANTIC_SEGMENTATION = true;
+        };
+        template <bool T_OVERLAYS>
         struct FlowConfig: Base<T_OVERLAYS>{
             using SHADING = rl_tools::rendering::raytracing::Low;
             static constexpr bool OUTPUT_RGB = false;
@@ -149,10 +154,12 @@ namespace golden {
             Case<Spec<RGBConfig<VeryHigh>>, Camera::FIXED, Overlays::NONE>,
             Case<Spec<RGBConfig<High, 1, 2>>, Camera::FIXED, Overlays::NONE>,
             Case<Spec<GeometryConfig<false>>, Camera::FIXED, Overlays::NONE>,
+            Case<Spec<SemanticConfig<false>>, Camera::FIXED, Overlays::NONE>,
             Case<Spec<RGBConfig<High, 4>>, Camera::MOVING, Overlays::NONE>,
             Case<Spec<FlowConfig<false>>, Camera::MOVING, Overlays::NONE>,
             Case<Spec<RGBConfig<High, 1, 1, true, true>>, Camera::FIXED, Overlays::FIXED>,
             Case<Spec<GeometryConfig<true>>, Camera::FIXED, Overlays::FIXED>,
+            Case<Spec<SemanticConfig<true>>, Camera::FIXED, Overlays::FIXED>,
             Case<Spec<RGBConfig<High, 4, 1, false, true>>, Camera::MOVING, Overlays::FIXED>,
             Case<Spec<FlowConfig<true>>, Camera::MOVING, Overlays::FIXED>,
             Case<Spec<RGBConfig<High, 4, 1, false, true>>, Camera::FIXED, Overlays::MOVING>,
@@ -186,6 +193,9 @@ namespace golden {
             }
             else if constexpr(SPEC::HAS_FLOW){
                 primary = "flow";
+            }
+            else if constexpr(SPEC::SEMANTIC_SEGMENTATION){
+                primary = "segmentation-semantic";
             }
             else{
                 primary = "geometry";
