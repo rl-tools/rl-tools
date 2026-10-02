@@ -1483,7 +1483,7 @@ int main(int argc, char** argv){
         add_scalar(device, device.logger, "rendering/camera_mount_rotation_randomization_range_y", CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_Y);
         add_scalar(device, device.logger, "rendering/camera_mount_rotation_randomization_range_z", CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_Z);
 
-        const bool training_complete = ppo_step_i + 1 == N_PPO_STEPS || (TRAINING_TIME_LIMIT_SECONDS > 0 && training_elapsed.count() >= TRAINING_TIME_LIMIT_SECONDS);
+        const bool training_complete = ppo_step_i + 1 == N_PPO_STEPS;
         save_extrack_step = save_extrack_step || training_complete;
         if(save_extrack_step){
             auto step_folder = get_step_folder(device, extrack_config, extrack_paths, environment_step);
