@@ -105,7 +105,7 @@ static constexpr double FLOW_STATUS_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 
 static constexpr double SEGMENTATION_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.0005;
 static constexpr double SEGMENTATION_BACKGROUND_MISMATCH_FRACTION = REFERENCE_BACKEND ? 0 : 0.0005;
 
-static const std::string SCENE_PATH = RL_TOOLS_GOLDEN_TEST_DATA_PATH "/ProcTHOR-Train-1.glb";
+static const std::string SCENE_PATH = golden::PROCTHOR_TRAIN_1_SCENE;
 static const std::string GOLDEN_ROOT = golden::layout::goldens_root(RL_TOOLS_GOLDEN_TEST_DATA_PATH);
 static const std::string CORPUS_DIRECTORY = golden::layout::procthor_directory(GOLDEN_ROOT);
 static const std::string MANIFEST_PATH = golden::layout::manifest_path(CORPUS_DIRECTORY);
