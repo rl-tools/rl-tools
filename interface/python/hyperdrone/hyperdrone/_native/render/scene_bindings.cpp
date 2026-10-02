@@ -31,6 +31,8 @@ using hyperdrone::make_owned_array;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 static DEVICE g_device;
 using rlt::segmentation_taxonomy;
+using rlt::assign_segmentation_class;
+using rlt::remap_segmentation_classes;
 
 // the Python-facing "Scene" is a Bundle: the composed scene plus its loader/computed
 // metadata (bounds, max ray length), which the renderer consumes at init
@@ -58,6 +60,18 @@ template <typename TARGET>
 static std::map<uint32_t, std::string> class_names(const TARGET& target){
     const auto taxonomy = segmentation_taxonomy(g_device, target);
     return taxonomy ? taxonomy->classes : std::map<uint32_t, std::string>{};
+}
+
+static std::shared_ptr<const rlt::rendering::SegmentationTaxonomy> make_taxonomy(const std::string& name, const std::map<uint32_t, std::string>& classes){
+    if(name.empty() && classes.empty()){
+        return nullptr;
+    }
+    return std::make_shared<const rlt::rendering::SegmentationTaxonomy>(rlt::rendering::SegmentationTaxonomy{name, classes});
+}
+
+template <typename TARGET>
+static void remap_labels(TARGET& target, const std::map<uint32_t, uint32_t>& mapping, const std::string& taxonomy, const std::map<uint32_t, std::string>& classes){
+    remap_segmentation_classes(g_device, target, mapping, make_taxonomy(taxonomy, classes));
 }
 
 static rrt::Mesh make_mesh(FloatArray vertices, nb::ndarray<const int32_t, nb::c_contig, nb::device::cpu> indices,
@@ -166,12 +180,19 @@ void register_scene_bindings(nb::module_& m){
 
     nb::class_<rrt::Object>(m, "Object")
         .def("__init__", [](rrt::Object* object, const std::string& name, uint32_t segmentation_class){
-            new (object) rrt::Object();
-            object->name = name;
-            object->segmentation_class = segmentation_class;
+            rrt::Object value;
+            value.name = name;
+            assign_segmentation_class(g_device, value, segmentation_class);
+            new (object) rrt::Object(std::move(value));
         }, nb::arg("name") = "", nb::arg("segmentation_class") = 0)
         .def_rw("name", &rrt::Object::name)
-        .def_rw("segmentation_class", &rrt::Object::segmentation_class)
+        .def_prop_rw("segmentation_class", [](const rrt::Object& object){ return object.segmentation_class; },
+                     [](rrt::Object& object, uint32_t id){ assign_segmentation_class(g_device, object, id); })
+        .def("assign_segmentation_class", [](rrt::Object& object, uint32_t id, const std::string& taxonomy, const std::map<uint32_t, std::string>& classes){
+            assign_segmentation_class(g_device, object, id, make_taxonomy(taxonomy, classes));
+        }, nb::arg("id"), nb::arg("taxonomy") = "", nb::arg("classes") = std::map<uint32_t, std::string>{},
+           "Assign one class and its taxonomy before init; omitted taxonomy selects unnamed numeric classes.")
+        .def("remap_segmentation_classes", &remap_labels<rrt::Object>, nb::arg("mapping"), nb::arg("taxonomy") = "", nb::arg("classes") = std::map<uint32_t, std::string>{})
         .def_prop_ro("segmentation_class_valid", [](const rrt::Object& object){ return object.segmentation_class_valid; })
         .def_prop_ro("segmentation_taxonomy", [](const rrt::Object& object){ return object.segmentation_taxonomy ? object.segmentation_taxonomy->name : std::string{}; })
         .def_prop_ro("segmentation_classes", [](const rrt::Object& object){ return object.segmentation_taxonomy ? object.segmentation_taxonomy->classes : std::map<uint32_t, std::string>{}; })
@@ -193,8 +214,9 @@ void register_scene_bindings(nb::module_& m){
         })
         .def("segmentation_class", [](const rrt::ObjectAssembly& assembly, size_t index){ return assembly.objects.at(index).segmentation_class; })
         .def("set_segmentation_class", [](rrt::ObjectAssembly& assembly, size_t index, uint32_t segmentation_class){
-            assembly.objects.at(index).segmentation_class = segmentation_class;
+            assign_segmentation_class(g_device, assembly, index, segmentation_class);
         })
+        .def("remap_segmentation_classes", &remap_labels<rrt::ObjectAssembly>, nb::arg("mapping"), nb::arg("taxonomy") = "", nb::arg("classes") = std::map<uint32_t, std::string>{})
         .def("part", [](const rrt::ObjectAssembly& assembly, size_t index){
             const auto& part = assembly.parts.at(index);
             return nb::make_tuple(part.object, make_owned_array(part.transform, {3, 4}));
@@ -205,7 +227,19 @@ void register_scene_bindings(nb::module_& m){
         .def("add_assembly", [](rrt::AssetPool& pool, const rrt::ObjectAssembly& assembly){ return rlt::add(g_device, pool, assembly).index; })
         .def("add_object", [](rrt::AssetPool& pool, const rrt::Object& object){ return rlt::add(g_device, pool, object).index; })
         .def("add_mesh", [](rrt::AssetPool& pool, const rrt::Mesh& mesh){ return rlt::add(g_device, pool, mesh).index; })
-        .def_prop_ro("num_assets", [](const rrt::AssetPool& pool){ return pool.assemblies.size(); });
+        .def_prop_ro("num_assets", [](const rrt::AssetPool& pool){ return pool.assemblies.size(); })
+        .def_prop_ro("segmentation_taxonomy", &taxonomy_name<rrt::AssetPool>)
+        .def_prop_ro("segmentation_classes", &class_names<rrt::AssetPool>)
+        .def("object_segmentation_class", [](const rrt::AssetPool& pool, size_t asset, size_t object){
+            return pool.assemblies.at(asset).objects.at(object).segmentation_class;
+        })
+        .def("set_object_segmentation_class", [](rrt::AssetPool& pool, size_t asset, size_t object, uint32_t id){
+            assign_segmentation_class(g_device, pool, asset, object, id);
+        })
+        .def("remap_segmentation_classes", &remap_labels<rrt::AssetPool>, nb::arg("mapping"), nb::arg("taxonomy") = "", nb::arg("classes") = std::map<uint32_t, std::string>{})
+        .def("remap_asset_segmentation_classes", [](rrt::AssetPool& pool, size_t asset, const std::map<uint32_t, uint32_t>& mapping, const std::string& taxonomy, const std::map<uint32_t, std::string>& classes){
+            remap_labels(pool.assemblies.at(asset), mapping, taxonomy, classes);
+        }, nb::arg("asset"), nb::arg("mapping"), nb::arg("taxonomy") = "", nb::arg("classes") = std::map<uint32_t, std::string>{});
 
     nb::class_<SceneBundle>(m, "Scene")
         .def(nb::init<>())
@@ -273,8 +307,11 @@ void register_scene_bindings(nb::module_& m){
         .def("object_name", [](const SceneBundle& bundle, size_t index){ return bundle.scene.objects.at(index).name; })
         .def("object_segmentation_class", [](const SceneBundle& bundle, size_t index){ return bundle.scene.objects.at(index).segmentation_class; })
         .def("set_object_segmentation_class", [](SceneBundle& bundle, size_t index, uint32_t segmentation_class){
-            bundle.scene.objects.at(index).segmentation_class = segmentation_class;
+            assign_segmentation_class(g_device, bundle.scene, index, segmentation_class);
         })
+        .def("remap_segmentation_classes", [](SceneBundle& bundle, const std::map<uint32_t, uint32_t>& mapping, const std::string& taxonomy, const std::map<uint32_t, std::string>& classes){
+            remap_labels(bundle.scene, mapping, taxonomy, classes);
+        }, nb::arg("mapping"), nb::arg("taxonomy") = "", nb::arg("classes") = std::map<uint32_t, std::string>{})
         .def("instance_object", [](const SceneBundle& bundle, size_t index){ return bundle.scene.instances.at(index).object; })
         .def("instance_objects", [](const SceneBundle& bundle){
             std::vector<size_t> objects;

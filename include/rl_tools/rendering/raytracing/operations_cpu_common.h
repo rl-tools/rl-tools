@@ -31,6 +31,18 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
+    template <typename SPEC, typename DEVICE>
+    void validate_semantic_segmentation(DEVICE& device, const rendering::Scene& scene, const rendering::AssetPool& pool){
+        if constexpr(SPEC::SEMANTIC_SEGMENTATION){
+            if constexpr(SPEC::ENABLE_OVERLAYS){
+                validate_semantic_segmentation(device, scene, pool);
+            }
+            else{
+                validate_semantic_segmentation(device, segmentation_objects(device, scene));
+            }
+        }
+    }
+
     // backend-generic launch+sync composite, defined in operations_cpu_post.h; declared here so
     // backend-internal callers (init) resolve it before the definition is included
     template <typename DEVICE, typename SPEC, typename BACKEND>
@@ -367,6 +379,7 @@ namespace rl_tools {
         // (the bundle's metadata stays with the caller for producer-side use)
         template <typename DEVICE, typename SPEC, typename BACKEND, typename T>
         typename SPEC::TI library_insert(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, BACKEND>& library, rendering::Bundle<T>& bundle, bool& is_new){
+            validate_semantic_segmentation<SPEC>(device, bundle.scene, library.pool);
             using TI = typename SPEC::TI;
             utils::assert_exit(device, !bundle.metadata.content_hash.empty(), "library: bundle has no content hash — load it through a dataset loader");
             for(TI scene_i = 0; scene_i < (TI)library.metadata.size(); scene_i++){

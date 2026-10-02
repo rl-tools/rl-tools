@@ -1185,9 +1185,6 @@ namespace rl_tools {
         // params, and the context-level programs/pipeline/SBT rebuild
         template <typename DEVICE, typename SPEC>
         void init_renderer_scene(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, const rendering::raytracing::Scene& scene, const std::vector<const rendering::raytracing::Object*>& all_objects, const rendering::raytracing::backends::SceneState<rendering::raytracing::backends::Optix, SPEC>& assets){
-            if constexpr(SPEC::SEMANTIC_SEGMENTATION){
-                validate_semantic_segmentation(device, all_objects);
-            }
             namespace optix = rendering::raytracing::backends::optix;
             OWLContext context = (OWLContext)renderer.backend->context;
             OWLGroup world = (OWLGroup)assets.world;
@@ -1315,6 +1312,7 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC, typename METADATA_T>
     void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool, const rendering::SceneMetadata<METADATA_T>& metadata){
         namespace optix = rendering::raytracing::backends::optix;
+        validate_semantic_segmentation<SPEC>(device, scene, pool);
         renderer.max_ray_length = (typename SPEC::T)metadata.max_ray_length;
         rendering::raytracing::detail::announce_configuration<SPEC>();
         rendering::raytracing::detail::resolve_environment<SPEC>(scene.environment, renderer.ambient_color, renderer.miss_color_0, renderer.miss_color_1);
@@ -1365,9 +1363,10 @@ namespace rl_tools {
         namespace optix = rendering::raytracing::backends::optix;
         utils::assert_exit(device, renderer.backend->library == &library, "init: the renderer was not malloc'd against this library");
         utils::assert_exit(device, scene_id < (typename SPEC::TI)library.scenes.size(), "init: scene_id out of range");
+        const rendering::raytracing::Scene& scene = library.scenes[scene_id];
+        validate_semantic_segmentation<SPEC>(device, scene, library.pool);
         renderer.max_ray_length = library.metadata[scene_id].max_ray_length;
         rendering::raytracing::detail::announce_configuration<SPEC>();
-        const rendering::raytracing::Scene& scene = library.scenes[scene_id];
         rendering::raytracing::detail::resolve_environment<SPEC>(scene.environment, renderer.ambient_color, renderer.miss_color_0, renderer.miss_color_1);
         owlMissProgSet3f((OWLMissProg)renderer.backend->miss_prog, "color_0", owl3f{(float)renderer.miss_color_0[0], (float)renderer.miss_color_0[1], (float)renderer.miss_color_0[2]});
         owlMissProgSet3f((OWLMissProg)renderer.backend->miss_prog, "color_1", owl3f{(float)renderer.miss_color_1[0], (float)renderer.miss_color_1[1], (float)renderer.miss_color_1[2]});

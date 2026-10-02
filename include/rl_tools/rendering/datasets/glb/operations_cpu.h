@@ -234,6 +234,18 @@ namespace rl_tools {
             return true;
         }
 
+        static inline bool parse_segmentation_id(const nlohmann::json& value, uint32_t& id){
+            if(!value.is_number()){
+                return false;
+            }
+            const double number = value.get<double>();
+            if(!(number >= 0 && number < 4294967295.0)){
+                return false;
+            }
+            id = static_cast<uint32_t>(number);
+            return number == static_cast<double>(id);
+        }
+
         static inline bool parse_segmentation(const nlohmann::json& gltf, ParsedMetadata& result){
             try{
                 const auto& scene = gltf.at("scenes").at(gltf.value("scene", 0));
@@ -250,8 +262,8 @@ namespace rl_tools {
                         return false;
                     }
                     for(const auto& entry : classes.items()){
-                        const auto& id = entry.value();
-                        if(entry.key().empty() || !id.is_number_integer() || id.get<int64_t>() < 0 || id.get<int64_t>() >= 0xFFFFFFFFLL || !taxonomy->classes.emplace(id.get<uint32_t>(), entry.key()).second){
+                        uint32_t id;
+                        if(entry.key().empty() || !parse_segmentation_id(entry.value(), id) || !taxonomy->classes.emplace(id, entry.key()).second){
                             return false;
                         }
                     }
@@ -264,11 +276,11 @@ namespace rl_tools {
                     const auto& node = gltf.at("nodes").at(roots[ordinal].get<size_t>());
                     const auto class_path = nlohmann::json::json_pointer("/extras/rl_tools/segmentation_class");
                     if(node.contains(class_path)){
-                        const auto& id = node.at(class_path);
-                        if(!id.is_number_integer() || id.get<int64_t>() < 0 || id.get<int64_t>() >= 0xFFFFFFFFLL || !result.segmentation_taxonomy || !result.segmentation_taxonomy->classes.count(id.get<uint32_t>())){
+                        uint32_t id;
+                        if(!parse_segmentation_id(node.at(class_path), id) || !result.segmentation_taxonomy || !result.segmentation_taxonomy->classes.count(id)){
                             return false;
                         }
-                        result.root_classes[ordinal] = id.get<uint32_t>();
+                        result.root_classes[ordinal] = id;
                     }
                 }
                 return true;
@@ -910,12 +922,40 @@ namespace rl_tools {
         }
 
         object.segmentation_taxonomy = glb_metadata.segmentation_taxonomy;
-        if(!glb_metadata.root_classes.empty()){
-            object.segmentation_class = glb_metadata.root_classes.front();
-            object.segmentation_class_valid = std::all_of(glb_metadata.root_classes.begin(), glb_metadata.root_classes.end(), [&](uint32_t id){ return id == object.segmentation_class; });
-            if(!object.segmentation_class_valid){
-                object.segmentation_class = 0;
+        std::function<bool(const aiNode*)> contributes_geometry = [&](const aiNode* node){
+            for(unsigned int mesh_i = 0; mesh_i < node->mNumMeshes; mesh_i++){
+                const auto* mesh = scene->mMeshes[node->mMeshes[mesh_i]];
+                for(unsigned int face_i = 0; face_i < mesh->mNumFaces; face_i++){
+                    if(mesh->mFaces[face_i].mNumIndices == 3){
+                        return true;
+                    }
+                }
             }
+            for(unsigned int child_i = 0; child_i < node->mNumChildren; child_i++){
+                if(contributes_geometry(node->mChildren[child_i])){
+                    return true;
+                }
+            }
+            return false;
+        };
+        bool has_geometry = false;
+        object.segmentation_class = 0;
+        object.segmentation_class_valid = true;
+        for(size_t root_i = 0; root_i < glb_metadata.root_count; root_i++){
+            const auto* root = glb_metadata.root_count == 1 ? scene->mRootNode : scene->mRootNode->mChildren[root_i];
+            if(contributes_geometry(root)){
+                const auto id = glb_metadata.root_classes[root_i];
+                if(has_geometry && id != object.segmentation_class){
+                    object.segmentation_class_valid = false;
+                }
+                else if(!has_geometry){
+                    object.segmentation_class = id;
+                }
+                has_geometry = true;
+            }
+        }
+        if(!object.segmentation_class_valid){
+            object.segmentation_class = 0;
         }
 
         // Build mesh-index → global transform map by walking the node tree

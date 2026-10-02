@@ -17,6 +17,9 @@ namespace {
     using rlt::load;
     using rlt::segmentation_taxonomy;
     using rlt::validate_semantic_segmentation;
+    using rlt::assign_segmentation_class;
+    using rlt::remap_segmentation_classes;
+    using rlt::segmentation_objects;
 
     class GlbEnvironment: public ::testing::Test{
     protected:
@@ -34,7 +37,7 @@ namespace {
             std::filesystem::remove_all(directory);
         }
 
-        std::string write_glb(std::optional<Json> environment, const Json& classes = Json(), bool single_root = false){
+        std::string write_glb(std::optional<Json> environment, const Json& classes = Json(), bool single_root = false, const Json& overrides = Json()){
             const float positions[9] = {2, -1, -1, 2, 1, -1, 2, 0, 1};
             Json document = {
                 {"asset", {{"version", "2.0"}}}, {"scene", 1},
@@ -56,6 +59,9 @@ namespace {
             }
             if(single_root){
                 document["scenes"][1]["nodes"] = {0};
+            }
+            if(!overrides.is_null()){
+                document = document.patch(overrides);
             }
             auto encoded = document.dump();
             encoded.append((4 - encoded.size() % 4) % 4, ' ');
@@ -128,8 +134,95 @@ namespace {
         EXPECT_FALSE(roots.scene.objects[0].meshes.empty());
     }
 
+    TEST_F(GlbEnvironment, welding_ignores_empty_roots_and_keeps_descendant_geometry){
+        for(size_t empty_root : {0u, 1u}){
+            Json patch = Json::array({{{"op", "remove"}, {"path", "/nodes/" + std::to_string(empty_root) + "/mesh"}},
+                                     {{"op", "add"}, {"path", "/nodes/-"}, {"value", {{"mesh", 0}}}},
+                                     {{"op", "remove"}, {"path", "/nodes/" + std::to_string(1 - empty_root) + "/mesh"}},
+                                     {{"op", "add"}, {"path", "/nodes/" + std::to_string(1 - empty_root) + "/children"}, {"value", {2}}}});
+            Json classes = empty_root == 0 ? Json{0, 21} : Json{21, 0};
+            const auto path = write_glb(std::nullopt, classes, false, patch);
+            rlt::rendering::Object object;
+            ASSERT_TRUE(load(device, object, path));
+            EXPECT_EQ(object.segmentation_class, 21u);
+            EXPECT_TRUE(object.segmentation_class_valid);
+            rlt::rendering::ObjectAssembly assembly;
+            ASSERT_TRUE(load(device, assembly, path));
+            ASSERT_EQ(assembly.parts.size(), 2u);
+            EXPECT_TRUE(assembly.objects[empty_root].meshes.empty());
+            EXPECT_FALSE(assembly.objects[1 - empty_root].meshes.empty());
+        }
+    }
+
+    TEST_F(GlbEnvironment, assignment_and_remapping_are_coherent_and_transactional){
+        const auto path = write_glb(std::nullopt, Json{21, 162});
+        rlt::rendering::Object welded;
+        ASSERT_TRUE(load(device, welded, path));
+        EXPECT_THROW(remap_segmentation_classes(device, welded, {{0, 21}}, nullptr), std::invalid_argument);
+        EXPECT_THROW(assign_segmentation_class(device, welded, 7), std::invalid_argument);
+        EXPECT_FALSE(welded.segmentation_class_valid);
+        assign_segmentation_class(device, welded, 21);
+        EXPECT_TRUE(welded.segmentation_class_valid);
+        EXPECT_EQ(welded.segmentation_taxonomy->name, "test");
+        EXPECT_NO_THROW(validate_semantic_segmentation(device, segmentation_objects(device, welded)));
+        assign_segmentation_class(device, welded, 7, nullptr);
+        EXPECT_FALSE(welded.segmentation_taxonomy);
+        EXPECT_EQ(welded.segmentation_class, 7u);
+        EXPECT_THROW(assign_segmentation_class(device, welded, 0xFFFFFFFFu), std::invalid_argument);
+        EXPECT_EQ(welded.segmentation_class, 7u);
+
+        rlt::rendering::Bundle<float> bundle;
+        ASSERT_TRUE(load(device, bundle, path, Roots{}));
+        const auto source_taxonomy = bundle.scene.objects[0].segmentation_taxonomy;
+        auto target = std::make_shared<rlt::rendering::SegmentationTaxonomy>();
+        target->name = "target"; target->classes = {{0, "Unknown"}, {7, "Furniture"}, {8, "Structure"}};
+        EXPECT_THROW(remap_segmentation_classes(device, bundle.scene, {{21, 7}}, target), std::invalid_argument);
+        EXPECT_THROW(remap_segmentation_classes(device, bundle.scene, {{21, 7}, {162, 9}}, target), std::invalid_argument);
+        EXPECT_EQ(bundle.scene.objects[0].segmentation_class, 21u);
+        EXPECT_EQ(bundle.scene.objects[0].segmentation_taxonomy, source_taxonomy);
+        assign_segmentation_class(device, bundle.scene, 0, 162);
+        assign_segmentation_class(device, bundle.scene, 0, 21);
+        remap_segmentation_classes(device, bundle.scene, {{21, 7}, {162, 8}}, target);
+        EXPECT_EQ(bundle.scene.objects[0].segmentation_class, 7u);
+        EXPECT_EQ(bundle.scene.objects[1].segmentation_class, 8u);
+        EXPECT_EQ(bundle.scene.objects[1].segmentation_taxonomy, target);
+        EXPECT_EQ(source_taxonomy->classes.at(21), "Chair");
+
+        rlt::rendering::ObjectAssembly assembly;
+        ASSERT_TRUE(load(device, assembly, path));
+        assign_segmentation_class(device, assembly, 0, 162);
+        rlt::rendering::AssetPool pool;
+        pool.assemblies = {assembly, assembly};
+        assign_segmentation_class(device, pool, 0, 0, 21);
+        remap_segmentation_classes(device, pool, {{21, 7}, {162, 8}}, target);
+        EXPECT_EQ(pool.assemblies[0].objects[0].segmentation_class, 7u);
+        EXPECT_EQ(pool.assemblies[1].objects[0].segmentation_class, 8u);
+        EXPECT_EQ(segmentation_taxonomy(device, pool), target);
+        EXPECT_EQ(assembly.objects[0].segmentation_class, 162u);
+        remap_segmentation_classes(device, assembly, {{162, 2147483648u}}, nullptr);
+        EXPECT_EQ(assembly.objects[1].segmentation_class, 2147483648u);
+        EXPECT_FALSE(segmentation_taxonomy(device, assembly));
+    }
+
+    TEST_F(GlbEnvironment, numeric_label_boundaries){
+        for(const auto& value : {Json(2147483647u), Json(2147483648u), Json(4294967294u), Json(2147483648.0), Json(4294967294.0)}){
+            const auto patch = Json::array({{{"op", "add"}, {"path", "/scenes/1/extras/rl_tools/segmentation/classes/Large"}, {"value", value}}});
+            const auto path = write_glb(std::nullopt, Json{value, value}, false, patch);
+            rlt::rendering::Object object;
+            ASSERT_TRUE(load(device, object, path));
+            EXPECT_EQ(object.segmentation_class, value.get<uint32_t>());
+            EXPECT_EQ(object.segmentation_taxonomy->classes.at(value.get<uint32_t>()), "Large");
+        }
+        for(const auto& value : {Json(-1), Json(0xFFFFFFFFu), Json(4294967296ULL), Json(UINT64_MAX), Json(21.5), Json("21"), Json(true)}){
+            const auto patch = Json::array({{{"op", "add"}, {"path", "/scenes/1/extras/rl_tools/segmentation/classes/Large"}, {"value", value}}});
+            const auto path = write_glb(std::nullopt, Json{0, 0}, false, patch);
+            rlt::rendering::Object object;
+            EXPECT_FALSE(load(device, object, path));
+        }
+    }
+
     TEST_F(GlbEnvironment, rejects_invalid_labels_and_taxonomy_conflicts){
-        for(const auto& invalid : {Json(-1), Json(999), Json(0xFFFFFFFFu), Json("21")}){
+        for(const auto& invalid : {Json(-1), Json(999), Json(0xFFFFFFFFu), Json(21.5), Json(4294967296ULL), Json(UINT64_MAX), Json("21")}){
             const auto path = write_glb(std::nullopt, Json{invalid, 21});
             rlt::rendering::Bundle<float> roots;
             EXPECT_FALSE(load(device, roots, path, Roots{}));
@@ -156,6 +249,29 @@ namespace {
     }
 
 #ifdef RL_TOOLS_TEST_PROCTHOR_CONVERSION
+    TEST_F(GlbEnvironment, converter_large_ids_round_trip){
+        const auto source = write_glb(std::nullopt);
+        std::filesystem::create_directories(directory / "assets");
+        std::filesystem::create_directories(directory / "configs");
+        std::filesystem::copy_file(source, directory / "assets/stage.glb");
+        std::filesystem::copy_file(source, directory / "assets/object.glb");
+        const auto input = directory / "configs/test.scene_instance.json";
+        std::ofstream(input) << Json{{"stage_instance", {{"template_name", "stage"}}}, {"default_lighting", "no_lights"}, {"object_instances", {{{"template_name", "object"}}}}};
+        for(uint32_t id : {2147483647u, 2147483648u, 4294967294u}){
+            std::ofstream(directory / "configs/object_semantic_id_mapping.json") << Json{{"Undefined", 0}, {"Large", id}};
+            std::ofstream(directory / "configs/object.object_config.json") << Json{{"semantic_id", id}};
+            rlt::rendering::datasets::procthor::conversion::Options options;
+            options.scene_instance_path = input.string();
+            options.output_glb_path = (directory / "converted.glb").string();
+            std::string error;
+            ASSERT_TRUE(rlt::rendering::datasets::procthor::conversion::scene_instance_to_glb(options, error)) << error;
+            rlt::rendering::Bundle<float> bundle;
+            ASSERT_TRUE(load(device, bundle, options.output_glb_path, Roots{}));
+            EXPECT_EQ(bundle.scene.objects.back().segmentation_class, id);
+            EXPECT_EQ(segmentation_taxonomy(device, bundle.scene)->classes.at(id), "Large");
+        }
+    }
+
     TEST_F(GlbEnvironment, raw_dataset_forwards_mode_and_invalidates_semantic_cache){
         const auto source = write_glb(std::nullopt);
         std::filesystem::create_directories(directory / "assets");

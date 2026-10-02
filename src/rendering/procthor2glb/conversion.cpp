@@ -1439,7 +1439,7 @@ static SemanticInputs readSemanticInputs(const fs::path& root, const json& scene
 static void setSemanticClass(tinygltf::Node& node, uint32_t id){
     auto extras = node.extras.IsObject() ? node.extras.Get<tinygltf::Value::Object>() : tinygltf::Value::Object{};
     auto rl = extras.count("rl_tools") && extras["rl_tools"].IsObject() ? extras["rl_tools"].Get<tinygltf::Value::Object>() : tinygltf::Value::Object{};
-    rl["segmentation_class"] = tinygltf::Value(static_cast<int>(id));
+    rl["segmentation_class"] = jsonToTinyValue(json(id));
     extras["rl_tools"] = tinygltf::Value(rl);
     node.extras = tinygltf::Value(extras);
 }
