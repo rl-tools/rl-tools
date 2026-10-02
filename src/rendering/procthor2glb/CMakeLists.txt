@@ -11,7 +11,8 @@ rl_tools_fetchcontent_makeavailable_quiet(procthor2glb_stb)
 FetchContent_Declare(
     procthor2glb_tinygltf
     GIT_REPOSITORY https://github.com/syoyo/tinygltf.git
-    GIT_TAG        0d9ce1a9561688c6c6e7471430d15a50a0b15f1a # v3.0.1
+    GIT_TAG        v3.0.1
+    GIT_SHALLOW    TRUE
     EXCLUDE_FROM_ALL
 )
 rl_tools_fetchcontent_makeavailable_quiet(procthor2glb_tinygltf)
@@ -19,7 +20,8 @@ rl_tools_fetchcontent_makeavailable_quiet(procthor2glb_tinygltf)
 FetchContent_Declare(
     procthor2glb_basisu
     GIT_REPOSITORY https://github.com/BinomialLLC/basis_universal.git
-    GIT_TAG        162ea47e2816dfdb4538352eea29854f6a4d230a
+    GIT_TAG        v2_1_0r
+    GIT_SHALLOW    TRUE
     EXCLUDE_FROM_ALL
 )
 rl_tools_fetchcontent_makeavailable_quiet(procthor2glb_basisu)
