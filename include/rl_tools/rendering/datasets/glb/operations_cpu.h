@@ -179,7 +179,11 @@ namespace rl_tools {
             std::vector<rendering::SceneLight> lights; // world frame (welded scene loads)
             std::map<int, std::vector<rendering::SceneLight>> root_lights; // by scene-root ordinal, in the root node's frame (assembly loads)
             std::map<std::string, Material> materials; // by material name; glTF spec defaults when absent
-            std::vector<float> emissive_strengths;
+            struct MaterialExtensions{
+                float emissive_strength = 1.0f;
+                bool unlit = false;
+            };
+            std::vector<MaterialExtensions> material_extensions;
             std::map<int, std::vector<uint8_t>> images; // encoded bytes of referenced MR images, by glTF image index
         };
 
@@ -239,7 +243,7 @@ namespace rl_tools {
 
         static inline ParsedMetadata parse(const std::string& filename, const aiScene& imported_scene) {
             ParsedMetadata result;
-            result.emissive_strengths.assign(imported_scene.mNumMaterials, 1.0f);
+            result.material_extensions.resize(imported_scene.mNumMaterials);
             FILE* f = fopen(filename.c_str(), "rb");
             if (!f) return result;
 
@@ -335,7 +339,7 @@ namespace rl_tools {
             // Assimp defaults an empty emissive-strength extension to zero and lazily reorders
             // materials. Pair the node trees and primitives to recover the JSON value without
             // depending on optional or non-unique material names.
-            std::function<void(const aiNode*, int)> import_emissive_strength = [&](const aiNode* imported_node, int node_index){
+            std::function<void(const aiNode*, int)> import_material_extensions = [&](const aiNode* imported_node, int node_index){
                 const auto& node = nodes[node_index];
                 if(node.contains("mesh")){
                     const auto& primitives = gltf["meshes"][node["mesh"].get<int>()]["primitives"];
@@ -343,20 +347,25 @@ namespace rl_tools {
                         const auto& primitive = primitives.at(primitive_i);
                         if(primitive.contains("material")){
                             const auto& material = gltf["materials"][primitive["material"].get<int>()];
-                            if(material.contains("extensions") && material["extensions"].contains("KHR_materials_emissive_strength")){
+                            if(material.contains("extensions")){
                                 const unsigned int material_index = imported_scene.mMeshes[imported_node->mMeshes[primitive_i]]->mMaterialIndex;
-                                result.emissive_strengths[material_index] = material["extensions"]["KHR_materials_emissive_strength"].value("emissiveStrength", 1.0f);
+                                auto& imported = result.material_extensions[material_index];
+                                const auto& extensions = material["extensions"];
+                                imported.unlit = extensions.contains("KHR_materials_unlit");
+                                if(extensions.contains("KHR_materials_emissive_strength")){
+                                    imported.emissive_strength = extensions["KHR_materials_emissive_strength"].value("emissiveStrength", 1.0f);
+                                }
                             }
                         }
                     }
                 }
                 for(unsigned int child_i = 0; child_i < imported_node->mNumChildren; child_i++){
-                    import_emissive_strength(imported_node->mChildren[child_i], node["children"].at(child_i).get<int>());
+                    import_material_extensions(imported_node->mChildren[child_i], node["children"].at(child_i).get<int>());
                 }
             };
             for(const auto& [node_index, ordinal] : root_ordinal){
                 const aiNode* imported_root = root_ordinal.size() == 1 ? imported_scene.mRootNode : imported_scene.mRootNode->mChildren[ordinal];
-                import_emissive_strength(imported_root, node_index);
+                import_material_extensions(imported_root, node_index);
             }
 
             if (gltf.contains("extensions") && gltf["extensions"].contains("KHR_lights_punctual")) {
@@ -513,6 +522,7 @@ namespace rl_tools {
         }
         if constexpr (HAS_RGB) {
         if(mat != nullptr){
+            md.unlit = glb_metadata.material_extensions[mesh->mMaterialIndex].unlit;
 
             if constexpr (SHADING::PBR_SHADING) {
                 aiColor4D base_color(1.0f, 1.0f, 1.0f, 1.0f);
@@ -652,7 +662,7 @@ namespace rl_tools {
 
                 aiColor3D emissive_color(0.f, 0.f, 0.f);
                 mat->Get(AI_MATKEY_COLOR_EMISSIVE, emissive_color);
-                const float emissive_strength = glb_metadata.emissive_strengths[mesh->mMaterialIndex];
+                const float emissive_strength = glb_metadata.material_extensions[mesh->mMaterialIndex].emissive_strength;
                 md.emissive[0] = emissive_color.r * emissive_strength;
                 md.emissive[1] = emissive_color.g * emissive_strength;
                 md.emissive[2] = emissive_color.b * emissive_strength;

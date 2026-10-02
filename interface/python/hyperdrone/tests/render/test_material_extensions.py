@@ -58,13 +58,15 @@ def write_material_glb(path, materials, texture=None, material_indices=(0,), nes
                      + struct.pack("<II", len(binary), 0x004E4942) + binary)
 
 
-def center_pixel(path, fidelity, loader="scene"):
+def center_pixel(path, fidelity, loader="scene", light_color=None):
     if loader == "scene":
         scene = render.load_scene(path, fidelity=fidelity)
     else:
         scene = render.Scene()
         asset = getattr(render, f"load_{loader}")(path, fidelity=fidelity)
         getattr(scene, f"add_{loader}")(asset)
+    if light_color is not None:
+        scene.add_light(render.SceneLight.directional(direction=(-1, 0, 0), color=light_color))
     renderer = render.Renderer(width=8, height=8, num_cameras=1, num_probes=0,
                                output="rgb", fidelity=fidelity)
     renderer.init(scene)
@@ -116,5 +118,59 @@ def test_emissive_strength_material_association(tmp_path, name, nested, loader):
         for material in materials:
             material["name"] = name
     path = tmp_path / "materials.glb"
+    write_material_glb(path, materials, material_indices=(2, 1), nested=nested)
+    np.testing.assert_allclose(center_pixel(path, "high", loader), srgb([0.4, 0.2, 0.1]), atol=1.1)
+
+
+@pytest.mark.parametrize("fidelity", ["medium", "high", "veryhigh"])
+@pytest.mark.parametrize("textured", [False, True])
+@pytest.mark.parametrize("light_color", [(0, 0, 0), (100, 30, 10)])
+def test_unlit_uses_base_color_without_lighting(tmp_path, fidelity, textured, light_color):
+    material = {
+        "pbrMetallicRoughness": {"baseColorFactor": [0.4, 0.2, 0.1, 1],
+                               "metallicFactor": 1, "roughnessFactor": 0},
+        "emissiveFactor": [1, 1, 1],
+        "extensions": {"KHR_materials_unlit": {}},
+    }
+    expected = np.array([0.4, 0.2, 0.1])
+    texture = (128, 192, 64, 255) if textured else None
+    if textured:
+        material["pbrMetallicRoughness"]["baseColorTexture"] = {"index": 0}
+        material["normalTexture"] = {"index": 0}
+        material["occlusionTexture"] = {"index": 0}
+        material["emissiveTexture"] = {"index": 0}
+        expected *= ((np.asarray(texture[:3]) / 255 + 0.055) / 1.055) ** 2.4
+    path = tmp_path / "unlit.glb"
+    write_material_glb(path, [material], texture)
+    np.testing.assert_allclose(center_pixel(path, fidelity, light_color=light_color), srgb(expected), atol=1.1)
+
+
+@pytest.mark.parametrize("fidelity", ["high", "veryhigh"])
+@pytest.mark.parametrize("mode,alpha,expected_alpha", [("OPAQUE", 0.25, 1), ("MASK", 0.25, 0),
+                                                      ("MASK", 0.75, 1), ("BLEND", 0.25, 0.25)])
+def test_unlit_preserves_alpha(tmp_path, fidelity, mode, alpha, expected_alpha):
+    front, back = np.array([0.4, 0.2, 0.1]), np.array([0.1, 0.3, 0.5])
+    materials = [
+        {"pbrMetallicRoughness": {"baseColorFactor": [*back, 1]}, "extensions": {"KHR_materials_unlit": {}}},
+        {"pbrMetallicRoughness": {"baseColorFactor": [*front, alpha]},
+         "alphaMode": mode, "alphaCutoff": 0.5, "extensions": {"KHR_materials_unlit": {}}},
+    ]
+    path = tmp_path / "unlit_alpha.glb"
+    write_material_glb(path, materials, material_indices=(0, 1))
+    expected = front * expected_alpha + back * (1 - expected_alpha)
+    np.testing.assert_allclose(center_pixel(path, fidelity), srgb(expected), atol=1.1)
+
+
+@pytest.mark.parametrize("name", [None, "shared_name"])
+@pytest.mark.parametrize("nested", [False, True])
+@pytest.mark.parametrize("loader", ["scene", "object", "assembly"])
+def test_unlit_material_association(tmp_path, name, nested, loader):
+    materials = [{"pbrMetallicRoughness": {"baseColorFactor": [0.4, 0.2, 0.1, 1]},
+                  "emissiveFactor": [1, 1, 1]} for _ in range(3)]
+    materials[1]["extensions"] = {"KHR_materials_unlit": {}}
+    if name is not None:
+        for material in materials:
+            material["name"] = name
+    path = tmp_path / "unlit_materials.glb"
     write_material_glb(path, materials, material_indices=(2, 1), nested=nested)
     np.testing.assert_allclose(center_pixel(path, "high", loader), srgb([0.4, 0.2, 0.1]), atol=1.1)

@@ -928,6 +928,7 @@ namespace rl_tools {
             record.emissive[2] = mesh.emissive[2];
             record.alpha_cutoff = mesh.alpha_cutoff;
             record.alpha_mode = mesh.alpha_mode;
+            record.unlit = mesh.unlit;
         }
         const uint32_t triangle_mesh_offset = append_section(triangle_mesh.data(), triangle_mesh.size() * sizeof(uint32_t));
         const uint32_t triangle_local_offset = append_section(triangle_local.data(), triangle_local.size() * sizeof(uint32_t));
