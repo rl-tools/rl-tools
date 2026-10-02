@@ -13,7 +13,7 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rendering::datasets::procthor::conversion {
     // part of the loader's conversion-cache key: bump on any change to the conversion output
-    inline constexpr int VERSION = 2;
+    inline constexpr int VERSION = 3;
 
     enum class Dataset { AI2THOR_HAB, HSSD };
 

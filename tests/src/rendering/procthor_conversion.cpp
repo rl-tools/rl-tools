@@ -105,6 +105,14 @@ namespace {
         stream.read(data.data(), length);
         ASSERT_TRUE(stream.good());
         const auto output = Json::parse(data);
+        const auto environment_path = Json::json_pointer("/scenes/0/extras/rl_tools/environment");
+        if(hssd){
+            EXPECT_FALSE(output.contains(environment_path));
+        }
+        else{
+            ASSERT_TRUE(output.contains(environment_path));
+            EXPECT_EQ(output.at(environment_path), (Json{{"mode", "solid"}, {"ambient", {0.6, 0.6, 0.6}}, {"background", {0.0, 0.0, 0.0}}}));
+        }
         const auto& lights = output.at("extensions").at("KHR_lights_punctual").at("lights");
         ASSERT_EQ(lights.size(), 4u);
         std::vector<int> references;

@@ -1,4 +1,7 @@
 if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
+    add_executable(test_rendering_glb_environment glb_environment.cpp)
+    target_link_libraries(test_rendering_glb_environment PRIVATE RLtools::RLtools assimp::assimp rendering_raytracing_stb GTest::gtest_main)
+    gtest_discover_tests(test_rendering_glb_environment PROPERTIES TIMEOUT 20 LABELS "glb-environment")
     add_subdirectory(raytracing)
     add_subdirectory(raytracing/generic)
 endif()

@@ -83,8 +83,8 @@ int main(){
     // dataset configuration: one scene per World, from the conta-published ProcTHOR pair
     // (resolved from the content-addressed store, downloaded on first use)
     rlt::rendering::datasets::procthor::GLB dataset{{}, {
-        "conta:a8fda3e9872e29994a425bd35c425159598623ce", // ai2thor-hab/glb/ProcTHOR-Train-0.glb
-        "conta:7f1c9129532798e0b63bc41edb6b4c09251cf8a0", // ai2thor-hab/glb/ProcTHOR-Train-1.glb
+        "conta:75a7382fc8299bc810811a887c11dd2a737b1bfb", // ai2thor-hab/glb/ProcTHOR-Train-0.glb
+        "conta:33b712cad9e5ccf39b238a3f26fdd83e4e4a4d43", // ai2thor-hab/glb/ProcTHOR-Train-1.glb
     }};
 
     ENVIRONMENT env;
