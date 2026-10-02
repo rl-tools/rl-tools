@@ -10,7 +10,8 @@ if(NOT RL_TOOLS_RL_ENVIRONMENTS_DISABLE_MUJOCO)
     elseif(GIT_FOUND)
         FetchContent_Declare(mujoco
                 GIT_REPOSITORY https://github.com/google-deepmind/mujoco.git
-                GIT_TAG   2.3.5
+                GIT_TAG        2.3.5
+                GIT_SHALLOW    TRUE
         )
         rl_tools_fetchcontent_makeavailable_quiet(mujoco)
         # MuJoCo 2.3.5 hardcodes -Werror; its warning set predates current compilers (e.g. GCC 15)
@@ -52,9 +53,13 @@ if(NOT RL_TOOLS_RL_ENVIRONMENTS_DISABLE_MUJOCO)
                 endif()
             endif()
             if(RL_TOOLS_MUJOCO_UI_BUILDABLE)
+                if(NOT DEFINED GLFW_BUILD_WAYLAND)
+                    set(GLFW_BUILD_WAYLAND OFF)
+                endif()
                 FetchContent_Declare(glfw3
                         GIT_REPOSITORY https://github.com/glfw/glfw.git
-                        GIT_TAG   3fa2360720eeba1964df3c0ecf4b5df8648a8e52
+                        GIT_TAG        3.4
+                        GIT_SHALLOW    TRUE
                 )
                 rl_tools_fetchcontent_makeavailable_quiet(glfw3)
             endif()

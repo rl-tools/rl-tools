@@ -10,7 +10,8 @@ if(NOT RL_TOOLS_DISABLE_JSON)
     elseif(GIT_FOUND)
         FetchContent_Declare(nlohmann_json
                 GIT_REPOSITORY https://github.com/nlohmann/json.git
-                GIT_TAG        a0c1318830519eac027a31edec1a99ce1ae5670e
+                GIT_TAG        v3.11.3
+                GIT_SHALLOW    TRUE
         )
         rl_tools_fetchcontent_makeavailable_quiet(nlohmann_json)
         target_include_directories(rl_tools_full INTERFACE ${nlohmann_json_SOURCE_DIR}/include)
@@ -51,7 +52,8 @@ if(NOT RL_TOOLS_DISABLE_ZLIB)
         set(ZLIB_COMPAT ON)
         FetchContent_Declare(zlib
                 GIT_REPOSITORY https://github.com/zlib-ng/zlib-ng.git
-                GIT_TAG   8d10c309d7d468b9b2ecfd8d5f1b063d6396af17
+                GIT_TAG        2.2.3
+                GIT_SHALLOW    TRUE
         )
         rl_tools_fetchcontent_makeavailable_quiet(zlib)
 
