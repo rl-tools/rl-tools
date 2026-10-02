@@ -113,7 +113,7 @@ namespace rl_tools::rendering::raytracing::backends::vulkan{
         int32_t has_occlusion_map;
         int32_t has_tex_coord;
         int32_t has_normals;
-        int32_t padding[1];
+        int32_t unlit;
     };
     static_assert(sizeof(MeshRecord) == 128, "MeshRecord layout must match the GLSL declaration in device.comp");
 
