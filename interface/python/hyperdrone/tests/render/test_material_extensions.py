@@ -8,7 +8,7 @@ from hyperdrone import render
 from hyperdrone.render import _io
 
 
-def write_material_glb(path, materials, texture=None, material_indices=(0,), nested=False):
+def write_material_glb(path, materials, texture=None, material_indices=(0,), nested=False, scene_extras=None):
     positions = np.array([[2, -10, -10], [2, 10, -10], [2, 10, 10], [2, -10, 10]], dtype="<f4")
     indices = np.array([0, 2, 1, 0, 3, 2], dtype="<u2")
     uv = np.array([[0, 0], [1, 0], [1, 1], [0, 1]], dtype="<f4")
@@ -44,6 +44,8 @@ def write_material_glb(path, materials, texture=None, material_indices=(0,), nes
     if nested:
         gltf["nodes"].append({"children": gltf["scenes"][0]["nodes"]})
         gltf["scenes"][0]["nodes"] = [len(gltf["nodes"]) - 1]
+    if scene_extras is not None:
+        gltf["scenes"][0]["extras"] = scene_extras
     if texture is not None:
         image_path = path.with_suffix(".png")
         _io.write_png(image_path, np.array([[texture]], dtype=np.uint8))
