@@ -197,11 +197,6 @@ namespace mixed_imitation = rlt::rl::algorithms::ppo::mixed_imitation;
     static constexpr T RENDER_SHUTTER_FRACTION_MAX = static_cast<T>(1);
     static_assert(RENDER_SHUTTER_FRACTION_MIN >= static_cast<T>(0) && RENDER_SHUTTER_FRACTION_MIN <= RENDER_SHUTTER_FRACTION_MAX && RENDER_SHUTTER_FRACTION_MAX <= static_cast<T>(1), "Invalid hyperdrone training shutter fraction range");
 
-    static constexpr TI ENV_GRID_SIDE = 4;
-    static constexpr TI SCENE_GRID_COLS = N_ACTIVE_SCENES;
-    static constexpr TI SCENE_GRID_ROWS = (N_ACTIVE_SCENES + SCENE_GRID_COLS - 1) / SCENE_GRID_COLS;
-    static_assert(ENV_GRID_SIDE * ENV_GRID_SIDE == N_ENVIRONMENTS_PER_SCENE, "ENV_GRID_SIDE^2 must equal N_ENVIRONMENTS_PER_SCENE for the mosaic layout");
-
     static constexpr TI FRAME_STACK_N = 1;
     static constexpr TI FRAME_STACK_STRIDE = 2;
     static constexpr TI ROLLOUT_STEPS_PER_ENV = 4;
@@ -222,6 +217,9 @@ namespace mixed_imitation = rlt::rl::algorithms::ppo::mixed_imitation;
     static constexpr T OBSERVATION_NOISE_STD = 0.0;
 
     static constexpr TI CHECKPOINT_CADENCE_SCENE_SETS = 20;
+    static constexpr TI VIDEO_SAVE_INTERVAL_SCENE_SETS = CHECKPOINT_CADENCE_SCENE_SETS;
+    static constexpr TI VIDEO_SCENE_COLS = 2;
+    static constexpr TI VIDEO_ENV_COLS = 4;
     static constexpr TI REWARD_COMPONENT_LOG_INTERVAL_PPO_STEPS = 20;
     static constexpr bool EXPORT_CHECKPOINT_TAR = false;
     static constexpr bool EXPORT_CHECKPOINT_CODE = false;
