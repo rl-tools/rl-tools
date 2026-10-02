@@ -227,7 +227,6 @@ namespace mixed_imitation = rlt::rl::algorithms::ppo::mixed_imitation;
     static constexpr bool EXPORT_CHECKPOINT_CODE = false;
     static constexpr TI N_EXAMPLES = 2;
     static constexpr TI REDUCED_BATCH_SIZE = 2;
-    static constexpr T TRAINING_TIME_LIMIT_SECONDS = 600;
     static_assert(REDUCED_BATCH_SIZE <= N_EXAMPLES);
     static constexpr TI TRAJECTORY_NUM_ENVS = 10;
     static constexpr TI TRAJECTORY_MAX_EPISODES = 10;
@@ -247,11 +246,10 @@ namespace mixed_imitation = rlt::rl::algorithms::ppo::mixed_imitation;
         static constexpr auto CRITIC_ACTIVATION_FUNCTION = rlt::nn::activation_functions::ActivationFunction::FAST_TANH;
         static constexpr TI ON_POLICY_RUNNER_STEPS_PER_ENV = ROLLOUT_STEPS_PER_ENV;
         static constexpr TI N_ENVIRONMENTS = mixed::N_ENVIRONMENTS;
-        static constexpr TI TOTAL_STEP_LIMIT = 1000000000;
 #ifdef RL_TOOLS_HYPERDRONE_MIXED_SMALL
         static constexpr TI STEP_LIMIT = 600;
 #else
-        static constexpr TI STEP_LIMIT = TOTAL_STEP_LIMIT / (N_ENVIRONMENTS * ON_POLICY_RUNNER_STEPS_PER_ENV) + 1;
+        static constexpr TI STEP_LIMIT = 12000;
 #endif
         static constexpr TI EPISODE_STEP_LIMIT = mixed::EPISODE_STEP_LIMIT;
         using ACTOR_OPTIMIZER_PARAMETERS = ADAM_PARAMETERS;
