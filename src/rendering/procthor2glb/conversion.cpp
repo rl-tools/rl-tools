@@ -348,8 +348,10 @@ static void collectSplitRoots(tinygltf::Model& dst,
             promoted.name = fallbackName + "#part" + std::to_string(outRoots.size());
         outRoots.push_back(idx + nodeOff);
     } else {
-        for (int c : node.children)
+        for (int c : node.children) {
             collectSplitRoots(dst, src, nodeOff, c, composed, fallbackName, outRoots);
+        }
+        dst.nodes[idx + nodeOff].children.clear();
     }
 }
 
@@ -931,7 +933,6 @@ static void bakeTextureTransforms(tinygltf::Model& model) {
                             break;
                         }
                     }
-                    texInfo.extensions.erase("KHR_texture_transform");
                 };
                 redirect(mat.pbrMetallicRoughness.baseColorTexture);
                 redirect(mat.pbrMetallicRoughness.metallicRoughnessTexture);
@@ -941,10 +942,13 @@ static void bakeTextureTransforms(tinygltf::Model& model) {
             }
 
             bakedCount += (int)prims.size();
-            continue;  // skip the simple-path cleanup below
+            continue;
         }
 
-        // Simple-path: remove extensions from material texture infos
+        bakedCount += (int)prims.size();
+    }
+
+    for (auto& mat : model.materials) {
         auto removeTT = [](auto& texInfo) {
             texInfo.extensions.erase("KHR_texture_transform");
         };
@@ -953,7 +957,6 @@ static void bakeTextureTransforms(tinygltf::Model& model) {
         removeTT(mat.normalTexture);
         removeTT(mat.occlusionTexture);
         removeTT(mat.emissiveTexture);
-        bakedCount += (int)prims.size();
     }
 
     if (bakedCount > 0)
@@ -993,14 +996,16 @@ static void consolidateBuffers(tinygltf::Model& model) {
     std::vector<size_t> offset(model.buffers.size());
     size_t total = 0;
     for (size_t i = 0; i < model.buffers.size(); i++) {
+        total += (4 - total % 4) % 4;
         offset[i] = total;
         total += model.buffers[i].data.size();
     }
 
-    std::vector<unsigned char> merged;
-    merged.reserve(total);
-    for (auto& buf : model.buffers)
-        merged.insert(merged.end(), buf.data.begin(), buf.data.end());
+    std::vector<unsigned char> merged(total, 0);
+    for (size_t i = 0; i < model.buffers.size(); i++) {
+        const auto& data = model.buffers[i].data;
+        std::copy(data.begin(), data.end(), merged.begin() + offset[i]);
+    }
 
     for (auto& bv : model.bufferViews) {
         if (bv.buffer >= 0 && bv.buffer < (int)offset.size()) {
@@ -1013,6 +1018,55 @@ static void consolidateBuffers(tinygltf::Model& model) {
     tinygltf::Buffer buf;
     buf.data = std::move(merged);
     model.buffers.push_back(std::move(buf));
+}
+
+static void repairMaterialBindings(tinygltf::Model& model) {
+    for (auto& material : model.materials) {
+        for (auto& component : material.pbrMetallicRoughness.baseColorFactor) {
+            component = std::clamp(component, 0.0, 1.0);
+        }
+    }
+    std::map<std::pair<int, unsigned int>, int> variants;
+    for (auto& mesh : model.meshes) {
+        for (auto& primitive : mesh.primitives) {
+            if (primitive.material < 0) {
+                continue;
+            }
+            auto material = model.materials[primitive.material];
+            unsigned int removed = 0;
+            const auto removeMissingUV = [&](auto& texture, unsigned int slot) {
+                if (texture.index < 0) {
+                    return;
+                }
+                int texCoord = texture.texCoord;
+                const auto transform = texture.extensions.find("KHR_texture_transform");
+                if (transform != texture.extensions.end() && transform->second.Has("texCoord")) {
+                    texCoord = transform->second.Get("texCoord").GetNumberAsInt();
+                }
+                if (primitive.attributes.count("TEXCOORD_" + std::to_string(texCoord)) == 0) {
+                    texture = {};
+                    removed |= slot;
+                }
+            };
+            removeMissingUV(material.pbrMetallicRoughness.baseColorTexture, 1u);
+            removeMissingUV(material.pbrMetallicRoughness.metallicRoughnessTexture, 2u);
+            removeMissingUV(material.normalTexture, 4u);
+            removeMissingUV(material.occlusionTexture, 8u);
+            removeMissingUV(material.emissiveTexture, 16u);
+            if (removed == 0) {
+                continue;
+            }
+            const auto key = std::make_pair(primitive.material, removed);
+            const auto existing = variants.find(key);
+            if (existing != variants.end()) {
+                primitive.material = existing->second;
+            } else {
+                primitive.material = static_cast<int>(model.materials.size());
+                variants.emplace(key, primitive.material);
+                model.materials.push_back(std::move(material));
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -2040,6 +2094,8 @@ bool scene_instance_to_glb(const Options& options, std::string& error) {
     // -- Finalize scene --
     outModel.scenes.push_back(outScene);
     outModel.defaultScene = 0;
+
+    repairMaterialBindings(outModel);
 
     if (normalize) {
         // -- Dequantize integer mesh attributes → FLOAT --

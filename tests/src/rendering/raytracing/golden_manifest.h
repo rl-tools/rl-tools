@@ -18,7 +18,7 @@
 
 namespace golden {
     static constexpr uint32_t PROCTHOR_TRAIN_1_GOLDEN_VERSION = 2;
-    static constexpr const char* PROCTHOR_TRAIN_1_SCENE = "conta:33b712cad9e5ccf39b238a3f26fdd83e4e4a4d43";
+    static constexpr const char* PROCTHOR_TRAIN_1_SCENE = "conta:5c53061c721fa98f93e6886925e41e975c577f3c";
     // the backend that renders the canonical corpus and is held to bit-exact reproduction
     static constexpr const char* REFERENCE_BACKEND = "optix";
 
