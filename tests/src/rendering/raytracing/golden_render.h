@@ -152,16 +152,14 @@ namespace golden {
         Renderer renderer;
         rl_tools::malloc(device, renderer);
         rl_tools::rendering::Bundle<T> bundle;
+        using rl_tools::load;
         if constexpr(SPEC::HAS_SEGMENTATION) {
-            rl_tools::rendering::raytracing::ObjectAssembly assembly;
-            if(!rl_tools::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, assembly, scene_path)) {
+            if(!load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, scene_path, rl_tools::Mode<rl_tools::mode::rendering::SceneRoots<>>{})) {
                 rl_tools::free(device, renderer);
                 return false;
             }
-            rl_tools::add(device, bundle.scene, assembly);
-            rl_tools::rendering::datasets::compute_bounds(device, bundle);
         }
-        else if(!rl_tools::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, scene_path)) {
+        else if(!load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, scene_path)) {
             rl_tools::free(device, renderer);
             return false;
         }

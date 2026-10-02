@@ -103,10 +103,12 @@ swizzled at load time. Procedural scenes (`render.Scene()` + `render.Object` /
 content via `AssetPool` + `spawn`/`attach`), motion blur, and anti-aliasing follow the
 same API as before under `hyperdrone.render.*`.
 
-Before `renderer.init(scene)`, `scene.set_environment(ambient=(0.6, 0.6, 0.6), background=(0, 0, 0))`
-sets the ProcTHOR example's indoor fill and solid background in linear RGB. Ambient
-affects `high` and `veryhigh`; it approximates indirect illumination without light bounces.
-Omitting the call preserves the renderer defaults.
+Converted ProcTHOR scenes carry ambient `(0.6, 0.6, 0.6)` and a black background in
+`scenes[].extras.rl_tools.environment` (`mode: "solid"`, `ambient` and `background`
+are nonnegative linear RGB triples). Scene loading imports these settings; importing
+objects or assemblies leaves the parent environment alone. Ambient affects `high`
+and `veryhigh`, approximating indirect illumination without light bounces. Override
+imported settings with `scene.set_environment(...)` before `renderer.init(scene)`.
 
 `num_probes` sizes the collision-probe pass (`generate_probe_directions()`, `render("collision")`, `collisions()`; one probe per camera by default). `num_probes=0` compiles that pass out entirely, the counterpart of the probe-ray macro the C++ benchmark targets set: no probe buffers are allocated, the default `render()` target runs only the image channels, and the probe methods raise.
 

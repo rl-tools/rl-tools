@@ -2031,6 +2031,12 @@ bool scene_instance_to_glb(const Options& options, std::string& error) {
         std::cout << "\n";
     }
 
+    if (datasetMode == DatasetMode::AI2THOR) {
+        outScene.extras = jsonToTinyValue({{"rl_tools", {{"environment", {
+            {"mode", "solid"}, {"ambient", {0.6, 0.6, 0.6}}, {"background", {0.0, 0.0, 0.0}}
+        }}}}});
+    }
+
     // -- Finalize scene --
     outModel.scenes.push_back(outScene);
     outModel.defaultScene = 0;
