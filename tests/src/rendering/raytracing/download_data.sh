@@ -8,7 +8,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DATA_DIR="${SCRIPT_DIR}/../../../data"
 DATA_SOURCE="${RL_TOOLS_TEST_DATA_SOURCE:-https://huggingface.co/datasets/rl-tools/test-data}"
-DATA_REVISION="${RL_TOOLS_RAYTRACING_GOLDEN_DATA_REVISION:-cb62bfcfd9bd67da742953c136dd55c054936faf}"
+DATA_REVISION="${RL_TOOLS_RAYTRACING_GOLDEN_DATA_REVISION:-e791a95d8fc12895fbf656716b2389baa2779bf5}"
 LFS_INCLUDE="rendering/raytracing/goldens/**"
 
 if ! git lfs version >/dev/null 2>&1; then

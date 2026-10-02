@@ -1,4 +1,5 @@
 #include "golden_io.h"
+#include "golden_manifest.h"
 
 #include <gtest/gtest.h>
 
@@ -369,4 +370,40 @@ TEST_F(GoldenIoTest, LayoutPathsAreStable){
     EXPECT_EQ(golden::layout::diff_png(modality, golden::layout::golden_name(2), "render-optix"), modality + "/diff-golden-v02-render-optix.png");
     EXPECT_LT(std::string("golden-v00.png"), std::string("golden-v01.png"));
     EXPECT_LT(std::string("golden-v12.png"), std::string("render-generic.png"));
+}
+
+TEST_F(GoldenIoTest, ManifestPinsVersionBackendAndScene){
+    const auto manifest = golden::procthor_manifest(golden::REFERENCE_BACKEND, {{"compiler", "test"}});
+    const std::string manifest_path = path("manifest.json");
+    ASSERT_TRUE(golden::write_json(manifest_path, manifest));
+    EXPECT_EQ(golden::manifest_error(manifest_path), "");
+    for(const auto& key : {"golden_version", "reference_backend", "scene", "generation_environment"}){
+        auto missing = manifest;
+        missing.erase(key);
+        ASSERT_TRUE(golden::write_json(manifest_path, missing));
+        EXPECT_NE(golden::manifest_error(manifest_path), "") << key;
+        auto wrong_type = manifest;
+        wrong_type[key] = nlohmann::json::array();
+        ASSERT_TRUE(golden::write_json(manifest_path, wrong_type));
+        EXPECT_NE(golden::manifest_error(manifest_path), "") << key;
+    }
+    for(const auto& patch : {
+        nlohmann::json{{"golden_version", golden::PROCTHOR_TRAIN_1_GOLDEN_VERSION - 1}},
+        nlohmann::json{{"reference_backend", "optix"}},
+        nlohmann::json{{"scene", "conta:wrong-scene"}}
+    }){
+        auto wrong = manifest;
+        wrong.update(patch);
+        ASSERT_TRUE(golden::write_json(manifest_path, wrong));
+        EXPECT_NE(golden::manifest_error(manifest_path), "");
+    }
+}
+
+TEST_F(GoldenIoTest, MissingOrMalformedManifestFails){
+    const std::string manifest_path = path("manifest.json");
+    EXPECT_NE(golden::manifest_error(manifest_path), "");
+    write_bytes(manifest_path, {'{'});
+    EXPECT_NE(golden::manifest_error(manifest_path), "");
+    ASSERT_TRUE(golden::write_json(manifest_path, nlohmann::json::array()));
+    EXPECT_NE(golden::manifest_error(manifest_path), "");
 }

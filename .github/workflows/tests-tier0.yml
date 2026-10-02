@@ -133,8 +133,6 @@ jobs:
           test -n "$lavapipe_manifest"
           echo "VK_DRIVER_FILES=$lavapipe_manifest" >> "$GITHUB_ENV"
 
-      # Publication gate: switch RL_TOOLS_REQUIRE_RAYTRACING_GOLDENS to ON after the corpus is
-      # published and tests/src/rendering/raytracing/download_data.sh is pinned to its revision.
       - name: Configure CMake
         run: >
           cmake -S . -B build-raytracing-${{ matrix.backend }}
@@ -142,7 +140,7 @@ jobs:
           -DRL_TOOLS_BACKEND_DISABLE_CUDA=ON
           -DRL_TOOLS_RL_ENVIRONMENTS_DISABLE_MUJOCO=ON
           -DRL_TOOLS_RENDERING_RAYTRACING_BACKEND=${{ matrix.cmake_backend }}
-          -DRL_TOOLS_REQUIRE_RAYTRACING_GOLDENS=OFF
+          -DRL_TOOLS_REQUIRE_RAYTRACING_GOLDENS=ON
 
       - name: Build raytracing tests
         run: >
@@ -162,7 +160,7 @@ jobs:
         run: ctest -L '^overlay$' --no-tests=error --output-on-failure --timeout 20 -j5
 
       # ProcTHOR corpus (tests/src/rendering/raytracing/GOLDEN_LEDGER.md): cross-backend tier on
-      # generic and lavapipe, the OptiX reference tier only runs on hosts with an OptiX build
+      # generic CPU reference and lavapipe; OptiX comparisons require an OptiX host
       - name: Test ProcTHOR goldens
         working-directory: build-raytracing-${{ matrix.backend }}
         run: ctest -L '^procthor-golden$' --no-tests=error --output-on-failure --timeout 300 -j5

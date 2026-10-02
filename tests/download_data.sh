@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DATA_DIR="${SCRIPT_DIR}/data"
 DATA_SOURCE="${RL_TOOLS_TEST_DATA_SOURCE:-https://huggingface.co/datasets/rl-tools/test-data}"
-DATA_REVISION="${RL_TOOLS_TEST_DATA_REVISION:-cc60118cc6024ecefa0e24335e88edb5a116610d}"
+DATA_REVISION="${RL_TOOLS_TEST_DATA_REVISION:-e791a95d8fc12895fbf656716b2389baa2779bf5}"
 
 if ! git lfs version >/dev/null 2>&1; then
     echo "git-lfs is required to download RLtools test data" >&2

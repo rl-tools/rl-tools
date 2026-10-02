@@ -17,13 +17,18 @@
 #include <string>
 
 namespace golden {
-    static constexpr uint32_t PROCTHOR_TRAIN_1_GOLDEN_VERSION = 2;
+    static constexpr uint32_t PROCTHOR_TRAIN_1_GOLDEN_VERSION = 3;
     static constexpr const char* PROCTHOR_TRAIN_1_SCENE = "conta:5c53061c721fa98f93e6886925e41e975c577f3c";
     // the backend that renders the canonical corpus and is held to bit-exact reproduction
-    static constexpr const char* REFERENCE_BACKEND = "optix";
+    static constexpr const char* REFERENCE_BACKEND = "generic";
 
-    inline nlohmann::json procthor_manifest(const std::string& backend){
-        return {{"golden_version", PROCTHOR_TRAIN_1_GOLDEN_VERSION}, {"reference_backend", backend}};
+    inline nlohmann::json procthor_manifest(const std::string& backend, const nlohmann::json& environment){
+        return {
+            {"golden_version", PROCTHOR_TRAIN_1_GOLDEN_VERSION},
+            {"reference_backend", backend},
+            {"scene", PROCTHOR_TRAIN_1_SCENE},
+            {"generation_environment", environment}
+        };
     }
 
     inline bool write_json(const std::string& path, const nlohmann::json& content){
@@ -45,11 +50,26 @@ namespace golden {
         });
     }
 
-    // 0 when the file is missing or malformed
-    inline uint32_t manifest_version(const std::string& path){
+    inline std::string manifest_error(const std::string& path){
         std::ifstream input(path);
         const nlohmann::json manifest = nlohmann::json::parse(input, nullptr, false);
-        return manifest.is_object() ? manifest.value("golden_version", 0u) : 0u;
+        if(!manifest.is_object()){
+            return "missing or malformed manifest";
+        }
+        if(!manifest.contains("golden_version") || !manifest["golden_version"].is_number_unsigned()
+           || manifest["golden_version"] != PROCTHOR_TRAIN_1_GOLDEN_VERSION){
+            return "golden corpus version mismatch";
+        }
+        if(!manifest.contains("reference_backend") || manifest["reference_backend"] != REFERENCE_BACKEND){
+            return "golden reference backend mismatch";
+        }
+        if(!manifest.contains("scene") || manifest["scene"] != PROCTHOR_TRAIN_1_SCENE){
+            return "golden scene mismatch";
+        }
+        if(!manifest.contains("generation_environment") || !manifest["generation_environment"].is_object()){
+            return "missing generation environment";
+        }
+        return "";
     }
 }
 
