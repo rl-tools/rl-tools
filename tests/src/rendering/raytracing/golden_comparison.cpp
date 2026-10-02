@@ -134,7 +134,7 @@ namespace {
         return golden::layout::golden_bin(golden_directory(camera_i, state, output), golden::PROCTHOR_TRAIN_1_GOLDEN_VERSION);
     }
 
-    // render-<backend>.png and versus-*.png live next to the goldens
+    // render-<backend>.png and diff-*.png live next to the goldens
     std::string review_directory(TI camera_i, const char* state, const std::string& output){
         const std::string directory = golden_directory(camera_i, state, output);
         std::filesystem::create_directories(directory);
@@ -145,8 +145,8 @@ namespace {
         return golden::layout::render_png(review_directory(camera_i, state, output), backend_tag());
     }
 
-    std::string versus_path(TI camera_i, const char* state, const std::string& output, const std::string& name = "render-" + backend_tag()){
-        return golden::layout::versus_png(review_directory(camera_i, state, output), name);
+    std::string diff_path(TI camera_i, const char* state, const std::string& output, const std::string& name = "render-" + backend_tag()){
+        return golden::layout::diff_png(review_directory(camera_i, state, output), golden::layout::golden_name(golden::PROCTHOR_TRAIN_1_GOLDEN_VERSION), name);
     }
 
     // the earlier generations that exist for this output (golden-vNN.png or data/golden-vNN.bin)
@@ -211,12 +211,12 @@ namespace {
     // the current golden against ours and against every earlier generation, as heatmaps next to it
     void write_png_reviews(TI camera_i, const char* state, const std::string& output, const uint32_t* ours, const std::vector<uint32_t>& golden_pixels){
         golden::write_camera_png(render_path(camera_i, state, output), ours, CASES::CAM_WIDTH, CASES::CAM_HEIGHT);
-        golden::write_camera_diff_png(versus_path(camera_i, state, output), ours, golden_pixels.data(), CASES::CAM_WIDTH, CASES::CAM_HEIGHT);
+        golden::write_camera_diff_png(diff_path(camera_i, state, output), ours, golden_pixels.data(), CASES::CAM_WIDTH, CASES::CAM_HEIGHT);
         const std::string directory = golden_directory(camera_i, state, output);
         for(const uint32_t version : historic_versions(directory, false)){
             std::vector<uint32_t> historic;
             if(golden::load_camera_png(golden::layout::golden_png(directory, version), CASES::CAM_WIDTH, CASES::CAM_HEIGHT, historic)){
-                golden::write_camera_diff_png(versus_path(camera_i, state, output, golden::layout::golden_name(version)), golden_pixels.data(), historic.data(), CASES::CAM_WIDTH, CASES::CAM_HEIGHT);
+                golden::write_camera_diff_png(diff_path(camera_i, state, output, golden::layout::golden_name(version)), golden_pixels.data(), historic.data(), CASES::CAM_WIDTH, CASES::CAM_HEIGHT);
             }
         }
     }
@@ -272,11 +272,11 @@ namespace {
             ASSERT_TRUE(golden::load_multi_camera_float_bin(golden_bin(camera_i, CASE::STATE, "depth"), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, golden_depth)) << "failed to load golden: " << id << "/" << name;
             const float* ours = rendered.depth_buffer.data() + camera_i * SPEC::CAM_PIXELS;
             golden::write_camera_depth_png(render_path(camera_i, CASE::STATE, "depth"), ours, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
-            golden::write_camera_depth_diff_png(versus_path(camera_i, CASE::STATE, "depth"), golden_depth.data(), ours, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
+            golden::write_camera_depth_diff_png(diff_path(camera_i, CASE::STATE, "depth"), golden_depth.data(), ours, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
             for(const uint32_t version : historic_versions(directory, true)){
                 std::vector<float> historic;
                 if(golden::load_multi_camera_float_bin(golden::layout::golden_bin(directory, version), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, historic)){
-                    golden::write_camera_depth_diff_png(versus_path(camera_i, CASE::STATE, "depth", golden::layout::golden_name(version)), historic.data(), golden_depth.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
+                    golden::write_camera_depth_diff_png(diff_path(camera_i, CASE::STATE, "depth", golden::layout::golden_name(version)), historic.data(), golden_depth.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, rendered.max_depth);
                 }
             }
             double total_abs_diff = 0;
@@ -368,17 +368,17 @@ namespace {
             std::vector<uint32_t> image(SPEC::CAM_PIXELS);
             golden::colorize_segmentation(ours, SPEC::CAM_PIXELS, image.data());
             golden::write_camera_png(render_path(camera_i, CASE::STATE, "segmentation"), image.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
-            const auto write_versus = [&](const std::string& versus_name, const uint32_t* reference, const uint32_t* other){
+            const auto write_diff = [&](const std::string& diff_name, const uint32_t* reference, const uint32_t* other){
                 for(size_t pixel_i = 0; pixel_i < (size_t)SPEC::CAM_PIXELS; pixel_i++){
                     image[pixel_i] = golden::segmentation_diff_color(reference[pixel_i], other[pixel_i]);
                 }
-                golden::write_camera_png(versus_path(camera_i, CASE::STATE, "segmentation", versus_name), image.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
+                golden::write_camera_png(diff_path(camera_i, CASE::STATE, "segmentation", diff_name), image.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
             };
-            write_versus("render-" + backend_tag(), golden_segmentation.data(), ours);
+            write_diff("render-" + backend_tag(), golden_segmentation.data(), ours);
             for(const uint32_t version : historic_versions(directory, true)){
                 std::vector<uint32_t> historic;
                 if(golden::load_multi_camera_uint32_bin(golden::layout::golden_bin(directory, version), 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, historic)){
-                    write_versus(golden::layout::golden_name(version), historic.data(), golden_segmentation.data());
+                    write_diff(golden::layout::golden_name(version), historic.data(), golden_segmentation.data());
                 }
             }
             size_t mismatches = 0;
@@ -409,18 +409,18 @@ namespace {
         std::vector<uint32_t> image(golden_status.size());
         golden::colorize_flow_status(ours_status, image.size(), image.data());
         golden::write_camera_png(render_path(camera_i, state, output), image.data(), CASES::CAM_WIDTH, CASES::CAM_HEIGHT);
-        const auto write_versus = [&](const std::string& name, const uint32_t* reference, const uint32_t* other){
+        const auto write_diff = [&](const std::string& name, const uint32_t* reference, const uint32_t* other){
             for(size_t pixel_i = 0; pixel_i < image.size(); pixel_i++){
                 image[pixel_i] = golden::flow_status_diff_color(reference[pixel_i], other[pixel_i]);
             }
-            golden::write_camera_png(versus_path(camera_i, state, output, name), image.data(), CASES::CAM_WIDTH, CASES::CAM_HEIGHT);
+            golden::write_camera_png(diff_path(camera_i, state, output, name), image.data(), CASES::CAM_WIDTH, CASES::CAM_HEIGHT);
         };
-        write_versus("render-" + backend_tag(), golden_status.data(), ours_status);
+        write_diff("render-" + backend_tag(), golden_status.data(), ours_status);
         const std::string directory = golden_directory(camera_i, state, output);
         for(const uint32_t version : historic_versions(directory, true)){
             std::vector<uint32_t> historic;
             if(golden::load_multi_camera_uint32_bin(golden::layout::golden_bin(directory, version), 1, CASES::CAM_WIDTH, CASES::CAM_HEIGHT, historic)){
-                write_versus(golden::layout::golden_name(version), historic.data(), golden_status.data());
+                write_diff(golden::layout::golden_name(version), historic.data(), golden_status.data());
             }
         }
     }
@@ -428,18 +428,18 @@ namespace {
     void write_flow_reviews(TI camera_i, const char* state, const std::string& output, const float* ours, const std::vector<float>& golden_flow){
         rlt::rendering::raytracing::detail::write_flow_grid_png<CASES::SingleCamera>(ours, render_path(camera_i, state, output).c_str());
         std::vector<float> difference(golden_flow.size());
-        const auto write_versus = [&](const std::string& name, const float* reference, const float* other){
+        const auto write_diff = [&](const std::string& name, const float* reference, const float* other){
             for(size_t value_i = 0; value_i < difference.size(); value_i++){
                 difference[value_i] = other[value_i] - reference[value_i];
             }
-            rlt::rendering::raytracing::detail::write_flow_grid_png<CASES::SingleCamera>(difference.data(), versus_path(camera_i, state, output, name).c_str());
+            rlt::rendering::raytracing::detail::write_flow_grid_png<CASES::SingleCamera>(difference.data(), diff_path(camera_i, state, output, name).c_str());
         };
-        write_versus("render-" + backend_tag(), golden_flow.data(), ours);
+        write_diff("render-" + backend_tag(), golden_flow.data(), ours);
         const std::string directory = golden_directory(camera_i, state, output);
         for(const uint32_t version : historic_versions(directory, true)){
             std::vector<float> historic;
             if(golden::load_multi_camera_float_bin(golden::layout::golden_bin(directory, version), 1, CASES::CAM_WIDTH, CASES::CAM_HEIGHT, historic, 2)){
-                write_versus(golden::layout::golden_name(version), historic.data(), golden_flow.data());
+                write_diff(golden::layout::golden_name(version), historic.data(), golden_flow.data());
             }
         }
     }

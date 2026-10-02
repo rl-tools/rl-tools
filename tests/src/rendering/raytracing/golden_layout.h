@@ -1,13 +1,9 @@
 #ifndef TESTS_RENDERING_RAYTRACING_GOLDEN_LAYOUT_H
 #define TESTS_RENDERING_RAYTRACING_GOLDEN_LAYOUT_H
 
-// Corpus layout: <goldens root>/<corpus>/<view>/<state>/<output>/ holds everything about one
-// rendered quantity of one camera under one scene state, named so that a directory listing sorts
-// into the order a reviewer flips through: the goldens oldest generation first (golden-v00.png ...
-// golden-v02.png, the pinned version being the current one), the last render of every backend
-// (render-<backend>.png), then the heatmaps against the current golden in the same order
-// (versus-golden-v00.png, versus-render-<backend>.png). Machine-compared binaries live in data/ so
-// that stepping through the images never lands on a file without a preview.
+// Corpus layout: <goldens root>/<corpus>/<view>/<state>/<output>/ holds goldens, backend renders
+// and diff-<current golden>-<other image>.png heatmaps; machine-compared binaries live in data/
+// so that stepping through the images never lands on a file without a preview.
 
 #include <cstdint>
 #include <cstdio>
@@ -67,9 +63,8 @@ namespace golden {
             return join(output_directory, "render-" + backend + ".png");
         }
 
-        // name is "render-<backend>" or "golden-vNN": the file the heatmap compares against the current golden
-        inline std::string versus_png(const std::string& output_directory, const std::string& name){
-            return join(output_directory, "versus-" + name + ".png");
+        inline std::string diff_png(const std::string& output_directory, const std::string& a, const std::string& b){
+            return join(output_directory, "diff-" + a + "-" + b + ".png");
         }
     }
 }
