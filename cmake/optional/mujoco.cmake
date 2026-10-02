@@ -8,10 +8,12 @@ if(NOT RL_TOOLS_RL_ENVIRONMENTS_DISABLE_MUJOCO)
         message(VERBOSE "Found existing/system mujoco ${mujoco_VERSION} at ${mujoco_DIR}")
         set(RL_TOOLS_SUMMARY_MUJOCO_REASON "system ${mujoco_VERSION}")
     elseif(GIT_FOUND)
+        if(POLICY CMP0135)
+            cmake_policy(SET CMP0135 NEW)
+        endif()
         FetchContent_Declare(mujoco
-                GIT_REPOSITORY https://github.com/google-deepmind/mujoco.git
-                GIT_TAG        2.3.5
-                GIT_SHALLOW    TRUE
+                URL https://github.com/google-deepmind/mujoco/archive/refs/tags/2.3.5.tar.gz
+                URL_HASH SHA256=882d855d833375ad27adfa2d9cf4ec2381a1069ebe8fbc4578d876deb4e0b33f
         )
         rl_tools_fetchcontent_makeavailable_quiet(mujoco)
         # MuJoCo 2.3.5 hardcodes -Werror; its warning set predates current compilers (e.g. GCC 15)
