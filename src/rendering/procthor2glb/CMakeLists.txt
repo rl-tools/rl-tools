@@ -17,11 +17,13 @@ FetchContent_Declare(
 )
 rl_tools_fetchcontent_makeavailable_quiet(procthor2glb_tinygltf)
 
+if(POLICY CMP0135)
+    cmake_policy(SET CMP0135 NEW)
+endif()
 FetchContent_Declare(
     procthor2glb_basisu
-    GIT_REPOSITORY https://github.com/BinomialLLC/basis_universal.git
-    GIT_TAG        v2_1_0r
-    GIT_SHALLOW    TRUE
+    URL https://github.com/BinomialLLC/basis_universal/archive/refs/tags/v2_1_0r.tar.gz
+    URL_HASH SHA256=0cd45ad268c0f048847f0bd3f2e22c160ca3ab8e9e11e49c354eba80cfc169e3
     EXCLUDE_FROM_ALL
 )
 rl_tools_fetchcontent_makeavailable_quiet(procthor2glb_basisu)
