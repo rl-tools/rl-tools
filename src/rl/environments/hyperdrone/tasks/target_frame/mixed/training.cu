@@ -71,6 +71,8 @@
 
 #include <array>
 #include <chrono>
+#include <csignal>
+#include <cstdio>
 #include <iostream>
 #include <iomanip>
 #include <cstring>
@@ -830,6 +832,36 @@ int main(int argc, char** argv){
     dim3 block(BLOCKSIZE);
     rlt::devices::cuda::TAG<DEVICE_GPU, true> tag_device{};
 
+    static constexpr TI VIDEO_ENVS_PER_SCENE = N_ENVIRONMENTS_PER_SCENE - MIXED_SPEC::IMITATION_PER_GROUP;
+    static_assert(VIDEO_SCENE_COLS > 0 && VIDEO_ENV_COLS > 0);
+    static constexpr TI VIDEO_ENV_ROWS = (VIDEO_ENVS_PER_SCENE + VIDEO_ENV_COLS - 1) / VIDEO_ENV_COLS;
+    static constexpr TI VIDEO_SCENE_ROWS = (N_ACTIVE_SCENES + VIDEO_SCENE_COLS - 1) / VIDEO_SCENE_COLS;
+    static constexpr TI VIDEO_WIDTH = VIDEO_SCENE_COLS * VIDEO_ENV_COLS * CAM_WIDTH * 2;
+    static constexpr TI VIDEO_HEIGHT = VIDEO_SCENE_ROWS * VIDEO_ENV_ROWS * CAM_HEIGHT;
+    static_assert(VIDEO_WIDTH % 2 == 0 && VIDEO_HEIGHT % 2 == 0, "YUV420 video dimensions must be even");
+    FILE* video_pipe = nullptr;
+    bool video_enabled = VIDEO_SAVE_INTERVAL_SCENE_SETS > 0;
+    std::filesystem::path video_path;
+    TI video_step = 0;
+    std::vector<T> video_observations, video_targets;
+    std::vector<std::uint8_t> video_frame;
+    const auto previous_sigpipe_handler = std::signal(SIGPIPE, SIG_IGN);
+    auto close_video_pipe = [&](){
+        if(video_pipe == nullptr){
+            return;
+        }
+        const int status = pclose(video_pipe);
+        video_pipe = nullptr;
+        if(status == 0 && video_enabled){
+            link_latest_artifact(device, get_latest_folder(device, extrack_paths), video_path, video_path.parent_path(), video_step);
+            std::cout << "Training video saved: " << std::filesystem::absolute(video_path) << std::endl;
+        }
+        else{
+            std::cerr << "Video recording disabled after FFmpeg failed for " << video_path << std::endl;
+            video_enabled = false;
+        }
+    };
+
     std::vector<T> episode_returns(N_ENVIRONMENTS, 0);
     std::vector<TI> episode_lengths(N_ENVIRONMENTS, 0);
     std::vector<TI> episode_end_reasons(N_ENVIRONMENTS, 0);
@@ -867,6 +899,24 @@ int main(int argc, char** argv){
             else{
                 reset(device_gpu, gpu_runner, env, rng_gpu);
             }
+            if constexpr(VIDEO_SAVE_INTERVAL_SCENE_SETS > 0){
+                if(video_enabled && scene_set_i % VIDEO_SAVE_INTERVAL_SCENE_SETS == 0){
+                    video_step = environment_step + N_ENVIRONMENTS * STEPS_PER_ENV * std::min(ROLLOUTS_PER_SCENE_SET, N_PPO_STEPS - ppo_step_i);
+                    video_path = get_step_folder(device, extrack_config, extrack_paths, video_step) / "video.mp4";
+                    const std::string command = "ffmpeg -y -hide_banner -loglevel warning -f rawvideo -pixel_format rgb24 -video_size " + std::to_string(VIDEO_WIDTH) + "x" + std::to_string(VIDEO_HEIGHT) + " -framerate " + std::to_string(SIMULATION_FREQUENCY) + " -i - -an -c:v libx264 -pix_fmt yuv420p -crf 23 -preset fast -movflags +faststart " + rlt::utils::extrack::detail::shell_quote(video_path.string());
+                    video_pipe = popen(command.c_str(), "w");
+                    if(video_pipe == nullptr){
+                        std::cerr << "Video recording disabled: failed to start FFmpeg for " << video_path << std::endl;
+                        video_enabled = false;
+                    }
+                    else{
+                        video_observations.resize(N_ENVIRONMENTS * OBSERVATION_DIM);
+                        video_targets.resize(N_ENVIRONMENTS * OBSERVATION_DIM);
+                        video_frame.resize(VIDEO_WIDTH * VIDEO_HEIGHT * IMAGE_CHANNELS);
+                        std::cout << "Recording PPO training episodes (target | current): " << std::filesystem::absolute(video_path) << std::endl;
+                    }
+                }
+            }
         }
 
         TI frame_step_start = ppo_step_i * STEPS_PER_ENV;
@@ -888,6 +938,35 @@ int main(int argc, char** argv){
                 cudaMemcpyAsync(target_obs_ptr + member_i * M * OBSERVATION_DIM, data(world.target_frames), M * OBSERVATION_DIM * sizeof(float), cudaMemcpyDeviceToDevice, device_gpu.stream);
             }
             check_status(device_gpu);
+
+            if(video_pipe != nullptr){
+                const T* obs_ptr = data(dataset_gpu.all_observations) + step_i * N_ENVIRONMENTS * OBSERVATION_DIM;
+                cudaMemcpyAsync(video_observations.data(), obs_ptr, video_observations.size() * sizeof(T), cudaMemcpyDeviceToHost, device_gpu.stream);
+                cudaMemcpyAsync(video_targets.data(), target_obs_ptr, video_targets.size() * sizeof(T), cudaMemcpyDeviceToHost, device_gpu.stream);
+                cudaStreamSynchronize(device_gpu.stream);
+                check_status(device_gpu);
+                for(TI scene_i = 0; scene_i < N_ACTIVE_SCENES; scene_i++){
+                    for(TI local_env = 0; local_env < VIDEO_ENVS_PER_SCENE; local_env++){
+                        const TI env_i = scene_i * N_ENVIRONMENTS_PER_SCENE + MIXED_SPEC::IMITATION_PER_GROUP + local_env;
+                        const TI cell_x = (scene_i % VIDEO_SCENE_COLS * VIDEO_ENV_COLS + local_env % VIDEO_ENV_COLS) * CAM_WIDTH * 2;
+                        const TI cell_y = (scene_i / VIDEO_SCENE_COLS * VIDEO_ENV_ROWS + local_env / VIDEO_ENV_COLS) * CAM_HEIGHT;
+                        for(TI y = 0; y < CAM_HEIGHT; y++){
+                            for(TI x = 0; x < CAM_WIDTH; x++){
+                                const TI source = env_i * OBSERVATION_DIM + (y * CAM_WIDTH + x) * IMAGE_CHANNELS;
+                                const TI destination = ((cell_y + y) * VIDEO_WIDTH + cell_x + x) * IMAGE_CHANNELS;
+                                for(TI channel = 0; channel < IMAGE_CHANNELS; channel++){
+                                    video_frame[destination + channel] = static_cast<std::uint8_t>(std::clamp(video_targets[source + channel] * 255.0f, 0.0f, 255.0f));
+                                    video_frame[destination + CAM_WIDTH * IMAGE_CHANNELS + channel] = static_cast<std::uint8_t>(std::clamp(video_observations[source + channel] * 255.0f, 0.0f, 255.0f));
+                                }
+                            }
+                        }
+                    }
+                }
+                if(std::fwrite(video_frame.data(), 1, video_frame.size(), video_pipe) != video_frame.size()){
+                    video_enabled = false;
+                    close_video_pipe();
+                }
+            }
 
             observe(device_gpu, env, gpu_env_parameters, gpu_env_states, typename TASK_WORLD::Observation{}, gpu_task_observations, rng_gpu);
             {
@@ -961,6 +1040,9 @@ int main(int argc, char** argv){
 
         environment_step += N_ENVIRONMENTS * STEPS_PER_ENV;
         set_step(device, device.logger, environment_step);
+        if(scene_set_end || ppo_step_i + 1 == N_PPO_STEPS){
+            close_video_pipe();
+        }
 
         evaluate_rollout_values(device_gpu, dataset_gpu, ppo_gpu.critic, critic_buffers_gae, rng_gpu, PPO_SPEC::COLLECTION_MODE{});
 
@@ -1692,6 +1774,7 @@ int main(int argc, char** argv){
         }
     }
 
+    std::signal(SIGPIPE, previous_sigpipe_handler);
     std::cout << "Training finished at env step " << environment_step << std::endl;
 
     free(device, ppo);
