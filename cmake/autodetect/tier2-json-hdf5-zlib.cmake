@@ -7,19 +7,19 @@ if(NOT RL_TOOLS_DISABLE_JSON)
         target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_ENABLE_JSON)
         set(RL_TOOLS_ENABLE_JSON ON)
         set(RL_TOOLS_SUMMARY_JSON_REASON "system ${nlohmann_json_VERSION}")
-    elseif(GIT_FOUND)
+    else()
+        if(POLICY CMP0135)
+            cmake_policy(SET CMP0135 NEW)
+        endif()
         FetchContent_Declare(nlohmann_json
-                GIT_REPOSITORY https://github.com/nlohmann/json.git
-                GIT_TAG        v3.11.3
-                GIT_SHALLOW    TRUE
+                URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
+                URL_HASH SHA256=d6c65aca6b1ed68e7a182f4757257b107ae403032760ed6ef121c9d55e81757d
         )
         rl_tools_fetchcontent_makeavailable_quiet(nlohmann_json)
         target_include_directories(rl_tools_full INTERFACE ${nlohmann_json_SOURCE_DIR}/include)
         target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_ENABLE_JSON)
         set(RL_TOOLS_ENABLE_JSON ON)
-        set(RL_TOOLS_SUMMARY_JSON_REASON "FetchContent")
-    else()
-        set(RL_TOOLS_SUMMARY_JSON_REASON "not found and no git")
+        set(RL_TOOLS_SUMMARY_JSON_REASON "FetchContent 3.11.3")
     endif()
 endif()
 
