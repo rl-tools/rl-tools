@@ -841,6 +841,7 @@ namespace rl_tools {
             record.emissive[2] = mesh.emissive[2];
             record.alpha_cutoff = mesh.alpha_cutoff;
             record.alpha_mode = mesh.alpha_mode;
+            record.unlit = mesh.unlit;
             if(mesh.texture.present()){
                 record.texture = add_texture(mesh.texture, true);
                 record.has_texture = 1;

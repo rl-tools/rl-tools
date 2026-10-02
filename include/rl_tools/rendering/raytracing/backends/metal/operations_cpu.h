@@ -366,6 +366,7 @@ namespace rl_tools {
             record.emissive[2] = md.emissive[2];
             record.alpha_cutoff = md.alpha_cutoff;
             record.alpha_mode = md.alpha_mode;
+            record.unlit = md.unlit;
 
             if(md.texture.present()){
                 auto texture = metal::make_texture(ctx.device.get(), md.texture.pixels.data(), md.texture.width, md.texture.height, true);

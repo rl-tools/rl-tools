@@ -38,6 +38,7 @@ namespace rl_tools {
             float opacity = 1.0f;
             int alpha_mode = 0;
             float alpha_cutoff = 0.5f;
+            bool unlit = false;
         };
 
         struct Object{

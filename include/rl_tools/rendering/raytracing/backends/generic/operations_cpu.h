@@ -306,6 +306,7 @@ namespace rl_tools {
                 view.opacity = md.opacity;
                 view.alpha_cutoff = md.alpha_cutoff;
                 view.alpha_mode = md.alpha_mode;
+                view.unlit = md.unlit;
                 backend_state.meshes.push_back(view);
 
                 const TI mesh_triangles = (TI)(md.indices.size() / 3);

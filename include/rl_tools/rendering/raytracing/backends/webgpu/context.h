@@ -132,8 +132,9 @@ namespace rl_tools::rendering::raytracing::backends::webgpu{
         float emissive[3];
         float alpha_cutoff;
         int32_t alpha_mode;
+        int32_t unlit;
     };
-    static_assert(sizeof(MeshRecord) == 120, "MeshRecord layout must match load_mesh_record in device.wgsl");
+    static_assert(sizeof(MeshRecord) == 124, "MeshRecord layout must match load_mesh_record in device.wgsl");
 
     struct InstanceData{
         float object_to_world[12]; // 3x4 row-major [R|t]

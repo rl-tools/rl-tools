@@ -115,7 +115,7 @@ struct MeshRecord{
     int has_occlusion_map;
     int has_tex_coord;
     int has_normals;
-    int padding[1];
+    int unlit;
 };
 
 struct InstanceData{
@@ -390,6 +390,10 @@ vec3 shade_basic_local(Hit hit, vec3 ray_origin, vec3 ray_dir, out SecondaryRequ
         }
     }
 
+    if(meshes[mesh].unlit != 0){
+        return base_color;
+    }
+
     vec3 direct = base_color;
     if(fc_normal_shading){
         direct = (0.2 + 0.8 * abs(dot(ray_dir, normal_geometric))) * base_color;
@@ -461,122 +465,126 @@ vec3 shade_pbr_local(Hit hit, vec3 ray_origin, vec3 ray_dir, uvec2 pixel_id, int
         alpha *= tex_color.w;
     }
 
-    float metallic = meshes[mesh].metallic;
-    float roughness = meshes[mesh].roughness;
-    if(meshes[mesh].has_metallic_roughness_map != 0 && has_tex_coord){
-        vec4 mr_sample = sample_texture(meshes[mesh].metallic_roughness_map, tc);
-        roughness = mr_sample.y * meshes[mesh].roughness;
-        metallic = mr_sample.z * meshes[mesh].metallic;
-    }
-
-    if(meshes[mesh].has_normal_map != 0 && has_tex_coord){
-        const vec2 tc0 = fetch_tex_coord(mesh, index.x);
-        const vec2 tc1 = fetch_tex_coord(mesh, index.y);
-        const vec2 tc2 = fetch_tex_coord(mesh, index.z);
-        const vec2 duv1 = tc1 - tc0;
-        const vec2 duv2 = tc2 - tc0;
-        float det = duv1.x * duv2.y - duv2.x * duv1.y;
-        if(abs(det) > 1e-8){
-            float inv_det = 1.0 / det;
-            vec3 T = normalize(inv_det * (duv2.y * edge1 - duv1.y * edge2));
-            T = normalize(T - dot(T, N) * N);
-            vec3 B = cross(N, T);
-            vec4 nm_sample = sample_texture(meshes[mesh].normal_map, vec2(w0 * tc0.x + bary.x * tc1.x + bary.y * tc2.x, w0 * tc0.y + bary.x * tc1.y + bary.y * tc2.y));
-            vec3 n_tangent = vec3(nm_sample.x * 2.0 - 1.0, -(nm_sample.y * 2.0 - 1.0), nm_sample.z * 2.0 - 1.0);
-            N = normalize(T * n_tangent.x + B * n_tangent.y + N * n_tangent.z);
-        }
-    }
-
-    roughness = max(roughness, 0.04);
-    float roughness_alpha = roughness * roughness;
-    float alpha2 = roughness_alpha * roughness_alpha;
-    float k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
-
-    vec3 V = -ray_dir;
-    float NdotV = max(dot(N, V), 1e-4);
-    vec3 F0 = vec3(0.04) * (1.0 - metallic) + base_color * metallic;
-
     vec3 hit_point = ray_origin + ray_dir * hit.t;
 
-    vec3 Lo = vec3(0.0);
-    for(int li = 0; li < int(params.num_scene_lights); li++){
-        vec3 Lc = vec3(scene_lights[li].color[0], scene_lights[li].color[1], scene_lights[li].color[2]);
-        vec3 L;
-        float attenuation = 1.0;
-        float light_distance = 1e20;
-
-        if(scene_lights[li].type == 0){
-            L = vec3(scene_lights[li].direction[0], scene_lights[li].direction[1], scene_lights[li].direction[2]);
+    vec3 color = base_color;
+    if(meshes[mesh].unlit == 0){
+        float metallic = meshes[mesh].metallic;
+        float roughness = meshes[mesh].roughness;
+        if(meshes[mesh].has_metallic_roughness_map != 0 && has_tex_coord){
+            vec4 mr_sample = sample_texture(meshes[mesh].metallic_roughness_map, tc);
+            roughness = mr_sample.y * meshes[mesh].roughness;
+            metallic = mr_sample.z * meshes[mesh].metallic;
         }
-        else{
-            vec3 to_light = vec3(scene_lights[li].position[0], scene_lights[li].position[1], scene_lights[li].position[2]) - hit_point;
-            float dist = length(to_light);
-            light_distance = max(dist - 1e-3, 0.0);
-            L = to_light * (1.0 / max(dist, 1e-6));
-            attenuation = 1.0 / (scene_lights[li].attenuation_constant + scene_lights[li].attenuation_linear * dist + scene_lights[li].attenuation_quadratic * dist * dist);
-            if(scene_lights[li].type == 2){
-                vec3 spot_dir = vec3(scene_lights[li].direction[0], scene_lights[li].direction[1], scene_lights[li].direction[2]);
-                float cos_angle = dot(-L, spot_dir);
-                float denom = scene_lights[li].cos_inner_cone - scene_lights[li].cos_outer_cone;
-                float spot_t = (cos_angle - scene_lights[li].cos_outer_cone) / (abs(denom) > 1e-6 ? denom : 1e-6);
-                attenuation *= max(min(spot_t, 1.0), 0.0);
+
+        if(meshes[mesh].has_normal_map != 0 && has_tex_coord){
+            const vec2 tc0 = fetch_tex_coord(mesh, index.x);
+            const vec2 tc1 = fetch_tex_coord(mesh, index.y);
+            const vec2 tc2 = fetch_tex_coord(mesh, index.z);
+            const vec2 duv1 = tc1 - tc0;
+            const vec2 duv2 = tc2 - tc0;
+            float det = duv1.x * duv2.y - duv2.x * duv1.y;
+            if(abs(det) > 1e-8){
+                float inv_det = 1.0 / det;
+                vec3 T = normalize(inv_det * (duv2.y * edge1 - duv1.y * edge2));
+                T = normalize(T - dot(T, N) * N);
+                vec3 B = cross(N, T);
+                vec4 nm_sample = sample_texture(meshes[mesh].normal_map, vec2(w0 * tc0.x + bary.x * tc1.x + bary.y * tc2.x, w0 * tc0.y + bary.x * tc1.y + bary.y * tc2.y));
+                vec3 n_tangent = vec3(nm_sample.x * 2.0 - 1.0, -(nm_sample.y * 2.0 - 1.0), nm_sample.z * 2.0 - 1.0);
+                N = normalize(T * n_tangent.x + B * n_tangent.y + N * n_tangent.z);
             }
         }
 
-        float NdotL = max(dot(N, L), 0.0);
-        if(NdotL <= 0.0){
-            continue;
-        }
-        if(fc_punctual_light_shadows){
-            if(scene_lights[li].type != 0 && trace_shadow_occluded(camera, hit_point + N * 2e-3, L, light_distance)){
+        roughness = max(roughness, 0.04);
+        float roughness_alpha = roughness * roughness;
+        float alpha2 = roughness_alpha * roughness_alpha;
+        float k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
+
+        vec3 V = -ray_dir;
+        float NdotV = max(dot(N, V), 1e-4);
+        vec3 F0 = vec3(0.04) * (1.0 - metallic) + base_color * metallic;
+
+        vec3 Lo = vec3(0.0);
+        for(int li = 0; li < int(params.num_scene_lights); li++){
+            vec3 Lc = vec3(scene_lights[li].color[0], scene_lights[li].color[1], scene_lights[li].color[2]);
+            vec3 L;
+            float attenuation = 1.0;
+            float light_distance = 1e20;
+
+            if(scene_lights[li].type == 0){
+                L = vec3(scene_lights[li].direction[0], scene_lights[li].direction[1], scene_lights[li].direction[2]);
+            }
+            else{
+                vec3 to_light = vec3(scene_lights[li].position[0], scene_lights[li].position[1], scene_lights[li].position[2]) - hit_point;
+                float dist = length(to_light);
+                light_distance = max(dist - 1e-3, 0.0);
+                L = to_light * (1.0 / max(dist, 1e-6));
+                attenuation = 1.0 / (scene_lights[li].attenuation_constant + scene_lights[li].attenuation_linear * dist + scene_lights[li].attenuation_quadratic * dist * dist);
+                if(scene_lights[li].type == 2){
+                    vec3 spot_dir = vec3(scene_lights[li].direction[0], scene_lights[li].direction[1], scene_lights[li].direction[2]);
+                    float cos_angle = dot(-L, spot_dir);
+                    float denom = scene_lights[li].cos_inner_cone - scene_lights[li].cos_outer_cone;
+                    float spot_t = (cos_angle - scene_lights[li].cos_outer_cone) / (abs(denom) > 1e-6 ? denom : 1e-6);
+                    attenuation *= max(min(spot_t, 1.0), 0.0);
+                }
+            }
+
+            float NdotL = max(dot(N, L), 0.0);
+            if(NdotL <= 0.0){
                 continue;
             }
+            if(fc_punctual_light_shadows){
+                if(scene_lights[li].type != 0 && trace_shadow_occluded(camera, hit_point + N * 2e-3, L, light_distance)){
+                    continue;
+                }
+            }
+
+            vec3 H = normalize(V + L);
+            float NdotH = max(dot(N, H), 0.0);
+            float VdotH = max(dot(V, H), 0.0);
+
+            float denom_D = NdotH * NdotH * (alpha2 - 1.0) + 1.0;
+            float D = alpha2 / (3.14159265 * denom_D * denom_D);
+
+            float G1_V = NdotV / (NdotV * (1.0 - k) + k);
+            float G1_L = NdotL / (NdotL * (1.0 - k) + k);
+            float G = G1_V * G1_L;
+
+            float pow5 = pow(1.0 - VdotH, 5.0);
+            vec3 F = F0 + (vec3(1.0) - F0) * pow5;
+
+            vec3 specular = D * G * F * (1.0 / (4.0 * NdotV * NdotL + 1e-4));
+            vec3 kd = (vec3(1.0) - F) * (1.0 - metallic);
+            vec3 diffuse = kd * base_color * (1.0 / 3.14159265);
+
+            Lo = Lo + (diffuse + specular) * Lc * (attenuation * NdotL);
         }
 
-        vec3 H = normalize(V + L);
-        float NdotH = max(dot(N, H), 0.0);
-        float VdotH = max(dot(V, H), 0.0);
+        float occlusion = 1.0;
+        if(meshes[mesh].has_occlusion_map != 0 && has_tex_coord){
+            vec4 ao_sample = sample_texture(meshes[mesh].occlusion_map, tc);
+            occlusion = ao_sample.x;
+        }
 
-        float denom_D = NdotH * NdotH * (alpha2 - 1.0) + 1.0;
-        float D = alpha2 / (3.14159265 * denom_D * denom_D);
+        vec3 emissive_color;
+        if(meshes[mesh].has_emissive_map != 0 && has_tex_coord){
+            vec4 em_sample = sample_texture(meshes[mesh].emissive_map, tc);
+            emissive_color = em_sample.xyz * vec3(meshes[mesh].emissive[0], meshes[mesh].emissive[1], meshes[mesh].emissive[2]);
+        }
+        else{
+            emissive_color = vec3(meshes[mesh].emissive[0], meshes[mesh].emissive[1], meshes[mesh].emissive[2]);
+        }
 
-        float G1_V = NdotV / (NdotV * (1.0 - k) + k);
-        float G1_L = NdotL / (NdotL * (1.0 - k) + k);
-        float G = G1_V * G1_L;
+        vec3 ambient = vec3(params.ambient_color[0], params.ambient_color[1], params.ambient_color[2]) * base_color * ((1.0 - metallic) * occlusion);
+        color = ambient + Lo + emissive_color;
 
-        float pow5 = pow(1.0 - VdotH, 5.0);
-        vec3 F = F0 + (vec3(1.0) - F0) * pow5;
+        if(metallic > 0.1){
+            float fresnel_refl = F0.x + (1.0 - F0.x) * pow(1.0 - max(dot(V, N), 0.0), 5.0);
+            request.want_reflection = true;
+            request.reflect_dir = ray_dir - 2.0 * dot(ray_dir, N) * N;
+            request.reflection_weight = fresnel_refl * (1.0 - roughness);
+        }
 
-        vec3 specular = D * G * F * (1.0 / (4.0 * NdotV * NdotL + 1e-4));
-        vec3 kd = (vec3(1.0) - F) * (1.0 - metallic);
-        vec3 diffuse = kd * base_color * (1.0 / 3.14159265);
-
-        Lo = Lo + (diffuse + specular) * Lc * (attenuation * NdotL);
-    }
-
-    float occlusion = 1.0;
-    if(meshes[mesh].has_occlusion_map != 0 && has_tex_coord){
-        vec4 ao_sample = sample_texture(meshes[mesh].occlusion_map, tc);
-        occlusion = ao_sample.x;
-    }
-
-    vec3 emissive_color;
-    if(meshes[mesh].has_emissive_map != 0 && has_tex_coord){
-        vec4 em_sample = sample_texture(meshes[mesh].emissive_map, tc);
-        emissive_color = em_sample.xyz * vec3(meshes[mesh].emissive[0], meshes[mesh].emissive[1], meshes[mesh].emissive[2]);
-    }
-    else{
-        emissive_color = vec3(meshes[mesh].emissive[0], meshes[mesh].emissive[1], meshes[mesh].emissive[2]);
-    }
-
-    vec3 ambient = vec3(params.ambient_color[0], params.ambient_color[1], params.ambient_color[2]) * base_color * ((1.0 - metallic) * occlusion);
-    vec3 color = ambient + Lo + emissive_color;
-
-    if(metallic > 0.1){
-        float fresnel_refl = F0.x + (1.0 - F0.x) * pow(1.0 - max(dot(V, N), 0.0), 5.0);
-        request.want_reflection = true;
-        request.reflect_dir = ray_dir - 2.0 * dot(ray_dir, N) * N;
-        request.reflection_weight = fresnel_refl * (1.0 - roughness);
     }
 
     bool transparent = (meshes[mesh].alpha_mode == 2 && alpha < 0.99) || (meshes[mesh].alpha_mode == 1 && alpha < meshes[mesh].alpha_cutoff);

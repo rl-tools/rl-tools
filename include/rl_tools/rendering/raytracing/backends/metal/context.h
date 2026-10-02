@@ -110,7 +110,8 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         int32_t has_metallic_roughness_map;
         int32_t has_emissive_map;
         int32_t has_occlusion_map;
-        int32_t padding[2];
+        int32_t unlit;
+        int32_t padding[1];
     };
     static_assert(sizeof(MTL::ResourceID) == 8, "MTL::ResourceID expected to be 8 bytes");
     static_assert(sizeof(MeshRecord) == 144, "MeshRecord layout must match the MSL declaration in device.metal");

@@ -864,6 +864,7 @@ namespace rl_tools {
                         { "color",      OWL_FLOAT3,  OWL_OFFSETOF(TrianglesGeomData, color)},
                         { "texture",    OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, texture)},
                         { "has_texture", OWL_INT,     OWL_OFFSETOF(TrianglesGeomData, has_texture)},
+                        { "unlit", OWL_INT, OWL_OFFSETOF(TrianglesGeomData, unlit)},
                         { "metallic",    OWL_FLOAT,   OWL_OFFSETOF(TrianglesGeomData, metallic)},
                         { "world",       OWL_GROUP,   OWL_OFFSETOF(TrianglesGeomData, world)},
                         { "normal",      OWL_BUFPTR,  OWL_OFFSETOF(TrianglesGeomData, normal)},
@@ -902,6 +903,7 @@ namespace rl_tools {
                         triangles_geom_vars.push_back({ "tex_coord", OWL_BUFPTR, OWL_OFFSETOF(TrianglesGeomData, tex_coord)});
                     }
                     triangles_geom_vars.push_back({ "color", OWL_FLOAT3, OWL_OFFSETOF(TrianglesGeomData, color)});
+                    triangles_geom_vars.push_back({ "unlit", OWL_INT, OWL_OFFSETOF(TrianglesGeomData, unlit)});
                     if constexpr (SHADING_USAGE::USES_TEXTURE) {
                         triangles_geom_vars.push_back({ "texture", OWL_TEXTURE, OWL_OFFSETOF(TrianglesGeomData, texture)});
                         triangles_geom_vars.push_back({ "has_texture", OWL_INT, OWL_OFFSETOF(TrianglesGeomData, has_texture)});
@@ -995,6 +997,7 @@ namespace rl_tools {
                 }
                 if constexpr (SPEC::HAS_RGB) {
                     owlGeomSet3f(geom, "color", owl3f{md.color[0], md.color[1], md.color[2]});
+                    owlGeomSet1i(geom, "unlit", md.unlit);
 
                     if constexpr (SPEC::SHADING::PBR_SHADING || SPEC::SHADING::LOAD_TEXTURES) {
                     if(!md.tex_coords.empty()){
