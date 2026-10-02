@@ -5,6 +5,7 @@
 #define RL_TOOLS_RENDERING_DATASETS_GLB_OPERATIONS_CPU_H
 
 #include "../operations_cpu.h"
+#include "../../../mode/mode.h"
 
 // STATIC gives the stb implementation internal linkage so multiple TUs of one binary may include
 // this header without duplicate-symbol link errors; RL_TOOLS_STB_IMAGE_PROVIDED arbitrates with
@@ -37,6 +38,10 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
+    namespace mode::rendering{
+        template <typename T_BASE = mode::Final, typename T_SPEC = bool>
+        struct SceneRoots: T_BASE{ using BASE = T_BASE; using SPEC = T_SPEC; };
+    }
     // =========================================================================
     // Decode an embedded texture from assimp into RGBA8 pixels
     // =========================================================================
@@ -176,6 +181,8 @@ namespace rl_tools {
             int metallic_roughness_image = -1; // glTF image index, -1 when the material has no MR texture
         };
         struct ParsedMetadata {
+            rendering::Scene::Environment environment;
+            bool environment_valid = true;
             std::vector<rendering::SceneLight> lights; // world frame (welded scene loads)
             std::map<int, std::vector<rendering::SceneLight>> root_lights; // by scene-root ordinal, in the root node's frame (assembly loads)
             std::map<std::string, Material> materials; // by material name; glTF spec defaults when absent
@@ -186,6 +193,42 @@ namespace rl_tools {
             std::vector<MaterialExtensions> material_extensions;
             std::map<int, std::vector<uint8_t>> images; // encoded bytes of referenced MR images, by glTF image index
         };
+
+        // Scene-owned linear RGB values; object/assembly imports do not adopt this environment.
+        static inline bool parse_environment(const nlohmann::json& gltf, rendering::Scene::Environment& environment){
+            const auto path = nlohmann::json::json_pointer("/scenes/" + std::to_string(gltf.value("scene", 0)) + "/extras/rl_tools/environment");
+            if(!gltf.contains(path)){
+                return true;
+            }
+            const auto& authored = gltf.at(path);
+            if(!authored.is_object() || !authored.contains("mode") || authored["mode"] != "solid"){
+                return false;
+            }
+            rendering::Scene::Environment parsed;
+            parsed.mode = rendering::Scene::Environment::Mode::SOLID;
+            const auto read_color = [&](const char* key, float destination[3]){
+                if(!authored.contains(key) || !authored[key].is_array() || authored[key].size() != 3){
+                    return false;
+                }
+                for(int component = 0; component < 3; component++){
+                    const auto& value = authored[key][component];
+                    if(!value.is_number()){
+                        return false;
+                    }
+                    const double number = value.get<double>();
+                    if(!(number >= 0 && number <= std::numeric_limits<float>::max())){
+                        return false;
+                    }
+                    destination[component] = static_cast<float>(number);
+                }
+                return true;
+            };
+            if(!read_color("ambient", parsed.ambient) || !read_color("background", parsed.horizon)){
+                return false;
+            }
+            environment = std::move(parsed);
+            return true;
+        }
 
         // accumulates local transforms from the ancestors down to node_idx; stop_ancestor (when
         // >= 0) is excluded, yielding the transform relative to that ancestor's frame
@@ -267,6 +310,7 @@ namespace rl_tools {
 
             nlohmann::json gltf = nlohmann::json::parse(json_str, nullptr, false);
             if (gltf.is_discarded()) { fclose(f); return result; }
+            result.environment_valid = parse_environment(gltf, result.environment);
 
             // Assimp's defaults for absent glTF pbrMetallicRoughness factors vary across versions;
             // the GLB JSON is authoritative here so scene import is identical on every machine.
@@ -780,7 +824,7 @@ namespace rl_tools {
     }
 
     template <typename SHADING, bool HAS_RGB>
-    bool load_scene_data(std::vector<rendering::Mesh>& out_meshes, std::vector<rendering::SceneLight>& out_lights, const std::string& filename){
+    bool load_scene_data(std::vector<rendering::Mesh>& out_meshes, std::vector<rendering::SceneLight>& out_lights, const std::string& filename, rendering::Scene::Environment* environment = nullptr){
         Assimp::Importer importer;
         unsigned int import_flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_ImproveCacheLocality;
         if constexpr (HAS_RGB && SHADING::PBR_SHADING) {
@@ -803,6 +847,13 @@ namespace rl_tools {
 
         const size_t first_new_mesh = out_meshes.size();
         const auto glb_metadata = parse(filename, *scene);
+        if(environment != nullptr){
+            if(!glb_metadata.environment_valid){
+                RL_TOOLS_RENDERING_DATASETS_LOG_ERR("Invalid scenes[].extras.rl_tools.environment in " << filename);
+                return false;
+            }
+            *environment = glb_metadata.environment;
+        }
 
         // Build mesh-index → global transform map by walking the node tree
         std::vector<std::vector<aiMatrix4x4>> mesh_transforms(scene->mNumMeshes);
@@ -864,7 +915,7 @@ namespace rl_tools {
     }
 
     template <typename SHADING, bool HAS_RGB>
-    bool load_assembly_data(rendering::ObjectAssembly& assembly, const std::string& filename){
+    bool load_assembly_data(rendering::ObjectAssembly& assembly, const std::string& filename, rendering::Scene::Environment* environment = nullptr){
         Assimp::Importer importer;
         unsigned int import_flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_ImproveCacheLocality;
         if constexpr (HAS_RGB && SHADING::PBR_SHADING) {
@@ -878,6 +929,13 @@ namespace rl_tools {
             return false;
         }
         const auto glb_metadata = parse(filename, *scene);
+        if(environment != nullptr){
+            if(!glb_metadata.environment_valid){
+                RL_TOOLS_RENDERING_DATASETS_LOG_ERR("Invalid scenes[].extras.rl_tools.environment in " << filename);
+                return false;
+            }
+            *environment = glb_metadata.environment;
+        }
         MeshConversionState conversion_state; // shared across parts: textures used by several parts decode once
 
         const aiNode* file_root = scene->mRootNode;
@@ -957,20 +1015,41 @@ namespace rl_tools {
         return true;
     }
 
-    // Bundle-level load: the scene file becomes one welded static object placed at identity and
+    // Bundle-level load: welded by default, or one instance per root with Mode<mode::rendering::SceneRoots<>>;
     // the metadata (bounds, max ray length, content hash) is loader-filled. The bundle must be
     // empty — reusing one across loads silently accumulates geometry and no rendering test can
     // see it, so it is a hard failure; composition is the explicit add(device, bundle, reference).
     // A scene file without any punctual lights gets a neutral 3-directional fill so PBR-shaded
     // content is not lit by ambient only. Object/asset loads deliberately do not: fill lighting
     // is a scene decision, not an asset property.
-    template <typename SHADING = rendering::VeryHigh, bool HAS_RGB = true, typename DEVICE, typename T>
-    bool load(DEVICE& device, rendering::Bundle<T>& bundle, const std::string& reference){
+    template <typename SHADING = rendering::VeryHigh, bool HAS_RGB = true, typename DEVICE, typename T, typename MODE = mode::Default<>>
+    bool load(DEVICE& device, rendering::Bundle<T>& bundle, const std::string& reference, const Mode<MODE>& = Mode<MODE>{}){
         utils::assert_exit(device, bundle.scene.objects.empty() && bundle.scene.instances.empty() && bundle.scene.lights.empty(), "load: bundle is not empty — use add(device, bundle, reference) to compose");
-        if(!add<SHADING, HAS_RGB>(device, bundle, reference)){
+        std::string path;
+        if(!rendering::datasets::resolve_reference(device, reference, path)){
             return false;
         }
-        if(bundle.scene.lights.empty()){
+        if constexpr(mode::is<MODE, mode::rendering::SceneRoots>){
+            rendering::ObjectAssembly assembly;
+            if(!rendering::datasets::glb::load_assembly_data<SHADING, HAS_RGB>(assembly, path, &bundle.scene.environment)){
+                return false;
+            }
+            bundle.scene.objects = std::move(assembly.objects);
+            for(const auto& part : assembly.parts){
+                bundle.scene.instances.push_back({part.object, {}, rendering::transform_is_identity(part.transform)});
+                std::memcpy(bundle.scene.instances.back().transform, part.transform, sizeof(part.transform));
+            }
+        }
+        else{
+            rendering::Object object;
+            if(!rendering::datasets::glb::load_scene_data<SHADING, HAS_RGB>(object.meshes, bundle.scene.lights, path, &bundle.scene.environment)){
+                return false;
+            }
+            bundle.scene.objects.push_back(std::move(object));
+            bundle.scene.instances.push_back({0, {1,0,0,0, 0,1,0,0, 0,0,1,0}, true});
+        }
+        const bool has_object_lights = std::any_of(bundle.scene.objects.begin(), bundle.scene.objects.end(), [](const rendering::Object& object){ return !object.lights.empty(); });
+        if(bundle.scene.lights.empty() && !has_object_lights){
             float inv_sqrt2 = 0.70710678f;
             bundle.scene.lights.push_back({0, {0,0,0}, {-inv_sqrt2, 0.f, inv_sqrt2}, {0.4f, 0.4f, 0.4f}, 0,0,0, 0,0});
             bundle.scene.lights.push_back({0, {0,0,0}, {0.f, -inv_sqrt2, inv_sqrt2}, {0.3f, 0.3f, 0.3f}, 0,0,0, 0,0});
@@ -978,8 +1057,6 @@ namespace rl_tools {
             RL_TOOLS_RENDERING_DATASETS_LOG("Scene file has no lights: adding 3 directional fill lights");
         }
         rendering::datasets::compute_bounds(device, bundle);
-        std::string path;
-        rendering::datasets::resolve_reference(device, reference, path);
         utils::assert_exit(device, rendering::datasets::content_hash(device, path, bundle.metadata.content_hash), "load: failed to hash scene file");
         return true;
     }

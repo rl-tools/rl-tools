@@ -5,6 +5,8 @@ hf download hssd/ai2thor-hab --repo-type dataset --local-dir data/ai2thor-hab
 ./build/src/rendering/procthor2glb/procthor2glb src/rendering/procthor2glb/data/ai2thor-hab/ai2thor-hab/configs/scenes/ProcTHOR/1/ProcTHOR-Test-0.scene_instance.json -o ProcTHOR-Test-0-new.glb --normalize
 ```
 
+ProcTHOR exports carry `scenes[].extras.rl_tools.environment` with linear RGB ambient `[0.6, 0.6, 0.6]` and a solid black background, which RLtools adopts when loading the complete scene.
+
 ### HSSD
 ```
 mkdir -p /home/jonas/git/hssd-hab/glb
