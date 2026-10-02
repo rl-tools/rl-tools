@@ -1,5 +1,5 @@
 // Renders every case of tests/src/rendering/raytracing/golden_cases.h and compares against the
-// OptiX golden renderings in tests/data/rendering/raytracing/goldens/procthor-train-1 (see
+// CPU golden renderings in tests/data/rendering/raytracing/goldens/procthor-train-1 (see
 // AGENTS.md "Raytracing Golden Renderings" and GOLDEN_LEDGER.md). Two targets are compiled from
 // this file:
 // - test_rendering_raytracing_golden_comparison_cpu: pinned to the generic (CPU) backend (included
@@ -75,16 +75,14 @@ using TI = typename DEVICE::index_t;
 using CASES = golden::Cases<T, TI>;
 using Rendered = golden::Rendered<T>;
 
-// The reference backend (OptiX) rendered the corpus and reproduces it bit-exactly, so every metric
-// is held to zero for it: a nonzero deviation is a behavioral change that needs a GOLDEN_LEDGER.md
-// row. The other backends get bounds at about twice the worst floor measured against corpus v2
-// on generic, Vulkan (NVIDIA and lavapipe) and WebGPU: RGB MAD 0.16, RGB outliers 0.31%, normals
-// MAD 0.0013, probe distances 5.3e-7, flow status and normals outliers one pixel, forward flow of
-// the moving cubes 0.0005 px mean endpoint error and one outlier pixel, everything else zero;
-// fractions with a zero floor allow 0.05% (33 pixels of a 256x256 pose). The RGB outliers
-// are silhouette pixels landing on different surfaces; the subset not explained by the other
-// image's neighborhood (golden_metrics.h) is a surface shaded differently, floor two pixels per
-// pose, while a re-materialised object covers ~3% of a pose.
+// CPU reproduction is exact in the manifest's generation environment; other CPU toolchains
+// must be qualified explicitly. Non-reference bounds retain the OptiX v2 calibration: RGB MAD
+// 0.16, outliers 0.31%, shading outliers two pixels, normals MAD 0.0013, probes 5.3e-7,
+// forward flow EPE 0.0005 px and one outlier/status pixel; zero-floor fractions allow 0.05%.
+// Against CPU v3, Metal measures RGB MAD 0.0973, outliers 0.3906%, shading outliers three pixels,
+// normals MAD 0.0015, depth MAD 4.42e-9, probes 8.48e-7, flow EPE 0.0003 px and one outlier/status
+// pixel. Segmentation differs on up to 351 pixels (0.5356%), predominantly adjacent floor,
+// ceiling and wall IDs; it remains above the unchanged bound pending investigation.
 static constexpr bool REFERENCE_BACKEND = std::string_view(RL_TOOLS_GOLDEN_BACKEND_NAME) == golden::REFERENCE_BACKEND;
 static constexpr double RGB_MAD_THRESHOLD = REFERENCE_BACKEND ? 0 : 0.35;             // mean abs diff in 8-bit levels
 static constexpr int RGB_OUTLIER_CHANNEL_DELTA = 8;
@@ -542,11 +540,11 @@ namespace {
 }
 
 // a present corpus of another version fails: the fix is a data refresh (GOLDEN_LEDGER.md), not a code change
-#define RL_TOOLS_GOLDEN_REQUIRE_VERSION() ASSERT_EQ(golden::manifest_version(MANIFEST_PATH), golden::PROCTHOR_TRAIN_1_GOLDEN_VERSION) << "golden corpus version mismatch at " << MANIFEST_PATH << " (see tests/src/rendering/raytracing/GOLDEN_LEDGER.md, run tests/src/rendering/raytracing/download_data.sh)"
+#define RL_TOOLS_GOLDEN_REQUIRE_MANIFEST() ASSERT_EQ(golden::manifest_error(MANIFEST_PATH), "") << "invalid golden corpus at " << MANIFEST_PATH << " (see tests/src/rendering/raytracing/GOLDEN_LEDGER.md)"
 #if defined(RL_TOOLS_REQUIRE_RAYTRACING_GOLDENS)
-#define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() ASSERT_TRUE(goldens_available()) << "required golden renderings not found at " << CORPUS_DIRECTORY; RL_TOOLS_GOLDEN_REQUIRE_VERSION()
+#define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() ASSERT_TRUE(goldens_available()) << "required golden renderings not found at " << CORPUS_DIRECTORY; RL_TOOLS_GOLDEN_REQUIRE_MANIFEST()
 #else
-#define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() if(!goldens_available()){ GTEST_SKIP() << "golden renderings not found at " << CORPUS_DIRECTORY << " (run tests/src/rendering/raytracing/download_data.sh or generate with test_rendering_raytracing_generate_golden_optix)"; } RL_TOOLS_GOLDEN_REQUIRE_VERSION()
+#define RL_TOOLS_GOLDEN_SKIP_IF_UNAVAILABLE() if(!goldens_available()){ GTEST_SKIP() << "golden renderings not found at " << CORPUS_DIRECTORY << " (run tests/src/rendering/raytracing/download_data.sh or generate with test_rendering_raytracing_generate_golden_cpu)"; } RL_TOOLS_GOLDEN_REQUIRE_MANIFEST()
 #endif
 
 // one test per entry of the case table, registered under a readable name (static/high-mb4 ->

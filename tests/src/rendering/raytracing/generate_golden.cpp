@@ -1,7 +1,12 @@
 #include <rl_tools/operations/cpu.h>
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
+#else
+#include <rl_tools/rendering/raytracing/backends/generic/operations_cpu.h>
+#endif
 #include <rl_tools/rendering/raytracing/save_cpu.h>
 
+#include "golden_build.h"
 #include "golden_io.h"
 #include "golden_manifest.h"
 #include "golden_render.h"
@@ -25,7 +30,11 @@
 
 namespace rlt = rl_tools;
 
+#ifdef RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND
 using BACKEND = rlt::rendering::raytracing::backends::Default;
+#else
+using BACKEND = rlt::rendering::raytracing::backends::Generic;
+#endif
 using DEVICE = rlt::devices::DefaultCPU;
 using T = float;
 using TI = typename DEVICE::index_t;
@@ -356,6 +365,11 @@ int main(int argc, char** argv) {
         std::cerr << "--output-dir must not be empty" << std::endl;
         return 2;
     }
+    if(std::string(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME) != golden::REFERENCE_BACKEND
+       && std::filesystem::weakly_canonical(output_dir) == std::filesystem::weakly_canonical(DEFAULT_OUTPUT_DIR)) {
+        std::cerr << "Only the CPU reference generator may write the canonical corpus; use --output-dir for a candidate" << std::endl;
+        return 2;
+    }
 
     std::filesystem::create_directories(output_dir);
     std::filesystem::remove(golden::layout::manifest_path(output_dir));
@@ -367,7 +381,7 @@ int main(int argc, char** argv) {
     ok = run_cases(CASES::ALL{}, device, output_dir) && ok;
 
     if(ok) {
-        ok = golden::write_json(golden::layout::manifest_path(output_dir), golden::procthor_manifest(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME));
+        ok = golden::write_json(golden::layout::manifest_path(output_dir), golden::procthor_manifest(RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME, golden::generation_environment()));
     }
 
     if(!ok) {

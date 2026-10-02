@@ -5,10 +5,26 @@ function(rl_tools_configure_raytracing_golden_target TARGET_NAME)
     endif()
 endfunction()
 
+function(rl_tools_configure_golden_generator TARGET_NAME BACKEND_NAME)
+    target_compile_definitions(${TARGET_NAME} PRIVATE
+        RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME="${BACKEND_NAME}"
+    )
+    cmake_host_system_information(RESULT RL_TOOLS_GOLDEN_HOST_CPU QUERY PROCESSOR_DESCRIPTION)
+    configure_file(golden_build.h.in ${TARGET_NAME}-build.h.in @ONLY)
+    file(GENERATE
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/generated/${TARGET_NAME}/$<CONFIG>/golden_build.h
+        INPUT ${CMAKE_CURRENT_BINARY_DIR}/${TARGET_NAME}-build.h.in
+        CONDITION $<COMPILE_LANGUAGE:CXX>
+        TARGET ${TARGET_NAME}
+    )
+    target_include_directories(${TARGET_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/generated/${TARGET_NAME}/$<CONFIG>)
+endfunction()
+
 add_executable(test_rendering_raytracing_golden_io golden_io_test.cpp)
 target_link_libraries(test_rendering_raytracing_golden_io
     PRIVATE
         RLtools::Core
+        nlohmann_json::nlohmann_json
         rendering_raytracing_stb
         GTest::gtest_main
 )
@@ -17,6 +33,12 @@ gtest_discover_tests(test_rendering_raytracing_golden_io
 )
 
 if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
+    add_executable(test_rendering_raytracing_generate_golden_cpu EXCLUDE_FROM_ALL generate_golden.cpp)
+    target_link_libraries(test_rendering_raytracing_generate_golden_cpu PRIVATE
+        RLtools::RLtools assimp::assimp rendering_raytracing_stb
+    )
+    rl_tools_configure_golden_generator(test_rendering_raytracing_generate_golden_cpu generic)
+
     if(NOT RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED STREQUAL "GENERIC")
         string(TOLOWER ${RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED} RL_TOOLS_GOLDEN_GENERATOR_BACKEND_SUFFIX)
         set(RL_TOOLS_GOLDEN_GENERATOR_BACKEND_TARGET test_rendering_raytracing_generate_golden_${RL_TOOLS_GOLDEN_GENERATOR_BACKEND_SUFFIX})
@@ -29,14 +51,13 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
                 rendering_raytracing_backend_normals
                 rendering_raytracing_stb
         )
-        target_compile_definitions(${RL_TOOLS_GOLDEN_GENERATOR_BACKEND_TARGET} PRIVATE
-            RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_BACKEND_NAME="${RL_TOOLS_GOLDEN_GENERATOR_BACKEND_SUFFIX}"
-        )
+        target_compile_definitions(${RL_TOOLS_GOLDEN_GENERATOR_BACKEND_TARGET} PRIVATE RL_TOOLS_RENDERING_RAYTRACING_GOLDEN_ACTIVE_BACKEND)
+        rl_tools_configure_golden_generator(${RL_TOOLS_GOLDEN_GENERATOR_BACKEND_TARGET} ${RL_TOOLS_GOLDEN_GENERATOR_BACKEND_SUFFIX})
     endif()
 endif()
 
 if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
-    # always present: the CPU (generic software) raytracer vs the OptiX goldens
+    # always present: the CPU reference backend
     add_executable(test_rendering_raytracing_golden_comparison_cpu golden_comparison.cpp)
     target_link_libraries(test_rendering_raytracing_golden_comparison_cpu
         PRIVATE
@@ -50,7 +71,7 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
         PROPERTIES TIMEOUT 300 LABELS "procthor-golden;procthor-golden-generic"
     )
 
-    # the backend this build is configured for vs the OptiX goldens; in GENERIC
+    # the backend this build is configured for vs the CPU goldens; in GENERIC
     # builds this would duplicate the cpu target, so it is skipped
     if(NOT RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED STREQUAL "GENERIC")
         string(TOLOWER ${RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED} RL_TOOLS_GOLDEN_BACKEND_TARGET_SUFFIX)
