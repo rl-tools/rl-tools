@@ -1,11 +1,7 @@
-"""Quarantine for third-party dependency workarounds.
+"""Reuse dependencies from sibling JIT build caches.
 
-Seeding: FetchContent sources land in <cache_root>/.dependencies/<build-dir-basename>.
-New build trees are seeded from any already-populated sibling so offline machines work and
-locally patched trees are not silently re-cloned. Seeded sources are handed to CMake via
-FETCHCONTENT_SOURCE_DIR_<NAME> overrides (per-dependency, so everything else still fetches
-normally); those overrides skip FetchContent's populate step, so patch scripts that
-normally run at populate time are applied here explicitly.
+Git sources use FETCHCONTENT_SOURCE_DIR overrides, with patch scripts applied explicitly.
+Assimp reuses downloaded archives so CMake verifies URL_HASH before extracting them.
 """
 import re
 import shutil
@@ -22,7 +18,9 @@ SEEDED_SOURCES = {
 
 # FetchContent name -> cmake file declaring its GIT_TAG; seeds are validated against the
 # declared pin so a repin upstream can never be shadowed by a stale seeded checkout
-PINNED_SOURCES = {"OWL": "cmake/optional/optix.cmake"}
+PINNED_SOURCES = {
+    "OWL": "cmake/optional/optix.cmake",
+}
 
 
 def declared_pin(fetch_name):
@@ -74,9 +72,15 @@ def seed_dependencies(build_dir_name):
     target_base = dependency_root / build_dir_name
     donors = sorted(
         candidate for candidate in dependency_root.glob("*")
-        if candidate.is_dir() and candidate.name != build_dir_name and (candidate / "owl-src").is_dir()
+        if candidate.is_dir() and candidate.name != build_dir_name
     ) if dependency_root.is_dir() else []
     seeded = {}
+    for donor in donors:
+        for archive in (donor / "assimp-download").glob("*.tar.gz"):
+            target = target_base / "assimp-download" / archive.name
+            if not target.exists():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(archive, target)
     for fetch_name, source_name in SEEDED_SOURCES.items():
         pin = declared_pin(fetch_name)
         target = target_base / source_name

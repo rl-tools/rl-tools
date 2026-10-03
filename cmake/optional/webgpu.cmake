@@ -20,7 +20,5 @@ set_target_properties(rl_tools_wgpu_native PROPERTIES
     INTERFACE_LINK_LIBRARIES "${CMAKE_DL_LIBS};pthread;m"
 )
 
-include(cmake/optional/assimp_fixup.cmake)
-
 target_link_libraries(rl_tools_full INTERFACE assimp::assimp rl_tools_wgpu_native)
 target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_RENDERING_ENABLE_RAYTRACING RL_TOOLS_RENDERING_RAYTRACING_BACKEND_WEBGPU)

@@ -48,11 +48,12 @@ Install the dependencies used by the packaged examples with:
 pip install "hyperdrone[examples]"
 ```
 
-Requirements: CMake >= 3.24, a C++17 compiler, and per feature: assimp (system package)
-for GLB loading, CUDA + OptiX driver for the OptiX render backend and cuda dynamics,
+Requirements: CMake >= 3.24, a C++17 compiler, and git for dependency downloads.
+GLB loading uses the Assimp 6.0.4 release archive with a pinned SHA-256, shared by render and env builds. Cached archives are reused offline and verified by CMake before extraction.
+CUDA + OptiX driver is required for the OptiX render backend and cuda dynamics,
 Vulkan dev + glslang for the VULKAN backend. The WEBGPU backend fetches a hash-pinned
 wgpu-native prebuilt at first build (no extra system packages). Nothing beyond the
-compiler for GENERIC + cpu.
+build toolchain for GENERIC + cpu.
 
 ## Environment
 

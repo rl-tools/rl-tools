@@ -28,7 +28,7 @@ if(HYPERDRONE_VARIANT STREQUAL "VULKAN")
     find_package(Vulkan REQUIRED COMPONENTS glslangValidator)
 endif()
 
-find_package(assimp REQUIRED)
+unset(FETCHCONTENT_SOURCE_DIR_ASSIMP CACHE)
 add_subdirectory(${RLTOOLS_ROOT} rl_tools EXCLUDE_FROM_ALL)
 set(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED ${HYPERDRONE_VARIANT})
 add_subdirectory(${RLTOOLS_ROOT}/src/rendering/raytracing/backends rl_tools_rt_backends EXCLUDE_FROM_ALL)

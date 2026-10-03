@@ -21,7 +21,5 @@ find_library(RL_TOOLS_FOUNDATION_FRAMEWORK Foundation REQUIRED)
 find_library(RL_TOOLS_QUARTZCORE_FRAMEWORK QuartzCore REQUIRED)
 target_link_libraries(rendering_raytracing_metal_cpp INTERFACE ${RL_TOOLS_METAL_FRAMEWORK} ${RL_TOOLS_FOUNDATION_FRAMEWORK} ${RL_TOOLS_QUARTZCORE_FRAMEWORK})
 
-include(cmake/optional/assimp_fixup.cmake)
-
 target_link_libraries(rl_tools_full INTERFACE assimp::assimp)
 target_compile_definitions(rl_tools_full INTERFACE RL_TOOLS_RENDERING_ENABLE_RAYTRACING RL_TOOLS_RENDERING_RAYTRACING_BACKEND_METAL)

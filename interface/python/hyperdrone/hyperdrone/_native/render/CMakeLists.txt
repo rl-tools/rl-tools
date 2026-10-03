@@ -35,9 +35,7 @@ if(HYPERDRONE_VARIANT STREQUAL "VULKAN")
     find_package(Vulkan REQUIRED COMPONENTS glslangValidator)
 endif()
 
-# imported targets are directory-scoped; the backends subtree below needs assimp visible
-# from this scope, not just inside the rl_tools subtree
-find_package(assimp REQUIRED)
+unset(FETCHCONTENT_SOURCE_DIR_ASSIMP CACHE)
 add_subdirectory(${RLTOOLS_ROOT} rl_tools EXCLUDE_FROM_ALL)
 # the resolved-backend variable is directory-scoped inside the rl_tools subtree, so the
 # backends dispatch needs it set again here
