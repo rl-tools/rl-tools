@@ -13,26 +13,24 @@ BUILD_DIR="${RL_TOOLS_WASM_BUILD_DIR:-$REPO_ROOT/static/raytracing/build}"
 command -v em++ >/dev/null || { echo "em++ not found: source ~/git/emsdk/emsdk_env.sh" >&2; exit 1; }
 mkdir -p "$DEPS_DIR" "$BUILD_DIR"
 
-ASSIMP_TAG=v6.0.4
-ASSIMP_SRC="$DEPS_DIR/assimp"
-ASSIMP_BUILD="$DEPS_DIR/assimp-build"
+ASSIMP_BUILD="$DEPS_DIR/assimp-archive-build"
 ASSIMP_INSTALL="$DEPS_DIR/assimp-install"
-if [ ! -f "$ASSIMP_INSTALL/lib/libassimp.a" ]; then
-    [ -d "$ASSIMP_SRC" ] || git clone --depth 1 --branch "$ASSIMP_TAG" https://github.com/assimp/assimp.git "$ASSIMP_SRC"
-    emcmake cmake -S "$ASSIMP_SRC" -B "$ASSIMP_BUILD" -DCMAKE_BUILD_TYPE=Release \
+emcmake cmake -S "$SCRIPT_DIR/assimp" -B "$ASSIMP_BUILD" -DCMAKE_BUILD_TYPE=Release \
+        -DRLTOOLS_ROOT="$REPO_ROOT" \
+        -DFETCHCONTENT_BASE_DIR="$ASSIMP_BUILD/_deps" \
         -DCMAKE_INSTALL_PREFIX="$ASSIMP_INSTALL" \
         -DCMAKE_CXX_FLAGS=-fexceptions -DCMAKE_C_FLAGS=-fexceptions \
         -DBUILD_SHARED_LIBS=OFF \
         -DASSIMP_BUILD_TESTS=OFF \
         -DASSIMP_BUILD_ASSIMP_TOOLS=OFF \
+        -DASSIMP_BUILD_USE_CCACHE=OFF \
         -DASSIMP_NO_EXPORT=ON \
         -DASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT=OFF \
         -DASSIMP_BUILD_GLTF_IMPORTER=ON \
         -DASSIMP_BUILD_ZLIB=ON \
         -DASSIMP_WARNINGS_AS_ERRORS=OFF
-    cmake --build "$ASSIMP_BUILD" -j5
-    cmake --install "$ASSIMP_BUILD"
-fi
+cmake --build "$ASSIMP_BUILD" --target assimp -j5
+cmake --install "$ASSIMP_BUILD/_deps/assimp-build"
 ASSIMP_ZLIB="$(ls "$ASSIMP_INSTALL"/lib/libzlibstatic*.a 2>/dev/null | head -1 || true)"
 
 STB_DIR="$DEPS_DIR/stb"

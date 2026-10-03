@@ -105,11 +105,11 @@ jobs:
         include:
           - backend: generic
             cmake_backend: GENERIC
-            packages: libassimp-dev git-lfs cmake
+            packages: git-lfs cmake
             backend_targets: test_rendering_raytracing_overlay_scenarios_generic
           - backend: vulkan
             cmake_backend: VULKAN
-            packages: libassimp-dev libvulkan-dev glslang-tools mesa-vulkan-drivers git-lfs cmake
+            packages: libvulkan-dev glslang-tools mesa-vulkan-drivers git-lfs cmake
             backend_targets: test_rendering_raytracing_overlay_scenarios_vulkan test_rendering_raytracing_golden_comparison_vulkan
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: "5"
