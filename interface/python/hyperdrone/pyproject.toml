@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "hyperdrone"
-version = "0.1.6"
+version = "0.1.7"
 authors = [{name = "Jonas Eschmann", email = "jonas.eschmann@gmail.com"}]
 license = {text = "MIT"}
 description = "The fastest drone simulator and renderer (raytracer)."
@@ -13,7 +13,7 @@ requires-python = ">=3.9"
 dependencies = ["numpy", "nanobind>=2.0"]
 
 [project.optional-dependencies]
-examples = ["scipy", "matplotlib", "imageio", "imageio-ffmpeg"]
+examples = ["scipy>=1.15", "matplotlib", "imageio", "imageio-ffmpeg"]
 gym = ["gymnasium>=1.0"]
 
 [tool.hatch.build.targets.wheel]
