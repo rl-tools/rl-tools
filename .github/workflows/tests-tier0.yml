@@ -105,11 +105,13 @@ jobs:
         include:
           - backend: generic
             cmake_backend: GENERIC
+            benchmark_config: ""
             packages: git-lfs cmake
             backend_targets: test_rendering_raytracing_overlay_scenarios_generic
           - backend: vulkan
             cmake_backend: VULKAN
-            packages: libvulkan-dev glslang-tools mesa-vulkan-drivers git-lfs cmake
+            benchmark_config: -DRL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS=16
+            packages: libvulkan-dev glslang-tools mesa-vulkan-drivers git-lfs cmake python3-venv
             backend_targets: test_rendering_raytracing_overlay_scenarios_vulkan test_rendering_raytracing_golden_comparison_vulkan
     env:
       CMAKE_BUILD_PARALLEL_LEVEL: "5"
@@ -140,6 +142,7 @@ jobs:
           -DRL_TOOLS_BACKEND_DISABLE_CUDA=ON
           -DRL_TOOLS_RL_ENVIRONMENTS_DISABLE_MUJOCO=ON
           -DRL_TOOLS_RENDERING_RAYTRACING_BACKEND=${{ matrix.cmake_backend }}
+          ${{ matrix.benchmark_config }}
           -DRL_TOOLS_REQUIRE_RAYTRACING_GOLDENS=ON
 
       - name: Build raytracing tests
@@ -150,6 +153,26 @@ jobs:
           test_rendering_raytracing_golden_comparison_cpu
           ${{ matrix.backend_targets }}
           --parallel 5
+
+      - name: Build Vulkan render benchmarks
+        if: matrix.backend == 'vulkan'
+        run: >
+          cmake --build build-raytracing-vulkan --parallel 5 --target
+          rendering_raytracing_sim_benchmark_medium
+          rendering_raytracing_sim_benchmark_high
+          rendering_raytracing_sim_benchmark_low
+          rendering_raytracing_sim_benchmark_very_high
+          rendering_raytracing_sim_benchmark_sweep
+          rendering_raytracing_procthor_frame_medium
+          rendering_raytracing_procthor_frame_high
+          rendering_raytracing_procthor_frame_low
+          rendering_raytracing_procthor_frame_very_high
+
+      - name: Test Vulkan render benchmark contract
+        if: matrix.backend == 'vulkan'
+        run: |
+          python3 -m venv .venv
+          .venv/bin/python tests/src/rendering/raytracing/benchmark.py --build-dir build-raytracing-vulkan --backend vulkan
 
       - name: Test golden I/O
         working-directory: build-raytracing-${{ matrix.backend }}

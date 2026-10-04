@@ -1,5 +1,5 @@
 """Minimal form of benchmark.py's default run — the configuration of
-`rendering_raytracing_sim_benchmark_medium --scene procthor` (render_only, rgb cell):
+`rendering_raytracing_sim_benchmark_medium` with no arguments:
 4096 static cameras @ 64x64, medium fidelity, no collision probes, fov 80 degrees, all at one eye position
 inside the ProcTHOR house, uniform-SO3 orientations (seed 0), 2s untimed warmup, then a
 timed async render_launch loop with a sync every 10 iterations for ~10 seconds."""

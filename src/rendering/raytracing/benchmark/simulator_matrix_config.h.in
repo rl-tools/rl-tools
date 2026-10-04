@@ -1,0 +1,13 @@
+#pragma once
+
+#include <rl_tools/rendering/raytracing/renderer.h>
+
+namespace rl_tools::rendering::raytracing::benchmark {
+    enum class Mode { benchmark, sweep, frame };
+    struct Config {
+        using SHADING = @SIM_SHADING@;
+        static constexpr Mode MODE = Mode::@SIM_MODE@;
+        static constexpr int NUM_CAMERAS = @SIM_NUM_CAMERAS@;
+        static constexpr int RESOLUTION = @SIM_RESOLUTION@;
+    };
+}
