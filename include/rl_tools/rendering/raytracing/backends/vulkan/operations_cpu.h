@@ -1968,6 +1968,13 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
+    std::string device_name(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
+        VkPhysicalDeviceProperties properties{};
+        vkGetPhysicalDeviceProperties(renderer.backend->physical_device, &properties);
+        return properties.deviceName;
+    }
+
+    template <typename DEVICE, typename SPEC>
     void synchronize(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
         namespace vk = rendering::raytracing::backends::vulkan;
         auto& ctx = vk::context(renderer);

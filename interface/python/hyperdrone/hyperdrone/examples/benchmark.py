@@ -1,6 +1,6 @@
 """Python-API counterpart of the simulator-matrix raytracing benchmark
 (src/rendering/raytracing/benchmark/simulator_matrix.cpp), matching the configuration of
-`rendering_raytracing_sim_benchmark_medium --scene procthor` (render_only cell):
+`rendering_raytracing_sim_benchmark_medium` with no arguments:
 
   4096 cameras @ 64x64, medium fidelity, RGB output, collision probes compiled out
   (num_probes=0, the C++ target's probe-ray macro), AA/MB off, fov 80 degrees,

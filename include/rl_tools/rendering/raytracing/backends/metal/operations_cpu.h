@@ -1100,6 +1100,11 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC>
+    std::string device_name(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
+        return renderer.backend->device->name()->utf8String();
+    }
+
+    template <typename DEVICE, typename SPEC>
     void synchronize(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
         namespace metal = rendering::raytracing::backends::metal;
         metal::wait_in_flight(metal::context(renderer));

@@ -1,118 +1,51 @@
 #define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 1
 
-#define RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_ALL -1
-#define RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB 0
-#define RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH 2
-
-#ifndef RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_OUTPUT_MODE
-#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_OUTPUT_MODE RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_ALL
-#endif
-
-#ifndef RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS
-#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS 4096
-#endif
-
-#ifndef RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_WIDTH
-#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_WIDTH 64
-#endif
-
-#ifndef RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_HEIGHT
-#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_HEIGHT 64
-#endif
-
-#ifndef RL_TOOLS_RENDERING_RAYTRACING_SIM_FRAME_TOOL
-#define RL_TOOLS_RENDERING_RAYTRACING_SIM_FRAME_TOOL 0
-#endif
-
-#ifndef RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_ENABLE_AA
-#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_ENABLE_AA 0
-#endif
-
-#ifndef RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_AA_GRID_SIZE
-#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_AA_GRID_SIZE 1
-#endif
-
-#ifndef RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SWEEP
-#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SWEEP 0
-#endif
-
-#ifndef RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_EXTENDED_CSV
-#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_EXTENDED_CSV 0
-#endif
-
-#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_MEDIUM 0
-#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_HIGH 1
-#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_LOW 2
-#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_VERY_HIGH 3
-
-#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_BASIC RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_MEDIUM
-#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_HIGH_FIDELITY RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_HIGH
-#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_VERY_HIGH_FIDELITY RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_VERY_HIGH
-#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_FAST_FLAT RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_LOW
-
-#ifndef RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE
-#define RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_MEDIUM
-#endif
-
 #include <rl_tools/operations/cpu_mux.h>
-#include <rl_tools/rendering/raytracing/backends/optix/operations_cuda.h>
+#include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/raytracing/save_cpu.h>
+#include <metra/metra.h>
+#include <nlohmann/json.hpp>
 
-#include "simulator_matrix_physics.h"
+#include "simulator_matrix_config.h"
 
 #include <algorithm>
 #include <cerrno>
 #include <chrono>
 #include <cmath>
-#include <cstdio>
 #include <cstdlib>
+#include <cstdint>
 #include <cstring>
 #include <filesystem>
+#include <iomanip>
 #include <iostream>
-#include <cstdint>
+#include <limits>
 #include <random>
+#include <sstream>
 #include <string>
-#include <sys/stat.h>
 #include <thread>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 namespace rlt = rl_tools;
-namespace rt_benchmark = rl_tools::rendering::raytracing::benchmark;
-
+using namespace rl_tools;
+using CONFIG = rlt::rendering::raytracing::benchmark::Config;
+using BenchmarkMode = rlt::rendering::raytracing::benchmark::Mode;
 using T = float;
-static constexpr T FOV = 80;
 using TI = int;
-
+using DEVICE = rlt::devices::DEVICE_FACTORY<>;
+using ShadingProfile = CONFIG::SHADING;
+static constexpr T FOV = 80;
+static constexpr const char* BACKEND_NAME = rlt::rendering::raytracing::backends::Name<rlt::rendering::raytracing::backends::Default>::VALUE;
+static constexpr TI NUM_ENVS = CONFIG::NUM_CAMERAS;
+static constexpr TI CAM_WIDTH = CONFIG::RESOLUTION;
+static constexpr TI CAM_HEIGHT = CONFIG::RESOLUTION;
 static constexpr const char* OBJECTS20_LAYOUT_NAME = "canonical_staggered_v1";
-static constexpr TI NUM_ENVS = RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS;
-static constexpr TI CAM_WIDTH = RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_WIDTH;
-static constexpr TI CAM_HEIGHT = RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_HEIGHT;
-static constexpr bool ENABLE_AA = RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_ENABLE_AA != 0;
-static constexpr TI AA_GRID_SIZE = RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_AA_GRID_SIZE;
-template <int T_PROFILE>
-struct BenchmarkShadingProfile;
-template <>
-struct BenchmarkShadingProfile<RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_MEDIUM> {
-    using type = rlt::rendering::raytracing::Medium;
-};
-template <>
-struct BenchmarkShadingProfile<RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_HIGH> {
-    using type = rlt::rendering::raytracing::High;
-};
-template <>
-struct BenchmarkShadingProfile<RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_VERY_HIGH> {
-    using type = rlt::rendering::raytracing::VeryHigh;
-};
-template <>
-struct BenchmarkShadingProfile<RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_LOW> {
-    using type = rlt::rendering::raytracing::Low;
-};
-using ShadingProfile = typename BenchmarkShadingProfile<RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE>::type;
-template <bool T_OUTPUT_RGB, bool T_OUTPUT_DEPTH, TI T_WIDTH = CAM_WIDTH, TI T_HEIGHT = CAM_HEIGHT, TI T_NUM_CAMERAS = NUM_ENVS, typename T_SHADING = ShadingProfile, bool T_ENABLE_AA = ENABLE_AA, TI T_AA_GRID_SIZE = AA_GRID_SIZE>
+
+template <bool T_OUTPUT_RGB, bool T_OUTPUT_DEPTH, TI T_WIDTH = CAM_WIDTH, TI T_HEIGHT = CAM_HEIGHT, TI T_NUM_CAMERAS = NUM_ENVS, typename T_SHADING = ShadingProfile, bool T_ENABLE_AA = false, TI T_AA_GRID_SIZE = 1>
 struct BenchmarkConfig: rlt::rendering::raytracing::config::Default<T, TI>{
-    static constexpr TI CAM_WIDTH = T_WIDTH, CAM_HEIGHT = T_HEIGHT, NUM_CAMERAS = T_NUM_CAMERAS, NUM_PROBES = 1;
+    static constexpr TI CAM_WIDTH = T_WIDTH, CAM_HEIGHT = T_HEIGHT, NUM_CAMERAS = T_NUM_CAMERAS, NUM_PROBES = 0;
     using SHADING = T_SHADING;
     static constexpr bool OUTPUT_RGB = T_OUTPUT_RGB;
     static constexpr bool OUTPUT_DEPTH = T_OUTPUT_DEPTH;
@@ -123,7 +56,6 @@ template <bool T_OUTPUT_RGB, bool T_OUTPUT_DEPTH>
 using BenchmarkSpec = rlt::rendering::raytracing::Specification<BenchmarkConfig<T_OUTPUT_RGB, T_OUTPUT_DEPTH>>;
 template <bool T_OUTPUT_RGB, bool T_OUTPUT_DEPTH, TI T_WIDTH, TI T_HEIGHT, TI T_NUM_CAMERAS, typename T_SHADING, bool T_ENABLE_AA, TI T_AA_GRID_SIZE>
 using SweepBenchmarkSpec = rlt::rendering::raytracing::Specification<BenchmarkConfig<T_OUTPUT_RGB, T_OUTPUT_DEPTH, T_WIDTH, T_HEIGHT, T_NUM_CAMERAS, T_SHADING, T_ENABLE_AA, T_AA_GRID_SIZE>>;
-using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 
 static constexpr long long SWEEP_REFERENCE_PIXELS = static_cast<long long>(NUM_ENVS) * static_cast<long long>(CAM_WIDTH) * static_cast<long long>(CAM_HEIGHT);
 
@@ -135,7 +67,6 @@ struct SweepCameraCount {
 };
 
 enum class SceneAxis { OBJECTS_20, PROCTHOR };
-enum class StepAxis { RENDER_ONLY, RENDER_PHYSICS };
 enum class OutputAxis { RGB, DEPTH };
 enum class OrientationMode { LOOK_AT_SCENE_JITTER, RANDOM_YAW_PITCH, UNIFORM_SO3 };
 
@@ -152,22 +83,17 @@ static CameraOffset camera_offset(SceneAxis scene) {
 }
 
 struct Options {
-    std::string scene = "all";
-    std::string step_mode = "all";
-    std::string output = "all";
+    std::string scene = "procthor";
+    std::string output = "rgb";
     std::string orientation_mode = "uniform_so3";
-    std::string gpu_label;
     std::string output_dir = ".";
-    std::string output_png = "hyperdrone_procthor_frame.png";
-    std::string procthor_path = "tests/data/ProcTHOR-Train-1.glb";
+    std::string output_png;
+    std::string procthor_path = "conta:75d1d67a17ecd16bc3a214baa895240da8060df7";
     double seconds = 10.0;
     double warmup_seconds = 2.0;
     double cooldown_seconds = 10.0;
     int iterations = 0;
-    int warmup_iterations = 10;
     int sync_interval = 10;
-    int num_envs = NUM_ENVS;
-    int resolution = CAM_WIDTH;
     int sweep_config_start = 0;
     int sweep_config_count = -1;
     uint32_t seed = 0;
@@ -193,7 +119,7 @@ struct BenchmarkResult {
     double elapsed_s;
     double frames_per_s;
     double pixels_per_s;
-    double mrays_per_s;
+    double primary_mrays_per_s;
 };
 
 
@@ -206,51 +132,43 @@ static std::string value_after_prefix(const std::string& value, const char* pref
 }
 
 static void print_help(const char* argv0) {
-    std::cout
-        << "Usage: " << argv0 << " [options]\n"
-        << "Options:\n"
-        << "  --scene <all|20_objects|procthor>\n"
-        << "  --step-mode <all|render_only|render_physics>\n"
-        << "  --output <all|rgb|depth>\n"
-        << "  --orientation-mode <uniform_so3|random_yaw_pitch|look_at_scene_jitter>\n"
-        << "  --gpu-label <label>\n"
-        << "  --seconds <seconds>              Timed duration per combination (default: 10)\n"
-        << "  --iterations <count>             Fixed timed iterations; overrides --seconds when >0\n"
-        << "  --warmup-seconds <seconds>       Untimed warmup duration before timing (default: 2)\n"
-        << "  --warmup-iterations <count>      Legacy warmup count used when --warmup-seconds=0 (default: 10)\n"
-#if RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SWEEP
-        << "  --cooldown-seconds <seconds>     Sleep between sweep renderer configs (default: 10)\n"
-        << "  --sweep-config-start <index>     First sweep renderer config to run (default: 0)\n"
-        << "  --sweep-config-count <count>     Number of sweep renderer configs to run; <=0 means all remaining\n"
-#endif
-        << "  --sync-interval <count>          Render-only async sync interval (default: 10)\n"
-        << "  --seed <count>                   Deterministic camera-orientation seed (default: 0)\n"
-#if RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SWEEP
-        << "  --num-envs <count>               Must match compile-time 64x64 reference NUM_ENVS=" << NUM_ENVS << "\n"
-        << "  --resolution <pixels>            Ignored by sweep target; all sweep resolutions are rendered\n"
-#else
-        << "  --num-envs <count>               Must match compile-time NUM_ENVS=" << NUM_ENVS << "\n"
-        << "  --resolution <pixels>            Must match compile-time resolution "
-        << CAM_WIDTH << "x" << CAM_HEIGHT << "\n"
-#endif
-        << "  --output-dir <dir>\n"
-        << "  --procthor-path <file>\n";
-#if RL_TOOLS_RENDERING_RAYTRACING_SIM_FRAME_TOOL
-    std::cout
-        << "Frame target options:\n"
-        << "  --output-png <file>              Single-frame PNG path\n"
-        << "  --position-flu X Y Z             Camera position in ProcTHOR FLU coordinates\n"
-        << "  --forward-flu X Y Z              Camera forward direction in FLU coordinates\n"
-        << "  --look-at-flu X Y Z              Look-at target in FLU coordinates\n"
-        << "  --up-flu X Y Z                   Camera up vector in FLU coordinates\n"
-        << "  --orientation-flu-wxyz W X Y Z   Camera body quaternion in FLU coordinates\n";
-#endif
+    std::cout << "Usage: " << argv0 << " [options]\n"
+        << "  --output <rgb|depth|all>         Default: rgb\n"
+        << "  --output-dir <dir>              Verification images (default: .)\n"
+        << "  --procthor-path <file|conta:hash> Default: pinned ProcTHOR-Train-1\n";
+    if constexpr (CONFIG::MODE == BenchmarkMode::frame) {
+        std::cout
+            << "  --output-png <file>              Requires one output; otherwise named automatically\n"
+            << "  --position-flu X Y Z\n"
+            << "  --forward-flu X Y Z\n"
+            << "  --look-at-flu X Y Z\n"
+            << "  --up-flu X Y Z\n"
+            << "  --orientation-flu-wxyz W X Y Z\n";
+    }
+    else {
+        std::cout
+            << "  --scene <procthor|20_objects|all> Default: procthor\n"
+            << "  --orientation-mode <uniform_so3|random_yaw_pitch|look_at_scene_jitter>\n"
+            << "  --seed <count>                   Default: 0\n"
+            << "  --seconds <seconds>              Timed duration per case (default: 10)\n"
+            << "  --iterations <count>             Fixed count overriding duration (default: 0)\n"
+            << "  --warmup-seconds <seconds>       Default: 2; 0 still primes the renderer once\n"
+            << "  --sync-interval <count>          Default: 10\n"
+            << "  Compiled cameras: " << NUM_ENVS << ", resolution: " << CAM_WIDTH << "x" << CAM_HEIGHT << "\n";
+    }
+    if constexpr (CONFIG::MODE == BenchmarkMode::sweep) {
+        std::cout
+            << "  --cooldown-seconds <seconds>     Between configurations (default: 10)\n"
+            << "  --sweep-config-start <index>     First configuration (default: 0)\n"
+            << "  --sweep-config-count <count>     <=0 selects all remaining configurations\n";
+    }
 }
 
 static bool parse_int(const std::string& value, int& out) {
     char* end = nullptr;
+    errno = 0;
     long parsed = std::strtol(value.c_str(), &end, 10);
-    if(end == value.c_str() || *end != '\0') {
+    if(errno == ERANGE || end == value.c_str() || *end != '\0' || parsed < std::numeric_limits<int>::min() || parsed > std::numeric_limits<int>::max()) {
         return false;
     }
     out = static_cast<int>(parsed);
@@ -258,133 +176,55 @@ static bool parse_int(const std::string& value, int& out) {
 }
 
 static bool parse_double(const std::string& value, double& out) {
+    // Reject non-finite spellings before conversion: fast-math can eliminate floating-point checks.
+    if(value.empty() || value.find_first_not_of("0123456789+-.eE") != std::string::npos) {
+        return false;
+    }
     char* end = nullptr;
-    double parsed = std::strtod(value.c_str(), &end);
-    if(end == value.c_str() || *end != '\0') {
+    errno = 0;
+    const double parsed = std::strtod(value.c_str(), &end);
+    if(errno == ERANGE || end == value.c_str() || *end != '\0') {
         return false;
     }
     out = parsed;
     return true;
 }
 
-static bool parse_vec3_csv(const std::string& value, T out[3]) {
-    size_t start = 0;
-    for(int i = 0; i < 3; i++) {
-        const size_t end = value.find(',', start);
-        const std::string part = value.substr(start, end == std::string::npos ? std::string::npos : end - start);
-        double parsed = 0.0;
-        if(!parse_double(part, parsed)) {
-            return false;
-        }
-        out[i] = static_cast<T>(parsed);
-        if(i < 2) {
-            if(end == std::string::npos) {
-                return false;
-            }
-            start = end + 1;
-        }
-        else if(end != std::string::npos) {
-            return false;
-        }
+template <std::size_t N>
+static bool get_vector_option(int& i, int argc, char** argv, const std::string& arg,
+                              const char* name, T (&out)[N], bool& seen) {
+    const std::string prefix = std::string(name) + "=";
+    const bool csv = has_prefix(arg, prefix.c_str());
+    if(!csv && arg != name) {
+        return false;
     }
-    return true;
-}
-
-static bool parse_vec3_args(int& i, int argc, char** argv, const char* name, T out[3]) {
-    if(i + 3 >= argc) {
+    if(!csv && i + static_cast<int>(N) >= argc) {
         std::cerr << "Missing values for " << name << std::endl;
         return false;
     }
-    for(int component = 0; component < 3; component++) {
-        double parsed = 0.0;
-        if(!parse_double(argv[++i], parsed)) {
-            std::cerr << "Invalid " << name << " component: " << argv[i] << std::endl;
+    std::istringstream values(csv ? arg.substr(prefix.size()) : "");
+    for(std::size_t component = 0; component < N; component++) {
+        std::string value;
+        if(csv) {
+            if(!std::getline(values, value, ',')) {
+                return false;
+            }
+        }
+        else {
+            value = argv[++i];
+        }
+        double parsed;
+        if(!parse_double(value, parsed) || std::abs(parsed) > std::numeric_limits<T>::max()) {
+            std::cerr << "Invalid " << name << " component: " << value << std::endl;
             return false;
         }
         out[component] = static_cast<T>(parsed);
     }
-    return true;
-}
-
-static bool get_vec3_option(int& i, int argc, char** argv, const std::string& arg, const char* name, T out[3], bool& seen) {
-    const std::string eq_prefix = std::string(name) + "=";
-    if(has_prefix(arg, eq_prefix.c_str())) {
-        const std::string value = value_after_prefix(arg, eq_prefix.c_str());
-        if(!parse_vec3_csv(value, out)) {
-            std::cerr << "Invalid " << name << ": " << value << std::endl;
-            return false;
-        }
-        seen = true;
-        return true;
-    }
-    if(arg == name) {
-        if(!parse_vec3_args(i, argc, argv, name, out)) {
-            return false;
-        }
-        seen = true;
-        return true;
-    }
-    return false;
-}
-
-static bool parse_vec4_csv(const std::string& value, T out[4]) {
-    size_t start = 0;
-    for(int i = 0; i < 4; i++) {
-        const size_t end = value.find(',', start);
-        const std::string part = value.substr(start, end == std::string::npos ? std::string::npos : end - start);
-        double parsed = 0.0;
-        if(!parse_double(part, parsed)) {
-            return false;
-        }
-        out[i] = static_cast<T>(parsed);
-        if(i < 3) {
-            if(end == std::string::npos) {
-                return false;
-            }
-            start = end + 1;
-        }
-        else if(end != std::string::npos) {
-            return false;
-        }
-    }
-    return true;
-}
-
-static bool parse_vec4_args(int& i, int argc, char** argv, const char* name, T out[4]) {
-    if(i + 4 >= argc) {
-        std::cerr << "Missing values for " << name << std::endl;
+    if(csv && !values.eof()) {
         return false;
     }
-    for(int component = 0; component < 4; component++) {
-        double parsed = 0.0;
-        if(!parse_double(argv[++i], parsed)) {
-            std::cerr << "Invalid " << name << " component: " << argv[i] << std::endl;
-            return false;
-        }
-        out[component] = static_cast<T>(parsed);
-    }
+    seen = true;
     return true;
-}
-
-static bool get_vec4_option(int& i, int argc, char** argv, const std::string& arg, const char* name, T out[4], bool& seen) {
-    const std::string eq_prefix = std::string(name) + "=";
-    if(has_prefix(arg, eq_prefix.c_str())) {
-        const std::string value = value_after_prefix(arg, eq_prefix.c_str());
-        if(!parse_vec4_csv(value, out)) {
-            std::cerr << "Invalid " << name << ": " << value << std::endl;
-            return false;
-        }
-        seen = true;
-        return true;
-    }
-    if(arg == name) {
-        if(!parse_vec4_args(i, argc, argv, name, out)) {
-            return false;
-        }
-        seen = true;
-        return true;
-    }
-    return false;
 }
 
 static bool get_option_value(int& i, int argc, char** argv, const std::string& arg, const char* name, std::string& out) {
@@ -412,103 +252,77 @@ static bool parse_options(int argc, char** argv, Options& options) {
             print_help(argv[0]);
             std::exit(0);
         }
-        else if(get_option_value(i, argc, argv, arg, "--scene", value)) {
+        else if(CONFIG::MODE != BenchmarkMode::frame && get_option_value(i, argc, argv, arg, "--scene", value)) {
             options.scene = value;
-        }
-        else if(get_option_value(i, argc, argv, arg, "--step-mode", value)) {
-            options.step_mode = value;
         }
         else if(get_option_value(i, argc, argv, arg, "--output", value)) {
             options.output = value;
         }
-        else if(get_option_value(i, argc, argv, arg, "--orientation-mode", value)) {
+        else if(CONFIG::MODE != BenchmarkMode::frame && get_option_value(i, argc, argv, arg, "--orientation-mode", value)) {
             options.orientation_mode = value;
-        }
-        else if(get_option_value(i, argc, argv, arg, "--gpu-label", value)) {
-            options.gpu_label = value;
         }
         else if(get_option_value(i, argc, argv, arg, "--output-dir", value)) {
             options.output_dir = value;
         }
-        else if(get_option_value(i, argc, argv, arg, "--output-png", value)) {
+        else if(CONFIG::MODE == BenchmarkMode::frame && get_option_value(i, argc, argv, arg, "--output-png", value)) {
             options.output_png = value;
         }
         else if(get_option_value(i, argc, argv, arg, "--procthor-path", value)) {
             options.procthor_path = value;
         }
-        else if(get_vec3_option(i, argc, argv, arg, "--position-flu", options.position, options.has_position)) {
+        else if(CONFIG::MODE == BenchmarkMode::frame && get_vector_option(i, argc, argv, arg, "--position-flu", options.position, options.has_position)) {
         }
-        else if(get_vec3_option(i, argc, argv, arg, "--forward-flu", options.forward, options.has_forward)) {
+        else if(CONFIG::MODE == BenchmarkMode::frame && get_vector_option(i, argc, argv, arg, "--forward-flu", options.forward, options.has_forward)) {
         }
-        else if(get_vec3_option(i, argc, argv, arg, "--look-at-flu", options.look_at, options.has_look_at)) {
+        else if(CONFIG::MODE == BenchmarkMode::frame && get_vector_option(i, argc, argv, arg, "--look-at-flu", options.look_at, options.has_look_at)) {
         }
-        else if(get_vec3_option(i, argc, argv, arg, "--up-flu", options.up, options.has_up)) {
+        else if(CONFIG::MODE == BenchmarkMode::frame && get_vector_option(i, argc, argv, arg, "--up-flu", options.up, options.has_up)) {
         }
-        else if(get_vec4_option(i, argc, argv, arg, "--orientation-flu-wxyz", options.orientation_wxyz, options.has_orientation)) {
+        else if(CONFIG::MODE == BenchmarkMode::frame && get_vector_option(i, argc, argv, arg, "--orientation-flu-wxyz", options.orientation_wxyz, options.has_orientation)) {
         }
-        else if(get_option_value(i, argc, argv, arg, "--seconds", value)) {
+        else if(CONFIG::MODE != BenchmarkMode::frame && get_option_value(i, argc, argv, arg, "--seconds", value)) {
             if(!parse_double(value, options.seconds)) {
                 std::cerr << "Invalid --seconds: " << value << std::endl;
                 return false;
             }
         }
-        else if(get_option_value(i, argc, argv, arg, "--iterations", value)) {
+        else if(CONFIG::MODE != BenchmarkMode::frame && get_option_value(i, argc, argv, arg, "--iterations", value)) {
             if(!parse_int(value, options.iterations)) {
                 std::cerr << "Invalid --iterations: " << value << std::endl;
                 return false;
             }
         }
-        else if(get_option_value(i, argc, argv, arg, "--warmup-seconds", value)) {
+        else if(CONFIG::MODE != BenchmarkMode::frame && get_option_value(i, argc, argv, arg, "--warmup-seconds", value)) {
             if(!parse_double(value, options.warmup_seconds)) {
                 std::cerr << "Invalid --warmup-seconds: " << value << std::endl;
                 return false;
             }
         }
-        else if(get_option_value(i, argc, argv, arg, "--warmup-iterations", value)) {
-            if(!parse_int(value, options.warmup_iterations)) {
-                std::cerr << "Invalid --warmup-iterations: " << value << std::endl;
-                return false;
-            }
-        }
-#if RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SWEEP
-        else if(get_option_value(i, argc, argv, arg, "--cooldown-seconds", value)) {
+        else if(CONFIG::MODE == BenchmarkMode::sweep && get_option_value(i, argc, argv, arg, "--cooldown-seconds", value)) {
             if(!parse_double(value, options.cooldown_seconds)) {
                 std::cerr << "Invalid --cooldown-seconds: " << value << std::endl;
                 return false;
             }
         }
-        else if(get_option_value(i, argc, argv, arg, "--sweep-config-start", value)) {
+        else if(CONFIG::MODE == BenchmarkMode::sweep && get_option_value(i, argc, argv, arg, "--sweep-config-start", value)) {
             if(!parse_int(value, options.sweep_config_start)) {
                 std::cerr << "Invalid --sweep-config-start: " << value << std::endl;
                 return false;
             }
         }
-        else if(get_option_value(i, argc, argv, arg, "--sweep-config-count", value)) {
+        else if(CONFIG::MODE == BenchmarkMode::sweep && get_option_value(i, argc, argv, arg, "--sweep-config-count", value)) {
             if(!parse_int(value, options.sweep_config_count)) {
                 std::cerr << "Invalid --sweep-config-count: " << value << std::endl;
                 return false;
             }
         }
-#endif
-        else if(get_option_value(i, argc, argv, arg, "--sync-interval", value)) {
+        else if(CONFIG::MODE != BenchmarkMode::frame && get_option_value(i, argc, argv, arg, "--sync-interval", value)) {
             if(!parse_int(value, options.sync_interval)) {
                 std::cerr << "Invalid --sync-interval: " << value << std::endl;
                 return false;
             }
         }
-        else if(get_option_value(i, argc, argv, arg, "--num-envs", value)) {
-            if(!parse_int(value, options.num_envs)) {
-                std::cerr << "Invalid --num-envs: " << value << std::endl;
-                return false;
-            }
-        }
-        else if(get_option_value(i, argc, argv, arg, "--resolution", value)) {
-            if(!parse_int(value, options.resolution)) {
-                std::cerr << "Invalid --resolution: " << value << std::endl;
-                return false;
-            }
-        }
-        else if(get_option_value(i, argc, argv, arg, "--seed", value)) {
+        else if(CONFIG::MODE != BenchmarkMode::frame && get_option_value(i, argc, argv, arg, "--seed", value)) {
             int parsed_seed = 0;
             if(!parse_int(value, parsed_seed) || parsed_seed < 0) {
                 std::cerr << "Invalid --seed: " << value << std::endl;
@@ -522,39 +336,26 @@ static bool parse_options(int argc, char** argv, Options& options) {
         }
     }
 
-    if(options.num_envs != NUM_ENVS) {
-        std::cerr << "--num-envs is compile-time for this renderer. Requested " << options.num_envs
-                  << ", but this target was built with " << NUM_ENVS << "." << std::endl;
+    if(!options.output_png.empty() && options.output == "all") {
+        std::cerr << "--output-png requires --output rgb or depth." << std::endl;
         return false;
     }
-#if !RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SWEEP
-    if(options.resolution != CAM_WIDTH || CAM_WIDTH != CAM_HEIGHT) {
-        std::cerr << "This target was built for " << CAM_WIDTH << "x" << CAM_HEIGHT
-                  << ". Requested square resolution " << options.resolution << "." << std::endl;
-        return false;
-    }
-#endif
     if(options.has_forward && options.has_look_at) {
         std::cerr << "Use only one of --forward-flu or --look-at-flu." << std::endl;
         return false;
     }
-    if(options.has_orientation && (options.has_forward || options.has_look_at)) {
-        std::cerr << "Use --orientation-flu-wxyz without --forward-flu or --look-at-flu." << std::endl;
+    if(options.has_orientation && (options.has_forward || options.has_look_at || options.has_up)) {
+        std::cerr << "Use --orientation-flu-wxyz without forward, look-at, or up vectors." << std::endl;
         return false;
     }
-    if(options.seconds <= 0 && options.iterations <= 0) {
+    if(options.iterations < 0 || (options.seconds <= 0 && options.iterations == 0)) {
         std::cerr << "Either --seconds must be > 0 or --iterations must be > 0." << std::endl;
-        return false;
-    }
-    if(options.warmup_iterations < 0) {
-        std::cerr << "--warmup-iterations must be >= 0." << std::endl;
         return false;
     }
     if(options.warmup_seconds < 0) {
         std::cerr << "--warmup-seconds must be >= 0." << std::endl;
         return false;
     }
-#if RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SWEEP
     if(options.cooldown_seconds < 0) {
         std::cerr << "--cooldown-seconds must be >= 0." << std::endl;
         return false;
@@ -563,15 +364,13 @@ static bool parse_options(int argc, char** argv, Options& options) {
         std::cerr << "--sweep-config-start must be >= 0." << std::endl;
         return false;
     }
-#endif
     if(options.sync_interval <= 0) {
         std::cerr << "--sync-interval must be > 0." << std::endl;
         return false;
     }
     if(options.orientation_mode != "random_yaw_pitch" &&
        options.orientation_mode != "look_at_scene_jitter" &&
-       options.orientation_mode != "uniform_so3" &&
-       options.orientation_mode != "uniform_so3_once_per_camera") {
+       options.orientation_mode != "uniform_so3") {
         std::cerr << "Unsupported --orientation-mode: " << options.orientation_mode << std::endl;
         return false;
     }
@@ -580,36 +379,6 @@ static bool parse_options(int argc, char** argv, Options& options) {
 
 static const char* scene_name(SceneAxis scene) {
     return scene == SceneAxis::OBJECTS_20 ? "20_objects" : "procthor";
-}
-
-static const char* step_name(StepAxis step) {
-    return step == StepAxis::RENDER_ONLY ? "render_only" : "render_physics";
-}
-
-static OrientationMode orientation_mode(const Options& options) {
-    if(options.orientation_mode == "look_at_scene_jitter") {
-        return OrientationMode::LOOK_AT_SCENE_JITTER;
-    }
-    if(options.orientation_mode == "uniform_so3" || options.orientation_mode == "uniform_so3_once_per_camera") {
-        return OrientationMode::UNIFORM_SO3;
-    }
-    return OrientationMode::RANDOM_YAW_PITCH;
-}
-
-static const char* orientation_mode_name(OrientationMode mode) {
-    return mode == OrientationMode::LOOK_AT_SCENE_JITTER ? "look_at_scene_jitter"
-        : (mode == OrientationMode::UNIFORM_SO3 ? "uniform_so3_once_per_camera" : "random_yaw_pitch");
-}
-
-static constexpr const char* output_name() {
-    return RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH ? "depth"
-        : (RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB ? "rgb" : "all");
-}
-
-static constexpr const char* shading_profile_name() {
-    return RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE == RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_LOW ? "low"
-        : (RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE == RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_VERY_HIGH ? "very_high"
-        : (RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_PROFILE == RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SHADING_HIGH ? "high" : "medium"));
 }
 
 template <typename SPEC>
@@ -638,7 +407,7 @@ static bool select_scenes(const std::string& requested, std::vector<SceneAxis>& 
     if(requested == "all") {
         scenes = {SceneAxis::OBJECTS_20, SceneAxis::PROCTHOR};
     }
-    else if(requested == "20_objects" || requested == "20-objects" || requested == "objects20") {
+    else if(requested == "20_objects") {
         scenes = {SceneAxis::OBJECTS_20};
     }
     else if(requested == "procthor") {
@@ -646,23 +415,6 @@ static bool select_scenes(const std::string& requested, std::vector<SceneAxis>& 
     }
     else {
         std::cerr << "Unsupported --scene: " << requested << std::endl;
-        return false;
-    }
-    return true;
-}
-
-static bool select_steps(const std::string& requested, std::vector<StepAxis>& steps) {
-    if(requested == "all") {
-        steps = {StepAxis::RENDER_ONLY, StepAxis::RENDER_PHYSICS};
-    }
-    else if(requested == "render_only" || requested == "render-only") {
-        steps = {StepAxis::RENDER_ONLY};
-    }
-    else if(requested == "render_physics" || requested == "render+physics" || requested == "render-physics") {
-        steps = {StepAxis::RENDER_PHYSICS};
-    }
-    else {
-        std::cerr << "Unsupported --step-mode: " << requested << std::endl;
         return false;
     }
     return true;
@@ -686,14 +438,13 @@ static bool select_outputs(const std::string& requested, std::vector<OutputAxis>
 }
 
 static bool ensure_output_dir(const std::string& dir) {
-    if(dir.empty() || dir == ".") {
-        return true;
+    std::error_code error;
+    std::filesystem::create_directories(dir, error);
+    if(error) {
+        std::cerr << "Cannot create output directory '" << dir << "': " << error.message() << std::endl;
+        return false;
     }
-    if(mkdir(dir.c_str(), 0755) == 0 || errno == EEXIST) {
-        return true;
-    }
-    std::cerr << "Failed to create output directory '" << dir << "': " << std::strerror(errno) << std::endl;
-    return false;
+    return true;
 }
 
 static std::string sanitize_label(const std::string& input) {
@@ -720,38 +471,6 @@ static std::string join_path(const std::string& dir, const std::string& file) {
         return dir + file;
     }
     return dir + "/" + file;
-}
-
-static void ensure_parent_dir(const std::string& path) {
-    const std::filesystem::path fs_path(path);
-    const std::filesystem::path parent = fs_path.parent_path();
-    if(!parent.empty()) {
-        std::filesystem::create_directories(parent);
-    }
-}
-
-static std::string csv_quote(const std::string& input) {
-    std::string out = "\"";
-    for(char ch : input) {
-        if(ch == '"') {
-            out += "\"\"";
-        }
-        else {
-            out.push_back(ch);
-        }
-    }
-    out += '"';
-    return out;
-}
-
-static std::string cuda_device_name() {
-    int device_id = 0;
-    cudaGetDevice(&device_id);
-    cudaDeviceProp prop{};
-    if(cudaGetDeviceProperties(&prop, device_id) == cudaSuccess) {
-        return prop.name;
-    }
-    return "unknown";
 }
 
 static void add_box(rlt::rendering::raytracing::Object& objects20, T cx, T cy, T cz, T sx, T sy, T sz, T r, T g, T b) {
@@ -972,7 +691,8 @@ static void rotate_by_quaternion(T w, T x, T y, T z, const T v[3], T out[3]) {
 template <typename SPEC>
 static std::vector<CameraPose> make_camera_poses(const rlt::rendering::SceneMetadata<T>& metadata, SceneAxis scene, const Options& options) {
     static constexpr T PI = static_cast<T>(3.14159265358979323846);
-    const OrientationMode mode = orientation_mode(options);
+    const auto mode = options.orientation_mode == "look_at_scene_jitter" ? OrientationMode::LOOK_AT_SCENE_JITTER
+        : (options.orientation_mode == "uniform_so3" ? OrientationMode::UNIFORM_SO3 : OrientationMode::RANDOM_YAW_PITCH);
     std::vector<CameraPose> poses(SPEC::NUM_CAMERAS);
     std::mt19937 rng(options.seed);
     std::uniform_real_distribution<T> unit_dist(static_cast<T>(0), static_cast<T>(1));
@@ -1047,7 +767,8 @@ static void write_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<S
     const CameraOffset offset = camera_offset(scene);
     const T eye[3] = {offset.x, offset.y, offset.z};
     const T aspect = static_cast<T>(SPEC::CAM_WIDTH) / static_cast<T>(SPEC::CAM_HEIGHT);
-    std::vector<rlt::rendering::raytracing::Camera<T>> camera_staging(SPEC::NUM_CAMERAS);
+    rlt::Tensor<typename decltype(renderer.cameras)::SPEC> camera_staging;
+    malloc(device, camera_staging);
     for(int i = 0; i < static_cast<int>(SPEC::NUM_CAMERAS); i++) {
         const CameraPose& pose = poses[i];
         const T look_at[3] = {
@@ -1055,9 +776,10 @@ static void write_cameras(DEVICE& device, rlt::rendering::raytracing::Renderer<S
             eye[1] + pose.direction[1],
             eye[2] + pose.direction[2]
         };
-        camera_staging[i] = rlt::make_camera_data(eye, look_at, pose.up, FOV, aspect);
+        data(camera_staging)[i] = make_camera_data(eye, look_at, pose.up, FOV, aspect);
     }
-    cudaMemcpy(rlt::data(rlt::cameras(device, renderer)), camera_staging.data(), SPEC::NUM_CAMERAS * sizeof(rlt::rendering::raytracing::Camera<T>), cudaMemcpyHostToDevice);
+    copy(device, renderer.device, camera_staging, cameras(device, renderer));
+    free(device, camera_staging);
 }
 
 template <typename DEVICE, typename SPEC>
@@ -1069,11 +791,14 @@ static void write_single_camera(DEVICE& device, rlt::rendering::raytracing::Rend
         eye[1] + pose.direction[1],
         eye[2] + pose.direction[2]
     };
-    const auto camera = rlt::make_camera_data(eye, look_at, pose.up, FOV, aspect);
-    cudaMemcpy(rlt::data(rlt::cameras(device, renderer)), &camera, sizeof(camera), cudaMemcpyHostToDevice);
+    rlt::Tensor<typename decltype(renderer.cameras)::SPEC> staging;
+    malloc(device, staging);
+    data(staging)[0] = make_camera_data(eye, look_at, pose.up, FOV, aspect);
+    copy(device, renderer.device, staging, cameras(device, renderer));
+    free(device, staging);
 }
 
-static CameraPose make_single_frame_pose(const rlt::rendering::SceneMetadata<T>& metadata, const Options& options) {
+[[maybe_unused]] static CameraPose make_single_frame_pose(const rlt::rendering::SceneMetadata<T>& metadata, const Options& options) {
     CameraPose pose{};
     const T eye[3] = {options.position[0], options.position[1], options.position[2]};
     if(options.has_orientation) {
@@ -1111,128 +836,35 @@ static CameraPose make_single_frame_pose(const rlt::rendering::SceneMetadata<T>&
 }
 
 template <typename DEVICE, typename SPEC>
-static void render_output_launch(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer) {
-    if constexpr (SPEC::HAS_DEPTH) {
-        rlt::render_launch(device, renderer);
-    }
-    else {
-        rlt::render_launch(device, renderer);
-    }
-}
+static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, const Options& options) {
+    using Clock = std::chrono::steady_clock;
+    const auto warmup_start = Clock::now();
+    do {
+        render(device, renderer);
+    } while(std::chrono::duration<double>(Clock::now() - warmup_start).count() < options.warmup_seconds);
 
-template <typename DEVICE, typename SPEC>
-static void render_output_sync(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer) {
-    if constexpr (SPEC::HAS_DEPTH) {
-        rlt::render_sync(device, renderer);
-    }
-    else {
-        rlt::render_sync(device, renderer);
-    }
-}
-
-template <typename DEVICE, typename SPEC>
-static void render_output(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer) {
-    render_output_launch(device, renderer);
-    render_output_sync(device, renderer);
-}
-
-template <typename SPEC>
-static void step_physics_cameras(rlt::rendering::raytracing::Renderer<SPEC>& renderer, rt_benchmark::PhysicsSimulation& physics, int iteration, void* camera_buffer_override = nullptr) {
-    void* camera_buffer = camera_buffer_override != nullptr
-        ? camera_buffer_override
-        : (void*)rlt::data(renderer.cameras);
-    cudaStream_t stream = (cudaStream_t)owlParamsGetCudaStream(renderer.backend->launch_params, 0);
-    if(!rt_benchmark::physics_step_cameras(physics, camera_buffer, stream, iteration)) {
-        std::cerr << "Physics camera step failed: " << rt_benchmark::physics_last_error() << std::endl;
-        std::exit(1);
-    }
-}
-
-template <typename DEVICE, typename SPEC>
-static BenchmarkResult run_benchmark(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, SceneAxis scene, StepAxis step, rt_benchmark::PhysicsSimulation* physics, void* physics_camera_buffer, const Options& options) {
-    const bool with_physics = step == StepAxis::RENDER_PHYSICS;
-    if(with_physics && physics == nullptr) {
-        std::cerr << "render_physics requested without an initialized physics simulation" << std::endl;
-        std::exit(1);
-    }
-
-    if(options.warmup_seconds > 0) {
-        auto warmup_start = std::chrono::high_resolution_clock::now();
-        int warmup_iterations = 0;
-        for(;;) {
-            if(with_physics) {
-                step_physics_cameras(renderer, *physics, warmup_iterations, physics_camera_buffer);
-            }
-            render_output(device, renderer);
-            warmup_iterations++;
-            auto now = std::chrono::high_resolution_clock::now();
-            const double elapsed = std::chrono::duration<double>(now - warmup_start).count();
-            if(elapsed >= options.warmup_seconds && warmup_iterations > 0) {
+    synchronize(device, renderer);
+    const auto start = Clock::now();
+    int iterations = 0;
+    for(;;) {
+        render_launch(device, renderer);
+        iterations++;
+        if(iterations % options.sync_interval == 0) {
+            render_sync(device, renderer);
+            if(options.iterations == 0 && std::chrono::duration<double>(Clock::now() - start).count() >= options.seconds) {
                 break;
             }
         }
-    }
-    else {
-        for(int i = 0; i < options.warmup_iterations; i++) {
-            if(with_physics) {
-                step_physics_cameras(renderer, *physics, i, physics_camera_buffer);
-            }
-            render_output(device, renderer);
+        if(options.iterations > 0 && iterations == options.iterations) {
+            break;
         }
     }
-
-    cudaDeviceSynchronize();
-    auto wall_start = std::chrono::high_resolution_clock::now();
-    int iterations = 0;
-
-    if(options.iterations > 0) {
-        for(; iterations < options.iterations; iterations++) {
-            if(with_physics) {
-                step_physics_cameras(renderer, *physics, iterations, physics_camera_buffer);
-            }
-            render_output_launch(device, renderer);
-            if((iterations + 1) % options.sync_interval == 0) {
-                render_output_sync(device, renderer);
-            }
-        }
-        if(iterations % options.sync_interval != 0) {
-            render_output_sync(device, renderer);
-        }
-    }
-    else {
-        for(;;) {
-            if(with_physics) {
-                step_physics_cameras(renderer, *physics, iterations, physics_camera_buffer);
-            }
-            render_output_launch(device, renderer);
-            iterations++;
-            if(iterations % options.sync_interval == 0) {
-                render_output_sync(device, renderer);
-                auto now = std::chrono::high_resolution_clock::now();
-                const double elapsed = std::chrono::duration<double>(now - wall_start).count();
-                if(elapsed >= options.seconds) {
-                    break;
-                }
-            }
-        }
-        if(iterations % options.sync_interval != 0) {
-            render_output_sync(device, renderer);
-        }
-    }
-
-    cudaDeviceSynchronize();
-    auto wall_end = std::chrono::high_resolution_clock::now();
-    const double elapsed_s = std::chrono::duration<double>(wall_end - wall_start).count();
-    const double frames = static_cast<double>(iterations) * static_cast<double>(SPEC::NUM_CAMERAS);
-    const double pixels = frames * static_cast<double>(SPEC::CAM_PIXELS);
-    const double rays = pixels * static_cast<double>(SPEC::HAS_DEPTH ? SPEC::DEPTH_SAMPLES : SPEC::RGB_SAMPLES);
-    return {
-        iterations,
-        elapsed_s,
-        frames / elapsed_s,
-        pixels / elapsed_s,
-        (rays / 1.0e6) / elapsed_s
-    };
+    synchronize(device, renderer);
+    const double elapsed = std::chrono::duration<double>(Clock::now() - start).count();
+    const double frames = static_cast<double>(iterations) * SPEC::NUM_CAMERAS;
+    const double pixels = frames * SPEC::CAM_PIXELS;
+    return {iterations, elapsed, frames / elapsed, pixels / elapsed,
+        pixels * samples_per_pixel_for_spec<SPEC>() / (1e6 * elapsed)};
 }
 
 template <typename SPEC, typename DEVICE>
@@ -1243,383 +875,256 @@ static bool setup_scene(DEVICE& device, rlt::rendering::Bundle<T>& bundle, Scene
         return true;
     }
     RL_TOOLS_RENDERING_RAYTRACING_LOG("Loading ProcTHOR scene: " << options.procthor_path);
-    return rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, options.procthor_path);
+    return load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, options.procthor_path);
 }
 
 template <typename DEVICE, typename SPEC>
 static void save_verification_image(DEVICE& device, rlt::rendering::raytracing::Renderer<SPEC>& renderer, const std::string& filename) {
     if constexpr (SPEC::HAS_DEPTH) {
-        rlt::save_depth_image(device, renderer, filename.c_str());
+        save_depth_image(device, renderer, filename.c_str());
     }
     else {
-        rlt::save_image(device, renderer, filename.c_str());
+        save_image(device, renderer, filename.c_str());
     }
 }
 
-template <typename DEVICE, typename SPEC>
-static bool run_procthor_frame(DEVICE& device, const Options& options, const std::string& cuda_name) {
-    static_assert(SPEC::NUM_CAMERAS == 1, "ProcTHOR frame target must use one camera");
-    rlt::rendering::raytracing::Renderer<SPEC> renderer;
-    rlt::malloc(device, renderer);
-
-    rlt::rendering::Bundle<T> bundle;
-    if(!setup_scene<SPEC>(device, bundle, SceneAxis::PROCTHOR, options)) {
-        RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Failed to set up ProcTHOR scene.");
-        rlt::free(device, renderer);
-        return false;
-    }
-
-    rlt::init(device, renderer, bundle);
-    const CameraPose pose = make_single_frame_pose(bundle.metadata, options);
-    write_single_camera(device, renderer, options.position, pose);
-    render_output(device, renderer);
-    cudaDeviceSynchronize();
-
-    ensure_parent_dir(options.output_png);
-    save_verification_image(device, renderer, options.output_png);
-    std::cout
-        << "{\"library\":\"hyperdrone\""
-        << ",\"scene\":\"procthor\""
-        << ",\"output\":\"" << output_name_for_spec<SPEC>() << "\""
-        << ",\"cuda_device\":\"" << cuda_name << "\""
-        << ",\"width\":" << SPEC::CAM_WIDTH
-        << ",\"height\":" << SPEC::CAM_HEIGHT
-        << ",\"camera_position_flu\":["
-        << options.position[0] << "," << options.position[1] << "," << options.position[2] << "]"
-        << ",\"camera_forward_flu\":["
-        << pose.direction[0] << "," << pose.direction[1] << "," << pose.direction[2] << "]"
-        << ",\"camera_up_flu\":["
-        << pose.up[0] << "," << pose.up[1] << "," << pose.up[2] << "]"
-        << ",\"camera_orientation_mode\":\""
-        << (options.has_orientation ? "orientation_flu_wxyz" : (options.has_forward ? "forward_up" : (options.has_look_at ? "look_at_up" : "scene_center_up"))) << "\""
-        << ",\"camera_orientation_flu_wxyz\":"
-        << (options.has_orientation ? "[" : "null");
-    if(options.has_orientation) {
-        std::cout
-            << options.orientation_wxyz[0] << "," << options.orientation_wxyz[1] << ","
-            << options.orientation_wxyz[2] << "," << options.orientation_wxyz[3] << "]";
-    }
-    std::cout
-        << ",\"procthor_path\":\"" << options.procthor_path << "\""
-        << ",\"output_png\":\"" << options.output_png << "\""
-        << "}\n";
-
-    rlt::free(device, renderer);
-    return true;
+template <typename VALUE>
+static std::string number(VALUE value) {
+    std::ostringstream out;
+    out << std::setprecision(std::numeric_limits<double>::max_digits10) << value;
+    return out.str();
 }
 
-template <typename DEVICE, typename SPEC>
-static bool run_combination(DEVICE& device, SceneAxis scene, StepAxis step, const Options& options, const std::string& cuda_name, const std::string& gpu_label) {
-    rlt::rendering::raytracing::Renderer<SPEC> renderer;
-    rlt::malloc(device, renderer);
-
-    rlt::rendering::Bundle<T> bundle;
-    if(!setup_scene<SPEC>(device, bundle, scene, options)) {
-        RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Failed to set up scene: " << scene_name(scene));
-        rlt::free(device, renderer);
-        return false;
-    }
-
-    rlt::init(device, renderer, bundle);
-    const OrientationMode orientation = orientation_mode(options);
-    std::vector<CameraPose> camera_poses = make_camera_poses<SPEC>(bundle.metadata, scene, options);
-    write_cameras(device, renderer, scene, camera_poses);
-
-    rt_benchmark::PhysicsSimulation physics;
-    rt_benchmark::PhysicsSimulation* physics_ptr = nullptr;
-    void* physics_camera_buffer = nullptr;
-    if(step == StepAxis::RENDER_PHYSICS) {
-        std::vector<rt_benchmark::PhysicsCameraPose> physics_poses(camera_poses.size());
-        for(size_t i = 0; i < camera_poses.size(); i++) {
-            std::memcpy(physics_poses[i].direction, camera_poses[i].direction, sizeof(physics_poses[i].direction));
-            std::memcpy(physics_poses[i].up, camera_poses[i].up, sizeof(physics_poses[i].up));
+static std::string vector_string(const T* values, int count) {
+    std::string result;
+    for(int i = 0; i < count; i++) {
+        if(i > 0) {
+            result += ' ';
         }
-        const CameraOffset initial_offset = camera_offset(scene);
-        const float initial_position[3] = {initial_offset.x, initial_offset.y, initial_offset.z};
-        const float aspect = static_cast<float>(SPEC::CAM_WIDTH) / static_cast<float>(SPEC::CAM_HEIGHT);
-        if(!rt_benchmark::init_physics_simulation(
-               physics,
-               static_cast<int>(SPEC::NUM_CAMERAS),
-               initial_position,
-               physics_poses.data(),
-               FOV,
-               aspect,
-               options.seed)) {
-            RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Failed to initialize physics simulation: " << rt_benchmark::physics_last_error());
-            rlt::free(device, renderer);
-            return false;
-        }
-        physics_ptr = &physics;
-        const size_t camera_buffer_bytes =
-            static_cast<size_t>(SPEC::NUM_CAMERAS) *
-            sizeof(rlt::rendering::raytracing::Camera<T>);
-        cudaError_t camera_alloc_status = cudaMalloc(&physics_camera_buffer, camera_buffer_bytes);
-        if(camera_alloc_status != cudaSuccess) {
-            RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Failed to allocate physics camera buffer: " << cudaGetErrorString(camera_alloc_status));
-            rt_benchmark::free_physics_simulation(physics);
-            rlt::free(device, renderer);
-            return false;
-        }
+        result += number(values[i]);
     }
-
-    size_t free_mem = 0;
-    size_t total_mem = 0;
-    cudaMemGetInfo(&free_mem, &total_mem);
-    const CameraOffset offset = camera_offset(scene);
-    const std::string anti_aliasing_name = anti_aliasing_name_for_spec<SPEC>();
-    const char* shading_profile = shading_profile_name_for_spec<SPEC>();
-
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("Benchmark combination: scene=" << scene_name(scene)
-        << ", output=" << output_name_for_spec<SPEC>()
-        << ", step_mode=" << step_name(step)
-        << ", shading_profile=" << shading_profile
-        << ", anti_aliasing=" << anti_aliasing_name
-        << ", aa_grid_size=" << (SPEC::ENABLE_ANTI_ALIASING ? SPEC::ANTI_ALIASING_GRID_SIZE : 1)
-        << ", envs=" << SPEC::NUM_CAMERAS
-        << ", resolution=" << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT
-        << ", fov_deg=" << static_cast<double>(FOV)
-        << ", camera_offset_flu=[" << offset.x << "," << offset.y << "," << offset.z << "]"
-        << ", camera_orientation_sampling=" << orientation_mode_name(orientation)
-        << ", seed=" << options.seed);
-
-    BenchmarkResult result = run_benchmark(device, renderer, scene, step, physics_ptr, physics_camera_buffer, options);
-
-    std::string verification_name = std::string("verify_hyperdrone_")
-        + scene_name(scene) + "_"
-        + output_name_for_spec<SPEC>() + "_";
-#if RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_EXTENDED_CSV
-    verification_name += std::string(shading_profile) + "_" + anti_aliasing_name + "_";
-#endif
-    verification_name += std::string(step_name(step)) + "_"
-        + sanitize_label(gpu_label) + "_"
-        + std::to_string(SPEC::NUM_CAMERAS) + "views_"
-        + std::to_string(SPEC::CAM_WIDTH) + "x" + std::to_string(SPEC::CAM_HEIGHT) + ".png";
-    const std::string verification_path = join_path(options.output_dir, verification_name);
-    save_verification_image(device, renderer, verification_path);
-
-    std::cout << "csv_header,scene,objects20_layout,output,step_mode,gpu_label,cuda_device,num_envs,width,height,camera_offset_x,camera_offset_y,camera_offset_z,camera_orientation_sampling,"
-#if RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_EXTENDED_CSV
-        << "shading_profile,anti_aliasing,aa_grid_size,samples_per_pixel,"
-#endif
-        << "iterations,elapsed_s,frames_per_s,pixels_per_s,mrays_per_s,cuda_free_mb_after_setup,cuda_total_mb,verification_png\n";
-    std::cout << "csv_result,"
-        << csv_quote(scene_name(scene)) << ","
-        << csv_quote(scene == SceneAxis::OBJECTS_20 ? OBJECTS20_LAYOUT_NAME : "") << ","
-        << csv_quote(output_name_for_spec<SPEC>()) << ","
-        << csv_quote(step_name(step)) << ","
-        << csv_quote(gpu_label) << ","
-        << csv_quote(cuda_name) << ","
-        << SPEC::NUM_CAMERAS << ","
-        << SPEC::CAM_WIDTH << ","
-        << SPEC::CAM_HEIGHT << ","
-        << offset.x << ","
-        << offset.y << ","
-        << offset.z << ","
-        << csv_quote(orientation_mode_name(orientation)) << ","
-#if RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_EXTENDED_CSV
-        << csv_quote(shading_profile) << ","
-        << csv_quote(anti_aliasing_name) << ","
-        << (SPEC::ENABLE_ANTI_ALIASING ? SPEC::ANTI_ALIASING_GRID_SIZE : 1) << ","
-        << samples_per_pixel_for_spec<SPEC>() << ","
-#endif
-        << result.iterations << ","
-        << result.elapsed_s << ","
-        << result.frames_per_s << ","
-        << result.pixels_per_s << ","
-        << result.mrays_per_s << ","
-        << static_cast<double>(free_mem) / (1024.0 * 1024.0) << ","
-        << static_cast<double>(total_mem) / (1024.0 * 1024.0) << ","
-        << csv_quote(verification_path) << "\n";
-
-    if(physics_camera_buffer != nullptr) {
-        cudaFree(physics_camera_buffer);
-    }
-    rt_benchmark::free_physics_simulation(physics);
-    rlt::free(device, renderer);
-    return true;
-}
-
-template <bool T_OUTPUT_RGB, bool T_OUTPUT_DEPTH>
-static bool run_output_combinations(DEVICE& device, const std::vector<SceneAxis>& scenes, const std::vector<StepAxis>& steps, const Options& options, const std::string& cuda_name, const std::string& gpu_label) {
-    using SPEC = BenchmarkSpec<T_OUTPUT_RGB, T_OUTPUT_DEPTH>;
-    bool ok = true;
-    for(SceneAxis scene : scenes) {
-        for(StepAxis step : steps) {
-            ok = run_combination<DEVICE, SPEC>(device, scene, step, options, cuda_name, gpu_label) && ok;
-        }
-    }
-    return ok;
-}
-
-#if RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SWEEP
-static bool selected_sweep_config(const Options& options, int config_index) {
-    if(config_index < options.sweep_config_start) {
-        return false;
-    }
-    if(options.sweep_config_count > 0 && config_index >= options.sweep_config_start + options.sweep_config_count) {
-        return false;
-    }
-    return true;
-}
-
-static void cooldown_between_sweep_configs(const Options& options) {
-    if(options.cooldown_seconds <= 0) {
-        return;
-    }
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("Cooling down for " << options.cooldown_seconds << " seconds before next sweep renderer config.");
-    std::this_thread::sleep_for(std::chrono::duration<double>(options.cooldown_seconds));
+    return result;
 }
 
 template <typename SPEC>
-static bool run_sweep_spec(DEVICE& device, const std::vector<SceneAxis>& scenes, const std::vector<StepAxis>& steps, const Options& options, const std::string& cuda_name, const std::string& gpu_label, bool& first_config, int& config_index) {
-    const int current_config_index = config_index++;
-    if(!selected_sweep_config(options, current_config_index)) {
+static std::string case_name(SceneAxis scene, const Options& options, const std::string& device,
+                             const std::string& scene_id, const CameraPose* pose) {
+    std::string orientation = options.orientation_mode + "_seed" + std::to_string(options.seed);
+    if(pose != nullptr) {
+        const std::string camera = vector_string(options.position, 3) + ";"
+            + vector_string(pose->direction, 3) + ";" + vector_string(pose->up, 3);
+        conta::detail::Sha1 hash;
+        hash.update(reinterpret_cast<const unsigned char*>(camera.data()), camera.size());
+        orientation = "pose" + hash.finalize().substr(0, 12);
+    }
+    return std::string(CONFIG::MODE == BenchmarkMode::frame ? "frame_" : "render_") + BACKEND_NAME + "_"
+        + sanitize_label(device) + "_" + scene_name(scene) + "_" + scene_id + "_" + output_name_for_spec<SPEC>() + "_"
+        + shading_profile_name_for_spec<SPEC>() + "_" + anti_aliasing_name_for_spec<SPEC>() + "_"
+        + std::to_string(SPEC::NUM_CAMERAS) + "views_" + std::to_string(SPEC::CAM_WIDTH) + "x"
+        + std::to_string(SPEC::CAM_HEIGHT) + "_" + orientation;
+}
+
+template <typename SPEC>
+static void report(SceneAxis scene, const Options& options, const std::string& device,
+                   const BenchmarkResult& result, const std::string& image, const std::string& scene_id,
+                   const std::string& identity, const CameraPose* pose) {
+    const auto offset = camera_offset(scene);
+    const T eye[3] = {offset.x, offset.y, offset.z};
+    const std::string reference = scene == SceneAxis::PROCTHOR ? options.procthor_path : OBJECTS20_LAYOUT_NAME;
+    const bool frame = CONFIG::MODE == BenchmarkMode::frame;
+    const T* position = frame ? options.position : eye;
+    const nlohmann::json record = {
+        {"schema", "render-v1"},
+        {"workload", frame ? "frame" : "render_only"},
+        {"backend", BACKEND_NAME},
+        {"device", device},
+        {"scene", scene_name(scene)},
+        {"scene_source", reference},
+        {"scene_id", scene_id},
+        {"output", output_name_for_spec<SPEC>()},
+        {"shading_profile", shading_profile_name_for_spec<SPEC>()},
+        {"num_cameras", SPEC::NUM_CAMERAS},
+        {"width", SPEC::CAM_WIDTH},
+        {"height", SPEC::CAM_HEIGHT},
+        {"fov_degrees", FOV},
+        {"aa_grid_size", SPEC::ANTI_ALIASING_GRID_SIZE},
+        {"samples_per_pixel", samples_per_pixel_for_spec<SPEC>()},
+        {"motion_blur", false},
+        {"num_probes", SPEC::NUM_PROBES},
+        {"camera_position_flu", {position[0], position[1], position[2]}},
+        {"orientation_mode", frame ? "explicit" : options.orientation_mode},
+        {"camera_forward_flu", pose == nullptr ? nlohmann::json(nullptr) : nlohmann::json(pose->direction)},
+        {"camera_up_flu", pose == nullptr ? nlohmann::json(nullptr) : nlohmann::json(pose->up)},
+        {"seed", options.seed},
+        {"warmup_seconds", frame ? 0.0 : options.warmup_seconds},
+        {"sync_interval", frame ? 1 : options.sync_interval},
+        {"iterations", result.iterations},
+        {"elapsed_s", result.elapsed_s},
+        {"frames_per_s", result.frames_per_s},
+        {"pixels_per_s", result.pixels_per_s},
+        {"primary_mrays_per_s", result.primary_mrays_per_s},
+        {"verification_png", image}
+    };
+    std::cout << record.dump() << '\n';
+
+    const std::string prefix = "raytracing/benchmark/render-v1/" + identity + "/sync" + std::to_string(frame ? 1 : options.sync_interval);
+    metra::log(prefix + "/elapsed_s", result.elapsed_s);
+    metra::log(prefix + "/frames_per_s", result.frames_per_s);
+    metra::log(prefix + "/pixels_per_s", result.pixels_per_s);
+    metra::log(prefix + "/primary_mrays_per_s", result.primary_mrays_per_s);
+}
+
+template <typename SPEC, typename DEVICE>
+static bool run_case(DEVICE& device, SceneAxis scene, const Options& options) {
+    rlt::rendering::Bundle<T> bundle;
+    if(!setup_scene<SPEC>(device, bundle, scene, options)) {
+        return false;
+    }
+    rlt::rendering::raytracing::Renderer<SPEC> renderer;
+    malloc(device, renderer);
+    init(device, renderer, bundle);
+    const std::string device_label = device_name(device, renderer);
+    RL_TOOLS_RENDERING_RAYTRACING_LOG("Rendering " << scene_name(scene) << " on " << BACKEND_NAME << " / " << device_label);
+
+    CameraPose pose{};
+    BenchmarkResult result{};
+    if constexpr (CONFIG::MODE == BenchmarkMode::frame) {
+        pose = make_single_frame_pose(bundle.metadata, options);
+        write_single_camera(device, renderer, options.position, pose);
+        synchronize(device, renderer);
+        const auto start = std::chrono::steady_clock::now();
+        render(device, renderer);
+        synchronize(device, renderer);
+        const double elapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
+        result = {1, elapsed, 1 / elapsed, SPEC::CAM_PIXELS / elapsed,
+            SPEC::CAM_PIXELS * samples_per_pixel_for_spec<SPEC>() / (1e6 * elapsed)};
+    }
+    else {
+        const auto poses = make_camera_poses<SPEC>(bundle.metadata, scene, options);
+        write_cameras(device, renderer, scene, poses);
+        result = run_benchmark(device, renderer, options);
+    }
+
+    const auto* frame_pose = CONFIG::MODE == BenchmarkMode::frame ? &pose : nullptr;
+    const std::string scene_id = scene == SceneAxis::PROCTHOR ? bundle.metadata.content_hash : OBJECTS20_LAYOUT_NAME;
+    const std::string identity = case_name<SPEC>(scene, options, device_label, scene_id, frame_pose);
+    const std::string image = options.output_png.empty()
+        ? join_path(options.output_dir, identity + ".png")
+        : options.output_png;
+    const auto parent = std::filesystem::path(image).parent_path();
+    if(!parent.empty() && !ensure_output_dir(parent.string())) {
+        free(device, renderer);
+        return false;
+    }
+    save_verification_image(device, renderer, image);
+    report<SPEC>(scene, options, device_label, result, image, scene_id, identity, frame_pose);
+    free(device, renderer);
+    return true;
+}
+
+template <typename SPEC, typename DEVICE>
+static bool run_scenes(DEVICE& device, const std::vector<SceneAxis>& scenes, const Options& options) {
+    for(SceneAxis scene : scenes) {
+        if(!run_case<SPEC>(device, scene, options)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+template <typename SPEC, typename DEVICE>
+static bool run_sweep_spec(DEVICE& device, const std::vector<SceneAxis>& scenes,
+                           const Options& options, bool& first, int& index) {
+    const int current = index++;
+    if(current < options.sweep_config_start || (options.sweep_config_count > 0
+       && current - options.sweep_config_start >= options.sweep_config_count)) {
         return true;
     }
-    if(!first_config) {
-        cooldown_between_sweep_configs(options);
+    if(!first && options.cooldown_seconds > 0) {
+        std::this_thread::sleep_for(std::chrono::duration<double>(options.cooldown_seconds));
     }
-    first_config = false;
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("Sweep renderer config index " << current_config_index);
-
-    bool ok = true;
-    for(SceneAxis scene : scenes) {
-        for(StepAxis step : steps) {
-            ok = run_combination<DEVICE, SPEC>(device, scene, step, options, cuda_name, gpu_label) && ok;
-        }
-    }
-    return ok;
+    first = false;
+    RL_TOOLS_RENDERING_RAYTRACING_LOG("Sweep configuration " << current);
+    return run_scenes<SPEC>(device, scenes, options);
 }
 
-template <TI T_RESOLUTION, bool T_ENABLE_AA, TI T_AA_GRID_SIZE>
-static bool run_sweep_resolution_aa(DEVICE& device, const std::vector<SceneAxis>& scenes, const std::vector<StepAxis>& steps, const std::vector<OutputAxis>& outputs, const Options& options, const std::string& cuda_name, const std::string& gpu_label, bool& first_config, int& config_index) {
-    static constexpr TI NUM_CAMERAS_FOR_RESOLUTION = SweepCameraCount<T_RESOLUTION>::VALUE;
-    bool ok = true;
+template <TI RESOLUTION, bool AA, typename DEVICE>
+static bool run_sweep_resolution(DEVICE& device, const std::vector<SceneAxis>& scenes,
+                                const std::vector<OutputAxis>& outputs, const Options& options, bool& first, int& index) {
+    constexpr TI COUNT = SweepCameraCount<RESOLUTION>::VALUE;
+    constexpr TI GRID = AA ? 2 : 1;
     for(OutputAxis output : outputs) {
         if(output == OutputAxis::RGB) {
-            using MEDIUM = SweepBenchmarkSpec<true, false, T_RESOLUTION, T_RESOLUTION, NUM_CAMERAS_FOR_RESOLUTION, rlt::rendering::raytracing::Medium, T_ENABLE_AA, T_AA_GRID_SIZE>;
-            using HIGH = SweepBenchmarkSpec<true, false, T_RESOLUTION, T_RESOLUTION, NUM_CAMERAS_FOR_RESOLUTION, rlt::rendering::raytracing::High, T_ENABLE_AA, T_AA_GRID_SIZE>;
-            using LOW = SweepBenchmarkSpec<true, false, T_RESOLUTION, T_RESOLUTION, NUM_CAMERAS_FOR_RESOLUTION, rlt::rendering::raytracing::Low, T_ENABLE_AA, T_AA_GRID_SIZE>;
-            ok = run_sweep_spec<MEDIUM>(device, scenes, steps, options, cuda_name, gpu_label, first_config, config_index) && ok;
-            ok = run_sweep_spec<HIGH>(device, scenes, steps, options, cuda_name, gpu_label, first_config, config_index) && ok;
-            ok = run_sweep_spec<LOW>(device, scenes, steps, options, cuda_name, gpu_label, first_config, config_index) && ok;
+            using MEDIUM = SweepBenchmarkSpec<true, false, RESOLUTION, RESOLUTION, COUNT, rlt::rendering::raytracing::Medium, AA, GRID>;
+            using HIGH = SweepBenchmarkSpec<true, false, RESOLUTION, RESOLUTION, COUNT, rlt::rendering::raytracing::High, AA, GRID>;
+            using LOW = SweepBenchmarkSpec<true, false, RESOLUTION, RESOLUTION, COUNT, rlt::rendering::raytracing::Low, AA, GRID>;
+            if(!run_sweep_spec<MEDIUM>(device, scenes, options, first, index)
+               || !run_sweep_spec<HIGH>(device, scenes, options, first, index)
+               || !run_sweep_spec<LOW>(device, scenes, options, first, index)) {
+                return false;
+            }
         }
         else {
-            using DEPTH = SweepBenchmarkSpec<false, true, T_RESOLUTION, T_RESOLUTION, NUM_CAMERAS_FOR_RESOLUTION, rlt::rendering::raytracing::Medium, T_ENABLE_AA, T_AA_GRID_SIZE>;
-            ok = run_sweep_spec<DEPTH>(device, scenes, steps, options, cuda_name, gpu_label, first_config, config_index) && ok;
+            using DEPTH = SweepBenchmarkSpec<false, true, RESOLUTION, RESOLUTION, COUNT, rlt::rendering::raytracing::Medium, AA, GRID>;
+            if(!run_sweep_spec<DEPTH>(device, scenes, options, first, index)) {
+                return false;
+            }
         }
     }
-    return ok;
+    return true;
 }
 
-static bool run_sweep(DEVICE& device, const std::vector<SceneAxis>& scenes, const std::vector<StepAxis>& steps, const std::vector<OutputAxis>& outputs, const Options& options, const std::string& cuda_name, const std::string& gpu_label) {
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("single-target sweep enabled: resolutions=64,128,256,512,1024,2048"
-        << ", rgb_profiles=medium,high,low"
-        << ", depth_profiles=medium"
-        << ", anti_aliasing=none,aa2"
-        << ", reference_pixels=" << SWEEP_REFERENCE_PIXELS
-        << ", sweep_config_start=" << options.sweep_config_start
-        << ", sweep_config_count=" << options.sweep_config_count
-        << ", cooldown_seconds=" << options.cooldown_seconds);
-
-    bool ok = true;
-    bool first_config = true;
-    int config_index = 0;
-    ok = run_sweep_resolution_aa<64, false, 1>(device, scenes, steps, outputs, options, cuda_name, gpu_label, first_config, config_index) && ok;
-    ok = run_sweep_resolution_aa<64, true, 2>(device, scenes, steps, outputs, options, cuda_name, gpu_label, first_config, config_index) && ok;
-    ok = run_sweep_resolution_aa<128, false, 1>(device, scenes, steps, outputs, options, cuda_name, gpu_label, first_config, config_index) && ok;
-    ok = run_sweep_resolution_aa<128, true, 2>(device, scenes, steps, outputs, options, cuda_name, gpu_label, first_config, config_index) && ok;
-    ok = run_sweep_resolution_aa<256, false, 1>(device, scenes, steps, outputs, options, cuda_name, gpu_label, first_config, config_index) && ok;
-    ok = run_sweep_resolution_aa<256, true, 2>(device, scenes, steps, outputs, options, cuda_name, gpu_label, first_config, config_index) && ok;
-    ok = run_sweep_resolution_aa<512, false, 1>(device, scenes, steps, outputs, options, cuda_name, gpu_label, first_config, config_index) && ok;
-    ok = run_sweep_resolution_aa<512, true, 2>(device, scenes, steps, outputs, options, cuda_name, gpu_label, first_config, config_index) && ok;
-    ok = run_sweep_resolution_aa<1024, false, 1>(device, scenes, steps, outputs, options, cuda_name, gpu_label, first_config, config_index) && ok;
-    ok = run_sweep_resolution_aa<1024, true, 2>(device, scenes, steps, outputs, options, cuda_name, gpu_label, first_config, config_index) && ok;
-    ok = run_sweep_resolution_aa<2048, false, 1>(device, scenes, steps, outputs, options, cuda_name, gpu_label, first_config, config_index) && ok;
-    ok = run_sweep_resolution_aa<2048, true, 2>(device, scenes, steps, outputs, options, cuda_name, gpu_label, first_config, config_index) && ok;
-    return ok;
+template <TI RESOLUTION = 64, typename DEVICE>
+static bool run_sweep(DEVICE& device, const std::vector<SceneAxis>& scenes,
+                      const std::vector<OutputAxis>& outputs, const Options& options, bool& first, int& index) {
+    if(!run_sweep_resolution<RESOLUTION, false>(device, scenes, outputs, options, first, index)
+       || !run_sweep_resolution<RESOLUTION, true>(device, scenes, outputs, options, first, index)) {
+        return false;
+    }
+    if constexpr (RESOLUTION < 2048) {
+        return run_sweep<RESOLUTION * 2>(device, scenes, outputs, options, first, index);
+    }
+    if(first) {
+        std::cerr << "Sweep selection contains no configurations (available: " << index << ")." << std::endl;
+        return false;
+    }
+    return true;
 }
-#endif
+
+template <typename CONFIG, typename DEVICE>
+static bool run(DEVICE& device, const std::vector<SceneAxis>& scenes,
+                const std::vector<OutputAxis>& outputs, const Options& options) {
+    if constexpr (CONFIG::MODE == BenchmarkMode::sweep) {
+        bool first = true;
+        int index = 0;
+        return run_sweep(device, scenes, outputs, options, first, index);
+    }
+    else {
+        for(OutputAxis output : outputs) {
+            if(output == OutputAxis::RGB) {
+                if(!run_scenes<BenchmarkSpec<true, false>>(device, scenes, options)) {
+                    return false;
+                }
+            }
+            else {
+                if(!run_scenes<BenchmarkSpec<false, true>>(device, scenes, options)) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+}
 
 int main(int argc, char** argv) {
     Options options;
-    if(!parse_options(argc, argv, options)) {
-        print_help(argv[0]);
-        return 1;
-    }
-    if(!ensure_output_dir(options.output_dir)) {
-        return 1;
-    }
-
     std::vector<SceneAxis> scenes;
-    std::vector<StepAxis> steps;
     std::vector<OutputAxis> outputs;
-    if(!select_scenes(options.scene, scenes) || !select_steps(options.step_mode, steps) || !select_outputs(options.output, outputs)) {
+    if(!parse_options(argc, argv, options) || !select_scenes(options.scene, scenes)
+       || !select_outputs(options.output, outputs) || !ensure_output_dir(options.output_dir)) {
         return 1;
     }
-
     DEVICE device;
-    rlt::init(device);
-
-    const std::string cuda_name = cuda_device_name();
-    const std::string gpu_label = options.gpu_label.empty() ? cuda_name : options.gpu_label;
-
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("simulator matrix benchmark output=" << output_name()
-        << ", shading_profile=" << shading_profile_name()
-        << ", compiled_envs=" << NUM_ENVS
-        << ", cuda_device=" << cuda_name
-        << ", gpu_label=" << gpu_label);
-
-    bool ok = true;
-    (void)outputs;
-#if RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_SWEEP
-    ok = run_sweep(device, scenes, steps, outputs, options, cuda_name, gpu_label);
-#elif RL_TOOLS_RENDERING_RAYTRACING_SIM_FRAME_TOOL
-    if(options.scene != "procthor" && options.scene != "all") {
-        std::cerr << "The single-frame target only supports --scene procthor." << std::endl;
-        return 1;
-    }
-    if constexpr (RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB) {
-        if(options.output != "rgb" && options.output != "all") {
-            std::cerr << "The single-frame target is compiled for RGB output." << std::endl;
-            return 1;
-        }
-        ok = run_procthor_frame<DEVICE, BenchmarkSpec<true, false>>(device, options, cuda_name);
-    }
-    else if constexpr (RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH) {
-        if(options.output != "depth" && options.output != "all") {
-            std::cerr << "The single-frame target is compiled for depth output." << std::endl;
-            return 1;
-        }
-        ok = run_procthor_frame<DEVICE, BenchmarkSpec<false, true>>(device, options, cuda_name);
-    }
-    else {
-        std::cerr << "The single-frame target must be compiled for RGB or depth output." << std::endl;
-        return 1;
-    }
-#else
-#if RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB
-    if(options.output == "depth") {
-        std::cerr << "This target was compiled for RGB only; use rendering_raytracing_sim_benchmark or rendering_raytracing_sim_benchmark_depth for depth." << std::endl;
-        return 1;
-    }
-    ok = run_output_combinations<true, false>(device, scenes, steps, options, cuda_name, gpu_label) && ok;
-#elif RL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_OUTPUT_MODE == RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
-    if(options.output == "rgb") {
-        std::cerr << "This target was compiled for depth only; use rendering_raytracing_sim_benchmark or rendering_raytracing_sim_benchmark_rgb for RGB." << std::endl;
-        return 1;
-    }
-    ok = run_output_combinations<false, true>(device, scenes, steps, options, cuda_name, gpu_label) && ok;
-#else
-    for(OutputAxis output : outputs) {
-        if(output == OutputAxis::RGB) {
-            ok = run_output_combinations<true, false>(device, scenes, steps, options, cuda_name, gpu_label) && ok;
-        }
-        else {
-            ok = run_output_combinations<false, true>(device, scenes, steps, options, cuda_name, gpu_label) && ok;
-        }
-    }
-#endif
-#endif
-    return ok ? 0 : 1;
+    init(device);
+    return run<CONFIG>(device, scenes, outputs, options) ? 0 : 1;
 }

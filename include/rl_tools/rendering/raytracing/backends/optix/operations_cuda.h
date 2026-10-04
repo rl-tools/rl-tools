@@ -1735,6 +1735,15 @@ namespace rl_tools {
         return (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend->launch_params, 0);
     }
 
+    template <typename DEVICE, typename SPEC>
+    std::string device_name(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
+        cudaPointerAttributes attributes{};
+        utils::assert_exit(device, cudaPointerGetAttributes(&attributes, data(renderer.cameras)) == cudaSuccess, "OptiX: cannot identify renderer device");
+        cudaDeviceProp properties{};
+        utils::assert_exit(device, cudaGetDeviceProperties(&properties, attributes.device) == cudaSuccess, "OptiX: cannot query renderer device");
+        return properties.name;
+    }
+
     // scoped to the renderer's own streams — never a whole-device barrier
     template <typename DEVICE, typename SPEC>
     void synchronize(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){

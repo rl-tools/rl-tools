@@ -1,275 +1,55 @@
-# Raytracing Benchmarks
+# Raytracing benchmarks
 
-This directory contains the benchmark targets for the OptiX raytracing renderer.
-The simulator matrix target is the preferred benchmark for simulator-paper tables because it emits CSV rows and stitched PNG verification images.
-
-The current shared renderer FOV is 80 degrees. AA and motion blur are disabled in the ordinary matrix targets; the single-target sweep below covers both no-AA and 2x AA. The simulator matrix samples one deterministic Haar-uniform SO(3) camera orientation per camera from `--seed` by default. `20_objects` is viewed from the scene origin and ProcTHOR from `[-3.92, -5.67, 1.0]`. The `20_objects` scene uses the shared `canonical_staggered_v1` staggered spatial layout with alternating box and sphere entries.
-
-## Activate Environment
-
-Run from the repository root:
+The simulator benchmark supports OptiX, Metal, and Vulkan through the configured renderer backend. Its default workload matches `python -m hyperdrone.examples.benchmark`: ProcTHOR-Train-1, 4096 static cameras at 64×64, medium RGB, 80° FOV, no probes/AA/motion blur, seed 0, 2 seconds of warmup, and 10 seconds of measurement with synchronization every 10 launches. Python and C++ sample the same orientation distribution using different RNGs.
 
 ```bash
-cd ~/rl-tools2
-source .venv/bin/activate
-export CUDACXX=/usr/local/cuda-13.1/bin/nvcc
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target rendering_raytracing_sim_benchmark_medium -j5
+./build/src/rendering/raytracing/benchmark/rendering_raytracing_sim_benchmark_medium
 ```
 
-No package installation or environment setup is required by this document.
+`AUTO` selects the available backend. Use `-DRL_TOOLS_RENDERING_RAYTRACING_BACKEND=METAL`, `VULKAN`, or `OPTIX` to require one explicitly. OptiX requires CUDA; Vulkan requires headers and `glslangValidator`, plus a device with ray-query support at runtime. Vulkan can run on lavapipe for correctness testing. Neither Metal nor Vulkan requires CUDA.
 
-## Configure
+The default scene resolves `conta:75d1d67a17ecd16bc3a214baa895240da8060df7`, the same content hash as the Python example; `--procthor-path` accepts a file or a conta reference. The procedural `--scene 20_objects` case needs no downloaded scene.
 
-If `build/` is already configured with raytracing enabled, skip this step. Otherwise:
+## Targets and cases
 
-```bash
-CUDACXX=/usr/local/cuda-13.1/bin/nvcc cmake -B build \
-  -DCMAKE_BUILD_TYPE=Release
-```
+Canonical targets are `rendering_raytracing_sim_benchmark_{medium,high,very_high,low}`, `rendering_raytracing_sim_benchmark_sweep`, and `rendering_raytracing_procthor_frame_{medium,high,very_high,low}`. They are built explicitly. RGB and depth share each executable; select `--output rgb|depth|all`.
 
-The simulator matrix target uses `4096` parallel camera environments by default. To rebuild for another value:
+The render matrix is two scenes × two outputs:
 
 ```bash
-cmake -B build -DRL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS=8192
-```
-
-## Build
-
-Build all benchmark targets explicitly. Some targets are `EXCLUDE_FROM_ALL`, so a plain full build may not include them.
-
-```bash
-cmake --build build --target \
-  rendering_raytracing_benchmark \
-  rendering_raytracing_benchmark_depth \
-  rendering_raytracing_benchmark_rgbd \
-  rendering_raytracing_sim_benchmark \
-  rendering_raytracing_sim_benchmark_sweep \
-  rendering_raytracing_sim_benchmark_medium \
-  rendering_raytracing_sim_benchmark_high \
-  rendering_raytracing_sim_benchmark_very_high \
-  rendering_raytracing_sim_benchmark_low \
-  rendering_raytracing_sim_benchmark_rgb \
-  rendering_raytracing_sim_benchmark_depth \
-  -j5
-```
-
-## Run Simulator Matrix Benchmarks
-
-The default timed duration is 10 seconds per row and the default warmup is 2 seconds. PNG stitching and CSV logging happen after the timed section.
-
-Medium matrix:
-
-```bash
-OUT_MEDIUM=$(mktemp -d /tmp/rltools_rt_matrix_medium.XXXXXX)
 ./build/src/rendering/raytracing/benchmark/rendering_raytracing_sim_benchmark_medium \
-  --scene all \
-  --step-mode all \
-  --output all \
-  --seconds 10 \
-  --warmup-seconds 2 \
-  --gpu-label "$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1) medium" \
-  --output-dir "$OUT_MEDIUM" | tee "$OUT_MEDIUM/output.log"
-echo "$OUT_MEDIUM"
+  --scene all --output all --output-dir /tmp/rltools-render-matrix
 ```
 
-High matrix:
+Set the compile-time camera count with `-DRL_TOOLS_RENDERING_RAYTRACING_SIM_BENCHMARK_NUM_ENVS=16` for small correctness runs. The normal resolution is 64×64; frame tools use one camera at 1000×1000. Target configuration is generated from `simulator_matrix_config.h.in` by CMake.
+
+The sweep covers resolutions 64–2048, medium/high/low RGB and depth, with AA off and 2×2 AA. Camera count scales to preserve the normal target's pixel count, with a minimum of one camera. `--scene all --output all` produces 96 records. Configuration indices follow the selected outputs, with scenes sharing each configuration index.
 
 ```bash
-OUT_HIGH=$(mktemp -d /tmp/rltools_rt_matrix_high.XXXXXX)
-./build/src/rendering/raytracing/benchmark/rendering_raytracing_sim_benchmark_high \
-  --scene all \
-  --step-mode all \
-  --output all \
-  --seconds 10 \
-  --warmup-seconds 2 \
-  --gpu-label "$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1) high" \
-  --output-dir "$OUT_HIGH" | tee "$OUT_HIGH/output.log"
-echo "$OUT_HIGH"
-```
-
-Very High matrix:
-
-```bash
-OUT_VERY_HIGH=$(mktemp -d /tmp/rltools_rt_matrix_very_high.XXXXXX)
-./build/src/rendering/raytracing/benchmark/rendering_raytracing_sim_benchmark_very_high \
-  --scene all \
-  --step-mode all \
-  --output all \
-  --seconds 10 \
-  --warmup-seconds 2 \
-  --gpu-label "$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1) very_high" \
-  --output-dir "$OUT_VERY_HIGH" | tee "$OUT_VERY_HIGH/output.log"
-echo "$OUT_VERY_HIGH"
-```
-
-Low matrix:
-
-```bash
-OUT_LOW=$(mktemp -d /tmp/rltools_rt_matrix_low.XXXXXX)
-./build/src/rendering/raytracing/benchmark/rendering_raytracing_sim_benchmark_low \
-  --scene all \
-  --step-mode all \
-  --output all \
-  --seconds 10 \
-  --warmup-seconds 2 \
-  --gpu-label "$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1) low" \
-  --output-dir "$OUT_LOW" | tee "$OUT_LOW/output.log"
-echo "$OUT_LOW"
-```
-
-Each matrix covers:
-
-| Axis | Values |
-|---|---|
-| Scene | `20_objects`, `procthor` |
-| Output | `rgb`, `depth` |
-| Step mode | `render_only`, `render_physics` |
-| Profile | medium target, high target, very high target, low target |
-
-`High` uses PBR shading without punctual-light shadow rays, `VeryHigh` adds punctual-light shadow rays, `Medium` uses textured/basic shading, and `Low` uses flat per-geometry color.
-
-The benchmark writes one stitched PNG per row and CSV rows prefixed with `csv_result`.
-
-Extract table rows:
-
-```bash
-rg '^csv_result' "$OUT_MEDIUM/output.log"
-rg '^csv_result' "$OUT_HIGH/output.log"
-rg '^csv_result' "$OUT_LOW/output.log"
-```
-
-List verification images:
-
-```bash
-ls -lh "$OUT_MEDIUM"/*.png
-ls -lh "$OUT_HIGH"/*.png
-ls -lh "$OUT_LOW"/*.png
-```
-
-## Run Single-Target Resolution and AA Sweep
-
-This target avoids creating one CMake target per resolution/profile/AA combination. It runs the renderer configurations sequentially for resolutions `64, 128, 256, 512, 1024, 2048`, RGB profiles `medium, high, low`, depth once per resolution, and AA modes `none, aa2`. The sweep honors the usual simulator matrix scene, output, and step-mode filters. It keeps the 64x64 matrix workload as the reference and scales camera count down at higher resolutions to keep total pixels per iteration roughly constant.
-
-```bash
-OUT_SWEEP=$(mktemp -d /tmp/rltools_rt_matrix_sweep.XXXXXX)
 ./build/src/rendering/raytracing/benchmark/rendering_raytracing_sim_benchmark_sweep \
-  --scene all \
-  --step-mode all \
-  --output all \
-  --seconds 10 \
-  --warmup-seconds 2 \
-  --cooldown-seconds 10 \
-  --gpu-label "$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1) resolution-aa sweep" \
-  --output-dir "$OUT_SWEEP" | tee "$OUT_SWEEP/output.log"
-echo "$OUT_SWEEP"
+  --scene all --output all --output-dir /tmp/rltools-render-sweep
 ```
 
-With all scene, step, and output axes enabled, this emits 192 `csv_result` rows. The sweep CSV adds `shading_profile`, `anti_aliasing`, `aa_grid_size`, and `samples_per_pixel` columns.
+For a slice, use `--sweep-config-start` and `--sweep-config-count`; `--cooldown-seconds` defaults to 10 between configurations.
 
-The May 24, 2026 local benchmark run used:
+Frame tools accept a position and either a forward vector, look-at point, or quaternion, as shown by `--help`. With no pose arguments, they look from `[-3.92, -5.67, 1.0]` toward the scene center. `--output-png` requires a single output; otherwise artifact names are generated.
 
-```text
-target: rendering_raytracing_sim_benchmark_sweep
-output_dir: /tmp/rltools_rt_matrix_sweep_actual_20260524_03
-gpu_label: NVIDIA GeForce RTX 4090 Laptop GPU resolution-aa sweep 2026-05-24
-scene: all
-step_mode: all
-output: all
-orientation_mode: uniform_so3
-seed: 0
-num_envs: 4096
-seconds: 10
-warmup_seconds: 2
-warmup_iterations: 10
-sync_interval: 10
-cooldown_seconds: 10
-rows: 192
-```
+## Measurement and results
 
-Because the local command runner terminated very long single invocations, that run was split into chunks with `--sweep-config-start` and `--sweep-config-count 3`, with a 10 second sleep between chunk invocations. This chunking does not change the timed row parameters; it only limits wall time per process. A full unchunked invocation uses the same benchmark target and omits those two chunk flags.
+Warmup completes before timing. Even `--warmup-seconds 0` primes the renderer once. `--iterations N` selects a fixed count instead of duration; the final batch is drained even when it is shorter than `--sync-interval`. Scene loading, image saving, and reporting are outside the measured interval. Vulkan currently waits for the previous submission in each `render_launch`; equal sync intervals do not imply equal queue depth across backends.
 
-## Run Output-Specific Simulator Targets
+Normal, sweep, and frame tools emit one `render-v1` JSON object per result on its own line. Numbers and booleans retain their JSON types; camera vectors are arrays, with unavailable forward/up vectors represented by `null`. Records identify the workload, backend, selected device, scene source, scene content identity, camera configuration, sampling, timing, and verification PNG. Ray throughput counts primary samples; shading may trace additional rays. Frame measurements have workload `frame`; benchmark measurements have workload `render_only`. Extract JSON Lines with `rg '^\{' output.log`. Throughput and elapsed time are also logged to metra when `METRA_URL` is set. Backend, device, workload, scene reference, profile, resolution, camera count, orientation, seed, and sync interval distinguish metric series.
 
-These targets are useful when validating compile-time RGB-only or depth-only code paths. The all-output matrix above already covers both outputs.
+This replaces the old CUDA-specific CSV/JSON layouts. The unused-camera `render_physics` workload and its CUDA bridge, redundant target aliases, separate RGB/depth targets, `--step-mode`, `--gpu-label`, `--warmup-iterations`, and runtime `--num-envs`/`--resolution` options have been removed. Physics benchmarking requires its own execution contract.
 
-RGB-only:
+## Validation
+
+After building the medium benchmark, sweep, and medium frame targets:
 
 ```bash
-OUT_RGB=$(mktemp -d /tmp/rltools_rt_matrix_rgb.XXXXXX)
-./build/src/rendering/raytracing/benchmark/rendering_raytracing_sim_benchmark_rgb \
-  --scene all \
-  --step-mode all \
-  --output rgb \
-  --seconds 10 \
-  --warmup-seconds 2 \
-  --gpu-label "$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1) rgb-only" \
-  --output-dir "$OUT_RGB" | tee "$OUT_RGB/output.log"
-echo "$OUT_RGB"
+.venv/bin/python tests/src/rendering/raytracing/benchmark.py --build-dir build --backend metal --with-procthor
 ```
 
-Depth-only:
-
-```bash
-OUT_DEPTH=$(mktemp -d /tmp/rltools_rt_matrix_depth.XXXXXX)
-./build/src/rendering/raytracing/benchmark/rendering_raytracing_sim_benchmark_depth \
-  --scene all \
-  --step-mode all \
-  --output depth \
-  --seconds 10 \
-  --warmup-seconds 2 \
-  --gpu-label "$(nvidia-smi --query-gpu=name --format=csv,noheader | head -n1) depth-only" \
-  --output-dir "$OUT_DEPTH" | tee "$OUT_DEPTH/output.log"
-echo "$OUT_DEPTH"
-```
-
-## Run Standalone Renderer Benchmarks
-
-The standalone benchmark target in `benchmark.cpp` is older and model-file based. It includes collision probe rays and does not emit the simulator matrix CSV schema. It writes output files into the current working directory:
-
-- RGB target: `owl_test.png`, `owl_probes.bin`
-- Depth target: `owl_depth.png`, `owl_depth.bin`, `owl_probes.bin`
-- RGBD target: RGB and depth files plus probes
-
-Run it from a scratch directory so the outputs do not overwrite previous runs:
-
-```bash
-MODEL="$PWD/tests/data/ProcTHOR-Train-1.glb"
-OUT_STANDALONE=$(mktemp -d /tmp/rltools_rt_standalone.XXXXXX)
-pushd "$OUT_STANDALONE"
-
-"$OLDPWD/build/src/rendering/raytracing/benchmark/rendering_raytracing_benchmark" \
-  --model "$MODEL" | tee benchmark_rgb.log
-
-"$OLDPWD/build/src/rendering/raytracing/benchmark/rendering_raytracing_benchmark_depth" \
-  --model "$MODEL" | tee benchmark_depth.log
-
-"$OLDPWD/build/src/rendering/raytracing/benchmark/rendering_raytracing_benchmark_rgbd" \
-  --model "$MODEL" | tee benchmark_rgbd.log
-
-popd
-echo "$OUT_STANDALONE"
-```
-
-## Common Options
-
-Simulator matrix options:
-
-```text
---scene all|20_objects|procthor
---step-mode all|render_only|render_physics
---output all|rgb|depth
---seconds <timed seconds per row>
---iterations <fixed iterations per row>
---warmup-seconds <warmup seconds per row>
---warmup-iterations <count>
---sync-interval <count>
---cooldown-seconds <seconds>          # sweep target only
---sweep-config-start <index>          # sweep target only
---sweep-config-count <count>          # sweep target only
---seed <camera orientation seed>
---orientation-mode uniform_so3|random_yaw_pitch|look_at_scene_jitter
---gpu-label <label for CSV rows and PNG names>
---output-dir <directory for PNGs and output.log>
---procthor-path <path/to/ProcTHOR-Train-1.glb>
-```
-
-For paper-style numbers, keep the same `--seconds`, `--warmup-seconds`, `--seed`, FOV, resolution, and output settings across all simulator rows.
+Select the matching backend and omit `--with-procthor` for procedural-only checks. Each subprocess has a 20-second timeout. Vulkan CI uses 16 cameras on lavapipe; production defaults remain 4096.
