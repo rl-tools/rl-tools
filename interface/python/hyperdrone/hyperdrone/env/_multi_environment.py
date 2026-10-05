@@ -62,7 +62,7 @@ class EnvConfig:
     instances: int = 4
     cam_width: int = 32
     cam_height: int = 32
-    shading: str = "low"
+    shading: str = "high"
     history_length: int = 1
     preset: str = "crazyflie"
     task: str = None
