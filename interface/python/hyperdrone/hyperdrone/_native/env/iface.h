@@ -7,7 +7,7 @@
 // rl_tools::rl::environments::hyperdrone::MultiEnvironment<hyperdrone::World>. Buffers are host
 // float32/uint8 arrays sized by hyperdrone_env_config(). Bump
 // HYPERDRONE_ENV_IFACE_VERSION on any change to this file.
-#define HYPERDRONE_ENV_IFACE_VERSION 6
+#define HYPERDRONE_ENV_IFACE_VERSION 7
 
 namespace hyperdrone::env {
     struct Config {
@@ -24,7 +24,6 @@ namespace hyperdrone::env {
         uint32_t episode_step_limit;
         uint32_t observation_dim_imu;  // 0 when the World defines no IMU observation stream
         uint32_t frame_stride;         // env steps per rendered camera frame (1: every step)
-        float dt;                      // step period [s] (the dynamics integration dt)
     };
 }
 
@@ -48,6 +47,14 @@ extern "C" {
     // gate_asset_path: gate GLB for the moving_gate task (empty to omit); both also accept
     // "conta:HASH" references
     void hyperdrone_env_init(void* handle, const char* scenes, const char* drone_asset_path, const char* gate_asset_path, unsigned long long seed);
+    // parameters travel as JSON, {"dynamics": <l2f parameters>, "camera": {"mount": {"pose": {"position", "orientation"}}, "fov"}}; setters take full objects and return 0 for invalid JSON, and returned strings stay valid until the next getter call. The nominal parameters are what every instance is sampled (and randomized) from at reset; set them after hyperdrone_env_init, which restores the preset dynamics.
+    const char* hyperdrone_env_parameters(void* handle);
+    int hyperdrone_env_set_parameters(void* handle, const char* parameters_json);
+    // the current parameters of every instance (a JSON array of total_instances objects), as sampled at its last reset; set_instance_parameters takes one object per instance whose mask flag is set, in instance order, and they last until that instance's next reset
+    const char* hyperdrone_env_instance_parameters(void* handle);
+    int hyperdrone_env_set_instance_parameters(void* handle, const uint8_t* mask, const char* parameters_json_array);
+    // the "dynamics"."dynamics" object of an l2f registry entry (hyperdrone.dynamics.MODELS); null for an unknown name
+    const char* hyperdrone_env_model(void* handle, const char* name);
     // mask: total_instances uint8 flags; resamples parameters and states where set
     void hyperdrone_env_reset(void* handle, const uint8_t* mask);
     void hyperdrone_env_render(void* handle, const uint8_t* reset_mask);

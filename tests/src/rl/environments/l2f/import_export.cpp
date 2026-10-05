@@ -66,14 +66,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_L2F, IMPORT_EXPORT){
     nlohmann::json params_json_object = nlohmann::json::parse(params_json);
     rlt::from_json(device, env, params_json, params_reconstruct);
     static constexpr T EPSILON = 1e-5;
-    T abs_diff = rlt::abs_diff(device, params.dynamics, params_reconstruct.dynamics);
-    ASSERT_NEAR(abs_diff, 0, EPSILON);
-    if (abs_diff == 0){
-        ASSERT_EQ(std::memcmp(&params, &params_reconstruct, sizeof(params)), 0);
-    }
-    else{
-        ASSERT_NE(std::memcmp(&params, &params_reconstruct, sizeof(params)), 0);
-    }
+    ASSERT_NE(params_json.find("\"imu\""), std::string::npos);
+    ASSERT_EQ(rlt::abs_diff(device, params, params_reconstruct), 0);
 
     params_json_reconstruct = rlt::json(device, env, params_reconstruct);
     ASSERT_EQ(params_json_reconstruct, params_json);

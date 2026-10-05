@@ -223,7 +223,7 @@ std::string parameters_to_json(DEVICE& device, TASK_WORLD& world, const typename
         + ", \"scene_yaw_sin\": " + std::to_string(parameters.scene_yaw_sin)
         + ", \"cam_width\": " + std::to_string(WORLD_SPEC::CAM_WIDTH)
         + ", \"cam_height\": " + std::to_string(WORLD_SPEC::CAM_HEIGHT)
-        + ", \"fov\": " + std::to_string(parameters.fov) + "}}";
+        + ", \"fov\": " + std::to_string(parameters.camera.fov) + "}}";
     return parameters_json;
 }
 
@@ -446,6 +446,7 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
             auto& world = env.environments[member_i];
             rlt::init(device_compute, world, env.shared, scene_dataset, scene_corpus, first, last - first, global_member);
             world.rng_offset = global_member * N_ENVIRONMENTS_PER_SCENE;
+            world.parameters.camera.fov = CAMERA_FOV;
             for(TI slot_i = 0; slot_i < last - first; slot_i++){
                 std::cout << "  [" << first + slot_i << "] " << std::filesystem::path(scene_corpus.references[first + slot_i]).filename().string() << " — " << world.slots[slot_i].annotations.num_positions << " indoor positions" << std::endl;
             }
@@ -933,7 +934,7 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
                 rlt::malloc(device, eval_student);
                 rlt::copy(device_compute, device, student, eval_student);
                 char fov_buf[32];
-                std::snprintf(fov_buf, sizeof(fov_buf), "%.6g", (double)WORLD_SPEC::CAMERA_FOV);
+                std::snprintf(fov_buf, sizeof(fov_buf), "%.6g", (double)CAMERA_FOV);
                 std::string state_obs_string = rlt::string(device, env.environments[0].dynamics, ACTOR_STATE_OBS{});
                 std::string image_obs_string = std::string("CameraRGBStackedWithTarget(") + fov_buf + ", "
                     + std::to_string(CAM_HEIGHT) + ", " + std::to_string(CAM_WIDTH) + ", "

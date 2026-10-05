@@ -16,6 +16,21 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+    // chain components nest in any order: every chain overload is visible to every other
+    template<typename DEVICE, typename SPEC_A, typename SPEC_B>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::T abs_diff(DEVICE& device, const rl::environments::l2f::ParametersBase<SPEC_A>& a, const rl::environments::l2f::ParametersBase<SPEC_B>& b);
+    template<typename DEVICE, typename SPEC_A, typename SPEC_B>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::T abs_diff(DEVICE& device, const rl::environments::l2f::ParametersDisturbances<SPEC_A>& a, const rl::environments::l2f::ParametersDisturbances<SPEC_B>& b);
+    template<typename DEVICE, typename SPEC_A, typename SPEC_B>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::T abs_diff(DEVICE& device, const rl::environments::l2f::ParametersIMU<SPEC_A>& a, const rl::environments::l2f::ParametersIMU<SPEC_B>& b);
+    template<typename DEVICE, typename SPEC_A, typename SPEC_B>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::T abs_diff(DEVICE& device, const rl::environments::l2f::ParametersCTBRController<SPEC_A>& a, const rl::environments::l2f::ParametersCTBRController<SPEC_B>& b);
+    template<typename DEVICE, typename SPEC_A, typename SPEC_B>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::T abs_diff(DEVICE& device, const rl::environments::l2f::ParametersDomainRandomization<SPEC_A>& a, const rl::environments::l2f::ParametersDomainRandomization<SPEC_B>& b);
+    template<typename DEVICE, typename SPEC_A, typename SPEC_B>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::T abs_diff(DEVICE& device, const rl::environments::l2f::ParametersTrajectory<SPEC_A>& a, const rl::environments::l2f::ParametersTrajectory<SPEC_B>& b);
+    template<typename DEVICE, typename SPEC_A, typename SPEC_B>
+    RL_TOOLS_FUNCTION_PLACEMENT typename SPEC_A::T abs_diff(DEVICE& device, const rl::environments::l2f::ParametersObservationDelay<SPEC_A>& a, const rl::environments::l2f::ParametersObservationDelay<SPEC_B>& b);
     template<typename DEVICE, typename T_T_A, typename T_TI_A, typename T_T_B, typename T_TI_B, T_TI_A N>
     RL_TOOLS_FUNCTION_PLACEMENT T_T_A abs_diff(DEVICE& device, const rl::environments::l2f::parameters::Dynamics<T_T_A, T_TI_A, N>& a, const rl::environments::l2f::parameters::Dynamics<T_T_B, T_TI_B, N>& b) {
         using T = T_T_A;

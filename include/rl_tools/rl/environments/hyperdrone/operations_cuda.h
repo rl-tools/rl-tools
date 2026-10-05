@@ -75,7 +75,7 @@ namespace rl_tools{
                 const TI agent_i = camera_i % WORLD::N_VIEWS;
                 const auto& instance_parameters = get_ref(device, parameters, instance_i);
                 const auto& agent_state = _agent_state<SPEC>(get_ref(device, states, instance_i), agent_i);
-                auto close = make_camera<DEVICE, T>(device, instance_parameters.camera_mount, instance_parameters.fov, agent_state.orientation, agent_state.position, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin);
+                auto close = make_camera<DEVICE, T>(device, instance_parameters.camera, agent_state.orientation, agent_state.position, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin);
                 cameras[camera_i] = close;
                 if constexpr(SPEC::ENABLE_MOTION_BLUR){
                     bool reset = history_step == 0 || get(device, reset_mask, instance_i);

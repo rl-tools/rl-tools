@@ -90,7 +90,7 @@ namespace rl_tools {
             const T aspect = static_cast<T>(BASE_SPEC::CAM_WIDTH) / static_cast<T>(BASE_SPEC::CAM_HEIGHT);
             for (TI instance_i = 0; instance_i < INSTANCES; instance_i++) {
                 const auto& instance_parameters = get_ref(device, parameters, instance_i);
-                set(device, world.camera_staging_close, rl::environments::hyperdrone::make_target_camera<DEVICE, T>(device, instance_parameters.camera_mount, instance_parameters.fov, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin, instance_parameters.target_roll, instance_parameters.target_pitch), instance_i);
+                set(device, world.camera_staging_close, rl::environments::hyperdrone::make_target_camera<DEVICE, T>(device, instance_parameters.camera, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin, instance_parameters.target_roll, instance_parameters.target_pitch), instance_i);
             }
             copy(device, world.renderer.device, world.camera_staging_close, cameras(device, world.renderer));
             if constexpr (BASE_SPEC::ENABLE_MOTION_BLUR) {

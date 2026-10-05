@@ -481,23 +481,25 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, INITIALIZ
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, CAMERA_CALIBRATION_GEOMETRY){
     DEVICE device;
     rlt::init(device);
-    struct Case { T forward[3]; T up[3]; T fov; TI width; TI height; };
+    struct Case { T orientation[4]; T fov; TI width; TI height; };
+    const T pitch = std::atan2((T)0.4359, (T)0.9);
+    const T yaw = rlt::math::PI<T> / 4;
     const Case cases[] = {
-        {{1, 0, 0}, {0, 0, 1}, (T)63.78166175396324, 64, 64},          // default mount, default fov
-        {{1, 0, 0}, {0, 0, 1}, (T)80, 320, 240},                       // baseline resolution
-        {{(T)0.9, 0, (T)-0.4359}, {(T)0.4359, 0, (T)0.9}, (T)70, 128, 96}, // pitched-down mount
-        {{(T)0.7, (T)0.7, 0}, {0, 0, 1}, (T)50, 200, 150},             // yawed mount, non-orthogonal handling
+        {{1, 0, 0, 0}, (T)63.78166175396324, 64, 64},                          // default mount, default fov
+        {{1, 0, 0, 0}, (T)80, 320, 240},                                       // baseline resolution
+        {{std::cos(pitch / 2), 0, std::sin(pitch / 2), 0}, (T)70, 128, 96},    // pitched-down mount
+        {{std::cos(yaw / 2), 0, 0, std::sin(yaw / 2)}, (T)50, 200, 150},       // yawed mount
     };
     for(const Case& c : cases){
         rlt::rl::environments::hyperdrone::CameraMount<T> mount;
-        for(TI dim_i = 0; dim_i < 3; dim_i++){
-            mount.offset_body[dim_i] = 0;
-            mount.forward_body[dim_i] = c.forward[dim_i];
-            mount.up_body[dim_i] = c.up[dim_i];
+        for(TI dim_i = 0; dim_i < 4; dim_i++){
+            mount.pose.orientation[dim_i] = c.orientation[dim_i];
         }
+        T forward[3], up[3];
+        rlt::rl::environments::hyperdrone::mount_axes(device, mount, forward, up);
         const T position[3] = {0, 0, 0};
         const T aspect = (T)c.width / (T)c.height;
-        auto camera = rlt::make_camera_data(position, c.forward, c.up, c.fov, aspect);
+        auto camera = rlt::make_camera_data(position, forward, up, c.fov, aspect);
         auto intrinsics = task::pinhole_intrinsics(device, c.width, c.height, c.fov);
         T rotation[3][3], translation[3];
         task::camera_to_body_transform(device, mount, rotation, translation);

@@ -8,7 +8,7 @@
 #include "rig/operations_cpu.h"
 #include "pose.h"
 
-#include <rl_tools/rl/environments/l2f/operations_generic.h>
+#include <rl_tools/rl/environments/l2f/operations_cpu.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/datasets/procthor/operations_cpu.h>
@@ -211,13 +211,13 @@ namespace rl_tools {
             using T = typename SPEC::T;
             parameters = defaults;
             sample_initial_parameters(device, dynamics, parameters.dynamics, rng);
-            parameters.fov = defaults.fov + SPEC::CAMERA_FOV_RANDOMIZATION_RANGE * random::uniform_real_distribution(device.random, (T)-1, (T)1, rng);
+            parameters.camera.fov = defaults.camera.fov + SPEC::CAMERA_FOV_RANDOMIZATION_RANGE * random::uniform_real_distribution(device.random, (T)-1, (T)1, rng);
             CameraRandomization<T> randomization;
             for (unsigned axis_i = 0; axis_i < 3; axis_i++) {
                 randomization.offset_body_range[axis_i] = SPEC::CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE;
                 randomization.rotation_body_range[axis_i] = SPEC::CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE;
             }
-            randomize_camera_mount(device, randomization, parameters.camera_mount, rng);
+            randomize_camera_mount(device, randomization, parameters.camera.mount, rng);
             parameters.brightness_scale = (T)1 + (random::uniform_real_distribution(device.random, (T)0, (T)1, rng) * (T)2 - (T)1) * SPEC::BRIGHTNESS_RANDOMIZATION_RANGE;
             if constexpr (SPEC::ENABLE_MOTION_BLUR) {
                 parameters.shutter_fraction = random::uniform_real_distribution(device.random, SPEC::SHUTTER_FRACTION_MIN, SPEC::SHUTTER_FRACTION_MAX, rng);
@@ -461,7 +461,7 @@ namespace rl_tools {
             const TI agent_i = camera_i % WORLD::N_VIEWS;
             const auto& instance_parameters = get_ref(device, parameters, instance_i);
             const auto& agent_state = rl::environments::hyperdrone::_agent_state<SPEC>(get_ref(device, states, instance_i), agent_i);
-            set(device, world.camera_staging_close, rl::environments::hyperdrone::make_camera<DEVICE, T>(device, instance_parameters.camera_mount, instance_parameters.fov, agent_state.orientation, agent_state.position, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin), camera_i);
+            set(device, world.camera_staging_close, rl::environments::hyperdrone::make_camera<DEVICE, T>(device, instance_parameters.camera, agent_state.orientation, agent_state.position, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin), camera_i);
         }
         copy(device, world.renderer.device, world.camera_staging_close, cameras(device, world.renderer));
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
@@ -723,6 +723,34 @@ namespace rl_tools {
         for (TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++) {
             rotate_scene(device, env.environments[environment_i]);
         }
+    }
+
+    template <typename DEVICE, typename SPEC>
+    std::string json(DEVICE& device, const rl::environments::hyperdrone::World<SPEC>& world, const rl::environments::hyperdrone::Camera<typename SPEC::T>& camera){
+        using rl::environments::l2f::detail::lossless_to_string;
+        const auto& pose = camera.mount.pose;
+        std::string json_string = "{\"mount\": {\"pose\": {\"position\": [";
+        for (unsigned dim_i = 0; dim_i < 3; dim_i++) {
+            json_string += lossless_to_string(pose.position[dim_i]) + (dim_i < 2 ? ", " : "");
+        }
+        json_string += "], \"orientation\": [";
+        for (unsigned dim_i = 0; dim_i < 4; dim_i++) {
+            json_string += lossless_to_string(pose.orientation[dim_i]) + (dim_i < 3 ? ", " : "");
+        }
+        json_string += "]}}, \"fov\": " + lossless_to_string(camera.fov) + "}";
+        return json_string;
+    }
+    template <typename DEVICE, typename SPEC>
+    void from_json(DEVICE& device, const rl::environments::hyperdrone::World<SPEC>& world, const nlohmann::json& json_object, rl::environments::hyperdrone::Camera<typename SPEC::T>& camera){
+        using T = typename SPEC::T;
+        const nlohmann::json& pose = json_object.at("mount").at("pose");
+        for (unsigned dim_i = 0; dim_i < 3; dim_i++) {
+            camera.mount.pose.position[dim_i] = pose.at("position").at(dim_i).get<T>();
+        }
+        for (unsigned dim_i = 0; dim_i < 4; dim_i++) {
+            camera.mount.pose.orientation[dim_i] = pose.at("orientation").at(dim_i).get<T>();
+        }
+        camera.fov = json_object.at("fov").get<T>();
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

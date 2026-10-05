@@ -228,17 +228,12 @@ function parse_camera_spec(obs_desc){
         const m = b.match(/^(CameraRGB\w*\([^)]+\)),\s*(.+)$/)
         return m ? [m[1], m[2]] : [b]
     })
-    const visual = branches.find(b => b.startsWith("CameraRGB") || b.startsWith("Visual("))
+    const visual = branches.find(b => b.startsWith("CameraRGB"))
     if(!visual) return null
     const inner_match = visual.match(/\((.+)\)/)
     if(!inner_match) return null
     const inner = inner_match[1].split(",").map(s => Number(s.trim()))
-    if(visual.startsWith("CameraRGB")){
-        return { fov: inner[0], cam_h: inner[1], cam_w: inner[2] }
-    }
-    // legacy Visual(w, h, c, fov) carried the horizontal FOV in radians; visual.fov is degrees
-    const fov = inner[3] !== undefined ? inner[3] * 180 / Math.PI : 63.78166175396324
-    return { cam_w: inner[0], cam_h: inner[1], fov }
+    return { fov: inner[0], cam_h: inner[1], cam_w: inner[2] }
 }
 
 // Single entry point for "the observation string changed". Mirrors the string
@@ -563,7 +558,7 @@ class Policy{
                 return m ? [m[1], m[2]] : [b]
             })
             const branch_observations = branches.map((branch, branch_index) => {
-                if(branch.startsWith("Visual(") || branch.startsWith("CameraRGB")) return this.get_visual_observation(state, branch, ui_state, ui, parameters?.[i], i, branch_index)
+                if(branch.startsWith("CameraRGB")) return this.get_visual_observation(state, branch, ui_state, ui, parameters?.[i], i, branch_index)
                 if(model.visual_profile) {
                     return Array.from(state.get_policy_observation())
                 }

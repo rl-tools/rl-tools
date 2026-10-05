@@ -34,6 +34,15 @@ namespace rl_tools::rl::environments::l2f{
         add_accumulate<DEVICE, T, 3>(v, v_out); // 3 flops
     }
 
+    // Hamilton product q_out = q_left * q_right (q_right is applied first); q_out must not alias the inputs
+    template <typename DEVICE, typename T>
+    RL_TOOLS_FUNCTION_PLACEMENT void quaternion_multiplication(const T q_left[4], const T q_right[4], T q_out[4]) {
+        q_out[0] = q_left[0]*q_right[0] - q_left[1]*q_right[1] - q_left[2]*q_right[2] - q_left[3]*q_right[3];
+        q_out[1] = q_left[0]*q_right[1] + q_left[1]*q_right[0] + q_left[2]*q_right[3] - q_left[3]*q_right[2];
+        q_out[2] = q_left[0]*q_right[2] - q_left[1]*q_right[3] + q_left[2]*q_right[0] + q_left[3]*q_right[1];
+        q_out[3] = q_left[0]*q_right[3] + q_left[1]*q_right[2] - q_left[2]*q_right[1] + q_left[3]*q_right[0];
+    }
+
     // quaternion to rotation matrix
     template <typename DEVICE, typename T>
     RL_TOOLS_FUNCTION_PLACEMENT void quaternion_to_rotation_matrix(const T q[4], T R[3][3]) {

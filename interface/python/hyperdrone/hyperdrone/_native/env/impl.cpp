@@ -13,7 +13,10 @@
 #include <rl_tools/rl/environments/hyperdrone/presets.h>
 #endif
 
+#include <rl_tools/rl/environments/l2f/operations_cpu.h>
+
 #include "iface.h"
+#include "../common/models.h"
 
 #include <cstring>
 #include <filesystem>
@@ -148,6 +151,7 @@ namespace hyperdrone_env_impl {
     constexpr TI NUM_ENVIRONMENTS = HYPERDRONE_ENV_NUM_ENVIRONMENTS;
     using ENV = rlt::rl::environments::hyperdrone::MultiEnvironment<WORLD, NUM_ENVIRONMENTS>;
     constexpr TI TOTAL = NUM_ENVIRONMENTS * WORLD::INSTANCES;
+    using DYNAMICS = typename WORLD::DYNAMICS_ENV::Parameters::Dynamics;
 
     struct EnvImpl {
         DEVICE device;
@@ -157,10 +161,24 @@ namespace hyperdrone_env_impl {
         rlt::Tensor<rlt::tensor::Specification<typename WORLD::State, TI, rlt::tensor::Shape<TI, TOTAL>>> states, next_states;
         rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, TOTAL>>> reset_mask, terminated_flags;
         rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TOTAL>>> rewards;
+        std::string json_buffer;
     };
 
     EnvImpl* cast(void* handle){
         return reinterpret_cast<EnvImpl*>(handle);
+    }
+
+    // one schema for the nominal and the per-instance parameters: {"dynamics": <l2f parameters>, "camera": {...}}
+    template <typename DYNAMICS_PARAMETERS>
+    std::string parameters_to_json(EnvImpl* impl, const DYNAMICS_PARAMETERS& dynamics, const rlt::rl::environments::hyperdrone::Camera<T>& camera){
+        const auto& world = impl->env.environments[0];
+        return "{\"dynamics\": " + rlt::json(impl->device, world.dynamics, dynamics) + ", \"camera\": " + rlt::json(impl->device, world, camera) + "}";
+    }
+    template <typename DYNAMICS_PARAMETERS>
+    void parameters_from_json(EnvImpl* impl, const nlohmann::json& parameters, DYNAMICS_PARAMETERS& dynamics, rlt::rl::environments::hyperdrone::Camera<T>& camera){
+        auto& world = impl->env.environments[0];
+        rlt::from_json(impl->device, world.dynamics, parameters.at("dynamics"), dynamics);
+        rlt::from_json(impl->device, world, parameters.at("camera"), camera);
     }
 
     template <typename WORLD_TYPE, typename = void>
@@ -347,7 +365,6 @@ extern "C" {
         config->episode_step_limit = (uint32_t)WORLD::EPISODE_STEP_LIMIT;
         config->observation_dim_imu = (uint32_t)OBSERVATION_DIM_IMU;
         config->frame_stride = (uint32_t)FrameStride<WORLD>::VALUE;
-        config->dt = (float)WORLD::SPEC::DYNAMICS_STATIC_PARAMETERS::PARAMETER_VALUES.integration.dt;
     }
     void hyperdrone_env_init(void* handle, const char* scenes, const char* drone_asset_path, const char* gate_asset_path, unsigned long long seed){
         EnvImpl* impl = cast(handle);
@@ -383,6 +400,73 @@ extern "C" {
             dataset.references = references;
         }
         rlt::init(impl->device, impl->env, dataset);
+    }
+    const char* hyperdrone_env_parameters(void* handle){
+        EnvImpl* impl = cast(handle);
+        const auto& world = impl->env.environments[0];
+        impl->json_buffer = parameters_to_json(impl, world.dynamics.parameters, world.parameters.camera);
+        return impl->json_buffer.c_str();
+    }
+    int hyperdrone_env_set_parameters(void* handle, const char* parameters_json){
+        EnvImpl* impl = cast(handle);
+        auto dynamics = impl->env.environments[0].dynamics.parameters;
+        auto camera = impl->env.environments[0].parameters.camera;
+        try{
+            parameters_from_json(impl, nlohmann::json::parse(parameters_json), dynamics, camera);
+        }
+        catch(const nlohmann::json::exception&){
+            return 0;
+        }
+        for(TI environment_i = 0; environment_i < NUM_ENVIRONMENTS; environment_i++){
+            impl->env.environments[environment_i].dynamics.parameters = dynamics;
+            impl->env.environments[environment_i].parameters.camera = camera;
+        }
+        return 1;
+    }
+    const char* hyperdrone_env_instance_parameters(void* handle){
+        EnvImpl* impl = cast(handle);
+        impl->json_buffer = "[";
+        for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
+            const auto& instance = rlt::get_ref(impl->device, impl->parameters, instance_i);
+            impl->json_buffer += (instance_i > 0 ? ", " : "") + parameters_to_json(impl, instance.dynamics, instance.camera);
+        }
+        impl->json_buffer += "]";
+        return impl->json_buffer.c_str();
+    }
+    int hyperdrone_env_set_instance_parameters(void* handle, const uint8_t* mask, const char* parameters_json_array){
+        EnvImpl* impl = cast(handle);
+        std::vector<typename WORLD::Parameters> updated;
+        try{
+            const nlohmann::json entries = nlohmann::json::parse(parameters_json_array);
+            for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
+                if(mask[instance_i]){
+                    updated.push_back(rlt::get_ref(impl->device, impl->parameters, instance_i));
+                    parameters_from_json(impl, entries.at(updated.size() - 1), updated.back().dynamics, updated.back().camera);
+                }
+            }
+            if(updated.size() != entries.size()){
+                return 0;
+            }
+        }
+        catch(const nlohmann::json::exception&){
+            return 0;
+        }
+        TI entry_i = 0;
+        for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
+            if(mask[instance_i]){
+                rlt::get_ref(impl->device, impl->parameters, instance_i) = updated[entry_i++];
+            }
+        }
+        return 1;
+    }
+    const char* hyperdrone_env_model(void* handle, const char* name){
+        EnvImpl* impl = cast(handle);
+        DYNAMICS dynamics;
+        if(!hyperdrone::model_by_name<typename WORLD::SPEC>(name, dynamics)){
+            return nullptr;
+        }
+        impl->json_buffer = rlt::json(impl->device, impl->env.environments[0].dynamics, dynamics);
+        return impl->json_buffer.c_str();
     }
     void hyperdrone_env_reset(void* handle, const uint8_t* mask){
         EnvImpl* impl = cast(handle);

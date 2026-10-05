@@ -32,14 +32,16 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::visual_inertial_localiz
     template <typename DEVICE, typename T>
     RL_TOOLS_FUNCTION_PLACEMENT void camera_to_body_transform(DEVICE& device, const CameraMount<T>& mount, T rotation_out[3][3], T translation_out[3]){
         using TI = typename DEVICE::index_t;
+        T forward_body[3], up_body[3];
+        mount_axes(device, mount, forward_body, up_body);
         T forward[3], right[3], down[3];
-        T forward_norm = math::sqrt(device.math, mount.forward_body[0] * mount.forward_body[0] + mount.forward_body[1] * mount.forward_body[1] + mount.forward_body[2] * mount.forward_body[2]);
+        T forward_norm = math::sqrt(device.math, forward_body[0] * forward_body[0] + forward_body[1] * forward_body[1] + forward_body[2] * forward_body[2]);
         for (TI dim_i = 0; dim_i < 3; dim_i++){
-            forward[dim_i] = mount.forward_body[dim_i] / forward_norm;
+            forward[dim_i] = forward_body[dim_i] / forward_norm;
         }
-        right[0] = forward[1] * mount.up_body[2] - forward[2] * mount.up_body[1];
-        right[1] = forward[2] * mount.up_body[0] - forward[0] * mount.up_body[2];
-        right[2] = forward[0] * mount.up_body[1] - forward[1] * mount.up_body[0];
+        right[0] = forward[1] * up_body[2] - forward[2] * up_body[1];
+        right[1] = forward[2] * up_body[0] - forward[0] * up_body[2];
+        right[2] = forward[0] * up_body[1] - forward[1] * up_body[0];
         T right_norm = math::sqrt(device.math, right[0] * right[0] + right[1] * right[1] + right[2] * right[2]);
         for (TI dim_i = 0; dim_i < 3; dim_i++){
             right[dim_i] /= right_norm;
@@ -51,7 +53,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::visual_inertial_localiz
             rotation_out[dim_i][0] = right[dim_i];
             rotation_out[dim_i][1] = down[dim_i];
             rotation_out[dim_i][2] = forward[dim_i];
-            translation_out[dim_i] = mount.offset_body[dim_i];
+            translation_out[dim_i] = mount.pose.position[dim_i];
         }
     }
 }

@@ -13,6 +13,7 @@
 #include <rl_tools/rl/environments/l2f/parameters/default.h>
 
 #include "iface.h"
+#include "../common/models.h"
 
 #include <cmath>
 #include <cstdio>
@@ -81,22 +82,6 @@ namespace hyperdrone_dynamics_impl {
 
     using DYNAMICS = typename FACTORY::PARAMETERS_TYPE::Dynamics;
     using PARAMETERS_SPEC = typename FACTORY::PARAMETERS_SPEC;
-
-    bool model_by_name(const std::string& name, DYNAMICS& out){
-        namespace pd = parameters::dynamics;
-        if(name == "crazyflie"){ out = pd::registry<pd::REGISTRY::crazyflie, PARAMETERS_SPEC>; return true; }
-        if(name == "crazyflie_openmv"){ out = pd::registry<pd::REGISTRY::crazyflie_openmv, PARAMETERS_SPEC>; return true; }
-        if(name == "mrs"){ out = pd::registry<pd::REGISTRY::mrs, PARAMETERS_SPEC>; return true; }
-        if(name == "x500"){ out = pd::registry<pd::REGISTRY::x500, PARAMETERS_SPEC>; return true; }
-        if(name == "x500_real"){ out = pd::registry<pd::REGISTRY::x500_real, PARAMETERS_SPEC>; return true; }
-        if(name == "x500_sim"){ out = pd::registry<pd::REGISTRY::x500_sim, PARAMETERS_SPEC>; return true; }
-        if(name == "arpl"){ out = pd::registry<pd::REGISTRY::arpl, PARAMETERS_SPEC>; return true; }
-        if(name == "fs_base"){ out = pd::registry<pd::REGISTRY::fs_base, PARAMETERS_SPEC>; return true; }
-        if(name == "flightmare"){ out = pd::registry<pd::REGISTRY::flightmare, PARAMETERS_SPEC>; return true; }
-        if(name == "soft"){ out = pd::registry<pd::REGISTRY::soft, PARAMETERS_SPEC>; return true; }
-        if(name == "soft_rigid"){ out = pd::registry<pd::REGISTRY::soft_rigid, PARAMETERS_SPEC>; return true; }
-        return false;
-    }
 
     HYPERDRONE_HD inline void publish_one(const STATE& state, float* position, float* orientation, float* linear_velocity, float* angular_velocity, float* rpm){
         for(int i = 0; i < 3; i++){
@@ -270,7 +255,7 @@ namespace hyperdrone_dynamics_impl {
                 rlt::init(device_cpu, envs[drone]);
                 rlt::malloc(device_cpu, engines[drone]);
             }
-            model_by_name(model_name, model_dynamics);
+            hyperdrone::model_by_name<PARAMETERS_SPEC>(model_name, model_dynamics);
             integration_dt = FACTORY::nominal_parameters.integration.dt;
 #if defined(HYPERDRONE_DYNAMICS_CUDA)
             device_envs = device_alloc<ENVIRONMENT>(NUM_DRONES);
@@ -361,7 +346,7 @@ namespace hyperdrone_dynamics_impl {
 
         bool set_model(const char* name) override {
             DYNAMICS dynamics_values;
-            if(!model_by_name(name, dynamics_values)){
+            if(!hyperdrone::model_by_name<PARAMETERS_SPEC>(name, dynamics_values)){
                 return false;
             }
             model_dynamics = dynamics_values;

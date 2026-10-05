@@ -44,7 +44,6 @@ namespace rl_tools::rl::environments::hyperdrone {
         static constexpr bool OUTPUT_SEGMENTATION = false;
         static constexpr TI HISTORY_LENGTH = 1;
         static constexpr TI EPISODES_PER_SCENE = 1;
-        static constexpr T CAMERA_FOV = 63.78166175396324;
         static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = 0;
         static constexpr T CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE = 0;
         static constexpr T CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE = 0;
@@ -113,8 +112,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         T scene_translation[3] = {0, 0, 0};
         T scene_yaw_cos = 1;
         T scene_yaw_sin = 0;
-        CameraMount<T> camera_mount;
-        T fov = SPEC::CAMERA_FOV;
+        Camera<T> camera;
         T brightness_scale = 1;
         T shutter_fraction = 1;
     };

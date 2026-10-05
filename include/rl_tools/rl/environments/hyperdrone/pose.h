@@ -18,16 +18,24 @@ RL_TOOLS_NAMESPACE_WRAPPER_END
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::hyperdrone {
 
+    // orientation is a (w, x, y, z) quaternion mapping the camera's FLU axes into the body frame
+    template <typename T>
+    struct Pose {
+        T position[3] = {0, 0, 0};
+        T orientation[4] = {1, 0, 0, 0};
+    };
     template <typename T>
     struct CameraMount {
-        T offset_body[3] = {0, 0, 0};
-        T forward_body[3] = {1, 0, 0};
-        T up_body[3] = {0, 0, 1};
+        Pose<T> pose;
+    };
+    template <typename T>
+    struct Camera {
+        CameraMount<T> mount;
+        T fov = 63.78166175396324; // horizontal, degrees
     };
 
     template <typename T>
     struct CameraRandomization {
-        T fov_range = 0;
         T offset_body_range[3] = {0, 0, 0};
         T rotation_body_range[3] = {0, 0, 0};
     };
@@ -80,77 +88,34 @@ namespace rl_tools::rl::environments::hyperdrone {
     }
 
     template <typename DEVICE, typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT void orthonormalize_camera_mount(DEVICE& device, CameraMount<T>& camera_mount){
-        normalize_or(device, camera_mount.forward_body, static_cast<T>(1), static_cast<T>(0), static_cast<T>(0));
-
-        T up_candidate[3] = {
-            camera_mount.up_body[0],
-            camera_mount.up_body[1],
-            camera_mount.up_body[2]
-        };
-        T up_projection = dot_vector(camera_mount.forward_body, up_candidate);
-        for(unsigned axis_i = 0; axis_i < 3; axis_i++){
-            up_candidate[axis_i] -= up_projection * camera_mount.forward_body[axis_i];
-        }
-        if(dot_vector(up_candidate, up_candidate) <= static_cast<T>(1e-12)){
-            up_candidate[0] = static_cast<T>(0);
-            up_candidate[1] = static_cast<T>(0);
-            up_candidate[2] = static_cast<T>(1);
-            if(camera_mount.forward_body[2] * camera_mount.forward_body[2] > static_cast<T>(0.81)){
-                up_candidate[1] = static_cast<T>(1);
-                up_candidate[2] = static_cast<T>(0);
-            }
-            up_projection = dot_vector(camera_mount.forward_body, up_candidate);
-            for(unsigned axis_i = 0; axis_i < 3; axis_i++){
-                up_candidate[axis_i] -= up_projection * camera_mount.forward_body[axis_i];
-            }
-        }
-        normalize_or(device, up_candidate, static_cast<T>(0), static_cast<T>(0), static_cast<T>(1));
-
-        T side_body[3];
-        cross_vector(camera_mount.forward_body, up_candidate, side_body);
-        normalize_or(device, side_body, static_cast<T>(0), static_cast<T>(-1), static_cast<T>(0));
-        cross_vector(side_body, camera_mount.forward_body, camera_mount.up_body);
-        normalize_or(device, camera_mount.up_body, static_cast<T>(0), static_cast<T>(0), static_cast<T>(1));
-    }
-
-    template <typename DEVICE, typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT void rotate_camera_mount(DEVICE& device, CameraMount<T>& camera_mount, const T axis[3], T angle){
-        T forward_body[3];
-        T up_body[3];
-        rotate_around_axis(device, camera_mount.forward_body, axis, angle, forward_body);
-        rotate_around_axis(device, camera_mount.up_body, axis, angle, up_body);
-        for(unsigned axis_i = 0; axis_i < 3; axis_i++){
-            camera_mount.forward_body[axis_i] = forward_body[axis_i];
-            camera_mount.up_body[axis_i] = up_body[axis_i];
-        }
+    RL_TOOLS_FUNCTION_PLACEMENT void mount_axes(DEVICE&, const CameraMount<T>& mount, T forward_body[3], T up_body[3]){
+        const T forward_camera[3] = {1, 0, 0};
+        const T up_camera[3] = {0, 0, 1};
+        rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(mount.pose.orientation, forward_camera, forward_body);
+        rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(mount.pose.orientation, up_camera, up_body);
     }
 
     template <typename DEVICE, typename T, typename RNG>
-    RL_TOOLS_FUNCTION_PLACEMENT void randomize_camera_mount(DEVICE& device, const CameraRandomization<T>& randomization, CameraMount<T>& camera_mount, RNG& rng){
+    RL_TOOLS_FUNCTION_PLACEMENT void randomize_camera_mount(DEVICE& device, const CameraRandomization<T>& randomization, CameraMount<T>& mount, RNG& rng){
         for(unsigned axis_i = 0; axis_i < 3; axis_i++){
             T range = randomization.offset_body_range[axis_i];
             if(range != static_cast<T>(0)){
-                camera_mount.offset_body[axis_i] += range * random::uniform_real_distribution(device.random, static_cast<T>(-1), static_cast<T>(1), rng);
+                mount.pose.position[axis_i] += range * random::uniform_real_distribution(device.random, static_cast<T>(-1), static_cast<T>(1), rng);
             }
         }
-
-        const T axes[3][3] = {
-            {static_cast<T>(1), static_cast<T>(0), static_cast<T>(0)},
-            {static_cast<T>(0), static_cast<T>(1), static_cast<T>(0)},
-            {static_cast<T>(0), static_cast<T>(0), static_cast<T>(1)}
-        };
-        bool rotation_randomized = false;
+        // rotations about the fixed body axes x, y, z (applied in that order)
         for(unsigned axis_i = 0; axis_i < 3; axis_i++){
             T range = randomization.rotation_body_range[axis_i];
             if(range != static_cast<T>(0)){
-                T angle = range * random::uniform_real_distribution(device.random, static_cast<T>(-1), static_cast<T>(1), rng);
-                rotate_camera_mount(device, camera_mount, axes[axis_i], angle);
-                rotation_randomized = true;
+                T half_angle = range * random::uniform_real_distribution(device.random, static_cast<T>(-1), static_cast<T>(1), rng) / static_cast<T>(2);
+                T rotation[4] = {math::cos(device.math, half_angle), 0, 0, 0};
+                rotation[1 + axis_i] = math::sin(device.math, half_angle);
+                T orientation[4];
+                rl::environments::l2f::quaternion_multiplication<DEVICE, T>(rotation, mount.pose.orientation, orientation);
+                for(unsigned component_i = 0; component_i < 4; component_i++){
+                    mount.pose.orientation[component_i] = orientation[component_i];
+                }
             }
-        }
-        if(rotation_randomized){
-            orthonormalize_camera_mount(device, camera_mount);
         }
     }
 
@@ -158,9 +123,8 @@ namespace rl_tools::rl::environments::hyperdrone {
     // place the drone's frame inside the scene at camera-production time
     template <typename DEVICE, typename T>
     RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::Camera<T> make_camera(
-        DEVICE&,
-        const CameraMount<T>& camera_mount,
-        T fov,
+        DEVICE& device,
+        const Camera<T>& camera,
         const T orientation[4],
         const T state_position[3],
         T aspect,
@@ -168,12 +132,15 @@ namespace rl_tools::rl::environments::hyperdrone {
         T scene_yaw_cos,
         T scene_yaw_sin
     ){
+        T forward_body[3];
+        T up_body[3];
+        mount_axes(device, camera.mount, forward_body, up_body);
         T cam_pos_local[3];
-        rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(orientation, camera_mount.offset_body, cam_pos_local);
+        rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(orientation, camera.mount.pose.position, cam_pos_local);
         T cam_forward_local[3];
-        rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(orientation, camera_mount.forward_body, cam_forward_local);
+        rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(orientation, forward_body, cam_forward_local);
         T cam_up_local[3];
-        rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(orientation, camera_mount.up_body, cam_up_local);
+        rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(orientation, up_body, cam_up_local);
 
         T state_position_world[3];
         rotate_scene_yaw(state_position, state_position_world, scene_yaw_cos, scene_yaw_sin);
@@ -195,14 +162,13 @@ namespace rl_tools::rl::environments::hyperdrone {
             position[2] + cam_forward_world[2]
         };
         T up[3] = {cam_up_world[0], cam_up_world[1], cam_up_world[2]};
-        return make_camera_data(position, look_at, up, fov, aspect);
+        return make_camera_data(position, look_at, up, camera.fov, aspect);
     }
 
     template <typename DEVICE, typename T>
     RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::Camera<T> make_target_camera(
         DEVICE& device,
-        const CameraMount<T>& camera_mount,
-        T fov,
+        const Camera<T>& camera,
         T aspect,
         const T scene_translation[3],
         T scene_yaw_cos,
@@ -211,17 +177,10 @@ namespace rl_tools::rl::environments::hyperdrone {
         T target_frame_pitch
     ){
         T offset_world[3];
-        rotate_scene_yaw(camera_mount.offset_body, offset_world, scene_yaw_cos, scene_yaw_sin);
-        T forward_body[3] = {
-            camera_mount.forward_body[0],
-            camera_mount.forward_body[1],
-            camera_mount.forward_body[2]
-        };
-        T up_body[3] = {
-            camera_mount.up_body[0],
-            camera_mount.up_body[1],
-            camera_mount.up_body[2]
-        };
+        rotate_scene_yaw(camera.mount.pose.position, offset_world, scene_yaw_cos, scene_yaw_sin);
+        T forward_body[3];
+        T up_body[3];
+        mount_axes(device, camera.mount, forward_body, up_body);
         T pitch_axis[3];
         cross_vector(forward_body, up_body, pitch_axis);
         normalize_or(device, pitch_axis, static_cast<T>(0), static_cast<T>(-1), static_cast<T>(0));
@@ -249,38 +208,7 @@ namespace rl_tools::rl::environments::hyperdrone {
             position[2] + forward_world[2]
         };
         T up[3] = {up_world[0], up_world[1], up_world[2]};
-        return make_camera_data(position, look_at, up, fov, aspect);
-    }
-
-    template <typename DEVICE, typename T>
-    RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::Camera<T> make_target_camera(
-        DEVICE&,
-        const CameraMount<T>& camera_mount,
-        T fov,
-        T aspect,
-        const T scene_translation[3],
-        T scene_yaw_cos,
-        T scene_yaw_sin
-    ){
-        T offset_world[3];
-        rotate_scene_yaw(camera_mount.offset_body, offset_world, scene_yaw_cos, scene_yaw_sin);
-        T forward_world[3];
-        rotate_scene_yaw(camera_mount.forward_body, forward_world, scene_yaw_cos, scene_yaw_sin);
-        T up_world[3];
-        rotate_scene_yaw(camera_mount.up_body, up_world, scene_yaw_cos, scene_yaw_sin);
-
-        T position[3] = {
-            scene_translation[0] + offset_world[0],
-            scene_translation[1] + offset_world[1],
-            scene_translation[2] + offset_world[2]
-        };
-        T look_at[3] = {
-            position[0] + forward_world[0],
-            position[1] + forward_world[1],
-            position[2] + forward_world[2]
-        };
-        T up[3] = {up_world[0], up_world[1], up_world[2]};
-        return make_camera_data(position, look_at, up, fov, aspect);
+        return make_camera_data(position, look_at, up, camera.fov, aspect);
     }
 
     template <typename T>

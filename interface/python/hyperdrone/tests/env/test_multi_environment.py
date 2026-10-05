@@ -76,6 +76,108 @@ def test_frames_and_rotate_scene(scene_directory):
         env.close()
 
 
+def nominal_rollout(scene_directory, parameters=None):
+    env = MultiEnvironment(scene_directory, config=CONFIG, seed=3, parameters=parameters)
+    try:
+        mask = np.ones(env.total_instances, dtype=np.uint8)
+        env.reset(mask)
+        env.render(mask)
+        frames = env.observe().copy()
+        hold = np.zeros((env.total_instances, env.action_dim), dtype=np.float32)
+        for _ in range(10):
+            env.step(hold)
+        states = env.observe_privileged().copy()
+        env.reset(mask)
+        return env.parameters, frames, states
+    finally:
+        env.close()
+
+
+def test_nominal_parameters(scene_directory):
+    default_parameters, default_frames, default_states = nominal_rollout(scene_directory)
+    # an empty override still round-trips every parameter through JSON, which must be lossless
+    explicit_parameters, explicit_frames, explicit_states = nominal_rollout(scene_directory, {})
+    assert explicit_parameters == default_parameters
+    np.testing.assert_array_equal(explicit_frames, default_frames)
+    np.testing.assert_array_equal(explicit_states, default_states)
+
+    x500_parameters = nominal_rollout(scene_directory, {"dynamics": {"dynamics": {"model": "x500"}}})[0]
+    assert x500_parameters["dynamics"]["dynamics"]["mass"] != default_parameters["dynamics"]["dynamics"]["mass"]
+    J = np.diag([0.02, 0.03, 0.04])
+    pitch = 0.3
+    camera = {"fov": 90, "mount": {"pose": {"position": [0.1, 0, 0.05], "orientation": [np.cos(pitch / 2), 0, np.sin(pitch / 2), 0]}}}
+    parameters, frames, states = nominal_rollout(scene_directory, {"dynamics": {"dynamics": {"model": "x500", "mass": 2.0, "J": J}, "integration": {"dt": 0.02}}, "camera": camera})
+    dynamics = parameters["dynamics"]["dynamics"]
+    assert dynamics["mass"] == pytest.approx(2.0)
+    np.testing.assert_allclose(dynamics["J"], J)
+    np.testing.assert_allclose(dynamics["J_inv"], np.linalg.inv(J), rtol=1e-6)
+    overridden = ("mass", "J", "J_inv")
+    assert {key: value for key, value in dynamics.items() if key not in overridden} == {key: value for key, value in x500_parameters["dynamics"]["dynamics"].items() if key not in overridden}
+    assert parameters["dynamics"]["integration"]["dt"] == pytest.approx(0.02)
+    assert parameters["camera"]["fov"] == 90
+    np.testing.assert_allclose(parameters["camera"]["mount"]["pose"]["orientation"], camera["mount"]["pose"]["orientation"], rtol=1e-6)
+    assert not np.array_equal(frames, default_frames)
+    assert not np.array_equal(states, default_states)
+
+
+def test_nominal_parameter_validation(scene_directory):
+    with pytest.raises(ValueError, match="unknown dynamics model"):
+        MultiEnvironment(scene_directory, config=CONFIG, parameters={"dynamics": {"dynamics": {"model": "zeppelin"}}})
+    with pytest.raises(ValueError, match="unknown parameter"):
+        MultiEnvironment(scene_directory, config=CONFIG, parameters={"dynamics": {"dynamics": {"weight": 1.0}}})
+    with pytest.raises(ValueError, match="must have shape"):
+        MultiEnvironment(scene_directory, config=CONFIG, parameters={"camera": {"mount": {"pose": {"orientation": [1, 0, 0]}}}})
+
+
+def test_instance_parameters(scene_directory):
+    env = MultiEnvironment(scene_directory, config=CONFIG, seed=3)
+    reference = MultiEnvironment(scene_directory, config=CONFIG, seed=3)
+    try:
+        with pytest.raises(RuntimeError, match="reset"):
+            env.instance_parameters()
+        all_instances = np.ones(env.total_instances, dtype=np.uint8)
+        no_reset = np.zeros(env.total_instances, dtype=np.uint8)
+        for e in (env, reference):
+            e.reset(all_instances)
+            e.render(all_instances)
+        nominal = env.parameters
+        current = env.instance_parameters()
+        assert current == [nominal] * env.total_instances
+        mass = nominal["dynamics"]["dynamics"]["mass"]
+        env.set_instance_parameters({"dynamics": {"dynamics": {"mass": 3 * mass}}, "camera": {"fov": 30}}, mask=np.array([0, 1], dtype=np.uint8))
+        updated = env.instance_parameters()
+        assert updated[0] == nominal
+        assert updated[1]["dynamics"]["dynamics"]["mass"] == pytest.approx(3 * mass)
+        assert updated[1]["camera"]["fov"] == 30
+
+        frames, states = [], []
+        for e in (env, reference):
+            e.render(no_reset)
+            frames.append(e.observe().copy())
+            hold = np.zeros((e.total_instances, e.action_dim), dtype=np.float32)
+            for _ in range(10):
+                e.step(hold)
+            states.append(e.observe_privileged().copy())
+        np.testing.assert_array_equal(frames[0][0], frames[1][0])
+        assert not np.array_equal(frames[0][1], frames[1][1])
+        np.testing.assert_array_equal(states[0][0], states[1][0])
+        assert not np.array_equal(states[0][1], states[1][1])
+
+        env.reset(all_instances)
+        assert env.instance_parameters() == [nominal] * env.total_instances
+        env.set_instance_parameters([{"camera": {"fov": 50}}, {"dynamics": {"dynamics": {"model": "x500"}}}])
+        updated = env.instance_parameters()
+        assert updated[0]["camera"]["fov"] == 50
+        assert updated[1]["dynamics"]["dynamics"]["mass"] != mass
+        with pytest.raises(ValueError, match="shared by all instances"):
+            env.set_instance_parameters({"dynamics": {"integration": {"dt": 0.1}}})
+        with pytest.raises(ValueError, match="overrides for"):
+            env.set_instance_parameters([{}])
+    finally:
+        env.close()
+        reference.close()
+
+
 def test_gym_autoreset_observations_match_explicit_render(scene_directory, monkeypatch):
     pytest.importorskip("gymnasium")
     from hyperdrone.gym import VectorEnv
@@ -196,6 +298,7 @@ def test_visual_inertial_localization(scene_directory):
         assert env.action_dim == 0, "the task flies itself"
         assert env.frame_stride == 4
         assert env.dt == pytest.approx(0.005)
+        assert "imu" in env.parameters["dynamics"]
         assert env.observation_dim_imu == 8
         assert env.observation_layout_imu.blocks == {
             "accelerometer": (0, 3), "gyroscope": (3, 3), "frame_age": (6, 1), "new_frame": (7, 1),

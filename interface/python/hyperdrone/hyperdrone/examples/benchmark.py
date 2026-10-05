@@ -50,7 +50,7 @@ arguments = parser.parse_args()
 
 WIDTH, HEIGHT = arguments.width, arguments.height
 NUM_CAMERAS = arguments.cameras
-FOV = 1.3962634015954636  # matches the renderer config default (80 degrees)
+FOV = 80.0  # degrees, matches the renderer config default
 ASPECT = WIDTH / HEIGHT
 PROCTHOR_EYE = np.array([-3.92, -5.67, 1.0])  # camera_offset(procthor) in the C++ benchmark
 
@@ -112,7 +112,7 @@ def sample_orientations(rng, count, mode, look_at_forward):
 
 def camera_bases(positions, forwards, ups, fov, aspect):
     """Vectorized make_camera_data: packed (N, 12) bases from per-camera forward/up."""
-    scale = 2.0 * math.tan(fov / 2.0)
+    scale = 2.0 * math.tan(math.radians(fov) / 2.0)
     du = normalize(np.cross(forwards, ups)) * scale
     dv = normalize(np.cross(du, forwards)) * (scale / aspect)
     dir_00 = forwards - 0.5 * du + 0.5 * dv
@@ -220,7 +220,7 @@ print(f"  Output:              {arguments.output}")
 print(f"  Fidelity:             {arguments.fidelity}")
 print(f"  Cameras per batch:   {NUM_CAMERAS}")
 print(f"  Resolution per cam:  {WIDTH}x{HEIGHT}")
-print(f"  FOV:                 {math.degrees(FOV):.1f} deg")
+print(f"  FOV:                 {FOV:.1f} deg")
 print(f"  Camera eye (FLU):    [{eye[0]:.2f}, {eye[1]:.2f}, {eye[2]:.2f}]")
 print(f"  Orientation mode:    {arguments.orientation_mode} (seed {arguments.seed})")
 print(f"  Camera input:        {arguments.camera_input}" + ("" if arguments.camera_input == "static" else f" ({arguments.camera_sets} orientation sets)"))

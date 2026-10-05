@@ -31,7 +31,7 @@ namespace rl_tools{
             TI instance_i = threadIdx.x + blockIdx.x * blockDim.x;
             if(instance_i < INSTANCES){
                 const auto& instance_parameters = get_ref(device, parameters, instance_i);
-                auto camera = make_target_camera<DEVICE, T>(device, instance_parameters.camera_mount, instance_parameters.fov, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin, instance_parameters.target_roll, instance_parameters.target_pitch);
+                auto camera = make_target_camera<DEVICE, T>(device, instance_parameters.camera, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin, instance_parameters.target_roll, instance_parameters.target_pitch);
                 cameras[instance_i] = camera;
                 if(cameras_open != cameras){
                     cameras_open[instance_i] = camera;

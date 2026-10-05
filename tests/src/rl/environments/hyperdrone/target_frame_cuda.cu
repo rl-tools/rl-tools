@@ -131,7 +131,7 @@ void check_rng_partitioning(){
         for(TI i = 0; i < MEMBER::INSTANCES; i++){
             const auto& a = rlt::get_ref(host, parameters_host, MEMBER::INSTANCES + i);
             const auto& b = rlt::get_ref(host, local_host, i);
-            EXPECT_EQ(a.fov, b.fov) << "round " << round << " instance " << i;
+            EXPECT_EQ(a.camera.fov, b.camera.fov) << "round " << round << " instance " << i;
             EXPECT_EQ(a.brightness_scale, b.brightness_scale);
             if constexpr(rlt::utils::typing::is_same_v<MEMBER, WORLD>){
                 EXPECT_EQ(a.target_roll, b.target_roll);
