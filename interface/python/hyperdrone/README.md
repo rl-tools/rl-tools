@@ -81,7 +81,7 @@ stderr, for example `#rl_tools::rendering::raytracing: backend=metal`. The
 ## Rendering
 
 ```python
-import math, numpy as np
+import numpy as np
 from hyperdrone import render
 from hyperdrone.examples.data import procthor_scene_path
 
@@ -90,7 +90,7 @@ scene = render.load_scene(procthor_scene_path(), fidelity="high")
 renderer = render.Renderer(width=320, height=240, num_cameras=4, output="rgbd", fidelity="high")
 renderer.init(scene)
 
-camera = renderer.camera(position=(0, 0, 1.5), look_at=(1, 0, 1.5), fov=math.radians(80))
+camera = renderer.camera(position=(0, 0, 1.5), look_at=(1, 0, 1.5), fov=80)
 renderer.set_cameras(np.repeat(camera[None], 4, axis=0))
 renderer.render()
 
@@ -143,7 +143,7 @@ sim.state.numpy("position")           # host copy
 sim.observe()                         # (N, 18): position, rotation matrix, velocities
 sim.parameters["mass"] = masses       # per-drone runtime parameters (until the next reset)
 
-cameras = sim.camera_bases(fov=math.radians(100), aspect=renderer.aspect)
+cameras = sim.camera_bases(fov=100, aspect=renderer.aspect)
 renderer.set_cameras(cameras, stream=sim.stream)   # device-resident hand-off
 ```
 
@@ -176,6 +176,8 @@ env.observation_layout             # named blocks: which channels/values mean wh
 `reset(mask)` samples parameters and states immediately. `observe()` renders as needed,
 so explicit `render(mask)` calls are optional. The training loop owns episode counters and
 chooses when to reset; the Gymnasium adapter below supplies same-step autoreset and time limits.
+
+`EnvConfig` is the compile-time part (the JIT key); the runtime part is `MultiEnvironment(..., parameters={"dynamics": {"dynamics": {"model": "x500", "mass": 2.1}}, "camera": {"fov": 90}})`, a partial dict merged over the nominal parameters every instance is sampled from at reset (the specification's randomization ranges apply on top). `env.parameters` returns the full dict: `"dynamics"` is the l2f parameter set, where a `"model"` key loads an l2f registry entry (`hyperdrone.dynamics.MODELS`) before the rest is merged, and `"camera"` holds `mount.pose` (`position` and `orientation`, a (w, x, y, z) quaternion mapping the camera's FLU axes into the body frame) and the horizontal `fov` in degrees. `env.instance_parameters()` returns what each instance is using in the current episode (after randomization), and `env.set_instance_parameters(overrides, mask)` changes it until that instance's next reset (one dict for all selected instances or one per instance); only the drone itself varies per instance (`dynamics.dynamics`, `dynamics.imu`, `camera`).
 
 All environment semantics — reset, reward, termination, scene scheduling, observation
 composition — live on the C++ side (`rl_tools::rl::environments::hyperdrone::MultiEnvironment<World>`);

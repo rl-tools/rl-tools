@@ -146,7 +146,6 @@ struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, STATI
     static constexpr bool ENABLE_ANTI_ALIASING = RENDER_ENABLE_ANTI_ALIASING;
     static constexpr TI ANTI_ALIASING_GRID_SIZE = RENDER_ANTI_ALIASING_GRID_SIZE;
     static constexpr TI HISTORY_LENGTH = WORLD_HISTORY_LENGTH;
-    static constexpr T CAMERA_FOV = training_mixed::CAMERA_FOV;
     static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = training_mixed::CAMERA_FOV_RANDOMIZATION_RANGE;
     static constexpr T CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE = CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE_X;
     static constexpr T CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE = CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE_X;
@@ -256,7 +255,7 @@ std::string trajectory_episodes_to_json(DEVICE& device, TASK_WORLD& env, const s
             + ", \"scene_hash\": \"" + episode.front().scene_hash + "\""
             + ", \"cam_width\": " + std::to_string(WORLD_SPEC::CAM_WIDTH)
             + ", \"cam_height\": " + std::to_string(WORLD_SPEC::CAM_HEIGHT)
-            + ", \"fov\": " + std::to_string(parameters.fov) + "}}";
+            + ", \"fov\": " + std::to_string(parameters.camera.fov) + "}}";
         json += "{\"parameters\": " + parameters_json + ",\n";
         json += "\"trajectory\": [";
         for(TI step_i = 0; step_i < max_len; step_i++){
@@ -675,6 +674,7 @@ int main(int argc, char** argv){
     for(TI member_i = 0; member_i < NUMBER_OF_ENVIRONMENTS; member_i++){
         auto& world = env.environments[member_i];
         world.rng_offset = member_i * N_ENVIRONMENTS_PER_SCENE;
+        world.parameters.camera.fov = CAMERA_FOV;
         rlt::init(device_gpu, world, env.shared, scene_dataset, scene_corpus, (TI)0, N_TOTAL_SCENES, member_i);
     }
     std::cout << "Loaded " << N_TOTAL_SCENES << " scenes on " << NUMBER_OF_ENVIRONMENTS << " Worlds" << std::endl;
@@ -1577,7 +1577,7 @@ int main(int argc, char** argv){
             copy(device_gpu, device, ppo_gpu.actor, eval_actor);
 
             char fov_buf[32];
-            std::snprintf(fov_buf, sizeof(fov_buf), "%.6g", (double)WORLD_SPEC::CAMERA_FOV);
+            std::snprintf(fov_buf, sizeof(fov_buf), "%.6g", (double)CAMERA_FOV);
             std::string state_obs_string = rlt::string(device, env.environments[0].dynamics, ACTOR_STATE_OBS{});
             const auto gyro_observation = state_obs_string.find("AngularVelocity");
             if(gyro_observation == std::string::npos){

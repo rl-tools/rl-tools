@@ -194,13 +194,14 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
     };
     rlt::rendering::raytracing::Camera<T> cameras[NUM_CAMERAS];
     {
-        rlt::rl::environments::hyperdrone::CameraMount<T> mount;
-        mount.offset_body[0] = 0.10;
-        mount.offset_body[2] = 0.05;
-        cameras[ONBOARD_CAMERA] = rlt::rl::environments::hyperdrone::make_camera<DEVICE, T>(device, mount, (T)1.1, state.orientation, state.position, aspect, scene_translation, (T)1, (T)0);
+        rlt::rl::environments::hyperdrone::Camera<T> camera;
+        camera.mount.pose.position[0] = 0.10;
+        camera.mount.pose.position[2] = 0.05;
+        camera.fov = 63.03;
+        cameras[ONBOARD_CAMERA] = rlt::rl::environments::hyperdrone::make_camera<DEVICE, T>(device, camera, state.orientation, state.position, aspect, scene_translation, (T)1, (T)0);
         const T tripod[3] = {body_position[0] - 1.5f, body_position[1] - 1.2f, body_position[2] + 0.6f};
         const T up[3] = {0, 0, 1};
-        cameras[THIRD_PERSON_CAMERA] = rlt::make_camera_data(tripod, body_position, up, (T)0.9, aspect);
+        cameras[THIRD_PERSON_CAMERA] = rlt::make_camera_data(tripod, body_position, up, (T)51.57, aspect);
     }
     rlt::Tensor<typename decltype(renderer.cameras)::SPEC> camera_alias;
     camera_alias._data = cameras;

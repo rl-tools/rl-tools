@@ -137,8 +137,8 @@ namespace hyperdrone_vio {
         for(TI dim_i = 0; dim_i < 3; dim_i++){
             info.gravity[dim_i] = reference_parameters.dynamics.dynamics.gravity[dim_i];
         }
-        info.intrinsics = task::pinhole_intrinsics(device, (TI)WORLD::SPEC::CAM_WIDTH, (TI)WORLD::SPEC::CAM_HEIGHT, reference_parameters.fov);
-        task::camera_to_body_transform(device, reference_parameters.camera_mount, info.camera_rotation_body, info.camera_translation_body);
+        info.intrinsics = task::pinhole_intrinsics(device, (TI)WORLD::SPEC::CAM_WIDTH, (TI)WORLD::SPEC::CAM_HEIGHT, reference_parameters.camera.fov);
+        task::camera_to_body_transform(device, reference_parameters.camera.mount, info.camera_rotation_body, info.camera_translation_body);
         info.imu_rate = (T)1 / info.dt;
         info.frame_rate = info.imu_rate / (T)WORLD::FRAME_STRIDE;
         {

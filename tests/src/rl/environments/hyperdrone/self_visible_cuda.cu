@@ -100,12 +100,15 @@ static void arrange(DEVICE& device,
         typename WORLD::State state = rlt::get(device, states, instance_i);
         instance_parameters.scene_yaw_cos = 1;
         instance_parameters.scene_yaw_sin = 0;
-        instance_parameters.camera_mount.offset_body[0] = (T)-1.2;
-        instance_parameters.camera_mount.offset_body[1] = 0;
-        instance_parameters.camera_mount.offset_body[2] = (T)0.4;
-        instance_parameters.camera_mount.forward_body[0] = 1;
-        instance_parameters.camera_mount.forward_body[1] = 0;
-        instance_parameters.camera_mount.forward_body[2] = (T)-0.3;
+        instance_parameters.camera.mount.pose.position[0] = (T)-1.2;
+        instance_parameters.camera.mount.pose.position[1] = 0;
+        instance_parameters.camera.mount.pose.position[2] = (T)0.4;
+        // pitched down so the camera looks along (1, 0, -0.3) in the body frame
+        const T half_pitch = std::atan2((T)0.3, (T)1) / 2;
+        instance_parameters.camera.mount.pose.orientation[0] = std::cos(half_pitch);
+        instance_parameters.camera.mount.pose.orientation[1] = 0;
+        instance_parameters.camera.mount.pose.orientation[2] = std::sin(half_pitch);
+        instance_parameters.camera.mount.pose.orientation[3] = 0;
         state.orientation[0] = 1;
         state.orientation[1] = 0;
         state.orientation[2] = 0;

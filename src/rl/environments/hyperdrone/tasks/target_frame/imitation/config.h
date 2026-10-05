@@ -151,7 +151,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame::imitation
     static constexpr TI CAM_HEIGHT = 50;
     static constexpr TI NUM_PROBES = 64;
     static constexpr T CAMERA_FOV = 63.8;
-    static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = static_cast<T>(5.0) / static_cast<T>(180) * rlt::math::PI<T>;
+    static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = static_cast<T>(5.0);
     static constexpr T TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE =
         STATE_ESTIMATION_MODE ? static_cast<T>(0) : static_cast<T>(10.0) / static_cast<T>(180) * rlt::math::PI<T>;
     static constexpr T BRIGHTNESS_RANDOMIZATION_RANGE = 0.5;
@@ -180,7 +180,6 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame::imitation
         static constexpr bool ENABLE_ANTI_ALIASING = RENDER_ENABLE_ANTI_ALIASING;
         static constexpr TI ANTI_ALIASING_GRID_SIZE = RENDER_ANTI_ALIASING_GRID_SIZE;
         static constexpr TI HISTORY_LENGTH = FRAME_STACK_HISTORY_LENGTH;
-        static constexpr T CAMERA_FOV = imitation::CAMERA_FOV;
         static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = imitation::CAMERA_FOV_RANDOMIZATION_RANGE;
         static constexpr T CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE = 0;
         static constexpr T CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE = 0;

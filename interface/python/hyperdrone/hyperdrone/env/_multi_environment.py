@@ -13,8 +13,10 @@ C++ specifications are reached through `spec_header=`: a path to a C++ header de
 content hash is part of the JIT key, and preset/task/n_agents must stay at their
 defaults since the user type supersedes them.
 """
+import copy
 import ctypes
 import hashlib
+import json
 import os
 import sys
 from dataclasses import dataclass, field
@@ -183,11 +185,10 @@ class _Config(ctypes.Structure):
         ("episode_step_limit", ctypes.c_uint32),
         ("observation_dim_imu", ctypes.c_uint32),
         ("frame_stride", ctypes.c_uint32),
-        ("dt", ctypes.c_float),
     ]
 
 
-_IFACE_VERSION = 6
+_IFACE_VERSION = 7
 
 
 def _load(config):
@@ -206,6 +207,16 @@ def _load(config):
     library.hyperdrone_env_destroy.argtypes = [ctypes.c_void_p]
     library.hyperdrone_env_config.argtypes = [ctypes.c_void_p, ctypes.POINTER(_Config)]
     library.hyperdrone_env_init.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_ulonglong]
+    library.hyperdrone_env_parameters.restype = ctypes.c_char_p
+    library.hyperdrone_env_parameters.argtypes = [ctypes.c_void_p]
+    library.hyperdrone_env_set_parameters.restype = ctypes.c_int
+    library.hyperdrone_env_set_parameters.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
+    library.hyperdrone_env_instance_parameters.restype = ctypes.c_char_p
+    library.hyperdrone_env_instance_parameters.argtypes = [ctypes.c_void_p]
+    library.hyperdrone_env_set_instance_parameters.restype = ctypes.c_int
+    library.hyperdrone_env_set_instance_parameters.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint8), ctypes.c_char_p]
+    library.hyperdrone_env_model.restype = ctypes.c_char_p
+    library.hyperdrone_env_model.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
     library.hyperdrone_env_reset.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint8)]
     library.hyperdrone_env_render.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint8)]
     library.hyperdrone_env_observe.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_float)]
@@ -274,6 +285,20 @@ def _normalize_scenes(scenes, num_environments):
     return references
 
 
+def _merge(base, overrides, path=""):
+    merged = dict(base)
+    for key, value in overrides.items():
+        if key not in base:
+            raise ValueError(f"hyperdrone: unknown parameter {path}{key!r} (one of {sorted(base)})")
+        if isinstance(base[key], dict):
+            merged[key] = _merge(base[key], value, f"{path}{key}.")
+            continue
+        if np.shape(value) != np.shape(base[key]):
+            raise ValueError(f"hyperdrone: parameter {path}{key} must have shape {np.shape(base[key])}, got {np.shape(value)}")
+        merged[key] = value.tolist() if isinstance(value, (np.ndarray, np.generic)) else value
+    return merged
+
+
 def _validate(config, native):
     if config.spec_header is not None:
         return
@@ -305,6 +330,8 @@ class MultiEnvironment:
     gate_asset: gate GLB for the moving_gate task (required for task='moving_gate').
     Both assets accept conta references too.
 
+    parameters: a partial dict in the schema of the parameters property, {"dynamics": <l2f parameters>, "camera": {"mount": {"pose": {"position", "orientation"}}, "fov"}}, merged over the preset's nominal values every instance is sampled from at reset (the specification's randomization ranges apply on top). parameters["dynamics"]["dynamics"]["model"] loads an l2f registry entry (hyperdrone.dynamics.MODELS) before the rest is merged, J_inv follows J unless given, the camera orientation is a (w, x, y, z) quaternion mapping the camera's FLU axes into the body frame, and fov is the horizontal FOV in degrees.
+
     Tasks with an IMU stream (task='visual_inertial_localization') add observe_imu() — the
     IMU sample of the last step, named by observation_layout_imu — and render a camera frame
     only every frame_stride steps; their episodes are fixed-length and synchronized, so the
@@ -312,7 +339,7 @@ class MultiEnvironment:
     action_dim is 0 and step() takes no actions.
     """
 
-    def __init__(self, scenes, config=None, seed=0, drone_asset=None, gate_asset=None):
+    def __init__(self, scenes, config=None, seed=0, drone_asset=None, gate_asset=None, parameters=None):
         self.config = config if config is not None else EnvConfig()
         if self.config.self_visible and drone_asset is None:
             raise ValueError(
@@ -346,6 +373,59 @@ class MultiEnvironment:
         drone_asset_encoded = drone_asset.encode() if drone_asset is not None else b""
         gate_asset_encoded = gate_asset.encode() if gate_asset is not None else b""
         self._library.hyperdrone_env_init(self._handle, "\n".join(scene_references).encode(), drone_asset_encoded, gate_asset_encoded, seed)
+        self._sampled = np.zeros(self.total_instances, dtype=bool)
+        if parameters is not None:
+            merged = self._resolve(self.parameters, parameters)
+            if not self._library.hyperdrone_env_set_parameters(self._handle, json.dumps(merged).encode()):
+                raise ValueError("hyperdrone: the JSON reader rejected the parameters")
+
+    def _resolve(self, base, overrides):
+        overrides = copy.deepcopy(overrides)
+        dynamics = overrides.get("dynamics", {}).get("dynamics", {})
+        model = dynamics.pop("model", None)
+        if model is not None:
+            entry = self._library.hyperdrone_env_model(self._handle, model.encode())
+            if entry is None:
+                raise ValueError(f"hyperdrone: unknown dynamics model {model!r} (see hyperdrone.dynamics.MODELS)")
+            base = copy.deepcopy(base)
+            base["dynamics"]["dynamics"] = json.loads(entry.decode())
+        merged = _merge(base, overrides)
+        if "J" in dynamics and "J_inv" not in dynamics:
+            merged["dynamics"]["dynamics"]["J_inv"] = np.linalg.inv(merged["dynamics"]["dynamics"]["J"]).tolist()
+        return merged
+
+    @property
+    def parameters(self):
+        """The nominal parameters every instance is sampled from at reset (see the parameters argument)."""
+        return json.loads(self._library.hyperdrone_env_parameters(self._handle).decode())
+
+    def instance_parameters(self):
+        """The current parameters of every instance, as sampled at its last reset: a list of dicts in the schema of parameters."""
+        if not self._sampled.all():
+            raise RuntimeError("hyperdrone: per-instance parameters exist once every instance has been reset")
+        return json.loads(self._library.hyperdrone_env_instance_parameters(self._handle).decode())
+
+    def set_instance_parameters(self, overrides, mask=None):
+        """Merges overrides into the current parameters of the instances selected by mask (default: all) until each one's next reset. overrides is one dict for all selected instances or a list with one dict per selected instance (in instance order), in the schema of the parameters argument; only the drone itself varies per instance (dynamics.dynamics, dynamics.imu, camera), the rest is shared and set through parameters=."""
+        mask = self._mask(mask)
+        selected = np.flatnonzero(mask)
+        if isinstance(overrides, dict):
+            overrides = [overrides] * len(selected)
+        if len(overrides) != len(selected):
+            raise ValueError(f"hyperdrone: {len(overrides)} overrides for {len(selected)} selected instances")
+        current = self.instance_parameters()
+        merged = []
+        for instance_i, instance_overrides in zip(selected, overrides):
+            shared = sorted(set(instance_overrides.get("dynamics", {})) - {"dynamics", "imu"})
+            if shared:
+                raise ValueError(f"hyperdrone: dynamics {shared} are shared by all instances; set them through parameters=")
+            merged.append(self._resolve(current[instance_i], instance_overrides))
+        if not self._library.hyperdrone_env_set_instance_parameters(self._handle, _uint8_ptr(mask), json.dumps(merged).encode()):
+            raise ValueError("hyperdrone: the JSON reader rejected the parameters")
+
+    @property
+    def dt(self):
+        return self.parameters["dynamics"]["integration"]["dt"]
 
     def close(self):
         if self._handle:
@@ -364,7 +444,9 @@ class MultiEnvironment:
         return np.ascontiguousarray(np.asarray(mask, dtype=np.uint8).reshape(self.total_instances))
 
     def reset(self, mask=None):
-        self._library.hyperdrone_env_reset(self._handle, _uint8_ptr(self._mask(mask)))
+        mask = self._mask(mask)
+        self._library.hyperdrone_env_reset(self._handle, _uint8_ptr(mask))
+        self._sampled |= mask.astype(bool)
 
     def _check_synchronized(self, reset_mask):
         if self.config.task != "visual_inertial_localization":

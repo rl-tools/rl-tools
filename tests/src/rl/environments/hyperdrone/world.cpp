@@ -170,10 +170,10 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, CAMERA_PARAMETER_SAMPLING){
     world.parameters.scene_translation[0] = 3;
     world.parameters.scene_yaw_cos = 0;
     world.parameters.scene_yaw_sin = 1;
-    world.parameters.fov = 68;
-    world.parameters.camera_mount.offset_body[0] = 0.1;
-    world.parameters.camera_mount.offset_body[1] = -0.2;
-    world.parameters.camera_mount.offset_body[2] = 0.3;
+    world.parameters.camera.fov = 68;
+    world.parameters.camera.mount.pose.position[0] = 0.1;
+    world.parameters.camera.mount.pose.position[1] = -0.2;
+    world.parameters.camera.mount.pose.position[2] = 0.3;
     RNG rng;
     malloc(device, rng);
     init(device, rng, 2);
@@ -183,17 +183,19 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, CAMERA_PARAMETER_SAMPLING){
         EXPECT_FLOAT_EQ(parameters.scene_translation[0], 3);
         EXPECT_FLOAT_EQ(parameters.scene_yaw_cos, 0);
         EXPECT_FLOAT_EQ(parameters.scene_yaw_sin, 1);
-        EXPECT_GE(parameters.fov, world.parameters.fov - WORLD_SPEC::CAMERA_FOV_RANDOMIZATION_RANGE);
-        EXPECT_LE(parameters.fov, world.parameters.fov + WORLD_SPEC::CAMERA_FOV_RANDOMIZATION_RANGE);
+        EXPECT_GE(parameters.camera.fov, world.parameters.camera.fov - WORLD_SPEC::CAMERA_FOV_RANDOMIZATION_RANGE);
+        EXPECT_LE(parameters.camera.fov, world.parameters.camera.fov + WORLD_SPEC::CAMERA_FOV_RANDOMIZATION_RANGE);
         EXPECT_GE(parameters.brightness_scale, 1 - WORLD_SPEC::BRIGHTNESS_RANDOMIZATION_RANGE);
         EXPECT_LE(parameters.brightness_scale, 1 + WORLD_SPEC::BRIGHTNESS_RANDOMIZATION_RANGE);
+        const auto& mount = parameters.camera.mount;
+        T forward[3], up[3];
+        rlt::rl::environments::hyperdrone::mount_axes(device, mount, forward, up);
         T forward_norm = 0, up_norm = 0, dot = 0;
         for(TI axis = 0; axis < 3; axis++){
-            const auto& mount = parameters.camera_mount;
-            EXPECT_NEAR(mount.offset_body[axis], world.parameters.camera_mount.offset_body[axis], WORLD_SPEC::CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE + 1e-6);
-            forward_norm += mount.forward_body[axis] * mount.forward_body[axis];
-            up_norm += mount.up_body[axis] * mount.up_body[axis];
-            dot += mount.forward_body[axis] * mount.up_body[axis];
+            EXPECT_NEAR(mount.pose.position[axis], world.parameters.camera.mount.pose.position[axis], WORLD_SPEC::CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE + 1e-6);
+            forward_norm += forward[axis] * forward[axis];
+            up_norm += up[axis] * up[axis];
+            dot += forward[axis] * up[axis];
         }
         EXPECT_NEAR(forward_norm, 1, 1e-5);
         EXPECT_NEAR(up_norm, 1, 1e-5);
@@ -276,7 +278,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, RENDER_PATH_EQUIVALENCE){
     for(TI instance_i = 0; instance_i < NUM_CAMERAS; instance_i++){
         typename WORLD::Parameters instance_parameters = rlt::get(device, tensors.parameters, instance_i);
         typename WORLD::State state = rlt::get(device, tensors.states, instance_i);
-        manual_cameras[instance_i] = rlt::rl::environments::hyperdrone::make_camera<DEVICE, T>(device, instance_parameters.camera_mount, instance_parameters.fov, state.orientation, state.position, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin);
+        manual_cameras[instance_i] = rlt::rl::environments::hyperdrone::make_camera<DEVICE, T>(device, instance_parameters.camera, state.orientation, state.position, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin);
     }
     rlt::Tensor<typename WORLD::PREV_CAMERAS_SPEC> camera_alias;
     camera_alias._data = manual_cameras.data();

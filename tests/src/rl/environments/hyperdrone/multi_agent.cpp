@@ -130,9 +130,9 @@ static void arrange(DEVICE& device, Tensors& tensors){
         typename WORLD::State state = rlt::get(device, tensors.states, instance_i);
         instance_parameters.scene_yaw_cos = 1;
         instance_parameters.scene_yaw_sin = 0;
-        instance_parameters.camera_mount.offset_body[0] = (T)0.2;
-        instance_parameters.camera_mount.offset_body[1] = 0;
-        instance_parameters.camera_mount.offset_body[2] = (T)0.05;
+        instance_parameters.camera.mount.pose.position[0] = (T)0.2;
+        instance_parameters.camera.mount.pose.position[1] = 0;
+        instance_parameters.camera.mount.pose.position[2] = (T)0.05;
         for(TI agent_i = 0; agent_i < N_AGENTS; agent_i++){
             auto& agent_state = state.agent_states[agent_i];
             agent_state.orientation[0] = 1;

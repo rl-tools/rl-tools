@@ -14,7 +14,7 @@ from hyperdrone.examples.data import procthor_scene_path
 
 NUM_CAMERAS = 4096
 WIDTH, HEIGHT = 64, 64
-FOV = 1.3962634015954636  # 80 degrees, the renderer config default
+FOV = 80.0  # degrees, the renderer config default
 EYE = np.array([-3.92, -5.67, 1.0])
 WARMUP_SECONDS, SECONDS, SYNC_INTERVAL = 2.0, 10.0, 10
 
@@ -32,7 +32,7 @@ rotations = Rotation.random(NUM_CAMERAS, rng=np.random.default_rng(0)).as_matrix
 forwards = rotations[:, :, 0]  # camera forward = body +X column
 ups = rotations[:, :, 2]       # camera up = body +Z column
 
-scale = 2.0 * math.tan(FOV / 2.0)
+scale = 2.0 * math.tan(math.radians(FOV) / 2.0)
 du = normalize(np.cross(forwards, ups)) * scale
 dv = normalize(np.cross(du, forwards)) * scale
 dir_00 = forwards - 0.5 * du + 0.5 * dv
