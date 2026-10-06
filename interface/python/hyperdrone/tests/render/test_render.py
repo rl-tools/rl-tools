@@ -452,6 +452,45 @@ def test_jit_cache_reuse():
     assert library.stat().st_mtime == modification_time
 
 
+def test_different_renderer_configurations_share_scene():
+    scene = make_scene(3.0)
+    depth_renderer = render.Renderer(width=16, height=16, output="depth", fidelity="low")
+    rgbd_renderer = render.Renderer(width=16, height=16, output="rgbd", fidelity="low")
+    for renderer in (depth_renderer, rgbd_renderer):
+        renderer.init(scene)
+        look_forward(renderer)
+        renderer.render()
+        assert abs(renderer.depth()[0, 8, 8] - 3.0) < 1e-2
+
+    frame = rgbd_renderer.frame()
+    camera = depth_renderer.camera(position=(1, 0, 0), look_at=(2, 0, 0))
+    depth_renderer.set_cameras(camera[None])
+    depth_renderer.render()
+    assert abs(depth_renderer.depth()[0, 8, 8] - 2.0) < 1e-2
+    assert abs(rgbd_renderer.depth()[0, 8, 8] - 3.0) < 1e-2
+    np.testing.assert_array_equal(rgbd_renderer.frame(), frame)
+    rgbd_renderer.render()
+    assert abs(rgbd_renderer.depth()[0, 8, 8] - 3.0) < 1e-2
+
+
+def test_output_views_keep_renderer_and_scene_alive():
+    import gc
+
+    scene = make_scene(2.0)
+    renderer = render.Renderer(width=16, height=16, output="depth", fidelity="low")
+    renderer.init(scene)
+    look_forward(renderer)
+    renderer.render()
+    snapshot = renderer.depth()
+    views = [renderer.depth(copy=False)]
+    if renderer.backend != "optix":
+        views.append(np.from_dlpack(renderer.depth_dlpack()))
+    del renderer, scene
+    gc.collect()
+    for view in views:
+        np.testing.assert_array_equal(view, snapshot)
+
+
 def test_zero_copy_host_view():
     renderer = render.Renderer(width=16, height=16, num_cameras=1, output="depth", fidelity="low")
     renderer.init(make_scene(2.0))

@@ -1,6 +1,6 @@
 import numpy as np
 
-from ._component import ensure_renderer_library, load_core
+from ._component import load_core, load_renderer
 from ._config import (
     OUTPUT_MODE,
     FIDELITY,
@@ -119,9 +119,7 @@ class Renderer:
             semantic_segmentation=bool(semantic_segmentation),
             dynamic_motion_blur=bool(dynamic_motion_blur),
         )
-        library = ensure_renderer_library(self.config)
-        core = load_core()
-        self._renderer = core.JitRenderer(str(library), self.config.canonical())
+        self._renderer = load_renderer(self.config).Renderer()
         self._scene = None
         self._asset_pool = None
 

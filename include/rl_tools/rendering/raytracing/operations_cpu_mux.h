@@ -4,6 +4,17 @@
 #pragma once
 #define RL_TOOLS_RENDERING_RAYTRACING_OPERATIONS_CPU_MUX_H
 
+// backend contract: renderer.h maps the same macro to backends::Default (the Renderer/AssetLibrary
+// template default), and the selected header provides, in namespace rl_tools for that tag:
+//   types: backends::{RendererState, LibraryState, SceneState}<BACKEND, SPEC> specializations
+//   verbs on Renderer<SPEC, BACKEND>: malloc, init(device, renderer, scene, pool, metadata), free,
+//          synchronize, generate_probe_directions, {render, probe, update, expand_motion_transforms,
+//          advance_flow}_{launch, sync}
+//   copy(...) with backends::Device<BACKEND> as source or destination
+//   optional: device_name; AssetLibrary malloc/free/init overloads for cross-renderer sharing (OptiX)
+// It includes operations_cpu_common.h (backend-independent host verbs) first and
+// operations_cpu_post.h last, which derives the blocking composites (render = render_launch +
+// render_sync, ...), the library/Bundle init overloads and the non-sharing library fallbacks.
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_METAL)
     #include "backends/metal/operations_cpu.h"
 #elif defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)

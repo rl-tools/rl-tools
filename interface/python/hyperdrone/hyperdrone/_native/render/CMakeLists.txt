@@ -67,9 +67,9 @@ find_package(nanobind CONFIG REQUIRED)
 add_library(hyperdrone_render_tooling INTERFACE)
 target_include_directories(hyperdrone_render_tooling INTERFACE ${RLTOOLS_ROOT}/src)
 
-nanobind_add_module(hyperdrone_render_core host.cpp scene_bindings.cpp)
+nanobind_add_module(hyperdrone_render_core scene_bindings.cpp)
 target_include_directories(hyperdrone_render_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../common)
-target_link_libraries(hyperdrone_render_core PRIVATE RLtools::RLtools hyperdrone_render_stb ${CMAKE_DL_LIBS})
+target_link_libraries(hyperdrone_render_core PRIVATE RLtools::RLtools hyperdrone_render_stb)
 set_target_properties(hyperdrone_render_core PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 if(HYPERDRONE_VARIANT STREQUAL "OPTIX")
     find_package(CUDAToolkit REQUIRED)
@@ -95,6 +95,7 @@ endfunction()
 include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/hyperdrone_jit.cmake)
 hyperdrone_jit_add_configs(
     COMPONENT render
+    PYTHON_MODULE
     SOURCES impl.cpp
     LINK RLtools::RLtools hyperdrone_render_stb hyperdrone_render_tooling
 )
