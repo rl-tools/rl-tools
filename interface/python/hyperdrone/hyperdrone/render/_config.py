@@ -63,7 +63,7 @@ class RendererConfig:
         return self.num_probes > 0
 
     def canonical(self):
-        # must match build_config_string() in _native/render/impl.cpp exactly
+        # must match build_config_string() in _native/render/renderer.cpp exactly
         return (
             f"w={self.width};h={self.height};nc={self.num_cameras};np={self.num_probes};"
             f"sh={self.fidelity};om={self.output_mode};mb={self.motion_blur_samples};aa={self.anti_aliasing_grid};"
