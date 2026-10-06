@@ -8,8 +8,7 @@
 // template default), and the selected header provides, in namespace rl_tools for that tag:
 //   types: backends::{RendererState, LibraryState, SceneState}<BACKEND, SPEC> specializations
 //   verbs on Renderer<SPEC, BACKEND>: malloc, init(device, renderer, scene, pool, metadata), free,
-//          synchronize, generate_probe_directions, {render, probe, update, expand_motion_transforms,
-//          advance_flow}_{launch, sync}
+//          synchronize, generate_probe_directions, {render, probe, update, advance_flow}_{launch, sync}
 //   copy(...) with backends::Device<BACKEND> as source or destination
 //   optional: device_name; AssetLibrary malloc/free/init overloads for cross-renderer sharing (OptiX)
 // It includes operations_cpu_common.h (backend-independent host verbs) first and
