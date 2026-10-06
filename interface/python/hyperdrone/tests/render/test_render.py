@@ -9,7 +9,6 @@ import pytest
 
 import hyperdrone
 from hyperdrone import jit, render
-from hyperdrone.render import _io
 
 
 def test_backend_announcement_reaches_python_for_each_renderer():
@@ -230,7 +229,7 @@ def test_render_and_probe_are_independent(asynchronous):
     np.testing.assert_array_equal(renderer.segmentation(), segmentation)
 
 
-def test_no_probes_compiles_the_probe_pass_out(tmp_path):
+def test_no_probes_compiles_the_probe_pass_out():
     with pytest.raises(ValueError):
         render.Renderer(width=16, height=16, num_cameras=1, num_probes=-1, output="depth", fidelity="low")
     renderer = render.Renderer(width=16, height=16, num_cameras=1, num_probes=0, output="depth", fidelity="low")
@@ -250,7 +249,6 @@ def test_no_probes_compiles_the_probe_pass_out(tmp_path):
         renderer.probe,
         renderer.probe_launch,
         renderer.probe_sync,
-        lambda: renderer.save_probes(tmp_path / "probes.bin"),
     ):
         with pytest.raises(RuntimeError, match="num_probes=0"):
             call()
@@ -322,7 +320,7 @@ def test_dynamic_motion_blur_object():
     assert abs(renderer.depth()[0, 0, 0] - 3.0) < 1e-2
 
 
-def test_overlay_pipeline_and_output_saves(tmp_path):
+def test_overlay_pipeline(tmp_path):
     scene = make_scene(8.0)
     asset_pool = render.AssetPool()
     dynamic = render.Object(name="dynamic", segmentation_class=23)
@@ -346,7 +344,6 @@ def test_overlay_pipeline_and_output_saves(tmp_path):
     )
     renderer.init(scene, asset_pool)
     look_forward(renderer)
-    renderer.generate_probe_directions()
     assert renderer.can_attach(0, 0)
     assert renderer.can_spawn(0, asset)
     renderer.attach(0, 0)
@@ -410,41 +407,6 @@ def test_overlay_pipeline_and_output_saves(tmp_path):
     assert np.any(segmentation[1] == instance_id + 1)
     assert not np.any(segmentation[0] == instance_id)
     assert not np.any(segmentation[0] == instance_id + 1)
-
-    frame_path = tmp_path / "frame.png"
-    renderer.save_image(frame_path)
-    assert np.array_equal(_io.read_png(frame_path), _io.camera_grid(renderer.frame()))
-
-    segmentation_path = tmp_path / "segmentation.png"
-    renderer.save_segmentation_image(segmentation_path)
-    assert np.array_equal(
-        _io.read_png(segmentation_path),
-        _io.camera_grid(_io.segmentation_to_rgba(renderer.segmentation())),
-    )
-
-    depth_image_path = tmp_path / "depth.png"
-    renderer.save_depth_image(depth_image_path)
-    depth_gray = _io.depth_to_gray(renderer.depth(), renderer.scene_bounds["camera_radius"])
-    assert np.array_equal(_io.read_png(depth_image_path), _io.camera_grid(_io.gray_to_rgba(depth_gray)))
-
-    depth_path = tmp_path / "depth.bin"
-    renderer.save_depth_raw(depth_path)
-    blob = depth_path.read_bytes()
-    num_cameras, height, width = np.frombuffer(blob[:12], dtype=np.int32)
-    assert (num_cameras, height, width) == (renderer.num_cameras, renderer.height, renderer.width)
-    depth_payload = np.frombuffer(blob[12:], dtype=np.float32).reshape(num_cameras, height, width)
-    assert np.array_equal(depth_payload, renderer.depth())
-
-    renderer.probe()
-    probes_path = tmp_path / "probes.bin"
-    renderer.save_probes(probes_path)
-    blob = probes_path.read_bytes()
-    num_cameras, num_probes = np.frombuffer(blob[:8], dtype=np.int32)
-    assert (num_cameras, num_probes) == (renderer.num_cameras, renderer.num_probes)
-    records = np.frombuffer(blob[8:], dtype=[("distance", "<f4"), ("hit", "<i4")]).reshape(num_cameras, num_probes)
-    distances, hits = renderer.collisions()
-    assert np.array_equal(records["distance"], distances)
-    assert np.array_equal(records["hit"], hits)
 
 
 def test_semantic_segmentation_with_overlay():
@@ -743,7 +705,7 @@ def labelled_glb(tmp_path):
 
 
 @pytest.mark.parametrize('semantic', [False, True])
-def test_loaded_instance_and_semantic_labels(labelled_glb, semantic, tmp_path):
+def test_loaded_instance_and_semantic_labels(labelled_glb, semantic):
     scene = render.load_scene(labelled_glb, rgb=False, preserve_instances=True)
     assert scene.num_instances == 4
     assert scene.segmentation_taxonomy == 'test'
@@ -758,12 +720,6 @@ def test_loaded_instance_and_semantic_labels(labelled_glb, semantic, tmp_path):
     assert renderer.segmentation_mode == ('semantic' if semantic else 'instance')
     assert labels[:, 12, 12].tolist() == ([21, 21, 162, 0] if semantic else [0, 1, 2, 3])
     assert np.any(labels == 0xffffffff)
-    import json
-    output = tmp_path / 'segmentation.png'
-    _io.save_segmentation_image(renderer, output)
-    assert json.loads(Path(str(output) + '.json').read_text()) == {
-        'segmentation_mode': renderer.segmentation_mode, 'background_id': 0xffffffff}
-
     if not semantic:
         assert scene.object_name(scene.instance_object(int(labels[1, 12, 12]))) == 'object-1'
 

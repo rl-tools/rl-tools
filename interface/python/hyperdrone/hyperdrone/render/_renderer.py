@@ -1,6 +1,5 @@
 import numpy as np
 
-from . import _io
 from ._component import ensure_renderer_library, load_core
 from ._config import (
     OUTPUT_MODE,
@@ -304,22 +303,6 @@ class Renderer:
 
     def depthbuffer_device_ptr(self):
         return self._renderer.depthbuffer_device_ptr()
-
-    def save_image(self, path):
-        _io.save_image(self, path)
-
-    def save_depth_image(self, path):
-        _io.save_depth_image(self, path)
-
-    def save_depth_raw(self, path):
-        _io.save_depth_raw(self, path)
-
-    def save_segmentation_image(self, path):
-        _io.save_segmentation_image(self, path)
-
-    def save_probes(self, path):
-        self._require_probes()
-        _io.save_probes(self, path)
 
     def can_attach(self, camera, overlay):
         return self._renderer.can_attach(camera, overlay)

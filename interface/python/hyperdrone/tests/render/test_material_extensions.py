@@ -1,11 +1,11 @@
 import json
 import struct
+import zlib
 
 import numpy as np
 import pytest
 
 from hyperdrone import render
-from hyperdrone.render import _io
 
 
 def write_material_glb(path, materials, texture=None, material_indices=(0,), nested=False, scene_extras=None):
@@ -47,9 +47,15 @@ def write_material_glb(path, materials, texture=None, material_indices=(0,), nes
     if scene_extras is not None:
         gltf["scenes"][0]["extras"] = scene_extras
     if texture is not None:
-        image_path = path.with_suffix(".png")
-        _io.write_png(image_path, np.array([[texture]], dtype=np.uint8))
-        image_view = append(image_path.read_bytes())
+        def chunk(tag, payload):
+            data = tag + payload
+            return struct.pack(">I", len(payload)) + data + struct.pack(">I", zlib.crc32(data) & 0xFFFFFFFF)
+
+        image = (b"\x89PNG\r\n\x1a\n"
+                 + chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 6, 0, 0, 0))
+                 + chunk(b"IDAT", zlib.compress(b"\0" + bytes(texture)))
+                 + chunk(b"IEND", b""))
+        image_view = append(image)
         gltf["images"] = [{"bufferView": image_view, "mimeType": "image/png"}]
         gltf["textures"] = [{"source": 0}]
     gltf["buffers"] = [{"byteLength": len(binary)}]
