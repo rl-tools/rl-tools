@@ -44,14 +44,17 @@ FetchContent_MakeAvailable(stb)
 add_library(hyperdrone_env_stb INTERFACE)
 target_include_directories(hyperdrone_env_stb SYSTEM INTERFACE ${stb_SOURCE_DIR})
 
+include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/hyperdrone_jit.cmake)
+hyperdrone_jit_find_nanobind()
+
 # the observation path only needs the RGB device program
 function(hyperdrone_component_libraries DEFINES OUT_LIBRARIES)
     set(${OUT_LIBRARIES} rendering_raytracing_backend PARENT_SCOPE)
 endfunction()
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/hyperdrone_jit.cmake)
 hyperdrone_jit_add_configs(
     COMPONENT env
-    SOURCES impl.cpp
+    PYTHON_MODULE
+    SOURCES environment.cpp
     LINK RLtools::RLtools hyperdrone_env_stb
 )

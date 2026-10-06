@@ -1,6 +1,6 @@
-"""ctypes surface over the C++ rl_tools hyperdrone::MultiEnvironment<World>.
+"""Direct bindings to the C++ rl_tools hyperdrone::MultiEnvironment<World>.
 
-The JIT artifact is a thin C shim over the rl_tools batch verbs; this class mirrors that
+The JIT extension binds the rl_tools batch verbs; this class mirrors that
 verb surface one-to-one (reset / render / observe / observe_privileged / step / rewards /
 terminated / rotate_scene) so a notebook drives the exact environment the C++ training
 targets use — no runners involved.
@@ -14,11 +14,9 @@ content hash is part of the JIT key, and preset/task/n_agents must stay at their
 defaults since the user type supersedes them.
 """
 import copy
-import ctypes
 import hashlib
 import json
 import os
-import sys
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -121,12 +119,15 @@ class EnvConfig:
         }
         if self.spec_header is not None:
             values["HYPERDRONE_ENV_SPEC_HEADER"] = os.path.abspath(self.spec_header)
+            with open(self.spec_header, "rb") as header:
+                values["HYPERDRONE_ENV_SPEC_HASH"] = hashlib.sha256(header.read()).hexdigest()[:16]
         return values
 
     def canonical(self):
-        canonical = " ".join(f"{name}={value}" for name, value in sorted(self.defines().items()))
-        if self.spec_header is not None:
-            digest = hashlib.sha256(open(self.spec_header, "rb").read()).hexdigest()[:16]
+        values = self.defines()
+        digest = values.pop("HYPERDRONE_ENV_SPEC_HASH", None)
+        canonical = " ".join(f"{name}={value}" for name, value in sorted(values.items()))
+        if digest is not None:
             canonical += f" spec_hash={digest}"
         return canonical
 
@@ -136,7 +137,7 @@ class EnvConfig:
 
 @dataclass(frozen=True)
 class ObservationLayout:
-    """Named blocks of an observation vector, parsed from the shim's layout export.
+    """Named blocks of an observation vector, described by the compiled environment.
 
     For image observations (axis == "channel"), shape is (height, width, channels) and
     block offsets/sizes index the channel axis; for flat vectors (axis == "flat"), shape
@@ -170,73 +171,6 @@ class ObservationLayout:
         return cls(shape=shape, axis=axis, blocks=blocks)
 
 
-class _Config(ctypes.Structure):
-    _fields_ = [
-        ("num_environments", ctypes.c_uint32),
-        ("instances_per_environment", ctypes.c_uint32),
-        ("total_instances", ctypes.c_uint32),
-        ("n_agents", ctypes.c_uint32),
-        ("cam_width", ctypes.c_uint32),
-        ("cam_height", ctypes.c_uint32),
-        ("image_channels", ctypes.c_uint32),
-        ("observation_dim", ctypes.c_uint32),
-        ("observation_dim_privileged", ctypes.c_uint32),
-        ("action_dim", ctypes.c_uint32),
-        ("episode_step_limit", ctypes.c_uint32),
-        ("observation_dim_imu", ctypes.c_uint32),
-        ("frame_stride", ctypes.c_uint32),
-    ]
-
-
-_IFACE_VERSION = 7
-
-
-def _load(config):
-    artifact = jit.ensure(component(), config)
-    library = ctypes.CDLL(str(artifact))
-    library.hyperdrone_env_iface_version.restype = ctypes.c_int
-    if library.hyperdrone_env_iface_version() != _IFACE_VERSION:
-        raise jit.BuildError(
-            f"hyperdrone: env iface version mismatch: artifact has "
-            f"{library.hyperdrone_env_iface_version()}, python expects {_IFACE_VERSION}"
-        )
-    library.hyperdrone_env_config_string.restype = ctypes.c_char_p
-    library.hyperdrone_env_observation_layout.restype = ctypes.c_char_p
-    library.hyperdrone_env_observation_layout.argtypes = [ctypes.c_int]
-    library.hyperdrone_env_create.restype = ctypes.c_void_p
-    library.hyperdrone_env_destroy.argtypes = [ctypes.c_void_p]
-    library.hyperdrone_env_config.argtypes = [ctypes.c_void_p, ctypes.POINTER(_Config)]
-    library.hyperdrone_env_init.argtypes = [ctypes.c_void_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_ulonglong]
-    library.hyperdrone_env_parameters.restype = ctypes.c_char_p
-    library.hyperdrone_env_parameters.argtypes = [ctypes.c_void_p]
-    library.hyperdrone_env_set_parameters.restype = ctypes.c_int
-    library.hyperdrone_env_set_parameters.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
-    library.hyperdrone_env_instance_parameters.restype = ctypes.c_char_p
-    library.hyperdrone_env_instance_parameters.argtypes = [ctypes.c_void_p]
-    library.hyperdrone_env_set_instance_parameters.restype = ctypes.c_int
-    library.hyperdrone_env_set_instance_parameters.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint8), ctypes.c_char_p]
-    library.hyperdrone_env_model.restype = ctypes.c_char_p
-    library.hyperdrone_env_model.argtypes = [ctypes.c_void_p, ctypes.c_char_p]
-    library.hyperdrone_env_reset.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint8)]
-    library.hyperdrone_env_render.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint8)]
-    library.hyperdrone_env_observe.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_float)]
-    library.hyperdrone_env_observe_privileged.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_float)]
-    library.hyperdrone_env_observe_imu.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_float)]
-    library.hyperdrone_env_step.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_float)]
-    library.hyperdrone_env_rewards.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_float)]
-    library.hyperdrone_env_terminated.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_uint8)]
-    library.hyperdrone_env_rotate_scene.argtypes = [ctypes.c_void_p]
-    return library
-
-
-def _float_ptr(array):
-    return array.ctypes.data_as(ctypes.POINTER(ctypes.c_float))
-
-
-def _uint8_ptr(array):
-    return array.ctypes.data_as(ctypes.POINTER(ctypes.c_uint8))
-
-
 def _is_conta_reference(value):
     return isinstance(value, dict) or (isinstance(value, str) and value.startswith("conta:"))
 
@@ -250,13 +184,12 @@ def _resolve_asset(asset):
 
 
 def _normalize_scenes(scenes, num_environments):
-    """Turn the scenes argument into the newline-joined reference list the shim expects.
+    """Normalize the scene corpus into a list of local paths.
 
     Accepts a directory (the corpus is its sorted .glb files), a single reference, or a
     sequence of references — each a .glb path, a "conta:HASH" string, or a store manifest
     entry {"description": ..., "hash": ...}. Conta references are resolved (downloading
-    into the shared conta cache) here, so failures raise instead of aborting the process
-    through the C ABI; list order is the corpus order.
+    into the shared conta cache) here; list order is the corpus order.
     """
     if isinstance(scenes, (str, os.PathLike, dict)):
         scenes = [scenes]
@@ -311,7 +244,7 @@ def _validate(config, native):
         "total_instances": config.num_environments * config.instances,
     }
     for name, value in expected.items():
-        actual = int(getattr(native, name))
+        actual = int(native[name])
         if actual != value:
             raise jit.BuildError(
                 f"hyperdrone: env config mismatch — the artifact reports {name}={actual}, "
@@ -351,32 +284,23 @@ class MultiEnvironment:
         scene_references = _normalize_scenes(scenes, self.config.num_environments)
         drone_asset = _resolve_asset(drone_asset)
         gate_asset = _resolve_asset(gate_asset)
-        self._library = _load(self.config)
-        self._handle = ctypes.c_void_p(self._library.hyperdrone_env_create())
-        native = _Config()
-        self._library.hyperdrone_env_config(self._handle, ctypes.byref(native))
+        self._module = jit.module(component(), self.config)
+        native = self._module.dimensions
         _validate(self.config, native)
-        for name, ctype in _Config._fields_:
-            setattr(self, name, (float if ctype is ctypes.c_float else int)(getattr(native, name)))
-        self.config_string = self._library.hyperdrone_env_config_string().decode()
-        self.observation_layout = ObservationLayout.parse(
-            self._library.hyperdrone_env_observation_layout(0).decode()
-        )
-        self.observation_layout_privileged = ObservationLayout.parse(
-            self._library.hyperdrone_env_observation_layout(1).decode()
-        )
+        for name, value in native.items():
+            setattr(self, name, int(value))
+        self.config_string = self._module.config_string
+        self.observation_layout = ObservationLayout.parse(self._module.observation_layout)
+        self.observation_layout_privileged = ObservationLayout.parse(self._module.observation_layout_privileged)
         self.observation_layout_imu = None
         if self.observation_dim_imu > 0:
-            self.observation_layout_imu = ObservationLayout.parse(
-                self._library.hyperdrone_env_observation_layout(2).decode()
-            )
-        drone_asset_encoded = drone_asset.encode() if drone_asset is not None else b""
-        gate_asset_encoded = gate_asset.encode() if gate_asset is not None else b""
-        self._library.hyperdrone_env_init(self._handle, "\n".join(scene_references).encode(), drone_asset_encoded, gate_asset_encoded, seed)
+            self.observation_layout_imu = ObservationLayout.parse(self._module.observation_layout_imu)
+        self._environment = self._module.Environment()
+        self._environment.init(scene_references, drone_asset or "", gate_asset or "", seed)
         self._sampled = np.zeros(self.total_instances, dtype=bool)
         if parameters is not None:
             merged = self._resolve(self.parameters, parameters)
-            if not self._library.hyperdrone_env_set_parameters(self._handle, json.dumps(merged).encode()):
+            if not self._environment.set_parameters(json.dumps(merged)):
                 raise ValueError("hyperdrone: the JSON reader rejected the parameters")
 
     def _resolve(self, base, overrides):
@@ -384,11 +308,11 @@ class MultiEnvironment:
         dynamics = overrides.get("dynamics", {}).get("dynamics", {})
         model = dynamics.pop("model", None)
         if model is not None:
-            entry = self._library.hyperdrone_env_model(self._handle, model.encode())
-            if entry is None:
+            entry = self._environment.model(model)
+            if not entry:
                 raise ValueError(f"hyperdrone: unknown dynamics model {model!r} (see hyperdrone.dynamics.MODELS)")
             base = copy.deepcopy(base)
-            base["dynamics"]["dynamics"] = json.loads(entry.decode())
+            base["dynamics"]["dynamics"] = json.loads(entry)
         merged = _merge(base, overrides)
         if "J" in dynamics and "J_inv" not in dynamics:
             merged["dynamics"]["dynamics"]["J_inv"] = np.linalg.inv(merged["dynamics"]["dynamics"]["J"]).tolist()
@@ -397,13 +321,13 @@ class MultiEnvironment:
     @property
     def parameters(self):
         """The nominal parameters every instance is sampled from at reset (see the parameters argument)."""
-        return json.loads(self._library.hyperdrone_env_parameters(self._handle).decode())
+        return json.loads(self._environment.parameters())
 
     def instance_parameters(self):
         """The current parameters of every instance, as sampled at its last reset: a list of dicts in the schema of parameters."""
         if not self._sampled.all():
             raise RuntimeError("hyperdrone: per-instance parameters exist once every instance has been reset")
-        return json.loads(self._library.hyperdrone_env_instance_parameters(self._handle).decode())
+        return json.loads(self._environment.instance_parameters())
 
     def set_instance_parameters(self, overrides, mask=None):
         """Merges overrides into the current parameters of the instances selected by mask (default: all) until each one's next reset. overrides is one dict for all selected instances or a list with one dict per selected instance (in instance order), in the schema of the parameters argument; only the drone itself varies per instance (dynamics.dynamics, dynamics.imu, camera), the rest is shared and set through parameters=."""
@@ -420,7 +344,7 @@ class MultiEnvironment:
             if shared:
                 raise ValueError(f"hyperdrone: dynamics {shared} are shared by all instances; set them through parameters=")
             merged.append(self._resolve(current[instance_i], instance_overrides))
-        if not self._library.hyperdrone_env_set_instance_parameters(self._handle, _uint8_ptr(mask), json.dumps(merged).encode()):
+        if not self._environment.set_instance_parameters(mask, json.dumps(merged)):
             raise ValueError("hyperdrone: the JSON reader rejected the parameters")
 
     @property
@@ -428,9 +352,7 @@ class MultiEnvironment:
         return self.parameters["dynamics"]["integration"]["dt"]
 
     def close(self):
-        if self._handle:
-            self._library.hyperdrone_env_destroy(self._handle)
-            self._handle = None
+        self._environment = None
 
     def __del__(self):
         try:
@@ -445,7 +367,7 @@ class MultiEnvironment:
 
     def reset(self, mask=None):
         mask = self._mask(mask)
-        self._library.hyperdrone_env_reset(self._handle, _uint8_ptr(mask))
+        self._environment.reset(mask)
         self._sampled |= mask.astype(bool)
 
     def _check_synchronized(self, reset_mask):
@@ -463,16 +385,16 @@ class MultiEnvironment:
             reset_mask = np.zeros(self.total_instances, dtype=np.uint8)
         reset_mask = self._mask(reset_mask)
         self._check_synchronized(reset_mask)
-        self._library.hyperdrone_env_render(self._handle, _uint8_ptr(reset_mask))
+        self._environment.render(reset_mask)
 
     def observe(self):
         observations = np.empty((self.total_instances, self.observation_dim), dtype=np.float32)
-        self._library.hyperdrone_env_observe(self._handle, _float_ptr(observations))
+        self._environment.observe(observations)
         return observations
 
     def observe_privileged(self):
         observations = np.empty((self.total_instances, self.observation_dim_privileged), dtype=np.float32)
-        self._library.hyperdrone_env_observe_privileged(self._handle, _float_ptr(observations))
+        self._environment.observe_privileged(observations)
         return observations
 
     def observe_imu(self):
@@ -480,7 +402,7 @@ class MultiEnvironment:
         if self.observation_dim_imu == 0:
             raise ValueError(f"hyperdrone: this configuration has no IMU observation (task={self.config.task!r})")
         observations = np.empty((self.total_instances, self.observation_dim_imu), dtype=np.float32)
-        self._library.hyperdrone_env_observe_imu(self._handle, _float_ptr(observations))
+        self._environment.observe_imu(observations)
         return observations
 
     def step(self, actions=None):
@@ -492,20 +414,20 @@ class MultiEnvironment:
                 )
             actions = np.empty((self.total_instances, 0), dtype=np.float32)
         actions = np.ascontiguousarray(np.asarray(actions, dtype=np.float32).reshape(self.total_instances, self.action_dim))
-        self._library.hyperdrone_env_step(self._handle, _float_ptr(actions))
+        self._environment.step(actions)
 
     def rewards(self):
         rewards = np.empty(self.total_instances, dtype=np.float32)
-        self._library.hyperdrone_env_rewards(self._handle, _float_ptr(rewards))
+        self._environment.rewards(rewards)
         return rewards
 
     def terminated(self):
         flags = np.empty(self.total_instances, dtype=np.uint8)
-        self._library.hyperdrone_env_terminated(self._handle, _uint8_ptr(flags))
+        self._environment.terminated(flags)
         return flags.astype(bool)
 
     def rotate_scene(self):
-        self._library.hyperdrone_env_rotate_scene(self._handle)
+        self._environment.rotate_scene()
 
     def frames(self):
         """The latest visual observation as (total, *observation_layout.shape) images."""
