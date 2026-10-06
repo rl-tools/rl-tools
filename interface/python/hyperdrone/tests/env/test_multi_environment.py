@@ -60,6 +60,44 @@ def test_verb_sequence_shapes_and_determinism(scene_directory):
     assert frames.std() > 0, "the rendered observation should not be blank"
 
 
+def test_configurations_keep_independent_state(scene_directory):
+    small = MultiEnvironment(scene_directory, config=EnvConfig(instances=2, cam_width=16, cam_height=16, shading="low"), seed=5)
+    large = MultiEnvironment(scene_directory, config=CONFIG, seed=5)
+    try:
+        assert type(small._environment) is not type(large._environment)
+        for environment in (small, large):
+            environment.reset()
+            environment.render()
+        assert small.frames().shape == (2, 16, 16, 3)
+        assert large.frames().shape == (2, 32, 32, 3)
+        state = large.observe_privileged()
+        small.step(np.zeros((2, small.action_dim), dtype=np.float32))
+        np.testing.assert_array_equal(large.observe_privileged(), state)
+        small.close()
+        small.close()
+        large.step(np.zeros((2, large.action_dim), dtype=np.float32))
+        assert not np.array_equal(large.observe_privileged(), state)
+    finally:
+        small.close()
+        large.close()
+
+
+def test_native_binding_rejects_invalid_buffers(scene_directory):
+    environment = MultiEnvironment(scene_directory, config=CONFIG)
+    try:
+        with pytest.raises(ValueError, match="buffer size"):
+            environment._environment.reset(np.ones(1, dtype=np.uint8))
+        with pytest.raises(ValueError, match="buffer size"):
+            environment._environment.step(np.zeros(1, dtype=np.float32))
+        with pytest.raises(TypeError):
+            environment._environment.observe(np.empty((2, environment.observation_dim), dtype=np.float64))
+        environment.reset()
+        environment.render()
+        assert np.isfinite(environment.observe()).all()
+    finally:
+        environment.close()
+
+
 def test_frames_and_rotate_scene(scene_directory):
     env = MultiEnvironment(scene_directory, config=CONFIG, seed=7)
     try:

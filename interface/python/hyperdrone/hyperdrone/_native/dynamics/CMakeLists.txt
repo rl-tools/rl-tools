@@ -30,14 +30,8 @@ endif()
 
 add_subdirectory(${RLTOOLS_ROOT} rl_tools EXCLUDE_FROM_ALL)
 
-find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
-execute_process(
-    COMMAND ${Python_EXECUTABLE} -m nanobind --cmake_dir
-    OUTPUT_VARIABLE nanobind_DIR
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    COMMAND_ERROR_IS_FATAL ANY
-)
-find_package(nanobind CONFIG REQUIRED)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/hyperdrone_jit.cmake)
+hyperdrone_jit_find_nanobind()
 
 nanobind_add_module(hyperdrone_dynamics_core host.cpp)
 target_include_directories(hyperdrone_dynamics_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../common)
@@ -60,7 +54,6 @@ else()
     endif()
 endif()
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/hyperdrone_jit.cmake)
 hyperdrone_jit_add_configs(
     COMPONENT dynamics
     SOURCES impl.cpp

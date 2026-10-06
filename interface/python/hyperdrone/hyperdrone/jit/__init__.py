@@ -58,9 +58,9 @@ def _write_config_file(directory, config):
     config_dir = directory / "configs"
     config_dir.mkdir(exist_ok=True)
     config_file = config_dir / f"{config.key()}.txt"
-    if config_file.exists():
-        return False
     lines = "".join(f"{name}={value}\n" for name, value in sorted(config.defines().items()))
+    if config_file.exists() and config_file.read_text() == lines:
+        return False
     # per-process staging name: concurrent writers of the same config must not race on one
     # staging path; the final rename is atomic and idempotent (identical content)
     staging = config_dir / f"{config.key()}.{os.getpid()}.tmp"
@@ -125,7 +125,7 @@ def module(component, config):
     if component.core_target is not None:
         core(component)
     artifact = ensure(component, config)
-    name = f"hyperdrone_{component.name}_{config.key()}"
+    name = f"hyperdrone_{component.name}_{component.variant}_{config.key()}"
     extension = _load_extension(name, artifact)
     if extension.config != config.canonical():
         raise BuildError(
