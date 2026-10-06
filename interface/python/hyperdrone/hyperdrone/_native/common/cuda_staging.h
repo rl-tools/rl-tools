@@ -51,8 +51,14 @@ namespace hyperdrone {
         }
     };
 
+    // the render and dynamics cores share this type: whichever module registers it second
+    // re-exports the existing binding instead of registering a duplicate
     inline void register_cuda_staging(nanobind::module_& m){
         namespace nb = nanobind;
+        if(nb::handle registered = nb::type<CudaBuffer>(); registered.is_valid()){
+            m.attr("CudaBuffer") = registered;
+            return;
+        }
         nb::class_<CudaBuffer>(m, "CudaBuffer")
             .def(nb::init<nb::ndarray<const float, nb::c_contig, nb::device::cpu>>(), nb::arg("source"))
             .def_prop_ro("shape", [](const CudaBuffer& buffer){ return buffer.shape; })

@@ -10,6 +10,10 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
     add_subdirectory(raytracing/generic)
 endif()
 
+add_executable(test_rendering_rig rig.cpp)
+target_link_libraries(test_rendering_rig PRIVATE RLtools::RLtools GTest::gtest_main)
+gtest_discover_tests(test_rendering_rig PROPERTIES TIMEOUT 20 LABELS "rig")
+
 if(TARGET rl_tools_procthor_conversion)
     add_executable(test_rendering_procthor_conversion procthor_conversion.cpp)
     target_link_libraries(test_rendering_procthor_conversion PRIVATE rl_tools_procthor_conversion GTest::gtest_main)

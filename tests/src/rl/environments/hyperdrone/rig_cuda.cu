@@ -1,5 +1,6 @@
 // host/device rig parity: the same StateRenderRotorPhase rollout rendered through the host
-// set_transform_pair(rig) verbs and through the device slab producer must be pixel-identical
+// set_transform_pair(rig) verb and through a device kernel sampling the rig straight into the
+// renderer's transform slabs must be pixel-identical
 #define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 1
 
 #include <rl_tools/operations/cuda.h>
@@ -9,6 +10,7 @@
 #include <rl_tools/rl/environments/l2f/operations_generic.h>
 #include <rl_tools/rl/environments/hyperdrone/pose.h>
 #include <rl_tools/rl/environments/hyperdrone/rig/operations_cpu.h>
+#include <metra/metra.h>
 
 #include "../../../utils/utils.h"
 
@@ -99,7 +101,7 @@ namespace test_hyperdrone_rig_cuda {
     using ENV = rlt::rl::environments::Multirotor<l2f::Specification<T, TI, STATIC_PARAMETERS>>;
 }
 
-using RIG = rlt::rl::environments::hyperdrone::rig::Rotorcraft<T, TI, 4>;
+using RIG = rlt::rl::environments::hyperdrone::rig::Rotorcraft<TI, 4>;
 static constexpr TI TOTAL_SLOTS = SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
 
 struct KernelParams {
@@ -107,16 +109,17 @@ struct KernelParams {
     TI first_slot;
     float body_open[12];
     float body_close[12];
-    T phase_open[4];
-    T phase_close[4];
+    float phase_open[4];
+    float phase_close[4];
 };
 
 template <typename T_DEVICE>
-__global__ void produce_transforms_kernel(T_DEVICE device, KernelParams params, float* transforms_pair){
+__global__ void produce_transforms_kernel(T_DEVICE device, KernelParams params, float* transforms, float* transforms_motion){
     if(blockIdx.x != 0 || threadIdx.x != 0){
         return;
     }
-    rlt::set_transform_pair(device, transforms_pair, TOTAL_SLOTS, params.first_slot, params.rig, params.body_open, params.body_close, params.phase_open, params.phase_close);
+    rlt::rendering::rig::Buffer<RIG::SPEC> buffer;
+    rlt::sample(device, params.rig, params.body_open, params.body_close, params.phase_open, params.phase_close, (TI)SPEC::MOTION_BLUR_SAMPLES, buffer, transforms_motion + params.first_slot * 12, (TI)(TOTAL_SLOTS * 12), transforms + params.first_slot * 12);
 }
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
@@ -139,7 +142,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
 
     RIG rig;
     ASSERT_TRUE(rlt::init(device, rig, drone_assembly));
-    ASSERT_EQ(rig.num_props, 4);
+    ASSERT_EQ(rig.num_coordinates, 4);
 
     rlt::rendering::raytracing::AssetPool pool;
     const auto drone_asset = rlt::add(device, pool, drone_assembly);
@@ -223,12 +226,12 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
         rlt::copy(renderer.device, device, rlt::frame_buffer(device, renderer), frame_alias);
     }
 
-    // device path: kernel producer into the transforms_pair slab
+    // device path: the kernel samples the rig into the transforms and transforms_motion slabs
     cudaStream_t render_stream = rlt::stream(device, renderer);
-    float* transforms_pair = rlt::data(rlt::transforms_pair(device, renderer));
-    produce_transforms_kernel<<<1, 1, 0, render_stream>>>(tag_device, params, transforms_pair);
+    float* transforms = rlt::data(rlt::transforms(device, renderer));
+    float* transforms_motion = rlt::data(rlt::transforms_motion(device, renderer));
+    produce_transforms_kernel<<<1, 1, 0, render_stream>>>(tag_device, params, transforms, transforms_motion);
     ASSERT_EQ(cudaGetLastError(), cudaSuccess);
-    rlt::expand_motion_transforms_launch(device, renderer);
     rlt::update_launch(device, renderer);
     rlt::render_launch(device, renderer);
     rlt::render_sync(device, renderer);
@@ -239,7 +242,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
     }
 
     // the host producers compile under gcc, the device producers under nvcc: trig/contraction
-    // ULP differences in the spin/slerp math can move a prop-blur edge by one 8-bit quantization
+    // ULP differences in the kinematics can move a prop-blur edge by one 8-bit quantization
     // step, so the moving case is gated at quantization-level agreement; the static case below
     // pins the plumbing bit-exactly
     size_t mismatches = 0;
@@ -251,7 +254,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
                 int a = (frame_host_path[pixel_i] >> (channel_i * 8)) & 0xff;
                 int b = (frame_device_path[pixel_i] >> (channel_i * 8)) & 0xff;
                 int delta = a > b ? a - b : b - a;
-                if(delta > max_channel_delta) max_channel_delta = delta;
+                if(delta > max_channel_delta){
+                    max_channel_delta = delta;
+                }
             }
         }
     }
@@ -259,8 +264,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
     EXPECT_LE(max_channel_delta, (255 + SPEC::MOTION_BLUR_SAMPLES - 1) / SPEC::MOTION_BLUR_SAMPLES) << "moving-case delta beyond a single blur-sample flip";
 
     // static case: identity body rotation, zero phases, identical open/close pair -> every
-    // producer and slerp intermediate is exact on both sides, so the full plumbing (slab
-    // layout, expand, update_launch) must be pixel-identical
+    // kinematic intermediate is exact on both sides, so the full plumbing (slab layout,
+    // update_launch) must be pixel-identical
     {
         KernelParams static_params = params;
         const T identity_orientation[4] = {1, 0, 0, 0};
@@ -282,9 +287,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
             frame_alias._data = static_host.data();
             rlt::copy(renderer.device, device, rlt::frame_buffer(device, renderer), frame_alias);
         }
-        produce_transforms_kernel<<<1, 1, 0, render_stream>>>(tag_device, static_params, transforms_pair);
+        produce_transforms_kernel<<<1, 1, 0, render_stream>>>(tag_device, static_params, transforms, transforms_motion);
         ASSERT_EQ(cudaGetLastError(), cudaSuccess);
-        rlt::expand_motion_transforms_launch(device, renderer);
         rlt::update_launch(device, renderer);
         rlt::render_launch(device, renderer);
         rlt::render_sync(device, renderer);
@@ -327,6 +331,96 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, HOST_DEVICE_RENDER_PARITY){
 
     rlt::free(device, env);
     rlt::free(device, renderer);
+}
+
+namespace general_rig_test {
+    using RIG_SPEC = rlt::rendering::rig::Specification<float, TI, 3, 4>;
+    using Model = rlt::rendering::rig::Model<RIG_SPEC>;
+    static constexpr TI SAMPLES = 4;
+    static constexpr TI POSE_FLOATS = 4 * 12;
+
+    // the model travels as a kernel parameter: a plain value, no device-side setup
+    template <typename TAG>
+    __global__ void sample_kernel(TAG device, Model model, const float* base_open, const float* base_close, const float* open, const float* close, float* poses){
+        if(threadIdx.x != 0 || blockIdx.x != 0){
+            return;
+        }
+        rlt::rendering::rig::Buffer<RIG_SPEC> buffer;
+        rlt::sample(device, model, base_open, base_close, open, close, SAMPLES, buffer, poses, POSE_FLOATS, poses + SAMPLES * POSE_FLOATS);
+    }
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_CUDA, GENERAL_KINEMATICS_HOST_DEVICE_PARITY){
+    using namespace general_rig_test;
+    int device_count = 0;
+    if(cudaGetDeviceCount(&device_count) != cudaSuccess || device_count == 0){
+        GTEST_SKIP() << "CUDA device unavailable";
+    }
+    DEVICE host;
+    DEVICE_GPU gpu;
+    rlt::init(host);
+    rlt::init(gpu);
+    Model model;
+    model.num_links = 3;
+    model.num_parts = 4;
+    model.links[0].joint = rlt::rendering::rig::Joint::REVOLUTE;
+    model.links[0].axis[0] = 2;
+    model.links[0].axis[1] = 1;
+    model.links[0].axis[2] = 0;
+    model.links[0].origin[7] = 3;
+    model.links[1].parent = 0;
+    model.links[1].joint = rlt::rendering::rig::Joint::PRISMATIC;
+    model.links[1].axis[0] = 0;
+    model.links[1].axis[1] = 2;
+    model.links[1].axis[2] = 0;
+    model.links[1].origin[3] = 1;
+    model.links[2].parent = 1;
+    model.links[2].joint = rlt::rendering::rig::Joint::SPHERICAL;
+    model.links[2].origin[11] = 2;
+    model.parts[0].link = 1;
+    model.parts[1].link = 2;
+    model.parts[2].link = 0;
+    model.parts[3].link = 1;
+    model.parts[3].offset[3] = 2;
+    ASSERT_TRUE(rlt::init(host, model));
+    ASSERT_EQ(model.num_coordinates, 6);
+    const float base_open[12] = {1,0,0,4, 0,1,0,0, 0,0,1,0};
+    const float base_close[12] = {0,-1,0,5, 1,0,0,1, 0,0,1,0.5f};
+    const float open[6] = {0, 0, 1,0,0,0};
+    const float close[6] = {12.566370614359172f, 2, -1,0,0,-1};
+
+    constexpr TI OUTPUT_FLOATS = (SAMPLES + 1) * POSE_FLOATS;
+    float *base_open_gpu, *base_close_gpu, *open_gpu, *close_gpu, *poses_gpu;
+    ASSERT_EQ(cudaMalloc(&base_open_gpu, sizeof(base_open)), cudaSuccess);
+    ASSERT_EQ(cudaMalloc(&base_close_gpu, sizeof(base_close)), cudaSuccess);
+    ASSERT_EQ(cudaMalloc(&open_gpu, sizeof(open)), cudaSuccess);
+    ASSERT_EQ(cudaMalloc(&close_gpu, sizeof(close)), cudaSuccess);
+    ASSERT_EQ(cudaMalloc(&poses_gpu, OUTPUT_FLOATS * sizeof(float)), cudaSuccess);
+    ASSERT_EQ(cudaMemcpy(base_open_gpu, base_open, sizeof(base_open), cudaMemcpyHostToDevice), cudaSuccess);
+    ASSERT_EQ(cudaMemcpy(base_close_gpu, base_close, sizeof(base_close), cudaMemcpyHostToDevice), cudaSuccess);
+    ASSERT_EQ(cudaMemcpy(open_gpu, open, sizeof(open), cudaMemcpyHostToDevice), cudaSuccess);
+    ASSERT_EQ(cudaMemcpy(close_gpu, close, sizeof(close), cudaMemcpyHostToDevice), cudaSuccess);
+    rlt::devices::cuda::TAG<DEVICE_GPU, true> tag{};
+    sample_kernel<<<1, 1>>>(tag, model, base_open_gpu, base_close_gpu, open_gpu, close_gpu, poses_gpu);
+    ASSERT_EQ(cudaGetLastError(), cudaSuccess);
+    float actual[OUTPUT_FLOATS];
+    ASSERT_EQ(cudaMemcpy(actual, poses_gpu, sizeof(actual), cudaMemcpyDeviceToHost), cudaSuccess);
+
+    float expected[OUTPUT_FLOATS];
+    rlt::rendering::rig::Buffer<RIG_SPEC> buffer;
+    rlt::sample(host, model, base_open, base_close, open, close, SAMPLES, buffer, expected, POSE_FLOATS, expected + SAMPLES * POSE_FLOATS);
+    float worst = 0;
+    for(TI i = 0; i < OUTPUT_FLOATS; i++){
+        const float error = std::abs(expected[i] - actual[i]);
+        worst = std::max(worst, error);
+        EXPECT_NEAR(expected[i], actual[i], 2e-5f) << "element " << i;
+    }
+    metra::log("rendering/rig/cuda/max_pose_error", worst);
+    cudaFree(poses_gpu);
+    cudaFree(close_gpu);
+    cudaFree(open_gpu);
+    cudaFree(base_close_gpu);
+    cudaFree(base_open_gpu);
 }
 
 int main(int argc, char** argv) {

@@ -307,14 +307,14 @@ def test_dynamic_motion_blur_object():
     renderer.render()
     assert abs(renderer.depth()[0, 0, 0] - 3.0) < 1e-2
 
-    # producer path: the same shutter pair through the transforms_pair tensor + on-device
-    # expansion must reproduce the host-verb result
-    num_slots = 1 * 2  # num_overlays * max_overlay_instances
-    pairs = np.zeros((2, num_slots, 12), dtype=np.float32)
-    pairs[0, placement[0]] = np.asarray(render.make_transform(position=(2.0, 0.0, 0.0)), dtype=np.float32).reshape(12)
-    pairs[1, placement[0]] = np.asarray(render.make_transform(position=(4.0, 0.0, 0.0)), dtype=np.float32).reshape(12)
-    renderer.set_transforms_pair(pairs)
-    renderer.expand_motion_transforms()
+    # the whole-tensor form: per-sample world poses for every slot (the sample times are
+    # (s + 0.5) / 2, so x = 2.5 and 3.5) plus the shutter-close poses
+    samples = np.zeros((2, 1, 2, 3, 4), dtype=np.float32)
+    close = np.zeros((1, 2, 3, 4), dtype=np.float32)
+    samples[0, 0, placement[0]] = render.make_transform(position=(2.5, 0.0, 0.0))
+    samples[1, 0, placement[0]] = render.make_transform(position=(3.5, 0.0, 0.0))
+    close[0, placement[0]] = render.make_transform(position=(4.0, 0.0, 0.0))
+    renderer.set_all_motion_transforms(samples, close)
     renderer.update()
     renderer.render()
     assert abs(renderer.depth()[0, 0, 0] - 3.0) < 1e-2
@@ -328,7 +328,8 @@ def test_overlay_pipeline(tmp_path):
     asset = asset_pool.add_object(dynamic)
     assembly_path = tmp_path / "overlay_assembly.glb"
     write_minimal_glb(assembly_path)
-    assembly_asset = asset_pool.add_assembly(render.load_assembly(assembly_path, fidelity="low"))
+    assembly = render.load_assembly(assembly_path, fidelity="low")
+    assembly_asset = asset_pool.add_assembly(assembly)
     assert asset_pool.num_assets == 2
 
     renderer = render.Renderer(
@@ -394,12 +395,12 @@ def test_overlay_pipeline(tmp_path):
     assert renderer.can_spawn(0, assembly_asset)
     assembly_placement = renderer.spawn(0, assembly_asset, render.make_transform())
     assert assembly_placement == (0, 2, 1)
-    renderer.set_part_transform(
-        0,
-        assembly_placement,
-        1,
-        render.make_transform(position=(0.0, 2.0, 0.0)),
-    )
+    # per-part world poses: part 0 stays at its rest frame, part 1 moves into view
+    poses = np.stack([
+        np.asarray(assembly.part(0)[1], dtype=np.float32),
+        np.asarray(render.make_transform(position=(0.0, 2.0, 0.0)), dtype=np.float32),
+    ])
+    renderer.set_transforms(0, assembly_placement, poses)
     renderer.update()
     renderer.render()
     segmentation = renderer.segmentation()

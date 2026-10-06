@@ -21,7 +21,24 @@ namespace rlt = rl_tools;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using T = float;
 using TI = typename DEVICE::index_t;
-using RIG = rlt::rl::environments::hyperdrone::rig::Rotorcraft<T, TI, 4>;
+using RIG = rlt::rl::environments::hyperdrone::rig::Rotorcraft<TI, 4>;
+
+namespace {
+    rlt::rendering::raytracing::Object quad(const char* name, float center_x, float center_y, float half_size){
+        rlt::rendering::raytracing::Mesh mesh;
+        mesh.vertices = {
+            center_x - half_size, center_y - half_size, 0,
+            center_x + half_size, center_y - half_size, 0,
+            center_x + half_size, center_y + half_size, 0,
+            center_x - half_size, center_y + half_size, 0,
+        };
+        mesh.indices = {0, 1, 2, 0, 2, 3};
+        rlt::rendering::raytracing::Object object;
+        object.name = name;
+        object.meshes.push_back(mesh);
+        return object;
+    }
+}
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, INIT_X500){
     if(DRONE_PATH.empty()){
@@ -32,20 +49,73 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, INIT_X500){
     ASSERT_TRUE((rlt::load<rlt::rendering::raytracing::High, true>(device, assembly, DRONE_PATH)));
     RIG rig;
     ASSERT_TRUE(rlt::init(device, rig, assembly));
-    EXPECT_EQ(rig.body_part, 0);
-    EXPECT_EQ(rig.num_props, 4);
+    EXPECT_EQ(rig.num_links, 5);
+    EXPECT_EQ(rig.num_coordinates, 4);
+    EXPECT_EQ(rig.num_parts, assembly.parts.size());
+    EXPECT_EQ(rig.parts[0].link, 0);
     T direction_sum = 0;
-    for(TI prop_i = 0; prop_i < rig.num_props; prop_i++){
-        EXPECT_GT(rig.prop_parts[prop_i], 0);
-        EXPECT_LT(rig.prop_parts[prop_i], assembly.parts.size());
-        EXPECT_TRUE(rig.prop_directions[prop_i] == (T)1 || rig.prop_directions[prop_i] == (T)-1);
-        // X configuration: hubs sit off both axes
-        EXPECT_GT(std::abs(rig.prop_pivots[prop_i][0]), (T)1e-4);
-        EXPECT_GT(std::abs(rig.prop_pivots[prop_i][1]), (T)1e-4);
-        EXPECT_EQ(rig.prop_directions[prop_i], rig.prop_pivots[prop_i][0] * rig.prop_pivots[prop_i][1] > 0 ? (T)1 : (T)-1);
-        direction_sum += rig.prop_directions[prop_i];
+    for(TI link_i = 1; link_i < rig.num_links; link_i++){
+        const auto& link = rig.links[link_i];
+        EXPECT_EQ(link.parent, 0);
+        EXPECT_TRUE(link.joint == rlt::rendering::rig::Joint::REVOLUTE);
+        EXPECT_TRUE(link.axis[2] == (T)1 || link.axis[2] == (T)-1);
+        TI part_i = 0;
+        while(part_i < rig.num_parts && rig.parts[part_i].link != link_i){
+            part_i++;
+        }
+        ASSERT_LT(part_i, rig.num_parts);
+        // X configuration: hubs sit off both axes, the spin direction follows the pivot quadrant
+        const T pivot_x = -rig.parts[part_i].offset[3], pivot_y = -rig.parts[part_i].offset[7];
+        EXPECT_GT(std::abs(pivot_x), (T)1e-4);
+        EXPECT_GT(std::abs(pivot_y), (T)1e-4);
+        EXPECT_EQ(link.axis[2], pivot_x * pivot_y > 0 ? (T)1 : (T)-1);
+        direction_sum += link.axis[2];
     }
     EXPECT_EQ(direction_sum, (T)0);
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, SPIN_ABOUT_PIVOT){
+    DEVICE device;
+    rlt::rendering::raytracing::ObjectAssembly assembly;
+    const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
+    const float lifted[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0.05f};
+    rlt::add(device, assembly, quad("body", 0, 0, 0.1f), identity);
+    rlt::add(device, assembly, quad("prop_0", 0.1f, 0.1f, 0.05f), lifted);
+    rlt::add(device, assembly, quad("prop_1", -0.1f, 0.1f, 0.05f), lifted);
+    RIG rig;
+    ASSERT_TRUE(rlt::init(device, rig, assembly));
+    ASSERT_EQ(rig.num_coordinates, 2);
+    EXPECT_EQ(rig.links[1].axis[2], (T)1);
+    EXPECT_EQ(rig.links[2].axis[2], (T)-1);
+
+    const float base[12] = {1,0,0,2, 0,1,0,0, 0,0,1,1};
+    const float phases[RIG::SPEC::MAX_COORDINATES] = {(float)M_PI / 2, (float)M_PI / 2};
+    rlt::rendering::rig::Buffer<RIG::SPEC> buffer;
+    float poses[3][12];
+    rlt::evaluate(device, rig, base, phases, buffer, &poses[0][0]);
+    for(int element = 0; element < 12; element++){
+        EXPECT_FLOAT_EQ(poses[0][element], base[element]);
+    }
+    // the hub stays fixed: the pivot maps to its rest position under the body pose, the prop
+    // turns a quarter turn in its quadrant's direction
+    const float hub[3] = {0.1f, 0.1f, 0};
+    const float blade_tip[3] = {0.15f, 0.1f, 0};
+    float hub_world[3], tip_world[3];
+    rlt::rendering::transform_point(poses[1], hub, hub_world);
+    rlt::rendering::transform_point(poses[1], blade_tip, tip_world);
+    EXPECT_NEAR(hub_world[0], 2.1f, 1e-5f);
+    EXPECT_NEAR(hub_world[1], 0.1f, 1e-5f);
+    EXPECT_NEAR(hub_world[2], 1.05f, 1e-5f);
+    EXPECT_NEAR(tip_world[0], 2.1f, 1e-5f);
+    EXPECT_NEAR(tip_world[1], 0.15f, 1e-5f);
+    const float hub_mirror[3] = {-0.1f, 0.1f, 0};
+    const float tip_mirror[3] = {-0.05f, 0.1f, 0};
+    rlt::rendering::transform_point(poses[2], hub_mirror, hub_world);
+    rlt::rendering::transform_point(poses[2], tip_mirror, tip_world);
+    EXPECT_NEAR(hub_world[0], 1.9f, 1e-5f);
+    EXPECT_NEAR(hub_world[1], 0.1f, 1e-5f);
+    EXPECT_NEAR(tip_world[0], 1.9f, 1e-5f);
+    EXPECT_NEAR(tip_world[1], 0.05f, 1e-5f);
 }
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, REJECTS_NON_RIG){
@@ -60,6 +130,14 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, REJECTS_NON_RIG){
     wrong_root.parts.resize(1);
     wrong_root.parts[0].object = 0;
     EXPECT_FALSE(rlt::init(device, rig, wrong_root));
+
+    rlt::rendering::raytracing::ObjectAssembly too_many;
+    const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
+    rlt::add(device, too_many, quad("body", 0, 0, 0.1f), identity);
+    for(int prop_i = 0; prop_i < 5; prop_i++){
+        rlt::add(device, too_many, quad("prop_", 0.1f, 0.1f, 0.05f), identity);
+    }
+    EXPECT_FALSE(rlt::init(device, rig, too_many));
 }
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, BODY_TRANSFORM){

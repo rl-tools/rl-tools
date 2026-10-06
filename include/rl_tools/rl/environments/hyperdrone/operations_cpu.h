@@ -505,12 +505,7 @@ namespace rl_tools {
                     if constexpr (WORLD::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR) {
                         set_transform_pair(device, world.renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, world.drone_rig, body, body, phase_open, phase_close);
                     } else {
-                        set_transform(device, world.renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, body);
-                        for (TI prop_i = 0; prop_i < world.drone_rig.num_props; prop_i++) {
-                            float spin[12];
-                            rl::environments::hyperdrone::rig::prop_spin_transform(device, world.drone_rig.prop_pivots[prop_i][0], world.drone_rig.prop_pivots[prop_i][1], world.drone_rig.prop_directions[prop_i] * phase_close[prop_i], spin);
-                            set_transform(device, world.renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, world.drone_rig.prop_parts[prop_i], spin);
-                        }
+                        set_transform(device, world.renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, world.drone_rig, body, phase_close);
                     }
                 }
             }

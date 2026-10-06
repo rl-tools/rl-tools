@@ -125,7 +125,6 @@ namespace rl_tools {
             static_assert(ENABLE_OVERLAYS || (NUM_OVERLAYS == 0 && MAX_OVERLAY_INSTANCES == 0 && MAX_OVERLAYS_PER_CAMERA == 0), "overlay constants must be all zero (disabled) or all nonzero");
             static constexpr bool ENABLE_DYNAMIC_MOTION_BLUR = CONFIG::ENABLE_DYNAMIC_MOTION_BLUR && ENABLE_MOTION_BLUR && ENABLE_OVERLAYS;
             static_assert(!CONFIG::ENABLE_DYNAMIC_MOTION_BLUR || (ENABLE_MOTION_BLUR && ENABLE_OVERLAYS), "ENABLE_DYNAMIC_MOTION_BLUR requires ENABLE_MOTION_BLUR (MOTION_BLUR_SAMPLES > 1) and overlays");
-            static constexpr bool HAS_TRANSFORM_PAIR = ENABLE_DYNAMIC_MOTION_BLUR;
             static constexpr bool HAS_FLOW_OVERLAYS = HAS_FLOW && ENABLE_OVERLAYS;
             static constexpr bool HAS_OBSERVATION = CONFIG::OUTPUT_OBSERVATION;
             using OBSERVATION_T = typename CONFIG::OBSERVATION_T;
@@ -346,13 +345,16 @@ namespace rl_tools {
         struct FlowOverlayRendererStorage<T_SPEC, true> {
             using SPEC = T_SPEC;
             using TI = typename SPEC::TI;
-            // the previous instant's overlay poses: same row semantics, residency and ownership
-            // contract as transforms (a clean overlay's rows are producer-owned; dirty overlays
-            // stage the transform_entry_previous mirrors). update() composes the per-slot flow
-            // deltas from transforms and transforms_previous and builds the previous-instant
-            // overlay acceleration structures the visibility rays traverse.
+            // the previous instant's overlay poses: same layout, residency and ownership contract
+            // as transforms. advance_flow snapshots transforms into it (resident rows in the
+            // backend's memory domain, rows the host has not yet published through the staging
+            // mirror); update() composes the per-slot flow deltas from the two instants and
+            // builds the previous instant's overlay acceleration structures the visibility rays
+            // traverse.
             using TRANSFORMS_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES, 12>, true>;
             Tensor<TRANSFORMS_TENSOR_SPEC> transforms_previous;
+            std::vector<float> transforms_previous_staging;
+            bool transforms_previous_pending[SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES] = {};
         };
 
         template <typename T_SPEC, bool T_HAS_OBSERVATION>
@@ -377,15 +379,12 @@ namespace rl_tools {
 
             struct OverlaySlot {
                 TI object = 0;          // global object index (scene objects + pool objects)
-                TI pose_slot = 0;       // root slot of the owning placement; the root's transforms entry moves the whole placement
-                float part_local[12];   // static attachment (part -> assembly), captured at spawn
-                float transform_entry[12]; // host mirror of the transforms-tensor entry (root: pose, non-root: articulation in the part frame)
-                float transform_entry_previous[12]; // host mirror of the transforms_previous entry (flow): spawn initialises it to the spawn pose, advance_flow snapshots transform_entry into it, the move verbs leave it alone
+                float rest[12];         // part -> assembly frame captured at spawn; the whole-assembly verbs compose pose ∘ rest
                 bool active = false;
             };
             struct OverlayState {
                 OverlaySlot slots[SPEC::MAX_OVERLAY_INSTANCES];
-                bool dirty = false;
+                bool dirty = false;     // active/object changed since the last update
             };
             // pool assemblies flattened at init so spawn needs no pool access in the hot path
             struct AssetRecord {
@@ -393,12 +392,15 @@ namespace rl_tools {
                 TI num_parts;
             };
             OverlayState overlays[SPEC::NUM_OVERLAYS];
-            // dynamic transform input consumed by update(): entry [o][s] is the placement pose at
-            // its root slot and a part-frame articulation elsewhere (world = pose ∘ part_local ∘
-            // articulation). Backend-native residency (device memory on OptiX) — access via
-            // transforms(device, renderer); host verbs stage through the slot mirrors instead.
+            // geometry-to-world transform per slot [o][s], consumed by update(): backend-native
+            // residency (device memory on OptiX), accessed via transforms(device, renderer).
+            // Producers write it in place; the host verbs write the staging mirror and mark their
+            // rows pending, and update() publishes exactly those rows — a row belongs to whoever
+            // wrote it last.
             using TRANSFORMS_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES, 12>, true>;
             Tensor<TRANSFORMS_TENSOR_SPEC> transforms;
+            std::vector<float> transforms_staging;
+            bool transforms_pending[SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES] = {};
             TI attachments[SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA];
             bool attachments_dirty = false;
             // the flattened pool tables live on the renderer (not in backend state) because the
@@ -406,21 +408,6 @@ namespace rl_tools {
             std::vector<AssetRecord> assets;
             std::vector<TI> asset_part_objects;      // global object index per part
             std::vector<float> asset_part_transforms; // 12 per part, assembly-local
-        };
-
-        template <typename T_SPEC, bool T_HAS_TRANSFORM_PAIR>
-        struct TransformPairRendererStorage {};
-
-        template <typename T_SPEC>
-        struct TransformPairRendererStorage<T_SPEC, true> {
-            using SPEC = T_SPEC;
-            using TI = typename SPEC::TI;
-            // device-producer input: shutter-open (index 0) and shutter-close (index 1) entries
-            // per slot, expanded by expand_motion_transforms into transforms_motion and the close
-            // state into transforms — on OptiX both the producer write and the expansion stay on
-            // the device, so a sim kernel can drive dynamic blur with no host data path
-            using TRANSFORMS_PAIR_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, 2, SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES, 12>, true>;
-            Tensor<TRANSFORMS_PAIR_TENSOR_SPEC> transforms_pair;
         };
 
         template <typename T_SPEC, bool T_ENABLE_DYNAMIC_MOTION_BLUR>
@@ -432,14 +419,12 @@ namespace rl_tools {
             using TI = typename SPEC::TI;
             // per-sample overlay transform input consumed by the dynamic-motion-blur render loop:
             // sample-major so slab s (base + s * NUM_OVERLAYS * MAX_OVERLAY_INSTANCES * 12) has
-            // the exact layout of the transforms tensor and feeds the same build path. Row
-            // semantics match transforms (root: pose, non-root: part-frame articulation).
+            // the exact layout of the transforms tensor and feeds the same build path, under the
+            // same staging and ownership contract
             using TRANSFORMS_MOTION_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::MOTION_BLUR_SAMPLES, SPEC::NUM_OVERLAYS, SPEC::MAX_OVERLAY_INSTANCES, 12>, true>;
             Tensor<TRANSFORMS_MOTION_TENSOR_SPEC> transforms_motion;
-            // host mirror of transforms_motion for the verb path (the tensor is device-resident
-            // on OptiX); staged per dirty overlay, same ownership contract as transform_entry
             std::vector<float> transforms_motion_staging;
-            bool transforms_motion_dirty[SPEC::NUM_OVERLAYS] = {};
+            bool transforms_motion_pending[SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES] = {};
             // linear-radiance accumulators, resolved into the packed frame buffer / depth buffer
             // after the last sample pass; allocated only for the enabled outputs
             using RGB_ACCUMULATOR_TENSOR_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, 3>, true>;
@@ -449,7 +434,7 @@ namespace rl_tools {
         };
 
         template <typename T_SPEC, typename T_BACKEND = backends::Default>
-        struct Renderer: CameraPairRendererStorage<T_SPEC, T_SPEC::HAS_CAMERA_PAIR>, RGBRendererStorage<T_SPEC, T_SPEC::HAS_RGB>, DepthRendererStorage<T_SPEC, T_SPEC::HAS_DEPTH>, SegmentationRendererStorage<T_SPEC, T_SPEC::HAS_SEGMENTATION>, NormalsRendererStorage<T_SPEC, T_SPEC::HAS_NORMALS>, FlowRendererStorage<T_SPEC, T_SPEC::HAS_FLOW>, FlowForwardRendererStorage<T_SPEC, T_SPEC::HAS_FLOW_FORWARD>, FlowOverlayRendererStorage<T_SPEC, T_SPEC::HAS_FLOW_OVERLAYS>, ObservationRendererStorage<T_SPEC, T_SPEC::HAS_OBSERVATION>, OverlayRendererStorage<T_SPEC, T_SPEC::ENABLE_OVERLAYS>, TransformPairRendererStorage<T_SPEC, T_SPEC::HAS_TRANSFORM_PAIR>, DynamicMotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_DYNAMIC_MOTION_BLUR>{
+        struct Renderer: CameraPairRendererStorage<T_SPEC, T_SPEC::HAS_CAMERA_PAIR>, RGBRendererStorage<T_SPEC, T_SPEC::HAS_RGB>, DepthRendererStorage<T_SPEC, T_SPEC::HAS_DEPTH>, SegmentationRendererStorage<T_SPEC, T_SPEC::HAS_SEGMENTATION>, NormalsRendererStorage<T_SPEC, T_SPEC::HAS_NORMALS>, FlowRendererStorage<T_SPEC, T_SPEC::HAS_FLOW>, FlowForwardRendererStorage<T_SPEC, T_SPEC::HAS_FLOW_FORWARD>, FlowOverlayRendererStorage<T_SPEC, T_SPEC::HAS_FLOW_OVERLAYS>, ObservationRendererStorage<T_SPEC, T_SPEC::HAS_OBSERVATION>, OverlayRendererStorage<T_SPEC, T_SPEC::ENABLE_OVERLAYS>, DynamicMotionBlurRendererStorage<T_SPEC, T_SPEC::ENABLE_DYNAMIC_MOTION_BLUR>{
             using SPEC = T_SPEC;
             using BACKEND = T_BACKEND;
             using BACKEND_STATE = backends::RendererState<BACKEND, SPEC>;

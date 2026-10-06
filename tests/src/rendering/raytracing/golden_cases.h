@@ -137,7 +137,7 @@ namespace golden {
             static constexpr const char* STATE = state_name(CAMERA, OVERLAYS);
             static_assert((OVERLAYS != Overlays::NONE) == SPEC::ENABLE_OVERLAYS, "overlays are enabled exactly in the overlay states");
             static_assert(CAMERA == Camera::FIXED || SPEC::HAS_CAMERA_PAIR || SPEC::HAS_FLOW, "camera motion needs a two-instant output");
-            static_assert(OVERLAYS != Overlays::MOVING || SPEC::HAS_TRANSFORM_PAIR || SPEC::HAS_FLOW_OVERLAYS, "moving overlays need a two-instant output");
+            static_assert(OVERLAYS != Overlays::MOVING || SPEC::ENABLE_DYNAMIC_MOTION_BLUR || SPEC::HAS_FLOW_OVERLAYS, "moving overlays need a two-instant output");
         };
 
         template <typename... T_CASES>

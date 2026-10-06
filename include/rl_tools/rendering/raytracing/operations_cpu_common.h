@@ -95,79 +95,105 @@ namespace rl_tools {
 
     inline constexpr float IDENTITY_TRANSFORM[12] = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
 
-    // stages host-verb writes (the per-slot transform_entry mirrors, and the previous-instant
-    // mirrors under flow) into the transforms tensors; backends whose tensors are host-resident
-    // call this at the top of update(). Device producers write the tensors directly and are not
-    // staged — a dirty overlay row is owned by the host.
+    // Host staging of the overlay transform inputs. The verbs write the staging mirrors and mark
+    // rows pending; update() publishes exactly the pending rows into the resident tensors in the
+    // backend's memory domain and clears the marks. Producers write the resident tensors
+    // directly and are never touched by the publish — a row belongs to whoever wrote it last.
     template <typename SPEC, typename BACKEND>
-    void flush_overlay_transforms(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        using TI = typename SPEC::TI;
-        float* transforms = data(renderer.transforms);
-        for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
-            auto& overlay_state = renderer.overlays[overlay];
-            if(!overlay_state.dirty) continue;
-            for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
-                std::memcpy(transforms + ((size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES + slot) * 12, overlay_state.slots[slot].transform_entry, 12 * sizeof(float));
-                if constexpr (SPEC::HAS_FLOW_OVERLAYS){
-                    std::memcpy(data(renderer.transforms_previous) + ((size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES + slot) * 12, overlay_state.slots[slot].transform_entry_previous, 12 * sizeof(float));
+    void malloc_overlay_staging(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
+        constexpr size_t SLOTS = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
+        renderer.transforms_staging.assign(SLOTS * 12, 0.0f);
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS){
+            renderer.transforms_previous_staging.assign(SLOTS * 12, 0.0f);
+        }
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+            renderer.transforms_motion_staging.assign((size_t)SPEC::MOTION_BLUR_SAMPLES * SLOTS * 12, 0.0f);
+        }
+    }
+
+    // one slot's current pose; under dynamic blur the same pose in every motion sample (sharp)
+    template <typename SPEC, typename BACKEND>
+    void stage_transform(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, size_t slot, const float pose[12]){
+        constexpr size_t SLOTS = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
+        std::memcpy(renderer.transforms_staging.data() + slot * 12, pose, 12 * sizeof(float));
+        renderer.transforms_pending[slot] = true;
+        if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+            for(typename SPEC::TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
+                std::memcpy(renderer.transforms_motion_staging.data() + (sample * SLOTS + slot) * 12, pose, 12 * sizeof(float));
+            }
+            renderer.transforms_motion_pending[slot] = true;
+        }
+    }
+
+    // one slot's motion: MOTION_BLUR_SAMPLES poses sample_stride floats apart, and the
+    // shutter-close pose as the steady state
+    template <typename SPEC, typename BACKEND>
+    void stage_motion(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, size_t slot, const float* samples, size_t sample_stride, const float close[12]){
+        constexpr size_t SLOTS = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
+        std::memcpy(renderer.transforms_staging.data() + slot * 12, close, 12 * sizeof(float));
+        renderer.transforms_pending[slot] = true;
+        for(typename SPEC::TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
+            std::memcpy(renderer.transforms_motion_staging.data() + (sample * SLOTS + slot) * 12, samples + sample * sample_stride, 12 * sizeof(float));
+        }
+        renderer.transforms_motion_pending[slot] = true;
+    }
+
+    template <typename SPEC, typename BACKEND>
+    void stage_previous(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, size_t slot, const float pose[12]){
+        std::memcpy(renderer.transforms_previous_staging.data() + slot * 12, pose, 12 * sizeof(float));
+        renderer.transforms_previous_pending[slot] = true;
+    }
+
+    // publish for backends whose resident tensors are host-addressable (after their in-flight
+    // wait); OptiX scatters the same pending rows on its stream (optix::publish_rows)
+    template <typename SPEC, typename BACKEND>
+    void publish_overlay_transforms(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
+        constexpr size_t SLOTS = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
+        for(size_t slot = 0; slot < SLOTS; slot++){
+            if(renderer.transforms_pending[slot]){
+                std::memcpy(data(renderer.transforms) + slot * 12, renderer.transforms_staging.data() + slot * 12, 12 * sizeof(float));
+                renderer.transforms_pending[slot] = false;
+            }
+        }
+        if constexpr (SPEC::HAS_FLOW_OVERLAYS){
+            for(size_t slot = 0; slot < SLOTS; slot++){
+                if(renderer.transforms_previous_pending[slot]){
+                    std::memcpy(data(renderer.transforms_previous) + slot * 12, renderer.transforms_previous_staging.data() + slot * 12, 12 * sizeof(float));
+                    renderer.transforms_previous_pending[slot] = false;
                 }
             }
-            overlay_state.dirty = false;
         }
-    }
-
-    // host half of advance_flow: the previous instant becomes the current one. Mirrors are
-    // snapshotted for every slot; the tensor rows of clean (producer-owned) overlays are copied
-    // by the backend in its memory domain, dirty overlays reach the tensors through the next
-    // flush. Returns per overlay whether the backend must copy the tensor rows.
-    template <typename SPEC, typename BACKEND>
-    void advance_flow_mirrors(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, bool copy_rows[SPEC::NUM_OVERLAYS]){
-        using TI = typename SPEC::TI;
-        for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
-            auto& overlay_state = renderer.overlays[overlay];
-            for(TI slot = 0; slot < SPEC::MAX_OVERLAY_INSTANCES; slot++){
-                std::memcpy(overlay_state.slots[slot].transform_entry_previous, overlay_state.slots[slot].transform_entry, 12 * sizeof(float));
-            }
-            copy_rows[overlay] = !overlay_state.dirty;
-        }
-    }
-
-    // world = pose ∘ part_local ∘ articulation: the root slot's tensor entry carries the
-    // placement pose, non-root entries articulate their part in the part frame. The
-    // transforms_base overload lets the dynamic-motion-blur loop compose from a per-sample
-    // slab of transforms_motion, which shares the transforms tensor layout.
-    template <typename SPEC, typename BACKEND>
-    void compose_overlay_slot_transform(const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const float* transforms_base, typename SPEC::TI overlay, typename SPEC::TI slot_index, float out[12]){
-        const auto& slot = renderer.overlays[overlay].slots[slot_index];
-        const float* row = transforms_base + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES * 12;
-        float composed[12];
-        compose_transforms(row + (size_t)slot.pose_slot * 12, slot.part_local, composed);
-        if(slot_index == slot.pose_slot){
-            std::memcpy(out, composed, sizeof(composed));
-        }
-        else{
-            compose_transforms(composed, row + (size_t)slot_index * 12, out);
-        }
-    }
-
-    template <typename SPEC, typename BACKEND>
-    void compose_overlay_slot_transform(const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, typename SPEC::TI overlay, typename SPEC::TI slot_index, float out[12]){
-        compose_overlay_slot_transform(renderer, data(renderer.transforms), overlay, slot_index, out);
-    }
-
-    // invert_transform lives in transforms_generic.h (shared with the device kernels)
-
-    // writes one entry into every motion sample of the staging mirror (constant across the
-    // shutter = sharp); the single-pose verbs route through this so a dynamic-motion-blur spec
-    // driven only by them renders identically to camera-only blur
-    template <typename SPEC, typename BACKEND>
-    void stage_motion_entry(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, typename SPEC::TI overlay, typename SPEC::TI slot, const float entry[12]){
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
-            constexpr size_t SLAB = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12;
-            for(typename SPEC::TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
-                std::memcpy(renderer.transforms_motion_staging.data() + sample * SLAB + ((size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES + slot) * 12, entry, 12 * sizeof(float));
+            for(size_t slot = 0; slot < SLOTS; slot++){
+                if(renderer.transforms_motion_pending[slot]){
+                    for(typename SPEC::TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
+                        const size_t offset = (sample * SLOTS + slot) * 12;
+                        std::memcpy(data(renderer.transforms_motion) + offset, renderer.transforms_motion_staging.data() + offset, 12 * sizeof(float));
+                    }
+                    renderer.transforms_motion_pending[slot] = false;
+                }
             }
-            renderer.transforms_motion_dirty[overlay] = true;
+        }
+    }
+
+    // host half of advance_flow: a row the host wrote but has not yet published becomes the
+    // previous instant through its staging mirror; the backend copies the resident rows
+    template <typename SPEC, typename BACKEND>
+    void advance_flow_staging(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
+        constexpr size_t SLOTS = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
+        for(size_t slot = 0; slot < SLOTS; slot++){
+            if(renderer.transforms_pending[slot]){
+                stage_previous(renderer, slot, renderer.transforms_staging.data() + slot * 12);
+            }
+        }
+    }
+
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void assert_placement(DEVICE& device, const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement){
+        utils::assert_exit(device, overlay.index < SPEC::NUM_OVERLAYS, "overlay verb: overlay index out of range");
+        utils::assert_exit(device, placement.first_slot + placement.num_parts <= SPEC::MAX_OVERLAY_INSTANCES, "overlay verb: placement out of range");
+        for(size_t part = 0; part < placement.num_parts; part++){
+            utils::assert_exit(device, renderer.overlays[overlay.index].slots[placement.first_slot + part].active, "overlay verb: placement is not spawned");
         }
     }
 
@@ -190,54 +216,14 @@ namespace rl_tools {
                     std::memcpy(forward, IDENTITY_TRANSFORM, 12 * sizeof(float));
                     continue;
                 }
-                float world_current[12], world_previous[12], world_current_inverse[12], world_previous_inverse[12];
-                compose_overlay_slot_transform(renderer, current_slab, overlay, slot, world_current);
-                compose_overlay_slot_transform(renderer, previous_slab, overlay, slot, world_previous);
+                const float* world_current = current_slab + index * 12;
+                const float* world_previous = previous_slab + index * 12;
+                float world_current_inverse[12], world_previous_inverse[12];
                 invert_transform(world_current, world_current_inverse);
                 invert_transform(world_previous, world_previous_inverse);
                 compose_transforms(world_previous, world_current_inverse, backward);
                 compose_transforms(world_current, world_previous_inverse, forward);
             }
-        }
-    }
-
-    // CPU expansion of the transforms_pair tensor for backends whose tensors are host-resident
-    // (generic/Vulkan); OptiX runs the same math on-device (overlay_accel_expand_motion): the
-    // pair is slerped into transforms_motion and the close state written into transforms.
-    // Producer-style: writes the tensors directly with no dirty flags, so the host-verb flush
-    // never clobbers it — per overlay, use either the set_transform* verbs or the pair path.
-    template <typename SPEC, typename BACKEND>
-    void expand_motion_transforms_host(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        using TI = typename SPEC::TI;
-        constexpr size_t SLOTS = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
-        const float* pairs = data(renderer.transforms_pair);
-        float* transforms = data(renderer.transforms);
-        float* transforms_motion = data(renderer.transforms_motion);
-        for(size_t slot = 0; slot < SLOTS; slot++){
-            const float* open = pairs + slot * 12;
-            const float* close = pairs + (SLOTS + slot) * 12;
-            for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
-                const float shutter_t = ((float)sample + 0.5f) / (float)SPEC::MOTION_BLUR_SAMPLES;
-                slerp_transform(open, close, shutter_t, transforms_motion + ((size_t)sample * SLOTS + slot) * 12);
-            }
-            std::memcpy(transforms + slot * 12, close, 12 * sizeof(float));
-        }
-    }
-
-    // stages host-verb writes into the transforms_motion tensor, mirroring
-    // flush_overlay_transforms; backends with a host-resident tensor call it in update()
-    template <typename SPEC, typename BACKEND>
-    void flush_overlay_motion_transforms(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        using TI = typename SPEC::TI;
-        constexpr size_t SLAB = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12;
-        float* transforms_motion = data(renderer.transforms_motion);
-        for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
-            if(!renderer.transforms_motion_dirty[overlay]) continue;
-            for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
-                const size_t offset = sample * SLAB + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES * 12;
-                std::memcpy(transforms_motion + offset, renderer.transforms_motion_staging.data() + offset, (size_t)SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float));
-            }
-            renderer.transforms_motion_dirty[overlay] = false;
         }
     }
 
@@ -286,11 +272,21 @@ namespace rl_tools {
     template <typename SPEC, typename BACKEND>
     void reset_overlay_state(rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         using TI = typename SPEC::TI;
+        constexpr size_t SLOTS = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
         for(auto& overlay_state : renderer.overlays){
             for(auto& slot : overlay_state.slots){
                 slot.active = false;
             }
             overlay_state.dirty = true;
+        }
+        for(size_t slot = 0; slot < SLOTS; slot++){
+            renderer.transforms_pending[slot] = false;
+            if constexpr (SPEC::HAS_FLOW_OVERLAYS){
+                renderer.transforms_previous_pending[slot] = false;
+            }
+            if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
+                renderer.transforms_motion_pending[slot] = false;
+            }
         }
         for(TI attachment_i = 0; attachment_i < SPEC::NUM_CAMERAS * SPEC::MAX_OVERLAYS_PER_CAMERA; attachment_i++){
             renderer.attachments[attachment_i] = rendering::raytracing::Renderer<SPEC, BACKEND>::INVALID_OVERLAY;
@@ -410,6 +406,17 @@ namespace rl_tools {
     typename SPEC::TI insert(DEVICE& device, rendering::raytracing::AssetLibrary<SPEC, BACKEND>& library, rendering::Bundle<T>& bundle){
         bool is_new = false;
         return rendering::raytracing::detail::library_insert(device, library, bundle, is_new);
+    }
+
+    // appends a root part (geometry in the part frame, placed by transform within the assembly)
+    template <typename DEVICE>
+    size_t add(DEVICE& device, rendering::raytracing::ObjectAssembly& assembly, const rendering::raytracing::Object& object, const float transform[12]){
+        rendering::raytracing::ObjectAssembly::Part part;
+        part.object = assembly.objects.size();
+        std::memcpy(part.transform, transform, sizeof(part.transform));
+        assembly.objects.push_back(object);
+        assembly.parts.push_back(part);
+        return assembly.parts.size() - 1;
     }
 
     template <typename DEVICE>
@@ -562,15 +569,18 @@ namespace rl_tools {
             return {0, 0, 0};
         }
 
-        for(TI part = 0; part < record.num_parts && first_slot + part < SPEC::MAX_OVERLAY_INSTANCES; part++){
+        for(TI part = 0; part < record.num_parts; part++){
             auto& slot = state.slots[first_slot + part];
             slot.object = renderer.asset_part_objects[record.first_part + part];
-            slot.pose_slot = first_slot;
-            std::memcpy(slot.part_local, &renderer.asset_part_transforms[(record.first_part + part) * 12], sizeof(slot.part_local));
-            std::memcpy(slot.transform_entry, part == 0 ? transform : rendering::raytracing::detail::IDENTITY_TRANSFORM, sizeof(slot.transform_entry));
-            std::memcpy(slot.transform_entry_previous, slot.transform_entry, sizeof(slot.transform_entry_previous)); // a fresh object has no motion of its own: pure camera flow
+            std::memcpy(slot.rest, &renderer.asset_part_transforms[(record.first_part + part) * 12], sizeof(slot.rest));
             slot.active = true;
-            rendering::raytracing::detail::stage_motion_entry(renderer, (TI)overlay.index, first_slot + part, slot.transform_entry);
+            const size_t row = (size_t)overlay.index * SPEC::MAX_OVERLAY_INSTANCES + first_slot + part;
+            float world[12];
+            rendering::compose_transforms(transform, slot.rest, world);
+            rendering::raytracing::detail::stage_transform(renderer, row, world);
+            if constexpr (SPEC::HAS_FLOW_OVERLAYS){
+                rendering::raytracing::detail::stage_previous(renderer, row, world); // a fresh object has no motion of its own: pure camera flow
+            }
         }
         state.dirty = true;
         return {(size_t)first_slot, (size_t)record.num_parts, (size_t)record.first_part};
@@ -586,66 +596,64 @@ namespace rl_tools {
         state.dirty = true;
     }
 
-    // per-part: part 0 sets the placement pose, other parts articulate in their part frame
-    // (world = pose ∘ part_local ∘ articulation). The previous-instant mirror is untouched: the
-    // flow pair advances only through advance_flow (or spawn)
+    // poses: placement.num_parts geometry-to-world transforms (12 floats each) in asset part
+    // order — the output of rig::evaluate for the placement's assembly. Only the current instant
+    // changes: the flow pair advances through advance_flow (or spawn)
     template <typename DEVICE, typename SPEC, typename BACKEND>
-    void set_transform(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, typename SPEC::TI part, const float transform[12]){
-        static_assert(SPEC::ENABLE_OVERLAYS, "set_transform requires an overlay-enabled renderer specification");
-        using TI = typename SPEC::TI;
-        auto& state = renderer.overlays[overlay.index];
-        std::memcpy(state.slots[placement.first_slot + part].transform_entry, transform, 12 * sizeof(float));
-        state.dirty = true;
-        rendering::raytracing::detail::stage_motion_entry(renderer, (TI)overlay.index, (TI)(placement.first_slot + part), transform);
-    }
-
-    // rigid move: sets the placement pose and resets per-part articulation state
-    template <typename DEVICE, typename SPEC, typename BACKEND>
-    void set_transform(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const float transform[12]){
-        static_assert(SPEC::ENABLE_OVERLAYS, "set_transform requires an overlay-enabled renderer specification");
-        using TI = typename SPEC::TI;
-        auto& state = renderer.overlays[overlay.index];
-        std::memcpy(state.slots[placement.first_slot].transform_entry, transform, 12 * sizeof(float));
-        rendering::raytracing::detail::stage_motion_entry(renderer, (TI)overlay.index, (TI)placement.first_slot, transform);
-        for(size_t part = 1; part < placement.num_parts; part++){
-            std::memcpy(state.slots[placement.first_slot + part].transform_entry, rendering::raytracing::detail::IDENTITY_TRANSFORM, 12 * sizeof(float));
-            rendering::raytracing::detail::stage_motion_entry(renderer, (TI)overlay.index, (TI)(placement.first_slot + part), rendering::raytracing::detail::IDENTITY_TRANSFORM);
+    void set_transforms(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const float* poses){
+        static_assert(SPEC::ENABLE_OVERLAYS, "set_transforms requires an overlay-enabled renderer specification");
+        rendering::raytracing::detail::assert_placement(device, renderer, overlay, placement);
+        for(size_t part = 0; part < placement.num_parts; part++){
+            rendering::raytracing::detail::stage_transform(renderer, overlay.index * SPEC::MAX_OVERLAY_INSTANCES + placement.first_slot + part, poses + part * 12);
         }
-        state.dirty = true;
     }
 
-    // dynamic motion blur: per-part shutter-open/close entries, slerped into every motion sample
-    // at the same midpoint shutter times the camera lerp uses; the close entry also becomes the
-    // steady-state transform (segmentation, probes, and the next frame render at shutter close)
+    // samples: [MOTION_BLUR_SAMPLES][placement.num_parts][12] poses at the shutter times
+    // (sample + 0.5) / MOTION_BLUR_SAMPLES the camera lerp uses; close: [placement.num_parts][12]
+    // shutter-close poses, the steady state segmentation, probes and the next frame see — the
+    // output of rig::sample for the placement's assembly
     template <typename DEVICE, typename SPEC, typename BACKEND>
-    void set_transform_pair(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, typename SPEC::TI part, const float open[12], const float close[12]){
-        static_assert(SPEC::HAS_TRANSFORM_PAIR, "set_transform_pair requires a dynamic-motion-blur renderer specification");
-        using TI = typename SPEC::TI;
-        auto& state = renderer.overlays[overlay.index];
-        std::memcpy(state.slots[placement.first_slot + part].transform_entry, close, 12 * sizeof(float));
-        state.dirty = true;
-        constexpr size_t SLAB = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12;
-        for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
-            const float shutter_t = ((float)sample + 0.5f) / (float)SPEC::MOTION_BLUR_SAMPLES;
-            float entry[12];
-            rendering::raytracing::detail::slerp_transform(open, close, shutter_t, entry);
-            std::memcpy(renderer.transforms_motion_staging.data() + sample * SLAB + ((size_t)overlay.index * SPEC::MAX_OVERLAY_INSTANCES + placement.first_slot + part) * 12, entry, 12 * sizeof(float));
+    void set_motion_transforms(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const float* samples, const float* close){
+        static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "set_motion_transforms requires a dynamic-motion-blur renderer specification");
+        rendering::raytracing::detail::assert_placement(device, renderer, overlay, placement);
+        for(size_t part = 0; part < placement.num_parts; part++){
+            rendering::raytracing::detail::stage_motion(renderer, overlay.index * SPEC::MAX_OVERLAY_INSTANCES + placement.first_slot + part, samples + part * 12, placement.num_parts * 12, close + part * 12);
         }
-        renderer.transforms_motion_dirty[overlay.index] = true;
     }
 
-    // rigid move with shutter-open/close poses: resets articulation in every sample
+    // rigid move of the whole assembly: every part at pose ∘ rest
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    void set_transform(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const float pose[12]){
+        static_assert(SPEC::ENABLE_OVERLAYS, "set_transform requires an overlay-enabled renderer specification");
+        rendering::raytracing::detail::assert_placement(device, renderer, overlay, placement);
+        const auto& state = renderer.overlays[overlay.index];
+        for(size_t part = 0; part < placement.num_parts; part++){
+            float world[12];
+            rendering::compose_transforms(pose, state.slots[placement.first_slot + part].rest, world);
+            rendering::raytracing::detail::stage_transform(renderer, overlay.index * SPEC::MAX_OVERLAY_INSTANCES + placement.first_slot + part, world);
+        }
+    }
+
+    // rigid move with shutter-open/close poses: constant-twist interpolation of the assembly pose
+    // into every motion sample, the close pose as the steady state
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void set_transform_pair(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const float open[12], const float close[12]){
-        static_assert(SPEC::HAS_TRANSFORM_PAIR, "set_transform_pair requires a dynamic-motion-blur renderer specification");
-        using TI = typename SPEC::TI;
-        set_transform_pair(device, renderer, overlay, placement, (TI)0, open, close);
-        auto& state = renderer.overlays[overlay.index];
-        for(size_t part = 1; part < placement.num_parts; part++){
-            std::memcpy(state.slots[placement.first_slot + part].transform_entry, rendering::raytracing::detail::IDENTITY_TRANSFORM, 12 * sizeof(float));
-            rendering::raytracing::detail::stage_motion_entry(renderer, (TI)overlay.index, (TI)(placement.first_slot + part), rendering::raytracing::detail::IDENTITY_TRANSFORM);
+        static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "set_transform_pair requires a dynamic-motion-blur renderer specification");
+        rendering::raytracing::detail::assert_placement(device, renderer, overlay, placement);
+        float poses[SPEC::MOTION_BLUR_SAMPLES][12];
+        for(size_t sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
+            rendering::screw_interpolate(open, close, ((float)sample + 0.5f) / (float)SPEC::MOTION_BLUR_SAMPLES, poses[sample]);
         }
-        state.dirty = true;
+        const auto& state = renderer.overlays[overlay.index];
+        for(size_t part = 0; part < placement.num_parts; part++){
+            const float* rest = state.slots[placement.first_slot + part].rest;
+            float samples[SPEC::MOTION_BLUR_SAMPLES][12], world_close[12];
+            for(size_t sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
+                rendering::compose_transforms(poses[sample], rest, samples[sample]);
+            }
+            rendering::compose_transforms(close, rest, world_close);
+            rendering::raytracing::detail::stage_motion(renderer, overlay.index * SPEC::MAX_OVERLAY_INSTANCES + placement.first_slot + part, &samples[0][0], 12, world_close);
+        }
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
@@ -666,12 +674,6 @@ namespace rl_tools {
     auto& transforms_motion(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         static_assert(SPEC::ENABLE_DYNAMIC_MOTION_BLUR, "transforms_motion requires a dynamic-motion-blur renderer specification");
         return renderer.transforms_motion;
-    }
-
-    template <typename DEVICE, typename SPEC, typename BACKEND>
-    auto& transforms_pair(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        static_assert(SPEC::HAS_TRANSFORM_PAIR, "transforms_pair requires a dynamic-motion-blur renderer specification");
-        return renderer.transforms_pair;
     }
 
     // camera input tensors, backend-native residency like transforms: device memory on OptiX,

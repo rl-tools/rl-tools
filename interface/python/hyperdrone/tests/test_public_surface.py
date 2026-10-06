@@ -14,6 +14,7 @@ SURFACE = {
         "ObjectAssembly",
         "Renderer",
         "RendererConfig",
+        "Rig",
         "Scene",
         "SceneLight",
         "backend",

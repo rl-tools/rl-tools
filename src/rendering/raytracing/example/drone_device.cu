@@ -1,5 +1,5 @@
 // GPU-resident twin of drone.cpp: one CUDA kernel per frame computes the trajectory pose,
-// prop spins, and camera pair and writes the renderer's device tensors (transforms_pair,
+// samples the rig and writes the renderer's device tensors (transforms_motion, transforms,
 // cameras, cameras_open) in place on the render stream. The host's only per-frame role is
 // enqueueing that kernel and the renderer verbs; the framebuffer readback exists solely to
 // feed the mp4 pipes — a training loop would read observation() in place instead.
@@ -11,6 +11,7 @@
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/raytracing/save_cpu.h>
 #include <rl_tools/rl/environments/l2f/multirotor.h>
+#include <rl_tools/rl/environments/hyperdrone/rig/operations_cpu.h>
 
 #include <cmath>
 #include <cstdio>
@@ -171,13 +172,6 @@ RL_TOOLS_FUNCTION_PLACEMENT static void pose_to_transform(const Pose& pose, floa
     }
 }
 
-RL_TOOLS_FUNCTION_PLACEMENT static void prop_spin_transform(T pivot_x, T pivot_y, T angle, float out[12]) {
-    const float c = cosf(angle), s = sinf(angle);
-    out[0] = c;  out[1] = -s; out[2]  = 0; out[3]  = pivot_x - c * pivot_x + s * pivot_y;
-    out[4] = s;  out[5] = c;  out[6]  = 0; out[7]  = pivot_y - s * pivot_x - c * pivot_y;
-    out[8] = 0;  out[9] = 0;  out[10] = 1; out[11] = 0;
-}
-
 RL_TOOLS_FUNCTION_PLACEMENT static void make_cameras(const Pose& pose, T aspect, rlt::rendering::raytracing::Camera<T> cameras[NUM_CAMERAS]) {
     {
         T mount[3], forward[3], up[3];
@@ -199,24 +193,21 @@ RL_TOOLS_FUNCTION_PLACEMENT static void make_cameras(const Pose& pose, T aspect,
     }
 }
 
-static constexpr TI MAX_PROPS = SPEC::MAX_OVERLAY_INSTANCES;
+using RIG = rlt::rl::environments::hyperdrone::rig::Rotorcraft<TI>;
 struct DroneKernelParams {
     lissajous::Parameters<T> trajectory;
     T center[3];
     T aspect;
-    TI body_slot;
-    TI num_props;
-    TI prop_slots[MAX_PROPS];
-    T prop_pivots[MAX_PROPS][2];
-    T prop_directions[MAX_PROPS];
+    TI first_slot;
+    RIG rig;
 };
 
-// single drone -> single thread: the whole per-frame state (pose pair, prop articulation
-// pairs, camera pair) is produced on-device; the expand/update/render verbs consume it with
-// no host data path
+// single drone -> single thread: the whole per-frame state (pose pair, rig samples, camera
+// pair) is produced on-device straight into the renderer's slabs; the update/render verbs
+// consume it with no host data path
 template <typename T_DEVICE>
 __global__ void drone_frame_kernel(T_DEVICE device, DroneKernelParams params, T time_open, T time_close,
-                                   float* transforms_pair, rlt::rendering::raytracing::Camera<T>* cameras_open, rlt::rendering::raytracing::Camera<T>* cameras_close) {
+                                   float* transforms, float* transforms_motion, rlt::rendering::raytracing::Camera<T>* cameras_open, rlt::rendering::raytracing::Camera<T>* cameras_close) {
     if (blockIdx.x != 0 || threadIdx.x != 0) {
         return;
     }
@@ -224,13 +215,16 @@ __global__ void drone_frame_kernel(T_DEVICE device, DroneKernelParams params, T 
     const Pose pose_open = flat_pose(device, params.trajectory, params.center, time_open);
     const Pose pose_close = flat_pose(device, params.trajectory, params.center, time_close);
 
-    pose_to_transform(pose_open, transforms_pair + params.body_slot * 12);
-    pose_to_transform(pose_close, transforms_pair + (SLOTS + params.body_slot) * 12);
-    for (TI prop_i = 0; prop_i < params.num_props; prop_i++) {
-        const TI slot = params.prop_slots[prop_i];
-        prop_spin_transform(params.prop_pivots[prop_i][0], params.prop_pivots[prop_i][1], params.prop_directions[prop_i] * PROP_RATE * time_open, transforms_pair + slot * 12);
-        prop_spin_transform(params.prop_pivots[prop_i][0], params.prop_pivots[prop_i][1], params.prop_directions[prop_i] * PROP_RATE * time_close, transforms_pair + (SLOTS + slot) * 12);
+    float body_open[12], body_close[12];
+    pose_to_transform(pose_open, body_open);
+    pose_to_transform(pose_close, body_close);
+    float phases_open[RIG::MAX_PROPS], phases_close[RIG::MAX_PROPS];
+    for (TI prop_i = 0; prop_i < RIG::MAX_PROPS; prop_i++) {
+        phases_open[prop_i] = PROP_RATE * time_open;
+        phases_close[prop_i] = PROP_RATE * time_close;
     }
+    rlt::rendering::rig::Buffer<RIG::SPEC> buffer;
+    rlt::sample(device, params.rig, body_open, body_close, phases_open, phases_close, (TI)SPEC::MOTION_BLUR_SAMPLES, buffer, transforms_motion + params.first_slot * 12, (TI)(SLOTS * 12), transforms + params.first_slot * 12);
 
     make_cameras(pose_open, params.aspect, cameras_open);
     make_cameras(pose_close, params.aspect, cameras_close);
@@ -270,11 +264,6 @@ int main(int argc, char** argv) {
         std::cerr << "Failed to load drone assembly: " << options.drone_path << std::endl;
         return 1;
     }
-    if (drone_assembly.parts.empty() || drone_assembly.objects[drone_assembly.parts[0].object].name != "body") {
-        std::cerr << "Drone assembly must have a scene-root node named 'body' as its first part" << std::endl;
-        return 1;
-    }
-
     rlt::rendering::raytracing::AssetPool pool;
     const auto drone_asset = rlt::add(device, pool, drone_assembly);
 
@@ -297,32 +286,15 @@ int main(int argc, char** argv) {
         kernel_params.center[dim] = options.center[dim];
     }
     kernel_params.aspect = static_cast<T>(CAM_WIDTH) / static_cast<T>(CAM_HEIGHT);
-    kernel_params.body_slot = (TI)placement.first_slot;
-    kernel_params.num_props = 0;
-    for (size_t part_i = 0; part_i < drone_assembly.parts.size(); part_i++) {
-        const auto& object = drone_assembly.objects[drone_assembly.parts[part_i].object];
-        if (object.name.rfind("prop_", 0) != 0) continue;
-        T low[3] = {0, 0, 0}, high[3] = {0, 0, 0};
-        bool first = true;
-        for (const auto& mesh : object.meshes) {
-            for (size_t vertex_i = 0; vertex_i + 2 < mesh.vertices.size(); vertex_i += 3) {
-                for (TI dim = 0; dim < 3; dim++) {
-                    const T value = mesh.vertices[vertex_i + dim];
-                    low[dim] = first ? value : std::min(low[dim], value);
-                    high[dim] = first ? value : std::max(high[dim], value);
-                }
-                first = false;
-            }
-        }
-        const TI prop_i = kernel_params.num_props++;
-        kernel_params.prop_slots[prop_i] = (TI)(placement.first_slot + part_i);
-        kernel_params.prop_pivots[prop_i][0] = (low[0] + high[0]) / 2;
-        kernel_params.prop_pivots[prop_i][1] = (low[1] + high[1]) / 2;
-        kernel_params.prop_directions[prop_i] = kernel_params.prop_pivots[prop_i][0] * kernel_params.prop_pivots[prop_i][1] > 0 ? 1 : -1;
+    kernel_params.first_slot = (TI)placement.first_slot;
+    if (!rlt::init(device, kernel_params.rig, drone_assembly)) {
+        std::cerr << "Drone assembly must follow the body/prop_* part convention: " << options.drone_path << std::endl;
+        rlt::free(device, renderer);
+        return 1;
     }
 
-    // publish the spawn (slot structure + attachments) and clear the host-verb dirty state:
-    // from here on the loop is producer-only, so update_launch never uploads anything
+    // publish the spawn (slot structure + attachments) and clear the pending host rows: from
+    // here on the loop is producer-only, so update_launch never uploads anything
     rlt::update(device, renderer);
 
     const bool video = options.ffmpeg != "none";
@@ -336,7 +308,8 @@ int main(int argc, char** argv) {
     constexpr size_t CAM_PIXELS = static_cast<size_t>(CAM_WIDTH) * static_cast<size_t>(CAM_HEIGHT);
     std::vector<uint32_t> frame(NUM_CAMERAS * CAM_PIXELS);
     cudaStream_t render_stream = rlt::stream(device, renderer);
-    float* transforms_pair = rlt::data(rlt::transforms_pair(device, renderer));
+    float* transforms = rlt::data(rlt::transforms(device, renderer));
+    float* transforms_motion = rlt::data(rlt::transforms_motion(device, renderer));
     auto* cameras_open = rlt::data(rlt::cameras_open(device, renderer));
     auto* cameras_close = rlt::data(rlt::cameras_close(device, renderer));
 
@@ -345,8 +318,7 @@ int main(int argc, char** argv) {
         const T time_close = static_cast<T>((frame_i + SHUTTER_FRACTION) / options.fps);
 
         // enqueue-only frame: producer kernel on the render stream, then the renderer verbs
-        drone_frame_kernel<<<1, 1, 0, render_stream>>>(tag_device, kernel_params, time_open, time_close, transforms_pair, cameras_open, cameras_close);
-        rlt::expand_motion_transforms_launch(device, renderer);
+        drone_frame_kernel<<<1, 1, 0, render_stream>>>(tag_device, kernel_params, time_open, time_close, transforms, transforms_motion, cameras_open, cameras_close);
         rlt::update_launch(device, renderer);
         rlt::render_launch(device, renderer);
         rlt::render_sync(device, renderer);
