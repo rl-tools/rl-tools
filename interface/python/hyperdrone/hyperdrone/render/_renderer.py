@@ -4,8 +4,6 @@ from . import _io
 from ._component import ensure_renderer_library, load_core
 from ._config import (
     OUTPUT_MODE,
-    RENDER_PHASE,
-    RENDER_TARGET,
     FIDELITY,
     RendererConfig,
 )
@@ -70,9 +68,9 @@ class Renderer:
     combination compiles a renderer library into the hyperdrone cache, subsequent uses
     load the cached library directly.
 
-    num_probes=0 compiles the collision-probe pass out entirely (no probe buffers and no
-    probe launch behind the default render target), matching the C++ benchmark targets;
-    the probe methods then raise.
+    Rendering produces the configured image outputs; collision probes run separately
+    through probe(). num_probes=0 compiles the collision-probe pass out entirely,
+    and the probe methods then raise.
     """
 
     def __init__(self, width, height, num_cameras=1, num_probes=1, output="rgb", fidelity="high",
@@ -184,20 +182,32 @@ class Renderer:
         self._require_probes()
         self._renderer.generate_probe_directions()
 
-    def _render(self, target, phase):
-        if target == "collision":
-            self._require_probes()
-        self._renderer.render(RENDER_TARGET[target], RENDER_PHASE[phase])
+    def render(self):
+        self._renderer.render()
         return self
 
-    def render(self, target="all"):
-        return self._render(target, "full")
+    def render_launch(self):
+        self._renderer.render_launch()
+        return self
 
-    def render_launch(self, target="all"):
-        return self._render(target, "launch")
+    def render_sync(self):
+        self._renderer.render_sync()
+        return self
 
-    def render_sync(self, target="all"):
-        return self._render(target, "sync")
+    def probe(self):
+        self._require_probes()
+        self._renderer.probe()
+        return self
+
+    def probe_launch(self):
+        self._require_probes()
+        self._renderer.probe_launch()
+        return self
+
+    def probe_sync(self):
+        self._require_probes()
+        self._renderer.probe_sync()
+        return self
 
     def synchronize(self):
         self._renderer.synchronize()

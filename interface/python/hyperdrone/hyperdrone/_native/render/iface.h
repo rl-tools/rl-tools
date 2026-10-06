@@ -7,7 +7,7 @@
 // same build tree, so passing rl_tools scene types by pointer is safe. Everything
 // renderer-spec dependent is hidden behind the vtable; buffer exchange uses raw pointers
 // sized by config(). Bump HYPERDRONE_RENDER_IFACE_VERSION on any change to this file.
-#define HYPERDRONE_RENDER_IFACE_VERSION 6
+#define HYPERDRONE_RENDER_IFACE_VERSION 7
 
 namespace rl_tools { namespace rendering {
     struct AssetPool;
@@ -32,19 +32,6 @@ namespace hyperdrone::render {
         bool dynamic_motion_blur;
     };
 
-    enum class RenderTarget : int {
-        ALL = 0,
-        RGB = 1,
-        DEPTH = 2,
-        SEGMENTATION = 3,
-        RGB_DEPTH = 4,
-        COLLISION = 5
-    };
-    enum class RenderPhase : int {
-        LAUNCH = 0,
-        SYNC = 1,
-        FULL = 2
-    };
     struct OverlayPlacementData {
         size_t first_slot;
         size_t num_parts;
@@ -72,7 +59,12 @@ namespace hyperdrone::render {
         virtual void generate_cameras(const float center[3], float radius, const float up[3], float fov_degrees) = 0;
         virtual void generate_probe_directions() = 0;
 
-        virtual void render(RenderTarget target, RenderPhase phase) = 0;
+        virtual void render() = 0;
+        virtual void render_launch() = 0;
+        virtual void render_sync() = 0;
+        virtual void probe() = 0;
+        virtual void probe_launch() = 0;
+        virtual void probe_sync() = 0;
 
         virtual void read_frame_buffer(uint32_t* dst) = 0;        // num_cameras * height * width
         virtual void read_depth_buffer(float* dst) = 0;           // num_cameras * height * width

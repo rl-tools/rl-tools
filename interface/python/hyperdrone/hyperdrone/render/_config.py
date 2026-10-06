@@ -5,9 +5,6 @@ from .. import jit
 FIDELITY = {"low": 0, "medium": 1, "high": 2, "veryhigh": 3}
 OUTPUT_MODE = {"rgb": 0, "rgbd": 1, "depth": 2, "segmentation": 3, "rgbd_segmentation": 4}
 
-RENDER_TARGET = {"all": 0, "rgb": 1, "depth": 2, "segmentation": 3, "rgb_depth": 4, "collision": 5}
-RENDER_PHASE = {"launch": 0, "sync": 1, "full": 2}
-
 VALID_MOTION_BLUR_SAMPLES = (1, 2, 4, 8, 16, 32)
 VALID_ANTI_ALIASING_GRIDS = (1, 2, 3, 4)
 
