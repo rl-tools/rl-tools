@@ -280,12 +280,11 @@ namespace rl_tools{
                     }
                     set_transform_pair(device, world.renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, world.drone_rig, entry, entry, phase_open, phase_close);
                 } else {
-                    set_transform(device, world.renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, entry);
-                    for(TI prop_i = 0; prop_i < world.drone_rig.num_props; prop_i++){
-                        float spin[12];
-                        rl::environments::hyperdrone::rig::prop_spin_transform(device, world.drone_rig.prop_pivots[prop_i][0], world.drone_rig.prop_pivots[prop_i][1], world.drone_rig.prop_directions[prop_i] * (T)entry[16 + prop_i], spin);
-                        set_transform(device, world.renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, world.drone_rig.prop_parts[prop_i], spin);
+                    T phases[4];
+                    for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
+                        phases[rotor_i] = (T)entry[16 + rotor_i];
                     }
+                    set_transform(device, world.renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, world.drone_rig, entry, phases);
                 }
             }
         }

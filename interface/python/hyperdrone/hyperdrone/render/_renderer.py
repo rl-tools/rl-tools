@@ -43,6 +43,18 @@ def _as_transform(transform):
     return array
 
 
+def _as_rows(value, shape):
+    array = np.ascontiguousarray(_from_dlpack(value), dtype=np.float32)
+    if array.size != int(np.prod(shape)):
+        raise ValueError(f"transforms must have shape {shape}, got {array.shape}")
+    return array.reshape(shape)
+
+
+def _is_cuda(value):
+    device = getattr(value, "__dlpack_device__", None)
+    return device is not None and device()[0] == 2  # kDLCUDA
+
+
 class _DLPackBuffer:
     """DLPack producer over a live renderer buffer. Capsules are single-use, so each
     __dlpack__ call mints a fresh one; the renderer reference keeps the memory alive."""
@@ -88,8 +100,9 @@ class Renderer:
         semantic_segmentation: Write per-object segmentation_class values instead
             of instance IDs; requires "segmentation" or "rgbd_segmentation" output.
         dynamic_motion_blur: Blur overlay motion as well as camera motion, using
-            shutter-open/close transforms supplied by set_transform_pair() or
-            set_transforms_pair(). Requires overlays and motion_blur_samples >= 2.
+            shutter-open/close transforms supplied by set_transform_pair() or per-part
+            samples supplied by set_motion_transforms(). Requires overlays and
+            motion_blur_samples >= 2.
 
     The three overlay capacities must be all zero (disabled) or all positive.
     Blur and anti-aliasing affect RGB and depth; segmentation always uses a single
@@ -122,6 +135,7 @@ class Renderer:
         self._renderer = load_renderer(self.config).Renderer()
         self._scene = None
         self._asset_pool = None
+        self._pending_inputs = []  # CUDA inputs handed over device-to-device stay alive until the render stream synchronizes
 
     @property
     def width(self):
@@ -146,6 +160,10 @@ class Renderer:
     @property
     def aspect(self):
         return self.config.width / self.config.height
+
+    @property
+    def motion_blur_samples(self):
+        return self.config.motion_blur_samples
 
     @property
     def backend(self):
@@ -205,6 +223,7 @@ class Renderer:
 
     def render(self):
         self._renderer.render()
+        self._pending_inputs.clear()
         return self
 
     def render_launch(self):
@@ -213,6 +232,7 @@ class Renderer:
 
     def render_sync(self):
         self._renderer.render_sync()
+        self._pending_inputs.clear()
         return self
 
     def probe(self):
@@ -232,9 +252,11 @@ class Renderer:
 
     def synchronize(self):
         self._renderer.synchronize()
+        self._pending_inputs.clear()
 
     def update(self):
-        """Publish pending overlay changes (attach/detach/spawn/despawn/set_transform)."""
+        """Publish pending overlay changes (attach/detach/spawn/despawn and the transform
+        verbs) and rebuild the overlay acceleration structures."""
         self._renderer.update()
 
     def frame_raw(self, copy=True):
@@ -321,26 +343,84 @@ class Renderer:
         self._renderer.despawn(overlay, tuple(placement))
 
     def set_transform(self, overlay, placement, transform):
+        """Move a placement rigidly: every part at transform composed with its asset rest frame."""
         self._renderer.set_transform(overlay, tuple(placement), _as_transform(transform))
 
-    def set_part_transform(self, overlay, placement, part, transform):
-        self._renderer.set_part_transform(overlay, tuple(placement), part, _as_transform(transform))
-
     def set_transform_pair(self, overlay, placement, open_transform, close_transform):
+        """Rigid shutter-open/close move, interpolated into the motion samples (dynamic_motion_blur=True)."""
         self._renderer.set_transform_pair(overlay, tuple(placement), _as_transform(open_transform), _as_transform(close_transform))
 
-    def set_part_transform_pair(self, overlay, placement, part, open_transform, close_transform):
-        self._renderer.set_part_transform_pair(overlay, tuple(placement), part, _as_transform(open_transform), _as_transform(close_transform))
+    def _require_device_inputs(self, name):
+        if not hasattr(self._renderer, name):
+            raise RuntimeError("hyperdrone: device-resident transform input requires the OptiX backend")
 
-    def set_transforms_pair(self, pairs):
-        # [2, num_overlays * max_overlay_instances, 12] float32 entries, shutter open then close
-        self._renderer.set_transforms_pair(np.ascontiguousarray(pairs, dtype=np.float32))
+    def set_transforms(self, overlay, placement, poses, stream=0):
+        """Per-part geometry-to-world poses, shape (num_parts, 3, 4): the output of Rig.evaluate
+        for the placement's assembly. CUDA tensors (OptiX) are copied device-to-device on the
+        render stream after awaiting stream (the producer's cudaStream_t handle, 0 = default)."""
+        if _is_cuda(poses):
+            self._require_device_inputs("set_transforms_device")
+            self._renderer.set_transforms_device(overlay, tuple(placement), poses, int(stream))
+            self._pending_inputs.append(poses)
+            return
+        self._renderer.set_transforms(overlay, tuple(placement), _as_rows(poses, (placement[1], 3, 4)))
 
-    def transforms_pair_device_ptr(self):
-        return self._renderer.transforms_pair_device_ptr()
+    def set_motion_transforms(self, overlay, placement, samples, close, stream=0):
+        """Per-part motion for dynamic motion blur: samples (motion_blur_samples, num_parts, 3, 4)
+        at the shutter times (s + 0.5) / motion_blur_samples and the shutter-close poses
+        (num_parts, 3, 4) that segmentation, probes and the next frame see: the output of
+        Rig.sample. CUDA tensors are handed over like in set_transforms."""
+        if _is_cuda(samples) != _is_cuda(close):
+            raise ValueError("samples and close poses must live in the same memory")
+        if _is_cuda(samples):
+            self._require_device_inputs("set_motion_transforms_device")
+            self._renderer.set_motion_transforms_device(overlay, tuple(placement), samples, close, int(stream))
+            self._pending_inputs.extend((samples, close))
+            return
+        num_parts = placement[1]
+        self._renderer.set_motion_transforms(overlay, tuple(placement), _as_rows(samples, (self.motion_blur_samples, num_parts, 3, 4)), _as_rows(close, (num_parts, 3, 4)))
 
-    def expand_motion_transforms(self):
-        self._renderer.expand_motion_transforms()
+    def set_all_transforms(self, poses, stream=0):
+        """Every slot at once, shape (num_overlays, max_overlay_instances, 3, 4): a batch of
+        identical assets spawned one per overlay is exactly this tensor. Rows of inactive slots
+        are ignored."""
+        shape = (self.config.num_overlays, self.config.max_overlay_instances, 3, 4)
+        if _is_cuda(poses):
+            self._require_device_inputs("set_all_transforms_device")
+            self._renderer.set_all_transforms_device(poses, int(stream))
+            self._pending_inputs.append(poses)
+            return
+        self._renderer.set_all_transforms(_as_rows(poses, shape))
+
+    def set_all_motion_transforms(self, samples, close, stream=0):
+        """Every slot's motion at once: samples (motion_blur_samples, num_overlays,
+        max_overlay_instances, 3, 4) and close (num_overlays, max_overlay_instances, 3, 4)."""
+        shape = (self.config.num_overlays, self.config.max_overlay_instances, 3, 4)
+        if _is_cuda(samples) != _is_cuda(close):
+            raise ValueError("samples and close poses must live in the same memory")
+        if _is_cuda(samples):
+            self._require_device_inputs("set_all_motion_transforms_device")
+            self._renderer.set_all_motion_transforms_device(samples, close, int(stream))
+            self._pending_inputs.extend((samples, close))
+            return
+        self._renderer.set_all_motion_transforms(_as_rows(samples, (self.motion_blur_samples,) + shape), _as_rows(close, shape))
+
+    def transforms_dlpack(self):
+        """Live geometry-to-world tensor (num_overlays, max_overlay_instances, 3, 4) as a
+        zero-copy DLPack producer for in-place writers (CUDA device memory on OptiX, CPU memory
+        elsewhere); update() consumes it. Call update() to publish pending host writes before
+        writing it, and order a CUDA producer against render_stream."""
+        return _DLPackBuffer(self, self._renderer.transforms_dlpack, self._renderer.buffer_device_type())
+
+    def transforms_motion_dlpack(self):
+        """Live per-sample tensor (motion_blur_samples, num_overlays, max_overlay_instances, 3, 4);
+        see transforms_dlpack for the contract."""
+        return _DLPackBuffer(self, self._renderer.transforms_motion_dlpack, self._renderer.buffer_device_type())
+
+    @property
+    def render_stream(self):
+        """cudaStream_t handle of the render stream (0 on host backends)."""
+        return self._renderer.render_stream()
 
     def set_motion_blur_cameras_device(self, cameras_open, cameras_close, stream=0):
         self._renderer.set_motion_blur_cameras_device(cameras_open, cameras_close, int(stream))

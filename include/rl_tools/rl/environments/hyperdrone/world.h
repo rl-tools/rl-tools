@@ -217,7 +217,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         // the World's own drone entity (SELF_VISIBLE): asset path set before init, rig derived
         // from the assembly, poses staged per render ([12 body | 4 phase_open | 4 phase_close])
         std::string drone_asset_path;
-        rig::Rotorcraft<T, TI, 4> drone_rig;
+        rig::Rotorcraft<TI, 4> drone_rig;
         TI drone_entity_kind_index = 0;
         using DRONE_POSE_STAGING_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, INSTANCES * N_AGENTS, 20>>;
         Tensor<DRONE_POSE_STAGING_SPEC> drone_pose_staging;

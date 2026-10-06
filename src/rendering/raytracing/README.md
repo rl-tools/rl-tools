@@ -23,9 +23,9 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   live and (on CUDA) carries the producer stream — it does not select the render backend.
 - **State is a tensor behind an accessor.** Renderer inputs and outputs are backend-native
   `Tensor` members exposed by accessors — `cameras()`, `cameras_open()`/`cameras_close()`
-  (motion blur), `transforms()` (overlays), `transforms_motion()` (dynamic motion blur:
-  per-sample overlay transforms, sample-major so slab `s` shares the `transforms()` layout),
-  `transforms_pair()` (dynamic-motion-blur producer input: shutter-open/close entries),
+  (motion blur), `transforms()` (overlays: one geometry-to-world 3x4 per slot),
+  `transforms_motion()` (dynamic motion blur: per-sample overlay transforms, sample-major so
+  slab `s` shares the `transforms()` layout),
   `cameras_previous()`/`transforms_previous()` (flow: the previous instant),
   `frame_buffer()`, `depth_buffer()`, `segmentation_buffer()`, `normals_buffer()`,
   `flow_buffer()`/`flow_status_buffer()`, `flow_forward_buffer()`/`flow_forward_status_buffer()`,
@@ -57,7 +57,7 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   of the hit surface, oriented against the ray, as float3 per pixel to `normals_buffer()`
   (miss = zero). Unit normals cannot be averaged, so anti-aliasing and motion-blur settings do
   not apply, and the pass stays out of the dynamic-motion-blur accumulate/resolve machinery.
-- **Flow output.** With `OUTPUT_FLOW`, a single-sample pass writes the backward optical flow of the current frame to `flow_buffer()` (float2 per pixel, in pixels, sub-pixel exact) and a `FlowStatus` code per pixel to `flow_status_buffer()` (uint32). The renderer holds two instants of the published state: `cameras()`/`transforms()` are the current instant and `cameras_previous()`/`transforms_previous()` the previous one, each with its own resident overlay acceleration structures. Per pixel the pass traces the pixel-centre ray against the current instant, carries the hit point by its instance's rigid motion between the instants (composed per overlay slot at `update`; scene geometry and objects that did not move contribute pure camera flow), projects it through the previous camera and shoots a visibility ray from the previous camera towards the carried point against the previous instant. The status resolves in priority order: `MISS` (no hit; flow zero), `BEHIND` (carried point at or behind the other camera; flow zero), `OUT_OF_FRAME` (projects outside the other image; visibility not tested), `OCCLUDED` (a closer hit along the visibility ray within the relative margin `FLOW_VISIBILITY_EPSILON`), `VALID`. The flow value is the displacement to add to a pixel to reach its correspondence (`p_previous - p_current`) and is retained on `OUT_OF_FRAME` and `OCCLUDED`, so the status is the mask. `OUTPUT_FLOW_FORWARD` adds the mirrored pass on the previous camera grid (`flow_forward_buffer()`/`flow_forward_status_buffer()`, `p_current - p_previous`), which is what a bidirectional-consistency consumer needs. Host verbs: `spawn` initialises previous == current, the `set_transform*` verbs touch only the current instant, and `advance_flow` publishes the current instant as the previous one (cameras and poses; clean overlays copy their tensor rows, dirty ones stage their host mirrors at the next `update`). The frame-to-frame steady state is `advance_flow` → move/write → `update` → `render`; producers that keep last frame's state themselves write `cameras_previous()` and the clean overlays' `transforms_previous()` rows directly, under the same ownership contract as `transforms()`. Not modelled: attachment changes between the instants, non-rigid motion beyond per-part articulation, rolling shutter, and flow through motion-blur sample poses. Examples: `src/rendering/raytracing/example/flow.cpp` (one steady-state step to PNGs) and the `rendering_raytracing_interactive_flow` viewer (walk the scene with an orbiting cube; RGB on the left half, flow on the right half, Tab cycles backward flow, backward status, forward flow and forward status).
+- **Flow output.** With `OUTPUT_FLOW`, a single-sample pass writes the backward optical flow of the current frame to `flow_buffer()` (float2 per pixel, in pixels, sub-pixel exact) and a `FlowStatus` code per pixel to `flow_status_buffer()` (uint32). The renderer holds two instants of the published state: `cameras()`/`transforms()` are the current instant and `cameras_previous()`/`transforms_previous()` the previous one, each with its own resident overlay acceleration structures. Per pixel the pass traces the pixel-centre ray against the current instant, carries the hit point by its instance's rigid motion between the instants (composed per overlay slot at `update`; scene geometry and objects that did not move contribute pure camera flow), projects it through the previous camera and shoots a visibility ray from the previous camera towards the carried point against the previous instant. The status resolves in priority order: `MISS` (no hit; flow zero), `BEHIND` (carried point at or behind the other camera; flow zero), `OUT_OF_FRAME` (projects outside the other image; visibility not tested), `OCCLUDED` (a closer hit along the visibility ray within the relative margin `FLOW_VISIBILITY_EPSILON`), `VALID`. The flow value is the displacement to add to a pixel to reach its correspondence (`p_previous - p_current`) and is retained on `OUT_OF_FRAME` and `OCCLUDED`, so the status is the mask. `OUTPUT_FLOW_FORWARD` adds the mirrored pass on the previous camera grid (`flow_forward_buffer()`/`flow_forward_status_buffer()`, `p_current - p_previous`), which is what a bidirectional-consistency consumer needs. Host verbs: `spawn` initialises previous == current, the `set_transform*` verbs touch only the current instant, and `advance_flow` publishes the current instant as the previous one (cameras and poses; resident rows copy at once, rows the host has written but not yet published stage through their mirror at the next `update`). The frame-to-frame steady state is `advance_flow` → move/write → `update` → `render`; producers that keep last frame's state themselves write `cameras_previous()` and the `transforms_previous()` rows they own directly, under the same ownership contract as `transforms()`. Not modelled: attachment changes between the instants, non-rigid motion beyond per-part articulation, rolling shutter, and flow through motion-blur sample poses. Examples: `src/rendering/raytracing/example/flow.cpp` (one steady-state step to PNGs) and the `rendering_raytracing_interactive_flow` viewer (walk the scene with an orbiting cube; RGB on the left half, flow on the right half, Tab cycles backward flow, backward status, forward flow and forward status).
 - **Determinism is a contract.** Fixed seed ⇒ identical results, no atomics. The global
   instance-id layout (scene instances `[0,S)`, overlay `o` slot `s` at `S + o*MAX + s`) is
   cross-backend API surface consumed by segmentation.
@@ -67,23 +67,35 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   passes (camera lerped at the same `(i+0.5)/N` shutter times), accumulating linear radiance
   per pixel (each thread owns its pixel — no atomics), then restores the shutter-close overlay
   state (segmentation and probes stay single-sample at shutter close, ids unchanged) and
-  resolves with the standard transfer curve + quantization. `set_transform_pair` expands
-  shutter-open/close entries into the samples by constant-twist screw interpolation (exact for
-  constant-velocity rigid motion below 180° per shutter — an off-origin rotation axis such as a
-  prop hub stays fixed); faster motion writes `transforms_motion()` directly. The single-pose verbs replicate across samples, so a
-  dynamic spec driven only by them renders pixel-identically to camera-only blur. All passes
-  are enqueue-only: one fenced submit on Vulkan, one command buffer on Metal, stream-ordered
-- **GPU-resident dynamic motion blur** (OptiX): a sim kernel writes the shutter pair into
-  `transforms_pair()` (entry layout `[2][num_overlays * max_instances][12]`, open then close)
-  and the camera pair in place; `expand_motion_transforms_launch` then expands the samples into
-  `transforms_motion()` and the close state into `transforms()` on the render stream
-  (`transforms_generic.h` is the single interpolant shared by the host verb and the kernel).
-  The steady-state step becomes kernel → expand → update → render with no host data path —
-  the host's per-frame role is enqueues only (kernel launches, `optixAccelBuild` enqueues, and
-  OWL's constant 48-byte launch-param upload per launch). Per overlay, use either the
-  `set_transform*` host verbs or the pair path, not both. On generic/Vulkan/Metal the same verb
-  expands on the CPU into the host-resident tensors (residency is a backend property; Vulkan's
-  and Metal's per-frame instance-descriptor composition is CPU-side by architecture). End-to-end example:
+  resolves with the standard transfer curve + quantization. `set_transform_pair` expands a
+  rigid shutter-open/close pose into the samples by constant-twist screw interpolation
+  (`rendering::screw_interpolate`: exact for constant-velocity rigid motion below 180° per
+  shutter — an off-origin rotation axis such as a prop hub stays fixed); `set_motion_transforms`
+  takes per-part samples and the shutter-close poses directly. The single-pose verbs replicate
+  across samples, so a dynamic spec driven only by them renders pixel-identically to camera-only
+  blur. All passes are enqueue-only: one fenced submit on Vulkan, one command buffer on Metal,
+  stream-ordered
+- **Articulation is a producer** (`rendering/rig/`): a `rig::Model` is a fixed-capacity,
+  plain-value rigid-link tree (links declared parent before child; fixed, revolute, prismatic
+  and spherical joints; one `origin` per link and one `offset` per part) that `evaluate`s to
+  geometry-to-world poses in part order and `sample`s a shutter — coordinates interpolate before
+  the kinematics (a revolute joint keeps every revolution), the base follows the screw. The host
+  verbs are `set_transforms(device, renderer, overlay, placement, poses)` and
+  `set_motion_transforms(device, renderer, overlay, placement, samples, close)`; a device kernel
+  calls `sample` with the renderer's `transforms_motion()`/`transforms()` rows as its outputs.
+  `init(device, model, assembly)` builds the all-fixed rig of an asset's rest frames (nested
+  GLB parts recorded by the loader become joint origins), and the hyperdrone rotorcraft is one
+  such model built by its body/prop_* convention.
+- **GPU-resident dynamic motion blur** (OptiX): a sim kernel writes the per-sample world poses
+  into `transforms_motion()`, the shutter-close poses into `transforms()` and the camera pair in
+  place, all on the render stream; the steady-state step is kernel → update → render with no
+  host data path — the host's per-frame role is enqueues only (kernel launches,
+  `optixAccelBuild` enqueues, and OWL's constant 48-byte launch-param upload per launch). Host
+  verbs and producers may share a renderer: a verb writes the host mirror and marks its rows
+  pending, `update` publishes exactly the pending rows (compacted into one scatter on OptiX),
+  and a producer owns every row the host has not marked. On generic/Vulkan/Metal the publish is
+  a memcpy into the host-resident tensors (residency is a backend property; Vulkan's and Metal's
+  per-frame instance-descriptor composition is CPU-side by architecture). End-to-end example:
   `src/rendering/raytracing/example/drone_device.cu`.
 
 ## Lifecycle

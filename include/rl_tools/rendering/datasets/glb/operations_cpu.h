@@ -188,6 +188,7 @@ namespace rl_tools {
             std::shared_ptr<const rendering::SegmentationTaxonomy> segmentation_taxonomy;
             std::vector<uint32_t> root_classes;
             std::vector<rendering::SceneLight> lights; // world frame (welded scene loads)
+            std::vector<std::vector<std::string>> light_paths; // per light, the node names from its node up to its scene root (nested-part loads)
             std::map<int, std::vector<rendering::SceneLight>> root_lights; // by scene-root ordinal, in the root node's frame (assembly loads)
             std::map<std::string, Material> materials; // by material name; glTF spec defaults when absent
             struct MaterialExtensions{
@@ -515,6 +516,11 @@ namespace rl_tools {
                     float world[16];
                     node_world_transform(nodes, ni, parent_map, world);
                     result.lights.push_back(make_light(ldef, type_str, intensity, color_r, color_g, color_b, world));
+                    std::vector<std::string> path;
+                    for(int ancestor = ni; ancestor >= 0; ancestor = parent_map[ancestor]){
+                        path.push_back(nodes[ancestor].value("name", std::string{}));
+                    }
+                    result.light_paths.push_back(std::move(path));
 
                     int owning_root = ni;
                     while (parent_map[owning_root] >= 0) owning_root = parent_map[owning_root];
@@ -1017,8 +1023,13 @@ namespace rl_tools {
         out[8] = transform.b1;  out[9] = -transform.b3; out[10] = transform.b2;  out[11] = transform.b4;
     }
 
+    // part_nodes empty: one part per scene-root node. Otherwise the named nodes become the parts
+    // in the given order, each collecting its subtree down to the next selected node; a part
+    // inside another selected node records it as its parent (declared first), lights move to
+    // the innermost selected node of their chain, and geometry outside every selected node is
+    // an error rather than silently dropped.
     template <typename SHADING, bool HAS_RGB>
-    bool load_assembly_data(rendering::ObjectAssembly& assembly, const std::string& filename, rendering::Scene::Environment* environment = nullptr){
+    bool load_assembly_data(rendering::ObjectAssembly& assembly, const std::string& filename, rendering::Scene::Environment* environment = nullptr, const std::vector<std::string>& part_nodes = {}){
         Assimp::Importer importer;
         unsigned int import_flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_ImproveCacheLocality;
         if constexpr (HAS_RGB && SHADING::PBR_SHADING) {
@@ -1046,17 +1057,107 @@ namespace rl_tools {
         MeshConversionState conversion_state; // shared across parts: textures used by several parts decode once
 
         const aiNode* file_root = scene->mRootNode;
+        struct Selection {
+            const aiNode* node;
+            aiMatrix4x4 transform; // node -> assembly frame
+            size_t root_ordinal;
+            size_t parent;
+        };
+        std::vector<Selection> selection;
+        const auto selected_index = [&](const aiNode* node){
+            size_t index = 0;
+            while(index < selection.size() && selection[index].node != node){
+                index++;
+            }
+            return index;
+        };
+        if(part_nodes.empty()){
+            for(size_t root_i = 0; root_i < glb_metadata.root_count; root_i++){
+                const aiNode* root = glb_metadata.root_count == 1 ? file_root : file_root->mChildren[root_i];
+                selection.push_back({root, root->mTransformation, root_i, rendering::ObjectAssembly::Part::NO_PARENT});
+            }
+        }
+        else{
+            struct Visit {
+                const aiNode* node;
+                aiMatrix4x4 transform;
+                size_t root_ordinal;
+            };
+            std::vector<Visit> visits;
+            std::function<void(const aiNode*, const aiMatrix4x4&, size_t)> gather = [&](const aiNode* node, const aiMatrix4x4& parent_transform, size_t root_ordinal){
+                const aiMatrix4x4 transform = parent_transform * node->mTransformation;
+                visits.push_back({node, transform, root_ordinal});
+                for(unsigned int child_i = 0; child_i < node->mNumChildren; child_i++){
+                    gather(node->mChildren[child_i], transform, root_ordinal);
+                }
+            };
+            for(size_t root_i = 0; root_i < glb_metadata.root_count; root_i++){
+                gather(glb_metadata.root_count == 1 ? file_root : file_root->mChildren[root_i], aiMatrix4x4(), root_i);
+            }
+            for(const auto& name : part_nodes){
+                const Visit* match = nullptr;
+                for(const auto& visit : visits){
+                    if(name == visit.node->mName.C_Str()){
+                        if(match != nullptr){
+                            RL_TOOLS_RENDERING_DATASETS_LOG_ERR("Part node name is ambiguous in " << filename << ": " << name);
+                            return false;
+                        }
+                        match = &visit;
+                    }
+                }
+                if(match == nullptr){
+                    RL_TOOLS_RENDERING_DATASETS_LOG_ERR("Part node not found in " << filename << ": " << name);
+                    return false;
+                }
+                if(selected_index(match->node) < selection.size()){
+                    RL_TOOLS_RENDERING_DATASETS_LOG_ERR("Part node selected twice in " << filename << ": " << name);
+                    return false;
+                }
+                selection.push_back({match->node, match->transform, match->root_ordinal, rendering::ObjectAssembly::Part::NO_PARENT});
+            }
+            for(size_t part_i = 0; part_i < selection.size(); part_i++){
+                for(const aiNode* ancestor = selection[part_i].node->mParent; ancestor != nullptr; ancestor = ancestor->mParent){
+                    const size_t parent_i = selected_index(ancestor);
+                    if(parent_i < selection.size()){
+                        if(parent_i > part_i){
+                            RL_TOOLS_RENDERING_DATASETS_LOG_ERR("Part node " << part_nodes[part_i] << " must follow its enclosing part node " << part_nodes[parent_i]);
+                            return false;
+                        }
+                        selection[part_i].parent = parent_i;
+                        break;
+                    }
+                }
+            }
+            for(const auto& visit : visits){
+                if(visit.node->mNumMeshes == 0){
+                    continue;
+                }
+                bool covered = false;
+                for(const aiNode* node = visit.node; node != nullptr && !covered; node = node->mParent){
+                    covered = selected_index(node) < selection.size();
+                }
+                if(!covered){
+                    RL_TOOLS_RENDERING_DATASETS_LOG_ERR("Part nodes leave the geometry of node " << visit.node->mName.C_Str() << " outside every part in " << filename);
+                    return false;
+                }
+            }
+        }
+
         const size_t first_new_part = assembly.parts.size();
-        for(size_t root_i = 0; root_i < glb_metadata.root_count; root_i++){
-            const aiNode* root = glb_metadata.root_count == 1 ? file_root : file_root->mChildren[root_i];
+        for(size_t part_i = 0; part_i < selection.size(); part_i++){
+            const auto& selected = selection[part_i];
+            const aiNode* root = selected.node;
             rendering::Object object;
             object.name = root->mName.C_Str();
             object.segmentation_taxonomy = glb_metadata.segmentation_taxonomy;
-            object.segmentation_class = glb_metadata.root_classes[root_i];
+            object.segmentation_class = glb_metadata.root_classes[selected.root_ordinal];
 
-            // geometry lands in the root node's frame: the recursion starts below the root's own
-            // transform, which becomes the part placement instead
+            // geometry lands in the part node's frame: the recursion starts below the node's own
+            // transform, which becomes the part placement instead, and stops at nested parts
             std::function<void(const aiNode*, const aiMatrix4x4&)> collect = [&](const aiNode* node, const aiMatrix4x4& parent_transform){
+                if(selected_index(node) < selection.size()){
+                    return;
+                }
                 const aiMatrix4x4 relative_transform = parent_transform * node->mTransformation;
                 for(unsigned int mesh_i = 0; mesh_i < node->mNumMeshes; mesh_i++){
                     object.meshes.push_back(convert_mesh<SHADING, HAS_RGB>(scene, scene->mMeshes[node->mMeshes[mesh_i]], relative_transform, glb_metadata, conversion_state));
@@ -1072,14 +1173,42 @@ namespace rl_tools {
                 collect(root->mChildren[child_i], aiMatrix4x4());
             }
 
-            const auto root_lights = glb_metadata.root_lights.find((int)root_i);
-            if(root_lights != glb_metadata.root_lights.end()){
-                object.lights = root_lights->second;
+            if(part_nodes.empty()){
+                const auto root_lights = glb_metadata.root_lights.find((int)selected.root_ordinal);
+                if(root_lights != glb_metadata.root_lights.end()){
+                    object.lights = root_lights->second;
+                }
+            }
+            else{
+                aiMatrix4x4 inverse = selected.transform;
+                inverse.Inverse();
+                float to_part[12];
+                flu_from_assimp(inverse, to_part);
+                for(size_t light_i = 0; light_i < glb_metadata.lights.size(); light_i++){
+                    const auto& path = glb_metadata.light_paths[light_i];
+                    size_t owner = selection.size();
+                    for(size_t depth = 0; depth < path.size() && owner == selection.size(); depth++){
+                        for(size_t candidate = 0; candidate < selection.size(); candidate++){
+                            if(path[depth] == selection[candidate].node->mName.C_Str()){
+                                owner = candidate;
+                                break;
+                            }
+                        }
+                    }
+                    if(owner != part_i){
+                        continue;
+                    }
+                    rendering::SceneLight light = glb_metadata.lights[light_i];
+                    rendering::transform_point(to_part, glb_metadata.lights[light_i].position, light.position);
+                    rendering::transform_vector(to_part, glb_metadata.lights[light_i].direction, light.direction);
+                    object.lights.push_back(light);
+                }
             }
 
             rendering::ObjectAssembly::Part part;
             part.object = assembly.objects.size();
-            flu_from_assimp(root->mTransformation, part.transform);
+            flu_from_assimp(selected.transform, part.transform);
+            part.parent = selected.parent == rendering::ObjectAssembly::Part::NO_PARENT ? rendering::ObjectAssembly::Part::NO_PARENT : first_new_part + selected.parent;
             assembly.objects.push_back(std::move(object));
             assembly.parts.push_back(part);
         }
@@ -1104,6 +1233,15 @@ namespace rl_tools {
             return false;
         }
         return rendering::datasets::glb::load_assembly_data<SHADING, HAS_RGB>(assembly, path);
+    }
+
+    template <typename SHADING = rendering::VeryHigh, bool HAS_RGB = true, typename DEVICE>
+    bool load(DEVICE& device, rendering::ObjectAssembly& assembly, const std::string& reference, const std::vector<std::string>& part_nodes){
+        std::string path;
+        if(!rendering::datasets::resolve_reference(device, reference, path)){
+            return false;
+        }
+        return rendering::datasets::glb::load_assembly_data<SHADING, HAS_RGB>(assembly, path, nullptr, part_nodes);
     }
 
     // Appends the scene file as one welded static object placed at identity: explicit

@@ -1563,7 +1563,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SPIN_DYNAMIC){
         const float origin[3] = {0, 0, 0};
         const float quaternion_wxyz[4] = {std::cos(half), 0, 0, std::sin(half)};
         rlt::make_transform(origin, quaternion_wxyz, spin);
-        rlt::set_transform(device, renderer, OverlayIndex{0}, blade, (TI)0, spin);
+        rlt::set_transform(device, renderer, OverlayIndex{0}, blade, spin);
         rlt::update(device, renderer);
         return render_center_depth(device, renderer);
     };
@@ -1576,7 +1576,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_SPIN_DYNAMIC){
     const float depth_second = step_depth(0.7f);
     EXPECT_EQ(depth_first, depth_second); // identical inputs -> bit-identical output
 
-    // rigid move: one call re-derives every part as pose ∘ part-local, replacing the spin state
+    // rigid move: one call re-derives every part as pose ∘ rest, replacing the spin state
     float shifted[12];
     const float shifted_position[3] = {0.5f, 0, 0};
     const float identity_wxyz[4] = {1, 0, 0, 0};
@@ -1740,7 +1740,7 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_PAIR_PIVOT){
     for(TI sample = 0; sample < 16; sample++){
         const float shutter_t = ((float)sample + 0.5f) / 16.0f;
         float interpolated[12], exact[12];
-        rlt::rendering::raytracing::detail::slerp_transform(open, close, shutter_t, interpolated);
+        rlt::rendering::screw_interpolate(open, close, shutter_t, interpolated);
         pivot_spin(angle_open + shutter_t * (angle_close - angle_open), exact);
         for(int element = 0; element < 12; element++){
             EXPECT_NEAR(interpolated[element], exact[element], 1e-5f);
@@ -1831,10 +1831,10 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_STATIC_EQUIVALENCE){
     rlt::free(device, renderer_plain);
 }
 
-// device-producer path: shutter pairs written into the transforms_pair tensor and expanded by
-// the backend (CPU on generic/Vulkan, kernel on OptiX) must reproduce the set_transform_pair
-// result, and the close state must land in the transforms tensor
-TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_PAIR_EXPANSION){
+// producer path: per-sample world poses written into the transforms_motion tensor and the
+// shutter-close pose into transforms (the kernel-producer layout) must reproduce the
+// set_transform_pair result on every backend
+TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_PRODUCER_SAMPLES){
     DEVICE device;
     rlt::init(device);
 
@@ -1862,41 +1862,27 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_PAIR_EXPANSION){
     rlt::update(device, renderer);
     const float depth_reference = render_center_depth_static_camera(device, renderer);
 
-    // overwrite the host-verb state through the producer path: same pair via the tensor
-    rlt::Tensor<rlt::tensor::Specification<float, TI, rlt::tensor::Shape<TI, 12>, true, rlt::tensor::RowMajorStride<rlt::tensor::Shape<TI, 12>>, true>> pair_host;
-    auto pair_open = rlt::view(device, rlt::transforms_pair(device, renderer), 0);
-    auto pair_open_overlay = rlt::view(device, pair_open, 0);
-    auto pair_open_entry = rlt::view(device, pair_open_overlay, cube.first_slot);
-    pair_host._data = open;
-    rlt::copy(device, renderer.device, pair_host, pair_open_entry);
-    auto pair_close = rlt::view(device, rlt::transforms_pair(device, renderer), 1);
-    auto pair_close_overlay = rlt::view(device, pair_close, 0);
-    auto pair_close_entry = rlt::view(device, pair_close_overlay, cube.first_slot);
-    pair_host._data = close;
-    rlt::copy(device, renderer.device, pair_host, pair_close_entry);
-    rlt::expand_motion_transforms(device, renderer);
-    rlt::update(device, renderer);
-    const float depth_expanded = render_center_depth_static_camera(device, renderer);
-    if constexpr (rlt::utils::typing::is_same_v<BACKEND, rlt::rendering::raytracing::backends::Generic>){
-        EXPECT_EQ(depth_expanded, depth_reference); // same freestanding slerp on the same compiler
+    // overwrite the host-verb state through the producer path: the same screw samples via the tensors
+    rlt::Tensor<rlt::tensor::Specification<float, TI, rlt::tensor::Shape<TI, 12>, true, rlt::tensor::RowMajorStride<rlt::tensor::Shape<TI, 12>>, true>> row_host;
+    for(TI sample = 0; sample < DYNAMIC_MB_DEPTH_SPEC::MOTION_BLUR_SAMPLES; sample++){
+        float pose[12];
+        rlt::rendering::screw_interpolate(open, close, ((float)sample + 0.5f) / (float)DYNAMIC_MB_DEPTH_SPEC::MOTION_BLUR_SAMPLES, pose);
+        auto sample_slab = rlt::view(device, rlt::transforms_motion(device, renderer), sample);
+        auto sample_overlay = rlt::view(device, sample_slab, 0);
+        auto sample_entry = rlt::view(device, sample_overlay, cube.first_slot);
+        row_host._data = pose;
+        rlt::copy(device, renderer.device, row_host, sample_entry);
     }
-    else{
-        EXPECT_NEAR(depth_expanded, depth_reference, 1e-3f); // device vs host slerp ULPs
-    }
-
-    // the close state must land in the transforms tensor (segmentation/probes/steady state)
-    float close_entry[12];
-    rlt::Tensor<rlt::tensor::Specification<float, TI, rlt::tensor::Shape<TI, 12>>> close_entry_host;
-    close_entry_host._data = close_entry;
     auto close_overlay = rlt::view(device, rlt::transforms(device, renderer), 0);
     auto close_slot_entry = rlt::view(device, close_overlay, cube.first_slot);
-    rlt::copy(renderer.device, device, close_slot_entry, close_entry_host);
-    for(int element = 0; element < 12; element++){
-        EXPECT_EQ(close_entry[element], close[element]);
-    }
+    row_host._data = close;
+    rlt::copy(device, renderer.device, row_host, close_slot_entry);
+    rlt::update(device, renderer);
+    const float depth_producer = render_center_depth_static_camera(device, renderer);
+    EXPECT_EQ(depth_producer, depth_reference); // the verb publishes the very rows the producer wrote
 
-    const float depth_expanded_again = render_center_depth_static_camera(device, renderer);
-    EXPECT_EQ(depth_expanded, depth_expanded_again); // identical inputs -> bit-identical output
+    const float depth_producer_again = render_center_depth_static_camera(device, renderer);
+    EXPECT_EQ(depth_producer, depth_producer_again); // identical inputs -> bit-identical output
 
     rlt::free(device, renderer);
 }
@@ -2213,7 +2199,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_UPDATE_COST_SMOKE){
             const float position[3] = {(float)overlay, (float)step_i * 0.01f, 0};
             const float orientation_wxyz[4] = {1, 0, 0, 0};
             rlt::make_transform(position, orientation_wxyz, transform);
-            rlt::set_transform(device, renderer, OverlayIndex{overlay}, placements[overlay][0], (TI)0, transform);
+            rlt::set_transform(device, renderer, OverlayIndex{overlay}, placements[overlay][0], transform);
         }
         rlt::update(device, renderer);
     }
@@ -2230,7 +2216,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_UPDATE_COST_SMOKE){
             const float position[3] = {0, 0, 0.01f * (float)(step + 1)};
             const float orientation_wxyz[4] = {1, 0, 0, 0};
             rlt::make_transform(position, orientation_wxyz, transform);
-            rlt::set_transform(device, renderer, OverlayIndex{overlay}, placements[overlay][0], (TI)0, transform);
+            rlt::set_transform(device, renderer, OverlayIndex{overlay}, placements[overlay][0], transform);
         }
         rlt::update_launch(device, renderer);
         rlt::render_launch(device, renderer);

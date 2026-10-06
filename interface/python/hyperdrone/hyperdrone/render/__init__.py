@@ -10,6 +10,7 @@ from .. import cuda as _cuda
 from ._component import backend, component, load_core
 from ._config import FIDELITY, OUTPUT_MODE, RendererConfig
 from ._renderer import Renderer
+from ._rig import Rig
 from ._sampling import FreeSpaceSampler
 from ._scene import (
     compose_transforms,
@@ -29,6 +30,7 @@ __all__ = [
     "ObjectAssembly",
     "Renderer",
     "RendererConfig",
+    "Rig",
     "Scene",
     "SceneLight",
     "backend",

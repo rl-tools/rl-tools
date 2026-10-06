@@ -132,7 +132,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE, OWN_DRONE_AND_ARTICULATIO
     rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
 
     ASSERT_EQ(world.entity_kinds.size(), 1);
-    EXPECT_GT(world.drone_rig.num_props, 0);
+    EXPECT_GT(world.drone_rig.num_coordinates, 0);
     ASSERT_EQ(world.slots[0].entity_placements.size(), INSTANCES);
     EXPECT_GT(world.slots[0].entity_placements[0].num_parts, 1);
 

@@ -304,3 +304,34 @@ Semantic IDs come from AI2THOR-Hab's taxonomy: unknown is `0` (including Ceiling
 Assign labels before `Renderer.init()`: `object.segmentation_class = id`, `scene.set_object_segmentation_class(index, id)`, `assembly.set_segmentation_class(index, id)`, or `pool.set_object_segmentation_class(asset, object_index, id)` retains the current taxonomy and explicitly makes that object's class valid, including welded objects. Assignment rejects IDs absent from that taxonomy. `object.assign_segmentation_class(id, taxonomy="custom", classes={0: "Unknown", 7: "Furniture"})` replaces the taxonomy; omitting taxonomy/classes selects unnamed numeric IDs.
 
 Objects, scenes, assemblies and pools expose `remap_segmentation_classes(mapping, taxonomy="custom", classes={...})`; pools also expose `remap_asset_segmentation_classes(asset, mapping, ...)`. Omitting taxonomy/classes selects unnamed numeric IDs. Mappings must cover every used class, and validation failures leave labels unchanged. Remapping preserves valid class boundaries and rejects mixed-class welded objects; explicitly assign one class first if collapsing their labels is intentional. Remap conflicting sources separately before composition. The C++ equivalents are device-first `assign_segmentation_class` and `remap_segmentation_classes` in `rendering/segmentation_cpu.h`, with a shared immutable target taxonomy (or `nullptr` for unnamed IDs).
+
+### Articulated assets
+
+`render.Rig` is a rigid-link tree: `world_link = world_parent @ origin @ joint(q)` and
+`world_geometry = world_link @ offset`, with links declared parent before child (parent `-1`
+is the base pose) and joints `fixed`, `revolute` (radians about `axis`), `prismatic` (metres
+along `axis`) or `spherical` (wxyz quaternion). `rig.coordinate_slices` locates each link's
+coordinates, `rig.default_coordinates` is the neutral state. `Rig.from_assembly(assembly,
+joints={"prop_0": ("revolute", (0, 0, 1))})` builds one link per part at its rest frame and
+articulates parts by name; `load_assembly(path, part_nodes=[...])` keeps nested GLB nodes as
+independent parts (an enclosing node first) and records their parent for that. Procedural
+assets grow with `ObjectAssembly.add_part(object, transform)`.
+
+```python
+poses = rig.evaluate(base_pose, joint_coordinates)           # float32 (num_parts, 3, 4), geometry-to-world
+renderer.set_transforms(overlay, placement, poses)
+samples, close = rig.sample(base_open, base_close, q_open, q_close, renderer.motion_blur_samples)
+renderer.set_motion_transforms(overlay, placement, samples, close)   # (samples, parts, 3, 4) + the shutter-close poses
+renderer.update()
+renderer.render()
+```
+
+`set_transform` and `set_transform_pair` keep moving a whole placement rigidly. Batches of
+identical assets, one per overlay, submit the whole tensor at once with
+`set_all_transforms(poses)` of shape `(num_overlays, max_overlay_instances, 3, 4)` (and
+`set_all_motion_transforms`); `rig.evaluate` accepts batched `(B, 3, 4)` bases for that. On
+OptiX every transform verb also takes CUDA tensors (`stream=` orders the copy after the
+producer), and `renderer.transforms_dlpack()` / `transforms_motion_dlpack()` expose the live
+input tensors for in-place producers ordered against `renderer.render_stream`; publish pending
+host writes with `update()` before writing them. `python -m hyperdrone.examples.articulation`
+renders a spinning hinge and a sliding block with motion blur.

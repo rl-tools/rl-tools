@@ -17,8 +17,11 @@ def load_object(path, fidelity="high", rgb=True):
     return load_core().load_object(str(path), _fidelity_id(fidelity), bool(rgb))
 
 
-def load_assembly(path, fidelity="high", rgb=True):
-    return load_core().load_assembly(str(path), _fidelity_id(fidelity), bool(rgb))
+def load_assembly(path, fidelity="high", rgb=True, *, part_nodes=None):
+    """One part per GLB scene root, or per named node in the given order (an enclosing node
+    first) with nested nodes recording their parent part; see ObjectAssembly.part_parent."""
+    return load_core().load_assembly(str(path), _fidelity_id(fidelity), bool(rgb),
+                                     [] if part_nodes is None else [str(name) for name in part_nodes])
 
 
 def make_camera(position, look_at, up=(0.0, 0.0, 1.0), fov=60.0, aspect=1.0):

@@ -282,8 +282,8 @@ namespace rl_tools {
         }
 
         // rebuilds one overlay region (region 0 = shutter close, 1 + s = dynamic-motion-blur
-        // sample s) into the host mirrors; the caller uploads them in one batch. transforms_base
-        // selects the transform slab (nullptr = the slot-mirror path via the 4-arg composer)
+        // sample s) into the host mirrors from a transforms-layout slab; the caller uploads them
+        // in one batch
         template <typename DEVICE, typename SPEC, typename BACKEND_TAG>
         void rebuild_overlay_region(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND_TAG>& renderer, Context& ctx, uint32_t region, const float* transforms_base){
             using TI = typename SPEC::TI;
@@ -297,13 +297,7 @@ namespace rl_tools {
                     const auto& host_slot = overlay_state.slots[slot];
                     if(!host_slot.active) continue;
                     const size_t global = (size_t)ctx.num_scene_instances + num_overlay_slots * region + (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES + slot;
-                    float world[12];
-                    if(transforms_base == nullptr){
-                        rendering::raytracing::detail::compose_overlay_slot_transform(renderer, overlay, slot, world);
-                    }
-                    else{
-                        rendering::raytracing::detail::compose_overlay_slot_transform(renderer, transforms_base, overlay, slot, world);
-                    }
+                    const float* world = transforms_base + ((size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES + slot) * 12;
                     fill_instance_entry(ctx, global, (uint32_t)host_slot.object, world);
                     float bounds_min[3], bounds_max[3];
                     instance_world_bounds(ctx, (uint32_t)host_slot.object, world, ctx.instance_data_host[global].identity != 0, bounds_min, bounds_max);
@@ -364,19 +358,15 @@ namespace rl_tools {
         }
         if constexpr (SPEC::ENABLE_OVERLAYS) {
             malloc(device, renderer.transforms);
+            rendering::raytracing::detail::malloc_overlay_staging(renderer);
         }
         if constexpr (SPEC::HAS_FLOW_OVERLAYS) {
             malloc(device, renderer.transforms_previous);
             std::memset(data(renderer.transforms_previous), 0, decltype(renderer.transforms_previous)::SPEC::SIZE_BYTES);
         }
-        if constexpr (SPEC::HAS_TRANSFORM_PAIR) {
-            malloc(device, renderer.transforms_pair);
-            std::memset(data(renderer.transforms_pair), 0, decltype(renderer.transforms_pair)::SPEC::SIZE_BYTES);
-        }
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
             malloc(device, renderer.transforms_motion);
             std::memset(data(renderer.transforms_motion), 0, decltype(renderer.transforms_motion)::SPEC::SIZE_BYTES);
-            renderer.transforms_motion_staging.assign((size_t)SPEC::MOTION_BLUR_SAMPLES * SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12, 0.0f);
             if constexpr (SPEC::HAS_RGB) {
                 malloc(device, renderer.rgb_accumulator);
             }
@@ -1106,14 +1096,13 @@ namespace rl_tools {
         auto& ctx = wg::context(renderer);
 
         using LAYOUT = wg::BufferLayout<SPEC>;
-        rendering::raytracing::detail::flush_overlay_transforms(renderer);
+        rendering::raytracing::detail::publish_overlay_transforms(renderer);
 
         // rebuilt unconditionally: producers may write the transforms tensors directly, which
-        // leaves no host-observable dirty flag. queueWriteBuffer is ordered before subsequent
+        // leaves no host-observable pending row. queueWriteBuffer is ordered before subsequent
         // submits, so no synchronization with in-flight renders is needed
-        wg::rebuild_overlay_region(device, renderer, ctx, 0, (const float*)nullptr);
+        wg::rebuild_overlay_region(device, renderer, ctx, 0, data(renderer.transforms));
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
-            rendering::raytracing::detail::flush_overlay_motion_transforms(renderer);
             constexpr size_t SLAB = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES * 12;
             for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
                 wg::rebuild_overlay_region(device, renderer, ctx, 1 + (uint32_t)sample, data(renderer.transforms_motion) + sample * SLAB);
@@ -1150,35 +1139,16 @@ namespace rl_tools {
         static_assert(SPEC::ENABLE_OVERLAYS, "update requires an overlay-enabled renderer specification");
     }
 
-    // CPU expansion into the host-resident tensors (residency is a backend property; the
-    // device-resident path is the OptiX backend)
-    template <typename DEVICE, typename SPEC>
-    void expand_motion_transforms_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
-        static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur renderer specification");
-        rendering::raytracing::detail::expand_motion_transforms_host(renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void expand_motion_transforms_sync(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
-        static_assert(SPEC::HAS_TRANSFORM_PAIR, "expand_motion_transforms requires a dynamic-motion-blur renderer specification");
-    }
-
     // the previous instant becomes the current one: the inputs are host tensors uploaded at
-    // launch time, so plain copies — clean overlays copy their producer-owned rows, dirty
-    // overlays reach transforms_previous through the mirrors at the next update
+    // launch time, so plain copies; rows the host has not yet published reach
+    // transforms_previous through their staging mirror at the next update
     template <typename DEVICE, typename SPEC>
     void advance_flow_launch(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
         static_assert(SPEC::HAS_FLOW, "advance_flow requires a flow-capable renderer specification");
-        using TI = typename SPEC::TI;
         std::memcpy(data(renderer.cameras_previous), data(renderer.cameras), decltype(renderer.cameras)::SPEC::SIZE_BYTES);
         if constexpr (SPEC::HAS_FLOW_OVERLAYS){
-            bool copy_rows[SPEC::NUM_OVERLAYS];
-            rendering::raytracing::detail::advance_flow_mirrors(renderer, copy_rows);
-            for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
-                if(!copy_rows[overlay]) continue;
-                const size_t offset = (size_t)overlay * SPEC::MAX_OVERLAY_INSTANCES * 12;
-                std::memcpy(data(renderer.transforms_previous) + offset, data(renderer.transforms) + offset, (size_t)SPEC::MAX_OVERLAY_INSTANCES * 12 * sizeof(float));
-            }
+            rendering::raytracing::detail::advance_flow_staging(renderer);
+            std::memcpy(data(renderer.transforms_previous), data(renderer.transforms), decltype(renderer.transforms)::SPEC::SIZE_BYTES);
         }
     }
 
@@ -1191,12 +1161,6 @@ namespace rl_tools {
     void advance_flow(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
         advance_flow_launch(device, renderer);
         advance_flow_sync(device, renderer);
-    }
-
-    template <typename DEVICE, typename SPEC>
-    void expand_motion_transforms(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
-        expand_motion_transforms_launch(device, renderer);
-        expand_motion_transforms_sync(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1467,9 +1431,6 @@ namespace rl_tools {
         }
         if constexpr (SPEC::HAS_FLOW_OVERLAYS) {
             free(device, renderer.transforms_previous);
-        }
-        if constexpr (SPEC::HAS_TRANSFORM_PAIR) {
-            free(device, renderer.transforms_pair);
         }
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
             free(device, renderer.transforms_motion);

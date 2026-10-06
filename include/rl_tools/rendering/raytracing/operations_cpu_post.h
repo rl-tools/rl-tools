@@ -46,15 +46,9 @@ namespace rl_tools {
         update_sync(device, renderer);
     }
 
-    template <typename DEVICE, typename SPEC, typename BACKEND>
-    void expand_motion_transforms(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
-        expand_motion_transforms_launch(device, renderer);
-        expand_motion_transforms_sync(device, renderer);
-    }
-
     // flow: the previous instant becomes the current one (cameras -> cameras_previous,
-    // transforms -> transforms_previous, slot mirrors alike); call after a frame's render and
-    // before the next frame's writes
+    // transforms -> transforms_previous, pending host rows alike); call after a frame's render
+    // and before the next frame's writes
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void advance_flow(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer){
         advance_flow_launch(device, renderer);

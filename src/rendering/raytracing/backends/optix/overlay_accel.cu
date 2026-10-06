@@ -40,24 +40,14 @@ namespace rl_tools::rendering::raytracing::backends::optix{
             if(index >= num_overlays * max_instances){
                 return;
             }
-            const unsigned int overlay = index / max_instances;
-            const unsigned int slot = index % max_instances;
             const OverlaySlotStructure row = structure[index];
             OptixInstance instance{};
             instance.instanceId = instance_id_base + index; // global id layout (contract: segmentation_object, operations_cpu_common.h); the previous instant's range follows the current one
             instance.visibilityMask = 255;
             instance.flags = OPTIX_INSTANCE_FLAG_NONE;
             if(row.active != 0){
-                const float* overlay_transforms = transforms + (size_t)overlay * max_instances * 12;
-                float composed[12];
-                compose_transforms(overlay_transforms + (size_t)row.pose_slot * 12, row.part_local, composed);
-                if(slot == row.pose_slot){
-                    for(int element = 0; element < 12; element++){
-                        instance.transform[element] = composed[element];
-                    }
-                }
-                else{
-                    compose_transforms(composed, overlay_transforms + (size_t)slot * 12, instance.transform);
+                for(int element = 0; element < 12; element++){
+                    instance.transform[element] = transforms[(size_t)index * 12 + element];
                 }
                 const OverlayObjectEntry object = objects[row.object];
                 instance.sbtOffset = object.sbt_offset;
@@ -209,7 +199,9 @@ namespace rl_tools::rendering::raytracing::backends::optix{
             return (unsigned int)(value < 0 ? 0 : (value > 255 ? 255 : value));
         }
         __device__ inline float resolve_linear_to_srgb(float x){
-            if(x <= 0.0031308f) return 12.92f * x;
+            if(x <= 0.0031308f){
+                return 12.92f * x;
+            }
             return 1.055f * powf(x, 1.0f / 2.4f) - 0.055f;
         }
         __device__ inline float resolve_clamp01(float x){
@@ -253,57 +245,41 @@ namespace rl_tools::rendering::raytracing::backends::optix{
     }
 
     namespace overlay_accel_detail{
-        __global__ void expand_motion(const float* pairs, float* transforms_motion, float* transforms, unsigned int num_slots, unsigned int num_samples){
+        __global__ void scatter_rows(const unsigned int* indices, unsigned int count, const float* rows, float* target, unsigned int num_slabs, unsigned int slab_stride){
             const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-            if(index >= num_slots * num_samples){
+            if(index >= count * num_slabs){
                 return;
             }
-            const unsigned int slot = index / num_samples;
-            const unsigned int sample = index % num_samples;
-            const float* open = pairs + (size_t)slot * 12;
-            const float* close = pairs + ((size_t)num_slots + slot) * 12;
-            const float shutter_t = ((float)sample + 0.5f) / (float)num_samples;
-            rl_tools::rendering::raytracing::detail::slerp_transform(open, close, shutter_t, transforms_motion + ((size_t)sample * num_slots + slot) * 12);
-            if(sample == 0){
-                for(int element = 0; element < 12; element++){
-                    transforms[(size_t)slot * 12 + element] = close[element];
-                }
+            const unsigned int slab = index / count;
+            const unsigned int row = index % count;
+            const float* source = rows + ((size_t)slab * count + row) * 12;
+            float* destination = target + ((size_t)slab * slab_stride + indices[row]) * 12;
+            for(int element = 0; element < 12; element++){
+                destination[element] = source[element];
             }
         }
     }
 
-    void overlay_accel_expand_motion(const float* pairs, float* transforms_motion, float* transforms, unsigned int num_slots, unsigned int num_samples, cudaStream_t stream){
+    void overlay_accel_scatter_rows(const unsigned int* indices, unsigned int count, const float* rows, float* target, unsigned int num_slabs, unsigned int slab_stride, cudaStream_t stream){
         namespace detail = overlay_accel_detail;
+        const unsigned int total = count * num_slabs;
+        if(total == 0){
+            return;
+        }
         const unsigned int block_size = 128;
-        const unsigned int grid_size = (num_slots * num_samples + block_size - 1) / block_size;
-        detail::expand_motion<<<grid_size, block_size, 0, stream>>>(pairs, transforms_motion, transforms, num_slots, num_samples);
-        detail::check_cuda(cudaGetLastError(), "expand_motion launch");
+        const unsigned int grid_size = (total + block_size - 1) / block_size;
+        detail::scatter_rows<<<grid_size, block_size, 0, stream>>>(indices, count, rows, target, num_slabs, slab_stride);
+        detail::check_cuda(cudaGetLastError(), "scatter_rows launch");
     }
 
     namespace overlay_accel_detail{
-        // world composition mirrors fill_instances; the deltas carry a hit point between the
-        // instants for the flow ray gens
-        __device__ void compose_world(const float* overlay_transforms, const OverlaySlotStructure& row, unsigned int slot, float out[12]){
-            float composed[12];
-            compose_transforms(overlay_transforms + (size_t)row.pose_slot * 12, row.part_local, composed);
-            if(slot == row.pose_slot){
-                for(int element = 0; element < 12; element++){
-                    out[element] = composed[element];
-                }
-            }
-            else{
-                compose_transforms(composed, overlay_transforms + (size_t)slot * 12, out);
-            }
-        }
-
+        // the deltas carry a hit point between the instants for the flow ray gens
         __global__ void compose_flow_deltas(const OverlaySlotStructure* structure, const float* transforms, const float* transforms_previous, float* deltas, unsigned int num_overlays, unsigned int max_instances){
             const unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
             const unsigned int num_slots = num_overlays * max_instances;
             if(index >= num_slots){
                 return;
             }
-            const unsigned int overlay = index / max_instances;
-            const unsigned int slot = index % max_instances;
             float* backward = deltas + (size_t)index * 12;
             float* forward = deltas + ((size_t)num_slots + index) * 12;
             const OverlaySlotStructure row = structure[index];
@@ -314,11 +290,9 @@ namespace rl_tools::rendering::raytracing::backends::optix{
                 }
                 return;
             }
-            const float* current_row = transforms + (size_t)overlay * max_instances * 12;
-            const float* previous_row = transforms_previous + (size_t)overlay * max_instances * 12;
-            float world_current[12], world_previous[12], world_current_inverse[12], world_previous_inverse[12];
-            compose_world(current_row, row, slot, world_current);
-            compose_world(previous_row, row, slot, world_previous);
+            const float* world_current = transforms + (size_t)index * 12;
+            const float* world_previous = transforms_previous + (size_t)index * 12;
+            float world_current_inverse[12], world_previous_inverse[12];
             rl_tools::rendering::raytracing::detail::invert_transform(world_current, world_current_inverse);
             rl_tools::rendering::raytracing::detail::invert_transform(world_previous, world_previous_inverse);
             compose_transforms(world_previous, world_current_inverse, backward);

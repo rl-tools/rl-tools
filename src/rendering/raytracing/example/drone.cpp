@@ -5,6 +5,7 @@
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
 #include <rl_tools/rendering/raytracing/save_cpu.h>
 #include <rl_tools/rl/environments/l2f/multirotor.h>
+#include <rl_tools/rl/environments/hyperdrone/rig/operations_cpu.h>
 
 #include <algorithm>
 #include <cmath>
@@ -197,43 +198,9 @@ int main(int argc, char** argv) {
         std::cerr << "Failed to load drone assembly: " << options.drone_path << std::endl;
         return 1;
     }
-    // node origins are not required to sit at the rotor hubs (e.g. generated meshes with
-    // identity node transforms), so each prop spins about its part-local AABB center
-    struct PropPart {
-        TI part;
-        T pivot[2];
-        T direction;
-    };
-    std::vector<PropPart> props;
-    for (size_t part_i = 0; part_i < drone_assembly.parts.size(); part_i++) {
-        const auto& object = drone_assembly.objects[drone_assembly.parts[part_i].object];
-        if (object.name.rfind("prop_", 0) == 0) {
-            T low[3] = {0, 0, 0}, high[3] = {0, 0, 0};
-            bool first = true;
-            for (const auto& mesh : object.meshes) {
-                for (size_t vertex_i = 0; vertex_i + 2 < mesh.vertices.size(); vertex_i += 3) {
-                    for (TI dim = 0; dim < 3; dim++) {
-                        const T value = mesh.vertices[vertex_i + dim];
-                        low[dim] = first ? value : std::min(low[dim], value);
-                        high[dim] = first ? value : std::max(high[dim], value);
-                    }
-                    first = false;
-                }
-            }
-            PropPart prop;
-            prop.part = part_i;
-            prop.pivot[0] = (low[0] + high[0]) / 2;
-            prop.pivot[1] = (low[1] + high[1]) / 2;
-            prop.direction = prop.pivot[0] * prop.pivot[1] > 0 ? 1 : -1;
-            props.push_back(prop);
-        }
-        else if (object.name == "body" && part_i != 0) {
-            std::cerr << "Drone assembly part 0 must be the body (the pose part), got it at part " << part_i << std::endl;
-            return 1;
-        }
-    }
-    if (drone_assembly.parts.empty() || drone_assembly.objects[drone_assembly.parts[0].object].name != "body") {
-        std::cerr << "Drone assembly must have a scene-root node named 'body' as its first part" << std::endl;
+    rlt::rl::environments::hyperdrone::rig::Rotorcraft<TI> rig;
+    if (!rlt::init(device, rig, drone_assembly)) {
+        std::cerr << "Drone assembly must follow the body/prop_* part convention: " << options.drone_path << std::endl;
         return 1;
     }
 
@@ -285,19 +252,8 @@ int main(int argc, char** argv) {
             cameras[THIRD_PERSON_CAMERA] = rlt::make_camera_data(TRIPOD_POSITION, pose.position, up, THIRD_PERSON_FOV, aspect);
         }
     };
-    const auto prop_spin = [](const auto& prop, T angle, float out[12]){
-        const float c = std::cos(angle), s = std::sin(angle);
-        const float px = prop.pivot[0], py = prop.pivot[1];
-        const float spin[12] = {
-            c, -s, 0, px - c * px + s * py,
-            s,  c, 0, py - s * px - c * py,
-            0,  0, 1, 0,
-        };
-        std::memcpy(out, spin, sizeof(spin));
-    };
-
-    // native dynamic motion blur: shutter-open/close states per frame, the renderer slerps the
-    // per-sample transforms and accumulates MOTION_BLUR_SAMPLES passes on the device
+    // native dynamic motion blur: shutter-open/close states per frame, the rig samples the
+    // per-part transforms and the renderer accumulates MOTION_BLUR_SAMPLES passes on the device
     for (int frame_i = 0; frame_i < options.frames; frame_i++) {
         const T time_open = static_cast<T>(frame_i / options.fps);
         const T time_close = static_cast<T>((frame_i + SHUTTER_FRACTION) / options.fps);
@@ -307,13 +263,12 @@ int main(int argc, char** argv) {
         float pose_transform_open[12], pose_transform_close[12];
         pose_to_transform(pose_open, pose_transform_open);
         pose_to_transform(pose_close, pose_transform_close);
-        rlt::set_transform_pair(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, pose_transform_open, pose_transform_close);
-        for (const auto& prop : props) {
-            float spin_open[12], spin_close[12];
-            prop_spin(prop, prop.direction * PROP_RATE * time_open, spin_open);
-            prop_spin(prop, prop.direction * PROP_RATE * time_close, spin_close);
-            rlt::set_transform_pair(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, prop.part, spin_open, spin_close);
+        T phases_open[4], phases_close[4];
+        for (TI prop_i = 0; prop_i < 4; prop_i++) {
+            phases_open[prop_i] = PROP_RATE * time_open;
+            phases_close[prop_i] = PROP_RATE * time_close;
         }
+        rlt::set_transform_pair(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, placement, rig, pose_transform_open, pose_transform_close, phases_open, phases_close);
 
         rlt::rendering::raytracing::Camera<T> cameras_open[NUM_CAMERAS], cameras_close[NUM_CAMERAS];
         make_cameras(pose_open, cameras_open);

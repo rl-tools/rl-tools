@@ -105,3 +105,6 @@ if(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_RESOLVED MATCHES "^(OPTIX|METAL|VULKAN)
     endforeach()
     add_rendering_raytracing_sim_target(rendering_raytracing_sim_benchmark_sweep Medium sweep)
 endif()
+
+add_executable(rendering_raytracing_rig_benchmark EXCLUDE_FROM_ALL rig.cpp)
+target_link_libraries(rendering_raytracing_rig_benchmark PRIVATE RLtools::RLtools rendering_raytracing_backend rendering_raytracing_stb)

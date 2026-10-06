@@ -4,21 +4,18 @@
 #pragma once
 #define RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG_RIG_H
 
+#include "../../../../rendering/rig/rig.h"
+
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::hyperdrone::rig {
-    // assembly articulation over the body/prop_* root-node convention: one part per glTF
-    // scene-root node, geometry in the part-local frame. Pivots are part-local AABB centers
-    // because node origins are not required to sit at the rotor hubs in real assets.
-    template <typename T_T, typename T_TI, T_TI T_MAX_PROPS = 4>
-    struct Rotorcraft {
-        using T = T_T;
-        using TI = T_TI;
-        static constexpr TI MAX_PROPS = T_MAX_PROPS;
-        TI body_part;
-        TI num_props;
-        TI prop_parts[MAX_PROPS];
-        T prop_pivots[MAX_PROPS][2];
-        T prop_directions[MAX_PROPS];
+    // the body/prop_* assembly convention as a rendering rig: link 0 is the assembly frame (fixed
+    // at identity), each prop_* part a revolute link about its part-local AABB centre with the spin
+    // direction of its pivot quadrant (X configuration) baked into the axis sign, every other part
+    // rides link 0 at its rest frame; coordinate i is the phase of the i-th prop in part order.
+    // Pivots are AABB centres because node origins need not sit at the rotor hubs in real assets.
+    template <typename T_TI, T_TI T_MAX_PROPS = 4, T_TI T_MAX_PARTS = 8>
+    struct Rotorcraft: rendering::rig::Model<rendering::rig::Specification<float, T_TI, 1 + T_MAX_PROPS, T_MAX_PARTS>> {
+        static constexpr T_TI MAX_PROPS = T_MAX_PROPS;
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
