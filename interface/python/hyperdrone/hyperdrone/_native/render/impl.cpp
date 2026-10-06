@@ -275,43 +275,48 @@ namespace hyperdrone_render_impl {
             }
         }
 
-        // the renderer API renders all enabled image channels together (render*) with
-        // probe rays split out (probe*) uniformly across backends. Channel-specific
-        // targets are validated against the spec, then map to the unified render.
-        void render(hyperdrone::render::RenderTarget target, hyperdrone::render::RenderPhase phase) override {
+        void render() override {
             require_init();
-            using RT = hyperdrone::render::RenderTarget;
-            using RP = hyperdrone::render::RenderPhase;
-            switch(target){
-                case RT::RGB:
-                    if constexpr (!SPEC::HAS_RGB){ throw std::runtime_error("hyperdrone: this renderer has no RGB output"); }
-                    break;
-                case RT::DEPTH:
-                    if constexpr (!SPEC::HAS_DEPTH){ throw std::runtime_error("hyperdrone: this renderer has no depth output"); }
-                    break;
-                case RT::SEGMENTATION:
-                    if constexpr (!SPEC::HAS_SEGMENTATION){ throw std::runtime_error("hyperdrone: this renderer has no segmentation output"); }
-                    break;
-                case RT::RGB_DEPTH:
-                    if constexpr (!(SPEC::HAS_RGB && SPEC::HAS_DEPTH)){ throw std::runtime_error("hyperdrone: this renderer has no RGB+depth output"); }
-                    break;
-                case RT::COLLISION:
-                    if constexpr (!PROBES_ENABLED){ throw std::runtime_error("hyperdrone: this renderer was compiled without collision probes (num_probes=0)"); }
-                    break;
-                default:
-                    break;
+            rlt::render(device, renderer);
+        }
+
+        void render_launch() override {
+            require_init();
+            rlt::render_launch(device, renderer);
+        }
+
+        void render_sync() override {
+            require_init();
+            rlt::render_sync(device, renderer);
+        }
+
+        void probe() override {
+            require_init();
+            if constexpr (PROBES_ENABLED){
+                rlt::probe(device, renderer);
             }
-            const bool wants_image = target != RT::COLLISION;
-            const bool wants_probes = PROBES_ENABLED && (target == RT::ALL || target == RT::COLLISION);
-            if(wants_image){
-                if(phase == RP::LAUNCH) rlt::render_launch(device, renderer);
-                else if(phase == RP::SYNC) rlt::render_sync(device, renderer);
-                else rlt::render(device, renderer);
+            else {
+                throw std::runtime_error("hyperdrone: this renderer was compiled without collision probes (num_probes=0)");
             }
-            if(wants_probes){
-                if(phase == RP::LAUNCH) rlt::probe_launch(device, renderer);
-                else if(phase == RP::SYNC) rlt::probe_sync(device, renderer);
-                else rlt::probe(device, renderer);
+        }
+
+        void probe_launch() override {
+            require_init();
+            if constexpr (PROBES_ENABLED){
+                rlt::probe_launch(device, renderer);
+            }
+            else {
+                throw std::runtime_error("hyperdrone: this renderer was compiled without collision probes (num_probes=0)");
+            }
+        }
+
+        void probe_sync() override {
+            require_init();
+            if constexpr (PROBES_ENABLED){
+                rlt::probe_sync(device, renderer);
+            }
+            else {
+                throw std::runtime_error("hyperdrone: this renderer was compiled without collision probes (num_probes=0)");
             }
         }
 

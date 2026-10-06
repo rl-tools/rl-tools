@@ -104,10 +104,30 @@ NB_MODULE(hyperdrone_render_core, m){
             jit->generate_cameras(center.data(), radius, up.data(), fov);
         }, nb::arg("center"), nb::arg("radius"), nb::arg("up"), nb::arg("fov"))
         .def("generate_probe_directions", [](JitRenderer& jit){ jit->generate_probe_directions(); })
-        .def("render", [](JitRenderer& jit, int target, int phase){
+        .def("render", [](JitRenderer& jit){
             nb::gil_scoped_release release;
-            jit->render((hdr::RenderTarget)target, (hdr::RenderPhase)phase);
-        }, nb::arg("target"), nb::arg("phase"))
+            jit->render();
+        })
+        .def("render_launch", [](JitRenderer& jit){
+            nb::gil_scoped_release release;
+            jit->render_launch();
+        })
+        .def("render_sync", [](JitRenderer& jit){
+            nb::gil_scoped_release release;
+            jit->render_sync();
+        })
+        .def("probe", [](JitRenderer& jit){
+            nb::gil_scoped_release release;
+            jit->probe();
+        })
+        .def("probe_launch", [](JitRenderer& jit){
+            nb::gil_scoped_release release;
+            jit->probe_launch();
+        })
+        .def("probe_sync", [](JitRenderer& jit){
+            nb::gil_scoped_release release;
+            jit->probe_sync();
+        })
         .def("read_frame_buffer", [](JitRenderer& jit, nb::ndarray<uint32_t, nb::c_contig, nb::device::cpu> out){
             size_t shape[3] = {(size_t)out.shape(0), out.ndim() > 1 ? (size_t)out.shape(1) : 0, out.ndim() > 2 ? (size_t)out.shape(2) : 0};
             jit.check_image_shape(out.ndim(), shape);

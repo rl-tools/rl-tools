@@ -42,7 +42,7 @@ class FreeSpaceSampler:
             cameras[:len(chunk), 0:3] = chunk
             cameras[:, 3] = 1.0  # arbitrary forward; probe directions are pre-generated
             self._renderer.set_cameras(cameras)
-            self._renderer.render("collision")
+            self._renderer.probe()
             distances, hits = self._renderer.collisions()
             minimum = np.where(hits > 0, distances, np.inf).min(axis=1)
             results[start:start + len(chunk)] = minimum[:len(chunk)]

@@ -33,7 +33,7 @@ scene.add_object(wall)
 renderer = render.Renderer(width=16, height=16, num_cameras=1, output="depth", fidelity="low")
 renderer.init(scene)
 renderer.set_cameras(renderer.camera(position=(0, 0, 0), look_at=(1, 0, 0)))
-renderer.render("depth")
+renderer.render()
 assert abs(renderer.depth()[0, 8, 8] - 2.0) < 1e-2
 print("sdist self-containment: OK")
 PY

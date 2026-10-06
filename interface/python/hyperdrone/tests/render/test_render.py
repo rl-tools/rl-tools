@@ -125,7 +125,7 @@ def test_depth():
     renderer = render.Renderer(width=64, height=64, num_cameras=1, output="depth", fidelity="low")
     renderer.init(make_scene(distance))
     look_forward(renderer)
-    renderer.render("depth")
+    renderer.render()
     depth = renderer.depth()
     assert depth.shape == (1, 64, 64)
     center = depth[0, 32, 32]
@@ -136,7 +136,7 @@ def test_rgb():
     renderer = render.Renderer(width=32, height=32, num_cameras=2, output="rgb", fidelity="low")
     renderer.init(make_scene())
     look_forward(renderer)
-    renderer.render("rgb")
+    renderer.render()
     frame = renderer.frame()
     assert frame.shape == (2, 32, 32, 4)
     center = frame[0, 16, 16]
@@ -169,7 +169,7 @@ def test_segmentation():
     renderer = render.Renderer(width=32, height=32, num_cameras=1, output="segmentation", fidelity="low")
     renderer.init(scene)
     look_forward(renderer)
-    renderer.render("segmentation")
+    renderer.render()
     segmentation = renderer.segmentation()
     left = segmentation[0, 16, 8]    # image x grows toward -Y, so +Y (instance 1) is on the left
     right = segmentation[0, 16, 24]
@@ -181,12 +181,53 @@ def test_collision_probes():
     renderer.init(make_scene(3.0))
     look_forward(renderer)
     renderer.generate_probe_directions()
-    renderer.render("collision")
+    renderer.probe()
     distances, hits = renderer.collisions()
     assert distances.shape == (1, 4)
     # probe 0 is the camera forward direction and must hit the wall at ~3m
     assert hits[0, 0] == 1
     assert abs(distances[0, 0] - 3.0) < 1e-2
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_render_and_probe_are_independent(asynchronous):
+    renderer = render.Renderer(width=16, height=16, output="rgbd_segmentation", fidelity="low")
+    renderer.init(make_scene(3.0))
+    look_forward(renderer)
+    renderer.generate_probe_directions()
+
+    def run(operation):
+        if asynchronous:
+            getattr(renderer, operation + "_launch")()
+            getattr(renderer, operation + "_sync")()
+        else:
+            getattr(renderer, operation)()
+
+    run("render")
+    run("probe")
+    initial_distances, initial_hits = renderer.collisions()
+    assert abs(initial_distances[0, 0] - 3.0) < 1e-2
+
+    renderer.set_cameras(renderer.camera(position=(1, 0, 0), look_at=(2, 0, 0)))
+    run("render")
+    assert abs(renderer.depth()[0, 8, 8] - 2.0) < 1e-2
+    assert renderer.frame()[0, 8, 8, 0] > 100
+    assert renderer.segmentation()[0, 8, 8] == 0
+    distances, hits = renderer.collisions()
+    np.testing.assert_array_equal(distances, initial_distances)
+    np.testing.assert_array_equal(hits, initial_hits)
+    depth = renderer.depth()
+    frame = renderer.frame()
+    segmentation = renderer.segmentation()
+
+    renderer.set_cameras(renderer.camera(position=(2, 0, 0), look_at=(3, 0, 0)))
+    run("probe")
+    distances, hits = renderer.collisions()
+    assert hits[0, 0] == 1
+    assert abs(distances[0, 0] - 1.0) < 1e-2
+    np.testing.assert_array_equal(renderer.depth(), depth)
+    np.testing.assert_array_equal(renderer.frame(), frame)
+    np.testing.assert_array_equal(renderer.segmentation(), segmentation)
 
 
 def test_no_probes_compiles_the_probe_pass_out(tmp_path):
@@ -198,7 +239,6 @@ def test_no_probes_compiles_the_probe_pass_out(tmp_path):
     assert renderer.config.key() != replace(renderer.config, num_probes=1).key()
     renderer.init(make_scene(3.0))
     look_forward(renderer)
-    # the default target renders the image channels; there is no probe pass to run
     renderer.render()
     assert abs(renderer.depth()[0, 8, 8] - 3.0) < 1e-2
     renderer.render_launch()
@@ -207,9 +247,9 @@ def test_no_probes_compiles_the_probe_pass_out(tmp_path):
     for call in (
         renderer.generate_probe_directions,
         renderer.collisions,
-        lambda: renderer.render("collision"),
-        lambda: renderer.render_launch("collision"),
-        lambda: renderer.render_sync("collision"),
+        renderer.probe,
+        renderer.probe_launch,
+        renderer.probe_sync,
         lambda: renderer.save_probes(tmp_path / "probes.bin"),
     ):
         with pytest.raises(RuntimeError, match="num_probes=0"):
@@ -230,13 +270,13 @@ def test_motion_blur_camera_buffers_and_split_render():
     camera_open = renderer.camera(position=(0.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0))
     camera_close = renderer.camera(position=(-1.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0))
     renderer.set_motion_blur_cameras(camera_open[None], camera_close[None])
-    renderer.render_launch("depth")
-    renderer.render_sync("depth")
+    renderer.render_launch()
+    renderer.render_sync()
     blurred_depth = renderer.depth()[0, 8, 8]
     assert 2.0 < blurred_depth < 3.0
 
     renderer.set_cameras(camera_open[None])
-    renderer.render("depth")
+    renderer.render()
     assert abs(renderer.depth()[0, 8, 8] - 2.0) < 1e-2
 
 
@@ -266,7 +306,7 @@ def test_dynamic_motion_blur_object():
     placement = renderer.spawn(0, asset, render.make_transform(position=(4.0, 0.0, 0.0)))
     renderer.set_transform_pair(0, placement, render.make_transform(position=(2.0, 0.0, 0.0)), render.make_transform(position=(4.0, 0.0, 0.0)))
     renderer.update()
-    renderer.render("depth")
+    renderer.render()
     assert abs(renderer.depth()[0, 0, 0] - 3.0) < 1e-2
 
     # producer path: the same shutter pair through the transforms_pair tensor + on-device
@@ -278,7 +318,7 @@ def test_dynamic_motion_blur_object():
     renderer.set_transforms_pair(pairs)
     renderer.expand_motion_transforms()
     renderer.update()
-    renderer.render("depth")
+    renderer.render()
     assert abs(renderer.depth()[0, 0, 0] - 3.0) < 1e-2
 
 
@@ -395,6 +435,7 @@ def test_overlay_pipeline_and_output_saves(tmp_path):
     depth_payload = np.frombuffer(blob[12:], dtype=np.float32).reshape(num_cameras, height, width)
     assert np.array_equal(depth_payload, renderer.depth())
 
+    renderer.probe()
     probes_path = tmp_path / "probes.bin"
     renderer.save_probes(probes_path)
     blob = probes_path.read_bytes()
@@ -428,7 +469,7 @@ def test_semantic_segmentation_with_overlay():
     renderer.attach(0, 0)
     renderer.spawn(0, asset, render.make_transform(position=(4.0, 0.0, 0.0)))
     renderer.update()
-    renderer.render("segmentation")
+    renderer.render()
     classes = renderer.segmentation()
     assert np.any(classes == 7)
     assert np.any(classes == 23)
@@ -453,14 +494,14 @@ def test_zero_copy_host_view():
     renderer = render.Renderer(width=16, height=16, num_cameras=1, output="depth", fidelity="low")
     renderer.init(make_scene(2.0))
     look_forward(renderer)
-    renderer.render("depth")
+    renderer.render()
     first_view = renderer.depth(copy=False)
     assert abs(first_view[0, 8, 8] - 2.0) < 1e-2
     # stepping the camera back must update the earlier view in place (it aliases the
     # renderer's staging buffer)
     camera = renderer.camera(position=(-1.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0), fov=60.0)
     renderer.set_cameras(camera[None])
-    renderer.render("depth")
+    renderer.render()
     second_view = renderer.depth(copy=False)
     assert np.shares_memory(first_view, second_view)
     assert abs(first_view[0, 8, 8] - 3.0) < 1e-2
@@ -470,7 +511,7 @@ def test_dlpack_export():
     renderer = render.Renderer(width=16, height=16, num_cameras=1, output="rgbd", fidelity="low")
     renderer.init(make_scene(2.0))
     look_forward(renderer)
-    renderer.render("rgb_depth")
+    renderer.render()
     frame_live = renderer.frame_dlpack()
     frame_raw_live = renderer.frame_raw_dlpack()
     depth_live = renderer.depth_dlpack()
@@ -510,7 +551,7 @@ def test_dlpack_camera_input():
             return self._array.__dlpack_device__()
 
     renderer.set_cameras(DLPackOnly(np.ascontiguousarray(camera[None])))
-    renderer.render("depth")
+    renderer.render()
     assert abs(renderer.depth()[0, 8, 8] - 2.0) < 1e-2
 
 
@@ -523,12 +564,12 @@ def test_device_camera_input():
         np.asarray(renderer.camera(position=(-1.0, 0.0, 0.0), look_at=(1.0, 0.0, 0.0), fov=60.0)).reshape(12),
     ])
     renderer.set_cameras(cameras)
-    renderer.render("depth")
+    renderer.render()
     host_frame = renderer.depth()
 
     tensor_set = hyperdrone.cuda.upload(cameras[None])  # one set of two cameras
     renderer.set_cameras(tensor_set.view(0))            # dispatches on __dlpack_device__ == kDLCUDA
-    renderer.render("depth")
+    renderer.render()
     device_frame = renderer.depth()
 
     assert np.array_equal(host_frame, device_frame)
@@ -545,7 +586,7 @@ def test_renderer_lifecycle():
         renderer = render.Renderer(width=16, height=16, num_cameras=1, output="depth", fidelity="low")
         renderer.init(make_scene())
         look_forward(renderer)
-        renderer.render("depth")
+        renderer.render()
         assert renderer.depth().shape == (1, 16, 16)
         del renderer
         gc.collect()
@@ -620,7 +661,7 @@ def test_glb_roundtrip(tmp_path):
     renderer = render.Renderer(width=32, height=32, num_cameras=1, output="rgbd", fidelity="medium")
     renderer.init(scene)
     look_forward(renderer)
-    renderer.render("rgb_depth")
+    renderer.render()
     frame = renderer.frame()
     depth = renderer.depth()
     center = frame[0, 16, 16]
@@ -712,7 +753,7 @@ def test_loaded_instance_and_semantic_labels(labelled_glb, semantic, tmp_path):
     renderer.init(scene)
     cameras = [renderer.camera(position=(0, 1.5-i, 0), look_at=(2, 1.5-i, 0)) for i in range(4)]
     renderer.set_cameras(np.array(cameras, dtype=np.float32))
-    renderer.render('segmentation')
+    renderer.render()
     labels = renderer.segmentation()
     assert renderer.segmentation_mode == ('semantic' if semantic else 'instance')
     assert labels[:, 12, 12].tolist() == ([21, 21, 162, 0] if semantic else [0, 1, 2, 3])
@@ -747,11 +788,11 @@ def test_loaded_semantics_survive_assembly_and_pool(labelled_glb):
     camera = renderer.camera(position=(0, 1.5, 0), look_at=(2, 1.5, 0))
     renderer.set_cameras(camera[None])
     renderer.update()
-    renderer.render('segmentation')
+    renderer.render()
     assert renderer.segmentation()[0, 12, 12] == 21
     renderer.set_transform(0, handle, render.make_transform(position=(-1, 2, 0)))
     renderer.update()
-    renderer.render('segmentation')
+    renderer.render()
     assert renderer.segmentation()[0, 12, 12] == 162
 
 
@@ -803,7 +844,7 @@ def test_explicit_class_assignment_repairs_welded_labels(labelled_glb, target):
         renderer.update()
     camera = renderer.camera(position=(0, 1.5, 0), look_at=(2, 1.5, 0))
     renderer.set_cameras(camera[None])
-    renderer.render('segmentation')
+    renderer.render()
     assert renderer.segmentation()[0, 12, 12] == 21
 
 
@@ -818,7 +859,7 @@ def test_failed_semantic_init_can_be_retried(labelled_glb):
     renderer.init(scene)
     camera = renderer.camera(position=(0, 1.5, 0), look_at=(2, 1.5, 0))
     renderer.set_cameras(camera[None])
-    renderer.render('segmentation')
+    renderer.render()
     assert renderer.segmentation()[0, 12, 12] == 21
 
 
@@ -852,11 +893,11 @@ def test_label_remapping_across_scene_and_pool(labelled_glb):
     camera = renderer.camera(position=(0, 1.5, 0), look_at=(2, 1.5, 0))
     renderer.set_cameras(camera[None])
     renderer.update()
-    renderer.render('segmentation')
+    renderer.render()
     assert renderer.segmentation()[0, 12, 12] == 2147483648
     renderer.set_transform(0, handle, render.make_transform(position=(-1, 2, 0)))
     renderer.update()
-    renderer.render('segmentation')
+    renderer.render()
     assert renderer.segmentation()[0, 12, 12] == 4294967294
 
 
