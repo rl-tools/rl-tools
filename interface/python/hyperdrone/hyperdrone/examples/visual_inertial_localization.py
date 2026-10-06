@@ -34,7 +34,7 @@ env = MultiEnvironment(
     seed=arguments.seed,
 )
 steps = arguments.steps or env.episode_step_limit
-print(f"{env.config_string} imu_rate={1 / env.dt:.0f}Hz frame_rate={1 / (env.dt * env.frame_stride):.0f}Hz")
+print(f"{env.config} imu_rate={1 / env.dt:.0f}Hz frame_rate={1 / (env.dt * env.frame_stride):.0f}Hz")
 
 
 def block(vector, layout, name):
@@ -116,8 +116,8 @@ if arguments.video:
 
     video_writer = imageio.get_writer(arguments.video, fps=round(1 / (env.dt * env.frame_stride)))
 
-reset_mask = np.ones(env.total_instances, dtype=np.uint8)
-no_reset = np.zeros(env.total_instances, dtype=np.uint8)
+reset_mask = np.ones(env.total_instances, dtype=bool)
+no_reset = np.zeros(env.total_instances, dtype=bool)
 env.reset(reset_mask)
 state = env.observe_privileged()
 origin_position = block(state, layout, "position").copy()

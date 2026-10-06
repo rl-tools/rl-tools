@@ -21,7 +21,6 @@
 #include "cuda_staging.h"
 #endif
 
-#include <cstdio>
 #include <cstdint>
 #include <cstring>
 #include <initializer_list>
@@ -742,17 +741,6 @@ namespace HYPERDRONE_MODULE_NAME {
 #endif
         }
     };
-
-    static char config_string_buffer[256];
-    const char* build_config_string(){
-        std::snprintf(config_string_buffer, sizeof(config_string_buffer),
-            "w=%d;h=%d;nc=%d;np=%d;sh=%d;om=%d;mb=%d;aa=%d;no=%d;moi=%d;mopc=%d;ss=%d;dmb=%d",
-            (int)HYPERDRONE_RENDER_WIDTH, (int)HYPERDRONE_RENDER_HEIGHT, (int)HYPERDRONE_RENDER_NUM_CAMERAS, (int)HYPERDRONE_RENDER_NUM_PROBES,
-            (int)HYPERDRONE_RENDER_SHADING, (int)HYPERDRONE_RENDER_OUTPUT_MODE, (int)HYPERDRONE_RENDER_MB_SAMPLES, (int)HYPERDRONE_RENDER_AA_GRID,
-            (int)HYPERDRONE_RENDER_NUM_OVERLAYS, (int)HYPERDRONE_RENDER_MAX_OVERLAY_INSTANCES, (int)HYPERDRONE_RENDER_MAX_OVERLAYS_PER_CAMERA,
-            (int)(HYPERDRONE_RENDER_SEMANTIC_SEGMENTATION != 0), (int)(HYPERDRONE_RENDER_DYNAMIC_MB != 0));
-        return config_string_buffer;
-    }
 }
 
 namespace nb = nanobind;
@@ -763,7 +751,6 @@ using hyperdrone::make_owned_array;
 
 NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     m.doc() = "JIT-specialized RLtools raytracer";
-    m.attr("config") = HYPERDRONE_MODULE_NAME::build_config_string();
 
     using Renderer = HYPERDRONE_MODULE_NAME::Renderer<HYPERDRONE_MODULE_NAME::RENDERER_SPEC>;
     using SPEC = Renderer::SPEC;

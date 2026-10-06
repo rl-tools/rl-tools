@@ -5,8 +5,8 @@ core module built once per build tree, plus JIT artifacts compiled per configura
 Python extension modules or shared libraries with a C ABI.
 
 Configs implement the JitConfig protocol: defines() -> {NAME: value} compile definitions,
-canonical() -> stable human-readable string (baked into the artifact and compared on load),
-key() -> short hash naming the artifact. Config files land as configs/<key>.txt inside the
+canonical() -> stable human-readable string of the configuration, key() -> its short hash,
+which names the artifact. Config files land as configs/<key>.txt inside the
 build tree, one NAME=VALUE line each; the shared hyperdrone_jit.cmake turns each file into
 a MODULE target named <component>_<key>.
 
@@ -58,9 +58,9 @@ def _write_config_file(directory, config):
     config_dir = directory / "configs"
     config_dir.mkdir(exist_ok=True)
     config_file = config_dir / f"{config.key()}.txt"
-    lines = "".join(f"{name}={value}\n" for name, value in sorted(config.defines().items()))
-    if config_file.exists() and config_file.read_text() == lines:
+    if config_file.exists():
         return False
+    lines = "".join(f"{name}={value}\n" for name, value in sorted(config.defines().items()))
     # per-process staging name: concurrent writers of the same config must not race on one
     # staging path; the final rename is atomic and idempotent (identical content)
     staging = config_dir / f"{config.key()}.{os.getpid()}.tmp"
@@ -78,8 +78,6 @@ def ensure(component, config):
         # the target only exists after the configs/ glob is re-run
         _build.reconfigure(component)
     _build.build_target(component, f"{component.name}_{config.key()}")
-    if not artifact.exists():
-        raise BuildError(f"hyperdrone: JIT artifact missing after build: {artifact}")
     return artifact
 
 
@@ -101,7 +99,6 @@ def core(component):
         return module
     directory = _build.build_target(component, component.core_target)
     matches = sorted(directory.glob(f"{component.core_target}*.so"))
-    matches += sorted(directory.glob(f"{component.core_target}*.dylib"))
     if not matches:
         raise BuildError(f"hyperdrone: {component.core_target} module not found in {directory}")
     extension = _load_extension(component.core_target, matches[0])
@@ -125,11 +122,4 @@ def module(component, config):
     if component.core_target is not None:
         core(component)
     artifact = ensure(component, config)
-    name = f"hyperdrone_{component.name}_{component.variant}_{config.key()}"
-    extension = _load_extension(name, artifact)
-    if extension.config != config.canonical():
-        raise BuildError(
-            f"hyperdrone: JIT module config mismatch (expected {config.canonical()!r}, "
-            f"module reports {extension.config!r}): {artifact}"
-        )
-    return extension
+    return _load_extension(f"hyperdrone_{component.name}_{component.variant}_{config.key()}", artifact)

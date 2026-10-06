@@ -1,30 +1,15 @@
 #include "environment.h"
 #include "bindings.h"
+#include <nanobind/stl/optional.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/vector.h>
 
 namespace nb = nanobind;
 
 namespace HYPERDRONE_MODULE_NAME {
-    std::string canonical_config(){
-        std::string value =
-            std::string("HYPERDRONE_ENV_CAM_HEIGHT=") + std::to_string(HYPERDRONE_ENV_CAM_HEIGHT)
-            + " HYPERDRONE_ENV_CAM_WIDTH=" + std::to_string(HYPERDRONE_ENV_CAM_WIDTH)
-            + " HYPERDRONE_ENV_HISTORY_LENGTH=" + std::to_string(HYPERDRONE_ENV_HISTORY_LENGTH)
-            + " HYPERDRONE_ENV_INSTANCES=" + std::to_string(HYPERDRONE_ENV_INSTANCES)
-            + " HYPERDRONE_ENV_NUM_ENVIRONMENTS=" + std::to_string(HYPERDRONE_ENV_NUM_ENVIRONMENTS)
-            + " HYPERDRONE_ENV_N_AGENTS=" + std::to_string(HYPERDRONE_ENV_N_AGENTS)
-            + " HYPERDRONE_ENV_PRESET=" + std::to_string(HYPERDRONE_ENV_PRESET)
-            + " HYPERDRONE_ENV_SHADING=" + std::to_string(HYPERDRONE_ENV_SHADING);
-#ifdef HYPERDRONE_ENV_SPEC_HEADER
-        value += " HYPERDRONE_ENV_SPEC_HEADER=" HYPERDRONE_ENV_STRINGIFY(HYPERDRONE_ENV_SPEC_HEADER);
-#endif
-        value += " HYPERDRONE_ENV_TASK=" + std::to_string(HYPERDRONE_ENV_TASK);
-#ifdef HYPERDRONE_ENV_SPEC_HEADER
-        value += " spec_hash=" HYPERDRONE_ENV_STRINGIFY(HYPERDRONE_ENV_SPEC_HASH);
-#endif
-        return value;
-    }
+    using FloatOutput = nb::ndarray<float, nb::c_contig, nb::device::cpu>;
+    using Mask = nb::ndarray<const bool, nb::c_contig, nb::device::cpu>;
+    using Flags = nb::ndarray<bool, nb::c_contig, nb::device::cpu>;
 
     template <typename ARRAY>
     void check_size(const ARRAY& array, size_t expected){
@@ -32,20 +17,42 @@ namespace HYPERDRONE_MODULE_NAME {
             throw std::invalid_argument("hyperdrone: buffer size does not match the environment specification");
         }
     }
+
+    nb::dict layout_dict(const ObservationLayout& layout){
+        nb::list shape;
+        for(TI dimension : layout.shape){
+            shape.append(dimension);
+        }
+        nb::dict blocks;
+        for(const ObservationBlock& block : layout.blocks){
+            blocks[block.name.c_str()] = nb::make_tuple(block.offset, block.size);
+        }
+        nb::dict value;
+        value["shape"] = nb::tuple(shape);
+        value["axis"] = layout.axis;
+        value["blocks"] = blocks;
+        return value;
+    }
+
+    template <typename WORLD_TYPE>
+    void bind_imu(nb::module_& m, nb::class_<Environment>& environment_class){
+        if constexpr (ObservationIMUDim<WORLD_TYPE>::VALUE > 0){
+            m.attr("observation_layout_imu") = layout_dict(observation_layout_imu());
+            environment_class.def("observe_imu", [](Environment& self, FloatOutput out){
+                check_size(out, TOTAL * ObservationIMUDim<WORLD_TYPE>::VALUE);
+                nb::gil_scoped_release release;
+                observe_imu<WORLD_TYPE>(self, out.data());
+            }, nb::arg("out").noconvert());
+        }
+    }
 }
 
 NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     using namespace HYPERDRONE_MODULE_NAME;
-    using FloatOutput = nb::ndarray<float, nb::c_contig, nb::device::cpu>;
-    using Mask = nb::ndarray<const uint8_t, nb::c_contig, nb::device::cpu>;
-    using Flags = nb::ndarray<uint8_t, nb::c_contig, nb::device::cpu>;
 
     m.doc() = "JIT-specialized RLtools hyperdrone environment";
-    m.attr("config") = canonical_config();
-    m.attr("config_string") = config_string();
-    m.attr("observation_layout") = observation_layout_value(false);
-    m.attr("observation_layout_privileged") = observation_layout_value(true);
-    m.attr("observation_layout_imu") = observation_layout_imu();
+    m.attr("observation_layout") = layout_dict(observation_layout());
+    m.attr("observation_layout_privileged") = layout_dict(observation_layout_privileged());
     nb::dict dimensions;
     dimensions["num_environments"] = NUM_ENVIRONMENTS;
     dimensions["instances_per_environment"] = WORLD::INSTANCES;
@@ -62,7 +69,8 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     dimensions["frame_stride"] = FrameStride<WORLD>::VALUE;
     m.attr("dimensions") = dimensions;
 
-    nb::class_<Environment>(m, "Environment")
+    auto environment_class = nb::class_<Environment>(m, "Environment");
+    environment_class
         .def(nb::init<>())
         .def("init", &Environment::init, nb::arg("scenes"), nb::arg("drone_asset"), nb::arg("gate_asset"), nb::arg("seed"), nb::call_guard<nb::gil_scoped_release>())
         .def("parameters", &Environment::parameters_json, nb::call_guard<nb::gil_scoped_release>())
@@ -71,7 +79,7 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
         .def("set_instance_parameters", [](Environment& self, Mask mask, const std::string& json){
             check_size(mask, TOTAL);
             nb::gil_scoped_release release;
-            return self.set_instance_parameters(mask.data(), json);
+            self.set_instance_parameters(mask.data(), json);
         }, nb::arg("mask").noconvert(), nb::arg("json"))
         .def("model", &Environment::model, nb::arg("name"), nb::call_guard<nb::gil_scoped_release>())
         .def("reset", [](Environment& self, Mask mask){
@@ -94,11 +102,6 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
             nb::gil_scoped_release release;
             self.observe_privileged(out.data());
         }, nb::arg("out").noconvert())
-        .def("observe_imu", [](Environment& self, FloatOutput out){
-            check_size(out, TOTAL * OBSERVATION_DIM_IMU);
-            nb::gil_scoped_release release;
-            self.observe_imu(out.data());
-        }, nb::arg("out").noconvert())
         .def("step", [](Environment& self, hyperdrone::FloatArray actions){
             check_size(actions, TOTAL * WORLD::ACTION_DIM);
             nb::gil_scoped_release release;
@@ -115,4 +118,5 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
             self.read_terminated(out.data());
         }, nb::arg("out").noconvert())
         .def("rotate_scene", &Environment::rotate_scene, nb::call_guard<nb::gil_scoped_release>());
+    bind_imu<WORLD>(m, environment_class);
 }

@@ -166,7 +166,7 @@ from hyperdrone.env import EnvConfig, MultiEnvironment
 config = EnvConfig(num_environments=1, instances=1024, cam_width=32, cam_height=32, task="target_frame")
 env = MultiEnvironment("scenes/", config=config, seed=0)
 
-mask = np.ones(env.total_instances, dtype=np.uint8)
+mask = np.ones(env.total_instances, dtype=bool)
 env.reset(mask)                    # resample parameters + states where mask is set
 env.render(mask)                   # render the FPV cameras (mask marks fresh episodes)
 observations = env.observe()       # (total, observation_dim) float32
@@ -201,8 +201,8 @@ an arbitrary C++ specification (a header defining `hyperdrone_env_user::WORLD`, 
 into the JIT key). A spec header can go beyond constants to a full user-authored task
 wrapper — verb overloads registering and moving entities, compiled reward, termination:
 `hyperdrone/examples/Orbiter.ipynb` walks through one, and its contract is pinned by
-`tests/env/user_task_header.h`. The render backend for the environment follows
-`HYPERDRONE_ENV_BACKEND` (default: the render backend selection).
+`tests/env/user_task_header.h`. The environment's raytracing backend follows
+`HYPERDRONE_RENDER_BACKEND` like the renderer.
 
 Manual composition of `Sim` and `Renderer` (no MDP — rendering research, data
 generation) remains first-class: see `python -m hyperdrone.examples.drone_flythrough`
@@ -225,7 +225,7 @@ environment.
 ```python
 config = EnvConfig(instances=2, cam_width=160, cam_height=120, preset="x500_fpv_imu", task="visual_inertial_localization")
 env = MultiEnvironment(scenes, config=config, seed=0)
-env.reset(); env.render(np.ones(env.total_instances, dtype=np.uint8))
+env.reset(); env.render(np.ones(env.total_instances, dtype=bool))
 for step in range(env.episode_step_limit):
     if step > 0: env.render()
     if step % env.frame_stride == 0:

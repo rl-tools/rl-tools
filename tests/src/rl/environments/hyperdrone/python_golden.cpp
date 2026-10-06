@@ -14,6 +14,7 @@
 
 namespace henv = hyperdrone_env_golden;
 
+#include <array>
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
@@ -31,27 +32,34 @@ namespace {
         std::ofstream stream(path, std::ios::binary);
         stream.write(reinterpret_cast<const char*>(data), bytes);
     }
+
+    nlohmann::json layout_json(const henv::ObservationLayout& layout){
+        nlohmann::json blocks = nlohmann::json::object();
+        for(const henv::ObservationBlock& block : layout.blocks){
+            blocks[block.name] = {block.offset, block.size};
+        }
+        return {{"shape", layout.shape}, {"axis", layout.axis}, {"blocks", blocks}};
+    }
 }
 
 int main(){
     namespace fs = std::filesystem;
-    const fs::path scene_source = fs::absolute("tests/data/ProcTHOR-Train-1.glb");
-    if(!fs::exists(scene_source)){
-        std::fprintf(stderr, "scene not found: %s (run from the repo root, with test data downloaded)\n", scene_source.c_str());
+    const fs::path scene = fs::absolute("tests/data/ProcTHOR-Train-1.glb");
+    if(!fs::exists(scene)){
+        std::fprintf(stderr, "scene not found: %s (run from the repo root, with test data downloaded)\n", scene.c_str());
         return 1;
     }
     const fs::path output = fs::path("interface/python/hyperdrone/tests/env/golden");
     fs::create_directories(output);
-    const fs::path scene_directory = fs::temp_directory_path() / "hyperdrone_python_golden_scene";
-    fs::remove_all(scene_directory);
-    fs::create_directories(scene_directory);
-    fs::create_symlink(scene_source, scene_directory / scene_source.filename());
 
     henv::Environment env;
-    env.init({scene_directory.string()}, "", "", SEED);
+    env.init({scene.string()}, std::nullopt, std::nullopt, SEED);
 
-    const size_t total = henv::TOTAL;
-    std::vector<uint8_t> all(total, 1), none(total, 0);
+    constexpr size_t total = henv::TOTAL;
+    std::array<bool, total> all;
+    all.fill(true);
+    std::array<bool, total> none;
+    none.fill(false);
     std::vector<float> observations, observations_privileged, rewards;
     std::vector<uint8_t> terminated;
     std::vector<float> snapshot(total * henv::WORLD::OBSERVATION_DIM);
@@ -69,7 +77,7 @@ int main(){
     record();
     std::vector<float> actions(total * henv::WORLD::ACTION_DIM);
     std::vector<float> step_rewards(total);
-    std::vector<uint8_t> step_terminated(total);
+    std::array<bool, total> step_terminated;
     for(int step_i = 0; step_i < STEPS; step_i++){
         for(size_t instance_i = 0; instance_i < total; instance_i++){
             for(size_t dim_i = 0; dim_i < henv::WORLD::ACTION_DIM; dim_i++){
@@ -94,14 +102,24 @@ int main(){
     manifest["seed"] = SEED;
     manifest["steps"] = STEPS;
     manifest["action_formula"] = "-1 + 2*(((step*131 + instance*31 + dim*7) % 101) / 100)";
-    manifest["config_string"] = henv::config_string();
-    manifest["observation_layout"] = henv::observation_layout_value(false);
-    manifest["observation_layout_privileged"] = henv::observation_layout_value(true);
+    manifest["defines"] = {
+        {"HYPERDRONE_ENV_NUM_ENVIRONMENTS", HYPERDRONE_ENV_NUM_ENVIRONMENTS},
+        {"HYPERDRONE_ENV_INSTANCES", HYPERDRONE_ENV_INSTANCES},
+        {"HYPERDRONE_ENV_CAM_WIDTH", HYPERDRONE_ENV_CAM_WIDTH},
+        {"HYPERDRONE_ENV_CAM_HEIGHT", HYPERDRONE_ENV_CAM_HEIGHT},
+        {"HYPERDRONE_ENV_SHADING", HYPERDRONE_ENV_SHADING},
+        {"HYPERDRONE_ENV_HISTORY_LENGTH", HYPERDRONE_ENV_HISTORY_LENGTH},
+        {"HYPERDRONE_ENV_PRESET", HYPERDRONE_ENV_PRESET},
+        {"HYPERDRONE_ENV_TASK", HYPERDRONE_ENV_TASK},
+        {"HYPERDRONE_ENV_N_AGENTS", HYPERDRONE_ENV_N_AGENTS},
+    };
+    manifest["observation_layout"] = layout_json(henv::observation_layout());
+    manifest["observation_layout_privileged"] = layout_json(henv::observation_layout_privileged());
     manifest["total_instances"] = henv::TOTAL;
     manifest["observation_dim"] = henv::WORLD::OBSERVATION_DIM;
     manifest["observation_dim_privileged"] = henv::WORLD::OBSERVATION_DIM_PRIVILEGED;
     manifest["action_dim"] = henv::WORLD::ACTION_DIM;
-    manifest["scene"] = scene_source.filename().string();
+    manifest["scene"] = scene.filename().string();
     std::ofstream manifest_stream(output / "manifest.json");
     manifest_stream << manifest.dump(4) << "\n";
 

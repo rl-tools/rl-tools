@@ -23,23 +23,15 @@ import numpy as np
 
 from .. import conta, jit
 
-BACKENDS = ("OPTIX", "METAL", "VULKAN", "WEBGPU", "GENERIC")
 PRESETS = {"crazyflie": 0, "x500_fpv": 1, "x500_fpv_imu": 2}
 SELF_VISIBLE_PRESETS = ("x500_fpv", "x500_fpv_imu")
 TASKS = {None: 0, "target_frame": 1, "moving_gate": 2, "visual_inertial_localization": 3}
 
 
 def backend():
-    from ..render._component import resolve_auto_backend
+    from ..render._component import backend as render_backend
 
-    value = os.environ.get("HYPERDRONE_ENV_BACKEND", os.environ.get("HYPERDRONE_RENDER_BACKEND", "AUTO")).upper()
-    if value == "AUTO":
-        value = resolve_auto_backend()
-    if value not in BACKENDS:
-        raise jit.BuildError(
-            f"hyperdrone: invalid HYPERDRONE_ENV_BACKEND {value} (OPTIX|METAL|VULKAN|WEBGPU|GENERIC)"
-        )
-    return value
+    return render_backend()
 
 
 def component():
@@ -119,16 +111,13 @@ class EnvConfig:
         }
         if self.spec_header is not None:
             values["HYPERDRONE_ENV_SPEC_HEADER"] = os.path.abspath(self.spec_header)
-            with open(self.spec_header, "rb") as header:
-                values["HYPERDRONE_ENV_SPEC_HASH"] = hashlib.sha256(header.read()).hexdigest()[:16]
         return values
 
     def canonical(self):
-        values = self.defines()
-        digest = values.pop("HYPERDRONE_ENV_SPEC_HASH", None)
-        canonical = " ".join(f"{name}={value}" for name, value in sorted(values.items()))
-        if digest is not None:
-            canonical += f" spec_hash={digest}"
+        canonical = " ".join(f"{name}={value}" for name, value in sorted(self.defines().items()))
+        if self.spec_header is not None:
+            with open(self.spec_header, "rb") as header:
+                canonical += f" spec_hash={hashlib.sha256(header.read()).hexdigest()[:16]}"
         return canonical
 
     def key(self):
@@ -147,28 +136,6 @@ class ObservationLayout:
     axis: str
     blocks: dict = field(default_factory=dict)
 
-    @classmethod
-    def parse(cls, text):
-        shape = None
-        axis = None
-        blocks = {}
-        for line in text.strip().splitlines():
-            parts = line.split()
-            if parts[0] == "shape":
-                shape = tuple(int(value) for value in parts[1:])
-            elif parts[0] == "axis":
-                axis = parts[1]
-            elif parts[0] == "block":
-                blocks[parts[1]] = (int(parts[2]), int(parts[3]))
-        if shape is None or axis not in ("channel", "flat"):
-            raise jit.BuildError(f"hyperdrone: malformed observation layout: {text!r}")
-        covered = sum(size for _, size in blocks.values())
-        extent = shape[-1] if axis == "channel" else shape[0]
-        if covered != extent:
-            raise jit.BuildError(
-                f"hyperdrone: observation layout blocks cover {covered} of {extent}: {text!r}"
-            )
-        return cls(shape=shape, axis=axis, blocks=blocks)
 
 
 def _is_conta_reference(value):
@@ -189,7 +156,8 @@ def _normalize_scenes(scenes, num_environments):
     Accepts a directory (the corpus is its sorted .glb files), a single reference, or a
     sequence of references — each a .glb path, a "conta:HASH" string, or a store manifest
     entry {"description": ..., "hash": ...}. Conta references are resolved (downloading
-    into the shared conta cache) here; list order is the corpus order.
+    into the shared conta cache) here; list order is the corpus order. The corpus is
+    validated here because the C++ dataset code exits the process on an invalid one.
     """
     if isinstance(scenes, (str, os.PathLike, dict)):
         scenes = [scenes]
@@ -197,8 +165,6 @@ def _normalize_scenes(scenes, num_environments):
         str(conta.resolve(entry)) if _is_conta_reference(entry) else str(entry)
         for entry in scenes
     ]
-    if not references:
-        raise ValueError("hyperdrone: scenes is empty")
     if len(references) == 1 and os.path.isdir(references[0]):
         count = sum(1 for name in os.listdir(references[0]) if name.endswith(".glb"))
         if count < num_environments:
@@ -230,26 +196,6 @@ def _merge(base, overrides, path=""):
             raise ValueError(f"hyperdrone: parameter {path}{key} must have shape {np.shape(base[key])}, got {np.shape(value)}")
         merged[key] = value.tolist() if isinstance(value, (np.ndarray, np.generic)) else value
     return merged
-
-
-def _validate(config, native):
-    if config.spec_header is not None:
-        return
-    expected = {
-        "num_environments": config.num_environments,
-        "instances_per_environment": config.instances,
-        "n_agents": config.n_agents,
-        "cam_width": config.cam_width,
-        "cam_height": config.cam_height,
-        "total_instances": config.num_environments * config.instances,
-    }
-    for name, value in expected.items():
-        actual = int(native[name])
-        if actual != value:
-            raise jit.BuildError(
-                f"hyperdrone: env config mismatch — the artifact reports {name}={actual}, "
-                f"the EnvConfig requested {value}; the compile-time mirror has drifted"
-            )
 
 
 class MultiEnvironment:
@@ -285,23 +231,16 @@ class MultiEnvironment:
         drone_asset = _resolve_asset(drone_asset)
         gate_asset = _resolve_asset(gate_asset)
         self._module = jit.module(component(), self.config)
-        native = self._module.dimensions
-        _validate(self.config, native)
-        for name, value in native.items():
-            setattr(self, name, int(value))
-        self.config_string = self._module.config_string
-        self.observation_layout = ObservationLayout.parse(self._module.observation_layout)
-        self.observation_layout_privileged = ObservationLayout.parse(self._module.observation_layout_privileged)
-        self.observation_layout_imu = None
-        if self.observation_dim_imu > 0:
-            self.observation_layout_imu = ObservationLayout.parse(self._module.observation_layout_imu)
+        for name, value in self._module.dimensions.items():
+            setattr(self, name, value)
+        self.observation_layout = ObservationLayout(**self._module.observation_layout)
+        self.observation_layout_privileged = ObservationLayout(**self._module.observation_layout_privileged)
+        self.observation_layout_imu = ObservationLayout(**self._module.observation_layout_imu) if self.observation_dim_imu > 0 else None
         self._environment = self._module.Environment()
-        self._environment.init(scene_references, drone_asset or "", gate_asset or "", seed)
+        self._environment.init(scene_references, drone_asset, gate_asset, seed)
         self._sampled = np.zeros(self.total_instances, dtype=bool)
         if parameters is not None:
-            merged = self._resolve(self.parameters, parameters)
-            if not self._environment.set_parameters(json.dumps(merged)):
-                raise ValueError("hyperdrone: the JSON reader rejected the parameters")
+            self._environment.set_parameters(json.dumps(self._resolve(self.parameters, parameters)))
 
     def _resolve(self, base, overrides):
         overrides = copy.deepcopy(overrides)
@@ -309,7 +248,7 @@ class MultiEnvironment:
         model = dynamics.pop("model", None)
         if model is not None:
             entry = self._environment.model(model)
-            if not entry:
+            if entry is None:
                 raise ValueError(f"hyperdrone: unknown dynamics model {model!r} (see hyperdrone.dynamics.MODELS)")
             base = copy.deepcopy(base)
             base["dynamics"]["dynamics"] = json.loads(entry)
@@ -344,8 +283,7 @@ class MultiEnvironment:
             if shared:
                 raise ValueError(f"hyperdrone: dynamics {shared} are shared by all instances; set them through parameters=")
             merged.append(self._resolve(current[instance_i], instance_overrides))
-        if not self._environment.set_instance_parameters(mask, json.dumps(merged)):
-            raise ValueError("hyperdrone: the JSON reader rejected the parameters")
+        self._environment.set_instance_parameters(mask, json.dumps(merged))
 
     @property
     def dt(self):
@@ -354,21 +292,15 @@ class MultiEnvironment:
     def close(self):
         self._environment = None
 
-    def __del__(self):
-        try:
-            self.close()
-        except Exception:
-            pass
-
     def _mask(self, mask):
         if mask is None:
-            mask = np.ones(self.total_instances, dtype=np.uint8)
-        return np.ascontiguousarray(np.asarray(mask, dtype=np.uint8).reshape(self.total_instances))
+            mask = np.ones(self.total_instances, dtype=bool)
+        return np.ascontiguousarray(np.asarray(mask, dtype=bool).reshape(self.total_instances))
 
     def reset(self, mask=None):
         mask = self._mask(mask)
         self._environment.reset(mask)
-        self._sampled |= mask.astype(bool)
+        self._sampled |= mask
 
     def _check_synchronized(self, reset_mask):
         if self.config.task != "visual_inertial_localization":
@@ -382,7 +314,7 @@ class MultiEnvironment:
 
     def render(self, reset_mask=None):
         if reset_mask is None:
-            reset_mask = np.zeros(self.total_instances, dtype=np.uint8)
+            reset_mask = np.zeros(self.total_instances, dtype=bool)
         reset_mask = self._mask(reset_mask)
         self._check_synchronized(reset_mask)
         self._environment.render(reset_mask)
@@ -422,9 +354,9 @@ class MultiEnvironment:
         return rewards
 
     def terminated(self):
-        flags = np.empty(self.total_instances, dtype=np.uint8)
+        flags = np.empty(self.total_instances, dtype=bool)
         self._environment.terminated(flags)
-        return flags.astype(bool)
+        return flags
 
     def rotate_scene(self):
         self._environment.rotate_scene()

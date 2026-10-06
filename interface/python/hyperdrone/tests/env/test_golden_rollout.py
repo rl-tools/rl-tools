@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from hyperdrone.env import EnvConfig, MultiEnvironment
+from hyperdrone.env import EnvConfig, MultiEnvironment, ObservationLayout
 from hyperdrone.jit import source_root
 
 GOLDEN = Path(__file__).parent / "golden"
@@ -33,6 +33,10 @@ def golden_actions(step, total, action_dim):
     return actions
 
 
+def layout_from_json(layout):
+    return ObservationLayout(shape=tuple(layout["shape"]), axis=layout["axis"], blocks={name: tuple(block) for name, block in layout["blocks"].items()})
+
+
 @pytest.fixture(scope="module")
 def scene_directory(tmp_path_factory):
     manifest = json.loads((GOLDEN / "manifest.json").read_text())
@@ -45,14 +49,12 @@ def scene_directory(tmp_path_factory):
 
 
 def test_golden_rollout(scene_directory):
-    if not (GOLDEN / "manifest.json").exists():
-        pytest.skip("golden rollout not generated (build and run test_rl_environments_hyperdrone_python_golden)")
     manifest = json.loads((GOLDEN / "manifest.json").read_text())
+    assert CONFIG.defines() == manifest["defines"], "the test configuration drifted from the golden's — regenerate deliberately"
     env = MultiEnvironment(scene_directory, config=CONFIG, seed=manifest["seed"])
     try:
-        assert env.config_string == manifest["config_string"], (
-            "the binding's configuration drifted from the golden's — regenerate deliberately"
-        )
+        assert env.observation_layout == layout_from_json(manifest["observation_layout"])
+        assert env.observation_layout_privileged == layout_from_json(manifest["observation_layout_privileged"])
         total, steps = env.total_instances, manifest["steps"]
         assert total == manifest["total_instances"]
 
@@ -80,7 +82,5 @@ def test_golden_rollout(scene_directory):
         np.testing.assert_array_equal(actual_privileged, golden_privileged)
         np.testing.assert_array_equal(np.concatenate(rewards), golden_rewards)
         np.testing.assert_array_equal(np.concatenate(terminated).astype(np.uint8), golden_terminated)
-
-        assert manifest["observation_layout"].strip().splitlines()[0].startswith("shape")
     finally:
         env.close()
