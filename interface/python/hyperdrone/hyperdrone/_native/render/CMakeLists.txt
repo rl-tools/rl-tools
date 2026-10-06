@@ -96,6 +96,6 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/hyperdrone_jit.cmake)
 hyperdrone_jit_add_configs(
     COMPONENT render
     PYTHON_MODULE
-    SOURCES impl.cpp
+    SOURCES renderer.cpp
     LINK RLtools::RLtools hyperdrone_render_stb hyperdrone_render_tooling
 )
