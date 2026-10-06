@@ -61,16 +61,40 @@ class _DLPackBuffer:
 
 
 class Renderer:
-    """A JIT-compiled instantiation of the RLtools raytracer.
+    """RLtools raytracer with a JIT-compiled library cached per configuration.
 
-    Compile-time constants (resolution, camera count, output mode, fidelity tier, motion
-    blur, anti-aliasing, overlay capacities) are passed here; the first use of a new
-    combination compiles a renderer library into the hyperdrone cache, subsequent uses
-    load the cached library directly.
+    All constructor parameters are compile-time settings, fixed for this instance.
 
-    Rendering produces the configured image outputs; collision probes run separately
-    through probe(). num_probes=0 compiles the collision-probe pass out entirely,
-    and the probe methods then raise.
+    Args:
+        width, height: Per-camera resolution in pixels; both must be >= 1.
+        num_cameras: Fixed camera batch size (>= 1); camera uploads must match it.
+        num_probes: Collision rays per camera, run separately through probe().
+            0 compiles the probe pass out; probe methods then raise.
+        output: "rgb", "rgbd" (RGB + depth), "depth", "segmentation", or
+            "rgbd_segmentation" (RGB + depth + segmentation). Depth is ray hit
+            distance, not camera-space Z. render() produces every selected output.
+        fidelity: RGB shading preset: "low" (flat, untextured colour), "medium"
+            (textures, normal-based shading, metallic reflections, checker background),
+            "high" (textured, physically based scene lighting), or "veryhigh"
+            ("high" plus point/spot-light shadows). Names are case-insensitive,
+            as are output names.
+        motion_blur_samples: 0 or 1 disables blur; 2, 4, 8, 16, or 32 samples
+            interpolate the shutter endpoints supplied by set_motion_blur_cameras().
+        anti_aliasing_grid: 0 or 1 disables anti-aliasing; 2, 3, or 4 uses a
+            grid of 4, 9, or 16 samples per pixel, respectively, per shutter sample.
+        num_overlays: Number of overlay groups; a group can be shared by cameras.
+        max_overlay_instances: Instance slots per overlay. Multipart assets consume
+            one slot per part.
+        max_overlays_per_camera: Maximum overlay groups attached to one camera.
+        semantic_segmentation: Write per-object segmentation_class values instead
+            of instance IDs; requires "segmentation" or "rgbd_segmentation" output.
+        dynamic_motion_blur: Blur overlay motion as well as camera motion, using
+            shutter-open/close transforms supplied by set_transform_pair() or
+            set_transforms_pair(). Requires overlays and motion_blur_samples >= 2.
+
+    The three overlay capacities must be all zero (disabled) or all positive.
+    Blur and anti-aliasing affect RGB and depth; segmentation always uses a single
+    sample from the shutter-close camera.
     """
 
     def __init__(self, width, height, num_cameras=1, num_probes=1, output="rgb", fidelity="high",
