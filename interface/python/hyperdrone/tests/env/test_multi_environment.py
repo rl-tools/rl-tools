@@ -74,11 +74,9 @@ def test_configurations_keep_independent_state(scene_directory):
         small.step(np.zeros((2, small.action_dim), dtype=np.float32))
         np.testing.assert_array_equal(large.observe_privileged(), state)
         small.close()
-        small.close()
         large.step(np.zeros((2, large.action_dim), dtype=np.float32))
         assert not np.array_equal(large.observe_privileged(), state)
     finally:
-        small.close()
         large.close()
 
 
@@ -86,7 +84,7 @@ def test_native_binding_rejects_invalid_buffers(scene_directory):
     environment = MultiEnvironment(scene_directory, config=CONFIG)
     try:
         with pytest.raises(ValueError, match="buffer size"):
-            environment._environment.reset(np.ones(1, dtype=np.uint8))
+            environment._environment.reset(np.ones(1, dtype=bool))
         with pytest.raises(ValueError, match="buffer size"):
             environment._environment.step(np.zeros(1, dtype=np.float32))
         with pytest.raises(TypeError):
