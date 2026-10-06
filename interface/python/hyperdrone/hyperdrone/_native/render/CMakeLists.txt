@@ -53,14 +53,8 @@ FetchContent_MakeAvailable(stb)
 add_library(hyperdrone_render_stb INTERFACE)
 target_include_directories(hyperdrone_render_stb SYSTEM INTERFACE ${stb_SOURCE_DIR})
 
-find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
-execute_process(
-    COMMAND ${Python_EXECUTABLE} -m nanobind --cmake_dir
-    OUTPUT_VARIABLE nanobind_DIR
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    COMMAND_ERROR_IS_FATAL ANY
-)
-find_package(nanobind CONFIG REQUIRED)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/hyperdrone_jit.cmake)
+hyperdrone_jit_find_nanobind()
 
 # camera_orbit.h and friends: demo/benchmark tooling deliberately outside the library,
 # consumed by the shim to keep Renderer.generate_cameras on the Python surface
@@ -92,7 +86,6 @@ function(hyperdrone_component_libraries DEFINES OUT_LIBRARIES)
     endif()
 endfunction()
 
-include(${CMAKE_CURRENT_SOURCE_DIR}/../cmake/hyperdrone_jit.cmake)
 hyperdrone_jit_add_configs(
     COMPONENT render
     PYTHON_MODULE

@@ -6,6 +6,20 @@
 #   function(hyperdrone_component_libraries DEFINES OUT_LIBRARIES)
 # to map a config's definition list to extra link libraries (set ${OUT_LIBRARIES} in
 # PARENT_SCOPE); used e.g. by render to pick the backend device-program library.
+#
+# Components with Python modules call hyperdrone_jit_find_nanobind() first; a macro so the
+# variables nanobind's config sets stay in the caller's scope for nanobind_add_module.
+macro(hyperdrone_jit_find_nanobind)
+    find_package(Python COMPONENTS Interpreter Development.Module REQUIRED)
+    execute_process(
+        COMMAND ${Python_EXECUTABLE} -m nanobind --cmake_dir
+        OUTPUT_VARIABLE nanobind_DIR
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        COMMAND_ERROR_IS_FATAL ANY
+    )
+    find_package(nanobind CONFIG REQUIRED)
+endmacro()
+
 function(hyperdrone_jit_add_configs)
     cmake_parse_arguments(ARG "PYTHON_MODULE" "COMPONENT" "SOURCES;LINK" ${ARGN})
     set(config_dir ${CMAKE_BINARY_DIR}/configs)
@@ -17,8 +31,10 @@ function(hyperdrone_jit_add_configs)
         file(STRINGS ${config_file} config_defines)
         set(target ${ARG_COMPONENT}_${config_key})
         if(ARG_PYTHON_MODULE)
-            nanobind_add_module(${target} ${ARG_SOURCES})
-            target_compile_definitions(${target} PRIVATE HYPERDRONE_MODULE_NAME=hyperdrone_${target})
+            # NOMINSIZE: the simulation and renderer must not be built at nanobind's default -Os
+            nanobind_add_module(${target} NOMINSIZE ${ARG_SOURCES})
+            string(TOLOWER "${HYPERDRONE_VARIANT}" module_variant)
+            target_compile_definitions(${target} PRIVATE HYPERDRONE_MODULE_NAME=hyperdrone_${ARG_COMPONENT}_${module_variant}_${config_key})
             set_target_properties(${target} PROPERTIES SUFFIX ".so")
         else()
             add_library(${target} MODULE ${ARG_SOURCES})
