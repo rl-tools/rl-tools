@@ -1,5 +1,5 @@
 """The cross-language stability anchor: the C++ generator (tests/src/rl/environments/
-hyperdrone/python_golden.cpp, compiled from the exact shim TU) records a seeded rollout;
+hyperdrone/python_golden.cpp, sharing the concrete C++ environment) records a seeded rollout;
 this test replays it through the binding and compares bit-exactly. Any C++ change that
 alters environment semantics fails here the same day; regenerating the golden is a
 deliberate, reviewed act. The golden is generated on the GENERIC backend — run this suite
