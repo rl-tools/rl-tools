@@ -120,26 +120,31 @@ def flythrough_actions():
     correction = 0.4 * (altitude_target - position_z) - 0.25 * velocity_z
     return np.clip(base_actions + correction[:, None], -1.0, 1.0).astype(np.float32)
 
+
+def camera_grid(views):
+    num_views, height, width, channels = views.shape
+    columns = int(math.ceil(math.sqrt(num_views)))
+    rows = (num_views + columns - 1) // columns
+    mosaic = np.zeros((rows * height, columns * width, channels), dtype=np.uint8)
+    for index, view in enumerate(views):
+        row, column = divmod(index, columns)
+        mosaic[row * height:(row + 1) * height, column * width:(column + 1) * width] = view
+    return mosaic
+
+
 video_writer = None
 video_stride = 1
 if arguments.video:
     import imageio
 
     video_drones = min(arguments.video_drones, arguments.drones)
-    grid_columns = int(math.ceil(math.sqrt(video_drones)))
-    grid_rows = int(math.ceil(video_drones / grid_columns))
     # stride steps so the video plays at real time: sim rate (1/dt) down to the target fps
     video_stride = max(1, round(1.0 / (sim.dt * arguments.video_fps)))
     video_writer = imageio.get_writer(arguments.video, fps=1.0 / (sim.dt * video_stride))
 
     def record_frame():
         views = renderer.frame()[:video_drones, :, :, :3]
-        mosaic = np.zeros((grid_rows * arguments.height, grid_columns * arguments.width, 3), dtype=np.uint8)
-        for view_index in range(video_drones):
-            row, column = divmod(view_index, grid_columns)
-            mosaic[row * arguments.height:(row + 1) * arguments.height,
-                   column * arguments.width:(column + 1) * arguments.width] = views[view_index]
-        video_writer.append_data(mosaic)
+        video_writer.append_data(camera_grid(views))
 
 start = time.perf_counter()
 for step in range(arguments.steps):
@@ -158,5 +163,7 @@ if video_writer is not None:
     print(f"saved {arguments.video}")
 
 if arguments.save:
-    renderer.save_image(arguments.save)
+    import imageio
+
+    imageio.imwrite(arguments.save, camera_grid(renderer.frame()))
     print(f"saved {arguments.save}")
