@@ -1,6 +1,7 @@
 import os
 
 from .. import jit
+from ..jit._toolchain import cuda_available
 
 DEVICES = ("CPU", "CUDA")
 
@@ -10,16 +11,10 @@ def resolve_device(device="auto"):
     if value == "AUTO":
         value = os.environ.get("HYPERDRONE_DYNAMICS_DEVICE", "AUTO").upper()
     if value == "AUTO":
-        value = "CUDA" if _cuda_available() else "CPU"
+        value = "CUDA" if cuda_available() else "CPU"
     if value not in DEVICES:
         raise jit.BuildError(f"hyperdrone: invalid dynamics device {value} (CPU|CUDA|AUTO)")
     return value
-
-
-def _cuda_available():
-    from pathlib import Path
-    import shutil
-    return Path("/usr/local/cuda/bin/nvcc").exists() or shutil.which("nvcc") is not None
 
 
 def component(device="auto"):

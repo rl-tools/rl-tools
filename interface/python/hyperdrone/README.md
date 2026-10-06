@@ -17,6 +17,8 @@ Native components are JIT-compiled per set of compile-time constants (resolution
 count, drone count, ...) into a persistent cache; later uses load the cached library
 directly. `render` and `dynamics` are peers that never import each other — the coupling
 surface is a plain DLPack tensor of packed camera bases, device-resident on OptiX + CUDA.
+Rendering uses a shared scene module and a directly bound Python extension per renderer
+configuration; scene and asset-pool objects can be reused across configurations.
 
 ## Notebooks
 

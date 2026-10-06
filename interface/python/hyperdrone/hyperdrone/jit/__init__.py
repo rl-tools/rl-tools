@@ -1,8 +1,8 @@
 """hyperdrone.jit — shared compile-and-cache infrastructure.
 
 A *component* is a native code unit under hyperdrone/_native/<name>/: an optional nanobind
-core module built once per build tree, plus zero or more JIT artifacts — shared libraries
-compiled per compile-time configuration behind a stable extern "C" ABI.
+core module built once per build tree, plus JIT artifacts compiled per configuration:
+Python extension modules or shared libraries with a C ABI.
 
 Configs implement the JitConfig protocol: defines() -> {NAME: value} compile definitions,
 canonical() -> stable human-readable string (baked into the artifact and compared on load),
@@ -31,6 +31,7 @@ __all__ = [
     "core",
     "ensure",
     "native_root",
+    "module",
     "source_root",
     "workspace_tag",
 ]
@@ -103,9 +104,32 @@ def core(component):
     matches += sorted(directory.glob(f"{component.core_target}*.dylib"))
     if not matches:
         raise BuildError(f"hyperdrone: {component.core_target} module not found in {directory}")
-    specification = importlib.util.spec_from_file_location(component.core_target, matches[0])
-    module = importlib.util.module_from_spec(specification)
-    specification.loader.exec_module(module)
-    sys.modules[component.core_target] = module
-    _core_modules[component.core_target] = (component.variant, module)
-    return module
+    extension = _load_extension(component.core_target, matches[0])
+    _core_modules[component.core_target] = (component.variant, extension)
+    return extension
+
+
+def _load_extension(name, path):
+    cached = sys.modules.get(name)
+    if cached is not None:
+        return cached
+    specification = importlib.util.spec_from_file_location(name, path)
+    extension = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(extension)
+    sys.modules[name] = extension
+    return extension
+
+
+def module(component, config):
+    """Build and import a configuration's Python extension, after its shared core."""
+    if component.core_target is not None:
+        core(component)
+    artifact = ensure(component, config)
+    name = f"hyperdrone_{component.name}_{config.key()}"
+    extension = _load_extension(name, artifact)
+    if extension.config != config.canonical():
+        raise BuildError(
+            f"hyperdrone: JIT module config mismatch (expected {config.canonical()!r}, "
+            f"module reports {extension.config!r}): {artifact}"
+        )
+    return extension

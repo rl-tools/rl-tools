@@ -5,6 +5,7 @@
 // provider from whichever domain package is in use.
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
+#include <nanobind/stl/vector.h>
 #include <cuda_runtime.h>
 
 #include <stdexcept>

@@ -46,6 +46,6 @@ _cuda.register_provider(load_core)
 def __getattr__(name):
     # bound classes come from the lazily-built core module so that importing
     # hyperdrone.render stays cheap and the first compile happens on first use
-    if name in ("Scene", "Object", "ObjectAssembly", "AssetPool", "Mesh", "SceneLight", "JitRenderer"):
+    if name in ("Scene", "Object", "ObjectAssembly", "AssetPool", "Mesh", "SceneLight"):
         return getattr(load_core(), name)
     raise AttributeError(f"module 'hyperdrone.render' has no attribute {name}")

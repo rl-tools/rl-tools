@@ -1,3 +1,7 @@
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+#include "cuda_staging.h"
+#endif
+
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
 #include <nanobind/stl/string.h>
@@ -138,7 +142,14 @@ static rrt::Mesh make_mesh(FloatArray vertices, nb::ndarray<const int32_t, nb::c
     return mesh;
 }
 
-void register_scene_bindings(nb::module_& m){
+NB_MODULE(hyperdrone_render_core, m){
+    m.doc() = "Shared scene types and camera utilities for the RLtools raytracer";
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+    m.attr("HAS_CUDA") = true;
+    hyperdrone::register_cuda_staging(m);
+#else
+    m.attr("HAS_CUDA") = false;
+#endif
     nb::class_<rrt::SceneLight>(m, "SceneLight")
         .def_static("directional", [](Vec3 direction, Vec3 color){
             rrt::SceneLight light{};

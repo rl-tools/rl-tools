@@ -4,14 +4,14 @@ import shutil
 import sys
 
 from .. import jit
-from ..dynamics._component import _cuda_available
+from ..jit._toolchain import cuda_available
 
 BACKENDS = ("OPTIX", "METAL", "VULKAN", "WEBGPU", "GENERIC")
 
 
 def resolve_auto_backend():
     # mirrors the CMake AUTO probe: OPTIX > METAL > VULKAN > WEBGPU > GENERIC
-    if sys.platform != "win32" and _cuda_available():
+    if sys.platform != "win32" and cuda_available():
         return "OPTIX"
     if sys.platform == "darwin":
         return "METAL"
@@ -47,5 +47,5 @@ def load_core():
     return jit.core(component())
 
 
-def ensure_renderer_library(config):
-    return jit.ensure(component(), config)
+def load_renderer(config):
+    return jit.module(component(), config)
