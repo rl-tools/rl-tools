@@ -43,13 +43,13 @@ def config_from_environment():
         xdg_cache_home = os.environ.get("XDG_CACHE_HOME", "")
         home = os.environ.get("HOME", "")
         if xdg_cache_home:
-            config.cache = str(Path(xdg_cache_home) / "rl_tools" / "conta")
+            config.cache = str(Path(xdg_cache_home) / "conta")
         elif home:
-            config.cache = str(Path(home) / ".cache" / "rl_tools" / "conta")
+            config.cache = str(Path(home) / ".cache" / "conta")
         elif os.name == "nt":
             local_app_data = os.environ.get("LOCALAPPDATA", "")
             if local_app_data:
-                config.cache = str(Path(local_app_data) / "rl_tools" / "conta")
+                config.cache = str(Path(local_app_data) / "conta")
     config.url_base = os.environ.get("CONTA_URL", "") or DEFAULT_URL_BASE
     if not config.url_base.endswith("/"):
         config.url_base += "/"

@@ -129,9 +129,9 @@ def test_default_cache_path_parity(monkeypatch, tmp_path):
     for variable in ("CONTA_ROOT", "CONTA_CACHE", "CONTA_URL", "XDG_CACHE_HOME"):
         monkeypatch.delenv(variable, raising=False)
     monkeypatch.setenv("HOME", str(tmp_path))
-    assert conta.config_from_environment().cache == str(tmp_path / ".cache" / "rl_tools" / "conta")
+    assert conta.config_from_environment().cache == str(tmp_path / ".cache" / "conta")
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "xdg"))
-    assert conta.config_from_environment().cache == str(tmp_path / "xdg" / "rl_tools" / "conta")
+    assert conta.config_from_environment().cache == str(tmp_path / "xdg" / "conta")
     monkeypatch.setenv("CONTA_CACHE", str(tmp_path / "explicit"))
     assert conta.config_from_environment().cache == str(tmp_path / "explicit")
     monkeypatch.setenv("CONTA_URL", "https://example.com/store")
@@ -177,6 +177,18 @@ def test_cache_interop_cpp_to_python(tmp_path):
     path = conta.resolve(ABC_SHA1, config(tmp_path))
     assert path == Path(result.stdout.strip())
     assert conta.sha1_file(path) == ABC_SHA1
+
+
+def test_default_cache_path_cpp(tmp_path):
+    cli = conta_cli()
+    store = tmp_path / "store"
+    write_store_blob(store, ABC_SHA1, b"abc")
+    environment = {key: value for key, value in os.environ.items() if not key.startswith("CONTA_") and key != "XDG_CACHE_HOME"}
+    environment["HOME"] = str(tmp_path)
+    environment["CONTA_URL"] = store.as_uri() + "/"
+    result = subprocess.run([str(cli), ABC_SHA1], capture_output=True, text=True, env=environment)
+    assert result.returncode == 0, result.stderr
+    assert Path(result.stdout.strip()) == tmp_path / ".cache" / "conta" / ABC_SHA1
 
 
 def test_network_download(tmp_path):
