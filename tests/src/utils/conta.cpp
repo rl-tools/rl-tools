@@ -54,7 +54,6 @@ namespace{
         conta::Config config;
         config.cache = (scratch / "cache").string();
         config.entry_points = entry_points;
-        config.fallback_url_base = "";
         return config;
     }
 }
@@ -297,7 +296,7 @@ TEST(UTILS_CONTA, ENTRY_SHA256_IS_VERIFIED){
     ASSERT_FALSE(std::filesystem::exists(scratch / "cache" / ABC_SHA1));
 }
 
-TEST(UTILS_CONTA, FALLBACK_FOR_UNINDEXED){
+TEST(UTILS_CONTA, UNINDEXED_REPORT){
     std::filesystem::path scratch = scratch_directory();
     write_file(scratch / "store" / ABC_SHA1, "abc");
     std::string meta_url = publish(scratch / "site", index_text(local_shard(scratch / "store"), ""));
@@ -306,8 +305,6 @@ TEST(UTILS_CONTA, FALLBACK_FOR_UNINDEXED){
     ASSERT_FALSE(conta::resolve(config, ABC_SHA1, path, error));
     ASSERT_NE(error.find("no reachable index lists"), std::string::npos) << error;
     ASSERT_NE(error.find(file_url(scratch / "site" / "version" / "1" / "generated" / "index.json") + ": does not list it"), std::string::npos) << error;
-    config.fallback_url_base = file_url(scratch / "store") + "/";
-    ASSERT_TRUE(conta::resolve(config, ABC_SHA1, path, error)) << error;
 }
 
 TEST(UTILS_CONTA, OLDER_INDEX_DOES_NOT_REPLACE_CACHE){
@@ -391,7 +388,7 @@ TEST(UTILS_CONTA, NETWORK_DOWNLOAD){
     std::filesystem::path scratch = scratch_directory();
     conta::Config config;
     config.cache = (scratch / "cache").string();
-    config.url_base = conta::DEFAULT_URL_BASE;
+    config.url_base = "https://huggingface.co/datasets/rl-tools/conta/resolve/main/data/";
     constexpr char BLOB[] = "a38b2994e7674f467fe81e86d2f21c45bfd965a0";
     std::string path, error;
     ASSERT_TRUE(conta::resolve(config, BLOB, path, error)) << error;

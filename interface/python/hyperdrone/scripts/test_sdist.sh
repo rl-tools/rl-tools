@@ -11,7 +11,7 @@ trap 'rm -rf "${WORK_DIR}"' EXIT
 python3 -m venv "${WORK_DIR}/venv"
 "${WORK_DIR}/venv/bin/pip" install -q build
 (cd "${PACKAGE_DIR}" && "${WORK_DIR}/venv/bin/python" -m build --sdist -o "${WORK_DIR}/dist")
-"${WORK_DIR}/venv/bin/pip" install -q "${WORK_DIR}"/dist/hyperdrone-*.tar.gz numpy nanobind
+"${WORK_DIR}/venv/bin/pip" install -q "${PACKAGE_DIR}/../conta" "${WORK_DIR}"/dist/hyperdrone-*.tar.gz numpy nanobind
 
 cd /
 env -u HYPERDRONE_RLTOOLS_ROOT \

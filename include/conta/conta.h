@@ -2,7 +2,7 @@
 #define CONTA_CONTA_H
 // conta: client for the sha1 content-addressed asset store; index contract: https://github.com/rl-tools/conta-index (format 1)
 // Freestanding, C++17, STL-only; downloads via the curl CLI.
-// A sha1 resolves from <cache>/<sha1>, then the cached index, then the index entry points, then DEFAULT_URL_BASE<sha1>; downloads are verified against the sha1 and the sha256 the index lists.
+// A sha1 resolves from <cache>/<sha1>, then the cached index, then the index entry points; downloads are verified against the sha1 and the sha256 the index lists.
 // CONTA_ROOT: read-only store (<root>/data/<sha1>), disables the network. CONTA_URL: fetch <url>/<sha1> directly, without the index. CONTA_CACHE: writable cache directory.
 
 #include <algorithm>
@@ -29,7 +29,6 @@
 #endif
 
 namespace conta{
-    constexpr const char* DEFAULT_URL_BASE = "https://huggingface.co/datasets/rl-tools/conta/resolve/main/data/";
     constexpr const char* CACHED_INDEX_NAME = "index-1.json";
     inline std::vector<std::string> default_entry_points(){
         return {
@@ -43,7 +42,6 @@ namespace conta{
         std::string cache;
         std::string url_base;
         std::vector<std::string> entry_points = default_entry_points();
-        std::string fallback_url_base = DEFAULT_URL_BASE;
     };
     namespace detail{
         template <std::size_t T_WORDS>
@@ -1078,18 +1076,6 @@ namespace conta{
                 if(visit_entry_point(config, session, sha1, target, report)){
                     path_output = target.string();
                     return true;
-                }
-            }
-            if(!config.fallback_url_base.empty()){
-                std::string url = config.fallback_url_base + sha1;
-                if(session.attempted_urls.insert(url).second){
-                    const Entry* entry = find_entry(session, sha1);
-                    std::string failure;
-                    if(fetch_blob(url, sha1, entry != nullptr ? entry->sha256 : std::string(), entry != nullptr ? entry->description : std::string(), target, failure)){
-                        path_output = target.string();
-                        return true;
-                    }
-                    report.push_back(url + ": " + failure);
                 }
             }
             error_output = failure_message(session, sha1, report);

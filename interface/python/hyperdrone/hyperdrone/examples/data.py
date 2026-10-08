@@ -3,7 +3,9 @@
 import os
 from pathlib import Path
 
-from hyperdrone import conta, jit
+import conta
+
+from hyperdrone import jit
 
 
 PROCTHOR_SCENE = {"description": "ai2thor-hab/glb/ProcTHOR-Train-1.glb", "hash": "75d1d67a17ecd16bc3a214baa895240da8060df7"}

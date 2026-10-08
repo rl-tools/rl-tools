@@ -21,7 +21,9 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from .. import conta, jit
+import conta
+
+from .. import jit
 
 PRESETS = {"crazyflie": 0, "x500_fpv": 1, "x500_fpv_imu": 2}
 SELF_VISIBLE_PRESETS = ("x500_fpv", "x500_fpv_imu")
