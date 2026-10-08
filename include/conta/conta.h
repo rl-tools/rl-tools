@@ -1137,16 +1137,16 @@ namespace conta{
             const char* xdg_cache_home = std::getenv("XDG_CACHE_HOME");
             const char* home = std::getenv("HOME");
             if(xdg_cache_home != nullptr && xdg_cache_home[0] != '\0'){
-                config.cache = (std::filesystem::path(xdg_cache_home) / "rl_tools" / "conta").string();
+                config.cache = (std::filesystem::path(xdg_cache_home) / "conta").string();
             }
             else if(home != nullptr && home[0] != '\0'){
-                config.cache = (std::filesystem::path(home) / ".cache" / "rl_tools" / "conta").string();
+                config.cache = (std::filesystem::path(home) / ".cache" / "conta").string();
             }
 #if defined(_WIN32)
             else{
                 const char* local_app_data = std::getenv("LOCALAPPDATA");
                 if(local_app_data != nullptr && local_app_data[0] != '\0'){
-                    config.cache = (std::filesystem::path(local_app_data) / "rl_tools" / "conta").string();
+                    config.cache = (std::filesystem::path(local_app_data) / "conta").string();
                 }
             }
 #endif
