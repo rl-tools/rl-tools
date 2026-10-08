@@ -94,6 +94,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, EFFECTIVE_ROTOR_PHASES_WITH_MOT
     for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
         state.rotor_phase[rotor_i] = (T)0.3 * (T)(rotor_i + 1);
         state.rpm[rotor_i] = (T)60 * (T)(rotor_i + 1);
+        parameters.dynamics.dynamics.rotor_torque_directions[rotor_i][2] = rotor_i % 2 == 0 ? (T)-1 : (T)1;
     }
     rlt::rl::environments::hyperdrone::DronePose<BLUR_SPEC> pose;
     rlt::make_drone_pose(device, parameters, state, pose);
@@ -102,9 +103,10 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, EFFECTIVE_ROTOR_PHASES_WITH_MOT
     const TI quadrant_to_rotor[4] = {1, 0, 2, 3};
     for(TI quadrant = 0; quadrant < 4; quadrant++){
         const TI rotor_i = quadrant_to_rotor[quadrant];
-        EXPECT_EQ(pose.phase_close[quadrant], state.rotor_phase[rotor_i]);
+        const T spin = rotor_i % 2 == 0 ? (T)1 : (T)-1;
+        EXPECT_EQ(pose.phase_close[quadrant], spin * state.rotor_phase[rotor_i]);
         const T swept = (T)(rotor_i + 1) * (T)2 * rlt::math::PI<T> * parameters.dynamics.integration.dt * parameters.shutter_fraction;
-        EXPECT_NEAR(pose.phase_open[quadrant], state.rotor_phase[rotor_i] - swept, 1e-6);
+        EXPECT_NEAR(pose.phase_open[quadrant], spin * (state.rotor_phase[rotor_i] - swept), 1e-6);
     }
     for(TI axis = 0; axis < 3; axis++){
         std::swap(parameters.dynamics.dynamics.rotor_positions[0][axis], parameters.dynamics.dynamics.rotor_positions[2][axis]);
@@ -113,6 +115,16 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, EFFECTIVE_ROTOR_PHASES_WITH_MOT
     ASSERT_TRUE(pose.valid);
     EXPECT_EQ(pose.phase_close[1], state.rotor_phase[2]);
     EXPECT_EQ(pose.phase_close[2], state.rotor_phase[0]);
+    const T phase_open = pose.phase_open[2];
+    parameters.dynamics.dynamics.rotor_torque_directions[0][2] = 1;
+    rlt::make_drone_pose(device, parameters, state, pose);
+    ASSERT_TRUE(pose.valid);
+    EXPECT_EQ(pose.phase_close[2], -state.rotor_phase[0]);
+    EXPECT_EQ(pose.phase_open[2], -phase_open);
+    parameters.dynamics.dynamics.rotor_torque_directions[0][2] = 0;
+    rlt::make_drone_pose(device, parameters, state, pose);
+    EXPECT_FALSE(pose.valid);
+    parameters.dynamics.dynamics.rotor_torque_directions[0][2] = -1;
     parameters.dynamics.dynamics.rotor_positions[0][0] = 0;
     rlt::make_drone_pose(device, parameters, state, pose);
     EXPECT_FALSE(pose.valid);
@@ -175,6 +187,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, VARIABLE_ASSEMBLIES_PRESERVE_WR
     rlt::rl::environments::hyperdrone::DronePose<BLUR_SPEC> poses[BLUR_SPEC::N_AGENTS];
     for(TI asset_i : {1, 0, 1, 0}){
         parameters.drone = asset_i;
+        parameters.dynamics.dynamics.rotor_torque_directions[0][2] = asset_i == 0 ? (T)1 : (T)-1;
         for(TI agent_i = 0; agent_i < BLUR_SPEC::N_AGENTS; agent_i++){
             state.position[0] = (T)agent_i;
             rlt::make_drone_pose(device, parameters, state, poses[agent_i]);
@@ -193,6 +206,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, VARIABLE_ASSEMBLIES_PRESERVE_WR
             ASSERT_EQ(placement.num_parts, parts);
             const TI prop_slot = (TI)placement.first_slot + 1;
             EXPECT_NEAR(renderer.transforms_staging[prop_slot * 12], std::cos(state.rotor_phase[0]), 1e-6);
+            const T spin = asset_i == 0 ? (T)-1 : (T)1;
+            EXPECT_NEAR(renderer.transforms_staging[prop_slot * 12 + 4], spin * std::sin(state.rotor_phase[0]), 1e-6);
             const TI last_sample = BLUR_SPEC::MOTION_BLUR_SAMPLES - 1;
             EXPECT_NE(renderer.transforms_motion_staging[prop_slot * 12], renderer.transforms_motion_staging[(last_sample * BLUR_SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE + prop_slot) * 12]);
         }

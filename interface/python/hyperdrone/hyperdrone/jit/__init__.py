@@ -97,6 +97,10 @@ def core(component):
                 f"'{variant}'; one process can use only one {component.name} variant"
             )
         return module
+    directory = build_dir(component)
+    if (directory / "CMakeCache.txt").exists() and not sorted(directory.glob(f"{component.core_target}*.so")):
+        # a core target added since this workspace was configured exists only after a reconfigure
+        _build.reconfigure(component)
     directory = _build.build_target(component, component.core_target)
     matches = sorted(directory.glob(f"{component.core_target}*.so"))
     if not matches:

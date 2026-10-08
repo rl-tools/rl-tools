@@ -184,3 +184,18 @@ def test_cpu_cuda_consistency():
     cuda_position = np.array(results["cuda"]["position"])
     assert np.allclose(cpu_position, cuda_position, atol=1e-3), (cpu_position, cuda_position)
     assert np.allclose(np.array(results["cpu"]["orientation"]), np.array(results["cuda"]["orientation"]), atol=1e-3)
+
+
+def test_model_parameters(sim):
+    parameters = sim.model_parameters()
+    assert np.asarray(parameters["rotor_positions"]).shape == (4, 3)
+    assert np.asarray(parameters["rotor_torque_directions"]).shape == (4, 3)
+    assert parameters["mass"] > 0
+    sim.set_model("x500")
+    try:
+        x500 = sim.model_parameters()
+        arm = 0.176776695296636
+        np.testing.assert_allclose(x500["rotor_positions"], [[arm, -arm, 0], [-arm, -arm, 0], [-arm, arm, 0], [arm, arm, 0]], atol=1e-6)
+        np.testing.assert_allclose(np.asarray(x500["rotor_torque_directions"])[:, 2], [-1, 1, -1, 1])
+    finally:
+        sim.set_model("crazyflie")
