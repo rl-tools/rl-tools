@@ -9,10 +9,12 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::hyperdrone::rig {
     // the body/prop_* assembly convention as a rendering rig: link 0 is the assembly frame (fixed
-    // at identity), each prop_* part a revolute link about its part-local AABB centre with the spin
-    // direction of its pivot quadrant (X configuration) baked into the axis sign, every other part
-    // rides link 0 at its rest frame; coordinate i is the phase of the i-th prop in part order.
-    // Pivots are AABB centres because node origins need not sit at the rotor hubs in real assets.
+    // at identity), each prop_* part a revolute link about its hub (the part's AABB centre, since
+    // node origins need not sit at the rotor hubs in real assets), every other part rides link 0 at
+    // its rest frame. Built from the convention alone, coordinate i is the phase of the i-th prop
+    // in part order and the spin follows the Quad-X convention (front-right CCW) from the hub's
+    // quadrant; built against a dynamics model, coordinate i is the phase of rotor i (hubs matched
+    // to the nearest rotor) spinning against the rotor's reaction torque.
     template <typename T_TI, T_TI T_MAX_PROPS = 4, T_TI T_MAX_PARTS = 8>
     struct Rotorcraft: rendering::rig::Model<rendering::rig::Specification<float, T_TI, 1 + T_MAX_PROPS, T_MAX_PARTS>> {
         static constexpr T_TI MAX_PROPS = T_MAX_PROPS;

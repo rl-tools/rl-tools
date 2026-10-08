@@ -146,6 +146,7 @@ sim.state["position"]                 # zero-copy DLPack views, CUDA-resident on
 sim.state.numpy("position")           # host copy
 sim.observe()                         # (N, 18): position, rotation matrix, velocities
 sim.parameters["mass"] = masses       # per-drone runtime parameters (until the next reset)
+sim.model_parameters()                # the preset's nominal l2f dynamics: rotor layout, mass, J, ...
 
 cameras = sim.camera_bases(fov=100, aspect=renderer.aspect)
 renderer.set_cameras(cameras, stream=sim.stream)   # device-resident hand-off
@@ -194,7 +195,12 @@ list order and partitioned across environments; conta references (scenes, `drone
 cache, so a config pins the exact corpus on any machine. Configuration follows the C++
 extension ladder:
 `preset=` names the platform (`"crazyflie"`, `"x500_fpv"` — SELF_VISIBLE, pass a
-body/prop_* GLB via `drone_asset=` — and `"x500_fpv_imu"`, the same platform stepping at
+body/prop_* GLB via `drone_asset=`; `hyperdrone.env.Rotorcraft(assembly, rotor_positions=...,
+rotor_torque_directions=...)` is the same rig as a `render.Rig` for manual composition: every
+`prop_*` part spins about its hub, and given the dynamics rotor layout (`sim.model_parameters()`)
+coordinate i is the phase of rotor i spinning against its reaction torque, so `sim.state["rpm"]`
+integrates straight into the coordinates; without rotors the props follow part order and the
+Quad-X convention, front-right CCW — and `"x500_fpv_imu"`, the same platform stepping at
 IMU rate), `task=` names the wrapper (`"target_frame"`, `"moving_gate"`,
 `"visual_inertial_localization"`), `n_agents=` enables multi-agent, and `EnvConfig(spec_header=...)` pins
 an arbitrary C++ specification (a header defining `hyperdrone_env_user::WORLD`, hashed
@@ -312,26 +318,33 @@ Objects, scenes, assemblies and pools expose `remap_segmentation_classes(mapping
 is the base pose) and joints `fixed`, `revolute` (radians about `axis`), `prismatic` (metres
 along `axis`) or `spherical` (wxyz quaternion). `rig.coordinate_slices` locates each link's
 coordinates, `rig.default_coordinates` is the neutral state. `Rig.from_assembly(assembly,
-joints={"prop_0": ("revolute", (0, 0, 1))})` builds one link per part at its rest frame and
+joints={"slider": ("prismatic", (0, 1, 0))})` builds one link per part at its rest frame and
 articulates parts by name; `load_assembly(path, part_nodes=[...])` keeps nested GLB nodes as
 independent parts (an enclosing node first) and records their parent for that. Procedural
-assets grow with `ObjectAssembly.add_part(object, transform)`.
+assets grow with `ObjectAssembly.add_part(object, transform)`. The drone rig the environment
+renders is `hyperdrone.env.Rotorcraft`, a `Rig` built from the body/prop_* convention (see the
+RL environment section).
 
 ```python
-poses = rig.evaluate(base_pose, joint_coordinates)           # float32 (num_parts, 3, 4), geometry-to-world
-renderer.set_transforms(overlay, placement, poses)
-samples, close = rig.sample(base_open, base_close, q_open, q_close, renderer.motion_blur_samples)
-renderer.set_motion_transforms(overlay, placement, samples, close)   # (samples, parts, 3, 4) + the shutter-close poses
+renderer.set_transform(overlay, placement, body, rig=rig, coordinates=phases)
+renderer.set_transform_pair(overlay, placement, body_open, body_close, rig=rig,
+                            coordinates_open=phases_open, coordinates_close=phases_close)
 renderer.update()
 renderer.render()
 ```
 
-`set_transform` and `set_transform_pair` keep moving a whole placement rigidly. Batches of
-identical assets, one per overlay, submit the whole tensor at once with
-`set_all_transforms(poses)` of shape `(num_overlays, max_overlay_instances, 3, 4)` (and
-`set_all_motion_transforms`); `rig.evaluate` accepts batched `(B, 3, 4)` bases for that. On
-OptiX every transform verb also takes CUDA tensors (`stream=` orders the copy after the
-producer), and `renderer.transforms_dlpack()` / `transforms_motion_dlpack()` expose the live
-input tensors for in-place producers ordered against `renderer.render_stream`; publish pending
-host writes with `update()` before writing them. `python -m hyperdrone.examples.articulation`
-renders a spinning hinge and a sliding block with motion blur.
+With a rig, the rigid verbs take the rig's base pose and joint coordinates (default: the
+neutral state) and place the parts at its geometry-to-world poses; the pair form samples the
+shutter (the base follows the constant-twist screw, the coordinates interpolate before the
+kinematics, so a revolute joint keeps every revolution). The same poses are available as
+arrays: `rig.evaluate(base, q)` is `(num_parts, 3, 4)` for `set_transforms`, `rig.sample(base_open,
+base_close, q_open, q_close, renderer.motion_blur_samples)` the `(samples, parts, 3, 4)` motion plus
+the shutter-close poses for `set_motion_transforms`. Batches of identical assets, one per
+overlay, submit the whole tensor at once with `set_all_transforms(poses)` of shape
+`(num_overlays, max_overlay_instances, 3, 4)` (and `set_all_motion_transforms`); `rig.evaluate`
+accepts batched `(B, 3, 4)` bases for that. On OptiX every transform verb also takes CUDA
+tensors (`stream=` orders the copy after the producer), and `renderer.transforms_dlpack()` /
+`transforms_motion_dlpack()` expose the live input tensors for in-place producers ordered
+against `renderer.render_stream`; publish pending host writes with `update()` before writing
+them. `python -m hyperdrone.examples.articulation` renders a spinning hinge and a sliding block
+with motion blur; `hyperdrone/examples/Custom.ipynb` flies the x500 with spinning props.

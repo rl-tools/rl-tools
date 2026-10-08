@@ -1,3 +1,5 @@
+import json
+
 import numpy as np
 
 from ._component import ensure_sim_library, load_core, resolve_device
@@ -128,6 +130,13 @@ class Sim:
         if not self._sim.set_model(model):
             raise ValueError(f"hyperdrone: unknown dynamics model {model}")
         self.model = model
+
+    def model_parameters(self):
+        """The nominal l2f dynamics of the model preset (rotor_positions, rotor_torque_directions,
+        thrust and torque constants, mass, J, ...): the schema of
+        MultiEnvironment.parameters["dynamics"]["dynamics"]. Runtime per-drone edits through
+        parameters[...] and domain randomization are not reflected."""
+        return json.loads(load_core(self.device).model_json(self.model))
 
     def reset(self, seed=0, sample_states=True, sample_parameters=False):
         """Deterministic given seed. Sampling runs on the host with the rl_tools CPU

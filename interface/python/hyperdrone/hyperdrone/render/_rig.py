@@ -45,33 +45,37 @@ class Rig:
             raise ValueError("parents must be a nonempty vector of integer link indices (-1 for the base)")
         if np.any(parents < -1) or np.any(parents >= len(parents)):
             raise ValueError("parent link index out of range")
-        self.num_links = len(parents)
-        joints = ["fixed"] * self.num_links if joints is None else [str(joint) for joint in joints]
-        if len(joints) != self.num_links:
+        num_links = len(parents)
+        joints = ["fixed"] * num_links if joints is None else [str(joint) for joint in joints]
+        if len(joints) != num_links:
             raise ValueError("joints must name one joint type per link")
         for joint in joints:
             if joint not in JOINT_SIZES:
                 raise ValueError(f"unknown joint type {joint!r}; expected one of {sorted(JOINT_SIZES)}")
-        axes = np.tile(np.array([0.0, 0.0, 1.0], dtype=np.float32), (self.num_links, 1)) if axes is None else np.ascontiguousarray(axes, dtype=np.float32)
-        if axes.shape != (self.num_links, 3):
-            raise ValueError(f"axes must have shape ({self.num_links}, 3)")
-        origins = _identities(self.num_links) if origins is None else _rows(origins, self.num_links, "origins")
-        part_links = np.arange(self.num_links) if part_links is None else np.asarray(part_links)
+        axes = np.tile(np.array([0.0, 0.0, 1.0], dtype=np.float32), (num_links, 1)) if axes is None else np.ascontiguousarray(axes, dtype=np.float32)
+        if axes.shape != (num_links, 3):
+            raise ValueError(f"axes must have shape ({num_links}, 3)")
+        origins = _identities(num_links) if origins is None else _rows(origins, num_links, "origins")
+        part_links = np.arange(num_links) if part_links is None else np.asarray(part_links)
         if part_links.ndim != 1 or not np.issubdtype(part_links.dtype, np.integer):
             raise ValueError("part_links must be a vector of integer link indices")
-        self.num_parts = len(part_links)
-        offsets = _identities(self.num_parts) if offsets is None else _rows(offsets, self.num_parts, "offsets")
-        self._model = load_core().RigModel(
+        offsets = _identities(len(part_links)) if offsets is None else _rows(offsets, len(part_links), "offsets")
+        self._bind(load_core().RigModel(
             np.ascontiguousarray(parents, dtype=np.int64), joints, axes, origins,
             np.ascontiguousarray(part_links, dtype=np.int64), offsets,
-        )
-        self.joints = tuple(joints)
-        self.num_coordinates = self._model.num_coordinates
+        ))
+
+    def _bind(self, model):
+        self._model = model
+        self.num_links = model.num_links
+        self.num_parts = model.num_parts
+        self.joints = tuple(model.joint_types)
+        self.num_coordinates = model.num_coordinates
         self.coordinate_slices = tuple(
-            slice(offset, offset + JOINT_SIZES[joint]) for offset, joint in zip(self._model.coordinate_offsets, joints)
+            slice(offset, offset + JOINT_SIZES[joint]) for offset, joint in zip(model.coordinate_offsets, self.joints)
         )
         self._default_coordinates = np.zeros(self.num_coordinates, dtype=np.float32)
-        for joint, coordinates in zip(joints, self.coordinate_slices):
+        for joint, coordinates in zip(self.joints, self.coordinate_slices):
             if joint == "spherical":
                 self._default_coordinates[coordinates.start] = 1
 
