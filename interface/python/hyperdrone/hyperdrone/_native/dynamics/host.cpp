@@ -1,11 +1,17 @@
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
+#include <nanobind/stl/optional.h>
 #include <nanobind/stl/string.h>
+
+#include <rl_tools/operations/cpu.h>
+#include <rl_tools/rl/environments/l2f/operations_cpu.h>
 
 #include "iface.h"
 #include "jit_host.h"
+#include "models.h"
 
 #include <cstring>
+#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -47,6 +53,19 @@ using HostFloatArray = nb::ndarray<const float, nb::c_contig, nb::device::cpu>;
 
 NB_MODULE(hyperdrone_dynamics_core, m){
     m.doc() = "hyperdrone dynamics core: JIT loader for the vectorized L2F multirotor simulator";
+
+    m.def("model_json", [](const std::string& name) -> std::optional<std::string> {
+        using DEVICE = rl_tools::devices::DefaultCPU;
+        using SPEC = rl_tools::rl::environments::l2f::Specification<float, typename DEVICE::index_t>;
+        using ENVIRONMENT = rl_tools::rl::environments::Multirotor<SPEC>;
+        typename ENVIRONMENT::Parameters::Dynamics dynamics;
+        if(!hyperdrone::model_by_name<SPEC>(name, dynamics)){
+            return std::nullopt;
+        }
+        DEVICE device;
+        ENVIRONMENT environment;
+        return rl_tools::json(device, environment, dynamics);
+    }, nb::arg("name"), "The l2f dynamics of a registry model as JSON (the schema of MultiEnvironment.parameters['dynamics']['dynamics']); None for an unknown name.");
 
     auto jit_sim_class = nb::class_<JitSim>(m, "JitSim");
     jit_sim_class

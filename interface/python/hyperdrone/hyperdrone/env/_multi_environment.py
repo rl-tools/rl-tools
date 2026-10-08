@@ -39,6 +39,7 @@ def component():
     return jit.Component(
         name="env",
         variant=resolved.lower(),
+        core_target="hyperdrone_env_core",
         needs_cuda=resolved == "OPTIX",
     )
 

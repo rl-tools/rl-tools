@@ -7,9 +7,11 @@ manual composition of the render and dynamics packages (no MDP), see
 examples/drone_flythrough.py.
 """
 from ._multi_environment import EnvConfig, MultiEnvironment, ObservationLayout
+from ._rotorcraft import Rotorcraft
 
 __all__ = [
     "EnvConfig",
     "MultiEnvironment",
     "ObservationLayout",
+    "Rotorcraft",
 ]

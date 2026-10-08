@@ -62,14 +62,20 @@ namespace rl_tools {
         if (!pose.valid) {
             return;
         }
-        // Quadrant-indexed phases follow effective rotor positions, including instance overrides.
+        // Signed quadrant phases follow effective rotor positions and reaction torques.
         if constexpr (rl::environments::hyperdrone::world::HasRotorPhase<STATE>::VALUE) {
             for (TI rotor_i = 0; rotor_i < 4; rotor_i++) {
                 const TI quadrant = quadrants[rotor_i];
-                pose.phase_close[quadrant] = state.rotor_phase[rotor_i];
+                const T torque = parameters.dynamics.dynamics.rotor_torque_directions[rotor_i][2];
+                if (torque == 0) {
+                    pose.valid = false;
+                    return;
+                }
+                const T spin = torque > 0 ? (T)-1 : (T)1;
+                pose.phase_close[quadrant] = spin * state.rotor_phase[rotor_i];
                 pose.phase_open[quadrant] = pose.phase_close[quadrant];
                 if constexpr (SPEC::ENABLE_MOTION_BLUR && SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE > 0) {
-                    pose.phase_open[quadrant] -= state.rpm[rotor_i] * (T)2 * math::PI<T> / (T)60 * parameters.dynamics.integration.dt * parameters.shutter_fraction;
+                    pose.phase_open[quadrant] -= spin * state.rpm[rotor_i] * (T)2 * math::PI<T> / (T)60 * parameters.dynamics.integration.dt * parameters.shutter_fraction;
                 }
             }
         }
@@ -185,6 +191,9 @@ namespace rl_tools {
                 }
                 TI quadrants[4];
                 utils::assert_exit(render_device, rotor_quadrants(render_device, drone.parameters.dynamics.dynamics.rotor_positions, quadrants), "hyperdrone::SharedContext: rotors must occupy four distinct XY quadrants");
+                for (TI rotor_i = 0; rotor_i < 4; rotor_i++) {
+                    utils::assert_exit(render_device, drone.parameters.dynamics.dynamics.rotor_torque_directions[rotor_i][2] != 0, "hyperdrone::SharedContext: rotor reaction torques must have a nonzero Z direction");
+                }
             }
         }
         shared.num_drones = num_drones;
@@ -493,7 +502,7 @@ namespace rl_tools {
         const TI drone_i = poses[0].drone;
         utils::assert_exit(render_device, drone_i < world.num_drones, "hyperdrone: drone index out of range");
         for (TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++) {
-            utils::assert_exit(render_device, poses[agent_i].valid && poses[agent_i].drone == drone_i, "hyperdrone: each instance needs four distinct rotor quadrants and one drone entry");
+            utils::assert_exit(render_device, poses[agent_i].valid && poses[agent_i].drone == drone_i, "hyperdrone: each instance needs valid rotor quadrants, reaction torques, and one drone entry");
         }
         const TI asset_i = world.shared->drone_asset[drone_i];
         const auto& asset = world.shared->drone_assets[asset_i];
@@ -518,8 +527,9 @@ namespace rl_tools {
             T phase_open[4], phase_close[4];
             for (TI prop_i = 0; prop_i < 4; prop_i++) {
                 const TI quadrant = asset.prop_quadrants[prop_i];
-                phase_open[prop_i] = pose.phase_open[quadrant];
-                phase_close[prop_i] = pose.phase_close[quadrant];
+                const T axis = (T)asset.rig.links[1 + prop_i].axis[2];
+                phase_open[prop_i] = axis * pose.phase_open[quadrant];
+                phase_close[prop_i] = axis * pose.phase_close[quadrant];
             }
             if constexpr (WORLD::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR) {
                 set_transform_pair(device, renderer, overlay, placements[agent_i], asset.rig, pose.body, pose.body, phase_open, phase_close);

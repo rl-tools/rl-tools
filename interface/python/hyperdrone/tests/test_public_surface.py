@@ -36,6 +36,7 @@ SURFACE = {
         "EnvConfig",
         "MultiEnvironment",
         "ObservationLayout",
+        "Rotorcraft",
     ],
 }
 

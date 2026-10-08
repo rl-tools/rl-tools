@@ -342,13 +342,34 @@ class Renderer:
     def despawn(self, overlay, placement):
         self._renderer.despawn(overlay, tuple(placement))
 
-    def set_transform(self, overlay, placement, transform):
-        """Move a placement rigidly: every part at transform composed with its asset rest frame."""
-        self._renderer.set_transform(overlay, tuple(placement), _as_transform(transform))
+    def set_transform(self, overlay, placement, transform, *, rig=None, coordinates=None):
+        """Move a placement rigidly: every part at transform composed with its asset rest frame.
+        With a rig, transform is its base pose and coordinates its joint state (default: the
+        neutral state), and the parts land at the rig's geometry-to-world poses."""
+        if rig is None:
+            if coordinates is not None:
+                raise ValueError("coordinates articulate a rig: pass rig=")
+            self._renderer.set_transform(overlay, tuple(placement), _as_transform(transform))
+            return
+        self.set_transforms(overlay, placement, rig.evaluate(transform, coordinates))
 
-    def set_transform_pair(self, overlay, placement, open_transform, close_transform):
-        """Rigid shutter-open/close move, interpolated into the motion samples (dynamic_motion_blur=True)."""
-        self._renderer.set_transform_pair(overlay, tuple(placement), _as_transform(open_transform), _as_transform(close_transform))
+    def set_transform_pair(self, overlay, placement, open_transform, close_transform, *, rig=None, coordinates_open=None, coordinates_close=None):
+        """Rigid shutter-open/close move, interpolated into the motion samples (dynamic_motion_blur=True).
+        With a rig, the transforms are its base poses and the coordinates its joint states at
+        the shutter ends (default: the neutral state): the base follows the constant-twist screw,
+        the coordinates interpolate before the kinematics, so a revolute joint keeps every
+        revolution in between."""
+        if rig is None:
+            if coordinates_open is not None or coordinates_close is not None:
+                raise ValueError("coordinates articulate a rig: pass rig=")
+            self._renderer.set_transform_pair(overlay, tuple(placement), _as_transform(open_transform), _as_transform(close_transform))
+            return
+        if coordinates_open is None:
+            coordinates_open = rig.default_coordinates
+        if coordinates_close is None:
+            coordinates_close = rig.default_coordinates
+        samples, close = rig.sample(open_transform, close_transform, coordinates_open, coordinates_close, self.motion_blur_samples)
+        self.set_motion_transforms(overlay, placement, samples, close)
 
     def _require_device_inputs(self, name):
         if not hasattr(self._renderer, name):
