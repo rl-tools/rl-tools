@@ -33,7 +33,8 @@ namespace{
         return text;
     }
     std::string file_url(const std::filesystem::path& path){
-        return "file://" + path.string();
+        std::string generic = path.generic_string();
+        return generic.front() == '/' ? "file://" + generic : "file:///" + generic;
     }
     std::string entry(const std::string& sha1, const std::string& sha256, const std::string& shards = "\"local\""){
         return "{\"sha1\": \"" + sha1 + "\", \"sha256\": \"" + sha256 + "\", \"shards\": [" + shards + "], \"description\": \"test blob\"}";
@@ -145,7 +146,7 @@ TEST(UTILS_CONTA, DOWNLOAD_FILE_URL){
     std::filesystem::path scratch = scratch_directory();
     conta::Config config;
     config.cache = (scratch / "cache").string();
-    config.url_base = "file://" + (scratch / "store").string() + "/";
+    config.url_base = file_url(scratch / "store") + "/";
     write_file(scratch / "store" / ABC_SHA1, "abc");
     std::string path, error;
     ASSERT_TRUE(conta::resolve(config, ABC_SHA1, path, error)) << error;
@@ -159,7 +160,7 @@ TEST(UTILS_CONTA, DOWNLOAD_HASH_MISMATCH){
     std::filesystem::path scratch = scratch_directory();
     conta::Config config;
     config.cache = (scratch / "cache").string();
-    config.url_base = "file://" + (scratch / "store").string() + "/";
+    config.url_base = file_url(scratch / "store") + "/";
     write_file(scratch / "store" / ABC_SHA1, "not abc");
     std::string path, error;
     ASSERT_FALSE(conta::resolve(config, ABC_SHA1, path, error));
@@ -171,7 +172,7 @@ TEST(UTILS_CONTA, BATCH_ALL_OR_NOTHING){
     std::filesystem::path scratch = scratch_directory();
     conta::Config config;
     config.cache = (scratch / "cache").string();
-    config.url_base = "file://" + (scratch / "store").string() + "/";
+    config.url_base = file_url(scratch / "store") + "/";
     write_file(scratch / "store" / ABC_SHA1, "abc");
     std::vector<std::string> hashes = {ABC_SHA1, EMPTY_SHA1};
     std::vector<std::string> paths;
@@ -361,6 +362,44 @@ TEST(UTILS_CONTA, BATCH_THROUGH_INDEX){
     std::string error;
     ASSERT_TRUE(conta::resolve(config, std::vector<std::string>{ABC_SHA1, std::string("conta:") + HELLO_SHA1}, paths, error)) << error;
     ASSERT_EQ(paths, (std::vector<std::string>{(scratch / "cache" / ABC_SHA1).string(), (scratch / "cache" / HELLO_SHA1).string()}));
+}
+
+TEST(UTILS_CONTA, DEFAULT_CACHE_DIRECTORY){
+    std::filesystem::path scratch = scratch_directory();
+    const char* names[] = {"CONTA_CACHE", "XDG_CACHE_HOME", "HOME", "LOCALAPPDATA"};
+    std::vector<std::pair<std::string, bool>> saved;
+    for(const char* name: names){
+        const char* value = std::getenv(name);
+        saved.emplace_back(value != nullptr ? value : "", value != nullptr);
+    }
+    auto set = [](const char* name, const std::string& value){
+#if defined(_WIN32)
+        _putenv_s(name, value.c_str());
+#else
+        if(value.empty()){
+            unsetenv(name);
+        }
+        else{
+            setenv(name, value.c_str(), 1);
+        }
+#endif
+    };
+    set("CONTA_CACHE", "");
+    set("XDG_CACHE_HOME", (scratch / "xdg").string());
+    set("HOME", scratch.string());
+    set("LOCALAPPDATA", (scratch / "local").string());
+#if defined(_WIN32)
+    EXPECT_EQ(conta::config_from_environment().cache, (scratch / "local" / "conta").string());
+#else
+    EXPECT_EQ(conta::config_from_environment().cache, (scratch / "xdg" / "conta").string());
+    set("XDG_CACHE_HOME", "");
+    EXPECT_EQ(conta::config_from_environment().cache, (scratch / ".cache" / "conta").string());
+#endif
+    set("CONTA_CACHE", (scratch / "explicit").string());
+    EXPECT_EQ(conta::config_from_environment().cache, (scratch / "explicit").string());
+    for(std::size_t name_i = 0; name_i < saved.size(); name_i++){
+        set(names[name_i], saved[name_i].second ? saved[name_i].first : std::string());
+    }
 }
 
 TEST(UTILS_CONTA, NETWORK_INDEX){
