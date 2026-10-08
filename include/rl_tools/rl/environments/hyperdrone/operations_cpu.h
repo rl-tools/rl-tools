@@ -95,8 +95,10 @@ namespace rl_tools {
             rendering::raytracing::ObjectAssembly assembly;
             bool loaded = load<typename SPEC::SHADING, SPEC::OUTPUT_RGB>(render_device, assembly, world.drone_asset_path);
             utils::assert_exit(device, loaded, "hyperdrone::World: failed to load the drone assembly");
-            bool rig_ok = init(render_device, world.drone_rig, assembly);
-            utils::assert_exit(device, rig_ok, "hyperdrone::World: drone asset does not follow the body/prop_* convention");
+            const auto& rotors = world.parameters.dynamics.dynamics;
+            constexpr TI NUM_ROTORS = sizeof(rotors.rotor_positions) / sizeof(rotors.rotor_positions[0]);
+            bool rig_ok = init(render_device, world.drone_rig, assembly, rotors.rotor_positions, rotors.rotor_torque_directions, NUM_ROTORS);
+            utils::assert_exit(device, rig_ok, "hyperdrone::World: drone asset does not follow the body/prop_* convention or its prop hubs do not match the dynamics rotors");
             world.drone_entity_kind_index = (TI)world.entity_kinds.size();
             for (TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++) {
                 world.entity_kinds.push_back({drone_asset, (TI)assembly.parts.size(), 0});

@@ -85,7 +85,7 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   calls `sample` with the renderer's `transforms_motion()`/`transforms()` rows as its outputs.
   `init(device, model, assembly)` builds the all-fixed rig of an asset's rest frames (nested
   GLB parts recorded by the loader become joint origins), and the hyperdrone rotorcraft is one
-  such model built by its body/prop_* convention.
+  such model built by its body/prop_* convention, its props matched to the dynamics rotors.
 - **GPU-resident dynamic motion blur** (OptiX): a sim kernel writes the per-sample world poses
   into `transforms_motion()`, the shutter-close poses into `transforms()` and the camera pair in
   place, all on the render stream; the steady-state step is kernel → update → render with no

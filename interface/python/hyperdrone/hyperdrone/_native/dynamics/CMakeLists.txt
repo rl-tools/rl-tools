@@ -35,7 +35,7 @@ hyperdrone_jit_find_nanobind()
 
 nanobind_add_module(hyperdrone_dynamics_core host.cpp)
 target_include_directories(hyperdrone_dynamics_core PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../common)
-target_link_libraries(hyperdrone_dynamics_core PRIVATE ${CMAKE_DL_LIBS})
+target_link_libraries(hyperdrone_dynamics_core PRIVATE RLtools::RLtools ${CMAKE_DL_LIBS})
 set_target_properties(hyperdrone_dynamics_core PROPERTIES LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
 set(HYPERDRONE_DYNAMICS_EXTRA_LINK "")
