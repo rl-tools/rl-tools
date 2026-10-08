@@ -11,11 +11,11 @@ RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
 
     namespace rl::environments::hyperdrone::tasks::target_frame {
-        template <typename DEVICE, typename TASK_SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT void _sample_initial_parameters(DEVICE& device, typename World<TASK_SPEC>::NEXT_WORLD::DYNAMICS_ENV& dynamics, const typename World<TASK_SPEC>::NEXT_WORLD::Parameters& defaults, typename World<TASK_SPEC>::Parameters& parameters, RNG& rng){
+        template <typename DEVICE, typename TASK_SPEC, typename DRONE_SPEC, typename RNG>
+        RL_TOOLS_FUNCTION_PLACEMENT void _sample_initial_parameters(DEVICE& device, typename World<TASK_SPEC>::NEXT_WORLD::DYNAMICS_ENV& dynamics, const typename World<TASK_SPEC>::NEXT_WORLD::Parameters& defaults, Tensor<DRONE_SPEC>& drones, typename TASK_SPEC::TI num_drones, typename World<TASK_SPEC>::Parameters& parameters, RNG& rng){
             using T = typename TASK_SPEC::T;
             using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
-            hyperdrone::_sample_initial_parameters<DEVICE, typename NEXT_WORLD::SPEC>(device, dynamics, defaults, static_cast<typename NEXT_WORLD::Parameters&>(parameters), rng);
+            hyperdrone::_sample_initial_parameters<DEVICE, typename NEXT_WORLD::SPEC>(device, dynamics, defaults, drones, num_drones, static_cast<typename NEXT_WORLD::Parameters&>(parameters), rng);
             parameters.target_pose[0] = 0;
             parameters.target_pose[1] = 0;
             parameters.target_pose[2] = 0;
@@ -55,7 +55,7 @@ namespace rl_tools {
 
     template <typename DEVICE, typename TASK_SPEC, typename RNG>
     void sample_initial_parameters(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, typename rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>::Parameters& parameters, RNG& rng) {
-        rl::environments::hyperdrone::tasks::target_frame::_sample_initial_parameters<DEVICE, TASK_SPEC>(device, world.dynamics, world.parameters, parameters, rng);
+        rl::environments::hyperdrone::tasks::target_frame::_sample_initial_parameters<DEVICE, TASK_SPEC>(device, world.dynamics, world.parameters, world.drone_parameters, world.num_drones, parameters, rng);
     }
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename RESET_SPEC, typename RNG>
     void sample_initial_parameters(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {
@@ -87,22 +87,23 @@ namespace rl_tools {
             any_reset = any_reset || get(device, reset_mask, instance_i);
         }
         if (any_reset) {
+            auto& renderer = get_renderer(device, world);
             const T aspect = static_cast<T>(BASE_SPEC::CAM_WIDTH) / static_cast<T>(BASE_SPEC::CAM_HEIGHT);
             for (TI instance_i = 0; instance_i < INSTANCES; instance_i++) {
                 const auto& instance_parameters = get_ref(device, parameters, instance_i);
                 set(device, world.camera_staging_close, rl::environments::hyperdrone::make_target_camera<DEVICE, T>(device, instance_parameters.camera, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin, instance_parameters.target_roll, instance_parameters.target_pitch), instance_i);
             }
-            copy(device, world.renderer.device, world.camera_staging_close, cameras(device, world.renderer));
+            copy(device, renderer.device, world.camera_staging_close, cameras(device, renderer));
             if constexpr (BASE_SPEC::ENABLE_MOTION_BLUR) {
-                copy(device, world.renderer.device, world.camera_staging_close, cameras_open(device, world.renderer));
+                copy(device, renderer.device, world.camera_staging_close, cameras_open(device, renderer));
             }
-            render(device, world.renderer);
+            render(device, renderer);
             constexpr TI CAM_PIXELS = BASE_SPEC::CAM_WIDTH * BASE_SPEC::CAM_HEIGHT;
             std::vector<float> observation_staging(INSTANCES * CAM_PIXELS * 3);
             {
-                Tensor<tensor::Specification<float, TI, typename decltype(world.renderer.observation)::SPEC::SHAPE>> observation_alias;
+                Tensor<tensor::Specification<float, TI, typename decltype(renderer.observation)::SPEC::SHAPE>> observation_alias;
                 observation_alias._data = observation_staging.data();
-                copy(world.renderer.device, device, world.renderer.observation, observation_alias);
+                copy(renderer.device, device, renderer.observation, observation_alias);
             }
             std::vector<float> target_staging(INSTANCES * NEXT_WORLD::FRAME_DIM);
             {
@@ -216,10 +217,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame {
     void init(DEVICE& device, World<TASK_SPEC>& world, typename TASK_SPEC::NEXT_WORLD::SharedContext& shared, const DATASET& dataset, const typename DATASET::Corpus& corpus, typename TASK_SPEC::TI first_scene, typename TASK_SPEC::TI num_scenes, typename TASK_SPEC::TI member_index){
         ::rl_tools::init(device, world, shared, dataset, corpus, first_scene, num_scenes, member_index);
     }
-    template <typename DEVICE, typename TASK_SPEC>
-    void free(DEVICE& device, World<TASK_SPEC>& world){
-        ::rl_tools::free(device, world);
-    }
+    using rl_tools::free;
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

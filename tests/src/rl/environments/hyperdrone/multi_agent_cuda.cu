@@ -179,7 +179,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MULTI_AGENT_CUDA, AGENTS_STEP_SEE_AND_C
     typename WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);
     rlt::malloc(device_gpu, world);
-    world.drone_asset_path = DRONE_PATH;
+    shared.drones.push_back({DRONE_PATH, {}});
     rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
     rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
@@ -233,7 +233,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MULTI_AGENT_CUDA, AGENTS_STEP_SEE_AND_C
         std::vector<uint32_t> segmentation(NUM_CAMERAS * CAM_PIXELS);
         rlt::Tensor<rlt::tensor::Specification<uint32_t, TI, rlt::tensor::Shape<TI, NUM_CAMERAS, WORLD_SPEC::CAM_HEIGHT, WORLD_SPEC::CAM_WIDTH>>> alias;
         alias._data = segmentation.data();
-        rlt::copy(world.renderer.device, device, rlt::segmentation_buffer(device, world.renderer), alias);
+        auto& renderer = rlt::get_renderer(device, world);
+        rlt::copy(renderer.device, device, rlt::segmentation_buffer(device, renderer), alias);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
             const auto& other_placement = world.slots[0].entity_placements[instance_i * N_AGENTS + world.drone_entity_kind_index + 1];
             const uint32_t other_first = S + (uint32_t)(instance_i * MAX_SLOTS + other_placement.first_slot);

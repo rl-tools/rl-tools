@@ -15,6 +15,7 @@
 #include "../../../rendering/datasets/annotations/cache.h"
 
 #include <string>
+#include <type_traits>
 #include <vector>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -54,8 +55,11 @@ namespace rl_tools::rl::environments::hyperdrone {
         // this per-instance slot budget; 0 compiles the overlay machinery away (flying camera)
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE = 0;
         // attach the environment's own drone entity to its own cameras (FPV self-occlusion /
-        // external mounts); requires drone_asset_path (body/prop_* convention) set before init
+        // external mounts); every SharedContext::drones entry then needs a body/prop_* assembly
         static constexpr bool SELF_VISIBLE = false;
+        // capacity of the drone table (SharedContext::drones): every instance flies one entry,
+        // sampled uniformly at reset; the table is device-resident, hence the compile-time bound
+        static constexpr TI MAX_DRONES = 1;
     };
 
     namespace world {
@@ -105,8 +109,10 @@ namespace rl_tools::rl::environments::hyperdrone {
     struct Parameters {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
         using DYNAMICS_ENV = Multirotor<l2f::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::DYNAMICS_STATIC_PARAMETERS>>;
         typename DYNAMICS_ENV::Parameters dynamics = SPEC::DYNAMICS_STATIC_PARAMETERS::PARAMETER_VALUES;
+        TI drone = 0;  // the SharedContext::drones entry this instance flies, sampled at reset
         // scene-under-drone: the dynamics state stays near the origin; these place the drone's
         // frame inside the scene at camera-production time
         T scene_translation[3] = {0, 0, 0};
@@ -117,11 +123,70 @@ namespace rl_tools::rl::environments::hyperdrone {
         T shutter_fraction = 1;
     };
 
+    // a drone table entry: the assembly to render and the nominal the instance's parameters are
+    // sampled from. The dynamics are the full l2f parameter set because the l2f sampler copies
+    // its environment's nominal before randomizing on top of it
+    template <typename T_SPEC>
+    struct DroneParameters {
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using DYNAMICS_ENV = typename Parameters<SPEC>::DYNAMICS_ENV;
+        typename DYNAMICS_ENV::Parameters dynamics = SPEC::DYNAMICS_STATIC_PARAMETERS::PARAMETER_VALUES;
+        Camera<T> camera;
+    };
+    template <typename T_SPEC>
+    struct Drone {
+        std::string asset;  // body/prop_* assembly, a path or conta:HASH; required iff SELF_VISIBLE
+        DroneParameters<T_SPEC> parameters;
+    };
+    template <typename T_SPEC>
+    struct DroneAsset {
+        using TI = typename T_SPEC::TI;
+        rendering::raytracing::AssetHandle asset;
+        TI parts;
+        rig::Rotorcraft<TI, 4> rig;
+        TI prop_quadrants[4];
+    };
+    template <typename T_SPEC>
+    struct DronePose {
+        using SPEC = T_SPEC;
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        float body[12];
+        T phase_open[4];
+        T phase_close[4];
+        TI drone;
+        bool valid;
+    };
+
+    // owned by the caller (typically the MultiEnvironment) and shared by all its Worlds: the
+    // AssetLibrary, the pool-asset registry (entities, deduplicated by path, registered before
+    // any hot slot builds) and the drone table, built once by init(device, shared) from the
+    // entries registered before the first World init (none: that World registers its nominal
+    // as the single drone). Worlds borrow the immutable host catalog and own device nominals
+    template <typename T_SPEC>
+    struct SharedContext {
+        using SPEC = T_SPEC;
+        using TI = typename SPEC::TI;
+        using LIBRARY = rendering::raytracing::AssetLibrary<rendering::raytracing::Specification<world::RendererConfig<SPEC>>>;
+        using DRONE = hyperdrone::Drone<SPEC>;
+        LIBRARY library;
+        std::vector<std::string> pool_asset_paths;
+        std::vector<rendering::raytracing::AssetHandle> pool_asset_handles;
+        // opt-in: set the directory before init to persist and reuse free-space scans
+        rendering::datasets::annotations::Cache annotation_cache;
+        std::vector<Drone<SPEC>> drones;  // registered before the first World init
+        TI num_drones = 0;  // 0 until built
+        std::vector<DroneAsset<SPEC>> drone_assets;  // one per distinct assembly content (SELF_VISIBLE)
+        std::vector<TI> drone_asset;                 // [drone]: index into drone_assets
+    };
+
     template <typename T_SPEC>
     struct World: Environment<typename T_SPEC::T, typename T_SPEC::TI> {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
+        static_assert(SPEC::MAX_DRONES > 0, "MAX_DRONES must be positive");
         static_assert(!SPEC::SELF_VISIBLE || SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE > 0, "SELF_VISIBLE needs entity slots: set MAX_ENTITY_SLOTS_PER_INSTANCE");
         static_assert(SPEC::N_AGENTS == 1 || SPEC::SELF_VISIBLE, "multi-agent Worlds require SELF_VISIBLE: agents seeing each other needs geometry to see");
 
@@ -154,16 +219,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         using ANNOTATIONS_SPEC = rendering::datasets::annotations::FreeSpaceSpecification<T, TI>;
         using ANNOTATIONS = rendering::datasets::annotations::FreeSpace<ANNOTATIONS_SPEC>;
         using LIBRARY = rendering::raytracing::AssetLibrary<RENDERER_SPEC>;
-
-        struct SharedContext {
-            LIBRARY library;
-            // pool-asset registry (entities): deduplicated by path, registered into the shared
-            // library's pool before any hot slot builds
-            std::vector<std::string> pool_asset_paths;
-            std::vector<rendering::raytracing::AssetHandle> pool_asset_handles;
-            // opt-in: set the directory before init to persist and reuse free-space scans
-            rendering::datasets::annotations::Cache annotation_cache;
-        };
+        using SharedContext = hyperdrone::SharedContext<SPEC>;
 
         // a registered entity kind: (asset, parts, per-instance slot offset); registrations are
         // accumulated by wrapper init overloads before the innermost base init consumes them once
@@ -174,7 +230,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         };
 
         // hot slot: the scene build in the shared library plus this World's thin per-camera
-        // renderer state; every slot is initialized exactly once, rotation repoints the view.
+        // renderer state; every slot is initialized exactly once.
         // With entities enabled a slot also carries its overlay placements (spawned per slot at
         // slot init, in pinned instance-major/kind order)
         struct HotSlot {
@@ -183,9 +239,9 @@ namespace rl_tools::rl::environments::hyperdrone {
             rendering::SceneMetadata<T> metadata;
             TI corpus_index;
             std::vector<rendering::raytracing::OverlayPlacement> entity_placements;  // [instance * kinds + kind]
+            std::vector<TI> drone_spawned_asset;  // [instance]: the drone asset spawned in the instance's overlay group (SELF_VISIBLE)
         };
 
-        RENDERER renderer;                 // view of the active slot's renderer
         std::vector<HotSlot> slots;        // this World's partition of the dataset corpus
         std::vector<EntityKind> entity_kinds;  // frozen at init; empty when no wrapper registers any
         TI active_slot = 0;
@@ -214,16 +270,19 @@ namespace rl_tools::rl::environments::hyperdrone {
         bool render_pending = false;
         void* cuda_sync_event = nullptr;  // lazily created by the CUDA verbs (caller/render stream joins)
 
-        // the World's own drone entity (SELF_VISIBLE): asset path set before init, rig derived
-        // from the assembly, poses staged per render ([12 body | 4 phase_open | 4 phase_close])
-        std::string drone_asset_path;
-        rig::Rotorcraft<TI, 4> drone_rig;
+        const SharedContext* shared = nullptr;
+        using DRONE_PARAMETERS_SPEC = tensor::Specification<DroneParameters<SPEC>, TI, tensor::Shape<TI, SPEC::MAX_DRONES>>;
+        Tensor<DRONE_PARAMETERS_SPEC> drone_parameters;
+        TI num_drones = 0;
         TI drone_entity_kind_index = 0;
-        using DRONE_POSE_STAGING_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, INSTANCES * N_AGENTS, 20>>;
+        using DRONE_POSE = DronePose<SPEC>;
+        static_assert(std::is_trivially_copyable<DRONE_POSE>::value, "Drone poses cross device memory domains");
+        using DRONE_POSE_STAGING_SPEC = tensor::Specification<DRONE_POSE, TI, tensor::Shape<TI, INSTANCES * N_AGENTS>>;
         Tensor<DRONE_POSE_STAGING_SPEC> drone_pose_staging;
         void* cuda_drone_pose_staging = nullptr;  // pinned host mirror
 
-        // defaults for sampled parameters (fov/mount/brightness ranges are spec constants)
+        // defaults for sampled parameters (fov/mount/brightness ranges are spec constants); the
+        // dynamics and camera nominal is drone 0 after init
         Parameters parameters;
     };
 

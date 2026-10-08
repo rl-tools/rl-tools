@@ -160,6 +160,24 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, BODY_TRANSFORM){
     EXPECT_FLOAT_EQ(transform[1 * 4 + 0], 1);
 }
 
+// every rigged assembly of the test corpus follows the body/prop_* convention with four props
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_RIG, INIT_RIGGED_CORPUS){
+    if(DRONE_PATH.empty()){
+        GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
+    }
+    DEVICE device;
+    const std::string directory = DRONE_PATH.substr(0, DRONE_PATH.rfind('/'));
+    for(const char* name : {"arpl.glb", "crazyflie.glb", "crazyflie_brushless.glb", "soft.glb", "x500.glb"}){
+        rlt::rendering::raytracing::ObjectAssembly assembly;
+        ASSERT_TRUE((rlt::load<rlt::rendering::raytracing::High, true>(device, assembly, directory + "/" + name))) << name;
+        RIG rig;
+        ASSERT_TRUE(rlt::init(device, rig, assembly)) << name;
+        EXPECT_EQ(rig.num_links, 5) << name;
+        EXPECT_EQ(rig.num_coordinates, 4) << name;
+        EXPECT_EQ(rig.num_parts, 5) << name;
+    }
+}
+
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

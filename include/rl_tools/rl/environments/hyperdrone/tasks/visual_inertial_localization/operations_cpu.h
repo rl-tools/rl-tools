@@ -382,10 +382,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::visual_inertial_localiz
     void init(DEVICE& device, World<TASK_SPEC>& world, typename TASK_SPEC::NEXT_WORLD::SharedContext& shared, const DATASET& dataset, const typename DATASET::Corpus& corpus, typename TASK_SPEC::TI first_scene, typename TASK_SPEC::TI num_scenes, typename TASK_SPEC::TI member_index){
         ::rl_tools::init(device, world, shared, dataset, corpus, first_scene, num_scenes, member_index);
     }
-    template <typename DEVICE, typename TASK_SPEC>
-    void free(DEVICE& device, World<TASK_SPEC>& world){
-        ::rl_tools::free(device, world);
-    }
+    using rl_tools::free;
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

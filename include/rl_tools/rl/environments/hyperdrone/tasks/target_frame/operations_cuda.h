@@ -9,9 +9,19 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+    template <typename DEV_SPEC, typename TASK_SPEC>
+    void free(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world){
+        free<devices::CUDA<DEV_SPEC>, TASK_SPEC>(device, world);
+        if(world.cuda_reset_staging != nullptr){
+            cudaFreeHost(world.cuda_reset_staging);
+            world.cuda_reset_staging = nullptr;
+        }
+        check_status(device);
+    }
+
     namespace rl::environments::hyperdrone::tasks::target_frame::cuda{
-        template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename RESET_SPEC, typename RNG>
-        __global__ void sample_initial_parameters_kernel(DEVICE device, typename World<TASK_SPEC>::NEXT_WORLD::DYNAMICS_ENV dynamics, typename World<TASK_SPEC>::NEXT_WORLD::Parameters defaults, Tensor<PARAMETER_SPEC> parameters, const Tensor<RESET_SPEC> reset_mask, RNG rng){
+        template <typename DEVICE, typename TASK_SPEC, typename DRONE_SPEC, typename PARAMETER_SPEC, typename RESET_SPEC, typename RNG>
+        __global__ void sample_initial_parameters_kernel(DEVICE device, typename World<TASK_SPEC>::NEXT_WORLD::DYNAMICS_ENV dynamics, typename World<TASK_SPEC>::NEXT_WORLD::Parameters defaults, Tensor<DRONE_SPEC> drones, typename TASK_SPEC::TI num_drones, Tensor<PARAMETER_SPEC> parameters, const Tensor<RESET_SPEC> reset_mask, RNG rng){
             using TI = typename DEVICE::index_t;
             constexpr TI INSTANCES = World<TASK_SPEC>::INSTANCES;
             static_assert(RNG::NUM_RNGS >= INSTANCES, "Please increase the number of CUDA RNGs");
@@ -20,7 +30,7 @@ namespace rl_tools{
                 auto& rng_state = get(rng.states, 0, instance_i);
                 // qualified: ADL through the base-typed defaults argument would otherwise also
                 // consider the base helper and hard-instantiate the base World with TASK_SPEC
-                tasks::target_frame::_sample_initial_parameters<DEVICE, TASK_SPEC>(device, dynamics, defaults, get_ref(device, parameters, instance_i), rng_state);
+                tasks::target_frame::_sample_initial_parameters<DEVICE, TASK_SPEC>(device, dynamics, defaults, drones, num_drones, get_ref(device, parameters, instance_i), rng_state);
             }
         }
         template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC>
@@ -115,7 +125,7 @@ namespace rl_tools{
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES, BLOCKSIZE);
         devices::cuda::TAG<DEVICE, true> tag_device{};
         auto world_rng = rl::environments::hyperdrone::cuda::instance_rng(device, world, rng);
-        rl::environments::hyperdrone::tasks::target_frame::cuda::sample_initial_parameters_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, world.parameters, parameters, reset_mask, world_rng);
+        rl::environments::hyperdrone::tasks::target_frame::cuda::sample_initial_parameters_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, world.parameters, world.drone_parameters, world.num_drones, parameters, reset_mask, world_rng);
         check_status(device);
     }
     template <typename DEV_SPEC, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
@@ -144,25 +154,26 @@ namespace rl_tools{
             any_reset = any_reset || reset_staging[instance_i];
         }
         if(any_reset){
-            cudaStream_t render_stream = stream(device, world.renderer);
+            auto& renderer = get_renderer(device, world);
+            cudaStream_t render_stream = stream(device, renderer);
             rl::environments::hyperdrone::cuda::stream_barrier(world, device.stream, render_stream);
             devices::cuda::TAG<DEVICE, true> tag_device{};
             const T aspect = static_cast<T>(BASE_SPEC::CAM_WIDTH) / static_cast<T>(BASE_SPEC::CAM_HEIGHT);
             {
                 constexpr TI BLOCKSIZE = 32;
                 constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES, BLOCKSIZE);
-                auto* cameras_data = data(cameras(device, world.renderer));
+                auto* cameras_data = data(cameras(device, renderer));
                 auto* cameras_open_data = cameras_data;
                 if constexpr(BASE_SPEC::ENABLE_MOTION_BLUR){
-                    cameras_open_data = data(cameras_open(device, world.renderer));
+                    cameras_open_data = data(cameras_open(device, renderer));
                 }
                 rl::environments::hyperdrone::tasks::target_frame::cuda::target_camera_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, render_stream>>>(tag_device, parameters, cameras_data, cameras_open_data, aspect);
             }
-            render_launch(device, world.renderer);
+            render_launch(device, renderer);
             {
                 constexpr TI BLOCKSIZE = 256;
                 constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES * CAM_PIXELS, BLOCKSIZE);
-                rl::environments::hyperdrone::tasks::target_frame::cuda::target_scatter_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, render_stream>>>(tag_device, data(world.renderer.observation), data(world.target_frames), parameters, reset_mask);
+                rl::environments::hyperdrone::tasks::target_frame::cuda::target_scatter_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, render_stream>>>(tag_device, data(renderer.observation), data(world.target_frames), parameters, reset_mask);
             }
             check_status(device);
         }
@@ -187,7 +198,7 @@ namespace rl_tools{
             render(device, world, parameters, states, world.render_reset);
         }
         utils::assert_exit(device, world.history_step > 0, "hyperdrone::tasks::target_frame::observe: no frame available");
-        cudaStream_t render_stream = stream(device, world.renderer);
+        cudaStream_t render_stream = stream(device, get_renderer(device, world));
         devices::cuda::TAG<DEVICE, true> tag_device{};
         constexpr TI BLOCKSIZE = 256;
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(WORLD::INSTANCES * WORLD::OBSERVATION_DIM, BLOCKSIZE);
@@ -195,6 +206,12 @@ namespace rl_tools{
         rl::environments::hyperdrone::cuda::stream_barrier(world, render_stream, device.stream);
         check_status(device);
     }
+}
+RL_TOOLS_NAMESPACE_WRAPPER_END
+
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame {
+    using rl_tools::free;
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

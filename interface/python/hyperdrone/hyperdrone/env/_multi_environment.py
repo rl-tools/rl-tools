@@ -10,7 +10,7 @@ Configuration follows the C++ extension ladder: a preset names the platform
 universal knobs (instances, camera resolution, shading) complete the picture. Arbitrary
 C++ specifications are reached through `spec_header=`: a path to a C++ header defining
 `hyperdrone_env_user::WORLD` (including any rl_tools headers it needs); the header's
-content hash is part of the JIT key, and preset/task/n_agents must stay at their
+content hash is part of the JIT key, and preset/task/n_agents/max_drones must stay at their
 defaults since the user type supersedes them.
 """
 import copy
@@ -57,6 +57,7 @@ class EnvConfig:
     preset: str = "crazyflie"
     task: str = None
     n_agents: int = 1
+    max_drones: int = 1
     spec_header: str = None
 
     def __post_init__(self):
@@ -68,6 +69,8 @@ class EnvConfig:
             raise ValueError(f"hyperdrone: unknown shading {self.shading!r} (one of {sorted(_SHADING)})")
         if self.n_agents < 1:
             raise ValueError("hyperdrone: n_agents must be >= 1")
+        if self.max_drones < 1:
+            raise ValueError("hyperdrone: max_drones must be >= 1")
         if self.n_agents > 1 and self.preset not in SELF_VISIBLE_PRESETS:
             raise ValueError(
                 "hyperdrone: multi-agent needs a SELF_VISIBLE preset (agents seeing each "
@@ -83,19 +86,13 @@ class EnvConfig:
                 raise ValueError("hyperdrone: task 'visual_inertial_localization' is single-agent")
         if self.spec_header is not None:
             defaults = EnvConfig()
-            if (self.preset, self.task, self.n_agents) != (defaults.preset, defaults.task, defaults.n_agents):
+            if (self.preset, self.task, self.n_agents, self.max_drones) != (defaults.preset, defaults.task, defaults.n_agents, defaults.max_drones):
                 raise ValueError(
-                    "hyperdrone: spec_header supersedes preset/task/n_agents — leave them "
+                    "hyperdrone: spec_header supersedes preset/task/n_agents/max_drones — leave them "
                     "at their defaults; the user header pins the World"
                 )
             if not os.path.isfile(self.spec_header):
                 raise ValueError(f"hyperdrone: spec_header not found: {self.spec_header}")
-
-    @property
-    def self_visible(self):
-        """Whether the drone's own body is rendered into its cameras (needs drone_asset=);
-        the visual_inertial_localization benchmark flies without self-occlusion."""
-        return self.preset in SELF_VISIBLE_PRESETS and self.task != "visual_inertial_localization"
 
     def defines(self):
         values = {
@@ -108,6 +105,7 @@ class EnvConfig:
             "HYPERDRONE_ENV_PRESET": PRESETS[self.preset],
             "HYPERDRONE_ENV_TASK": TASKS[self.task],
             "HYPERDRONE_ENV_N_AGENTS": self.n_agents,
+            "HYPERDRONE_ENV_MAX_DRONES": self.max_drones,
         }
         if self.spec_header is not None:
             values["HYPERDRONE_ENV_SPEC_HEADER"] = os.path.abspath(self.spec_header)
@@ -205,11 +203,19 @@ class MultiEnvironment:
     scenes: a directory of .glb scenes (sorted corpus), or a reference / sequence of
     references — .glb paths, "conta:HASH" strings, or conta store manifest entries
     {"description": ..., "hash": ...}; a reference list is the corpus in list order.
-    drone_asset: body/prop_* GLB for SELF_VISIBLE presets (required when config.self_visible).
+    drones: the drone table every instance samples from uniformly at each reset, independently of
+    the scene its environment shows: a list of {"asset": <GLB reference or None>, "parameters":
+    {partial dict}}. The asset is the body/prop_* GLB rendered into the instance's cameras
+    (required per entry when the compiled world is SELF_VISIBLE, rejected otherwise); the parameters are merged
+    over the shared constructor base (see parameters) and may only touch what varies per drone: dynamics.dynamics
+    (a "model" key loads an l2f registry entry), dynamics.imu and camera. The same GLB may appear
+    in several entries; distinct GLBs load once. The table holds at most max_drones
+    entries. drone_asset=X is the one-entry table [{"asset": X}]; without either, the table is
+    the nominal drone.
     gate_asset: gate GLB for the moving_gate task (required for task='moving_gate').
-    Both assets accept conta references too.
+    All assets accept conta references too.
 
-    parameters: a partial dict in the schema of the parameters property, {"dynamics": <l2f parameters>, "camera": {"mount": {"pose": {"position", "orientation"}}, "fov"}}, merged over the preset's nominal values every instance is sampled from at reset (the specification's randomization ranges apply on top). parameters["dynamics"]["dynamics"]["model"] loads an l2f registry entry (hyperdrone.dynamics.MODELS) before the rest is merged, J_inv follows J unless given, the camera orientation is a (w, x, y, z) quaternion mapping the camera's FLU axes into the body frame, and fov is the horizontal FOV in degrees.
+    parameters: a partial dict in the schema of the parameters property, {"dynamics": <l2f parameters>, "camera": {"mount": {"pose": {"position", "orientation"}}, "fov"}}, merged over the preset's nominal values as the base of every drone entry (the specification's randomization ranges apply on top at reset). parameters["dynamics"]["dynamics"]["model"] loads an l2f registry entry (hyperdrone.dynamics.MODELS) before the rest is merged, J_inv follows J unless given, the camera orientation is a (w, x, y, z) quaternion mapping the camera's FLU axes into the body frame, and fov is the horizontal FOV in degrees.
 
     Tasks with an IMU stream (task='visual_inertial_localization') add observe_imu() — the
     IMU sample of the last step, named by observation_layout_imu — and render a camera frame
@@ -218,29 +224,58 @@ class MultiEnvironment:
     action_dim is 0 and step() takes no actions.
     """
 
-    def __init__(self, scenes, config=None, seed=0, drone_asset=None, gate_asset=None, parameters=None):
+    def __init__(self, scenes, config=None, seed=0, drone_asset=None, gate_asset=None, parameters=None, drones=None):
         self.config = config if config is not None else EnvConfig()
-        if self.config.self_visible and drone_asset is None:
-            raise ValueError(
-                f"hyperdrone: preset {self.config.preset!r} is SELF_VISIBLE and needs drone_asset= "
-                "(a body/prop_* GLB, e.g. an x500 assembly)"
-            )
+        if drones is not None and drone_asset is not None:
+            raise ValueError("hyperdrone: pass either drone_asset= (one drone) or drones= (the table)")
+        if drones is None:
+            drones = [{"asset": drone_asset}] if drone_asset is not None else [{}]
+        drones = [dict(entry) for entry in drones]
+        if not drones:
+            raise ValueError("hyperdrone: drones= needs at least one entry")
+        for entry in drones:
+            unknown = sorted(set(entry) - {"asset", "parameters"})
+            if unknown:
+                raise ValueError(f"hyperdrone: unknown drone entry keys {unknown} (asset, parameters)")
         if self.config.task == "moving_gate" and gate_asset is None:
             raise ValueError("hyperdrone: task 'moving_gate' needs gate_asset= (the gate GLB)")
-        scene_references = _normalize_scenes(scenes, self.config.num_environments)
-        drone_asset = _resolve_asset(drone_asset)
-        gate_asset = _resolve_asset(gate_asset)
         self._module = jit.module(component(), self.config)
         for name, value in self._module.dimensions.items():
             setattr(self, name, value)
+        if len(drones) > self.max_drones:
+            capacity_option = "MAX_DRONES in spec_header" if self.config.spec_header is not None else "EnvConfig(max_drones=...)"
+            raise ValueError(
+                f"hyperdrone: {len(drones)} drones but this configuration holds {self.max_drones}; "
+                f"raise {capacity_option}"
+            )
+        for entry in drones:
+            if self.self_visible and entry.get("asset") is None:
+                raise ValueError("hyperdrone: this SELF_VISIBLE world needs an asset per drone; pass drone_asset= or drones=")
+            if not self.self_visible and entry.get("asset") is not None:
+                raise ValueError("hyperdrone: drone assets need a SELF_VISIBLE world, nothing would render them")
+        scene_references = _normalize_scenes(scenes, self.num_environments)
+        drone_assets = [_resolve_asset(entry.get("asset")) for entry in drones]
+        gate_asset = _resolve_asset(gate_asset)
         self.observation_layout = ObservationLayout(**self._module.observation_layout)
         self.observation_layout_privileged = ObservationLayout(**self._module.observation_layout_privileged)
         self.observation_layout_imu = ObservationLayout(**self._module.observation_layout_imu) if self.observation_dim_imu > 0 else None
         self._environment = self._module.Environment()
-        self._environment.init(scene_references, drone_asset, gate_asset, seed)
+        nominal = self._resolve(json.loads(self._environment.parameters()), parameters or {})
+        drone_parameters = []
+        for entry in drones:
+            overrides = entry.get("parameters") or {}
+            self._check_per_drone(overrides)
+            drone_parameters.append(json.dumps(self._resolve(nominal, overrides)))
+        self._environment.init(scene_references, drone_assets, drone_parameters, gate_asset, seed)
         self._sampled = np.zeros(self.total_instances, dtype=bool)
-        if parameters is not None:
-            self._environment.set_parameters(json.dumps(self._resolve(self.parameters, parameters)))
+
+    @staticmethod
+    def _check_per_drone(overrides):
+        if "drone" in overrides:
+            raise ValueError("hyperdrone: drone is sampled at reset from the drones= table")
+        shared = sorted(set(overrides.get("dynamics", {})) - {"dynamics", "imu"})
+        if shared:
+            raise ValueError(f"hyperdrone: dynamics {shared} are shared by all instances; set them through parameters=")
 
     def _resolve(self, base, overrides):
         overrides = copy.deepcopy(overrides)
@@ -259,17 +294,22 @@ class MultiEnvironment:
 
     @property
     def parameters(self):
-        """The nominal parameters every instance is sampled from at reset (see the parameters argument)."""
+        """The resolved nominal parameters of drone 0, including its entry-specific overrides."""
         return json.loads(self._environment.parameters())
 
+    @property
+    def drones(self):
+        """The drone table every instance samples from at reset: one dict per entry with the resolved asset path and the nominal parameters; the "drone" value of instance_parameters() indexes it."""
+        return json.loads(self._environment.drones())
+
     def instance_parameters(self):
-        """The current parameters of every instance, as sampled at its last reset: a list of dicts in the schema of parameters."""
+        """The current parameters of every instance, as sampled at its last reset: a list of dicts in the schema of parameters plus "drone", the index of the table entry the instance flies."""
         if not self._sampled.all():
             raise RuntimeError("hyperdrone: per-instance parameters exist once every instance has been reset")
         return json.loads(self._environment.instance_parameters())
 
     def set_instance_parameters(self, overrides, mask=None):
-        """Merges overrides into the current parameters of the instances selected by mask (default: all) until each one's next reset. overrides is one dict for all selected instances or a list with one dict per selected instance (in instance order), in the schema of the parameters argument; only the drone itself varies per instance (dynamics.dynamics, dynamics.imu, camera), the rest is shared and set through parameters=."""
+        """Merges overrides into the current parameters of the instances selected by mask (default: all) until each one's next reset. overrides is one dict for all selected instances or a list with one dict per selected instance (in instance order), in the schema of the parameters argument; only the drone itself varies per instance (dynamics.dynamics, dynamics.imu, camera), the rest is shared and set through parameters=, and the rendered body follows the drone sampled at reset."""
         mask = self._mask(mask)
         selected = np.flatnonzero(mask)
         if isinstance(overrides, dict):
@@ -279,9 +319,7 @@ class MultiEnvironment:
         current = self.instance_parameters()
         merged = []
         for instance_i, instance_overrides in zip(selected, overrides):
-            shared = sorted(set(instance_overrides.get("dynamics", {})) - {"dynamics", "imu"})
-            if shared:
-                raise ValueError(f"hyperdrone: dynamics {shared} are shared by all instances; set them through parameters=")
+            self._check_per_drone(instance_overrides)
             merged.append(self._resolve(current[instance_i], instance_overrides))
         self._environment.set_instance_parameters(mask, json.dumps(merged))
 

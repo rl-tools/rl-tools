@@ -22,6 +22,59 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
 
+    template <typename DEVICE, typename SPEC>
+    auto& get_renderer(DEVICE&, rl::environments::hyperdrone::World<SPEC>& world) {
+        return world.slots[world.active_slot].renderer;
+    }
+
+    template <typename DEVICE, typename SPEC>
+    const auto& get_renderer(DEVICE&, const rl::environments::hyperdrone::World<SPEC>& world) {
+        return world.slots[world.active_slot].renderer;
+    }
+
+    template <typename DEVICE, typename T, typename TI>
+    RL_TOOLS_FUNCTION_PLACEMENT bool rotor_quadrants(DEVICE&, const T positions[4][3], TI quadrants[4]) {
+        unsigned occupied = 0;
+        for (unsigned rotor_i = 0; rotor_i < 4; rotor_i++) {
+            const T x = positions[rotor_i][0], y = positions[rotor_i][1];
+            if (!(x > 0 || x < 0) || !(y > 0 || y < 0)) {
+                return false;
+            }
+            const unsigned quadrant = (x > 0 ? 1 : 0) + (y > 0 ? 2 : 0);
+            if (occupied & (1u << quadrant)) {
+                return false;
+            }
+            occupied |= 1u << quadrant;
+            quadrants[rotor_i] = (TI)quadrant;
+        }
+        return true;
+    }
+
+    template <typename DEVICE, typename PARAMETERS, typename STATE, typename SPEC>
+    RL_TOOLS_FUNCTION_PLACEMENT void make_drone_pose(DEVICE& device, const PARAMETERS& parameters, const STATE& state, rl::environments::hyperdrone::DronePose<SPEC>& pose) {
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        pose = {};
+        pose.drone = parameters.drone;
+        rl::environments::hyperdrone::rig::make_body_transform(device, state.orientation, state.position, parameters.scene_translation, parameters.scene_yaw_cos, parameters.scene_yaw_sin, pose.body);
+        TI quadrants[4];
+        pose.valid = rotor_quadrants(device, parameters.dynamics.dynamics.rotor_positions, quadrants);
+        if (!pose.valid) {
+            return;
+        }
+        // Quadrant-indexed phases follow effective rotor positions, including instance overrides.
+        if constexpr (rl::environments::hyperdrone::world::HasRotorPhase<STATE>::VALUE) {
+            for (TI rotor_i = 0; rotor_i < 4; rotor_i++) {
+                const TI quadrant = quadrants[rotor_i];
+                pose.phase_close[quadrant] = state.rotor_phase[rotor_i];
+                pose.phase_open[quadrant] = pose.phase_close[quadrant];
+                if constexpr (SPEC::ENABLE_MOTION_BLUR && SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE > 0) {
+                    pose.phase_open[quadrant] -= state.rpm[rotor_i] * (T)2 * math::PI<T> / (T)60 * parameters.dynamics.integration.dt * parameters.shutter_fraction;
+                }
+            }
+        }
+    }
+
     namespace rl::environments::hyperdrone {
         // task wrappers extend the instance Parameters/State by derivation, so the World verbs
         // accept any element type derived from the base contract types
@@ -53,6 +106,10 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void malloc(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world) {
         malloc(device, world.dynamics);
+        malloc(device, world.drone_parameters);
+        if constexpr (SPEC::SELF_VISIBLE) {
+            malloc(device, world.drone_pose_staging);
+        }
     }
 
     // deduplicated (by path) registration of an entity asset into the shared library's pool;
@@ -74,9 +131,68 @@ namespace rl_tools {
         return handle;
     }
 
+    // Build the catalog before any renderer flattens the pool; registration order defines ids.
+    template <typename DEVICE, typename SPEC>
+    void init(DEVICE& device, rl::environments::hyperdrone::SharedContext<SPEC>& shared) {
+        using TI = typename SPEC::TI;
+        using SHARED = rl::environments::hyperdrone::SharedContext<SPEC>;
+        auto& render_device = get_rendering_device(device);
+        utils::assert_exit(render_device, shared.num_drones == 0, "hyperdrone::SharedContext: the drone table is built once");
+        utils::assert_exit(render_device, !shared.drones.empty(), "hyperdrone::SharedContext: register at least one drone");
+        utils::assert_exit(render_device, shared.drones.size() <= SPEC::MAX_DRONES, "hyperdrone::SharedContext: more drones than Specification::MAX_DRONES");
+        const TI num_drones = (TI)shared.drones.size();
+        shared.drone_asset.assign(num_drones, 0);
+        if constexpr (SPEC::SELF_VISIBLE) {
+            std::vector<std::string> content_hashes;
+            std::vector<std::string> resolved_paths(num_drones);
+            for (TI drone_i = 0; drone_i < num_drones; drone_i++) {
+                auto& drone = shared.drones[drone_i];
+                utils::assert_exit(render_device, !drone.asset.empty(), "hyperdrone::SharedContext: every drone needs an asset when SELF_VISIBLE");
+                auto& path = resolved_paths[drone_i];
+                utils::assert_exit(render_device, rendering::datasets::resolve_reference(render_device, drone.asset, path), "hyperdrone::SharedContext: failed to resolve the drone asset");
+                drone.asset = path;
+                TI previous = 0;
+                while (previous < drone_i && resolved_paths[previous] != path) {
+                    previous++;
+                }
+                if (previous < drone_i) {
+                    shared.drone_asset[drone_i] = shared.drone_asset[previous];
+                } else {
+                    std::string content_hash;
+                    utils::assert_exit(render_device, rendering::datasets::content_hash(render_device, path, content_hash), "hyperdrone::SharedContext: failed to hash the drone asset");
+                    TI asset_i = 0;
+                    while (asset_i < (TI)content_hashes.size() && content_hashes[asset_i] != content_hash) {
+                        asset_i++;
+                    }
+                    if (asset_i == (TI)content_hashes.size()) {
+                        rl::environments::hyperdrone::DroneAsset<SPEC> asset;
+                        asset.asset = register_pool_asset<decltype(render_device), SHARED, typename SPEC::SHADING, SPEC::OUTPUT_RGB>(render_device, shared, path);
+                        const auto& assembly = shared.library.pool.assemblies[asset.asset.index];
+                        asset.parts = (TI)assembly.parts.size();
+                        const bool rig_ok = init(render_device, asset.rig, assembly);
+                        utils::assert_exit(render_device, rig_ok && asset.rig.num_coordinates == 4, "hyperdrone::SharedContext: drone asset needs a body and four prop_* parts");
+                        float pivots[4][3];
+                        for (TI prop_i = 0; prop_i < 4; prop_i++) {
+                            for (TI axis = 0; axis < 3; axis++) {
+                                pivots[prop_i][axis] = asset.rig.links[1 + prop_i].origin[axis * 4 + 3];
+                            }
+                        }
+                        utils::assert_exit(render_device, rotor_quadrants(render_device, pivots, asset.prop_quadrants), "hyperdrone::SharedContext: props must occupy four distinct XY quadrants");
+                        shared.drone_assets.push_back(asset);
+                        content_hashes.push_back(content_hash);
+                    }
+                    shared.drone_asset[drone_i] = asset_i;
+                }
+                TI quadrants[4];
+                utils::assert_exit(render_device, rotor_quadrants(render_device, drone.parameters.dynamics.dynamics.rotor_positions, quadrants), "hyperdrone::SharedContext: rotors must occupy four distinct XY quadrants");
+            }
+        }
+        shared.num_drones = num_drones;
+    }
+
     // the shared AssetLibrary and SceneSet are owned by the caller (typically the
     // MultiEnvironment); each World builds one hot slot per scene of its partition, each
-    // initialized exactly once — rotation only repoints the renderer view
+    // initialized exactly once
     template <typename DEVICE, typename SPEC, typename DATASET>
     void init(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, typename rl::environments::hyperdrone::World<SPEC>::SharedContext& shared, const DATASET& dataset, const typename DATASET::Corpus& corpus, typename SPEC::TI first_scene, typename SPEC::TI num_scenes, typename SPEC::TI member_index) {
         using T = typename SPEC::T;
@@ -89,17 +205,41 @@ namespace rl_tools {
         world.history_step = 0;
         utils::assert_exit(device, num_scenes > 0, "hyperdrone::World: empty scene partition");
         utils::assert_exit(device, first_scene + num_scenes <= (TI)corpus.references.size(), "hyperdrone::World: scene partition out of range");
+        if (shared.num_drones == 0) {
+            if (shared.drones.empty()) {
+                // no registration: the first World's nominal is the single drone (no assembly)
+                shared.drones.push_back({"", {world.dynamics.parameters, world.parameters.camera}});
+            }
+            init(device, shared);
+        }
+        world.shared = &shared;
+        world.num_drones = shared.num_drones;
+        world.dynamics.parameters = shared.drones[0].parameters.dynamics;
+        world.parameters.camera = shared.drones[0].parameters.camera;
+        {
+            std::vector<rl::environments::hyperdrone::DroneParameters<SPEC>> drone_staging(SPEC::MAX_DRONES);
+            for (TI drone_i = 0; drone_i < world.num_drones; drone_i++) {
+                drone_staging[drone_i] = shared.drones[drone_i].parameters;
+            }
+            Tensor<typename WORLD::DRONE_PARAMETERS_SPEC> drone_alias;
+            drone_alias._data = drone_staging.data();
+            copy(render_device, device, drone_alias, world.drone_parameters);
+        }
         if constexpr (SPEC::SELF_VISIBLE) {
-            utils::assert_exit(device, !world.drone_asset_path.empty(), "hyperdrone::World: drone_asset_path must be set before init when SELF_VISIBLE");
-            auto drone_asset = register_pool_asset<decltype(render_device), typename WORLD::SharedContext, typename SPEC::SHADING, SPEC::OUTPUT_RGB>(render_device, shared, world.drone_asset_path);
-            rendering::raytracing::ObjectAssembly assembly;
-            bool loaded = load<typename SPEC::SHADING, SPEC::OUTPUT_RGB>(render_device, assembly, world.drone_asset_path);
-            utils::assert_exit(device, loaded, "hyperdrone::World: failed to load the drone assembly");
-            bool rig_ok = init(render_device, world.drone_rig, assembly);
-            utils::assert_exit(device, rig_ok, "hyperdrone::World: drone asset does not follow the body/prop_* convention");
+            TI wrapper_parts = 0;
+            for (const auto& kind : world.entity_kinds) {
+                wrapper_parts += kind.parts;
+            }
+            TI max_parts = 0;
+            for (const auto& asset : shared.drone_assets) {
+                max_parts = asset.parts > max_parts ? asset.parts : max_parts;
+            }
+            const TI required_slots = wrapper_parts + WORLD::N_AGENTS * max_parts;
+            const std::string slot_message = "hyperdrone::World: MAX_ENTITY_SLOTS_PER_INSTANCE must be at least " + std::to_string(required_slots) + " for the registered entities and the largest drone asset";
+            utils::assert_exit(render_device, required_slots <= SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE, slot_message.c_str());
             world.drone_entity_kind_index = (TI)world.entity_kinds.size();
             for (TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++) {
-                world.entity_kinds.push_back({drone_asset, (TI)assembly.parts.size(), 0});
+                world.entity_kinds.push_back({shared.drone_assets[0].asset, shared.drone_assets[0].parts, 0});
             }
         }
         world.slots.resize(num_scenes);
@@ -130,10 +270,12 @@ namespace rl_tools {
                         slot.entity_placements.push_back(spawn(render_device, slot.renderer, rendering::raytracing::OverlayIndex{instance_i}, kind.asset, identity));
                     }
                 }
+                if constexpr (SPEC::SELF_VISIBLE) {
+                    slot.drone_spawned_asset.assign(WORLD::INSTANCES, 0);
+                }
             }
         }
         world.active_slot = 0;
-        world.renderer = world.slots[0].renderer;
         malloc(device, world.history);
         malloc(device, world.prev_cameras);
         malloc(device, world.episode_start);
@@ -145,9 +287,6 @@ namespace rl_tools {
         set_all(device, world.episode_start, (TI)0);
         set_all(device, world.render_reset, false);
         world.render_pending = false;
-        if constexpr (SPEC::SELF_VISIBLE) {
-            malloc(device, world.drone_pose_staging);
-        }
         {
             Tensor<typename WORLD::ACTIVE_ANNOTATIONS_SPEC> annotations_alias;
             annotations_alias._data = &world.slots[0].annotations;
@@ -158,10 +297,11 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world) {
         auto& render_device = get_rendering_device(device);
+        if constexpr (SPEC::SELF_VISIBLE) {
+            free(device, world.drone_pose_staging);
+        }
+        free(device, world.drone_parameters);
         if (!world.slots.empty()) {
-            if constexpr (SPEC::SELF_VISIBLE) {
-                free(device, world.drone_pose_staging);
-            }
             free(device, world.history);
             free(device, world.prev_cameras);
             free(device, world.episode_start);
@@ -175,6 +315,8 @@ namespace rl_tools {
             free(render_device, slot.renderer);
         }
         world.slots.clear();
+        world.shared = nullptr;
+        world.num_drones = 0;
         free(device, world.dynamics);
     }
 
@@ -185,7 +327,6 @@ namespace rl_tools {
         auto& render_device = get_rendering_device(device);
         utils::assert_exit(device, slot_i < world.slots.size(), "hyperdrone::select_scene: slot out of range");
         world.active_slot = slot_i;
-        world.renderer = world.slots[world.active_slot].renderer;
         Tensor<typename WORLD::ACTIVE_ANNOTATIONS_SPEC> annotations_alias;
         annotations_alias._data = &world.slots[world.active_slot].annotations;
         copy(render_device, device, annotations_alias, world.active_annotations);
@@ -206,12 +347,23 @@ namespace rl_tools {
 
     namespace rl::environments::hyperdrone {
         // device-capable single-instance sampling shared by the CPU loop and the CUDA kernels
-        template <typename DEVICE, typename SPEC, typename RNG>
-        RL_TOOLS_FUNCTION_PLACEMENT void _sample_initial_parameters(DEVICE& device, typename World<SPEC>::DYNAMICS_ENV& dynamics, const Parameters<SPEC>& defaults, Parameters<SPEC>& parameters, RNG& rng) {
+        template <typename DEVICE, typename SPEC, typename DRONE_SPEC, typename RNG>
+        RL_TOOLS_FUNCTION_PLACEMENT void _sample_initial_parameters(DEVICE& device, typename World<SPEC>::DYNAMICS_ENV& dynamics, const Parameters<SPEC>& defaults, Tensor<DRONE_SPEC>& drones, typename SPEC::TI num_drones, Parameters<SPEC>& parameters, RNG& rng) {
             using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
             parameters = defaults;
-            sample_initial_parameters(device, dynamics, parameters.dynamics, rng);
-            parameters.camera.fov = defaults.camera.fov + SPEC::CAMERA_FOV_RANDOMIZATION_RANGE * random::uniform_real_distribution(device.random, (T)-1, (T)1, rng);
+            parameters.drone = 0;
+            if (num_drones > 1) {
+                const TI drone_i = (TI)(random::uniform_real_distribution(device.random, (T)0, (T)1, rng) * (T)num_drones);
+                parameters.drone = drone_i < num_drones ? drone_i : num_drones - 1;
+            }
+            const auto& drone = get_ref(device, drones, parameters.drone);
+            // the l2f sampler copies its environment's nominal before randomizing: hand it the entry's
+            auto drone_dynamics = dynamics;
+            drone_dynamics.parameters = drone.dynamics;
+            sample_initial_parameters(device, drone_dynamics, parameters.dynamics, rng);
+            parameters.camera = drone.camera;
+            parameters.camera.fov = drone.camera.fov + SPEC::CAMERA_FOV_RANDOMIZATION_RANGE * random::uniform_real_distribution(device.random, (T)-1, (T)1, rng);
             CameraRandomization<T> randomization;
             for (unsigned axis_i = 0; axis_i < 3; axis_i++) {
                 randomization.offset_body_range[axis_i] = SPEC::CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE;
@@ -332,9 +484,54 @@ namespace rl_tools {
         }
     }
 
+    template <typename DEVICE, typename SPEC>
+    void apply_drone_poses(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, typename SPEC::TI instance_i, const rl::environments::hyperdrone::DronePose<SPEC>* poses) {
+        using T = typename SPEC::T;
+        using TI = typename SPEC::TI;
+        using WORLD = rl::environments::hyperdrone::World<SPEC>;
+        auto& render_device = get_rendering_device(device);
+        const TI drone_i = poses[0].drone;
+        utils::assert_exit(render_device, drone_i < world.num_drones, "hyperdrone: drone index out of range");
+        for (TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++) {
+            utils::assert_exit(render_device, poses[agent_i].valid && poses[agent_i].drone == drone_i, "hyperdrone: each instance needs four distinct rotor quadrants and one drone entry");
+        }
+        const TI asset_i = world.shared->drone_asset[drone_i];
+        const auto& asset = world.shared->drone_assets[asset_i];
+        auto& slot = world.slots[world.active_slot];
+        auto& renderer = get_renderer(device, world);
+        const TI kinds = (TI)world.entity_kinds.size();
+        auto* placements = slot.entity_placements.data() + instance_i * kinds + world.drone_entity_kind_index;
+        const rendering::raytracing::OverlayIndex overlay{instance_i};
+        if (slot.drone_spawned_asset[instance_i] != asset_i) {
+            // Free all agents first so placement ids depend on current geometry, not history.
+            for (TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++) {
+                despawn(device, renderer, overlay, placements[agent_i]);
+            }
+            const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
+            for (TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++) {
+                placements[agent_i] = spawn(device, renderer, overlay, asset.asset, identity);
+            }
+            slot.drone_spawned_asset[instance_i] = asset_i;
+        }
+        for (TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++) {
+            const auto& pose = poses[agent_i];
+            T phase_open[4], phase_close[4];
+            for (TI prop_i = 0; prop_i < 4; prop_i++) {
+                const TI quadrant = asset.prop_quadrants[prop_i];
+                phase_open[prop_i] = pose.phase_open[quadrant];
+                phase_close[prop_i] = pose.phase_close[quadrant];
+            }
+            if constexpr (WORLD::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR) {
+                set_transform_pair(device, renderer, overlay, placements[agent_i], asset.rig, pose.body, pose.body, phase_open, phase_close);
+            } else {
+                set_transform(device, renderer, overlay, placements[agent_i], asset.rig, pose.body, phase_close);
+            }
+        }
+    }
+
     template <typename DEVICE, typename SPEC, typename RNG>
     void sample_initial_parameters(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, typename rl::environments::hyperdrone::World<SPEC>::Parameters& parameters, RNG& rng) {
-        rl::environments::hyperdrone::_sample_initial_parameters<DEVICE, SPEC, RNG>(device, world.dynamics, world.parameters, parameters, rng);
+        rl::environments::hyperdrone::_sample_initial_parameters<DEVICE, SPEC>(device, world.dynamics, world.parameters, world.drone_parameters, world.num_drones, parameters, rng);
     }
 
     template <typename DEVICE, typename SPEC, typename RNG>
@@ -447,6 +644,7 @@ namespace rl_tools {
     void render(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input) {
         request_render(device, world, reset_mask_input);
         auto& reset_mask = world.render_reset;
+        auto& renderer = get_renderer(device, world);
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         using WORLD = rl::environments::hyperdrone::World<SPEC>;
@@ -463,7 +661,7 @@ namespace rl_tools {
             const auto& agent_state = rl::environments::hyperdrone::_agent_state<SPEC>(get_ref(device, states, instance_i), agent_i);
             set(device, world.camera_staging_close, rl::environments::hyperdrone::make_camera<DEVICE, T>(device, instance_parameters.camera, agent_state.orientation, agent_state.position, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin), camera_i);
         }
-        copy(device, world.renderer.device, world.camera_staging_close, cameras(device, world.renderer));
+        copy(device, renderer.device, world.camera_staging_close, cameras(device, renderer));
         if constexpr (SPEC::ENABLE_MOTION_BLUR) {
             copy(device, device, world.prev_cameras, world.camera_staging_previous);
             for (TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++) {
@@ -473,48 +671,25 @@ namespace rl_tools {
                 const auto camera_close = get(device, world.camera_staging_close, camera_i);
                 set(device, world.camera_staging_open, reset ? camera_close : rl::environments::hyperdrone::interpolate_camera(camera_close, get(device, world.camera_staging_previous, camera_i), instance_parameters.shutter_fraction), camera_i);
             }
-            copy(device, world.renderer.device, world.camera_staging_open, cameras_open(device, world.renderer));
+            copy(device, renderer.device, world.camera_staging_open, cameras_open(device, renderer));
             copy(device, device, world.camera_staging_close, world.prev_cameras);
         }
         if constexpr (SPEC::SELF_VISIBLE) {
-            auto& slot = world.slots[world.active_slot];
-            const TI kinds = (TI)world.entity_kinds.size();
             for (TI instance_i = 0; instance_i < INSTANCES; instance_i++) {
                 const auto& instance_parameters = get_ref(device, parameters, instance_i);
+                typename WORLD::DRONE_POSE poses[WORLD::N_AGENTS];
                 for (TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++) {
                     const auto& agent_state = rl::environments::hyperdrone::_agent_state<SPEC>(get_ref(device, states, instance_i), agent_i);
-                    float body[12];
-                    rl::environments::hyperdrone::rig::make_body_transform(device, agent_state.orientation, agent_state.position, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin, body);
-                    const auto& placement = slot.entity_placements[instance_i * kinds + world.drone_entity_kind_index + agent_i];
-                    T phase_open[4] = {0, 0, 0, 0};
-                    T phase_close[4] = {0, 0, 0, 0};
-                    if constexpr (rl::environments::hyperdrone::world::HasRotorPhase<typename WORLD::DYNAMICS_ENV::State>::VALUE) {
-                        for (TI rotor_i = 0; rotor_i < 4; rotor_i++) {
-                            phase_close[rotor_i] = agent_state.rotor_phase[rotor_i];
-                            phase_open[rotor_i] = phase_close[rotor_i];
-                        }
-                        if constexpr (WORLD::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR) {
-                            const T dt = instance_parameters.dynamics.integration.dt;
-                            for (TI rotor_i = 0; rotor_i < 4; rotor_i++) {
-                                phase_open[rotor_i] -= agent_state.rpm[rotor_i] * (T)2 * math::PI<T> / (T)60 * dt * instance_parameters.shutter_fraction;
-                            }
-                        }
-                    }
-                    // the body rides its agent's camera (FPV mount): open == close, motion blur
-                    // comes from the props alone
-                    if constexpr (WORLD::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR) {
-                        set_transform_pair(device, world.renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, world.drone_rig, body, body, phase_open, phase_close);
-                    } else {
-                        set_transform(device, world.renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, world.drone_rig, body, phase_close);
-                    }
+                    make_drone_pose(device, instance_parameters, agent_state, poses[agent_i]);
                 }
+                apply_drone_poses(device, world, instance_i, poses);
             }
         }
         if constexpr (WORLD::RENDERER_CONFIG::NUM_OVERLAYS > 0) {
             // wrapper render overloads wrote their entity poses pre-forward; publish them
-            update(device, world.renderer);
+            update(device, renderer);
         }
-        render(device, world.renderer);
+        render(device, renderer);
 
         const TI history_slot = world.history_step % SPEC::HISTORY_LENGTH;
         {
@@ -522,9 +697,9 @@ namespace rl_tools {
             std::vector<float> observation_staging(NUM_CAMERAS * CAM_PIXELS * 3);
             std::vector<float> frame_staging(NUM_CAMERAS * WORLD::FRAME_DIM);
             {
-                Tensor<tensor::Specification<float, TI, typename decltype(world.renderer.observation)::SPEC::SHAPE>> observation_alias;
+                Tensor<tensor::Specification<float, TI, typename decltype(renderer.observation)::SPEC::SHAPE>> observation_alias;
                 observation_alias._data = observation_staging.data();
-                copy(world.renderer.device, device, world.renderer.observation, observation_alias);
+                copy(renderer.device, device, renderer.observation, observation_alias);
             }
             for (TI camera_i = 0; camera_i < NUM_CAMERAS; camera_i++) {
                 const auto& instance_parameters = get_ref(device, parameters, camera_i / WORLD::N_VIEWS);

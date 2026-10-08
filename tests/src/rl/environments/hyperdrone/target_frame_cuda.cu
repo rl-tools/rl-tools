@@ -100,6 +100,23 @@ void check_rng_partitioning(){
     using MULTI = rlt::rl::environments::hyperdrone::MultiEnvironment<MEMBER, 2>;
     MULTI multi{};
     MEMBER isolated{};
+    rlt::malloc(device, multi);
+    rlt::malloc(device, isolated);
+    multi.shared.drones.push_back({});
+    rlt::init(device, multi.shared);
+    using DRONE_SPEC = typename MEMBER::DRONE_PARAMETERS_SPEC;
+    std::vector<typename DRONE_SPEC::T> nominals(DRONE_SPEC::SIZE, multi.shared.drones[0].parameters);
+    rlt::Tensor<DRONE_SPEC> table_host;
+    table_host._data = nominals.data();
+    auto init_sampling = [&](MEMBER& world){
+        world.shared = &multi.shared;
+        world.num_drones = multi.shared.num_drones;
+        rlt::copy(host, device, table_host, world.drone_parameters);
+    };
+    for(auto& world : multi.environments){
+        init_sampling(world);
+    }
+    init_sampling(isolated);
     multi.environments[1].rng_offset = MEMBER::INSTANCES;
     isolated.rng_offset = MEMBER::INSTANCES;
     using PARAMETERS_SPEC = rlt::tensor::Specification<typename MEMBER::Parameters, TI, rlt::tensor::Shape<TI, MULTI::INSTANCES>>;
@@ -152,6 +169,8 @@ void check_rng_partitioning(){
     rlt::free(host, local_host);
     rlt::free(device, reset_mask);
     rlt::free(host, mask_host);
+    rlt::free(device, isolated);
+    rlt::free(device, multi);
 }
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, GLOBAL_RNG_PARTITIONS){

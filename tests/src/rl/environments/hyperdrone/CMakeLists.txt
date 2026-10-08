@@ -249,3 +249,35 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
         gtest_discover_tests(test_rl_environments_hyperdrone_benchmark_cuda PROPERTIES TIMEOUT 300)
     endif()
 endif()
+
+if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING)
+    add_executable(test_rl_environments_hyperdrone_drones drones.cpp)
+    target_link_libraries(test_rl_environments_hyperdrone_drones
+        PRIVATE
+            RLtools::RLtools
+            RLtools::Test
+            rendering_raytracing_backend
+            rendering_raytracing_backend_segmentation
+            rendering_raytracing_stb
+    )
+    gtest_discover_tests(test_rl_environments_hyperdrone_drones)
+    if(RL_TOOLS_BACKEND_ENABLE_CUDA AND TARGET owl::owl)
+        add_executable(test_rl_environments_hyperdrone_drones_cuda drones_cuda.cu)
+        target_link_libraries(test_rl_environments_hyperdrone_drones_cuda
+            PRIVATE
+                RLtools::RLtools
+                RLtools::Test
+                owl::owl
+                rendering_raytracing_device_ptx
+                rendering_raytracing_device_segmentation_ptx
+                rendering_raytracing_device_depth_segmentation_ptx
+                assimp::assimp
+                rendering_raytracing_stb
+        )
+        set_target_properties(test_rl_environments_hyperdrone_drones_cuda PROPERTIES
+            CUDA_STANDARD 17
+            CUDA_STANDARD_REQUIRED ON
+        )
+        gtest_discover_tests(test_rl_environments_hyperdrone_drones_cuda)
+    endif()
+endif()

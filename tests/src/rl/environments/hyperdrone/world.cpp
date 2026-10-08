@@ -162,11 +162,18 @@ static void rollout(DEVICE& device, ENVIRONMENT& env, Rollout& record, TI seed){
     rlt::free(device, rng);
 }
 
+// the nominal camera set on the World before init becomes its single drone's
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, CAMERA_PARAMETER_SAMPLING){
     using namespace rlt;
+    if(SCENE_PATH.empty()){
+        GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
+    }
     DEVICE device;
+    init(device);
     WORLD world;
-    init(device, world.dynamics);
+    typename WORLD::SharedContext shared;
+    malloc(device, shared.library);
+    malloc(device, world);
     world.parameters.scene_translation[0] = 3;
     world.parameters.scene_yaw_cos = 0;
     world.parameters.scene_yaw_sin = 1;
@@ -174,12 +181,19 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, CAMERA_PARAMETER_SAMPLING){
     world.parameters.camera.mount.pose.position[0] = 0.1;
     world.parameters.camera.mount.pose.position[1] = -0.2;
     world.parameters.camera.mount.pose.position[2] = 0.3;
+    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    typename decltype(dataset)::Corpus corpus;
+    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    init(device, world, shared, dataset, corpus, 0, 1, 0);
+    ASSERT_EQ(shared.num_drones, 1);
+    EXPECT_FLOAT_EQ(shared.drones[0].parameters.camera.fov, 68);
     RNG rng;
     malloc(device, rng);
     init(device, rng, 2);
     for(TI sample = 0; sample < 128; sample++){
         WORLD::Parameters parameters;
         sample_initial_parameters(device, world, parameters, rng);
+        EXPECT_EQ(parameters.drone, 0);
         EXPECT_FLOAT_EQ(parameters.scene_translation[0], 3);
         EXPECT_FLOAT_EQ(parameters.scene_yaw_cos, 0);
         EXPECT_FLOAT_EQ(parameters.scene_yaw_sin, 1);
@@ -202,6 +216,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, CAMERA_PARAMETER_SAMPLING){
         EXPECT_NEAR(dot, 0, 1e-5);
     }
     free(device, rng);
+    free(device, world);
+    free(device, shared.library);
 }
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, SEEDED_ROLLOUT_DETERMINISM){
@@ -282,14 +298,15 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, RENDER_PATH_EQUIVALENCE){
     }
     rlt::Tensor<typename WORLD::PREV_CAMERAS_SPEC> camera_alias;
     camera_alias._data = manual_cameras.data();
-    rlt::copy(device, world.renderer.device, camera_alias, rlt::cameras(device, world.renderer));
-    rlt::render(device, world.renderer);
+    auto& renderer = rlt::get_renderer(device, world);
+    rlt::copy(device, renderer.device, camera_alias, rlt::cameras(device, renderer));
+    rlt::render(device, renderer);
     constexpr TI CAM_PIXELS = WORLD_SPEC::CAM_WIDTH * WORLD_SPEC::CAM_HEIGHT;
     std::vector<float> manual_observation(NUM_CAMERAS * CAM_PIXELS * 3);
     {
-        rlt::Tensor<rlt::tensor::Specification<float, TI, typename decltype(world.renderer.observation)::SPEC::SHAPE>> observation_alias;
+        rlt::Tensor<rlt::tensor::Specification<float, TI, typename decltype(renderer.observation)::SPEC::SHAPE>> observation_alias;
         observation_alias._data = manual_observation.data();
-        rlt::copy(world.renderer.device, device, world.renderer.observation, observation_alias);
+        rlt::copy(renderer.device, device, renderer.observation, observation_alias);
     }
     for(TI instance_i = 0; instance_i < NUM_CAMERAS; instance_i++){
         typename WORLD::Parameters instance_parameters = rlt::get(device, tensors.parameters, instance_i);

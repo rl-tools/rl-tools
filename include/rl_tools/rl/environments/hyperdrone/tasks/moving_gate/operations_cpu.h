@@ -143,6 +143,7 @@ namespace rl_tools {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         using BASE_SPEC = typename NEXT_WORLD::SPEC;
         auto& slot = world.slots[world.active_slot];
+        auto& renderer = get_renderer(device, world);
         const TI kinds = (TI)world.entity_kinds.size();
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
             const auto& instance_parameters = get_ref(device, parameters, instance_i);
@@ -156,9 +157,9 @@ namespace rl_tools {
                 constexpr T TWO_PI = (T)2 * math::PI<T>;
                 T phase_open = state.gate_phase - TWO_PI * instance_parameters.gate_frequency * dt * instance_parameters.shutter_fraction;
                 rl::environments::hyperdrone::tasks::moving_gate::gate_pose(device, instance_parameters, phase_open, pose_open);
-                set_transform_pair(device, world.renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, pose_open, pose);
+                set_transform_pair(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, pose_open, pose);
             } else {
-                set_transform(device, world.renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, pose);
+                set_transform(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, pose);
             }
         }
         render(device, static_cast<NEXT_WORLD&>(world), parameters, states, reset_mask);
@@ -254,10 +255,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::moving_gate {
     void init(DEVICE& device, World<TASK_SPEC>& world, typename TASK_SPEC::NEXT_WORLD::SharedContext& shared, const DATASET& dataset, const typename DATASET::Corpus& corpus, typename TASK_SPEC::TI first_scene, typename TASK_SPEC::TI num_scenes, typename TASK_SPEC::TI member_index){
         ::rl_tools::init(device, world, shared, dataset, corpus, first_scene, num_scenes, member_index);
     }
-    template <typename DEVICE, typename TASK_SPEC>
-    void free(DEVICE& device, World<TASK_SPEC>& world){
-        ::rl_tools::free(device, world);
-    }
+    using rl_tools::free;
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

@@ -142,7 +142,8 @@ static Capture run(DEVICE& device){
     {
         rlt::Tensor<rlt::tensor::Specification<uint32_t, TI, rlt::tensor::Shape<TI, INSTANCES, WORLD_SPEC::CAM_HEIGHT, WORLD_SPEC::CAM_WIDTH>>> alias;
         alias._data = capture.segmentation.data();
-        rlt::copy(world.renderer.device, device, rlt::segmentation_buffer(device, world.renderer), alias);
+        auto& renderer = rlt::get_renderer(device, world);
+        rlt::copy(renderer.device, device, rlt::segmentation_buffer(device, renderer), alias);
     }
 
     rlt::free(device, parameters);
