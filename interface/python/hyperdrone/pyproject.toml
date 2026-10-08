@@ -10,7 +10,7 @@ license = {text = "MIT"}
 description = "The fastest drone simulator and renderer (raytracer)."
 readme = "README.md"
 requires-python = ">=3.9"
-dependencies = ["numpy", "nanobind>=2.0"]
+dependencies = ["numpy", "nanobind>=2.0", "conta"]
 
 [project.optional-dependencies]
 examples = ["scipy>=1.15", "matplotlib", "imageio", "imageio-ffmpeg"]

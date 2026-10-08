@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from hyperdrone import conta
+import conta
 from hyperdrone.env import EnvConfig, MultiEnvironment
 from hyperdrone.jit import source_root
 

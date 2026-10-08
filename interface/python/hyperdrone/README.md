@@ -11,7 +11,6 @@ environment setup under one Python package.
 | `hyperdrone.gym` | Optional Gymnasium `VectorEnv` adapter over `hyperdrone.env` (`pip install "hyperdrone[gym]"`). |
 | `hyperdrone.jit` | Shared compile-and-cache infrastructure both domain packages build on. |
 | `hyperdrone.cuda` | CUDA staging helpers (`upload` → DLPack tensor sets). |
-| `hyperdrone.conta` | Client for the sha1 content-addressed asset store — protocol twin of the C++ `include/conta/conta.h`, sharing one cache across both languages. |
 
 Native components are JIT-compiled per set of compile-time constants (resolution, camera
 count, drone count, ...) into a persistent cache; later uses load the cached library
@@ -36,7 +35,7 @@ the golden-rollout generator.
 From an rl-tools checkout (development):
 
 ```bash
-.venv/bin/pip install -e interface/python/hyperdrone
+.venv/bin/pip install -e interface/python/conta -e interface/python/hyperdrone
 ```
 
 From an sdist (self-contained — bundles the rl-tools headers and raytracing sources, no
@@ -193,7 +192,7 @@ against the C++ verbs by a golden test. The scenes argument is a directory of `.
 scenes (sorted corpus) or a list of references — `.glb` paths, `conta:HASH` strings, or
 conta store manifest entries `{"description": ..., "hash": ...}` — used as the corpus in
 list order and partitioned across environments; conta references (scenes, `drone_asset=`,
-`gate_asset=`) resolve through `hyperdrone.conta` into the shared content-addressed
+`gate_asset=`) resolve through the `conta` package into the shared content-addressed
 cache, so a config pins the exact corpus on any machine. Configuration follows the C++
 extension ladder:
 `preset=` names the platform (`"crazyflie"`, `"x500_fpv"` — SELF_VISIBLE, pass a
