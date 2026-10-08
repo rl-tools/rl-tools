@@ -48,13 +48,13 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_PRESETS, X500FPV_ROLLOUT){
     typename WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);
     rlt::malloc(device, world);
-    world.drone_asset_path = DRONE_PATH;
+    shared.drones.push_back({DRONE_PATH, {}});
     rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
     rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
     rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
     ASSERT_EQ(world.entity_kinds.size(), 1);
-    EXPECT_GT(world.drone_rig.num_coordinates, 0);
+    EXPECT_GT(world.shared->drone_assets[0].rig.num_coordinates, 0);
 
     RNG rng;
     rlt::malloc(device, rng);

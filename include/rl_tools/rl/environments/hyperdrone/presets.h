@@ -53,9 +53,9 @@ namespace rl_tools::rl::environments::hyperdrone::presets {
     }
 
     // reference FPV configuration on the x500 platform: spinning-prop render state
-    // (StateRenderRotorPhase) and the drone entity attached to its own cameras — set
-    // World::drone_asset_path to an x500 body/prop_* assembly before init. Derive-and-shadow
-    // for further customization, like every hyperdrone Specification
+    // (StateRenderRotorPhase) and the drone entity attached to its own cameras — register an
+    // x500 body/prop_* assembly in SharedContext::drones before init. Derive-and-shadow for
+    // further customization, like every hyperdrone Specification
     template <typename T_T, typename T_TI>
     struct X500FPV: Specification<T_T, T_TI, x500_fpv::DynamicsStaticParameters<T_T, T_TI>> {
         using T = T_T;

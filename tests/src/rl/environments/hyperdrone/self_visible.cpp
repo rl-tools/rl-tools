@@ -125,14 +125,14 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE, OWN_DRONE_AND_ARTICULATIO
     typename WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);
     rlt::malloc(device, world);
-    world.drone_asset_path = DRONE_PATH;
+    shared.drones.push_back({DRONE_PATH, {}});
     rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
     rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
     rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
 
     ASSERT_EQ(world.entity_kinds.size(), 1);
-    EXPECT_GT(world.drone_rig.num_coordinates, 0);
+    EXPECT_GT(world.shared->drone_assets[0].rig.num_coordinates, 0);
     ASSERT_EQ(world.slots[0].entity_placements.size(), INSTANCES);
     EXPECT_GT(world.slots[0].entity_placements[0].num_parts, 1);
 
@@ -166,7 +166,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE, OWN_DRONE_AND_ARTICULATIO
         std::vector<uint32_t> segmentation(INSTANCES * CAM_PIXELS);
         rlt::Tensor<rlt::tensor::Specification<uint32_t, TI, rlt::tensor::Shape<TI, INSTANCES, WORLD_SPEC::CAM_HEIGHT, WORLD_SPEC::CAM_WIDTH>>> alias;
         alias._data = segmentation.data();
-        rlt::copy(world.renderer.device, device, rlt::segmentation_buffer(device, world.renderer), alias);
+        auto& renderer = rlt::get_renderer(device, world);
+        rlt::copy(renderer.device, device, rlt::segmentation_buffer(device, renderer), alias);
         for(TI camera_i = 0; camera_i < INSTANCES; camera_i++){
             const uint32_t own_first = S + (uint32_t)(camera_i * MAX_SLOTS);
             const uint32_t own_end = own_first + (uint32_t)MAX_SLOTS;

@@ -9,11 +9,22 @@
 #include <cuda_runtime.h>
 #include <stdexcept>
 
-// device-resident per-step path: pose/sample/step kernels are enqueued on the caller's stream or
-// the renderer's stream, joined by events — no host synchronization inside the verbs
-
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
+    template <typename DEV_SPEC, typename SPEC>
+    void free(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::World<SPEC>& world){
+        free<devices::CUDA<DEV_SPEC>, SPEC>(device, world);
+        if(world.cuda_drone_pose_staging != nullptr){
+            cudaFreeHost(world.cuda_drone_pose_staging);
+            world.cuda_drone_pose_staging = nullptr;
+        }
+        if(world.cuda_sync_event != nullptr){
+            cudaEventDestroy((cudaEvent_t)world.cuda_sync_event);
+            world.cuda_sync_event = nullptr;
+        }
+        check_status(device);
+    }
+
     namespace rl::environments::hyperdrone::cuda{
         template <typename DEVICE, typename WORLD, typename RNG>
         RNG instance_rng(DEVICE&, const WORLD& world, const RNG& rng){
@@ -41,15 +52,15 @@ namespace rl_tools{
             cudaStreamWaitEvent(to, event, 0);
         }
 
-        template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename RESET_SPEC, typename RNG>
-        __global__ void sample_initial_parameters_kernel(DEVICE device, typename World<SPEC>::DYNAMICS_ENV dynamics, Parameters<SPEC> defaults, Tensor<PARAMETER_SPEC> parameters, const Tensor<RESET_SPEC> reset_mask, RNG rng){
+        template <typename DEVICE, typename SPEC, typename DRONE_SPEC, typename PARAMETER_SPEC, typename RESET_SPEC, typename RNG>
+        __global__ void sample_initial_parameters_kernel(DEVICE device, typename World<SPEC>::DYNAMICS_ENV dynamics, Parameters<SPEC> defaults, Tensor<DRONE_SPEC> drones, typename SPEC::TI num_drones, Tensor<PARAMETER_SPEC> parameters, const Tensor<RESET_SPEC> reset_mask, RNG rng){
             using TI = typename DEVICE::index_t;
             constexpr TI INSTANCES = World<SPEC>::INSTANCES;
             static_assert(RNG::NUM_RNGS >= INSTANCES, "Please increase the number of CUDA RNGs");
             TI instance_i = threadIdx.x + blockIdx.x * blockDim.x;
             if(instance_i < INSTANCES && get(device, reset_mask, instance_i)){
                 auto& rng_state = get(rng.states, 0, instance_i);
-                _sample_initial_parameters<DEVICE, SPEC>(device, dynamics, defaults, get_ref(device, parameters, instance_i), rng_state);
+                _sample_initial_parameters<DEVICE, SPEC>(device, dynamics, defaults, drones, num_drones, get_ref(device, parameters, instance_i), rng_state);
             }
         }
         template <typename DEVICE, typename SPEC, typename SCENE_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC, typename RNG>
@@ -85,8 +96,7 @@ namespace rl_tools{
             }
         }
         template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC>
-        __global__ void drone_pose_kernel(DEVICE device, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, float* staging){
-            using T = typename SPEC::T;
+        __global__ void drone_pose_kernel(DEVICE device, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, DronePose<SPEC>* staging){
             using TI = typename DEVICE::index_t;
             using WORLD = World<SPEC>;
             constexpr TI ENTRIES = WORLD::INSTANCES * WORLD::N_AGENTS;
@@ -96,23 +106,7 @@ namespace rl_tools{
                 const TI agent_i = entry_i % WORLD::N_AGENTS;
                 const auto& instance_parameters = get_ref(device, parameters, instance_i);
                 const auto& agent_state = _agent_state<SPEC>(get_ref(device, states, instance_i), agent_i);
-                float* entry = staging + entry_i * 20;
-                rig::make_body_transform(device, agent_state.orientation, agent_state.position, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin, entry);
-                for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
-                    entry[12 + rotor_i] = 0;
-                    entry[16 + rotor_i] = 0;
-                }
-                if constexpr (world::HasRotorPhase<typename WORLD::DYNAMICS_ENV::State>::VALUE){
-                    for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
-                        float close = (float)agent_state.rotor_phase[rotor_i];
-                        float open = close;
-                        if constexpr (WORLD::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR){
-                            open = close - (float)(agent_state.rpm[rotor_i] * (T)2 * math::PI<T> / (T)60 * instance_parameters.dynamics.integration.dt * instance_parameters.shutter_fraction);
-                        }
-                        entry[12 + rotor_i] = open;
-                        entry[16 + rotor_i] = close;
-                    }
-                }
+                make_drone_pose(device, instance_parameters, agent_state, staging[entry_i]);
             }
         }
         // the per-instance episode-start bookkeeping rides in the scatter grid (one designated
@@ -223,7 +217,7 @@ namespace rl_tools{
         constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES, BLOCKSIZE);
         devices::cuda::TAG<DEVICE, true> tag_device{};
         auto world_rng = rl::environments::hyperdrone::cuda::instance_rng(device, world, rng);
-        rl::environments::hyperdrone::cuda::sample_initial_parameters_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, world.parameters, parameters, reset_mask, world_rng);
+        rl::environments::hyperdrone::cuda::sample_initial_parameters_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, world.parameters, world.drone_parameters, world.num_drones, parameters, reset_mask, world_rng);
         check_status(device);
     }
     template <typename DEV_SPEC, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC, typename RNG>
@@ -259,59 +253,42 @@ namespace rl_tools{
                 rl::environments::hyperdrone::cuda::drone_pose_kernel<decltype(pose_tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(pose_tag_device, parameters, states, data(world.drone_pose_staging));
             }
             check_status(device);
+            using POSE = typename WORLD::DRONE_POSE;
+            constexpr size_t STAGING_BYTES = INSTANCES * WORLD::N_AGENTS * sizeof(POSE);
             if(world.cuda_drone_pose_staging == nullptr){
-                cudaMallocHost(&world.cuda_drone_pose_staging, INSTANCES * WORLD::N_AGENTS * 20 * sizeof(float));
+                cudaMallocHost(&world.cuda_drone_pose_staging, STAGING_BYTES);
             }
-            float* staging_host = (float*)world.cuda_drone_pose_staging;
-            cudaMemcpyAsync(staging_host, data(world.drone_pose_staging), INSTANCES * WORLD::N_AGENTS * 20 * sizeof(float), cudaMemcpyDeviceToHost, device.stream);
+            auto* staging_host = static_cast<POSE*>(world.cuda_drone_pose_staging);
+            cudaMemcpyAsync(staging_host, data(world.drone_pose_staging), STAGING_BYTES, cudaMemcpyDeviceToHost, device.stream);
             cudaStreamSynchronize(device.stream);
-            auto& slot = world.slots[world.active_slot];
-            const TI kinds = (TI)world.entity_kinds.size();
-            for(TI entry_i = 0; entry_i < INSTANCES * WORLD::N_AGENTS; entry_i++){
-                const TI instance_i = entry_i / WORLD::N_AGENTS;
-                const TI agent_i = entry_i % WORLD::N_AGENTS;
-                const float* entry = staging_host + entry_i * 20;
-                const auto& placement = slot.entity_placements[instance_i * kinds + world.drone_entity_kind_index + agent_i];
-                if constexpr (WORLD::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR){
-                    T phase_open[4], phase_close[4];
-                    for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
-                        phase_open[rotor_i] = (T)entry[12 + rotor_i];
-                        phase_close[rotor_i] = (T)entry[16 + rotor_i];
-                    }
-                    set_transform_pair(device, world.renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, world.drone_rig, entry, entry, phase_open, phase_close);
-                } else {
-                    T phases[4];
-                    for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
-                        phases[rotor_i] = (T)entry[16 + rotor_i];
-                    }
-                    set_transform(device, world.renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, world.drone_rig, entry, phases);
-                }
+            for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
+                apply_drone_poses(device, world, instance_i, staging_host + instance_i * WORLD::N_AGENTS);
             }
         }
-        cudaStream_t render_stream = stream(device, world.renderer);
+        cudaStream_t render_stream = stream(device, get_renderer(device, world));
         rl::environments::hyperdrone::cuda::stream_barrier(world, device.stream, render_stream);
         devices::cuda::TAG<DEVICE, true> tag_device{};
         {
             constexpr TI BLOCKSIZE = 32;
             constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES * WORLD::N_VIEWS, BLOCKSIZE);
-            auto* cameras_data = data(cameras(device, world.renderer));
+            auto* cameras_data = data(cameras(device, get_renderer(device, world)));
             auto* cameras_open_data = cameras_data;
             if constexpr(SPEC::ENABLE_MOTION_BLUR){
-                cameras_open_data = data(cameras_open(device, world.renderer));
+                cameras_open_data = data(cameras_open(device, get_renderer(device, world)));
             }
             rl::environments::hyperdrone::cuda::pose_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, render_stream>>>(tag_device, parameters, states, reset_mask, cameras_data, cameras_open_data, data(world.prev_cameras), world.history_step, aspect);
         }
         if constexpr (WORLD::RENDERER_CONFIG::NUM_OVERLAYS > 0) {
             // wrapper render overloads staged their entity poses pre-forward; publish them
-            update(device, world.renderer);
+            update(device, get_renderer(device, world));
         }
-        render_launch(device, world.renderer);
+        render_launch(device, get_renderer(device, world));
         const TI history_slot = world.history_step % SPEC::HISTORY_LENGTH;
         float* history_row = data(world.history) + history_slot * INSTANCES * WORLD::N_VIEWS * WORLD::FRAME_DIM;
         {
             constexpr TI BLOCKSIZE = 256;
             constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES * WORLD::N_VIEWS * CAM_PIXELS, BLOCKSIZE);
-            rl::environments::hyperdrone::cuda::scatter_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, render_stream>>>(tag_device, data(world.renderer.observation), history_row, parameters, data(world.episode_start), reset_mask, world.history_step);
+            rl::environments::hyperdrone::cuda::scatter_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, render_stream>>>(tag_device, data(get_renderer(device, world).observation), history_row, parameters, data(world.episode_start), reset_mask, world.history_step);
         }
         check_status(device);
         world.history_step++;
@@ -330,7 +307,7 @@ namespace rl_tools{
             render(device, world, parameters, states, world.render_reset);
         }
         utils::assert_exit(device, world.history_step > 0, "hyperdrone::World::observe: no frame available");
-        cudaStream_t render_stream = stream(device, world.renderer);
+        cudaStream_t render_stream = stream(device, get_renderer(device, world));
         const TI history_slot = (world.history_step - 1) % SPEC::HISTORY_LENGTH;
         const float* history_row = data(world.history) + history_slot * WORLD::INSTANCES * WORLD::N_VIEWS * WORLD::FRAME_DIM;
         devices::cuda::TAG<DEVICE, true> tag_device{};
@@ -391,6 +368,12 @@ namespace rl_tools{
         rl::environments::hyperdrone::cuda::terminated_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.dynamics, parameters, states, terminated_flags, world_rng);
         check_status(device);
     }
+}
+RL_TOOLS_NAMESPACE_WRAPPER_END
+
+RL_TOOLS_NAMESPACE_WRAPPER_START
+namespace rl_tools::rl::environments::hyperdrone {
+    using rl_tools::free;
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

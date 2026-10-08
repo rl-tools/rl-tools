@@ -24,7 +24,7 @@
 #include <string>
 #include <vector>
 
-#if !defined(HYPERDRONE_ENV_NUM_ENVIRONMENTS) || !defined(HYPERDRONE_ENV_INSTANCES) || !defined(HYPERDRONE_ENV_CAM_WIDTH) || !defined(HYPERDRONE_ENV_CAM_HEIGHT) || !defined(HYPERDRONE_ENV_SHADING) || !defined(HYPERDRONE_ENV_HISTORY_LENGTH) || !defined(HYPERDRONE_ENV_PRESET) || !defined(HYPERDRONE_ENV_TASK) || !defined(HYPERDRONE_ENV_N_AGENTS)
+#if !defined(HYPERDRONE_ENV_NUM_ENVIRONMENTS) || !defined(HYPERDRONE_ENV_INSTANCES) || !defined(HYPERDRONE_ENV_CAM_WIDTH) || !defined(HYPERDRONE_ENV_CAM_HEIGHT) || !defined(HYPERDRONE_ENV_SHADING) || !defined(HYPERDRONE_ENV_HISTORY_LENGTH) || !defined(HYPERDRONE_ENV_PRESET) || !defined(HYPERDRONE_ENV_TASK) || !defined(HYPERDRONE_ENV_N_AGENTS) || !defined(HYPERDRONE_ENV_MAX_DRONES)
 #error "every HYPERDRONE_ENV_* configuration define must be set (hyperdrone.env.EnvConfig.defines())"
 #endif
 
@@ -105,6 +105,7 @@ namespace HYPERDRONE_MODULE_NAME {
         static constexpr TI CAM_WIDTH = HYPERDRONE_ENV_CAM_WIDTH;
         static constexpr TI CAM_HEIGHT = HYPERDRONE_ENV_CAM_HEIGHT;
         static constexpr TI HISTORY_LENGTH = HYPERDRONE_ENV_HISTORY_LENGTH;
+        static constexpr TI MAX_DRONES = HYPERDRONE_ENV_MAX_DRONES;
         using SHADING = rlt::utils::typing::conditional_t<HYPERDRONE_ENV_SHADING == 0, rlt::rendering::raytracing::Low,
                         rlt::utils::typing::conditional_t<HYPERDRONE_ENV_SHADING == 1, rlt::rendering::raytracing::Medium,
                                                                                       rlt::rendering::raytracing::High>>;
@@ -143,9 +144,10 @@ namespace HYPERDRONE_MODULE_NAME {
         ~Environment();
         Environment(const Environment&) = delete;
         Environment& operator=(const Environment&) = delete;
-        void init(const std::vector<std::string>& scenes, const std::optional<std::string>& drone_asset, const std::optional<std::string>& gate_asset, unsigned long long seed);
+        // drones: the shared table, one asset (SELF_VISIBLE) and one resolved parameter set per entry
+        void init(const std::vector<std::string>& scenes, const std::vector<std::optional<std::string>>& drone_assets, const std::vector<std::string>& drone_parameters, const std::optional<std::string>& gate_asset, unsigned long long seed);
         std::string parameters_json();
-        void set_parameters(const std::string& json);
+        std::string drones_json();
         std::string instance_parameters_json();
         void set_instance_parameters(const bool* mask, const std::string& json);
         std::optional<std::string> model(const std::string& name);
@@ -159,11 +161,16 @@ namespace HYPERDRONE_MODULE_NAME {
         void rotate_scene();
     };
 
-    // one schema for the nominal and the per-instance parameters: {"dynamics": <l2f parameters>, "camera": {...}}
+    // one schema for the nominal, the drone table and the per-instance parameters: {"dynamics":
+    // <l2f parameters>, "camera": {...}}; instances also carry "drone", their table entry
     template <typename DYNAMICS_PARAMETERS>
-    std::string parameters_to_json(Environment& environment, const DYNAMICS_PARAMETERS& dynamics, const rlt::rl::environments::hyperdrone::Camera<T>& camera){
+    std::string parameters_to_json(Environment& environment, const DYNAMICS_PARAMETERS& dynamics, const rlt::rl::environments::hyperdrone::Camera<T>& camera, std::optional<TI> drone = std::nullopt){
         const auto& world = environment.env.environments[0];
-        return "{\"dynamics\": " + rlt::json(environment.device, world.dynamics, dynamics) + ", \"camera\": " + rlt::json(environment.device, world, camera) + "}";
+        std::string value = "{\"dynamics\": " + rlt::json(environment.device, world.dynamics, dynamics) + ", \"camera\": " + rlt::json(environment.device, world, camera);
+        if(drone){
+            value += ", \"drone\": " + std::to_string(*drone);
+        }
+        return value + "}";
     }
     template <typename DYNAMICS_PARAMETERS>
     void parameters_from_json(Environment& environment, const nlohmann::json& parameters, DYNAMICS_PARAMETERS& dynamics, rlt::rl::environments::hyperdrone::Camera<T>& camera){
@@ -295,12 +302,18 @@ namespace HYPERDRONE_MODULE_NAME {
         rlt::free(device, rng);
         rlt::free(device, env);
     }
-    inline void Environment::init(const std::vector<std::string>& references, const std::optional<std::string>& drone_asset_path, const std::optional<std::string>& gate_asset_path, unsigned long long seed){
+    inline void Environment::init(const std::vector<std::string>& references, const std::vector<std::optional<std::string>>& drone_assets, const std::vector<std::string>& drone_parameters, const std::optional<std::string>& gate_asset_path, unsigned long long seed){
         rlt::init(device, rng, seed);
-        if(drone_asset_path){
-            for(TI environment_i = 0; environment_i < NUM_ENVIRONMENTS; environment_i++){
-                env.environments[environment_i].drone_asset_path = *drone_asset_path;
+        if(drone_assets.size() != drone_parameters.size()){
+            throw std::invalid_argument("hyperdrone: drone assets and parameters must pair up");
+        }
+        for(size_t drone_i = 0; drone_i < drone_assets.size(); drone_i++){
+            typename ENV::SharedContext::DRONE drone;
+            if(drone_assets[drone_i]){
+                drone.asset = *drone_assets[drone_i];
             }
+            parameters_from_json(*this, nlohmann::json::parse(drone_parameters[drone_i]), drone.parameters.dynamics, drone.parameters.camera);
+            env.shared.drones.push_back(drone);
         }
         if(gate_asset_path){
             for(TI environment_i = 0; environment_i < NUM_ENVIRONMENTS; environment_i++){
@@ -320,20 +333,20 @@ namespace HYPERDRONE_MODULE_NAME {
         const auto& world = env.environments[0];
         return parameters_to_json(*this, world.dynamics.parameters, world.parameters.camera);
     }
-    inline void Environment::set_parameters(const std::string& parameters_json){
-        auto dynamics = env.environments[0].dynamics.parameters;
-        auto camera = env.environments[0].parameters.camera;
-        parameters_from_json(*this, nlohmann::json::parse(parameters_json), dynamics, camera);
-        for(TI environment_i = 0; environment_i < NUM_ENVIRONMENTS; environment_i++){
-            env.environments[environment_i].dynamics.parameters = dynamics;
-            env.environments[environment_i].parameters.camera = camera;
+    inline std::string Environment::drones_json(){
+        std::string value = "[";
+        for(size_t drone_i = 0; drone_i < env.shared.drones.size(); drone_i++){
+            const auto& drone = env.shared.drones[drone_i];
+            const std::string asset = drone.asset.empty() ? "null" : nlohmann::json(drone.asset).dump();
+            value += (drone_i > 0 ? ", " : "") + std::string("{\"asset\": ") + asset + ", \"parameters\": " + parameters_to_json(*this, drone.parameters.dynamics, drone.parameters.camera) + "}";
         }
+        return value + "]";
     }
     inline std::string Environment::instance_parameters_json(){
         std::string value = "[";
         for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
             const auto& instance = rlt::get_ref(device, parameters, instance_i);
-            value += (instance_i > 0 ? ", " : "") + parameters_to_json(*this, instance.dynamics, instance.camera);
+            value += (instance_i > 0 ? ", " : "") + parameters_to_json(*this, instance.dynamics, instance.camera, instance.drone);
         }
         value += "]";
         return value;

@@ -9,6 +9,7 @@
 #define HYPERDRONE_ENV_PRESET 0
 #define HYPERDRONE_ENV_TASK 0
 #define HYPERDRONE_ENV_N_AGENTS 1
+#define HYPERDRONE_ENV_MAX_DRONES 1
 #define HYPERDRONE_MODULE_NAME hyperdrone_env_golden
 #include "../../../../../interface/python/hyperdrone/hyperdrone/_native/env/environment.h"
 
@@ -53,7 +54,7 @@ int main(){
     fs::create_directories(output);
 
     henv::Environment env;
-    env.init({scene.string()}, std::nullopt, std::nullopt, SEED);
+    env.init({scene.string()}, {std::nullopt}, {env.parameters_json()}, std::nullopt, SEED);
 
     constexpr size_t total = henv::TOTAL;
     std::array<bool, total> all;
@@ -112,6 +113,7 @@ int main(){
         {"HYPERDRONE_ENV_PRESET", HYPERDRONE_ENV_PRESET},
         {"HYPERDRONE_ENV_TASK", HYPERDRONE_ENV_TASK},
         {"HYPERDRONE_ENV_N_AGENTS", HYPERDRONE_ENV_N_AGENTS},
+        {"HYPERDRONE_ENV_MAX_DRONES", HYPERDRONE_ENV_MAX_DRONES},
     };
     manifest["observation_layout"] = layout_json(henv::observation_layout());
     manifest["observation_layout_privileged"] = layout_json(henv::observation_layout_privileged());

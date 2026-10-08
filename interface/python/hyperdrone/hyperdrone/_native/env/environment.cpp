@@ -67,14 +67,16 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     dimensions["episode_step_limit"] = WORLD::EPISODE_STEP_LIMIT;
     dimensions["observation_dim_imu"] = OBSERVATION_DIM_IMU;
     dimensions["frame_stride"] = FrameStride<WORLD>::VALUE;
+    dimensions["max_drones"] = WORLD::SPEC::MAX_DRONES;
+    dimensions["self_visible"] = WORLD::SPEC::SELF_VISIBLE;
     m.attr("dimensions") = dimensions;
 
     auto environment_class = nb::class_<Environment>(m, "Environment");
     environment_class
         .def(nb::init<>())
-        .def("init", &Environment::init, nb::arg("scenes"), nb::arg("drone_asset"), nb::arg("gate_asset"), nb::arg("seed"), nb::call_guard<nb::gil_scoped_release>())
+        .def("init", &Environment::init, nb::arg("scenes"), nb::arg("drone_assets"), nb::arg("drone_parameters"), nb::arg("gate_asset"), nb::arg("seed"), nb::call_guard<nb::gil_scoped_release>())
         .def("parameters", &Environment::parameters_json, nb::call_guard<nb::gil_scoped_release>())
-        .def("set_parameters", &Environment::set_parameters, nb::arg("json"), nb::call_guard<nb::gil_scoped_release>())
+        .def("drones", &Environment::drones_json, nb::call_guard<nb::gil_scoped_release>())
         .def("instance_parameters", &Environment::instance_parameters_json, nb::call_guard<nb::gil_scoped_release>())
         .def("set_instance_parameters", [](Environment& self, Mask mask, const std::string& json){
             check_size(mask, TOTAL);
