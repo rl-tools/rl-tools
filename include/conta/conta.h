@@ -1,45 +1,74 @@
 #ifndef CONTA_CONTA_H
 #define CONTA_CONTA_H
-// conta: client for the sha1 content-addressed asset store (https://huggingface.co/datasets/rl-tools/conta)
+// conta: client for the sha1 content-addressed asset store; index contract: https://github.com/rl-tools/conta-index (format 1)
 // Freestanding, C++17, STL-only; downloads via the curl CLI.
-// CONTA_ROOT: read-only store (<root>/data/<sha1>), disables downloads. CONTA_CACHE: writable cache directory (flat <sha1>). CONTA_URL: download base URL.
+// A sha1 resolves from <cache>/<sha1>, then the cached index, then the index entry points, then DEFAULT_URL_BASE<sha1>; downloads are verified against the sha1 and the sha256 the index lists.
+// CONTA_ROOT: read-only store (<root>/data/<sha1>), disables the network. CONTA_URL: fetch <url>/<sha1> directly, without the index. CONTA_CACHE: writable cache directory.
 
 #include <algorithm>
+#include <csignal>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <string>
-#include <vector>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <filesystem>
+#include <iterator>
+#include <map>
+#include <random>
+#include <set>
+#include <string>
 #include <system_error>
+#include <vector>
 #if defined(_WIN32)
 #include <process.h>
 #else
+#include <sys/wait.h>
 #include <unistd.h>
 #endif
 
 namespace conta{
     constexpr const char* DEFAULT_URL_BASE = "https://huggingface.co/datasets/rl-tools/conta/resolve/main/data/";
+    constexpr const char* CACHED_INDEX_NAME = "index-1.json";
+    inline std::vector<std::string> default_entry_points(){
+        return {
+            "https://conta.rl.tools/version/1/meta.json",
+            "https://raw.githubusercontent.com/rl-tools/conta-index/main/version/1/meta.json",
+            "https://huggingface.co/datasets/rl-tools/conta-index/resolve/main/version/1/meta.json",
+        };
+    }
     struct Config{
         std::string root;
         std::string cache;
         std::string url_base;
+        std::vector<std::string> entry_points = default_entry_points();
+        std::string fallback_url_base = DEFAULT_URL_BASE;
     };
     namespace detail{
-        struct Sha1{
+        template <std::size_t T_WORDS>
+        std::string hex_words(const std::uint32_t (&words)[T_WORDS]){
+            std::string hex;
+            hex.reserve(T_WORDS * 8);
+            for(std::size_t word_i = 0; word_i < T_WORDS; word_i++){
+                for(int shift = 28; shift >= 0; shift -= 4){
+                    hex += "0123456789abcdef"[(words[word_i] >> unsigned(shift)) & 0xFu];
+                }
+            }
+            return hex;
+        }
+        inline std::uint32_t big_endian_word(const unsigned char* bytes){
+            return (std::uint32_t(bytes[0]) << 24u) | (std::uint32_t(bytes[1]) << 16u) | (std::uint32_t(bytes[2]) << 8u) | std::uint32_t(bytes[3]);
+        }
+        struct Sha1Compression{
             std::uint32_t state[5] = {0x67452301u, 0xEFCDAB89u, 0x98BADCFEu, 0x10325476u, 0xC3D2E1F0u};
-            std::uint64_t message_length_bits = 0;
-            unsigned char buffer[64];
-            std::size_t buffer_size = 0;
             static std::uint32_t rotate_left(std::uint32_t value, unsigned bits){
                 return (value << bits) | (value >> (32u - bits));
             }
             void process_block(const unsigned char* block){
                 std::uint32_t schedule[80];
                 for(unsigned i = 0; i < 16; i++){
-                    schedule[i] = (std::uint32_t(block[4 * i]) << 24u) | (std::uint32_t(block[4 * i + 1]) << 16u) | (std::uint32_t(block[4 * i + 2]) << 8u) | std::uint32_t(block[4 * i + 3]);
+                    schedule[i] = big_endian_word(block + 4 * i);
                 }
                 for(unsigned i = 16; i < 80; i++){
                     schedule[i] = rotate_left(schedule[i - 3] ^ schedule[i - 8] ^ schedule[i - 14] ^ schedule[i - 16], 1);
@@ -63,12 +92,12 @@ namespace conta{
                         f = b ^ c ^ d;
                         k = 0xCA62C1D6u;
                     }
-                    std::uint32_t temp = rotate_left(a, 5) + f + e + k + schedule[i];
+                    std::uint32_t temporary = rotate_left(a, 5) + f + e + k + schedule[i];
                     e = d;
                     d = c;
                     c = rotate_left(b, 30);
                     b = a;
-                    a = temp;
+                    a = temporary;
                 }
                 state[0] += a;
                 state[1] += b;
@@ -76,6 +105,64 @@ namespace conta{
                 state[3] += d;
                 state[4] += e;
             }
+        };
+        struct Sha256Compression{
+            std::uint32_t state[8] = {0x6A09E667u, 0xBB67AE85u, 0x3C6EF372u, 0xA54FF53Au, 0x510E527Fu, 0x9B05688Cu, 0x1F83D9ABu, 0x5BE0CD19u};
+            static std::uint32_t rotate_right(std::uint32_t value, unsigned bits){
+                return (value >> bits) | (value << (32u - bits));
+            }
+            void process_block(const unsigned char* block){
+                static constexpr std::uint32_t ROUND_CONSTANTS[64] = {
+                    0x428A2F98u, 0x71374491u, 0xB5C0FBCFu, 0xE9B5DBA5u, 0x3956C25Bu, 0x59F111F1u, 0x923F82A4u, 0xAB1C5ED5u,
+                    0xD807AA98u, 0x12835B01u, 0x243185BEu, 0x550C7DC3u, 0x72BE5D74u, 0x80DEB1FEu, 0x9BDC06A7u, 0xC19BF174u,
+                    0xE49B69C1u, 0xEFBE4786u, 0x0FC19DC6u, 0x240CA1CCu, 0x2DE92C6Fu, 0x4A7484AAu, 0x5CB0A9DCu, 0x76F988DAu,
+                    0x983E5152u, 0xA831C66Du, 0xB00327C8u, 0xBF597FC7u, 0xC6E00BF3u, 0xD5A79147u, 0x06CA6351u, 0x14292967u,
+                    0x27B70A85u, 0x2E1B2138u, 0x4D2C6DFCu, 0x53380D13u, 0x650A7354u, 0x766A0ABBu, 0x81C2C92Eu, 0x92722C85u,
+                    0xA2BFE8A1u, 0xA81A664Bu, 0xC24B8B70u, 0xC76C51A3u, 0xD192E819u, 0xD6990624u, 0xF40E3585u, 0x106AA070u,
+                    0x19A4C116u, 0x1E376C08u, 0x2748774Cu, 0x34B0BCB5u, 0x391C0CB3u, 0x4ED8AA4Au, 0x5B9CCA4Fu, 0x682E6FF3u,
+                    0x748F82EEu, 0x78A5636Fu, 0x84C87814u, 0x8CC70208u, 0x90BEFFFAu, 0xA4506CEBu, 0xBEF9A3F7u, 0xC67178F2u};
+                std::uint32_t schedule[64];
+                for(unsigned i = 0; i < 16; i++){
+                    schedule[i] = big_endian_word(block + 4 * i);
+                }
+                for(unsigned i = 16; i < 64; i++){
+                    std::uint32_t sigma0 = rotate_right(schedule[i - 15], 7) ^ rotate_right(schedule[i - 15], 18) ^ (schedule[i - 15] >> 3u);
+                    std::uint32_t sigma1 = rotate_right(schedule[i - 2], 17) ^ rotate_right(schedule[i - 2], 19) ^ (schedule[i - 2] >> 10u);
+                    schedule[i] = schedule[i - 16] + sigma0 + schedule[i - 7] + sigma1;
+                }
+                std::uint32_t a = state[0], b = state[1], c = state[2], d = state[3], e = state[4], f = state[5], g = state[6], h = state[7];
+                for(unsigned i = 0; i < 64; i++){
+                    std::uint32_t sum1 = rotate_right(e, 6) ^ rotate_right(e, 11) ^ rotate_right(e, 25);
+                    std::uint32_t choice = (e & f) ^ (~e & g);
+                    std::uint32_t temporary1 = h + sum1 + choice + ROUND_CONSTANTS[i] + schedule[i];
+                    std::uint32_t sum0 = rotate_right(a, 2) ^ rotate_right(a, 13) ^ rotate_right(a, 22);
+                    std::uint32_t majority = (a & b) ^ (a & c) ^ (b & c);
+                    std::uint32_t temporary2 = sum0 + majority;
+                    h = g;
+                    g = f;
+                    f = e;
+                    e = d + temporary1;
+                    d = c;
+                    c = b;
+                    b = a;
+                    a = temporary1 + temporary2;
+                }
+                state[0] += a;
+                state[1] += b;
+                state[2] += c;
+                state[3] += d;
+                state[4] += e;
+                state[5] += f;
+                state[6] += g;
+                state[7] += h;
+            }
+        };
+        template <typename T_COMPRESSION>
+        struct Hash{
+            T_COMPRESSION compression;
+            std::uint64_t message_length_bits = 0;
+            unsigned char buffer[64];
+            std::size_t buffer_size = 0;
             void update(const unsigned char* data, std::size_t size){
                 message_length_bits += std::uint64_t(size) * 8u;
                 while(size > 0){
@@ -85,7 +172,7 @@ namespace conta{
                     data += take;
                     size -= take;
                     if(buffer_size == 64){
-                        process_block(buffer);
+                        compression.process_block(buffer);
                         buffer_size = 0;
                     }
                 }
@@ -103,41 +190,67 @@ namespace conta{
                     length_bytes[i] = static_cast<unsigned char>((final_length_bits >> (56u - 8u * i)) & 0xFFu);
                 }
                 update(length_bytes, 8);
-                std::string hex;
-                hex.reserve(40);
-                for(unsigned i = 0; i < 5; i++){
-                    for(int shift = 28; shift >= 0; shift -= 4){
-                        hex += "0123456789abcdef"[(state[i] >> unsigned(shift)) & 0xFu];
-                    }
-                }
-                return hex;
+                return hex_words(compression.state);
             }
         };
-        inline bool sha1_file(const std::filesystem::path& path, std::string& hex_output){
+        using Sha1 = Hash<Sha1Compression>;
+        using Sha256 = Hash<Sha256Compression>;
+        template <typename T_CONSUMER>
+        bool read_file_chunks(const std::filesystem::path& path, T_CONSUMER&& consumer){
             std::ifstream file(path, std::ios::binary);
             if(!file.is_open()){
                 return false;
             }
-            Sha1 sha1;
             std::vector<char> chunk(64 * 1024);
             while(file){
                 file.read(chunk.data(), std::streamsize(chunk.size()));
                 std::streamsize count = file.gcount();
                 if(count > 0){
-                    sha1.update(reinterpret_cast<const unsigned char*>(chunk.data()), std::size_t(count));
+                    consumer(reinterpret_cast<const unsigned char*>(chunk.data()), std::size_t(count));
                 }
             }
-            if(file.bad()){
+            return !file.bad();
+        }
+        inline bool sha1_file(const std::filesystem::path& path, std::string& hex_output){
+            Sha1 sha1;
+            if(!read_file_chunks(path, [&](const unsigned char* data, std::size_t size){ sha1.update(data, size); })){
                 return false;
             }
             hex_output = sha1.finalize();
             return true;
         }
-        inline bool normalize_hash(std::string& hash){
-            if(hash.size() != 40){
+        inline bool digests_file(const std::filesystem::path& path, std::string& sha1_output, std::string& sha256_output){
+            Sha1 sha1;
+            Sha256 sha256;
+            bool read = read_file_chunks(path, [&](const unsigned char* data, std::size_t size){
+                sha1.update(data, size);
+                sha256.update(data, size);
+            });
+            if(!read){
                 return false;
             }
-            for(char& character: hash){
+            sha1_output = sha1.finalize();
+            sha256_output = sha256.finalize();
+            return true;
+        }
+        inline std::string sha256_text(const std::string& text){
+            Sha256 sha256;
+            sha256.update(reinterpret_cast<const unsigned char*>(text.data()), text.size());
+            return sha256.finalize();
+        }
+        inline bool read_file(const std::filesystem::path& path, std::string& output){
+            std::ifstream file(path, std::ios::binary);
+            if(!file.is_open()){
+                return false;
+            }
+            output.assign(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+            return !file.bad();
+        }
+        inline bool normalize_hex(std::string& text, std::size_t length){
+            if(text.size() != length){
+                return false;
+            }
+            for(char& character: text){
                 if(character >= 'A' && character <= 'F'){
                     character = char(character - 'A' + 'a');
                 }
@@ -147,6 +260,27 @@ namespace conta{
                 }
             }
             return true;
+        }
+        inline bool normalize_hash(std::string& hash){
+            return normalize_hex(hash, 40);
+        }
+        inline bool is_lowercase_hex(const std::string& text, std::size_t length){
+            std::string normalized = text;
+            return normalize_hex(normalized, length) && normalized == text;
+        }
+        inline bool normalize_reference(const std::string& reference, std::string& sha1_output, std::string& error_output){
+            std::string hash = reference.rfind("conta:", 0) == 0 ? reference.substr(6) : reference;
+            std::string as_sha256 = hash;
+            if(normalize_hash(hash)){
+                sha1_output = hash;
+                return true;
+            }
+            if(normalize_hex(as_sha256, 64)){
+                error_output = "conta: \"" + reference + "\" is a sha256, but conta references are sha1 (40 hexadecimal characters); the sha256 in the index only verifies downloads";
+                return false;
+            }
+            error_output = "conta: invalid hash \"" + reference + "\": expected a sha1 (40 hexadecimal characters)";
+            return false;
         }
         inline bool is_lfs_pointer(const std::filesystem::path& path){
             std::error_code error_code;
@@ -163,9 +297,461 @@ namespace conta{
             }
             return std::memcmp(head, PREFIX, PREFIX_LENGTH) == 0;
         }
+        struct JsonReader{
+            static constexpr int MAXIMUM_DEPTH = 64;
+            const std::string& text;
+            std::size_t position = 0;
+            explicit JsonReader(const std::string& text_input): text(text_input){}
+            void skip_whitespace(){
+                while(position < text.size() && (text[position] == ' ' || text[position] == '\t' || text[position] == '\n' || text[position] == '\r')){
+                    position++;
+                }
+            }
+            bool next_is(char character){
+                skip_whitespace();
+                return position < text.size() && text[position] == character;
+            }
+            bool consume(char character){
+                if(!next_is(character)){
+                    return false;
+                }
+                position++;
+                return true;
+            }
+            bool at_end(){
+                skip_whitespace();
+                return position == text.size();
+            }
+            bool digit_at(std::size_t index) const{
+                return index < text.size() && text[index] >= '0' && text[index] <= '9';
+            }
+            bool consume_literal(const char* literal){
+                std::size_t length = std::strlen(literal);
+                if(text.compare(position, length, literal) != 0){
+                    return false;
+                }
+                position += length;
+                return true;
+            }
+            bool read_code_unit(std::uint32_t& value){
+                if(position + 4 > text.size()){
+                    return false;
+                }
+                value = 0;
+                for(int digit_i = 0; digit_i < 4; digit_i++){
+                    char character = text[position++];
+                    value <<= 4u;
+                    if(character >= '0' && character <= '9'){
+                        value |= std::uint32_t(character - '0');
+                    }
+                    else if(character >= 'a' && character <= 'f'){
+                        value |= std::uint32_t(character - 'a' + 10);
+                    }
+                    else if(character >= 'A' && character <= 'F'){
+                        value |= std::uint32_t(character - 'A' + 10);
+                    }
+                    else{
+                        return false;
+                    }
+                }
+                return true;
+            }
+            static void append_utf8(std::string& output, std::uint32_t code_point){
+                if(code_point < 0x80u){
+                    output += char(code_point);
+                }
+                else if(code_point < 0x800u){
+                    output += char(0xC0u | (code_point >> 6u));
+                    output += char(0x80u | (code_point & 0x3Fu));
+                }
+                else if(code_point < 0x10000u){
+                    output += char(0xE0u | (code_point >> 12u));
+                    output += char(0x80u | ((code_point >> 6u) & 0x3Fu));
+                    output += char(0x80u | (code_point & 0x3Fu));
+                }
+                else{
+                    output += char(0xF0u | (code_point >> 18u));
+                    output += char(0x80u | ((code_point >> 12u) & 0x3Fu));
+                    output += char(0x80u | ((code_point >> 6u) & 0x3Fu));
+                    output += char(0x80u | (code_point & 0x3Fu));
+                }
+            }
+            bool parse_string(std::string& output){
+                if(!consume('"')){
+                    return false;
+                }
+                output.clear();
+                while(position < text.size()){
+                    unsigned char character = static_cast<unsigned char>(text[position++]);
+                    if(character == '"'){
+                        return true;
+                    }
+                    if(character < 0x20u){
+                        return false;
+                    }
+                    if(character != '\\'){
+                        output += char(character);
+                        continue;
+                    }
+                    if(position >= text.size()){
+                        return false;
+                    }
+                    char escape = text[position++];
+                    switch(escape){
+                        case '"': output += '"'; break;
+                        case '\\': output += '\\'; break;
+                        case '/': output += '/'; break;
+                        case 'b': output += '\b'; break;
+                        case 'f': output += '\f'; break;
+                        case 'n': output += '\n'; break;
+                        case 'r': output += '\r'; break;
+                        case 't': output += '\t'; break;
+                        case 'u': {
+                            std::uint32_t code_point;
+                            if(!read_code_unit(code_point)){
+                                return false;
+                            }
+                            if(code_point >= 0xD800u && code_point <= 0xDBFFu){
+                                std::size_t high_end = position;
+                                std::uint32_t low = 0;
+                                if(text.compare(position, 2, "\\u") == 0){
+                                    position += 2;
+                                }
+                                if(position != high_end && read_code_unit(low) && low >= 0xDC00u && low <= 0xDFFFu){
+                                    code_point = 0x10000u + ((code_point - 0xD800u) << 10u) + (low - 0xDC00u);
+                                }
+                                else{
+                                    position = high_end;
+                                    code_point = 0xFFFDu;
+                                }
+                            }
+                            else if(code_point >= 0xDC00u && code_point <= 0xDFFFu){
+                                code_point = 0xFFFDu;
+                            }
+                            append_utf8(output, code_point);
+                            break;
+                        }
+                        default: return false;
+                    }
+                }
+                return false;
+            }
+            bool parse_number(std::string& token){
+                skip_whitespace();
+                std::size_t start = position;
+                if(position < text.size() && text[position] == '-'){
+                    position++;
+                }
+                if(position < text.size() && text[position] == '0'){
+                    position++;
+                }
+                else if(digit_at(position)){
+                    while(digit_at(position)){
+                        position++;
+                    }
+                }
+                else{
+                    return false;
+                }
+                if(position < text.size() && text[position] == '.'){
+                    position++;
+                    if(!digit_at(position)){
+                        return false;
+                    }
+                    while(digit_at(position)){
+                        position++;
+                    }
+                }
+                if(position < text.size() && (text[position] == 'e' || text[position] == 'E')){
+                    position++;
+                    if(position < text.size() && (text[position] == '+' || text[position] == '-')){
+                        position++;
+                    }
+                    if(!digit_at(position)){
+                        return false;
+                    }
+                    while(digit_at(position)){
+                        position++;
+                    }
+                }
+                token = text.substr(start, position - start);
+                return true;
+            }
+            template <typename T_CALLBACK>
+            bool parse_object(int depth, T_CALLBACK&& callback){
+                if(depth > MAXIMUM_DEPTH || !consume('{')){
+                    return false;
+                }
+                if(consume('}')){
+                    return true;
+                }
+                do{
+                    std::string key;
+                    if(!parse_string(key) || !consume(':') || !callback(key)){
+                        return false;
+                    }
+                } while(consume(','));
+                return consume('}');
+            }
+            template <typename T_CALLBACK>
+            bool parse_array(int depth, T_CALLBACK&& callback){
+                if(depth > MAXIMUM_DEPTH || !consume('[')){
+                    return false;
+                }
+                if(consume(']')){
+                    return true;
+                }
+                do{
+                    if(!callback()){
+                        return false;
+                    }
+                } while(consume(','));
+                return consume(']');
+            }
+            bool skip_value(int depth){
+                if(depth > MAXIMUM_DEPTH){
+                    return false;
+                }
+                skip_whitespace();
+                if(position >= text.size()){
+                    return false;
+                }
+                char character = text[position];
+                if(character == '{'){
+                    return parse_object(depth, [&](const std::string&){ return skip_value(depth + 1); });
+                }
+                if(character == '['){
+                    return parse_array(depth, [&](){ return skip_value(depth + 1); });
+                }
+                if(character == '"'){
+                    std::string ignored;
+                    return parse_string(ignored);
+                }
+                if(character == 't'){
+                    return consume_literal("true");
+                }
+                if(character == 'f'){
+                    return consume_literal("false");
+                }
+                if(character == 'n'){
+                    return consume_literal("null");
+                }
+                std::string ignored;
+                return parse_number(ignored);
+            }
+            bool parse_string_or_skip(std::string& output, int depth){
+                if(next_is('"')){
+                    return parse_string(output);
+                }
+                output.clear();
+                return skip_value(depth);
+            }
+            bool parse_number_or_skip(std::string& token, int depth){
+                skip_whitespace();
+                if(position < text.size() && (text[position] == '-' || digit_at(position))){
+                    return parse_number(token);
+                }
+                token.clear();
+                return skip_value(depth);
+            }
+        };
+        struct Meta{
+            bool format_supported = false;
+            std::string location;
+            std::string sha256;
+        };
+        struct Entry{
+            std::string sha256;
+            std::vector<std::string> shards;
+            std::string description;
+            std::string notice;
+        };
+        struct Index{
+            std::string source;
+            std::string sha256;
+            std::size_t entry_count = 0;
+            std::map<std::string, std::string> shard_urls;
+            std::map<std::string, Entry> entries;
+        };
+        inline bool parse_meta(const std::string& text, Meta& meta){
+            JsonReader reader(text);
+            bool parsed = reader.parse_object(0, [&](const std::string& key){
+                if(key == "format"){
+                    std::string token;
+                    if(!reader.parse_number_or_skip(token, 1)){
+                        return false;
+                    }
+                    meta.format_supported = token == "1";
+                    return true;
+                }
+                if(key == "index" && reader.next_is('{')){
+                    return reader.parse_object(1, [&](const std::string& index_key){
+                        if(index_key == "location"){
+                            return reader.parse_string_or_skip(meta.location, 2);
+                        }
+                        if(index_key == "sha256"){
+                            return reader.parse_string_or_skip(meta.sha256, 2);
+                        }
+                        return reader.skip_value(2);
+                    });
+                }
+                return reader.skip_value(1);
+            });
+            return parsed && reader.at_end();
+        }
+        inline bool parse_index(const std::string& text, const std::set<std::string>& wanted, Index& index){
+            JsonReader reader(text);
+            bool has_shards = false;
+            bool has_entries = false;
+            bool parsed = reader.parse_object(0, [&](const std::string& key){
+                if(key == "shards" && reader.next_is('{')){
+                    has_shards = true;
+                    return reader.parse_object(1, [&](const std::string& shard){
+                        if(!reader.next_is('{')){
+                            return reader.skip_value(2);
+                        }
+                        std::string url;
+                        bool shard_parsed = reader.parse_object(2, [&](const std::string& shard_key){
+                            if(shard_key == "url"){
+                                return reader.parse_string_or_skip(url, 3);
+                            }
+                            return reader.skip_value(3);
+                        });
+                        if(shard_parsed && !url.empty()){
+                            index.shard_urls[shard] = url;
+                        }
+                        return shard_parsed;
+                    });
+                }
+                if(key == "entries" && reader.next_is('[')){
+                    has_entries = true;
+                    return reader.parse_array(1, [&](){
+                        if(!reader.next_is('{')){
+                            return reader.skip_value(2);
+                        }
+                        std::string sha1;
+                        Entry entry;
+                        bool entry_parsed = reader.parse_object(2, [&](const std::string& entry_key){
+                            if(entry_key == "sha1"){
+                                return reader.parse_string_or_skip(sha1, 3);
+                            }
+                            if(entry_key == "sha256"){
+                                return reader.parse_string_or_skip(entry.sha256, 3);
+                            }
+                            if(entry_key == "description"){
+                                return reader.parse_string_or_skip(entry.description, 3);
+                            }
+                            if(entry_key == "notice"){
+                                return reader.parse_string_or_skip(entry.notice, 3);
+                            }
+                            if(entry_key == "shards" && reader.next_is('[')){
+                                entry.shards.clear();
+                                return reader.parse_array(3, [&](){
+                                    std::string shard;
+                                    if(!reader.parse_string_or_skip(shard, 4)){
+                                        return false;
+                                    }
+                                    if(!shard.empty()){
+                                        entry.shards.push_back(shard);
+                                    }
+                                    return true;
+                                });
+                            }
+                            return reader.skip_value(3);
+                        });
+                        if(!entry_parsed){
+                            return false;
+                        }
+                        if(is_lowercase_hex(sha1, 40) && is_lowercase_hex(entry.sha256, 64)){
+                            index.entry_count++;
+                            if(wanted.count(sha1) > 0 && index.entries.count(sha1) == 0){
+                                index.entries.emplace(sha1, std::move(entry));
+                            }
+                        }
+                        return true;
+                    });
+                }
+                return reader.skip_value(1);
+            });
+            return parsed && reader.at_end() && has_shards && has_entries;
+        }
+        inline bool is_alphanumeric(char character){
+            return (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') || (character >= '0' && character <= '9');
+        }
+        inline bool is_document_url(const std::string& url){
+            std::size_t start;
+            if(url.rfind("https://", 0) == 0){
+                start = 8;
+            }
+            else if(url.rfind("http://", 0) == 0){
+                start = 7;
+            }
+            else if(url.rfind("file:///", 0) == 0){
+                start = 8;
+            }
+            else{
+                return false;
+            }
+            if(start >= url.size() || !is_alphanumeric(url[start])){
+                return false;
+            }
+            for(std::size_t character_i = start; character_i < url.size(); character_i++){
+                char character = url[character_i];
+                if(!is_alphanumeric(character) && (character == '\0' || std::strchr("._~:/?&=+,;@-", character) == nullptr)){
+                    return false;
+                }
+            }
+            return true;
+        }
+        inline bool resolve_location(const std::string& entry_point, const std::string& location, std::string& url_output){
+            if(location.find("://") != std::string::npos){
+                if(!is_document_url(location)){
+                    return false;
+                }
+                url_output = location;
+                return true;
+            }
+            if(location.empty() || location[0] == '/' || location.find("..") != std::string::npos){
+                return false;
+            }
+            for(char character: location){
+                if(!is_alphanumeric(character) && character != '.' && character != '_' && character != '~' && character != '-' && character != '/'){
+                    return false;
+                }
+            }
+            std::size_t slash = entry_point.rfind('/');
+            if(slash == std::string::npos){
+                return false;
+            }
+            url_output = entry_point.substr(0, slash + 1) + location;
+            return true;
+        }
+        inline void replace_all(std::string& text, const std::string& pattern, const std::string& replacement){
+            for(std::size_t position = text.find(pattern); position != std::string::npos; position = text.find(pattern, position + replacement.size())){
+                text.replace(position, pattern.size(), replacement);
+            }
+        }
+        inline bool shard_location(const std::string& url_template, const std::string& sha1, const std::string& sha256, std::string& url_output){
+            std::string url = url_template;
+            replace_all(url, "{sha1}", sha1);
+            replace_all(url, "{sha256}", sha256);
+            if(url.find_first_of("{}") != std::string::npos || !is_document_url(url)){
+                return false;
+            }
+            url_output = url;
+            return true;
+        }
+        inline std::string printable(const std::string& text){
+            std::string output;
+            for(char character: text.substr(0, 4096)){
+                unsigned char byte = static_cast<unsigned char>(character);
+                output += byte >= 0x20u && byte <= 0x7Eu ? character : '?';
+            }
+            return output;
+        }
         inline bool shell_quote(const std::string& input, std::string& output){
 #if defined(_WIN32)
-            if(input.find('"') != std::string::npos || input.find('%') != std::string::npos){
+            if(input.find_first_of("\"%!") != std::string::npos){
                 return false;
             }
             output = "\"" + input + "\"";
@@ -184,38 +770,89 @@ namespace conta{
             return long(getpid());
 #endif
         }
-        inline bool download(const Config& config, const std::string& hash, const std::filesystem::path& target, std::string& error_output){
-            std::filesystem::path temporary = target;
-            temporary += ".partial." + std::to_string(process_id());
-            std::string url = config.url_base + hash;
-            std::string quoted_temporary, quoted_url;
-            if(!shell_quote(temporary.string(), quoted_temporary)){
-                error_output = "conta: unsupported character in path: " + temporary.string();
-                return false;
+        inline std::string unique_suffix(){
+            std::random_device device;
+            char random_hex[9];
+            std::snprintf(random_hex, sizeof(random_hex), "%08x", static_cast<unsigned int>(device()));
+            return std::to_string(process_id()) + "-" + random_hex;
+        }
+        inline int command_exit_code(int status){
+#if defined(_WIN32)
+            return status;
+#else
+            if(status != -1 && WIFSIGNALED(status)){
+                int signal_number = WTERMSIG(status);
+                if(signal_number == SIGINT || signal_number == SIGQUIT){ // std::system ignores both in the caller, so a Ctrl-C that killed curl is re-raised here
+                    std::raise(signal_number);
+                }
+                return 128 + signal_number;
             }
+            if(status == -1 || !WIFEXITED(status)){
+                return -1;
+            }
+            return WEXITSTATUS(status);
+#endif
+        }
+        inline std::string curl_failure(int code){
+            std::string described = "curl exit status " + std::to_string(code);
+            if(code == 127 || code == 9009){
+                return described + ": is curl installed and on the PATH?";
+            }
+            if(code == 22){
+                return described + ": HTTP error, the host does not serve it";
+            }
+            if(code == 37){
+                return described + ": file not found";
+            }
+            if(code == 6 || code == 7 || code == 28){
+                return described + ": host unreachable or transfer stalled";
+            }
+            if(code == 35 || code == 51 || code == 53 || code == 58 || code == 59 || code == 60 || code == 77 || code == 83 || code == 90 || code == 91){
+                return described + ": TLS failed; in an old environment point CURL_CA_BUNDLE or SSL_CERT_FILE at a current CA bundle";
+            }
+            return described;
+        }
+        inline bool run_curl(const std::string& url, const std::filesystem::path& output, bool quiet, std::string& failure_output){
+            std::string quoted_url, quoted_output;
             if(!shell_quote(url, quoted_url)){
-                error_output = "conta: unsupported character in URL: " + url;
+                failure_output = "unsupported character in the URL";
                 return false;
             }
-            std::cerr << "conta: downloading " << hash << " from " << url << std::endl;
-            std::string command = "curl -f -L --retry 3 --connect-timeout 15 -o " + quoted_temporary + " " + quoted_url;
-            int status = std::system(command.c_str());
+            if(!shell_quote(output.string(), quoted_output)){
+                failure_output = "unsupported character in the path " + output.string();
+                return false;
+            }
+            std::string command = std::string("curl -f -L -g ") + (quiet ? "-sS " : "") + "--retry 3 --connect-timeout 15 --speed-limit 1024 --speed-time 60 -o " + quoted_output + " " + quoted_url;
+            int code = command_exit_code(std::system(command.c_str()));
+            if(code != 0){
+                failure_output = curl_failure(code);
+                return false;
+            }
+            return true;
+        }
+        inline bool fetch_blob(const std::string& url, const std::string& sha1, const std::string& sha256, const std::string& description, const std::filesystem::path& target, std::string& failure_output){
+            std::filesystem::path temporary = target;
+            temporary += ".partial." + unique_suffix();
+            std::cerr << "conta: downloading " << sha1 << (description.empty() ? std::string() : " (" + printable(description) + ")") << " from " << url << std::endl;
             std::error_code error_code;
-            if(status != 0){
+            if(!run_curl(url, temporary, false, failure_output)){
                 std::filesystem::remove(temporary, error_code);
-                error_output = "conta: download of " + hash + " failed (curl exit status " + std::to_string(status) + "): " + url;
-                if(status == 127 || status == 32512){
-                    error_output += ". Is curl installed and on the PATH?";
-                }
-                else{
-                    error_output += ". Check network connectivity.";
-                }
                 return false;
             }
-            std::string actual_hash;
-            if(!sha1_file(temporary, actual_hash) || actual_hash != hash){
+            std::string actual_sha1, actual_sha256;
+            if(!digests_file(temporary, actual_sha1, actual_sha256)){
                 std::filesystem::remove(temporary, error_code);
-                error_output = "conta: hash mismatch for " + hash + ": downloaded content hashes to " + (actual_hash.empty() ? "<unreadable>" : actual_hash) + "; not caching: " + url;
+                failure_output = "the downloaded file is unreadable";
+                return false;
+            }
+            if(actual_sha1 != sha1){
+                std::filesystem::remove(temporary, error_code);
+                failure_output = "hash mismatch: the content hashes to " + actual_sha1 + ", not caching";
+                return false;
+            }
+            if(!sha256.empty() && actual_sha256 != sha256){
+                std::filesystem::remove(temporary, error_code);
+                failure_output = "sha256 mismatch: the index lists " + sha256 + " but the content hashes to " + actual_sha256 + ", not caching";
                 return false;
             }
             std::filesystem::rename(temporary, target, error_code);
@@ -224,57 +861,261 @@ namespace conta{
                     std::filesystem::remove(temporary, error_code);
                     return true;
                 }
-                error_output = "conta: failed to move " + temporary.string() + " to " + target.string() + ": " + error_code.message();
+                failure_output = "failed to move " + temporary.string() + " to " + target.string() + ": " + error_code.message();
+                std::filesystem::remove(temporary, error_code);
                 return false;
             }
             return true;
+        }
+        struct Session{
+            std::set<std::string> wanted;
+            std::vector<Index> indexes;
+            std::set<std::string> attempted_urls;
+            std::size_t next_entry_point = 0;
+            bool cached_index_loaded = false;
+            std::string cached_index_sha256;
+            std::size_t cached_index_entry_count = 0;
+        };
+        inline const Entry* find_entry(const Session& session, const std::string& sha1){
+            for(const Index& index: session.indexes){
+                auto entry = index.entries.find(sha1);
+                if(entry != index.entries.end()){
+                    return &entry->second;
+                }
+            }
+            return nullptr;
+        }
+        inline bool try_index(Session& session, const Index& index, const std::string& sha1, const std::filesystem::path& target, std::vector<std::string>& report){
+            auto found = index.entries.find(sha1);
+            if(found == index.entries.end()){
+                report.push_back(index.source + ": does not list it");
+                return false;
+            }
+            const Entry& entry = found->second;
+            if(entry.shards.empty()){
+                report.push_back(index.source + ": lists no location");
+            }
+            for(const std::string& shard: entry.shards){
+                auto url_template = index.shard_urls.find(shard);
+                if(url_template == index.shard_urls.end()){
+                    report.push_back(index.source + ": shard " + shard + " is not in its shard table");
+                    continue;
+                }
+                std::string url;
+                if(!shard_location(url_template->second, sha1, entry.sha256, url)){
+                    report.push_back(index.source + ": skipped shard " + shard + ", unsupported url " + url_template->second);
+                    continue;
+                }
+                if(!session.attempted_urls.insert(url).second){
+                    continue;
+                }
+                std::string failure;
+                if(fetch_blob(url, sha1, entry.sha256, entry.description, target, failure)){
+                    return true;
+                }
+                report.push_back(url + ": " + failure);
+            }
+            return false;
+        }
+        inline void load_cached_index(const Config& config, Session& session){
+            session.cached_index_loaded = true;
+            std::filesystem::path path = std::filesystem::path(config.cache) / CACHED_INDEX_NAME;
+            std::string text;
+            if(!read_file(path, text)){
+                return;
+            }
+            Index index;
+            index.source = path.string();
+            index.sha256 = sha256_text(text);
+            if(!parse_index(text, session.wanted, index)){
+                return;
+            }
+            session.cached_index_sha256 = index.sha256;
+            session.cached_index_entry_count = index.entry_count;
+            session.indexes.push_back(std::move(index));
+        }
+        inline bool fetch_text(const Config& config, const std::string& url, const std::string& name, std::string& text_output, std::string& failure_output){
+            std::filesystem::path temporary = std::filesystem::path(config.cache) / (name + ".partial." + unique_suffix());
+            std::error_code error_code;
+            bool fetched = run_curl(url, temporary, true, failure_output);
+            if(fetched && !read_file(temporary, text_output)){
+                failure_output = "the downloaded file is unreadable";
+                fetched = false;
+            }
+            std::filesystem::remove(temporary, error_code);
+            return fetched;
+        }
+        inline bool visit_entry_point(const Config& config, Session& session, const std::string& sha1, const std::filesystem::path& target, std::vector<std::string>& report){
+            const std::string& entry_point = config.entry_points[session.next_entry_point++];
+            std::cerr << "conta: refreshing the index from " << entry_point << std::endl;
+            std::string meta_text, failure;
+            if(!fetch_text(config, entry_point, "meta.json", meta_text, failure)){
+                report.push_back(entry_point + ": " + failure);
+                return false;
+            }
+            Meta meta;
+            if(!parse_meta(meta_text, meta) || !meta.format_supported || !is_lowercase_hex(meta.sha256, 64)){
+                report.push_back(entry_point + ": not a format 1 meta.json");
+                return false;
+            }
+            for(const Index& index: session.indexes){
+                if(index.sha256 == meta.sha256){
+                    report.push_back(entry_point + ": serves the index already searched");
+                    return false;
+                }
+            }
+            std::string index_url;
+            if(!resolve_location(entry_point, meta.location, index_url)){
+                report.push_back(entry_point + ": unsupported index.location " + meta.location);
+                return false;
+            }
+            std::string text;
+            if(!fetch_text(config, index_url, CACHED_INDEX_NAME, text, failure)){
+                report.push_back(index_url + ": " + failure);
+                return false;
+            }
+            Index index;
+            index.source = index_url;
+            index.sha256 = sha256_text(text);
+            if(!parse_index(text, session.wanted, index)){
+                report.push_back(index_url + ": not a format 1 index");
+                return false;
+            }
+            if(index.sha256 != meta.sha256){
+                report.push_back(index_url + ": differs from the sha256 in meta.json (a publish may still be propagating), used for this call only");
+            }
+            else if(session.cached_index_sha256.empty() || index.entry_count >= session.cached_index_entry_count){ // entries are never removed, so a smaller index is older and must not replace the cached one
+                std::filesystem::path temporary = std::filesystem::path(config.cache) / (std::string(CACHED_INDEX_NAME) + ".partial." + unique_suffix());
+                std::error_code error_code;
+                {
+                    std::ofstream file(temporary, std::ios::binary);
+                    file.write(text.data(), std::streamsize(text.size()));
+                }
+                std::filesystem::rename(temporary, std::filesystem::path(config.cache) / CACHED_INDEX_NAME, error_code);
+                if(error_code){
+                    std::filesystem::remove(temporary, error_code);
+                }
+                else{
+                    session.cached_index_sha256 = index.sha256;
+                    session.cached_index_entry_count = index.entry_count;
+                }
+            }
+            session.indexes.push_back(std::move(index));
+            return try_index(session, session.indexes.back(), sha1, target, report);
+        }
+        inline std::string failure_message(const Session& session, const std::string& sha1, const std::vector<std::string>& report){
+            std::string message = "conta: cannot resolve " + sha1;
+            const Entry* entry = find_entry(session, sha1);
+            if(entry == nullptr){
+                message += ", which no reachable index lists";
+            }
+            else if(!entry->description.empty()){
+                message += " (" + printable(entry->description) + ")";
+            }
+            if(entry != nullptr && !entry->notice.empty()){
+                message += "\nnotice: " + printable(entry->notice);
+            }
+            for(const std::string& line: report){
+                message += "\n  " + printable(line);
+            }
+            message += "\nA copy you already have works with CONTA_URL=file:///<directory>/ holding it as " + sha1 + " (verified), or with CONTA_ROOT=<directory> holding it as data/" + sha1 + " (no network).";
+            return message;
+        }
+        inline bool resolve_one(const Config& config, Session& session, const std::string& reference, std::string& path_output, std::string& error_output){
+            std::string sha1;
+            if(!normalize_reference(reference, sha1, error_output)){
+                return false;
+            }
+            if(!config.root.empty()){
+                std::filesystem::path path = std::filesystem::path(config.root) / "data" / sha1;
+                if(!std::filesystem::exists(path)){
+                    error_output = "conta: " + sha1 + " not found at " + path.string() + ". CONTA_ROOT points to a read-only store, so downloading is disabled; populate the store or unset CONTA_ROOT to enable the download cache.";
+                    return false;
+                }
+                if(is_lfs_pointer(path)){
+                    error_output = "conta: " + path.string() + " is a git-lfs pointer file, not the blob. Run \"git lfs pull\" in " + config.root + ".";
+                    return false;
+                }
+                path_output = path.string();
+                return true;
+            }
+            if(config.cache.empty()){
+                error_output = "conta: cannot determine cache directory: set CONTA_CACHE, XDG_CACHE_HOME, or HOME";
+                return false;
+            }
+            std::filesystem::path target = std::filesystem::path(config.cache) / sha1;
+            if(std::filesystem::exists(target)){
+                path_output = target.string();
+                return true;
+            }
+            std::error_code error_code;
+            std::filesystem::create_directories(config.cache, error_code);
+            if(error_code){
+                error_output = "conta: failed to create cache directory " + config.cache + ": " + error_code.message();
+                return false;
+            }
+            if(!config.url_base.empty()){
+                std::string url = config.url_base + sha1;
+                std::string failure;
+                if(!fetch_blob(url, sha1, "", "", target, failure)){
+                    error_output = "conta: download of " + sha1 + " from " + url + " failed: " + failure;
+                    return false;
+                }
+                path_output = target.string();
+                return true;
+            }
+            std::vector<std::string> report;
+            if(!session.cached_index_loaded){
+                load_cached_index(config, session);
+            }
+            for(const Index& index: session.indexes){
+                if(try_index(session, index, sha1, target, report)){
+                    path_output = target.string();
+                    return true;
+                }
+            }
+            while(session.next_entry_point < config.entry_points.size()){
+                if(visit_entry_point(config, session, sha1, target, report)){
+                    path_output = target.string();
+                    return true;
+                }
+            }
+            if(!config.fallback_url_base.empty()){
+                std::string url = config.fallback_url_base + sha1;
+                if(session.attempted_urls.insert(url).second){
+                    const Entry* entry = find_entry(session, sha1);
+                    std::string failure;
+                    if(fetch_blob(url, sha1, entry != nullptr ? entry->sha256 : std::string(), entry != nullptr ? entry->description : std::string(), target, failure)){
+                        path_output = target.string();
+                        return true;
+                    }
+                    report.push_back(url + ": " + failure);
+                }
+            }
+            error_output = failure_message(session, sha1, report);
+            return false;
         }
     }
     inline bool resolve(const Config& config, const std::string& hash, std::string& path_output, std::string& error_output){
-        std::string normalized_hash = hash;
-        if(!detail::normalize_hash(normalized_hash)){
-            error_output = "conta: invalid hash \"" + hash + "\": expected 40 hexadecimal characters";
-            return false;
+        detail::Session session;
+        std::string sha1, ignored;
+        if(detail::normalize_reference(hash, sha1, ignored)){
+            session.wanted.insert(sha1);
         }
-        if(!config.root.empty()){
-            std::filesystem::path path = std::filesystem::path(config.root) / "data" / normalized_hash;
-            if(!std::filesystem::exists(path)){
-                error_output = "conta: " + normalized_hash + " not found at " + path.string() + ". CONTA_ROOT points to a read-only store, so downloading is disabled; populate the store or unset CONTA_ROOT to enable the download cache.";
-                return false;
-            }
-            if(detail::is_lfs_pointer(path)){
-                error_output = "conta: " + path.string() + " is a git-lfs pointer file, not the blob. Run \"git lfs pull\" in " + config.root + ".";
-                return false;
-            }
-            path_output = path.string();
-            return true;
-        }
-        if(config.cache.empty()){
-            error_output = "conta: cannot determine cache directory: set CONTA_CACHE, XDG_CACHE_HOME, or HOME";
-            return false;
-        }
-        std::filesystem::path target = std::filesystem::path(config.cache) / normalized_hash;
-        if(std::filesystem::exists(target)){
-            path_output = target.string();
-            return true;
-        }
-        std::error_code error_code;
-        std::filesystem::create_directories(config.cache, error_code);
-        if(error_code){
-            error_output = "conta: failed to create cache directory " + config.cache + ": " + error_code.message();
-            return false;
-        }
-        if(!detail::download(config, normalized_hash, target, error_output)){
-            return false;
-        }
-        path_output = target.string();
-        return true;
+        return detail::resolve_one(config, session, hash, path_output, error_output);
     }
     inline bool resolve(const Config& config, const std::vector<std::string>& hashes, std::vector<std::string>& paths_output, std::string& error_output){
         paths_output.clear();
+        detail::Session session;
+        for(const std::string& hash: hashes){
+            std::string sha1, ignored;
+            if(detail::normalize_reference(hash, sha1, ignored)){
+                session.wanted.insert(sha1);
+            }
+        }
         for(const std::string& hash: hashes){
             std::string path;
-            if(!resolve(config, hash, path, error_output)){
+            if(!detail::resolve_one(config, session, hash, path, error_output)){
                 paths_output.clear();
                 return false;
             }
@@ -311,9 +1152,11 @@ namespace conta{
 #endif
         }
         const char* url_base = std::getenv("CONTA_URL");
-        config.url_base = (url_base != nullptr && url_base[0] != '\0') ? url_base : DEFAULT_URL_BASE;
-        if(config.url_base.back() != '/'){
-            config.url_base += '/';
+        if(url_base != nullptr && url_base[0] != '\0'){
+            config.url_base = url_base;
+            if(config.url_base.back() != '/'){
+                config.url_base += '/';
+            }
         }
         return config;
     }
