@@ -1019,6 +1019,11 @@ namespace conta{
             message += "\nA copy you already have works with CONTA_URL=file:///<directory>/ holding it as " + sha1 + " (verified), or with CONTA_ROOT=<directory> holding it as data/" + sha1 + " (no network).";
             return message;
         }
+#if defined(_WIN32)
+        constexpr const char* CACHE_DIRECTORY_VARIABLES = "CONTA_CACHE or LOCALAPPDATA";
+#else
+        constexpr const char* CACHE_DIRECTORY_VARIABLES = "CONTA_CACHE, XDG_CACHE_HOME, or HOME";
+#endif
         inline bool resolve_one(const Config& config, Session& session, const std::string& reference, std::string& path_output, std::string& error_output){
             std::string sha1;
             if(!normalize_reference(reference, sha1, error_output)){
@@ -1038,7 +1043,7 @@ namespace conta{
                 return true;
             }
             if(config.cache.empty()){
-                error_output = "conta: cannot determine cache directory: set CONTA_CACHE, XDG_CACHE_HOME, or HOME";
+                error_output = std::string("conta: cannot determine cache directory: set ") + CACHE_DIRECTORY_VARIABLES;
                 return false;
             }
             std::filesystem::path target = std::filesystem::path(config.cache) / sha1;
@@ -1120,6 +1125,12 @@ namespace conta{
             config.cache = cache;
         }
         else{
+#if defined(_WIN32)
+            const char* local_app_data = std::getenv("LOCALAPPDATA");
+            if(local_app_data != nullptr && local_app_data[0] != '\0'){
+                config.cache = (std::filesystem::path(local_app_data) / "conta").string();
+            }
+#else
             const char* xdg_cache_home = std::getenv("XDG_CACHE_HOME");
             const char* home = std::getenv("HOME");
             if(xdg_cache_home != nullptr && xdg_cache_home[0] != '\0'){
@@ -1127,13 +1138,6 @@ namespace conta{
             }
             else if(home != nullptr && home[0] != '\0'){
                 config.cache = (std::filesystem::path(home) / ".cache" / "conta").string();
-            }
-#if defined(_WIN32)
-            else{
-                const char* local_app_data = std::getenv("LOCALAPPDATA");
-                if(local_app_data != nullptr && local_app_data[0] != '\0'){
-                    config.cache = (std::filesystem::path(local_app_data) / "conta").string();
-                }
             }
 #endif
         }

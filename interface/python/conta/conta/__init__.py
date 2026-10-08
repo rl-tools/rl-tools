@@ -39,6 +39,7 @@ _HEX = set("0123456789abcdef")
 _ALPHANUMERIC = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
 _URL_CHARACTERS = _ALPHANUMERIC | set("._~:/?&=+,;@-")
 _LOCATION_CHARACTERS = _ALPHANUMERIC | set("._~-/")
+_WINDOWS = os.name == "nt"
 
 
 class ContaError(RuntimeError):
@@ -58,16 +59,17 @@ def config_from_environment():
     config.root = os.environ.get("CONTA_ROOT", "")
     config.cache = os.environ.get("CONTA_CACHE", "")
     if not config.cache:
-        xdg_cache_home = os.environ.get("XDG_CACHE_HOME", "")
-        home = os.environ.get("HOME", "")
-        if xdg_cache_home:
-            config.cache = str(Path(xdg_cache_home) / "conta")
-        elif home:
-            config.cache = str(Path(home) / ".cache" / "conta")
-        elif os.name == "nt":
+        if _WINDOWS:
             local_app_data = os.environ.get("LOCALAPPDATA", "")
             if local_app_data:
                 config.cache = str(Path(local_app_data) / "conta")
+        else:
+            xdg_cache_home = os.environ.get("XDG_CACHE_HOME", "")
+            home = os.environ.get("HOME", "")
+            if xdg_cache_home:
+                config.cache = str(Path(xdg_cache_home) / "conta")
+            elif home:
+                config.cache = str(Path(home) / ".cache" / "conta")
     config.url_base = os.environ.get("CONTA_URL", "")
     if config.url_base and not config.url_base.endswith("/"):
         config.url_base += "/"
@@ -444,7 +446,7 @@ def _resolve_one(config, session, reference):
             raise ContaError(f"conta: {path} is a git-lfs pointer file, not the blob. Run \"git lfs pull\" in {config.root}.")
         return path
     if not config.cache:
-        raise ContaError("conta: cannot determine cache directory: set CONTA_CACHE, XDG_CACHE_HOME, or HOME")
+        raise ContaError("conta: cannot determine cache directory: set " + ("CONTA_CACHE or LOCALAPPDATA" if _WINDOWS else "CONTA_CACHE, XDG_CACHE_HOME, or HOME"))
     target = Path(config.cache) / sha1
     if target.exists():
         return target
