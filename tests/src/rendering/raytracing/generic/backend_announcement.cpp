@@ -59,3 +59,29 @@ TEST(RENDERING_RAYTRACING_BACKEND_ANNOUNCEMENT, EACH_MALLOC_WRITES_TO_STDERR){
     rlt::free(device, second);
     rlt::free(device, first);
 }
+
+TEST(RENDERING_RAYTRACING_VERBOSITY, LEVEL_GATES_MESSAGES){
+    using Verbosity = rlt::devices::logging::Verbosity;
+    DEVICE device;
+    rlt::init(device);
+    RENDERER renderer;
+
+    device.logger.verbosity = Verbosity::warning;
+    testing::internal::CaptureStdout();
+    testing::internal::CaptureStderr();
+    rlt::malloc(device, renderer);
+    EXPECT_EQ(testing::internal::GetCapturedStderr(), "");
+    EXPECT_EQ(testing::internal::GetCapturedStdout(), "");
+
+    device.logger.verbosity = Verbosity::info;
+    testing::internal::CaptureStderr();
+    rlt::generate_probe_directions(device, renderer);
+    EXPECT_EQ(testing::internal::GetCapturedStderr(), "");
+
+    device.logger.verbosity = Verbosity::debug;
+    testing::internal::CaptureStderr();
+    rlt::generate_probe_directions(device, renderer);
+    EXPECT_EQ(testing::internal::GetCapturedStderr(), "#rl_tools::rendering::raytracing: Generated 1 probe directions per camera\n");
+
+    rlt::free(device, renderer);
+}

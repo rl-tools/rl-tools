@@ -795,7 +795,7 @@ namespace rl_tools {
         renderer.backend->collision_results_buffer = collision_results_buffer;
         renderer.backend->probe_dirs_buffer = probe_dirs_buffer;
 #endif
-        rendering::raytracing::detail::announce_backend(renderer);
+        rendering::raytracing::detail::announce_backend(device, renderer);
         }
     }
 
@@ -964,7 +964,7 @@ namespace rl_tools {
         template <typename DEVICE, typename SPEC>
         void build_scene_assets(DEVICE& device, OWLContext context, OWLGeomType triangles_geom_type, const rendering::raytracing::Scene& scene, const std::vector<const rendering::raytracing::Object*>& all_objects, rendering::raytracing::backends::SceneState<rendering::raytracing::backends::Optix, SPEC>& assets){
             namespace optix = rendering::raytracing::backends::optix;
-            RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << scene.objects.size() << " object(s), " << scene.instances.size() << " instance(s), " << (all_objects.size() - scene.objects.size()) << " pool object(s) ...");
+            log(device, device.logger, devices::logging::Verbosity::debug, rendering::raytracing::LOG_PREFIX, "building ", scene.objects.size(), " object(s), ", scene.instances.size(), " instance(s), ", (all_objects.size() - scene.objects.size()), " pool object(s) ...");
             // ambient is baked per geometry, so it resolves at build time from the scene the
             // build belongs to (per unique scene in library mode)
             typename SPEC::T environment_ambient[3], environment_miss_0[3], environment_miss_1[3];
@@ -1153,7 +1153,7 @@ namespace rl_tools {
             }
 
             if constexpr (SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING) {
-                const auto scene_lights = rendering::raytracing::detail::effective_scene_lights<true>(scene);
+                const auto scene_lights = rendering::raytracing::detail::effective_scene_lights<true>(device, scene);
                 OWLBuffer light_buffer = owlDeviceBufferCreate(context, OWL_USER_TYPE(rendering::raytracing::SceneLight),
                                                                 scene_lights.size(), scene_lights.data());
                 for (size_t m = 0; m < geoms.size(); m++) {
@@ -1322,7 +1322,7 @@ namespace rl_tools {
         namespace optix = rendering::raytracing::backends::optix;
         validate_semantic_segmentation<SPEC>(device, scene, pool);
         renderer.max_ray_length = (typename SPEC::T)metadata.max_ray_length;
-        rendering::raytracing::detail::announce_configuration<SPEC>();
+        rendering::raytracing::detail::announce_configuration<SPEC>(device);
         rendering::raytracing::detail::resolve_environment<SPEC>(scene.environment, renderer.ambient_color, renderer.miss_color_0, renderer.miss_color_1);
         owlMissProgSet3f((OWLMissProg)renderer.backend->miss_prog, "color_0", owl3f{(float)renderer.miss_color_0[0], (float)renderer.miss_color_0[1], (float)renderer.miss_color_0[2]});
         owlMissProgSet3f((OWLMissProg)renderer.backend->miss_prog, "color_1", owl3f{(float)renderer.miss_color_1[0], (float)renderer.miss_color_1[1], (float)renderer.miss_color_1[2]});
@@ -1374,7 +1374,7 @@ namespace rl_tools {
         const rendering::raytracing::Scene& scene = library.scenes[scene_id];
         validate_semantic_segmentation<SPEC>(device, scene, library.pool);
         renderer.max_ray_length = library.metadata[scene_id].max_ray_length;
-        rendering::raytracing::detail::announce_configuration<SPEC>();
+        rendering::raytracing::detail::announce_configuration<SPEC>(device);
         rendering::raytracing::detail::resolve_environment<SPEC>(scene.environment, renderer.ambient_color, renderer.miss_color_0, renderer.miss_color_1);
         owlMissProgSet3f((OWLMissProg)renderer.backend->miss_prog, "color_0", owl3f{(float)renderer.miss_color_0[0], (float)renderer.miss_color_0[1], (float)renderer.miss_color_0[2]});
         owlMissProgSet3f((OWLMissProg)renderer.backend->miss_prog, "color_1", owl3f{(float)renderer.miss_color_1[0], (float)renderer.miss_color_1[1], (float)renderer.miss_color_1[2]});
@@ -1575,10 +1575,10 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void generate_probe_directions(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
 #if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("Probe rays disabled (RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS=1)");
+        log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "Probe rays disabled (RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS=1)");
         return;
 #else
-        std::vector<float> dirs = rendering::raytracing::detail::generate_probe_direction_vectors<SPEC>();
+        std::vector<float> dirs = rendering::raytracing::detail::generate_probe_direction_vectors<SPEC>(device);
         owlBufferUpload((OWLBuffer)renderer.backend->probe_dirs_buffer, dirs.data(), 0, SPEC::NUM_PROBES);
 #endif
     }
@@ -1722,7 +1722,7 @@ namespace rl_tools {
 
     template <typename DEVICE, typename SPEC>
     void free(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("destroying devicegroups ...");
+        log(device, device.logger, devices::logging::Verbosity::debug, rendering::raytracing::LOG_PREFIX, "destroying devicegroups ...");
         if(renderer.backend != nullptr){
             if(renderer.backend->context != nullptr && renderer.backend->library == nullptr){
                 owlContextDestroy((OWLContext)renderer.backend->context); // library-backed renderers borrow the context — the library destroys it

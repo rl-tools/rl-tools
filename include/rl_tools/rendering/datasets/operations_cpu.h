@@ -15,12 +15,11 @@
 #include <algorithm>
 #include <iostream>
 
-#define RL_TOOLS_RENDERING_DATASETS_LOG(message) do { std::cout << "\033[0;34m" << "#rl_tools::rendering::datasets: " << message << "\033[0m" << std::endl; } while(false)
-#define RL_TOOLS_RENDERING_DATASETS_LOG_ERR(message) do { std::cerr << "\033[0;31m" << "#rl_tools::rendering::datasets: " << message << "\033[0m" << std::endl; } while(false)
-
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     namespace rendering::datasets{
+        inline constexpr char LOG_PREFIX[] = "#rl_tools::rendering::datasets: ";
+
         // every path-valued dataset field accepts either a filesystem path or a "conta:HASH"
         // reference; this is the single choke point that turns references into local files
         template <typename DEVICE>
@@ -29,7 +28,7 @@ namespace rl_tools {
             if(reference.rfind(PREFIX, 0) == 0){
                 std::string error;
                 if(!conta::resolve(reference.substr(sizeof(PREFIX) - 1), path, error)){
-                    RL_TOOLS_RENDERING_DATASETS_LOG_ERR(error);
+                    log(device, device.logger, devices::logging::Verbosity::error, rendering::datasets::LOG_PREFIX, error);
                     return false;
                 }
                 return true;
@@ -64,8 +63,8 @@ namespace rl_tools {
                     }
                 }
             }
-            RL_TOOLS_RENDERING_DATASETS_LOG("Bounding box: [" << bbox_min[0] << "," << bbox_min[1] << "," << bbox_min[2] << "] - ["
-                  << bbox_max[0] << "," << bbox_max[1] << "," << bbox_max[2] << "]");
+            log(device, device.logger, devices::logging::Verbosity::debug, rendering::datasets::LOG_PREFIX, "Bounding box: [", bbox_min[0], ",", bbox_min[1], ",", bbox_min[2], "] - [",
+                  bbox_max[0], ",", bbox_max[1], ",", bbox_max[2], "]");
 
             float center[3], size[3];
             for(int d = 0; d < 3; d++){

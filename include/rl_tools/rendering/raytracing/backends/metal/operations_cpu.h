@@ -192,7 +192,7 @@ namespace rl_tools {
         NS::Error* error = nullptr;
         ctx->library = NS::TransferPtr(ctx->device->newLibrary(source.get(), compile_options.get(), &error));
         if(ctx->library.get() == nullptr){
-            RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Metal device source compilation failed: " << (error != nullptr ? error->localizedDescription()->utf8String() : "unknown error"));
+            log(device, device.logger, devices::logging::Verbosity::error, rendering::raytracing::LOG_PREFIX, "Metal device source compilation failed: ", (error != nullptr ? error->localizedDescription()->utf8String() : "unknown error"));
             utils::assert_exit(device, false, "Metal device source compilation failed");
         }
 
@@ -266,20 +266,20 @@ namespace rl_tools {
             ctx->cameras_previous = NS::TransferPtr(ctx->device->newBuffer(camera_bytes, MTL::ResourceStorageModeShared));
             renderer.cameras_previous._data = (rendering::raytracing::Camera<typename SPEC::T>*)ctx->cameras_previous->contents();
         }
-        rendering::raytracing::detail::announce_backend(renderer);
+        rendering::raytracing::detail::announce_backend(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC, typename METADATA_T>
     void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool, const rendering::SceneMetadata<METADATA_T>& metadata){
         validate_semantic_segmentation<SPEC>(device, scene, pool);
         renderer.max_ray_length = (typename SPEC::T)metadata.max_ray_length;
-        rendering::raytracing::detail::announce_configuration<SPEC>();
+        rendering::raytracing::detail::announce_configuration<SPEC>(device);
         rendering::raytracing::detail::resolve_environment<SPEC>(scene.environment, renderer.ambient_color, renderer.miss_color_0, renderer.miss_color_1);
         namespace metal = rendering::raytracing::backends::metal;
         auto& ctx = metal::context(renderer);
         NS::AutoreleasePool* autorelease_pool = NS::AutoreleasePool::alloc()->init();
 
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << scene.objects.size() << " object(s), " << scene.instances.size() << " instance(s) ...");
+        log(device, device.logger, devices::logging::Verbosity::debug, rendering::raytracing::LOG_PREFIX, "building ", scene.objects.size(), " object(s), ", scene.instances.size(), " instance(s) ...");
 
         // scene-dependent resources from a previous init are released here; the compiled library
         // and pipelines below are spec-dependent and survive re-init
@@ -560,7 +560,7 @@ namespace rl_tools {
 
         ctx.mesh_records = NS::TransferPtr(ctx.device->newBuffer(mesh_records.data(), mesh_records.size() * sizeof(metal::MeshRecord), MTL::ResourceStorageModeShared));
 
-        const auto scene_lights = rendering::raytracing::detail::effective_scene_lights<SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING>(scene);
+        const auto scene_lights = rendering::raytracing::detail::effective_scene_lights<SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING>(device, scene);
         if(!scene_lights.empty()){
             ctx.scene_lights = NS::TransferPtr(ctx.device->newBuffer(scene_lights.data(), scene_lights.size() * sizeof(rendering::raytracing::SceneLight), MTL::ResourceStorageModeShared));
         }
@@ -625,13 +625,13 @@ namespace rl_tools {
                 NS::Error* error = nullptr;
                 auto function = NS::TransferPtr(ctx.library->newFunction(NS::String::string(name, NS::UTF8StringEncoding), constants.get(), &error));
                 if(function.get() == nullptr){
-                    RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Metal function specialization failed for " << name << ": " << (error != nullptr ? error->localizedDescription()->utf8String() : "unknown error"));
+                    log(device, device.logger, devices::logging::Verbosity::error, rendering::raytracing::LOG_PREFIX, "Metal function specialization failed for ", name, ": ", (error != nullptr ? error->localizedDescription()->utf8String() : "unknown error"));
                     utils::assert_exit(device, false, "Metal function specialization failed");
                 }
                 error = nullptr;
                 auto pipeline = NS::TransferPtr(ctx.device->newComputePipelineState(function.get(), &error));
                 if(pipeline.get() == nullptr){
-                    RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Metal pipeline creation failed for " << name << ": " << (error != nullptr ? error->localizedDescription()->utf8String() : "unknown error"));
+                    log(device, device.logger, devices::logging::Verbosity::error, rendering::raytracing::LOG_PREFIX, "Metal pipeline creation failed for ", name, ": ", (error != nullptr ? error->localizedDescription()->utf8String() : "unknown error"));
                     utils::assert_exit(device, false, "Metal pipeline creation failed");
                 }
                 return pipeline;
@@ -912,12 +912,12 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void generate_probe_directions(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Metal>& renderer){
 #if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("Probe rays disabled (RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS=1)");
+        log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "Probe rays disabled (RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS=1)");
         return;
 #else
         namespace metal = rendering::raytracing::backends::metal;
         auto& ctx = metal::context(renderer);
-        std::vector<float> dirs = rendering::raytracing::detail::generate_probe_direction_vectors<SPEC>();
+        std::vector<float> dirs = rendering::raytracing::detail::generate_probe_direction_vectors<SPEC>(device);
         ctx.probe_directions = NS::TransferPtr(ctx.device->newBuffer(dirs.data(), dirs.size() * sizeof(float), MTL::ResourceStorageModeShared));
 #endif
     }

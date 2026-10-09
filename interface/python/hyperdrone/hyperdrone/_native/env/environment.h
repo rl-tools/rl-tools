@@ -17,6 +17,7 @@
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
 
 #include "../common/models.h"
+#include "../common/verbosity.h"
 
 #include <cstring>
 #include <filesystem>
@@ -136,6 +137,7 @@ namespace HYPERDRONE_MODULE_NAME {
 
     struct Environment {
         DEVICE device{};
+        hyperdrone::VerbosityRegistration verbosity{device.logger};
         ENV env{};
         RNG rng{};
         rlt::Tensor<rlt::tensor::Specification<typename WORLD::Parameters, TI, rlt::tensor::Shape<TI, TOTAL>>> parameters{};

@@ -100,7 +100,7 @@ namespace rl_tools::rendering::datasets::procthor {
         semantic_options.scene_instance_path = source;
         std::string semantic_source, semantic_error;
         if(!conversion::semantic_source(semantic_options, semantic_source, semantic_error)){
-            RL_TOOLS_RENDERING_DATASETS_LOG_ERR(semantic_error);
+            log(device, device.logger, devices::logging::Verbosity::error, rendering::datasets::LOG_PREFIX, semantic_error);
             return false;
         }
         conta::detail::Sha1 fingerprint;
@@ -120,7 +120,7 @@ namespace rl_tools::rendering::datasets::procthor {
         }
         const std::string cache_path = cache_directory + "/" + scene_name + "-" + source_hash + "-v" + std::to_string(conversion::VERSION) + (dataset.normalize ? "" : "-raw") + ".glb";
         if (!std::filesystem::exists(cache_path)) {
-            RL_TOOLS_RENDERING_DATASETS_LOG("procthor::AI2ThorHab: converting " << scene_name << " -> " << cache_path);
+            log(device, device.logger, devices::logging::Verbosity::info, rendering::datasets::LOG_PREFIX, "procthor::AI2ThorHab: converting ", scene_name, " -> ", cache_path);
             conversion::Options options;
             options.scene_instance_path = source;
             options.output_glb_path = cache_path + ".part." + std::to_string(::getpid()); // pid-unique: concurrent loaders converting the same scene must not share a temp file
@@ -128,7 +128,7 @@ namespace rl_tools::rendering::datasets::procthor {
             std::string error;
             const bool converted = conversion::scene_instance_to_glb(options, error);
             if (!converted) {
-                RL_TOOLS_RENDERING_DATASETS_LOG_ERR("procthor::AI2ThorHab: conversion failed: " << error);
+                log(device, device.logger, devices::logging::Verbosity::error, rendering::datasets::LOG_PREFIX, "procthor::AI2ThorHab: conversion failed: ", error);
                 return false;
             }
             std::filesystem::rename(options.output_glb_path, cache_path);
