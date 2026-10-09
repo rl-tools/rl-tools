@@ -43,6 +43,60 @@ print(f"HYPERDRONE_TEST_BACKEND={second.backend}")
     assert backend_markers == [expected_backend, expected_backend]
 
 
+def test_verbosity_reaches_loaded_and_future_renderers():
+    script = """
+import hyperdrone
+from hyperdrone import render
+
+hyperdrone.set_verbosity("warning")
+quiet = render.Renderer(width=1, height=1, output="depth", fidelity="low")
+hyperdrone.set_verbosity("debug")
+quiet.generate_probe_directions()
+loud = render.Renderer(width=2, height=1, output="depth", fidelity="low")
+hyperdrone.set_verbosity("warning")
+quiet.generate_probe_directions()
+loud.generate_probe_directions()
+hyperdrone.set_verbosity("debug")
+quiet.generate_probe_directions()
+loud.generate_probe_directions()
+hyperdrone.set_verbosity("warning")
+del quiet, loud
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=os.environ.copy(),
+    )
+    prefix = "#rl_tools::rendering::raytracing: "
+    messages = [line.removeprefix(prefix) for line in result.stderr.splitlines()
+                if line.startswith((prefix + "Generated", prefix + "backend="))]
+    assert messages == ["Generated 1 probe directions per camera", f"backend={render.backend().lower()}",
+                        "Generated 1 probe directions per camera", "Generated 1 probe directions per camera"]
+
+
+def test_verbosity_rejects_unknown_levels():
+    previous = hyperdrone.verbosity()
+    try:
+        hyperdrone.set_verbosity("debug")
+        with pytest.raises(ValueError):
+            hyperdrone.set_verbosity("verbose")
+        assert hyperdrone.verbosity() == "debug"
+    finally:
+        hyperdrone.set_verbosity(previous)
+
+
+def test_verbosity_before_jit_import():
+    subprocess.run([sys.executable, "-c", """
+import sys
+import hyperdrone
+hyperdrone.set_verbosity("warning")
+assert hyperdrone.verbosity() == "warning"
+assert "hyperdrone.jit" not in sys.modules
+"""], check=True)
+
+
 def make_quad(center_x, half_size=1.0, color=(1.0, 0.0, 0.0)):
     # a quad in the Y-Z plane at x = center_x, facing -X (towards a camera at the origin
     # looking along +X, the FLU forward axis)
@@ -680,6 +734,52 @@ def test_glb_assembly_names(tmp_path):
     scene = render.Scene()
     first, count = scene.add_assembly(assembly)
     assert (first, count) == (0, 2)
+
+
+@pytest.mark.parametrize("load", [render.load_scene, render.load_object, render.load_assembly])
+def test_scene_verbosity(load, tmp_path, capfd):
+    path = tmp_path / "verbosity.glb"
+    write_minimal_glb(path)
+    previous = hyperdrone.verbosity()
+    try:
+        hyperdrone.set_verbosity("warning")
+        load(path, fidelity="low")
+        assert "#rl_tools::rendering::datasets:" not in capfd.readouterr().err
+        hyperdrone.set_verbosity("info")
+        load(path, fidelity="low")
+        assert "#rl_tools::rendering::datasets: Loaded" in capfd.readouterr().err
+    finally:
+        hyperdrone.set_verbosity(previous)
+
+
+def test_verbosity_during_concurrent_scene_loads(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+
+    path = tmp_path / "concurrent.glb"
+    write_minimal_glb(path)
+    render.load_scene(path, fidelity="low")
+    barrier = Barrier(3, timeout=30)
+
+    def load():
+        counts = []
+        for _ in range(32):
+            barrier.wait()
+            counts.append(render.load_scene(path, fidelity="low").num_instances)
+        return counts
+
+    previous = hyperdrone.verbosity()
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            first = pool.submit(load)
+            second = pool.submit(load)
+            for i in range(32):
+                barrier.wait()
+                hyperdrone.set_verbosity("debug" if i % 2 else "warning")
+            assert first.result(timeout=30) == [1] * 32
+            assert second.result(timeout=30) == [1] * 32
+    finally:
+        hyperdrone.set_verbosity(previous)
 
 
 GLB = Path(os.environ.get("HYPERDRONE_RLTOOLS_ROOT", Path(__file__).resolve().parents[5])) / "tests" / "data" / "ProcTHOR-Train-1.glb"

@@ -468,7 +468,7 @@ namespace rl_tools {
             WGPUAdapterInfo info{};
             if(wgpuAdapterGetInfo(ctx->adapter, &info) == WGPUStatus_Success){
                 const size_t length = info.device.data == nullptr ? 0 : (info.device.length == WGPU_STRLEN ? std::strlen(info.device.data) : info.device.length);
-                RL_TOOLS_RENDERING_RAYTRACING_LOG("WebGPU adapter: " << std::string(info.device.data == nullptr ? "" : info.device.data, length) << " (backend " << (int)info.backendType << ")");
+                log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "WebGPU adapter: ", std::string(info.device.data == nullptr ? "" : info.device.data, length), " (backend ", (int)info.backendType, ")");
                 wgpuAdapterInfoFreeMembers(info);
             }
         }
@@ -692,14 +692,14 @@ namespace rl_tools {
             }
             wgpuQueueWriteBuffer(ctx->queue, ctx->dispatch_params.buffer, 0, slots.data(), slots.size());
         }
-        rendering::raytracing::detail::announce_backend(renderer);
+        rendering::raytracing::detail::announce_backend(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC, typename METADATA_T>
     void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool, const rendering::SceneMetadata<METADATA_T>& metadata){
         validate_semantic_segmentation<SPEC>(device, scene, pool);
         renderer.max_ray_length = (typename SPEC::T)metadata.max_ray_length;
-        rendering::raytracing::detail::announce_configuration<SPEC>();
+        rendering::raytracing::detail::announce_configuration<SPEC>(device);
         rendering::raytracing::detail::resolve_environment<SPEC>(scene.environment, renderer.ambient_color, renderer.miss_color_0, renderer.miss_color_1);
         namespace wg = rendering::raytracing::backends::webgpu;
         namespace generic = rendering::raytracing::backends::generic;
@@ -714,7 +714,7 @@ namespace rl_tools {
         if constexpr (SPEC::ENABLE_OVERLAYS){
             rendering::raytracing::detail::register_pool_assets(device, renderer, pool, all_objects);
         }
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << all_objects.size() << " objects / " << scene.instances.size() << " instances ...");
+        log(device, device.logger, devices::logging::Verbosity::debug, rendering::raytracing::LOG_PREFIX, "building ", all_objects.size(), " objects / ", scene.instances.size(), " instances ...");
 
         wg::wait_in_flight(device, ctx);
         wg::destroy_scene_resources(ctx);
@@ -723,7 +723,7 @@ namespace rl_tools {
         // debugging, sah the default (the overlay TLAS rebuilds always use the generic builder)
         const char* bvh_builder_env = std::getenv("RL_TOOLS_WEBGPU_BVH");
         const bool median_builder = bvh_builder_env != nullptr && std::strcmp(bvh_builder_env, "median") == 0;
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("WebGPU BVH builder: " << (median_builder ? "median (baseline)" : "sah"));
+        log(device, device.logger, devices::logging::Verbosity::debug, rendering::raytracing::LOG_PREFIX, "WebGPU BVH builder: ", (median_builder ? "median (baseline)" : "sah"));
         const auto build_bvh = [&](wg::BVHNode* build_nodes, uint32_t* build_primitives, uint32_t* build_temp, const float* build_bounds_min, const float* build_bounds_max, const float* build_centroids, uint32_t build_count) -> uint32_t {
             if(median_builder){
                 return generic::build_bvh_nodes(build_nodes, build_primitives, build_temp, build_bounds_min, build_bounds_max, build_centroids, build_count);
@@ -940,7 +940,7 @@ namespace rl_tools {
         }
         const uint32_t srgb_lut_offset = append_section(srgb_lut, sizeof(srgb_lut));
         const uint32_t mesh_records_offset = append_section(mesh_records.data(), mesh_records.size() * sizeof(wg::MeshRecord));
-        const auto scene_lights = rendering::raytracing::detail::effective_scene_lights<SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING>(scene);
+        const auto scene_lights = rendering::raytracing::detail::effective_scene_lights<SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING>(device, scene);
         const uint32_t scene_lights_offset = append_section(scene_lights.data(), scene_lights.size() * sizeof(rendering::raytracing::SceneLight));
         ctx.instance_classes_offset = append_section(ctx.instance_classes_host.data(), ctx.instance_classes_host.size() * sizeof(uint32_t));
 
@@ -1186,12 +1186,12 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void generate_probe_directions(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Webgpu>& renderer){
 #if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("Probe rays disabled (RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS=1)");
+        log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "Probe rays disabled (RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS=1)");
         return;
 #else
         namespace wg = rendering::raytracing::backends::webgpu;
         auto& ctx = wg::context(renderer);
-        std::vector<float> directions = rendering::raytracing::detail::generate_probe_direction_vectors<SPEC>();
+        std::vector<float> directions = rendering::raytracing::detail::generate_probe_direction_vectors<SPEC>(device);
         wgpuQueueWriteBuffer(ctx.queue, ctx.frame_inputs.buffer, (uint64_t)wg::BufferLayout<SPEC>::PROBE_DIRECTIONS_OFFSET * sizeof(uint32_t), directions.data(), directions.size() * sizeof(float));
 #endif
     }

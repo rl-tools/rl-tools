@@ -424,14 +424,14 @@ namespace {
         }
     }
 
-    void write_flow_reviews(TI camera_i, const char* state, const std::string& output, const float* ours, const std::vector<float>& golden_flow){
-        rlt::rendering::raytracing::detail::write_flow_grid_png<CASES::SingleCamera>(ours, render_path(camera_i, state, output).c_str());
+    void write_flow_reviews(DEVICE& device, TI camera_i, const char* state, const std::string& output, const float* ours, const std::vector<float>& golden_flow){
+        rlt::rendering::raytracing::detail::write_flow_grid_png<CASES::SingleCamera>(device, ours, render_path(camera_i, state, output).c_str());
         std::vector<float> difference(golden_flow.size());
         const auto write_diff = [&](const std::string& name, const float* reference, const float* other){
             for(size_t value_i = 0; value_i < difference.size(); value_i++){
                 difference[value_i] = other[value_i] - reference[value_i];
             }
-            rlt::rendering::raytracing::detail::write_flow_grid_png<CASES::SingleCamera>(difference.data(), diff_path(camera_i, state, output, name).c_str());
+            rlt::rendering::raytracing::detail::write_flow_grid_png<CASES::SingleCamera>(device, difference.data(), diff_path(camera_i, state, output, name).c_str());
         };
         write_diff("render-" + backend_tag(), golden_flow.data(), ours);
         const std::string directory = golden_directory(camera_i, state, output);
@@ -444,7 +444,7 @@ namespace {
     }
 
     template <typename CASE>
-    void expect_flow_direction(const FlowDirectionView& direction){
+    void expect_flow_direction(DEVICE& device, const FlowDirectionView& direction){
         using SPEC = typename CASE::SPEC;
         using FlowStatus = rlt::rendering::raytracing::FlowStatus;
         const std::string output = std::string("flow") + direction.suffix;
@@ -471,7 +471,7 @@ namespace {
                 golden::colorize_flow_status(golden_status.data(), golden_status.size(), expected.data());
                 EXPECT_EQ(golden_review, expected) << name << "-status pose " << id << ": review PNG does not match the binary";
             }
-            write_flow_reviews(camera_i, CASE::STATE, output, ours, golden_flow);
+            write_flow_reviews(device, camera_i, CASE::STATE, output, ours, golden_flow);
             write_flow_status_reviews(camera_i, CASE::STATE, status_output, ours_status, golden_status);
             double epe_total = 0;
             size_t compared = 0;
@@ -575,8 +575,8 @@ void run_case(){
         expect_segmentation<CASE>(rendered);
     }
     if constexpr(SPEC::HAS_FLOW){
-        expect_flow_direction<CASE>(FlowDirectionView{"", &rendered.flow, &rendered.flow_status});
-        expect_flow_direction<CASE>(FlowDirectionView{"-forward", &rendered.flow_forward, &rendered.flow_forward_status});
+        expect_flow_direction<CASE>(device, FlowDirectionView{"", &rendered.flow, &rendered.flow_status});
+        expect_flow_direction<CASE>(device, FlowDirectionView{"-forward", &rendered.flow_forward, &rendered.flow_forward_status});
     }
 }
 

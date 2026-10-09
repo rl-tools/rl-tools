@@ -1,4 +1,5 @@
 #pragma once
+#include "../common/verbosity.h"
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/operations_cpu.h>
 #if defined(HYPERDRONE_ENV_TASK) && HYPERDRONE_ENV_TASK == 1
@@ -41,7 +42,7 @@ namespace rlt = rl_tools;
 
 // Each configuration needs a distinct C++ type in nanobind's shared type registry.
 namespace HYPERDRONE_MODULE_NAME {
-    using HOST_DEVICE = rlt::devices::CPU<rlt::devices::DefaultCPUSpecification>;
+    using HOST_DEVICE = rlt::devices::CPU<hyperdrone::CPUSpecification>;
     using T = float;
     using TI = HOST_DEVICE::index_t;
     constexpr bool CUDA_WORLD = HYPERDRONE_ENV_DEVICE_CUDA == 1;

@@ -19,6 +19,7 @@ import importlib.util
 import sys
 from dataclasses import dataclass, field
 
+from .. import _register_extension
 from . import _build
 from ._workspace import BuildError, build_dir, cache_root, native_root, source_root, workspace_tag
 
@@ -118,6 +119,7 @@ def _load_extension(name, path):
     extension = importlib.util.module_from_spec(specification)
     specification.loader.exec_module(extension)
     sys.modules[name] = extension
+    _register_extension(extension)
     return extension
 
 

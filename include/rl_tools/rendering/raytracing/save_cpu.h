@@ -28,8 +28,8 @@
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
     namespace rendering::raytracing::detail{
-        template <typename SPEC>
-        void write_grid_png(const uint32_t* fb, const char* filename){
+        template <typename SPEC, typename DEVICE>
+        void write_grid_png(DEVICE& device, const uint32_t* fb, const char* filename){
             using TI = typename SPEC::TI;
             constexpr TI cam_pixels = SPEC::CAM_PIXELS;
             constexpr int grid_width = SPEC::GRID_COLS * SPEC::CAM_WIDTH;
@@ -51,35 +51,35 @@ namespace rl_tools{
 
             stbi_write_png(filename, grid_width, grid_height, 4,
                            grid_image.data(), grid_width * sizeof(uint32_t));
-            RL_TOOLS_RENDERING_RAYTRACING_LOG("Written grid image (" << SPEC::GRID_COLS << "x" << SPEC::GRID_ROWS
-                   << " cameras, " << grid_width << "x" << grid_height << " px) to " << filename);
+            log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "Written grid image (", SPEC::GRID_COLS, "x", SPEC::GRID_ROWS,
+                   " cameras, ", grid_width, "x", grid_height, " px) to ", filename);
         }
 
-        template <typename SPEC>
-        void write_segmentation_grid_png(const uint32_t* segmentation, const char* filename){
+        template <typename SPEC, typename DEVICE>
+        void write_segmentation_grid_png(DEVICE& device, const uint32_t* segmentation, const char* filename){
             constexpr typename SPEC::TI num_pixels = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
             std::vector<uint32_t> colored(num_pixels);
             for(size_t pixel_i = 0; pixel_i < (size_t)num_pixels; pixel_i++){
                 colored[pixel_i] = segmentation_id_to_rgba(segmentation[pixel_i]);
             }
-            write_grid_png<SPEC>(colored.data(), filename);
+            write_grid_png<SPEC>(device, colored.data(), filename);
         }
 
-        template <typename SPEC>
-        void write_normals_grid_png(const float* normals_host, const char* filename){
+        template <typename SPEC, typename DEVICE>
+        void write_normals_grid_png(DEVICE& device, const float* normals_host, const char* filename){
             constexpr typename SPEC::TI num_pixels = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
             std::vector<uint32_t> colored(num_pixels);
             for(size_t pixel_i = 0; pixel_i < (size_t)num_pixels; pixel_i++){
                 colored[pixel_i] = normal_to_rgba(&normals_host[pixel_i * 3]);
             }
-            write_grid_png<SPEC>(colored.data(), filename);
+            write_grid_png<SPEC>(device, colored.data(), filename);
         }
 
         // direction → hue, magnitude → saturation against the per-image maximum. Advisory
         // review image only (the normalization is content-dependent, like depth.png); the
         // machine-compared flow target is the float binary.
-        template <typename SPEC>
-        void write_flow_grid_png(const float* flow_host, const char* filename){
+        template <typename SPEC, typename DEVICE>
+        void write_flow_grid_png(DEVICE& device, const float* flow_host, const char* filename){
             constexpr typename SPEC::TI num_pixels = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
             float max_magnitude = 0;
             for(size_t pixel_i = 0; pixel_i < (size_t)num_pixels; pixel_i++){
@@ -91,21 +91,21 @@ namespace rl_tools{
             for(size_t pixel_i = 0; pixel_i < (size_t)num_pixels; pixel_i++){
                 colored[pixel_i] = flow_to_rgba(flow_host[pixel_i * 2 + 0], flow_host[pixel_i * 2 + 1], max_magnitude);
             }
-            write_grid_png<SPEC>(colored.data(), filename);
+            write_grid_png<SPEC>(device, colored.data(), filename);
         }
 
-        template <typename SPEC>
-        void write_flow_status_grid_png(const uint32_t* status_host, const char* filename){
+        template <typename SPEC, typename DEVICE>
+        void write_flow_status_grid_png(DEVICE& device, const uint32_t* status_host, const char* filename){
             constexpr typename SPEC::TI num_pixels = SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
             std::vector<uint32_t> colored(num_pixels);
             for(size_t pixel_i = 0; pixel_i < (size_t)num_pixels; pixel_i++){
                 colored[pixel_i] = flow_status_to_rgba(status_host[pixel_i]);
             }
-            write_grid_png<SPEC>(colored.data(), filename);
+            write_grid_png<SPEC>(device, colored.data(), filename);
         }
 
-        template <typename SPEC>
-        void write_depth_grid_png(const float* depth_host, float max_ray_length, const char* filename){
+        template <typename SPEC, typename DEVICE>
+        void write_depth_grid_png(DEVICE& device, const float* depth_host, float max_ray_length, const char* filename){
             using TI = typename SPEC::TI;
             constexpr TI cam_pixels = SPEC::CAM_PIXELS;
             constexpr int grid_width = SPEC::GRID_COLS * SPEC::CAM_WIDTH;
@@ -149,12 +149,12 @@ namespace rl_tools{
 
             stbi_write_png(filename, grid_width, grid_height, 4,
                            grid_image.data(), grid_width * sizeof(uint32_t));
-            RL_TOOLS_RENDERING_RAYTRACING_LOG("Written depth image (" << SPEC::GRID_COLS << "x" << SPEC::GRID_ROWS
-                   << " cameras, " << grid_width << "x" << grid_height << " px) to " << filename);
+            log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "Written depth image (", SPEC::GRID_COLS, "x", SPEC::GRID_ROWS,
+                   " cameras, ", grid_width, "x", grid_height, " px) to ", filename);
         }
 
-        template <typename SPEC>
-        void write_depth_bin(const float* depth_host, const char* filename){
+        template <typename SPEC, typename DEVICE>
+        void write_depth_bin(DEVICE& device, const float* depth_host, const char* filename){
             constexpr size_t depth_count = (size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS;
             FILE* f = fopen(filename, "wb");
             if(f){
@@ -166,12 +166,12 @@ namespace rl_tools{
                 fwrite(&w, sizeof(int), 1, f);
                 fwrite(depth_host, sizeof(float), depth_count, f);
                 fclose(f);
-                RL_TOOLS_RENDERING_RAYTRACING_LOG("Written depth data (" << depth_count << " values) to " << filename);
+                log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "Written depth data (", depth_count, " values) to ", filename);
             }
         }
 
-        template <typename SPEC>
-        void write_probes_bin_and_log(const CollisionResult* probe_results, const char* filename){
+        template <typename SPEC, typename DEVICE>
+        void write_probes_bin_and_log(DEVICE& device, const CollisionResult* probe_results, const char* filename){
             int total_hits = 0;
             float min_hit_dist = 1e30f, max_hit_dist = 0.f;
             double sum_hit_dist = 0.0;
@@ -179,24 +179,26 @@ namespace rl_tools{
                 if(probe_results[i].hit){
                     total_hits++;
                     sum_hit_dist += probe_results[i].distance;
-                    if(probe_results[i].distance < min_hit_dist)
+                    if(probe_results[i].distance < min_hit_dist){
                         min_hit_dist = probe_results[i].distance;
-                    if(probe_results[i].distance > max_hit_dist)
+                    }
+                    if(probe_results[i].distance > max_hit_dist){
                         max_hit_dist = probe_results[i].distance;
+                    }
                 }
             }
 
-            RL_TOOLS_RENDERING_RAYTRACING_LOG("=== COLLISION PROBE RESULTS ===");
-            RL_TOOLS_RENDERING_RAYTRACING_LOG("  Total probes:  " << SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);
-            RL_TOOLS_RENDERING_RAYTRACING_LOG("  Hits:          " << total_hits
-                   << " (" << (100.0 * total_hits / (SPEC::NUM_CAMERAS * SPEC::NUM_PROBES)) << "%)");
-            RL_TOOLS_RENDERING_RAYTRACING_LOG("  Misses:        " << (SPEC::NUM_CAMERAS * SPEC::NUM_PROBES - total_hits));
+            log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "=== COLLISION PROBE RESULTS ===");
+            log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "  Total probes:  ", SPEC::NUM_CAMERAS * SPEC::NUM_PROBES);
+            log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "  Hits:          ", total_hits,
+                   " (", (100.0 * total_hits / (SPEC::NUM_CAMERAS * SPEC::NUM_PROBES)), "%)");
+            log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "  Misses:        ", (SPEC::NUM_CAMERAS * SPEC::NUM_PROBES - total_hits));
             if(total_hits > 0){
-                RL_TOOLS_RENDERING_RAYTRACING_LOG("  Min hit dist:  " << min_hit_dist);
-                RL_TOOLS_RENDERING_RAYTRACING_LOG("  Max hit dist:  " << max_hit_dist);
-                RL_TOOLS_RENDERING_RAYTRACING_LOG("  Avg hit dist:  " << (sum_hit_dist / total_hits));
+                log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "  Min hit dist:  ", min_hit_dist);
+                log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "  Max hit dist:  ", max_hit_dist);
+                log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "  Avg hit dist:  ", (sum_hit_dist / total_hits));
             }
-            RL_TOOLS_RENDERING_RAYTRACING_LOG("===============================");
+            log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "===============================");
 
             {
                 FILE* f = fopen(filename, "wb");
@@ -207,8 +209,8 @@ namespace rl_tools{
                     fwrite(probe_results, sizeof(CollisionResult),
                            (size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES, f);
                     fclose(f);
-                    RL_TOOLS_RENDERING_RAYTRACING_LOG("Written probe data (" << SPEC::NUM_CAMERAS * SPEC::NUM_PROBES
-                           << " results) to " << filename);
+                    log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "Written probe data (", SPEC::NUM_CAMERAS * SPEC::NUM_PROBES,
+                           " results) to ", filename);
                 }
             }
         }
@@ -229,7 +231,7 @@ namespace rl_tools{
         static_assert(SPEC::HAS_RGB, "save_image requires an RGB-capable renderer specification");
         std::vector<uint32_t> frame_buffer_host;
         rendering::raytracing::detail::save_staging(device, renderer, renderer.frame_buffer, frame_buffer_host);
-        rendering::raytracing::detail::write_grid_png<SPEC>(frame_buffer_host.data(), filename);
+        rendering::raytracing::detail::write_grid_png<SPEC>(device, frame_buffer_host.data(), filename);
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
@@ -237,7 +239,7 @@ namespace rl_tools{
         static_assert(SPEC::HAS_SEGMENTATION, "save_segmentation_image requires a segmentation-capable renderer specification");
         std::vector<uint32_t> segmentation_host;
         rendering::raytracing::detail::save_staging(device, renderer, renderer.segmentation_buffer, segmentation_host);
-        rendering::raytracing::detail::write_segmentation_grid_png<SPEC>(segmentation_host.data(), filename);
+        rendering::raytracing::detail::write_segmentation_grid_png<SPEC>(device, segmentation_host.data(), filename);
         std::ofstream metadata(std::string(filename) + ".json");
         metadata << "{\"segmentation_mode\":\"" << (SPEC::SEMANTIC_SEGMENTATION ? "semantic" : "instance") << "\",\"background_id\":4294967295}\n";
     }
@@ -247,7 +249,7 @@ namespace rl_tools{
         static_assert(SPEC::HAS_NORMALS, "save_normals_image requires a normals-capable renderer specification");
         std::vector<float> normals_host;
         rendering::raytracing::detail::save_staging(device, renderer, renderer.normals_buffer, normals_host);
-        rendering::raytracing::detail::write_normals_grid_png<SPEC>(normals_host.data(), filename);
+        rendering::raytracing::detail::write_normals_grid_png<SPEC>(device, normals_host.data(), filename);
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
@@ -255,7 +257,7 @@ namespace rl_tools{
         static_assert(SPEC::HAS_FLOW, "save_flow_image requires a flow-capable renderer specification");
         std::vector<float> flow_host;
         rendering::raytracing::detail::save_staging(device, renderer, renderer.flow_buffer, flow_host);
-        rendering::raytracing::detail::write_flow_grid_png<SPEC>(flow_host.data(), filename);
+        rendering::raytracing::detail::write_flow_grid_png<SPEC>(device, flow_host.data(), filename);
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
@@ -263,7 +265,7 @@ namespace rl_tools{
         static_assert(SPEC::HAS_FLOW, "save_flow_status_image requires a flow-capable renderer specification");
         std::vector<uint32_t> status_host;
         rendering::raytracing::detail::save_staging(device, renderer, renderer.flow_status_buffer, status_host);
-        rendering::raytracing::detail::write_flow_status_grid_png<SPEC>(status_host.data(), filename);
+        rendering::raytracing::detail::write_flow_status_grid_png<SPEC>(device, status_host.data(), filename);
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
@@ -271,7 +273,7 @@ namespace rl_tools{
         static_assert(SPEC::HAS_FLOW_FORWARD, "save_flow_forward_image requires a forward-flow renderer specification");
         std::vector<float> flow_host;
         rendering::raytracing::detail::save_staging(device, renderer, renderer.flow_forward_buffer, flow_host);
-        rendering::raytracing::detail::write_flow_grid_png<SPEC>(flow_host.data(), filename);
+        rendering::raytracing::detail::write_flow_grid_png<SPEC>(device, flow_host.data(), filename);
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
@@ -279,7 +281,7 @@ namespace rl_tools{
         static_assert(SPEC::HAS_FLOW_FORWARD, "save_flow_forward_status_image requires a forward-flow renderer specification");
         std::vector<uint32_t> status_host;
         rendering::raytracing::detail::save_staging(device, renderer, renderer.flow_forward_status_buffer, status_host);
-        rendering::raytracing::detail::write_flow_status_grid_png<SPEC>(status_host.data(), filename);
+        rendering::raytracing::detail::write_flow_status_grid_png<SPEC>(device, status_host.data(), filename);
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
@@ -287,7 +289,7 @@ namespace rl_tools{
         static_assert(SPEC::HAS_DEPTH, "save_depth_image requires a depth-capable renderer specification");
         std::vector<float> depth_host;
         rendering::raytracing::detail::save_staging(device, renderer, renderer.depth_buffer, depth_host);
-        rendering::raytracing::detail::write_depth_grid_png<SPEC>(depth_host.data(), renderer.max_ray_length, filename);
+        rendering::raytracing::detail::write_depth_grid_png<SPEC>(device, depth_host.data(), renderer.max_ray_length, filename);
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
@@ -295,18 +297,18 @@ namespace rl_tools{
         static_assert(SPEC::HAS_DEPTH, "save_depth requires a depth-capable renderer specification");
         std::vector<float> depth_host;
         rendering::raytracing::detail::save_staging(device, renderer, renderer.depth_buffer, depth_host);
-        rendering::raytracing::detail::write_depth_bin<SPEC>(depth_host.data(), filename);
+        rendering::raytracing::detail::write_depth_bin<SPEC>(device, depth_host.data(), filename);
     }
 
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void save_probes(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, const char* filename){
 #if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         (void)device; (void)renderer; (void)filename;
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("save_probes skipped: probe rays are disabled.");
+        log(device, device.logger, devices::logging::Verbosity::warning, rendering::raytracing::LOG_PREFIX, "save_probes skipped: probe rays are disabled.");
 #else
         std::vector<rendering::raytracing::CollisionResult> collision_results_host;
         rendering::raytracing::detail::save_staging(device, renderer, renderer.collision_results, collision_results_host);
-        rendering::raytracing::detail::write_probes_bin_and_log<SPEC>(collision_results_host.data(), filename);
+        rendering::raytracing::detail::write_probes_bin_and_log<SPEC>(device, collision_results_host.data(), filename);
 #endif
     }
 }

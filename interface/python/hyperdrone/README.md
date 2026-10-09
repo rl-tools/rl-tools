@@ -77,9 +77,14 @@ per-tree file lock, so many worker processes can share one cache safely. CMake
 FetchContent sources and native build state live in `<cache>/.dependencies`; the native
 build does not write generated files into an editable checkout or installed package.
 
-Whenever a renderer is successfully allocated, RLtools reports the selected backend on
+At the default verbosity, each successful renderer allocation reports the selected backend on
 stderr, for example `#rl_tools::rendering::raytracing: backend=metal`. The
 `Renderer.backend` property provides the same lowercase name programmatically.
+`hyperdrone.set_verbosity(level)` selects the native log level, `error`, `warning`, `info`
+(default, includes the backend line) or `debug`, for loaded and future native modules alike.
+Changes apply to subsequent diagnostic checks, including during native work on other threads;
+a diagnostic already checked may finish at its previous level. Application stdout is independent
+of diagnostic verbosity.
 
 ## Rendering
 

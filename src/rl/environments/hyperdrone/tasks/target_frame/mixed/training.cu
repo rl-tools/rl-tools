@@ -604,6 +604,7 @@ int main(int argc, char** argv){
     auto& device = device_gpu.rendering;
     init(device);
     init(device_gpu);
+    device.logger.verbosity = rlt::devices::logging::Verbosity::warning;
     rlt::rendering::datasets::procthor::GLB scene_dataset{{}, scene_paths};
     std::vector<TI> scene_permutation(N_TOTAL_SCENES);
     std::iota(scene_permutation.begin(), scene_permutation.end(), 0);

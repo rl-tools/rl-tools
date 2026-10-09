@@ -2204,7 +2204,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_UPDATE_COST_SMOKE){
         rlt::update(device, renderer);
     }
     const double milliseconds = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("overlay update smoke: " << milliseconds / STEPS << " ms per step (64 overlays x 8 slots)");
+    rlt::log(device, device.logger, "overlay update smoke: ", milliseconds / STEPS, " ms per step (64 overlays x 8 slots)");
 
     const T smoke_camera_position[3] = {-8, 0, 0};
     const T smoke_look_at[3] = {0, 0, 0};
@@ -2224,7 +2224,7 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_UPDATE_COST_SMOKE){
     }
     const auto async_end = std::chrono::steady_clock::now();
     const double async_ms_per_step = std::chrono::duration<double, std::milli>(async_end - async_start).count() / (double)STEPS;
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("overlay update+render (async launch) smoke: " << async_ms_per_step << " ms per step (64 overlays x 8 slots)");    EXPECT_LT(milliseconds / STEPS, 50.0); // loose regression tripwire, not a benchmark
+    rlt::log(device, device.logger, "overlay update+render (async launch) smoke: ", async_ms_per_step, " ms per step (64 overlays x 8 slots)");    EXPECT_LT(milliseconds / STEPS, 50.0); // loose regression tripwire, not a benchmark
 
     rlt::free(device, renderer);
 }

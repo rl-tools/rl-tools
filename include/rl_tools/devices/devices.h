@@ -39,6 +39,14 @@ namespace rl_tools {
             random,
             logging
         };
+        namespace logging{
+            enum class Verbosity{
+                error,
+                warning,
+                info,
+                debug
+            };
+        }
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
