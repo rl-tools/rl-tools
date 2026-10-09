@@ -1,4 +1,5 @@
 #pragma once
+#include "../common/verbosity.h"
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/operations_cpu.h>
 #if defined(HYPERDRONE_ENV_TASK) && HYPERDRONE_ENV_TASK == 1
@@ -17,7 +18,6 @@
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
 
 #include "../common/models.h"
-#include "../common/verbosity.h"
 
 #include <cstring>
 #include <filesystem>
@@ -42,7 +42,7 @@ namespace rlt = rl_tools;
 
 // Each configuration needs a distinct C++ type in nanobind's shared type registry.
 namespace HYPERDRONE_MODULE_NAME {
-    using DEVICE = rlt::devices::CPU<rlt::devices::DefaultCPUSpecification>;
+    using DEVICE = rlt::devices::CPU<hyperdrone::CPUSpecification>;
     using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
     using T = float;
     using TI = DEVICE::index_t;
@@ -137,7 +137,6 @@ namespace HYPERDRONE_MODULE_NAME {
 
     struct Environment {
         DEVICE device{};
-        hyperdrone::VerbosityRegistration verbosity{device.logger};
         ENV env{};
         RNG rng{};
         rlt::Tensor<rlt::tensor::Specification<typename WORLD::Parameters, TI, rlt::tensor::Shape<TI, TOTAL>>> parameters{};

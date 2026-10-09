@@ -16,28 +16,33 @@ hyperdrone (or any subpackage) is cheap; the first build happens on first use.
 set_verbosity(level) selects the native log level (error|warning|info|debug, default info).
 """
 import importlib
-import sys
 
 __version__ = "0.1.5"
 
 _SUBPACKAGES = ("render", "dynamics", "env", "gym", "jit", "cuda")
 _VERBOSITY_LEVELS = ("error", "warning", "info", "debug")
 _verbosity = "info"
+_logging_extensions = []
 
 
 def set_verbosity(level):
-    """Set the native log level of every loaded and future extension."""
+    """Set the level for subsequent native diagnostic checks in loaded and future extensions."""
     global _verbosity
     if level not in _VERBOSITY_LEVELS:
         raise ValueError(f"hyperdrone: invalid verbosity {level!r} ({'|'.join(_VERBOSITY_LEVELS)})")
     _verbosity = level
-    jit = sys.modules.get(f"{__name__}.jit")
-    if jit is not None:
-        jit._apply_verbosity()
+    for extension in _logging_extensions:
+        extension._set_verbosity(_VERBOSITY_LEVELS.index(level))
 
 
 def verbosity():
     return _verbosity
+
+
+def _register_extension(extension):
+    if hasattr(extension, "_set_verbosity"):
+        extension._set_verbosity(_VERBOSITY_LEVELS.index(_verbosity))
+        _logging_extensions.append(extension)
 
 
 def __getattr__(name):

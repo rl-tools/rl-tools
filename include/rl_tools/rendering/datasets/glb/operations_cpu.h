@@ -997,8 +997,12 @@ namespace rl_tools {
         int textured_count = 0;
         int metallic_count = 0;
         for(size_t m = first_new_mesh; m < out_meshes.size(); m++){
-            if(out_meshes[m].texture.present()) textured_count++;
-            if(out_meshes[m].metallic > 0.f) metallic_count++;
+            if(out_meshes[m].texture.present()){
+                textured_count++;
+            }
+            if(out_meshes[m].metallic > 0.f){
+                metallic_count++;
+            }
         }
         log(device, device.logger, devices::logging::Verbosity::debug, rendering::datasets::LOG_PREFIX, "Meshes with textures: ", textured_count, "/", num_new_meshes,
               ", metallic: ", metallic_count, "/", num_new_meshes);

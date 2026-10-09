@@ -179,10 +179,12 @@ namespace rl_tools{
                 if(probe_results[i].hit){
                     total_hits++;
                     sum_hit_dist += probe_results[i].distance;
-                    if(probe_results[i].distance < min_hit_dist)
+                    if(probe_results[i].distance < min_hit_dist){
                         min_hit_dist = probe_results[i].distance;
-                    if(probe_results[i].distance > max_hit_dist)
+                    }
+                    if(probe_results[i].distance > max_hit_dist){
                         max_hit_dist = probe_results[i].distance;
+                    }
                 }
             }
 

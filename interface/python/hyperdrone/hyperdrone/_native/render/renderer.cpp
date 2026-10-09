@@ -8,13 +8,13 @@
 #define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 1
 #endif
 
+#include "verbosity.h"
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_mux.h>
 #include <rl_tools/rendering/datasets/operations_cpu.h>
 #include <rendering/raytracing/camera_orbit.h>
 
 #include "bindings.h"
-#include "verbosity.h"
 #include <nanobind/stl/array.h>
 #include <nanobind/stl/string.h>
 
@@ -72,7 +72,7 @@ using hyperdrone::FloatArray;
 
 // Each configuration needs a distinct C++ type in nanobind's shared type registry.
 namespace HYPERDRONE_MODULE_NAME {
-    using DEVICE = rlt::devices::DEVICE_FACTORY<>;
+    using DEVICE = rlt::devices::DEVICE_FACTORY<hyperdrone::CPUSpecification>;
     using T = float;
     using TI = typename DEVICE::index_t;
 
@@ -125,7 +125,6 @@ namespace HYPERDRONE_MODULE_NAME {
         using RENDERER = rrt::Renderer<SPEC>;
         using BACKEND = typename RENDERER::BACKEND;
         DEVICE device;
-        hyperdrone::VerbosityRegistration verbosity{device.logger};
         RENDERER renderer;
         rlt::rendering::SceneMetadata<T> scene_metadata;
         bool initialized = false;

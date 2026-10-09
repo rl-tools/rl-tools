@@ -9,6 +9,7 @@
 #include <nanobind/stl/vector.h>
 #include <nanobind/stl/map.h>
 
+#include "verbosity.h"
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/rig/operations_cpu.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_common.h>
@@ -35,9 +36,8 @@ using hyperdrone::Vec4;
 using hyperdrone::extract_transform;
 using hyperdrone::make_owned_array;
 
-using DEVICE = rlt::devices::DEVICE_FACTORY<>;
+using DEVICE = rlt::devices::DEVICE_FACTORY<hyperdrone::CPUSpecification>;
 static DEVICE g_device;
-static hyperdrone::VerbosityRegistration g_device_verbosity{g_device.logger};
 using rlt::segmentation_taxonomy;
 using rlt::assign_segmentation_class;
 using rlt::remap_segmentation_classes;

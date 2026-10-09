@@ -1,8 +1,19 @@
 #include <rl_tools/operations/cpu_tensorboard.h>
 namespace rlt = rl_tools;
+using rlt::log;
 
 
 #include <gtest/gtest.h>
+
+TEST(RL_TOOLS_LOGGING_TENSORBOARD, DIAGNOSTICS){
+    rlt::devices::DefaultCPU_TENSORBOARD device;
+    using Verbosity = rlt::devices::logging::Verbosity;
+    device.logger.verbosity = Verbosity::warning;
+    testing::internal::CaptureStderr();
+    log(device, device.logger, Verbosity::info, "suppressed");
+    log(device, device.logger, Verbosity::warning, "warning");
+    EXPECT_EQ(testing::internal::GetCapturedStderr(), "warning\n");
+}
 
 
 TEST(RL_TOOLS_LOGGING_TENSORBOARD, INIT){
