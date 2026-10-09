@@ -172,3 +172,4 @@ Include order matters: `adam/instance/operations_generic.h` must be included bef
 - No unnecessary comments or docstrings — code should be self-explanatory
 - Don't abbreviate variable names or other symbols. Follow the conventions from the rest of the RLtools codebase
 - All functions are marked with `RL_TOOLS_FUNCTION_PLACEMENT` for CUDA compatibility
+- Macros are reserved for conditional compilation (`#ifdef`/`#ifndef` feature flags, include guards); text logging goes through the device logger (`log(device, device.logger, ...)`), not module-specific print macros or helpers
