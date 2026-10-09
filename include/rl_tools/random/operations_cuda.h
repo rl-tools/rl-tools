@@ -45,10 +45,13 @@ namespace rl_tools::random{
         auto& rng_state = get(rng.states, 0, 0);
         return uniform_real_distribution(dev, low, high, rng_state);
     }
+    // inclusive of high like the CPU distribution: u is in (0, 1], so floor(u * count) spans
+    // [0, count] and the u == 1 draw joins the last value
     template<typename T, typename RNG>
     RL_TOOLS_FUNCTION_PLACEMENT T uniform_int_distribution(const devices::random::CUDA& dev, T low, T high, RNG& rng){
-        auto r = uniform_real_distribution(dev, (float)low, (float)high, rng);
-        return (T)r;
+        const double count = (double)high - (double)low + 1;
+        const T value = low + (T)((double)uniform_real_distribution(dev, 0.0f, 1.0f, rng) * count);
+        return value > high ? high : value;
     }
     namespace normal_distribution{
         template<typename T, typename RNG>

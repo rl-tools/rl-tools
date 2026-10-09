@@ -11,16 +11,6 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
-    template <typename DEV_SPEC, typename TASK_SPEC>
-    void free(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world){
-        free<devices::CUDA<DEV_SPEC>, TASK_SPEC>(device, world);
-        if(world.cuda_gate_pose_staging != nullptr){
-            cudaFreeHost(world.cuda_gate_pose_staging);
-            world.cuda_gate_pose_staging = nullptr;
-        }
-        check_status(device);
-    }
-
     namespace rl::environments::hyperdrone::tasks::moving_gate::cuda{
         template <typename DEVICE, typename TASK_SPEC, typename SCENE_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC, typename RNG>
         __global__ void sample_initial_state_kernel(DEVICE device, typename World<TASK_SPEC>::NEXT_WORLD::DYNAMICS_ENV dynamics, Tensor<SCENE_SPEC> active_annotations, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, const Tensor<RESET_SPEC> reset_mask, RNG rng){
@@ -39,24 +29,30 @@ namespace rl_tools{
                 tasks::moving_gate::_sample_gate<DEVICE, TASK_SPEC>(device, annotations, instance_parameters, state, rng_state);
             }
         }
+        // the gate is a rigid entity: a zero-coordinate rig moved along the constant-twist screw
+        // between the shutter-open and shutter-close gate poses
         template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC>
-        __global__ void gate_pose_kernel(DEVICE device, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, float* staging){
+        __global__ void gate_rows_kernel(DEVICE device, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, typename World<TASK_SPEC>::ENTITY_RIG rig, typename TASK_SPEC::TI slot_offset, float* transforms, float* transforms_motion){
             using T = typename TASK_SPEC::T;
             using TI = typename DEVICE::index_t;
+            using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
             constexpr TI INSTANCES = World<TASK_SPEC>::INSTANCES;
             TI instance_i = threadIdx.x + blockIdx.x * blockDim.x;
             if(instance_i < INSTANCES){
                 const auto& instance_parameters = get_ref(device, parameters, instance_i);
                 const auto& state = get_ref(device, states, instance_i);
-                float* pair = staging + instance_i * 24;
                 T phase_open = state.gate_phase;
-                if constexpr(TASK_SPEC::NEXT_WORLD::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR){
+                if constexpr(NEXT_WORLD::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR){
                     constexpr T TWO_PI = (T)2 * math::PI<T>;
                     const T dt = instance_parameters.dynamics.integration.dt;
                     phase_open = state.gate_phase - TWO_PI * instance_parameters.gate_frequency * dt * instance_parameters.shutter_fraction;
                 }
-                gate_pose(device, instance_parameters, phase_open, pair);
-                gate_pose(device, instance_parameters, state.gate_phase, pair + 12);
+                float pose_open[12], pose_close[12];
+                gate_pose(device, instance_parameters, phase_open, pose_open);
+                gate_pose(device, instance_parameters, state.gate_phase, pose_close);
+                const TI row = instance_i * NEXT_WORLD::RENDERER_CONFIG::MAX_OVERLAY_INSTANCES + slot_offset;
+                const float* no_coordinates = nullptr;
+                rl::environments::hyperdrone::cuda::entity_rows<DEVICE, typename NEXT_WORLD::RENDERER_SPEC>(device, rig, pose_open, pose_close, no_coordinates, no_coordinates, transforms, transforms_motion, row);
             }
         }
         template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename NEXT_STATE_SPEC>
@@ -135,8 +131,6 @@ namespace rl_tools{
         request_render(device, world, reset_mask);
     }
 
-    // gate poses are produced device-side, mirrored through a pinned staging pair, and published
-    // through the overlay verbs before the base render's overlay update
     template <typename DEV_SPEC, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
     void render(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input){
         request_render(device, world, reset_mask_input);
@@ -147,30 +141,17 @@ namespace rl_tools{
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         constexpr TI INSTANCES = WORLD::INSTANCES;
         devices::cuda::TAG<DEVICE, true> tag_device{};
-        {
-            constexpr TI BLOCKSIZE = 32;
-            constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES, BLOCKSIZE);
-            rl::environments::hyperdrone::tasks::moving_gate::cuda::gate_pose_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, parameters, states, data(world.gate_pose_staging));
-        }
-        check_status(device);
-        if(world.cuda_gate_pose_staging == nullptr){
-            cudaMallocHost(&world.cuda_gate_pose_staging, INSTANCES * 24 * sizeof(float));
-        }
-        float* staging_host = (float*)world.cuda_gate_pose_staging;
-        cudaMemcpyAsync(staging_host, data(world.gate_pose_staging), INSTANCES * 24 * sizeof(float), cudaMemcpyDeviceToHost, device.stream);
-        cudaStreamSynchronize(device.stream);
-        auto& slot = world.slots[world.active_slot];
+        const auto& kind = world.entity_kinds[world.entity_kind_index];
         auto& renderer = get_renderer(device, world);
-        const TI kinds = (TI)world.entity_kinds.size();
-        for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            const auto& placement = slot.entity_placements[instance_i * kinds + world.entity_kind_index];
-            const float* pair = staging_host + instance_i * 24;
-            if constexpr (NEXT_WORLD::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR) {
-                set_transform_pair(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, pair, pair + 12);
-            } else {
-                set_transform(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, pair + 12);
-            }
+        float* transforms_rows = data(transforms(device, renderer));
+        float* transforms_motion_rows = nullptr;
+        if constexpr (NEXT_WORLD::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR){
+            transforms_motion_rows = data(transforms_motion(device, renderer));
         }
+        constexpr TI BLOCKSIZE = 32;
+        constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(INSTANCES, BLOCKSIZE);
+        rl::environments::hyperdrone::tasks::moving_gate::cuda::gate_rows_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, parameters, states, kind.rig, kind.slot_offset, transforms_rows, transforms_motion_rows);
+        check_status(device);
         render(device, static_cast<NEXT_WORLD&>(world), parameters, states, reset_mask);
     }
 
@@ -242,12 +223,6 @@ namespace rl_tools{
         rl::environments::hyperdrone::tasks::moving_gate::cuda::gate_observe_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, parameters, states, observations);
         check_status(device);
     }
-}
-RL_TOOLS_NAMESPACE_WRAPPER_END
-
-RL_TOOLS_NAMESPACE_WRAPPER_START
-namespace rl_tools::rl::environments::hyperdrone::tasks::moving_gate {
-    using rl_tools::free;
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

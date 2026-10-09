@@ -510,9 +510,11 @@ namespace rl_tools {
     }
 
     // Overlay verbs mutate host-side truth on the renderer and mark it dirty; update(device,
-    // renderer) is the single point where the backend consumes it. All bookkeeping is
-    // deterministic: slot allocation is a first-fit scan, so identical call sequences yield
-    // identical slots (and therefore identical global instance ids).
+    // renderer) is the single point where the backend consumes it (OptiX producers may also
+    // rewrite the objects of active rows on the device, see overlay_structure, which host truth
+    // and segmentation_object then do not reflect). All bookkeeping is deterministic: slot
+    // allocation is a first-fit scan, so identical call sequences yield identical slots (and
+    // therefore identical global instance ids).
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void attach(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, typename SPEC::TI camera, rendering::raytracing::OverlayIndex overlay){
         static_assert(SPEC::ENABLE_OVERLAYS, "attach requires an overlay-enabled renderer specification");
@@ -594,6 +596,29 @@ namespace rl_tools {
             state.slots[placement.first_slot + part].active = false;
         }
         state.dirty = true;
+    }
+
+    // swaps the asset occupying a placement in place: the same slots and ids, the new asset's
+    // objects and rest frames (nothing changes when the placement already holds it); the asset
+    // must have the placement's part count
+    template <typename DEVICE, typename SPEC, typename BACKEND>
+    rendering::raytracing::OverlayPlacement replace(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, rendering::raytracing::AssetHandle asset){
+        static_assert(SPEC::ENABLE_OVERLAYS, "replace requires an overlay-enabled renderer specification");
+        if(asset.index >= renderer.assets.size() || renderer.assets[asset.index].num_parts != placement.num_parts){
+            utils::assert_exit(device, false, "replace: the asset must exist and have the placement's part count");
+            return placement;
+        }
+        const auto& record = renderer.assets[asset.index];
+        auto& state = renderer.overlays[overlay.index];
+        if(state.slots[placement.first_slot].object != renderer.asset_part_objects[record.first_part]){
+            for(size_t part = 0; part < placement.num_parts; part++){
+                auto& slot = state.slots[placement.first_slot + part];
+                slot.object = renderer.asset_part_objects[record.first_part + part];
+                std::memcpy(slot.rest, &renderer.asset_part_transforms[(record.first_part + part) * 12], sizeof(slot.rest));
+            }
+            state.dirty = true;
+        }
+        return {placement.first_slot, placement.num_parts, (size_t)record.first_part};
     }
 
     // poses: placement.num_parts geometry-to-world transforms (12 floats each) in asset part

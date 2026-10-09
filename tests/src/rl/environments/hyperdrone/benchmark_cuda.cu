@@ -3,15 +3,19 @@
 // camera D2D staging, render_launch, scatter) at the matched configuration
 #define RL_TOOLS_OPERATIONS_CPU_MUX_INCLUDE_CUDA
 #include <rl_tools/operations/cpu_mux.h>
+#include <rl_tools/rl/environments/hyperdrone/presets.h>
 #include <rl_tools/rl/environments/hyperdrone/operations_cpu.h>
 #include <rl_tools/rl/environments/hyperdrone/operations_cuda.h>
 
 #include "../../../utils/utils.h"
 
+#include <metra/metra.h>
+
 #include <gtest/gtest.h>
 
 #include <chrono>
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -26,10 +30,11 @@ using T = float;
 using TI = typename DEVICE::index_t;
 
 #ifdef RL_TOOLS_TEST_DATA_PATH
-static const std::string SCENE_PATH = std::string(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)) + "/ProcTHOR-Train-1.glb";
+static const std::string DATA_PATH = std::string(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH));
 #else
-static const std::string SCENE_PATH = "";
+static const std::string DATA_PATH = "";
 #endif
+static const std::string SCENE_PATH = DATA_PATH.empty() ? "" : DATA_PATH + "/ProcTHOR-Train-1.glb";
 
 namespace benchmark_hyperdrone {
     using REWARD_FUNCTION = l2f::parameters::reward_functions::Squared<T>;
@@ -83,6 +88,31 @@ namespace benchmark_hyperdrone {
     constexpr TI INSTANCES = ENVIRONMENT::INSTANCES;
     constexpr TI WARMUP_STEPS = 5;
     constexpr TI MEASURE_STEPS = 50;
+}
+
+// the same configuration with the drones rendered into their own cameras, motion blurred: the
+// device drone rows (per-instance bodies from the drone table) and the dynamic overlay rebuild
+namespace benchmark_self_visible {
+    using PRESET = rlt::rl::environments::hyperdrone::presets::X500FPV<T, TI>;
+    using PARAMETERS_SPEC = typename PRESET::DYNAMICS_STATIC_PARAMETERS::PARAMETERS_SPEC;
+    struct WORLD_SPEC: PRESET {
+        static constexpr TI INSTANCES_PER_ENVIRONMENT = 64;
+        static constexpr TI CAM_WIDTH = 80;
+        static constexpr TI CAM_HEIGHT = 50;
+        using SHADING = rlt::rendering::raytracing::High;
+        static constexpr bool ENABLE_MOTION_BLUR = true;
+        static constexpr TI MOTION_BLUR_SAMPLES = 4;
+        static constexpr TI MAX_DRONES = 4;
+    };
+    using WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
+    using ENVIRONMENT = rlt::rl::environments::hyperdrone::MultiEnvironment<WORLD, benchmark_hyperdrone::NUMBER_OF_ENVIRONMENTS>;
+    template <l2f::parameters::dynamics::REGISTRY MODEL>
+    rlt::rl::environments::hyperdrone::Drone<WORLD_SPEC> drone(const char* asset){
+        rlt::rl::environments::hyperdrone::Drone<WORLD_SPEC> entry;
+        entry.asset = DATA_PATH + "/" + asset;
+        entry.parameters.dynamics.dynamics = l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
+        return entry;
+    }
 }
 
 using namespace benchmark_hyperdrone;
@@ -188,7 +218,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
         }
     };
 
-    auto measure = [&](auto&& body, const char* label){
+    auto measure = [&](auto&& body, const char* label, const char* metric){
         for(TI step_i = 0; step_i < WARMUP_STEPS; step_i++){
             body();
         }
@@ -202,6 +232,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
         double seconds = std::chrono::duration<double>(end - start).count();
         double steps_per_second = MEASURE_STEPS / seconds;
         std::cout << label << ": " << steps_per_second << " frames/s (" << seconds * 1000 / MEASURE_STEPS << " ms/frame, " << INSTANCES << " instances)" << std::endl;
+        metra::log(std::string("hyperdrone/benchmark_cuda/") + metric + "/frames_per_second", steps_per_second);
         return steps_per_second;
     };
 
@@ -229,13 +260,14 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
             cudaStream_t render_stream = rlt::stream(device_gpu, renderer);
             cudaStreamWaitEvent(render_stream, cameras_ready, 0);
             cudaMemcpyAsync(rlt::data(rlt::cameras(device_gpu, renderer)), staging_cameras + environment_i * M, M * sizeof(rlt::rendering::raytracing::Camera<T>), cudaMemcpyDeviceToDevice, render_stream);
-            rlt::render_launch(device_gpu, renderer);
+            // the host device: cameras_ready alone orders the launch, so the renderers run concurrently
+            rlt::render_launch(device, renderer);
         }
     };
-    measure(hand_rolled_render_only, "hand-rolled render only");
-    measure(world_render_only, "world render only");
-    double hand_rolled = measure(hand_rolled_path, "hand-rolled (training_cuda style)");
-    double world_verbs = measure(world_path, "world verbs");
+    measure(hand_rolled_render_only, "hand-rolled render only", "hand_rolled_render");
+    measure(world_render_only, "world render only", "world_render");
+    double hand_rolled = measure(hand_rolled_path, "hand-rolled (training_cuda style)", "hand_rolled_step");
+    double world_verbs = measure(world_path, "world verbs", "world_step");
     EXPECT_GE(world_verbs, hand_rolled * 0.9) << "the World verb path regressed against the hand-rolled baseline";
 
     cudaFree(staging_cameras);
@@ -250,6 +282,78 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
     rlt::free(device_gpu, reset_mask);
     rlt::free(device_gpu, observations);
     rlt::free(device_gpu, env);
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, SELF_VISIBLE_MOTION_BLUR){
+    using WORLD_SPEC = benchmark_self_visible::WORLD_SPEC;
+    using WORLD = benchmark_self_visible::WORLD;
+    using ENVIRONMENT = benchmark_self_visible::ENVIRONMENT;
+    using benchmark_self_visible::drone;
+    using REGISTRY = l2f::parameters::dynamics::REGISTRY;
+    if(SCENE_PATH.empty() || !std::filesystem::exists(DATA_PATH + "/crazyflie.glb")){
+        GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH with the rigged drones not set";
+    }
+    if(!cuda_available()){
+        GTEST_SKIP() << "CUDA device unavailable";
+    }
+    DEVICE_GPU device_gpu;
+    auto& device = device_gpu.rendering;
+    rlt::init(device);
+    rlt::init(device_gpu);
+    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH}};
+    // one body for every instance, or a body drawn per reset from four
+    const std::vector<rlt::rl::environments::hyperdrone::Drone<WORLD_SPEC>> tables[] = {
+        {drone<REGISTRY::x500>("x500.glb")},
+        {drone<REGISTRY::x500>("x500.glb"), drone<REGISTRY::crazyflie>("crazyflie.glb"), drone<REGISTRY::arpl>("arpl.glb"), drone<REGISTRY::soft>("soft.glb")},
+    };
+    const char* metrics[] = {"one_drone", "four_drones"};
+    for(TI table_i = 0; table_i < 2; table_i++){
+        auto env_owner = std::make_unique<ENVIRONMENT>();
+        auto& env = *env_owner;
+        rlt::malloc(device_gpu, env);
+        env.shared.drones = tables[table_i];
+        rlt::init(device_gpu, env, dataset);
+        ASSERT_EQ(env.shared.drone_meshes.size(), tables[table_i].size());
+        RNG_GPU rng;
+        rlt::malloc(device_gpu, rng);
+        rlt::init(device_gpu, rng, 0);
+        rlt::Tensor<rlt::tensor::Specification<typename WORLD::Parameters, TI, rlt::tensor::Shape<TI, ENVIRONMENT::INSTANCES>>> parameters;
+        rlt::Tensor<rlt::tensor::Specification<typename WORLD::State, TI, rlt::tensor::Shape<TI, ENVIRONMENT::INSTANCES>>> states;
+        rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, ENVIRONMENT::INSTANCES>>> reset_mask;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, ENVIRONMENT::INSTANCES, WORLD::OBSERVATION_DIM>>> observations;
+        rlt::malloc(device_gpu, parameters);
+        rlt::malloc(device_gpu, states);
+        rlt::malloc(device_gpu, reset_mask);
+        rlt::malloc(device_gpu, observations);
+        rlt::set_all(device_gpu, reset_mask, true);
+        rlt::sample_initial_parameters(device_gpu, env, parameters, reset_mask, rng);
+        rlt::sample_initial_state(device_gpu, env, parameters, states, reset_mask, rng);
+        rlt::set_all(device_gpu, reset_mask, false);
+        auto body = [&](){
+            rlt::render(device_gpu, env, parameters, states, reset_mask);
+            rlt::observe(device_gpu, env, parameters, states, typename WORLD::Observation{}, observations, rng);
+        };
+        for(TI step_i = 0; step_i < WARMUP_STEPS; step_i++){
+            body();
+        }
+        cudaDeviceSynchronize();
+        auto start = std::chrono::high_resolution_clock::now();
+        for(TI step_i = 0; step_i < MEASURE_STEPS; step_i++){
+            body();
+        }
+        cudaDeviceSynchronize();
+        double seconds = std::chrono::duration<double>(std::chrono::high_resolution_clock::now() - start).count();
+        double frames_per_second = MEASURE_STEPS / seconds;
+        std::cout << "self-visible motion blur, " << metrics[table_i] << ": " << frames_per_second << " frames/s (" << seconds * 1000 / MEASURE_STEPS << " ms/frame, " << ENVIRONMENT::INSTANCES << " instances)" << std::endl;
+        metra::log(std::string("hyperdrone/benchmark_cuda/self_visible_motion_blur/") + metrics[table_i] + "/frames_per_second", frames_per_second);
+        EXPECT_EQ(cudaGetLastError(), cudaSuccess);
+        rlt::free(device_gpu, parameters);
+        rlt::free(device_gpu, states);
+        rlt::free(device_gpu, reset_mask);
+        rlt::free(device_gpu, observations);
+        rlt::free(device_gpu, rng);
+        rlt::free(device_gpu, env);
+    }
 }
 
 int main(int argc, char** argv) {

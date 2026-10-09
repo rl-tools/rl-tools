@@ -20,6 +20,11 @@ set(RL_TOOLS_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
 # an explicit backend selection hard-requires raytracing inside the rl_tools subtree
 set(RL_TOOLS_RENDERING_RAYTRACING_BACKEND ${HYPERDRONE_VARIANT} CACHE STRING "" FORCE)
 if(HYPERDRONE_VARIANT STREQUAL "OPTIX")
+    # a normal variable before enable_language shadows the compiler default it caches, also in
+    # trees configured before; CUDAARCHS overrides
+    if(NOT DEFINED ENV{CUDAARCHS})
+        set(CMAKE_CUDA_ARCHITECTURES native)
+    endif()
     enable_language(CUDA)
     set(CMAKE_CUDA_STANDARD 17)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
@@ -63,9 +68,16 @@ function(hyperdrone_component_libraries DEFINES OUT_LIBRARIES)
     set(${OUT_LIBRARIES} rendering_raytracing_backend PARENT_SCOPE)
 endfunction()
 
+# under OptiX impl.cpp, which holds the environment behind the binding, is compiled by nvcc so
+# the World can run on the GPU (EnvConfig.device); the nanobind translation unit stays C++
+if(HYPERDRONE_VARIANT STREQUAL "OPTIX")
+    add_compile_definitions(HYPERDRONE_ENV_CUDA=1)
+    set_source_files_properties(impl.cpp PROPERTIES LANGUAGE CUDA)
+endif()
+
 hyperdrone_jit_add_configs(
     COMPONENT env
     PYTHON_MODULE
-    SOURCES environment.cpp
+    SOURCES environment.cpp impl.cpp
     LINK RLtools::RLtools hyperdrone_env_stb
 )

@@ -1,5 +1,7 @@
 import numpy as np
 
+from .._dlpack import DLPackBuffer as _DLPackBuffer
+from .._dlpack import is_cuda as _is_cuda
 from ._component import load_core, load_renderer
 from ._config import (
     OUTPUT_MODE,
@@ -48,27 +50,6 @@ def _as_rows(value, shape):
     if array.size != int(np.prod(shape)):
         raise ValueError(f"transforms must have shape {shape}, got {array.shape}")
     return array.reshape(shape)
-
-
-def _is_cuda(value):
-    device = getattr(value, "__dlpack_device__", None)
-    return device is not None and device()[0] == 2  # kDLCUDA
-
-
-class _DLPackBuffer:
-    """DLPack producer over a live renderer buffer. Capsules are single-use, so each
-    __dlpack__ call mints a fresh one; the renderer reference keeps the memory alive."""
-
-    def __init__(self, renderer, make_capsule, device_type):
-        self._renderer = renderer
-        self._make_capsule = make_capsule
-        self._device_type = device_type
-
-    def __dlpack__(self, stream=None, **_kwargs):
-        return self._make_capsule()
-
-    def __dlpack_device__(self):
-        return (self._device_type, 0)
 
 
 class Renderer:

@@ -58,7 +58,7 @@ namespace test_drones {
             rlt::sample_initial_state(device, world, parameters, states, reset_mask, rng);
         }
         void arrange(const std::vector<TI>& drones){
-            test_drones::arrange(device, parameters, states, drones);
+            test_drones::arrange(device, parameters, states, shared.drones, drones);
         }
         void render(bool reset){
             rlt::set_all(device, reset_mask, reset);
@@ -68,7 +68,7 @@ namespace test_drones {
             return test_drones::own_masks(device, device, world, shared);
         }
         void check_placements(const std::vector<TI>& drones){
-            test_drones::check_placements(world, drones);
+            test_drones::check_placements(world, shared, drones);
         }
         void free(){
             rlt::free(device, parameters);
@@ -84,97 +84,68 @@ namespace test_drones {
 
 using namespace test_drones;
 
-TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, EFFECTIVE_ROTOR_PHASES_WITH_MOTION_BLUR){
+// the rig coordinates are the rotor phases at shutter close, trailed at shutter open by the
+// spin over the shutter fraction
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, ROTOR_COORDINATES_WITH_MOTION_BLUR){
     DEVICE device;
     BLUR_WORLD::Parameters parameters;
     BLUR_WORLD::DYNAMICS_ENV::State state{};
-    state.orientation[0] = 1;
-    parameters.drone = 3;
     parameters.shutter_fraction = (T)0.5;
     for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
         state.rotor_phase[rotor_i] = (T)0.3 * (T)(rotor_i + 1);
         state.rpm[rotor_i] = (T)60 * (T)(rotor_i + 1);
-        parameters.dynamics.dynamics.rotor_torque_directions[rotor_i][2] = rotor_i % 2 == 0 ? (T)-1 : (T)1;
     }
-    rlt::rl::environments::hyperdrone::DronePose<BLUR_SPEC> pose;
-    rlt::make_drone_pose(device, parameters, state, pose);
-    ASSERT_TRUE(pose.valid);
-    EXPECT_EQ(pose.drone, 3);
-    const TI quadrant_to_rotor[4] = {1, 0, 2, 3};
-    for(TI quadrant = 0; quadrant < 4; quadrant++){
-        const TI rotor_i = quadrant_to_rotor[quadrant];
-        const T spin = rotor_i % 2 == 0 ? (T)1 : (T)-1;
-        EXPECT_EQ(pose.phase_close[quadrant], spin * state.rotor_phase[rotor_i]);
+    float open[4], close[4];
+    rlt::rl::environments::hyperdrone::_drone_coordinates<DEVICE, BLUR_SPEC>(device, parameters, state, open, close);
+    for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
+        EXPECT_EQ(close[rotor_i], state.rotor_phase[rotor_i]);
         const T swept = (T)(rotor_i + 1) * (T)2 * rlt::math::PI<T> * parameters.dynamics.integration.dt * parameters.shutter_fraction;
-        EXPECT_NEAR(pose.phase_open[quadrant], spin * (state.rotor_phase[rotor_i] - swept), 1e-6);
+        EXPECT_NEAR(open[rotor_i], state.rotor_phase[rotor_i] - swept, 1e-6);
     }
-    for(TI axis = 0; axis < 3; axis++){
-        std::swap(parameters.dynamics.dynamics.rotor_positions[0][axis], parameters.dynamics.dynamics.rotor_positions[2][axis]);
-    }
-    rlt::make_drone_pose(device, parameters, state, pose);
-    ASSERT_TRUE(pose.valid);
-    EXPECT_EQ(pose.phase_close[1], state.rotor_phase[2]);
-    EXPECT_EQ(pose.phase_close[2], state.rotor_phase[0]);
-    const T phase_open = pose.phase_open[2];
-    parameters.dynamics.dynamics.rotor_torque_directions[0][2] = 1;
-    rlt::make_drone_pose(device, parameters, state, pose);
-    ASSERT_TRUE(pose.valid);
-    EXPECT_EQ(pose.phase_close[2], -state.rotor_phase[0]);
-    EXPECT_EQ(pose.phase_open[2], -phase_open);
-    parameters.dynamics.dynamics.rotor_torque_directions[0][2] = 0;
-    rlt::make_drone_pose(device, parameters, state, pose);
-    EXPECT_FALSE(pose.valid);
-    parameters.dynamics.dynamics.rotor_torque_directions[0][2] = -1;
-    parameters.dynamics.dynamics.rotor_positions[0][0] = 0;
-    rlt::make_drone_pose(device, parameters, state, pose);
-    EXPECT_FALSE(pose.valid);
 }
 
-TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, VARIABLE_ASSEMBLIES_PRESERVE_WRAPPER_AND_AGENT_LAYOUT){
+// a body swap rewrites only the agent regions' objects (in place, same slots and ids) and marks
+// the overlay for upload only when the body changes; the props follow the entry's rig
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, BODY_SWAP_PRESERVES_WRAPPER_AND_AGENT_LAYOUT){
     DEVICE device;
     rlt::init(device);
     BLUR_WORLD world;
     BLUR_WORLD::SharedContext shared;
-    world.shared = &shared;
-    world.num_drones = 2;
-    shared.num_drones = 2;
-    shared.drone_asset = {0, 1};
     const float identity[12] = {1,0,0,0, 0,1,0,0, 0,0,1,0};
     const auto wrapper = rlt::add(device, shared.library.pool, quad("wrapper", 0, 0));
-    for(TI asset_i = 0; asset_i < 2; asset_i++){
+    const T rotor_positions[4][3] = {{0.1f, -0.1f, 0}, {-0.1f, 0.1f, 0}, {0.1f, 0.1f, 0}, {-0.1f, -0.1f, 0}};
+    T rotor_torque_directions[4][3] = {{0, 0, 1}, {0, 0, 1}, {0, 0, -1}, {0, 0, -1}};
+    rlt::rl::environments::hyperdrone::DroneBody<BLUR_SPEC> bodies[2];
+    for(TI mesh_i = 0; mesh_i < 2; mesh_i++){
+        const float reach = mesh_i == 0 ? 0.1f : 0.12f;
         rlt::rendering::raytracing::ObjectAssembly assembly;
         rlt::add(device, assembly, quad("body", 0, 0), identity);
-        rlt::add(device, assembly, quad("prop_0", 0.1f, -0.1f), identity);
-        rlt::add(device, assembly, quad("prop_1", -0.1f, 0.1f), identity);
-        rlt::add(device, assembly, quad("prop_2", 0.1f, 0.1f), identity);
-        rlt::add(device, assembly, quad("prop_3", -0.1f, -0.1f), identity);
-        if(asset_i == 1){
-            rlt::add(device, assembly, quad("antenna", 0, 0.2f), identity);
-        }
-        rlt::rl::environments::hyperdrone::DroneAsset<BLUR_SPEC> asset;
-        asset.asset = rlt::add(device, shared.library.pool, assembly);
-        asset.parts = (TI)assembly.parts.size();
-        ASSERT_TRUE(rlt::init(device, asset.rig, assembly));
-        const TI prop_quadrants[4] = {1, 2, 3, 0};
-        for(TI prop_i = 0; prop_i < 4; prop_i++){
-            asset.prop_quadrants[prop_i] = prop_quadrants[prop_i];
-        }
-        shared.drone_assets.push_back(asset);
+        rlt::add(device, assembly, quad("prop_0", reach, -reach), identity);
+        rlt::add(device, assembly, quad("prop_1", -reach, reach), identity);
+        rlt::add(device, assembly, quad("prop_2", reach, reach), identity);
+        rlt::add(device, assembly, quad("prop_3", -reach, -reach), identity);
+        world.drone_meshes.push_back(rlt::add(device, shared.library.pool, assembly));
+        rotor_torque_directions[0][2] = mesh_i == 0 ? (T)1 : (T)-1;
+        bodies[mesh_i].mesh = mesh_i;
+        ASSERT_TRUE(rlt::init(device, bodies[mesh_i].rig, assembly, rotor_positions, rotor_torque_directions, (TI)4));
     }
-    world.drone_entity_kind_index = 1;
-    world.entity_kinds = {{wrapper, 1, 0}, {shared.drone_assets[0].asset, 5, 0}, {shared.drone_assets[0].asset, 5, 0}};
+    BLUR_WORLD::EntityKind kind{wrapper, 0, {}};
+    ASSERT_TRUE(rlt::init(device, kind.rig, shared.library.pool.assemblies[wrapper.index]));
+    world.entity_kinds = {kind};
+    world.drone_slot_offset = 1;
+    world.drone_parts = 5;
     world.slots.resize(1);
-    auto& slot = world.slots[0];
     auto& renderer = rlt::get_renderer(device, world);
     rlt::rendering::Bundle<T> bundle;
     rlt::add(device, bundle.scene, quad("background", 0, 0), identity);
     rlt::rendering::datasets::compute_bounds(device, bundle);
     rlt::malloc(device, renderer);
     rlt::init(device, renderer, bundle, shared.library.pool);
-    for(const auto& kind : world.entity_kinds){
-        slot.entity_placements.push_back(rlt::spawn(device, renderer, rlt::rendering::raytracing::OverlayIndex{0}, kind.asset, identity));
+    const rlt::rendering::raytracing::OverlayIndex overlay{0};
+    rlt::spawn(device, renderer, overlay, wrapper, identity);
+    for(TI agent_i = 0; agent_i < BLUR_SPEC::N_AGENTS; agent_i++){
+        ASSERT_EQ(rlt::spawn(device, renderer, overlay, world.drone_meshes[0], identity).first_slot, 1 + agent_i * 5);
     }
-    slot.drone_spawned_asset = {0};
     const auto wrapper_object = renderer.overlays[0].slots[0].object;
     BLUR_WORLD::Parameters parameters;
     parameters.shutter_fraction = 1;
@@ -184,96 +155,144 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, VARIABLE_ASSEMBLIES_PRESERVE_WR
         state.rotor_phase[rotor_i] = (T)0.3 * (T)(rotor_i + 1);
         state.rpm[rotor_i] = 600;
     }
-    rlt::rl::environments::hyperdrone::DronePose<BLUR_SPEC> poses[BLUR_SPEC::N_AGENTS];
-    for(TI asset_i : {1, 0, 1, 0}){
-        parameters.drone = asset_i;
-        parameters.dynamics.dynamics.rotor_torque_directions[0][2] = asset_i == 0 ? (T)1 : (T)-1;
+    TI held = 0;
+    for(TI mesh_i : {1, 0, 0, 1}){
+        renderer.overlays[0].dirty = false;
         for(TI agent_i = 0; agent_i < BLUR_SPEC::N_AGENTS; agent_i++){
             state.position[0] = (T)agent_i;
-            rlt::make_drone_pose(device, parameters, state, poses[agent_i]);
+            float base[12];
+            rlt::rl::environments::hyperdrone::rig::make_body_transform(device, state.orientation, state.position, parameters.scene_translation, parameters.scene_yaw_cos, parameters.scene_yaw_sin, base);
+            float open[4], close[4];
+            rlt::rl::environments::hyperdrone::_drone_coordinates<DEVICE, BLUR_SPEC>(device, parameters, state, open, close);
+            rlt::rl::environments::hyperdrone::_drone_rows(device, world, renderer, (TI)0, agent_i, bodies[mesh_i], base, base, open, close);
         }
-        rlt::apply_drone_poses(device, world, (TI)0, poses);
-        const TI parts = shared.drone_assets[asset_i].parts;
-        EXPECT_EQ(slot.drone_spawned_asset[0], asset_i);
+        EXPECT_EQ(renderer.overlays[0].dirty, mesh_i != held);
+        held = mesh_i;
         EXPECT_EQ(renderer.overlays[0].slots[0].object, wrapper_object);
-        EXPECT_TRUE(renderer.overlays[0].slots[0].active);
-        for(TI element = 0; element < 12; element++){
-            EXPECT_EQ(renderer.transforms_staging[element], identity[element]);
-        }
+        const auto& record = renderer.assets[world.drone_meshes[mesh_i].index];
         for(TI agent_i = 0; agent_i < BLUR_SPEC::N_AGENTS; agent_i++){
-            const auto& placement = slot.entity_placements[1 + agent_i];
-            ASSERT_EQ(placement.first_slot, 1 + agent_i * parts);
-            ASSERT_EQ(placement.num_parts, parts);
-            const TI prop_slot = (TI)placement.first_slot + 1;
+            const TI first_slot = 1 + agent_i * 5;
+            for(TI part_i = 0; part_i < 5; part_i++){
+                EXPECT_EQ(renderer.overlays[0].slots[first_slot + part_i].object, renderer.asset_part_objects[record.first_part + part_i]);
+            }
+            const TI prop_slot = first_slot + 1;
             EXPECT_NEAR(renderer.transforms_staging[prop_slot * 12], std::cos(state.rotor_phase[0]), 1e-6);
-            const T spin = asset_i == 0 ? (T)-1 : (T)1;
+            const T spin = mesh_i == 0 ? (T)-1 : (T)1;
             EXPECT_NEAR(renderer.transforms_staging[prop_slot * 12 + 4], spin * std::sin(state.rotor_phase[0]), 1e-6);
             const TI last_sample = BLUR_SPEC::MOTION_BLUR_SAMPLES - 1;
             EXPECT_NE(renderer.transforms_motion_staging[prop_slot * 12], renderer.transforms_motion_staging[(last_sample * BLUR_SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE + prop_slot) * 12]);
         }
         for(TI slot_i = 0; slot_i < BLUR_SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE; slot_i++){
-            EXPECT_EQ(renderer.overlays[0].slots[slot_i].active, slot_i < 1 + BLUR_SPEC::N_AGENTS * parts);
+            EXPECT_EQ(renderer.overlays[0].slots[slot_i].active, slot_i < 1 + BLUR_SPEC::N_AGENTS * 5);
         }
     }
     rlt::free(device, renderer);
 }
 
-TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, TARGET_FRAME_PARTIAL_RESET){
-    using TASK_SPEC = rlt::rl::environments::hyperdrone::tasks::target_frame::Specification<SAMPLING_WORLD>;
-    using TASK_WORLD = rlt::rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
+// a target setup carries its drone entry: the bank renders the entry's body at the target pose,
+// a resetting instance flies the setup's entry, and the next frame swaps the body back
+// the body at the target pose carries its mount to exactly the target camera
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, TARGET_BODY_POSE_CARRIES_THE_TARGET_CAMERA){
+    DEVICE device;
+    rlt::rl::environments::hyperdrone::Camera<T> camera;
+    camera.mount.pose.position[0] = (T)0.1;
+    camera.mount.pose.position[1] = (T)-0.05;
+    camera.mount.pose.position[2] = (T)0.08;
+    const T half_pitch = (T)-0.2;
+    camera.mount.pose.orientation[0] = std::cos(half_pitch);
+    camera.mount.pose.orientation[2] = std::sin(half_pitch);
+    const T scene_translation[3] = {1, 2, 3};
+    const T yaw = (T)0.7;
+    for(T roll : {(T)0, (T)0.3, (T)-0.4}){
+        for(T pitch : {(T)0, (T)0.25, (T)-0.15}){
+            const auto target = rlt::rl::environments::hyperdrone::make_target_camera<DEVICE, T>(device, camera, (T)1.5, scene_translation, std::cos(yaw), std::sin(yaw), roll, pitch);
+            T orientation[4], position[3];
+            rlt::rl::environments::hyperdrone::make_target_body_pose(device, camera, roll, pitch, orientation, position);
+            const auto carried = rlt::rl::environments::hyperdrone::make_camera<DEVICE, T>(device, camera, orientation, position, (T)1.5, scene_translation, std::cos(yaw), std::sin(yaw));
+            for(TI axis = 0; axis < 3; axis++){
+                EXPECT_NEAR(carried.pos[axis], target.pos[axis], 1e-5) << "roll " << roll << " pitch " << pitch;
+                EXPECT_NEAR(carried.dir_00[axis], target.dir_00[axis], 1e-5) << "roll " << roll << " pitch " << pitch;
+                EXPECT_NEAR(carried.dir_du[axis], target.dir_du[axis], 1e-5) << "roll " << roll << " pitch " << pitch;
+                EXPECT_NEAR(carried.dir_dv[axis], target.dir_dv[axis], 1e-5) << "roll " << roll << " pitch " << pitch;
+            }
+        }
+    }
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, TARGET_FRAME_BANK_CARRIES_THE_DRONE){
+    if(SCENE_PATH.empty()){
+        GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
+    }
+    using TASK_WORLD = rlt::rl::environments::hyperdrone::tasks::target_frame::World<rlt::rl::environments::hyperdrone::tasks::target_frame::Specification<WORLD>>;
     DEVICE device;
     rlt::init(device);
     TASK_WORLD world;
-    const auto drones = one_asset_per_dynamics().drones;
-    init_sampling_table(device, device, world, drones);
+    TASK_WORLD::SharedContext shared;
+    rlt::malloc(device, shared.library);
+    rlt::malloc(device, world);
+    const auto table = one_asset_per_dynamics();
+    shared.drones = table.drones;
+    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    typename decltype(dataset)::Corpus corpus;
+    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
     InstanceTensor<TASK_WORLD::Parameters> parameters;
+    InstanceTensor<TASK_WORLD::State> states;
     MASK_TENSOR mask;
-    RNG rng, reference_rng;
+    RNG rng;
     rlt::malloc(device, parameters);
+    rlt::malloc(device, states);
     rlt::malloc(device, mask);
     rlt::malloc(device, rng);
-    rlt::malloc(device, reference_rng);
     rlt::init(device, rng, 912);
-    rlt::init(device, reference_rng, 912);
-    TASK_WORLD::Parameters expected[INSTANCES];
+    rlt::set_all(device, mask, true);
+    rlt::sample_initial_parameters(device, world, parameters, mask, rng);
+    rlt::sample_initial_state(device, world, parameters, states, mask, rng);
     for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-        expected[instance_i].drone = instance_i;
-        expected[instance_i].dynamics.dynamics.mass = (T)(10 + instance_i);
-        expected[instance_i].camera.fov = (T)(100 + instance_i);
-        expected[instance_i].target_pose[0] = (T)(9 + instance_i);
-        rlt::set(device, parameters, expected[instance_i], instance_i);
         rlt::set(device, mask, instance_i % 2 != 0, instance_i);
     }
-    std::vector<TI> counts(drones.size(), 0);
-    for(TI round_i = 0; round_i < 32; round_i++){
+    std::vector<TI> counts(table.drones.size(), 0);
+    for(TI round_i = 0; round_i < 16; round_i++){
+        rlt::select_scene(device, world, 0);
+        std::vector<TASK_WORLD::Parameters> before(INSTANCES);
+        for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
+            before[instance_i] = rlt::get(device, parameters, instance_i);
+        }
         rlt::sample_initial_parameters(device, world, parameters, mask, rng);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            if(instance_i % 2 != 0){
-                rlt::sample_initial_parameters(device, world, expected[instance_i], reference_rng);
-            }
+            const auto& setup = rlt::get_ref(device, world.setups, instance_i);
+            ASSERT_LT(setup.drone, table.drones.size());
+            EXPECT_EQ(setup.camera.fov, table.drones[setup.drone].parameters.camera.fov);
+            EXPECT_EQ(rendered_mesh(world, 0, instance_i), shared.drone_bodies[setup.drone].mesh) << "the bank renders setup " << instance_i << "'s drone";
             const auto& actual = rlt::get_ref(device, parameters, instance_i);
-            EXPECT_EQ(actual.drone, expected[instance_i].drone);
-            EXPECT_EQ(actual.dynamics.dynamics.mass, expected[instance_i].dynamics.dynamics.mass);
-            EXPECT_EQ(actual.camera.fov, expected[instance_i].camera.fov);
-            EXPECT_EQ(actual.shutter_fraction, expected[instance_i].shutter_fraction);
-            EXPECT_EQ(actual.target_pose[0], expected[instance_i].target_pose[0]);
-            if(instance_i % 2 != 0){
-                ASSERT_LT(actual.drone, drones.size());
-                const auto& nominal = drones[actual.drone].parameters;
-                EXPECT_EQ(actual.dynamics.dynamics.mass, nominal.dynamics.dynamics.mass);
-                EXPECT_EQ(actual.camera.fov, nominal.camera.fov);
+            if(instance_i % 2 == 0){
+                EXPECT_EQ(actual.drone, before[instance_i].drone);
+                EXPECT_EQ(actual.dynamics.dynamics.mass, before[instance_i].dynamics.dynamics.mass);
+                EXPECT_EQ(actual.camera.fov, before[instance_i].camera.fov);
+            }
+            else{
+                const auto& adopted = rlt::get_ref(device, world.setups, rlt::get(device, world.setup_index, instance_i));
+                EXPECT_EQ(actual.drone, adopted.drone);
+                EXPECT_EQ(actual.camera.fov, adopted.camera.fov);
+                EXPECT_EQ(actual.dynamics.dynamics.mass, table.drones[actual.drone].parameters.dynamics.dynamics.mass);
                 counts[actual.drone]++;
             }
+        }
+        rlt::sample_initial_state(device, world, parameters, states, mask, rng);
+        rlt::render(device, world, parameters, states, mask);
+        for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
+            EXPECT_EQ(rendered_mesh(world, 0, instance_i), shared.drone_bodies[rlt::get(device, parameters, instance_i).drone].mesh) << "instance " << instance_i;
         }
     }
     for(TI count : counts){
         EXPECT_GT(count, 0);
     }
-    rlt::free(device, reference_rng);
     rlt::free(device, rng);
     rlt::free(device, mask);
+    rlt::free(device, states);
     rlt::free(device, parameters);
-    rlt::free(device, world.drone_parameters);
+    rlt::free(device, world);
+    rlt::free(device, shared.library);
 }
 
 TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, TABLE_SHAPES){
@@ -289,23 +308,16 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, TABLE_SHAPES){
         shared.drones = table.drones;
         rlt::init(device, shared);
         ASSERT_EQ(shared.num_drones, table.drones.size());
-        ASSERT_EQ(shared.drone_asset, table.asset);
         TI distinct = 0;
-        for(TI asset_i : table.asset){
-            distinct = asset_i + 1 > distinct ? asset_i + 1 : distinct;
+        ASSERT_EQ(shared.drone_bodies.size(), table.drones.size());
+        for(TI drone_i = 0; drone_i < (TI)table.drones.size(); drone_i++){
+            EXPECT_EQ(shared.drone_bodies[drone_i].mesh, table.asset[drone_i]);
+            EXPECT_EQ(shared.drone_bodies[drone_i].rig.num_coordinates, 4);
+            distinct = table.asset[drone_i] + 1 > distinct ? table.asset[drone_i] + 1 : distinct;
         }
-        ASSERT_EQ(shared.drone_assets.size(), distinct);
+        ASSERT_EQ(shared.drone_meshes.size(), distinct);
         EXPECT_EQ(shared.library.pool.assemblies.size(), distinct);
-        for(const auto& asset : shared.drone_assets){
-            EXPECT_EQ(asset.parts, 5);
-            EXPECT_EQ(asset.rig.num_coordinates, 4);
-            unsigned quadrants = 0;
-            for(TI quadrant : asset.prop_quadrants){
-                ASSERT_LT(quadrant, 4);
-                quadrants |= 1u << quadrant;
-            }
-            EXPECT_EQ(quadrants, 15u);
-        }
+        EXPECT_EQ(shared.drone_parts, 5);
         rlt::free(device, shared.library);
     }
 }
@@ -330,8 +342,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, DEDUPLICATES_ASSEMBLY_CONTENT){
     std::filesystem::remove(directory);
     EXPECT_NE(shared.drones[0].asset, shared.drones[1].asset);
     EXPECT_EQ(shared.num_drones, 2);
-    EXPECT_EQ(shared.drone_asset, (std::vector<TI>{0, 0}));
-    EXPECT_EQ(shared.drone_assets.size(), 1);
+    EXPECT_EQ(shared.drone_bodies[0].mesh, 0);
+    EXPECT_EQ(shared.drone_bodies[1].mesh, 0);
+    EXPECT_EQ(shared.drone_meshes.size(), 1);
     EXPECT_EQ(shared.library.pool.assemblies.size(), 1);
     EXPECT_NE(shared.drones[0].parameters.camera.fov, shared.drones[1].parameters.camera.fov);
     rlt::free(device, shared.library);
@@ -379,22 +392,18 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, SAMPLING_COVERS_TABLE_AND_APPLI
     }
 }
 
-TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, RENDER_RECONCILES_PER_INSTANCE){
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, RENDER_SWAPS_BODIES_PER_INSTANCE){
     if(SCENE_PATH.empty()){
         GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
     }
     Harness harness;
     const auto table = one_asset_per_dynamics();
     harness.init(table.drones);
-    EXPECT_EQ(harness.world.shared, &harness.shared);
     EXPECT_EQ(harness.world.num_drones, table.drones.size());
     EXPECT_EQ(harness.world.dynamics.parameters.dynamics.mass, table.drones[0].parameters.dynamics.dynamics.mass);
     EXPECT_EQ(harness.world.parameters.camera.fov, table.drones[0].parameters.camera.fov);
-    EXPECT_EQ(harness.world.entity_kinds.size(), 1);
-    ASSERT_EQ(harness.world.slots[0].entity_placements.size(), INSTANCES);
-    for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-        EXPECT_EQ(harness.world.slots[0].drone_spawned_asset[instance_i], 0);
-    }
+    EXPECT_TRUE(harness.world.entity_kinds.empty());
+    harness.check_placements({0, 0, 0, 0});
     harness.reset();
     // one assembly per instance
     harness.arrange({0, 1, 2, 3});
@@ -407,8 +416,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, RENDER_RECONCILES_PER_INSTANCE)
             EXPECT_NE(masks_distinct[instance_i], masks_distinct[other_i]) << "assemblies " << instance_i << " and " << other_i << " should render differently";
         }
     }
-    // every instance onto the x500: same assembly at the same relative pose, same mask, ids
-    // packed from slot 0 whatever was spawned before
+    // every instance onto the x500: same assembly at the same relative pose, same mask, the
+    // same slots whatever was rendered before
     harness.arrange({3, 3, 3, 3});
     harness.render(false);
     harness.check_placements({3, 3, 3, 3});
@@ -427,7 +436,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, RENDER_RECONCILES_PER_INSTANCE)
     harness.free();
 }
 
-TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, ROTATE_SCENE_RECONCILES){
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, ROTATE_SCENE_SWAPS_PER_SLOT){
     if(SCENE_PATH.empty()){
         GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
     }
@@ -446,11 +455,11 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, ROTATE_SCENE_RECONCILES){
     harness.render(true);
     harness.check_placements({3, 2, 1, 0});
     for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-        EXPECT_EQ(harness.world.slots[0].drone_spawned_asset[instance_i], instance_i) << "the inactive slot keeps its record";
+        EXPECT_EQ(rendered_mesh(harness.world, 0, instance_i), instance_i) << "the inactive slot keeps its bodies";
     }
     rlt::rotate_scene(harness.device, harness.world);
     EXPECT_EQ(harness.world.active_slot, 0);
-    // back on the first slot with its recorded assemblies: the view must still hold them
+    // back on the first slot with its bodies
     harness.reset();
     harness.arrange({0, 1, 2, 3});
     harness.render(true);

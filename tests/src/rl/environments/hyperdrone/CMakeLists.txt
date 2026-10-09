@@ -115,7 +115,21 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
     )
     gtest_discover_tests(test_rl_environments_hyperdrone_on_policy_runner_batched)
     # golden-rollout generator for the Python binding (run deliberately from the repo root)
-    add_executable(test_rl_environments_hyperdrone_python_golden python_golden.cpp)
+    set(HYPERDRONE_PYTHON_ENV_NATIVE ${CMAKE_CURRENT_SOURCE_DIR}/../../../../../interface/python/hyperdrone/hyperdrone/_native/env)
+    add_executable(test_rl_environments_hyperdrone_python_golden python_golden.cpp ${HYPERDRONE_PYTHON_ENV_NATIVE}/impl.cpp)
+    target_compile_definitions(test_rl_environments_hyperdrone_python_golden PRIVATE
+        HYPERDRONE_ENV_NUM_ENVIRONMENTS=1
+        HYPERDRONE_ENV_INSTANCES=2
+        HYPERDRONE_ENV_CAM_WIDTH=16
+        HYPERDRONE_ENV_CAM_HEIGHT=16
+        HYPERDRONE_ENV_SHADING=0
+        HYPERDRONE_ENV_HISTORY_LENGTH=1
+        HYPERDRONE_ENV_PRESET=0
+        HYPERDRONE_ENV_TASK=0
+        HYPERDRONE_ENV_N_AGENTS=1
+        HYPERDRONE_ENV_DEVICE_CUDA=0
+        HYPERDRONE_MODULE_NAME=hyperdrone_env_golden
+    )
     target_link_libraries(test_rl_environments_hyperdrone_python_golden
         PRIVATE
             RLtools::RLtools

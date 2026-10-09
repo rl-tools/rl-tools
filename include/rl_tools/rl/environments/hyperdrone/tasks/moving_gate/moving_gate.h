@@ -95,10 +95,6 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::moving_gate {
 
         std::string gate_asset_path;  // set before init
         TI entity_kind_index = 0;     // assigned at registration
-
-        using GATE_POSE_STAGING_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, NEXT_WORLD::INSTANCES, 2, 12>>;
-        Tensor<GATE_POSE_STAGING_SPEC> gate_pose_staging;  // compute-device shutter-open/close gate poses for the CUDA render path
-        void* cuda_gate_pose_staging = nullptr;  // pinned host mirror
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

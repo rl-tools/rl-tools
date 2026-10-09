@@ -20,12 +20,14 @@ set(RL_TOOLS_RENDERING_DISABLE_RAYTRACING ON CACHE BOOL "" FORCE)
 set(RL_TOOLS_WARNINGS_AS_ERRORS OFF CACHE BOOL "" FORCE)
 
 if(HYPERDRONE_VARIANT STREQUAL "CUDA")
+    # a normal variable before enable_language shadows the compiler default it caches, also in
+    # trees configured before; CUDAARCHS overrides
+    if(NOT DEFINED ENV{CUDAARCHS})
+        set(CMAKE_CUDA_ARCHITECTURES native)
+    endif()
     enable_language(CUDA)
     set(CMAKE_CUDA_STANDARD 17)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)
-    if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-        set(CMAKE_CUDA_ARCHITECTURES native)
-    endif()
 endif()
 
 add_subdirectory(${RLTOOLS_ROOT} rl_tools EXCLUDE_FROM_ALL)

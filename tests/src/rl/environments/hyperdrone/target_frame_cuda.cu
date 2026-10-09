@@ -7,6 +7,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -17,6 +18,7 @@ namespace l2f = rlt::rl::environments::l2f;
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 using DEVICE_GPU_SPEC = rlt::rendering::raytracing::device::Specification<rlt::devices::DefaultCUDASpecification, DEVICE>;
 using DEVICE_GPU = rlt::devices::DEVICE_FACTORY_CUDA<DEVICE_GPU_SPEC>;
+using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
 using RNG_GPU = typename DEVICE_GPU::SPEC::RANDOM::ENGINE<>;
 using T = float;
 using TI = typename DEVICE::index_t;
@@ -77,11 +79,13 @@ namespace test_target_frame_cuda {
         static constexpr TI PAD_CHANNELS_TO = 8;
         static constexpr T TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE = 0.1;
         static constexpr T TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE = 0.25;
+        static constexpr TI TARGET_BANK_REFRESH_STEPS = 3;
     };
     using WORLD = rlt::rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
     constexpr TI INSTANCES = WORLD::INSTANCES;
     constexpr TI IMAGE_CHANNELS = BASE_WORLD::IMAGE_CHANNELS;
     constexpr TI CAM_PIXELS = WORLD_SPEC::CAM_WIDTH * WORLD_SPEC::CAM_HEIGHT;
+    constexpr TI FRAME_DIM = BASE_WORLD::FRAME_DIM;
 }
 
 using namespace test_target_frame_cuda;
@@ -91,8 +95,11 @@ static bool cuda_available(){
     return cudaGetDeviceCount(&device_count) == cudaSuccess && device_count > 0;
 }
 
-template <typename MEMBER>
-void check_rng_partitioning(){
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, GLOBAL_RNG_PARTITIONS){
+    if(!cuda_available()){
+        GTEST_SKIP() << "CUDA device unavailable";
+    }
+    using MEMBER = BASE_WORLD;
     DEVICE host;
     DEVICE_GPU device;
     rlt::init(host);
@@ -109,7 +116,6 @@ void check_rng_partitioning(){
     rlt::Tensor<DRONE_SPEC> table_host;
     table_host._data = nominals.data();
     auto init_sampling = [&](MEMBER& world){
-        world.shared = &multi.shared;
         world.num_drones = multi.shared.num_drones;
         rlt::copy(host, device, table_host, world.drone_parameters);
     };
@@ -150,11 +156,6 @@ void check_rng_partitioning(){
             const auto& b = rlt::get_ref(host, local_host, i);
             EXPECT_EQ(a.camera.fov, b.camera.fov) << "round " << round << " instance " << i;
             EXPECT_EQ(a.brightness_scale, b.brightness_scale);
-            if constexpr(rlt::utils::typing::is_same_v<MEMBER, WORLD>){
-                EXPECT_EQ(a.target_roll, b.target_roll);
-                EXPECT_EQ(a.target_pitch, b.target_pitch);
-                EXPECT_EQ(a.brightness_mismatch, b.brightness_mismatch);
-            }
         }
     }
     EXPECT_NE(rlt::get_ref(host, parameters_host, 0).brightness_scale,
@@ -173,16 +174,59 @@ void check_rng_partitioning(){
     rlt::free(device, multi);
 }
 
-TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, GLOBAL_RNG_PARTITIONS){
-    if(!cuda_available()){
-        GTEST_SKIP() << "CUDA device unavailable";
+// host copies of the World's device-resident bank state
+struct BankMirror {
+    rlt::Tensor<typename WORLD::SETUPS_SPEC> setups;
+    rlt::Tensor<typename WORLD::FRAMES_SPEC> bank_frames;
+    rlt::Tensor<typename WORLD::SETUP_INDEX_SPEC> setup_index;
+    rlt::Tensor<typename WORLD::BANK_CURSOR_SPEC> bank_cursor;
+    rlt::Tensor<typename WORLD::FRAMES_SPEC> target_frames;
+    rlt::Tensor<rlt::tensor::Specification<typename WORLD::Parameters, TI, rlt::tensor::Shape<TI, INSTANCES>>> parameters;
+    void allocate(DEVICE& host){
+        rlt::malloc(host, setups);
+        rlt::malloc(host, bank_frames);
+        rlt::malloc(host, setup_index);
+        rlt::malloc(host, bank_cursor);
+        rlt::malloc(host, target_frames);
+        rlt::malloc(host, parameters);
     }
-    check_rng_partitioning<BASE_WORLD>();
-    check_rng_partitioning<WORLD>();
+    void deallocate(DEVICE& host){
+        rlt::free(host, setups);
+        rlt::free(host, bank_frames);
+        rlt::free(host, setup_index);
+        rlt::free(host, bank_cursor);
+        rlt::free(host, target_frames);
+        rlt::free(host, parameters);
+    }
+    template <typename PARAMETERS>
+    void download(DEVICE_GPU& device_gpu, DEVICE& host, WORLD& world, PARAMETERS& device_parameters){
+        cudaDeviceSynchronize();
+        rlt::copy(device_gpu, host, world.setups, setups);
+        rlt::copy(device_gpu, host, world.bank_frames, bank_frames);
+        rlt::copy(device_gpu, host, world.setup_index, setup_index);
+        rlt::copy(device_gpu, host, world.bank_cursor, bank_cursor);
+        rlt::copy(device_gpu, host, world.target_frames, target_frames);
+        rlt::copy(device_gpu, host, device_parameters, parameters);
+    }
+};
+
+static void expect_adopted(DEVICE& host, BankMirror& mirror, TI instance_i){
+    const TI index = rlt::get(host, mirror.setup_index, instance_i);
+    ASSERT_LT(index, INSTANCES);
+    const auto& setup = rlt::get_ref(host, mirror.setups, index);
+    const typename WORLD::Parameters parameters = rlt::get(host, mirror.parameters, instance_i);
+    EXPECT_EQ(parameters.camera.fov, setup.camera.fov);
+    EXPECT_EQ(parameters.brightness_scale, setup.brightness_scale);
+    EXPECT_EQ(parameters.scene_translation[0], setup.scene_translation[0]);
+    EXPECT_EQ(parameters.target_roll, setup.target_roll);
+    EXPECT_EQ(parameters.brightness_mismatch, setup.brightness_mismatch);
+    for(TI element_i = 0; element_i < FRAME_DIM; element_i++){
+        ASSERT_EQ(rlt::get(host, mirror.target_frames, instance_i, element_i), rlt::get(host, mirror.bank_frames, index, element_i)) << "instance " << instance_i << " element " << element_i;
+    }
 }
 
 template<bool RAW_FIRST>
-void cache_and_stack_semantics(){
+void bank_and_stack_semantics(){
     if(SCENE_PATH.empty()){
         GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
     }
@@ -197,26 +241,31 @@ void cache_and_stack_semantics(){
     typename BASE_WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);
     rlt::malloc(device_gpu, world);
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
     rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
-    rlt::init(device_gpu, world, shared, dataset, corpus, 0, 1, 0);
+    rlt::init(device_gpu, world, shared, dataset, corpus, 0, 2, 0);
+    EXPECT_TRUE(rlt::rl::environments::hyperdrone::tasks::target_frame::_bank_due(world));
 
     RNG_GPU rng;
     rlt::malloc(device_gpu, rng);
     rlt::init(device_gpu, rng, 1337);
 
     rlt::Tensor<rlt::tensor::Specification<typename WORLD::Parameters, TI, rlt::tensor::Shape<TI, INSTANCES>>> parameters;
-    rlt::Tensor<rlt::tensor::Specification<typename WORLD::State, TI, rlt::tensor::Shape<TI, INSTANCES>>> states;
+    rlt::Tensor<rlt::tensor::Specification<typename WORLD::State, TI, rlt::tensor::Shape<TI, INSTANCES>>> states, next_states;
     rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, INSTANCES>>> reset_mask;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, INSTANCES, WORLD::ACTION_DIM>>> actions;
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, INSTANCES, WORLD::OBSERVATION_DIM>>> observations;
     rlt::malloc(device_gpu, parameters);
     rlt::malloc(device_gpu, states);
+    rlt::malloc(device_gpu, next_states);
     rlt::malloc(device_gpu, reset_mask);
+    rlt::malloc(device_gpu, actions);
     rlt::malloc(device_gpu, observations);
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, INSTANCES, BASE_WORLD::OBSERVATION_DIM>>> raw_observations;
     rlt::malloc(device_gpu, raw_observations);
     rlt::set_all(device_gpu, world.target_frames, (T)-123);
+    rlt::set_all(device_gpu, actions, (T)0);
     auto render_observation = [&](){
         rlt::request_render(device_gpu, world, reset_mask);
         if constexpr(RAW_FIRST){
@@ -232,17 +281,31 @@ void cache_and_stack_semantics(){
 
     rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, INSTANCES, WORLD::OBSERVATION_DIM>>> observations_host;
     rlt::Tensor<rlt::tensor::Specification<typename WORLD::State, TI, rlt::tensor::Shape<TI, INSTANCES>>> states_host;
+    rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, INSTANCES>>> reset_host;
     DEVICE host_device;
     rlt::malloc(host_device, observations_host);
     rlt::malloc(host_device, states_host);
+    rlt::malloc(host_device, reset_host);
+    BankMirror mirror;
+    mirror.allocate(host_device);
 
+    // the first reset fills the bank and the resetting instances adopt its setups in order, so
+    // a full reset gives every instance its own
     rlt::set_all(device_gpu, reset_mask, true);
     rlt::sample_initial_parameters(device_gpu, world, parameters, reset_mask, rng);
     rlt::sample_initial_state(device_gpu, world, parameters, states, reset_mask, rng);
+    EXPECT_EQ(world.bank_scene_version, world.scene_version);
+    mirror.download(device_gpu, host_device, world, parameters);
+    for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
+        EXPECT_EQ(rlt::get(host_device, mirror.setup_index, instance_i), instance_i);
+        expect_adopted(host_device, mirror, instance_i);
+    }
+    EXPECT_EQ(rlt::get(host_device, mirror.bank_cursor, (TI)0), INSTANCES);
+    EXPECT_NE(rlt::get_ref(host_device, mirror.setups, 0).target_roll, (T)0);
+
     render_observation();
     cudaDeviceSynchronize();
     rlt::copy(device_gpu, host_device, observations, observations_host);
-
     auto channel_value = [&](TI instance_i, TI pixel_i, TI channel){
         return rlt::get(host_device, observations_host, instance_i, pixel_i * WORLD::OBSERVATION_CHANNELS + channel);
     };
@@ -255,7 +318,7 @@ void cache_and_stack_semantics(){
                 T target_value = channel_value(instance_i, pixel_i, TASK_SPEC::IMAGE_STACK_N * IMAGE_CHANNELS + channel_i);
                 target_step0[(instance_i * CAM_PIXELS + pixel_i) * IMAGE_CHANNELS + channel_i] = target_value;
                 frame0_step0[(instance_i * CAM_PIXELS + pixel_i) * IMAGE_CHANNELS + channel_i] = channel_value(instance_i, pixel_i, channel_i);
-                ASSERT_GE(target_value, (T)0);
+                ASSERT_EQ(target_value, rlt::get(host_device, mirror.target_frames, instance_i, pixel_i * IMAGE_CHANNELS + channel_i));
                 target_nonzero = target_nonzero || target_value != (T)0;
                 ASSERT_EQ(channel_value(instance_i, pixel_i, channel_i), channel_value(instance_i, pixel_i, IMAGE_CHANNELS + channel_i)) << "stack should clamp to the episode start";
             }
@@ -290,32 +353,65 @@ void cache_and_stack_semantics(){
     }
     EXPECT_TRUE(student_changed);
 
-    rlt::set_all(device_gpu, reset_mask, false);
-    rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, INSTANCES>>> reset_host;
-    rlt::malloc(host_device, reset_host);
+    // reset instance 0 only: it adopts a setup from the bank, the others keep their rows
     rlt::set_all(host_device, reset_host, false);
     rlt::set(host_device, reset_host, true, (TI)0);
     rlt::copy(host_device, device_gpu, reset_host, reset_mask);
     rlt::sample_initial_parameters(device_gpu, world, parameters, reset_mask, rng);
     rlt::sample_initial_state(device_gpu, world, parameters, states, reset_mask, rng);
+    mirror.download(device_gpu, host_device, world, parameters);
+    expect_adopted(host_device, mirror, 0);
+    EXPECT_EQ(rlt::get(host_device, mirror.bank_cursor, (TI)0), INSTANCES + 1);
     render_observation();
+    cudaDeviceSynchronize();
     rlt::copy(device_gpu, host_device, observations, observations_host);
-    bool changed = false;
-    for(TI pixel_i = 0; pixel_i < CAM_PIXELS; pixel_i++){
-        for(TI channel_i = 0; channel_i < IMAGE_CHANNELS; channel_i++){
-            const TI target_channel = TASK_SPEC::IMAGE_STACK_N * IMAGE_CHANNELS + channel_i;
-            changed = changed || channel_value(0, pixel_i, target_channel) != target_step0[pixel_i * IMAGE_CHANNELS + channel_i];
-            ASSERT_EQ(channel_value(1, pixel_i, target_channel), target_step0[(CAM_PIXELS + pixel_i) * IMAGE_CHANNELS + channel_i]);
-            ASSERT_EQ(channel_value(0, pixel_i, channel_i), channel_value(0, pixel_i, IMAGE_CHANNELS + channel_i));
+    for(TI instance_i = 1; instance_i < INSTANCES; instance_i++){
+        for(TI pixel_i = 0; pixel_i < CAM_PIXELS; pixel_i++){
+            for(TI channel_i = 0; channel_i < IMAGE_CHANNELS; channel_i++){
+                ASSERT_EQ(channel_value(instance_i, pixel_i, TASK_SPEC::IMAGE_STACK_N * IMAGE_CHANNELS + channel_i), target_step0[(instance_i * CAM_PIXELS + pixel_i) * IMAGE_CHANNELS + channel_i]);
+            }
         }
     }
-    EXPECT_TRUE(changed);
+
+    // the bank refreshes every TARGET_BANK_REFRESH_STEPS frames without touching running episodes
+    std::vector<float> bank_before(INSTANCES * FRAME_DIM), rows_before(INSTANCES * FRAME_DIM);
+    std::memcpy(bank_before.data(), rlt::data(mirror.bank_frames), bank_before.size() * sizeof(float));
+    std::memcpy(rows_before.data(), rlt::data(mirror.target_frames), rows_before.size() * sizeof(float));
+    rlt::set_all(device_gpu, reset_mask, false);
+    for(TI step_i = 0; step_i < TASK_SPEC::TARGET_BANK_REFRESH_STEPS; step_i++){
+        rlt::step(device_gpu, world, parameters, states, actions, next_states, rng);
+        rlt::copy(device_gpu, device_gpu, next_states, states);
+        rlt::render(device_gpu, world, parameters, states, reset_mask);
+    }
+    rlt::sample_initial_parameters(device_gpu, world, parameters, reset_mask, rng);
+    EXPECT_EQ(world.bank_step, world.history_step);
+    mirror.download(device_gpu, host_device, world, parameters);
+    EXPECT_EQ(rlt::get(host_device, mirror.bank_cursor, (TI)0), (TI)0);
+    EXPECT_NE(std::memcmp(bank_before.data(), rlt::data(mirror.bank_frames), bank_before.size() * sizeof(float)), 0) << "the refresh should draw new setups";
+    for(TI instance_i = 1; instance_i < INSTANCES; instance_i++){
+        for(TI element_i = 0; element_i < FRAME_DIM; element_i++){
+            ASSERT_EQ(rlt::get(host_device, mirror.target_frames, instance_i, element_i), rows_before[instance_i * FRAME_DIM + element_i]) << "a refresh must leave running episodes' targets alone";
+        }
+    }
+
+    // a scene change invalidates the bank, re-selecting the same scene included
+    rlt::rotate_scene(device_gpu, world);
+    EXPECT_EQ(world.active_slot, (TI)1);
+    EXPECT_TRUE(rlt::rl::environments::hyperdrone::tasks::target_frame::_bank_due(world));
+    rlt::sample_initial_parameters(device_gpu, world, parameters, reset_mask, rng);
+    EXPECT_EQ(world.bank_scene_version, world.scene_version);
+    rlt::select_scene(device_gpu, world, world.active_slot);
+    EXPECT_TRUE(rlt::rl::environments::hyperdrone::tasks::target_frame::_bank_due(world));
+
+    mirror.deallocate(host_device);
     rlt::free(host_device, reset_host);
     rlt::free(device_gpu, raw_observations);
     rlt::free(device_gpu, rng);
     rlt::free(device_gpu, parameters);
     rlt::free(device_gpu, states);
+    rlt::free(device_gpu, next_states);
     rlt::free(device_gpu, reset_mask);
+    rlt::free(device_gpu, actions);
     rlt::free(device_gpu, observations);
     rlt::free(host_device, observations_host);
     rlt::free(host_device, states_host);
@@ -323,11 +419,72 @@ void cache_and_stack_semantics(){
     rlt::free(device, shared.library);
 }
 
-TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, CACHE_AND_STACK_SEMANTICS){
-    cache_and_stack_semantics<false>();
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, BANK_AND_STACK_SEMANTICS){
+    bank_and_stack_semantics<false>();
 }
-TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, RAW_OBSERVATION_REFRESHES_TARGET){
-    cache_and_stack_semantics<true>();
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, RAW_OBSERVATION_KEEPS_TARGET){
+    bank_and_stack_semantics<true>();
+}
+
+// the CUDA bank render agrees with the host render of the same setups, up to gcc-vs-nvcc
+// camera-producer ULPs
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME_CUDA, CPU_CUDA_BANK_CONSISTENCY){
+    if(SCENE_PATH.empty()){
+        GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
+    }
+    if(!cuda_available()){
+        GTEST_SKIP() << "CUDA device unavailable";
+    }
+    DEVICE_GPU device_gpu;
+    auto& device = device_gpu.rendering;
+    rlt::init(device);
+    rlt::init(device_gpu);
+    typename BASE_WORLD::SharedContext shared;
+    rlt::malloc(device, shared.library);
+    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    typename decltype(dataset)::Corpus corpus;
+    rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
+    WORLD world_cpu, world_gpu;
+    rlt::malloc(device, world_cpu);
+    rlt::malloc(device_gpu, world_gpu);
+    rlt::init(device, world_cpu, shared, dataset, corpus, 0, 1, 0);
+    rlt::init(device_gpu, world_gpu, shared, dataset, corpus, 0, 1, 1);
+
+    RNG rng;
+    rlt::malloc(device, rng);
+    rlt::init(device, rng, 1337);
+    rlt::sample_target_setups(device, world_cpu, rng);
+    rlt::copy(device, device_gpu, world_cpu.setups, world_gpu.setups);
+    rlt::render_target_bank(device, world_cpu);
+    rlt::render_target_bank(device_gpu, world_gpu);
+    cudaDeviceSynchronize();
+    rlt::Tensor<typename WORLD::FRAMES_SPEC> downloaded;
+    rlt::malloc(device, downloaded);
+    rlt::copy(device_gpu, device, world_gpu.bank_frames, downloaded);
+
+    TI large_deltas = 0;
+    T max_delta = 0;
+    bool nonzero = false;
+    for(TI setup_i = 0; setup_i < INSTANCES; setup_i++){
+        for(TI element_i = 0; element_i < FRAME_DIM; element_i++){
+            const T cpu_value = rlt::get(device, world_cpu.bank_frames, setup_i, element_i);
+            const T gpu_value = rlt::get(device, downloaded, setup_i, element_i);
+            const T delta = std::abs(cpu_value - gpu_value);
+            max_delta = delta > max_delta ? delta : max_delta;
+            if(delta > (T)0.05){
+                large_deltas++;
+            }
+            nonzero = nonzero || cpu_value != (T)0;
+        }
+    }
+    EXPECT_TRUE(nonzero);
+    EXPECT_LE(large_deltas, INSTANCES * FRAME_DIM / 1000) << "max_delta " << max_delta;
+
+    rlt::free(device, downloaded);
+    rlt::free(device, rng);
+    rlt::free(device, world_cpu);
+    rlt::free(device_gpu, world_gpu);
+    rlt::free(device, shared.library);
 }
 
 int main(int argc, char** argv) {

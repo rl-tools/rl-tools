@@ -21,7 +21,6 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using NEXT_COMPONENT = typename SPEC::NEXT_COMPONENT;
-        T target_pose[7] = {0, 0, 0, 1, 0, 0, 0};  // scene-local goal pose (position + quaternion)
         T target_roll = 0;                         // per-episode target-camera perturbation
         T target_pitch = 0;
         T brightness_mismatch = 1;                 // per-episode exposure-mismatch factor
@@ -38,11 +37,15 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame {
         static constexpr TI PAD_CHANNELS_TO = 0;
         static constexpr T TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE = 0;
         static constexpr T TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE = 0;
+        // target frames come from a bank of INSTANCES pre-rendered episode setups that is re-rendered
+        // every TARGET_BANK_REFRESH_STEPS frames and on scene changes: one extra render pass per
+        // refresh, and resets beyond INSTANCES within one refresh reuse setups
+        static constexpr TI TARGET_BANK_REFRESH_STEPS = 32;
     };
 
-    // the wrapper is the World: it adds its reset-time target cache, bundles its parameters
-    // component and observation contribution, and overloads only the verbs it extends — base
-    // verbs bind through deduction-from-derived
+    // the wrapper is the World: it adds its target bank and the per-instance target cache,
+    // bundles its parameters component and observation contribution, and overloads only the
+    // verbs it extends — base verbs bind through deduction-from-derived
     template <typename T_TASK_SPEC>
     struct World: T_TASK_SPEC::NEXT_WORLD {
         using TASK_SPEC = T_TASK_SPEC;
@@ -66,10 +69,22 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame {
         static constexpr TI OBSERVATION_CHANNELS = Observation::CHANNELS;
         static constexpr TI OBSERVATION_DIM = Observation::DIM;
         static_assert(NEXT_WORLD::SPEC::HISTORY_LENGTH >= TASK_SPEC::IMAGE_STACK_STRIDE * (TASK_SPEC::IMAGE_STACK_N - 1) + 1, "the base World's frame history must cover the image stack");
+        static_assert(NEXT_WORLD::N_VIEWS == 1, "the target frame is one view per instance: multi-agent Worlds are not supported");
+        static_assert(TASK_SPEC::TARGET_BANK_REFRESH_STEPS > 0);
 
-        using TARGET_FRAMES_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, NEXT_WORLD::INSTANCES * NEXT_WORLD::N_VIEWS, NEXT_WORLD::FRAME_DIM>>;
-        Tensor<TARGET_FRAMES_SPEC> target_frames;  // cached at reset
-        void* cuda_reset_staging = nullptr;  // pinned reset-mask mirror for the cache-refresh decision
+        // a setup is everything the target frame depends on (view, scene placement, target
+        // perturbation), sampled into the Parameters a resetting instance adopts whole
+        using SETUPS_SPEC = tensor::Specification<Parameters, TI, tensor::Shape<TI, NEXT_WORLD::INSTANCES>>;
+        using FRAMES_SPEC = tensor::Specification<float, TI, tensor::Shape<TI, NEXT_WORLD::INSTANCES, NEXT_WORLD::FRAME_DIM>>;
+        using SETUP_INDEX_SPEC = tensor::Specification<TI, TI, tensor::Shape<TI, NEXT_WORLD::INSTANCES>>;
+        using BANK_CURSOR_SPEC = tensor::Specification<TI, TI, tensor::Shape<TI, 1>>;
+        Tensor<SETUPS_SPEC> setups;
+        Tensor<FRAMES_SPEC> bank_frames;
+        Tensor<SETUP_INDEX_SPEC> setup_index;  // the setup each instance adopted at its last reset
+        Tensor<BANK_CURSOR_SPEC> bank_cursor;  // setups adopted since the refresh: resets take them in order
+        Tensor<FRAMES_SPEC> target_frames;     // copied at reset, so a refresh leaves running episodes alone
+        TI bank_step = 0;           // history_step at the refresh
+        TI bank_scene_version = 0;  // the scene_version the bank was rendered for, 0 = none
     };
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END

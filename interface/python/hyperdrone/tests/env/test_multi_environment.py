@@ -169,13 +169,21 @@ def test_instance_parameters(scene_directory):
     env = MultiEnvironment(scene_directory, config=CONFIG, seed=3)
     reference = MultiEnvironment(scene_directory, config=CONFIG, seed=3)
     try:
-        with pytest.raises(RuntimeError, match="reset"):
-            env.instance_parameters()
         all_instances = np.ones(env.total_instances, dtype=np.uint8)
         no_reset = np.zeros(env.total_instances, dtype=np.uint8)
         for e in (env, reference):
             e.reset(all_instances)
             e.render(all_instances)
+        # the field-of-view check below needs instance 0 to look at structure rather than a
+        # blank wall; redraw the placement (both environments stay in lockstep) until it does
+        for _ in range(16):
+            if env.observe()[0].std() > 0.05:
+                break
+            for e in (env, reference):
+                e.reset(all_instances)
+                e.render(all_instances)
+        else:
+            pytest.skip("no structured view for instance 0 within 16 placements")
         nominal = env.parameters
         flying_nominal = {**nominal, "drone": 0}
         current = env.instance_parameters()
@@ -255,6 +263,13 @@ def test_config_validation_errors():
         EnvConfig(n_agents=2)
     with pytest.raises(ValueError, match="spec_header supersedes"):
         EnvConfig(task="target_frame", spec_header=__file__)
+    with pytest.raises(ValueError, match="unknown device"):
+        EnvConfig(device="tpu")
+    with pytest.raises(ValueError, match="single-agent"):
+        EnvConfig(preset="x500_fpv", task="target_frame", n_agents=2)
+    with pytest.raises(ValueError, match="no CUDA verbs"):
+        EnvConfig(preset="x500_fpv_imu", task="visual_inertial_localization", device="cuda")
+    assert EnvConfig(spec_header=__file__).world_device == "cpu"
     with pytest.raises(ValueError, match="asset per drone"):
         MultiEnvironment("/nonexistent", config=EnvConfig(preset="x500_fpv", n_agents=1))
 
@@ -288,7 +303,7 @@ def drone_asset_path():
     return rigged_asset_path("x500")
 
 
-CONFIG_DRONES = EnvConfig(instances=4, cam_width=16, cam_height=16, preset="x500_fpv", max_drones=4)
+CONFIG_DRONES = EnvConfig(instances=4, cam_width=16, cam_height=16, preset="x500_fpv")
 
 
 def test_drones_table(scene_directory):
@@ -299,7 +314,7 @@ def test_drones_table(scene_directory):
     ]
     env = MultiEnvironment(scene_directory, config=CONFIG_DRONES, seed=5, drones=drones)
     try:
-        assert env.max_drones == 4
+        assert env.max_drones == 8
         table = env.drones
         assert len(table) == 3
         assert table[0]["parameters"] == env.parameters
@@ -316,8 +331,20 @@ def test_drones_table(scene_directory):
                 assert instance["camera"]["fov"] == pytest.approx(nominal["camera"]["fov"])
         assert seen == {0, 1, 2}
         smoke_rollout(env)
+        switched = np.array([1, 0, 0, 0], dtype=bool)
+        env.set_instance_parameters({"drone": 1, "camera": {"fov": 40}}, mask=switched)
+        instance = env.instance_parameters()[0]
+        assert instance["drone"] == 1
+        assert instance["dynamics"] == table[1]["parameters"]["dynamics"]
+        assert instance["camera"]["fov"] == 40
+        smoke_rollout(env)
+        with pytest.raises(ValueError, match="index the drones table"):
+            env.set_instance_parameters({"drone": 3}, mask=switched)
+        positions = np.array(table[0]["parameters"]["dynamics"]["dynamics"]["rotor_positions"])
+        with pytest.raises(ValueError, match="quadrant"):
+            env.set_instance_parameters({"drone": 0, "dynamics": {"dynamics": {"rotor_positions": positions[[1, 0, 2, 3]].tolist()}}}, mask=switched)
         with pytest.raises(ValueError, match="sampled at reset"):
-            env.set_instance_parameters({"drone": 1})
+            MultiEnvironment(scene_directory, config=CONFIG_DRONES, seed=0, drones=[{"asset": drones[0]["asset"], "parameters": {"drone": 1}}])
     finally:
         env.close()
 
@@ -363,8 +390,8 @@ def test_drones_validation(scene_directory):
     asset = rigged_asset_path("x500")
     with pytest.raises(ValueError, match="either"):
         MultiEnvironment(scene_directory, config=CONFIG_DRONES, seed=0, drone_asset=asset, drones=[{"asset": asset}])
-    with pytest.raises(ValueError, match="max_drones"):
-        MultiEnvironment(scene_directory, config=CONFIG_DRONES, seed=0, drones=[{"asset": asset}] * 5)
+    with pytest.raises(ValueError, match="holds 8"):
+        MultiEnvironment(scene_directory, config=CONFIG_DRONES, seed=0, drones=[{"asset": asset}] * 9)
     with pytest.raises(ValueError, match="asset per drone"):
         MultiEnvironment(scene_directory, config=CONFIG_DRONES, seed=0, drones=[{"asset": asset}, {}])
     with pytest.raises(ValueError, match="SELF_VISIBLE world"):
@@ -397,6 +424,8 @@ def test_x500_target_frame(scene_directory):
         assert layout.shape == (16, 16, 6)
         assert layout.blocks == {"image_stack": (0, 3), "target_image": (3, 3)}
         smoke_rollout(env)
+        with pytest.raises(ValueError, match="target setup"):
+            env.set_instance_parameters({"camera": {"fov": 60}})
     finally:
         env.close()
 

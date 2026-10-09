@@ -41,11 +41,6 @@ namespace test_drones {
         static constexpr TI MAX_DRONES = 8;
     };
     using WORLD = rlt::rl::environments::hyperdrone::World<WORLD_SPEC>;
-    struct SAMPLING_SPEC: WORLD_SPEC {
-        static constexpr bool ENABLE_MOTION_BLUR = true;
-        static constexpr TI MOTION_BLUR_SAMPLES = 4;
-    };
-    using SAMPLING_WORLD = rlt::rl::environments::hyperdrone::World<SAMPLING_SPEC>;
     using DRONE = rlt::rl::environments::hyperdrone::Drone<WORLD_SPEC>;
     using REGISTRY = l2f::parameters::dynamics::REGISTRY;
     constexpr TI INSTANCES = WORLD::INSTANCES;
@@ -80,25 +75,14 @@ namespace test_drones {
     inline Table many_to_many(){
         return {{drone<REGISTRY::crazyflie>("crazyflie_brushless.glb", 60), drone<REGISTRY::crazyflie_openmv>("crazyflie_brushless.glb", 61), drone<REGISTRY::x500>("x500.glb", 62), drone<REGISTRY::x500_sim>("x500.glb", 63), drone<REGISTRY::crazyflie>("crazyflie.glb", 64), drone<REGISTRY::arpl>("arpl.glb", 65), drone<REGISTRY::soft>("soft.glb", 66)}, {0, 0, 1, 1, 2, 3, 4}};
     }
-    template <typename COMPUTE_DEVICE, typename TEST_WORLD>
-    void init_sampling_table(DEVICE& host, COMPUTE_DEVICE& device, TEST_WORLD& world, const std::vector<DRONE>& drones){
-        world.num_drones = (TI)drones.size();
-        std::vector<typename TEST_WORLD::DRONE_PARAMETERS_SPEC::T> entries(WORLD_SPEC::MAX_DRONES);
-        for(TI drone_i = 0; drone_i < world.num_drones; drone_i++){
-            entries[drone_i].dynamics = drones[drone_i].parameters.dynamics;
-            entries[drone_i].camera = drones[drone_i].parameters.camera;
-        }
-        rlt::Tensor<typename TEST_WORLD::DRONE_PARAMETERS_SPEC> alias;
-        alias._data = entries.data();
-        rlt::malloc(device, world.drone_parameters);
-        rlt::copy(host, device, alias, world.drone_parameters);
-    }
-
-    inline void arrange(DEVICE& device, PARAMETERS_TENSOR& parameters, STATES_TENSOR& states, const std::vector<TI>& drones, T phase = 0){
+    // every instance flies its drone entry at its nominal dynamics, as a reset without
+    // randomization leaves it, in front of its camera
+    inline void arrange(DEVICE& device, PARAMETERS_TENSOR& parameters, STATES_TENSOR& states, const std::vector<DRONE>& table, const std::vector<TI>& drones, T phase = 0){
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
             auto& instance_parameters = rlt::get_ref(device, parameters, instance_i);
             auto& state = rlt::get_ref(device, states, instance_i);
             instance_parameters.drone = drones[instance_i];
+            instance_parameters.dynamics.dynamics = table[drones[instance_i]].parameters.dynamics.dynamics;
             instance_parameters.scene_yaw_cos = 1;
             instance_parameters.scene_yaw_sin = 0;
             instance_parameters.scene_translation[0] = 0;
@@ -150,13 +134,26 @@ namespace test_drones {
         }
         return masks;
     }
-    inline void check_placements(const WORLD& world, const std::vector<TI>& drones){
-        const auto& slot = world.slots[world.active_slot];
+    // the drone mesh an instance's region holds in a hot slot's host truth (a CPU World's
+    // renderer), drone_meshes.size() for none
+    template <typename TEST_WORLD>
+    TI rendered_mesh(const TEST_WORLD& world, TI slot_i, TI instance_i){
+        const auto& renderer = world.slots[slot_i].renderer;
+        const auto object = renderer.overlays[instance_i].slots[world.drone_slot_offset].object;
+        for(TI mesh_i = 0; mesh_i < (TI)world.drone_meshes.size(); mesh_i++){
+            if(renderer.asset_part_objects[renderer.assets[world.drone_meshes[mesh_i].index].first_part] == object){
+                return mesh_i;
+            }
+        }
+        return (TI)world.drone_meshes.size();
+    }
+    inline void check_placements(const WORLD& world, const WORLD::SharedContext& shared, const std::vector<TI>& drones){
+        const auto& renderer = world.slots[world.active_slot].renderer;
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            const TI asset_i = world.shared->drone_asset[drones[instance_i]];
-            EXPECT_EQ(slot.drone_spawned_asset[instance_i], asset_i);
-            EXPECT_EQ(slot.entity_placements[instance_i].first_slot, 0u);
-            EXPECT_EQ(slot.entity_placements[instance_i].num_parts, (size_t)world.shared->drone_assets[asset_i].parts);
+            EXPECT_EQ(rendered_mesh(world, world.active_slot, instance_i), shared.drone_bodies[drones[instance_i]].mesh) << "instance " << instance_i;
+            for(TI slot_i = 0; slot_i < MAX_SLOTS; slot_i++){
+                EXPECT_EQ(renderer.overlays[instance_i].slots[slot_i].active, slot_i >= world.drone_slot_offset && slot_i < world.drone_slot_offset + world.drone_parts) << "instance " << instance_i << " slot " << slot_i;
+            }
         }
     }
     inline bool seen(const std::vector<uint32_t>& mask){

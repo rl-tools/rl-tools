@@ -8,6 +8,7 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -145,10 +146,11 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE_CUDA, OWN_DRONE_AND_ARTICU
     rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
     rlt::init(device_gpu, world, shared, dataset, corpus, 0, 1, 0);
 
-    ASSERT_EQ(world.entity_kinds.size(), 1);
-    EXPECT_GT(world.shared->drone_assets[0].rig.num_coordinates, 0);
-    ASSERT_EQ(world.slots[0].entity_placements.size(), INSTANCES);
-    EXPECT_GT(world.slots[0].entity_placements[0].num_parts, 1);
+    ASSERT_TRUE(world.entity_kinds.empty());
+    ASSERT_EQ(shared.drone_bodies.size(), 1);
+    const auto& body = shared.drone_bodies[0];
+    EXPECT_EQ(body.rig.num_coordinates, 4);
+    EXPECT_GT(body.rig.num_parts, 1);
 
     RNG_GPU rng;
     rlt::malloc(device_gpu, rng);
@@ -181,6 +183,32 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE_CUDA, OWN_DRONE_AND_ARTICU
     for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
         for(TI dim = 0; dim < OBS_DIM; dim++){
             frame_phase_zero[instance_i * OBS_DIM + dim] = rlt::get(device, observations, instance_i, dim);
+        }
+    }
+
+    // the rows the kernel wrote into the renderer equal the host rig evaluation of the same state
+    {
+        using DRONE_RIG_SPEC = typename decltype(body.rig)::SPEC;
+        auto& renderer = rlt::get_renderer(device, world);
+        std::vector<float> rows(INSTANCES * MAX_SLOTS * 12);
+        rlt::Tensor<typename decltype(renderer.transforms)::SPEC> alias;
+        alias._data = rows.data();
+        rlt::copy(renderer.device, device, rlt::transforms(device, renderer), alias);
+        for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
+            const typename WORLD::Parameters instance_parameters = rlt::get(device, parameters, instance_i);
+            const typename WORLD::State state = rlt::get(device, states, instance_i);
+            float base[12];
+            rlt::rl::environments::hyperdrone::rig::make_body_transform(device, state.orientation, state.position, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin, base);
+            float coordinates_open[WORLD::DYNAMICS_ENV::ACTION_DIM], coordinates_close[WORLD::DYNAMICS_ENV::ACTION_DIM];
+            rlt::rl::environments::hyperdrone::_drone_coordinates<DEVICE, WORLD_SPEC>(device, instance_parameters, state, coordinates_open, coordinates_close);
+            rlt::rendering::rig::Buffer<DRONE_RIG_SPEC> buffer;
+            float poses[DRONE_RIG_SPEC::MAX_PARTS][12];
+            rlt::evaluate(device, body.rig, base, coordinates_close, buffer, &poses[0][0]);
+            for(TI part = 0; part < body.rig.num_parts; part++){
+                for(TI element = 0; element < 12; element++){
+                    EXPECT_NEAR(rows[(instance_i * MAX_SLOTS + world.drone_slot_offset + part) * 12 + element], poses[part][element], 1e-4) << "instance " << instance_i << " part " << part << " element " << element;
+                }
+            }
         }
     }
 
@@ -237,6 +265,130 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE_CUDA, OWN_DRONE_AND_ARTICU
     rlt::free(device_gpu, rng);
     rlt::free(device_gpu, world);
     rlt::free(device, shared.library);
+}
+
+__global__ void spin_kernel(long long cycles){
+    const long long start = clock64();
+    while(clock64() - start < cycles){
+    }
+}
+
+namespace test_self_visible_cuda {
+    struct FAN_OUT_WORLD_SPEC: WORLD_SPEC {
+        static constexpr bool ENABLE_MOTION_BLUR = true;
+        static constexpr TI MOTION_BLUR_SAMPLES = 4;
+    };
+    using FAN_OUT_MEMBER = rlt::rl::environments::hyperdrone::World<FAN_OUT_WORLD_SPEC>;
+    using FAN_OUT_MULTI = rlt::rl::environments::hyperdrone::MultiEnvironment<FAN_OUT_MEMBER, 3>;
+    struct FanOutRollout {
+        FAN_OUT_MULTI env;
+        RNG_GPU rng;
+        rlt::Tensor<rlt::tensor::Specification<typename FAN_OUT_MULTI::Parameters, TI, rlt::tensor::Shape<TI, FAN_OUT_MULTI::INSTANCES>>> parameters;
+        rlt::Tensor<rlt::tensor::Specification<typename FAN_OUT_MULTI::State, TI, rlt::tensor::Shape<TI, FAN_OUT_MULTI::INSTANCES>>> states, next_states;
+        rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, FAN_OUT_MULTI::INSTANCES, FAN_OUT_MEMBER::OBSERVATION_DIM>>> observations;
+    };
+}
+
+// a MultiEnvironment renders and observes its members concurrently on their renderer streams; the
+// frames must equal rendering the same members one after another through the World verbs
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE_CUDA, MULTI_ENVIRONMENT_FAN_OUT){
+    if(SCENE_PATH.empty()){
+        GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
+    }
+    if(!cuda_available()){
+        GTEST_SKIP() << "no CUDA device available";
+    }
+    constexpr TI N = FAN_OUT_MULTI::NUMBER_OF_ENVIRONMENTS;
+    constexpr TI M = FAN_OUT_MULTI::INSTANCES_PER_ENVIRONMENT;
+    constexpr TI TOTAL = FAN_OUT_MULTI::INSTANCES;
+    constexpr TI DIM = FAN_OUT_MEMBER::OBSERVATION_DIM;
+    DEVICE_GPU device_gpu;
+    auto& device = device_gpu.rendering;
+    rlt::init(device);
+    rlt::init(device_gpu);
+    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH, SCENE_PATH}};
+    auto fanned_owner = std::make_unique<FanOutRollout>();
+    auto memberwise_owner = std::make_unique<FanOutRollout>();
+    FanOutRollout& fanned = *fanned_owner;
+    FanOutRollout& memberwise = *memberwise_owner;
+    for(FanOutRollout* rollout : {&fanned, &memberwise}){
+        rlt::malloc(device_gpu, rollout->env);
+        rollout->env.shared.drones.push_back({DRONE_PATH, {}});
+        rlt::init(device_gpu, rollout->env, dataset);
+        rlt::malloc(device_gpu, rollout->rng);
+        rlt::init(device_gpu, rollout->rng, 7);
+        rlt::malloc(device_gpu, rollout->parameters);
+        rlt::malloc(device_gpu, rollout->states);
+        rlt::malloc(device_gpu, rollout->next_states);
+        rlt::malloc(device_gpu, rollout->observations);
+    }
+    rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, TOTAL>>> reset_mask;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TOTAL, FAN_OUT_MULTI::ACTION_DIM>>> actions, actions_host;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TOTAL, DIM>>> fanned_host, memberwise_host;
+    rlt::malloc(device_gpu, reset_mask);
+    rlt::malloc(device_gpu, actions);
+    rlt::malloc(device, actions_host);
+    rlt::malloc(device, fanned_host);
+    rlt::malloc(device, memberwise_host);
+    rlt::set_all(device_gpu, reset_mask, true);
+    for(FanOutRollout* rollout : {&fanned, &memberwise}){
+        rlt::sample_initial_parameters(device_gpu, rollout->env, rollout->parameters, reset_mask, rollout->rng);
+        rlt::sample_initial_state(device_gpu, rollout->env, rollout->parameters, rollout->states, reset_mask, rollout->rng);
+    }
+    constexpr long long SPIN_CYCLES = 20000000;
+    for(TI step_i = 0; step_i < 4; step_i++){
+        // a member stream busy beyond the delayed step below: the observations are read on
+        // device.stream, which must join it (each member in turn)
+        spin_kernel<<<1, 1, 0, rlt::stream(device_gpu, rlt::get_renderer(device_gpu, fanned.env.environments[step_i % N]))>>>(3 * SPIN_CYCLES);
+        rlt::render(device_gpu, fanned.env, fanned.parameters, fanned.states, reset_mask);
+        rlt::observe(device_gpu, fanned.env, fanned.parameters, fanned.states, typename FAN_OUT_MULTI::Observation{}, fanned.observations, fanned.rng);
+        for(TI environment_i = 0; environment_i < N; environment_i++){
+            auto parameters_block = rlt::view_range(device_gpu, memberwise.parameters, environment_i * M, rlt::tensor::ViewSpec<0, M>{});
+            auto states_block = rlt::view_range(device_gpu, memberwise.states, environment_i * M, rlt::tensor::ViewSpec<0, M>{});
+            auto reset_block = rlt::view_range(device_gpu, reset_mask, environment_i * M, rlt::tensor::ViewSpec<0, M>{});
+            auto observations_block = rlt::view_range(device_gpu, memberwise.observations, environment_i * M, rlt::tensor::ViewSpec<0, M>{});
+            rlt::render(device_gpu, memberwise.env.environments[environment_i], parameters_block, states_block, reset_block);
+            rlt::observe(device_gpu, memberwise.env.environments[environment_i], parameters_block, states_block, typename FAN_OUT_MEMBER::Observation{}, observations_block, memberwise.rng);
+        }
+        rlt::copy(device_gpu, device, fanned.observations, fanned_host);
+        rlt::copy(device_gpu, device, memberwise.observations, memberwise_host);
+        TI mismatches = 0;
+        T total = 0;
+        for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
+            for(TI dim = 0; dim < DIM; dim++){
+                mismatches += rlt::get(device, fanned_host, instance_i, dim) != rlt::get(device, memberwise_host, instance_i, dim);
+                total += rlt::get(device, fanned_host, instance_i, dim);
+            }
+        }
+        EXPECT_EQ(mismatches, 0) << "step " << step_i;
+        EXPECT_GT(total, 0) << "step " << step_i;
+        for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
+            for(TI action_i = 0; action_i < FAN_OUT_MULTI::ACTION_DIM; action_i++){
+                rlt::set(device, actions_host, (T)(((instance_i * 7 + action_i * 3 + step_i * 5) % 11) / 5.0 - 1), instance_i, action_i);
+            }
+        }
+        rlt::copy(device, device_gpu, actions_host, actions);
+        // a delayed step: the next render must fork it into the member streams
+        spin_kernel<<<1, 1, 0, device_gpu.stream>>>(SPIN_CYCLES);
+        for(FanOutRollout* rollout : {&fanned, &memberwise}){
+            rlt::step(device_gpu, rollout->env, rollout->parameters, rollout->states, actions, rollout->next_states, rollout->rng);
+            rlt::copy(device_gpu, device_gpu, rollout->next_states, rollout->states);
+        }
+        rlt::set_all(device_gpu, reset_mask, false);
+    }
+    for(FanOutRollout* rollout : {&fanned, &memberwise}){
+        rlt::free(device_gpu, rollout->parameters);
+        rlt::free(device_gpu, rollout->states);
+        rlt::free(device_gpu, rollout->next_states);
+        rlt::free(device_gpu, rollout->observations);
+        rlt::free(device_gpu, rollout->rng);
+        rlt::free(device_gpu, rollout->env);
+    }
+    rlt::free(device_gpu, reset_mask);
+    rlt::free(device_gpu, actions);
+    rlt::free(device, actions_host);
+    rlt::free(device, fanned_host);
+    rlt::free(device, memberwise_host);
 }
 
 int main(int argc, char** argv) {

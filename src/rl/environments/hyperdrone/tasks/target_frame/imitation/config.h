@@ -195,6 +195,8 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::target_frame::imitation
         static constexpr TI PAD_CHANNELS_TO = 8;
         static constexpr T TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE = imitation::TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE;
         static constexpr T TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE = imitation::TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE;
+        // teacher-flown episodes span the epoch, whose scene rotation already refreshes the bank
+        static constexpr TI TARGET_BANK_REFRESH_STEPS = EPISODE_STEP_LIMIT / 2;
     };
     using TASK_WORLD = rlt::rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
     static constexpr TI NUMBER_OF_ENVIRONMENTS = N_ACTIVE_SCENES;

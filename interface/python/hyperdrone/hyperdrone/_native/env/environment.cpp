@@ -7,15 +7,33 @@
 namespace nb = nanobind;
 
 namespace HYPERDRONE_MODULE_NAME {
-    using FloatOutput = nb::ndarray<float, nb::c_contig, nb::device::cpu>;
-    using Mask = nb::ndarray<const bool, nb::c_contig, nb::device::cpu>;
-    using Flags = nb::ndarray<bool, nb::c_contig, nb::device::cpu>;
+    using HostMask = nb::ndarray<const bool, nb::c_contig, nb::device::cpu>;
+    using Mask = nb::ndarray<const bool, nb::c_contig>;
+    using Actions = nb::ndarray<const float, nb::c_contig>;
+    using FloatOutput = nb::ndarray<float, nb::c_contig>;
+    using FlagsOutput = nb::ndarray<bool, nb::c_contig>;
 
     template <typename ARRAY>
     void check_size(const ARRAY& array, size_t expected){
         if(array.size() != expected){
             throw std::invalid_argument("hyperdrone: buffer size does not match the environment specification");
         }
+    }
+
+    template <typename ARRAY>
+    bool resident(const Environment& self, const ARRAY& array, size_t expected){
+        check_size(array, expected);
+        const bool cuda = array.device_type() == nb::device::cuda::value;
+        if(!cuda && array.device_type() != nb::device::cpu::value){
+            throw std::invalid_argument("hyperdrone: arrays must live in host or CUDA device memory");
+        }
+        if(cuda && !CUDA_WORLD){
+            throw std::invalid_argument("hyperdrone: this environment's World runs on the host (device='cpu'); pass host arrays");
+        }
+        if(cuda && array.device_id() != self.device_id()){
+            throw std::invalid_argument("hyperdrone: CUDA arrays must live on the environment's GPU (device_id)");
+        }
+        return cuda == CUDA_WORLD;
     }
 
     nb::dict layout_dict(const ObservationLayout& layout){
@@ -34,15 +52,20 @@ namespace HYPERDRONE_MODULE_NAME {
         return value;
     }
 
+    template <void (Environment::*VERB)(float*, bool), TI DIM>
+    void bind_output(nb::class_<Environment>& environment_class, const char* name){
+        environment_class.def(name, [](Environment& self, FloatOutput out){
+            const bool in_place = resident(self, out, TOTAL * DIM);
+            nb::gil_scoped_release release;
+            (self.*VERB)(out.data(), in_place);
+        }, nb::arg("out").noconvert());
+    }
+
     template <typename WORLD_TYPE>
     void bind_imu(nb::module_& m, nb::class_<Environment>& environment_class){
         if constexpr (ObservationIMUDim<WORLD_TYPE>::VALUE > 0){
             m.attr("observation_layout_imu") = layout_dict(observation_layout_imu());
-            environment_class.def("observe_imu", [](Environment& self, FloatOutput out){
-                check_size(out, TOTAL * ObservationIMUDim<WORLD_TYPE>::VALUE);
-                nb::gil_scoped_release release;
-                observe_imu<WORLD_TYPE>(self, out.data());
-            }, nb::arg("out").noconvert());
+            bind_output<&Environment::observe_imu, ObservationIMUDim<WORLD_TYPE>::VALUE>(environment_class, "observe_imu");
         }
     }
 }
@@ -53,6 +76,7 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     m.doc() = "JIT-specialized RLtools hyperdrone environment";
     m.attr("observation_layout") = layout_dict(observation_layout());
     m.attr("observation_layout_privileged") = layout_dict(observation_layout_privileged());
+    m.attr("CUDA_WORLD") = CUDA_WORLD;
     nb::dict dimensions;
     dimensions["num_environments"] = NUM_ENVIRONMENTS;
     dimensions["instances_per_environment"] = WORLD::INSTANCES;
@@ -78,47 +102,46 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
         .def("parameters", &Environment::parameters_json, nb::call_guard<nb::gil_scoped_release>())
         .def("drones", &Environment::drones_json, nb::call_guard<nb::gil_scoped_release>())
         .def("instance_parameters", &Environment::instance_parameters_json, nb::call_guard<nb::gil_scoped_release>())
-        .def("set_instance_parameters", [](Environment& self, Mask mask, const std::string& json){
+        .def("set_instance_parameters", [](Environment& self, HostMask mask, const std::string& json){
             check_size(mask, TOTAL);
             nb::gil_scoped_release release;
             self.set_instance_parameters(mask.data(), json);
         }, nb::arg("mask").noconvert(), nb::arg("json"))
         .def("model", &Environment::model, nb::arg("name"), nb::call_guard<nb::gil_scoped_release>())
-        .def("reset", [](Environment& self, Mask mask){
-            check_size(mask, TOTAL);
+        .def("rotate_scene", &Environment::rotate_scene, nb::call_guard<nb::gil_scoped_release>())
+        .def("reset", [](Environment& self, std::optional<Mask> mask){
+            const bool in_place = !mask || resident(self, *mask, TOTAL);
+            const bool* pointer = mask ? mask->data() : nullptr;
             nb::gil_scoped_release release;
-            self.reset(mask.data());
-        }, nb::arg("mask").noconvert())
-        .def("render", [](Environment& self, Mask mask){
-            check_size(mask, TOTAL);
+            self.reset(pointer, in_place);
+        }, nb::arg("mask").none().noconvert())
+        .def("render", [](Environment& self, std::optional<Mask> mask){
+            const bool in_place = !mask || resident(self, *mask, TOTAL);
+            const bool* pointer = mask ? mask->data() : nullptr;
             nb::gil_scoped_release release;
-            self.render(mask.data());
-        }, nb::arg("mask").noconvert())
-        .def("observe", [](Environment& self, FloatOutput out){
-            check_size(out, TOTAL * WORLD::OBSERVATION_DIM);
+            self.render(pointer, in_place);
+        }, nb::arg("mask").none().noconvert())
+        .def("step", [](Environment& self, Actions actions){
+            const bool in_place = resident(self, actions, TOTAL * WORLD::ACTION_DIM);
             nb::gil_scoped_release release;
-            self.observe(out.data());
-        }, nb::arg("out").noconvert())
-        .def("observe_privileged", [](Environment& self, FloatOutput out){
-            check_size(out, TOTAL * WORLD::OBSERVATION_DIM_PRIVILEGED);
-            nb::gil_scoped_release release;
-            self.observe_privileged(out.data());
-        }, nb::arg("out").noconvert())
-        .def("step", [](Environment& self, hyperdrone::FloatArray actions){
-            check_size(actions, TOTAL * WORLD::ACTION_DIM);
-            nb::gil_scoped_release release;
-            self.step(actions.data());
+            self.step(actions.data(), in_place);
         }, nb::arg("actions").noconvert())
-        .def("rewards", [](Environment& self, FloatOutput out){
-            check_size(out, TOTAL);
+        .def("terminated", [](Environment& self, FlagsOutput out){
+            const bool in_place = resident(self, out, TOTAL);
             nb::gil_scoped_release release;
-            self.read_rewards(out.data());
+            self.terminated(out.data(), in_place);
         }, nb::arg("out").noconvert())
-        .def("terminated", [](Environment& self, Flags out){
-            check_size(out, TOTAL);
+        .def_prop_rw("stream", [](const Environment& self){ return self.stream(); }, [](Environment& self, uintptr_t stream){
+            if(!CUDA_WORLD){
+                throw std::invalid_argument("hyperdrone: this environment's World runs on the host and has no stream");
+            }
             nb::gil_scoped_release release;
-            self.read_terminated(out.data());
-        }, nb::arg("out").noconvert())
-        .def("rotate_scene", &Environment::rotate_scene, nb::call_guard<nb::gil_scoped_release>());
+            self.set_stream(stream);
+        })
+        .def_prop_ro("device_id", &Environment::device_id)
+        .def("synchronize", &Environment::synchronize, nb::call_guard<nb::gil_scoped_release>());
+    bind_output<&Environment::observe, WORLD::OBSERVATION_DIM>(environment_class, "observe");
+    bind_output<&Environment::observe_privileged, WORLD::OBSERVATION_DIM_PRIVILEGED>(environment_class, "observe_privileged");
+    bind_output<&Environment::rewards, 1>(environment_class, "rewards");
     bind_imu<WORLD>(m, environment_class);
 }

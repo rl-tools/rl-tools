@@ -87,21 +87,13 @@ namespace rl_tools {
     template <typename DEVICE, typename TASK_SPEC, typename DATASET>
     void init(DEVICE& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, typename TASK_SPEC::NEXT_WORLD::SharedContext& shared, const DATASET& dataset, const typename DATASET::Corpus& corpus, typename TASK_SPEC::TI first_scene, typename TASK_SPEC::TI num_scenes, typename TASK_SPEC::TI member_index) {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
-        using BASE_SPEC = typename NEXT_WORLD::SPEC;
-        auto& render_device = get_rendering_device(device);
         utils::assert_exit(device, !world.gate_asset_path.empty(), "hyperdrone::tasks::moving_gate: gate_asset_path must be set before init");
-        auto asset = register_pool_asset<decltype(render_device), typename NEXT_WORLD::SharedContext, typename BASE_SPEC::SHADING, BASE_SPEC::OUTPUT_RGB>(render_device, shared, world.gate_asset_path);
-        world.entity_kind_index = (typename TASK_SPEC::TI)world.entity_kinds.size();
-        world.entity_kinds.push_back({asset, 1, 0});
+        world.entity_kind_index = register_entity_kind(device, world, shared, world.gate_asset_path);
         init(device, static_cast<NEXT_WORLD&>(world), shared, dataset, corpus, first_scene, num_scenes, member_index);
-        malloc(device, world.gate_pose_staging);
     }
     template <typename DEVICE, typename TASK_SPEC>
     void free(DEVICE& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world) {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
-        if (!world.slots.empty()) {
-            free(device, world.gate_pose_staging);
-        }
         free(device, static_cast<NEXT_WORLD&>(world));
     }
 
@@ -131,8 +123,8 @@ namespace rl_tools {
         request_render(device, world, reset_mask);
     }
 
-    // pose delivery: write this task's gate pose for every instance into the active slot, then
-    // forward to the inner render
+    // pose delivery: the gate's rows for every instance through its zero-coordinate rig (as the
+    // CUDA kernel does), then forward to the inner render
     template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
     void render(DEVICE& device, rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input) {
         request_render(device, world, reset_mask_input);
@@ -142,24 +134,24 @@ namespace rl_tools {
         using WORLD = rl::environments::hyperdrone::tasks::moving_gate::World<TASK_SPEC>;
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         using BASE_SPEC = typename NEXT_WORLD::SPEC;
-        auto& slot = world.slots[world.active_slot];
+        const auto& kind = world.entity_kinds[world.entity_kind_index];
+        const auto placement = rl::environments::hyperdrone::_entity_placement(world, kind);
+        const float* no_coordinates = nullptr;
         auto& renderer = get_renderer(device, world);
-        const TI kinds = (TI)world.entity_kinds.size();
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
             const auto& instance_parameters = get_ref(device, parameters, instance_i);
             const auto& state = get_ref(device, states, instance_i);
             float pose[12];
             rl::environments::hyperdrone::tasks::moving_gate::gate_pose(device, instance_parameters, state.gate_phase, pose);
-            const auto& placement = slot.entity_placements[instance_i * kinds + world.entity_kind_index];
             if constexpr (NEXT_WORLD::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR) {
                 float pose_open[12];
                 const T dt = instance_parameters.dynamics.integration.dt;
                 constexpr T TWO_PI = (T)2 * math::PI<T>;
                 T phase_open = state.gate_phase - TWO_PI * instance_parameters.gate_frequency * dt * instance_parameters.shutter_fraction;
                 rl::environments::hyperdrone::tasks::moving_gate::gate_pose(device, instance_parameters, phase_open, pose_open);
-                set_transform_pair(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, pose_open, pose);
+                set_transform_pair(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, kind.rig, pose_open, pose, no_coordinates, no_coordinates);
             } else {
-                set_transform(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, pose);
+                set_transform(device, renderer, rendering::raytracing::OverlayIndex{instance_i}, placement, kind.rig, pose, no_coordinates);
             }
         }
         render(device, static_cast<NEXT_WORLD&>(world), parameters, states, reset_mask);
@@ -255,7 +247,10 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::moving_gate {
     void init(DEVICE& device, World<TASK_SPEC>& world, typename TASK_SPEC::NEXT_WORLD::SharedContext& shared, const DATASET& dataset, const typename DATASET::Corpus& corpus, typename TASK_SPEC::TI first_scene, typename TASK_SPEC::TI num_scenes, typename TASK_SPEC::TI member_index){
         ::rl_tools::init(device, world, shared, dataset, corpus, first_scene, num_scenes, member_index);
     }
-    using rl_tools::free;
+    template <typename DEVICE, typename TASK_SPEC>
+    void free(DEVICE& device, World<TASK_SPEC>& world){
+        ::rl_tools::free(device, world);
+    }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

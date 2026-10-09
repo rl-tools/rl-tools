@@ -10,7 +10,7 @@ Configuration follows the C++ extension ladder: a preset names the platform
 universal knobs (instances, camera resolution, shading) complete the picture. Arbitrary
 C++ specifications are reached through `spec_header=`: a path to a C++ header defining
 `hyperdrone_env_user::WORLD` (including any rl_tools headers it needs); the header's
-content hash is part of the JIT key, and preset/task/n_agents/max_drones must stay at their
+content hash is part of the JIT key, and preset/task/n_agents must stay at their
 defaults since the user type supersedes them.
 """
 import copy
@@ -24,6 +24,7 @@ import numpy as np
 import conta
 
 from .. import jit
+from .._dlpack import is_cuda
 
 PRESETS = {"crazyflie": 0, "x500_fpv": 1, "x500_fpv_imu": 2}
 SELF_VISIBLE_PRESETS = ("x500_fpv", "x500_fpv_imu")
@@ -60,8 +61,8 @@ class EnvConfig:
     preset: str = "crazyflie"
     task: str = None
     n_agents: int = 1
-    max_drones: int = 1
     spec_header: str = None
+    device: str = None
 
     def __post_init__(self):
         if self.preset not in PRESETS:
@@ -72,8 +73,8 @@ class EnvConfig:
             raise ValueError(f"hyperdrone: unknown shading {self.shading!r} (one of {sorted(_SHADING)})")
         if self.n_agents < 1:
             raise ValueError("hyperdrone: n_agents must be >= 1")
-        if self.max_drones < 1:
-            raise ValueError("hyperdrone: max_drones must be >= 1")
+        if self.device not in (None, "cuda", "cpu"):
+            raise ValueError(f"hyperdrone: unknown device {self.device!r} (one of 'cuda', 'cpu' or None)")
         if self.n_agents > 1 and self.preset not in SELF_VISIBLE_PRESETS:
             raise ValueError(
                 "hyperdrone: multi-agent needs a SELF_VISIBLE preset (agents seeing each "
@@ -87,15 +88,32 @@ class EnvConfig:
                 )
             if self.n_agents > 1:
                 raise ValueError("hyperdrone: task 'visual_inertial_localization' is single-agent")
+            if self.device == "cuda":
+                raise ValueError("hyperdrone: task 'visual_inertial_localization' has no CUDA verbs — use device='cpu'")
+        if self.task == "target_frame" and self.n_agents > 1:
+            raise ValueError("hyperdrone: task 'target_frame' is single-agent")
         if self.spec_header is not None:
             defaults = EnvConfig()
-            if (self.preset, self.task, self.n_agents, self.max_drones) != (defaults.preset, defaults.task, defaults.n_agents, defaults.max_drones):
+            if (self.preset, self.task, self.n_agents) != (defaults.preset, defaults.task, defaults.n_agents):
                 raise ValueError(
-                    "hyperdrone: spec_header supersedes preset/task/n_agents/max_drones — leave them "
+                    "hyperdrone: spec_header supersedes preset/task/n_agents — leave them "
                     "at their defaults; the user header pins the World"
                 )
             if not os.path.isfile(self.spec_header):
                 raise ValueError(f"hyperdrone: spec_header not found: {self.spec_header}")
+
+    @property
+    def world_device(self):
+        """Where the World runs: device, or by default 'cuda' on the OptiX backend for the
+        presets and tasks with CUDA verbs and 'cpu' otherwise (spec_header Worlds included, whose
+        verbs may be host code)."""
+        if self.device is not None:
+            if self.device == "cuda" and backend() != "OPTIX":
+                raise ValueError("hyperdrone: device='cuda' needs the OptiX backend")
+            return self.device
+        if backend() == "OPTIX" and self.spec_header is None and self.task != "visual_inertial_localization":
+            return "cuda"
+        return "cpu"
 
     def defines(self):
         values = {
@@ -108,7 +126,7 @@ class EnvConfig:
             "HYPERDRONE_ENV_PRESET": PRESETS[self.preset],
             "HYPERDRONE_ENV_TASK": TASKS[self.task],
             "HYPERDRONE_ENV_N_AGENTS": self.n_agents,
-            "HYPERDRONE_ENV_MAX_DRONES": self.max_drones,
+            "HYPERDRONE_ENV_DEVICE_CUDA": 1 if self.world_device == "cuda" else 0,
         }
         if self.spec_header is not None:
             values["HYPERDRONE_ENV_SPEC_HEADER"] = os.path.abspath(self.spec_header)
@@ -212,9 +230,9 @@ class MultiEnvironment:
     (required per entry when the compiled world is SELF_VISIBLE, rejected otherwise); the parameters are merged
     over the shared constructor base (see parameters) and may only touch what varies per drone: dynamics.dynamics
     (a "model" key loads an l2f registry entry), dynamics.imu and camera. The same GLB may appear
-    in several entries; distinct GLBs load once. The table holds at most max_drones
-    entries. drone_asset=X is the one-entry table [{"asset": X}]; without either, the table is
-    the nominal drone.
+    in several entries; distinct GLBs load once and need the same part count (the body swaps in
+    place at reset). The table holds at most max_drones entries. drone_asset=X is the one-entry
+    table [{"asset": X}]; without either, the table is the nominal drone.
     gate_asset: gate GLB for the moving_gate task (required for task='moving_gate').
     All assets accept conta references too.
 
@@ -225,9 +243,14 @@ class MultiEnvironment:
     only every frame_stride steps; their episodes are fixed-length and synchronized, so the
     reset mask must be all-or-none per environment. Autonomous tasks fly themselves:
     action_dim is 0 and step() takes no actions.
+
+    Every verb takes host (numpy) arrays and, when the World runs on the GPU (device ==
+    "cuda"), CUDA arrays of its GPU too (any DLPack producer, e.g. torch tensors); outputs are
+    written into out= when given. CUDA arrays are used in place on the environment's
+    execution stream (see the stream property); host arrays are staged and synchronized.
     """
 
-    def __init__(self, scenes, config=None, seed=0, drone_asset=None, gate_asset=None, parameters=None, drones=None):
+    def __init__(self, scenes, config=None, seed=0, drone_asset=None, gate_asset=None, parameters=None, drones=None, stream=None):
         self.config = config if config is not None else EnvConfig()
         if drones is not None and drone_asset is not None:
             raise ValueError("hyperdrone: pass either drone_asset= (one drone) or drones= (the table)")
@@ -246,11 +269,8 @@ class MultiEnvironment:
         for name, value in self._module.dimensions.items():
             setattr(self, name, value)
         if len(drones) > self.max_drones:
-            capacity_option = "MAX_DRONES in spec_header" if self.config.spec_header is not None else "EnvConfig(max_drones=...)"
-            raise ValueError(
-                f"hyperdrone: {len(drones)} drones but this configuration holds {self.max_drones}; "
-                f"raise {capacity_option}"
-            )
+            capacity_hint = "; raise MAX_DRONES in spec_header" if self.config.spec_header is not None else ""
+            raise ValueError(f"hyperdrone: {len(drones)} drones but this configuration holds {self.max_drones}{capacity_hint}")
         for entry in drones:
             if self.self_visible and entry.get("asset") is None:
                 raise ValueError("hyperdrone: this SELF_VISIBLE world needs an asset per drone; pass drone_asset= or drones=")
@@ -263,19 +283,20 @@ class MultiEnvironment:
         self.observation_layout_privileged = ObservationLayout(**self._module.observation_layout_privileged)
         self.observation_layout_imu = ObservationLayout(**self._module.observation_layout_imu) if self.observation_dim_imu > 0 else None
         self._environment = self._module.Environment()
+        if stream is not None:
+            self.stream = stream
         nominal = self._resolve(json.loads(self._environment.parameters()), parameters or {})
         drone_parameters = []
         for entry in drones:
             overrides = entry.get("parameters") or {}
+            if "drone" in overrides:
+                raise ValueError("hyperdrone: drone is sampled at reset from the drones= table")
             self._check_per_drone(overrides)
             drone_parameters.append(json.dumps(self._resolve(nominal, overrides)))
         self._environment.init(scene_references, drone_assets, drone_parameters, gate_asset, seed)
-        self._sampled = np.zeros(self.total_instances, dtype=bool)
 
     @staticmethod
     def _check_per_drone(overrides):
-        if "drone" in overrides:
-            raise ValueError("hyperdrone: drone is sampled at reset from the drones= table")
         shared = sorted(set(overrides.get("dynamics", {})) - {"dynamics", "imu"})
         if shared:
             raise ValueError(f"hyperdrone: dynamics {shared} are shared by all instances; set them through parameters=")
@@ -306,42 +327,91 @@ class MultiEnvironment:
         return json.loads(self._environment.drones())
 
     def instance_parameters(self):
-        """The current parameters of every instance, as sampled at its last reset: a list of dicts in the schema of parameters plus "drone", the index of the table entry the instance flies."""
-        if not self._sampled.all():
-            raise RuntimeError("hyperdrone: per-instance parameters exist once every instance has been reset")
+        """The current parameters of every instance, as sampled at its last reset (the specification's defaults before): a list of dicts in the schema of parameters plus "drone", the index of the table entry the instance flies."""
         return json.loads(self._environment.instance_parameters())
 
     def set_instance_parameters(self, overrides, mask=None):
-        """Merges overrides into the current parameters of the instances selected by mask (default: all) until each one's next reset. overrides is one dict for all selected instances or a list with one dict per selected instance (in instance order), in the schema of the parameters argument; only the drone itself varies per instance (dynamics.dynamics, dynamics.imu, camera), the rest is shared and set through parameters=, and the rendered body follows the drone sampled at reset."""
-        mask = self._mask(mask)
+        """Merges overrides into the current parameters of the instances selected by mask (default: all) until each one's next reset. overrides is one dict for all selected instances or a list with one dict per selected instance (in instance order), in the schema of the parameters argument; only the drone itself varies per instance (dynamics.dynamics, dynamics.imu, camera), the rest is shared and set through parameters=. "drone" switches an instance to another table entry: its parameters restart from that entry's nominal before the other overrides merge, and the rendered body follows. A SELF_VISIBLE drone's props follow its entry's rotors, so rotor overrides must keep each rotor's XY quadrant and spin direction."""
+        mask = self._host_mask(mask)
         selected = np.flatnonzero(mask)
         if isinstance(overrides, dict):
             overrides = [overrides] * len(selected)
         if len(overrides) != len(selected):
             raise ValueError(f"hyperdrone: {len(overrides)} overrides for {len(selected)} selected instances")
         current = self.instance_parameters()
+        drones = self.drones
         merged = []
         for instance_i, instance_overrides in zip(selected, overrides):
             self._check_per_drone(instance_overrides)
-            merged.append(self._resolve(current[instance_i], instance_overrides))
+            if self.config.task == "target_frame" and ("camera" in instance_overrides or "drone" in instance_overrides):
+                raise ValueError("hyperdrone: task 'target_frame' takes each episode's drone and camera from its target setup; set the nominal through parameters= and drones=")
+            base = current[instance_i]
+            if "drone" in instance_overrides:
+                instance_overrides = dict(instance_overrides)
+                drone = instance_overrides.pop("drone")
+                if not isinstance(drone, (int, np.integer)) or not 0 <= drone < len(drones):
+                    raise ValueError(f"hyperdrone: drone must index the drones table (0..{len(drones) - 1}), got {drone!r}")
+                base = dict(drones[drone]["parameters"], drone=int(drone))
+            instance_parameters = self._resolve(base, instance_overrides)
+            self._check_rotor_layout(drones[instance_parameters["drone"]]["parameters"], instance_parameters)
+            merged.append(instance_parameters)
         self._environment.set_instance_parameters(mask, json.dumps(merged))
+
+    def _check_rotor_layout(self, nominal, parameters):
+        if not self.self_visible:
+            return
+        def layout(values):
+            dynamics = values["dynamics"]["dynamics"]
+            return np.sign(np.asarray(dynamics["rotor_positions"])[:, :2]).tolist(), np.sign(np.asarray(dynamics["rotor_torque_directions"])[:, 2]).tolist()
+        if layout(parameters) != layout(nominal):
+            raise ValueError("hyperdrone: the rendered props follow the table entry's rotors; per-instance rotor_positions and rotor_torque_directions must keep each rotor's XY quadrant and spin direction (switch the drone through \"drone\" instead)")
 
     @property
     def dt(self):
         return self.parameters["dynamics"]["integration"]["dt"]
 
+    @property
+    def device(self):
+        """"cuda" when the World runs on the GPU (EnvConfig.device), "cpu" otherwise."""
+        return "cuda" if self._module.CUDA_WORLD else "cpu"
+
+    @property
+    def device_id(self):
+        """The CUDA device the World runs on (the current one at construction)."""
+        return self._environment.device_id
+
+    @property
+    def stream(self):
+        """The cudaStream_t every verb is enqueued on (0 on the cpu device). Set it to the stream
+        your arrays are produced and consumed on (e.g. torch.cuda.current_stream().cuda_stream);
+        work enqueued so far stays ordered before the switch."""
+        return self._environment.stream
+
+    @stream.setter
+    def stream(self, value):
+        self._environment.stream = int(value)
+
+    def synchronize(self):
+        self._environment.synchronize()
+
     def close(self):
         self._environment = None
 
-    def _mask(self, mask):
+    def _host_mask(self, mask):
         if mask is None:
             mask = np.ones(self.total_instances, dtype=bool)
         return np.ascontiguousarray(np.asarray(mask, dtype=bool).reshape(self.total_instances))
 
+    def _input(self, array, dtype, shape):
+        if is_cuda(array):
+            return array
+        return np.ascontiguousarray(np.asarray(array, dtype=dtype).reshape(shape))
+
+    def _output(self, out, shape, dtype):
+        return np.empty(shape, dtype=dtype) if out is None else out
+
     def reset(self, mask=None):
-        mask = self._mask(mask)
-        self._environment.reset(mask)
-        self._sampled |= mask
+        self._environment.reset(None if mask is None else self._input(mask, bool, (self.total_instances,)))
 
     def _check_synchronized(self, reset_mask):
         if self.config.task != "visual_inertial_localization":
@@ -354,29 +424,30 @@ class MultiEnvironment:
             )
 
     def render(self, reset_mask=None):
-        if reset_mask is None:
-            reset_mask = np.zeros(self.total_instances, dtype=bool)
-        reset_mask = self._mask(reset_mask)
-        self._check_synchronized(reset_mask)
+        if reset_mask is not None:
+            reset_mask = self._input(reset_mask, bool, (self.total_instances,))
+            if not is_cuda(reset_mask):
+                self._check_synchronized(reset_mask)
         self._environment.render(reset_mask)
 
-    def observe(self):
-        observations = np.empty((self.total_instances, self.observation_dim), dtype=np.float32)
-        self._environment.observe(observations)
-        return observations
+    def observe(self, out=None):
+        """The visual observation, (total, observation_dim) float32."""
+        out = self._output(out, (self.total_instances, self.observation_dim), np.float32)
+        self._environment.observe(out)
+        return out
 
-    def observe_privileged(self):
-        observations = np.empty((self.total_instances, self.observation_dim_privileged), dtype=np.float32)
-        self._environment.observe_privileged(observations)
-        return observations
+    def observe_privileged(self, out=None):
+        out = self._output(out, (self.total_instances, self.observation_dim_privileged), np.float32)
+        self._environment.observe_privileged(out)
+        return out
 
-    def observe_imu(self):
+    def observe_imu(self, out=None):
         """The IMU sample of the last step: (total, observation_dim_imu), named by observation_layout_imu."""
         if self.observation_dim_imu == 0:
             raise ValueError(f"hyperdrone: this configuration has no IMU observation (task={self.config.task!r})")
-        observations = np.empty((self.total_instances, self.observation_dim_imu), dtype=np.float32)
-        self._environment.observe_imu(observations)
-        return observations
+        out = self._output(out, (self.total_instances, self.observation_dim_imu), np.float32)
+        self._environment.observe_imu(out)
+        return out
 
     def step(self, actions=None):
         if actions is None:
@@ -386,18 +457,17 @@ class MultiEnvironment:
                     "only autonomous tasks (action_dim == 0) step without them"
                 )
             actions = np.empty((self.total_instances, 0), dtype=np.float32)
-        actions = np.ascontiguousarray(np.asarray(actions, dtype=np.float32).reshape(self.total_instances, self.action_dim))
-        self._environment.step(actions)
+        self._environment.step(self._input(actions, np.float32, (self.total_instances, self.action_dim)))
 
-    def rewards(self):
-        rewards = np.empty(self.total_instances, dtype=np.float32)
-        self._environment.rewards(rewards)
-        return rewards
+    def rewards(self, out=None):
+        out = self._output(out, self.total_instances, np.float32)
+        self._environment.rewards(out)
+        return out
 
-    def terminated(self):
-        flags = np.empty(self.total_instances, dtype=bool)
-        self._environment.terminated(flags)
-        return flags
+    def terminated(self, out=None):
+        out = self._output(out, self.total_instances, bool)
+        self._environment.terminated(out)
+        return out
 
     def rotate_scene(self):
         self._environment.rotate_scene()

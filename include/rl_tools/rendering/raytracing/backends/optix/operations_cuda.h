@@ -8,6 +8,7 @@
 #include "../../operations_cpu_common.h"
 #include "device.h"
 #include "overlay_accel.h"
+#include "../../../../devices/cuda_streams.h"
 
 #include "owl/owl.h"
 
@@ -1394,30 +1395,21 @@ namespace rl_tools {
 
 
     namespace rendering::raytracing::backends::optix{
-        // producers write the renderer's device tensors on the caller's stream (device.stream);
-        // the launch verbs bridge it to the backend-owned streams with an event so producer
-        // writes are ordered before consumption — callers never handle streams. A CPU device has
-        // no stream member and resolves to the null overload (host writes are synchronous).
+        // the launch verbs are stream-ordered on a CUDA producer device's stream: the backend stream
+        // waits for the work enqueued there so far (fork) and that stream waits for the launch
+        // (join), so callers see one stream; a host producer has no stream and writes synchronously
         template <typename DEVICE>
-        auto producer_stream(DEVICE& device, int) -> decltype(device.stream) { return device.stream; }
+        auto fork(DEVICE& device, cudaEvent_t event, cudaStream_t backend_stream, int) -> decltype(device.stream, void()){
+            devices::cuda::order_after(event, device.stream, backend_stream);
+        }
         template <typename DEVICE>
-        cudaStream_t producer_stream(DEVICE& device, long){ return nullptr; }
-
-        // orders consumer after the work enqueued so far on producer through the renderer's
-        // reusable event: the record/wait pair captures producer's position on the spot
-        inline void order_after(cudaEvent_t event, cudaStream_t producer, cudaStream_t consumer){
-            if(producer == consumer){
-                return;
-            }
-            cudaEventRecord(event, producer);
-            cudaStreamWaitEvent(consumer, event, 0);
+        void fork(DEVICE& device, cudaEvent_t event, cudaStream_t backend_stream, long){}
+        template <typename DEVICE>
+        auto join(DEVICE& device, cudaEvent_t event, cudaStream_t backend_stream, int) -> decltype(device.stream, void()){
+            devices::cuda::order_after(event, backend_stream, device.stream);
         }
-
-        inline void await_producer(cudaEvent_t event, cudaStream_t producer, cudaStream_t consumer){
-            if(producer != nullptr){
-                order_after(event, producer, consumer);
-            }
-        }
+        template <typename DEVICE>
+        void join(DEVICE& device, cudaEvent_t event, cudaStream_t backend_stream, long){}
 
         // publishes the pending rows of one host staging mirror into its resident tensor: the
         // rows compact into the pageable index/row lists and one scatter kernel writes them —
@@ -1457,10 +1449,10 @@ namespace rl_tools {
         auto* overlay_state = (optix::OverlayState*)renderer.backend->overlay_state;
         cudaStream_t cuda_stream = (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend->launch_params, 0);
         cudaStream_t coll_stream = renderer.backend->coll_launch_params != nullptr ? (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend->coll_launch_params, 0) : cuda_stream;
-        optix::await_producer(renderer.backend->ordering_event, optix::producer_stream(device, 0), cuda_stream);
+        optix::fork(device, renderer.backend->ordering_event, cuda_stream, 0);
         // probe launches trace the overlay TLASes on their own stream: order this rebuild after
         // in-flight probes and subsequent probes after this rebuild, without host syncs
-        optix::order_after(renderer.backend->ordering_event, coll_stream, cuda_stream);
+        devices::cuda::order_after(renderer.backend->ordering_event, coll_stream, cuda_stream);
 
         for(TI overlay = 0; overlay < SPEC::NUM_OVERLAYS; overlay++){
             auto& overlay_host = renderer.overlays[overlay];
@@ -1493,7 +1485,10 @@ namespace rl_tools {
             owlBufferUpload(overlay_state->attachments_buffer, attachments.data(), 0, attachments.size());
             renderer.attachments_dirty = false;
         }
-        optix::overlay_accel_build(overlay_state->accel, data(renderer.transforms), (unsigned int*)owlBufferGetPointer(overlay_state->instance_classes_buffer, 0), 1.0f, nullptr, cuda_stream, 0u);
+        // only semantic segmentation reads the overlay classes, and renderers sharing a scene build
+        // share its class buffer
+        unsigned int* instance_classes = SPEC::SEMANTIC_SEGMENTATION ? (unsigned int*)owlBufferGetPointer(overlay_state->instance_classes_buffer, 0) : nullptr;
+        optix::overlay_accel_build(overlay_state->accel, data(renderer.transforms), instance_classes, 1.0f, nullptr, cuda_stream, 0u);
         if constexpr (SPEC::HAS_FLOW){
             // the previous instant's TLASes (shifted id range, no segmentation classes) and the
             // per-slot deltas between the instants, both from the tensors, both stream-ordered
@@ -1501,7 +1496,8 @@ namespace rl_tools {
             optix::overlay_accel_compose_flow_deltas(optix::overlay_accel_structure(overlay_state->accel), data(renderer.transforms), data(renderer.transforms_previous), (float*)owlBufferGetPointer(renderer.backend->flow_deltas_buffer, 0),
                                                      (unsigned int)SPEC::NUM_OVERLAYS, (unsigned int)SPEC::MAX_OVERLAY_INSTANCES, cuda_stream);
         }
-        optix::order_after(renderer.backend->ordering_event, cuda_stream, coll_stream);
+        devices::cuda::order_after(renderer.backend->ordering_event, cuda_stream, coll_stream);
+        optix::join(device, renderer.backend->ordering_event, cuda_stream, 0);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1518,12 +1514,13 @@ namespace rl_tools {
         static_assert(SPEC::HAS_FLOW, "advance_flow requires a flow-capable renderer specification");
         namespace optix = rendering::raytracing::backends::optix;
         cudaStream_t cuda_stream = (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend->launch_params, 0);
-        optix::await_producer(renderer.backend->ordering_event, optix::producer_stream(device, 0), cuda_stream);
+        optix::fork(device, renderer.backend->ordering_event, cuda_stream, 0);
         cudaMemcpyAsync(data(renderer.cameras_previous), data(renderer.cameras), decltype(renderer.cameras)::SPEC::SIZE_BYTES, cudaMemcpyDeviceToDevice, cuda_stream);
         if constexpr (SPEC::HAS_FLOW_OVERLAYS){
             rendering::raytracing::detail::advance_flow_staging(renderer);
             cudaMemcpyAsync(data(renderer.transforms_previous), data(renderer.transforms), decltype(renderer.transforms)::SPEC::SIZE_BYTES, cudaMemcpyDeviceToDevice, cuda_stream);
         }
+        optix::join(device, renderer.backend->ordering_event, cuda_stream, 0);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1589,16 +1586,16 @@ namespace rl_tools {
         using TI = typename SPEC::TI;
         OWLParams launch_params = (OWLParams)renderer.backend->launch_params;
         cudaStream_t cuda_stream = (cudaStream_t)owlParamsGetCudaStream(launch_params, 0);
-        optix::await_producer(renderer.backend->ordering_event, optix::producer_stream(device, 0), cuda_stream);
+        optix::fork(device, renderer.backend->ordering_event, cuda_stream, 0);
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR){
             // one enqueue-only pass per motion sample: overlay TLAS rebuild from the per-sample
             // transforms slab (the fill kernel also publishes the pass's shutter time), then the
             // accumulate ray gens; the shutter-close rebuild restores the steady state for
             // segmentation/probes before the resolve kernel averages the accumulators
             auto* overlay_state = (optix::OverlayState*)renderer.backend->overlay_state;
-            unsigned int* instance_classes = (unsigned int*)owlBufferGetPointer(overlay_state->instance_classes_buffer, 0);
+            unsigned int* instance_classes = SPEC::SEMANTIC_SEGMENTATION ? (unsigned int*)owlBufferGetPointer(overlay_state->instance_classes_buffer, 0) : nullptr;
             cudaStream_t coll_stream = renderer.backend->coll_launch_params != nullptr ? (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend->coll_launch_params, 0) : cuda_stream;
-            optix::order_after(renderer.backend->ordering_event, coll_stream, cuda_stream);
+            devices::cuda::order_after(renderer.backend->ordering_event, coll_stream, cuda_stream);
             if constexpr (SPEC::HAS_RGB){
                 cudaMemsetAsync(data(renderer.rgb_accumulator), 0, decltype(renderer.rgb_accumulator)::SPEC::SIZE_BYTES, cuda_stream);
             }
@@ -1617,7 +1614,7 @@ namespace rl_tools {
                 }
             }
             optix::overlay_accel_build(overlay_state->accel, data(renderer.transforms), instance_classes, 1.0f, nullptr, cuda_stream, 0u);
-            optix::order_after(renderer.backend->ordering_event, cuda_stream, coll_stream);
+            devices::cuda::order_after(renderer.backend->ordering_event, cuda_stream, coll_stream);
             if constexpr (SPEC::HAS_SEGMENTATION){
                 owlAsyncLaunch2D((OWLRayGen)renderer.backend->segmentation_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
             }
@@ -1650,6 +1647,7 @@ namespace rl_tools {
                                          depth_accumulation, depth_buffer,
                                          (unsigned int)((size_t)SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS),
                                          (unsigned int)SPEC::MOTION_BLUR_SAMPLES, cuda_stream);
+            optix::join(device, renderer.backend->ordering_event, cuda_stream, 0);
             return;
         }
         if constexpr (SPEC::HAS_RGB) {
@@ -1672,6 +1670,7 @@ namespace rl_tools {
         if constexpr (SPEC::HAS_FLOW_FORWARD) {
             owlAsyncLaunch2D((OWLRayGen)renderer.backend->flow_forward_ray_gen, SPEC::FB_WIDTH, SPEC::FB_HEIGHT, launch_params);
         }
+        optix::join(device, renderer.backend->ordering_event, cuda_stream, 0);
     }
 
     template <typename DEVICE, typename SPEC>
@@ -1687,8 +1686,10 @@ namespace rl_tools {
         if(renderer.backend->collision_ray_gen){
             OWLRayGen collision_ray_gen = (OWLRayGen)renderer.backend->collision_ray_gen;
             OWLParams coll_lp = (OWLParams)renderer.backend->coll_launch_params;
-            optix::await_producer(renderer.backend->ordering_event, optix::producer_stream(device, 0), (cudaStream_t)owlParamsGetCudaStream(coll_lp, 0));
+            cudaStream_t coll_stream = (cudaStream_t)owlParamsGetCudaStream(coll_lp, 0);
+            optix::fork(device, renderer.backend->ordering_event, coll_stream, 0);
             owlAsyncLaunch2D(collision_ray_gen, SPEC::NUM_CAMERAS, SPEC::NUM_PROBES, coll_lp);
+            optix::join(device, renderer.backend->ordering_event, coll_stream, 0);
         }
     }
 
@@ -1703,6 +1704,16 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     cudaStream_t stream(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
         return (cudaStream_t)owlParamsGetCudaStream((OWLParams)renderer.backend->launch_params, 0);
+    }
+
+    // the device rows {active, object} every overlay build reads: a producer may rewrite the object
+    // of an active row, and update() overwrites a row from host truth only when the host marked
+    // its overlay dirty
+    template <typename DEVICE, typename SPEC>
+    rendering::raytracing::backends::optix::OverlaySlotStructure* overlay_structure(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Optix>& renderer){
+        static_assert(SPEC::ENABLE_OVERLAYS, "overlay_structure requires an overlay-enabled renderer specification");
+        auto* overlay_state = (rendering::raytracing::backends::optix::OverlayState*)renderer.backend->overlay_state;
+        return rendering::raytracing::backends::optix::overlay_accel_structure(overlay_state->accel);
     }
 
     template <typename DEVICE, typename SPEC>

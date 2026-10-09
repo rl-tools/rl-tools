@@ -181,14 +181,45 @@ env.observation_layout             # named blocks: which channels/values mean wh
 so explicit `render(mask)` calls are optional. The training loop owns episode counters and
 chooses when to reset; the Gymnasium adapter below supplies same-step autoreset and time limits.
 
-`EnvConfig` is the compile-time part (the JIT key); the runtime part is `MultiEnvironment(..., parameters={"dynamics": {"dynamics": {"model": "x500", "mass": 2.1}}, "camera": {"fov": 90}})`, a partial dict merged over the nominal parameters as the base of every drone (the specification's randomization ranges apply on top at reset). `env.parameters` returns drone zero's resolved nominal parameters, including its entry-specific overrides: `"dynamics"` is the l2f parameter set, where a `"model"` key loads an l2f registry entry (`hyperdrone.dynamics.MODELS`) before the rest is merged, and `"camera"` holds `mount.pose` (`position` and `orientation`, a (w, x, y, z) quaternion mapping the camera's FLU axes into the body frame) and the horizontal `fov` in degrees. `env.instance_parameters()` returns what each instance is using in the current episode (after randomization), and `env.set_instance_parameters(overrides, mask)` changes it until that instance's next reset (one dict for all selected instances or one per instance); only the drone itself varies per instance (`dynamics.dynamics`, `dynamics.imu`, `camera`).
+On the OptiX backend the World runs on the GPU (`env.device == "cuda"`): its RNG and every
+instance tensor live there, and every verb is enqueued on one CUDA stream, `env.stream`, which
+you bind to the stream your tensors live on. CUDA arrays (any DLPack producer on
+`env.device_id`) are then read in place and outputs written into `out=`, in stream order,
+with no copies or host synchronization:
 
-Several drones fly in one environment through the drone table, `MultiEnvironment(..., drones=[{"asset": x500, "parameters": {...}}, {"asset": crazyflie, "parameters": {"dynamics": {"dynamics": {"model": "crazyflie"}}}}, ...])`: every instance samples one entry uniformly at each reset, independently of the scene its environment shows, so every scene meets every drone. An entry pairs the body/prop_* GLB rendered into the instance's cameras with a partial parameter dict merged over the shared constructor base (the per-drone keys `dynamics.dynamics`, `dynamics.imu`, `camera`); the same GLB may back several dynamics entries and distinct GLBs load once. `EnvConfig(max_drones=...)` is the table capacity (compile-time, default 1), `env.drones` returns the resolved native table, and the `"drone"` value in `env.instance_parameters()` indexes it. `env.self_visible` and `env.max_drones` report the compiled world's capabilities, including custom `spec_header` worlds. `drone_asset=X` is the one-entry table. The rigged assemblies of `hyperdrone.examples.data.RIGGED_MODELS` (`arpl`, `crazyflie`, `crazyflie_brushless`, `soft`, `x500`) pair with the l2f registry entries of the same names; each prop spins with the dynamics rotor at its position whatever rotor order the entry uses.
+```python
+import torch
+env = MultiEnvironment("scenes/", config=config, seed=0, stream=torch.cuda.current_stream().cuda_stream)
+observations = torch.empty((T, env.total_instances, env.observation_dim), device="cuda")
+rewards = torch.empty((T, env.total_instances), device="cuda")
+terminated = torch.empty((T, env.total_instances), dtype=torch.bool, device="cuda")
+reset_mask = torch.ones(env.total_instances, dtype=torch.bool, device="cuda")
+for t in range(T):
+    env.reset(reset_mask)                     # CUDA bool mask
+    env.render(reset_mask)
+    env.observe(out=observations[t])          # written into the rollout buffer
+    env.step(policy(observations[t]))         # CUDA float32 actions
+    env.rewards(out=rewards[t])
+    env.terminated(out=terminated[t])
+    reset_mask = terminated[t]                # plus your episode limits
+```
+
+Order data produced on another stream yourself (`env_stream.wait_stream(producer)`), as
+between any two torch streams; setting `env.stream` orders the new stream after the old
+one's work. numpy arrays work with every World: they are staged through the environment
+and the call synchronizes. `EnvConfig(device="cpu")` keeps the World on the host; the
+visual-inertial localization task (no CUDA verbs yet) and `spec_header` Worlds (whose verbs
+may be host loops) default to it.
+
+`EnvConfig` is the compile-time part (the JIT key); the runtime part is `MultiEnvironment(..., parameters={"dynamics": {"dynamics": {"model": "x500", "mass": 2.1}}, "camera": {"fov": 90}})`, a partial dict merged over the nominal parameters as the base of every drone (the specification's randomization ranges apply on top at reset). `env.parameters` returns drone zero's resolved nominal parameters, including its entry-specific overrides: `"dynamics"` is the l2f parameter set, where a `"model"` key loads an l2f registry entry (`hyperdrone.dynamics.MODELS`) before the rest is merged, and `"camera"` holds `mount.pose` (`position` and `orientation`, a (w, x, y, z) quaternion mapping the camera's FLU axes into the body frame) and the horizontal `fov` in degrees. `env.instance_parameters()` returns what each instance is using in the current episode (after randomization), and `env.set_instance_parameters(overrides, mask)` changes it until that instance's next reset (one dict for all selected instances or one per instance); only the drone itself varies per instance (`dynamics.dynamics`, `dynamics.imu`, `camera`, and `"drone"`, which restarts the instance from another table entry's nominal and swaps the rendered body).
+
+Several drones fly in one environment through the drone table, `MultiEnvironment(..., drones=[{"asset": x500, "parameters": {...}}, {"asset": crazyflie, "parameters": {"dynamics": {"dynamics": {"model": "crazyflie"}}}}, ...])`: every instance samples one entry uniformly at each reset, independently of the scene its environment shows, so every scene meets every drone. An entry pairs the body/prop_* GLB rendered into the instance's cameras with a partial parameter dict merged over the shared constructor base (the per-drone keys `dynamics.dynamics`, `dynamics.imu`, `camera`); the same GLB may back several dynamics entries, distinct GLBs load once and all of them need the same part count (an instance's body swaps in place at reset, on the GPU for a CUDA World). The table holds up to `env.max_drones` entries (8, a `spec_header` World sets its own), `env.drones` returns the resolved native table, and the `"drone"` value in `env.instance_parameters()` indexes it. `env.self_visible` and `env.max_drones` report the compiled world's capabilities, including custom `spec_header` worlds. `drone_asset=X` is the one-entry table. The rigged assemblies of `hyperdrone.examples.data.RIGGED_MODELS` (`arpl`, `crazyflie`, `crazyflie_brushless`, `soft`, `x500`) pair with the l2f registry entries of the same names; each prop spins with the dynamics rotor at its position whatever rotor order the entry uses.
+
 
 All environment semantics — reset, reward, termination, scene scheduling, observation
 composition — live on the C++ side (`rl_tools::rl::environments::hyperdrone::MultiEnvironment<World>`);
-the binding marshals tensors and nothing else, and a seeded rollout is pinned bit-exact
-against the C++ verbs by a golden test. The scenes argument is a directory of `.glb`
+the binding marshals tensors and nothing else, and a seeded host-World rollout is pinned
+bit-exact against the C++ verbs by a golden test. The scenes argument is a directory of `.glb`
 scenes (sorted corpus) or a list of references — `.glb` paths, `conta:HASH` strings, or
 conta store manifest entries `{"description": ..., "hash": ...}` — used as the corpus in
 list order and partitioned across environments; conta references (scenes, `drone_asset=`,
@@ -207,9 +238,17 @@ IMU rate), `task=` names the wrapper (`"target_frame"`, `"moving_gate"`,
 an arbitrary C++ specification (a header defining `hyperdrone_env_user::WORLD`, hashed
 into the JIT key). A spec header can go beyond constants to a full user-authored task
 wrapper — verb overloads registering and moving entities, compiled reward, termination:
-`hyperdrone/examples/Orbiter.ipynb` walks through one, and its contract is pinned by
-`tests/env/user_task_header.h`. The environment's raytracing backend follows
+`hyperdrone/examples/Orbiter.ipynb` walks through one, and `tests/env/test_orbiter.py`
+compiles and flies its header. The environment's raytracing backend follows
 `HYPERDRONE_RENDER_BACKEND` like the renderer.
+
+The target-frame task pre-renders its episode setups: a bank of one setup per instance
+(scene placement, camera, brightness and the target perturbations) is rendered in one pass
+every `TARGET_BANK_REFRESH_STEPS` frames (a compile-time task constant, default 32) and after
+a scene change, and resets adopt the bank's setups in turn and copy their frames, so a reset
+adds no render pass of its own; resets beyond the instance count within one refresh reuse
+setups. Each episode's camera comes from its setup, so `set_instance_parameters` rejects
+camera overrides for this task.
 
 Manual composition of `Sim` and `Renderer` (no MDP — rendering research, data
 generation) remains first-class: see `python -m hyperdrone.examples.drone_flythrough`

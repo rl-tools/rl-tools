@@ -161,6 +161,8 @@ struct TASK_SPEC: rlt::rl::environments::hyperdrone::tasks::target_frame::Specif
     static constexpr TI PAD_CHANNELS_TO = 8;
     static constexpr T TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE = training_mixed::TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE;
     static constexpr T TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE = training_mixed::TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE;
+    // the imitation instances reset every step: a per-step refresh hands each a fresh setup
+    static constexpr TI TARGET_BANK_REFRESH_STEPS = 1;
 };
 using TASK_WORLD = rlt::rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
 static constexpr TI NUMBER_OF_ENVIRONMENTS = N_ACTIVE_SCENES;

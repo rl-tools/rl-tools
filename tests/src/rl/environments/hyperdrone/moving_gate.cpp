@@ -165,10 +165,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MOVING_GATE, ENTITY_MECHANISM_AND_TASK)
     rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
     rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
 
-    // entity bookkeeping: one kind, spawned per instance in pinned order
     ASSERT_EQ(world.entity_kinds.size(), 1);
-    ASSERT_EQ(world.slots[0].entity_placements.size(), INSTANCES);
-    EXPECT_GT(world.slots[0].entity_placements[0].num_parts, 0);
+    EXPECT_GT(world.entity_kinds[world.entity_kind_index].rig.num_parts, 0);
 
     RNG rng;
     rlt::malloc(device, rng);

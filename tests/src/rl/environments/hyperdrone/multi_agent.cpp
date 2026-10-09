@@ -171,9 +171,10 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MULTI_AGENT, AGENTS_STEP_SEE_AND_COLLID
     rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
     rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
 
-    // one drone entity kind per agent, spawned per instance
-    ASSERT_EQ(world.entity_kinds.size(), N_AGENTS);
-    ASSERT_EQ(world.slots[0].entity_placements.size(), INSTANCES * N_AGENTS);
+    // one drone entity kind per agent
+    ASSERT_TRUE(world.entity_kinds.empty());
+    ASSERT_EQ(world.drone_slot_offset, 0);
+    ASSERT_GT(world.drone_parts, 1);
 
     RNG rng;
     rlt::malloc(device, rng);
@@ -197,9 +198,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MULTI_AGENT, AGENTS_STEP_SEE_AND_COLLID
         auto& renderer = rlt::get_renderer(device, world);
         rlt::copy(renderer.device, device, rlt::segmentation_buffer(device, renderer), alias);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
-            const auto& other_placement = world.slots[0].entity_placements[instance_i * N_AGENTS + world.drone_entity_kind_index + 1];
-            const uint32_t other_first = S + (uint32_t)(instance_i * MAX_SLOTS + other_placement.first_slot);
-            const uint32_t other_end = other_first + (uint32_t)other_placement.num_parts;
+            const uint32_t other_first = S + (uint32_t)(instance_i * MAX_SLOTS + world.drone_slot_offset + world.drone_parts);
+            const uint32_t other_end = other_first + (uint32_t)world.drone_parts;
             const uint32_t own_range_first = S + (uint32_t)(instance_i * MAX_SLOTS);
             const uint32_t own_range_end = own_range_first + (uint32_t)MAX_SLOTS;
             const TI camera_i = instance_i * N_AGENTS;  // agent 0's camera

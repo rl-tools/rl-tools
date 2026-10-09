@@ -1,16 +1,6 @@
-// Golden-rollout generator sharing the binding's concrete C++ environment. Run from the
-// repo root; regenerate deliberately and review the diff.
-#define HYPERDRONE_ENV_NUM_ENVIRONMENTS 1
-#define HYPERDRONE_ENV_INSTANCES 2
-#define HYPERDRONE_ENV_CAM_WIDTH 16
-#define HYPERDRONE_ENV_CAM_HEIGHT 16
-#define HYPERDRONE_ENV_SHADING 0
-#define HYPERDRONE_ENV_HISTORY_LENGTH 1
-#define HYPERDRONE_ENV_PRESET 0
-#define HYPERDRONE_ENV_TASK 0
-#define HYPERDRONE_ENV_N_AGENTS 1
-#define HYPERDRONE_ENV_MAX_DRONES 1
-#define HYPERDRONE_MODULE_NAME hyperdrone_env_golden
+// Golden-rollout generator sharing the binding's concrete C++ environment (the configuration
+// defines and the implementation unit come from CMake). Run from the repo root; regenerate
+// deliberately and review the diff.
 #include "../../../../../interface/python/hyperdrone/hyperdrone/_native/env/environment.h"
 
 namespace henv = hyperdrone_env_golden;
@@ -67,14 +57,14 @@ int main(){
     std::vector<float> snapshot_privileged(total * henv::WORLD::OBSERVATION_DIM_PRIVILEGED);
 
     auto record = [&](){
-        env.observe(snapshot.data());
+        env.observe(snapshot.data(), true);
         observations.insert(observations.end(), snapshot.begin(), snapshot.end());
-        env.observe_privileged(snapshot_privileged.data());
+        env.observe_privileged(snapshot_privileged.data(), true);
         observations_privileged.insert(observations_privileged.end(), snapshot_privileged.begin(), snapshot_privileged.end());
     };
 
-    env.reset(all.data());
-    env.render(all.data());
+    env.reset(all.data(), true);
+    env.render(all.data(), true);
     record();
     std::vector<float> actions(total * henv::WORLD::ACTION_DIM);
     std::vector<float> step_rewards(total);
@@ -85,12 +75,12 @@ int main(){
                 actions[instance_i * henv::WORLD::ACTION_DIM + dim_i] = golden_action(step_i, (int)instance_i, (int)dim_i);
             }
         }
-        env.step(actions.data());
-        env.render(none.data());
+        env.step(actions.data(), true);
+        env.render(none.data(), true);
         record();
-        env.read_rewards(step_rewards.data());
+        env.rewards(step_rewards.data(), true);
         rewards.insert(rewards.end(), step_rewards.begin(), step_rewards.end());
-        env.read_terminated(step_terminated.data());
+        env.terminated(step_terminated.data(), true);
         terminated.insert(terminated.end(), step_terminated.begin(), step_terminated.end());
     }
 
@@ -113,7 +103,7 @@ int main(){
         {"HYPERDRONE_ENV_PRESET", HYPERDRONE_ENV_PRESET},
         {"HYPERDRONE_ENV_TASK", HYPERDRONE_ENV_TASK},
         {"HYPERDRONE_ENV_N_AGENTS", HYPERDRONE_ENV_N_AGENTS},
-        {"HYPERDRONE_ENV_MAX_DRONES", HYPERDRONE_ENV_MAX_DRONES},
+        {"HYPERDRONE_ENV_DEVICE_CUDA", HYPERDRONE_ENV_DEVICE_CUDA},
     };
     manifest["observation_layout"] = layout_json(henv::observation_layout());
     manifest["observation_layout_privileged"] = layout_json(henv::observation_layout_privileged());

@@ -18,7 +18,8 @@ from hyperdrone.jit import source_root
 
 GOLDEN = Path(__file__).parent / "golden"
 
-CONFIG = EnvConfig(num_environments=1, instances=2, cam_width=16, cam_height=16, shading="low", history_length=1)
+# the generator's World runs on the host; a CUDA World draws from a different RNG engine
+CONFIG = EnvConfig(num_environments=1, instances=2, cam_width=16, cam_height=16, shading="low", history_length=1, device="cpu")
 
 
 def observe_pair(env):

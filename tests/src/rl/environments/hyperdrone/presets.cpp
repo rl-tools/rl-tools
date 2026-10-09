@@ -53,8 +53,9 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_PRESETS, X500FPV_ROLLOUT){
     typename decltype(dataset)::Corpus corpus;
     rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
     rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
-    ASSERT_EQ(world.entity_kinds.size(), 1);
-    EXPECT_GT(world.shared->drone_assets[0].rig.num_coordinates, 0);
+    ASSERT_TRUE(world.entity_kinds.empty());
+    ASSERT_EQ(world.drone_meshes.size(), 1);
+    EXPECT_EQ(rlt::get(device, world.drone_bodies, 0).rig.num_coordinates, 4);
 
     RNG rng;
     rlt::malloc(device, rng);

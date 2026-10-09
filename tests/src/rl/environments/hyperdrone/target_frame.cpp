@@ -73,11 +73,13 @@ namespace test_target_frame {
         static constexpr TI PAD_CHANNELS_TO = 8;
         static constexpr T TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE = 0.1;
         static constexpr T TARGET_FRAME_BRIGHTNESS_MISMATCH_RANGE = 0.25;
+        static constexpr TI TARGET_BANK_REFRESH_STEPS = 3;
     };
     using WORLD = rlt::rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
     constexpr TI INSTANCES = WORLD::INSTANCES;
     constexpr TI CAM_PIXELS = WORLD_SPEC::CAM_WIDTH * WORLD_SPEC::CAM_HEIGHT;
     constexpr TI IMAGE_CHANNELS = BASE_WORLD::IMAGE_CHANNELS;
+    constexpr TI FRAME_DIM = BASE_WORLD::FRAME_DIM;
     // stack(2)*3 + target*3 = 9 logical channels, padded to 16
     static_assert(WORLD::OBSERVATION_CHANNELS == 16);
 }
@@ -120,9 +122,44 @@ static T stack_channel(DEVICE& device, Tensors& tensors, TI instance_i, TI pixel
 static T target_channel(DEVICE& device, Tensors& tensors, TI instance_i, TI pixel_i, TI channel_i){
     return rlt::get(device, tensors.observations, instance_i, pixel_i * WORLD::OBSERVATION_CHANNELS + TASK_SPEC::IMAGE_STACK_N * IMAGE_CHANNELS + channel_i);
 }
+static std::vector<float> target_rows(DEVICE& device, WORLD& world){
+    std::vector<float> rows(INSTANCES * FRAME_DIM);
+    for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
+        for(TI element_i = 0; element_i < FRAME_DIM; element_i++){
+            rows[instance_i * FRAME_DIM + element_i] = rlt::get(device, world.target_frames, instance_i, element_i);
+        }
+    }
+    return rows;
+}
+static std::vector<float> bank_rows(DEVICE& device, WORLD& world){
+    std::vector<float> rows(INSTANCES * FRAME_DIM);
+    for(TI setup_i = 0; setup_i < INSTANCES; setup_i++){
+        for(TI element_i = 0; element_i < FRAME_DIM; element_i++){
+            rows[setup_i * FRAME_DIM + element_i] = rlt::get(device, world.bank_frames, setup_i, element_i);
+        }
+    }
+    return rows;
+}
+// a resetting instance adopts a setup whole: its target row is that setup's bank frame and its
+// view parameters are the setup's
+static void expect_adopted(DEVICE& device, WORLD& world, Tensors& tensors, TI instance_i){
+    const TI index = rlt::get(device, world.setup_index, instance_i);
+    ASSERT_LT(index, INSTANCES);
+    const auto& setup = rlt::get_ref(device, world.setups, index);
+    const typename WORLD::Parameters parameters = rlt::get(device, tensors.parameters, instance_i);
+    EXPECT_EQ(parameters.camera.fov, setup.camera.fov);
+    EXPECT_EQ(parameters.brightness_scale, setup.brightness_scale);
+    EXPECT_EQ(parameters.scene_translation[0], setup.scene_translation[0]);
+    EXPECT_EQ(parameters.scene_yaw_cos, setup.scene_yaw_cos);
+    EXPECT_EQ(parameters.target_roll, setup.target_roll);
+    EXPECT_EQ(parameters.brightness_mismatch, setup.brightness_mismatch);
+    for(TI element_i = 0; element_i < FRAME_DIM; element_i++){
+        ASSERT_EQ(rlt::get(device, world.target_frames, instance_i, element_i), rlt::get(device, world.bank_frames, index, element_i)) << "instance " << instance_i << " element " << element_i;
+    }
+}
 
 template<bool RAW_FIRST>
-void cache_and_stack_semantics(){
+void bank_and_stack_semantics(){
     if(SCENE_PATH.empty()){
         GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
     }
@@ -132,10 +169,11 @@ void cache_and_stack_semantics(){
     typename BASE_WORLD::SharedContext shared;
     rlt::malloc(device, shared.library);
     rlt::malloc(device, world);
-    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+    rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
     rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
-    rlt::init(device, world, shared, dataset, corpus, 0, 1, 0);
+    rlt::init(device, world, shared, dataset, corpus, 0, 2, 0);
+    EXPECT_TRUE(rlt::rl::environments::hyperdrone::tasks::target_frame::_bank_due(world));
 
     RNG rng;
     rlt::malloc(device, rng);
@@ -159,16 +197,25 @@ void cache_and_stack_semantics(){
     };
     rlt::set_all(device, tensors.reset_mask, true);
     rlt::set_all(device, tensors.actions, (T)0);
+    // the first reset fills the bank and the resetting instances adopt its setups in order, so
+    // a full reset gives every instance its own
     rlt::sample_initial_parameters(device, world, tensors.parameters, tensors.reset_mask, rng);
     rlt::sample_initial_state(device, world, tensors.parameters, tensors.states, tensors.reset_mask, rng);
+    EXPECT_EQ(world.bank_scene_version, world.scene_version);
+    EXPECT_EQ(world.bank_step, (TI)0);
+    for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
+        EXPECT_EQ(rlt::get(device, world.setup_index, instance_i), instance_i);
+        expect_adopted(device, world, tensors, instance_i);
+    }
+    EXPECT_EQ(rlt::get(device, world.bank_cursor, (TI)0), INSTANCES);
     {
-        // the task parameters component was sampled
-        typename WORLD::Parameters instance_parameters = rlt::get(device, tensors.parameters, 0);
-        EXPECT_NE(instance_parameters.target_roll, (T)0);
-        EXPECT_NE(instance_parameters.brightness_mismatch, (T)1);
+        // the task component was sampled into the setups
+        const auto& setup = rlt::get_ref(device, world.setups, 0);
+        EXPECT_NE(setup.target_roll, (T)0);
+        EXPECT_NE(setup.brightness_mismatch, (T)1);
     }
 
-    // step 0: everything reset — target rendered and cached, stack clamps to the episode start
+    // step 0: the observation carries the adopted target, the stack clamps to the episode start
     render_observation();
     std::vector<T> target_block_step0(INSTANCES * CAM_PIXELS * IMAGE_CHANNELS);
     std::vector<T> frame0_step0(INSTANCES * CAM_PIXELS * IMAGE_CHANNELS);
@@ -179,11 +226,9 @@ void cache_and_stack_semantics(){
                 T target_value = target_channel(device, tensors, instance_i, pixel_i, channel_i);
                 target_block_step0[(instance_i * CAM_PIXELS + pixel_i) * IMAGE_CHANNELS + channel_i] = target_value;
                 frame0_step0[(instance_i * CAM_PIXELS + pixel_i) * IMAGE_CHANNELS + channel_i] = stack_channel(device, tensors, instance_i, pixel_i, 0, channel_i);
-                ASSERT_GE(target_value, (T)0);
+                ASSERT_EQ(target_value, rlt::get(device, world.target_frames, instance_i, pixel_i * IMAGE_CHANNELS + channel_i));
                 target_nonzero = target_nonzero || target_value != (T)0;
-                // stack frame 1 clamps to the episode start = frame 0
                 EXPECT_EQ(stack_channel(device, tensors, instance_i, pixel_i, 0, channel_i), stack_channel(device, tensors, instance_i, pixel_i, 1, channel_i));
-                // padded channels are zero
                 for(TI pad_i = (TASK_SPEC::IMAGE_STACK_N + 1) * IMAGE_CHANNELS; pad_i < WORLD::OBSERVATION_CHANNELS; pad_i++){
                     EXPECT_EQ(rlt::get(device, tensors.observations, instance_i, pixel_i * WORLD::OBSERVATION_CHANNELS + pad_i), (T)0);
                 }
@@ -192,8 +237,7 @@ void cache_and_stack_semantics(){
     }
     EXPECT_TRUE(target_nonzero);
 
-    // step 1: no reset, drone moved — the target block stays byte-identical (cache), the stack
-    // shifts (frame 1 = previous frame 0)
+    // step 1: no reset, drone moved — the target block stays byte-identical, the stack shifts
     rlt::set_all(device, tensors.reset_mask, false);
     for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
         typename WORLD::State state = rlt::get(device, tensors.states, instance_i);
@@ -207,7 +251,6 @@ void cache_and_stack_semantics(){
         for(TI pixel_i = 0; pixel_i < CAM_PIXELS; pixel_i++){
             for(TI channel_i = 0; channel_i < IMAGE_CHANNELS; channel_i++){
                 ASSERT_EQ(target_channel(device, tensors, instance_i, pixel_i, channel_i), target_block_step0[(instance_i * CAM_PIXELS + pixel_i) * IMAGE_CHANNELS + channel_i]) << "target frame not cached across steps";
-                // frame 1 (one step back) equals the previous step's frame 0
                 ASSERT_EQ(stack_channel(device, tensors, instance_i, pixel_i, 1, channel_i), frame0_step0[(instance_i * CAM_PIXELS + pixel_i) * IMAGE_CHANNELS + channel_i]);
                 student_changed = student_changed || stack_channel(device, tensors, instance_i, pixel_i, 0, channel_i) != frame0_step0[(instance_i * CAM_PIXELS + pixel_i) * IMAGE_CHANNELS + channel_i];
             }
@@ -215,20 +258,47 @@ void cache_and_stack_semantics(){
     }
     EXPECT_TRUE(student_changed) << "the student frame should change when the drone moves";
 
-    // step 2: reset instance 0 only — its target refreshes (new episode, resampled parameters),
-    // instance 1's target row stays identical
+    // step 2: reset instance 0 only — it adopts a setup from the bank, instance 1's row stays
+    const std::vector<float> rows_before = target_rows(device, world);
     rlt::set(device, tensors.reset_mask, true, (TI)0);
     rlt::sample_initial_parameters(device, world, tensors.parameters, tensors.reset_mask, rng);
     rlt::sample_initial_state(device, world, tensors.parameters, tensors.states, tensors.reset_mask, rng);
+    expect_adopted(device, world, tensors, 0);
+    EXPECT_EQ(rlt::get(device, world.bank_cursor, (TI)0), INSTANCES + 1);
     render_observation();
-    bool instance0_target_changed = false;
     for(TI pixel_i = 0; pixel_i < CAM_PIXELS; pixel_i++){
         for(TI channel_i = 0; channel_i < IMAGE_CHANNELS; channel_i++){
-            instance0_target_changed = instance0_target_changed || target_channel(device, tensors, 0, pixel_i, channel_i) != target_block_step0[(0 * CAM_PIXELS + pixel_i) * IMAGE_CHANNELS + channel_i];
             ASSERT_EQ(target_channel(device, tensors, 1, pixel_i, channel_i), target_block_step0[(1 * CAM_PIXELS + pixel_i) * IMAGE_CHANNELS + channel_i]) << "unreset instance's target must be untouched";
         }
     }
-    EXPECT_TRUE(instance0_target_changed);
+
+    // the bank refreshes every TARGET_BANK_REFRESH_STEPS frames without touching running episodes
+    const std::vector<float> bank_before = bank_rows(device, world);
+    rlt::set_all(device, tensors.reset_mask, false);
+    for(TI step_i = 0; step_i < TASK_SPEC::TARGET_BANK_REFRESH_STEPS; step_i++){
+        rlt::step(device, world, tensors.parameters, tensors.states, tensors.actions, tensors.next_states, rng);
+        rlt::copy(device, device, tensors.next_states, tensors.states);
+        rlt::render(device, world, tensors.parameters, tensors.states, tensors.reset_mask);
+    }
+    rlt::sample_initial_parameters(device, world, tensors.parameters, tensors.reset_mask, rng);
+    EXPECT_EQ(world.bank_step, world.history_step);
+    EXPECT_EQ(rlt::get(device, world.bank_cursor, (TI)0), (TI)0);
+    EXPECT_NE(bank_rows(device, world), bank_before) << "the refresh should draw new setups";
+    {
+        const std::vector<float> rows_after = target_rows(device, world);
+        for(TI element_i = 0; element_i < FRAME_DIM; element_i++){
+            ASSERT_EQ(rows_after[FRAME_DIM + element_i], rows_before[FRAME_DIM + element_i]) << "a refresh must leave running episodes' targets alone";
+        }
+    }
+
+    // a scene change invalidates the bank, re-selecting the same scene included
+    rlt::rotate_scene(device, world);
+    EXPECT_EQ(world.active_slot, (TI)1);
+    EXPECT_TRUE(rlt::rl::environments::hyperdrone::tasks::target_frame::_bank_due(world));
+    rlt::sample_initial_parameters(device, world, tensors.parameters, tensors.reset_mask, rng);
+    EXPECT_EQ(world.bank_scene_version, world.scene_version);
+    rlt::select_scene(device, world, world.active_slot);
+    EXPECT_TRUE(rlt::rl::environments::hyperdrone::tasks::target_frame::_bank_due(world));
 
     // the unextended verbs fall through to the base through deduction-from-derived
     rlt::step(device, world, tensors.parameters, tensors.states, tensors.actions, tensors.next_states, rng);
@@ -242,11 +312,11 @@ void cache_and_stack_semantics(){
     rlt::free(device, rng);
 }
 
-TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME, CACHE_AND_STACK_SEMANTICS){
-    cache_and_stack_semantics<false>();
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME, BANK_AND_STACK_SEMANTICS){
+    bank_and_stack_semantics<false>();
 }
-TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME, RAW_OBSERVATION_REFRESHES_TARGET){
-    cache_and_stack_semantics<true>();
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_TARGET_FRAME, RAW_OBSERVATION_KEEPS_TARGET){
+    bank_and_stack_semantics<true>();
 }
 
 int main(int argc, char** argv) {
