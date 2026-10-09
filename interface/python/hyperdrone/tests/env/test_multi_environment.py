@@ -1,3 +1,4 @@
+import copy
 import os
 from dataclasses import replace
 from pathlib import Path
@@ -319,6 +320,54 @@ def drone_asset_path():
 
 
 CONFIG_DRONES = EnvConfig(instances=4, cam_width=16, cam_height=16, preset="x500_fpv", max_drones=4)
+
+
+@pytest.mark.parametrize("task", [None, "target_frame"])
+def test_explicit_spawns_ignore_seed_and_preserve_mask(scene_directory, task):
+    config = EnvConfig(instances=2, cam_width=16, cam_height=16, preset="x500_fpv", max_drones=2, motion_blur_samples=8, task=task)
+    drones = [{"asset": rigged_asset_path(name), "parameters": {"dynamics": {"dynamics": {"model": name}}}} for name in ("x500", "crazyflie")]
+    parameters = {"dynamics": {"mdp": {"init": {"max_linear_velocity": 0, "max_angular_velocity": 0, "min_rpm": 0, "max_rpm": 0}}}}
+    reference = None
+    for seed in (1, 123):
+        env = MultiEnvironment(scene_directory, config=config, seed=seed, drones=drones, parameters=parameters)
+        try:
+            if reference is None:
+                with pytest.raises(RuntimeError, match="every instance has been reset"):
+                    env.spawn_points()
+                env.reset()
+                points = env.spawn_points()
+                for i, point in enumerate(points):
+                    point["drone"] = i
+            env.reset(spawn_points=points)
+            assert env.spawn_points() == points
+            assert [p["drone"] for p in env.instance_parameters()] == [0, 1]
+            assert [p["dynamics"]["dynamics"]["mass"] for p in env.instance_parameters()] == [d["parameters"]["dynamics"]["dynamics"]["mass"] for d in env.drones]
+            initial = env.frames().copy()
+            record = [initial, env.observe_privileged()]
+            for _ in range(3):
+                env.step(np.zeros((2, env.action_dim), dtype=np.float32))
+                record.extend((env.frames().copy(), env.observe_privileged()))
+            if reference is None:
+                reference = record
+            else:
+                for actual, expected in zip(record, reference):
+                    np.testing.assert_array_equal(actual, expected)
+            state = env.observe_privileged()
+            env.reset([True, False], spawn_points=[points[0]])
+            np.testing.assert_array_equal(env.observe_privileged()[1], state[1])
+            np.testing.assert_array_equal(env.frames()[0], initial[0])
+            env.reset([False, False], spawn_points=[])
+            state = env.observe_privileged()
+            for override in ({"scene": "wrong-room"}, {"drone": 2}, {"drone": -1}, {"poses": [[0] * 7]}, {"shutter_fraction": float("nan")}):
+                invalid = copy.deepcopy(points)
+                invalid[0].update(override)
+                with pytest.raises(ValueError):
+                    env.reset(spawn_points=invalid)
+                np.testing.assert_array_equal(env.observe_privileged(), state)
+            with pytest.raises(ValueError, match="one spawn"):
+                env.reset(spawn_points=points[:1])
+        finally:
+            env.close()
 
 
 def test_drones_table(scene_directory):

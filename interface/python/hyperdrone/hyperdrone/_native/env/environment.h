@@ -18,6 +18,8 @@
 
 #include "../common/models.h"
 
+#include <algorithm>
+#include <array>
 #include <cstring>
 #include <filesystem>
 #include <optional>
@@ -151,9 +153,10 @@ namespace HYPERDRONE_MODULE_NAME {
         std::string parameters_json();
         std::string drones_json();
         std::string instance_parameters_json();
+        std::string spawn_points_json();
         void set_instance_parameters(const bool* mask, const std::string& json);
         std::optional<std::string> model(const std::string& name);
-        void reset(const bool* mask);
+        void reset(const bool* mask, const std::string& spawn_points = "");
         void render(const bool* reset_mask);
         void observe(float* observations);
         void observe_privileged(float* observations);
@@ -370,10 +373,86 @@ namespace HYPERDRONE_MODULE_NAME {
         }
         return rlt::json(device, env.environments[0].dynamics, dynamics);
     }
-    inline void Environment::reset(const bool* mask){
+    inline std::string Environment::spawn_points_json(){
+        nlohmann::json entries = nlohmann::json::array();
+        for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
+            const auto& world = env.environments[instance_i / WORLD::INSTANCES];
+            const auto& instance = get_ref(device, parameters, instance_i);
+            nlohmann::json poses = nlohmann::json::array();
+            for(TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++){
+                const auto& state = rlt::rl::environments::hyperdrone::_agent_state<typename WORLD::SPEC>(get_ref(device, states, instance_i), agent_i);
+                poses.push_back({state.position[0], state.position[1], state.position[2], state.orientation[0], state.orientation[1], state.orientation[2], state.orientation[3]});
+            }
+            entries.push_back({{"scene", world.slots[world.active_slot].metadata.content_hash}, {"drone", instance.drone},
+                               {"scene_translation", instance.scene_translation}, {"scene_yaw", {instance.scene_yaw_cos, instance.scene_yaw_sin}},
+                               {"poses", poses}, {"shutter_fraction", instance.shutter_fraction}});
+        }
+        return entries.dump();
+    }
+    inline void Environment::reset(const bool* mask, const std::string& spawn_points){
+        struct Spawn {
+            TI drone;
+            std::array<T, 3> translation;
+            std::array<T, 2> yaw;
+            std::array<std::array<T, 7>, WORLD::N_AGENTS> poses;
+            T shutter;
+        };
+        std::vector<Spawn> spawns;
+        if(!spawn_points.empty()){
+            const auto entries = nlohmann::json::parse(spawn_points);
+            TI entry_i = 0;
+            for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
+                if(mask[instance_i]){
+                    const auto& entry = entries.at(entry_i++);
+                    const auto& world = env.environments[instance_i / WORLD::INSTANCES];
+                    const auto drone = entry.at("drone").get<long long>();
+                    if(drone < 0 || drone >= (long long)env.shared.drones.size()){
+                        throw std::invalid_argument("hyperdrone: spawn drone is outside the drones table");
+                    }
+                    if(entry.at("scene") != world.slots[world.active_slot].metadata.content_hash){
+                        throw std::invalid_argument("hyperdrone: spawn scene does not match the active scene");
+                    }
+                    spawns.push_back({(TI)drone, entry.at("scene_translation").get<std::array<T, 3>>(),
+                                      entry.at("scene_yaw").get<std::array<T, 2>>(),
+                                      entry.at("poses").get<std::array<std::array<T, 7>, WORLD::N_AGENTS>>(),
+                                      entry.at("shutter_fraction").get<T>()});
+                }
+            }
+            if(entry_i != entries.size()){
+                throw std::invalid_argument("hyperdrone: provide one spawn per selected instance");
+            }
+        }
         std::memcpy(rlt::data(reset_mask), mask, TOTAL * sizeof(bool));
         rlt::sample_initial_parameters(device, env, parameters, reset_mask, rng);
+        TI spawn_i = 0;
+        for(TI instance_i = 0; instance_i < TOTAL && !spawns.empty(); instance_i++){
+            if(mask[instance_i]){
+                auto& instance = get_ref(device, parameters, instance_i);
+                instance.drone = spawns[spawn_i++].drone;
+                const auto& nominal = env.shared.drones[instance.drone].parameters;
+                instance.dynamics = nominal.dynamics;
+                instance.camera = nominal.camera;
+                instance.brightness_scale = 1;
+            }
+        }
         rlt::sample_initial_state(device, env, parameters, states, reset_mask, rng);
+        spawn_i = 0;
+        for(TI instance_i = 0; instance_i < TOTAL && !spawns.empty(); instance_i++){
+            if(mask[instance_i]){
+                const auto& spawn = spawns[spawn_i++];
+                auto& instance = get_ref(device, parameters, instance_i);
+                std::copy(spawn.translation.begin(), spawn.translation.end(), instance.scene_translation);
+                instance.scene_yaw_cos = spawn.yaw[0];
+                instance.scene_yaw_sin = spawn.yaw[1];
+                instance.shutter_fraction = spawn.shutter;
+                for(TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++){
+                    auto& state = rlt::rl::environments::hyperdrone::_agent_state<typename WORLD::SPEC>(get_ref(device, states, instance_i), agent_i);
+                    const auto& pose = spawn.poses[agent_i];
+                    std::copy(pose.begin(), pose.begin() + 3, state.position);
+                    std::copy(pose.begin() + 3, pose.end(), state.orientation);
+                }
+            }
+        }
     }
     inline void Environment::render(const bool* mask){
         std::memcpy(rlt::data(reset_mask), mask, TOTAL * sizeof(bool));
