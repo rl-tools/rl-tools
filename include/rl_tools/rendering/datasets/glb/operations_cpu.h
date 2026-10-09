@@ -4,6 +4,7 @@
 #pragma once
 #define RL_TOOLS_RENDERING_DATASETS_GLB_OPERATIONS_CPU_H
 
+#include "glb.h"
 #include "../operations_cpu.h"
 #include "../../../mode/mode.h"
 
@@ -34,6 +35,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <fstream>
+#include <filesystem>
 #include <iostream>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -1311,6 +1313,27 @@ namespace rl_tools {
         utils::assert_exit(device, rendering::datasets::content_hash(device, path, bundle.metadata.content_hash), "load: failed to hash scene file");
         return true;
     }
+    template <typename DEVICE>
+    void enumerate(DEVICE& device, const rendering::datasets::glb::Dataset& dataset, rendering::datasets::glb::Corpus& corpus){
+        corpus.references = dataset.references;
+        if(!corpus.references.empty()){
+            return;
+        }
+        for(const auto& entry : std::filesystem::directory_iterator(dataset.directory)){
+            if(entry.is_regular_file() && entry.path().extension() == ".glb"){
+                corpus.references.push_back(entry.path().string());
+            }
+        }
+        std::sort(corpus.references.begin(), corpus.references.end(), rendering::datasets::natural_less);
+        utils::assert_exit(device, !corpus.references.empty(), "datasets::glb::Dataset: no .glb scenes found in directory");
+    }
+
+    template <typename SHADING = rendering::VeryHigh, bool HAS_RGB = true, typename DEVICE, typename T, typename MODE = mode::Default<>>
+    bool load(DEVICE& device, const rendering::datasets::glb::Dataset&, const rendering::datasets::glb::Corpus& corpus, size_t index, rendering::Bundle<T>& bundle, const Mode<MODE>& mode = Mode<MODE>{}){
+        utils::assert_exit(device, index < corpus.references.size(), "datasets::glb: corpus index out of range");
+        return load<SHADING, HAS_RGB>(device, bundle, corpus.references[index], mode);
+    }
+
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
 

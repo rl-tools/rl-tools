@@ -305,7 +305,7 @@ namespace HYPERDRONE_MODULE_NAME {
                 set_gate_asset_path(impl->env.environments[environment_i], *gate_asset_path);
             }
         }
-        rlt::rendering::datasets::procthor::GLB dataset{};
+        DATASET dataset{};
         if(references.size() == 1 && std::filesystem::is_directory(references[0])){
             dataset.directory = references[0];
         }
@@ -313,6 +313,14 @@ namespace HYPERDRONE_MODULE_NAME {
             dataset.references = references;
         }
         rlt::init(impl->device, impl->env, dataset);
+    }
+    std::string Environment::segmentation_taxonomy() const {
+        const auto& taxonomy = impl->env.shared.segmentation_taxonomy;
+        return taxonomy ? taxonomy->name : std::string{};
+    }
+    std::map<uint32_t, std::string> Environment::segmentation_classes() const {
+        const auto& taxonomy = impl->env.shared.segmentation_taxonomy;
+        return taxonomy ? taxonomy->classes : std::map<uint32_t, std::string>{};
     }
     std::string Environment::parameters_json(){
         const auto& world = impl->env.environments[0];

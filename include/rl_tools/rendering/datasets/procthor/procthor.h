@@ -4,20 +4,18 @@
 #pragma once
 #define RL_TOOLS_RENDERING_DATASETS_PROCTHOR_PROCTHOR_H
 
-#include <string>
-#include <vector>
+#include "../glb/glb.h"
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rendering::datasets::procthor {
     // pre-converted corpus: GLBs. Sources are references (paths or conta:HASH);
     // an explicit reference list wins, otherwise the directory is enumerated as a
     // naturally sorted .glb listing so the corpus is filesystem-order independent.
-    struct Corpus {
-        std::vector<std::string> references;
-    };
+    using Corpus = glb::Corpus;
 
     struct GLB {
         using Corpus = procthor::Corpus;
+        static constexpr const char* SEGMENTATION_TAXONOMY = "ai2thor-hab";
         std::string directory;
         std::vector<std::string> references;
     };
@@ -28,6 +26,7 @@ namespace rl_tools::rendering::datasets::procthor {
     // this source must link rl_tools_procthor_conversion.
     struct AI2ThorHab {
         using Corpus = procthor::Corpus;
+        static constexpr const char* SEGMENTATION_TAXONOMY = "ai2thor-hab";
         std::string root;               // the directory containing configs/ (e.g. .../ai2thor-hab/ai2thor-hab)
         std::string split = "Train";    // filename filter: ProcTHOR-<split>-*.scene_instance.json
         std::string cache_directory;    // converted-GLB cache; default: ~/.cache/rl_tools/procthor_glb (dataset roots are often read-only mounts)

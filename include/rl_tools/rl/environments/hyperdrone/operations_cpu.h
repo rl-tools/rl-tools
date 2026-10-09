@@ -791,6 +791,43 @@ namespace rl_tools {
             malloc(device, env.environments[environment_i]);
         }
     }
+    template <typename DEVICE, typename SPEC, typename DATASET>
+    void init_segmentation_taxonomy(DEVICE& device, rl::environments::hyperdrone::SharedContext<SPEC>& shared, const DATASET&){
+        if constexpr (SPEC::SEMANTIC_SEGMENTATION){
+            auto& render_device = get_rendering_device(device);
+            std::shared_ptr<const rendering::SegmentationTaxonomy> taxonomy;
+            std::string taxonomy_source;
+            std::vector<rendering::Object*> objects;
+            const std::string expected = DATASET::SEGMENTATION_TAXONOMY;
+            auto collect = [&](auto& container, const std::string& source, bool scene){
+                auto entries = segmentation_objects(render_device, container);
+                const auto candidate = segmentation_taxonomy(render_device, entries);
+                if(scene && !expected.empty() && (!candidate || candidate->name != expected)){
+                    throw std::invalid_argument("hyperdrone: " + source + " requires segmentation taxonomy '" + expected + "'");
+                }
+                if(candidate){
+                    if(taxonomy && (candidate->name != taxonomy->name || candidate->classes != taxonomy->classes)){
+                        throw std::invalid_argument("hyperdrone: incompatible segmentation taxonomies in " + taxonomy_source + " and " + source + "; remap classes before loading");
+                    }
+                    taxonomy = candidate;
+                    taxonomy_source = source;
+                }
+                objects.insert(objects.end(), entries.begin(), entries.end());
+            };
+            for(size_t scene_i = 0; scene_i < shared.library.scenes.size(); scene_i++){
+                collect(shared.library.scenes[scene_i], "scene " + shared.library.metadata[scene_i].content_hash, true);
+            }
+            collect(shared.library.pool, "overlay assets", false);
+            validate_semantic_segmentation(render_device, objects);
+            for(auto* object : objects){
+                if(object->segmentation_taxonomy){
+                    object->segmentation_taxonomy = taxonomy;
+                }
+            }
+            shared.segmentation_taxonomy = std::move(taxonomy);
+        }
+    }
+
     template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS, typename DATASET>
     void init(DEVICE& device, rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env, const DATASET& dataset) {
         using TI = typename MEMBER::TI;
@@ -805,6 +842,7 @@ namespace rl_tools {
             env.environments[environment_i].rng_offset = environment_i * MEMBER::INSTANCES;  // disjoint per-instance RNG partitions on devices with per-instance engines
             init(device, env.environments[environment_i], env.shared, dataset, corpus, first, last - first, environment_i);
         }
+        init_segmentation_taxonomy(device, env.shared, dataset);
     }
     template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS>
     void free(DEVICE& device, rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env) {
@@ -814,6 +852,7 @@ namespace rl_tools {
             free(device, env.environments[environment_i]);
         }
         free(render_device, env.shared.library);
+        env.shared.segmentation_taxonomy.reset();
     }
     template <typename DEVICE, typename MEMBER, typename MEMBER::TI NUMBER_OF_ENVIRONMENTS, typename PARAMETER_SPEC, typename RESET_SPEC, typename RNG>
     void sample_initial_parameters(DEVICE& device, rl::environments::hyperdrone::MultiEnvironment<MEMBER, NUMBER_OF_ENVIRONMENTS>& env, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask, RNG& rng) {

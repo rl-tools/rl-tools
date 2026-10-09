@@ -19,6 +19,7 @@
 
 #include <cstdint>
 #include <optional>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -46,6 +47,9 @@ namespace HYPERDRONE_MODULE_NAME {
     using T = float;
     using TI = HOST_DEVICE::index_t;
     constexpr bool CUDA_WORLD = HYPERDRONE_ENV_DEVICE_CUDA == 1;
+    static_assert(HYPERDRONE_ENV_DATASET == 0 || HYPERDRONE_ENV_DATASET == 1, "unknown HYPERDRONE_ENV_DATASET");
+    using DATASET = rlt::utils::typing::conditional_t<HYPERDRONE_ENV_DATASET == 0,
+        rlt::rendering::datasets::glb::Dataset, rlt::rendering::datasets::procthor::GLB>;
 
     namespace l2f = rlt::rl::environments::l2f;
 #ifdef HYPERDRONE_ENV_SPEC_HEADER
@@ -167,6 +171,8 @@ namespace HYPERDRONE_MODULE_NAME {
         Environment& operator=(const Environment&) = delete;
         // drones: the shared table, one asset (SELF_VISIBLE) and one resolved parameter set per entry
         void init(const std::vector<std::string>& scenes, const std::vector<std::optional<std::string>>& drone_assets, const std::vector<std::string>& drone_parameters, const std::optional<std::string>& gate_asset, unsigned long long seed);
+        std::string segmentation_taxonomy() const;
+        std::map<uint32_t, std::string> segmentation_classes() const;
         std::string parameters_json();
         std::string drones_json();
         std::string instance_parameters_json();

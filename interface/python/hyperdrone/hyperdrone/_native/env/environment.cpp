@@ -1,6 +1,7 @@
 #include "environment.h"
 #include "bindings.h"
 #include <nanobind/stl/optional.h>
+#include <nanobind/stl/map.h>
 #include <nanobind/stl/string.h>
 #include <nanobind/stl/vector.h>
 
@@ -132,6 +133,8 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     environment_class
         .def(nb::init<>())
         .def("init", &Environment::init, nb::arg("scenes"), nb::arg("drone_assets"), nb::arg("drone_parameters"), nb::arg("gate_asset"), nb::arg("seed"), nb::call_guard<nb::gil_scoped_release>())
+        .def_prop_ro("segmentation_taxonomy", &Environment::segmentation_taxonomy)
+        .def_prop_ro("segmentation_classes", &Environment::segmentation_classes)
         .def("parameters", &Environment::parameters_json, nb::call_guard<nb::gil_scoped_release>())
         .def("drones", &Environment::drones_json, nb::call_guard<nb::gil_scoped_release>())
         .def("instance_parameters", &Environment::instance_parameters_json, nb::call_guard<nb::gil_scoped_release>())

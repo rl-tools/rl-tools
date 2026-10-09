@@ -30,6 +30,7 @@ from .._outputs import VALID_MOTION_BLUR_SAMPLES, normalize_outputs, output_defi
 PRESETS = {"crazyflie": 0, "x500_fpv": 1, "x500_fpv_imu": 2}
 SELF_VISIBLE_PRESETS = ("x500_fpv", "x500_fpv_imu")
 TASKS = {None: 0, "target_frame": 1, "moving_gate": 2, "visual_inertial_localization": 3}
+DATASETS = {"glb": 0, "procthor": 1}
 
 
 def backend():
@@ -67,6 +68,7 @@ class EnvConfig:
     motion_blur_samples: int = 1
     output: tuple = ("rgb",)
     semantic_segmentation: bool = False
+    dataset: str = "glb"
 
     def __post_init__(self):
         object.__setattr__(self, "output", normalize_outputs(self.output))
@@ -74,6 +76,8 @@ class EnvConfig:
             raise ValueError("hyperdrone: environment observations require rgb output")
         if self.semantic_segmentation and "segmentation" not in self.output:
             raise ValueError("hyperdrone: semantic_segmentation requires segmentation output")
+        if self.dataset not in DATASETS:
+            raise ValueError(f"hyperdrone: unknown dataset {self.dataset!r} (one of {sorted(DATASETS)})")
         if self.preset not in PRESETS:
             raise ValueError(f"hyperdrone: unknown preset {self.preset!r} (one of {sorted(PRESETS)})")
         if self.task not in TASKS:
@@ -132,6 +136,7 @@ class EnvConfig:
         values = {
             **output_defines(self.output, "HYPERDRONE_ENV"),
             "HYPERDRONE_ENV_SEMANTIC_SEGMENTATION": int(self.semantic_segmentation),
+            "HYPERDRONE_ENV_DATASET": DATASETS[self.dataset],
             "HYPERDRONE_ENV_NUM_ENVIRONMENTS": self.num_environments,
             "HYPERDRONE_ENV_INSTANCES": self.instances,
             "HYPERDRONE_ENV_CAM_WIDTH": self.cam_width,
@@ -240,6 +245,8 @@ class MultiEnvironment:
     scenes: a directory of .glb scenes (sorted corpus), or a reference / sequence of
     references — .glb paths, "conta:HASH" strings, or conta store manifest entries
     {"description": ..., "hash": ...}; a reference list is the corpus in list order.
+    config.dataset: "glb" uses the authored taxonomy; "procthor" requires ai2thor-hab
+    metadata for semantic output. The shared taxonomy covers all scenes and overlay assets.
     drones: the drone table every instance samples from uniformly at each reset, independently of
     the scene its environment shows: a list of {"asset": <GLB reference or None>, "parameters":
     {partial dict}}. The asset is the body/prop_* GLB rendered into the instance's cameras
@@ -535,6 +542,16 @@ class MultiEnvironment:
     def segmentation(self, out=None):
         """Instance IDs or semantic classes, uint32 (total_instances, n_agents, H, W); miss=0xFFFFFFFF."""
         return self._render_output("segmentation", np.uint32, 1, out)
+
+    @property
+    def segmentation_classes(self):
+        """A copy of the shared {semantic ID: name} dictionary; empty without a named semantic taxonomy."""
+        return self._environment.segmentation_classes
+
+    @property
+    def segmentation_taxonomy(self):
+        """The shared semantic taxonomy name; empty when unnamed or semantic output is disabled."""
+        return self._environment.segmentation_taxonomy
 
     def normals(self, out=None):
         """Scene-frame FLU geometric unit normals, float32 (total_instances, n_agents, H, W, 3); miss=zero."""
