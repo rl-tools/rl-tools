@@ -392,6 +392,28 @@ FLU frame; instance IDs are local to each environment’s active renderer. Custo
 `OUTPUT_DEPTH`, `OUTPUT_SEGMENTATION`, `SEMANTIC_SEGMENTATION`, `OUTPUT_NORMALS`, and `OUTPUT_FLOW`
 in their specification; leave the corresponding Python options at their defaults.
 
+`EnvConfig(dataset="glb")` (the default) uses the taxonomy authored in the GLBs;
+`dataset="procthor"` requires each scene to declare `ai2thor-hab` when semantic output is enabled.
+Dataset selection is compiled into the JIT module and also applies with `spec_header`.
+In semantic mode, initialization validates all scenes and pooled drone/gate assets against one
+taxonomy, then shares its immutable dictionary across them. Conflicting names or complete class
+mappings fail initialization; IDs are preserved. Scene rotation does not change the dictionary.
+
+```python
+config = EnvConfig(dataset="procthor", output=("rgb", "segmentation"), semantic_segmentation=True)
+env = MultiEnvironment(scenes, config=config)
+classes = env.segmentation_classes  # dict[int, str], an independent copy
+taxonomy = env.segmentation_taxonomy  # "ai2thor-hab"
+env.reset()
+labels = env.segmentation()
+names_present = {int(id): classes.get(int(id), "Background") for id in np.unique(labels)}
+env.close()
+```
+
+These properties return `{}` and `""` when semantic output is disabled or all classes are
+unnamed. Unnamed objects in a named taxonomy must use IDs in that dictionary. The reserved
+background ID `0xFFFFFFFF` is excluded from the dictionary.
+
 For labelled ProcTHOR rendering, preserve GLB root instances and select the output meaning:
 
 ```python

@@ -195,6 +195,86 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SEGMENTATION, ID_LAYOUT_AND_DETERMINISM
     }
 }
 
+namespace test_shared_taxonomy {
+    struct SPEC: WORLD_SPEC {
+        static constexpr bool SEMANTIC_SEGMENTATION = true;
+    };
+    using SHARED = rlt::rl::environments::hyperdrone::SharedContext<SPEC>;
+
+    std::shared_ptr<rlt::rendering::SegmentationTaxonomy> taxonomy(){
+        auto value = std::make_shared<rlt::rendering::SegmentationTaxonomy>();
+        value->name = "test";
+        value->classes = {{0, "Unknown"}, {7, "Room"}};
+        return value;
+    }
+
+    void populate(SHARED& shared){
+        shared.library.scenes.resize(2);
+        shared.library.metadata.resize(2);
+        for(size_t scene_i = 0; scene_i < 2; scene_i++){
+            auto& scene = shared.library.scenes[scene_i];
+            shared.library.metadata[scene_i].content_hash = std::to_string(scene_i);
+            scene.objects.resize(1);
+            scene.objects[0].segmentation_class = 7;
+            scene.objects[0].segmentation_taxonomy = taxonomy();
+        }
+        shared.library.pool.assemblies.resize(1);
+        auto& objects = shared.library.pool.assemblies[0].objects;
+        objects.resize(2);
+        objects[0].segmentation_class = 7;
+        objects[0].segmentation_taxonomy = taxonomy();
+    }
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SEGMENTATION, SHARED_TAXONOMY_STORAGE){
+    using namespace test_shared_taxonomy;
+    using rlt::init_segmentation_taxonomy;
+    DEVICE device;
+    SHARED shared;
+    populate(shared);
+    auto& first = shared.library.scenes[0].objects[0];
+    auto& second = shared.library.scenes[1].objects[0];
+    std::weak_ptr<const rlt::rendering::SegmentationTaxonomy> old = first.segmentation_taxonomy;
+    ASSERT_NE(first.segmentation_taxonomy, second.segmentation_taxonomy);
+    init_segmentation_taxonomy(device, shared, rlt::rendering::datasets::glb::Dataset{});
+    ASSERT_TRUE(shared.segmentation_taxonomy);
+    EXPECT_EQ(shared.segmentation_taxonomy->classes, taxonomy()->classes);
+    EXPECT_EQ(first.segmentation_taxonomy, shared.segmentation_taxonomy);
+    EXPECT_EQ(second.segmentation_taxonomy, shared.segmentation_taxonomy);
+    EXPECT_EQ(shared.library.pool.assemblies[0].objects[0].segmentation_taxonomy, shared.segmentation_taxonomy);
+    EXPECT_FALSE(shared.library.pool.assemblies[0].objects[1].segmentation_taxonomy);
+    EXPECT_TRUE(old.expired());
+    EXPECT_EQ(first.segmentation_class, 7u);
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SEGMENTATION, TAXONOMY_VALIDATION_IS_TRANSACTIONAL){
+    using namespace test_shared_taxonomy;
+    using rlt::init_segmentation_taxonomy;
+    DEVICE device;
+    SHARED shared;
+    populate(shared);
+    const auto first = shared.library.scenes[0].objects[0].segmentation_taxonomy;
+    auto conflicting = taxonomy();
+    conflicting->classes[7] = "Floor";
+    auto& overlay = shared.library.pool.assemblies[0].objects[0];
+    overlay.segmentation_taxonomy = conflicting;
+    EXPECT_THROW(init_segmentation_taxonomy(device, shared, rlt::rendering::datasets::glb::Dataset{}), std::invalid_argument);
+    EXPECT_FALSE(shared.segmentation_taxonomy);
+    EXPECT_EQ(shared.library.scenes[0].objects[0].segmentation_taxonomy, first);
+    EXPECT_EQ(overlay.segmentation_taxonomy, conflicting);
+    conflicting->classes[7] = "Room";
+    auto& unnamed = shared.library.pool.assemblies[0].objects[1];
+    unnamed.segmentation_class = 99;
+    EXPECT_THROW(init_segmentation_taxonomy(device, shared, rlt::rendering::datasets::glb::Dataset{}), std::invalid_argument);
+    EXPECT_FALSE(shared.segmentation_taxonomy);
+    EXPECT_EQ(shared.library.scenes[0].objects[0].segmentation_taxonomy, first);
+    unnamed.segmentation_class = 0;
+    EXPECT_THROW(init_segmentation_taxonomy(device, shared, rlt::rendering::datasets::procthor::GLB{}), std::invalid_argument);
+    EXPECT_FALSE(shared.segmentation_taxonomy);
+    init_segmentation_taxonomy(device, shared, rlt::rendering::datasets::glb::Dataset{});
+    EXPECT_EQ(overlay.segmentation_taxonomy, shared.segmentation_taxonomy);
+}
+
 int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

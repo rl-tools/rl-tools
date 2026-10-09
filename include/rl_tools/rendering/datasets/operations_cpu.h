@@ -13,12 +13,53 @@
 #include <string>
 #include <limits>
 #include <algorithm>
+#include <cctype>
 #include <iostream>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     namespace rendering::datasets{
         inline constexpr char LOG_PREFIX[] = "#rl_tools::rendering::datasets: ";
+
+        inline bool natural_less(const std::string& a, const std::string& b){
+            size_t i = 0, j = 0;
+            while(i < a.size() && j < b.size()){
+                if(std::isdigit((unsigned char)a[i]) && std::isdigit((unsigned char)b[j])){
+                    size_t i_end = i, j_end = j;
+                    while(i_end < a.size() && std::isdigit((unsigned char)a[i_end])){
+                        i_end++;
+                    }
+                    while(j_end < b.size() && std::isdigit((unsigned char)b[j_end])){
+                        j_end++;
+                    }
+                    size_t i_num = i, j_num = j;
+                    while(i_num < i_end - 1 && a[i_num] == '0'){
+                        i_num++;
+                    }
+                    while(j_num < j_end - 1 && b[j_num] == '0'){
+                        j_num++;
+                    }
+                    const size_t i_len = i_end - i_num, j_len = j_end - j_num;
+                    if(i_len != j_len){
+                        return i_len < j_len;
+                    }
+                    const int order = a.compare(i_num, i_len, b, j_num, j_len);
+                    if(order != 0){
+                        return order < 0;
+                    }
+                    i = i_end;
+                    j = j_end;
+                }
+                else{
+                    if(a[i] != b[j]){
+                        return (unsigned char)a[i] < (unsigned char)b[j];
+                    }
+                    i++;
+                    j++;
+                }
+            }
+            return a.size() - i < b.size() - j;
+        }
 
         // every path-valued dataset field accepts either a filesystem path or a "conta:HASH"
         // reference; this is the single choke point that turns references into local files

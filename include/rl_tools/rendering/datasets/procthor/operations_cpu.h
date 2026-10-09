@@ -20,46 +20,10 @@
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rendering::datasets::procthor {
-    // natural (version) order: digit runs compare numerically, mirroring the sort -V corpus
-    // conventions — the deterministic enumeration order is part of the dataset contract
-    inline bool natural_less(const std::string& a, const std::string& b) {
-        size_t i = 0, j = 0;
-        while(i < a.size() && j < b.size()){
-            if(std::isdigit((unsigned char)a[i]) && std::isdigit((unsigned char)b[j])){
-                size_t i_end = i, j_end = j;
-                while(i_end < a.size() && std::isdigit((unsigned char)a[i_end])) i_end++;
-                while(j_end < b.size() && std::isdigit((unsigned char)b[j_end])) j_end++;
-                size_t i_num = i, j_num = j;
-                while(i_num < i_end - 1 && a[i_num] == '0') i_num++;
-                while(j_num < j_end - 1 && b[j_num] == '0') j_num++;
-                const size_t i_len = i_end - i_num, j_len = j_end - j_num;
-                if(i_len != j_len) return i_len < j_len;
-                const int order = a.compare(i_num, i_len, b, j_num, j_len);
-                if(order != 0) return order < 0;
-                i = i_end; j = j_end;
-            }
-            else{
-                if(a[i] != b[j]) return (unsigned char)a[i] < (unsigned char)b[j];
-                i++; j++;
-            }
-        }
-        return a.size() - i < b.size() - j;
-    }
-
     template <typename DEVICE>
     void enumerate(DEVICE& device, const GLB& dataset, Corpus& corpus) {
-        corpus.references.clear();
-        if(!dataset.references.empty()){
-            corpus.references = dataset.references;
-            return;
-        }
-        for (const auto& entry : std::filesystem::directory_iterator(dataset.directory)) {
-            if (entry.is_regular_file() && entry.path().extension() == ".glb") {
-                corpus.references.push_back(entry.path().string());
-            }
-        }
-        std::sort(corpus.references.begin(), corpus.references.end(), natural_less);
-        utils::assert_exit(device, !corpus.references.empty(), "datasets::procthor::GLB: no .glb scenes found in directory");
+        using rl_tools::enumerate;
+        enumerate(device, rendering::datasets::glb::Dataset{dataset.directory, dataset.references}, corpus);
     }
 
     template <typename SHADING = rendering::VeryHigh, bool HAS_RGB = true, typename DEVICE, typename T, typename MODE = mode::Default<>>
@@ -86,7 +50,7 @@ namespace rl_tools::rendering::datasets::procthor {
                 corpus.references.push_back(entry.path().string());
             }
         }
-        std::sort(corpus.references.begin(), corpus.references.end(), natural_less);
+        std::sort(corpus.references.begin(), corpus.references.end(), rendering::datasets::natural_less);
         utils::assert_exit(device, !corpus.references.empty(), "datasets::procthor::AI2ThorHab: no scene_instance.json files found for split");
     }
 

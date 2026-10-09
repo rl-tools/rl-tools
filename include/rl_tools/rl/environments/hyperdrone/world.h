@@ -16,6 +16,7 @@
 
 #include <string>
 #include <vector>
+#include <memory>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools::rl::environments::hyperdrone {
@@ -167,6 +168,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         using LIBRARY = rendering::raytracing::AssetLibrary<rendering::raytracing::Specification<world::RendererConfig<SPEC>>>;
         using DRONE = hyperdrone::Drone<SPEC>;
         LIBRARY library;
+        std::shared_ptr<const rendering::SegmentationTaxonomy> segmentation_taxonomy;
         std::vector<std::string> pool_asset_paths;
         std::vector<rendering::raytracing::AssetHandle> pool_asset_handles;
         // opt-in: set the directory before init to persist and reuse free-space scans

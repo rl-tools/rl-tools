@@ -17,6 +17,7 @@ namespace rl_tools::rendering::datasets::procthor {
     struct Train200 {
         using LOADER = GLB;
         using Corpus = LOADER::Corpus;
+        static constexpr const char* SEGMENTATION_TAXONOMY = LOADER::SEGMENTATION_TAXONOMY;
         static constexpr const char* NAME = "procthor_train_200";
         static constexpr const char* SOURCE = "ai2thor-hab/ProcTHOR";
         static constexpr const char* SPLIT = "train";
