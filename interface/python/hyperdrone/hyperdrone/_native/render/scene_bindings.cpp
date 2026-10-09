@@ -13,6 +13,7 @@
 #include <rl_tools/rendering/rig/operations_cpu.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_common.h>
 #include <rl_tools/rendering/datasets/glb/operations_cpu.h>
+#include <rl_tools/rendering/datasets/procthor/catalog.h>
 
 #include "bindings.h"
 #include "rig_bindings.h"
@@ -146,9 +147,50 @@ static rrt::Mesh make_mesh(FloatArray vertices, nb::ndarray<const int32_t, nb::c
 
 void register_rig_bindings(nb::module_& m);
 
+static void register_dataset_bindings(nb::module_& m){
+    using SCENE = rlt::rendering::datasets::procthor::SceneReference;
+    using DATASET = rlt::rendering::datasets::procthor::Train200;
+    nb::class_<SCENE>(m, "SceneReference")
+        .def_ro("id", &SCENE::id)
+        .def_ro("reference", &SCENE::reference);
+    nb::class_<DATASET>(m, "Train200")
+        .def(nb::init<>())
+        .def_prop_ro("name", [](const DATASET&){ return DATASET::NAME; })
+        .def_prop_ro("source", [](const DATASET&){ return DATASET::SOURCE; })
+        .def_prop_ro("split", [](const DATASET&){ return DATASET::SPLIT; })
+        .def_prop_ro("representation", [](const DATASET&){ return DATASET::REPRESENTATION; })
+        .def_prop_ro("references", [](const DATASET&){
+            std::vector<std::string> references;
+            references.reserve(DATASET::NUM_SCENES);
+            for(const auto& scene : DATASET::SCENES){
+                references.emplace_back(scene.reference);
+            }
+            return references;
+        })
+        .def("__len__", [](const DATASET&){ return DATASET::NUM_SCENES; })
+        .def("__getitem__", [](const DATASET&, int64_t index){
+            if(index < 0){
+                index += static_cast<int64_t>(DATASET::NUM_SCENES);
+            }
+            if(index < 0 || index >= static_cast<int64_t>(DATASET::NUM_SCENES)){
+                throw nb::index_error("ProcTHOR scene index out of range");
+            }
+            return DATASET::SCENES[index];
+        })
+        .def("__getitem__", [](const DATASET&, const std::string& id){
+            for(const auto& scene : DATASET::SCENES){
+                if(scene.id == id){
+                    return scene;
+                }
+            }
+            throw nb::key_error(id.c_str());
+        });
+}
+
 NB_MODULE(hyperdrone_render_core, m){
     m.doc() = "Shared scene types and camera utilities for the RLtools raytracer";
     register_rig_bindings(m);
+    register_dataset_bindings(m);
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
     m.attr("HAS_CUDA") = true;
     hyperdrone::register_cuda_staging(m);
