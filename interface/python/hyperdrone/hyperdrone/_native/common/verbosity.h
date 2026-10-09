@@ -1,44 +1,52 @@
 #pragma once
-// Each extension module is loaded with local symbol visibility, so the level lives per module:
-// Python pushes it into every loaded module, which forwards it to the loggers of its devices.
+#include <rl_tools/rl_tools.h>
 #include <rl_tools/devices/cpu.h>
+#include <rl_tools/logging/operations_cpu.h>
 
-#include <set>
+#include <mutex>
 #include <stdexcept>
 
+namespace rl_tools::devices::logging {
+    struct Hyperdrone: CPU {};
+}
+
 namespace hyperdrone {
-    struct VerbosityRegistry {
-        rl_tools::devices::logging::Verbosity verbosity = rl_tools::devices::logging::Verbosity::info;
-        std::set<rl_tools::devices::logging::CPU*> loggers;
+    using CPUSpecification = rl_tools::devices::cpu::Specification<rl_tools::devices::math::CPU, rl_tools::devices::random::CPU, rl_tools::devices::logging::Hyperdrone>;
+
+    struct VerbosityState {
+        std::mutex mutex;
+        rl_tools::devices::logging::Verbosity level = rl_tools::devices::logging::Verbosity::info;
     };
 
-    inline VerbosityRegistry& verbosity_registry(){
-        static VerbosityRegistry registry;
-        return registry;
+    // Extensions have local symbol visibility: each owns a policy updated by Python.
+    inline VerbosityState& verbosity_state(){
+        static VerbosityState state;
+        return state;
     }
 
-    struct VerbosityRegistration {
-        rl_tools::devices::logging::CPU* logger;
-        explicit VerbosityRegistration(rl_tools::devices::logging::CPU& logger): logger(&logger){
-            logger.verbosity = verbosity_registry().verbosity;
-            verbosity_registry().loggers.insert(&logger);
-        }
-        ~VerbosityRegistration(){
-            verbosity_registry().loggers.erase(logger);
-        }
-        VerbosityRegistration(const VerbosityRegistration&) = delete;
-        VerbosityRegistration& operator=(const VerbosityRegistration&) = delete;
-    };
+    inline rl_tools::devices::logging::CPU diagnostic_logger(){
+        auto& state = verbosity_state();
+        std::lock_guard<std::mutex> lock(state.mutex);
+        rl_tools::devices::logging::CPU logger;
+        logger.verbosity = state.level;
+        return logger;
+    }
 
     inline void set_verbosity(int level){
         using Verbosity = rl_tools::devices::logging::Verbosity;
         if(level < (int)Verbosity::error || level > (int)Verbosity::debug){
             throw std::invalid_argument("hyperdrone: verbosity level out of range");
         }
-        auto& registry = verbosity_registry();
-        registry.verbosity = (Verbosity)level;
-        for(auto* logger : registry.loggers){
-            logger->verbosity = registry.verbosity;
-        }
+        auto& state = verbosity_state();
+        std::lock_guard<std::mutex> lock(state.mutex);
+        state.level = (Verbosity)level;
+    }
+}
+
+namespace rl_tools {
+    template <typename DEVICE, typename... ARGS>
+    void log(DEVICE& device, devices::logging::Hyperdrone& logger, devices::logging::Verbosity verbosity, const ARGS&... args){
+        auto snapshot = hyperdrone::diagnostic_logger();
+        log(device, snapshot, verbosity, args...);
     }
 }

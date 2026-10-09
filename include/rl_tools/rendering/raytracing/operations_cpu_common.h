@@ -350,8 +350,8 @@ namespace rl_tools {
                 }
             }
             log(device, device.logger, devices::logging::Verbosity::debug, rendering::raytracing::LOG_PREFIX, "Scene lights: ", lights.size());
-            for (size_t li = 0; li < lights.size(); li++) {
-                auto& sl = lights[li];
+            for(size_t li = 0; li < lights.size(); li++){
+                const auto& sl = lights[li];
                 log(device, device.logger, devices::logging::Verbosity::debug, rendering::raytracing::LOG_PREFIX, "  light ", li, ": pos=(", sl.position[0], ",", sl.position[1], ",", sl.position[2],
                     ") dir=(", sl.direction[0], ",", sl.direction[1], ",", sl.direction[2],
                     ") color=(", sl.color[0], ",", sl.color[1], ",", sl.color[2], ")");

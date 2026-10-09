@@ -2,11 +2,11 @@
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
 
+#include "verbosity.h"
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/rig/operations_cpu.h>
 
 #include "bindings.h"
-#include "verbosity.h"
 
 #include <cstring>
 #include <stdexcept>
@@ -23,11 +23,10 @@ namespace hyperdrone::rig_bindings {
     using OutputArray = nb::ndarray<float, nb::c_contig, nb::device::cpu>;
     using RIG_SPEC = rlt::rendering::rig::Specification<float, size_t, 64, 64>;
     using Joint = rlt::rendering::rig::Joint;
-    using DEVICE = rlt::devices::DEVICE_FACTORY<>;
+    using DEVICE = rlt::devices::DEVICE_FACTORY<hyperdrone::CPUSpecification>;
 
     inline DEVICE& device(){
         static DEVICE instance;
-        static VerbosityRegistration verbosity{instance.logger};
         return instance;
     }
 

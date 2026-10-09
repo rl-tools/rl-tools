@@ -19,6 +19,7 @@ import importlib.util
 import sys
 from dataclasses import dataclass, field
 
+from .. import _register_extension
 from . import _build
 from ._workspace import BuildError, build_dir, cache_root, native_root, source_root, workspace_tag
 
@@ -37,7 +38,6 @@ __all__ = [
 ]
 
 _core_modules = {}
-_logging_extensions = []
 
 
 @dataclass(frozen=True)
@@ -119,17 +119,8 @@ def _load_extension(name, path):
     extension = importlib.util.module_from_spec(specification)
     specification.loader.exec_module(extension)
     sys.modules[name] = extension
-    if hasattr(extension, "_set_verbosity"):
-        _logging_extensions.append(extension)
-        _apply_verbosity()
+    _register_extension(extension)
     return extension
-
-
-def _apply_verbosity():
-    from .. import _VERBOSITY_LEVELS, verbosity
-    level = _VERBOSITY_LEVELS.index(verbosity())
-    for extension in _logging_extensions:
-        extension._set_verbosity(level)
 
 
 def module(component, config):

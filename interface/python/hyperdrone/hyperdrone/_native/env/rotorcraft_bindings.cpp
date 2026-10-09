@@ -4,6 +4,7 @@
 #include <nanobind/ndarray.h>
 #include <nanobind/stl/optional.h>
 
+#include "../common/verbosity.h"
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rl/environments/hyperdrone/rig/operations_cpu.h>
 
