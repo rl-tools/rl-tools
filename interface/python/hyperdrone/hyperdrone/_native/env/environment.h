@@ -24,7 +24,7 @@
 #include <string>
 #include <vector>
 
-#if !defined(HYPERDRONE_ENV_NUM_ENVIRONMENTS) || !defined(HYPERDRONE_ENV_INSTANCES) || !defined(HYPERDRONE_ENV_CAM_WIDTH) || !defined(HYPERDRONE_ENV_CAM_HEIGHT) || !defined(HYPERDRONE_ENV_SHADING) || !defined(HYPERDRONE_ENV_HISTORY_LENGTH) || !defined(HYPERDRONE_ENV_PRESET) || !defined(HYPERDRONE_ENV_TASK) || !defined(HYPERDRONE_ENV_N_AGENTS) || !defined(HYPERDRONE_ENV_MAX_DRONES)
+#if !defined(HYPERDRONE_ENV_NUM_ENVIRONMENTS) || !defined(HYPERDRONE_ENV_INSTANCES) || !defined(HYPERDRONE_ENV_CAM_WIDTH) || !defined(HYPERDRONE_ENV_CAM_HEIGHT) || !defined(HYPERDRONE_ENV_SHADING) || !defined(HYPERDRONE_ENV_MB_SAMPLES) || !defined(HYPERDRONE_ENV_HISTORY_LENGTH) || !defined(HYPERDRONE_ENV_PRESET) || !defined(HYPERDRONE_ENV_TASK) || !defined(HYPERDRONE_ENV_N_AGENTS) || !defined(HYPERDRONE_ENV_MAX_DRONES)
 #error "every HYPERDRONE_ENV_* configuration define must be set (hyperdrone.env.EnvConfig.defines())"
 #endif
 
@@ -104,6 +104,8 @@ namespace HYPERDRONE_MODULE_NAME {
         static constexpr bool SELF_VISIBLE = HYPERDRONE_ENV_TASK != 3 && PRESET_SPEC::SELF_VISIBLE;
         static constexpr TI CAM_WIDTH = HYPERDRONE_ENV_CAM_WIDTH;
         static constexpr TI CAM_HEIGHT = HYPERDRONE_ENV_CAM_HEIGHT;
+        static constexpr bool ENABLE_MOTION_BLUR = HYPERDRONE_ENV_MB_SAMPLES > 1;
+        static constexpr TI MOTION_BLUR_SAMPLES = HYPERDRONE_ENV_MB_SAMPLES;
         static constexpr TI HISTORY_LENGTH = HYPERDRONE_ENV_HISTORY_LENGTH;
         static constexpr TI MAX_DRONES = HYPERDRONE_ENV_MAX_DRONES;
         using SHADING = rlt::utils::typing::conditional_t<HYPERDRONE_ENV_SHADING == 0, rlt::rendering::raytracing::Low,
