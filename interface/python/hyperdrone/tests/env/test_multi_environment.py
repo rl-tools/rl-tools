@@ -1,4 +1,6 @@
+import copy
 import os
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -78,6 +80,32 @@ def test_configurations_keep_independent_state(scene_directory):
         assert not np.array_equal(large.observe_privileged(), state)
     finally:
         large.close()
+
+
+def test_motion_blur_shutter_reset_and_determinism(scene_directory):
+    config = replace(CONFIG, motion_blur_samples=8)
+    assert config.key() != CONFIG.key()
+    records = []
+    for _ in range(2):
+        env = MultiEnvironment(scene_directory, config=config, seed=5)
+        try:
+            env.reset()
+            env.render()
+            for _ in range(10):
+                env.step(np.zeros((env.total_instances, env.action_dim), dtype=np.float32))
+            env.render()
+            blurred = env.observe()
+            state = env.observe_privileged()
+            env.render(np.ones(env.total_instances, dtype=bool))
+            sharp = env.observe()
+            np.testing.assert_array_equal(env.observe_privileged(), state)
+            assert np.isfinite(blurred).all()
+            assert not np.array_equal(blurred, sharp)
+            records.append((blurred, sharp))
+        finally:
+            env.close()
+    for first, second in zip(*records):
+        np.testing.assert_array_equal(first, second)
 
 
 def test_native_binding_rejects_invalid_buffers(scene_directory):
@@ -255,6 +283,9 @@ def test_gym_autoreset_observations_match_explicit_render(scene_directory, monke
 
 
 def test_config_validation_errors():
+    for samples in (0, -1, 3, 2.5, True):
+        with pytest.raises(ValueError, match="motion_blur_samples"):
+            EnvConfig(motion_blur_samples=samples)
     with pytest.raises(ValueError, match="unknown preset"):
         EnvConfig(preset="nonexistent")
     with pytest.raises(ValueError, match="unknown task"):
@@ -304,6 +335,52 @@ def drone_asset_path():
 
 
 CONFIG_DRONES = EnvConfig(instances=4, cam_width=16, cam_height=16, preset="x500_fpv")
+
+
+@pytest.mark.parametrize("task", [None, "target_frame"])
+def test_explicit_spawns_ignore_seed_and_preserve_mask(scene_directory, task):
+    config = EnvConfig(instances=2, cam_width=16, cam_height=16, preset="x500_fpv", motion_blur_samples=8, task=task)
+    drones = [{"asset": rigged_asset_path(name), "parameters": {"dynamics": {"dynamics": {"model": name}}}} for name in ("x500", "crazyflie")]
+    parameters = {"dynamics": {"mdp": {"init": {"max_linear_velocity": 0, "max_angular_velocity": 0, "min_rpm": 0, "max_rpm": 0}}}}
+    reference = None
+    for seed in (1, 123):
+        env = MultiEnvironment(scene_directory, config=config, seed=seed, drones=drones, parameters=parameters)
+        try:
+            if reference is None:
+                env.reset()
+                points = env.spawn_points()
+                for i, point in enumerate(points):
+                    point["drone"] = i
+            env.reset(spawn_points=points)
+            assert env.spawn_points() == points
+            assert [p["drone"] for p in env.instance_parameters()] == [0, 1]
+            assert [p["dynamics"]["dynamics"]["mass"] for p in env.instance_parameters()] == [d["parameters"]["dynamics"]["dynamics"]["mass"] for d in env.drones]
+            initial = env.frames().copy()
+            record = [initial, env.observe_privileged()]
+            for _ in range(3):
+                env.step(np.zeros((2, env.action_dim), dtype=np.float32))
+                record.extend((env.frames().copy(), env.observe_privileged()))
+            if reference is None:
+                reference = record
+            else:
+                for actual, expected in zip(record, reference):
+                    np.testing.assert_array_equal(actual, expected)
+            state = env.observe_privileged()
+            env.reset([True, False], spawn_points=[points[0]])
+            np.testing.assert_array_equal(env.observe_privileged()[1], state[1])
+            np.testing.assert_array_equal(env.frames()[0], initial[0])
+            env.reset([False, False], spawn_points=[])
+            state = env.observe_privileged()
+            for override in ({"scene": "wrong-room"}, {"drone": 2}, {"drone": -1}, {"poses": [[0] * 7]}, {"shutter_fraction": float("nan")}):
+                invalid = copy.deepcopy(points)
+                invalid[0].update(override)
+                with pytest.raises(ValueError):
+                    env.reset(spawn_points=invalid)
+                np.testing.assert_array_equal(env.observe_privileged(), state)
+            with pytest.raises(ValueError, match="one spawn"):
+                env.reset(spawn_points=points[:1])
+        finally:
+            env.close()
 
 
 def test_drones_table(scene_directory):

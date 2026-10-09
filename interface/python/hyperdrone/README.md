@@ -243,12 +243,16 @@ compiles and flies its header. The environment's raytracing backend follows
 `HYPERDRONE_RENDER_BACKEND` like the renderer.
 
 The target-frame task pre-renders its episode setups: a bank of one setup per instance
-(scene placement, camera, brightness and the target perturbations) is rendered in one pass
+(drone, scene placement, camera, brightness and the target perturbations) is rendered in one pass
 every `TARGET_BANK_REFRESH_STEPS` frames (a compile-time task constant, default 32) and after
 a scene change, and resets adopt the bank's setups in turn and copy their frames, so a reset
 adds no render pass of its own; resets beyond the instance count within one refresh reuse
-setups. Each episode's camera comes from its setup, so `set_instance_parameters` rejects
-camera overrides for this task.
+setups. Each episode's drone and camera come from its setup, so `set_instance_parameters`
+rejects drone and camera overrides for this task; a replayed spawn re-renders its target frame.
+
+`EnvConfig(motion_blur_samples=8)` enables camera and propeller motion blur for presets and tasks; valid counts are 1 (default, disabled), 2, 4, 8, 16, and 32. Custom spec headers control `ENABLE_MOTION_BLUR` and `MOTION_BLUR_SAMPLES` directly.
+
+For repeatable shots, capture `points = env.spawn_points()` after a reset and save the returned dictionaries, then use `env.reset(mask, spawn_points=points)` with one entry per selected instance (a host mask). Each entry pins the active scene by content hash, drone index, scene translation/yaw, per-agent pose (`xyz, wxyz`), and shutter fraction. The reset uses constructor-supplied drone dynamics and camera mounts; velocity/motor initialization and task-specific randomization still follow their configured ranges. Scene changes remain explicit through `rotate_scene()`; a shot for a different active scene is rejected.
 
 Manual composition of `Sim` and `Renderer` (no MDP — rendering research, data
 generation) remains first-class: see `python -m hyperdrone.examples.drone_flythrough`

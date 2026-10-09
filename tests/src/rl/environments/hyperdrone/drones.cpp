@@ -278,6 +278,20 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES, TARGET_FRAME_BANK_CARRIES_THE_D
                 counts[actual.drone]++;
             }
         }
+        // re-rendering the reset instances' targets from their adopted parameters reproduces the
+        // bank frames they copied and leaves the others alone
+        std::vector<float> copied(INSTANCES * WORLD::FRAME_DIM);
+        for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
+            for(TI element_i = 0; element_i < WORLD::FRAME_DIM; element_i++){
+                copied[instance_i * WORLD::FRAME_DIM + element_i] = rlt::get(device, world.target_frames, instance_i, element_i);
+            }
+        }
+        rlt::render_target_frames(device, world, parameters, mask);
+        for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
+            for(TI element_i = 0; element_i < WORLD::FRAME_DIM; element_i++){
+                ASSERT_EQ(rlt::get(device, world.target_frames, instance_i, element_i), copied[instance_i * WORLD::FRAME_DIM + element_i]) << "instance " << instance_i << " element " << element_i;
+            }
+        }
         rlt::sample_initial_state(device, world, parameters, states, mask, rng);
         rlt::render(device, world, parameters, states, mask);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){

@@ -102,6 +102,7 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
         .def("parameters", &Environment::parameters_json, nb::call_guard<nb::gil_scoped_release>())
         .def("drones", &Environment::drones_json, nb::call_guard<nb::gil_scoped_release>())
         .def("instance_parameters", &Environment::instance_parameters_json, nb::call_guard<nb::gil_scoped_release>())
+        .def("spawn_points", &Environment::spawn_points_json, nb::call_guard<nb::gil_scoped_release>())
         .def("set_instance_parameters", [](Environment& self, HostMask mask, const std::string& json){
             check_size(mask, TOTAL);
             nb::gil_scoped_release release;
@@ -109,12 +110,12 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
         }, nb::arg("mask").noconvert(), nb::arg("json"))
         .def("model", &Environment::model, nb::arg("name"), nb::call_guard<nb::gil_scoped_release>())
         .def("rotate_scene", &Environment::rotate_scene, nb::call_guard<nb::gil_scoped_release>())
-        .def("reset", [](Environment& self, std::optional<Mask> mask){
+        .def("reset", [](Environment& self, std::optional<Mask> mask, const std::string& spawn_points){
             const bool in_place = !mask || resident(self, *mask, TOTAL);
             const bool* pointer = mask ? mask->data() : nullptr;
             nb::gil_scoped_release release;
-            self.reset(pointer, in_place);
-        }, nb::arg("mask").none().noconvert())
+            self.reset(pointer, in_place, spawn_points);
+        }, nb::arg("mask").none().noconvert(), nb::arg("spawn_points") = "")
         .def("render", [](Environment& self, std::optional<Mask> mask){
             const bool in_place = !mask || resident(self, *mask, TOTAL);
             const bool* pointer = mask ? mask->data() : nullptr;
