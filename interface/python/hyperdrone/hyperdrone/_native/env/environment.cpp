@@ -78,17 +78,18 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
         .def("parameters", &Environment::parameters_json, nb::call_guard<nb::gil_scoped_release>())
         .def("drones", &Environment::drones_json, nb::call_guard<nb::gil_scoped_release>())
         .def("instance_parameters", &Environment::instance_parameters_json, nb::call_guard<nb::gil_scoped_release>())
+        .def("spawn_points", &Environment::spawn_points_json, nb::call_guard<nb::gil_scoped_release>())
         .def("set_instance_parameters", [](Environment& self, Mask mask, const std::string& json){
             check_size(mask, TOTAL);
             nb::gil_scoped_release release;
             self.set_instance_parameters(mask.data(), json);
         }, nb::arg("mask").noconvert(), nb::arg("json"))
         .def("model", &Environment::model, nb::arg("name"), nb::call_guard<nb::gil_scoped_release>())
-        .def("reset", [](Environment& self, Mask mask){
+        .def("reset", [](Environment& self, Mask mask, const std::string& spawn_points){
             check_size(mask, TOTAL);
             nb::gil_scoped_release release;
-            self.reset(mask.data());
-        }, nb::arg("mask").noconvert())
+            self.reset(mask.data(), spawn_points);
+        }, nb::arg("mask").noconvert(), nb::arg("spawn_points") = "")
         .def("render", [](Environment& self, Mask mask){
             check_size(mask, TOTAL);
             nb::gil_scoped_release release;
