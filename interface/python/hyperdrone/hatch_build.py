@@ -27,8 +27,11 @@ class VendorRlToolsHook(BuildHookInterface):
         force_include = build_data.setdefault("force_include", {})
         for entry in VENDOR_MANIFEST:
             source = repository / entry
-            if source.exists():
-                force_include[str(source)] = f"hyperdrone/_vendor/rl-tools/{entry}"
+            sources = sorted(source.rglob("*")) if source.is_dir() else [source]
+            for path in sources:
+                target = f"hyperdrone/_vendor/rl-tools/{path.relative_to(repository).as_posix()}"
+                if path.is_file() and not self.build_config.path_is_excluded(target):
+                    force_include[str(path)] = target
 
     def _repository_root(self):
         candidate = Path(self.root)
