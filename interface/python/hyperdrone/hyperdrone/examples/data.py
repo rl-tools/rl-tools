@@ -15,6 +15,7 @@ RIGGED_MODELS = {
     "crazyflie_brushless": {"description": "rigged/crazyflie_brushless.glb", "hash": "eedb897237c1d77ed8ef0681554d92d06a7c27ca"},
     "crazyflie": {"description": "rigged/crazyflie.glb", "hash": "87d2b8b1d518445872d34906320a76656731902f"},
     "soft": {"description": "rigged/soft.glb", "hash": "fcdf53a791f313b9bb07f775b10b9e4c2bfa0ae9"},
+    "savagebee_pusher": {"description": "rigged/savagebee_pusher.glb", "hash": "fd4eddc7c4a3f74e51823a2fa392bb96e095e53e"},
     "x500": {"description": "rigged/x500.glb", "hash": "f6681e7a8b7fa7ef023bedcd795981becb731d0e"},
 }
 X500_MODEL = RIGGED_MODELS["x500"]

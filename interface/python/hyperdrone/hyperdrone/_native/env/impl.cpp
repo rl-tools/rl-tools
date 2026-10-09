@@ -143,8 +143,6 @@ namespace HYPERDRONE_MODULE_NAME {
         }
     };
 
-    // one schema for the nominal, the drone table and the per-instance parameters: {"dynamics":
-    // <l2f parameters>, "camera": {...}}; instances also carry "drone", their table entry
     template <typename DYNAMICS_PARAMETERS>
     std::string parameters_to_json(Environment::Impl& impl, const DYNAMICS_PARAMETERS& dynamics, const rlt::rl::environments::hyperdrone::Camera<T>& camera, std::optional<TI> drone = std::nullopt){
         const auto& world = impl.env.environments[0];
@@ -179,6 +177,11 @@ namespace HYPERDRONE_MODULE_NAME {
         const auto& drones = impl.env.shared.drones;
         if(drones.empty() || drones.size() > SPEC::MAX_DRONES){
             throw std::invalid_argument("hyperdrone: the drone table needs 1 to " + std::to_string(SPEC::MAX_DRONES) + " entries");
+        }
+        for(const auto& drone : drones){
+            if(drone.parameters.dynamics.integration.dt != drones[0].parameters.dynamics.integration.dt){
+                throw std::invalid_argument("hyperdrone: every drone must use the same integration timestep");
+            }
         }
         if constexpr (SPEC::SELF_VISIBLE){
             TI parts = 0;
@@ -324,7 +327,7 @@ namespace HYPERDRONE_MODULE_NAME {
     }
     std::string Environment::parameters_json(){
         const auto& world = impl->env.environments[0];
-        return parameters_to_json(*impl, world.dynamics.parameters, world.parameters.camera);
+        return parameters_to_json(*impl, world.dynamics.parameters, world.parameters.agents[0].camera);
     }
     std::string Environment::drones_json(){
         std::string value = "[";
@@ -341,7 +344,17 @@ namespace HYPERDRONE_MODULE_NAME {
         std::string value = "[";
         for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
             const auto& instance = rlt::get_ref(impl->host(), parameters, instance_i);
-            value += (instance_i > 0 ? ", " : "") + parameters_to_json(*impl, instance.dynamics, instance.camera, instance.drone);
+            value += instance_i > 0 ? ", " : "";
+            if constexpr (WORLD::N_AGENTS > 1){
+                value += "{\"agents\": [";
+            }
+            for(TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++){
+                const auto& agent = instance.agents[agent_i];
+                value += (agent_i > 0 ? ", " : "") + parameters_to_json(*impl, agent.dynamics, agent.camera, agent.drone);
+            }
+            if constexpr (WORLD::N_AGENTS > 1){
+                value += "]}";
+            }
         }
         value += "]";
         return value;
@@ -355,11 +368,24 @@ namespace HYPERDRONE_MODULE_NAME {
             if(mask[instance_i]){
                 updated.push_back(rlt::get_ref(impl->host(), parameters, instance_i));
                 const auto& entry = entries.at(updated.size() - 1);
-                parameters_from_json(*impl, entry, updated.back().dynamics, updated.back().camera);
-                if(entry.contains("drone")){
-                    updated.back().drone = entry.at("drone").get<TI>();
-                    if(updated.back().drone >= impl->env.shared.num_drones){
-                        throw std::invalid_argument("hyperdrone: drone must index the drone table");
+                if constexpr (WORLD::N_AGENTS > 1){
+                    if(!entry.at("agents").is_array() || entry.at("agents").size() != WORLD::N_AGENTS){
+                        throw std::invalid_argument("hyperdrone: instance parameters need one entry per agent");
+                    }
+                }
+                for(TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++){
+                    const auto& agent_entry = WORLD::N_AGENTS == 1 ? entry : entry.at("agents").at(agent_i);
+                    auto& agent = updated.back().agents[agent_i];
+                    parameters_from_json(*impl, agent_entry, agent.dynamics, agent.camera);
+                    if(agent.dynamics.integration.dt != impl->env.environments[0].dynamics.parameters.integration.dt){
+                        throw std::invalid_argument("hyperdrone: every drone must use the same integration timestep");
+                    }
+                    if(agent_entry.contains("drone")){
+                        const auto drone = agent_entry.at("drone").get<long long>();
+                        if(drone < 0 || drone >= (long long)impl->env.shared.num_drones){
+                            throw std::invalid_argument("hyperdrone: drone must index the drone table");
+                        }
+                        agent.drone = (TI)drone;
                     }
                 }
             }
@@ -400,9 +426,19 @@ namespace HYPERDRONE_MODULE_NAME {
                 const auto& state = rlt::rl::environments::hyperdrone::_agent_state<typename WORLD::SPEC>(rlt::get_ref(impl->host(), states, instance_i), agent_i);
                 poses.push_back({state.position[0], state.position[1], state.position[2], state.orientation[0], state.orientation[1], state.orientation[2], state.orientation[3]});
             }
-            entries.push_back({{"scene", world.slots[world.active_slot].metadata.content_hash}, {"drone", instance.drone},
-                               {"scene_translation", instance.scene_translation}, {"scene_yaw", {instance.scene_yaw_cos, instance.scene_yaw_sin}},
-                               {"poses", poses}, {"shutter_fraction", instance.shutter_fraction}});
+            nlohmann::json entry = {{"scene", world.slots[world.active_slot].metadata.content_hash},
+                                   {"scene_translation", instance.scene_translation}, {"scene_yaw", {instance.scene_yaw_cos, instance.scene_yaw_sin}},
+                                   {"poses", poses}, {"shutter_fraction", instance.shutter_fraction}};
+            if constexpr (WORLD::N_AGENTS == 1){
+                entry["drone"] = instance.agents[0].drone;
+            }
+            else{
+                entry["drones"] = nlohmann::json::array();
+                for(const auto& agent : instance.agents){
+                    entry["drones"].push_back(agent.drone);
+                }
+            }
+            entries.push_back(entry);
         }
         return entries.dump();
     }
@@ -411,7 +447,7 @@ namespace HYPERDRONE_MODULE_NAME {
         const CurrentDevice current(impl->device_id);
         struct Spawn {
             TI instance;
-            TI drone;
+            std::array<TI, WORLD::N_AGENTS> drones;
             std::array<T, 3> translation;
             std::array<T, 2> yaw;
             std::array<std::array<T, 7>, WORLD::N_AGENTS> poses;
@@ -427,14 +463,24 @@ namespace HYPERDRONE_MODULE_NAME {
                 if(mask == nullptr || mask[instance_i]){
                     const auto& entry = entries.at(spawns.size());
                     const auto& world = impl->env.environments[instance_i / WORLD::INSTANCES];
-                    const auto drone = entry.at("drone").get<long long>();
-                    if(drone < 0 || drone >= (long long)impl->env.shared.drones.size()){
-                        throw std::invalid_argument("hyperdrone: spawn drone is outside the drones table");
+                    if constexpr (WORLD::N_AGENTS > 1){
+                        if(!entry.at("drones").is_array() || entry.at("drones").size() != WORLD::N_AGENTS){
+                            throw std::invalid_argument("hyperdrone: spawn needs one drone index per agent");
+                        }
+                    }
+                    std::array<TI, WORLD::N_AGENTS> drones;
+                    for(TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++){
+                        const auto& value = WORLD::N_AGENTS == 1 ? entry.at("drone") : entry.at("drones").at(agent_i);
+                        const auto drone = value.get<long long>();
+                        if(drone < 0 || drone >= (long long)impl->env.shared.drones.size()){
+                            throw std::invalid_argument("hyperdrone: spawn drone is outside the drones table");
+                        }
+                        drones[agent_i] = (TI)drone;
                     }
                     if(entry.at("scene") != world.slots[world.active_slot].metadata.content_hash){
                         throw std::invalid_argument("hyperdrone: spawn scene does not match the active scene");
                     }
-                    spawns.push_back({instance_i, (TI)drone, entry.at("scene_translation").get<std::array<T, 3>>(),
+                    spawns.push_back({instance_i, drones, entry.at("scene_translation").get<std::array<T, 3>>(),
                                       entry.at("scene_yaw").get<std::array<T, 2>>(),
                                       entry.at("poses").get<std::array<std::array<T, 7>, WORLD::N_AGENTS>>(),
                                       entry.at("shutter_fraction").get<T>()});
@@ -451,10 +497,13 @@ namespace HYPERDRONE_MODULE_NAME {
             auto& parameters = impl->parameters_on_host();
             for(const auto& spawn : spawns){
                 auto& instance = rlt::get_ref(impl->host(), parameters, spawn.instance);
-                const auto& nominal = impl->env.shared.drones[spawn.drone].parameters;
-                instance.drone = spawn.drone;
-                instance.dynamics = nominal.dynamics;
-                instance.camera = nominal.camera;
+                for(TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++){
+                    auto& agent = instance.agents[agent_i];
+                    const auto& nominal = impl->env.shared.drones[spawn.drones[agent_i]].parameters;
+                    agent.drone = spawn.drones[agent_i];
+                    agent.dynamics = nominal.dynamics;
+                    agent.camera = nominal.camera;
+                }
                 instance.brightness_scale = 1;
             }
             impl->publish_parameters_from_host();

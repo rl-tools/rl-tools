@@ -112,7 +112,7 @@ def test_object_flow_and_semantic_labels():
 
 
 def test_cuda_output_dlpack():
-    if render.backend() != "OPTIX":
+    if render._backend() != "OPTIX":
         pytest.skip("CUDA DLPack requires OptiX")
     torch = pytest.importorskip("torch")
     if not torch.cuda.is_available():

@@ -44,7 +44,7 @@ namespace rl_tools{
                 T phase_open = state.gate_phase;
                 if constexpr(NEXT_WORLD::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR){
                     constexpr T TWO_PI = (T)2 * math::PI<T>;
-                    const T dt = instance_parameters.dynamics.integration.dt;
+                    const T dt = instance_parameters.agents[0].dynamics.integration.dt;
                     phase_open = state.gate_phase - TWO_PI * instance_parameters.gate_frequency * dt * instance_parameters.shutter_fraction;
                 }
                 float pose_open[12], pose_close[12];
@@ -62,7 +62,7 @@ namespace rl_tools{
             TI instance_i = threadIdx.x + blockIdx.x * blockDim.x;
             if(instance_i < INSTANCES){
                 const auto& instance_parameters = get_ref(device, parameters, instance_i);
-                _gate_step<DEVICE, TASK_SPEC>(device, instance_parameters, get_ref(device, states, instance_i), get_ref(device, next_states, instance_i), instance_parameters.dynamics.integration.dt);
+                _gate_step<DEVICE, TASK_SPEC>(device, instance_parameters, get_ref(device, states, instance_i), get_ref(device, next_states, instance_i), instance_parameters.agents[0].dynamics.integration.dt);
             }
         }
         template <typename DEVICE, typename TASK_SPEC, typename STATE_SPEC, typename NEXT_STATE_SPEC, typename REWARD_SPEC>

@@ -11,7 +11,7 @@ from hyperdrone.env import EnvConfig, MultiEnvironment
 from hyperdrone.jit import source_root
 
 pytestmark = pytest.mark.skipif(
-    render.backend() != "OPTIX",
+    render._backend() != "OPTIX",
     reason="the device-resident environment needs the OptiX backend",
 )
 

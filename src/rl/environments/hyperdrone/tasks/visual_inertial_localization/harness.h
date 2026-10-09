@@ -133,20 +133,20 @@ namespace hyperdrone_vio {
 
         const typename WORLD::Parameters reference_parameters = rlt::get(device, tensors.parameters, (TI)0);
         EpisodeInfo<WORLD> info;
-        info.dt = reference_parameters.dynamics.integration.dt;
+        info.dt = reference_parameters.agents[0].dynamics.integration.dt;
         for(TI dim_i = 0; dim_i < 3; dim_i++){
-            info.gravity[dim_i] = reference_parameters.dynamics.dynamics.gravity[dim_i];
+            info.gravity[dim_i] = reference_parameters.agents[0].dynamics.dynamics.gravity[dim_i];
         }
-        info.intrinsics = task::pinhole_intrinsics(device, (TI)WORLD::SPEC::CAM_WIDTH, (TI)WORLD::SPEC::CAM_HEIGHT, reference_parameters.camera.fov);
-        task::camera_to_body_transform(device, reference_parameters.camera.mount, info.camera_rotation_body, info.camera_translation_body);
+        info.intrinsics = task::pinhole_intrinsics(device, (TI)WORLD::SPEC::CAM_WIDTH, (TI)WORLD::SPEC::CAM_HEIGHT, reference_parameters.agents[0].camera.fov);
+        task::camera_to_body_transform(device, reference_parameters.agents[0].camera.mount, info.camera_rotation_body, info.camera_translation_body);
         info.imu_rate = (T)1 / info.dt;
         info.frame_rate = info.imu_rate / (T)WORLD::FRAME_STRIDE;
         {
             T sqrt_dt = rlt::math::sqrt(device.math, info.dt);
-            info.gyro_noise_density = reference_parameters.dynamics.imu.gyro.error.noise.std * sqrt_dt;
-            info.gyro_random_walk = reference_parameters.dynamics.imu.gyro.error.bias.sigma;
-            info.accelerometer_noise_density = reference_parameters.dynamics.imu.accelerometer.error.noise.std * sqrt_dt;
-            info.accelerometer_random_walk = reference_parameters.dynamics.imu.accelerometer.error.bias.sigma;
+            info.gyro_noise_density = reference_parameters.agents[0].dynamics.imu.gyro.error.noise.std * sqrt_dt;
+            info.gyro_random_walk = reference_parameters.agents[0].dynamics.imu.gyro.error.bias.sigma;
+            info.accelerometer_noise_density = reference_parameters.agents[0].dynamics.imu.accelerometer.error.noise.std * sqrt_dt;
+            info.accelerometer_random_walk = reference_parameters.agents[0].dynamics.imu.accelerometer.error.bias.sigma;
         }
         sink.begin(info);
         // exact step period for timestamping: the float dt (e.g. 0.005f) carries rounding that

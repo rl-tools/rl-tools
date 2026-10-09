@@ -22,7 +22,7 @@ def resolve_auto_backend():
     return "GENERIC"
 
 
-def backend():
+def _backend():
     value = os.environ.get("HYPERDRONE_RENDER_BACKEND", "AUTO").upper()
     if value == "AUTO":
         value = resolve_auto_backend()
@@ -34,7 +34,7 @@ def backend():
 
 
 def component():
-    resolved = backend()
+    resolved = _backend()
     return jit.Component(
         name="render",
         variant=resolved.lower(),

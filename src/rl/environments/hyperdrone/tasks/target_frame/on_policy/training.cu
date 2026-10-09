@@ -183,19 +183,19 @@ std::string trajectory_episodes_to_json(DEVICE& device, TASK_WORLD& env,
     for(TI ep_i = 0; ep_i < episodes.size(); ep_i++){
         auto& episode = episodes[ep_i];
         const auto& parameters = episode.front().parameters;
-        std::string parameters_json = rlt::json(device, env.dynamics, parameters.dynamics);
+        std::string parameters_json = rlt::json(device, env.dynamics, parameters.agents[0].dynamics);
         parameters_json = parameters_json.substr(0, parameters_json.size() - 1);
         parameters_json += ", \"visual\": {\"scene_translation\": [" + std::to_string(parameters.scene_translation[0]) + ", " + std::to_string(parameters.scene_translation[1]) + ", " + std::to_string(parameters.scene_translation[2]) + "]"
             + ", \"scene_yaw\": " + std::to_string(rlt::math::atan2(device.math, parameters.scene_yaw_sin, parameters.scene_yaw_cos))
             + ", \"scene_hash\": \"" + episode.front().scene_hash + "\""
             + ", \"cam_width\": " + std::to_string(WORLD_SPEC::CAM_WIDTH)
             + ", \"cam_height\": " + std::to_string(WORLD_SPEC::CAM_HEIGHT)
-            + ", \"fov\": " + std::to_string(parameters.camera.fov) + "}}";
+            + ", \"fov\": " + std::to_string(parameters.agents[0].camera.fov) + "}}";
         json += "{\"parameters\": " + parameters_json + ",\n";
         json += "\"trajectory\": [";
         for(TI step_i = 0; step_i < max_len; step_i++){
             auto& s = (step_i < episode.size()) ? episode[step_i] : episode.back();
-            json += "{\"state\":" + rlt::json(device, env.dynamics, parameters.dynamics, s.state) + ",";
+            json += "{\"state\":" + rlt::json(device, env.dynamics, parameters.agents[0].dynamics, s.state) + ",";
             json += "\"action\":[";
             for(TI a = 0; a < ENVIRONMENT::ACTION_DIM; a++){
                 json += std::to_string(s.actions[a]);
@@ -496,7 +496,7 @@ int main(int argc, char** argv){
     for(TI member_i = 0; member_i < NUMBER_OF_ENVIRONMENTS; member_i++){
         auto& world = env.environments[member_i];
         world.rng_offset = member_i * N_ENVIRONMENTS_PER_SCENE;
-        world.parameters.camera.fov = CAMERA_FOV;
+        world.parameters.agents[0].camera.fov = CAMERA_FOV;
         rlt::init(device_gpu, world, env.shared, scene_dataset, scene_corpus, (TI)0, N_TOTAL_SCENES, member_i);
     }
     std::cout << "Loaded " << N_TOTAL_SCENES << " scenes" << std::endl;
@@ -890,7 +890,7 @@ int main(int argc, char** argv){
             for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
                 rlt::set(reward_log_action, 0, action_i, rlt::get(dataset.actions, REWARD_LOG_POS, action_i));
             }
-            rlt::log_reward(device, env.environments[0].dynamics, reward_log_parameters.dynamics, reward_log_state, reward_log_action, reward_log_next_state, reward_log_rng);
+            rlt::log_reward(device, env.environments[0].dynamics, reward_log_parameters.agents[0].dynamics, reward_log_state, reward_log_action, reward_log_next_state, reward_log_rng);
         }
 
         // Episode statistics + log

@@ -1,4 +1,5 @@
 import copy
+import json
 import os
 from dataclasses import replace
 from pathlib import Path
@@ -26,18 +27,22 @@ def scene_directory(tmp_path_factory):
 CONFIG = EnvConfig(num_environments=1, instances=2, cam_width=32, cam_height=32, shading="low")
 
 
-def test_environment_verbosity(scene_directory, capfd):
+def test_environment_verbosity(scene_directory, capfd, monkeypatch):
     previous = hyperdrone.verbosity()
     try:
         for level in ("warning", "debug"):
             hyperdrone.set_verbosity(level)
             environment = MultiEnvironment(scene_directory, config=CONFIG, seed=0)
             try:
+                backend = environment.render_backend
+                with monkeypatch.context() as context:
+                    context.setenv("HYPERDRONE_RENDER_BACKEND", "INVALID")
+                    assert environment.render_backend == backend
                 output = capfd.readouterr().err
                 if level == "warning":
                     assert "#rl_tools::rendering::" not in output
                 else:
-                    assert "#rl_tools::rendering::raytracing: backend=" in output
+                    assert f"#rl_tools::rendering::raytracing: backend={backend}" in output
                     assert "#rl_tools::rendering::datasets: Loaded" in output
             finally:
                 environment.close()
@@ -319,6 +324,8 @@ def test_config_validation_errors():
         EnvConfig(device="tpu")
     with pytest.raises(ValueError, match="single-agent"):
         EnvConfig(preset="x500_fpv", task="target_frame", n_agents=2)
+    with pytest.raises(ValueError, match="single-agent"):
+        EnvConfig(preset="x500_fpv", task="moving_gate", n_agents=2)
     with pytest.raises(ValueError, match="no CUDA verbs"):
         EnvConfig(preset="x500_fpv_imu", task="visual_inertial_localization", device="cuda")
     assert EnvConfig(spec_header=__file__).world_device == "cpu"
@@ -356,6 +363,104 @@ def drone_asset_path():
 
 
 CONFIG_DRONES = EnvConfig(instances=4, cam_width=16, cam_height=16, preset="x500_fpv")
+CONFIG_MULTI_AGENT = EnvConfig(instances=2, n_agents=7, cam_width=16, cam_height=16, shading="low", preset="x500_fpv")
+
+
+def mixed_drones():
+    return [{"asset": rigged_asset_path(name), "parameters": {"dynamics": {"dynamics": {"model": name}}, "camera": {"fov": fov}}}
+            for name, fov in (("x500", 90), ("crazyflie", 70))]
+
+
+def test_multi_agent_parameters(scene_directory):
+    env = MultiEnvironment(scene_directory, config=CONFIG_MULTI_AGENT, seed=5, drones=mixed_drones())
+    try:
+        env.reset()
+        table = env.drones
+        sampled = env.instance_parameters()
+        assert all(set(instance) == {"agents"} and len(instance["agents"]) == env.n_agents for instance in sampled)
+        assert any(len({agent["drone"] for agent in instance["agents"]}) > 1 for instance in sampled)
+        for instance in sampled:
+            for agent in instance["agents"]:
+                assert agent == {**table[agent["drone"]]["parameters"], "drone": agent["drone"]}
+        choices = [index % len(table) for index in range(env.n_agents)]
+        env.set_instance_parameters({"agents": [{"drone": drone} for drone in choices]}, mask=[True, False])
+        selected = env.instance_parameters()
+        assert selected[1] == sampled[1]
+        assert selected[0]["agents"] == [{**table[drone]["parameters"], "drone": drone} for drone in choices]
+        overrides = [{"agents": [{"camera": {"fov": 45}}] + [{}] * (env.n_agents - 1)},
+                     {"agents": [{}] * env.n_agents}]
+        env.set_instance_parameters(overrides)
+        changed = env.instance_parameters()
+        assert changed[0]["agents"][0]["camera"]["fov"] == 45
+        assert changed[0]["agents"][1:] == selected[0]["agents"][1:]
+        assert changed[1] == selected[1]
+        valid = {"agents": [{"camera": {"fov": 30}}] + [{}] * (env.n_agents - 1)}
+        for invalid in ({"drone": 0}, {"agents": [{}]}, {"agents": [{}] * (env.n_agents - 1) + [None]},
+                        {"agents": [{}] * (env.n_agents - 1) + [{"drone": len(table)}]},
+                        {"agents": [{}] * (env.n_agents - 1) + [{"dynamics": {"integration": {"dt": 0.1}}}]}):
+            with pytest.raises(ValueError):
+                env.set_instance_parameters([valid, invalid])
+            assert env.instance_parameters() == changed
+        native_updates = copy.deepcopy(changed)
+        native_updates[0]["agents"][0]["camera"]["fov"] = 30
+        native_updates[1]["agents"][-1]["dynamics"]["integration"]["dt"] *= 2
+        with pytest.raises(ValueError, match="same integration timestep"):
+            env._environment.set_instance_parameters(np.ones(env.total_instances, dtype=bool), json.dumps(native_updates))
+        assert env.instance_parameters() == changed
+        states = env.observe_privileged()
+        assert states.shape == (env.total_instances, env.n_agents * 18)
+        assert env.action_dim == env.n_agents * 4
+        assert env.frames().shape == (env.total_instances, env.n_agents * env.cam_height, env.cam_width, 3)
+        env.step(np.zeros((env.total_instances, env.action_dim), dtype=np.float32))
+        assert np.isfinite(env.observe_privileged()).all()
+        assert np.isfinite(env.rewards()).all()
+    finally:
+        env.close()
+
+
+def test_multi_agent_spawn_replay(scene_directory):
+    parameters = {"dynamics": {"mdp": {"init": {"max_linear_velocity": 0, "max_angular_velocity": 0, "min_rpm": 0, "max_rpm": 0}}}}
+    reference = None
+    for seed in (1, 123):
+        env = MultiEnvironment(scene_directory, config=CONFIG_MULTI_AGENT, seed=seed, drones=mixed_drones(), parameters=parameters)
+        try:
+            if reference is None:
+                env.reset()
+                points = env.spawn_points()
+                for point in points:
+                    assert "drone" not in point
+                    point["drones"] = [index % 2 for index in range(env.n_agents)]
+            env.reset(spawn_points=points)
+            assert env.spawn_points() == points
+            for instance, point in zip(env.instance_parameters(), points):
+                assert [agent["drone"] for agent in instance["agents"]] == point["drones"]
+                for agent in instance["agents"]:
+                    assert agent == {**env.drones[agent["drone"]]["parameters"], "drone": agent["drone"]}
+            initial = env.frames().copy()
+            record = [initial, env.observe_privileged()]
+            for _ in range(3):
+                env.step(np.zeros((env.total_instances, env.action_dim), dtype=np.float32))
+                record.extend((env.frames().copy(), env.observe_privileged()))
+            if reference is None:
+                reference = record
+            else:
+                for actual, expected in zip(record, reference):
+                    np.testing.assert_array_equal(actual, expected)
+            state = env.observe_privileged()
+            env.reset([True, False], spawn_points=[points[0]])
+            np.testing.assert_array_equal(env.observe_privileged()[1], state[1])
+            np.testing.assert_array_equal(env.frames()[0], initial[0])
+            state = env.observe_privileged()
+            sampled = env.instance_parameters()
+            for model_indices in ([0], 0, [0] * (env.n_agents - 1) + [-1], [0] * (env.n_agents - 1) + [2], [0.0] * env.n_agents):
+                invalid = copy.deepcopy(points)
+                invalid[-1]["drones"] = model_indices
+                with pytest.raises(ValueError):
+                    env.reset(spawn_points=invalid)
+                np.testing.assert_array_equal(env.observe_privileged(), state)
+                assert env.instance_parameters() == sampled
+        finally:
+            env.close()
 
 
 @pytest.mark.parametrize("task", [None, "target_frame"])

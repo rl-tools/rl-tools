@@ -27,7 +27,7 @@ print(f"HYPERDRONE_TEST_BACKEND={second.backend}")
         text=True,
         env=os.environ.copy(),
     )
-    expected_backend = render.backend().lower()
+    expected_backend = render._backend().lower()
     announcement = f"#rl_tools::rendering::raytracing: backend={expected_backend}"
     announcements = [
         line
@@ -72,7 +72,7 @@ del quiet, loud
     prefix = "#rl_tools::rendering::raytracing: "
     messages = [line.removeprefix(prefix) for line in result.stderr.splitlines()
                 if line.startswith((prefix + "Generated", prefix + "backend="))]
-    assert messages == ["Generated 1 probe directions per camera", f"backend={render.backend().lower()}",
+    assert messages == ["Generated 1 probe directions per camera", f"backend={render._backend().lower()}",
                         "Generated 1 probe directions per camera", "Generated 1 probe directions per camera"]
 
 
@@ -611,7 +611,7 @@ def test_dlpack_camera_input():
     assert abs(renderer.depth()[0, 8, 8] - 2.0) < 1e-2
 
 
-@pytest.mark.skipif(render.backend() != "OPTIX", reason="device camera input requires the OptiX backend")
+@pytest.mark.skipif(render._backend() != "OPTIX", reason="device camera input requires the OptiX backend")
 def test_device_camera_input():
     renderer = render.Renderer(width=32, height=32, num_cameras=2, output="depth", fidelity="low")
     renderer.init(make_scene(2.0))

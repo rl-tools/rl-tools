@@ -131,7 +131,7 @@ int main(){
             typename WORLD::Parameters instance_parameters = rlt::get(device, tensors.parameters, instance_i);
             T excitation = ACTION_EXCITATION_AMPLITUDE * rlt::math::sin(device.math, (T)2 * rlt::math::PI<T> * ACTION_EXCITATION_FREQUENCY * (T)step_i / (T)FRAMERATE + (T)instance_i);
             for(TI action_i = 0; action_i < WORLD::ACTION_DIM; action_i++){
-                T action = hyperdrone_demo::hover_action(device, instance_parameters.dynamics, action_i) + excitation;
+                T action = hyperdrone_demo::hover_action(device, instance_parameters.agents[0].dynamics, action_i) + excitation;
                 rlt::set(device, tensors.actions, action, instance_i, action_i);
             }
         }

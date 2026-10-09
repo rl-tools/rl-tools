@@ -29,7 +29,7 @@ namespace rl_tools{
             TI setup_i = threadIdx.x + blockIdx.x * blockDim.x;
             if(setup_i < INSTANCES){
                 const auto& setup = get_ref(device, setups, setup_i);
-                auto camera = make_target_camera<DEVICE, T>(device, setup.camera, aspect, setup.scene_translation, setup.scene_yaw_cos, setup.scene_yaw_sin, setup.target_roll, setup.target_pitch);
+                auto camera = make_target_camera<DEVICE, T>(device, setup.agents[0].camera, aspect, setup.scene_translation, setup.scene_yaw_cos, setup.scene_yaw_sin, setup.target_roll, setup.target_pitch);
                 cameras[setup_i] = camera;
                 if(cameras_open != cameras){
                     cameras_open[setup_i] = camera;
@@ -46,12 +46,12 @@ namespace rl_tools{
             if(setup_i < INSTANCES){
                 const auto& setup = get_ref(device, setups, setup_i);
                 T orientation[4], position[3];
-                make_target_body_pose(device, setup.camera, setup.target_roll, setup.target_pitch, orientation, position);
+                make_target_body_pose(device, setup.agents[0].camera, setup.target_roll, setup.target_pitch, orientation, position);
                 float base[12];
                 rig::make_body_transform(device, orientation, position, setup.scene_translation, setup.scene_yaw_cos, setup.scene_yaw_sin, base);
                 const float coordinates[NEXT_WORLD::DYNAMICS_ENV::ACTION_DIM] = {};
                 const TI row = setup_i * NEXT_WORLD::RENDERER_CONFIG::MAX_OVERLAY_INSTANCES + slot_offset;
-                hyperdrone::cuda::drone_entity_rows<DEVICE, typename NEXT_WORLD::SPEC>(device, get_ref(device, bodies, setup.drone), base, base, coordinates, coordinates, transforms, transforms_motion, meshes, parts, row);
+                hyperdrone::cuda::drone_entity_rows<DEVICE, typename NEXT_WORLD::SPEC>(device, get_ref(device, bodies, setup.agents[0].drone), base, base, coordinates, coordinates, transforms, transforms_motion, meshes, parts, row);
             }
         }
         template <typename DEVICE, typename TASK_SPEC, typename SETUPS_SPEC>

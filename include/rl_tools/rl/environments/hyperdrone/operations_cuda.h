@@ -43,7 +43,7 @@ namespace rl_tools{
         }
 
         template <typename DEVICE, typename SPEC, typename DRONE_SPEC, typename PARAMETER_SPEC, typename RESET_SPEC, typename RNG>
-        __global__ void sample_initial_parameters_kernel(DEVICE device, typename World<SPEC>::DYNAMICS_ENV dynamics, Parameters<SPEC> defaults, const Tensor<DRONE_SPEC> drones, typename SPEC::TI num_drones, Tensor<PARAMETER_SPEC> parameters, const Tensor<RESET_SPEC> reset_mask, RNG rng){
+        __global__ void sample_initial_parameters_kernel(DEVICE device, typename World<SPEC>::DYNAMICS_ENV dynamics, GroupParameters<SPEC> defaults, const Tensor<DRONE_SPEC> drones, typename SPEC::TI num_drones, Tensor<PARAMETER_SPEC> parameters, const Tensor<RESET_SPEC> reset_mask, RNG rng){
             using TI = typename DEVICE::index_t;
             constexpr TI INSTANCES = World<SPEC>::INSTANCES;
             static_assert(RNG::NUM_RNGS >= INSTANCES, "Please increase the number of CUDA RNGs");
@@ -76,7 +76,7 @@ namespace rl_tools{
                 const TI agent_i = camera_i % WORLD::N_VIEWS;
                 const auto& instance_parameters = get_ref(device, parameters, instance_i);
                 const auto& agent_state = _agent_state<SPEC>(get_ref(device, states, instance_i), agent_i);
-                auto close = make_camera<DEVICE, T>(device, instance_parameters.camera, agent_state.orientation, agent_state.position, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin);
+                auto close = make_camera<DEVICE, T>(device, instance_parameters.agents[agent_i].camera, agent_state.orientation, agent_state.position, aspect, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin);
                 cameras[camera_i] = close;
                 if constexpr(SPEC::ENABLE_MOTION_BLUR){
                     bool reset = history_step == 0 || get(device, reset_mask, instance_i);
@@ -129,7 +129,7 @@ namespace rl_tools{
                 }
             }
         }
-        // every agent's drone region follows its instance's drone entry; the body is posed at
+        // every agent's drone region follows its own drone entry; the body is posed at
         // shutter close and only the props blur
         template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename BODIES_SPEC, typename STRUCTURE>
         __global__ void drone_rows_kernel(DEVICE device, Tensor<PARAMETER_SPEC> parameters, Tensor<STATE_SPEC> states, const Tensor<BODIES_SPEC> bodies, typename SPEC::TI slot_offset, typename SPEC::TI parts, float* transforms, float* transforms_motion, DroneMeshes<SPEC, STRUCTURE> meshes){
@@ -145,9 +145,9 @@ namespace rl_tools{
                 float base[12];
                 rig::make_body_transform(device, agent_state.orientation, agent_state.position, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin, base);
                 float coordinates_open[WORLD::DYNAMICS_ENV::ACTION_DIM], coordinates_close[WORLD::DYNAMICS_ENV::ACTION_DIM];
-                _drone_coordinates<DEVICE, SPEC>(device, instance_parameters, agent_state, coordinates_open, coordinates_close);
+                _drone_coordinates<DEVICE, SPEC>(device, instance_parameters, agent_i, agent_state, coordinates_open, coordinates_close);
                 const TI row = instance_i * WORLD::RENDERER_CONFIG::MAX_OVERLAY_INSTANCES + slot_offset + agent_i * parts;
-                drone_entity_rows<DEVICE, SPEC>(device, get_ref(device, bodies, instance_parameters.drone), base, base, coordinates_open, coordinates_close, transforms, transforms_motion, meshes, parts, row);
+                drone_entity_rows<DEVICE, SPEC>(device, get_ref(device, bodies, instance_parameters.agents[agent_i].drone), base, base, coordinates_open, coordinates_close, transforms, transforms_motion, meshes, parts, row);
             }
         }
         // the per-instance episode-start bookkeeping rides in the scatter grid (one designated
@@ -200,7 +200,7 @@ namespace rl_tools{
                     _observe_dynamics<DEVICE, SPEC>(device, dynamics, get_ref(device, parameters, instance_i), get_ref(device, states, instance_i), observation_matrix, rng_state);
                 } else {
                     static_assert(World<SPEC>::N_AGENTS == 1, "multi-agent Worlds expose only the privileged observation on the dynamics side");
-                    observe(device, dynamics, get_ref(device, parameters, instance_i).dynamics, get_ref(device, states, instance_i), observation_type, observation_matrix, rng_state);
+                    observe(device, dynamics, get_ref(device, parameters, instance_i).agents[0].dynamics, get_ref(device, states, instance_i), observation_type, observation_matrix, rng_state);
                 }
             }
         }
