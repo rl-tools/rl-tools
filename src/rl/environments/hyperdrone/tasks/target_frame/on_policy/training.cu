@@ -429,23 +429,18 @@ __global__ void record_episode_start_kernel(const bool* reset_mask, TI* episode_
 
 int main(int argc, char** argv){
     TI seed = 0;
-    if(argc < 2){
-        std::cerr << "Usage: " << argv[0] << " <scene_directory or scene.glb> [seed]" << std::endl;
-        return 1;
-    }
     if(argc > 2){
         seed = std::atoi(argv[2]);
     }
 
     // ---------------------------------------------------------------------
-    // Resolve scenes: a directory of .glb scenes (this run trains on the first N_TOTAL_SCENES
-    // of the corpus, ordered by numeric suffix) or a single .glb replicated across all Worlds
+    // Resolve the catalog default, a directory prefix, or a single replicated scene.
     // ---------------------------------------------------------------------
     DEVICE_GPU device_gpu;
     auto& device = device_gpu.rendering;
     rlt::init(device);
     rlt::init(device_gpu);
-    rlt::rendering::datasets::procthor::GLB scene_dataset{{}, resolve_training_scenes(device, argv[1])};
+    rlt::rendering::datasets::procthor::GLB scene_dataset{{}, resolve_training_scenes(device, argc > 1 ? argv[1] : nullptr)};
     std::mt19937 scene_rng(seed);
     std::vector<TI> scene_permutation(N_TOTAL_SCENES);
     std::iota(scene_permutation.begin(), scene_permutation.end(), 0);
@@ -457,6 +452,10 @@ int main(int argc, char** argv){
     extrack_config.population_values = "on-policy_" + std::to_string(N_ENVIRONMENTS) + "_" + std::to_string(GRADIENT_ACCUMULATION_ROLLOUTS);
     rlt::init(device, extrack_config, extrack_paths, seed);
     metra::log_raw("hyperdrone/target_frame/on_policy/target", "\"" RL_TOOLS_HYPERDRONE_TARGET_NAME "\"");
+    metra::log_raw("hyperdrone/target_frame/on_policy/scene_references", nlohmann::json(scene_dataset.references).dump());
+    if(argc == 1 || std::string(argv[1]) == rlt::rendering::datasets::procthor::Train200::NAME){
+        metra::log_raw("hyperdrone/target_frame/on_policy/dataset", nlohmann::json(rlt::rendering::datasets::procthor::Train200::NAME).dump());
+    }
     metra::log("hyperdrone/target_frame/on_policy/seed", static_cast<double>(seed));
 
     RNG rng;

@@ -7,6 +7,7 @@
 #include <filesystem>
 #include <fstream>
 #include <optional>
+#include <set>
 
 namespace {
     namespace rlt = rl_tools;
@@ -15,6 +16,7 @@ namespace {
     using Roots = rlt::Mode<rlt::mode::rendering::SceneRoots<>>;
     using rlt::add;
     using rlt::load;
+    using rlt::enumerate;
     using rlt::segmentation_taxonomy;
     using rlt::validate_semantic_segmentation;
     using rlt::assign_segmentation_class;
@@ -246,6 +248,40 @@ namespace {
         ASSERT_TRUE(load(device, dataset, corpus, 0, roots, Roots{}));
         ASSERT_EQ(roots.scene.instances.size(), 2u);
         EXPECT_EQ(roots.scene.objects[1].segmentation_class, 162u);
+    }
+
+    TEST_F(GlbEnvironment, procthor_train_200_identity){
+        using DATASET = rlt::rendering::datasets::procthor::Train200;
+        DATASET::Corpus corpus{{"discarded"}};
+        enumerate(device, DATASET{}, corpus);
+        ASSERT_EQ(corpus.references.size(), 200u);
+        std::set<std::string> references;
+        std::string identity;
+        for(size_t scene_i = 0; scene_i < corpus.references.size(); scene_i++){
+            const auto& scene = DATASET::SCENES[scene_i];
+            EXPECT_EQ(scene.id, "ProcTHOR-Train-" + std::to_string(scene_i));
+            EXPECT_EQ(corpus.references[scene_i], scene.reference);
+            const std::string reference = scene.reference;
+            ASSERT_EQ(reference.substr(0, 6), "conta:");
+            std::string hash = reference.substr(6);
+            ASSERT_TRUE(conta::detail::normalize_hash(hash));
+            EXPECT_TRUE(references.insert(reference).second);
+            identity += scene.id;
+            identity += '\0';
+            identity += reference + '\n';
+        }
+        EXPECT_EQ(conta::detail::sha256_text(identity), "9115ad15f9d9c9d27b52943fd8d8c273adbe1e1ceafc6f1c79d716dc03c04989");
+    }
+
+    TEST_F(GlbEnvironment, catalog_loader_forwards_roots_mode){
+        using DATASET = rlt::rendering::datasets::procthor::Train200;
+        const auto path = write_glb(authored, Json{21, 162});
+        DATASET::Corpus corpus{{path}};
+        rlt::rendering::Bundle<float> roots;
+        ASSERT_TRUE((load<rlt::rendering::Low, false>(device, DATASET{}, corpus, 0, roots, Roots{})));
+        ASSERT_EQ(roots.scene.instances.size(), 2u);
+        EXPECT_EQ(roots.scene.objects[1].segmentation_class, 162u);
+        expect_authored(roots.scene.environment);
     }
 
 #ifdef RL_TOOLS_TEST_PROCTHOR_CONVERSION

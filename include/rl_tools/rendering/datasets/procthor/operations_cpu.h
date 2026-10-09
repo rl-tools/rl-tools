@@ -5,6 +5,7 @@
 #define RL_TOOLS_RENDERING_DATASETS_PROCTHOR_OPERATIONS_CPU_H
 
 #include "procthor.h"
+#include "catalog.h"
 #include "conversion.h"
 #include "../operations_cpu.h"
 #include "../glb/operations_cpu.h"
@@ -134,6 +135,23 @@ namespace rl_tools::rendering::datasets::procthor {
         }
         using rl_tools::load;
         return load<SHADING, HAS_RGB>(device, bundle, cache_path, mode);
+    }
+}
+namespace rl_tools {
+    template <typename DEVICE>
+    void enumerate(DEVICE&, const rendering::datasets::procthor::Train200&, rendering::datasets::procthor::Train200::Corpus& corpus) {
+        using DATASET = rendering::datasets::procthor::Train200;
+        corpus.references.clear();
+        corpus.references.reserve(DATASET::NUM_SCENES);
+        for (const auto& scene : DATASET::SCENES) {
+            corpus.references.emplace_back(scene.reference);
+        }
+    }
+
+    template <typename SHADING = rendering::VeryHigh, bool HAS_RGB = true, typename DEVICE, typename T, typename MODE = mode::Default<>>
+    bool load(DEVICE& device, const rendering::datasets::procthor::Train200&, const rendering::datasets::procthor::Train200::Corpus& corpus, size_t index, rendering::Bundle<T>& bundle, const Mode<MODE>& mode = Mode<MODE>{}) {
+        using LOADER = rendering::datasets::procthor::Train200::LOADER;
+        return load<SHADING, HAS_RGB>(device, LOADER{}, corpus, index, bundle, mode);
     }
 }
 RL_TOOLS_NAMESPACE_WRAPPER_END
