@@ -1,4 +1,5 @@
 import os
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -78,6 +79,32 @@ def test_configurations_keep_independent_state(scene_directory):
         assert not np.array_equal(large.observe_privileged(), state)
     finally:
         large.close()
+
+
+def test_motion_blur_shutter_reset_and_determinism(scene_directory):
+    config = replace(CONFIG, motion_blur_samples=8)
+    assert config.key() != CONFIG.key()
+    records = []
+    for _ in range(2):
+        env = MultiEnvironment(scene_directory, config=config, seed=5)
+        try:
+            env.reset()
+            env.render()
+            for _ in range(10):
+                env.step(np.zeros((env.total_instances, env.action_dim), dtype=np.float32))
+            env.render()
+            blurred = env.observe()
+            state = env.observe_privileged()
+            env.render(np.ones(env.total_instances, dtype=bool))
+            sharp = env.observe()
+            np.testing.assert_array_equal(env.observe_privileged(), state)
+            assert np.isfinite(blurred).all()
+            assert not np.array_equal(blurred, sharp)
+            records.append((blurred, sharp))
+        finally:
+            env.close()
+    for first, second in zip(*records):
+        np.testing.assert_array_equal(first, second)
 
 
 def test_native_binding_rejects_invalid_buffers(scene_directory):
@@ -247,6 +274,9 @@ def test_gym_autoreset_observations_match_explicit_render(scene_directory, monke
 
 
 def test_config_validation_errors():
+    for samples in (0, -1, 3, 2.5, True):
+        with pytest.raises(ValueError, match="motion_blur_samples"):
+            EnvConfig(motion_blur_samples=samples)
     with pytest.raises(ValueError, match="unknown preset"):
         EnvConfig(preset="nonexistent")
     with pytest.raises(ValueError, match="unknown task"):
