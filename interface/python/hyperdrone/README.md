@@ -211,6 +211,8 @@ wrapper — verb overloads registering and moving entities, compiled reward, ter
 `tests/env/user_task_header.h`. The environment's raytracing backend follows
 `HYPERDRONE_RENDER_BACKEND` like the renderer.
 
+`EnvConfig(motion_blur_samples=8)` enables camera and propeller motion blur for presets and tasks; valid counts are 1 (default, disabled), 2, 4, 8, 16, and 32. Custom spec headers control `ENABLE_MOTION_BLUR` and `MOTION_BLUR_SAMPLES` directly.
+
 Manual composition of `Sim` and `Renderer` (no MDP — rendering research, data
 generation) remains first-class: see `python -m hyperdrone.examples.drone_flythrough`
 for the wiring. `FreeSpaceSampler` lives in `hyperdrone.render` — it rides the

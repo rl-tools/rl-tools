@@ -7,7 +7,7 @@ targets use — no runners involved.
 
 Configuration follows the C++ extension ladder: a preset names the platform
 (`presets::*` on the C++ side), a task names the wrapper (`tasks::*`), and a handful of
-universal knobs (instances, camera resolution, shading) complete the picture. Arbitrary
+universal knobs (instances, camera resolution, shading, motion blur) complete the picture. Arbitrary
 C++ specifications are reached through `spec_header=`: a path to a C++ header defining
 `hyperdrone_env_user::WORLD` (including any rl_tools headers it needs); the header's
 content hash is part of the JIT key, and preset/task/n_agents/max_drones must stay at their
@@ -24,6 +24,7 @@ import numpy as np
 import conta
 
 from .. import jit
+from ..render._config import VALID_MOTION_BLUR_SAMPLES
 
 PRESETS = {"crazyflie": 0, "x500_fpv": 1, "x500_fpv_imu": 2}
 SELF_VISIBLE_PRESETS = ("x500_fpv", "x500_fpv_imu")
@@ -62,6 +63,7 @@ class EnvConfig:
     n_agents: int = 1
     max_drones: int = 1
     spec_header: str = None
+    motion_blur_samples: int = 1
 
     def __post_init__(self):
         if self.preset not in PRESETS:
@@ -70,6 +72,8 @@ class EnvConfig:
             raise ValueError(f"hyperdrone: unknown task {self.task!r} (one of {sorted(k for k in TASKS if k)} or None)")
         if self.shading not in _SHADING:
             raise ValueError(f"hyperdrone: unknown shading {self.shading!r} (one of {sorted(_SHADING)})")
+        if type(self.motion_blur_samples) is not int or self.motion_blur_samples not in VALID_MOTION_BLUR_SAMPLES:
+            raise ValueError(f"hyperdrone: motion_blur_samples must be one of {VALID_MOTION_BLUR_SAMPLES}")
         if self.n_agents < 1:
             raise ValueError("hyperdrone: n_agents must be >= 1")
         if self.max_drones < 1:
@@ -104,6 +108,7 @@ class EnvConfig:
             "HYPERDRONE_ENV_CAM_WIDTH": self.cam_width,
             "HYPERDRONE_ENV_CAM_HEIGHT": self.cam_height,
             "HYPERDRONE_ENV_SHADING": _SHADING[self.shading],
+            "HYPERDRONE_ENV_MB_SAMPLES": self.motion_blur_samples,
             "HYPERDRONE_ENV_HISTORY_LENGTH": self.history_length,
             "HYPERDRONE_ENV_PRESET": PRESETS[self.preset],
             "HYPERDRONE_ENV_TASK": TASKS[self.task],
