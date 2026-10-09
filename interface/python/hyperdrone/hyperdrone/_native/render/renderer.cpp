@@ -225,6 +225,14 @@ namespace HYPERDRONE_MODULE_NAME {
                 throw std::runtime_error("hyperdrone: renderer is not initialized (call init(scene) first)");
             }
         }
+#if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)
+        // a Python producer stream of 0 means the data is already in place
+        void await_producer(unsigned long long producer_stream, cudaStream_t render_stream){
+            if(producer_stream != 0){
+                rlt::devices::cuda::order_after(renderer.backend->ordering_event, (cudaStream_t)producer_stream, render_stream);
+            }
+        }
+#endif
 
         void update() {
             if constexpr (SPEC::ENABLE_OVERLAYS){
@@ -257,14 +265,7 @@ namespace HYPERDRONE_MODULE_NAME {
             // hazard) and before the next one; a foreign producer stream is awaited via an
             // event, never a host sync
             cudaStream_t render_stream = rlt::stream(device, renderer);
-            cudaStream_t producer = (cudaStream_t)producer_stream;
-            if(producer != nullptr && producer != render_stream){
-                cudaEvent_t cameras_ready;
-                cudaEventCreateWithFlags(&cameras_ready, cudaEventDisableTiming);
-                cudaEventRecord(cameras_ready, producer);
-                cudaStreamWaitEvent(render_stream, cameras_ready, 0);
-                cudaEventDestroy(cameras_ready);
-            }
+            await_producer(producer_stream, render_stream);
             const size_t bytes = sizeof(rrt::Camera<T>) * SPEC::NUM_CAMERAS;
             cudaMemcpyAsync(rlt::data(rlt::cameras(device, renderer)), cameras, bytes, cudaMemcpyDeviceToDevice, render_stream);
             if constexpr (SPEC::ENABLE_MOTION_BLUR){
@@ -628,7 +629,7 @@ namespace HYPERDRONE_MODULE_NAME {
         void write_rows_device(size_t first_row, size_t count, const float* poses, const float* samples, size_t sample_stride, unsigned long long producer_stream){
             constexpr size_t SLOTS = (size_t)SPEC::NUM_OVERLAYS * SPEC::MAX_OVERLAY_INSTANCES;
             cudaStream_t render_stream = rlt::stream(device, renderer);
-            rrt::backends::optix::await_producer(renderer.backend->ordering_event, (cudaStream_t)producer_stream, render_stream);
+            await_producer(producer_stream, render_stream);
             cudaMemcpyAsync(rlt::data(rlt::transforms(device, renderer)) + first_row * 12, poses, count * 12 * sizeof(float), cudaMemcpyDeviceToDevice, render_stream);
             for(size_t row = first_row; row < first_row + count; row++){
                 renderer.transforms_pending[row] = false;
@@ -720,14 +721,7 @@ namespace HYPERDRONE_MODULE_NAME {
             if constexpr (SPEC::ENABLE_MOTION_BLUR){
                 require_init();
                 cudaStream_t render_stream = rlt::stream(device, renderer);
-                cudaStream_t producer = (cudaStream_t)producer_stream;
-                if(producer != nullptr && producer != render_stream){
-                    cudaEvent_t cameras_ready;
-                    cudaEventCreateWithFlags(&cameras_ready, cudaEventDisableTiming);
-                    cudaEventRecord(cameras_ready, producer);
-                    cudaStreamWaitEvent(render_stream, cameras_ready, 0);
-                    cudaEventDestroy(cameras_ready);
-                }
+                await_producer(producer_stream, render_stream);
                 const size_t bytes = sizeof(rrt::Camera<T>) * SPEC::NUM_CAMERAS;
                 cudaMemcpyAsync(rlt::data(rlt::cameras_open(device, renderer)), cameras_open, bytes, cudaMemcpyDeviceToDevice, render_stream);
                 cudaMemcpyAsync(rlt::data(rlt::cameras_close(device, renderer)), cameras_close, bytes, cudaMemcpyDeviceToDevice, render_stream);

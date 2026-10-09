@@ -15,7 +15,6 @@
 #include "../../../rendering/datasets/annotations/cache.h"
 
 #include <string>
-#include <type_traits>
 #include <vector>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
@@ -58,7 +57,8 @@ namespace rl_tools::rl::environments::hyperdrone {
         // external mounts); every SharedContext::drones entry then needs a body/prop_* assembly
         static constexpr bool SELF_VISIBLE = false;
         // capacity of the drone table (SharedContext::drones): every instance flies one entry,
-        // sampled uniformly at reset; the table is device-resident, hence the compile-time bound
+        // sampled uniformly at reset, body included; the table is device-resident, hence the
+        // compile-time bound
         static constexpr TI MAX_DRONES = 1;
     };
 
@@ -139,31 +139,21 @@ namespace rl_tools::rl::environments::hyperdrone {
         std::string asset;  // body/prop_* assembly, a path or conta:HASH; required iff SELF_VISIBLE
         DroneParameters<T_SPEC> parameters;
     };
+    // how a table entry is rendered (SELF_VISIBLE): its mesh (an index into
+    // SharedContext::drone_meshes) and the body/prop_* rig matched to the entry's nominal rotors,
+    // so coordinate i is the phase of rotor i whatever the assembly's prop order
     template <typename T_SPEC>
-    struct DroneAsset {
+    struct DroneBody {
         using TI = typename T_SPEC::TI;
-        rendering::raytracing::AssetHandle asset;
-        TI parts;
         rig::Rotorcraft<TI, 4> rig;
-        TI prop_quadrants[4];
-    };
-    template <typename T_SPEC>
-    struct DronePose {
-        using SPEC = T_SPEC;
-        using T = typename SPEC::T;
-        using TI = typename SPEC::TI;
-        float body[12];
-        T phase_open[4];
-        T phase_close[4];
-        TI drone;
-        bool valid;
+        TI mesh = 0;
     };
 
     // owned by the caller (typically the MultiEnvironment) and shared by all its Worlds: the
     // AssetLibrary, the pool-asset registry (entities, deduplicated by path, registered before
     // any hot slot builds) and the drone table, built once by init(device, shared) from the
     // entries registered before the first World init (none: that World registers its nominal
-    // as the single drone). Worlds borrow the immutable host catalog and own device nominals
+    // as the single drone). Worlds copy what they need into device tables at init
     template <typename T_SPEC>
     struct SharedContext {
         using SPEC = T_SPEC;
@@ -177,8 +167,11 @@ namespace rl_tools::rl::environments::hyperdrone {
         rendering::datasets::annotations::Cache annotation_cache;
         std::vector<Drone<SPEC>> drones;  // registered before the first World init
         TI num_drones = 0;  // 0 until built
-        std::vector<DroneAsset<SPEC>> drone_assets;  // one per distinct assembly content (SELF_VISIBLE)
-        std::vector<TI> drone_asset;                 // [drone]: index into drone_assets
+        // SELF_VISIBLE: one pooled mesh per distinct assembly content, all with drone_parts parts
+        // (a swap then keeps every slot, see replace), and one body per entry
+        std::vector<rendering::raytracing::AssetHandle> drone_meshes;
+        TI drone_parts = 0;
+        std::vector<DroneBody<SPEC>> drone_bodies;
     };
 
     template <typename T_SPEC>
@@ -221,30 +214,35 @@ namespace rl_tools::rl::environments::hyperdrone {
         using LIBRARY = rendering::raytracing::AssetLibrary<RENDERER_SPEC>;
         using SharedContext = hyperdrone::SharedContext<SPEC>;
 
-        // a registered entity kind: (asset, parts, per-instance slot offset); registrations are
-        // accumulated by wrapper init overloads before the innermost base init consumes them once
+        // entity rigs produce the part poses of an entity from (base pose, coordinates); an entity
+        // occupies one slot per part, so the per-instance slot budget bounds links and parts
+        static constexpr TI ENTITY_RIG_CAPACITY = SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE > 0 ? SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE : 1;
+        using ENTITY_RIG_SPEC = rendering::rig::Specification<float, TI, ENTITY_RIG_CAPACITY, ENTITY_RIG_CAPACITY>;
+        using ENTITY_RIG = rendering::rig::Model<ENTITY_RIG_SPEC>;
+
+        // a registered entity kind (register_entity_kind): its pooled asset, its first slot and its
+        // rig, which for a rigid entity has no coordinates. Spawn order is pinned (instance-major,
+        // registration order, then the drone region, first-fit), so the kind's rows sit at
+        // instance * MAX_ENTITY_SLOTS_PER_INSTANCE + slot_offset in every instance and hot slot
         struct EntityKind {
             rendering::raytracing::AssetHandle asset;
-            TI parts;
             TI slot_offset;
+            ENTITY_RIG rig;
         };
 
         // hot slot: the scene build in the shared library plus this World's thin per-camera
-        // renderer state; every slot is initialized exactly once.
-        // With entities enabled a slot also carries its overlay placements (spawned per slot at
-        // slot init, in pinned instance-major/kind order)
+        // renderer state; every slot is initialized exactly once
         struct HotSlot {
             RENDERER renderer;
             ANNOTATIONS annotations;
             rendering::SceneMetadata<T> metadata;
             TI corpus_index;
-            std::vector<rendering::raytracing::OverlayPlacement> entity_placements;  // [instance * kinds + kind]
-            std::vector<TI> drone_spawned_asset;  // [instance]: the drone asset spawned in the instance's overlay group (SELF_VISIBLE)
         };
 
         std::vector<HotSlot> slots;        // this World's partition of the dataset corpus
         std::vector<EntityKind> entity_kinds;  // frozen at init; empty when no wrapper registers any
         TI active_slot = 0;
+        TI scene_version = 0;  // scene selections so far, init's included
         TI member_index = 0;
         TI rng_offset = 0;
         TI episode_counter = 0;
@@ -268,18 +266,18 @@ namespace rl_tools::rl::environments::hyperdrone {
         Tensor<PREV_CAMERAS_SPEC> camera_staging_open;
         TI history_step = 0;
         bool render_pending = false;
-        void* cuda_sync_event = nullptr;  // lazily created by the CUDA verbs (caller/render stream joins)
 
-        const SharedContext* shared = nullptr;
+        // the drone table's device copy: the sampler draws parameters.drone at reset and the body
+        // follows it at every render. SELF_VISIBLE: each instance's drone region holds
+        // N_AGENTS * drone_parts slots starting at drone_slot_offset, after the entity kinds
         using DRONE_PARAMETERS_SPEC = tensor::Specification<DroneParameters<SPEC>, TI, tensor::Shape<TI, SPEC::MAX_DRONES>>;
+        using DRONE_BODIES_SPEC = tensor::Specification<DroneBody<SPEC>, TI, tensor::Shape<TI, SPEC::MAX_DRONES>>;
         Tensor<DRONE_PARAMETERS_SPEC> drone_parameters;
+        Tensor<DRONE_BODIES_SPEC> drone_bodies;
         TI num_drones = 0;
-        TI drone_entity_kind_index = 0;
-        using DRONE_POSE = DronePose<SPEC>;
-        static_assert(std::is_trivially_copyable<DRONE_POSE>::value, "Drone poses cross device memory domains");
-        using DRONE_POSE_STAGING_SPEC = tensor::Specification<DRONE_POSE, TI, tensor::Shape<TI, INSTANCES * N_AGENTS>>;
-        Tensor<DRONE_POSE_STAGING_SPEC> drone_pose_staging;
-        void* cuda_drone_pose_staging = nullptr;  // pinned host mirror
+        std::vector<rendering::raytracing::AssetHandle> drone_meshes;
+        TI drone_parts = 0;
+        TI drone_slot_offset = 0;
 
         // defaults for sampled parameters (fov/mount/brightness ranges are spec constants); the
         // dynamics and camera nominal is drone 0 after init

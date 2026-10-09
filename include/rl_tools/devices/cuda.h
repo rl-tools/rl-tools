@@ -8,6 +8,7 @@
 #include "../containers/matrix/matrix.h"
 #include "devices.h"
 #include "cpu.h"
+#include "cuda_streams.h"
 #include <cublas_v2.h>
 #ifdef RL_TOOLS_BACKEND_ENABLE_CUDNN
 #include <cudnn.h>
@@ -58,12 +59,14 @@ namespace rl_tools::devices{
             static constexpr bool compatible = OTHER_DEVICE::DEVICE_ID == DeviceId::CUDA;
             using SPEC = T_SPEC;
             typename SPEC::LOGGING* logger = nullptr;
-            cublasHandle_t handle;
+            cublasHandle_t handle = nullptr;
             bool graph_capture_active = false;
-            cudaStream_t stream;
+            cudaStream_t stream = nullptr;
+            cudaStream_t owned_stream = nullptr;  // created by init and destroyed by free; set_stream rebinds stream
+            cudaEvent_t ordering_event = nullptr;
             bool dynamic_memory_allocation_allowed = true;
 #ifdef RL_TOOLS_BACKEND_ENABLE_CUDNN
-            cudnnHandle_t cudnn_handle;
+            cudnnHandle_t cudnn_handle = nullptr;
             void* cudnn_workspace = nullptr;
             size_t cudnn_workspace_size = 0;
 #endif
@@ -219,10 +222,15 @@ namespace rl_tools {
     template <typename SPEC>
     void init(devices::CUDA<SPEC>& device){
         cudaError_t stat;
-        stat = cudaStreamCreate(&device.stream);
+        stat = cudaStreamCreate(&device.owned_stream);
+        device.stream = device.owned_stream;
         if (stat != cudaSuccess) {
 //            log(device.logger, (const char*)"CUBLAS initialization failed ", cublasGetStatusString(stat));
             std::cout << "CUDA Stream initialization failed " << cudaGetErrorString(stat) << std::endl;
+        }
+        stat = cudaEventCreateWithFlags(&device.ordering_event, cudaEventDisableTiming);
+        if (stat != cudaSuccess) {
+            std::cout << "CUDA ordering event creation failed " << cudaGetErrorString(stat) << std::endl;
         }
         cublasStatus_t cublas_stat;
         cublas_stat = cublasCreate(&device.handle);
@@ -252,6 +260,47 @@ namespace rl_tools {
                 std::cout << "cuDNN setting stream failed: " << cudnnGetErrorString(cudnn_stat) << std::endl;
             }
         }
+#endif
+    }
+    // rebinds the execution stream every operation enqueues on (e.g. a caller's stream); work
+    // enqueued on the previous one so far comes first
+    template <typename SPEC>
+    void set_stream(devices::CUDA<SPEC>& device, cudaStream_t stream){
+        devices::cuda::order_after(device.ordering_event, device.stream, stream);
+        device.stream = stream;
+        cublasSetStream(device.handle, stream);
+#ifdef RL_TOOLS_BACKEND_ENABLE_CUDNN
+        cudnnSetStream(device.cudnn_handle, stream);
+#endif
+    }
+    template <typename SPEC>
+    void free(devices::CUDA<SPEC>& device){
+#ifdef RL_TOOLS_BACKEND_ENABLE_CUDNN
+        if(device.cudnn_workspace != nullptr){
+            cudaFree(device.cudnn_workspace);
+            device.cudnn_workspace = nullptr;
+            device.cudnn_workspace_size = 0;
+        }
+        if(device.cudnn_handle != nullptr){
+            cudnnDestroy(device.cudnn_handle);
+            device.cudnn_handle = nullptr;
+        }
+#endif
+        if(device.handle != nullptr){
+            cublasDestroy(device.handle);
+            device.handle = nullptr;
+        }
+        if(device.ordering_event != nullptr){
+            cudaEventDestroy(device.ordering_event);
+            device.ordering_event = nullptr;
+        }
+        if(device.owned_stream != nullptr){
+            cudaStreamDestroy(device.owned_stream);
+            device.owned_stream = nullptr;
+        }
+        device.stream = nullptr;
+#ifdef RL_TOOLS_DEBUG_DEVICE_CUDA_CHECK_INIT
+        device.initialized = false;
 #endif
     }
     namespace nn::cuda{

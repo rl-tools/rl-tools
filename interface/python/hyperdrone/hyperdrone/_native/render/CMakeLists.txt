@@ -27,6 +27,11 @@ set(RL_TOOLS_RENDERING_RAYTRACING_BACKEND ${HYPERDRONE_VARIANT} CACHE STRING "" 
 # language enablement is directory-scoped too: the backends subtree calls embed_ptx and
 # needs CUDA enabled from here, not just inside the rl_tools subtree
 if(HYPERDRONE_VARIANT STREQUAL "OPTIX")
+    # a normal variable before enable_language shadows the compiler default it caches, also in
+    # trees configured before; CUDAARCHS overrides
+    if(NOT DEFINED ENV{CUDAARCHS})
+        set(CMAKE_CUDA_ARCHITECTURES native)
+    endif()
     enable_language(CUDA)
     set(CMAKE_CUDA_STANDARD 17)
     set(CMAKE_CUDA_STANDARD_REQUIRED ON)

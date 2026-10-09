@@ -211,6 +211,31 @@ namespace rl_tools::rl::environments::hyperdrone {
         return make_camera_data(position, look_at, up, camera.fov, aspect);
     }
 
+    // the body pose (scene-under-drone frame) that carries the mount to make_target_camera's view:
+    // the target perturbation turns the body rigidly about the camera
+    template <typename DEVICE, typename T>
+    RL_TOOLS_FUNCTION_PLACEMENT void make_target_body_pose(DEVICE& device, const Camera<T>& camera, T target_frame_roll, T target_frame_pitch, T orientation[4], T position[3]){
+        T forward_body[3];
+        T up_body[3];
+        mount_axes(device, camera.mount, forward_body, up_body);
+        T pitch_axis[3];
+        cross_vector(forward_body, up_body, pitch_axis);
+        normalize_or(device, pitch_axis, static_cast<T>(0), static_cast<T>(-1), static_cast<T>(0));
+        T roll_axis[3];
+        rotate_around_axis(device, forward_body, pitch_axis, target_frame_pitch, roll_axis);
+        normalize_or(device, roll_axis, static_cast<T>(1), static_cast<T>(0), static_cast<T>(0));
+        const T pitch_sin = math::sin(device.math, target_frame_pitch / 2);
+        const T roll_sin = math::sin(device.math, target_frame_roll / 2);
+        const T pitch_rotation[4] = {math::cos(device.math, target_frame_pitch / 2), pitch_sin * pitch_axis[0], pitch_sin * pitch_axis[1], pitch_sin * pitch_axis[2]};
+        const T roll_rotation[4] = {math::cos(device.math, target_frame_roll / 2), roll_sin * roll_axis[0], roll_sin * roll_axis[1], roll_sin * roll_axis[2]};
+        rl::environments::l2f::quaternion_multiplication<DEVICE, T>(roll_rotation, pitch_rotation, orientation);
+        T mount_turned[3];
+        rl::environments::l2f::rotate_vector_by_quaternion<DEVICE, T>(orientation, camera.mount.pose.position, mount_turned);
+        for(unsigned axis_i = 0; axis_i < 3; axis_i++){
+            position[axis_i] = camera.mount.pose.position[axis_i] - mount_turned[axis_i];
+        }
+    }
+
     template <typename T>
     RL_TOOLS_FUNCTION_PLACEMENT rendering::raytracing::Camera<T> interpolate_camera(const rendering::raytracing::Camera<T>& from, const rendering::raytracing::Camera<T>& to, T alpha){
         rendering::raytracing::Camera<T> out;

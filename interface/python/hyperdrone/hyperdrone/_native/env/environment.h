@@ -16,16 +16,16 @@
 
 #include <rl_tools/rl/environments/l2f/operations_cpu.h>
 
-#include "../common/models.h"
-
-#include <cstring>
-#include <filesystem>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
 
-#if !defined(HYPERDRONE_ENV_NUM_ENVIRONMENTS) || !defined(HYPERDRONE_ENV_INSTANCES) || !defined(HYPERDRONE_ENV_CAM_WIDTH) || !defined(HYPERDRONE_ENV_CAM_HEIGHT) || !defined(HYPERDRONE_ENV_SHADING) || !defined(HYPERDRONE_ENV_HISTORY_LENGTH) || !defined(HYPERDRONE_ENV_PRESET) || !defined(HYPERDRONE_ENV_TASK) || !defined(HYPERDRONE_ENV_N_AGENTS) || !defined(HYPERDRONE_ENV_MAX_DRONES)
+#if !defined(HYPERDRONE_ENV_NUM_ENVIRONMENTS) || !defined(HYPERDRONE_ENV_INSTANCES) || !defined(HYPERDRONE_ENV_CAM_WIDTH) || !defined(HYPERDRONE_ENV_CAM_HEIGHT) || !defined(HYPERDRONE_ENV_SHADING) || !defined(HYPERDRONE_ENV_HISTORY_LENGTH) || !defined(HYPERDRONE_ENV_PRESET) || !defined(HYPERDRONE_ENV_TASK) || !defined(HYPERDRONE_ENV_N_AGENTS) || !defined(HYPERDRONE_ENV_DEVICE_CUDA)
 #error "every HYPERDRONE_ENV_* configuration define must be set (hyperdrone.env.EnvConfig.defines())"
+#endif
+#if HYPERDRONE_ENV_DEVICE_CUDA && !defined(HYPERDRONE_ENV_CUDA)
+#error "a CUDA World needs the OptiX variant"
 #endif
 
 #define HYPERDRONE_ENV_STRINGIFY_INNER(x) #x
@@ -41,10 +41,10 @@ namespace rlt = rl_tools;
 
 // Each configuration needs a distinct C++ type in nanobind's shared type registry.
 namespace HYPERDRONE_MODULE_NAME {
-    using DEVICE = rlt::devices::CPU<rlt::devices::DefaultCPUSpecification>;
-    using RNG = DEVICE::SPEC::RANDOM::ENGINE<>;
+    using HOST_DEVICE = rlt::devices::CPU<rlt::devices::DefaultCPUSpecification>;
     using T = float;
-    using TI = DEVICE::index_t;
+    using TI = HOST_DEVICE::index_t;
+    constexpr bool CUDA_WORLD = HYPERDRONE_ENV_DEVICE_CUDA == 1;
 
     namespace l2f = rlt::rl::environments::l2f;
 #ifdef HYPERDRONE_ENV_SPEC_HEADER
@@ -105,7 +105,7 @@ namespace HYPERDRONE_MODULE_NAME {
         static constexpr TI CAM_WIDTH = HYPERDRONE_ENV_CAM_WIDTH;
         static constexpr TI CAM_HEIGHT = HYPERDRONE_ENV_CAM_HEIGHT;
         static constexpr TI HISTORY_LENGTH = HYPERDRONE_ENV_HISTORY_LENGTH;
-        static constexpr TI MAX_DRONES = HYPERDRONE_ENV_MAX_DRONES;
+        static constexpr TI MAX_DRONES = 8;
         using SHADING = rlt::utils::typing::conditional_t<HYPERDRONE_ENV_SHADING == 0, rlt::rendering::raytracing::Low,
                         rlt::utils::typing::conditional_t<HYPERDRONE_ENV_SHADING == 1, rlt::rendering::raytracing::Medium,
                                                                                       rlt::rendering::raytracing::High>>;
@@ -132,65 +132,6 @@ namespace HYPERDRONE_MODULE_NAME {
     constexpr TI TOTAL = NUM_ENVIRONMENTS * WORLD::INSTANCES;
     using DYNAMICS = typename WORLD::DYNAMICS_ENV::Parameters::Dynamics;
 
-    struct Environment {
-        DEVICE device{};
-        ENV env{};
-        RNG rng{};
-        rlt::Tensor<rlt::tensor::Specification<typename WORLD::Parameters, TI, rlt::tensor::Shape<TI, TOTAL>>> parameters{};
-        rlt::Tensor<rlt::tensor::Specification<typename WORLD::State, TI, rlt::tensor::Shape<TI, TOTAL>>> states{}, next_states{};
-        rlt::Tensor<rlt::tensor::Specification<bool, TI, rlt::tensor::Shape<TI, TOTAL>>> reset_mask{}, terminated_flags{};
-        rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TOTAL>>> rewards{};
-        Environment();
-        ~Environment();
-        Environment(const Environment&) = delete;
-        Environment& operator=(const Environment&) = delete;
-        // drones: the shared table, one asset (SELF_VISIBLE) and one resolved parameter set per entry
-        void init(const std::vector<std::string>& scenes, const std::vector<std::optional<std::string>>& drone_assets, const std::vector<std::string>& drone_parameters, const std::optional<std::string>& gate_asset, unsigned long long seed);
-        std::string parameters_json();
-        std::string drones_json();
-        std::string instance_parameters_json();
-        void set_instance_parameters(const bool* mask, const std::string& json);
-        std::optional<std::string> model(const std::string& name);
-        void reset(const bool* mask);
-        void render(const bool* reset_mask);
-        void observe(float* observations);
-        void observe_privileged(float* observations);
-        void step(const float* actions);
-        void read_rewards(float* destination);
-        void read_terminated(bool* destination);
-        void rotate_scene();
-    };
-
-    // one schema for the nominal, the drone table and the per-instance parameters: {"dynamics":
-    // <l2f parameters>, "camera": {...}}; instances also carry "drone", their table entry
-    template <typename DYNAMICS_PARAMETERS>
-    std::string parameters_to_json(Environment& environment, const DYNAMICS_PARAMETERS& dynamics, const rlt::rl::environments::hyperdrone::Camera<T>& camera, std::optional<TI> drone = std::nullopt){
-        const auto& world = environment.env.environments[0];
-        std::string value = "{\"dynamics\": " + rlt::json(environment.device, world.dynamics, dynamics) + ", \"camera\": " + rlt::json(environment.device, world, camera);
-        if(drone){
-            value += ", \"drone\": " + std::to_string(*drone);
-        }
-        return value + "}";
-    }
-    template <typename DYNAMICS_PARAMETERS>
-    void parameters_from_json(Environment& environment, const nlohmann::json& parameters, DYNAMICS_PARAMETERS& dynamics, rlt::rl::environments::hyperdrone::Camera<T>& camera){
-        auto& world = environment.env.environments[0];
-        rlt::from_json(environment.device, world.dynamics, parameters.at("dynamics"), dynamics);
-        rlt::from_json(environment.device, world, parameters.at("camera"), camera);
-    }
-
-    template <typename WORLD_TYPE, typename = void>
-    struct HasGateAssetPath { static constexpr bool VALUE = false; };
-    template <typename WORLD_TYPE>
-    struct HasGateAssetPath<WORLD_TYPE, rlt::utils::typing::void_t<decltype(WORLD_TYPE::gate_asset_path)>> { static constexpr bool VALUE = true; };
-
-    template <typename WORLD_TYPE>
-    void set_gate_asset_path([[maybe_unused]] WORLD_TYPE& world, [[maybe_unused]] const std::string& path){
-        if constexpr (HasGateAssetPath<WORLD_TYPE>::VALUE){
-            world.gate_asset_path = path;
-        }
-    }
-
     // optional World surface beyond the base verbs, detected by type: an IMU observation
     // stream and a camera frame stride (the visual_inertial_localization task defines both)
     template <typename WORLD_TYPE, typename = void>
@@ -203,12 +144,40 @@ namespace HYPERDRONE_MODULE_NAME {
     struct FrameStride<WORLD_TYPE, rlt::utils::typing::void_t<decltype(WORLD_TYPE::FRAME_STRIDE)>> { static constexpr TI VALUE = WORLD_TYPE::FRAME_STRIDE; };
     constexpr TI OBSERVATION_DIM_IMU = ObservationIMUDim<WORLD>::VALUE;
 
-    template <typename WORLD_TYPE>
-    void observe_imu(Environment& environment, float* observations){
-        rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TOTAL, ObservationIMUDim<WORLD_TYPE>::VALUE>>> alias;
-        alias._data = observations;
-        rlt::observe(environment.device, environment.env, environment.parameters, environment.states, typename WORLD_TYPE::ObservationIMU{}, alias, environment.rng);
-    }
+    // The environment behind the binding. The World, its RNG and every instance tensor live in the
+    // World's memory (GPU under CUDA_WORLD, impl.cpp is then compiled by nvcc) and every verb is
+    // enqueued on stream(). A `resident` array lives in the World's memory and is read or written
+    // in place on that stream; any other array is a host array, staged through the environment
+    // with a synchronization. A null mask selects every instance (reset) or none (render)
+    struct Environment {
+        struct Impl;
+        Impl* impl;
+        Environment();
+        ~Environment();
+        Environment(const Environment&) = delete;
+        Environment& operator=(const Environment&) = delete;
+        // drones: the shared table, one asset (SELF_VISIBLE) and one resolved parameter set per entry
+        void init(const std::vector<std::string>& scenes, const std::vector<std::optional<std::string>>& drone_assets, const std::vector<std::string>& drone_parameters, const std::optional<std::string>& gate_asset, unsigned long long seed);
+        std::string parameters_json();
+        std::string drones_json();
+        std::string instance_parameters_json();
+        void set_instance_parameters(const bool* mask, const std::string& json);
+        std::optional<std::string> model(const std::string& name);
+        void rotate_scene();
+
+        void reset(const bool* mask, bool resident);
+        void render(const bool* mask, bool resident);
+        void step(const float* actions, bool resident);
+        void observe(float* out, bool resident);
+        void observe_privileged(float* out, bool resident);
+        void observe_imu(float* out, bool resident);
+        void rewards(float* out, bool resident);
+        void terminated(bool* out, bool resident);
+        uintptr_t stream() const;
+        void set_stream(uintptr_t stream);
+        int device_id() const;
+        void synchronize();
+    };
 
     struct ObservationBlock {
         std::string name;
@@ -276,132 +245,5 @@ namespace HYPERDRONE_MODULE_NAME {
 #else
         return {{OBSERVATION_DIM_IMU}, "flat", {{"imu", 0, OBSERVATION_DIM_IMU}}};
 #endif
-    }
-
-    inline Environment::Environment(){
-        rlt::init(device);
-        rlt::malloc(device, env);
-        rlt::malloc(device, rng);
-        rlt::init(device, rng, 0);
-        rlt::malloc(device, parameters);
-        rlt::malloc(device, states);
-        rlt::malloc(device, next_states);
-        rlt::malloc(device, reset_mask);
-        rlt::malloc(device, terminated_flags);
-        rlt::malloc(device, rewards);
-        rlt::set_all(device, terminated_flags, false);
-        rlt::set_all(device, rewards, (T)0);
-    }
-    inline Environment::~Environment(){
-        rlt::free(device, parameters);
-        rlt::free(device, states);
-        rlt::free(device, next_states);
-        rlt::free(device, reset_mask);
-        rlt::free(device, terminated_flags);
-        rlt::free(device, rewards);
-        rlt::free(device, rng);
-        rlt::free(device, env);
-    }
-    inline void Environment::init(const std::vector<std::string>& references, const std::vector<std::optional<std::string>>& drone_assets, const std::vector<std::string>& drone_parameters, const std::optional<std::string>& gate_asset_path, unsigned long long seed){
-        rlt::init(device, rng, seed);
-        if(drone_assets.size() != drone_parameters.size()){
-            throw std::invalid_argument("hyperdrone: drone assets and parameters must pair up");
-        }
-        for(size_t drone_i = 0; drone_i < drone_assets.size(); drone_i++){
-            typename ENV::SharedContext::DRONE drone;
-            if(drone_assets[drone_i]){
-                drone.asset = *drone_assets[drone_i];
-            }
-            parameters_from_json(*this, nlohmann::json::parse(drone_parameters[drone_i]), drone.parameters.dynamics, drone.parameters.camera);
-            env.shared.drones.push_back(drone);
-        }
-        if(gate_asset_path){
-            for(TI environment_i = 0; environment_i < NUM_ENVIRONMENTS; environment_i++){
-                set_gate_asset_path(env.environments[environment_i], *gate_asset_path);
-            }
-        }
-        rlt::rendering::datasets::procthor::GLB dataset{};
-        if(references.size() == 1 && std::filesystem::is_directory(references[0])){
-            dataset.directory = references[0];
-        }
-        else{
-            dataset.references = references;
-        }
-        rlt::init(device, env, dataset);
-    }
-    inline std::string Environment::parameters_json(){
-        const auto& world = env.environments[0];
-        return parameters_to_json(*this, world.dynamics.parameters, world.parameters.camera);
-    }
-    inline std::string Environment::drones_json(){
-        std::string value = "[";
-        for(size_t drone_i = 0; drone_i < env.shared.drones.size(); drone_i++){
-            const auto& drone = env.shared.drones[drone_i];
-            const std::string asset = drone.asset.empty() ? "null" : nlohmann::json(drone.asset).dump();
-            value += (drone_i > 0 ? ", " : "") + std::string("{\"asset\": ") + asset + ", \"parameters\": " + parameters_to_json(*this, drone.parameters.dynamics, drone.parameters.camera) + "}";
-        }
-        return value + "]";
-    }
-    inline std::string Environment::instance_parameters_json(){
-        std::string value = "[";
-        for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
-            const auto& instance = rlt::get_ref(device, parameters, instance_i);
-            value += (instance_i > 0 ? ", " : "") + parameters_to_json(*this, instance.dynamics, instance.camera, instance.drone);
-        }
-        value += "]";
-        return value;
-    }
-    inline void Environment::set_instance_parameters(const bool* mask, const std::string& parameters_json_array){
-        const nlohmann::json entries = nlohmann::json::parse(parameters_json_array);
-        TI entry_i = 0;
-        for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
-            if(mask[instance_i]){
-                auto& instance = rlt::get_ref(device, parameters, instance_i);
-                parameters_from_json(*this, entries.at(entry_i++), instance.dynamics, instance.camera);
-            }
-        }
-    }
-    inline std::optional<std::string> Environment::model(const std::string& name){
-        DYNAMICS dynamics;
-        if(!hyperdrone::model_by_name<typename WORLD::SPEC>(name, dynamics)){
-            return std::nullopt;
-        }
-        return rlt::json(device, env.environments[0].dynamics, dynamics);
-    }
-    inline void Environment::reset(const bool* mask){
-        std::memcpy(rlt::data(reset_mask), mask, TOTAL * sizeof(bool));
-        rlt::sample_initial_parameters(device, env, parameters, reset_mask, rng);
-        rlt::sample_initial_state(device, env, parameters, states, reset_mask, rng);
-    }
-    inline void Environment::render(const bool* mask){
-        std::memcpy(rlt::data(reset_mask), mask, TOTAL * sizeof(bool));
-        rlt::render(device, env, parameters, states, reset_mask);
-    }
-    inline void Environment::observe(float* observations){
-        rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TOTAL, WORLD::OBSERVATION_DIM>>> alias;
-        alias._data = observations;
-        rlt::observe(device, env, parameters, states, typename WORLD::Observation{}, alias, rng);
-    }
-    inline void Environment::observe_privileged(float* observations){
-        rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TOTAL, WORLD::OBSERVATION_DIM_PRIVILEGED>>> alias;
-        alias._data = observations;
-        rlt::observe(device, env, parameters, states, typename WORLD::ObservationPrivileged{}, alias, rng);
-    }
-    inline void Environment::step(const float* actions){
-        rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, TOTAL, WORLD::ACTION_DIM>>> action_alias;
-        action_alias._data = const_cast<float*>(actions);
-        rlt::step(device, env, parameters, states, action_alias, next_states, rng);
-        rlt::reward(device, env, parameters, states, action_alias, next_states, rewards, rng);
-        rlt::copy(device, device, next_states, states);
-        rlt::terminated(device, env, parameters, states, terminated_flags, rng);
-    }
-    inline void Environment::read_rewards(float* destination){
-        std::memcpy(destination, rlt::data(rewards), TOTAL * sizeof(float));
-    }
-    inline void Environment::read_terminated(bool* destination){
-        std::memcpy(destination, rlt::data(terminated_flags), TOTAL * sizeof(bool));
-    }
-    inline void Environment::rotate_scene(){
-        rlt::rotate_scene(device, env);
     }
 }

@@ -332,7 +332,7 @@ void fetch_world_frames(DEVICE& device, DEVICE_COMPUTE& device_compute, TASK_WOR
         rlt::copy(device_compute, device, history_row, frame_alias);
     }
     {
-        rlt::Tensor<typename TASK_WORLD::TARGET_FRAMES_SPEC> target_alias;
+        rlt::Tensor<typename TASK_WORLD::FRAMES_SPEC> target_alias;
         target_alias._data = target_frames;
         rlt::copy(device_compute, device, world.target_frames, target_alias);
     }

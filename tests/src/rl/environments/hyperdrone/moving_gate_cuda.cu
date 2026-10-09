@@ -218,6 +218,33 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MOVING_GATE_CUDA, DEVICE_ENTITY_MECHANI
             frame_gate_near[instance_i * OBS_DIM + dim] = rlt::get(device, host.observations, instance_i, dim);
         }
     }
+
+    // the rows the kernel wrote through the gate's zero-coordinate rig equal the rigid placement
+    // pose ∘ rest of every part that the CPU verbs publish
+    {
+        const auto& kind = world.entity_kinds[world.entity_kind_index];
+        auto& renderer = rlt::get_renderer(device, world);
+        const auto& record = renderer.assets[kind.asset.index];
+        constexpr TI MAX_SLOTS = BASE_WORLD::RENDERER_CONFIG::MAX_OVERLAY_INSTANCES;
+        ASSERT_GT(kind.rig.num_parts, 1);
+        std::vector<float> rows(INSTANCES * MAX_SLOTS * 12);
+        rlt::Tensor<typename decltype(renderer.transforms)::SPEC> alias;
+        alias._data = rows.data();
+        rlt::copy(renderer.device, device, rlt::transforms(device, renderer), alias);
+        for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
+            const typename WORLD::Parameters instance_parameters = rlt::get(device, host.parameters, instance_i);
+            const typename WORLD::State state = rlt::get(device, host.states, instance_i);
+            float pose[12];
+            rlt::rl::environments::hyperdrone::tasks::moving_gate::gate_pose(device, instance_parameters, state.gate_phase, pose);
+            for(TI part = 0; part < kind.rig.num_parts; part++){
+                float expected[12];
+                rlt::rendering::compose_transforms(pose, &renderer.asset_part_transforms[(record.first_part + part) * 12], expected);
+                for(TI element = 0; element < 12; element++){
+                    EXPECT_NEAR(rows[(instance_i * MAX_SLOTS + kind.slot_offset + part) * 12 + element], expected[element], 1e-4) << "instance " << instance_i << " part " << part << " element " << element;
+                }
+            }
+        }
+    }
     {
         typename WORLD::Parameters instance_parameters = rlt::get(device, host.parameters, (TI)0);
         instance_parameters.gate_center[0] = 1000;

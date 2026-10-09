@@ -156,31 +156,32 @@ namespace rl_tools {
         return rl::environments::hyperdrone::rig::detail::assemble(device, rig, assembly, props, coordinate_of_prop, spin);
     }
 
-    // phases: the prop angles in coordinate order; body: the assembly pose
-    template <typename DEVICE, typename SPEC, typename BACKEND, typename TI, TI MAX_PROPS, TI MAX_PARTS, typename T>
-    void set_transform(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const rl::environments::hyperdrone::rig::Rotorcraft<TI, MAX_PROPS, MAX_PARTS>& rig, const float body[12], const T* phases){
-        using RIG_SPEC = typename rl::environments::hyperdrone::rig::Rotorcraft<TI, MAX_PROPS, MAX_PARTS>::SPEC;
-        float coordinates[RIG_SPEC::MAX_COORDINATES];
-        for(TI prop_i = 0; prop_i < rig.num_coordinates; prop_i++){
-            coordinates[prop_i] = (float)phases[prop_i];
+    // the rig verbs: evaluate/sample the rig at the base pose and rig.num_coordinates joint
+    // values (for a Rotorcraft the prop phases in coordinate order), then publish the part poses
+    template <typename DEVICE, typename SPEC, typename BACKEND, typename RIG_SPEC, typename T>
+    void set_transform(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const rendering::rig::Model<RIG_SPEC>& rig, const float base[12], const T* coordinates){
+        using TI = typename RIG_SPEC::TI;
+        float coordinates_float[RIG_SPEC::MAX_COORDINATES];
+        for(TI coordinate_i = 0; coordinate_i < rig.num_coordinates; coordinate_i++){
+            coordinates_float[coordinate_i] = (float)coordinates[coordinate_i];
         }
         rendering::rig::Buffer<RIG_SPEC> buffer;
-        float poses[MAX_PARTS][12];
-        evaluate(device, rig, body, coordinates, buffer, &poses[0][0]);
+        float poses[RIG_SPEC::MAX_PARTS][12];
+        evaluate(device, rig, base, coordinates_float, buffer, &poses[0][0]);
         set_transforms(device, renderer, overlay, placement, &poses[0][0]);
     }
 
-    template <typename DEVICE, typename SPEC, typename BACKEND, typename TI, TI MAX_PROPS, TI MAX_PARTS, typename T>
-    void set_transform_pair(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const rl::environments::hyperdrone::rig::Rotorcraft<TI, MAX_PROPS, MAX_PARTS>& rig, const float body_open[12], const float body_close[12], const T* phase_open, const T* phase_close){
-        using RIG_SPEC = typename rl::environments::hyperdrone::rig::Rotorcraft<TI, MAX_PROPS, MAX_PARTS>::SPEC;
-        float coordinates_open[RIG_SPEC::MAX_COORDINATES], coordinates_close[RIG_SPEC::MAX_COORDINATES];
-        for(TI prop_i = 0; prop_i < rig.num_coordinates; prop_i++){
-            coordinates_open[prop_i] = (float)phase_open[prop_i];
-            coordinates_close[prop_i] = (float)phase_close[prop_i];
+    template <typename DEVICE, typename SPEC, typename BACKEND, typename RIG_SPEC, typename T>
+    void set_transform_pair(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, const rendering::rig::Model<RIG_SPEC>& rig, const float base_open[12], const float base_close[12], const T* coordinates_open, const T* coordinates_close){
+        using TI = typename RIG_SPEC::TI;
+        float coordinates_open_float[RIG_SPEC::MAX_COORDINATES], coordinates_close_float[RIG_SPEC::MAX_COORDINATES];
+        for(TI coordinate_i = 0; coordinate_i < rig.num_coordinates; coordinate_i++){
+            coordinates_open_float[coordinate_i] = (float)coordinates_open[coordinate_i];
+            coordinates_close_float[coordinate_i] = (float)coordinates_close[coordinate_i];
         }
         rendering::rig::Buffer<RIG_SPEC> buffer;
-        float samples[SPEC::MOTION_BLUR_SAMPLES][MAX_PARTS][12], close[MAX_PARTS][12];
-        sample(device, rig, body_open, body_close, coordinates_open, coordinates_close, (TI)SPEC::MOTION_BLUR_SAMPLES, buffer, &samples[0][0][0], (TI)(rig.num_parts * 12), &close[0][0]);
+        float samples[SPEC::MOTION_BLUR_SAMPLES][RIG_SPEC::MAX_PARTS][12], close[RIG_SPEC::MAX_PARTS][12];
+        sample(device, rig, base_open, base_close, coordinates_open_float, coordinates_close_float, (TI)SPEC::MOTION_BLUR_SAMPLES, buffer, &samples[0][0][0], (TI)(rig.num_parts * 12), &close[0][0]);
         set_motion_transforms(device, renderer, overlay, placement, &samples[0][0][0], &close[0][0]);
     }
 }

@@ -2,28 +2,13 @@ import json
 
 import numpy as np
 
+from .._dlpack import DLPackBuffer as _DLPackBuffer
 from ._component import ensure_sim_library, load_core, resolve_device
 from ._config import MODELS, STATE_COMPONENTS, SimConfig
 
 IDENTITY_MOUNT = np.array(
     [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0]], dtype=np.float32
 )
-
-
-class _DLPackBuffer:
-    """DLPack producer over a live sim buffer; capsules are single-use, so each __dlpack__
-    call mints a fresh one. The sim reference keeps the memory alive."""
-
-    def __init__(self, sim, make_capsule, device_type):
-        self._sim = sim
-        self._make_capsule = make_capsule
-        self._device_type = device_type
-
-    def __dlpack__(self, stream=None, **_kwargs):
-        return self._make_capsule()
-
-    def __dlpack_device__(self):
-        return (self._device_type, 0)
 
 
 class SimParameters:
