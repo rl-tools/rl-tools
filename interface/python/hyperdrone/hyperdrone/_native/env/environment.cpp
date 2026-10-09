@@ -61,6 +61,20 @@ namespace HYPERDRONE_MODULE_NAME {
         }, nb::arg("out").noconvert());
     }
 
+    template <typename VALUE, void (Environment::*VERB)(VALUE*, bool), TI CHANNELS>
+    void bind_image_output(nb::class_<Environment>& environment_class, const char* name){
+        environment_class.def(name, [](Environment& self, nb::ndarray<VALUE, nb::c_contig> out){
+            constexpr TI HEIGHT = WORLD::SPEC::CAM_HEIGHT;
+            constexpr TI WIDTH = WORLD::SPEC::CAM_WIDTH;
+            const bool in_place = resident(self, out, TOTAL * WORLD::N_AGENTS * HEIGHT * WIDTH * CHANNELS);
+            if(out.ndim() != (CHANNELS == 1 ? 4 : 5) || out.shape(0) != TOTAL || out.shape(1) != WORLD::N_AGENTS || out.shape(2) != HEIGHT || out.shape(3) != WIDTH || (CHANNELS > 1 && out.shape(4) != CHANNELS)){
+                throw std::invalid_argument("hyperdrone: image output must have shape (total_instances, n_agents, height, width[, channels])");
+            }
+            nb::gil_scoped_release release;
+            (self.*VERB)(out.data(), in_place);
+        }, nb::arg("out").noconvert());
+    }
+
     template <typename WORLD_TYPE>
     void bind_imu(nb::module_& m, nb::class_<Environment>& environment_class){
         if constexpr (ObservationIMUDim<WORLD_TYPE>::VALUE > 0){
@@ -95,6 +109,24 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     dimensions["max_drones"] = WORLD::SPEC::MAX_DRONES;
     dimensions["self_visible"] = WORLD::SPEC::SELF_VISIBLE;
     m.attr("dimensions") = dimensions;
+    nb::list outputs;
+    if(WORLD::RENDERER_SPEC::HAS_RGB){
+        outputs.append("rgb");
+    }
+    if(WORLD::RENDERER_SPEC::HAS_DEPTH){
+        outputs.append("depth");
+    }
+    if(WORLD::RENDERER_SPEC::HAS_SEGMENTATION){
+        outputs.append("segmentation");
+    }
+    if(WORLD::RENDERER_SPEC::HAS_NORMALS){
+        outputs.append("normals");
+    }
+    if(WORLD::RENDERER_SPEC::HAS_FLOW){
+        outputs.append("flow");
+    }
+    m.attr("outputs") = nb::tuple(outputs);
+    m.attr("segmentation_mode") = WORLD::RENDERER_SPEC::SEMANTIC_SEGMENTATION ? "semantic" : "instance";
 
     auto environment_class = nb::class_<Environment>(m, "Environment");
     environment_class
@@ -145,5 +177,10 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     bind_output<&Environment::observe, WORLD::OBSERVATION_DIM>(environment_class, "observe");
     bind_output<&Environment::observe_privileged, WORLD::OBSERVATION_DIM_PRIVILEGED>(environment_class, "observe_privileged");
     bind_output<&Environment::rewards, 1>(environment_class, "rewards");
+    bind_image_output<float, &Environment::depth, 1>(environment_class, "depth");
+    bind_image_output<uint32_t, &Environment::segmentation, 1>(environment_class, "segmentation");
+    bind_image_output<float, &Environment::normals, 3>(environment_class, "normals");
+    bind_image_output<float, &Environment::flow, 2>(environment_class, "flow");
+    bind_image_output<uint32_t, &Environment::flow_status, 1>(environment_class, "flow_status");
     bind_imu<WORLD>(m, environment_class);
 }

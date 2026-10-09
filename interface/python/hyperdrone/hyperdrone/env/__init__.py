@@ -7,7 +7,6 @@ manual composition of the render and dynamics packages (no MDP), see
 examples/drone_flythrough.py.
 """
 from ._multi_environment import EnvConfig, MultiEnvironment, ObservationLayout
-from ._rotorcraft import Rotorcraft
 
 __all__ = [
     "EnvConfig",
@@ -15,3 +14,10 @@ __all__ = [
     "ObservationLayout",
     "Rotorcraft",
 ]
+
+
+def __getattr__(name):
+    if name == "Rotorcraft":
+        from ._rotorcraft import Rotorcraft
+        return Rotorcraft
+    raise AttributeError(f"module 'hyperdrone.env' has no attribute {name}")

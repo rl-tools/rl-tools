@@ -351,6 +351,47 @@ dataset = render.datasets.Train200()
 scene = render.load_scene(dataset["ProcTHOR-Train-1"].reference)
 ```
 
+Select any combination with `output=("rgb", "depth", "segmentation", "normals", "flow")`.
+`rgbd` and `rgbd_segmentation` remain shorthand selections. Outputs other than RGB are:
+
+| Accessor | dtype | Per-camera shape | Contract |
+|---|---|---|---|
+| `depth()` | float32 | `(H, W)` | Ray-hit distance; misses use scene max depth |
+| `segmentation()` | uint32 | `(H, W)` | Instance IDs or semantic classes; miss `0xFFFFFFFF` |
+| `normals()` | float32 | `(H, W, 3)` | World-FLU geometric unit normal facing against the ray; miss zero |
+| `flow()` | float32 | `(H, W, 2)` | Current-to-previous `(dx, dy)` displacement in pixels, positive along image columns/rows |
+| `flow_status()` | uint32 | `(H, W)` | `render.FlowStatus`: VALID, MISS, BEHIND, OUT_OF_FRAME, OCCLUDED |
+
+`Renderer` prepends `num_cameras`; each accessor accepts `copy=False` for a live host view
+(staging on OptiX) and has a `*_dlpack()` counterpart for the live backend buffer. Read after
+`render()` or `render_sync()`; keep a copy to retain an image across later reads/renders.
+Segmentation, normals and flow use pixel centres at shutter close, independently of RGB/depth
+anti-aliasing and motion blur. MISS and BEHIND flow vectors are zero; OUT_OF_FRAME and OCCLUDED
+retain geometric displacement, so use `flow_status() == render.FlowStatus.VALID` as the mask.
+
+```python
+renderer = render.Renderer(width=128, height=128, output=("rgb", "depth", "normals", "flow"))
+renderer.init(scene)
+renderer.set_cameras(previous_cameras)
+renderer.render()                       # first capture seeds previous=current
+renderer.advance_flow()                 # snapshot camera AND object poses
+renderer.set_cameras(current_cameras)   # update object transforms here too, then update()
+renderer.render()
+flow, status = renderer.flow(), renderer.flow_status()
+```
+
+`EnvConfig(output=("rgb", "depth", "segmentation", "normals", "flow"))` enables the same
+auxiliary channels in `MultiEnvironment`, with RGB policy observations. Its accessors accept
+`out=` (NumPy, or CUDA arrays on a CUDA World) and return
+`(total_instances, n_agents, H, W[, channels])`. They render pending frames as `observe()` does;
+repeated reads reuse the capture. Flow history advances only on actual captures, including
+when a task skips frames, and resets per instance or on scene changes. The first/reset capture
+has zero motion. `semantic_segmentation=True` selects classes, and `env.outputs` /
+`env.segmentation_mode` describe the compiled configuration. Normals use the renderer’s scene
+FLU frame; instance IDs are local to each environment’s active renderer. Custom `spec_header` Worlds set
+`OUTPUT_DEPTH`, `OUTPUT_SEGMENTATION`, `SEMANTIC_SEGMENTATION`, `OUTPUT_NORMALS`, and `OUTPUT_FLOW`
+in their specification; leave the corresponding Python options at their defaults.
+
 For labelled ProcTHOR rendering, preserve GLB root instances and select the output meaning:
 
 ```python

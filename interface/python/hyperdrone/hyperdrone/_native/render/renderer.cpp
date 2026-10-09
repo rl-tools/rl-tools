@@ -41,9 +41,6 @@
 #ifndef HYPERDRONE_RENDER_SHADING
 #define HYPERDRONE_RENDER_SHADING 2
 #endif
-#ifndef HYPERDRONE_RENDER_OUTPUT_MODE
-#define HYPERDRONE_RENDER_OUTPUT_MODE 0
-#endif
 #ifndef HYPERDRONE_RENDER_MB_SAMPLES
 #define HYPERDRONE_RENDER_MB_SAMPLES 1
 #endif
@@ -69,6 +66,12 @@
 namespace rlt = rl_tools;
 namespace rrt = rl_tools::rendering::raytracing;
 using hyperdrone::FloatArray;
+using rl_tools::data;
+using rl_tools::segmentation_buffer;
+using rl_tools::normals_buffer;
+using rl_tools::flow_buffer;
+using rl_tools::flow_status_buffer;
+
 
 // Each configuration needs a distinct C++ type in nanobind's shared type registry.
 namespace HYPERDRONE_MODULE_NAME {
@@ -84,17 +87,17 @@ namespace HYPERDRONE_MODULE_NAME {
 
     static constexpr bool PROBES_ENABLED = HYPERDRONE_RENDER_NUM_PROBES > 0;
 
-    // the output-mode id (0=rgb 1=rgbd 2=depth 3=segmentation 4=rgbd_segmentation) maps
-    // onto the config's independent channel switches
     struct RendererConfiguration: rrt::config::Default<T, TI>{
         static constexpr TI CAM_WIDTH = HYPERDRONE_RENDER_WIDTH;
         static constexpr TI CAM_HEIGHT = HYPERDRONE_RENDER_HEIGHT;
         static constexpr TI NUM_CAMERAS = HYPERDRONE_RENDER_NUM_CAMERAS;
         static constexpr TI NUM_PROBES = PROBES_ENABLED ? HYPERDRONE_RENDER_NUM_PROBES : 1;
         using SHADING = typename ShadingSelector<HYPERDRONE_RENDER_SHADING>::type;
-        static constexpr bool OUTPUT_RGB = HYPERDRONE_RENDER_OUTPUT_MODE == 0 || HYPERDRONE_RENDER_OUTPUT_MODE == 1 || HYPERDRONE_RENDER_OUTPUT_MODE == 4;
-        static constexpr bool OUTPUT_DEPTH = HYPERDRONE_RENDER_OUTPUT_MODE == 1 || HYPERDRONE_RENDER_OUTPUT_MODE == 2 || HYPERDRONE_RENDER_OUTPUT_MODE == 4;
-        static constexpr bool OUTPUT_SEGMENTATION = HYPERDRONE_RENDER_OUTPUT_MODE == 3 || HYPERDRONE_RENDER_OUTPUT_MODE == 4;
+        static constexpr bool OUTPUT_RGB = HYPERDRONE_RENDER_OUTPUT_RGB != 0;
+        static constexpr bool OUTPUT_DEPTH = HYPERDRONE_RENDER_OUTPUT_DEPTH != 0;
+        static constexpr bool OUTPUT_SEGMENTATION = HYPERDRONE_RENDER_OUTPUT_SEGMENTATION != 0;
+        static constexpr bool OUTPUT_NORMALS = HYPERDRONE_RENDER_OUTPUT_NORMALS != 0;
+        static constexpr bool OUTPUT_FLOW = HYPERDRONE_RENDER_OUTPUT_FLOW != 0;
         static constexpr bool SEMANTIC_SEGMENTATION = HYPERDRONE_RENDER_SEMANTIC_SEGMENTATION != 0;
         static constexpr bool ENABLE_MOTION_BLUR = HYPERDRONE_RENDER_MB_SAMPLES > 1;
         static constexpr TI MOTION_BLUR_SAMPLES = HYPERDRONE_RENDER_MB_SAMPLES;
@@ -128,6 +131,7 @@ namespace HYPERDRONE_MODULE_NAME {
         RENDERER renderer;
         rlt::rendering::SceneMetadata<T> scene_metadata;
         bool initialized = false;
+        bool flow_initialized = false;
 
         // alias tensors shaped like the renderer tensor let the raw pointers of the arrays
         // cross the memory-domain copy without intermediate staging
@@ -149,8 +153,8 @@ namespace HYPERDRONE_MODULE_NAME {
         }
         // host staging for the readback paths; unused (and never allocated) on backends
         // whose output tensors are host-resident
-        std::vector<uint32_t> host_frame, host_segmentation;
-        std::vector<float> host_depth;
+        std::vector<uint32_t> host_frame, host_segmentation, host_flow_status;
+        std::vector<float> host_depth, host_normals, host_flow;
         std::vector<rrt::CollisionResult> host_collisions;
 
         Renderer(){
@@ -302,13 +306,38 @@ namespace HYPERDRONE_MODULE_NAME {
             }
         }
 
-        void render() {
+        void advance_flow() {
             require_init();
-            rlt::render(device, renderer);
+            if constexpr (SPEC::HAS_FLOW){
+                using rl_tools::advance_flow;
+                advance_flow(device, renderer);
+                flow_initialized = true;
+            }
+            else {
+                throw std::runtime_error("hyperdrone: this renderer has no flow output");
+            }
+        }
+
+        void prepare_flow() {
+            if constexpr (SPEC::HAS_FLOW){
+                if(!flow_initialized){
+                    advance_flow();
+                    if constexpr (SPEC::ENABLE_OVERLAYS){
+                        using rl_tools::update;
+                        update(device, renderer);
+                    }
+                }
+            }
+        }
+
+        void render() {
+            render_launch();
+            render_sync();
         }
 
         void render_launch() {
             require_init();
+            prepare_flow();
             rlt::render_launch(device, renderer);
         }
 
@@ -364,16 +393,6 @@ namespace HYPERDRONE_MODULE_NAME {
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer has no depth output");
-            }
-        }
-
-        void read_segmentation_buffer(uint32_t* dst) {
-            if constexpr (SPEC::HAS_SEGMENTATION){
-                require_init();
-                copy_out(rlt::segmentation_buffer(device, renderer), dst);
-            }
-            else {
-                throw std::runtime_error("hyperdrone: this renderer has no segmentation output");
             }
         }
 
@@ -439,7 +458,7 @@ namespace HYPERDRONE_MODULE_NAME {
                 return rlt::data(tensor);
             }
             else {
-                staging.resize(SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS);
+                staging.resize(TENSOR::SPEC::SIZE);
                 if(refresh){
                     copy_out(tensor, staging.data());
                 }
@@ -464,16 +483,6 @@ namespace HYPERDRONE_MODULE_NAME {
             }
             else {
                 throw std::runtime_error("hyperdrone: this renderer has no depth output");
-            }
-        }
-
-        uint32_t* segmentation_buffer_host(bool refresh) {
-            if constexpr (SPEC::HAS_SEGMENTATION){
-                require_init();
-                return host_view(host_segmentation, rlt::segmentation_buffer(device, renderer), refresh);
-            }
-            else {
-                throw std::runtime_error("hyperdrone: this renderer has no segmentation output");
             }
         }
 
@@ -744,6 +753,57 @@ using hyperdrone::Vec3;
 using hyperdrone::extract_transform;
 using hyperdrone::make_owned_array;
 
+template <bool ENABLED, typename VALUE, size_t CHANNELS, typename RENDERER, typename GET>
+void bind_image_output(nb::class_<RENDERER>& cls, const char* name, std::vector<VALUE> RENDERER::*staging, GET get_buffer){
+    using SPEC = typename RENDERER::SPEC;
+    const std::string channel(name);
+    std::vector<size_t> shape{SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH};
+    if constexpr (CHANNELS > 1){
+        shape.push_back(CHANNELS);
+    }
+    cls.def(("read_" + channel + "_buffer").c_str(), [=](RENDERER& self, nb::ndarray<VALUE, nb::c_contig, nb::device::cpu> out){
+        if constexpr (ENABLED){
+            self.require_init();
+            bool matches = out.ndim() == shape.size();
+            for(size_t axis = 0; matches && axis < shape.size(); axis++){
+                matches = out.shape(axis) == shape[axis];
+            }
+            if(!matches){
+                throw std::invalid_argument("hyperdrone: output array shape does not match " + channel);
+            }
+            nb::gil_scoped_release release;
+            self.copy_out(get_buffer(self), out.data());
+        }
+        else {
+            throw std::runtime_error("hyperdrone: this renderer has no " + channel + " output");
+        }
+    }, nb::arg("out").noconvert());
+    cls.def((channel + "_view").c_str(), [=](RENDERER& self, bool refresh) -> nb::ndarray<nb::numpy, VALUE> {
+        if constexpr (ENABLED){
+            self.require_init();
+            VALUE* pointer;
+            {
+                nb::gil_scoped_release release;
+                pointer = self.host_view(self.*staging, get_buffer(self), refresh);
+            }
+            return {pointer, shape.size(), shape.data(), nb::find(&self)};
+        }
+        else {
+            throw std::runtime_error("hyperdrone: this renderer has no " + channel + " output");
+        }
+    }, nb::arg("refresh") = true);
+    cls.def((channel + "_dlpack").c_str(), [=](RENDERER& self) -> nb::ndarray<> {
+        if constexpr (ENABLED){
+            self.require_init();
+            return {data(get_buffer(self)), shape.size(), shape.data(), nb::find(&self), nullptr,
+                    nb::dtype<VALUE>(), self.buffer_device_type(), 0};
+        }
+        else {
+            throw std::runtime_error("hyperdrone: this renderer has no " + channel + " output");
+        }
+    });
+}
+
 NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     m.doc() = "JIT-specialized RLtools raytracer";
     m.def("_set_verbosity", &hyperdrone::set_verbosity);
@@ -751,6 +811,14 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     using Renderer = HYPERDRONE_MODULE_NAME::Renderer<HYPERDRONE_MODULE_NAME::RENDERER_SPEC>;
     using SPEC = Renderer::SPEC;
     auto renderer_class = nb::class_<Renderer>(m, "Renderer");
+    bind_image_output<SPEC::HAS_SEGMENTATION, uint32_t, 1>(renderer_class, "segmentation", &Renderer::host_segmentation,
+        [](auto& self) -> auto& { return segmentation_buffer(self.device, self.renderer); });
+    bind_image_output<SPEC::HAS_NORMALS, float, 3>(renderer_class, "normals", &Renderer::host_normals,
+        [](auto& self) -> auto& { return normals_buffer(self.device, self.renderer); });
+    bind_image_output<SPEC::HAS_FLOW, float, 2>(renderer_class, "flow", &Renderer::host_flow,
+        [](auto& self) -> auto& { return flow_buffer(self.device, self.renderer); });
+    bind_image_output<SPEC::HAS_FLOW, uint32_t, 1>(renderer_class, "flow_status", &Renderer::host_flow_status,
+        [](auto& self) -> auto& { return flow_status_buffer(self.device, self.renderer); });
     renderer_class
         .def(nb::init<>())
         .def_prop_ro("backend", [](const Renderer& self){ return std::string(self.backend()); })
@@ -773,6 +841,7 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
             self.generate_cameras(center.data(), radius, up.data(), fov);
         }, nb::arg("center"), nb::arg("radius"), nb::arg("up"), nb::arg("fov"))
         .def("generate_probe_directions", &Renderer::generate_probe_directions)
+        .def("advance_flow", &Renderer::advance_flow, nb::call_guard<nb::gil_scoped_release>())
         .def("render", &Renderer::render, nb::call_guard<nb::gil_scoped_release>())
         .def("render_launch", &Renderer::render_launch, nb::call_guard<nb::gil_scoped_release>())
         .def("render_sync", &Renderer::render_sync, nb::call_guard<nb::gil_scoped_release>())
@@ -790,12 +859,6 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
             self.check_image_shape(out.ndim(), shape);
             nb::gil_scoped_release release;
             self.read_depth_buffer(out.data());
-        }, nb::arg("out"))
-        .def("read_segmentation_buffer", [](Renderer& self, nb::ndarray<uint32_t, nb::c_contig, nb::device::cpu> out){
-            size_t shape[3] = {(size_t)out.shape(0), out.ndim() > 1 ? (size_t)out.shape(1) : 0, out.ndim() > 2 ? (size_t)out.shape(2) : 0};
-            self.check_image_shape(out.ndim(), shape);
-            nb::gil_scoped_release release;
-            self.read_segmentation_buffer(out.data());
         }, nb::arg("out"))
         .def("read_collision_results", [](Renderer& self, nb::ndarray<float, nb::c_contig, nb::device::cpu> distances, nb::ndarray<int32_t, nb::c_contig, nb::device::cpu> hits){
             const size_t expected = (size_t)SPEC::NUM_CAMERAS * HYPERDRONE_RENDER_NUM_PROBES;
@@ -822,14 +885,6 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
                 pointer = self.depth_buffer_host(refresh);
             }
             return nb::ndarray<nb::numpy, float>(pointer, {SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH}, nb::find(&self));
-        }, nb::arg("refresh") = true)
-        .def("segmentation_view", [](Renderer& self, bool refresh){
-            uint32_t* pointer;
-            {
-                nb::gil_scoped_release release;
-                pointer = self.segmentation_buffer_host(refresh);
-            }
-            return nb::ndarray<nb::numpy, uint32_t>(pointer, {SPEC::NUM_CAMERAS, SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH}, nb::find(&self));
         }, nb::arg("refresh") = true)
         .def("frame_dlpack", [](Renderer& self){
             uint8_t* pointer = reinterpret_cast<uint8_t*>(self.frame_buffer_live());

@@ -63,9 +63,19 @@ if(HYPERDRONE_VARIANT STREQUAL "OPTIX")
     target_link_libraries(hyperdrone_env_core PRIVATE CUDA::cudart)
 endif()
 
-# the observation path only needs the RGB device program
 function(hyperdrone_component_libraries DEFINES OUT_LIBRARIES)
-    set(${OUT_LIBRARIES} rendering_raytracing_backend PARENT_SCOPE)
+    hyperdrone_jit_parse_defines("${DEFINES}" CONFIG)
+    if(DEFINED CONFIG_HYPERDRONE_ENV_SPEC_HEADER)
+        set(${OUT_LIBRARIES} rendering_raytracing_backend rendering_raytracing_backend_depth rendering_raytracing_backend_segmentation rendering_raytracing_backend_normals PARENT_SCOPE)
+    elseif(CONFIG_HYPERDRONE_ENV_OUTPUT_NORMALS)
+        set(${OUT_LIBRARIES} rendering_raytracing_backend_normals PARENT_SCOPE)
+    elseif(CONFIG_HYPERDRONE_ENV_OUTPUT_SEGMENTATION)
+        set(${OUT_LIBRARIES} rendering_raytracing_backend_segmentation PARENT_SCOPE)
+    elseif(CONFIG_HYPERDRONE_ENV_OUTPUT_DEPTH)
+        set(${OUT_LIBRARIES} rendering_raytracing_backend_depth PARENT_SCOPE)
+    else()
+        set(${OUT_LIBRARIES} rendering_raytracing_backend PARENT_SCOPE)
+    endif()
 endfunction()
 
 # under OptiX impl.cpp, which holds the environment behind the binding, is compiled by nvcc so

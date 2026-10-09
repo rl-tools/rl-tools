@@ -42,6 +42,9 @@ namespace rl_tools::rl::environments::hyperdrone {
         static constexpr bool OUTPUT_RGB = true;
         static constexpr bool OUTPUT_DEPTH = false;
         static constexpr bool OUTPUT_SEGMENTATION = false;
+        static constexpr bool SEMANTIC_SEGMENTATION = false;
+        static constexpr bool OUTPUT_NORMALS = false;
+        static constexpr bool OUTPUT_FLOW = false;
         static constexpr TI HISTORY_LENGTH = 1;
         static constexpr TI EPISODES_PER_SCENE = 1;
         static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = 0;
@@ -91,6 +94,9 @@ namespace rl_tools::rl::environments::hyperdrone {
             static constexpr bool OUTPUT_RGB = SPEC::OUTPUT_RGB;
             static constexpr bool OUTPUT_DEPTH = SPEC::OUTPUT_DEPTH;
             static constexpr bool OUTPUT_SEGMENTATION = SPEC::OUTPUT_SEGMENTATION;
+            static constexpr bool SEMANTIC_SEGMENTATION = SPEC::SEMANTIC_SEGMENTATION;
+            static constexpr bool OUTPUT_NORMALS = SPEC::OUTPUT_NORMALS;
+            static constexpr bool OUTPUT_FLOW = SPEC::OUTPUT_FLOW;
             static constexpr bool ENABLE_MOTION_BLUR = SPEC::ENABLE_MOTION_BLUR;
             static constexpr TI MOTION_BLUR_SAMPLES = SPEC::MOTION_BLUR_SAMPLES;
             static constexpr bool ENABLE_ANTI_ALIASING = SPEC::ENABLE_ANTI_ALIASING;
@@ -192,7 +198,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         static constexpr TI N_VIEWS = N_AGENTS;
         static constexpr TI ACTION_DIM = N_AGENTS * DYNAMICS_ENV::ACTION_DIM;
         static constexpr TI EPISODE_STEP_LIMIT = DYNAMICS_ENV::EPISODE_STEP_LIMIT;
-        static constexpr TI IMAGE_CHANNELS = SPEC::OUTPUT_DEPTH ? (SPEC::OUTPUT_RGB ? 4 : 1) : 3;
+        static constexpr TI IMAGE_CHANNELS = 3;
 
         // agent frames stack along the image height so the flat row layout matches the
         // camera-major frame history exactly
@@ -265,6 +271,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         Tensor<PREV_CAMERAS_SPEC> camera_staging_previous;
         Tensor<PREV_CAMERAS_SPEC> camera_staging_open;
         TI history_step = 0;
+        TI flow_scene_version = 0;
         bool render_pending = false;
 
         // the drone table's device copy: the sampler draws parameters.drone at reset and the body
