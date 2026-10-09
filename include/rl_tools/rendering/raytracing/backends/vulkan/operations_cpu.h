@@ -37,7 +37,7 @@ namespace rl_tools {
         template <typename DEVICE>
         void check(DEVICE& device, VkResult result, const char* message){
             if(result != VK_SUCCESS){
-                RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR(message << " (VkResult " << (int)result << ")");
+                log(device, device.logger, devices::logging::Verbosity::error, rendering::raytracing::LOG_PREFIX, message, " (VkResult ", (int)result, ")");
                 utils::assert_exit(device, false, message);
             }
         }
@@ -466,7 +466,7 @@ namespace rl_tools {
             properties.pNext = &acceleration_structure_properties;
             vkGetPhysicalDeviceProperties2(ctx->physical_device, &properties);
             ctx->min_scratch_alignment = acceleration_structure_properties.minAccelerationStructureScratchOffsetAlignment;
-            RL_TOOLS_RENDERING_RAYTRACING_LOG("Vulkan device: " << properties.properties.deviceName);
+            log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "Vulkan device: ", properties.properties.deviceName);
         }
 
         uint32_t queue_family_count = 0;
@@ -716,14 +716,14 @@ namespace rl_tools {
         ctx->probe_directions = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_PROBES * 3 * sizeof(float), STORAGE, HOST_MEMORY, true);
 #endif
         ctx->dummy = vk::create_buffer(device, *ctx, 64, STORAGE, HOST_MEMORY, false);
-        rendering::raytracing::detail::announce_backend(renderer);
+        rendering::raytracing::detail::announce_backend(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC, typename METADATA_T>
     void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool, const rendering::SceneMetadata<METADATA_T>& metadata){
         validate_semantic_segmentation<SPEC>(device, scene, pool);
         renderer.max_ray_length = (typename SPEC::T)metadata.max_ray_length;
-        rendering::raytracing::detail::announce_configuration<SPEC>();
+        rendering::raytracing::detail::announce_configuration<SPEC>(device);
         rendering::raytracing::detail::resolve_environment<SPEC>(scene.environment, renderer.ambient_color, renderer.miss_color_0, renderer.miss_color_1);
         namespace vk = rendering::raytracing::backends::vulkan;
         using TI = typename SPEC::TI;
@@ -737,7 +737,7 @@ namespace rl_tools {
         if constexpr (SPEC::ENABLE_OVERLAYS){
             rendering::raytracing::detail::register_pool_assets(device, renderer, pool, all_objects);
         }
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << all_objects.size() << " objects / " << scene.instances.size() << " instances ...");
+        log(device, device.logger, devices::logging::Verbosity::debug, rendering::raytracing::LOG_PREFIX, "building ", all_objects.size(), " objects / ", scene.instances.size(), " instances ...");
 
         // scene-dependent resources from a previous init are released here; the pipelines are
         // spec-dependent and survive re-init
@@ -874,7 +874,7 @@ namespace rl_tools {
         ctx.mesh_records = vk::create_buffer(device, ctx, mesh_records.size() * sizeof(vk::MeshRecord), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, HOST_MEMORY, true);
         std::memcpy(ctx.mesh_records.mapped, mesh_records.data(), mesh_records.size() * sizeof(vk::MeshRecord));
 
-        const auto scene_lights = rendering::raytracing::detail::effective_scene_lights<SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING>(scene);
+        const auto scene_lights = rendering::raytracing::detail::effective_scene_lights<SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING>(device, scene);
         {
             const size_t scene_lights_bytes = scene_lights.empty() ? sizeof(rendering::raytracing::SceneLight) : scene_lights.size() * sizeof(rendering::raytracing::SceneLight);
             ctx.scene_lights = vk::create_buffer(device, ctx, scene_lights_bytes, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, HOST_MEMORY, true);
@@ -1734,12 +1734,12 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void generate_probe_directions(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Vulkan>& renderer){
 #if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("Probe rays disabled (RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS=1)");
+        log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "Probe rays disabled (RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS=1)");
         return;
 #else
         namespace vk = rendering::raytracing::backends::vulkan;
         auto& ctx = vk::context(renderer);
-        std::vector<float> dirs = rendering::raytracing::detail::generate_probe_direction_vectors<SPEC>();
+        std::vector<float> dirs = rendering::raytracing::detail::generate_probe_direction_vectors<SPEC>(device);
         std::memcpy(ctx.probe_directions.mapped, dirs.data(), dirs.size() * sizeof(float));
 #endif
     }

@@ -874,7 +874,7 @@ static bool setup_scene(DEVICE& device, rlt::rendering::Bundle<T>& bundle, Scene
         apply_20_object_bounds(bundle.metadata);
         return true;
     }
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("Loading ProcTHOR scene: " << options.procthor_path);
+    rlt::log(device, device.logger, "Loading ProcTHOR scene: ", options.procthor_path);
     return load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, options.procthor_path);
 }
 
@@ -984,7 +984,7 @@ static bool run_case(DEVICE& device, SceneAxis scene, const Options& options) {
     malloc(device, renderer);
     init(device, renderer, bundle);
     const std::string device_label = device_name(device, renderer);
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("Rendering " << scene_name(scene) << " on " << BACKEND_NAME << " / " << device_label);
+    rlt::log(device, device.logger, "Rendering ", scene_name(scene), " on ", BACKEND_NAME, " / ", device_label);
 
     CameraPose pose{};
     BenchmarkResult result{};
@@ -1044,7 +1044,7 @@ static bool run_sweep_spec(DEVICE& device, const std::vector<SceneAxis>& scenes,
         std::this_thread::sleep_for(std::chrono::duration<double>(options.cooldown_seconds));
     }
     first = false;
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("Sweep configuration " << current);
+    rlt::log(device, device.logger, "Sweep configuration ", current);
     return run_scenes<SPEC>(device, scenes, options);
 }
 

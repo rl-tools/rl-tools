@@ -890,8 +890,8 @@ namespace rl_tools {
         return md;
     }
 
-    template <typename SHADING, bool HAS_RGB>
-    bool load_scene_data(rendering::Object& object, std::vector<rendering::SceneLight>& out_lights, const std::string& filename, rendering::Scene::Environment* environment = nullptr){
+    template <typename SHADING, bool HAS_RGB, typename DEVICE>
+    bool load_scene_data(DEVICE& device, rendering::Object& object, std::vector<rendering::SceneLight>& out_lights, const std::string& filename, rendering::Scene::Environment* environment = nullptr){
         Assimp::Importer importer;
         unsigned int import_flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_ImproveCacheLocality;
         if constexpr (HAS_RGB && SHADING::PBR_SHADING) {
@@ -902,11 +902,11 @@ namespace rl_tools {
         const aiScene* scene = importer.ReadFile(filename, import_flags);
 
         if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode){
-            RL_TOOLS_RENDERING_DATASETS_LOG_ERR("Assimp error: " << importer.GetErrorString());
+            log(device, device.logger, devices::logging::Verbosity::error, rendering::datasets::LOG_PREFIX, "Assimp error: ", importer.GetErrorString());
             return false;
         }
 
-        RL_TOOLS_RENDERING_DATASETS_LOG("Loaded model with " << scene->mNumMeshes << " mesh(es)");
+        log(device, device.logger, devices::logging::Verbosity::info, rendering::datasets::LOG_PREFIX, "Loaded model with ", scene->mNumMeshes, " mesh(es)");
 
         [[maybe_unused]] MeshConversionState conversion_state;
 
@@ -916,12 +916,12 @@ namespace rl_tools {
         const size_t first_new_mesh = out_meshes.size();
         const auto glb_metadata = parse(filename, *scene);
         if(!glb_metadata.segmentation_valid){
-            RL_TOOLS_RENDERING_DATASETS_LOG_ERR("Invalid rl_tools segmentation metadata in " << filename);
+            log(device, device.logger, devices::logging::Verbosity::error, rendering::datasets::LOG_PREFIX, "Invalid rl_tools segmentation metadata in ", filename);
             return false;
         }
         if(environment != nullptr){
             if(!glb_metadata.environment_valid){
-                RL_TOOLS_RENDERING_DATASETS_LOG_ERR("Invalid scenes[].extras.rl_tools.environment in " << filename);
+                log(device, device.logger, devices::logging::Verbosity::error, rendering::datasets::LOG_PREFIX, "Invalid scenes[].extras.rl_tools.environment in ", filename);
                 return false;
             }
             *environment = glb_metadata.environment;
@@ -991,21 +991,25 @@ namespace rl_tools {
             } // end for global_transform
         }
 
-        RL_TOOLS_RENDERING_DATASETS_LOG("Total vertices: " << total_verts << ", triangles: " << total_tris);
+        log(device, device.logger, devices::logging::Verbosity::debug, rendering::datasets::LOG_PREFIX, "Total vertices: ", total_verts, ", triangles: ", total_tris);
 
         const size_t num_new_meshes = out_meshes.size() - first_new_mesh;
         int textured_count = 0;
         int metallic_count = 0;
         for(size_t m = first_new_mesh; m < out_meshes.size(); m++){
-            if(out_meshes[m].texture.present()) textured_count++;
-            if(out_meshes[m].metallic > 0.f) metallic_count++;
+            if(out_meshes[m].texture.present()){
+                textured_count++;
+            }
+            if(out_meshes[m].metallic > 0.f){
+                metallic_count++;
+            }
         }
-        RL_TOOLS_RENDERING_DATASETS_LOG("Meshes with textures: " << textured_count << "/" << num_new_meshes
-              << ", metallic: " << metallic_count << "/" << num_new_meshes);
+        log(device, device.logger, devices::logging::Verbosity::debug, rendering::datasets::LOG_PREFIX, "Meshes with textures: ", textured_count, "/", num_new_meshes,
+              ", metallic: ", metallic_count, "/", num_new_meshes);
         if constexpr (HAS_RGB && !SHADING::LOAD_TEXTURES) {
-            RL_TOOLS_RENDERING_DATASETS_LOG("Representative texture colors: " << conversion_state.representative_texture_color_meshes
-                  << "/" << num_new_meshes << " meshes, decoded "
-                  << conversion_state.representative_texture_color_decoded << " texture(s)");
+            log(device, device.logger, devices::logging::Verbosity::debug, rendering::datasets::LOG_PREFIX, "Representative texture colors: ", conversion_state.representative_texture_color_meshes,
+                  "/", num_new_meshes, " meshes, decoded ",
+                  conversion_state.representative_texture_color_decoded, " texture(s)");
         }
 
         for (auto& sl : glb_metadata.lights) {
@@ -1028,8 +1032,8 @@ namespace rl_tools {
     // inside another selected node records it as its parent (declared first), lights move to
     // the innermost selected node of their chain, and geometry outside every selected node is
     // an error rather than silently dropped.
-    template <typename SHADING, bool HAS_RGB>
-    bool load_assembly_data(rendering::ObjectAssembly& assembly, const std::string& filename, rendering::Scene::Environment* environment = nullptr, const std::vector<std::string>& part_nodes = {}){
+    template <typename SHADING, bool HAS_RGB, typename DEVICE>
+    bool load_assembly_data(DEVICE& device, rendering::ObjectAssembly& assembly, const std::string& filename, rendering::Scene::Environment* environment = nullptr, const std::vector<std::string>& part_nodes = {}){
         Assimp::Importer importer;
         unsigned int import_flags = aiProcess_Triangulate | aiProcess_JoinIdenticalVertices | aiProcess_ImproveCacheLocality;
         if constexpr (HAS_RGB && SHADING::PBR_SHADING) {
@@ -1039,17 +1043,17 @@ namespace rl_tools {
         }
         const aiScene* scene = importer.ReadFile(filename, import_flags);
         if(!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE || !scene->mRootNode){
-            RL_TOOLS_RENDERING_DATASETS_LOG_ERR("Assimp error: " << importer.GetErrorString());
+            log(device, device.logger, devices::logging::Verbosity::error, rendering::datasets::LOG_PREFIX, "Assimp error: ", importer.GetErrorString());
             return false;
         }
         const auto glb_metadata = parse(filename, *scene);
         if(!glb_metadata.segmentation_valid){
-            RL_TOOLS_RENDERING_DATASETS_LOG_ERR("Invalid rl_tools segmentation metadata in " << filename);
+            log(device, device.logger, devices::logging::Verbosity::error, rendering::datasets::LOG_PREFIX, "Invalid rl_tools segmentation metadata in ", filename);
             return false;
         }
         if(environment != nullptr){
             if(!glb_metadata.environment_valid){
-                RL_TOOLS_RENDERING_DATASETS_LOG_ERR("Invalid scenes[].extras.rl_tools.environment in " << filename);
+                log(device, device.logger, devices::logging::Verbosity::error, rendering::datasets::LOG_PREFIX, "Invalid scenes[].extras.rl_tools.environment in ", filename);
                 return false;
             }
             *environment = glb_metadata.environment;
@@ -1099,18 +1103,18 @@ namespace rl_tools {
                 for(const auto& visit : visits){
                     if(name == visit.node->mName.C_Str()){
                         if(match != nullptr){
-                            RL_TOOLS_RENDERING_DATASETS_LOG_ERR("Part node name is ambiguous in " << filename << ": " << name);
+                            log(device, device.logger, devices::logging::Verbosity::error, rendering::datasets::LOG_PREFIX, "Part node name is ambiguous in ", filename, ": ", name);
                             return false;
                         }
                         match = &visit;
                     }
                 }
                 if(match == nullptr){
-                    RL_TOOLS_RENDERING_DATASETS_LOG_ERR("Part node not found in " << filename << ": " << name);
+                    log(device, device.logger, devices::logging::Verbosity::error, rendering::datasets::LOG_PREFIX, "Part node not found in ", filename, ": ", name);
                     return false;
                 }
                 if(selected_index(match->node) < selection.size()){
-                    RL_TOOLS_RENDERING_DATASETS_LOG_ERR("Part node selected twice in " << filename << ": " << name);
+                    log(device, device.logger, devices::logging::Verbosity::error, rendering::datasets::LOG_PREFIX, "Part node selected twice in ", filename, ": ", name);
                     return false;
                 }
                 selection.push_back({match->node, match->transform, match->root_ordinal, rendering::ObjectAssembly::Part::NO_PARENT});
@@ -1120,7 +1124,7 @@ namespace rl_tools {
                     const size_t parent_i = selected_index(ancestor);
                     if(parent_i < selection.size()){
                         if(parent_i > part_i){
-                            RL_TOOLS_RENDERING_DATASETS_LOG_ERR("Part node " << part_nodes[part_i] << " must follow its enclosing part node " << part_nodes[parent_i]);
+                            log(device, device.logger, devices::logging::Verbosity::error, rendering::datasets::LOG_PREFIX, "Part node ", part_nodes[part_i], " must follow its enclosing part node ", part_nodes[parent_i]);
                             return false;
                         }
                         selection[part_i].parent = parent_i;
@@ -1137,7 +1141,7 @@ namespace rl_tools {
                     covered = selected_index(node) < selection.size();
                 }
                 if(!covered){
-                    RL_TOOLS_RENDERING_DATASETS_LOG_ERR("Part nodes leave the geometry of node " << visit.node->mName.C_Str() << " outside every part in " << filename);
+                    log(device, device.logger, devices::logging::Verbosity::error, rendering::datasets::LOG_PREFIX, "Part nodes leave the geometry of node ", visit.node->mName.C_Str(), " outside every part in ", filename);
                     return false;
                 }
             }
@@ -1212,7 +1216,7 @@ namespace rl_tools {
             assembly.objects.push_back(std::move(object));
             assembly.parts.push_back(part);
         }
-        RL_TOOLS_RENDERING_DATASETS_LOG("Loaded assembly with " << (assembly.parts.size() - first_new_part) << " part(s)");
+        log(device, device.logger, devices::logging::Verbosity::info, rendering::datasets::LOG_PREFIX, "Loaded assembly with ", (assembly.parts.size() - first_new_part), " part(s)");
         return true;
     }
     }
@@ -1223,7 +1227,7 @@ namespace rl_tools {
         if(!rendering::datasets::resolve_reference(device, reference, path)){
             return false;
         }
-        return rendering::datasets::glb::load_scene_data<SHADING, HAS_RGB>(object, object.lights, path);
+        return rendering::datasets::glb::load_scene_data<SHADING, HAS_RGB>(device, object, object.lights, path);
     }
 
     template <typename SHADING = rendering::VeryHigh, bool HAS_RGB = true, typename DEVICE>
@@ -1232,7 +1236,7 @@ namespace rl_tools {
         if(!rendering::datasets::resolve_reference(device, reference, path)){
             return false;
         }
-        return rendering::datasets::glb::load_assembly_data<SHADING, HAS_RGB>(assembly, path);
+        return rendering::datasets::glb::load_assembly_data<SHADING, HAS_RGB>(device, assembly, path);
     }
 
     template <typename SHADING = rendering::VeryHigh, bool HAS_RGB = true, typename DEVICE>
@@ -1241,7 +1245,7 @@ namespace rl_tools {
         if(!rendering::datasets::resolve_reference(device, reference, path)){
             return false;
         }
-        return rendering::datasets::glb::load_assembly_data<SHADING, HAS_RGB>(assembly, path, nullptr, part_nodes);
+        return rendering::datasets::glb::load_assembly_data<SHADING, HAS_RGB>(device, assembly, path, nullptr, part_nodes);
     }
 
     // Appends the scene file as one welded static object placed at identity: explicit
@@ -1254,7 +1258,7 @@ namespace rl_tools {
             return false;
         }
         rendering::Object object;
-        if(!rendering::datasets::glb::load_scene_data<SHADING, HAS_RGB>(object, bundle.scene.lights, path)){
+        if(!rendering::datasets::glb::load_scene_data<SHADING, HAS_RGB>(device, object, bundle.scene.lights, path)){
             return false;
         }
         bundle.scene.objects.push_back(std::move(object));
@@ -1278,7 +1282,7 @@ namespace rl_tools {
         }
         if constexpr(mode::is<MODE, mode::rendering::SceneRoots>){
             rendering::ObjectAssembly assembly;
-            if(!rendering::datasets::glb::load_assembly_data<SHADING, HAS_RGB>(assembly, path, &bundle.scene.environment)){
+            if(!rendering::datasets::glb::load_assembly_data<SHADING, HAS_RGB>(device, assembly, path, &bundle.scene.environment)){
                 return false;
             }
             bundle.scene.objects = std::move(assembly.objects);
@@ -1289,7 +1293,7 @@ namespace rl_tools {
         }
         else{
             rendering::Object object;
-            if(!rendering::datasets::glb::load_scene_data<SHADING, HAS_RGB>(object, bundle.scene.lights, path, &bundle.scene.environment)){
+            if(!rendering::datasets::glb::load_scene_data<SHADING, HAS_RGB>(device, object, bundle.scene.lights, path, &bundle.scene.environment)){
                 return false;
             }
             bundle.scene.objects.push_back(std::move(object));
@@ -1301,7 +1305,7 @@ namespace rl_tools {
             bundle.scene.lights.push_back({0, {0,0,0}, {-inv_sqrt2, 0.f, inv_sqrt2}, {0.4f, 0.4f, 0.4f}, 0,0,0, 0,0});
             bundle.scene.lights.push_back({0, {0,0,0}, {0.f, -inv_sqrt2, inv_sqrt2}, {0.3f, 0.3f, 0.3f}, 0,0,0, 0,0});
             bundle.scene.lights.push_back({0, {0,0,0}, {0.f, inv_sqrt2, inv_sqrt2}, {0.2f, 0.2f, 0.2f}, 0,0,0, 0,0});
-            RL_TOOLS_RENDERING_DATASETS_LOG("Scene file has no lights: adding 3 directional fill lights");
+            log(device, device.logger, devices::logging::Verbosity::info, rendering::datasets::LOG_PREFIX, "Scene file has no lights: adding 3 directional fill lights");
         }
         rendering::datasets::compute_bounds(device, bundle);
         utils::assert_exit(device, rendering::datasets::content_hash(device, path, bundle.metadata.content_hash), "load: failed to hash scene file");

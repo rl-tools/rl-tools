@@ -72,6 +72,7 @@ namespace HYPERDRONE_MODULE_NAME {
 
 NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     using namespace HYPERDRONE_MODULE_NAME;
+    m.def("_set_verbosity", &hyperdrone::set_verbosity);
 
     m.doc() = "JIT-specialized RLtools hyperdrone environment";
     m.attr("observation_layout") = layout_dict(observation_layout());

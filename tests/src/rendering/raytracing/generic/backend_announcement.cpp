@@ -1,9 +1,13 @@
 #include <rl_tools/operations/cpu.h>
 #include <rl_tools/rendering/raytracing/backends/generic/operations_cpu.h>
+#include <rl_tools/rendering/raytracing/save_cpu.h>
 
 #include <gtest/gtest.h>
 
 #include <string>
+#include <filesystem>
+#include <fstream>
+#include <iterator>
 
 namespace rlt = rl_tools;
 namespace rrt = rl_tools::rendering::raytracing;
@@ -58,4 +62,58 @@ TEST(RENDERING_RAYTRACING_BACKEND_ANNOUNCEMENT, EACH_MALLOC_WRITES_TO_STDERR){
 
     rlt::free(device, second);
     rlt::free(device, first);
+}
+
+TEST(RENDERING_RAYTRACING_VERBOSITY, LEVEL_GATES_MESSAGES){
+    using Verbosity = rlt::devices::logging::Verbosity;
+    DEVICE device;
+    rlt::init(device);
+    RENDERER renderer;
+
+    device.logger.verbosity = Verbosity::warning;
+    testing::internal::CaptureStdout();
+    testing::internal::CaptureStderr();
+    rlt::malloc(device, renderer);
+    EXPECT_EQ(testing::internal::GetCapturedStderr(), "");
+    EXPECT_EQ(testing::internal::GetCapturedStdout(), "");
+
+    device.logger.verbosity = Verbosity::info;
+    testing::internal::CaptureStderr();
+    rlt::generate_probe_directions(device, renderer);
+    EXPECT_EQ(testing::internal::GetCapturedStderr(), "");
+
+    device.logger.verbosity = Verbosity::debug;
+    testing::internal::CaptureStderr();
+    rlt::generate_probe_directions(device, renderer);
+    EXPECT_EQ(testing::internal::GetCapturedStderr(), "#rl_tools::rendering::raytracing: Generated 1 probe directions per camera\n");
+
+    rlt::free(device, renderer);
+}
+
+TEST(RENDERING_RAYTRACING_VERBOSITY, QUIET_PROBE_EXPORT_PRESERVES_DATA){
+    const auto directory = std::filesystem::temp_directory_path() / "rl_tools_verbosity_probe_export";
+    std::filesystem::create_directories(directory);
+    const std::string quiet = (directory / "quiet.bin").string();
+    const std::string verbose = (directory / "verbose.bin").string();
+    DEVICE device;
+    const rrt::CollisionResult probes[] = {{2.5f, 1}};
+    device.logger.verbosity = rlt::devices::logging::Verbosity::warning;
+    testing::internal::CaptureStderr();
+    rrt::detail::write_probes_bin_and_log<SPEC>(device, probes, quiet.c_str());
+    EXPECT_EQ(testing::internal::GetCapturedStderr(), "");
+    device.logger.verbosity = rlt::devices::logging::Verbosity::debug;
+    testing::internal::CaptureStderr();
+    rrt::detail::write_probes_bin_and_log<SPEC>(device, probes, verbose.c_str());
+    EXPECT_NE(testing::internal::GetCapturedStderr().find("COLLISION PROBE RESULTS"), std::string::npos);
+
+    const auto read = [](const std::string& path){
+        std::ifstream input(path, std::ios::binary);
+        return std::vector<char>(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+    };
+    const auto quiet_data = read(quiet);
+    EXPECT_EQ(quiet_data.size(), 2 * sizeof(int) + sizeof(probes));
+    EXPECT_EQ(quiet_data, read(verbose));
+    std::filesystem::remove(quiet);
+    std::filesystem::remove(verbose);
+    std::filesystem::remove(directory);
 }

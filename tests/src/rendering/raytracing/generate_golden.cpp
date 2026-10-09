@@ -292,7 +292,7 @@ bool validate_flow_direction(const std::string& name, const FlowDirection& direc
 }
 
 template <typename CASE>
-bool write_flow_direction(const std::string& output_dir, const std::string& output, const FlowDirection& direction) {
+bool write_flow_direction(DEVICE& device, const std::string& output_dir, const std::string& output, const FlowDirection& direction) {
     using SPEC = typename CASE::SPEC;
     bool ok = true;
     const std::string status_output = output + "-status";
@@ -302,7 +302,7 @@ bool write_flow_direction(const std::string& output_dir, const std::string& outp
         ok &= golden::write_multi_camera_float_bin(golden_bin(output_dir, camera_i, CASE::STATE, output), camera_flow, 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT, 2);
         ok &= golden::write_multi_camera_uint32_bin(golden_bin(output_dir, camera_i, CASE::STATE, status_output), camera_status, 1, SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
         // review images: the flow one normalises per image (advisory), the status one is the pinned false color
-        rlt::rendering::raytracing::detail::write_flow_grid_png<CASES::SingleCamera>(camera_flow, golden_png(output_dir, camera_i, CASE::STATE, output).c_str());
+        rlt::rendering::raytracing::detail::write_flow_grid_png<CASES::SingleCamera>(device, camera_flow, golden_png(output_dir, camera_i, CASE::STATE, output).c_str());
         std::vector<uint32_t> status_encoded(SPEC::CAM_PIXELS);
         golden::colorize_flow_status(camera_status, SPEC::CAM_PIXELS, status_encoded.data());
         ok &= golden::write_camera_png(golden_png(output_dir, camera_i, CASE::STATE, status_output), status_encoded.data(), SPEC::CAM_WIDTH, SPEC::CAM_HEIGHT);
@@ -311,7 +311,7 @@ bool write_flow_direction(const std::string& output_dir, const std::string& outp
 }
 
 template <typename CASE>
-bool write_flow(const std::string& output_dir, const Rendered& rendered) {
+bool write_flow(DEVICE& device, const std::string& output_dir, const Rendered& rendered) {
     using SPEC = typename CASE::SPEC;
     static_assert(SPEC::HAS_FLOW && SPEC::HAS_FLOW_FORWARD, "the flow goldens cover both directions");
     const std::string name = std::string(CASE::STATE) + "/flow";
@@ -322,7 +322,7 @@ bool write_flow(const std::string& output_dir, const Rendered& rendered) {
     if(!ok) {
         return false;
     }
-    ok = write_flow_direction<CASE>(output_dir, "flow", backward) && write_flow_direction<CASE>(output_dir, std::string("flow") + forward.suffix, forward);
+    ok = write_flow_direction<CASE>(device, output_dir, "flow", backward) && write_flow_direction<CASE>(device, output_dir, std::string("flow") + forward.suffix, forward);
     return ok || fail(name, "failed to write outputs");
 }
 
@@ -352,7 +352,7 @@ bool run_case(DEVICE& device, const std::string& output_dir) {
         ok = write_semantic<CASE>(output_dir, rendered) && ok;
     }
     if constexpr(SPEC::HAS_FLOW) {
-        ok = write_flow<CASE>(output_dir, rendered) && ok;
+        ok = write_flow<CASE>(device, output_dir, rendered) && ok;
     }
     return ok;
 }

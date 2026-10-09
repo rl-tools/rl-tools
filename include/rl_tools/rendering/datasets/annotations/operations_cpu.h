@@ -219,7 +219,7 @@ namespace rl_tools::rendering::datasets::annotations {
             const T center[3] = {(T)metadata.center[0], (T)metadata.center[1], (T)metadata.center[2]};
             const T half_extent[3] = {(T)metadata.half_extent[0], (T)metadata.half_extent[1], (T)metadata.half_extent[2]};
 
-            RL_TOOLS_RENDERING_DATASETS_LOG("annotations::free_space: center=[" << center[0] << "," << center[1] << "," << center[2] << "] half_extent=[" << half_extent[0] << "," << half_extent[1] << "," << half_extent[2] << "]");
+            log(device, device.logger, devices::logging::Verbosity::debug, rendering::datasets::LOG_PREFIX, "annotations::free_space: center=[", center[0], ",", center[1], ",", center[2], "] half_extent=[", half_extent[0], ",", half_extent[1], ",", half_extent[2], "]");
             utils::assert_exit(device, data(collision_results(device, probe_target)) != nullptr, "annotations::free_space: collision results buffer is null");
 
             constexpr T PI = static_cast<T>(3.14159265358979323846);
@@ -344,7 +344,7 @@ namespace rl_tools::rendering::datasets::annotations {
                 return a.score > b.score;
             });
 
-            RL_TOOLS_RENDERING_DATASETS_LOG("annotations::free_space: tested=" << tested << " no_hits=" << no_hits << " failed_hit_ratio=" << failed_hit_ratio << " failed_avg_dist=" << failed_avg_dist << " failed_min_dist=" << failed_min_dist << " (best_min_hit=" << best_min_hit_dist << ") accepted=" << table.size());
+            log(device, device.logger, devices::logging::Verbosity::debug, rendering::datasets::LOG_PREFIX, "annotations::free_space: tested=", tested, " no_hits=", no_hits, " failed_hit_ratio=", failed_hit_ratio, " failed_avg_dist=", failed_avg_dist, " failed_min_dist=", failed_min_dist, " (best_min_hit=", best_min_hit_dist, ") accepted=", table.size());
         }
 
         template <typename DEVICE, typename SPEC, typename PARAMETERS_T, typename PARAMETERS_TI>
@@ -382,12 +382,12 @@ namespace rl_tools::rendering::datasets::annotations {
         const std::string path = directory + "/" + metadata.content_hash + "-" + free_space::key<T>(metadata, static_cast<std::uint64_t>(PROBE::SPEC::NUM_PROBES), parameters) + ".bin";
         std::vector<FreeSpacePosition<T>> table;
         if (free_space::read(path, table)) {
-            RL_TOOLS_RENDERING_DATASETS_LOG("annotations::free_space: cache hit (" << table.size() << " positions): " << path);
+            log(device, device.logger, devices::logging::Verbosity::debug, rendering::datasets::LOG_PREFIX, "annotations::free_space: cache hit (", table.size(), " positions): ", path);
         }
         else {
             free_space::scan(device, table, metadata, probe_target, parameters);
             if (!free_space::write(path, table)) {
-                RL_TOOLS_RENDERING_DATASETS_LOG_ERR("annotations::free_space: failed to write cache entry " << path);
+                log(device, device.logger, devices::logging::Verbosity::error, rendering::datasets::LOG_PREFIX, "annotations::free_space: failed to write cache entry ", path);
             }
         }
         free_space::fill(device, table, parameters, annotations);

@@ -6,6 +6,7 @@
 
 
 #include <iostream>
+#include <sstream>
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools{
@@ -13,55 +14,18 @@ namespace rl_tools{
     void init(DEVICE& dev, devices::logging::CPU& logger){ }
     template <typename DEVICE, typename PARAM>
     void init(DEVICE& dev, devices::logging::CPU& logger, PARAM& param){ }
-    template <typename DEVICE, typename A>
-    void log(DEVICE& dev, devices::logging::CPU& logger, const A a){
-        std::cout << a << std::endl;
+    template <typename DEVICE, typename... ARGS>
+    void log(DEVICE& device, devices::logging::CPU& logger, const ARGS&... args){
+        (std::cout << ... << args) << std::endl;
     }
-    template <typename DEVICE, typename A, typename B>
-    void log(DEVICE& device, devices::logging::CPU& logger, const A a, const B b){
-        std::cout << a << b << std::endl;
-    }
-    template <typename DEVICE, typename A, typename B, typename C>
-    void log(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c){
-        std::cout << a << b << c << std::endl;
-    }
-    template <typename DEVICE, typename A, typename B, typename C, typename D>
-    void log(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d){
-        std::cout << a << b << c << d << std::endl;
-    }
-    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E>
-    void log(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e){
-        std::cout << a << b << c << d << e << std::endl;
-    }
-    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F>
-    void log(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e, const F f){
-        std::cout << a << b << c << d << e << f << std::endl;
-    }
-    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G>
-    void log(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g){
-        std::cout << a << b << c << d << e << f << g << std::endl;
-    }
-    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H>
-    void log(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h){
-        std::cout << a << b << c << d << e << f << g << h << std::endl;
-    }
-    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I>
-    void log(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h, const I i){
-        std::cout << a << b << c << d << e << f << g << h << i << std::endl;
-    }
-    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I, typename J>
-    void log(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h, const I i, const J j){
-        std::cout << a << b << c << d << e << f << g << h << i << j << std::endl;
-    }
-
-    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I, typename J, typename K>
-    void log(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h, const I i, const J j, const K k){
-        std::cout << a << b << c << d << e << f << g << h << i << j << k << std::endl;
-    }
-
-    template <typename DEVICE, typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I, typename J, typename K, typename L>
-    void log(DEVICE& device, devices::logging::CPU& logger, const A a, const B b, const C c, const D d, const E e, const F f, const G g, const H h, const I i, const J j, const K k, const L l){
-        std::cout << a << b << c << d << e << f << g << h << i << j << k << l << std::endl;
+    template <typename DEVICE, typename... ARGS>
+    void log(DEVICE& device, devices::logging::CPU& logger, devices::logging::Verbosity verbosity, const ARGS&... args){
+        if(verbosity > logger.verbosity){
+            return;
+        }
+        std::ostringstream message;
+        (message << ... << args) << '\n';
+        std::cerr << message.str() << std::flush;
     }
 
     template <typename DEVICE>

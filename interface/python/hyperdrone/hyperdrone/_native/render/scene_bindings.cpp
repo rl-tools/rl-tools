@@ -9,6 +9,7 @@
 #include <nanobind/stl/vector.h>
 #include <nanobind/stl/map.h>
 
+#include "verbosity.h"
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rendering/rig/operations_cpu.h>
 #include <rl_tools/rendering/raytracing/operations_cpu_common.h>
@@ -35,7 +36,7 @@ using hyperdrone::Vec4;
 using hyperdrone::extract_transform;
 using hyperdrone::make_owned_array;
 
-using DEVICE = rlt::devices::DEVICE_FACTORY<>;
+using DEVICE = rlt::devices::DEVICE_FACTORY<hyperdrone::CPUSpecification>;
 static DEVICE g_device;
 using rlt::segmentation_taxonomy;
 using rlt::assign_segmentation_class;
@@ -189,6 +190,7 @@ static void register_dataset_bindings(nb::module_& m){
 
 NB_MODULE(hyperdrone_render_core, m){
     m.doc() = "Shared scene types and camera utilities for the RLtools raytracer";
+    m.def("_set_verbosity", &hyperdrone::set_verbosity);
     register_rig_bindings(m);
     register_dataset_bindings(m);
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)

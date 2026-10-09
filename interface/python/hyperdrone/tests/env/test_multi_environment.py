@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 
 import conta
+import hyperdrone
 from hyperdrone.env import EnvConfig, MultiEnvironment
 from hyperdrone.jit import source_root
 
@@ -23,6 +24,26 @@ def scene_directory(tmp_path_factory):
 
 
 CONFIG = EnvConfig(num_environments=1, instances=2, cam_width=32, cam_height=32, shading="low")
+
+
+def test_environment_verbosity(scene_directory, capfd):
+    previous = hyperdrone.verbosity()
+    try:
+        for level in ("warning", "debug"):
+            hyperdrone.set_verbosity(level)
+            environment = MultiEnvironment(scene_directory, config=CONFIG, seed=0)
+            try:
+                output = capfd.readouterr().err
+                if level == "warning":
+                    assert "#rl_tools::rendering::" not in output
+                else:
+                    assert "#rl_tools::rendering::raytracing: backend=" in output
+                    assert "#rl_tools::rendering::datasets: Loaded" in output
+            finally:
+                environment.close()
+                capfd.readouterr()
+    finally:
+        hyperdrone.set_verbosity(previous)
 
 
 def rollout(scene_directory, seed, steps=3):

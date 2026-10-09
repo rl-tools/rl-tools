@@ -4,6 +4,7 @@
 #include <nanobind/ndarray.h>
 #include <nanobind/stl/optional.h>
 
+#include "../common/verbosity.h"
 #include <rl_tools/operations/cpu_mux.h>
 #include <rl_tools/rl/environments/hyperdrone/rig/operations_cpu.h>
 
@@ -17,6 +18,7 @@ namespace rlt = rl_tools;
 
 NB_MODULE(hyperdrone_env_core, m){
     using namespace hyperdrone::rig_bindings;
+    m.def("_set_verbosity", &hyperdrone::set_verbosity);
     // 63 props plus the base link fill the RigModel capacity exactly, so the rotorcraft is a RigModel
     using ROTORCRAFT = rlt::rl::environments::hyperdrone::rig::Rotorcraft<size_t, RIG_SPEC::MAX_LINKS - 1, RIG_SPEC::MAX_PARTS>;
     static_assert(std::is_same_v<typename ROTORCRAFT::SPEC, RIG_SPEC>);

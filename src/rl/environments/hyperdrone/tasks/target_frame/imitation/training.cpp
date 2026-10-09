@@ -350,6 +350,7 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
     rlt::init(device);
     DEVICE_COMPUTE& device_compute = device;
 #endif
+    device.logger.verbosity = rlt::devices::logging::Verbosity::warning;
 
     rlt::utils::extrack::Config<TI> extrack_config;
     rlt::utils::extrack::Paths extrack_paths;
