@@ -4,8 +4,15 @@ namespace rl_tools{
     template<typename DEVICE>
     auto resolve_training_scenes(DEVICE& device, const char* scene_arg){
         using namespace rl::environments::hyperdrone::tasks::target_frame::on_policy;
+        using DATASET = rendering::datasets::procthor::Train200;
         std::vector<std::string> scene_paths;
-        if(std::filesystem::is_directory(scene_arg)){
+        if(scene_arg == nullptr || std::string(scene_arg) == DATASET::NAME){
+            utils::assert_exit(device, N_TOTAL_SCENES <= DATASET::NUM_SCENES, "Train200 has fewer scenes than N_TOTAL_SCENES");
+            typename DATASET::Corpus corpus;
+            enumerate(device, DATASET{}, corpus);
+            scene_paths.assign(corpus.references.begin(), corpus.references.begin() + N_TOTAL_SCENES);
+            std::cout << "Selected first " << N_TOTAL_SCENES << " scenes from " << DATASET::NAME << std::endl;
+        } else if(std::filesystem::is_directory(scene_arg)){
             std::vector<std::string> all_glbs;
             for(auto& entry : std::filesystem::directory_iterator(scene_arg)){
                 if(entry.path().extension() == ".glb"){

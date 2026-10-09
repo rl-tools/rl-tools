@@ -294,6 +294,15 @@ HYPERDRONE_RENDER_BACKEND=GENERIC .venv/bin/python -m pytest interface/python/hy
 other); `scripts/test_sdist.sh` is the self-containment rot guard (build sdist → clean
 venv → vendored-tree render).
 
+`render.datasets.Train200()` exposes the header-pinned 200-scene ProcTHOR training subset (scene IDs 0–199). Catalog access loads the native core without resolving assets; use `dataset["ProcTHOR-Train-1"].reference` with `render.load_scene`, or `dataset.references[:4]` with `MultiEnvironment`. The RLtools commit identifies the catalog's membership, order, and hashes. This collection's Train-1 artifact differs from the scene pinned by `examples.data.procthor_scene_path()` and the rendering goldens.
+
+```python
+from hyperdrone import render
+
+dataset = render.datasets.Train200()
+scene = render.load_scene(dataset["ProcTHOR-Train-1"].reference)
+```
+
 For labelled ProcTHOR rendering, preserve GLB root instances and select the output meaning:
 
 ```python
