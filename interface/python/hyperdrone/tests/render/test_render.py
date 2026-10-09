@@ -43,6 +43,36 @@ print(f"HYPERDRONE_TEST_BACKEND={second.backend}")
     assert backend_markers == [expected_backend, expected_backend]
 
 
+
+def test_verbosity_reaches_loaded_and_future_renderers():
+    script = """
+import hyperdrone
+from hyperdrone import render
+
+hyperdrone.set_verbosity("warning")
+quiet = render.Renderer(width=1, height=1, output="depth", fidelity="low")
+hyperdrone.set_verbosity("debug")
+quiet.generate_probe_directions()
+loud = render.Renderer(width=1, height=1, output="depth", fidelity="low")
+hyperdrone.set_verbosity("warning")
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", script],
+        check=True,
+        capture_output=True,
+        text=True,
+        env=os.environ.copy(),
+    )
+    prefix = "#rl_tools::rendering::raytracing: "
+    messages = [line.removeprefix(prefix) for line in result.stderr.splitlines() if line.startswith(prefix)]
+    assert messages == ["Generated 1 probe directions per camera", f"backend={render.backend().lower()}"]
+
+
+def test_verbosity_rejects_unknown_levels():
+    with pytest.raises(ValueError):
+        hyperdrone.set_verbosity("verbose")
+    assert hyperdrone.verbosity() == "info"
+
 def make_quad(center_x, half_size=1.0, color=(1.0, 0.0, 0.0)):
     # a quad in the Y-Z plane at x = center_x, facing -X (towards a camera at the origin
     # looking along +X, the FLU forward axis)

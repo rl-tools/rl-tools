@@ -80,6 +80,8 @@ build does not write generated files into an editable checkout or installed pack
 Whenever a renderer is successfully allocated, RLtools reports the selected backend on
 stderr, for example `#rl_tools::rendering::raytracing: backend=metal`. The
 `Renderer.backend` property provides the same lowercase name programmatically.
+`hyperdrone.set_verbosity(level)` selects the native log level, `error`, `warning`, `info`
+(default, includes the backend line) or `debug`, for loaded and future native modules alike.
 
 ## Rendering
 

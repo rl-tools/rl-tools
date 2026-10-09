@@ -37,6 +37,7 @@ using hyperdrone::make_owned_array;
 
 using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 static DEVICE g_device;
+static hyperdrone::VerbosityRegistration g_device_verbosity{g_device.logger};
 using rlt::segmentation_taxonomy;
 using rlt::assign_segmentation_class;
 using rlt::remap_segmentation_classes;
@@ -189,6 +190,7 @@ static void register_dataset_bindings(nb::module_& m){
 
 NB_MODULE(hyperdrone_render_core, m){
     m.doc() = "Shared scene types and camera utilities for the RLtools raytracer";
+    m.def("_set_verbosity", &hyperdrone::set_verbosity);
     register_rig_bindings(m);
     register_dataset_bindings(m);
 #if defined(RL_TOOLS_RENDERING_RAYTRACING_BACKEND_OPTIX)

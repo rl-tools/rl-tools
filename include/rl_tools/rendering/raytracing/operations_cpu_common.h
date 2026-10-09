@@ -22,15 +22,16 @@
 #include <fstream>
 #include <iostream>
 
-#define RL_TOOLS_RENDERING_RAYTRACING_LOG(message) do { std::cout << "\033[0;34m" << "#rl_tools::rendering::raytracing: " << message << "\033[0m" << std::endl; } while(false)
-#define RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR(message) do { std::cerr << "\033[0;31m" << "#rl_tools::rendering::raytracing: " << message << "\033[0m" << std::endl; } while(false)
-
 #ifndef RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
 #define RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS 0
 #endif
 
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
+    namespace rendering::raytracing{
+        inline constexpr char LOG_PREFIX[] = "#rl_tools::rendering::raytracing: ";
+    }
+
     template <typename SPEC, typename DEVICE>
     void validate_semantic_segmentation(DEVICE& device, const rendering::Scene& scene, const rendering::AssetPool& pool){
         if constexpr(SPEC::SEMANTIC_SEGMENTATION){
@@ -49,19 +50,9 @@ namespace rl_tools {
     void update(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer);
 
     namespace rendering::raytracing::detail{
-        template <typename BACKEND>
-        void announce_backend(){
-            std::fprintf(
-                stderr,
-                "#rl_tools::rendering::raytracing: backend=%s\n",
-                rendering::raytracing::backends::name<BACKEND>()
-            );
-            std::fflush(stderr);
-        }
-
-        template <typename SPEC, typename BACKEND>
-        void announce_backend(const rendering::raytracing::Renderer<SPEC, BACKEND>&){
-            announce_backend<BACKEND>();
+        template <typename DEVICE, typename SPEC, typename BACKEND>
+        void announce_backend(DEVICE& device, const rendering::raytracing::Renderer<SPEC, BACKEND>&){
+            log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "backend=", rendering::raytracing::backends::name<BACKEND>());
         }
     }
 
@@ -294,16 +285,16 @@ namespace rl_tools {
         renderer.attachments_dirty = true;
     }
 
-    // resolved-configuration echo: makes a silently-defaulted (e.g. misspelled) fringe
-    // config member visible on the first run
-    template <typename SPEC>
-    void announce_configuration(){
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("config: " << SPEC::NUM_CAMERAS << " camera(s) " << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT
-            << " outputs[rgb=" << SPEC::HAS_RGB << " depth=" << SPEC::HAS_DEPTH << " segmentation=" << SPEC::HAS_SEGMENTATION << (SPEC::SEMANTIC_SEGMENTATION ? " (semantic)" : "") << " normals=" << SPEC::HAS_NORMALS << " flow=" << SPEC::HAS_FLOW << " flow_forward=" << SPEC::HAS_FLOW_FORWARD << "]"
-            << " probes=" << (RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS ? 0 : SPEC::NUM_PROBES)
-            << " motion_blur_samples=" << (SPEC::ENABLE_MOTION_BLUR ? SPEC::MOTION_BLUR_SAMPLES : 0)
-            << " anti_aliasing_grid=" << (SPEC::ENABLE_ANTI_ALIASING ? SPEC::ANTI_ALIASING_GRID_SIZE : 0)
-            << " overlays=" << SPEC::NUM_OVERLAYS << "x" << SPEC::MAX_OVERLAY_INSTANCES << " overlays_per_camera=" << SPEC::MAX_OVERLAYS_PER_CAMERA);
+    // resolved-configuration echo at debug verbosity: makes a silently-defaulted (e.g.
+    // misspelled) fringe config member visible
+    template <typename SPEC, typename DEVICE>
+    void announce_configuration(DEVICE& device){
+        log(device, device.logger, devices::logging::Verbosity::debug, rendering::raytracing::LOG_PREFIX, "config: ", SPEC::NUM_CAMERAS, " camera(s) ", SPEC::CAM_WIDTH, "x", SPEC::CAM_HEIGHT,
+            " outputs[rgb=", SPEC::HAS_RGB, " depth=", SPEC::HAS_DEPTH, " segmentation=", SPEC::HAS_SEGMENTATION, (SPEC::SEMANTIC_SEGMENTATION ? " (semantic)" : ""), " normals=", SPEC::HAS_NORMALS, " flow=", SPEC::HAS_FLOW, " flow_forward=", SPEC::HAS_FLOW_FORWARD, "]",
+            " probes=", (RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS ? 0 : SPEC::NUM_PROBES),
+            " motion_blur_samples=", (SPEC::ENABLE_MOTION_BLUR ? SPEC::MOTION_BLUR_SAMPLES : 0),
+            " anti_aliasing_grid=", (SPEC::ENABLE_ANTI_ALIASING ? SPEC::ANTI_ALIASING_GRID_SIZE : 0),
+            " overlays=", SPEC::NUM_OVERLAYS, "x", SPEC::MAX_OVERLAY_INSTANCES, " overlays_per_camera=", SPEC::MAX_OVERLAYS_PER_CAMERA);
     }
 
     // resolves a Scene::Environment into the concrete ambient + miss color pair the shaders
@@ -337,8 +328,8 @@ namespace rl_tools {
 
     // Lights as uploaded to the device: only the PBR tiers consume punctual lights. Object lights
     // are authored in the object's local frame and follow the instance placing it.
-    template <bool APPLY>
-    std::vector<rendering::raytracing::SceneLight> effective_scene_lights(const rendering::raytracing::Scene& scene){
+    template <bool APPLY, typename DEVICE>
+    std::vector<rendering::raytracing::SceneLight> effective_scene_lights(DEVICE& device, const rendering::raytracing::Scene& scene){
         std::vector<rendering::raytracing::SceneLight> lights;
         if constexpr (APPLY) {
             lights = scene.lights;
@@ -358,12 +349,12 @@ namespace rl_tools {
                     lights.push_back(light);
                 }
             }
-            RL_TOOLS_RENDERING_RAYTRACING_LOG("Scene lights: " << lights.size());
+            log(device, device.logger, devices::logging::Verbosity::debug, rendering::raytracing::LOG_PREFIX, "Scene lights: ", lights.size());
             for (size_t li = 0; li < lights.size(); li++) {
                 auto& sl = lights[li];
-                RL_TOOLS_RENDERING_RAYTRACING_LOG("  light " << li << ": pos=(" << sl.position[0] << "," << sl.position[1] << "," << sl.position[2]
-                    << ") dir=(" << sl.direction[0] << "," << sl.direction[1] << "," << sl.direction[2]
-                    << ") color=(" << sl.color[0] << "," << sl.color[1] << "," << sl.color[2] << ")");
+                log(device, device.logger, devices::logging::Verbosity::debug, rendering::raytracing::LOG_PREFIX, "  light ", li, ": pos=(", sl.position[0], ",", sl.position[1], ",", sl.position[2],
+                    ") dir=(", sl.direction[0], ",", sl.direction[1], ",", sl.direction[2],
+                    ") color=(", sl.color[0], ",", sl.color[1], ",", sl.color[2], ")");
             }
         }
         return lights;
@@ -381,7 +372,7 @@ namespace rl_tools {
             for(TI scene_i = 0; scene_i < (TI)library.metadata.size(); scene_i++){
                 if(library.metadata[scene_i].content_hash == bundle.metadata.content_hash){
                     is_new = false;
-                    RL_TOOLS_RENDERING_RAYTRACING_LOG("library: scene " << bundle.metadata.content_hash << " shares build " << scene_i << " (content hash match)");
+                    log(device, device.logger, devices::logging::Verbosity::debug, rendering::raytracing::LOG_PREFIX, "library: scene ", bundle.metadata.content_hash, " shares build ", scene_i, " (content hash match)");
                     return scene_i;
                 }
             }
@@ -821,8 +812,8 @@ namespace rl_tools {
 
 
     namespace rendering::raytracing::detail{
-        template <typename SPEC>
-        std::vector<float> generate_probe_direction_vectors(){
+        template <typename SPEC, typename DEVICE>
+        std::vector<float> generate_probe_direction_vectors(DEVICE& device){
             std::vector<float> dirs;
             dirs.reserve(SPEC::NUM_PROBES * 3);
 
@@ -840,7 +831,7 @@ namespace rl_tools {
                 dirs.push_back(dir[2] * inv_len);
             }
 
-            RL_TOOLS_RENDERING_RAYTRACING_LOG("Generated " << SPEC::NUM_PROBES << " probe directions per camera");
+            log(device, device.logger, devices::logging::Verbosity::debug, rendering::raytracing::LOG_PREFIX, "Generated ", SPEC::NUM_PROBES, " probe directions per camera");
             return dirs;
         }
 

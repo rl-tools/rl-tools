@@ -14,6 +14,7 @@
 #include <rendering/raytracing/camera_orbit.h>
 
 #include "bindings.h"
+#include "verbosity.h"
 #include <nanobind/stl/array.h>
 #include <nanobind/stl/string.h>
 
@@ -124,6 +125,7 @@ namespace HYPERDRONE_MODULE_NAME {
         using RENDERER = rrt::Renderer<SPEC>;
         using BACKEND = typename RENDERER::BACKEND;
         DEVICE device;
+        hyperdrone::VerbosityRegistration verbosity{device.logger};
         RENDERER renderer;
         rlt::rendering::SceneMetadata<T> scene_metadata;
         bool initialized = false;
@@ -751,6 +753,7 @@ using hyperdrone::make_owned_array;
 
 NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     m.doc() = "JIT-specialized RLtools raytracer";
+    m.def("_set_verbosity", &hyperdrone::set_verbosity);
 
     using Renderer = HYPERDRONE_MODULE_NAME::Renderer<HYPERDRONE_MODULE_NAME::RENDERER_SPEC>;
     using SPEC = Renderer::SPEC;

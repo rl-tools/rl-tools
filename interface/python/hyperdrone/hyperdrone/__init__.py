@@ -13,12 +13,31 @@ DLPack tensor of camera bases; env owns no Python-side semantics — it drives t
 environment. Native components are JIT-compiled per set of compile-time constants and
 cached under ~/.cache/hyperdrone (override with HYPERDRONE_CACHE_DIR). Importing
 hyperdrone (or any subpackage) is cheap; the first build happens on first use.
+set_verbosity(level) selects the native log level (error|warning|info|debug, default info).
 """
 import importlib
+import sys
 
 __version__ = "0.1.5"
 
 _SUBPACKAGES = ("render", "dynamics", "env", "gym", "jit", "cuda")
+_VERBOSITY_LEVELS = ("error", "warning", "info", "debug")
+_verbosity = "info"
+
+
+def set_verbosity(level):
+    """Set the native log level of every loaded and future extension."""
+    global _verbosity
+    if level not in _VERBOSITY_LEVELS:
+        raise ValueError(f"hyperdrone: invalid verbosity {level!r} ({'|'.join(_VERBOSITY_LEVELS)})")
+    _verbosity = level
+    jit = sys.modules.get(f"{__name__}.jit")
+    if jit is not None:
+        jit._apply_verbosity()
+
+
+def verbosity():
+    return _verbosity
 
 
 def __getattr__(name):

@@ -49,6 +49,7 @@ namespace rl_tools::devices{
     namespace logging{
         struct CPU: cpu::Base{
             static constexpr Type TYPE = Type::logging;
+            Verbosity verbosity = Verbosity::info;
         };
     }
     template <typename T_SPEC>

@@ -440,6 +440,7 @@ int main(int argc, char** argv){
     auto& device = device_gpu.rendering;
     rlt::init(device);
     rlt::init(device_gpu);
+    device.logger.verbosity = rlt::devices::logging::Verbosity::warning;
     rlt::rendering::datasets::procthor::GLB scene_dataset{{}, resolve_training_scenes(device, argc > 1 ? argv[1] : nullptr)};
     std::mt19937 scene_rng(seed);
     std::vector<TI> scene_permutation(N_TOTAL_SCENES);

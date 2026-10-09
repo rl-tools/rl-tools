@@ -237,19 +237,19 @@ int main(int ac, char** av){
             model_file = arg;
         }
     }
+    DEVICE device;
+    rlt::init(device);
     if(model_file.empty()){
-        RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("No model specified. Use --model <file>.");
+        rlt::log(device, device.logger, rlt::devices::logging::Verbosity::error, "No model specified. Use --model <file>.");
         return 1;
     }
 
-    DEVICE device;
-    rlt::init(device);
     rlt::rendering::raytracing::Renderer<SPEC> renderer;
     rlt::malloc(device, renderer);
 
     rlt::rendering::Bundle<T> bundle;
     if(!rlt::load<SHADING, SPEC::HAS_RGB>(device, bundle, model_file)){
-        RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Failed to load model: " << model_file);
+        rlt::log(device, device.logger, rlt::devices::logging::Verbosity::error, "Failed to load model: ", model_file);
         return 1;
     }
     if constexpr(TILE > 1){
@@ -282,7 +282,7 @@ int main(int ac, char** av){
             }
         }
         rlt::rendering::datasets::compute_bounds(device, bundle);
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("Tiled scene " << TILE << "x" << TILE << ": " << scene.instances.size() << " instances");
+        rlt::log(device, device.logger, "Tiled scene ", TILE, "x", TILE, ": ", scene.instances.size(), " instances");
     }
     rlt::init(device, renderer, bundle);
     rlt::generate_probe_directions(device, renderer);
@@ -356,10 +356,10 @@ int main(int ac, char** av){
                 }
             }
         }
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("Waypoint " << waypoint_i << ": " << num_accepted << "/" << NUM_CAMERAS << " LOS-validated");
+        rlt::log(device, device.logger, "Waypoint ", waypoint_i, ": ", num_accepted, "/", NUM_CAMERAS, " LOS-validated");
     }
 
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("Precomputing pose tables (" << TRAJECTORY_PERIOD << " steps x " << NUM_CAMERAS << " cameras)");
+    rlt::log(device, device.logger, "Precomputing pose tables (", TRAJECTORY_PERIOD, " steps x ", NUM_CAMERAS, " cameras)");
     std::vector<Camera> pose_table((size_t)TRAJECTORY_PERIOD * NUM_CAMERAS);
     std::vector<Camera> pose_table_open;
     if constexpr(SPEC::ENABLE_MOTION_BLUR){
@@ -422,10 +422,10 @@ int main(int ac, char** av){
     }
     rlt::render_sync(device, renderer);
 
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("Starting dynamic benchmark: " << NUM_CAMERAS << " cameras at "
-        << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT << " shading=" << SHADING_NAME
-        << " aa=" << AA_GRID << " mb=" << MB_SAMPLES << " consume=" << (CONSUME ? 1 : 0)
-        << " tile=" << TILE << " steps=" << num_steps);
+    rlt::log(device, device.logger, "Starting dynamic benchmark: ", NUM_CAMERAS, " cameras at ",
+        SPEC::CAM_WIDTH, "x", SPEC::CAM_HEIGHT, " shading=", SHADING_NAME,
+        " aa=", AA_GRID, " mb=", MB_SAMPLES, " consume=", (CONSUME ? 1 : 0),
+        " tile=", TILE, " steps=", num_steps);
 
     std::vector<double> step_times_ms((size_t)num_steps);
     for(TI step = 0; step < num_steps; step++){
@@ -471,15 +471,15 @@ int main(int ac, char** av){
     const double fps = total_frames / (wall_ms / 1000.0);
     const double mrays = (total_rays / 1e6) / (wall_ms / 1000.0);
 
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("=== DYNAMIC BENCHMARK RESULTS ===");
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Backend:            " << BACKEND_NAME);
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Step latency mean:  " << mean_ms << " ms");
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Step latency p50:   " << p50_ms << " ms");
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Step latency p99:   " << p99_ms << " ms");
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Step latency max:   " << max_ms << " ms");
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Throughput:         " << fps << " frames/sec");
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Camera+probe rays:  " << mrays << " MRays/sec (excludes secondary/shadow rays)");
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Frame checksum:     " << std::hex << checksum << std::dec);
+    rlt::log(device, device.logger, "=== DYNAMIC BENCHMARK RESULTS ===");
+    rlt::log(device, device.logger, "  Backend:            ", BACKEND_NAME);
+    rlt::log(device, device.logger, "  Step latency mean:  ", mean_ms, " ms");
+    rlt::log(device, device.logger, "  Step latency p50:   ", p50_ms, " ms");
+    rlt::log(device, device.logger, "  Step latency p99:   ", p99_ms, " ms");
+    rlt::log(device, device.logger, "  Step latency max:   ", max_ms, " ms");
+    rlt::log(device, device.logger, "  Throughput:         ", fps, " frames/sec");
+    rlt::log(device, device.logger, "  Camera+probe rays:  ", mrays, " MRays/sec (excludes secondary/shadow rays)");
+    rlt::log(device, device.logger, "  Frame checksum:     ", std::hex, checksum, std::dec);
     std::cout << "CSV,dynamic," << BACKEND_NAME << "," << SHADING_NAME << "," << AA_GRID << "," << MB_SAMPLES << ","
               << (SPEC::HAS_DEPTH ? "rgbd" : "rgb") << "," << (CONSUME ? 1 : 0) << "," << TILE << ","
               << NUM_CAMERAS << "," << SPEC::CAM_WIDTH << "," << SPEC::CAM_HEIGHT << "," << num_steps << ","

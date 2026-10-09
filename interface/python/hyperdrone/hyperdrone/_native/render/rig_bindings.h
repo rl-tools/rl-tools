@@ -6,6 +6,7 @@
 #include <rl_tools/rendering/rig/operations_cpu.h>
 
 #include "bindings.h"
+#include "verbosity.h"
 
 #include <cstring>
 #include <stdexcept>
@@ -26,6 +27,7 @@ namespace hyperdrone::rig_bindings {
 
     inline DEVICE& device(){
         static DEVICE instance;
+        static VerbosityRegistration verbosity{instance.logger};
         return instance;
     }
 

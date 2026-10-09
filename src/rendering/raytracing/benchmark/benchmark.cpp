@@ -46,7 +46,9 @@ using DEVICE = rlt::devices::DEVICE_FACTORY<>;
 static constexpr double BENCHMARK_SECONDS = 10.0;
 
 int main(int ac, char** av){
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("rl_tools::rendering::raytracing benchmark '" << av[0] << "' starting up");
+    DEVICE device;
+    rlt::init(device);
+    rlt::log(device, device.logger, "rl_tools::rendering::raytracing benchmark '", av[0], "' starting up");
 
     // Parse command line
     std::string model_file;
@@ -65,20 +67,18 @@ int main(int ac, char** av){
         }
     }
 
-    DEVICE device;
-    rlt::init(device);
     rlt::rendering::raytracing::Renderer<SPEC> renderer;
 
     rlt::malloc(device, renderer);
 
     if(model_file.empty()){
-        RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("No model specified. Use --model <file>.");
+        rlt::log(device, device.logger, rlt::devices::logging::Verbosity::error, "No model specified. Use --model <file>.");
         return 1;
     }
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("Loading model: " << model_file);
+    rlt::log(device, device.logger, "Loading model: ", model_file);
     rlt::rendering::Bundle<T> bundle;
     if(!rlt::load<typename SPEC::SHADING, SPEC::HAS_RGB>(device, bundle, model_file)){
-        RL_TOOLS_RENDERING_RAYTRACING_LOG_ERR("Failed to load model: " << model_file);
+        rlt::log(device, device.logger, rlt::devices::logging::Verbosity::error, "Failed to load model: ", model_file);
         return 1;
     }
 
@@ -94,13 +94,13 @@ int main(int ac, char** av){
     // Warmup
     rlt::render(device, renderer);
     rlt::probe(device, renderer);
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("Warmup launch complete");
+    rlt::log(device, device.logger, "Warmup launch complete");
 
     // Benchmark
     int num_iterations = 0;
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("Starting benchmark (async): " << SPEC::NUM_CAMERAS << " cameras at "
-          << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT << " + " << SPEC::NUM_PROBES
-          << " probes/cam for ~" << BENCHMARK_SECONDS << "s ...");
+    rlt::log(device, device.logger, "Starting benchmark (async): ", SPEC::NUM_CAMERAS, " cameras at ",
+          SPEC::CAM_WIDTH, "x", SPEC::CAM_HEIGHT, " + ", SPEC::NUM_PROBES,
+          " probes/cam for ~", BENCHMARK_SECONDS, "s ...");
 
     rlt::render_sync(device, renderer);
     rlt::probe_sync(device, renderer);
@@ -136,27 +136,27 @@ int main(int ac, char** av){
     long long total_rays = total_rgb_rays + total_depth_rays + total_probe_rays;
     double total_mrays = total_rays / 1e6;
 
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("=== BENCHMARK RESULTS (async) ===");
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Cameras per batch:   " << SPEC::NUM_CAMERAS);
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Resolution per cam:  " << SPEC::CAM_WIDTH << "x" << SPEC::CAM_HEIGHT);
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Probes per camera:   " << SPEC::NUM_PROBES);
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Batch iterations:    " << num_iterations);
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Total frames:        " << total_frames);
+    rlt::log(device, device.logger, "=== BENCHMARK RESULTS (async) ===");
+    rlt::log(device, device.logger, "  Cameras per batch:   ", SPEC::NUM_CAMERAS);
+    rlt::log(device, device.logger, "  Resolution per cam:  ", SPEC::CAM_WIDTH, "x", SPEC::CAM_HEIGHT);
+    rlt::log(device, device.logger, "  Probes per camera:   ", SPEC::NUM_PROBES);
+    rlt::log(device, device.logger, "  Batch iterations:    ", num_iterations);
+    rlt::log(device, device.logger, "  Total frames:        ", total_frames);
 #if RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_OUTPUT_MODE != RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Total RGB pixels:    " << total_rgb_pixels);
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("  RGB samples/pixel:   " << SPEC::RGB_SAMPLES);
+    rlt::log(device, device.logger, "  Total RGB pixels:    ", total_rgb_pixels);
+    rlt::log(device, device.logger, "  RGB samples/pixel:   ", SPEC::RGB_SAMPLES);
 #endif
 #if RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_OUTPUT_MODE != RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_RGB
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Depth samples/pixel: " << SPEC::DEPTH_SAMPLES);
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Total depth rays:    " << total_depth_rays);
+    rlt::log(device, device.logger, "  Depth samples/pixel: ", SPEC::DEPTH_SAMPLES);
+    rlt::log(device, device.logger, "  Total depth rays:    ", total_depth_rays);
 #endif
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Total probe rays:    " << total_probe_rays);
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Wall-clock time:     " << wall_ms << " ms");
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Avg per iter:        " << wall_ms / num_iterations << " ms");
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Avg per frame:       " << wall_ms / total_frames << " ms");
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Throughput:          " << (total_frames / (wall_ms / 1000.0)) << " frames/sec");
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("  Total MRays/sec:     " << (total_mrays / (wall_ms / 1000.0)));
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("=========================");
+    rlt::log(device, device.logger, "  Total probe rays:    ", total_probe_rays);
+    rlt::log(device, device.logger, "  Wall-clock time:     ", wall_ms, " ms");
+    rlt::log(device, device.logger, "  Avg per iter:        ", wall_ms / num_iterations, " ms");
+    rlt::log(device, device.logger, "  Avg per frame:       ", wall_ms / total_frames, " ms");
+    rlt::log(device, device.logger, "  Throughput:          ", (total_frames / (wall_ms / 1000.0)), " frames/sec");
+    rlt::log(device, device.logger, "  Total MRays/sec:     ", (total_mrays / (wall_ms / 1000.0)));
+    rlt::log(device, device.logger, "=========================");
 
     // Save outputs
 #if RL_TOOLS_RENDERING_RAYTRACING_BENCHMARK_OUTPUT_MODE != RL_TOOLS_RENDERING_RAYTRACING_OUTPUT_DEPTH
@@ -175,6 +175,6 @@ int main(int ac, char** av){
 
     rlt::free(device, renderer);
 
-    RL_TOOLS_RENDERING_RAYTRACING_LOG("seems all went OK; app is done, this should be the last output ...");
+    rlt::log(device, device.logger, "seems all went OK; app is done, this should be the last output ...");
     return 0;
 }

@@ -243,21 +243,21 @@ namespace rl_tools {
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         backend_state->scene.collision_results = data(renderer.collision_results);
 #endif
-        rendering::raytracing::detail::announce_backend(renderer);
+        rendering::raytracing::detail::announce_backend(device, renderer);
     }
 
     template <typename DEVICE, typename SPEC, typename METADATA_T>
     void init(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer, const rendering::raytracing::Scene& scene, const rendering::raytracing::AssetPool& pool, const rendering::SceneMetadata<METADATA_T>& metadata){
         validate_semantic_segmentation<SPEC>(device, scene, pool);
         renderer.max_ray_length = (typename SPEC::T)metadata.max_ray_length;
-        rendering::raytracing::detail::announce_configuration<SPEC>();
+        rendering::raytracing::detail::announce_configuration<SPEC>(device);
         rendering::raytracing::detail::resolve_environment<SPEC>(scene.environment, renderer.ambient_color, renderer.miss_color_0, renderer.miss_color_1);
         namespace generic = rendering::raytracing::backends::generic;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         auto& backend_state = generic::state(renderer);
 
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("building " << scene.objects.size() << " object(s), " << scene.instances.size() << " instance(s), " << pool.assemblies.size() << " pool asset(s) ...");
+        log(device, device.logger, devices::logging::Verbosity::debug, rendering::raytracing::LOG_PREFIX, "building ", scene.objects.size(), " object(s), ", scene.instances.size(), " instance(s), ", pool.assemblies.size(), " pool asset(s) ...");
 
         // one combined object list: scene objects first, then pool objects (same global arrays,
         // same BLAS build; pool objects only ever appear through overlay instances)
@@ -429,7 +429,7 @@ namespace rl_tools {
         backend_state.scene.tlas_nodes = backend_state.tlas_nodes.data();
         backend_state.scene.tlas_primitives = backend_state.tlas_primitives.data();
 
-        backend_state.lights = rendering::raytracing::detail::effective_scene_lights<SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING>(scene);
+        backend_state.lights = rendering::raytracing::detail::effective_scene_lights<SPEC::HAS_RGB && SPEC::SHADING::PBR_SHADING>(device, scene);
         backend_state.scene.lights = backend_state.lights.data();
         backend_state.scene.num_lights = (TI)backend_state.lights.size();
 
@@ -569,12 +569,12 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC>
     void generate_probe_directions(DEVICE& device, rendering::raytracing::Renderer<SPEC, rendering::raytracing::backends::Generic>& renderer){
 #if RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
-        RL_TOOLS_RENDERING_RAYTRACING_LOG("Probe rays disabled (RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS=1)");
+        log(device, device.logger, devices::logging::Verbosity::info, rendering::raytracing::LOG_PREFIX, "Probe rays disabled (RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS=1)");
         return;
 #else
         namespace generic = rendering::raytracing::backends::generic;
         auto& backend_state = generic::state(renderer);
-        backend_state.probe_directions = rendering::raytracing::detail::generate_probe_direction_vectors<SPEC>();
+        backend_state.probe_directions = rendering::raytracing::detail::generate_probe_direction_vectors<SPEC>(device);
         backend_state.scene.probe_directions = backend_state.probe_directions.data();
 #endif
     }
