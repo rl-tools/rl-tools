@@ -33,14 +33,14 @@ TASKS = {None: 0, "target_frame": 1, "moving_gate": 2, "visual_inertial_localiza
 DATASETS = {"glb": 0, "procthor": 1}
 
 
-def backend():
-    from ..render._component import backend as render_backend
+def _backend():
+    from ..render._component import _backend as render_backend
 
     return render_backend()
 
 
 def component():
-    resolved = backend()
+    resolved = _backend()
     return jit.Component(
         name="env",
         variant=resolved.lower(),
@@ -105,8 +105,8 @@ class EnvConfig:
                 raise ValueError("hyperdrone: task 'visual_inertial_localization' is single-agent")
             if self.device == "cuda":
                 raise ValueError("hyperdrone: task 'visual_inertial_localization' has no CUDA verbs — use device='cpu'")
-        if self.task == "target_frame" and self.n_agents > 1:
-            raise ValueError("hyperdrone: task 'target_frame' is single-agent")
+        if self.task in ("target_frame", "moving_gate") and self.n_agents > 1:
+            raise ValueError(f"hyperdrone: task {self.task!r} is single-agent")
         if self.spec_header is not None:
             defaults = EnvConfig()
             if self.output != defaults.output or self.semantic_segmentation:
@@ -125,10 +125,10 @@ class EnvConfig:
         presets and tasks with CUDA verbs and 'cpu' otherwise (spec_header Worlds included, whose
         verbs may be host code)."""
         if self.device is not None:
-            if self.device == "cuda" and backend() != "OPTIX":
+            if self.device == "cuda" and _backend() != "OPTIX":
                 raise ValueError("hyperdrone: device='cuda' needs the OptiX backend")
             return self.device
-        if backend() == "OPTIX" and self.spec_header is None and self.task != "visual_inertial_localization":
+        if _backend() == "OPTIX" and self.spec_header is None and self.task != "visual_inertial_localization":
             return "cuda"
         return "cpu"
 
@@ -247,7 +247,7 @@ class MultiEnvironment:
     {"description": ..., "hash": ...}; a reference list is the corpus in list order.
     config.dataset: "glb" uses the authored taxonomy; "procthor" requires ai2thor-hab
     metadata for semantic output. The shared taxonomy covers all scenes and overlay assets.
-    drones: the drone table every instance samples from uniformly at each reset, independently of
+    drones: the drone table every agent samples from uniformly at each reset, independently of
     the scene its environment shows: a list of {"asset": <GLB reference or None>, "parameters":
     {partial dict}}. The asset is the body/prop_* GLB rendered into the instance's cameras
     (required per entry when the compiled world is SELF_VISIBLE, rejected otherwise); the parameters are merged
@@ -348,15 +348,15 @@ class MultiEnvironment:
 
     @property
     def drones(self):
-        """The drone table every instance samples from at reset: one dict per entry with the resolved asset path and the nominal parameters; the "drone" value of instance_parameters() indexes it."""
+        """The drone table every agent samples from at reset: one dict per entry with the resolved asset path and nominal parameters; each agent's "drone" value indexes it."""
         return json.loads(self._environment.drones())
 
     def instance_parameters(self):
-        """The current parameters of every instance, as sampled at its last reset (the specification's defaults before): a list of dicts in the schema of parameters plus "drone", the index of the table entry the instance flies."""
+        """Current episode parameters, one dict per instance. Single-agent entries use the parameters schema plus "drone", the model index; multi-agent entries contain "agents", a list of these dicts in agent order."""
         return json.loads(self._environment.instance_parameters())
 
     def set_instance_parameters(self, overrides, mask=None):
-        """Merges overrides into the current parameters of the instances selected by mask (default: all) until each one's next reset. overrides is one dict for all selected instances or a list with one dict per selected instance (in instance order), in the schema of the parameters argument; only the drone itself varies per instance (dynamics.dynamics, dynamics.imu, camera), the rest is shared and set through parameters=. "drone" switches an instance to another table entry: its parameters restart from that entry's nominal before the other overrides merge, and the rendered body follows. A SELF_VISIBLE drone's props follow its entry's rotors, so rotor overrides must keep each rotor's XY quadrant and spin direction."""
+        """Overrides current parameters until reset: one dict for all selected instances or a list with one dict per selected instance. Multi-agent dicts contain "agents", one override dict per agent; use {} to keep an agent unchanged. Per-agent keys are dynamics.dynamics, dynamics.imu, camera and "drone". Switching "drone" starts from that table entry's nominal before merging other overrides. Integration and other shared settings belong in constructor parameters=. Rotor overrides must preserve each rotor's XY quadrant and spin direction."""
         mask = self._host_mask(mask)
         selected = np.flatnonzero(mask)
         if isinstance(overrides, dict):
@@ -367,19 +367,33 @@ class MultiEnvironment:
         drones = self.drones
         merged = []
         for instance_i, instance_overrides in zip(selected, overrides):
-            self._check_per_drone(instance_overrides)
-            if self.config.task == "target_frame" and ("camera" in instance_overrides or "drone" in instance_overrides):
-                raise ValueError("hyperdrone: task 'target_frame' takes each episode's drone and camera from its target setup; set the nominal through parameters= and drones=")
-            base = current[instance_i]
-            if "drone" in instance_overrides:
-                instance_overrides = dict(instance_overrides)
-                drone = instance_overrides.pop("drone")
-                if not isinstance(drone, (int, np.integer)) or not 0 <= drone < len(drones):
-                    raise ValueError(f"hyperdrone: drone must index the drones table (0..{len(drones) - 1}), got {drone!r}")
-                base = dict(drones[drone]["parameters"], drone=int(drone))
-            instance_parameters = self._resolve(base, instance_overrides)
-            self._check_rotor_layout(drones[instance_parameters["drone"]]["parameters"], instance_parameters)
-            merged.append(instance_parameters)
+            if self.n_agents == 1:
+                per_agent_overrides = [instance_overrides]
+                agents = [current[instance_i]]
+            else:
+                if not isinstance(instance_overrides, dict) or set(instance_overrides) != {"agents"}:
+                    raise ValueError("hyperdrone: multi-agent overrides need an 'agents' list")
+                per_agent_overrides = instance_overrides["agents"]
+                if not isinstance(per_agent_overrides, (list, tuple)) or len(per_agent_overrides) != self.n_agents:
+                    raise ValueError(f"hyperdrone: provide {self.n_agents} agent overrides per instance")
+                agents = current[instance_i]["agents"]
+            updated = []
+            for base, agent_overrides in zip(agents, per_agent_overrides):
+                if not isinstance(agent_overrides, dict):
+                    raise ValueError("hyperdrone: each agent override must be a dict")
+                self._check_per_drone(agent_overrides)
+                if self.config.task == "target_frame" and ("camera" in agent_overrides or "drone" in agent_overrides):
+                    raise ValueError("hyperdrone: task 'target_frame' takes each episode's drone and camera from its target setup; set the nominal through parameters= and drones=")
+                if "drone" in agent_overrides:
+                    agent_overrides = dict(agent_overrides)
+                    drone = agent_overrides.pop("drone")
+                    if not isinstance(drone, (int, np.integer)) or not 0 <= drone < len(drones):
+                        raise ValueError(f"hyperdrone: drone must index the drones table (0..{len(drones) - 1}), got {drone!r}")
+                    base = dict(drones[drone]["parameters"], drone=int(drone))
+                agent_parameters = self._resolve(base, agent_overrides)
+                self._check_rotor_layout(drones[agent_parameters["drone"]]["parameters"], agent_parameters)
+                updated.append(agent_parameters)
+            merged.append(updated[0] if self.n_agents == 1 else {"agents": updated})
         self._environment.set_instance_parameters(mask, json.dumps(merged))
 
     def _check_rotor_layout(self, nominal, parameters):
@@ -399,6 +413,11 @@ class MultiEnvironment:
     def device(self):
         """"cuda" when the World runs on the GPU (EnvConfig.device), "cpu" otherwise."""
         return "cuda" if self._module.CUDA_WORLD else "cpu"
+
+    @property
+    def render_backend(self):
+        """The lowercase name of this environment's compiled raytracing backend."""
+        return self._module.render_backend
 
     @property
     def device_id(self):
@@ -436,7 +455,7 @@ class MultiEnvironment:
         return np.empty(shape, dtype=dtype) if out is None else out
 
     def spawn_points(self):
-        """Every instance's spawn as of its last reset, for reset(spawn_points=...): the active scene's content hash, the drone entry, the scene placement (scene_yaw holds cosine and sine), the per-agent poses (xyz + wxyz) and the shutter fraction. Camera mounts and dynamics come from the drone table."""
+        """Record each instance for reset(spawn_points=...): scene hash, model indices ("drone" for one agent, "drones" otherwise), scene placement, per-agent poses (xyz + wxyz), shutter fraction. Camera mounts and dynamics come from the drone table."""
         return json.loads(self._environment.spawn_points())
 
     def reset(self, mask=None, *, spawn_points=None):
@@ -450,10 +469,12 @@ class MultiEnvironment:
         if len(spawn_points) != int(mask.sum()):
             raise ValueError("hyperdrone: provide one spawn per selected instance")
         for spawn in spawn_points:
-            if set(spawn) != {"scene", "drone", "scene_translation", "scene_yaw", "poses", "shutter_fraction"}:
+            model_key = "drone" if self.n_agents == 1 else "drones"
+            if set(spawn) != {"scene", model_key, "scene_translation", "scene_yaw", "poses", "shutter_fraction"}:
                 raise ValueError("hyperdrone: invalid spawn fields (use spawn_points() to capture them)")
-            if type(spawn["drone"]) is not int or not isinstance(spawn["scene"], str):
-                raise ValueError("hyperdrone: spawn needs an integer drone index and a scene content hash")
+            indices = [spawn["drone"]] if self.n_agents == 1 else spawn["drones"]
+            if not isinstance(indices, (list, tuple)) or len(indices) != self.n_agents or any(type(index) is not int for index in indices) or not isinstance(spawn["scene"], str):
+                raise ValueError("hyperdrone: spawn needs one integer drone index per agent and a scene content hash")
             for name, shape in (("scene_translation", (3,)), ("scene_yaw", (2,)), ("poses", (self.n_agents, 7)), ("shutter_fraction", ())):
                 values = np.asarray(spawn[name], dtype=float)
                 if values.shape != shape or not np.isfinite(values).all():

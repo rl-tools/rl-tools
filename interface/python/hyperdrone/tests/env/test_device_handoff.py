@@ -63,7 +63,7 @@ print("DEVICE HANDOFF OK")
 
 
 @pytest.mark.skipif(
-    render.backend() != "OPTIX" or not cuda_available(),
+    render._backend() != "OPTIX" or not cuda_available(),
     reason="device hand-off requires the OptiX render backend and a CUDA driver",
 )
 def test_device_camera_handoff_matches_host():

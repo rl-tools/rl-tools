@@ -21,8 +21,9 @@ namespace rl_tools {
             using BASE_SPEC = typename NEXT_WORLD::SPEC;
             auto& view = static_cast<typename NEXT_WORLD::Parameters&>(setup);
             view = defaults;
-            view.drone = hyperdrone::_sample_drone<DEVICE, BASE_SPEC>(device, num_drones, rng);
-            hyperdrone::_sample_view_parameters<DEVICE, BASE_SPEC>(device, get_ref(device, drones, view.drone).camera, view, rng);
+            view.agents[0].drone = hyperdrone::_sample_drone<DEVICE, BASE_SPEC>(device, num_drones, rng);
+            hyperdrone::_sample_view_parameters<DEVICE, BASE_SPEC>(device, get_ref(device, drones, view.agents[0].drone).camera, view.agents[0], rng);
+            hyperdrone::_sample_brightness<DEVICE, BASE_SPEC>(device, view, rng);
             hyperdrone::_sample_scene_placement<DEVICE, BASE_SPEC>(device, annotations, view, rng);
             if constexpr (TASK_SPEC::TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE > (T)0){
                 setup.target_roll = random::uniform_real_distribution(device.random, -TASK_SPEC::TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE, TASK_SPEC::TARGET_FRAME_ROLL_PITCH_RANDOMIZATION_RANGE, rng);
@@ -43,7 +44,7 @@ namespace rl_tools {
             using BASE_SPEC = typename NEXT_WORLD::SPEC;
             parameters = setup;
             auto& base = static_cast<typename NEXT_WORLD::Parameters&>(parameters);
-            hyperdrone::_sample_dynamics_parameters<DEVICE, BASE_SPEC>(device, dynamics, get_ref(device, drones, setup.drone), base, rng);
+            hyperdrone::_sample_dynamics_parameters<DEVICE, BASE_SPEC>(device, dynamics, get_ref(device, drones, setup.agents[0].drone), base.agents[0], rng);
             hyperdrone::_sample_shutter_fraction<DEVICE, BASE_SPEC>(device, base, rng);
         }
         RL_TOOLS_FUNCTION_PLACEMENT inline float _target_pixel(float value, float scale){
@@ -111,16 +112,16 @@ namespace rl_tools {
                 for (TI setup_i = 0; setup_i < WORLD::INSTANCES; setup_i++) {
                     const auto& setup = get_ref(device, setups, setup_i);
                     T orientation[4], position[3];
-                    make_target_body_pose(device, setup.camera, setup.target_roll, setup.target_pitch, orientation, position);
+                    make_target_body_pose(device, setup.agents[0].camera, setup.target_roll, setup.target_pitch, orientation, position);
                     float base[12];
                     rig::make_body_transform(device, orientation, position, setup.scene_translation, setup.scene_yaw_cos, setup.scene_yaw_sin, base);
-                    hyperdrone::_drone_rows(device, world, renderer, setup_i, (TI)0, get_ref(device, world.drone_bodies, setup.drone), base, base, coordinates, coordinates);
+                    hyperdrone::_drone_rows(device, world, renderer, setup_i, (TI)0, get_ref(device, world.drone_bodies, setup.agents[0].drone), base, base, coordinates, coordinates);
                 }
                 update(device, renderer);
             }
             for (TI setup_i = 0; setup_i < WORLD::INSTANCES; setup_i++) {
                 const auto& setup = get_ref(device, setups, setup_i);
-                set(device, world.camera_staging_close, make_target_camera<DEVICE, T>(device, setup.camera, aspect, setup.scene_translation, setup.scene_yaw_cos, setup.scene_yaw_sin, setup.target_roll, setup.target_pitch), setup_i);
+                set(device, world.camera_staging_close, make_target_camera<DEVICE, T>(device, setup.agents[0].camera, aspect, setup.scene_translation, setup.scene_yaw_cos, setup.scene_yaw_sin, setup.target_roll, setup.target_pitch), setup_i);
             }
             copy(device, renderer.device, world.camera_staging_close, cameras(device, renderer));
             if constexpr (BASE_SPEC::ENABLE_MOTION_BLUR) {

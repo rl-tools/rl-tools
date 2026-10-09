@@ -145,7 +145,7 @@ namespace rl_tools {
             rl::environments::hyperdrone::tasks::moving_gate::gate_pose(device, instance_parameters, state.gate_phase, pose);
             if constexpr (NEXT_WORLD::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR) {
                 float pose_open[12];
-                const T dt = instance_parameters.dynamics.integration.dt;
+                const T dt = instance_parameters.agents[0].dynamics.integration.dt;
                 constexpr T TWO_PI = (T)2 * math::PI<T>;
                 T phase_open = state.gate_phase - TWO_PI * instance_parameters.gate_frequency * dt * instance_parameters.shutter_fraction;
                 rl::environments::hyperdrone::tasks::moving_gate::gate_pose(device, instance_parameters, phase_open, pose_open);
@@ -167,7 +167,7 @@ namespace rl_tools {
         step(device, static_cast<NEXT_WORLD&>(world), parameters, states, actions, next_states, rng);
         for (TI instance_i = 0; instance_i < WORLD::INSTANCES; instance_i++) {
             const auto& instance_parameters = get_ref(device, parameters, instance_i);
-            rl::environments::hyperdrone::tasks::moving_gate::_gate_step<DEVICE, TASK_SPEC>(device, instance_parameters, get_ref(device, states, instance_i), get_ref(device, next_states, instance_i), instance_parameters.dynamics.integration.dt);
+            rl::environments::hyperdrone::tasks::moving_gate::_gate_step<DEVICE, TASK_SPEC>(device, instance_parameters, get_ref(device, states, instance_i), get_ref(device, next_states, instance_i), instance_parameters.agents[0].dynamics.integration.dt);
         }
     }
 

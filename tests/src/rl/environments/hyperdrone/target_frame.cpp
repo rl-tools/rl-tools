@@ -147,7 +147,7 @@ static void expect_adopted(DEVICE& device, WORLD& world, Tensors& tensors, TI in
     ASSERT_LT(index, INSTANCES);
     const auto& setup = rlt::get_ref(device, world.setups, index);
     const typename WORLD::Parameters parameters = rlt::get(device, tensors.parameters, instance_i);
-    EXPECT_EQ(parameters.camera.fov, setup.camera.fov);
+    EXPECT_EQ(parameters.agents[0].camera.fov, setup.agents[0].camera.fov);
     EXPECT_EQ(parameters.brightness_scale, setup.brightness_scale);
     EXPECT_EQ(parameters.scene_translation[0], setup.scene_translation[0]);
     EXPECT_EQ(parameters.scene_yaw_cos, setup.scene_yaw_cos);

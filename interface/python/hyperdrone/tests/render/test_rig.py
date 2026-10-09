@@ -261,7 +261,7 @@ def test_selected_nested_nodes(tmp_path):
 
 
 def test_cuda_inputs():
-    if render.backend() != "OPTIX":
+    if render._backend() != "OPTIX":
         pytest.skip("CUDA transform inputs require OptiX")
     from hyperdrone import cuda
     renderer, _, handle = setup_renderer(motion=True)

@@ -24,7 +24,7 @@ def test_environment_output_config():
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 @pytest.mark.parametrize("task", [None, "target_frame"])
 def test_environment_capture_and_partial_reset(scene_directory, device, task):
-    if device == "cuda" and render.backend() != "OPTIX":
+    if device == "cuda" and render._backend() != "OPTIX":
         pytest.skip("CUDA Worlds require OptiX")
     env = MultiEnvironment(scene_directory, config=replace(CONFIG, device=device, task=task), seed=9)
     try:
@@ -90,7 +90,7 @@ def test_auxiliary_outputs_preserve_rgb_observations(scene_directory):
 
 
 def test_environment_cuda_image_outputs(scene_directory):
-    if render.backend() != "OPTIX":
+    if render._backend() != "OPTIX":
         pytest.skip("CUDA arrays require OptiX")
     torch = pytest.importorskip("torch")
     if not torch.cuda.is_available():
@@ -115,7 +115,7 @@ def test_environment_cuda_image_outputs(scene_directory):
 @pytest.mark.parametrize("semantic", [False, True])
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, semantic, device):
-    if device == "cuda" and render.backend() != "OPTIX":
+    if device == "cuda" and render._backend() != "OPTIX":
         pytest.skip("CUDA Worlds require OptiX")
     from pathlib import Path
     from hyperdrone.jit import source_root

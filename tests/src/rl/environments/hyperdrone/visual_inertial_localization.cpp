@@ -316,10 +316,10 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_VISUAL_INERTIAL_LOCALIZATION, DEAD_RECK
     RNG& rng = fixture.rng;
     // the preset-independent test config has zero IMU noise/bias by default; verify
     typename WORLD::Parameters instance_parameters = rlt::get(device, tensors.parameters, (TI)0);
-    ASSERT_EQ(instance_parameters.dynamics.imu.accelerometer.error.noise.std, (T)0);
-    ASSERT_EQ(instance_parameters.dynamics.imu.gyro.error.noise.std, (T)0);
-    const T dt = instance_parameters.dynamics.integration.dt;
-    const T* gravity = instance_parameters.dynamics.dynamics.gravity;
+    ASSERT_EQ(instance_parameters.agents[0].dynamics.imu.accelerometer.error.noise.std, (T)0);
+    ASSERT_EQ(instance_parameters.agents[0].dynamics.imu.gyro.error.noise.std, (T)0);
+    const T dt = instance_parameters.agents[0].dynamics.integration.dt;
+    const T* gravity = instance_parameters.agents[0].dynamics.dynamics.gravity;
     typename WORLD::State state = rlt::get(device, tensors.states, (TI)0);
     task::DeadReckoningState<T> estimator{};
     for(TI dim_i = 0; dim_i < 3; dim_i++){

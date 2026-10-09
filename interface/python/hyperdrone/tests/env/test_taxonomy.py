@@ -58,7 +58,7 @@ def test_dataset_config():
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_shared_taxonomy_and_rotation(tmp_path, device):
-    if device == "cuda" and render.backend() != "OPTIX":
+    if device == "cuda" and render._backend() != "OPTIX":
         pytest.skip("CUDA Worlds require OptiX")
     first = room_glb(tmp_path / "first.glb")
     second = room_glb(tmp_path / "second.glb", extent=6)

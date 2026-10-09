@@ -216,14 +216,14 @@ struct EpisodeRecorder {
 };
 
 std::string parameters_to_json(DEVICE& device, TASK_WORLD& world, const typename ENVIRONMENT::Parameters& parameters){
-    std::string parameters_json = rlt::json(device, world.dynamics, parameters.dynamics);
+    std::string parameters_json = rlt::json(device, world.dynamics, parameters.agents[0].dynamics);
     parameters_json = parameters_json.substr(0, parameters_json.size() - 1);
     parameters_json += ", \"visual\": {\"scene_translation\": [" + std::to_string(parameters.scene_translation[0]) + ", " + std::to_string(parameters.scene_translation[1]) + ", " + std::to_string(parameters.scene_translation[2]) + "]"
         + ", \"scene_yaw_cos\": " + std::to_string(parameters.scene_yaw_cos)
         + ", \"scene_yaw_sin\": " + std::to_string(parameters.scene_yaw_sin)
         + ", \"cam_width\": " + std::to_string(WORLD_SPEC::CAM_WIDTH)
         + ", \"cam_height\": " + std::to_string(WORLD_SPEC::CAM_HEIGHT)
-        + ", \"fov\": " + std::to_string(parameters.camera.fov) + "}}";
+        + ", \"fov\": " + std::to_string(parameters.agents[0].camera.fov) + "}}";
     return parameters_json;
 }
 
@@ -239,7 +239,7 @@ std::string trajectory_episodes_to_json(DEVICE& device, TASK_WORLD& world, const
         json += "\"trajectory\": [";
         for(TI step_i = 0; step_i < episode.steps.size(); step_i++){
             auto& s = episode.steps[step_i];
-            json += "{\"state\":" + rlt::json(device, world.dynamics, parameters.dynamics, s.state) + ",";
+            json += "{\"state\":" + rlt::json(device, world.dynamics, parameters.agents[0].dynamics, s.state) + ",";
             json += "\"action\":[";
             for(TI a = 0; a < ACTION_DIM; a++){
                 json += std::to_string(s.actions[a]);
@@ -445,7 +445,7 @@ int run_rank(SharedState& shared, TI rank, TI seed, const rlt::rendering::datase
             const TI last = (global_member + 1) * N_TOTAL_SCENES / N_ACTIVE_SCENES_TOTAL;
             std::cout << "[rank " << rank << "] Initializing World " << global_member << " with scenes [" << first << ", " << last << ")" << std::endl;
             auto& world = env.environments[member_i];
-            world.parameters.camera.fov = CAMERA_FOV;
+            world.parameters.agents[0].camera.fov = CAMERA_FOV;
             rlt::init(device_compute, world, env.shared, scene_dataset, scene_corpus, first, last - first, global_member);
             world.rng_offset = global_member * N_ENVIRONMENTS_PER_SCENE;
             for(TI slot_i = 0; slot_i < last - first; slot_i++){

@@ -60,7 +60,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         // attach the environment's own drone entity to its own cameras (FPV self-occlusion /
         // external mounts); every SharedContext::drones entry then needs a body/prop_* assembly
         static constexpr bool SELF_VISIBLE = false;
-        // capacity of the drone table (SharedContext::drones): every instance flies one entry,
+        // capacity of the drone table (SharedContext::drones): every agent flies one entry,
         // sampled uniformly at reset, body included; the table is device-resident, hence the
         // compile-time bound
         static constexpr TI MAX_DRONES = 1;
@@ -113,33 +113,38 @@ namespace rl_tools::rl::environments::hyperdrone {
     }
 
     template <typename T_SPEC>
-    struct Parameters {
+    struct GroupParameters {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
-        using DYNAMICS_ENV = Multirotor<l2f::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::DYNAMICS_STATIC_PARAMETERS>>;
-        typename DYNAMICS_ENV::Parameters dynamics = SPEC::DYNAMICS_STATIC_PARAMETERS::PARAMETER_VALUES;
-        TI drone = 0;  // the SharedContext::drones entry this instance flies, sampled at reset
         // scene-under-drone: the dynamics state stays near the origin; these place the drone's
         // frame inside the scene at camera-production time
         T scene_translation[3] = {0, 0, 0};
         T scene_yaw_cos = 1;
         T scene_yaw_sin = 0;
-        Camera<T> camera;
         T brightness_scale = 1;
         T shutter_fraction = 1;
     };
 
-    // a drone table entry: the assembly to render and the nominal the instance's parameters are
+    // a drone table entry: the assembly to render and the nominal the agent's parameters are
     // sampled from. The dynamics are the full l2f parameter set because the l2f sampler copies
     // its environment's nominal before randomizing on top of it
     template <typename T_SPEC>
     struct DroneParameters {
         using SPEC = T_SPEC;
         using T = typename SPEC::T;
-        using DYNAMICS_ENV = typename Parameters<SPEC>::DYNAMICS_ENV;
+        using DYNAMICS_ENV = Multirotor<l2f::Specification<typename SPEC::T, typename SPEC::TI, typename SPEC::DYNAMICS_STATIC_PARAMETERS>>;
         typename DYNAMICS_ENV::Parameters dynamics = SPEC::DYNAMICS_STATIC_PARAMETERS::PARAMETER_VALUES;
         Camera<T> camera;
+    };
+    template <typename T_SPEC>
+    struct AgentParameters: DroneParameters<T_SPEC> {
+        typename T_SPEC::TI drone = 0;
+    };
+    template <typename T_SPEC>
+    struct Parameters: GroupParameters<T_SPEC> {
+        using DYNAMICS_ENV = typename DroneParameters<T_SPEC>::DYNAMICS_ENV;
+        AgentParameters<T_SPEC> agents[T_SPEC::N_AGENTS];
     };
     template <typename T_SPEC>
     struct Drone {
@@ -276,7 +281,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         TI flow_scene_version = 0;
         bool render_pending = false;
 
-        // the drone table's device copy: the sampler draws parameters.drone at reset and the body
+        // the drone table's device copy: the sampler draws each agent's drone at reset and the body
         // follows it at every render. SELF_VISIBLE: each instance's drone region holds
         // N_AGENTS * drone_parts slots starting at drone_slot_offset, after the entity kinds
         using DRONE_PARAMETERS_SPEC = tensor::Specification<DroneParameters<SPEC>, TI, tensor::Shape<TI, SPEC::MAX_DRONES>>;

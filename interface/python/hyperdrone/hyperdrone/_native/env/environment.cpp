@@ -93,6 +93,7 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     m.attr("observation_layout") = layout_dict(observation_layout());
     m.attr("observation_layout_privileged") = layout_dict(observation_layout_privileged());
     m.attr("CUDA_WORLD") = CUDA_WORLD;
+    m.attr("render_backend") = rlt::rendering::raytracing::backends::name<typename WORLD::RENDERER::BACKEND>();
     nb::dict dimensions;
     dimensions["num_environments"] = NUM_ENVIRONMENTS;
     dimensions["instances_per_environment"] = WORLD::INSTANCES;

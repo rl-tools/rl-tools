@@ -101,15 +101,15 @@ static void arrange(DEVICE& device,
         typename WORLD::State state = rlt::get(device, states, instance_i);
         instance_parameters.scene_yaw_cos = 1;
         instance_parameters.scene_yaw_sin = 0;
-        instance_parameters.camera.mount.pose.position[0] = (T)-1.2;
-        instance_parameters.camera.mount.pose.position[1] = 0;
-        instance_parameters.camera.mount.pose.position[2] = (T)0.4;
+        instance_parameters.agents[0].camera.mount.pose.position[0] = (T)-1.2;
+        instance_parameters.agents[0].camera.mount.pose.position[1] = 0;
+        instance_parameters.agents[0].camera.mount.pose.position[2] = (T)0.4;
         // pitched down so the camera looks along (1, 0, -0.3) in the body frame
         const T half_pitch = std::atan2((T)0.3, (T)1) / 2;
-        instance_parameters.camera.mount.pose.orientation[0] = std::cos(half_pitch);
-        instance_parameters.camera.mount.pose.orientation[1] = 0;
-        instance_parameters.camera.mount.pose.orientation[2] = std::sin(half_pitch);
-        instance_parameters.camera.mount.pose.orientation[3] = 0;
+        instance_parameters.agents[0].camera.mount.pose.orientation[0] = std::cos(half_pitch);
+        instance_parameters.agents[0].camera.mount.pose.orientation[1] = 0;
+        instance_parameters.agents[0].camera.mount.pose.orientation[2] = std::sin(half_pitch);
+        instance_parameters.agents[0].camera.mount.pose.orientation[3] = 0;
         state.orientation[0] = 1;
         state.orientation[1] = 0;
         state.orientation[2] = 0;
@@ -200,7 +200,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE_CUDA, OWN_DRONE_AND_ARTICU
             float base[12];
             rlt::rl::environments::hyperdrone::rig::make_body_transform(device, state.orientation, state.position, instance_parameters.scene_translation, instance_parameters.scene_yaw_cos, instance_parameters.scene_yaw_sin, base);
             float coordinates_open[WORLD::DYNAMICS_ENV::ACTION_DIM], coordinates_close[WORLD::DYNAMICS_ENV::ACTION_DIM];
-            rlt::rl::environments::hyperdrone::_drone_coordinates<DEVICE, WORLD_SPEC>(device, instance_parameters, state, coordinates_open, coordinates_close);
+            rlt::rl::environments::hyperdrone::_drone_coordinates<DEVICE, WORLD_SPEC>(device, instance_parameters, (TI)0, state, coordinates_open, coordinates_close);
             rlt::rendering::rig::Buffer<DRONE_RIG_SPEC> buffer;
             float poses[DRONE_RIG_SPEC::MAX_PARTS][12];
             rlt::evaluate(device, body.rig, base, coordinates_close, buffer, &poses[0][0]);

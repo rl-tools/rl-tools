@@ -153,7 +153,7 @@ namespace rl_tools {
                 const auto& state = get_ref(device, states, instance_i);
                 Matrix<matrix::Specification<T, TI, 1, AUTOPILOT::OBSERVATION_DIM, true, matrix::layouts::RowMajorAlignment<TI, 1>>> observation_row;
                 observation_row._data = data(world.autopilot.observations) + instance_i * AUTOPILOT::OBSERVATION_DIM;
-                observe(device, world.dynamics, instance_parameters.dynamics, state, typename AUTOPILOT::OBSERVATION_TYPE{}, observation_row, rng);
+                observe(device, world.dynamics, instance_parameters.agents[0].dynamics, state, typename AUTOPILOT::OBSERVATION_TYPE{}, observation_row, rng);
                 for (TI dim_i = 0; dim_i < 3; dim_i++){
                     T error = state.position[dim_i] - instance_parameters.waypoints[state.current_waypoint][dim_i];
                     error = math::clamp(device.math, error, -TASK_SPEC::TARGET_POSITION_ERROR_CLIP, TASK_SPEC::TARGET_POSITION_ERROR_CLIP);

@@ -250,19 +250,19 @@ std::string trajectory_episodes_to_json(DEVICE& device, TASK_WORLD& env, const s
     for(TI ep_i = 0; ep_i < episodes.size(); ep_i++){
         auto& episode = episodes[ep_i];
         const auto& parameters = episode.front().parameters;
-        std::string parameters_json = rlt::json(device, env.dynamics, parameters.dynamics);
+        std::string parameters_json = rlt::json(device, env.dynamics, parameters.agents[0].dynamics);
         parameters_json = parameters_json.substr(0, parameters_json.size() - 1);
         parameters_json += ", \"visual\": {\"scene_translation\": [" + std::to_string(parameters.scene_translation[0]) + ", " + std::to_string(parameters.scene_translation[1]) + ", " + std::to_string(parameters.scene_translation[2]) + "]"
             + ", \"scene_yaw\": " + std::to_string(rlt::math::atan2(device.math, parameters.scene_yaw_sin, parameters.scene_yaw_cos))
             + ", \"scene_hash\": \"" + episode.front().scene_hash + "\""
             + ", \"cam_width\": " + std::to_string(WORLD_SPEC::CAM_WIDTH)
             + ", \"cam_height\": " + std::to_string(WORLD_SPEC::CAM_HEIGHT)
-            + ", \"fov\": " + std::to_string(parameters.camera.fov) + "}}";
+            + ", \"fov\": " + std::to_string(parameters.agents[0].camera.fov) + "}}";
         json += "{\"parameters\": " + parameters_json + ",\n";
         json += "\"trajectory\": [";
         for(TI step_i = 0; step_i < max_len; step_i++){
             auto& s = (step_i < episode.size()) ? episode[step_i] : episode.back();
-            json += "{\"state\":" + rlt::json(device, env.dynamics, parameters.dynamics, s.state) + ",";
+            json += "{\"state\":" + rlt::json(device, env.dynamics, parameters.agents[0].dynamics, s.state) + ",";
             json += "\"action\":[";
             for(TI a = 0; a < ENVIRONMENT::ACTION_DIM; a++){
                 json += std::to_string(s.actions[a]);
@@ -344,7 +344,7 @@ namespace rl_tools{
                 state.bias_estimate[axis] = state.gyro_bias[axis] + calibration_error;
             }
         }
-        observe(device, dynamics, params.dynamics, state, ACTOR_STATE_OBS{}, base_observations, rng_state);
+        observe(device, dynamics, params.agents[0].dynamics, state, ACTOR_STATE_OBS{}, base_observations, rng_state);
         if(reset){
             set(base_observations, 0, 40, static_cast<T>(9.81));
         }
@@ -354,7 +354,7 @@ namespace rl_tools{
                 state.gyro[axis] = get(base_observations, 0, 3 + axis);
             }
             else{
-                state.bias_estimate[axis] += (state.gyro[axis] - state.bias_estimate[axis]) * params.dynamics.integration.dt / GYRO_BIAS_TRACKING_TAU;
+                state.bias_estimate[axis] += (state.gyro[axis] - state.bias_estimate[axis]) * params.agents[0].dynamics.integration.dt / GYRO_BIAS_TRACKING_TAU;
             }
             corrected_gyro[axis] = state.gyro[axis] - state.bias_estimate[axis];
             set(base_observations, 0, 3 + axis, corrected_gyro[axis]);
@@ -368,7 +368,7 @@ namespace rl_tools{
             for(TI axis = 0; axis < 3; axis++){
                 world_z_body[axis] = get(base_observations, 0, axis);
             }
-            step(device, inertial_state, world_z_body, state.accelerometer, corrected_gyro, params.dynamics.integration.dt);
+            step(device, inertial_state, world_z_body, state.accelerometer, corrected_gyro, params.agents[0].dynamics.integration.dt);
         }
         for(TI axis = 0; axis < 3; axis++){
             set(state_obs_matrix, 0, ACTOR_STATE_OBS::DIM + axis, inertial_state.velocity[axis]);
@@ -432,11 +432,11 @@ namespace rl_tools{
         }
         if(is_imitation_sample(device, MIXED_SPEC{}, env_i) && get(device, reset, env_i)){
             auto& params = get_ref(device, parameters, env_i);
-            params.dynamics.mdp.init.guidance = 0;
-            params.dynamics.mdp.init.max_position = IMITATION_POSITION_LIMIT;
-            params.dynamics.mdp.init.max_angle = IMITATION_ANGLE_LIMIT;
-            params.dynamics.mdp.init.max_linear_velocity = 0;
-            params.dynamics.mdp.init.max_angular_velocity = 0;
+            params.agents[0].dynamics.mdp.init.guidance = 0;
+            params.agents[0].dynamics.mdp.init.max_position = IMITATION_POSITION_LIMIT;
+            params.agents[0].dynamics.mdp.init.max_angle = IMITATION_ANGLE_LIMIT;
+            params.agents[0].dynamics.mdp.init.max_linear_velocity = 0;
+            params.agents[0].dynamics.mdp.init.max_angular_velocity = 0;
         }
     }
 
@@ -677,7 +677,7 @@ int main(int argc, char** argv){
     for(TI member_i = 0; member_i < NUMBER_OF_ENVIRONMENTS; member_i++){
         auto& world = env.environments[member_i];
         world.rng_offset = member_i * N_ENVIRONMENTS_PER_SCENE;
-        world.parameters.camera.fov = CAMERA_FOV;
+        world.parameters.agents[0].camera.fov = CAMERA_FOV;
         rlt::init(device_gpu, world, env.shared, scene_dataset, scene_corpus, (TI)0, N_TOTAL_SCENES, member_i);
     }
     std::cout << "Loaded " << N_TOTAL_SCENES << " scenes on " << NUMBER_OF_ENVIRONMENTS << " Worlds" << std::endl;
@@ -1065,7 +1065,7 @@ int main(int argc, char** argv){
             for(TI action_i = 0; action_i < ACTION_DIM; action_i++){
                 set(reward_log_action, 0, action_i, get(dataset.actions, REWARD_LOG_POS, action_i));
             }
-            log_reward(device, env.environments[0].dynamics, reward_log_parameters.dynamics, reward_log_state, reward_log_action, reward_log_next_state, reward_log_rng);
+            log_reward(device, env.environments[0].dynamics, reward_log_parameters.agents[0].dynamics, reward_log_state, reward_log_action, reward_log_next_state, reward_log_rng);
         }
         {
             T length_sum = 0;

@@ -11,6 +11,8 @@
 #include <string>
 #include <vector>
 
+#include "multi_agent_test.h"
+
 namespace rlt = rl_tools;
 namespace l2f = rlt::rl::environments::l2f;
 
@@ -22,9 +24,11 @@ using TI = typename DEVICE::index_t;
 #ifdef RL_TOOLS_TEST_DATA_PATH
 static const std::string SCENE_PATH = std::string(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)) + "/ProcTHOR-Train-1.glb";
 static const std::string DRONE_PATH = std::string(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)) + "/x500.glb";
+static const std::string OTHER_DRONE_PATH = std::string(RL_TOOLS_MACRO_TO_STR(RL_TOOLS_TEST_DATA_PATH)) + "/arpl.glb";
 #else
 static const std::string SCENE_PATH = "";
 static const std::string DRONE_PATH = "";
+static const std::string OTHER_DRONE_PATH = "";
 #endif
 
 namespace test_multi_agent {
@@ -66,6 +70,7 @@ namespace test_multi_agent {
     struct WORLD_SPEC: rlt::rl::environments::hyperdrone::Specification<T, TI, DYNAMICS_STATIC_PARAMETERS> {
         static constexpr TI INSTANCES_PER_ENVIRONMENT = 2;
         static constexpr TI N_AGENTS = 2;
+        static constexpr TI MAX_DRONES = 2;
         static constexpr TI CAM_WIDTH = 32;
         static constexpr TI CAM_HEIGHT = 32;
         using SHADING = rlt::rendering::raytracing::Low;
@@ -124,16 +129,20 @@ struct Tensors {
 // identity yaw; agent 0 at the instance origin with a slightly forward FPV mount, agent 1
 // parked 0.7m ahead: within the indoor-position clearance radius, so no scene geometry can
 // occlude it in agent 0's field of view
-static void arrange(DEVICE& device, Tensors& tensors){
+static void arrange(DEVICE& device, Tensors& tensors, const WORLD::SharedContext& shared){
     for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
         typename WORLD::Parameters instance_parameters = rlt::get(device, tensors.parameters, instance_i);
         typename WORLD::State state = rlt::get(device, tensors.states, instance_i);
         instance_parameters.scene_yaw_cos = 1;
         instance_parameters.scene_yaw_sin = 0;
-        instance_parameters.camera.mount.pose.position[0] = (T)0.2;
-        instance_parameters.camera.mount.pose.position[1] = 0;
-        instance_parameters.camera.mount.pose.position[2] = (T)0.05;
         for(TI agent_i = 0; agent_i < N_AGENTS; agent_i++){
+            auto& agent_parameters = instance_parameters.agents[agent_i];
+            agent_parameters.drone = (instance_i + agent_i) % WORLD_SPEC::MAX_DRONES;
+            agent_parameters.dynamics = shared.drones[agent_parameters.drone].parameters.dynamics;
+            agent_parameters.camera = shared.drones[agent_parameters.drone].parameters.camera;
+            agent_parameters.camera.mount.pose.position[0] = (T)0.2;
+            agent_parameters.camera.mount.pose.position[1] = 0;
+            agent_parameters.camera.mount.pose.position[2] = (T)0.05 + (T)0.05 * (T)agent_i;
             auto& agent_state = state.agent_states[agent_i];
             agent_state.orientation[0] = 1;
             agent_state.orientation[1] = 0;
@@ -147,7 +156,9 @@ static void arrange(DEVICE& device, Tensors& tensors){
                 agent_state.angular_velocity[dim] = 0;
             }
             for(TI rotor_i = 0; rotor_i < 4; rotor_i++){
-                agent_state.rotor_phase[rotor_i] = 0;
+                agent_state.rotor_phase[rotor_i] = (T)0.2 * (T)(1 + agent_i + rotor_i);
+                const auto& dynamics = agent_parameters.dynamics.dynamics;
+                agent_state.rpm[rotor_i] = dynamics.action_limit.min + (T)0.5 * (dynamics.action_limit.max - dynamics.action_limit.min);
             }
         }
         rlt::set(device, tensors.parameters, instance_parameters, instance_i);
@@ -155,7 +166,7 @@ static void arrange(DEVICE& device, Tensors& tensors){
     }
 }
 
-TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MULTI_AGENT, AGENTS_STEP_SEE_AND_COLLIDE){
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MULTI_AGENT, HETEROGENEOUS_AGENTS_STEP_SEE_AND_COLLIDE){
     if(SCENE_PATH.empty()){
         GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
     }
@@ -166,6 +177,11 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MULTI_AGENT, AGENTS_STEP_SEE_AND_COLLID
     rlt::malloc(device, shared.library);
     rlt::malloc(device, world);
     shared.drones.push_back({DRONE_PATH, {}});
+    shared.drones.push_back({OTHER_DRONE_PATH, {}});
+    shared.drones[0].parameters.dynamics.dynamics = l2f::parameters::dynamics::registry<l2f::parameters::dynamics::REGISTRY::x500, PARAMETERS_SPEC>;
+    shared.drones[1].parameters.dynamics.dynamics = l2f::parameters::dynamics::registry<l2f::parameters::dynamics::REGISTRY::arpl, PARAMETERS_SPEC>;
+    shared.drones[0].parameters.camera.fov = 60;
+    shared.drones[1].parameters.camera.fov = 70;
     rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
     typename decltype(dataset)::Corpus corpus;
     rlt::rendering::datasets::procthor::enumerate(device, dataset, corpus);
@@ -184,11 +200,27 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MULTI_AGENT, AGENTS_STEP_SEE_AND_COLLID
     rlt::set_all(device, tensors.reset_mask, true);
     rlt::set_all(device, tensors.actions, (T)0);
     rlt::sample_initial_parameters(device, world, tensors.parameters, tensors.reset_mask, rng);
+    const auto untouched = rlt::get(device, tensors.parameters, (TI)1);
+    rlt::set(device, tensors.reset_mask, false, (TI)1);
+    TI counts[N_AGENTS][WORLD_SPEC::MAX_DRONES]{};
+    bool sampled_mixed_group = false;
+    for(TI round = 0; round < 32; round++){
+        rlt::sample_initial_parameters(device, world, tensors.parameters, tensors.reset_mask, rng);
+        sampled_mixed_group = test_agent_parameters::check_samples<WORLD>(device, shared, tensors.parameters, untouched, counts) || sampled_mixed_group;
+    }
+    rlt::set_all(device, tensors.reset_mask, true);
+    EXPECT_TRUE(sampled_mixed_group);
+    for(TI agent_i = 0; agent_i < N_AGENTS; agent_i++){
+        for(TI drone_i = 0; drone_i < WORLD_SPEC::MAX_DRONES; drone_i++){
+            EXPECT_GT(counts[agent_i][drone_i], 0);
+        }
+    }
     rlt::sample_initial_state(device, world, tensors.parameters, tensors.states, tensors.reset_mask, rng);
-    arrange(device, tensors);
+    arrange(device, tensors, shared);
 
     // agent 0's camera sees agent 1's drone; instance isolation holds per camera
     rlt::render(device, world, tensors.parameters, tensors.states, tensors.reset_mask);
+    test_agent_parameters::check_rigs(device, device, world, shared, tensors);
     {
         const uint32_t S = (uint32_t)shared.library.scenes.front().instances.size();
         constexpr TI NUM_CAMERAS = INSTANCES * N_AGENTS;
@@ -236,6 +268,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MULTI_AGENT, AGENTS_STEP_SEE_AND_COLLID
     }
     rlt::step(device, world, tensors.parameters, tensors.states, tensors.actions, tensors.next_states, rng);
     rlt::reward(device, world, tensors.parameters, tensors.states, tensors.actions, tensors.next_states, tensors.rewards, rng);
+    test_agent_parameters::check_individual_steps(device, world, tensors);
     {
         typename WORLD::State after = rlt::get(device, tensors.next_states, (TI)0);
         EXPECT_GT(after.agent_states[0].position[0], (T)0.005) << "agent 0 should have moved forward";

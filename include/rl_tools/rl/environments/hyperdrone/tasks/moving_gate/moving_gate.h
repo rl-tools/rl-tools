@@ -80,6 +80,7 @@ namespace rl_tools::rl::environments::hyperdrone::tasks::moving_gate {
         using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
         using T = typename NEXT_WORLD::T;
         using TI = typename NEXT_WORLD::TI;
+        static_assert(NEXT_WORLD::N_AGENTS == 1, "the moving-gate task is single-agent");
         static_assert(NEXT_WORLD::RENDERER_CONFIG::NUM_OVERLAYS > 0, "the moving-gate task needs entity slots: set MAX_ENTITY_SLOTS_PER_INSTANCE in the base Specification");
 
         using Parameters = ParametersMovingGate<ComponentSpecification<T, TI, typename NEXT_WORLD::Parameters>>;

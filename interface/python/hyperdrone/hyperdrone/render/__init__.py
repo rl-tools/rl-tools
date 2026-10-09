@@ -4,12 +4,12 @@ Self-contained: no dependency on drone dynamics. Scene assembly (GLB loading, pr
 meshes, lights, asset pools) is runtime data and available directly. Renderer
 instantiations are JIT-compiled per set of compile-time constants and cached; the backend
 is selected at first build via HYPERDRONE_RENDER_BACKEND (OPTIX|METAL|VULKAN|WEBGPU|GENERIC;
-AUTO default: Metal on macOS, OptiX elsewhere).
+AUTO default: first available of OptiX, Metal, Vulkan, WebGPU, Generic).
 """
 from .. import cuda as _cuda
 from .._outputs import FlowStatus
 from . import datasets
-from ._component import backend, component, load_core
+from ._component import _backend, component, load_core
 from ._config import FIDELITY, RendererConfig
 from ._renderer import Renderer
 from ._rig import Rig
@@ -36,7 +36,6 @@ __all__ = [
     "Rig",
     "Scene",
     "SceneLight",
-    "backend",
     "compose_transforms",
     "datasets",
     "load_assembly",
