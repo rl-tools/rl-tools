@@ -16,6 +16,15 @@ dependencies = ["numpy", "nanobind>=2.0", "conta"]
 examples = ["scipy>=1.15", "matplotlib", "imageio", "imageio-ffmpeg"]
 gym = ["gymnasium>=1.0"]
 
+[tool.hatch.build]
+exclude = [
+    "*.mp4", "*.gif",
+    "*.o", "*.obj", "*.a", "*.lib",
+    "*.so", "*.so.*", "*.dylib", "*.dll", "*.pyd",
+    "__pycache__/", ".build*/", "build/", "build-*/", "cmake-build-*/",
+    "CMakeFiles/", "CMakeCache.txt",
+]
+
 [tool.hatch.build.targets.wheel]
 packages = ["hyperdrone"]
 
