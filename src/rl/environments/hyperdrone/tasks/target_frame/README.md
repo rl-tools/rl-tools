@@ -14,6 +14,8 @@ Target names below share the prefix `rl_environments_hyperdrone_tasks_target_fra
 
 Every executable accepts `<scene_directory or scene.glb> [seed]`. A directory supplies the numerically ordered scene corpus; a single GLB is replicated across the configured scene slots. Set `RL_TOOLS_EXTRACK_PATH` to the output parent; runs are written beneath its `experiments/` directory. Checkpoints identify the environment as `hyperdrone` and the run as the exact executable target. Studio supports the mixed policy's paired-image and 65-value sensor inputs.
 
+On-policy targets default to the first `N_TOTAL_SCENES` entries of the header-pinned `procthor::Train200` catalog; pass `procthor_train_200 [seed]` to set the seed explicitly. Conta resolves its GLBs, and metra records the selected references.
+
 Mixed training records the first scene set and every 20th thereafter to `steps/<end-step>/video.mp4`, also linked as `latest/video.mp4`, using FFmpeg with `libx264` on `PATH`. The 100 fps mosaic shows actual PPO training episodes across all active scenes, with each target image on the left and current camera image on the right; imitation instances reset every step and are omitted. Recording spans rollout updates and episode resets until the scene set or training ends (20.48 seconds per full scene set). Set `VIDEO_SAVE_INTERVAL_SCENE_SETS` in `mixed/config.h` to change the cadence or to `0` to disable recording; encoder failures disable recording and leave training running.
 
 ```bash

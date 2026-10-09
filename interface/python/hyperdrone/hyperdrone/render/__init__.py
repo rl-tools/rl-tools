@@ -7,6 +7,7 @@ is selected at first build via HYPERDRONE_RENDER_BACKEND (OPTIX|METAL|VULKAN|WEB
 AUTO default: Metal on macOS, OptiX elsewhere).
 """
 from .. import cuda as _cuda
+from . import datasets
 from ._component import backend, component, load_core
 from ._config import FIDELITY, OUTPUT_MODE, RendererConfig
 from ._renderer import Renderer
@@ -35,6 +36,7 @@ __all__ = [
     "SceneLight",
     "backend",
     "compose_transforms",
+    "datasets",
     "load_assembly",
     "load_object",
     "load_scene",
