@@ -85,6 +85,28 @@ namespace rl_tools{
                 }
             }
         }
+        template <typename DEVICE, typename SPEC, typename RESET_SPEC>
+        __global__ void reset_flow_kernel(DEVICE device, const Tensor<RESET_SPEC> reset_mask, bool first,
+                                         const rendering::raytracing::Camera<typename SPEC::T>* current,
+                                         rendering::raytracing::Camera<typename SPEC::T>* previous,
+                                         const float* transforms_current, float* transforms_previous){
+            using TI = typename SPEC::TI;
+            using WORLD = World<SPEC>;
+            const TI instance = threadIdx.x + blockIdx.x * blockDim.x;
+            if(instance < WORLD::INSTANCES && (first || get(device, reset_mask, instance))){
+                for(TI agent = 0; agent < WORLD::N_VIEWS; agent++){
+                    const TI camera = instance * WORLD::N_VIEWS + agent;
+                    previous[camera] = current[camera];
+                }
+                if constexpr (WORLD::RENDERER_SPEC::HAS_FLOW_OVERLAYS){
+                    constexpr TI ELEMENTS = SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE * 12;
+                    for(TI element = 0; element < ELEMENTS; element++){
+                        const TI offset = instance * ELEMENTS + element;
+                        transforms_previous[offset] = transforms_current[offset];
+                    }
+                }
+            }
+        }
         // the drone meshes in the active renderer, by value: the object ids of every mesh's parts
         // (the pool's object base differs per hot slot) and the device structure rows their
         // object column goes to, null with a single mesh (the init mesh stays)
@@ -308,10 +330,27 @@ namespace rl_tools{
             }
             rl::environments::hyperdrone::cuda::pose_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, parameters, states, reset_mask, cameras_data, cameras_open_data, data(world.prev_cameras), world.history_step, aspect);
         }
+        if constexpr (SPEC::OUTPUT_FLOW){
+            const float* current_transforms = nullptr;
+            float* previous_transforms = nullptr;
+            if constexpr (WORLD::RENDERER_SPEC::HAS_FLOW_OVERLAYS){
+                current_transforms = data(transforms(device, renderer));
+                previous_transforms = data(transforms_previous(device, renderer));
+            }
+            constexpr TI BLOCKSIZE = 32;
+            constexpr TI N_BLOCKS = (INSTANCES + BLOCKSIZE - 1) / BLOCKSIZE;
+            rl::environments::hyperdrone::cuda::reset_flow_kernel<decltype(tag_device), SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, reset_mask, world.flow_scene_version != world.scene_version,
+                data(cameras(device, renderer)), data(cameras_previous(device, renderer)), current_transforms, previous_transforms);
+            check_status(device);
+        }
         if constexpr (WORLD::RENDERER_CONFIG::NUM_OVERLAYS > 0) {
             update_launch(device, renderer);
         }
         render_launch(device, renderer);
+        if constexpr (SPEC::OUTPUT_FLOW){
+            advance_flow_launch(device, renderer);
+            world.flow_scene_version = world.scene_version;
+        }
         const TI history_slot = world.history_step % SPEC::HISTORY_LENGTH;
         float* history_row = data(world.history) + history_slot * INSTANCES * WORLD::N_VIEWS * WORLD::FRAME_DIM;
         {

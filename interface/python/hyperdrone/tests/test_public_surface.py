@@ -8,6 +8,7 @@ SURFACE = {
     "hyperdrone.render": [
         "AssetPool",
         "FIDELITY",
+        "FlowStatus",
         "FreeSpaceSampler",
         "Mesh",
         "Object",

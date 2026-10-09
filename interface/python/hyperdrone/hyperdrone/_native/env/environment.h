@@ -96,6 +96,12 @@ namespace HYPERDRONE_MODULE_NAME {
 #error "unknown HYPERDRONE_ENV_PRESET"
 #endif
     struct WORLD_SPEC: PRESET_SPEC {
+        static constexpr bool OUTPUT_RGB = HYPERDRONE_ENV_OUTPUT_RGB != 0;
+        static constexpr bool OUTPUT_DEPTH = HYPERDRONE_ENV_OUTPUT_DEPTH != 0;
+        static constexpr bool OUTPUT_SEGMENTATION = HYPERDRONE_ENV_OUTPUT_SEGMENTATION != 0;
+        static constexpr bool OUTPUT_NORMALS = HYPERDRONE_ENV_OUTPUT_NORMALS != 0;
+        static constexpr bool OUTPUT_FLOW = HYPERDRONE_ENV_OUTPUT_FLOW != 0;
+        static constexpr bool SEMANTIC_SEGMENTATION = HYPERDRONE_ENV_SEMANTIC_SEGMENTATION != 0;
         static constexpr TI INSTANCES_PER_ENVIRONMENT = HYPERDRONE_ENV_INSTANCES;
         static constexpr TI N_AGENTS = HYPERDRONE_ENV_N_AGENTS;
         static constexpr TI MAX_ENTITY_SLOTS_PER_INSTANCE =
@@ -177,6 +183,12 @@ namespace HYPERDRONE_MODULE_NAME {
         void render(const bool* mask, bool resident);
         void step(const float* actions, bool resident);
         void observe(float* out, bool resident);
+        void depth(float* out, bool resident);
+        void segmentation(uint32_t* out, bool resident);
+        void normals(float* out, bool resident);
+        void flow(float* out, bool resident);
+        void flow_status(uint32_t* out, bool resident);
+
         void observe_privileged(float* out, bool resident);
         void observe_imu(float* out, bool resident);
         void rewards(float* out, bool resident);

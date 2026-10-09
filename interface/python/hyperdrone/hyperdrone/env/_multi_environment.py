@@ -25,7 +25,7 @@ import conta
 
 from .. import jit
 from .._dlpack import is_cuda
-from ..render._config import VALID_MOTION_BLUR_SAMPLES
+from .._outputs import VALID_MOTION_BLUR_SAMPLES, normalize_outputs, output_defines
 
 PRESETS = {"crazyflie": 0, "x500_fpv": 1, "x500_fpv_imu": 2}
 SELF_VISIBLE_PRESETS = ("x500_fpv", "x500_fpv_imu")
@@ -65,8 +65,15 @@ class EnvConfig:
     spec_header: str = None
     device: str = None
     motion_blur_samples: int = 1
+    output: tuple = ("rgb",)
+    semantic_segmentation: bool = False
 
     def __post_init__(self):
+        object.__setattr__(self, "output", normalize_outputs(self.output))
+        if "rgb" not in self.output:
+            raise ValueError("hyperdrone: environment observations require rgb output")
+        if self.semantic_segmentation and "segmentation" not in self.output:
+            raise ValueError("hyperdrone: semantic_segmentation requires segmentation output")
         if self.preset not in PRESETS:
             raise ValueError(f"hyperdrone: unknown preset {self.preset!r} (one of {sorted(PRESETS)})")
         if self.task not in TASKS:
@@ -98,6 +105,8 @@ class EnvConfig:
             raise ValueError("hyperdrone: task 'target_frame' is single-agent")
         if self.spec_header is not None:
             defaults = EnvConfig()
+            if self.output != defaults.output or self.semantic_segmentation:
+                raise ValueError("hyperdrone: spec_header defines the outputs; leave output and semantic_segmentation at their defaults")
             if (self.preset, self.task, self.n_agents) != (defaults.preset, defaults.task, defaults.n_agents):
                 raise ValueError(
                     "hyperdrone: spec_header supersedes preset/task/n_agents — leave them "
@@ -121,6 +130,8 @@ class EnvConfig:
 
     def defines(self):
         values = {
+            **output_defines(self.output, "HYPERDRONE_ENV"),
+            "HYPERDRONE_ENV_SEMANTIC_SEGMENTATION": int(self.semantic_segmentation),
             "HYPERDRONE_ENV_NUM_ENVIRONMENTS": self.num_environments,
             "HYPERDRONE_ENV_INSTANCES": self.instances,
             "HYPERDRONE_ENV_CAM_WIDTH": self.cam_width,
@@ -271,6 +282,8 @@ class MultiEnvironment:
         if self.config.task == "moving_gate" and gate_asset is None:
             raise ValueError("hyperdrone: task 'moving_gate' needs gate_asset= (the gate GLB)")
         self._module = jit.module(component(), self.config)
+        self.outputs = self._module.outputs
+        self.segmentation_mode = self._module.segmentation_mode
         for name, value in self._module.dimensions.items():
             setattr(self, name, value)
         if len(drones) > self.max_drones:
@@ -506,3 +519,35 @@ class MultiEnvironment:
     def frames(self):
         """The latest visual observation as (total, *observation_layout.shape) images."""
         return self.observe().reshape(self.total_instances, *self.observation_layout.shape)
+
+    def _render_output(self, name, dtype, channels, out):
+        shape = (self.total_instances, self.n_agents, self.cam_height, self.cam_width)
+        if channels > 1:
+            shape += (channels,)
+        out = self._output(out, shape, dtype)
+        getattr(self._environment, name)(out)
+        return out
+
+    def depth(self, out=None):
+        """Ray-hit distances, float32 (total_instances, n_agents, H, W). Renders pending frames."""
+        return self._render_output("depth", np.float32, 1, out)
+
+    def segmentation(self, out=None):
+        """Instance IDs or semantic classes, uint32 (total_instances, n_agents, H, W); miss=0xFFFFFFFF."""
+        return self._render_output("segmentation", np.uint32, 1, out)
+
+    def normals(self, out=None):
+        """Scene-frame FLU geometric unit normals, float32 (total_instances, n_agents, H, W, 3); miss=zero."""
+        return self._render_output("normals", np.float32, 3, out)
+
+    def flow(self, out=None):
+        """Current-to-previous capture displacement in pixels, float32 (total_instances, n_agents, H, W, 2).
+
+        First captures and reset instances use identical poses at both instants. Captures
+        advance history; repeated reads reuse the same output. Use flow_status() to mask it.
+        """
+        return self._render_output("flow", np.float32, 2, out)
+
+    def flow_status(self, out=None):
+        """FlowStatus codes, uint32 (total_instances, n_agents, H, W)."""
+        return self._render_output("flow_status", np.uint32, 1, out)

@@ -21,8 +21,19 @@
 #include <filesystem>
 #include <optional>
 #include <stdexcept>
+#include <type_traits>
 
 namespace HYPERDRONE_MODULE_NAME {
+    using rl_tools::view_range;
+    using rl_tools::render;
+    using rl_tools::get_renderer;
+    using rl_tools::copy;
+    using rl_tools::depth_buffer;
+    using rl_tools::segmentation_buffer;
+    using rl_tools::normals_buffer;
+    using rl_tools::flow_buffer;
+    using rl_tools::flow_status_buffer;
+
 #if HYPERDRONE_ENV_DEVICE_CUDA
     using DEVICE = rlt::devices::CUDA<rlt::rendering::raytracing::device::Specification<rlt::devices::DefaultCUDASpecification, HOST_DEVICE>>;
     // one curand state per instance across all members (the composite partitions them per member)
@@ -473,6 +484,58 @@ namespace HYPERDRONE_MODULE_NAME {
         rlt::reward(impl->device, impl->env, impl->parameters, impl->states, action_tensor, impl->next_states, impl->rewards, impl->rng);
         rlt::copy(impl->device, impl->device, impl->next_states, impl->states);
         rlt::terminated(impl->device, impl->env, impl->parameters, impl->states, impl->terminated_flags, impl->rng);
+    }
+    template <bool ENABLED, typename VALUE, typename GET>
+    void read_image_output(Environment::Impl& impl, VALUE* destination, bool resident, const char* name, GET get_buffer){
+        if constexpr (ENABLED){
+            const CurrentDevice current(impl.device_id);
+            for(TI environment_i = 0; environment_i < NUM_ENVIRONMENTS; environment_i++){
+                auto& world = impl.env.environments[environment_i];
+                if(world.render_pending){
+                    auto parameters = view_range(impl.device, impl.parameters, environment_i * WORLD::INSTANCES, rlt::tensor::ViewSpec<0, WORLD::INSTANCES>{});
+                    auto states = view_range(impl.device, impl.states, environment_i * WORLD::INSTANCES, rlt::tensor::ViewSpec<0, WORLD::INSTANCES>{});
+                    render(impl.device, world, parameters, states, world.render_reset);
+                }
+                if(world.history_step == 0){
+                    throw std::runtime_error("hyperdrone: reset and render before reading image outputs");
+                }
+                auto& renderer = get_renderer(impl.device, world);
+                auto& buffer = get_buffer(impl.device, renderer);
+                using BUFFER = std::remove_reference_t<decltype(buffer)>;
+                rlt::Tensor<typename BUFFER::SPEC> alias;
+                alias._data = destination + environment_i * BUFFER::SPEC::SIZE;
+                if constexpr (CUDA_WORLD){
+                    impl.copy_out(buffer, alias._data, resident);
+                }
+                else {
+                    copy(renderer.device, impl.host(), buffer, alias);
+                }
+            }
+        }
+        else {
+            throw std::runtime_error(std::string("hyperdrone: this environment has no ") + name + " output");
+        }
+    }
+
+    void Environment::depth(float* out, bool resident){
+        read_image_output<WORLD::RENDERER_SPEC::HAS_DEPTH>(*impl, out, resident, "depth",
+            [](auto& device, auto& renderer) -> auto& { return depth_buffer(device, renderer); });
+    }
+    void Environment::segmentation(uint32_t* out, bool resident){
+        read_image_output<WORLD::RENDERER_SPEC::HAS_SEGMENTATION>(*impl, out, resident, "segmentation",
+            [](auto& device, auto& renderer) -> auto& { return segmentation_buffer(device, renderer); });
+    }
+    void Environment::normals(float* out, bool resident){
+        read_image_output<WORLD::RENDERER_SPEC::HAS_NORMALS>(*impl, out, resident, "normals",
+            [](auto& device, auto& renderer) -> auto& { return normals_buffer(device, renderer); });
+    }
+    void Environment::flow(float* out, bool resident){
+        read_image_output<WORLD::RENDERER_SPEC::HAS_FLOW>(*impl, out, resident, "flow",
+            [](auto& device, auto& renderer) -> auto& { return flow_buffer(device, renderer); });
+    }
+    void Environment::flow_status(uint32_t* out, bool resident){
+        read_image_output<WORLD::RENDERER_SPEC::HAS_FLOW>(*impl, out, resident, "flow_status",
+            [](auto& device, auto& renderer) -> auto& { return flow_status_buffer(device, renderer); });
     }
     void Environment::observe(float* out, bool resident){
         const CurrentDevice current(impl->device_id);

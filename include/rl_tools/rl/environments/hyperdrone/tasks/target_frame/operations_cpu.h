@@ -126,6 +126,14 @@ namespace rl_tools {
             if constexpr (BASE_SPEC::ENABLE_MOTION_BLUR) {
                 copy(device, renderer.device, world.camera_staging_close, cameras_open(device, renderer));
             }
+            if constexpr (BASE_SPEC::OUTPUT_FLOW){
+                if(world.flow_scene_version != world.scene_version){
+                    advance_flow(device, renderer);
+                    if constexpr (NEXT_WORLD::RENDERER_SPEC::HAS_FLOW_OVERLAYS){
+                        update(device, renderer);
+                    }
+                }
+            }
             render(device, renderer);
             std::vector<float> observation_staging(WORLD::INSTANCES * CAM_PIXELS * 3);
             {

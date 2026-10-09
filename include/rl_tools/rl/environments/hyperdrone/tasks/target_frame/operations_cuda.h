@@ -214,6 +214,14 @@ namespace rl_tools{
                 }
                 cuda::bank_camera_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, setups, cameras_data, cameras_open_data, aspect);
             }
+            if constexpr (BASE_SPEC::OUTPUT_FLOW){
+                if(world.flow_scene_version != world.scene_version){
+                    advance_flow_launch(device, renderer);
+                    if constexpr (TASK_SPEC::NEXT_WORLD::RENDERER_SPEC::HAS_FLOW_OVERLAYS){
+                        update_launch(device, renderer);
+                    }
+                }
+            }
             render_launch(device, renderer);
             {
                 constexpr TI BLOCKSIZE = 256;

@@ -158,6 +158,7 @@ namespace rl_tools {
         world.member_index = member_index;
         world.episode_counter = 0;
         world.history_step = 0;
+        world.flow_scene_version = 0;
         utils::assert_exit(device, num_scenes > 0, "hyperdrone::World: empty scene partition");
         utils::assert_exit(device, first_scene + num_scenes <= (TI)corpus.references.size(), "hyperdrone::World: scene partition out of range");
         if (shared.num_drones == 0) {
@@ -203,7 +204,8 @@ namespace rl_tools {
             slot.corpus_index = first_scene + slot_i;
             malloc(render_device, slot.renderer, shared.library);
             rendering::Bundle<T> bundle;
-            const bool scene_loaded = load<typename SPEC::SHADING, SPEC::OUTPUT_RGB>(render_device, dataset, corpus, slot.corpus_index, bundle);
+            using LOAD_MODE = utils::typing::conditional_t<SPEC::OUTPUT_SEGMENTATION, mode::rendering::SceneRoots<>, mode::Default<>>;
+            const bool scene_loaded = load<typename SPEC::SHADING, SPEC::OUTPUT_RGB>(render_device, dataset, corpus, slot.corpus_index, bundle, Mode<LOAD_MODE>{});
             utils::assert_exit(device, scene_loaded, "hyperdrone::World: failed to load scene");
             slot.metadata = bundle.metadata;
             const TI scene_id = insert(render_device, shared.library, bundle);
@@ -671,11 +673,36 @@ namespace rl_tools {
                 }
             }
         }
+        if constexpr (SPEC::OUTPUT_FLOW){
+            const bool first = world.flow_scene_version != world.scene_version;
+            if(!first){
+                copy(renderer.device, device, cameras_previous(device, renderer), world.camera_staging_previous);
+            }
+            for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
+                if(first || get(device, reset_mask, instance_i)){
+                    for(TI agent_i = 0; agent_i < WORLD::N_VIEWS; agent_i++){
+                        const TI camera_i = instance_i * WORLD::N_VIEWS + agent_i;
+                        set(device, world.camera_staging_previous, get(device, world.camera_staging_close, camera_i), camera_i);
+                    }
+                    if constexpr (WORLD::RENDERER_SPEC::HAS_FLOW_OVERLAYS){
+                        for(TI slot = 0; slot < SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE; slot++){
+                            const TI row = instance_i * SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE + slot;
+                            rendering::raytracing::detail::stage_previous(renderer, row, renderer.transforms_staging.data() + row * 12);
+                        }
+                    }
+                }
+            }
+            copy(device, renderer.device, world.camera_staging_previous, cameras_previous(device, renderer));
+        }
         if constexpr (WORLD::RENDERER_CONFIG::NUM_OVERLAYS > 0) {
             // wrapper render overloads staged their entity poses pre-forward; publish them
             update(device, renderer);
         }
         render(device, renderer);
+        if constexpr (SPEC::OUTPUT_FLOW){
+            advance_flow(device, renderer);
+            world.flow_scene_version = world.scene_version;
+        }
 
         const TI history_slot = world.history_step % SPEC::HISTORY_LENGTH;
         {

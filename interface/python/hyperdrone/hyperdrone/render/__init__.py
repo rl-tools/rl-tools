@@ -7,9 +7,10 @@ is selected at first build via HYPERDRONE_RENDER_BACKEND (OPTIX|METAL|VULKAN|WEB
 AUTO default: Metal on macOS, OptiX elsewhere).
 """
 from .. import cuda as _cuda
+from .._outputs import FlowStatus
 from . import datasets
 from ._component import backend, component, load_core
-from ._config import FIDELITY, OUTPUT_MODE, RendererConfig
+from ._config import FIDELITY, RendererConfig
 from ._renderer import Renderer
 from ._rig import Rig
 from ._sampling import FreeSpaceSampler
@@ -25,6 +26,7 @@ from ._scene import (
 __all__ = [
     "AssetPool",
     "FIDELITY",
+    "FlowStatus",
     "FreeSpaceSampler",
     "Mesh",
     "Object",

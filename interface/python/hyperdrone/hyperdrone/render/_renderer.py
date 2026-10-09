@@ -4,7 +4,6 @@ from .._dlpack import DLPackBuffer as _DLPackBuffer
 from .._dlpack import is_cuda as _is_cuda
 from ._component import load_core, load_renderer
 from ._config import (
-    OUTPUT_MODE,
     FIDELITY,
     RendererConfig,
 )
@@ -62,9 +61,9 @@ class Renderer:
         num_cameras: Fixed camera batch size (>= 1); camera uploads must match it.
         num_probes: Collision rays per camera, run separately through probe().
             0 compiles the probe pass out; probe methods then raise.
-        output: "rgb", "rgbd" (RGB + depth), "depth", "segmentation", or
-            "rgbd_segmentation" (RGB + depth + segmentation). Depth is ray hit
-            distance, not camera-space Z. render() produces every selected output.
+        output: A channel name or tuple of "rgb", "depth", "segmentation", "normals",
+            and "flow". "rgbd" and "rgbd_segmentation" select the named combination.
+            Depth is ray hit distance. render() produces every selected output.
         fidelity: RGB shading preset: "low" (flat, untextured colour), "medium"
             (textures, normal-based shading, metallic reflections, checker background),
             "high" (textured, physically based scene lighting), or "veryhigh"
@@ -79,15 +78,16 @@ class Renderer:
             one slot per part.
         max_overlays_per_camera: Maximum overlay groups attached to one camera.
         semantic_segmentation: Write per-object segmentation_class values instead
-            of instance IDs; requires "segmentation" or "rgbd_segmentation" output.
+            of instance IDs; requires the segmentation channel.
         dynamic_motion_blur: Blur overlay motion as well as camera motion, using
             shutter-open/close transforms supplied by set_transform_pair() or per-part
             samples supplied by set_motion_transforms(). Requires overlays and
             motion_blur_samples >= 2.
 
     The three overlay capacities must be all zero (disabled) or all positive.
-    Blur and anti-aliasing affect RGB and depth; segmentation always uses a single
-    sample from the shutter-close camera.
+    Blur and anti-aliasing affect RGB and depth; segmentation, normals and flow
+    use pixel centres at shutter close. Flow compares against the previous capture,
+    independently of the motion-blur shutter interval.
     """
 
     def __init__(self, width, height, num_cameras=1, num_probes=1, output="rgb", fidelity="high",
@@ -96,15 +96,13 @@ class Renderer:
                  semantic_segmentation=False, dynamic_motion_blur=False):
         if isinstance(fidelity, str):
             fidelity = FIDELITY[fidelity.lower()]
-        if isinstance(output, str):
-            output = OUTPUT_MODE[output.lower()]
         self.config = RendererConfig(
             width=int(width),
             height=int(height),
             num_cameras=int(num_cameras),
             num_probes=int(num_probes),
             fidelity=fidelity,
-            output_mode=output,
+            output=output,
             motion_blur_samples=max(1, int(motion_blur_samples)),
             anti_aliasing_grid=max(1, int(anti_aliasing_grid)),
             num_overlays=int(num_overlays),
@@ -202,6 +200,15 @@ class Renderer:
         self._require_probes()
         self._renderer.generate_probe_directions()
 
+    def advance_flow(self):
+        """Snapshot current camera/object poses before changing them for the next frame.
+
+        The first render seeds previous=current automatically. Subsequent renders keep
+        the snapshot until this verb is called; reads never advance it.
+        """
+        self._renderer.advance_flow()
+        return self
+
     def render(self):
         self._renderer.render()
         self._pending_inputs.clear()
@@ -276,6 +283,32 @@ class Renderer:
         self._renderer.read_segmentation_buffer(out)
         return out
 
+    def normals(self, copy=True):
+        """World-FLU geometric unit normals facing against the ray, float32 (N, H, W, 3); misses are zero."""
+        return self._image_output("normals", np.float32, 3, copy)
+
+    def flow(self, copy=True):
+        """Current-to-previous displacement (dx, dy) in pixels, float32 (N, H, W, 2).
+
+        Use flow_status() as the validity mask; out-of-frame and occluded pixels retain
+        their geometric displacement. Positive x/y follows image column/row order.
+        """
+        return self._image_output("flow", np.float32, 2, copy)
+
+    def flow_status(self, copy=True):
+        """FlowStatus codes as uint32 (N, H, W)."""
+        return self._image_output("flow_status", np.uint32, 1, copy)
+
+    def _image_output(self, name, dtype, channels, copy):
+        if not copy:
+            return getattr(self._renderer, name + "_view")(True)
+        shape = (self.num_cameras, self.height, self.width)
+        if channels > 1:
+            shape += (channels,)
+        out = np.empty(shape, dtype=dtype)
+        getattr(self._renderer, "read_" + name + "_buffer")(out)
+        return out
+
     def frame_dlpack(self):
         """Live RGBA8 buffer as a zero-copy uint8 DLPack producer with shape
         (num_cameras, height, width, 4). CUDA device memory on OptiX, CPU-visible memory
@@ -290,6 +323,22 @@ class Renderer:
     def depth_dlpack(self):
         """DLPack producer over the live depth buffer; see frame_dlpack for semantics."""
         return _DLPackBuffer(self, self._renderer.depth_dlpack, self._renderer.buffer_device_type())
+
+    def segmentation_dlpack(self):
+        """DLPack producer over the live segmentation buffer; see frame_dlpack."""
+        return _DLPackBuffer(self, self._renderer.segmentation_dlpack, self._renderer.buffer_device_type())
+
+    def normals_dlpack(self):
+        """DLPack producer over the live normals buffer; see frame_dlpack."""
+        return _DLPackBuffer(self, self._renderer.normals_dlpack, self._renderer.buffer_device_type())
+
+    def flow_dlpack(self):
+        """DLPack producer over the live flow buffer; see frame_dlpack."""
+        return _DLPackBuffer(self, self._renderer.flow_dlpack, self._renderer.buffer_device_type())
+
+    def flow_status_dlpack(self):
+        """DLPack producer over the live flow status buffer; see frame_dlpack."""
+        return _DLPackBuffer(self, self._renderer.flow_status_dlpack, self._renderer.buffer_device_type())
 
     def collisions(self):
         """Probe results as (distances, hits), each shaped (num_cameras, num_probes)."""
