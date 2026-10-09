@@ -55,20 +55,20 @@ namespace rl_tools{
             }
         }
         template <typename DEVICE, typename TASK_SPEC, typename SETUPS_SPEC>
-        __global__ void bank_scatter_kernel(DEVICE device, const float* __restrict__ observation, Tensor<SETUPS_SPEC> setups, float* __restrict__ bank_frames){
+        __global__ void targets_scatter_kernel(DEVICE device, const float* __restrict__ observation, Tensor<SETUPS_SPEC> setups, const bool* __restrict__ mask, float* __restrict__ frames){
             using TI = typename DEVICE::index_t;
             using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
             using BASE_SPEC = typename NEXT_WORLD::SPEC;
             constexpr TI INSTANCES = World<TASK_SPEC>::INSTANCES;
             constexpr TI CAM_PIXELS = BASE_SPEC::CAM_WIDTH * BASE_SPEC::CAM_HEIGHT;
             TI thread_i = threadIdx.x + blockIdx.x * blockDim.x;
-            if(thread_i < INSTANCES * CAM_PIXELS){
-                const TI setup_i = thread_i / CAM_PIXELS;
+            const TI setup_i = thread_i / CAM_PIXELS;
+            if(thread_i < INSTANCES * CAM_PIXELS && (mask == nullptr || mask[setup_i])){
                 const TI pixel_i = thread_i % CAM_PIXELS;
                 const auto& setup = get_ref(device, setups, setup_i);
                 const float scale = (float)(setup.brightness_scale * setup.brightness_mismatch);
                 for(TI channel_i = 0; channel_i < 3; channel_i++){
-                    bank_frames[setup_i * NEXT_WORLD::FRAME_DIM + pixel_i * NEXT_WORLD::IMAGE_CHANNELS + channel_i] = tasks::target_frame::_target_pixel(observation[(setup_i * CAM_PIXELS + pixel_i) * 3 + channel_i], scale);
+                    frames[setup_i * NEXT_WORLD::FRAME_DIM + pixel_i * NEXT_WORLD::IMAGE_CHANNELS + channel_i] = tasks::target_frame::_target_pixel(observation[(setup_i * CAM_PIXELS + pixel_i) * 3 + channel_i], scale);
                 }
             }
         }
@@ -180,48 +180,59 @@ namespace rl_tools{
         rl::environments::hyperdrone::tasks::target_frame::cuda::sample_setups_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.active_annotations, world.parameters, world.drone_parameters, world.num_drones, world.setups, world_rng);
         check_status(device);
     }
+    namespace rl::environments::hyperdrone::tasks::target_frame {
+        template <typename DEV_SPEC, typename TASK_SPEC, typename SETUPS_SPEC, typename FRAMES_SPEC>
+        void _render_targets(devices::CUDA<DEV_SPEC>& device, World<TASK_SPEC>& world, Tensor<SETUPS_SPEC>& setups, Tensor<FRAMES_SPEC>& frames, const bool* mask){
+            using DEVICE = devices::CUDA<DEV_SPEC>;
+            using T = typename TASK_SPEC::T;
+            using TI = typename DEVICE::index_t;
+            using WORLD = World<TASK_SPEC>;
+            using BASE_SPEC = typename TASK_SPEC::NEXT_WORLD::SPEC;
+            static_assert(utils::typing::is_same_v<typename SETUPS_SPEC::T, typename WORLD::Parameters>);
+            constexpr TI CAM_PIXELS = BASE_SPEC::CAM_WIDTH * BASE_SPEC::CAM_HEIGHT;
+            const T aspect = static_cast<T>(BASE_SPEC::CAM_WIDTH) / static_cast<T>(BASE_SPEC::CAM_HEIGHT);
+            devices::cuda::TAG<DEVICE, true> tag_device{};
+            auto& renderer = get_renderer(device, world);
+            if constexpr (BASE_SPEC::SELF_VISIBLE){
+                // the setup's drone at rest at the target pose, overwritten by the next frame's rows
+                float* transforms_motion_rows = nullptr;
+                if constexpr (TASK_SPEC::NEXT_WORLD::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR){
+                    transforms_motion_rows = data(transforms_motion(device, renderer));
+                }
+                constexpr TI BLOCKSIZE = 32;
+                constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(WORLD::INSTANCES, BLOCKSIZE);
+                cuda::bank_drone_rows_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, setups, world.drone_bodies, world.drone_slot_offset, world.drone_parts, data(transforms(device, renderer)), transforms_motion_rows, hyperdrone::cuda::drone_meshes(device, world, renderer));
+                update_launch(device, renderer);
+            }
+            {
+                constexpr TI BLOCKSIZE = 32;
+                constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(WORLD::INSTANCES, BLOCKSIZE);
+                auto* cameras_data = data(cameras(device, renderer));
+                auto* cameras_open_data = cameras_data;
+                if constexpr(BASE_SPEC::ENABLE_MOTION_BLUR){
+                    cameras_open_data = data(cameras_open(device, renderer));
+                }
+                cuda::bank_camera_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, setups, cameras_data, cameras_open_data, aspect);
+            }
+            render_launch(device, renderer);
+            {
+                constexpr TI BLOCKSIZE = 256;
+                constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(WORLD::INSTANCES * CAM_PIXELS, BLOCKSIZE);
+                cuda::targets_scatter_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, data(renderer.observation), setups, mask, data(frames));
+            }
+            check_status(device);
+        }
+    }
     template <typename DEV_SPEC, typename TASK_SPEC>
     void render_target_bank(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world){
-        using DEVICE = devices::CUDA<DEV_SPEC>;
-        using T = typename TASK_SPEC::T;
-        using TI = typename DEVICE::index_t;
-        using WORLD = rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
-        using BASE_SPEC = typename TASK_SPEC::NEXT_WORLD::SPEC;
-        constexpr TI CAM_PIXELS = BASE_SPEC::CAM_WIDTH * BASE_SPEC::CAM_HEIGHT;
-        const T aspect = static_cast<T>(BASE_SPEC::CAM_WIDTH) / static_cast<T>(BASE_SPEC::CAM_HEIGHT);
-        devices::cuda::TAG<DEVICE, true> tag_device{};
-        auto& renderer = get_renderer(device, world);
-        if constexpr (BASE_SPEC::SELF_VISIBLE){
-            // the setup's drone at rest at the target pose, overwritten by the next frame's rows
-            float* transforms_motion_rows = nullptr;
-            if constexpr (TASK_SPEC::NEXT_WORLD::RENDERER_CONFIG::ENABLE_DYNAMIC_MOTION_BLUR){
-                transforms_motion_rows = data(transforms_motion(device, renderer));
-            }
-            constexpr TI BLOCKSIZE = 32;
-            constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(WORLD::INSTANCES, BLOCKSIZE);
-            rl::environments::hyperdrone::tasks::target_frame::cuda::bank_drone_rows_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.setups, world.drone_bodies, world.drone_slot_offset, world.drone_parts, data(transforms(device, renderer)), transforms_motion_rows, rl::environments::hyperdrone::cuda::drone_meshes(device, world, renderer));
-            update_launch(device, renderer);
-        }
-        {
-            constexpr TI BLOCKSIZE = 32;
-            constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(WORLD::INSTANCES, BLOCKSIZE);
-            auto* cameras_data = data(cameras(device, renderer));
-            auto* cameras_open_data = cameras_data;
-            if constexpr(BASE_SPEC::ENABLE_MOTION_BLUR){
-                cameras_open_data = data(cameras_open(device, renderer));
-            }
-            rl::environments::hyperdrone::tasks::target_frame::cuda::bank_camera_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, world.setups, cameras_data, cameras_open_data, aspect);
-        }
-        render_launch(device, renderer);
-        {
-            constexpr TI BLOCKSIZE = 256;
-            constexpr TI N_BLOCKS = RL_TOOLS_DEVICES_CUDA_CEIL(WORLD::INSTANCES * CAM_PIXELS, BLOCKSIZE);
-            rl::environments::hyperdrone::tasks::target_frame::cuda::bank_scatter_kernel<decltype(tag_device), TASK_SPEC><<<dim3(N_BLOCKS), dim3(BLOCKSIZE), 0, device.stream>>>(tag_device, data(renderer.observation), world.setups, data(world.bank_frames));
-        }
-        check_status(device);
+        rl::environments::hyperdrone::tasks::target_frame::_render_targets(device, world, world.setups, world.bank_frames, nullptr);
         set_all(device, world.bank_cursor, (typename TASK_SPEC::TI)0);
         world.bank_step = world.history_step;
         world.bank_scene_version = world.scene_version;
+    }
+    template <typename DEV_SPEC, typename TASK_SPEC, typename PARAMETER_SPEC, typename RESET_SPEC>
+    void render_target_frames(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask){
+        rl::environments::hyperdrone::tasks::target_frame::_render_targets(device, world, parameters, world.target_frames, data(reset_mask));
     }
     template <typename DEV_SPEC, typename TASK_SPEC, typename PARAMETER_SPEC, typename RESET_SPEC, typename RNG>
     void sample_initial_parameters(devices::CUDA<DEV_SPEC>& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask, RNG& rng){

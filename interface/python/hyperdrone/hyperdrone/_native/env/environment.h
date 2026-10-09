@@ -21,7 +21,7 @@
 #include <string>
 #include <vector>
 
-#if !defined(HYPERDRONE_ENV_NUM_ENVIRONMENTS) || !defined(HYPERDRONE_ENV_INSTANCES) || !defined(HYPERDRONE_ENV_CAM_WIDTH) || !defined(HYPERDRONE_ENV_CAM_HEIGHT) || !defined(HYPERDRONE_ENV_SHADING) || !defined(HYPERDRONE_ENV_HISTORY_LENGTH) || !defined(HYPERDRONE_ENV_PRESET) || !defined(HYPERDRONE_ENV_TASK) || !defined(HYPERDRONE_ENV_N_AGENTS) || !defined(HYPERDRONE_ENV_DEVICE_CUDA)
+#if !defined(HYPERDRONE_ENV_NUM_ENVIRONMENTS) || !defined(HYPERDRONE_ENV_INSTANCES) || !defined(HYPERDRONE_ENV_CAM_WIDTH) || !defined(HYPERDRONE_ENV_CAM_HEIGHT) || !defined(HYPERDRONE_ENV_SHADING) || !defined(HYPERDRONE_ENV_MB_SAMPLES) || !defined(HYPERDRONE_ENV_HISTORY_LENGTH) || !defined(HYPERDRONE_ENV_PRESET) || !defined(HYPERDRONE_ENV_TASK) || !defined(HYPERDRONE_ENV_N_AGENTS) || !defined(HYPERDRONE_ENV_DEVICE_CUDA)
 #error "every HYPERDRONE_ENV_* configuration define must be set (hyperdrone.env.EnvConfig.defines())"
 #endif
 #if HYPERDRONE_ENV_DEVICE_CUDA && !defined(HYPERDRONE_ENV_CUDA)
@@ -104,6 +104,8 @@ namespace HYPERDRONE_MODULE_NAME {
         static constexpr bool SELF_VISIBLE = HYPERDRONE_ENV_TASK != 3 && PRESET_SPEC::SELF_VISIBLE;
         static constexpr TI CAM_WIDTH = HYPERDRONE_ENV_CAM_WIDTH;
         static constexpr TI CAM_HEIGHT = HYPERDRONE_ENV_CAM_HEIGHT;
+        static constexpr bool ENABLE_MOTION_BLUR = HYPERDRONE_ENV_MB_SAMPLES > 1;
+        static constexpr TI MOTION_BLUR_SAMPLES = HYPERDRONE_ENV_MB_SAMPLES;
         static constexpr TI HISTORY_LENGTH = HYPERDRONE_ENV_HISTORY_LENGTH;
         static constexpr TI MAX_DRONES = 8;
         using SHADING = rlt::utils::typing::conditional_t<HYPERDRONE_ENV_SHADING == 0, rlt::rendering::raytracing::Low,
@@ -161,11 +163,16 @@ namespace HYPERDRONE_MODULE_NAME {
         std::string parameters_json();
         std::string drones_json();
         std::string instance_parameters_json();
+        // per instance: the active scene's content hash, the drone entry, the scene placement,
+        // the agent poses (xyz, wxyz) and the shutter fraction, which reset replays
+        std::string spawn_points_json();
         void set_instance_parameters(const bool* mask, const std::string& json);
         std::optional<std::string> model(const std::string& name);
         void rotate_scene();
 
-        void reset(const bool* mask, bool resident);
+        // spawn_points (one per selected instance, see spawn_points_json, a host mask): the
+        // entry's nominal drone at the recorded placement and poses; empty samples as usual
+        void reset(const bool* mask, bool resident, const std::string& spawn_points = "");
         void render(const bool* mask, bool resident);
         void step(const float* actions, bool resident);
         void observe(float* out, bool resident);

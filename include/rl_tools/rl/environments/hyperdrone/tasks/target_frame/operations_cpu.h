@@ -91,56 +91,86 @@ namespace rl_tools {
             rl::environments::hyperdrone::tasks::target_frame::_sample_setup<DEVICE, TASK_SPEC>(device, world.slots[world.active_slot].annotations, world.parameters, world.drone_parameters, world.num_drones, get_ref(device, world.setups, setup_i), rng);
         }
     }
-    template <typename DEVICE, typename TASK_SPEC>
-    void render_target_bank(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world) {
-        using T = typename TASK_SPEC::T;
-        using TI = typename TASK_SPEC::TI;
-        using WORLD = rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>;
-        using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
-        using BASE_SPEC = typename NEXT_WORLD::SPEC;
-        constexpr TI CAM_PIXELS = BASE_SPEC::CAM_WIDTH * BASE_SPEC::CAM_HEIGHT;
-        const T aspect = static_cast<T>(BASE_SPEC::CAM_WIDTH) / static_cast<T>(BASE_SPEC::CAM_HEIGHT);
-        auto& renderer = get_renderer(device, world);
-        if constexpr (BASE_SPEC::SELF_VISIBLE) {
-            // the setup's drone at rest at the target pose, overwritten by the next frame's rows
-            const float coordinates[NEXT_WORLD::DYNAMICS_ENV::ACTION_DIM] = {};
-            for (TI setup_i = 0; setup_i < WORLD::INSTANCES; setup_i++) {
-                const auto& setup = get_ref(device, world.setups, setup_i);
-                T orientation[4], position[3];
-                rl::environments::hyperdrone::make_target_body_pose(device, setup.camera, setup.target_roll, setup.target_pitch, orientation, position);
-                float base[12];
-                rl::environments::hyperdrone::rig::make_body_transform(device, orientation, position, setup.scene_translation, setup.scene_yaw_cos, setup.scene_yaw_sin, base);
-                rl::environments::hyperdrone::_drone_rows(device, world, renderer, setup_i, (TI)0, get_ref(device, world.drone_bodies, setup.drone), base, base, coordinates, coordinates);
+    namespace rl::environments::hyperdrone::tasks::target_frame {
+        // renders the target view of every per-instance setup (the bank's, or instances' own
+        // parameters) and writes the scaled frames of the masked rows (all for a null mask)
+        template <typename DEVICE, typename TASK_SPEC, typename SETUPS_SPEC, typename FRAMES_SPEC>
+        void _render_targets(DEVICE& device, World<TASK_SPEC>& world, Tensor<SETUPS_SPEC>& setups, Tensor<FRAMES_SPEC>& frames, const bool* mask) {
+            using T = typename TASK_SPEC::T;
+            using TI = typename TASK_SPEC::TI;
+            using WORLD = World<TASK_SPEC>;
+            using NEXT_WORLD = typename TASK_SPEC::NEXT_WORLD;
+            using BASE_SPEC = typename NEXT_WORLD::SPEC;
+            static_assert(utils::typing::is_same_v<typename SETUPS_SPEC::T, typename WORLD::Parameters>);
+            constexpr TI CAM_PIXELS = BASE_SPEC::CAM_WIDTH * BASE_SPEC::CAM_HEIGHT;
+            const T aspect = static_cast<T>(BASE_SPEC::CAM_WIDTH) / static_cast<T>(BASE_SPEC::CAM_HEIGHT);
+            auto& renderer = get_renderer(device, world);
+            if constexpr (BASE_SPEC::SELF_VISIBLE) {
+                // the setup's drone at rest at the target pose, overwritten by the next frame's rows
+                const float coordinates[NEXT_WORLD::DYNAMICS_ENV::ACTION_DIM] = {};
+                for (TI setup_i = 0; setup_i < WORLD::INSTANCES; setup_i++) {
+                    const auto& setup = get_ref(device, setups, setup_i);
+                    T orientation[4], position[3];
+                    make_target_body_pose(device, setup.camera, setup.target_roll, setup.target_pitch, orientation, position);
+                    float base[12];
+                    rig::make_body_transform(device, orientation, position, setup.scene_translation, setup.scene_yaw_cos, setup.scene_yaw_sin, base);
+                    hyperdrone::_drone_rows(device, world, renderer, setup_i, (TI)0, get_ref(device, world.drone_bodies, setup.drone), base, base, coordinates, coordinates);
+                }
+                update(device, renderer);
             }
-            update(device, renderer);
-        }
-        for (TI setup_i = 0; setup_i < WORLD::INSTANCES; setup_i++) {
-            const auto& setup = get_ref(device, world.setups, setup_i);
-            set(device, world.camera_staging_close, rl::environments::hyperdrone::make_target_camera<DEVICE, T>(device, setup.camera, aspect, setup.scene_translation, setup.scene_yaw_cos, setup.scene_yaw_sin, setup.target_roll, setup.target_pitch), setup_i);
-        }
-        copy(device, renderer.device, world.camera_staging_close, cameras(device, renderer));
-        if constexpr (BASE_SPEC::ENABLE_MOTION_BLUR) {
-            copy(device, renderer.device, world.camera_staging_close, cameras_open(device, renderer));
-        }
-        render(device, renderer);
-        std::vector<float> observation_staging(WORLD::INSTANCES * CAM_PIXELS * 3);
-        {
-            Tensor<tensor::Specification<float, TI, typename decltype(renderer.observation)::SPEC::SHAPE>> observation_alias;
-            observation_alias._data = observation_staging.data();
-            copy(renderer.device, device, renderer.observation, observation_alias);
-        }
-        for (TI setup_i = 0; setup_i < WORLD::INSTANCES; setup_i++) {
-            const auto& setup = get_ref(device, world.setups, setup_i);
-            const float scale = (float)(setup.brightness_scale * setup.brightness_mismatch);
-            for (TI pixel_i = 0; pixel_i < CAM_PIXELS; pixel_i++) {
-                for (TI channel_i = 0; channel_i < 3; channel_i++) {
-                    set(device, world.bank_frames, rl::environments::hyperdrone::tasks::target_frame::_target_pixel(observation_staging[(setup_i * CAM_PIXELS + pixel_i) * 3 + channel_i], scale), setup_i, pixel_i * NEXT_WORLD::IMAGE_CHANNELS + channel_i);
+            for (TI setup_i = 0; setup_i < WORLD::INSTANCES; setup_i++) {
+                const auto& setup = get_ref(device, setups, setup_i);
+                set(device, world.camera_staging_close, make_target_camera<DEVICE, T>(device, setup.camera, aspect, setup.scene_translation, setup.scene_yaw_cos, setup.scene_yaw_sin, setup.target_roll, setup.target_pitch), setup_i);
+            }
+            copy(device, renderer.device, world.camera_staging_close, cameras(device, renderer));
+            if constexpr (BASE_SPEC::ENABLE_MOTION_BLUR) {
+                copy(device, renderer.device, world.camera_staging_close, cameras_open(device, renderer));
+            }
+            render(device, renderer);
+            std::vector<float> observation_staging(WORLD::INSTANCES * CAM_PIXELS * 3);
+            {
+                Tensor<tensor::Specification<float, TI, typename decltype(renderer.observation)::SPEC::SHAPE>> observation_alias;
+                observation_alias._data = observation_staging.data();
+                copy(renderer.device, device, renderer.observation, observation_alias);
+            }
+            for (TI setup_i = 0; setup_i < WORLD::INSTANCES; setup_i++) {
+                if (mask != nullptr && !mask[setup_i]) {
+                    continue;
+                }
+                const auto& setup = get_ref(device, setups, setup_i);
+                const float scale = (float)(setup.brightness_scale * setup.brightness_mismatch);
+                for (TI pixel_i = 0; pixel_i < CAM_PIXELS; pixel_i++) {
+                    for (TI channel_i = 0; channel_i < 3; channel_i++) {
+                        set(device, frames, _target_pixel(observation_staging[(setup_i * CAM_PIXELS + pixel_i) * 3 + channel_i], scale), setup_i, pixel_i * NEXT_WORLD::IMAGE_CHANNELS + channel_i);
+                    }
                 }
             }
         }
+    }
+    template <typename DEVICE, typename TASK_SPEC>
+    void render_target_bank(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world) {
+        using TI = typename TASK_SPEC::TI;
+        rl::environments::hyperdrone::tasks::target_frame::_render_targets(device, world, world.setups, world.bank_frames, nullptr);
         set(device, world.bank_cursor, (TI)0, (TI)0);
         world.bank_step = world.history_step;
         world.bank_scene_version = world.scene_version;
+    }
+    // re-renders the target frames of the masked instances from their own parameters, for callers
+    // that move instances after the reset adopted a setup (e.g. replayed spawns)
+    template <typename DEVICE, typename TASK_SPEC, typename PARAMETER_SPEC, typename RESET_SPEC>
+    void render_target_frames(DEVICE& device, rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask) {
+        rl::environments::hyperdrone::tasks::target_frame::_render_targets(device, world, parameters, world.target_frames, data(reset_mask));
+    }
+    template <typename DEVICE, typename TASK_SPEC, typename TASK_SPEC::TI NUMBER_OF_ENVIRONMENTS, typename PARAMETER_SPEC, typename RESET_SPEC>
+    void render_target_frames(DEVICE& device, rl::environments::hyperdrone::MultiEnvironment<rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>, NUMBER_OF_ENVIRONMENTS>& env, Tensor<PARAMETER_SPEC>& parameters, const Tensor<RESET_SPEC>& reset_mask) {
+        using MULTI_ENVIRONMENT = rl::environments::hyperdrone::MultiEnvironment<rl::environments::hyperdrone::tasks::target_frame::World<TASK_SPEC>, NUMBER_OF_ENVIRONMENTS>;
+        using TI = typename TASK_SPEC::TI;
+        constexpr TI M = rl::environments::hyperdrone::instances_per_environment<MULTI_ENVIRONMENT, PARAMETER_SPEC>();
+        for (TI environment_i = 0; environment_i < NUMBER_OF_ENVIRONMENTS; environment_i++) {
+            auto parameters_block = view_range(device, parameters, environment_i * M, tensor::ViewSpec<0, M>{});
+            auto reset_block = view_range(device, reset_mask, environment_i * M, tensor::ViewSpec<0, M>{});
+            render_target_frames(device, env.environments[environment_i], parameters_block, reset_block);
+        }
     }
     // a target-frame reset adopts a setup and copies its frame per instance, which the batch
     // verbs do; the single-instance entry points would silently fall back to the base World's

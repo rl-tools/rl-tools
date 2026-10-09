@@ -16,6 +16,8 @@
 
 #include "../common/models.h"
 
+#include <algorithm>
+#include <array>
 #include <filesystem>
 #include <optional>
 #include <stdexcept>
@@ -58,6 +60,7 @@ namespace HYPERDRONE_MODULE_NAME {
         int device_id = 0;
         InstanceTensor<typename WORLD::Parameters> parameters{};
         InstanceTensor<typename WORLD::Parameters> parameters_host{};
+        InstanceTensor<typename WORLD::State> states_host{};
         InstanceTensor<typename WORLD::State> states{}, next_states{};
         InstanceTensor<T> rewards{};
         InstanceTensor<bool> terminated_flags{}, all_instances{}, no_instances{};
@@ -103,20 +106,29 @@ namespace HYPERDRONE_MODULE_NAME {
                 rlt::copy(device, host(), source, alias);
             }
         }
-        // the per-instance parameters as a host-readable tensor (the World's own on a host World)
-        InstanceTensor<typename WORLD::Parameters>& parameters_on_host(){
+        // the per-instance parameters and states as host-readable tensors (the World's own on a
+        // host World); edits reach a CUDA World through publish
+        template <typename SPEC>
+        rlt::Tensor<SPEC>& on_host(rlt::Tensor<SPEC>& resident, rlt::Tensor<SPEC>& staging){
             if constexpr (CUDA_WORLD){
-                rlt::copy(device, host(), parameters, parameters_host);
-                return parameters_host;
+                rlt::copy(device, host(), resident, staging);
+                return staging;
             }
             else{
-                return parameters;
+                return resident;
             }
         }
-        void publish_parameters_from_host(){
+        template <typename SPEC>
+        void publish(rlt::Tensor<SPEC>& staging, rlt::Tensor<SPEC>& resident){
             if constexpr (CUDA_WORLD){
-                rlt::copy(host(), device, parameters_host, parameters);
+                rlt::copy(host(), device, staging, resident);
             }
+        }
+        InstanceTensor<typename WORLD::Parameters>& parameters_on_host(){
+            return on_host(parameters, parameters_host);
+        }
+        void publish_parameters_from_host(){
+            publish(parameters_host, parameters);
         }
     };
 
@@ -180,6 +192,19 @@ namespace HYPERDRONE_MODULE_NAME {
         }
     }
 
+    // a target-frame World adopted its setups' target frames at reset; replayed spawns move the
+    // instances, so their target frames follow
+    template <typename WORLD_TYPE, typename = void>
+    struct HasTargetFrames { static constexpr bool VALUE = false; };
+    template <typename WORLD_TYPE>
+    struct HasTargetFrames<WORLD_TYPE, rlt::utils::typing::void_t<decltype(WORLD_TYPE::target_frames)>> { static constexpr bool VALUE = true; };
+    template <typename WORLD_TYPE, typename ENV_TYPE, typename PARAMETER_SPEC, typename RESET_SPEC>
+    void render_spawned_target_frames([[maybe_unused]] DEVICE& device, [[maybe_unused]] ENV_TYPE& env, [[maybe_unused]] rlt::Tensor<PARAMETER_SPEC>& parameters, [[maybe_unused]] const rlt::Tensor<RESET_SPEC>& reset_mask){
+        if constexpr (HasTargetFrames<WORLD_TYPE>::VALUE){
+            render_target_frames(device, env, parameters, reset_mask);
+        }
+    }
+
     template <typename WORLD_TYPE>
     void observe_imu_into([[maybe_unused]] Environment::Impl& impl, [[maybe_unused]] float* out, [[maybe_unused]] bool resident){
         if constexpr (ObservationIMUDim<WORLD_TYPE>::VALUE > 0){
@@ -212,18 +237,14 @@ namespace HYPERDRONE_MODULE_NAME {
         rlt::set_all(impl->device, impl->all_instances, true);
         rlt::set_all(impl->device, impl->no_instances, false);
         rlt::malloc(impl->host(), impl->parameters_host);
-        {
-            // every instance holds defined values before its first reset
-            InstanceTensor<typename WORLD::State> states_host;
-            rlt::malloc(impl->host(), states_host);
-            for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
-                rlt::set(impl->host(), impl->parameters_host, typename WORLD::Parameters{}, instance_i);
-                rlt::set(impl->host(), states_host, typename WORLD::State{}, instance_i);
-            }
-            rlt::copy(impl->host(), impl->device, impl->parameters_host, impl->parameters);
-            rlt::copy(impl->host(), impl->device, states_host, impl->states);
-            rlt::free(impl->host(), states_host);
+        rlt::malloc(impl->host(), impl->states_host);
+        // every instance holds defined values before its first reset
+        for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
+            rlt::set(impl->host(), impl->parameters_host, typename WORLD::Parameters{}, instance_i);
+            rlt::set(impl->host(), impl->states_host, typename WORLD::State{}, instance_i);
         }
+        rlt::copy(impl->host(), impl->device, impl->parameters_host, impl->parameters);
+        rlt::copy(impl->host(), impl->device, impl->states_host, impl->states);
         if constexpr (CUDA_WORLD){
             rlt::malloc(impl->device, impl->mask_staging);
             rlt::malloc(impl->device, impl->actions_staging);
@@ -242,6 +263,7 @@ namespace HYPERDRONE_MODULE_NAME {
             rlt::free(impl->device, impl->observations_imu_staging);
         }
         rlt::free(impl->host(), impl->parameters_host);
+        rlt::free(impl->host(), impl->states_host);
         rlt::free(impl->device, impl->parameters);
         rlt::free(impl->device, impl->states);
         rlt::free(impl->device, impl->next_states);
@@ -346,11 +368,98 @@ namespace HYPERDRONE_MODULE_NAME {
         rlt::rotate_scene(impl->device, impl->env);
     }
 
-    void Environment::reset(const bool* mask, bool resident){
+    std::string Environment::spawn_points_json(){
         const CurrentDevice current(impl->device_id);
+        const auto& parameters = impl->parameters_on_host();
+        const auto& states = impl->on_host(impl->states, impl->states_host);
+        nlohmann::json entries = nlohmann::json::array();
+        for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
+            const auto& world = impl->env.environments[instance_i / WORLD::INSTANCES];
+            const auto& instance = rlt::get_ref(impl->host(), parameters, instance_i);
+            nlohmann::json poses = nlohmann::json::array();
+            for(TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++){
+                const auto& state = rlt::rl::environments::hyperdrone::_agent_state<typename WORLD::SPEC>(rlt::get_ref(impl->host(), states, instance_i), agent_i);
+                poses.push_back({state.position[0], state.position[1], state.position[2], state.orientation[0], state.orientation[1], state.orientation[2], state.orientation[3]});
+            }
+            entries.push_back({{"scene", world.slots[world.active_slot].metadata.content_hash}, {"drone", instance.drone},
+                               {"scene_translation", instance.scene_translation}, {"scene_yaw", {instance.scene_yaw_cos, instance.scene_yaw_sin}},
+                               {"poses", poses}, {"shutter_fraction", instance.shutter_fraction}});
+        }
+        return entries.dump();
+    }
+
+    void Environment::reset(const bool* mask, bool resident, const std::string& spawn_points){
+        const CurrentDevice current(impl->device_id);
+        struct Spawn {
+            TI instance;
+            TI drone;
+            std::array<T, 3> translation;
+            std::array<T, 2> yaw;
+            std::array<std::array<T, 7>, WORLD::N_AGENTS> poses;
+            T shutter;
+        };
+        std::vector<Spawn> spawns;
+        if(!spawn_points.empty()){
+            if(CUDA_WORLD && resident && mask != nullptr){
+                throw std::invalid_argument("hyperdrone: spawn points take a host mask");
+            }
+            const auto entries = nlohmann::json::parse(spawn_points);
+            for(TI instance_i = 0; instance_i < TOTAL; instance_i++){
+                if(mask == nullptr || mask[instance_i]){
+                    const auto& entry = entries.at(spawns.size());
+                    const auto& world = impl->env.environments[instance_i / WORLD::INSTANCES];
+                    const auto drone = entry.at("drone").get<long long>();
+                    if(drone < 0 || drone >= (long long)impl->env.shared.drones.size()){
+                        throw std::invalid_argument("hyperdrone: spawn drone is outside the drones table");
+                    }
+                    if(entry.at("scene") != world.slots[world.active_slot].metadata.content_hash){
+                        throw std::invalid_argument("hyperdrone: spawn scene does not match the active scene");
+                    }
+                    spawns.push_back({instance_i, (TI)drone, entry.at("scene_translation").get<std::array<T, 3>>(),
+                                      entry.at("scene_yaw").get<std::array<T, 2>>(),
+                                      entry.at("poses").get<std::array<std::array<T, 7>, WORLD::N_AGENTS>>(),
+                                      entry.at("shutter_fraction").get<T>()});
+                }
+            }
+            if(spawns.size() != entries.size()){
+                throw std::invalid_argument("hyperdrone: provide one spawn per selected instance");
+            }
+        }
         const auto reset_mask = mask == nullptr ? impl->all_instances : impl->input(mask, resident, impl->mask_staging);
         rlt::sample_initial_parameters(impl->device, impl->env, impl->parameters, reset_mask, impl->rng);
+        if(!spawns.empty()){
+            // the entry's nominal before the state sampling, which reads the dynamics
+            auto& parameters = impl->parameters_on_host();
+            for(const auto& spawn : spawns){
+                auto& instance = rlt::get_ref(impl->host(), parameters, spawn.instance);
+                const auto& nominal = impl->env.shared.drones[spawn.drone].parameters;
+                instance.drone = spawn.drone;
+                instance.dynamics = nominal.dynamics;
+                instance.camera = nominal.camera;
+                instance.brightness_scale = 1;
+            }
+            impl->publish_parameters_from_host();
+        }
         rlt::sample_initial_state(impl->device, impl->env, impl->parameters, impl->states, reset_mask, impl->rng);
+        if(!spawns.empty()){
+            auto& parameters = impl->parameters_on_host();
+            auto& states = impl->on_host(impl->states, impl->states_host);
+            for(const auto& spawn : spawns){
+                auto& instance = rlt::get_ref(impl->host(), parameters, spawn.instance);
+                std::copy(spawn.translation.begin(), spawn.translation.end(), instance.scene_translation);
+                instance.scene_yaw_cos = spawn.yaw[0];
+                instance.scene_yaw_sin = spawn.yaw[1];
+                instance.shutter_fraction = spawn.shutter;
+                for(TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++){
+                    auto& state = rlt::rl::environments::hyperdrone::_agent_state<typename WORLD::SPEC>(rlt::get_ref(impl->host(), states, spawn.instance), agent_i);
+                    std::copy(spawn.poses[agent_i].begin(), spawn.poses[agent_i].begin() + 3, state.position);
+                    std::copy(spawn.poses[agent_i].begin() + 3, spawn.poses[agent_i].end(), state.orientation);
+                }
+            }
+            impl->publish_parameters_from_host();
+            impl->publish(impl->states_host, impl->states);
+            render_spawned_target_frames<WORLD>(impl->device, impl->env, impl->parameters, reset_mask);
+        }
     }
     void Environment::render(const bool* mask, bool resident){
         const CurrentDevice current(impl->device_id);

@@ -56,11 +56,14 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES_CUDA, TARGET_FRAME_BANK_CARRIES_
     InstanceTensor<TASK_WORLD::Parameters> parameters, parameters_gpu, setups;
     InstanceTensor<TASK_WORLD::State> states_gpu;
     InstanceTensor<TI> setup_index;
+    rlt::Tensor<typename TASK_WORLD::FRAMES_SPEC> copied, rerendered;
     MASK_TENSOR mask, mask_gpu;
     RNG_GPU rng;
     rlt::malloc(device, parameters);
     rlt::malloc(device, setups);
     rlt::malloc(device, setup_index);
+    rlt::malloc(device, copied);
+    rlt::malloc(device, rerendered);
     rlt::malloc(device, mask);
     rlt::malloc(device_gpu, parameters_gpu);
     rlt::malloc(device_gpu, states_gpu);
@@ -83,6 +86,12 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES_CUDA, TARGET_FRAME_BANK_CARRIES_
             before[instance_i] = rlt::get(device, parameters, instance_i);
         }
         rlt::sample_initial_parameters(device_gpu, world, parameters_gpu, mask_gpu, rng);
+        // re-rendering the reset instances' targets from their adopted parameters reproduces the
+        // bank frames they copied and leaves the others alone
+        rlt::copy(device_gpu, device, world.target_frames, copied);
+        rlt::render_target_frames(device_gpu, world, parameters_gpu, mask_gpu);
+        rlt::copy(device_gpu, device, world.target_frames, rerendered);
+        EXPECT_EQ(rlt::abs_diff(device, copied, rerendered), 0);
         rlt::sample_initial_state(device_gpu, world, parameters_gpu, states_gpu, mask_gpu, rng);
         rlt::render(device_gpu, world, parameters_gpu, states_gpu, mask_gpu);
         cudaDeviceSynchronize();
@@ -117,6 +126,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES_CUDA, TARGET_FRAME_BANK_CARRIES_
     rlt::free(device_gpu, parameters_gpu);
     rlt::free(device, mask);
     rlt::free(device, setup_index);
+    rlt::free(device, copied);
+    rlt::free(device, rerendered);
     rlt::free(device, setups);
     rlt::free(device, parameters);
     rlt::free(device_gpu, world);

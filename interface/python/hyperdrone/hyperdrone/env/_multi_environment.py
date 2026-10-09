@@ -7,7 +7,7 @@ targets use — no runners involved.
 
 Configuration follows the C++ extension ladder: a preset names the platform
 (`presets::*` on the C++ side), a task names the wrapper (`tasks::*`), and a handful of
-universal knobs (instances, camera resolution, shading) complete the picture. Arbitrary
+universal knobs (instances, camera resolution, shading, motion blur) complete the picture. Arbitrary
 C++ specifications are reached through `spec_header=`: a path to a C++ header defining
 `hyperdrone_env_user::WORLD` (including any rl_tools headers it needs); the header's
 content hash is part of the JIT key, and preset/task/n_agents must stay at their
@@ -25,6 +25,7 @@ import conta
 
 from .. import jit
 from .._dlpack import is_cuda
+from ..render._config import VALID_MOTION_BLUR_SAMPLES
 
 PRESETS = {"crazyflie": 0, "x500_fpv": 1, "x500_fpv_imu": 2}
 SELF_VISIBLE_PRESETS = ("x500_fpv", "x500_fpv_imu")
@@ -63,6 +64,7 @@ class EnvConfig:
     n_agents: int = 1
     spec_header: str = None
     device: str = None
+    motion_blur_samples: int = 1
 
     def __post_init__(self):
         if self.preset not in PRESETS:
@@ -71,6 +73,8 @@ class EnvConfig:
             raise ValueError(f"hyperdrone: unknown task {self.task!r} (one of {sorted(k for k in TASKS if k)} or None)")
         if self.shading not in _SHADING:
             raise ValueError(f"hyperdrone: unknown shading {self.shading!r} (one of {sorted(_SHADING)})")
+        if type(self.motion_blur_samples) is not int or self.motion_blur_samples not in VALID_MOTION_BLUR_SAMPLES:
+            raise ValueError(f"hyperdrone: motion_blur_samples must be one of {VALID_MOTION_BLUR_SAMPLES}")
         if self.n_agents < 1:
             raise ValueError("hyperdrone: n_agents must be >= 1")
         if self.device not in (None, "cuda", "cpu"):
@@ -122,6 +126,7 @@ class EnvConfig:
             "HYPERDRONE_ENV_CAM_WIDTH": self.cam_width,
             "HYPERDRONE_ENV_CAM_HEIGHT": self.cam_height,
             "HYPERDRONE_ENV_SHADING": _SHADING[self.shading],
+            "HYPERDRONE_ENV_MB_SAMPLES": self.motion_blur_samples,
             "HYPERDRONE_ENV_HISTORY_LENGTH": self.history_length,
             "HYPERDRONE_ENV_PRESET": PRESETS[self.preset],
             "HYPERDRONE_ENV_TASK": TASKS[self.task],
@@ -410,8 +415,34 @@ class MultiEnvironment:
     def _output(self, out, shape, dtype):
         return np.empty(shape, dtype=dtype) if out is None else out
 
-    def reset(self, mask=None):
-        self._environment.reset(None if mask is None else self._input(mask, bool, (self.total_instances,)))
+    def spawn_points(self):
+        """Every instance's spawn as of its last reset, for reset(spawn_points=...): the active scene's content hash, the drone entry, the scene placement (scene_yaw holds cosine and sine), the per-agent poses (xyz + wxyz) and the shutter fraction. Camera mounts and dynamics come from the drone table."""
+        return json.loads(self._environment.spawn_points())
+
+    def reset(self, mask=None, *, spawn_points=None):
+        """Resets the selected instances (default: all), optionally replaying one recorded spawn per selected instance (a host mask then). Replayed spawns fly their entry's nominal drone parameters (target frames follow the replayed placement); velocities, motor speeds and task-specific state still follow their configured initialization."""
+        if spawn_points is None:
+            self._environment.reset(None if mask is None else self._input(mask, bool, (self.total_instances,)))
+            return
+        if mask is not None and is_cuda(mask):
+            raise ValueError("hyperdrone: spawn points take a host mask")
+        mask = self._host_mask(mask)
+        if len(spawn_points) != int(mask.sum()):
+            raise ValueError("hyperdrone: provide one spawn per selected instance")
+        for spawn in spawn_points:
+            if set(spawn) != {"scene", "drone", "scene_translation", "scene_yaw", "poses", "shutter_fraction"}:
+                raise ValueError("hyperdrone: invalid spawn fields (use spawn_points() to capture them)")
+            if type(spawn["drone"]) is not int or not isinstance(spawn["scene"], str):
+                raise ValueError("hyperdrone: spawn needs an integer drone index and a scene content hash")
+            for name, shape in (("scene_translation", (3,)), ("scene_yaw", (2,)), ("poses", (self.n_agents, 7)), ("shutter_fraction", ())):
+                values = np.asarray(spawn[name], dtype=float)
+                if values.shape != shape or not np.isfinite(values).all():
+                    raise ValueError(f"hyperdrone: spawn {name} must have shape {shape} and finite values")
+            if not np.isclose(np.linalg.norm(spawn["scene_yaw"]), 1) or not np.allclose(np.linalg.norm(np.asarray(spawn["poses"])[:, 3:], axis=1), 1):
+                raise ValueError("hyperdrone: spawn yaw and orientation quaternions must have unit length")
+            if not 0 <= spawn["shutter_fraction"] <= 1:
+                raise ValueError("hyperdrone: spawn shutter_fraction must be in [0, 1]")
+        self._environment.reset(mask, json.dumps(spawn_points, allow_nan=False))
 
     def _check_synchronized(self, reset_mask):
         if self.config.task != "visual_inertial_localization":
