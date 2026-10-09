@@ -343,9 +343,32 @@ class MultiEnvironment:
             mask = np.ones(self.total_instances, dtype=bool)
         return np.ascontiguousarray(np.asarray(mask, dtype=bool).reshape(self.total_instances))
 
-    def reset(self, mask=None):
+    def spawn_points(self):
+        """Capture room hashes, placements (scene_yaw stores cosine/sine), per-agent poses (xyz + wxyz), drone indices and shutters for reset(spawn_points=...). Camera mounts and dynamics come from the constructor's drone table."""
+        if not self._sampled.all():
+            raise RuntimeError("hyperdrone: spawn points exist once every instance has been reset")
+        return json.loads(self._environment.spawn_points())
+
+    def reset(self, mask=None, *, spawn_points=None):
+        """Reset selected instances, optionally using one recorded spawn per selected instance. Explicit spawns use nominal drone parameters; velocities, motor speeds and task-specific state still follow their configured initialization."""
         mask = self._mask(mask)
-        self._environment.reset(mask)
+        if spawn_points is not None:
+            if len(spawn_points) != int(mask.sum()):
+                raise ValueError("hyperdrone: provide one spawn per selected instance")
+            for spawn in spawn_points:
+                if set(spawn) != {"scene", "drone", "scene_translation", "scene_yaw", "poses", "shutter_fraction"}:
+                    raise ValueError("hyperdrone: invalid spawn fields (use spawn_points() to capture them)")
+                if type(spawn["drone"]) is not int or not isinstance(spawn["scene"], str):
+                    raise ValueError("hyperdrone: spawn needs an integer drone index and a scene content hash")
+                for name, shape in (("scene_translation", (3,)), ("scene_yaw", (2,)), ("poses", (self.n_agents, 7)), ("shutter_fraction", ())):
+                    values = np.asarray(spawn[name], dtype=float)
+                    if values.shape != shape or not np.isfinite(values).all():
+                        raise ValueError(f"hyperdrone: spawn {name} must have shape {shape} and finite values")
+                if not np.isclose(np.linalg.norm(spawn["scene_yaw"]), 1) or not np.allclose(np.linalg.norm(np.asarray(spawn["poses"])[:, 3:], axis=1), 1):
+                    raise ValueError("hyperdrone: spawn yaw and orientation quaternions must have unit length")
+                if not 0 <= spawn["shutter_fraction"] <= 1:
+                    raise ValueError("hyperdrone: spawn shutter_fraction must be in [0, 1]")
+        self._environment.reset(mask, "" if spawn_points is None else json.dumps(spawn_points, allow_nan=False))
         self._sampled |= mask
 
     def _check_synchronized(self, reset_mask):
