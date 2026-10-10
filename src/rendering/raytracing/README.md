@@ -198,9 +198,11 @@ holds position without user input; hidden tabs pause. The scene selector uses th
 `procthor::Train200` catalog. `static/hyperdrone/registry.json` pins the rigged airframes and
 RAPTOR checkpoint; `pose.json` pins the default scene and its starting position in FLU meters
 and yaw in degrees (other scenes use MultiEnvironment's free-space annotations).
-The browser conta `load` resolver first requests `blob/<sha1>.gz`, then tries the format-1
-conta index entry points and their providers, preferring advertised gzip variants and checking
-decoded hashes. To prepare the local default scene, Crazyflie, and checkpoint, run
+The browser conta `load` resolver reuses verified gzip assets from persistent browser Cache Storage;
+on a miss it requests `blob/<sha1>.gz`, then the format-1 conta providers, preferring advertised gzip
+variants. Scene, airframe, and RAPTOR downloads share this cache; raw-only assets are gzipped before
+storage, corrupt entries are discarded, and storage failures leave downloading available.
+To prepare the local default scene, Crazyflie, and checkpoint, run
 `.venv/bin/python static/hyperdrone/prepare_blob.py /path/to/scene.glb /path/to/crazyflie.glb /path/to/policy.tar`.
 Run `static/hyperdrone/download_blob.sh` to clone the separate asset repository into
 `static/hyperdrone/blob/`; existing checkouts are left untouched. The build script writes its module

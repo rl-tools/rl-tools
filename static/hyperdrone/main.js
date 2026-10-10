@@ -208,7 +208,8 @@ async function fetch_asset(asset){
         sha256: asset.sha256,
         on_progress: ({phase, received, total}) => {
             if(phase !== "download"){
-                set_status(`${phase === "verify" ? "Verifying" : "Locating"} ${description}…`);
+                const action = phase === "cache" ? "Loading cached" : phase === "verify" ? "Verifying" : "Locating";
+                set_status(`${action} ${description}…`);
                 progress_element.removeAttribute("value");
                 progress_percent.textContent = "";
                 return;
