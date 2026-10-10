@@ -38,7 +38,7 @@
                     </div>
                     <progress id="progress" max="100" value="0" hidden aria-label="Asset download progress"></progress>
                 </div>
-                <span id="fps"></span>
+                <button id="fps" type="button" aria-label="Adjust target frame rate" aria-haspopup="dialog" aria-controls="frame-rate-tuning" hidden>— fps</button>
             </div>
             <p id="error" role="alert" hidden></p>
 
@@ -99,6 +99,23 @@
             </div>
         </section>
     </main>
+    <dialog id="frame-rate-tuning" aria-labelledby="frame-rate-title">
+        <form method="dialog">
+            <div class="tuning-heading">
+                <h2 id="frame-rate-title">Target frame rate</h2>
+                <button>Close</button>
+            </div>
+            <div class="tuning-control">
+                <label for="target-fps">Frame rate limit <output id="target-fps-value" for="target-fps"></output></label>
+                <input id="target-fps" type="range" min="10" max="240" step="1" value="60" aria-describedby="target-fps-help" autofocus>
+                <p id="target-fps-help">Limits camera updates. Actual FPS depends on your device.</p>
+            </div>
+            <div class="tuning-actions">
+                <button id="frame-rate-defaults" type="button">Restore default</button>
+                <span>Applies immediately</span>
+            </div>
+        </form>
+    </dialog>
     <dialog id="flight-tuning" aria-labelledby="tuning-title" aria-keyshortcuts="Shift+T">
         <form method="dialog">
             <div class="tuning-heading">

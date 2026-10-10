@@ -276,10 +276,10 @@ static void status(const char* message) {
         }
     }, message);
 }
-static void read_input(float input[10]) {
+static void read_input(float input[11]) {
     EM_ASM({
         const input = Module.rlt_input();
-        for(let i = 0; i < 10; i++) {
+        for(let i = 0; i < 11; i++) {
             HEAPF32[($0 >> 2) + i] = input[i];
         }
     }, input);
@@ -346,8 +346,9 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
     double accumulator = 0;
     bool was_active = false;
     for(int frame = 0; max_frames <= 0 || frame < max_frames;) {
-        float input[10] = {};
+        float input[11] = {};
         read_input(input);
+        const double frame_period = max_frames > 0 ? web::FRAME_PERIOD : 1.0 / std::clamp((double)input[10], 10.0, 240.0);
         state.yaw_rate_limit = input[6];
         state.yaw_error_limit = input[7];
         state.position_offset = input[8];
@@ -384,7 +385,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE int demo_run(const char* scene_path, const char*
             frame++;
         }
         const double elapsed_ms = emscripten_get_now() - now_ms;
-        const int sleep_ms = active ? (int)std::max(1.0, web::FRAME_PERIOD * 1000.0 - elapsed_ms) : 16;
+        const int sleep_ms = active ? (int)std::max(1.0, frame_period * 1000.0 - elapsed_ms) : 16;
         emscripten_sleep(sleep_ms);
     }
     free(device, state);
