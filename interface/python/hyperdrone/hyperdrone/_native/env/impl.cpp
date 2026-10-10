@@ -176,25 +176,30 @@ namespace HYPERDRONE_MODULE_NAME {
         }
     };
 
-    constexpr const char* CAMERA_SLOT = "fpv";
     template <typename DYNAMICS_PARAMETERS>
-    std::string parameters_to_json(Environment::Impl& impl, const DYNAMICS_PARAMETERS& dynamics, const rlt::rl::environments::hyperdrone::Camera<T>& camera, std::optional<TI> drone = std::nullopt){
+    std::string parameters_to_json(Environment::Impl& impl, const DYNAMICS_PARAMETERS& dynamics, const rlt::rl::environments::hyperdrone::Camera<T> (&cameras)[WORLD::N_CAMERAS_PER_AGENT], std::optional<TI> drone = std::nullopt){
         const auto& world = impl.env.environments[0];
-        std::string value = "{\"dynamics\": " + rlt::json(impl.host(), world.dynamics, dynamics) + ", \"cameras\": {\"" + CAMERA_SLOT + "\": " + rlt::json(impl.host(), world, camera) + "}";
+        std::string value = "{\"dynamics\": " + rlt::json(impl.host(), world.dynamics, dynamics) + ", \"cameras\": [";
+        for(TI camera_i = 0; camera_i < WORLD::N_CAMERAS_PER_AGENT; camera_i++){
+            value += (camera_i > 0 ? ", " : "") + rlt::json(impl.host(), world, cameras[camera_i]);
+        }
+        value += "]";
         if(drone){
             value += ", \"drone\": " + std::to_string(*drone);
         }
         return value + "}";
     }
     template <typename DYNAMICS_PARAMETERS>
-    void parameters_from_json(Environment::Impl& impl, const nlohmann::json& parameters, DYNAMICS_PARAMETERS& dynamics, rlt::rl::environments::hyperdrone::Camera<T>& camera){
+    void parameters_from_json(Environment::Impl& impl, const nlohmann::json& parameters, DYNAMICS_PARAMETERS& dynamics, rlt::rl::environments::hyperdrone::Camera<T> (&cameras)[WORLD::N_CAMERAS_PER_AGENT]){
         auto& world = impl.env.environments[0];
-        rlt::from_json(impl.host(), world.dynamics, parameters.at("dynamics"), dynamics);
-        const auto& cameras = parameters.at("cameras");
-        if(cameras.size() != 1 || !cameras.contains(CAMERA_SLOT)){
-            throw std::invalid_argument("hyperdrone: cameras must contain only 'fpv'");
+        const auto& values = parameters.at("cameras");
+        if(!values.is_array() || values.size() != WORLD::N_CAMERAS_PER_AGENT){
+            throw std::invalid_argument("hyperdrone: provide one camera parameter dict per camera");
         }
-        rlt::from_json(impl.host(), world, cameras.at(CAMERA_SLOT), camera);
+        rlt::from_json(impl.host(), world.dynamics, parameters.at("dynamics"), dynamics);
+        for(TI camera_i = 0; camera_i < WORLD::N_CAMERAS_PER_AGENT; camera_i++){
+            rlt::from_json(impl.host(), world, values.at(camera_i), cameras[camera_i]);
+        }
     }
 
     template <typename WORLD_TYPE, typename = void>
@@ -336,7 +341,7 @@ namespace HYPERDRONE_MODULE_NAME {
         for(size_t drone_i = 0; drone_i < drone_assets.size(); drone_i++){
             typename ENV::SharedContext::DRONE drone;
             drone.asset = drone_assets[drone_i].value_or("");
-            parameters_from_json(*impl, nlohmann::json::parse(drone_parameters[drone_i]), drone.parameters.dynamics, drone.parameters.camera);
+            parameters_from_json(*impl, nlohmann::json::parse(drone_parameters[drone_i]), drone.parameters.dynamics, drone.parameters.cameras);
             impl->env.shared.drones.push_back(drone);
         }
         const TI drone_parts = check_drones(*impl);
@@ -375,14 +380,14 @@ namespace HYPERDRONE_MODULE_NAME {
     }
     std::string Environment::parameters_json(){
         const auto& world = impl->env.environments[0];
-        return parameters_to_json(*impl, world.dynamics.parameters, world.parameters.agents[0].camera);
+        return parameters_to_json(*impl, world.dynamics.parameters, world.parameters.agents[0].cameras);
     }
     std::string Environment::drones_json(){
         std::string value = "[";
         for(size_t drone_i = 0; drone_i < impl->env.shared.drones.size(); drone_i++){
             const auto& drone = impl->env.shared.drones[drone_i];
             const std::string asset = drone.asset.empty() ? "null" : nlohmann::json(drone.asset).dump();
-            value += (drone_i > 0 ? ", " : "") + std::string("{\"asset\": ") + asset + ", \"parameters\": " + parameters_to_json(*impl, drone.parameters.dynamics, drone.parameters.camera) + "}";
+            value += (drone_i > 0 ? ", " : "") + std::string("{\"asset\": ") + asset + ", \"parameters\": " + parameters_to_json(*impl, drone.parameters.dynamics, drone.parameters.cameras) + "}";
         }
         return value + "]";
     }
@@ -399,7 +404,7 @@ namespace HYPERDRONE_MODULE_NAME {
             }
             for(TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++){
                 const auto& agent = instance.agents[agent_i];
-                value += (agent_i > 0 ? ", " : "") + parameters_to_json(*impl, agent.dynamics, agent.camera, agent.drone);
+                value += (agent_i > 0 ? ", " : "") + parameters_to_json(*impl, agent.dynamics, agent.cameras, agent.drone);
             }
             if constexpr (WORLD::N_AGENTS > 1){
                 value += "]}";
@@ -426,7 +431,7 @@ namespace HYPERDRONE_MODULE_NAME {
                 for(TI agent_i = 0; agent_i < WORLD::N_AGENTS; agent_i++){
                     const auto& agent_entry = WORLD::N_AGENTS == 1 ? entry : entry.at("agents").at(agent_i);
                     auto& agent = updated.back().agents[agent_i];
-                    parameters_from_json(*impl, agent_entry, agent.dynamics, agent.camera);
+                    parameters_from_json(*impl, agent_entry, agent.dynamics, agent.cameras);
                     if(agent.dynamics.integration.dt != impl->env.environments[0].dynamics.parameters.integration.dt){
                         throw std::invalid_argument("hyperdrone: every drone must use the same integration timestep");
                     }
@@ -564,7 +569,9 @@ namespace HYPERDRONE_MODULE_NAME {
                     const auto& nominal = impl->env.shared.drones[spawn.drones[agent_i]].parameters;
                     agent.drone = spawn.drones[agent_i];
                     agent.dynamics = nominal.dynamics;
-                    agent.camera = nominal.camera;
+                    for(TI camera_i = 0; camera_i < WORLD::N_CAMERAS_PER_AGENT; camera_i++){
+                        agent.cameras[camera_i] = nominal.cameras[camera_i];
+                    }
                 }
                 instance.brightness_scale = 1;
             }

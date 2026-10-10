@@ -59,7 +59,7 @@ namespace test_drones {
         DRONE entry;
         entry.asset = DATA_PATH + "/" + asset;
         entry.parameters.dynamics.dynamics = l2f::parameters::dynamics::registry<MODEL, PARAMETERS_SPEC>;
-        entry.parameters.camera.fov = fov;
+        entry.parameters.cameras[0].fov = fov;
         return entry;
     }
     struct Table {
@@ -88,15 +88,15 @@ namespace test_drones {
             instance_parameters.scene_translation[0] = 0;
             instance_parameters.scene_translation[1] = 0;
             instance_parameters.scene_translation[2] = 100;
-            instance_parameters.agents[0].camera.mount.pose.position[0] = (T)-1.2;
-            instance_parameters.agents[0].camera.mount.pose.position[1] = 0;
-            instance_parameters.agents[0].camera.mount.pose.position[2] = (T)0.4;
+            instance_parameters.agents[0].cameras[0].mount.pose.position[0] = (T)-1.2;
+            instance_parameters.agents[0].cameras[0].mount.pose.position[1] = 0;
+            instance_parameters.agents[0].cameras[0].mount.pose.position[2] = (T)0.4;
             const T half_pitch = std::atan2((T)0.3, (T)1) / 2;
-            instance_parameters.agents[0].camera.mount.pose.orientation[0] = std::cos(half_pitch);
-            instance_parameters.agents[0].camera.mount.pose.orientation[1] = 0;
-            instance_parameters.agents[0].camera.mount.pose.orientation[2] = std::sin(half_pitch);
-            instance_parameters.agents[0].camera.mount.pose.orientation[3] = 0;
-            instance_parameters.agents[0].camera.fov = 60;
+            instance_parameters.agents[0].cameras[0].mount.pose.orientation[0] = std::cos(half_pitch);
+            instance_parameters.agents[0].cameras[0].mount.pose.orientation[1] = 0;
+            instance_parameters.agents[0].cameras[0].mount.pose.orientation[2] = std::sin(half_pitch);
+            instance_parameters.agents[0].cameras[0].mount.pose.orientation[3] = 0;
+            instance_parameters.agents[0].cameras[0].fov = 60;
             state.orientation[0] = 1;
             state.orientation[1] = 0;
             state.orientation[2] = 0;

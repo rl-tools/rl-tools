@@ -67,9 +67,9 @@ namespace HYPERDRONE_MODULE_NAME {
         environment_class.def(name, [](Environment& self, nb::ndarray<VALUE, nb::c_contig> out){
             constexpr TI HEIGHT = WORLD::SPEC::CAM_HEIGHT;
             constexpr TI WIDTH = WORLD::SPEC::CAM_WIDTH;
-            const bool in_place = resident(self, out, TOTAL * WORLD::N_AGENTS * HEIGHT * WIDTH * CHANNELS);
-            if(out.ndim() != (CHANNELS == 1 ? 4 : 5) || out.shape(0) != TOTAL || out.shape(1) != WORLD::N_AGENTS || out.shape(2) != HEIGHT || out.shape(3) != WIDTH || (CHANNELS > 1 && out.shape(4) != CHANNELS)){
-                throw std::invalid_argument("hyperdrone: image output must have shape (total_instances, num_agents, height, width[, channels])");
+            const bool in_place = resident(self, out, TOTAL * WORLD::N_VIEWS * HEIGHT * WIDTH * CHANNELS);
+            if(out.ndim() != (CHANNELS == 1 ? 4 : 5) || out.shape(0) != TOTAL || out.shape(1) != WORLD::N_VIEWS || out.shape(2) != HEIGHT || out.shape(3) != WIDTH || (CHANNELS > 1 && out.shape(4) != CHANNELS)){
+                throw std::invalid_argument("hyperdrone: image output must have shape (total_instances, num_views, height, width[, channels])");
             }
             nb::gil_scoped_release release;
             (self.*VERB)(out.data(), in_place);
@@ -100,6 +100,8 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     dimensions["instances_per_environment"] = WORLD::INSTANCES;
     dimensions["total_instances"] = TOTAL;
     dimensions["num_agents"] = WORLD::N_AGENTS;
+    dimensions["num_cameras_per_agent"] = WORLD::N_CAMERAS_PER_AGENT;
+    dimensions["num_views"] = WORLD::N_VIEWS;
     dimensions["width"] = WORLD::SPEC::CAM_WIDTH;
     dimensions["height"] = WORLD::SPEC::CAM_HEIGHT;
     dimensions["image_channels"] = WORLD::IMAGE_CHANNELS;
