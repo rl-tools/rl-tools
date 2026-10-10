@@ -243,6 +243,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_SELF_VISIBLE_CUDA, OWN_DRONE_AND_ARTICU
     rlt::copy(device, device_gpu, parameters, parameters_gpu);
     rlt::copy(device, device_gpu, states, states_gpu);
     rlt::set_all(device_gpu, reset_mask, false);
+    rlt::request_render(device_gpu, world);
     rlt::render(device_gpu, world, parameters_gpu, states_gpu, reset_mask);
     rlt::observe(device_gpu, world, parameters_gpu, states_gpu, typename WORLD::Observation{}, observations_gpu, rng);
     cudaDeviceSynchronize();

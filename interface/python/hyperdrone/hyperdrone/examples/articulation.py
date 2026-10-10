@@ -31,7 +31,7 @@ def main():
                                num_probes=0, num_overlays=1, max_overlay_instances=2,
                                max_overlays_per_camera=1, motion_blur_samples=8,
                                dynamic_motion_blur=True)
-    renderer.init(scene, pool)
+    renderer.init(scene, asset_pool=pool)
     renderer.attach(0, 0)
     base = render.make_transform(position=(3, 0, 0))
     placement = renderer.spawn(0, handle, base)
@@ -44,7 +44,7 @@ def main():
         coordinates_open = [12 * time_open, 0.3 * np.sin(4 * time_open)]
         coordinates_close = [12 * time_close, 0.3 * np.sin(4 * time_close)]
         rig.sample(base, base, coordinates_open, coordinates_close, renderer.motion_blur_samples, out=samples, close_out=close)
-        renderer.set_motion_transforms(0, placement, samples, close)
+        renderer.set_motion_transforms(placement, samples, close)
         renderer.update()
         renderer.render()
         frames.append(renderer.frame()[0, ..., :3])

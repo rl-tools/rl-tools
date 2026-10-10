@@ -41,9 +41,7 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         constexpr int INSTANCE_CLASSES = 13;
         constexpr int OBSERVATION = 14;
         constexpr int RGB_ACCUMULATOR = 15;
-        constexpr int DEPTH_ACCUMULATOR = 16;
         constexpr int SHUTTER = 17;
-        constexpr int DEPTH_OUTPUT = 18;
         constexpr int FLOW_DELTAS = 19;               // internal [2][slots][12] delta table composed by update()
         constexpr int FLOW_STATUS_OUTPUT = 20;        // FlowStatus per pixel next to the flow OUTPUT
         constexpr int CAMERAS_PREVIOUS = 21;
@@ -65,7 +63,6 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         constexpr int HAS_OBSERVATION = 12;
         constexpr int DYNAMIC_MOTION_BLUR = 13;
         constexpr int RESOLVE_RGB = 14;
-        constexpr int RESOLVE_DEPTH = 15;
     }
 
     struct LaunchParams{
@@ -77,7 +74,6 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         uint32_t num_cameras;
         uint32_t num_probes;
         uint32_t num_scene_lights;
-        float max_depth;
         float max_dist;
         float ambient_color[3];
         float miss_color_0[3];
@@ -86,7 +82,7 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         uint32_t num_overlay_slots;      // NUM_OVERLAYS * MAX_OVERLAY_INSTANCES: flow-delta slab stride and the previous-instant id shift
         float padding[1];
     };
-    static_assert(sizeof(LaunchParams) == 88, "LaunchParams layout must match the MSL declaration in device.metal");
+    static_assert(sizeof(LaunchParams) == 84, "LaunchParams layout must match the MSL declaration in device.metal");
 
     struct MeshRecord{
         uint64_t index;
@@ -175,7 +171,6 @@ namespace rl_tools::rendering::raytracing::backends::metal{
         NS::SharedPtr<MTL::Buffer> frame_buffer;
         NS::SharedPtr<MTL::Buffer> depth_buffer;
         NS::SharedPtr<MTL::Buffer> rgb_accumulator;
-        NS::SharedPtr<MTL::Buffer> depth_accumulator;
         NS::SharedPtr<MTL::Buffer> segmentation_buffer;
         NS::SharedPtr<MTL::Buffer> normals_buffer;
         NS::SharedPtr<MTL::Buffer> flow_buffer;

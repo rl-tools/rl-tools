@@ -379,3 +379,105 @@ int main(int argc, char** argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
+
+namespace test_hyperdrone_acquisition {
+    template <TI HISTORY>
+    struct Specification: WORLD_SPEC {
+        static constexpr TI HISTORY_LENGTH = HISTORY;
+        static constexpr bool ENABLE_MOTION_BLUR = true;
+        static constexpr TI MOTION_BLUR_SAMPLES = 4;
+    };
+
+    template <TI HISTORY>
+    std::vector<T> rollout(bool read_every_step){
+        using namespace rlt;
+        using WORLD_TYPE = rl::environments::hyperdrone::World<Specification<HISTORY>>;
+        constexpr TI COUNT = WORLD_TYPE::INSTANCES;
+        DEVICE device;
+        RNG rng;
+        WORLD_TYPE world;
+        typename WORLD_TYPE::SharedContext shared;
+        Tensor<tensor::Specification<typename WORLD_TYPE::Parameters, TI, tensor::Shape<TI, COUNT>>> parameters;
+        Tensor<tensor::Specification<typename WORLD_TYPE::State, TI, tensor::Shape<TI, COUNT>>> states, next_states;
+        Tensor<tensor::Specification<bool, TI, tensor::Shape<TI, COUNT>>> reset_mask;
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, COUNT, WORLD_TYPE::ACTION_DIM>>> actions;
+        Tensor<tensor::Specification<T, TI, tensor::Shape<TI, COUNT, WORLD_TYPE::OBSERVATION_DIM>>> observations;
+        init(device);
+        malloc(device, rng);
+        init(device, rng, 913);
+        malloc(device, shared.library);
+        malloc(device, world);
+        malloc(device, parameters);
+        malloc(device, states);
+        malloc(device, next_states);
+        malloc(device, reset_mask);
+        malloc(device, actions);
+        malloc(device, observations);
+        rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH}};
+        typename decltype(dataset)::Corpus corpus;
+        rendering::datasets::procthor::enumerate(device, dataset, corpus);
+        init(device, world, shared, dataset, corpus, 0, 1, 0);
+        set_all(device, reset_mask, true);
+        sample_initial_parameters(device, world, parameters, reset_mask, rng);
+        sample_initial_state(device, world, parameters, states, reset_mask, rng);
+        set_all(device, actions, T(0.1));
+        set_all(device, reset_mask, false);
+        for(TI index = 0; index < 8; index++){
+            if(index == 3){
+                set(device, reset_mask, true, TI(0));
+                sample_initial_parameters(device, world, parameters, reset_mask, rng);
+                sample_initial_state(device, world, parameters, states, reset_mask, rng);
+                set_all(device, reset_mask, false);
+            }
+            step(device, world, parameters, states, actions, next_states, rng);
+            copy(device, device, next_states, states);
+            if(read_every_step){
+                observe(device, world, parameters, states, typename WORLD_TYPE::Observation{}, observations, rng);
+                std::vector<T> before(COUNT * WORLD_TYPE::OBSERVATION_DIM);
+                for(TI row = 0; row < COUNT; row++){
+                    for(TI column = 0; column < WORLD_TYPE::OBSERVATION_DIM; column++){
+                        before[row * WORLD_TYPE::OBSERVATION_DIM + column] = get(device, observations, row, column);
+                    }
+                }
+                render(device, world, parameters, states, reset_mask);
+                observe(device, world, parameters, states, typename WORLD_TYPE::Observation{}, observations, rng);
+                for(TI row = 0; row < COUNT; row++){
+                    for(TI column = 0; column < WORLD_TYPE::OBSERVATION_DIM; column++){
+                        EXPECT_EQ(get(device, observations, row, column), before[row * WORLD_TYPE::OBSERVATION_DIM + column]);
+                    }
+                }
+            }
+        }
+        EXPECT_EQ(world.history_step, 9);
+        observe(device, world, parameters, states, typename WORLD_TYPE::Observation{}, observations, rng);
+        std::vector<T> result;
+        for(TI row = 0; row < COUNT; row++){
+            for(TI column = 0; column < WORLD_TYPE::OBSERVATION_DIM; column++){
+                result.push_back(get(device, observations, row, column));
+            }
+            const auto& state = get_ref(device, states, row);
+            for(TI axis = 0; axis < 3; axis++){
+                result.push_back(state.position[axis]);
+                result.push_back(state.linear_velocity[axis]);
+            }
+        }
+        free(device, observations);
+        free(device, actions);
+        free(device, reset_mask);
+        free(device, next_states);
+        free(device, states);
+        free(device, parameters);
+        free(device, world);
+        free(device, shared.library);
+        free(device, rng);
+        return result;
+    }
+}
+
+TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, ACQUISITION_READ_ORDER_AND_HISTORY){
+    if(SCENE_PATH.empty()){
+        GTEST_SKIP() << "RL_TOOLS_TEST_DATA_PATH not set";
+    }
+    EXPECT_EQ(test_hyperdrone_acquisition::rollout<1>(false), test_hyperdrone_acquisition::rollout<1>(true));
+    EXPECT_EQ(test_hyperdrone_acquisition::rollout<3>(false), test_hyperdrone_acquisition::rollout<3>(true));
+}

@@ -251,6 +251,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD_CUDA, CPU_CUDA_RENDER_CONSISTENCY
     RNG_GPU rng_gpu;
     rlt::malloc(device_gpu, rng_gpu);
     rlt::init(device_gpu, rng_gpu, 0);
+    rlt::request_render(device_gpu, world_gpu, gpu.reset_mask);
     rlt::render(device_gpu, world_gpu, gpu.parameters, gpu.states, gpu.reset_mask);
     rlt::observe(device_gpu, world_gpu, gpu.parameters, gpu.states, typename WORLD::Observation{}, gpu.observations, rng_gpu);
     cudaDeviceSynchronize();

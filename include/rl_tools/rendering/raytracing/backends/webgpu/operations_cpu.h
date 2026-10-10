@@ -370,9 +370,6 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_RGB) {
                 malloc(device, renderer.rgb_accumulator);
             }
-            if constexpr (SPEC::HAS_DEPTH) {
-                malloc(device, renderer.depth_accumulator);
-            }
         }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         malloc(device, renderer.collision_results);
@@ -578,7 +575,6 @@ namespace rl_tools {
                 constant("fc_has_observation", CONSTANTS::HAS_OBSERVATION ? 1.0 : 0.0),
                 constant("fc_dynamic_motion_blur", CONSTANTS::DYNAMIC_MOTION_BLUR ? 1.0 : 0.0),
                 constant("fc_resolve_rgb", CONSTANTS::RESOLVE_RGB ? 1.0 : 0.0),
-                constant("fc_resolve_depth", CONSTANTS::RESOLVE_DEPTH ? 1.0 : 0.0),
                 constant("fc_num_overlays", (double)CONSTANTS::NUM_OVERLAYS),
                 constant("fc_overlay_capacity", (double)CONSTANTS::OVERLAY_CAPACITY),
             };
@@ -1004,7 +1000,6 @@ namespace rl_tools {
             params.num_cameras = SPEC::NUM_CAMERAS;
             params.num_probes = SPEC::NUM_PROBES;
             params.num_scene_lights = (uint32_t)scene_lights.size();
-            params.max_depth = renderer.max_ray_length > 0 ? renderer.max_ray_length : 1e30f;
             params.max_dist = renderer.max_ray_length;
             for(int component = 0; component < 3; component++){
                 params.ambient_color[component] = (float)renderer.ambient_color[component];
@@ -1041,7 +1036,6 @@ namespace rl_tools {
             params.out_flow_forward_status = LAYOUT::FLOW_FORWARD_STATUS_OFFSET;
             params.out_observation = LAYOUT::OBSERVATION_OFFSET;
             params.out_rgb_accumulator = LAYOUT::RGB_ACCUMULATOR_OFFSET;
-            params.out_depth_accumulator = LAYOUT::DEPTH_ACCUMULATOR_OFFSET;
             params.out_collision = LAYOUT::COLLISION_OFFSET;
             wgpuQueueWriteBuffer(ctx.queue, ctx.launch_params.buffer, 0, &params, sizeof(params));
         }
@@ -1220,9 +1214,6 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_RGB){
                 wgpuCommandEncoderClearBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::RGB_ACCUMULATOR_OFFSET * sizeof(uint32_t), (uint64_t)LAYOUT::RGB_ACCUMULATOR_WORDS * sizeof(uint32_t));
             }
-            if constexpr (SPEC::HAS_DEPTH){
-                wgpuCommandEncoderClearBuffer(encoder, ctx.outputs.buffer, (uint64_t)LAYOUT::DEPTH_ACCUMULATOR_OFFSET * sizeof(uint32_t), (uint64_t)LAYOUT::DEPTH_ACCUMULATOR_WORDS * sizeof(uint32_t));
-            }
         }
         {
             WGPUComputePassEncoder pass = wgpuCommandEncoderBeginComputePass(encoder, nullptr);
@@ -1240,9 +1231,9 @@ namespace rl_tools {
                     if constexpr (SPEC::HAS_RGB){
                         dispatch(ctx.rgb_pipeline, 1 + (uint32_t)sample, fb_groups_x, fb_groups_y);
                     }
-                    if constexpr (SPEC::HAS_DEPTH){
-                        dispatch(ctx.depth_pipeline, 1 + (uint32_t)sample, fb_groups_x, fb_groups_y);
-                    }
+                }
+                if constexpr (SPEC::HAS_DEPTH){
+                    dispatch(ctx.depth_pipeline, 0, fb_groups_x, fb_groups_y);
                 }
                 if constexpr (SPEC::HAS_SEGMENTATION){
                     dispatch(ctx.segmentation_pipeline, 0, fb_groups_x, fb_groups_y);
@@ -1436,9 +1427,6 @@ namespace rl_tools {
             free(device, renderer.transforms_motion);
             if constexpr (SPEC::HAS_RGB) {
                 free(device, renderer.rgb_accumulator);
-            }
-            if constexpr (SPEC::HAS_DEPTH) {
-                free(device, renderer.depth_accumulator);
             }
         }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS

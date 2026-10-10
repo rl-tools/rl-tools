@@ -111,9 +111,7 @@ namespace rl_tools {
             Environment environment;
         };
 
-        // loader-authoritative scene facts: the renderer consumes max_ray_length (probe budget,
-        // depth miss sentinel), producers consume the bounds (camera rigs, free-space search),
-        // and content_hash (SHA-1 hex, the conta identity) keys AssetLibrary deduplication
+        // Loader-authoritative scene facts: the renderer consumes max_ray_length (probe budget), producers consume the bounds (camera rigs, free-space search), and content_hash (SHA-1 hex, the conta identity) keys AssetLibrary deduplication.
         template <typename T>
         struct SceneMetadata{
             T center[3] = {0, 0, 0};

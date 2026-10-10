@@ -204,6 +204,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_MOVING_GATE, ENTITY_MECHANISM_AND_TASK)
         rlt::set(device, tensors.parameters, instance_parameters, (TI)0);
     }
     rlt::set_all(device, tensors.reset_mask, false);
+    rlt::request_render(device, world);
     rlt::render(device, world, tensors.parameters, tensors.states, tensors.reset_mask);
     rlt::observe(device, world, tensors.parameters, tensors.states, typename BASE_WORLD::Observation{}, tensors.observations, rng);
     bool instance0_changed = false;

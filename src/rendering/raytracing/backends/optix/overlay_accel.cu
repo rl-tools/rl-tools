@@ -207,7 +207,7 @@ namespace rl_tools::rendering::raytracing::backends::optix{
         __device__ inline float resolve_clamp01(float x){
             return fminf(fmaxf(x, 0.0f), 1.0f);
         }
-        __global__ void resolve_accumulators(const float* rgb_accumulation, unsigned int* frame_buffer, float* observation, int srgb_output, const float* depth_accumulation, float* depth_buffer, unsigned int num_pixels, float inv_samples){
+        __global__ void resolve_accumulators(const float* rgb_accumulation, unsigned int* frame_buffer, float* observation, int srgb_output, unsigned int num_pixels, float inv_samples){
             const unsigned int pixel = blockIdx.x * blockDim.x + threadIdx.x;
             if(pixel >= num_pixels){
                 return;
@@ -230,17 +230,14 @@ namespace rl_tools::rendering::raytracing::backends::optix{
                 }
                 frame_buffer[pixel] = (resolve_make_8bit(color[0]) << 0) | (resolve_make_8bit(color[1]) << 8) | (resolve_make_8bit(color[2]) << 16) | (0xffu << 24);
             }
-            if(depth_accumulation != nullptr){
-                depth_buffer[pixel] = depth_accumulation[pixel] * inv_samples;
-            }
         }
     }
 
-    void overlay_accel_resolve(const float* rgb_accumulation, unsigned int* frame_buffer, float* observation, int srgb_output, const float* depth_accumulation, float* depth_buffer, unsigned int num_pixels, unsigned int num_samples, cudaStream_t stream){
+    void overlay_accel_resolve(const float* rgb_accumulation, unsigned int* frame_buffer, float* observation, int srgb_output, unsigned int num_pixels, unsigned int num_samples, cudaStream_t stream){
         namespace detail = overlay_accel_detail;
         const unsigned int block_size = 128;
         const unsigned int grid_size = (num_pixels + block_size - 1) / block_size;
-        detail::resolve_accumulators<<<grid_size, block_size, 0, stream>>>(rgb_accumulation, frame_buffer, observation, srgb_output, depth_accumulation, depth_buffer, num_pixels, 1.0f / (float)num_samples);
+        detail::resolve_accumulators<<<grid_size, block_size, 0, stream>>>(rgb_accumulation, frame_buffer, observation, srgb_output, num_pixels, 1.0f / (float)num_samples);
         detail::check_cuda(cudaGetLastError(), "resolve_accumulators launch");
     }
 

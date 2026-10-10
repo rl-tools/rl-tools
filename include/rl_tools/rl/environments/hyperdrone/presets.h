@@ -31,7 +31,10 @@ namespace rl_tools::rl::environments::hyperdrone::presets {
                     l2f::observation::OrientationRotationMatrix<l2f::observation::OrientationRotationMatrixSpecification<T, TI,
                     l2f::observation::LinearVelocity<l2f::observation::LinearVelocitySpecification<T, TI,
                     l2f::observation::AngularVelocity<l2f::observation::AngularVelocitySpecification<T, TI>>>>>>>>;
-            using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE;
+            using OBSERVATION_TYPE_PRIVILEGED = l2f::observation::Position<l2f::observation::PositionSpecificationPrivileged<T, TI,
+                    l2f::observation::OrientationRotationMatrix<l2f::observation::OrientationRotationMatrixSpecificationPrivileged<T, TI,
+                    l2f::observation::LinearVelocity<l2f::observation::LinearVelocitySpecificationPrivileged<T, TI,
+                    l2f::observation::AngularVelocity<l2f::observation::AngularVelocitySpecificationPrivileged<T, TI>>>>>>>>;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
             static constexpr auto dynamics = l2f::parameters::dynamics::registry<l2f::parameters::dynamics::REGISTRY::x500, PARAMETERS_SPEC>;
@@ -89,7 +92,10 @@ namespace rl_tools::rl::environments::hyperdrone::presets {
                     l2f::observation::OrientationRotationMatrix<l2f::observation::OrientationRotationMatrixSpecification<T, TI,
                     l2f::observation::LinearVelocity<l2f::observation::LinearVelocitySpecification<T, TI,
                     l2f::observation::AngularVelocity<l2f::observation::AngularVelocitySpecification<T, TI>>>>>>>>;
-            using OBSERVATION_TYPE_PRIVILEGED = OBSERVATION_TYPE;
+            using OBSERVATION_TYPE_PRIVILEGED = l2f::observation::Position<l2f::observation::PositionSpecificationPrivileged<T, TI,
+                    l2f::observation::OrientationRotationMatrix<l2f::observation::OrientationRotationMatrixSpecificationPrivileged<T, TI,
+                    l2f::observation::LinearVelocity<l2f::observation::LinearVelocitySpecificationPrivileged<T, TI,
+                    l2f::observation::AngularVelocity<l2f::observation::AngularVelocitySpecificationPrivileged<T, TI>>>>>>>>;
             static constexpr bool PRIVILEGED_OBSERVATION_NOISE = false;
             using PARAMETERS = PARAMETERS_TYPE;
             static constexpr auto dynamics = l2f::parameters::dynamics::registry<l2f::parameters::dynamics::REGISTRY::x500, PARAMETERS_SPEC>;

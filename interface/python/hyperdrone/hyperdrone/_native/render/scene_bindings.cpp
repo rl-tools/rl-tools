@@ -214,7 +214,7 @@ NB_MODULE(hyperdrone_render_core, m){
             light.attenuation_linear = attenuation[1];
             light.attenuation_quadratic = attenuation[2];
             return light;
-        }, nb::arg("position"), nb::arg("color"), nb::arg("attenuation") = Vec3{1.0f, 0.0f, 0.0f})
+        }, nb::arg("position"), nb::arg("color"), nb::kw_only(), nb::arg("attenuation") = Vec3{1.0f, 0.0f, 0.0f})
         .def_static("spot", [](Vec3 position, Vec3 direction, Vec3 color, float cos_inner_cone, float cos_outer_cone, Vec3 attenuation){
             rrt::SceneLight light{};
             light.type = 2;
@@ -225,14 +225,14 @@ NB_MODULE(hyperdrone_render_core, m){
             light.attenuation_linear = attenuation[1];
             light.attenuation_quadratic = attenuation[2];
             return light;
-        }, nb::arg("position"), nb::arg("direction"), nb::arg("color"), nb::arg("cos_inner_cone"), nb::arg("cos_outer_cone"), nb::arg("attenuation") = Vec3{1.0f, 0.0f, 0.0f})
+        }, nb::arg("position"), nb::arg("direction"), nb::arg("color"), nb::kw_only(), nb::arg("cos_inner_cone"), nb::arg("cos_outer_cone"), nb::arg("attenuation") = Vec3{1.0f, 0.0f, 0.0f})
         .def_prop_ro("type", [](const rrt::SceneLight& light){ return light.type; });
 
     nb::class_<rrt::Mesh>(m, "Mesh")
         .def("__init__", [](rrt::Mesh* mesh, FloatArray vertices, nb::ndarray<const int32_t, nb::c_contig, nb::device::cpu> indices,
                             Vec3 color, nb::object normals, nb::object tex_coords, float metallic, float roughness, Vec3 emissive){
             new (mesh) rrt::Mesh(make_mesh(vertices, indices, color, normals, tex_coords, metallic, roughness, emissive));
-        }, nb::arg("vertices"), nb::arg("indices"), nb::arg("color") = Vec3{0.8f, 0.8f, 0.8f},
+        }, nb::arg("vertices"), nb::arg("indices"), nb::kw_only(), nb::arg("color") = Vec3{0.8f, 0.8f, 0.8f},
            nb::arg("normals") = nb::none(), nb::arg("tex_coords") = nb::none(),
            nb::arg("metallic") = 0.0f, nb::arg("roughness") = 1.0f, nb::arg("emissive") = Vec3{0.0f, 0.0f, 0.0f})
         .def_prop_ro("num_vertices", [](const rrt::Mesh& mesh){ return mesh.vertices.size() / 3; })
@@ -244,15 +244,15 @@ NB_MODULE(hyperdrone_render_core, m){
             value.name = name;
             assign_segmentation_class(g_device, value, segmentation_class);
             new (object) rrt::Object(std::move(value));
-        }, nb::arg("name") = "", nb::arg("segmentation_class") = 0)
+        }, nb::arg("name") = "", nb::kw_only(), nb::arg("segmentation_class") = 0)
         .def_rw("name", &rrt::Object::name)
         .def_prop_rw("segmentation_class", [](const rrt::Object& object){ return object.segmentation_class; },
                      [](rrt::Object& object, uint32_t id){ assign_segmentation_class(g_device, object, id); })
         .def("assign_segmentation_class", [](rrt::Object& object, uint32_t id, const std::string& taxonomy, const std::map<uint32_t, std::string>& classes){
             assign_segmentation_class(g_device, object, id, make_taxonomy(taxonomy, classes));
-        }, nb::arg("id"), nb::arg("taxonomy") = "", nb::arg("classes") = std::map<uint32_t, std::string>{},
+        }, nb::arg("id"), nb::kw_only(), nb::arg("taxonomy") = "", nb::arg("classes") = std::map<uint32_t, std::string>{},
            "Assign one class and its taxonomy before init; omitted taxonomy selects unnamed numeric classes.")
-        .def("remap_segmentation_classes", &remap_labels<rrt::Object>, nb::arg("mapping"), nb::arg("taxonomy") = "", nb::arg("classes") = std::map<uint32_t, std::string>{})
+        .def("remap_segmentation_classes", &remap_labels<rrt::Object>, nb::arg("mapping"), nb::kw_only(), nb::arg("taxonomy") = "", nb::arg("classes") = std::map<uint32_t, std::string>{})
         .def_prop_ro("segmentation_class_valid", [](const rrt::Object& object){ return object.segmentation_class_valid; })
         .def_prop_ro("segmentation_taxonomy", [](const rrt::Object& object){ return object.segmentation_taxonomy ? object.segmentation_taxonomy->name : std::string{}; })
         .def_prop_ro("segmentation_classes", [](const rrt::Object& object){ return object.segmentation_taxonomy ? object.segmentation_taxonomy->classes : std::map<uint32_t, std::string>{}; })
@@ -276,7 +276,7 @@ NB_MODULE(hyperdrone_render_core, m){
         .def("set_segmentation_class", [](rrt::ObjectAssembly& assembly, size_t index, uint32_t segmentation_class){
             assign_segmentation_class(g_device, assembly, index, segmentation_class);
         })
-        .def("remap_segmentation_classes", &remap_labels<rrt::ObjectAssembly>, nb::arg("mapping"), nb::arg("taxonomy") = "", nb::arg("classes") = std::map<uint32_t, std::string>{})
+        .def("remap_segmentation_classes", &remap_labels<rrt::ObjectAssembly>, nb::arg("mapping"), nb::kw_only(), nb::arg("taxonomy") = "", nb::arg("classes") = std::map<uint32_t, std::string>{})
         .def("add_part", [](rrt::ObjectAssembly& assembly, const rrt::Object& object, Transform transform){
             float values[12];
             extract_transform(transform, values);
@@ -312,7 +312,12 @@ NB_MODULE(hyperdrone_render_core, m){
 
     nb::class_<rrt::AssetPool>(m, "AssetPool")
         .def(nb::init<>())
-        .def("add_assembly", [](rrt::AssetPool& pool, const rrt::ObjectAssembly& assembly){ return rlt::add(g_device, pool, assembly).index; })
+        .def("add_assembly", [](rrt::AssetPool& pool, const rrt::ObjectAssembly& assembly){
+            if(assembly.parts.empty()){
+                throw std::invalid_argument("hyperdrone: an asset assembly must contain at least one part");
+            }
+            return rlt::add(g_device, pool, assembly).index;
+        })
         .def("add_object", [](rrt::AssetPool& pool, const rrt::Object& object){ return rlt::add(g_device, pool, object).index; })
         .def("add_mesh", [](rrt::AssetPool& pool, const rrt::Mesh& mesh){ return rlt::add(g_device, pool, mesh).index; })
         .def_prop_ro("num_assets", [](const rrt::AssetPool& pool){ return pool.assemblies.size(); })
@@ -324,14 +329,14 @@ NB_MODULE(hyperdrone_render_core, m){
         .def("set_object_segmentation_class", [](rrt::AssetPool& pool, size_t asset, size_t object, uint32_t id){
             assign_segmentation_class(g_device, pool, asset, object, id);
         })
-        .def("remap_segmentation_classes", &remap_labels<rrt::AssetPool>, nb::arg("mapping"), nb::arg("taxonomy") = "", nb::arg("classes") = std::map<uint32_t, std::string>{})
+        .def("remap_segmentation_classes", &remap_labels<rrt::AssetPool>, nb::arg("mapping"), nb::kw_only(), nb::arg("taxonomy") = "", nb::arg("classes") = std::map<uint32_t, std::string>{})
         .def("remap_asset_segmentation_classes", [](rrt::AssetPool& pool, size_t asset, const std::map<uint32_t, uint32_t>& mapping, const std::string& taxonomy, const std::map<uint32_t, std::string>& classes){
             remap_labels(pool.assemblies.at(asset), mapping, taxonomy, classes);
-        }, nb::arg("asset"), nb::arg("mapping"), nb::arg("taxonomy") = "", nb::arg("classes") = std::map<uint32_t, std::string>{});
+        }, nb::arg("asset"), nb::arg("mapping"), nb::kw_only(), nb::arg("taxonomy") = "", nb::arg("classes") = std::map<uint32_t, std::string>{});
 
     nb::class_<SceneBundle>(m, "Scene")
         .def(nb::init<>())
-        .def("load", [](SceneBundle& bundle, const std::string& path, int fidelity, bool rgb, bool preserve_instances){
+        .def("_load", [](SceneBundle& bundle, const std::string& path, int fidelity, bool rgb, bool preserve_instances){
             bool success;
             {
                 nb::gil_scoped_release release;
@@ -385,7 +390,7 @@ NB_MODULE(hyperdrone_render_core, m){
                 environment.ambient[component] = ambient[component];
                 environment.horizon[component] = background[component];
             }
-        }, nb::arg("ambient") = Vec3{0.1f, 0.1f, 0.1f}, nb::arg("background") = Vec3{0.0f, 0.0f, 0.0f},
+        }, nb::kw_only(), nb::arg("ambient") = Vec3{0.1f, 0.1f, 0.1f}, nb::arg("background") = Vec3{0.0f, 0.0f, 0.0f},
            "Set linear RGB ambient illumination (high/veryhigh) and a solid background before Renderer.init().")
         .def_prop_ro("num_objects", [](const SceneBundle& bundle){ return bundle.scene.objects.size(); })
         .def_prop_ro("num_instances", [](const SceneBundle& bundle){ return bundle.scene.instances.size(); })
@@ -399,7 +404,7 @@ NB_MODULE(hyperdrone_render_core, m){
         })
         .def("remap_segmentation_classes", [](SceneBundle& bundle, const std::map<uint32_t, uint32_t>& mapping, const std::string& taxonomy, const std::map<uint32_t, std::string>& classes){
             remap_labels(bundle.scene, mapping, taxonomy, classes);
-        }, nb::arg("mapping"), nb::arg("taxonomy") = "", nb::arg("classes") = std::map<uint32_t, std::string>{})
+        }, nb::arg("mapping"), nb::kw_only(), nb::arg("taxonomy") = "", nb::arg("classes") = std::map<uint32_t, std::string>{})
         .def("instance_object", [](const SceneBundle& bundle, size_t index){ return bundle.scene.instances.at(index).object; })
         .def("instance_objects", [](const SceneBundle& bundle){
             std::vector<size_t> objects;

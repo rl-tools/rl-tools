@@ -12,7 +12,6 @@
 #include "../../types.h"
 #include "../../../../utils/generic/typing.h"
 
-
 RL_TOOLS_NAMESPACE_WRAPPER_START
 namespace rl_tools {
     namespace rendering::raytracing::backends::generic{
@@ -126,7 +125,6 @@ namespace rl_tools {
             T ambient_color[3] = {0, 0, 0};
             T miss_color_0[3] = {0, 0, 0};
             T miss_color_1[3] = {0, 0, 0};
-            T max_depth = 0;
             T max_dist = 0;
             const Camera<T>* cameras_close = nullptr;
             const Camera<T>* cameras_open = nullptr;
@@ -147,7 +145,6 @@ namespace rl_tools {
             CollisionResult* collision_results = nullptr;
             float* observation = nullptr; // 3 per pixel, written pre-quantization when set
             float* rgb_accumulation = nullptr;   // 3 per pixel, linear radiance summed across dynamic-motion-blur passes
-            float* depth_accumulation = nullptr; // 1 per pixel
         };
 
         namespace constants{
@@ -463,12 +460,6 @@ namespace rl_tools {
             return traverse_tlas_any(scene, scene.tlas_nodes, scene.tlas_primitives, scene.num_tlas_nodes, origin, direction, t_min, t_max);
         }
 
-        template <typename T, typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT T trace_depth_distance(const SceneView<T, TI>& scene, Vec3<T> origin, Vec3<T> direction, T max_depth){
-            const Hit<T, TI> hit = trace_closest(scene, origin, direction, (T)0, max_depth);
-            return hit.valid ? hit.t : max_depth;
-        }
-
         template <typename SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT typename SPEC::TI camera_from_pixel(typename SPEC::TI pixel_x, typename SPEC::TI pixel_y){
             return (pixel_y / SPEC::CAM_HEIGHT) * SPEC::GRID_COLS + pixel_x / SPEC::CAM_WIDTH;
@@ -514,12 +505,6 @@ namespace rl_tools {
         template <typename SPEC, typename T, typename TI>
         RL_TOOLS_FUNCTION_PLACEMENT bool trace_any_composed(const SceneView<T, TI>& scene, TI camera, Vec3<T> origin, Vec3<T> direction, T t_min, T t_max){
             return trace_any_composed<SPEC>(scene, scene.overlays, camera, origin, direction, t_min, t_max);
-        }
-
-        template <typename SPEC, typename T, typename TI>
-        RL_TOOLS_FUNCTION_PLACEMENT T trace_depth_distance_composed(const SceneView<T, TI>& scene, TI camera, Vec3<T> origin, Vec3<T> direction, T max_depth){
-            const Hit<T, TI> hit = trace_closest_composed<SPEC>(scene, camera, origin, direction, (T)0, max_depth);
-            return hit.valid ? hit.t : max_depth;
         }
 
         template <typename T, typename TI>
@@ -918,10 +903,7 @@ namespace rl_tools {
             }
         }
 
-        struct OutputRGB{};
-        struct OutputDepth{};
-
-        template <typename DEVICE, typename SPEC, typename OUTPUT>
+        template <typename DEVICE, typename SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT void render_frame(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene){
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
@@ -938,7 +920,6 @@ namespace rl_tools {
                         const TI pixel_y = tile_y + y;
                         const TI fb_offset = camera_i * SPEC::CAM_PIXELS + y * SPEC::CAM_WIDTH + x;
                         Vec3<T> accumulated_rgb = {0, 0, 0};
-                        T accumulated_depth = 0;
                         for(TI motion_i = 0; motion_i < MOTION_SAMPLES; motion_i++){
                             Vec3<T> pos, dir_00, dir_du, dir_dv;
                             if constexpr (SPEC::ENABLE_MOTION_BLUR){
@@ -962,42 +943,32 @@ namespace rl_tools {
                                     const T screen_x = ((T)x + ((T)aa_x + (T)0.5) * inv_aa_grid) / (T)SPEC::CAM_WIDTH;
                                     const T screen_y = ((T)y + ((T)aa_y + (T)0.5) * inv_aa_grid) / (T)SPEC::CAM_HEIGHT;
                                     const Vec3<T> direction = normalize(math_device, dir_00 + screen_x * dir_du + screen_y * dir_dv);
-                                    if constexpr (utils::typing::is_same_v<OUTPUT, OutputRGB>){
-                                        accumulated_rgb = accumulated_rgb + trace_rgb<DEVICE, SPEC, 0>(device, scene, pixel_x, pixel_y, pos, direction, (T)0, (T)1e30);
-                                    }
-                                    else{
-                                        accumulated_depth += trace_depth_distance_composed<SPEC>(scene, camera_i, pos, direction, scene.max_depth);
-                                    }
+                                    accumulated_rgb = accumulated_rgb + trace_rgb<DEVICE, SPEC, 0>(device, scene, pixel_x, pixel_y, pos, direction, (T)0, (T)1e30);
                                 }
                             }
                         }
                         constexpr TI SAMPLES = MOTION_SAMPLES * AA_GRID * AA_GRID;
-                        if constexpr (utils::typing::is_same_v<OUTPUT, OutputRGB>){
-                            const Vec3<T> color = accumulated_rgb * ((T)1 / (T)SAMPLES);
-                            if(scene.observation != nullptr){
-                                // the observation is the frame-buffer color before 8-bit
-                                // quantization — same transfer curve, full float precision
-                                float* observation = scene.observation + fb_offset * 3;
-                                if constexpr (SPEC::SHADING::SRGB_OUTPUT){
-                                    observation[0] = (float)linear_to_srgb(math_device, clamp01(color.x));
-                                    observation[1] = (float)linear_to_srgb(math_device, clamp01(color.y));
-                                    observation[2] = (float)linear_to_srgb(math_device, clamp01(color.z));
-                                }
-                                else{
-                                    observation[0] = (float)clamp01(color.x);
-                                    observation[1] = (float)clamp01(color.y);
-                                    observation[2] = (float)clamp01(color.z);
-                                }
-                            }
+                        const Vec3<T> color = accumulated_rgb * ((T)1 / (T)SAMPLES);
+                        if(scene.observation != nullptr){
+                            // the observation is the frame-buffer color before 8-bit
+                            // quantization — same transfer curve, full float precision
+                            float* observation = scene.observation + fb_offset * 3;
                             if constexpr (SPEC::SHADING::SRGB_OUTPUT){
-                                scene.frame_buffer[fb_offset] = make_srgb_rgba_from_linear(math_device, color);
+                                observation[0] = (float)linear_to_srgb(math_device, clamp01(color.x));
+                                observation[1] = (float)linear_to_srgb(math_device, clamp01(color.y));
+                                observation[2] = (float)linear_to_srgb(math_device, clamp01(color.z));
                             }
                             else{
-                                scene.frame_buffer[fb_offset] = make_linear_rgba_from_linear(color);
+                                observation[0] = (float)clamp01(color.x);
+                                observation[1] = (float)clamp01(color.y);
+                                observation[2] = (float)clamp01(color.z);
                             }
                         }
+                        if constexpr (SPEC::SHADING::SRGB_OUTPUT){
+                            scene.frame_buffer[fb_offset] = make_srgb_rgba_from_linear(math_device, color);
+                        }
                         else{
-                            scene.depth_buffer[fb_offset] = (float)(accumulated_depth * ((T)1 / (T)SAMPLES));
+                            scene.frame_buffer[fb_offset] = make_linear_rgba_from_linear(color);
                         }
                     }
                 }
@@ -1007,7 +978,7 @@ namespace rl_tools {
         // one dynamic-motion-blur pass: camera lerped at the caller's shutter time, overlay
         // geometry already rebuilt for this sample by the caller; adds this pass's linear mean
         // into the accumulation buffer. Each iteration owns its pixel — no atomics.
-        template <typename DEVICE, typename SPEC, typename OUTPUT>
+        template <typename DEVICE, typename SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT void render_frame_accumulate(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene, typename SPEC::T shutter_t){
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
@@ -1029,30 +1000,19 @@ namespace rl_tools {
                         const TI pixel_y = tile_y + y;
                         const TI fb_offset = camera_i * SPEC::CAM_PIXELS + y * SPEC::CAM_WIDTH + x;
                         Vec3<T> accumulated_rgb = {0, 0, 0};
-                        T accumulated_depth = 0;
                         for(TI aa_y = 0; aa_y < AA_GRID; aa_y++){
                             for(TI aa_x = 0; aa_x < AA_GRID; aa_x++){
                                 const T screen_x = ((T)x + ((T)aa_x + (T)0.5) * inv_aa_grid) / (T)SPEC::CAM_WIDTH;
                                 const T screen_y = ((T)y + ((T)aa_y + (T)0.5) * inv_aa_grid) / (T)SPEC::CAM_HEIGHT;
                                 const Vec3<T> direction = normalize(math_device, dir_00 + screen_x * dir_du + screen_y * dir_dv);
-                                if constexpr (utils::typing::is_same_v<OUTPUT, OutputRGB>){
-                                    accumulated_rgb = accumulated_rgb + trace_rgb<DEVICE, SPEC, 0>(device, scene, pixel_x, pixel_y, pos, direction, (T)0, (T)1e30);
-                                }
-                                else{
-                                    accumulated_depth += trace_depth_distance_composed<SPEC>(scene, camera_i, pos, direction, scene.max_depth);
-                                }
+                                accumulated_rgb = accumulated_rgb + trace_rgb<DEVICE, SPEC, 0>(device, scene, pixel_x, pixel_y, pos, direction, (T)0, (T)1e30);
                             }
                         }
                         constexpr TI SAMPLES = AA_GRID * AA_GRID;
-                        if constexpr (utils::typing::is_same_v<OUTPUT, OutputRGB>){
-                            const Vec3<T> color = accumulated_rgb * ((T)1 / (T)SAMPLES);
-                            scene.rgb_accumulation[fb_offset * 3 + 0] += (float)color.x;
-                            scene.rgb_accumulation[fb_offset * 3 + 1] += (float)color.y;
-                            scene.rgb_accumulation[fb_offset * 3 + 2] += (float)color.z;
-                        }
-                        else{
-                            scene.depth_accumulation[fb_offset] += (float)(accumulated_depth * ((T)1 / (T)SAMPLES));
-                        }
+                        const Vec3<T> color = accumulated_rgb * ((T)1 / (T)SAMPLES);
+                        scene.rgb_accumulation[fb_offset * 3 + 0] += (float)color.x;
+                        scene.rgb_accumulation[fb_offset * 3 + 1] += (float)color.y;
+                        scene.rgb_accumulation[fb_offset * 3 + 2] += (float)color.z;
                     }
                 }
             }
@@ -1060,41 +1020,65 @@ namespace rl_tools {
 
         // divides the accumulated linear radiance by the pass count and writes the declared
         // outputs with the same transfer curve + quantization as the single-launch path
-        template <typename DEVICE, typename SPEC, typename OUTPUT>
+        template <typename DEVICE, typename SPEC>
         RL_TOOLS_FUNCTION_PLACEMENT void resolve_frame(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene){
             using T = typename SPEC::T;
             using TI = typename SPEC::TI;
             const auto& math_device = device.math;
             const T inv_samples = (T)1 / (T)SPEC::MOTION_BLUR_SAMPLES;
             for(TI fb_offset = 0; fb_offset < SPEC::NUM_CAMERAS * SPEC::CAM_PIXELS; fb_offset++){
-                if constexpr (utils::typing::is_same_v<OUTPUT, OutputRGB>){
-                    const Vec3<T> color = {
-                        (T)scene.rgb_accumulation[fb_offset * 3 + 0] * inv_samples,
-                        (T)scene.rgb_accumulation[fb_offset * 3 + 1] * inv_samples,
-                        (T)scene.rgb_accumulation[fb_offset * 3 + 2] * inv_samples
-                    };
-                    if(scene.observation != nullptr){
-                        float* observation = scene.observation + fb_offset * 3;
-                        if constexpr (SPEC::SHADING::SRGB_OUTPUT){
-                            observation[0] = (float)linear_to_srgb(math_device, clamp01(color.x));
-                            observation[1] = (float)linear_to_srgb(math_device, clamp01(color.y));
-                            observation[2] = (float)linear_to_srgb(math_device, clamp01(color.z));
-                        }
-                        else{
-                            observation[0] = (float)clamp01(color.x);
-                            observation[1] = (float)clamp01(color.y);
-                            observation[2] = (float)clamp01(color.z);
-                        }
-                    }
+                const Vec3<T> color = {
+                    (T)scene.rgb_accumulation[fb_offset * 3 + 0] * inv_samples,
+                    (T)scene.rgb_accumulation[fb_offset * 3 + 1] * inv_samples,
+                    (T)scene.rgb_accumulation[fb_offset * 3 + 2] * inv_samples
+                };
+                if(scene.observation != nullptr){
+                    float* observation = scene.observation + fb_offset * 3;
                     if constexpr (SPEC::SHADING::SRGB_OUTPUT){
-                        scene.frame_buffer[fb_offset] = make_srgb_rgba_from_linear(math_device, color);
+                        observation[0] = (float)linear_to_srgb(math_device, clamp01(color.x));
+                        observation[1] = (float)linear_to_srgb(math_device, clamp01(color.y));
+                        observation[2] = (float)linear_to_srgb(math_device, clamp01(color.z));
                     }
                     else{
-                        scene.frame_buffer[fb_offset] = make_linear_rgba_from_linear(color);
+                        observation[0] = (float)clamp01(color.x);
+                        observation[1] = (float)clamp01(color.y);
+                        observation[2] = (float)clamp01(color.z);
                     }
                 }
+                if constexpr (SPEC::SHADING::SRGB_OUTPUT){
+                    scene.frame_buffer[fb_offset] = make_srgb_rgba_from_linear(math_device, color);
+                }
                 else{
-                    scene.depth_buffer[fb_offset] = (float)((T)scene.depth_accumulation[fb_offset] * inv_samples);
+                    scene.frame_buffer[fb_offset] = make_linear_rgba_from_linear(color);
+                }
+            }
+        }
+
+        template <typename DEVICE, typename SPEC>
+        RL_TOOLS_FUNCTION_PLACEMENT void render_depth_frame(DEVICE& device, const SceneView<typename SPEC::T, typename SPEC::TI>& scene){
+            using T = typename SPEC::T;
+            using TI = typename SPEC::TI;
+            for(TI camera_i = 0; camera_i < SPEC::NUM_CAMERAS; camera_i++){
+                const Camera<T>& cam = scene.cameras_close[camera_i];
+                const Vec3<T> pos = to_vec3(cam.pos);
+                const Vec3<T> dir_00 = to_vec3(cam.dir_00);
+                const Vec3<T> dir_du = to_vec3(cam.dir_du);
+                const Vec3<T> dir_dv = to_vec3(cam.dir_dv);
+                const Vec3<T> normal = normalize(device.math, cross(dir_du, dir_dv));
+                for(TI y = 0; y < SPEC::CAM_HEIGHT; y++){
+                    for(TI x = 0; x < SPEC::CAM_WIDTH; x++){
+                        const TI offset = camera_i * SPEC::CAM_PIXELS + y * SPEC::CAM_WIDTH + x;
+                        const T screen_x = ((T)x + (T)0.5) / (T)SPEC::CAM_WIDTH;
+                        const T screen_y = ((T)y + (T)0.5) / (T)SPEC::CAM_HEIGHT;
+                        const Vec3<T> direction = normalize(device.math, dir_00 + screen_x * dir_du + screen_y * dir_dv);
+                        const auto hit = trace_closest_composed<SPEC>(scene, camera_i, pos, direction, (T)0, (T)1e30);
+                        if(hit.valid){
+                            scene.depth_buffer[offset] = (float)(hit.t * math::abs(device.math, dot(direction, normal)));
+                        }
+                        else{
+                            store_miss(scene.depth_buffer[offset]);
+                        }
+                    }
                 }
             }
         }
@@ -1281,7 +1265,7 @@ namespace rl_tools {
                     const Hit<T, TI> hit = trace_closest_composed<SPEC>(scene, camera_i, to_vec3(cam.pos), direction, (T)1e-3, scene.max_dist);
                     CollisionResult result;
                     if(!hit.valid){
-                        result.distance = (float)scene.max_dist;
+                        store_miss(result.distance);
                         result.hit = 0;
                     }
                     else{

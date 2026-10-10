@@ -1,5 +1,5 @@
 # Shared JIT machinery: one MODULE target per configs/<key>.txt file in the build tree.
-# Each file holds NAME=VALUE compile definitions written by hyperdrone.jit; the target is
+# Each file holds NAME=VALUE compile definitions written by hyperdrone._jit; the target is
 # named <COMPONENT>_<key> and its artifact lands in <build>/jit/<COMPONENT>_<key>.so.
 #
 # A component may define, before calling this function:

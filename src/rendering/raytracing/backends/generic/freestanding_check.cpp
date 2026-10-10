@@ -118,12 +118,11 @@ extern "C" void rl_tools_rendering_raytracing_generic_freestanding_check(){
     scene.flow_forward_buffer = flow_forward_buffer;
     scene.flow_forward_status_buffer = flow_forward_status_buffer;
     scene.collision_results = collision_results;
-    scene.max_depth = 10;
     scene.max_dist = 10;
 
-    generic::render_frame<DEVICE, Spec, generic::OutputRGB>(device, scene);
-    generic::render_frame<DEVICE, SpecBasic, generic::OutputRGB>(device, scene);
-    generic::render_frame<DEVICE, Spec, generic::OutputDepth>(device, scene);
+    generic::render_frame<DEVICE, Spec>(device, scene);
+    generic::render_frame<DEVICE, SpecBasic>(device, scene);
+    generic::render_depth_frame<DEVICE, Spec>(device, scene);
     generic::render_normals_frame<DEVICE, Spec>(device, scene);
     generic::render_flow_frame<DEVICE, Spec, false>(device, scene);
     generic::render_flow_frame<DEVICE, Spec, true>(device, scene);

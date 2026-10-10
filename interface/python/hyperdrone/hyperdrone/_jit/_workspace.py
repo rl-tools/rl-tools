@@ -1,5 +1,7 @@
 import hashlib
 import os
+import platform
+import subprocess
 import sysconfig
 from pathlib import Path
 
@@ -58,11 +60,35 @@ def dependencies_root():
     return cache_root() / ".dependencies"
 
 
-def workspace_tag():
+def host_target():
+    try:
+        with open("/proc/cpuinfo") as cpuinfo:
+            for line in cpuinfo:
+                name, separator, value = line.partition(":")
+                if separator and name.strip() in ("flags", "Features"):
+                    return platform.machine() + "|" + " ".join(sorted(value.split()))
+    except OSError:
+        pass
+    return platform.machine() + "|" + platform.processor()
+
+
+def cuda_target():
+    if os.environ.get("CUDAARCHS"):
+        return os.environ["CUDAARCHS"]
+    try:
+        result = subprocess.run(["nvidia-smi", "--query-gpu=compute_cap", "--format=csv,noheader"], capture_output=True, text=True, check=True, timeout=5)
+        return ";".join(sorted(set(result.stdout.split()))) + ("|visible=" + os.environ["CUDA_VISIBLE_DEVICES"] if "CUDA_VISIBLE_DEVICES" in os.environ else "")
+    except (OSError, subprocess.SubprocessError) as error:
+        raise BuildError("hyperdrone: cannot identify the native CUDA target; set CUDAARCHS explicitly") from error
+
+
+def workspace_tag(component=None):
     from .. import __version__
-    fingerprint = f"{source_root()}|{sysconfig.get_config_var('SOABI')}|{__version__}"
+    fingerprint = f"{source_root()}|{sysconfig.get_config_var('SOABI')}|{__version__}|{host_target()}"
+    if component is not None and component.needs_cuda:
+        fingerprint += "|" + cuda_target()
     return hashlib.sha1(fingerprint.encode()).hexdigest()[:8]
 
 
 def build_dir(component):
-    return cache_root() / f"{component.name}-{component.variant}-{workspace_tag()}"
+    return cache_root() / f"{component.name}-{component.variant}-{workspace_tag(component)}"

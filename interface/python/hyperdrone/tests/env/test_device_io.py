@@ -6,17 +6,17 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from hyperdrone import cuda, render
+from hyperdrone import _cuda as cuda, render
 from hyperdrone.env import EnvConfig, MultiEnvironment
-from hyperdrone.jit import source_root
+from hyperdrone._jit import source_root
 
 pytestmark = pytest.mark.skipif(
-    render._backend() != "OPTIX",
+    render._backend() != "optix",
     reason="the device-resident environment needs the OptiX backend",
 )
 
-CONFIG = EnvConfig(num_environments=2, instances=2, cam_width=16, cam_height=16, shading="low", device="cuda")
-HOST_WORLD_CONFIG = EnvConfig(num_environments=1, instances=2, cam_width=16, cam_height=16, shading="low", device="cpu")
+CONFIG = EnvConfig(num_environments=2, instances_per_environment=2, width=16, height=16, fidelity="low", device="cuda")
+HOST_WORLD_CONFIG = EnvConfig(num_environments=1, instances_per_environment=2, width=16, height=16, fidelity="low", device="cpu")
 
 
 @pytest.fixture(scope="module")
@@ -55,7 +55,6 @@ def test_environment_is_device_resident(pair):
     assert device.device == "cuda"
     assert device.stream != 0
     device.reset()
-    device.render()
     assert device.observe().shape == (device.total_instances, device.observation_dim)
     device.synchronize()
 
@@ -64,15 +63,12 @@ def test_uploaded_actions_match_host_actions(pair):
     device, host = pair
     for environment in (device, host):
         environment.reset()
-        environment.render()
     rng = np.random.default_rng(3)
     no_reset = np.zeros(device.total_instances, dtype=bool)
     for _ in range(3):
         actions = rng.uniform(-1, 1, size=(device.total_instances, device.action_dim)).astype(np.float32)
         device.step(cuda.upload(actions[None]).view(0))
         host.step(actions)
-        device.render(no_reset)
-        host.render(no_reset)
         assert_same_state(device, host)
 
 
@@ -94,8 +90,6 @@ def test_cuda_arrays_in_place_on_the_bound_stream(pair, cupy):
             # temporaries die right after each call; the allocator reuses them in stream order
             device.reset(cupy.asarray(mask))
             host.reset(mask)
-            device.render(cupy.asarray(mask))
-            host.render(mask)
             assert device.observe(out=observations) is observations
             device.observe_privileged(out=privileged)
             np.testing.assert_array_equal(observations.get(), host.observe())
@@ -125,7 +119,6 @@ def test_stream_switch_waits_for_pending_work(pair, cupy):
     device.stream = old.ptr
     for environment in (device, host):
         environment.reset()
-        environment.render()
     actions = np.random.default_rng(7).uniform(-1, 1, size=(device.total_instances, device.action_dim)).astype(np.float32)
     with old:
         # keeps the step pending on the old stream while the new one reads the stepped state

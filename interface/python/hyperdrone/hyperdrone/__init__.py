@@ -5,21 +5,19 @@ Subpackages:
   hyperdrone.dynamics — L2F multirotor simulator (vectorized, stateful Sim; pure dynamics)
   hyperdrone.env      — the RL environment: the C++ MultiEnvironment behind the batch verbs
   hyperdrone.gym      — optional Gymnasium VectorEnv adapter (pip install "hyperdrone[gym]")
-  hyperdrone.jit      — shared compile-and-cache infrastructure
-  hyperdrone.cuda     — CUDA staging helpers (DLPack tensor sets)
 
-The three domain packages are independent: render and dynamics couple only through a
-DLPack tensor of camera bases; env owns no Python-side semantics — it drives the C++
-environment. Native components are JIT-compiled per set of compile-time constants and
+Render and dynamics are independent peers coupled by DLPack camera bases; env integrates them through the C++ environment. Native components are JIT-compiled per set of compile-time constants and
 cached under ~/.cache/hyperdrone (override with HYPERDRONE_CACHE_DIR). Importing
 hyperdrone (or any subpackage) is cheap; the first build happens on first use.
 set_verbosity(level) selects the native log level (error|warning|info|debug, default info).
 """
 import importlib
 
-__version__ = "0.1.5"
+__all__ = ["set_verbosity", "verbosity"]
 
-_SUBPACKAGES = ("render", "dynamics", "env", "gym", "jit", "cuda")
+__version__ = "0.1.7"
+
+_SUBPACKAGES = ("render", "dynamics", "env", "gym")
 _VERBOSITY_LEVELS = ("error", "warning", "info", "debug")
 _verbosity = "info"
 _logging_extensions = []

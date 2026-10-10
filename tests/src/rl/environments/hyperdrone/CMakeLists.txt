@@ -124,7 +124,6 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
         HYPERDRONE_ENV_CAM_HEIGHT=16
         HYPERDRONE_ENV_SHADING=0
         HYPERDRONE_ENV_MB_SAMPLES=1
-        HYPERDRONE_ENV_HISTORY_LENGTH=1
         HYPERDRONE_ENV_PRESET=0
         HYPERDRONE_ENV_TASK=0
         HYPERDRONE_ENV_N_AGENTS=1
@@ -144,6 +143,12 @@ if(RL_TOOLS_RENDERING_ENABLE_RAYTRACING AND RL_TOOLS_TEST_DATA_PATH)
             rendering_raytracing_backend
             rendering_raytracing_stb
     )
+    add_executable(test_rl_environments_hyperdrone_user_task_header user_task_header.cpp ${HYPERDRONE_PYTHON_ENV_NATIVE}/impl.cpp)
+    get_target_property(HYPERDRONE_USER_TASK_DEFINES test_rl_environments_hyperdrone_python_golden COMPILE_DEFINITIONS)
+    list(FILTER HYPERDRONE_USER_TASK_DEFINES EXCLUDE REGEX "^HYPERDRONE_MODULE_NAME=")
+    target_compile_definitions(test_rl_environments_hyperdrone_user_task_header PRIVATE ${HYPERDRONE_USER_TASK_DEFINES} HYPERDRONE_MODULE_NAME=hyperdrone_user_task HYPERDRONE_ENV_SPEC_HEADER=${PROJECT_SOURCE_DIR}/interface/python/hyperdrone/tests/env/user_task_header.h)
+    target_link_libraries(test_rl_environments_hyperdrone_user_task_header PRIVATE RLtools::RLtools RLtools::Test rendering_raytracing_backend rendering_raytracing_stb)
+    gtest_discover_tests(test_rl_environments_hyperdrone_user_task_header)
     if(RL_TOOLS_BACKEND_ENABLE_CUDA AND TARGET owl::owl)
         add_executable(test_rl_environments_hyperdrone_rig_cuda rig_cuda.cu)
         target_link_libraries(test_rl_environments_hyperdrone_rig_cuda

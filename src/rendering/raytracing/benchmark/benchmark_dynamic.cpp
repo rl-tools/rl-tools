@@ -466,7 +466,7 @@ int main(int ac, char** av){
     const double max_ms = sorted_times[num_steps - 1];
 
     const long long total_frames = (long long)num_steps * NUM_CAMERAS;
-    long long rays_per_frame = (long long)SPEC::CAM_PIXELS * ((SPEC::HAS_RGB ? SPEC::RGB_SAMPLES : 0) + (SPEC::HAS_DEPTH ? SPEC::DEPTH_SAMPLES : 0));
+    long long rays_per_frame = (long long)SPEC::CAM_PIXELS * ((SPEC::HAS_RGB ? SPEC::RGB_SAMPLES : 0) + (SPEC::HAS_DEPTH ? 1 : 0));
     const long long total_rays = total_frames * (rays_per_frame + NUM_PROBES);
     const double fps = total_frames / (wall_ms / 1000.0);
     const double mrays = (total_rays / 1e6) / (wall_ms / 1000.0);

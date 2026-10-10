@@ -179,13 +179,22 @@ namespace rl_tools {
         }
     }
 
+    template <typename SPEC, typename BACKEND>
+    bool placement_valid(const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement){
+        if(overlay.index >= SPEC::NUM_OVERLAYS || placement.num_parts == 0 || placement.first_slot >= SPEC::MAX_OVERLAY_INSTANCES || placement.num_parts > SPEC::MAX_OVERLAY_INSTANCES - placement.first_slot){
+            return false;
+        }
+        for(size_t part = 0; part < placement.num_parts; part++){
+            if(!renderer.overlays[overlay.index].slots[placement.first_slot + part].active){
+                return false;
+            }
+        }
+        return true;
+    }
+
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void assert_placement(DEVICE& device, const rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement){
-        utils::assert_exit(device, overlay.index < SPEC::NUM_OVERLAYS, "overlay verb: overlay index out of range");
-        utils::assert_exit(device, placement.first_slot + placement.num_parts <= SPEC::MAX_OVERLAY_INSTANCES, "overlay verb: placement out of range");
-        for(size_t part = 0; part < placement.num_parts; part++){
-            utils::assert_exit(device, renderer.overlays[overlay.index].slots[placement.first_slot + part].active, "overlay verb: placement is not spawned");
-        }
+        utils::assert_exit(device, placement_valid(renderer, overlay, placement), "overlay verb: placement out of range or not spawned");
     }
 
     // per-slot flow delta table [2][SLOTS][12] from two transforms-layout slabs: slab 0 carries a
@@ -230,6 +239,7 @@ namespace rl_tools {
             typename rendering::raytracing::Renderer<SPEC, BACKEND>::AssetRecord record;
             record.first_part = (TI)renderer.asset_part_objects.size();
             record.num_parts = (TI)assembly.parts.size();
+            utils::assert_exit(device, record.num_parts > 0, "asset must contain at least one part");
             utils::assert_exit(device, record.num_parts <= SPEC::MAX_OVERLAY_INSTANCES, "asset has more parts than the overlay capacity");
             const TI object_base = (TI)all_objects.size();
             for(const auto& object : assembly.objects){
@@ -510,6 +520,7 @@ namespace rl_tools {
     void attach(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, typename SPEC::TI camera, rendering::raytracing::OverlayIndex overlay){
         static_assert(SPEC::ENABLE_OVERLAYS, "attach requires an overlay-enabled renderer specification");
         using TI = typename SPEC::TI;
+        utils::assert_exit(device, camera < SPEC::NUM_CAMERAS, "attach: camera index out of range");
         utils::assert_exit(device, overlay.index < SPEC::NUM_OVERLAYS, "attach: overlay index out of range");
         constexpr TI INVALID = rendering::raytracing::Renderer<SPEC, BACKEND>::INVALID_OVERLAY;
         TI* row = &renderer.attachments[camera * SPEC::MAX_OVERLAYS_PER_CAMERA];
@@ -530,6 +541,8 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void detach(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, typename SPEC::TI camera, rendering::raytracing::OverlayIndex overlay){
         static_assert(SPEC::ENABLE_OVERLAYS, "detach requires an overlay-enabled renderer specification");
+        utils::assert_exit(device, camera < SPEC::NUM_CAMERAS, "detach: camera index out of range");
+        utils::assert_exit(device, overlay.index < SPEC::NUM_OVERLAYS, "detach: overlay index out of range");
         using TI = typename SPEC::TI;
         TI* row = &renderer.attachments[camera * SPEC::MAX_OVERLAYS_PER_CAMERA];
         for(TI slot = 0; slot < SPEC::MAX_OVERLAYS_PER_CAMERA; slot++){
@@ -582,6 +595,7 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC, typename BACKEND>
     void despawn(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement){
         static_assert(SPEC::ENABLE_OVERLAYS, "despawn requires an overlay-enabled renderer specification");
+        rendering::raytracing::detail::assert_placement(device, renderer, overlay, placement);
         auto& state = renderer.overlays[overlay.index];
         for(size_t part = 0; part < placement.num_parts; part++){
             state.slots[placement.first_slot + part].active = false;
@@ -595,6 +609,7 @@ namespace rl_tools {
     template <typename DEVICE, typename SPEC, typename BACKEND>
     rendering::raytracing::OverlayPlacement replace(DEVICE& device, rendering::raytracing::Renderer<SPEC, BACKEND>& renderer, rendering::raytracing::OverlayIndex overlay, const rendering::raytracing::OverlayPlacement& placement, rendering::raytracing::AssetHandle asset){
         static_assert(SPEC::ENABLE_OVERLAYS, "replace requires an overlay-enabled renderer specification");
+        rendering::raytracing::detail::assert_placement(device, renderer, overlay, placement);
         if(asset.index >= renderer.assets.size() || renderer.assets[asset.index].num_parts != placement.num_parts){
             utils::assert_exit(device, false, "replace: the asset must exist and have the placement's part count");
             return placement;

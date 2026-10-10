@@ -9,8 +9,6 @@ environment setup under one Python package.
 | `hyperdrone.dynamics` | Vectorized, stateful L2F multirotor simulator (`Sim`); cpu and cuda variants. |
 | `hyperdrone.env` | The RL environment: the C++ `MultiEnvironment<hyperdrone::World>` driven through the exact rl_tools batch verbs. |
 | `hyperdrone.gym` | Optional Gymnasium `VectorEnv` adapter over `hyperdrone.env` (`pip install "hyperdrone[gym]"`). |
-| `hyperdrone.jit` | Shared compile-and-cache infrastructure both domain packages build on. |
-| `hyperdrone.cuda` | CUDA staging helpers (`upload` → DLPack tensor sets). |
 
 Native components are JIT-compiled per set of compile-time constants (resolution, camera
 count, drone count, ...) into a persistent cache; later uses load the cached library
@@ -25,10 +23,10 @@ the golden-rollout generator.
 
 | Notebook | Open in Colab |
 |---|---|
-| [HyperDrone](hyperdrone/examples/HyperDrone.ipynb) | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rl-tools/rl-tools-internal/blob/render/interface/python/hyperdrone/hyperdrone/examples/HyperDrone.ipynb#scrollTo=g-cDv8bdN7j9) |
-| [Benchmark](hyperdrone/examples/Benchmark.ipynb) | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rl-tools/rl-tools-internal/blob/render/interface/python/hyperdrone/hyperdrone/examples/Benchmark.ipynb) |
-| [Custom](hyperdrone/examples/Custom.ipynb) | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rl-tools/rl-tools-internal/blob/render/interface/python/hyperdrone/hyperdrone/examples/Custom.ipynb) |
-| [Orbiter](hyperdrone/examples/Orbiter.ipynb) | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rl-tools/rl-tools-internal/blob/render/interface/python/hyperdrone/hyperdrone/examples/Orbiter.ipynb) |
+| [HyperDrone](hyperdrone/examples/HyperDrone.ipynb) | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rl-tools/rl-tools/blob/master/interface/python/hyperdrone/hyperdrone/examples/HyperDrone.ipynb#scrollTo=g-cDv8bdN7j9) |
+| [Benchmark](hyperdrone/examples/Benchmark.ipynb) | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rl-tools/rl-tools/blob/master/interface/python/hyperdrone/hyperdrone/examples/Benchmark.ipynb) |
+| [Renderer](hyperdrone/examples/Renderer.ipynb) | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rl-tools/rl-tools/blob/master/interface/python/hyperdrone/hyperdrone/examples/Renderer.ipynb) |
+| [Orbiter](hyperdrone/examples/Orbiter.ipynb) | [![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/rl-tools/rl-tools/blob/master/interface/python/hyperdrone/hyperdrone/examples/Orbiter.ipynb) |
 
 ## Install
 
@@ -62,20 +60,19 @@ build toolchain for GENERIC + cpu.
 
 | Variable | Meaning |
 |---|---|
-| `HYPERDRONE_RENDER_BACKEND` | `OPTIX` \| `METAL` \| `VULKAN` \| `WEBGPU` \| `GENERIC` \| `AUTO` (default: Metal on macOS, OptiX elsewhere) |
-| `HYPERDRONE_DYNAMICS_DEVICE` | `CPU` \| `CUDA` \| `AUTO` (default: cuda when available) |
+| `HYPERDRONE_RENDER_BACKEND` | `OPTIX` \| `METAL` \| `VULKAN` \| `WEBGPU` \| `GENERIC` \| `AUTO` (AUTO preference: OPTIX > METAL > VULKAN > WEBGPU > GENERIC) |
 | `HYPERDRONE_CACHE_DIR` | root for CMake build trees and downloaded build dependencies (default `~/.cache/hyperdrone`) |
 | `HYPERDRONE_RLTOOLS_ROOT` | rl-tools source root override (default: enclosing checkout, else the vendored tree) |
-| `HYPERDRONE_PROCTHOR_PATH` | local ProcTHOR example scene override (otherwise downloaded and cached) |
+| `HYPERDRONE_PROCTHOR_PATH` | examples only: local ProcTHOR scene override (otherwise downloaded and cached) |
 | `HYPERDRONE_SKIP_BUILD` | skip the CMake staleness check when the artifacts already exist |
 | `HYPERDRONE_OFFLINE` | forbid network during builds (requires seeded/vendored dependencies) |
 | `HYPERDRONE_BUILD_JOBS` | parallel build jobs (default 5) |
 
-Each component and variant gets its own build tree (`render-optix-*`, `dynamics-cuda-*`,
+Each component, variant and native CPU instruction set gets its own build tree (`render-optix-*`, `dynamics-cuda-*`,
 ...); switching never invalidates another's cache. All configure/build steps run under a
 per-tree file lock, so many worker processes can share one cache safely. CMake
 FetchContent sources and native build state live in `<cache>/.dependencies`; the native
-build does not write generated files into an editable checkout or installed package.
+build does not write generated files into an editable checkout or installed package. CUDA trees also distinguish the native GPU architecture or explicit `CUDAARCHS` target.
 
 At the default verbosity, each successful renderer allocation reports the selected backend on
 stderr, for example `#rl_tools::rendering::raytracing: backend=metal`. The
@@ -96,7 +93,7 @@ from hyperdrone.examples.data import procthor_scene_path
 
 scene = render.load_scene(procthor_scene_path(), fidelity="high")
 
-renderer = render.Renderer(width=320, height=240, num_cameras=4, output="rgbd", fidelity="high")
+renderer = render.Renderer(width=320, height=240, num_cameras=4, output=("rgb", "depth"), fidelity="high")
 renderer.init(scene)
 
 camera = renderer.camera(position=(0, 0, 1.5), look_at=(1, 0, 1.5), fov=80)
@@ -126,7 +123,7 @@ imported settings with `scene.set_environment(...)` before `renderer.init(scene)
 
 ```python
 renderer.frame()                  # snapshot copy (safe to keep)
-renderer.frame(copy=False)        # numpy view of the staging buffer (refreshed in place)
+renderer.frame(out=rgba_array)    # fill an existing writable, aligned, C-contiguous uint8 array
 rgba = torch.from_dlpack(renderer.frame_dlpack())
 # live uint8 (num_cameras, height, width, 4), zero-copy GPU tensor on OptiX
 packed = torch.from_dlpack(renderer.frame_raw_dlpack())
@@ -135,33 +132,32 @@ packed = torch.from_dlpack(renderer.frame_raw_dlpack())
 
 Inputs accept any DLPack producer. CUDA-resident camera input (OptiX):
 `set_cameras` dispatches on `__dlpack_device__`, so a CUDA tensor — a torch GPU tensor,
-a set pre-uploaded with `hyperdrone.cuda.upload`, or `Sim.camera_bases()` — is handed
+a CuPy/JAX CUDA array, or `Sim.camera_bases_dlpack(aspect=renderer.aspect)` — is handed
 over device-to-device on the render stream, fully async; `stream=` takes the producer's
-cudaStream_t handle for event-ordered hand-off.
+cudaStream_t handle for event-ordered hand-off. The renderer retains asynchronous inputs until the corresponding render/probe synchronization; do not mutate their contents until that work finishes.
 
 ## Dynamics
 
 ```python
 from hyperdrone import dynamics
 
-sim = dynamics.Sim(num_drones=4096, model="x500_sim", device="cuda")
-sim.reset(seed=0)                     # deterministic; host-sampled, identical on cpu/cuda
-sim.step(actions)                     # (N, 4) float32 in [-1, 1], host or CUDA tensor
-sim.state["position"]                 # zero-copy DLPack views, CUDA-resident on cuda
-sim.state.numpy("position")           # host copy
-sim.observe()                         # (N, 18): position, rotation matrix, velocities
-sim.parameters["mass"] = masses       # per-drone runtime parameters (until the next reset)
-sim.model_parameters()                # the preset's nominal l2f dynamics: rotor layout, mass, J, ...
+sim = dynamics.Sim(4096, parameters={"dynamics": {"dynamics": {"model": "x500_sim"}}}, seed=0, device="cuda")
+sim.reset()                          # nominal state; reset(sample_states=True) samples the configured distribution
+sim.step(actions)                    # (N, 4) float32 in [-1, 1], host or CUDA tensor
+sim.state["position"]                # independent host copy
+sim.state_dlpack("position")         # live backend buffer
+sim.observe()                        # (N, 18): position, row-major body-to-world rotation, velocities
+sim.set_instance_parameters({"dynamics": {"dynamics": {"mass": 1.2}}}, mask=selected)
+sim.instance_parameters()            # per-drone values; overrides last until each drone's next reset
+sim.parameters                       # fresh copy of the constructor's resolved shared parameters
 
-cameras = sim.camera_bases(fov=100, aspect=renderer.aspect)
-renderer.set_cameras(cameras, stream=sim.stream)   # device-resident hand-off
+cameras = sim.camera_bases_dlpack(fov=100, aspect=renderer.aspect)
+renderer.set_cameras(cameras, stream=sim.stream)
 ```
 
-`num_drones` and domain randomization are compile-time (the JIT key); the model preset
-(`crazyflie`, `x500_real`, `x500_sim`, `mrs`, ...), integration `dt`, and all physical
-parameters are runtime. Reward and termination live in the
-environment (`hyperdrone.env`), not the simulator. One process can use one dynamics
-variant (cpu or cuda).
+`Sim` defaults to `device="cpu"`; choose `"cuda"` or `"auto"` explicitly. Seed at construction, then `reset(mask=None, *, sample_states=False)` advances the sampling sequence only for selected drones. Observation noise uses a separate stream from stepping. The shared parameter schema matches the environment's `"dynamics"` tree; integration `dt` is fixed at construction and available as read-only `sim.dt`. Per-drone overrides affect `dynamics.dynamics`; a reset restores that drone's nominal parameters. `motor_command` is the rotor command in the model's action-limit units, not measured RPM. A process can load one dynamics variant.
+
+Host accessors return independent snapshots; names ending in `_dlpack()` expose live storage. Drive each object on its construction CUDA device, and finish consuming a borrowed buffer before the producer overwrites it. `Sim` orders DLPack exports onto the consumer's stream. Camera bases have shape `(N, 12)` and concatenate `position`, `dir_00`, `dir_du`, and `dir_dv` world-FLU vectors; the pixel-centre ray is `normalize(dir_00 + (x+0.5)/width * dir_du + (y+0.5)/height * dir_dv)`; `aspect` is required when constructing them.
 
 ## RL environment
 
@@ -169,12 +165,11 @@ variant (cpu or cuda).
 import numpy as np
 from hyperdrone.env import EnvConfig, MultiEnvironment
 
-config = EnvConfig(num_environments=1, instances=1024, cam_width=32, cam_height=32, task="target_frame")
+config = EnvConfig(num_environments=1, instances_per_environment=1024, width=32, height=32, task="target_frame")
 env = MultiEnvironment("scenes/", config=config, seed=0)
 
 mask = np.ones(env.total_instances, dtype=bool)
 env.reset(mask)                    # resample parameters + states where mask is set
-env.render(mask)                   # render the FPV cameras (mask marks fresh episodes)
 observations = env.observe()       # (total, observation_dim) float32
 env.step(actions)                  # (total, action_dim) float32 in [-1, 1]
 rewards, terminated = env.rewards(), env.terminated()
@@ -184,7 +179,7 @@ env.observation_layout             # named blocks: which channels/values mean wh
 ```
 
 `reset(mask)` samples parameters and states immediately. `observe()` renders as needed,
-so explicit `render(mask)` calls are optional. The training loop owns episode counters and
+and each observation is acquired at most once per simulation step. Frame history advances once per simulation step, and repeated reads reuse that step's frame; skipped reads do not stretch camera exposure beyond `shutter_fraction * dt`. The training loop owns episode counters and
 chooses when to reset; the Gymnasium adapter below supplies same-step autoreset and time limits.
 
 On the OptiX backend the World runs on the GPU (`env.device == "cuda"`): its RNG and every
@@ -202,7 +197,6 @@ terminated = torch.empty((T, env.total_instances), dtype=torch.bool, device="cud
 reset_mask = torch.ones(env.total_instances, dtype=torch.bool, device="cuda")
 for t in range(T):
     env.reset(reset_mask)                     # CUDA bool mask
-    env.render(reset_mask)
     env.observe(out=observations[t])          # written into the rollout buffer
     env.step(policy(observations[t]))         # CUDA float32 actions
     env.rewards(out=rewards[t])
@@ -217,11 +211,11 @@ and the call synchronizes. `EnvConfig(device="cpu")` keeps the World on the host
 visual-inertial localization task (no CUDA verbs yet) and `spec_header` Worlds (whose verbs
 may be host loops) default to it.
 
-`EnvConfig` is the compile-time part (the JIT key); the runtime part is `MultiEnvironment(..., parameters={"dynamics": {"dynamics": {"model": "x500", "mass": 2.1}}, "camera": {"fov": 90}})`, a partial dict merged over the nominal parameters as the base of every drone (the specification's randomization ranges apply on top at reset). `env.parameters` returns drone zero's resolved nominal parameters, including its entry-specific overrides: `"dynamics"` is the l2f parameter set, where a `"model"` key loads an l2f registry entry (`hyperdrone.dynamics.MODELS`) before the rest is merged, and `"camera"` holds `mount.pose` (`position` and `orientation`, a (w, x, y, z) quaternion mapping the camera's FLU axes into the body frame) and the horizontal `fov` in degrees. `env.instance_parameters()` returns what each instance is using in the current episode (after randomization), and `env.set_instance_parameters(overrides, mask)` changes it until that instance's next reset (one dict for all selected instances or one per instance); only the drone itself varies (`dynamics.dynamics`, `dynamics.imu`, `camera`, and `"drone"`, which starts from another table entry's nominal and swaps the rendered body).
+`EnvConfig` is the compile-time part (the JIT key); the runtime part is `MultiEnvironment(..., parameters={"dynamics": {"dynamics": {"model": "x500", "mass": 2.1}}, "cameras": {"fpv": {"fov": 90}}})`, a partial dict merged over the nominal parameters as the base of every drone (the specification's randomization ranges apply on top at reset). `env.parameters` returns drone zero's resolved nominal parameters, including its entry-specific overrides: `"dynamics"` is the l2f parameter set, where a `"model"` key loads an l2f registry entry (`hyperdrone.dynamics.MODELS`) before the rest is merged, and `"cameras"["fpv"]` holds `mount.pose` (`position` and `orientation`, a (w, x, y, z) quaternion mapping the camera's FLU axes into the body frame) and the horizontal `fov` in degrees. `env.instance_parameters()` returns what each instance is using in the current episode (after randomization), and `env.set_instance_parameters(overrides, mask)` changes it until that instance's next reset (one dict for all selected instances or one per instance); only the drone itself varies per agent (`dynamics.dynamics`, `dynamics.imu`, `cameras`, and `"drone"`, which restarts the instance from another table entry's nominal and swaps the rendered body).
 
-Several drones fly in one environment through the drone table, `MultiEnvironment(..., drones=[{"asset": x500, "parameters": {...}}, {"asset": crazyflie, "parameters": {"dynamics": {"dynamics": {"model": "crazyflie"}}}}, ...])`: every agent samples one entry uniformly at each group reset, independently of the scene its environment shows, so every scene meets every drone. An entry pairs the body/prop_* GLB rendered into the instance's cameras with a partial parameter dict merged over the shared constructor base (the per-drone keys `dynamics.dynamics`, `dynamics.imu`, `camera`); the same GLB may back several dynamics entries, distinct GLBs load once and all of them need the same part count (an agent's body swaps in place at reset, on the GPU for a CUDA World). The table holds up to `env.max_drones` entries (8, a `spec_header` World sets its own), `env.drones` returns the resolved native table, and each agent's `"drone"` value in `env.instance_parameters()` indexes it. `env.self_visible` and `env.max_drones` report the compiled world's capabilities, including custom `spec_header` worlds. `drone_asset=X` is the one-entry table. The six rigged assemblies in `hyperdrone.examples.data.RIGGED_MODELS` use matching l2f registry entries, except brushless Crazyflie and SavageBee, which use `crazyflie` dynamics; each prop spins with the dynamics rotor at its position whatever rotor order the entry uses.
+Several drones fly in one environment through the drone table, `MultiEnvironment(..., drones=[{"asset": x500, "parameters": {...}}, {"asset": crazyflie, "parameters": {"dynamics": {"dynamics": {"model": "crazyflie"}}}}, ...])`: every agent samples one entry uniformly at each group reset, independently of the scene its environment shows, so every scene meets every drone. An entry pairs the body/prop_* GLB rendered into the instance's cameras with a partial parameter dict merged over the shared constructor base (the per-drone keys `dynamics.dynamics`, `dynamics.imu`, `cameras`); the same GLB may back several dynamics entries, distinct GLBs load once and all of them need the same part count (an agent's body swaps in place at reset, on the GPU for a CUDA World). The table holds up to `env.max_drone_types` entries (8, a `spec_header` World sets its own), `env.drones` returns the resolved native table, and each agent's `"drone"` value in `env.instance_parameters()` indexes it. `env.self_visible` and `env.max_drone_types` report the compiled world's capabilities, including custom `spec_header` worlds. `drone_asset=X` is the one-entry table. The six rigged assemblies in `hyperdrone.examples.data.RIGGED_MODELS` use matching l2f registry entries, except brushless Crazyflie and SavageBee, which use `crazyflie` dynamics; each prop spins with the dynamics rotor at its position whatever rotor order the entry uses.
 
-With `EnvConfig(preset="x500_fpv", n_agents=7)`, each instance is a group of seven mutually visible drones; groups share scene geometry but remain isolated episodes. `instance_parameters()` returns `{"agents": [...]}` per group, and `set_instance_parameters({"agents": [{"drone": i} for i in choices]}, mask)` assigns models independently (`{}` leaves an agent unchanged). Single-agent entries keep the flat schema. Scene placement, exposure, shutter fraction, reset, reward and termination remain group-wide; all agents share the integration timestep.
+With `EnvConfig(preset="x500_fpv", num_agents=7)`, each instance is a group of seven mutually visible drones; groups share scene geometry but remain isolated episodes. `instance_parameters()` returns `{"agents": [...]}` per group, and `set_instance_parameters({"agents": [{"drone": i} for i in choices]}, mask)` assigns models independently (`{}` leaves an agent unchanged). Single-agent entries keep the flat schema. Scene placement, exposure, shutter fraction, reset, reward and termination remain group-wide; all agents share the integration timestep.
 
 All environment semantics — reset, reward, termination, scene scheduling, observation
 composition — live on the C++ side (`rl_tools::rl::environments::hyperdrone::MultiEnvironment<World>`);
@@ -230,18 +224,17 @@ bit-exact against the C++ verbs by a golden test. The scenes argument is a direc
 scenes (sorted corpus) or a list of references — `.glb` paths, `conta:HASH` strings, or
 conta store manifest entries `{"description": ..., "hash": ...}` — used as the corpus in
 list order and partitioned across environments; conta references (scenes, `drone_asset=`,
-`gate_asset=`) resolve through the `conta` package into the shared content-addressed
+`assets={"gate": reference}`) resolve through the `conta` package into the shared content-addressed
 cache, so a config pins the exact corpus on any machine. Configuration follows the C++
 extension ladder:
 `preset=` names the platform (`"crazyflie"`, `"x500_fpv"` — SELF_VISIBLE, pass a
 body/prop_* GLB via `drone_asset=`; `hyperdrone.env.Rotorcraft(assembly, rotor_positions=...,
 rotor_torque_directions=...)` is the same rig as a `render.Rig` for manual composition: every
-`prop_*` part spins about its hub, and given the dynamics rotor layout (`sim.model_parameters()`)
-coordinate i is the phase of rotor i spinning against its reaction torque, so `sim.state["rpm"]`
-integrates straight into the coordinates; without rotors the props follow part order and the
+`prop_*` part spins about its hub, and given the dynamics rotor layout (`sim.parameters["dynamics"]["dynamics"]`)
+coordinate i is the phase of rotor i spinning against its reaction torque, so `sim.state["motor_command"]` supplies motor command values for a chosen visual spin calibration; without rotors the props follow part order and the
 Quad-X convention, front-right CCW — and `"x500_fpv_imu"`, the same platform stepping at
 IMU rate), `task=` names the wrapper (`"target_frame"`, `"moving_gate"`,
-`"visual_inertial_localization"`), `n_agents=` enables multi-agent, and `EnvConfig(spec_header=...)` pins
+`"visual_inertial_localization"`), `num_agents=` enables multi-agent, and `EnvConfig(spec_header=...)` pins
 an arbitrary C++ specification (a header defining `hyperdrone_env_user::WORLD`, hashed
 into the JIT key). A spec header can go beyond constants to a full user-authored task
 wrapper — verb overloads registering and moving entities, compiled reward, termination:
@@ -251,7 +244,7 @@ compiles and flies its header. The environment's raytracing backend follows
 
 The target-frame task pre-renders its episode setups: a bank of one setup per instance
 (drone, scene placement, camera, brightness and the target perturbations) is rendered in one pass
-every `TARGET_BANK_REFRESH_STEPS` frames (a compile-time task constant, default 32) and after
+every `TARGET_BANK_REFRESH_STEPS` simulation steps (a compile-time task constant, default 32) and after
 a scene change, and resets adopt the bank's setups in turn and copy their frames, so a reset
 adds no render pass of its own; resets beyond the instance count within one refresh reuse
 setups. Each episode's drone and camera come from its setup, so `set_instance_parameters`
@@ -259,11 +252,11 @@ rejects drone and camera overrides for this task; a replayed spawn re-renders it
 
 `EnvConfig(motion_blur_samples=8)` enables camera and propeller motion blur for presets and tasks; valid counts are 1 (default, disabled), 2, 4, 8, 16, and 32. Custom spec headers control `ENABLE_MOTION_BLUR` and `MOTION_BLUR_SAMPLES` directly.
 
-For repeatable shots, capture `points = env.spawn_points()` after a reset and save the returned dictionaries, then use `env.reset(mask, spawn_points=points)` with one entry per selected instance (a host mask). Each entry pins the active scene by content hash, model indices (`"drone"` for one agent, `"drones": [...]` otherwise), scene translation/yaw, per-agent pose (`xyz, wxyz`), and shutter fraction. The reset uses constructor-supplied drone dynamics and camera mounts; velocity/motor initialization and task-specific randomization still follow their configured ranges. Scene changes remain explicit through `rotate_scene()`; a shot for a different active scene is rejected.
+For repeatable shots, capture `points = env.spawn_points()` after a reset and save the returned dictionaries, then use `env.reset(mask, spawn_points=points)` with one entry per selected instance (a host mask). Each entry pins the active scene by content hash, one drone-table index per agent in `"drone"`, scene translation/yaw, per-agent pose (`xyz, wxyz`), and shutter fraction. The reset uses constructor-supplied drone dynamics and camera mounts; velocity/motor initialization and task-specific randomization still follow their configured ranges. Scene changes remain explicit through `rotate_scene()`, which requires resetting every instance before further use; a shot for a different active scene is rejected.
 
 Manual composition of `Sim` and `Renderer` (no MDP — rendering research, data
 generation) remains first-class: see `python -m hyperdrone.examples.drone_flythrough`
-for the wiring. `FreeSpaceSampler` lives in `hyperdrone.render` — it rides the
+for the wiring. `ClearanceSampler` lives in `hyperdrone.render` — it rides the
 renderer's collision probes and is deterministic given a seed.
 
 ### Visual-inertial localization
@@ -280,11 +273,10 @@ body is not rendered, matching the C++ benchmark harness. Resets must be all-or-
 environment.
 
 ```python
-config = EnvConfig(instances=2, cam_width=160, cam_height=120, preset="x500_fpv_imu", task="visual_inertial_localization")
+config = EnvConfig(instances_per_environment=2, width=160, height=120, preset="x500_fpv_imu", task="visual_inertial_localization")
 env = MultiEnvironment(scenes, config=config, seed=0)
-env.reset(); env.render(np.ones(env.total_instances, dtype=bool))
+env.reset()
 for step in range(env.episode_step_limit):
-    if step > 0: env.render()
     if step % env.frame_stride == 0:
         frames = env.frames()          # the estimator's camera frame
     env.step()
@@ -299,7 +291,7 @@ IMU dead reckoning against the ground truth, the same protocol as the C++ demo.
 
 ```python
 from hyperdrone.gym import VectorEnv   # pip install "hyperdrone[gym]"
-env = VectorEnv("scenes/", config=EnvConfig(instances=1024), seed=0)
+env = VectorEnv("scenes/", config=EnvConfig(instances_per_environment=1024), seed=0)
 observations, infos = env.reset()
 observations, rewards, terminations, truncations, infos = env.step(actions)
 ```
@@ -321,8 +313,7 @@ From the repository root, build and upload a release with:
 interface/python/hyperdrone/scripts/publish.sh
 ```
 
-Set the release version in `pyproject.toml` and `hyperdrone/__init__.py` first. The
-script uses the repository's `.venv` (creating it if needed), installs the build and
+Set the release version in `hyperdrone/__init__.py`; package metadata and JIT caches use that single source. The script uses the repository's `.venv` (creating it if needed), installs the build and
 upload tools, builds a bundled source archive and a `py3-none-any` wheel from that
 archive, checks both with Twine, and uploads both to PyPI. Authenticate through your
 existing Twine configuration (`~/.pypirc`, keyring, or `TWINE_PASSWORD`), or enter a
@@ -334,6 +325,8 @@ without uploading. Each run keeps its two artifacts in a fresh
 included in an upload. Native components remain JIT-compiled on first use.
 
 ## Tests
+
+Use the repository `.venv` with editable `interface/python/conta` and `interface/python/hyperdrone[gym]` installed; point `CONTA_ROOT` at the local test assets.
 
 ```bash
 HYPERDRONE_RENDER_BACKEND=GENERIC .venv/bin/python -m pytest interface/python/hyperdrone/tests -v
@@ -354,21 +347,17 @@ scene = render.load_scene(dataset["ProcTHOR-Train-1"].reference)
 ```
 
 Select any combination with `output=("rgb", "depth", "segmentation", "normals", "flow")`.
-`rgbd` and `rgbd_segmentation` remain shorthand selections. Outputs other than RGB are:
+Outputs other than RGB are:
 
 | Accessor | dtype | Per-camera shape | Contract |
 |---|---|---|---|
-| `depth()` | float32 | `(H, W)` | Ray-hit distance; misses use scene max depth |
+| `depth()` | float32 | `(H, W)` | Camera-forward depth from the pixel-centre shutter-close ray; miss `+inf` |
 | `segmentation()` | uint32 | `(H, W)` | Instance IDs or semantic classes; miss `0xFFFFFFFF` |
 | `normals()` | float32 | `(H, W, 3)` | World-FLU geometric unit normal facing against the ray; miss zero |
 | `flow()` | float32 | `(H, W, 2)` | Current-to-previous `(dx, dy)` displacement in pixels, positive along image columns/rows |
 | `flow_status()` | uint32 | `(H, W)` | `render.FlowStatus`: VALID, MISS, BEHIND, OUT_OF_FRAME, OCCLUDED |
 
-`Renderer` prepends `num_cameras`; each accessor accepts `copy=False` for a live host view
-(staging on OptiX) and has a `*_dlpack()` counterpart for the live backend buffer. Read after
-`render()` or `render_sync()`; keep a copy to retain an image across later reads/renders.
-Segmentation, normals and flow use pixel centres at shutter close, independently of RGB/depth
-anti-aliasing and motion blur. MISS and BEHIND flow vectors are zero; OUT_OF_FRAME and OCCLUDED
+`Renderer` prepends `num_cameras`; host accessors return snapshots or fill an exact-shape/dtype `out=` array, and `*_dlpack()` exposes the live backend buffer. Read after `render()` or `render_sync()`. Depth, segmentation, normals and flow use pixel centres at shutter close, independently of RGB anti-aliasing and motion blur. MISS and BEHIND flow vectors are zero; OUT_OF_FRAME and OCCLUDED
 retain geometric displacement, so use `flow_status() == render.FlowStatus.VALID` as the mask.
 
 ```python
@@ -385,9 +374,8 @@ flow, status = renderer.flow(), renderer.flow_status()
 `EnvConfig(output=("rgb", "depth", "segmentation", "normals", "flow"))` enables the same
 auxiliary channels in `MultiEnvironment`, with RGB policy observations. Its accessors accept
 `out=` (NumPy, or CUDA arrays on a CUDA World) and return
-`(total_instances, n_agents, H, W[, channels])`. They render pending frames as `observe()` does;
-repeated reads reuse the capture. Flow history advances only on actual captures, including
-when a task skips frames, and resets per instance or on scene changes. The first/reset capture
+`(total_instances, num_agents, H, W[, channels])`. They render pending frames as `observe()` does;
+repeated reads reuse the capture. Flow retains each due capture even when it is unread, follows task frame cadence, and resets per instance or on scene changes. The first/reset capture
 has zero motion. `semantic_segmentation=True` selects classes, and `env.outputs` /
 `env.segmentation_mode` describe the compiled configuration. Normals use the renderer’s scene
 FLU frame; instance IDs are local to each environment’s active renderer. Custom `spec_header` Worlds set
@@ -428,7 +416,7 @@ labels = renderer.segmentation()  # uint32; renderer.segmentation_mode identifie
 classes = scene.segmentation_classes  # {class_id: name}, taxonomy: scene.segmentation_taxonomy
 ```
 
-Semantic IDs come from AI2THOR-Hab's taxonomy: unknown is `0` (including Ceiling, which has no dataset category); background is `0xFFFFFFFF` in both modes. Instance IDs identify scene instances: use `scene.instance_object(id)` then `scene.object_name(object_index)` for static hits. Overlay instance IDs use the renderer's global slot layout. Semantic IDs must never be used as object indices. Loading remains welded by default for RGB; semantic rendering rejects a welded object containing multiple classes. Assemblies and asset-pool copies retain labels and the taxonomy. Composing conflicting taxonomies requires an explicit remapping before semantic rendering.
+Semantic IDs come from AI2THOR-Hab's taxonomy: unknown is `0` (including Ceiling, which has no dataset category); background is `0xFFFFFFFF` in both modes. Instance IDs identify scene instances: use `scene.instance_object(id)` then `scene.object_name(object_index)` for static hits. Overlay instance IDs are `scene.num_instances + placement.overlay * renderer.config.max_overlay_instances + placement.first_slot + part`. `spawn()` returns an `OverlayPlacement`; transform and despawn methods reject stale, foreign and forged handles. Semantic IDs must never be used as object indices. Loading remains welded by default for RGB; semantic rendering rejects a welded object containing multiple classes. Assemblies and asset-pool copies retain labels and the taxonomy. Composing conflicting taxonomies requires an explicit remapping before semantic rendering.
 
 Assign labels before `Renderer.init()`: `object.segmentation_class = id`, `scene.set_object_segmentation_class(index, id)`, `assembly.set_segmentation_class(index, id)`, or `pool.set_object_segmentation_class(asset, object_index, id)` retains the current taxonomy and explicitly makes that object's class valid, including welded objects. Assignment rejects IDs absent from that taxonomy. `object.assign_segmentation_class(id, taxonomy="custom", classes={0: "Unknown", 7: "Furniture"})` replaces the taxonomy; omitting taxonomy/classes selects unnamed numeric IDs.
 
@@ -449,8 +437,8 @@ renders is `hyperdrone.env.Rotorcraft`, a `Rig` built from the body/prop_* conve
 RL environment section).
 
 ```python
-renderer.set_transform(overlay, placement, body, rig=rig, coordinates=phases)
-renderer.set_transform_pair(overlay, placement, body_open, body_close, rig=rig,
+renderer.set_transform(placement, body, rig=rig, coordinates=phases)
+renderer.set_transform_pair(placement, body_open, body_close, rig=rig,
                             coordinates_open=phases_open, coordinates_close=phases_close)
 renderer.update()
 renderer.render()
@@ -465,9 +453,19 @@ base_close, q_open, q_close, renderer.motion_blur_samples)` the `(samples, parts
 the shutter-close poses for `set_motion_transforms`. Batches of identical assets, one per
 overlay, submit the whole tensor at once with `set_all_transforms(poses)` of shape
 `(num_overlays, max_overlay_instances, 3, 4)` (and `set_all_motion_transforms`); `rig.evaluate`
-accepts batched `(B, 3, 4)` bases for that. On OptiX every transform verb also takes CUDA
+accepts batched `(B, 3, 4)` bases for that. On OptiX the bulk transform setters also take CUDA
 tensors (`stream=` orders the copy after the producer), and `renderer.transforms_dlpack()` /
 `transforms_motion_dlpack()` expose the live input tensors for in-place producers ordered
 against `renderer.render_stream`; publish pending host writes with `update()` before writing
 them. `python -m hyperdrone.examples.articulation` renders a spinning hinge and a sliding block
-with motion blur; `hyperdrone/examples/Custom.ipynb` flies the x500 with spinning props.
+with motion blur; `hyperdrone/examples/Renderer.ipynb` flies the x500 with spinning props.
+
+## Stability
+
+The release contract covers documented names, single-agent shapes and documented `HYPERDRONE_*` variables. Multi-agent parameter/spawn shapes, observation layouts (including `agent<i>/` block prefixes), team-mean rewards and any-agent termination remain experimental. The shipped tasks are single-agent. `spec_header` constants and their shadowing form the stable extension tier; custom verb-overload wrappers are experimental and should pin the package version. The JIT key hashes the top-level header only; changes to included headers rebuild that tree in place.
+
+Reproducibility is per seed, configuration, reset masks and call sequence on one host build (`-O3 -march=native -ffast-math`). RNG streams may change in minor releases. Environment IMU noise and shutter sampling still share the physics RNG. The `Train200` catalog is immutable; cite its RLtools commit for paper datasets and identify the examples and golden scenes separately as fixtures.
+
+Presets name platforms and default to a neutral MDP: zero reward and disabled termination. Configure the task through `parameters["dynamics"]["mdp"]`; `moving_gate` adds +10 for a pass and terminates on gate crashes. Preset and task names are stable. Privileged observations are ground truth, with row-major body-to-world rotation matrices. Views are ordered `(instance, agent, camera)` and stacked along image height; all cameras share resolution.
+
+All RGB fidelity tiers store sRGB; alpha is always 255 and reserved. Medium uses a checker background. Probe misses return `+inf` with boolean hit flags; `ClearanceSampler` accepts candidates whose sampled rays have no hit closer than the clearance radius; it does not compute the environment's free-space annotation table.

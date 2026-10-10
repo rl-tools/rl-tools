@@ -151,7 +151,7 @@ namespace {
         size_t invalid_depth = 0;
         for(size_t index = 0; index < frame.rgb.size(); index++){
             invalid_alpha += (frame.rgb[index] >> 24) != 0xFFu;
-            invalid_depth += !std::isfinite(frame.depth[index]) || frame.depth[index] <= 0;
+            invalid_depth += rlt::is_miss(frame.depth[index]) ? frame.segmentation[index] != 0xFFFFFFFFu : (!std::isfinite(frame.depth[index]) || frame.depth[index] <= 0 || frame.segmentation[index] == 0xFFFFFFFFu);
         }
         EXPECT_EQ(invalid_alpha, (size_t)0);
         EXPECT_EQ(invalid_depth, (size_t)0);

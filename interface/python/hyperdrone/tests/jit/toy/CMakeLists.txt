@@ -1,4 +1,4 @@
-# Minimal reference component for hyperdrone.jit's own test suite: no rl-tools
+# Minimal reference component for hyperdrone._jit's own test suite: no rl-tools
 # dependency, no core module — just per-config JIT artifacts. Doubles as the smallest
 # possible example of a component CMakeLists.
 cmake_minimum_required(VERSION 3.24)

@@ -37,7 +37,7 @@ CLEARANCE = 0.5
 
 @pytest.fixture(scope="module")
 def sampler():
-    return render.FreeSpaceSampler(make_room(), clearance=CLEARANCE, batch=64, probes=32)
+    return render.ClearanceSampler(make_room(), clearance=CLEARANCE, batch=64, probes=32)
 
 
 def test_sampling_determinism(sampler):
@@ -65,7 +65,7 @@ def test_sampling_respects_clearance(sampler):
 
 def test_sampling_avoids_obstacles():
     pillar = (1.0, 1.0, 0.5)
-    sampler = render.FreeSpaceSampler(make_room(pillar=pillar), clearance=CLEARANCE, batch=64, probes=64)
+    sampler = render.ClearanceSampler(make_room(pillar=pillar), clearance=CLEARANCE, batch=64, probes=64)
     positions = sampler.sample(64, seed=0)
     x, y, r = pillar
     # no sample inside the pillar footprint (plus most of the clearance; probe sets are
@@ -79,10 +79,10 @@ def compose(scene, sim, renderer):
     renderer.init(scene)
 
     def update_cameras():
-        renderer.set_cameras(sim.camera_bases_numpy(aspect=renderer.aspect))
+        renderer.set_cameras(sim.camera_bases(aspect=renderer.aspect))
 
     def spawn(positions):
-        sim.reset(seed=0, sample_states=False)
+        sim.reset()
         sim.state["position"] = np.ascontiguousarray(positions, dtype=np.float32)
         update_cameras()
 
@@ -98,10 +98,10 @@ def compose(scene, sim, renderer):
 def test_manual_composition_end_to_end():
     num_drones = 4
     scene = make_room()
-    sim = dynamics.Sim(num_drones=num_drones, model="crazyflie", device="cpu")
-    renderer = render.Renderer(width=32, height=32, num_cameras=num_drones, output="rgbd", fidelity="low")
+    sim = dynamics.Sim(num_drones=num_drones, device="cpu")
+    renderer = render.Renderer(width=32, height=32, num_cameras=num_drones, output=("rgb", "depth"), fidelity="low")
     spawn, step = compose(scene, sim, renderer)
-    sampler = render.FreeSpaceSampler(scene, clearance=CLEARANCE, batch=64, probes=32)
+    sampler = render.ClearanceSampler(scene, clearance=CLEARANCE, batch=64, probes=32)
     positions = sampler.sample(num_drones, seed=0)
     spawn(positions)
 
@@ -122,7 +122,7 @@ def test_manual_composition_end_to_end():
 def test_manual_composition_camera_tracks_drone():
     num_drones = 2
     scene = make_room()
-    sim = dynamics.Sim(num_drones=num_drones, model="crazyflie", device="cpu")
+    sim = dynamics.Sim(num_drones=num_drones, device="cpu")
     renderer = render.Renderer(width=16, height=16, num_cameras=num_drones, output="depth", fidelity="low")
     spawn, step = compose(scene, sim, renderer)
     spawn(np.array([[0.0, 0.0, 1.5], [1.0, 0.0, 1.5]], dtype=np.float32))

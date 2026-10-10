@@ -18,6 +18,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <sys/resource.h>
 
 namespace rlt = rl_tools;
 namespace l2f = rlt::rl::environments::l2f;
@@ -134,6 +135,8 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
     rlt::init(device);
     rlt::init(device_gpu);
 
+    std::size_t free_before, total_bytes;
+    ASSERT_EQ(cudaMemGetInfo(&free_before, &total_bytes), cudaSuccess);
     ENVIRONMENT env;
     rlt::malloc(device_gpu, env);
     rlt::rendering::datasets::procthor::GLB dataset{{}, {SCENE_PATH, SCENE_PATH}};
@@ -159,8 +162,15 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
     rlt::sample_initial_state(device_gpu, env, parameters, states, reset_mask, rng);
     rlt::set_all(device_gpu, reset_mask, false);
 
+    auto request_frame = [&](){
+        for(auto& world: env.environments){
+            using rlt::request_render;
+            request_render(device_gpu, world);
+        }
+    };
     // World verb path
     auto world_path = [&](){
+        request_frame();
         rlt::render(device_gpu, env, parameters, states, reset_mask);
         rlt::observe(device_gpu, env, parameters, states, typename WORLD::Observation{}, observations, rng);
     };
@@ -237,6 +247,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
     };
 
     auto world_render_only = [&](){
+        request_frame();
         rlt::render(device_gpu, env, parameters, states, reset_mask);
     };
     auto hand_rolled_render_only = [&](){
@@ -270,6 +281,31 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
     double world_verbs = measure(world_path, "world verbs", "world_step");
     EXPECT_GE(world_verbs, hand_rolled * 0.9) << "the World verb path regressed against the hand-rolled baseline";
 
+    decltype(states) next_states;
+    rlt::Tensor<rlt::tensor::Specification<T, TI, rlt::tensor::Shape<TI, INSTANCES, WORLD::ACTION_DIM>>> actions;
+    using rlt::malloc;
+    using rlt::free;
+    using rlt::set_all;
+    using rlt::step;
+    malloc(device_gpu, next_states);
+    malloc(device_gpu, actions);
+    set_all(device_gpu, actions, (T)0);
+    auto world_step_render_observe = [&](){
+        step(device_gpu, env, parameters, states, actions, next_states, rng);
+        std::swap(states, next_states);
+        rlt::render(device_gpu, env, parameters, states, reset_mask);
+        rlt::observe(device_gpu, env, parameters, states, typename WORLD::Observation{}, observations, rng);
+    };
+    measure(world_step_render_observe, "world step/render/observe", "world_step_render_observe");
+    std::size_t free_after;
+    ASSERT_EQ(cudaMemGetInfo(&free_after, &total_bytes), cudaSuccess);
+    struct rusage usage{};
+    ASSERT_EQ(getrusage(RUSAGE_SELF, &usage), 0);
+    metra::log("hyperdrone/benchmark_cuda/world_step_render_observe/device_bytes", double(free_before) - double(free_after));
+    metra::log("hyperdrone/benchmark_cuda/world_step_render_observe/peak_rss_bytes", double(usage.ru_maxrss) * 1024);
+    free(device_gpu, actions);
+    free(device_gpu, next_states);
+
     cudaFree(staging_cameras);
     cudaFree(hand_rolled_history);
     cudaFree(hand_rolled_observations);
@@ -281,6 +317,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, WORLD_VS_HAND_ROLLED){
     rlt::free(device_gpu, states);
     rlt::free(device_gpu, reset_mask);
     rlt::free(device_gpu, observations);
+    rlt::free(device_gpu, rng);
     rlt::free(device_gpu, env);
 }
 
@@ -330,6 +367,10 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_BENCHMARK, SELF_VISIBLE_MOTION_BLUR){
         rlt::sample_initial_state(device_gpu, env, parameters, states, reset_mask, rng);
         rlt::set_all(device_gpu, reset_mask, false);
         auto body = [&](){
+            for(auto& world: env.environments){
+                using rlt::request_render;
+                request_render(device_gpu, world);
+            }
             rlt::render(device_gpu, env, parameters, states, reset_mask);
             rlt::observe(device_gpu, env, parameters, states, typename WORLD::Observation{}, observations, rng);
         };

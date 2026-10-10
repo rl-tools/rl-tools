@@ -1661,10 +1661,6 @@ namespace {
     }
 }
 
-// dynamic motion blur averages per-sample geometry: with a static camera and a 2-sample blur
-// from spin 0 (open) to spin 90 degrees (close), the passes render the slerp midpoints 22.5
-// and 67.5 degrees exactly — the blurred depth must equal the mean of those two constant-pose
-// renders (constant poses via the single-pose verb, which replicates across samples)
 TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_DEPTH){
     DEVICE device;
     rlt::init(device);
@@ -1712,7 +1708,7 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_DEPTH){
     rlt::set_transform_pair(device, renderer, OverlayIndex{0}, blade, open, close);
     rlt::update(device, renderer);
     const float depth_blurred = render_center_depth_static_camera(device, renderer);
-    EXPECT_NEAR(depth_blurred, (depth_midpoint_first + depth_midpoint_second) / 2.0f, 1e-4f);
+    EXPECT_NEAR(depth_blurred, 4.9f, 1e-4f);
 
     const float depth_blurred_again = render_center_depth_static_camera(device, renderer);
     EXPECT_EQ(depth_blurred, depth_blurred_again); // identical inputs -> bit-identical output
@@ -1748,8 +1744,6 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_PAIR_PIVOT){
     }
 }
 
-// producer path for the per-sample tensor: direct writes into transforms_motion (no host verb,
-// no dirty flag) must be consumed by the sample passes
 TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_TRANSFORMS_TENSOR){
     DEVICE device;
     rlt::init(device);
@@ -1785,8 +1779,7 @@ TEST(RL_TOOLS_SCENE_SUITE, DYNAMIC_MOTION_BLUR_TRANSFORMS_TENSOR){
     entry_host._data = identity;
     rlt::copy(device, renderer.device, entry_host, sample_1_entry);
     rlt::update(device, renderer);
-    // sample 0 near face at x=-0.5 (depth 4.5), sample 1 at x=-1 (depth 4.0)
-    EXPECT_NEAR(render_center_depth_static_camera(device, renderer), 4.25f, 1e-4f);
+    EXPECT_NEAR(render_center_depth_static_camera(device, renderer), 4.0f, 1e-4f);
 
     rlt::free(device, renderer);
 }
@@ -2156,7 +2149,8 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_PROBES){
     ASSERT_NE(rlt::data(renderer.collision_results), nullptr);
     EXPECT_EQ(probes[0].hit, 1); // camera 0, forward probe: overlay cube at distance 2
     EXPECT_NEAR(probes[0].distance, 2.0f, 1e-4f);
-    EXPECT_EQ(probes[OVERLAY_PROBE_SPEC::NUM_PROBES].hit, 0); // camera 1, forward probe: nothing
+    EXPECT_EQ(probes[OVERLAY_PROBE_SPEC::NUM_PROBES].hit, 0);
+    EXPECT_TRUE(rlt::is_miss(probes[OVERLAY_PROBE_SPEC::NUM_PROBES].distance));
 
     rlt::free(device, renderer);
 }
@@ -2227,4 +2221,107 @@ TEST(RL_TOOLS_SCENE_SUITE, OVERLAY_UPDATE_COST_SMOKE){
     rlt::log(device, device.logger, "overlay update+render (async launch) smoke: ", async_ms_per_step, " ms per step (64 overlays x 8 slots)");    EXPECT_LT(milliseconds / STEPS, 50.0); // loose regression tripwire, not a benchmark
 
     rlt::free(device, renderer);
+}
+
+namespace {
+    struct DEPTH_IMAGE_CONFIG: DEPTH_CONFIG{
+        static constexpr TI CAM_WIDTH = 16, CAM_HEIGHT = 16;
+        static constexpr bool OUTPUT_SEGMENTATION = true;
+    };
+    struct DEPTH_SAMPLED_CONFIG: DEPTH_IMAGE_CONFIG{
+        static constexpr bool ENABLE_MOTION_BLUR = true;
+        static constexpr TI MOTION_BLUR_SAMPLES = 4;
+        static constexpr bool ENABLE_ANTI_ALIASING = true;
+        static constexpr TI ANTI_ALIASING_GRID_SIZE = 3;
+    };
+
+    template <typename CONFIG>
+    std::vector<float> geometric_depth(T half_extent, std::vector<uint32_t>& segmentation){
+        using namespace rlt;
+        using SPEC = rlt::rendering::raytracing::Specification<CONFIG>;
+        DEVICE device;
+        init(device);
+        rlt::rendering::Bundle<T> bundle;
+        add(device, bundle.scene, make_cube(0, half_extent));
+        rlt::rendering::datasets::compute_bounds(device, bundle);
+        rlt::rendering::raytracing::Renderer<SPEC, BACKEND> renderer;
+        malloc(device, renderer);
+        init(device, renderer, bundle);
+        const T close_position[3] = {-half_extent - 4, 0.125f, 0.375f};
+        const T close_target[3] = {0, 0.125f, 0.375f};
+        set_test_camera(device, renderer, close_position, close_target);
+        if constexpr (SPEC::HAS_CAMERA_PAIR){
+            const T open_position[3] = {-half_extent - 8, 1, 2};
+            const T open_target[3] = {0, 1, 2};
+            const T up[3] = {0, 0, 1};
+            const auto camera_open = make_camera_data(open_position, open_target, up, FOV, (T)1);
+            golden::copy_in(device, renderer.device, &camera_open, cameras_open(device, renderer));
+        }
+        render(device, renderer);
+        std::vector<float> depth(SPEC::CAM_PIXELS);
+        segmentation.resize(SPEC::CAM_PIXELS);
+        read_output(device, renderer, depth_buffer(device, renderer), depth.data());
+        read_output(device, renderer, segmentation_buffer(device, renderer), segmentation.data());
+        free(device, renderer);
+        return depth;
+    }
+}
+
+TEST(RL_TOOLS_SCENE_SUITE, DEPTH_CAMERA_FORWARD){
+    std::vector<uint32_t> segmentation;
+    const auto depth = geometric_depth<DEPTH_IMAGE_CONFIG>(10, segmentation);
+    for(size_t pixel = 0; pixel < depth.size(); pixel++){
+        ASSERT_NE(segmentation[pixel], 0xFFFFFFFFu);
+        EXPECT_NEAR(depth[pixel], 4.f, 1e-5f);
+    }
+}
+
+TEST(RL_TOOLS_SCENE_SUITE, DEPTH_SINGLE_SAMPLE){
+    std::vector<uint32_t> segmentation, sampled_segmentation;
+    const auto depth = geometric_depth<DEPTH_IMAGE_CONFIG>(1, segmentation);
+    const auto sampled_depth = geometric_depth<DEPTH_SAMPLED_CONFIG>(1, sampled_segmentation);
+    ASSERT_EQ(depth.size(), sampled_depth.size());
+    EXPECT_EQ(std::memcmp(depth.data(), sampled_depth.data(), depth.size() * sizeof(float)), 0);
+    EXPECT_EQ(segmentation, sampled_segmentation);
+}
+
+TEST(RL_TOOLS_SCENE_SUITE, DEPTH_MISS_MATCHES_SEGMENTATION){
+    std::vector<uint32_t> segmentation;
+    const auto depth = geometric_depth<DEPTH_SAMPLED_CONFIG>(1, segmentation);
+    size_t misses = 0, hits = 0;
+    for(size_t pixel = 0; pixel < depth.size(); pixel++){
+        const bool miss = rlt::is_miss(depth[pixel]);
+        EXPECT_EQ(miss, segmentation[pixel] == 0xFFFFFFFFu);
+        if(miss){
+            misses++;
+        }
+        else{
+            hits++;
+            EXPECT_GT(depth[pixel], 0);
+        }
+    }
+    EXPECT_GT(misses, 0u);
+    EXPECT_GT(hits, 0u);
+}
+
+TEST(RL_TOOLS_SCENE_SUITE, LOW_SRGB){
+    using namespace rlt;
+    DEVICE device;
+    init(device);
+    rlt::rendering::Bundle<T> bundle;
+    add(device, bundle.scene, make_cube(0, 1));
+    rlt::rendering::datasets::compute_bounds(device, bundle);
+    Renderer renderer;
+    malloc(device, renderer);
+    init(device, renderer, bundle);
+    std::vector<uint32_t> pixels;
+    render_frame(device, renderer, pixels);
+    const uint32_t pixel = pixels[(SPEC::CAM_HEIGHT / 2) * SPEC::CAM_WIDTH + SPEC::CAM_WIDTH / 2];
+    const float linear[3] = {0.25f, 0.5f, 0.75f};
+    for(int channel = 0; channel < 3; channel++){
+        const int expected = (int)(255.f * (1.055f * std::pow(linear[channel], 1.f / 2.4f) - 0.055f));
+        EXPECT_NEAR((pixel >> (channel * 8)) & 255u, expected, 1);
+    }
+    EXPECT_EQ(pixel >> 24, 255u);
+    free(device, renderer);
 }

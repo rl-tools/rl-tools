@@ -7,7 +7,7 @@ import pytest
 gymnasium = pytest.importorskip("gymnasium")
 
 from hyperdrone.env import EnvConfig
-from hyperdrone.jit import source_root
+from hyperdrone._jit import source_root
 
 
 @pytest.fixture(scope="module")
@@ -23,7 +23,7 @@ def scene_directory(tmp_path_factory):
 def test_vector_env_api(scene_directory):
     from hyperdrone.gym import VectorEnv
 
-    config = EnvConfig(num_environments=1, instances=2, cam_width=16, cam_height=16)
+    config = EnvConfig(num_environments=1, instances_per_environment=2, width=16, height=16)
     env = VectorEnv(scene_directory, config=config, seed=11)
     try:
         assert env.num_envs == 2

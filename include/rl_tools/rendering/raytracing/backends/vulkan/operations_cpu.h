@@ -705,10 +705,6 @@ namespace rl_tools {
                 ctx->rgb_accumulator = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * 3 * sizeof(float), ACCUMULATOR, HOST_MEMORY, true);
                 renderer.rgb_accumulator._data = (float*)ctx->rgb_accumulator.mapped;
             }
-            if constexpr (SPEC::HAS_DEPTH) {
-                ctx->depth_accumulator = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * cam_pixels * sizeof(float), ACCUMULATOR, HOST_MEMORY, true);
-                renderer.depth_accumulator._data = (float*)ctx->depth_accumulator.mapped;
-            }
         }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         ctx->collision_results = vk::create_buffer(device, *ctx, (size_t)SPEC::NUM_CAMERAS * SPEC::NUM_PROBES * sizeof(rendering::raytracing::CollisionResult), STORAGE, HOST_MEMORY, true);
@@ -893,7 +889,6 @@ namespace rl_tools {
         params->num_cameras = SPEC::NUM_CAMERAS;
         params->num_probes = SPEC::NUM_PROBES;
         params->num_scene_lights = (uint32_t)scene_lights.size();
-        params->max_depth = renderer.max_ray_length > 0 ? renderer.max_ray_length : 1e30f;
         params->max_dist = renderer.max_ray_length;
         for(int component = 0; component < 3; component++){
             params->ambient_color[component] = (float)renderer.ambient_color[component];
@@ -1206,7 +1201,6 @@ namespace rl_tools {
                 VkBool32 has_observation;
                 VkBool32 dynamic_motion_blur;
                 VkBool32 resolve_rgb;
-                VkBool32 resolve_depth;
             };
             static_assert(sizeof(SpecializationData) == vk::specialization_constants::COUNT * 4);
             using CONSTANTS = rendering::raytracing::backends::SpecializationConstants<SPEC>;
@@ -1226,7 +1220,6 @@ namespace rl_tools {
             specialization_data.has_observation = CONSTANTS::HAS_OBSERVATION ? VK_TRUE : VK_FALSE;
             specialization_data.dynamic_motion_blur = CONSTANTS::DYNAMIC_MOTION_BLUR ? VK_TRUE : VK_FALSE;
             specialization_data.resolve_rgb = CONSTANTS::RESOLVE_RGB ? VK_TRUE : VK_FALSE;
-            specialization_data.resolve_depth = CONSTANTS::RESOLVE_DEPTH ? VK_TRUE : VK_FALSE;
             VkSpecializationMapEntry map_entries[vk::specialization_constants::COUNT];
             for(uint32_t constant_i = 0; constant_i < vk::specialization_constants::COUNT; constant_i++){
                 map_entries[constant_i] = {constant_i, constant_i * 4, 4};
@@ -1328,7 +1321,6 @@ namespace rl_tools {
             buffer_infos[vk::bindings::OVERLAY_ATTACHMENTS] = buffer_or_dummy(ctx.overlay_attachments);
             buffer_infos[vk::bindings::OVERLAY_NUM_ACTIVE] = buffer_or_dummy(ctx.overlay_num_active);
             buffer_infos[vk::bindings::RGB_ACCUMULATOR] = buffer_or_dummy(ctx.rgb_accumulator);
-            buffer_infos[vk::bindings::DEPTH_ACCUMULATOR] = buffer_or_dummy(ctx.depth_accumulator);
             buffer_infos[vk::bindings::NORMALS_BUFFER] = buffer_or_dummy(ctx.normals_buffer);
             buffer_infos[vk::bindings::FLOW_BUFFER] = buffer_or_dummy(ctx.flow_buffer);
             buffer_infos[vk::bindings::FLOW_DELTAS] = buffer_or_dummy(ctx.flow_deltas);
@@ -1785,9 +1777,6 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_RGB){
                 vkCmdFillBuffer(command_buffer, ctx.rgb_accumulator.buffer, 0, VK_WHOLE_SIZE, 0);
             }
-            if constexpr (SPEC::HAS_DEPTH){
-                vkCmdFillBuffer(command_buffer, ctx.depth_accumulator.buffer, 0, VK_WHOLE_SIZE, 0);
-            }
             barrier(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_WRITE_BIT,
                     VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
 
@@ -1846,10 +1835,6 @@ namespace rl_tools {
                     vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, ctx.rgb_pipeline);
                     vkCmdDispatch(command_buffer, fb_groups_x, fb_groups_y, 1);
                 }
-                if constexpr (SPEC::HAS_DEPTH){
-                    vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, ctx.depth_pipeline);
-                    vkCmdDispatch(command_buffer, fb_groups_x, fb_groups_y, 1);
-                }
                 // WAR: the in-place rebuild of the next sample must wait for this pass's ray
                 // queries, and its accumulator writes must be visible to the next pass
                 barrier(VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
@@ -1859,6 +1844,10 @@ namespace rl_tools {
             record_builds([&](TI overlay){ return vk::buffer_address(ctx, ctx.overlay_instance_buffers[overlay]); });
             barrier(VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR, VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,
                     VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR);
+            if constexpr (SPEC::HAS_DEPTH){
+                vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, ctx.depth_pipeline);
+                vkCmdDispatch(command_buffer, fb_groups_x, fb_groups_y, 1);
+            }
             if constexpr (SPEC::HAS_SEGMENTATION){
                 vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, ctx.segmentation_pipeline);
                 vkCmdDispatch(command_buffer, fb_groups_x, fb_groups_y, 1);
@@ -1969,7 +1958,6 @@ namespace rl_tools {
             vk::destroy_buffer(ctx, ctx.collision_results);
             vk::destroy_buffer(ctx, ctx.probe_directions);
             vk::destroy_buffer(ctx, ctx.rgb_accumulator);
-            vk::destroy_buffer(ctx, ctx.depth_accumulator);
             vk::destroy_buffer(ctx, ctx.dummy);
             if(ctx.rgb_pipeline != VK_NULL_HANDLE){ vkDestroyPipeline(ctx.device, ctx.rgb_pipeline, nullptr); }
             if(ctx.depth_pipeline != VK_NULL_HANDLE){ vkDestroyPipeline(ctx.device, ctx.depth_pipeline, nullptr); }
@@ -2040,9 +2028,6 @@ namespace rl_tools {
             free(device, renderer.transforms_motion);
             if constexpr (SPEC::HAS_RGB) {
                 renderer.rgb_accumulator._data = nullptr;
-            }
-            if constexpr (SPEC::HAS_DEPTH) {
-                renderer.depth_accumulator._data = nullptr;
             }
         }
     }

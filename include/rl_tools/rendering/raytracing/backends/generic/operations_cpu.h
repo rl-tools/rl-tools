@@ -150,9 +150,6 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_RGB) {
                 malloc(device, renderer.rgb_accumulator);
             }
-            if constexpr (SPEC::HAS_DEPTH) {
-                malloc(device, renderer.depth_accumulator);
-            }
         }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS
         malloc(device, renderer.collision_results);
@@ -204,9 +201,6 @@ namespace rl_tools {
         if constexpr (SPEC::ENABLE_DYNAMIC_MOTION_BLUR) {
             if constexpr (SPEC::HAS_RGB) {
                 backend_state->scene.rgb_accumulation = data(renderer.rgb_accumulator);
-            }
-            if constexpr (SPEC::HAS_DEPTH) {
-                backend_state->scene.depth_accumulation = data(renderer.depth_accumulator);
             }
         }
         if constexpr (SPEC::ENABLE_OVERLAYS) {
@@ -438,7 +432,6 @@ namespace rl_tools {
             backend_state.scene.miss_color_0[component] = renderer.miss_color_0[component];
             backend_state.scene.miss_color_1[component] = renderer.miss_color_1[component];
         }
-        backend_state.scene.max_depth = renderer.max_ray_length > 0 ? renderer.max_ray_length : 1e30f;
         backend_state.scene.max_dist = renderer.max_ray_length;
 
         if constexpr (SPEC::ENABLE_OVERLAYS){
@@ -595,25 +588,19 @@ namespace rl_tools {
             if constexpr (SPEC::HAS_RGB) {
                 std::memset(data(renderer.rgb_accumulator), 0, decltype(renderer.rgb_accumulator)::SPEC::SIZE_BYTES);
             }
-            if constexpr (SPEC::HAS_DEPTH) {
-                std::memset(data(renderer.depth_accumulator), 0, decltype(renderer.depth_accumulator)::SPEC::SIZE_BYTES);
-            }
             for(TI sample = 0; sample < SPEC::MOTION_BLUR_SAMPLES; sample++){
                 generic::rebuild_overlay_instances(device, renderer, data(renderer.transforms_motion) + sample * SLAB);
                 const T shutter_t = ((T)sample + (T)0.5) / (T)SPEC::MOTION_BLUR_SAMPLES;
                 if constexpr (SPEC::HAS_RGB) {
-                    generic::render_frame_accumulate<DEVICE, SPEC, generic::OutputRGB>(device, generic::state(renderer).scene, shutter_t);
-                }
-                if constexpr (SPEC::HAS_DEPTH) {
-                    generic::render_frame_accumulate<DEVICE, SPEC, generic::OutputDepth>(device, generic::state(renderer).scene, shutter_t);
+                    generic::render_frame_accumulate<DEVICE, SPEC>(device, generic::state(renderer).scene, shutter_t);
                 }
             }
             generic::rebuild_overlay_instances(device, renderer, data(renderer.transforms));
             if constexpr (SPEC::HAS_RGB) {
-                generic::resolve_frame<DEVICE, SPEC, generic::OutputRGB>(device, generic::state(renderer).scene);
+                generic::resolve_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
             }
             if constexpr (SPEC::HAS_DEPTH) {
-                generic::resolve_frame<DEVICE, SPEC, generic::OutputDepth>(device, generic::state(renderer).scene);
+                generic::render_depth_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
             }
             if constexpr (SPEC::HAS_SEGMENTATION) {
                 generic::render_segmentation_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
@@ -630,10 +617,10 @@ namespace rl_tools {
             return;
         }
         if constexpr (SPEC::HAS_RGB) {
-            generic::render_frame<DEVICE, SPEC, generic::OutputRGB>(device, generic::state(renderer).scene);
+            generic::render_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
         }
         if constexpr (SPEC::HAS_DEPTH) {
-            generic::render_frame<DEVICE, SPEC, generic::OutputDepth>(device, generic::state(renderer).scene);
+            generic::render_depth_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
         }
         if constexpr (SPEC::HAS_SEGMENTATION) {
             generic::render_segmentation_frame<DEVICE, SPEC>(device, generic::state(renderer).scene);
@@ -714,9 +701,6 @@ namespace rl_tools {
             free(device, renderer.transforms_motion);
             if constexpr (SPEC::HAS_RGB) {
                 free(device, renderer.rgb_accumulator);
-            }
-            if constexpr (SPEC::HAS_DEPTH) {
-                free(device, renderer.depth_accumulator);
             }
         }
 #if !RL_TOOLS_RENDERING_RAYTRACING_DISABLE_PROBE_RAYS

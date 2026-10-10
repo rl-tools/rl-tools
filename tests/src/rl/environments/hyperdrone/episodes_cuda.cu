@@ -143,21 +143,29 @@ static void trace_rollout(DEVICE& device, COMPUTE_DEVICE& device_compute, WORLD&
             EXPECT_TRUE(rlt::get(device, reset_host, 1));
             const TI history_step = world.history_step;
             prologue(device_compute, dataset_compute, runner, world, rng);
-            EXPECT_EQ(world.history_step, history_step + 1);
+            EXPECT_EQ(world.history_step, history_step);
             EXPECT_FALSE(world.render_pending);
             rlt::copy(device_compute, device, world.episode_start, episode_step_host);
-            EXPECT_EQ(rlt::get(device, episode_step_host, 0), history_step);
-            EXPECT_EQ(rlt::get(device, episode_step_host, 1), history_step);
+            EXPECT_EQ(rlt::get(device, episode_step_host, 0), history_step - 1);
+            EXPECT_EQ(rlt::get(device, episode_step_host, 1), history_step - 1);
             rlt::copy(device_compute, device, world.render_reset, reset_host);
-            for(TI i = 0; i < INSTANCES; i++) EXPECT_FALSE(rlt::get(device, reset_host, i));
+            for(TI i = 0; i < INSTANCES; i++){
+                EXPECT_EQ(rlt::get(device, reset_host, i), i < 2);
+            }
             prologue(device_compute, dataset_compute, runner, world, rng);
-            EXPECT_EQ(world.history_step, history_step + 1);
+            EXPECT_EQ(world.history_step, history_step);
         }
         rlt::copy(device_compute, device, runner.reset, reset_host);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
             trace.reset[step_i][instance_i] = rlt::get(device, reset_host, instance_i);
         }
         epilogue(device_compute, dataset_compute, runner, buffer, world, rng, step_i);
+        if(step_i == 2){
+            rlt::copy(device_compute, device, world.render_reset, reset_host);
+            for(TI i = 0; i < INSTANCES; i++){
+                EXPECT_EQ(rlt::get(device, reset_host, i), i >= 2);
+            }
+        }
         rlt::copy(device_compute, device, runner.episode_step, episode_step_host);
         rlt::copy(device_compute, device, buffer.terminated, terminated_host);
         for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){

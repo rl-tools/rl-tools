@@ -52,6 +52,7 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
 - **Spec-driven observation output.** With `OUTPUT_OBSERVATION`, the RGB ray gen writes float
   pixels (frame-buffer color before 8-bit quantization) directly to `observation()` — no
   format-conversion pass. The packed `uint32` frame buffer remains the video/golden output.
+- **Depth output.** `depth_buffer()` contains metric camera-forward distance (+X in FLU), traced at pixel center and shutter close independently of RGB anti-aliasing or motion blur. Depth and collision-probe misses are positive infinity; probe hit flags remain the validity mask.
 - **Normals output.** With `OUTPUT_NORMALS`, a segmentation-style single-sample pass
   (shutter-close camera, pixel-center ray) writes the world-frame (FLU) geometric unit normal
   of the hit surface, oriented against the ray, as float3 per pixel to `normals_buffer()`
@@ -66,7 +67,7 @@ horizontal = Y, image vertical = Z. GLB meshes (Y-up) are swizzled to FLU at loa
   overlay acceleration structures from the per-sample `transforms_motion()` slabs between
   passes (camera lerped at the same `(i+0.5)/N` shutter times), accumulating linear radiance
   per pixel (each thread owns its pixel — no atomics), then restores the shutter-close overlay
-  state (segmentation and probes stay single-sample at shutter close, ids unchanged) and
+  state (depth, segmentation and probes stay single-sample at shutter close, ids unchanged) and
   resolves with the standard transfer curve + quantization. `set_transform_pair` expands a
   rigid shutter-open/close pose into the samples by constant-twist screw interpolation
   (`rendering::screw_interpolate`: exact for constant-velocity rigid motion below 180° per

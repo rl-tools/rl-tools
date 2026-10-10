@@ -9,7 +9,7 @@ import pytest
 
 from hyperdrone import examples
 from hyperdrone.env import EnvConfig, MultiEnvironment
-from hyperdrone.jit import cache_root, source_root
+from hyperdrone._jit import cache_root, source_root
 
 WRITEFILE = "%%writefile my_task.h\n"
 
@@ -23,6 +23,7 @@ def orbiter_header():
     header = cache_root() / "orbiter" / "my_task.h"
     header.parent.mkdir(parents=True, exist_ok=True)
     content = source[len(WRITEFILE):]
+    assert content == (Path(__file__).parent / "user_task_header.h").read_text()
     if not header.exists() or header.read_text() != content:
         header.write_text(content)
     return header
@@ -33,14 +34,13 @@ def test_orbiter_task(orbiter_header):
     scene, asset = data / "ProcTHOR-Train-1.glb", data / "x500.glb"
     if not scene.exists() or not asset.exists():
         pytest.skip(f"no ProcTHOR scene or x500 asset in {data}")
-    lazy, explicit = (MultiEnvironment([scene], config=EnvConfig(spec_header=str(orbiter_header)), seed=0, drone_asset=asset, gate_asset=asset) for _ in range(2))
+    lazy, explicit = (MultiEnvironment([scene], config=EnvConfig(spec_header=str(orbiter_header)), seed=0, drone_asset=asset, assets={"orbiter": asset}) for _ in range(2))
     try:
         assert lazy.device == "cpu"
         reset_all = np.ones(lazy.total_instances, dtype=bool)
         hold = np.zeros((lazy.total_instances, lazy.action_dim), dtype=np.float32)
         for env in (lazy, explicit):
             env.reset(reset_all)
-            env.render(reset_all)
             first = env.observe()
             env.step(hold)
         assert np.isfinite(first).all() and first.std() > 0
@@ -49,7 +49,6 @@ def test_orbiter_task(orbiter_header):
         assert not lazy.terminated().any()
         # a frame observed without an explicit render goes through the task's render, which
         # moves the object, like the explicit one
-        explicit.render(np.zeros(explicit.total_instances, dtype=bool))
         np.testing.assert_array_equal(lazy.observe(), explicit.observe())
     finally:
         lazy.close()

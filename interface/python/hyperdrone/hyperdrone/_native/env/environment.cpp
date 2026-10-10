@@ -69,7 +69,7 @@ namespace HYPERDRONE_MODULE_NAME {
             constexpr TI WIDTH = WORLD::SPEC::CAM_WIDTH;
             const bool in_place = resident(self, out, TOTAL * WORLD::N_AGENTS * HEIGHT * WIDTH * CHANNELS);
             if(out.ndim() != (CHANNELS == 1 ? 4 : 5) || out.shape(0) != TOTAL || out.shape(1) != WORLD::N_AGENTS || out.shape(2) != HEIGHT || out.shape(3) != WIDTH || (CHANNELS > 1 && out.shape(4) != CHANNELS)){
-                throw std::invalid_argument("hyperdrone: image output must have shape (total_instances, n_agents, height, width[, channels])");
+                throw std::invalid_argument("hyperdrone: image output must have shape (total_instances, num_agents, height, width[, channels])");
             }
             nb::gil_scoped_release release;
             (self.*VERB)(out.data(), in_place);
@@ -94,13 +94,14 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     m.attr("observation_layout_privileged") = layout_dict(observation_layout_privileged());
     m.attr("CUDA_WORLD") = CUDA_WORLD;
     m.attr("render_backend") = rlt::rendering::raytracing::backends::name<typename WORLD::RENDERER::BACKEND>();
+    m.attr("synchronized_resets") = SynchronizedResets<WORLD>::VALUE;
     nb::dict dimensions;
     dimensions["num_environments"] = NUM_ENVIRONMENTS;
     dimensions["instances_per_environment"] = WORLD::INSTANCES;
     dimensions["total_instances"] = TOTAL;
-    dimensions["n_agents"] = WORLD::N_AGENTS;
-    dimensions["cam_width"] = WORLD::SPEC::CAM_WIDTH;
-    dimensions["cam_height"] = WORLD::SPEC::CAM_HEIGHT;
+    dimensions["num_agents"] = WORLD::N_AGENTS;
+    dimensions["width"] = WORLD::SPEC::CAM_WIDTH;
+    dimensions["height"] = WORLD::SPEC::CAM_HEIGHT;
     dimensions["image_channels"] = WORLD::IMAGE_CHANNELS;
     dimensions["observation_dim"] = WORLD::OBSERVATION_DIM;
     dimensions["observation_dim_privileged"] = WORLD::OBSERVATION_DIM_PRIVILEGED;
@@ -108,7 +109,7 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     dimensions["episode_step_limit"] = WORLD::EPISODE_STEP_LIMIT;
     dimensions["observation_dim_imu"] = OBSERVATION_DIM_IMU;
     dimensions["frame_stride"] = FrameStride<WORLD>::VALUE;
-    dimensions["max_drones"] = WORLD::SPEC::MAX_DRONES;
+    dimensions["max_drone_types"] = WORLD::SPEC::MAX_DRONES;
     dimensions["self_visible"] = WORLD::SPEC::SELF_VISIBLE;
     m.attr("dimensions") = dimensions;
     nb::list outputs;
@@ -133,7 +134,7 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
     auto environment_class = nb::class_<Environment>(m, "Environment");
     environment_class
         .def(nb::init<>())
-        .def("init", &Environment::init, nb::arg("scenes"), nb::arg("drone_assets"), nb::arg("drone_parameters"), nb::arg("gate_asset"), nb::arg("seed"), nb::call_guard<nb::gil_scoped_release>())
+        .def("init", &Environment::init, nb::arg("scenes"), nb::arg("drone_assets"), nb::arg("drone_parameters"), nb::arg("assets"), nb::arg("seed"), nb::call_guard<nb::gil_scoped_release>())
         .def_prop_ro("segmentation_taxonomy", &Environment::segmentation_taxonomy)
         .def_prop_ro("segmentation_classes", &Environment::segmentation_classes)
         .def("parameters", &Environment::parameters_json, nb::call_guard<nb::gil_scoped_release>())
@@ -153,12 +154,6 @@ NB_MODULE(HYPERDRONE_MODULE_NAME, m){
             nb::gil_scoped_release release;
             self.reset(pointer, in_place, spawn_points);
         }, nb::arg("mask").none().noconvert(), nb::arg("spawn_points") = "")
-        .def("render", [](Environment& self, std::optional<Mask> mask){
-            const bool in_place = !mask || resident(self, *mask, TOTAL);
-            const bool* pointer = mask ? mask->data() : nullptr;
-            nb::gil_scoped_release release;
-            self.render(pointer, in_place);
-        }, nb::arg("mask").none().noconvert())
         .def("step", [](Environment& self, Actions actions){
             const bool in_place = resident(self, actions, TOTAL * WORLD::ACTION_DIM);
             nb::gil_scoped_release release;

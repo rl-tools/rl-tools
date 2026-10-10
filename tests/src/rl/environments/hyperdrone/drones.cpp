@@ -59,6 +59,7 @@ namespace test_drones {
         }
         void arrange(const std::vector<TI>& drones){
             test_drones::arrange(device, parameters, states, shared.drones, drones);
+            rlt::request_render(device, world);
         }
         void render(bool reset){
             rlt::set_all(device, reset_mask, reset);

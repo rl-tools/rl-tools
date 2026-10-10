@@ -11,7 +11,7 @@ from hyperdrone import render
 from hyperdrone.env import EnvConfig, MultiEnvironment
 
 
-CONFIG = EnvConfig(instances=2, cam_width=16, cam_height=16, shading="low",
+CONFIG = EnvConfig(instances_per_environment=2, width=16, height=16, fidelity="low",
                    output=("rgb", "segmentation"), semantic_segmentation=True, device="cpu")
 CLASSES = {0: "Unknown", 7: "Room"}
 
@@ -58,7 +58,7 @@ def test_dataset_config():
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_shared_taxonomy_and_rotation(tmp_path, device):
-    if device == "cuda" and render._backend() != "OPTIX":
+    if device == "cuda" and render._backend() != "optix":
         pytest.skip("CUDA Worlds require OptiX")
     first = room_glb(tmp_path / "first.glb")
     second = room_glb(tmp_path / "second.glb", extent=6)
@@ -151,7 +151,7 @@ def test_custom_world_metadata(tmp_path):
 """)
     header = tmp_path / "semantic.h"
     header.write_text(source)
-    from hyperdrone.jit import source_root
+    from hyperdrone._jit import source_root
     asset = source_root() / "tests" / "data" / "x500.glb"
     if not asset.exists():
         pytest.skip("no x500 test asset")

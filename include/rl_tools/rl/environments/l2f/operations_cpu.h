@@ -877,6 +877,12 @@ namespace rl_tools{
     template <typename DEVICE, typename SPEC, typename T_T, typename T_TI, T_TI N>
     void from_json(DEVICE& device, rl::environments::Multirotor<SPEC>& env, nlohmann::json json_object, rl::environments::l2f::parameters::Dynamics<T_T, T_TI, N>& parameters){
         using TI = typename DEVICE::index_t;
+        for(const char* key : {"rotor_positions", "rotor_thrust_directions", "rotor_torque_directions", "rotor_thrust_coefficients", "rotor_torque_constants", "rotor_time_constants_rising", "rotor_time_constants_falling"}){
+            const auto& values = json_object.at(key);
+            if(!values.is_array() || values.size() != N){
+                throw std::runtime_error(std::string("l2f::parameters::Dynamics: ") + key + " has " + std::to_string(values.size()) + " entries, expected " + std::to_string(N));
+            }
+        }
         for (TI i = 0; i < N; i++){
             parameters.rotor_positions[i][0] = json_object["rotor_positions"][i][0];
             parameters.rotor_positions[i][1] = json_object["rotor_positions"][i][1];

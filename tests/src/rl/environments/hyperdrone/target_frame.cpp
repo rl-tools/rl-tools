@@ -239,6 +239,8 @@ void bank_and_stack_semantics(){
 
     // step 1: no reset, drone moved — the target block stays byte-identical, the stack shifts
     rlt::set_all(device, tensors.reset_mask, false);
+    rlt::step(device, world, tensors.parameters, tensors.states, tensors.actions, tensors.next_states, rng);
+    rlt::copy(device, device, tensors.next_states, tensors.states);
     for(TI instance_i = 0; instance_i < INSTANCES; instance_i++){
         typename WORLD::State state = rlt::get(device, tensors.states, instance_i);
         state.position[0] += (T)0.2;

@@ -9,7 +9,7 @@ from test_multi_environment import scene_directory
 
 
 OUTPUTS = ("rgb", "depth", "segmentation", "normals", "flow")
-CONFIG = EnvConfig(instances=2, cam_width=16, cam_height=16, shading="low", output=OUTPUTS)
+CONFIG = EnvConfig(instances_per_environment=2, width=16, height=16, fidelity="low", output=OUTPUTS)
 
 
 def test_environment_output_config():
@@ -24,12 +24,11 @@ def test_environment_output_config():
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 @pytest.mark.parametrize("task", [None, "target_frame"])
 def test_environment_capture_and_partial_reset(scene_directory, device, task):
-    if device == "cuda" and render._backend() != "OPTIX":
+    if device == "cuda" and render._backend() != "optix":
         pytest.skip("CUDA Worlds require OptiX")
     env = MultiEnvironment(scene_directory, config=replace(CONFIG, device=device, task=task), seed=9)
     try:
         env.reset()
-        env.render()
         assert env.outputs == OUTPUTS
         assert env.image_channels == 3
         assert env.segmentation_mode == "instance"
@@ -54,7 +53,6 @@ def test_environment_capture_and_partial_reset(scene_directory, device, task):
         actions = np.zeros((2, env.action_dim), dtype=np.float32)
         for _ in range(15):
             env.step(actions)
-        env.render()
         moved = env.flow()
         valid = env.flow_status() == render.FlowStatus.VALID
         assert np.max(np.abs(moved[valid])) > 0.01
@@ -68,6 +66,12 @@ def test_environment_capture_and_partial_reset(scene_directory, device, task):
         env.observe()
         np.testing.assert_array_equal(flow, env.flow())
         env.rotate_scene()
+        with pytest.raises(RuntimeError, match="reset every instance"):
+            env.flow()
+        env.reset([True, False])
+        with pytest.raises(RuntimeError, match="reset every instance"):
+            env.observe()
+        env.reset([False, True])
         np.testing.assert_allclose(env.flow(), 0, atol=2e-4)
     finally:
         env.close()
@@ -90,7 +94,7 @@ def test_auxiliary_outputs_preserve_rgb_observations(scene_directory):
 
 
 def test_environment_cuda_image_outputs(scene_directory):
-    if render._backend() != "OPTIX":
+    if render._backend() != "optix":
         pytest.skip("CUDA arrays require OptiX")
     torch = pytest.importorskip("torch")
     if not torch.cuda.is_available():
@@ -98,7 +102,6 @@ def test_environment_cuda_image_outputs(scene_directory):
     env = MultiEnvironment([scene_directory / "ProcTHOR-Train-1.glb"] * 2, config=replace(CONFIG, num_environments=2, device="cuda"), seed=3)
     try:
         env.reset()
-        env.render()
         stream = torch.cuda.Stream()
         env.stream = stream.cuda_stream
         for name in ("depth", "segmentation", "normals", "flow", "flow_status"):
@@ -115,10 +118,10 @@ def test_environment_cuda_image_outputs(scene_directory):
 @pytest.mark.parametrize("semantic", [False, True])
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, semantic, device):
-    if device == "cuda" and render._backend() != "OPTIX":
+    if device == "cuda" and render._backend() != "optix":
         pytest.skip("CUDA Worlds require OptiX")
     from pathlib import Path
-    from hyperdrone.jit import source_root
+    from hyperdrone._jit import source_root
 
     asset = source_root() / "tests" / "data" / "x500.glb"
     if not asset.exists():
@@ -144,16 +147,14 @@ def test_custom_world_multi_agent_motion_blur(scene_directory, tmp_path, semanti
         assert env.outputs == OUTPUTS
         assert env.segmentation_mode == ("semantic" if semantic else "instance")
         env.reset()
-        env.render()
         assert env.flow().shape == (2, 2, 16, 16, 2)
         np.testing.assert_allclose(env.flow(), 0, atol=1e-3)
         for _ in range(5):
             env.step(np.ones((2, env.action_dim), dtype=np.float32))
-        env.render()
         assert np.any(np.abs(env.flow()) > 0.001)
-        env.render(np.array([True, False]))
+        env.reset(np.array([True, False]))
         np.testing.assert_allclose(env.flow()[0], 0, atol=1e-3)
-        assert np.isfinite(env.depth()).all()
+        assert not np.isnan(env.depth()).any()
         assert np.isfinite(env.normals()).all()
     finally:
         env.close()
@@ -164,11 +165,9 @@ def test_flow_between_intermittent_captures(scene_directory):
     env = MultiEnvironment(scene_directory, config=config, seed=5)
     try:
         env.reset()
-        env.render()
         captured = env.flow()
         for step in range(1, env.frame_stride * 3 + 1):
             env.step()
-            env.render()
             flow = env.flow()
             if step % env.frame_stride:
                 np.testing.assert_array_equal(flow, captured)

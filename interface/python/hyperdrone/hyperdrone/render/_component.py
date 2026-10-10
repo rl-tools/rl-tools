@@ -3,8 +3,8 @@ import platform
 import shutil
 import sys
 
-from .. import jit
-from ..jit._toolchain import cuda_available
+from .. import _jit as jit
+from .._jit._toolchain import cuda_available
 
 BACKENDS = ("OPTIX", "METAL", "VULKAN", "WEBGPU", "GENERIC")
 
@@ -27,10 +27,10 @@ def _backend():
     if value == "AUTO":
         value = resolve_auto_backend()
     if value not in BACKENDS:
-        raise jit.BuildError(
+        raise ValueError(
             f"hyperdrone: invalid HYPERDRONE_RENDER_BACKEND {value} (OPTIX|METAL|VULKAN|WEBGPU|GENERIC)"
         )
-    return value
+    return value.lower()
 
 
 def component():
@@ -39,7 +39,7 @@ def component():
         name="render",
         variant=resolved.lower(),
         core_target="hyperdrone_render_core",
-        needs_cuda=resolved == "OPTIX",
+        needs_cuda=resolved == "optix",
     )
 
 

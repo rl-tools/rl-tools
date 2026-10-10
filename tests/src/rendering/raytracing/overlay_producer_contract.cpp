@@ -101,7 +101,14 @@ namespace producer_contract {
         Difference counts;
         for(std::size_t pixel = 0; pixel < first.rgb.size(); pixel++){
             counts.rgb += first.rgb[pixel] != second.rgb[pixel];
-            counts.depth += std::fabs(first.depth[pixel] - second.depth[pixel]) > depth_epsilon;
+            const bool first_miss = rlt::is_miss(first.depth[pixel]);
+            const bool second_miss = rlt::is_miss(second.depth[pixel]);
+            if(first_miss || second_miss){
+                counts.depth += first_miss != second_miss;
+            }
+            else{
+                counts.depth += std::fabs(first.depth[pixel] - second.depth[pixel]) > depth_epsilon;
+            }
         }
         return counts;
     }

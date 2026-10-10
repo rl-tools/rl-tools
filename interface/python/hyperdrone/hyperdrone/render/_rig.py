@@ -16,12 +16,12 @@ def _rows(value, count, what):
     return array
 
 
-def _output(out, shape):
+def _output(out, shape, dtype=np.float32):
     if out is None:
-        return np.empty(shape, dtype=np.float32)
-    if (not isinstance(out, np.ndarray) or out.dtype != np.float32 or out.shape != shape
-            or not out.flags.c_contiguous or not out.flags.writeable):
-        raise ValueError(f"out must be a writable, C-contiguous float32 array with shape {shape}")
+        return np.empty(shape, dtype=dtype)
+    if (not isinstance(out, np.ndarray) or out.dtype != dtype or out.shape != shape
+            or not out.flags.c_contiguous or not out.flags.writeable or not out.flags.aligned):
+        raise ValueError(f"out must be a writable, aligned, C-contiguous {np.dtype(dtype)} array with shape {shape}")
     return out
 
 
@@ -39,7 +39,7 @@ class Rig:
     coordinate_slices.
     """
 
-    def __init__(self, parents, joints=None, axes=None, origins=None, part_links=None, offsets=None):
+    def __init__(self, parents, joints=None, *, axes=None, origins=None, part_links=None, offsets=None):
         parents = np.asarray(parents)
         if parents.ndim != 1 or parents.size == 0 or not np.issubdtype(parents.dtype, np.integer):
             raise ValueError("parents must be a nonempty vector of integer link indices (-1 for the base)")
@@ -85,7 +85,7 @@ class Rig:
         return self._default_coordinates.copy()
 
     @classmethod
-    def from_assembly(cls, assembly, joints=None):
+    def from_assembly(cls, assembly, *, joints=None):
         """One link per part at its rest frame (relative to the enclosing part when the loader
         recorded one); joints maps part names to (type, axis) to articulate them. At the
         default coordinates the rig reproduces what Renderer.set_transform renders."""

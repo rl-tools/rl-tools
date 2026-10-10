@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from .. import jit
+from .. import _jit as jit
 
 MODELS = (
     "crazyflie",
@@ -21,22 +21,21 @@ STATE_COMPONENTS = {
     "orientation": (1, 4),
     "linear_velocity": (2, 3),
     "angular_velocity": (3, 3),
-    "rpm": (4, 4),
+    "motor_command": (4, 4),
 }
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, kw_only=True)
 class SimConfig:
     num_drones: int
-    domain_randomization: bool
 
     def __post_init__(self):
-        if self.num_drones < 1:
-            raise ValueError("num_drones must be >= 1")
+        if type(self.num_drones) is not int or self.num_drones < 1:
+            raise ValueError("num_drones must be a positive integer")
 
     def canonical(self):
         # must match build_config_string() in _native/dynamics/impl.cpp exactly
-        return f"n={self.num_drones};dr={1 if self.domain_randomization else 0}"
+        return f"n={self.num_drones}"
 
     def key(self):
         return jit.canonical_key(self.canonical())
@@ -44,5 +43,4 @@ class SimConfig:
     def defines(self):
         return {
             "HYPERDRONE_DYNAMICS_NUM_DRONES": self.num_drones,
-            "HYPERDRONE_DYNAMICS_DOMAIN_RANDOMIZATION": 1 if self.domain_randomization else 0,
         }

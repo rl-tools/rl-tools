@@ -27,7 +27,6 @@ constant bool fc_has_observation [[function_constant(12)]];
 // binding and adds its linear mean into the accumulation buffers, resolved by resolve_outputs
 constant bool fc_dynamic_motion_blur [[function_constant(13)]];
 constant bool fc_resolve_rgb [[function_constant(14)]];
-constant bool fc_resolve_depth [[function_constant(15)]];
 constant bool fc_resolve_observation = fc_resolve_rgb && fc_has_observation;
 
 struct LaunchParams{
@@ -39,7 +38,6 @@ struct LaunchParams{
     uint num_cameras;
     uint num_probes;
     uint num_scene_lights;
-    float max_depth;
     float max_dist;
     packed_float3 ambient_color;
     packed_float3 miss_color_0;
@@ -48,7 +46,7 @@ struct LaunchParams{
     uint num_overlay_slots;
     float padding[1];
 };
-static_assert(sizeof(LaunchParams) == 88, "LaunchParams layout must match context.h");
+static_assert(sizeof(LaunchParams) == 84, "LaunchParams layout must match context.h");
 
 struct MeshRecord{
     device const packed_int3* index;
@@ -264,11 +262,6 @@ inline bool trace_shadow_occluded(thread const TraceContext& ctx, float3 pos, fl
     return hit.type != intersection_type::none;
 }
 
-inline float trace_depth_distance(instance_acceleration_structure accel, device const OverlayStructure* overlays, device const uint* attachments, int camera, float3 pos, float3 direction, float max_depth){
-    ray r(pos, direction, 0.f, max_depth);
-    intersection_result<triangle_data, instancing> hit = intersect_composed(accel, overlays, attachments, camera, r, false);
-    return hit.type == intersection_type::none ? max_depth : hit.distance;
-}
 
 template <int DEPTH>
 struct RGBTracer;
@@ -639,57 +632,28 @@ kernel void render_rgb(
 kernel void render_depth(
     constant LaunchParams& params [[buffer(0)]],
     device const Camera* cameras_close [[buffer(1)]],
-    device const Camera* cameras_open [[buffer(2)]],
-    device float* depth_out [[buffer(3)]],
+    device uint* depth_out [[buffer(3)]],
     instance_acceleration_structure accel [[buffer(8)]],
     device const OverlayStructure* overlays [[buffer(11)]],
     device const uint* overlay_attachments [[buffer(12)]],
-    device float* depth_accumulation [[buffer(16), function_constant(fc_dynamic_motion_blur)]],
-    constant float& shutter [[buffer(17), function_constant(fc_dynamic_motion_blur)]],
     uint2 pixel_id [[thread_position_in_grid]])
 {
     const PixelLaunchContext ctx = pixel_launch_context(params, pixel_id);
-    if (!ctx.valid)
-        return;
-
-    float accumulated = 0.f;
-    const float inv_aa_grid = 1.f / float(fc_aa_grid);
-    const int motion_samples = fc_dynamic_motion_blur ? 1 : fc_motion_samples;
-    for (int motion_i = 0; motion_i < motion_samples; motion_i++) {
-        float3 pos;
-        float3 dir_00;
-        float3 dir_du;
-        float3 dir_dv;
-        if (fc_motion_blur) {
-            device const Camera& cam_open = cameras_open[ctx.cam_idx];
-            device const Camera& cam_close = cameras_close[ctx.cam_idx];
-            const float shutter_t = fc_dynamic_motion_blur ? shutter : (float(motion_i) + .5f) * (1.f / float(fc_motion_samples));
-            pos = lerp_camera_vec(float3(cam_open.pos), float3(cam_close.pos), shutter_t);
-            dir_00 = lerp_camera_vec(float3(cam_open.dir_00), float3(cam_close.dir_00), shutter_t);
-            dir_du = lerp_camera_vec(float3(cam_open.dir_du), float3(cam_close.dir_du), shutter_t);
-            dir_dv = lerp_camera_vec(float3(cam_open.dir_dv), float3(cam_close.dir_dv), shutter_t);
-        }
-        else {
-            device const Camera& cam = cameras_close[ctx.cam_idx];
-            pos = float3(cam.pos);
-            dir_00 = float3(cam.dir_00);
-            dir_du = float3(cam.dir_du);
-            dir_dv = float3(cam.dir_dv);
-        }
-        for (int aa_y = 0; aa_y < fc_aa_grid; aa_y++) {
-            for (int aa_x = 0; aa_x < fc_aa_grid; aa_x++) {
-                const float2 screen = (float2(ctx.local_x, ctx.local_y) + float2((float(aa_x) + .5f) * inv_aa_grid, (float(aa_y) + .5f) * inv_aa_grid)) / float2(params.cam_width, params.cam_height);
-                const float3 direction = normalize(dir_00 + screen.x * dir_du + screen.y * dir_dv);
-                accumulated += trace_depth_distance(accel, overlays, overlay_attachments, ctx.cam_idx, pos, direction, params.max_depth);
-            }
-        }
-    }
-    const int samples = motion_samples * fc_aa_grid * fc_aa_grid;
-    if (fc_dynamic_motion_blur) {
-        depth_accumulation[ctx.fb_offset] += accumulated * (1.f / float(samples));
+    if(!ctx.valid){
         return;
     }
-    depth_out[ctx.fb_offset] = accumulated * (1.f / float(samples));
+    device const Camera& cam = cameras_close[ctx.cam_idx];
+    const float2 screen = (float2(ctx.local_x, ctx.local_y) + float2(.5f)) / float2(params.cam_width, params.cam_height);
+    const float3 direction = normalize(float3(cam.dir_00) + screen.x * float3(cam.dir_du) + screen.y * float3(cam.dir_dv));
+    const float3 normal = normalize(cross(float3(cam.dir_du), float3(cam.dir_dv)));
+    ray r(float3(cam.pos), direction, 0.f, 1e30f);
+    const auto hit = intersect_composed(accel, overlays, overlay_attachments, ctx.cam_idx, r, false);
+    if(hit.type == intersection_type::none){
+        depth_out[ctx.fb_offset] = 0x7f800000u;
+    }
+    else{
+        depth_out[ctx.fb_offset] = as_type<uint>(hit.distance * abs(dot(direction, normal)));
+    }
 }
 
 // divides the accumulated linear radiance by the sample count and writes the declared outputs
@@ -699,8 +663,6 @@ kernel void resolve_outputs(
     device uint* fb [[buffer(3), function_constant(fc_resolve_rgb)]],
     device float* observation [[buffer(14), function_constant(fc_resolve_observation)]],
     device const float* rgb_accumulation [[buffer(15), function_constant(fc_resolve_rgb)]],
-    device const float* depth_accumulation [[buffer(16), function_constant(fc_resolve_depth)]],
-    device float* depth_out [[buffer(18), function_constant(fc_resolve_depth)]],
     uint2 pixel_id [[thread_position_in_grid]])
 {
     const PixelLaunchContext ctx = pixel_launch_context(params, pixel_id);
@@ -727,9 +689,6 @@ kernel void resolve_outputs(
         else {
             fb[ctx.fb_offset] = make_linear_rgba_from_linear(color);
         }
-    }
-    if (fc_resolve_depth) {
-        depth_out[ctx.fb_offset] = depth_accumulation[ctx.fb_offset] * inv_samples;
     }
 }
 
@@ -943,7 +902,7 @@ kernel void render_collision(
 
     CollisionResult result;
     if (hit.type == intersection_type::none) {
-        result.distance = params.max_dist;
+        result.distance = as_type<float>(0x7f800000u);
         result.hit = 0;
     } else {
         result.distance = hit.distance;

@@ -208,6 +208,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES_CUDA, SAMPLE_AND_RENDER_MATCH_CP
     cudaDeviceSynchronize();
     const auto masks_gpu = own_masks(device, device_gpu, world_gpu, shared);
     rlt::set_all(device, reset_mask, true);
+    rlt::request_render(device, world_cpu, reset_mask);
     rlt::render(device, world_cpu, parameters, states, reset_mask);
     check_placements(world_cpu, shared, {0, 1, 2, 3});
     const auto masks_cpu = own_masks(device, device, world_cpu, shared);
@@ -221,6 +222,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES_CUDA, SAMPLE_AND_RENDER_MATCH_CP
     rlt::copy(device, device_gpu, parameters, parameters_gpu);
     rlt::copy(device, device_gpu, states, states_gpu);
     rlt::set_all(device_gpu, reset_mask_gpu, false);
+    rlt::request_render(device_gpu, world_gpu);
     rlt::render(device_gpu, world_gpu, parameters_gpu, states_gpu, reset_mask_gpu);
     cudaDeviceSynchronize();
     const auto masks_x500 = own_masks(device, device_gpu, world_gpu, shared);
@@ -230,6 +232,7 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_DRONES_CUDA, SAMPLE_AND_RENDER_MATCH_CP
     arrange(device, parameters, states, shared.drones, {0, 1, 2, 3}, (T)0.3);
     rlt::copy(device, device_gpu, parameters, parameters_gpu);
     rlt::copy(device, device_gpu, states, states_gpu);
+    rlt::request_render(device_gpu, world_gpu);
     rlt::render(device_gpu, world_gpu, parameters_gpu, states_gpu, reset_mask_gpu);
     cudaDeviceSynchronize();
     const auto masks_back = own_masks(device, device_gpu, world_gpu, shared);

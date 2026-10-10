@@ -47,7 +47,6 @@ namespace rl_tools::rl::environments::hyperdrone {
         static constexpr bool OUTPUT_NORMALS = false;
         static constexpr bool OUTPUT_FLOW = false;
         static constexpr TI HISTORY_LENGTH = 1;
-        static constexpr TI EPISODES_PER_SCENE = 1;
         static constexpr T CAMERA_FOV_RANDOMIZATION_RANGE = 0;
         static constexpr T CAMERA_MOUNT_OFFSET_RANDOMIZATION_RANGE = 0;
         static constexpr T CAMERA_MOUNT_ROTATION_RANDOMIZATION_RANGE = 0;
@@ -193,6 +192,7 @@ namespace rl_tools::rl::environments::hyperdrone {
         using T = typename SPEC::T;
         using TI = typename SPEC::TI;
         static_assert(SPEC::MAX_DRONES > 0, "MAX_DRONES must be positive");
+        static_assert(SPEC::HISTORY_LENGTH > 0, "HISTORY_LENGTH must be positive");
         static_assert(!SPEC::SELF_VISIBLE || SPEC::MAX_ENTITY_SLOTS_PER_INSTANCE > 0, "SELF_VISIBLE needs entity slots: set MAX_ENTITY_SLOTS_PER_INSTANCE");
         static_assert(SPEC::N_AGENTS == 1 || SPEC::SELF_VISIBLE, "multi-agent Worlds require SELF_VISIBLE: agents seeing each other needs geometry to see");
 
@@ -211,16 +211,17 @@ namespace rl_tools::rl::environments::hyperdrone {
         // camera-major frame history exactly
         using Observation = rl::environments::observation::Image<TI, N_AGENTS * SPEC::CAM_HEIGHT, SPEC::CAM_WIDTH, IMAGE_CHANNELS>;
         struct ObservationPrivilegedMultiAgent {
-            static constexpr TI PER_AGENT_DIM = DYNAMICS_ENV::Observation::DIM;
+            static constexpr TI PER_AGENT_DIM = DYNAMICS_ENV::ObservationPrivileged::DIM;
             static constexpr TI DIM = N_AGENTS * PER_AGENT_DIM;
         };
-        using ObservationPrivileged = utils::typing::conditional_t<SPEC::N_AGENTS == 1, typename DYNAMICS_ENV::Observation, ObservationPrivilegedMultiAgent>;
+        using ObservationPrivileged = utils::typing::conditional_t<SPEC::N_AGENTS == 1, typename DYNAMICS_ENV::ObservationPrivileged, ObservationPrivilegedMultiAgent>;
         static constexpr TI OBSERVATION_DIM = Observation::DIM;
         static constexpr TI OBSERVATION_DIM_PRIVILEGED = ObservationPrivileged::DIM;
         static constexpr bool PRIVILEGED_OBSERVATION_AVAILABLE = true;
 
         using RENDERER_CONFIG = world::RendererConfig<SPEC>;
         using RENDERER_SPEC = rendering::raytracing::Specification<RENDERER_CONFIG>;
+        static_assert(IMAGE_CHANNELS == RENDERER_SPEC::OBSERVATION_CHANNELS, "the image observation must match the renderer's RGB channels");
         using RENDERER = rendering::raytracing::Renderer<RENDERER_SPEC>;
         using ANNOTATIONS_SPEC = rendering::datasets::annotations::FreeSpaceSpecification<T, TI>;
         using ANNOTATIONS = rendering::datasets::annotations::FreeSpace<ANNOTATIONS_SPEC>;
@@ -258,7 +259,6 @@ namespace rl_tools::rl::environments::hyperdrone {
         TI scene_version = 0;  // scene selections so far, init's included
         TI member_index = 0;
         TI rng_offset = 0;
-        TI episode_counter = 0;
         DYNAMICS_ENV dynamics;
 
         // per-frame runtime state, resident on the environment's compute device

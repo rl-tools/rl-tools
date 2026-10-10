@@ -64,7 +64,7 @@ if arguments.model and Path(arguments.model).exists():
 else:
     scene = build_room(np.random.default_rng(0))
 
-sim = dynamics.Sim(num_drones=arguments.drones, model=arguments.drone_model, device=arguments.device)
+sim = dynamics.Sim(num_drones=arguments.drones, parameters={"dynamics": {"dynamics": {"model": arguments.drone_model}}}, device=arguments.device)
 renderer = render.Renderer(width=arguments.width, height=arguments.height,
                            num_cameras=arguments.drones, output="rgb", fidelity="medium")
 renderer.init(scene)
@@ -76,9 +76,9 @@ device_handoff = renderer.backend == "optix" and sim.device == "cuda"
 
 def update_cameras():
     if device_handoff:
-        renderer.set_cameras(sim.camera_bases(aspect=renderer.aspect), stream=sim.stream)
+        renderer.set_cameras(sim.camera_bases_dlpack(aspect=renderer.aspect), stream=sim.stream)
     else:
-        renderer.set_cameras(sim.camera_bases_numpy(aspect=renderer.aspect))
+        renderer.set_cameras(sim.camera_bases(aspect=renderer.aspect))
 
 
 def world_step(actions):
@@ -90,9 +90,9 @@ def world_step(actions):
 print(f"backend={renderer.backend} dynamics={sim.device} drones={arguments.drones} "
       f"device_handoff={'yes' if device_handoff else 'no (host cameras)'}")
 
-sampler = render.FreeSpaceSampler(scene, clearance=0.5)
+sampler = render.ClearanceSampler(scene, clearance=0.5)
 positions = sampler.sample(arguments.drones, seed=0)
-sim.reset(seed=0, sample_states=False)
+sim.reset()
 sim.state["position"] = positions
 update_cameras()
 
@@ -102,9 +102,9 @@ update_cameras()
 # thrust, so a minimal P-D altitude hold on all four rotors keeps the drones level at
 # their spawn height — panning, gliding onboard views.
 rng = np.random.default_rng(1)
-hover = sim.parameters["hovering_throttle_relative"]
+hover = sim.parameters["dynamics"]["dynamics"]["hovering_throttle_relative"]
 yaw_rates = rng.uniform(0.015, 0.035, size=arguments.drones) * rng.choice((-1.0, 1.0), size=arguments.drones)
-base_actions = ((2.0 * hover - 1.0)[:, None] + yaw_rates[:, None] * np.array([1.0, -1.0, 1.0, -1.0]))
+base_actions = 2.0 * hover - 1.0 + yaw_rates[:, None] * np.array([1.0, -1.0, 1.0, -1.0])
 glide_angle = rng.uniform(0.0, 2.0 * np.pi, size=arguments.drones)
 glide_speed = rng.uniform(0.2, 0.5, size=arguments.drones)
 velocities = np.zeros((arguments.drones, 3), dtype=np.float32)
@@ -115,8 +115,8 @@ altitude_target = positions[:, 2].copy()
 
 
 def flythrough_actions():
-    position_z = sim.state.numpy("position")[:, 2]
-    velocity_z = sim.state.numpy("linear_velocity")[:, 2]
+    position_z = sim.state["position"][:, 2]
+    velocity_z = sim.state["linear_velocity"][:, 2]
     correction = 0.4 * (altitude_target - position_z) - 0.25 * velocity_z
     return np.clip(base_actions + correction[:, None], -1.0, 1.0).astype(np.float32)
 
