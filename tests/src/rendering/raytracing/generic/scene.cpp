@@ -602,6 +602,93 @@ TEST(RL_TOOLS_SCENE_SUITE, NORMALS_ANALYTIC){
     rlt::free(device, renderer);
 }
 
+namespace {
+    enum class AuxiliaryOutput { ALL, DEPTH, SEGMENTATION, NORMALS, FLOW };
+
+    template <AuxiliaryOutput OUTPUT>
+    struct AuxiliaryConfig: rlt::rendering::raytracing::config::Default<T, TI>{
+        static constexpr TI CAM_WIDTH = 17, CAM_HEIGHT = 13, NUM_CAMERAS = 1, NUM_PROBES = 1;
+        using SHADING = rlt::rendering::raytracing::Low;
+        static constexpr bool OUTPUT_RGB = false;
+        static constexpr bool OUTPUT_DEPTH = OUTPUT == AuxiliaryOutput::ALL || OUTPUT == AuxiliaryOutput::DEPTH;
+        static constexpr bool OUTPUT_SEGMENTATION = OUTPUT == AuxiliaryOutput::ALL || OUTPUT == AuxiliaryOutput::SEGMENTATION;
+        static constexpr bool OUTPUT_NORMALS = OUTPUT == AuxiliaryOutput::ALL || OUTPUT == AuxiliaryOutput::NORMALS;
+        static constexpr bool OUTPUT_FLOW = OUTPUT == AuxiliaryOutput::ALL || OUTPUT == AuxiliaryOutput::FLOW;
+        static constexpr bool OUTPUT_FLOW_FORWARD = OUTPUT_FLOW;
+    };
+
+    struct AuxiliaryFrame{
+        std::vector<float> depth, normals, flow, flow_forward;
+        std::vector<uint32_t> segmentation, flow_status, flow_forward_status;
+    };
+
+    template <AuxiliaryOutput OUTPUT>
+    AuxiliaryFrame capture_auxiliary_outputs(DEVICE& device, rlt::rendering::Bundle<T>& bundle){
+        using namespace rl_tools;
+        using SPEC = rlt::rendering::raytracing::Specification<AuxiliaryConfig<OUTPUT>>;
+        rlt::rendering::raytracing::Renderer<SPEC, BACKEND> renderer;
+        malloc(device, renderer);
+        init(device, renderer, bundle);
+        const T position[3] = {-5, 0.125f, 0.375f};
+        const T target[3] = {0, 0.125f, 0.375f};
+        set_test_camera(device, renderer, position, target);
+        if constexpr (SPEC::HAS_FLOW){
+            const T previous_position[3] = {-5, -0.25f, 0.375f};
+            const T previous_target[3] = {0, -0.25f, 0.375f};
+            const T up[3] = {0, 0, 1};
+            const auto previous = make_camera_data(previous_position, previous_target, up, FOV, (T)SPEC::CAM_WIDTH / (T)SPEC::CAM_HEIGHT);
+            golden::copy_in(device, renderer.device, &previous, cameras_previous(device, renderer));
+        }
+        render(device, renderer);
+        AuxiliaryFrame frame;
+        if constexpr (SPEC::HAS_DEPTH){
+            golden::copy_out(renderer.device, device, depth_buffer(device, renderer), frame.depth);
+        }
+        if constexpr (SPEC::HAS_SEGMENTATION){
+            golden::copy_out(renderer.device, device, segmentation_buffer(device, renderer), frame.segmentation);
+        }
+        if constexpr (SPEC::HAS_NORMALS){
+            golden::copy_out(renderer.device, device, normals_buffer(device, renderer), frame.normals);
+        }
+        if constexpr (SPEC::HAS_FLOW){
+            golden::copy_out(renderer.device, device, flow_buffer(device, renderer), frame.flow);
+            golden::copy_out(renderer.device, device, flow_status_buffer(device, renderer), frame.flow_status);
+            golden::copy_out(renderer.device, device, flow_forward_buffer(device, renderer), frame.flow_forward);
+            golden::copy_out(renderer.device, device, flow_forward_status_buffer(device, renderer), frame.flow_forward_status);
+        }
+        free(device, renderer);
+        return frame;
+    }
+}
+
+TEST(RL_TOOLS_SCENE_SUITE, AUXILIARY_OUTPUT_COMPOSITION){
+    using namespace rl_tools;
+    DEVICE device;
+    init(device);
+    rlt::rendering::Bundle<T> bundle;
+    rlt::rendering::raytracing::Object cube;
+    cube.meshes.push_back(make_cube(0, 1));
+    add(device, bundle.scene, cube);
+    const float position[3] = {0.5f, 2.5f, 0};
+    const float orientation[4] = {std::cos(0.2f), 0, 0, std::sin(0.2f)};
+    float transform[12];
+    make_transform(position, orientation, transform);
+    add(device, bundle.scene, cube, transform);
+    const auto expect_identical = [](const auto& combined, const auto& isolated){
+        ASSERT_EQ(combined.size(), isolated.size());
+        EXPECT_EQ(std::memcmp(combined.data(), isolated.data(), combined.size() * sizeof(combined[0])), 0);
+    };
+    const auto combined = capture_auxiliary_outputs<AuxiliaryOutput::ALL>(device, bundle);
+    expect_identical(combined.depth, capture_auxiliary_outputs<AuxiliaryOutput::DEPTH>(device, bundle).depth);
+    expect_identical(combined.segmentation, capture_auxiliary_outputs<AuxiliaryOutput::SEGMENTATION>(device, bundle).segmentation);
+    expect_identical(combined.normals, capture_auxiliary_outputs<AuxiliaryOutput::NORMALS>(device, bundle).normals);
+    const auto flow = capture_auxiliary_outputs<AuxiliaryOutput::FLOW>(device, bundle);
+    expect_identical(combined.flow, flow.flow);
+    expect_identical(combined.flow_status, flow.flow_status);
+    expect_identical(combined.flow_forward, flow.flow_forward);
+    expect_identical(combined.flow_forward_status, flow.flow_forward_status);
+}
+
 struct FLOW_CONFIG: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr TI CAM_WIDTH = 64, CAM_HEIGHT = 64, NUM_CAMERAS = 1, NUM_PROBES = 4;
     using SHADING = rlt::rendering::raytracing::Low;

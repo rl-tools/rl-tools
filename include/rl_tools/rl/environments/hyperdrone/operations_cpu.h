@@ -73,6 +73,8 @@ namespace rl_tools {
     }
 
     template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
+    void prepare_render_inputs(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input);
+    template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
     void render(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input);
 
     template <typename DEVICE, typename SPEC>
@@ -609,7 +611,12 @@ namespace rl_tools {
         static_assert(get<1>(typename ACTION_SPEC::SHAPE{}) == WORLD::ACTION_DIM);
         if constexpr (SPEC::HISTORY_LENGTH > 1 || SPEC::OUTPUT_FLOW){
             if(world.render_pending){
-                render(device, world, parameters, states, world.render_reset);
+                if constexpr (SPEC::HISTORY_LENGTH > 1){
+                    render(device, world, parameters, states, world.render_reset);
+                }
+                else{
+                    prepare_render_inputs(device, world, parameters, states, world.render_reset);
+                }
             }
         }
         if constexpr (SPEC::OUTPUT_FLOW){
@@ -679,11 +686,9 @@ namespace rl_tools {
         }
     }
 
-    // the render verb: pose production -> render launch -> scatter into the frame history.
-    // Reset semantics ride the mask: reset instances restart their shutter pair and their
-    // episode's history window
+    // Preserve per-step flow and reset metadata even when a single-frame history defers image acquisition.
     template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
-    void render(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input) {
+    void prepare_render_inputs(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input) {
         if(!world.render_pending){
             return;
         }
@@ -762,10 +767,34 @@ namespace rl_tools {
             // wrapper render overloads staged their entity poses pre-forward; publish them
             update(device, renderer);
         }
-        render(device, renderer);
+        {
+            std::vector<TI> episode_start_staging(INSTANCES);
+            Tensor<typename WORLD::EPISODE_START_SPEC> episode_start_alias;
+            episode_start_alias._data = episode_start_staging.data();
+            copy(device, device, world.episode_start, episode_start_alias);
+            for (TI instance_i = 0; instance_i < INSTANCES; instance_i++) {
+                if (get(device, reset_mask, instance_i)) {
+                    episode_start_staging[instance_i] = world.history_step - 1;
+                }
+            }
+            copy(device, device, episode_start_alias, world.episode_start);
+        }
         if constexpr (SPEC::OUTPUT_FLOW){
             world.flow_scene_version = world.scene_version;
         }
+    }
+
+    template <typename DEVICE, typename SPEC, typename PARAMETER_SPEC, typename STATE_SPEC, typename RESET_SPEC>
+    void render(DEVICE& device, rl::environments::hyperdrone::World<SPEC>& world, Tensor<PARAMETER_SPEC>& parameters, Tensor<STATE_SPEC>& states, const Tensor<RESET_SPEC>& reset_mask_input) {
+        if(!world.render_pending){
+            return;
+        }
+        prepare_render_inputs(device, world, parameters, states, reset_mask_input);
+        using TI = typename SPEC::TI;
+        using WORLD = rl::environments::hyperdrone::World<SPEC>;
+        constexpr TI NUM_CAMERAS = WORLD::INSTANCES * WORLD::N_VIEWS;
+        auto& renderer = get_renderer(device, world);
+        render(device, renderer);
 
         const TI history_slot = (world.history_step - 1) % SPEC::HISTORY_LENGTH;
         {
@@ -792,18 +821,6 @@ namespace rl_tools {
             Tensor<tensor::Specification<float, TI, tensor::Shape<TI, NUM_CAMERAS, WORLD::FRAME_DIM>>> frame_alias;
             frame_alias._data = frame_staging.data();
             copy(device, device, frame_alias, history_row);
-        }
-        {
-            std::vector<TI> episode_start_staging(INSTANCES);
-            Tensor<typename WORLD::EPISODE_START_SPEC> episode_start_alias;
-            episode_start_alias._data = episode_start_staging.data();
-            copy(device, device, world.episode_start, episode_start_alias);
-            for (TI instance_i = 0; instance_i < INSTANCES; instance_i++) {
-                if (get(device, reset_mask, instance_i)) {
-                    episode_start_staging[instance_i] = world.history_step - 1;
-                }
-            }
-            copy(device, device, episode_start_alias, world.episode_start);
         }
         world.render_pending = false;
     }

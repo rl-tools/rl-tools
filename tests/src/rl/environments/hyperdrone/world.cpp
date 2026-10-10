@@ -381,17 +381,18 @@ int main(int argc, char** argv) {
 }
 
 namespace test_hyperdrone_acquisition {
-    template <TI HISTORY>
+    template <TI HISTORY, bool FLOW = false>
     struct Specification: WORLD_SPEC {
         static constexpr TI HISTORY_LENGTH = HISTORY;
         static constexpr bool ENABLE_MOTION_BLUR = true;
         static constexpr TI MOTION_BLUR_SAMPLES = 4;
+        static constexpr bool OUTPUT_FLOW = FLOW;
     };
 
-    template <TI HISTORY>
+    template <TI HISTORY, bool FLOW = false>
     std::vector<T> rollout(bool read_every_step){
         using namespace rlt;
-        using WORLD_TYPE = rl::environments::hyperdrone::World<Specification<HISTORY>>;
+        using WORLD_TYPE = rl::environments::hyperdrone::World<Specification<HISTORY, FLOW>>;
         constexpr TI COUNT = WORLD_TYPE::INSTANCES;
         DEVICE device;
         RNG rng;
@@ -430,6 +431,9 @@ namespace test_hyperdrone_acquisition {
                 set_all(device, reset_mask, false);
             }
             step(device, world, parameters, states, actions, next_states, rng);
+            if constexpr (FLOW){
+                EXPECT_EQ(world.flow_scene_version, world.scene_version);
+            }
             copy(device, device, next_states, states);
             if(read_every_step){
                 observe(device, world, parameters, states, typename WORLD_TYPE::Observation{}, observations, rng);
@@ -461,6 +465,27 @@ namespace test_hyperdrone_acquisition {
                 result.push_back(state.linear_velocity[axis]);
             }
         }
+        if constexpr (FLOW){
+            using RENDERER = typename WORLD_TYPE::RENDERER;
+            std::vector<float> flow(RENDERER::FLOW_TENSOR_SPEC::SIZE);
+            std::vector<uint32_t> status(RENDERER::FLOW_STATUS_TENSOR_SPEC::SIZE);
+            Tensor<typename RENDERER::FLOW_TENSOR_SPEC> flow_alias;
+            Tensor<typename RENDERER::FLOW_STATUS_TENSOR_SPEC> status_alias;
+            flow_alias._data = flow.data();
+            status_alias._data = status.data();
+            auto& renderer = get_renderer(device, world);
+            copy(renderer.device, device, flow_buffer(device, renderer), flow_alias);
+            copy(renderer.device, device, flow_status_buffer(device, renderer), status_alias);
+            result.insert(result.end(), flow.begin(), flow.end());
+            for(const auto value : status){
+                result.push_back(static_cast<T>(value));
+            }
+            for(TI row = 0; row < COUNT; row++){
+                const TI start = get(device, world.episode_start, row);
+                EXPECT_EQ(start, row == 0 ? 3 : 0);
+                result.push_back(static_cast<T>(start));
+            }
+        }
         free(device, observations);
         free(device, actions);
         free(device, reset_mask);
@@ -480,4 +505,6 @@ TEST(RL_TOOLS_RL_ENVIRONMENTS_HYPERDRONE_WORLD, ACQUISITION_READ_ORDER_AND_HISTO
     }
     EXPECT_EQ(test_hyperdrone_acquisition::rollout<1>(false), test_hyperdrone_acquisition::rollout<1>(true));
     EXPECT_EQ(test_hyperdrone_acquisition::rollout<3>(false), test_hyperdrone_acquisition::rollout<3>(true));
+    EXPECT_EQ((test_hyperdrone_acquisition::rollout<1, true>(false)), (test_hyperdrone_acquisition::rollout<1, true>(true)));
+    EXPECT_EQ((test_hyperdrone_acquisition::rollout<3, true>(false)), (test_hyperdrone_acquisition::rollout<3, true>(true)));
 }
