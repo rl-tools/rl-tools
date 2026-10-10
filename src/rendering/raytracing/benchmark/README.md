@@ -40,11 +40,11 @@ Frame tools accept a position and either a forward vector, look-at point, or qua
 
 The throughput table in `~/papers/hyperdrone/example.tex` comes from `figures/benchmark/results{,_5090,_h200}.csv`, aggregated by `figures/benchmark/make_results_table.py`. The launcher, `benchmarks/run_all_benchmarks.py`, selected these executables from `src/rendering/raytracing/benchmark/`:
 
-| Paper fidelity | CSV variant | Historical target | Current paper target |
+| Paper fidelity | CSV variant | Historical target | Current option |
 |---|---|---|---|
-| Low | `fast_flat` | `rendering_raytracing_sim_benchmark_fast_flat` | `rendering_raytracing_paper_benchmark_low` |
-| Medium | `basic` | `rendering_raytracing_sim_benchmark` | `rendering_raytracing_paper_benchmark_medium` |
-| High | `high_fidelity` | `rendering_raytracing_sim_benchmark_high_fidelity` | `rendering_raytracing_paper_benchmark_high` |
+| Low | `fast_flat` | `rendering_raytracing_sim_benchmark_fast_flat` | `--fidelity low` |
+| Medium | `basic` | `rendering_raytracing_sim_benchmark` | `--fidelity medium` |
+| High | `high_fidelity` | `rendering_raytracing_sim_benchmark_high_fidelity` | `--fidelity high` |
 
 The historical targets compiled `simulator_matrix.cpp` and, after the May 25 dynamics fix, `simulator_matrix_physics.cu`. The separate rendering benchmark, sweep, frame, dynamic-scene, and yaw-training targets did not generate this table. Depth cells are the arithmetic mean of the three fidelity runs for each scene/mode, repeated in all three fidelity rows; RGB cells use each variant's own measurement.
 
@@ -59,35 +59,35 @@ The saved CSV paths establish the runs below. They contain no Git revision or di
 
 Paper commit `77f4c5dfe33fb79d4b68841c87605eeedcc95ee3` imported the May 25 physics rerun; `277eafeb3a20ea664346b938303deadbcf8443df` subsequently replaced only its objects20 rows. Commits `e729a4fde8cb3405d6ee75f63a60ec69a1a5502f` and `d446c793dac5831825756f12f9c30bbef2f012ed` imported the final H200 and 5090 CSVs. The published 4090 table therefore mixes camera contracts. Before RLtools commit `a8d98a52da105740b772a1f7d014b7fd385f46b8`, `render_physics` only rewrote fixed camera poses and did not execute multirotor dynamics.
 
-Paper targets preserve the two scenes, RGB/depth matrix, 4096 cameras at 64×64, 80° FOV, seed 0, uniform SO(3) orientations sampled once per camera, no probes/AA/motion blur, 2-second warmup, 20-second measurement, and synchronization every 10 launches. Spawns are fixed at `[0,0,0]` for `canonical_staggered_v1` objects20 (alternating boxes and spheres), and `[-3.92,-5.67,1]` FLU for ProcTHOR; the paper's rejection-sampling discussion describes training, not this benchmark.
+The paper target preserves the two scenes, RGB/depth matrix, 4096 cameras at 64×64, 80° FOV, seed 0, uniform SO(3) orientations sampled once per camera, no probes/AA/motion blur, 2-second warmup, 20-second measurement, and synchronization every 10 launches. Spawns are fixed at `[0,0,0]` for `canonical_staggered_v1` objects20 (alternating boxes and spheres), and `[-3.92,-5.67,1]` FLU for ProcTHOR; the paper's rejection-sampling discussion describes training, not this benchmark.
 
-The ProcTHOR asset is the May test-data revision `d39a1ede85a505af01afd897aa51779f87db3cc1`, file `ProcTHOR-Train-1.glb`, SHA-256 `76c463017f2a25683abaea3b29786294602bd2629b2f0725b7215dabf58f35aa`. Paper targets reject a different asset. Download it once, then build/run the requested fidelity:
+The ProcTHOR asset is the May test-data revision `d39a1ede85a505af01afd897aa51779f87db3cc1`, file `ProcTHOR-Train-1.glb`, SHA-256 `76c463017f2a25683abaea3b29786294602bd2629b2f0725b7215dabf58f35aa`. The paper target rejects a different asset. Download it once, then build/run the requested fidelity:
 
 ```bash
 .venv/bin/python src/rendering/raytracing/benchmark/download_paper_scene.py
 cmake -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build --target rendering_raytracing_paper_benchmark_medium -j5
-./build/src/rendering/raytracing/benchmark/rendering_raytracing_paper_benchmark_medium \
-  --output-dir /tmp/rltools-paper-render
+cmake --build build --target rendering_raytracing_paper_benchmark -j5
+./build/src/rendering/raytracing/benchmark/rendering_raytracing_paper_benchmark \
+  --fidelity all --scene all --output all --output-dir /tmp/rltools-paper-render
 ```
 
-The default `--workload render_only` runs both scenes and both outputs. On an OptiX/CUDA build, `--workload render_physics_static` reproduces the later static-camera contract and `--workload render_physics_coupled` reproduces the May 25 moving-camera contract; `--workload all` runs all three. Select low/high by building the corresponding paper target. Run from the repository root, or pass `--procthor-path` for the pinned asset at another location; its default is `build/paper-benchmark/ProcTHOR-Train-1.glb`.
+The single `rendering_raytracing_paper_benchmark` target selects `--fidelity low|medium|high|all` at launch (default: medium). `--scene 20_objects|procthor|all` and `--output rgb|depth|all` default to all; `--workload` defaults to `render_only`. On an OptiX/CUDA build, `--workload render_physics_static` reproduces the later static-camera contract and `--workload render_physics_coupled` reproduces the May 25 moving-camera contract; `--workload all` runs all three. Each fidelity uses its original compiled renderer configuration; selection happens outside timing. Run from the repository root, or pass `--procthor-path` for the pinned asset at another location; its default is `build/paper-benchmark/ProcTHOR-Train-1.glb`.
 
 Physics uses the Crazyflie direct-motor model, float precision, 100 Hz integration with one substep, integrated rotor dynamics, zero disturbances/noise, zero initial velocities, and hovering initial motor speeds. Actions apply the historical ±0.010 sinusoidal roll/pitch perturbations; initial states are restored every 10 iterations or on displacement squared greater than 16 or vertical displacement greater than 3. Warmup state carries into measurement while the timed iteration index restarts at zero.
 
-These targets preserve the task and historical shading flags while using the current renderer. Lighting/material-import fixes, ambient/background colors, and depth semantics have evolved: current depth is forward-projected distance with infinite misses, whereas May used ray distance and finite misses. Results are not promised to match May pixels or FPS exactly.
+This target preserves the task and historical shading flags while using the current renderer. Lighting/material-import fixes, ambient/background colors, and depth semantics have evolved: current depth is forward-projected distance with infinite misses, whereas May used ray distance and finite misses. Results are not promised to match May pixels or FPS exactly.
 
 Paper result records include the reconstructed historical source revision, build revision, tracked dirty state (when git snapshotting is enabled), and a SHA-256 fingerprint of the benchmark sources, including untracked additions. The fingerprint covers the target wiring, generated-header template, scene/camera driver, and physics bridge/contract; it does not identify the entire renderer or toolchain. `historical_source_commit` describes the reconstructed workload, not a verified revision of the original executable.
 
-Consumers considered: the published throughput table constrains paper scene, spawn, dynamics, camera-coupling, and timing choices; the current simulator benchmark, Python benchmark, sweep, and frame tools constrain keeping their defaults and `render-v1` output contract. Dedicated paper targets keep those existing consumers unchanged.
+Consumers considered: the published throughput table constrains paper scene, spawn, dynamics, camera-coupling, timing, and separate depth measurements for all three fidelities; the benchmark CLI and contract tests use one target with runtime fidelity selection. The current simulator benchmark, Python benchmark, sweep, and frame tools constrain keeping their target names, defaults, and `render-v1` output contract.
 
 ## Measurement and results
 
-Warmup completes before timing. Even `--warmup-seconds 0` primes the renderer once. `--iterations N` selects a fixed count instead of duration; the final batch is drained even when it is shorter than `--sync-interval`. Scene loading, image saving, and reporting are outside the measured interval. Vulkan currently waits for the previous submission in each `render_launch`; equal sync intervals do not imply equal queue depth across backends.
+Warmup completes before timing. With `--warmup-seconds 0`, general targets prime once and the paper target retains the historical ten warmup iterations. `--iterations N` selects a fixed count instead of duration; the final batch is drained even when it is shorter than `--sync-interval`. Scene loading, image saving, and reporting are outside the measured interval. Vulkan currently waits for the previous submission in each `render_launch`; equal sync intervals do not imply equal queue depth across backends.
 
-Normal, sweep, and frame tools emit one `render-v1` JSON object per result on its own line. Numbers and booleans retain their JSON types; camera vectors are arrays, with unavailable forward/up vectors represented by `null`. Records identify the workload, backend, selected device, scene source, scene content identity, camera configuration, sampling, timing, and verification PNG. Ray throughput counts primary samples; shading may trace additional rays. Frame measurements have workload `frame`; general benchmark measurements have workload `render_only`, while paper targets report their selected workload. Extract JSON Lines with `rg '^\{' output.log`. Throughput and elapsed time are also logged to metra when `METRA_URL` is set. Backend, device, workload, scene reference, profile, resolution, camera count, orientation, seed, and sync interval distinguish metric series.
+Normal, sweep, and frame tools emit one `render-v1` JSON object per result on its own line. Numbers and booleans retain their JSON types; camera vectors are arrays, with unavailable forward/up vectors represented by `null`. Records identify the workload, backend, selected device, scene source, scene content identity, camera configuration, sampling, timing, and verification PNG. Ray throughput counts primary samples; shading may trace additional rays. Frame measurements have workload `frame`; general benchmark measurements have workload `render_only`, while the paper target reports its selected workload. Extract JSON Lines with `rg '^\{' output.log`. Throughput and elapsed time are also logged to metra when `METRA_URL` is set. Backend, device, workload, scene reference, profile, resolution, camera count, orientation, seed, and sync interval distinguish metric series.
 
-This replaces the old CUDA-specific CSV/JSON layouts. General renderer targets no longer expose `render_physics`, redundant target aliases, separate RGB/depth targets, `--step-mode`, `--gpu-label`, `--warmup-iterations`, or runtime `--num-envs`/`--resolution` options. The dedicated paper targets above identify their physics/camera contract explicitly.
+This replaces the old CUDA-specific CSV/JSON layouts. General renderer targets no longer expose `render_physics`, redundant target aliases, separate RGB/depth targets, `--step-mode`, `--gpu-label`, `--warmup-iterations`, or runtime `--num-envs`/`--resolution` options. The dedicated paper target above identifies its physics/camera contract explicitly.
 
 ## Validation
 
@@ -99,11 +99,10 @@ After building the medium benchmark, sweep, and medium frame targets:
 
 Select the matching backend and omit `--with-procthor` for procedural-only checks. Each subprocess has a 20-second timeout. Vulkan CI uses 16 cameras on lavapipe; production defaults remain 4096.
 
-Paper contract checks build all three paper profiles plus the general medium target:
+Paper contract checks build the unified target plus the general medium target:
 
 ```bash
-cmake --build build --target rendering_raytracing_paper_benchmark_medium \
-  rendering_raytracing_paper_benchmark_high rendering_raytracing_paper_benchmark_low \
+cmake --build build --target rendering_raytracing_paper_benchmark \
   rendering_raytracing_sim_benchmark_medium test_rendering_raytracing_paper_physics -j5
 .venv/bin/python tests/src/rendering/raytracing/paper_benchmark.py --build-dir build --backend metal --with-procthor
 ctest --test-dir build -L '^paper-benchmark$' --output-on-failure --timeout 20 -j5
