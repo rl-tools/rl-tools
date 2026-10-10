@@ -57,8 +57,8 @@ struct BenchmarkConfig: rlt::rendering::raytracing::config::Default<T, TI>{
     static constexpr bool ENABLE_ANTI_ALIASING = T_ENABLE_AA;
     static constexpr TI ANTI_ALIASING_GRID_SIZE = T_AA_GRID_SIZE;
 };
-template <bool T_OUTPUT_RGB, bool T_OUTPUT_DEPTH>
-using BenchmarkSpec = rlt::rendering::raytracing::Specification<BenchmarkConfig<T_OUTPUT_RGB, T_OUTPUT_DEPTH>>;
+template <bool T_OUTPUT_RGB, bool T_OUTPUT_DEPTH, typename T_SHADING = ShadingProfile>
+using BenchmarkSpec = rlt::rendering::raytracing::Specification<BenchmarkConfig<T_OUTPUT_RGB, T_OUTPUT_DEPTH, CAM_WIDTH, CAM_HEIGHT, NUM_ENVS, T_SHADING>>;
 template <bool T_OUTPUT_RGB, bool T_OUTPUT_DEPTH, TI T_WIDTH, TI T_HEIGHT, TI T_NUM_CAMERAS, typename T_SHADING, bool T_ENABLE_AA, TI T_AA_GRID_SIZE>
 using SweepBenchmarkSpec = rlt::rendering::raytracing::Specification<BenchmarkConfig<T_OUTPUT_RGB, T_OUTPUT_DEPTH, T_WIDTH, T_HEIGHT, T_NUM_CAMERAS, T_SHADING, T_ENABLE_AA, T_AA_GRID_SIZE>>;
 
@@ -91,6 +91,7 @@ struct Options {
     std::string scene = CONFIG::PAPER ? "all" : "procthor";
     std::string output = CONFIG::PAPER ? "all" : "rgb";
     std::string workload = "render_only";
+    std::string fidelity = "medium";
     std::string orientation_mode = "uniform_so3";
     std::string output_dir = ".";
     std::string output_png;
@@ -139,7 +140,7 @@ static std::string value_after_prefix(const std::string& value, const char* pref
 
 static void print_help(const char* argv0) {
     std::cout << "Usage: " << argv0 << " [options]\n"
-        << "  --output <rgb|depth|all>         Default: rgb\n"
+        << "  --output <rgb|depth|all>         Default: " << (CONFIG::PAPER ? "all" : "rgb") << "\n"
         << "  --output-dir <dir>              Verification images (default: .)\n"
         << "  --procthor-path <file|conta:hash> Default: pinned ProcTHOR-Train-1\n";
     if constexpr (CONFIG::MODE == BenchmarkMode::frame) {
@@ -153,12 +154,12 @@ static void print_help(const char* argv0) {
     }
     else {
         std::cout
-            << "  --scene <procthor|20_objects|all> Default: procthor\n"
+            << "  --scene <procthor|20_objects|all> Default: " << (CONFIG::PAPER ? "all" : "procthor") << "\n"
             << "  --orientation-mode <uniform_so3|random_yaw_pitch|look_at_scene_jitter>\n"
             << "  --seed <count>                   Default: 0\n"
-            << "  --seconds <seconds>              Timed duration per case (default: 10)\n"
+            << "  --seconds <seconds>              Timed duration per case (default: " << (CONFIG::PAPER ? 20 : 10) << ")\n"
             << "  --iterations <count>             Fixed count overriding duration (default: 0)\n"
-            << "  --warmup-seconds <seconds>       Default: 2; 0 still primes the renderer once\n"
+            << "  --warmup-seconds <seconds>       Default: 2; 0 runs " << (CONFIG::PAPER ? 10 : 1) << " warmup iterations\n"
             << "  --sync-interval <count>          Default: 10\n"
             << "  Compiled cameras: " << NUM_ENVS << ", resolution: " << CAM_WIDTH << "x" << CAM_HEIGHT << "\n";
     }
@@ -169,7 +170,7 @@ static void print_help(const char* argv0) {
             << "  --sweep-config-count <count>     <=0 selects all remaining configurations\n";
     }
     if constexpr (CONFIG::PAPER) {
-        std::cout << "  Paper defaults: --scene all --output all --seconds 20\n"
+        std::cout << "  --fidelity <low|medium|high|all>  Default: medium\n"
             << "  --workload <render_only|render_physics_static|render_physics_coupled|all>\n"
             << "  Physics requires an OptiX/CUDA build. Default: render_only\n"
             << "  ProcTHOR must match the May asset; download_paper_scene.py fetches it.\n";
@@ -273,6 +274,9 @@ static bool parse_options(int argc, char** argv, Options& options) {
         else if(CONFIG::PAPER && get_option_value(i, argc, argv, arg, "--workload", value)) {
             options.workload = value;
         }
+        else if(CONFIG::PAPER && get_option_value(i, argc, argv, arg, "--fidelity", value)) {
+            options.fidelity = value;
+        }
         else if(CONFIG::MODE != BenchmarkMode::frame && get_option_value(i, argc, argv, arg, "--orientation-mode", value)) {
             options.orientation_mode = value;
         }
@@ -351,6 +355,10 @@ static bool parse_options(int argc, char** argv, Options& options) {
         }
     }
 
+    if(options.fidelity != "low" && options.fidelity != "medium" && options.fidelity != "high" && options.fidelity != "all") {
+        std::cerr << "Unsupported --fidelity: " << options.fidelity << std::endl;
+        return false;
+    }
     if(options.workload != "render_only" && options.workload != "render_physics_static"
        && options.workload != "render_physics_coupled" && options.workload != "all") {
         std::cerr << "Unsupported --workload: " << options.workload << std::endl;
@@ -1222,6 +1230,24 @@ static bool run_sweep(DEVICE& device, const std::vector<SceneAxis>& scenes,
     return true;
 }
 
+template <typename SHADING, typename DEVICE>
+static bool run_profile(DEVICE& device, const std::vector<SceneAxis>& scenes,
+                        const std::vector<OutputAxis>& outputs, const Options& options) {
+    for(OutputAxis output : outputs) {
+        if(output == OutputAxis::RGB) {
+            if(!run_scenes<BenchmarkSpec<true, false, SHADING>>(device, scenes, options)) {
+                return false;
+            }
+        }
+        else {
+            if(!run_scenes<BenchmarkSpec<false, true, SHADING>>(device, scenes, options)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 template <typename CONFIG, typename DEVICE>
 static bool run(DEVICE& device, const std::vector<SceneAxis>& scenes,
                 const std::vector<OutputAxis>& outputs, const Options& options) {
@@ -1230,20 +1256,23 @@ static bool run(DEVICE& device, const std::vector<SceneAxis>& scenes,
         int index = 0;
         return run_sweep(device, scenes, outputs, options, first, index);
     }
-    else {
-        for(OutputAxis output : outputs) {
-            if(output == OutputAxis::RGB) {
-                if(!run_scenes<BenchmarkSpec<true, false>>(device, scenes, options)) {
-                    return false;
-                }
-            }
-            else {
-                if(!run_scenes<BenchmarkSpec<false, true>>(device, scenes, options)) {
-                    return false;
-                }
-            }
+    else if constexpr (CONFIG::PAPER) {
+        if((options.fidelity == "low" || options.fidelity == "all")
+           && !run_profile<paper::PaperLow>(device, scenes, outputs, options)) {
+            return false;
+        }
+        if((options.fidelity == "medium" || options.fidelity == "all")
+           && !run_profile<rlt::rendering::raytracing::Medium>(device, scenes, outputs, options)) {
+            return false;
+        }
+        if((options.fidelity == "high" || options.fidelity == "all")
+           && !run_profile<paper::PaperHigh>(device, scenes, outputs, options)) {
+            return false;
         }
         return true;
+    }
+    else {
+        return run_profile<ShadingProfile>(device, scenes, outputs, options);
     }
 }
 

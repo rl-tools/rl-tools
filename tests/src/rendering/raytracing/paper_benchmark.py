@@ -34,14 +34,15 @@ class PaperBenchmarkTest(unittest.TestCase):
         self.root = Path(self.directory.name)
         self.invocations = 0
 
-    def invoke(self, *options, profile="medium", success=True, target=None):
+    def invoke(self, *options, profile=None, success=True, target=None):
         self.invocations += 1
         environment = dict(os.environ)
         environment.pop("METRA_URL", None)
-        target = target or f"rendering_raytracing_paper_benchmark_{profile}"
+        target = target or "rendering_raytracing_paper_benchmark"
+        fidelity_options = [] if profile is None else ["--fidelity", profile]
         result = subprocess.run(
             [str(binaries / target), "--output-dir", str(self.root / str(self.invocations)),
-             "--iterations", "3", "--warmup-seconds", "0", *options],
+             "--iterations", "3", "--warmup-seconds", "0", *fidelity_options, *options],
             text=True, capture_output=True, timeout=arguments.timeout, env=environment,
         )
         if not success:
@@ -76,7 +77,8 @@ class PaperBenchmarkTest(unittest.TestCase):
             self.assertEqual((row["width"], row["height"]), (64, 64))
             self.assertEqual(row["fov_degrees"], 80)
             self.assertEqual(row["orientation_mode"], "uniform_so3")
-            self.assertEqual(row["shading_profile"], profile)
+            expected_profiles = ("low", "medium", "high") if profile == "all" else (profile or "medium",)
+            self.assertIn(row["shading_profile"], expected_profiles)
             self.assertEqual(row["num_probes"], 0)
             self.assertEqual(row["aa_grid_size"], 1)
             self.assertEqual(row["samples_per_pixel"], 1)
@@ -109,6 +111,12 @@ class PaperBenchmarkTest(unittest.TestCase):
         return rows
 
     def test_profiles_and_default_outputs(self):
+        combined = self.invoke("--scene", "20_objects", profile="all")
+        self.assertEqual(len(combined), 6)
+        indexed = {(row["shading_profile"], row["output"]): row for row in combined}
+        self.assertEqual(set(indexed), {
+            (profile, output) for profile in ("low", "medium", "high") for output in ("rgb", "depth")
+        })
         for profile in ("medium", "high", "low"):
             with self.subTest(profile=profile):
                 rows = self.invoke("--scene", "20_objects", "--workload", "render_only", profile=profile)
@@ -118,6 +126,8 @@ class PaperBenchmarkTest(unittest.TestCase):
                     self.assertEqual(row["workload"], "render_only")
                     self.assertEqual(row["seed"], 0)
                     self.assertEqual(row["sync_interval"], 10)
+                    self.assertEqual(Path(row["verification_png"]).read_bytes(),
+                                     Path(indexed[(profile, row["output"])]["verification_png"]).read_bytes())
 
     def test_camera_seed_and_partial_sync_batch(self):
         images = []
@@ -133,8 +143,12 @@ class PaperBenchmarkTest(unittest.TestCase):
 
     def test_invalid_workload_and_nonpaper_target_reject_option(self):
         self.invoke("--scene", "20_objects", "--workload", "invalid", success=False)
+        self.invoke("--scene", "20_objects", "--fidelity", "invalid", success=False)
+        self.invoke("--scene", "20_objects", "--fidelity", success=False)
         self.invoke("--scene", "20_objects", "--orientation-mode", "random_yaw_pitch", success=False)
         self.invoke("--scene", "20_objects", "--workload", "render_only",
+                    target="rendering_raytracing_sim_benchmark_medium", success=False)
+        self.invoke("--scene", "20_objects", "--fidelity", "low",
                     target="rendering_raytracing_sim_benchmark_medium", success=False)
 
     @unittest.skipIf(arguments.backend == "optix", "OptiX supports the CUDA physics workloads")
@@ -145,18 +159,18 @@ class PaperBenchmarkTest(unittest.TestCase):
 
     @unittest.skipUnless(arguments.backend == "optix", "requires CUDA physics and OptiX")
     def test_physics_static_keeps_the_rendered_cameras_unchanged(self):
-        rows = self.invoke("--scene", "20_objects", "--workload", "all")
-        self.assertEqual(len(rows), 6)
-        indexed = {(row["workload"], row["output"]): row for row in rows}
-        for output in ("rgb", "depth"):
-            reference = indexed[("render_only", output)]
-            static = indexed[("render_physics_static", output)]
-            self.assertEqual(Path(reference["verification_png"]).read_bytes(),
-                             Path(static["verification_png"]).read_bytes())
-            self.assertIn(("render_physics_coupled", output), indexed)
-            coupled = indexed[("render_physics_coupled", output)]
-            self.assertNotEqual(Path(reference["verification_png"]).read_bytes(),
-                                Path(coupled["verification_png"]).read_bytes())
+        rows = self.invoke("--scene", "20_objects", "--workload", "all", profile="all")
+        self.assertEqual(len(rows), 18)
+        indexed = {(row["shading_profile"], row["workload"], row["output"]): row for row in rows}
+        for profile in ("low", "medium", "high"):
+            for output in ("rgb", "depth"):
+                reference = indexed[(profile, "render_only", output)]
+                static = indexed[(profile, "render_physics_static", output)]
+                self.assertEqual(Path(reference["verification_png"]).read_bytes(),
+                                 Path(static["verification_png"]).read_bytes())
+                coupled = indexed[(profile, "render_physics_coupled", output)]
+                self.assertNotEqual(Path(reference["verification_png"]).read_bytes(),
+                                    Path(coupled["verification_png"]).read_bytes())
 
     @unittest.skipUnless(arguments.with_procthor, "requires the pinned May ProcTHOR asset")
     def test_default_scenes_and_outputs_use_the_may_asset(self):
@@ -165,6 +179,12 @@ class PaperBenchmarkTest(unittest.TestCase):
             (scene, output) for scene in ("20_objects", "procthor") for output in ("rgb", "depth")
         })
         self.assertEqual(len(rows), 4)
+        combined = self.invoke("--workload", "render_only", profile="all")
+        self.assertEqual(len(combined), 12)
+        self.assertEqual({(row["shading_profile"], row["scene"], row["output"]) for row in combined}, {
+            (profile, scene, output) for profile in ("low", "medium", "high")
+            for scene in ("20_objects", "procthor") for output in ("rgb", "depth")
+        })
 
     @unittest.skipUnless(arguments.with_procthor, "requires the pinned May ProcTHOR asset")
     def test_valid_but_unpinned_scene_is_rejected(self):
