@@ -3,6 +3,7 @@ const ENTRY_POINTS = [
     "https://raw.githubusercontent.com/rl-tools/conta-index/main/version/1/meta.json",
     "https://huggingface.co/datasets/rl-tools/conta-index/resolve/main/version/1/meta.json",
 ];
+const CACHE_NAME = "hyperdrone-conta-gzip-v1";
 
 async function verify(bytes, algorithm, expected){
     const digest = await crypto.subtle.digest(algorithm, bytes);
@@ -54,6 +55,48 @@ export class Conta {
         }
         const failures = [];
         const attempted = new Set();
+        const cache_key = new URL(`${sha1}.gz`, this.overlay);
+        const read = async (result, compressed, expected_sha256, phase) => {
+            const total = Number(result.headers.get("Content-Length"));
+            let received = 0;
+            on_progress({phase, received, total});
+            let stream = result.body.pipeThrough(new TransformStream({
+                transform(chunk, controller){
+                    received += chunk.byteLength;
+                    on_progress({phase, received, total});
+                    controller.enqueue(chunk);
+                },
+            }));
+            if(compressed){
+                stream = stream.pipeThrough(new DecompressionStream("gzip"));
+            }
+            const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+            on_progress({phase: "verify", received, total});
+            await verify(bytes, "SHA-1", sha1);
+            if(expected_sha256){
+                await verify(bytes, "SHA-256", expected_sha256);
+            }
+            return bytes;
+        };
+        let cache;
+        try{
+            cache = await globalThis.caches?.open(CACHE_NAME);
+        }
+        catch(error){
+            console.warn("Conta cache unavailable:", error);
+        }
+        if(cache){
+            try{
+                const cached = await cache.match(cache_key);
+                if(cached){
+                    return await read(cached, true, sha256 || cached.headers.get("X-Conta-SHA256"), "cache");
+                }
+            }
+            catch(error){
+                failures.push(`Cache ${sha1}: ${error.message}`);
+                await cache.delete(cache_key).catch(() => {});
+            }
+        }
         const download = async (url, compressed, expected_sha256) => {
             const key = String(url);
             if(attempted.has(key)){
@@ -63,23 +106,23 @@ export class Conta {
             try{
                 on_progress({phase: "download", received: 0, total: 0});
                 const result = await response(url);
-                const total = Number(result.headers.get("Content-Length"));
-                let received = 0;
-                let stream = result.body.pipeThrough(new TransformStream({
-                    transform(chunk, controller){
-                        received += chunk.byteLength;
-                        on_progress({phase: "download", received, total});
-                        controller.enqueue(chunk);
-                    },
-                }));
-                if(compressed){
-                    stream = stream.pipeThrough(new DecompressionStream("gzip"));
-                }
-                const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
-                on_progress({phase: "verify", received, total});
-                await verify(bytes, "SHA-1", sha1);
-                if(expected_sha256){
-                    await verify(bytes, "SHA-256", expected_sha256);
+                const gzip_copy = compressed && cache ? result.clone() : null;
+                const bytes = await read(result, compressed, expected_sha256, "download");
+                if(cache){
+                    try{
+                        const body = gzip_copy ? gzip_copy.body : new Blob([bytes]).stream().pipeThrough(new CompressionStream("gzip"));
+                        const headers = new Headers({"Content-Type": "application/gzip"});
+                        if(expected_sha256){
+                            headers.set("X-Conta-SHA256", expected_sha256);
+                        }
+                        if(gzip_copy?.headers.has("Content-Length")){
+                            headers.set("Content-Length", gzip_copy.headers.get("Content-Length"));
+                        }
+                        await cache.put(cache_key, new Response(body, {headers}));
+                    }
+                    catch(error){
+                        console.warn(`Could not cache conta:${sha1}:`, error);
+                    }
                 }
                 return bytes;
             }
@@ -88,7 +131,7 @@ export class Conta {
                 return null;
             }
         };
-        const local = await download(new URL(`${sha1}.gz`, this.overlay), true, sha256);
+        const local = await download(cache_key, true, sha256);
         if(local !== null){
             return local;
         }
